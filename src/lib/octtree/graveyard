@@ -1,0 +1,21 @@
+        /// Having a default layout obviates the need for passing the
+        /// layout around everywhere or having it as a global variable
+        /// (though that is essentially what a static class member
+        /// is).  A centralized default also ensures that we are using
+        /// the same layout for everything.  Instances can override
+        /// the layout which is essential for redistributing data and
+        /// more general parallel execution models that might involve
+        /// using multiple communicators.
+        static inline OctTreeT* get_default() {
+            return _octtree_default;
+        };
+
+        /// Set the default layout used for new trees
+
+        static shared_ptr<OctTreeT> _octree_default;  ///< Default layout for new trees 
+
+        /// Set the default 
+        static inline void set_default(OctTreeT* layout) {
+	    _octtree_default = layout;
+        };
+        

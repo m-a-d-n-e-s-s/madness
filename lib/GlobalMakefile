@@ -1,0 +1,32 @@
+
+ifndef QUOTE
+  QUOTE=sed 's/ /\\ /g'
+endif
+PWD = $(shell pwd | $(QUOTE))
+
+# this is usually overridden
+TARGET_TO_MAKE = $(shell basename $(PWD))
+
+ifndef SRCDIR
+  SRCDIR = .
+endif
+
+# this vpath works with listlibs to find the libraries
+vpath %.a $(TOPDIR)/lib
+vpath %.so $(TOPDIR)/lib
+vpath %.la $(TOPDIR)/lib
+
+# SRCTOPDIR is the top of the source directory
+SRCTOPDIR = $(shell $(PERL) $(SRCDIR)/$(TOPDIR)/bin/rmdotdot $(SRCDIR)/$(TOPDIR) | $(QUOTE))
+
+# LIBDIR is the full path to where the libraries are
+LIBDIR = $(shell $(PERL) $(SRCTOPDIR)/bin/rmdotdot $PWD/$(TOPDIR)/lib)
+
+# SRCLIBDIR is the full path to the lib subdirectory of the source dir
+SRCLIBDIR = $(SRCTOPDIR)/lib/
+
+# THISDIR is the name of the current directory relative to TOPDIR/src/lib/
+THISDIR = $(subst $(shell cd $(TOPDIR); pwd | $(QUOTE))/src/lib/,,$PWD)
+
+-include $(TOPDIR)/lib/MakeVars
+

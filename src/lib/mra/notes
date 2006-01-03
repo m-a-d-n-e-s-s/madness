@@ -1,0 +1,11 @@
+How do we want to use the coefficients?
+
+Assume null ptr means no data and 
+non-null indicates data is constructed ?
+
+apply_leaf(octtree* s):
+   if (Tensor<T>* ptr = s->get<T>(ind)) {
+      op(ptr);
+   }
+   else {
+      foreach_local_child(

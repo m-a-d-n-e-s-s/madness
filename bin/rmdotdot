@@ -1,0 +1,20 @@
+#
+eval 'exec perl $0 $*'
+    if 0;
+
+$path = shift;
+$newpath = rmdd($path);
+
+while ($path ne $newpath) {
+    $path = $newpath;
+    $newpath = rmdd($path);
+}
+
+print $newpath;
+
+sub rmdd {
+    my $path = shift;
+    $path =~ s/\/[^\/.]*\/\.\.//;
+    return $path;
+}
+
