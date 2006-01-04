@@ -5,8 +5,6 @@
 namespace madness {
   namespace archive {
 
-    char *archive_type_names[256];
-
     template <typename T> const unsigned char archive_typeinfo<T>::cookie;
     
 

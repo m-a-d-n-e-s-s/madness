@@ -4,6 +4,9 @@
 /// \file archive.h
 /// \brief Interface templates for the archives (serialization)
 
+/// THIS DOCUMENATION IS NOW WRONG!!!! IT REFERS TO THE PREVIOUS IMPLMENTATION!
+/// HAVE A LOOK AT test.cc UNTIL NEW DOCUMENATION IS WRITTEN.
+///
 /// The user should not need to include this file directly.  Instead,
 /// include the header file for the actual archive (binary file, text/xml
 /// file, vector in memory, ...) that you want to use.
@@ -275,7 +278,9 @@ namespace madness {
       // There are 64 empty slots for user types.  Free space for
       // registering user types begins at cookie=128.
         
-#ifndef MAD_ARCHIVE_TYPE_NAMES_CC
+#ifdef MAD_ARCHIVE_TYPE_NAMES_CC
+        char *archive_type_names[256];
+#else
         extern char *archive_type_names[256];
 #endif
         void archive_initialize_type_names();
@@ -285,7 +290,7 @@ namespace madness {
             static const unsigned char cookie = 255;
         };
         
-#ifdef ARCHIVE_REGISTER_TYPE_INSTANTIATE_HERE
+#if defined(ARCHIVE_REGISTER_TYPE_INSTANTIATE_HERE) && defined(ARCHIVE_REGISTER_TYPE_IBMBUG)
 #define ARCHIVE_REGISTER_TYPE_XLC_EXTRA(T) \
         ; const unsigned char archive_typeinfo< T >::cookie
 #else
