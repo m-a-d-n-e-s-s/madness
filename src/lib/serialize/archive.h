@@ -4,9 +4,6 @@
 /// \file archive.h
 /// \brief Interface templates for the archives (serialization)
 
-/// THIS DOCUMENATION IS NOW WRONG!!!! IT REFERS TO THE PREVIOUS IMPLMENTATION!
-/// HAVE A LOOK AT test.cc UNTIL NEW DOCUMENATION IS WRITTEN.
-///
 /// The user should not need to include this file directly.  Instead,
 /// include the header file for the actual archive (binary file, text/xml
 /// file, vector in memory, ...) that you want to use.
@@ -85,7 +82,30 @@
 ///    - intrusive
 ///    - non-intrusive
 /// - non-symmetric load and store
-/// We examine each in turn.
+/// We will examine each in turn, but we first need to discuss a little
+/// about the implementation.
+///
+/// When transfering an object \c obj to/from an archive \c ar with \c ar&obj,
+/// you are invoking the templated function 
+/// \code
+/// template <class Archive, class T>
+/// inline Archive& operator&(Archive& ar, T& obj);
+/// \endcode
+/// which then invokes other templated functions to redirect to input
+/// or output streams as appropriate, manage type checking, etc..
+/// What we'd now like to do is essentially overload the behaviour of
+/// some of these functions in order accomodate your fancy object.
+/// However, function templates are tricky buggers when it comes to
+/// overloading.  Rather than do this (or more precisely we did and
+/// got burnt), we are adopting the technique recommend in
+/// http://www.gotw.ca/publications/mill17.htm (look for moral#2).
+/// Each of the templated functions directly calls a member of a
+/// templated class.  Classes, unlike functions, can be partially
+/// specialized so it is easy to control and predict what is
+/// happening.  Thus, in order to change the behaviour of all archives
+/// for an object you just have to provide a partial specialization of
+/// the appropriate class(es).  Do \em not overload any of the
+/// function templates.
 ///
 /// Many classes can use the same code for serializing and
 /// deserializing.  If such a class can be modified, the cleanest way
@@ -102,22 +122,49 @@
 /// \endcode
 /// 
 /// If a class with symmetric serialization cannot be modified, then
-/// you can define an external function template to accomplish the
-/// same.  E.g.,
+/// you can define an external class template with this signature in
+/// the \c madness::archive namespace (where \c Obj is the name of
+/// your type).
 /// \code
+/// template <class Archive>
+/// struct ArchiveSerializeImpl<Archive,Obj> {
+///       static inline void serialize(Archive& ar, Obj& obj);
+/// };
+/// \endcode
+///
+/// For example,
 /// class B {
 /// public:
 ///     bool b;
 ///     B(bool b = false) : b(b) {};
 /// };
 ///
-/// template <class Archive>
-/// inline void serialize(Archive& ar, B& b) {ar & b.b;}
+/// namespace madness {
+///     namespace archive {/
+///         template <class Archive>
+///         struct ArchiveSerializeImpl<Archive,B> {
+///             static inline void serialize(Archive& ar, B& b) {ar & b.b;};
+///         };
+//     }
+/// }
 /// \endcode
 ///
-/// Some classes do not have symmetric (de)serialization and require
-/// separate load and store operations.  For these you must define
-/// external function templates \c load() and \c store as follows.
+/// For classes that do not have symmetric (de)serialization you must
+/// define separate partial templates for load and store,
+/// respectively, with these signatures and again in the \c
+/// madness::archive namespace.
+/// \code
+/// template <class Archive> 
+/// struct ArchiveLoadImpl<Archive,Obj> {
+///     static inline void load(Archive& ar, Obj& obj);
+/// };
+/// 
+/// template <class Archive> 
+/// struct ArchiveStoreImpl<Archive,Obj> {
+///     static inline void store(Archive& ar, Obj& obj);
+/// };
+/// \endcode
+///
 /// First a simple, but artificial example.
 /// \code
 /// class C {
@@ -134,7 +181,7 @@
 /// \endcode
 ///
 /// Now a more complicated example that genuinely requires asymmetric
-/// load and store.
+/// load and store.  First, a class definition for a simple linked list.
 /// \code
 /// class linked_list {
 ///   int value;
@@ -153,31 +200,41 @@
 /// 
 ///   linked_list* get_next() const {return next;};
 /// };
-/// 
-/// template <class Archive>
-/// inline void store(Archive& ar, const linked_list& c) {
-///   ar & c.get_value() & bool(c.get_next());
-///   if (c.get_next()) ar & *c.get_next();
-/// }
-/// 
-/// template <class Archive>
-/// inline void load(Archive& ar, linked_list& c) {
-///   int value;  bool flag;
-///   ar & value & flag;
-///   c.set_value(value);
-///   if (flag) {
-///     c.append(0);
-///     ar & *c.get_next();
-///   }
+/// \endcode
+/// And this is how you (de)serialize it.
+/// \code
+/// namespace madness {
+///     namespace archive {
+///         template <class Archive>
+///         struct ArchiveStoreImpl<Archive,linked_list> {
+///             static void store(Archive& ar, const linked_list& c) {
+///                 ar & c.get_value() & bool(c.get_next());
+///                 if (c.get_next()) ar & *c.get_next();
+///             };
+///         };
+///         
+///         template <class Archive>
+///         struct ArchiveLoadImpl<Archive,linked_list> {
+///             static void load(Archive& ar, linked_list& c) {
+///                 int value;  bool flag;
+///                 ar & value & flag;
+///                 c.set_value(value);
+///                 if (flag) {
+///                     c.append(0);
+///                     ar & *c.get_next();
+///                 }
+///             };
+///         };
+///     }
 /// }
 /// \endcode
 ///
-/// Given the above implementation of a linked list, we can 
+/// Given the above implementation of a linked list, you can 
 /// (de)serialize an entire list using a single statement.
 /// \code
 /// linked_list list(0);
-/// for (int i=1; i<=10; i++) list.append(i);  // initialize list
-/// BinaryFstreamOutputArchive ar('list.dat');
+/// for (int i=1; i<=10; i++) list.append(i);
+/// BinaryFstreamOutputArchive ar('list.dat'); 
 /// ar & list;
 /// \endcode;
 ///
@@ -222,33 +279,7 @@
 /// };
 /// \endcode
 ///
-/// Implementation notes.  The template "call" tree is something like this.
-/// \verbatim
-///                   ar & t
-///                      |
-///                   ar << t
-///                      |
-///                   pre-cookie(ar,t)
-///                   store(ar,t)
-///                      |
-///       yes-------overridden?--no
-///        |                     |
-///       user           yes--fundamental?--no                   
-///      defined         |                   |
-///      non-sym    ar.store(ar,ptr,n)   serialize(ar,t)
-///       store          |                   |
-///        |             |                   |
-///        |             |         yes---overridden?--no
-///        |             |          |                 |
-///        |             |        user                |
-///        |             |       defined        t.serialize(ar)
-///        |             |      sym store             |
-///        |             |          |                 |
-///        |             |          -------------------
-///        |             |                   |
-///        -----------------------------------
-///                      |
-///                  post-cookie(ar,t)
+/// Implementation notes ... to be updated.
 /// \endverbatim
 
 #include <iostream>
