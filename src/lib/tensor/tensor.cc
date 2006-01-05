@@ -5,28 +5,27 @@
 
 #ifdef _CRAY
 // Cray won't instantiate static function templates (mxm*)
-#define STATIC 
-#elif defined(IBMXLC)
-// Compiler will only use fully resolved static names?
-#define STATIC 
+#  define STATIC 
 #else
-#define STATIC static
-//#define STATIC 
+#  define STATIC static
+#endif
+
+#if !HAVE_UNQUALIFIED_STATIC_DECL
+#  ifdef STATIC
+#    undef STATIC
+#  endif
+#  define STATIC 
 #endif
 
 //#include <cstdio>
 //#include <cstdlib>
 #include <algorithm>
-
 #include <complex>
-
 #include <cmath>
-
 #include <iostream>
 
-#include "tensor.h"
-
-#include "mtrand.h"
+#include <tensor/tensor.h>
+#include <tensor/mtrand.h>
 
 namespace madness {
 

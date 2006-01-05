@@ -448,10 +448,10 @@ namespace madness {
         const Tensor<double>& quad_x = data->cdata->quad_x;
 #ifdef IBMXLC
         if (npt > 35) throw("hard dimension failure");
-        double x[35*35*35], y[35*35*35], z[35*35*35];
-#else
-        double x[npt*npt*npt], y[npt*npt*npt], z[npt*npt*npt];
 #endif
+        double* x = new double[npt*npt*npt];
+        double* y = new double[npt*npt*npt];
+        double* z = new double[npt*npt*npt];
         
         int count = 0;
         for (int i=0; i<npt; i++) {
@@ -469,6 +469,8 @@ namespace madness {
         }
         
         vf(npt*npt*npt, x, y, z, fcube.ptr());
+
+        delete[] x; delete[] y; delete[] z;
     }
 
     template <typename T>

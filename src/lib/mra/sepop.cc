@@ -47,7 +47,7 @@ GaussianConvolution::GaussianConvolution(int k, double coeff, double expnt) {
 /// beta = alpha * 2^(-2*n) 
 /// \endcode
 Tensor<double> GaussianConvolution::rnlp(long n, long l) {
-    int twok = 2*k;
+    const int twok = 2*k;
     Tensor<double> v(twok);       // Can optimize this away by passing in
     
     long lkeep = l;
@@ -92,22 +92,19 @@ Tensor<double> GaussianConvolution::rnlp(long n, long l) {
     // beta*xlo*xlo is already greater than argmax we can neglect this
     // and subsequent boxes
     double argmax = fabs(log(1e-22/fabs(scaledcoeff*h)));
-    
+
+    double* phix = new double[twok];    
     for (long box=0; box<nbox; box++) {
         double xlo = box*h + l;
         if (beta*xlo*xlo > argmax) break;
         for (long i=0; i<npt; i++) {
-#ifdef IBMXLC
-            double phix[70];
-#else
-            double phix[twok];
-#endif
             double xx = xlo + h*quad_x(i);
             double ee = scaledcoeff*exp(-beta*xx*xx)*quad_w(i)*h;
             legendre_scaling_functions(xx-l,twok,phix);
             for (long p=0; p<twok; p++) v(p) += ee*phix[p];
         }
     }
+    delete[] phix;
     
     if (lkeep < 0) {
         /* phi[p](1-z) = (-1)^p phi[p](z) */

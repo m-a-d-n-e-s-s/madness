@@ -1,5 +1,5 @@
 dnl
-dnl   
+dnl   configure script for MADNESS package
 dnl
 dnl   liberally borrowed from MPQC, etc.
 dnl 
@@ -226,7 +226,7 @@ if test X$DOT_PATH = Xno; then
   HAVE_DOT=NO
 else
   AC_PATH_PROG(DOT,dot,,$DOT_PATH:$PATH:/usr/local/bin)
-  DOT_PATH=AS_DIRNAME(["$DOT"])
+  DOT_PATH=`AS_DIRNAME(["$DOT"])`
   if test X$DOT_PATH = X; then
     HAVE_DOT=NO
   else
@@ -311,7 +311,7 @@ AC_MSG_RESULT([yes])
 );
 fi
 
-dnl -- other options --
+dnl ------------ check compiler peculiarities -------------
 
 AC_MSG_CHECKING([GNU c++ library/template flags])
 if test X$GXX = Xyes; then
@@ -327,6 +327,84 @@ else
       ;;
     esac
 fi
+
+dnl -- if unqualified static declarations are considered -- 
+dnl -- XL C++ version 6 does not --
+AC_MSG_CHECKING([if unqualified static declarations are considered])
+AC_COMPILE_IFELSE(
+  [AC_LANG_PROGRAM(
+    [[template <typename T>
+      static inline void f(T* a) {};
+      template <typename T> void g(T* a) { f(a); }
+      template void g(int* a);]],
+    [[]])],
+  [AC_DEFINE(HAVE_UNQUALIFIED_STATIC_DECL) AC_MSG_RESULT([yes])],
+  [AC_MSG_RESULT([no])]
+)
+
+dnl -- IBM XL C++ version 6 is severely broken with regard to nested
+dnl -- template processing. This example breaks the compiler.
+AC_MSG_CHECKING([for nested template xlC bug])
+AC_COMPILE_IFELSE(
+  [AC_LANG_PROGRAM(
+    [[template <typename T> struct Traits {
+        enum {FeatureSupported = false};
+      };
+      template <> struct Traits<int> {
+        enum {FeatureSupported = true};
+      };
+      // TypeSelector by default returns double, unless Tr supports Feature
+      template <typename Tr, typename T, bool supp = Tr::FeatureSupported>
+        struct TypeSelector {
+          typedef double result;
+        };
+      template <typename Tr, typename T>
+        struct TypeSelector<Tr,T,true> {
+          typedef T result;
+        };
+
+      template <typename T> typename TypeSelector<Traits<T>,double>::result f(T a) {
+        return a;
+      }
+      // Including this overload changes error completely!
+      double f(int a);
+      void g() {
+        double x = f<int>(1);
+      }
+    ]],
+    [[]])],
+  [AC_MSG_RESULT([no])],
+  [AC_DEFINE(HAVE_NESTED_TEMPLATE_XLC_BUG) AC_MSG_RESULT([yes])]
+)
+
+dnl -- Check if template function instantiation can be used as a class template argument
+dnl -- IBM XL C++ version 6 doesn't support this
+AC_MSG_CHECKING([if template function instantiation can be used for template argument deduction])
+AC_COMPILE_IFELSE(
+  [AC_LANG_PROGRAM(
+    [[template <typename T, class Op>
+        void SuperOp(T* data, const Op op) {
+          op(data);
+        }
+
+      template <typename T>
+        void zero(T* data) {
+          data[0] = 0;
+        }
+      void dzero(double* data) { data[0] = 0; }
+
+      void f() {
+        double* data = new double[1];
+        SuperOp(data,dzero);              // OK
+        SuperOp(data,zero<double>);       // Fails?
+      }
+    ]],
+    [[]])],
+  [AC_DEFINE(HAVE_TFI_FOR_TEMPLATE_ARGUMENT_DEDUCTION) AC_MSG_RESULT([yes])],
+  [AC_MSG_RESULT([no])]
+)
+
+
 
 if test $DEBUG = yes; then
   CXXFLAGS="$CXXOPTIONS_DBG $CXXOPTIONS_MISC"
@@ -363,11 +441,32 @@ AC_TYPE_SIZE_T
 AC_C_RESTRICT
 EXTRADEFINES="$EXTRADEFINES -DRESTRICT=restrict"
 
+dnl ---------- Checks for C++/C library functions -----------
+
+dnl -- check for std::abs(long) --
+AC_MSG_CHECKING([std::abs(long)])
+AC_LINK_IFELSE([AC_LANG_PROGRAM([[#include <cmath>
+                                  #include <cstdlib>]],
+                                [[long (*absptr)(long) = &std::abs; long a = -1l;  long b = std::abs(a);]])],
+               [AC_DEFINE(HAVE_STD_ABS_LONG) have_abs_long=yes],
+               [have_abs_long=no])
+AC_MSG_RESULT([$have_abs_long])
+
+dnl -- alternatively, check for std::labs(long) --
+if test X"$have_abs_long" = Xno; then
+  AC_MSG_CHECKING([std::labs(long)])
+  AC_LINK_IFELSE([AC_LANG_PROGRAM([[#include <cmath>
+                                    #include <cstdlib>]],
+                                  [[long (*labsptr)(long) = &std::labs; long a = -1l;  long b = labs(a);]])],
+                 [AC_DEFINE(HAVE_LABS) have_std_labs=yes],
+                 [have_std_labs=no])
+  AC_MSG_RESULT([$have_std_labs])
+fi
 
 dnl ---------- Checks for Boost library. -----------
 
 AC_CHECK_HEADERS(boost/shared_array.hpp)
-AC_MSG_CHECKING([if boost::shared_array<double> is useable])
+AC_MSG_CHECKING([if boost::shared_array<double> is usable])
 AC_LINK_IFELSE([AC_LANG_PROGRAM(
 [[#include <boost/shared_array.hpp>]],
 [[boost::shared_array<double> x(new double[1]); boost::shared_array<double> y(x);]])],
@@ -621,12 +720,13 @@ AC_SUBST(TMPLINLIB)
 dnl -------------------------------------------------
 dnl --------- Shared library configuration. ---------
 dnl -------------------------------------------------
-enablelibtool=yes
+enablelibtool=no
 AC_ARG_ENABLE(libtool,
-[  --disable-libtool       Do not use libtool.],
+[[  --enable-libtool        Use libtool [default=no] ]],
 [
 case $enableval in
   yes)
+    enablelibtool=yes
   ;;
   no)
     enablelibtool=no

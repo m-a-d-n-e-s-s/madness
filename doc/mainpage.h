@@ -14,8 +14,8 @@
 <li> GNU make
 <li> Perl (version 5 or higher)
 <li> BLAS and LAPACK libraries
-<li> (optional) Doxygen package to produce web-based documentation
-<li> (optional) LaTeX to profuce printable reference manual
+<li> (optional) Doxygen to produce web-based documentation
+<li> (optional) LaTeX to produce printable reference manual
 </ul>
 
 \subsection inst Configuration and Installation
@@ -26,28 +26,36 @@ is tested less often.
 MADNESS package can be installed by following these steps (starting from the top
 source directory):
 <ol>
-<li> Create configure: "aclocal -I lib/autoconf; autoconf"
+<li> Create configure: <tt>aclocal -I lib/autoconf; autoconf</tt>
 <li> If compiling in separate object directory, enter that directory, else skip this step
-<li> Configure package: "configure <opts>", where <opts> are various
+<li> Configure package: <tt>configure <opts></tt>, where <tt><opts></tt> are various
 configure command-line options (see below)
-<li> Build package: "make"
-<li> Build and run tests: "make testbuild; make testrun"
-<li> (optional) make documentation: "cd doc; make"
-<li> Install binary files and dependencies: "make install"
-<li> Install libraries and header files: "make install_devel"
-<li> (optional) Return package to its initial state: "make distclean"
+<li> Build package: <tt>make</tt> (or <tt>gmake</tt> on some systems)
+<li> Build and run tests: <tt>make testbuild; make testrun</tt>
+<li> (optional) make documentation: <tt>cd doc; make</tt>
+<li> Install binary files and dependencies: <tt>make install</tt>
+<li> Install libraries and header files: <tt>make install_devel</tt>
+<li> (optional) Return package to its initial state: <tt>make distclean</tt>
 </ol>
-Configure script can take many command-line options, which can be optained by "configure --help".
+Configure script can take many command-line options, which can be optained by <tt>configure --help</tt>.
 
 \subsection configopts Common configure problems and solutions
 
 <ul>
 
 <li> Most installations will require that the following command-line arguments
-given to configure: \verb --with-cxx  --with-libdirs \endverb
+given to configure: <tt>--with-cxx --with-cxx-optflags --with-cppflags --with-libdirs 
+--with-libs --with-f77symbol</tt>.
 
-<li> Shared library complication may require that linker is given to configure explicitly
-via "--with-ld" option. In any case, C++ compiler is always used to link executables.
+<li> When you use configure options <tt>--with-blas</tt> and <tt>--with-lapack</tt>,
+the given BLAS and LAPACK libraries are not tested for usability. It is thus recommended
+to use <tt>--with-libs</tt> and <tt>--with-libdirs</tt> options to specify location of
+BLAS and LAPACK libraries.
+
+<li> By default MADNESS builds static libraries. If you would like to build shared libraries,
+you must enable libtool as well: <tt>--enable-libtool --enable-shared</tt>.
+Shared library build may also require that linker is given to configure explicitly
+via <tt>--with-ld</tt> option. In any case, C++ compiler is always used to link executables.
 
 </ul>
 

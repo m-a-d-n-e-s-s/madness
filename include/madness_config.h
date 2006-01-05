@@ -24,14 +24,29 @@
 /* have stdint.h ? */
 #define HAVE_STDINT_H 1
 
+/* is "restrict" keyword supported ? */
+#define restrict __restrict
+
+/* are unqualified static declarations considered? */
+#define HAVE_UNQUALIFIED_STATIC_DECL 1
+
+/* have nested template XLC bug? */
+/* #undef HAVE_NESTED_TEMPLATE_XLC_BUG */
+
+/* template function instantiation can be used for template argument deduction? */
+#define HAVE_TFI_FOR_TEMPLATE_ARGUMENT_DEDUCTION 1
+
+/* have std::abs(long) ? */
+#define HAVE_STD_ABS_LONG 1
+
+/* have std::labs? */
+/* #undef HAVE_STD_LABS */
+
 /* have boost/shared_array.hpp ? */
 /* #undef HAVE_BOOST_SHARED_ARRAY_HPP */
 
 /* can boost::shared_array<> be compiled and link? */
 /* #undef HAVE_BOOST_SHARED_ARRAY_COMPILED */
-
-/* is "restrict" keyword supported ? */
-#define restrict __restrict
 
 /* have MPI library header? */
 /* #undef HAVE_MPI_H */

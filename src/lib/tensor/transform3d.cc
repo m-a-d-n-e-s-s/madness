@@ -1,5 +1,13 @@
 #include <iostream>
-#include "tensor.h"
+#include <tensor/tensor.h>
+
+namespace {
+  template <typename T>
+    inline T** create_2d_array(unsigned int d1, unsigned int d2);
+  template <typename T>
+    inline void delete_2d_array(T** A);
+}
+
 
 namespace madness {
     
@@ -33,10 +41,8 @@ namespace madness {
         Tensor<T> result = Tensor<T>(d0,d0,d0);
 #ifdef IBMXLC
         TENSOR_ASSERT(c.dim[0] < 36,"hard dimension failure",c.dim[0],&c);
-        T tmp [35*35*35];
-#else
-        T tmp [d0_cubed];
 #endif
+        T* tmp = new T[d0_cubed];
         
         T* RESTRICT r_p = result.ptr();
         T* RESTRICT t_p = t.ptr();
@@ -60,6 +66,7 @@ namespace madness {
         // result gets "result"
         mTxm(d0_squared, d0, d0, r_p, tmp_p, c_p);
         
+        delete[] tmp;
         return result;
     }
     
@@ -76,8 +83,12 @@ namespace madness {
                  TENSOR_EXCEPTION("transform3d:double_complex*double",0,&t);
         
         Tensor<double_complex> result = Tensor<double_complex>(c.dim[1],c.dim[1],c.dim[1]);
+#if 0
         double_complex v_jpkpi[c.dim[0]][c.dim[0]];
         double_complex v_kpij[c.dim[0]];
+#endif
+        double_complex** v_jpkpi = ::create_2d_array<double_complex>(c.dim[0],c.dim[0]);
+        double_complex* v_kpij = new double_complex[c.dim[0]];
         double_complex v_ijk;
         long c_d0 = c.dim[0];
         long c_d1 = c.dim[1];
@@ -116,6 +127,9 @@ namespace madness {
                             }
                     }
             }
+        
+        delete[] v_kpij;
+        ::delete_2d_array(v_jpkpi);
         return result;
     }
 
@@ -222,10 +236,8 @@ namespace madness {
         Tensor<T> result = Tensor<T>(d0,d0,d0);
 #ifdef IBMXLC
         TENSOR_ASSERT(c0.dim[0] < 36,"hard dimension failure",c0.dim[0],&c0);
-        T tmp [35*35*35];
-#else
-        T tmp [d0_cubed];
 #endif
+        T* tmp = new T[d0_cubed];
         
         T* RESTRICT r_p = result.ptr();
         T* RESTRICT t_p = t.ptr();
@@ -251,6 +263,7 @@ namespace madness {
         // result gets "result"
         mTxm(d0_squared, d0, d0, r_p, tmp_p, c2_p);
         
+        delete[] tmp;
         return result;
     }
     
@@ -264,3 +277,23 @@ namespace madness {
     
     
 }
+
+namespace {
+ 
+  template <typename T>
+    inline T** create_2d_array(unsigned int d1, unsigned int d2) {
+      if (d1 == 0 || d2 == 0) return 0;
+      T** result = new T*[d1];
+      result[0] = new T[d1*d2];
+      for(unsigned int i=1; i<d1; i++) result[i] = result[i-1] + d2;
+
+      return result;
+    }
+
+  template <typename T>
+    inline void delete_2d_array(T** A) {
+      delete[] A[0];
+      delete[] A;
+    }
+}
+

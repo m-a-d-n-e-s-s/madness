@@ -9,6 +9,8 @@
 
 #include <complex>
 #include <vector>
+#include <cmath>
+#include <cstdlib>
 
 #include <madness_config.h>
 #include <misc/shared_ptr.h>
@@ -25,10 +27,15 @@
 #include <tensor/tensoriter.h>
 #include <tensor/tensorexcept.h>
     
-#ifdef IBMXLC
-namespace std {
-  static inline abs(long a) {return a>=0 ? a : -a;}
-}
+#if !HAVE_STD_ABS_LONG
+  #if !HAVE_STD_LABS
+    namespace std {
+      static inline long abs(long a) {return a>=0 ? a : -a;}
+    }
+  #else
+    namespace std {
+      static inline long abs(long a) { return std::labs(a); }
+  #endif
 #endif
 
 namespace madness {
@@ -270,7 +277,7 @@ namespace madness {
         /// Subtract one tensor from another of the same type to produce a new tensor 
         Tensor<T> operator-(const Tensor<T>& t) const;
         
-#ifdef IBMXLC
+#if HAVE_NESTED_TEMPLATE_XLC_BUG
         // IBM xlC 6.? does not digest the ISSUPORTED template
 
         /// Scale tensor by a scalar of other type (IBM XLC only).
@@ -287,7 +294,7 @@ namespace madness {
             return result;
         }
 
-        /// Inplace multiply by scalar of other type (IBMXLC only).
+        /// Inplace multiply by scalar of other type (IBM XLC only).
         template <typename Q> Tensor<T>& operator*=(const Q& t) {
             UNARY_OPTIMIZED_ITERATOR(T,(*this), *_p0 *= t);
             return *this;
@@ -614,7 +621,7 @@ namespace madness {
     template <class T>
     std::ostream& operator << (std::ostream& out, const Tensor<T>& t);
     
-#ifdef IBMXLC
+#if HAVE_NESTED_TEMPLATE_XLC_BUG
     /// The class defines tensor op scalar ... here define scalar op tensor.
     template <typename T, typename Q> 
     inline Tensor<T> operator+(Q x, const Tensor<T>& t) {

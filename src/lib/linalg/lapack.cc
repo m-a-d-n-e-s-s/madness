@@ -18,13 +18,13 @@ using madness::Tensor;
 #include <linalg/tensor_lapack.h>
 #include <linalg/clapack.h>
 
-// Do not seem able to put these into namespace without confusing 
-// type overloading ? 
-#ifdef IBMXLC
-// Compiler will only use fully resolved static symbols
-#define STATIC 
-#else
 #define STATIC static
+
+#if !HAVE_UNQUALIFIED_STATIC_DECL
+#  ifdef STATIC
+#    undef STATIC
+#  endif
+#  define STATIC
 #endif
 
 /// These oddly-named wrappers enable the generic svd iterface to get
