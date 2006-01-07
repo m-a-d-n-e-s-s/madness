@@ -59,8 +59,8 @@ endif
 CXXDEPENDSUF = none
 CXXDEPENDFLAGS = -M
 
-CXX = g++
-CXXDEPEND = g++
+CXX = mpicxx
+CXXDEPEND = mpicxx
 
 AR = ar
 ARFLAGS = r
@@ -98,16 +98,16 @@ DEFINES = -DHAVE_CONFIG_H  -D_ISOC99_SOURCE=1 -DRESTRICT=restrict
 
 CPPFLAGS = $(DEFINES) $(INCLUDE)
 
-CXXFLAGS = -O2 
+CXXFLAGS = -Wall -ggdb -march=pentium4 -mtune=pentium4 -msse2 -mfpmath=sse -O3 -funroll-loops -ffast-math -fomit-frame-pointer 
 HIGHOPT_CXXFLAGS = $(CXXFLAGS)
 NOALIAS_CXXFLAGS = $(NOALIAS_CFLAGS)
 
-HAVE_MPI = 
+HAVE_MPI = yes
 HAVE_PTHREADS = yes
 
 BLAS = -lblas
-LAPACK = -llapack
-SYSLIBS = $(LAPACK) $(BLAS)  -lpthread
+LAPACK =  -llapack
+SYSLIBS = $(LAPACK) $(BLAS) -lg2c
 
 DOXYGEN = doxygen
 PDFLATEX = /usr/bin/pdflatex
