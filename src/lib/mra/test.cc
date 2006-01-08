@@ -2,6 +2,8 @@
 using std::cout;
 using std::endl;
 
+/// \file mra/test.cc
+
 #include <mra/mra.h>
 #include <misc/misc.h>
 #include <misc/communicator.h>

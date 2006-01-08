@@ -1,6 +1,6 @@
 
-/// \file lapack/test.cc
-/// \brief Test code for LAPACK, Tensor/LAPACK, etc.
+/// \file ../linalg/test.cc
+/// \brief Test code for LAPACK, Tensor+LAPACK, etc.
 
 #include <iostream>
 #include <linalg/tensor_lapack.h>

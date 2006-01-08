@@ -2,6 +2,8 @@
 using std::cout;
 using std::endl;
 
+/// \file misc/test.cc
+
 #include "print.h"
 #include "communicator.h"
 using namespace madness;

@@ -4,7 +4,7 @@ using std::endl;
 
 #include <cmath>
 
-/// \file test.cc
+/// \file serialize/test.cc
 /// \brief Tests serialization by some of the archives
 
 #define ARCHIVE_REGISTER_TYPE_INSTANTIATE_HERE

@@ -1,0 +1,50 @@
+Configure options for pentium4 with gcc with mpich
+
+#set LAPACK = "/home/rjh/Downloads/liblapack_rjh.a"
+#set BLAS = " -L/home/rjh/Downloads/Linux_P4SSE2/lib -lcblas -lf77blas -latlas"
+# Note default Fedora Core 2/3/4 lapack is broken
+
+setenv CC mpicc
+setenv CXX mpicxx
+setenv F77 mpif77
+
+set ARCHFLAGS = "-march=pentium4 -mtune=pentium4 -msse2 -mfpmath=sse"
+set DEBUGFLAGS = "-Wall -ggdb"
+set OPTFLAGS = "-O3 -funroll-loops -ffast-math -fomit-frame-pointer"
+set CXXOPT = "$DEBUGFLAGS $ARCHFLAGS $OPTFLAGS"
+set LAPACK = "-llapack"
+set BLAS = "-lblas"
+set EXTRALIBS = "-lg2c"
+
+./configure --with-cxx-optflags="$CXXOPT" --with-libs="$EXTRALIBS" \
+            --with-blas="$BLAS" --with-lapack="$LAPACK"
+
+
+
+
+Configure options for pentium4 with icc with mpich
+
+#set LAPACK = "/home/rjh/Downloads/liblapack_rjh.a"
+#set BLAS = " -L/home/rjh/Downloads/Linux_P4SSE2/lib -lcblas -lf77blas -latlas"
+# Note default Fedora Core 2/3/4 lapack is broken
+
+setenv CC "mpicc -cc=icc"
+setenv CXX "mpicxx -cxx=icc"
+setenv F77 mpif77
+
+set ARCHFLAGS = " -xN -tpp7"
+set DEBUGFLAGS = ""
+set OPTFLAGS = "-O3"
+set CXXOPT = "$DEBUGFLAGS $ARCHFLAGS $OPTFLAGS"
+set LAPACK = "-llapack"
+set BLAS = "-lblas"
+set EXTRALIBS = "-lg2c"
+
+./configure --with-cxx-optflags="$CXXOPT" --with-libs="$EXTRALIBS" \
+            --with-blas="$BLAS" --with-lapack="$LAPACK"
+
+
+
+
+
+

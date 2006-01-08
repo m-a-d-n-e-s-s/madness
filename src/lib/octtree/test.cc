@@ -2,6 +2,8 @@
 using std::cout;
 using std::endl;
 
+/// \file octtree/test.cc
+
 #include <fstream>
 
 #include <octtree/octtree.h>

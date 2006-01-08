@@ -133,6 +133,7 @@
 /// \endcode
 ///
 /// For example,
+/// \code
 /// class B {
 /// public:
 ///     bool b;
@@ -140,12 +141,12 @@
 /// };
 ///
 /// namespace madness {
-///     namespace archive {/
+///     namespace archive {
 ///         template <class Archive>
 ///         struct ArchiveSerializeImpl<Archive,B> {
 ///             static inline void serialize(Archive& ar, B& b) {ar & b.b;};
 ///         };
-//     }
+///     }
 /// }
 /// \endcode
 ///
@@ -278,9 +279,6 @@
 ///   }
 /// };
 /// \endcode
-///
-/// Implementation notes ... to be updated.
-/// \endverbatim
 
 #include <iostream>
 #include <complex>
@@ -417,7 +415,7 @@ namespace madness {
         };
         
 
-        /// Serialize an array of fundamental stuff
+        // Serialize an array of fundamental stuff
         template <class Archive, class T>
         typename madness::enable_if< madness::type_and_c< madness::is_fundamental<T>::value, 
                                                           Archive::is_output_archive >, void >::type
@@ -427,7 +425,7 @@ namespace madness {
         }
         
         
-        /// Deserialize an array of fundamental stuff
+        // Deserialize an array of fundamental stuff
         template <class Archive, class T>
         typename madness::enable_if< madness::type_and_c< madness::is_fundamental<T>::value, 
                                                           Archive::is_input_archive >, void >::type
@@ -437,7 +435,7 @@ namespace madness {
         }
         
         
-        /// (de)Serialize an array of non-fundamental stuff
+        // (de)Serialize an array of non-fundamental stuff
         template <class Archive, class T>
         typename madness::enable_if< madness::type_and_c< !madness::is_fundamental<T>::value, 
                                                           Archive::is_archive >, void >::type
@@ -492,7 +490,7 @@ namespace madness {
         };
 
 
-        /// Redirect \c serialize(ar,t) to \c serialize(ar,&t,1) for fundamental types
+        // Redirect \c serialize(ar,t) to \c serialize(ar,&t,1) for fundamental types
         template <class Archive, class T>
         inline
         typename madness::enable_if< madness::type_and_c< madness::is_fundamental<T>::value, 
@@ -504,7 +502,7 @@ namespace madness {
         }
         
 
-        /// Redirect \c serialize(ar,t) to \c ArchiveSerializeImpl for non-fundamental types
+        // Redirect \c serialize(ar,t) to \c ArchiveSerializeImpl for non-fundamental types
         template <class Archive, class T>
         inline
         typename madness::enable_if< madness::type_and_c< !madness::is_fundamental<T>::value, 
@@ -557,7 +555,7 @@ namespace madness {
         };        
 
 
-        /// Redirect \c << to ArchiveImpl::wrap_store for output archives
+        // Redirect \c << to ArchiveImpl::wrap_store for output archives
         template <class Archive, class T>
         inline
         typename madness::enable_if_c<Archive::is_output_archive, Archive&>::type
@@ -565,7 +563,7 @@ namespace madness {
             return ArchiveImpl<Archive,T>::wrap_store(ar,t);
         }
         
-        /// Redirect \c >> to ArchiveImpl::wrap_load for input archives
+        // Redirect \c >> to ArchiveImpl::wrap_load for input archives
         template <class Archive, class T>
         inline
         typename madness::enable_if_c<Archive::is_input_archive, Archive&>::type
@@ -573,7 +571,7 @@ namespace madness {
             return ArchiveImpl<Archive,T>::wrap_load(ar,t);
         }
 
-        /// Redirect \c & to ArchiveImpl::wrap_store for output archives
+        // Redirect \c & to ArchiveImpl::wrap_store for output archives
         template <class Archive, class T>
         inline
         typename madness::enable_if_c<Archive::is_output_archive, Archive&>::type
@@ -581,7 +579,7 @@ namespace madness {
             return ArchiveImpl<Archive,T>::wrap_store(ar,t);
         }
         
-        /// Redirect \c & to ArchiveImpl::wrap_load for input archives
+        // Redirect \c & to ArchiveImpl::wrap_load for input archives
         template <class Archive, class T>
         inline
         typename madness::enable_if_c<Archive::is_input_archive, Archive&>::type
