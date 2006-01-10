@@ -94,6 +94,10 @@ namespace madness {
 
         T _data;			///< The payload stored by value
 
+	Cost _cost;			///< Cost associated with node
+	Cost _localSubtreeCost;		///< Cost associated with local parts of node's subtree
+	bool _visited;			///< Whether a node has been visited and assigned to a partition
+
         /// Bit reversal of integer of given length
         static unsigned long bit_reverse(unsigned long i, int nbits) {
             unsigned long r = 0;
@@ -141,13 +145,27 @@ namespace madness {
             _p(0), _comm(0)
         {};
 
-        /// Constructor makes node with all info provided
+        /// Constructor makes node with most info provided
         OctTree(Level n, Translation x, Translation y, Translation z,
                       bool remote, OctTreeT* parent, ProcessID remote_proc,
                       const Communicator* comm) :
             _x(x), _y(y), _z(z), _n(n),
             _remote(remote),  _rank(remote_proc), 
-	    _p(parent), _comm(comm)
+	    _p(parent), _comm(comm), _cost(1), _localSubtreeCost(1),
+	    _visited(false)
+            {
+                FORIJK(_c[i][j][k] = 0;);
+            };
+
+        /// Constructor makes node with all info provided
+        OctTree(Level n, Translation x, Translation y, Translation z,
+                      bool remote, OctTreeT* parent, ProcessID remote_proc,
+                      const Communicator* comm, cost, localSubtreeCost,
+		      visited) :
+            _x(x), _y(y), _z(z), _n(n),
+            _remote(remote),  _rank(remote_proc), 
+	    _p(parent), _comm(comm), _cost(cost), 
+	    _localSubtreeCost(localSubtreeCost), _visited(visited)
             {
                 FORIJK(_c[i][j][k] = 0;);
             };
@@ -161,30 +179,63 @@ namespace madness {
         /// Returns a const reference to the data
         inline const T& data() const {return _data;};
 
+        /// Get cost of node
+        inline Cost getCost() {return _cost;};
+
+        /// Set cost of node
+        inline void setCost(Cost cost) {_cost = cost;};
+
+        /// Get cost for local subtree
+        inline Cost getLocalSubtreeCost() {return _localSubtreeCost;};
+
         /// Level of node in tree (0 is highest)
         inline long n() const {return _n;};
         
+	/// Set x index of node (0,...,2**n-1)
+	inline void setx(Translation x) {_x = x;};
+
         /// x index of node (0,...,2**n-1)
         inline Translation x() const {return _x;};
         
+	/// Set y index of node (0,...,2**n-1)
+	inline void sety(Translation y) {_y = y;};
+
         /// y index of node (0,...,2**n-1)
         inline Translation y() const {return _y;};
         
+	/// Set z index of node (0,...,2**n-1)
+	inline void setz(Translation z) {_z = z;};
+
         /// z index of node (0,...,2**n-1)
         inline Translation z() const {return _z;};
         
+	/// Set remote (true if node is remote, false otherwise)
+	inline void setRemote(bool remote) {_remote = remote;};
+
         /// returns true if node is local, false otherwise
         inline bool islocal() const {return !_remote;};
         
         /// returns true if node is remote, false otherwise
         inline bool isremote() const {return _remote;};
+
+	/// returns true if parent to node is remote, false otherwise
+	inline bool isLocalRoot() {return parent().isremote();};
+
+	/// returns true if node has children
+	inline bool isParent() {return (!(child(0,0,0) == 0));}
         
         /// returns true if node is the parent of the local subtree
         inline bool islocalsubtreeparent() const {return (_p==0);};
         
+	/// returns true if node has been visited by partitioner
+	inline bool isVisited() {return _visited;};
+
         /// returns the communicator pointer
         inline const Communicator* comm() const {return _comm;};
         
+	/// Set ID of owning remote process (-1 if not remote)
+	inline void setRank(ProcessID rank) {_rank = rank;};
+
         /// if (isremote()) returns id of owning remote process (-1 if not remote)
         inline ProcessID rank() const {return _rank;};
         
@@ -252,7 +303,90 @@ namespace madness {
             if (_p) return _p->find(n,x,y,z); // Pass up the tree
             return 0;			// Not in the (sub)tree we are connected to
         };
+
+	/// Set _visited to true for this node and all its subnodes, and _rank to p
+	void setVisited(ProcessID p)
+	{
+	    _visited = true;
+	    this->setRank(p);
+
+	    FOREACH_LOCAL_CHILD(OctTreeT, this,
+		child->setVisited(p);
+	    );
+	}
+
+	/// Set _visited to true for this node and all its subnodes
+	void setVisited()
+	{
+	    _visited = true;
+
+	    FOREACH_LOCAL_CHILD(OctTreeT, this,
+		child->setVisited();
+	    );
+	}
+
+	/// Depth-first traversal of tree (prints out diagnostic info)
+	void depthFirstTraverse()
+	{
+	    cout << "layer " << n() << ", (x,y,z) = " << x() << ", "
+			<< y() << ", " << z() << endl;
+	    cout << "      hasChildren? " << this->isParent()
+		 << "    isRemote? " << this->isremote()
+		 << "    rank? " << this->rank() << endl;
+	    FOREACH_LOCAL_CHILD(OctTreeT, this,
+		child->depthFirstTraverse();
+		);
+	}
+
+	/// Tally number of nodes of tree (probably different than cost)
+	int tallyNodes()
+	{
+	    int nnodes = 1;
+	    if (isParent())
+		FOREACH_CHILD(OCtTreeT, this,
+		    if (child->isremote())
+		    {
+			nnodes++;
+		    }
+		    else
+		    {
+			nnodes += child->tallyNodes();
+		    }
+		);
+	    return nnodes;
+	}
         
+	/// Compute cost of subtree
+	int computeCost()
+	{
+	    int total = 0;
+	    if (isParent())
+	    {
+		FOREACH_LOCAL_CHILD(OctTreeT, this,
+		    total += child->computeCost();
+		);
+	    }
+	    total += getCost();
+	    _localSubtreeCost = total;
+	    return total;
+	}
+
+	/// Compute cost of subtree and set all nodes' visited flag
+	int computeCost(bool visited)
+	{
+	    int total = 0;
+	    if (isParent())
+	    {
+		FOREACH_LOCAL_CHILD(OctTreeT, this,
+		    total += child->computeCost();
+		);
+	    }
+	    total += getCost();
+	    _localSubtreeCost = total;
+	    _visited = visited;
+	    return total;
+	}
+
         /// Apply a user-provided function (or functor) to all nodes
         template <class Op1, class Op2>
         void recur(Op1 op1, Op2 op2) {
