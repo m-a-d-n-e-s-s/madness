@@ -424,8 +424,7 @@ namespace madness {
         };
 
         /// Assignment is not allowed
-    FunctionData<T>& operator=(const FunctionData<T>& other) {}
-        ;
+        FunctionData<T>& operator=(const FunctionData<T>& other);
     };
 
 

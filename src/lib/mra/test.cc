@@ -36,7 +36,7 @@ int main(int argc, char* argv[]) {
     // 4) Load coeffs and quadrature information from file
     // 5) Setup default OctTreeLayout
     // 6) Sanity check
-    PBEGIN_(argc, argv);
+    MADMPIInit(argc, argv);
     Communicator comm;
     redirectio(comm);
     comm.print();
@@ -113,7 +113,7 @@ int main(int argc, char* argv[]) {
     }
 
     // The follwing should be used for succesful termination
-    PEND_();
+    MADMPIFinalize();
     return 0;
 }
 

@@ -64,6 +64,26 @@ namespace madness {
         static const bool value = type_or< is_integral<T>, is_float<T> >::value;  
     };
 
+    
+    /// is_pointer<T>::value will be true if T is a pointer type
+    template <typename T> 
+    struct is_pointer 
+    { static const bool value = false; };
+    
+    template <typename T> 
+    struct is_pointer<T*> 
+    { static const bool value = true; };
+    
+    /// is_array<T>::value will be try if T is an array type
+    template <typename T> 
+    struct is_array
+    { static const bool value = false; };
+    
+    template <typename T, std::size_t n> 
+    struct is_array<T[n]>
+    { static const bool value = true; };
+    
+    
     /// enable_if_c from Boost for conditionally instantiating templates based on type
 
     /// Evaluates to \c returnT if \c B is true, otherwise to an invalid type expression

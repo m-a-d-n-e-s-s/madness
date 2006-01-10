@@ -707,6 +707,38 @@ namespace madness {
             };
         };
         
+        /// Serialize STL vector<bool> (as plain array of bool)
+        template <class Archive>
+        struct ArchiveStoreImpl< Archive, std::vector<bool> > {
+            static inline void store(Archive& ar, const std::vector<bool>& v) {
+                MAD_ARCHIVE_DEBUG(std::cout << "serialize STL vector<bool>" << std::endl);
+                std::size_t n = v.size();
+                bool* b = new bool[n];
+                for (int i=0; i<n; i++) b[i] = v[i];
+                ar & n & wrap(b,v.size());
+                delete [] b;
+            };
+        };
+        
+        
+        /// Deserialize STL vector<bool>. Clears & resizes as necessary.
+        template <class Archive>
+        struct ArchiveLoadImpl< Archive, std::vector<bool> > {
+            static void load(Archive& ar, std::vector<bool>& v) {
+                MAD_ARCHIVE_DEBUG(std::cout << "deserialize STL vector" << std::endl);
+                std::size_t n;
+                ar & n;
+                if (n != v.size()) {
+                    v.clear();
+                    v.resize(n);
+                }
+                bool* b = new bool[n];
+                ar & wrap(b,v.size());
+                for (int i=0; i<n; i++) v[i] = b[i];
+                delete [] b;
+            };
+        };
+        
         /// Serialize STL string
         template <class Archive>
         struct ArchiveStoreImpl< Archive, std::string > {

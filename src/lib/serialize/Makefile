@@ -11,7 +11,7 @@ TARGET_TO_MAKE = libMADserialize
 BIN_OR_LIB = LIB
 
 CXXSRC =  archive_type_names.cc
-INC =     archive.h textfsar.h binfsar.h vecar.h 
+INC =     archive.h textfsar.h binfsar.h vecar.h mpiar.h
 
 TESTSRC = test.cc
 TESTOBJ = $(TESTSRC:%.cc=%.$(OBJSUF))
@@ -26,6 +26,14 @@ LIBOBJ= $(CXXSRC:%.cc=%.$(OBJSUF))
 default:: $(DEPENDINCLUDE)
 
 test: $(TESTOBJ) \
+      $(shell $(LISTLIBS) $(INCLUDE) $(SRCDIR)/LIBS.h) \
+      $(shell $(LISTLIBS) $(INCLUDE) $(SRCDIR)/../tensor/LIBS.h)
+	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ $(SYSLIBS) $(LTLINKBINOPTS)
+
+
+testmpi.o:	$(INC)
+
+testmpi: testmpi.o \
       $(shell $(LISTLIBS) $(INCLUDE) $(SRCDIR)/LIBS.h) \
       $(shell $(LISTLIBS) $(INCLUDE) $(SRCDIR)/../tensor/LIBS.h)
 	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ $(SYSLIBS) $(LTLINKBINOPTS)

@@ -11,7 +11,7 @@ using namespace madness;
     
 int main (int argc, char **argv) {
     
-    PBEGIN_(argc, argv);
+    MADMPIInit(argc, argv);
     Communicator comm;
     std::ofstream fout;
 
@@ -67,7 +67,7 @@ int main (int argc, char **argv) {
         layout->walk_up();
     }
     
-    PEND_();
+    MADMPIFinalize();
  
     return 0;
 }

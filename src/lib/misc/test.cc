@@ -9,7 +9,7 @@ using std::endl;
 using namespace madness;
 
 int main(int argc, char* argv[]) {
-    PBEGIN_(argc, argv);
+    MADMPIInit(argc, argv);
     Communicator comm;
 
     long hello=0;
@@ -49,7 +49,7 @@ int main(int argc, char* argv[]) {
         comm.send(sum, 3, (comm.rank()+1)%comm.nproc(), 99);
     }
 
-    PEND_();
+    MADMPIFinalize();
 
     return 0;
 }

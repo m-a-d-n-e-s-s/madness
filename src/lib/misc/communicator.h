@@ -5,47 +5,57 @@
 
 #include <madness_config.h>
 #include <mad_types.h>
+#include <typestuff.h>
 
 /// \file communicator.h
 /// \brief Defines Communicator (interprocess communication + topology)
 
-#ifdef HAVE_MPI
-    // The C++ interface to MPI2 will be used
+#define MAD_HAVE_MPI_CXX
+
+#ifdef MAD_HAVE_MPI_CXX
 #undef SEEK_SET
 #undef SEEK_CUR
 #undef SEEK_END
 #include <mpi.h>
-#define PBEGIN_ ::MPI::Init
-#define PEND_ ::MPI::Finalize
-    
-#elif defined(USE_TCGMSG)
-    // The old TCGMSG library will be used
-#include "sndrcv.h"
-    
+    typedef MPI::Intracomm MADMPIIntracomm;
+    typedef MPI::Status MADMPIStatus;
+    typedef MPI::Datatype MADMPIDatatype ;
+    static const MADMPIDatatype MADMPIByte = MPI::BYTE;
+#define MADMPIInit(a,b) MPI::Init(a,b)
+#define MADMPIFinalize() MPI::Finalize()
 #else
-    // Run sequentially by redefining the TCGMSG interface
-    inline long NNODES_() {return 1;}
-    inline long NODEID_() {return 0;}
-    inline void SND_(long* type, char* buf, long* lenbuf, long* dest, long* sync){};
-    inline void RCV_(long* type, char* buf, long* lenbuf, long* lenmes, long* src, 
-                     long* nodefrom, long* sync) {};
-    inline void BRDCST_(long* type, void* buf, long* lenbuf, long* root) {};
-    inline void PBEGIN_(int argc, char* argv[]) {};
-    inline void PEND_(){};
-    inline void Error(const char* msg, long code) {
-      std::cout<<"Fatal error " << msg << " (" << code << ")" << std::endl;
-      std::exit(1);
-    }
+    typedef int MADMPIDatatype;
+    static const MADMPIDatatype MADMPIByte = 1;
+    
+    class MADMPIStatus {
+    public:
+        inline int Get_count(MADMPIDatatype datatype) const {return 0;};
+        inline int Get_source() const {return 0;};
+        inline int Get_tag() const {return 0;};
+    };
+    
+    /// Wraps a C MPI communicator for the machines (mingw)
+    /// where we don't have the MPI C++ interface.
+    class MADMPIIntracomm {
+    private:
+        
+    public:
+        inline long Get_size() const {return 0;};
+        inline long Get_rank() const {return 0;};
+        static inline MADMPIIntracomm Comm_world() {return something;};
+        inline void Bcast();
+        inline void Abort();
+        inline void Send();
+        inline void Recv();
+    };
 #endif
-    
-    
+
 namespace madness {
-    
     /// Holds info about process topology and provides message passing
     
-    /// This class wraps an MPI or TCGMSG communicator and provides
-    /// info about process rank, number of processes along with basic
-    /// send/recv capabilities.
+    /// This class wraps an MPI communicator and provides info about
+    /// process rank, number of processes along with basic send/recv
+    /// capabilities.
     /// 
     /// Also managed by this class is the logical layout of processes as a
     /// 3D mesh (currently P=2^n only).  This might be better separated
@@ -60,21 +70,16 @@ namespace madness {
         long _mx, _my, _mz;         ///< mx=log2(npx)
         long _px, _py, _pz;         ///< coords of this process in mesh
         ProcessID _rank;            ///< rank of this process
-#ifdef HAVE_MPI
-        MPI::Intracomm _comm;
-#endif
+        
+        MADMPIIntracomm _comm;
         
         /// Given p=2^n processes make as close as possible to a cubic grid.
         
         /// Each dimension will be a power of 2 with npx >= npy >= npz
         void setup() {
-#ifdef HAVE_MPI
             _nproc = _comm.Get_size();
             _rank = _comm.Get_rank();
-#else
-            _nproc = NNODES_();
-            _rank = NODEID_();
-#endif
+
             _npz = 1; _mz = 0;
             while (8*_npz*_npz*_npz <= _nproc) {_npz *= 2; _mz++;}
             _npy = _npz; _my = _mz;
@@ -96,16 +101,17 @@ namespace madness {
         
     public:
         
-#ifdef HAVE_MPI
         /// Use given communicator and setup topology as 3D mesh (P=2^n)
-        Communicator(const MPI::Intracomm comm) : _comm(comm) {setup();};
+        Communicator(const MADMPIIntracomm comm) : _comm(comm) {setup();};
         
+#ifdef MAD_HAVE_MPI_CXX
         /// Use MPI_COMM_WORLD and setup topology as 3D mesh (P=2^n)
         Communicator() {_comm=MPI::COMM_WORLD; setup();};
 #else
-        /// TCGMSG or sequential and setup topology as 3D mesh (P=2^n)
-        Communicator() {setup();};
+        /// Use MPI_COMM_WORLD and setup topology as 3D mesh (P=2^n)
+        Communicator() {_comm=MADMPIIntracomm::Comm_world(); setup();};
 #endif
+
         /// Return the process rank (within this communicator)
         inline ProcessID rank() const {return _rank;};
         
@@ -142,23 +148,25 @@ namespace madness {
         
         /// Generic version assumes simple types that can be sent as a
         /// byte stream.  Complex data types will need to define
-        /// specialization of this routine.  Currently this is a stupid
-        /// version that maps to untyped data of length lenbuf*sizeof(T).
+        /// specialization of this routine.  Currently this is a
+        /// stupid version that maps to untyped data of length
+        /// lenbuf*sizeof(T).
         template <class T> 
-        inline void send(const T* buf, long lenbuf, ProcessID dest, long tag) const {
+        inline 
+        void 
+        send(const T* buf, long lenbuf, ProcessID dest, long tag=665) const {
             send((void* )buf, lenbuf*sizeof(T), dest, tag);
         };
         
         /// Send typed datum to process dest
-        
-        /// Generic version assumes simple types that can be sent as a
-        /// byte stream. 
         template <class T> 
-        inline void send(const T& datum, ProcessID dest, long tag) const {
+        inline
+        typename madness::enable_if_c< !madness::is_pointer<T>::value, void>::type
+        send(const T& datum, ProcessID dest, long tag=666) const {
             send(&datum, 1, dest, tag);
         };
         
-        /// Receive typed data of up to lenbuf elements from process dest
+        /// Receive data of up to lenbuf elements from process dest
         
         /// If count is non-null it will be assigned the number of elements
         /// actually received. If from is non-null it will be assigned the
@@ -168,51 +176,46 @@ namespace madness {
         /// This generic version will need to be specialized for complex types
         /// and currently maps directly to an untyped byte stream.
         template <class T> 
-        inline void recv(T* buf, long lenbuf, ProcessID src, long tag, 
-                         long *count=0, long *from=0) const {
+        inline 
+        void 
+        recv(T* buf, long lenbuf, ProcessID src, long tag=665, 
+             long *count=0, long *from=0) const {
             recv((void *) buf, lenbuf*sizeof(T), src, tag, count, from);
             if (count) *count /= sizeof(T);
         }
         
-        /// Receive typed datum from process dest
+
+        /// Receive datum from process dest
         
         /// If from is non-null it will be assigned the process the data
         /// actually came from which may be of interest if src is a wild
         /// card (src=ANY_SOURCE).  
         template <class T> 
-        inline void recv(T& buf, ProcessID src, long tag, long *from=0) const {
+        inline
+        typename madness::enable_if_c< !madness::is_pointer<T>::value, void>::type
+        recv(T& buf, ProcessID src, long tag=666, long *from=0) const {
             recv(&buf, 1, src, tag, 0, from);
         }
         
-        /// Broadcast typed array of lenbuf elements from rooot
+        /// Broadcast array of lenbuf elements from root
         template <class T> 
-        inline void bcast(T *buf, long lenbuf, ProcessID root) {
+        inline 
+        void
+        bcast(T *buf, long lenbuf, ProcessID root) {
             bcast((void *) buf, lenbuf*sizeof(T), root);
         };
         
-        /// Broadcast typed datum from rooot
+        /// Broadcast datum from root
         template <class T> 
-        inline void bcast(T& buf, ProcessID root) {
+        inline 
+        typename madness::enable_if_c< !madness::is_pointer<T>::value, void>::type
+        bcast(T& buf, ProcessID root) {
             bcast(&buf, 1, root);
-        };
-        
-        /// Broadcast untyped array of bytes from root
-        inline void bcast(void *buf, long lenbuf, ProcessID root) {
-#ifdef HAVE_MPI
-            _comm.Bcast(buf, lenbuf, MPI::BYTE, root);
-#else
-            long tag = 99;
-            BRDCST_(&tag, &buf, &lenbuf, &root);
-#endif
         };
         
         /// Error abort with given integer code
         void abort(int code=1) {
-#ifdef HAVE_MPI
             _comm.Abort(code);
-#else
-            Error("madness error termination",code);
-#endif
         }; 
         
         /// Typed global sum ... NOT YET ACTUALLY IMPLEMENTED!
@@ -221,16 +224,18 @@ namespace madness {
                
     };
     
+    /// Broadcast untyped array of bytes from root
+    template <>
+    inline void Communicator::bcast(void *buf, long lenbuf, ProcessID root) {
+        _comm.Bcast(buf, lenbuf, MADMPIByte, root);
+    };
+        
+
     /// Send untyped data of lenbuf bytes to process dest
     template <>
     inline void Communicator::send(const void* buf, long lenbuf, ProcessID dest, 
                                    long tag) const {
-#ifdef HAVE_MPI
-        _comm.Send(buf, lenbuf, MPI::BYTE, dest, tag);
-#else
-        long sync = 1;
-        SND_(&tag, (char *) buf, &lenbuf, &dest, &sync);
-#endif
+        _comm.Send(buf, lenbuf, MADMPIByte, dest, tag);
     }
 
     /// Receive untyped data of up to lenbuf bytes from process dest
@@ -242,17 +247,11 @@ namespace madness {
     template <>
     inline void Communicator::recv(void* buf, long lenbuf, ProcessID src, long tag, 
                                    long *count, long *from) const {
-#ifdef HAVE_MPI
-        MPI::Status status;
-        _comm.Recv(buf, lenbuf, MPI::BYTE, src, tag, status);
-        if (count) *count = status.Get_count(MPI::BYTE);
+        
+        MADMPIStatus status;
+        _comm.Recv(buf, lenbuf, MADMPIByte, src, tag, status);
+        if (count) *count = status.Get_count(MADMPIByte);
         if (from) *from = status.Get_source();
-#else
-        long sync=1, nodefrom, lenmes;
-        RCV_(&tag, (char *) buf, &lenbuf, &lenmes, &src, &nodefrom, &sync);
-        if (count) *count = lenmes;
-        if (from) *from = nodefrom;
-#endif
     }
     
 }
