@@ -29,7 +29,7 @@ public:
   A(float a = 0.0) : a(a) {};
   
   template <class Archive>
-  inline void serialize(Archive& ar) {ar & a;}
+  inline void serialize(const Archive& ar) {ar & a;}
 };
 
 
@@ -45,7 +45,7 @@ namespace madness {
 
         template <class Archive>
         struct ArchiveSerializeImpl<Archive,B> {
-            static inline void serialize(Archive& ar, B& b) {ar & b.b;};
+            static inline void serialize(const Archive& ar, B& b) {ar & b.b;};
         };
     }
 }
@@ -61,12 +61,12 @@ namespace madness {
     namespace archive {
         template <class Archive> 
         struct ArchiveLoadImpl<Archive,C> {
-            static inline void load(Archive& ar, C& c) {ar >> c.c;};
+            static inline void load(const Archive& ar, C& c) {ar >> c.c;};
         };
         
         template <class Archive> 
         struct ArchiveStoreImpl<Archive,C> {
-            static inline void store(Archive& ar, const C& c) {ar << c.c;};
+            static inline void store(const Archive& ar, const C& c) {ar << c.c;};
         };
     }
 }
@@ -100,7 +100,7 @@ namespace madness {
     namespace archive {
         template <class Archive>
         struct ArchiveStoreImpl<Archive,linked_list> {
-            static void store(Archive& ar, const linked_list& c) {
+            static void store(const Archive& ar, const linked_list& c) {
                 ar & c.get_value() & bool(c.get_next());
                 if (c.get_next()) ar & *c.get_next();
             };
@@ -108,7 +108,7 @@ namespace madness {
         
         template <class Archive>
         struct ArchiveLoadImpl<Archive,linked_list> {
-            static void load(Archive& ar, linked_list& c) {
+            static void load(const Archive& ar, linked_list& c) {
                 int value;  bool flag;
                 ar & value & flag;
                 c.set_value(value);
@@ -142,7 +142,7 @@ using madness::archive::wrap;
 using madness::Tensor;
 
 template <class OutputArchive>
-void test_out(OutputArchive& oar) {
+void test_out(const OutputArchive& oar) {
   const int n = 3;
   A a, an[n];
   B b, bn[n];
@@ -233,7 +233,7 @@ void test_out(OutputArchive& oar) {
   oar & 1.0 & i & a & b & c & in & an & bn & cn & wrap(p,n) & wrap(q,n) & pp & m & str;}
 
 template <class InputArchive>
-void test_in(InputArchive& iar) {
+void test_in(const InputArchive& iar) {
   const int n = 3;
   A a, an[n];
   B b, bn[n];

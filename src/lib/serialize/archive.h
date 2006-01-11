@@ -89,7 +89,7 @@
 /// you are invoking the templated function 
 /// \code
 /// template <class Archive, class T>
-/// inline Archive& operator&(Archive& ar, T& obj);
+/// inline const Archive& operator&(const Archive& ar, T& obj);
 /// \endcode
 /// which then invokes other templated functions to redirect to input
 /// or output streams as appropriate, manage type checking, etc..
@@ -117,7 +117,7 @@
 ///     A(float a = 0.0) : a(a) {};
 ///  
 ///     template <class Archive>
-///     inline void serialize(Archive& ar) {ar & a;}
+///     inline void serialize(const Archive& ar) {ar & a;}
 /// };
 /// \endcode
 /// 
@@ -128,7 +128,7 @@
 /// \code
 /// template <class Archive>
 /// struct ArchiveSerializeImpl<Archive,Obj> {
-///       static inline void serialize(Archive& ar, Obj& obj);
+///       static inline void serialize(const Archive& ar, Obj& obj);
 /// };
 /// \endcode
 ///
@@ -144,7 +144,7 @@
 ///     namespace archive {
 ///         template <class Archive>
 ///         struct ArchiveSerializeImpl<Archive,B> {
-///             static inline void serialize(Archive& ar, B& b) {ar & b.b;};
+///             static inline void serialize(const Archive& ar, B& b) {ar & b.b;};
 ///         };
 ///     }
 /// }
@@ -157,12 +157,12 @@
 /// \code
 /// template <class Archive> 
 /// struct ArchiveLoadImpl<Archive,Obj> {
-///     static inline void load(Archive& ar, Obj& obj);
+///     static inline void load(const Archive& ar, Obj& obj);
 /// };
 /// 
 /// template <class Archive> 
 /// struct ArchiveStoreImpl<Archive,Obj> {
-///     static inline void store(Archive& ar, Obj& obj);
+///     static inline void store(const Archive& ar, Obj& obj);
 /// };
 /// \endcode
 ///
@@ -175,10 +175,10 @@
 /// };
 /// 
 /// template <class Archive>
-/// inline void store(Archive& ar, const C& c) {ar & c.c;}
+/// inline void store(const Archive& ar, const C& c) {ar & c.c;}
 /// 
 /// template <class Archive>
-/// inline void load(Archive& ar, C& c) {ar & c.c;}
+/// inline void load(const Archive& ar, C& c) {ar & c.c;}
 /// \endcode
 ///
 /// Now a more complicated example that genuinely requires asymmetric
@@ -208,7 +208,7 @@
 ///     namespace archive {
 ///         template <class Archive>
 ///         struct ArchiveStoreImpl<Archive,linked_list> {
-///             static void store(Archive& ar, const linked_list& c) {
+///             static void store(const Archive& ar, const linked_list& c) {
 ///                 ar & c.get_value() & bool(c.get_next());
 ///                 if (c.get_next()) ar & *c.get_next();
 ///             };
@@ -216,7 +216,7 @@
 ///         
 ///         template <class Archive>
 ///         struct ArchiveLoadImpl<Archive,linked_list> {
-///             static void load(Archive& ar, linked_list& c) {
+///             static void load(const Archive& ar, linked_list& c) {
 ///                 int value;  bool flag;
 ///                 ar & value & flag;
 ///                 c.set_value(value);
@@ -256,25 +256,25 @@
 /// #include <fstream>
 /// using namespace std;
 /// class OutputArchive : public BaseOutputArchive {
-///   ofstream os;
+///   mutable ofstream os;
 /// public:
 ///   OutputArchive(const char* filename) 
 ///     : os(filename, ios_base::binary | ios_base::out | ios_base::trunc) {};
 ///   
 ///   template <class T>
-///   void store(const T* t, long n) {
+///   void store(const T* t, long n) const {
 ///     os.write((const char *) t, n*sizeof(T));
 ///   }
 /// };
 /// 
 /// class InputArchive : public BaseInputArchive {
-///   ifstream is;
+///   mutable ifstream is;
 /// public:
 ///   InputArchive(const char* filename) 
 ///     : is(filename, ios_base::binary | ios_base::in) {};
 ///   
 ///   template <class T>
-///   void load(T* t, long n) {
+///   void load(T* t, long n) const {
 ///     is.read((char *) t, n*sizeof(T));
 ///   }
 /// };
@@ -419,7 +419,7 @@ namespace madness {
         template <class Archive, class T>
         typename madness::enable_if< madness::type_and_c< madness::is_fundamental<T>::value, 
                                                           Archive::is_output_archive >, void >::type
-        serialize(Archive& ar, const T* t, unsigned int n) {
+        serialize(const Archive& ar, const T* t, unsigned int n) {
             MAD_ARCHIVE_DEBUG(std::cout << "serialize fund array" << std::endl);
             ar.store(t,n);
         }
@@ -429,7 +429,7 @@ namespace madness {
         template <class Archive, class T>
         typename madness::enable_if< madness::type_and_c< madness::is_fundamental<T>::value, 
                                                           Archive::is_input_archive >, void >::type
-        serialize(Archive& ar, const T* t, unsigned int n) {
+        serialize(const Archive& ar, const T* t, unsigned int n) {
             MAD_ARCHIVE_DEBUG(std::cout << "deserialize fund array" << std::endl);
             ar.load((T*) t,n);
         }
@@ -439,7 +439,7 @@ namespace madness {
         template <class Archive, class T>
         typename madness::enable_if< madness::type_and_c< !madness::is_fundamental<T>::value, 
                                                           Archive::is_archive >, void >::type
-        serialize(Archive& ar, const T* t, unsigned int n) {
+        serialize(const Archive& ar, const T* t, unsigned int n) {
             MAD_ARCHIVE_DEBUG(std::cout << "(de)serialize non-fund array" << std::endl);
             for (unsigned int i=0; i<n; i++) ar & t[i];
         }
@@ -448,7 +448,7 @@ namespace madness {
         /// Default implementation of pre/postamble
         template <class Archive, class T> 
         struct ArchivePrePostImpl {
-            static inline void preamble_load(Archive& ar) {
+            static inline void preamble_load(const Archive& ar) {
                 unsigned char ck = archive_typeinfo<T>::cookie;
                 unsigned char cookie;
                 ar.load(&cookie, 1); // cannot use >>
@@ -468,7 +468,7 @@ namespace madness {
         
         
             /// Serialize a cookie for type checking
-            static inline void preamble_store(Archive& ar) {
+            static inline void preamble_store(const Archive& ar) {
                 unsigned char ck = archive_typeinfo<T>::cookie;
                 ar.store(&ck, 1); // cannot use <<
                 MAD_ARCHIVE_DEBUG(std::cout << "wrote cookie " << archive_type_names[ck] << std::endl);
@@ -476,17 +476,17 @@ namespace madness {
         
         
             /// By default there is no postamble
-            static inline void postamble_load(Archive& ar) {};
+            static inline void postamble_load(const Archive& ar) {};
 
             /// By default there is no postamble
-            static inline void postamble_store(Archive& ar) {};
+            static inline void postamble_store(const Archive& ar) {};
         };
 
 
         /// Default symmetric serialization of a non-fundamental thingy
         template <class Archive, class T>
         struct ArchiveSerializeImpl {
-            static inline void serialize(Archive& ar, T& t) {t.serialize(ar);};
+            static inline void serialize(const Archive& ar, T& t) {t.serialize(ar);};
         };
 
 
@@ -496,7 +496,7 @@ namespace madness {
         typename madness::enable_if< madness::type_and_c< madness::is_fundamental<T>::value, 
                                                           Archive::is_archive >, 
                                      void >::type
-        serialize(Archive& ar, const T& t) {
+        serialize(const Archive& ar, const T& t) {
             MAD_ARCHIVE_DEBUG(std::cout << "serialize(ar,t) -> serialize(ar,&t,1)" << std::endl);
             serialize(ar,&t,1);
         }
@@ -508,7 +508,7 @@ namespace madness {
         typename madness::enable_if< madness::type_and_c< !madness::is_fundamental<T>::value, 
                                                           Archive::is_archive >, 
                                      void >::type
-        serialize(Archive& ar, const T& t) {
+        serialize(const Archive& ar, const T& t) {
             MAD_ARCHIVE_DEBUG(std::cout << "serialize(ar,t) -> ArchiveSerializeImpl" << std::endl);
             ArchiveSerializeImpl<Archive,T>::serialize(ar,(T&) t);
         }
@@ -517,7 +517,7 @@ namespace madness {
         /// Default store of a thingy via serialize(ar,t)
         template <class Archive, class T> 
         struct ArchiveStoreImpl {
-            static inline void store(Archive& ar, const T& t) {
+            static inline void store(const Archive& ar, const T& t) {
                 MAD_ARCHIVE_DEBUG(std::cout << "store(ar,t) default" << std::endl);
                 serialize(ar,t);
             };
@@ -527,7 +527,7 @@ namespace madness {
         /// Default load of a thingy via serialize(ar,t)
         template <class Archive, class T> 
         struct ArchiveLoadImpl {
-            static inline void load(Archive& ar, const T& t) {
+            static inline void load(const Archive& ar, const T& t) {
                 MAD_ARCHIVE_DEBUG(std::cout << "load(ar,t) default" << std::endl);
                 serialize(ar,t);
             };
@@ -537,7 +537,7 @@ namespace madness {
         /// Default implementation of wrap_store and wrap_load
         template <class Archive, class T> 
         struct ArchiveImpl {
-            static inline Archive& wrap_store(Archive& ar, const T& t) {
+            static inline const Archive& wrap_store(const Archive& ar, const T& t) {
                 MAD_ARCHIVE_DEBUG(std::cout << "wrap_store for default" << std::endl);
                 ArchivePrePostImpl<Archive,T>::preamble_store(ar);
                 ArchiveStoreImpl<Archive,T>::store(ar,t);
@@ -545,7 +545,7 @@ namespace madness {
                 return ar;
             };
             
-            static inline Archive& wrap_load(Archive& ar, const T& t) {
+            static inline const Archive& wrap_load(const Archive& ar, const T& t) {
                 MAD_ARCHIVE_DEBUG(std::cout << "wrap_load for default" << std::endl);
                 ArchivePrePostImpl<Archive,T>::preamble_load(ar);
                 ArchiveLoadImpl<Archive,T>::load(ar,(T&) t);  // Loses constness here!
@@ -558,32 +558,32 @@ namespace madness {
         // Redirect \c << to ArchiveImpl::wrap_store for output archives
         template <class Archive, class T>
         inline
-        typename madness::enable_if_c<Archive::is_output_archive, Archive&>::type
-        operator<<(Archive& ar, const T& t) {
+        typename madness::enable_if_c<Archive::is_output_archive, const Archive&>::type
+        operator<<(const Archive& ar, const T& t) {
             return ArchiveImpl<Archive,T>::wrap_store(ar,t);
         }
         
         // Redirect \c >> to ArchiveImpl::wrap_load for input archives
         template <class Archive, class T>
         inline
-        typename madness::enable_if_c<Archive::is_input_archive, Archive&>::type
-        operator>>(Archive& ar, const T& t) {
+        typename madness::enable_if_c<Archive::is_input_archive, const Archive&>::type
+        operator>>(const Archive& ar, const T& t) {
             return ArchiveImpl<Archive,T>::wrap_load(ar,t);
         }
 
         // Redirect \c & to ArchiveImpl::wrap_store for output archives
         template <class Archive, class T>
         inline
-        typename madness::enable_if_c<Archive::is_output_archive, Archive&>::type
-        operator&(Archive& ar, const T& t) {
+        typename madness::enable_if_c<Archive::is_output_archive, const Archive&>::type
+        operator&(const Archive& ar, const T& t) {
             return ArchiveImpl<Archive,T>::wrap_store(ar,t);
         }
         
         // Redirect \c & to ArchiveImpl::wrap_load for input archives
         template <class Archive, class T>
         inline
-        typename madness::enable_if_c<Archive::is_input_archive, Archive&>::type
-        operator&(Archive& ar, const T& t) {
+        typename madness::enable_if_c<Archive::is_input_archive, const Archive&>::type
+        operator&(const Archive& ar, const T& t) {
             return ArchiveImpl<Archive,T>::wrap_load(ar,t);
         }
 
@@ -616,7 +616,7 @@ namespace madness {
 	/// This makes use of stuff that user specializations need not
         template <class Archive, class T>
         struct ArchiveImpl< Archive, archive_array<T> > {
-            static inline Archive& wrap_store(Archive& ar, const archive_array<T>& t) {
+            static inline const Archive& wrap_store(const Archive& ar, const archive_array<T>& t) {
                 MAD_ARCHIVE_DEBUG(std::cout << "wrap_store for archive_array" << std::endl);
                 ArchivePrePostImpl<Archive,T*>::preamble_store(ar);
                 //ar << t.n;
@@ -627,7 +627,7 @@ namespace madness {
                 return ar;
             };
             
-            static inline Archive& wrap_load(Archive& ar, const archive_array<T>& t) {
+            static inline const Archive& wrap_load(const Archive& ar, const archive_array<T>& t) {
                 MAD_ARCHIVE_DEBUG(std::cout << "wrap_load for archive_array" << std::endl);
                 ArchivePrePostImpl<Archive,T*>::preamble_load(ar);
                 //unsigned int n;
@@ -646,13 +646,13 @@ namespace madness {
         /// Partial specialization for fixed dimension array redirects to archive_array
         template <class Archive, class T, std::size_t n> 
         struct ArchiveImpl<Archive, T[n]> {
-            static inline Archive& wrap_store(Archive& ar, const T (&t)[n]) {
+            static inline const Archive& wrap_store(const Archive& ar, const T (&t)[n]) {
                 MAD_ARCHIVE_DEBUG(std::cout << "wrap_store for array" << std::endl);
                 ar << wrap(&t[0],n);
                 return ar;
             };
             
-            static inline Archive& wrap_load(Archive& ar, const T (&t)[n]) {
+            static inline const Archive& wrap_load(const Archive& ar, const T (&t)[n]) {
                 MAD_ARCHIVE_DEBUG(std::cout << "wrap_load for array" << std::endl);
                 ar >> wrap(&t[0],n);
                 return ar;
@@ -662,7 +662,7 @@ namespace madness {
         /// Serialize a complex number
         template <class Archive, typename T>
 	  struct ArchiveStoreImpl< Archive, std::complex<T> > {
-	    static inline void store(Archive& ar, const std::complex<T>& c) {
+	    static inline void store(const Archive& ar, const std::complex<T>& c) {
                 MAD_ARCHIVE_DEBUG(std::cout << "serialize complex number" << std::endl);
 		ar & c.real() & c.imag();
 	    }
@@ -672,7 +672,7 @@ namespace madness {
         /// Deserialize a complex number
         template <class Archive, typename T>
 	  struct ArchiveLoadImpl< Archive, std::complex<T> > {
-	    static inline void load(Archive& ar, std::complex<T>& c) {
+	    static inline void load(const Archive& ar, std::complex<T>& c) {
                 MAD_ARCHIVE_DEBUG(std::cout << "deserialize complex number" << std::endl);
 		T r, i;
 		ar & r & i;
@@ -684,7 +684,7 @@ namespace madness {
         /// Serialize STL vector.
         template <class Archive, typename T>
         struct ArchiveStoreImpl< Archive, std::vector<T> > {
-            static inline void store(Archive& ar, const std::vector<T>& v) {
+            static inline void store(const Archive& ar, const std::vector<T>& v) {
                 MAD_ARCHIVE_DEBUG(std::cout << "serialize STL vector" << std::endl);
                 ar & v.size();
                 ar & wrap(&v[0],v.size());
@@ -695,7 +695,7 @@ namespace madness {
         /// Deserialize STL vector. Clears & resizes as necessary.
         template <class Archive, typename T>
         struct ArchiveLoadImpl< Archive, std::vector<T> > {
-            static void load(Archive& ar, std::vector<T>& v) {
+            static void load(const Archive& ar, std::vector<T>& v) {
                 MAD_ARCHIVE_DEBUG(std::cout << "deserialize STL vector" << std::endl);
                 std::size_t n;
                 ar & n;
@@ -710,7 +710,7 @@ namespace madness {
         /// Serialize STL vector<bool> (as plain array of bool)
         template <class Archive>
         struct ArchiveStoreImpl< Archive, std::vector<bool> > {
-            static inline void store(Archive& ar, const std::vector<bool>& v) {
+            static inline void store(const Archive& ar, const std::vector<bool>& v) {
                 MAD_ARCHIVE_DEBUG(std::cout << "serialize STL vector<bool>" << std::endl);
                 std::size_t n = v.size();
                 bool* b = new bool[n];
@@ -724,7 +724,7 @@ namespace madness {
         /// Deserialize STL vector<bool>. Clears & resizes as necessary.
         template <class Archive>
         struct ArchiveLoadImpl< Archive, std::vector<bool> > {
-            static void load(Archive& ar, std::vector<bool>& v) {
+            static void load(const Archive& ar, std::vector<bool>& v) {
                 MAD_ARCHIVE_DEBUG(std::cout << "deserialize STL vector" << std::endl);
                 std::size_t n;
                 ar & n;
@@ -742,7 +742,7 @@ namespace madness {
         /// Serialize STL string
         template <class Archive>
         struct ArchiveStoreImpl< Archive, std::string > {
-            static void store(Archive& ar, const std::string& v) {
+            static void store(const Archive& ar, const std::string& v) {
                 MAD_ARCHIVE_DEBUG(std::cout << "serialize STL string" << std::endl);
                 ar & v.size();
                 ar & wrap((const char*) &v[0],v.size());
@@ -753,7 +753,7 @@ namespace madness {
         /// Deserialize STL string. Clears & resizes as necessary.
         template <class Archive>
         struct ArchiveLoadImpl< Archive, std::string > {
-            static void load(Archive& ar, std::string& v) {
+            static void load(const Archive& ar, std::string& v) {
                 MAD_ARCHIVE_DEBUG(std::cout << "deserialize STL string" << std::endl);
                 std::size_t n;
                 ar & n;
@@ -769,7 +769,7 @@ namespace madness {
         /// (de)Serialize an STL pair.
         template <class Archive, typename T, typename Q>
         struct ArchiveSerializeImpl< Archive, std::pair<T,Q> > {
-            static inline void serialize(Archive& ar, std::pair<T,Q>& t) {
+            static inline void serialize(const Archive& ar, std::pair<T,Q>& t) {
                 MAD_ARCHIVE_DEBUG(std::cout << "(de)serialize STL pair" << std::endl);
                 ar & t.first & t.second;
             };
@@ -779,7 +779,7 @@ namespace madness {
         /// Serialize an STL map (crudely).
         template <class Archive, typename T, typename Q>
         struct ArchiveStoreImpl< Archive, std::map<T,Q> > {
-            static void store(Archive& ar, const std::map<T,Q>& t) {
+            static void store(const Archive& ar, const std::map<T,Q>& t) {
                 MAD_ARCHIVE_DEBUG(std::cout << "serialize STL map" << std::endl);
                 ar << t.size();
                 for (typename std::map<T,Q>::const_iterator p = t.begin();
@@ -799,7 +799,7 @@ namespace madness {
         /// Deserialize an STL map.  Map is NOT cleared; duplicate elements are replaced.
         template <class Archive, typename T, typename Q>
         struct ArchiveLoadImpl< Archive, std::map<T,Q> > {
-            static void load(Archive& ar, std::map<T,Q>& t) {
+            static void load(const Archive& ar, std::map<T,Q>& t) {
                 MAD_ARCHIVE_DEBUG(std::cout << "deserialize STL map" << std::endl);
                 std::size_t n;  ar & n;
                 while (n--) {
@@ -813,7 +813,7 @@ namespace madness {
         /// Serialize a tensor
         template <class Archive, typename T>
         struct ArchiveStoreImpl< Archive, Tensor<T> > {
-            static inline void store(Archive& s, const Tensor<T>& t) {
+            static inline void store(const Archive& s, const Tensor<T>& t) {
                 if (t.iscontiguous()) s & t.ndim & t.dim & wrap(t.ptr(),t.size); 
                 else s & copy(t);
             };
@@ -823,7 +823,7 @@ namespace madness {
         /// Deserialize a tensor ... existing tensor is replaced
         template <class Archive, typename T>
         struct ArchiveLoadImpl< Archive, Tensor<T> > {
-            static inline void load(Archive& s, Tensor<T>& t) { 
+            static inline void load(const Archive& s, Tensor<T>& t) { 
                 long ndim, dim[TENSOR_MAXDIM];  // Uncool reference to this macro
                 s & ndim & dim;
                 t = Tensor<T>(ndim, dim, false);

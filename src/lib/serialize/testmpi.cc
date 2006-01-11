@@ -47,7 +47,7 @@ int main(int argc, char** argv) {
     // Send an integer around a ring, accumulating onto it
     int sum = 1;
     if (rank == 0) {
-        right & sum;
+        MPIOutputArchive(comm,(rank+1)%nproc) & sum;
         left & sum;
         cout << "final sum " << sum << " " << nproc << endl;
     }
