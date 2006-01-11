@@ -280,8 +280,8 @@
 /// };
 /// \endcode
 
-#include <iostream>
 #include <complex>
+#include <iostream>
 #include <vector>
 #include <map>
 #include <typestuff.h>
@@ -619,10 +619,10 @@ namespace madness {
             static inline Archive& wrap_store(Archive& ar, const archive_array<T>& t) {
                 MAD_ARCHIVE_DEBUG(std::cout << "wrap_store for archive_array" << std::endl);
                 ArchivePrePostImpl<Archive,T*>::preamble_store(ar);
-                ar << t.n;
-                ArchivePrePostImpl<Archive,T>::preamble_store(ar);
+                //ar << t.n;
+                //ArchivePrePostImpl<Archive,T>::preamble_store(ar);
                 serialize(ar,(T *) t.ptr,t.n);
-                ArchivePrePostImpl<Archive,T>::postamble_store(ar);
+                //ArchivePrePostImpl<Archive,T>::postamble_store(ar);
                 ArchivePrePostImpl<Archive,T*>::postamble_store(ar);
                 return ar;
             };
@@ -630,13 +630,13 @@ namespace madness {
             static inline Archive& wrap_load(Archive& ar, const archive_array<T>& t) {
                 MAD_ARCHIVE_DEBUG(std::cout << "wrap_load for archive_array" << std::endl);
                 ArchivePrePostImpl<Archive,T*>::preamble_load(ar);
-                unsigned int n;
-                ar >> n;
-                if (n != t.n) 
-                    throw "deserializing archive_array: dimension mismatch";
-                ArchivePrePostImpl<Archive,T>::preamble_load(ar);
+                //unsigned int n;
+                //ar >> n;
+                //if (n != t.n) 
+                //    throw "deserializing archive_array: dimension mismatch";
+                //ArchivePrePostImpl<Archive,T>::preamble_load(ar);
                 serialize(ar,(T *) t.ptr,t.n);
-                ArchivePrePostImpl<Archive,T>::postamble_load(ar);
+                //ArchivePrePostImpl<Archive,T>::postamble_load(ar);
                 ArchivePrePostImpl<Archive,T*>::postamble_load(ar);
                 return ar;
             };

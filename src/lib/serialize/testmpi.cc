@@ -2,6 +2,9 @@
 using std::cout;
 using std::endl;
 
+#include <vector>
+using std::vector;
+
 /// \file serialize/testmpi.cc
 /// \brief Tests serialization over mpi
 
@@ -18,6 +21,11 @@ using namespace std;
 using madness::Communicator;
 using madness::redirectio;
 
+template <typename T>
+ostream& operator<<(ostream& s, const std::vector<T>& v) {
+    for (unsigned int i=0; i<v.size(); i++) s << v[i] << " ";
+    return s;
+}
 
 int main(int argc, char** argv) {
     MADMPIInit(argc, argv);
@@ -25,6 +33,7 @@ int main(int argc, char** argv) {
     redirectio(comm);
     comm.print();
 
+    int me = comm.rank();
     int nproc = comm.nproc();
     ProcessID rank = comm.rank();
 
@@ -35,8 +44,8 @@ int main(int argc, char** argv) {
 
     cout << "ranks " << rank << " " << ((rank+1)%nproc) << " " << ((rank+nproc-1)%nproc) << endl;
     
+    // Send an integer around a ring, accumulating onto it
     int sum = 1;
-
     if (rank == 0) {
         right & sum;
         left & sum;
@@ -47,7 +56,20 @@ int main(int argc, char** argv) {
         sum++;
         right & sum;
     }
-    
+
+    // Send a vector around a ring, appending to it
+    vector<int> v(1);
+    if (rank == 0) {
+        v[0] = 0;
+        right & v;
+        left & v;
+        cout << "final vector " << v << endl;
+    }
+    else {
+        left & v;
+        v.push_back(me);
+        right & v;
+    }
 
     MADMPIFinalize();
     return 0;
