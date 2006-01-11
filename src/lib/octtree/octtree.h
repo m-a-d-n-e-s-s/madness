@@ -390,7 +390,7 @@ namespace madness {
 	{
 	    int nnodes = 1;
 	    if (isParent())
-		FOREACH_CHILD(OCtTreeT, this,
+		FOREACH_CHILD(OctTreeT, this,
 		    if (child->isremote())
 		    {
 			nnodes++;
@@ -619,7 +619,7 @@ namespace madness {
 	int _remote; 		///< True if this node is remote
 
 	Cost _cost;		///< Cost associated with node
-	Cost_localSubtreeCost;	///< Cost associated with local parts of node's subtree
+	Cost _localSubtreeCost;	///< Cost associated with local parts of node's subtree
 	int _visited;		///< Whether a node has been visited and assigned to a partition
 	int _hasChildren;	///< New variables, used in reconstruction
 	int _hasParent;
