@@ -145,16 +145,10 @@ install_target: $(TARGET_TO_MAKE)
 
 endif
 
-%.$(OBJSUF): %.c
-	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< $(OUTPUT_OPTION)
-
-%.lo: %.c
-	$(LTCOMP) $(CC) $(CPPFLAGS) $(CFLAGS) -c $< $(OUTPUT_OPTION)
-
 ifneq ($(OBJSUF),lo)
 
-%.$(OBJSUF): %.f
-	$(FC) $(FFLAGS) -c $< $(OUTPUT_OPTION)
+%.$(OBJSUF): %.c
+	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< $(OUTPUT_OPTION)
 
 %.$(OBJSUF): %.C
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c $< $(OUTPUT_OPTION)
@@ -162,7 +156,13 @@ ifneq ($(OBJSUF),lo)
 %.$(OBJSUF): %.cc
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c $< $(OUTPUT_OPTION)
 
+%.$(OBJSUF): %.f
+	$(FC) $(FFLAGS) -c $< $(OUTPUT_OPTION)
+
 endif
+
+%.lo: %.c
+	$(LTCOMP) $(CC) $(CPPFLAGS) $(CFLAGS) -c $< $(OUTPUT_OPTION)
 
 %.lo: %.C
 	$(LTCOMP) $(CXX) $(CPPFLAGS) $(CXXFLAGS) -c $< $(OUTPUT_OPTION)

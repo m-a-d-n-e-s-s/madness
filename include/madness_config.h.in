@@ -50,6 +50,9 @@
 /* have MPI library header? */
 #undef HAVE_MPI_H
 
+/* does MPI library header break C++ compiler? */
+#undef MPI_H_BREAKS_CXX
+
 /* if MPI_INIT found -- we have MPI library */
 #undef HAVE_MPI_LIB
 

@@ -25,7 +25,7 @@ AC_PROG_MAKE_SET([])
 # That's where extra scripts necessary for configuration (config.guess, etc.) are located
 AC_CONFIG_AUX_DIR(bin)
 
-dnl --- Compiling C++ only ---
+dnl --- Compiling C++ 99% of the time ---
 AC_LANG(C++)
 
 AC_CANONICAL_TARGET
@@ -119,6 +119,17 @@ AC_ARG_WITH(cxx-optflags,
 CXXOPTIONS_OPT=$withval
 )
 
+AC_ARG_WITH(cc,
+[  --with-cc               Gives the name of the C compiler to use.],
+CC=$withval
+)
+
+CCOPTIONS_OPT=
+AC_ARG_WITH(cc-optflags,
+[  --with-cc-optflags      Gives optimization flags for the C compiler.],
+CCOPTIONS_OPT=$withval
+)
+
 AC_ARG_WITH(ranlib,
 [  --with-ranlib           Gives the name of the ranlib program.],
 RANLIB=$withval
@@ -196,7 +207,11 @@ dnl ac_prog_cxx's order isn't what i need
 AC_CHECK_PROGS(CXX, g++ c++ gcc CC cxx xlC_r, g++)
 dnl sees if CXX is a GNU compiler
 AC_PROG_CXX
+dnl find C compiler and check if it is a GNU compiler
+AC_PROG_CC
+
 AC_PROG_CXXCPP
+AC_PROG_CPP
 AC_CHECK_PROG(AR,ar,ar)
 AC_CHECK_PROG(PERL,perl,perl)
 AC_CHECK_PROG(DOXYGEN,doxygen,doxygen,NO)
@@ -255,10 +270,15 @@ fi
 if test "X$CXXOPTIONS_OPT" = X; then
   CXXOPTIONS_OPT=-O2
 fi
+if test "X$CCOPTIONS_OPT" = X; then
+  CCOPTIONS_OPT=-O2
+fi
 # options needed only for debugging
 CXXOPTIONS_DBG=-g
+CCOPTIONS_DBG=-g
 # options that are always needed
 CXXOPTIONS_MISC=
+CCOPTIONS_MISC=
 
 OBJSUF=o
 LIBSUF=a
@@ -268,6 +288,8 @@ dnl -- check how dependency information is built --
 # The GNU compilers work with:
 CXXDEPENDSUF=none
 CXXDEPENDFLAGS=-M
+CCDEPENDSUF=none
+CCDEPENDFLAGS=-M
 
 /bin/rm -f depcheck.u depcheck.cc depcheck.c depcheck.o
 
@@ -278,6 +300,15 @@ if test -f depcheck.u; then
   CXXDEPENDSUF=u
   CXXDEPENDFLAGS="-M -E"
 fi
+/bin/rm -f depcheck.u depcheck.cc depcheck.o
+
+# Check for an IBM visual age C compiler
+echo "#include <stdio.h>" > depcheck.c
+$CC $CPPFLAGS $CFLAGS -M -E depcheck.c > /dev/null 2>&1
+if test -f depcheck.u; then
+  CCDEPENDSUF=u
+  CCDEPENDFLAGS="-M -E"
+fi
 /bin/rm -f depcheck.u depcheck.c depcheck.o
 
 dnl -- special optimization options --
@@ -287,6 +318,9 @@ case $target in
   i686-pc-linux-*)
     if test X$GXX != Xyes; then
       CXXOPTIONS_OPT="$CXXOPTIONS_OPT -march=pentium4 -mtune=pentium4 -msse2 -mfpmath=sse"
+    fi
+    if test X$GCC != Xyes; then
+      CCOPTIONS_OPT="$CCOPTIONS_OPT -march=pentium4 -mtune=pentium4 -msse2 -mfpmath=sse"
     fi
     AC_MSG_RESULT([pentium4])
   ;;
@@ -408,22 +442,28 @@ AC_COMPILE_IFELSE(
 
 if test $DEBUG = yes; then
   CXXFLAGS="$CXXOPTIONS_DBG $CXXOPTIONS_MISC"
+  CFLAGS="$CCOPTIONS_DBG $CCOPTIONS_MISC"
   LDFLAGS="$LDFLAGS -g"
 elif test $DEBUG = opt; then
-  CXXFLAGS="$CXXOPTIONS_DBG $COPTIONS_OPT $CXXOPTIONS_MISC"
+  CXXFLAGS="$CXXOPTIONS_DBG $CXXOPTIONS_OPT $CXXOPTIONS_MISC"
+  CFLAGS="$CCOPTIONS_DBG $CCOPTIONS_OPT $CCOPTIONS_MISC"
   LDFLAGS="$LDFLAGS -g"
 else
   CXXFLAGS="$CXXOPTIONS_OPT $CXXOPTIONS_MISC"
+  CFLAGS="$CCOPTIONS_OPT $CCOPTIONS_MISC"
 fi
 
 AC_SUBST(EXTRAINCLUDE)
 AC_SUBST(EXTRADEFINES)
 AC_SUBST(CXXFLAGS)
+AC_SUBST(CFLAGS)
 AC_SUBST(LIBDIRS)
 AC_SUBST(OBJSUF)
 AC_SUBST(LIBSUF)
 AC_SUBST(CXXDEPENDSUF)
 AC_SUBST(CXXDEPENDFLAGS)
+AC_SUBST(CCDEPENDSUF)
+AC_SUBST(CCDEPENDFLAGS)
 
 dnl -------- Checks for architecture specific features. --------
 dnl (Doesn't work for cross compilation.)
@@ -590,6 +630,16 @@ if test X"$enableparallel" = Xyes; then
   
   dnl ---- look for MPI ----
   AC_CHECK_HEADERS(mpi.h,HAVE_MPI_H=yes)
+  dnl -- sometimes mpi.h breaks C++ compiler -- try using C compiler here --
+  if test X"$HAVE_MPI_H" = X; then
+    AC_LANG_PUSH(C)
+    AC_CHECK_HEADERS(mpi.h,[HAVE_MPI_H=yes
+                            MPI_H_BREAKS_CXX=yes
+                            AC_DEFINE(MPI_H_BREAKS_CXX)
+                            AC_SUBST(MPI_H_BREAKS_CXX)])
+    AC_LANG_POP(C)
+  fi
+  
   if test X"$HAVE_MPI_H" = Xyes; then
     MPI_INIT_SYMBOL=`$PERL $srcdir/bin/mkf77sym.pl $F77_SYMBOL MPI_INIT`
     dnl AC_SEARCH_LIB doesn't seem to work yet
