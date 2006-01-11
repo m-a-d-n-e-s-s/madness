@@ -8,7 +8,7 @@ using std::endl;
 #include "communicator.h"
 using namespace madness;
 
-int main(int argc, char* argv[]) {
+int main(int argc, char** argv) {
     MADMPIInit(argc, argv);
     Communicator comm;
 

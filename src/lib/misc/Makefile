@@ -11,7 +11,9 @@ TARGET_TO_MAKE = libMADmisc
 BIN_OR_LIB = LIB
 
 CXXSRC =  walltime.cc checksum_file.cc redirectio.cc
-INC =     communicator.h print.h misc.h
+#CSRC =  madmpiwrap.c
+CSRC = 
+INC =     communicator.h print.h misc.h madmpiwrap.h
 
 TESTSRC = test.cc
 TESTOBJ = $(TESTSRC:%.cc=%.$(OBJSUF))
@@ -21,7 +23,8 @@ TESTPROGS = test
 
 DISTFILES = $(CXXSRC) $(INC) Makefile $(TESTSRC) $(TESTFILES)
 
-LIBOBJ= $(CXXSRC:%.cc=%.$(OBJSUF))
+LIBOBJ = $(CXXSRC:%.cc=%.$(OBJSUF))
+LIBOBJ += $(CSRC:%.c=%.$(OBJSUF))
 
 default:: $(DEPENDINCLUDE)
 

@@ -13,6 +13,8 @@
 #define MAD_HAVE_MPI_CXX
 
 #ifdef MAD_HAVE_MPI_CXX
+// Directly use the C++ MPI interface
+
 #undef SEEK_SET
 #undef SEEK_CUR
 #undef SEEK_END
@@ -23,30 +25,53 @@
     static const MADMPIDatatype MADMPIByte = MPI::BYTE;
 #define MADMPIInit(a,b) MPI::Init(a,b)
 #define MADMPIFinalize() MPI::Finalize()
+
 #else
+
+// Use the C MPI interface thru a crude wrapper This is mostly used
+// for development under mingw using MPICH.
+#include <misc/madmpiwrap.h>
+#define MADMPIInit(a,b) madmpi_init(&(a),&(b))
+#define MADMPIFinalize() madmpi_finalize()
     typedef int MADMPIDatatype;
-    static const MADMPIDatatype MADMPIByte = 1;
+    static const MADMPIDatatype MADMPIByte = 5551212;
     
-    class MADMPIStatus {
+class MADMPIStatus { /* Must be >= size used by MPI */
+        int data[64];
     public:
-        inline int Get_count(MADMPIDatatype datatype) const {return 0;};
-        inline int Get_source() const {return 0;};
-        inline int Get_tag() const {return 0;};
+        inline int Get_count(MADMPIDatatype type) const {
+            if (type != MADMPIByte) throw "MADMPIStatus:stupid";
+            return madmpi_status_count(data);
+        };
+        inline int Get_source() const {return madmpi_status_source(data);};
+        inline int Get_tag() const {return madmpi_status_tag(data);};
+        inline int Get_err() const {return madmpi_status_err(data);};
     };
     
-    /// Wraps a C MPI communicator for the machines (mingw)
-    /// where we don't have the MPI C++ interface.
+    /// Wraps a C MPI communicator for the machines (mingw) without MPI C++
     class MADMPIIntracomm {
     private:
-        
+        int comm;               /* The MPICH communicator */
     public:
-        inline long Get_size() const {return 0;};
-        inline long Get_rank() const {return 0;};
-        static inline MADMPIIntracomm Comm_world() {return something;};
-        inline void Bcast();
-        inline void Abort();
-        inline void Send();
-        inline void Recv();
+        MADMPIIntracomm(int comm) : comm(comm) {};
+        inline int Get_size() const {return madmpi_comm_size(comm);};
+        inline int Get_rank() const {return madmpi_comm_rank(comm);};
+        inline void Bcast(void *buf, long lenbuf, MADMPIDatatype type, 
+                          ProcessID root) const {
+            if (type != MADMPIByte) throw "MADMPIIntracomm: stupid";
+            madmpi_comm_bcast(buf, lenbuf, root, comm);
+        };
+        inline void Abort(int) const {throw "MPI:abort!";};
+        inline void Send(const void* buf, long lenbuf, MADMPIDatatype type, 
+                         ProcessID dest, int tag) const {
+            if (type != MADMPIByte) throw "MADMPIIntracomm: stupid";
+            madmpi_comm_send(buf, lenbuf, dest, tag, comm);
+        };
+        inline void Recv(void* buf, long lenbuf, MADMPIDatatype type , 
+                         ProcessID src, int tag, MADMPIStatus& status) const {
+            if (type != MADMPIByte) throw "MADMPIIntracomm: stupid";
+            madmpi_comm_recv(buf, lenbuf, src, tag, comm, &status);
+        };
     };
 #endif
 
@@ -106,10 +131,10 @@ namespace madness {
         
 #ifdef MAD_HAVE_MPI_CXX
         /// Use MPI_COMM_WORLD and setup topology as 3D mesh (P=2^n)
-        Communicator() {_comm=MPI::COMM_WORLD; setup();};
+        Communicator() : _comm(MPI::COMM_WORLD) {setup();};
 #else
         /// Use MPI_COMM_WORLD and setup topology as 3D mesh (P=2^n)
-        Communicator() {_comm=MADMPIIntracomm::Comm_world(); setup();};
+        Communicator() : _comm(madmpi_comm_world()) {setup();};
 #endif
 
         /// Return the process rank (within this communicator)
@@ -247,7 +272,6 @@ namespace madness {
     template <>
     inline void Communicator::recv(void* buf, long lenbuf, ProcessID src, long tag, 
                                    long *count, long *from) const {
-        
         MADMPIStatus status;
         _comm.Recv(buf, lenbuf, MADMPIByte, src, tag, status);
         if (count) *count = status.Get_count(MADMPIByte);
