@@ -6,6 +6,8 @@
 
 #include <iostream>
 #include <algorithm>
+#include <cmath>
+#include <list>
 
 #include <mad_types.h>
 #include <misc/print.h>
@@ -52,6 +54,10 @@
 
 namespace madness {
     
+    // declare it up here so that it will be recognized by OctTree:
+
+    template <class T> class OctTreeFlat;
+
     /// Raise integer two to a positive power 
     inline Translation two_to_power(long n) {return Translation(1)<<n;}
 
@@ -160,8 +166,8 @@ namespace madness {
         /// Constructor makes node with all info provided
         OctTree(Level n, Translation x, Translation y, Translation z,
                       bool remote, OctTreeT* parent, ProcessID remote_proc,
-                      const Communicator* comm, cost, localSubtreeCost,
-		      visited) :
+                      const Communicator* comm, Cost cost, 
+		      Cost localSubtreeCost, bool visited) :
             _x(x), _y(y), _z(z), _n(n),
             _remote(remote),  _rank(remote_proc), 
 	    _p(parent), _comm(comm), _cost(cost), 
@@ -169,6 +175,28 @@ namespace madness {
             {
                 FORIJK(_c[i][j][k] = 0;);
             };
+
+	/// Constructor makes node from flattened data type, with parent
+	OctTree(OctTreeFlat<T> t, OctTreeT* parent)
+	{
+	    _x = t.x(); _y = t.y(); _z = t.z(); _n = t.n();
+	    _remote = t.remote(); _rank = t.rank();
+	    _cost = t.cost(); _localSubtreeCost = t.localSubtreeCost();
+	    _data = t.data(); _visited = t.visited();
+	    FORIJK(_c[i][j][k] = 0;);
+	    _p = parent;
+	};
+
+	/// Constructor makes node from flattened data type 
+	OctTree(OctTreeFlat<T> t)
+	{
+	    _x = t.x(); _y = t.y(); _z = t.z(); _n = t.n();
+	    _remote = t.remote(); _rank = t.rank();
+	    _cost = t.cost(); _localSubtreeCost = t.localSubtreeCost();
+	    _data = t.data(); _visited = t.visited();
+	    FORIJK(_c[i][j][k] = 0;);
+	    _p = 0;
+	};
 
         ~OctTree() {
         }
@@ -246,6 +274,25 @@ namespace madness {
         inline OctTreeT* child(int x, int y, int z) const {
             return (OctTreeT*) _c[x][y][z];
         };
+
+	/// insert child from flattened data structure, returning pointer to child
+	OctTreeT* insert_flat_child(OctTreeFlat<T> t)
+	{
+	    Translation x, y, z, px, py, pz;
+	    x = t.x();
+	    y = t.y();
+	    z = t.z();
+	    px = this->x();
+	    py = this->y();
+	    pz = this->z();
+
+	    x -= (2*px);
+	    y -= (2*py);
+	    z -= (2*pz);
+
+	    _c[x][y][z] = shared_ptr<OctTreeT>(new OctTreeT(t, this));
+	    return _c[x][y][z];
+	};
         
         /// insert local child (x, y, z in {0,1}) returning pointer to child
         OctTreeT* insert_local_child(int x, int y, int z) {
@@ -557,6 +604,88 @@ namespace madness {
             return p;
         };
         
+    };
+
+    template <class T>
+    class OctTreeFlat {
+    private:
+	Translation _x;		///< x translation (0,...,2**n-1)
+	Translation _y;		///< y translation (0,...,2**n-1)
+	Translation _z;		///< z translation (0,...,2**n-1)
+	Level _n; 		///< Level in tree
+
+	// NOTE: All bools changed to ints because bool is not C type
+
+	int _remote; 		///< True if this node is remote
+
+	Cost _cost;		///< Cost associated with node
+	Cost_localSubtreeCost;	///< Cost associated with local parts of node's subtree
+	int _visited;		///< Whether a node has been visited and assigned to a partition
+	int _hasChildren;	///< New variables, used in reconstruction
+	int _hasParent;
+
+	ProcessID _rank;	///< if (_remote) The rank of remote process
+	T _data;		///< The payload stored by value
+
+	typedef OctTreeFlat<T> OctTreeFlatT;
+	typedef typename std::list<OctTreeFlatT,std::allocator<OctTreeFlatT> >::iterator LI;
+
+    public:
+	/// Default constructor
+	OctTreeFlat()
+	{
+	    _x = 0; _y = 0; _z = 0; _n = -1; _remote = 0; _rank = -1;
+	    _cost = 1; _localSubtreeCost = 1; _visited = 0;
+	};
+
+	/// Constructor with some info
+	OctTreeFlat(Level n, Translation x, Translation y, Translation z,
+		int remote, ProcessID remote_proc)
+	{
+	    _x = x; _y = y; _z = z; _n = n; _remote = remote_proc; _rank = -1;
+	    _cost = 1; _localSubtreeCost = 1; _visited = 0;
+	};
+	
+	/// Constructor made with OctTree (the crucial constructor)
+	OctTreeFlat(OctTree<T> t)
+	{
+	    _x = t.x(); _y = t.y(); _z = t.z(); _n = t.n();
+	    _remote = (int) t.isremote(); _rank = t.rank(); _cost = t.getCost();
+	    _localSubtreeCost = t.getLocalSubtreeCost();
+	    _visited = (int) t.isVisited();
+	    if (t.isParent() && t.islocal())
+	    {
+		_hasChildren = 1;
+	    }
+	    else
+	    {
+		_hasChildren = 0;
+	    }
+	    if (t.parent() == 0)
+	    {
+		_hasParent = 0;
+	    }
+	    else
+	    {
+		_hasParent = 1;
+	    }
+	    _rank = t.rank();
+	    _data = t.data();
+	};
+	~OctTreeFlat() {};
+
+	inline Translation x() {return _x;};
+	inline Translation y() {return _y;};
+	inline Translation z() {return _z;};
+	inline Level n() {return _n;};
+	inline int remote() {return _remote;};
+	inline ProcessID rank() {return _rank;};
+	inline T data() {return _data;};
+	inline Cost cost() {return _cost;};
+	inline Cost localSubtreeCost() {return _localSubtreeCost;};
+	inline int visited() {return _visited;};
+	inline bool hasChildren() {return _hasChildren;};
+	inline bool hasParent() {return _hasParent;};
     };
 }
 
