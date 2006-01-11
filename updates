@@ -2,5 +2,8 @@
 
 01/11/2005: 1) Removed autom4te.cache
             2) Removed doc/doxygen.cfg, lib/MakeVars, and linalg/lapack_functions.h
+            3) Added C compiler checks to configure.in
+            4) Added configure.in check for mpi.h breaking C++ compiler
+            5) Removed src/madnessdirlist.h and Makedirlist
               -EFV
 
