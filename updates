@@ -1,4 +1,6 @@
 	Current updates
 
-01/11/2005: Removed autom4te.cache.  -EFV
+01/11/2005: 1) Removed autom4te.cache
+            2) Removed doc/doxygen.cfg, lib/MakeVars, and linalg/lapack_functions.h
+              -EFV
 
