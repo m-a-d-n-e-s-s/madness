@@ -1,5 +1,7 @@
 	Current updates
 
+01/12/2005: Strengthened checks of C and C++ MPI bindings.  -EFV
+
 01/11/2005: 1) Removed autom4te.cache
             2) Removed doc/doxygen.cfg, lib/MakeVars, and linalg/lapack_functions.h
             3) Added C compiler checks to configure.in

@@ -658,32 +658,32 @@ if test X"$enableparallel" = Xyes; then
     AC_LANG_PUSH(C)
     AC_MSG_CHECKING([for MPI C bindings])
     AC_LINK_IFELSE(
-      [AC_LANG_SOURCE(
+      [AC_LANG_PROGRAM(
         [[#include <mpi.h>]],
-        [[int argc; char** argv;  MPI_Init(argc,argv);]]
+        [[int argc = 0; char** argv = 0; MPI_Init(&argc,&argv); MPI_Finalize();]]
        )
       ],
-      [AC_MSG_RESULT([no])],
       [AC_DEFINE(HAVE_MPI_C_BINDINGS)
        HAVE_MPI_C_BINDINGS=yes
        AC_MSG_RESULT([yes])
-      ]
+      ],
+      [AC_MSG_RESULT([no])]
     )
     AC_LANG_POP(C)
 
     dnl -- Test for C++ MPI bindings --
     AC_MSG_CHECKING([for MPI C++ bindings])
     AC_LINK_IFELSE(
-      [AC_LANG_SOURCE(
+      [AC_LANG_PROGRAM(
         [[#include <mpi.h>]],
-        [[int argc; char** argv;  MPI_Init(argc,argv);]]
+        [[int argc = 0; char** argv = 0; MPI_Init(&argc,&argv); MPI_Finalize();]]
        )
       ],
-      [AC_MSG_RESULT([no])],
       [AC_DEFINE(HAVE_MPI_CXX_BINDINGS)
        HAVE_MPI_CXX_BINDINGS=yes
        AC_MSG_RESULT([yes])
-      ]
+      ],
+      [AC_MSG_RESULT([no])]
     )
     
     dnl -- now can decide whether have enough MPI support to compile --
