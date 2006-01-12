@@ -643,7 +643,7 @@ if test X"$enableparallel" = Xyes; then
   if test X"$HAVE_MPI_H" = Xyes; then
     MPI_INIT_SYMBOL=`$PERL $srcdir/bin/mkf77sym.pl $F77_SYMBOL MPI_INIT`
     dnl AC_SEARCH_LIB doesn't seem to work yet
-    AC_CHECK_FUNC($MPI_INIT_SYMBOL,HAVE_MPI_LIB=yes)
+    AC_CHECK_FUNC($MPI_INIT_SYMBOL,[HAVE_MPI_LIB=yes HAVE_MPI_F77_BINDINGS=yes])
     if test X"$HAVE_MPI_LIB" = X; then
       AC_CHECK_LIB(mpi,$MPI_INIT_SYMBOL,LIBS="-lmpi $LIBS" HAVE_MPI_LIB=yes)
     fi
@@ -653,10 +653,48 @@ if test X"$enableparallel" = Xyes; then
     if test X"$HAVE_MPI_LIB" = Xyes; then
       AC_DEFINE(HAVE_MPI_LIB)
     fi
+
+    dnl -- Test for C MPI bindings --
+    AC_LANG_PUSH(C)
+    AC_MSG_CHECKING([for MPI C bindings])
+    AC_LINK_IFELSE(
+      [AC_LANG_SOURCE(
+        [[#include <mpi.h>]],
+        [[int argc; char** argv;  MPI_Init(argc,argv);]]
+       )
+      ],
+      [AC_MSG_RESULT([no])],
+      [AC_DEFINE(HAVE_MPI_C_BINDINGS)
+       HAVE_MPI_C_BINDINGS=yes
+       AC_MSG_RESULT([yes])
+      ]
+    )
+    AC_LANG_POP(C)
+
+    dnl -- Test for C++ MPI bindings --
+    AC_MSG_CHECKING([for MPI C++ bindings])
+    AC_LINK_IFELSE(
+      [AC_LANG_SOURCE(
+        [[#include <mpi.h>]],
+        [[int argc; char** argv;  MPI_Init(argc,argv);]]
+       )
+      ],
+      [AC_MSG_RESULT([no])],
+      [AC_DEFINE(HAVE_MPI_CXX_BINDINGS)
+       HAVE_MPI_CXX_BINDINGS=yes
+       AC_MSG_RESULT([yes])
+      ]
+    )
+    
+    dnl -- now can decide whether have enough MPI support to compile --
     if test X"$HAVE_MPI_H""$HAVE_MPI_LIB" = Xyesyes; then
-      HAVE_MPI=yes
-      AC_SUBST(HAVE_MPI)
+      if test X"$HAVE_MPI_C_BINDINGS" = Xyes -o X"$HAVE_MPI_CXX_BINDINGS" = Xyes; then
+        HAVE_MPI=yes
+        AC_SUBST(HAVE_MPI)
+        AC_SUBST(HAVE_MPI_CXX_BINDINGS)
+      fi
     fi
+    
   fi
   
   dnl ---- look for pthreads ----

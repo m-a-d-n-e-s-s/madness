@@ -50,6 +50,9 @@
 /* have MPI library header? */
 #undef HAVE_MPI_H
 
+/* do MPI C++ bindings work? */
+#undef HAVE_MPI_CXX_BINDINGS
+
 /* does MPI library header break C++ compiler? */
 #undef MPI_H_BREAKS_CXX
 
