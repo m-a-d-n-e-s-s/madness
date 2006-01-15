@@ -6,6 +6,14 @@
      \brief Wrappers for mingw that does not have C++ MPI interface
 ***/
 
+int madmpi_any_source() {
+  return MPI_ANY_SOURCE;
+}
+
+int madmpi_any_tag() {
+  return MPI_ANY_TAG;
+}
+
 int madmpi_comm_world() {
     return MPI_COMM_WORLD;
 }
@@ -48,4 +56,7 @@ void madmpi_comm_recv(void* buf, int lenbuf, int dest, int tag, int comm, void* 
     MPI_Recv(buf, lenbuf, MPI_BYTE, dest, tag, comm, (MPI_Status*) status);
 }
 
+void madmpi_iprobe(int src, int tag, int comm, int* flag, void* status) {
+    MPI_Probe(src, tag, comm, (MPI_Status*) status);
+}
 

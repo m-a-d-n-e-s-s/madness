@@ -10,9 +10,8 @@ include $(SRCDIR)/$(TOPDIR)/lib/GlobalMakefile
 TARGET_TO_MAKE = libMADmisc
 BIN_OR_LIB = LIB
 
-CXXSRC =  walltime.cc checksum_file.cc redirectio.cc
-#CSRC =  madmpiwrap.c
-CSRC = 
+CXXSRC =  walltime.cc checksum_file.cc redirectio.cc am_stuff.cc
+CSRC =  madmpiwrap.c
 INC =     communicator.h print.h misc.h madmpiwrap.h
 
 TESTSRC = test.cc
@@ -36,6 +35,9 @@ TESTLIBDEPEND =
 $(TESTOBJ):	$(INC)
 
 test: $(TESTOBJ) $(THISLIBDEPEND) $(TESTLIBDEPEND)
+	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ $(SYSLIBS) $(LTLINKBINOPTS)
+
+am: am.o $(THISLIBDEPEND) $(TESTLIBDEPEND)
 	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ $(SYSLIBS) $(LTLINKBINOPTS)
 
 include $(SRCDIR)/$(TOPDIR)/lib/MakeRules
