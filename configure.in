@@ -676,7 +676,7 @@ if test X"$enableparallel" = Xyes; then
     AC_LINK_IFELSE(
       [AC_LANG_PROGRAM(
         [[#include <mpi.h>]],
-        [[int argc = 0; char** argv = 0; MPI_Init(&argc,&argv); MPI_Finalize();]]
+        [[int argc = 0; char** argv = 0; MPI::Init(argc,argv); MPI::Finalize();]]
        )
       ],
       [AC_DEFINE(HAVE_MPI_CXX_BINDINGS)
