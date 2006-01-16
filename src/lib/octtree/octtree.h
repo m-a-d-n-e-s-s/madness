@@ -463,8 +463,8 @@ namespace madness {
             int buf;
             if (parent() && parent()->isremote()) {
                 print_coords();
-                madness::print(" receiving from",parent()->rank());
-                _comm->recv(&buf, sizeof(buf), parent()->rank(), 1);
+                madness::print(" ",_comm->rank()," receiving from",parent()->rank());
+                _comm->Recv(buf, parent()->rank(), 1);
             }
             
             // do work here if not remote
@@ -473,8 +473,8 @@ namespace madness {
                    if (c) {
                        if (c->isremote()) {
                            c->print_coords();
-                           madness::print(" sending to",c->rank());
-                           _comm->send(&buf, sizeof(buf), c->rank(), 1);
+                           madness::print(" ",_comm->rank()," sending to",c->rank());
+                           _comm->Send(buf, c->rank(), 1);
                        }
                        else {
                            c->walk_down();
@@ -491,8 +491,8 @@ namespace madness {
                        c->walk_up();
                        if (c->isremote()) {
                            c->print_coords();
-                           madness::print(" receiving from",c->rank());
-                           _comm->recv(&buf, sizeof(buf), c->rank(), 1);
+                           madness::print(" ",_comm->rank()," receiving from",c->rank());
+                           _comm->Recv(buf, c->rank(), 1);
                        }
                    });
             
@@ -500,8 +500,8 @@ namespace madness {
             
             if (parent() && parent()->isremote()) {
                 print_coords();
-                madness::print(" sending to",parent()->rank());
-                _comm->send(&buf, sizeof(buf), parent()->rank(), 1);
+                madness::print(" ",_comm->rank()," sending to",parent()->rank());
+                _comm->Send(buf, parent()->rank(), 1);
             }
         };
         

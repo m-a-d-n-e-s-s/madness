@@ -1168,7 +1168,7 @@ namespace madness {
         bool _square_notify(const OctTreeT *tree) {
             bool has_data = coeff(tree);
             FOREACH_CHILD(OctTreeT, tree,
-                          if (isremote(child)) comm()->send(has_data, child->rank(), 55);
+                          if (isremote(child)) comm()->Send(has_data, child->rank(), 55);
                          );
             FOREACH_CHILD(OctTreeT, tree,
                           if (!isremote(child)) _square_notify(child);
@@ -1178,7 +1178,7 @@ namespace madness {
             if (tree->islocalsubtreeparent() && isremote(tree)) {
                 FOREACH_CHILD(OctTreeT, tree,
                               bool do_me;
-                              comm()->recv(do_me, tree->rank(), 55);
+                              comm()->Recv(do_me, tree->rank(), 55);
                               do_someone = do_someone || do_me;
                              );
             }
@@ -1197,9 +1197,9 @@ namespace madness {
                 long k2 = k * 2;
                 Tensor<T>& work = data->cdata->work1;
                 FOREACH_CHILD(OctTreeT, tree,
-                              long count;
-                              comm()->recv(work.ptr(), k3, tree->rank(), 66, &count);
-                              if (count) {
+                              MPI::Status status;
+                              comm()->Recv(work.ptr(), k3*sizeof(T), MPI::BYTE, tree->rank(), 66, status);
+                              if (status.Get_count(MPI::BYTE)) {
                               set_active(tree);
                                   Tensor<T>*c = set_coeff(child, Tensor<T>(k2, k2, k2));
                                   (*c)(s0, s0, s0) = work;

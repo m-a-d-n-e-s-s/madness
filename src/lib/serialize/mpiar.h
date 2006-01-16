@@ -17,7 +17,7 @@ namespace madness {
             inline 
             typename madness::enable_if< madness::is_fundamental<T>, void >::type
             store(const T* t, long n) const {
-                comm.send((const char *) t, n*sizeof(T), dest, 0);
+                comm.Send(t, n, dest, 5447468);
             };
         };
         
@@ -32,7 +32,7 @@ namespace madness {
             inline 
             typename madness::enable_if< madness::is_fundamental<T>, void >::type
             load(T* t, long n) const {
-                comm.recv((char *) t, n*sizeof(T), src, 0);
+                comm.Recv(t, n, src, 5447468);
             }
         };
 

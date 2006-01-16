@@ -28,7 +28,7 @@ ostream& operator<<(ostream& s, const std::vector<T>& v) {
 }
 
 int main(int argc, char** argv) {
-    MADMPIInit(argc, argv);
+    MPI::Init(argc, argv);
     Communicator comm;
     redirectio(comm);
     comm.print();
@@ -71,6 +71,7 @@ int main(int argc, char** argv) {
         right & v;
     }
 
-    MADMPIFinalize();
+    comm.close();
+    MPI::Finalize();
     return 0;
 }

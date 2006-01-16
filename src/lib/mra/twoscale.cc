@@ -313,13 +313,13 @@ namespace madness {
                 _c = Tensor<double>(autoc_k,autoc_k,4*autoc_k);
             }
             for (int k=0; k<=kmax; k++) {
-                comm.bcast(cache[k].h0.ptr(), k*k, 0);
-                comm.bcast(cache[k].h1.ptr(), k*k, 0);
-                comm.bcast(cache[k].g0.ptr(), k*k, 0);
-                comm.bcast(cache[k].g1.ptr(), k*k, 0);
+                comm.Bcast(cache[k].h0.ptr(), k*k, 0);
+                comm.Bcast(cache[k].h1.ptr(), k*k, 0);
+                comm.Bcast(cache[k].g0.ptr(), k*k, 0);
+                comm.Bcast(cache[k].g1.ptr(), k*k, 0);
             }
             
-            comm.bcast(_c.ptr(), autoc_k*autoc_k*4*autoc_k, 0);
+            comm.Bcast(_c.ptr(), autoc_k*autoc_k*4*autoc_k, 0);
 
             loaded = true;
         }

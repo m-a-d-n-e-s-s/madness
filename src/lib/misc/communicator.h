@@ -1,128 +1,141 @@
 #ifndef COMMUNICATOR_H
 #define COMMUNICATOR_H
 
-#include <iostream>
-
-#include <vector>
-
-#include <madness_config.h>
-#include <mad_types.h>
-#include <typestuff.h>
-
 /// \file communicator.h
 /// \brief Defines Communicator (interprocess communication + topology)
 
-//#define MAD_HAVE_MPI_CXX
-
-#ifdef MAD_HAVE_MPI_CXX
-// Directly use the C++ MPI interface
+#include <iostream>
+#include <unistd.h>
+#include <vector>
+#include <madness_config.h>
+#include <mad_types.h>
+#include <typestuff.h>
 
 #undef SEEK_SET
 #undef SEEK_CUR
 #undef SEEK_END
 #include <mpi.h>
-    typedef MPI::Intracomm MADMPIIntracomm;
-    typedef MPI::Status MADMPIStatus;
-    typedef MPI::Datatype MADMPIDatatype ;
-    static const MADMPIDatatype MADMPIByte = MPI::BYTE;
-    static const int MADMPIANY_SOURCE = MPI::ANY_SOURCE;
-    static const int MADMPIANY_TAG = MPI::ANY_TAG;
-#define MADMPIInit(a,b) MPI::Init(a,b)
-#define MADMPIFinalize() MPI::Finalize()
-
-#else
-
-// Use the C MPI interface thru a crude wrapper This is mostly used
-// for development under mingw using MPICH.
-#include <misc/madmpiwrap.h>
-#define MADMPIInit(a,b) madmpi_init(&(a),&(b))
-#define MADMPIFinalize() madmpi_finalize()
-#define MADMPIANY_SOURCE madmpi_any_source()
-#define MADMPIANY_TAG madmpi_any_tag()
-    typedef int MADMPIDatatype;
-    static const MADMPIDatatype MADMPIByte = 5551212;
-    
-class MADMPIStatus { /* Must be >= size used by MPI */
-        int data[64];
-    public:
-        inline int Get_count(MADMPIDatatype type) const {
-            if (type != MADMPIByte) throw "MADMPIStatus:stupid";
-            return madmpi_status_count(data);
-        };
-        inline int Get_source() const {return madmpi_status_source(data);};
-        inline int Get_tag() const {return madmpi_status_tag(data);};
-        inline int Get_err() const {return madmpi_status_err(data);};
-    };
-    
-    /// Wraps a C MPI communicator for the machines (mingw) without MPI C++
-    class MADMPIIntracomm {
-    private:
-        int comm;               /* The MPICH communicator */
-    public:
-        MADMPIIntracomm(int comm) : comm(comm) {};
-        inline int Get_size() const {return madmpi_comm_size(comm);};
-        inline int Get_rank() const {return madmpi_comm_rank(comm);};
-        inline void Bcast(void *buf, long lenbuf, MADMPIDatatype type, 
-                          ProcessID root) const {
-            if (type != MADMPIByte) throw "MADMPIIntracomm: stupid";
-            madmpi_comm_bcast(buf, lenbuf, root, comm);
-        };
-        inline void Abort(int) const {throw "MPI:abort!";};
-        inline void Send(const void* buf, long lenbuf, MADMPIDatatype type, 
-                         ProcessID dest, int tag) const {
-            if (type != MADMPIByte) throw "MADMPIIntracomm: stupid";
-            madmpi_comm_send(buf, lenbuf, dest, tag, comm);
-        };
-        inline void Recv(void* buf, long lenbuf, MADMPIDatatype type , 
-                         ProcessID src, int tag, MADMPIStatus& status) const {
-            if (type != MADMPIByte) throw "MADMPIIntracomm: stupid";
-            madmpi_comm_recv(buf, lenbuf, src, tag, comm, &status);
-        };
-        inline bool Iprobe(ProcessID src, int tag, MADMPIStatus& status) const {
-	  int flag;
-	  madmpi_iprobe(src, tag, comm, &flag, &status);
-	  return flag;
-	};
-    };
-#endif
 
 namespace madness {
-  class Communicator;
-
+    class Communicator;
+    
     /// Holds arguments sent via active messages ... deliberately small.
-    struct AMArg {
-      long function;
-      long arg0, arg1, arg2, arg3;
+    class AMArg {
+    private:
+        friend class Communicator;
+        long function;
+        AMArg() : function(-1) {};
+    public:
+        long arg0, arg1, arg2, arg3;
 
-      AMArg(long function) 
-	: function(function) {};
-      AMArg(long function, long arg0) 
-	: function(function), arg0(arg0) {};
-      AMArg(long function, long arg0, long arg1) 
-	: function(function), arg0(arg0), arg1(arg1) {};
-      AMArg(long function, long arg0, long arg1, long arg2) 
-	: function(function), arg0(arg0), arg1(arg1), arg2(arg2) {};
-      AMArg(long function, long arg0, long arg1, long arg2, long arg3) 
-	: function(function), arg0(arg0), arg1(arg1), arg2(arg2), arg3(arg3) {};
+        AMArg(long function) 
+            : function(function) {};
+        AMArg(long function, long arg0) 
+            : function(function), arg0(arg0) {};
+        AMArg(long function, long arg0, long arg1) 
+            : function(function), arg0(arg0), arg1(arg1) {};
+        AMArg(long function, long arg0, long arg1, long arg2) 
+            : function(function), arg0(arg0), arg1(arg1), arg2(arg2) {};
+        AMArg(long function, long arg0, long arg1, long arg2, long arg3) 
+            : function(function), arg0(arg0), arg1(arg1), arg2(arg2), 
+              arg3(arg3) {};
     };
-
-
-  void am_barrier_handler(Communicator& comm, ProcessID proc, const AMArg& arg);
-  long am_barrier_nchild_registered();
-  void am_barrier_zero_nchild_registered();
-
-    /// Holds info about process topology and provides message passing
+    
+    
+    void am_barrier_handler(Communicator& comm, ProcessID proc, const AMArg& arg);
+    long am_barrier_nchild_registered();
+    void am_barrier_zero_nchild_registered();
+    
+    /// Wraps an MPI communicator and provides topology, AM routines, etc.
     
     /// This class wraps an MPI communicator and provides info about
     /// process rank, number of processes along with basic send/recv
     /// capabilities.
+    ///
+    /// This class now exactly replicates a subset of the MPI C++
+    /// communicator and provides additional functionality.
     /// 
     /// Also managed by this class is the logical layout of processes as a
     /// 3D mesh (currently P=2^n only).  This might be better separated
     /// from the communicator, but usually if you want one you want the
     /// other.
     /// 
-    /// Expect this class to change as the overall design is completed.
+    /// Now includes a crude "active" message interface.  In the
+    /// absence of preemptive scheduling, interrupts, or threads, we
+    /// have to use polling.  This is portable, but there are big
+    /// implications w.r.t. performance (poll often, but not too
+    /// often) and correctness.
+    ///
+    /// First, place calls to \c comm.am_poll() before and after any
+    /// expensive (milli+ second) operation.   But, ...
+    ///
+    /// How to write a correct program using the AM interface?
+    ///
+    /// The following only applies to code segments that are using
+    /// the AM interface.  However, since MADNESS is ultimately 
+    /// a library we may have to assume that all parts of the code
+    /// must adhere to the following advice.
+    ///
+    /// The active messages are in the same data stream as all of
+    /// other messages.   An example illustrates the consequences
+    /// of this.  In the folllowing, another piece of code registered
+    /// the handler \c action().
+    /// \code
+    /// void action(Communicator& comm, const AMArg& arg, ProcessID from) {
+    ///    int reply = arg.arg0+1;
+    ///    comm.send(reply,from);
+    /// }
+    ///
+    /// int test(Communicator& comm, int handle, ProcessID p) {
+    ///    int reply;
+    ///    comm.am_send(AMArg(handle,0),p);
+    ///    comm.recv(reply,p);
+    ///    return reply;
+    /// }
+    /// \endcode
+    /// The intent of the above code is to provide and use a service
+    /// to which you can send an integer and receive a reply
+    /// containing the incremented value.  Sadly, it is \em incorrect
+    /// and will occasionally \em hang.
+    /// 
+    /// The problem above is that if two processes send each other an
+    /// AM request and then immediately enter the \c recv(), the AM
+    /// request will never be processed.  Shoving an \c am_poll()
+    /// between the \c am_send() and \c recv() might appear to work
+    /// sometimes, but it is not sufficient, and the problem is
+    /// deeper.  
+    ///
+    /// While in a block of code that requres AM requests continue to
+    /// be processed, a process must \em not block on any operation
+    /// that depends upon another process for completion.  Otherwise,
+    /// there is no easy guarantee that deadlock cannot occur.  To be
+    /// completely safe, and for best performance, all recieves
+    /// (whether associated with an active message, or otherwise)
+    /// should be posted in advance of the expected message arrival.
+    /// This will avoid buffer full problems and ensure active messages
+    /// and their replies will be visible.  
+    ///
+    /// A correct version of the above example is (the AM handler need
+    /// not change).
+    /// \code
+    /// int test(Communicator& comm, int handle, ProcessID p) {
+    ///    int reply;
+    ///    MPI::Request req = comm.irecv(reply,p);
+    ///    comm.am_send(AMArg(handle,0),p);
+    ///    comm.recv(reply,p);
+    ///    comm.am_wait(req);
+    ///    return reply;
+    /// }
+    /// \endcode
+    /// This is rather cumbersome and since request/response is
+    /// a common motif you can also write this.
+    /// \code
+    /// int test(Communicator& comm) {
+    ///    int reply;
+    ///    comm.am_send_recv(AMArg(handle,0),p,&reply,sizeof(reply),p,tag);
+    ///    return reply;
+    /// }
+    /// \endcode
     class Communicator {
     private:
         long _nproc;                ///< total no. of processes
@@ -131,12 +144,14 @@ namespace madness {
         long _px, _py, _pz;         ///< coords of this process in mesh
         ProcessID _rank;            ///< rank of this process
         
-        MADMPIIntracomm _comm;
+        mutable MPI::Intracomm _comm;
 
+        AMArg _am_arg;              // Used for async recv of AM
+        MPI::Request _am_req;
         static const int _am_tag = 37919;
+        int _am_barrier_handle;
         std::vector<void (*)(Communicator&, ProcessID, const AMArg&)> _am_handlers;
 
-        int _am_barrier_handle;
         
         /// Given p=2^n processes make as close as possible to a cubic grid.
         
@@ -144,8 +159,10 @@ namespace madness {
         void setup() {
             _nproc = _comm.Get_size();
             _rank = _comm.Get_rank();
-
+            
+            // Register am_barrier then post AM receive buffer
 	    _am_barrier_handle = am_register(am_barrier_handler);
+            _am_req = Irecv(_am_arg, MPI::ANY_SOURCE, _am_tag);
 
             _npz = 1; _mz = 0;
             while (8*_npz*_npz*_npz <= _nproc) {_npz *= 2; _mz++;}
@@ -165,40 +182,46 @@ namespace madness {
                 rank_from_coords(_px,_py,_pz)!=_rank) 
                 throw "p3_coords failed";
         };
-        
+
+        inline void backoff(unsigned long& count) {
+            count++;
+            if (count < 100) return;
+            else if (count < 10000) usleep(1000);  // 10s at 1ms intervals
+            else if (count < 20000) usleep(10000); // 100s at 10ms intervals
+            else throw "Deadlocked inside backoff"; // FOR DEBUGGING AM ... 
+        };
+
+        Communicator(const Communicator&); // Forbidden
+        Communicator& operator=(const Communicator&); // Forbidden
+
     public:
         
         /// Use given communicator and setup topology as 3D mesh (P=2^n)
-        Communicator(const MADMPIIntracomm comm) : _comm(comm) {setup();};
+        Communicator(const MPI::Intracomm comm) : _comm(comm) {setup();};
         
-#ifdef MAD_HAVE_MPI_CXX
         /// Use MPI_COMM_WORLD and setup topology as 3D mesh (P=2^n)
         Communicator() : _comm(MPI::COMM_WORLD) {setup();};
-#else
-        /// Use MPI_COMM_WORLD and setup topology as 3D mesh (P=2^n)
-        Communicator() : _comm(madmpi_comm_world()) {setup();};
-#endif
-
-        /// Return the process rank (within this communicator)
+        
+        /// Return the process rank within communnicator
         inline ProcessID rank() const {return _rank;};
         
-        /// Return the total number of processes (within this communicator)
+        /// Return the number of processes within communicator
         inline long nproc() const {return _nproc;};
         
-        /// Return the total number of processes (within this communicator)
+        /// Return the number of processes within communicator
         inline long size() const {return _nproc;};
         
-        /// Return coords of this process in the process mesh (within this communicator)
+        /// Return coords of this process in the process mesh
         inline void coords(long& px, long& py, long& pz) const {
             px=_px; py=_py; pz=_pz;
         };
         
-        /// Return the dimensions of the process mesh (within this communicator)
+        /// Return the dimensions of the process mesh
         inline void mesh(long& npx, long& npy, long& npz) const {
             npx=_npx; npy=_npy; npz=_npz;
         };
         
-        /// Return rank of process given coords in process mesh (within this communicator)
+        /// Return rank of process given coords in process mesh
         inline ProcessID rank_from_coords(long px, long py, long pz) const {
             return px + _npx*(py + _npy*pz);
         };
@@ -211,164 +234,230 @@ namespace madness {
             std::cout.flush();
         };
         
-        /// Send typed data of lenbuf elements to process dest
-        
-        /// Generic version assumes simple types that can be sent as a
-        /// byte stream.  Complex data types will need to define
-        /// specialization of this routine.  Currently this is a
-        /// stupid version that maps to untyped data of length
-        /// lenbuf*sizeof(T).
-        template <class T> 
-        inline 
-        void 
-        send(const T* buf, long lenbuf, ProcessID dest, int tag=665) const {
-            send((void* )buf, lenbuf*sizeof(T), dest, tag);
+        /// Same as MPI::Intracomm::Send
+        inline void Send(const void* buf, int count, const MPI::Datatype& datatype, 
+                         ProcessID dest, int tag) const {
+            _comm.Send(buf,count,datatype,dest,tag);
         };
         
-        /// Send typed datum to process dest
+        
+        /// Send array of lenbuf elements to process dest with default tag=665
+        template <class T> 
+        inline void Send(const T* buf, long lenbuf, ProcessID dest, int tag=665) const {
+            Send((void* )buf, lenbuf*sizeof(T), MPI::BYTE, dest, tag);
+        };
+        
+        
+        /// Send datum to process dest with default tag=666
         template <class T> 
         inline
         typename madness::enable_if_c< !madness::is_pointer<T>::value, void>::type
-        send(const T& datum, ProcessID dest, int tag=666) const {
-            send(&datum, 1, dest, tag);
+        Send(const T& datum, ProcessID dest, int tag=666) const {
+            Send((void* )&datum, sizeof(T), MPI::BYTE, dest, tag);
         };
         
-        /// Receive data of up to lenbuf elements from process dest
         
-        /// If count is non-null it will be assigned the number of elements
-        /// actually received. If from is non-null it will be assigned the
-        /// process the data actually came from which may be of interest
-        /// if src is a wild card (src=ANY_SOURCE).
-        /// 
-        /// This generic version will need to be specialized for complex types
-        /// and currently maps directly to an untyped byte stream.
+        /// Same as MPI::Intracomm::Recv
+        inline void Recv(void* buf, int count, const MPI::Datatype& datatype, 
+                         ProcessID source, int tag, MPI::Status& status) const {
+            _comm.Recv(buf,count,datatype,source,tag,status);
+        };
+        
+        
+        /// Same as MPI::Intracomm::Recv
+        inline void Recv(void* buf, int count, const MPI::Datatype& datatype, 
+                         ProcessID source, int tag) const {
+            _comm.Recv(buf,count,datatype,source,tag);
+        };
+        
+        
+        /// Receive data of up to lenbuf elements from process dest with default tag=665
         template <class T> 
-        inline 
-        void 
-        recv(T* buf, long lenbuf, ProcessID src, int tag=665, 
-             long *count=0, long *from=0) const {
-            recv((void *) buf, lenbuf*sizeof(T), src, tag, count, from);
-            if (count) *count /= sizeof(T);
+        inline void 
+        Recv(T* buf, long lenbuf, ProcessID src, int tag=665) const {
+            Recv(buf, lenbuf*sizeof(T), MPI::BYTE, src, tag);
         }
         
 
-        /// Receive datum from process src
+        /// Receive data of up to lenbuf elements from process dest with status
+        template <class T> 
+        inline void 
+        Recv(T* buf, long lenbuf, ProcessID src, int tag, MPI::Status& status) const {
+            Recv(buf, lenbuf*sizeof(T), MPI::BYTE, src, tag, status);
+        }
         
-        /// If from is non-null it will be assigned the process the data
-        /// actually came from which may be of interest if src is a wild
-        /// card (src=ANY_SOURCE).  
+        
+        /// Receive datum from process src with default tag=666
         template <class T> 
         inline
         typename madness::enable_if_c< !madness::is_pointer<T>::value, void>::type
-        recv(T& buf, ProcessID src, int tag=666, long *from=0) const {
-            recv(&buf, 1, src, tag, 0, from);
+        Recv(T& buf, ProcessID src, int tag=666) const {
+            Recv(&buf, sizeof(T), MPI::BYTE, src, tag);
         }
         
-        /// Broadcast array of lenbuf elements from root
+
+        /// Receive datum from process src with status
         template <class T> 
-        inline 
-        void
-        bcast(T *buf, long lenbuf, ProcessID root) {
-            bcast((void *) buf, lenbuf*sizeof(T), root);
-        };
-        
-        /// Broadcast datum from root
-        template <class T> 
-        inline 
+        inline
         typename madness::enable_if_c< !madness::is_pointer<T>::value, void>::type
-        bcast(T& buf, ProcessID root) {
-            bcast(&buf, 1, root);
+        Recv(T& buf, ProcessID src, int tag, MPI::Status& status) const {
+            Recv(&buf, sizeof(T), MPI::BYTE, src, tag, status);
+        }
+        
+        
+        /// Same as MPI::Intracomm::Irecv
+        inline MPI::Request Irecv(void* buf, int count, const MPI::Datatype& datatype, 
+                                  ProcessID source, int tag) const {
+            return _comm.Irecv(buf, count, datatype, source, tag);
         };
         
-        /// Error abort with given integer code
-        void abort(int code=1) {
+        
+        /// Async receive data of up to lenbuf elements from process dest
+        template <class T>
+        inline MPI::Request 
+        Irecv(T* buf, int count, ProcessID source, int tag) const {
+            return _comm.Irecv(buf, count*sizeof(T), MPI::BYTE, source, tag);
+        };
+        
+        
+        /// Async receive datum from process dest
+        template <class T>
+        inline 
+        typename madness::enable_if_c< !madness::is_pointer<T>::value, MPI::Request>::type
+        Irecv(T& buf, ProcessID source, int tag) const {
+            return _comm.Irecv(&buf, sizeof(T), MPI::BYTE, source, tag);
+        };
+        
+        
+        /// Same as MPI::Intracomm::Bcast
+        inline void Bcast(void* buffer, int count, const MPI::Datatype& datatype, 
+                          int root) const {
+            _comm.Bcast(buffer,count,datatype,root);
+        };
+        
+
+        /// Broadcast an array of count elements
+        template <class T>
+        inline void Bcast(T* buffer, int count, int root) const {
+            _comm.Bcast(buffer,count*sizeof(T),MPI::BYTE,root);
+        };
+        
+
+        /// Broadcast a datum
+        template <class T>
+        inline void Bcast(T& buffer, int root) const {
+            _comm.Bcast(&buffer, sizeof(T), MPI::BYTE,root);
+        };
+        
+
+
+        /// Same as MPI::Intracomm::Iprobe
+        inline bool Iprobe(ProcessID source, int tag, MPI::Status& status) const {
+            return _comm.Iprobe(source, tag, status);
+        };
+        
+
+        /// Same as MPI::Intracomm::Iprobe
+        inline bool Iprobe(ProcessID source, int tag) const {
+            return _comm.Iprobe(source,tag);
+        };
+        
+        
+        /// Error abort with integer code
+        void Abort(int code=1) const {
             _comm.Abort(code);
         }; 
         
+
         /// Typed global sum ... NOT YET ACTUALLY IMPLEMENTED!
         template <typename T>
-        inline void global_sum(T* t, long n) {};
+        inline void global_sum(T* t, long n) const {};
+        
 
         /// Register an "active" message handler
         int am_register(void (*handler)(Communicator&, ProcessID, const AMArg&)) {
-	  _am_handlers.push_back(handler);
-	  return _am_handlers.size();
+            //std::cout << rank() << " registering " << (void *) handler << std::endl;
+            _am_handlers.push_back(handler);
+            return _am_handlers.size()-1;
 	};
-      
-      /// Poll for and execute "active" message sent to this process
-      inline void am_poll() {
-	MADMPIStatus status;
-	AMArg arg(0);
-	long src;
-	while (_comm.Iprobe(MADMPIANY_SOURCE, _am_tag, status)) {
-	  ProcessID src = status.Get_source();
-	  _comm.Recv(&arg, sizeof(arg), MADMPIByte, src, _am_tag, status);
-	  if (arg.function<0 || arg.function>=_am_handlers.size()) 
-	    throw "AM_POLL: invalid function index received";
-	  _am_handlers[arg.function](*this, src, arg);
-	}
-      };
-      
-      /// Send an active message to someone
-      inline void am_send(const AMArg& arg, ProcessID dest) {
-	send(arg, dest, _am_tag);
-      };
-	  
-      /// Use this barrier to keep processing AM messages while blocking
-
-      /// Currently busy waits but better might be waiting inside MPI_Probe
-      void am_barrier() {
-	// In binary tree, determine parent & children 
-	ProcessID me=rank(),parent=me>>1,child0=(me<<1),child1=(me<<1)+1,nchild=0;
-	if (child0 < nproc()) nchild++;
-	if (child1 < nproc()) nchild++;
-
-	// Wait for children to check in
-	while (am_barrier_nchild_registered() < nchild) am_poll(); 
-	am_barrier_zero_nchild_registered();
-
-	if (me != 0) {
-	  // Notify parent and wait for its reply
-	  am_send(AMArg(_am_barrier_handle),parent);	
-	  while (am_barrier_nchild_registered() < 1) am_poll(); 
-	  am_barrier_zero_nchild_registered();
-	}
-
-	// Notify children
-	if (child0<nproc()) am_send(AMArg(_am_barrier_handle),child0);	
-	if (child1<nproc()) am_send(AMArg(_am_barrier_handle),child1);	
-    };
-    };
-    
-    /// Broadcast untyped array of bytes from root
-    template <>
-    inline void Communicator::bcast(void *buf, long lenbuf, ProcessID root) {
-        _comm.Bcast(buf, lenbuf, MADMPIByte, root);
-    };
         
 
-    /// Send untyped data of lenbuf bytes to process dest
-    template <>
-    inline void Communicator::send(const void* buf, long lenbuf, ProcessID dest, 
-                                   int tag) const {
-        _comm.Send(buf, lenbuf, MADMPIByte, dest, tag);
-    }
+        /// Poll for and execute "active" message sent to this process
+        inline void am_poll() {
+            MPI::Status status;
+            while (_am_req.Test(status)) {
+                ProcessID src = status.Get_source();
+                if (_am_arg.function<0 || _am_arg.function>=(long)_am_handlers.size()) 
+                    throw "AM_POLL: invalid function index received";
+                (*_am_handlers[_am_arg.function])(*this, src, _am_arg);
+                _am_req = Irecv(_am_arg, MPI::ANY_SOURCE, _am_tag);
+            }
+        };
+        
 
-    /// Receive untyped data of up to lenbuf bytes from process dest
-    
-    /// If count is non-null it will be assigned the number of bytes
-    /// actually received.  If from is non-null it will be assigned the
-    /// process the data actually came from which may be of interest
-    /// if src is a wild card (src=ANY_SOURCE).
-    template <>
-    inline void Communicator::recv(void* buf, long lenbuf, ProcessID src, int tag, 
-                                   long *count, long *from) const {
-        MADMPIStatus status;
-        _comm.Recv(buf, lenbuf, MADMPIByte, src, tag, status);
-        if (count) *count = status.Get_count(MADMPIByte);
-        if (from) *from = status.Get_source();
-    }
-    
+        /// Send an active message to someone
+        inline void am_send(const AMArg& arg, ProcessID dest) {
+            //std::cout << rank() << " am_send for function " << arg.function << " to " << dest << std::endl;
+            _comm.Send(&arg, sizeof(arg), MPI::BYTE, dest, _am_tag);
+        };
+
+
+        /// Send an active message to p and wait for a reply from q
+        inline void am_send_recv(const AMArg& arg, ProcessID p, 
+                                 void* buf, long count, ProcessID q, int tag) {
+            MPI::Request req = Irecv(buf, count, MPI::BYTE, q, tag);
+            am_send(arg,p);
+            am_wait(req);
+        };
+
+
+        /// Use this to wait for an MPI request to complete while processing AMs
+        inline void am_wait(MPI::Request& req) {
+            unsigned long count = 0;
+            while (!req.Test()) {
+                backoff(count);
+                am_poll();
+            }
+        }
+        
+
+        /// Use this barrier to keep processing AM messages while blocking
+
+        /// Currently busy waits but better might be waiting inside MPI_Probe
+        void am_barrier() {
+            // In binary tree, determine parent & children 
+            ProcessID me=rank(),parent=(me-1)>>1,child0=(me<<1)+1,child1=(me<<1)+2,nchild=0;
+            if (child0 < nproc()) nchild++;
+            if (child1 < nproc()) nchild++;
+            
+            // Wait for children to check in
+            unsigned long count = 0;
+            while (am_barrier_nchild_registered() < nchild) {
+                backoff(count);
+                am_poll(); 
+            }
+            am_barrier_zero_nchild_registered();
+            
+            if (me != 0) {
+                // Notify parent and wait for its reply
+                am_send(AMArg(_am_barrier_handle),parent);	
+                count = 0;
+                while (am_barrier_nchild_registered() < 1) {
+                    backoff(count);
+                    am_poll(); 
+                }
+                am_barrier_zero_nchild_registered();
+            }
+            
+            // Notify children
+            if (child0<nproc()) am_send(AMArg(_am_barrier_handle),child0);	
+            if (child1<nproc()) am_send(AMArg(_am_barrier_handle),child1);	
+        };
+
+        void close() {
+            _am_req.Cancel();
+        };
+    };
 }
 
 #endif

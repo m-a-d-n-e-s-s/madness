@@ -36,16 +36,16 @@ int main(int argc, char* argv[]) {
     // 4) Load coeffs and quadrature information from file
     // 5) Setup default OctTreeLayout
     // 6) Sanity check
-    MADMPIInit(argc, argv);
+    MPI::Init(argc, argv);
     Communicator comm;
     redirectio(comm);
     comm.print();
     load_coeffs(comm);
     load_quadrature(comm);
     FunctionDefaults::tree = new FunctionOctTree(OctTree<FunctionNode>::create_default(comm,2));
-    if (!gauss_legendre_test()) comm.abort();
-    if (!test_two_scale_coefficients()) comm.abort();
-
+    if (!gauss_legendre_test()) comm.Abort();
+    if (!test_two_scale_coefficients()) comm.Abort();
+    
     // To ensure reliable cleanup catch all C++ exceptions here
     try {
         // Do useful stuff below here
@@ -53,8 +53,8 @@ int main(int argc, char* argv[]) {
         FunctionDefaults::initial_level=0;
         Function<double> f = FunctionFactory<double>(fred).refine(1).compress(0).initial_level(2).thresh(1e-7);
         print("normsq after projection    ",f.norm2sq_local());
-
-
+        
+        
         for (int i=0; i<=16; i++) {
             double z = i/16.0;
             double value = 0;
@@ -73,7 +73,7 @@ int main(int argc, char* argv[]) {
         print("normsq after compression   ",f.norm2sq_local());
         f.reconstruct();
         print("normsq after reconstruction",f.norm2sq_local());
-
+        
         Function<double> g;
         g = copy(f);
         print("start of statement");
@@ -89,31 +89,30 @@ int main(int argc, char* argv[]) {
     }
     catch (char const* msg) {
         std::cerr << "Exception (string): " << msg << std::endl;
-        comm.abort();
+        comm.Abort();
     }
     catch (std::exception& e) {
         std::cerr << "Exception (std): " << e.what() << std::endl;
-        comm.abort();
+        comm.Abort();
     }
     catch (TensorException& e) {
         std::cerr << e << std::endl;
-        comm.abort();
+        comm.Abort();
     }
-#ifdef USE_MPI
     catch (MPI::Exception& e) {
         std::cerr << "Exception (mpi): code=" << e.Get_error_code() 
                   << ", class=" << e.Get_error_class() 
                   << ", string=" << e.Get_error_string() << std::endl;
-        comm.abort();
+        comm.Abort();
     }
-#endif
     catch (...) {
         std::cerr << "Exception (general)" << std::endl;
-        comm.abort();
+        comm.Abort();
     }
-
+    
     // The follwing should be used for succesful termination
-    MADMPIFinalize();
+    comm.close(); 
+    MPI::Finalize();
     return 0;
 }
 

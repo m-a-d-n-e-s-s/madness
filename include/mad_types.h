@@ -11,7 +11,7 @@ typedef unsigned long Translation;
 typedef int Level;
 
 /// ID (rank) of a parallel process
-typedef long ProcessID;
+typedef int ProcessID;
 
 /// Cost (compute cost) of a node (can be changed but set to integer for now)
 typedef int Cost;

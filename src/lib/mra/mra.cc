@@ -218,7 +218,7 @@ namespace madness {
                                   if (!c) throw "compress: yo! show me the data(2)!";
                                   buf(s0) = (*c)(s0);
                                   print("compress: sending",buf.normf(),"to",tree->rank());
-                                  comm()->send(buf.ptr(), k3, tree->rank(), 2);
+                                  comm()->Send(buf.ptr(), k3, tree->rank(), 2);
                                   print("child norm before",c->normf());
                                   (*c)(s0) = T(0.0);
                                   print("child norm after",c->normf());
@@ -228,7 +228,7 @@ namespace madness {
                 // Receive data from a remote child and store as
                 // ghost ... parent will eventually delete it.
                 TensorT* t = set_coeff(tree,TensorT(k,k,k));
-                comm()->recv(t->ptr(), k3, tree->rank(), 2);
+                comm()->Recv(t->ptr(), k3, tree->rank(), 2);
                 print("compress: received",t->normf(),"from",tree->rank());
             }
         }
@@ -325,7 +325,7 @@ namespace madness {
             if (tree->islocalsubtreeparent()) {
                 FOREACH_CHILD(OctTreeT, tree,
                               if (isactive(child)) {
-                                  comm()->recv(buf.ptr(),k3,tree->rank(),3);
+                                  comm()->Recv(buf.ptr(),k3,tree->rank(),3);
                                   print("reconstruct: received",buf.normf(),"from",tree->rank());
                                   (*coeff(child))(s0) = buf;
                               });
@@ -347,7 +347,7 @@ namespace madness {
                               else {
                                   buf(s0) = (*t)(s[i],s[j],s[k]);
                                   print("reconstruct: sending",buf.normf(),"to",child->rank());
-                                  comm()->send(buf.ptr(),k3,child->rank(),3);
+                                  comm()->Send(buf.ptr(),k3,child->rank(),3);
                               }
                           });
             if (nchild) unset_coeff(tree); // NEED TO KEEP IF WANT REDUNDANT TREE
@@ -366,7 +366,7 @@ namespace madness {
             // info from above.  The messages will come in order.
             FOREACH_CHILD(OctTreeT, tree,
                           bool dorefine;
-                          comm()->recv(dorefine, tree->rank(), 1);
+                          comm()->Recv(dorefine, tree->rank(), 1);
                           print("   refine: got message",dorefine,"for",child->n(),child->x(),child->y(),child->z());
                           if (dorefine) {
                               set_active(child);
@@ -389,7 +389,7 @@ namespace madness {
                 if (dorefine) unset_coeff(tree);
                 // First, send messages to remote children in order to get them working ASAP
                 FOREACH_REMOTE_CHILD(OctTreeT, tree, 
-                                     comm()->send(dorefine, child->rank(), 1);
+                                     comm()->Send(dorefine, child->rank(), 1);
                                      set_active(child);
                                      print("sent",dorefine,"message to",child->n(),child->x(),child->y(),child->z()););
                 // Next, handle local stuff
@@ -409,7 +409,7 @@ namespace madness {
                 // It must be either an empty local node or a remote leaf.
                 // Again, first send msgs to remote nodes, then treat local guys.
                 FOREACH_REMOTE_CHILD(OctTreeT, tree,
-                                     comm()->send(false, child->rank(), 1);
+                                     comm()->Send(false, child->rank(), 1);
                                      print("    sent false to",child->n(),child->x(),child->y(),child->z()););
                 FOREACH_LOCAL_CHILD(OctTreeT, tree, _refine(child););
             }

@@ -126,8 +126,8 @@ namespace madness {
             }
         }
         for (int npt=0; npt<=max_npt; npt++) {
-            comm.bcast(points[npt].ptr(), npt, 0);
-            comm.bcast(weights[npt].ptr(), npt, 0);
+            comm.Bcast(points[npt].ptr(), npt, 0);
+            comm.Bcast(weights[npt].ptr(), npt, 0);
         }
         data_is_read = true;
     }

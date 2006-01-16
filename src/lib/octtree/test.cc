@@ -11,7 +11,7 @@ using namespace madness;
     
 int main (int argc, char **argv) {
     
-    MADMPIInit(argc, argv);
+    MPI::Init(argc, argv);
     Communicator comm;
     std::ofstream fout;
 
@@ -32,11 +32,11 @@ int main (int argc, char **argv) {
     }
     catch (char const* msg) {
         std::cerr << "Exception (string): " << msg << std::endl;
-        comm.abort();
+        comm.Abort();
     }
     catch (std::exception& e) {
         std::cerr << "Exception (std): " << e.what() << std::endl;
-        comm.abort();
+        comm.Abort();
     }
 #ifdef USE_MPI
     catch (MPI::Exception& e) {
@@ -48,7 +48,7 @@ int main (int argc, char **argv) {
 #endif
     catch (...) {
         std::cerr << "Exception (general)" << std::endl;
-        comm.abort();
+        comm.Abort();
     }
 
     // doesn't work at the moment
@@ -64,10 +64,14 @@ int main (int argc, char **argv) {
         cout << "walking down" << endl;
         layout->walk_down();
         cout << "walking up" << endl;
+        cout << "i " << i << endl;
         layout->walk_up();
+        cout << "i " << i << endl;
     }
     
-    MADMPIFinalize();
+    cout << comm.rank() << " finalizing" << endl;
+    comm.close();
+    MPI::Finalize();
  
     return 0;
 }
