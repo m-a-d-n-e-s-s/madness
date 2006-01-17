@@ -13,6 +13,7 @@
 <li> GNU autoconf (version 2.59)
 <li> GNU make
 <li> Perl (version 5 or higher)
+<li> MPI library
 <li> BLAS and LAPACK libraries
 <li> (optional) Doxygen to produce web-based documentation
 <li> (optional) LaTeX to produce printable reference manual
