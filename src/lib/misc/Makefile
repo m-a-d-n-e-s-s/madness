@@ -11,7 +11,7 @@ TARGET_TO_MAKE = libMADmisc
 BIN_OR_LIB = LIB
 
 CXXSRC =  walltime.cc checksum_file.cc redirectio.cc am_stuff.cc
-CSRC =  madmpiwrap.c
+#CSRC =  madmpiwrap.c
 INC =     communicator.h print.h misc.h madmpiwrap.h
 
 TESTSRC = test.cc

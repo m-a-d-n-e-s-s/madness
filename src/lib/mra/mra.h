@@ -92,7 +92,7 @@ namespace madness {
                 if (ind < 0 || ind >= (int)v.size())
                     throw "FunctionNode: get: invalid index";
                 return (Tensor<T> *) v[ind];
-            };
+            }
 
         /// Sets data (and active) by taking a \em shallow copy of the tensor value
 
@@ -104,7 +104,7 @@ namespace madness {
             v[ind] = new Tensor<T>(value);
             set_active(ind);
             return (Tensor<T> *) v[ind];
-        };
+        }
 
         /// Unsets the data pointer (if any) and frees any associated data
 
@@ -510,7 +510,9 @@ namespace madness {
         /// No communication involved.
         Function<T> copy() const {
             Function<T> result(this); // Partial deep copy
-            if (isactive(tree())) _unaryop(result, result.tree(), madness::copy<T>);
+
+	    typedef Tensor<T> (*theop)(const Tensor<T>& t);
+            if (isactive(tree())) _unaryop<theop>(result, result.tree(), madness::copy<T>);
             return result;
         };
 

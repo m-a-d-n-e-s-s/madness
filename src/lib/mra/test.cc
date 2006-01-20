@@ -51,7 +51,7 @@ int main(int argc, char* argv[]) {
         // Do useful stuff below here
         FunctionDefaults::k=9;
         FunctionDefaults::initial_level=0;
-        Function<double> f = FunctionFactory<double>(fred).refine(1).compress(0).initial_level(2).thresh(1e-7);
+        Function<double> f = FunctionFactory<double>(fred).refine(1).compress(0).initial_level(3).thresh(1e-7);
         print("normsq after projection    ",f.norm2sq_local());
         
         

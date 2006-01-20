@@ -1,3 +1,4 @@
+======================================================================
 Configure options for pentium4 with gcc with mpich
 
 #set LAPACK = "/home/rjh/Downloads/liblapack_rjh.a"
@@ -20,6 +21,7 @@ set EXTRALIBS = "-lg2c"
             --with-blas="$BLAS" --with-lapack="$LAPACK"
 
 
+======================================================================
 
 
 Configure options for pentium4 with icc with mpich
@@ -43,8 +45,16 @@ set EXTRALIBS = "-lg2c"
 ./configure --with-cxx-optflags="$CXXOPT" --with-libs="$EXTRALIBS" \
             --with-blas="$BLAS" --with-lapack="$LAPACK"
 
+======================================================================
 
+Configure options for Cray X1 ... phoenix
 
+!! Run configure on phoenix, then you can make on robin (the 
+!! linux front end) which will be much faster
 
+setenv CXX "CC -hssp"
+setenv CC "cc -hssp"
+setenv CXXOPT "-O5 -h new_for_init -h instantiate=used"
 
+./configure --with-cxx-optflags="$CXXOPT"
 

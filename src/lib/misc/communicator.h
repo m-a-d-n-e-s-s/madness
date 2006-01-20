@@ -245,7 +245,7 @@ namespace madness {
         template <class T> 
         inline void Send(const T* buf, long lenbuf, ProcessID dest, int tag=665) const {
             Send((void* )buf, lenbuf*sizeof(T), MPI::BYTE, dest, tag);
-        };
+        }
         
         
         /// Send datum to process dest with default tag=666
@@ -254,7 +254,7 @@ namespace madness {
         typename madness::enable_if_c< !madness::is_pointer<T>::value, void>::type
         Send(const T& datum, ProcessID dest, int tag=666) const {
             Send((void* )&datum, sizeof(T), MPI::BYTE, dest, tag);
-        };
+        }
         
         
         /// Same as MPI::Intracomm::Recv
@@ -317,7 +317,7 @@ namespace madness {
         inline MPI::Request 
         Irecv(T* buf, int count, ProcessID source, int tag) const {
             return _comm.Irecv(buf, count*sizeof(T), MPI::BYTE, source, tag);
-        };
+        }
         
         
         /// Async receive datum from process dest
@@ -326,7 +326,7 @@ namespace madness {
         typename madness::enable_if_c< !madness::is_pointer<T>::value, MPI::Request>::type
         Irecv(T& buf, ProcessID source, int tag) const {
             return _comm.Irecv(&buf, sizeof(T), MPI::BYTE, source, tag);
-        };
+        }
         
         
         /// Same as MPI::Intracomm::Bcast
@@ -340,14 +340,14 @@ namespace madness {
         template <class T>
         inline void Bcast(T* buffer, int count, int root) const {
             _comm.Bcast(buffer,count*sizeof(T),MPI::BYTE,root);
-        };
+        }
         
 
         /// Broadcast a datum
         template <class T>
         inline void Bcast(T& buffer, int root) const {
             _comm.Bcast(&buffer, sizeof(T), MPI::BYTE,root);
-        };
+        }
         
 
 
@@ -371,7 +371,7 @@ namespace madness {
 
         /// Typed global sum ... NOT YET ACTUALLY IMPLEMENTED!
         template <typename T>
-        inline void global_sum(T* t, long n) const {};
+        inline void global_sum(T* t, long n) const {}
         
 
         /// Register an "active" message handler

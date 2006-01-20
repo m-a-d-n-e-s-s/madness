@@ -127,7 +127,7 @@ void dsygv_(integer *itype, const char* jobz, const char* uplo, integer *n,
             complex_real4 *a, integer *lda, complex_real4 *b, integer *ldb,
             real4 *w,  complex_real4 *work,  integer *lwork,
             integer *info, char_len jobzlen, char_len uplo_len ) {
-    Tensor<float> rwork(max(1L, 3*(*n)-2));
+    Tensor<float> rwork(max((integer) 1, (integer) (3*(*n)-2)));
     chegv_(itype, jobz, uplo, n, 
            a, lda, b, ldb, w,  work,  lwork, rwork.ptr(), info,
            jobzlen, uplo_len);
@@ -138,7 +138,7 @@ void dsygv_(integer *itype, const char* jobz, const char* uplo, integer *n,
             complex_real8 *a, integer *lda, complex_real8 *b, integer *ldb,
             real8 *w,  complex_real8 *work,  integer *lwork,
             integer *info, char_len jobzlen, char_len uplo_len ) {
-    Tensor<double> rwork(max(1L, 3*(*n)-2));
+    Tensor<double> rwork(max((integer) 1, (integer) (3*(*n)-2)));
     zhegv_(itype, jobz, uplo, n, 
            a, lda, b, ldb, w,  work,  lwork, rwork.ptr(), info,
            jobzlen, uplo_len);
@@ -159,7 +159,7 @@ STATIC void dsyev_(const char* jobz, const char* uplo, integer *n,
                    complex_real4 *a, integer *lda, real4 *w,  
                    complex_real4 *work,  integer *lwork,
                    integer *info, char_len jobzlen, char_len uplo_len ) {
-    Tensor<float> rwork(max(1L, 3L* (*n)-2));
+    Tensor<float> rwork(max((integer) 1, (integer) (3* (*n)-2)));
     std::cout << *n << " " << *lda << " " << *lwork <<std::endl;
     cheev_(jobz, uplo, n, a, lda, w,  work,  lwork, rwork.ptr(),
            info, jobzlen, uplo_len );
@@ -169,7 +169,7 @@ STATIC void dsyev_(const char* jobz, const char* uplo, integer *n,
                    complex_real8 *a, integer *lda, real8 *w,  
                    complex_real8 *work,  integer *lwork,
                    integer *info, char_len jobzlen, char_len uplo_len ) {
-    Tensor<double> rwork(max(1L, 3L* (*n)-2));
+    Tensor<double> rwork(max((integer) 1, (integer) (3* (*n)-2)));
     zheev_(jobz, uplo, n, a, lda, w,  work,  lwork, rwork.ptr(),
            info, jobzlen, uplo_len );
 }
@@ -376,7 +376,7 @@ namespace madness {
         TENSOR_ASSERT(A.ndim == 2, "syev requires a matrix",A.ndim,&A);
         TENSOR_ASSERT(A.dim[0] == A.dim[1], "syev requires square matrix",0,&A);
         integer n = A.dim[0];
-        integer lwork = max(max(1L,3*n-1),34L*n);
+        integer lwork = max(max((integer) 1,(integer) (3*n-1)),(integer) (34*n));
         integer info;
         Tensor<T> work(lwork);
         *V = transpose(A);		// For Hermitian case
@@ -450,7 +450,7 @@ namespace madness {
         TENSOR_ASSERT(B.dim[0] == B.dim[1], "sygv requires square matrix",0,&A);
         integer ity = itype;
         integer n = A.dim[0];
-        integer lwork = max(1L,3*n-1)*32;
+        integer lwork = max((integer)1,(integer)(3*n-1))*32;
         integer info;
         Tensor<T> work(lwork);
         Tensor<T> b = transpose(B);	// For Hermitian case

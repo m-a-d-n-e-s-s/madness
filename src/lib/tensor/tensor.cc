@@ -1076,6 +1076,28 @@ namespace madness {
         }
     }
     
+#ifdef _CRAY
+    /// Matrix * matrix
+    template <typename T> 
+    STATIC inline void mxm(long dimi, long dimj, long dimk, 
+			   T* RESTRICT c, const T*a, const T*b) 
+    {
+        /*
+          c(i,j) = c(i,j) + sum(k) a(i,k)*b(k,j)
+          
+          where it is assumed that the last index in each array is has unit
+          stride and the dimensions are as provided.
+        */
+        
+        for (long i=0; i<dimi; i++) {
+            for (long k=0; k<dimk; k++) {
+                for (long j=0; j<dimj; j++) {
+                    c[i*dimj+j] += a[i*dimk+k]*b[k*dimj+j];
+                }
+            }
+        }
+    }
+#else
     /// Matrix * matrix (hand unrolled version)
     template <typename T> 
     STATIC inline void mxm(long dimi, long dimj, long dimk, 
@@ -1115,6 +1137,7 @@ namespace madness {
             }
         }
     }
+#endif
     
     /// Matrix transpose * matrix transpose reference implementation (slow but correct)
     template <typename T> 

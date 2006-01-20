@@ -7,7 +7,11 @@
 #include <complex>
 
 /// Fortran integer
+#ifdef _CRAY
+typedef int integer;
+#else
 typedef long integer;
+#endif
 
 /// Fortran double precision
 typedef double real8;
