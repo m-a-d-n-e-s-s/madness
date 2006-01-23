@@ -72,10 +72,10 @@ public: \
     
     TYPEINFO(0,int,false,true,int,double);
     TYPEINFO(1,long,false,true,long,double);
-    TYPEINFO(2,double,false,true,double,double);
-    TYPEINFO(3,float,false,true,float,float);
-    TYPEINFO(4,double_complex,true,true,double,double);
-    TYPEINFO(5,float_complex,true,true,float,float);
+    TYPEINFO(2,float,false,true,float,float);
+    TYPEINFO(3,double,false,true,double,double);
+    TYPEINFO(4,float_complex,true,true,float,float);
+    TYPEINFO(5,double_complex,true,true,double,double);
 #define TENSOR_MAX_TYPE_ID 5
     
 #ifdef TENSOR_CC
