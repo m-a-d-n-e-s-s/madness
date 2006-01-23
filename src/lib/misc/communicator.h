@@ -144,7 +144,12 @@ namespace madness {
         long _px, _py, _pz;         ///< coords of this process in mesh
         ProcessID _rank;            ///< rank of this process
         
-        mutable MPI::Intracomm _comm;
+
+	// On the SGI Altix the MPI copy constructor for communicators
+	// does not seem to work (even using Dup) so we have to store
+	// a reference.  This is not satisfactory and we'll no doubt
+	// return to this topic.
+        mutable MPI::Intracomm& _comm;
 
         AMArg _am_arg;              // Used for async recv of AM
         MPI::Request _am_req;
@@ -170,6 +175,7 @@ namespace madness {
             while (4*_npy*_npy*_npz <= _nproc) {_npy *= 2; _my++;}
             _npx = _npy; _mx = _my;
             while (2*_npx*_npy*_npz <= _nproc) {_npx *= 2; _mx++;}
+
             if (_npx*_npy*_npz != _nproc) throw "nproc not a power of 2";
             
             // Determine coords of calling process in process mesh
@@ -197,7 +203,7 @@ namespace madness {
     public:
         
         /// Use given communicator and setup topology as 3D mesh (P=2^n)
-        Communicator(const MPI::Intracomm comm) : _comm(comm) {setup();};
+        Communicator(MPI::Intracomm comm) : _comm(comm) {setup();};
         
         /// Use MPI_COMM_WORLD and setup topology as 3D mesh (P=2^n)
         Communicator() : _comm(MPI::COMM_WORLD) {setup();};

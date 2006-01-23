@@ -899,29 +899,6 @@ namespace madness {
         };
 
 
-        /// Private: Optimized transform3d ... needs to be moved back into tensor
-
-        /// Transforms coefficients in s returning result also in s.
-        ///
-        /// No communication involved.  Returns a reference to s for convenience.
-        TensorT& transform3d_inplace(TensorT& s, const Tensor<double>& c, TensorT& work) {
-            T* RESTRICT sptr = s.ptr();
-            T* RESTRICT wptr = work.ptr();
-            double* RESTRICT cptr = c.ptr();
-            long k2 = s.dim[0];
-            long k2sq = k2 * k2;
-            long k2cu = k2sq * k2;
-            for (int i = 0; i < k2cu; i++) wptr[i] = T(0);
-            mTxm(k2sq, k2, k2, wptr, sptr, cptr);
-            for (int i = 0; i < k2cu; i++) sptr[i] = T(0);
-            mTxm(k2sq, k2, k2, sptr, wptr, cptr);
-            for (int i = 0; i < k2cu; i++) wptr[i] = T(0);
-            mTxm(k2sq, k2, k2, wptr, sptr, cptr);
-            for (int i = 0; i < k2cu; i++) sptr[i] = wptr[i];
-
-            return s;
-        };
-
 
         /// Private.  Transform sums+differences at level n to sum coefficients at level n+1
 

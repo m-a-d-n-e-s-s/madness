@@ -22,9 +22,8 @@ set EXTRALIBS = "-lg2c"
 
 
 ======================================================================
-
-
 Configure options for pentium4 with icc with mpich
+[not yet working]
 
 #set LAPACK = "/home/rjh/Downloads/liblapack_rjh.a"
 #set BLAS = " -L/home/rjh/Downloads/Linux_P4SSE2/lib -lcblas -lf77blas -latlas"
@@ -46,7 +45,6 @@ set EXTRALIBS = "-lg2c"
             --with-blas="$BLAS" --with-lapack="$LAPACK"
 
 ======================================================================
-
 Configure options for Cray X1 ... phoenix
 
 !! Run configure on phoenix, then you can make on robin (the 
@@ -55,6 +53,19 @@ Configure options for Cray X1 ... phoenix
 setenv CXX "CC -hssp"
 setenv CC "cc -hssp"
 setenv CXXOPT "-O5 -h new_for_init -h instantiate=used"
-
 ./configure --with-cxx-optflags="$CXXOPT"
+
+======================================================================
+Configure options for SGI Altix with Intel compilers ... ram
+
+Intel 8* compilers seem to have some problems.  9* seem OK.
+
+module load icc9026 idb9031 ifort9027
+setenv CC icc
+setenv CXX icpc
+setenv F77 ifc
+./configure --with-cxx-optflags="-O1" --with-libs="-lmpi++ -lmpi" \
+            --with-blas="-lscs_i8" --with-lapack=""
+
+
 
