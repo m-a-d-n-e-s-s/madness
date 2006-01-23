@@ -10,8 +10,7 @@ include $(SRCDIR)/$(TOPDIR)/lib/GlobalMakefile
 TARGET_TO_MAKE = libMADtensor
 BIN_OR_LIB = LIB
 
-CXXSRC =  tensor.cc tensoriter.cc basetensor.cc \
-          transform3d.cc mtrand.cc
+CXXSRC =  tensor.cc tensoriter.cc basetensor.cc mtrand.cc 
 INC =     tensor.h tensor_macros.h type_data.h slice.h basetensor.h mtrand.h \
           tensoriter.h tensorexcept.h \
           tensor_spec.h tensoriter_spec.h

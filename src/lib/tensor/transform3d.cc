@@ -1,15 +1,14 @@
-#include <iostream>
-#include <tensor/tensor.h>
+// #include <iostream>
+// #include <tensor/tensor.h>
 
-namespace {
-  template <typename T>
-  inline T** create_2d_array(unsigned int d1, unsigned int d2);
-  template <typename T>
-  inline void delete_2d_array(T** A);
-}
-
-
-namespace madness {
+// namespace {
+//   template <typename T>
+//   inline T** create_2d_array(unsigned int d1, unsigned int d2);
+//   template <typename T>
+//   inline void delete_2d_array(T** A);
+// }
+//
+//namespace madness {
   
   /// optomized 3d transform
   /// c must be 2d tensor(matrix) and must square
@@ -277,7 +276,7 @@ namespace madness {
 					 const Tensor<double>& c2);
   
   
-}
+//}
 
 /*
   namespace {

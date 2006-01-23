@@ -22,7 +22,9 @@ STATIC inline void mxm(long dimi, long dimj, long dimk,
   
   for (long i=0; i<dimi; i++) {
     for (long k=0; k<dimk; k++) {
+#ifdef _CRAY
 #pragma _CRI prefervector
+#endif
       for (long j=0; j<dimj; j++) {
         c[i*dimj+j] += a[i*dimk+k]*b[k*dimj+j];
       }
@@ -33,9 +35,7 @@ STATIC inline void mxm(long dimi, long dimj, long dimk,
 
 /// Matrix transpose * matrix ... reference implementation (slow but correct)
 template <typename T> 
-#ifndef _CRAY
 STATIC inline
-#endif 
 void mTxm(long dimi, long dimj, long dimk, 
                        T* RESTRICT c, const T* RESTRICT a, 
                        const T* RESTRICT b) 
@@ -51,7 +51,9 @@ void mTxm(long dimi, long dimj, long dimk,
   
   for (long k=0; k<dimk; k++) {
     for (long i=0; i<dimi; i++) {
+#ifdef _CRAY
 #pragma _CRI prefervector
+#endif
       for (long j=0; j<dimj; j++) {
         c[i*dimj+j] += a[k*dimi+i]*b[k*dimj+j];
       }
@@ -75,7 +77,9 @@ STATIC inline void mxmT(long dimi, long dimj, long dimk,
   */
   
   for (long i=0; i<dimi; i++) {
+#ifdef _CRAY
 #pragma _CRI prefervector
+#endif
     for (long j=0; j<dimj; j++) {
       T sum = 0;
       for (long k=0; k<dimk; k++) {
@@ -100,7 +104,9 @@ STATIC inline void mTxmT(long dimi, long dimj, long dimk,
   */
   
   for (long i=0; i<dimi; i++) {
+#ifdef _CRAY
 #pragma _CRI prefervector
+#endif
     for (long j=0; j<dimj; j++) {
       for (long k=0; k<dimk; k++) {
         c[i*dimj+j] += a[k*dimi+i]*b[j*dimk+k];
@@ -117,7 +123,9 @@ void mTxm(long dimi, long dimj, long dimk,
 {
   for (long k=0; k<dimk; k++) {
     for (long i=0; i<dimi; i++) {
+#ifdef _CRAY
 #pragma _CRI prefervector
+#endif
       for (long j=0; j<dimj; j++) {
         c[i*dimj+j] += a[k*dimi+i]*b[k*dimj+j];
       }

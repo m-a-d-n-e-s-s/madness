@@ -1137,5 +1137,6 @@ template Tensor<double>& transform3d_inplace(Tensor<double>& s, const Tensor<dou
 template Tensor<double_complex>& transform3d_inplace(Tensor<double_complex>& s, const Tensor<double>& c, 
                                                      Tensor<double_complex>& work);
 
+#include "transform3d.cc"
 #include "tensor_spec.h"
 }

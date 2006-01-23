@@ -764,6 +764,8 @@ namespace madness {
     template <class T>
     Tensor<T> transform3d_3c(const Tensor<T>& t,
                              const Tensor<T>& c0, const Tensor<T>& c1, const Tensor<T>& c2);
+
+        /*
     template <typename T> 
     void mTxm(long dimi, long dimj, long dimk,
               T* RESTRICT c, const T* RESTRICT a, const T* RESTRICT b);
@@ -771,6 +773,7 @@ namespace madness {
     void mTxm(long dimi, long dimj, long dimk,
               double_complex* RESTRICT c, const double_complex* RESTRICT a, const double* RESTRICT b);
 
+        */
     
     
     // Specializations for complex types
