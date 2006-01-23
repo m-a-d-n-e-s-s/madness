@@ -3,19 +3,21 @@
 /// \file tensor.cc
 /// \brief Completes the implementation of Tensor and instantiates all specializations for fast compiles.
 
-#ifdef _CRAY
-// Cray won't instantiate static function templates (mxm*)
-#  define STATIC 
-#else
-#  define STATIC static
-#endif
+#define STATIC static
 
-#if !HAVE_UNQUALIFIED_STATIC_DECL
-#  ifdef STATIC
-#    undef STATIC
-#  endif
-#  define STATIC 
-#endif
+//#ifdef _CRAY
+// Cray won't instantiate static function templates (mxm*)
+//#  define STATIC 
+//#else
+//#  define STATIC static
+//#endif
+
+//#if !HAVE_UNQUALIFIED_STATIC_DECL
+//#  ifdef STATIC
+//#    undef STATIC
+//#  endif
+//#  define STATIC 
+//#endif
 
 //#include <cstdio>
 //#include <cstdlib>

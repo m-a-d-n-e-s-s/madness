@@ -50,11 +50,11 @@ void mTxm(long dimi, long dimj, long dimk,
   */
   
   for (long k=0; k<dimk; k++) {
-    for (long i=0; i<dimi; i++) {
+      for (long j=0; j<dimj; j++) {
 #ifdef _CRAY
 #pragma _CRI prefervector
 #endif
-      for (long j=0; j<dimj; j++) {
+    for (long i=0; i<dimi; i++) {
         c[i*dimj+j] += a[k*dimi+i]*b[k*dimj+j];
       }
     }
@@ -77,9 +77,6 @@ STATIC inline void mxmT(long dimi, long dimj, long dimk,
   */
   
   for (long i=0; i<dimi; i++) {
-#ifdef _CRAY
-#pragma _CRI prefervector
-#endif
     for (long j=0; j<dimj; j++) {
       T sum = 0;
       for (long k=0; k<dimk; k++) {
@@ -136,16 +133,18 @@ void mTxm(long dimi, long dimj, long dimk,
 
 #ifdef _CRAY
 // Simple loop structure best on the Cray
-template void mTxm(long dimi, long dimj, long dimk, double* RESTRICT c, 
-		   const double* RESTRICT a, const double* RESTRICT b);
-
+template 
+void mTxm(long dimi, long dimj, long dimk, double* RESTRICT c, 
+	  const double* RESTRICT a, const double* RESTRICT b);
 #else
 // The following are restricted to double only
 
 /// Matrix transpose * matrix (hand unrolled version)
-STATIC inline void mTxm(long dimi, long dimj, long dimk, 
-                        double* RESTRICT c, const double* RESTRICT a, 
-                        const double* RESTRICT b) 
+
+template <>
+inline void mTxm(long dimi, long dimj, long dimk, 
+		 double* RESTRICT c, const double* RESTRICT a, 
+		 const double* RESTRICT b) 
 {
   /*
     c(i,j) = c(i,j) + sum(k) a(k,i)*b(k,j)
@@ -184,12 +183,14 @@ STATIC inline void mTxm(long dimi, long dimj, long dimk,
       }
     }
   }
-}
+};
 
 /// Matrix * matrix transpose (hand unrolled version)
-STATIC inline void mxmT(long dimi, long dimj, long dimk, 
-                        double* RESTRICT c, 
-                        const double* RESTRICT a, const double* RESTRICT b) 
+
+template <>
+inline void mxmT(long dimi, long dimj, long dimk, 
+		 double* RESTRICT c, 
+		 const double* RESTRICT a, const double* RESTRICT b) 
 {
   /*
     c(i,j) = c(i,j) + sum(k) a(i,k)*b(j,k)
@@ -233,11 +234,12 @@ STATIC inline void mxmT(long dimi, long dimj, long dimk,
       ci[j] += sum;
     }
   }
-}
+};
 
 /// Matrix * matrix (hand unrolled version)
-STATIC inline void mxm(long dimi, long dimj, long dimk, 
-                       double* RESTRICT c, const double* RESTRICT a, const double* RESTRICT b) 
+template <>
+inline void mxm(long dimi, long dimj, long dimk, 
+		double* RESTRICT c, const double* RESTRICT a, const double* RESTRICT b) 
 {
   /*
     c(i,j) = c(i,j) + sum(k) a(i,k)*b(k,j)
@@ -272,11 +274,12 @@ STATIC inline void mxm(long dimi, long dimj, long dimk,
       }
     }
   }
-}
+};
 
 /// Matrix transpose * matrix transpose (hand tiled and unrolled)
-STATIC inline void mTxmT(long dimi, long dimj, long dimk, 
-                         double* RESTRICT c, const double* RESTRICT a, const double* RESTRICT b) 
+template <>
+inline void mTxmT(long dimi, long dimj, long dimk, 
+		  double* RESTRICT c, const double* RESTRICT a, const double* RESTRICT b) 
 {
   /*
     c(i,j) = c(i,j) + sum(k) a(k,i)*b(j,k)
@@ -326,5 +329,5 @@ STATIC inline void mTxmT(long dimi, long dimj, long dimk,
       }
     }
   }
-}
+};
 #endif
