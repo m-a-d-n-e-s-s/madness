@@ -687,6 +687,9 @@ namespace madness {
     void fast_transform(const Tensor<T>& t, const Tensor<T>& c,
                         Tensor<T>& result, Tensor<T>& workspace);
     
+    template <typename T>
+    Tensor<T>& transform3d_inplace(Tensor<T>& s, const Tensor<double>& c, Tensor<T>& work);
+
     template <class T>
     Tensor<T> inner(const Tensor<T>& left, const Tensor<T>& right,
                     long k0=-1, long k1=0);

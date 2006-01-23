@@ -206,12 +206,12 @@ for (long _i=0; _i<__xd0; _i++) { \
 
 #define ITERATOR(t,exp) do { \
   long _j=0, _k=0, _l=0, _m=0, _n=0; \
-  if (t.ndim == 1) ITERATOR1(t,exp) \
-  else if (t.ndim == 2) ITERATOR2(t,exp) \
-   else if (t.ndim == 3) ITERATOR3(t,exp) \
-  else if (t.ndim == 4) ITERATOR4(t,exp) \
-  else if (t.ndim == 5) ITERATOR5(t,exp) \
-  else if (t.ndim == 6) ITERATOR6(t,exp) \
+  if (t.ndim == 1) {ITERATOR1(t,exp);} \
+  else if (t.ndim == 2) {ITERATOR2(t,exp);} \
+   else if (t.ndim == 3) {ITERATOR3(t,exp);} \
+  else if (t.ndim == 4) {ITERATOR4(t,exp);} \
+  else if (t.ndim == 5) {ITERATOR5(t,exp);} \
+  else if (t.ndim == 6) {ITERATOR6(t,exp);} \
   else {TENSOR_ASSERT(t.ndim <= 6,"ndim confused?",t.ndim,&t);} \
  } while(0)
 
@@ -647,11 +647,11 @@ for (TensorIterator<X> iter=x.unary_iterator(1,false,false); iter._p0; ++iter) {
 // Iterator is iter2.
 
 #define UNARY_UNOPTIMIZED_ITERATOR_NESTED(X,x,exp) do { \
-for (TensorIterator<X> iter=x.unary_iterator(1,false,false); iter._p0; ++iter) { \
-    long _dimj = iter.dimj; \
-    X* _q0 = iter._p0; \
-    long _s0 = iter._s0; \
-    for (long _j=0; _j<_dimj; _j++, _q0+=_s0) { \
+for (TensorIterator<X> iter2=x.unary_iterator(1,false,false); iter2._p0; ++iter2) { \
+    long _dimj2 = iter2.dimj; \
+    X* _q0 = iter2._p0; \
+    long _s20 = iter2._s0; \
+    for (long _j2=0; _j2<_dimj2; _j2++, _q0+=_s20) { \
       exp; \
     } \
   } } while(0)

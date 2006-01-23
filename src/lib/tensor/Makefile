@@ -36,6 +36,8 @@ TESTLIBDEPEND =
 test: $(TESTOBJ) $(THISLIBDEPEND) $(TESTLIBDEPEND)
 	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ $(SYSLIBS) $(LTLINKBINOPTS)
 
+tensor.o:	mxm.h
+
 include $(SRCDIR)/$(TOPDIR)/lib/MakeRules
 
 clean::

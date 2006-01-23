@@ -29,6 +29,7 @@
 
 namespace madness {
 
+#include "tensor/mxm.h"
     
     template <class T>
     T RandomNumber() {
@@ -645,7 +646,8 @@ namespace madness {
     /// Inplace generalized saxpy ... this = this*alpha + other*beta
     template <class T>
     Tensor<T>& Tensor<T>::gaxpy(T alpha, const Tensor<T>& t, T beta) {
-        BINARY_OPTIMIZED_ITERATOR(T,(*this),T,t, (*_p0) = alpha*(*_p0) + beta*(*_p1));
+      //BINARY_OPTIMIZED_ITERATOR(T,(*this),T,t, (*_p0) = alpha*(*_p0) + beta*(*_p1));
+      ITERATOR((*this),(*this)(IND) = alpha*(*this)(IND) + beta*t(IND));
         return *this;
     }
     
@@ -881,339 +883,6 @@ namespace madness {
         return result;
     }
     
-    /// Matrix transpose * matrix ... reference implementation (slow but correct)
-    template <typename T> 
-    STATIC inline void mTxm_reference(long dimi, long dimj, long dimk, 
-                                      T* c, const T*a, const T*b) 
-    {
-        /*
-          c(i,j) = c(i,j) + sum(k) a(k,i)*b(k,j)
-          
-          where it is assumed that the last index in each array is has unit
-          stride and the dimensions are as provided.
-          
-          i loop might be long in anticpated application
-        */
-        
-        for (long k=0; k<dimk; k++) {
-            for (long i=0; i<dimi; i++) {
-                for (long j=0; j<dimj; j++) {
-                    c[i*dimj+j] += a[k*dimi+i]*b[k*dimj+j];
-                }
-            }
-        }
-    }
-
-    /// Matrix transpose * matrix ... double_complex * double
-
-    /// This version is not optimized ... it can be greatly accelerated
-    void mTxm(long dimi, long dimj, long dimk, 
-              double_complex* RESTRICT c, 
-              const double_complex* RESTRICT a, const double* RESTRICT b) 
-    {
-        for (long k=0; k<dimk; k++) {
-            for (long i=0; i<dimi; i++) {
-                for (long j=0; j<dimj; j++) {
-                    c[i*dimj+j] += a[k*dimi+i]*b[k*dimj+j];
-                }
-            }
-        }
-    }
-
-    
-#ifdef _CRAY
-    /// Matrix transpose * matrix (Cray version)
-    template <typename T> 
-    STATIC void mTxm(long dimi, long dimj, long dimk, 
-                     T* RESTRICT c, const T* RESTRICT a, const T* RESTRICT b) 
-    {
-        for (long j=0; j<dimj; j++) {
-            for (long k=0; k<dimk; k++) {
-                for (long i=0; i<dimi; i++) {
-                    c[i*dimj+j] += a[k*dimi+i]*b[k*dimj+j];
-                }
-            }
-        }
-    }
-#else
-    /// Matrix transpose * matrix (hand unrolled version)
-    template <typename T> 
-    STATIC inline void mTxm(long dimi, long dimj, long dimk, 
-                            T* c, const T*a, const T*b) 
-    {
-        /*
-          c(i,j) = c(i,j) + sum(k) a(k,i)*b(k,j)
-          
-          where it is assumed that the last index in each array is has unit
-          stride and the dimensions are as provided.
-          
-          i loop might be long in anticpated application
-          
-          4-way unrolled k loop ... empirically fastest on PIII 
-          compared to 2/3 way unrolling (though not by much).
-        */
-        
-        long dimk4 = (dimk/4)*4;
-        for (long i=0; i<dimi; i++,c+=dimj) {
-            const T* ai = a+i;
-            const T* p = b;
-            for (long k=0; k<dimk4; k+=4,ai+=4*dimi,p+=4*dimj) {
-                T ak0i = ai[0   ];
-                T ak1i = ai[dimi];
-                T ak2i = ai[dimi+dimi];
-                T ak3i = ai[dimi+dimi+dimi];
-                const T* bk0 = p;
-                const T* bk1 = p+dimj;
-                const T* bk2 = p+dimj+dimj;
-                const T* bk3 = p+dimj+dimj+dimj;
-                for (long j=0; j<dimj; j++) {
-                    c[j] += ak0i*bk0[j] + ak1i*bk1[j] + ak2i*bk2[j] + ak3i*bk3[j];
-                }
-            }
-            for (long k=dimk4; k<dimk; k++) {
-                T aki = a[k*dimi+i];
-                const T* bk = b+k*dimj;
-                for (long j=0; j<dimj; j++) {
-                    c[j] += aki*bk[j];
-                }
-            }
-        }
-    }
-#endif
-    
-    /// Matrix * matrix transpose ... reference implementation (slow but correct)
-    template <typename T> 
-    STATIC inline void mxmT_reference(long dimi, long dimj, long dimk, 
-                                      T* c, const T*a, const T*b) 
-    {
-        /*
-          c(i,j) = c(i,j) + sum(k) a(i,k)*b(j,k)
-          
-          where it is assumed that the last index in each array is has unit
-          stride and the dimensions are as provided.
-          
-          i loop might be long in anticpated application
-        */
-        
-        for (long i=0; i<dimi; i++) {
-            for (long j=0; j<dimj; j++) {
-                T sum = 0;
-                for (long k=0; k<dimk; k++) {
-                    sum += a[i*dimk+k]*b[j*dimk+k];
-                }
-                c[i*dimj+j] += sum;
-            }
-        }
-    }
-    
-    /// Matrix * matrix transpose (hand unrolled version)
-    template <typename T> 
-    STATIC inline void mxmT(long dimi, long dimj, long dimk, 
-                            T* c, const T*a, const T*b) 
-    {
-        /*
-          c(i,j) = c(i,j) + sum(k) a(i,k)*b(j,k)
-          
-          where it is assumed that the last index in each array is has unit
-          stride and the dimensions are as provided.
-          
-          j loop might be long in anticpated application
-          
-          Unrolled i loop.  Empirically fastest on PIII compared
-          to unrolling j, or both i&j.  
-        */
-        
-        long dimi2 = (dimi/2)*2;
-        for (long i=0; i<dimi2; i+=2) {
-            const T* ai0 = a+i*dimk;
-            const T* ai1 = a+i*dimk+dimk;
-            T* ci0 = c+i*dimj;
-            T* ci1 = c+i*dimj+dimj;
-            for (long j=0; j<dimj; j++) {
-                T sum0 = 0;
-                T sum1 = 0;
-                const T* bj = b + j*dimk;
-                for (long k=0; k<dimk; k++) {
-                    sum0 += ai0[k]*bj[k];
-                    sum1 += ai1[k]*bj[k];
-                }
-                ci0[j] += sum0;
-                ci1[j] += sum1;
-            }
-        }
-        for (long i=dimi2; i<dimi; i++) {
-            const T* ai = a+i*dimk;
-            T* ci = c+i*dimj;
-            for (long j=0; j<dimj; j++) {
-                T sum = 0;
-                const T* bj = b+j*dimk;
-                for (long k=0; k<dimk; k++) {
-                    sum += ai[k]*bj[k];
-                }
-                ci[j] += sum;
-            }
-        }
-    }
-    
-    /// Matrix * matrix reference implementation (slow but correct)
-    template <typename T> 
-    STATIC inline void mxm_reference(long dimi, long dimj, long dimk, 
-                                     T* c, const T*a, const T*b) 
-    {
-        /*
-          c(i,j) = c(i,j) + sum(k) a(i,k)*b(k,j)
-          
-          where it is assumed that the last index in each array is has unit
-          stride and the dimensions are as provided.
-        */
-        
-        for (long i=0; i<dimi; i++) {
-            for (long k=0; k<dimk; k++) {
-                for (long j=0; j<dimj; j++) {
-                    c[i*dimj+j] += a[i*dimk+k]*b[k*dimj+j];
-                }
-            }
-        }
-    }
-    
-#ifdef _CRAY
-    /// Matrix * matrix
-    template <typename T> 
-    STATIC inline void mxm(long dimi, long dimj, long dimk, 
-			   T* RESTRICT c, const T*a, const T*b) 
-    {
-        /*
-          c(i,j) = c(i,j) + sum(k) a(i,k)*b(k,j)
-          
-          where it is assumed that the last index in each array is has unit
-          stride and the dimensions are as provided.
-        */
-        
-        for (long i=0; i<dimi; i++) {
-            for (long k=0; k<dimk; k++) {
-                for (long j=0; j<dimj; j++) {
-                    c[i*dimj+j] += a[i*dimk+k]*b[k*dimj+j];
-                }
-            }
-        }
-    }
-#else
-    /// Matrix * matrix (hand unrolled version)
-    template <typename T> 
-    STATIC inline void mxm(long dimi, long dimj, long dimk, 
-                           T* c, const T*a, const T*b) 
-    {
-        /*
-          c(i,j) = c(i,j) + sum(k) a(i,k)*b(k,j)
-          
-          where it is assumed that the last index in each array is has unit
-          stride and the dimensions are as provided.
-          
-          4-way unrolled k loop ... empirically fastest on PIII 
-          compared to 2/3 way unrolling (though not by much).
-        */
-        
-        long dimk4 = (dimk/4)*4;
-        for (long i=0; i<dimi; i++, c+=dimj,a+=dimk) {
-            const T* p = b;
-            for (long k=0; k<dimk4; k+=4,p+=4*dimj) {
-                T aik0 = a[k  ];
-                T aik1 = a[k+1];
-                T aik2 = a[k+2];
-                T aik3 = a[k+3];
-                const T* bk0 = p;
-                const T* bk1 = bk0+dimj;
-                const T* bk2 = bk1+dimj;
-                const T* bk3 = bk2+dimj;
-                for (long j=0; j<dimj; j++) {
-                    c[j] += aik0*bk0[j] + aik1*bk1[j] + aik2*bk2[j] + aik3*bk3[j];
-                }
-            }
-            for (long k=dimk4; k<dimk; k++) {
-                T aik = a[k];
-                for (long j=0; j<dimj; j++) {
-                    c[j] += aik*b[k*dimj+j];
-                }
-            }
-        }
-    }
-#endif
-    
-    /// Matrix transpose * matrix transpose reference implementation (slow but correct)
-    template <typename T> 
-    STATIC inline void mTxmT_reference(long dimi, long dimj, long dimk, 
-                                       T* c, const T*a, const T*b) 
-    {
-        /*
-          c(i,j) = c(i,j) + sum(k) a(k,i)*b(j,k)
-          
-          where it is assumed that the last index in each array is has unit
-          stride and the dimensions are as provided.
-        */
-        
-        for (long i=0; i<dimi; i++) {
-            for (long j=0; j<dimj; j++) {
-                for (long k=0; k<dimk; k++) {
-                    c[i*dimj+j] += a[k*dimi+i]*b[j*dimk+k];
-                }
-            }
-        }
-    }
-    
-    /// Matrix transpose * matrix transpose (hand tiled and unrolled)
-    template <typename T> 
-    STATIC inline void mTxmT(long dimi, long dimj, long dimk, 
-                             T* c, const T*a, const T*b) 
-    {
-        /*
-          c(i,j) = c(i,j) + sum(k) a(k,i)*b(j,k)
-          
-          where it is assumed that the last index in each array is has unit
-          stride and the dimensions are as provided.
-          
-          Tiled k, copy row of a into tempory, and uroll j once.
-        */
-        
-        const int ktile=32;
-        T ai[ktile];
-        long dimj2 = (dimj/2)*2;
-        
-        T* csave = c;
-        const T* asave = a;
-        for (long klo=0; klo<dimk; klo+=ktile, asave+=ktile*dimi, b+=ktile) {
-            long khi = klo+ktile;
-            if (khi > dimk) khi = dimk;
-            long nk = khi-klo;
-            
-            a = asave;
-            c = csave;
-            for (long i=0; i<dimi; i++,c+=dimj,a++) {
-                const T* q = a;
-                for (long k=0; k<nk; k++,q+=dimi) ai[k] = *q;
-                
-                const T* bj0 = b;
-                for (long j=0; j<dimj2; j+=2,bj0+=2*dimk) {
-                    const T* bj1 = bj0+dimk;
-                    T sum0 = 0;
-                    T sum1 = 0;
-                    for (long k=0; k<nk; k++) {
-                        sum0 += ai[k]*bj0[k];
-                        sum1 += ai[k]*bj1[k];
-                    }
-                    c[j  ] += sum0;
-                    c[j+1] += sum1;
-                }
-                
-                for (long j=dimj2; j<dimj; j++,bj0+=dimk) {
-                    T sum = 0;
-                    for (long k=0; k<nk; k++) {
-                        sum += ai[k]*bj0[k];
-                    }
-                    c[j] += sum;
-                }
-            }
-        }
-    }
     
     /// Inner product ... result(i,j,...,p,q,...) = sum(z) left(i,j,...,z)*right(z,p,q,...)
     
@@ -1397,6 +1066,29 @@ namespace madness {
         return;
     }
     
+        /// Optimized transform inplace for 3d assuming contiguous everything
+
+        /// Transforms coefficients in s returning result also in s.
+        template <typename T>
+        Tensor<T>& transform3d_inplace(Tensor<T>& s, const Tensor<double>& c, Tensor<T>& work) {
+            T* RESTRICT sptr = s.ptr();
+            T* RESTRICT wptr = work.ptr();
+            double* RESTRICT cptr = c.ptr();
+            long k2 = s.dim[0];
+            long k2sq = k2 * k2;
+            long k2cu = k2sq * k2;
+            for (int i = 0; i < k2cu; i++) wptr[i] = T(0);
+            mTxm(k2sq, k2, k2, wptr, sptr, cptr);
+            for (int i = 0; i < k2cu; i++) sptr[i] = T(0);
+            mTxm(k2sq, k2, k2, sptr, wptr, cptr);
+            for (int i = 0; i < k2cu; i++) wptr[i] = T(0);
+            mTxm(k2sq, k2, k2, wptr, sptr, cptr);
+            for (int i = 0; i < k2cu; i++) sptr[i] = wptr[i];
+
+            return s;
+        };
+
+
     /// Return a new tensor holding the absolute value of each element of t
     template <class T>
     Tensor< typename Tensor<T>::scalar_type > abs(const Tensor<T>& t) {
@@ -1441,100 +1133,9 @@ namespace madness {
         return result;
     }
     
+template Tensor<double>& transform3d_inplace(Tensor<double>& s, const Tensor<double>& c, Tensor<double>& work);
+template Tensor<double_complex>& transform3d_inplace(Tensor<double_complex>& s, const Tensor<double>& c, 
+                                                     Tensor<double_complex>& work);
+
 #include "tensor_spec.h"
-/*
-    // Instantiations for double
-    template class Tensor<double>;
-    template class SliceTensor<double>;
-    template std::ostream& operator << (std::ostream& s, const Tensor<double>& t);
-    template Tensor<double> copy(const Tensor<double>& t);
-    template Tensor<double> outer(const Tensor<double>& left, const Tensor<double>& right);
-    template void inner_result(const Tensor<double>& left, const Tensor<double>& right,
-                               long k0, long k1, Tensor<double>& result);
-    template Tensor<double> inner(const Tensor<double>& left, const Tensor<double>& right,
-                                  long k0, long k1);
-    template Tensor<double> transform(const Tensor<double>& t, const Tensor<double>& c);
-    template void fast_transform(const Tensor<double>& t, const Tensor<double>& c, Tensor<double>& result, Tensor<double>& workspace);
-    template Tensor< Tensor<double>::scalar_type > abs(const Tensor<double>& t);
-    template Tensor<double> transpose(const Tensor<double>& t);
-    
-    // Instantiations for float
-    template class Tensor<float>;
-    template class SliceTensor<float>;
-    template std::ostream& operator << (std::ostream& s, const Tensor<float>& t);
-    template Tensor<float> copy(const Tensor<float>& t);
-    template Tensor<float> outer(const Tensor<float>& left, const Tensor<float>& right);
-    template void inner_result(const Tensor<float>& left, const Tensor<float>& right,
-                               long k0, long k1, Tensor<float>& result);
-    template Tensor<float> inner(const Tensor<float>& left, const Tensor<float>& right,
-                                 long k0, long k1);
-    template Tensor<float> transform(const Tensor<float>& t, const Tensor<float>& c);
-    template void fast_transform(const Tensor<float>& t, const Tensor<float>& c, Tensor<float>& result, Tensor<float>& workspace);
-    template Tensor< Tensor<float>::scalar_type > abs(const Tensor<float>& t);
-    template Tensor<float> transpose(const Tensor<float>& t);
-    
-    // Instantiations for long
-    template class Tensor<long>;
-    template class SliceTensor<long>;
-    template std::ostream& operator << (std::ostream& s, const Tensor<long>& t);
-    template Tensor<long> copy(const Tensor<long>& t);
-    template Tensor<long> outer(const Tensor<long>& left, const Tensor<long>& right);
-    template void inner_result(const Tensor<long>& left, const Tensor<long>& right,
-                               long k0, long k1, Tensor<long>& result);
-    template Tensor<long> inner(const Tensor<long>& left, const Tensor<long>& right,
-                                long k0, long k1);
-    template Tensor<long> transform(const Tensor<long>& t, const Tensor<long>& c);
-    template void fast_transform(const Tensor<long>& t, const Tensor<long>& c, Tensor<long>& result, Tensor<long>& workspace);
-    template Tensor< Tensor<long>::scalar_type > abs(const Tensor<long>& t);
-    template Tensor<long> transpose(const Tensor<long>& t);
-    
-    // Instantiations for double_complex
-    template class Tensor<double_complex>;
-    template class SliceTensor<double_complex>;
-    template std::ostream& operator << (std::ostream& s, const Tensor<double_complex>& t);
-    template Tensor<double_complex> copy(const Tensor<double_complex>& t);
-    template Tensor<double_complex> outer(const Tensor<double_complex>& left, const Tensor<double_complex>& right);
-    template void inner_result(const Tensor<double_complex>& left, const Tensor<double_complex>& right,
-                               long k0, long k1, Tensor<double_complex>& result);
-    template Tensor<double_complex> inner(const Tensor<double_complex>& left, const Tensor<double_complex>& right,
-                                          long k0, long k1);
-    template Tensor<double_complex> transform(const Tensor<double_complex>& t, const Tensor<double_complex>& c);
-    template void fast_transform(const Tensor<double_complex>& t, const Tensor<double_complex>& c, Tensor<double_complex>& result, Tensor<double_complex>& workspace);
-    template Tensor< Tensor<double_complex>::scalar_type > abs(const Tensor<double_complex>& t);
-    template Tensor<double_complex> transpose(const Tensor<double_complex>& t);
-    
-    // Instantiations for float_complex
-    template class Tensor<float_complex>;
-    template class SliceTensor<float_complex>;
-    template std::ostream& operator << (std::ostream& s, const Tensor<float_complex>& t);
-    template Tensor<float_complex> copy(const Tensor<float_complex>& t);
-    template Tensor<float_complex> outer(const Tensor<float_complex>& left, const Tensor<float_complex>& right);
-    template void inner_result(const Tensor<float_complex>& left, const Tensor<float_complex>& right,
-                               long k0, long k1, Tensor<float_complex>& result);
-    template Tensor<float_complex> inner(const Tensor<float_complex>& left, const Tensor<float_complex>& right,
-                                         long k0, long k1);
-    template Tensor<float_complex> transform(const Tensor<float_complex>& t, const Tensor<float_complex>& c);
-    template void fast_transform(const Tensor<float_complex>& t, const Tensor<float_complex>& c, Tensor<float_complex>& result, Tensor<float_complex>& workspace);
-    template Tensor< Tensor<float_complex>::scalar_type > abs(const Tensor<float_complex>& t);
-    template Tensor<float_complex> transpose(const Tensor<float_complex>& t);
-    
-    // Instantiations only for complex types
-    
-    // Instantiations for double_complex
-    template Tensor< Tensor<double_complex>::scalar_type > arg(const Tensor<double_complex>& t);
-    template Tensor< Tensor<double_complex>::scalar_type > real(const Tensor<double_complex>& t);
-    template Tensor< Tensor<double_complex>::scalar_type > imag(const Tensor<double_complex>& t);
-    template Tensor<double_complex> conj(const Tensor<double_complex>& t);
-    template Tensor<double_complex> conj_transpose(const Tensor<double_complex>& t);
-    
-    // Instantiations for float_complex
-    template Tensor< Tensor<float_complex>::scalar_type > arg(const Tensor<float_complex>& t);
-    template Tensor< Tensor<float_complex>::scalar_type > real(const Tensor<float_complex>& t);
-    template Tensor< Tensor<float_complex>::scalar_type > imag(const Tensor<float_complex>& t);
-    template Tensor<float_complex> conj(const Tensor<float_complex>& t);
-    template Tensor<float_complex> conj_transpose(const Tensor<float_complex>& t);
-*/
-    
-    template void mTxm(long dimi, long dimj, long dimk, double* c, const double* a, const double* b) ;
-   
 }

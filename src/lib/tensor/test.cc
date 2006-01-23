@@ -32,8 +32,17 @@ template <> double mynorm<double_complex>(double_complex x) {
   return (double) std::norm(x);
 }
 
-template <typename T, typename Q> inline bool check(T t, Q q, double tol=1e-7) {
-  return (std::abs(t - (T)q)*std::abs(t) <= tol);
+template <typename T, typename Q> 
+inline 
+bool 
+check(const T& t, const Q& q, double tol=1e-7) {
+  double err = std::abs(t - (T)q)/std::max<double>(std::abs(t),1.0);
+  bool ok = (err <= tol);
+  if (!ok) {
+    std::cout.setf(std::ios::scientific);
+    std::cout << "check failed " << t << " " << q << " " << err << " " << tol << std::endl;
+  }
+  return ok;
 }
 
 
@@ -112,6 +121,7 @@ template <typename T, typename Q> void Test1() {
     q5.fillindex();
     q6.fillindex();
   }
+  
 
   // if T != Q, this is type conversion with deep copy performed
   // by first converting Q to a new tensor of type T, and then
@@ -121,6 +131,8 @@ template <typename T, typename Q> void Test1() {
   t = Tensor<T>(q1);
   ITERATOR1(t,if (!check(t(IND1),q1(IND1))) error("test1: failed",1));
   t = Tensor<T>(q2);
+  std::cout << "q2\n" << q2 << std::endl;
+  std::cout << "t\n" << t << std::endl;
   ITERATOR2(t,if (!check(t(IND2),q2(IND2))) error("test1: failed",2));
   t = Tensor<T>(q3);
   ITERATOR3(t,if (!check(t(IND3),q3(IND3))) error("test1: failed",3));
@@ -383,10 +395,14 @@ template <class T> void Test5() {
 
   f = 0.125*a;
   ITERATOR5(e,if (f(IND5) != (T) (0.125*a(IND5))) error("test5: failed",1));
-  ITERATOR5(e,if (e(IND5) != f(IND5)) error("test5: failed",2));
+  ITERATOR5(e,if (e(IND5) != f(IND5)) {std::cout << e(IND5) <<" " << f(IND5) << std::endl;
+				      error("test5: failed",2);});
 
   e = a + b;
-  ITERATOR5(e,if (!check(e(IND5),a(IND5)+b(IND5))) error("test5: failed",2));
+  std::cout.setf(std::ios::scientific);
+  ITERATOR5(e,if (!check(e(IND5),(T)(a(IND5)+b(IND5)))) {
+    std::cout << e(IND5) << " " << a(IND5)+b(IND5) << " " << e(IND5)-(a(IND5)+b(IND5)) << std::endl;
+    error("test5: failed",200);});
 
   e = a - b;
   ITERATOR5(e,if (!check(e(IND5),a(IND5)-b(IND5))) error("test5: failed",3));
@@ -442,8 +458,10 @@ template <class T> void Test5() {
 
   f = copy(e);
   f.gaxpy((T) 3.14159, a, (T) 2.71828);
-  ITERATOR5(e,if (std::abs(f(IND5) - (T) (e(IND5)*((T) 3.14159) + a(IND5)*((T) 2.71828))) > 1e-12)
-	    error("test5: failed",13));
+  ITERATOR5(e,if(!check(f(IND5),(e(IND5)*((T) 3.14159) + a(IND5)*((T) 2.71828)))) {
+    std::cout << "F\n" << f;
+    std::cout << "X\n" << (e*((T)3.14159)+ a*((T) 2.71828)) << std::endl;
+    error("test5: failed",13);});
 
   std::cout << "Test5<" << tensor_type_names[TensorTypeData<T>::id] << "> OK\n";
 }
@@ -565,7 +583,10 @@ template <class T> void Test7()
   ITERATOR6(john,
             T sum = 0;
 	    for (int k=0; k<alfred.dim[0]; k++) sum += alfred(k,_i,_j,_k)*samantha(k,_l,_m,_n);
-	    if (std::abs(sum-john(_i,_j,_k,_l,_m,_n))> std::abs(sum)*1e-6) error("test7: failed",410));
+	    if (std::abs(sum-john(_i,_j,_k,_l,_m,_n))> std::abs(sum)*1e-6) {
+	      std::cout << sum << " " << john(_i,_j,_k,_l,_m,_n) << " " << sum - john(_i,_j,_k,_l,_m,_n) << std::endl;
+	      error("test7: failed",410);
+	    });
 
   john = inner(alfred,samantha,0,-1);
   ITERATOR6(john,

@@ -19,7 +19,7 @@ for t in typelist:
     f.write("                         long k0, long k1);\n")
     f.write("template Tensor<%s> transform(const Tensor<%s>& t, const Tensor<%s>& c);\n" % (t,t,t))
     f.write("template void fast_transform(const Tensor<%s>& t, const Tensor<%s>& c, " \
-          "Tensor<%s>& result, Tensor<%s>& workspace);\n"% (t,t,t,t))
+        "Tensor<%s>& result, Tensor<%s>& workspace);\n"% (t,t,t,t))
     f.write("template Tensor< Tensor<%s>::scalar_type > abs(const Tensor<%s>& t);\n" % (t,t))
     f.write("template Tensor<%s> transpose(const Tensor<%s>& t);\n" % (t,t))
 
