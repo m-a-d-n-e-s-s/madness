@@ -64,8 +64,27 @@ module load icc9026 idb9031 ifort9027
 setenv CC icc
 setenv CXX icpc
 setenv F77 ifc
-./configure --with-cxx-optflags="-O1" --with-libs="-lmpi++ -lmpi" \
+./configure --with-cxx-optflags="-O3" --with-libs="-lmpi++ -lmpi" \
             --with-blas="-lscs_i8" --with-lapack=""
 
 
+===========================================================
 
+IBM power4 using IM compilers ... dumb ass 64-bit computer
+only has a 32 bit parallel envirronment!
+
+!!! Not yet working ... need PE3.2 to get the MPI C++ bindings
+!!! and we don't have that ... sigh.
+
+setenv CXX "mpCC_r"
+setenv CC "mpcc_r"
+setenv FC "mpfc_r"
+#set BLASLIB = /spin/home/harrison/Downloads/libblas64.a
+#set LAPACKLIB = /spin/home/harrison/Downloads/liblapack64.a
+set EXTRA_LIBS = "-lxlf -lxlf90"
+set CXXFLAGS = "-O3 -qnoipa -qmaxmem=-1"
+set LDFLAGS = "-bmaxdata:0x80000000"
+
+./configure --with-cxx-optflags="$CXXFLAGS"  \
+            --with-libs="$EXTRA_LIBS" 
+#            --with-blas="$BLASLIB" --with-lapack="$LAPACKLIB"
