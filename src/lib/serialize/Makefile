@@ -31,12 +31,48 @@ test: $(TESTOBJ) \
 	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ $(SYSLIBS) $(LTLINKBINOPTS)
 
 
+testtens.o:	$(INC)
+
+testtens: testtens.o \
+      $(shell $(LISTLIBS) $(INCLUDE) $(SRCDIR)/LIBS.h) \
+      $(shell $(LISTLIBS) $(INCLUDE) $(SRCDIR)/../tensor/LIBS.h)
+	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ $(SYSLIBS) $(LTLINKBINOPTS)
+
+
 testmpi.o:	$(INC)
 
 testmpi: testmpi.o \
       $(shell $(LISTLIBS) $(INCLUDE) $(SRCDIR)/LIBS.h) \
       $(shell $(LISTLIBS) $(INCLUDE) $(SRCDIR)/../tensor/LIBS.h)
 	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ $(SYSLIBS) $(LTLINKBINOPTS)
+
+testfn: testfn.o \
+      $(shell $(LISTLIBS) $(INCLUDE) $(SRCDIR)/LIBS.h) \
+      $(shell $(LISTLIBS) $(INCLUDE) $(SRCDIR)/../tensor/LIBS.h)
+	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ $(SYSLIBS) $(LTLINKBINOPTS)
+
+testfn.o:	$(INC)
+
+testvec: testvec.o \
+      $(shell $(LISTLIBS) $(INCLUDE) $(SRCDIR)/LIBS.h) \
+      $(shell $(LISTLIBS) $(INCLUDE) $(SRCDIR)/../tensor/LIBS.h)
+	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ $(SYSLIBS) $(LTLINKBINOPTS)
+
+testvec.o:	$(INC)
+
+testoct: testoct.o \
+      $(shell $(LISTLIBS) $(INCLUDE) $(SRCDIR)/LIBS.h) \
+      $(shell $(LISTLIBS) $(INCLUDE) $(SRCDIR)/../tensor/LIBS.h)
+	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ $(SYSLIBS) $(LTLINKBINOPTS)
+
+testoct.o:	$(INC)
+
+testtree: testtree.o \
+      $(shell $(LISTLIBS) $(INCLUDE) $(SRCDIR)/LIBS.h) \
+      $(shell $(LISTLIBS) $(INCLUDE) $(SRCDIR)/../tensor/LIBS.h)
+	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ $(SYSLIBS) $(LTLINKBINOPTS)
+
+testtree.o:	$(INC)
 
 include $(SRCDIR)/$(TOPDIR)/lib/MakeRules
 

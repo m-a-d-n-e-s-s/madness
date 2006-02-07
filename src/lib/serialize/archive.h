@@ -286,6 +286,7 @@
 #include <map>
 #include <typestuff.h>
 #include <tensor/tensor.h>
+#include <mra/mra.h>
 
 #define ARCHIVE_COOKIE "archive"
 #define ARCHIVE_MAJOR_VERSION 0
@@ -523,6 +524,17 @@ namespace madness {
             };
         };
 
+/*
+        /// Default load of a thingy via serialize(ar,t)
+        template <class Archive, class T> 
+        struct ArchiveLoadImpl {
+	    template <class U>
+            static inline void load(const Archive& ar, const T& t) {
+                MAD_ARCHIVE_DEBUG(std::cout << "load(ar,t) default" << std::endl);
+                serialize(ar,t);
+            };
+        };
+*/
 
         /// Default load of a thingy via serialize(ar,t)
         template <class Archive, class T> 
@@ -814,7 +826,7 @@ namespace madness {
         template <class Archive, typename T>
         struct ArchiveStoreImpl< Archive, Tensor<T> > {
             static inline void store(const Archive& s, const Tensor<T>& t) {
-                if (t.iscontiguous()) s & t.ndim & t.dim & wrap(t.ptr(),t.size); 
+                if (t.iscontiguous()) s & t.id & t.ndim & t.dim & wrap(t.ptr(),t.size); 
                 else s & copy(t);
             };
         };
@@ -824,13 +836,105 @@ namespace madness {
         template <class Archive, typename T>
         struct ArchiveLoadImpl< Archive, Tensor<T> > {
             static inline void load(const Archive& s, Tensor<T>& t) { 
+                long id;
+                s & id;
+		if (id != t.id) throw "type mismatch deserializing a tensor";
                 long ndim, dim[TENSOR_MAXDIM];  // Uncool reference to this macro
                 s & ndim & dim;
                 t = Tensor<T>(ndim, dim, false);
+		t.fillrandom();
                 s & wrap(t.ptr(), t.size);
             };
         };
+
+	/// Serialize a Tensor thru a BaseTensor pointer
+        template <class Archive>
+        struct ArchiveStoreImpl< Archive, BaseTensor* > {
+            static inline void store(const Archive& s, const BaseTensor* t) {
+//		std::cout << "serizialing thru bt\n";
+		s & t->id;
+		if (t->id == TensorTypeData<double>::id) {
+//		    std::cout << "serizialing thru bt ... it's a double!\n";
+		    s & *((const Tensor<double>*) t);
+		}
+		else {
+		    throw "not yet";
+		}
+            };
+        };
+
+	/// Deserialize a Tensor thru a BaseTensor pointer
+
+	/// It allocates a NEW tensor ... the original point is stomped on
+	/// and so should not be preallocated.
+        template <class Archive>
+        struct ArchiveLoadImpl< Archive, BaseTensor* > {
+            static inline void load(const Archive& s, BaseTensor*& t) { 
+                long id;
+                s & id;
+//		std::cout << "deserizialing thru bt\n";
+		if (id == TensorTypeData<double>::id) {
+//		    std::cout << "deserizialing thru bt ... it's a double!\n";
+		    Tensor<double>* d = new Tensor<double>();
+		    s & *d;
+		    t = d;
+		}
+		else {
+		    throw "not yet";
+		}
+            };
+	};
         
+	// This next serialize/deserialize brought to you by hqi
+	// this should be fun...
+	/// Serialize a FunctionNode
+
+
+/*
+//	template <class Archive, typename T>
+	template <class Archive>
+//	struct ArchiveLoadImpl< Archive, FunctionNode, T > {
+	struct ArchiveLoadImpl< Archive, FunctionNode > {
+	    template <typename T>
+	    static inline void load(const Archive &ar, FunctionNode& fn) {
+		std::vector< Tensor<T> > v;
+		std::vector<bool> vb;
+		int n;
+		ar & n;
+//		ar & vb;
+		ar & wrap(v,n) & vb;
+		for (int i = 0; i < n; i++)
+		{
+		    Tensor<T> *t = v[i];
+		    fn.set<T>(i, *t);
+		    fn.set_active_status(i, vb[i]);
+		}
+	    };
+	};
+
+//	template <class Archive, typename T>
+	template <class Archive>
+//	struct ArchiveStoreImpl< Archive, FunctionNode, T > {
+	struct ArchiveStoreImpl< Archive, FunctionNode > {
+	    template <typename T>
+	    static inline void store(const Archive& ar, FunctionNode& fn) {
+		std::vector< Tensor<T> > v; 
+		std::vector<bool> vb;
+		int n = fn.size;
+		for (int i = 0; i < n; i++)
+		{
+		    Tensor<T> *t = fn.get<T>(i);
+		    v.push_back((*t));
+		    vb.push_back(fn.isactive(i));
+		}
+//		ar & n & vb;
+		ar & n & wrap(v,n) & vb;
+	    };
+	};
+
+*/
+
+
         //////////////////////////////////////////////////////////////////
     }
 }

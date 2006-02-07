@@ -614,7 +614,11 @@ namespace madness {
         inline BaseTensor* slice_base(const std::vector<Slice>& s) const {
             return new SliceTensor<T>(*this,&(s[0]));
         };
+
         
+	inline BaseTensor* get_base() {
+	    return (BaseTensor *) this;
+	};
         virtual ~Tensor() {};
     };
     

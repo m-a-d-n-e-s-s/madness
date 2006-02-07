@@ -13,6 +13,7 @@
 #include <misc/print.h>
 #include <misc/communicator.h>
 #include <misc/shared_ptr.h>
+#include <serialize/archive.h>
 
 
 #define FORIJK(expr) \
@@ -98,7 +99,7 @@ namespace madness {
         // (why not shared ptr ?)
         const Communicator* _comm; ///< Info on parallel processes
 
-        T _data;			///< The payload stored by value
+//        T _data;			///< The payload stored by value
 
 	Cost _cost;			///< Cost associated with node
 	Cost _localSubtreeCost;		///< Cost associated with local parts of node's subtree
@@ -144,6 +145,8 @@ namespace madness {
         };
         
     public:
+	// can't figure out another way to get to the FunctionNode without allowing copy
+        T _data;			///< The payload stored by value
         /// Default constructor makes empty node with n=-1 to indicate invalid.
         OctTree() :
             _x(0), _y(0), _z(0), _n(-1),
@@ -187,7 +190,20 @@ namespace madness {
 	    _p = parent;
 	};
 
-	/// Constructor makes node from flattened data type 
+	/// Constructor makes node from flattened data type, with parent (except data)
+	OctTree(OctTreeFlat<T> t, OctTreeT* parent, bool makeData)
+	{
+	    _x = t.x(); _y = t.y(); _z = t.z(); _n = t.n();
+	    _remote = t.remote(); _rank = t.rank();
+	    _cost = t.cost(); _localSubtreeCost = t.localSubtreeCost();
+	    _visited = t.visited();
+	    if (makeData)
+		_data = T(t.data());
+	    FORIJK(_c[i][j][k] = 0;);
+	    _p = parent;
+	};
+
+	/// Constructor makes node from flattened data type  
 	OctTree(OctTreeFlat<T> t)
 	{
 	    _x = t.x(); _y = t.y(); _z = t.z(); _n = t.n();
@@ -198,14 +214,38 @@ namespace madness {
 	    _p = 0;
 	};
 
+	/// Constructor makes node from flattened data type (except data)
+	OctTree(OctTreeFlat<T> *t, bool makeData)
+	{
+	    _x = t->x(); _y = t->y(); _z = t->z(); _n = t->n();
+	    _remote = t->remote(); _rank = t->rank();
+	    _cost = t->cost(); _localSubtreeCost = t->localSubtreeCost();
+	    _visited = t->visited();
+	    if (makeData)
+		_data = T(t->data());
+std::cout << "_data" << std::endl;
+std::cout << "   sample from it: " << _data[1](1,1,1) << std::endl;;
+	    FORIJK(_c[i][j][k] = 0;);
+	    _p = 0;
+	};
+
         ~OctTree() {
         }
+
 
         /// Returns a reference to the data
         inline T& data() {return _data;};
 
         /// Returns a const reference to the data
         inline const T& data() const {return _data;};
+
+	/// Set data
+	inline void setData(T data) {_data = data;};
+
+	inline void setData(T *data)
+	{
+	    _data = *data;
+	}
 
         /// Get cost of node
         inline Cost getCost() {return _cost;};
@@ -294,6 +334,25 @@ namespace madness {
 	    return _c[x][y][z];
 	};
         
+	/// insert child (except data) from flattened data structure, returning pointer to child
+	OctTreeT* insert_flat_child(OctTreeFlat<T> t, bool makeData)
+	{
+	    Translation x, y, z, px, py, pz;
+	    x = t.x();
+	    y = t.y();
+	    z = t.z();
+	    px = this->x();
+	    py = this->y();
+	    pz = this->z();
+
+	    x -= (2*px);
+	    y -= (2*py);
+	    z -= (2*pz);
+
+	    _c[x][y][z] = shared_ptr<OctTreeT>(new OctTreeT(t, this, makeData));
+	    return _c[x][y][z];
+	};
+        
         /// insert local child (x, y, z in {0,1}) returning pointer to child
         OctTreeT* insert_local_child(int x, int y, int z) {
             _c[x][y][z] = shared_ptr<OctTreeT>(new OctTreeT(_n + 1,
@@ -375,11 +434,11 @@ namespace madness {
 	/// Depth-first traversal of tree (prints out diagnostic info)
 	void depthFirstTraverse()
 	{
-	    cout << "layer " << n() << ", (x,y,z) = " << x() << ", "
-			<< y() << ", " << z() << endl;
-	    cout << "      hasChildren? " << this->isParent()
+	    std::cout << "layer " << n() << ", (x,y,z) = " << x() << ", "
+			<< y() << ", " << z() << std::endl;
+	    std::cout << "      hasChildren? " << this->isParent()
 		 << "    isRemote? " << this->isremote()
-		 << "    rank? " << this->rank() << endl;
+		 << "    rank? " << this->rank() << std::endl;
 	    FOREACH_LOCAL_CHILD(OctTreeT, this,
 		child->depthFirstTraverse();
 		);
@@ -625,25 +684,30 @@ namespace madness {
 	int _hasParent;
 
 	ProcessID _rank;	///< if (_remote) The rank of remote process
-	T _data;		///< The payload stored by value
+//	T _data;		///< The payload stored by value
 
 	typedef OctTreeFlat<T> OctTreeFlatT;
 	typedef typename std::list<OctTreeFlatT,std::allocator<OctTreeFlatT> >::iterator LI;
 
     public:
+	T _data;		///< The payload stored by value
 	/// Default constructor
-	OctTreeFlat()
+	OctTreeFlat():
+	    _x(0), _y(0), _z(0), _n(-1), _remote(0), _rank(-1),
+	    _cost(1), _localSubtreeCost(1), _visited(0)
 	{
-	    _x = 0; _y = 0; _z = 0; _n = -1; _remote = 0; _rank = -1;
-	    _cost = 1; _localSubtreeCost = 1; _visited = 0;
+//	    _x = 0; _y = 0; _z = 0; _n = -1; _remote = 0; _rank = -1;
+//	    _cost = 1; _localSubtreeCost = 1; _visited = 0;
 	};
 
 	/// Constructor with some info
 	OctTreeFlat(Level n, Translation x, Translation y, Translation z,
-		int remote, ProcessID remote_proc)
+		int remote, ProcessID remote_proc):
+	    _x(x), _y(y), _z(z), _n(n), _remote(remote_proc), _rank(-1),
+	    _cost(1), _localSubtreeCost(1), _visited(0)
 	{
-	    _x = x; _y = y; _z = z; _n = n; _remote = remote_proc; _rank = -1;
-	    _cost = 1; _localSubtreeCost = 1; _visited = 0;
+//	    _x = x; _y = y; _z = z; _n = n; _remote = remote_proc; _rank = -1;
+//	    _cost = 1; _localSubtreeCost = 1; _visited = 0;
 	};
 	
 	/// Constructor made with OctTree (the crucial constructor)
@@ -672,7 +736,52 @@ namespace madness {
 	    _rank = t.rank();
 	    _data = t.data();
 	};
+	
+	/// Constructor made with OctTree (the crucial constructor)
+	OctTreeFlat(OctTree<T> *t, bool makeData)
+	{
+std::cout << "making OctTreeFlat in constructor" << std::endl;
+	    _x = t->x(); _y = t->y(); _z = t->z(); _n = t->n();
+	    _remote = (int) t->isremote(); _rank = t->rank(); _cost = t->getCost();
+	    _localSubtreeCost = t->getLocalSubtreeCost();
+	    _visited = (int) t->isVisited();
+//	    _x = t.x(); _y = t.y(); _z = t.z(); _n = t.n();
+//	    _remote = (int) t.isremote(); _rank = t.rank(); _cost = t.getCost();
+//	    _localSubtreeCost = t.getLocalSubtreeCost();
+//	    _visited = (int) t.isVisited();
+//	    if (t.isParent() && t.islocal())
+	    if (t->isParent() && t->islocal())
+	    {
+		_hasChildren = 1;
+	    }
+	    else
+	    {
+		_hasChildren = 0;
+	    }
+//	    if (t.parent() == 0)
+	    if (t->parent() == 0)
+	    {
+		_hasParent = 0;
+	    }
+	    else
+	    {
+		_hasParent = 1;
+	    }
+//	    _rank = t.rank();
+	    _rank = t->rank();
+	    if (makeData)
+	    	_data = T(t->data());
+////	    	_data = t.data();
+//std::cout << "_data" << std::endl;
+//std::cout << "   sample from it: " << std::endl;
+	};
+
 	~OctTreeFlat() {};
+
+	template <class Archive>
+        inline void serialize(const Archive& ar) {
+//	    ar & _x & _y & _z & _n & _remote & _rank & _cost & _localSubtreeCost & _visited & _hasChildren & _hasParent & _rank;} 
+	    ar & _x & _y & _z & _n & _remote & _rank & _cost & _localSubtreeCost & _visited & _hasChildren & _hasParent & _rank & _data;} 
 
 	inline Translation x() {return _x;};
 	inline Translation y() {return _y;};
@@ -686,6 +795,11 @@ namespace madness {
 	inline int visited() {return _visited;};
 	inline bool hasChildren() {return _hasChildren;};
 	inline bool hasParent() {return _hasParent;};
+
+	inline void setData(T *data)
+	{
+	    &_data = data;
+	}
     };
 }
 

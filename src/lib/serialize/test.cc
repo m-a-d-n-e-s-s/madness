@@ -140,6 +140,7 @@ using namespace std;
 
 using madness::archive::wrap;
 using madness::Tensor;
+using madness::BaseTensor;
 
 template <class OutputArchive>
 void test_out(const OutputArchive& oar) {
@@ -172,6 +173,7 @@ void test_out(const OutputArchive& oar) {
   }
   ti.fillindex();
   td.fillindex();
+  std::cout << "td after fillind\n" << td;
   tc.fillindex();
   
   // test example list code
@@ -227,10 +229,13 @@ void test_out(const OutputArchive& oar) {
   oar & str;
   
   MAD_ARCHIVE_DEBUG(std::cout << std::endl << " Tensors" << std::endl);
+  std::cout << "td just before archiving\n" << td;
   oar << ti << td << tc;
+  oar << (BaseTensor *) &td;
   oar & ti & td & tc;
   
-  oar & 1.0 & i & a & b & c & in & an & bn & cn & wrap(p,n) & wrap(q,n) & pp & m & str;}
+  oar & 1.0 & i & a & b & c & in & an & bn & cn & wrap(p,n) & wrap(q,n) & pp & m & str;
+}
 
 template <class InputArchive>
 void test_in(const InputArchive& iar) {
@@ -319,7 +324,12 @@ void test_in(const InputArchive& iar) {
 
   MAD_ARCHIVE_DEBUG(std::cout << std::endl << " Tensors" << std::endl);
   iar >> ti >> td >> tc;
+  std::cout << "td just after dearchiving 1\n" << td;
+  BaseTensor *fred;
+  iar >> fred;
+  std::cout << *((Tensor<double>*) fred);
   iar & ti & td & tc;
+  std::cout << "td just after dearchiving 2\n" << td;
 
   iar & 1.0 & i & a & b & c & in & an & bn & cn & wrap(p,n) & wrap(q,n) & pp & m & str;
   // Test data
@@ -377,18 +387,6 @@ int main() {
     test_in(iar);
     iar.close();
   }
-
-  {
-    const char* f = "test.dat";
-    cout << endl << "testing text fstream archive" << endl;
-    TextFstreamOutputArchive oar(f);
-    test_out(oar);
-    oar.close();
-    
-    TextFstreamInputArchive iar(f);
-    test_in(iar);
-    iar.close();
-  }
   
   {
     cout << endl << "testing vector archive" << endl;
@@ -398,6 +396,18 @@ int main() {
     oar.close();
     
     VectorInputArchive iar(f);
+    test_in(iar);
+    iar.close();
+  }
+
+  {
+    const char* f = "test.dat";
+    cout << endl << "testing text fstream archive" << endl;
+    TextFstreamOutputArchive oar(f);
+    test_out(oar);
+    oar.close();
+    
+    TextFstreamInputArchive iar(f);
     test_in(iar);
     iar.close();
   }

@@ -12,6 +12,7 @@
 #include <tensor/tensor.h>
 #include <octtree/octtree.h>
 #include <mra/sepop.h>
+#include <serialize/archive.h>
 
 namespace std {
 	/// This to make norm work as desired for both complex and real
@@ -53,7 +54,7 @@ namespace madness {
 
     class FunctionNode;         ///< Forward definition
     typedef OctTree<FunctionNode> OctTreeT; ///< Type of OctTree used to hold coeffs
-
+    template <typename T>
 
     /// Used to hold data for all functions at each node of the OctTree
 
@@ -70,10 +71,10 @@ namespace madness {
         std::vector<bool> a;    ///< Flags for active
 
         /// Private. Copy constructor not supported
-        FunctionNode(const FunctionNode& f);
+//        FunctionNode(const FunctionNode& f);
 
         /// Private. Assignment not supported
-        FunctionNode& operator=(const FunctionNode& f);
+//        FunctionNode& operator=(const FunctionNode& f);
 
     public:
         /// Constructor initializes all data pointers to NULL
@@ -85,6 +86,77 @@ namespace madness {
                 a[i] = false;
             };
         };
+
+	// I know, I know, naughty for doing this, but yanno, it needs to be done
+	FunctionNode(const FunctionNode& f)
+	{
+	    int i; int n = f.v.size();
+	    for (i = 0; i < n; i++)
+	    {
+		BaseTensor* t = f.v[i];
+		if (t->id == TensorTypeData<double>::id)
+		{
+		    Tensor<double> *d = new Tensor<double>();
+		    *d = *(const Tensor<double> *) t;
+		    v.push_back(d);
+		    a.push_back(f.a[i]);
+		}
+		else
+		{
+		    throw "not yet";
+		}
+	    };
+	};
+
+	FunctionNode& operator=(const FunctionNode& fn)
+	{
+	    if (this == &fn) return *this;
+	    int i; int n = fn.v.size();
+	    v.clear(); a.clear();
+	    for (i = 0; i < n; i++)
+	    {
+		BaseTensor* t = fn.v[i];
+		if (t->id == TensorTypeData<double>::id)
+		{
+		    Tensor<double> *d = new Tensor<double>();
+		    *d = *(const Tensor<double> *) t;
+		    v.push_back(d);
+		    a.push_back(fn.a[i]);
+		}
+		else
+		{
+		    throw "not yet";
+		}
+	    };
+	    return *this;
+	};
+
+	/// Puts vector of tensors and vector of bools into supplied arguments
+	template <typename T>
+	inline void getTensorList(std::vector<Tensor<T> > *tv, std::vector<bool> *av)
+	{
+	    int i = 0, n = size;
+//std::cout << "beginning of getTensorList, n = " << n << std::endl;
+	    for (i = 0; i < n; i++)
+	    {
+//std::cout << "loop of getTensorList, i = " << i << std::endl;
+		tv->push_back(*(get<T>(i)));
+		av->push_back(isactive(i));
+	    }
+//std::cout << "end of getTensorList, n = " << n << std::endl;
+	}
+
+	/// Sets v and a using supplied arguments
+	template <typename T>
+	inline void setTensorList(int n, std::vector<Tensor<T> > tv, std::vector<bool> av)
+	{
+	    int i = 0;
+	    for (i = 0; i < n; i++)
+	    {
+		set(i, tv[i]);
+		set_active_status(i, av[i]);
+	    }
+	}
 
         /// Returns a pointer to data for entry ind.  NULL indicates no data.
         template <typename T>
@@ -143,6 +215,9 @@ namespace madness {
         ~FunctionNode() {
             for (int i = 0; i < size; i++) unset(i);
         };
+
+	template <class Archive>
+	inline void serialize(const Archive& ar) {ar & v & a;}
     };
 
     /// A FunctionOctTree marries an OctTree<FunctionNode> with an index manager
