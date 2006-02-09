@@ -286,7 +286,6 @@
 #include <map>
 #include <typestuff.h>
 #include <tensor/tensor.h>
-#include <mra/mra.h>
 
 #define ARCHIVE_COOKIE "archive"
 #define ARCHIVE_MAJOR_VERSION 0
