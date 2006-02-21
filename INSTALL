@@ -68,6 +68,21 @@ setenv F77 ifc
             --with-blas="-lscs_i8" --with-lapack=""
 
 
+======================================================================
+Configure options for Cray XT3 with Portland Group Compilers ... jaguar
+
+I vaguely recall that you have to configure with CXX=pgCC and F77=pgf77 
+and once that has run edit lib/MakeVars to reset them to the mpi
+commands ... but I might be wrong.
+
+setenv CC mpicc
+setenv CXX mpicxx
+setenv F77 mpif77
+./configure --with-cxx-optflags="-fastsse -tp k8-64 -Mflushz" \
+   --with-blas="-lsci" --with-lapack="-lsci"
+
+
+
 ===========================================================
 
 IBM power4 using IM compilers ... dumb ass 64-bit computer
