@@ -73,6 +73,16 @@ int main(int argc, char* argv[]) {
         print("normsq after compression   ",f.norm2sq_local());
         f.reconstruct();
         print("normsq after reconstruction",f.norm2sq_local());
+
+	print("Tree in scaling function form");
+	f.pnorms();
+	print("Tree in wavelet form");
+	f.compress();
+	f.pnorms();
+	f.norm2sq_local();
+	
+
+        f.reconstruct();
         
         Function<double> g;
         g = copy(f);

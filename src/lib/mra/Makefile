@@ -36,6 +36,9 @@ TESTLIBDEPEND =
 test: $(TESTOBJ) $(THISLIBDEPEND) $(TESTLIBDEPEND)
 	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ $(SYSLIBS) $(LTLINKBINOPTS)
 
+test_serialize: test_serialize.o $(THISLIBDEPEND) $(TESTLIBDEPEND)
+	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ $(SYSLIBS) $(LTLINKBINOPTS)
+
 include $(SRCDIR)/$(TOPDIR)/lib/MakeRules
 
 clean::

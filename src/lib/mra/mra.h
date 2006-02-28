@@ -486,7 +486,6 @@ namespace madness {
             nterminated = other.nterminated;
         };
 
-
         ~FunctionData() {
             tree->free(ind);
         };
@@ -578,6 +577,11 @@ namespace madness {
                 , k(f.k)
         , ind(f.ind) {}
         ;
+
+	  /// Print out a summary of the tree with norms
+	  void pnorms() {
+	    if (isactive(tree())) _pnorms(tree());
+	  };
 
 
         /// Deep copy in either scaling function or wavelet basis.
@@ -799,6 +803,119 @@ namespace madness {
             return data->compressed;
         };
 
+	template <class Archive>
+	void save(Archive& ar) {
+	  _save(ar, tree());
+	};
+
+	/// Saving Function members into the file.
+	template <class Archive>
+	//struct ArchiveStoreImpl<Archive, OctTreeT> {
+        //shared_ptr<OctTreeT> _tree;
+	void _save(Archive& ar, const OctTreeT *tree) {
+	  ar & isactive(tree);
+	  if(isactive(tree)) {
+	    ar & FunctionDefaults::k;
+	    ar & FunctionDefaults::thresh;
+	    ar & FunctionDefaults::initial_level;
+	    ar & FunctionDefaults::max_refine_level;
+	    ar & FunctionDefaults::truncate_method;
+	    ar & FunctionDefaults::autorefine;
+            const TensorT *t = coeff(tree);
+	    ar & (t != 0);
+	    if(t) ar & *t;
+	    FORIJK(
+              ar & (tree->child(i,j,k)!=0);
+	      if (tree->child(i,j,k)) {
+               tree->print_coords();
+               print(i,j,k);
+               _save(ar, tree->child(i,j,k));
+               }
+	    );
+          }
+	}
+
+	template <class Archive>
+	void load(Archive& ar) {
+	  bool active_flag;
+	  ar & active_flag;
+	  if (active_flag) _load(ar, tree());
+	}
+
+	/// Loading Function members from the file.
+	template <class Archive>
+	void _load(const Archive& ar, OctTreeT *tree) {
+	    cout << " before set_active " << (void *) tree << endl;
+	    set_active(tree);
+            bool have_coeffs;
+	    ar & have_coeffs;
+	    if(have_coeffs) {
+	      ar & FunctionDefaults::k;
+	      ar & FunctionDefaults::thresh;
+	      ar & FunctionDefaults::initial_level;
+	      ar & FunctionDefaults::max_refine_level;
+	      ar & FunctionDefaults::truncate_method;
+	      TensorT t;
+	      ar & t;
+	      set_coeff(tree, t);
+	    }
+	    FORIJK(
+               bool have_child;
+               ar & have_child;
+               if (have_child) {
+                  OctTreeT* child = tree->child(i, j, k);
+                  if (!child) child = tree->insert_local_child(i,j,k);
+   	          bool active_flag;
+     	          ar & active_flag;
+                  tree->print_coords();
+		  print(i,j,k);
+                  if (active_flag) _load(ar, child);
+               }
+            );
+	}
+
+	//css
+	//void truncate(double tol = -1.0) {
+	//  if (isactive(tree())) _truncate(tol, tree());
+	//}
+
+	/// The truncate member function neglects small components.
+/*
+	void _truncate(double tol, OctTreeT *tree){
+	  if (isactive(tree)) {
+	    FOREACH_CHILD(OctTreeT, tree, if (isactive(child)) _truncate(child););
+	  }
+	  else if (tree->nchild() == 0) {
+	    if (coeff(tree) -> normf() < tol) {
+	      delete (coeff);
+	      mark inactive;
+	    }
+	  }
+	  if (tree -> isremote()) {
+	    if (tree -> islocalsubtreeparent()) {
+	      send(nchild);
+	    }
+	    else {
+              recv(nchild);
+	    }
+	  }
+	}
+*/
+	//css
+	/// This function returns square root.
+	//double norm() const {
+	//  return sqrt(_norm2sq(coeff.get()));
+	//}
+	
+	/// This function returns the sum of coeffcient's square.
+	//double _norm2sq(const OctTreeT *t) const {
+	//  double sum = 0.0;
+	//  if(t->has_data()) {
+	//    sum = t->data().sumsq();
+	//  }
+	//  FOREACH_CHILD_CONST(OctTreeT, t, sum += _norm2sq(child););
+	//  return sum;
+	//}
 
         /// Local evaluation of the function at a point in user coordinates
 
@@ -1140,6 +1257,19 @@ namespace madness {
             FOREACH_CHILD(OctTreeT, tree,
                           if (isactive(child))
                           _unaryop(result, child, op););
+        }
+
+
+        /// Private.  Recur down the tree printing out the norm of 
+	/// the coefficients.
+        void _pnorms(OctTreeT *tree) const {
+            const TensorT *t = coeff(tree);
+            if (t) {
+	      for (long i=0; i<tree->n(); i++) std::printf("  ");
+	      std::printf("%4d %8d %8d %8d %e9.1\n",
+			  tree->n(),tree->x(),tree->y(),tree->z(),t->normf());
+	    }
+            FOREACH_CHILD(OctTreeT, tree, if (isactive(child)) _pnorms(child););
         }
 
         /// Private.  Recursive function to support inplace scaling.
