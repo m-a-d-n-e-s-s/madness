@@ -54,7 +54,6 @@ namespace madness {
 
     class FunctionNode;         ///< Forward definition
     typedef OctTree<FunctionNode> OctTreeT; ///< Type of OctTree used to hold coeffs
-    template <typename T>
 
     /// Used to hold data for all functions at each node of the OctTree
 
