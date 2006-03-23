@@ -13,7 +13,9 @@
 #include <misc/print.h>
 #include <misc/communicator.h>
 #include <misc/shared_ptr.h>
+#include <misc/misc.h>
 #include <serialize/archive.h>
+using namespace madness;
 
 
 #define FORIJK(expr) \
@@ -56,8 +58,14 @@
 namespace madness {
     
     // declare it up here so that it will be recognized by OctTree:
+/*
+    namespace archive {
 
-    template <class T> class OctTreeFlat;
+	class MPIInputArchive;
+	class MPIOutputArchive;
+    }
+*/
+
 
     /// Raise integer two to a positive power 
     inline Translation two_to_power(long n) {return Translation(1)<<n;}
@@ -83,7 +91,25 @@ namespace madness {
     /// is stored and the remote node may, or may not, have children.
     template <class T>
     class OctTree {
-    private:
+/********************************************************************************/
+/* This is also a bit of a work in progress.  I was trying to get the archive 	*/
+/* stuff to work with the OctTree, and I was unable to get the friending right.	*/
+/* So I just made the whole class public for now.  I know, I know, dangerous	*/
+/* and all that.  It's just a temporary measure while I figure out how to make	*/
+/* the friend thing work with it.  						*/
+/********************************************************************************/
+/*
+	friend class Archive;
+	friend Archive wrap_store(const Archive& ar, const OctTree<T>& tree);
+	friend void store(const Archive& ar, const OctTree<T>& tree);
+	friend void load(const Archive& ar, OctTree<T>& tree);
+	friend struct ArchiveStoreImpl;
+	friend struct ArchiveLoadImpl;
+	friend class MPIOutputArchive;
+	friend class MPIInputArchive;
+*/
+//    private:
+    public:
         typedef OctTree<T> OctTreeT;
         Translation _x;             ///< x translation (0,...,2**n-1)
         Translation _y;             ///< y translation (0,...,2**n-1)
@@ -179,55 +205,14 @@ namespace madness {
                 FORIJK(_c[i][j][k] = 0;);
             };
 
-	/// Constructor makes node from flattened data type, with parent
-	OctTree(OctTreeFlat<T> t, OctTreeT* parent)
+	OctTree<T>(const OctTree<T>& t)
 	{
-	    _x = t.x(); _y = t.y(); _z = t.z(); _n = t.n();
-	    _remote = t.remote(); _rank = t.rank();
-	    _cost = t.cost(); _localSubtreeCost = t.localSubtreeCost();
-	    _data = t.data(); _visited = t.visited();
-	    FORIJK(_c[i][j][k] = 0;);
-	    _p = parent;
-	};
-
-	/// Constructor makes node from flattened data type, with parent (except data)
-	OctTree(OctTreeFlat<T> t, OctTreeT* parent, bool makeData)
-	{
-	    _x = t.x(); _y = t.y(); _z = t.z(); _n = t.n();
-	    _remote = t.remote(); _rank = t.rank();
-	    _cost = t.cost(); _localSubtreeCost = t.localSubtreeCost();
-	    _visited = t.visited();
-	    if (makeData)
-		_data = T(t.data());
-	    FORIJK(_c[i][j][k] = 0;);
-	    _p = parent;
-	};
-
-	/// Constructor makes node from flattened data type  
-	OctTree(OctTreeFlat<T> t)
-	{
-	    _x = t.x(); _y = t.y(); _z = t.z(); _n = t.n();
-	    _remote = t.remote(); _rank = t.rank();
-	    _cost = t.cost(); _localSubtreeCost = t.localSubtreeCost();
-	    _data = t.data(); _visited = t.visited();
-	    FORIJK(_c[i][j][k] = 0;);
-	    _p = 0;
-	};
-
-	/// Constructor makes node from flattened data type (except data)
-	OctTree(OctTreeFlat<T> *t, bool makeData)
-	{
-	    _x = t->x(); _y = t->y(); _z = t->z(); _n = t->n();
-	    _remote = t->remote(); _rank = t->rank();
-	    _cost = t->cost(); _localSubtreeCost = t->localSubtreeCost();
-	    _visited = t->visited();
-	    if (makeData)
-		_data = T(t->data());
-std::cout << "_data" << std::endl;
-std::cout << "   sample from it: " << _data[1](1,1,1) << std::endl;;
-	    FORIJK(_c[i][j][k] = 0;);
-	    _p = 0;
-	};
+	    _x = t._x; _y = t._y; _z = t._z; _n = t._n; _remote = t._remote; _rank = t._rank;
+	    _p = t._p; _comm = t._comm; _cost = t._cost; _localSubtreeCost = t._localSubtreeCost;
+	    _visited = t._visited; _data = t._data;
+	    //FORIJK(_c[i][j][k] = 0;);
+	    FORIJK(_c[i][j][k] = t._c[i][j][k];);
+	}
 
         ~OctTree() {
         }
@@ -310,49 +295,21 @@ std::cout << "   sample from it: " << _data[1](1,1,1) << std::endl;;
         /// returns pointer to parent (null if absent or if both this node & parent are remote)
         inline OctTreeT* parent() const {return _p;};
         
+        /// returns child's pointer (null if absent or if both this node & child are remote)
+        inline shared_ptr<OctTreeT> childPtr(int x, int y, int z) const {
+            return _c[x][y][z];
+        };
+
         /// returns pointer to child (null if absent or if both this node & child are remote)
         inline OctTreeT* child(int x, int y, int z) const {
             return (OctTreeT*) _c[x][y][z];
         };
 
-	/// insert child from flattened data structure, returning pointer to child
-	OctTreeT* insert_flat_child(OctTreeFlat<T> t)
-	{
-	    Translation x, y, z, px, py, pz;
-	    x = t.x();
-	    y = t.y();
-	    z = t.z();
-	    px = this->x();
-	    py = this->y();
-	    pz = this->z();
-
-	    x -= (2*px);
-	    y -= (2*py);
-	    z -= (2*pz);
-
-	    _c[x][y][z] = shared_ptr<OctTreeT>(new OctTreeT(t, this));
-	    return _c[x][y][z];
+	inline OctTreeT* setChild(int x, int y, int z, OctTreeT child) {
+	    _c[x][y][z] = shared_ptr<OctTreeT>(&child);
+	    return (OctTreeT*) _c[x][y][z];
 	};
-        
-	/// insert child (except data) from flattened data structure, returning pointer to child
-	OctTreeT* insert_flat_child(OctTreeFlat<T> t, bool makeData)
-	{
-	    Translation x, y, z, px, py, pz;
-	    x = t.x();
-	    y = t.y();
-	    z = t.z();
-	    px = this->x();
-	    py = this->y();
-	    pz = this->z();
 
-	    x -= (2*px);
-	    y -= (2*py);
-	    z -= (2*pz);
-
-	    _c[x][y][z] = shared_ptr<OctTreeT>(new OctTreeT(t, this, makeData));
-	    return _c[x][y][z];
-	};
-        
         /// insert local child (x, y, z in {0,1}) returning pointer to child
         OctTreeT* insert_local_child(int x, int y, int z) {
             _c[x][y][z] = shared_ptr<OctTreeT>(new OctTreeT(_n + 1,
@@ -365,7 +322,51 @@ std::cout << "   sample from it: " << _data[1](1,1,1) << std::endl;;
                                                        _comm));
             return _c[x][y][z];
         };
+
+        /// insert local child (x, y, z in {0,1}, OctTreeT t), returning pointer to child
+        OctTreeT* insert_local_child(int x, int y, int z, OctTreeT t) {
+            _c[x][y][z] = shared_ptr<OctTreeT>(new OctTreeT(t));
+	    return _c[x][y][z];
+	};
         
+        /// insert remote parent (x, y, z in {0,1}) returning pointer to parent 
+        OctTreeT* insert_remote_parent(ProcessID remote_proc) {
+	    std::cout << "insert_remote_parent: this->(x,y,z) = (" << this->_x << ","
+			<< this->_y << "," << this->_z << ")" << std::endl;
+	    int x = this->_x/2, y = this->_y/2, z = this->_z/2;
+	    std::cout << "insert_remote_parent: about to insert parent (" << x << ","
+			<< y << "," << z << ")" << std::endl;
+            _p = shared_ptr<OctTreeT>(new OctTreeT(_n - 1,
+                                              x,
+                                              y,
+                                              z,
+                                              true,
+                                              0,
+                                              remote_proc,
+                                              _comm));
+/*
+            _p = shared_ptr<OctTreeT>(new OctTreeT(_n - 1,
+                                              (this->_x)/2,
+                                              (this->_y)/2,
+                                              (this->_z)/2,
+                                              true,
+                                              NULL,
+                                              remote_proc,
+                                              _comm));
+*/
+	    FORIJK( 
+		_p->_c[i][j][k] = 0;
+	    );
+	    _p->setChild(this->_x - ((this->_x)/2)*2, 
+			 this->_y - ((this->_y)/2)*2, 
+			 this->_z - ((this->_z)/2)*2,
+			 *this);
+	   _p->_x = x; _p->_y = y; _p->_z = z;
+	    std::cout << "insert_remote_parent: _p->(x,y,z) = (" << _p->_x << ","
+			<< _p->_y << "," << _p->_z << ")" << std::endl;
+            return _p;
+        };
+
         /// insert remote child (x, y, z in {0,1}) returning pointer to child
         OctTreeT* insert_remote_child(int x, int y, int z, ProcessID remote_proc) {
             _c[x][y][z] = shared_ptr<OctTreeT>(new OctTreeT(_n + 1,
@@ -429,6 +430,29 @@ std::cout << "   sample from it: " << _data[1](1,1,1) << std::endl;;
 	    FOREACH_LOCAL_CHILD(OctTreeT, this,
 		child->setVisited();
 	    );
+	}
+
+	/// Set _visited to false for this node and all its subnodes
+	void setUnVisited()
+	{
+	    _visited = false;
+
+	    FOREACH_LOCAL_CHILD(OctTreeT, this,
+		child->setUnVisited();
+	    );
+	}
+
+	/// Depth-first traversal of tree (prints out diagnostic info)
+	void depthFirstTraverseAll()
+	{
+	    std::cout << "layer " << n() << ", (x,y,z) = " << x() << ", "
+			<< y() << ", " << z() << std::endl;
+	    std::cout << "      hasChildren? " << this->isParent()
+		 << "    isRemote? " << this->isremote()
+		 << "    rank? " << this->rank() << std::endl;
+	    FOREACH_CHILD(OctTreeT, this,
+		child->depthFirstTraverseAll();
+		);
 	}
 
 	/// Depth-first traversal of tree (prints out diagnostic info)
@@ -583,6 +607,211 @@ std::cout << "   sample from it: " << _data[1](1,1,1) << std::endl;;
             FORIJK(if (_c[i][j][k]) _c[i][j][k]->print(););
         };
         
+    void serialPartition(int np, std::vector< std::vector<OctTreeT*> > *pieces)
+    {
+	Cost cost = computeCost(false);
+	Cost idealPartition = (Cost) floor((1.0*cost)/np);
+	Cost accumulate = 0, sofar, subtotal = 0;
+	int procnum = 0, subtreenum = 0;
+	std::vector<OctTreeT*> tmp;
+	bool lastPartition;
+//	bool debug = true;
+	bool debug = false;
+
+	pieces->insert(pieces->begin(), np, tmp);
+
+        if (debug)
+        {
+	    std::cout << "serialPartition: size of pieces = " << pieces->size() << std::endl;
+            std::cout << "serialPartition: cost = " << cost <<
+                    ", idealPartition = " << idealPartition << std::endl;
+        }
+
+	/* for each partition */
+	for (int p = 0; p < np; p++)
+	{
+	    if (debug)
+		std::cout << "PARTITION NUMBER " << p << std::endl;
+	    lastPartition = (p+1 == np);
+	    subtotal = 0;
+
+	    /* Compute the cost of the subtree rooted by this node */
+	    this->computeCost();
+
+	    /* if we still haven't filled the partition */
+	    while (accumulate < idealPartition)
+	    {
+		/* if this node has already been visited, then we quit */
+		if (this->isVisited())
+		    break;
+		sofar = idealPartition - accumulate;
+		/* partition this subtree, with "sofar" amount of room left in partition */
+		tmp = this->partitionSubtree(sofar, &subtotal, p, lastPartition);
+		/* add all the subtrees on temp to procnum's list */
+		int tmpsize = tmp.size();
+		std::cout << "serialPartition: adding " << tmpsize << " elements to list" << std::endl;
+		for (int i = 0; i < tmp.size(); i++)
+		{
+		    (*pieces)[p].push_back(tmp[i]);
+		}
+		std:: cout << "serialPartition: added " << tmpsize << " elements to list" << std::endl;
+		if (subtotal == 0)
+		{
+		    // No nodes left to add to partition
+		    if (debug)
+			std::cout << "end of the line" << std::endl;
+		    break;
+		}
+		accumulate += subtotal;
+		if (debug)
+		{
+		    std::cout << "accumulate = " << accumulate << ", subtotal = " << subtotal << std::endl;
+		}
+	    }
+	    /* Reset, and go on to next partition */
+	    accumulate = 0;
+	    procnum++;
+	    if (debug)
+	    {
+		for (int i = 0; i < (*pieces)[p].size(); i++)
+		{
+		    std::cout << "subtree:" << std::endl;
+		    ((*pieces)[p])[i]->depthFirstTraverse();
+		}
+	    }
+	}
+
+//	if (debug)
+	{
+	    std::cout << "\n\nFINAL PARTITIONING OF TREES" << std::endl;
+	    for (int p = 0; p < np; p++)
+	    {
+		std::cout << "\nPARTITION NUMBER " << p << std::endl;
+		for (int i = 0; i < (*pieces)[p].size(); i++)
+		{
+		    std::cout << "subtree:" << std::endl;
+		    ((*pieces)[p])[i]->depthFirstTraverse();
+		}
+	    }
+	}
+    }
+
+
+    std::vector<OctTreeT*> partitionSubtree(Cost partition, Cost *subtotal, 
+	int partitionNumber, bool lastPartition)
+    {
+	Cost accumulate = 0, costLeft = 0, temp = 0, subtreeCost = 0;
+//	bool debug = true;
+	bool debug = false;
+	std::vector<OctTreeT*> treelist, treelist2;
+
+	if (debug)
+	{
+	    std::cout << "partitionSubtree: at beginning: partition = " <<
+		partition << ", subtotal = " << *subtotal << std::endl;
+	}
+
+	/* if this node has children */
+	if (this->isParent())
+	{
+	    /* Check if they've already been visited, and if so, make remote; 	 */
+	    /* otherwise, figure out the cost of the subtree rooted by the child */
+	    /* and add it to the partition (if partition not already full)	 */
+	    FOREACH_LOCAL_CHILD(OctTreeT, this,
+		if (child->isVisited())
+		{
+		    if (debug)
+		    {
+			std::cout << "(" << child->x() << ", " << child->y() << ", "
+				<< child->z() << ") has already been visited." 
+				<< std::endl;
+		    }
+		}
+		else
+		{
+		    subtreeCost = child->getLocalSubtreeCost();
+		    costLeft = partition - accumulate;
+		    if (debug)
+		    {
+			std::cout << "partitionSubtree: getLocalSubtreeCost = "
+			    << subtreeCost << ", costLeft = " << costLeft
+			    << std::endl;
+		    }
+		    if ((costLeft <= 0 ) && (!lastPartition))
+		    {
+			if (debug)
+			    std::cout << "partition is full" << std::endl;
+			return treelist;
+		    }
+		    if ((subtreeCost <= costLeft) || (lastPartition))
+		    {
+			OctTreeT *mytree = child;
+			child->setVisited(partitionNumber);
+			child->setRemote(true);
+			child->setRank(partitionNumber);
+			if (debug)
+			{
+			    std::cout << "set remote to true on child, " <<
+				"mytree->_remote = " << mytree->_remote << std::endl;
+			}
+			treelist.push_back(mytree);
+			if (debug)
+			{
+			    std::cout << "localCost(before recompute): " <<
+				this->getLocalSubtreeCost() << std::endl;
+			}
+			this->computeCost();
+			if (debug)
+			{
+			    std::cout << "localCost(after recompute): " <<
+				this->getLocalSubtreeCost() << std::endl;
+			}
+			accumulate += subtreeCost;
+			*subtotal += subtreeCost;
+		    }
+		    else if (costLeft > 0)
+		    {
+			if (debug)
+			{
+			    std::cout << "partitionSubtree: about to call myself"
+				<< " because costLeft = " << costLeft << std::endl;
+			}
+			treelist2 = child->partitionSubtree(costLeft, &temp, 
+				partitionNumber, lastPartition);
+			if (debug)
+			{
+			     std::cout << "partitionSubtree: back from calling myself"
+				<< " and accumulated subtree(s) of size " << temp << std::endl;
+			}
+			for (int i = 0; i < treelist2.size(); i++)
+			{
+			    treelist.push_back(treelist2[i]);
+			}
+			if (temp >= 0)
+			{
+			    accumulate += temp;
+			    *subtotal += temp;
+			}
+		    }
+		}
+	    ); // end of FOREACH_LOCAL_CHILD
+	}
+	/* if it doesn't have children and the local subtree cost is    */
+	/* small enought to fit in this partition			*/
+	else if (this->getLocalSubtreeCost() <= costLeft)
+	{
+	    this->setVisited();
+	    OctTreeT *mytree = this;
+	    treelist.push_back(mytree);
+	}
+	/* otherwise, not enough space in this partition for this subtree */
+	else
+	{
+	    this->setUnVisited();
+	}
+	*subtotal = accumulate;
+	return treelist;
+    }
 
         /// Create a default or initial parallel decomposition for an OctTree
         
@@ -665,142 +894,6 @@ std::cout << "   sample from it: " << _data[1](1,1,1) << std::endl;;
         
     };
 
-    template <class T>
-    class OctTreeFlat {
-    private:
-	Translation _x;		///< x translation (0,...,2**n-1)
-	Translation _y;		///< y translation (0,...,2**n-1)
-	Translation _z;		///< z translation (0,...,2**n-1)
-	Level _n; 		///< Level in tree
-
-	// NOTE: All bools changed to ints because bool is not C type
-
-	int _remote; 		///< True if this node is remote
-
-	Cost _cost;		///< Cost associated with node
-	Cost _localSubtreeCost;	///< Cost associated with local parts of node's subtree
-	int _visited;		///< Whether a node has been visited and assigned to a partition
-	int _hasChildren;	///< New variables, used in reconstruction
-	int _hasParent;
-
-	ProcessID _rank;	///< if (_remote) The rank of remote process
-//	T _data;		///< The payload stored by value
-
-	typedef OctTreeFlat<T> OctTreeFlatT;
-	typedef typename std::list<OctTreeFlatT,std::allocator<OctTreeFlatT> >::iterator LI;
-
-    public:
-	T _data;		///< The payload stored by value
-	/// Default constructor
-	OctTreeFlat():
-	    _x(0), _y(0), _z(0), _n(-1), _remote(0), _rank(-1),
-	    _cost(1), _localSubtreeCost(1), _visited(0)
-	{
-//	    _x = 0; _y = 0; _z = 0; _n = -1; _remote = 0; _rank = -1;
-//	    _cost = 1; _localSubtreeCost = 1; _visited = 0;
-	};
-
-	/// Constructor with some info
-	OctTreeFlat(Level n, Translation x, Translation y, Translation z,
-		int remote, ProcessID remote_proc):
-	    _x(x), _y(y), _z(z), _n(n), _remote(remote_proc), _rank(-1),
-	    _cost(1), _localSubtreeCost(1), _visited(0)
-	{
-//	    _x = x; _y = y; _z = z; _n = n; _remote = remote_proc; _rank = -1;
-//	    _cost = 1; _localSubtreeCost = 1; _visited = 0;
-	};
-	
-	/// Constructor made with OctTree (the crucial constructor)
-	OctTreeFlat(OctTree<T> t)
-	{
-	    _x = t.x(); _y = t.y(); _z = t.z(); _n = t.n();
-	    _remote = (int) t.isremote(); _rank = t.rank(); _cost = t.getCost();
-	    _localSubtreeCost = t.getLocalSubtreeCost();
-	    _visited = (int) t.isVisited();
-	    if (t.isParent() && t.islocal())
-	    {
-		_hasChildren = 1;
-	    }
-	    else
-	    {
-		_hasChildren = 0;
-	    }
-	    if (t.parent() == 0)
-	    {
-		_hasParent = 0;
-	    }
-	    else
-	    {
-		_hasParent = 1;
-	    }
-	    _rank = t.rank();
-	    _data = t.data();
-	};
-	
-	/// Constructor made with OctTree (the crucial constructor)
-	OctTreeFlat(OctTree<T> *t, bool makeData)
-	{
-std::cout << "making OctTreeFlat in constructor" << std::endl;
-	    _x = t->x(); _y = t->y(); _z = t->z(); _n = t->n();
-	    _remote = (int) t->isremote(); _rank = t->rank(); _cost = t->getCost();
-	    _localSubtreeCost = t->getLocalSubtreeCost();
-	    _visited = (int) t->isVisited();
-//	    _x = t.x(); _y = t.y(); _z = t.z(); _n = t.n();
-//	    _remote = (int) t.isremote(); _rank = t.rank(); _cost = t.getCost();
-//	    _localSubtreeCost = t.getLocalSubtreeCost();
-//	    _visited = (int) t.isVisited();
-//	    if (t.isParent() && t.islocal())
-	    if (t->isParent() && t->islocal())
-	    {
-		_hasChildren = 1;
-	    }
-	    else
-	    {
-		_hasChildren = 0;
-	    }
-//	    if (t.parent() == 0)
-	    if (t->parent() == 0)
-	    {
-		_hasParent = 0;
-	    }
-	    else
-	    {
-		_hasParent = 1;
-	    }
-//	    _rank = t.rank();
-	    _rank = t->rank();
-	    if (makeData)
-	    	_data = T(t->data());
-////	    	_data = t.data();
-//std::cout << "_data" << std::endl;
-//std::cout << "   sample from it: " << std::endl;
-	};
-
-	~OctTreeFlat() {};
-
-	template <class Archive>
-        inline void serialize(const Archive& ar) {
-//	    ar & _x & _y & _z & _n & _remote & _rank & _cost & _localSubtreeCost & _visited & _hasChildren & _hasParent & _rank;} 
-	    ar & _x & _y & _z & _n & _remote & _rank & _cost & _localSubtreeCost & _visited & _hasChildren & _hasParent & _rank & _data;} 
-
-	inline Translation x() {return _x;};
-	inline Translation y() {return _y;};
-	inline Translation z() {return _z;};
-	inline Level n() {return _n;};
-	inline int remote() {return _remote;};
-	inline ProcessID rank() {return _rank;};
-	inline T data() {return _data;};
-	inline Cost cost() {return _cost;};
-	inline Cost localSubtreeCost() {return _localSubtreeCost;};
-	inline int visited() {return _visited;};
-	inline bool hasChildren() {return _hasChildren;};
-	inline bool hasParent() {return _hasParent;};
-
-	inline void setData(T *data)
-	{
-	    &_data = data;
-	}
-    };
 }
 
 #endif
