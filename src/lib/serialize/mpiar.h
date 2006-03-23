@@ -38,6 +38,7 @@ namespace madness {
 
         // No type checking over MPI stream for efficiency
         template <class T> 
+//        template <class MPIOutputArchive, class T> 
         struct ArchivePrePostImpl<MPIOutputArchive,T> {
             static void preamble_store(const MPIOutputArchive& ar) {};
             static inline void postamble_store(const MPIOutputArchive& ar) {};
@@ -45,6 +46,7 @@ namespace madness {
         
         // No type checking over MPI stream for efficiency
         template <class T> 
+//        template <class MPIOutputArchive, class T> 
         struct ArchivePrePostImpl<MPIInputArchive,T> {
             static inline void preamble_load(const MPIInputArchive& ar) {};
             static inline void postamble_load(const MPIInputArchive& ar) {};
