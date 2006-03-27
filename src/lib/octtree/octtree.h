@@ -130,6 +130,7 @@ namespace madness {
 	Cost _cost;			///< Cost associated with node
 	Cost _localSubtreeCost;		///< Cost associated with local parts of node's subtree
 	bool _visited;			///< Whether a node has been visited and assigned to a partition
+	ProcessID _sendto;		///< Partition to which node should be sent
 
         /// Bit reversal of integer of given length
         static unsigned long bit_reverse(unsigned long i, int nbits) {
@@ -171,6 +172,14 @@ namespace madness {
         };
         
     public:
+	/// "Less than" operator so list of trees can be sorted by level
+	friend bool operator < (const OctTree<T>& t1, const OctTree<T>& t2)
+	{
+	    if (t1._n < t2._n)
+		return true;
+	    else
+		return false;
+	}
 	// can't figure out another way to get to the FunctionNode without allowing copy
         T _data;			///< The payload stored by value
         /// Default constructor makes empty node with n=-1 to indicate invalid.
@@ -411,11 +420,14 @@ namespace madness {
             return 0;			// Not in the (sub)tree we are connected to
         };
 
-	/// Set _visited to true for this node and all its subnodes, and _rank to p
+	inline void setSendto(ProcessID p) {_sendto = p;}
+	inline ProcessID getSendto() {return _sendto;}
+
+	/// Set _visited to true for this node and all its subnodes, and _sendto to p
 	void setVisited(ProcessID p)
 	{
 	    _visited = true;
-	    this->setRank(p);
+	    this->setSendto(p);
 
 	    FOREACH_LOCAL_CHILD(OctTreeT, this,
 		child->setVisited(p);
@@ -449,7 +461,7 @@ namespace madness {
 			<< y() << ", " << z() << std::endl;
 	    std::cout << "      hasChildren? " << this->isParent()
 		 << "    isRemote? " << this->isremote()
-		 << "    rank? " << this->rank() << std::endl;
+		 << "    sendto? " << this->getSendto() << std::endl;
 	    FOREACH_CHILD(OctTreeT, this,
 		child->depthFirstTraverseAll();
 		);
@@ -462,7 +474,7 @@ namespace madness {
 			<< y() << ", " << z() << std::endl;
 	    std::cout << "      hasChildren? " << this->isParent()
 		 << "    isRemote? " << this->isremote()
-		 << "    rank? " << this->rank() << std::endl;
+		 << "    sendto? " << this->getSendto() << std::endl;
 	    FOREACH_LOCAL_CHILD(OctTreeT, this,
 		child->depthFirstTraverse();
 		);
@@ -748,7 +760,7 @@ namespace madness {
 			OctTreeT *mytree = child;
 			child->setVisited(partitionNumber);
 			child->setRemote(true);
-			child->setRank(partitionNumber);
+			child->setSendto(partitionNumber);
 			if (debug)
 			{
 			    std::cout << "set remote to true on child, " <<
