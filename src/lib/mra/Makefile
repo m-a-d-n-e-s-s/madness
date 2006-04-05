@@ -16,6 +16,12 @@ CXXSRC = mra.cc twoscale.cc legendre.cc \
 INC = mra.h twoscale.h legendre.h sepop.h
 DATAFILES = autocorr coeffs gaussleg
 
+TESTHQISRC = testhqi.cc
+TESTHQIOBJ = $(TESTHQISRC:%.cc=%.$(OBJSUF))
+TESTHQIFILES = 
+
+TESTHQIPROGS = testhqi2
+
 TESTSRC = test.cc
 TESTOBJ = $(TESTSRC:%.cc=%.$(OBJSUF))
 TESTFILES = 
@@ -33,10 +39,12 @@ default:: $(DEPENDINCLUDE)
 THISLIBDEPEND = $(shell $(LISTLIBS) $(INCLUDE) $(SRCDIR)/LIBS.h)
 TESTLIBDEPEND = 
 
-test: $(TESTOBJ) $(THISLIBDEPEND) $(TESTLIBDEPEND)
-	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ $(SYSLIBS) $(LTLINKBINOPTS)
+testhqi2: $(TESTHQIOBJ) $(THISLIBDEPEND) $(TESTLIBDEPEND)
+	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ -lgmalloc $(SYSLIBS) $(LTLINKBINOPTS)
 
-test_serialize: test_serialize.o $(THISLIBDEPEND) $(TESTLIBDEPEND)
+##-lacml
+
+test: $(TESTOBJ) $(THISLIBDEPEND) $(TESTLIBDEPEND)
 	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ $(SYSLIBS) $(LTLINKBINOPTS)
 
 include $(SRCDIR)/$(TOPDIR)/lib/MakeRules

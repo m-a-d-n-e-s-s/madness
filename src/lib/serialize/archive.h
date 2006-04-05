@@ -288,7 +288,7 @@
 #include <tensor/tensor.h>
 
 //#ifndef OCTTREE_H
-#include <octtree/octtree.h>
+#include "octtree/octtree.h"
 //#endif
 //#include <mra/mra.h>
 

@@ -10,9 +10,9 @@
 
 #include <madness_config.h>
 #include <tensor/tensor.h>
+#include <serialize/archive.h>
 #include <octtree/octtree.h>
 #include <mra/sepop.h>
-#include <serialize/archive.h>
 
 namespace std {
 	/// This to make norm work as desired for both complex and real
@@ -264,7 +264,7 @@ namespace madness {
             _nfree--;
             if (_nfree < 0)
                 throw "FunctionIndexManager: too many functions: no resize yet";
-            std::cout << "Allocated Function: " << _free[_nfree] << " " << std::endl;
+//            std::cout << "Allocated Function: " << _free[_nfree] << " " << std::endl;
             return _free[_nfree];
         };
 
@@ -278,7 +278,7 @@ namespace madness {
 
             free_data(_tree, ind);
 
-            std::cout << "Deallocated Function: " << ind << std::endl;
+//            std::cout << "Deallocated Function: " << ind << std::endl;
             _free[_nfree] = ind;
             _nfree++;
         };
@@ -826,8 +826,8 @@ namespace madness {
 	    FORIJK(
               ar & (tree->child(i,j,k)!=0);
 	      if (tree->child(i,j,k)) {
-               tree->print_coords();
-               print(i,j,k);
+//               tree->print_coords();
+//               print(i,j,k);
                _save(ar, tree->child(i,j,k));
                }
 	    );
@@ -844,7 +844,7 @@ namespace madness {
 	/// Loading Function members from the file.
 	template <class Archive>
 	void _load(const Archive& ar, OctTreeT *tree) {
-	    cout << " before set_active " << (void *) tree << endl;
+//	    cout << " before set_active " << (void *) tree << endl;
 	    set_active(tree);
             bool have_coeffs;
 	    ar & have_coeffs;
@@ -866,8 +866,8 @@ namespace madness {
                   if (!child) child = tree->insert_local_child(i,j,k);
    	          bool active_flag;
      	          ar & active_flag;
-                  tree->print_coords();
-		  print(i,j,k);
+//                  tree->print_coords();
+//		  print(i,j,k);
                   if (active_flag) _load(ar, child);
                }
             );
