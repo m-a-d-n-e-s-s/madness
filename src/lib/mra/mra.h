@@ -54,6 +54,7 @@ namespace madness {
 
     class FunctionNode;         ///< Forward definition
     typedef OctTree<FunctionNode> OctTreeT; ///< Type of OctTree used to hold coeffs
+    //template <typename T>
 
     /// Used to hold data for all functions at each node of the OctTree
 
@@ -710,6 +711,11 @@ namespace madness {
             return _norm2sq_local(tree());
         }
 
+        /// communication will be involved.
+        /// This member outputs norm. 
+        double norm2sq() const {
+            return _norm2sq(tree());
+        }
 
         /// Compress function (scaling function to wavelet)
 
@@ -844,7 +850,10 @@ namespace madness {
 	/// Loading Function members from the file.
 	template <class Archive>
 	void _load(const Archive& ar, OctTreeT *tree) {
+<<<<<<< .mine
+=======
 //	    cout << " before set_active " << (void *) tree << endl;
+>>>>>>> .r49
 	    set_active(tree);
             bool have_coeffs;
 	    ar & have_coeffs;
@@ -873,48 +882,45 @@ namespace madness {
             );
 	}
 
-	//css
-	//void truncate(double tol = -1.0) {
-	//  if (isactive(tree())) _truncate(tol, tree());
-	//}
+	Function& truncate(double tol = -1.0) {
+	  if (tol == -1.0) tol = FunctionDefaults::thresh;
+	  if (tol <= 0.0) return *this;
+          _truncate(tol, tree());
+          return *this;
+	};
 
-	/// The truncate member function neglects small components.
-/*
+	/// The truncate member function was prepared to neglects small components.
 	void _truncate(double tol, OctTreeT *tree){
-	  if (isactive(tree)) {
-	    FOREACH_CHILD(OctTreeT, tree, if (isactive(child)) _truncate(child););
+	  if (count_active_children(tree) != 0) {
+	    FOREACH_CHILD(OctTreeT, tree, 
+              tree->print_coords(); 
+              cout << endl;
+              if (isactive(child)) _truncate(tol, child);
+            );
+            //child.truncate(tol);
+            // _truncate(tol, tree());
 	  }
-	  else if (tree->nchild() == 0) {
-	    if (coeff(tree) -> normf() < tol) {
-	      delete (coeff);
-	      mark inactive;
-	    }
+          const TensorT *t = coeff(tree);
+	  if (t) {
+	    double tnormf = t->normf();
+            if (tnormf < tol) {
+              tree->print_coords(); 
+              cout << endl;
+	      //std::printf("%4d %8d %8d %8d %e9.1\n",
+	      //	  tree->n(),tree->x(),tree->y(),tree->z(),t->normf());
+              //cout << endl;
+              unset_coeff(tree);
+              set_inactive(tree);
+            }
 	  }
-	  if (tree -> isremote()) {
-	    if (tree -> islocalsubtreeparent()) {
-	      send(nchild);
-	    }
-	    else {
-              recv(nchild);
-	    }
-	  }
-	}
-*/
-	//css
-	/// This function returns square root.
-	//double norm() const {
-	//  return sqrt(_norm2sq(coeff.get()));
-	//}
-	
-	/// This function returns the sum of coeffcient's square.
-	//double _norm2sq(const OctTreeT *t) const {
-	//  double sum = 0.0;
-	//  if(t->has_data()) {
-	//    sum = t->data().sumsq();
-	//  }
-	//  FOREACH_CHILD_CONST(OctTreeT, t, sum += _norm2sq(child););
-	//  return sum;
-	//}
+	};
+
+        /// count the number of active children 
+        int count_active_children(OctTreeT *tree) {
+          int n = 0;
+          FOREACH_CHILD(OctTreeT, tree, if(isactive(tree)) { n++; });
+          return n;
+        }
 
         /// Local evaluation of the function at a point in user coordinates
 
@@ -1218,6 +1224,8 @@ namespace madness {
         /// No communication involved.
         double _norm2sq_local(const OctTreeT* tree) const;
 
+        /// communication involved.
+        double _norm2sq(const OctTreeT* tree) const;
 
         /// Private.  Recursive function to refine from initial projection.
 
