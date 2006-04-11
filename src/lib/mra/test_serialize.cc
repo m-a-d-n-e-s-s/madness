@@ -493,6 +493,7 @@ int main(int argc, char* argv[]) {
     comm.print();
     load_coeffs(comm);
     load_quadrature(comm);
+    //FunctionDefaults::tree = new FunctionOctTree(OctTree<FunctionNode>::create_default(comm,2));
     FunctionDefaults::tree = new FunctionOctTree(OctTree<FunctionNode>::create_default(comm,2));
 
 /*
