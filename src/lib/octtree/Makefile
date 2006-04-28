@@ -13,6 +13,18 @@ BIN_OR_LIB = LIB
 CXXSRC =  
 INC =     octtree.h
 
+TEST1SRC = test1.cc
+TEST1OBJ = $(TEST1SRC:%.cc=%.$(OBJSUF))
+TEST1FILES = 
+
+TEST1PROGS = test1
+
+TEST123SRC = testsr123.cc
+TEST123OBJ = $(TEST123SRC:%.cc=%.$(OBJSUF))
+TEST123FILES = 
+
+TEST123PROGS = test123
+
 TESTPARTSRC = testpart.cc
 TESTPARTOBJ = $(TESTPARTSRC:%.cc=%.$(OBJSUF))
 TESTPARTFILES = 
@@ -35,6 +47,12 @@ default:: $(DEPENDINCLUDE)
 # and 2) dependents of the test code (TESTLIBDEPEND)
 THISLIBDEPEND = $(shell $(LISTLIBS) $(INCLUDE) $(SRCDIR)/LIBS.h)
 TESTLIBDEPEND = 
+
+test1: $(TEST1OBJ) $(THISLIBDEPEND) $(TESTLIBDEPEND) ../../../lib/libMADserialize.a
+	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ $(SYSLIBS) $(LTLINKBINOPTS)
+
+test123: $(TEST123OBJ) $(THISLIBDEPEND) $(TESTLIBDEPEND) ../../../lib/libMADserialize.a
+	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ $(SYSLIBS) $(LTLINKBINOPTS)
 
 testpart: $(TESTPARTOBJ) $(THISLIBDEPEND) $(TESTLIBDEPEND) ../../../lib/libMADserialize.a
 	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ $(SYSLIBS) $(LTLINKBINOPTS)

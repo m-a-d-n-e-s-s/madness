@@ -58,6 +58,10 @@ using namespace madness;
 namespace madness {
     
     // declare it up here so that it will be recognized by OctTree:
+    class RootList;
+
+    template <class T> class OctTree;
+
 /*
     namespace archive {
 
@@ -172,13 +176,34 @@ namespace madness {
         };
         
     public:
-	/// "Less than" operator so list of trees can be sorted by level
+	/// "Less than" operator so list of trees can be sorted by level and then translation
 	friend bool operator < (const OctTree<T>& t1, const OctTree<T>& t2)
 	{
 	    if (t1._n < t2._n)
 		return true;
-	    else
+	    else if (t1._n > t2._n)
 		return false;
+	    else
+	    {
+		if (t1._x > t2._x)
+		    return true;
+		else if (t1._x < t2._x)
+		    return false;
+		else
+		{
+		    if (t1._y > t2._y)
+			return true;
+		    else if (t1._y < t2._y)
+			return false;
+		    else
+		    {
+			if (t1._z > t2._z)
+			    return true;
+			else
+			    return false;
+		    }
+		}
+	    }
 	}
 	// can't figure out another way to get to the FunctionNode without allowing copy
         T _data;			///< The payload stored by value
@@ -186,7 +211,7 @@ namespace madness {
         OctTree() :
             _x(0), _y(0), _z(0), _n(-1),
             _remote(false),  _rank(-1), 
-            _p(0), _comm(0)
+            _p(0), _comm(0), _sendto(-1)
         {};
 
         /// Constructor makes node with most info provided
@@ -196,7 +221,7 @@ namespace madness {
             _x(x), _y(y), _z(z), _n(n),
             _remote(remote),  _rank(remote_proc), 
 	    _p(parent), _comm(comm), _cost(1), _localSubtreeCost(1),
-	    _visited(false)
+	    _visited(false), _sendto(-1)
             {
                 FORIJK(_c[i][j][k] = 0;);
             };
@@ -209,7 +234,7 @@ namespace madness {
             _x(x), _y(y), _z(z), _n(n),
             _remote(remote),  _rank(remote_proc), 
 	    _p(parent), _comm(comm), _cost(cost), 
-	    _localSubtreeCost(localSubtreeCost), _visited(visited)
+	    _localSubtreeCost(localSubtreeCost), _visited(visited), _sendto(-1)
             {
                 FORIJK(_c[i][j][k] = 0;);
             };
@@ -218,7 +243,7 @@ namespace madness {
 	{
 	    _x = t._x; _y = t._y; _z = t._z; _n = t._n; _remote = t._remote; _rank = t._rank;
 	    _p = t._p; _comm = t._comm; _cost = t._cost; _localSubtreeCost = t._localSubtreeCost;
-	    _visited = t._visited; _data = t._data;
+	    _visited = t._visited; _data = t._data; _sendto = t._sendto;
 	    //FORIJK(_c[i][j][k] = 0;);
 	    FORIJK(_c[i][j][k] = t._c[i][j][k];);
 	}
@@ -505,7 +530,8 @@ namespace madness {
 	    if (isParent())
 	    {
 		FOREACH_LOCAL_CHILD(OctTreeT, this,
-		    total += child->computeCost();
+		    if (child->_sendto == -1)
+		    	total += child->computeCost();
 		);
 	    }
 	    total += getCost();
@@ -527,6 +553,37 @@ namespace madness {
 	    _localSubtreeCost = total;
 	    _visited = visited;
 	    return total;
+	}
+
+	/// Compute cost of local part of subtree, and give pointers to non-local parts
+	Cost computeLocalCost(std::vector<RootList> *rootList)
+	{
+	    Cost cost = 0;
+	    std::cout << "computeLocalCost: at beginning of function" << std::endl;
+
+	    if (this->isParent())
+	    {
+		FOREACH_CHILD(OctTree<T>, this,
+		    if (child->isremote())
+		    {
+		    	std::cout << "computeLocalCost: adding child (" << child->x() << "," << 
+				child->y() << "," << child->z() << "), n = " << child->n() << 
+				" to rootList" << std::endl;
+		    	rootList->push_back(RootList(child->x(), child->y(), child->z(),
+				child->n(), child->rank(), child->rank()));
+		    }
+		    else
+		    {
+		    	std::cout << "computeLocalCost: child (" << child->x() << "," << 
+				child->y() << "," << child->z() << "), n = " << child->n() << 
+				" is local" << std::endl;
+		    	cost += child->computeLocalCost(rootList);
+		    }
+		);
+	    }
+	    cost += _cost;
+	    std::cout << "computeLocalCost: at end of function" << std::endl;
+	    return cost;
 	}
 
         /// Apply a user-provided function (or functor) to all nodes
@@ -619,13 +676,13 @@ namespace madness {
             FORIJK(if (_c[i][j][k]) _c[i][j][k]->print(););
         };
         
-    void serialPartition(int np, std::vector< std::vector<OctTreeT*> > *pieces)
+    void serialPartition(int np, std::vector< std::vector<RootList> > *pieces)
     {
 	Cost cost = computeCost(false);
 	Cost idealPartition = (Cost) floor((1.0*cost)/np);
 	Cost accumulate = 0, sofar, subtotal = 0;
-	int procnum = 0, subtreenum = 0;
-	std::vector<OctTreeT*> tmp;
+	int procnum = 0;
+	std::vector<RootList> tmp;
 	bool lastPartition;
 //	bool debug = true;
 	bool debug = false;
@@ -661,12 +718,14 @@ namespace madness {
 		tmp = this->partitionSubtree(sofar, &subtotal, p, lastPartition);
 		/* add all the subtrees on temp to procnum's list */
 		int tmpsize = tmp.size();
-		std::cout << "serialPartition: adding " << tmpsize << " elements to list" << std::endl;
+		if (debug)
+		    std::cout << "serialPartition: adding " << tmpsize << " elements to list" << std::endl;
 		for (int i = 0; i < tmp.size(); i++)
 		{
 		    (*pieces)[p].push_back(tmp[i]);
 		}
-		std:: cout << "serialPartition: added " << tmpsize << " elements to list" << std::endl;
+		if (debug)
+		    std:: cout << "serialPartition: added " << tmpsize << " elements to list" << std::endl;
 		if (subtotal == 0)
 		{
 		    // No nodes left to add to partition
@@ -685,37 +744,45 @@ namespace madness {
 	    procnum++;
 	    if (debug)
 	    {
+/*
 		for (int i = 0; i < (*pieces)[p].size(); i++)
 		{
 		    std::cout << "subtree:" << std::endl;
 		    ((*pieces)[p])[i]->depthFirstTraverse();
 		}
+*/
 	    }
 	}
 
 //	if (debug)
 	{
+/*
 	    std::cout << "\n\nFINAL PARTITIONING OF TREES" << std::endl;
 	    for (int p = 0; p < np; p++)
 	    {
 		std::cout << "\nPARTITION NUMBER " << p << std::endl;
 		for (int i = 0; i < (*pieces)[p].size(); i++)
 		{
-		    std::cout << "subtree:" << std::endl;
-		    ((*pieces)[p])[i]->depthFirstTraverse();
+//		    std::cout << "subtree:" << std::endl;
+//		    ((*pieces)[p])[i]->depthFirstTraverse();
+		    std::cout << "subtree headed by:" << std::endl;
+		    std::cout << "layer " << ((*pieces)[p])[i].n <<": (" 
+			<< ((*pieces)[p])[i].x << "," << ((*pieces)[p])[i].y << ","
+			<< ((*pieces)[p])[i].z << ")" << std::endl;
 		}
 	    }
+*/
 	}
     }
 
 
-    std::vector<OctTreeT*> partitionSubtree(Cost partition, Cost *subtotal, 
+    std::vector<RootList> partitionSubtree(Cost partition, Cost *subtotal, 
 	int partitionNumber, bool lastPartition)
     {
 	Cost accumulate = 0, costLeft = 0, temp = 0, subtreeCost = 0;
 //	bool debug = true;
 	bool debug = false;
-	std::vector<OctTreeT*> treelist, treelist2;
+	std::vector<RootList> treelist, treelist2;
 
 	if (debug)
 	{
@@ -723,12 +790,27 @@ namespace madness {
 		partition << ", subtotal = " << *subtotal << std::endl;
 	}
 
-	/* if this node has children */
-	if (this->isParent())
+
+	subtreeCost = getLocalSubtreeCost();
+	costLeft = partition - accumulate;
+	/* if the subtree will fit in this partition */
+	if ((costLeft >= subtreeCost) || (lastPartition))
 	{
-	    /* Check if they've already been visited, and if so, make remote; 	 */
-	    /* otherwise, figure out the cost of the subtree rooted by the child */
-	    /* and add it to the partition (if partition not already full)	 */
+	    setVisited(partitionNumber);
+	    setSendto(partitionNumber);
+	    if (debug)
+	    {
+	    	std::cout << "set remote to true on tree, " <<
+			"this->_remote = " << this->_remote << std::endl;
+	    }
+	    treelist.push_back(RootList(this->x(), this->y(), this->z(), this->n(), 0, this->getSendto()));
+	}
+	/* otherwise, if this node has children */
+	else if (this->isParent())
+	{
+	    /* Check if they've already been visited; otherwise, figure out the  */
+	    /* cost of the subtree rooted by the child and add it to the 	 */
+	    /* partition (if the partition is not already full)			 */
 	    FOREACH_LOCAL_CHILD(OctTreeT, this,
 		if (child->isVisited())
 		{
@@ -739,7 +821,7 @@ namespace madness {
 				<< std::endl;
 		    }
 		}
-		else
+		else if (child->getSendto() == -1)
 		{
 		    subtreeCost = child->getLocalSubtreeCost();
 		    costLeft = partition - accumulate;
@@ -757,16 +839,15 @@ namespace madness {
 		    }
 		    if ((subtreeCost <= costLeft) || (lastPartition))
 		    {
-			OctTreeT *mytree = child;
 			child->setVisited(partitionNumber);
-			child->setRemote(true);
 			child->setSendto(partitionNumber);
 			if (debug)
 			{
 			    std::cout << "set remote to true on child, " <<
-				"mytree->_remote = " << mytree->_remote << std::endl;
+				"child->_remote = " << child->_remote << std::endl;
 			}
-			treelist.push_back(mytree);
+	    		treelist.push_back(RootList(child->x(), child->y(), child->z(), 
+				child->n(), 0, child->getSendto()));
 			if (debug)
 			{
 			    std::cout << "localCost(before recompute): " <<
@@ -813,8 +894,7 @@ namespace madness {
 	else if (this->getLocalSubtreeCost() <= costLeft)
 	{
 	    this->setVisited();
-	    OctTreeT *mytree = this;
-	    treelist.push_back(mytree);
+	    treelist.push_back(RootList(this->x(), this->y(), this->z(), this->n(), 0, this->getSendto()));
 	}
 	/* otherwise, not enough space in this partition for this subtree */
 	else
@@ -824,6 +904,7 @@ namespace madness {
 	*subtotal = accumulate;
 	return treelist;
     }
+
 
         /// Create a default or initial parallel decomposition for an OctTree
         

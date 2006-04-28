@@ -19,14 +19,15 @@ int main (int argc, char **argv) {
     
     MPI::Init(argc, argv);
     Communicator comm;
+
     redirectio(comm);
-    comm.print();
+    //xterm_debug(comm,0,0);
     
+    comm.print();
+
     int me = comm.rank();
     int nproc = comm.nproc();
     ProcessID rank = comm.rank();
-
-    std::vector< OctTree<T>* > subtree;
 
 
     if (me == 0)
@@ -37,8 +38,8 @@ int main (int argc, char **argv) {
 	/*										*/
 	/********************************************************************************/
 
-	std::vector< std::vector< OctTree<T>* > > pieces;
-	std::vector< OctTree<T>* > list;
+	std::vector< std::vector< RootList > > pieces;
+	std::vector< RootList > list;
 	OctTree<T> *t = new OctTree<T>(0, 0,0,0, false, 0, -1, &comm);
         cout << "t.getCost() = " << t->getCost() << endl;
 
@@ -146,6 +147,7 @@ int main (int argc, char **argv) {
 	/*										*/
 	/********************************************************************************/
 	
+
 	std::cout << "about to serialPartition: " << std::endl;
 	t->serialPartition(nproc, &pieces);
 	std::cout << "done with serialPartition" << std::endl;
@@ -157,87 +159,68 @@ int main (int argc, char **argv) {
 		list.push_back(pieces[i][j]);
 	    }
 	}
+
+
+
+/*
+	list.push_back(RootList(t, 0, 3));
+	list.push_back(RootList(child3, 0, 1));
+	list.push_back(RootList(child2, 0, 0));
+	list.push_back(RootList(child1, 0, 0));
+	list.push_back(RootList(child0, 0, 0));
+	list.push_back(RootList(child41, 0, 2));
+	list.push_back(RootList(child40, 0, 2));
+	list.push_back(RootList(child36, 0, 0));
+	list.push_back(RootList(child35, 0, 0));
+	list.push_back(RootList(child34, 0, 0));
+	list.push_back(RootList(child33, 0, 0));
+	list.push_back(RootList(child32, 0, 0));
+	list.push_back(RootList(child31, 0, 0));
+	list.push_back(RootList(child30, 0, 0));
+	list.push_back(RootList(child370, 0, 0));
+*/
+
 	std::cout << "done with putting pieces on list" << std::endl;
-//	list.sort(less<OctTree<T>* >());
-	sort(list.begin(), list.end(), less<OctTree<T>* >());
+	sort(list.begin(), list.end());
 	std::cout << std::endl << "sorted list" << std::endl;
 	int llength = list.size();
 	for (int i = 0; i < llength; i++)
 	{
 	    std::cout << "Subtree: " << std::endl;
-	    list[i]->depthFirstTraverse();
+//	    list[i]->depthFirstTraverse();
+	    std::cout << "Layer " << list[i].n << ": " <<
+		"(" << list[i].x << "," << list[i].y << "," << list[i].z << ")" << std::endl;
 	}
+
+	std::vector<OctTree<T>* > *treeList = new std::vector<OctTree<T>* >();
+	std::cout << "made treeList" << std::endl;
+	treeList->push_back(t);
+	std::cout << "added t to treeList" << std::endl;
+	exchangeTrees(&list, treeList);
+
 	// Let the processors know how many pieces they are getting
-	for (int i = nproc-1; i >= 0; i--)
-	{
-	    sendMsg(pieces[i].size(), me, i);
-	}
-	// Now, send the pieces out, one at a time, as appropriate
-	for (int i = llength-1; i >= 0; i--)
-	{
-	    // send a message saying who the parent is, then send the subtree,
-	    // then delete the subtree and replace it with a remote node
-	    std::cout << "Size of list = " << list.size() << std::endl;
-	    ProcessID prank = -1, sendto = list[i]->getSendto();
-	    OctTree<T> *parent = list[i]->parent();
-	    if (parent)
-	    {
-		prank = parent->getSendto();
-	    }
-	    else
-	    {
-		prank = -1;
-	    }
-	    sendMsg(prank, me, sendto);
-	    list[i]->setRemote(false);
-	    std::cout << "sending subtree to " << sendto << std::endl;
-	    sendSubtree(list[i], me, sendto);
-	    if (parent)
-	    {
-	    	int x = list[i]->x(), y = list[i]->y(), z = list[i]->z();
-	    	std::cout << "replace child (" << x << "," << y << "," << z << ")" << std::endl;
-	    	x -= 2*(x/2); y -= 2*(y/2); z -= 2*(z/2);
-	    	parent->insert_remote_child(x, y, z, sendto);
-	    	std::cout << "inserted remote child (" << x << "," << y << "," << z << ")" << std::endl;
-	    }
-	    list.pop_back();
-	}
-	// Now, receive
-	int npieces;
-	recvMsg(&npieces, me, me);
-
-
-
-	for (int i = 0; i < npieces; i++)
-	{
-	    ProcessID prank;
-	    recvMsg(&prank, me, 0);
-	    OctTree<T> *tmp = new OctTree<T>();
-	    recvSubtree(tmp, me, 0);
-	    subtree.push_back(tmp);
-	}
 
 	std::cout << "received subtree; all done" << std::endl;
     }
     else // I am not processor 0
     {
-	int npieces;
-	recvMsg(&npieces, me, 0);
 
-	std::cout << "Processor " << me << ": I will receive " << npieces << " subtrees by the end"
-		<< std::endl;
+	std::vector<RootList> *globalList = new std::vector<RootList>();
+	std::vector<OctTree<T>* > *treeList = new std::vector<OctTree<T>* >();
+	exchangeTrees(globalList, treeList);
 
-	for (int i = 0; i < npieces; i++)
+/*
+	for (int i = 0; i < 1001; i++)
 	{
-	    ProcessID prank;
-	    recvMsg(&prank, me, 0);
-	    std::cout << "Processor " << me << ": parent rank is " << prank << std::endl;
-	    OctTree<T> *tmp = new OctTree<T>();
-	    recvSubtree(tmp, me, 0);
-	    subtree.push_back(tmp);
-	    std::cout << "Processor " << me << ": pushed back  subtree number " << i << std::endl;
+	   std::cout << " " << i;
+	   std::cout.flush();
 	}
+*/
+	std::cout << "End of the line " << std::endl;
     }
+
+    MPI::Finalize();
+
  
     return 0;
 }
