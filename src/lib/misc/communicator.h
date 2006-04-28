@@ -18,6 +18,9 @@
 
 namespace madness {
     class Communicator;
+
+    void xterm_debug(const Communicator& comm, 
+		     const char* path, const char* display);
     
     /// Holds arguments sent via active messages ... deliberately small.
     class AMArg {
