@@ -30,7 +30,8 @@ source directory):
 <li> Create configure: <tt>aclocal -I lib/autoconf; autoconf</tt>
 <li> If compiling in separate object directory, enter that directory, else skip this step
 <li> Configure package: <tt>configure <opts></tt>, where <tt><opts></tt> are various
-configure command-line options (see below)
+configure command-line options (see below). If you are cross-compiling, add the <tt>--host</tt>
+option.
 <li> Build package: <tt>make</tt> (or <tt>gmake</tt> on some systems)
 <li> Build and run tests: <tt>make testbuild; make testrun</tt>
 <li> (optional) make documentation: <tt>cd doc; make</tt>
@@ -58,11 +59,18 @@ you must enable libtool as well: <tt>--enable-libtool --enable-shared</tt>.
 Shared library build may also require that linker is given to configure explicitly
 via <tt>--with-ld</tt> option. In any case, C++ compiler is always used to link executables.
 
+<li> To cross-compile MADNESS, you need to specify the <tt>--host</tt> option:
+<tt>--host=<arch></tt>, where <tt><arch></tt> is the canonical system name for the target architecture,
+e.g. <tt>craynv-cray-unicosmp3.1.X</tt>. The canonical name can be obtained by running <tt>bin/config.guess</tt>
+on the machine where you intend to run MADNESS.
+
 </ul>
 
 \subsection configtodo To-Do list for build system
 
 <ul>
+  <li> maximally condense Makefile stubs
+  <li> use envvariable MADNESSDATADIR to specify location of data files
   <li> replace remaining preprocessor switches in the code by configure tests
   <li> automate extraction of type information (sizeof, etc.)
   <li> strengthen include guards
