@@ -511,12 +511,12 @@ int main(int argc, char* argv[]) {
     const char* f = "tserialize.dat";
     TextFstreamOutputArchive oar(f);
 //    BinaryFstreamOutputArchive oar(f);
-    ftest.save(oar);
+    ftest.save_local(oar);
     oar.close();
     TextFstreamInputArchive iar(f);
 //    BinaryFstreamInputArchive iar(f);
     cout << " before load " << endl;
-    ftest.load(iar);
+    ftest.load_local(iar);
     oar.close();
 
     comm.close();

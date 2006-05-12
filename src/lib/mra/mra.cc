@@ -203,16 +203,29 @@ namespace madness {
 
     template <typename T>
     double Function<T>::_norm2sq(const OctTreeT* tree) const {
-        if (! isactive(tree)) return 0.0;
-        double sum = 0.0;
-        const TensorT* t = coeff(tree);
-        if (t) {
+        double sum=0.0;
+        FOREACH_CHILD(OctTreeT, tree, 
+                      if (isactive(child)) 
+		      {
+			   double tmpsum = _norm2sq(child);
+			   sum += tmpsum;
+		      }
+	);
+        if ( isremote(tree) ) {
+	    if( (tree->parent()) && (tree->parent()->islocal()) ) {
+              comm()->Recv(&sum, 1, tree->rank(), 4);
+	    }
+        }
+        else {
+          const TensorT* t = coeff(tree);
+          if (t) {
             sum = t->normf();
             sum *= sum;
+          }
+	  if ((tree->parent()) && (tree->parent()->isremote())) {
+            comm()->Send(&sum, 1, tree->parent()->rank(), 4);
+	  }
         }
-        FOREACH_CHILD(const OctTreeT, tree, 
-                      if (isactive(child)) sum += _norm2sq(child););
-        //sum += _norm2sq_local(child););
         return sum;
     };
 

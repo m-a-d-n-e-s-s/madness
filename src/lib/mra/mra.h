@@ -808,24 +808,23 @@ namespace madness {
             return data->compressed;
         };
 
+	/// Saving Function members into the file. This function is prepared for sequential job.
 	template <class Archive>
-	void save(Archive& ar) {
-	  _save(ar, tree());
+	void save_local(Archive& ar) {
+	  ar & FunctionDefaults::k;
+	  ar & FunctionDefaults::thresh;
+	  ar & FunctionDefaults::initial_level;
+	  ar & FunctionDefaults::max_refine_level;
+	  ar & FunctionDefaults::truncate_method;
+	  ar & FunctionDefaults::autorefine;
+	  _save_local(ar, tree());
 	};
 
-	/// Saving Function members into the file.
+	/// Saving Function members into the file. This member was prepared for recursive operation and called from save_local.
 	template <class Archive>
-	//struct ArchiveStoreImpl<Archive, OctTreeT> {
-        //shared_ptr<OctTreeT> _tree;
-	void _save(Archive& ar, const OctTreeT *tree) {
+	void _save_local(Archive& ar, const OctTreeT *tree) {
 	  ar & isactive(tree);
 	  if(isactive(tree)) {
-	    ar & FunctionDefaults::k;
-	    ar & FunctionDefaults::thresh;
-	    ar & FunctionDefaults::initial_level;
-	    ar & FunctionDefaults::max_refine_level;
-	    ar & FunctionDefaults::truncate_method;
-	    ar & FunctionDefaults::autorefine;
             const TensorT *t = coeff(tree);
 	    ar & (t != 0);
 	    if(t) ar & *t;
@@ -834,35 +833,123 @@ namespace madness {
 	      if (tree->child(i,j,k)) {
 //               tree->print_coords();
 //               print(i,j,k);
-               _save(ar, tree->child(i,j,k));
+               _save_local(ar, tree->child(i,j,k));
                }
 	    );
           }
 	}
 
+	/// Saving Function members into the file. This member is already parallelized.
+	template <class Archive>
+	void save(Archive& ar) {
+          if (tree()->rank() == 0) {
+	    ar & FunctionDefaults::k;
+	    ar & FunctionDefaults::thresh;
+	    ar & FunctionDefaults::initial_level;
+	    ar & FunctionDefaults::max_refine_level;
+	    ar & FunctionDefaults::truncate_method;
+	    ar & FunctionDefaults::autorefine;
+	    //receive_coeff_from_zero();
+	  }
+	  _save(ar, tree());
+	};
+
+	/// Saving Function members into the file. This member was prepared for recursive operation and called from save.
+	template <class Archive>
+	void _save(Archive& ar, const OctTreeT *tree) {
+	  ar & isactive(tree);
+	  if(isactive(tree)) {
+            const TensorT *t = coeff(tree);
+	    ar & (t != 0);
+	    if(t) ar & *t;
+	    FOREACH_CHILD(OctTreeT, tree, 
+              ar & (tree->child(i,j,k)!=0);
+	      if (tree->child(i,j,k)) {
+//               tree->print_coords();
+//               print(i,j,k);
+              _save(ar, tree->child(i,j,k));
+              }
+	    );
+          }
+	}
+
+	/// Loading Function members from the file. This member is not parallelized.
+	template <class Archive>
+	void load_local(Archive& ar) {
+	  //bool active_flag;
+	  //ar & active_flag;
+	  ar & FunctionDefaults::k;
+	  ar & FunctionDefaults::thresh;
+	  ar & FunctionDefaults::initial_level;
+	  ar & FunctionDefaults::max_refine_level;
+	  ar & FunctionDefaults::truncate_method;
+	  ar & FunctionDefaults::autorefine;
+	  comm.Bcast(FunctionDefaults::k, 0);
+	  comm.Bcast(FunctionDefaults::thresh, 0);
+	  comm.Bcast(FunctionDefaults::initial_level, 0);
+	  comm.Bcast(FunctionDefaults::max_refine_level, 0);
+	  comm.Bcast(FunctionDefaults::truncate_method, 0);
+	  comm.Bcast(FunctionDefaults::autorefine, 0);
+	  //if (active_flag) _load(ar, tree());
+	  _load_local(ar, tree());
+	}
+
+	/// Loading Function members from the file. This member is prepared for called from load_local. 
+	template <class Archive>
+	void _load_local(const Archive& ar, OctTreeT *tree) {
+	    set_active(tree);
+            bool have_coeffs;
+	    ar & have_coeffs;
+	    if(have_coeffs) {
+	      TensorT t;
+	      ar & t;
+	      set_coeff(tree, t);
+	    }
+	    FORIJK(
+               bool have_child;
+               ar & have_child;
+               if (have_child) {
+                  OctTreeT* child = tree->child(i, j, k);
+                  if (!child) child = tree->insert_local_child(i,j,k);
+   	          bool active_flag;
+     	          ar & active_flag;
+//                  tree->print_coords();
+//		  print(i,j,k);
+                  if (active_flag) _load_local(ar, child);
+               }
+            );
+	}
+
+	/// Loading Function members from the file. This member is already parallelized.
 	template <class Archive>
 	void load(Archive& ar) {
-	  bool active_flag;
-	  ar & active_flag;
-	  if (active_flag) _load(ar, tree());
+	  //bool active_flag;
+	  //ar & active_flag;
+          if (tree()->rank() == 0) {
+	    ar & FunctionDefaults::k;
+	    ar & FunctionDefaults::thresh;
+	    ar & FunctionDefaults::initial_level;
+	    ar & FunctionDefaults::max_refine_level;
+	    ar & FunctionDefaults::truncate_method;
+	    ar & FunctionDefaults::autorefine;
+	  }
+	  comm.Bcast(FunctionDefaults::k, 0);
+	  comm.Bcast(FunctionDefaults::thresh, 0);
+	  comm.Bcast(FunctionDefaults::initial_level, 0);
+	  comm.Bcast(FunctionDefaults::max_refine_level, 0);
+	  comm.Bcast(FunctionDefaults::truncate_method, 0);
+	  comm.Bcast(FunctionDefaults::autorefine, 0);
+	  //if (active_flag) _load(ar, tree());
+	  _load(ar, tree());
 	}
 
 	/// Loading Function members from the file.
 	template <class Archive>
 	void _load(const Archive& ar, OctTreeT *tree) {
-<<<<<<< .mine
-=======
-//	    cout << " before set_active " << (void *) tree << endl;
->>>>>>> .r49
 	    set_active(tree);
             bool have_coeffs;
 	    ar & have_coeffs;
 	    if(have_coeffs) {
-	      ar & FunctionDefaults::k;
-	      ar & FunctionDefaults::thresh;
-	      ar & FunctionDefaults::initial_level;
-	      ar & FunctionDefaults::max_refine_level;
-	      ar & FunctionDefaults::truncate_method;
 	      TensorT t;
 	      ar & t;
 	      set_coeff(tree, t);
@@ -882,45 +969,107 @@ namespace madness {
             );
 	}
 
-	Function& truncate(double tol = -1.0) {
+	/// The truncate member function was prepared to neglects small components. This member is already parallelized.
+	Function<T>& truncate(double tol = -1.0) {
 	  if (tol == -1.0) tol = FunctionDefaults::thresh;
 	  if (tol <= 0.0) return *this;
           _truncate(tol, tree());
           return *this;
 	};
 
-	/// The truncate member function was prepared to neglects small components.
+	/// The _truncate member function was prepared to neglects small components. This method was prepared for recursive operation.
 	void _truncate(double tol, OctTreeT *tree){
-	  if (count_active_children(tree) != 0) {
-	    FOREACH_CHILD(OctTreeT, tree, 
-              tree->print_coords(); 
-              cout << endl;
-              if (isactive(child)) _truncate(tol, child);
-            );
-            //child.truncate(tol);
-            // _truncate(tol, tree());
+	  //if (count_active_children(tree) != 0) {
+	  FOREACH_CHILD(OctTreeT, tree, 
+            if (isactive(child)) _truncate(tol, child);
+          );
+	  //}
+/*
+          if (isremote(tree)) {
+	    if( (tree->parent()) && (tree->parent()->islocal()) ) {
+              bool active;
+              int nactivechildren=0;
+              comm()->Recv(&active, 1, tree->rank(), 5);
+              if (active) nactivechildren++;
+              nactivechildren += count_active_children(tree);
+	    }
 	  }
-          const TensorT *t = coeff(tree);
-	  if (t) {
-	    double tnormf = t->normf();
-            if (tnormf < tol) {
-              tree->print_coords(); 
-              cout << endl;
-	      //std::printf("%4d %8d %8d %8d %e9.1\n",
-	      //	  tree->n(),tree->x(),tree->y(),tree->z(),t->normf());
-              //cout << endl;
-              unset_coeff(tree);
-              set_inactive(tree);
-            }
-	  }
+          else {
+*/
+            const TensorT *t = coeff(tree);
+	    if (t) {
+	      double tnormf = t->normf();
+//	      if (tnormf < tol && count_active_children(tree) == 0) {
+	      int nachildren = count_active_children(tree);
+	      if (tnormf < tol && nachildren == 0) {
+                unset_coeff(tree);
+                set_inactive(tree);
+                if ((tree->parent()) && (tree->parent()->isremote())) {
+                  bool active;
+                  active = false;
+                  comm()->Send(&active, 1, tree->parent()->rank(), 5);
+                }
+	      }
+	      else {
+                if ((tree->parent()) && (tree->parent()->isremote())) {
+                  bool active;
+                  active = true;
+                  comm()->Send(&active, 1, tree->parent()->rank(), 5);
+                }
+	      }
+	    }
+         // }
 	};
 
-        /// count the number of active children 
+        /// This member counts the number of local active children. 
         int count_active_children(OctTreeT *tree) {
           int n = 0;
-          FOREACH_CHILD(OctTreeT, tree, if(isactive(tree)) { n++; });
+	  bool active;
+          FOREACH_LOCAL_CHILD(OctTreeT, tree, 
+		if(isactive(child)) { n++; }
+		);
+          FOREACH_REMOTE_CHILD(OctTreeT, tree,
+              comm()->Recv(&active, 1, tree->rank(), 5);
+              if (active) { 
+		n++;
+	      }
+	      else {
+                set_inactive(child);
+	      }
+	  );
           return n;
         }
+
+	/// Inner product between two Function classess. This function was already parallelized.
+	T inner(Function<T>& other) {
+	  this->compress();
+	  other.compress();
+	  return _inner(*this, other, tree());
+	};
+
+	/// This member is the member called from inner member.
+	T _inner(const Function<T>& a, const Function<T>& b, OctTreeT* tree) const {
+          T sum = 0.0;
+	  FOREACH_CHILD(OctTreeT, tree, 
+            if (a.isactive(child) && b.isactive(child)) { 
+            sum += _inner(a, b, child);
+	    }
+          );
+	  if (isremote(tree)) {
+	    if( (tree->parent()) && (tree->parent()->islocal()) ) {
+              comm()->Recv(&sum, 1, tree->rank(), 7);
+	    }
+	  }
+	  else {
+            TensorT *c1 = a.coeff(tree);
+            TensorT *c2 = b.coeff(tree);
+	    sum = c1->trace(*c2);
+            if ( (tree->parent()) && (tree->parent()->isremote())) {
+              comm()->Send(&sum, 1, tree->parent()->rank(), 7);
+	    }
+	  }
+          return sum;
+	}
 
         /// Local evaluation of the function at a point in user coordinates
 
