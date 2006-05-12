@@ -697,11 +697,6 @@ if test X"$enableparallel" = Xyes; then
     
   fi
   
-  dnl ==== MPI is required! ====
-  if test X"$HAVE_MPI" = X; then
-    AC_MSG_ERROR([MPI library is not found. Cannot proceed.])
-  fi
-  
   dnl ---- look for pthreads ----
   AC_CHECK_HEADERS(pthread.h,HAVE_PTHREAD_H=yes)
   if test X"$HAVE_PTHREAD_H" = Xyes; then
@@ -723,6 +718,11 @@ if test X"$enableparallel" = Xyes; then
     fi
   fi
   
+fi
+
+dnl ==== MPI is required! (for now?) ====
+if test X"$HAVE_MPI" = X; then
+  AC_MSG_ERROR([MADNESS currently cannot be compiled without an MPI library. Cannot proceed.])
 fi
 
 dnl --------- Template instantiation. ---------
