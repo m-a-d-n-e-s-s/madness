@@ -7,6 +7,9 @@
 #  install_inc::
 #    installs the include files
 #
+#  install_data::
+#    installs the data files
+#
 #  default::
 #
 # the user must define the following:
@@ -16,22 +19,14 @@
 #
 # BIN_OR_LIB = BIN or LIB
 #
-# TRUESRC
+# LIBOBJ (for libraries only)
+# BINOBJ (for binaries only)
 #
-# DEPENDINCLUDE
-#
-# TRUEINCLUDES
-#
-# OTHERFILES
-#
-# LIBOBJ
-# BINOBJ
-#
-# LIBS
+# LIBS (for binaries only)
 #
 #################################################
 
-.PHONY: default install install_devel install_inc install_target clean
+.PHONY: default install install_devel install_inc install_target install_data clean
 
 default::
 
@@ -108,7 +103,7 @@ ifneq ($(ENABLESHARED),yes)
 
 install_devel:: install_inc install_target
 
-install::
+install:: install_data
 
 endif
 
@@ -116,7 +111,7 @@ ifeq ($(ENABLESHARED),yes)
 
 install_devel:: install_inc
 
-install:: install_target
+install:: install_target install_data
 
 endif
 
@@ -128,6 +123,19 @@ install_inc::
 install_target: $(TOPDIR)/lib/$(TARGET_TO_MAKE).$(LIBSUF)
 	$(INSTALL) $(INSTALLDIROPT) $(installroot)$(libdir)
 	$(LTINST) $(INSTALL) $(INSTALLLIBOPT) $< $(installroot)$(libdir)
+
+ifeq ($(DATAFILES),)
+
+install_data::
+
+else
+
+install_data:: $(DATAFILES)
+	$(INSTALL) $(INSTALLDIROPT) $(installroot)$(datadir)/$(SRCDIR:$(SRCTOPDIR)/src/lib/%=%)
+	-$(INSTALL) $(INSTALLLIBOPT) $^ $(installroot)$(datadir)/$(SRCDIR:$(SRCTOPDIR)/src/lib/%=%)
+
+endif
+
 endif
 
 ifeq ($(BIN_OR_LIB),BIN)
@@ -137,11 +145,23 @@ $(TARGET_TO_MAKE): $(BINOBJ) $(LIBS)
 
 install_devel::
 
-install:: install_target
+install:: install_target install_data
 
 install_target: $(TARGET_TO_MAKE)
 	$(INSTALL) $(INSTALLDIROPT) $(installroot)$(bindir)
 	$(LTINST) $(INSTALL) $(INSTALLBINOPT) $(TARGET_TO_MAKE) $(installroot)$(bindir)
+
+ifeq ($(DATAFILES),)
+
+install_data::
+
+else
+
+install_data:: $(DATAFILES)
+	$(INSTALL) $(INSTALLDIROPT) $(installroot)$(datadir)/$(SRCDIR:$(SRCTOPDIR)/src/lib/%=%)
+	-$(INSTALL) $(INSTALLLIBOPT) $^ $(installroot)$(datadir)/$(SRCDIR:$(SRCTOPDIR)/src/lib/%=%)
+
+endif
 
 endif
 

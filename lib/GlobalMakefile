@@ -1,4 +1,5 @@
 
+# QUOTE is used to account for spaces in directory names
 ifndef QUOTE
   QUOTE=sed 's/ /\\ /g'
 endif

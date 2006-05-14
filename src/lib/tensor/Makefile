@@ -11,39 +11,24 @@ TARGET_TO_MAKE = libMADtensor
 BIN_OR_LIB = LIB
 
 CXXSRC =  tensor.cc tensoriter.cc basetensor.cc mtrand.cc 
-INC =     tensor.h tensor_macros.h type_data.h slice.h basetensor.h mtrand.h \
-          tensoriter.h tensorexcept.h \
-          tensor_spec.h tensoriter_spec.h
-
-TESTSRC = test.cc
-TESTOBJ = $(TESTSRC:%.cc=%.$(OBJSUF))
-TESTFILES = 
-
-TESTPROGS = test
-
-DISTFILES = $(CXXSRC) $(INC) Makefile $(TESTSRC) $(TESTFILES)
-
 LIBOBJ= $(CXXSRC:%.cc=%.$(OBJSUF))
 
-default:: $(DEPENDINCLUDE)
+default::
 
-# prerequisite libraries for test include 1) current library and its dependents (THISLIBDEPEND);
-# and 2) dependents of the test code (TESTLIBDEPEND)
+TESTPROGS = test
 THISLIBDEPEND = $(shell $(LISTLIBS) $(INCLUDE) $(SRCDIR)/LIBS.h)
-TESTLIBDEPEND = 
 
-test: $(TESTOBJ) $(THISLIBDEPEND) $(TESTLIBDEPEND)
+TEST1SRC = test.cc
+TEST1OBJ = $(TEST1SRC:%.cc=%.$(OBJSUF))
+TEST1LIBDEPEND = 
+TEST1PROGS = test
+test: $(TEST1OBJ) $(THISLIBDEPEND) $(TEST1LIBDEPEND)
 	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ $(SYSLIBS) $(LTLINKBINOPTS)
-
-tensor.o:	mxm.h
 
 include $(SRCDIR)/$(TOPDIR)/lib/MakeRules
 
-clean::
-	rm -f $(TESTPROGS) $(TESTOBJ)
-
-$(LIBOBJ:.$(OBJSUF)=.d): $(DEPENDINCLUDE)
 ifneq ($(DODEPEND),no)
-include $(LIBOBJ:.$(OBJSUF)=.d) $(TESTOBJ:%.$(OBJSUF)=%.d)
+include $(LIBOBJ:.$(OBJSUF)=.d)
+include $(TEST1OBJ:%.$(OBJSUF)=%.d)
 endif
 
