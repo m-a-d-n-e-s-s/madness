@@ -58,34 +58,18 @@ int main(int argc, char** argv) {
     }
 
     // Send a vector around a ring, appending to it
-    vector<int> w;
-    vector< vector<int> > v(10, w);
-//    vector< vector<int> > v(1);
-//int npasses = 16776000;
-int npasses = 16776000*2;
-//int npasses = 16;
-
-  for (int i = 0; i < 10; i++)
-  {
-//    v.clear();
-    if (rank == 0)
-        v[i][0] = 0;
+    vector<int> v(1);
     if (rank == 0) {
-//        v[0] = 0;
-//	v.push_back(rank);
-	v[i].insert(v[i].end(), npasses, rank);
-        right & v[i];
-        left & v[i];
-//        cout << "final vector " << v << endl;
-	cout << "pass number " << i << endl;
+        v[0] = 0;
+        right & v;
+        left & v;
+        cout << "final vector " << v << endl;
     }
     else {
-        left & v[i];
-//        v.push_back(me);
-	v[i].insert(v[i].end(), npasses, me);
-        right & v[i];
+        left & v;
+        v.push_back(me);
+        right & v;
     }
-  }
 
     comm.close();
     MPI::Finalize();

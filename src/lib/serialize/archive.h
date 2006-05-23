@@ -873,7 +873,8 @@ namespace madness {
 		        FORIJK(
 		    	    if (t._c[i][j][k])
 		    	    {
-			    	store(ar, *(t._c[i][j][k]));
+			    	ar & *(t._c[i][j][k]);
+//			    	store(ar, *(t._c[i][j][k]));
 		    	    }
 		        );
 
@@ -911,11 +912,15 @@ namespace madness {
 //			    std::cout << "load c[" << i << "," << j << "," << k << "]" << std::endl;
 			    OctTree<T> *child = new OctTree<T>();
 			    t._c[i][j][k] = shared_ptr<OctTree<T> >(child);
-			    load(ar, *child);
+			    ar & *child;
+//			    load(ar, *child);
 //			    std::cout << "loaded c[" << i << "," << j << "," << k << "], (" <<
 //				(t._c[i][j][k])->x() << ", " << (t._c[i][j][k])->y() << ", " <<
 //				(t._c[i][j][k])->z() << ")"<< std::endl;
 		    	);
+			FOREACH_CHILD(OctTree<T>, &t,
+			    child->_p = &t;
+			);
 		    }
 
 		}
