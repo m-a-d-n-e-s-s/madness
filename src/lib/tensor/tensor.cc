@@ -68,7 +68,7 @@ namespace madness {
         set_dims_and_size(nd, d);
         if (size) {
             try {
-                p = shared_array<T>(new T[size]);
+                p = SharedArray<T>(new T[size]);
             }
             catch (...) {
                 std::printf("new failed nd=%ld type=%ld size=%ld\n", nd, id, size);

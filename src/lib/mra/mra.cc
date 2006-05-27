@@ -29,7 +29,7 @@ namespace madness {
     // set the defaults independent of the data type.  The defaults
     // are only used in the FunctionFactory constructor except
     // for cell[][] which is used in FunctionData
-    shared_ptr<FunctionOctTree> FunctionDefaults::tree = 0;
+    SharedPtr<FunctionOctTree> FunctionDefaults::tree = 0;
     int FunctionDefaults::k = 7;
     double FunctionDefaults::thresh = 1e-5;
     int FunctionDefaults::initial_level = 2;

@@ -228,7 +228,7 @@ namespace madness {
     private:
         int _nfree;
         std::vector<int> _free;
-        shared_ptr<OctTreeT> _tree;
+        SharedPtr<OctTreeT> _tree;
 
         /// Verboten
         FunctionOctTree(const FunctionOctTree&);
@@ -297,7 +297,7 @@ namespace madness {
     /// all Function instances.  A little work could improve upon this.
     class FunctionDefaults {
     public:
-        static shared_ptr<FunctionOctTree> tree; ///< The default tree/distribution used for new functions
+        static SharedPtr<FunctionOctTree> tree; ///< The default tree/distribution used for new functions
         static int k;                  ///< Wavelet order
         static double thresh;          ///< Truncation threshold
         static int initial_level;      ///< Initial level for fine scale projection
@@ -315,7 +315,7 @@ namespace madness {
     /// Since Function assignment and copy constructors are shallow it
     /// greatly simplifies maintaining consistent state to have all
     /// (permanent) state encapsulated in a single class.  The state
-    /// is shared between instances using a shared_ptr.   Also, separating
+    /// is shared between instances using a SharedPtr.   Also, separating
     /// shared from instance specific state greatly accelerates the constructor.
     /// which is important for massive parallelism.  The default copy constructor and
     /// assignment operator are used.
@@ -406,7 +406,7 @@ namespace madness {
     /// Since Function assignment and copy constructors are shallow it
     /// greatly simplifies maintaining consistent state to have all
     /// (permanent) state encapsulated in a single class.  The state
-    /// is shared between instances using a shared_ptr.
+    /// is shared between instances using a SharedPtr.
     template <typename T>
     class FunctionData {
     private:
@@ -431,7 +431,7 @@ namespace madness {
         void (*vf)(long, const double*, const double*, const double*,
                    T* restrict); ///< Vector interface to function to compress
 
-        shared_ptr<FunctionOctTree> tree; ///< The tree of coeffs
+        SharedPtr<FunctionOctTree> tree; ///< The tree of coeffs
         int ind;		 ///< The unique index into the tree for this function
 
         bool compressed;        ///< Compression status
@@ -553,7 +553,7 @@ namespace madness {
         , ind(data->ind) {}
 
     public:
-        shared_ptr< FunctionData<T> > data; ///< Holds all function data
+        SharedPtr< FunctionData<T> > data; ///< Holds all function data
         int k;                  ///< For convenience replicates k from data
         int ind;                ///< For convenience replicates ind from data
 
@@ -1631,7 +1631,7 @@ namespace madness {
         bool _debug;
         bool _empty;
         bool _autorefine;
-        shared_ptr<FunctionOctTree> _tree;
+        SharedPtr<FunctionOctTree> _tree;
         friend class Function<T>;
         friend class FunctionData<T>;
     public:
@@ -1695,7 +1695,7 @@ namespace madness {
         inline FunctionFactory& noautorefine() {
             _autorefine = false; return *this;
         };
-        inline FunctionFactory& tree(const shared_ptr<FunctionOctTree>& tree) {
+        inline FunctionFactory& tree(const SharedPtr<FunctionOctTree>& tree) {
             _tree = tree;
         };
     };

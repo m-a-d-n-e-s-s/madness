@@ -1,8 +1,8 @@
-#ifndef SHARED_ARRAY_H
-#define SHARED_ARRAY_H
+#ifndef SharedArray_H
+#define SharedArray_H
 
-/// \file test_shared_array.cc
-/// \brief Minimal shared_array solely for machines on which we do not have BOOST
+/// \file test_SharedArray.cc
+/// \brief Minimal SharedArray solely for machines on which we do not have BOOST
 
 class shared_counter {
 private:
@@ -25,7 +25,7 @@ public:
 // appropriate destructor
 
 template <class T>
-class shared_array {
+class SharedArray {
 private:
   T* p;
   shared_counter *count;
@@ -44,17 +44,17 @@ private:
 
 public:
 
-  shared_array(T* ptr = 0) : p(ptr), count(0) {
+  SharedArray(T* ptr = 0) : p(ptr), count(0) {
     if (p) count = new shared_counter;
   };
 
-  shared_array(const shared_array& s) : p(s.p), count(s.count) {
+  SharedArray(const SharedArray& s) : p(s.p), count(s.count) {
     if (count) count->inc();
   };
 
-  ~shared_array() {dec();};
+  ~SharedArray() {dec();};
 
-  shared_array& operator=(const shared_array& s) {
+  SharedArray& operator=(const SharedArray& s) {
     if (this != &s) {
       dec();
       p = s.p;
@@ -81,10 +81,10 @@ using namespace std;
 
 int main() {
 
-  shared_array<int> a(new int(100));
+  SharedArray<int> a(new int(100));
   cout << "a should be 1 " << a.use_count() << " " << (void *) a.get() << endl;
 
-  shared_array<int> b(new int(100));
+  SharedArray<int> b(new int(100));
   cout << "b should be 1 " << b.use_count() << " " << (void *) b.get() << endl;
 
   cout << "assignment ... should see destructor if printing there\n";
@@ -93,13 +93,13 @@ int main() {
   cout << "b should be 2 " << b.use_count() << " " << (void *) b.get() << endl;
 
   cout << "copy constructor\n";
-  shared_array<int> c(a);
+  SharedArray<int> c(a);
   cout << "a should be 3 " << a.use_count() << " " << (void *) a.get() << endl;
   cout << "b should be 3 " << b.use_count() << " " << (void *) b.get() << endl;
   cout << "c should be 3 " << c.use_count() << " " << (void *) c.get() << endl;
 
   cout << "default constructor\n";
-  shared_array<int> d;
+  SharedArray<int> d;
   cout << "a should be 3 " << a.use_count() << " " << (void *) a.get() << endl;
   cout << "b should be 3 " << b.use_count() << " " << (void *) b.get() << endl;
   cout << "c should be 3 " << c.use_count() << " " << (void *) c.get() << endl;

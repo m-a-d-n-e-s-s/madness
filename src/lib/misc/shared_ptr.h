@@ -2,11 +2,14 @@
 #define SHARED_PTR_H
 
 /// \file shared_ptr.h
-/// \brief Minimal shared_ptr & shared_array mostly for machines on which we do not have BOOST
+/// \brief Modified (and renamed) Boost-like SharedPtr & SharedArray 
 
 /// This implementation is thread safe, unlike BOOST's version. However,
 /// the thread safety is presently NOT turned on by default while 
 /// we are implementing the distributed memory code.
+/// We also eliminated automatic conversion from shared_ptr<T> to
+/// T* which prompted the renaming to SharedPtr.  The logical thing
+/// would be to have this wrap Boost's shared_ptr.
 
 #include <iostream>
 
@@ -22,18 +25,18 @@
 
 namespace madness {
     
-    /// A shared_counter counts references to each shared_array or shared_ptr
-    class shared_counter {
+    /// A SharedCounter counts references to each SharedArray or SharedPtr
+    class SharedCounter {
     private:
         MADATOMIC_INT count;
-        shared_counter(const shared_counter& x); // verboten
-        void operator=(const shared_counter& x); // verboten
+        SharedCounter(const SharedCounter& x); // verboten
+        void operator=(const SharedCounter& x); // verboten
         
     public:
         //#ifdef IBMXLC
-        //        shared_counter() {MADATOMIC_INT_SET(&count,1);};
+        //        SharedCounter() {MADATOMIC_INT_SET(&count,1);};
         //#else
-        shared_counter() : count(1) {};
+        SharedCounter() : count(1) {};
         //#endif
         
         /// Get the count
@@ -56,16 +59,16 @@ namespace madness {
         };
     };
     
-    /// A shared_ptr wraps a pointer which is deleted when the reference count goes to zero
+    /// A SharedPtr wraps a pointer which is deleted when the reference count goes to zero
 
-    /// The shared_ptr works pretty much like a regular pointer except that it
+    /// The SharedPtr works pretty much like a regular pointer except that it
     /// is reference counted so there is no need to free it.  When the last
     /// reference is destroyed the underlying pointer will be freed.
     template <class T> 
-    class shared_ptr {
+    class SharedPtr {
     protected:
         T* p;                   ///< The pointer being wrapped
-        shared_counter *count;  ///< The counter shared by all references
+        SharedCounter *count;  ///< The counter shared by all references
         bool isarray;           ///< If true use delete [] to free the pointer
         
         /// Decrement the reference count, freeing pointer if count becomes zero
@@ -91,32 +94,32 @@ namespace madness {
         
     public:
         /// Default constructor makes an null pointer
-        shared_ptr() : p(0), count(0), isarray(false) {
+        SharedPtr() : p(0), count(0), isarray(false) {
         };
         
         /// Wrap a pointer which may be null
-        shared_ptr(T* ptr) : p(ptr), count(0), isarray(false) {
-            if (p) count = new shared_counter;
+        SharedPtr(T* ptr) : p(ptr), count(0), isarray(false) {
+            if (p) count = new SharedCounter;
         };
         
         /// Wrap a pointer which may be null marking it as an array
-        shared_ptr(T* ptr, bool array) : p(ptr), count(0), isarray(array) {
-            if (p) count = new shared_counter;
+        SharedPtr(T* ptr, bool array) : p(ptr), count(0), isarray(array) {
+            if (p) count = new SharedCounter;
         };
         
         /// Copy constructor generates a new reference to the same pointer
-        shared_ptr(const shared_ptr& s) : p(s.p), count(s.count), isarray(s.isarray) {
+        SharedPtr(const SharedPtr& s) : p(s.p), count(s.count), isarray(s.isarray) {
             if (count) {
                 count->inc();
-                //std::cout << "shared_ptr: copy con " << count->get() << std::endl;
+                //std::cout << "SharedPtr: copy con " << count->get() << std::endl;
             }
         };
         
         /// Destructor decrements reference count freeing data only if count is zero
-        virtual ~shared_ptr() {dec();};
+        virtual ~SharedPtr() {dec();};
         
         /// Assignment decrements reference count for current pointer and increments new count
-        shared_ptr& operator=(const shared_ptr& s) {
+        SharedPtr& operator=(const SharedPtr& s) {
             if (this != &s) {
                 dec();
                 p = s.p;
@@ -136,7 +139,7 @@ namespace madness {
         /// Returns the value of the pointer
         inline T* get() const {return p;};
         
-        /// Cast of shared_ptr<T> to T* returns the value of the pointer
+        /// Cast of SharedPtr<T> to T* returns the value of the pointer
         inline operator T*() const {return p;};
         
         /// Return pointer+offset
@@ -149,7 +152,7 @@ namespace madness {
             return p-offset;
         };
         
-        /// Dereferencing shared_ptr<T> returns a reference to pointed value
+        /// Dereferencing SharedPtr<T> returns a reference to pointed value
         inline T& operator*() const {
             return *p;
         };
@@ -171,16 +174,16 @@ namespace madness {
         
     };
     
-    /// A shared_array is just like a shared_ptr except that delete [] is used to free it
+    /// A SharedArray is just like a SharedPtr except that delete [] is used to free it
     template <class T>
-    class shared_array : public shared_ptr<T> {
+    class SharedArray : public SharedPtr<T> {
     public:
-        shared_array(T* ptr = 0) : shared_ptr<T>(ptr,1) {};
-        shared_array(const shared_array<T>& s) : shared_ptr<T>(s) {};
+        SharedArray(T* ptr = 0) : SharedPtr<T>(ptr,1) {};
+        SharedArray(const SharedArray<T>& s) : SharedPtr<T>(s) {};
         
 
         /// Assignment decrements reference count for current pointer and increments new count
-        shared_array& operator=(const shared_array& s) {
+        SharedArray& operator=(const SharedArray& s) {
             if (this != &s) {
                 this->dec();
                 this->p = s.p;

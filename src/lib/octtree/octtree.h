@@ -124,7 +124,7 @@ namespace madness {
         ProcessID _rank;     ///< if (_remote) The rank of the remote process
 
         OctTreeT* _p;          ///< Points to parent node, or null if no parent
-        shared_ptr<OctTreeT> _c[2][2][2]; ///< Null or Points to child nodes, or null if not there
+        SharedPtr<OctTreeT> _c[2][2][2]; ///< Null or Points to child nodes, or null if not there
 
         // (why not shared ptr ?)
         const Communicator* _comm; ///< Info on parallel processes
@@ -330,7 +330,7 @@ namespace madness {
         inline OctTreeT* parent() const {return _p;};
         
         /// returns child's pointer (null if absent or if both this node & child are remote)
-        inline shared_ptr<OctTreeT> childPtr(int x, int y, int z) const {
+        inline SharedPtr<OctTreeT> childPtr(int x, int y, int z) const {
             return _c[x][y][z];
         };
 
@@ -340,13 +340,13 @@ namespace madness {
         };
 
 	inline OctTreeT* setChild(int x, int y, int z, OctTreeT child) {
-	    _c[x][y][z] = shared_ptr<OctTreeT>(&child);
+	    _c[x][y][z] = SharedPtr<OctTreeT>(&child);
 	    return (OctTreeT*) _c[x][y][z];
 	};
 
         /// insert local child (x, y, z in {0,1}) returning pointer to child
         OctTreeT* insert_local_child(int x, int y, int z) {
-            _c[x][y][z] = shared_ptr<OctTreeT>(new OctTreeT(_n + 1,
+            _c[x][y][z] = SharedPtr<OctTreeT>(new OctTreeT(_n + 1,
                                                        2*this->_x + x,
                                                        2*this->_y + y,
                                                        2*this->_z + z,
@@ -359,7 +359,7 @@ namespace madness {
 
         /// insert local child (x, y, z in {0,1}, OctTreeT t), returning pointer to child
         OctTreeT* insert_local_child(int x, int y, int z, OctTreeT t) {
-            _c[x][y][z] = shared_ptr<OctTreeT>(new OctTreeT(t));
+            _c[x][y][z] = SharedPtr<OctTreeT>(new OctTreeT(t));
 	    return _c[x][y][z];
 	};
         
@@ -370,7 +370,7 @@ namespace madness {
 	    int x = this->_x/2, y = this->_y/2, z = this->_z/2;
 	    std::cout << "insert_remote_parent: about to insert parent (" << x << ","
 			<< y << "," << z << ")" << std::endl;
-            _p = shared_ptr<OctTreeT>(new OctTreeT(_n - 1,
+            _p = SharedPtr<OctTreeT>(new OctTreeT(_n - 1,
                                               x,
                                               y,
                                               z,
@@ -379,7 +379,7 @@ namespace madness {
                                               remote_proc,
                                               _comm));
 /*
-            _p = shared_ptr<OctTreeT>(new OctTreeT(_n - 1,
+            _p = SharedPtr<OctTreeT>(new OctTreeT(_n - 1,
                                               (this->_x)/2,
                                               (this->_y)/2,
                                               (this->_z)/2,
@@ -403,7 +403,7 @@ namespace madness {
 
         /// insert remote child (x, y, z in {0,1}) returning pointer to child
         OctTreeT* insert_remote_child(int x, int y, int z, ProcessID remote_proc) {
-            _c[x][y][z] = shared_ptr<OctTreeT>(new OctTreeT(_n + 1,
+            _c[x][y][z] = SharedPtr<OctTreeT>(new OctTreeT(_n + 1,
                                                        2*this->_x + x,
                                                        2*this->_y + y,
                                                        2*this->_z + z,
@@ -1005,7 +1005,7 @@ namespace madness {
 		    	FORIJK(
 //			    std::cout << "load c[" << i << "," << j << "," << k << "]" << std::endl;
 			    OctTree<T> *child = new OctTree<T>();
-			    this->_c[i][j][k] = shared_ptr<OctTree<T> >(child);
+			    this->_c[i][j][k] = SharedPtr<OctTree<T> >(child);
 			    ar & *child;
 //			    load(ar, *child);
 //			    std::cout << "loaded c[" << i << "," << j << "," << k << "], (" <<

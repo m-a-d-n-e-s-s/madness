@@ -116,7 +116,21 @@ namespace madness {
     template <class Cond, class returnT>
     struct disable_if : public disable_if_c<Cond::value, returnT> {};
 
-    
+    /// True if A is derived from B and is not B
+	template <class A, class B>
+	struct is_derived_from {
+	  typedef char yes;
+	  typedef int no;
+	  static no f(...);
+	  static yes f(B*);
+	  static const bool value = (sizeof(f((A*)0)) == sizeof(yes));
+	};
+	
+	template <class A>
+	struct is_derived_from<A,A> {
+	  static const bool value = false;
+	};
+
 #define SET_TYPE_TRAIT(trait, T, val) \
  template<> class trait < T > {public: static const bool value = val; }
     

@@ -200,7 +200,7 @@ namespace madness {
         // declared above here.
     private:
         void init(long nd, const long d[], bool dozero=true);
-        shared_array<T> p;
+        SharedArray<T> p;
         
     protected:
         T* pointer; // SliceTensor needs access
