@@ -103,3 +103,27 @@ set LDFLAGS = "-bmaxdata:0x80000000"
 ./configure --with-cxx-optflags="$CXXFLAGS"  \
             --with-libs="$EXTRA_LIBS" 
 #            --with-blas="$BLASLIB" --with-lapack="$LAPACKLIB"
+
+==============================================================
+MINGW with g++ and MPICH2-1.0.3
+
+A great environment when you get it working.
+Install MINGW, Eclipse+CDT+Subclipse.
+
+The provided C++ library only works with the Intel or MS
+compilers.  Copy 
+
+mpich2-1.0.3/src/binding/cxx/initcxx.cxx as initcxx.cc
+mpich2-1.0.3/src/include/mpihandlemem.h
+
+into the misc sub directory and add initcxx.o to
+the list of object files in the Makefile
+
+Need to compile blas and lapack ... will dump these libraries onto
+the website at some point for convenience
+
+./configure --with-libdirs="-L/c/PROGRA~1/MPICH2/lib -L/home/rj3/Downloads" --with-incdirs="-I/c/PROGRA~1/MPICH2/include" --with-libs="-lmpi -lcxx -lg2c"
+
+  ARCH = -march=pentium-m
+ #CXXFLAGS = -Wall -ansi -O0 -ggdb
+  CXXFLAGS = -Wall -ansi -O3 -funroll-loops -ffast-math -fomit-frame-pointer $(ARCH)

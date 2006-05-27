@@ -230,10 +230,10 @@ ifdef TARGET_TO_MAKE
 endif
 
 targetclean::
-	-rm -f $(TESTPROGS) $(TESTPROGS:%=%.out.testrun)
+	-rm -f $(TESTPROGS) $(TESTPROGS:%=%.out.testrun) $(TESTOBJ)
 
 testclean::
-	/bin/rm -f $(TESTPROGS) $(TESTPROGS:%=%.out.testrun)
+	/bin/rm -f $(TESTPROGS) $(TESTPROGS:%=%.out.testrun) $(TESTOBJ)
 
 #
 # dependencies

@@ -50,8 +50,8 @@ int main(int argc, char* argv[]) {
         // Do useful stuff below here
         FunctionDefaults::k=9;
         FunctionDefaults::initial_level=0;
-        Function<double> f = FunctionFactory<double>(fred).refine(1).compress(0).initial_level(4).thresh(1e-9);
-        Function<double> g = FunctionFactory<double>(fred).refine(1).compress(0).initial_level(4).thresh(1e-9);
+        Function<double> f = FunctionFactory<double>(fred).refine(1).compress(0).initial_level(2).thresh(1e-3);
+        Function<double> g = FunctionFactory<double>(fred).refine(1).compress(0).initial_level(2).thresh(1e-3);
         //print("normsq after projection    ",f.norm2sq_local());
         print("normsq after projection    ",f.norm2sq());
         

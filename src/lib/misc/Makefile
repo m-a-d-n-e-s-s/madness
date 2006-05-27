@@ -1,35 +1,14 @@
 TOPDIR=../../..
-ifndef QUOTE
-  QUOTE=sed 's/ /\\ /g'
-endif
-ifndef SRCDIR
-  SRCDIR=$(shell pwd | $(QUOTE))
-endif
-
-include $(SRCDIR)/$(TOPDIR)/lib/GlobalMakefile
 TARGET_TO_MAKE = libMADmisc
-BIN_OR_LIB = LIB
-
 CXXSRC =  walltime.cc checksum_file.cc redirectio.cc am_stuff.cc debug.cc
-LIBOBJ = $(CXXSRC:%.cc=%.$(OBJSUF))
-LIBOBJ += $(CSRC:%.c=%.$(OBJSUF))
-
-default::
-
+#initcxx.cc
 TESTPROGS = test
+TEST1SRC = test.cc 
 
-THISLIBDEPEND = $(shell $(LISTLIBS) $(INCLUDE) $(SRCDIR)/LIBS.h)
+include $(TOPDIR)/lib/GlobalMakefile
 
-TEST1SRC = test.cc
-TEST1OBJ = $(TEST1SRC:%.cc=%.$(OBJSUF))
-TEST1LIBDEPEND = 
-test: $(TEST1OBJ) $(THISLIBDEPEND) $(TEST1LIBDEPEND)
+
+test: $(TEST1OBJ) $(THISLIBDEPEND)
 	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ $(SYSLIBS) $(LTLINKBINOPTS)
 
-include $(SRCDIR)/$(TOPDIR)/lib/MakeRules
-
-ifneq ($(DODEPEND),no)
-include $(LIBOBJ:.$(OBJSUF)=.d)
-include $(TEST1OBJ:%.$(OBJSUF)=%.d)
-endif
 

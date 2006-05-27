@@ -19,8 +19,8 @@
 namespace madness {
     class Communicator;
 
-    void xterm_debug(const Communicator& comm, 
-		     const char* path, const char* display);
+    //void xterm_debug(const Communicator& comm, 
+//		     const char* path, const char* display);
     
     /// Holds arguments sent via active messages ... deliberately small.
     class AMArg {
@@ -192,6 +192,7 @@ namespace madness {
                 throw "p3_coords failed";
         };
 
+        void usleep(int i) {};
         inline void backoff(unsigned long& count) {
             count++;
             if (count < 100) return;

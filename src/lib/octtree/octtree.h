@@ -985,7 +985,96 @@ namespace madness {
             return p;
         };
         
+        template <class Archive>
+        void load(const Archive& ar) {
+//		std::cout << "deserializing OctTree" << std::endl;
+		ar & this->_x & this->_y & this->_z & this->_n & this->_remote & this->_rank & this->_cost;
+//		std::cout << "received x y z = (" << this->_x << "," << this->_y << "," << this->_z
+//			<< ") ... cost" << std::endl;
+		if (!(this->_remote))
+		{
+		    ar & this->_data;
+//		    std::cout << "received data" << std::endl;
+		    int hasChildren;
+//		    std::cout << "about to receive hasChildren" << std::endl;
+		    ar & hasChildren;
+//		    std::cout << "has children: " << hasChildren << std::endl;
+
+		    if (hasChildren)
+		    {
+		    	FORIJK(
+//			    std::cout << "load c[" << i << "," << j << "," << k << "]" << std::endl;
+			    OctTree<T> *child = new OctTree<T>();
+			    this->_c[i][j][k] = shared_ptr<OctTree<T> >(child);
+			    ar & *child;
+//			    load(ar, *child);
+//			    std::cout << "loaded c[" << i << "," << j << "," << k << "], (" <<
+//				(this->_c[i][j][k])->x() << ", " << (this->_c[i][j][k])->y() << ", " <<
+//				(this->_c[i][j][k])->z() << ")"<< std::endl;
+		    	);
+			FOREACH_CHILD(OctTree<T>, this,
+			    child->_p = this;
+			);
+		    }
+
+		}
+//		std::cout << "end of load (prolly won't see this)" << std::endl;
+	    };
+	    
+        template <class Archive>
+	    void store(const Archive& ar) const {
+//		std::cout << "serializing OctTree" << std::endl;
+		ar & this->_x & this->_y & this->_z & this->_n & this->_remote & this->_rank & this->_cost;
+//		std::cout << "sent x y z = (" << this->_x << "," << this->_y << "," << this->_z
+//			<< ") ... cost" << std::endl;
+		if (this->islocal())
+		{
+		    ar & this->_data;
+//		    std::cout << "sent data" << std::endl;
+		    if (this->_c[0][0][0])
+		    {
+		    	ar & 1;
+//			std::cout << "t is a parent" << std::endl;
+
+		        FORIJK(
+		    	    if (this->_c[i][j][k])
+		    	    {
+			    	ar & *(this->_c[i][j][k]);
+//			    	store(ar, *(this->_c[i][j][k]));
+		    	    }
+		        );
+
+		    }
+		    else
+		    {
+		    	ar & 0;
+//			std::cout << "t is not a parent" << std::endl;
+		    }
+		}
+	    };
     };
+    
+    namespace archive {
+
+    // This disaster brought to you by hqi
+	/// Serialize an OctTree<T>
+	template <class Archive, class T>
+	struct ArchiveStoreImpl< Archive, OctTree<T> > {
+	    static inline void store(const Archive& ar, const OctTree<T>& t) {
+           t.store(ar);
+	    };
+	};
+
+
+	/// Deserialize an OctTree<T>
+	template <class Archive, class T>
+	struct ArchiveLoadImpl< Archive, OctTree<T> > {
+	    static inline void load(const Archive& ar, OctTree<T>& t) {
+	    		t.load(ar);
+	    };
+	};
+	
+    }
 
 }
 

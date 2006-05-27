@@ -287,11 +287,6 @@
 #include <typestuff.h>
 #include <tensor/tensor.h>
 
-//#ifndef OCTTREE_H
-#include "octtree/octtree.h"
-//#endif
-//#include <mra/mra.h>
-
 #define ARCHIVE_COOKIE "archive"
 #define ARCHIVE_MAJOR_VERSION 0
 #define ARCHIVE_MINOR_VERSION 1
@@ -392,8 +387,6 @@ namespace madness {
         ARCHIVE_REGISTER_TYPE_AND_PTR(Tensor<double>,35);
         ARCHIVE_REGISTER_TYPE_AND_PTR(Tensor< std::complex<float> >,36);
         ARCHIVE_REGISTER_TYPE_AND_PTR(Tensor< std::complex<double> >,37);
-        
-        ARCHIVE_REGISTER_TYPE_AND_PTR(OctTree<double>,38);
         
         /// Base class for all archives
         class BaseArchive {
@@ -851,82 +844,6 @@ namespace madness {
                 s & wrap(t.ptr(), t.size);
             };
         };
-
-// This disaster brought to you by hqi
-	/// Serialize an OctTree<T>
-	template <class Archive, class T>
-	struct ArchiveStoreImpl< Archive, OctTree<T> > {
-	    static inline void store(const Archive& ar, const OctTree<T>& t) {
-//		std::cout << "serializing OctTree" << std::endl;
-		ar & t._x & t._y & t._z & t._n & t._remote & t._rank & t._cost;
-//		std::cout << "sent x y z = (" << t._x << "," << t._y << "," << t._z
-//			<< ") ... cost" << std::endl;
-		if (t.islocal())
-		{
-		    ar & t._data;
-//		    std::cout << "sent data" << std::endl;
-		    if (t._c[0][0][0])
-		    {
-		    	ar & 1;
-//			std::cout << "t is a parent" << std::endl;
-
-		        FORIJK(
-		    	    if (t._c[i][j][k])
-		    	    {
-			    	ar & *(t._c[i][j][k]);
-//			    	store(ar, *(t._c[i][j][k]));
-		    	    }
-		        );
-
-		    }
-		    else
-		    {
-		    	ar & 0;
-//			std::cout << "t is not a parent" << std::endl;
-		    }
-		}
-	    };
-	};
-
-
-	/// Deserialize an OctTree<T>
-	template <class Archive, class T>
-	struct ArchiveLoadImpl< Archive, OctTree<T> > {
-	    static inline void load(const Archive& ar, OctTree<T>& t) {
-//		std::cout << "deserializing OctTree" << std::endl;
-		ar & t._x & t._y & t._z & t._n & t._remote & t._rank & t._cost;
-//		std::cout << "received x y z = (" << t._x << "," << t._y << "," << t._z
-//			<< ") ... cost" << std::endl;
-		if (!(t._remote))
-		{
-		    ar & t._data;
-//		    std::cout << "received data" << std::endl;
-		    int hasChildren;
-//		    std::cout << "about to receive hasChildren" << std::endl;
-		    ar & hasChildren;
-//		    std::cout << "has children: " << hasChildren << std::endl;
-
-		    if (hasChildren)
-		    {
-		    	FORIJK(
-//			    std::cout << "load c[" << i << "," << j << "," << k << "]" << std::endl;
-			    OctTree<T> *child = new OctTree<T>();
-			    t._c[i][j][k] = shared_ptr<OctTree<T> >(child);
-			    ar & *child;
-//			    load(ar, *child);
-//			    std::cout << "loaded c[" << i << "," << j << "," << k << "], (" <<
-//				(t._c[i][j][k])->x() << ", " << (t._c[i][j][k])->y() << ", " <<
-//				(t._c[i][j][k])->z() << ")"<< std::endl;
-		    	);
-			FOREACH_CHILD(OctTree<T>, &t,
-			    child->_p = &t;
-			);
-		    }
-
-		}
-//		std::cout << "end of load (prolly won't see this)" << std::endl;
-	    };
-	};
 
 	/// Serialize a Tensor thru a BaseTensor pointer
         template <class Archive>

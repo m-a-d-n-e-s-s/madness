@@ -59,7 +59,6 @@ namespace madness {
       ARCHIVE_REGISTER_TYPE_AND_PTR_NAMES(Tensor< std::complex<float> >);
       ARCHIVE_REGISTER_TYPE_AND_PTR_NAMES(Tensor< std::complex<double> >);
 
-      ARCHIVE_REGISTER_TYPE_AND_PTR_NAMES(OctTree<double>);
     }
   }
 }

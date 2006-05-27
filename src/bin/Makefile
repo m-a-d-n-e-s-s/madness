@@ -1,16 +1,11 @@
-TOPDIR=../..
-ifndef QUOTE
-  QUOTE=sed 's/ /\\ /g'
-endif
-ifndef SRCDIR
-  SRCDIR=$(shell pwd | $(QUOTE))
-endif
+TOPDIR = ../..
 
-include $(SRCDIR)/$(TOPDIR)/lib/GlobalMakefile
-include $(SRCDIR)/$(TOPDIR)/lib/MakeRules
-
-SUBDIRS =
-
-include $(SRCDIR)/$(TOPDIR)/lib/MakeSubDirs
-include $(TOPDIR)/Makedirlist
+clean default all testbuild testrun:
+	@echo NOTHING TO DO IN BIN
+	
+	
+#SUBDIRS = 
+#include $(TOPDIR)/lib/GlobalMakefile
+#include $(TOPDIR)/lib/MakeSubDirs
+#include $(TOPDIR)/Makedirlist
 

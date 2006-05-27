@@ -1,16 +1,9 @@
-TOPDIR=..
-ifndef QUOTE
-  QUOTE=sed 's/ /\\ /g'
-endif
-ifndef SRCDIR
-  SRCDIR=$(shell pwd | $(QUOTE))
-endif
+TOPDIR = ..
 
-include $(SRCDIR)/$(TOPDIR)/lib/GlobalMakefile
-include $(SRCDIR)/$(TOPDIR)/lib/MakeRules
+SUBDIRS = lib 
+#bin
 
-SUBDIRS = lib bin
-
-include $(SRCDIR)/$(TOPDIR)/lib/MakeSubDirs
+include $(TOPDIR)/lib/GlobalMakefile
+include $(TOPDIR)/lib/MakeSubDirs
 include $(TOPDIR)/Makedirlist
 
