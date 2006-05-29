@@ -1,0 +1,124 @@
+#ifndef TASKS_H_
+#define TASKS_H_
+
+/// \file tasks.h
+/// \brief Implements TaskQueue, TaskInterface and other Task classes
+#include <list>
+
+
+namespace madness {
+	// more efficient than the current polling loop(s)
+	// would be a linking of input arguments
+	// and tasks so that assigning an input argument
+	// decrements a dependency count in the task,
+	// and a zero count triggers an automatic move
+	// to the ready queue.  not hard to do ... but
+	// since it does not change the public nterface 
+	// we can do it later.
+	
+	/// The minimal interface required for all tasks in the task queue
+	class TaskInterface {
+	public:
+		virtual bool probe() const = 0;
+		virtual void run() = 0;
+		virtual ~TaskInterface() {};
+	};
+	
+	/// A task with one input argument.
+	template <typename OpT, typename T>
+	class Task1in : public TaskInterface {
+	private:
+	    OpT op;
+	    T arg;
+	public:
+		Task1in(OpT op, const T& arg) : op(op), arg(arg) {};
+		
+		bool probe() const {return arg.probe();};
+		
+		void run() {op(arg.get());};
+	};
+	
+	/// A task with one output argument.
+	template <typename OpT, typename T>
+	class Task1out : public TaskInterface {
+	private:
+	    OpT op;
+	    T arg;
+	public:
+		Task1out(OpT op, T& arg) : op(op), arg(arg) {};
+		
+		bool probe() const {return true;};
+		
+		void run() {op(arg);};
+	};
+	
+	/// A task with one input and one output argument.
+	template <typename OpT, typename inT, typename outT>
+	class Task1in1out : public TaskInterface {
+	private:
+	    OpT op;
+	    inT inarg;
+	    outT outarg;
+	public:
+		Task1in1out(OpT op, inT& inarg, outT& outarg) 
+		: op(op), inarg(inarg), outarg(outarg) {};
+		
+		bool probe() const {return inarg.probe();};
+		
+		void run() {op(inarg.get(),outarg);};
+	};
+	
+	class TaskQueue {
+	private:
+		// Is there a more efficient choice than list?
+	    std::list< TaskInterface* > ready;
+	    std::list< TaskInterface* > pending;
+	    
+	public:
+		/// Add a new task ... the task queue takes ownership of the pointer.
+		void add(TaskInterface* t) {
+			if (t->probe()) ready.push_back(t);
+			else pending.push_back(t);
+		};
+		
+		/// Probe pending tasks and move the first ready one to ready queue.
+		
+		/// Returns true if a ready task was found, false otherwise.
+		bool probe() {
+			if (!pending.empty()) {
+				for (std::list<TaskInterface *>::iterator p = pending.begin(); 
+					 p != pending.end(); ++p) {
+					TaskInterface *tp = *p;
+				 	if (tp->probe()) {
+				 		ready.push_back(tp);
+				 		pending.erase(p);
+				 		return true;
+				 	}
+				}
+			}
+			return false;
+		};	 
+		
+		/// Runs the next ready task if there is one
+		void run_next_ready_task() {
+			if (!ready.empty()) {
+				TaskInterface *p = ready.front();
+				p->run();
+				ready.pop_front();
+			}
+		};
+		
+		// Need a probe all to ensure progress of multistep stuff
+		
+		// Need hooks to permit use of MPI_Testany instead of busy wait
+		
+		/// Runs until all tasks have been completed
+		void wait() {
+			while (!(pending.empty() && ready.empty())) {
+				probe();
+				run_next_ready_task();
+			}
+		};
+	};
+}
+#endif /*TASKS_H_*/
