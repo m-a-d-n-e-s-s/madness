@@ -18,4 +18,43 @@
         static inline void set_default(OctTreeT* layout) {
 	    _octtree_default = layout;
         };
+
+        /// insert remote parent (x, y, z in {0,1}) returning pointer to parent
+        OctTreeT* insert_remote_parent(ProcessID remote_proc) {
+            std::cout << "insert_remote_parent: this->(x,y,z) = (" << this->_x << ","
+                        << this->_y << "," << this->_z << ")" << std::endl;
+            int x = this->_x/2, y = this->_y/2, z = this->_z/2;
+            std::cout << "insert_remote_parent: about to insert parent (" << x << ","
+                        << y << "," << z << ")" << std::endl;
+            _p = SharedPtr<OctTreeT>(new OctTreeT(_n - 1,
+                                              x,
+                                              y,
+                                              z,
+                                              true,
+                                              0,
+                                              remote_proc,
+                                              _comm));
+/*
+            _p = SharedPtr<OctTreeT>(new OctTreeT(_n - 1,
+                                              (this->_x)/2,
+                                              (this->_y)/2,
+                                              (this->_z)/2,
+                                              true,
+                                              NULL,
+                                              remote_proc,
+                                              _comm));
+*/
+            FORIJK(
+                _p->_c[i][j][k] = 0;
+            );
+            _p->setChild(this->_x - ((this->_x)/2)*2,
+                         this->_y - ((this->_y)/2)*2,
+                         this->_z - ((this->_z)/2)*2,
+                         *this);
+           _p->_x = x; _p->_y = y; _p->_z = z;
+            std::cout << "insert_remote_parent: _p->(x,y,z) = (" << _p->_x << ","
+                        << _p->_y << "," << _p->_z << ")" << std::endl;
+            return _p;
+        };
+
         

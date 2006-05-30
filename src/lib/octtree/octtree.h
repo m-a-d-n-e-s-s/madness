@@ -15,7 +15,10 @@
 #include <misc/shared_ptr.h>
 #include <misc/misc.h>
 #include <serialize/archive.h>
+
 using namespace madness;
+
+
 
 
 #define FORIJK(expr) \
@@ -56,19 +59,12 @@ using namespace madness;
     } while(0)
 
 namespace madness {
-    
-    // declare it up here so that it will be recognized by OctTree:
-    class RootList;
 
     template <class T> class OctTree;
 
-/*
-    namespace archive {
-
-	class MPIInputArchive;
-	class MPIOutputArchive;
-    }
-*/
+   
+    // declare it up here so that it will be recognized by OctTree:
+    class RootList;
 
 
     /// Raise integer two to a positive power 
@@ -95,31 +91,15 @@ namespace madness {
     /// is stored and the remote node may, or may not, have children.
     template <class T>
     class OctTree {
-/********************************************************************************/
-/* This is also a bit of a work in progress.  I was trying to get the archive 	*/
-/* stuff to work with the OctTree, and I was unable to get the friending right.	*/
-/* So I just made the whole class public for now.  I know, I know, dangerous	*/
-/* and all that.  It's just a temporary measure while I figure out how to make	*/
-/* the friend thing work with it.  						*/
-/********************************************************************************/
-/*
-	friend class Archive;
-	friend Archive wrap_store(const Archive& ar, const OctTree<T>& tree);
-	friend void store(const Archive& ar, const OctTree<T>& tree);
-	friend void load(const Archive& ar, OctTree<T>& tree);
-	friend struct ArchiveStoreImpl;
-	friend struct ArchiveLoadImpl;
-	friend class MPIOutputArchive;
-	friend class MPIInputArchive;
-*/
-//    private:
-    public:
+    private:
+
+	
         typedef OctTree<T> OctTreeT;
         Translation _x;             ///< x translation (0,...,2**n-1)
         Translation _y;             ///< y translation (0,...,2**n-1)
         Translation _z;             ///< z translation (0,...,2**n-1)
         Level _n;                     ///< Level in tree
-        
+
         bool _remote;               ///< True if this node is remote
         ProcessID _rank;     ///< if (_remote) The rank of the remote process
 
@@ -185,22 +165,32 @@ namespace madness {
 		return false;
 	    else
 	    {
-		if (t1._x > t2._x)
+		Translation s1, s2, n1 = pow(2,t1._n-1), n2 = pow(2,t2._n-1);
+                s1 = (t1._x/n1)*4 + (t1._y/n1)*2 + t1._z/n1;
+                s2 = (t2._x/n2)*4 + (t2._y/n2)*2 + t2._z/n2;
+		if (s1 < s2)
 		    return true;
-		else if (t1._x < t2._x)
+		else if (s1 > s2)
 		    return false;
 		else
 		{
-		    if (t1._y > t2._y)
-			return true;
-		    else if (t1._y < t2._y)
-			return false;
+		    if (t1._x < t2._x)
+		    	return true;
+		    else if (t1._x > t2._x)
+		    	return false;
 		    else
 		    {
-			if (t1._z > t2._z)
+		    	if (t1._y < t2._y)
 			    return true;
-			else
+		    	else if (t1._y > t2._y)
 			    return false;
+		    	else
+		    	{
+			    if (t1._z < t2._z)
+			    	return true;
+			    else
+			    	return false;
+		    	}
 		    }
 		}
 	    }
@@ -211,7 +201,9 @@ namespace madness {
         OctTree() :
             _x(0), _y(0), _z(0), _n(-1),
             _remote(false),  _rank(-1), 
-            _p(0), _comm(0), _sendto(-1)
+            _p(0), _comm(0), 
+	    _cost(0), _localSubtreeCost(0),
+	    _visited(false), _sendto(-1)
         {};
 
         /// Constructor makes node with most info provided
@@ -226,7 +218,7 @@ namespace madness {
                 FORIJK(_c[i][j][k] = 0;);
             };
 
-        /// Constructor makes node with all info provided
+        /// Constructor makes node with even more info provided
         OctTree(Level n, Translation x, Translation y, Translation z,
                       bool remote, OctTreeT* parent, ProcessID remote_proc,
                       const Communicator* comm, Cost cost, 
@@ -274,6 +266,9 @@ namespace madness {
 
         /// Get cost for local subtree
         inline Cost getLocalSubtreeCost() {return _localSubtreeCost;};
+
+        /// Set cost for local subtree
+        inline void setLocalSubtreeCost(Cost cost) {_localSubtreeCost = cost;};
 
         /// Level of node in tree (0 is highest)
         inline long n() const {return _n;};
@@ -362,45 +357,32 @@ namespace madness {
             _c[x][y][z] = SharedPtr<OctTreeT>(new OctTreeT(t));
 	    return _c[x][y][z];
 	};
-        
-        /// insert remote parent (x, y, z in {0,1}) returning pointer to parent 
-        OctTreeT* insert_remote_parent(ProcessID remote_proc) {
-	    std::cout << "insert_remote_parent: this->(x,y,z) = (" << this->_x << ","
-			<< this->_y << "," << this->_z << ")" << std::endl;
-	    int x = this->_x/2, y = this->_y/2, z = this->_z/2;
-	    std::cout << "insert_remote_parent: about to insert parent (" << x << ","
-			<< y << "," << z << ")" << std::endl;
-            _p = SharedPtr<OctTreeT>(new OctTreeT(_n - 1,
-                                              x,
-                                              y,
-                                              z,
-                                              true,
-                                              0,
-                                              remote_proc,
-                                              _comm));
-/*
-            _p = SharedPtr<OctTreeT>(new OctTreeT(_n - 1,
-                                              (this->_x)/2,
-                                              (this->_y)/2,
-                                              (this->_z)/2,
-                                              true,
-                                              NULL,
-                                              remote_proc,
-                                              _comm));
-*/
-	    FORIJK( 
-		_p->_c[i][j][k] = 0;
-	    );
-	    _p->setChild(this->_x - ((this->_x)/2)*2, 
-			 this->_y - ((this->_y)/2)*2, 
-			 this->_z - ((this->_z)/2)*2,
-			 *this);
-	   _p->_x = x; _p->_y = y; _p->_z = z;
-	    std::cout << "insert_remote_parent: _p->(x,y,z) = (" << _p->_x << ","
-			<< _p->_y << "," << _p->_z << ")" << std::endl;
-            return _p;
-        };
 
+        /// insert local child (x, y, z in {0,1}, OctTreeT t), returning pointer to child
+        OctTreeT* insert_local_child(OctTreeT *t) {
+	    Translation x = t->_x - 2*this->_x;
+	    Translation y = t->_y - 2*this->_y;
+	    Translation z = t->_z - 2*this->_z;
+//	    SharedPtr<OctTreeT> *sp = new SharedPtr<OctTreeT>(t);
+//            _c[x][y][z] = *sp;
+            _c[x][y][z] = SharedPtr<OctTreeT>(t);
+	    return _c[x][y][z];
+	};
+
+	/// find out if this is a descendant of tree
+	bool isDescendant(OctTree<T> *tree)
+	{
+	    // tree closer to root can't be descendant of lower tree!
+	    if (_n <= tree->_n)
+		return false;
+
+	    Level dn = (Level) pow(2, _n-tree->_n);
+	    if ((_x/dn == tree->_x) && (_y/dn == tree->_y) && (_z/dn == tree->_z))
+		return true;
+	    else
+		return false;
+	}
+        
         /// insert remote child (x, y, z in {0,1}) returning pointer to child
         OctTreeT* insert_remote_child(int x, int y, int z, ProcessID remote_proc) {
             _c[x][y][z] = SharedPtr<OctTreeT>(new OctTreeT(_n + 1,
@@ -452,7 +434,8 @@ namespace madness {
 	void setVisited(ProcessID p)
 	{
 	    _visited = true;
-	    this->setSendto(p);
+	    if (_sendto == -1)
+	    	this->setSendto(p);
 
 	    FOREACH_LOCAL_CHILD(OctTreeT, this,
 		child->setVisited(p);
@@ -478,6 +461,20 @@ namespace madness {
 		child->setUnVisited();
 	    );
 	}
+
+        void depthFirstTraverseLocal(ProcessID me)
+        {
+
+            std::cout << "layer " << n() << ", (x,y,z) = " << x() << ", "
+                        << y() << ", " << z() << std::endl;
+            std::cout << "      hasChildren? " << this->isParent()
+                 << "    isRemote? " << this->isremote()
+                 << "    sendto? " << this->getSendto() << std::endl;
+            FOREACH_CHILD(OctTreeT, this,
+                if (this->getSendto() == me)
+                    child->depthFirstTraverseLocal(me);
+            );
+        }
 
 	/// Depth-first traversal of tree (prints out diagnostic info)
 	void depthFirstTraverseAll()
@@ -561,7 +558,11 @@ namespace madness {
 	    Cost cost = 0;
 	    std::cout << "computeLocalCost: at beginning of function" << std::endl;
 
-	    if (this->isParent())
+	    if (this->_sendto != -1)
+	    {
+		return 0;
+	    }
+	    else if (this->isParent())
 	    {
 		FOREACH_CHILD(OctTree<T>, this,
 		    if (child->isremote())
@@ -582,6 +583,7 @@ namespace madness {
 		);
 	    }
 	    cost += _cost;
+	    _localSubtreeCost = cost;
 	    std::cout << "computeLocalCost: at end of function" << std::endl;
 	    return cost;
 	}
@@ -984,6 +986,42 @@ namespace madness {
             
             return p;
         };
+
+
+/*
+	template <class Archive>
+	inline void store(const Archive& ar) const {
+//		std::cout << "serializing OctTree" << std::endl;
+	    ar & _x & _y & _z & _n & _remote & _rank & _cost;
+//		std::cout << "sent x y z = (" << _x << "," << _y << "," << _z
+//			<< ") ... cost" << std::endl;
+	    if (islocal())
+	    {
+		ar & _data;
+//		    std::cout << "sent data" << std::endl;
+		if (_c[0][0][0])
+		{
+		    ar & 1;
+//			std::cout << "t is a parent" << std::endl;
+		    
+		    FORIJK(
+			if (_c[i][j][k])
+		    {
+			ar & *(_c[i][j][k]);
+//			    	store(ar, *(_c[i][j][k]));
+		    }
+		        );
+		    
+		}
+		else
+		{
+		    ar & 0;
+//			std::cout << "t is not a parent" << std::endl;
+		}
+	    }
+	};
+*/
+
         
         template <class Archive>
         void load(const Archive& ar) {
@@ -1077,5 +1115,4 @@ namespace madness {
     }
 
 }
-
 #endif
