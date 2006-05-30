@@ -1,6 +1,7 @@
 TOPDIR=../../..
 TARGET_TO_MAKE = libMADmisc
-CXXSRC =  walltime.cc checksum_file.cc redirectio.cc am_stuff.cc debug.cc initcxx.cc
+CXXSRC =  walltime.cc checksum_file.cc redirectio.cc am_stuff.cc debug.cc 
+#initcxx.cc
 TESTPROGS = test
 TEST1SRC = test.cc 
 
