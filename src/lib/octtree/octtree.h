@@ -62,6 +62,11 @@ namespace madness {
 
     template <class T> class OctTree;
 
+    template <class T> class OctTreePtr {
+	public:
+	    typedef SharedPtr<OctTree<T> > Type;
+    };
+
    
     // declare it up here so that it will be recognized by OctTree:
     class RootList;
@@ -156,6 +161,7 @@ namespace madness {
         };
         
     public:
+//	typedef SharedPtr<OctTree<T> > OctTreePtr;
 	/// "Less than" operator so list of trees can be sorted by level and then translation
 	friend bool operator < (const OctTree<T>& t1, const OctTree<T>& t2)
 	{
@@ -165,7 +171,7 @@ namespace madness {
 		return false;
 	    else
 	    {
-		Translation s1, s2, n1 = pow(2,t1._n-1), n2 = pow(2,t2._n-1);
+		Translation s1, s2, n1 = (Translation) pow(2,t1._n-1), n2 = (Translation) pow(2,t2._n-1);
                 s1 = (t1._x/n1)*4 + (t1._y/n1)*2 + t1._z/n1;
                 s2 = (t2._x/n2)*4 + (t2._y/n2)*2 + t2._z/n2;
 		if (s1 < s2)
@@ -204,7 +210,10 @@ namespace madness {
             _p(0), _comm(0), 
 	    _cost(0), _localSubtreeCost(0),
 	    _visited(false), _sendto(-1)
-        {};
+//        {};
+        {
+//	    std::cout << "OctTree empty constructor" << std::endl;
+	};
 
         /// Constructor makes node with most info provided
         OctTree(Level n, Translation x, Translation y, Translation z,
@@ -215,7 +224,9 @@ namespace madness {
 	    _p(parent), _comm(comm), _cost(1), _localSubtreeCost(1),
 	    _visited(false), _sendto(-1)
             {
-                FORIJK(_c[i][j][k] = 0;);
+//	        std::cout << "OctTree most info constructor: the beginning" << std::endl;
+//                FORIJK(_c[i][j][k] = 0;);
+//	        std::cout << "OctTree most info constructor: the end" << std::endl;
             };
 
         /// Constructor makes node with even more info provided
@@ -228,19 +239,24 @@ namespace madness {
 	    _p(parent), _comm(comm), _cost(cost), 
 	    _localSubtreeCost(localSubtreeCost), _visited(visited), _sendto(-1)
             {
-                FORIJK(_c[i][j][k] = 0;);
+//	        std::cout << "OctTree even more info constructor: the beginning" << std::endl;
+//                FORIJK(_c[i][j][k] = 0;);
+//	        std::cout << "OctTree even more info constructor: the end" << std::endl;
             };
 
 	OctTree<T>(const OctTree<T>& t)
 	{
+//            std::cout << "OctTree copy constructor: the beginning" << std::endl;
 	    _x = t._x; _y = t._y; _z = t._z; _n = t._n; _remote = t._remote; _rank = t._rank;
 	    _p = t._p; _comm = t._comm; _cost = t._cost; _localSubtreeCost = t._localSubtreeCost;
 	    _visited = t._visited; _data = t._data; _sendto = t._sendto;
 	    //FORIJK(_c[i][j][k] = 0;);
 	    FORIJK(_c[i][j][k] = t._c[i][j][k];);
+//            std::cout << "OctTree copy constructor: the end" << std::endl;
 	}
 
         ~OctTree() {
+//	    std::cout << "OctTree destructor" << std::endl;
         }
 
 
@@ -323,6 +339,9 @@ namespace madness {
         
         /// returns pointer to parent (null if absent or if both this node & parent are remote)
         inline OctTreeT* parent() const {return _p;};
+
+	/// set the child's parent pointer
+	inline void setParent(OctTreeT* p) {_p = p;};
         
         /// returns child's pointer (null if absent or if both this node & child are remote)
         inline SharedPtr<OctTreeT> childPtr(int x, int y, int z) const {
@@ -339,8 +358,15 @@ namespace madness {
 	    return (OctTreeT*) _c[x][y][z];
 	};
 
+	inline SharedPtr<OctTreeT> setChild(int x, int y, int z, SharedPtr<OctTreeT> child) {
+	    _c[x][y][z] = child;
+	    return _c[x][y][z];
+	};
+
         /// insert local child (x, y, z in {0,1}) returning pointer to child
         OctTreeT* insert_local_child(int x, int y, int z) {
+	    std::cout << "insert_local_child xyz constructor (" << x << "," << y << "," << z << ")"
+			<< std::endl;
             _c[x][y][z] = SharedPtr<OctTreeT>(new OctTreeT(_n + 1,
                                                        2*this->_x + x,
                                                        2*this->_y + y,
@@ -354,6 +380,8 @@ namespace madness {
 
         /// insert local child (x, y, z in {0,1}, OctTreeT t), returning pointer to child
         OctTreeT* insert_local_child(int x, int y, int z, OctTreeT t) {
+	    std::cout << "insert_local_child xyz & t constructor (" << x << "," << y << "," << z << ")"
+			<< std::endl;
             _c[x][y][z] = SharedPtr<OctTreeT>(new OctTreeT(t));
 	    return _c[x][y][z];
 	};
@@ -363,6 +391,8 @@ namespace madness {
 	    Translation x = t->_x - 2*this->_x;
 	    Translation y = t->_y - 2*this->_y;
 	    Translation z = t->_z - 2*this->_z;
+	    std::cout << "insert_local_child copy constructor (" << x << "," << y << "," << z << ")"
+			<< std::endl;
 //	    SharedPtr<OctTreeT> *sp = new SharedPtr<OctTreeT>(t);
 //            _c[x][y][z] = *sp;
             _c[x][y][z] = SharedPtr<OctTreeT>(t);
@@ -385,6 +415,8 @@ namespace madness {
         
         /// insert remote child (x, y, z in {0,1}) returning pointer to child
         OctTreeT* insert_remote_child(int x, int y, int z, ProcessID remote_proc) {
+	    std::cout << "insert_remote_child constructor (" << x << "," << y << "," << z << ")"
+			<< std::endl;
             _c[x][y][z] = SharedPtr<OctTreeT>(new OctTreeT(_n + 1,
                                                        2*this->_x + x,
                                                        2*this->_y + y,

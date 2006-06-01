@@ -631,7 +631,7 @@ namespace madness {
 					<< std::endl;
 			    }
 			    arsend & size;
-			    for (int i = 0; i < localList.size(); i++)
+			    for (int i = 0; i < size; i++)
 			    {
 			    	arsend & localList[i] & costList[i];
 			    }
@@ -1028,12 +1028,12 @@ namespace madness {
 	std::vector<RootList> *localList = new std::vector<RootList>();
 	Communicator comm;
 	madness::redirectio(comm);
-	int me = comm.rank(), nproc = comm.nproc();
+	int me = comm.rank();
 	int glength = 0, tlength = 0, i, j;
 	RootList root;
 
-//	bool debug = true;
-	bool debug = false;
+	bool debug = true;
+//	bool debug = false;
 
 	/* globalList: the list of trees that need to be exchanged */
 	/* treeList: the list of subtrees that this processor owns */
@@ -1152,7 +1152,12 @@ namespace madness {
 		{
 		    OctTree<T> *p = new OctTree<T>();
 		    p = t->parent();
+		    ProcessID future_owner = 0;
+		    OctTree<T> *pprime = new OctTree<T>(p->n(), p->x(), p->y(), p->z(),true, 0,
+				future_owner, 0);
 		    treeList->push_back(t);
+//		    OctTreePtr<T>::Type tptr = OctTreePtr<T>::Type(t);
+//		    SharedPtr<OctTree<T> > tptr = SharedPtr<OctTree<T> >(t);
 		    if (debug)
 		    {
 			std::cout << "exchangeTrees: pushed back tree n = " << t->n() << " " <<
@@ -1169,6 +1174,16 @@ namespace madness {
 			std::cout << "exchangeTrees: about to insert remote child " <<
 			    "(" << x << "," << y << "," << z << ")" << " into parent " <<
 			    "(" << p->x() << "," << p->y() << "," << p->z() << ")" << std::endl;
+		    }
+		    pprime->setChild(x,y,z, p->childPtr(x,y,z));
+		    if (debug)
+		    {
+			std::cout << "exchangeTrees: just set pprime's child" << std::endl;
+		    }
+		    t->setParent(pprime);
+		    if (debug)
+		    {
+			std::cout << "exchangeTrees: just set t's parent" << std::endl;
 		    }
 		    OctTree<T> *q = new OctTree<T>();
 		    q = p->insert_remote_child(x, y, z, (*localList)[i].future_owner);
@@ -1289,6 +1304,15 @@ namespace madness {
 		    }
 		    treeList->erase((treeList->begin()+j));
 		    tlength--;
+		    if (debug)
+		    {
+			std::cout << "exchangeTrees: also need to delete the tree itself" << std::endl;
+		    }
+		    delete t;
+		    if (debug)
+		    {
+			std::cout << "exchangeTrees: deleted the tree itself" << std::endl;
+		    }
 		}
 		if (debug)
 		{
@@ -1312,7 +1336,30 @@ namespace madness {
 		treeList->push_back(t);
 	    }
 	
+	    if (debug)
+            {
+	    	int tlength = treeList->size();
+	    	std::cout << "exchangeTrees: at end of loop, list of length " <<
+			tlength << ":" << std::endl;
+            	for (int i = 0; i < tlength; i++)
+            	{
+            	    std::cout << "tree " << i << " of " << tlength << ":" << std::endl;
+            	    (*treeList)[i]->depthFirstTraverseAll();
+            	}
+	    }
 	}
+	if (debug)
+        {
+	    int tlength = treeList->size();
+	    std::cout << "exchangeTrees: before sorting and gluing together, list of length " <<
+		tlength << ":" << std::endl;
+            for (int i = 0; i < tlength; i++)
+            {
+            	std::cout << "tree " << i << " of " << tlength << ":" << std::endl;
+            	(*treeList)[i]->depthFirstTraverseAll();
+            }
+	}
+
 	sort((*treeList).begin(), (*treeList).end(), less<OctTree<T>* > ());
 	glueTrees(treeList);
     }
