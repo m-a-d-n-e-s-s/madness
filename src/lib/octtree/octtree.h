@@ -365,8 +365,8 @@ namespace madness {
 
         /// insert local child (x, y, z in {0,1}) returning pointer to child
         OctTreeT* insert_local_child(int x, int y, int z) {
-	    std::cout << "insert_local_child xyz constructor (" << x << "," << y << "," << z << ")"
-			<< std::endl;
+//	    std::cout << "insert_local_child xyz constructor (" << x << "," << y << "," << z << ")"
+//			<< std::endl;
             _c[x][y][z] = SharedPtr<OctTreeT>(new OctTreeT(_n + 1,
                                                        2*this->_x + x,
                                                        2*this->_y + y,
@@ -380,8 +380,8 @@ namespace madness {
 
         /// insert local child (x, y, z in {0,1}, OctTreeT t), returning pointer to child
         OctTreeT* insert_local_child(int x, int y, int z, OctTreeT t) {
-	    std::cout << "insert_local_child xyz & t constructor (" << x << "," << y << "," << z << ")"
-			<< std::endl;
+//	    std::cout << "insert_local_child xyz & t constructor (" << x << "," << y << "," << z << ")"
+//			<< std::endl;
             _c[x][y][z] = SharedPtr<OctTreeT>(new OctTreeT(t));
 	    return _c[x][y][z];
 	};
@@ -391,8 +391,8 @@ namespace madness {
 	    Translation x = t->_x - 2*this->_x;
 	    Translation y = t->_y - 2*this->_y;
 	    Translation z = t->_z - 2*this->_z;
-	    std::cout << "insert_local_child copy constructor (" << x << "," << y << "," << z << ")"
-			<< std::endl;
+//	    std::cout << "insert_local_child copy constructor (" << x << "," << y << "," << z << ")"
+//			<< std::endl;
 //	    SharedPtr<OctTreeT> *sp = new SharedPtr<OctTreeT>(t);
 //            _c[x][y][z] = *sp;
             _c[x][y][z] = SharedPtr<OctTreeT>(t);
@@ -415,8 +415,8 @@ namespace madness {
         
         /// insert remote child (x, y, z in {0,1}) returning pointer to child
         OctTreeT* insert_remote_child(int x, int y, int z, ProcessID remote_proc) {
-	    std::cout << "insert_remote_child constructor (" << x << "," << y << "," << z << ")"
-			<< std::endl;
+//	    std::cout << "insert_remote_child constructor (" << x << "," << y << "," << z << ")"
+//			<< std::endl;
             _c[x][y][z] = SharedPtr<OctTreeT>(new OctTreeT(_n + 1,
                                                        2*this->_x + x,
                                                        2*this->_y + y,
@@ -710,18 +710,15 @@ namespace madness {
             FORIJK(if (_c[i][j][k]) _c[i][j][k]->print(););
         };
         
-    void serialPartition(int np, std::vector< std::vector<RootList> > *pieces)
+    void serialPartition(int np, std::vector<RootList> *pieces)
     {
 	Cost cost = computeCost(false);
 	Cost idealPartition = (Cost) floor((1.0*cost)/np);
 	Cost accumulate = 0, sofar, subtotal = 0;
-	int procnum = 0;
 	std::vector<RootList> tmp;
 	bool lastPartition;
-//	bool debug = true;
-	bool debug = false;
-
-	pieces->insert(pieces->begin(), np, tmp);
+	bool debug = true;
+//	bool debug = false;
 
         if (debug)
         {
@@ -731,15 +728,29 @@ namespace madness {
         }
 
 	/* for each partition */
-	for (int p = 0; p < np; p++)
+	for (int p = np-1; p >= 0; p--)
 	{
 	    if (debug)
 		std::cout << "PARTITION NUMBER " << p << std::endl;
-	    lastPartition = (p+1 == np);
+	    lastPartition = (p == 0);
 	    subtotal = 0;
 
 	    /* Compute the cost of the subtree rooted by this node */
-	    this->computeCost();
+	    cost = this->computeCost();
+
+	    /*********************************************************************/
+	    /* 		Recompute ideal partition size if necessary 		 */
+	    /* The idea here is that updating the partition size will smooth out */
+	    /* any imbalances.  For example, imagine 4 processors and 7 cost.    */
+	    /* ideal_0 = 1, resulting in loads of 1, 1, 1, 4.  If instead we 	 */
+	    /* update the ideal size when it becomes larger, we would have a 	 */
+	    /* load of 1, 2, 2, 2 (much better balance).			 */
+	    /*********************************************************************/
+	    Cost iP = (Cost) floor((1.0*cost)/(p+1));
+            if (iP > idealPartition)
+            {
+                idealPartition = iP;
+            }
 
 	    /* if we still haven't filled the partition */
 	    while (accumulate < idealPartition)
@@ -750,13 +761,13 @@ namespace madness {
 		sofar = idealPartition - accumulate;
 		/* partition this subtree, with "sofar" amount of room left in partition */
 		tmp = this->partitionSubtree(sofar, &subtotal, p, lastPartition);
-		/* add all the subtrees on temp to procnum's list */
+		/* add all the subtrees on temp to list */
 		int tmpsize = tmp.size();
 		if (debug)
 		    std::cout << "serialPartition: adding " << tmpsize << " elements to list" << std::endl;
-		for (int i = 0; i < tmp.size(); i++)
+		for (int i = 0; i < tmpsize; i++)
 		{
-		    (*pieces)[p].push_back(tmp[i]);
+		    pieces->push_back(tmp[i]);
 		}
 		if (debug)
 		    std:: cout << "serialPartition: added " << tmpsize << " elements to list" << std::endl;
@@ -775,37 +786,6 @@ namespace madness {
 	    }
 	    /* Reset, and go on to next partition */
 	    accumulate = 0;
-	    procnum++;
-	    if (debug)
-	    {
-/*
-		for (int i = 0; i < (*pieces)[p].size(); i++)
-		{
-		    std::cout << "subtree:" << std::endl;
-		    ((*pieces)[p])[i]->depthFirstTraverse();
-		}
-*/
-	    }
-	}
-
-//	if (debug)
-	{
-/*
-	    std::cout << "\n\nFINAL PARTITIONING OF TREES" << std::endl;
-	    for (int p = 0; p < np; p++)
-	    {
-		std::cout << "\nPARTITION NUMBER " << p << std::endl;
-		for (int i = 0; i < (*pieces)[p].size(); i++)
-		{
-//		    std::cout << "subtree:" << std::endl;
-//		    ((*pieces)[p])[i]->depthFirstTraverse();
-		    std::cout << "subtree headed by:" << std::endl;
-		    std::cout << "layer " << ((*pieces)[p])[i].n <<": (" 
-			<< ((*pieces)[p])[i].x << "," << ((*pieces)[p])[i].y << ","
-			<< ((*pieces)[p])[i].z << ")" << std::endl;
-		}
-	    }
-*/
 	}
     }
 
@@ -814,8 +794,8 @@ namespace madness {
 	int partitionNumber, bool lastPartition)
     {
 	Cost accumulate = 0, costLeft = 0, temp = 0, subtreeCost = 0;
-//	bool debug = true;
-	bool debug = false;
+	bool debug = true;
+//	bool debug = false;
 	std::vector<RootList> treelist, treelist2;
 
 	if (debug)
@@ -910,7 +890,8 @@ namespace madness {
 			     std::cout << "partitionSubtree: back from calling myself"
 				<< " and accumulated subtree(s) of size " << temp << std::endl;
 			}
-			for (int i = 0; i < treelist2.size(); i++)
+			int tl2size = treelist2.size();
+			for (int i = 0; i < tl2size; i++)
 			{
 			    treelist.push_back(treelist2[i]);
 			}

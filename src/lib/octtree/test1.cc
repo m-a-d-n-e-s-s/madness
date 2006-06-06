@@ -10,6 +10,7 @@ using std::endl;
 #include <misc/misc.h>
 #include <octtree/sendrecv.h>
 //#include <octtree/octtree.h>
+#include <mpi.h>
 using namespace madness;
     
 
@@ -27,7 +28,7 @@ int main (int argc, char **argv) {
 
     int me = comm.rank();
     int nproc = comm.nproc();
-    ProcessID rank = comm.rank();
+//    ProcessID rank = comm.rank();
 
 
     if (me == 0)
@@ -149,16 +150,17 @@ int main (int argc, char **argv) {
 	
 
 	std::cout << "about to serialPartition: " << std::endl;
-	t->serialPartition(nproc, &pieces);
+//	t->serialPartition(nproc, &pieces);
+	t->serialPartition(nproc, &list);
 	std::cout << "done with serialPartition" << std::endl;
-	for (int i = 0; i < nproc; i++)
-	{
-	    int size = pieces[i].size();
-	    for (int j = 0; j < size; j++)
-	    {
-		list.push_back(pieces[i][j]);
-	    }
-	}
+//	for (int i = 0; i < nproc; i++)
+//	{
+//	    int size = pieces[i].size();
+//	    for (int j = 0; j < size; j++)
+//	    {
+//		list.push_back(pieces[i][j]);
+//	    }
+//	}
 
 
 
@@ -196,7 +198,7 @@ int main (int argc, char **argv) {
 	std::cout << "made treeList" << std::endl;
 	treeList->push_back(t);
 	std::cout << "added t to treeList" << std::endl;
-	exchangeTrees(&list, treeList);
+	exchangeTrees(&list, treeList, false);
 
 	// Let the processors know how many pieces they are getting
 
@@ -207,7 +209,7 @@ int main (int argc, char **argv) {
 
 	std::vector<RootList> *globalList = new std::vector<RootList>();
 	std::vector<OctTree<T>* > *treeList = new std::vector<OctTree<T>* >();
-	exchangeTrees(globalList, treeList);
+	exchangeTrees(globalList, treeList, false);
 
 /*
 	for (int i = 0; i < 1001; i++)

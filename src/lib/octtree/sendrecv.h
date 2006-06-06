@@ -1023,7 +1023,7 @@ namespace madness {
 
 
     template <class T>
-    void exchangeTrees(std::vector<RootList> *globalList, std::vector<OctTree<T>* > *treeList)
+    void exchangeTrees(std::vector<RootList> *globalList, std::vector<OctTree<T>* > *treeList, bool glue)
     {
 	std::vector<RootList> *localList = new std::vector<RootList>();
 	Communicator comm;
@@ -1361,7 +1361,8 @@ namespace madness {
 	}
 
 	sort((*treeList).begin(), (*treeList).end(), less<OctTree<T>* > ());
-	glueTrees(treeList);
+	if (glue)
+	    glueTrees(treeList);
     }
 
 
