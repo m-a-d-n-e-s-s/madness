@@ -287,7 +287,7 @@ namespace madness {
         inline void setLocalSubtreeCost(Cost cost) {_localSubtreeCost = cost;};
 
         /// Level of node in tree (0 is highest)
-        inline long n() const {return _n;};
+        inline Level n() const {return _n;};
         
 	/// Set x index of node (0,...,2**n-1)
 	inline void setx(Translation x) {_x = x;};
