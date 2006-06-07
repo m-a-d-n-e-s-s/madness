@@ -1619,14 +1619,14 @@ namespace madness {
 
 
         /// Private.  Recur down the tree printing out the norm of 
-	/// the coefficients.
+		/// the coefficients.
         void _pnorms(OctTreeT *tree) const {
             const TensorT *t = coeff(tree);
             if (t) {
-	      for (long i=0; i<tree->n(); i++) std::printf("  ");
-	      std::printf("%4d %8d %8d %8d %e9.1\n",
-			  tree->n(),tree->x(),tree->y(),tree->z(),t->normf());
-	    }
+	      		for (long i=0; i<tree->n(); i++) std::printf("  ");
+	      		std::printf("%4ld (%8ld, %8ld, %8ld) = %9.1e\n",
+			  	tree->n(),tree->x(),tree->y(),tree->z(),t->normf());
+	    	}
             FOREACH_CHILD(OctTreeT, tree, if (isactive(child)) _pnorms(child););
         }
 

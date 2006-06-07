@@ -20,9 +20,6 @@ double fred(double x, double y, double z) {
     x-=0.5; y-=0.5; z-=0.5;
     return fac*exp(-65.0*(x*x+y*y+z*z));
 }
-//double fred(double x, double y, double z) {
-//    return x*x+y*y*z*z;
-//}
 
 double_complex cfred(double x, double y, double z) {
     return x*x+y*y*z*z;
@@ -36,6 +33,7 @@ int main(int argc, char* argv[]) {
     // 4) Load coeffs and quadrature information from file
     // 5) Setup default OctTreeLayout
     // 6) Sanity check
+    // 7) Top level catching of exceptions
     MPI::Init(argc, argv);
     Communicator comm;
     redirectio(comm);
@@ -47,52 +45,16 @@ int main(int argc, char* argv[]) {
     if (!test_two_scale_coefficients()) comm.Abort();
     
     // To ensure reliable cleanup catch all C++ exceptions here
-        // Do useful stuff below here
-        FunctionDefaults::k=9;
-        FunctionDefaults::initial_level=0;
-        Function<double> f = FunctionFactory<double>(fred).refine(1).compress(0).initial_level(2).thresh(1e-3);
-        Function<double> g = FunctionFactory<double>(fred).refine(1).compress(0).initial_level(2).thresh(1e-3);
-        //print("normsq after projection    ",f.norm2sq_local());
-        print("normsq after projection    ",f.norm2sq());
-        
-        for (int i=0; i<=16; i++) {
-            double z = i/16.0;
-            double value = 0;
-            f.eval_local(z,z,z,&value); 
-            print("test eval",z,value,fred(z,z,z));
-        }
+    try {
+        // Do useful stuff here
+        FunctionDefaults::k=7;
+        FunctionDefaults::initial_level=1;
+        Function<double> f = FunctionFactory<double>(fred).thresh(1e-3).nocompress();
+        print("Tree in scaling function basis",f.norm2sq());
+		f.pnorms();
         f.compress();
-        print("norm2sq after compression   ",f.norm2sq());
-        f.reconstruct();
-        print("norm2sq after reconstruction   ",f.norm2sq());
-        f.truncate();
-        print("norm2sq after truncation   ",f.norm2sq());
-	double inner_test = f.inner(g);
-        cout << " inner_test = " << inner_test << endl;
-        print("norm2sq after inner   ",f.norm2sq());
-/*
-	print("Tree in scaling function form");
-	f.pnorms();
-	print("Tree in wavelet form");
-	f.compress();
-	f.pnorms();
-	f.norm2sq_local();
-	
-
-        f.reconstruct();
-        
-        Function<double> g;
-        g = copy(f);
-        print("start of statement");
-        g = 2.0 + g + 3.0*g - f*2.0 - 1.0;
-        print("end of statement");
-        
-        print(f(0.5,0.5,0.5));
-        f.square();
-        print(f(0.5,0.5,0.5));
-        
-        //Function<double_complex> cf = FunctionFactory<double_complex>(cfred).refine(1).initial_level(1);
-        //print("normsq",cf.norm2sq_local());
+        print("Tree in wavelet basis",f.norm2sq());
+        f.pnorms();
     }
     catch (char const* msg) {
         std::cerr << "Exception (string): " << msg << std::endl;
@@ -117,7 +79,6 @@ int main(int argc, char* argv[]) {
         comm.Abort();
     }
     
-*/
     // The follwing should be used for succesful termination
     comm.close(); 
     MPI::Finalize();
