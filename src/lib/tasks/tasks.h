@@ -25,6 +25,11 @@ namespace madness {
 	};
 	
 	/// A task with one input argument.
+	
+	/// The operation can be a function or functor with this interface
+	/// \code
+	///      void op(const T& in);
+	/// \endcode
 	template <typename OpT, typename T>
 	class Task1in : public TaskInterface {
 	private:
@@ -39,6 +44,11 @@ namespace madness {
 	};
 	
 	/// A task with one output argument.
+
+	/// The operation can be a function or functor with this interface
+	/// \code
+	///      void op(SAV<T>& out);
+	/// \endcode
 	template <typename OpT, typename T>
 	class Task1out : public TaskInterface {
 	private:
@@ -53,6 +63,11 @@ namespace madness {
 	};
 	
 	/// A task with one input and one output argument.
+	
+	/// The operation can be a function or functor with this interface
+	/// \code
+	///      void op(const inT& in, SAV<outT>& out);
+	/// \endcode
 	template <typename OpT, typename inT, typename outT>
 	class Task1in1out : public TaskInterface {
 	private:
@@ -66,6 +81,32 @@ namespace madness {
 		bool probe() const {return inarg.probe();};
 		
 		void run() {op(inarg.get(),outarg);};
+	};
+
+	/// A task with fixed-size arrays of input and output arguments 
+	
+	/// The operation can be a function or functor with this interface
+	/// \code
+	///      void op(const SAV<inT> in[n], SAV<outT> out[m]);
+	/// \endcode
+	template <typename OpT, typename inT, std::size_t n, typename outT, std::size_t m>
+	class TaskAinAout : public TaskInterface {
+	private:
+	    OpT op;
+	    inT inarg[n];
+	    outT outarg[m];
+	public:
+		TaskAinAout(OpT op, inT in[n], outT out[m]) : op(op) {
+			for (int i=0; i<n; i++) inarg[i] = in[i];
+			for (int i=0; i<m; i++)outarg[i] = out[i];
+		};
+		
+		bool probe() const {
+			for (int i=0; i<n; i++) if (!inarg[i].probe()) return false;
+			return true;
+		};
+		
+		void run() {op(inarg,outarg);};
 	};
 	
 	class TaskQueue {
