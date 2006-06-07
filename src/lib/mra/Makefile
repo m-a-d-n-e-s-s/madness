@@ -16,11 +16,12 @@ CXXSRC = mra.cc twoscale.cc legendre.cc sepop.cc gfit.cc
 DATAFILES = autocorr coeffs gaussleg
 
 # Names of test programs [OPTIONAL]
-TESTPROGS = test testq
+TESTPROGS = test testq rhb
 
 # Source files for the test programs (up to six of them)
 TEST1SRC = test.cc
 TEST2SRC = testq.cc
+TEST3SRC = rhb.cc mraX.cc
          
 # GlobalMakefile now does most of the work for you
 include $(TOPDIR)/lib/GlobalMakefile
@@ -31,4 +32,13 @@ test: $(TEST1OBJ) $(THISLIBDEPEND)
 
 testq: $(TEST2OBJ) $(THISLIBDEPEND)
 	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ $(SYSLIBS) $(LTLINKBINOPTS)
+
+
+
+#rhb: $(TEST3OBJ) $(THISLIBDEPEND)
+#	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ $(SYSLIBS) $(LTLINKBINOPTS)
+
+rhb: $(TEST3OBJ) 
+	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ legendre.o  sepop.o  gfit.o  twoscale.o ../../../lib/libMADtensor.a ../../../lib/libMADmisc.a /usr/lib/liblapack.a /usr/lib/libblas.a  -lpthread 
+
 

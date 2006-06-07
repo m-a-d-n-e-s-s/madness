@@ -3,7 +3,7 @@
 #include <iostream>
 using std::cout;
 using std::endl;
-#include <mra/mra.h>
+#include <mra/mraX.h>
 #include <misc/misc.h>
 #include <misc/communicator.h>
 #include <mra/twoscale.h>
@@ -31,12 +31,16 @@ int main(int argc, char* argv[]) {
     Communicator comm;
     redirectio(comm);
     comm.print();
-    input_data testdata;
+    load_coeffs(comm);
+    load_quadrature(comm);
+    FunctionDefaults::tree = new FunctionOctTree(OctTree<FunctionNode>::create_default(comm,2));
+    if (!gauss_legendre_test()) comm.Abort();
+    if (!test_two_scale_coefficients()) comm.Abort();
 
     try {
 	FunctionDefaults::k=7;
 	FunctionDefaults::initial_level=2;
-	Function<double> f = FunctionFactory<double>(V).thresh(1e-3).compress(0);
+	Function<double> f = FunctionFactory<double>(fred).thresh(1e-3).compress(0);
 	print("Tree in scaling function form");
 	f.pnorms();
 	f.compress();
