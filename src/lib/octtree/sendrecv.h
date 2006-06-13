@@ -70,6 +70,19 @@ namespace madness {
 		    return false;
 	    }
 
+	    bool isDescendant(RootList r)
+	    {
+		if (r.n >= n)
+		    return false;
+
+		Level dn = (Level) pow(2, n-r.n);
+            	if ((x/dn == r.x) && (y/dn == r.y) && (z/dn == r.z))
+                    return true;
+            	else
+                    return false;
+	    }
+
+
 	    friend bool operator < (const RootList& t1, const RootList& t2)
 	    {
 		//std::cout << "operator <: beginning" << std::endl;
@@ -1023,17 +1036,17 @@ namespace madness {
 
 
     template <class T>
-    void exchangeTrees(std::vector<RootList> *globalList, std::vector<OctTree<T>* > *treeList, bool glue)
+    void exchangeTrees(std::vector<RootList> *globalList, std::vector<SharedPtr<OctTree<T> > > *treeList, 
+	bool glue)
     {
-	std::vector<RootList> *localList = new std::vector<RootList>();
 	Communicator comm;
 	madness::redirectio(comm);
 	int me = comm.rank();
 	int glength = 0, tlength = 0, i, j;
 	RootList root;
 
-	bool debug = true;
-//	bool debug = false;
+//	bool debug = true;
+	bool debug = false;
 
 	/* globalList: the list of trees that need to be exchanged */
 	/* treeList: the list of subtrees that this processor owns */
@@ -1091,31 +1104,26 @@ namespace madness {
 		globalList->push_back(root);
 	    }
 
-	/* if this root is somehow connected with me, save this root onto the localList */
-	    if ((root.current_owner == me) || (root.future_owner == me))
+	/* if this root is somehow connected with me, print this out for debug */
+	    if (debug)
 	    {
-		if (debug)
+		if ((root.current_owner == me) || (root.future_owner == me))
 		{
 		    std::cout << "exchangeTrees: I have something to do with tree " <<
 			"(" << root.x << "," << root.y << "," << root.z << "," << root.n << ")"
 			<< std::endl;
 		}
-		localList->push_back(root);
 	    }
 	}
 	MPI::COMM_WORLD.Barrier();
-	int llength = localList->size();
-	if (debug)
-	{
-	   std::cout << "exchangeTrees: my localList is of length " << llength << std::endl;
-	}
-	/* Now, do something with each tree on the localList */
-	for (i = 0; i < llength; i++)
+	/* Now, do something with each tree on the globalList */
+	for (i = 0; i < glength; i++)
 	{
 	    if (debug)
 		std::cout << std::endl;
 	/* if I own this root and will continue to own this root */
-	    if ((*localList)[i].current_owner == (*localList)[i].future_owner)
+	    if (((*globalList)[i].current_owner == me) && 
+		((*globalList)[i].current_owner == (*globalList)[i].future_owner))
 	    {
 		// do nothing, unless localList[i] is not currently a local root
 		if (debug)
@@ -1132,10 +1140,10 @@ namespace madness {
 			(*treeList)[j]->depthFirstTraverseAll();
 			std::cout << "exchangeTrees: will I find it?" << std::endl;
 		    }
-		    t = (*treeList)[j]->find((*localList)[i].n, (*localList)[i].x, (*localList)[i].y, 
-				(*localList)[i].z);
-		    if ((t) && (t->n() == (*localList)[i].n) && (t->x() == (*localList)[i].x) &&
-				(t->y() == (*localList)[i].y) && (t->z() == (*localList)[i].z))
+		    t = (*treeList)[j]->find((*globalList)[i].n, (*globalList)[i].x, (*globalList)[i].y, 
+				(*globalList)[i].z);
+		    if ((t) && (t->n() == (*globalList)[i].n) && (t->x() == (*globalList)[i].x) &&
+				(t->y() == (*globalList)[i].y) && (t->z() == (*globalList)[i].z))
 		    {
 			if (debug)
 			{
@@ -1152,12 +1160,22 @@ namespace madness {
 		{
 		    OctTree<T> *p = new OctTree<T>();
 		    p = t->parent();
-		    ProcessID future_owner = 0;
+		    ProcessID future_owner = -1;
+		    for (int k = i+1; k < glength; k++)
+		    {
+		    	if ((*globalList)[i].isDescendant((*globalList)[k]))
+		    	{
+			    future_owner = (*globalList)[k].future_owner;
+			    break;
+		    	}
+		    }
 		    OctTree<T> *pprime = new OctTree<T>(p->n(), p->x(), p->y(), p->z(),true, 0,
 				future_owner, 0);
-		    treeList->push_back(t);
-//		    OctTreePtr<T>::Type tptr = OctTreePtr<T>::Type(t);
-//		    SharedPtr<OctTree<T> > tptr = SharedPtr<OctTree<T> >(t);
+
+		    Translation x = (*globalList)[i].x, y = (*globalList)[i].y, z = (*globalList)[i].z;
+		    x -= 2*(x/2); y -= 2*(y/2); z -= 2*(z/2);
+		    SharedPtr<OctTree<T> > tptr = p->childPtr(x,y,z);
+		    treeList->push_back(tptr);
 		    if (debug)
 		    {
 			std::cout << "exchangeTrees: pushed back tree n = " << t->n() << " " <<
@@ -1167,15 +1185,13 @@ namespace madness {
 				<< std::endl;
 		    }
 		    tlength++;
-		    Translation x = (*localList)[i].x, y = (*localList)[i].y, z = (*localList)[i].z;
-		    x -= 2*(x/2); y -= 2*(y/2); z -= 2*(z/2);
 		    if (debug)
 		    {
 			std::cout << "exchangeTrees: about to insert remote child " <<
 			    "(" << x << "," << y << "," << z << ")" << " into parent " <<
 			    "(" << p->x() << "," << p->y() << "," << p->z() << ")" << std::endl;
 		    }
-		    pprime->setChild(x,y,z, p->childPtr(x,y,z));
+		    pprime->setChild(x,y,z, tptr);
 		    if (debug)
 		    {
 			std::cout << "exchangeTrees: just set pprime's child" << std::endl;
@@ -1186,7 +1202,7 @@ namespace madness {
 			std::cout << "exchangeTrees: just set t's parent" << std::endl;
 		    }
 		    OctTree<T> *q = new OctTree<T>();
-		    q = p->insert_remote_child(x, y, z, (*localList)[i].future_owner);
+		    q = p->insert_remote_child(x, y, z, (*globalList)[i].future_owner);
 		    if (debug)
 		    {
 			std::cout << "exchangeTrees: inserted remote child " <<
@@ -1207,7 +1223,7 @@ namespace madness {
 		}
 	    }
 	/* if I own this root but need to send it elsewhere */
-	    else if ((*localList)[i].current_owner == me)
+	    else if ((*globalList)[i].current_owner == me)
 	    {
 		// send it to its new owner
 		// we assume that the element is indeed owned by this processor
@@ -1224,8 +1240,8 @@ namespace madness {
 			(*treeList)[j]->depthFirstTraverseAll();
 			std::cout << "exchangeTrees: will I find it?" << std::endl;
 		    }
-		    t = (*treeList)[j]->find((*localList)[i].n, (*localList)[i].x, (*localList)[i].y, 
-						(*localList)[i].z);
+		    t = (*treeList)[j]->find((*globalList)[i].n, (*globalList)[i].x, (*globalList)[i].y, 
+						(*globalList)[i].z);
 		    if (debug)
 		    {
 			if (t)
@@ -1238,8 +1254,8 @@ namespace madness {
 			    std::cout << "exchangeTrees: t not yet found" << std::endl;
 			}
 		    }
-		    if ((t) && (t->n() == (*localList)[i].n) && (t->x() == (*localList)[i].x) &&
-				(t->y() == (*localList)[i].y) && (t->z() == (*localList)[i].z))
+		    if ((t) && (t->n() == (*globalList)[i].n) && (t->x() == (*globalList)[i].x) &&
+				(t->y() == (*globalList)[i].y) && (t->z() == (*globalList)[i].z))
 		    {
 			if (debug)
 			{
@@ -1261,10 +1277,10 @@ namespace madness {
 		if (debug)
 		{
 		    std::cout << "exchangeTrees: I am about to send the tree to " <<
-			(*localList)[i].future_owner << std::endl;
+			(*globalList)[i].future_owner << std::endl;
 		    std::cout << "exchangeTrees: t = : " << (t) << std::endl;
 		}
-		sendSubtree(t, me, (*localList)[i].future_owner);
+		sendSubtree(t, me, (*globalList)[i].future_owner);
 		if (debug)
 		{
 		    std::cout << "exchangeTrees: sent tree t" << std::endl;
@@ -1290,9 +1306,9 @@ namespace madness {
 		    {
 			std::cout << "exchangeTrees: the parent of tree just sent is local" << std::endl;
 		    }
-		    Translation x = (*localList)[i].x, y = (*localList)[i].y, z = (*localList)[i].z;
+		    Translation x = (*globalList)[i].x, y = (*globalList)[i].y, z = (*globalList)[i].z;
 		    x -= 2*(x/2); y -= 2*(y/2); z -= 2*(z/2);
-		    p->insert_remote_child(x, y, z, (*localList)[i].future_owner);
+		    p->insert_remote_child(x, y, z, (*globalList)[i].future_owner);
 		}
 	/* otherwise, remove the tree from my treeList */
 		else
@@ -1320,7 +1336,7 @@ namespace madness {
 			tlength << std::endl;
 		}
 	    }
-	    else
+	    else if ((*globalList)[i].future_owner == me)
 	    {
 		// receive from current owner
 		if (debug)
@@ -1328,12 +1344,27 @@ namespace madness {
 		    std::cout << "exchangeTrees: I am future_owner" << std::endl;
 		}
 		OctTree<T> *t = new OctTree<T>();
-		recvSubtree(t, me, (*localList)[i].current_owner);
+		recvSubtree(t, me, (*globalList)[i].current_owner);
 		if (debug)
 		{
 		    std::cout << "exchangeTrees: at least I received something!" << std::endl;
 		}
-		treeList->push_back(t);
+		SharedPtr<OctTree<T> > tptr = SharedPtr<OctTree<T> >(t);
+		int parent_loc = -1;
+		for (int j = i+1; j < glength; j++)
+		{
+		    if ((*globalList)[i].isDescendant((*globalList)[j]))
+		    {
+			parent_loc = (*globalList)[j].future_owner;
+			break;
+		    }
+		}
+		Translation x = t->x(), y = t->y(), z = t->z();
+		OctTree<T> *p = new OctTree<T>(t->n()-1, x/2, y/2, z/2, true, 0, parent_loc, 0);
+		x -= 2*(x/2); y -= 2*(y/2); z -= 2*(z/2);
+		p->setChild(x,y,z, tptr);
+		treeList->push_back(tptr);
+		tlength++;
 	    }
 	
 	    if (debug)
@@ -1360,7 +1391,7 @@ namespace madness {
             }
 	}
 
-	sort((*treeList).begin(), (*treeList).end(), less<OctTree<T>* > ());
+//	sort((*treeList).begin(), (*treeList).end(), less<OctTree<T>* > ());
 	if (glue)
 	    glueTrees(treeList);
     }
@@ -1445,7 +1476,7 @@ namespace madness {
 /********************************************************************************/
 
     template <class T>
-    void glueTrees(std::vector<OctTree<T>* > *treeList)
+    void glueTrees(std::vector<SharedPtr<OctTree<T> > > *treeList)
     {
 	int size = treeList->size();
 	int nconsidered = size, nunchanged = 0;

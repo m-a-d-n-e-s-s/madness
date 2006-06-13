@@ -39,7 +39,6 @@ int main (int argc, char **argv) {
 	/*										*/
 	/********************************************************************************/
 
-	std::vector< std::vector< RootList > > pieces;
 	std::vector< RootList > list;
 	OctTree<T> *t = new OctTree<T>(0, 0,0,0, false, 0, -1, &comm);
         cout << "t.getCost() = " << t->getCost() << endl;
@@ -150,39 +149,8 @@ int main (int argc, char **argv) {
 	
 
 	std::cout << "about to serialPartition: " << std::endl;
-//	t->serialPartition(nproc, &pieces);
 	t->serialPartition(nproc, &list);
 	std::cout << "done with serialPartition" << std::endl;
-//	for (int i = 0; i < nproc; i++)
-//	{
-//	    int size = pieces[i].size();
-//	    for (int j = 0; j < size; j++)
-//	    {
-//		list.push_back(pieces[i][j]);
-//	    }
-//	}
-
-
-
-/*
-	list.push_back(RootList(t, 0, 3));
-	list.push_back(RootList(child3, 0, 1));
-	list.push_back(RootList(child2, 0, 0));
-	list.push_back(RootList(child1, 0, 0));
-	list.push_back(RootList(child0, 0, 0));
-	list.push_back(RootList(child41, 0, 2));
-	list.push_back(RootList(child40, 0, 2));
-	list.push_back(RootList(child36, 0, 0));
-	list.push_back(RootList(child35, 0, 0));
-	list.push_back(RootList(child34, 0, 0));
-	list.push_back(RootList(child33, 0, 0));
-	list.push_back(RootList(child32, 0, 0));
-	list.push_back(RootList(child31, 0, 0));
-	list.push_back(RootList(child30, 0, 0));
-	list.push_back(RootList(child370, 0, 0));
-*/
-
-	std::cout << "done with putting pieces on list" << std::endl;
 	sort(list.begin(), list.end());
 	std::cout << std::endl << "sorted list" << std::endl;
 	int llength = list.size();
@@ -194,9 +162,9 @@ int main (int argc, char **argv) {
 		"(" << list[i].x << "," << list[i].y << "," << list[i].z << ")" << std::endl;
 	}
 
-	std::vector<OctTree<T>* > *treeList = new std::vector<OctTree<T>* >();
+	std::vector<SharedPtr<OctTree<T> > > *treeList = new std::vector<SharedPtr<OctTree<T> > >();
 	std::cout << "made treeList" << std::endl;
-	treeList->push_back(t);
+	treeList->push_back(SharedPtr<OctTree<T> >(t));
 	std::cout << "added t to treeList" << std::endl;
 	exchangeTrees(&list, treeList, false);
 
@@ -208,16 +176,9 @@ int main (int argc, char **argv) {
     {
 
 	std::vector<RootList> *globalList = new std::vector<RootList>();
-	std::vector<OctTree<T>* > *treeList = new std::vector<OctTree<T>* >();
+	std::vector<SharedPtr<OctTree<T> > > *treeList = new std::vector<SharedPtr<OctTree<T> > >();
 	exchangeTrees(globalList, treeList, false);
 
-/*
-	for (int i = 0; i < 1001; i++)
-	{
-	   std::cout << " " << i;
-	   std::cout.flush();
-	}
-*/
 	std::cout << "End of the line " << std::endl;
     }
 
