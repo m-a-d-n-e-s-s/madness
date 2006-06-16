@@ -1137,9 +1137,6 @@ namespace madness {
 	      }
 	      branchList.remote = isremote(tree);
 	      branchList.active = isactive(tree);
-	       << branchList.y << " " << branchList.z << " " << branchList.n << " " 
-	       << branchList.rank << " " << branchList.remote << " " 
-	       << branchList.active << " " << branchList.have_child << " " << endl;
 	    }
 	    subtreeList.push_back(branchList);
 	  //}
