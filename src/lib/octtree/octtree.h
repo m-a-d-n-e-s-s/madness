@@ -364,7 +364,8 @@ namespace madness {
 	};
 
         /// insert local child (x, y, z in {0,1}) returning pointer to child
-        OctTreeT* insert_local_child(int x, int y, int z) {
+//        OctTreeT* insert_local_child(int x, int y, int z) {
+        SharedPtr<OctTreeT> insert_local_child(int x, int y, int z) {
 //	    std::cout << "insert_local_child xyz constructor (" << x << "," << y << "," << z << ")"
 //			<< std::endl;
             _c[x][y][z] = SharedPtr<OctTreeT>(new OctTreeT(_n + 1,
@@ -996,46 +997,78 @@ namespace madness {
             // Missing children above the lowest level correspond
             // to connections to remote nodes which we now make.
             p->add_remote_children(nmax);
+
+	    p->depthFirstTraverse();
             
             return p;
         };
 
+	/// create_single creates the OctTree on just one processor
 
-/*
-	template <class Archive>
-	inline void store(const Archive& ar) const {
-//		std::cout << "serializing OctTree" << std::endl;
-	    ar & _x & _y & _z & _n & _remote & _rank & _cost;
-//		std::cout << "sent x y z = (" << _x << "," << _y << "," << _z
-//			<< ") ... cost" << std::endl;
-	    if (islocal())
+//	static SharedPtr<OctTreeT> create_single(const Communicator& comm, Level nmax)
+	static OctTreeT* create_single(const Communicator& comm, Level nmax)
+	{
+//	    SharedPtr<OctTreeT> p = 0;
+	    OctTreeT *p = 0;
+	    ProcessID me = comm.rank();
+
+	    bool debug = true;
+//	    bool debug = false;
+
+	    if (me != 0) return p;
+
+	    if (debug)
 	    {
-		ar & _data;
-//		    std::cout << "sent data" << std::endl;
-		if (_c[0][0][0])
-		{
-		    ar & 1;
-//			std::cout << "t is a parent" << std::endl;
-		    
-		    FORIJK(
-			if (_c[i][j][k])
-		    {
-			ar & *(_c[i][j][k]);
-//			    	store(ar, *(_c[i][j][k]));
-		    }
-		        );
-		    
-		}
-		else
-		{
-		    ar & 0;
-//			std::cout << "t is not a parent" << std::endl;
-		}
+		std::cout << "create_single: about to initialize p" << std::endl;
 	    }
-	};
-*/
+//	    p = SharedPtr<OctTreeT>(new OctTreeT(0,0,0,0,false, 0, -1, &comm));
+	    p = new OctTreeT(0,0,0,0,false, 0, -1, &comm);
+	    if (debug)
+	    {
+		std::cout << "create_single: about to insert local children" << std::endl;
+	    }
+	    p->insert_local_children(nmax);
+	    if (debug)
+	    {
+		std::cout << "create_single: back from inserting local children" << std::endl;
+	    }
+	    p->depthFirstTraverse();
 
-        
+	    return p;
+	};
+
+
+	/// insert children recursively down to Level nmax
+
+	void insert_local_children(Level nmax)
+	{
+	    bool debug = true;
+//	    bool debug = false;
+	    if (_n >= nmax) return;
+
+	    SharedPtr<OctTreeT> c;
+
+	    FORIJK(
+		if (debug)
+		{
+		    std::cout << "insert_local_children: about to insert child" << 
+			" (" << i << "," << j << "," << k << ")" << std::endl;
+		}
+		c = insert_local_child(i,j,k);
+		if (debug)
+		{
+		    std::cout << "insert_local_children: inserted child" << 
+			" (" << i << "," << j << "," << k << ")" << std::endl;
+		}
+		c->insert_local_children(nmax);
+		if (debug)
+		{
+		    std::cout << "insert_local_children: back from recursive call" << 
+			std::endl;
+		}
+	    );
+	};
+
         template <class Archive>
         void load(const Archive& ar) {
 //		std::cout << "deserializing OctTree" << std::endl;
