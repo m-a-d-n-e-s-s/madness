@@ -20,13 +20,13 @@ const double PI = 3.1415926535897932384;
 
 double fred(double x, double y, double z) {
     double fac = pow(2.0*65.0/PI,0.75);
-    x-=0.5; y-=0.5; z-=0.5;
+    x-=0.5;
+    y-=0.5;
+    z-=0.5;
     return fac*exp(-65.0*(x*x+y*y+z*z));
 }
 
 namespace madness {
-extern "C" void fredfred();
-void xterm_debug(const Communicator& comm, const char* path, const char* display);
 }
 
 double_complex cfred(double x, double y, double z) {
@@ -44,7 +44,7 @@ int main(int argc, char* argv[]) {
     // 7) Top level catching of exceptions
     MPI::Init(argc, argv);
     Communicator comm;
-    madness::comm_default = &comm;	
+    madness::comm_default = &comm;
     redirectio(comm);
     comm.print();
     load_coeffs(comm);
@@ -52,11 +52,11 @@ int main(int argc, char* argv[]) {
     FunctionDefaults::tree = new FunctionOctTree(OctTree<FunctionNode>::create_default(comm,2));
     if (!gauss_legendre_test()) comm.Abort();
     if (!test_two_scale_coefficients()) comm.Abort();
-    
+
     for (int i=1; i<argc; i++) {
-    	if (strcmp(argv[i],"-d") == 0) xterm_debug(comm,0,0);
+        if (strcmp(argv[i],"-d") == 0) xterm_debug(comm,0,0);
     }
-    
+
     // To ensure reliable cleanup catch all C++ exceptions here
     try {
         // Do useful stuff here
@@ -64,39 +64,34 @@ int main(int argc, char* argv[]) {
         FunctionDefaults::initial_level=1;
         Function<double> f = FunctionFactory<double>(fred).thresh(1e-3).nocompress();
         print("Tree in scaling function basis");
-		f.pnorms();
+        f.pnorms();
         f.compress2();
         print("Tree in wavelet basis");
         f.pnorms();
         f.reconstruct();
         print("Tree in scaling function basis");
-		f.pnorms();
-    }
-    catch (char const* msg) {
+        f.pnorms();
+    } catch (char const* msg) {
         std::cerr << "Exception (string): " << msg << std::endl;
         comm.Abort();
-    }
-    catch (std::exception& e) {
+    } catch (std::exception& e) {
         std::cerr << "Exception (std): " << e.what() << std::endl;
         comm.Abort();
-    }
-    catch (TensorException& e) {
+    } catch (TensorException& e) {
         std::cerr << e << std::endl;
         comm.Abort();
-    }
-    catch (MPI::Exception& e) {
-        std::cerr << "Exception (mpi): code=" << e.Get_error_code() 
-                  << ", class=" << e.Get_error_class() 
-                  << ", string=" << e.Get_error_string() << std::endl;
+    } catch (MPI::Exception& e) {
+        std::cerr << "Exception (mpi): code=" << e.Get_error_code()
+        << ", class=" << e.Get_error_class()
+        << ", string=" << e.Get_error_string() << std::endl;
         comm.Abort();
-    }
-    catch (...) {
+    } catch (...) {
         std::cerr << "Exception (general)" << std::endl;
         comm.Abort();
     }
-    
+
     // The follwing should be used for succesful termination
-    comm.close(); 
+    comm.close();
     MPI::Finalize();
     return 0;
 }

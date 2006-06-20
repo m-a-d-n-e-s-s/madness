@@ -3,11 +3,11 @@
 
 /** \file tensor_macros.h
     \brief Macros for easy and efficient iteration over tensors.
-
+ 
 Several different macros have been defined to make it 
 easy to iterate over expressions involving tensors.  They
 vary in their generality, ease of use, and efficiency.
-
+ 
 The most general, most easy to use, but also most inefficient
 and least safe, is 
 \code
@@ -21,14 +21,14 @@ from left to right in the dimensions, are
 \code
 _i, _j, _k, ...
 \endcode
-
+ 
 E.g., to add two matrices together (there are more efficient ways
 to do this, such as \c a+=b )
 \code
 Tensor<long> a(4,2), b(4,2);
 ITERATOR(a, a(_i,_j) += b(_i,_j));
 \endcode
-
+ 
 E.g., to print out the indices of all elements of a matrix 
 greater than 0.5;
 \code
@@ -38,7 +38,7 @@ ITERATOR(m, if (m(_i,_j) > 0.5) {
                cout << _i << " " << _j << endl;
             });
 \endcode
-
+ 
 To make it possible to index arbitrary dimension tensors, the macro
 IND has been defined as the indices for the highest supported
 dimension.  E.g., to elementwise divide the contents of two tensors of
@@ -46,7 +46,7 @@ unknown dimension
 \code
 ITERATOR(x, x(IND)/y(IND));
 \endcode
-
+ 
 The generality of these macros is offset by their inefficiency and
 lack of safety.  The inefficiency is twofold.  First, the \c ITERATOR
 macro generates a separate block of code for each possible dimension.
@@ -55,13 +55,13 @@ solve this problem, the macros \c ITERATOR1 , \c ITERATOR2, etc., have
 been defined, with the corresponding \c IND1 , \c IND2 , etc.  These
 macros may be applied to tensor expressions of the appropriate
 dimension.  
-
+ 
 The second inefficiency is at runtime, due to the explicit indexing of
 all the tensor expressions and the inability to optimize the order
 in which memory is traversed.  The lack of safety is the inability
 to check that the tensors in the expression conform and that the 
 indices are not out of bounds.
-
+ 
 The safety and cost of explicit indexing are addressed by the macros
 \c UNARYITERATOR , \c BINARYITERATOR , and \c TERNARYITERATOR , along
 with their specialization to specific numbers of dimensions (again by
@@ -73,26 +73,26 @@ indexing with pointer arithmetic.  These macros still define the loop
 indices \c _i , \c _j , etc., but also define \c _p0 , \c _p1 , etc.,
 as pointers to the current elements of tensor argument 0, tensor
 argument 1, etc..
-
+ 
 E.g., set elements of a 3-d tensor, \c t , of type \c double to a
 function of the indices 
 \code 
 UNARYITERATOR(double, t, *_p0 = 1.0/(_i + _j + 1.0));
 \endcode
-
+ 
 E.g., to merge two \c double tensors as real and imaginary parts
 of complex tensor of any dimension
 \code 
 TERNARYITERATOR(double_complex, c, double, r, double, i, 
 .               *_p0 = double_complex(*_p1, *_p2));
 \endcode
-
+ 
 However, we still have the problems that if the dimensions of a tensor
 have been reordered, the loops will go through memory inefficiently,
 and the dimension independent macros still generate redundant code
 blocks.  Also, the innermost loop might not be very long and will
 be inefficient.
-
+ 
 The most general, efficient and code-compact macros internally use the
 \c TensorIterator , which you could also use directly.  Since there is
 no nest of explicit loops, the tensor indices are no longer available
@@ -100,7 +100,7 @@ as \c _i , \c _j , etc..  Furthermore, the \c TensorIterator can
 reorder the loops to optimize the memory traversal, and fuse
 dimensions to make the innermost loop longer for better vectorization
 and reduced loop overhead.
-
+ 
 The most efficient macros for iteration are \c UNARY_OPTIMIZED_ITERATOR ,
 \c BINARY_OPTIMIZED_ITERATOR , and \c TERNARY_OPTIMIZED_ITERATOR .
 As before, these define the pointers \c _p0 , \c _p1, \c _p2 , which
@@ -111,7 +111,7 @@ simple nest of loops.  Furthermore, the indices are completely
 unvailable.  In addition to using the iterators for optimal
 traversal, these macros attempt to use a single loop
 for optimal vector performance.
-
+ 
 E.g., the most efficient way to perform the previous example
 of merging two \c double tensors as real and imaginary parts
 of a complex tensor of any dimension
@@ -119,7 +119,7 @@ of a complex tensor of any dimension
 TERNARY_OPTIMIZED_ITERATOR(double_complex, c, double, r, double, i, 
            .               *_p0 = double_complex(*_p1, *_p2));
 \endcode
-
+ 
 In some situations it is necessary to preserve the expected
 order of loops and to not fuse dimensions.  The macros
 \c UNARY_UNOPTIMIZED_ITERATOR , \c BINARY_UNOPTIMIZED_ITERATOR , 
@@ -128,16 +128,16 @@ but disable loop reordering and fusing.  Once these optimizations
 have been turned off, the loop indices are avaiable, if needed,
 from the \c ind[] member of the iterator (which is named
 \c _iter ). 
-
+ 
 E.g., the fillindex() method is implemented as follows
 \code
 long count = 0;
 UNARY_UNOPTIMIZED_ITERATOR(T, (*this), *_p0 = (T) count++);
 \endcode
-
+ 
 \em NB: None of the above iterator macros can be nested ... use the
 actual tensor iterator to do this.
-
+ 
 Recommendation --- for both efficiency and safety, use the optimized
 macros (\c UNARY_OPTMIZED_ITERATOR , etc.), unless it is necessary to
 preserve loop order, in which case use the unoptimized versions.  If
@@ -145,7 +145,7 @@ you need the loop indices, use the macros \c UNARY_ITERATOR, etc.,
 unless you have a very general expression that they cannot handle.  In
 this last instance, or for ease of rapid implementation, use the general
 \c ITERATOR macro first described.
-
+ 
 */
 
 // don't change this without changing the iterator macros

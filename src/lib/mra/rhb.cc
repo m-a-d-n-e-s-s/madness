@@ -15,7 +15,9 @@ using namespace madness;
 double fred(double x, double y, double z) {
     const double PI = 3.14;
     double fac = pow(2.0*65.0/PI,0.75);
-    x-=0.5; y-=0.5; z-=0.5;
+    x-=0.5;
+    y-=0.5;
+    z-=0.5;
     return fac*exp(-65.0*(x*x+y*y+z*z));
 }
 
@@ -38,39 +40,34 @@ int main(int argc, char* argv[]) {
     if (!test_two_scale_coefficients()) comm.Abort();
 
     try {
-	FunctionDefaults::k=7;
-	FunctionDefaults::initial_level=2;
-	Function<double> f = FunctionFactory<double>(fred).thresh(1e-3).compress(0);
-	print("Tree in scaling function form");
-	f.pnorms();
-	f.compress();
-	print("Tree in wavelet form");
-	f.pnorms();
-    }
-    catch (char const* msg) {
+        FunctionDefaults::k=7;
+        FunctionDefaults::initial_level=2;
+        Function<double> f = FunctionFactory<double>(fred).thresh(1e-3).compress(0);
+        print("Tree in scaling function form");
+        f.pnorms();
+        f.compress();
+        print("Tree in wavelet form");
+        f.pnorms();
+    } catch (char const* msg) {
         std::cerr << "Exception (string): " << msg << std::endl;
         comm.Abort();
-    }
-    catch (std::exception& e) {
+    } catch (std::exception& e) {
         std::cerr << "Exception (std): " << e.what() << std::endl;
         comm.Abort();
-    }
-    catch (TensorException& e) {
+    } catch (TensorException& e) {
         std::cerr << e << std::endl;
         comm.Abort();
-    }
-    catch (MPI::Exception& e) {
-        std::cerr << "Exception (mpi): code=" << e.Get_error_code() 
-                  << ", class=" << e.Get_error_class() 
-                  << ", string=" << e.Get_error_string() << std::endl;
+    } catch (MPI::Exception& e) {
+        std::cerr << "Exception (mpi): code=" << e.Get_error_code()
+        << ", class=" << e.Get_error_class()
+        << ", string=" << e.Get_error_string() << std::endl;
         comm.Abort();
-    }
-    catch (...) {
+    } catch (...) {
         std::cerr << "Exception (general)" << std::endl;
         comm.Abort();
     }
-    
-    comm.close(); 
+
+    comm.close();
     MPI::Finalize();
     return 0;
 }

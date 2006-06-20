@@ -18,8 +18,10 @@
 #include <misc/communicator.h>
 
 namespace std {
-	/// This to make norm work as desired for both complex and real
-	static inline double norm(const double& d) {return d*d;};
+    /// This to make norm work as desired for both complex and real
+    static inline double norm(const double& d) {
+        return d*d;
+    };
 }
 
 namespace madness {
@@ -90,76 +92,65 @@ namespace madness {
             };
         };
 
-	// I know, I know, naughty for doing this, but yanno, it needs to be done
-	FunctionNode(const FunctionNode& f)
-	{
-	    int i; int n = f.v.size();
-	    for (i = 0; i < n; i++)
-	    {
-		BaseTensor* t = f.v[i];
-		if (t->id == TensorTypeData<double>::id)
-		{
-		    Tensor<double> *d = new Tensor<double>();
-		    *d = *(const Tensor<double> *) t;
-		    v.push_back(d);
-		    a.push_back(f.a[i]);
-		}
-		else
-		{
-		    throw "not yet";
-		}
-	    };
-	};
+        // I know, I know, naughty for doing this, but yanno, it needs to be done
+        FunctionNode(const FunctionNode& f) {
+            int i;
+            int n = f.v.size();
+            for (i = 0; i < n; i++) {
+                BaseTensor* t = f.v[i];
+                if (t->id == TensorTypeData<double>::id) {
+                    Tensor<double> *d = new Tensor<double>();
+                    *d = *(const Tensor<double> *) t;
+                    v.push_back(d);
+                    a.push_back(f.a[i]);
+                } else {
+                    throw "not yet";
+                }
+            };
+        };
 
-	FunctionNode& operator=(const FunctionNode& fn)
-	{
-	    if (this == &fn) return *this;
-	    int i; int n = fn.v.size();
-	    v.clear(); a.clear();
-	    for (i = 0; i < n; i++)
-	    {
-		BaseTensor* t = fn.v[i];
-		if (t->id == TensorTypeData<double>::id)
-		{
-		    Tensor<double> *d = new Tensor<double>();
-		    *d = *(const Tensor<double> *) t;
-		    v.push_back(d);
-		    a.push_back(fn.a[i]);
-		}
-		else
-		{
-		    throw "not yet";
-		}
-	    };
-	    return *this;
-	};
+        FunctionNode& operator=(const FunctionNode& fn) {
+            if (this == &fn) return *this;
+            int i;
+            int n = fn.v.size();
+            v.clear();
+            a.clear();
+            for (i = 0; i < n; i++) {
+                BaseTensor* t = fn.v[i];
+                if (t->id == TensorTypeData<double>::id) {
+                    Tensor<double> *d = new Tensor<double>();
+                    *d = *(const Tensor<double> *) t;
+                    v.push_back(d);
+                    a.push_back(fn.a[i]);
+                } else {
+                    throw "not yet";
+                }
+            };
+            return *this;
+        };
 
-	/// Puts vector of tensors and vector of bools into supplied arguments
-	template <typename T>
-	inline void getTensorList(std::vector<Tensor<T> > *tv, std::vector<bool> *av)
-	{
-	    int i = 0, n = size;
+        /// Puts vector of tensors and vector of bools into supplied arguments
+        template <typename T>
+        inline void getTensorList(std::vector<Tensor<T> > *tv, std::vector<bool> *av) {
+            int i = 0, n = size;
 //std::cout << "beginning of getTensorList, n = " << n << std::endl;
-	    for (i = 0; i < n; i++)
-	    {
+            for (i = 0; i < n; i++) {
 //std::cout << "loop of getTensorList, i = " << i << std::endl;
-		tv->push_back(*(get<T>(i)));
-		av->push_back(isactive(i));
-	    }
+                tv->push_back(*(get<T>(i)));
+                av->push_back(isactive(i));
+            }
 //std::cout << "end of getTensorList, n = " << n << std::endl;
-	}
+        }
 
-	/// Sets v and a using supplied arguments
-	template <typename T>
-	inline void setTensorList(int n, std::vector<Tensor<T> > tv, std::vector<bool> av)
-	{
-	    int i = 0;
-	    for (i = 0; i < n; i++)
-	    {
-		set(i, tv[i]);
-		set_active_status(i, av[i]);
-	    }
-	}
+        /// Sets v and a using supplied arguments
+        template <typename T>
+        inline void setTensorList(int n, std::vector<Tensor<T> > tv, std::vector<bool> av) {
+            int i = 0;
+            for (i = 0; i < n; i++) {
+                set(i, tv[i]);
+                set_active_status(i, av[i]);
+            }
+        }
 
         /// Returns a pointer to data for entry ind.  NULL indicates no data.
         template <typename T>
@@ -219,8 +210,10 @@ namespace madness {
             for (int i = 0; i < size; i++) unset(i);
         };
 
-	template <class Archive>
-	inline void serialize(const Archive& ar) {ar & v & a;}
+        template <class Archive>
+        inline void serialize(const Archive& ar) {
+            ar & v & a;
+        }
     };
 
     /// A FunctionOctTree marries an OctTree<FunctionNode> with an index manager
@@ -572,10 +565,10 @@ namespace madness {
         };
 
 
-	  /// Print out a summary of the tree with norms
-	  void pnorms() {
-	    if (isactive(tree())) _pnorms(tree());
-	  };
+        /// Print out a summary of the tree with norms
+        void pnorms() {
+            if (isactive(tree())) _pnorms(tree());
+        };
 
         /// Compress function (scaling function to wavelet)
 
@@ -823,15 +816,15 @@ namespace madness {
         void _reconstruct(OctTreeT* tree);
 
 
-        /// Private.  Recur down the tree printing out the norm of 
-	/// the coefficients.
+        /// Private.  Recur down the tree printing out the norm of
+        /// the coefficients.
         void _pnorms(OctTreeT *tree) const {
             const TensorT *t = coeff(tree);
             if (t) {
-	      for (long i=0; i<tree->n(); i++) std::printf("  ");
-	      std::printf("%4ld (%8ld, %8ld, %8ld) %9.1e\n",
-			  tree->n(),tree->x(),tree->y(),tree->z(),t->normf());
-	    }
+                for (long i=0; i<tree->n(); i++) std::printf("  ");
+                std::printf("%4ld (%8ld, %8ld, %8ld) %9.1e\n",
+                            tree->n(),tree->x(),tree->y(),tree->z(),t->normf());
+            }
             FOREACH_CHILD(OctTreeT, tree, if (isactive(child)) _pnorms(child););
         }
 
@@ -903,49 +896,64 @@ namespace madness {
         , _tree(FunctionDefaults::tree) {}
         ;
         inline FunctionFactory& vf(void (*vf)(long, const double*, const double*, const double*, T* restrict)) {
-            _vf = vf; return *this;
+            _vf = vf;
+            return *this;
         };
         inline FunctionFactory& k(int k) {
-            _k = k; return *this;
+            _k = k;
+            return *this;
         };
         inline FunctionFactory& thresh(double thresh) {
-            _thresh = thresh; return *this;
+            _thresh = thresh;
+            return *this;
         };
         inline FunctionFactory& initial_level(int initial_level) {
-            _initial_level = initial_level; return *this;
+            _initial_level = initial_level;
+            return *this;
         };
         inline FunctionFactory& max_refine_level(int max_refine_level) {
-            _max_refine_level = max_refine_level; return *this;
+            _max_refine_level = max_refine_level;
+            return *this;
         };
         inline FunctionFactory& truncate_method(int truncate_method) {
-            _truncate_method = truncate_method; return *this;
+            _truncate_method = truncate_method;
+            return *this;
         };
         inline FunctionFactory& compress(bool compress = true) {
-            _compress = compress; return *this;
+            _compress = compress;
+            return *this;
         };
         inline FunctionFactory& nocompress(bool nocompress = true) {
-            _compress = !nocompress; return *this;
+            _compress = !nocompress;
+            return *this;
         };
         inline FunctionFactory& debug() {
-            _debug = true; return *this;
+            _debug = true;
+            return *this;
         };
         inline FunctionFactory& nodebug() {
-            _debug = false; return *this;
+            _debug = false;
+            return *this;
         };
         inline FunctionFactory& refine(bool refine = true) {
-            _refine = refine; return *this;
+            _refine = refine;
+            return *this;
         };
         inline FunctionFactory& norefine(bool norefine = true) {
-            _refine = !norefine; return *this;
+            _refine = !norefine;
+            return *this;
         };
         inline FunctionFactory& empty() {
-            _empty = true; return *this;
+            _empty = true;
+            return *this;
         };
         inline FunctionFactory& autorefine() {
-            _autorefine = true; return *this;
+            _autorefine = true;
+            return *this;
         };
         inline FunctionFactory& noautorefine() {
-            _autorefine = false; return *this;
+            _autorefine = false;
+            return *this;
         };
         inline FunctionFactory& tree(const SharedPtr<FunctionOctTree>& tree) {
             _tree = tree;

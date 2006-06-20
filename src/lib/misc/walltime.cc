@@ -6,7 +6,7 @@
 
 namespace madness {
 
-    /// Returns the wall time in seconds relative to arbitrary origin 
+    /// Returns the wall time in seconds relative to arbitrary origin
     double walltime() {
 #ifdef USE_GETTIMEOFDAY
         struct timeval tv;

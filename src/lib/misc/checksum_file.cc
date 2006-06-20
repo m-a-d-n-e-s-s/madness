@@ -7,12 +7,12 @@ using std::fclose;
 /// \brief Miscellaneous useful stuff
 
 namespace madness {
-    
+
     /// Simple checksum for ASCII characters in file
     unsigned long checksum_file(const char* filename) {
         FILE *file = fopen(filename,"r");
         if (!file) return 0;
-        
+
         unsigned long sum = 0;
         int c;
         while ((c = fgetc(file)) != EOF) {

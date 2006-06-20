@@ -31,21 +31,23 @@ using madness::archive::VectorInputArchive;
 using madness::archive::VectorOutputArchive;
 
 namespace std {
-	/// This to make norm work as desired for both complex and real
-	static inline double norm(const double d) {return d*d;};
+    /// This to make norm work as desired for both complex and real
+    static inline double norm(const double d) {
+        return d*d;
+    };
 
-/*
-	/// This struct stores informations on each branch. 
-        //template <class Archive, class T>
-	class localTreeMember {
-	public:
-	  Translation x, y, z;
-	  Level n;
-	  ProcessID rank;
-	  bool remote, active;
-          //static inline void serialize(const Archive& ar, T& t) {t.serialize(ar);};
-	};
-*/
+    /*
+    	/// This struct stores informations on each branch. 
+            //template <class Archive, class T>
+    	class localTreeMember {
+    	public:
+    	  Translation x, y, z;
+    	  Level n;
+    	  ProcessID rank;
+    	  bool remote, active;
+              //static inline void serialize(const Archive& ar, T& t) {t.serialize(ar);};
+    	};
+    */
 
 }
 
@@ -117,76 +119,65 @@ namespace madness {
             };
         };
 
-	// I know, I know, naughty for doing this, but yanno, it needs to be done
-	FunctionNode(const FunctionNode& f)
-	{
-	    int i; int n = f.v.size();
-	    for (i = 0; i < n; i++)
-	    {
-		BaseTensor* t = f.v[i];
-		if (t->id == TensorTypeData<double>::id)
-		{
-		    Tensor<double> *d = new Tensor<double>();
-		    *d = *(const Tensor<double> *) t;
-		    v.push_back(d);
-		    a.push_back(f.a[i]);
-		}
-		else
-		{
-		    throw "not yet";
-		}
-	    };
-	};
+        // I know, I know, naughty for doing this, but yanno, it needs to be done
+        FunctionNode(const FunctionNode& f) {
+            int i;
+            int n = f.v.size();
+            for (i = 0; i < n; i++) {
+                BaseTensor* t = f.v[i];
+                if (t->id == TensorTypeData<double>::id) {
+                    Tensor<double> *d = new Tensor<double>();
+                    *d = *(const Tensor<double> *) t;
+                    v.push_back(d);
+                    a.push_back(f.a[i]);
+                } else {
+                    throw "not yet";
+                }
+            };
+        };
 
-	FunctionNode& operator=(const FunctionNode& fn)
-	{
-	    if (this == &fn) return *this;
-	    int i; int n = fn.v.size();
-	    v.clear(); a.clear();
-	    for (i = 0; i < n; i++)
-	    {
-		BaseTensor* t = fn.v[i];
-		if (t->id == TensorTypeData<double>::id)
-		{
-		    Tensor<double> *d = new Tensor<double>();
-		    *d = *(const Tensor<double> *) t;
-		    v.push_back(d);
-		    a.push_back(fn.a[i]);
-		}
-		else
-		{
-		    throw "not yet";
-		}
-	    };
-	    return *this;
-	};
+        FunctionNode& operator=(const FunctionNode& fn) {
+            if (this == &fn) return *this;
+            int i;
+            int n = fn.v.size();
+            v.clear();
+            a.clear();
+            for (i = 0; i < n; i++) {
+                BaseTensor* t = fn.v[i];
+                if (t->id == TensorTypeData<double>::id) {
+                    Tensor<double> *d = new Tensor<double>();
+                    *d = *(const Tensor<double> *) t;
+                    v.push_back(d);
+                    a.push_back(fn.a[i]);
+                } else {
+                    throw "not yet";
+                }
+            };
+            return *this;
+        };
 
-	/// Puts vector of tensors and vector of bools into supplied arguments
-	template <typename T>
-	inline void getTensorList(std::vector<Tensor<T> > *tv, std::vector<bool> *av)
-	{
-	    int i = 0, n = size;
+        /// Puts vector of tensors and vector of bools into supplied arguments
+        template <typename T>
+        inline void getTensorList(std::vector<Tensor<T> > *tv, std::vector<bool> *av) {
+            int i = 0, n = size;
 //std::cout << "beginning of getTensorList, n = " << n << std::endl;
-	    for (i = 0; i < n; i++)
-	    {
+            for (i = 0; i < n; i++) {
 //std::cout << "loop of getTensorList, i = " << i << std::endl;
-		tv->push_back(*(get<T>(i)));
-		av->push_back(isactive(i));
-	    }
+                tv->push_back(*(get<T>(i)));
+                av->push_back(isactive(i));
+            }
 //std::cout << "end of getTensorList, n = " << n << std::endl;
-	}
+        }
 
-	/// Sets v and a using supplied arguments
-	template <typename T>
-	inline void setTensorList(int n, std::vector<Tensor<T> > tv, std::vector<bool> av)
-	{
-	    int i = 0;
-	    for (i = 0; i < n; i++)
-	    {
-		set(i, tv[i]);
-		set_active_status(i, av[i]);
-	    }
-	}
+        /// Sets v and a using supplied arguments
+        template <typename T>
+        inline void setTensorList(int n, std::vector<Tensor<T> > tv, std::vector<bool> av) {
+            int i = 0;
+            for (i = 0; i < n; i++) {
+                set(i, tv[i]);
+                set_active_status(i, av[i]);
+            }
+        }
 
         /// Returns a pointer to data for entry ind.  NULL indicates no data.
         template <typename T>
@@ -246,8 +237,10 @@ namespace madness {
             for (int i = 0; i < size; i++) unset(i);
         };
 
-	template <class Archive>
-	inline void serialize(const Archive& ar) {ar & v & a;}
+        template <class Archive>
+        inline void serialize(const Archive& ar) {
+            ar & v & a;
+        }
     };
 
     /// A FunctionOctTree marries an OctTree<FunctionNode> with an index manager
@@ -577,7 +570,7 @@ namespace madness {
     public:
         typedef Tensor<T> TensorT; ///< Type of tensor used to hold coeffs
         typedef SAV<TensorT> ArgT; ///< Type of single assignment variable for tasks
-    
+
     private:
         /// Private.  This funky constructor makes a partial deep copy.
 
@@ -615,10 +608,10 @@ namespace madness {
         , ind(f.ind) {}
         ;
 
-	  /// Print out a summary of the tree with norms
-	  void pnorms() {
-	    if (isactive(tree())) _pnorms(tree());
-	  };
+        /// Print out a summary of the tree with norms
+        void pnorms() {
+            if (isactive(tree())) _pnorms(tree());
+        };
 
 
         /// Deep copy in either scaling function or wavelet basis.
@@ -627,7 +620,7 @@ namespace madness {
         Function<T> copy() const {
             Function<T> result(this); // Partial deep copy
 
-	    typedef Tensor<T> (*theop)(const Tensor<T>& t);
+            typedef Tensor<T> (*theop)(const Tensor<T>& t);
             if (isactive(tree())) _unaryop<theop>(result, result.tree(), madness::copy<T>);
             return result;
         };
@@ -664,22 +657,21 @@ namespace madness {
         };
 
         /// Multiplication of two functions.
-        /// No communication involved. 
+        /// No communication involved.
         Function<T> operator*(Function<T>& other) {
-	    reconstruct();
-	    other.reconstruct();
+            reconstruct();
+            other.reconstruct();
             Function<T> result = FunctionFactory<T>().k(k).compress(iscompressed()).empty();
-	    data->nterminated = 0;
-	    _mul_func(result, *this, other, tree(), 0.0);
+            data->nterminated = 0;
+            _mul_func(result, *this, other, tree(), 0.0);
             return result;
         };
 
-	void Function::_mul_func(Function<T>& a, const Function<T>& b, const Function<T>& c, OctTreeT* tree, double tol){
-          const TensorT *c2 = b.coeff(tree);
-          const TensorT *c3 = c.coeff(tree);
-	  if (c2 && c3) {
-	  }
-	};
+        void Function::_mul_func(Function<T>& a, const Function<T>& b, const Function<T>& c, OctTreeT* tree, double tol) {
+            const TensorT *c2 = b.coeff(tree);
+            const TensorT *c3 = c.coeff(tree);
+            if (c2 && c3) {}
+        };
 
         /// const * function (see Function<T>::operator*(T t))
         friend inline Function<T> operator*(T t, const Function<T>& f) {
@@ -731,7 +723,7 @@ namespace madness {
             Function<T> result = FunctionFactory<T>().k(k).compress(true).empty();
 
             if (isactive(tree()) ||
-                other.isactive(other.tree()))
+                    other.isactive(other.tree()))
                 _add_sub(result, *this, other, result.tree(), false);
 
             return result;
@@ -750,7 +742,7 @@ namespace madness {
             Function<T> result = FunctionFactory<T>().k(k).compress(true).empty();
 
             if (isactive(tree()) ||
-                other.isactive(other.tree()))
+                    other.isactive(other.tree()))
                 _add_sub(result, *this, other, result.tree(), true);
 
             return result;
@@ -766,7 +758,7 @@ namespace madness {
         }
 
         /// communication is involved.
-        /// This member outputs norm. 
+        /// This member outputs norm.
         double norm2sq() const {
             return _norm2sq(tree());
         }
@@ -783,11 +775,11 @@ namespace madness {
             return *this;
         };
 
-		Function<T>& compress2();
-		void _compress2(OctTreeT* tree, ArgT& parent);
-		void _compress2op(OctTreeT* tree, ArgT args[2][2][2], ArgT& parent);
-		ArgT input_arg(const OctTreeT* consumer, const OctTreeT* producer);
-		
+        Function<T>& compress2();
+        void _compress2(OctTreeT* tree, ArgT& parent);
+        void _compress2op(OctTreeT* tree, ArgT args[2][2][2], ArgT& parent);
+        ArgT input_arg(const OctTreeT* consumer, const OctTreeT* producer);
+
         /// Reconstruct compressed function (wavelet to scaling function)
 
         /// Communication streams down the tree
@@ -866,617 +858,592 @@ namespace madness {
             return data->compressed;
         };
 
-	/// This class stores informations on each branch. 
-	class localTreeMember {
-	public:
-	  Translation x, y, z;
-	  Level n;
-	  ProcessID rank;
-	  bool remote, active, have_child;
-          template <class Archive>
-          inline void serialize(const Archive& ar) {
-              ar & x & y & z & n & rank & remote & active & have_child;
-          };
-	};
+        /// This class stores informations on each branch.
+        class localTreeMember {
+        public:
+            Translation x, y, z;
+            Level n;
+            ProcessID rank;
+            bool remote, active, have_child;
+            template <class Archive>
+            inline void serialize(const Archive& ar) {
+                ar & x & y & z & n & rank & remote & active & have_child;
+            };
+        };
 
-	/// Saving Function members into the file. This function is prepared for sequential job.
-	template <class Archive>
-	void save_local(Archive& ar) {
-	  ar & FunctionDefaults::k;
-	  ar & FunctionDefaults::thresh;
-	  ar & FunctionDefaults::initial_level;
-	  ar & FunctionDefaults::max_refine_level;
-	  ar & FunctionDefaults::truncate_method;
-	  ar & FunctionDefaults::autorefine;
-	  _save_local(ar, tree());
-	};
+        /// Saving Function members into the file. This function is prepared for sequential job.
+        template <class Archive>
+        void save_local(Archive& ar) {
+            ar & FunctionDefaults::k;
+            ar & FunctionDefaults::thresh;
+            ar & FunctionDefaults::initial_level;
+            ar & FunctionDefaults::max_refine_level;
+            ar & FunctionDefaults::truncate_method;
+            ar & FunctionDefaults::autorefine;
+            _save_local(ar, tree());
+        };
 
-	/// Saving Function members into the file. This member was prepared for recursive operation and called from save_local.
-	template <class Archive>
-	void _save_local(Archive& ar, const OctTreeT *tree) {
-	  ar & isactive(tree);
-	  if(isactive(tree)) {
-            const TensorT *t = coeff(tree);
-	    ar & (t != 0);
-	    if(t) ar & *t;
-	    FORIJK(
-              ar & (tree->child(i,j,k)!=0);
-	      if (tree->child(i,j,k)) {
-                _save_local(ar, tree->child(i,j,k));
-              }
-	    );
-          }
-	}
-
-	///
-	void save(const char* f, Communicator& comm, bool textBinary) {
-          if (comm.rank() == 0) {
-/*
-	    if(textBinary) {
-	      TextFstreamOutputArchive oar(f);
-	    }
-	    else {
-	      BinaryFstreamOutputArchive oar(f);
-	    }
-*/
-	    TextFstreamOutputArchive oar(f);
-	    saveMain(oar, comm);
-	    oar.close();
-	  }
-	  else {
-	    saveLoadWorker(tree(), comm, true);
-	  }
-	}
-
-	/// Saving Function members into the file. This member can be used in parallel calculation.
-	template <class Archive>
-	void saveMain(Archive& ar, Communicator& comm) {
-	  ar & FunctionDefaults::k;
-	  ar & FunctionDefaults::thresh;
-	  ar & FunctionDefaults::initial_level;
-	  ar & FunctionDefaults::max_refine_level;
-	  ar & FunctionDefaults::truncate_method;
-	  ar & FunctionDefaults::autorefine;
-	  saveManager(ar, tree(), comm);
-	  if( comm.size() != 1) {
-	    for ( int i = 1; i < comm.size(); i++) {
-	      archive::MPIOutputArchive arout(comm, i);
-	      arout & -1;
-	    }
-	  }
-	};
-
-	/// saveManager cotrolls data in parallel calculation. 
-	template <class Archive>
-	void saveManager(Archive& ar, const OctTreeT *tree, Communicator& commFunc) {
-          if (isremote(tree)) {
-	    shadowManager_save(ar, tree, tree->n(), tree->x(), tree->y(), 
-	               tree->z(), tree->rank(), commFunc);
-	  }
-	  else {
-	    ar & isactive(tree);
-	    ar & tree->n() & tree->x() & tree->y() & tree->z();
-	    if(isactive(tree)) {
-              const TensorT *t = coeff(tree);
-	      ar & (t != 0);
-	      if(t) ar & *t;
-	    }
-	    FORIJK( 
-	      OctTreeT *child = tree->child(i,j,k);
-	      if(child) {
-	        if(child->islocal()) {
-	          ar & (child!=0);
-	        }
-                saveManager(ar, child, commFunc);
-	      }
-	      else {
-	        ar & (child!=0);
-	      }
-            );
-	  }
-	}
-
-	/// This member cotrols Client Coefficients for Save part.
-	template <class Archive>
-	void shadowManager_save(Archive& ar, const OctTreeT *tree, Level n, Translation x, 
-              Translation y, Translation z, 
-              ProcessID remoteRank, Communicator& commFunc) 
-	{
-	  int nRemoteBranch;
-	  madness::archive::MPIOutputArchive arout(commFunc, remoteRank);
-	  // Sending start branch data.
-	  arout & 1 & n & x & y & z;
-	  madness::archive::MPIInputArchive arin(commFunc, remoteRank);
-	  std::vector<localTreeMember> subtreeList; 
-	  // Getting local subtree list.
-	  arin & nRemoteBranch;
-	  subtreeList.resize(nRemoteBranch);
-	  for (int i = 0; i < nRemoteBranch; i++) {
-	    arin & subtreeList[i];
-	  }
-	  for (int i = 0; i < nRemoteBranch; i++) {
-	    ar & subtreeList[i].have_child;
-            //cout << " local havechild " << i << "= " << subtreeList[i].have_child << endl;
-	    if(subtreeList[i].have_child) {
-	      if(subtreeList[i].remote) {
-	        if(subtreeList[i].rank==0) {
-	        // Going to other local tree on master.
-	          OctTreeT *treemaster = tree->find(subtreeList[i].n, 
-		           subtreeList[i].x, subtreeList[i].y, subtreeList[i].z);
-	          saveManager(ar, treemaster, commFunc);
-	        }
-	        else {
-	        // Going to other local tree on client.
-	          shadowManager_save(ar, tree, subtreeList[i].n, subtreeList[i].x, 
-                     subtreeList[i].y, subtreeList[i].z, 
-                     subtreeList[i].rank, commFunc);
-	        }
-	      }
-	      else {
-	        // Storing active flag.
-	        ar & subtreeList[i].active;
-	        if(subtreeList[i].active) {
-	          ar & subtreeList[i].n & subtreeList[i].x & subtreeList[i].y & subtreeList[i].z;
-	          // Inquiring Coefficients.
-	          bool coeffsPointer;
-                  commFunc.Recv(&coeffsPointer, 1, subtreeList[i].rank, 14);
-	          ar & (coeffsPointer != 0);
-	          // Storing Coefficients.
-	          if(coeffsPointer) {
-                    TensorT Coefficients(2*k, 2*k, 2*k);
-	            arin & Coefficients;
-	            ar & Coefficients;
-	          }
-	        }
-	      }
-	    }
-	  }
-	}
-
-	/// This member cotrols Client Coefficients for Lord part.
-	template <class Archive>
-	void shadowManager_load(const Archive& ar, OctTreeT* tree, 
-              Level n, 
-              Translation x, Translation y, Translation z, 
-              ProcessID remoteRank, Communicator& commFunc,
-	      bool active_flag, bool have_child) 
-	{
-	  //int nRemoteBranch;
-	  madness::archive::MPIOutputArchive arout(commFunc, remoteRank);
-	  // Send start branch data.
-	  arout & n & x & y & z;
-	  madness::archive::MPIInputArchive arin(commFunc, remoteRank);
-	  Level n_local;
-	  Translation x_local, y_local, z_local;
-	  ProcessID local_remoteRank;
-	  //bool remoteFlag;
-	  arout & have_child & active_flag;
-	  ar & n_local & x_local & y_local & z_local;
-	  bool inquireCoeffs;
-	  ar & inquireCoeffs;
-	  arout & inquireCoeffs;
-	  if(inquireCoeffs) {
-            Tensor<T> Coefficients(2*k, 2*k, 2*k);
-	    ar & Coefficients;
-	    arout & Coefficients;
-	  }
-	  FORIJK( 
-	    //bool have_child;
-	    ar & have_child;
-	    arout & have_child;
-	    if(have_child) {
-	      ar & active_flag;
-	      arin & local_remoteRank & n_local & x_local & y_local & z_local;
-              if(active_flag) { 
-	        if(local_remoteRank == 0) {
-	          OctTreeT *treemaster = tree->find(n_local, x_local, y_local, z_local);
-	          loadManager(ar, treemaster, commFunc, active_flag, have_child);
-	        }
-	        else {
-	          if(remoteRank != local_remoteRank) {
-	            madness::archive::MPIOutputArchive arout2(commFunc, local_remoteRank);
-	            arout2 & 1;
-	          }
-	          shadowManager_load(ar, tree, n_local, 
-                  x_local, y_local, 
-                  z_local, local_remoteRank, commFunc, active_flag, have_child);
-	        }
-	      }
-	    }
-          );
-	}
-
-
-	/// This member saves Function members into the file. In parallel calculations, all coefficient is written by this member.
-	void saveLoadWorker(OctTreeT *tree, 
-			Communicator& commFunc, bool save) 
-	{
-	  int msg;
-	  madness::archive::MPIInputArchive arrecv(commFunc, 0);
-	  madness::archive::MPIOutputArchive arsend(commFunc, 0);
-	  while (1)
-	  {
-	    arrecv & msg;
-	    if (msg == -1) {
-	      break;
-	    }
-	    else if (msg == 1) {
-	      if(save) {
-	        Level n_c;
-	        Translation x_c, y_c, z_c;
-	        arrecv & n_c & x_c & y_c & z_c;
-	        OctTreeT *treeclient = tree->find(n_c, x_c, y_c, z_c);
-	        std::vector<localTreeMember> subtreeList; 
-	        localTreeList(subtreeList, treeclient);
-	        int nRemoteBranch = subtreeList.size();
-	        arsend & nRemoteBranch;
-	        for (int i = 0; i < nRemoteBranch; i++) {
-	          arsend & subtreeList[i];
-	        }
-	        sendRecvDataWorker(treeclient, commFunc, save);
-	      }
-	      else {
-	        sendRecvDataWorker_load(tree, commFunc, save);
-	      }
-	    }
-	  }
-	}
-
-	/// This member Returns localsubtreelist of Client to Master.
-	void localTreeList(std::vector<localTreeMember> &subtreeList, 
-			OctTreeT *tree)
-	{
-          //if ( tree->isremote() && !(tree->parent()) ) {
-	  //}
-	  //else {
-	    localTreeMember branchList;
-	    if(tree) {
-	      branchList.have_child = true;
-	    }
-	    else {
-	      branchList.have_child = false;
-	    }
-	    if(branchList.have_child) {
-	      branchList.x      = tree->x();
-	      branchList.y      = tree->y();
-	      branchList.z      = tree->z();
-	      branchList.n      = tree->n();
-	      if(tree->rank() == -1) {
-	        branchList.rank   = comm()->rank();
-	      }
-	      else {
-	        branchList.rank   = tree->rank();
-	      }
-	      branchList.remote = isremote(tree);
-	      branchList.active = isactive(tree);
-	    }
-	    subtreeList.push_back(branchList);
-	  //}
-	    //FOREACH_LOCAL_CHILD(OctTreeT, tree, 
-	  //if(branchList.have_child) {
-	    FORIJK( 
-	      //have_child = tree->child(i,j,k);
-	      OctTreeT *child = tree->child(i,j,k);
-	      if(child) {
-	        localTreeList(subtreeList, child);
-	      }
-	      else {
-	        localTreeMember branchList;
-	        branchList.have_child = false;
-	        branchList.x      = i;
-	        branchList.y      = j;
-	        branchList.z      = k;
-	        branchList.rank   = 0;
-	        branchList.remote   = false;
-	        branchList.active   = false;
-	        subtreeList.push_back(branchList);
-	      }
-	      //localTreeList(subtreeList, tree->child(i,j,k));
-	    );
-	  //}
-	  //}
-	}
-
-	/// Send Coefficients to Rank 0. 
-	void sendRecvDataWorker(OctTreeT *tree, 
-			Communicator& commFunc, bool save)
-	{
-	  madness::archive::MPIInputArchive arrecv(commFunc, 0);
-	  madness::archive::MPIOutputArchive arsend(commFunc, 0);
-	  if(save) {
-	    if(isactive(tree)) {
-              if ( tree->isremote() && !(tree->parent()) ) {
-	      }
-	      else {
-                TensorT *t = coeff(tree);
-		bool coeffsPointer = false;
-	 	if(t) coeffsPointer = true;
-                commFunc.Send(&coeffsPointer, 1, 0, 14);
-		if(t) {
-	      	  arsend & *t;
-		}
-	      }
-	    }
-	  }
-	  else {
-            if ( tree->isremote() && !(tree->parent()) ) {
-	    }
-	    else {
-	      bool inquireActive;
-              commFunc.Recv(&inquireActive, 1, 0, 13);
-	      if(inquireActive) {
-	        bool inquireCoeffs;
-                commFunc.Recv(&inquireCoeffs, 1, 0, 15);
-		if(inquireCoeffs) {
-                  Tensor<T> Coefficients(2*k, 2*k, 2*k);
-	      	  arrecv & Coefficients;
-	          set_coeff(tree, Coefficients);
-		}
-	      }
-	    }
-	  }
-	  FOREACH_LOCAL_CHILD(OctTreeT, tree, 
-	      sendRecvDataWorker(child, commFunc, save);
-	  );
-	}
-
-	/// Receive Coefficients from Rank 0. 
-	void sendRecvDataWorker_load(OctTreeT *treeclient,  
-			Communicator& commFunc, bool save)
-	{
-	  madness::archive::MPIInputArchive arrecv(commFunc, 0);
-	  madness::archive::MPIOutputArchive arsend(commFunc, 0);
-	  Level n_c;
-	  Translation x_c, y_c, z_c;
-	  arrecv & n_c & x_c & y_c & z_c;
-	  OctTreeT *tree = treeclient->find(n_c, x_c, y_c, z_c);
-	  bool have_child;
-	  arrecv & have_child;
-	  if(have_child) {
-	    bool active_flag;
-	    arrecv & active_flag;
-	    if(active_flag) {
-	      set_active(tree);
-	      bool inquireCoeffs;
-	      arrecv & inquireCoeffs;
-	      if(inquireCoeffs) {
-                Tensor<T> Coefficients(2*k, 2*k, 2*k);
-	      	arrecv & Coefficients;
-	        set_coeff(tree, Coefficients);
-	      }
-	    }
-	  }
-	  FORIJK( 
-	    OctTreeT* child = tree->child(i, j, k);
-	    arrecv & have_child;
-	    if(!child) {
-	      if(have_child) {
-		child = tree->insert_local_child(i,j,k);
-	      }
-	    }
-	    if(child) {
-	      if(child->rank() == -1) {
-	        arsend & comm()->rank() & child->n() & child->x() & child->y() & child->z();
-	      }
-	      else {
-	        arsend & child->rank() & child->n() & child->x() & child->y() & child->z();
-	      }
-	      if(islocal(child)) {
-	        sendRecvDataWorker_load(child, commFunc, save);
-	      }
-	    }
-          );
-	}
-
-	/// Loading Function members from the file. This member is not parallelized.
-	template <class Archive>
-	void load_local(Archive& ar) {
-	  //bool active_flag;
-	  //ar & active_flag;
-	  ar & FunctionDefaults::k;
-	  ar & FunctionDefaults::thresh;
-	  ar & FunctionDefaults::initial_level;
-	  ar & FunctionDefaults::max_refine_level;
-	  ar & FunctionDefaults::truncate_method;
-	  ar & FunctionDefaults::autorefine;
-	  //if (active_flag) _load(ar, tree());
-	  _load_local(ar, tree());
-	}
-
-	/// Loading Function members from the file. This member is prepared for called from load_local. 
-	template <class Archive>
-	void _load_local(const Archive& ar, OctTreeT *tree) {
-	    set_active(tree);
-            bool have_coeffs;
-	    ar & have_coeffs;
-	    if(have_coeffs) {
-	      TensorT t;
-	      ar & t;
-	      set_coeff(tree, t);
-	    }
-	    FORIJK(
-               bool have_child;
-               ar & have_child;
-               if (have_child) {
-                  OctTreeT* child = tree->child(i, j, k);
-                  if (!child) child = tree->insert_local_child(i,j,k);
-   	          bool active_flag;
-     	          ar & active_flag;
-//                  tree->print_coords();
-//		  print(i,j,k);
-                  if (active_flag) _load_local(ar, child);
-               }
-            );
-	}
-
-	/// Loading Function members from the file. This member is already parallelized.
-	template <class Archive>
-	void load(const Archive& iar, Communicator& comm, bool textBinary) {
-          if (comm.rank() == 0) {
-/*
-	    if(textBinary) {
-	      TextFstreamOutputArchive iar(f);
-	    }
-	    else {
-	      BinaryFstreamOutputArchive iar(f);
-	    }
-*/
-	    //TextFstreamOutputArchive iar(f);
-	    iar & FunctionDefaults::k;
-	    iar & FunctionDefaults::thresh;
-	    iar & FunctionDefaults::initial_level;
-	    iar & FunctionDefaults::max_refine_level;
-	    iar & FunctionDefaults::truncate_method;
-	    iar & FunctionDefaults::autorefine;
-	  }
-	  comm.Bcast(FunctionDefaults::k, 0);
-	  comm.Bcast(FunctionDefaults::thresh, 0);
-	  comm.Bcast(FunctionDefaults::initial_level, 0);
-	  comm.Bcast(FunctionDefaults::max_refine_level, 0);
-	  comm.Bcast(FunctionDefaults::truncate_method, 0);
-	  comm.Bcast(FunctionDefaults::autorefine, 0);
-          if (comm.rank() == 0) {
-	    bool active_flag;
-	    iar & active_flag;
-	    if(active_flag) loadManager(iar, tree(), comm, active_flag, true);
-	    //if(comm.size() != 1) {
-	    for ( int i = 1; i < comm.size(); i++) {
-	      archive::MPIOutputArchive arout(comm, i);
-	      arout & -1;
-	    }
-	    //}
-	    //iar.close();
-	  }
-	  else {
-	    saveLoadWorker(tree(), comm, false);
-	  }
-	}
-
-	/// Load Managing Function members into the file. 
-	template <class Archive>
-	void loadManager(const Archive& ar, OctTreeT *tree, Communicator& commFunc, bool active_flag, bool have_child) {
-          if (isremote(tree)) {
-	    madness::archive::MPIOutputArchive arout(commFunc, tree->rank());
-	    arout & 1;
-	    shadowManager_load(ar, tree, tree->n(), tree->x(), tree->y(), 
-              tree->z(), tree->rank(), commFunc, active_flag, have_child);
-	  }
-	  else {
-	    set_active(tree);
-	    Level n_local;
-	    Translation x_local, y_local, z_local;
-	    ar & n_local & x_local & y_local & z_local;
-	    bool inquireCoeffs;
-	    ar & inquireCoeffs;
-	    if(inquireCoeffs) {
-              TensorT t;
-	      ar & t;
-	      set_coeff(tree, t);
-	    }
-	    FORIJK( 
-	      //bool have_child;
-	      ar & have_child;
-	      if(have_child) {
-	        OctTreeT* child = tree->child(i, j, k);
-	        if(!child) child = tree->insert_local_child(i,j,k);
-	        //bool active_flag;
-	        ar & active_flag;
-                if(active_flag) loadManager(ar, child, commFunc, active_flag, have_child);
-	      }
-            );
-	  }
-	}
-
-	/// The truncate member function was prepared to neglects small components. This member is already parallelized.
-	Function<T>& truncate(double tol = -1.0) {
-	  if (tol == -1.0) tol = FunctionDefaults::thresh;
-	  if (tol <= 0.0) return *this;
-          _truncate(tol, tree());
-          return *this;
-	};
-
-	/// The _truncate member function was prepared to neglects small components. This method was prepared for recursive operation.
-	void _truncate(double tol, OctTreeT *tree){
-	  FOREACH_CHILD(OctTreeT, tree, 
-            if (isactive(child)) _truncate(tol, child);
-          );
-          const TensorT *t = coeff(tree);
-	  int nachildren = count_active_children(tree);
-	  bool normf_check = false;
-	  if(t) {
-	    double tnormf = t->normf();
-	    if(tnormf > tol) {
-	      normf_check = true;
-	    }
-	  }
-	  if ( !normf_check && nachildren == 0) {
-            //unset_coeff(tree);
-            set_inactive(tree);
-            if ((tree->parent()) && (tree->parent()->isremote())) {
-              bool active;
-              active = false;
-              comm()->Send(&active, 1, tree->parent()->rank(), 5);
+        /// Saving Function members into the file. This member was prepared for recursive operation and called from save_local.
+        template <class Archive>
+        void _save_local(Archive& ar, const OctTreeT *tree) {
+            ar & isactive(tree);
+            if(isactive(tree)) {
+                const TensorT *t = coeff(tree);
+                ar & (t != 0);
+                if(t) ar & *t;
+                FORIJK(
+                    ar & (tree->child(i,j,k)!=0);
+                    if (tree->child(i,j,k)) {
+                    _save_local(ar, tree->child(i,j,k));
+                    }
+                );
             }
-	  }
-	  else {
-            set_active(tree);
-            if ((tree->parent()) && (tree->parent()->isremote())) {
-              bool active;
-              active = true;
-              comm()->Send(&active, 1, tree->parent()->rank(), 5);
-            }
-	  }
-	};
-
-        /// This member counts the number of active children. 
-        int count_active_children(OctTreeT *tree) {
-          int n = 0;
-	  bool active;
-          FOREACH_LOCAL_CHILD(OctTreeT, tree, 
-		if(isactive(child)) { n++; }
-		);
-          FOREACH_REMOTE_CHILD(OctTreeT, tree,
-              comm()->Recv(&active, 1, child->rank(), 5);
-              if (active) { 
-		n++;
-	      }
-	      else {
-                set_inactive(child);
-	      }
-	  );
-          return n;
         }
 
-	/// Inner product between two Function classess. This function was already parallelized.
-	T inner(Function<T>& other) {
-	  this->compress();
-	  other.compress();
-	  return _inner(*this, other, tree());
-	};
+        ///
+        void save(const char* f, Communicator& comm, bool textBinary) {
+            if (comm.rank() == 0) {
+                /*
+                	    if(textBinary) {
+                	      TextFstreamOutputArchive oar(f);
+                	    }
+                	    else {
+                	      BinaryFstreamOutputArchive oar(f);
+                	    }
+                */
+                TextFstreamOutputArchive oar(f);
+                saveMain(oar, comm);
+                oar.close();
+            } else {
+                saveLoadWorker(tree(), comm, true);
+            }
+        }
 
-	/// This member is the member called from inner member.
-	T _inner(const Function<T>& a, const Function<T>& b, OctTreeT* tree) const {
-          T sum = 0.0;
-	  FOREACH_CHILD(OctTreeT, tree, 
-            if (a.isactive(child) && b.isactive(child)) { 
-            sum += _inner(a, b, child);
-	    }
-          );
-	  if (isremote(tree)) {
-	    if( (tree->parent()) && (tree->parent()->islocal()) ) {
-              comm()->Recv(&sum, 1, tree->rank(), 7);
-	    }
-	  }
-	  else {
-            TensorT *c1 = a.coeff(tree);
-            TensorT *c2 = b.coeff(tree);
-	    sum = c1->trace(*c2);
-            if ( (tree->parent()) && (tree->parent()->isremote())) {
-              comm()->Send(&sum, 1, tree->parent()->rank(), 7);
-	    }
-	  }
-          return sum;
-	}
+        /// Saving Function members into the file. This member can be used in parallel calculation.
+        template <class Archive>
+        void saveMain(Archive& ar, Communicator& comm) {
+            ar & FunctionDefaults::k;
+            ar & FunctionDefaults::thresh;
+            ar & FunctionDefaults::initial_level;
+            ar & FunctionDefaults::max_refine_level;
+            ar & FunctionDefaults::truncate_method;
+            ar & FunctionDefaults::autorefine;
+            saveManager(ar, tree(), comm);
+            if( comm.size() != 1) {
+                for ( int i = 1; i < comm.size(); i++) {
+                    archive::MPIOutputArchive arout(comm, i);
+                    arout & -1;
+                }
+            }
+        };
+
+        /// saveManager cotrolls data in parallel calculation.
+        template <class Archive>
+        void saveManager(Archive& ar, const OctTreeT *tree, Communicator& commFunc) {
+            if (isremote(tree)) {
+                shadowManager_save(ar, tree, tree->n(), tree->x(), tree->y(),
+                                   tree->z(), tree->rank(), commFunc);
+            } else {
+                ar & isactive(tree);
+                ar & tree->n() & tree->x() & tree->y() & tree->z();
+                if(isactive(tree)) {
+                    const TensorT *t = coeff(tree);
+                    ar & (t != 0);
+                    if(t) ar & *t;
+                }
+                FORIJK(
+                    OctTreeT *child = tree->child(i,j,k);
+                    if(child) {
+                    if(child->islocal()) {
+                            ar & (child!=0);
+                        }
+                        saveManager(ar, child, commFunc);
+                    } else {
+                        ar & (child!=0);
+                    }
+                );
+            }
+        }
+
+        /// This member cotrols Client Coefficients for Save part.
+        template <class Archive>
+        void shadowManager_save(Archive& ar, const OctTreeT *tree, Level n, Translation x,
+                                Translation y, Translation z,
+                                ProcessID remoteRank, Communicator& commFunc) {
+            int nRemoteBranch;
+            madness::archive::MPIOutputArchive arout(commFunc, remoteRank);
+            // Sending start branch data.
+            arout & 1 & n & x & y & z;
+            madness::archive::MPIInputArchive arin(commFunc, remoteRank);
+            std::vector<localTreeMember> subtreeList;
+            // Getting local subtree list.
+            arin & nRemoteBranch;
+            subtreeList.resize(nRemoteBranch);
+            for (int i = 0; i < nRemoteBranch; i++) {
+                arin & subtreeList[i];
+            }
+            for (int i = 0; i < nRemoteBranch; i++) {
+                ar & subtreeList[i].have_child;
+                //cout << " local havechild " << i << "= " << subtreeList[i].have_child << endl;
+                if(subtreeList[i].have_child) {
+                    if(subtreeList[i].remote) {
+                        if(subtreeList[i].rank==0) {
+                            // Going to other local tree on master.
+                            OctTreeT *treemaster = tree->find(subtreeList[i].n,
+                                                              subtreeList[i].x, subtreeList[i].y, subtreeList[i].z);
+                            saveManager(ar, treemaster, commFunc);
+                        } else {
+                            // Going to other local tree on client.
+                            shadowManager_save(ar, tree, subtreeList[i].n, subtreeList[i].x,
+                                               subtreeList[i].y, subtreeList[i].z,
+                                               subtreeList[i].rank, commFunc);
+                        }
+                    } else {
+                        // Storing active flag.
+                        ar & subtreeList[i].active;
+                        if(subtreeList[i].active) {
+                            ar & subtreeList[i].n & subtreeList[i].x & subtreeList[i].y & subtreeList[i].z;
+                            // Inquiring Coefficients.
+                            bool coeffsPointer;
+                            commFunc.Recv(&coeffsPointer, 1, subtreeList[i].rank, 14);
+                            ar & (coeffsPointer != 0);
+                            // Storing Coefficients.
+                            if(coeffsPointer) {
+                                TensorT Coefficients(2*k, 2*k, 2*k);
+                                arin & Coefficients;
+                                ar & Coefficients;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        /// This member cotrols Client Coefficients for Lord part.
+        template <class Archive>
+        void shadowManager_load(const Archive& ar, OctTreeT* tree,
+                                Level n,
+                                Translation x, Translation y, Translation z,
+                                ProcessID remoteRank, Communicator& commFunc,
+                                bool active_flag, bool have_child) {
+            //int nRemoteBranch;
+            madness::archive::MPIOutputArchive arout(commFunc, remoteRank);
+            // Send start branch data.
+            arout & n & x & y & z;
+            madness::archive::MPIInputArchive arin(commFunc, remoteRank);
+            Level n_local;
+            Translation x_local, y_local, z_local;
+            ProcessID local_remoteRank;
+            //bool remoteFlag;
+            arout & have_child & active_flag;
+            ar & n_local & x_local & y_local & z_local;
+            bool inquireCoeffs;
+            ar & inquireCoeffs;
+            arout & inquireCoeffs;
+            if(inquireCoeffs) {
+                Tensor<T> Coefficients(2*k, 2*k, 2*k);
+                ar & Coefficients;
+                arout & Coefficients;
+            }
+            FORIJK(
+                //bool have_child;
+                ar & have_child;
+                arout & have_child;
+                if(have_child) {
+                ar & active_flag;
+                arin & local_remoteRank & n_local & x_local & y_local & z_local;
+                if(active_flag) {
+                        if(local_remoteRank == 0) {
+                            OctTreeT *treemaster = tree->find(n_local, x_local, y_local, z_local);
+                            loadManager(ar, treemaster, commFunc, active_flag, have_child);
+                        } else {
+                            if(remoteRank != local_remoteRank) {
+                                madness::archive::MPIOutputArchive arout2(commFunc, local_remoteRank);
+                                arout2 & 1;
+                            }
+                            shadowManager_load(ar, tree, n_local,
+                                               x_local, y_local,
+                                               z_local, local_remoteRank, commFunc, active_flag, have_child);
+                        }
+                    }
+                }
+            );
+        }
+
+
+        /// This member saves Function members into the file. In parallel calculations, all coefficient is written by this member.
+        void saveLoadWorker(OctTreeT *tree,
+                            Communicator& commFunc, bool save) {
+            int msg;
+            madness::archive::MPIInputArchive arrecv(commFunc, 0);
+            madness::archive::MPIOutputArchive arsend(commFunc, 0);
+            while (1) {
+                arrecv & msg;
+                if (msg == -1) {
+                    break;
+                } else if (msg == 1) {
+                    if(save) {
+                        Level n_c;
+                        Translation x_c, y_c, z_c;
+                        arrecv & n_c & x_c & y_c & z_c;
+                        OctTreeT *treeclient = tree->find(n_c, x_c, y_c, z_c);
+                        std::vector<localTreeMember> subtreeList;
+                        localTreeList(subtreeList, treeclient);
+                        int nRemoteBranch = subtreeList.size();
+                        arsend & nRemoteBranch;
+                        for (int i = 0; i < nRemoteBranch; i++) {
+                            arsend & subtreeList[i];
+                        }
+                        sendRecvDataWorker(treeclient, commFunc, save);
+                    } else {
+                        sendRecvDataWorker_load(tree, commFunc, save);
+                    }
+                }
+            }
+        }
+
+        /// This member Returns localsubtreelist of Client to Master.
+        void localTreeList(std::vector<localTreeMember> &subtreeList,
+                           OctTreeT *tree) {
+            //if ( tree->isremote() && !(tree->parent()) ) {
+            //}
+            //else {
+            localTreeMember branchList;
+            if(tree) {
+                branchList.have_child = true;
+            } else {
+                branchList.have_child = false;
+            }
+            if(branchList.have_child) {
+                branchList.x      = tree->x();
+                branchList.y      = tree->y();
+                branchList.z      = tree->z();
+                branchList.n      = tree->n();
+                if(tree->rank() == -1) {
+                    branchList.rank   = comm()->rank();
+                } else {
+                    branchList.rank   = tree->rank();
+                }
+                branchList.remote = isremote(tree);
+                branchList.active = isactive(tree);
+            }
+            subtreeList.push_back(branchList);
+            //}
+            //FOREACH_LOCAL_CHILD(OctTreeT, tree,
+            //if(branchList.have_child) {
+            FORIJK(
+                //have_child = tree->child(i,j,k);
+                OctTreeT *child = tree->child(i,j,k);
+                if(child) {
+                localTreeList(subtreeList, child);
+                } else {
+                    localTreeMember branchList;
+                    branchList.have_child = false;
+                    branchList.x      = i;
+                    branchList.y      = j;
+                    branchList.z      = k;
+                    branchList.rank   = 0;
+                    branchList.remote   = false;
+                    branchList.active   = false;
+                    subtreeList.push_back(branchList);
+                }
+                //localTreeList(subtreeList, tree->child(i,j,k));
+            );
+            //}
+            //}
+        }
+
+        /// Send Coefficients to Rank 0.
+        void sendRecvDataWorker(OctTreeT *tree,
+                                Communicator& commFunc, bool save) {
+            madness::archive::MPIInputArchive arrecv(commFunc, 0);
+            madness::archive::MPIOutputArchive arsend(commFunc, 0);
+            if(save) {
+                if(isactive(tree)) {
+                    if ( tree->isremote() && !(tree->parent()) ) {}
+                    else {
+                        TensorT *t = coeff(tree);
+                        bool coeffsPointer = false;
+                        if(t) coeffsPointer = true;
+                        commFunc.Send(&coeffsPointer, 1, 0, 14);
+                        if(t) {
+                            arsend & *t;
+                        }
+                    }
+                }
+            } else {
+                if ( tree->isremote() && !(tree->parent()) ) {}
+                else {
+                    bool inquireActive;
+                    commFunc.Recv(&inquireActive, 1, 0, 13);
+                    if(inquireActive) {
+                        bool inquireCoeffs;
+                        commFunc.Recv(&inquireCoeffs, 1, 0, 15);
+                        if(inquireCoeffs) {
+                            Tensor<T> Coefficients(2*k, 2*k, 2*k);
+                            arrecv & Coefficients;
+                            set_coeff(tree, Coefficients);
+                        }
+                    }
+                }
+            }
+            FOREACH_LOCAL_CHILD(OctTreeT, tree,
+                                sendRecvDataWorker(child, commFunc, save);
+                               );
+        }
+
+        /// Receive Coefficients from Rank 0.
+        void sendRecvDataWorker_load(OctTreeT *treeclient,
+                                     Communicator& commFunc, bool save) {
+            madness::archive::MPIInputArchive arrecv(commFunc, 0);
+            madness::archive::MPIOutputArchive arsend(commFunc, 0);
+            Level n_c;
+            Translation x_c, y_c, z_c;
+            arrecv & n_c & x_c & y_c & z_c;
+            OctTreeT *tree = treeclient->find(n_c, x_c, y_c, z_c);
+            bool have_child;
+            arrecv & have_child;
+            if(have_child) {
+                bool active_flag;
+                arrecv & active_flag;
+                if(active_flag) {
+                    set_active(tree);
+                    bool inquireCoeffs;
+                    arrecv & inquireCoeffs;
+                    if(inquireCoeffs) {
+                        Tensor<T> Coefficients(2*k, 2*k, 2*k);
+                        arrecv & Coefficients;
+                        set_coeff(tree, Coefficients);
+                    }
+                }
+            }
+            FORIJK(
+                OctTreeT* child = tree->child(i, j, k);
+                arrecv & have_child;
+                if(!child) {
+                if(have_child) {
+                        child = tree->insert_local_child(i,j,k);
+                    }
+                }
+                if(child) {
+                if(child->rank() == -1) {
+                        arsend & comm()->rank() & child->n() & child->x() & child->y() & child->z();
+                    } else {
+                        arsend & child->rank() & child->n() & child->x() & child->y() & child->z();
+                    }
+                    if(islocal(child)) {
+                        sendRecvDataWorker_load(child, commFunc, save);
+                    }
+                }
+            );
+        }
+
+        /// Loading Function members from the file. This member is not parallelized.
+        template <class Archive>
+        void load_local(Archive& ar) {
+            //bool active_flag;
+            //ar & active_flag;
+            ar & FunctionDefaults::k;
+            ar & FunctionDefaults::thresh;
+            ar & FunctionDefaults::initial_level;
+            ar & FunctionDefaults::max_refine_level;
+            ar & FunctionDefaults::truncate_method;
+            ar & FunctionDefaults::autorefine;
+            //if (active_flag) _load(ar, tree());
+            _load_local(ar, tree());
+        }
+
+        /// Loading Function members from the file. This member is prepared for called from load_local.
+        template <class Archive>
+        void _load_local(const Archive& ar, OctTreeT *tree) {
+            set_active(tree);
+            bool have_coeffs;
+            ar & have_coeffs;
+            if(have_coeffs) {
+                TensorT t;
+                ar & t;
+                set_coeff(tree, t);
+            }
+            FORIJK(
+                bool have_child;
+                ar & have_child;
+                if (have_child) {
+                OctTreeT* child = tree->child(i, j, k);
+                    if (!child) child = tree->insert_local_child(i,j,k);
+                    bool active_flag;
+                    ar & active_flag;
+    //                  tree->print_coords();
+    //		  print(i,j,k);
+                    if (active_flag) _load_local(ar, child);
+                }
+            );
+        }
+
+        /// Loading Function members from the file. This member is already parallelized.
+        template <class Archive>
+        void load(const Archive& iar, Communicator& comm, bool textBinary) {
+            if (comm.rank() == 0) {
+                /*
+                	    if(textBinary) {
+                	      TextFstreamOutputArchive iar(f);
+                	    }
+                	    else {
+                	      BinaryFstreamOutputArchive iar(f);
+                	    }
+                */
+                //TextFstreamOutputArchive iar(f);
+                iar & FunctionDefaults::k;
+                iar & FunctionDefaults::thresh;
+                iar & FunctionDefaults::initial_level;
+                iar & FunctionDefaults::max_refine_level;
+                iar & FunctionDefaults::truncate_method;
+                iar & FunctionDefaults::autorefine;
+            }
+            comm.Bcast(FunctionDefaults::k, 0);
+            comm.Bcast(FunctionDefaults::thresh, 0);
+            comm.Bcast(FunctionDefaults::initial_level, 0);
+            comm.Bcast(FunctionDefaults::max_refine_level, 0);
+            comm.Bcast(FunctionDefaults::truncate_method, 0);
+            comm.Bcast(FunctionDefaults::autorefine, 0);
+            if (comm.rank() == 0) {
+                bool active_flag;
+                iar & active_flag;
+                if(active_flag) loadManager(iar, tree(), comm, active_flag, true);
+                //if(comm.size() != 1) {
+                for ( int i = 1; i < comm.size(); i++) {
+                    archive::MPIOutputArchive arout(comm, i);
+                    arout & -1;
+                }
+                //}
+                //iar.close();
+            } else {
+                saveLoadWorker(tree(), comm, false);
+            }
+        }
+
+        /// Load Managing Function members into the file.
+        template <class Archive>
+        void loadManager(const Archive& ar, OctTreeT *tree, Communicator& commFunc, bool active_flag, bool have_child) {
+            if (isremote(tree)) {
+                madness::archive::MPIOutputArchive arout(commFunc, tree->rank());
+                arout & 1;
+                shadowManager_load(ar, tree, tree->n(), tree->x(), tree->y(),
+                                   tree->z(), tree->rank(), commFunc, active_flag, have_child);
+            } else {
+                set_active(tree);
+                Level n_local;
+                Translation x_local, y_local, z_local;
+                ar & n_local & x_local & y_local & z_local;
+                bool inquireCoeffs;
+                ar & inquireCoeffs;
+                if(inquireCoeffs) {
+                    TensorT t;
+                    ar & t;
+                    set_coeff(tree, t);
+                }
+                FORIJK(
+                    //bool have_child;
+                    ar & have_child;
+                    if(have_child) {
+                    OctTreeT* child = tree->child(i, j, k);
+                        if(!child) child = tree->insert_local_child(i,j,k);
+                        //bool active_flag;
+                        ar & active_flag;
+                        if(active_flag) loadManager(ar, child, commFunc, active_flag, have_child);
+                    }
+                );
+            }
+        }
+
+        /// The truncate member function was prepared to neglects small components. This member is already parallelized.
+        Function<T>& truncate(double tol = -1.0) {
+            if (tol == -1.0) tol = FunctionDefaults::thresh;
+            if (tol <= 0.0) return *this;
+            _truncate(tol, tree());
+            return *this;
+        };
+
+        /// The _truncate member function was prepared to neglects small components. This method was prepared for recursive operation.
+        void _truncate(double tol, OctTreeT *tree) {
+            FOREACH_CHILD(OctTreeT, tree,
+                          if (isactive(child)) _truncate(tol, child);
+                         );
+            const TensorT *t = coeff(tree);
+            int nachildren = count_active_children(tree);
+            bool normf_check = false;
+            if(t) {
+                double tnormf = t->normf();
+                if(tnormf > tol) {
+                    normf_check = true;
+                }
+            }
+            if ( !normf_check && nachildren == 0) {
+                //unset_coeff(tree);
+                set_inactive(tree);
+                if ((tree->parent()) && (tree->parent()->isremote())) {
+                    bool active;
+                    active = false;
+                    comm()->Send(&active, 1, tree->parent()->rank(), 5);
+                }
+            } else {
+                set_active(tree);
+                if ((tree->parent()) && (tree->parent()->isremote())) {
+                    bool active;
+                    active = true;
+                    comm()->Send(&active, 1, tree->parent()->rank(), 5);
+                }
+            }
+        };
+
+        /// This member counts the number of active children.
+        int count_active_children(OctTreeT *tree) {
+            int n = 0;
+            bool active;
+            FOREACH_LOCAL_CHILD(OctTreeT, tree,
+                                if(isactive(child)) {
+                                n++;
+                            }
+                           );
+            FOREACH_REMOTE_CHILD(OctTreeT, tree,
+                                 comm()->Recv(&active, 1, child->rank(), 5);
+                                 if (active) {
+                                 n++;
+                             } else {
+                                 set_inactive(child);
+                                 }
+                                );
+            return n;
+        }
+
+        /// Inner product between two Function classess. This function was already parallelized.
+        T inner(Function<T>& other) {
+            this->compress();
+            other.compress();
+            return _inner(*this, other, tree());
+        };
+
+        /// This member is the member called from inner member.
+        T _inner(const Function<T>& a, const Function<T>& b, OctTreeT* tree) const {
+            T sum = 0.0;
+            FOREACH_CHILD(OctTreeT, tree,
+                          if (a.isactive(child) && b.isactive(child)) {
+                          sum += _inner(a, b, child);
+                          }
+                         );
+            if (isremote(tree)) {
+                if( (tree->parent()) && (tree->parent()->islocal()) ) {
+                    comm()->Recv(&sum, 1, tree->rank(), 7);
+                }
+            } else {
+                TensorT *c1 = a.coeff(tree);
+                TensorT *c2 = b.coeff(tree);
+                sum = c1->trace(*c2);
+                if ( (tree->parent()) && (tree->parent()->isremote())) {
+                    comm()->Send(&sum, 1, tree->parent()->rank(), 7);
+                }
+            }
+            return sum;
+        }
 
         /// Local evaluation of the function at a point in user coordinates
 
@@ -1499,11 +1466,15 @@ namespace madness {
                 // Determine if point might be local to this process
                 data->cdata->user_to_sim(x, y, z);
                 double twon = two_to_power(tree->n());
-                x *= twon; y *= twon; z *= twon;
-                x -= tree->x(); y -= tree->y(); z -= tree->z();
+                x *= twon;
+                y *= twon;
+                z *= twon;
+                x -= tree->x();
+                y -= tree->y();
+                z -= tree->z();
 
                 if (x < 0.0 || y < 0.0 || z < 0.0 ||
-                    x > 1.0 || y > 1.0 || z > 1.0) {
+                        x > 1.0 || y > 1.0 || z > 1.0) {
                     if (tree->n() == 0) {
                         throw "Function::eval_local:out of range point";
                     } else {
@@ -1513,14 +1484,18 @@ namespace madness {
 
                 // Recur down to find it ... inline for maximum efficiency
                 while (tree && isactive(tree)) {
-                    x *= 2.0; y *= 2.0; z *= 2.0;
+                    x *= 2.0;
+                    y *= 2.0;
+                    z *= 2.0;
                     int lx = int(x);
                     int ly = int(y);
                     int lz = int(z);
                     if (lx == 2) --lx;
                     if (ly == 2) --ly;
                     if (lz == 2) --lz;
-                    x -= lx; y -= ly; z -= lz;
+                    x -= lx;
+                    y -= ly;
+                    z -= lz;
 
                     const TensorT* t = coeff(tree);
                     if (t) {
@@ -1743,7 +1718,7 @@ namespace madness {
         };
 
 
-public:
+    public:
         /// Private.  Determine if Function is active in tree node
 
         /// No communication involved.
@@ -1751,7 +1726,7 @@ public:
             return tree->data().isactive(ind);
         };
 
-private:
+    private:
         /// Private.  For semantic similarity to isactive.
 
         /// No communication involved.
@@ -1824,15 +1799,15 @@ private:
         }
 
 
-        /// Private.  Recur down the tree printing out the norm of 
-		/// the coefficients.
+        /// Private.  Recur down the tree printing out the norm of
+        /// the coefficients.
         void _pnorms(OctTreeT *tree) const {
             const TensorT *t = coeff(tree);
             if (t) {
-	      		for (long i=0; i<tree->n(); i++) std::printf("  ");
-	      		std::printf("%4d (%8lu, %8lu, %8lu) = %9.1e\n",
-			  	tree->n(),tree->x(),tree->y(),tree->z(),t->normf());
-	    	}
+                for (long i=0; i<tree->n(); i++) std::printf("  ");
+                std::printf("%4d (%8lu, %8lu, %8lu) = %9.1e\n",
+                            tree->n(),tree->x(),tree->y(),tree->z(),t->normf());
+            }
             FOREACH_CHILD(OctTreeT, tree, if (isactive(child)) _pnorms(child););
         }
 
@@ -2059,49 +2034,64 @@ private:
         , _tree(FunctionDefaults::tree) {}
         ;
         inline FunctionFactory& vf(void (*vf)(long, const double*, const double*, const double*, T* restrict)) {
-            _vf = vf; return *this;
+            _vf = vf;
+            return *this;
         };
         inline FunctionFactory& k(int k) {
-            _k = k; return *this;
+            _k = k;
+            return *this;
         };
         inline FunctionFactory& thresh(double thresh) {
-            _thresh = thresh; return *this;
+            _thresh = thresh;
+            return *this;
         };
         inline FunctionFactory& initial_level(int initial_level) {
-            _initial_level = initial_level; return *this;
+            _initial_level = initial_level;
+            return *this;
         };
         inline FunctionFactory& max_refine_level(int max_refine_level) {
-            _max_refine_level = max_refine_level; return *this;
+            _max_refine_level = max_refine_level;
+            return *this;
         };
         inline FunctionFactory& truncate_method(int truncate_method) {
-            _truncate_method = truncate_method; return *this;
+            _truncate_method = truncate_method;
+            return *this;
         };
         inline FunctionFactory& compress(bool compress = true) {
-            _compress = compress; return *this;
+            _compress = compress;
+            return *this;
         };
         inline FunctionFactory& nocompress(bool nocompress = true) {
-            _compress = !nocompress; return *this;
+            _compress = !nocompress;
+            return *this;
         };
         inline FunctionFactory& debug() {
-            _debug = true; return *this;
+            _debug = true;
+            return *this;
         };
         inline FunctionFactory& nodebug() {
-            _debug = false; return *this;
+            _debug = false;
+            return *this;
         };
         inline FunctionFactory& refine(bool refine = true) {
-            _refine = refine; return *this;
+            _refine = refine;
+            return *this;
         };
         inline FunctionFactory& norefine(bool norefine = true) {
-            _refine = !norefine; return *this;
+            _refine = !norefine;
+            return *this;
         };
         inline FunctionFactory& empty() {
-            _empty = true; return *this;
+            _empty = true;
+            return *this;
         };
         inline FunctionFactory& autorefine() {
-            _autorefine = true; return *this;
+            _autorefine = true;
+            return *this;
         };
         inline FunctionFactory& noautorefine() {
-            _autorefine = false; return *this;
+            _autorefine = false;
+            return *this;
         };
         inline FunctionFactory& tree(const SharedPtr<FunctionOctTree>& tree) {
             _tree = tree;

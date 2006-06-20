@@ -19,7 +19,7 @@ int main() {
     double used;
     double mops;
     double start;
-    
+
     Tensor<double> x = Tensor<double>(2*k,2*k,2*k);
     Tensor<double> r = Tensor<double>(2*k,2*k,2*k);
     Tensor<double> w = Tensor<double>(2*k,2*k,2*k);
@@ -32,8 +32,8 @@ int main() {
     used = (double)(std::clock()-start)/(double)CLOCKS_PER_SEC;
     mops = ((double)times*ops)/(used*million);
     std::cout << "TRANSFORM MOPS=" << mops << "   "
-              << used << "   "<< times << "   "<< ops << "   "<< million << std::endl;
-    
+    << used << "   "<< times << "   "<< ops << "   "<< million << std::endl;
+
 
     start = std::clock();
     for (long i=0; i<times; i++) {
@@ -42,7 +42,7 @@ int main() {
     used = (double)(std::clock()-start)/(double)CLOCKS_PER_SEC;
     mops = ((double)times*ops)/(used*million);
     std::cout << "TRANSFORM MOPS=" << mops << "   "
-              << used << "   "<< times << "   "<< ops << "   "<< million << std::endl;
+    << used << "   "<< times << "   "<< ops << "   "<< million << std::endl;
 
     start = std::clock();
     for (long i=0; i<times; i++) {
@@ -51,6 +51,6 @@ int main() {
     used = (double)(std::clock()-start)/(double)CLOCKS_PER_SEC;
     mops = ((double)times*ops)/(used*million);
     std::cout << "TRANSFORM MOPS=" << mops << "   "
-              << used << "   "<< times << "   "<< ops << "   "<< million << std::endl;
+    << used << "   "<< times << "   "<< ops << "   "<< million << std::endl;
 
 }

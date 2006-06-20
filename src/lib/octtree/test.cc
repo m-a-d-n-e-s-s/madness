@@ -8,9 +8,9 @@ using std::endl;
 
 #include <octtree/octtree.h>
 using namespace madness;
-    
+
 int main (int argc, char **argv) {
-    
+
     MPI::Init(argc, argv);
     Communicator comm;
     std::ofstream fout;
@@ -23,26 +23,24 @@ int main (int argc, char **argv) {
         cout.rdbuf(fout.rdbuf());
         std::cerr.rdbuf(fout.rdbuf());
     }
-    
+
     comm.print();
     OctTree<double>* layout=0;
     try {
         layout = OctTree<double>::create_default(comm, 2);
         layout->print();
-    }
-    catch (char const* msg) {
+    } catch (char const* msg) {
         std::cerr << "Exception (string): " << msg << std::endl;
         comm.Abort();
-    }
-    catch (std::exception& e) {
+    } catch (std::exception& e) {
         std::cerr << "Exception (std): " << e.what() << std::endl;
         comm.Abort();
     }
 #ifdef USE_MPI
     catch (MPI::Exception& e) {
-        std::cerr << "Exception (mpi): code=" << e.Get_error_code() 
-                  << ", class=" << e.Get_error_class() 
-                  << ", string=" << e.Get_error_string() << std::endl;
+        std::cerr << "Exception (mpi): code=" << e.Get_error_code()
+        << ", class=" << e.Get_error_class()
+        << ", string=" << e.Get_error_string() << std::endl;
         comm.abort();
     }
 #endif
@@ -59,7 +57,7 @@ int main (int argc, char **argv) {
     OctTree<double> q;
     cout << " q layout " << (void *) (q.layout()) << endl;
 #endif
- 
+
     for (int i=0; i<10; i++) {
         cout << "walking down" << endl;
         layout->walk_down();
@@ -68,11 +66,11 @@ int main (int argc, char **argv) {
         layout->walk_up();
         cout << "i " << i << endl;
     }
-    
+
     cout << comm.rank() << " finalizing" << endl;
     comm.close();
     MPI::Finalize();
- 
+
     return 0;
 }
-    
+

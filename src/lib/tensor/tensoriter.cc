@@ -15,21 +15,21 @@ typedef std::complex<double> double_complex;
 #include "tensor.h"
 
 namespace madness {
-    
+
     /// General iterator to compose operations over up to three tensors
-    template <class T, class Q, class R> 
-    TensorIterator<T,Q,R>::TensorIterator(const Tensor<T>* t0, 
+    template <class T, class Q, class R>
+    TensorIterator<T,Q,R>::TensorIterator(const Tensor<T>* t0,
                                           const Tensor<Q>* t1,
                                           const Tensor<R>* t2,
                                           long iterlevel,
-                                          bool optimize, 
-                                          bool fusedim, 
+                                          bool optimize,
+                                          bool fusedim,
                                           long jdim) {
-        
+
         /// optimize -> reorder dimensions for optimal strides (only
         /// applies if iterlevel=1).  If jdim==default_jdim, all dimensions
         /// are reordered for optimal stride.  If jdim is not the default
-        /// value, then dimension jdim is excluded from the set of 
+        /// value, then dimension jdim is excluded from the set of
         /// dimensions being optimized.
         ///
         /// fusedim -> concatenate contiguous dimensions into the inner
@@ -54,8 +54,8 @@ namespace madness {
         ///
         /// During iteration:
         ///
-        /// ind[] will contain the current iteration indices .. BUT 
-        /// if optimize=true, they will not necessarily be in the 
+        /// ind[] will contain the current iteration indices .. BUT
+        /// if optimize=true, they will not necessarily be in the
         /// order of those of the tensor.  if fusedim is true, then
         /// there may be fewer dimensions than the input tensor.
         ///
@@ -69,19 +69,19 @@ namespace madness {
         /// responsible for iterating over.
         ///
         /// dimj -> the size of the j'th dimension
-        
-        
+
+
         if (!t0) {
             // Used to indicate end of iteration.
             _p0 = 0;
             return;
         }
-        
+
         //std::printf("t0=%p t1=%p t2=%p optimize=%d fusedim=%d iterlevel=%ld jdim=%ld\n",
         //t0,t1,t2,optimize,fusedim,iterlevel,jdim);
-        
+
         TENSOR_ASSERT(iterlevel==0 || iterlevel==1,"invalid iteration level",iterlevel,t0);
-        
+
         // First copy basic info over
         ndim = t0->ndim;
         _p0_save = _p0 = t0->ptr();
@@ -94,8 +94,7 @@ namespace madness {
                           0, t0);
             _p1_save = _p1 = t1->ptr();
             for (int i=0; i<ndim; i++) stride1[i] = t1->stride[i];
-        }
-        else {
+        } else {
             _p1_save = _p1 = 0;
         }
         if (t2) {
@@ -103,11 +102,10 @@ namespace madness {
                           0, t0);
             _p2_save = _p2 = t2->ptr();
             for (int i=0; i<ndim; i++) stride2[i] = t2->stride[i];
-        }
-        else {
+        } else {
             _p2_save = _p2 = 0;
         }
-        
+
         if (iterlevel == 0) {
             // Iteration will include all dimensions
             fusedim = false;
@@ -116,11 +114,10 @@ namespace madness {
             _s0 = 0;
             _s1 = 0;
             _s2 = 0;
-        }
-        else if (iterlevel == 1) {
+        } else if (iterlevel == 1) {
             // Apply -ve indexing convention for dimensions
             if (jdim < 0) jdim += ndim;
-            
+
             // If permissible optimize the order of dimensions excluding
             // any non-default value of jdim.
             if (optimize) {
@@ -140,34 +137,31 @@ namespace madness {
                     //std::cout << "stride0[" << i << "]=" << stride0[i] << std::endl;
                 }
             }
-            
+
             // Iterations will exclude dimension jdim, default is last one
             if (jdim == default_jdim) {
                 jdim = ndim-1;
-            }
-            else {
+            } else {
                 fusedim = false;
             }
             TENSOR_ASSERT(jdim>=0 && jdim < ndim, "invalid index for external iteration",
                           jdim, t0);
             ndim--;
-            
+
             // Stride and dimension info for the excluded dimension
             _s0 = stride0[jdim];
             if (t1) {
                 _s1 = stride1[jdim];
-            }
-            else {
+            } else {
                 _s1 = 0;
             }
             if (t2) {
                 _s2 = stride2[jdim];
-            }
-            else {
+            } else {
                 _s2 = 0;
             }
             dimj = dim[jdim];
-            
+
             // Collapse stride and dimension info for remaining dimensions
             for (int i=jdim+1; i<=ndim; i++) {
                 dim[i-1] = dim[i];
@@ -179,51 +173,46 @@ namespace madness {
             if (t2) {
                 for (int i=jdim+1; i<=ndim; i++) stride2[i-1] = stride2[i];
             }
-            
+
             if (fusedim) {		// Only if jdim=default_jdim && iterlevel=1
                 if (t2) {
                     for (int i=ndim-1; i>=0; i--) {
-                        if (_s0*dimj == stride0[i] && 
-                            _s1*dimj == stride1[i] && 
-                            _s2*dimj == stride2[i]) {
+                        if (_s0*dimj == stride0[i] &&
+                                _s1*dimj == stride1[i] &&
+                                _s2*dimj == stride2[i]) {
                             dimj *= dim[i];
                             ndim--;
-                        }
-                        else {
+                        } else {
                             break;
                         }
                     }
-                }
-                else if (t1) {
+                } else if (t1) {
                     for (int i=ndim-1; i>=0; i--) {
-                        if (_s0*dimj == stride0[i] && 
-                            _s1*dimj == stride1[i]) {
+                        if (_s0*dimj == stride0[i] &&
+                                _s1*dimj == stride1[i]) {
                             dimj *= dim[i];
                             ndim--;
-                        }
-                        else {
+                        } else {
                             break;
                         }
                     }
-                }
-                else {
+                } else {
                     for (int i=ndim-1; i>=0; i--) {
                         if (_s0*dimj == stride0[i]) {
                             dimj *= dim[i];
                             ndim--;
-                        }
-                        else {
+                        } else {
                             break;
                         }
                     }
                 }
             }
         }
-        
+
         // Initialize indices for the counter Use TENSOR_MAXDIM so reference to
         // optimized-away dimensions is vaguely meaningful.
         for (int i=0; i<TENSOR_MAXDIM; i++) ind[i] = 0;
-        
+
         //   std::printf("ndim=%ld dimj=%ld _s0=%ld _s1=%ld _s2=%ld _p0=%p _p1=%p _p2=%p\n",
         // 	      ndim,dimj,_s0,_s1,_s2,_p0,_p1,_p2);
         //   for (int i=0; i<ndim; i++) {
@@ -231,7 +220,7 @@ namespace madness {
         // 		i,dim[i],stride0[i],stride1[i],stride2[i]);
         //   }
     }
-    
+
     template <class T, class Q, class R>
     TensorIterator<T,Q,R>& TensorIterator<T,Q,R>::operator++() {
         long d = ndim-1;
@@ -256,7 +245,7 @@ namespace madness {
         ind[d]++;
         return *this;
     }
-    
+
     /// Reset the iterator back to the start ...
     template <class T, class Q, class R>
     void TensorIterator<T,Q,R>::reset() {
@@ -265,10 +254,10 @@ namespace madness {
         _p2 = _p2_save;
         for (int i=0; i<TENSOR_MAXDIM; i++) ind[i] = 0;
     };
-    
-    
+
+
     /// Reuse this iterator to iterate over other Tensors
-    
+
     /// The point of this method is to optimize away the construction of a
     /// TensorIterator when applying the same operation repeatedly to
     /// multiple tensors with identical shapes & strides.  We trust the
@@ -283,7 +272,7 @@ namespace madness {
         if (t2) _p2 = _p2_save = t2->ptr();
         for (int i=0; i<TENSOR_MAXDIM; i++) ind[i] = 0;
     };
-    
+
 #include "tensoriter_spec.h"
 
     /*

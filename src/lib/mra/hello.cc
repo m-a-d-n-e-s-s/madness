@@ -28,24 +28,21 @@ int main(int argc, char* argv[]) {
     try {
         // Calculation here
         print("hello from", comm.rank());
-    }
-    catch (char const* msg) {
+    } catch (char const* msg) {
         std::cerr << "Exception (string): " << msg << std::endl;
         comm.abort();
-    }
-    catch (std::exception& e) {
+    } catch (std::exception& e) {
         std::cerr << "Exception (std): " << e.what() << std::endl;
         comm.abort();
-    }
-    catch (TensorException& e) {
+    } catch (TensorException& e) {
         std::cerr << e << std::endl;
         comm.abort();
     }
 #ifdef USE_MPI
     catch (MPI::Exception& e) {
-        std::cerr << "Exception (mpi): code=" << e.Get_error_code() 
-                  << ", class=" << e.Get_error_class() 
-                  << ", string=" << e.Get_error_string() << std::endl;
+        std::cerr << "Exception (mpi): code=" << e.Get_error_code()
+        << ", class=" << e.Get_error_class()
+        << ", string=" << e.Get_error_string() << std::endl;
         comm.abort();
     }
 #endif

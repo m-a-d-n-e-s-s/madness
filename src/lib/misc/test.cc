@@ -27,8 +27,7 @@ int main(int argc, char** argv) {
                 buf[0] = 0;
                 if (comm.rank() == from) {
                     comm.Send(msg, sizeof(msg), to, 1);
-                }
-                else if (comm.rank() == to) {
+                } else if (comm.rank() == to) {
                     comm.Recv(buf, sizeof(buf), from, 1);
                     print(to,"received",buf,"from",from);
                 }
@@ -42,8 +41,7 @@ int main(int argc, char** argv) {
         comm.Send(sum, 3, 1, 99);
         comm.Recv(sum, 3, comm.nproc()-1, 99);
         print("the final sum is",sum[0],sum[1],sum[2]);
-    }
-    else {
+    } else {
         comm.Recv(sum, 3, comm.rank()-1, 99);
         sum[1]++;
         comm.Send(sum, 3, (comm.rank()+1)%comm.nproc(), 99);

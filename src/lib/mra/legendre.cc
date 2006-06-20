@@ -27,56 +27,56 @@ using std::endl;
 
 
 namespace madness {
-    
-    /// Evaluate the Legendre polynomials up to the given order at x in [-1,1].  
+
+    /// Evaluate the Legendre polynomials up to the given order at x in [-1,1].
 
     /// p should be an array of order+1 elements.
     void legendre_polynomials(double x, long order, double *p) {
-        
+
         static double nn1[100];
         static long firstcall=1;
         long n;
-        
+
         p[0] = 1.0;
         if (order == 0) return;
-        
+
         if (firstcall) {
             for (n=0; n<100; n++) nn1[n] = n/((double) (n+1));
             firstcall=0;
         }
-        
+
         p[1] = x;
-        for (n=1; n<order; n++) 
+        for (n=1; n<order; n++)
             p[n+1] = (x*p[n] - p[n-1])*nn1[n] + x*p[n];
     }
-    
+
     /// Evaluate the first k Legendre scaling functions.
 
     /// p should be an array of k elements.
     void legendre_scaling_functions(double x, long k, double *p) {
-        
+
         static double phi_norms[100];
         static long first_call = 1;
         long n;
-        
+
         if (first_call) {
             for (n=0; n<100; n++) phi_norms[n] = sqrt(2.0*n+1.0);
             first_call = 0;
         }
-        
+
         legendre_polynomials(2.*x-1,k-1,p);
         for (n=0; n<k; n++) {
             p[n] = p[n]*phi_norms[n];
         }
     }
-    
+
     static bool data_is_read = false;
     static const int max_npt = 64;
     static const char *filename = "gaussleg";
     // These are the points and weights on [-1,1]
     static Tensor<double> points[max_npt+1];
     static Tensor<double> weights[max_npt+1];
-    
+
     /// read_data loads the precomputed Gauss-Legendre data
     static bool read_data() {
         if (data_is_read) return true;
@@ -88,7 +88,7 @@ namespace madness {
         for (int npt=0; npt<=max_npt; npt++) {
             points[npt] = Tensor<double>(npt);
             weights[npt] = Tensor<double>(npt);
-            
+
             int nnpt;
             if (fscanf(f,"%d",&nnpt) != 1) {
                 cout << "legendre: read_data: failed reading " << npt << endl;
@@ -118,8 +118,7 @@ namespace madness {
         if (data_is_read) return;
         if (comm.rank() == 0) {
             read_data();
-        }
-        else {
+        } else {
             for (int npt=0; npt<=max_npt; npt++) {
                 points[npt] = Tensor<double>(npt);
                 weights[npt] = Tensor<double>(npt);
@@ -131,12 +130,12 @@ namespace madness {
         }
         data_is_read = true;
     }
-    
+
     /// Compute the Gauss-Legendre quadrature points and weights
-    
+
     /// Return in x and w, which should be arrays of n elements, the
     /// points and weights for the n-point Gauss Legendre quadrature rule
-    /// in [xlo,xhi].  
+    /// in [xlo,xhi].
     ///
     /// !!!! This routine delivers accurate points, but some weights are accurate
     /// only to about 1e-13 for higher order rules.  Need a more intelligent way
@@ -144,14 +143,14 @@ namespace madness {
     bool gauss_legendre_numeric(int n, double xlo, double xhi, double *x, double *w) {
 
         throw "gauss_legendre_numeric: why are we in here?";
-        
+
         double midpoint = (xhi + xlo)*0.5;
         double scale    = (xhi - xlo)*0.5;
         double acc = 1e-16;
         double p[100];
-        
+
         double pi = atan(1.0)*4.0;
-        
+
         // References made to the equation numbers in Davis & Rabinowitz 2nd ed.
         for (int k=0; k<n; k++) {
             // Initial guess for the root using 2.7.3.3b
@@ -169,50 +168,50 @@ namespace madness {
                 if (iter >= 2) return false;
             }
             legendre_polynomials(r,n,p);
-            
+
             // This expression seems to have some cancellation of
             // significant digits for higher n.  Probably in the
             // 1-r*r for r close to 1 ... (1-r)*(1+r) gives us just
-            // one more bit.  There are other expressions ... 
+            // one more bit.  There are other expressions ...
             w[k] = 2.0*(1.0-r)*(1.0+r)/(n*n*p[n-1]*p[n-1]);
             x[k] = r;
         }
-        
+
         for (int i=0; i<n; i++) {
             x[i] = x[i]*scale + midpoint;
             w[i] = w[i]*scale;
         }
-        
+
         return true;
     }
-    
+
     /// Return precomputed (most accurate) or if not available computed
-    /// (not quite as accurate) points and weights for Gauss Legendre 
+    /// (not quite as accurate) points and weights for Gauss Legendre
     /// quadrature rule on the specified interval.
     bool gauss_legendre(int n, double xlo, double xhi, double *x, double *w) {
-        if (!read_data()) 
+        if (!read_data())
             return false;
-        
-        if (n < 1) 
+
+        if (n < 1)
             return false;
-        
-        if (n > max_npt) 
+
+        if (n > max_npt)
             return gauss_legendre_numeric(n, xlo, xhi, x, w);
-        
+
         // Cached are the points and weights for the interval [0,1]
-        
+
         // int(f(x),x=xlo..xhi) = int(f(x(z)),z=0..1)*(xhi-xlo)
-        // z = (x-xlo)/(xhi-xlo)  ->  x = xlo + z*(xhi-xlo) 
-        
+        // z = (x-xlo)/(xhi-xlo)  ->  x = xlo + z*(xhi-xlo)
+
         double range = xhi - xlo;
         for (int i=0; i<n; i++) {
             x[i] = xlo + points[n][i] * range;
             w[i] = weights[n][i] * range;
         }
-        
+
         return true;
     }
-    
+
     static double testf(int n, double x) {
         /// test function for gauss_legendre_test
         double sum = 0.0;
@@ -223,28 +222,28 @@ namespace madness {
         }
         return sum;
     }
-    
+
     bool gauss_legendre_test(bool print) {
         /// Check error in numerical integ(x+x^2+...+x^(2n-1),x=0..1)
         /// using n-pt rule.
-        
+
         const int maxnpt = 64;
         double x[maxnpt], w[maxnpt];
-        
+
         for (int npt=1; npt<maxnpt; npt++) {
             double sum = 0.0;
             gauss_legendre(npt,0,1,x,w);
             for (int i=0; i<npt; i++) sum += testf(npt, x[i])*w[i];
             for (int i=0; i<=(2*npt-1); i++) sum -= 1.0/(i+1);
             bool err = (std::abs(sum/npt) > 1.3e-14);
-            if (err || print) 
+            if (err || print)
                 cout << "gauss_leg_test: " << npt << " " << sum << " " << sum/npt << endl;
             if (err) return false;
         }
-        
+
         return true;
     }
-    
+
     // int main() {
     //   if (gauss_legendre_test())
     //     cout << " gauss_legendre seems OK\n";
@@ -252,5 +251,5 @@ namespace madness {
     //     cout << " gauss_legendre failed !\n";
     //   return 0;
     // }
-    
+
 }

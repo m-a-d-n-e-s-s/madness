@@ -43,15 +43,14 @@ int main(int argc, char** argv) {
     MPIInputArchive left(comm,(rank+nproc-1)%nproc);
 
     cout << "ranks " << rank << " " << ((rank+1)%nproc) << " " << ((rank+nproc-1)%nproc) << endl;
-    
+
     // Send an integer around a ring, accumulating onto it
     int sum = 1;
     if (rank == 0) {
         MPIOutputArchive(comm,(rank+1)%nproc) & sum;
         left & sum;
         cout << "final sum " << sum << " " << nproc << endl;
-    }
-    else {
+    } else {
         left & sum;
         sum++;
         right & sum;
@@ -64,8 +63,7 @@ int main(int argc, char** argv) {
         right & v;
         left & v;
         cout << "final vector " << v << endl;
-    }
-    else {
+    } else {
         left & v;
         v.push_back(me);
         right & v;

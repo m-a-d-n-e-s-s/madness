@@ -6,10 +6,13 @@
 
 using namespace std;
 namespace madness {
-extern "C" void fredfred() {std::cout << "fredfred" << std::endl;}
+
+    extern "C" void xterm_debug_breakpoint() {
+        std::cout << "xterm_debug_breakpoint" << std::endl;
+    }
 
 #ifndef HAS_XTERM_DEBUG
-	void xterm_debug(const Communicator& comm,
+    void xterm_debug(const Communicator& comm,
                      const char* path, const char* display) {}
 #else
     void xterm_debug(const Communicator& comm,
@@ -17,8 +20,8 @@ extern "C" void fredfred() {std::cout << "fredfred" << std::endl;}
         pid_t child;
         const char *argv[20], *xterm = "/usr/bin/xterm";
         char title[256], pid[256], geometry[256];
-		int ix=(comm.rank()/3)%3;
-		int iy=comm.rank()%3;
+        int ix=(comm.rank()/3)%3;
+        int iy=comm.rank()%3;
         sprintf(title, "Debugging process %d ", comm.rank());
         sprintf(pid, "%d", getpid());
         sprintf(geometry,"%dx%d+%d+%d",80,24,ix*500,iy*280);
@@ -56,6 +59,7 @@ extern "C" void fredfred() {std::cout << "fredfred" << std::endl;}
             printf("debug: fork failed?\n\n");
         } else if (child > 0) {
             sleep(5);			/* Release cpu while debugger starts*/
+            xterm_debug_breakpoint();
         } else {
             execv(xterm, (char*const*) argv);
             perror("");

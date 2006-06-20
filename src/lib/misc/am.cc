@@ -37,14 +37,14 @@ int main(int argc, char** argv) {
     //redirectio(comm);
     ProcessID me = comm.rank();
     long nproc = comm.nproc();
-    
+
     if (nproc == 1) throw "Gimme someone to talk to!";
-    
+
     mysrand(me);
-    
+
     try {
         int handle = comm.am_register(&handler);
-        
+
         for (int i=0; i<20; i++) {
             long reply = -1;
             ProcessID p = random_proc(comm);
@@ -55,13 +55,11 @@ int main(int argc, char** argv) {
             if (reply != me+1001) throw "Ooops ...";
             comm.am_poll();
         }
-        
+
         comm.am_barrier();
-    }
-    catch (MPI::Exception e) {
+    } catch (MPI::Exception e) {
         cout << " caught an MPI exception " << endl;
-    }
-    catch (const char* s) {
+    } catch (const char* s) {
         cout << " caught a string exception " << s << endl;
     }
 
