@@ -110,6 +110,9 @@ MINGW with g++ and MPICH2-1.0.3
 A great environment when you get it working.
 Install MINGW, Eclipse+CDT+Subclipse.
 
+Sucks with its bad path management and desparately slow performance.
+Use cygwin instead
+
 The provided C++ library only works with the Intel or MS
 compilers.  Copy 
 
@@ -127,3 +130,14 @@ the website at some point for convenience
   ARCH = -march=pentium-m
  #CXXFLAGS = -Wall -ansi -O0 -ggdb
   CXXFLAGS = -Wall -ansi -O3 -funroll-loops -ffast-math -fomit-frame-pointer $(ARCH)
+
+  ====================
+  CYGWIN on x8632
+  mpich2-1.0.3 pm=gforker
+  
+  ARCH = -march=pentium-m
+  CXXFLAGS = -Wall -ansi -O0 -ggdb $(ARCH)
+  #CXXFLAGS = -Wall -ansi -O3 -funroll-loops -ffast-math -fomit-frame-pointer $(ARCH)
+  
+  ./configure --with-cxx=mpicxx --with-cc=mpicc --with-cxx-optflags="-Wall -ansi -O0 -ggdb" --with-cc-optflags="-Wall -ansi -O0 -ggdb" 
+  

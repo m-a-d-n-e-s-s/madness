@@ -21,7 +21,6 @@ namespace madness {
 	public:
 		virtual bool probe() const = 0;
 		virtual void run() = 0;
-		virtual ~TaskInterface() {};
 	};
 	
 	/// A task with one input argument.
@@ -161,5 +160,7 @@ namespace madness {
 			}
 		};
 	};
+	
+	extern TaskQueue globalq;  // In tasks.cc
 }
 #endif /*TASKS_H_*/

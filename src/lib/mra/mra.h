@@ -16,6 +16,7 @@
 //#include <octtree/sendrecv.h>
 #include <mra/sepop.h>
 #include <misc/communicator.h>
+#include <tasks/sav.h>
 
 #include <serialize/textfsar.h>
 using madness::archive::TextFstreamInputArchive;
@@ -31,7 +32,7 @@ using madness::archive::VectorOutputArchive;
 
 namespace std {
 	/// This to make norm work as desired for both complex and real
-	static inline double norm(const double& d) {return d*d;};
+	static inline double norm(const double d) {return d*d;};
 
 /*
 	/// This struct stores informations on each branch. 
@@ -369,6 +370,8 @@ namespace madness {
 
         Slice s[2];        ///< s[0]=Slice(0,k-1), s[1]=Slice(k,2*k-1)
         std::vector<Slice> s0;  ///< s[0] in each dimension to get scaling coeffs
+        std::vector<long> vk;   ///< (k,k,k) used to initialize Tensors
+        std::vector<long> v2k;  ///< *2k,2k,2k) used to initialize Tensors
 
         typedef Tensor<T> TensorT; ///< Type of tensor used to hold coeffs
         Tensor<T> work1;        ///< work space of size (k,k,k)
@@ -406,9 +409,11 @@ namespace madness {
                 cell_width[i] = cell[i][1] - cell[i][0];
                 cell_volume *= cell_width[i];
             }
-            work1 = TensorT(k, k, k);
-            work2 = TensorT(2 * k, 2 * k, 2 * k);
-            zero_tensor = TensorT(k, k, k);
+            vk = vector_factory((long)k,(long)k,(long)k);
+            v2k = vector_factory(2L*k,2L*k,2L*k);
+            work1 = TensorT(vk);
+            work2 = TensorT(v2k);
+            zero_tensor = TensorT(vk);
 
             _init_twoscale();
             _init_quadrature();
@@ -569,8 +574,11 @@ namespace madness {
     /// Multiresolution 3d function of given type
     template <typename T>
     class Function {
+    public:
         typedef Tensor<T> TensorT; ///< Type of tensor used to hold coeffs
-
+        typedef SAV<TensorT> ArgT; ///< Type of single assignment variable for tasks
+    
+    private:
         /// Private.  This funky constructor makes a partial deep copy.
 
         /// It takes a deep copy of data, but does NOT copy the
@@ -775,7 +783,11 @@ namespace madness {
             return *this;
         };
 
-
+		Function<T>& compress2();
+		void _compress2(OctTreeT* tree, ArgT& parent);
+		void _compress2op(OctTreeT* tree, ArgT args[2][2][2], ArgT& parent);
+		ArgT input_arg(const OctTreeT* consumer, const OctTreeT* producer);
+		
         /// Reconstruct compressed function (wavelet to scaling function)
 
         /// Communication streams down the tree
@@ -1731,6 +1743,7 @@ namespace madness {
         };
 
 
+public:
         /// Private.  Determine if Function is active in tree node
 
         /// No communication involved.
@@ -1738,7 +1751,7 @@ namespace madness {
             return tree->data().isactive(ind);
         };
 
-
+private:
         /// Private.  For semantic similarity to isactive.
 
         /// No communication involved.
@@ -1817,7 +1830,7 @@ namespace madness {
             const TensorT *t = coeff(tree);
             if (t) {
 	      		for (long i=0; i<tree->n(); i++) std::printf("  ");
-	      		std::printf("%4ld (%8ld, %8ld, %8ld) = %9.1e\n",
+	      		std::printf("%4d (%8lu, %8lu, %8lu) = %9.1e\n",
 			  	tree->n(),tree->x(),tree->y(),tree->z(),t->normf());
 	    	}
             FOREACH_CHILD(OctTreeT, tree, if (isactive(child)) _pnorms(child););

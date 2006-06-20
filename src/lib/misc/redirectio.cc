@@ -11,7 +11,7 @@ namespace madness {
     void redirectio(const Communicator& comm) {
         if (comm.rank() != 0) {
             char filename[256];
-            std::sprintf(filename,"log.%5.5ld",comm.rank());
+            std::sprintf(filename,"log.%5.5d",comm.rank());
             fout.open(filename);
             cout.rdbuf(fout.rdbuf());
             std::cerr.rdbuf(fout.rdbuf());

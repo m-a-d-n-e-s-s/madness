@@ -1,7 +1,7 @@
 TOPDIR=../../..
 TARGET_TO_MAKE = libMADtasks
 
-CXXSRC =  
+CXXSRC = tasks.cc
 TESTPROGS = test 
 TEST1SRC = test.cc
 

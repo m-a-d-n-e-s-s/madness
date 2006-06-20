@@ -18,6 +18,8 @@
 
 namespace madness {
     class Communicator;
+    
+    extern Communicator* comm_default;
 
     //void xterm_debug(const Communicator& comm, 
 //		     const char* path, const char* display);

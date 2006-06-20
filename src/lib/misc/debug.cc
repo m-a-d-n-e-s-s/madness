@@ -2,9 +2,12 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <misc/communicator.h>
+#include <iostream>
 
 using namespace std;
 namespace madness {
+extern "C" void fredfred() {std::cout << "fredfred" << std::endl;}
+
 #ifndef HAS_XTERM_DEBUG
 	void xterm_debug(const Communicator& comm,
                      const char* path, const char* display) {}
@@ -13,10 +16,12 @@ namespace madness {
                      const char* path, const char* display) {
         pid_t child;
         const char *argv[20], *xterm = "/usr/bin/xterm";
-        char title[256], pid[256];
-
+        char title[256], pid[256], geometry[256];
+		int ix=(comm.rank()/3)%3;
+		int iy=comm.rank()%3;
         sprintf(title, "Debugging process %d ", comm.rank());
         sprintf(pid, "%d", getpid());
+        sprintf(geometry,"%dx%d+%d+%d",80,24,ix*500,iy*280);
 
         if (path == 0) path = "test1";
         if (display == 0) display = getenv("DISPLAY");
@@ -27,15 +32,20 @@ namespace madness {
         argv[2] = title;
         argv[3] = "-display";
         argv[4] = display;
-        argv[5] = "-e";
-        argv[6] = "gdb";
-        argv[7] = path;
-        argv[8] = pid;
-        argv[9] = 0;
+        argv[5] = "-fn";
+        argv[6] = "6x10";
+        argv[7] = "-geometry";
+        argv[8] = geometry;
+        argv[9] = "-e";
+        argv[10] = "gdb";
+        argv[11] = "-q";
+        argv[12] = path;
+        argv[13] = pid;
+        argv[14] = 0;
         if (comm.rank() == 0) {
             int i;
             printf("\n Starting xterms with debugger using command\n\n    ");
-            for (i = 0; argv[i]; i++) printf("'%s' ", argv[i]);
+            for (i = 0; argv[i]; i++) printf("%s ", argv[i]);
             printf("\n\n");
             fflush(stdout);
         }

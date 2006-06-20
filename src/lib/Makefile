@@ -1,6 +1,6 @@
 TOPDIR = ../..
 
-SUBDIRS = misc tensor linalg serialize octtree mra
+SUBDIRS = misc tensor linalg tasks serialize octtree mra
 
 include $(TOPDIR)/lib/GlobalMakefile
 include $(TOPDIR)/lib/MakeSubDirs

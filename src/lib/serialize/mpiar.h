@@ -10,29 +10,32 @@ namespace madness {
         class MPIOutputArchive : public BaseOutputArchive {
             mutable Communicator& comm;
             ProcessID dest;
+            int tag;
         public:
-            MPIOutputArchive(Communicator& comm, const ProcessID& dest) : comm(comm), dest(dest) {};
+            MPIOutputArchive(Communicator& comm, const ProcessID& dest, int tag=5447468) 
+            	: comm(comm), dest(dest), tag(tag) {};
             
             template <class T>
             inline 
             typename madness::enable_if< madness::is_fundamental<T>, void >::type
             store(const T* t, long n) const {
-                comm.Send(t, n, dest, 5447468);
+                comm.Send(t, n, dest, tag);
             };
         };
-        
         
         class MPIInputArchive : public BaseInputArchive {
             mutable Communicator& comm;
             ProcessID src;
+            int tag;
         public:
-            MPIInputArchive(Communicator& comm, const ProcessID& src) : comm(comm), src(src) {};
+            MPIInputArchive(Communicator& comm, const ProcessID& src, int tag=5447468) 
+            	: comm(comm), src(src), tag(tag) {};
 
             template <class T>
             inline 
             typename madness::enable_if< madness::is_fundamental<T>, void >::type
             load(T* t, long n) const {
-                comm.Recv(t, n, src, 5447468);
+                comm.Recv(t, n, src, tag);
             }
         };
 

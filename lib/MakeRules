@@ -63,7 +63,7 @@ ifeq ($(BIN_OR_LIB),LIB)
 ifeq ($(TMPLINLIB),yes)
 
 $(TOPDIR)/lib/$(TARGET_TO_MAKE).a: $(LIBOBJ)
-	/bin/rm -f $@
+	-/bin/rm -f $@
 	$(AR) $(ARFLAGS) $@ $^ $(wildcard $(TMPLREPO)/*.o)
 	$(RANLIB) $@
 
@@ -86,7 +86,7 @@ $(TOPDIR)/lib/$(TARGET_TO_MAKE).a: $(LIBOBJ)
 else
 
 $(TOPDIR)/lib/$(TARGET_TO_MAKE).a: $(LIBOBJ)
-	/bin/rm -f $@
+	-/bin/rm -f $@
 	$(AR) $(ARFLAGS) $@ $(LIBOBJ)
 	$(RANLIB) $@
 

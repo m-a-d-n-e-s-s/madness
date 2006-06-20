@@ -2,6 +2,9 @@
 using std::cout;
 using std::endl;
 
+#include <cstring>
+using std::strcmp;
+
 /// \file mra/test.cc
 
 #include <mra/mra.h>
@@ -21,6 +24,11 @@ double fred(double x, double y, double z) {
     return fac*exp(-65.0*(x*x+y*y+z*z));
 }
 
+namespace madness {
+extern "C" void fredfred();
+void xterm_debug(const Communicator& comm, const char* path, const char* display);
+}
+
 double_complex cfred(double x, double y, double z) {
     return x*x+y*y*z*z;
 }
@@ -36,6 +44,7 @@ int main(int argc, char* argv[]) {
     // 7) Top level catching of exceptions
     MPI::Init(argc, argv);
     Communicator comm;
+    madness::comm_default = &comm;	
     redirectio(comm);
     comm.print();
     load_coeffs(comm);
@@ -44,17 +53,24 @@ int main(int argc, char* argv[]) {
     if (!gauss_legendre_test()) comm.Abort();
     if (!test_two_scale_coefficients()) comm.Abort();
     
+    for (int i=1; i<argc; i++) {
+    	if (strcmp(argv[i],"-d") == 0) xterm_debug(comm,0,0);
+    }
+    
     // To ensure reliable cleanup catch all C++ exceptions here
     try {
         // Do useful stuff here
         FunctionDefaults::k=7;
         FunctionDefaults::initial_level=1;
         Function<double> f = FunctionFactory<double>(fred).thresh(1e-3).nocompress();
-        print("Tree in scaling function basis",f.norm2sq());
+        print("Tree in scaling function basis");
 		f.pnorms();
-        f.compress();
-        print("Tree in wavelet basis",f.norm2sq());
+        f.compress2();
+        print("Tree in wavelet basis");
         f.pnorms();
+        f.reconstruct();
+        print("Tree in scaling function basis");
+		f.pnorms();
     }
     catch (char const* msg) {
         std::cerr << "Exception (string): " << msg << std::endl;

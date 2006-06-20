@@ -159,7 +159,10 @@ namespace madness {
 		template <class argT>
 		SAVImpl(int rank, int tag, bool postrecv, const argT& args) 
 			: assigned(false), posted(postrecv), rank(rank), tag(tag), t(args), state(1), handle() { 
-			if (postrecv) handle = madness::comm_default->Irecv(t.ptr(), t.size, rank, tag);
+			if (postrecv) {
+				//t = Tensor<T>(args);
+				handle = madness::comm_default->Irecv(t.ptr(), t.size, rank, tag);
+			}
 		};
 	
 	    inline bool probe() const {
@@ -272,6 +275,7 @@ namespace madness {
 	    SAV<T>& operator=(const SAV<T>& v) {
 	    	v.init();
 	    	p = v.p;
+	    	return *this;
 	    };
 	    
 		/// Sets or assigns a value to the underlying variable

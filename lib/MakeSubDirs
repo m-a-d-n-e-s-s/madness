@@ -4,8 +4,10 @@
 default::
 	for dir in $(SUBDIRS); \
 	  do \
-	    (cd $${dir} && $(MAKE) $(JOBS)) || exit 1; \
+	    ($(MAKE) -C $${dir} $(JOBS)) || exit 1 ; \
 	  done
+
+#	    (cd $${dir} && $(MAKE) $(JOBS)) || exit 1; 
 
 ifndef DODEPEND
 DODEPENDOPT = "DODEPEND=no"
