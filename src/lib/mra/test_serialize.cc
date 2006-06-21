@@ -32,6 +32,7 @@ using madness::archive::VectorOutputArchive;
 
 #include <mra/mra.h>
 using madness::Function;
+//using madness::Function::save_local;
 using madness::FunctionDefaults;
 using madness::FunctionFactory;
 using madness::FunctionOctTree;
@@ -502,51 +503,37 @@ template <class Archive, class OctTreeT>
 */
 
 int main(int argc, char* argv[]) {
-    madness::archive::archive_initialize_type_names();
-    ARCHIVE_REGISTER_TYPE_AND_PTR_NAMES(A);
-    ARCHIVE_REGISTER_TYPE_AND_PTR_NAMES(B);
-    ARCHIVE_REGISTER_TYPE_AND_PTR_NAMES(C);
-    ARCHIVE_REGISTER_TYPE_AND_PTR_NAMES(linked_list);
-    ARCHIVE_REGISTER_TYPE_AND_PTR_NAMES(madness::archive::pair_int_double);
-    ARCHIVE_REGISTER_TYPE_AND_PTR_NAMES(madness::archive::pair_short_complex_double);
-    ARCHIVE_REGISTER_TYPE_AND_PTR_NAMES(madness::archive::map_short_complex_double);
+  madness::archive::archive_initialize_type_names();
+  ARCHIVE_REGISTER_TYPE_AND_PTR_NAMES(A);
+  ARCHIVE_REGISTER_TYPE_AND_PTR_NAMES(B);
+  ARCHIVE_REGISTER_TYPE_AND_PTR_NAMES(C);
+  ARCHIVE_REGISTER_TYPE_AND_PTR_NAMES(linked_list);
+   ARCHIVE_REGISTER_TYPE_AND_PTR_NAMES(madness::archive::pair_int_double);
+  ARCHIVE_REGISTER_TYPE_AND_PTR_NAMES(madness::archive::pair_short_complex_double);
+  ARCHIVE_REGISTER_TYPE_AND_PTR_NAMES(madness::archive::map_short_complex_double);
+  
+  {
+    MPI::Init(argc, argv);
+    Communicator comm;
+    redirectio(comm);
+    comm.print();
+    load_coeffs(comm);
+    load_quadrature(comm);
+    FunctionDefaults::tree = new FunctionOctTree(OctTree<FunctionNode>::create_default(comm,2));
 
-    {
-        cout << endl << "testing vector archive for Function class" << endl;
-        MPI::Init(argc, argv);
-        Communicator comm;
-        redirectio(comm);
-        comm.print();
-        load_coeffs(comm);
-        load_quadrature(comm);
-        //FunctionDefaults::tree = new FunctionOctTree(OctTree<FunctionNode>::create_default(comm,2));
-        FunctionDefaults::tree = new FunctionOctTree(OctTree<FunctionNode>::create_default(comm,2));
+    Function<double> ftest = FunctionFactory<double>(fred).k(3).refine(1).compress(1).initial_level(2).thresh(1e-5);
+    Function<double> ftest2 = FunctionFactory<double>();
+    const char* f = "tserialize.dat";
+    ftest.compress();
+    ftest.truncate();
+    //ftest.save_local(oar);
+    ftest.save(f, comm);
+    //ftest.load_local(iar);
+    ftest2.load(f, comm);
+    cout << " class subtraction test " << (ftest - ftest2).norm2sq() << endl;
 
-        /*
-          D d(11);
-          outputarchive & d;
-         
-          D d2;
-          inputarchive & d2;
-        */
-        //Function<double> ftest;
-        Function<double> ftest = FunctionFactory<double>(fred).refine(1).compress(1).initial_level(3).thresh(1e-7);
-//    Function<double> ffactory = FunctionFactory<double>(fred);
-//    vector< Function<double> > fvector;
-//    ftest.truncate(0.000001);
-        const char* f = "tserialize.dat";
-        TextFstreamOutputArchive oar(f);
-//    BinaryFstreamOutputArchive oar(f);
-        ftest.save_local(oar);
-        oar.close();
-        TextFstreamInputArchive iar(f);
-//    BinaryFstreamInputArchive iar(f);
-        cout << " before load " << endl;
-        ftest.load_local(iar);
-        oar.close();
-
-        comm.close();
-        MPI::Finalize();
+    comm.close();
+    MPI::Finalize();
     }
 
     return 0;
