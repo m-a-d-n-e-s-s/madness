@@ -908,6 +908,11 @@ namespace madness {
 	void saveLoadWorker(OctTreeT *tree, 
 			Communicator& commFunc, bool save);
 
+	/// This member is member for DiskDir class.
+	void saveLoadWorker4DD(Communicator& comm, bool save){
+             saveLoadWorker(tree(), comm, save);
+        } 
+
 	/// This member Returns localsubtreelist of client computer to Master.
 	void localTreeList(std::vector<localTreeMember> &subtreeList, 
 			OctTreeT *tree);
@@ -936,6 +941,12 @@ namespace madness {
 	/// Load Managing Function member. 
 	template <class Archive>
 	void loadManager(const Archive& ar, OctTreeT *tree, Communicator& commFunc, bool active_flag, bool have_child);
+
+	/// Load Managing Function member for DiskDir class. 
+	template <class Archive>
+	void loadManager4DD(const Archive& ar, Communicator& commFunc, bool active_flag){
+             loadManager(ar, tree(), commFunc, active_flag, true);
+        };
 
 	/// The truncate member function was prepared 
 	/// to neglects small components. 

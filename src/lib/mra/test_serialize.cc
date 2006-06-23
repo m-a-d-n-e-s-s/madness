@@ -521,7 +521,7 @@ int main(int argc, char* argv[]) {
     load_quadrature(comm);
     FunctionDefaults::tree = new FunctionOctTree(OctTree<FunctionNode>::create_default(comm,2));
 
-    Function<double> ftest = FunctionFactory<double>(fred).k(3).refine(1).compress(1).initial_level(2).thresh(1e-5);
+    Function<double> ftest = FunctionFactory<double>(fred).k(3).refine(1).compress(1).initial_level(2).thresh(1e-1);
     Function<double> ftest2 = FunctionFactory<double>();
     const char* f = "tserialize.dat";
     ftest.compress();

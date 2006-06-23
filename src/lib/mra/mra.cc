@@ -687,14 +687,6 @@ namespace madness {
     template <typename T>
     void Function<T>::save(const char* f, Communicator& comm) {
       if (comm.rank() == 0) {
-/*
-      if(textBinary) {
-        TextFstreamOutputArchive oar(f);
-      }
-      else {
-        BinaryFstreamOutputArchive oar(f);
-      }
-*/
         TextFstreamOutputArchive oar(f);
         saveMain(oar, comm);
         oar.close();
@@ -732,6 +724,7 @@ namespace madness {
       else {
         ar & isactive(tree);
         ar & tree->n() & tree->x() & tree->y() & tree->z();
+        cout << tree->n() << " " <<  tree->x() << " " <<  tree->y() << " " <<  tree->z() << endl;
         if(isactive(tree)) {
           const TensorT *t = coeff(tree);
           ar & (t != 0);
@@ -1014,14 +1007,6 @@ namespace madness {
     void Function<T>::load(const char* f, Communicator& comm) {
       TextFstreamInputArchive iar(comm.rank() ? 0 : f);
       if (comm.rank() == 0) {
-/*
-      if(textBinary) {
-        TextFstreamInputArchive iar(f);
-      }
-      else {
-        BinaryFstreamInputArchive iar(f);
-      }
-*/
         iar & FunctionDefaults::k;
         iar & FunctionDefaults::thresh;
         iar & FunctionDefaults::initial_level;
@@ -1075,6 +1060,7 @@ namespace madness {
         Level n_local;
         Translation x_local, y_local, z_local;
         ar & n_local & x_local & y_local & z_local;
+        cout << n_local << " " << x_local << " " << y_local << " " << z_local << endl;
 	if(active_flag) {
           bool inquireCoeffs;
           ar & inquireCoeffs;
