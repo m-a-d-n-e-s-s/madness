@@ -7,6 +7,7 @@
 #include <vector>
 #include <string>
 #include <functional>
+#include <cmath>
 
 #include <madness_config.h>
 #include <tensor/tensor.h>
@@ -83,6 +84,15 @@ namespace madness {
 
     */
 
+#define FOREACH_ACTIVE_CHILD(OctTreeT, t, expr) \
+    do { \
+      for (int i=0; i<2; i++) \
+        for (int j=0; j<2; j++) \
+	  for (int k=0; k<2; k++) { \
+            OctTreeT *child = ((t)->child(i,j,k)); \
+            if (child && isactive(child)) {expr} \
+          } \
+    } while(0)
 
     class FunctionNode;         ///< Forward definition
     typedef OctTree<FunctionNode> OctTreeT; ///< Type of OctTree used to hold coeffs
@@ -636,6 +646,17 @@ namespace madness {
             }
             return *this;
         };
+        
+        /// Evaluate at a point with global broadcast of the result
+        
+        /// A global synchronization is implied
+        T operator()(double x, double y, double z) {
+        	reconstruct();
+        	T value = 0.0;
+        	eval_local(x,y,z,&value);
+        	comm()->global_sum(&value,1);
+        	return value;
+        };
 
         /// Unary negation.  Produces new function.
 
@@ -647,7 +668,7 @@ namespace madness {
             return result;
         };
 
-        /// Scale by a constant.  Produces new function.
+        /// Function times a scalar.  Produces new function.
         /// No communication involved.  Works in either basis.
         Function<T> operator*(T s) const {
             Function<T> result = FunctionFactory<T>().k(k).compress(iscompressed()).empty();
@@ -657,58 +678,16 @@ namespace madness {
         };
 
         /// Multiplication of two functions.
-        /// No communication involved.
+    
+    	/// Crude version using squaring is inaccurate, slow and implies global sync
         Function<T> operator*(Function<T>& other) {
-            reconstruct();
-            other.reconstruct();
-            Function<T> result = FunctionFactory<T>().k(k).compress(iscompressed()).empty();
-            data->nterminated = 0;
-            _mul_func(result, *this, other, tree(), 0.0);
-            return result;
+            return ((*this+other).square()-(*this-other).square()).scale(0.25);
         };
 
-        void Function::_mul_func(Function<T>& a, const Function<T>& b, const Function<T>& c, OctTreeT* tree, double tol) {
-            const TensorT *c2 = b.coeff(tree);
-            const TensorT *c3 = c.coeff(tree);
-            if (c2 && c3) {}
-        };
-
-        /// const * function (see Function<T>::operator*(T t))
+        /// scalar * function (see Function<T>::operator*(T t))
         friend inline Function<T> operator*(T t, const Function<T>& f) {
             return f*t;
         };
-
-        /// Add a constant.  Produces new function.
-
-        /// No communication involved.  Works in either basis.
-        Function<T> operator+(T t) const {
-            Function<T> result = FunctionFactory<T>().k(k).compress(iscompressed()).empty();
-            if (isactive(tree()))
-                _unaryop(result, result.tree(), _add_helper<T>(t));
-            return result;
-        };
-
-        /// const + function (see Function<T>::operator+(T t))
-        friend inline Function<T> operator+(T t, const Function<T>& f) {
-            return f + t;
-        };
-
-
-        /// Subtract a constant.  Produces new function.
-
-        /// No communication involved.  Works in either basis.
-        Function<T> operator-(T t) const {
-            Function<T> result = FunctionFactory<T>().k(k).compress(iscompressed()).empty();
-            if (isactive(tree()))
-                _unaryop(result, result.tree(), _add_helper<T>( -t));
-            return result;
-        };
-
-        /// const - function (see Function<T>::operator-(T t))
-        friend inline Function<T> operator-(T t, const Function<T>& f) {
-            return (f -t).scale( -1.0);
-        };
-
 
         /// Binary addition.  Works in wavelet basis generating new Function
 
@@ -755,13 +734,13 @@ namespace madness {
         /// function or wavelet basis.
         double norm2sq_local() const {
             return _norm2sq_local(tree());
-        }
+        };
 
         /// communication is involved.
         /// This member outputs norm.
         double norm2sq() const {
             return _norm2sq(tree());
-        }
+        };
 
         /// Compress function (scaling function to wavelet)
 
@@ -773,6 +752,16 @@ namespace madness {
                 data->compressed = true;
             }
             return *this;
+        };
+        
+        /// Autorefine (e.g. for squaring or multiplication)
+        
+        /// Communication, if any, flows down the tree
+        /// Returns self for chaining.
+        Function<T>& autorefine() {
+        	if (data->compressed) reconstruct();
+        	if (isactive(tree())) _autorefine(tree());
+        	return *this;
         };
 
         Function<T>& compress2();
@@ -803,18 +792,16 @@ namespace madness {
 
         /// Inplace square (pointwise multiplication by self)
 
-        /// If not reconstructed, reconstruct() is called.
+        /// If not reconstructed, reconstruct() is called which communicates.
         /// If not autorefining, no communication is involved in
         /// the squaring.  If autorefinining, some downward communication
-        /// is involved.
+        /// may be involved depending on the distribution of tree nodes.
         ///
         /// Returns self for chaining.
         Function<T>& square() {
-            if (this->iscompressed()) this->reconstruct();
-            bool might_refine = false;
-            if (this->data->autorefine) might_refine = _square_notify(tree());
-            if (might_refine || isactive(tree())) _square(tree());
-            return *this;
+           if (this->iscompressed()) this->reconstruct();
+           if (isactive(tree())) _square(tree());
+           return *this;
         };
 
         /// Inplace Generalized SAXPY to scale and add two functions.
@@ -1079,13 +1066,12 @@ namespace madness {
         /// Private.  Applies truncation method to give truncation threshold
 
         /// No communication involved.
-        double truncate_tol(double tol, Level n) {
+        /// Truncate method m scales tol by 2^(-n*m/2)
+        inline double truncate_tol(double tol, Level n) {
             if (data->truncate_method == 0) {
                 return tol;
-            } else if (data->truncate_method == 1) {
-                return tol / two_to_power(n);
             } else {
-                throw "truncation_tol: unknown truncation method?";
+            	return tol*std::pow(0.5,0.5*n*data->truncate_method);
             }
         };
 
@@ -1327,7 +1313,7 @@ namespace madness {
             FOREACH_CHILD(OctTreeT, tree,
                           if (isactive(child))
                           _unaryop(result, child, op););
-        }
+        };
 
 
         /// Private.  Recur down the tree printing out the norm of
@@ -1340,7 +1326,7 @@ namespace madness {
                             tree->n(),tree->x(),tree->y(),tree->z(),t->normf());
             }
             FOREACH_CHILD(OctTreeT, tree, if (isactive(child)) _pnorms(child););
-        }
+        };
 
         /// Private.  Recursive function to support inplace scaling.
         void _scale(OctTreeT *tree, T s) {
@@ -1361,11 +1347,11 @@ namespace madness {
             // This routine exists to provide higher precision and in order to
             // optimize away the tensor slicing otherwise necessary to compute
             // the norm using
-            // Slice s0(0,k/2);
-            // double anorm    = a.normf();
-            // double anorm_lo = a(s0,s0,s0).normf();
-            // double anorm_hi = sqrt(anorm*anorm - anorm_lo*anorm_lo);
-
+            Slice s0(0,(k-1)/2);
+            double anorm = t.normf();
+            *lo = t(s0,s0,s0).normf();
+            *hi = sqrt(anorm*anorm - *lo**lo);
+/*
             // k=5   0,1,2,3,4     --> 0,1,2 ... 3,4
             // k=6   0,1,2,3,4,5   --> 0,1,2 ... 3,4,5
 
@@ -1396,85 +1382,80 @@ namespace madness {
                         shi += std::norm(t(p, q, r));
 
             *lo = sqrt(slo);
-            *hi = sqrt(shi);
-        }
+            *hi = sqrt(shi);*/
+        };
 
-        /// Private.  Notify processes if squaring may cause remote refinement.
-
-        /// In squaring with autorefine, we perform the square on the level
-        /// below if the norm of the high-order coefficients are greater
-        /// than some threshold.  Sometimes, the level below may be stored
-        /// on a remote process which implies that all child nodes have
-        /// to sit around waiting for their parent to notify them if refinement
-        /// is necessary or not.  In order to greatly increase the concurrency,
-        /// this routine is used to notify children if refinement is a possibility
-        /// (or not) due to the existence (or not) of coefficients at the lowest
-        /// level of the local tree.  Only child nodes for which refinement
-        /// is a possibility will then need to sit around waiting.
-        ///
-        /// The key here is to notify children \em before waiting for info
-        /// from the parent, which eliminates unecessary dependencies.
-        ///
-        /// Involves downward communication.
-        ///
-        /// Returns true if a remote parent will pass refinement info
-        /// during _square; returns false otherwise.
-        bool _square_notify(const OctTreeT *tree) {
-            bool has_data = coeff(tree);
-            FOREACH_CHILD(OctTreeT, tree,
-                          if (isremote(child)) comm()->Send(has_data, child->rank(), 55);
-                         );
-            FOREACH_CHILD(OctTreeT, tree,
-                          if (!isremote(child)) _square_notify(child);
-                         );
-
-            bool do_someone = false;
-            if (tree->islocalsubtreeparent() && isremote(tree)) {
-                FOREACH_CHILD(OctTreeT, tree,
-                              bool do_me;
-                              comm()->Recv(do_me, tree->rank(), 55);
-                              do_someone = do_someone || do_me;
-                             );
-            }
-            return do_someone;
+        /// Private.  Recursive function to provide autorefinement for squaring and multiplication.
+        void _autorefine(OctTreeT *tree) {
+        	int nactivekids = 0;
+        	FOREACH_ACTIVE_CHILD(OctTreeT, tree,
+        						 nactivekids++;
+        						 if (child->islocal()) _autorefine(child););	
+        						 		
+ 			if (tree->islocal() && coeff(tree)) {
+ 				// At bottom of tree with coefficients
+ 				const Slice* s = data->cdata->s;
+ 				const Slice& s0 = s[0];
+ 				const Tensor<T>& c = *coeff(tree);
+ 				double tol = truncate_tol(data->thresh,tree->n());
+ 				bool refine = false;
+ 				double lo,hi;
+ 				FORIJK(_tnorms(c(s[i],s[j],s[k]),&lo,&hi);
+					//print("   tnorms",2*tree->n(),2*tree->x()+i,2*tree->y()+j,2*tree->z()+k,lo,hi);
+ 				       refine = hi > tol;
+ 				       if (refine) goto done;);
+ 				done:
+				FOREACH_REMOTE_CHILD(OctTreeT, tree, 
+									 comm()->Send(refine,child->rank(),99););
+				//print("doing autoref",tree->n(),tree->x(),tree->y(),tree->z(),lo,hi,refine);
+ 				if (refine) {
+ 					long k2 = 2*k;
+ 					Tensor<T>& work1 = data->cdata->work1;
+ 					FORIJK(OctTreeT* child = tree->child(i,j,k);
+ 					       if (!child) child = tree->insert_local_child(i,j,k);
+ 					       set_active(child);
+ 					       if (child->islocal()) {
+ 					       	  Tensor<T>*t = set_coeff(child, Tensor<T>(k2, k2, k2));
+                              (*t)(s0, s0, s0) = c(s[i],s[j],s[k]);
+                              unfilter_inplace(*t);  // sonly!
+ 					       }
+ 					       else {
+ 					       	  work1(s0,s0,s0) = c(s[i],s[j],s[k]); // contig. copy
+ 					          comm()->Send(work1.ptr(), work1.size, child->rank(), 66);
+ 					       }
+ 					);
+ 					unset_coeff(tree);
+ 				}
+ 			} else if (tree->isremote() && nactivekids==0) {
+ 				// Remote parent has data and may have refined 
+ 				bool refined;
+ 				comm()->Recv(refined, tree->rank(), 99);
+ 				if (refined) {
+ 					const Slice& s0 = data->cdata->s[0];
+                	Tensor<T>& work1 = data->cdata->work1;
+                	long k2 = k*2;
+ 					FOREACH_CHILD(OctTreeT, tree,
+ 							  comm()->Recv(work1.ptr(), work1.size, tree->rank(), 66);
+                              Tensor<T>*c = set_coeff(child, Tensor<T>(k2, k2, k2));
+                              (*c)(s0, s0, s0) = work1;
+                              unfilter_inplace(*c); // sonly needed!
+ 					);
+ 				}
+ 			}
         };
 
         /// Private.  Recursive function to support inplace squaring.
+        
+        /// No communication.
         void _square(OctTreeT *tree) {
-            if (!isactive(tree)) {
-                // This node is a local subtreeparent and there is a possibility
-                // that the remote parent will be refining data down to it.
-                // First, suck all the data from the parent so it is not
-                // blocked on sending, then process.
-                const Slice& s0 = data->cdata->s[0];
-                long k3 = k * k * k;
-                long k2 = k * 2;
-                Tensor<T>& work = data->cdata->work1;
-                FOREACH_CHILD(OctTreeT, tree,
-                              MPI::Status status;
-                              comm()->Recv(work.ptr(), k3*sizeof(T), MPI::BYTE, tree->rank(), 66, status);
-                              if (status.Get_count(MPI::BYTE)) {
-                              set_active(tree);
-                                  Tensor<T>*c = set_coeff(child, Tensor<T>(k2, k2, k2));
-                                  (*c)(s0, s0, s0) = work;
-                              }
-                             );
-                if (isactive(tree)) {
-                    FOREACH_CHILD(OctTreeT, tree,
-                                  // 96/28=3.4 x faster if use sonly=true here.
-                                  if (isactive(child)) unfilter_inplace(*coeff(child));
-                                 );
-                } else {
-                    // Did NOT get refinement info so are done.
-                    return ;
-                }
-            }
+        	 FOREACH_ACTIVE_CHILD(OctTreeT, tree, _square(child););
 
-            if (coeff(tree)) {
+             if (coeff(tree)) {
+             	//print("squaring",tree->n(),tree->x(),tree->y(),tree->z());
                 Tensor<T>& t = *coeff(tree);
                 Tensor<T> r(k, k, k);
                 const Slice* s = data->cdata->s;
-                double scale = std::pow(8.0, 0.5 * tree->n());
+                double scale = std::pow(8.0, 0.5 * (tree->n()+1));
                 FORIJK(r(___) = t(s[i], s[j], s[k]);
                        transform3d_inplace(r, data->cdata->quad_phit,
                                            data->cdata->work1);
@@ -1483,10 +1464,7 @@ namespace madness {
                                            data->cdata->work1);
                        t(s[i], s[j], s[k]) = r;
                       );
-            } else {
-                FOREACH_CHILD(OctTreeT, tree,
-                              if (isactive(child)) _square(child););
-            }
+             }
         };
 
         /// Private.  Recursive function to support gaxpy

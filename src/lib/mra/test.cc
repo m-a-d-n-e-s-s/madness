@@ -13,6 +13,7 @@ using std::strcmp;
 #include <mra/twoscale.h>
 #include <mra/legendre.h>
 #include <tensor/tensor.h>
+#include <misc/madexcept.h>
 
 using namespace madness;
 
@@ -26,7 +27,12 @@ double fred(double x, double y, double z) {
     return fac*exp(-65.0*(x*x+y*y+z*z));
 }
 
-namespace madness {
+double mary(double x, double y, double z) {
+    double fac = pow(2.0*65.0/PI,0.75);
+    x-=0.4;
+    y-=0.6;
+    z-=0.5;
+    return fac*exp(-65.0*(x*x+y*y+z*z));
 }
 
 double_complex cfred(double x, double y, double z) {
@@ -60,7 +66,7 @@ int main(int argc, char* argv[]) {
     // To ensure reliable cleanup catch all C++ exceptions here
     try {
         // Do useful stuff here
-        FunctionDefaults::k=7;
+        FunctionDefaults::k=6;
         FunctionDefaults::initial_level=1;
         Function<double> f = FunctionFactory<double>(fred).thresh(1e-3).nocompress();
         print("Tree in scaling function basis");
@@ -71,11 +77,26 @@ int main(int argc, char* argv[]) {
         f.reconstruct();
         print("Tree in scaling function basis");
         f.pnorms();
+        print("values",fred(0.45,0.53,0.48),f(0.45,0.53,0.48));
+        f.autorefine();
+        print("Tree in scaling function basis after autorefine");
+        f.pnorms();
+        print("values",fred(0.45,0.53,0.48),f(0.45,0.53,0.48));
+        f.square();
+        print("values",fred(0.45,0.53,0.48)*fred(0.45,0.53,0.48),f(0.45,0.53,0.48));
+        Function<double> m = FunctionFactory<double>(mary).thresh(1e-3).nocompress();
+		Function<double>fm = f*m;
+		print("f",fred(0.45,0.53,0.48)*fred(0.45,0.53,0.48),f(0.45,0.53,0.48));
+		print("m",mary(0.45,0.53,0.48),m(0.45,0.53,0.48));
+		print("fm",fred(0.45,0.53,0.48)*fred(0.45,0.53,0.48)*mary(0.45,0.53,0.48),fm(0.45,0.53,0.48));       
     } catch (char const* msg) {
         std::cerr << "Exception (string): " << msg << std::endl;
         comm.Abort();
     } catch (std::exception& e) {
         std::cerr << "Exception (std): " << e.what() << std::endl;
+        comm.Abort();
+    } catch (MadnessException& e) {
+    	std::cerr << e << std::endl;
         comm.Abort();
     } catch (TensorException& e) {
         std::cerr << e << std::endl;

@@ -174,16 +174,16 @@ namespace madness {
         int npt = data->cdata->npt;
         Tensor<T> r(2*k,2*k,2*k);
         Tensor<T> fval(npt,npt,npt);
-        Level n = tree->n();
+        Level n = tree->n()+1;
         Translation x=2*tree->x(), y=2*tree->y(), z=2*tree->z();
         const Slice* s = data->cdata->s;
         for (int ix=0; ix<2; ix++) {
             for (int iy=0; iy<2; iy++) {
                 for (int iz=0; iz<2; iz++) {
                     if (data->vf) {
-                        _vfcube(n+1, x+ix, y+iy, z+iz, data->vf, fval);
+                        _vfcube(n, x+ix, y+iy, z+iz, data->vf, fval);
                     } else if (data->f) {
-                        _fcube(n+1, x+ix, y+iy, z+iz, data->f, fval);
+                        _fcube(n, x+ix, y+iy, z+iz, data->f, fval);
                     }
                     // Can optimize away the tensor construction in transform3d
                     r(s[ix],s[iy],s[iz]) = transform3d(fval,data->cdata->quad_phiw);
@@ -304,7 +304,7 @@ namespace madness {
                     cfun.set_coeff(tree,*at+*bt);
             else
                 if (subtract)
-                    cfun.set_coeff(tree,madness::copy(-*bt));
+                    cfun.set_coeff(tree,-*bt);
                 else
                     cfun.set_coeff(tree,madness::copy(*bt));
 
@@ -533,7 +533,7 @@ namespace madness {
                 }
             }
         }
-        return sum*pow(2.0,1.5*n);
+        return sum*pow(2.0,1.5*(n+1));
     }
 
     template <typename T>

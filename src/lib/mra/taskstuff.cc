@@ -18,16 +18,6 @@ using std::endl;
 
 namespace madness {
 
-#define FOREACH_ACTIVE_CHILD(OctTreeT, t, expr) \
-    do { \
-      for (int i=0; i<2; i++) \
-        for (int j=0; j<2; j++) \
-	  for (int k=0; k<2; k++) { \
-            OctTreeT *child = ((t)->child(i,j,k)); \
-            if (child && isactive(child)) {expr} \
-          } \
-    } while(0)
-
     /// A task tailored to the needs of compress2
     template <typename T>
     class TaskCompress : public TaskInterface {
@@ -113,14 +103,14 @@ namespace madness {
                              if (child->islocal()) _compress2(child,args[i][j][k]););
 
         if (tree->islocal()) {
-            print(comm()->rank(),"adding task",tree->n(),tree->x(),tree->y(),tree->z());
+            //print(comm()->rank(),"adding task",tree->n(),tree->x(),tree->y(),tree->z());
             globalq.add(new TaskCompress<T>(this,tree,args,parent));
         }
     };
 
     template <typename T>
     void Function<T>::_compress2op(OctTreeT* tree, Function<T>::ArgT args[2][2][2], Function<T>::ArgT& parent) {
-        print(comm()->rank(),"executing task",tree->n(),tree->x(),tree->y(),tree->z());
+        //print(comm()->rank(),"executing task",tree->n(),tree->x(),tree->y(),tree->z());
         Slice *s = data->cdata->s;
         if (!coeff(tree)) set_coeff(tree,TensorT(2*k,2*k,2*k));
         TensorT& t = *coeff(tree);
