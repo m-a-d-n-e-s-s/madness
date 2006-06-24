@@ -4,6 +4,7 @@
 /// \file tasks.h
 /// \brief Implements TaskQueue, TaskInterface and other Task classes
 #include <list>
+#include <unistd.h>
 
 
 namespace madness {
@@ -138,7 +139,7 @@ namespace madness {
         /// Probe pending tasks and move the first ready one to ready queue.
 
         /// Returns true if a ready task was found, false otherwise.
-        bool probe() {
+        inline bool probe() {
             if (!pending.empty()) {
                 for (std::list<TaskInterface *>::iterator p = pending.begin();
                         p != pending.end(); ++p) {
@@ -153,13 +154,18 @@ namespace madness {
             return false;
         };
 
-        /// Runs the next ready task if there is one
-        void run_next_ready_task() {
-            if (!ready.empty()) {
+        /// Runs the next ready task if there is one, returns true if one was run
+        inline bool run_next_ready_task() {
+            if (ready.empty()) {
+                return false;
+            }
+            else {
                 TaskInterface *p = ready.front();
                 p->run();
                 ready.pop_front();
+                return true;
             }
+            return false;
         };
 
         // Need a probe all to ensure progress of multistep stuff
@@ -170,10 +176,14 @@ namespace madness {
         void wait() {
             while (!(pending.empty() && ready.empty())) {
                 probe();
-                run_next_ready_task();
+                if (!run_next_ready_task()) yield();
             }
         };
-    };
+        
+        void yield() {
+            usleep(10);
+        };
+       };
 
     extern TaskQueue globalq;  // In tasks.cc
 }
