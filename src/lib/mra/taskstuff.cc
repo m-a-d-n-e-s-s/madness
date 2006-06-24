@@ -83,7 +83,7 @@ namespace madness {
     /// Communication streams up the tree.
     /// Returns self for chaining.
     template <typename T>
-    Function<T>& Function<T>::compress2() {
+    Function<T>& Function<T>::compress() {
         if (!data->compressed) {
             if (isactive(tree())) {
                 ArgT dummy;

@@ -71,13 +71,16 @@ int main(int argc, char* argv[]) {
         Function<double> f = FunctionFactory<double>(fred).thresh(1e-3).nocompress();
         print("Tree in scaling function basis");
         f.pnorms();
-        f.compress2();
+        f.compress();
         print("Tree in wavelet basis");
         f.pnorms();
         f.reconstruct();
         print("Tree in scaling function basis");
         f.pnorms();
         print("values",fred(0.45,0.53,0.48),f(0.45,0.53,0.48));
+        //f.truncate();
+        print("truncating fred");
+        print("values",fred(0.45,0.53,0.48),f(0.45,0.53,0.48));        
         f.autorefine();
         print("Tree in scaling function basis after autorefine");
         f.pnorms();

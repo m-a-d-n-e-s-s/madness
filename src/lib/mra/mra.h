@@ -746,7 +746,7 @@ namespace madness {
 
         /// Communication streams up the tree.
         /// Returns self for chaining.
-        Function<T>& compress() {
+        Function<T>& compressOLD() {
             if (!data->compressed) {
                 if (isactive(tree())) _compress(tree());
                 data->compressed = true;
@@ -764,7 +764,7 @@ namespace madness {
         	return *this;
         };
 
-        Function<T>& compress2();
+        Function<T>& compress();
         void _compress2(OctTreeT* tree, ArgT& parent);
         void _compress2op(OctTreeT* tree, ArgT args[2][2][2], ArgT& parent);
         ArgT input_arg(const OctTreeT* consumer, const OctTreeT* producer);
@@ -935,23 +935,20 @@ namespace madness {
              loadManager(ar, tree(), commFunc, active_flag, true);
         };
 
-	/// The truncate member function was prepared 
-	/// to neglects small components. 
-	/// This member is already parallelized.
+	/// Inplace truncation of small wavelet coefficients
+    
+    /// Works in the wavelet basis and compression is performed if the
+    /// function is not already compressed.  Communication streams up the
+    /// tree.  The default truncation threshold is that used to construct
+    /// the function.  If the threshold is zero, nothing is done.
+    /// Returns self for chaining.
 	Function<T>& truncate(double tol = -1.0) {
-	  if (tol == -1.0) tol = FunctionDefaults::thresh;
-	  if (tol <= 0.0) return *this;
-          _truncate(tol, tree());
-          return *this;
+        if (tol < 0.0) tol = this->data->thresh;
+	    if (tol == 0.0) return *this;
+        compress();
+        if (isactive(tree())) _truncate(tol, tree());
+        return *this;
 	};
-
-	/// The _truncate member function was prepared to neglects 
-	/// small components. This method was prepared 
-	/// for recursive operation.
-	void _truncate(double tol, OctTreeT *tree);
-
-        /// This member counts the number of active children.
-        int count_active_children(OctTreeT *tree);
 
         /// Inner product between two Function classess. This function was already parallelized.
         T inner(Function<T>& other) {
@@ -1314,6 +1311,9 @@ namespace madness {
                           if (isactive(child))
                           _unaryop(result, child, op););
         };
+
+        /// Private:  Recursive kernel for truncation
+        void _truncate(double tol, OctTreeT *tree);
 
 
         /// Private.  Recur down the tree printing out the norm of

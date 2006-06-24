@@ -15,6 +15,8 @@ using std::sort;
 #include "twoscale.h"
 #include "legendre.h"
 
+#include <misc/madexcept.h>
+
 #include <serialize/textfsar.h>
 using madness::archive::TextFstreamInputArchive;
 using madness::archive::TextFstreamOutputArchive;
@@ -538,55 +540,39 @@ namespace madness {
 
     template <typename T>
     void Function<T>::_truncate(double tol, OctTreeT *tree){
-      FOREACH_CHILD(OctTreeT, tree, 
-        if (isactive(child)) _truncate(tol, child);
-      );
-      const TensorT *t = coeff(tree);
-      int nachildren = count_active_children(tree);
-      bool normf_check = false;
-      if(t) {
-        double tnormf = t->normf();
-        if(tnormf > tol) {
-          normf_check = true;
-        }
-      }
-      if ( !normf_check && nachildren == 0) {
-        //unset_coeff(tree);
-        if(!isremote(tree)) set_inactive(tree);
-        if ((tree->parent()) && (tree->parent()->isremote())) {
-          bool active;
-          active = false;
-          comm()->Send(&active, 1, tree->parent()->rank(), 5);
-        }
-      }
-      else {
-        set_active(tree);
-        if ((tree->parent()) && (tree->parent()->isremote())) {
-          bool active;
-          active = true;
-          comm()->Send(&active, 1, tree->parent()->rank(), 5);
-        }
-      }
-    };
-
-    template <typename T>
-    int Function<T>::count_active_children(OctTreeT *tree) {
-      int n = 0;
-      bool active;
+      int nactive_child = 0;
       FOREACH_LOCAL_CHILD(OctTreeT, tree, 
-        if(isactive(child)) { n++; }
-      );
+                          if (isactive(child)) _truncate(tol, child);
+                          if (isactive(child)) nactive_child++;);
       FOREACH_REMOTE_CHILD(OctTreeT, tree,
-        comm()->Recv(&active, 1, child->rank(), 5);
-        if (active) { 
-          n++;
-	}
-	else {
-          set_inactive(child);
-	}
-      );
-      return n;
-    }
+                           bool active;
+                           comm()->Recv(active, child->rank(), 5);
+                           print("got active flag from child",active);
+                           if (active) nactive_child++;
+                           else set_inactive(child);); 
+                           
+      if (!coeff(tree)) {
+          // This is the active remote parent of the local subtree.
+          // If it does not have any active children, then it may have been
+          // truncated.
+          bool active;
+          comm()->Recv(active,tree->rank(),6);
+          if (!active) set_inactive(tree);
+          return;
+      }
+      if (nactive_child == 0 && 
+               coeff(tree)->normf() < truncate_tol(tol,tree->n())) {
+          print("truncating",tree->n(),tree->x(),tree->y(),tree->z(),coeff(tree)->normf());
+          unset_coeff(tree);
+          set_inactive(tree);
+      }
+      // Notify remote parent of my active status
+      if (tree->parent() && tree->parent()->isremote())
+          comm()->Send(isactive(tree), tree->parent()->rank(), 5);
+      // Notify remote children of my active status
+      FOREACH_REMOTE_CHILD(OctTreeT, tree, 
+              comm()->Send(isactive(tree), child->rank(), 6););
+    };
 
     template <typename T>
     T Function<T>::_inner(const Function<T>& a, const Function<T>& b, OctTreeT* tree) const {
