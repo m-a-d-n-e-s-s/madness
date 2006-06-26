@@ -742,6 +742,25 @@ namespace madness {
                     std::cout << " ---> " << rank();
             }
         };
+        
+        /// Returns list of unique processes with remote children of this node
+        
+        /// Return value is the no. of unique remote processes with 
+        /// children and a list of their MPI ranks
+        int unique_child_procs(ProcessID ranks[8]) const {
+            int np = 0;
+            FOREACH_REMOTE_CHILD(const OctTreeT, this,
+                bool found = false;
+                for (int p=0; p<np; p++) {
+                    if (child->rank() == ranks[p]) {
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found) ranks[np++] = child->rank();
+            );
+            return np;
+        };
 
         void print() const {
             std::cout << _comm->rank() << ": ";
