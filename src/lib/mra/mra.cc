@@ -541,37 +541,52 @@ namespace madness {
     template <typename T>
     void Function<T>::_truncate(double tol, OctTreeT *tree){
       int nactive_child = 0;
+      
       FOREACH_LOCAL_CHILD(OctTreeT, tree, 
                           if (isactive(child)) _truncate(tol, child);
-                          if (isactive(child)) nactive_child++;);
+                          if (isactive(child)) nactive_child++;);          
       FOREACH_REMOTE_CHILD(OctTreeT, tree,
-                           bool active;
-                           comm()->Recv(active, child->rank(), 5);
-                           print("got active flag from child",active);
-                           if (active) nactive_child++;
-                           else set_inactive(child);); 
-                           
-      if (!coeff(tree)) {
-          // This is the active remote parent of the local subtree.
-          // If it does not have any active children, then it may have been
-          // truncated.
-          bool active;
-          comm()->Recv(active,tree->rank(),6);
-          if (!active) set_inactive(tree);
+                           if (isactive(child)) {
+                               bool active;
+                               comm()->Recv(active, child->rank(), 5);
+                               if (active) nactive_child++;
+                               else set_inactive(child);
+                           }); 
+
+     // This is the active remote parent of the local subtree.  If I have an
+     // active child then I know the remote parent will not truncate.
+     // But if I don't have any active children I must be told the decision.
+     if (!coeff(tree)) {
+         if (nactive_child == 0) {
+            bool active;
+            comm()->Recv(active,tree->rank(),6);
+            if (!active) set_inactive(tree);
+          }
           return;
       }
+      
+      // If I have no active children then I can try to truncate
       if (nactive_child == 0 && 
-               coeff(tree)->normf() < truncate_tol(tol,tree->n())) {
-          print("truncating",tree->n(),tree->x(),tree->y(),tree->z(),coeff(tree)->normf());
+          coeff(tree)->normf() < truncate_tol(tol,tree->n())) {
+          //print("TT truncating",tree->n(),tree->x(),tree->y(),tree->z(),coeff(tree)->normf());
           unset_coeff(tree);
           set_inactive(tree);
       }
-      // Notify remote parent of my active status
-      if (tree->parent() && tree->parent()->isremote())
+                        
+      // Notify any remote clones with only inactive children of my possibly 
+      // changed active status.
+      ProcessID ranks[8];
+      int np = tree->unique_child_procs(ranks);
+      for (int p=0; p<np; p++) {
+           int n=0;
+           FOREACH_REMOTE_CHILD(OctTreeT, tree, 
+                                if (isactive(child) && child->rank()==ranks[p]) n++;);
+           if (n==0) comm()->Send(isactive(tree), ranks[p], 6);
+       }
+            
+      // Notify any remote parent of my possibly changed active status.
+      if (tree->parent() && tree->parent()->isremote()) 
           comm()->Send(isactive(tree), tree->parent()->rank(), 5);
-      // Notify remote children of my active status
-      FOREACH_REMOTE_CHILD(OctTreeT, tree, 
-              comm()->Send(isactive(tree), child->rank(), 6););
     };
 
     template <typename T>

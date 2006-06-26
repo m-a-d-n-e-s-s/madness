@@ -759,10 +759,17 @@ namespace madness {
         /// Communication, if any, flows down the tree
         /// Returns self for chaining.
         Function<T>& autorefine() {
+            print("about to reconstruct");
         	if (data->compressed) reconstruct();
-        	if (isactive(tree())) _autorefine(tree());
+            print("reconstructed");
+            print("tree before autorefining");
+            ptree();
+        	_autorefine(tree());
+            print("autorefined");
         	return *this;
         };
+        
+        void ptree() {_ptree(tree());};
 
         Function<T>& compress();
         void _compress2(OctTreeT* tree, ArgT& parent);
@@ -1384,6 +1391,34 @@ namespace madness {
             *lo = sqrt(slo);
             *hi = sqrt(shi);*/
         };
+        
+        /// Returns list of unique processes with active remote children of this node
+        
+        /// Return value is the no. of unique remote processes with 
+        /// active children and a list of their MPI ranks
+        int unique_active_child_procs(const OctTreeT *tree, ProcessID ranks[8]) const {
+            int np = 0;
+            FOREACH_REMOTE_CHILD(const OctTreeT, tree,
+                if (isactive(child)) {
+                    bool found = false;
+                    for (int p=0; p<np; p++) {
+                        if (child->rank() == ranks[p]) {
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (!found) ranks[np++] = child->rank();
+                }
+            );
+            return np;
+        };
+        
+        
+        void _ptree(OctTreeT *tree) {
+            tree->print_coords();
+            print("    active =",isactive(tree));
+            FOREACH_ACTIVE_CHILD(OctTreeT, tree, _ptree(child););
+        };
 
         /// Private.  Recursive function to provide autorefinement for squaring and multiplication.
         void _autorefine(OctTreeT *tree) {
@@ -1406,10 +1441,11 @@ namespace madness {
  				       if (refine) goto done;);
  				done:
 				FOREACH_REMOTE_CHILD(OctTreeT, tree, 
-									 comm()->Send(refine,child->rank(),99););
-				//print("doing autoref",tree->n(),tree->x(),tree->y(),tree->z(),lo,hi,refine);
+                                    print("AA sending refined to",child->rank(), child->n(),child->x(),child->y(),child->z());
+									 comm()->Send(refine,child->rank(),99);print("AA sent refined to",child->rank()););
+				print("doing autoref",tree->n(),tree->x(),tree->y(),tree->z(),lo,hi,refine);
  				if (refine) {
- 					long k2 = 2*k;
+ 					long k2 = k*2;
  					Tensor<T>& work1 = data->cdata->work1;
  					FORIJK(OctTreeT* child = tree->child(i,j,k);
  					       if (!child) child = tree->insert_local_child(i,j,k);
@@ -1421,7 +1457,9 @@ namespace madness {
  					       }
  					       else {
  					       	  work1(s0,s0,s0) = c(s[i],s[j],s[k]); // contig. copy
+                              print("AA sending data to",child->rank());
  					          comm()->Send(work1.ptr(), work1.size, child->rank(), 66);
+                              print("AA sent data to",child->rank());
  					       }
  					);
  					unset_coeff(tree);
@@ -1429,13 +1467,17 @@ namespace madness {
  			} else if (tree->isremote() && nactivekids==0) {
  				// Remote parent has data and may have refined 
  				bool refined;
+                print("AA waiting for refined from",tree->rank(), tree->n(),tree->x(),tree->y(),tree->z());
  				comm()->Recv(refined, tree->rank(), 99);
+                print("AA got refined");
  				if (refined) {
  					const Slice& s0 = data->cdata->s[0];
                 	Tensor<T>& work1 = data->cdata->work1;
                 	long k2 = k*2;
  					FOREACH_CHILD(OctTreeT, tree,
+                              print("AA waiting for data from",tree->rank());
  							  comm()->Recv(work1.ptr(), work1.size, tree->rank(), 66);
+                              print("AA got data from",tree->rank());
                               Tensor<T>*c = set_coeff(child, Tensor<T>(k2, k2, k2));
                               (*c)(s0, s0, s0) = work1;
                               unfilter_inplace(*c); // sonly needed!
