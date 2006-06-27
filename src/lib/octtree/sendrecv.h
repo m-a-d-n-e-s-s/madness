@@ -488,7 +488,7 @@ namespace madness {
                 int lsize = treeList->size();
                 OctTree<T> *tree = new OctTree<T>();
                 for (int i = 0; i < lsize; i++) {
-                    tree = (*treeList)[i]->find(rootToFind.n, rootToFind.x, rootToFind.y, rootToFind.z);
+                    tree = (*treeList)[i]->findDown(rootToFind.n, rootToFind.x, rootToFind.y, rootToFind.z);
                     if ((tree->x() == rootToFind.x) && (tree->y() == rootToFind.y) &&
                             (tree->z() == rootToFind.z) && (tree->n() == rootToFind.n)) {
                         break;
@@ -706,7 +706,7 @@ namespace madness {
                         (treeList[i]->y() == root.y) && (treeList[i]->z() == root.z)) {
                     tree = treeList[i];
                 } else {
-                    tree = treeList[i]->find(root.n, root.x, root.y, root.z);
+                    tree = treeList[i]->findDown(root.n, root.x, root.y, root.z);
                 }
                 if (debug) {
                     std::cout << "globalCostManager: done looking for tree in treeList, tree = "
@@ -817,7 +817,7 @@ namespace madness {
                 if (debug)
                     std::cout << "Processor " << me << ": received root" << std::endl;
                 for (i = 0; i < npieces; i++) {
-                    t = treeList[i]->find(root.n, root.x, root.y, root.z);
+                    t = treeList[i]->findDown(root.n, root.x, root.y, root.z);
                     if ((t) && (t->n() == root.n) && (t->x() == root.x) && (t->y() == root.y) &&
                             (t->z() == root.z)) {
                         break;
@@ -881,11 +881,15 @@ namespace madness {
 //	bool debug = true;
         bool debug = false;
 
+
         /* globalList: the list of trees that need to be exchanged */
         /* treeList: the list of subtrees that this processor owns */
 
         if (globalList)
+	{
             glength = globalList->size();
+	    sort(globalList->begin(), globalList->end());
+	}
         if (treeList)
             tlength = treeList->size();
 
@@ -954,7 +958,7 @@ namespace madness {
                         (*treeList)[j]->depthFirstTraverseAll();
                         std::cout << "exchangeTrees: will I find it?" << std::endl;
                     }
-                    t = (*treeList)[j]->find((*globalList)[i].n, (*globalList)[i].x, (*globalList)[i].y,
+                    t = (*treeList)[j]->findDown((*globalList)[i].n, (*globalList)[i].x, (*globalList)[i].y,
                                              (*globalList)[i].z);
                     if ((t) && (t->n() == (*globalList)[i].n) && (t->x() == (*globalList)[i].x) &&
                             (t->y() == (*globalList)[i].y) && (t->z() == (*globalList)[i].z)) {
@@ -1041,7 +1045,7 @@ namespace madness {
                         (*treeList)[j]->depthFirstTraverseAll();
                         std::cout << "exchangeTrees: will I find it?" << std::endl;
                     }
-                    t = (*treeList)[j]->find((*globalList)[i].n, (*globalList)[i].x, (*globalList)[i].y,
+                    t = (*treeList)[j]->findDown((*globalList)[i].n, (*globalList)[i].x, (*globalList)[i].y,
                                              (*globalList)[i].z);
                     if (debug) {
                         if (t) {
@@ -1107,7 +1111,7 @@ namespace madness {
                     if (debug) {
                         std::cout << "exchangeTrees: also need to delete the tree itself" << std::endl;
                     }
-                    delete t;
+//                    delete t;
                     if (debug) {
                         std::cout << "exchangeTrees: deleted the tree itself" << std::endl;
                     }
@@ -1165,10 +1169,14 @@ namespace madness {
         }
 
 //	sort((*treeList).begin(), (*treeList).end(), less<OctTree<T>* > ());
+	sort((*treeList).begin(), (*treeList).end());
         if (glue)
             glueTrees(treeList);
+	if (debug)
+	{
+	    std::cout << "exchangeTrees: about to return" << std::endl;
+	}
     }
-
 
     template <class T>
     void sendSubtree(OctTree<T> *tree, ProcessID me, ProcessID dest) {
@@ -1190,6 +1198,27 @@ namespace madness {
             std::cout << "sendSubtree: all done" << std::endl;
     }
 
+    template <class T>
+    void sendSubtree(SharedPtr<OctTree<T> > tree, ProcessID me, ProcessID dest) {
+        Communicator comm;
+        archive::MPIOutputArchive ardest(comm, dest);
+
+        bool debug = false;
+//	bool debug = true;
+
+        if (debug) {
+	    std::cout << "sendSubtree: SharedPtr version" << std::endl;
+            std::cout << "sendSubtree: about to send tree to " << dest << std::endl;
+            std::cout << "sendSubtree: subtree looks like this:" << std::endl;
+            tree->depthFirstTraverseAll();
+            std::cout << "sendSubtree: done with depthFirstTraverseAll" << std::endl;
+        }
+        ardest & *(tree.get());
+
+        if (debug)
+            std::cout << "sendSubtree: all done" << std::endl;
+    }
+
 
     template <class T>
     void recvSubtree(OctTree<T> *t, ProcessID me, ProcessID source) {
@@ -1205,11 +1234,40 @@ namespace madness {
             std::cout << "recvSubtree: waiting to receive subtree from " << source << std::endl;
         }
         arsource & *t;
+//        arsource & t;
         if (debug) {
             int s = t->tallyNodes();
             std::cout << "recvSubtree: received subtree of size "
             << s << std::endl;
         }
+
+        if (debug)
+            std::cout << "recvSubtree: all done!" << std::endl;
+    }
+
+    template <class T>
+    void recvSubtree(SharedPtr<OctTree<T> > p, ProcessID me, ProcessID source) {
+        Communicator comm;
+        madness::redirectio(comm);
+        comm.print();
+        archive::MPIInputArchive arsource(comm, source);
+	OctTree<T> *t = new OctTree<T>();
+
+// 	bool debug = true;
+        bool debug = false;
+
+        if (debug) {
+	    std::cout << "recvSubtree: SharedPtr version" << std::endl;
+            std::cout << "recvSubtree: waiting to receive subtree from " << source << std::endl;
+        }
+        arsource & *t;
+        if (debug) {
+            int s = t->tallyNodes();
+            std::cout << "recvSubtree: received subtree of size "
+            << s << std::endl;
+        }
+
+	p = SharedPtr<OctTree<T> > (t);
 
         if (debug)
             std::cout << "recvSubtree: all done!" << std::endl;
@@ -1247,15 +1305,16 @@ namespace madness {
         int nconsidered = size, nunchanged = 0;
         bool flag = false;
 
-        bool debug = true;
-//	bool debug = false;
+//        bool debug = true;
+	bool debug = false;
 
         for (int i = 0; i < size; i++) {
             if (debug) {
                 std::cout << "glueTrees: at beginning of i loop, i = " << i << ", nunchanged = " <<
                 nunchanged << ", nconsidered = " << nconsidered << std::endl;
             }
-            OctTree<T> *t = new OctTree<T>();
+//            OctTree<T> *t = new OctTree<T>();
+            SharedPtr<OctTree<T> > t = SharedPtr<OctTree<T> >();
             t = (*treeList)[nunchanged];
             if (debug) {
                 std::cout << "glueTrees: after assigning t to be (*treeList)[" << nunchanged << "] = "
@@ -1276,13 +1335,16 @@ namespace madness {
                         }
                         // find t on this tree
                         OctTree<T> *u = new OctTree<T>();
-                        u = (*treeList)[nunchanged+j]->find(t->n(), t->x(), t->y(), t->z());
+			u = (*treeList)[nunchanged+j]->findDown(t->n(), t->x(), t->y(), t->z());
                         if (u) {
                             if (debug) {
                                 std::cout << "glueTrees: found the tree on the list" << std::endl;
                             }
                             OctTree<T> *p = new OctTree<T>();
                             p = u->parent();
+                            if (debug) {
+                                std::cout << "glueTrees: made parent to u" << std::endl;
+                            }
                             p->insert_local_child(t);
                             if (debug) {
                                 std::cout << "glueTrees: inserted local child" << std::endl;
@@ -1297,13 +1359,418 @@ namespace madness {
                     }
                 }
             }
+	    if (debug)
+	    {
+		std::cout << "glueTrees: outside of loop, about to change nunchanged and nconsidered"
+			<< std::endl;
+	    }
             if (!(flag))
                 nunchanged++;
             nconsidered--;
             flag = false;
         }
+	if (debug)
+	{
+	    std::cout << "glueTrees: does deletion occur before or after this point?" << std::endl;
+	}
     }
 
+
+    template <class T>
+    SharedPtr<OctTree<char> > createGhostTree(std::vector<SharedPtr<OctTree<T> > > *treeList, 
+	std::vector<RootList> *ownerList)
+    {
+	Communicator comm; 
+	ProcessID me = comm.rank();
+	ProcessID np = comm.nproc();
+
+	SharedPtr<OctTree<char> > ghostTree = SharedPtr<OctTree<char> > (new OctTree<char> ());
+
+//	bool debug = true;
+	bool debug = false;
+
+	if (me != 0)
+	{
+	    archive::MPIOutputArchive arsend(comm, 0);
+	    int llen = 0;
+	    if (treeList) 
+		llen = treeList->size();
+
+	    if (debug)
+	    {
+		std::cout << "createGhostTree: about to send " << llen << " trees from my list"
+			<< std::endl;
+	    }
+
+	    arsend & llen;
+
+	    for (int i = 0; i < llen; i++)
+	    {
+		OctTree<char> *gt = new OctTree<char>();
+		gt = (*treeList)[i]->skeletize();
+		if (debug)
+	 	{
+		    std::cout << "createGhostTree: skeletized tree number " << i << ":" << std::endl;
+		    gt->depthFirstTraverseAll();
+		    std::cout << "createGhostTree: end of tree number " << i << std::endl;
+		}
+		arsend & *gt;
+	    }
+	    if (debug)
+	    {
+		std::cout << "createGhostTree: sent " << llen << " trees from my list"
+			<< std::endl;
+	    }
+	    return ghostTree;
+	}
+
+	std::vector<SharedPtr<OctTree<char> > > gtList;
+	int llen = 0;
+	if (treeList)
+	    llen = treeList->size();
+	if (debug)
+	{
+		std::cout << "createGhostTree: about to skeletize my trees" << std::endl;
+	}
+	for (int i = 0; i < llen; i++)
+	{
+	    OctTree<char> *gt = new OctTree<char>();
+	    gt = (*treeList)[i]->skeletize();
+	    gtList.push_back(SharedPtr<OctTree<char> > (gt));
+	    ownerList->push_back(RootList(gt->x(), gt->y(), gt->z(), gt->n(), 0, 0));
+	}
+	if (debug)
+	{
+		std::cout << "createGhostTree: about to recv skeletized trees" << std::endl;
+	}
+	for (ProcessID i = 1; i < np; i++)
+	{
+	    archive::MPIInputArchive arrecv(comm, i);
+	    arrecv & llen;
+	    for (int j = 0 ; j < llen; j++)
+	    {
+		if (debug)
+		{
+		    std::cout << "createGhostTree: about to receive tree number " << j << " of " << llen
+			<< " from process " << i << std::endl;
+		}
+		OctTree<char> *gt = new OctTree<char>();
+		arrecv & *gt;
+		if (debug)
+		{
+		    std::cout << "createGhostTree: just received the following tree:" << std::endl;
+		    gt->depthFirstTraverseAll();
+		}
+		gtList.push_back(SharedPtr<OctTree<char> > (gt));
+		ownerList->push_back(RootList(gt->x(), gt->y(), gt->z(), gt->n(), i, i));
+	    }
+	}
+
+	if (debug)
+	{
+	    llen = gtList.size();
+	    std::cout << "createGhostTree: after collecting all the trees from all the procs, we have:"
+			<< std::endl;
+	    for (int i = 0; i < llen; i++)
+	    {
+		std::cout << "Subtree:"<< std::endl;
+		gtList[i]->depthFirstTraverseAll();
+	    }
+	    std::cout << std::endl;
+	}
+	sort(gtList.begin(), gtList.end());
+	glueTrees(&gtList);
+	if (debug) {
+	    std::cout << "createGhostTree: after gluing" << std::endl;
+	}
+	sort(ownerList->begin(), ownerList->end());
+	if (debug) {
+	    std::cout << "createGhostTree: after sorting" << std::endl;
+	}
+	llen = gtList.size();
+	if (llen != 1)
+	{
+	    std::cout << "createGhostTree: error, there are " << llen << " trees" << std::endl;
+	}
+	ghostTree = SharedPtr<OctTree<char> > (gtList[0]);
+	if (debug) {
+	    std::cout << "createGhostTree: after assigning" << std::endl;
+	}
+	return ghostTree;
+    }
+
+    
+    std::vector<RootList> createMergeList(std::vector<RootList> globalList, 
+	std::vector<RootList> ownerList)
+    {
+/************************************************************************************************/
+/* globalList: list of roots of subtrees and where they belong in the final scheme of things	*/
+/*	(future_owner accurate; current_owner inaccurate)					*/
+/* ownerList: list of roots of subtrees as currently distributed (current_owner accurate; 	*/
+/*	future_owner inaccurate)								*/
+/* mergeList: final list of roots of subtrees indicating current and future owners of each	*/
+/*	subtree; feed this into exchangeTrees							*/
+/************************************************************************************************/
+	int olen = ownerList.size(), glen = globalList.size(), mlen, j = 0;
+	std::vector<RootList> mergeList;
+
+//	bool debug = true;
+	bool debug = false;
+	
+	for (int i = 0; i < olen; i++)
+	{
+	    ownerList[i].future_owner = -1;
+	    mergeList.push_back(ownerList[i]);
+	}
+	for (int i = 0; i < glen; i++)
+	{
+	    globalList[i].current_owner = -1;
+	    mergeList.push_back(globalList[i]);
+	}
+
+	mlen = mergeList.size();
+	if (debug)
+	{
+	    std::cout << "createMergeList: merge list of length " << mlen << 
+			" before sorting" << std::endl;
+	    for (int i = 0; i < mlen; i++)
+	    {
+		std::cout << "MergeList[" << i << "]:" << std::endl;
+		std::cout << "    n = " << mergeList[i].n << " (" << mergeList[i].x << "," <<
+			mergeList[i].y << "," << mergeList[i].z << "), " << mergeList[i].current_owner
+			<< " -> " << mergeList[i].future_owner << std::endl;
+	    }
+	    std::cout << std::endl;
+	}
+	sort(mergeList.begin(), mergeList.end());
+	if (debug)
+	{
+	    std::cout << "createMergeList: merge list of length " << mlen << 
+			" before processing" << std::endl;
+	    for (int i = 0; i < mlen; i++)
+	    {
+		std::cout << "MergeList[" << i << "]:" << std::endl;
+		std::cout << "    n = " << mergeList[i].n << " (" << mergeList[i].x << "," <<
+			mergeList[i].y << "," << mergeList[i].z << "), " << mergeList[i].current_owner
+			<< " -> " << mergeList[i].future_owner << std::endl;
+	    }
+	}
+
+	while (j < mlen)
+	{
+	    for (int i = 1; i < mlen-j; i++)
+	    {
+		if (mergeList[j].equals(mergeList[j+i]))
+		{
+		    if (mergeList[j].future_owner==-1)
+		    {
+			mergeList[j].future_owner = mergeList[j+i].future_owner;
+			if (debug)
+			{
+			    std::cout << "createMergeList: ";
+			    std::cout << "mergeList[" << j << "] == mergeList[" << j+i << "]" << std::endl;
+			    std::cout << "    n = " << mergeList[j].n << " (" << mergeList[j].x << "," <<
+				mergeList[j].y << "," << mergeList[j].z << "), " << 
+				mergeList[j].current_owner << " -> " << mergeList[j].future_owner 
+				<< std::endl;
+			}
+		    }
+		    else
+		    {
+			mergeList[j].current_owner = mergeList[j+i].current_owner;
+			if (debug)
+			{
+			    std::cout << "createMergeList: ";
+			    std::cout << "mergeList[" << j << "] == mergeList[" << j+i << "]" << std::endl;
+			    std::cout << "    n = " << mergeList[j].n << " (" << mergeList[j].x << "," <<
+				mergeList[j].y << "," << mergeList[j].z << "), " << 
+				mergeList[j].current_owner << " -> " << mergeList[j].future_owner 
+				<< std::endl;
+			}
+		    }
+		    mergeList.erase(mergeList.begin()+j+i);
+		    if (debug)
+		    {
+			std::cout << "createMergeList: erased entry " << j+i << std::endl;
+		    }
+		    mlen--;
+		    break;
+		}
+		else if (mergeList[j].isDescendant(mergeList[j+i]))
+		{
+		    if ((mergeList[j].future_owner==-1) && (mergeList[j+i].future_owner != -1))
+		    {
+			mergeList[j].future_owner = mergeList[j+i].future_owner;
+			if (debug)
+			{
+			    std::cout << "createMergeList: changed future owner of entry " << j <<
+			    	"    n = " << mergeList[j].n << " (" << mergeList[j].x << "," <<
+				mergeList[j].y << "," << mergeList[j].z << "), " << 
+				mergeList[j].current_owner << " -> " << mergeList[j].future_owner 
+				<< "  to " << mergeList[j].future_owner << std::endl;
+			}
+			break;
+		    }
+		    else if ((mergeList[j].current_owner==-1) && (mergeList[j+i].current_owner != -1))
+		    {
+			mergeList[j].current_owner = mergeList[j+i].current_owner;
+			if (debug)
+			{
+			    std::cout << "createMergeList: changed current owner of entry " << j <<
+			    	"    n = " << mergeList[j].n << " (" << mergeList[j].x << "," <<
+				mergeList[j].y << "," << mergeList[j].z << "), " << 
+				mergeList[j].current_owner << " -> " << mergeList[j].future_owner 
+				<< "  to " << mergeList[j].current_owner << std::endl;
+			}
+			break;
+		    }
+	 	}
+	    }
+	    j++;
+	}
+
+	if (debug)
+	{
+	    std::cout << "createMergeList: final list: " << std::endl;
+	    for (int i = 0; i < mlen; i++)
+	    {
+		std::cout << "MergeList[" << i << "]:" << std::endl;
+		std::cout << "    n = " << mergeList[i].n << " (" << mergeList[i].x << "," <<
+			mergeList[i].y << "," << mergeList[i].z << "), " << mergeList[i].current_owner
+			<< " -> " << mergeList[i].future_owner << std::endl;
+	    }
+	}
+
+	return mergeList;
+    }
+
+
+    template <class T>
+    void serialLoadBalance(std::vector<SharedPtr<OctTree<T> > > *treeList)
+    {
+	Communicator comm;
+	ProcessID np, me;
+	std::vector<RootList> ownerList, mergeList, globalList;
+	SharedPtr<OctTree<char> > ghostTree = SharedPtr<OctTree<char> > ();
+
+	bool debug = false;
+//	bool debug = true;
+
+	me = comm.rank();
+	np = comm.nproc();
+
+        MPI::COMM_WORLD.Barrier();
+	if (debug)
+	{
+	    std::cout << "serialLoadBalance: before creating ghostTree" << std::endl;
+	}
+	ghostTree = createGhostTree(treeList, &ownerList);
+	if (debug)
+	{
+	    std::cout << "serialLoadBalance: after creating ghostTree" << std::endl;
+	}
+        MPI::COMM_WORLD.Barrier();
+	if (me == 0)
+	{
+	    ghostTree->serialPartition(np, &globalList);
+	    if (debug)
+	    {
+		std::cout << "serialLoadBalance: after serialPartition of ghostTree" << std::endl;
+	    }
+	    mergeList = createMergeList(globalList, ownerList);
+	    if (debug)
+	    {
+		std::cout << "serialLoadBalance: after creating mergeList" << std::endl;
+	    }
+	    for (ProcessID i = 1; i < np; i++)
+	    {
+		archive::MPIOutputArchive arsend(comm, i);
+		arsend & mergeList;
+	    	if (debug)
+	    	{
+		    std::cout << "serialLoadBalance: after sending mergeList" << std::endl;
+	    	}
+	    }
+            MPI::COMM_WORLD.Barrier();
+	}
+	else
+	{
+	    archive::MPIInputArchive arrecv(comm, 0);
+	    arrecv & mergeList;
+            MPI::COMM_WORLD.Barrier();
+	    if (debug)
+	    {
+		std::cout << "serialLoadBalance: after receiving mergeList" << std::endl;
+	    }
+	}
+        MPI::COMM_WORLD.Barrier();
+	if (debug)
+	{
+	    std::cout << "serialLoadBalance: before exchanging trees" << std::endl;
+	}
+	exchangeTrees(&mergeList, treeList, true);
+	if (debug)
+	{
+	    std::cout << "serialLoadBalance: after exchanging trees" << std::endl;
+	}
+	if (me == 0)
+	{
+	    for (ProcessID i = 1; i < np; i++)
+	    {
+		archive::MPIOutputArchive arsend(comm, i);
+		arsend & globalList;
+	    }
+	}
+	else
+	{
+	    archive::MPIInputArchive arrecv(comm, 0);
+	    arrecv & globalList;
+	}
+
+	int glen = globalList.size();
+	int tlen = treeList->size();
+	for (int i = 0; i < tlen; i++)
+	{
+	    RootList rli = RootList(((*treeList)[i]).get(), me, me);
+	    for (int j = 0; j < glen; j++)
+	    {
+		if (rli.isDescendant(globalList[j]))
+		{
+		    (*treeList)[i]->setParent(new OctTree<T> (globalList[j].n, globalList[j].x,
+			globalList[j].y, globalList[j].z, true, 0, globalList[j].future_owner, &comm));
+		    break;
+		}
+	    }
+	}
+	if (debug)
+	{
+	    std::cout << "serialLoadBalance: after making all those parents and stuff" << std::endl;
+	}
+    }
+
+
+    template <class T>
+    SharedPtr<OctTree<T> > findPtr(SharedPtr<OctTree<T> > tree, Level n, Translation x, 
+	Translation y, Translation z)
+    {
+	OctTree<T> *tfound = new OctTree<T>();
+	tfound = tree->find(n, x, y, z);
+	if (tfound)
+	{
+	    if (tfound->parent())
+	    {
+		Level nn = n - tfound->parent()->n();
+                Translation xx = (x>>nn), yy = (y>>nn), zz = (z>>nn);
+		return tfound->parent()->child(xx, yy, zz);
+	    }
+	    else
+		return SharedPtr<OctTree<T> > (tfound);
+	}
+	else
+	{
+	    return 0;
+	}
+    }
 
 }
 
