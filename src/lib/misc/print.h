@@ -63,5 +63,19 @@ namespace madness {
         std::cout << a << " " << b << " " << c << " " << d << " " << e << " " << f << " " << g << " " << h << std::endl;
         std::cout.flush();
     }
+    
+    /// Print nine items separated by spaces to cout terminating with new line
+    template <class A, class B, class C, class D, class E, class F, class G, class H, class I>
+    void print(const A& a, const B& b, const C& c, const D& d, const E& e, const F& f, const G& g, const H& h, const I& i) {
+        std::cout << a << " " << b << " " << c << " " << d << " " << e << " " << f << " " << g << " " << h << " " << i << std::endl;
+        std::cout.flush();
+    }
+    
+    /// Print ten items separated by spaces to cout terminating with new line
+    template <class A, class B, class C, class D, class E, class F, class G, class H, class I, class J>
+    void print(const A& a, const B& b, const C& c, const D& d, const E& e, const F& f, const G& g, const H& h, const I& i, const J& j) {
+        std::cout << a << " " << b << " " << c << " " << d << " " << e << " " << f << " " << g << " " << h << " " << i << " " << j << std::endl;
+        std::cout.flush();
+    }
 }
 #endif

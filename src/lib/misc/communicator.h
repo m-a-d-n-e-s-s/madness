@@ -7,9 +7,12 @@
 #include <iostream>
 #include <unistd.h>
 #include <vector>
+#include <complex>
 #include <madness_config.h>
 #include <mad_types.h>
 #include <typestuff.h>
+#include <misc/print.h>
+#include <misc/mpitags.h>
 
 #undef SEEK_SET
 #undef SEEK_CUR
@@ -45,6 +48,13 @@ namespace madness {
         arg3(arg3) {};
     };
 
+    template <typename T> MPI::Datatype MPITypeFromType();
+    template<> static inline MPI::Datatype MPITypeFromType<int>() {return MPI::INT;};
+    template<> static inline MPI::Datatype MPITypeFromType<unsigned int>() {return MPI::UNSIGNED;};
+    template<> static inline MPI::Datatype MPITypeFromType<long>() {return MPI::LONG;};
+    template<> static inline MPI::Datatype MPITypeFromType<unsigned long>() {return MPI::UNSIGNED_LONG;};
+    template<> static inline MPI::Datatype MPITypeFromType<double>() {return MPI::DOUBLE;};
+    template<> static inline MPI::Datatype MPITypeFromType< std::complex<double> >() {return MPI_COMPLEX16;};
 
     void am_barrier_handler(Communicator& comm, ProcessID proc, const AMArg& arg);
     long am_barrier_nchild_registered();
@@ -147,6 +157,7 @@ namespace madness {
         long _mx, _my, _mz;         ///< mx=log2(npx)
         long _px, _py, _pz;         ///< coords of this process in mesh
         ProcessID _rank;            ///< rank of this process
+        bool debug;                 ///< if true print send/receive traces
 
 
         // On the SGI Altix the MPI copy constructor for communicators
@@ -157,7 +168,7 @@ namespace madness {
 
         AMArg _am_arg;              // Used for async recv of AM
         MPI::Request _am_req;
-        static const int _am_tag = 37919;
+        static const int _am_tag = AM_TAG;
         int _am_barrier_handle;
         std::vector<void (*)(Communicator&, ProcessID, const AMArg&)> _am_handlers;
 
@@ -168,6 +179,7 @@ namespace madness {
         void setup() {
             _nproc = _comm.Get_size();
             _rank = _comm.Get_rank();
+            debug = false;
 
             // Register am_barrier then post AM receive buffer
             _am_barrier_handle = am_register(am_barrier_handler);
@@ -228,6 +240,13 @@ namespace madness {
         Communicator() : _comm(MPI::COMM_WORLD) {
             setup();
         };
+        
+        /// Set debug flag to new value and return old value
+        bool set_debug(bool value) {
+            bool status = debug;
+            debug = value;
+            return status;
+        };
 
         /// Return the process rank within communnicator
         inline ProcessID rank() const {
@@ -274,22 +293,24 @@ namespace madness {
         /// Same as MPI::Intracomm::Send
         inline void Send(const void* buf, int count, const MPI::Datatype& datatype,
                          ProcessID dest, int tag) const {
+            if (debug) madness::print("Comm: sending",count,"bytes to",dest,"with tag",tag);
             _comm.Send(buf,count,datatype,dest,tag);
+            if (debug) madness::print("Comm: sent");
         };
 
 
-        /// Send array of lenbuf elements to process dest with default tag=665
+        /// Send array of lenbuf elements to process dest 
         template <class T>
-        inline void Send(const T* buf, long lenbuf, ProcessID dest, int tag=665) const {
+        inline void Send(const T* buf, long lenbuf, ProcessID dest, int tag) const {
             Send((void* )buf, lenbuf*sizeof(T), MPI::BYTE, dest, tag);
         }
 
 
-        /// Send datum to process dest with default tag=666
+        /// Send datum to process dest 
         template <class T>
         inline
         typename madness::enable_if_c< !madness::is_pointer<T>::value, void>::type
-        Send(const T& datum, ProcessID dest, int tag=666) const {
+        Send(const T& datum, ProcessID dest, int tag) const {
             Send((void* )&datum, sizeof(T), MPI::BYTE, dest, tag);
         }
 
@@ -297,14 +318,18 @@ namespace madness {
         /// Same as MPI::Intracomm::Recv
         inline void Recv(void* buf, int count, const MPI::Datatype& datatype,
                          ProcessID source, int tag, MPI::Status& status) const {
+            if (debug) madness::print("Comm: receiving",count,"bytes from",source,"with tag",tag);
             _comm.Recv(buf,count,datatype,source,tag,status);
+            if (debug) madness::print("Comm: received");
         };
 
 
         /// Same as MPI::Intracomm::Recv
         inline void Recv(void* buf, int count, const MPI::Datatype& datatype,
                          ProcessID source, int tag) const {
+            if (debug) madness::print("Comm: receiving",count,"bytes from",source,"with tag",tag);
             _comm.Recv(buf,count,datatype,source,tag);
+            if (debug) madness::print("Comm: received");
         };
 
 
@@ -345,6 +370,7 @@ namespace madness {
         /// Same as MPI::Intracomm::Irecv
         inline MPI::Request Irecv(void* buf, int count, const MPI::Datatype& datatype,
                                   ProcessID source, int tag) const {
+            if (debug) madness::print("Comm: posting async receive",count,"elements from",source,"with tag",tag);
             return _comm.Irecv(buf, count, datatype, source, tag);
         };
 
@@ -353,6 +379,7 @@ namespace madness {
         template <class T>
         inline MPI::Request
         Irecv(T* buf, int count, ProcessID source, int tag) const {
+            if (debug) madness::print("Comm: posting async receive",count,"bytes from",source,"with tag",tag);
             return _comm.Irecv(buf, count*sizeof(T), MPI::BYTE, source, tag);
         }
 
@@ -406,15 +433,32 @@ namespace madness {
         };
 
 
-        /// Typed global sum ... NOT YET ACTUALLY IMPLEMENTED!
+        /// Global sum of a scalar via MPI::Allreduce
         template <typename T>
-        inline void global_sum(T* t, long n) const {}
-
+        T global_sum(const T t) {
+            T result;
+            if (debug) madness::print("Comm: global sum of scalar");
+            _comm.Allreduce(&t, &result, 1, MPITypeFromType<T>(), MPI::SUM);
+            if (debug) madness::print("Comm: global sum done");
+            return result;
+        };
+        
+        
+        /// Inplace global sum of an array via MPI::Allreduce
+        template <typename T>
+        void global_sum(T* t, int count) {
+            T* result = new T[count];
+            if (debug) madness::print("Comm: global sum of vector",count);
+            _comm.Allreduce(t, result, count, MPITypeFromType<T>(), MPI::SUM);
+            for (int i=0; i<count; i++) t[i] = result[i];
+            delete [] result;
+            if (debug) madness::print("Comm: global sum done");
+        };
 
         /// Register an "active" message handler
         int am_register(void (*handler)(Communicator&, ProcessID, const AMArg&)) {
-            //std::cout << rank() << " registering " << (void *) handler << std::endl;
             _am_handlers.push_back(handler);
+            if (debug) madness::print("Comm:  registering handler", (void *) handler,"as",_am_handlers.size()-1);
             return _am_handlers.size()-1;
         };
 

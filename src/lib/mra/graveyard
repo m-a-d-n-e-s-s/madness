@@ -217,3 +217,41 @@
             // recur down
         }
 
+
+
+
+
+
+
+
+            if (coeff(tree)) {
+
+            } else if (tree->islocalsubtreeparent() && isremote(tree)) {
+                
+        	int nactivekids = 0;
+        	FOREACH_ACTIVE_CHILD(OctTreeT, tree,
+        						 nactivekids++;
+        						 if (child->islocal()) _autorefine(child););	
+        						 		
+
+ 			} else if (tree->isremote() && nactivekids==0) {
+ 				// Remote parent has data and may have refined 
+ 				bool refined;
+                print("AA waiting for refined from",tree->rank(), tree->n(),tree->x(),tree->y(),tree->z());
+ 				comm()->Recv(refined, tree->rank(), 99);
+                print("AA got refined");
+ 				if (refined) {
+ 					const Slice& s0 = data->cdata->s[0];
+                	Tensor<T>& work1 = data->cdata->work1;
+                	long k2 = k*2;
+ 					FOREACH_CHILD(OctTreeT, tree,
+                              print("AA waiting for data from",tree->rank());
+ 							  comm()->Recv(work1.ptr(), work1.size, tree->rank(), 66);
+                              print("AA got data from",tree->rank());
+                              Tensor<T>*c = set_coeff(child, Tensor<T>(k2, k2, k2));
+                              (*c)(s0, s0, s0) = work1;
+                              unfilter_inplace(*c); // sonly needed!
+ 					);
+ 				}
+ 			}
+        };

@@ -35,7 +35,8 @@ namespace madness {
         TaskCompress(FunctionT* that, OctTreeT* tree, ArgT in[2][2][2], ArgT& out)
                 : that(that)
                 , tree(tree)
-        , outarg(out) {
+                , outarg(out) 
+        {
             FORIJK(inarg[i][j][k] = in[i][j][k];);
         };
 
@@ -54,7 +55,6 @@ namespace madness {
     };
 
     static inline int taghash(Level n, Translation x, Translation y, Translation z) {
-        return 1;
         int n4  = (n&15)<<27;
         int x9 = (x&511)<<18;
         int y9 = (y&511)<<9;

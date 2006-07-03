@@ -17,6 +17,7 @@
 //#include <octtree/sendrecv.h>
 #include <mra/sepop.h>
 #include <misc/communicator.h>
+#include <misc/madexcept.h>
 #include <tasks/sav.h>
 
 #include <serialize/textfsar.h>
@@ -646,17 +647,6 @@ namespace madness {
             }
             return *this;
         };
-        
-        /// Evaluate at a point with global broadcast of the result
-        
-        /// A global synchronization is implied
-        T operator()(double x, double y, double z) {
-        	reconstruct();
-        	T value = 0.0;
-        	eval_local(x,y,z,&value);
-        	comm()->global_sum(&value,1);
-        	return value;
-        };
 
         /// Unary negation.  Produces new function.
 
@@ -736,10 +726,12 @@ namespace madness {
             return _norm2sq_local(tree());
         };
 
-        /// communication is involved.
-        /// This member outputs norm.
+        /// Returns the square of the norm of the entire tree
+
+        /// Global communication is implied.   Works in either the scaling
+        /// function or wavelet basis.
         double norm2sq() const {
-            return _norm2sq(tree());
+            return comm()->global_sum(norm2sq_local());
         };
 
         /// Compress function (scaling function to wavelet)
@@ -759,13 +751,8 @@ namespace madness {
         /// Communication, if any, flows down the tree
         /// Returns self for chaining.
         Function<T>& autorefine() {
-            print("about to reconstruct");
         	if (data->compressed) reconstruct();
-            print("reconstructed");
-            print("tree before autorefining");
-            ptree();
         	_autorefine(tree());
-            print("autorefined");
         	return *this;
         };
         
@@ -956,16 +943,22 @@ namespace madness {
         if (isactive(tree())) _truncate(tol, tree());
         return *this;
 	};
+    
+    T inner_local(const Function<T>& other) const {
+        const_cast<Function<T>*>(this)->compress();
+        const_cast<Function<T>*>(&other)->compress();
+        return _inner_local(*this, other, tree());
+    };
 
-        /// Inner product between two Function classess. This function was already parallelized.
-        T inner(Function<T>& other) {
-            this->compress();
-            other.compress();
-            return _inner(*this, other, tree());
+        /// Inner product between two Function classess. 
+        
+       /// Works in the wavelet basis.  Global communication is implied.
+        T inner(const Function<T>& other) const {
+            return comm()->global_sum(inner_local(other));
         };
 
 	/// This member is the member called from inner member.
-	T _inner(const Function<T>& a, const Function<T>& b, OctTreeT* tree) const ;
+	T _inner_local(const Function<T>& a, const Function<T>& b, const OctTreeT* tree) const ;
 
         /// Local evaluation of the function at a point in user coordinates
 
@@ -1022,7 +1015,7 @@ namespace madness {
                     const TensorT* t = coeff(tree);
                     if (t) {
                         *value = _eval_cube(tree->n(), x, y, z, lx, ly, lz, *t);
-                        return true;
+                         return true;
                     } else {
                         tree = tree->child(lx, ly, lz);
                     }
@@ -1052,11 +1045,13 @@ namespace madness {
 
         /// Evaluate function at a list of points, returning results to everyone
 
-        /// Involves global communication.
+        /// Involves global communication and possible reconstruction.
         void eval_list(long n, const double* x, const double* y, const double*z,
                        T *value) const {
-            if (iscompressed()) const_cast< Function<T>* >(this)->reconstruct();
-            for (long i = 0; i < n; i++) eval_local(x[i], y[i], z[i], value + i);
+            if (iscompressed()) const_cast< Function<T>* >(this)->reconstruct();          
+            for (long i = 0; i < n; i++) {
+                eval_local(x[i], y[i], z[i], value + i);
+            }
             comm()->global_sum(value, n);
         };
 
@@ -1277,9 +1272,6 @@ namespace madness {
         /// No communication involved.
         double _norm2sq_local(const OctTreeT* tree) const;
 
-        /// communication involved.
-        double _norm2sq(const OctTreeT* tree) const;
-
         /// Private.  Recursive function to refine from initial projection.
 
         /// Communication streams all the way down the tree.
@@ -1325,12 +1317,15 @@ namespace madness {
 
         /// Private.  Recur down the tree printing out the norm of
         /// the coefficients.
-        void _pnorms(OctTreeT *tree) const {
+        void _pnorms(const OctTreeT *tree) const {
             const TensorT *t = coeff(tree);
+            for (long i=0; i<tree->n(); i++) std::printf("  ");
             if (t) {
-                for (long i=0; i<tree->n(); i++) std::printf("  ");
                 std::printf("%4d (%8lu, %8lu, %8lu) = %9.1e\n",
                             tree->n(),tree->x(),tree->y(),tree->z(),t->normf());
+            } else {
+                std::printf("%4d (%8lu, %8lu, %8lu) None\n",
+                            tree->n(),tree->x(),tree->y(),tree->z());
             }
             FOREACH_CHILD(OctTreeT, tree, if (isactive(child)) _pnorms(child););
         };
@@ -1416,74 +1411,74 @@ namespace madness {
         
         void _ptree(OctTreeT *tree) {
             tree->print_coords();
-            print("    active =",isactive(tree));
             FOREACH_ACTIVE_CHILD(OctTreeT, tree, _ptree(child););
         };
 
         /// Private.  Recursive function to provide autorefinement for squaring and multiplication.
         void _autorefine(OctTreeT *tree) {
-        	int nactivekids = 0;
-        	FOREACH_ACTIVE_CHILD(OctTreeT, tree,
-        						 nactivekids++;
-        						 if (child->islocal()) _autorefine(child););	
-        						 		
- 			if (tree->islocal() && coeff(tree)) {
- 				// At bottom of tree with coefficients
- 				const Slice* s = data->cdata->s;
- 				const Slice& s0 = s[0];
- 				const Tensor<T>& c = *coeff(tree);
- 				double tol = truncate_tol(data->thresh,tree->n());
- 				bool refine = false;
- 				double lo,hi;
- 				FORIJK(_tnorms(c(s[i],s[j],s[k]),&lo,&hi);
-					//print("   tnorms",2*tree->n(),2*tree->x()+i,2*tree->y()+j,2*tree->z()+k,lo,hi);
- 				       refine = hi > tol;
- 				       if (refine) goto done;);
- 				done:
-				FOREACH_REMOTE_CHILD(OctTreeT, tree, 
-                                    print("AA sending refined to",child->rank(), child->n(),child->x(),child->y(),child->z());
-									 comm()->Send(refine,child->rank(),99);print("AA sent refined to",child->rank()););
-				print("doing autoref",tree->n(),tree->x(),tree->y(),tree->z(),lo,hi,refine);
- 				if (refine) {
- 					long k2 = k*2;
- 					Tensor<T>& work1 = data->cdata->work1;
- 					FORIJK(OctTreeT* child = tree->child(i,j,k);
- 					       if (!child) child = tree->insert_local_child(i,j,k);
- 					       set_active(child);
- 					       if (child->islocal()) {
- 					       	  Tensor<T>*t = set_coeff(child, Tensor<T>(k2, k2, k2));
+            bool msg[2], refine=false;
+            const Slice* s = data->cdata->s;
+            const Slice& s0 = s[0];
+            long k2 = k*2;
+            Tensor<T>& work1 = data->cdata->work1;
+            
+            if (islocal(tree)) {
+                ProcessID ranks[8];
+                int np = tree->unique_child_procs(ranks);
+                if (coeff(tree)) { // Test for refinement
+                    double tol = truncate_tol(data->thresh,tree->n()+1);
+                    const Tensor<T>& c = *coeff(tree);
+                    double lo,hi;
+                    FORIJK(_tnorms(c(s[i],s[j],s[k]),&lo,&hi);
+                           refine = hi > tol;
+                           if (refine) goto done;);
+                    done:;
+                }
+    
+                // Tell remote clones what is going on
+                msg[0] = isactive(tree); 
+                msg[1] = refine;
+                
+                for (int i=0; i<np; i++) comm()->Send(msg,2,ranks[i],AUTOREF_TAG1);
+                
+                if (refine) { // refine, sending data as necessary;
+                    const Tensor<T>& c = *coeff(tree);
+                    FORIJK(OctTreeT* child = tree->child(i,j,k);
+                           if (!child) child = tree->insert_local_child(i,j,k);
+                           set_active(child);
+                           if (child->islocal()) {
+                              Tensor<T>*t = set_coeff(child, Tensor<T>(k2, k2, k2));
                               (*t)(s0, s0, s0) = c(s[i],s[j],s[k]);
                               unfilter_inplace(*t);  // sonly!
- 					       }
- 					       else {
- 					       	  work1(s0,s0,s0) = c(s[i],s[j],s[k]); // contig. copy
-                              print("AA sending data to",child->rank());
- 					          comm()->Send(work1.ptr(), work1.size, child->rank(), 66);
-                              print("AA sent data to",child->rank());
- 					       }
- 					);
- 					unset_coeff(tree);
- 				}
- 			} else if (tree->isremote() && nactivekids==0) {
- 				// Remote parent has data and may have refined 
- 				bool refined;
-                print("AA waiting for refined from",tree->rank(), tree->n(),tree->x(),tree->y(),tree->z());
- 				comm()->Recv(refined, tree->rank(), 99);
-                print("AA got refined");
- 				if (refined) {
- 					const Slice& s0 = data->cdata->s[0];
-                	Tensor<T>& work1 = data->cdata->work1;
-                	long k2 = k*2;
- 					FOREACH_CHILD(OctTreeT, tree,
-                              print("AA waiting for data from",tree->rank());
- 							  comm()->Recv(work1.ptr(), work1.size, tree->rank(), 66);
-                              print("AA got data from",tree->rank());
+                           }
+                           else {
+                              work1(s0,s0,s0) = c(s[i],s[j],s[k]); // contig. copy
+                              comm()->Send(work1.ptr(), work1.size, child->rank(), AUTOREF_TAG2);
+                           }
+                        );
+                    unset_coeff(tree);               
+                }
+            } else if (isremote(tree) && tree->islocalsubtreeparent()) {
+                comm()->Recv(msg,2,tree->rank(),AUTOREF_TAG1);
+                bool active=msg[0], refine=msg[1];
+                if (!active && isactive(tree)) {
+                    MADNESS_EXCEPTION("Remote clone thinks it is inactive but I think I am active",0);
+                } else if (active) {
+                    set_active(tree);
+                    if (refine) {
+                        FORIJK(OctTreeT* child = tree->child(i,j,k);
+                              if (!child) child = tree->insert_local_child(i,j,k);
+                              set_active(child);
+                              comm()->Recv(work1.ptr(), work1.size, tree->rank(), AUTOREF_TAG2);
                               Tensor<T>*c = set_coeff(child, Tensor<T>(k2, k2, k2));
                               (*c)(s0, s0, s0) = work1;
                               unfilter_inplace(*c); // sonly needed!
- 					);
- 				}
- 			}
+                        );
+                    }
+                }
+            }
+                
+            FOREACH_CHILD(OctTreeT, tree, if (islocal(child)) _autorefine(child););    
         };
 
         /// Private.  Recursive function to support inplace squaring.
@@ -1493,7 +1488,6 @@ namespace madness {
         	 FOREACH_ACTIVE_CHILD(OctTreeT, tree, _square(child););
 
              if (coeff(tree)) {
-             	//print("squaring",tree->n(),tree->x(),tree->y(),tree->z());
                 Tensor<T>& t = *coeff(tree);
                 Tensor<T> r(k, k, k);
                 const Slice* s = data->cdata->s;

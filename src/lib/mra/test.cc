@@ -65,17 +65,21 @@ int main(int argc, char* argv[]) {
 
     // To ensure reliable cleanup catch all C++ exceptions here
     try {
+        //comm.set_debug(true);
         // Do useful stuff here
         FunctionDefaults::k=6;
-        FunctionDefaults::initial_level=1;
+        FunctionDefaults::initial_level=2;
         Function<double> f = FunctionFactory<double>(fred).thresh(1e-7).nocompress();
+        print("valuesX",fred(0.45,0.53,0.48),f(0.45,0.53,0.48));
         print("Tree in scaling function basis");
         //f.pnorms();
+        //comm.set_debug(true);
         f.compress();
+        //comm.set_debug(false);
         print("Tree in wavelet basis");
         //f.pnorms();
         f.reconstruct();
-        print("Tree in scaling function basis");
+        print("Tree in scaling function basisX");
         //f.pnorms();
         print("values",fred(0.45,0.53,0.48),f(0.45,0.53,0.48));
         print("truncating fred");
@@ -85,10 +89,10 @@ int main(int argc, char* argv[]) {
         f.truncate(1e-3);
         print("values",fred(0.45,0.53,0.48),f(0.45,0.53,0.48));
         print("truncating fred yet again");
-        f.truncate(1e-3);
+        f.truncate(1e-2);
         print("values",fred(0.45,0.53,0.48),f(0.45,0.53,0.48));              
-        //f.autorefine();
-        //print("Tree in scaling function basis after autorefine");
+        f.autorefine();
+        print("Tree in scaling function basis after autorefine");
         //f.pnorms();
         print("values",fred(0.45,0.53,0.48),f(0.45,0.53,0.48));
         f.square();
@@ -119,7 +123,6 @@ int main(int argc, char* argv[]) {
         std::cerr << "Exception (general)" << std::endl;
         comm.Abort();
     }
-
     // The follwing should be used for succesful termination
     comm.close();
     MPI::Finalize();

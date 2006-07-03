@@ -4,7 +4,9 @@ using std::endl;
 
 #include <fstream>
 
-#include "communicator.h"
+#include <cstdio>
+
+#include <misc/communicator.h>
 
 static std::ofstream fout;
 namespace madness {
@@ -12,9 +14,14 @@ namespace madness {
         if (comm.rank() != 0) {
             char filename[256];
             std::sprintf(filename,"log.%5.5d",comm.rank());
-            fout.open(filename);
-            cout.rdbuf(fout.rdbuf());
-            std::cerr.rdbuf(fout.rdbuf());
+            
+            // Was using this but it seems as if it does not
+            // redirect C stdio interface (at least on Cygwin)
+            //fout.open(filename);
+            //cout.rdbuf(fout.rdbuf());
+            //std::cerr.rdbuf(fout.rdbuf());
+            
+            freopen(filename, "w", stdout);
         }
     }
 }

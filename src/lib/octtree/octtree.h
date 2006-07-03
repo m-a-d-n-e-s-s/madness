@@ -1058,7 +1058,7 @@ namespace madness {
             // to connections to remote nodes which we now make.
             p->add_remote_children(nmax);
 
-	    p->depthFirstTraverse();
+	    //p->depthFirstTraverse();
             
             return p;
         };

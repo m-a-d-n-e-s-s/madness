@@ -197,43 +197,14 @@ namespace madness {
 
     template <typename T>
     double Function<T>::_norm2sq_local(const OctTreeT* tree) const {
-        if (! isactive(tree)) return 0.0;
         double sum = 0.0;
-        const TensorT* t = coeff(tree);
-        if (t) {
-            sum = t->normf();
+        if (coeff(tree)) {
+            sum = coeff(tree)->normf();
             sum *= sum;
         }
-        FOREACH_CHILD(const OctTreeT, tree,
+        FOREACH_CHILD(const OctTreeT, tree, 
                       if (isactive(child)) sum += _norm2sq_local(child););
-        //sum += _norm2sq_local(child););
-        return sum;
-    };
-
-    template <typename T>
-    double Function<T>::_norm2sq(const OctTreeT* tree) const {
-        double sum=0.0;
-        FOREACH_CHILD(OctTreeT, tree,
-                      if (isactive(child)) {
-                      double tmpsum = _norm2sq(child);
-                          sum += tmpsum;
-                      }
-                     );
-        if ( isremote(tree) ) {
-            if( (tree->parent()) && (tree->parent()->islocal()) ) {
-                comm()->Recv(&sum, 1, tree->rank(), 4);
-            }
-	}
-        else {
-          const TensorT* t = coeff(tree);
-          if (t) {
-            double tsum = t->normf();
-            sum += tsum*tsum;
-          }
-	  if ((tree->parent()) && (tree->parent()->isremote())) {
-            comm()->Send(&sum, 1, tree->parent()->rank(), 4);
-	  }
-        }
+  
         return sum;
     };
 
@@ -254,7 +225,7 @@ namespace madness {
                                   if (!c) throw "compress: yo! show me the data(2)!";
                                   buf(s0) = (*c)(s0);
               //                                  print("compress: sending",buf.normf(),"to",tree->rank());
-                                  comm()->Send(buf.ptr(), k3, tree->rank(), 2);
+                                  comm()->Send(buf.ptr(), k3, tree->rank(), COMPRESS_TAG);
               //                                  print("child norm before",c->normf());
                                   (*c)(s0) = T(0.0);
               //                                  print("child norm after",c->normf());
@@ -264,7 +235,7 @@ namespace madness {
                 // Receive data from a remote child and store as
                 // ghost ... parent will eventually delete it.
                 TensorT* t = set_coeff(tree,TensorT(k,k,k));
-                comm()->Recv(t->ptr(), k3, tree->rank(), 2);
+                comm()->Recv(t->ptr(), k3, tree->rank(), COMPRESS_TAG);
 //                print("compress: received",t->normf(),"from",tree->rank());
             }
         } else {
@@ -362,7 +333,7 @@ namespace madness {
             if (tree->islocalsubtreeparent()) {
                 FOREACH_CHILD(OctTreeT, tree,
                               if (isactive(child)) {
-                              comm()->Recv(buf.ptr(),k3,tree->rank(),3);
+                              comm()->Recv(buf.ptr(),k3,tree->rank(),RECONSTRUCT_TAG);
               //                                  print("reconstruct: received",buf.normf(),"from",tree->rank());
                                   (*coeff(child))(s0) = buf;
                               }
@@ -382,7 +353,7 @@ namespace madness {
                               } else {
                                   buf(s0) = (*t)(s[i],s[j],s[k]);
               //                                  print("reconstruct: sending",buf.normf(),"to",child->rank());
-                                  comm()->Send(buf.ptr(),k3,child->rank(),3);
+                                  comm()->Send(buf.ptr(),k3,child->rank(),RECONSTRUCT_TAG);
                               }
                           }
                          );
@@ -402,7 +373,7 @@ namespace madness {
             // info from above.  The messages will come in order.
             FOREACH_CHILD(OctTreeT, tree,
                           bool dorefine;
-                          comm()->Recv(dorefine, tree->rank(), 1);
+                          comm()->Recv(dorefine, tree->rank(), REFINE_TAG);
               //                          print("   refine: got message",dorefine,"for",child->n(),child->x(),child->y(),child->z());
                           if (dorefine) {
                           set_active(child);
@@ -419,12 +390,12 @@ namespace madness {
                 TensorT d = filter(*t);
                 d(data->cdata->s0) = 0.0;
                 bool dorefine = (d.normf() > truncate_tol(data->thresh,tree->n()));
-                if (dorefine)
+//                if (dorefine)
 //                    print("refine:",tree->n(),tree->x(),tree->y(),tree->z(),d.normf(),"dorefine =",dorefine);
                     if (dorefine) unset_coeff(tree);
                 // First, send messages to remote children in order to get them working ASAP
                 FOREACH_REMOTE_CHILD(OctTreeT, tree,
-                                     comm()->Send(dorefine, child->rank(), 1);
+                                     comm()->Send(dorefine, child->rank(), REFINE_TAG);
                                      set_active(child);
                      //                                     print("sent",dorefine,"message to",child->n(),child->x(),child->y(),child->z());
                                     );
@@ -445,7 +416,7 @@ namespace madness {
                 // It must be either an empty local node or a remote leaf.
                 // Again, first send msgs to remote nodes, then treat local guys.
                 FOREACH_REMOTE_CHILD(OctTreeT, tree,
-                                     comm()->Send(false, child->rank(), 1);
+                                     comm()->Send(false, child->rank(), REFINE_TAG);
                      //                                     print("    sent false to",child->n(),child->x(),child->y(),child->z());
                                     );
                 FOREACH_LOCAL_CHILD(OctTreeT, tree, _refine(child););
@@ -548,18 +519,18 @@ namespace madness {
       FOREACH_REMOTE_CHILD(OctTreeT, tree,
                            if (isactive(child)) {
                                bool active;
-                               comm()->Recv(active, child->rank(), 5);
+                               comm()->Recv(active, child->rank(), TRUNCATE_TAG1);
                                if (active) nactive_child++;
                                else set_inactive(child);
                            }); 
 
-     // This is the active remote parent of the local subtree.  If I have an
-     // active child then I know the remote parent will not truncate.
-     // But if I don't have any active children I must be told the decision.
      if (!coeff(tree)) {
+         // This is the active remote parent of the local subtree.  If I have an
+         // active child then I know the remote parent will not truncate.
+         // But if I don't have any active children I must be told the decision.
          if (nactive_child == 0) {
             bool active;
-            comm()->Recv(active,tree->rank(),6);
+            comm()->Recv(active,tree->rank(),TRUNCATE_TAG2);
             if (!active) set_inactive(tree);
           }
           return;
@@ -581,35 +552,22 @@ namespace madness {
            int n=0;
            FOREACH_REMOTE_CHILD(OctTreeT, tree, 
                                 if (isactive(child) && child->rank()==ranks[p]) n++;);
-           if (n==0) comm()->Send(isactive(tree), ranks[p], 6);
+           if (n==0) comm()->Send(isactive(tree), ranks[p], TRUNCATE_TAG2);
        }
             
       // Notify any remote parent of my possibly changed active status.
       if (tree->parent() && tree->parent()->isremote()) 
-          comm()->Send(isactive(tree), tree->parent()->rank(), 5);
+          comm()->Send(isactive(tree), tree->parent()->rank(), TRUNCATE_TAG1);
     };
 
     template <typename T>
-    T Function<T>::_inner(const Function<T>& a, const Function<T>& b, OctTreeT* tree) const {
+    T Function<T>::_inner_local(const Function<T>& a, const Function<T>& b, const OctTreeT* tree) const {
       T sum = 0.0;
       FOREACH_CHILD(OctTreeT, tree, 
-        if (a.isactive(child) && b.isactive(child)) { 
-          sum += _inner(a, b, child);
-        }
+        if (a.isactive(child) && b.isactive(child)) sum += _inner_local(a, b, child);
       );
-      if (isremote(tree)) {
-        if( (tree->parent()) && (tree->parent()->islocal()) ) {
-          comm()->Recv(&sum, 1, tree->rank(), 7);
-        }
-      }
-      else {
-        TensorT *c1 = a.coeff(tree);
-        TensorT *c2 = b.coeff(tree);
-        sum += c1->trace(*c2);
-        if ( (tree->parent()) && (tree->parent()->isremote())) {
-          comm()->Send(&sum, 1, tree->parent()->rank(), 7);
-        }
-      }
+      if (a.coeff(tree) && b.coeff(tree)) sum += a.coeff(tree)->trace(*b.coeff(tree));
+
       return sum;
     }
 
@@ -789,7 +747,7 @@ namespace madness {
             if(subtreeList[i].active) {
               // Inquiring Coefficients.
               bool coeffsPointer;
-              commFunc.Recv(&coeffsPointer, 1, subtreeList[i].rank, 14);
+              commFunc.Recv(&coeffsPointer, 1, subtreeList[i].rank, SAVE_TAG);
               ar & (coeffsPointer != 0);
               // Storing Coefficients.
               if(coeffsPointer) {
@@ -949,7 +907,7 @@ namespace madness {
           TensorT *t = coeff(tree);
           bool coeffsPointer = false;
           if(t) coeffsPointer = true;
-          commFunc.Send(&coeffsPointer, 1, 0, 14);
+          commFunc.Send(&coeffsPointer, 1, 0, SAVE_TAG);
           if(t) {
             arsend & *t;
           }
