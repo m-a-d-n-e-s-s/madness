@@ -1,12 +1,6 @@
 TOPDIR=..
-ifndef QUOTE
-  QUOTE=sed 's/ /\\ /g'
-endif
-ifndef SRCDIR
-  SRCDIR=$(shell pwd | $(QUOTE))
-endif
 
-include $(SRCDIR)/$(TOPDIR)/lib/GlobalMakefile
+include $(TOPDIR)/lib/GlobalMakefile
 include $(TOPDIR)/lib/MakeVars
 
 .PHONY: all
@@ -34,13 +28,13 @@ veryclean:
 	/bin/rm -rf *~
 
 .PHONY: clean
-clean:
+clean::
 	cd latex && $(MAKE) clean
 	/bin/rm -rf *~
 
-install:
+install::
 	$(INSTALL) $(INSTALLDIROPT) $(installroot)$(prefix)
 	/bin/cp -r html $(installroot)$(prefix)
 
-install_devel:
+install_devel::
 
