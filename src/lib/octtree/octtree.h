@@ -170,6 +170,8 @@ namespace madness {
 		return true;
 	    else if (t1._n > t2._n)
 		return false;
+	    else if (t1._n == 0)
+		return true;
 	    else
 	    {
 		Translation s1, s2, n1 = (Translation) pow(2,t1._n-1), n2 = (Translation) pow(2,t2._n-1);
@@ -321,7 +323,10 @@ namespace madness {
 	inline bool isLocalRoot() {return parent().isremote();};
 
 	/// returns true if node has children
-	inline bool isParent() {return (!(child(0,0,0) == 0));}
+//	inline bool isParent() {return (!(child(0,0,0) == 0));}
+	inline bool isParent() const {return (bool) ((child(0,0,0)) || (child(0,0,1)) || 
+		(child(0,1,0)) || (child(0,1,1)) || (child(1,0,0)) || 
+		(child(1,0,1)) || (child(1,1,0)) || (child(1,1,1)));};
         
         /// returns true if node is the parent of the local subtree
         inline bool islocalsubtreeparent() const {return (_p==0);};
@@ -342,7 +347,16 @@ namespace madness {
         inline OctTreeT* parent() const {return _p;};
 
 	/// set the child's parent pointer
-	inline void setParent(OctTreeT* p) {_p = p;};
+	inline OctTreeT* setParent(OctTreeT* p) {_p = p; return _p;};
+	/// set this node's parent, and make the parent point to the child too
+	inline OctTreeT* setParentChild(OctTreeT* p)
+	{
+	    Translation x = this->_x - 2*p->_x;
+	    Translation y = this->_y - 2*p->_y;
+	    Translation z = this->_z - 2*p->_z;
+	    p->setChild(x,y,z, this);
+	    return _p;
+	};
         
         /// returns child's pointer (null if absent or if both this node & child are remote)
         inline SharedPtr<OctTreeT> childPtr(int x, int y, int z) const {
@@ -415,6 +429,14 @@ namespace madness {
 	    _c[x][y][z]->setParent(this);
 	    return _c[x][y][z];
 	};
+
+
+	/// Is this the same node in terms of coords? (could be different in data and locality)
+	bool equals(OctTree<T> *t)
+	{
+	    return ((_n == t->_n) && (_x == t->_x) && (_y == t->_y) && (_z == t->_z));
+	};
+
 
 	/// find out if this is a descendant of tree
 	bool isDescendant(OctTree<T> *tree)
@@ -1058,7 +1080,7 @@ namespace madness {
             // to connections to remote nodes which we now make.
             p->add_remote_children(nmax);
 
-	    //p->depthFirstTraverse();
+	    p->depthFirstTraverse();
             
             return p;
         };
@@ -1073,8 +1095,8 @@ namespace madness {
 	    OctTreeT *p = new OctTreeT();
 	    ProcessID me = comm.rank();
 
-	    bool debug = true;
-//	    bool debug = false;
+//	    bool debug = true;
+	    bool debug = false;
 
 	    if (me != 0) return p;
 
@@ -1103,8 +1125,8 @@ namespace madness {
 
 	void insert_local_children(Level nmax)
 	{
-	    bool debug = true;
-//	    bool debug = false;
+//	    bool debug = true;
+	    bool debug = false;
 	    if (_n >= nmax) return;
 
 	    SharedPtr<OctTreeT> c;
@@ -1135,6 +1157,11 @@ namespace madness {
 	{
 	    bool debug = false;
 //	    bool debug = true;
+
+	    if (debug)
+	    {
+		std::cout << "skeletize: at very beginning" << std::endl;
+	    }
 
 	    OctTree<char> *skel = new OctTree<char>(_n, _x, _y, _z, _remote, 0, _rank,
 					_comm, _cost, _localSubtreeCost, _visited);
@@ -1186,7 +1213,13 @@ namespace madness {
 //			    std::cout << "load c[" << i << "," << j << "," << k << "]" << std::endl;
 			    OctTree<T> *child = new OctTree<T>();
 			    this->_c[i][j][k] = SharedPtr<OctTree<T> >(child);
-			    ar & *child;
+			    int childexists;
+			    ar & childexists;
+//			    std::cout << "child exists: " << childexists << std::endl;
+			    if (childexists)
+			    	ar & *child;
+			    else
+				this->insert_remote_child(i,j,k, -100);
 //			    std::cout << "loaded c[" << i << "," << j << "," << k << "], (" <<
 //				(this->_c[i][j][k])->x() << ", " << (this->_c[i][j][k])->y() << ", " <<
 //				(this->_c[i][j][k])->z() << ")"<< std::endl;
@@ -1196,6 +1229,35 @@ namespace madness {
 			);
 		    }
 
+		}
+		else
+		{
+		    int hasChildren;
+//		    std::cout << "about to receive hasChildren" << std::endl;
+		    ar & hasChildren;
+//		    std::cout << "has children: " << hasChildren << std::endl;
+
+		    if (hasChildren)
+		    {
+			FORIJK(
+//			    std::cout << "load c[" << i << "," << j << "," << k << "]" << std::endl;
+			    OctTree<T> *child = new OctTree<T>();
+			    this->_c[i][j][k] = SharedPtr<OctTree<T> > (child);
+			    int childexists;
+			    ar & childexists;
+//			    std::cout << "child exists: " << childexists << std::endl;
+			    if (childexists)
+			    	ar & *child;
+			    else
+				this->insert_remote_child(i,j,k, -100);
+//			    std::cout << "loaded c[" << i << "," << j << "," << k << "], (" <<
+//				(this->_c[i][j][k])->x() << ", " << (this->_c[i][j][k])->y() << ", " <<
+//				(this->_c[i][j][k])->z() << ")"<< std::endl;
+			);
+			FOREACH_CHILD(OctTree<T>, this,
+			    child->_p = this;
+			);
+		    }
 		}
 //		std::cout << "end of load (prolly won't see this)" << std::endl;
 	    };
@@ -1212,7 +1274,7 @@ namespace madness {
 		{
 		    ar & this->_data;
 //		    std::cout << "sent data" << std::endl;
-		    if (this->_c[0][0][0])
+		    if (this->isParent())
 		    {
 		    	ar & 1;
 //			std::cout << "t is a parent" << std::endl;
@@ -1220,14 +1282,43 @@ namespace madness {
 		        FORIJK(
 		    	    if (this->_c[i][j][k])
 		    	    {
+				ar & 1;
 			    	ar & *(this->_c[i][j][k]);
 		    	    }
+			    else
+			    {
+				ar & 0;
+			    }
 		        );
 
 		    }
 		    else
 		    {
 		    	ar & 0;
+//			std::cout << "t is not a parent" << std::endl;
+		    }
+		}
+		else
+		{
+		    if (this->isParent())
+		    {
+//			std::cout << "t is a parent" << std::endl;
+			ar & 1;
+			FORIJK(
+			    if (this->_c[i][j][k])
+			    {
+				ar & 1;
+				ar & *(this->_c[i][j][k]);
+			    }
+			    else
+			    {
+				ar & 0;
+			    }
+			);
+		    }
+		    else
+		    {
+			ar & 0;
 //			std::cout << "t is not a parent" << std::endl;
 		    }
 		}
