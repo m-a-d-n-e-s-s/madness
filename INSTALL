@@ -141,3 +141,21 @@ the website at some point for convenience
   
   ./configure --with-cxx=mpicxx --with-cc=mpicc --with-cxx-optflags="-Wall -ansi -O0 -ggdb" --with-cc-optflags="-Wall -ansi -O0 -ggdb" 
   
+
+================================
+  CRAY XT3 (jaguar) with portland compilers
+
+This is a two step process ... first get configure to run, then 
+edit MakeVars to get the correct settings
+
+setenv CC pgcc
+setenv CXX pgCC
+./configure --with-blas=-lsci --with-lapack=-lsci
+
+Now edit lib/MakeVars and ...
+CXX = CC
+CXXDEPEND = CC
+CC = cc
+CCDEPEND = cc
+CXXFLAGS = -fastsse -tp k8-64 -Mflushz -Mcache_align
+and remove -lpthreads from SYSLIBS
