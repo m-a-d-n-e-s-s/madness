@@ -40,28 +40,7 @@ double_complex cfred(double x, double y, double z) {
 }
 
 int main(int argc, char* argv[]) {
-    // The following should be used to setup all calculations
-    // 1) Initialize parallel environment
-    // 2) Setup communication information
-    // 3) Redirect standard output+err for parallel processes
-    // 4) Load coeffs and quadrature information from file
-    // 5) Setup default OctTreeLayout
-    // 6) Sanity check
-    // 7) Top level catching of exceptions
-    MPI::Init(argc, argv);
-    Communicator comm;
-    madness::comm_default = &comm;
-    redirectio(comm);
-    comm.print();
-    load_coeffs(comm);
-    load_quadrature(comm);
-    FunctionDefaults::tree = new FunctionOctTree(OctTree<FunctionNode>::create_default(comm,2));
-    if (!gauss_legendre_test()) comm.Abort();
-    if (!test_two_scale_coefficients()) comm.Abort();
-
-    for (int i=1; i<argc; i++) {
-        if (strcmp(argv[i],"-d") == 0) xterm_debug(comm,0,0);
-    }
+    Communicator& comm = startup(argc,argv);
 
     // To ensure reliable cleanup catch all C++ exceptions here
     try {

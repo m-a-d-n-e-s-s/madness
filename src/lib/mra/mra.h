@@ -38,22 +38,11 @@ namespace std {
         return d*d;
     };
 
-    /*
-    	/// This struct stores informations on each branch. 
-            //template <class Archive, class T>
-    	class localTreeMember {
-    	public:
-    	  Translation x, y, z;
-    	  Level n;
-    	  ProcessID rank;
-    	  bool remote, active;
-              //static inline void serialize(const Archive& ar, T& t) {t.serialize(ar);};
-    	};
-    */
-
 }
 
 namespace madness {
+
+    Communicator& startup(int argc, char** argv);
 
     /**
 
@@ -730,7 +719,8 @@ namespace madness {
 
         /// Global communication is implied.   Works in either the scaling
         /// function or wavelet basis.
-        double norm2sq() const {
+        double norm2sq() {
+            compress();
             return comm()->global_sum(norm2sq_local());
         };
 
