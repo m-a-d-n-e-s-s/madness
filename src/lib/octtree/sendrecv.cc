@@ -761,13 +761,13 @@ namespace madness {
     void exchangeTrees(std::vector<RootList> *globalList, std::vector<SharedPtr<OctTree<T> > > *treeList,
                        bool glue) {
         Communicator comm;
-        madness::redirectio(comm);
+//        madness::redirectio(comm);
         int me = comm.rank();
         int glength = 0, tlength = 0, i, j;
         RootList root;
 
-//	bool debug = true;
-        bool debug = false;
+	bool debug = true;
+//        bool debug = false;
 
 
         /* globalList: the list of trees that need to be exchanged */
@@ -1129,7 +1129,7 @@ namespace madness {
     template <class T>
     void recvSubtree(OctTree<T> *t, ProcessID me, ProcessID source) {
         Communicator comm;
-        madness::redirectio(comm);
+//        madness::redirectio(comm);
         comm.print();
         archive::MPIInputArchive arsource(comm, source);
 
@@ -1154,7 +1154,7 @@ namespace madness {
     template <class T>
     void recvSubtree(SharedPtr<OctTree<T> > p, ProcessID me, ProcessID source) {
         Communicator comm;
-        madness::redirectio(comm);
+//        madness::redirectio(comm);
         comm.print();
         archive::MPIInputArchive arsource(comm, source);
 	OctTree<T> *t = new OctTree<T>();
@@ -1183,7 +1183,7 @@ namespace madness {
     template <class T>
     void sendMsg(T msg, ProcessID me, ProcessID dest) {
         Communicator comm;
-        madness::redirectio(comm);
+//        madness::redirectio(comm);
         archive::MPIOutputArchive ardest(comm, dest);
 
         ardest & msg;
@@ -1192,7 +1192,7 @@ namespace madness {
     template <class T>
     void recvMsg(T *msg, ProcessID me, ProcessID source) {
         Communicator comm;
-        madness::redirectio(comm);
+//        madness::redirectio(comm);
         archive::MPIInputArchive arsource(comm, source);
 
         arsource & *msg;
@@ -1211,8 +1211,8 @@ namespace madness {
         int nconsidered = size, nunchanged = 0;
         bool flag = false;
 
-//        bool debug = true;
-	bool debug = false;
+        bool debug = true;
+//	bool debug = false;
 
         for (int i = 0; i < size; i++) {
             if (debug) {
@@ -1268,6 +1268,11 @@ namespace madness {
 				}
 			    );
                             treeList->erase((treeList->begin()+nunchanged));
+			    if (debug)
+			    {
+				std::cout << "glueTrees: erased entry number " << nunchanged << 
+					" in treeList" << std::endl;
+			    }
                             flag = true;
 			}
 			else if ((*treeList)[tmp]->isremote())
@@ -1332,17 +1337,28 @@ namespace madness {
                             OctTree<T> *p = new OctTree<T>();
                             p = u->parent();
                             if (debug) {
-                                std::cout << "glueTrees: made parent to u" << std::endl;
+                                std::cout << "glueTrees: made parent to u:" << std::endl;
+//				std::cout << "    n = " << p->n() << ", (" << p->x() << "," <<
+//					p->y() << "," << p->z() << "), islocal? " << p->islocal()
+//					<< std::endl;
                             }
-                            p->insert_local_child(t);
-                            if (debug) {
-                                std::cout << "glueTrees: inserted local child" << std::endl;
-                            }
-                            treeList->erase((treeList->begin()+nunchanged));
-                            if (debug) {
-                                std::cout << "glueTrees: erased tree from treeList" << std::endl;
-                            }
-                            flag = true;
+			    if ((p) && p->islocal())
+			    {
+                            	p->insert_local_child(t);
+                            	if (debug) {
+                                    std::cout << "glueTrees: inserted local child" << std::endl;
+                            	}
+                            	treeList->erase((treeList->begin()+nunchanged));
+                            	if (debug) {
+                                    std::cout << "glueTrees: erased tree from treeList" << std::endl;
+                            	}
+                            	flag = true;
+			    }
+			    else
+			    {
+				std::cout << "glueTrees: u's parent is not local, so don't do anything"
+					<< std::endl;
+			    }
                         }
                         break;
                     }
@@ -1691,8 +1707,8 @@ namespace madness {
 	std::vector<RootList> ownerList, mergeList, globalList;
 	SharedPtr<OctTree<char> > ghostTree = SharedPtr<OctTree<char> > ();
 
-	bool debug = false;
-//	bool debug = true;
+//	bool debug = false;
+	bool debug = true;
 
 	me = comm.rank();
 	np = comm.nproc();
@@ -1757,12 +1773,26 @@ namespace madness {
 	    {
 		archive::MPIOutputArchive arsend(comm, i);
 		arsend & globalList;
+		if (debug)
+		{
+		    std::cout << "serialLoadBalance: just finished sending globalList to " << i
+			<< std::endl;
+		}
 	    }
 	}
 	else
 	{
+	    if (debug)
+	    {
+		std::cout << "serialLoadBalance: about to receive globalList from 0" << std::endl;
+	    }
 	    archive::MPIInputArchive arrecv(comm, 0);
 	    arrecv & globalList;
+	}
+
+	if (debug)
+	{
+	    std::cout << "serialLoadBalance: after send/recv globalList" << std::endl;
 	}
 
 	int glen = globalList.size();
@@ -1774,9 +1804,21 @@ namespace madness {
 	    {
 		if (rli.isDescendant(globalList[j]))
 		{
+		    if (debug)
+		    {
+			std::cout << "serialLoadBalance: about to make tree n = " << rli.n <<
+				", (" << rli.x << "," << rli.y << "," << rli.z << ") into child of  n = " <<
+				rli.n-1 << ",(" << rli.x/2 << "," << rli.y/2 << "," << rli.z/2 << ")" 
+				<< std::endl;
+//				globalList[j].n << ",(" << globalList[j].x << "," << globalList[j].y << ","
+//				<< globalList[j].z << ")" << std::endl;
+		    }
+//		    SharedPtr<OctTree<T> > pptr = SharedPtr<OctTree<T> > ((*treeList)[i]->setParentChild(new 
+//				OctTree<T> (globalList[j].n, globalList[j].x, globalList[j].y, 
+//				globalList[j].z, true, 0, globalList[j].future_owner, &comm)));
 		    SharedPtr<OctTree<T> > pptr = SharedPtr<OctTree<T> > ((*treeList)[i]->setParentChild(new 
-				OctTree<T> (globalList[j].n, globalList[j].x, globalList[j].y, 
-				globalList[j].z, true, 0, globalList[j].future_owner, &comm)));
+				OctTree<T> (rli.n-1, rli.x/2, rli.y/2, rli.z/2, true, 0, 
+				globalList[j].future_owner, &comm)));
 		    (*treeList)[i] = pptr;
 		    break;
 		}
