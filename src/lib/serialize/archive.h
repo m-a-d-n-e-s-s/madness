@@ -286,6 +286,7 @@
 #include <map>
 #include <typestuff.h>
 #include <tensor/tensor.h>
+//#include <serialize/archive_type_names.cc>
 
 #define ARCHIVE_COOKIE "archive"
 #define ARCHIVE_MAJOR_VERSION 0
@@ -852,14 +853,24 @@ namespace madness {
         template <class Archive>
         struct ArchiveStoreImpl< Archive, BaseTensor* > {
             static inline void store(const Archive& s, const BaseTensor* t) {
-//		std::cout << "serizialing thru bt\n";
-                s & t->id;
-                if (t->id == TensorTypeData<double>::id) {
-//		    std::cout << "serizialing thru bt ... it's a double!\n";
-                    s & *((const Tensor<double>*) t);
-                } else {
-                    throw "not yet";
-                }
+		std::cout << "serizialing thru bt\n";
+		if (t)
+		{
+		    s & 1;
+		    std::cout << "t->id = " << t->id << std::endl;
+                    s & t->id;
+		    std::cout << "serialized id" << std::endl;
+                    if (t->id == TensorTypeData<double>::id) {
+		        std::cout << "serizialing thru bt ... it's a double!\n";
+                        s & *((const Tensor<double>*) t);
+                    } else {
+                        throw "not yet";
+                    }
+		}
+		else
+		{
+		    s & 0;
+		}
             };
         };
 
@@ -870,17 +881,26 @@ namespace madness {
         template <class Archive>
         struct ArchiveLoadImpl< Archive, BaseTensor* > {
             static inline void load(const Archive& s, BaseTensor*& t) {
-                long id;
-                s & id;
-//		std::cout << "deserizialing thru bt\n";
-                if (id == TensorTypeData<double>::id) {
-//		    std::cout << "deserizialing thru bt ... it's a double!\n";
-                    Tensor<double>* d = new Tensor<double>();
-                    s & *d;
-                    t = d;
-                } else {
-                    throw "not yet";
-                }
+		int loadit;
+		s & loadit;
+		if (loadit)
+		{
+                    long id;
+                    s & id;
+		    std::cout << "deserizialing thru bt\n";
+                    if (id == TensorTypeData<double>::id) {
+		        std::cout << "deserizialing thru bt ... it's a double!\n";
+                        Tensor<double>* d = new Tensor<double>();
+                        s & *d;
+                        t = d;
+                    } else {
+                        throw "not yet";
+                    }
+		}
+		else
+		{
+		    std::cout << "empty tensor" << std::endl;
+		}
             };
         };
 
