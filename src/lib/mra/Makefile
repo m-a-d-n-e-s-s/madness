@@ -21,7 +21,7 @@ TESTPROGS = test testq rhb test_serialize
 # Source files for the test programs (up to six of them)
 TEST1SRC = test.cc
 TEST2SRC = testq.cc
-TEST3SRC = rhb.cc mraX.cc
+TEST3SRC = rhb.cc mraX.cc 
 TEST4SRC = test_serialize.cc
          
 # GlobalMakefile now does most of the work for you
@@ -34,11 +34,11 @@ test: $(TEST1OBJ) $(THISLIBDEPEND)
 testq: $(TEST2OBJ) $(THISLIBDEPEND)
 	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ $(SYSLIBS) $(LTLINKBINOPTS)
 
-rhb: $(TEST3OBJ) $(THISLIBDEPEND)
-	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ $(SYSLIBS) $(LTLINKBINOPTS)
+#rhb: $(TEST3OBJ) $(THISLIBDEPEND)
+#	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ $(SYSLIBS) $(LTLINKBINOPTS)
 
 rhb: $(TEST3OBJ) 
-	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ legendre.o  sepop.o  gfit.o  twoscale.o ../../../lib/libMADtensor.a ../../../lib/libMADmisc.a /usr/lib/liblapack.a /usr/lib/libblas.a  -lpthread 
+	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ legendre.o  sepop.o  gfit.o  twoscale.o ../../../lib/libMADtensor.a ../../../lib/libMADmisc.a ../../../lib/libMADserialize.a ../../../lib/libMADocttree.a /usr/lib/liblapack.a /usr/lib/libblas.a  -lpthread 
 
 test_serialize: $(TEST4OBJ) $(THISLIBDEPEND)
 	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ $(SYSLIBS) $(LTLINKBINOPTS)

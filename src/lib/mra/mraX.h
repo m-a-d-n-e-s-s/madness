@@ -10,10 +10,10 @@
 
 #include <madness_config.h>
 #include <tensor/tensor.h>
-#include <serialize/archive.h>
-#include <serialize/mpiar.h>
-#include <octtree/octtree.h>
-//#include <octtree/sendrecv.h>
+//#include <serialize/archive.h>
+//#include <serialize/mpiar.h>
+//#include <octtree/octtree.h>
+#include <octtree/sendrecv.h>
 #include <mra/sepop.h>
 #include <misc/communicator.h>
 
@@ -59,7 +59,6 @@ namespace madness {
 
     class FunctionNode;         ///< Forward definition
     typedef OctTree<FunctionNode> OctTreeT; ///< Type of OctTree used to hold coeffs
-    //template <typename T>
 
     /// Used to hold data for all functions at each node of the OctTree
 
@@ -210,10 +209,40 @@ namespace madness {
             for (int i = 0; i < size; i++) unset(i);
         };
 
+
         template <class Archive>
         inline void serialize(const Archive& ar) {
             ar & v & a;
+//std::cout << "serialize a" << std::endl;
+//            ar & a;
+//std::cout << "serialize v" << std::endl;
+//	    ar & v;
         }
+
+
+/*
+	template <class Archive>
+        void load(const Archive& ar) {
+	    int empty;
+	    ar & empty;
+	    if (!empty)
+		ar & v & a;
+	};
+
+	template <class Archive>
+	void store(const Archive& ar) {
+	    if ()
+	    {
+		ar & 0;
+		ar & v & a;
+	    }
+	    else
+	    {
+		ar & 1;
+	    }
+	};
+*/
+
     };
 
     /// A FunctionOctTree marries an OctTree<FunctionNode> with an index manager
@@ -230,7 +259,7 @@ namespace madness {
         FunctionOctTree(const FunctionOctTree&);
 
         /// Verboten
-        FunctionOctTree& operator=(const FunctionOctTree&);
+//        FunctionOctTree& operator=(const FunctionOctTree&);
 
         /// Cleans up data of function being freed
         void free_data(OctTreeT* tree, int ind) {
@@ -246,14 +275,21 @@ namespace madness {
             for (int i = 0; i < _nfree; i++) _free[i] = _nfree - i - 1;
         };
 
+        FunctionOctTree(SharedPtr<OctTree<FunctionNode> > tree)
+                : _nfree(FunctionNode::size)
+                , _free(_nfree)
+        , _tree(tree) {
+            for (int i = 0; i < _nfree; i++) _free[i] = _nfree - i - 1;
+        };
+
         /// Return a pointer to the contained octtree
-        inline OctTree<FunctionNode>* tree() {
-            return _tree.get();
+        inline SharedPtr<OctTree<FunctionNode> > tree() {
+            return SharedPtr<OctTree<FunctionNode> > (_tree);
         };
 
         /// Return a const pointer to the contained octtree
-        inline const OctTree<FunctionNode>* tree() const {
-            return _tree.get();
+        inline const SharedPtr<OctTree<FunctionNode> > tree() const {
+            return SharedPtr<OctTree<FunctionNode> > (_tree);
         };
 
         /// Allocate an index for a new function
@@ -293,7 +329,7 @@ namespace madness {
     /// all Function instances.  A little work could improve upon this.
     class FunctionDefaults {
     public:
-        static SharedPtr<FunctionOctTree> tree; ///< The default tree/distribution used for new functions
+        static std::vector<SharedPtr<FunctionOctTree> > tree; ///< The default tree/distribution used for new functions
         static int k;                  ///< Wavelet order
         static double thresh;          ///< Truncation threshold
         static int initial_level;      ///< Initial level for fine scale projection
@@ -427,7 +463,8 @@ namespace madness {
         void (*vf)(long, const double*, const double*, const double*,
                    T* restrict); ///< Vector interface to function to compress
 
-        SharedPtr<FunctionOctTree> tree; ///< The tree of coeffs
+        std::vector<SharedPtr<FunctionOctTree> > treeList; ///< The vector of subtrees of coeffs
+	int treeListSize;	///< The length of the treeList
         int ind;		 ///< The unique index into the tree for this function
 
         bool compressed;        ///< Compression status
@@ -443,8 +480,10 @@ namespace madness {
             k = factory._k;
             cdata = commondata + k;
 
-            tree = factory._tree;
-            ind = tree->alloc();
+            treeList = factory._tree;
+	    treeListSize = factory._tree.size();
+	    if (!(treeList.empty()))
+            	ind = treeList[0]->alloc();
 
             thresh = factory._thresh;
             initial_level = factory._initial_level;
@@ -467,8 +506,10 @@ namespace madness {
             k = other.k;
             cdata = commondata + k;
 
-            tree = other.tree;
-            ind = tree->alloc();
+            treeList = other.treeList;
+	    treeListSize= other.treeListSize;
+	    if (!treeList.empty())
+            	ind = treeList[0]->alloc();
 
             thresh = other.thresh;
             initial_level = other.initial_level;
@@ -483,7 +524,8 @@ namespace madness {
         };
 
         ~FunctionData() {
-            tree->free(ind);
+	    for (int i = 0; i < treeListSize; i++)
+            	treeList[i]->free(ind);
         };
 
     private:
@@ -561,13 +603,25 @@ namespace madness {
                 : data(new FunctionData<T>(factory))
                 , k(data->k)
         , ind(data->ind) {
+//	    std::cout << "Function: FunctionFactory constructor: about to _init" << std::endl;
             _init(factory);
+//	    std::cout << "Function: FunctionFactory constructor: done with _init" << std::endl;
         };
 
 
         /// Print out a summary of the tree with norms
         void pnorms() {
-            if (isactive(tree())) _pnorms(tree());
+	    int tlen = data->treeListSize;
+	    for (int i = 0; i < tlen; i++)
+	    {
+		std::cout << "pnorms: tree number " << i <<  " of " << tlen << ":" << std::endl;
+            	if (isactive(tree(i))) 
+		    _pnorms(tree(i));
+		else
+		    std::cout << "pnorms: tree " << tree(i)->n() << " "  << tree(i)->x() << " "  
+			<< tree(i)->y() << " "  << tree(i)->z() << "is inactive" << std::endl;
+		std::cout << "pnorms: end of tree number " << i << std::endl << std::endl;
+	    }
         };
 
         /// Compress function (scaling function to wavelet)
@@ -575,10 +629,17 @@ namespace madness {
         /// Communication streams up the tree.
         /// Returns self for chaining.
         Function<T>& compress() {
+	    std::cout << "compress: at beginning" << std::endl;
             if (!data->compressed) {
-                if (isactive(tree())) _compress(tree());
+		int tlen = data->treeListSize;
+		for (int i = 0; i < tlen; i++)
+		{
+                    if (isactive(tree(i))) 
+			_compress(tree(i));
+		}
                 data->compressed = true;
             }
+	    std::cout << "compress: at end" << std::endl;
             return *this;
         };
 
@@ -589,7 +650,12 @@ namespace madness {
         /// Returns self for chaining.
         Function<T>& reconstruct() {
             if (data->compressed) {
-                if (isactive(tree())) _reconstruct(tree());
+		int tlen = data->treeListSize;
+		for (int i = 0; i < tlen; i++)
+		{
+                    if (isactive(tree(i))) 
+			_reconstruct(tree(i));
+		}
                 data->compressed = false;
             }
             return *this;
@@ -705,16 +771,16 @@ namespace madness {
         /// Private. Returns the tree of coeffs
 
         /// No communication involved.
-        inline OctTreeT* tree() {
-            return data->tree->tree();
+        inline SharedPtr<OctTreeT> tree(int index) {
+            return data->treeList[index]->tree();
         };
 
 
         /// Private. Returns the const tree of coeffs
 
         /// No communication involved.
-        inline const OctTreeT* tree() const {
-            return data->tree->tree();
+        inline const SharedPtr<OctTreeT> tree(int index) const {
+            return data->treeList[index]->tree();
         };
 
 
@@ -794,7 +860,7 @@ namespace madness {
 
         /// No communication involved.
         inline Communicator* comm() const {
-            return (Communicator *) (tree()->comm());
+            return (Communicator *) (tree(0)->comm());
         };
 
 
@@ -819,11 +885,14 @@ namespace madness {
         /// Private.  Recur down the tree printing out the norm of
         /// the coefficients.
         void _pnorms(OctTreeT *tree) const {
+//	    std::cout << "_pnorms: tree " << tree->n() << " " << tree->x() << " " << tree->y() << " "
+//			<< tree->z() << std::endl;
             const TensorT *t = coeff(tree);
             if (t) {
                 for (long i=0; i<tree->n(); i++) std::printf("  ");
                 std::printf("%4ld (%8ld, %8ld, %8ld) %9.1e\n",
                             tree->n(),tree->x(),tree->y(),tree->z(),t->normf());
+		std::fflush(NULL);
             }
             FOREACH_CHILD(OctTreeT, tree, if (isactive(child)) _pnorms(child););
         }
@@ -876,7 +945,7 @@ namespace madness {
         bool _debug;
         bool _empty;
         bool _autorefine;
-        SharedPtr<FunctionOctTree> _tree;
+        std::vector<SharedPtr<FunctionOctTree> > _tree;
         friend class Function<T>;
         friend class FunctionData<T>;
     public:
@@ -894,6 +963,13 @@ namespace madness {
                 , _empty(false)
                 , _autorefine(FunctionDefaults::autorefine)
         , _tree(FunctionDefaults::tree) {}
+/*
+        , _tree(FunctionDefaults::tree) 
+		{
+		    std::cout << "FunctionFactory: basic constructor" << std::endl;
+		    std::cout << "Length of treeList = " << _tree.size() << std::endl;
+		}
+*/
         ;
         inline FunctionFactory& vf(void (*vf)(long, const double*, const double*, const double*, T* restrict)) {
             _vf = vf;
@@ -905,6 +981,7 @@ namespace madness {
         };
         inline FunctionFactory& thresh(double thresh) {
             _thresh = thresh;
+//	    std::cout << "thresh: inside, about to return" << std::endl;
             return *this;
         };
         inline FunctionFactory& initial_level(int initial_level) {
@@ -921,6 +998,7 @@ namespace madness {
         };
         inline FunctionFactory& compress(bool compress = true) {
             _compress = compress;
+//	    std::cout << "compress: inside, about to return" << std::endl;
             return *this;
         };
         inline FunctionFactory& nocompress(bool nocompress = true) {
@@ -959,6 +1037,31 @@ namespace madness {
             _tree = tree;
         };
     };
+
+    void balanceFunctionOctTree(std::vector< SharedPtr< FunctionOctTree> > *fnList);
+
+/*
+    namespace archive {
+
+    // This disaster brought to you by hqi
+        template <class Archive>
+        struct ArchiveStoreImpl< Archive, FunctionNode > {
+            static inline void store(const Archive& ar, const FunctionNode& t) {
+           		t.store(ar);
+            };
+        };
+
+
+        template <class Archive>
+        struct ArchiveLoadImpl< Archive, FunctionNode > {
+            static inline void load(const Archive& ar, FunctionNode& t) {
+                        t.load(ar);
+            };
+        };
+
+    }
+*/
+
 }
 
 #endif

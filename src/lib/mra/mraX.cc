@@ -14,7 +14,7 @@ using std::sort;
 #include "mraX.h"
 #include "twoscale.h"
 #include "legendre.h"
-
+#include <octtree/sendrecv.cc>
 
 /// \file mra/mra.cc
 /// \brief Implements Function and friends
@@ -29,7 +29,9 @@ namespace madness {
     // set the defaults independent of the data type.  The defaults
     // are only used in the FunctionFactory constructor except
     // for cell[][] which is used in FunctionData
-    SharedPtr<FunctionOctTree> FunctionDefaults::tree = 0;
+std::vector< SharedPtr<FunctionOctTree> > FunctionDefaults::tree = std::vector<
+                        SharedPtr<FunctionOctTree> > ();
+//    SharedPtr<FunctionOctTree> FunctionDefaults::tree = 0;
     int FunctionDefaults::k = 7;
     double FunctionDefaults::thresh = 1e-5;
     int FunctionDefaults::initial_level = 2;
@@ -125,12 +127,20 @@ namespace madness {
         bool empty = factory._empty;
 
         if (data->f || data->vf) {
-            _fine_scale_projection(tree(), data->initial_level);
-            if (refine) _refine(tree());
+	    int tlen = data->treeListSize;
+	    for (int i = 0; i < tlen; i++)
+	    {
+            	_fine_scale_projection(tree(i), data->initial_level);
+            	if (refine) _refine(tree(i));
+	    }
             if (compress) this->compress();
         } else if (empty) {             // Do not set any coefficients at all
         } else {                        // Set coefficients so have zero function
-            if (tree()->n() == 0) set_coeff(tree(),TensorT(2*k,2*k,2*k));
+	    int tlen = data->treeListSize;
+	    for (int i = 0; i < tlen; i++)
+	    {
+            	if (tree(i)->n() == 0) set_coeff(tree(i),TensorT(2*k,2*k,2*k));
+	    }
         }
         data->compressed = compress; // Just to be sure we are consistent.
 
@@ -396,6 +406,66 @@ namespace madness {
         delete[] z;
     }
 
+    void balanceFunctionOctTree(std::vector< SharedPtr< FunctionOctTree> > *fnList)
+    {
+	std::cout << "balanceFunctionOctTree: at very very beginning" << std::endl;
+        int tlen = fnList->size();
+        std::vector< SharedPtr< OctTree< FunctionNode> > > treeList;
+
+	bool debug = true;
+//	bool debug = false;
+
+	if (debug)
+	{
+	    std::cout << "balanceFunctionOctTree: at very beginning, tlen = " << tlen << std::endl;
+	}
+
+        for (int i = 0; i < tlen; i++)
+        {
+	    if (debug)
+	    {
+		std::cout << "balanceFunctionOctTree: about to push back tree number " << i <<
+			" of " << tlen << std::endl;
+	        (*fnList)[i]->tree()->depthFirstTraverse();
+	    }
+            treeList.push_back((*fnList)[i]->tree());
+	    if (debug)
+	    {
+		std::cout << "balanceFunctionOctTree: about to push back tree number " << i <<
+			" of " << tlen << std::endl;
+	    }
+        }
+        fnList->clear();
+	if (debug)
+	{
+	    std::cout << "balanceFunctionOctTree: just cleared fnList" << std::endl;
+	}
+
+        serialLoadBalance(&treeList);
+
+	if (debug)
+	{
+	    std::cout << "balanceFunctionOctTree: back from serialLoadBalance" << std::endl;
+	}
+
+        tlen = treeList.size();
+        for (int i = 0; i < tlen; i++)
+        {
+	    if (debug)
+	    {
+		std::cout << "balanceFunctionOctTree: about to push back tree number " << i <<
+			" of " << tlen << std::endl;
+	    }
+            FunctionOctTree *t = new FunctionOctTree(treeList[i]);
+            fnList->push_back(SharedPtr<FunctionOctTree>(t));
+        }
+	if (debug)
+	{
+	    std::cout << "balanceFunctionOctTree: over and out" << std::endl;
+	}
+    }
+
+
     // Explicit instantiations for double and complex<double>
 
     template class Function<double>;
@@ -403,5 +473,7 @@ namespace madness {
     template class FunctionData<double>;
     template class FunctionData< std::complex<double> >;
     template class FunctionCommonData<double>;
+
+    template void serialLoadBalance<double>(std::vector< SharedPtr<OctTree<double> > >*);
 }
 
