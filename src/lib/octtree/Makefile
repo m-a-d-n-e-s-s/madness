@@ -1,7 +1,8 @@
 TOPDIR=../../..
 TARGET_TO_MAKE = libMADocttree
 
-CXXSRC =  
+CXXSRC = sendrecv.cc
+#CXXSRC = sendrecv.cc serload.cc
 TESTPROGS = test test1 testpart
 TEST1SRC = test.cc
 TEST2SRC = test1.cc
@@ -19,6 +20,6 @@ testpart: $(TESTOBJ) $(THISLIBDEPEND)
 	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ $(SYSLIBS) $(LTLINKBINOPTS)
 
 # since there are no files to compile yet -- do nothing
-$(TOPDIR)/lib/$(TARGET_TO_MAKE).a:
+#$(TOPDIR)/lib/$(TARGET_TO_MAKE).a:
 	
 install_target:
