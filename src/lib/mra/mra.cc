@@ -683,7 +683,6 @@ namespace madness {
       else {
         ar & isactive(tree);
         ar & tree->n() & tree->x() & tree->y() & tree->z();
-        cout << tree->n() << " " <<  tree->x() << " " <<  tree->y() << " " <<  tree->z() << endl;
         if(isactive(tree)) {
           const TensorT *t = coeff(tree);
           ar & (t != 0);
@@ -723,8 +722,9 @@ namespace madness {
         arin & subtreeList[i];
       }
       for (int i = 0; i < nRemoteBranch; i++) {
-        ar & subtreeList[i].have_child;
-        //cout << " local havechild " << i << "= " << subtreeList[i].have_child << endl;
+        if(!subtreeList[i].remote) {
+           ar & subtreeList[i].have_child;
+        }
         if(subtreeList[i].have_child) {
           if(subtreeList[i].remote) {
             if(subtreeList[i].rank==0) {
@@ -881,15 +881,17 @@ namespace madness {
           localTreeList(subtreeList, child);
         }
         else {
-          localTreeMember branchList;
-          branchList.have_child = false;
-          branchList.x      = i;
-          branchList.y      = j;
-          branchList.z      = k;
-          branchList.rank   = 0;
-          branchList.remote   = false;
-          branchList.active   = false;
-          subtreeList.push_back(branchList);
+          if(tree->islocal()) {
+            localTreeMember branchList;
+            branchList.have_child = child;
+            branchList.x      = i;
+            branchList.y      = j;
+            branchList.z      = k;
+            branchList.rank   = 0;
+            branchList.remote   = false;
+            branchList.active   = false;
+            subtreeList.push_back(branchList);
+          }
         }
       );
     }
@@ -1019,7 +1021,6 @@ namespace madness {
         Level n_local;
         Translation x_local, y_local, z_local;
         ar & n_local & x_local & y_local & z_local;
-        cout << n_local << " " << x_local << " " << y_local << " " << z_local << endl;
 	if(active_flag) {
           bool inquireCoeffs;
           ar & inquireCoeffs;
