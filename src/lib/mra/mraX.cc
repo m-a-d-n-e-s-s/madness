@@ -29,8 +29,7 @@ namespace madness {
     // set the defaults independent of the data type.  The defaults
     // are only used in the FunctionFactory constructor except
     // for cell[][] which is used in FunctionData
-std::vector< SharedPtr<FunctionOctTree> > FunctionDefaults::tree = std::vector<
-                        SharedPtr<FunctionOctTree> > ();
+    SharedPtr<FunctionOctTree> FunctionDefaults::tree = SharedPtr<FunctionOctTree> ();
 //    SharedPtr<FunctionOctTree> FunctionDefaults::tree = 0;
     int FunctionDefaults::k = 7;
     double FunctionDefaults::thresh = 1e-5;
@@ -127,16 +126,21 @@ std::vector< SharedPtr<FunctionOctTree> > FunctionDefaults::tree = std::vector<
         bool empty = factory._empty;
 
         if (data->f || data->vf) {
-	    int tlen = data->treeListSize;
+//std::cout << "_init: data->f or data->vf " << data->f << " " << data->vf << std::endl;
+	    int tlen = data->trees->nTrees();
+//std::cout << "_init: tlen = " << tlen << std::endl;
 	    for (int i = 0; i < tlen; i++)
 	    {
+//std::cout << "_init: about to _fine_scale_project" << std::endl;
             	_fine_scale_projection(tree(i), data->initial_level);
+//std::cout << "_init: done with _fine_scale_project" << std::endl;
             	if (refine) _refine(tree(i));
+//std::cout << "_init: done with _refine" << std::endl;
 	    }
             if (compress) this->compress();
         } else if (empty) {             // Do not set any coefficients at all
         } else {                        // Set coefficients so have zero function
-	    int tlen = data->treeListSize;
+	    int tlen = data->trees->nTrees();
 	    for (int i = 0; i < tlen; i++)
 	    {
             	if (tree(i)->n() == 0) set_coeff(tree(i),TensorT(2*k,2*k,2*k));
@@ -151,15 +155,23 @@ std::vector< SharedPtr<FunctionOctTree> > FunctionDefaults::tree = std::vector<
     void Function<T>::_fine_scale_projection(OctTreeT* tree, Level initial_level) {
         // Recur down oct_tree to initial_level.  Refine locally
         // if necessary.  Project when get to desired level
+//std::cout << "_fine_scale_projection: at beginning of function " << tree << std::endl;
         if (tree->n() < initial_level) {
+//std::cout << "_fine_scale_projection: n < initial_level" << std::endl;
             set_active(tree);
+//std::cout << "_fine_scale_projection: just set tree active" << std::endl;
             FORIJK(OctTreeT* c = tree->child(i,j,k);
+//std::cout << "_fine_scale_projection: for child(" << i << "," << j << "," << k << ")" << std::endl;
                    if (!c && islocal(tree)) c = tree->insert_local_child(i,j,k);
                    if (c) _fine_scale_projection(c,initial_level););
         } else if (tree->n()==initial_level) {
+//std::cout << "_fine_scale_projection: n == initial_level" << std::endl;
             set_active(tree);
+//std::cout << "_fine_scale_projection: just set tree active" << std::endl;
             if (islocal(tree)) _project(tree);
+//std::cout << "_fine_scale_projection: just projected the tree" << std::endl;
         }
+//std::cout << "_fine_scale_projection: at end of function" << std::endl;
     }
 
 
@@ -194,54 +206,99 @@ std::vector< SharedPtr<FunctionOctTree> > FunctionDefaults::tree = std::vector<
 
     template <typename T>
     void Function<T>::_compress(OctTreeT* tree) {
+//std::cout << "_compress: at beginning of function" << std::endl;
         FOREACH_CHILD(OctTreeT, tree,
                       if (isactive(child)) _compress(child););
 
         if (isremote(tree)) {
+//std::cout << "_compress: tree n = " << tree->n() << ", (" << tree->x() << "," << tree->y() << 
+//	"," << tree->z() << "), rank " << tree->rank() << " is remote" << std::endl;
             long k3 = k*k*k;
             if (tree->islocalsubtreeparent()) {
                 // Send data from active children to remote parent
+//std::cout << "_compress: this tree is localsubtreeparent" << std::endl;
                 std::vector<Slice>& s0 = data->cdata->s0;
                 TensorT& buf = data->cdata->work1;
-                FOREACH_CHILD(OctTreeT, tree,
+                for (int i=0; i<2; i++) {
+		    for (int j=0; j<2; j++) {
+			for (int k=0; k<2; k++) {
+			    OctTreeT *child = tree->child(i,j,k);
+			    if (child) {
+//                FOREACH_CHILD(OctTreeT, tree,
                               if (isactive(child)) {
+//std::cout << "_compress: about to make c, coeffs of child" << std::endl;
                               const TensorT* c = coeff(child);
                                   if (!c) throw "compress: yo! show me the data(2)!";
+//std::cout << "_compress: just made c, coeffs of child" << std::endl;
                                   buf(s0) = (*c)(s0);
+//std::cout << "_compress: just did the buf(s0) thingy" << std::endl;
               //                                  print("compress: sending",buf.normf(),"to",tree->rank());
-                                  comm()->Send(buf.ptr(), k3, tree->rank(), 2);
+//std::cout << "_compress: want to send data on n = " << child->n() << ", (" << child->x() << "," <<
+//	child->y() << "," << child->z() << ") to processor " << tree->rank() << std::endl;
+//                                  comm()->Send(buf.ptr(), k3, tree->rank(), 2);
+				MPI::COMM_WORLD.Send(buf.ptr(), k3, MPI_DOUBLE, tree->rank(), 2);
+//std::cout << "_compress: sent data on n = " << child->n() << ", (" << child->x() << "," <<
+//	child->y() << "," << child->z() << ") to processor " << tree->rank() << std::endl;
               //                                  print("child norm before",c->normf());
                                   (*c)(s0) = T(0.0);
               //                                  print("child norm after",c->normf());
                               }
-                             );
+			    }
+			}
+		    }
+		}
+		//            );
             } else {
                 // Receive data from a remote child and store as
                 // ghost ... parent will eventually delete it.
-                TensorT* t = set_coeff(tree,TensorT(k,k,k));
-                comm()->Recv(t->ptr(), k3, tree->rank(), 2);
+//std::cout << "_compress: before setting coeff TensorT* t business" << std::endl;
+//                TensorT* t = set_coeff(tree,TensorT(k,k,k));
+		TensorT* t = new TensorT();
+//std::cout << "_compress: created TensorT* t" << std::endl;
+                t = set_coeff(tree,TensorT(k,k,k));
+//std::cout << "_compress: want to receive data on n = " << tree->n() << ", (" << tree->x() << "," <<
+//	tree->y() << "," << tree->z() << ") from processor " << tree->rank() << std::endl;
+//                comm()->Recv(t->ptr(), k3, tree->rank(), 2);
+		MPI::COMM_WORLD.Recv(t->ptr(), k3, MPI_DOUBLE, tree->rank(), 2);
 //                print("compress: received",t->normf(),"from",tree->rank());
             }
         } else {
+//std::cout << "_compress: tree n = " << tree->n() << ", (" << tree->x() << "," <<
+//	tree->y() << "," << tree->z() << ") is local" << std::endl;
             // Node is local.  May or may not have data.
             Slice *s = data->cdata->s;
             TensorT* t = coeff(tree);
+//std::cout << "_compress: tensor t exists? " << t << std::endl;
             if (!t) t = set_coeff(tree,TensorT(2*k,2*k,2*k));
             FOREACH_CHILD(OctTreeT, tree,
                           if (isactive(child)) {
+//std::cout << "_compress: child(" << i << "," << j << "," << k << ") is active" << std::endl;
                           TensorT* c = coeff(child);
+//std::cout << "_compress: made c " << c << std::endl;
                               if (!c) throw "compress: yo! show me the data!";
+//std::cout << "_compress: about to do crazy slicing of t += c thingy" << std::endl;
                               (*t)(s[i],s[j],s[k]) += (*c)(s[0],s[0],s[0]);
+//std::cout << "_compress: did this crazy slicing of t += c thingy" << std::endl;
                               if (isremote(child)) {
+//std::cout << "_compress: child(" << i << "," << j << "," << k << ") is remote" << std::endl;
                                   unset_coeff(child);
                               } else {
+//std::cout << "_compress: child(" << i << "," << j << "," << k << ") is local" << std::endl;
                                   (*c)(s[0],s[0],s[0]) = T(0.0);
+//std::cout << "_compress: did weird (*c) thingy" << std::endl;
                               }
                           }
+			  else
+			  {
+//std::cout << "_compress: child(" << i << "," << j << "," << k << ") is not active" << std::endl;
+			  }
                          );
             //set_coeff(tree,filter(*t));
+//std::cout << "_compress: about to filter_inplace" << std::endl;
             filter_inplace(*t);
+//std::cout << "_compress: just did filter_inplace" << std::endl;
         }
+//std::cout << "_compress: at end of function" << std::endl;
     }
 
 
@@ -256,7 +313,8 @@ std::vector< SharedPtr<FunctionOctTree> > FunctionDefaults::tree = std::vector<
             if (tree->islocalsubtreeparent()) {
                 FOREACH_CHILD(OctTreeT, tree,
                               if (isactive(child)) {
-                              comm()->Recv(buf.ptr(),k3,tree->rank(),3);
+                              //comm()->Recv(buf.ptr(),k3,tree->rank(),3);
+		MPI::COMM_WORLD.Recv(buf.ptr(), k3, MPI_DOUBLE, tree->rank(), 3);
               //                                  print("reconstruct: received",buf.normf(),"from",tree->rank());
                                   (*coeff(child))(s0) = buf;
                               }
@@ -276,7 +334,8 @@ std::vector< SharedPtr<FunctionOctTree> > FunctionDefaults::tree = std::vector<
                               } else {
                                   buf(s0) = (*t)(s[i],s[j],s[k]);
               //                                  print("reconstruct: sending",buf.normf(),"to",child->rank());
-                                  comm()->Send(buf.ptr(),k3,child->rank(),3);
+//                                  comm()->Send(buf.ptr(),k3,child->rank(),3);
+				MPI::COMM_WORLD.Send(buf.ptr(), k3, MPI_DOUBLE, child->rank(), 3);
                               }
                           }
                          );
@@ -406,39 +465,27 @@ std::vector< SharedPtr<FunctionOctTree> > FunctionDefaults::tree = std::vector<
         delete[] z;
     }
 
-    void balanceFunctionOctTree(std::vector< SharedPtr< FunctionOctTree> > *fnList)
+    void balanceFunctionOctTree(SharedPtr< FunctionOctTree> trees)
     {
-	std::cout << "balanceFunctionOctTree: at very very beginning" << std::endl;
-        int tlen = fnList->size();
+//	std::cout << "balanceFunctionOctTree: at very very beginning" << std::endl;
+	int als = 0;
         std::vector< SharedPtr< OctTree< FunctionNode> > > treeList;
 
-	bool debug = true;
-//	bool debug = false;
+//	bool debug = true;
+	bool debug = false;
+
+	if (trees.get())
+	    als = trees->getNalloc();
 
 	if (debug)
 	{
-	    std::cout << "balanceFunctionOctTree: at very beginning, tlen = " << tlen << std::endl;
+	    std::cout << "balanceFunctionOctTree: at very beginning, num allocated = " << als << std::endl;
 	}
 
-        for (int i = 0; i < tlen; i++)
-        {
-	    if (debug)
-	    {
-		std::cout << "balanceFunctionOctTree: about to push back tree number " << i <<
-			" of " << tlen << std::endl;
-	        (*fnList)[i]->tree()->depthFirstTraverse();
-	    }
-            treeList.push_back((*fnList)[i]->tree());
-	    if (debug)
-	    {
-		std::cout << "balanceFunctionOctTree: about to push back tree number " << i <<
-			" of " << tlen << std::endl;
-	    }
-        }
-        fnList->clear();
+	treeList = trees->treeList();
 	if (debug)
 	{
-	    std::cout << "balanceFunctionOctTree: just cleared fnList" << std::endl;
+	    std::cout << "balanceFunctionOctTree: just cleared trees" << std::endl;
 	}
 
         serialLoadBalance(&treeList);
@@ -448,23 +495,385 @@ std::vector< SharedPtr<FunctionOctTree> > FunctionDefaults::tree = std::vector<
 	    std::cout << "balanceFunctionOctTree: back from serialLoadBalance" << std::endl;
 	}
 
-        tlen = treeList.size();
-        for (int i = 0; i < tlen; i++)
-        {
-	    if (debug)
-	    {
-		std::cout << "balanceFunctionOctTree: about to push back tree number " << i <<
-			" of " << tlen << std::endl;
-	    }
-            FunctionOctTree *t = new FunctionOctTree(treeList[i]);
-            fnList->push_back(SharedPtr<FunctionOctTree>(t));
-        }
+	setRemoteActive(&treeList);
+	trees->setTreeList(treeList);
+	if (trees.get())
+	    als = trees->getNalloc();
 	if (debug)
 	{
-	    std::cout << "balanceFunctionOctTree: over and out" << std::endl;
+	    std::cout << "balanceFunctionOctTree: over and out, num allocated = " << als << std::endl;
 	}
     }
 
+
+    void setRemoteActive(std::vector<SharedPtr<OctTree<FunctionNode > > > *treeList)
+    {
+	std::vector<ActiveRootList> activeList, remoteParentList;
+	std::vector<RootList> remoteChildList, parentRecvList;
+	std::vector<bool> a;
+	int tlen = treeList->size();
+	Communicator comm;
+
+//	bool debug = true;
+	bool debug = false;
+
+	if (debug)
+	{
+	    std::cout << "setRemoteActive: at beginning" << std::endl;
+	}
+
+	for (int i = 0; i < tlen; i++)
+	{
+	    makeRemoteParentList(&remoteParentList, (*treeList)[i]);
+		
+	    if (debug)
+	    {
+		std::cout << "setRemoteActive, beginning of i loop, i = " << i << std::endl;
+	    }
+	    if ((*treeList)[i]->isremote())
+	    {
+		if (debug)
+		{
+		    std::cout << "setRemoteActive, (*treeList)[" << i << "] is remote" << std::endl;
+		}
+
+		OctTree<FunctionNode> *p = new OctTree<FunctionNode> ();
+		p = (*treeList)[i].get();
+		RootList prl = RootList(p, p->rank(), p->rank());
+		parentRecvList.push_back(prl);
+//		ProcessID parentOwner = (*treeList)[i]->rank();
+		ProcessID parentOwner = p->rank();
+		if (debug)
+		{
+		    std::cout << "setRemoteActive, (*treeList)[" << i << "] has rank " << parentOwner
+			 << std::endl;
+		}
+		FOREACH_LOCAL_CHILD(OctTree<FunctionNode >, p,
+		    if (debug)
+		    {
+			std::cout << "setRemoteActive: about to get a vector from child (" << i <<
+				"," << j << "," << k << ")" << std::endl;
+		    }
+		    a = child->data().getActiveList();
+		    if (debug)
+		    {
+			std::cout << "setRemoteActive: got a vector" << std::endl;
+		    }
+		    activeList.push_back(ActiveRootList(child, parentOwner, a));
+		    if (debug)
+		    {
+			std::cout << "setRemoteActive: pushed back child(" << i << "," << j <<
+				"," << k << ") onto activeList" << std::endl;
+		    }
+		);
+	    }
+	    if (debug)
+	    {
+		std::cout << "setRemoteActive: before findRemoteChildrenList" << std::endl;
+	    }
+	    findRemoteChildrenList(&remoteChildList, (*treeList)[i]);
+	    if (debug)
+	    {
+		std::cout << "setRemoteActive: after findRemoteChildrenList" << std::endl;
+	    }
+	}
+
+	if (debug)
+	{
+	    std::cout << "setRemoteActive: after for loop, activeList size = " << activeList.size()
+		<< std::endl;
+	}
+
+	int rplen = remoteParentList.size();
+	for (int i = 0; i < rplen; i++)
+	{
+	    activeList.push_back(remoteParentList[i]);
+	}
+
+	// sort activeList by send, and take everybody who is sending to one processor, put 
+	// on one vector, and send it
+	sortBySend(&activeList);
+
+	if (debug)
+	{
+	    int alen = activeList.size();
+	    std::cout << "setRemoteActive: after sortBySend, size of activeList = " << alen 
+		<< std::endl;
+	    for (int i = 0; i < alen; i++)
+	    {
+		std::cout << "    send " << activeList[i].r.current_owner << ", n = " << 
+			activeList[i].r.n << ", (" << activeList[i].r.x << "," << 
+			activeList[i].r.y << "," << activeList[i].r.z << ")" << std::endl;
+	    }
+	}
+
+	ProcessID np = comm.nproc();
+	if (!activeList.empty())
+	{
+	    for (ProcessID i = 0; i < np; i++)
+	    {
+	    	std::vector<ActiveRootList> tmpList;
+	    	bool keepon = true;
+	    	while (keepon)
+	    	{
+		    if (activeList[0].r.current_owner == i)
+		    {
+		    	tmpList.push_back(activeList[0]);
+		    	if (debug)
+		    	{
+			std::cout << "setRemoteActive: about to erase top of activeList" << std::endl;
+		    	}
+		    	activeList.erase(activeList.begin());
+		    	if (debug)
+		    	{
+			std::cout << "setRemoteActive: erased top of activeList" << std::endl;
+		    	}
+		    }
+		    else
+		    {
+		        keepon = false;
+		    }
+		    if (activeList.empty())
+		    {
+		        keepon = false;
+		    }
+	    	}
+	    	if (!tmpList.empty())
+	    	{
+		    if (debug)
+		    {
+		    	std::cout << "setRemoteActive: about to send tmpList" << std::endl;
+		    }
+		    archive::MPIOutputArchive arsend(comm, i);
+		    arsend & tmpList;
+	    	}
+	    }
+	}
+
+	int prl = parentRecvList.size();
+	for (int i = 0; i < prl; i++)
+	{
+	    remoteChildList.push_back(parentRecvList[i]);
+	}
+	if (debug)
+	{
+	    std::cout << "setRemoteActive: about to sortBySend remoteChildList" << std::endl;
+	    std::cout << "setRemoteActive: size of remoteChildList = " << remoteChildList.size()
+		<< std::endl;
+	}
+	sortBySend(&remoteChildList);
+	int k = 0;
+	if (debug)
+	{
+	    std::cout << "setRemoteActive: about to receive list of active nodes" << std::endl;
+	}
+	if (!remoteChildList.empty())
+	{
+	    if (debug)
+	    {
+		std::cout << "setRemoteActive: remoteChildList is not empty; it's of size " 
+			<< remoteChildList.size() << std::endl;
+	    }
+
+	    for (ProcessID i = 0; i < np; i++)
+	    {
+		if (k >= remoteChildList.size())
+		{
+		    break;
+		}
+	    	if (remoteChildList[k].current_owner == i)
+	    	{
+		    std::vector<ActiveRootList> tmpList;
+		    archive::MPIInputArchive arrecv(comm, i);
+		    if (debug)
+		    {
+			std::cout << "setRemoteActive: k = " << k << 
+				"; about to receive tmpList from proc " << i << std::endl;
+		    }
+		    arrecv & tmpList;
+		    if (debug)
+		    {
+			std::cout << "setRemoteActive: received tmpList from proc " << i << std::endl;
+		    }
+		    int len = tmpList.size();
+		    for (int j = 0; j < len; j++)
+		    {
+		    	activeList.push_back(tmpList[j]);
+		    }
+		    while (remoteChildList[k].current_owner == i)
+		    {
+		    	k++;
+		    }
+	    	}
+	    }
+
+	    // now, sort activeList into depth-first traversal order
+	    sort(activeList.begin(), activeList.end());
+	    if (debug)
+	    {
+	    	std::cout << "setRemoteActive: sorted list of active nodes" << std::endl;
+	    }
+	
+	    // then, depth-first traverse my list of trees, looking for activeChildrenList[k]
+	    // in the list of trees, and filling in the appropriate "a" vector
+	    int aclen = activeList.size();
+	    for (int j = 0; j < aclen; j++)
+	    {
+		if (debug)
+		{
+		    std::cout << "setRemoteActive: at beginning of j loop, j = " << j << std::endl;
+		}
+	    	for (int i = 0; i < tlen; i++)
+	    	{
+		    if (debug)
+		    {
+			std::cout << "setRemoteActive: at beginning of inner i loop, i = " << i 
+				<< std::endl;
+		    }
+	    	    OctTree<FunctionNode> *t = new OctTree<FunctionNode>();
+	    	    t = (*treeList)[i]->find(activeList[j].r.n, activeList[j].r.x,
+			activeList[j].r.y, activeList[j].r.z);
+		    if ((t) && activeList[j].r.equals(t))
+		    {
+			if (debug)
+			{
+			    std::cout << "setRemoteActive: found tree n = " << t->n() << ", (" <<
+				t->x() << "," << t->y() << "," << t->z() << ")" << std::endl;
+			}
+		    	// fill in the active a vector
+			t->setData(new FunctionNode(activeList[j].activeList));
+			if (debug)
+			{
+			    std::vector<bool> abool = t->data().getActiveList();
+			    std::cout << "setRemoteActive: a = ";
+			    for (int q = 0; q < abool.size(); q++)
+			    {
+			    	std::cout << abool[q] << " ";
+			    }
+			    std::cout << std::endl;
+			    std::cout << "setRemoteActive: v.size() = " << t->data().getTensorListSize()
+				<< std::endl;
+			    std::cout << "setRemoteActive: set t->data" << std::endl;
+			}
+		    	break;
+		    }
+	    	}
+	    }	
+	}
+	else
+	{
+	    if (debug)
+	    {
+	    	std::cout << "setRemoteActive: since remoteChildList is empty, I'm all done" 
+			<< std::endl;
+	    }
+	}
+    }
+
+
+    void findRemoteChildrenList(std::vector<RootList> *childList, SharedPtr<OctTree<FunctionNode > > tree) 
+    {
+//	bool debug = true;
+	bool debug = false;
+
+	FOREACH_CHILD(OctTree<FunctionNode>, tree,
+	    if (child->islocal())
+	    {
+		if (debug)
+		{
+		    std::cout << "findRemoteChildrenList: child n = " << child->n() << 
+			", ( " << child->x() << "," << child->y() << "," << child->z() << 
+			") is local" << std::endl;
+		}
+		findRemoteChildrenList(childList, tree->childPtr(i,j,k));
+	    }
+	    else
+	    {
+		childList->push_back(RootList(child, child->rank(), child->rank()));
+		if (debug)
+		{
+		    std::cout << "findRemoteChildrenList: added n = " << child->n() << 
+			", ( " << child->x() << "," << child->y() << "," << child->z() << ")"
+			<< std::endl;
+		}
+	    }
+	);
+    }
+
+    void makeRemoteParentList(std::vector<ActiveRootList> *parentList, SharedPtr<OctTree<FunctionNode> > tree)
+    {
+	std::vector<RootList> childList, tmpList;
+	std::vector<bool> a;
+
+//	bool debug = true;
+	bool debug = false;
+
+	findRemoteChildrenList(&childList, tree);
+
+	if (debug)
+	{
+	    std::cout << "makeRemoteParentList: just returned from findRemoteChildrenList with list len =" 
+		<< childList.size() << std::endl;
+	}
+	int tlen = childList.size();
+	if (tlen > 0)
+	{
+	    tmpList.push_back(childList[0]);
+	    if (debug)
+	    {
+	    	std::cout << "makeRemoteParentList: pushed back child 0, current_owner = " <<
+			childList[0].current_owner << std::endl;
+	    }
+	}
+	for (int i = 1; i < tlen; i++)
+	{
+	    // if they are siblings and belong to the same processor, do nothing
+	    if ((childList[i].n == childList[i-1].n) && (childList[i].x/2 == childList[i-1].x/2) && 
+		(childList[i].y/2 == childList[i-1].y/2) && (childList[i].z/2 == childList[i-1].z/2) 
+		&& (childList[i].current_owner == childList[i-1].current_owner))
+	    {
+		if (debug)
+		{
+		    std::cout << "makeRemoteParentList: child[" << i << "] is a duplicate" << std::endl;
+		}
+	    }
+	    else
+	    {
+		tmpList.push_back(childList[i]);
+		if (debug)
+		{
+		    std::cout << "makeRemoteParentList: pushed back child[" << i << "], current_owner = " 
+			<< childList[i].current_owner << ", tmpList.size() = " << tmpList.size() 
+			<< std::endl;
+		}
+	    }
+	}
+	if (debug)
+	{
+	    std::cout << "makeRemoteParentList: just finished pushing non-duplicates onto tmpList" << 
+		std::endl;
+	}
+	tlen = tmpList.size();
+	for (int i = 0; i < tlen; i++)
+	{
+	    OctTree<FunctionNode> *t = new OctTree<FunctionNode>();
+	    t = tree->findDown(tmpList[i].n-1, tmpList[i].x/2, tmpList[i].y/2, tmpList[i].z/2);
+	    if (t)
+	    {
+		a = t->data().getActiveList();
+		parentList->push_back(ActiveRootList(t, tmpList[i].current_owner, a));
+	    }
+	    else
+	    {
+		std::cout << "makeRemoteParentList: error: couldn't find parent!" << std::endl;
+	    }
+	}
+	if (debug)
+	{
+	    std::cout << "makeRemoteParentList: just about to return, with list longer by " <<
+		parentList->size() << std::endl;
+	}
+    }
 
     // Explicit instantiations for double and complex<double>
 
@@ -475,5 +884,6 @@ std::vector< SharedPtr<FunctionOctTree> > FunctionDefaults::tree = std::vector<
     template class FunctionCommonData<double>;
 
     template void serialLoadBalance<double>(std::vector< SharedPtr<OctTree<double> > >*);
+    template void serialLoadBalance<std::complex<double> >(std::vector< SharedPtr<OctTree<std::complex<double> > > >*);
 }
 

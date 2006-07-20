@@ -30,23 +30,26 @@ int main(int argc, char* argv[]) {
     // 6) Sanity check
     MPI::Init(argc, argv);
     Communicator comm;
+    madness::comm_default = &comm;
     redirectio(comm);
     comm.print();
+//    comm.set_debug(true);
     load_coeffs(comm);
     load_quadrature(comm);
-    std::cout << "about to make ft" << std::endl;
-    SharedPtr<FunctionOctTree> ft = SharedPtr<FunctionOctTree> (new FunctionOctTree(OctTree<FunctionNode>::create_default(comm,2)));
-    std::cout << "made ft" << std::endl;
-    FunctionDefaults::tree = std::vector<SharedPtr<FunctionOctTree> >();
-    FunctionDefaults::tree.push_back(SharedPtr<FunctionOctTree>(ft));
 
-    std::cout << "pushed back ft" << std::endl;
+    OctTree<FunctionNode> *t = new OctTree<FunctionNode>();
+
+    std::vector<SharedPtr<OctTree<FunctionNode> > > treeList;
+    std::cout << "created tree list" << std::endl;
+    treeList.push_back(SharedPtr<OctTree<FunctionNode> >(t->create_default(comm,1)));
+    std::cout << "pushed back tree list" << std::endl;
+    FunctionDefaults::tree = SharedPtr<FunctionOctTree> (new FunctionOctTree(treeList));
     std::cout << "made tree" << std::endl;
 
-if (FunctionDefaults::tree[0]->tree())
+if (FunctionDefaults::tree->tree(0))
 {
     std::cout << "Depth First Traversal:" << std::endl;
-    FunctionDefaults::tree[0]->tree()->depthFirstTraverse();
+    FunctionDefaults::tree->tree(0)->depthFirstTraverse();
     std::cout << "End Depth First Traversal" << std::endl;
 }
 else
@@ -65,38 +68,68 @@ MPI::COMM_WORLD.Barrier();
     FunctionDefaults::k=7;
     FunctionDefaults::initial_level=2;
 std::cout << "set function defaults k and initial_level" << std::endl;
-/*
-if (FunctionDefaults::tree[0]->tree())
-{
-    std::cout << "Depth First Traversal:" << std::endl;
-    FunctionDefaults::tree[0]->tree()->depthFirstTraverse();
-    std::cout << "End Depth First Traversal" << std::endl;
-}
-else
-{
-    std::cout << "no depth first traversal; tree does not exist" << std::endl;
-}
-*/
+
 MPI::COMM_WORLD.Barrier();
+
+//    xterm_debug(comm,0,0);
 
     try {
 std::cout << "about to create function" << std::endl;
-/*
-if (FunctionDefaults::tree[0]->tree())
-{
-    std::cout << "Depth First Traversal:" << std::endl;
-    FunctionDefaults::tree[0]->tree()->depthFirstTraverse();
-    std::cout << "End Depth First Traversal" << std::endl;
-}
-else
-{
-    std::cout << "no depth first traversal; tree does not exist" << std::endl;
-}
-*/
-MPI::COMM_WORLD.Barrier();
+
+//MPI::COMM_WORLD.Barrier();
 std::cout << "about to init function" << std::endl;
 //	Function<double> f = FunctionFactory<double>(fred).thresh(1e-5).compress(0);
+//	Function<double> f = FunctionFactory<double>(fred).norefine().thresh(1e-2).compress(0);
 	Function<double> f = FunctionFactory<double>(fred).thresh(1e-2).compress(0);
+/*
+int me = comm.rank();
+std::vector< SharedPtr< OctTree< FunctionNode> > > treeList;
+OctTree<FunctionNode> *otfn = new OctTree<FunctionNode> ();
+OctTree<FunctionNode> *otfn2 = new OctTree<FunctionNode> ();
+if (me == 0)
+{
+    archive::MPIOutputArchive arsend(comm, 1);
+    archive::MPIInputArchive arrecv(comm, 1);
+    arsend & *(FunctionDefaults::tree->tree(0).get());
+    arrecv & *otfn;
+    std::cout << "otfn depthFirstTraverse:" << std::endl;
+    otfn->depthFirstTraverseAll();
+    std::cout << "end otfn depthFirstTraverse" << std::endl;
+    treeList.clear();
+    treeList.push_back(SharedPtr<OctTree<FunctionNode> >  (otfn));
+    FunctionDefaults::tree->setTreeList(treeList);
+    arsend & *(FunctionDefaults::tree->tree(0).get());
+    arrecv & *otfn2;
+    std::cout << "otfn2 depthFirstTraverse:" << std::endl;
+    otfn2->depthFirstTraverseAll();
+    std::cout << "end otfn2 depthFirstTraverse" << std::endl;
+    treeList.clear();
+    treeList.push_back(SharedPtr<OctTree<FunctionNode> >  (otfn2));
+    FunctionDefaults::tree->setTreeList(treeList);
+}
+else if (me == 1)
+{
+    archive::MPIOutputArchive arsend(comm, 0);
+    archive::MPIInputArchive arrecv(comm, 0);
+    arsend & *(FunctionDefaults::tree->tree(0).get());
+    arrecv & *otfn;
+    std::cout << "otfn depthFirstTraverse:" << std::endl;
+    otfn->depthFirstTraverseAll();
+    std::cout << "end otfn depthFirstTraverse" << std::endl;
+    treeList.clear();
+    treeList.push_back(SharedPtr<OctTree<FunctionNode> >  (otfn));
+    FunctionDefaults::tree->setTreeList(treeList);
+    arsend & *(FunctionDefaults::tree->tree(0).get());
+    arrecv & *otfn2;
+    std::cout << "otfn2 depthFirstTraverse:" << std::endl;
+    otfn2->depthFirstTraverseAll();
+    std::cout << "end otfn2 depthFirstTraverse" << std::endl;
+    treeList.clear();
+    treeList.push_back(SharedPtr<OctTree<FunctionNode> > (otfn2));
+    FunctionDefaults::tree->setTreeList(treeList);
+}
+*/
+
 std::cout << "waiting for barrier" << std::endl;
 MPI::COMM_WORLD.Barrier();
 std::cout << "created function" << std::endl;
@@ -111,23 +144,22 @@ MPI::COMM_WORLD.Barrier();
 std::cout << "about to reconstruct" << std::endl;
 	f.reconstruct();
 	//load bal
-	int tlen = FunctionDefaults::tree.size();
 	std::cout << "before load balancing: " << std::endl;
-	for (int i = 0; i < tlen; i++)
-	{
-	    std::cout << "Subtree:" << std::endl;
-    	    FunctionDefaults::tree[0]->tree()->depthFirstTraverse();
-	}
+    	FunctionDefaults::tree->depthFirstTraverse();
 std::cout << "about to load balance" << std::endl;
-	balanceFunctionOctTree(&FunctionDefaults::tree);
-std::cout << "after load balance" << std::endl;
-//	int tlen = FunctionDefaults::tree.size();
-	tlen = FunctionDefaults::tree.size();
-	for (int i = 0; i < tlen; i++)
-	{
-	    std::cout << "Subtree:" << std::endl;
-    	    FunctionDefaults::tree[0]->tree()->depthFirstTraverse();
-	}
+	balanceFunctionOctTree(FunctionDefaults::tree);
+//	balanceFunctionOctTree(f.data->trees);
+//std::cout << "after load balance, f.ind = " << f.ind << std::endl;
+	f.data->trees->depthFirstTraverse();
+MPI::COMM_WORLD.Barrier();
+std::cout << "about to compress" << std::endl;
+	f.compress();
+std::cout << "waiting for barrier" << std::endl;
+MPI::COMM_WORLD.Barrier();
+	print("Tree in wavelet form");
+	f.pnorms();
+std::cout << "about to reconstruct" << std::endl;
+	f.reconstruct();
 	std::cout << "GAME OVER!!!" << std::endl;
     }
     catch (char const* msg) {

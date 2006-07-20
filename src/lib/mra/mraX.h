@@ -10,7 +10,7 @@
 
 #include <madness_config.h>
 #include <tensor/tensor.h>
-//#include <serialize/archive.h>
+#include <serialize/archive.h>
 //#include <serialize/mpiar.h>
 //#include <octtree/octtree.h>
 #include <octtree/sendrecv.h>
@@ -75,7 +75,7 @@ namespace madness {
         std::vector<bool> a;    ///< Flags for active
 
         /// Private. Copy constructor not supported
-//        FunctionNode(const FunctionNode& f);
+        FunctionNode(const FunctionNode& f);
 
         /// Private. Assignment not supported
 //        FunctionNode& operator=(const FunctionNode& f);
@@ -91,44 +91,50 @@ namespace madness {
             };
         };
 
+	FunctionNode(std::vector<BaseTensor *> va, std::vector<bool> aa) :
+	v(va), a(aa) {};
+
+	FunctionNode(std::vector<bool> aa) : v(size), a(aa) {};
+
         // I know, I know, naughty for doing this, but yanno, it needs to be done
+/*
         FunctionNode(const FunctionNode& f) {
             int i;
             int n = f.v.size();
             for (i = 0; i < n; i++) {
                 BaseTensor* t = f.v[i];
-                if (t->id == TensorTypeData<double>::id) {
+                if ((t)&&(t->id == TensorTypeData<double>::id)) {
                     Tensor<double> *d = new Tensor<double>();
                     *d = *(const Tensor<double> *) t;
-                    v.push_back(d);
-                    a.push_back(f.a[i]);
-                } else {
+		    v[i] = d;
+                } else if (t) {
                     throw "not yet";
                 }
+		a[i] = f.a[i];
             };
         };
+*/
 
         FunctionNode& operator=(const FunctionNode& fn) {
             if (this == &fn) return *this;
             int i;
             int n = fn.v.size();
-            v.clear();
-            a.clear();
-            for (i = 0; i < n; i++) {
+            for (i = 0; i < n; i++) { 
                 BaseTensor* t = fn.v[i];
-                if (t->id == TensorTypeData<double>::id) {
+                if ((t) && (t->id == TensorTypeData<double>::id)) {
                     Tensor<double> *d = new Tensor<double>();
                     *d = *(const Tensor<double> *) t;
-                    v.push_back(d);
-                    a.push_back(fn.a[i]);
-                } else {
+		    v[i] = d;
+                } else if (t) {
                     throw "not yet";
                 }
+		a[i] = fn.a[i];
             };
             return *this;
         };
 
         /// Puts vector of tensors and vector of bools into supplied arguments
+
         template <typename T>
         inline void getTensorList(std::vector<Tensor<T> > *tv, std::vector<bool> *av) {
             int i = 0, n = size;
@@ -141,7 +147,13 @@ namespace madness {
 //std::cout << "end of getTensorList, n = " << n << std::endl;
         }
 
+
+	inline int getTensorListSize() {
+	    return v.size();
+	}
+
         /// Sets v and a using supplied arguments
+/*
         template <typename T>
         inline void setTensorList(int n, std::vector<Tensor<T> > tv, std::vector<bool> av) {
             int i = 0;
@@ -150,6 +162,36 @@ namespace madness {
                 set_active_status(i, av[i]);
             }
         }
+*/
+
+	/// Sets a to be equal to input vector
+	inline void setActiveList(std::vector<bool> av)
+	{
+	    int avlen = av.size();
+	    int n;
+	    if (avlen < size) 
+		n = avlen;
+	    else
+		n = size;
+	
+//	    std::cout << "setActiveList: n = " << n << std::endl;
+	    for (int i = 0; i < n; i++)
+	    {
+		a[i] = av[i];
+	    }
+	    for (int i = n; i < size; i++)
+	    {
+		a[i] = false;
+	    }
+//	    std::cout << "setActiveList: all done" << std::endl;
+//	    std::cout << "setActiveList: v.size() = " << v.size() << std::endl;
+	}
+
+	/// Returns a
+	inline std::vector<bool> getActiveList()
+	{
+	    return a;
+	}
 
         /// Returns a pointer to data for entry ind.  NULL indicates no data.
         template <typename T>
@@ -164,6 +206,7 @@ namespace madness {
         /// Returns pointer to data as if from get()
         template <typename T>
         inline Tensor<T>* set(int ind, const Tensor<T>& value) {
+//std::cout << "set: ind = " << ind << ", v.size() = " << v.size() << std::endl;
             if (ind < 0 || ind >= (int)v.size())
                 throw "FunctionNode: set: invalid index";
             v[ind] = new Tensor<T>(value);
@@ -213,36 +256,7 @@ namespace madness {
         template <class Archive>
         inline void serialize(const Archive& ar) {
             ar & v & a;
-//std::cout << "serialize a" << std::endl;
-//            ar & a;
-//std::cout << "serialize v" << std::endl;
-//	    ar & v;
         }
-
-
-/*
-	template <class Archive>
-        void load(const Archive& ar) {
-	    int empty;
-	    ar & empty;
-	    if (!empty)
-		ar & v & a;
-	};
-
-	template <class Archive>
-	void store(const Archive& ar) {
-	    if ()
-	    {
-		ar & 0;
-		ar & v & a;
-	    }
-	    else
-	    {
-		ar & 1;
-	    }
-	};
-*/
-
     };
 
     /// A FunctionOctTree marries an OctTree<FunctionNode> with an index manager
@@ -253,7 +267,7 @@ namespace madness {
     private:
         int _nfree;
         std::vector<int> _free;
-        SharedPtr<OctTreeT> _tree;
+        std::vector<SharedPtr<OctTreeT> > _treeList;
 
         /// Verboten
         FunctionOctTree(const FunctionOctTree&);
@@ -271,25 +285,62 @@ namespace madness {
         FunctionOctTree(OctTree<FunctionNode>* tree)
                 : _nfree(FunctionNode::size)
                 , _free(_nfree)
-        , _tree(tree) {
+        , _treeList(std::vector< SharedPtr<OctTree<FunctionNode> > >(SharedPtr<OctTree<FunctionNode> > (tree))) {
             for (int i = 0; i < _nfree; i++) _free[i] = _nfree - i - 1;
         };
 
-        FunctionOctTree(SharedPtr<OctTree<FunctionNode> > tree)
+        FunctionOctTree(std::vector<SharedPtr<OctTree<FunctionNode> > > tree)
                 : _nfree(FunctionNode::size)
                 , _free(_nfree)
-        , _tree(tree) {
+        , _treeList(tree) {
             for (int i = 0; i < _nfree; i++) _free[i] = _nfree - i - 1;
         };
 
+        FunctionOctTree(std::vector<SharedPtr<OctTree<FunctionNode> > > tree, int nfun)
+                : _nfree(FunctionNode::size)
+                , _free(_nfree)
+        , _treeList(tree) {
+            for (int i = 0; i < _nfree; i++) _free[i] = _nfree - i - 1;
+	    alloc(nfun);
+        };
+
+	/// change treeList without messing with anything else
+	inline void setTreeList(std::vector<SharedPtr<OctTree<FunctionNode> > > treeList)
+	{
+	    _treeList.clear();
+	    int tlen = treeList.size();
+	    for (int i = 0; i < tlen; i++)
+	    {
+		_treeList.push_back(treeList[i]);
+	    }
+	}
+
+	/// Depth-first traversal for diagnostic purposes
+	inline void depthFirstTraverse()
+	{
+	    int n = _treeList.size();
+	    for (int i = 0; i < n; i++)
+	    {
+		std::cout << "Subtree " << i << "of " << n << ":" << std::endl;
+	    	_treeList[i]->depthFirstTraverseParents();
+	    }
+	};
+
+	inline int nTrees() {return _treeList.size();};
+
+	inline std::vector<SharedPtr<OctTree<FunctionNode> > > treeList()
+	{
+	    return _treeList;
+	};
+
         /// Return a pointer to the contained octtree
-        inline SharedPtr<OctTree<FunctionNode> > tree() {
-            return SharedPtr<OctTree<FunctionNode> > (_tree);
+        inline SharedPtr<OctTree<FunctionNode> > tree(int index) {
+            return SharedPtr<OctTree<FunctionNode> > (_treeList[index]);
         };
 
         /// Return a const pointer to the contained octtree
-        inline const SharedPtr<OctTree<FunctionNode> > tree() const {
-            return SharedPtr<OctTree<FunctionNode> > (_tree);
+        inline const SharedPtr<OctTree<FunctionNode> > tree(int index) const {
+            return SharedPtr<OctTree<FunctionNode> > (_treeList[index]);
         };
 
         /// Allocate an index for a new function
@@ -301,15 +352,33 @@ namespace madness {
             return _free[_nfree];
         };
 
+        /// Allocate n indices for functions
+        int alloc(int n) {
+	    int i = 0;
+	    for (i = 0; i < n; i++)
+	    {
+		alloc();
+	    }
+            return _free[_nfree];
+        };
+
+	int getNalloc() {
+	    return _free[_nfree]+1;
+	};
+
         /// Free an index for a now deleted function
         void free(int ind) {
             if (ind < 0 || ind >= (int)_free.size())
                 throw "FunctionIndexManager: freeing invalid index";
             for (int i = 0; i < _nfree; i++)
                 if (_free[i] == ind)
+		{
+		    std::cout << "free: " << ind << " is already free, doofus!" << std::endl;
                     throw "FunctionIndexManager: freeing already free index";
+		}
 
-            free_data(_tree, ind);
+	    for (int i = 0; i < _treeList.size(); i++)
+            	free_data(_treeList[i], ind);
 
 //            std::cout << "Deallocated Function: " << ind << std::endl;
             _free[_nfree] = ind;
@@ -329,7 +398,7 @@ namespace madness {
     /// all Function instances.  A little work could improve upon this.
     class FunctionDefaults {
     public:
-        static std::vector<SharedPtr<FunctionOctTree> > tree; ///< The default tree/distribution used for new functions
+        static SharedPtr<FunctionOctTree> tree; ///< The default tree/distribution used for new functions
         static int k;                  ///< Wavelet order
         static double thresh;          ///< Truncation threshold
         static int initial_level;      ///< Initial level for fine scale projection
@@ -463,8 +532,7 @@ namespace madness {
         void (*vf)(long, const double*, const double*, const double*,
                    T* restrict); ///< Vector interface to function to compress
 
-        std::vector<SharedPtr<FunctionOctTree> > treeList; ///< The vector of subtrees of coeffs
-	int treeListSize;	///< The length of the treeList
+        SharedPtr<FunctionOctTree> trees; ///< The subtrees of coeffs
         int ind;		 ///< The unique index into the tree for this function
 
         bool compressed;        ///< Compression status
@@ -480,10 +548,8 @@ namespace madness {
             k = factory._k;
             cdata = commondata + k;
 
-            treeList = factory._tree;
-	    treeListSize = factory._tree.size();
-	    if (!(treeList.empty()))
-            	ind = treeList[0]->alloc();
+            trees = factory._tree;
+            ind = trees->alloc();
 
             thresh = factory._thresh;
             initial_level = factory._initial_level;
@@ -506,10 +572,8 @@ namespace madness {
             k = other.k;
             cdata = commondata + k;
 
-            treeList = other.treeList;
-	    treeListSize= other.treeListSize;
-	    if (!treeList.empty())
-            	ind = treeList[0]->alloc();
+            trees = other.trees;
+            ind = trees->alloc();
 
             thresh = other.thresh;
             initial_level = other.initial_level;
@@ -524,8 +588,7 @@ namespace madness {
         };
 
         ~FunctionData() {
-	    for (int i = 0; i < treeListSize; i++)
-            	treeList[i]->free(ind);
+            	trees->free(ind);
         };
 
     private:
@@ -611,17 +674,20 @@ namespace madness {
 
         /// Print out a summary of the tree with norms
         void pnorms() {
-	    int tlen = data->treeListSize;
+	    int tlen = data->trees->nTrees();
 	    for (int i = 0; i < tlen; i++)
 	    {
-		std::cout << "pnorms: tree number " << i <<  " of " << tlen << ":" << std::endl;
+//		std::cout << "pnorms: tree number " << i <<  " of " << tlen << ":" << std::endl;
             	if (isactive(tree(i))) 
 		    _pnorms(tree(i));
 		else
-		    std::cout << "pnorms: tree " << tree(i)->n() << " "  << tree(i)->x() << " "  
-			<< tree(i)->y() << " "  << tree(i)->z() << "is inactive" << std::endl;
-		std::cout << "pnorms: end of tree number " << i << std::endl << std::endl;
+		{
+//		    std::cout << "pnorms: tree " << tree(i)->n() << " "  << tree(i)->x() << " "  
+//			<< tree(i)->y() << " "  << tree(i)->z() << "is inactive" << std::endl;
+		}
+//		std::cout << "pnorms: end of tree number " << i << std::endl << std::endl;
 	    }
+//	    std::cout << "pnorms: end of function" << std::endl << std::endl;
         };
 
         /// Compress function (scaling function to wavelet)
@@ -629,17 +695,26 @@ namespace madness {
         /// Communication streams up the tree.
         /// Returns self for chaining.
         Function<T>& compress() {
-	    std::cout << "compress: at beginning" << std::endl;
+//	    std::cout << "compress: at beginning" << std::endl;
             if (!data->compressed) {
-		int tlen = data->treeListSize;
+		int tlen = data->trees->nTrees();
 		for (int i = 0; i < tlen; i++)
 		{
+//	    	    std::cout << "compress: compressing tree " << i << " of " << tlen << std::endl;
+//		    std::cout << "   local root: n = " << tree(i)->n() << ", (" << tree(i)->x() << ","
+//			<< tree(i)->y() << "," << tree(i)->z() << ")" << std::endl;
                     if (isactive(tree(i))) 
+		    {
 			_compress(tree(i));
+		    }
+		    else
+		    {
+//			std::cout << "compress: this tree is not active" << std::endl;
+		    }
 		}
                 data->compressed = true;
             }
-	    std::cout << "compress: at end" << std::endl;
+//	    std::cout << "compress: at end" << std::endl;
             return *this;
         };
 
@@ -650,7 +725,7 @@ namespace madness {
         /// Returns self for chaining.
         Function<T>& reconstruct() {
             if (data->compressed) {
-		int tlen = data->treeListSize;
+		int tlen = data->trees->nTrees();
 		for (int i = 0; i < tlen; i++)
 		{
                     if (isactive(tree(i))) 
@@ -729,7 +804,9 @@ namespace madness {
         ///
         /// No communication involved.
         inline void filter_inplace(TensorT& s) {
+//std::cout << "filter_inplace: at beginning" << std::endl;
             transform3d_inplace(s, data->cdata->hgT, data->cdata->work2);
+//std::cout << "filter_inplace: at end" << std::endl;
         };
 
 
@@ -772,7 +849,7 @@ namespace madness {
 
         /// No communication involved.
         inline SharedPtr<OctTreeT> tree(int index) {
-            return data->treeList[index]->tree();
+            return data->trees->tree(index);
         };
 
 
@@ -780,7 +857,7 @@ namespace madness {
 
         /// No communication involved.
         inline const SharedPtr<OctTreeT> tree(int index) const {
-            return data->treeList[index]->tree();
+            return data->trees->tree(index);
         };
 
 
@@ -889,12 +966,18 @@ namespace madness {
 //			<< tree->z() << std::endl;
             const TensorT *t = coeff(tree);
             if (t) {
+//		std::cout << "_pnorms: this tensor exists" << std::endl;
                 for (long i=0; i<tree->n(); i++) std::printf("  ");
                 std::printf("%4ld (%8ld, %8ld, %8ld) %9.1e\n",
                             tree->n(),tree->x(),tree->y(),tree->z(),t->normf());
 		std::fflush(NULL);
             }
+	    else
+	    {
+//		std::cout << "_pnorms: this tensor does not exist" << std::endl;
+	    }
             FOREACH_CHILD(OctTreeT, tree, if (isactive(child)) _pnorms(child););
+//	    std::cout << "_pnorms: very end of function" << std::endl;
         }
 
         /// Private.  Applies truncation method to give truncation threshold
@@ -945,7 +1028,7 @@ namespace madness {
         bool _debug;
         bool _empty;
         bool _autorefine;
-        std::vector<SharedPtr<FunctionOctTree> > _tree;
+        SharedPtr<FunctionOctTree> _tree;
         friend class Function<T>;
         friend class FunctionData<T>;
     public:
@@ -1038,30 +1121,85 @@ namespace madness {
         };
     };
 
-    void balanceFunctionOctTree(std::vector< SharedPtr< FunctionOctTree> > *fnList);
+    void balanceFunctionOctTree(SharedPtr<FunctionOctTree> fnList);
 
-/*
-    namespace archive {
+    void setRemoteActive(std::vector< SharedPtr <OctTree <FunctionNode > > > *treeList);
 
-    // This disaster brought to you by hqi
+    class ActiveRootList
+    {
+	public:
+	RootList r;
+	std::vector<bool> activeList;
+
+	ActiveRootList(): r(RootList()), activeList(std::vector<bool>()) {};
+
+	ActiveRootList(RootList rl, std::vector<bool> al)
+	{
+	    r = rl;
+	    activeList = al;
+	}
+
+	template <typename T>
+	ActiveRootList(OctTree<T> *t, std::vector<bool> al):
+	    r(RootList(t, t->rank(), t->rank())), activeList(al) {};
+	
+	template <typename T>
+	ActiveRootList(OctTree<T> *t, ProcessID p, std::vector<bool> al):
+	    r(RootList(t, p, t->rank())), activeList(al) {};
+
         template <class Archive>
-        struct ArchiveStoreImpl< Archive, FunctionNode > {
-            static inline void store(const Archive& ar, const FunctionNode& t) {
-           		t.store(ar);
-            };
-        };
+        inline void serialize(const Archive& ar) {
+            ar & r & activeList;
+        }
+
+	inline bool equals(RootList rl)
+	{
+	    return (r.equals(rl));
+	}
+
+	inline friend bool operator < (const ActiveRootList &a1, const ActiveRootList &a2)
+	{
+	    return (a1.r < a2.r);
+	}
+
+    };
 
 
-        template <class Archive>
-        struct ArchiveLoadImpl< Archive, FunctionNode > {
-            static inline void load(const Archive& ar, FunctionNode& t) {
-                        t.load(ar);
-            };
-        };
+    struct sless {
+        bool operator() (const ActiveRootList p1, const ActiveRootList p2) {
+            if (p1.r.current_owner < p2.r.current_owner)
+                return true;
+            else
+                return false;
+        }
+    };
 
+    struct rless {
+	bool operator() (const RootList p1, const RootList p2) {
+	    if (p1.current_owner < p2.current_owner)
+		return true;
+	    else
+		return false;
+	}
+    };
+
+
+    inline void sortBySend(std::vector<ActiveRootList> *list)
+    {
+	sort(list->begin(), list->end(), sless());
     }
-*/
 
+    inline void sortBySend(std::vector<RootList> *list)
+    {
+	sort(list->begin(), list->end(), rless());
+    }
+
+
+
+    void findRemoteChildrenList(std::vector<RootList> *childList, SharedPtr<OctTree<FunctionNode > > tree);
+
+    void makeRemoteParentList(std::vector<ActiveRootList> *parentList, SharedPtr<OctTree<FunctionNode> > 
+		tree);
 }
 
 #endif
