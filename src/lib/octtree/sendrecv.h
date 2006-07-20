@@ -66,6 +66,15 @@ namespace madness {
                 return false;
         }
 
+	template <class T>
+        bool equals(OctTree<T>* r) {
+//std::cout << "bool equals: at beginning" << std::endl;
+            if ((n == r->n()) && (x == r->x()) && (y == r->y()) && (z == r->z()))
+                return true;
+            else
+                return false;
+        }
+
         bool isDescendant(RootList r) {
             if (r.n >= n)
                 return false;

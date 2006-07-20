@@ -1,8 +1,8 @@
 //#ifndef SENDRECV_H
 //#define SENDRECV_H
 
-/// \file sendrecv.h
-/// \brief Defines send/recv for OctTree
+/// \file sendrecv.cc
+/// \brief Implements send/recv for OctTree
 
 #include <octtree/sendrecv.h>
 using namespace madness;
@@ -896,7 +896,7 @@ namespace madness {
                         std::cout << "exchangeTrees: just set pprime's child" << std::endl;
                     }
 		// Make sure this is right 7-03-06
-                    t->setParentChild(pprime);
+                    t->setParent(pprime);
                     if (debug) {
                         std::cout << "exchangeTrees: just set t's parent" << std::endl;
                     }
@@ -1211,15 +1211,14 @@ namespace madness {
         int nconsidered = size, nunchanged = 0;
         bool flag = false;
 
-        bool debug = true;
-//	bool debug = false;
+//        bool debug = true;
+	bool debug = false;
 
         for (int i = 0; i < size; i++) {
             if (debug) {
                 std::cout << "glueTrees: at beginning of i loop, i = " << i << ", nunchanged = " <<
                 nunchanged << ", nconsidered = " << nconsidered << std::endl;
             }
-//            OctTree<T> *t = new OctTree<T>();
             SharedPtr<OctTree<T> > t = SharedPtr<OctTree<T> >();
             t = (*treeList)[nunchanged];
             if (debug) {
@@ -1236,7 +1235,7 @@ namespace madness {
 		// we need to replace one tree with another, inserting its children as appropriate
 		    if (debug)
 		    {
-			std::cout << "glueTrees: the same node is duplicated" << std::endl;
+			std::cout << "glueTrees: the same node is duplicated!!!" << std::endl;
 		    }
 		    if (t->equals((*treeList)[nunchanged+j])) {
 			int tmp = nunchanged+j;
@@ -1244,10 +1243,9 @@ namespace madness {
 			{
 			    if (debug)
 			    {
-				std::cout << "glueTrees: the first one is remote" << std::endl;
+				std::cout << "glueTrees: the first one is remote (1)" << std::endl;
 			    }
 			    FORIJK(
-//			        if (((child->isremote())||(!child)) && (t->childPtr(i,j,k)->islocal()))
 			        if (t->child(i,j,k) && (t->childPtr(i,j,k)->islocal()))
 			        {
 				    (*treeList)[tmp]->setChild(i,j,k,t->childPtr(i,j,k)); 
@@ -1279,7 +1277,7 @@ namespace madness {
 			{
 			    if (debug)
 			    {
-				std::cout << "glueTrees: the second one is remote" << std::endl;
+				std::cout << "glueTrees: the second one is remote (2)" << std::endl;
 			    }
 			    SharedPtr<OctTree<T> > s = SharedPtr<OctTree<T> > ((*treeList)[tmp]);
 			    (*treeList)[tmp] = t;
@@ -1391,8 +1389,8 @@ namespace madness {
 
 	SharedPtr<OctTree<char> > ghostTree = SharedPtr<OctTree<char> > (new OctTree<char> ());
 
-//	bool debug = true;
-	bool debug = false;
+	bool debug = true;
+//	bool debug = false;
 
 	if (me != 0)
 	{
@@ -1550,6 +1548,9 @@ namespace madness {
 	if (debug) {
 	    std::cout << "createGhostTree: after assigning" << std::endl;
 	}
+	ghostTree->makeAllLocal();
+	ghostTree->computeCost();
+	ghostTree->depthFirstTraverseAll();
 	return ghostTree;
     }
 
@@ -1568,8 +1569,8 @@ namespace madness {
 	int olen = ownerList.size(), glen = globalList.size(), mlen, j = 0;
 	std::vector<RootList> mergeList;
 
-//	bool debug = true;
-	bool debug = false;
+	bool debug = true;
+//	bool debug = false;
 	
 	for (int i = 0; i < olen; i++)
 	{
@@ -1810,24 +1811,55 @@ namespace madness {
 				", (" << rli.x << "," << rli.y << "," << rli.z << ") into child of  n = " <<
 				rli.n-1 << ",(" << rli.x/2 << "," << rli.y/2 << "," << rli.z/2 << ")" 
 				<< std::endl;
-//				globalList[j].n << ",(" << globalList[j].x << "," << globalList[j].y << ","
-//				<< globalList[j].z << ")" << std::endl;
 		    }
-//		    SharedPtr<OctTree<T> > pptr = SharedPtr<OctTree<T> > ((*treeList)[i]->setParentChild(new 
-//				OctTree<T> (globalList[j].n, globalList[j].x, globalList[j].y, 
-//				globalList[j].z, true, 0, globalList[j].future_owner, &comm)));
 		    SharedPtr<OctTree<T> > pptr = SharedPtr<OctTree<T> > ((*treeList)[i]->setParentChild(new 
 				OctTree<T> (rli.n-1, rli.x/2, rli.y/2, rli.z/2, true, 0, 
 				globalList[j].future_owner, &comm)));
-		    (*treeList)[i] = pptr;
+		    (*treeList)[i] = SharedPtr<OctTree<T> >(pptr);
 		    break;
+		}
+		else if (globalList[j].isDescendant(rli))
+		{
+		    OctTree<T> *u = new OctTree<T>();
+		    if (debug)
+		    {
+		    	std::cout << "serialLoadBalance: about to findDown for tree n = " << 
+				globalList[j].n << ", (" << globalList[j].x << "," << 
+				globalList[j].y << "," << globalList[j].z << ")" << std::endl;
+		    }
+		    u = (*treeList)[i]->findDown(globalList[j].n, globalList[j].x, globalList[j].y,
+				globalList[j].z);
+		    if (debug)
+		    {
+		    	std::cout << "serialLoadBalance: just finished findDown for tree n = " << 
+				globalList[j].n << ", (" << globalList[j].x << "," << 
+				globalList[j].y << "," << globalList[j].z << ")" << std::endl;
+		    }
+		    if ((u) && (globalList[j].n == u->n()) && (globalList[j].x == u->x()) && 
+			(globalList[j].y == u->y()) && (globalList[j].z == u->z()))
+		    {
+			if (debug)
+			{
+			    std::cout << "serialLoadBalance: setting rank of tree n = " << u->n() <<
+				", (" << u->x() << "," << u->y() << "," << u->z() << ") to " <<
+				globalList[j].future_owner << std::endl;
+			}
+			u->setRank(globalList[j].future_owner);
+			if (debug)
+			{
+			    std::cout << "serialLoadBalance: done setting rank of tree n = " << u->n() <<
+				", (" << u->x() << "," << u->y() << "," << u->z() << ") to " <<
+				globalList[j].future_owner << std::endl;
+			}
+		    }
 		}
 	    }
 	}
+
 	if (debug)
 	{
 	    std::cout << "serialLoadBalance: after making all those parents and stuff" << std::endl;
-	    tlen = treeList->size();
+	    int tlen = treeList->size();
 	    for (int i = 0; i < tlen; i++)
 	    {
 		std::cout << "Subtree: " << std::endl;
@@ -1837,6 +1869,12 @@ namespace madness {
 	}
 
 	glueTrees(treeList);
+	if (debug)
+	{
+	    std::cout << "serialLoadBalance: waiting for barrier" << std::endl;
+	    MPI::COMM_WORLD.Barrier();
+	    std::cout << "serialLoadBalance: after barrier" << std::endl;
+	}
     }
 
 

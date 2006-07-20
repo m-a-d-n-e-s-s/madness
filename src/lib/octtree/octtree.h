@@ -210,7 +210,7 @@ namespace madness {
         OctTree() :
             _x(0), _y(0), _z(0), _n(-1),
             _remote(false),  _rank(-1), 
-            _p(0), _comm(0), 
+            _p(0), _comm(madness::comm_default), 
 	    _cost(0), _localSubtreeCost(0),
 	    _visited(false), _sendto(-1)
 //        {};
@@ -270,7 +270,11 @@ namespace madness {
         inline const T& data() const {return _data;};
 
 	/// Set data
-	inline void setData(T data) {_data = data;};
+//	inline void setData(T data) {_data = data;};
+	inline void setData(T data) {
+	    std::cout << "setData: about to set data" << std::endl;
+	    _data = data;
+	    std::cout << "setData: data is set" << std::endl;};
 
 	inline void setData(T *data)
 	{
@@ -348,6 +352,7 @@ namespace madness {
 
 	/// set the child's parent pointer
 	inline OctTreeT* setParent(OctTreeT* p) {_p = p; return _p;};
+
 	/// set this node's parent, and make the parent point to the child too
 	inline OctTreeT* setParentChild(OctTreeT* p)
 	{
@@ -585,6 +590,19 @@ namespace madness {
 		);
 	}
 
+	void depthFirstTraverseParents()
+	{
+	    std::cout << "layer " << n() << ", (x,y,z) = " << x() << ", "
+			<< y() << ", " << z() << std::endl;
+	    std::cout << "      hasChildren? " << this->isParent()
+		 << "    isRemote? " << this->isremote() << 
+		 "    Rank? " << this->rank() << "    my Address? " << this 
+		 << "    hasParent? " << this->parent() << std::endl;
+	    FOREACH_CHILD(OctTreeT, this,
+		child->depthFirstTraverseParents();
+		);
+	}
+
 	/// Depth-first traversal of tree (prints out diagnostic info)
 	void depthFirstTraverse()
 	{
@@ -800,8 +818,8 @@ namespace madness {
 	Cost accumulate = 0, sofar, subtotal = 0;
 	std::vector<RootList> tmp;
 	bool lastPartition;
-//	bool debug = true;
-	bool debug = false;
+	bool debug = true;
+//	bool debug = false;
 
         if (debug)
         {
@@ -877,8 +895,8 @@ namespace madness {
 	int partitionNumber, bool lastPartition)
     {
 	Cost accumulate = 0, costLeft = 0, temp = 0, subtreeCost = 0;
-//	bool debug = true;
-	bool debug = false;
+	bool debug = true;
+//	bool debug = false;
 	std::vector<RootList> treelist, treelist2;
 
 	if (debug)
@@ -1152,6 +1170,13 @@ namespace madness {
 	    );
 	};
 
+	void makeAllLocal()
+	{
+	    this->_remote = false;
+	    FOREACH_CHILD(OctTree<T>, this,
+		child->makeAllLocal();
+	    );
+	}
 
 	OctTree<char>* skeletize()
 	{
@@ -1165,6 +1190,7 @@ namespace madness {
 
 	    OctTree<char> *skel = new OctTree<char>(_n, _x, _y, _z, _remote, 0, _rank,
 					_comm, _cost, _localSubtreeCost, _visited);
+
 	    if (debug)
 	    {
 		std::cout << "skeletize: created OctTree<char> n = " << _n << ", (" << _x << ","
