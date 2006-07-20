@@ -853,15 +853,15 @@ namespace madness {
         template <class Archive>
         struct ArchiveStoreImpl< Archive, BaseTensor* > {
             static inline void store(const Archive& s, const BaseTensor* t) {
-		std::cout << "serizialing thru bt\n";
+//		std::cout << "serizialing thru bt\n";
 		if (t)
 		{
 		    s & 1;
-		    std::cout << "t->id = " << t->id << std::endl;
+//		    std::cout << "t->id = " << t->id << std::endl;
                     s & t->id;
-		    std::cout << "serialized id" << std::endl;
+//		    std::cout << "serialized id" << std::endl;
                     if (t->id == TensorTypeData<double>::id) {
-		        std::cout << "serizialing thru bt ... it's a double!\n";
+//		        std::cout << "serizialing thru bt ... it's a double!\n";
                         s & *((const Tensor<double>*) t);
                     } else {
                         throw "not yet";
@@ -887,9 +887,9 @@ namespace madness {
 		{
                     long id;
                     s & id;
-		    std::cout << "deserizialing thru bt\n";
+//		    std::cout << "deserizialing thru bt\n";
                     if (id == TensorTypeData<double>::id) {
-		        std::cout << "deserizialing thru bt ... it's a double!\n";
+//		        std::cout << "deserizialing thru bt ... it's a double!\n";
                         Tensor<double>* d = new Tensor<double>();
                         s & *d;
                         t = d;
@@ -899,7 +899,8 @@ namespace madness {
 		}
 		else
 		{
-		    std::cout << "empty tensor" << std::endl;
+//		    std::cout << "empty tensor" << std::endl;
+		    t = 0;
 		}
             };
         };
