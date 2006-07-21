@@ -255,3 +255,53 @@
  				}
  			}
         };
+
+// for just trading two trees around and then putting them back
+
+int me = comm.rank();
+std::vector< SharedPtr< OctTree< FunctionNode> > > treeList;
+OctTree<FunctionNode> *otfn = new OctTree<FunctionNode> ();
+OctTree<FunctionNode> *otfn2 = new OctTree<FunctionNode> ();
+if (me == 0)
+{
+    archive::MPIOutputArchive arsend(comm, 1);
+    archive::MPIInputArchive arrecv(comm, 1);
+    arsend & *(FunctionDefaults::tree->tree(0).get());
+    arrecv & *otfn;
+    std::cout << "otfn depthFirstTraverse:" << std::endl;
+    otfn->depthFirstTraverseAll();
+    std::cout << "end otfn depthFirstTraverse" << std::endl;
+    treeList.clear();
+    treeList.push_back(SharedPtr<OctTree<FunctionNode> >  (otfn));
+    FunctionDefaults::tree->setTreeList(treeList);
+    arsend & *(FunctionDefaults::tree->tree(0).get());
+    arrecv & *otfn2;
+    std::cout << "otfn2 depthFirstTraverse:" << std::endl;
+    otfn2->depthFirstTraverseAll();
+    std::cout << "end otfn2 depthFirstTraverse" << std::endl;
+    treeList.clear();
+    treeList.push_back(SharedPtr<OctTree<FunctionNode> >  (otfn2));
+    FunctionDefaults::tree->setTreeList(treeList);
+}
+else if (me == 1)
+{
+    archive::MPIOutputArchive arsend(comm, 0);
+    archive::MPIInputArchive arrecv(comm, 0);
+    arsend & *(FunctionDefaults::tree->tree(0).get());
+    arrecv & *otfn;
+    std::cout << "otfn depthFirstTraverse:" << std::endl;
+    otfn->depthFirstTraverseAll();
+    std::cout << "end otfn depthFirstTraverse" << std::endl;
+    treeList.clear();
+    treeList.push_back(SharedPtr<OctTree<FunctionNode> >  (otfn));
+    FunctionDefaults::tree->setTreeList(treeList);
+    arsend & *(FunctionDefaults::tree->tree(0).get());
+    arrecv & *otfn2;
+    std::cout << "otfn2 depthFirstTraverse:" << std::endl;
+    otfn2->depthFirstTraverseAll();
+    std::cout << "end otfn2 depthFirstTraverse" << std::endl;
+    treeList.clear();
+    treeList.push_back(SharedPtr<OctTree<FunctionNode> > (otfn2));
+    FunctionDefaults::tree->setTreeList(treeList);
+}
+

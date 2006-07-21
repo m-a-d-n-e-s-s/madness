@@ -57,110 +57,92 @@ else
     std::cout << "no depth first traversal; tree does not exist" << std::endl;
 }
 
-MPI::COMM_WORLD.Barrier();
     if (!gauss_legendre_test()) comm.Abort();
-std::cout << "tested gauss-legendre" << std::endl;
-MPI::COMM_WORLD.Barrier();
+    std::cout << "tested gauss-legendre" << std::endl;
     if (!test_two_scale_coefficients()) comm.Abort();
-std::cout << "tested two scale coeffs" << std::endl;
-MPI::COMM_WORLD.Barrier();
+    std::cout << "tested two scale coeffs" << std::endl;
 
     FunctionDefaults::k=7;
     FunctionDefaults::initial_level=2;
-std::cout << "set function defaults k and initial_level" << std::endl;
+    std::cout << "set function defaults k and initial_level" << std::endl;
 
-MPI::COMM_WORLD.Barrier();
+    MPI::COMM_WORLD.Barrier();
 
 //    xterm_debug(comm,0,0);
 
     try {
-std::cout << "about to create function" << std::endl;
+	std::cout << "about to create function" << std::endl;
 
-//MPI::COMM_WORLD.Barrier();
-std::cout << "about to init function" << std::endl;
-//	Function<double> f = FunctionFactory<double>(fred).thresh(1e-5).compress(0);
+	MPI::COMM_WORLD.Barrier();
+	double t1 = MPI::Wtime();
+	std::cout << "about to init function" << std::endl;
+	Function<double> f = FunctionFactory<double>(fred).thresh(1e-5).compress(0);
 //	Function<double> f = FunctionFactory<double>(fred).norefine().thresh(1e-2).compress(0);
-	Function<double> f = FunctionFactory<double>(fred).thresh(1e-2).compress(0);
-/*
-int me = comm.rank();
-std::vector< SharedPtr< OctTree< FunctionNode> > > treeList;
-OctTree<FunctionNode> *otfn = new OctTree<FunctionNode> ();
-OctTree<FunctionNode> *otfn2 = new OctTree<FunctionNode> ();
-if (me == 0)
-{
-    archive::MPIOutputArchive arsend(comm, 1);
-    archive::MPIInputArchive arrecv(comm, 1);
-    arsend & *(FunctionDefaults::tree->tree(0).get());
-    arrecv & *otfn;
-    std::cout << "otfn depthFirstTraverse:" << std::endl;
-    otfn->depthFirstTraverseAll();
-    std::cout << "end otfn depthFirstTraverse" << std::endl;
-    treeList.clear();
-    treeList.push_back(SharedPtr<OctTree<FunctionNode> >  (otfn));
-    FunctionDefaults::tree->setTreeList(treeList);
-    arsend & *(FunctionDefaults::tree->tree(0).get());
-    arrecv & *otfn2;
-    std::cout << "otfn2 depthFirstTraverse:" << std::endl;
-    otfn2->depthFirstTraverseAll();
-    std::cout << "end otfn2 depthFirstTraverse" << std::endl;
-    treeList.clear();
-    treeList.push_back(SharedPtr<OctTree<FunctionNode> >  (otfn2));
-    FunctionDefaults::tree->setTreeList(treeList);
-}
-else if (me == 1)
-{
-    archive::MPIOutputArchive arsend(comm, 0);
-    archive::MPIInputArchive arrecv(comm, 0);
-    arsend & *(FunctionDefaults::tree->tree(0).get());
-    arrecv & *otfn;
-    std::cout << "otfn depthFirstTraverse:" << std::endl;
-    otfn->depthFirstTraverseAll();
-    std::cout << "end otfn depthFirstTraverse" << std::endl;
-    treeList.clear();
-    treeList.push_back(SharedPtr<OctTree<FunctionNode> >  (otfn));
-    FunctionDefaults::tree->setTreeList(treeList);
-    arsend & *(FunctionDefaults::tree->tree(0).get());
-    arrecv & *otfn2;
-    std::cout << "otfn2 depthFirstTraverse:" << std::endl;
-    otfn2->depthFirstTraverseAll();
-    std::cout << "end otfn2 depthFirstTraverse" << std::endl;
-    treeList.clear();
-    treeList.push_back(SharedPtr<OctTree<FunctionNode> > (otfn2));
-    FunctionDefaults::tree->setTreeList(treeList);
-}
-*/
+//	Function<double> f = FunctionFactory<double>(fred).thresh(1e-2).compress(0);
+	MPI::COMM_WORLD.Barrier();
+	double t2 = MPI::Wtime();
+	std::cout << "created function" << std::endl;
 
-std::cout << "waiting for barrier" << std::endl;
-MPI::COMM_WORLD.Barrier();
-std::cout << "created function" << std::endl;
 	print("Tree in scaling function form");
 	f.pnorms();
-std::cout << "about to compress" << std::endl;
+
+	std::cout << "about to compress" << std::endl;
+	MPI::COMM_WORLD.Barrier();
+	double t3 = MPI::Wtime();
 	f.compress();
-std::cout << "waiting for barrier" << std::endl;
-MPI::COMM_WORLD.Barrier();
+	MPI::COMM_WORLD.Barrier();
+	double t4 = MPI::Wtime();
+
 	print("Tree in wavelet form");
 	f.pnorms();
-std::cout << "about to reconstruct" << std::endl;
+
+	std::cout << "about to reconstruct" << std::endl;
+	MPI::COMM_WORLD.Barrier();
+	double t5 = MPI::Wtime();
 	f.reconstruct();
+	MPI::COMM_WORLD.Barrier();
+	double t6 = MPI::Wtime();
 	//load bal
 	std::cout << "before load balancing: " << std::endl;
     	FunctionDefaults::tree->depthFirstTraverse();
-std::cout << "about to load balance" << std::endl;
+
+	std::cout << "about to load balance" << std::endl;
+	MPI::COMM_WORLD.Barrier();
+	double t7 = MPI::Wtime();
 	balanceFunctionOctTree(FunctionDefaults::tree);
 //	balanceFunctionOctTree(f.data->trees);
-//std::cout << "after load balance, f.ind = " << f.ind << std::endl;
+	MPI::COMM_WORLD.Barrier();
+	double t8 = MPI::Wtime();
+
 	f.data->trees->depthFirstTraverse();
-MPI::COMM_WORLD.Barrier();
-std::cout << "about to compress" << std::endl;
+
+	std::cout << "about to compress" << std::endl;
+	MPI::COMM_WORLD.Barrier();
+	double t9 = MPI::Wtime();
 	f.compress();
-std::cout << "waiting for barrier" << std::endl;
-MPI::COMM_WORLD.Barrier();
+	MPI::COMM_WORLD.Barrier();
+	double t10 = MPI::Wtime();
+
 	print("Tree in wavelet form");
 	f.pnorms();
-std::cout << "about to reconstruct" << std::endl;
+
+	std::cout << "about to reconstruct" << std::endl;
+	MPI::COMM_WORLD.Barrier();
+	double t11 = MPI::Wtime();
 	f.reconstruct();
+	MPI::COMM_WORLD.Barrier();
+	double t12 = MPI::Wtime();
+
 	std::cout << "GAME OVER!!!" << std::endl;
+
+	std::cout << std::endl << "Timings: " << std::endl;
+	std::cout << "           Initialize    Load Balance    Compress     Reconstruct" << std::endl;
+	std::cout << "-----------------------------------------------------------------" << std::endl;
+	std::cout << "Default     " << t2-t1 << "     --------        " << t4-t3 << "       " << t6-t5 
+		<< std::endl;
+	std::cout << "Balanced    --------     " << t8-t7 << "        " << t10-t9 << "       " << t12-t11 
+		<< std::endl;
+
     }
     catch (char const* msg) {
         std::cerr << "Exception (string): " << msg << std::endl;
