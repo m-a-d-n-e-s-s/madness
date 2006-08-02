@@ -54,19 +54,25 @@ int main(int argc, char** argv) {
         left & sum;
         sum++;
         right & sum;
+	right.flush();
     }
+
+    cout << comm.rank() << " made it here " << endl;
 
     // Send a vector around a ring, appending to it
     vector<int> v(1);
     if (rank == 0) {
         v[0] = 0;
         right & v;
+	right.flush();
         left & v;
         cout << "final vector " << v << endl;
     } else {
         left & v;
+	cout << comm.rank() << " made it there " << endl;
         v.push_back(me);
         right & v;
+	right.flush();
     }
 
     comm.close();

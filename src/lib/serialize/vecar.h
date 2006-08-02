@@ -51,7 +51,11 @@ namespace madness {
                 i += m;
             }
 
-        void open() {};
+	    void open() {};
+
+	    void rewind() const {i=0;};
+
+	    std::size_t nbyte_avail() const {return v.size()-i;};
 
             void close() {}
         };
