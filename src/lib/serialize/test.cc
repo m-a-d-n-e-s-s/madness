@@ -43,15 +43,15 @@ public:
 };
 
 namespace madness {
-    namespace archive {
+namespace archive {
 
-        template <class Archive>
-        struct ArchiveSerializeImpl<Archive,B> {
-            static inline void serialize(const Archive& ar, B& b) {
-                ar & b.b;
-            };
-        };
-    }
+template <class Archive>
+struct ArchiveSerializeImpl<Archive,B> {
+    static inline void serialize(const Archive& ar, B& b) {
+        ar & b.b;
+    };
+};
+}
 }
 
 // C is a class with asymmetric load/store.
@@ -62,21 +62,21 @@ public:
 };
 
 namespace madness {
-    namespace archive {
-        template <class Archive>
-        struct ArchiveLoadImpl<Archive,C> {
-            static inline void load(const Archive& ar, C& c) {
-                ar >> c.c;
-            };
-        };
+namespace archive {
+template <class Archive>
+struct ArchiveLoadImpl<Archive,C> {
+    static inline void load(const Archive& ar, C& c) {
+        ar >> c.c;
+    };
+};
 
-        template <class Archive>
-        struct ArchiveStoreImpl<Archive,C> {
-            static inline void store(const Archive& ar, const C& c) {
-                ar << c.c;
-            };
-        };
-    }
+template <class Archive>
+struct ArchiveStoreImpl<Archive,C> {
+    static inline void store(const Archive& ar, const C& c) {
+        ar << c.c;
+    };
+};
+}
 }
 
 
@@ -113,44 +113,44 @@ public:
 };
 
 namespace madness {
-    namespace archive {
-        template <class Archive>
-        struct ArchiveStoreImpl<Archive,linked_list> {
-            static void store(const Archive& ar, const linked_list& c) {
-                ar & c.get_value() & bool(c.get_next());
-                if (c.get_next()) ar & *c.get_next();
-            };
-        };
+namespace archive {
+template <class Archive>
+struct ArchiveStoreImpl<Archive,linked_list> {
+    static void store(const Archive& ar, const linked_list& c) {
+        ar & c.get_value() & bool(c.get_next());
+        if (c.get_next()) ar & *c.get_next();
+    };
+};
 
-        template <class Archive>
-        struct ArchiveLoadImpl<Archive,linked_list> {
-            static void load(const Archive& ar, linked_list& c) {
-                int value;
-                bool flag;
-                ar & value & flag;
-                c.set_value(value);
-                if (flag) {
-                    c.append(0);
-                    ar & *c.get_next();
-                }
-            };
-        };
-    }
+template <class Archive>
+struct ArchiveLoadImpl<Archive,linked_list> {
+    static void load(const Archive& ar, linked_list& c) {
+        int value;
+        bool flag;
+        ar & value & flag;
+        c.set_value(value);
+        if (flag) {
+            c.append(0);
+            ar & *c.get_next();
+        }
+    };
+};
+}
 }
 
 namespace madness {
-    namespace archive {
-        typedef std::map< short,std::complex<double> > map_short_complex_double;
-        typedef std::pair< short,std::complex<double> > pair_short_complex_double;
-        typedef std::pair<int,double> pair_int_double;
-        ARCHIVE_REGISTER_TYPE_AND_PTR(A,128);
-        ARCHIVE_REGISTER_TYPE_AND_PTR(B,129);
-        ARCHIVE_REGISTER_TYPE_AND_PTR(C,130);
-        ARCHIVE_REGISTER_TYPE_AND_PTR(linked_list,131);
-        ARCHIVE_REGISTER_TYPE_AND_PTR(pair_int_double,132);
-        ARCHIVE_REGISTER_TYPE_AND_PTR(map_short_complex_double,133);
-        ARCHIVE_REGISTER_TYPE_AND_PTR(pair_short_complex_double, 134);
-    }
+namespace archive {
+typedef std::map< short,std::complex<double> > map_short_complex_double;
+typedef std::pair< short,std::complex<double> > pair_short_complex_double;
+typedef std::pair<int,double> pair_int_double;
+ARCHIVE_REGISTER_TYPE_AND_PTR(A,128);
+ARCHIVE_REGISTER_TYPE_AND_PTR(B,129);
+ARCHIVE_REGISTER_TYPE_AND_PTR(C,130);
+ARCHIVE_REGISTER_TYPE_AND_PTR(linked_list,131);
+ARCHIVE_REGISTER_TYPE_AND_PTR(pair_int_double,132);
+ARCHIVE_REGISTER_TYPE_AND_PTR(map_short_complex_double,133);
+ARCHIVE_REGISTER_TYPE_AND_PTR(pair_short_complex_double, 134);
+}
 }
 
 using namespace std;

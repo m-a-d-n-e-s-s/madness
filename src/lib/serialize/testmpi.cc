@@ -37,6 +37,8 @@ int main(int argc, char** argv) {
     int nproc = comm.nproc();
     ProcessID rank = comm.rank();
 
+    //comm.set_debug(true);
+
     if (nproc < 2) return 1;
 
     MPIOutputArchive right(comm,(rank+1)%nproc);
@@ -54,25 +56,22 @@ int main(int argc, char** argv) {
         left & sum;
         sum++;
         right & sum;
-	right.flush();
+        right.flush();
     }
-
-    cout << comm.rank() << " made it here " << endl;
 
     // Send a vector around a ring, appending to it
     vector<int> v(1);
     if (rank == 0) {
         v[0] = 0;
         right & v;
-	right.flush();
+        right.flush();
         left & v;
         cout << "final vector " << v << endl;
     } else {
         left & v;
-	cout << comm.rank() << " made it there " << endl;
         v.push_back(me);
         right & v;
-	right.flush();
+        right.flush();
     }
 
     comm.close();

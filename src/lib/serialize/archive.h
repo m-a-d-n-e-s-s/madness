@@ -303,22 +303,22 @@ using std::endl;
 
 namespace madness {
 
-    namespace archive {
+namespace archive {
 
-        // There are 64 empty slots for user types.  Free space for
-        // registering user types begins at cookie=128.
+// There are 64 empty slots for user types.  Free space for
+// registering user types begins at cookie=128.
 
 #ifdef MAD_ARCHIVE_TYPE_NAMES_CC
-        char *archive_type_names[256];
+char *archive_type_names[256];
 #else
-        extern char *archive_type_names[256];
+extern char *archive_type_names[256];
 #endif
-        void archive_initialize_type_names();
+void archive_initialize_type_names();
 
-        template <typename T>
-        struct archive_typeinfo {
-            static const unsigned char cookie = 255;
-        };
+template <typename T>
+struct archive_typeinfo {
+    static const unsigned char cookie = 255;
+};
 
 #if defined(ARCHIVE_REGISTER_TYPE_INSTANTIATE_HERE) && defined(ARCHIVE_REGISTER_TYPE_IBMBUG)
 #define ARCHIVE_REGISTER_TYPE_XLC_EXTRA(T) \
@@ -350,562 +350,562 @@ namespace madness {
      ARCHIVE_REGISTER_TYPE_NAME(T); \
      ARCHIVE_REGISTER_TYPE_NAME(T*)
 
-        ARCHIVE_REGISTER_TYPE_AND_PTR(unsigned char,0);
-        ARCHIVE_REGISTER_TYPE_AND_PTR(unsigned short,1);
-        ARCHIVE_REGISTER_TYPE_AND_PTR(unsigned int,2);
-        ARCHIVE_REGISTER_TYPE_AND_PTR(unsigned long,3);
-        ARCHIVE_REGISTER_TYPE_AND_PTR(unsigned long long,4);
-        ARCHIVE_REGISTER_TYPE_AND_PTR(signed char,5);
-        ARCHIVE_REGISTER_TYPE_AND_PTR(char,5);	// Needed, but why?
-        ARCHIVE_REGISTER_TYPE_AND_PTR(signed short,6);
-        ARCHIVE_REGISTER_TYPE_AND_PTR(signed int,7);
-        ARCHIVE_REGISTER_TYPE_AND_PTR(signed long,8);
-        ARCHIVE_REGISTER_TYPE_AND_PTR(signed long long,9);
-        ARCHIVE_REGISTER_TYPE_AND_PTR(bool,10);
-        ARCHIVE_REGISTER_TYPE_AND_PTR(float,11);
-        ARCHIVE_REGISTER_TYPE_AND_PTR(double,12);
-        ARCHIVE_REGISTER_TYPE_AND_PTR(long double,13);
-        ARCHIVE_REGISTER_TYPE_AND_PTR(std::complex<float>,14);
-        ARCHIVE_REGISTER_TYPE_AND_PTR(std::complex<double>,15);
+ARCHIVE_REGISTER_TYPE_AND_PTR(unsigned char,0);
+ARCHIVE_REGISTER_TYPE_AND_PTR(unsigned short,1);
+ARCHIVE_REGISTER_TYPE_AND_PTR(unsigned int,2);
+ARCHIVE_REGISTER_TYPE_AND_PTR(unsigned long,3);
+ARCHIVE_REGISTER_TYPE_AND_PTR(unsigned long long,4);
+ARCHIVE_REGISTER_TYPE_AND_PTR(signed char,5);
+ARCHIVE_REGISTER_TYPE_AND_PTR(char,5);	// Needed, but why?
+ARCHIVE_REGISTER_TYPE_AND_PTR(signed short,6);
+ARCHIVE_REGISTER_TYPE_AND_PTR(signed int,7);
+ARCHIVE_REGISTER_TYPE_AND_PTR(signed long,8);
+ARCHIVE_REGISTER_TYPE_AND_PTR(signed long long,9);
+ARCHIVE_REGISTER_TYPE_AND_PTR(bool,10);
+ARCHIVE_REGISTER_TYPE_AND_PTR(float,11);
+ARCHIVE_REGISTER_TYPE_AND_PTR(double,12);
+ARCHIVE_REGISTER_TYPE_AND_PTR(long double,13);
+ARCHIVE_REGISTER_TYPE_AND_PTR(std::complex<float>,14);
+ARCHIVE_REGISTER_TYPE_AND_PTR(std::complex<double>,15);
 
-        ARCHIVE_REGISTER_TYPE_AND_PTR(std::vector<char>,20);
-        ARCHIVE_REGISTER_TYPE_AND_PTR(std::vector<unsigned char>,21);
-        ARCHIVE_REGISTER_TYPE_AND_PTR(std::vector<short>,22);
-        ARCHIVE_REGISTER_TYPE_AND_PTR(std::vector<unsigned short>,23);
-        ARCHIVE_REGISTER_TYPE_AND_PTR(std::vector<int>,24);
-        ARCHIVE_REGISTER_TYPE_AND_PTR(std::vector<unsigned int>,25);
-        ARCHIVE_REGISTER_TYPE_AND_PTR(std::vector<long>,26);
-        ARCHIVE_REGISTER_TYPE_AND_PTR(std::vector<unsigned long>,27);
-        ARCHIVE_REGISTER_TYPE_AND_PTR(std::vector<bool>,28);
-        ARCHIVE_REGISTER_TYPE_AND_PTR(std::vector<float>,29);
-        ARCHIVE_REGISTER_TYPE_AND_PTR(std::vector<double>,30);
+ARCHIVE_REGISTER_TYPE_AND_PTR(std::vector<char>,20);
+ARCHIVE_REGISTER_TYPE_AND_PTR(std::vector<unsigned char>,21);
+ARCHIVE_REGISTER_TYPE_AND_PTR(std::vector<short>,22);
+ARCHIVE_REGISTER_TYPE_AND_PTR(std::vector<unsigned short>,23);
+ARCHIVE_REGISTER_TYPE_AND_PTR(std::vector<int>,24);
+ARCHIVE_REGISTER_TYPE_AND_PTR(std::vector<unsigned int>,25);
+ARCHIVE_REGISTER_TYPE_AND_PTR(std::vector<long>,26);
+ARCHIVE_REGISTER_TYPE_AND_PTR(std::vector<unsigned long>,27);
+ARCHIVE_REGISTER_TYPE_AND_PTR(std::vector<bool>,28);
+ARCHIVE_REGISTER_TYPE_AND_PTR(std::vector<float>,29);
+ARCHIVE_REGISTER_TYPE_AND_PTR(std::vector<double>,30);
 
-        ARCHIVE_REGISTER_TYPE_AND_PTR(std::string,31);
+ARCHIVE_REGISTER_TYPE_AND_PTR(std::string,31);
 
-        ARCHIVE_REGISTER_TYPE_AND_PTR(Tensor<int>,32);
-        ARCHIVE_REGISTER_TYPE_AND_PTR(Tensor<long>,33);
-        ARCHIVE_REGISTER_TYPE_AND_PTR(Tensor<float>,34);
-        ARCHIVE_REGISTER_TYPE_AND_PTR(Tensor<double>,35);
-        ARCHIVE_REGISTER_TYPE_AND_PTR(Tensor< std::complex<float> >,36);
-        ARCHIVE_REGISTER_TYPE_AND_PTR(Tensor< std::complex<double> >,37);
+ARCHIVE_REGISTER_TYPE_AND_PTR(Tensor<int>,32);
+ARCHIVE_REGISTER_TYPE_AND_PTR(Tensor<long>,33);
+ARCHIVE_REGISTER_TYPE_AND_PTR(Tensor<float>,34);
+ARCHIVE_REGISTER_TYPE_AND_PTR(Tensor<double>,35);
+ARCHIVE_REGISTER_TYPE_AND_PTR(Tensor< std::complex<float> >,36);
+ARCHIVE_REGISTER_TYPE_AND_PTR(Tensor< std::complex<double> >,37);
 
-        /// Base class for all archives
-        class BaseArchive {
-        public:
-            static const bool is_archive = true;
-            static const bool is_input_archive = false;
-            static const bool is_output_archive = false;
-            BaseArchive() {
-                archive_initialize_type_names();
-            };
-        };
-
-
-        /// Base class for input archives
-        class BaseInputArchive : public BaseArchive {
-        public:
-            static const bool is_input_archive = true;
-        };
+/// Base class for all archives
+class BaseArchive {
+public:
+    static const bool is_archive = true;
+    static const bool is_input_archive = false;
+    static const bool is_output_archive = false;
+    BaseArchive() {
+        archive_initialize_type_names();
+    };
+};
 
 
-        /// Base class for output archives
-        class BaseOutputArchive : public BaseArchive {
-        public:
-            static const bool is_output_archive = true;
-        };
+/// Base class for input archives
+class BaseInputArchive : public BaseArchive {
+public:
+    static const bool is_input_archive = true;
+};
 
 
-        // Serialize an array of fundamental stuff
-        template <class Archive, class T>
-        typename madness::enable_if< madness::type_and_c< madness::is_fundamental<T>::value,
-        Archive::is_output_archive >, void >::type
-        serialize(const Archive& ar, const T* t, unsigned int n) {
-            MAD_ARCHIVE_DEBUG(std::cout << "serialize fund array" << std::endl);
-            ar.store(t,n);
+/// Base class for output archives
+class BaseOutputArchive : public BaseArchive {
+public:
+    static const bool is_output_archive = true;
+};
+
+
+// Serialize an array of fundamental stuff
+template <class Archive, class T>
+typename madness::enable_if< madness::type_and_c< madness::is_fundamental<T>::value,
+Archive::is_output_archive >, void >::type
+serialize(const Archive& ar, const T* t, unsigned int n) {
+    MAD_ARCHIVE_DEBUG(std::cout << "serialize fund array" << std::endl);
+    ar.store(t,n);
+}
+
+
+// Deserialize an array of fundamental stuff
+template <class Archive, class T>
+typename madness::enable_if< madness::type_and_c< madness::is_fundamental<T>::value,
+Archive::is_input_archive >, void >::type
+serialize(const Archive& ar, const T* t, unsigned int n) {
+    MAD_ARCHIVE_DEBUG(std::cout << "deserialize fund array" << std::endl);
+    ar.load((T*) t,n);
+}
+
+
+// (de)Serialize an array of non-fundamental stuff
+template <class Archive, class T>
+typename madness::enable_if< madness::type_and_c< !madness::is_fundamental<T>::value,
+Archive::is_archive >, void >::type
+serialize(const Archive& ar, const T* t, unsigned int n) {
+    MAD_ARCHIVE_DEBUG(std::cout << "(de)serialize non-fund array" << std::endl);
+    for (unsigned int i=0; i<n; i++) ar & t[i];
+}
+
+
+/// Default implementation of pre/postamble
+template <class Archive, class T>
+struct ArchivePrePostImpl {
+    static inline void preamble_load(const Archive& ar) {
+        unsigned char ck = archive_typeinfo<T>::cookie;
+        unsigned char cookie;
+        ar.load(&cookie, 1); // cannot use >>
+        if (cookie != ck) {
+            char msg[255];
+            std::sprintf(msg,"InputArchive type mismatch: expected cookie "
+                         "%u (%s) but got %u (%s) instead",
+                         ck, archive_type_names[ck],
+                         cookie,archive_type_names[cookie]);
+            std::cerr << msg << std::endl;
+            throw msg;
+        } else {
+            MAD_ARCHIVE_DEBUG(std::cout << "read cookie " << archive_type_names[cookie] << std::endl);
         }
+    };
 
 
-        // Deserialize an array of fundamental stuff
-        template <class Archive, class T>
-        typename madness::enable_if< madness::type_and_c< madness::is_fundamental<T>::value,
-        Archive::is_input_archive >, void >::type
-        serialize(const Archive& ar, const T* t, unsigned int n) {
-            MAD_ARCHIVE_DEBUG(std::cout << "deserialize fund array" << std::endl);
-            ar.load((T*) t,n);
-        }
+    /// Serialize a cookie for type checking
+    static inline void preamble_store(const Archive& ar) {
+        unsigned char ck = archive_typeinfo<T>::cookie;
+        ar.store(&ck, 1); // cannot use <<
+        MAD_ARCHIVE_DEBUG(std::cout << "wrote cookie " << archive_type_names[ck] << std::endl);
+    };
 
 
-        // (de)Serialize an array of non-fundamental stuff
-        template <class Archive, class T>
-        typename madness::enable_if< madness::type_and_c< !madness::is_fundamental<T>::value,
-        Archive::is_archive >, void >::type
-        serialize(const Archive& ar, const T* t, unsigned int n) {
-            MAD_ARCHIVE_DEBUG(std::cout << "(de)serialize non-fund array" << std::endl);
-            for (unsigned int i=0; i<n; i++) ar & t[i];
-        }
+    /// By default there is no postamble
+    static inline void postamble_load(const Archive& ar) {};
+
+    /// By default there is no postamble
+    static inline void postamble_store(const Archive& ar) {};
+};
 
 
-        /// Default implementation of pre/postamble
-        template <class Archive, class T>
-        struct ArchivePrePostImpl {
-            static inline void preamble_load(const Archive& ar) {
-                unsigned char ck = archive_typeinfo<T>::cookie;
-                unsigned char cookie;
-                ar.load(&cookie, 1); // cannot use >>
-                if (cookie != ck) {
-                    char msg[255];
-                    std::sprintf(msg,"InputArchive type mismatch: expected cookie "
-                                 "%u (%s) but got %u (%s) instead",
-                                 ck, archive_type_names[ck],
-                                 cookie,archive_type_names[cookie]);
-                    std::cerr << msg << std::endl;
-                    throw msg;
-                } else {
-                    MAD_ARCHIVE_DEBUG(std::cout << "read cookie " << archive_type_names[cookie] << std::endl);
-                }
-            };
+/// Default symmetric serialization of a non-fundamental thingy
+template <class Archive, class T>
+struct ArchiveSerializeImpl {
+    static inline void serialize(const Archive& ar, T& t) {
+        t.serialize(ar);
+    };
+};
 
 
-            /// Serialize a cookie for type checking
-            static inline void preamble_store(const Archive& ar) {
-                unsigned char ck = archive_typeinfo<T>::cookie;
-                ar.store(&ck, 1); // cannot use <<
-                MAD_ARCHIVE_DEBUG(std::cout << "wrote cookie " << archive_type_names[ck] << std::endl);
-            };
+// Redirect \c serialize(ar,t) to \c serialize(ar,&t,1) for fundamental types
+template <class Archive, class T>
+inline
+typename madness::enable_if< madness::type_and_c< madness::is_fundamental<T>::value,
+Archive::is_archive >,
+void >::type
+serialize(const Archive& ar, const T& t) {
+    MAD_ARCHIVE_DEBUG(std::cout << "serialize(ar,t) -> serialize(ar,&t,1)" << std::endl);
+    serialize(ar,&t,1);
+}
 
 
-            /// By default there is no postamble
-            static inline void postamble_load(const Archive& ar) {};
-
-            /// By default there is no postamble
-            static inline void postamble_store(const Archive& ar) {};
-        };
-
-
-        /// Default symmetric serialization of a non-fundamental thingy
-        template <class Archive, class T>
-        struct ArchiveSerializeImpl {
-            static inline void serialize(const Archive& ar, T& t) {
-                t.serialize(ar);
-            };
-        };
+// Redirect \c serialize(ar,t) to \c ArchiveSerializeImpl for non-fundamental types
+template <class Archive, class T>
+inline
+typename madness::enable_if< madness::type_and_c< !madness::is_fundamental<T>::value,
+Archive::is_archive >,
+void >::type
+serialize(const Archive& ar, const T& t) {
+    MAD_ARCHIVE_DEBUG(std::cout << "serialize(ar,t) -> ArchiveSerializeImpl" << std::endl);
+    ArchiveSerializeImpl<Archive,T>::serialize(ar,(T&) t);
+}
 
 
-        // Redirect \c serialize(ar,t) to \c serialize(ar,&t,1) for fundamental types
-        template <class Archive, class T>
-        inline
-        typename madness::enable_if< madness::type_and_c< madness::is_fundamental<T>::value,
-        Archive::is_archive >,
-        void >::type
-        serialize(const Archive& ar, const T& t) {
-            MAD_ARCHIVE_DEBUG(std::cout << "serialize(ar,t) -> serialize(ar,&t,1)" << std::endl);
-            serialize(ar,&t,1);
-        }
+/// Default store of a thingy via serialize(ar,t)
+template <class Archive, class T>
+struct ArchiveStoreImpl {
+    static inline void store(const Archive& ar, const T& t) {
+        MAD_ARCHIVE_DEBUG(std::cout << "store(ar,t) default" << std::endl);
+        serialize(ar,t);
+    };
+};
 
-
-        // Redirect \c serialize(ar,t) to \c ArchiveSerializeImpl for non-fundamental types
-        template <class Archive, class T>
-        inline
-        typename madness::enable_if< madness::type_and_c< !madness::is_fundamental<T>::value,
-        Archive::is_archive >,
-        void >::type
-        serialize(const Archive& ar, const T& t) {
-            MAD_ARCHIVE_DEBUG(std::cout << "serialize(ar,t) -> ArchiveSerializeImpl" << std::endl);
-            ArchiveSerializeImpl<Archive,T>::serialize(ar,(T&) t);
-        }
-
-
-        /// Default store of a thingy via serialize(ar,t)
-        template <class Archive, class T>
-        struct ArchiveStoreImpl {
-            static inline void store(const Archive& ar, const T& t) {
-                MAD_ARCHIVE_DEBUG(std::cout << "store(ar,t) default" << std::endl);
-                serialize(ar,t);
-            };
-        };
-
-        /*
-                /// Default load of a thingy via serialize(ar,t)
-                template <class Archive, class T> 
-                struct ArchiveLoadImpl {
-        	    template <class U>
-                    static inline void load(const Archive& ar, const T& t) {
-                        MAD_ARCHIVE_DEBUG(std::cout << "load(ar,t) default" << std::endl);
-                        serialize(ar,t);
-                    };
-                };
-        */
-
+/*
         /// Default load of a thingy via serialize(ar,t)
-        template <class Archive, class T>
+        template <class Archive, class T> 
         struct ArchiveLoadImpl {
+	    template <class U>
             static inline void load(const Archive& ar, const T& t) {
                 MAD_ARCHIVE_DEBUG(std::cout << "load(ar,t) default" << std::endl);
                 serialize(ar,t);
             };
         };
+*/
+
+/// Default load of a thingy via serialize(ar,t)
+template <class Archive, class T>
+struct ArchiveLoadImpl {
+    static inline void load(const Archive& ar, const T& t) {
+        MAD_ARCHIVE_DEBUG(std::cout << "load(ar,t) default" << std::endl);
+        serialize(ar,t);
+    };
+};
 
 
-        /// Default implementation of wrap_store and wrap_load
-        template <class Archive, class T>
-        struct ArchiveImpl {
-            static inline const Archive& wrap_store(const Archive& ar, const T& t) {
-                MAD_ARCHIVE_DEBUG(std::cout << "wrap_store for default" << std::endl);
-                ArchivePrePostImpl<Archive,T>::preamble_store(ar);
-                ArchiveStoreImpl<Archive,T>::store(ar,t);
-                ArchivePrePostImpl<Archive,T>::postamble_store(ar);
-                return ar;
-            };
+/// Default implementation of wrap_store and wrap_load
+template <class Archive, class T>
+struct ArchiveImpl {
+    static inline const Archive& wrap_store(const Archive& ar, const T& t) {
+        MAD_ARCHIVE_DEBUG(std::cout << "wrap_store for default" << std::endl);
+        ArchivePrePostImpl<Archive,T>::preamble_store(ar);
+        ArchiveStoreImpl<Archive,T>::store(ar,t);
+        ArchivePrePostImpl<Archive,T>::postamble_store(ar);
+        return ar;
+    };
 
-            static inline const Archive& wrap_load(const Archive& ar, const T& t) {
-                MAD_ARCHIVE_DEBUG(std::cout << "wrap_load for default" << std::endl);
-                ArchivePrePostImpl<Archive,T>::preamble_load(ar);
-                ArchiveLoadImpl<Archive,T>::load(ar,(T&) t);  // Loses constness here!
-                ArchivePrePostImpl<Archive,T>::postamble_load(ar);
-                return ar;
-            };
-        };
-
-
-        // Redirect \c << to ArchiveImpl::wrap_store for output archives
-        template <class Archive, class T>
-        inline
-        typename madness::enable_if_c<Archive::is_output_archive, const Archive&>::type
-        operator<<(const Archive& ar, const T& t) {
-            return ArchiveImpl<Archive,T>::wrap_store(ar,t);
-        }
-
-        // Redirect \c >> to ArchiveImpl::wrap_load for input archives
-        template <class Archive, class T>
-        inline
-        typename madness::enable_if_c<Archive::is_input_archive, const Archive&>::type
-        operator>>(const Archive& ar, const T& t) {
-            return ArchiveImpl<Archive,T>::wrap_load(ar,t);
-        }
-
-        // Redirect \c & to ArchiveImpl::wrap_store for output archives
-        template <class Archive, class T>
-        inline
-        typename madness::enable_if_c<Archive::is_output_archive, const Archive&>::type
-        operator&(const Archive& ar, const T& t) {
-            return ArchiveImpl<Archive,T>::wrap_store(ar,t);
-        }
-
-        // Redirect \c & to ArchiveImpl::wrap_load for input archives
-        template <class Archive, class T>
-        inline
-        typename madness::enable_if_c<Archive::is_input_archive, const Archive&>::type
-        operator&(const Archive& ar, const T& t) {
-            return ArchiveImpl<Archive,T>::wrap_load(ar,t);
-        }
+    static inline const Archive& wrap_load(const Archive& ar, const T& t) {
+        MAD_ARCHIVE_DEBUG(std::cout << "wrap_load for default" << std::endl);
+        ArchivePrePostImpl<Archive,T>::preamble_load(ar);
+        ArchiveLoadImpl<Archive,T>::load(ar,(T&) t);  // Loses constness here!
+        ArchivePrePostImpl<Archive,T>::postamble_load(ar);
+        return ar;
+    };
+};
 
 
-        ///////////////////////////////////////////////////////////////
+// Redirect \c << to ArchiveImpl::wrap_store for output archives
+template <class Archive, class T>
+inline
+typename madness::enable_if_c<Archive::is_output_archive, const Archive&>::type
+operator<<(const Archive& ar, const T& t) {
+    return ArchiveImpl<Archive,T>::wrap_store(ar,t);
+}
+
+// Redirect \c >> to ArchiveImpl::wrap_load for input archives
+template <class Archive, class T>
+inline
+typename madness::enable_if_c<Archive::is_input_archive, const Archive&>::type
+operator>>(const Archive& ar, const T& t) {
+    return ArchiveImpl<Archive,T>::wrap_load(ar,t);
+}
+
+// Redirect \c & to ArchiveImpl::wrap_store for output archives
+template <class Archive, class T>
+inline
+typename madness::enable_if_c<Archive::is_output_archive, const Archive&>::type
+operator&(const Archive& ar, const T& t) {
+    return ArchiveImpl<Archive,T>::wrap_store(ar,t);
+}
+
+// Redirect \c & to ArchiveImpl::wrap_load for input archives
+template <class Archive, class T>
+inline
+typename madness::enable_if_c<Archive::is_input_archive, const Archive&>::type
+operator&(const Archive& ar, const T& t) {
+    return ArchiveImpl<Archive,T>::wrap_load(ar,t);
+}
+
+
+///////////////////////////////////////////////////////////////
 
 
 
-        /// Wrapper for dynamic arrays and pointers
-        template <class T>
-        class archive_array {
-        public:
-            const T* ptr;
-            unsigned int n;
-            inline
-            archive_array(const T *ptr, unsigned int n) : ptr(ptr), n(n) {};
-        };
+/// Wrapper for dynamic arrays and pointers
+template <class T>
+class archive_array {
+public:
+    const T* ptr;
+    unsigned int n;
+    inline
+    archive_array(const T *ptr, unsigned int n) : ptr(ptr), n(n) {};
+};
 
 
-        /// Factory function to wrap pointer as archive_array
-        template <class T>
-        inline
-        archive_array<T> wrap(const T* ptr, unsigned int n) {
-            return archive_array<T>(ptr,n);
-        }
+/// Factory function to wrap pointer as archive_array
+template <class T>
+inline
+archive_array<T> wrap(const T* ptr, unsigned int n) {
+    return archive_array<T>(ptr,n);
+}
 
 
-        /// Partial specialization for archive_array
+/// Partial specialization for archive_array
 
-        /// This makes use of stuff that user specializations need not
-        template <class Archive, class T>
-        struct ArchiveImpl< Archive, archive_array<T> > {
-            static inline const Archive& wrap_store(const Archive& ar, const archive_array<T>& t) {
-                MAD_ARCHIVE_DEBUG(std::cout << "wrap_store for archive_array" << std::endl);
-                ArchivePrePostImpl<Archive,T*>::preamble_store(ar);
-                //ar << t.n;
-                //ArchivePrePostImpl<Archive,T>::preamble_store(ar);
-                serialize(ar,(T *) t.ptr,t.n);
-                //ArchivePrePostImpl<Archive,T>::postamble_store(ar);
-                ArchivePrePostImpl<Archive,T*>::postamble_store(ar);
-                return ar;
-            };
+/// This makes use of stuff that user specializations need not
+template <class Archive, class T>
+struct ArchiveImpl< Archive, archive_array<T> > {
+    static inline const Archive& wrap_store(const Archive& ar, const archive_array<T>& t) {
+        MAD_ARCHIVE_DEBUG(std::cout << "wrap_store for archive_array" << std::endl);
+        ArchivePrePostImpl<Archive,T*>::preamble_store(ar);
+        //ar << t.n;
+        //ArchivePrePostImpl<Archive,T>::preamble_store(ar);
+        serialize(ar,(T *) t.ptr,t.n);
+        //ArchivePrePostImpl<Archive,T>::postamble_store(ar);
+        ArchivePrePostImpl<Archive,T*>::postamble_store(ar);
+        return ar;
+    };
 
-            static inline const Archive& wrap_load(const Archive& ar, const archive_array<T>& t) {
-                MAD_ARCHIVE_DEBUG(std::cout << "wrap_load for archive_array" << std::endl);
-                ArchivePrePostImpl<Archive,T*>::preamble_load(ar);
-                //unsigned int n;
-                //ar >> n;
-                //if (n != t.n)
-                //    throw "deserializing archive_array: dimension mismatch";
-                //ArchivePrePostImpl<Archive,T>::preamble_load(ar);
-                serialize(ar,(T *) t.ptr,t.n);
-                //ArchivePrePostImpl<Archive,T>::postamble_load(ar);
-                ArchivePrePostImpl<Archive,T*>::postamble_load(ar);
-                return ar;
-            };
-        };
-
-
-        /// Partial specialization for fixed dimension array redirects to archive_array
-        template <class Archive, class T, std::size_t n>
-        struct ArchiveImpl<Archive, T[n]> {
-            static inline const Archive& wrap_store(const Archive& ar, const T (&t)[n]) {
-                MAD_ARCHIVE_DEBUG(std::cout << "wrap_store for array" << std::endl);
-                ar << wrap(&t[0],n);
-                return ar;
-            };
-
-            static inline const Archive& wrap_load(const Archive& ar, const T (&t)[n]) {
-                MAD_ARCHIVE_DEBUG(std::cout << "wrap_load for array" << std::endl);
-                ar >> wrap(&t[0],n);
-                return ar;
-            };
-        };
-
-        /// Serialize a complex number
-        template <class Archive, typename T>
-        struct ArchiveStoreImpl< Archive, std::complex<T> > {
-            static inline void store(const Archive& ar, const std::complex<T>& c) {
-                MAD_ARCHIVE_DEBUG(std::cout << "serialize complex number" << std::endl);
-                ar & c.real() & c.imag();
-            }
-        };
+    static inline const Archive& wrap_load(const Archive& ar, const archive_array<T>& t) {
+        MAD_ARCHIVE_DEBUG(std::cout << "wrap_load for archive_array" << std::endl);
+        ArchivePrePostImpl<Archive,T*>::preamble_load(ar);
+        //unsigned int n;
+        //ar >> n;
+        //if (n != t.n)
+        //    throw "deserializing archive_array: dimension mismatch";
+        //ArchivePrePostImpl<Archive,T>::preamble_load(ar);
+        serialize(ar,(T *) t.ptr,t.n);
+        //ArchivePrePostImpl<Archive,T>::postamble_load(ar);
+        ArchivePrePostImpl<Archive,T*>::postamble_load(ar);
+        return ar;
+    };
+};
 
 
-        /// Deserialize a complex number
-        template <class Archive, typename T>
-        struct ArchiveLoadImpl< Archive, std::complex<T> > {
-            static inline void load(const Archive& ar, std::complex<T>& c) {
-                MAD_ARCHIVE_DEBUG(std::cout << "deserialize complex number" << std::endl);
-                T r, i;
-                ar & r & i;
-                c = std::complex<T>(r,i);
-            }
-        };
+/// Partial specialization for fixed dimension array redirects to archive_array
+template <class Archive, class T, std::size_t n>
+struct ArchiveImpl<Archive, T[n]> {
+    static inline const Archive& wrap_store(const Archive& ar, const T (&t)[n]) {
+        MAD_ARCHIVE_DEBUG(std::cout << "wrap_store for array" << std::endl);
+        ar << wrap(&t[0],n);
+        return ar;
+    };
 
+    static inline const Archive& wrap_load(const Archive& ar, const T (&t)[n]) {
+        MAD_ARCHIVE_DEBUG(std::cout << "wrap_load for array" << std::endl);
+        ar >> wrap(&t[0],n);
+        return ar;
+    };
+};
 
-        /// Serialize STL vector.
-        template <class Archive, typename T>
-        struct ArchiveStoreImpl< Archive, std::vector<T> > {
-            static inline void store(const Archive& ar, const std::vector<T>& v) {
-                MAD_ARCHIVE_DEBUG(std::cout << "serialize STL vector" << std::endl);
-                ar & v.size();
-                ar & wrap(&v[0],v.size());
-            };
-        };
-
-
-        /// Deserialize STL vector. Clears & resizes as necessary.
-        template <class Archive, typename T>
-        struct ArchiveLoadImpl< Archive, std::vector<T> > {
-            static void load(const Archive& ar, std::vector<T>& v) {
-                MAD_ARCHIVE_DEBUG(std::cout << "deserialize STL vector" << std::endl);
-                std::size_t n;
-                ar & n;
-                if (n != v.size()) {
-                    v.clear();
-                    v.resize(n);
-                }
-                ar & wrap((T *) &v[0],n);
-            };
-        };
-
-        /// Serialize STL vector<bool> (as plain array of bool)
-        template <class Archive>
-        struct ArchiveStoreImpl< Archive, std::vector<bool> > {
-            static inline void store(const Archive& ar, const std::vector<bool>& v) {
-                MAD_ARCHIVE_DEBUG(std::cout << "serialize STL vector<bool>" << std::endl);
-                std::size_t n = v.size();
-                bool* b = new bool[n];
-                for (int i=0; i<n; i++) b[i] = v[i];
-                ar & n & wrap(b,v.size());
-                delete [] b;
-            };
-        };
-
-
-        /// Deserialize STL vector<bool>. Clears & resizes as necessary.
-        template <class Archive>
-        struct ArchiveLoadImpl< Archive, std::vector<bool> > {
-            static void load(const Archive& ar, std::vector<bool>& v) {
-                MAD_ARCHIVE_DEBUG(std::cout << "deserialize STL vector" << std::endl);
-                std::size_t n;
-                ar & n;
-                if (n != v.size()) {
-                    v.clear();
-                    v.resize(n);
-                }
-                bool* b = new bool[n];
-                ar & wrap(b,v.size());
-                for (int i=0; i<n; i++) v[i] = b[i];
-                delete [] b;
-            };
-        };
-
-        /// Serialize STL string
-        template <class Archive>
-        struct ArchiveStoreImpl< Archive, std::string > {
-            static void store(const Archive& ar, const std::string& v) {
-                MAD_ARCHIVE_DEBUG(std::cout << "serialize STL string" << std::endl);
-                ar & v.size();
-                ar & wrap((const char*) &v[0],v.size());
-            };
-        };
-
-
-        /// Deserialize STL string. Clears & resizes as necessary.
-        template <class Archive>
-        struct ArchiveLoadImpl< Archive, std::string > {
-            static void load(const Archive& ar, std::string& v) {
-                MAD_ARCHIVE_DEBUG(std::cout << "deserialize STL string" << std::endl);
-                std::size_t n;
-                ar & n;
-                if (n != v.size()) {
-                    v.clear();
-                    v.resize(n);
-                }
-                ar & wrap((char*) &v[0],n);
-            };
-        };
-
-
-        /// (de)Serialize an STL pair.
-        template <class Archive, typename T, typename Q>
-        struct ArchiveSerializeImpl< Archive, std::pair<T,Q> > {
-            static inline void serialize(const Archive& ar, std::pair<T,Q>& t) {
-                MAD_ARCHIVE_DEBUG(std::cout << "(de)serialize STL pair" << std::endl);
-                ar & t.first & t.second;
-            };
-        };
-
-
-        /// Serialize an STL map (crudely).
-        template <class Archive, typename T, typename Q>
-        struct ArchiveStoreImpl< Archive, std::map<T,Q> > {
-            static void store(const Archive& ar, const std::map<T,Q>& t) {
-                MAD_ARCHIVE_DEBUG(std::cout << "serialize STL map" << std::endl);
-                ar << t.size();
-                for (typename std::map<T,Q>::const_iterator p = t.begin();
-                        p != t.end(); ++p) {
-                    // Fun and games here since IBM's iterator (const or
-                    // otherwise) gives us a const qualified key
-                    // (p->first) which buggers up the type matching
-                    // unless the user defines pair(T,Q) and pair(const
-                    // T,Q) to have cookie (which is tedious).
-                    std::pair<T,Q> pp = *p;
-                    ar & pp;
-                }
-            };
-        };
-
-
-        /// Deserialize an STL map.  Map is NOT cleared; duplicate elements are replaced.
-        template <class Archive, typename T, typename Q>
-        struct ArchiveLoadImpl< Archive, std::map<T,Q> > {
-            static void load(const Archive& ar, std::map<T,Q>& t) {
-                MAD_ARCHIVE_DEBUG(std::cout << "deserialize STL map" << std::endl);
-                std::size_t n;
-                ar & n;
-                while (n--) {
-                    std::pair<T,Q> p;
-                    ar & p;
-                    t[p.first] = p.second;
-                }
-            };
-        };
-
-
-        /// Serialize a tensor
-        template <class Archive, typename T>
-        struct ArchiveStoreImpl< Archive, Tensor<T> > {
-            static inline void store(const Archive& s, const Tensor<T>& t) {
-                if (t.iscontiguous()) s & t.id & t.ndim & t.dim & wrap(t.ptr(),t.size);
-                else s & copy(t);
-            };
-        };
-
-
-        /// Deserialize a tensor ... existing tensor is replaced
-        template <class Archive, typename T>
-        struct ArchiveLoadImpl< Archive, Tensor<T> > {
-            static inline void load(const Archive& s, Tensor<T>& t) {
-                long id;
-                s & id;
-                if (id != t.id) throw "type mismatch deserializing a tensor";
-                long ndim, dim[TENSOR_MAXDIM];  // Uncool reference to this macro
-                s & ndim & dim;
-                t = Tensor<T>(ndim, dim, false);
-                t.fillrandom();
-                s & wrap(t.ptr(), t.size);
-            };
-        };
-
-        /// Serialize a Tensor thru a BaseTensor pointer
-        template <class Archive>
-        struct ArchiveStoreImpl< Archive, BaseTensor* > {
-            static inline void store(const Archive& s, const BaseTensor* t) {
-//		std::cout << "serizialing thru bt\n";
-		if (t)
-		{
-		    s & 1;
-//		    std::cout << "t->id = " << t->id << std::endl;
-                    s & t->id;
-//		    std::cout << "serialized id" << std::endl;
-                    if (t->id == TensorTypeData<double>::id) {
-//		        std::cout << "serizialing thru bt ... it's a double!\n";
-                        s & *((const Tensor<double>*) t);
-                    } else {
-                        throw "not yet";
-                    }
-		}
-		else
-		{
-		    s & 0;
-		}
-            };
-        };
-
-        /// Deserialize a Tensor thru a BaseTensor pointer
-
-        /// It allocates a NEW tensor ... the original point is stomped on
-        /// and so should not be preallocated.
-        template <class Archive>
-        struct ArchiveLoadImpl< Archive, BaseTensor* > {
-            static inline void load(const Archive& s, BaseTensor*& t) {
-		int loadit;
-		s & loadit;
-		if (loadit)
-		{
-                    long id;
-                    s & id;
-//		    std::cout << "deserizialing thru bt\n";
-                    if (id == TensorTypeData<double>::id) {
-//		        std::cout << "deserizialing thru bt ... it's a double!\n";
-                        Tensor<double>* d = new Tensor<double>();
-                        s & *d;
-                        t = d;
-                    } else {
-                        throw "not yet";
-                    }
-		}
-		else
-		{
-//		    std::cout << "empty tensor" << std::endl;
-		    t = 0;
-		}
-            };
-        };
-
+/// Serialize a complex number
+template <class Archive, typename T>
+struct ArchiveStoreImpl< Archive, std::complex<T> > {
+    static inline void store(const Archive& ar, const std::complex<T>& c) {
+        MAD_ARCHIVE_DEBUG(std::cout << "serialize complex number" << std::endl);
+        ar & c.real() & c.imag();
     }
+};
+
+
+/// Deserialize a complex number
+template <class Archive, typename T>
+struct ArchiveLoadImpl< Archive, std::complex<T> > {
+    static inline void load(const Archive& ar, std::complex<T>& c) {
+        MAD_ARCHIVE_DEBUG(std::cout << "deserialize complex number" << std::endl);
+        T r, i;
+        ar & r & i;
+        c = std::complex<T>(r,i);
+    }
+};
+
+
+/// Serialize STL vector.
+template <class Archive, typename T>
+struct ArchiveStoreImpl< Archive, std::vector<T> > {
+    static inline void store(const Archive& ar, const std::vector<T>& v) {
+        MAD_ARCHIVE_DEBUG(std::cout << "serialize STL vector" << std::endl);
+        ar & v.size();
+        ar & wrap(&v[0],v.size());
+    };
+};
+
+
+/// Deserialize STL vector. Clears & resizes as necessary.
+template <class Archive, typename T>
+struct ArchiveLoadImpl< Archive, std::vector<T> > {
+    static void load(const Archive& ar, std::vector<T>& v) {
+        MAD_ARCHIVE_DEBUG(std::cout << "deserialize STL vector" << std::endl);
+        std::size_t n;
+        ar & n;
+        if (n != v.size()) {
+            v.clear();
+            v.resize(n);
+        }
+        ar & wrap((T *) &v[0],n);
+    };
+};
+
+/// Serialize STL vector<bool> (as plain array of bool)
+template <class Archive>
+struct ArchiveStoreImpl< Archive, std::vector<bool> > {
+    static inline void store(const Archive& ar, const std::vector<bool>& v) {
+        MAD_ARCHIVE_DEBUG(std::cout << "serialize STL vector<bool>" << std::endl);
+        std::size_t n = v.size();
+        bool* b = new bool[n];
+        for (int i=0; i<n; i++) b[i] = v[i];
+        ar & n & wrap(b,v.size());
+        delete [] b;
+    };
+};
+
+
+/// Deserialize STL vector<bool>. Clears & resizes as necessary.
+template <class Archive>
+struct ArchiveLoadImpl< Archive, std::vector<bool> > {
+    static void load(const Archive& ar, std::vector<bool>& v) {
+        MAD_ARCHIVE_DEBUG(std::cout << "deserialize STL vector" << std::endl);
+        std::size_t n;
+        ar & n;
+        if (n != v.size()) {
+            v.clear();
+            v.resize(n);
+        }
+        bool* b = new bool[n];
+        ar & wrap(b,v.size());
+        for (int i=0; i<n; i++) v[i] = b[i];
+        delete [] b;
+    };
+};
+
+/// Serialize STL string
+template <class Archive>
+struct ArchiveStoreImpl< Archive, std::string > {
+    static void store(const Archive& ar, const std::string& v) {
+        MAD_ARCHIVE_DEBUG(std::cout << "serialize STL string" << std::endl);
+        ar & v.size();
+        ar & wrap((const char*) &v[0],v.size());
+    };
+};
+
+
+/// Deserialize STL string. Clears & resizes as necessary.
+template <class Archive>
+struct ArchiveLoadImpl< Archive, std::string > {
+    static void load(const Archive& ar, std::string& v) {
+        MAD_ARCHIVE_DEBUG(std::cout << "deserialize STL string" << std::endl);
+        std::size_t n;
+        ar & n;
+        if (n != v.size()) {
+            v.clear();
+            v.resize(n);
+        }
+        ar & wrap((char*) &v[0],n);
+    };
+};
+
+
+/// (de)Serialize an STL pair.
+template <class Archive, typename T, typename Q>
+struct ArchiveSerializeImpl< Archive, std::pair<T,Q> > {
+    static inline void serialize(const Archive& ar, std::pair<T,Q>& t) {
+        MAD_ARCHIVE_DEBUG(std::cout << "(de)serialize STL pair" << std::endl);
+        ar & t.first & t.second;
+    };
+};
+
+
+/// Serialize an STL map (crudely).
+template <class Archive, typename T, typename Q>
+struct ArchiveStoreImpl< Archive, std::map<T,Q> > {
+    static void store(const Archive& ar, const std::map<T,Q>& t) {
+        MAD_ARCHIVE_DEBUG(std::cout << "serialize STL map" << std::endl);
+        ar << t.size();
+        for (typename std::map<T,Q>::const_iterator p = t.begin();
+                p != t.end(); ++p) {
+            // Fun and games here since IBM's iterator (const or
+            // otherwise) gives us a const qualified key
+            // (p->first) which buggers up the type matching
+            // unless the user defines pair(T,Q) and pair(const
+            // T,Q) to have cookie (which is tedious).
+            std::pair<T,Q> pp = *p;
+            ar & pp;
+        }
+    };
+};
+
+
+/// Deserialize an STL map.  Map is NOT cleared; duplicate elements are replaced.
+template <class Archive, typename T, typename Q>
+struct ArchiveLoadImpl< Archive, std::map<T,Q> > {
+    static void load(const Archive& ar, std::map<T,Q>& t) {
+        MAD_ARCHIVE_DEBUG(std::cout << "deserialize STL map" << std::endl);
+        std::size_t n;
+        ar & n;
+        while (n--) {
+            std::pair<T,Q> p;
+            ar & p;
+            t[p.first] = p.second;
+        }
+    };
+};
+
+
+/// Serialize a tensor
+template <class Archive, typename T>
+struct ArchiveStoreImpl< Archive, Tensor<T> > {
+    static inline void store(const Archive& s, const Tensor<T>& t) {
+        if (t.iscontiguous()) s & t.id & t.ndim & t.dim & wrap(t.ptr(),t.size);
+        else s & copy(t);
+    };
+};
+
+
+/// Deserialize a tensor ... existing tensor is replaced
+template <class Archive, typename T>
+struct ArchiveLoadImpl< Archive, Tensor<T> > {
+    static inline void load(const Archive& s, Tensor<T>& t) {
+        long id;
+        s & id;
+        if (id != t.id) throw "type mismatch deserializing a tensor";
+        long ndim, dim[TENSOR_MAXDIM];  // Uncool reference to this macro
+        s & ndim & dim;
+        t = Tensor<T>(ndim, dim, false);
+        t.fillrandom();
+        s & wrap(t.ptr(), t.size);
+    };
+};
+
+/// Serialize a Tensor thru a BaseTensor pointer
+template <class Archive>
+struct ArchiveStoreImpl< Archive, BaseTensor* > {
+    static inline void store(const Archive& s, const BaseTensor* t) {
+//		std::cout << "serizialing thru bt\n";
+        if (t)
+        {
+            s & 1;
+//		    std::cout << "t->id = " << t->id << std::endl;
+            s & t->id;
+//		    std::cout << "serialized id" << std::endl;
+            if (t->id == TensorTypeData<double>::id) {
+//		        std::cout << "serizialing thru bt ... it's a double!\n";
+                s & *((const Tensor<double>*) t);
+            } else {
+                throw "not yet";
+            }
+        }
+        else
+        {
+            s & 0;
+        }
+    };
+};
+
+/// Deserialize a Tensor thru a BaseTensor pointer
+
+/// It allocates a NEW tensor ... the original point is stomped on
+/// and so should not be preallocated.
+template <class Archive>
+struct ArchiveLoadImpl< Archive, BaseTensor* > {
+    static inline void load(const Archive& s, BaseTensor*& t) {
+        int loadit;
+        s & loadit;
+        if (loadit)
+        {
+            long id;
+            s & id;
+//		    std::cout << "deserizialing thru bt\n";
+            if (id == TensorTypeData<double>::id) {
+//		        std::cout << "deserizialing thru bt ... it's a double!\n";
+                Tensor<double>* d = new Tensor<double>();
+                s & *d;
+                t = d;
+            } else {
+                throw "not yet";
+            }
+        }
+        else
+        {
+//		    std::cout << "empty tensor" << std::endl;
+            t = 0;
+        }
+    };
+};
+
+}
 }
 
 #endif
