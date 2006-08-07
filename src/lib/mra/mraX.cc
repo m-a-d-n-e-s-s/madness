@@ -129,9 +129,10 @@ namespace madness {
 //std::cout << "_init: data->f or data->vf " << data->f << " " << data->vf << std::endl;
 	    int tlen = data->trees->nTrees();
 //std::cout << "_init: tlen = " << tlen << std::endl;
-	    for (int i = 0; i < tlen; i++)
+//	    for (int i = 0; i < tlen; i++)
+	    for (int i = tlen-1; i >= 0 ; i--)
 	    {
-//std::cout << "_init: about to _fine_scale_project" << std::endl;
+//std::cout << "_init: about to _fine_scale_project tree " << i << " of " << tlen << std::endl;
             	_fine_scale_projection(tree(i), data->initial_level);
 //std::cout << "_init: done with _fine_scale_project" << std::endl;
             	if (refine) _refine(tree(i));
@@ -155,7 +156,8 @@ namespace madness {
     void Function<T>::_fine_scale_projection(OctTreeT* tree, Level initial_level) {
         // Recur down oct_tree to initial_level.  Refine locally
         // if necessary.  Project when get to desired level
-//std::cout << "_fine_scale_projection: at beginning of function " << tree << std::endl;
+//std::cout << "_fine_scale_projection: at beginning of function " << tree << ", initial_level = "
+//	<< initial_level << std::endl;
         if (tree->n() < initial_level) {
 //std::cout << "_fine_scale_projection: n < initial_level" << std::endl;
             set_active(tree);
@@ -167,7 +169,7 @@ namespace madness {
         } else if (tree->n()==initial_level) {
 //std::cout << "_fine_scale_projection: n == initial_level" << std::endl;
             set_active(tree);
-//std::cout << "_fine_scale_projection: just set tree active" << std::endl;
+//std::cout << "_fine_scale_projection: just set tree active; tree locality = " << islocal(tree) << std::endl;
             if (islocal(tree)) _project(tree);
 //std::cout << "_fine_scale_projection: just projected the tree" << std::endl;
         }
@@ -206,7 +208,8 @@ namespace madness {
 
     template <typename T>
     void Function<T>::_compress(OctTreeT* tree) {
-//std::cout << "_compress: at beginning of function" << std::endl;
+//std::cout << "_compress: at beginning of function n = " << tree->n() << ", (" << tree->x() << ","
+//	<< tree->y() << "," << tree->z() << ")" << std::endl;
         FOREACH_CHILD(OctTreeT, tree,
                       if (isactive(child)) _compress(child););
 
@@ -235,8 +238,8 @@ namespace madness {
               //                                  print("compress: sending",buf.normf(),"to",tree->rank());
 //std::cout << "_compress: want to send data on n = " << child->n() << ", (" << child->x() << "," <<
 //	child->y() << "," << child->z() << ") to processor " << tree->rank() << std::endl;
-//                                  comm()->Send(buf.ptr(), k3, tree->rank(), 2);
-				MPI::COMM_WORLD.Send(buf.ptr(), k3, MPI_DOUBLE, tree->rank(), 2);
+                                  comm()->Send(buf.ptr(), k3, tree->rank(), 2);
+//				MPI::COMM_WORLD.Send(buf.ptr(), k3, MPI_DOUBLE, tree->rank(), 2);
 //std::cout << "_compress: sent data on n = " << child->n() << ", (" << child->x() << "," <<
 //	child->y() << "," << child->z() << ") to processor " << tree->rank() << std::endl;
               //                                  print("child norm before",c->normf());
@@ -258,9 +261,9 @@ namespace madness {
                 t = set_coeff(tree,TensorT(k,k,k));
 //std::cout << "_compress: want to receive data on n = " << tree->n() << ", (" << tree->x() << "," <<
 //	tree->y() << "," << tree->z() << ") from processor " << tree->rank() << std::endl;
-//                comm()->Recv(t->ptr(), k3, tree->rank(), 2);
-		MPI::COMM_WORLD.Recv(t->ptr(), k3, MPI_DOUBLE, tree->rank(), 2);
-//                print("compress: received",t->normf(),"from",tree->rank());
+                comm()->Recv(t->ptr(), k3, tree->rank(), 2);
+//		MPI::COMM_WORLD.Recv(t->ptr(), k3, MPI_DOUBLE, tree->rank(), 2);
+                print("compress: received",t->normf(),"from",tree->rank());
             }
         } else {
 //std::cout << "_compress: tree n = " << tree->n() << ", (" << tree->x() << "," <<
@@ -313,9 +316,9 @@ namespace madness {
             if (tree->islocalsubtreeparent()) {
                 FOREACH_CHILD(OctTreeT, tree,
                               if (isactive(child)) {
-                              //comm()->Recv(buf.ptr(),k3,tree->rank(),3);
-		MPI::COMM_WORLD.Recv(buf.ptr(), k3, MPI_DOUBLE, tree->rank(), 3);
-              //                                  print("reconstruct: received",buf.normf(),"from",tree->rank());
+                              comm()->Recv(buf.ptr(),k3,tree->rank(),3);
+//		MPI::COMM_WORLD.Recv(buf.ptr(), k3, MPI_DOUBLE, tree->rank(), 3);
+//                                  print("reconstruct: received",buf.normf(),"from",tree->rank());
                                   (*coeff(child))(s0) = buf;
                               }
                              );
@@ -334,8 +337,8 @@ namespace madness {
                               } else {
                                   buf(s0) = (*t)(s[i],s[j],s[k]);
               //                                  print("reconstruct: sending",buf.normf(),"to",child->rank());
-//                                  comm()->Send(buf.ptr(),k3,child->rank(),3);
-				MPI::COMM_WORLD.Send(buf.ptr(), k3, MPI_DOUBLE, child->rank(), 3);
+                                  comm()->Send(buf.ptr(),k3,child->rank(),3);
+//				MPI::COMM_WORLD.Send(buf.ptr(), k3, MPI_DOUBLE, child->rank(), 3);
                               }
                           }
                          );
@@ -355,8 +358,9 @@ namespace madness {
             // info from above.  The messages will come in order.
             FOREACH_CHILD(OctTreeT, tree,
                           bool dorefine;
+//                          print("   refine: expecting message from",tree->rank(),"for",child->n(),child->x(),child->y(),child->z());
                           comm()->Recv(dorefine, tree->rank(), 1);
-              //                          print("   refine: got message",dorefine,"for",child->n(),child->x(),child->y(),child->z());
+//                          print("   refine: got message",dorefine,"for",child->n(),child->x(),child->y(),child->z());
                           if (dorefine) {
                           set_active(child);
                               set_active(tree);
@@ -372,14 +376,13 @@ namespace madness {
                 TensorT d = filter(*t);
                 d(data->cdata->s0) = 0.0;
                 bool dorefine = (d.normf() > truncate_tol(data->thresh,tree->n()));
-                if (dorefine)
-//                    print("refine:",tree->n(),tree->x(),tree->y(),tree->z(),d.normf(),"dorefine =",dorefine);
+//                if (dorefine) print("refine:",tree->n(),tree->x(),tree->y(),tree->z(),d.normf(),"dorefine =",dorefine);
                     if (dorefine) unset_coeff(tree);
                 // First, send messages to remote children in order to get them working ASAP
                 FOREACH_REMOTE_CHILD(OctTreeT, tree,
                                      comm()->Send(dorefine, child->rank(), 1);
                                      set_active(child);
-                     //                                     print("sent",dorefine,"message to",child->n(),child->x(),child->y(),child->z());
+//                                     print("sent",dorefine,"message to",child->rank(),"concerning",child->n(),child->x(),child->y(),child->z());
                                     );
                 // Next, handle local stuff
                 FORIJK(OctTreeT* child = tree->child(i,j,k);
@@ -398,8 +401,10 @@ namespace madness {
                 // It must be either an empty local node or a remote leaf.
                 // Again, first send msgs to remote nodes, then treat local guys.
                 FOREACH_REMOTE_CHILD(OctTreeT, tree,
-                                     comm()->Send(false, child->rank(), 1);
-                     //                                     print("    sent false to",child->n(),child->x(),child->y(),child->z());
+			bool nuhuh = false;
+//                        comm()->Send(false, child->rank(), 1);
+                        comm()->Send(nuhuh, child->rank(), 1);
+//                        print("    sent false to",child->rank(),"concerning",child->n(),child->x(),child->y(),child->z());
                                     );
                 FOREACH_LOCAL_CHILD(OctTreeT, tree, _refine(child););
             }
@@ -467,12 +472,12 @@ namespace madness {
 
     void balanceFunctionOctTree(SharedPtr< FunctionOctTree> trees)
     {
-//	std::cout << "balanceFunctionOctTree: at very very beginning" << std::endl;
+	std::cout << "balanceFunctionOctTree: at very very beginning" << std::endl;
 	int als = 0;
         std::vector< SharedPtr< OctTree< FunctionNode> > > treeList;
 
-//	bool debug = true;
-	bool debug = false;
+	bool debug = true;
+//	bool debug = false;
 
 	if (trees.get())
 	    als = trees->getNalloc();
@@ -488,14 +493,25 @@ namespace madness {
 	    std::cout << "balanceFunctionOctTree: just cleared trees" << std::endl;
 	}
 
+	MPI::COMM_WORLD.Barrier();
+	double t0 = MPI::Wtime();
         serialLoadBalance(&treeList);
+	MPI::COMM_WORLD.Barrier();
+	double t1 = MPI::Wtime();
+	std::cout << "balanceFunctionOctTree: time for serialLoadBalance = " << t1 - t0 << std::endl;
 
 	if (debug)
 	{
 	    std::cout << "balanceFunctionOctTree: back from serialLoadBalance" << std::endl;
 	}
 
+	MPI::COMM_WORLD.Barrier();
+	double t2 = MPI::Wtime();
 	setRemoteActive(&treeList);
+	MPI::COMM_WORLD.Barrier();
+	double t3 = MPI::Wtime();
+	std::cout << "balanceFunctionOctTree: time for setRemoteActive = " << t3 - t2 << std::endl;
+
 	trees->setTreeList(treeList);
 	if (trees.get())
 	    als = trees->getNalloc();
@@ -608,6 +624,8 @@ namespace madness {
 	}
 
 	ProcessID np = comm.nproc();
+	MPI::COMM_WORLD.Barrier();
+	double t0 = MPI::Wtime();
 	if (!activeList.empty())
 	{
 	    for (ProcessID i = 0; i < np; i++)
@@ -649,6 +667,9 @@ namespace madness {
 	    	}
 	    }
 	}
+	MPI::COMM_WORLD.Barrier();
+	double t1 = MPI::Wtime();
+	std::cout << "setRemoteActive: time to send tmpList = " << t1 - t0 << std::endl;
 
 	int prl = parentRecvList.size();
 	for (int i = 0; i < prl; i++)
@@ -667,6 +688,9 @@ namespace madness {
 	{
 	    std::cout << "setRemoteActive: about to receive list of active nodes" << std::endl;
 	}
+
+	MPI::COMM_WORLD.Barrier();
+	double t2 = MPI::Wtime();
 	if (!remoteChildList.empty())
 	{
 	    if (debug)
@@ -768,6 +792,9 @@ namespace madness {
 			<< std::endl;
 	    }
 	}
+	MPI::COMM_WORLD.Barrier();
+	double t3 = MPI::Wtime();
+	std::cout << "setRemoteActive: time to recv tmpList = " << t3 - t2 << std::endl;
     }
 
 

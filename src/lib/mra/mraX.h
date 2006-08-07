@@ -234,7 +234,9 @@ namespace madness {
 
         /// Mark function ind as active in this node
         inline void set_active(int ind) {
+//std::cout << "set_active: about to set index " << ind << " active" << std::endl;
             a[ind] = true;
+//std::cout << "set_active: just set index " << ind << " active" << std::endl;
         };
 
         /// Set active status of function ind in this node
