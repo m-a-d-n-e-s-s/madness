@@ -766,8 +766,8 @@ namespace madness {
         int glength = 0, tlength = 0, i, j;
         RootList root;
 
-	bool debug = true;
-//        bool debug = false;
+//	bool debug = true;
+        bool debug = false;
 
 
         /* globalList: the list of trees that need to be exchanged */
@@ -900,19 +900,31 @@ namespace madness {
                     if (debug) {
                         std::cout << "exchangeTrees: just set t's parent" << std::endl;
                     }
-                    OctTree<T> *q = new OctTree<T>();
-                    q = p->insert_remote_child(x, y, z, (*globalList)[i].future_owner);
-                    if (debug) {
-                        std::cout << "exchangeTrees: inserted remote child " <<
-                        "(" << q->x() << "," << q->y() << "," << q->z() << ")" << " into parent " <<
-                        "(" << p->x() << "," << p->y() << "," << p->z() << ")" << std::endl;
-                        std::cout << "exchangeTrees: after inserting remote child, is t still OK?" <<
-                        std::endl << "        " << "n = " << t->n() << " " <<
-                        (treeList->back())->n() << ", (" << t->x() << "," << t->y() << "," <<
-                        t->z() << "), (" << (treeList->back())->x() << "," <<
-                        (treeList->back())->y() << "," << (treeList->back())->z() << ")"
-                        << std::endl;
-                    }
+/*
+		    if (p->islocal())
+		    {
+*/
+                        OctTree<T> *q = new OctTree<T>();
+                        q = p->insert_remote_child(x, y, z, (*globalList)[i].future_owner);
+                        if (debug) {
+                            std::cout << "exchangeTrees: inserted remote child " <<
+                            "(" << q->x() << "," << q->y() << "," << q->z() << ")" << " into parent " <<
+                            "(" << p->x() << "," << p->y() << "," << p->z() << ")" << std::endl;
+                            std::cout << "exchangeTrees: after inserting remote child, is t still OK?" <<
+                            std::endl << "        " << "n = " << t->n() << " " <<
+                            (treeList->back())->n() << ", (" << t->x() << "," << t->y() << "," <<
+                            t->z() << "), (" << (treeList->back())->x() << "," <<
+                            (treeList->back())->y() << "," << (treeList->back())->z() << ")"
+                            << std::endl;
+                        }
+/*
+		    }
+		    else
+		    {
+			std::cout << "I bet this causes a segfault" << std::endl;
+			p->setChild(x,y,z, SharedPtr<OctTree<T> >(0));
+		    }
+*/
                 }
                 if (debug) {
                     std::cout << "exchangeTrees: end of current = future: tlength = " << tlength
@@ -996,6 +1008,12 @@ namespace madness {
                     y -= 2*(y/2);
                     z -= 2*(z/2);
                     p->insert_remote_child(x, y, z, (*globalList)[i].future_owner);
+/*
+		    std::cout << "I bet this causes a segfault too" << std::endl;
+		    if (p)
+                        p->setChild(x, y, z, SharedPtr<OctTree<T> >(0));
+		    std::cout << "no, made it past" << std::endl;
+*/
 		    bool deleteit = true;
 		    FOREACH_CHILD(OctTree<T>, p,
 			if (child->islocal())
@@ -1089,8 +1107,8 @@ namespace madness {
         Communicator comm;
         archive::MPIOutputArchive ardest(comm, dest);
 
-        bool debug = false;
 //	bool debug = true;
+        bool debug = false;
 
         if (debug) {
             std::cout << "sendSubtree: about to send tree to " << dest << std::endl;
@@ -1109,8 +1127,8 @@ namespace madness {
         Communicator comm;
         archive::MPIOutputArchive ardest(comm, dest);
 
-        bool debug = false;
 //	bool debug = true;
+        bool debug = false;
 
         if (debug) {
 	    std::cout << "sendSubtree: SharedPtr version" << std::endl;
@@ -1129,8 +1147,6 @@ namespace madness {
     template <class T>
     void recvSubtree(OctTree<T> *t, ProcessID me, ProcessID source) {
         Communicator comm;
-//        madness::redirectio(comm);
-        comm.print();
         archive::MPIInputArchive arsource(comm, source);
 
 // 	bool debug = true;
@@ -1154,8 +1170,6 @@ namespace madness {
     template <class T>
     void recvSubtree(SharedPtr<OctTree<T> > p, ProcessID me, ProcessID source) {
         Communicator comm;
-//        madness::redirectio(comm);
-        comm.print();
         archive::MPIInputArchive arsource(comm, source);
 	OctTree<T> *t = new OctTree<T>();
 
@@ -1214,6 +1228,34 @@ namespace madness {
 //        bool debug = true;
 	bool debug = false;
 
+
+	for (int i = size-1; i >= 0; i--)
+	{
+	    bool removeit = true;
+	    OctTree<T> *t = new OctTree<T>();
+	    t = (*treeList)[i];
+	    if (t->islocal())
+	    {
+		removeit = false;
+	    }
+	    else
+	    {
+	        FOREACH_CHILD(OctTree<T>, t,
+		    if (child->islocal())
+		    {
+		        removeit = false;
+		    }
+	        );
+	    }
+	    if (removeit)
+	    {
+//		if (debug)
+		    std::cout << "glueTrees: removing tree that is purely remote" << std::endl;
+                treeList->erase((treeList->begin()+i));
+	    }
+	}
+	size = treeList->size();
+	nconsidered = size;
         for (int i = 0; i < size; i++) {
             if (debug) {
                 std::cout << "glueTrees: at beginning of i loop, i = " << i << ", nunchanged = " <<
@@ -1389,8 +1431,8 @@ namespace madness {
 
 	SharedPtr<OctTree<char> > ghostTree = SharedPtr<OctTree<char> > (new OctTree<char> ());
 
-	bool debug = true;
-//	bool debug = false;
+//	bool debug = true;
+	bool debug = false;
 
 	if (me != 0)
 	{
@@ -1550,7 +1592,10 @@ namespace madness {
 	}
 	ghostTree->makeAllLocal();
 	ghostTree->computeCost();
-	ghostTree->depthFirstTraverseAll();
+	if (debug)
+	{
+	    ghostTree->depthFirstTraverseAll();
+	}
 	return ghostTree;
     }
 
@@ -1569,8 +1614,8 @@ namespace madness {
 	int olen = ownerList.size(), glen = globalList.size(), mlen, j = 0;
 	std::vector<RootList> mergeList;
 
-	bool debug = true;
-//	bool debug = false;
+//	bool debug = true;
+	bool debug = false;
 	
 	for (int i = 0; i < olen; i++)
 	{
@@ -1708,8 +1753,8 @@ namespace madness {
 	std::vector<RootList> ownerList, mergeList, globalList;
 	SharedPtr<OctTree<char> > ghostTree = SharedPtr<OctTree<char> > ();
 
-//	bool debug = false;
-	bool debug = true;
+//	bool debug = true;
+	bool debug = false;
 
 	me = comm.rank();
 	np = comm.nproc();

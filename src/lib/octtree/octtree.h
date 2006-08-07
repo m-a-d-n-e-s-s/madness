@@ -818,8 +818,8 @@ namespace madness {
 	Cost accumulate = 0, sofar, subtotal = 0;
 	std::vector<RootList> tmp;
 	bool lastPartition;
-	bool debug = true;
-//	bool debug = false;
+//	bool debug = true;
+	bool debug = false;
 
         if (debug)
         {
@@ -895,8 +895,8 @@ namespace madness {
 	int partitionNumber, bool lastPartition)
     {
 	Cost accumulate = 0, costLeft = 0, temp = 0, subtreeCost = 0;
-	bool debug = true;
-//	bool debug = false;
+//	bool debug = true;
+	bool debug = false;
 	std::vector<RootList> treelist, treelist2;
 
 	if (debug)
@@ -1180,8 +1180,8 @@ namespace madness {
 
 	OctTree<char>* skeletize()
 	{
-	    bool debug = false;
 //	    bool debug = true;
+	    bool debug = false;
 
 	    if (debug)
 	    {
