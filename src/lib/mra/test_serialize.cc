@@ -508,33 +508,34 @@ int main(int argc, char* argv[]) {
   ARCHIVE_REGISTER_TYPE_AND_PTR_NAMES(B);
   ARCHIVE_REGISTER_TYPE_AND_PTR_NAMES(C);
   ARCHIVE_REGISTER_TYPE_AND_PTR_NAMES(linked_list);
-   ARCHIVE_REGISTER_TYPE_AND_PTR_NAMES(madness::archive::pair_int_double);
+  ARCHIVE_REGISTER_TYPE_AND_PTR_NAMES(madness::archive::pair_int_double);
   ARCHIVE_REGISTER_TYPE_AND_PTR_NAMES(madness::archive::pair_short_complex_double);
   ARCHIVE_REGISTER_TYPE_AND_PTR_NAMES(madness::archive::map_short_complex_double);
   
-  {
-    MPI::Init(argc, argv);
-    Communicator comm;
-    redirectio(comm);
-    comm.print();
-    load_coeffs(comm);
-    load_quadrature(comm);
-    FunctionDefaults::tree = new FunctionOctTree(OctTree<FunctionNode>::create_default(comm,2));
+  Communicator& comm = startup(argc,argv);
 
-    Function<double> ftest = FunctionFactory<double>(fred).k(3).refine(1).compress(1).initial_level(2).thresh(1e-1);
-    Function<double> ftest2 = FunctionFactory<double>();
-    const char* f = "tserialize.dat";
-    ftest.compress();
-    ftest.truncate();
-    //ftest.save_local(oar);
-    ftest.save(f, comm);
-    //ftest.load_local(iar);
-    ftest2.load(f, comm);
-    cout << " class subtraction test " << (ftest - ftest2).norm2sq() << endl;
+  cout << " before declaring Function" << endl;
+  //Function<double> ftest = FunctionFactory<double>(fred).k(3).refine(1).compress(1).initial_level(2).thresh(1e-1);
+  Function<double> ftest = FunctionFactory<double>(fred).k(8).thresh(1e-3);
+  cout << " before declaring second Function" << endl;
+  Function<double> ftest2 = FunctionFactory<double>();
+  const char* f = "tserialize.dat";
+  //TextFstreamOutputArchive oar(f);
+  cout << " before compress " << endl;
+  ftest.compress();
+  ftest.truncate();
+  //ftest.save_local(oar);
+  cout << " before save " << endl;
+  long partLevel = 1;
+  ftest.save( f, partLevel, comm);
+  //TextFstreamInputArchive iar(f);
+  //ftest.load_local(iar);
+  cout << " before load " << endl;
+  ftest2.load(f, comm);
+  cout << " class subtraction test " << (ftest - ftest2).norm2sq() << endl;
 
-    comm.close();
-    MPI::Finalize();
-    }
+  comm.close();
+  MPI::Finalize();
 
-    return 0;
+  return 0;
 }
