@@ -8,6 +8,8 @@
 #include <algorithm>
 #include <cmath>
 #include <list>
+#include <fstream>
+#include <cstdlib>
 
 #include <mad_types.h>
 #include <misc/print.h>
@@ -430,14 +432,14 @@ namespace madness {
 	    Translation x = t->_x - 2*this->_x;
 	    Translation y = t->_y - 2*this->_y;
 	    Translation z = t->_z - 2*this->_z;
-//	    std::cout << "insert_local_child shared pointer constructor (" << x << "," << y 
-//			<< "," << z << ")" << std::endl;
-//	    std::cout << "insert_local_child shared pointer constructor: t = " << t.get() << std::endl;
+	    std::cout << "insert_local_child shared pointer constructor (" << x << "," << y 
+			<< "," << z << ")" << std::endl;
+	    std::cout << "insert_local_child shared pointer constructor: t = " << t.get() << std::endl;
             _c[x][y][z] = SharedPtr<OctTreeT>(t);
 //            _c[x][y][z] = t;
-//	    std::cout << "insert_local_child shared pointer constructor: set c" << std::endl;
+	    std::cout << "insert_local_child shared pointer constructor: set c" << std::endl;
 	    _c[x][y][z]->setParent(this);
-//	    std::cout << "insert_local_child shared pointer constructor: set c's parent" << std::endl;
+	    std::cout << "insert_local_child shared pointer constructor: set c's parent" << std::endl;
 	    return _c[x][y][z];
 	};
 
@@ -749,9 +751,9 @@ namespace madness {
 
 	inline void setDepthCost(Level d, double factor)
 	{
-//	    Cost c = (Cost) pow(2.0, this->_n - d);
-//	    Cost c = (Cost) pow(8.0, this->_n - d);
-	    Cost c = (Cost) pow(factor, this->_n - d);
+//	    Cost c = (Cost) pow(2.0, d - this->_n);
+//	    Cost c = (Cost) pow(8.0, d - this->_n);
+	    Cost c = (Cost) pow(factor, d - this->_n);
 	    Cost subcost = c;
 	    this->_cost = c;
 	    FOREACH_CHILD(OctTreeT, this,
@@ -1281,6 +1283,26 @@ namespace madness {
 	    }
 	
 	    return skel;
+	};
+
+	void dumpTree()
+	{
+	    // prints out tree as n x y z p c (where p = proc num, c = cost)
+	    std::ofstream to("treeDump");
+	    if (!to) std::cout << "cannot open output file treeDump";
+	    this->outputTree(to);
+	    to.close();
+	};
+
+
+	void outputTree(std::ofstream& to)
+	{
+	    to << this->_n << "  " << this->_x << " " << this->_y << " " << this->_z << "  "
+		<< this->_sendto << "  " << this->_cost << std::endl;
+
+	    FOREACH_CHILD(OctTreeT, this,
+		child->outputTree(to);
+	    );
 	};
 
 
