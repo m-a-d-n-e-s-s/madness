@@ -263,7 +263,7 @@ namespace madness {
 //	tree->y() << "," << tree->z() << ") from processor " << tree->rank() << std::endl;
                 comm()->Recv(t->ptr(), k3, tree->rank(), 2);
 //		MPI::COMM_WORLD.Recv(t->ptr(), k3, MPI_DOUBLE, tree->rank(), 2);
-                print("compress: received",t->normf(),"from",tree->rank());
+//                print("compress: received",t->normf(),"from",tree->rank());
             }
         } else {
 //std::cout << "_compress: tree n = " << tree->n() << ", (" << tree->x() << "," <<
@@ -476,8 +476,8 @@ namespace madness {
 	int als = 0;
         std::vector< SharedPtr< OctTree< FunctionNode> > > treeList;
 
-	bool debug = true;
-//	bool debug = false;
+//	bool debug = true;
+	bool debug = false;
 
 	if (trees.get())
 	    als = trees->getNalloc();
@@ -900,7 +900,60 @@ namespace madness {
 	    std::cout << "makeRemoteParentList: just about to return, with list longer by " <<
 		parentList->size() << std::endl;
 	}
+    };
+
+    int FunctionOctTree::maxBrokenLinks()
+    {
+	int size = _treeList.size();
+	int maxbroken = 0;
+	for (int j = 0; j < size; j++)
+	{
+	    int tmp = _treeList[j]->countBrokenLinks();
+	    if (tmp > maxbroken)
+		maxbroken = tmp;
+	}
+	return maxbroken;
+    };
+
+
+    void FunctionOctTree::initDepthCost(double factor)
+    {
+	int size = _treeList.size();
+	Communicator commie;
+	Level d, myd = 0, tmp;
+
+	for (int i = 0; i < size; i++)
+	{
+	    tmp = _treeList[i]->maxDepth();
+	    if (tmp > myd)
+		myd = tmp;
+	}
+
+	commie.Allreduce(&myd, &d, 1, MPI::LONG, MPI::MAX);
+
+	for (int i = 0; i < size; i++)
+	{
+	    _treeList[i]->setDepthCost(d, factor);
+	}
     }
+	
+
+    template <typename T>
+    double Function<T>::computeMaxCost()
+    {
+	Communicator commie;
+	int k = this->k;
+	int mymax = this->data->trees->maxBrokenLinks();
+	double cost = 0.0;
+
+	int themax = 0;
+
+	commie.Reduce(&mymax, &themax, 1, MPI::INT, MPI::MAX, 0);
+	std::cout << "computeMaxCost: maximum number of broken links = " << themax << std::endl;
+	cost = pow(k,3)*(1e-8*themax + k*1e-7);
+	return cost;
+    };
+    
 
     // Explicit instantiations for double and complex<double>
 

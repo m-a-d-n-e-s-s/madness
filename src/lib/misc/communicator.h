@@ -54,7 +54,7 @@ namespace madness {
     template<> static inline MPI::Datatype MPITypeFromType<long>() {return MPI::LONG;};
     template<> static inline MPI::Datatype MPITypeFromType<unsigned long>() {return MPI::UNSIGNED_LONG;};
     template<> static inline MPI::Datatype MPITypeFromType<double>() {return MPI::DOUBLE;};
-    template<> static inline MPI::Datatype MPITypeFromType< std::complex<double> >() {return MPI_COMPLEX16;};
+    template<> static inline MPI::Datatype MPITypeFromType< std::complex<double> >() {return MPI_COMPLEX;};
 
     void am_barrier_handler(Communicator& comm, ProcessID proc, const AMArg& arg);
     long am_barrier_nchild_registered();
@@ -177,8 +177,10 @@ namespace madness {
 
         /// Each dimension will be a power of 2 with npx >= npy >= npz
         void setup() {
-            _nproc = _comm.Get_size();
-            _rank = _comm.Get_rank();
+//            _nproc = _comm.Get_size();
+//            _rank = _comm.Get_rank();
+            _nproc = MPI::COMM_WORLD.Get_size();
+            _rank = MPI::COMM_WORLD.Get_rank();
             debug = false;
 
             // Register am_barrier then post AM receive buffer
@@ -294,7 +296,8 @@ namespace madness {
         inline void Send(const void* buf, int count, const MPI::Datatype& datatype,
                          ProcessID dest, int tag) const {
             if (debug) madness::print("Comm: sending",count,"bytes to",dest,"with tag",tag);
-            _comm.Send(buf,count,datatype,dest,tag);
+//            _comm.Send(buf,count,datatype,dest,tag);
+            MPI::COMM_WORLD.Send(buf,count,datatype,dest,tag);
             if (debug) madness::print("Comm: sent");
         };
 
@@ -319,7 +322,8 @@ namespace madness {
         inline void Recv(void* buf, int count, const MPI::Datatype& datatype,
                          ProcessID source, int tag, MPI::Status& status) const {
             if (debug) madness::print("Comm: receiving",count,"bytes from",source,"with tag",tag);
-            _comm.Recv(buf,count,datatype,source,tag,status);
+//            _comm.Recv(buf,count,datatype,source,tag,status);
+            MPI::COMM_WORLD.Recv(buf,count,datatype,source,tag,status);
             if (debug) madness::print("Comm: received");
         };
 
@@ -328,7 +332,8 @@ namespace madness {
         inline void Recv(void* buf, int count, const MPI::Datatype& datatype,
                          ProcessID source, int tag) const {
             if (debug) madness::print("Comm: receiving",count,"bytes from",source,"with tag",tag);
-            _comm.Recv(buf,count,datatype,source,tag);
+//            _comm.Recv(buf,count,datatype,source,tag);
+            MPI::COMM_WORLD.Recv(buf,count,datatype,source,tag);
             if (debug) madness::print("Comm: received");
         };
 
@@ -371,7 +376,8 @@ namespace madness {
         inline MPI::Request Irecv(void* buf, int count, const MPI::Datatype& datatype,
                                   ProcessID source, int tag) const {
             if (debug) madness::print("Comm: posting async receive",count,"elements from",source,"with tag",tag);
-            return _comm.Irecv(buf, count, datatype, source, tag);
+//            return _comm.Irecv(buf, count, datatype, source, tag);
+            return MPI::COMM_WORLD.Irecv(buf, count, datatype, source, tag);
         };
 
 
@@ -380,7 +386,8 @@ namespace madness {
         inline MPI::Request
         Irecv(T* buf, int count, ProcessID source, int tag) const {
             if (debug) madness::print("Comm: posting async receive",count,"bytes from",source,"with tag",tag);
-            return _comm.Irecv(buf, count*sizeof(T), MPI::BYTE, source, tag);
+//            return _comm.Irecv(buf, count*sizeof(T), MPI::BYTE, source, tag);
+            return MPI::COMM_WORLD.Irecv(buf, count*sizeof(T), MPI::BYTE, source, tag);
         }
 
 
@@ -389,47 +396,69 @@ namespace madness {
         inline
         typename madness::enable_if_c< !madness::is_pointer<T>::value, MPI::Request>::type
         Irecv(T& buf, ProcessID source, int tag) const {
-            return _comm.Irecv(&buf, sizeof(T), MPI::BYTE, source, tag);
+//            return _comm.Irecv(&buf, sizeof(T), MPI::BYTE, source, tag);
+            return MPI::COMM_WORLD.Irecv(&buf, sizeof(T), MPI::BYTE, source, tag);
         }
 
+
+	/// Same as MPI::Intracomm::Allreduce
+	inline void Allreduce(void* sendbuf, void* recvbuf, int count, const MPI::Datatype& datatype,
+			 const MPI::Op& op) const {
+//	    _comm.Allreduce(sendbuf, recvbuf, count, datatype, op);
+	    MPI::COMM_WORLD.Allreduce(sendbuf, recvbuf, count, datatype, op);
+	};
+
+
+	/// Same as MPI::Intracomm::Reduce
+	inline void Reduce(void* sendbuf, void* recvbuf, int count, const MPI::Datatype& datatype,
+			  const MPI::Op& op, int root) const {
+//	    _comm.Reduce(sendbuf, recvbuf, count, datatype, op, root);
+	    MPI::COMM_WORLD.Reduce(sendbuf, recvbuf, count, datatype, op, root);
+	};
 
         /// Same as MPI::Intracomm::Bcast
         inline void Bcast(void* buffer, int count, const MPI::Datatype& datatype,
                           int root) const {
-            _comm.Bcast(buffer,count,datatype,root);
+//            _comm.Bcast(buffer,count,datatype,root);
+            MPI::COMM_WORLD.Bcast(buffer,count,datatype,root);
         };
 
 
         /// Broadcast an array of count elements
         template <class T>
         inline void Bcast(T* buffer, int count, int root) const {
-            _comm.Bcast(buffer,count*sizeof(T),MPI::BYTE,root);
+//            _comm.Bcast(buffer,count*sizeof(T),MPI::BYTE,root);
+            MPI::COMM_WORLD.Bcast(buffer,count*sizeof(T),MPI::BYTE,root);
         }
 
 
         /// Broadcast a datum
         template <class T>
         inline void Bcast(T& buffer, int root) const {
-            _comm.Bcast(&buffer, sizeof(T), MPI::BYTE,root);
+//            _comm.Bcast(&buffer, sizeof(T), MPI::BYTE,root);
+            MPI::COMM_WORLD.Bcast(&buffer, sizeof(T), MPI::BYTE,root);
         }
 
 
 
         /// Same as MPI::Intracomm::Iprobe
         inline bool Iprobe(ProcessID source, int tag, MPI::Status& status) const {
-            return _comm.Iprobe(source, tag, status);
+//            return _comm.Iprobe(source, tag, status);
+            return MPI::COMM_WORLD.Iprobe(source, tag, status);
         };
 
 
         /// Same as MPI::Intracomm::Iprobe
         inline bool Iprobe(ProcessID source, int tag) const {
-            return _comm.Iprobe(source,tag);
+//            return _comm.Iprobe(source,tag);
+            return MPI::COMM_WORLD.Iprobe(source,tag);
         };
 
 
         /// Error abort with integer code
         void Abort(int code=1) const {
-            _comm.Abort(code);
+//            _comm.Abort(code);
+            MPI::COMM_WORLD.Abort(code);
         };
 
 

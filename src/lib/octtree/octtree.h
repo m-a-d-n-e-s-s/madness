@@ -418,11 +418,11 @@ namespace madness {
 	    Translation y = t->_y - 2*this->_y;
 	    Translation z = t->_z - 2*this->_z;
 //	    std::cout << "insert_local_child copy constructor (" << x << "," << y << "," << z << ")"
-//			<< std::endl;
-//	    SharedPtr<OctTreeT> *sp = new SharedPtr<OctTreeT>(t);
-//            _c[x][y][z] = *sp;
+			<< std::endl;
             _c[x][y][z] = SharedPtr<OctTreeT>(t);
+//	    std::cout << "insert_local_child copy constructor: set c" << std::endl;
 	    _c[x][y][z]->setParent(this);
+//	    std::cout << "insert_local_child copy constructor: set c's parent" << std::endl;
 	    return _c[x][y][z];
 	};
 
@@ -430,8 +430,14 @@ namespace madness {
 	    Translation x = t->_x - 2*this->_x;
 	    Translation y = t->_y - 2*this->_y;
 	    Translation z = t->_z - 2*this->_z;
+//	    std::cout << "insert_local_child shared pointer constructor (" << x << "," << y 
+//			<< "," << z << ")" << std::endl;
+//	    std::cout << "insert_local_child shared pointer constructor: t = " << t.get() << std::endl;
             _c[x][y][z] = SharedPtr<OctTreeT>(t);
+//            _c[x][y][z] = t;
+//	    std::cout << "insert_local_child shared pointer constructor: set c" << std::endl;
 	    _c[x][y][z]->setParent(this);
+//	    std::cout << "insert_local_child shared pointer constructor: set c's parent" << std::endl;
 	    return _c[x][y][z];
 	};
 
@@ -701,6 +707,66 @@ namespace madness {
 	    std::cout << "computeLocalCost: at end of function" << std::endl;
 	    return cost;
 	}
+
+    	inline int countBrokenLinks()
+    	{
+	    int mybrokenlinks = 0;
+	    int maxbroken = 0;
+
+	    FOREACH_LOCAL_CHILD(OctTree<T>, this,
+	        int tmp = child->countBrokenLinks();
+	        if (tmp > maxbroken)
+		    maxbroken = tmp;
+	    );
+	    if (!this->parent()) 
+	        return maxbroken;
+	    else if (this->parent()->isremote())
+	        mybrokenlinks++;
+	    FORIJK(
+	        if (this->child(i,j,k))
+	        {
+		    if (this->child(i,j,k)->isremote())
+		        mybrokenlinks++;
+	        }
+	        else
+		    mybrokenlinks++;
+	    );
+	    if (mybrokenlinks > maxbroken)
+	        maxbroken = mybrokenlinks;
+	    return maxbroken;
+    	};
+
+	inline Level maxDepth()
+	{
+	    Level depth = this->_n;
+	    FOREACH_CHILD(OctTreeT, this,
+		Level tmp = child->maxDepth();
+		if (tmp > depth)
+		    depth = tmp;
+	    );
+	    return depth;
+	};
+
+	inline void setDepthCost(Level d, double factor)
+	{
+//	    Cost c = (Cost) pow(2.0, this->_n - d);
+//	    Cost c = (Cost) pow(8.0, this->_n - d);
+	    Cost c = (Cost) pow(factor, this->_n - d);
+	    Cost subcost = c;
+	    this->_cost = c;
+	    FOREACH_CHILD(OctTreeT, this,
+		child->setDepthCost(d, factor);
+		subcost += child->_cost;
+	    );
+	    this->_localSubtreeCost = subcost;
+	};
+
+	inline void depthCostInit(double factor = 1.0)
+	{
+	    Level d = this->maxDepth();
+	    this->setDepthCost(d, factor);
+	};
+    
 
         /// Apply a user-provided function (or functor) to all nodes
         template <class Op1, class Op2>
@@ -1350,7 +1416,7 @@ namespace madness {
 		}
 	    };
     };
-    
+
     namespace archive {
 
     // This disaster brought to you by hqi

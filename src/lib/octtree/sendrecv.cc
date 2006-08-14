@@ -843,7 +843,7 @@ namespace madness {
                     if (debug) {
                         std::cout << "exchangeTrees: looking for tree in treeList[" << j << "]"
                         << std::endl;
-                        (*treeList)[j]->depthFirstTraverseAll();
+//                        (*treeList)[j]->depthFirstTraverseAll();
                         std::cout << "exchangeTrees: will I find it?" << std::endl;
                     }
                     t = (*treeList)[j]->findDown((*globalList)[i].n, (*globalList)[i].x, (*globalList)[i].y,
@@ -943,7 +943,7 @@ namespace madness {
                     if (debug) {
                         std::cout << "exchangeTrees: looking for tree in treeList[" << j << "]"
                         << std::endl;
-                        (*treeList)[j]->depthFirstTraverseAll();
+//                        (*treeList)[j]->depthFirstTraverseAll();
                         std::cout << "exchangeTrees: will I find it?" << std::endl;
                     }
                     t = (*treeList)[j]->findDown((*globalList)[i].n, (*globalList)[i].x, (*globalList)[i].y,
@@ -1078,7 +1078,7 @@ namespace madness {
                 tlength << ":" << std::endl;
                 for (int i = 0; i < tlength; i++) {
                     std::cout << "tree " << i << " of " << tlength << ":" << std::endl;
-                    (*treeList)[i]->depthFirstTraverseAll();
+//                    (*treeList)[i]->depthFirstTraverseAll();
                 }
             }
         }
@@ -1088,7 +1088,7 @@ namespace madness {
             tlength << ":" << std::endl;
             for (int i = 0; i < tlength; i++) {
                 std::cout << "tree " << i << " of " << tlength << ":" << std::endl;
-                (*treeList)[i]->depthFirstTraverseAll();
+//                (*treeList)[i]->depthFirstTraverseAll();
             }
         }
 
@@ -1382,8 +1382,16 @@ namespace madness {
 //					p->y() << "," << p->z() << "), islocal? " << p->islocal()
 //					<< std::endl;
                             }
-			    if ((p) && p->islocal())
+//			    if ((p) && p->islocal())
+			    if (p)
 			    {
+				if (debug)
+				{
+				    std::cout << "    n = " << p->n() << ", (" << p->x() << "," <<
+					p->y() << "," << p->z() << "), islocal? " << p->islocal()
+					<< std::endl;
+				    std::cout << "glueTrees: about to insert local child" << std::endl;
+				}
                             	p->insert_local_child(t);
                             	if (debug) {
                                     std::cout << "glueTrees: inserted local child" << std::endl;
@@ -1394,11 +1402,11 @@ namespace madness {
                             	}
                             	flag = true;
 			    }
-			    else
-			    {
-				std::cout << "glueTrees: u's parent is not local, so don't do anything"
-					<< std::endl;
-			    }
+//			    else
+//			    {
+//				std::cout << "glueTrees: u's parent is not local, so don't do anything"
+//					<< std::endl;
+//			    }
                         }
                         break;
                     }
@@ -1567,6 +1575,10 @@ namespace madness {
 	    std::cout << std::endl;
 	}
 	sort(gtList.begin(), gtList.end());
+	if (debug)
+	{
+	    std::cout << "createGhostTree: after sorting, before gluing" << std::endl;
+	}
 	glueTrees(&gtList);
 	if (debug) {
 	    std::cout << "createGhostTree: after gluing" << std::endl;

@@ -386,6 +386,10 @@ namespace madness {
             _free[_nfree] = ind;
             _nfree++;
         };
+
+	void initDepthCost(double factor);
+
+	int maxBrokenLinks();
     };
 
     template <typename T> class FunctionFactory; // Forward definition to define factory before Function
@@ -743,6 +747,7 @@ namespace madness {
             return data->compressed;
         };
 
+	double computeMaxCost();
 
     private:
         /// Private.  Initialization required constructing function from stratch
