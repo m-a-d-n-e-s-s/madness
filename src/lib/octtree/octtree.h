@@ -418,7 +418,7 @@ namespace madness {
 	    Translation y = t->_y - 2*this->_y;
 	    Translation z = t->_z - 2*this->_z;
 //	    std::cout << "insert_local_child copy constructor (" << x << "," << y << "," << z << ")"
-			<< std::endl;
+//			<< std::endl;
             _c[x][y][z] = SharedPtr<OctTreeT>(t);
 //	    std::cout << "insert_local_child copy constructor: set c" << std::endl;
 	    _c[x][y][z]->setParent(this);
