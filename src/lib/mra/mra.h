@@ -37,7 +37,6 @@ namespace std {
     static inline double norm(const double d) {
         return d*d;
     };
-
 }
 
 namespace madness {

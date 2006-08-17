@@ -198,7 +198,7 @@ namespace madness {
         FOREACH_CHILD(OctTree<T>, root,
                       if ((*spaceleft == 0) || (child->getSendto() != -1)) {
                       keepgoing = false;
-                      if (debug) {
+                      if (_debug) {
                               std::cout << "globalPartitionSubtree: don't bother with child " <<
                               "(" << child->x() << "," << child->y() << "," << child->z() << ")"
                               << std::endl;
@@ -208,13 +208,13 @@ namespace madness {
                           keepgoing = true;
                       }
                       if ((child->islocal()) && (keepgoing)) {
-                      if (debug) {
+                      if (_debug) {
                               std::cout << "globalPartitionSubtree: keep going with child " <<
                               "(" << child->x() << "," << child->y() << "," << child->z() << ")"
                               << std::endl;
                           }
                           Cost cost = child->getLocalSubtreeCost();
-                          if (debug) {
+                          if (_debug) {
                               std::cout << "globalPartitionSubtree: child (" << child->x() << "," <<
                               child->y() << "," << child->z() << "), with cost " << cost <<
                               " is local" << std::endl;
@@ -223,13 +223,13 @@ namespace madness {
                               *spaceleft -= cost;
                               tmpList.push_back(RootList(child, me, p));
                               child->setSendto(p);
-                              if (debug) {
+                              if (_debug) {
                                   std::cout << "globalPartitonSubtree: added child to list" << std::endl;
                               }
                               std::vector <RootList> remoteList;
                               remoteList = findRemoteChildren(child, p);
                               int rsize = remoteList.size();
-                              if (debug) {
+                              if (_debug) {
                                   std::cout << "globalPartitionSubtree: found " << rsize << "  new remote children"
                                   << std::endl;
                               }
@@ -237,7 +237,7 @@ namespace madness {
                                   tmpList.push_back(remoteList[i]);
                               }
                           } else {
-                              if (debug) {
+                              if (_debug) {
                                   std::cout << "globalPartitonSubtree: child cost too big for partition"
                                   << std::endl;
                               }
@@ -250,14 +250,14 @@ namespace madness {
                           }
                           tmpList.clear();
                       } else if (keepgoing) {
-                      if (debug) {
+                      if (_debug) {
                               std::cout << "globalPartitionSubtree: keep going with remote child " <<
                               "(" << child->x() << "," << child->y() << "," << child->z() << ")"
                               << std::endl;
                           }
                           archive::MPIOutputArchive arsend(comm, child->rank());
                           archive::MPIInputArchive arrecv(comm, child->rank());
-                          if (debug) {
+                          if (_debug) {
                               std::cout << "globalPartitionSubtree: about to send GLOB_PART_SUB_SIGNAL "
                               << GLOB_PART_SUB_SIGNAL << " to processor " << child->rank() <<
                               " concerning partition " << p << " and space left " << *spaceleft
@@ -265,7 +265,7 @@ namespace madness {
                           }
                           arsend & GLOB_PART_SUB_SIGNAL & RootList(child,child->rank(), p) & *spaceleft;
                           arrecv & success;
-                          if (debug) {
+                          if (_debug) {
                               std::cout << "globalPartitionSubtree:  about to add " << success <<
                               " new roots to list" << std::endl;
                           }
@@ -275,7 +275,7 @@ namespace madness {
                                   *spaceleft -= costofroot;
                                   tmproot.future_owner = p;
                                   localList.push_back(tmproot);
-                                  if (debug) {
+                                  if (_debug) {
                                       std::cout << "globalPartitionSubtree: added root " <<
                                       "(" << tmproot.x << "," << tmproot.y << "," << tmproot.z << ")"
                                       << " with cost " << costofroot << " to the localList" << std::endl;
@@ -303,7 +303,7 @@ namespace madness {
                                   }
                               }
                               if (already_there) {
-                                  if (debug) {
+                                  if (_debug) {
                                       std::cout << "globalPartitionSubtree: put remote subtree n = "
                                       << remoteList[i].n << ", (" << remoteList[i].x << "," <<
                                       remoteList[i].y << "," << remoteList[i].z << "), " <<
@@ -311,7 +311,7 @@ namespace madness {
                                       remoteList[i].future_owner << " on globalList" << std::endl;
                                   }
                               } else {
-                                  if (debug) {
+                                  if (_debug) {
                                       std::cout << "globalPartitionSubtree: put remote subtree n = "
                                       << remoteList[i].n << ", (" << remoteList[i].x << "," <<
                                       remoteList[i].y << "," << remoteList[i].z << "), " <<
@@ -492,13 +492,13 @@ namespace madness {
                 << "(cost = " << rootcost << "); try the children" << std::endl;
             }
             FOREACH_CHILD(OctTree<T>, root,
-                          if (debug) {
+                          if (_debug) {
                           std::cout << "partitionWorkerSub: at beginning of FOREACH_CHILD"
                           << std::endl;
                       }
                       partitionWorkerSub(child, localList, spaceleft, costList, remoteList, p);
                       if (*spaceleft == 0) {
-                          if (debug) {
+                          if (_debug) {
                                   std::cout << "partitionWorkerSub: no space left; we're outta here"
                                   << std::endl;
                               }
@@ -1292,7 +1292,7 @@ namespace madness {
 			        {
 				    (*treeList)[tmp]->setChild(i,j,k,t->childPtr(i,j,k)); 
 					// set the child ptr to this local node
-				    if (debug)
+				    if (_debug)
 				    {
 					std::cout << "glueTrees: set child ptr to local ptr (" << i << ","
 						<< j << "," << k << ")" << std::endl;
@@ -1300,7 +1300,7 @@ namespace madness {
 			        }
 				else
 				{
-				    if (debug)
+				    if (_debug)
 				    {
 					std::cout << "glueTrees: child (" << i << "," << j << "," << k << 
 						") does not exist or is not local" << std::endl;
@@ -1328,7 +1328,7 @@ namespace madness {
 			        {
 				    t->setChild(i,j,k,s->childPtr(i,j,k)); 
 					// set the child ptr to this local node
-				    if (debug)
+				    if (_debug)
 				    {
 					std::cout << "glueTrees: set child ptr to local ptr (" << i << ","
 						<< j << "," << k << ")" << std::endl;
@@ -1336,7 +1336,7 @@ namespace madness {
 			        }
 				else
 				{
-				    if (debug)
+				    if (_debug)
 				    {
 					std::cout << "glueTrees: child (" << i << "," << j << "," << k << 
 						") does not exist or is not local" << std::endl;

@@ -4,8 +4,10 @@
 /// \file mpitags.h
 /// \brief Constants defining internal MPI tags 
 
-/// Non-generated MADNESS tags are between 1024 and 2047.  Other tags
-/// may be automatically generated during for asynchronous communication.
+/// Non-generated MADNESS tags are between 1024 and 2047.  
+
+/// Other tags
+/// may be automatically generated for asynchronous communication.
 
 namespace madness {
     static const int BASE_TAG = 1024;
@@ -20,6 +22,11 @@ namespace madness {
     static const int TRUNCATE_TAG2 = BASE_TAG + 9;
     static const int INNER_TAG = BASE_TAG + 10;
     static const int SAVE_TAG = BASE_TAG + 11;
+    static const int TASK_GENERIC_DATA_TAG = BASE_TAG + 12;
+    static const int AM_LEFT_TAG = BASE_TAG + 13;
+    static const int AM_RIGHT_TAG = BASE_TAG + 14; // Must be LEFT_TAG+1
+    static const int MPIAR_TAG = BASE_TAG + 15;
+    static const int AM_BVALUE_TAG = BASE_TAG + 16;
 
 //    static const int _TAG = BASE_TAG + ;
     

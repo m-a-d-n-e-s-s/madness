@@ -251,6 +251,17 @@ fi
 AC_SUBST(DOT_PATH)
 AC_SUBST(HAVE_DOT)
 
+dnl --------- Check for astyle -------------
+
+AC_CHECK_PROG(ASTYLE,astyle,astyle)
+ASTYLEFLAGS="--style=kr -N"
+AC_ARG_WITH(astyle-flags,
+[  --with-astyle-flags         Flags for the pretty printer astyle.],
+ASTYLEFLAGS=$withval
+)
+AC_SUBST(ASTYLEFLAGS)
+
+
 dnl --------- Check for PDFLaTeX -----------
 
 AC_PATH_PROG(PDFLATEX,pdflatex,NO,$PATH:/usr/local/bin)

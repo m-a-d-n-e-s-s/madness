@@ -20,7 +20,7 @@
 
 using namespace madness;
 
-
+static const bool _debug = false;
 
 
 #define FORIJK(expr) \
@@ -997,18 +997,18 @@ namespace madness {
 	    FOREACH_LOCAL_CHILD(OctTreeT, this,
 		if (child->isVisited())
 		{
-		    if (debug)
-		    {
-			std::cout << "(" << child->x() << ", " << child->y() << ", "
-				<< child->z() << ") has already been visited." 
-				<< std::endl;
-		    }
+//		    if (_debug)
+//		    {
+//			std::cout << "(" << child->x() << ", " << child->y() << ", "
+//				<< child->z() << ") has already been visited." 
+//				<< std::endl;
+//		    }
 		}
 		else if (child->getSendto() == -1)
 		{
 		    subtreeCost = child->getLocalSubtreeCost();
 		    costLeft = partition - accumulate;
-		    if (debug)
+		    if (_debug)
 		    {
 			std::cout << "partitionSubtree: getLocalSubtreeCost = "
 			    << subtreeCost << ", costLeft = " << costLeft
@@ -1016,7 +1016,7 @@ namespace madness {
 		    }
 		    if ((costLeft <= 0 ) && (!lastPartition))
 		    {
-			if (debug)
+			if (_debug)
 			    std::cout << "partition is full" << std::endl;
 			return treelist;
 		    }
@@ -1024,20 +1024,20 @@ namespace madness {
 		    {
 			child->setVisited(partitionNumber);
 			child->setSendto(partitionNumber);
-			if (debug)
+			if (_debug)
 			{
 			    std::cout << "set remote to true on child, " <<
 				"child->_remote = " << child->_remote << std::endl;
 			}
 	    		treelist.push_back(RootList(child->x(), child->y(), child->z(), 
 				child->n(), 0, child->getSendto()));
-			if (debug)
+			if (_debug)
 			{
 			    std::cout << "localCost(before recompute): " <<
 				this->getLocalSubtreeCost() << std::endl;
 			}
 			this->computeCost();
-			if (debug)
+			if (_debug)
 			{
 			    std::cout << "localCost(after recompute): " <<
 				this->getLocalSubtreeCost() << std::endl;
@@ -1047,14 +1047,14 @@ namespace madness {
 		    }
 		    else if (costLeft > 0)
 		    {
-			if (debug)
+			if (_debug)
 			{
 			    std::cout << "partitionSubtree: about to call myself"
 				<< " because costLeft = " << costLeft << std::endl;
 			}
 			treelist2 = child->partitionSubtree(costLeft, &temp, 
 				partitionNumber, lastPartition);
-			if (debug)
+			if (_debug)
 			{
 			     std::cout << "partitionSubtree: back from calling myself"
 				<< " and accumulated subtree(s) of size " << temp << std::endl;
@@ -1218,23 +1218,23 @@ namespace madness {
 	    SharedPtr<OctTreeT> c;
 
 	    FORIJK(
-		if (debug)
-		{
-		    std::cout << "insert_local_children: about to insert child" << 
-			" (" << i << "," << j << "," << k << ")" << std::endl;
-		}
+//		if (_debug)
+//		{
+//		    std::cout << "insert_local_children: about to insert child" << 
+//			" (" << i << "," << j << "," << k << ")" << std::endl;
+//		}
 		c = insert_local_child(i,j,k);
-		if (debug)
-		{
-		    std::cout << "insert_local_children: inserted child" << 
-			" (" << i << "," << j << "," << k << ")" << std::endl;
-		}
+//		if (_debug)
+//		{
+//		    std::cout << "insert_local_children: inserted child" << 
+//			" (" << i << "," << j << "," << k << ")" << std::endl;
+//		}
 		c->insert_local_children(nmax);
-		if (debug)
-		{
-		    std::cout << "insert_local_children: back from recursive call" << 
-			std::endl;
-		}
+//		if (_debug)
+//		{
+//		    std::cout << "insert_local_children: back from recursive call" << 
+//			std::endl;
+//		}
 	    );
 	};
 

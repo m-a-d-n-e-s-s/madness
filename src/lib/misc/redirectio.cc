@@ -22,6 +22,7 @@ namespace madness {
             //std::cerr.rdbuf(fout.rdbuf());
             
             freopen(filename, "w", stdout);
+            freopen(filename, "w", stderr);
         }
     }
 }

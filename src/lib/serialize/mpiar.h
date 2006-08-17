@@ -13,7 +13,7 @@ class MPIRawOutputArchive : public BaseOutputArchive {
     ProcessID dest;
     int tag;
 public:
-    MPIRawOutputArchive(Communicator& comm, const ProcessID& dest, int tag=5447468)
+    MPIRawOutputArchive(Communicator& comm, const ProcessID& dest, int tag=MPIAR_TAG)
             : comm(comm), dest(dest), tag(tag) {};
 
     template <class T>
@@ -29,7 +29,7 @@ class MPIRawInputArchive : public BaseInputArchive {
     ProcessID src;
     int tag;
 public:
-    MPIRawInputArchive(Communicator& comm, const ProcessID& src, int tag=5447468)
+    MPIRawInputArchive(Communicator& comm, const ProcessID& src, int tag=MPIAR_TAG)
             : comm(comm), src(src), tag(tag) {};
 
     template <class T>
@@ -49,7 +49,7 @@ class MPIOutputArchive : public BaseOutputArchive {
     mutable std::vector<unsigned char> v;
     madness::archive::VectorOutputArchive var;
 public:
-    MPIOutputArchive(Communicator& comm, const ProcessID& dest, int tag=5447468)
+    MPIOutputArchive(Communicator& comm, const ProcessID& dest, int tag=MPIAR_TAG)
             : comm(comm), dest(dest), tag(tag), bufsize(1024*1024), v(), var(v)
     {v.reserve(2*bufsize);};
 
@@ -83,7 +83,7 @@ class MPIInputArchive : public BaseInputArchive {
     mutable std::vector<unsigned char> v;
     madness::archive::VectorInputArchive var;
 public:
-    MPIInputArchive(Communicator& comm, const ProcessID& src, int tag=5447468)
+    MPIInputArchive(Communicator& comm, const ProcessID& src, int tag=MPIAR_TAG)
             : comm(comm), src(src), tag(tag), v(), var(v) {};
 
     template <class T>

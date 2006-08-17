@@ -93,6 +93,8 @@ LN_S = @LN_S@
 LISTLIBS= $(PERL) $(SRCTOPDIR)/bin/listlibs.pl -DLIBSUF=$(LIBSUF)
 F77_SYMBOL = @F77_SYMBOL@
 MKF77SYM= $(PERL) $(SRCTOPDIR)/bin/mkf77sym.pl
+ASTYLE = @ASTYLE@
+ASTYLEFLAGS = @ASTYLEFLAGS@
 
 # first check for generated include files in the machine dependent directories
 # and then for include files in the src directory

@@ -59,7 +59,9 @@ namespace madness {
         int x9 = (x&511)<<18;
         int y9 = (y&511)<<9;
         int z9 = (z&511);
-        return n4|x9|y9|z9;
+        int tag = n4|x9|y9|z9;
+        if (tag < 2048) tag += 2048; // To avoid collision with registered tags
+        return tag; 
     };
 
     /// Called by consumer to make a variable that will be set by producer
@@ -88,7 +90,7 @@ namespace madness {
             if (isactive(tree())) {
                 ArgT dummy;
                 _compress2(tree(),dummy);
-                globalq.wait();
+                taskq.local_fence();
             }
             data->compressed = true;
         }
@@ -104,7 +106,7 @@ namespace madness {
 
         if (tree->islocal()) {
             //print(comm()->rank(),"adding task",tree->n(),tree->x(),tree->y(),tree->z());
-            globalq.add(new TaskCompress<T>(this,tree,args,parent));
+            taskq.add_local(new TaskCompress<T>(this,tree,args,parent));
         }
     };
 

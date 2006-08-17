@@ -277,6 +277,10 @@ endif
 %.ii: %.cc
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -E $< -o $@
 
+.PHONY:	astyle
+astyle:
+	-$(ASTYLE) $(ASTYLEFLAGS) *.cc *.h
+
 values::
 	@echo TOPDIR=$(TOPDIR)
 	@echo SRCDIR=$(SRCDIR)

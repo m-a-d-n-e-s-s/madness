@@ -13,6 +13,8 @@
 #include <typestuff.h>
 #include <misc/print.h>
 #include <misc/mpitags.h>
+#include <misc/madexcept.h>
+#include <unistd.h>
 
 #undef SEEK_SET
 #undef SEEK_CUR
@@ -20,32 +22,61 @@
 #include <mpi.h>
 
 namespace madness {
+    
+    // The brain dead std::mem_fun won't take a function with reference arguments,
+    // hence this crappy little binder
+    template <class T, typename argT, typename resultT> 
+    class BindMemFun {
+    private:
+        T* t;
+        resultT (T::*op)(argT);
+    public:
+        BindMemFun(T* t, resultT (T::*op)(argT)) : t(t), op(op) {};
+        resultT operator()(argT arg) {return (t->*op)(arg);};
+    };
+    
+    // Partial specialization of crappy binder for void return
+    template <class T, typename argT> 
+    class BindMemFun<T,argT,void> {
+    private:
+        T* t;
+        void (T::*op)(argT);
+    public:
+        BindMemFun(T* t, void (T::*op)(argT)) : t(t), op(op) {};
+        void operator()(argT arg) {(t->*op)(arg);};
+    };
+    
+    // Corresponding crappy factory function for above crappy binder
+    template <class T, typename argT, typename resultT>
+    inline BindMemFun<T,argT,resultT> bind_mem_fun(T* t, resultT (T::*op)(argT)) {
+        return BindMemFun<T,argT,resultT>(t,op);
+    };
+    
+    static inline void noop(){};
+    
     class Communicator;
 
     extern Communicator* comm_default;
 
-    void xterm_debug(const Communicator& comm, const char* path, const char* display);
+    void xterm_debug(const Communicator& comm, const char* path=0, const char* display=0);
 
     /// Holds arguments sent via active messages ... deliberately small.
     class AMArg {
     private:
+        typedef unsigned long ulong;
+        static const ulong bad=0xffffffff;
         friend class Communicator;
-        long function;
-        AMArg() : function(-1) {};
+        mutable ulong function;   ///< Handle to AM function
+        
     public:
-        long arg0, arg1, arg2, arg3;
-
-        AMArg(long function)
-                : function(function) {};
-        AMArg(long function, long arg0)
-                : function(function), arg0(arg0) {};
-        AMArg(long function, long arg0, long arg1)
-                : function(function), arg0(arg0), arg1(arg1) {};
-        AMArg(long function, long arg0, long arg1, long arg2)
-                : function(function), arg0(arg0), arg1(arg1), arg2(arg2) {};
-        AMArg(long function, long arg0, long arg1, long arg2, long arg3)
-                : function(function), arg0(arg0), arg1(arg1), arg2(arg2),
-        arg3(arg3) {};
+        ulong arg0, arg1, arg2, arg3, arg4;
+        
+        AMArg() : function(bad) {};
+        AMArg(ulong arg0) : function(bad), arg0(arg0) {};
+        AMArg(ulong arg0, ulong arg1) : function(bad), arg0(arg0), arg1(arg1) {};
+        AMArg(ulong arg0, ulong arg1, ulong arg2) : function(bad), arg0(arg0), arg1(arg1), arg2(arg2) {};
+        AMArg(ulong arg0, ulong arg1, ulong arg2, ulong arg3) : function(bad), arg0(arg0), arg1(arg1), arg2(arg2), arg3(arg3) {};
+        AMArg(ulong arg0, ulong arg1, ulong arg2, ulong arg3, ulong arg4) : function(bad), arg0(arg0), arg1(arg1), arg2(arg2), arg3(arg3), arg4(arg4) {};
     };
 
     template <typename T> MPI::Datatype MPITypeFromType();
@@ -56,10 +87,80 @@ namespace madness {
     template<> static inline MPI::Datatype MPITypeFromType<double>() {return MPI::DOUBLE;};
     template<> static inline MPI::Datatype MPITypeFromType< std::complex<double> >() {return MPI_COMPLEX;};
 
-    void am_barrier_handler(Communicator& comm, ProcessID proc, const AMArg& arg);
-    long am_barrier_nchild_registered();
-    void am_barrier_zero_nchild_registered();
+    typedef void (*am_handlerT)(Communicator&, ProcessID, const AMArg&);
+    void am_ndiff_handler(Communicator& comm, ProcessID proc, const AMArg& arg);
+    
+    
+    /// Manages mapping between general stuff (usually pointers) and handles
+    
+    /// Hash table with linear probling.  Lightweight structure intended for 
+    /// infrequent writes and fast reads of a small amount of data.
+    template <typename ptrT>
+    class HandleManager {
+    private:
+        typedef std::pair<long,ptrT> pairT;
+        const int size; //  must be a power of 2
+        const unsigned long mask ;
+        std::vector<pairT> v;  ///< For quick hashing of pointer to handle
+        std::vector<ptrT> h;   ///< Map from handle to pointer
 
+        
+        inline int hash_ptr(ptrT p) const {
+            // Returns lowest masked bits of 8-byte aligned pointer
+            unsigned long i = (unsigned long) p;
+            return (int) ((i>>3) & mask);            
+        };
+        
+    public:
+        HandleManager() : size(32768), mask(size-1), v(size), h() {
+            h.reserve(size);
+            for (int i=0; i<size; i++) v[i] = pairT(-1,0);  // -1 handle indicates empty
+        };
+        
+        /// Registers the pointer and returns the handle
+        long insert(ptrT pointer) {
+            long handle = h.size();
+            MADNESS_ASSERT(handle < (size/8));  // In part efficiency, also awareness
+            h.push_back(pointer);
+            int i = hash_ptr(pointer);
+            while(v[i].first != -1) i = (i+1)&mask;
+            v[i]= pairT(handle,pointer);
+            return handle;        
+        };
+        
+        /// Map handle to pointer, throws MadnessException on failure
+        ptrT get_pointer(long handle) const {
+            if (handle<0 || handle>=(int) h.size() || h[handle]<0)
+                MADNESS_EXCEPTION("HandleManager: invalid handle",handle);
+            return h[handle];
+        };
+        
+        /// Map pointer to handle, throws MadnessException on failure
+        long get_handle(ptrT pointer) const {
+            int i = hash_ptr(pointer);
+            while(v[i].second != pointer) {
+                if (v[i].first < 0) 
+                    MADNESS_EXCEPTION("HandleManager: pointer is not registered",0);
+                i = (i+1)&mask;
+            }
+            return v[i].first;
+        };
+        
+        void dump() const {
+            madness::print("Registered Handlers");
+            for (long i=0; i<(long) h.size(); i++) {
+                madness::print("    ", i,
+                               "--->", (void *) get_pointer(i),
+                               "--->", get_handle(get_pointer(i)));
+            }
+        };
+    };
+        
+    // Forward decl
+    class TaskQueue;
+    void task_add_am(am_handlerT op, ProcessID src, const AMArg& arg);
+    
+    
     /// Wraps an MPI communicator and provides topology, AM routines, etc.
 
     /// This class wraps an MPI communicator and provides info about
@@ -99,6 +200,8 @@ namespace madness {
     ///    int reply = arg.arg0+1;
     ///    comm.send(reply,from);
     /// }
+    /// 
+    /// !!! THIS IS NOW OUT OF DATE !!!!
     ///
     /// int test(Communicator& comm, int handle, ProcessID p) {
     ///    int reply;
@@ -119,7 +222,7 @@ namespace madness {
     /// sometimes, but it is not sufficient, and the problem is
     /// deeper.
     ///
-    /// While in a block of code that requres AM requests continue to
+    /// While in a block of code that requires AM requests continue to
     /// be processed, a process must \em not block on any operation
     /// that depends upon another process for completion.  Otherwise,
     /// there is no easy guarantee that deadlock cannot occur.  To be
@@ -136,7 +239,6 @@ namespace madness {
     ///    int reply;
     ///    MPI::Request req = comm.irecv(reply,p);
     ///    comm.am_send(AMArg(handle,0),p);
-    ///    comm.recv(reply,p);
     ///    comm.am_wait(req);
     ///    return reply;
     /// }
@@ -151,6 +253,7 @@ namespace madness {
     /// }
     /// \endcode
     class Communicator {
+        friend class TaskQueue;
     private:
         long _nproc;                ///< total no. of processes
         long _npx, _npy, _npz;      ///< #processes in each dimension
@@ -167,12 +270,16 @@ namespace madness {
         mutable MPI::Intracomm& _comm;
 
         AMArg _am_arg;              // Used for async recv of AM
-        MPI::Request _am_req;
+        AMArg _am_send_arg;         // Used for async send of AM
+        MPI::Request _am_req;       // Request for async recv in server
+        MPI::Request _am_send_req;  // Request for async send to remote server
         static const int _am_tag = AM_TAG;
-        int _am_barrier_handle;
-        std::vector<void (*)(Communicator&, ProcessID, const AMArg&)> _am_handlers;
-
-
+        HandleManager<am_handlerT> _am_handle_manager;
+        long _am_processing;    ///< If non-zero then am_messages are blocked
+        volatile long _am_nsent;         ///< No. of AM messages sent
+        volatile long _am_nrecv;         ///< No. of AM messages received
+        bool _am_send_active;   ///< True if _am_arg is still in use by _am_send_req
+        
         /// Given p=2^n processes make as close as possible to a cubic grid.
 
         /// Each dimension will be a power of 2 with npx >= npy >= npz
@@ -183,9 +290,11 @@ namespace madness {
             _rank = MPI::COMM_WORLD.Get_rank();
             debug = false;
 
-            // Register am_barrier then post AM receive buffer
-            _am_barrier_handle = am_register(am_barrier_handler);
+            // Register am_ndiff then post AM receive buffer
+            _am_processing = _am_nsent = _am_nrecv = 0;
+            am_register(am_ndiff_handler);
             _am_req = Irecv(_am_arg, MPI::ANY_SOURCE, _am_tag);
+            _am_send_active = false;
 
             _npz = 1;
             _mz = 0;
@@ -218,13 +327,35 @@ namespace madness {
                     rank_from_coords(_px,_py,_pz)!=_rank)
                 throw "p3_coords failed";
         };
+        
+        // packing is such that zero bits above function handle give immediate AM
+        // call without broadcast
+        inline long pack_handle(long handle, ProcessID root, bool immediate) const {
+            handle &= 1023L; // To get rid of any junk after 10 bits
+            if (!immediate) handle |= 1024L; // 11th bit
+            return handle | ((root+1) << 11); // remainder is root+1 in broadcast, root=-1 means not broadcast
+        };
+        
+        inline long unpack_function(long handle) const {
+            return handle & 1023L;
+        };
+        
+        inline ProcessID unpack_root(long handle) const {
+            return (handle >> 11) - 1;
+        };
+        
+        inline bool unpack_immediate(long handle) const {
+            return (handle&1024) == 0;
+        };
+        
 
-    void usleep(int i) {};
+        //void usleep(int i) {};
         inline void backoff(unsigned long& count) {
             count++;
-            if (count < 100) return;
-            else if (count < 10000) usleep(1000);  // 10s at 1ms intervals
-            else if (count < 20000) usleep(10000); // 100s at 10ms intervals
+            if (count < 3) return;
+            else if (count < 1000) usleep(1000);  // 1s at 1ms intervals
+            else if (count < 2000) usleep(10000); // 10s at 10ms intervals
+            else if (count < 3000) usleep(100000); // 100s at 100ms intervals
             else throw "Deadlocked inside backoff"; // FOR DEBUGGING AM ...
         };
 
@@ -291,6 +422,10 @@ namespace madness {
             << " coords=(" << _px << "," << _py << "," << _pz << ")" << std::endl;
             std::cout.flush();
         };
+        
+        void print_handlers() const {
+            _am_handle_manager.dump();
+        };
 
         /// Same as MPI::Intracomm::Send
         inline void Send(const void* buf, int count, const MPI::Datatype& datatype,
@@ -299,6 +434,13 @@ namespace madness {
 //            _comm.Send(buf,count,datatype,dest,tag);
             MPI::COMM_WORLD.Send(buf,count,datatype,dest,tag);
             if (debug) madness::print("Comm: sent");
+        };
+
+        /// Same as MPI::Intracomm::Isend
+        inline MPI::Request Isend(const void* buf, int count, const MPI::Datatype& datatype,
+                         ProcessID dest, int tag) const {
+            if (debug) madness::print("Comm: Isending",count,"bytes to",dest,"with tag",tag);
+            return _comm.Isend(buf,count,datatype,dest,tag);
         };
 
 
@@ -460,15 +602,22 @@ namespace madness {
 //            _comm.Abort(code);
             MPI::COMM_WORLD.Abort(code);
         };
+        
+        /// Group synchronization
+        void Barrier() {
+            if (debug) madness::print(rank(),"Comm: entering barrier");
+            _comm.Barrier();
+            if (debug) madness::print(rank(),"Comm: leaving barrier");
+        };
 
 
         /// Global sum of a scalar via MPI::Allreduce
         template <typename T>
         T global_sum(const T t) {
             T result;
-            if (debug) madness::print("Comm: global sum of scalar");
+            if (debug) madness::print(rank(),"Comm: global sum of scalar");
             _comm.Allreduce(&t, &result, 1, MPITypeFromType<T>(), MPI::SUM);
-            if (debug) madness::print("Comm: global sum done");
+            if (debug) madness::print(rank(),"Comm: global sum done");
             return result;
         };
         
@@ -484,43 +633,108 @@ namespace madness {
             if (debug) madness::print("Comm: global sum done");
         };
 
-        /// Register an "active" message handler
+        /// Register an "active message" handler
         int am_register(void (*handler)(Communicator&, ProcessID, const AMArg&)) {
-            _am_handlers.push_back(handler);
-            if (debug) madness::print("Comm:  registering handler", (void *) handler,"as",_am_handlers.size()-1);
-            return _am_handlers.size()-1;
+            long handle = _am_handle_manager.insert(handler); 
+            if (debug) madness::print("Comm:  registering handler", (void *) handler,"as",handle);
+            return handle;
         };
 
+        /// Suspend processing of active messages for critical sections
+        inline void am_suspend() {
+            // So that calls to suspend/resume nest correctly increment 
+            // a counter rather than toggle true/false.  
+            // Inside am_poll, if (_am_processing) then don't do anything.
+            _am_processing++;
+        };
+        
+        /// Resume processing of active messages 
+        inline void am_resume() {_am_processing--;}; 
 
-        /// Poll for and execute "active" message sent to this process
+        /// Poll for and execute "active message" sent to this process
         inline void am_poll() {
+            if (_am_processing) return;  // To short circuit recursive calls
             MPI::Status status;
             while (_am_req.Test(status)) {
+                am_suspend();
+                _am_nrecv++;
+                // To make this routine reentrant: copy the amarg, repost the irecv
+                // before calling the handler and remove am_suspend/resume.
                 ProcessID src = status.Get_source();
-                if (_am_arg.function<0 || _am_arg.function>=(long)_am_handlers.size())
-                    throw "AM_POLL: invalid function index received";
-                (*_am_handlers[_am_arg.function])(*this, src, _am_arg);
+                long handle = unpack_function(_am_arg.function); 
+                ProcessID root = unpack_root(_am_arg.function);
+                bool immediate = unpack_immediate(_am_arg.function);
+                am_handlerT op = _am_handle_manager.get_pointer(handle);
+                if (root >= 0) {
+                    if (debug) madness::print(rank(),"am_poll handling broadcast of function",handle,src,root,immediate);
+                    am_broadcast(handle, _am_arg, immediate, root);
+                    src = root;
+                }
+                if (debug) madness::print(rank(),"am_poll calling function",handle);
+                
+                if (immediate) op(*this, src, _am_arg);
+                else task_add_am(op, src, _am_arg);
+                
                 _am_req = Irecv(_am_arg, MPI::ANY_SOURCE, _am_tag);
+                am_resume();
             }
         };
 
 
-        /// Send an active message to someone
-        inline void am_send(const AMArg& arg, ProcessID dest) {
-            //std::cout << rank() << " am_send for function " << arg.function << " to " << dest << std::endl;
-            _comm.Send(&arg, sizeof(arg), MPI::BYTE, dest, _am_tag);
+       private:
+        /// Send an "active message" to process dest using a handle to specify handler
+        
+        /// If immediate is true, handler is invoked immediately upon receipt (usual AM behaviour).  Otherwise,
+        /// it is inserted as a task in the task q of node dest.
+        /// Root is the root node of a broadcast tree, or -1 if it is not a broadcast.
+        inline void am_send(ProcessID dest, long handle, const AMArg& arg, bool immediate, ProcessID root) {
+            if (debug) std::cout << rank() << " am_send for function " << handle << " to " << dest << std::endl;
+            if (_am_send_active) am_wait(_am_send_req);
+            // Since we are now using a non-blocking send we must take a copy of arg
+            _am_send_arg = arg;
+            _am_send_arg.function = pack_handle(handle,root,immediate);
+            _am_send_req = _comm.Isend(&_am_send_arg, sizeof(_am_send_arg), MPI::BYTE, dest, _am_tag);
+            _am_send_active = true;
+            _am_nsent++;
         };
-
-
-        /// Send an active message to p and wait for a reply from q
-        inline void am_send_recv(const AMArg& arg, ProcessID p,
+        
+        /// Send an "active message" to all other nodes. 
+        void am_broadcast(long handle, const AMArg& arg, bool immediate, ProcessID root) {
+            ProcessID me=(rank()+nproc()-root)%nproc();
+            ProcessID child0=(me<<1)+1+root, child1=(me<<1)+2+root;
+            if (child0 >= nproc() && child0<(nproc()+root)) child0 -= nproc();
+            if (child1 >= nproc() && child1<(nproc()+root)) child1 -= nproc();
+            //madness::print(rank(),"amb",root,me,child0,child1,nproc());
+            // Store the root of the tree into the top 20 bits of the function handle
+            handle = pack_handle(handle,root,immediate);
+            if (child0<nproc()) am_send(child0,handle,arg,immediate,root);
+            if (child1<nproc()) am_send(child1,handle,arg,immediate,root);
+        };
+                    
+        
+        
+        public:
+        
+        /// Send an "active message" to process dest using function pointer to specify handler
+        inline void am_send(ProcessID dest, am_handlerT handler, const AMArg& arg) {
+            am_send(dest, _am_handle_manager.get_handle(handler), arg, true, -1);
+        };
+        
+ 
+        /// Send an "active message" to p and wait for a reply from q
+        inline void am_send_recv(ProcessID p, am_handlerT handler, const AMArg& arg, 
                                  void* buf, long count, ProcessID q, int tag) {
             MPI::Request req = Irecv(buf, count, MPI::BYTE, q, tag);
-            am_send(arg,p);
-            am_wait(req);
+            am_send(p,handler,arg);
+            am_wait(req); 
         };
 
-
+        
+        /// Send an "active message" to all other nodes.
+        void am_broadcast(am_handlerT handler, const AMArg& arg) {
+            am_broadcast(_am_handle_manager.get_handle(handler),arg,true,rank());
+        };
+        
         /// Use this to wait for an MPI request to complete while processing AMs
         inline void am_wait(MPI::Request& req) {
             unsigned long count = 0;
@@ -528,41 +742,105 @@ namespace madness {
                 backoff(count);
                 am_poll();
             }
-        }
+        };
 
-
-        /// Use this barrier to keep processing AM messages while blocking
-
-        /// Currently busy waits but better might be waiting inside MPI_Probe
-        void am_barrier() {
-            // In binary tree, determine parent & children
-            ProcessID me=rank(),parent=(me-1)>>1,child0=(me<<1)+1,child1=(me<<1)+2,nchild=0;
-            if (child0 < nproc()) nchild++;
-            if (child1 < nproc()) nchild++;
-
-            // Wait for children to check in
+            
+        /// AM-safe broadcast in SPMD mode of value from node zero to all other nodes
+        
+        /// This routine is also called by the Task class which must keep
+        /// processing tasks as well as AM hence need wait() as an argument.
+        template <typename T, typename waitT>
+        void am_broadcast_value_spmd_doit(T& value, waitT wait) {
+            // In binary tree with 0 as root, determine parent & children
+            ProcessID me=rank(),parent=(me-1)>>1,child0=(me<<1)+1,child1=(me<<1)+2;
+            if (me > 0) {
+                MPI::Request req = Irecv(&value, sizeof(value), MPI::BYTE, parent, AM_BVALUE_TAG);
+                wait(req);
+            }
+            MPI::Request req0, req1;
+            if (child0<nproc()) req0 = Isend(&value,sizeof(value),MPI::BYTE, child0, AM_BVALUE_TAG);
+            if (child1<nproc()) req1 = Isend(&value,sizeof(value),MPI::BYTE, child1, AM_BVALUE_TAG);
+            if (child0<nproc()) wait(req0);
+            if (child1<nproc()) wait(req1);
+        };
+        
+        template <typename T>
+        inline void am_broadcast_value_spmd(T& value) {
+            am_broadcast_value_spmd_doit(value, bind_mem_fun(this,&Communicator::am_wait));
+        };
+        
+        /// Computes on node 0 the global sum of #AM sent - #AM recvieved
+        
+        /// If do_am_send is true, active messages are sent to invoke this on
+        /// other nodes.  Otherwise, we are in SPMD mode and all processes will
+        /// eventually invoke this routine.
+        ///
+        /// This routine is also called by the Task class which must keep
+        /// processing tasks as well as AM hence need wait()/fence() as an argument.
+        template <typename waitT, typename fenceT>
+        long am_ndiff_single_threaded(bool do_am_send, waitT wait, fenceT fence) {
+            // In binary tree with 0 as root, determine parent & children
+            ProcessID me=rank(),parent=(me-1)>>1,child0=(me<<1)+1,child1=(me<<1)+2;
+            AMArg arg;
+            long tmp0=0, tmp1=0;
+            MPI::Request req0, req1;
+            if (child0<nproc()) {
+                req0 = Irecv(&tmp0, sizeof(tmp0), MPI::BYTE, child0, AM_RIGHT_TAG);
+                if (do_am_send) am_send(child0,am_ndiff_handler,arg);
+            }
+            if (child1<nproc()) {
+                req1 = Irecv(&tmp1, sizeof(tmp1), MPI::BYTE, child1, AM_LEFT_TAG);
+                if (do_am_send) am_send(child1,am_ndiff_handler,arg);
+            }
+            if (child0<nproc()) wait(req0);
+            if (child1<nproc()) wait(req1);
+            
+            fence();
+            long sum = tmp0 + tmp1 + _am_nsent - _am_nrecv;
+            if (me > 0) {
+                MPI::Request req = Isend(&sum, sizeof(sum), MPI::BYTE, parent, AM_LEFT_TAG+(me&1)); // Note ugly assumption
+                wait(req);
+            }
+            //madness::print("tmp",tmp0,tmp1,"sent/recv",_am_nsent,_am_nrecv,"sum",sum,"processing",_am_processing);                
+            return sum; 
+        };
+        
+        /// Computes on all nodes in SPMD mode the global sum of #AM sent - #AM recvieved
+        
+        /// This routine is also called by the Task class which must keep
+        /// processing tasks as well as AM hence need wait() as an argument.
+        template <typename waitT, typename fenceT>
+        long am_ndiff_spmd(waitT wait, fenceT fence) {
+            //madness::print("ENTERING ANST");
+            //std::cout.flush();
+            long sum = am_ndiff_single_threaded(false,wait,fence);
+            //madness::print("ENTERING BCAST");
+            //std::cout.flush();
+            am_broadcast_value_spmd_doit(sum,wait);
+            //madness::print("LEAVING BCAST");
+            //std::cout.flush();
+            return sum;
+        };
+        
+        /// In SPMD mode, all nodes wait until global sum (#AM sent - #AM recveived) = 0
+        void am_global_fence_spmd() {
             unsigned long count = 0;
-            while (am_barrier_nchild_registered() < nchild) {
+            while (am_ndiff_spmd(bind_mem_fun(this,&Communicator::am_wait),noop)) {
                 backoff(count);
                 am_poll();
             }
-            am_barrier_zero_nchild_registered();
+        };    
 
-            if (me != 0) {
-                // Notify parent and wait for its reply
-                am_send(AMArg(_am_barrier_handle),parent);
-                count = 0;
-                while (am_barrier_nchild_registered() < 1) {
-                    backoff(count);
-                    am_poll();
-                }
-                am_barrier_zero_nchild_registered();
+        /// In single-threaded mode, node 0 waits until global sum (#AM sent - #AM recveived) = 0
+        void am_global_fence_single_thread() {
+            MADNESS_ASSERT(rank() == 0);
+            unsigned long count = 0;
+            while (am_ndiff_single_threaded(true, bind_mem_fun(this,&Communicator::am_wait),noop)) {
+                backoff(count);
+                am_poll();
             }
-
-            // Notify children
-            if (child0<nproc()) am_send(AMArg(_am_barrier_handle),child0);
-            if (child1<nproc()) am_send(AMArg(_am_barrier_handle),child1);
-        };
+        };    
+        
 
         void close() {
             _am_req.Cancel();
