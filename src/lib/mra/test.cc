@@ -27,6 +27,30 @@ double fred(double x, double y, double z) {
     return fac*exp(-65.0*(x*x+y*y+z*z));
 }
 
+double dfred_dx(double x, double y, double z) {
+    double fac = pow(2.0*65.0/PI,0.75);
+    x-=0.5;
+    y-=0.5;
+    z-=0.5;
+    return fac*exp(-65.0*(x*x+y*y+z*z))*-65.0*2.0*x;
+}
+
+double dfred_dy(double x, double y, double z) {
+    double fac = pow(2.0*65.0/PI,0.75);
+    x-=0.5;
+    y-=0.5;
+    z-=0.5;
+    return fac*exp(-65.0*(x*x+y*y+z*z))*-65.0*2.0*y;
+}
+
+double dfred_dz(double x, double y, double z) {
+    double fac = pow(2.0*65.0/PI,0.75);
+    x-=0.5;
+    y-=0.5;
+    z-=0.5;
+    return fac*exp(-65.0*(x*x+y*y+z*z))*-65.0*2.0*z;
+}
+
 double mary(double x, double y, double z) {
     double fac = pow(2.0*65.0/PI,0.75);
     x-=0.4;
@@ -49,6 +73,16 @@ int main(int argc, char* argv[]) {
         FunctionDefaults::k=6;
         FunctionDefaults::initial_level=2;
         Function<double> f = FunctionFactory<double>(fred).thresh(1e-7).nocompress();
+        
+        Function<double> df;
+        
+        df = f.diff(1);
+        print("diff y",df(0.45,0.53,0.48),dfred_dy(0.45,0.53,0.48));
+        df = f.diff(0);
+        print("diff x",df(0.45,0.53,0.48),dfred_dx(0.45,0.53,0.48));
+        df = f.diff(2);
+        print("diff z",df(0.45,0.53,0.48),dfred_dz(0.45,0.53,0.48));
+        
         print("valuesX",fred(0.45,0.53,0.48),f(0.45,0.53,0.48));
         print("Tree in scaling function basis");
         //f.pnorms();

@@ -100,6 +100,7 @@ namespace madness {
     private:
         std::vector<BaseTensor *> v; ///< Pointers to base tensor, NULL if not set
         std::vector<bool> a;    ///< Flags for active
+        std::vector<bool> acflag; ///< Flags for autocleaning temporary values from tree
 
         /// Private. Copy constructor not supported
 //        FunctionNode(const FunctionNode& f);
@@ -109,12 +110,13 @@ namespace madness {
 
     public:
         /// Constructor initializes all data pointers to NULL
-        FunctionNode() : v(size), a(size) {
+        FunctionNode() : v(size), a(size), acflag(size) {
             // The explicit initialization may not be necessary, but
             // better safe than sorry.
             for (int i = 0; i < size; i++) {
                 v[i] = 0;
                 a[i] = false;
+                acflag[i] = false;
             };
         };
 
@@ -141,6 +143,7 @@ namespace madness {
             int n = fn.v.size();
             v.clear();
             a.clear();
+            // RJH ... THIS SEEMS WRONG.  IS IT ACTUALLY BEING USED?????
             for (i = 0; i < n; i++) {
                 BaseTensor* t = fn.v[i];
                 if (t->id == TensorTypeData<double>::id) {
@@ -230,6 +233,15 @@ namespace madness {
         inline void set_inactive(int ind) {
             a[ind] = false;
         };
+        
+        /// Set auto clean flag to value
+        inline void set_acflag(int ind, bool value) {
+            acflag[ind] = value;
+        };
+        
+        inline bool get_acflag(int ind) const {
+            return acflag[ind];
+        }; 
 
         /// Destructor frees all data
         ~FunctionNode() {
@@ -242,7 +254,7 @@ namespace madness {
         }
     };
 
-    /// A FunctionOctTree marries an OctTree<FunctionNode> with an index manager
+    /// A FunctionOctTree marries an OctTree<FunctionNode> with an index 
 
     /// The constructor takes ownership of the provided pointer to an already
     /// constructed OctTree<FunctionNode>.  I.e., don't delete the OctTree.
@@ -261,6 +273,8 @@ namespace madness {
         /// Cleans up data of function being freed
         void free_data(OctTreeT* tree, int ind) {
             tree->data().unset(ind);
+            tree->data().set_inactive(ind);
+            tree->data().set_acflag(ind,false);
             FOREACH_CHILD(OctTreeT, tree, free_data(child, ind););
         };
 
@@ -360,7 +374,7 @@ namespace madness {
         double cell_width[3];   ///< Size of simulation cell in each dimension
         double cell_volume;     ///< Volume of simulation cell
 
-        Slice s[2];        ///< s[0]=Slice(0,k-1), s[1]=Slice(k,2*k-1)
+        Slice s[4];              ///< s[0]=Slice(0,k-1), s[1]=Slice(k,2*k-1), etc.
         std::vector<Slice> s0;  ///< s[0] in each dimension to get scaling coeffs
         std::vector<long> vk;   ///< (k,k,k) used to initialize Tensors
         std::vector<long> v2k;  ///< *2k,2k,2k) used to initialize Tensors
@@ -369,7 +383,7 @@ namespace madness {
         Tensor<T> work1;        ///< work space of size (k,k,k)
         Tensor<T> work2;        ///< work space of size (2k,2k,2k)
         Tensor<T> workq;        ///< work space of size (npt,npt,npt)
-        TensorT zero_tensor;    ///< Zero (k,k,k) tensor for internal convenience of diff
+        Tensor<T> zero_tensor;    ///< Zero (2k,2k,2k) tensor for internal convenience of diff
 
         Tensor<double> quad_x;  ///< quadrature points
         Tensor<double> quad_w;  ///< quadrature weights
@@ -390,8 +404,7 @@ namespace madness {
 
         /// Constructor presently forces choice npt=k
         FunctionCommonData(int k) : k(k), npt(k) {
-            s[0] = Slice(0, k - 1);
-            s[1] = Slice(k, 2 * k - 1);
+            for (int i=0; i<4; i++) s[i] = Slice(i*k,(i+1)*k-1);
             s0 = std::vector<Slice>(3);
             s0[0] = s0[1] = s0[2] = s[0];
             cell_volume = 1.0;
@@ -405,7 +418,7 @@ namespace madness {
             v2k = vector_factory(2L*k,2L*k,2L*k);
             work1 = TensorT(vk);
             work2 = TensorT(v2k);
-            zero_tensor = TensorT(vk);
+            zero_tensor = TensorT(v2k);
 
             _init_twoscale();
             _init_quadrature();
@@ -533,6 +546,8 @@ namespace madness {
     static inline Tensor<T> _negate_helper(const Tensor<T>& t) {
         return -t;
     };
+    
+    
 
     /// Private.  Helps with scaling by a constant.
     template <typename T>
@@ -721,6 +736,15 @@ namespace madness {
         double norm2sq() {
             compress();
             return comm()->global_sum(norm2sq_local());
+        };
+        
+        /// Differentiation
+        Function<T> diff(int axis) {
+            reconstruct();
+            Function<T> df = FunctionFactory<T>().k(k).compress(false).empty();
+            _diff(df,tree(),axis);
+            _auto_clean(tree()); // Could do this on the way back up.
+            return df;
         };
 
         /// Compress function (scaling function to wavelet)
@@ -1255,7 +1279,21 @@ namespace madness {
         inline bool isremote(const OctTreeT* tree) const {
             return tree->isremote();
         };
+        
+        /// Private.  For semantic similarity to isactive.
 
+        /// No communication involved.
+        inline void set_acflag(OctTreeT* tree, bool value) {
+            tree->data().set_acflag(ind,value);
+        };
+        
+        /// Private.  For semantic similarity to isactive.
+
+        /// No communication involved.
+        inline bool get_acflag(const OctTreeT* tree) const {
+            return tree->data().get_acflag(ind);
+        };
+        
 
         /// Private.  Retrieve a pointer to the communicator
 
@@ -1521,7 +1559,37 @@ namespace madness {
                      double xx, double yy, double zz,
                      int lx, int ly, int lz,
                      const Tensor<T>& s) const;
+        
+        void _diff(Function<T>& df, OctTreeT* tree, int axis) {
+            if (isactive(tree)) {
+                df.set_active(tree);
+                if (coeff(tree)) _dodiff(df, tree, axis);
+                else FOREACH_CHILD(OctTreeT, tree, _diff(df, child, axis););
+            }
+        };
 
+        void _dodiff(Function<T>& df, OctTreeT* tree, int axis);
+           
+        void _dodiff_kernel(Function<T>& df, OctTreeT* tree, int axis,
+                    const TensorT& t0, const TensorT& tm, const TensorT& tp);
+                    
+        void _recur_coeff_down(OctTreeT *tree, bool keep);
+        
+        const Tensor<T>* _get_scaling_coeffs(OctTreeT* t, int axis, int inc);
+        
+        void _auto_clean(OctTreeT* tree) {
+            if (isactive(tree)) {
+                if (get_acflag(tree)) {
+                    //print(tree->n(),tree->x(),tree->y(),tree->z(),"autocleaning");
+                    unset_coeff(tree);
+                    set_inactive(tree);
+                    set_acflag(tree,false);
+                };
+                FOREACH_CHILD(OctTreeT, tree, _auto_clean(child););
+            }
+        };
+                    
+       
     };
 
     /// Deep copy function ... invokes f.copy()

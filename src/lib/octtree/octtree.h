@@ -574,11 +574,11 @@ namespace madness {
         void depthFirstTraverseLocal(ProcessID me)
         {
 
-            std::cout << "layer " << n() << ", (x,y,z) = " << x() << ", "
+            /*std::cout << "layer " << n() << ", (x,y,z) = " << x() << ", "
                         << y() << ", " << z() << std::endl;
             std::cout << "      hasChildren? " << this->isParent()
                  << "    isRemote? " << this->isremote()
-                 << "    sendto? " << this->getSendto() << std::endl;
+                 << "    sendto? " << this->getSendto() << std::endl;*/
             FOREACH_CHILD(OctTreeT, this,
                 if (this->getSendto() == me)
                     child->depthFirstTraverseLocal(me);
@@ -588,11 +588,11 @@ namespace madness {
 	/// Depth-first traversal of tree (prints out diagnostic info)
 	void depthFirstTraverseAll()
 	{
-	    std::cout << "layer " << n() << ", (x,y,z) = " << x() << ", "
+	    /*std::cout << "layer " << n() << ", (x,y,z) = " << x() << ", "
 			<< y() << ", " << z() << std::endl;
 	    std::cout << "      hasChildren? " << this->isParent()
 		 << "    isRemote? " << this->isremote()
-		 << "    sendto? " << this->getSendto() << std::endl;
+		 << "    sendto? " << this->getSendto() << std::endl;*/
 	    FOREACH_CHILD(OctTreeT, this,
 		child->depthFirstTraverseAll();
 		);
@@ -600,12 +600,12 @@ namespace madness {
 
 	void depthFirstTraverseParents()
 	{
-	    std::cout << "layer " << n() << ", (x,y,z) = " << x() << ", "
+	    /*std::cout << "layer " << n() << ", (x,y,z) = " << x() << ", "
 			<< y() << ", " << z() << std::endl;
 	    std::cout << "      hasChildren? " << this->isParent()
 		 << "    isRemote? " << this->isremote() << 
 		 "    Rank? " << this->rank() << "    my Address? " << this 
-		 << "    hasParent? " << this->parent() << std::endl;
+		 << "    hasParent? " << this->parent() << std::endl;*/
 	    FOREACH_CHILD(OctTreeT, this,
 		child->depthFirstTraverseParents();
 		);
@@ -614,11 +614,11 @@ namespace madness {
 	/// Depth-first traversal of tree (prints out diagnostic info)
 	void depthFirstTraverse()
 	{
-	    std::cout << "layer " << n() << ", (x,y,z) = " << x() << ", "
+	    /*std::cout << "layer " << n() << ", (x,y,z) = " << x() << ", "
 			<< y() << ", " << z() << std::endl;
 	    std::cout << "      hasChildren? " << this->isParent()
 		 << "    isRemote? " << this->isremote()
-		 << "    sendto? " << this->getSendto() << std::endl;
+		 << "    sendto? " << this->getSendto() << std::endl;*/
 	    FOREACH_LOCAL_CHILD(OctTreeT, this,
 		child->depthFirstTraverse();
 		);
