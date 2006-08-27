@@ -17,11 +17,14 @@ using madness::archive::VectorOutputArchive;
 
 namespace madness {
     static void do_local_fence();
-    /// The minimal interface required for all tasks in the task queue
+    /// The minimal interface required for all tasks inserted into the task queue
     class TaskInterface {
     public:
+        /// Returns true if the task is ready to be run
         virtual bool probe() const = 0;
+        /// Runs the task
         virtual void run() = 0;
+        /// Virtual base class destructor so that derived class destructor is called
         virtual ~TaskInterface() {};
     };
     

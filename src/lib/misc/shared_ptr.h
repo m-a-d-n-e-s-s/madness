@@ -71,6 +71,7 @@ namespace madness {
         T* p;                   ///< The pointer being wrapped
         SharedCounter *count;  ///< The counter shared by all references
         bool isarray;           ///< If true use delete [] to free the pointer
+        bool own;               ///< True if SharedPtr actually owns the pointer ... if not it won't be freed
         
         /// Decrement the reference count, freeing pointer if count becomes zero
         void dec() {
@@ -82,9 +83,9 @@ namespace madness {
             }
         };
         
-        /// Free the pointer if it is not null
+        /// Free the pointer if we own it and it is not null
         void free() {
-            if (p) {
+            if (own && p) {
 //                std::cout << "freeing " << (void *) p << " " << isarray << std::endl;
                 if (isarray) 
                     delete [] p;    
@@ -95,32 +96,23 @@ namespace madness {
         
     public:
         /// Default constructor makes an null pointer
-        SharedPtr() : p(0), count(0), isarray(false) {
+        SharedPtr() : p(0), count(0), isarray(false), own(true) {
         };
         
         /// Wrap a pointer which may be null
-        SharedPtr(T* ptr) : p(ptr), count(0), isarray(false) {
-//	    std::cout << "SharedPtr: ptr wrapper constructor" << std::endl;
+        SharedPtr(T* ptr) : p(ptr), count(0), isarray(false), own(true) {
             if (p) count = new SharedCounter;
- //           std::cout << "wrapping " << (void *) p << " " << isarray << std::endl;
         };
         
-        /// Wrap a pointer which may be null marking it as an array
-        SharedPtr(T* ptr, bool array) : p(ptr), count(0), isarray(array) {
-            if (p) count = new SharedCounter;
-//	    std::cout << "creating new SharedPtr around " << (void *) p << " " << isarray << std::endl;
+        /// Wrap a pointer which may be null, or not owned, or an array
+        SharedPtr(T* ptr, bool array, bool own=true) : p(ptr), count(0), isarray(array), own(own) {
+            if (own && p) count = new SharedCounter;
         };
         
         /// Copy constructor generates a new reference to the same pointer
-        SharedPtr(const SharedPtr& s) : p(s.p), count(s.count), isarray(s.isarray) {
-            if (count) {
-                count->inc();
-//                std::cout << "SharedPtr: copy con " << count->get() << std::endl;
-//            std::cout << "copying " << (void *) p << " " << isarray << std::endl;
-            }
-	    if (count==0 && p!=0) {
-		std::cout << "COIPYING SHAREDPTR WITH ZERO COUNT BUT NON_ZERO POINTER\n";
-	    }
+        SharedPtr(const SharedPtr& s) : p(s.p), count(s.count), isarray(s.isarray), own(s.own) {
+           if (count) count->inc();
+	       if (count==0 && p!=0) throw "COPYING SHAREDPTR WITH ZERO COUNT BUT NON_ZERO POINTER\n";
         };
         
         /// Destructor decrements reference count freeing data only if count is zero
@@ -133,10 +125,9 @@ namespace madness {
                 p = s.p;
                 count = s.count;
                 isarray = s.isarray;
+                own = s.own;
                 if (count) count->inc();
             }
-//	    std::cout << "SharedPtr: assignment operator " << count->get() << std::endl;
- //           std::cout << "assigning " << (void *) p << " " << isarray << std::endl;
             return *this;
         };
         
@@ -149,8 +140,9 @@ namespace madness {
         /// Returns the value of the pointer
         inline T* get() const {return p;};
         
-        /// Cast of SharedPtr<T> to T* returns the value of the pointer
-        inline operator T*() const {return p;};
+        // RJH ... this automatic conversion is the source of lots of nasty bugs
+        // Cast of SharedPtr<T> to T* returns the value of the pointer
+        //inline operator T*() const {return p;};
         
         /// Return pointer+offset
         inline T* operator+(long offset) const {
@@ -182,33 +174,12 @@ namespace madness {
             return p;
         };
 
-	/// Less than operator (for sorting)
-	inline friend bool operator< (const SharedPtr<T>& t1, const SharedPtr<T>& t2) {
-	    return (!(*t1 < *t2));
-	};
+	    /// Less than operator (for sorting)
+	    inline friend bool operator< (const SharedPtr<T>& t1, const SharedPtr<T>& t2) {
+	       return (!(*t1 < *t2));
+	    };
     };
-        
-/*
-	namespace archive {
-	/// serialize the data of a SharedPtr
-	    template <class Archive, class T>
-	    struct ArchiveStoreImpl<Archive, SharedPtr<T> > {
-	    	static inline void store(const Archive & ar, const SharedPtr<T>& p) {
-		    ar & *(p.get());
-	    	};
-	    };
-	/// deserialize the data of a SharedPtr
-	    template <class Archive, class T>
-	    struct ArchiveLoadImpl<Archive, SharedPtr<T> > {
-		static inline void load(const Archive& ar, const SharedPtr<T>& p) {
-		    T *data = new T();
-		    ar & *data;
-		    p = SharedPtr<T>(data);
-		};
-	    };
-	}
-*/
-    
+            
     /// A SharedArray is just like a SharedPtr except that delete [] is used to free it
     template <class T>
     class SharedArray : public SharedPtr<T> {
@@ -224,6 +195,7 @@ namespace madness {
                 this->p = s.p;
                 this->count = s.count;
                 this->isarray = s.isarray;
+                this->own = s.own;
                 if (this->count) this->count->inc();
             }
             return *this;

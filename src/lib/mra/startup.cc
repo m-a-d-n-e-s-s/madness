@@ -33,7 +33,8 @@ namespace madness {
         comm.print();
         load_coeffs(comm);
         load_quadrature(comm);
-        FunctionDefaults::tree = new FunctionOctTree(OctTree<FunctionNode>::create_default(comm,2));
+        
+        FunctionDefaults::tree = SharedPtr<FunctionOctTree>(new FunctionOctTree(OctTree<FunctionNode>::create_default(comm,2)));
         if (!gauss_legendre_test()) comm.Abort();
         if (!test_two_scale_coefficients()) comm.Abort();
     

@@ -395,6 +395,11 @@ namespace madness {
         inline long size() const {
             return _nproc;
         };
+        
+        /// Return the MPI communicator
+        inline MPI::Intracomm& mpi_comm() {
+            return _comm;
+        };
 
         /// Return coords of this process in the process mesh
         inline void coords(long& px, long& py, long& pz) const {

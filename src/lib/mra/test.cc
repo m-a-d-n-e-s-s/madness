@@ -5,6 +5,9 @@ using std::endl;
 #include <cstring>
 using std::strcmp;
 
+#include <vector>
+using std::vector;
+
 /// \file mra/test.cc
 
 #include <mra/mra.h>
@@ -14,6 +17,7 @@ using std::strcmp;
 #include <mra/legendre.h>
 #include <tensor/tensor.h>
 #include <misc/madexcept.h>
+#include <serialize/vecar.h>
 
 using namespace madness;
 
@@ -74,14 +78,48 @@ int main(int argc, char* argv[]) {
         FunctionDefaults::initial_level=2;
         Function<double> f = FunctionFactory<double>(fred).thresh(1e-7).nocompress();
         
-        Function<double> df;
+/*        vector<unsigned char> vout;
+        VectorOutputArchive varout(vout);
+        // For each local root EXCLUDING any remote parent
+        FOREACH_CHILD(OctTreeTPtr, FunctionDefaults::tree->tree(),
+                      if (child->islocal()) {
+                        Level n = child->n();
+                        Translation l[3]; l[0]=child->x(); l[1]=child->y(); l[2]=child->z();
+                        varout << n << l << comm.rank();
+                      });
         
+        int vsize = vout.size();
+        vector<int> vsizeeach(comm.nproc()),vdisp(comm.nproc());
+        comm.mpi_comm().Gather(&vsize, 1, MPI::INT, &vsizeeach[0], 1, MPI::INT, 0);
+        long vsizesum = 0;
+        if (comm.rank() == 0) {           
+            for (int i=0; i<comm.nproc(); i++) {
+                print(i,"vsizeeach",vsizeeach[i]);
+                vdisp[i] = vsizesum;
+                vsizesum += vsizeeach[i];
+            }
+        }
+        comm.Bcast(vsizesum,0);
+        vector<unsigned char> vin(vsizesum);
+        comm.mpi_comm().Gatherv(&vout[0],vsize,MPI::BYTE,&vin[0],&vsizeeach[0],&vdisp[0],MPI::BYTE,0);
+        comm.Bcast(&vin[0],vsizesum,0);
+        VectorInputArchive varin(vin);
+        GlobalTree<3> gtree(varin);
+        if (comm.rank()==0) gtree.print();
+        comm.Barrier();
+        
+    comm.close();
+    MPI::Finalize();
+    return 0;*/
+        
+        
+/*        Function<double> df;
         df = f.diff(1);
         print("diff y",df(0.45,0.53,0.48),dfred_dy(0.45,0.53,0.48));
         df = f.diff(0);
         print("diff x",df(0.45,0.53,0.48),dfred_dx(0.45,0.53,0.48));
         df = f.diff(2);
-        print("diff z",df(0.45,0.53,0.48),dfred_dz(0.45,0.53,0.48));
+        print("diff z",df(0.45,0.53,0.48),dfred_dz(0.45,0.53,0.48));*/
         
         print("valuesX",fred(0.45,0.53,0.48),f(0.45,0.53,0.48));
         print("Tree in scaling function basis");

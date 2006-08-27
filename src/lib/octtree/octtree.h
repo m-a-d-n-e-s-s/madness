@@ -10,6 +10,8 @@
 #include <list>
 #include <fstream>
 #include <cstdlib>
+#include <cstring>
+using std::strcmp;
 
 #include <mad_types.h>
 #include <misc/print.h>
@@ -30,32 +32,32 @@ static const bool _debug = false;
    	     for (int k=0; k<2; k++) {expr} \
     } while(0)
 
-#define FOREACH_CHILD(OctTreeT, t, expr) \
+#define FOREACH_CHILD(childptrT, t, expr) \
     do { \
       for (int i=0; i<2; i++) \
         for (int j=0; j<2; j++) \
 	  for (int k=0; k<2; k++) { \
-            OctTreeT *child = ((t)->child(i,j,k)); \
+            childptrT child = ((t)->child(i,j,k)); \
             if (child) {expr} \
           } \
     } while(0)
 
-#define FOREACH_LOCAL_CHILD(OctTreeT, t, expr) \
+#define FOREACH_LOCAL_CHILD(childptrT, t, expr) \
     do { \
       for (int i=0; i<2; i++) \
         for (int j=0; j<2; j++) \
 	  for (int k=0; k<2; k++) { \
-            OctTreeT *child = ((t)->child(i,j,k)); \
+            childptrT child = ((t)->child(i,j,k)); \
             if (child && child->islocal()) {expr} \
           } \
     } while(0)
 
-#define FOREACH_REMOTE_CHILD(OctTreeT, t, expr) \
+#define FOREACH_REMOTE_CHILD(childptrT, t, expr) \
     do { \
       for (int i=0; i<2; i++) \
         for (int j=0; j<2; j++) \
 	  for (int k=0; k<2; k++) { \
-            OctTreeT *child = ((t)->child(i,j,k)); \
+            childptrT child = ((t)->child(i,j,k)); \
             if (child && child->isremote()) {expr} \
           } \
     } while(0)
@@ -98,10 +100,11 @@ namespace madness {
     /// is stored and the remote node may, or may not, have children.
     template <class T>
     class OctTree {
-    private:
-
-	
+    public:
         typedef OctTree<T> OctTreeT;
+        typedef SharedPtr< OctTree<T> > OctTreeTPtr;
+
+    private:
         Translation _x;             ///< x translation (0,...,2**n-1)
         Translation _y;             ///< y translation (0,...,2**n-1)
         Translation _z;             ///< z translation (0,...,2**n-1)
@@ -110,11 +113,10 @@ namespace madness {
         bool _remote;               ///< True if this node is remote
         ProcessID _rank;     ///< if (_remote) The rank of the remote process
 
-//        SharedPtr<OctTreeT> _p;   ///< Points to parent node, or null if no parent
         OctTreeT* _p;          ///< Points to parent node, or null if no parent
         SharedPtr<OctTreeT> _c[2][2][2]; ///< Null or Points to child nodes, or null if not there
 
-        // (why not shared ptr ?)
+        // (why not shared ptr ?) ... why at all ... let us lose this!
         const Communicator* _comm; ///< Info on parallel processes
 
 //        T _data;			///< The payload stored by value
@@ -150,7 +152,7 @@ namespace madness {
         void add_remote_children(Level nmax) {
             if (n() == nmax) return;
             
-            FORIJK(OctTreeT *c = child(i,j,k);
+            FORIJK(OctTreeTPtr c = child(i,j,k);
                    if (c) 
                    c->add_remote_children(nmax);
                    else if (islocal()) {
@@ -164,7 +166,7 @@ namespace madness {
         };
         
     public:
-//	typedef SharedPtr<OctTree<T> > OctTreePtr;
+
 	/// "Less than" operator so list of trees can be sorted by level and then translation
 	friend bool operator < (const OctTree<T>& t1, const OctTree<T>& t2)
 	{
@@ -365,35 +367,31 @@ namespace madness {
 	    return _p;
 	};
         
-        /// returns child's pointer (null if absent or if both this node & child are remote)
-        inline SharedPtr<OctTreeT> childPtr(int x, int y, int z) const {
+        /// Returns pointer to child pointer (null if absent or if both this node & child are remote)
+        inline SharedPtr<OctTreeT>& child(int x, int y, int z) {
             return _c[x][y][z];
         };
 
-        /// returns pointer to child (null if absent or if both this node & child are remote)
-        inline OctTreeT* child(int x, int y, int z) const {
-            return (OctTreeT*) _c[x][y][z];
+         /// Returns pointer to child pointer (null if absent or if both this node & child are remote)
+        inline const SharedPtr<OctTreeT>& child(int x, int y, int z) const {
+            return _c[x][y][z];
         };
-
+        
+        
 	inline OctTreeT* setChild(int x, int y, int z, OctTreeT child) {
 	    _c[x][y][z] = SharedPtr<OctTreeT>(&child);
-// should we set child to point to parent in here too?
 	    child.setParent(this);
 	    return (OctTreeT*) _c[x][y][z];
 	};
 
-	inline SharedPtr<OctTreeT> setChild(int x, int y, int z, SharedPtr<OctTreeT> child) {
+	inline SharedPtr<OctTreeT>& setChild(int x, int y, int z, SharedPtr<OctTreeT> child) {
 	    _c[x][y][z] = child;
-// should we set child to point to parent in here too?
 	    child->setParent(this);
 	    return _c[x][y][z];
 	};
 
         /// insert local child (x, y, z in {0,1}) returning pointer to child
-//        OctTreeT* insert_local_child(int x, int y, int z) {
-        SharedPtr<OctTreeT> insert_local_child(int x, int y, int z) {
-//	    std::cout << "insert_local_child xyz constructor (" << x << "," << y << "," << z << ")"
-//			<< std::endl;
+        SharedPtr<OctTreeT>& insert_local_child(int x, int y, int z) {
             _c[x][y][z] = SharedPtr<OctTreeT>(new OctTreeT(_n + 1,
                                                        2*this->_x + x,
                                                        2*this->_y + y,
@@ -406,29 +404,23 @@ namespace madness {
         };
 
         /// insert local child (x, y, z in {0,1}, OctTreeT t), returning pointer to child
-        OctTreeT* insert_local_child(int x, int y, int z, OctTreeT t) {
-//	    std::cout << "insert_local_child xyz & t constructor (" << x << "," << y << "," << z << ")"
-//			<< std::endl;
+        SharedPtr<OctTreeT>& insert_local_child(int x, int y, int z, OctTreeT t) {
             _c[x][y][z] = SharedPtr<OctTreeT>(new OctTreeT(t));
-	    _c[x][y][z]->setParent(this);
-	    return _c[x][y][z];
-	};
+	       _c[x][y][z]->setParent(this);
+	       return _c[x][y][z];
+	   };
 
         /// insert local child (x, y, z in {0,1}, OctTreeT t), returning pointer to child
         OctTreeT* insert_local_child(OctTreeT *t) {
 	    Translation x = t->_x - 2*this->_x;
 	    Translation y = t->_y - 2*this->_y;
 	    Translation z = t->_z - 2*this->_z;
-//	    std::cout << "insert_local_child copy constructor (" << x << "," << y << "," << z << ")"
-//			<< std::endl;
-            _c[x][y][z] = SharedPtr<OctTreeT>(t);
-//	    std::cout << "insert_local_child copy constructor: set c" << std::endl;
+        _c[x][y][z] = SharedPtr<OctTreeT>(t);
 	    _c[x][y][z]->setParent(this);
-//	    std::cout << "insert_local_child copy constructor: set c's parent" << std::endl;
 	    return _c[x][y][z];
 	};
 
-	SharedPtr<OctTreeT> insert_local_child(SharedPtr<OctTreeT> t) {
+	SharedPtr<OctTreeT>& insert_local_child(SharedPtr<OctTreeT> t) {
 	    Translation x = t->_x - 2*this->_x;
 	    Translation y = t->_y - 2*this->_y;
 	    Translation z = t->_z - 2*this->_z;
@@ -466,7 +458,7 @@ namespace madness {
 	}
         
         /// insert remote child (x, y, z in {0,1}) returning pointer to child
-        OctTreeT* insert_remote_child(int x, int y, int z, ProcessID remote_proc) {
+        SharedPtr<OctTreeT> insert_remote_child(int x, int y, int z, ProcessID remote_proc) {
 //	    std::cout << "insert_remote_child constructor (" << x << "," << y << "," << z << ")"
 //			<< std::endl;
             _c[x][y][z] = SharedPtr<OctTreeT>(new OctTreeT(_n + 1,
@@ -499,11 +491,11 @@ namespace madness {
                     xx = (x>>nn)&1; 
                     yy = (y>>nn)&1;
                     zz = (z>>nn)&1;
-                    OctTreeT* c = child(xx,yy,zz);
+                    const OctTreeT* c = child(xx,yy,zz).get();
                     if (c) 
                         return c->find(n,x,y,z); // Look below
                     else {
-                        return (OctTreeT* ) this; // Does not exist, return closest parent
+                        return (OctTreeT*) this; // Does not exist, return closest parent
                     }
                 }
             }
@@ -512,7 +504,7 @@ namespace madness {
         };
 
         /// Starting from the current node, walk down the tree to find the requested node.
-	/// Just like find, except goes only DOWN the tree.
+	    /// Just like find, except goes only DOWN the tree.
         OctTreeT* findDown(Level n, Translation x, Translation y, Translation z) const {
             if (n >= _n) {
                 /// Determine if the desired box is a descendent of this node
@@ -528,7 +520,7 @@ namespace madness {
                     if (c) 
                         return c->find(n,x,y,z); // Look below
                     else {
-                        return (OctTreeT* ) this; // Does not exist, return closest parent
+                        return (OctTreeT*) this; // Does not exist, return closest parent
                     }
                 }
             }
@@ -556,8 +548,8 @@ namespace madness {
 	{
 	    _visited = true;
 
-	    FOREACH_LOCAL_CHILD(OctTreeT, this,
-		child->setVisited();
+	    FOREACH_LOCAL_CHILD(SharedPtr<OctTreeT>, this,
+		      child->setVisited();
 	    );
 	}
 
@@ -619,7 +611,7 @@ namespace madness {
 	    std::cout << "      hasChildren? " << this->isParent()
 		 << "    isRemote? " << this->isremote()
 		 << "    sendto? " << this->getSendto() << std::endl;*/
-	    FOREACH_LOCAL_CHILD(OctTreeT, this,
+	    FOREACH_LOCAL_CHILD(OctTreeTPtr, this,
 		child->depthFirstTraverse();
 		);
 	}
@@ -858,7 +850,7 @@ namespace madness {
         /// children and a list of their MPI ranks
         int unique_child_procs(ProcessID ranks[8]) const {
             int np = 0;
-            FOREACH_REMOTE_CHILD(const OctTreeT, this,
+            FOREACH_REMOTE_CHILD(const OctTreeTPtr, this,
                 bool found = false;
                 for (int p=0; p<np; p++) {
                     if (child->rank() == ranks[p]) {
@@ -1166,7 +1158,7 @@ namespace madness {
             // to connections to remote nodes which we now make.
             p->add_remote_children(nmax);
 
-	    p->depthFirstTraverse();
+	    //p->depthFirstTraverse();
             
             return p;
         };
@@ -1441,25 +1433,167 @@ namespace madness {
 
     namespace archive {
 
-    // This disaster brought to you by hqi
-	/// Serialize an OctTree<T>
-	template <class Archive, class T>
-	struct ArchiveStoreImpl< Archive, OctTree<T> > {
-	    static inline void store(const Archive& ar, const OctTree<T>& t) {
-           t.store(ar);
-	    };
-	};
-
-
-	/// Deserialize an OctTree<T>
-	template <class Archive, class T>
-	struct ArchiveLoadImpl< Archive, OctTree<T> > {
-	    static inline void load(const Archive& ar, OctTree<T>& t) {
-	    		t.load(ar);
-	    };
-	};
+        // This disaster brought to you by hqi
+    	/// Serialize an OctTree<T>
+    	template <class Archive, class T>
+    	struct ArchiveStoreImpl< Archive, OctTree<T> > {
+    	    static inline void store(const Archive& ar, const OctTree<T>& t) {
+               t.store(ar);
+    	    };
+    	};
+    
+    
+    	/// Deserialize an OctTree<T>
+    	template <class Archive, class T>
+    	struct ArchiveLoadImpl< Archive, OctTree<T> > {
+    	    static inline void load(const Archive& ar, OctTree<T>& t) {
+    	    		t.load(ar);
+    	    };
+    	};
 	
     }
+    
+   
+    /// This holds a tree of sub-trees
+    template <int NDIM>
+    class GlobalTree {                
+        
+    private:
+        typedef SharedPtr< GlobalTree<NDIM> > ptrT;
+        GlobalTree* parent;
+        std::vector<ptrT> child;
+        Level n;
+        ProcessID owner;
+        Translation l[NDIM];
+        
+        /// Returns true if this is the parent of p
+        bool is_parent_of(Level n, const Translation l[NDIM]) const {
+            madness::print("Is",this->n,this->l,"parent",n,l);
+            if (n <= this->n ) return false;
+            int nn = n-this->n;
+            for (int i=0; i<NDIM; i++) 
+                if ((l[i]>>nn) != this->l[i]) return false;
+            madness::print("yes");
+            return true;
+        };
+            
 
+        /// Return the sub-tree that "owns" node (n,l), return 0 if not found
+        GlobalTree<NDIM>* find(Level n, const Translation l[NDIM]) {
+            // First check if we are even in this subtree
+            if (!is_parent_of(n,l)) return 0;
+            
+            madness::print("find checking children");
+            // Now see if any of my children own it
+            for (int i=0; i<(int) child.size(); i++) {
+                GlobalTree* p = child[i]->find(n,l);
+                if (p) return p;
+            }
+            madness::print("find returning me");
+            return this;
+        };
+                
+    public:
+        GlobalTree() 
+        : child(0), n(0), owner(0) {
+            for (int i=0; i<NDIM; i++) l[i] = 0;
+        };
+    
+        GlobalTree(Level n, const Translation l[NDIM], ProcessID owner) 
+        : child(0), n(n), owner(owner) {
+            for (int i=0; i<NDIM; i++) this->l[i] = l[i];
+        };
+        
+        template <class Archive>
+        GlobalTree(const Archive& ar) 
+        : child(0), n(0), owner(0) {
+            for (int i=0; i<NDIM; i++) l[i] = 0;
+            this->load(ar);
+        };
+        
+        /// Return owning proces of node (n,l) 
+        ProcessID find_owner(Level n, const Translation l[NDIM]) const {
+            const GlobalTree* p = find(n,l);
+            if (!p) return -1;
+            return p->owner; 
+        };
+    
+        /// Inserts a new tree node (n,l,owner)
+        void insert(Level n, const Translation (&l)[NDIM], ProcessID owner) {
+            madness::print("Inserting",n,l,owner);
+            madness::print_array(l);
+            GlobalTree* p = this->find(n,l);
+            if (!p) MADNESS_EXCEPTION("GlobalTree: insert: failed to locate?",0);
+            madness::print("insert pushing new child");
+            p->child.push_back(ptrT(new GlobalTree(n,l,owner)));
+             
+            madness::print("insert shuffling siblings");
+            // Do any of p's other children need to be moved below their new sibling?
+            int npc = p->child.size();
+            ptrT c = p->child[npc-1];
+            for (int i=(npc-2); i>=0; i--) {
+                if (c->is_parent_of(p->child[i]->n,p->child[i]->l)) {
+                    madness::print("shuffling a",i);
+                    c->child.push_back(p->child[i]);
+                    madness::print("shuffling b",i);
+                    p->child[i] = p->child.back();
+                    madness::print("shuffling c",i);  
+                    p->child.pop_back();
+                    madness::print("shuffling d",i);
+                }
+            }
+            madness::print("insert finished");
+        };
+        
+        /// Serializes the tree as a simple list of values (not used or tested?)
+        template <class Archive> 
+        void store(const Archive& ar) const {
+            ar << n << l << owner; 
+            for (int i=0; i<(int) child.size(); i++) child[i].store(ar);
+        };
+        
+        template <class Archive> 
+        void load(const Archive& ar) {
+            while(1) {
+                try {
+                    Level a;
+                    Translation b[NDIM];
+                    ProcessID c;
+                    ar >> a >> b >> c;
+                    if (a>0) insert(a,b,c);
+                }
+                catch (const char* msg) {
+                    if (strcmp(msg,"VectorInputArchive: reading past end") == 0) 
+                        break;
+                    else 
+                        throw;
+                }
+            }
+        };
+        
+        void print() const {
+            for (int i=0; i<n; i++) std::cout << " ";
+            std::cout << n << " GTREE (";
+            for (int i=0; i<NDIM; i++) std::cout << " " << l[i];
+            std::cout << ")" << std::endl;
+            for (int i=0; i<(int)child.size(); i++) child[i]->print(); 
+        };   
+        
+        ~GlobalTree() {madness::print("DESTRUCTOR!");};
+    };
+
+    namespace archive {
+        template <int NDIM>
+        template <class Archive>
+        struct ArchiveLoadImpl< Archive,GlobalTree<NDIM> > {
+            static inline void load(const Archive& ar, GlobalTree<NDIM>& t) {t.load(ar);};
+        };
+
+        template <int NDIM>
+        template <class Archive>
+        struct ArchiveStoreImpl< Archive,GlobalTree<NDIM> > {
+            static inline void store(const Archive& ar, const GlobalTree<NDIM>& t) {t.store(ar);};
+        };
+    }
 }
 #endif

@@ -28,11 +28,11 @@ namespace madness {
         typedef Function<T> FunctionT;
     private:
         FunctionT* that;
-        OctTreeT* tree;
+        OctTreeTPtr tree;
         ArgT outarg;
         ArgT inarg[2][2][2];
     public:
-        TaskCompress(FunctionT* that, OctTreeT* tree, ArgT in[2][2][2], ArgT& out)
+        TaskCompress(FunctionT* that, OctTreeTPtr tree, ArgT in[2][2][2], ArgT& out)
                 : that(that)
                 , tree(tree)
                 , outarg(out) 
@@ -41,7 +41,7 @@ namespace madness {
         };
 
         bool probe() const {
-            FOREACH_CHILD(OctTreeT, tree,
+            FOREACH_CHILD(OctTreeTPtr, tree,
                           if (that->isactive(child) && !inarg[i][j][k].probe())
                           return false;);
             return true;
@@ -66,8 +66,8 @@ namespace madness {
 
     /// Called by consumer to make a variable that will be set by producer
     template <typename T>
-    typename Function<T>::ArgT Function<T>::input_arg(const OctTreeT* consumer,
-            const OctTreeT* producer) {
+    typename Function<T>::ArgT Function<T>::input_arg(const OctTreeTPtr& consumer,
+            const OctTreeTPtr& producer) {
         int tag = taghash(producer->n(),producer->x(),producer->y(),producer->z());
         if (consumer->islocal() && producer->islocal())
             return ArgT();
@@ -98,9 +98,9 @@ namespace madness {
     };
 
     template <typename T>
-    void Function<T>::_compress2(OctTreeT* tree, Function<T>::ArgT& parent) {
+    void Function<T>::_compress2(OctTreeTPtr& tree, Function<T>::ArgT& parent) {
         ArgT args[2][2][2];
-        FOREACH_ACTIVE_CHILD(OctTreeT, tree,
+        FOREACH_ACTIVE_CHILD(OctTreeTPtr, tree,
                              args[i][j][k] = this->input_arg(tree,child);
                              if (child->islocal()) _compress2(child,args[i][j][k]););
 
@@ -111,19 +111,19 @@ namespace madness {
     };
 
     template <typename T>
-    void Function<T>::_compress2op(OctTreeT* tree, Function<T>::ArgT args[2][2][2], Function<T>::ArgT& parent) {
+    void Function<T>::_compress2op(OctTreeTPtr& tree, Function<T>::ArgT args[2][2][2], Function<T>::ArgT& parent) {
         //print(comm()->rank(),"executing task",tree->n(),tree->x(),tree->y(),tree->z());
         Slice *s = data->cdata->s;
         if (!coeff(tree)) set_coeff(tree,TensorT(2*k,2*k,2*k));
         TensorT& t = *coeff(tree);
-        FOREACH_ACTIVE_CHILD(OctTreeT, tree,t(s[i],s[j],s[k]) += args[i][j][k].get(););
+        FOREACH_ACTIVE_CHILD(OctTreeTPtr, tree,t(s[i],s[j],s[k]) += args[i][j][k].get(););
         filter_inplace(t);
         parent.set(madness::copy(t(data->cdata->s0)));
         if (tree->n() > 0) t(data->cdata->s0)=0.0;
     };
     
     template <typename T>
-    void Function<T>::_dodiff_kernel(Function<T>& df, OctTreeT* tree, int axis,
+    void Function<T>::_dodiff_kernel(Function<T>& df, OctTreeTPtr& tree, int axis,
                     const TensorT& t0, const TensorT& tm, const TensorT& tp) {
         // Swap the dimensions so that we have effective axis = 0
         const TensorT q0 = t0.swapdim(axis,0);
@@ -158,7 +158,7 @@ namespace madness {
             
 
     template <typename T>
-    void Function<T>::_recur_coeff_down(OctTreeT *tree, bool keep) {
+    void Function<T>::_recur_coeff_down(OctTreeT* tree, bool keep) {
         // 1,1,1 since this is the last entry that would be made
         // ensuring that all others are there also.
         if (tree->child(1,1,1) && isactive(tree->child(1,1,1))) {
@@ -174,7 +174,7 @@ namespace madness {
         long k2 = k*2;
         const std::vector<Slice>& s0 = data->cdata->s0;
         const Slice* s = data->cdata->s;
-        FORIJK(OctTreeT* child = tree->child(i,j,k);
+        FORIJK(OctTreeTPtr child = tree->child(i,j,k);
                if (!child) child = tree->insert_local_child(i,j,k);
                set_active(child);
                // If we are keeping the parent, the child will eventually be autocleaned
@@ -188,7 +188,7 @@ namespace madness {
     }
     
     template <typename T>
-    const Tensor<T>* Function<T>::_get_scaling_coeffs(OctTreeT* t, int axis, int inc) {
+    const Tensor<T>* Function<T>::_get_scaling_coeffs(OctTreeTPtr& t, int axis, int inc) {
         //madness::print("getting",t->n(),t->x(),t->y(),t->z());
 
         long xyz[3] = {t->x(), t->y(), t->z()};
@@ -199,7 +199,7 @@ namespace madness {
         if (xyz[axis] < 0 || ((unsigned long) xyz[axis]) >= two_to_power(t->n())) return &data->cdata->zero_tensor;
         
         // Find node or its parent in the tree.
-        OctTreeT *p = t->find(t->n(),x, y, z);
+        OctTreeT* p = t->find(t->n(),x, y, z);
         // If not active, find the lowest active parent
         while (p && !isactive(p)) p = p->parent();
 
@@ -217,7 +217,7 @@ namespace madness {
             long xx = (x>>nn)&1;
             long yy = (y>>nn)&1;
             long zz = (z>>nn)&1;
-            p = p->child(xx,yy,zz);
+            p = p->child(xx,yy,zz).get();
         }
 
         return coeff(p);
@@ -225,7 +225,7 @@ namespace madness {
    
     
     template <typename T>
-    void Function<T>::_dodiff(Function<T>& df, OctTreeT* tree, int axis) {
+    void Function<T>::_dodiff(Function<T>& df, OctTreeTPtr& tree, int axis) {
         //madness::print("dodiff",tree->n(),tree->x(),tree->y(),tree->z());
 
         // This routine is applied at each leaf node ... i.e., where we have data in tree.
@@ -237,8 +237,8 @@ namespace madness {
             _dodiff_kernel(df, tree, axis, *t0, *tm, *tp);
         }
         else {
-            _recur_coeff_down(tree,true);
-            FOREACH_CHILD(OctTreeT, tree, _dodiff(df, child, axis);); 
+            _recur_coeff_down(tree.get(),true);
+            FOREACH_CHILD(OctTreeTPtr, tree, _dodiff(df, child, axis);); 
         }          
     };
     

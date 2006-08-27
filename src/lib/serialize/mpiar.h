@@ -99,6 +99,7 @@ public:
         }
         var.load(t,n);
     };
+};
 
     // No type checking over MPI stream for efficiency
     template <class T>
@@ -128,7 +129,7 @@ public:
         static inline void postamble_load(const MPIInputArchive& ar) {};
     };
 
-};
+
 }
 }
 #endif

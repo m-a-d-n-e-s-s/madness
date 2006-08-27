@@ -565,18 +565,18 @@ namespace madness {
 			 << std::endl;
 		}
 		FOREACH_LOCAL_CHILD(OctTree<FunctionNode >, p,
-		    if (debug)
+		    if (_debug)
 		    {
 			std::cout << "setRemoteActive: about to get a vector from child (" << i <<
 				"," << j << "," << k << ")" << std::endl;
 		    }
 		    a = child->data().getActiveList();
-		    if (debug)
+		    if (_debug)
 		    {
 			std::cout << "setRemoteActive: got a vector" << std::endl;
 		    }
 		    activeList.push_back(ActiveRootList(child, parentOwner, a));
-		    if (debug)
+		    if (_debug)
 		    {
 			std::cout << "setRemoteActive: pushed back child(" << i << "," << j <<
 				"," << k << ") onto activeList" << std::endl;
@@ -806,7 +806,7 @@ namespace madness {
 	FOREACH_CHILD(OctTree<FunctionNode>, tree,
 	    if (child->islocal())
 	    {
-		if (debug)
+		if (_debug)
 		{
 		    std::cout << "findRemoteChildrenList: child n = " << child->n() << 
 			", ( " << child->x() << "," << child->y() << "," << child->z() << 
@@ -817,7 +817,7 @@ namespace madness {
 	    else
 	    {
 		childList->push_back(RootList(child, child->rank(), child->rank()));
-		if (debug)
+		if (_debug)
 		{
 		    std::cout << "findRemoteChildrenList: added n = " << child->n() << 
 			", ( " << child->x() << "," << child->y() << "," << child->z() << ")"

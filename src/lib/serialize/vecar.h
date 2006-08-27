@@ -51,7 +51,7 @@ public:
         i += m;
     }
 
-void open() {};
+    void open() {};
 
     void rewind() const {i=0;};
 

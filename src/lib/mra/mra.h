@@ -73,18 +73,19 @@ namespace madness {
 
     */
 
-#define FOREACH_ACTIVE_CHILD(OctTreeT, t, expr) \
+#define FOREACH_ACTIVE_CHILD(childptrT, t, expr) \
     do { \
       for (int i=0; i<2; i++) \
         for (int j=0; j<2; j++) \
 	  for (int k=0; k<2; k++) { \
-            OctTreeT *child = ((t)->child(i,j,k)); \
+            childptrT child = ((t)->child(i,j,k)); \
             if (child && isactive(child)) {expr} \
           } \
     } while(0)
 
     class FunctionNode;         ///< Forward definition
     typedef OctTree<FunctionNode> OctTreeT; ///< Type of OctTree used to hold coeffs
+    typedef SharedPtr<OctTreeT> OctTreeTPtr; ///< SharedPtr to OctTree
     //template <typename T>
 
     /// Used to hold data for all functions at each node of the OctTree
@@ -257,7 +258,7 @@ namespace madness {
     /// A FunctionOctTree marries an OctTree<FunctionNode> with an index 
 
     /// The constructor takes ownership of the provided pointer to an already
-    /// constructed OctTree<FunctionNode>.  I.e., don't delete the OctTree.
+    /// constructed OctTree<FunctionNode>.  I.e., please don't delete the OctTree.
     class FunctionOctTree {
     private:
         int _nfree;
@@ -271,15 +272,15 @@ namespace madness {
         FunctionOctTree& operator=(const FunctionOctTree&);
 
         /// Cleans up data of function being freed
-        void free_data(OctTreeT* tree, int ind) {
+        void free_data(OctTreeTPtr& tree, int ind) {
             tree->data().unset(ind);
             tree->data().set_inactive(ind);
             tree->data().set_acflag(ind,false);
-            FOREACH_CHILD(OctTreeT, tree, free_data(child, ind););
+            FOREACH_CHILD(OctTreeTPtr, tree, free_data(child, ind););
         };
 
     public:
-        FunctionOctTree(OctTree<FunctionNode>* tree)
+        FunctionOctTree(OctTreeT* tree)
                 : _nfree(FunctionNode::size)
                 , _free(_nfree)
         , _tree(tree) {
@@ -287,13 +288,13 @@ namespace madness {
         };
 
         /// Return a pointer to the contained octtree
-        inline OctTree<FunctionNode>* tree() {
-            return _tree.get();
+        inline OctTreeTPtr& tree() {
+            return _tree;
         };
 
         /// Return a const pointer to the contained octtree
-        inline const OctTree<FunctionNode>* tree() const {
-            return _tree.get();
+        inline const OctTreeTPtr& tree() const {
+            return _tree;
         };
 
         /// Allocate an index for a new function
@@ -772,9 +773,9 @@ namespace madness {
         void ptree() {_ptree(tree());};
 
         Function<T>& compress();
-        void _compress2(OctTreeT* tree, ArgT& parent);
-        void _compress2op(OctTreeT* tree, ArgT args[2][2][2], ArgT& parent);
-        ArgT input_arg(const OctTreeT* consumer, const OctTreeT* producer);
+        void _compress2(OctTreeTPtr& tree, ArgT& parent);
+        void _compress2op(OctTreeTPtr& tree, ArgT args[2][2][2], ArgT& parent);
+        ArgT input_arg(const OctTreeTPtr& consumer, const OctTreeTPtr& producer);
 
         /// Reconstruct compressed function (wavelet to scaling function)
 
@@ -871,7 +872,7 @@ namespace madness {
 
 	/// Saving Function members into the file. This member was prepared for save_local.
 	template <class Archive>
-	void _save_local(Archive& ar, const OctTreeT *tree); 
+	void _save_local(Archive& ar, const OctTreeTPtr& tree); 
 
 	/// save member is the member to serialize coefficients. This member is already parallelized. 
 	void save(const char* f, const long partLevel, Communicator& comm);
@@ -882,22 +883,22 @@ namespace madness {
 
 	/// saveManager Function member serialize coefficients on local (rank 0 ) branch. 
 	template <class Archive>
-	void saveManager(const char* f, Archive& ar, const OctTreeT *tree, const long partLevel, Communicator& commFunc);
+	void saveManager(const char* f, Archive& ar, const OctTreeTPtr& tree, const long partLevel, Communicator& commFunc);
 
 	/// This member serializes coefficients on client branch.
 	template <class Archive>
-	void shadowManager_save(const char* f, Archive& ar, const OctTreeT *tree, Level n, Translation x, Translation y, Translation z, 
+	void shadowManager_save(const char* f, Archive& ar, const OctTreeTPtr& tree, Level n, Translation x, Translation y, Translation z, 
         ProcessID remoteRank, const long partLevel, Communicator& commFunc);
 
 	/// This member cotrols distributes coefficients to client branch.
 	template <class Archive>
-	void shadowManager_load(const char* f, const Archive& ar, OctTreeT* tree, 
+	void shadowManager_load(const char* f, const Archive& ar, OctTreeTPtr& tree, 
               Level n, Translation x, Translation y, Translation z, 
               ProcessID remoteRank, Communicator& commFunc,
 	      bool active_flag, bool have_child);
 
 	/// This member is worker to send/recieve msg from rank 0.
-	void saveLoadWorker(OctTreeT *tree, 
+	void saveLoadWorker(OctTreeTPtr& tree, 
 			Communicator& commFunc, bool save);
 
 	/// This member is member for DiskDir class.
@@ -907,14 +908,14 @@ namespace madness {
 
 	/// This member Returns localsubtreelist of client computer to Master.
 	void localTreeList(std::vector<localTreeMember> &subtreeList, 
-			OctTreeT *tree);
+			const OctTreeT* tree);
 
 	/// Send Coefficients to Rank 0. 
-	void sendRecvDataWorker_save(OctTreeT *tree, 
+	void sendRecvDataWorker_save(OctTreeT* tree, 
 			Communicator& commFunc);
 
 	/// Receive Coefficients from Rank 0. 
-	void sendRecvDataWorker_load(OctTreeT *treeclient,  
+	void sendRecvDataWorker_load(const OctTreeT* treeclient,  
 			Communicator& commFunc);
 
 	/// Loading Function members from the file. This member is not parallelized.
@@ -923,7 +924,7 @@ namespace madness {
 
 	/// Loading Function members from the file. This member is prepared for called from load_local. 
 	template <class Archive>
-	void _load_local(const Archive& ar, OctTreeT *tree);
+	void _load_local(const Archive& ar, OctTreeTPtr& tree);
 
 	/// Loading Function members from the file. This member is already parallelized.
 	//template <class Archive>
@@ -932,7 +933,7 @@ namespace madness {
 
 	/// Load Managing Function member. 
 	template <class Archive>
-	void loadManager(const char* f, const Archive& ar, OctTreeT *tree, Communicator& commFunc, bool active_flag, const long partLevel, bool have_child);
+	void loadManager(const char* f, const Archive& ar, OctTreeTPtr& tree, Communicator& commFunc, bool active_flag, const long partLevel, bool have_child);
 
 	/// Load Managing Function member for DiskDir class. 
 	template <class Archive>
@@ -941,7 +942,7 @@ namespace madness {
         };
 
 	/// Making Archive class's file name for 2-layer Serialization.
-	void produceNewFilename(const char* f, const long partLevel, const OctTreeT *tree, char ftest[256]);
+	void produceNewFilename(const char* f, const long partLevel, const OctTreeTPtr& tree, char ftest[256]);
 
 	/// Making Archive class's file name for 2-layer Serialization.
 	void produceNewFilename2(const char* f, const long partLevel, localTreeMember& subtreeList, char ftest[256]);
@@ -949,7 +950,7 @@ namespace madness {
         /// Save Client brach's data on master.
         /// Save Client brach's data on master.
 	template <class Archive>
-        void dataSaveInShaManSave(const char* f, Archive& ar, const OctTreeT *tree, localTreeMember& subtreeList, ProcessID remoteRank, const long partLevel, Communicator& commFunc); 
+        void dataSaveInShaManSave(const char* f, Archive& ar, const OctTreeTPtr& tree, localTreeMember& subtreeList, ProcessID remoteRank, const long partLevel, Communicator& commFunc); 
 
 	/// Inplace truncation of small wavelet coefficients
     
@@ -980,7 +981,7 @@ namespace madness {
         };
 
 	/// This member is the member called from inner member.
-	T _inner_local(const Function<T>& a, const Function<T>& b, const OctTreeT* tree) const ;
+	T _inner_local(const Function<T>& a, const Function<T>& b, const OctTreeTPtr& tree) const ;
 
         /// Local evaluation of the function at a point in user coordinates
 
@@ -998,7 +999,7 @@ namespace madness {
                 throw "Function:eval_local:must not be compressed";
 
             *value = T(0.0);
-            const OctTreeT* tree = this->tree();
+            OctTreeTPtr tree = this->tree();
             if (isactive(tree)) {
                 // Determine if point might be local to this process
                 data->cdata->user_to_sim(x, y, z);
@@ -1100,7 +1101,7 @@ namespace madness {
         /// Private.  Projects function in given box
 
         /// No communication involved.
-        void _project(OctTreeT* s);
+        void _project(OctTreeTPtr& s);
 
 
         /// Private.  Projects function at given level.  No communication.
@@ -1108,7 +1109,7 @@ namespace madness {
         /// No communication involved.  It is assumed that this is
         /// being done to an initially zero Function by _init
         /// immediately after construction
-        void _fine_scale_projection(OctTreeT* coeff, Level initial_level);
+        void _fine_scale_projection(OctTreeTPtr& coeff, Level initial_level);
 
 
         /// Evaluate f(x,y,z) on the quadrature grid in box (n,lx,ly,lz)
@@ -1195,7 +1196,7 @@ namespace madness {
         /// Private. Returns the tree of coeffs
 
         /// No communication involved.
-        inline OctTreeT* tree() {
+        inline OctTreeTPtr& tree() {
             return data->tree->tree();
         };
 
@@ -1203,7 +1204,7 @@ namespace madness {
         /// Private. Returns the const tree of coeffs
 
         /// No communication involved.
-        inline const OctTreeT* tree() const {
+        inline const OctTreeTPtr& tree() const {
             return data->tree->tree();
         };
 
@@ -1211,7 +1212,22 @@ namespace madness {
         /// Private.  Retrieve pointer to coeffs of this Function from tree pointer
 
         /// No communication involved.
-        inline TensorT* coeff(OctTreeT* tree) const {
+        inline TensorT* coeff(const OctTreeTPtr& tree) {
+            return tree->data(). template get<T>(ind);
+        };
+
+        /// Private.  Retrieve pointer to coeffs of this Function from tree pointer
+
+        /// No communication involved.
+        inline TensorT* coeff(const OctTreeT* tree) {
+            return tree->data(). template get<T>(ind);
+        };
+
+
+        /// Private.  Retrieve const pointer to coeffs of this Function from tree pointer
+
+        /// No communication involved.
+        inline const TensorT* coeff(const OctTreeTPtr& tree) const {
             return tree->data(). template get<T>(ind);
         };
 
@@ -1222,15 +1238,30 @@ namespace madness {
         inline const TensorT* coeff(const OctTreeT* tree) const {
             return tree->data(). template get<T>(ind);
         };
+        
+        
+        /// Private.  Unset any coeffs of this Function from tree pointer
+
+        /// No communication involved.
+        inline void unset_coeff(OctTreeTPtr& tree) {
+            tree->data().unset(ind);
+        };
 
 
         /// Private.  Unset any coeffs of this Function from tree pointer
 
         /// No communication involved.
         inline void unset_coeff(OctTreeT* tree) {
-            return tree->data().unset(ind);
+            tree->data().unset(ind);
         };
 
+
+        /// Private.  Set coeffs of this Function from tree pointer
+
+        /// No communication involved.
+        inline TensorT* set_coeff(OctTreeTPtr& tree, const TensorT& t) {
+            return tree->data().set(ind, t);
+        };
 
         /// Private.  Set coeffs of this Function from tree pointer
 
@@ -1243,6 +1274,13 @@ namespace madness {
         /// Private.  Set Function active in tree node
 
         /// No communication involved.
+        inline void set_active(OctTreeTPtr& tree) const {
+            tree->data().set_active(ind);
+        };
+
+        /// Private.  Set Function active in tree node
+
+        /// No communication involved.
         inline void set_active(OctTreeT* tree) const {
             tree->data().set_active(ind);
         };
@@ -1251,13 +1289,18 @@ namespace madness {
         /// Private.  Set Function inactive in tree node
 
         /// No communication involved.
-        inline void set_inactive(OctTreeT* tree) const {
+        inline void set_inactive(OctTreeTPtr& tree) const {
             tree->data().set_inactive(ind);
         };
 
 
     public:
         /// Private.  Determine if Function is active in tree node
+
+        /// No communication involved.
+        inline bool isactive(const OctTreeTPtr& tree) const {
+            return tree->data().isactive(ind);
+        };
 
         /// No communication involved.
         inline bool isactive(const OctTreeT* tree) const {
@@ -1268,7 +1311,7 @@ namespace madness {
         /// Private.  For semantic similarity to isactive.
 
         /// No communication involved.
-        inline bool islocal(const OctTreeT* tree) const {
+        inline bool islocal(const OctTreeTPtr& tree) const {
             return tree->islocal();
         };
 
@@ -1276,21 +1319,21 @@ namespace madness {
         /// Private.  For semantic similarity to isactive.
 
         /// No communication involved.
-        inline bool isremote(const OctTreeT* tree) const {
+        inline bool isremote(const OctTreeTPtr& tree) const {
             return tree->isremote();
         };
         
         /// Private.  For semantic similarity to isactive.
 
         /// No communication involved.
-        inline void set_acflag(OctTreeT* tree, bool value) {
+        inline void set_acflag(OctTreeTPtr& tree, bool value) {
             tree->data().set_acflag(ind,value);
         };
         
         /// Private.  For semantic similarity to isactive.
 
         /// No communication involved.
-        inline bool get_acflag(const OctTreeT* tree) const {
+        inline bool get_acflag(const OctTreeTPtr& tree) const {
             return tree->data().get_acflag(ind);
         };
         
@@ -1306,24 +1349,24 @@ namespace madness {
         /// Private.  Recursive implementation of local 2-normsq
 
         /// No communication involved.
-        double _norm2sq_local(const OctTreeT* tree) const;
+        double _norm2sq_local(const OctTreeTPtr& tree) const;
 
         /// Private.  Recursive function to refine from initial projection.
 
         /// Communication streams all the way down the tree.
-        void _refine(OctTreeT* tree);
+        void _refine(OctTreeTPtr& tree);
 
 
         /// Private.  Recursive function to compress tree.
 
         /// Communication streams up the tree.
-        void _compress(OctTreeT* tree);
+        void _compress(OctTreeTPtr& tree);
 
 
         /// Private.  Recursive function to reconstruct the tree.
 
         /// Communication streams down the tree.
-        void _reconstruct(OctTreeT* tree);
+        void _reconstruct(OctTreeTPtr& tree);
 
 
         /// Private.  Recursive function to support local unary operations
@@ -1333,7 +1376,7 @@ namespace madness {
         /// reference to a const Tensor<T> as an argument and returns a
         /// new Tensor<T> as a result.
         template <class Op>
-        void _unaryop(Function<T>& result, OctTreeT *tree, const Op op) const {
+        void _unaryop(Function<T>& result, OctTreeTPtr& tree, const Op op) const {
             // !!! passing op by reference causes SEGV in gcc 4.0
             result.set_active(tree);
             const TensorT *t = coeff(tree);
@@ -1342,18 +1385,18 @@ namespace madness {
                 result.set_coeff(tree, q);
             }
 
-            FOREACH_CHILD(OctTreeT, tree,
+            FOREACH_CHILD(OctTreeTPtr, tree,
                           if (isactive(child))
                           _unaryop(result, child, op););
         };
 
         /// Private:  Recursive kernel for truncation
-        void _truncate(double tol, OctTreeT *tree);
+        void _truncate(double tol, OctTreeTPtr& tree);
 
 
         /// Private.  Recur down the tree printing out the norm of
         /// the coefficients.
-        void _pnorms(const OctTreeT *tree) const {
+        void _pnorms(const OctTreeTPtr& tree) const {
             const TensorT *t = coeff(tree);
             for (long i=0; i<tree->n(); i++) std::printf("  ");
             if (t) {
@@ -1363,13 +1406,13 @@ namespace madness {
                 std::printf("%4d (%8lu, %8lu, %8lu) None\n",
                             tree->n(),tree->x(),tree->y(),tree->z());
             }
-            FOREACH_CHILD(OctTreeT, tree, if (isactive(child)) _pnorms(child););
+            FOREACH_CHILD(OctTreeTPtr, tree, if (isactive(child)) _pnorms(child););
         };
 
         /// Private.  Recursive function to support inplace scaling.
-        void _scale(OctTreeT *tree, T s) {
+        void _scale(OctTreeTPtr& tree, T s) {
             if (coeff(tree)) coeff(tree)->scale(s);
-            FOREACH_CHILD(OctTreeT, tree,
+            FOREACH_CHILD(OctTreeTPtr, tree,
                           if (isactive(child)) _scale(child, s););
         };
 
@@ -1427,9 +1470,9 @@ namespace madness {
         
         /// Return value is the no. of unique remote processes with 
         /// active children and a list of their MPI ranks
-        int unique_active_child_procs(const OctTreeT *tree, ProcessID ranks[8]) const {
+        int unique_active_child_procs(const OctTreeTPtr& tree, ProcessID ranks[8]) const {
             int np = 0;
-            FOREACH_REMOTE_CHILD(const OctTreeT, tree,
+            FOREACH_REMOTE_CHILD(const OctTreeTPtr, tree,
                 if (isactive(child)) {
                     bool found = false;
                     for (int p=0; p<np; p++) {
@@ -1445,13 +1488,13 @@ namespace madness {
         };
         
         
-        void _ptree(OctTreeT *tree) {
+        void _ptree(OctTreeTPtr& tree) {
             tree->print_coords();
-            FOREACH_ACTIVE_CHILD(OctTreeT, tree, _ptree(child););
+            FOREACH_ACTIVE_CHILD(OctTreeTPtr, tree, _ptree(child););
         };
 
         /// Private.  Recursive function to provide autorefinement for squaring and multiplication.
-        void _autorefine(OctTreeT *tree) {
+        void _autorefine(OctTreeTPtr& tree) {
             bool msg[2], refine=false;
             const Slice* s = data->cdata->s;
             const Slice& s0 = s[0];
@@ -1479,7 +1522,7 @@ namespace madness {
                 
                 if (refine) { // refine, sending data as necessary;
                     const Tensor<T>& c = *coeff(tree);
-                    FORIJK(OctTreeT* child = tree->child(i,j,k);
+                    FORIJK(OctTreeTPtr child = tree->child(i,j,k);
                            if (!child) child = tree->insert_local_child(i,j,k);
                            set_active(child);
                            if (child->islocal()) {
@@ -1502,7 +1545,7 @@ namespace madness {
                 } else if (active) {
                     set_active(tree);
                     if (refine) {
-                        FORIJK(OctTreeT* child = tree->child(i,j,k);
+                        FORIJK(OctTreeTPtr child = tree->child(i,j,k);
                               if (!child) child = tree->insert_local_child(i,j,k);
                               set_active(child);
                               comm()->Recv(work1.ptr(), work1.size, tree->rank(), AUTOREF_TAG2);
@@ -1514,14 +1557,14 @@ namespace madness {
                 }
             }
                 
-            FOREACH_CHILD(OctTreeT, tree, if (islocal(child)) _autorefine(child););    
+            FOREACH_CHILD(OctTreeTPtr, tree, if (islocal(child)) _autorefine(child););    
         };
 
         /// Private.  Recursive function to support inplace squaring.
         
         /// No communication.
-        void _square(OctTreeT *tree) {
-        	 FOREACH_ACTIVE_CHILD(OctTreeT, tree, _square(child););
+        void _square(OctTreeTPtr& tree) {
+        	 FOREACH_ACTIVE_CHILD(OctTreeTPtr, tree, _square(child););
 
              if (coeff(tree)) {
                 Tensor<T>& t = *coeff(tree);
@@ -1541,11 +1584,11 @@ namespace madness {
 
         /// Private.  Recursive function to support gaxpy
         void _gaxpy(Function<T>& afun, double alpha,
-                    const Function<T>& bfun, double beta, OctTreeT* tree);
+                    const Function<T>& bfun, double beta, OctTreeTPtr& tree);
 
         /// Private.  Recursive function to support addition and subtraction
         void _add_sub(Function<T>& c, const Function<T>& a, const Function<T>& b,
-                      OctTreeT* tree, bool subtract) const;
+                      OctTreeTPtr& tree, bool subtract) const;
 
 
         /// Private.  Check that this function and another share the same OctTree
@@ -1560,24 +1603,24 @@ namespace madness {
                      int lx, int ly, int lz,
                      const Tensor<T>& s) const;
         
-        void _diff(Function<T>& df, OctTreeT* tree, int axis) {
+        void _diff(Function<T>& df, OctTreeTPtr& tree, int axis) {
             if (isactive(tree)) {
                 df.set_active(tree);
                 if (coeff(tree)) _dodiff(df, tree, axis);
-                else FOREACH_CHILD(OctTreeT, tree, _diff(df, child, axis););
+                else FOREACH_CHILD(OctTreeTPtr, tree, _diff(df, child, axis););
             }
         };
 
-        void _dodiff(Function<T>& df, OctTreeT* tree, int axis);
+        void _dodiff(Function<T>& df, OctTreeTPtr& tree, int axis);
            
-        void _dodiff_kernel(Function<T>& df, OctTreeT* tree, int axis,
+        void _dodiff_kernel(Function<T>& df, OctTreeTPtr& tree, int axis,
                     const TensorT& t0, const TensorT& tm, const TensorT& tp);
                     
-        void _recur_coeff_down(OctTreeT *tree, bool keep);
+        void _recur_coeff_down(OctTreeT* tree, bool keep);
         
-        const Tensor<T>* _get_scaling_coeffs(OctTreeT* t, int axis, int inc);
+        const Tensor<T>* _get_scaling_coeffs(OctTreeTPtr& t, int axis, int inc);
         
-        void _auto_clean(OctTreeT* tree) {
+        void _auto_clean(OctTreeTPtr& tree) {
             if (isactive(tree)) {
                 if (get_acflag(tree)) {
                     //print(tree->n(),tree->x(),tree->y(),tree->z(),"autocleaning");
@@ -1585,7 +1628,7 @@ namespace madness {
                     set_inactive(tree);
                     set_acflag(tree,false);
                 };
-                FOREACH_CHILD(OctTreeT, tree, _auto_clean(child););
+                FOREACH_CHILD(OctTreeTPtr, tree, _auto_clean(child););
             }
         };
                     

@@ -2,11 +2,20 @@
 #define PRINT_H
 
 #include <iostream>
+#include <typestuff.h>
 
 /// \file print.h
 /// \brief Defines simple templates for printing to cout a la Python
 
 namespace madness {
+    
+    /// Print a fixed dimension array to cout terminating with a new line
+    template <typename T, std::size_t N>
+    void print_array(const T (&v)[N]) {
+        for (int i=0; i<(int)N; i++) std::cout << v[i] << " ";
+        std::cout<<std::endl;
+        std::cout.flush();
+    };
 
     /// Print a single item to cout terminating with new line
     template <class A>
