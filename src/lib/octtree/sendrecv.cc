@@ -808,9 +808,9 @@ namespace madness {
             } else {}
             comm.Bcast(&root, 1, 0);
             if (debug) {
-                std::cout << "exchangeTrees: root " << i << ": n = " << root.n << ", " <<
-                "(" << root.x << "," << root.y << "," << root.z << ")" << "current = "
-                << root.current_owner << ", future = " << root.future_owner << std::endl;
+//                std::cout << "exchangeTrees: root " << i << ": n = " << root.n << ", " <<
+//                "(" << root.x << "," << root.y << "," << root.z << ")" << "current = "
+//                << root.current_owner << ", future = " << root.future_owner << std::endl;
                 std::cout << "exchangeTrees: after bcast root number " << i << std::endl;
             }
             if (me != 0) {
@@ -859,7 +859,7 @@ namespace madness {
                         t = 0;
                 }
                 /* if the tree is not already a root */
-                if (t != (*treeList)[j]) {
+                if (t != (*treeList)[j].get()) {
                     OctTree<T> *p = new OctTree<T>();
                     p = t->parent();
                     ProcessID future_owner = -1;
@@ -876,7 +876,7 @@ namespace madness {
                     x -= 2*(x/2);
                     y -= 2*(y/2);
                     z -= 2*(z/2);
-                    SharedPtr<OctTree<T> > tptr = p->childPtr(x,y,z);
+                    SharedPtr<OctTree<T> > tptr = p->child(x,y,z);
                     treeList->push_back(tptr);
                     if (debug) {
                         std::cout << "exchangeTrees: pushed back tree n = " << t->n() << " " <<
@@ -904,7 +904,7 @@ namespace madness {
 		    if (p->islocal())
 		    {
 */
-                        OctTree<T> *q = new OctTree<T>();
+                        SharedPtr<OctTree<T> > q = SharedPtr<OctTree<T> >();
                         q = p->insert_remote_child(x, y, z, (*globalList)[i].future_owner);
                         if (debug) {
                             std::cout << "exchangeTrees: inserted remote child " <<
@@ -1015,7 +1015,7 @@ namespace madness {
 		    std::cout << "no, made it past" << std::endl;
 */
 		    bool deleteit = true;
-		    FOREACH_CHILD(OctTree<T>, p,
+		    FOREACH_CHILD(SharedPtr<OctTree<T> >, p,
 			if (child->islocal())
 			    deleteit = false;
 		    );
@@ -1093,12 +1093,18 @@ namespace madness {
         }
 
 //	sort((*treeList).begin(), (*treeList).end(), less<OctTree<T>* > ());
+	tlength = treeList->size();
 	sort((*treeList).begin(), (*treeList).end());
-        if (glue)
-            glueTrees(treeList);
 	if (debug)
 	{
-	    std::cout << "exchangeTrees: about to return" << std::endl;
+	    std::cout << "exchangeTrees: before gluing, number of trees = " << tlength << std::endl;
+	}
+        if (glue)
+            glueTrees(treeList);
+	tlength = treeList->size();
+	if (debug)
+	{
+	    std::cout << "exchangeTrees: about to return with " << tlength << " trees" << std::endl;
 	}
     }
 
@@ -1221,18 +1227,27 @@ namespace madness {
 
     template <class T>
     void glueTrees(std::vector<SharedPtr<OctTree<T> > > *treeList) {
-        int size = treeList->size();
-        int nconsidered = size, nunchanged = 0;
-        bool flag = false;
+        int N = treeList->size();
 
 //        bool debug = true;
 	bool debug = false;
 
+	if (debug)
+	{
+	    std::cout << "glueTrees: beginning of function, N = " << N << std::endl;
+	}
 
-	for (int i = size-1; i >= 0; i--)
+	sort((*treeList).begin(), (*treeList).end());
+
+	if (debug)
+	{
+	    std::cout << "glueTrees: sorted treeList" << std::endl;
+	}
+
+	for (int i = N-1; i >= 0; i--)
 	{
 	    bool removeit = true;
-	    OctTree<T> *t = new OctTree<T>();
+	    SharedPtr<OctTree<T> > t = SharedPtr<OctTree<T> >();
 	    t = (*treeList)[i];
 	    if (t->islocal())
 	    {
@@ -1240,7 +1255,7 @@ namespace madness {
 	    }
 	    else
 	    {
-	        FOREACH_CHILD(OctTree<T>, t,
+	        FOREACH_CHILD(SharedPtr<OctTree<T> >, t,
 		    if (child->islocal())
 		    {
 		        removeit = false;
@@ -1250,183 +1265,257 @@ namespace madness {
 	    if (removeit)
 	    {
 //		if (debug)
-		    std::cout << "glueTrees: removing tree that is purely remote" << std::endl;
+		    std::cout << "glueTrees: removing tree " << i << " that is purely remote" << std::endl;
                 treeList->erase((treeList->begin()+i));
+		N = treeList->size();
 	    }
 	}
-	size = treeList->size();
-	nconsidered = size;
-        for (int i = 0; i < size; i++) {
-            if (debug) {
-                std::cout << "glueTrees: at beginning of i loop, i = " << i << ", nunchanged = " <<
-                nunchanged << ", nconsidered = " << nconsidered << std::endl;
-            }
-            SharedPtr<OctTree<T> > t = SharedPtr<OctTree<T> >();
-            t = (*treeList)[nunchanged];
-            if (debug) {
-                std::cout << "glueTrees: after assigning t to be (*treeList)[" << nunchanged << "] = "
-                << "(" << t->x() << "," << t->y() << "," << t->z() << ")" << std::endl;
-            }
 
-            for (int j = 1; j < nconsidered; j++) {
-                if (debug) {
-                    std::cout << "glueTrees: at beginning of j loop, j = " << j << std::endl;
-                }
-		if (t->n() == (*treeList)[nunchanged+j]->n()) {
-		// if this tree is the same level, it could be the same tree, in which case
-		// we need to replace one tree with another, inserting its children as appropriate
+	if (debug)
+	{
+	    std::cout << "glueTrees: list of " << N << " local subtrees" << std::endl;
+	    for (int q = 0; q < N; q++)
+	    {	
+//		std::cout << "    n = " << (*treeList)[q]->n() << ", (" << (*treeList)[q]->x() <<
+//			"," << (*treeList)[q]->y() << "," << (*treeList)[q]->z() << ")" << std::endl;
+		std::cout << "Subtree " << q << " of " << N << ":" << std::endl;
+		(*treeList)[q]->depthFirstTraverseAll();
+	    }
+	}
+
+	for (int i = 0; i < N-1; i++)
+	{
+	    if (debug)
+	    {
+		std::cout << "glueTrees: at top of i loop, i = " << i << ", and N = " << N <<
+			std::endl;
+	    	std::cout << "glueTrees: list of local subtrees" << std::endl;
+	    	for (int q = 0; q < N; q++)
+	    	{	
+		    std::cout << "    n = " << (*treeList)[q]->n() << ", (" << (*treeList)[q]->x() <<
+			"," << (*treeList)[q]->y() << "," << (*treeList)[q]->z() << ")" << std::endl;
+	    	}
+	    }
+	    int j = i, tmpi = -1, tmpj = -1;
+	    do
+	    {
+		j++;
+		if (debug)
+		{
+		    std::cout << "glueTrees: at top of j loop (after j++), j = " << j << " and N = "
+			<< N << std::endl;
+/*
+	    	    for (int q = 0; q < N; q++)
+	    	    {	
+		    	std::cout << "    n = " << (*treeList)[q]->n() << ", (" << (*treeList)[q]->x() 
+				<< "," << (*treeList)[q]->y() << "," << (*treeList)[q]->z() << ")" << 
+				std::endl;
+	    	    }
+*/
+		}
+		if ((*treeList)[i]->equals((*treeList)[j].get()))
+		{
 		    if (debug)
 		    {
-			std::cout << "glueTrees: the same node is duplicated!!!" << std::endl;
+			std::cout << "glueTrees: treeList[" << i << "] == treeList[" << j << "]"
+				<< std::endl;
+			std::cout << "    [n = " << (*treeList)[i]->n() << ", (" << (*treeList)[i]->x()
+				<< "," << (*treeList)[i]->y() << "," << (*treeList)[i]->z() << ") ]"
+				<< std::endl;
 		    }
-		    if (t->equals((*treeList)[nunchanged+j])) {
-			int tmp = nunchanged+j;
-			if (t->isremote())
+		    // merge these trees together, deleting one of them
+		    if ((*treeList)[i]->islocal()) // just on the off chance this is The Root
+		    {
+			tmpi = i; 
+			tmpj = j;
+			if (debug)
 			{
-			    if (debug)
-			    {
-				std::cout << "glueTrees: the first one is remote (1)" << std::endl;
-			    }
-			    FORIJK(
-			        if (t->child(i,j,k) && (t->childPtr(i,j,k)->islocal()))
-			        {
-				    (*treeList)[tmp]->setChild(i,j,k,t->childPtr(i,j,k)); 
-					// set the child ptr to this local node
-				    if (_debug)
-				    {
-					std::cout << "glueTrees: set child ptr to local ptr (" << i << ","
-						<< j << "," << k << ")" << std::endl;
-				    }
-			        }
-				else
-				{
-				    if (_debug)
-				    {
-					std::cout << "glueTrees: child (" << i << "," << j << "," << k << 
-						") does not exist or is not local" << std::endl;
-				    }
-				}
-			    );
-                            treeList->erase((treeList->begin()+nunchanged));
-			    if (debug)
-			    {
-				std::cout << "glueTrees: erased entry number " << nunchanged << 
-					" in treeList" << std::endl;
-			    }
-                            flag = true;
+			    std::cout << "glueTrees: this node, " << i << ", is The Root" << std::endl;
 			}
-			else if ((*treeList)[tmp]->isremote())
-			{
-			    if (debug)
-			    {
-				std::cout << "glueTrees: the second one is remote (2)" << std::endl;
-			    }
-			    SharedPtr<OctTree<T> > s = SharedPtr<OctTree<T> > ((*treeList)[tmp]);
-			    (*treeList)[tmp] = t;
-			    FORIJK(
-			        if (s->child(i,j,k) && (s->childPtr(i,j,k)->islocal()))
-			        {
-				    t->setChild(i,j,k,s->childPtr(i,j,k)); 
-					// set the child ptr to this local node
-				    if (_debug)
-				    {
-					std::cout << "glueTrees: set child ptr to local ptr (" << i << ","
-						<< j << "," << k << ")" << std::endl;
-				    }
-			        }
-				else
-				{
-				    if (_debug)
-				    {
-					std::cout << "glueTrees: child (" << i << "," << j << "," << k << 
-						") does not exist or is not local" << std::endl;
-				    }
-				}
-			    );
-//                            treeList->erase((treeList->begin()+tmp));
-//			    (*treeList)[tmp] = t;
-			    treeList->erase((treeList->begin()+nunchanged));
-			    if (debug)
-			    {
-				std::cout << "glueTrees: erased entry number " << tmp << " in treeList"
-					<< std::endl;
-			    }
-                            flag = true;
-			}
-			else
-			{
-			    std::cout << "glueTrees: Huh?  This should not happen" << std::endl;
-			}
-			break;
 		    }
-                } else if (t->n() > (*treeList)[nunchanged+j]->n()) {
-                    if (t->isDescendant((*treeList)[nunchanged+j])) {
-                        if (debug) {
-                            std::cout << "glueTrees: t (" << t->x() << "," << t->y() << "," << t->z() << ")"
-                            << " is a descendant of (" << (*treeList)[nunchanged+j]->x() << "," <<
-                            (*treeList)[nunchanged+j]->y() << "," << (*treeList)[nunchanged+j]->z()
-                            << ")" << std::endl;
-                        }
-                        // find t on this tree
-                        OctTree<T> *u = new OctTree<T>();
-			u = (*treeList)[nunchanged+j]->findDown(t->n(), t->x(), t->y(), t->z());
-                        if (u) {
-                            if (debug) {
-                                std::cout << "glueTrees: found the tree on the list" << std::endl;
-                            }
-                            OctTree<T> *p = new OctTree<T>();
-                            p = u->parent();
-                            if (debug) {
-                                std::cout << "glueTrees: made parent to u:" << std::endl;
-//				std::cout << "    n = " << p->n() << ", (" << p->x() << "," <<
-//					p->y() << "," << p->z() << "), islocal? " << p->islocal()
-//					<< std::endl;
-                            }
-//			    if ((p) && p->islocal())
-			    if (p)
+		    else
+		    {
+			tmpi = j;
+			tmpj = i;
+		    }
+		    FORIJK(
+			SharedPtr<OctTree<T> > child = SharedPtr<OctTree<T> >();
+			child = (*treeList)[tmpj]->child(i,j,k);
+			if (child.get())
+			{
+			    if (debug)
+			    {
+				std::cout << "glueTrees: child(" << i << "," << j << "," << k << ") "
+					<< "exists" << std::endl;
+			    }
+			    // if treeList[tmpi] doesn't already have a local node here
+			    if (!((*treeList)[tmpi]->child(i,j,k).get()) || 
+				((*treeList)[tmpi]->child(i,j,k)->isremote()))
 			    {
 				if (debug)
 				{
-				    std::cout << "    n = " << p->n() << ", (" << p->x() << "," <<
-					p->y() << "," << p->z() << "), islocal? " << p->islocal()
-					<< std::endl;
-				    std::cout << "glueTrees: about to insert local child" << std::endl;
+				    std::cout << "glueTrees: child(" << i << "," << j << "," << k << ")"
+					<< " either does not exist or is not local, so insert new node "
+					<< "here" << std::endl;
 				}
-                            	p->insert_local_child(t);
-                            	if (debug) {
-                                    std::cout << "glueTrees: inserted local child" << std::endl;
-                            	}
-                            	treeList->erase((treeList->begin()+nunchanged));
-                            	if (debug) {
-                                    std::cout << "glueTrees: erased tree from treeList" << std::endl;
-                            	}
-                            	flag = true;
+				(*treeList)[tmpi]->insert_local_child(child);
 			    }
-//			    else
-//			    {
-//				std::cout << "glueTrees: u's parent is not local, so don't do anything"
-//					<< std::endl;
-//			    }
-                        }
-                        break;
-                    }
-                }
-            }
-	    if (debug)
-	    {
-		std::cout << "glueTrees: outside of loop, about to change nunchanged and nconsidered"
-			<< std::endl;
-	    }
-            if (!(flag))
-                nunchanged++;
-            nconsidered--;
-            flag = false;
-        }
+			}
+		    );
+		    // remove treeList[tmpj]
+		    if (tmpj > -1)
+		    {
+			if (debug)
+			{
+			    std::cout << "glueTrees: erase treeList[" << tmpj << "]" << std::endl;
+			}
+                	treeList->erase((treeList->begin()+tmpj));
+		    }
+		    N--;
+		    j--;
+		}
+		else
+		{
+		    if (debug)
+		    {
+			std::cout << "glueTrees: treeList[" << i << "] != treeList[" << j << "]"
+				<< std::endl;
+			std::cout << "i:    [n = " << (*treeList)[i]->n() << ", (" << (*treeList)[i]->x()
+				<< "," << (*treeList)[i]->y() << "," << (*treeList)[i]->z() << ") ]"
+				<< std::endl;
+			std::cout << "j:    [n = " << (*treeList)[j]->n() << ", (" << (*treeList)[j]->x()
+				<< "," << (*treeList)[j]->y() << "," << (*treeList)[j]->z() << ") ]"
+				<< std::endl;
+		    }
+		}
+
+		if ((*treeList)[i]->isDescendant((*treeList)[j].get()))
+		{
+		    if (debug)
+		    {
+			std::cout << "glueTrees: treeList[" << i << "] is descendant of treeList[" 
+				<< j << "]" << std::endl;
+			std::cout << "i:    [n = " << (*treeList)[i]->n() << ", (" << (*treeList)[i]->x()
+				<< "," << (*treeList)[i]->y() << "," << (*treeList)[i]->z() << ") ]"
+				<< std::endl;
+			std::cout << "j:    [n = " << (*treeList)[j]->n() << ", (" << (*treeList)[j]->x()
+				<< "," << (*treeList)[j]->y() << "," << (*treeList)[j]->z() << ") ]"
+				<< std::endl;
+		    }
+		    // if we can find treeList[i] on treeList[j] and it's local, then
+		    // attach children of treeList[i] to the appropriate node of treeList[j]
+		    OctTree<T> *t = new OctTree<T>();
+		    t = (*treeList)[j]->findDown((*treeList)[i]->n(), (*treeList)[i]->x(),
+			(*treeList)[i]->y(), (*treeList)[i]->z());
+		    if (t->equals(((*treeList)[i]).get()))
+		    {
+		    	if (debug)
+		    	{
+			    std::cout << "glueTrees: t == treeList[" << i << "]" << std::endl;
+			    std::cout << "t:    [n = " << t->n() << ", (" << t->x() << "," << 
+			 	t->y() << "," << t->z() << "), rank = " << t->rank() << ", "
+				<< "local? " << t->islocal() << " ]" << std::endl;
+		    	}
+			if (t->islocal())
+			{
+			    if (debug)
+			    {
+				std::cout << "glueTrees: t is local" << std::endl;
+			    }
+			    tmpi = i;
+			    FORIJK(
+				SharedPtr<OctTree<T> > child = SharedPtr<OctTree<T> >();
+				child = (*treeList)[tmpi]->child(i,j,k);
+				if (child.get())
+				{
+			    	    if (debug)
+			    	    {
+					std::cout << "glueTrees: child(" << i << "," << j << "," << k << ") "
+						<< "exists" << std::endl;
+			    	    }
+				    if (!(t->child(i,j,k).get()) || (t->child(i,j,k)->isremote()))
+				    {
+					if (debug)
+					{
+				    	    std::cout << "glueTrees: child(" << i << "," << j << "," << k 
+						<< ")" << " either does not exist or is not local," << 
+						" so insert new node here" << std::endl;
+					}
+					t->insert_local_child(child);
+				    }
+				}
+			    );
+			    // remove treeList[i]
+			    if (debug)
+			    {
+			    	std::cout << "glueTrees: erase treeList[" << tmpi << "]" << std::endl;
+			    }
+                	    treeList->erase((treeList->begin()+tmpi));
+			    N--;
+			    j = i;
+			}
+			else
+			{
+			    if (debug)
+			    {
+				std::cout << "glueTrees: t is not local" << std::endl;
+			    }
+			    tmpi = i;
+			    OctTree<T> *p = new OctTree<T> ();
+			    p = t->parent();
+			    if (p)
+			    {
+			    	if (debug)
+			    	{
+				    std::cout << "glueTrees: parent exists: n = " << p->n() <<
+					", (" << p->x() << "," << p->y() << "," << p->z() << ")" 
+					<< std::endl;
+			    	}
+				p->insert_local_child((*treeList)[i]);
+			    	if (debug)
+			    	{
+				    std::cout << "glueTrees: parent still ok? n = " << p->n() <<
+					", (" << p->x() << "," << p->y() << "," << p->z() << ")" 
+					<< std::endl;
+			    	}
+		 		// remove treeList[i]
+			    	if (debug)
+			    	{
+			    	    std::cout << "glueTrees: erase treeList[" << i << "]" << std::endl;
+			    	}
+                	    	treeList->erase((treeList->begin()+i));
+			    	if (debug)
+			    	{
+				    std::cout << "glueTrees: parent still ok? n = " << p->n() <<
+					", (" << p->x() << "," << p->y() << "," << p->z() << ")" 
+					<< std::endl;
+			    	}
+			    	N--;
+			    	j = i;
+			    }
+			}
+		    }
+		}
+		else
+		{
+		    if (debug)
+		    {
+			std::cout << "glueTrees: treeList[" << i << "] is not descendant of treeList[" 
+				<< j << "]" << std::endl;
+		    }
+		}
+	    } while (j < N-1);
+	}
 	if (debug)
 	{
-	    std::cout << "glueTrees: does deletion occur before or after this point?" << std::endl;
+	    std::cout << "glueTrees: at very end of function, about to return" << std::endl;
+	    for (int q = 0; q < N; q++)
+	    {	
+		std::cout << "Subtree " << q << " of " << N << ":" << std::endl;
+		(*treeList)[q]->depthFirstTraverseParents();
+	    }
 	}
-    }
+    };
 
 
     template <class T>
@@ -1496,7 +1585,7 @@ namespace madness {
 	    }
 	    else
 	    {
-		FOREACH_LOCAL_CHILD(OctTree<char>, gt,
+		FOREACH_LOCAL_CHILD(SharedPtr<OctTree<char> >, gt,
 		    ownerList->push_back(RootList(child->x(), child->y(), child->z(), child->n(), 0, 0));
 		);
 	    }
@@ -1539,7 +1628,7 @@ namespace madness {
 			std::cout << "createGhostTree: above tree is remote" << std::endl;
 		    }
 		    int tmp = i;
-		    FOREACH_LOCAL_CHILD(OctTree<char>, gt,
+		    FOREACH_LOCAL_CHILD(SharedPtr<OctTree<char> >, gt,
 		    	ownerList->push_back(RootList(child->x(), child->y(), child->z(), 
 				child->n(), tmp, tmp));
 			if (debug)
@@ -1768,6 +1857,9 @@ namespace madness {
 //	bool debug = true;
 	bool debug = false;
 
+//	bool dumptree = true;
+	bool dumptree = false;
+
 	me = comm.rank();
 	np = comm.nproc();
 
@@ -1788,6 +1880,10 @@ namespace madness {
 	    if (debug)
 	    {
 		std::cout << "serialLoadBalance: after serialPartition of ghostTree" << std::endl;
+	    }
+	    if (dumptree)
+	    {
+		ghostTree->dumpTree();
 	    }
 	    mergeList = createMergeList(globalList, ownerList);
 	    if (debug)
@@ -1855,6 +1951,10 @@ namespace madness {
 
 	int glen = globalList.size();
 	int tlen = treeList->size();
+	if (debug)
+	{
+	    std::cout << "serialLoadBalance: length of treeList = " << tlen << std::endl;
+	}
 	for (int i = 0; i < tlen; i++)
 	{
 	    RootList rli = RootList(((*treeList)[i]).get(), me, me);
@@ -1866,8 +1966,8 @@ namespace madness {
 		    {
 			std::cout << "serialLoadBalance: about to make tree n = " << rli.n <<
 				", (" << rli.x << "," << rli.y << "," << rli.z << ") into child of  n = " <<
-				rli.n-1 << ",(" << rli.x/2 << "," << rli.y/2 << "," << rli.z/2 << ")" 
-				<< std::endl;
+				rli.n-1 << ",(" << rli.x/2 << "," << rli.y/2 << "," << rli.z/2 << 
+				"), rank =" << globalList[j].future_owner << std::endl;
 		    }
 		    SharedPtr<OctTree<T> > pptr = SharedPtr<OctTree<T> > ((*treeList)[i]->setParentChild(new 
 				OctTree<T> (rli.n-1, rli.x/2, rli.y/2, rli.z/2, true, 0, 
@@ -1926,6 +2026,7 @@ namespace madness {
 	}
 
 	glueTrees(treeList);
+	tlen = treeList->size();
 	if (debug)
 	{
 	    std::cout << "serialLoadBalance: waiting for barrier" << std::endl;
@@ -1956,7 +2057,8 @@ namespace madness {
 	{
 	    return 0;
 	}
-    }
+    };
+
 
 }
 

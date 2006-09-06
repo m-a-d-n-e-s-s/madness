@@ -38,7 +38,7 @@ static const bool _debug = false;
         for (int j=0; j<2; j++) \
 	  for (int k=0; k<2; k++) { \
             childptrT child = ((t)->child(i,j,k)); \
-            if (child) {expr} \
+            if (child.get()) {expr} \
           } \
     } while(0)
 
@@ -48,7 +48,7 @@ static const bool _debug = false;
         for (int j=0; j<2; j++) \
 	  for (int k=0; k<2; k++) { \
             childptrT child = ((t)->child(i,j,k)); \
-            if (child && child->islocal()) {expr} \
+            if (child.get() && child->islocal()) {expr} \
           } \
     } while(0)
 
@@ -58,7 +58,7 @@ static const bool _debug = false;
         for (int j=0; j<2; j++) \
 	  for (int k=0; k<2; k++) { \
             childptrT child = ((t)->child(i,j,k)); \
-            if (child && child->isremote()) {expr} \
+            if (child.get() && child->isremote()) {expr} \
           } \
     } while(0)
 
@@ -406,9 +406,11 @@ namespace madness {
         /// insert local child (x, y, z in {0,1}, OctTreeT t), returning pointer to child
         SharedPtr<OctTreeT>& insert_local_child(int x, int y, int z, OctTreeT t) {
             _c[x][y][z] = SharedPtr<OctTreeT>(new OctTreeT(t));
-	       _c[x][y][z]->setParent(this);
-	       return _c[x][y][z];
-	   };
+	    _c[x][y][z]->setParent(this);
+	    t->_remote = false;
+	    t->_rank = -1;
+	    return _c[x][y][z];
+	};
 
         /// insert local child (x, y, z in {0,1}, OctTreeT t), returning pointer to child
         OctTreeT* insert_local_child(OctTreeT *t) {
@@ -417,6 +419,8 @@ namespace madness {
 	    Translation z = t->_z - 2*this->_z;
         _c[x][y][z] = SharedPtr<OctTreeT>(t);
 	    _c[x][y][z]->setParent(this);
+	    t->_remote = false;
+	    t->_rank = -1;
 	    return _c[x][y][z];
 	};
 
@@ -424,14 +428,19 @@ namespace madness {
 	    Translation x = t->_x - 2*this->_x;
 	    Translation y = t->_y - 2*this->_y;
 	    Translation z = t->_z - 2*this->_z;
-	    std::cout << "insert_local_child shared pointer constructor (" << x << "," << y 
-			<< "," << z << ")" << std::endl;
-	    std::cout << "insert_local_child shared pointer constructor: t = " << t.get() << std::endl;
+//	    std::cout << "insert_local_child shared pointer constructor (" << x << "," << y 
+//			<< "," << z << ")" << std::endl;
+	    t->_remote = false;
+	    t->_rank = -1;
+//	    std::cout << "insert_local_child shared pointer constructor: t = " << t.get() << std::endl;
+//	    std::cout << "insert_local_child shared pointer constructor: remote = " << t->_remote
+//		<< ", rank = " << t->_rank << std::endl;
             _c[x][y][z] = SharedPtr<OctTreeT>(t);
 //            _c[x][y][z] = t;
-	    std::cout << "insert_local_child shared pointer constructor: set c" << std::endl;
+//	    std::cout << "insert_local_child shared pointer constructor: set c; t = " << t.get() 
+//		<< std::endl;
 	    _c[x][y][z]->setParent(this);
-	    std::cout << "insert_local_child shared pointer constructor: set c's parent" << std::endl;
+//	    std::cout << "insert_local_child shared pointer constructor: set c's parent" << std::endl;
 	    return _c[x][y][z];
 	};
 
@@ -451,7 +460,8 @@ namespace madness {
 		return false;
 
 	    Level dn = (Level) pow(2, _n-tree->_n);
-	    if ((_x/dn == tree->_x) && (_y/dn == tree->_y) && (_z/dn == tree->_z))
+//	    if ((_x/dn == tree->_x) && (_y/dn == tree->_y) && (_z/dn == tree->_z))
+	    if (((_x/dn)*dn == dn*tree->_x) && ((_y/dn)*dn == dn*tree->_y) && ((_z/dn)*dn == dn*tree->_z))
 		return true;
 	    else
 		return false;
@@ -516,11 +526,12 @@ namespace madness {
                     xx = (x>>nn)&1; 
                     yy = (y>>nn)&1;
                     zz = (z>>nn)&1;
-                    OctTreeT* c = child(xx,yy,zz);
+                    OctTreeTPtr c = child(xx,yy,zz);
                     if (c) 
-                        return c->find(n,x,y,z); // Look below
+                        return c->findDown(n,x,y,z); // Look below
                     else {
                         return (OctTreeT*) this; // Does not exist, return closest parent
+//			  return 0;
                     }
                 }
             }
@@ -538,7 +549,7 @@ namespace madness {
 	    if (_sendto == -1)
 	    	this->setSendto(p);
 
-	    FOREACH_LOCAL_CHILD(OctTreeT, this,
+	    FOREACH_LOCAL_CHILD(OctTreeTPtr, this,
 		child->setVisited(p);
 	    );
 	}
@@ -558,7 +569,7 @@ namespace madness {
 	{
 	    _visited = false;
 
-	    FOREACH_LOCAL_CHILD(OctTreeT, this,
+	    FOREACH_LOCAL_CHILD(OctTreeTPtr, this,
 		child->setUnVisited();
 	    );
 	}
@@ -571,7 +582,7 @@ namespace madness {
             std::cout << "      hasChildren? " << this->isParent()
                  << "    isRemote? " << this->isremote()
                  << "    sendto? " << this->getSendto() << std::endl;*/
-            FOREACH_CHILD(OctTreeT, this,
+            FOREACH_CHILD(OctTreeTPtr, this,
                 if (this->getSendto() == me)
                     child->depthFirstTraverseLocal(me);
             );
@@ -585,20 +596,20 @@ namespace madness {
 	    std::cout << "      hasChildren? " << this->isParent()
 		 << "    isRemote? " << this->isremote()
 		 << "    sendto? " << this->getSendto() << std::endl;*/
-	    FOREACH_CHILD(OctTreeT, this,
+	    FOREACH_CHILD(OctTreeTPtr, this,
 		child->depthFirstTraverseAll();
 		);
 	}
 
 	void depthFirstTraverseParents()
 	{
-	    /*std::cout << "layer " << n() << ", (x,y,z) = " << x() << ", "
+	    std::cout << "layer " << n() << ", (x,y,z) = " << x() << ", "
 			<< y() << ", " << z() << std::endl;
 	    std::cout << "      hasChildren? " << this->isParent()
 		 << "    isRemote? " << this->isremote() << 
 		 "    Rank? " << this->rank() << "    my Address? " << this 
-		 << "    hasParent? " << this->parent() << std::endl;*/
-	    FOREACH_CHILD(OctTreeT, this,
+		 << "    hasParent? " << this->parent() << std::endl;
+	    FOREACH_CHILD(OctTreeTPtr, this,
 		child->depthFirstTraverseParents();
 		);
 	}
@@ -621,7 +632,7 @@ namespace madness {
 	{
 	    int nnodes = 1;
 	    if (isParent())
-		FOREACH_CHILD(OctTreeT, this,
+		FOREACH_CHILD(OctTreeTPtr, this,
 		    if (child->isremote())
 		    {
 			nnodes++;
@@ -635,12 +646,12 @@ namespace madness {
 	}
         
 	/// Compute cost of subtree
-	int computeCost()
+	Cost computeCost()
 	{
 	    int total = 0;
 	    if (isParent())
 	    {
-		FOREACH_LOCAL_CHILD(OctTreeT, this,
+		FOREACH_LOCAL_CHILD(OctTreeTPtr, this,
 		    if (child->_sendto == -1)
 		    	total += child->computeCost();
 		);
@@ -651,12 +662,12 @@ namespace madness {
 	}
 
 	/// Compute cost of subtree and set all nodes' visited flag
-	int computeCost(bool visited)
+	Cost computeCost(bool visited)
 	{
 	    int total = 0;
 	    if (isParent())
 	    {
-		FOREACH_LOCAL_CHILD(OctTreeT, this,
+		FOREACH_LOCAL_CHILD(OctTreeTPtr, this,
 		    total += child->computeCost();
 		);
 	    }
@@ -707,7 +718,7 @@ namespace madness {
 	    int mybrokenlinks = 0;
 	    int maxbroken = 0;
 
-	    FOREACH_LOCAL_CHILD(OctTree<T>, this,
+	    FOREACH_LOCAL_CHILD(SharedPtr<OctTree<T> >, this,
 	        int tmp = child->countBrokenLinks();
 	        if (tmp > maxbroken)
 		    maxbroken = tmp;
@@ -733,7 +744,7 @@ namespace madness {
 	inline Level maxDepth()
 	{
 	    Level depth = this->_n;
-	    FOREACH_CHILD(OctTreeT, this,
+	    FOREACH_CHILD(OctTreeTPtr, this,
 		Level tmp = child->maxDepth();
 		if (tmp > depth)
 		    depth = tmp;
@@ -748,7 +759,7 @@ namespace madness {
 	    Cost c = (Cost) pow(factor, d - this->_n);
 	    Cost subcost = c;
 	    this->_cost = c;
-	    FOREACH_CHILD(OctTreeT, this,
+	    FOREACH_CHILD(OctTreeTPtr, this,
 		child->setDepthCost(d, factor);
 		subcost += child->_cost;
 	    );
@@ -766,7 +777,7 @@ namespace madness {
         template <class Op1, class Op2>
         void recur(Op1 op1, Op2 op2) {
             op1(this);
-            FOREACH_CHILD(OctTreeT, this, child->recur(op1,op2););
+            FOREACH_CHILD(OctTreeTPtr, this, child->recur(op1,op2););
             op2(this);
         }
         
@@ -986,7 +997,7 @@ namespace madness {
 	    /* Check if they've already been visited; otherwise, figure out the  */
 	    /* cost of the subtree rooted by the child and add it to the 	 */
 	    /* partition (if the partition is not already full)			 */
-	    FOREACH_LOCAL_CHILD(OctTreeT, this,
+	    FOREACH_LOCAL_CHILD(OctTreeTPtr, this,
 		if (child->isVisited())
 		{
 //		    if (_debug)
@@ -1233,7 +1244,7 @@ namespace madness {
 	void makeAllLocal()
 	{
 	    this->_remote = false;
-	    FOREACH_CHILD(OctTree<T>, this,
+	    FOREACH_CHILD(SharedPtr<OctTree<T> >, this,
 		child->makeAllLocal();
 	    );
 	}
@@ -1258,7 +1269,7 @@ namespace madness {
 	    }
 	    if (isParent())
 	    {
-		FOREACH_CHILD(OctTreeT, this,
+		FOREACH_CHILD(OctTreeTPtr, this,
 		    skel->setChild(i,j,k, SharedPtr<OctTree<char> > (child->skeletize()));
 		);
 		if (debug)
@@ -1292,7 +1303,7 @@ namespace madness {
 	    to << this->_n << "  " << this->_x << " " << this->_y << " " << this->_z << "  "
 		<< this->_sendto << "  " << this->_cost << std::endl;
 
-	    FOREACH_CHILD(OctTreeT, this,
+	    FOREACH_CHILD(OctTreeTPtr, this,
 		child->outputTree(to);
 	    );
 	};
@@ -1330,7 +1341,7 @@ namespace madness {
 //				(this->_c[i][j][k])->x() << ", " << (this->_c[i][j][k])->y() << ", " <<
 //				(this->_c[i][j][k])->z() << ")"<< std::endl;
 		    	);
-			FOREACH_CHILD(OctTree<T>, this,
+			FOREACH_CHILD(SharedPtr<OctTree<T> >, this,
 			    child->_p = this;
 			);
 		    }
@@ -1360,7 +1371,7 @@ namespace madness {
 //				(this->_c[i][j][k])->x() << ", " << (this->_c[i][j][k])->y() << ", " <<
 //				(this->_c[i][j][k])->z() << ")"<< std::endl;
 			);
-			FOREACH_CHILD(OctTree<T>, this,
+			FOREACH_CHILD(OctTreeTPtr, this,
 			    child->_p = this;
 			);
 		    }

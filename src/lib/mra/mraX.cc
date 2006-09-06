@@ -153,7 +153,7 @@ namespace madness {
     }
 
     template <typename T>
-    void Function<T>::_fine_scale_projection(OctTreeT* tree, Level initial_level) {
+    void Function<T>::_fine_scale_projection(OctTreeTPtr tree, Level initial_level) {
         // Recur down oct_tree to initial_level.  Refine locally
         // if necessary.  Project when get to desired level
 //std::cout << "_fine_scale_projection: at beginning of function " << tree << ", initial_level = "
@@ -162,7 +162,7 @@ namespace madness {
 //std::cout << "_fine_scale_projection: n < initial_level" << std::endl;
             set_active(tree);
 //std::cout << "_fine_scale_projection: just set tree active" << std::endl;
-            FORIJK(OctTreeT* c = tree->child(i,j,k);
+            FORIJK(OctTreeTPtr c = tree->child(i,j,k);
 //std::cout << "_fine_scale_projection: for child(" << i << "," << j << "," << k << ")" << std::endl;
                    if (!c && islocal(tree)) c = tree->insert_local_child(i,j,k);
                    if (c) _fine_scale_projection(c,initial_level););
@@ -179,7 +179,7 @@ namespace madness {
 
     /// Private:  Projects function in given box
     template <typename T>
-    void Function<T>::_project(OctTreeT* tree) {
+    void Function<T>::_project(OctTreeTPtr tree) {
         // We are at level n in the of wavelet coefficients, which
         // corresponds to level n+1 in the scaling function
         // coefficients.  Evaluate all 8 blocks of the scaling
@@ -207,10 +207,10 @@ namespace madness {
     }
 
     template <typename T>
-    void Function<T>::_compress(OctTreeT* tree) {
+    void Function<T>::_compress(OctTreeTPtr tree) {
 //std::cout << "_compress: at beginning of function n = " << tree->n() << ", (" << tree->x() << ","
 //	<< tree->y() << "," << tree->z() << ")" << std::endl;
-        FOREACH_CHILD(OctTreeT, tree,
+        FOREACH_CHILD(OctTreeTPtr, tree,
                       if (isactive(child)) _compress(child););
 
         if (isremote(tree)) {
@@ -225,9 +225,9 @@ namespace madness {
                 for (int i=0; i<2; i++) {
 		    for (int j=0; j<2; j++) {
 			for (int k=0; k<2; k++) {
-			    OctTreeT *child = tree->child(i,j,k);
+			    OctTreeTPtr child = tree->child(i,j,k);
 			    if (child) {
-//                FOREACH_CHILD(OctTreeT, tree,
+//                FOREACH_CHILD(OctTreeTPtr, tree,
                               if (isactive(child)) {
 //std::cout << "_compress: about to make c, coeffs of child" << std::endl;
                               const TensorT* c = coeff(child);
@@ -273,7 +273,7 @@ namespace madness {
             TensorT* t = coeff(tree);
 //std::cout << "_compress: tensor t exists? " << t << std::endl;
             if (!t) t = set_coeff(tree,TensorT(2*k,2*k,2*k));
-            FOREACH_CHILD(OctTreeT, tree,
+            FOREACH_CHILD(OctTreeTPtr, tree,
                           if (isactive(child)) {
 //std::cout << "_compress: child(" << i << "," << j << "," << k << ") is active" << std::endl;
                           TensorT* c = coeff(child);
@@ -306,7 +306,7 @@ namespace madness {
 
 
     template <typename T>
-    void Function<T>::_reconstruct(OctTreeT* tree) {
+    void Function<T>::_reconstruct(OctTreeTPtr tree) {
         std::vector<Slice>& s0 = data->cdata->s0;
         Slice* s = data->cdata->s;
         TensorT& buf = data->cdata->work1;
@@ -314,7 +314,7 @@ namespace madness {
 
         if (isremote(tree)) {
             if (tree->islocalsubtreeparent()) {
-                FOREACH_CHILD(OctTreeT, tree,
+                FOREACH_CHILD(OctTreeTPtr, tree,
                               if (isactive(child)) {
                               comm()->Recv(buf.ptr(),k3,tree->rank(),3);
 //		MPI::COMM_WORLD.Recv(buf.ptr(), k3, MPI_DOUBLE, tree->rank(), 3);
@@ -329,7 +329,7 @@ namespace madness {
             int nchild = 0;
             TensorT* t = coeff(tree);
             unfilter_inplace(*t);
-            FOREACH_CHILD(OctTreeT, tree,
+            FOREACH_CHILD(OctTreeTPtr, tree,
                           if (isactive(child)) {
                           nchild++;
                           if (islocal(child)) {
@@ -345,18 +345,18 @@ namespace madness {
             if (nchild) unset_coeff(tree); // NEED TO KEEP IF WANT REDUNDANT TREE
         }
 
-        FOREACH_CHILD(OctTreeT, tree,
+        FOREACH_CHILD(OctTreeTPtr, tree,
                       if (isactive(child) && islocal(child)) _reconstruct(child););
     }
 
     /// Private: Refine an existing block of coefficients
     template <typename T>
-    void Function<T>::_refine(OctTreeT* tree) {
+    void Function<T>::_refine(OctTreeTPtr tree) {
         if (tree->islocalsubtreeparent() && isremote(tree)) {
             // This remote node is the parent of the local subtree.
             // Loop thru the local children and receive refinement
             // info from above.  The messages will come in order.
-            FOREACH_CHILD(OctTreeT, tree,
+            FOREACH_CHILD(OctTreeTPtr, tree,
                           bool dorefine;
 //                          print("   refine: expecting message from",tree->rank(),"for",child->n(),child->x(),child->y(),child->z());
                           comm()->Recv(dorefine, tree->rank(), 1);
@@ -379,13 +379,13 @@ namespace madness {
 //                if (dorefine) print("refine:",tree->n(),tree->x(),tree->y(),tree->z(),d.normf(),"dorefine =",dorefine);
                     if (dorefine) unset_coeff(tree);
                 // First, send messages to remote children in order to get them working ASAP
-                FOREACH_REMOTE_CHILD(OctTreeT, tree,
+                FOREACH_REMOTE_CHILD(OctTreeTPtr, tree,
                                      comm()->Send(dorefine, child->rank(), 1);
                                      set_active(child);
 //                                     print("sent",dorefine,"message to",child->rank(),"concerning",child->n(),child->x(),child->y(),child->z());
                                     );
                 // Next, handle local stuff
-                FORIJK(OctTreeT* child = tree->child(i,j,k);
+                FORIJK(OctTreeTPtr child = tree->child(i,j,k);
                        // If child does not exist, OK to refine locally
                        if (!child && dorefine) child = tree->insert_local_child(i,j,k);
                        if ( child && islocal(child)) {
@@ -400,13 +400,13 @@ namespace madness {
                 // This node does not have data and is not a remote subtree parent.
                 // It must be either an empty local node or a remote leaf.
                 // Again, first send msgs to remote nodes, then treat local guys.
-                FOREACH_REMOTE_CHILD(OctTreeT, tree,
+                FOREACH_REMOTE_CHILD(OctTreeTPtr, tree,
 			bool nuhuh = false;
 //                        comm()->Send(false, child->rank(), 1);
                         comm()->Send(nuhuh, child->rank(), 1);
 //                        print("    sent false to",child->rank(),"concerning",child->n(),child->x(),child->y(),child->z());
                                     );
-                FOREACH_LOCAL_CHILD(OctTreeT, tree, _refine(child););
+                FOREACH_LOCAL_CHILD(OctTreeTPtr, tree, _refine(child););
             }
         }
     }
@@ -472,7 +472,7 @@ namespace madness {
 
     void balanceFunctionOctTree(SharedPtr< FunctionOctTree> trees)
     {
-	std::cout << "balanceFunctionOctTree: at very very beginning" << std::endl;
+//	std::cout << "balanceFunctionOctTree: at very very beginning" << std::endl;
 	int als = 0;
         std::vector< SharedPtr< OctTree< FunctionNode> > > treeList;
 
@@ -503,6 +503,15 @@ namespace madness {
 	if (debug)
 	{
 	    std::cout << "balanceFunctionOctTree: back from serialLoadBalance" << std::endl;
+
+	    int N = treeList.size();
+	    std::cout << "balanceFunctionOctTree: roots:" << std::endl;
+	    for (int i = 0; i < N; i++)
+	    {
+		std::cout << "    n = " << treeList[i]->n() << ", (" << treeList[i]->x() << ","
+			<< treeList[i]->y() << "," << treeList[i]->z() << "), isremote? " <<
+			treeList[i]->isremote() << ",   rank? " << treeList[i]->rank() << std::endl;
+	    }
 	}
 
 	MPI::COMM_WORLD.Barrier();
@@ -511,6 +520,12 @@ namespace madness {
 	MPI::COMM_WORLD.Barrier();
 	double t3 = MPI::Wtime();
 	std::cout << "balanceFunctionOctTree: time for setRemoteActive = " << t3 - t2 << std::endl;
+
+	int size = treeList.size();
+	for (int i = 0; i < size; i++)
+	{
+	    treeList[i]->setParent(0);
+	}
 
 	trees->setTreeList(treeList);
 	if (trees.get())
@@ -564,19 +579,19 @@ namespace madness {
 		    std::cout << "setRemoteActive, (*treeList)[" << i << "] has rank " << parentOwner
 			 << std::endl;
 		}
-		FOREACH_LOCAL_CHILD(OctTree<FunctionNode >, p,
-		    if (_debug)
+		FOREACH_LOCAL_CHILD(SharedPtr<OctTree<FunctionNode> >, p,
+		    if (debug)
 		    {
 			std::cout << "setRemoteActive: about to get a vector from child (" << i <<
 				"," << j << "," << k << ")" << std::endl;
 		    }
 		    a = child->data().getActiveList();
-		    if (_debug)
+		    if (debug)
 		    {
 			std::cout << "setRemoteActive: got a vector" << std::endl;
 		    }
-		    activeList.push_back(ActiveRootList(child, parentOwner, a));
-		    if (_debug)
+		    activeList.push_back(ActiveRootList(child.get(), parentOwner, a));
+		    if (debug)
 		    {
 			std::cout << "setRemoteActive: pushed back child(" << i << "," << j <<
 				"," << k << ") onto activeList" << std::endl;
@@ -660,10 +675,16 @@ namespace madness {
 	    	{
 		    if (debug)
 		    {
-		    	std::cout << "setRemoteActive: about to send tmpList" << std::endl;
+		    	std::cout << "setRemoteActive: about to send tmpList of size " << 
+				tmpList.size() << std::endl;
 		    }
 		    archive::MPIOutputArchive arsend(comm, i);
 		    arsend & tmpList;
+		    if (debug)
+		    {
+		    	std::cout << "setRemoteActive: sent tmpList of size " << tmpList.size() 
+				<< std::endl;
+		    }
 	    	}
 	    }
 	}
@@ -697,6 +718,13 @@ namespace madness {
 	    {
 		std::cout << "setRemoteActive: remoteChildList is not empty; it's of size " 
 			<< remoteChildList.size() << std::endl;
+		int s = remoteChildList.size();
+		for (int q = 0; q < s; q++)
+		{
+		    std::cout << "    n = " << remoteChildList[q].n << ", (" << remoteChildList[q].x
+			<< "," << remoteChildList[q].y << "," << remoteChildList[q].z << "), owner = "
+			<< remoteChildList[q].current_owner << std::endl;
+		}
 	    }
 
 	    for (ProcessID i = 0; i < np; i++)
@@ -755,8 +783,10 @@ namespace madness {
 				<< std::endl;
 		    }
 	    	    OctTree<FunctionNode> *t = new OctTree<FunctionNode>();
-	    	    t = (*treeList)[i]->find(activeList[j].r.n, activeList[j].r.x,
+	    	    t = (*treeList)[i]->findDown(activeList[j].r.n, activeList[j].r.x,
 			activeList[j].r.y, activeList[j].r.z);
+//	    	    t = (*treeList)[i]->find(activeList[j].r.n, activeList[j].r.x,
+//			activeList[j].r.y, activeList[j].r.z);
 		    if ((t) && activeList[j].r.equals(t))
 		    {
 			if (debug)
@@ -792,6 +822,11 @@ namespace madness {
 			<< std::endl;
 	    }
 	}
+	if (debug)
+	{
+	    std::cout << "setRemoteActive: waiting at barrier just before time to recv tmpList" << 
+		std::endl;
+	}
 	MPI::COMM_WORLD.Barrier();
 	double t3 = MPI::Wtime();
 	std::cout << "setRemoteActive: time to recv tmpList = " << t3 - t2 << std::endl;
@@ -803,21 +838,21 @@ namespace madness {
 //	bool debug = true;
 	bool debug = false;
 
-	FOREACH_CHILD(OctTree<FunctionNode>, tree,
+	FOREACH_CHILD(SharedPtr<OctTree<FunctionNode> >, tree,
 	    if (child->islocal())
 	    {
-		if (_debug)
+		if (debug)
 		{
 		    std::cout << "findRemoteChildrenList: child n = " << child->n() << 
 			", ( " << child->x() << "," << child->y() << "," << child->z() << 
 			") is local" << std::endl;
 		}
-		findRemoteChildrenList(childList, tree->childPtr(i,j,k));
+		findRemoteChildrenList(childList, tree->child(i,j,k));
 	    }
 	    else
 	    {
-		childList->push_back(RootList(child, child->rank(), child->rank()));
-		if (_debug)
+		childList->push_back(RootList(child.get(), child->rank(), child->rank()));
+		if (debug)
 		{
 		    std::cout << "findRemoteChildrenList: added n = " << child->n() << 
 			", ( " << child->x() << "," << child->y() << "," << child->z() << ")"

@@ -39,7 +39,7 @@ testq: $(TEST2OBJ) $(THISLIBDEPEND)
 #	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ $(SYSLIBS) $(LTLINKBINOPTS)
 
 rhb: $(TEST3OBJ) 
-	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ legendre.o  sepop.o  gfit.o  twoscale.o ../../../lib/libMADtensor.a ../../../lib/libMADmisc.a ../../../lib/libMADserialize.a ../../../lib/libMADocttree.a /usr/lib/liblapack.a /usr/lib/libblas.a  -lpthread 
+	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ legendre.o  sepop.o  gfit.o  twoscale.o ../../../lib/libMADtensor.a ../../../lib/libMADmisc.a ../../../lib/libMADserialize.a ../../../lib/libMADocttree.a ../../../lib/libMADtasks.a /usr/lib/liblapack.a /usr/lib/libblas.a  -lpthread 
 
 test_serialize: $(TEST4OBJ) $(THISLIBDEPEND)
 	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ $(SYSLIBS) $(LTLINKBINOPTS)

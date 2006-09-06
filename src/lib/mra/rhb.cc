@@ -217,6 +217,7 @@ int main(int argc, char* argv[]) {
     std::cout << "pushed back tree list" << std::endl;
     FunctionDefaults::tree = SharedPtr<FunctionOctTree> (new FunctionOctTree(treeList));
     std::cout << "made tree" << std::endl;
+    FunctionDefaults::tree->depthFirstTraverse();
 
     // Test coefficients and stuff
 
@@ -250,9 +251,11 @@ int main(int argc, char* argv[]) {
 	std::cout << "created function" << std::endl;
 
 	print("Tree in scaling function form");
-	f.pnorms();
+    	FunctionDefaults::tree->depthFirstTraverse();
+//	f.pnorms();
 
 	std::cout << "about to compress" << std::endl;
+    	FunctionDefaults::tree->depthFirstTraverse();
 	MPI::COMM_WORLD.Barrier();
 	double t3 = MPI::Wtime();
 	f.compress();
@@ -261,6 +264,7 @@ int main(int argc, char* argv[]) {
 
 	print("Tree in wavelet form");
 	f.pnorms();
+    	FunctionDefaults::tree->depthFirstTraverse();
 
 	std::cout << "about to reconstruct" << std::endl;
 	MPI::COMM_WORLD.Barrier();
@@ -280,14 +284,17 @@ int main(int argc, char* argv[]) {
 	MPI::COMM_WORLD.Barrier();
 	double t8 = MPI::Wtime();
 
-//	f.data->trees->depthFirstTraverse();
+	std::cout << "f depth first traverse:" << std::endl;
+	f.data->trees->depthFirstTraverse();
 	double cost = f.computeMaxCost();
 	std::cout << "cost = " << cost << std::endl;
+//	Function<double> g = FunctionFactory<double>(fred).thresh(1e-2).compress(0);
 //	Function<double> g = FunctionFactory<double>(V).compress(0).thresh(testdata.eacc);
 	Function<double> g = FunctionFactory<double>(V).compress(0).thresh(1e-4);
 	MPI::COMM_WORLD.Barrier();
 	double t85 = MPI::Wtime();
-//	g.data->trees->depthFirstTraverse();
+	std::cout << "created g:" << std::endl;
+	g.data->trees->depthFirstTraverse();
 
 	std::cout << "about to compress" << std::endl;
 	MPI::COMM_WORLD.Barrier();
@@ -310,6 +317,7 @@ int main(int argc, char* argv[]) {
 	FunctionDefaults::tree->initDepthCost(2.0);
 //	FunctionDefaults::tree->initDepthCost(8.0);
 	std::cout << "reinitialized cost function" << std::endl;
+	std::cout << "about to make h" << std::endl;
 	MPI::COMM_WORLD.Barrier();
 	double t13 = MPI::Wtime();
 	Function<double> h = FunctionFactory<double>(V).compress(0).thresh(1e-4);
@@ -322,12 +330,6 @@ int main(int argc, char* argv[]) {
 	MPI::COMM_WORLD.Barrier();
 	double t16 = MPI::Wtime();
 	std::cout << "finished load balance" << std::endl;
-
-/*
-	FunctionDefaults::tree->initDepthCost(2.0);
-	std::cout << "doing second load balance just for kicks" << std::endl;
-	balanceFunctionOctTree(FunctionDefaults::tree);
-*/
 
 	std::cout << "about to compress" << std::endl;
 	MPI::COMM_WORLD.Barrier();
@@ -346,12 +348,14 @@ int main(int argc, char* argv[]) {
 	// Now, set up load balancing weighting the level exponentially
 	FunctionDefaults::tree->initDepthCost(8.0);
 	std::cout << "reinitialized cost function" << std::endl;
+	std::cout << "about to make s" << std::endl;
 	MPI::COMM_WORLD.Barrier();
 	double t21 = MPI::Wtime();
 	Function<double> s = FunctionFactory<double>(V).compress(0).thresh(1e-4);
 	MPI::COMM_WORLD.Barrier();
 	double t22 = MPI::Wtime();
 
+	std::cout << "about to load balance" << std::endl;
 	MPI::COMM_WORLD.Barrier();
 	double t23 = MPI::Wtime();
 	balanceFunctionOctTree(FunctionDefaults::tree);
@@ -386,7 +390,6 @@ int main(int argc, char* argv[]) {
 		<< t20-t19 << std::endl;
 	std::cout << "Balanced (8)  " << t22-t21 << "    " << t24-t23 << "        " << t26-t25 << "       " 
 		<< t28-t27 << std::endl;
-
     }
     catch (char const* msg) {
         std::cerr << "Exception (string): " << msg << std::endl;
