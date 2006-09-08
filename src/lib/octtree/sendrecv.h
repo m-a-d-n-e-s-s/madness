@@ -79,7 +79,7 @@ namespace madness {
             if (r.n >= n)
                 return false;
 
-            Level dn = (Level) pow(2, n-r.n);
+            Level dn = (Level) pow(2.0, n-r.n);
             if ((x/dn == r.x) && (y/dn == r.y) && (z/dn == r.z))
                 return true;
             else
@@ -99,7 +99,7 @@ namespace madness {
                 return false;
             } else {
                 std::cout << "operator <: computing n1 and n2" << std::endl;
-                Translation s1, s2, n1 = (Translation) pow(2,t1.n-1), n2 = (Translation) pow(2,t2.n-1);
+                Translation s1, s2, n1 = (Translation) pow(2.0,t1.n-1), n2 = (Translation) pow(2.0,t2.n-1);
                 std::cout << "operator <: n1 = " << n1 << ", n2 = " << n2 << std::endl;
                 if (n1 == 0) n1 = 1;
                 if (n2 == 0) n2 = 1;

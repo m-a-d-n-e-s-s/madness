@@ -178,7 +178,7 @@ namespace madness {
 		return true;
 	    else
 	    {
-		Translation s1, s2, n1 = (Translation) pow(2,t1._n-1), n2 = (Translation) pow(2,t2._n-1);
+		Translation s1, s2, n1 = (Translation) pow(2.0,t1._n-1), n2 = (Translation) pow(2.0,t2._n-1);
                 s1 = (t1._x/n1)*4 + (t1._y/n1)*2 + t1._z/n1;
                 s2 = (t2._x/n2)*4 + (t2._y/n2)*2 + t2._z/n2;
 		if (s1 < s2)
@@ -459,7 +459,7 @@ namespace madness {
 	    if (_n <= tree->_n)
 		return false;
 
-	    Level dn = (Level) pow(2, _n-tree->_n);
+	    Level dn = (Level) pow(2.0, _n-tree->_n);
 //	    if ((_x/dn == tree->_x) && (_y/dn == tree->_y) && (_z/dn == tree->_z))
 	    if (((_x/dn)*dn == dn*tree->_x) && ((_y/dn)*dn == dn*tree->_y) && ((_z/dn)*dn == dn*tree->_z))
 		return true;

@@ -985,7 +985,7 @@ namespace madness {
 
 	commie.Reduce(&mymax, &themax, 1, MPI::INT, MPI::MAX, 0);
 	std::cout << "computeMaxCost: maximum number of broken links = " << themax << std::endl;
-	cost = pow(k,3)*(1e-8*themax + k*1e-7);
+	cost = pow((double) k,3)*(1e-8*themax + k*1e-7);
 	return cost;
     };
     
