@@ -844,7 +844,6 @@ struct ArchiveLoadImpl< Archive, Tensor<T> > {
         long ndim, dim[TENSOR_MAXDIM];  // Uncool reference to this macro
         s & ndim & dim;
         t = Tensor<T>(ndim, dim, false);
-        t.fillrandom();
         s & wrap(t.ptr(), t.size);
     };
 };

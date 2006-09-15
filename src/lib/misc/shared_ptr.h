@@ -86,7 +86,7 @@ namespace madness {
         /// Free the pointer if we own it and it is not null
         void free() {
             if (own && p) {
-//                std::cout << "freeing " << (void *) p << " " << isarray << std::endl;
+                //std::cout << "freeing " << (void *) p << " " << isarray << std::endl;
                 if (isarray) 
                     delete [] p;    
                 else 
@@ -100,17 +100,19 @@ namespace madness {
         };
         
         /// Wrap a pointer which may be null
-        SharedPtr(T* ptr) : p(ptr), count(0), isarray(false), own(true) {
+        
+        /// The explicit qualifier inhibits VERY DANGEROUS automatic conversions
+        explicit SharedPtr(T* ptr) : p(ptr), count(0), isarray(false), own(true) {
             if (p) count = new SharedCounter;
         };
         
         /// Wrap a pointer which may be null, or not owned, or an array
-        SharedPtr(T* ptr, bool array, bool own=true) : p(ptr), count(0), isarray(array), own(own) {
+        explicit SharedPtr(T* ptr, bool array, bool own=true) : p(ptr), count(0), isarray(array), own(own) {
             if (own && p) count = new SharedCounter;
         };
         
         /// Copy constructor generates a new reference to the same pointer
-        SharedPtr(const SharedPtr& s) : p(s.p), count(s.count), isarray(s.isarray) {
+        SharedPtr(const SharedPtr<T>& s) : p(s.p), count(s.count), isarray(s.isarray) {
             if (count) {
                 count->inc();
 //                std::cout << "SharedPtr: copy con " << count->get() << std::endl;
@@ -123,7 +125,7 @@ namespace madness {
         virtual ~SharedPtr() {dec();};
         
         /// Assignment decrements reference count for current pointer and increments new count
-        SharedPtr& operator=(const SharedPtr& s) {
+        SharedPtr<T>& operator=(const SharedPtr<T>& s) {
             if (this != &s) {
                 dec();
                 p = s.p;
@@ -145,10 +147,9 @@ namespace madness {
 
         /// Returns the value of the pointer
         inline T* get() const {return p;};
-        
-        // RJH ... this automatic conversion is the source of lots of nasty bugs
+       
         // Cast of SharedPtr<T> to T* returns the value of the pointer
-        //inline operator T*() const {return p;};
+        inline operator T*() const {return p;};
         
         /// Return pointer+offset
         inline T* operator+(long offset) const {
@@ -179,11 +180,26 @@ namespace madness {
         inline operator bool() const {
             return p;
         };
+        
+        /// Are two pointers equal?
+        inline bool operator==(const SharedPtr<T>& other) const {
+            return p == other.p;
+        };
+        
+        /// Are two pointers not equal?
+        inline bool operator!=(const SharedPtr<T>& other) const {
+            return p != other.p;
+        };
 
-	    /// Less than operator (for sorting)
-	    inline friend bool operator< (const SharedPtr<T>& t1, const SharedPtr<T>& t2) {
-	       return (!(*t1 < *t2));
-	    };
+	    // Less than operator (for sorting)
+        // RJH ... N0!  Shared pointer should behave like a pointer.
+        // If we are going to do this we should compare the value
+        // of the pointers not the data that is pointed to.  If you are using
+        // an STL container/algorithm for the sorting, provide your own 
+        // comparison class/function at that point.  
+	    //inline friend bool operator< (const SharedPtr<T>& t1, const SharedPtr<T>& t2) {
+	    //   return (!(*t1 < *t2));
+	    //};
     };
             
     /// A SharedArray is just like a SharedPtr except that delete [] is used to free it

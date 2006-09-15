@@ -225,7 +225,7 @@ namespace madness {
                 for (std::list<TaskInterface *>::iterator p = pending.begin();
                         p != pending.end(); ++p) {
                     TaskInterface *tp = *p;
-                    if (tp->probe()) {
+                    if (tp->probe()) {                      
                         ready.push_back(tp);  // Must modify to preserve HP status
                         pending.erase(p);
                         madness::comm_default->am_resume();
@@ -254,7 +254,6 @@ namespace madness {
                 probe();
                 if (!run_next_ready_task()) yield();
             }
-            //madness::print("leaving TaskQ.local_fence",pending.size(),ready.size());
         };
         
         /// Returns after completion of all tasks & AM communicator wide (collective)

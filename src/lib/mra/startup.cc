@@ -15,6 +15,7 @@ using std::strcmp;
 #include <tensor/tensor.h>
 #include <misc/madexcept.h>
 #include <tensor/mtrand.h>
+#include <tasks/tasks.h>
 
 namespace madness {
     Communicator& startup(int argc, char** argv) {
@@ -42,6 +43,11 @@ namespace madness {
             if (strcmp(argv[i],"-d") == 0) xterm_debug(comm,0,0);
             if (strcmp(argv[i],"-t") == 0) comm.set_debug(true);
         }
+        
+//        comm.am_register(make_target_coeff_handler<double>);
+//        comm.am_register(make_target_coeff_handler< std::complex<double> >);
+//        taskq.register_generic_op(set_coeff_remote_handler<double>);
+//        taskq.register_generic_op(set_coeff_remote_handler< std::complex<double> >);
     
         return comm;
     }

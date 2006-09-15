@@ -13,12 +13,18 @@
 #include <cstring>
 using std::strcmp;
 
+#include <vector>
+using std::vector;
+
 #include <mad_types.h>
 #include <misc/print.h>
 #include <misc/communicator.h>
 #include <misc/shared_ptr.h>
 #include <misc/misc.h>
-#include <serialize/archive.h>
+#include <serialize/vecar.h>
+using madness::archive::VectorInputArchive;
+using madness::archive::VectorOutputArchive;
+
 
 using namespace madness;
 
@@ -512,6 +518,39 @@ namespace madness {
             if (_p) return _p->find(n,x,y,z); // Pass up the tree
             return 0;			// Not in the (sub)tree we are connected to
         };
+
+        /// Starting from the given node, walk DOWN the tree to find the requested node/parent.
+        
+        /// Same as find() except that the shared pointer to the current node is
+        /// passed in rather than using "this" so that we can return a shared pointer, 
+        /// and we can only walk down.
+        /// Not found is again indicated with a 0 pointer, and the returned node may
+        /// be remote.
+        static const SharedPtr<OctTreeT> find_down(const OctTreeTPtr& t, Level n, Translation x, Translation y, Translation z)  {
+            if (!t) return SharedPtr<OctTreeT>();
+            
+            if (n < t->n()) {
+                return SharedPtr<OctTreeT>(); // It is above
+            }
+            else {
+                /// Determine if the desired box is a descendent of this node
+                int nn = n - t->n();
+                Translation xx=(x>>nn), yy=(y>>nn), zz=(z>>nn);
+                if (xx==t->x() && yy==t->y() && zz==t->z()) {
+                    if (nn == 0) return t;  // Found it!
+                    nn--;
+                    xx = (x>>nn)&1; 
+                    yy = (y>>nn)&1;
+                    zz = (z>>nn)&1;
+                    const OctTreeTPtr c = t->child(xx,yy,zz); 
+                    if (c) return find_down(c,n,x,y,z); // Keep looking
+                    else return t; // Closest parent
+                }
+                return SharedPtr<OctTreeT>();
+            }
+        };
+
+ 
 
         /// Starting from the current node, walk down the tree to find the requested node.
 	    /// Just like find, except goes only DOWN the tree.
@@ -1490,14 +1529,14 @@ namespace madness {
             
 
         /// Return the sub-tree that "owns" node (n,l), return 0 if not found
-        GlobalTree<NDIM>* find(Level n, const Translation l[NDIM]) {
+        const GlobalTree<NDIM>* find(Level n, const Translation l[NDIM]) const {
             // First check if we are even in this subtree
             if (!is_parent_of(n,l)) return 0;
             
             madness::print("find checking children");
             // Now see if any of my children own it
             for (int i=0; i<(int) child.size(); i++) {
-                GlobalTree* p = child[i]->find(n,l);
+                const GlobalTree* p = child[i]->find(n,l);
                 if (p) return p;
             }
             madness::print("find returning me");
@@ -1524,7 +1563,7 @@ namespace madness {
         
         /// Return owning proces of node (n,l) 
         ProcessID find_owner(Level n, const Translation l[NDIM]) const {
-            const GlobalTree* p = find(n,l);
+            const GlobalTree<NDIM>* p = find(n,l);
             if (!p) return -1;
             return p->owner; 
         };
@@ -1533,7 +1572,7 @@ namespace madness {
         void insert(Level n, const Translation (&l)[NDIM], ProcessID owner) {
             madness::print("Inserting",n,l,owner);
             madness::print_array(l);
-            GlobalTree* p = this->find(n,l);
+            GlobalTree<NDIM>* p = (GlobalTree<NDIM>*) this->find(n,l);
             if (!p) MADNESS_EXCEPTION("GlobalTree: insert: failed to locate?",0);
             madness::print("insert pushing new child");
             p->child.push_back(ptrT(new GlobalTree(n,l,owner)));
@@ -1592,6 +1631,56 @@ namespace madness {
         
         ~GlobalTree() {madness::print("DESTRUCTOR!");};
     };
+    
+    /// Build a global tree from an OctTree
+    template <typename T>
+    GlobalTree<3> build_global_tree(const SharedPtr< OctTree<T> >& tree) {  // Pass a list for multiple roots
+        Communicator& comm=*madness::comm_default;
+        typedef SharedPtr< OctTree<T> > OctTreeTPtr;
+        /// First, serialize the local tree root information
+        vector<unsigned char> vout;
+        VectorOutputArchive varout(vout);
+        // Insert loop over multiple roots around this block ... the logic 
+        // below is already set up to handle variable length info from each process
+        FOREACH_CHILD(OctTreeTPtr, tree,
+                      if (child->islocal()) {
+                          Level n = child->n();
+                          Translation l[3]; l[0]=child->x(); l[1]=child->y(); l[2]=child->z();
+                          varout << n << l << comm.rank();
+                      });
+        /// Second, gather in process zero info on how much data there is in each process
+        int vsize = vout.size();
+        vector<int> vsizeeach(comm.nproc()),vdisp(comm.nproc());
+        comm.mpi_comm().Gather(&vsize, 1, MPI::INT, &vsizeeach[0], 1, MPI::INT, 0);
+        
+        /// Third, compute the displacement info in preparation for gathering the
+        /// serialized tree info to node zero, and broadcast the total buffer size to
+        /// all other processes.
+        long vsizesum = 0;
+        if (comm.rank() == 0) {           
+            for (int i=0; i<comm.nproc(); i++) {
+                print(i,"vsizeeach",vsizeeach[i]);
+                vdisp[i] = vsizesum;
+                vsizesum += vsizeeach[i];
+            }
+        }
+        comm.Bcast(vsizesum,0);
+        
+        /// Fourth, gather the serialized tree info to process zero and broadcast to all
+        vector<unsigned char> vin(vsizesum);
+        comm.mpi_comm().Gatherv(&vout[0],vsize,MPI::BYTE,&vin[0],&vsizeeach[0],&vdisp[0],MPI::BYTE,0);
+        comm.Bcast(&vin[0],vsizesum,0);
+        
+        /// Fifth, we can deserialize the tree.
+        VectorInputArchive varin(vin);
+        GlobalTree<3> gtree(varin);
+        if (comm.rank()==0) gtree.print();
+        
+        /// Finally, need to insert some extra code to make the tree more efficient to 
+        /// traverse since to get rapid searching we need a low radix fan out.
+        comm.Barrier();
+        return gtree;
+    }
 
     namespace archive {
         template <int NDIM>

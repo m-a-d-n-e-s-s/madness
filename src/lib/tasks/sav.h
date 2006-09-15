@@ -16,25 +16,41 @@ namespace madness {
     // maintaining additional state.  However, it should eliminate
     // any need to specialize SAVImpl.
 
-
-
+    /*
+     * SAV provide the following
+     * - constructor
+     * - virtual destructor
+     * - probe()
+     * - void set(const T&)
+     * - T& get()
+     * - forward(??)
+     * - rank and tag used by SAV<T>
+     * 
+     * any_tag and any_source are often implemented as -1, so we cannot
+     * use those as invalid values. sigh. 
+     */
+    
+    template <class T> class SAV;
+    
     /// Single assignment variable with support for MPI asynchronous messages
     template <typename T>
     class SAVImpl {
-    private:
+    protected:
+        friend class SAV<T>;
+        
         mutable bool assigned; ///< True if assigned
         bool posted; ///< True if an async receive has been posted
-        int rank; ///< Rank of related MPI process, or -1 if none
-        int tag; ///< Tag of related MPI message, or -1 if none
-        mutable T t;  ///< The actual value
+        int rank; ///< Rank of related MPI process, or INVALID_RANK if none
+        int tag; ///< Tag of related MPI message, or INVALID_TAG if none
+        mutable T t;  ///< The actual value (simple data type)
         mutable MPI::Request handle;
 
     public:
         /// Makes a local, unassigned variable
-        SAVImpl() : assigned(false), posted(false), rank(-1), tag(-1), t(), handle() {};
+        SAVImpl() : assigned(false), posted(false), rank(INVALID_RANK), tag(INVALID_TAG), t(), handle() {};
 
         /// Makes a local, assigned variable
-        SAVImpl(const T& t) : assigned(true), posted(false), rank(-1), tag(-1), t(t), handle() {};
+        SAVImpl(const T& t) : assigned(true), posted(false), rank(INVALID_RANK), tag(INVALID_TAG), t(t), handle() {};
 
         /// Makes a remote, unassigned variable.  If (postrecv) posts an async receive.
 
@@ -62,16 +78,22 @@ namespace madness {
         /// Sets the value. Throws exception if already assigned
         void set(const T& value) {
             if (probe()) throw "SAV: trying to set assigned SAV";
+            if (posted) throw "SAV: trying to set an SAV with a posted recv";
             t = value;
             if (rank >= 0) madness::comm_default->Send(t, rank, tag);
             assigned = true;
+        };
+        
+        virtual ~SAVImpl() {
+            if (posted && !assigned) throw "SAV: destructor for unset remote SAV";
         };
     };
 
     /// Specialization for vectors of fixed & unknown length
     template <typename T>
     class SAVImpl< std::vector<T> > {
-    private:
+    protected:
+        friend class SAV< std::vector<T> >;
         mutable bool assigned;
         bool posted;
         int rank;
@@ -82,10 +104,10 @@ namespace madness {
         mutable std::size_t n;
 
     public:
-        SAVImpl() : assigned(false), posted(false), rank(-1), tag(-1), t(), state(0), handle() {};
+        SAVImpl() : assigned(false), posted(false), rank(INVALID_RANK), tag(INVALID_TAG), t(), state(0), handle() {};
 
         SAVImpl(const std::vector<T>& t) :
-        assigned(true), posted(false), rank(-1), tag(-1), t(t), state(0), handle() {};
+        assigned(true), posted(false), rank(INVALID_RANK), tag(INVALID_TAG), t(t), state(0), handle() {};
 
         SAVImpl(int rank, int tag, bool postrecv)
                 : assigned(false), posted(postrecv), rank(rank), tag(tag), t(), state(0), handle() {
@@ -129,12 +151,18 @@ namespace madness {
             }
             assigned = true;
         };
+        
+        virtual ~SAVImpl() {
+            if (posted && !assigned) throw "SAV: destructor for unset remote SAV";
+        };
+        
     };
 
     /// Specialization for Tensors of both fixed unknown size and dimension
     template <typename T>
     class SAVImpl< Tensor<T> > {
-    private:
+    protected:
+        friend class SAV< Tensor<T> >;
         mutable bool assigned;
         bool posted;
         int rank;
@@ -145,10 +173,10 @@ namespace madness {
         mutable long info[3+TENSOR_MAXDIM];
 
     public:
-        SAVImpl() : assigned(false), posted(false), rank(-1), tag(-1), t(), state(0), handle() {};
+        SAVImpl() : assigned(false), posted(false), rank(INVALID_RANK), tag(INVALID_TAG), t(), state(0), handle() {};
 
         SAVImpl(const Tensor<T>& t) :
-        assigned(true), posted(false), rank(-1), tag(-1), t(t), state(0), handle() {};
+        assigned(true), posted(false), rank(INVALID_RANK), tag(INVALID_TAG), t(t), state(0), handle() {};
 
         SAVImpl(int rank, int tag, bool postrecv)
                 : assigned(false), posted(postrecv), rank(rank), tag(tag), t(), state(0), handle() {
@@ -166,8 +194,9 @@ namespace madness {
 
         inline bool probe() const {
             if (!assigned && posted) {
-                bool status = handle.Test();
-                if (status) {
+                MPI::Status status;
+                bool gotit = handle.Test(status);
+                if (gotit) {
                     state++;
                     if (state == 1) {
                         if (t.id != info[1]) throw "SAV: receiving tensor of wrong type?";
@@ -177,6 +206,7 @@ namespace madness {
                         handle = madness::comm_default->Irecv(t.ptr(), t.size, rank, tag);
                     } else {
                         assigned = true;
+                        if (status.Get_count(MPI::BYTE) == 0) t = Tensor<T>();
                     }
                 }
             }
@@ -203,7 +233,10 @@ namespace madness {
             }
             assigned = true;
         };
-        virtual ~SAVImpl() {};
+
+        virtual ~SAVImpl() {
+            if (posted && !assigned) throw "SAV: destructor for unset remote SAV";
+        };
     };
 
 
@@ -219,7 +252,7 @@ namespace madness {
     public:
         typedef madness::SharedPtr< SAVImpl<T> > ptrT;
 
-    private:
+    protected:
         mutable ptrT p;  ///< If null, the variable is not yet initialized
 
         inline void init() const {
@@ -273,8 +306,10 @@ namespace madness {
 
         /// Assignment makes a shallow copy
         SAV<T>& operator=(const SAV<T>& v) {
-            v.init();
-            p = v.p;
+            if (&v != this) {
+                v.init();
+                p = v.p;
+            }
             return *this;
         };
 
@@ -286,13 +321,24 @@ namespace madness {
 
         /// Returns a const reference to the underlying variable
         inline const T& get() const {
-                init();
-                return p->get();
-            };
+            init();
+            return p->get();
+        };
 
         inline bool probe() const {
             init();
             return p->probe();
+        };
+        
+        inline void msginfo(ProcessID& rank, int& tag) const {
+            init();
+            rank = p->rank;
+            tag = p->tag;
+        };
+        
+        inline bool islocal() const {
+            init();
+            return (p->tag==INVALID_TAG) && (p->rank==INVALID_RANK);
         };
 
         virtual ~SAV() {};

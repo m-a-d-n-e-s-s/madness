@@ -113,13 +113,14 @@ int main(int argc, char* argv[]) {
     return 0;*/
         
         
-/*        Function<double> df;
-        df = f.diff(1);
+        Function<double> df;
+        df = f.diff2(1);
         print("diff y",df(0.45,0.53,0.48),dfred_dy(0.45,0.53,0.48));
-        df = f.diff(0);
+        df = f.diff2(0);
         print("diff x",df(0.45,0.53,0.48),dfred_dx(0.45,0.53,0.48));
-        df = f.diff(2);
-        print("diff z",df(0.45,0.53,0.48),dfred_dz(0.45,0.53,0.48));*/
+        df = f.diff2(2);
+        print("diff z",df(0.45,0.53,0.48),dfred_dz(0.45,0.53,0.48));
+      
         
         print("valuesX",fred(0.45,0.53,0.48),f(0.45,0.53,0.48));
         print("Tree in scaling function basis");

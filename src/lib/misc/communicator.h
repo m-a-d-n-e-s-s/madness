@@ -69,7 +69,7 @@ namespace madness {
         mutable ulong function;   ///< Handle to AM function
         
     public:
-        ulong arg0, arg1, arg2, arg3, arg4;
+        ulong arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7;
         
         AMArg() : function(bad) {};
         AMArg(ulong arg0) : function(bad), arg0(arg0) {};
@@ -77,6 +77,8 @@ namespace madness {
         AMArg(ulong arg0, ulong arg1, ulong arg2) : function(bad), arg0(arg0), arg1(arg1), arg2(arg2) {};
         AMArg(ulong arg0, ulong arg1, ulong arg2, ulong arg3) : function(bad), arg0(arg0), arg1(arg1), arg2(arg2), arg3(arg3) {};
         AMArg(ulong arg0, ulong arg1, ulong arg2, ulong arg3, ulong arg4) : function(bad), arg0(arg0), arg1(arg1), arg2(arg2), arg3(arg3), arg4(arg4) {};
+        AMArg(ulong arg0, ulong arg1, ulong arg2, ulong arg3, ulong arg4, ulong arg5) : function(bad), arg0(arg0), arg1(arg1), arg2(arg2), arg3(arg3), arg4(arg4), arg5(arg5) {};
+        AMArg(ulong arg0, ulong arg1, ulong arg2, ulong arg3, ulong arg4, ulong arg5, ulong arg6) : function(bad), arg0(arg0), arg1(arg1), arg2(arg2), arg3(arg3), arg4(arg4), arg5(arg5), arg6(arg6) {};
     };
 
     template <typename T> MPI::Datatype MPITypeFromType();
@@ -261,6 +263,7 @@ namespace madness {
         long _px, _py, _pz;         ///< coords of this process in mesh
         ProcessID _rank;            ///< rank of this process
         bool debug;                 ///< if true print send/receive traces
+        int _unique_tag_next;       ///< used for dynamic unique tag generation
 
 
         // On the SGI Altix the MPI copy constructor for communicators
@@ -289,6 +292,7 @@ namespace madness {
             _nproc = MPI::COMM_WORLD.Get_size();
             _rank = MPI::COMM_WORLD.Get_rank();
             debug = false;
+            _unique_tag_next = 2048;
 
             // Register am_ndiff then post AM receive buffer
             _am_processing = _am_nsent = _am_nrecv = 0;
@@ -430,6 +434,13 @@ namespace madness {
         
         void print_handlers() const {
             _am_handle_manager.dump();
+        };
+        
+        inline int unique_tag() {
+            int result = _unique_tag_next;
+            _unique_tag_next++;
+            if (_unique_tag_next > MPI::TAG_UB) _unique_tag_next=2048;
+            return result;
         };
 
         /// Same as MPI::Intracomm::Send

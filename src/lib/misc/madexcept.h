@@ -31,11 +31,27 @@ namespace madness {
 #define MADNESS_EXCEPTION(msg,value) \
 throw MadnessException(msg,0,value,__LINE__,__FUNCTION__,__FILE__)
 
-#define MADNESS_ASSERT(condition) \
-do {if (!(condition)) \
-    throw MadnessException("MADNESS ASSERTION FAILED", \
-    					   #condition,0,__LINE__,__FUNCTION__,__FILE__); \
-   } while (0)
+/*
+ * Default behaviour is MADNESS_ASSERTION maps to C assert()
+ * 
+ * define DISABLE_MADNESS_ASSERTIONS to disable all MADNESS_ASSERTIONS at compile time.
+ * define MADNESS_ASSERTIONS_THROW to make MADNESS_ASSERTIONS throw a MadnessException
+ * 
+ */
+
+#ifdef DISABLE_MADNESS_ASSERTIONS
+#  define MADNESS_ASSERT(condition)
+#elif defined(MADNESS_ASSERTIONS_THROW)
+#  define MADNESS_ASSERT(condition) \
+     do {if (!(condition)) \
+         throw MadnessException("MADNESS ASSERTION FAILED", \
+                         #condition,0,__LINE__,__FUNCTION__,__FILE__); \
+        } while (0)
+#else
+#  include <cassert>
+#  define MADNESS_ASSERT(condition) assert(condition)
+#endif
+
 }
 	
 #endif /*MADEXCEPT_H_*/
