@@ -514,23 +514,18 @@ int main(int argc, char* argv[]) {
   
   Communicator& comm = startup(argc,argv);
 
-  cout << " before declaring Function" << endl;
   //Function<double> ftest = FunctionFactory<double>(fred).k(3).refine(1).compress(1).initial_level(2).thresh(1e-1);
   Function<double> ftest = FunctionFactory<double>(fred).k(8).thresh(1e-3);
-  cout << " before declaring second Function" << endl;
   Function<double> ftest2 = FunctionFactory<double>();
   const char* f = "tserialize.dat";
   //TextFstreamOutputArchive oar(f);
-  cout << " before compress " << endl;
   ftest.compress();
   ftest.truncate();
   //ftest.save_local(oar);
-  cout << " before save " << endl;
-  long partLevel = 1;
+  long partLevel = 2;
   ftest.save( f, partLevel, comm);
   //TextFstreamInputArchive iar(f);
   //ftest.load_local(iar);
-  cout << " before load " << endl;
   ftest2.load(f, comm);
   cout << " class subtraction test " << (ftest - ftest2).norm2sq() << endl;
 

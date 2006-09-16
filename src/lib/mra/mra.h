@@ -961,7 +961,8 @@ namespace madness {
 	template <class Archive>
 	void _save_local(Archive& ar, const OctTreeT* tree); 
 
-	/// save member is the member to serialize coefficients. This member is already parallelized. 
+	/// save member is the member to serialize coefficients.
+        ///  This member is already parallelized. 
 	void save(const char* f, const long partLevel, Communicator& comm);
 
 	/// saveMain member controlls before and after treatments of saveManager. 
@@ -970,18 +971,30 @@ namespace madness {
 
 	/// saveManager Function member serialize coefficients on local (rank 0 ) branch. 
 	template <class Archive>
-	void saveManager(const char* f, Archive& ar, const OctTreeT* tree, const long partLevel, Communicator& commFunc);
+	void saveManager(const char* f, Archive& ar, const OctTreeT* tree,
+              const long partLevel, Communicator& commFunc);
+//	void saveManager(const char* f, Archive& ar, const OctTreeT* tree, const long partLevel, Communicator& commFunc);
 
 	/// This member serializes coefficients on client branch.
 	template <class Archive>
-	void shadowManager_save(const char* f, Archive& ar, const OctTreeT* tree, Level n, Translation x, Translation y, Translation z, 
-        ProcessID remoteRank, const long partLevel, Communicator& commFunc);
+	void shadowManager_save(const char* f, Archive& ar, const OctTreeT* tree,
+              Level n, Translation x, Translation y, Translation z, 
+              ProcessID remoteRank, const long partLevel, Communicator& commFunc);
+//	void shadowManager_save(const char* f, Archive& ar, const OctTreeT* tree, Level n, Translation x, Translation y, Translation z, 
+//        ProcessID remoteRank, const long partLevel, Communicator& commFunc);
+
+        /// This member serialize client's coeffcients.
+	template <class Archive>
+        void _shadowManager_save(const char* f, Archive& ar, const OctTreeT* tree,
+              std::vector<localTreeMember>& subtreeList, ProcessID remoteRank,
+              const long partLevel, Communicator& commFunc, const int nRemoteBranch,
+              int& iter); 
 
 	/// This member cotrols distributes coefficients to client branch.
 	template <class Archive>
 	void shadowManager_load(const char* f, const Archive& ar, OctTreeT* tree, 
               Level n, Translation x, Translation y, Translation z, 
-              ProcessID remoteRank, Communicator& commFunc,
+              ProcessID remoteRank, Communicator& commFunc, const long partLevel, 
 	      bool active_flag, bool have_child);
 
 	/// This member is worker to send/recieve msg from rank 0.
@@ -1009,7 +1022,8 @@ namespace madness {
 	template <class Archive>
 	void load_local(const Archive& ar); 
 
-	/// Loading Function members from the file. This member is prepared for called from load_local. 
+	/// Loading Function members from the file.
+        ///  This member is prepared for called from load_local. 
 	template <class Archive>
 	void _load_local(const Archive& ar, OctTreeT* tree);
 
@@ -1020,7 +1034,10 @@ namespace madness {
 
 	/// Load Managing Function member. 
 	template <class Archive>
-	void loadManager(const char* f, const Archive& ar, OctTreeT* tree, Communicator& commFunc, bool active_flag, const long partLevel, bool have_child);
+	void loadManager(const char* f, const Archive& ar, OctTreeT* tree,
+              Communicator& commFunc, bool active_flag, const long partLevel,
+              bool have_child);
+//	void loadManager(const char* f, const Archive& ar, OctTreeT* tree, Communicator& commFunc, bool active_flag, const long partLevel, bool have_child);
 
 	/// Load Managing Function member for DiskDir class. 
 	template <class Archive>
@@ -1028,16 +1045,24 @@ namespace madness {
              loadManager(ar, tree(), commFunc, active_flag, true);
         };
 
-	/// Making Archive class's file name for 2-layer Serialization.
-	void produceNewFilename(const char* f, const long partLevel, const OctTreeTPtr& tree, char ftest[256]);
+	/// Making Archive class's file name for 2-layer Serialization in sequential calculations.
+	void produceNewFilename(const char* f, const long partLevel,
+               const OctTreeTPtr& tree, char ftest[256]);
 
-	/// Making Archive class's file name for 2-layer Serialization.
-	void produceNewFilename2(const char* f, const long partLevel, localTreeMember& subtreeList, char ftest[256]);
+	/// Making Archive class's file name for 2-layer Serialization(save, parallel).
+	void produceNewFilename2(const char* f, const long partLevel,
+               localTreeMember& subtreeList, char ftest[256]);
 
-        /// Save Client brach's data on master.
+	/// Making Archive class's file name for 2-layer Serialization(load, parallel).
+	void produceNewFilename3(const char* f, const long partLevel, Level n,
+               Translation x, Translation y, Translation z, char ftest[256]);
+
         /// Save Client brach's data on master.
 	template <class Archive>
-        void dataSaveInShaManSave(const char* f, Archive& ar, const OctTreeT* tree, localTreeMember& subtreeList, ProcessID remoteRank, const long partLevel, Communicator& commFunc); 
+        void dataSaveInShaManSave(const char* f, Archive& ar, const OctTreeT* tree,
+               localTreeMember& subtreeList, ProcessID remoteRank, const long partLevel,
+               Communicator& commFunc); 
+//        void dataSaveInShaManSave(const char* f, Archive& ar, const OctTreeT* tree, localTreeMember& subtreeList, ProcessID remoteRank, const long partLevel, Communicator& commFunc); 
 
 	/// Inplace truncation of small wavelet coefficients
     
