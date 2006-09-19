@@ -37,7 +37,7 @@ namespace std {
     // This to make norm work as desired for both complex and real
     static inline double norm(const double d) {
         return d*d;
-    };
+    }
 }
 
 namespace madness {
@@ -433,13 +433,14 @@ namespace madness {
         };
     };
     
+    template <typename T> class FunctionData;
+
     class FunctionDataPointersBase {
-    private:
+    protected:
         friend Communicator& madness::startup(int argc, char** argv);
         static void* p[FunctionNode::size];  // Declared and initialized to zero in startup.cc
     };    
 
-    template <typename T> class FunctionData;
     
     template <typename T>
     class FunctionDataPointers : public FunctionDataPointersBase {
@@ -577,7 +578,7 @@ namespace madness {
     template <typename T>
     static inline Tensor<T> _negate_helper(const Tensor<T>& t) {
         return -t;
-    };
+    }
     
     
 
@@ -933,7 +934,7 @@ namespace madness {
             template <class Archive>
             inline void serialize(const Archive& ar) {
                 ar & x & y & z & n & rank & remote & active & have_child;
-            };
+            }
         };
 
 	/// Saving Function members into the file. This function is prepared for sequential job.
@@ -1026,7 +1027,7 @@ namespace madness {
 	template <class Archive>
 	void loadManager4DD(const Archive& ar, Communicator& commFunc, bool active_flag){
              loadManager(ar, tree(), commFunc, active_flag, true);
-        };
+        }
 
 	/// Making Archive class's file name for 2-layer Serialization in sequential calculations.
 	void produceNewFilename(const char* f, const long partLevel,
@@ -1525,7 +1526,7 @@ namespace madness {
             FOREACH_CHILD(OctTreeTPtr, tree,
                           if (isactive(child))
                           _unaryop(result, child, op););
-        };
+        }
 
         /// Private:  Recursive kernel for truncation
         void _truncate(double tol, OctTreeTPtr& tree);

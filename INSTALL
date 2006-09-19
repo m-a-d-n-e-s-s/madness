@@ -60,7 +60,7 @@ Configure options for SGI Altix with Intel compilers ... ram
 
 Intel 8* compilers seem to have some problems.  9* seem OK.
 
-module load icc9026 idb9031 ifort9027
+module load icc9138 idb9138 ifort9132
 setenv CC icc
 setenv CXX icpc
 setenv F77 ifc

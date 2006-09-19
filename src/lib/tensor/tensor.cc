@@ -44,7 +44,7 @@ namespace madness {
     }
     template <> float RandomNumber<float> () {
         //return std::rand()/(RAND_MAX+1.0);
-        return genrand_real2();
+        return float(genrand_real2());
     }
     template <> double_complex RandomNumber<double_complex> () {
         return double_complex(RandomNumber<double>(),RandomNumber<double>());
@@ -1080,7 +1080,7 @@ namespace madness {
         for (int i = 0; i < k2cu; i++) sptr[i] = wptr[i];
 
         return s;
-    };
+    }
 
 
     /// Return a new tensor holding the absolute value of each element of t

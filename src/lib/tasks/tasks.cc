@@ -5,7 +5,7 @@ namespace madness {
 
     void task_add_am(am_handlerT op, ProcessID src, const AMArg& arg) {
         taskq.add_local_hp(new TaskAM(src,op,arg));       
-    };
+    }
     
     /// Might be beneficial to have this done directly in the AM handler.
     void task_generic_handler(Communicator& comm, ProcessID src, const AMArg& arg) {

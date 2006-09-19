@@ -212,7 +212,7 @@ namespace madness {
                 &info, (char_len) 1, (char_len) 1);
 
         TENSOR_ASSERT(info == 0, "svd: Lapack failed", info, &a);
-    };
+    }
 
     /// Example and test code for interface to LAPACK SVD interfae
     template <typename T>

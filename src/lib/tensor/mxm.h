@@ -177,7 +177,7 @@ inline void mTxm(long dimi, long dimj, long dimk,
             }
         }
     }
-};
+}
 
 /// Matrix * matrix transpose (hand unrolled version)
 
@@ -227,7 +227,7 @@ inline void mxmT(long dimi, long dimj, long dimk,
             ci[j] += sum;
         }
     }
-};
+}
 
 /// Matrix * matrix (hand unrolled version)
 template <>
@@ -266,7 +266,7 @@ inline void mxm(long dimi, long dimj, long dimk,
             }
         }
     }
-};
+}
 
 /// Matrix transpose * matrix transpose (hand tiled and unrolled)
 template <>
@@ -320,5 +320,5 @@ inline void mTxmT(long dimi, long dimj, long dimk,
             }
         }
     }
-};
+}
 #endif

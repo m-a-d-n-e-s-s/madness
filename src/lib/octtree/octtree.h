@@ -1669,17 +1669,20 @@ namespace madness {
     }
 
     namespace archive {
-        template <int NDIM>
+#define NDIM 3
+      // intel c++ compiler does not seem to eat nested template definition
+      //template <int NDIM>
         template <class Archive>
         struct ArchiveLoadImpl< Archive,GlobalTree<NDIM> > {
             static inline void load(const Archive& ar, GlobalTree<NDIM>& t) {t.load(ar);};
         };
 
-        template <int NDIM>
+	//template <int NDIM>
         template <class Archive>
         struct ArchiveStoreImpl< Archive,GlobalTree<NDIM> > {
             static inline void store(const Archive& ar, const GlobalTree<NDIM>& t) {t.store(ar);};
         };
+#undef NDIM
     }
 }
 #endif

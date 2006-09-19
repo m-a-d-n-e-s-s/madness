@@ -253,7 +253,7 @@ namespace madness {
         _p1 = _p1_save;
         _p2 = _p2_save;
         for (int i=0; i<TENSOR_MAXDIM; i++) ind[i] = 0;
-    };
+    }
 
 
     /// Reuse this iterator to iterate over other Tensors
@@ -271,7 +271,7 @@ namespace madness {
         if (t1) _p1 = _p1_save = t1->ptr();
         if (t2) _p2 = _p2_save = t2->ptr();
         for (int i=0; i<TENSOR_MAXDIM; i++) ind[i] = 0;
-    };
+    }
 
 #include "tensoriter_spec.h"
 
