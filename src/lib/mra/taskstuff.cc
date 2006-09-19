@@ -85,7 +85,7 @@ namespace madness {
     /// Communication streams up the tree.
     /// Returns self for chaining.
     template <typename T>
-    Function<T>& Function<T>::compress() {
+    Function<T>& Function<T>::compress22() {
         if (!data->compressed) {
             if (isactive(tree())) {
                 ArgT dummy;
@@ -154,6 +154,7 @@ namespace madness {
         if (axis) d = ::copy(d.swapdim(axis,0));
         d.scale((double) two_to_power(tree->n()+1));
         df.set_coeff(tree,d);
+        madness::print("dodiff",tree->n(),tree->x(),tree->y(),tree->z(),df.coeff(tree)->normf(),df.isactive(tree->parent()));
     };
             
 

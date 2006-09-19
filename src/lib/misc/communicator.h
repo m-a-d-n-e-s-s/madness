@@ -69,7 +69,7 @@ namespace madness {
         mutable ulong function;   ///< Handle to AM function
         
     public:
-        ulong arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7;
+        ulong arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7,crap[4];
         
         AMArg() : function(bad) {};
         AMArg(ulong arg0) : function(bad), arg0(arg0) {};

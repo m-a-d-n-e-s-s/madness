@@ -34,7 +34,7 @@ using madness::archive::VectorInputArchive;
 using madness::archive::VectorOutputArchive;
 
 namespace std {
-    /// This to make norm work as desired for both complex and real
+    // This to make norm work as desired for both complex and real
     static inline double norm(const double d) {
         return d*d;
     };
@@ -89,13 +89,6 @@ namespace madness {
     class FunctionNode;         ///< Forward definition
     typedef OctTree<FunctionNode> OctTreeT; ///< Type of OctTree used to hold coeffs
     typedef SharedPtr<OctTreeT> OctTreeTPtr; ///< SharedPtr to OctTree
-    
-//    template <typename T>
-//    void set_coeff_remote_handler(Communicator& comm, ProcessID src, VectorInputArchive& ar);
-
-//    template <typename T>
-//    void make_target_coeff_handler(Communicator& comm, ProcessID src, const AMArg& arg);
-    
 
     /// Used to hold data for all functions at each node of the OctTree
 
@@ -112,17 +105,10 @@ namespace madness {
         std::vector<bool> a;    ///< Flags for active
         std::vector<bool> acflag; ///< Flags for autocleaning temporary values from tree
 
-        /// Private. Copy constructor not supported
-//        FunctionNode(const FunctionNode& f);
-
-        /// Private. Assignment not supported
-//        FunctionNode& operator=(const FunctionNode& f);
-
-    public:
+   public:
         /// Constructor initializes all data pointers to NULL
         FunctionNode() : v(size), a(size), acflag(size) {
-            // The explicit initialization may not be necessary, but
-            // better safe than sorry.
+            // The explicit initialization may not be necessary, but better safe than sorry.
             for (int i = 0; i < size; i++) {
                 v[i] = 0;
                 a[i] = false;
@@ -130,7 +116,7 @@ namespace madness {
             };
         };
 
-        // I know, I know, naughty for doing this, but yanno, it needs to be done
+        /// Copy constructor needed for data migration ???
         FunctionNode(const FunctionNode& f) {
             int i;
             int n = f.v.size();
@@ -142,11 +128,12 @@ namespace madness {
                     v.push_back(d);
                     a.push_back(f.a[i]);
                 } else {
-                    throw "not yet";
+                    MADNESS_EXCEPTION("not yet",0);
                 }
             };
         };
 
+        /// Asignment ... seems to be buggy?
         FunctionNode& operator=(const FunctionNode& fn) {
             if (this == &fn) return *this;
             int i;
@@ -162,7 +149,7 @@ namespace madness {
                     v.push_back(d);
                     a.push_back(fn.a[i]);
                 } else {
-                    throw "not yet";
+                    MADNESS_EXCEPTION("not yet",1);
                 }
             };
             return *this;
@@ -172,13 +159,10 @@ namespace madness {
         template <typename T>
         inline void getTensorList(std::vector<Tensor<T> > *tv, std::vector<bool> *av) {
             int i = 0, n = size;
-//std::cout << "beginning of getTensorList, n = " << n << std::endl;
             for (i = 0; i < n; i++) {
-//std::cout << "loop of getTensorList, i = " << i << std::endl;
                 tv->push_back(*(get<T>(i)));
                 av->push_back(isactive(i));
             }
-//std::cout << "end of getTensorList, n = " << n << std::endl;
         }
 
         /// Sets v and a using supplied arguments
@@ -194,10 +178,10 @@ namespace madness {
         /// Returns a pointer to data for entry ind.  NULL indicates no data.
         template <typename T>
         inline Tensor<T>* get(int ind) const {
-                if (ind < 0 || ind >= (int)v.size())
-                    throw "FunctionNode: get: invalid index";
-                return (Tensor<T> *) v[ind];
-            }
+            if (ind < 0 || ind >= (int)v.size())
+                MADNESS_EXCEPTION("FunctionNode: get: invalid index",ind);
+            return (Tensor<T> *) v[ind];
+        }
 
         /// Sets data (and active) by taking a \em shallow copy of the tensor value
 
@@ -205,7 +189,7 @@ namespace madness {
         template <typename T>
         inline Tensor<T>* set(int ind, const Tensor<T>& value) {
             if (ind < 0 || ind >= (int)v.size())
-                throw "FunctionNode: set: invalid index";
+                MADNESS_EXCEPTION("FunctionNode: set: invalid index",ind);
             v[ind] = new Tensor<T>(value);
             set_active(ind);
             return (Tensor<T> *) v[ind];
@@ -217,7 +201,7 @@ namespace madness {
         /// this node.
         inline void unset(int ind) {
             if (ind < 0 || ind >= size)
-                throw "FunctionNode: unset: invalid index";
+                MADNESS_EXCEPTION("FunctionNode: unset: invalid index",ind);
             if (v[ind]) {
                 delete v[ind];
                 v[ind] = 0;
@@ -292,7 +276,7 @@ namespace madness {
         FunctionOctTree(OctTreeT* tree)
                 : _nfree(FunctionNode::size)
                 , _free(_nfree)
-        , _tree(tree) {
+                , _tree(tree) {
             for (int i = 0; i < _nfree; i++) _free[i] = _nfree - i - 1;
         };
 
@@ -309,9 +293,8 @@ namespace madness {
         /// Allocate an index for a new function and clean out junk
         int alloc() {
             _nfree--;
-            if (_nfree < 0)
-                throw "FunctionIndexManager: too many functions: no resize yet";
-//            std::cout << "Allocated Function: " << _free[_nfree] << " " << std::endl;
+            if (_nfree < 0) 
+                MADNESS_EXCEPTION("FunctionIndexManager: too many functions: no resize yet",FunctionNode::size);
             int ind = _free[_nfree];
             free_data(_tree, ind);  // Not necessary but safer?
             return ind;
@@ -320,14 +303,12 @@ namespace madness {
         /// Free an index for a now deleted function
         void free(int ind) {
             if (ind < 0 || ind >= (int)_free.size())
-                throw "FunctionIndexManager: freeing invalid index";
+                MADNESS_EXCEPTION("FunctionIndexManager: freeing invalid index",ind);
             for (int i = 0; i < _nfree; i++)
                 if (_free[i] == ind)
-                    throw "FunctionIndexManager: freeing already free index";
+                    MADNESS_EXCEPTION("FunctionIndexManager: freeing already free index",ind);
 
             free_data(_tree, ind);
-
-//            std::cout << "Deallocated Function: " << ind << std::endl;
             _free[_nfree] = ind;
             _nfree++;
         };
@@ -454,7 +435,8 @@ namespace madness {
     
     class FunctionDataPointersBase {
     private:
-        static void* p[FunctionNode::size];  // Declared and initialized to zero in mra.cc
+        friend Communicator& madness::startup(int argc, char** argv);
+        static void* p[FunctionNode::size];  // Declared and initialized to zero in startup.cc
     };    
 
     template <typename T> class FunctionData;
@@ -627,31 +609,25 @@ namespace madness {
         };
     };
 
+    template <typename T> class TaskAwaitCoeff;
     template <typename T> class TaskDiff;
     template <typename T, typename Derived> class TaskLeaf;
     
     /// Multiresolution 3d function of given type
     template <typename T>
     class Function {
-    public:
+    private:
         typedef Tensor<T> TensorT; ///< Type of tensor used to hold coeffs
         typedef SAV<TensorT> ArgT; ///< Type of single assignment variable for tasks
 
         friend class TaskDiff<T>;
         friend class TaskLeaf< T, TaskDiff<T> >;
-
-//        friend
-//        void set_coeff_remote_handler<T>(Communicator& comm, ProcessID src, VectorInputArchive& ar);
-//
-//        friend
-//        void make_target_coeff_handler<T>(Communicator& comm, ProcessID src, const AMArg& arg);
+        friend class TaskAwaitCoeff<T>;
+        friend Communicator& madness::startup(int argc, char** argv);
         
-   
-    private:
-    
         static void set_active_handler(Communicator& comm, ProcessID src, const AMArg& arg); 
         static void recur_down_handler(Communicator& comm, ProcessID src, VectorInputArchive& ar);
-        SAV< Tensor<T> > Function<T>::_get_scaling_coeffs2(OctTreeTPtr& t, int axis, int inc);
+        SAV< Tensor<T> > _get_scaling_coeffs2(OctTreeTPtr& t, int axis, int inc);
         void _sock_it_to_me(OctTreeTPtr& tree, Level n, const Translation l[3], SAV< Tensor<T> >& arg);
         static void _sock_it_to_me_handler(Communicator& comm, ProcessID src, const AMArg& arg);
         void _sock_it_to_me_forward_request(Level n, const Translation l[3], SAV< Tensor<T> >& arg, ProcessID dest);
@@ -662,7 +638,10 @@ namespace madness {
         void _recur_coeff_down(OctTreeT* tree, bool keep);
         void _recur_coeff_down2(OctTreeT* tree, bool keep);
         const Tensor<T>* _get_scaling_coeffs(OctTreeTPtr& t, int axis, int inc);
-        
+        static void recur_down_to_make_handler(Communicator& comm, ProcessID src, const AMArg& arg);
+        void recur_down_to_make_forward_request(Level n, const Translation l[3], ProcessID dest);
+        void recur_down_to_make(OctTreeT* p, Level n, const Translation l[3]);
+        void fill_in_local_tree(OctTreeT* p, Level n, const Translation l[3]);
         
         /// Private.  This funky constructor makes a partial deep copy.
 
@@ -699,16 +678,16 @@ namespace madness {
 
         /// Copy constructor is \em shallow
 
-        /// No communication is involved.
+        /// No communication is involved, works in either basis.
         Function(const Function<T>& f)
                 : data(f.data)
                 , k(f.k)
                 , ind(f.ind) {}
         ;
 
-        /// Deep copy in either scaling function or wavelet basis.
+        /// Deep copy.
 
-        /// No communication involved.
+        /// No communication involved, works in either basis
         Function<T> copy() const {
             Function<T> result(this); // Partial deep copy
 
@@ -731,6 +710,8 @@ namespace madness {
 
 
         /// Print out a summary of the tree with norms
+        
+        /// No communication is involved, works in either basis.
         void pnorms() {
             if (isactive(tree())) _pnorms(tree());
         };
@@ -747,6 +728,7 @@ namespace madness {
         };
 
         /// Function times a scalar.  Produces new function.
+        
         /// No communication involved.  Works in either basis.
         Function<T> operator*(T s) const {
             Function<T> result = FunctionFactory<T>().k(k).compress(iscompressed()).empty();
@@ -754,17 +736,19 @@ namespace madness {
                 _unaryop(result, result.tree(), _scale_helper<T>(s));
             return result;
         };
+        
+
+        /// Scalar * function (see Function<T>::operator*(T t))
+        friend inline Function<T> operator*(T t, const Function<T>& f) {
+            return f*t;
+        };
+        
 
         /// Multiplication of two functions.
     
     	/// Crude version using squaring is inaccurate, slow and implies global sync
         Function<T> operator*(Function<T>& other) {
             return ((*this+other).square()-(*this-other).square()).scale(0.25);
-        };
-
-        /// scalar * function (see Function<T>::operator*(T t))
-        friend inline Function<T> operator*(T t, const Function<T>& f) {
-            return f*t;
         };
 
         /// Binary addition.  Works in wavelet basis generating new Function
@@ -819,7 +803,6 @@ namespace madness {
         /// Global communication is implied.   Works in either the scaling
         /// function or wavelet basis.
         double norm2sq() {
-            compress();
             return comm()->global_sum(norm2sq_local());
         };
         
@@ -839,7 +822,7 @@ namespace madness {
 
         /// Communication streams up the tree.
         /// Returns self for chaining.
-        Function<T>& compressOLD() {
+        Function<T>& compress() {
             if (!data->compressed) {
                 if (isactive(tree())) _compress(tree());
                 data->compressed = true;
@@ -859,7 +842,7 @@ namespace madness {
         
         void ptree() {_ptree(tree());};
 
-        Function<T>& compress();
+        Function<T>& compress22();
         void _compress2(OctTreeTPtr& tree, ArgT& parent);
         void _compress2op(OctTreeTPtr& tree, ArgT args[2][2][2], ArgT& parent);
         ArgT input_arg(const OctTreeTPtr& consumer, const OctTreeTPtr& producer);
@@ -1108,7 +1091,7 @@ namespace madness {
         /// No communication is involved.
         bool eval_local(double x, double y, double z, T* value) const {
             if (iscompressed())
-                throw "Function:eval_local:must not be compressed";
+                MADNESS_EXCEPTION("Function: eval_local: must not be compressed",ind);
 
             *value = T(0.0);
             OctTreeTPtr tree = this->tree();
@@ -1126,7 +1109,7 @@ namespace madness {
                 if (x < 0.0 || y < 0.0 || z < 0.0 ||
                         x > 1.0 || y > 1.0 || z > 1.0) {
                     if (tree->n() == 0) {
-                        throw "Function::eval_local:out of range point";
+                        MADNESS_EXCEPTION("Function: eval_local: out of range point",ind);
                     } else {
                         return false;
                     }
@@ -1298,7 +1281,7 @@ namespace madness {
                                 bool sonly = false) const {
             if (sonly)
                 //return transform(ss,data->cdata->hgsonly);
-                throw "unfilter: sonly : not yet";
+                MADNESS_EXCEPTION("unfilter: sonly : not yet",0);
             else
                 return transform3d(ss, data->cdata->hg);
             //return transform(ss,hg);
@@ -1531,7 +1514,6 @@ namespace madness {
         /// new Tensor<T> as a result.
         template <class Op>
         void _unaryop(Function<T>& result, OctTreeTPtr& tree, const Op op) const {
-            // !!! passing op by reference causes SEGV in gcc 4.0
             MADNESS_ASSERT(tree);
             result.set_active(tree);
             const TensorT *t = coeff(tree);
@@ -1554,7 +1536,6 @@ namespace madness {
         void _pnorms(const OctTreeTPtr& tree) const {
             MADNESS_ASSERT(tree);
             const TensorT *t = coeff(tree);
-            MADNESS_ASSERT(t);
             for (long i=0; i<tree->n(); i++) std::printf("  ");
             if (t) {
                 std::printf("%4d (%8lu, %8lu, %8lu) = %9.1e\n",
@@ -1576,102 +1557,15 @@ namespace madness {
 
         /// Private:  Compute norms of polyn with order <k/2 & >=k/2.
 
-        /// No communication is involved.
-        void _tnorms(const Tensor<T>& t, double *lo, double *hi) {
-            // t is a k*k*k tensor.  In order to screen the autorefinement
-            // during squaring or multiplication, compute the norms of
-            // ... lo ... the block of t for all polynomials of order < k/2
-            // ... hi ... the block of t for all polynomials of order >= k/2
-
-            // This routine exists to provide higher precision and in order to
-            // optimize away the tensor slicing otherwise necessary to compute
-            // the norm using
-            Slice s0(0,(k-1)/2);
-            double anorm = t.normf();
-            *lo = t(s0,s0,s0).normf();
-            *hi = sqrt(anorm*anorm - *lo**lo);
-/*
-            // k=5   0,1,2,3,4     --> 0,1,2 ... 3,4
-            // k=6   0,1,2,3,4,5   --> 0,1,2 ... 3,4,5
-
-            // k=number of wavelets, so k=5 means max order is 4, so max exactly
-            // representable squarable polynomial is of order 2 which is the third
-            // polynomial.
-            int k2 = (k - 1) / 2 + 1;
-            double slo = 0.0, shi = 0.0;
-
-            for (int p = 0; p < k2; p++)
-                for (int q = 0; q < k2; q++)
-                    for (int r = 0; r < k2; r++)
-                        slo += std::norm(t(p, q, r));
-
-            for (int p = 0; p < k; p++)
-                for (int q = k2; q < k; q++)
-                    for (int r = 0; r < k; r++)
-                        shi += std::norm(t(p, q, r));
-
-            for (int p = k2; p < k; p++)
-                for (int q = 0; q < k2; q++)
-                    for (int r = 0; r < k; r++)
-                        shi += std::norm(t(p, q, r));
-
-            for (int p = 0; p < k2; p++)
-                for (int q = 0; q < k2; q++)
-                    for (int r = k2; r < k; r++)
-                        shi += std::norm(t(p, q, r));
-
-            *lo = sqrt(slo);
-            *hi = sqrt(shi);*/
-        };
+        /// No communication is involved, scaling fn basis only
+        void _tnorms(const Tensor<T>& t, double *lo, double *hi);
         
-        /// Make the requested scaling coefficients by downward recursion (TASKQ)
-        
-        /// AM communication may be invoked with other nodes and the making of the 
-        /// coefficients may depend on other (remotely created) tasks being executed
-        /// on this processor.  To determine if the coefficients 
-        /// have been made yet, examine the pointer from coeff(tree)
-        /// (assuming that the local tree already exists).
-        /// An exception is thrown if the coefficients cannot be made due to
-        /// there being no parent coefficients.  
-        void make_target_coeff(Level n, Translation x, Translation y, Translation z, bool keep);
-        
-        /// Fill in missing local nodes down to specified location
-        void fill_in_local_tree(Level n, Translation x, Translation y, Translation z) {
-            OctTreeTPtr p = tree();
-            MADNESS_ASSERT(p);
-            while (p->n() < n) {
-                if (p->isremote()) MADNESS_EXCEPTION("Function: fill_in_local_tree: remote?",0);
-                // All children must exist
-                FORIJK(if (!p->child(i,j,k)) p->insert_local_child(i,j,k););
-                long nn = p->n() - n - 1;
-                long xx = (x>>nn)&1;
-                long yy = (y>>nn)&1;
-                long zz = (z>>nn)&1;    
-                p = p->child(xx,yy,zz);
-            }
-        };
-        
-        /// Returns list of unique processes with active remote children of this node
+        /// Returns list of unique processes with active remote children of a node in the tree
         
         /// Return value is the no. of unique remote processes with 
-        /// active children and a list of their MPI ranks
-        int unique_active_child_procs(const OctTreeTPtr& tree, ProcessID ranks[8]) const {
-            MADNESS_ASSERT(tree);
-            int np = 0;
-            FOREACH_REMOTE_CHILD(const OctTreeTPtr, tree,
-                if (isactive(child)) {
-                    bool found = false;
-                    for (int p=0; p<np; p++) {
-                        if (child->rank() == ranks[p]) {
-                            found = true;
-                            break;
-                        }
-                    }
-                    if (!found) ranks[np++] = child->rank();
-                }
-            );
-            return np;
-        };
+        /// active children of the node tree, and a list of their MPI ranks.
+        /// No communication is involved.
+        int unique_active_child_procs(const OctTreeTPtr& tree, ProcessID ranks[8]) const;
         
         
         void _ptree(OctTreeTPtr& tree) {
@@ -1681,99 +1575,21 @@ namespace madness {
         };
 
         /// Private.  Recursive function to provide autorefinement for squaring and multiplication.
-        void _autorefine(OctTreeTPtr& tree) {
-            MADNESS_ASSERT(tree);
-            bool msg[2], refine=false;
-            const Slice* s = data->cdata->s;
-            const Slice& s0 = s[0];
-            long k2 = k*2;
-            Tensor<T>& work1 = data->cdata->work1;
-            
-            if (islocal(tree)) {
-                ProcessID ranks[8];
-                int np = tree->unique_child_procs(ranks);
-                if (coeff(tree)) { // Test for refinement
-                    double tol = truncate_tol(data->thresh,tree->n()+1);
-                    const Tensor<T>& c = *coeff(tree);
-                    double lo,hi;
-                    FORIJK(_tnorms(c(s[i],s[j],s[k]),&lo,&hi);
-                           refine = hi > tol;
-                           if (refine) goto done;);
-                    done:;
-                }
-    
-                // Tell remote clones what is going on
-                msg[0] = isactive(tree); 
-                msg[1] = refine;
-                
-                for (int i=0; i<np; i++) comm()->Send(msg,2,ranks[i],AUTOREF_TAG1);
-                
-                if (refine) { // refine, sending data as necessary;
-                    const Tensor<T>& c = *coeff(tree);
-                    FORIJK(OctTreeTPtr child = tree->child(i,j,k);
-                           if (!child) child = tree->insert_local_child(i,j,k);
-                           set_active(child);
-                           if (child->islocal()) {
-                              Tensor<T>*t = set_coeff(child, Tensor<T>(k2, k2, k2));
-                              (*t)(s0, s0, s0) = c(s[i],s[j],s[k]);
-                              unfilter_inplace(*t);  // sonly!
-                           }
-                           else {
-                              work1(s0,s0,s0) = c(s[i],s[j],s[k]); // contig. copy
-                              comm()->Send(work1.ptr(), work1.size, child->rank(), AUTOREF_TAG2);
-                           }
-                        );
-                    unset_coeff(tree);               
-                }
-            } else if (isremote(tree) && tree->islocalsubtreeparent()) {
-                comm()->Recv(msg,2,tree->rank(),AUTOREF_TAG1);
-                bool active=msg[0], refine=msg[1];
-                if (!active && isactive(tree)) {
-                    MADNESS_EXCEPTION("Remote clone thinks it is inactive but I think I am active",0);
-                } else if (active) {
-                    set_active(tree);
-                    if (refine) {
-                        FORIJK(OctTreeTPtr child = tree->child(i,j,k);
-                              if (!child) child = tree->insert_local_child(i,j,k);
-                              set_active(child);
-                              comm()->Recv(work1.ptr(), work1.size, tree->rank(), AUTOREF_TAG2);
-                              Tensor<T>*c = set_coeff(child, Tensor<T>(k2, k2, k2));
-                              (*c)(s0, s0, s0) = work1;
-                              unfilter_inplace(*c); // sonly needed!
-                        );
-                    }
-                }
-            }
-                
-            FOREACH_CHILD(OctTreeTPtr, tree, if (islocal(child)) _autorefine(child););    
-        };
+        
+        /// Communication if any flows down
+        void _autorefine(OctTreeTPtr& tree);
+        
 
         /// Private.  Recursive function to support inplace squaring.
         
         /// No communication.
-        void _square(OctTreeTPtr& tree) {
-             MADNESS_ASSERT(tree);
-        	 FOREACH_ACTIVE_CHILD(OctTreeTPtr, tree, _square(child););
-
-             if (coeff(tree)) {
-                Tensor<T>& t = *coeff(tree);
-                Tensor<T> r(k, k, k);
-                const Slice* s = data->cdata->s;
-                double scale = std::pow(8.0, 0.5 * (tree->n()+1));
-                FORIJK(r(___) = t(s[i], s[j], s[k]);
-                       transform3d_inplace(r, data->cdata->quad_phit,
-                                           data->cdata->work1);
-                       r.emul(r).scale(scale);
-                       transform3d_inplace(r, data->cdata->quad_phiw,
-                                           data->cdata->work1);
-                       t(s[i], s[j], s[k]) = r;
-                      );
-             }
-        };
-
+        void _square(OctTreeTPtr& tree);
+        
+        
         /// Private.  Recursive function to support gaxpy
         void _gaxpy(Function<T>& afun, double alpha,
                     const Function<T>& bfun, double beta, OctTreeTPtr& tree);
+                    
 
         /// Private.  Recursive function to support addition and subtraction
         void _add_sub(Function<T>& c, const Function<T>& a, const Function<T>& b,
@@ -1782,7 +1598,8 @@ namespace madness {
 
         /// Private.  Check that this function and another share the same OctTree
         void check_trees(const Function<T>& other) const {
-            if (tree() != other.tree()) throw "Function: check_trees: trees are different";
+            if (tree() != other.tree()) 
+                MADNESS_EXCEPTION("Function: check_trees: trees are different",0);
         };
 
 

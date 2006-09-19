@@ -274,11 +274,13 @@ namespace madness {
                 return false;
             }
             else {
+                madness::comm_default->am_suspend();
                 TaskInterface *p = ready.front();
                 ready.pop_front();
                 //print(madness::comm_default->rank(),"executing task",(void *) p);
                 p->run();
                 delete p;
+                madness::comm_default->am_resume();
                 madness::comm_default->am_poll();
                 return true;
             }

@@ -57,3 +57,33 @@ get_make(tree,n,l,arg)
 
 
     
+sock(tree,n,l,arg)
+
+p = find(n,l)
+if (p)
+   if (p->n==n & active)
+      if coeff()
+        success
+      else if local
+        failure
+      else
+        know precise owner, forward it
+      endif
+   endif
+endif
+
+owner = gtree()
+if (owner == me) 
+   if (p) 
+      recur up to find non-null active node
+      fill in tree
+      reassign sav to wait on assignment of local tensor
+      if local
+         schedule local recur down task
+      else
+         schedule remote recur down task
+         schedule local recur down task waiting on fill from above
+   else
+      error
+else
+   foward request

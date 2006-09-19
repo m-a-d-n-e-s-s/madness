@@ -74,6 +74,7 @@ namespace madness {
         bool conforms(const BaseTensor *t) const;
         inline bool iscontiguous() const {
             /// Returns true if the tensor refers to contiguous memory locations.
+            if (this->size == 0) return true;
             long size = 1;
             for (long i=ndim-1; i>=0; i--) {
                 if (stride[i] != size) return false;

@@ -200,13 +200,15 @@ namespace madness {
                     state++;
                     if (state == 1) {
                         if (t.id != info[1]) throw "SAV: receiving tensor of wrong type?";
-                        std::cout<<info[2]<<std::endl;
                         t = Tensor<T>(info[2],info+3,false);
                         if (t.size != info[0]) throw "SAV: diasgree on size of tensor";
                         handle = madness::comm_default->Irecv(t.ptr(), t.size, rank, tag);
                     } else {
+                        if (status.Get_count(MPI::BYTE) == 0) {
+                            t = Tensor<T>();
+                            madness::print("GOT AN EMPTY TENSOR!",tag);
+                        }
                         assigned = true;
-                        if (status.Get_count(MPI::BYTE) == 0) t = Tensor<T>();
                     }
                 }
             }
@@ -269,7 +271,7 @@ namespace madness {
         /// SAV<double> args[5];
         /// for (int i=0; i<5; i++) args[i] = SAV<double>(whatever you want);
         /// \endcode
-    SAV() : p() {};
+        SAV() : p() {};
 
         /// Copy constructor is shallow
         SAV(const SAV<T>& v) {

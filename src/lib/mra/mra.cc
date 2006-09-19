@@ -57,8 +57,6 @@ namespace madness {
     bool FunctionDefaults::debug = false;
     double FunctionDefaults::cell[3][2] = {{0.0,1.0}, {0.0,1.0}, {0.0,1.0}};
     
-    void* FunctionDataPointersBase::p[FunctionNode::size];
-
     template <typename T>
     FunctionCommonData<T> FunctionData<T>::commondata[FunctionData::MAXK+1];
 
@@ -1273,6 +1271,162 @@ namespace madness {
       sprintf(tmp, "%lu", subtreeList.z);
       strcat(newfilename, tmp);
     }
+    
+    template <typename T>
+    void Function<T>::_tnorms(const Tensor<T>& t, double *lo, double *hi) {
+        // t is a k*k*k tensor.  In order to screen the autorefinement
+        // during squaring or multiplication, compute the norms of
+        // ... lo ... the block of t for all polynomials of order < k/2
+        // ... hi ... the block of t for all polynomials of order >= k/2
+
+        // This routine exists to provide higher precision and in order to
+        // optimize away the tensor slicing otherwise necessary to compute
+        // the norm using
+        Slice s0(0,(k-1)/2);
+        double anorm = t.normf();
+        *lo = t(s0,s0,s0).normf();
+        *hi = sqrt(anorm*anorm - *lo**lo);
+/*
+            // k=5   0,1,2,3,4     --> 0,1,2 ... 3,4
+            // k=6   0,1,2,3,4,5   --> 0,1,2 ... 3,4,5
+
+            // k=number of wavelets, so k=5 means max order is 4, so max exactly
+            // representable squarable polynomial is of order 2 which is the third
+            // polynomial.
+            int k2 = (k - 1) / 2 + 1;
+            double slo = 0.0, shi = 0.0;
+
+            for (int p = 0; p < k2; p++)
+                for (int q = 0; q < k2; q++)
+                    for (int r = 0; r < k2; r++)
+                        slo += std::norm(t(p, q, r));
+
+            for (int p = 0; p < k; p++)
+                for (int q = k2; q < k; q++)
+                    for (int r = 0; r < k; r++)
+                        shi += std::norm(t(p, q, r));
+
+            for (int p = k2; p < k; p++)
+                for (int q = 0; q < k2; q++)
+                    for (int r = 0; r < k; r++)
+                        shi += std::norm(t(p, q, r));
+
+            for (int p = 0; p < k2; p++)
+                for (int q = 0; q < k2; q++)
+                    for (int r = k2; r < k; r++)
+                        shi += std::norm(t(p, q, r));
+
+            *lo = sqrt(slo);
+            *hi = sqrt(shi);*/
+    }
+    
+    template <typename T>
+    int Function<T>::unique_active_child_procs(const OctTreeTPtr& tree, ProcessID ranks[8]) const {
+        MADNESS_ASSERT(tree);
+        int np = 0;
+        FOREACH_REMOTE_CHILD(const OctTreeTPtr, tree,
+            if (isactive(child)) {
+                bool found = false;
+                for (int p=0; p<np; p++) {
+                    if (child->rank() == ranks[p]) {
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found) ranks[np++] = child->rank();
+            }
+        );
+        return np;
+    };
+    
+    template <typename T>
+    void Function<T>::_autorefine(OctTreeTPtr& tree) {
+        MADNESS_ASSERT(tree);
+        bool msg[2], refine=false;
+        const Slice* s = data->cdata->s;
+        const Slice& s0 = s[0];
+        long k2 = k*2;
+        Tensor<T>& work1 = data->cdata->work1;
+        
+        if (islocal(tree)) {
+            ProcessID ranks[8];
+            int np = tree->unique_child_procs(ranks);
+            if (coeff(tree)) { // Test for refinement
+                double tol = truncate_tol(data->thresh,tree->n()+1);
+                const Tensor<T>& c = *coeff(tree);
+                double lo,hi;
+                FORIJK(_tnorms(c(s[i],s[j],s[k]),&lo,&hi);
+                       refine = hi > tol;
+                       if (refine) goto done;);
+                done:;
+            }
+
+            // Tell remote clones what is going on
+            msg[0] = isactive(tree); 
+            msg[1] = refine;
+            
+            for (int i=0; i<np; i++) comm()->Send(msg,2,ranks[i],AUTOREF_TAG1);
+            
+            if (refine) { // refine, sending data as necessary;
+                const Tensor<T>& c = *coeff(tree);
+                FORIJK(OctTreeTPtr child = tree->child(i,j,k);
+                       if (!child) child = tree->insert_local_child(i,j,k);
+                       set_active(child);
+                       if (child->islocal()) {
+                          Tensor<T>*t = set_coeff(child, Tensor<T>(k2, k2, k2));
+                          (*t)(s0, s0, s0) = c(s[i],s[j],s[k]);
+                          unfilter_inplace(*t);  // sonly!
+                       }
+                       else {
+                          work1(s0,s0,s0) = c(s[i],s[j],s[k]); // contig. copy
+                          comm()->Send(work1.ptr(), work1.size, child->rank(), AUTOREF_TAG2);
+                       }
+                    );
+                unset_coeff(tree);               
+            }
+        } else if (isremote(tree) && tree->islocalsubtreeparent()) {
+            comm()->Recv(msg,2,tree->rank(),AUTOREF_TAG1);
+            bool active=msg[0], refine=msg[1];
+            if (!active && isactive(tree)) {
+                MADNESS_EXCEPTION("Remote clone thinks it is inactive but I think I am active",0);
+            } else if (active) {
+                set_active(tree);
+                if (refine) {
+                    FORIJK(OctTreeTPtr child = tree->child(i,j,k);
+                          if (!child) child = tree->insert_local_child(i,j,k);
+                          set_active(child);
+                          comm()->Recv(work1.ptr(), work1.size, tree->rank(), AUTOREF_TAG2);
+                          Tensor<T>*c = set_coeff(child, Tensor<T>(k2, k2, k2));
+                          (*c)(s0, s0, s0) = work1;
+                          unfilter_inplace(*c); // sonly needed!
+                    );
+                }
+            }
+        }            
+        FOREACH_CHILD(OctTreeTPtr, tree, if (islocal(child)) _autorefine(child););    
+    };
+
+    template <typename T>
+    void Function<T>::_square(OctTreeTPtr& tree) {
+         MADNESS_ASSERT(tree);
+         FOREACH_ACTIVE_CHILD(OctTreeTPtr, tree, _square(child););
+
+         if (coeff(tree)) {
+            Tensor<T>& t = *coeff(tree);
+            Tensor<T> r(k, k, k);
+            const Slice* s = data->cdata->s;
+            double scale = std::pow(8.0, 0.5 * (tree->n()+1));
+            FORIJK(r(___) = t(s[i], s[j], s[k]);
+                   transform3d_inplace(r, data->cdata->quad_phit,
+                                       data->cdata->work1);
+                   r.emul(r).scale(scale);
+                   transform3d_inplace(r, data->cdata->quad_phiw,
+                                       data->cdata->work1);
+                   t(s[i], s[j], s[k]) = r;
+                  );
+         }
+    };
+    
 
     template <typename T>
     void Function<T>::produceNewFilename3(const char* f,
@@ -1335,24 +1489,4 @@ namespace madness {
       const char* f, TextFstreamOutputArchive& ar, const OctTreeT* tree,
       std::vector<localTreeMember>& subtreeList, ProcessID remoteRank,
       const long partLevel, Communicator& commFunc, const int nRemoteBranch, int& iter); 
-/*
-    template void Function<double>::save_local<TextFstreamOutputArchive>(TextFstreamOutputArchive& ar);
-    template void Function<double>::_save_local<TextFstreamOutputArchive>(TextFstreamOutputArchive& ar, const OctTreeT* tree); 
-    template void Function<double>::load_local<TextFstreamInputArchive>(const TextFstreamInputArchive& ar); 
-    template void Function<double>::_load_local<TextFstreamInputArchive>(const TextFstreamInputArchive& ar, OctTreeT* tree); 
-    template void Function<double>::saveMain<TextFstreamOutputArchive>(const char*f, TextFstreamOutputArchive& ar, const long partLevel, Communicator& comm); 
-    template void Function<double>::saveManager<TextFstreamOutputArchive>(const char* f, TextFstreamOutputArchive& ar, const OctTreeT* tree, const long partLevel, Communicator& commFunc);
-    template void Function<double>::shadowManager_save<TextFstreamOutputArchive>(const char* f, TextFstreamOutputArchive& ar, const OctTreeT* tree, Level n,
-             Translation x, Translation y, Translation z,
-             ProcessID remoteRank, const long partLevel, Communicator& commFunc); 
-    template void Function<double>::shadowManager_load<TextFstreamInputArchive>(const char* f, const TextFstreamInputArchive& ar, OctTreeT* tree, 
-             Level n, Translation x, Translation y, Translation z, 
-             ProcessID remoteRank, Communicator& commFunc,
-	     bool active_flag, bool have_child); 
-    template void Function<double>::loadManager<TextFstreamInputArchive>(const char* f, const TextFstreamInputArchive& ar, OctTreeT* tree,
-             Communicator& commFunc, bool active_flag, const long partLevel, bool have_child); 
-    template void Function<double>::dataSaveInShaManSave<TextFstreamOutputArchive>(const char* f, TextFstreamOutputArchive& ar, const OctTreeT* tree, localTreeMember& subtreeList, ProcessID remoteRank, const long partLevel, Communicator& commFunc); 
-    //template TextFstreamInputArchive Function<double>::checkingArchiveClass_save<TextFstreamInputArchive>(const char* f, const TextFstreamInputArchive& ar, const long partLevel, const OctTreeT* tree);
-*/
 }
-

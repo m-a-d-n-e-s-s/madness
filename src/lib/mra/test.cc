@@ -74,53 +74,47 @@ int main(int argc, char* argv[]) {
     try {
         //comm.set_debug(true);
         // Do useful stuff here
-        FunctionDefaults::k=6;
+        FunctionDefaults::k=9;
         FunctionDefaults::initial_level=2;
         Function<double> f = FunctionFactory<double>(fred).thresh(1e-7).nocompress();
+        //print("this is f",f.iscompressed());
+        //f.pnorms();        
+        //print("this is f",f.iscompressed());
         
-/*        vector<unsigned char> vout;
-        VectorOutputArchive varout(vout);
-        // For each local root EXCLUDING any remote parent
-        FOREACH_CHILD(OctTreeTPtr, FunctionDefaults::tree->tree(),
-                      if (child->islocal()) {
-                        Level n = child->n();
-                        Translation l[3]; l[0]=child->x(); l[1]=child->y(); l[2]=child->z();
-                        varout << n << l << comm.rank();
-                      });
-        
-        int vsize = vout.size();
-        vector<int> vsizeeach(comm.nproc()),vdisp(comm.nproc());
-        comm.mpi_comm().Gather(&vsize, 1, MPI::INT, &vsizeeach[0], 1, MPI::INT, 0);
-        long vsizesum = 0;
-        if (comm.rank() == 0) {           
-            for (int i=0; i<comm.nproc(); i++) {
-                print(i,"vsizeeach",vsizeeach[i]);
-                vdisp[i] = vsizesum;
-                vsizesum += vsizeeach[i];
-            }
-        }
-        comm.Bcast(vsizesum,0);
-        vector<unsigned char> vin(vsizesum);
-        comm.mpi_comm().Gatherv(&vout[0],vsize,MPI::BYTE,&vin[0],&vsizeeach[0],&vdisp[0],MPI::BYTE,0);
-        comm.Bcast(&vin[0],vsizesum,0);
-        VectorInputArchive varin(vin);
-        GlobalTree<3> gtree(varin);
-        if (comm.rank()==0) gtree.print();
-        comm.Barrier();
-        
-    comm.close();
-    MPI::Finalize();
-    return 0;*/
-        
-        
-        Function<double> df;
-        df = f.diff2(1);
-        print("diff y",df(0.45,0.53,0.48),dfred_dy(0.45,0.53,0.48));
+        double errnormsq;
+        Function<double> df,dfexact;
+
         df = f.diff2(0);
-        print("diff x",df(0.45,0.53,0.48),dfred_dx(0.45,0.53,0.48));
+        dfexact = FunctionFactory<double>(dfred_dx).thresh(1e-7).nocompress();
+        print("diff x",df(0.45,0.53,0.48),dfred_dx(0.45,0.53,0.48),"normerrsq",(df-dfexact).norm2sq());
+        goto done;
+
+        df = f.diff2(1);
+        print("dfnormsq",df.norm2sq(),df.iscompressed());
+        df.pnorms();
+        df.compress();
+        print("df compressed");
+        df.pnorms();
+        dfexact = FunctionFactory<double>(dfred_dy).thresh(1e-7).nocompress();
+        print("done with projection of dfexact");
+        //dfexact.pnorms();
+        dfexact.compress();
+        print("done with compress of dfexact");
+        dfexact.pnorms();
+        print("done with compress of dfexact");
+        df.compress();
+        print("done with compress of df");
+        errnormsq = (df-dfexact).norm2sq();
+        print("done with errnormsq",errnormsq);
+        df.reconstruct();
+        print("done with df recon");
+        print("diff y",df(0.45,0.53,0.48),dfred_dy(0.45,0.53,0.48),"normerrsq",errnormsq);       
+
         df = f.diff2(2);
-        print("diff z",df(0.45,0.53,0.48),dfred_dz(0.45,0.53,0.48));
-      
+        dfexact = FunctionFactory<double>(dfred_dz).thresh(1e-7).nocompress();
+        print("diff z",df(0.45,0.53,0.48),dfred_dz(0.45,0.53,0.48),"normerrsq",(df-dfexact).norm2sq());
+
+        goto done;
         
         print("valuesX",fred(0.45,0.53,0.48),f(0.45,0.53,0.48));
         print("Tree in scaling function basis");
@@ -176,6 +170,7 @@ int main(int argc, char* argv[]) {
         comm.Abort();
     }
     // The follwing should be used for succesful termination
+    done:
     comm.close();
     MPI::Finalize();
     return 0;

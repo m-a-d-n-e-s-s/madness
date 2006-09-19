@@ -435,3 +435,21 @@ else if (me == 1)
     */
     
     
+
+        /// Fill in missing local nodes down to specified location
+        void fill_in_local_tree(Level n, Translation x, Translation y, Translation z) {
+            OctTreeTPtr p = tree();
+            MADNESS_ASSERT(p);
+            while (p->n() < n) {
+                if (p->isremote()) MADNESS_EXCEPTION("Function: fill_in_local_tree: remote?",0);
+                // All children must exist
+                FORIJK(if (!p->child(i,j,k)) p->insert_local_child(i,j,k););
+                long nn = p->n() - n - 1;
+                long xx = (x>>nn)&1;
+                long yy = (y>>nn)&1;
+                long zz = (z>>nn)&1;    
+                p = p->child(xx,yy,zz);
+            }
+        };
+        
+

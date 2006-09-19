@@ -10,6 +10,7 @@ using std::endl;
 #include <tasks/sav.h>
 #include <tasks/tasks.h>
 #include <misc/print.h>
+#include <cmath>
 
 
 /// \file mra/sock_it_to_me.cc
@@ -23,6 +24,7 @@ namespace madness {
         int ind = arg.arg0;
         Level n = arg.arg1;
         Translation x=arg.arg2, y=arg.arg3, z=arg.arg4;
+        madness::print("set_active_handler",ind,n,x,y,z);
         Function<T> f = Function<T>(FunctionDataPointers<T>::get(ind));
         OctTreeTPtr t = f.tree();
         MADNESS_ASSERT(t);
@@ -42,6 +44,7 @@ namespace madness {
         Translation x, y, z;
         bool keep;
         ar & ind & n & x & y & z & keep & c;
+        madness::print("recur_down_handler",ind,n,x,y,z,keep);
         Function<T> f = Function<T>(FunctionDataPointers<T>::get(ind));
         OctTreeTPtr t = f.tree();
         MADNESS_ASSERT(t);
@@ -112,120 +115,205 @@ namespace madness {
                );
         if (!keep) unset_coeff(tree);
     }
+
+    template <typename T>
+    void Function<T>::recur_down_to_make_handler(Communicator& comm, ProcessID src, const AMArg& arg) {
+        int ind = arg.arg0;
+        Level n = arg.arg1;
+        Translation l[3] = {arg.arg2, arg.arg3, arg.arg4};
+        madness::print("recur_down_to_make_handler",ind, n, l[0], l[1], l[2],src);
+        
+        Function<T> f = Function<T>(FunctionDataPointers<T>::get(ind));
+        OctTreeT* p = f.tree()->find(n,l[0],l[1],l[2]);
+        f.recur_down_to_make(p, n, l);
+    }
+    
+    template <typename T>
+    void Function<T>::recur_down_to_make_forward_request(Level n, const Translation l[3], ProcessID dest) { 
+        AMArg amarg(ind, n, l[0], l[1], l[2]);
+        madness::print("rdtm forwarding",n, l[0], l[1], l[2]);
+        comm()->am_send(dest, recur_down_to_make_handler, amarg);     
+    }    
+
+    
+    /// Recur down to make specified location
+    template <typename T>
+    void Function<T>::recur_down_to_make(OctTreeT* p, Level n, const Translation l[3]) {
+        MADNESS_ASSERT(p);
+        Translation x=l[0], y=l[1], z=l[2];
+        while (p->n() < n) {
+            MADNESS_ASSERT(p->islocal());
+            _recur_coeff_down2(p,true);
+            long nn = n - p->n() - 1;
+            long xx = (x>>nn)&1;
+            long yy = (y>>nn)&1;
+            long zz = (z>>nn)&1;    
+            p = p->child(xx,yy,zz);
+            if (p->isremote()) {
+                // This needs to be combined with the forwarding
+                // implicit in recur_down
+                recur_down_to_make_forward_request(n,l,p->rank());
+                return;
+            }
+        }
+        madness::print("rdtm just made",n,l[0],l[1],l[2],p->x(),p->y(),p->z(),coeff(p)->normf());
+    }     
+    
     
     template <typename T>
     void Function<T>::_sock_it_to_me_handler(Communicator& comm, ProcessID src, const AMArg& arg) {
         int ind = arg.arg0;
         Level n = arg.arg1;
         Translation l[3] = {arg.arg2, arg.arg3, arg.arg4};
-        ProcessID requestor = arg.arg5;
-        int tag = arg.arg6;
+        int tag = arg.arg5;
+        madness::print("in sock handler",n, l[0], l[1], l[2],src,tag);
         
         Function<T> f = Function<T>(FunctionDataPointers<T>::get(ind));
-        SAV< Tensor<T> > result(requestor, tag, false);
+        SAV< Tensor<T> > result(src, tag, false, f.data->cdata->v2k);
         f._sock_it_to_me(f.tree(), n, l, result);
+        madness::print("after f.sock",n, l[0], l[1], l[2], result.probe());
+        //MADNESS_ASSERT(result.probe());
     }
     
     template <typename T>
     void Function<T>::_sock_it_to_me_forward_request(Level n, const Translation l[3], SAV< Tensor<T> >& arg, ProcessID dest) {
-        MADNESS_EXCEPTION("Uh?",0);
-        if (arg.islocal()) {
-            arg = SAV< Tensor<T> >(MPI::ANY_SOURCE, comm()->unique_tag(), true, data->cdata->v2k);
-        }
-        ProcessID requestor;
-        int tag;
-        arg.msginfo(requestor, tag);
-        AMArg amarg(ind, n, l[0], l[1], l[2], requestor, tag);
+        // Reassign result to be set remotely via a message from process dest 
+        int tag = comm()->unique_tag();
+        madness::print("sock forwarding",n, l[0], l[1], l[2],tag);
+        //MADNESS_ASSERT(arg.islocal());
+        arg = SAV< Tensor<T> >(dest, tag, true, data->cdata->v2k);
+        AMArg amarg(ind, n, l[0], l[1], l[2], tag);
         comm()->am_send(dest, _sock_it_to_me_handler, amarg);     
     }    
                  
                  
-    // simpler sock it to me logic might be to just forward the recur down request (to make n,l)
-    // but not to forward the SAV beyond the actual owner.  In this way we can just have a task
-    // that waits for the coeffs to appear (non-null pointer) and then assigns the SAV.
-    // The latency will be a little greater but if it is inserted as an HP task with the
-    // assignment done by the actual probe we will be in business.  The local SAV can 
-    // also just wrap the pointer (assuming the tree exists).         
                  
-                                                        
+    /// Fill in missing local nodes down to specified location
     template <typename T>
-    void Function<T>::_sock_it_to_me(OctTreeTPtr& tree, Level n, const Translation l[3], SAV< Tensor<T> >& arg) {
+    void Function<T>::fill_in_local_tree(OctTreeT* p, Level n, const Translation l[3]) {
+        MADNESS_ASSERT(p);
         Translation x=l[0], y=l[1], z=l[2];
-        // Most requests will resolve locally ... try to handle those efficiently
-       
-        // Find node or its parent in the tree.
-        OctTreeT* p = tree->find(tree->n(), x, y, z);
+        while (p->n() < n) {
+            MADNESS_ASSERT(p->islocal());
+            // All children must exist
+            FORIJK(if (!p->child(i,j,k)) p->insert_local_child(i,j,k););
+            long nn = n - p->n() - 1;
+            long xx = (x>>nn)&1;
+            long yy = (y>>nn)&1;
+            long zz = (z>>nn)&1;    
+            p = p->child(xx,yy,zz);
+        }
+    }     
+    
+    template <typename T>
+    class TaskAwaitCoeff : public TaskInterface {
+    private:
+        Function<T>* f;
+        OctTreeT* p;
+        mutable SAV< Tensor<T> > result;
+    public:
+        TaskAwaitCoeff(Function<T>* f, OctTreeT* p, SAV< Tensor<T> >& result) 
+        : f(f), p(p), result(result) 
+        {}
         
-        if (p) { // Found the node or a parent thereof
-            if (p->n() == n  &&  isactive(p)) { // The node itself and is active
-                if (coeff(p)) { // Has coeff ... success!
-                    arg.set(*coeff(p));
-                    return;
-                }
-                else if (islocal(p)) { // No coeff but active, so coeff are below ... failure
-                    arg.set(Tensor<T>());
-                    return;
-                }
-                else { // Active but not local ... forward request to owner
-                    madness::print("forward");
-                    _sock_it_to_me_forward_request(n,l,arg,p->rank());
-                    return;
-                }
-            }
-            
-            // Look up the local tree for the closest parent with coeff
-            while (!coeff(p) && p->parent()) p = p->parent();
-            
-            if (coeff(p)) { // Local parent has some coeff ... recur down
-                Translation x=l[0], y=l[1], z=l[2];
-                while(p->n() < n) {
-                    _recur_coeff_down2(p,true);
-                    long nn = n - p->n() - 1;
-                    long xx = (x>>nn)&1;
-                    long yy = (y>>nn)&1;
-                    long zz = (z>>nn)&1;
-                    p = p->child(xx,yy,zz).get();
-                    if (isremote(p)) {
-                        _sock_it_to_me_forward_request(n,l,arg,p->rank());
-                        return;
-                    }
-                }
-                arg.set(*coeff(p));
+        bool probe() const {
+            if (!f->coeff(p)) return false;
+            if (!result.probe()) result.set(*f->coeff(p));
+            return true;
+        }
+        void run() {};   
+    };   
+    
+                                                       
+    template <typename T>
+    void Function<T>::_sock_it_to_me(OctTreeTPtr& tree, Level n, const Translation l[3], SAV< Tensor<T> >& result) {
+        Translation x=l[0], y=l[1], z=l[2];
+        
+        OctTreeT* p = tree->find(n, x, y, z);  // Look for node/parent in local tree.
+        if (p && p->n()==n  &&  isactive(p)) { // The node itself and is active
+            if (coeff(p)) { // Has coeff ... success!
+                result.set(*coeff(p));
                 return;
             }
-            else if (isremote(p)) {
-                _sock_it_to_me_forward_request(n,l,arg,p->rank());
+            else if (islocal(p)) { // No coeff but active, so coeff are below ... failure
+                madness::print("SOCK FAILED",n, x, y, z);
+                result.set(Tensor<T>());
                 return;
             }
             else {
-                MADNESS_EXCEPTION("sock_it_to_me: logic error",1);
-            } 
+                _sock_it_to_me_forward_request(n,l,result,p->rank());
+                return;
+            }
         }
-        
-        MADNESS_EXCEPTION("not yet",0);
-        // Don't have enough info, try the global tree
-        ProcessID owner = find_owner(n,l);
+
+               
+        ProcessID owner = find_owner(n,l);  // Don't have enough info, look in global tree
         if (owner == comm()->rank()) {
-            MADNESS_EXCEPTION("sock_it_to_me: logic error",2);
+            if (p) {
+                // Look up the local tree for the closest parent with coeff
+                while (!isactive(p) && p->parent()) p = p->parent();
+                fill_in_local_tree(p, n, l);
+                taskq.add_local(new TaskAwaitCoeff<T>(this,p->find(n,x,y,z),result));       
+                if (coeff(p)) {
+                    recur_down_to_make(p,n,l); 
+                    return;
+                }
+                else if (isremote(p)) {
+                    recur_down_to_make_forward_request(n,l,p->rank());
+                    return;
+                }
+                else {
+                    MADNESS_EXCEPTION("sock_it_to_me: logic error",1);
+                } 
+            }
+            else {
+                madness::print("Gtree thinks I own",n,l[0],l[1],l[2]);
+                pnorms();            
+                MADNESS_EXCEPTION("sock_it_to_me: logic error",2);
+            }
         }
         else {
-            _sock_it_to_me_forward_request(n,l,arg,owner);
+            madness::print("Forwarding request after gtree",n,l[0],l[1],l[2]);
+            _sock_it_to_me_forward_request(n,l,result,owner);
         }
     }
     
     template <typename T>
     SAV< Tensor<T> > Function<T>::_get_scaling_coeffs2(OctTreeTPtr& t, int axis, int inc) {
+
+//        const Tensor<T>* ss = _get_scaling_coeffs(t, axis, inc);
+//        if (ss) {
+//            return SAV< Tensor<T> >(*ss);
+//        }
+//        else if (!ss) {
+//            return SAV< Tensor<T> >(Tensor<T>());
+//        }
+
         MADNESS_ASSERT(t);
         Translation xyz[3] = {t->x(), t->y(), t->z()};
         xyz[axis] += inc;
         
-        // !!!!!!!!!!! relying here on 0u-1 goes to big +ve no. ?????
         // Enforce boundary conditions (here use zero for external values)
-        if (xyz[axis]<0 || xyz[axis]>=two_to_power(t->n())) 
+        // !!!!!!!!!!! relying here on 0u-1 goes to big +ve no. ?????
+        if (xyz[axis]<0 || xyz[axis]>=two_to_power(t->n())) {
+            madness::print("BOUNDARY",t->n(), xyz[0], xyz[1], xyz[2]);
             return SAV< Tensor<T> >(data->cdata->zero_tensor);
+        }
     
         SAV< Tensor<T> > result;
         _sock_it_to_me(t, t->n(), xyz, result);
+        
+//        const Tensor<T>* s = _get_scaling_coeffs(t, axis, inc);
+//        
+//        if (s) {
+//            MADNESS_ASSERT(result.get().size);
+//            if (fabs(s->normf()-result.get().normf()) > 1e-12) {
+//                madness::print("OLD vs NEW",t->n(), xyz[0], xyz[1], xyz[2],s->normf(),result.get().normf());
+//            }
+//        }
+//        else {
+//            MADNESS_ASSERT(result.get().size == 0);
+//        }
         return result;
     };
     

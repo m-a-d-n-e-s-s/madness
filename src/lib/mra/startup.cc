@@ -18,6 +18,10 @@ using std::strcmp;
 #include <tasks/tasks.h>
 
 namespace madness {
+    
+    void* FunctionDataPointersBase::p[FunctionNode::size];
+
+    
     Communicator& startup(int argc, char** argv) {
         // The following should be used to setup all calculations
         // 1) Initialize parallel environment
@@ -44,10 +48,17 @@ namespace madness {
             if (strcmp(argv[i],"-t") == 0) comm.set_debug(true);
         }
         
-//        comm.am_register(make_target_coeff_handler<double>);
-//        comm.am_register(make_target_coeff_handler< std::complex<double> >);
-//        taskq.register_generic_op(set_coeff_remote_handler<double>);
-//        taskq.register_generic_op(set_coeff_remote_handler< std::complex<double> >);
+        for (int i=0; i<FunctionNode::size; i++) FunctionDataPointersBase::p[i] = 0;
+        
+        comm.am_register(Function<double>::set_active_handler);
+        comm.am_register(Function< std::complex<double> >::set_active_handler);
+        comm.am_register(Function<double>::_sock_it_to_me_handler);
+        comm.am_register(Function< std::complex<double> >::_sock_it_to_me_handler);
+        comm.am_register(Function<double>::recur_down_to_make_handler);
+        comm.am_register(Function< std::complex<double> >::recur_down_to_make_handler);
+        
+        taskq.register_generic_op(Function<double>::recur_down_handler);
+        taskq.register_generic_op(Function< std::complex<double> >::recur_down_handler);
     
         return comm;
     }

@@ -499,20 +499,19 @@ namespace madness {
         OctTreeT* find(Level n, Translation x, Translation y, Translation z) const {
             if (n >= _n) {
                 /// Determine if the desired box is a descendent of this node
-                Level nn = n - _n;
+                int nn = n - _n;
                 Translation xx = (x>>nn), yy = (y>>nn), zz = (z>>nn);
                 if (xx==_x && yy==_y && zz==_z) {
-                    if (nn == 0) return (OctTreeT *) this;	// Found it!
+                    if (nn == 0) return (OctTreeT *) this;  // Found it!
                     nn--;
                     xx = (x>>nn)&1; 
                     yy = (y>>nn)&1;
                     zz = (z>>nn)&1;
-                    const OctTreeT* c = child(xx,yy,zz).get();
+                    const OctTreeT* c = child(xx,yy,zz);
                     if (c) 
                         return c->find(n,x,y,z); // Look below
-                    else {
+                    else 
                         return (OctTreeT*) this; // Does not exist, return closest parent
-                    }
                 }
             }
             if (_p) return _p->find(n,x,y,z); // Pass up the tree
@@ -1506,8 +1505,7 @@ namespace madness {
    
     /// This holds a tree of sub-trees
     template <int NDIM>
-    class GlobalTree {                
-        
+    class GlobalTree {                        
     private:
         typedef SharedPtr< GlobalTree<NDIM> > ptrT;
         GlobalTree* parent;
@@ -1516,14 +1514,13 @@ namespace madness {
         ProcessID owner;
         Translation l[NDIM];
         
-        /// Returns true if this is the parent of p
+        /// Returns true if this is the parent of p or is p
         bool is_parent_of(Level n, const Translation l[NDIM]) const {
-            madness::print("Is",this->n,this->l,"parent",n,l);
-            if (n <= this->n ) return false;
+            if (n < this->n) return false;
             int nn = n-this->n;
-            for (int i=0; i<NDIM; i++) 
+            for (int i=0; i<NDIM; i++)
                 if ((l[i]>>nn) != this->l[i]) return false;
-            madness::print("yes");
+
             return true;
         };
             
@@ -1531,15 +1528,13 @@ namespace madness {
         /// Return the sub-tree that "owns" node (n,l), return 0 if not found
         const GlobalTree<NDIM>* find(Level n, const Translation l[NDIM]) const {
             // First check if we are even in this subtree
-            if (!is_parent_of(n,l)) return 0;
+            if (!is_parent_of(n,l)) return 0;            
             
-            madness::print("find checking children");
             // Now see if any of my children own it
             for (int i=0; i<(int) child.size(); i++) {
                 const GlobalTree* p = child[i]->find(n,l);
                 if (p) return p;
             }
-            madness::print("find returning me");
             return this;
         };
                 
@@ -1564,35 +1559,26 @@ namespace madness {
         /// Return owning proces of node (n,l) 
         ProcessID find_owner(Level n, const Translation l[NDIM]) const {
             const GlobalTree<NDIM>* p = find(n,l);
-            if (!p) return -1;
+            if (!p) MADNESS_EXCEPTION("GlobalTree: find failed!",0);
             return p->owner; 
         };
     
         /// Inserts a new tree node (n,l,owner)
         void insert(Level n, const Translation (&l)[NDIM], ProcessID owner) {
-            madness::print("Inserting",n,l,owner);
-            madness::print_array(l);
             GlobalTree<NDIM>* p = (GlobalTree<NDIM>*) this->find(n,l);
             if (!p) MADNESS_EXCEPTION("GlobalTree: insert: failed to locate?",0);
-            madness::print("insert pushing new child");
             p->child.push_back(ptrT(new GlobalTree(n,l,owner)));
              
-            madness::print("insert shuffling siblings");
             // Do any of p's other children need to be moved below their new sibling?
             int npc = p->child.size();
             ptrT c = p->child[npc-1];
             for (int i=(npc-2); i>=0; i--) {
                 if (c->is_parent_of(p->child[i]->n,p->child[i]->l)) {
-                    madness::print("shuffling a",i);
                     c->child.push_back(p->child[i]);
-                    madness::print("shuffling b",i);
                     p->child[i] = p->child.back();
-                    madness::print("shuffling c",i);  
                     p->child.pop_back();
-                    madness::print("shuffling d",i);
                 }
             }
-            madness::print("insert finished");
         };
         
         /// Serializes the tree as a simple list of values (not used or tested?)
@@ -1622,14 +1608,14 @@ namespace madness {
         };
         
         void print() const {
-            for (int i=0; i<n; i++) std::cout << " ";
+            for (int i=0; i<n; i++) std::cout << "  ";
             std::cout << n << " GTREE (";
             for (int i=0; i<NDIM; i++) std::cout << " " << l[i];
-            std::cout << ")" << std::endl;
+            std::cout << ") -> " << owner << std::endl;
             for (int i=0; i<(int)child.size(); i++) child[i]->print(); 
         };   
         
-        ~GlobalTree() {madness::print("DESTRUCTOR!");};
+        ~GlobalTree() {};
     };
     
     /// Build a global tree from an OctTree
@@ -1659,7 +1645,7 @@ namespace madness {
         long vsizesum = 0;
         if (comm.rank() == 0) {           
             for (int i=0; i<comm.nproc(); i++) {
-                print(i,"vsizeeach",vsizeeach[i]);
+                //print(i,"vsizeeach",vsizeeach[i]);
                 vdisp[i] = vsizesum;
                 vsizesum += vsizeeach[i];
             }
