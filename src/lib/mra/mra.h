@@ -140,7 +140,7 @@ namespace madness {
             int n = fn.v.size();
             v.clear();
             a.clear();
-            // RJH ... THIS SEEMS WRONG.  IS IT ACTUALLY BEING USED?????
+            MADNESS_EXCEPTION("RJH ... THIS SEEMS WRONG.  IS IT ACTUALLY BEING USED?????",0);
             for (i = 0; i < n; i++) {
                 BaseTensor* t = fn.v[i];
                 if (t->id == TensorTypeData<double>::id) {
@@ -190,6 +190,7 @@ namespace madness {
         inline Tensor<T>* set(int ind, const Tensor<T>& value) {
             if (ind < 0 || ind >= (int)v.size())
                 MADNESS_EXCEPTION("FunctionNode: set: invalid index",ind);
+            if (v[ind]) delete v[ind];
             v[ind] = new Tensor<T>(value);
             set_active(ind);
             return (Tensor<T> *) v[ind];

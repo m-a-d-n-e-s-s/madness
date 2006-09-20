@@ -452,4 +452,110 @@ else if (me == 1)
             }
         };
         
+        
+        
+        
+            template <typename T>
+    void Function<T>::_compress(OctTreeTPtr& tree) {
+        FOREACH_CHILD(OctTreeTPtr, tree,
+                      if (isactive(child)) _compress(child););
+
+        if (isremote(tree)) {
+            long k3 = k*k*k;
+            if (tree->islocalsubtreeparent()) {
+                // Send data from active children to remote parent
+                std::vector<Slice>& s0 = data->cdata->s0;
+                TensorT& buf = data->cdata->work1;
+                FOREACH_CHILD(OctTreeTPtr, tree,
+                              if (isactive(child)) {
+                              const TensorT* c = coeff(child);
+                                  if (!c) throw "compress: yo! show me the data(2)!";
+                                  buf(s0) = (*c)(s0);
+              //                                  print("compress: sending",buf.normf(),"to",tree->rank());
+                                  comm()->Send(buf.ptr(), k3, tree->rank(), COMPRESS_TAG);
+              //                                  print("child norm before",c->normf());
+                                  (*c)(s0) = T(0.0);
+              //                                  print("child norm after",c->normf());
+                              }
+                             );
+            } else {
+                // Receive data from a remote child and store as
+                // ghost ... parent will eventually delete it.
+                TensorT* t = set_coeff(tree,TensorT(k,k,k));
+                comm()->Recv(t->ptr(), k3, tree->rank(), COMPRESS_TAG);
+//                print("compress: received",t->normf(),"from",tree->rank());
+            }
+        } else {
+            // Node is local.  May or may not have data.
+            Slice *s = data->cdata->s;
+            TensorT* t = coeff(tree);
+            if (!t) t = set_coeff(tree,TensorT(2*k,2*k,2*k));
+            FOREACH_CHILD(OctTreeTPtr, tree,
+                          if (isactive(child)) {
+                          TensorT* c = coeff(child);
+                              if (!c) throw "compress: yo! show me the data!";
+                              (*t)(s[i],s[j],s[k]) += (*c)(s[0],s[0],s[0]);
+                              if (isremote(child)) {
+                                  unset_coeff(child);
+                              } else {
+                                  (*c)(s[0],s[0],s[0]) = T(0.0);
+                              }
+                          }
+                         );
+            //set_coeff(tree,filter(*t));
+            filter_inplace(*t);
+        }
+    }
+    
+        template <typename T>
+    void Function<T>::_truncate(double tol, OctTreeTPtr& tree){
+      int nactive_child = 0;
+      
+      FOREACH_LOCAL_CHILD(OctTreeTPtr, tree, 
+                          if (isactive(child)) _truncate(tol, child);
+                          if (isactive(child)) nactive_child++;);          
+      FOREACH_REMOTE_CHILD(OctTreeTPtr, tree,
+                           if (isactive(child)) {
+                               bool active;
+                               comm()->Recv(active, child->rank(), TRUNCATE_TAG1);
+                               if (active) nactive_child++;
+                               else set_inactive(child);
+                           }); 
+
+     if (!coeff(tree)) {
+         // This is the active remote parent of the local subtree.  If I have an
+         // active child then I know the remote parent will not truncate.
+         // But if I don't have any active children I must be told the decision.
+         if (nactive_child == 0) {
+            bool active;
+            comm()->Recv(active,tree->rank(),TRUNCATE_TAG2);
+            if (!active) set_inactive(tree);
+          }
+          return;
+      }
+      
+      // If I have no active children then I can try to truncate
+      if (nactive_child == 0 && 
+          coeff(tree)->normf() < truncate_tol(tol,tree->n())) {
+          //print("TT truncating",tree->n(),tree->x(),tree->y(),tree->z(),coeff(tree)->normf());
+          unset_coeff(tree);
+          set_inactive(tree);
+      }
+                        
+      // Notify any remote clones with only inactive children of my possibly 
+      // changed active status.
+      ProcessID ranks[8];
+      int np = tree->unique_child_procs(ranks);
+      for (int p=0; p<np; p++) {
+           int n=0;
+           FOREACH_REMOTE_CHILD(OctTreeTPtr, tree, 
+                                if (isactive(child) && child->rank()==ranks[p]) n++;);
+           if (n==0) comm()->Send(isactive(tree), ranks[p], TRUNCATE_TAG2);
+       }
+            
+      // Notify any remote parent of my possibly changed active status.
+      if (tree->parent() && tree->parent()->isremote()) 
+          comm()->Send(isactive(tree), tree->parent()->rank(), TRUNCATE_TAG1);
+    };
+    
 
