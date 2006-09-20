@@ -104,7 +104,7 @@ namespace madness {
                 //madness::print("APPLYING DONE");
             }
             else {
-                madness::print("RECURRING",tree->n(),tree->x(),tree->y(),tree->z(),(void*) in1.coeff(tree));
+                //madness::print("RECURRING",tree->n(),tree->x(),tree->y(),tree->z(),(void*) in1.coeff(tree));
                 if (in1.coeff(tree)) in1._recur_coeff_down2(tree,true);
                 if (in1.ind!=in2.ind  &&  in2.coeff(tree)) in2._recur_coeff_down2(tree,true);
                 FOREACH_CHILD(OctTreeTPtr, tree, 
@@ -115,7 +115,7 @@ namespace madness {
                                   out1.set_active(child);
                                   forward(child);
                               });
-                madness::print("RECURRING DONE",tree->n(),tree->x(),tree->y(),tree->z(),(void*) in1.coeff(tree));
+                //madness::print("RECURRING DONE",tree->n(),tree->x(),tree->y(),tree->z(),(void*) in1.coeff(tree));
             };           
         };
         
@@ -172,7 +172,7 @@ namespace madness {
             const Tensor<T>& t0 = *baseT::in1.coeff(baseT::tree);
             const Tensor<T>& tm = left.get(); 
             const Tensor<T>& tp = right.get();
-            madness::print("diff task",baseT::tree->n(),baseT::tree->x(),baseT::tree->y(),baseT::tree->z(),tm.normf(),t0.normf(),tp.normf());
+            //madness::print("diff task",baseT::tree->n(),baseT::tree->x(),baseT::tree->y(),baseT::tree->z(),tm.normf(),t0.normf(),tp.normf());
             baseT::in1._dodiff_kernel(baseT::out1, baseT::tree, baseT::axis, t0, tm, tp);
         };
     };
@@ -184,7 +184,7 @@ namespace madness {
         build_global_tree();
         Function<T> df = FunctionFactory<T>().k(k).compress(false).empty();
         madness::print("STARTING TASK GEN");
-        comm_default->set_debug(true);
+        //comm_default->set_debug(true);
         TaskDiff<T>::generate_tasks1(tree(), *this, df, axis);
         madness::print("FINISHED TASK GEN");
         taskq.global_fence();

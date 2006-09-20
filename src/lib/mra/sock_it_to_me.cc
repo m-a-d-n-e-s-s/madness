@@ -180,7 +180,7 @@ namespace madness {
         // Reassign result to be set remotely via a message from process dest 
         int tag = comm()->unique_tag();
         madness::print("sock forwarding",n, l[0], l[1], l[2],tag);
-        //MADNESS_ASSERT(arg.islocal());
+        MADNESS_ASSERT(arg.islocal());
         arg = SAV< Tensor<T> >(dest, tag, true, data->cdata->v2k);
         AMArg amarg(ind, n, l[0], l[1], l[2], tag);
         comm()->am_send(dest, _sock_it_to_me_handler, amarg);     
@@ -194,7 +194,7 @@ namespace madness {
         MADNESS_ASSERT(p);
         Translation x=l[0], y=l[1], z=l[2];
         while (p->n() < n) {
-            MADNESS_ASSERT(p->islocal());
+            MADNESS_ASSERT(p->islocal() || p->parent()==0);
             // All children must exist
             FORIJK(if (!p->child(i,j,k)) p->insert_local_child(i,j,k););
             long nn = n - p->n() - 1;
@@ -225,6 +225,31 @@ namespace madness {
     };   
     
                                                        
+               
+    template <typename T>
+    class TaskRecurDownToMakeLocal : public TaskInterface {
+    private:
+	Function<T>* f;
+	OctTreeT* p;
+	Level n;
+	SAV< Tensor<T> > result;
+	Translation l[3];
+	
+    public:
+	TaskRecurDownToMakeLocal(Function<T>* f, OctTreeT* p, Level n, const Translation l[3], SAV< Tensor<T> >& result) 
+	    : f(f),p(p),n(n),result(result) {
+	    for (int i=0; i<3; i++) this->l[i] = l[i];
+	};
+	void run() {
+	    madness::print("TaskRecurDownToMakeLocal",f->ind, p->n(),p->x()<p->y(),p->z(),n,l[0],l[1],l[2]);
+	    //madness::print("TaskRecurDownToMakeLocal",(void*)f,(void*)p,n,l[0],l[1],l[2]);
+	    f->recur_down_to_make(p,n,l);
+	    result.set(*f->coeff(p->find(n,l[0],l[1],l[2])));
+	};
+	bool probe() const {return true;};
+    };
+    
+    
     template <typename T>
     void Function<T>::_sock_it_to_me(OctTreeTPtr& tree, Level n, const Translation l[3], SAV< Tensor<T> >& result) {
         Translation x=l[0], y=l[1], z=l[2];
@@ -236,7 +261,7 @@ namespace madness {
                 return;
             }
             else if (islocal(p)) { // No coeff but active, so coeff are below ... failure
-                madness::print("SOCK FAILED",n, x, y, z);
+                //madness::print("SOCK FAILED",n, x, y, z);
                 result.set(Tensor<T>());
                 return;
             }
@@ -246,19 +271,25 @@ namespace madness {
             }
         }
 
-               
+
         ProcessID owner = find_owner(n,l);  // Don't have enough info, look in global tree
         if (owner == comm()->rank()) {
             if (p) {
                 // Look up the local tree for the closest parent with coeff
                 while (!isactive(p) && p->parent()) p = p->parent();
                 fill_in_local_tree(p, n, l);
-                taskq.add_local(new TaskAwaitCoeff<T>(this,p->find(n,x,y,z),result));       
                 if (coeff(p)) {
-                    recur_down_to_make(p,n,l); 
+		    if (result.islocal()) {
+			taskq.add_local(new TaskRecurDownToMakeLocal<T>(this,p,n,l,result));
+		    }
+		    else { // Immediate gratification for remote requests
+			recur_down_to_make(p,n,l); 
+			result.set(*coeff(p->find(n,x,y,z)));
+		    }
                     return;
                 }
                 else if (isremote(p)) {
+                    taskq.add_local(new TaskAwaitCoeff<T>(this,p->find(n,x,y,z),result));       
                     recur_down_to_make_forward_request(n,l,p->rank());
                     return;
                 }
@@ -273,7 +304,7 @@ namespace madness {
             }
         }
         else {
-            madness::print("Forwarding request after gtree",n,l[0],l[1],l[2]);
+            //madness::print("Forwarding request after gtree",n,l[0],l[1],l[2]);
             _sock_it_to_me_forward_request(n,l,result,owner);
         }
     }
@@ -297,7 +328,7 @@ namespace madness {
         // !!!!!!!!!!! relying here on 0u-1 goes to big +ve no. ?????
         //if (xyz[axis]<0 || xyz[axis]>=two_to_power(t->n())) {
         if (xyz[axis]>=two_to_power(t->n())) {
-            madness::print("BOUNDARY",t->n(), xyz[0], xyz[1], xyz[2]);
+            //madness::print("BOUNDARY",t->n(), xyz[0], xyz[1], xyz[2]);
             return SAV< Tensor<T> >(data->cdata->zero_tensor);
         }
     

@@ -69,7 +69,8 @@ namespace madness {
         /// indicate that no coefficients were found which implies that the
         /// tree is locally more deeply refined.
         ProcessID get4_with_coeff(ulong k[5]) {
-            ulong n=k[0], lx=k[1], ly=k[2], lz=k[3];
+	    int n=k[0];
+            ulong lx=k[1], ly=k[2], lz=k[3];
             int ind = int(k[4]);
             while (n>=0) {
                 map4T::iterator test = dir4.find(key4T(k));
@@ -93,7 +94,8 @@ namespace madness {
         /// MPI process that logically owns it, even if it does not 
         /// yet exist.
         ProcessID get4(ulong k[5]) {
-            ulong n=k[0], lx=k[1], ly=k[2], lz=k[3];
+	    int  n=k[0];
+            ulong lx=k[1], ly=k[2], lz=k[3];
             while (n>=0) {
                 map4T::iterator test = dir4.find(key4T(k));
                 if (test == dir4.end()) {

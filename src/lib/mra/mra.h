@@ -437,7 +437,7 @@ namespace madness {
 
     class FunctionDataPointersBase {
     protected:
-        friend Communicator& madness::startup(int argc, char** argv);
+        friend Communicator& startup(int argc, char** argv);
         static void* p[FunctionNode::size];  // Declared and initialized to zero in startup.cc
     };    
 
@@ -613,6 +613,7 @@ namespace madness {
     template <typename T> class TaskAwaitCoeff;
     template <typename T> class TaskDiff;
     template <typename T, typename Derived> class TaskLeaf;
+    template <typename T> class TaskRecurDownToMakeLocal;
     
     /// Multiresolution 3d function of given type
     template <typename T>
@@ -624,7 +625,8 @@ namespace madness {
         friend class TaskDiff<T>;
         friend class TaskLeaf< T, TaskDiff<T> >;
         friend class TaskAwaitCoeff<T>;
-        friend Communicator& madness::startup(int argc, char** argv);
+	friend class TaskRecurDownToMakeLocal<T>;
+        friend Communicator& startup(int argc, char** argv);
         
         static void set_active_handler(Communicator& comm, ProcessID src, const AMArg& arg); 
         static void recur_down_handler(Communicator& comm, ProcessID src, VectorInputArchive& ar);
@@ -823,7 +825,7 @@ namespace madness {
 
         /// Communication streams up the tree.
         /// Returns self for chaining.
-        Function<T>& compress() {
+        Function<T>& compressOLD() {
             if (!data->compressed) {
                 if (isactive(tree())) _compress(tree());
                 data->compressed = true;
@@ -843,7 +845,7 @@ namespace madness {
         
         void ptree() {_ptree(tree());};
 
-        Function<T>& compress22();
+        Function<T>& compress();
         void _compress2(OctTreeTPtr& tree, ArgT& parent);
         void _compress2op(OctTreeTPtr& tree, ArgT args[2][2][2], ArgT& parent);
         ArgT input_arg(const OctTreeTPtr& consumer, const OctTreeTPtr& producer);

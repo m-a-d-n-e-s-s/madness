@@ -76,10 +76,15 @@ int main(int argc, char* argv[]) {
         // Do useful stuff here
         FunctionDefaults::k=9;
         FunctionDefaults::initial_level=2;
-        Function<double> f = FunctionFactory<double>(fred).thresh(1e-7).nocompress();
+        Function<double> f = FunctionFactory<double>(fred).thresh(1e-7).nocompress().norefine();
         //print("this is f",f.iscompressed());
-        //f.pnorms();        
         //print("this is f",f.iscompressed());
+
+	f.compress();
+	f.truncate();
+	f.reconstruct();
+        f.pnorms();        
+	print("truncated and reconstructed f");
         
         double errnormsq;
         Function<double> df,dfexact;

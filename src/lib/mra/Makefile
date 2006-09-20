@@ -24,7 +24,6 @@ TEST1SRC = test.cc
 TEST2SRC = testq.cc
 TEST3SRC = rhb.cc mraX.cc 
 TEST4SRC = test_serialize.cc
-TEST5SRC = distmap.cc
          
 # GlobalMakefile now does most of the work for you
 include $(TOPDIR)/lib/GlobalMakefile

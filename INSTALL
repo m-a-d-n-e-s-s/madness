@@ -154,8 +154,12 @@ setenv CXX pgCC
 
 Now edit lib/MakeVars and ...
 CXX = CC
-CXXDEPEND = CC
+CXXDEPEND = g++
 CC = cc
-CCDEPEND = cc
-CXXFLAGS = -fastsse -tp k8-64 -Mflushz -Mcache_align
+CCDEPEND = gcc
+CXXDEPENDFLAGS = -M -I/opt/xt-mpt/default/mpich2-64/T/include
+CCDEPENDFLAGS = -M -I/opt/xt-mpt/default/mpich2-64/T/include
+
+CXXFLAGS = -fastsse -tp k8-64 -Mflushz -Mcache_align -target=catamount
+
 and remove -lpthreads from SYSLIBS
