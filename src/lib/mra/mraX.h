@@ -1186,11 +1186,11 @@ namespace madness {
 
 	template <typename T>
 	ActiveRootList(OctTree<T> *t, std::vector<bool> al):
-	    r(RootList(t, t->rank(), t->rank())), activeList(al) {};
+	    r(RootList(t, t->rank(), t->rank())), activeList(al) {}
 	
 	template <typename T>
 	ActiveRootList(OctTree<T> *t, ProcessID p, std::vector<bool> al):
-	    r(RootList(t, p, t->rank())), activeList(al) {};
+	    r(RootList(t, p, t->rank())), activeList(al) {}
 
         template <class Archive>
         inline void serialize(const Archive& ar) {

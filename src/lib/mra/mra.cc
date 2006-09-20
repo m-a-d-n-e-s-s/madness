@@ -1456,6 +1456,8 @@ namespace madness {
     template class FunctionData<double>;
     template class FunctionData< std::complex<double> >;
     template class FunctionCommonData<double>;
+    template class FunctionCommonData<double_complex>;
+
     template void Function<double>::save_local<TextFstreamOutputArchive>(
       TextFstreamOutputArchive& ar);
     template void Function<double>::_save_local<TextFstreamOutputArchive>(

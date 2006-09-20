@@ -82,12 +82,12 @@ namespace madness {
     };
 
     template <typename T> MPI::Datatype MPITypeFromType();
-    template<> static inline MPI::Datatype MPITypeFromType<int>() {return MPI::INT;};
-    template<> static inline MPI::Datatype MPITypeFromType<unsigned int>() {return MPI::UNSIGNED;};
-    template<> static inline MPI::Datatype MPITypeFromType<long>() {return MPI::LONG;};
-    template<> static inline MPI::Datatype MPITypeFromType<unsigned long>() {return MPI::UNSIGNED_LONG;};
-    template<> static inline MPI::Datatype MPITypeFromType<double>() {return MPI::DOUBLE;};
-    template<> static inline MPI::Datatype MPITypeFromType< std::complex<double> >() {return MPI_COMPLEX;};
+    template<> inline MPI::Datatype MPITypeFromType<int>() {return MPI::INT;};
+    template<> inline MPI::Datatype MPITypeFromType<unsigned int>() {return MPI::UNSIGNED;};
+    template<> inline MPI::Datatype MPITypeFromType<long>() {return MPI::LONG;};
+    template<> inline MPI::Datatype MPITypeFromType<unsigned long>() {return MPI::UNSIGNED_LONG;};
+    template<> inline MPI::Datatype MPITypeFromType<double>() {return MPI::DOUBLE;};
+    template<> inline MPI::Datatype MPITypeFromType< std::complex<double> >() {return MPI_COMPLEX;};
 
     typedef void (*am_handlerT)(Communicator&, ProcessID, const AMArg&);
     void am_ndiff_handler(Communicator& comm, ProcessID proc, const AMArg& arg);
@@ -635,7 +635,7 @@ namespace madness {
             _comm.Allreduce(&t, &result, 1, MPITypeFromType<T>(), MPI::SUM);
             if (debug) madness::print(rank(),"Comm: global sum done");
             return result;
-        };
+        }
         
         
         /// Inplace global sum of an array via MPI::Allreduce
@@ -647,7 +647,7 @@ namespace madness {
             for (int i=0; i<count; i++) t[i] = result[i];
             delete [] result;
             if (debug) madness::print("Comm: global sum done");
-        };
+        }
 
         /// Register an "active message" handler
         int am_register(void (*handler)(Communicator&, ProcessID, const AMArg&)) {
@@ -778,12 +778,12 @@ namespace madness {
             if (child1<nproc()) req1 = Isend(&value,sizeof(value),MPI::BYTE, child1, AM_BVALUE_TAG);
             if (child0<nproc()) wait(req0);
             if (child1<nproc()) wait(req1);
-        };
+        }
         
         template <typename T>
         inline void am_broadcast_value_spmd(T& value) {
             am_broadcast_value_spmd_doit(value, bind_mem_fun(this,&Communicator::am_wait));
-        };
+        }
         
         /// Computes on node 0 the global sum of #AM sent - #AM recvieved
         
@@ -819,7 +819,7 @@ namespace madness {
             }
             //madness::print("tmp",tmp0,tmp1,"sent/recv",_am_nsent,_am_nrecv,"sum",sum,"processing",_am_processing);                
             return sum; 
-        };
+        }
         
         /// Computes on all nodes in SPMD mode the global sum of #AM sent - #AM recvieved
         
@@ -836,7 +836,7 @@ namespace madness {
             //madness::print("LEAVING BCAST");
             //std::cout.flush();
             return sum;
-        };
+        }
         
         /// In SPMD mode, all nodes wait until global sum (#AM sent - #AM recveived) = 0
         void am_global_fence_spmd() {

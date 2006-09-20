@@ -118,7 +118,7 @@ namespace madness {
         SAVImpl(int rank, int tag, bool postrecv, const argT& args)
                 : assigned(false), posted(postrecv), rank(rank), tag(tag), t(args), state(1), handle() {
             if (postrecv) handle = madness::comm_default->Irecv(&t[0], n, rank, tag);
-        };
+        }
 
         inline bool probe() const {
             if (!assigned && posted) {
@@ -190,7 +190,7 @@ namespace madness {
                 //t = Tensor<T>(args);
                 handle = madness::comm_default->Irecv(t.ptr(), t.size, rank, tag);
             }
-        };
+        }
 
         inline bool probe() const {
             if (!assigned && posted) {
@@ -303,7 +303,7 @@ namespace madness {
         /// will send a message of the given tag to process rank.
         template <class argT>
         SAV(int rank, int tag, bool postrecv, const argT& args)
-                : p(new SAVImpl<T>(rank,tag,postrecv,args)) {};
+                : p(new SAVImpl<T>(rank,tag,postrecv,args)) {}
 
 
         /// Assignment makes a shallow copy

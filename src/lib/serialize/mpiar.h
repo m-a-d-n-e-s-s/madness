@@ -21,7 +21,7 @@ public:
     typename madness::enable_if< madness::is_fundamental<T>, void >::type
     store(const T* t, long n) const {
         comm.Send(t, n, dest, tag);
-    };
+    }
 };
 
 class MPIRawInputArchive : public BaseInputArchive {
@@ -60,7 +60,7 @@ public:
         if (v.size() > bufsize) flush();
         var.store(t,n);
         if (v.size() > bufsize) flush();
-    };
+    }
 
     void flush() const {
         if (v.size()) {
@@ -98,7 +98,7 @@ public:
             comm.Recv(&v[0], m, src, tag);
         }
         var.load(t,n);
-    };
+    }
 };
 
     // No type checking over MPI stream for efficiency

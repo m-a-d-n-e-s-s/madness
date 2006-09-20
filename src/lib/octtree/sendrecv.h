@@ -52,7 +52,7 @@ namespace madness {
         future_owner(future) {};
         template <class T>
         RootList(OctTree<T> *t, ProcessID current, ProcessID future): x(t->x()), y(t->y()),
-        z(t->z()), n(t->n()), current_owner(current), future_owner(future) {};
+        z(t->z()), n(t->n()), current_owner(current), future_owner(future) {}
 
         template <class Archive>
         inline void serialize(const Archive& ar) {

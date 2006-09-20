@@ -284,7 +284,6 @@ namespace madness {
                 madness::comm_default->am_poll();
                 return true;
             }
-            return false;
         };
 
         // Need a probe all to ensure progress of multistep stuff

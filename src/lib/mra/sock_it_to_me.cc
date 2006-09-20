@@ -295,7 +295,8 @@ namespace madness {
         
         // Enforce boundary conditions (here use zero for external values)
         // !!!!!!!!!!! relying here on 0u-1 goes to big +ve no. ?????
-        if (xyz[axis]<0 || xyz[axis]>=two_to_power(t->n())) {
+        //if (xyz[axis]<0 || xyz[axis]>=two_to_power(t->n())) {
+        if (xyz[axis]>=two_to_power(t->n())) {
             madness::print("BOUNDARY",t->n(), xyz[0], xyz[1], xyz[2]);
             return SAV< Tensor<T> >(data->cdata->zero_tensor);
         }

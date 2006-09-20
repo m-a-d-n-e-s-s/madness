@@ -366,9 +366,10 @@ namespace madness {
 	/// set this node's parent, and make the parent point to the child too
 	inline OctTreeT* setParentChild(OctTreeT* p)
 	{
-	    Translation x = this->_x - 2*p->_x;
-	    Translation y = this->_y - 2*p->_y;
-	    Translation z = this->_z - 2*p->_z;
+	  // RJH ... THIS LOOKS VERY SUSPCIOUS ... IS IT REALLY CORRECT?
+	    int x = this->_x - 2*p->_x;
+	    int y = this->_y - 2*p->_y;
+	    int z = this->_z - 2*p->_z;
 	    p->setChild(x,y,z, this);
 	    return _p;
 	};
@@ -384,8 +385,8 @@ namespace madness {
         };
         
         
-	inline OctTreeT* setChild(int x, int y, int z, OctTreeT child) {
-	    _c[x][y][z] = SharedPtr<OctTreeT>(&child);
+	inline OctTreeT* setChild(int x, int y, int z, OctTreeT* child) {
+	    _c[x][y][z] = SharedPtr<OctTreeT>(child);
 	    child.setParent(this);
 	    return (OctTreeT*) _c[x][y][z];
 	};
@@ -1415,7 +1416,7 @@ namespace madness {
 		    }
 		}
 //		std::cout << "end of load (prolly won't see this)" << std::endl;
-	    };
+	    }
 	    
         template <class Archive>
 	    void store(const Archive& ar) const {
@@ -1477,7 +1478,7 @@ namespace madness {
 //			std::cout << "t is not a parent" << std::endl;
 		    }
 		}
-	    };
+	}
     };
 
     namespace archive {
@@ -1554,7 +1555,7 @@ namespace madness {
         : child(0), n(0), owner(0) {
             for (int i=0; i<NDIM; i++) l[i] = 0;
             this->load(ar);
-        };
+        }
         
         /// Return owning proces of node (n,l) 
         ProcessID find_owner(Level n, const Translation l[NDIM]) const {
@@ -1586,7 +1587,7 @@ namespace madness {
         void store(const Archive& ar) const {
             ar << n << l << owner; 
             for (int i=0; i<(int) child.size(); i++) child[i].store(ar);
-        };
+        }
         
         template <class Archive> 
         void load(const Archive& ar) {
@@ -1605,7 +1606,7 @@ namespace madness {
                         throw;
                 }
             }
-        };
+        }
         
         void print() const {
             for (int i=0; i<n; i++) std::cout << "  ";
