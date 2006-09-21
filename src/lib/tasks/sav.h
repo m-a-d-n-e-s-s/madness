@@ -204,10 +204,10 @@ namespace madness {
                         if (t.size != info[0]) throw "SAV: diasgree on size of tensor";
                         handle = madness::comm_default->Irecv(t.ptr(), t.size, rank, tag);
                     } else {
-                        int nb = status.Get_count(MPI::BYTE);
+                        unsigned int nb = status.Get_count(MPI::BYTE);
                         madness::print("SAV JUST RECEIVED",nb);
                         std::cout.flush();
-                        if (nb == 0) {
+                        if (nb == 0u) {
                             t = Tensor<T>();
                         }
                         else if (nb > t.size*sizeof(T)) {
