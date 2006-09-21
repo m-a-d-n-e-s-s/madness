@@ -204,9 +204,20 @@ namespace madness {
                         if (t.size != info[0]) throw "SAV: diasgree on size of tensor";
                         handle = madness::comm_default->Irecv(t.ptr(), t.size, rank, tag);
                     } else {
-                        if (status.Get_count(MPI::BYTE) == 0) {
+                        int nb = status.Get_count(MPI::BYTE);
+                        madness::print("SAV JUST RECEIVED",nb);
+                        std::cout.flush();
+                        if (nb == 0) {
                             t = Tensor<T>();
-                            madness::print("GOT AN EMPTY TENSOR!",tag);
+                        }
+                        else if (nb > t.size*sizeof(T)) {
+                            madness::print("OUCH!",nb,t.size,t.ndim,t.dim[0],t.dim[1],t.dim[2]);
+                            std::cout.flush();
+                            throw "SAV: received data too big for the tensor";
+                        }
+                        else if (nb != t.size*sizeof(T)) {
+                            madness::print("Weird ... nb != t.size*size(T)",nb,t.size,sizeof(T),t.ndim,t.dim[0],t.dim[1],t.dim[2]);
+                            std::cout.flush();
                         }
                         assigned = true;
                     }

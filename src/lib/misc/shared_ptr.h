@@ -85,13 +85,13 @@ namespace madness {
         
         /// Free the pointer if we own it and it is not null
         void free() {
-            if (own && p) {
-                //std::cout << "freeing " << (void *) p << " " << isarray << std::endl;
-                if (isarray) 
-                    delete [] p;    
-                else 
-                    delete p;
-            }
+//             if (own && p) {
+//                 //std::cout << "freeing " << (void *) p << " " << isarray << std::endl;
+//                 if (isarray) 
+//                     delete [] p;    
+//                 else 
+//                     delete p;
+//             }
         };
         
     public:
