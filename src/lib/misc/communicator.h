@@ -8,13 +8,16 @@
 #include <unistd.h>
 #include <vector>
 #include <complex>
+#include <cstdlib>
+#include <unistd.h>
+
 #include <madness_config.h>
 #include <mad_types.h>
 #include <typestuff.h>
 #include <misc/print.h>
 #include <misc/mpitags.h>
 #include <misc/madexcept.h>
-#include <unistd.h>
+
 
 #undef SEEK_SET
 #undef SEEK_CUR
@@ -69,7 +72,7 @@ namespace madness {
         mutable ulong function;   ///< Handle to AM function
         
     public:
-        ulong arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7,crap[4];
+        ulong arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11;
         
         AMArg() : function(bad) {};
         AMArg(ulong arg0) : function(bad), arg0(arg0) {};
@@ -79,6 +82,17 @@ namespace madness {
         AMArg(ulong arg0, ulong arg1, ulong arg2, ulong arg3, ulong arg4) : function(bad), arg0(arg0), arg1(arg1), arg2(arg2), arg3(arg3), arg4(arg4) {};
         AMArg(ulong arg0, ulong arg1, ulong arg2, ulong arg3, ulong arg4, ulong arg5) : function(bad), arg0(arg0), arg1(arg1), arg2(arg2), arg3(arg3), arg4(arg4), arg5(arg5) {};
         AMArg(ulong arg0, ulong arg1, ulong arg2, ulong arg3, ulong arg4, ulong arg5, ulong arg6) : function(bad), arg0(arg0), arg1(arg1), arg2(arg2), arg3(arg3), arg4(arg4), arg5(arg5), arg6(arg6) {};
+        AMArg(const void* p, int nbyte) {
+            copyin(p,nbyte);
+        };
+        void copyin(const void* p, unsigned int nbyte) {
+            MADNESS_ASSERT(nbyte <= sizeof(ulong)*12);
+            memcpy(&arg0,p,nbyte); 
+        };
+        void copyout(void* p, unsigned int nbyte) const {
+            MADNESS_ASSERT(nbyte <= sizeof(ulong)*12);
+            memcpy(p,&arg0,nbyte); 
+        };        
     };
 
     template <typename T> MPI::Datatype MPITypeFromType();

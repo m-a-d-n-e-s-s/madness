@@ -136,13 +136,14 @@ namespace madness {
             }
             else {
                 long handle = hgen.get_handle(op);
+                int tag = madness::comm_default->unique_tag();
                 // While we are single threaded and wait for the data send to complete,
                 // a single tag is OK.  Otherwise, we must use unique tags for each task.
-                madness::comm_default->am_send(dest, task_generic_handler, AMArg(v.size(),
-                     TASK_GENERIC_DATA_TAG, handle));
+                madness::comm_default->am_send(dest, task_generic_handler, 
+                        AMArg(v.size(), tag, handle));
                 if (v.size()) {
                     MPI::Request req = madness::comm_default->Isend(&v[0],v.size(),
-                        MPI::BYTE, dest, TASK_GENERIC_DATA_TAG);
+                        MPI::BYTE, dest, tag);
                     madness::comm_default->am_wait(req);
                 }
             }

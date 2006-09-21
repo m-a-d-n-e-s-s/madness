@@ -112,13 +112,10 @@ namespace madness {
         };
         
         /// Copy constructor generates a new reference to the same pointer
-        SharedPtr(const SharedPtr<T>& s) : p(s.p), count(s.count), isarray(s.isarray) {
-            if (count) {
-                count->inc();
-//                std::cout << "SharedPtr: copy con " << count->get() << std::endl;
-//                std::cout << "copying " << (void *) p << " " << isarray << std::endl;
-            }
-	    if (count==0 && p!=0) throw "COPYING SHAREDPTR WITH ZERO COUNT BUT NON_ZERO POINTER\n";
+        SharedPtr(const SharedPtr<T>& s) : p(s.p), count(s.count), isarray(s.isarray), own(s.own) {
+            if (count) count->inc();
+	        if (own && !count && p) 
+               throw "COPYING OWNED SHAREDPTR WITH ZERO COUNT BUT NON_ZERO POINTER";
         };
         
         /// Destructor decrements reference count freeing data only if count is zero
@@ -134,19 +131,20 @@ namespace madness {
                 own = s.own;
                 if (count) count->inc();
             }
-//	    std::cout << "SharedPtr: assignment operator " << count->get() << std::endl;
-//            std::cout << "assigning " << (void *) p << " " << isarray << std::endl;
             return *this;
         };
         
         /// Returns number of references
         inline int use_count() const {
             if (count) return count->get();
-            else return 1;
+            else return 0;
         };
 
         /// Returns the value of the pointer
         inline T* get() const {return p;};
+        
+        /// Returns true if the SharedPtr owns the pointer
+        inline bool owned() const {return own;};
        
         // Cast of SharedPtr<T> to T* returns the value of the pointer
         inline operator T*() const {return p;};

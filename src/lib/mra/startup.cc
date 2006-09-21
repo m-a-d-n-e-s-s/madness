@@ -20,7 +20,7 @@ using std::strcmp;
 namespace madness {
     
     void* FunctionDataPointersBase::p[FunctionNode::size];
-
+    void mratask_register();
     
     Communicator& startup(int argc, char** argv) {
         // The following should be used to setup all calculations
@@ -40,6 +40,9 @@ namespace madness {
         load_quadrature(comm);
         
         FunctionDefaults::tree = SharedPtr<FunctionOctTree>(new FunctionOctTree(OctTree<FunctionNode>::create_default(comm,2)));
+        for (int i=0; i<20; i++) madness::print("xxxxxxxxxxx");
+        FunctionDefaults::tree->tree()->print();
+        for (int i=0; i<20; i++) madness::print("yyyyyyyyyyy");
         if (!gauss_legendre_test()) comm.Abort();
         if (!test_two_scale_coefficients()) comm.Abort();
     
@@ -50,15 +53,20 @@ namespace madness {
         
         for (int i=0; i<FunctionNode::size; i++) FunctionDataPointersBase::p[i] = 0;
         
-        comm.am_register(Function<double>::set_active_handler);
-        comm.am_register(Function< std::complex<double> >::set_active_handler);
-        comm.am_register(Function<double>::_sock_it_to_me_handler);
-        comm.am_register(Function< std::complex<double> >::_sock_it_to_me_handler);
-        comm.am_register(Function<double>::recur_down_to_make_handler);
-        comm.am_register(Function< std::complex<double> >::recur_down_to_make_handler);
+#define REGAM(f) print("          AM handler",#f,comm.am_register(f))
+#define REGGE(f) print("Generic task handler",#f,taskq.register_generic_op(f))
+
+        REGAM(task_generic_handler);
+        REGAM(Function<double>::set_active_handler);
+        REGAM(Function< std::complex<double> >::set_active_handler);
+        REGAM(Function<double>::_sock_it_to_me_handler);
+        REGAM(Function< std::complex<double> >::_sock_it_to_me_handler);
+        REGAM(Function<double>::recur_down_to_make_handler);
+        REGAM(Function< std::complex<double> >::recur_down_to_make_handler);
         
-        taskq.register_generic_op(Function<double>::recur_down_handler);
-        taskq.register_generic_op(Function< std::complex<double> >::recur_down_handler);
+        REGGE(Function<double>::recur_down_handler);
+        REGGE(Function< std::complex<double> >::recur_down_handler);
+        mratask_register();
     
         return comm;
     }

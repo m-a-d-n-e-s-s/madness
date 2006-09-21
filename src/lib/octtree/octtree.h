@@ -269,7 +269,7 @@ namespace madness {
 	}
 
         ~OctTree() {
-//	    std::cout << "OctTree destructor" << std::endl;
+    	    //std::cout << "OctTree destructor!" << std::endl;
         }
 
 

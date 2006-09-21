@@ -558,4 +558,224 @@ else if (me == 1)
           comm()->Send(isactive(tree), tree->parent()->rank(), TRUNCATE_TAG1);
     };
     
+    
+        template <typename T>
+    void Function<T>::_autorefine(OctTreeTPtr& tree) {
+        MADNESS_ASSERT(tree);
+        bool msg[2], refine=false;
+        const Slice* s = data->cdata->s;
+        const Slice& s0 = s[0];
+        long k2 = k*2;
+        Tensor<T>& work1 = data->cdata->work1;
+        
+        if (islocal(tree)) {
+            ProcessID ranks[8];
+            int np = tree->unique_child_procs(ranks);
+            if (coeff(tree)) { // Test for refinement
+                double tol = truncate_tol(data->thresh,tree->n()+1);
+                const Tensor<T>& c = *coeff(tree);
+                double lo,hi;
+                FORIJK(_tnorms(c(s[i],s[j],s[k]),&lo,&hi);
+                       refine = hi > tol;
+                       if (refine) goto done;);
+                done:;
+            }
+
+            // Tell remote clones what is going on
+            msg[0] = isactive(tree); 
+            msg[1] = refine;
+            
+            for (int i=0; i<np; i++) comm()->Send(msg,2,ranks[i],AUTOREF_TAG1);
+            
+            if (refine) { // refine, sending data as necessary;
+                const Tensor<T>& c = *coeff(tree);
+                FORIJK(OctTreeTPtr child = tree->child(i,j,k);
+                       if (!child) child = tree->insert_local_child(i,j,k);
+                       set_active(child);
+                       if (child->islocal()) {
+                          Tensor<T>*t = set_coeff(child, Tensor<T>(k2, k2, k2));
+                          (*t)(s0, s0, s0) = c(s[i],s[j],s[k]);
+                          unfilter_inplace(*t);  // sonly!
+                       }
+                       else {
+                          work1(s0,s0,s0) = c(s[i],s[j],s[k]); // contig. copy
+                          comm()->Send(work1.ptr(), work1.size, child->rank(), AUTOREF_TAG2);
+                       }
+                    );
+                unset_coeff(tree);               
+            }
+        } else if (isremote(tree) && tree->islocalsubtreeparent()) {
+            comm()->Recv(msg,2,tree->rank(),AUTOREF_TAG1);
+            bool active=msg[0], refine=msg[1];
+            if (!active && isactive(tree)) {
+                MADNESS_EXCEPTION("Remote clone thinks it is inactive but I think I am active",0);
+            } else if (active) {
+                set_active(tree);
+                if (refine) {
+                    FORIJK(OctTreeTPtr child = tree->child(i,j,k);
+                          if (!child) child = tree->insert_local_child(i,j,k);
+                          set_active(child);
+                          comm()->Recv(work1.ptr(), work1.size, tree->rank(), AUTOREF_TAG2);
+                          Tensor<T>*c = set_coeff(child, Tensor<T>(k2, k2, k2));
+                          (*c)(s0, s0, s0) = work1;
+                          unfilter_inplace(*c); // sonly needed!
+                    );
+                }
+            }
+        }            
+        FOREACH_CHILD(OctTreeTPtr, tree, if (islocal(child)) _autorefine(child););    
+    };
+
+    template <typename T>
+    void Function<T>::_square(OctTreeTPtr& tree) {
+         MADNESS_ASSERT(tree);
+         FOREACH_ACTIVE_CHILD(OctTreeTPtr, tree, _square(child););
+
+         if (coeff(tree)) {
+            Tensor<T>& t = *coeff(tree);
+            Tensor<T> r(k, k, k);
+            const Slice* s = data->cdata->s;
+            double scale = std::pow(8.0, 0.5 * (tree->n()+1));
+            FORIJK(r(___) = t(s[i], s[j], s[k]);
+                   transform3d_inplace(r, data->cdata->quad_phit,
+                                       data->cdata->work1);
+                   r.emul(r).scale(scale);
+                   transform3d_inplace(r, data->cdata->quad_phiw,
+                                       data->cdata->work1);
+                   t(s[i], s[j], s[k]) = r;
+                  );
+         }
+    };
+    
+    
+    template <typename T>
+    void Function<T>::_recur_coeff_down(OctTreeT* tree, bool keep) {
+        // 1,1,1 since this is the last entry that would be made
+        // ensuring that all others are there also.
+        if (tree->child(1,1,1) && isactive(tree->child(1,1,1))) {
+            // This node has already been recurred down ... skip it.
+            return;
+        }
+        
+        if (tree->n() >= data->max_refine_level) 
+            MADNESS_EXCEPTION("recur_coeff_down: exceeding max refine level",tree->n());
+        
+        // sonly on unfilter is a 3x optimization in 3d ... we need it!
+        const Tensor<T>& c = *coeff(tree);
+        long k2 = k*2;
+        const std::vector<Slice>& s0 = data->cdata->s0;
+        const Slice* s = data->cdata->s;
+        FORIJK(OctTreeTPtr child = tree->child(i,j,k);
+               if (!child) child = tree->insert_local_child(i,j,k);
+               set_active(child);
+               // If we are keeping the parent, the child will eventually be autocleaned
+               set_acflag(child,keep);
+               Tensor<T>*t = set_coeff(child, Tensor<T>(k2, k2, k2));
+               (*t)(s0) = c(s[i],s[j],s[k]);
+               unfilter_inplace(*t);  // sonly!
+               //madness::print(child->n(),child->x(),child->y(),child->z(),"recurring");
+               );
+        if (!keep) unset_coeff(tree);
+    }
+    
+    template <typename T>
+    const Tensor<T>* Function<T>::_get_scaling_coeffs(OctTreeTPtr& t, int axis, int inc) {
+        //madness::print("getting",t->n(),t->x(),t->y(),t->z());
+
+        long xyz[3] = {t->x(), t->y(), t->z()};
+        xyz[axis] += inc;
+        long x=xyz[0], y=xyz[1], z=xyz[2];
+        
+        // Enforce boundary conditions (here use zero for external values)
+        if (xyz[axis] < 0 || ((unsigned long) xyz[axis]) >= two_to_power(t->n())) return &data->cdata->zero_tensor;
+        
+        // Find node or its parent in the tree.
+        OctTreeT* p = t->find(t->n(),x, y, z);
+        // If not active, find the lowest active parent
+        while (p && !isactive(p)) p = p->parent();
+
+        if (! p) MADNESS_EXCEPTION("get_scaling_coeffs: failed to find parent?",0);
+        if (! coeff(p)) return 0; //  The parent does not have data ... it is below.
+
+        // Recur data down from parent to desired level.  Note, need to introduce
+        // additional checking and mutex when we start running multithreaded. 
+        while(p->n() < t->n()) {
+            // MUTEX 
+            // check again that someone else has not already made it
+            _recur_coeff_down(p,true);
+            // END MUTEX
+            long nn = t->n() - p->n() - 1;
+            long xx = (x>>nn)&1;
+            long yy = (y>>nn)&1;
+            long zz = (z>>nn)&1;
+            p = p->child(xx,yy,zz).get();
+        }
+
+        return coeff(p);
+    }
+   
+    
+    template <typename T>
+    void Function<T>::_dodiff(Function<T>& df, OctTreeTPtr& tree, int axis) {
+        //madness::print("dodiff",tree->n(),tree->x(),tree->y(),tree->z());
+
+        // This routine is applied at each leaf node ... i.e., where we have data in tree.
+        df.set_active(tree);
+        const TensorT* t0 = coeff(tree);
+        const TensorT* tm = _get_scaling_coeffs(tree,axis,-1);
+        const TensorT* tp = _get_scaling_coeffs(tree,axis, 1);
+        if (tm && tp) {
+            _dodiff_kernel(df, tree, axis, *t0, *tm, *tp);
+        }
+        else {
+            _recur_coeff_down(tree.get(),true);
+            FOREACH_CHILD(OctTreeTPtr, tree, _dodiff(df, child, axis);); 
+        }          
+    };
+    
+    
+
+    template <typename T>
+    void Function<T>::_reconstruct(OctTreeTPtr& tree) {
+        std::vector<Slice>& s0 = data->cdata->s0;
+        Slice* s = data->cdata->s;
+        TensorT& buf = data->cdata->work1;
+        long k3 = k*k*k;
+
+        if (isremote(tree)) {
+            if (tree->islocalsubtreeparent()) {
+                FOREACH_CHILD(OctTreeTPtr, tree,
+                              if (isactive(child)) {
+                              comm()->Recv(buf.ptr(),k3,tree->rank(),RECONSTRUCT_TAG);
+              //                                  print("reconstruct: received",buf.normf(),"from",tree->rank());
+                                  (*coeff(child))(s0) = buf;
+                              }
+                             );
+            } else {
+                throw "_reconstruct: should not be here?";
+            }
+        } else {
+            int nchild = 0;
+            TensorT* t = coeff(tree);
+            unfilter_inplace(*t);
+            FOREACH_CHILD(OctTreeTPtr, tree,
+                          if (isactive(child)) {
+                          nchild++;
+                          if (islocal(child)) {
+                                  (*coeff(child))(s0) = (*t)(s[i],s[j],s[k]);
+                              } else {
+                                  buf(s0) = (*t)(s[i],s[j],s[k]);
+              //                                  print("reconstruct: sending",buf.normf(),"to",child->rank());
+                                  comm()->Send(buf.ptr(),k3,child->rank(),RECONSTRUCT_TAG);
+                              }
+                          }
+                         );
+            if (nchild) unset_coeff(tree); // NEED TO KEEP IF WANT REDUNDANT TREE
+        }
+
+        FOREACH_CHILD(OctTreeTPtr, tree,
+                      if (isactive(child) && islocal(child)) _reconstruct(child););
+    }
+    
+
 

@@ -377,7 +377,7 @@ namespace madness {
         Tensor<T> work1;        ///< work space of size (k,k,k)
         Tensor<T> work2;        ///< work space of size (2k,2k,2k)
         Tensor<T> workq;        ///< work space of size (npt,npt,npt)
-        Tensor<T> zero_tensor;    ///< Zero (2k,2k,2k) tensor for internal convenience of diff
+        Tensor<T> zero_tensor1;    ///< Zero (k,k,k) tensor for internal convenience of diff
 
         Tensor<double> quad_x;  ///< quadrature points
         Tensor<double> quad_w;  ///< quadrature weights
@@ -412,7 +412,7 @@ namespace madness {
             v2k = vector_factory(2L*k,2L*k,2L*k);
             work1 = TensorT(vk);
             work2 = TensorT(v2k);
-            zero_tensor = TensorT(v2k);
+            zero_tensor1 = TensorT(vk);
 
             _init_twoscale();
             _init_quadrature();
@@ -493,6 +493,7 @@ namespace madness {
         int truncate_method;    ///< 0=default=(|d|<thresh), 1=(|d|<thresh/2^n);
         bool debug;             ///< If true, verbose printing ... unused?
         bool autorefine;        ///< If true, autorefine where appropriate
+        bool refine;            ///< If true, refine when constructed
         GlobalTree<3> gtree;    ///< Global root knowledge ... needs relocating
 
         FunctionCommonData<T>* cdata;
@@ -527,6 +528,7 @@ namespace madness {
             truncate_method = factory._truncate_method;
             debug = factory._debug;
             autorefine = factory._autorefine;
+            refine = factory._refine;
             f = factory._f;
             vf = factory._vf;
 
@@ -615,6 +617,8 @@ namespace madness {
     template <typename T> class TaskDiff;
     template <typename T, typename Derived> class TaskLeaf;
     template <typename T> class TaskRecurDownToMakeLocal;
+    template <typename T> class TaskProjectRefine;
+    void mratask_register();
     
     /// Multiresolution 3d function of given type
     template <typename T>
@@ -626,8 +630,10 @@ namespace madness {
         friend class TaskDiff<T>;
         friend class TaskLeaf< T, TaskDiff<T> >;
         friend class TaskAwaitCoeff<T>;
-	friend class TaskRecurDownToMakeLocal<T>;
+        friend class TaskRecurDownToMakeLocal<T>;
+        friend class TaskProjectRefine<T>;
         friend Communicator& startup(int argc, char** argv);
+        friend void mratask_register();
         
         static void set_active_handler(Communicator& comm, ProcessID src, const AMArg& arg); 
         static void recur_down_handler(Communicator& comm, ProcessID src, VectorInputArchive& ar);
@@ -635,8 +641,7 @@ namespace madness {
         void _sock_it_to_me(OctTreeTPtr& tree, Level n, const Translation l[3], SAV< Tensor<T> >& arg);
         static void _sock_it_to_me_handler(Communicator& comm, ProcessID src, const AMArg& arg);
         void _sock_it_to_me_forward_request(Level n, const Translation l[3], SAV< Tensor<T> >& arg, ProcessID dest);
-        void _diff2(Function<T>& df, OctTreeTPtr& tree, int axis); 
-        void _dodiff(Function<T>& df, OctTreeTPtr& tree, int axis);
+        void _diff(Function<T>& df, OctTreeTPtr& tree, int axis); 
         void _dodiff_kernel(Function<T>& df, OctTreeTPtr& tree, int axis,
                             const TensorT& t0, const TensorT& tm, const TensorT& tp);
         void _recur_coeff_down(OctTreeT* tree, bool keep);
@@ -646,6 +651,11 @@ namespace madness {
         void recur_down_to_make_forward_request(Level n, const Translation l[3], ProcessID dest);
         void recur_down_to_make(OctTreeT* p, Level n, const Translation l[3]);
         void fill_in_local_tree(OctTreeT* p, Level n, const Translation l[3]);
+        
+        void project_refine();
+        void _doreconstruct(OctTreeTPtr tree, const Tensor<T>& ss);
+        static void reconstruction_handler(Communicator& comm, ProcessID src, VectorInputArchive& ar);
+        bool _doproject_refine(OctTreeTPtr& tree);
         
         /// Private.  This funky constructor makes a partial deep copy.
 
@@ -718,6 +728,7 @@ namespace madness {
         /// No communication is involved, works in either basis.
         void pnorms() {
             if (isactive(tree())) _pnorms(tree());
+            std::cout.flush();
         };
 
 
@@ -748,12 +759,12 @@ namespace madness {
         };
         
 
-        /// Multiplication of two functions.
-    
-    	/// Crude version using squaring is inaccurate, slow and implies global sync
-        Function<T> operator*(Function<T>& other) {
-            return ((*this+other).square()-(*this-other).square()).scale(0.25);
-        };
+//        /// Multiplication of two functions.
+//    
+//    	/// Crude version using squaring is inaccurate, slow and implies global sync
+//        Function<T> operator*(Function<T>& other) {
+//            return ((*this+other).square()-(*this-other).square()).scale(0.25);
+//        };
 
         /// Binary addition.  Works in wavelet basis generating new Function
 
@@ -811,53 +822,34 @@ namespace madness {
         };
         
         /// Differentiation
-        Function<T> diff(int axis) {
-            reconstruct();
-            Function<T> df = FunctionFactory<T>().k(k).compress(false).empty();
-            _diff(df,tree(),axis);
-            _auto_clean(tree()); // Could do this on the way back up.
-            return df;
-        };
-
-        /// Differentiation
-        Function<T> diff2(int axis); 
-
-         /// Compress function (scaling function to wavelet)
-
-        /// Communication streams up the tree.
-        /// Returns self for chaining.
-        Function<T>& compressOLD() {
-            if (!data->compressed) {
-                if (isactive(tree())) _compress(tree());
-                data->compressed = true;
-            }
-            return *this;
-        };
+        Function<T> diff(int axis); 
         
-        /// Autorefine (e.g. for squaring or multiplication)
-        
-        /// Communication, if any, flows down the tree
-        /// Returns self for chaining.
-        Function<T>& autorefine() {
-        	if (data->compressed) reconstruct();
-        	_autorefine(tree());
-        	return *this;
-        };
+//        /// Autorefine (e.g. for squaring or multiplication)
+//        
+//        /// Communication, if any, flows down the tree
+//        /// Returns self for chaining.
+//        Function<T>& autorefine() {
+//        	if (data->compressed) reconstruct();
+//        	_autorefine(tree());
+//        	return *this;
+//        };
         
         void ptree() {_ptree(tree());};
 
         Function<T>& compress();
-        void _compress2(OctTreeTPtr& tree, ArgT& parent);
-        void _compress2op(OctTreeTPtr& tree, ArgT args[2][2][2], ArgT& parent);
+        void _compress(OctTreeTPtr& tree, ArgT& parent);
+        void _compressop(OctTreeTPtr& tree, ArgT args[2][2][2], ArgT& parent);
         ArgT input_arg(const OctTreeTPtr& consumer, const OctTreeTPtr& producer);
 
+Function<T>& truncate(double tol=0.0) {return *this;};
         /// Reconstruct compressed function (wavelet to scaling function)
 
         /// Communication streams down the tree
         /// Returns self for chaining.
         Function<T>& reconstruct() {
             if (data->compressed) {
-                if (isactive(tree())) _reconstruct(tree());
+                if (tree()->n() == 0) _doreconstruct(tree(),Tensor<T>());
+                taskq.global_fence();
                 data->compressed = false;
             }
             return *this;
@@ -872,19 +864,19 @@ namespace madness {
             return *this;
         };
 
-        /// Inplace square (pointwise multiplication by self)
-
-        /// If not reconstructed, reconstruct() is called which communicates.
-        /// If not autorefining, no communication is involved in
-        /// the squaring.  If autorefinining, some downward communication
-        /// may be involved depending on the distribution of tree nodes.
-        ///
-        /// Returns self for chaining.
-        Function<T>& square() {
-           if (this->iscompressed()) this->reconstruct();
-           if (isactive(tree())) _square(tree());
-           return *this;
-        };
+//        /// Inplace square (pointwise multiplication by self)
+//
+//        /// If not reconstructed, reconstruct() is called which communicates.
+//        /// If not autorefining, no communication is involved in
+//        /// the squaring.  If autorefinining, some downward communication
+//        /// may be involved depending on the distribution of tree nodes.
+//        ///
+//        /// Returns self for chaining.
+//        Function<T>& square() {
+//           if (this->iscompressed()) this->reconstruct();
+//           if (isactive(tree())) _square(tree());
+//           return *this;
+//        };
 
         /// Inplace Generalized SAXPY to scale and add two functions.
 
@@ -911,7 +903,7 @@ namespace madness {
         /// Copying between distributions can only be done with the
         /// redistribute method (yet to be implemented when needed).
         Function<T>& gaxpy(double alpha, const Function<T>& b, double beta) {
-            check_trees(b);
+            //check_trees(b);
             if (!(this->iscompressed() ^ b.iscompressed())) {
                 this->compress();
                 const_cast<Function<T>*>(&b)->compress(); // constness of b is logical
@@ -927,160 +919,160 @@ namespace madness {
             return data->compressed;
         };
 
-        /// This class stores informations on each branch.
-        class localTreeMember {
-        public:
-            Translation x, y, z;
-            Level n;
-            ProcessID rank;
-            bool remote, active, have_child;
-            template <class Archive>
-            inline void serialize(const Archive& ar) {
-                ar & x & y & z & n & rank & remote & active & have_child;
-            }
-        };
+//        /// This class stores informations on each branch.
+//        class localTreeMember {
+//        public:
+//            Translation x, y, z;
+//            Level n;
+//            ProcessID rank;
+//            bool remote, active, have_child;
+//            template <class Archive>
+//            inline void serialize(const Archive& ar) {
+//                ar & x & y & z & n & rank & remote & active & have_child;
+//            }
+//        };
+//
+//	/// Saving Function members into the file. This function is prepared for sequential job.
+//	template <class Archive>
+//	void save_local(Archive& ar);
+//
+//	/// Saving Function members into the file. This member was prepared for save_local.
+//	template <class Archive>
+//	void _save_local(Archive& ar, const OctTreeT* tree); 
+//
+//	/// save member is the member to serialize coefficients.
+//        ///  This member is already parallelized. 
+//	void save(const char* f, const long partLevel, Communicator& comm);
+//
+//	/// saveMain member controlls before and after treatments of saveManager. 
+//	template <class Archive>
+//	void saveMain(const char* f, Archive& ar, const long partLevel, Communicator& comm);
+//
+//	/// saveManager Function member serialize coefficients on local (rank 0 ) branch. 
+//	template <class Archive>
+//	void saveManager(const char* f, Archive& ar, const OctTreeT* tree,
+//              const long partLevel, Communicator& commFunc);
+////	void saveManager(const char* f, Archive& ar, const OctTreeT* tree, const long partLevel, Communicator& commFunc);
+//
+//	/// This member serializes coefficients on client branch.
+//	template <class Archive>
+//	void shadowManager_save(const char* f, Archive& ar, const OctTreeT* tree,
+//              Level n, Translation x, Translation y, Translation z, 
+//              ProcessID remoteRank, const long partLevel, Communicator& commFunc);
+////	void shadowManager_save(const char* f, Archive& ar, const OctTreeT* tree, Level n, Translation x, Translation y, Translation z, 
+////        ProcessID remoteRank, const long partLevel, Communicator& commFunc);
+//
+//        /// This member serialize client's coeffcients.
+//	template <class Archive>
+//        void _shadowManager_save(const char* f, Archive& ar, const OctTreeT* tree,
+//              std::vector<localTreeMember>& subtreeList, ProcessID remoteRank,
+//              const long partLevel, Communicator& commFunc, const int nRemoteBranch,
+//              int& iter); 
+//
+//	/// This member cotrols distributes coefficients to client branch.
+//	template <class Archive>
+//	void shadowManager_load(const char* f, const Archive& ar, OctTreeT* tree, 
+//              Level n, Translation x, Translation y, Translation z, 
+//              ProcessID remoteRank, Communicator& commFunc, const long partLevel, 
+//	      bool active_flag, bool have_child);
+//
+//	/// This member is worker to send/recieve msg from rank 0.
+//	void saveLoadWorker(OctTreeT* tree, 
+//			Communicator& commFunc, bool save);
+//
+//	/// This member is member for DiskDir class.
+//	void saveLoadWorker4DD(Communicator& comm, bool save){
+//             saveLoadWorker(tree(), comm, save);
+//        } 
+//
+//	/// This member Returns localsubtreelist of client computer to Master.
+//	void localTreeList(std::vector<localTreeMember> &subtreeList, 
+//			const OctTreeT* tree);
+//
+//	/// Send Coefficients to Rank 0. 
+//	void sendRecvDataWorker_save(OctTreeT* tree, 
+//			Communicator& commFunc);
+//
+//	/// Receive Coefficients from Rank 0. 
+//	void sendRecvDataWorker_load(const OctTreeT* treeclient,  
+//			Communicator& commFunc);
+//
+//	/// Loading Function members from the file. This member is not parallelized.
+//	template <class Archive>
+//	void load_local(const Archive& ar); 
+//
+//	/// Loading Function members from the file.
+//        ///  This member is prepared for called from load_local. 
+//	template <class Archive>
+//	void _load_local(const Archive& ar, OctTreeT* tree);
+//
+//	/// Loading Function members from the file. This member is already parallelized.
+//	//template <class Archive>
+//	//void load(const Archive& iar, Communicator& comm);
+//	void load(const char* f, Communicator& comm);
+//
+//	/// Load Managing Function member. 
+//	template <class Archive>
+//	void loadManager(const char* f, const Archive& ar, OctTreeT* tree,
+//              Communicator& commFunc, bool active_flag, const long partLevel,
+//              bool have_child);
+////	void loadManager(const char* f, const Archive& ar, OctTreeT* tree, Communicator& commFunc, bool active_flag, const long partLevel, bool have_child);
+//
+//	/// Load Managing Function member for DiskDir class. 
+//	template <class Archive>
+//	void loadManager4DD(const Archive& ar, Communicator& commFunc, bool active_flag){
+//             loadManager(ar, tree(), commFunc, active_flag, true);
+//        }
+//
+//	/// Making Archive class's file name for 2-layer Serialization in sequential calculations.
+//	void produceNewFilename(const char* f, const long partLevel,
+//               const OctTreeTPtr& tree, char ftest[256]);
+//
+//	/// Making Archive class's file name for 2-layer Serialization(save, parallel).
+//	void produceNewFilename2(const char* f, const long partLevel,
+//               localTreeMember& subtreeList, char ftest[256]);
+//
+//	/// Making Archive class's file name for 2-layer Serialization(load, parallel).
+//	void produceNewFilename3(const char* f, const long partLevel, Level n,
+//               Translation x, Translation y, Translation z, char ftest[256]);
+//
+//        /// Save Client brach's data on master.
+//	template <class Archive>
+//        void dataSaveInShaManSave(const char* f, Archive& ar, const OctTreeT* tree,
+//               localTreeMember& subtreeList, ProcessID remoteRank, const long partLevel,
+//               Communicator& commFunc); 
+////        void dataSaveInShaManSave(const char* f, Archive& ar, const OctTreeT* tree, localTreeMember& subtreeList, ProcessID remoteRank, const long partLevel, Communicator& commFunc); 
 
-	/// Saving Function members into the file. This function is prepared for sequential job.
-	template <class Archive>
-	void save_local(Archive& ar);
-
-	/// Saving Function members into the file. This member was prepared for save_local.
-	template <class Archive>
-	void _save_local(Archive& ar, const OctTreeT* tree); 
-
-	/// save member is the member to serialize coefficients.
-        ///  This member is already parallelized. 
-	void save(const char* f, const long partLevel, Communicator& comm);
-
-	/// saveMain member controlls before and after treatments of saveManager. 
-	template <class Archive>
-	void saveMain(const char* f, Archive& ar, const long partLevel, Communicator& comm);
-
-	/// saveManager Function member serialize coefficients on local (rank 0 ) branch. 
-	template <class Archive>
-	void saveManager(const char* f, Archive& ar, const OctTreeT* tree,
-              const long partLevel, Communicator& commFunc);
-//	void saveManager(const char* f, Archive& ar, const OctTreeT* tree, const long partLevel, Communicator& commFunc);
-
-	/// This member serializes coefficients on client branch.
-	template <class Archive>
-	void shadowManager_save(const char* f, Archive& ar, const OctTreeT* tree,
-              Level n, Translation x, Translation y, Translation z, 
-              ProcessID remoteRank, const long partLevel, Communicator& commFunc);
-//	void shadowManager_save(const char* f, Archive& ar, const OctTreeT* tree, Level n, Translation x, Translation y, Translation z, 
-//        ProcessID remoteRank, const long partLevel, Communicator& commFunc);
-
-        /// This member serialize client's coeffcients.
-	template <class Archive>
-        void _shadowManager_save(const char* f, Archive& ar, const OctTreeT* tree,
-              std::vector<localTreeMember>& subtreeList, ProcessID remoteRank,
-              const long partLevel, Communicator& commFunc, const int nRemoteBranch,
-              int& iter); 
-
-	/// This member cotrols distributes coefficients to client branch.
-	template <class Archive>
-	void shadowManager_load(const char* f, const Archive& ar, OctTreeT* tree, 
-              Level n, Translation x, Translation y, Translation z, 
-              ProcessID remoteRank, Communicator& commFunc, const long partLevel, 
-	      bool active_flag, bool have_child);
-
-	/// This member is worker to send/recieve msg from rank 0.
-	void saveLoadWorker(OctTreeT* tree, 
-			Communicator& commFunc, bool save);
-
-	/// This member is member for DiskDir class.
-	void saveLoadWorker4DD(Communicator& comm, bool save){
-             saveLoadWorker(tree(), comm, save);
-        } 
-
-	/// This member Returns localsubtreelist of client computer to Master.
-	void localTreeList(std::vector<localTreeMember> &subtreeList, 
-			const OctTreeT* tree);
-
-	/// Send Coefficients to Rank 0. 
-	void sendRecvDataWorker_save(OctTreeT* tree, 
-			Communicator& commFunc);
-
-	/// Receive Coefficients from Rank 0. 
-	void sendRecvDataWorker_load(const OctTreeT* treeclient,  
-			Communicator& commFunc);
-
-	/// Loading Function members from the file. This member is not parallelized.
-	template <class Archive>
-	void load_local(const Archive& ar); 
-
-	/// Loading Function members from the file.
-        ///  This member is prepared for called from load_local. 
-	template <class Archive>
-	void _load_local(const Archive& ar, OctTreeT* tree);
-
-	/// Loading Function members from the file. This member is already parallelized.
-	//template <class Archive>
-	//void load(const Archive& iar, Communicator& comm);
-	void load(const char* f, Communicator& comm);
-
-	/// Load Managing Function member. 
-	template <class Archive>
-	void loadManager(const char* f, const Archive& ar, OctTreeT* tree,
-              Communicator& commFunc, bool active_flag, const long partLevel,
-              bool have_child);
-//	void loadManager(const char* f, const Archive& ar, OctTreeT* tree, Communicator& commFunc, bool active_flag, const long partLevel, bool have_child);
-
-	/// Load Managing Function member for DiskDir class. 
-	template <class Archive>
-	void loadManager4DD(const Archive& ar, Communicator& commFunc, bool active_flag){
-             loadManager(ar, tree(), commFunc, active_flag, true);
-        }
-
-	/// Making Archive class's file name for 2-layer Serialization in sequential calculations.
-	void produceNewFilename(const char* f, const long partLevel,
-               const OctTreeTPtr& tree, char ftest[256]);
-
-	/// Making Archive class's file name for 2-layer Serialization(save, parallel).
-	void produceNewFilename2(const char* f, const long partLevel,
-               localTreeMember& subtreeList, char ftest[256]);
-
-	/// Making Archive class's file name for 2-layer Serialization(load, parallel).
-	void produceNewFilename3(const char* f, const long partLevel, Level n,
-               Translation x, Translation y, Translation z, char ftest[256]);
-
-        /// Save Client brach's data on master.
-	template <class Archive>
-        void dataSaveInShaManSave(const char* f, Archive& ar, const OctTreeT* tree,
-               localTreeMember& subtreeList, ProcessID remoteRank, const long partLevel,
-               Communicator& commFunc); 
-//        void dataSaveInShaManSave(const char* f, Archive& ar, const OctTreeT* tree, localTreeMember& subtreeList, ProcessID remoteRank, const long partLevel, Communicator& commFunc); 
-
-	/// Inplace truncation of small wavelet coefficients
-    
-    /// Works in the wavelet basis and compression is performed if the
-    /// function is not already compressed.  Communication streams up the
-    /// tree.  The default truncation threshold is that used to construct
-    /// the function.  If the threshold is zero, nothing is done.
-    /// Returns self for chaining.
-	Function<T>& truncate(double tol = -1.0) {
-        if (tol < 0.0) tol = this->data->thresh;
-	    if (tol == 0.0) return *this;
-        compress();
-        if (isactive(tree())) _truncate(tol, tree());
-        return *this;
-	};
-    
-    T inner_local(const Function<T>& other) const {
-        const_cast<Function<T>*>(this)->compress();
-        const_cast<Function<T>*>(&other)->compress();
-        return _inner_local(*this, other, tree());
-    };
-
-        /// Inner product between two Function classess. 
+    	/// Inplace truncation of small wavelet coefficients
         
-       /// Works in the wavelet basis.  Global communication is implied.
+//        /// Works in the wavelet basis and compression is performed if the
+//        /// function is not already compressed.  Communication streams up the
+//        /// tree.  The default truncation threshold is that used to construct
+//        /// the function.  If the threshold is zero, nothing is done.
+//        /// Returns self for chaining.
+//    	Function<T>& truncate(double tol = -1.0) {
+//            if (tol < 0.0) tol = this->data->thresh;
+//    	    if (tol == 0.0) return *this;
+//            compress();
+//            if (isactive(tree())) _truncate(tol, tree());
+//            return *this;
+//    	};
+        
+        T inner_local(const Function<T>& other) const {
+            const_cast<Function<T>*>(this)->compress();
+            const_cast<Function<T>*>(&other)->compress();
+            return _inner_local(*this, other, tree());
+        };
+    
+        /// Inner product between two Function classess. 
+            
+        /// Works in the wavelet basis.  Global communication is implied.
         T inner(const Function<T>& other) const {
             return comm()->global_sum(inner_local(other));
         };
-
-	/// This member is the member called from inner member.
-	T _inner_local(const Function<T>& a, const Function<T>& b, const OctTreeTPtr& tree) const ;
+    
+    	/// This member is the member called from inner member.
+    	T _inner_local(const Function<T>& a, const Function<T>& b, const OctTreeTPtr& tree) const ;
 
         /// Local evaluation of the function at a point in user coordinates
 
@@ -1121,6 +1113,11 @@ namespace madness {
 
                 // Recur down to find it ... inline for maximum efficiency
                 while (tree && isactive(tree)) {
+                   const TensorT* t = coeff(tree);
+                    if (t) {
+                        *value = _eval_cube(tree->n(), x, y, z, *t);
+                         return true;
+                    }
                     x *= 2.0;
                     y *= 2.0;
                     z *= 2.0;
@@ -1132,15 +1129,8 @@ namespace madness {
                     if (lz == 2) --lz;
                     x -= lx;
                     y -= ly;
-                    z -= lz;
-
-                    const TensorT* t = coeff(tree);
-                    if (t) {
-                        *value = _eval_cube(tree->n(), x, y, z, lx, ly, lz, *t);
-                         return true;
-                    } else {
-                        tree = tree->child(lx, ly, lz);
-                    }
+                    z -= lz; 
+                    tree = tree->child(lx, ly, lz);
                 }
             }
             return false;
@@ -1494,14 +1484,14 @@ namespace madness {
 
         /// Private.  Recursive function to refine from initial projection.
 
-        /// Communication streams all the way down the tree.
-        void _refine(OctTreeTPtr& tree);
+//        /// Communication streams all the way down the tree.
+//        void _refine(OctTreeTPtr& tree);
 
 
         /// Private.  Recursive function to compress tree.
 
-        /// Communication streams up the tree.
-        void _compress(OctTreeTPtr& tree);
+//        /// Communication streams up the tree.
+//        void _compress(OctTreeTPtr& tree);
 
 
         /// Private.  Recursive function to reconstruct the tree.
@@ -1531,8 +1521,8 @@ namespace madness {
                           _unaryop(result, child, op););
         }
 
-        /// Private:  Recursive kernel for truncation
-        void _truncate(double tol, OctTreeTPtr& tree);
+//        /// Private:  Recursive kernel for truncation
+//        void _truncate(double tol, OctTreeTPtr& tree);
 
 
         /// Private.  Recur down the tree printing out the norm of
@@ -1578,17 +1568,17 @@ namespace madness {
             FOREACH_ACTIVE_CHILD(OctTreeTPtr, tree, _ptree(child););
         };
 
-        /// Private.  Recursive function to provide autorefinement for squaring and multiplication.
-        
-        /// Communication if any flows down
-        void _autorefine(OctTreeTPtr& tree);
-        
-
-        /// Private.  Recursive function to support inplace squaring.
-        
-        /// No communication.
-        void _square(OctTreeTPtr& tree);
-        
+//        /// Private.  Recursive function to provide autorefinement for squaring and multiplication.
+//        
+//        /// Communication if any flows down
+//        void _autorefine(OctTreeTPtr& tree);
+//        
+//
+//        /// Private.  Recursive function to support inplace squaring.
+//        
+//        /// No communication.
+//        void _square(OctTreeTPtr& tree);
+//        
         
         /// Private.  Recursive function to support gaxpy
         void _gaxpy(Function<T>& afun, double alpha,
@@ -1600,26 +1590,19 @@ namespace madness {
                       OctTreeTPtr& tree, bool subtract) const;
 
 
-        /// Private.  Check that this function and another share the same OctTree
-        void check_trees(const Function<T>& other) const {
-            if (tree() != other.tree()) 
-                MADNESS_EXCEPTION("Function: check_trees: trees are different",0);
-        };
+//        /// Private.  Check that this function and another share the same OctTree
+//        void check_trees(const Function<T>& other) const {
+//            if (tree() != other.tree()) 
+//                MADNESS_EXCEPTION("Function: check_trees: trees are different",0);
+//        };
 
 
         /// Private.  Evaluates function in scaling function basis within a cube
         T _eval_cube(Level n,
                      double xx, double yy, double zz,
-                     int lx, int ly, int lz,
                      const Tensor<T>& s) const;
         
-        void _diff(Function<T>& df, OctTreeTPtr& tree, int axis) {
-            if (isactive(tree)) {
-                df.set_active(tree);
-                if (coeff(tree)) _dodiff(df, tree, axis);
-                else FOREACH_CHILD(OctTreeTPtr, tree, _diff(df, child, axis););
-            }
-        };
+
         
         void _auto_clean(OctTreeTPtr& tree) {
             if (isactive(tree)) {

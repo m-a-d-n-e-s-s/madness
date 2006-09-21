@@ -17,14 +17,17 @@ using std::endl;
 
 
 namespace madness {
+    
+    void mratask_register();
 
-    /// Used for forwardable Function tasks applied to leaves
+    /// Used for forwardable Function tasks applied to scaling function coeffs
     
     /// Derived types need to implement probe(), apply(), and predicate()
     /// Note the derived type is used to parameterize the base class
     /// so we can have access to its constructor and AM handler.
     template <typename T, class Derived>
     class TaskLeaf : public TaskInterface {
+        friend void mratask_register();
     protected:
         OctTreeTPtr tree;
         Function<T> in1;
@@ -46,7 +49,8 @@ namespace madness {
         };
         
         static void forward_task_handler(Communicator& comm, ProcessID src, const AMArg& amarg) {
-            const Payload& arg = (const Payload&) amarg;
+            Payload arg;
+            amarg.copyout(&arg,sizeof(arg));
             madness::print("forward task handler",arg.in1,arg.in2,arg.out1,arg.axis,arg.n1);
             // This function is static! The local variables shadow the class data
             Function<T> in1 = Function<T>(FunctionDataPointers<T>::get(arg.in1));
@@ -70,9 +74,8 @@ namespace madness {
             arg.n1 = n;
             arg.l1[0]=l[0]; arg.l1[1]=l[1]; arg.l1[2]=l[2];
             arg.n2 = tree->n(); 
-            arg.l2[0]= tree->x(); arg.l2[1]= tree->y(); arg.l2[2]= tree->z();
-        
-            madness::comm_default->am_send(t->rank(), Derived::forward_task_handler, (AMArg&) arg);
+            arg.l2[0]= tree->x(); arg.l2[1]= tree->y(); arg.l2[2]= tree->z();        
+            madness::comm_default->am_send(t->rank(), Derived::forward_task_handler, AMArg(&arg,sizeof(arg)));
         };
         
         
@@ -138,11 +141,12 @@ namespace madness {
                                       out.set_active(child);
                               });
             }    
-        };                      
+        };      
     };
     
     template <typename T>
     class TaskDiff : public TaskLeaf< T, TaskDiff<T> > {
+        friend void mratask_register();
     private:
         typedef TaskLeaf< T, TaskDiff<T> > baseT;
         SAV< Tensor<T> > left;
@@ -179,7 +183,7 @@ namespace madness {
     
     /// Differentiation high level interface
     template <typename T>
-    Function<T> Function<T>::diff2(int axis) {
+    Function<T> Function<T>::diff(int axis) {
         reconstruct();
         build_global_tree();
         Function<T> df = FunctionFactory<T>().k(k).compress(false).empty();
@@ -195,8 +199,155 @@ namespace madness {
         madness::print("clear gtree finished");
         return df;
     };
+    
+    
+    
+    
+    /// Task for fine_scale_projection and refinement
+    template <typename T>
+    class TaskProjectRefine : public TaskInterface {
+        friend void mratask_register();
+    private:
+        OctTreeTPtr tree;
+        Function<T> f;
         
-    template Function<double> Function<double>::diff2(int axis);
-    template Function<double_complex> Function<double_complex>::diff2(int axis);
-   
+        static void forward_task_handler(Communicator& comm, ProcessID src, const AMArg& arg) {
+            int ind = arg.arg0;
+            Level n = arg.arg1;
+            Translation x=arg.arg2, y=arg.arg3, z=arg.arg4;
+            madness::print("ProjectRefine task handler",ind,n,x,y,z);
+            std::cout.flush();
+            // This function is static! The local variables shadow the class data
+            Function<T> f = Function<T>(FunctionDataPointers<T>::get(ind));
+            madness::print("got function",f.data.use_count(),f.data.owned(),(void *) f.data.get()); std::cout.flush();
+            Function<T> g = f;
+            madness::print("copied function"); std::cout.flush();
+            OctTreeTPtr tree = f.tree();
+            madness::print("got initial tree"); std::cout.flush();
+            f.set_active(tree);
+            tree = tree->find_down(tree,n,x,y,z);
+            madness::print("got second tree"); std::cout.flush();
+            if (!tree) MADNESS_EXCEPTION("TaskProjectRefine: SOL looking for tree?",0);
+            taskq.add_local(new TaskProjectRefine<T>(tree, f));  
+            madness::print("added task"); std::cout.flush();          
+        };
+        
+        void forward(const OctTreeTPtr& t) const {
+            madness::print("ProjectRefine forwarding");
+            taskq.add_am(t->rank(), TaskProjectRefine<T>::forward_task_handler, 
+                        AMArg(f.ind,t->n(),t->x(),t->y(),t->z()));
+        };
+        
+        
+    public:
+        TaskProjectRefine(OctTreeTPtr& tree, Function<T>& f) 
+        : tree(tree), f(f) {};
+        
+        bool probe() const {return true;};
+        
+        void run() {
+            f.set_active(tree);
+            if (f._doproject_refine(tree)) {
+                FORIJK(OctTreeTPtr child = tree->child(i,j,k);
+                       if (!child) child = tree->insert_local_child(i,j,k);
+                       f.set_active(child);
+                       if (child->islocal()) 
+                           taskq.add_local(new TaskProjectRefine<T>(child, f));
+                       else
+                           forward(child););
+            }
+        };
+        
+        /// Generates tasks at level n of the tree 
+        static void generate_tasks(OctTreeTPtr& tree, Function<T>& f, Level n) {
+            madness::comm_default->am_poll();
+            MADNESS_ASSERT(tree);
+            if (tree->n() < n) {
+                f.set_active(tree);
+                FORIJK(OctTreeTPtr child = tree->child(i,j,k);
+                       if (!child && tree->islocal()) 
+                           child = tree->insert_local_child(i,j,k);
+                       if (child) {
+                           f.set_active(child);
+                           if (f.islocal(child)) generate_tasks(child,f,n);
+                       });
+            }
+            else if (tree->n() == n) {
+               f.set_active(tree);
+               if (tree->islocal()) taskq.add_local(new TaskProjectRefine<T>(tree, f));     
+            }
+            else {
+                f.set_inactive(tree);
+            }                
+        };                     
+    };
+    
+    /// Projection/refining high level interface
+    template <typename T>
+    void Function<T>::project_refine() {
+        madness::print("project_refine");
+        std::cout.flush();
+        TaskProjectRefine<T>::generate_tasks(tree(), *this, data->initial_level);
+        madness::print("done generating tasks");
+        std::cout.flush();
+        taskq.global_fence();
+        madness::print("done executing tasks");
+        std::cout.flush();        
+    };
+    
+    template <typename T>
+    void Function<T>::_doreconstruct(OctTreeTPtr tree, const Tensor<T>& ss) {
+        if (coeff(tree)) {
+            Tensor<T>& d = *coeff(tree);
+            Slice* s = data->cdata->s;
+            if (tree->n()>0) d(s[0],s[0],s[0]) = ss;
+            unfilter_inplace(d);
+            FOREACH_CHILD(OctTreeTPtr, tree,
+                          MADNESS_ASSERT(child);
+                          MADNESS_ASSERT(isactive(child));
+                          if (child->islocal()) {
+                              _doreconstruct(child,madness::copy(d(s[i],s[j],s[k])));
+                          }
+                          else {
+                              std::vector<unsigned char> v;
+                              VectorOutputArchive ar(v);
+                              ar & ind & child->n() & child->x() & child->y() & child->z() & madness::copy(d(s[i],s[j],s[k]));
+                              taskq.add_generic(child->rank(), reconstruction_handler, v);
+                          });
+            unset_coeff(tree);
+        }
+        else if (tree->islocal()) {
+            set_coeff(tree,ss);
+        }
+    };
+
+    /// Generic task interface for reconstruction
+    template <typename T>
+    void Function<T>::reconstruction_handler(Communicator& comm, ProcessID src, VectorInputArchive& ar) {
+        int ind;
+        Level n;
+        Translation x, y, z;
+        Tensor<T> s;
+        ar & ind & n & x & y & z & s;
+        Function<T> f(FunctionDataPointers<T>::get(ind));
+        OctTreeTPtr tree = f.tree();
+        f._doreconstruct(tree->find_down(tree,n,x,y,z),s);
+    }
+    
+    void mratask_register() {
+#define REGAM(f) print("          AM handler",#f,madness::comm_default->am_register(f))
+#define REGGE(f) print("Generic task handler",#f,taskq.register_generic_op(f))
+        
+        REGAM(TaskProjectRefine<double>::forward_task_handler);
+        REGAM(TaskProjectRefine<double_complex>::forward_task_handler); 
+        
+        REGGE(Function<double>::reconstruction_handler);
+        REGGE(Function<double_complex>::reconstruction_handler);
+    }  
+  
+    template Function<double> Function<double>::diff(int axis);
+    template Function<double_complex> Function<double_complex>::diff(int axis);
+    template void Function<double>::project_refine();
+    template void Function<double_complex>::project_refine();
+
 }

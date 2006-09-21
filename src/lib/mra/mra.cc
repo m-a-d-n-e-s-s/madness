@@ -137,12 +137,10 @@ namespace madness {
     template <typename T>
     void Function<T>::_init(const FunctionFactory<T>& factory) {
         bool compress = factory._compress;
-        bool refine = factory._refine;
         bool empty = factory._empty;
 
         if (data->f || data->vf) {
-            _fine_scale_projection(tree(), data->initial_level);
-            if (refine) _refine(tree());
+            project_refine();
             if (compress) this->compress();
         } else if (empty) {             // Do not set any coefficients at all
             data->compressed = compress;
@@ -159,48 +157,46 @@ namespace madness {
         //tree()->print();
     }
 
+    /// Private:  Projects onto wavelets at this level with optional refinement
+    
+    /// If refinement not necessary, sets scaling coeffs at level below
+    /// and returns false.  Otherwise, returns true. 
     template <typename T>
-    void Function<T>::_fine_scale_projection(OctTreeTPtr& tree, Level initial_level) {
-        // Recur down oct_tree to initial_level.  Refine locally
-        // if necessary.  Project when get to desired level
-        if (tree->n() < initial_level) {
-            set_active(tree);
-            FORIJK(OctTreeTPtr c = tree->child(i,j,k);
-                   if (!c && islocal(tree)) c = tree->insert_local_child(i,j,k);
-                   if (c) _fine_scale_projection(c,initial_level););
-        } else if (tree->n()==initial_level) {
-            set_active(tree);
-            if (islocal(tree)) _project(tree);
-        }
-    }
-
-
-    /// Private:  Projects function in given box
-    template <typename T>
-    void Function<T>::_project(OctTreeTPtr& tree) {
-        // Evaluate all local child scaling coeffs of the current box
+    bool Function<T>::_doproject_refine(OctTreeTPtr& tree) {
+        //madness::print("in doproject_refine");
         int npt = data->cdata->npt;
-        Tensor<T> r(2*k,2*k,2*k);
         Tensor<T> fval(npt,npt,npt);
-        Level n = tree->n()+1;
-        Translation x=2*tree->x(), y=2*tree->y(), z=2*tree->z();
-        const Slice* s = data->cdata->s;
-        for (int ix=0; ix<2; ix++) {
-            for (int iy=0; iy<2; iy++) {
-                for (int iz=0; iz<2; iz++) {
-                    OctTreePtr child = tree->child(ix,iy,iz);
-                    if (!child) child = tree->insert_local_child(ix,iy,iz);
-                    if (data->vf) {
-                        _vfcube(n, x+ix, y+iy, z+iz, data->vf, fval);
-                    } else if (data->f) {
-                        _fcube(n, x+ix, y+iy, z+iz, data->f, fval);
-                    }
-                    // Can optimize away the tensor construction in transform3d
-                    r(s[ix],s[iy],s[iz]) = transform3d(fval,data->cdata->quad_phiw);
-                }
-            }
+        if (!data->refine) {
+            Level n = tree->n();
+            Translation x=tree->x(), y=tree->y(), z=tree->z();
+            if (data->vf)
+                  _vfcube(n, x, y, z, data->vf, fval);
+               else
+                  _fcube(n, x, y, z, data->f, fval);
+            fval.scale(pow(0.125,0.5*n));
+            set_coeff(tree,transform3d(fval,data->cdata->quad_phiw));
+            return false;
         }
-        set_coeff(tree,r.scale(pow(0.125,0.5*n)));
+        else {             
+            Tensor<T> r(2*k,2*k,2*k);
+            Level n = tree->n()+1;
+            Translation x=2*tree->x(), y=2*tree->y(), z=2*tree->z();
+            const Slice* s = data->cdata->s;
+            FORIJK(if (data->vf)
+                      _vfcube(n, x+i, y+j, z+k, data->vf, fval);
+                   else
+                      _fcube(n, x+i, y+j, z+k, data->f, fval);
+                   r(s[i],s[j],s[k]) = transform3d(fval,data->cdata->quad_phiw););
+            r.scale(pow(0.125,0.5*n));
+            
+            filter_inplace(r);
+            Tensor<T> ss = madness::copy(r(s[0],s[0],s[0]));
+            r(s[0],s[0],s[0]) = 0.0;
+            //madness::print("normf",r.normf(),r.normf() > truncate_tol(data->thresh,tree->n()));
+            if (r.normf() > truncate_tol(data->thresh,tree->n())) return true;
+            set_coeff(tree,ss);
+            return false;
+        }         
     }
 
     template <typename T>
@@ -280,107 +276,6 @@ namespace madness {
     }
 
 
-    template <typename T>
-    void Function<T>::_reconstruct(OctTreeTPtr& tree) {
-        std::vector<Slice>& s0 = data->cdata->s0;
-        Slice* s = data->cdata->s;
-        TensorT& buf = data->cdata->work1;
-        long k3 = k*k*k;
-
-        if (isremote(tree)) {
-            if (tree->islocalsubtreeparent()) {
-                FOREACH_CHILD(OctTreeTPtr, tree,
-                              if (isactive(child)) {
-                              comm()->Recv(buf.ptr(),k3,tree->rank(),RECONSTRUCT_TAG);
-              //                                  print("reconstruct: received",buf.normf(),"from",tree->rank());
-                                  (*coeff(child))(s0) = buf;
-                              }
-                             );
-            } else {
-                throw "_reconstruct: should not be here?";
-            }
-        } else {
-            int nchild = 0;
-            TensorT* t = coeff(tree);
-            unfilter_inplace(*t);
-            FOREACH_CHILD(OctTreeTPtr, tree,
-                          if (isactive(child)) {
-                          nchild++;
-                          if (islocal(child)) {
-                                  (*coeff(child))(s0) = (*t)(s[i],s[j],s[k]);
-                              } else {
-                                  buf(s0) = (*t)(s[i],s[j],s[k]);
-              //                                  print("reconstruct: sending",buf.normf(),"to",child->rank());
-                                  comm()->Send(buf.ptr(),k3,child->rank(),RECONSTRUCT_TAG);
-                              }
-                          }
-                         );
-            if (nchild) unset_coeff(tree); // NEED TO KEEP IF WANT REDUNDANT TREE
-        }
-
-        FOREACH_CHILD(OctTreeTPtr, tree,
-                      if (isactive(child) && islocal(child)) _reconstruct(child););
-    }
-
-    /// Private: Refine an existing block of coefficients
-    template <typename T>
-    void Function<T>::_refine(OctTreeTPtr& tree) {
-        if (tree->islocalsubtreeparent() && isremote(tree)) {
-            // This remote node is the parent of the local subtree.
-            // Loop thru the local children and receive refinement
-            // info from above.  The messages will come in order.
-            FOREACH_CHILD(OctTreeTPtr, tree,
-                          bool dorefine;
-                          comm()->Recv(dorefine, tree->rank(), REFINE_TAG);
-              //                          print("   refine: got message",dorefine,"for",child->n(),child->x(),child->y(),child->z());
-                          if (dorefine) {
-                          set_active(child);
-                              set_active(tree);
-                              _project(child);
-                          }
-                          _refine(child);
-                         );
-        } else {
-            TensorT* t = coeff(tree);
-            if (t) {
-                // Local node with data
-                if (isremote(tree)) throw "refine: remote node with data?";
-                TensorT d = filter(*t);
-                d(data->cdata->s0) = 0.0;
-                bool dorefine = (d.normf() > truncate_tol(data->thresh,tree->n()));
-//                if (dorefine)
-//                    print("refine:",tree->n(),tree->x(),tree->y(),tree->z(),d.normf(),"dorefine =",dorefine);
-                    if (dorefine) unset_coeff(tree);
-                // First, send messages to remote children in order to get them working ASAP
-                FOREACH_REMOTE_CHILD(OctTreeTPtr, tree,
-                                     comm()->Send(dorefine, child->rank(), REFINE_TAG);
-                                     set_active(child);
-                     //                                     print("sent",dorefine,"message to",child->n(),child->x(),child->y(),child->z());
-                                    );
-                // Next, handle local stuff
-                FORIJK(OctTreeTPtr child = tree->child(i,j,k);
-                       // If child does not exist, OK to refine locally
-                       if (!child && dorefine) child = tree->insert_local_child(i,j,k);
-                       if ( child && islocal(child)) {
-                           if (dorefine) {
-                                   _project(child);
-                                   set_active(child);
-                               }
-                               _refine(child);
-                           }
-                      );
-            } else {
-                // This node does not have data and is not a remote subtree parent.
-                // It must be either an empty local node or a remote leaf.
-                // Again, first send msgs to remote nodes, then treat local guys.
-                FOREACH_REMOTE_CHILD(OctTreeTPtr, tree,
-                                     comm()->Send(false, child->rank(), REFINE_TAG);
-                     //                                     print("    sent false to",child->n(),child->x(),child->y(),child->z());
-                                    );
-                FOREACH_LOCAL_CHILD(OctTreeTPtr, tree, _refine(child););
-            }
-        }
-    }
 
     template <typename T>
     void Function<T>::_fcube(long n, long lx, long ly, long lz,
@@ -412,12 +307,8 @@ namespace madness {
         double xlo = lx*h, ylo = ly*h, zlo = lz*h;
         int npt = data->cdata->npt;
         const Tensor<double>& quad_x = data->cdata->quad_x;
-#ifdef IBMXLC
-        if (npt > 35) throw("hard dimension failure");
-#endif
-        double* x = new double[npt*npt*npt];
-        double* y = new double[npt*npt*npt];
-        double* z = new double[npt*npt*npt];
+        double x[64], y[64], z[64];
+        MADNESS_ASSERT(npt<=64);
 
         int count = 0;
         for (int i=0; i<npt; i++) {
@@ -435,10 +326,6 @@ namespace madness {
         }
 
         vf(npt*npt*npt, x, y, z, fcube.ptr());
-
-        delete[] x;
-        delete[] y;
-        delete[] z;
     }
 
     template <typename T>
@@ -541,94 +428,6 @@ namespace madness {
         return np;
     };
     
-    template <typename T>
-    void Function<T>::_autorefine(OctTreeTPtr& tree) {
-        MADNESS_ASSERT(tree);
-        bool msg[2], refine=false;
-        const Slice* s = data->cdata->s;
-        const Slice& s0 = s[0];
-        long k2 = k*2;
-        Tensor<T>& work1 = data->cdata->work1;
-        
-        if (islocal(tree)) {
-            ProcessID ranks[8];
-            int np = tree->unique_child_procs(ranks);
-            if (coeff(tree)) { // Test for refinement
-                double tol = truncate_tol(data->thresh,tree->n()+1);
-                const Tensor<T>& c = *coeff(tree);
-                double lo,hi;
-                FORIJK(_tnorms(c(s[i],s[j],s[k]),&lo,&hi);
-                       refine = hi > tol;
-                       if (refine) goto done;);
-                done:;
-            }
-
-            // Tell remote clones what is going on
-            msg[0] = isactive(tree); 
-            msg[1] = refine;
-            
-            for (int i=0; i<np; i++) comm()->Send(msg,2,ranks[i],AUTOREF_TAG1);
-            
-            if (refine) { // refine, sending data as necessary;
-                const Tensor<T>& c = *coeff(tree);
-                FORIJK(OctTreeTPtr child = tree->child(i,j,k);
-                       if (!child) child = tree->insert_local_child(i,j,k);
-                       set_active(child);
-                       if (child->islocal()) {
-                          Tensor<T>*t = set_coeff(child, Tensor<T>(k2, k2, k2));
-                          (*t)(s0, s0, s0) = c(s[i],s[j],s[k]);
-                          unfilter_inplace(*t);  // sonly!
-                       }
-                       else {
-                          work1(s0,s0,s0) = c(s[i],s[j],s[k]); // contig. copy
-                          comm()->Send(work1.ptr(), work1.size, child->rank(), AUTOREF_TAG2);
-                       }
-                    );
-                unset_coeff(tree);               
-            }
-        } else if (isremote(tree) && tree->islocalsubtreeparent()) {
-            comm()->Recv(msg,2,tree->rank(),AUTOREF_TAG1);
-            bool active=msg[0], refine=msg[1];
-            if (!active && isactive(tree)) {
-                MADNESS_EXCEPTION("Remote clone thinks it is inactive but I think I am active",0);
-            } else if (active) {
-                set_active(tree);
-                if (refine) {
-                    FORIJK(OctTreeTPtr child = tree->child(i,j,k);
-                          if (!child) child = tree->insert_local_child(i,j,k);
-                          set_active(child);
-                          comm()->Recv(work1.ptr(), work1.size, tree->rank(), AUTOREF_TAG2);
-                          Tensor<T>*c = set_coeff(child, Tensor<T>(k2, k2, k2));
-                          (*c)(s0, s0, s0) = work1;
-                          unfilter_inplace(*c); // sonly needed!
-                    );
-                }
-            }
-        }            
-        FOREACH_CHILD(OctTreeTPtr, tree, if (islocal(child)) _autorefine(child););    
-    };
-
-    template <typename T>
-    void Function<T>::_square(OctTreeTPtr& tree) {
-         MADNESS_ASSERT(tree);
-         FOREACH_ACTIVE_CHILD(OctTreeTPtr, tree, _square(child););
-
-         if (coeff(tree)) {
-            Tensor<T>& t = *coeff(tree);
-            Tensor<T> r(k, k, k);
-            const Slice* s = data->cdata->s;
-            double scale = std::pow(8.0, 0.5 * (tree->n()+1));
-            FORIJK(r(___) = t(s[i], s[j], s[k]);
-                   transform3d_inplace(r, data->cdata->quad_phit,
-                                       data->cdata->work1);
-                   r.emul(r).scale(scale);
-                   transform3d_inplace(r, data->cdata->quad_phiw,
-                                       data->cdata->work1);
-                   t(s[i], s[j], s[k]) = r;
-                  );
-         }
-    };
-    
 
 
     // Explicit instantiations for double and complex<double>
@@ -639,5 +438,8 @@ namespace madness {
     template class FunctionData< std::complex<double> >;
     template class FunctionCommonData<double>;
     template class FunctionCommonData<double_complex>;
-
+    
+//    template void Function<double>::_compress(SharedPtr< OctTree<madness::FunctionNode> >&);
+//    template void Function<double_complex>::_compress(SharedPtr< OctTree<madness::FunctionNode> >&);
+    
 }
