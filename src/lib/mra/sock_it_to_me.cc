@@ -125,7 +125,7 @@ namespace madness {
     template <typename T>
     void Function<T>::recur_down_to_make_forward_request(Level n, const Translation l[3], ProcessID dest) { 
         AMArg amarg(ind, n, l[0], l[1], l[2]);
-        comm()->am_send(dest, recur_down_to_make_handler, amarg);     
+        taskq.add_am(dest, recur_down_to_make_handler, amarg);     
     }    
 
     
@@ -171,7 +171,7 @@ namespace madness {
         MADNESS_ASSERT(arg.islocal());
         arg = SAV< Tensor<T> >(dest, tag, true, data->cdata->vk);
         AMArg amarg(ind, n, l[0], l[1], l[2], tag);
-        comm()->am_send(dest, _sock_it_to_me_handler, amarg);     
+        taskq.add_am(dest, _sock_it_to_me_handler, amarg);     
     }    
                  
                  
@@ -262,16 +262,16 @@ namespace madness {
                 while (!isactive(p) && p->parent()) p = p->parent();
                 fill_in_local_tree(p, n, l);
                 if (coeff(p)) {
-                    if (result.islocal()) {
-                    taskq.add_local(new TaskRecurDownToMakeLocal<T>(this,p,n,l,result));
+                    if (result.islocal()) { // Local reqeusts are deferred
+                        taskq.add_local(new TaskRecurDownToMakeLocal<T>(this,p,n,l,result));
+                    }
+                    else { // Immediate gratification for remote requests
+                        recur_down_to_make(p,n,l); 
+                        result.set(*coeff(p->find(n,x,y,z)));
+                    }
+                    return;
                 }
-                else { // Immediate gratification for remote requests
-                    recur_down_to_make(p,n,l); 
-                    result.set(*coeff(p->find(n,x,y,z)));
-                }
-                return;
-                }
-                    else if (isremote(p)) {
+                else if (isremote(p)) {
                     taskq.add_local(new TaskAwaitCoeff<T>(this,p->find(n,x,y,z),result));       
                     recur_down_to_make_forward_request(n,l,p->rank());
                     return;

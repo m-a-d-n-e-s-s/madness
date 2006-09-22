@@ -71,7 +71,7 @@ namespace madness {
             arg.l1[0]=l[0]; arg.l1[1]=l[1]; arg.l1[2]=l[2];
             arg.n2 = tree->n(); 
             arg.l2[0]= tree->x(); arg.l2[1]= tree->y(); arg.l2[2]= tree->z();        
-            madness::comm_default->am_send(t->rank(), Derived::forward_task_handler, AMArg(&arg,sizeof(arg)));
+            taskq.add_am(t->rank(), Derived::forward_task_handler, AMArg(&arg,sizeof(arg)));
         };
         
         
