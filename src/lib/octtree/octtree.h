@@ -1661,7 +1661,7 @@ namespace madness {
         /// Fifth, we can deserialize the tree.
         VectorInputArchive varin(vin);
         GlobalTree<3> gtree(varin);
-        if (comm.rank()==0) gtree.print();
+        //if (comm.rank()==0) gtree.print();
         
         /// Finally, need to insert some extra code to make the tree more efficient to 
         /// traverse since to get rapid searching we need a low radix fan out.

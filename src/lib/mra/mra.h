@@ -534,6 +534,8 @@ namespace madness {
 
             compressed = false;
             nterminated = 0;
+
+            taskq.global_fence();
         };
 
         /// Copy constructor
@@ -667,11 +669,15 @@ namespace madness {
                 , k(data->k)
                 , ind(data->ind) {};
                 
-        /// Private.  This even funkier constructor is used for remote method invocation        
-        explicit Function(FunctionData<T>* d)
-                : data(d,false,false)
+        /// Private.  This funky constructor is used for remote method invocation        
+
+        /// It generates a shallow copy of a function from the function index
+        explicit Function(int ind)
+                : data(FunctionDataPointers<T>::get(ind),false,false)
                 , k(data->k)
-                , ind(data->ind) {};
+                , ind(ind) {
+            MADNESS_ASSERT(data->ind == ind);
+        };
 
     public:
         SharedPtr< FunctionData<T> > data; ///< Holds all function data
@@ -841,16 +847,16 @@ namespace madness {
         void _compressop(OctTreeTPtr& tree, ArgT args[2][2][2], ArgT& parent);
         ArgT input_arg(const OctTreeTPtr& consumer, const OctTreeTPtr& producer);
 
-Function<T>& truncate(double tol=0.0) {return *this;};
+        Function<T>& truncate(double tol=0.0) {return *this;};
         /// Reconstruct compressed function (wavelet to scaling function)
 
         /// Communication streams down the tree
         /// Returns self for chaining.
         Function<T>& reconstruct() {
             if (data->compressed) {
+                data->compressed = false;
                 if (tree()->n() == 0) _doreconstruct(tree(),Tensor<T>());
                 taskq.global_fence();
-                data->compressed = false;
             }
             return *this;
         };

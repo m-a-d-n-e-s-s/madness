@@ -1,7 +1,3 @@
-#include <iostream>
-using std::cout;
-using std::endl;
-
 #include <complex>
 #include <octtree/octtree.h>
 #include <mra/mra.h>
@@ -25,7 +21,7 @@ namespace madness {
         Level n = arg.arg1;
         Translation x=arg.arg2, y=arg.arg3, z=arg.arg4;
         madness::print("set_active_handler",ind,n,x,y,z);
-        Function<T> f = Function<T>(FunctionDataPointers<T>::get(ind));
+        Function<T> f = Function<T>(ind);
         OctTreeTPtr t = f.tree();
         MADNESS_ASSERT(t);
         if (t->n()==n && t->x()==x && t->y()==y && t->z()==z) {
@@ -46,7 +42,7 @@ namespace madness {
         ar & ind & n & x & y & z & keep & c;
         
         madness::print("recur_down_handler",ind,n,x,y,z,keep);
-        Function<T> f = Function<T>(FunctionDataPointers<T>::get(ind));
+        Function<T> f = Function<T>(ind);
         OctTreeTPtr t = f.tree();
         MADNESS_ASSERT(t);
         MADNESS_ASSERT(t->n()==n-1 && t->x()==(x>>1) && t->y()==(x>>1) && t->z()==(z>>1));
@@ -121,9 +117,7 @@ namespace madness {
         int ind = arg.arg0;
         Level n = arg.arg1;
         Translation l[3] = {arg.arg2, arg.arg3, arg.arg4};
-        //madness::print("recur_down_to_make_handler",ind, n, l[0], l[1], l[2],src);
-        
-        Function<T> f = Function<T>(FunctionDataPointers<T>::get(ind));
+        Function<T> f = Function<T>(ind);
         OctTreeT* p = f.tree()->find(n,l[0],l[1],l[2]);
         f.recur_down_to_make(p, n, l);
     }
@@ -131,7 +125,6 @@ namespace madness {
     template <typename T>
     void Function<T>::recur_down_to_make_forward_request(Level n, const Translation l[3], ProcessID dest) { 
         AMArg amarg(ind, n, l[0], l[1], l[2]);
-        //madness::print("rdtm forwarding",n, l[0], l[1], l[2]);
         comm()->am_send(dest, recur_down_to_make_handler, amarg);     
     }    
 
@@ -156,7 +149,6 @@ namespace madness {
                 return;
             }
         }
-        //madness::print("rdtm just made",n,l[0],l[1],l[2],p->x(),p->y(),p->z(),coeff(p)->normf());
     }     
     
     
@@ -166,20 +158,16 @@ namespace madness {
         Level n = arg.arg1;
         Translation l[3] = {arg.arg2, arg.arg3, arg.arg4};
         int tag = arg.arg5;
-        madness::print("in sock handler",n, l[0], l[1], l[2],src,tag);
         
-        Function<T> f = Function<T>(FunctionDataPointers<T>::get(ind));
+        Function<T> f = Function<T>(ind);
         SAV< Tensor<T> > result(src, tag, false, f.data->cdata->vk);
         f._sock_it_to_me(f.tree(), n, l, result);
-        madness::print("after f.sock",n, l[0], l[1], l[2], result.probe());
-        //MADNESS_ASSERT(result.probe());
     }
     
     template <typename T>
     void Function<T>::_sock_it_to_me_forward_request(Level n, const Translation l[3], SAV< Tensor<T> >& arg, ProcessID dest) {
         // Reassign result to be set remotely via a message from process dest 
         int tag = comm()->unique_tag();
-        madness::print("sock forwarding",n, l[0], l[1], l[2],tag);
         MADNESS_ASSERT(arg.islocal());
         arg = SAV< Tensor<T> >(dest, tag, true, data->cdata->vk);
         AMArg amarg(ind, n, l[0], l[1], l[2], tag);
@@ -240,8 +228,6 @@ namespace madness {
 	       for (int i=0; i<3; i++) this->l[i] = l[i];
 	   };
 	   void run() {
-	       //madness::print("TaskRecurDownToMakeLocal",f->ind, p->n(),p->x()<p->y(),p->z(),n,l[0],l[1],l[2]);
-	       //madness::print("TaskRecurDownToMakeLocal",(void*)f,(void*)p,n,l[0],l[1],l[2]);
 	       f->recur_down_to_make(p,n,l);
 	       result.set(*f->coeff(p->find(n,l[0],l[1],l[2])));
 	   };
@@ -301,7 +287,6 @@ namespace madness {
             }
         }
         else {
-            //madness::print("Forwarding request after gtree",n,l[0],l[1],l[2]);
             _sock_it_to_me_forward_request(n,l,result,owner);
         }
     }

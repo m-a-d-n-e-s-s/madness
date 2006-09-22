@@ -1,7 +1,3 @@
-#include <iostream>
-using std::cout;
-using std::endl;
-
 #include <complex>
 #include <octtree/octtree.h>
 #include <mra/mra.h>
@@ -86,9 +82,7 @@ namespace madness {
     /// Returns self for chaining.
     template <typename T>
     Function<T>& Function<T>::compress() {
-        //madness::print("COMPRESSING",data->compressed,isactive(tree()));
         build_global_tree();
-        //std::cout.flush();
         if (!data->compressed) {
             if (isactive(tree())) {
                 ArgT dummy;
@@ -108,16 +102,12 @@ namespace madness {
                              if (child->islocal()) _compress(child,args[i][j][k]););
 
         if (tree->islocal()) {
-            //madness::print("adding compress task",tree->n(),tree->x(),tree->y(),tree->z(),(void *) tree->parent());
-            //std::cout.flush();
             taskq.add_local(new TaskCompress<T>(this,tree,args,parent));
         }
     };
 
     template <typename T>
     void Function<T>::_compressop(OctTreeTPtr& tree, Function<T>::ArgT args[2][2][2], Function<T>::ArgT& parent) {
-            //madness::print("executing compress task",tree->n(),tree->x(),tree->y(),tree->z(),(void *) tree->parent());
-            //std::cout.flush();
         Slice* s = data->cdata->s;      
         TensorT t = TensorT(2*k,2*k,2*k);
         int nchild=0;
@@ -127,13 +117,11 @@ namespace madness {
         if (nchild) {
             filter_inplace(t);
             if (coeff(tree)) t(s[0],s[0],s[0]) += *coeff(tree);
-            //madness::print("setting parent from transformed coeff");
             parent.set(madness::copy(t(data->cdata->s0)));
             if (tree->n() > 0) t(data->cdata->s0)=0.0;
             set_coeff(tree,t);
         }
         else {
-            //madness::print("setting parent from leaf");
             parent.set(*coeff(tree));
             unset_coeff(tree);
         }           
@@ -155,11 +143,7 @@ namespace madness {
         const TensorT qp = tp.swapdim(axis,0);
         const TensorT qm = tm.swapdim(axis,0);
             
-        //madness::print(q0.dim[0],q0.dim[1],q0.dim[2],qp.dim[0],qp.dim[1],qp.dim[2],qm.dim[0],qm.dim[1],qm.dim[2]);
-        //std::cout.flush();
         Tensor<T> d = ::inner(r0, q0) + outer(rp_left,::inner(rp_right,qm)) + outer(rm_left,::inner(rm_right,qp));
-        //madness::print("finished product");
-        //std::cout.flush();    
         if (axis) d = ::copy(d.swapdim(axis,0));
         d.scale((double) two_to_power(tree->n()));
         df.set_coeff(tree,d);

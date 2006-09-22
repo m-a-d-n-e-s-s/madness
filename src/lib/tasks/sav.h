@@ -205,8 +205,6 @@ namespace madness {
                         handle = madness::comm_default->Irecv(t.ptr(), t.size, rank, tag);
                     } else {
                         unsigned int nb = status.Get_count(MPI::BYTE);
-                        madness::print("SAV JUST RECEIVED",nb);
-                        std::cout.flush();
                         if (nb == 0u) {
                             t = Tensor<T>();
                         }

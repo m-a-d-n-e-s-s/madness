@@ -19,6 +19,8 @@ using std::vector;
 #include <misc/madexcept.h>
 #include <serialize/vecar.h>
 
+#include <unistd.h>
+
 using namespace madness;
 
 const double PI = 3.1415926535897932384;
@@ -77,81 +79,29 @@ int main(int argc, char* argv[]) {
         FunctionDefaults::k=9;
         FunctionDefaults::initial_level=0;
         Function<double> f = FunctionFactory<double>(fred).thresh(1e-7).nocompress().refine();
-        
+        Function<double> df,dfexact;
+
         print("valuesX",fred(0.45,0.53,0.48),f(0.45,0.53,0.48));
-        print("Tree in scaling function basis");
-        f.pnorms();
         f.compress();
-        print("Tree in wavelet basis");
-        f.pnorms();
         f.reconstruct();
-        print("Tree in scaling function basis");
-        f.pnorms();
         print("valuesX",fred(0.45,0.53,0.48),f(0.45,0.53,0.48));
 
-        double errnormsq;
-        Function<double> df,dfexact;
         df = f.diff(0);
         dfexact = FunctionFactory<double>(dfred_dx).thresh(1e-7).nocompress();
+        print("diff norms",df.norm2sq(),dfexact.norm2sq(),f.norm2sq());
         print("diff x",df(0.45,0.53,0.48),dfred_dx(0.45,0.53,0.48),"normerrsq",(df-dfexact).norm2sq());
-        goto done;
-//
-//        df = f.diff2(1);
-//        print("dfnormsq",df.norm2sq(),df.iscompressed());
-//        df.pnorms();
-//        df.compress();
-//        print("df compressed");
-//        df.pnorms();
-//        dfexact = FunctionFactory<double>(dfred_dy).thresh(1e-7).nocompress();
-//        print("done with projection of dfexact");
-//        //dfexact.pnorms();
-//        dfexact.compress();
-//        print("done with compress of dfexact");
-//        dfexact.pnorms();
-//        print("done with compress of dfexact");
-//        df.compress();
-//        print("done with compress of df");
-//        errnormsq = (df-dfexact).norm2sq();
-//        print("done with errnormsq",errnormsq);
-//        df.reconstruct();
-//        print("done with df recon");
-//        print("diff y",df(0.45,0.53,0.48),dfred_dy(0.45,0.53,0.48),"normerrsq",errnormsq);       
-//
-//        df = f.diff2(2);
-//        dfexact = FunctionFactory<double>(dfred_dz).thresh(1e-7).nocompress();
-//        print("diff z",df(0.45,0.53,0.48),dfred_dz(0.45,0.53,0.48),"normerrsq",(df-dfexact).norm2sq());
-//
-//        goto done;
-//        
-//        //comm.set_debug(true);
-//        f.compress();
-//        //comm.set_debug(false);
-//        print("Tree in wavelet basis");
-//        //f.pnorms();
-//        f.reconstruct();
-//        print("Tree in scaling function basisX");
-//        //f.pnorms();
-//        print("values",fred(0.45,0.53,0.48),f(0.45,0.53,0.48));
-//        print("truncating fred");
-//        f.truncate();
-//        print("values",fred(0.45,0.53,0.48),f(0.45,0.53,0.48));
-//        print("truncating fred again");
-//        f.truncate(1e-3);
-//        print("values",fred(0.45,0.53,0.48),f(0.45,0.53,0.48));
-//        print("truncating fred yet again");
-//        f.truncate(1e-2);
-//        print("values",fred(0.45,0.53,0.48),f(0.45,0.53,0.48));              
-//        f.autorefine();
-//        print("Tree in scaling function basis after autorefine");
-//        //f.pnorms();
-//        print("values",fred(0.45,0.53,0.48),f(0.45,0.53,0.48));
-//        f.square();
-//        print("values",fred(0.45,0.53,0.48)*fred(0.45,0.53,0.48),f(0.45,0.53,0.48));
-//        Function<double> m = FunctionFactory<double>(mary).thresh(1e-3).nocompress();
-//		Function<double>fm = f*m;
-//		print("f",fred(0.45,0.53,0.48)*fred(0.45,0.53,0.48),f(0.45,0.53,0.48));
-//		print("m",mary(0.45,0.53,0.48),m(0.45,0.53,0.48));
-//		print("fm",fred(0.45,0.53,0.48)*fred(0.45,0.53,0.48)*mary(0.45,0.53,0.48),fm(0.45,0.53,0.48));       
+
+        df = f.diff(1);
+        dfexact = FunctionFactory<double>(dfred_dy).thresh(1e-7).nocompress();
+        print("diff norms",df.norm2sq(),dfexact.norm2sq(),f.norm2sq());
+        print("diff y",df(0.45,0.53,0.48),dfred_dy(0.45,0.53,0.48),"normerrsq",(df-dfexact).norm2sq());
+
+        df = f.diff(2);
+        dfexact = FunctionFactory<double>(dfred_dz).thresh(1e-7).nocompress();
+        print("diff norms",df.norm2sq(),dfexact.norm2sq(),f.norm2sq());
+        print("diff z",df(0.45,0.53,0.48),dfred_dz(0.45,0.53,0.48),"normerrsq",(df-dfexact).norm2sq());
+
+       
     } catch (char const* msg) {
         std::cerr << "Exception (string): " << msg << std::endl;
         comm.Abort();

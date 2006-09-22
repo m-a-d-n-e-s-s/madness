@@ -38,11 +38,12 @@ namespace madness {
         comm.print();
         load_coeffs(comm);
         load_quadrature(comm);
+
+        print("\nMADNESS is waking up!\n");
         
         FunctionDefaults::tree = SharedPtr<FunctionOctTree>(new FunctionOctTree(OctTree<FunctionNode>::create_default(comm,2)));
-        for (int i=0; i<20; i++) madness::print("xxxxxxxxxxx");
+        print("\nThis is the initial parallel tree layout\n");
         FunctionDefaults::tree->tree()->print();
-        for (int i=0; i<20; i++) madness::print("yyyyyyyyyyy");
         if (!gauss_legendre_test()) comm.Abort();
         if (!test_two_scale_coefficients()) comm.Abort();
     
@@ -52,6 +53,8 @@ namespace madness {
         }
         
         for (int i=0; i<FunctionNode::size; i++) FunctionDataPointersBase::p[i] = 0;
+
+        print("\nRegistering task and AM handlers\n");
         
 #define REGAM(f) print("          AM handler",#f,comm.am_register(f))
 #define REGGE(f) print("Generic task handler",#f,taskq.register_generic_op(f))
@@ -67,6 +70,9 @@ namespace madness {
         REGGE(Function<double>::recur_down_handler);
         REGGE(Function< std::complex<double> >::recur_down_handler);
         mratask_register();
+
+        print("");
+        taskq.global_fence();
     
         return comm;
     }
