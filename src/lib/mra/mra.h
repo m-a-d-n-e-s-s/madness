@@ -614,9 +614,11 @@ namespace madness {
             return t + s;
         };
     };
-
+    
     template <typename T> class TaskAwaitCoeff;
     template <typename T> class TaskDiff;
+    template <typename T> class TaskSquare;
+    template <typename T> class TaskAutorefine;
     template <typename T, typename Derived> class TaskLeaf;
     template <typename T> class TaskRecurDownToMakeLocal;
     template <typename T> class TaskProjectRefine;
@@ -631,6 +633,10 @@ namespace madness {
 
         friend class TaskDiff<T>;
         friend class TaskLeaf< T, TaskDiff<T> >;
+        friend class TaskAutorefine<T>;
+        friend class TaskLeaf< T, TaskAutorefine<T> >;
+        friend class TaskSquare<T>;
+        friend class TaskLeaf< T, TaskSquare<T> >;
         friend class TaskAwaitCoeff<T>;
         friend class TaskRecurDownToMakeLocal<T>;
         friend class TaskProjectRefine<T>;
@@ -830,15 +836,12 @@ namespace madness {
         /// Differentiation
         Function<T> diff(int axis); 
         
-//        /// Autorefine (e.g. for squaring or multiplication)
-//        
-//        /// Communication, if any, flows down the tree
-//        /// Returns self for chaining.
-//        Function<T>& autorefine() {
-//        	if (data->compressed) reconstruct();
-//        	_autorefine(tree());
-//        	return *this;
-//        };
+        /// Autorefine (e.g., for more accurate application of integral operators)
+        
+        /// Communication, if any, flows down the tree
+        /// Returns self for chaining.
+        Function<T>& autorefine();
+
         
         void ptree() {_ptree(tree());};
 
@@ -870,19 +873,16 @@ namespace madness {
             return *this;
         };
 
-//        /// Inplace square (pointwise multiplication by self)
-//
-//        /// If not reconstructed, reconstruct() is called which communicates.
-//        /// If not autorefining, no communication is involved in
-//        /// the squaring.  If autorefinining, some downward communication
-//        /// may be involved depending on the distribution of tree nodes.
-//        ///
-//        /// Returns self for chaining.
-//        Function<T>& square() {
-//           if (this->iscompressed()) this->reconstruct();
-//           if (isactive(tree())) _square(tree());
-//           return *this;
-//        };
+        /// Inplace square (pointwise multiplication by self)
+
+        /// If not reconstructed, reconstruct() is called which communicates.
+        /// If not autorefining, no communication is involved in
+        /// the squaring.  If autorefinining, some downward communication
+        /// may be involved depending on the distribution of tree nodes.
+        ///
+        /// Returns self for chaining.
+        Function<T>& square();
+
 
         /// Inplace Generalized SAXPY to scale and add two functions.
 
@@ -1091,56 +1091,7 @@ namespace madness {
         /// outside the box.
         ///
         /// No communication is involved.
-        bool eval_local(double x, double y, double z, T* value) const {
-            if (iscompressed())
-                MADNESS_EXCEPTION("Function: eval_local: must not be compressed",ind);
-
-            *value = T(0.0);
-            OctTreeTPtr tree = this->tree();
-            if (isactive(tree)) {
-                // Determine if point might be local to this process
-                data->cdata->user_to_sim(x, y, z);
-                double twon = two_to_power(tree->n());
-                x *= twon;
-                y *= twon;
-                z *= twon;
-                x -= tree->x();
-                y -= tree->y();
-                z -= tree->z();
-
-                if (x < 0.0 || y < 0.0 || z < 0.0 ||
-                        x > 1.0 || y > 1.0 || z > 1.0) {
-                    if (tree->n() == 0) {
-                        MADNESS_EXCEPTION("Function: eval_local: out of range point",ind);
-                    } else {
-                        return false;
-                    }
-                }
-
-                // Recur down to find it ... inline for maximum efficiency
-                while (tree && isactive(tree)) {
-                   const TensorT* t = coeff(tree);
-                    if (t) {
-                        *value = _eval_cube(tree->n(), x, y, z, *t);
-                         return true;
-                    }
-                    x *= 2.0;
-                    y *= 2.0;
-                    z *= 2.0;
-                    int lx = int(x);
-                    int ly = int(y);
-                    int lz = int(z);
-                    if (lx == 2) --lx;
-                    if (ly == 2) --ly;
-                    if (lz == 2) --lz;
-                    x -= lx;
-                    y -= ly;
-                    z -= lz; 
-                    tree = tree->child(lx, ly, lz);
-                }
-            }
-            return false;
-        };
+        bool eval_local(double x, double y, double z, T* value) const;
 
 
         /// Evaluate the function at a point in user coordinates
@@ -1184,7 +1135,7 @@ namespace madness {
 
         /// No communication involved.
         /// Truncate method m scales tol by 2^(-n*m/2)
-        inline double truncate_tol(double tol, Level n) {
+        inline double truncate_tol(double tol, Level n) const {
             if (data->truncate_method == 0) {
                 return tol;
             } else {
@@ -1363,18 +1314,16 @@ namespace madness {
         /// Private.  Set coeffs of this Function from tree pointer
 
         /// No communication involved.
-        inline TensorT* set_coeff(OctTreeTPtr& tree, const TensorT& t, bool acflag=false) {
+        inline TensorT* set_coeff(OctTreeTPtr& tree, const TensorT& t) {
             MADNESS_ASSERT(tree);
-            set_acflag(tree,acflag);
             return tree->data().set(ind, t);
         };
 
         /// Private.  Set coeffs of this Function from tree pointer
 
         /// No communication involved.
-        inline TensorT* set_coeff(OctTreeT* tree, const TensorT& t, bool acflag=false) {
+        inline TensorT* set_coeff(OctTreeT* tree, const TensorT& t) {
             MADNESS_ASSERT(tree);
-            tree->data().set_acflag(ind,acflag);
             return tree->data().set(ind, t);
         };
 
@@ -1516,6 +1465,7 @@ namespace madness {
         void _unaryop(Function<T>& result, OctTreeTPtr& tree, const Op op) const {
             MADNESS_ASSERT(tree);
             result.set_active(tree);
+            result.set_acflag(tree,false);
             const TensorT *t = coeff(tree);
             if (t) {
                 Tensor<T> q = op(*t);
@@ -1558,7 +1508,7 @@ namespace madness {
         /// Private:  Compute norms of polyn with order <k/2 & >=k/2.
 
         /// No communication is involved, scaling fn basis only
-        void _tnorms(const Tensor<T>& t, double *lo, double *hi);
+        void _tnorms(const Tensor<T>& t, double& lo, double& hi) const;
         
         /// Returns list of unique processes with active remote children of a node in the tree
         
@@ -1573,18 +1523,42 @@ namespace madness {
             tree->print_coords();
             FOREACH_ACTIVE_CHILD(OctTreeTPtr, tree, _ptree(child););
         };
+        
+        /// Returns true if this block of scaling coefficients needs autorefining
+        
+        /// Criteria is that higher order polyn must be below threshold.
+        /// Each additional level of refinement will reduce them by at least 0.5^k/2.
+        inline bool autorefine_test(const OctTreeTPtr& tree) const {
+            double lo, hi;
+            MADNESS_ASSERT(tree);
+            MADNESS_ASSERT(coeff(tree));
+            _tnorms(*coeff(tree), lo, hi);
+            return hi > this->truncate_tol(data->thresh,tree->n());
+        };
+        
+        /// Returns true if this block of scaling coefficients needs autorefining
+        
+        /// Criteria is that the error in the square due to higher order polyn must be below threshold.
+        /// Each additional level of refinement will reduce them by about 0.5^k.
+        inline bool autorefine_square_test(const OctTreeTPtr& tree) const {
+            if (!data->autorefine) return false;
+            double lo, hi;
+            MADNESS_ASSERT(tree);
+            MADNESS_ASSERT(coeff(tree));
+            _tnorms(*coeff(tree), lo, hi);
+            return sqrt(hi*hi+2.0*hi*lo) > this->truncate_tol(data->thresh,tree->n());
+        };
+        
+        
+        /// Private.  Squares a block of coefficients
+        void do_square(OctTreeTPtr& tree);
+        
+        /// Private.  Transforms in place coeffs to function values on quadrature grid
+        void do_transform_to_function_values(OctTreeTPtr& tree);
 
-//        /// Private.  Recursive function to provide autorefinement for squaring and multiplication.
-//        
-//        /// Communication if any flows down
-//        void _autorefine(OctTreeTPtr& tree);
-//        
-//
-//        /// Private.  Recursive function to support inplace squaring.
-//        
-//        /// No communication.
-//        void _square(OctTreeTPtr& tree);
-//        
+        /// Private.  Transforms in place from function values on quadrature grid to coeffs
+        void do_transform_from_function_values(OctTreeTPtr& tree);
+
         
         /// Private.  Recursive function to support gaxpy
         void _gaxpy(Function<T>& afun, double alpha,
@@ -1613,7 +1587,6 @@ namespace madness {
         void _auto_clean(OctTreeTPtr& tree) {
             if (isactive(tree)) {
                 if (get_acflag(tree)) {
-                    //print(tree->n(),tree->x(),tree->y(),tree->z(),"autocleaning");
                     unset_coeff(tree);
                     set_inactive(tree);
                     set_acflag(tree,false);

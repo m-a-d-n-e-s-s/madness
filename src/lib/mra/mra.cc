@@ -33,10 +33,7 @@ using madness::archive::VectorInputArchive;
 using madness::archive::VectorOutputArchive;
 
 /// \file mra/mra.cc
-/// \brief Implements Function and friends
-
-/// Eventually, these notes provide a basic user's
-/// programmer's manual.
+/// \brief Implements non-task related stuff for Function and friends
 
 namespace madness {
 
@@ -192,7 +189,6 @@ namespace madness {
             filter_inplace(r);
             Tensor<T> ss = madness::copy(r(s[0],s[0],s[0]));
             r(s[0],s[0],s[0]) = 0.0;
-            //madness::print("normf",r.normf(),r.normf() > truncate_tol(data->thresh,tree->n()));
             if (r.normf() > truncate_tol(data->thresh,tree->n())) return true;
             set_coeff(tree,ss);
             return false;
@@ -362,7 +358,7 @@ namespace madness {
     }
 
     template <typename T>
-    void Function<T>::_tnorms(const Tensor<T>& t, double *lo, double *hi) {
+    void Function<T>::_tnorms(const Tensor<T>& t, double& lo, double& hi) const {
         // t is a k*k*k tensor.  In order to screen the autorefinement
         // during squaring or multiplication, compute the norms of
         // ... lo ... the block of t for all polynomials of order < k/2
@@ -371,42 +367,42 @@ namespace madness {
         // This routine exists to provide higher precision and in order to
         // optimize away the tensor slicing otherwise necessary to compute
         // the norm using
-        Slice s0(0,(k-1)/2);
-        double anorm = t.normf();
-        *lo = t(s0,s0,s0).normf();
-        *hi = sqrt(anorm*anorm - *lo**lo);
-/*
-            // k=5   0,1,2,3,4     --> 0,1,2 ... 3,4
-            // k=6   0,1,2,3,4,5   --> 0,1,2 ... 3,4,5
+//        Slice s0(0,(k-1)/2);
+//        double anorm = t.normf();
+//        lo = t(s0,s0,s0).normf();
+//        hi = sqrt(anorm*anorm - *lo**lo);
 
-            // k=number of wavelets, so k=5 means max order is 4, so max exactly
-            // representable squarable polynomial is of order 2 which is the third
-            // polynomial.
-            int k2 = (k - 1) / 2 + 1;
-            double slo = 0.0, shi = 0.0;
+        // k=5   0,1,2,3,4     --> 0,1,2 ... 3,4
+        // k=6   0,1,2,3,4,5   --> 0,1,2 ... 3,4,5
 
-            for (int p = 0; p < k2; p++)
-                for (int q = 0; q < k2; q++)
-                    for (int r = 0; r < k2; r++)
-                        slo += std::norm(t(p, q, r));
+        // k=number of wavelets, so k=5 means max order is 4, so max exactly
+        // representable squarable polynomial is of order 2 which is the third
+        // polynomial.
+        int k2 = (k - 1) / 2 + 1;
+        double slo = 0.0, shi = 0.0;
 
-            for (int p = 0; p < k; p++)
-                for (int q = k2; q < k; q++)
-                    for (int r = 0; r < k; r++)
-                        shi += std::norm(t(p, q, r));
+        for (int p = 0; p < k2; p++)
+            for (int q = 0; q < k2; q++)
+                for (int r = 0; r < k2; r++)
+                    slo += std::norm(t(p, q, r));
 
-            for (int p = k2; p < k; p++)
-                for (int q = 0; q < k2; q++)
-                    for (int r = 0; r < k; r++)
-                        shi += std::norm(t(p, q, r));
+        for (int p = 0; p < k; p++)
+            for (int q = k2; q < k; q++)
+                for (int r = 0; r < k; r++)
+                    shi += std::norm(t(p, q, r));
 
-            for (int p = 0; p < k2; p++)
-                for (int q = 0; q < k2; q++)
-                    for (int r = k2; r < k; r++)
-                        shi += std::norm(t(p, q, r));
+        for (int p = k2; p < k; p++)
+            for (int q = 0; q < k2; q++)
+                for (int r = 0; r < k; r++)
+                    shi += std::norm(t(p, q, r));
 
-            *lo = sqrt(slo);
-            *hi = sqrt(shi);*/
+        for (int p = 0; p < k2; p++)
+            for (int q = 0; q < k2; q++)
+                for (int r = k2; r < k; r++)
+                    shi += std::norm(t(p, q, r));
+
+        lo = sqrt(slo);
+        hi = sqrt(shi);
     }
     
     template <typename T>
@@ -428,7 +424,84 @@ namespace madness {
         return np;
     };
     
+    template <typename T>
+    void Function<T>::do_transform_to_function_values(OctTreeTPtr& tree) {
+        Tensor<T>& t = *coeff(tree);
+        double scale = std::pow(8.0, 0.5*tree->n());
+        transform3d_inplace(t, data->cdata->quad_phit, data->cdata->work1);
+        t.scale(scale);
+    };
+    
 
+    template <typename T>
+    void Function<T>::do_transform_from_function_values(OctTreeTPtr& tree) {
+        transform3d_inplace(*coeff(tree), data->cdata->quad_phiw, data->cdata->work1);
+    };
+
+    
+    template <typename T>
+    void Function<T>::do_square(OctTreeTPtr& tree) {
+        MADNESS_ASSERT(coeff(tree));
+        Tensor<T>& t = *coeff(tree);
+        double scale = std::pow(8.0, 0.5 * tree->n());
+        transform3d_inplace(t, data->cdata->quad_phit, data->cdata->work1);
+        t.emul(t).scale(scale);
+        transform3d_inplace(t, data->cdata->quad_phiw, data->cdata->work1);
+    };
+    
+
+    template <typename T>
+    bool Function<T>::eval_local(double x, double y, double z, T* value) const {
+        if (iscompressed())
+            MADNESS_EXCEPTION("Function: eval_local: must not be compressed",ind);
+
+        *value = T(0.0);
+        OctTreeTPtr tree = this->tree();
+        if (isactive(tree)) {
+            // Determine if point might be local to this process
+            data->cdata->user_to_sim(x, y, z);
+            double twon = two_to_power(tree->n());
+            x *= twon;
+            y *= twon;
+            z *= twon;
+            x -= tree->x();
+            y -= tree->y();
+            z -= tree->z();
+
+            if (x < 0.0 || y < 0.0 || z < 0.0 ||
+                    x > 1.0 || y > 1.0 || z > 1.0) {
+                if (tree->n() == 0) {
+                    MADNESS_EXCEPTION("Function: eval_local: out of range point",ind);
+                } else {
+                    return false;
+                }
+            }
+
+            // Recur down to find it ... inline for maximum efficiency
+            while (tree && isactive(tree)) {
+               const TensorT* t = coeff(tree);
+                if (t) {
+                    *value = _eval_cube(tree->n(), x, y, z, *t);
+                     return true;
+                }
+                x *= 2.0;
+                y *= 2.0;
+                z *= 2.0;
+                int lx = int(x);
+                int ly = int(y);
+                int lz = int(z);
+                if (lx == 2) --lx;
+                if (ly == 2) --ly;
+                if (lz == 2) --lz;
+                x -= lx;
+                y -= ly;
+                z -= lz; 
+                tree = tree->child(lx, ly, lz);
+            }
+        }
+        return false;
+    };
+    
 
     // Explicit instantiations for double and complex<double>
 

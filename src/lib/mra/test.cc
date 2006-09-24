@@ -85,6 +85,24 @@ int main(int argc, char* argv[]) {
         f.compress();
         f.reconstruct();
         print("valuesX",fred(0.45,0.53,0.48),f(0.45,0.53,0.48));
+        //f.pnorms();
+        
+        f.square();
+        print("valuesSQ",fred(0.45,0.53,0.48)*fred(0.45,0.53,0.48),f(0.45,0.53,0.48));
+        goto done;
+        
+        Function<double> y = f.copy().autorefine();
+        print("err in autoref",y.norm2sq(),f.norm2sq(),(f-y).norm2sq());
+        y.compress();
+        y.reconstruct();
+        print("err in autoref",y.norm2sq(),f.norm2sq(),(f-y).norm2sq());
+
+        df = y.diff(0);
+        dfexact = FunctionFactory<double>(dfred_dx).thresh(1e-9);
+        print("diff norms",df.norm2sq(),dfexact.norm2sq(),f.norm2sq(),y.norm2sq(),(f-y).norm2sq());
+        print("diff x",df(0.45,0.53,0.48),dfred_dx(0.45,0.53,0.48),"normerrsq",(df-dfexact).norm2sq());
+
+        goto done;
 
         df = f.diff(0);
         dfexact = FunctionFactory<double>(dfred_dx).thresh(1e-7).nocompress();

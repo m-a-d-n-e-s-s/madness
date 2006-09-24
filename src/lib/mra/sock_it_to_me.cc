@@ -81,7 +81,7 @@ namespace madness {
         const Slice* s = data->cdata->s;
         FORIJK(OctTreeTPtr child = tree->child(i,j,k);
                if (!child) child = tree->insert_local_child(i,j,k);
-               set_active(child);               
+               set_active(child);   
                set_acflag(child,keep);  // If keeping parent, child will eventually be autocleaned
                Tensor<T> c =  madness::copy(t(s[i],s[j],s[k]));
                if (islocal(child)) {
@@ -196,17 +196,17 @@ namespace madness {
     template <typename T>
     class TaskAwaitCoeff : public TaskInterface {
     private:
-        Function<T>* f;
+        Function<T> f;
         OctTreeT* p;
         mutable SAV< Tensor<T> > result;
     public:
-        TaskAwaitCoeff(Function<T>* f, OctTreeT* p, SAV< Tensor<T> >& result) 
+        TaskAwaitCoeff(Function<T> f, OctTreeT* p, SAV< Tensor<T> >& result) 
         : f(f), p(p), result(result) 
         {}
         
         bool probe() const {
-            if (!f->coeff(p)) return false;
-            if (!result.probe()) result.set(*f->coeff(p));
+            if (!f.coeff(p)) return false;
+            if (!result.probe()) result.set(*f.coeff(p));
             return true;
         }
         void run() {};   
@@ -216,20 +216,20 @@ namespace madness {
     template <typename T>
     class TaskRecurDownToMakeLocal : public TaskInterface {
     private:
-	   Function<T>* f;
+	   Function<T> f;
 	   OctTreeT* p;
 	   Level n;
 	   SAV< Tensor<T> > result;
 	   Translation l[3];
 	
     public:
-	   TaskRecurDownToMakeLocal(Function<T>* f, OctTreeT* p, Level n, const Translation l[3], SAV< Tensor<T> >& result) 
+	   TaskRecurDownToMakeLocal(Function<T>& f, OctTreeT* p, Level n, const Translation l[3], SAV< Tensor<T> >& result) 
 	       : f(f),p(p),n(n),result(result) {
 	       for (int i=0; i<3; i++) this->l[i] = l[i];
 	   };
 	   void run() {
-	       f->recur_down_to_make(p,n,l);
-	       result.set(*f->coeff(p->find(n,l[0],l[1],l[2])));
+	       f.recur_down_to_make(p,n,l);
+	       result.set(*f.coeff(p->find(n,l[0],l[1],l[2])));
 	   };
 	   bool probe() const {return true;};
     };
@@ -263,7 +263,7 @@ namespace madness {
                 fill_in_local_tree(p, n, l);
                 if (coeff(p)) {
                     if (result.islocal()) { // Local reqeusts are deferred
-                        taskq.add_local(new TaskRecurDownToMakeLocal<T>(this,p,n,l,result));
+                        taskq.add_local(new TaskRecurDownToMakeLocal<T>(*this,p,n,l,result));
                     }
                     else { // Immediate gratification for remote requests
                         recur_down_to_make(p,n,l); 
@@ -272,7 +272,7 @@ namespace madness {
                     return;
                 }
                 else if (isremote(p)) {
-                    taskq.add_local(new TaskAwaitCoeff<T>(this,p->find(n,x,y,z),result));       
+                    taskq.add_local(new TaskAwaitCoeff<T>(*this,p->find(n,x,y,z),result));       
                     recur_down_to_make_forward_request(n,l,p->rank());
                     return;
                 }

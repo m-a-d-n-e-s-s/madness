@@ -104,8 +104,11 @@ namespace madness {
     class TaskQueue {
     private:
         // Is there a more efficient choice than list?
-        std::list< TaskInterface* > ready;
-        std::list< TaskInterface* > pending;
+        typedef std::list< TaskInterface* > listT;
+        listT ready;
+        listT pending;
+        listT ready_hp;
+        listT pending_hp;
         HandleManager<GenericOpT> hgen;
 
     public:
@@ -115,21 +118,20 @@ namespace madness {
         void add_local(TaskInterface* t) {
             if (t->probe()) ready.push_back(t);
             else pending.push_back(t);
-            //print(madness::comm_default->rank(),"added task",(void *) t,"ntask=",pending.size(),ready.size());
             madness::comm_default->am_poll();
         };
         
         /// Add a new local high-priority task.  The task queue takes ownership of the pointer.
         void add_local_hp(TaskInterface* t) {
-            if (t->probe()) ready.push_front(t);
-            else pending.push_front(t);
-            //print(madness::comm_default->rank(),"added task",(void *) t,"ntask=",pending.size(),ready.size());
+            if (t->probe()) ready_hp.push_front(t);
+            else pending_hp.push_front(t);
             madness::comm_default->am_poll();
         };
         
         /// Add a new local/remote task passing arguments via vector archive
         
-        /// The routine op should be of type GenericOpT and registered in the TaskQueue
+        /// The routine op should be of type GenericOpT and registered in the TaskQueue.
+        /// All remote tasks will become high-priority at their destination.
         void add_generic(ProcessID dest, GenericOpT op, const std::vector<unsigned char>& v) {
             if (dest < 0 || dest == madness::comm_default->rank()) {
                 add_local(new TaskGeneric(op, v));
@@ -137,8 +139,6 @@ namespace madness {
             else {
                 long handle = hgen.get_handle(op);
                 int tag = madness::comm_default->unique_tag();
-                // While we are single threaded and wait for the data send to complete,
-                // a single tag is OK.  Otherwise, we must use unique tags for each task.
                 madness::comm_default->am_send(dest, task_generic_handler, 
                         AMArg(v.size(), tag, handle));
                 if (v.size()) {
@@ -152,6 +152,7 @@ namespace madness {
         /// Add a new local/remote task calling a routine with the AM handler interface
         
         /// The routine op should be of type am_handlerT and registered in the communicator.
+        /// All remote tasks will become high-priority at their destination.
         void add_am(ProcessID dest, am_handlerT op, const AMArg& arg) {
             if (dest < 0 || dest == madness::comm_default->rank()) {
                 add_local(new TaskAM(op, arg));
@@ -164,11 +165,15 @@ namespace madness {
 
 
         /// Broadcast a generic task to all other nodes, \em excluding the invoking node
+
+        /// All remote tasks will become high-priority at their destination.
         void add_generic_broadcast(GenericOpT op, const std::vector<unsigned char>& v) {
             add_generic_broadcast(hgen.get_handle(op),v);
         };
         
         /// Broadcast an AM handler interface task to all other nodes, \em excluding the invoking node
+
+        /// All remote tasks will become high-priority at their destination.
         void add_am_broadcast(am_handlerT op, const AMArg& arg) {
             long handle = madness::comm_default->_am_handle_manager.get_handle(op);
             madness::comm_default->am_broadcast(handle, arg, false, madness::comm_default->rank());
@@ -179,7 +184,6 @@ namespace madness {
         /// The root argument is for internal use only.
         void add_generic_broadcast(long handle, const std::vector<unsigned char>& v, 
                         ProcessID root=-1) {
-            // ?? why can this not just invoke am_broadcast and then send data?
             long nproc = madness::comm_default->nproc();
             long rank = madness::comm_default->rank();
             if (root == -1) root = rank;
@@ -205,8 +209,6 @@ namespace madness {
                 if (child0<nproc) madness::comm_default->am_wait(req0);
                 if (child1<nproc) madness::comm_default->am_wait(req1);
             }     
-            //print("in bcast",(int)v[0],(int)v[1],(int)v[2],(int)v[3],(int)v[4],(int)v[5],(int)v[6],(int)v[7]);
-            
         };
 
         /// Register user handler for local/remote generic task interface
@@ -218,32 +220,13 @@ namespace madness {
             return hgen.get_pointer(handle);
         };
         
-        /// Probe pending tasks and move the first ready one to ready queue.
-        bool probe() {
-            madness::comm_default->am_poll();
-            if (!pending.empty()) {
-                madness::comm_default->am_suspend();
-                for (std::list<TaskInterface *>::iterator p = pending.begin();
-                        p != pending.end(); ++p) {
-                    TaskInterface *tp = *p;
-                    if (tp->probe()) {                      
-                        ready.push_back(tp);  // Must modify to preserve HP status
-                        pending.erase(p);
-                        madness::comm_default->am_resume();
-                        return true;
-                    }
-                }
-                madness::comm_default->am_resume();
-            }
-            return false;
-        };
         
         /// Wait for an MPI request to complete while processing tasks and AM
         void wait(MPI::Request& req) {
             madness::comm_default->am_poll();
             while (!req.Test()) {
-                probe();
                 if (!run_next_ready_task()) yield();
+                madness::comm_default->am_poll();
             }
         };
 
@@ -251,9 +234,11 @@ namespace madness {
         /// Returns after all local tasks have completed
         void local_fence() {
             madness::comm_default->am_poll();
-            while (!(pending.empty() && ready.empty())) {
-                probe();
-                if (!run_next_ready_task()) yield();
+            while (got_work()) {
+                while(run_next_ready_task()) {
+                    madness::comm_default->am_poll();
+                }
+                yield();
             }
         };
         
@@ -268,30 +253,60 @@ namespace madness {
 
         
     private:
-        /// Runs the next ready task if there is one, returns true if one was run
-        bool run_next_ready_task() {
-            madness::comm_default->am_poll();
-            if (ready.empty()) {
-                return false;
-            }
-            else {
-                madness::comm_default->am_suspend();
-                TaskInterface *p = ready.front();
-                ready.pop_front();
-                //print(madness::comm_default->rank(),"executing task",(void *) p);
-                p->run();
-                delete p;
-                madness::comm_default->am_resume();
-                madness::comm_default->am_poll();
-                return true;
+        /// Returns true if there is work to do (pending or ready)
+        inline bool got_work() {
+           madness::comm_default->am_suspend();
+           bool empty = ready_hp.empty() && pending_hp.empty() && pending.empty() && ready.empty();
+           madness::comm_default->am_resume();
+           return !empty;
+        };
+        
+        /// Move ready pending tasks to the ready queue
+        inline void scan_pending(listT& pending, listT& ready) {
+            for (listT::iterator p=pending.begin(); p!=pending.end();) {
+                TaskInterface* tp = *p;
+                if (tp->probe()) {                      
+                    ready.push_back(tp);
+                    p = pending.erase(p);
+                }
+                 else {
+                    ++p;
+                }
             }
         };
-
-        // Need a probe all to ensure progress of multistep stuff
-
-        // Need hooks to permit use of MPI_Testany instead of busy wait
         
-        inline void yield() {
+        /// Run the next ready task, returning true if one was run
+        bool run_next_ready_task() {
+            if (TaskInterface* p = get_next_ready_task()) {
+                p->run();
+                delete p;
+                return true;
+            }
+            return false;
+        };
+   
+        /// Gets the next ready task if there is one, or returns NULL pointer
+        TaskInterface* get_next_ready_task() {
+            madness::comm_default->am_suspend();
+            if (ready_hp.empty() && !pending_hp.empty()) scan_pending(pending_hp,ready_hp);            
+            if (!ready_hp.empty()) {                        
+                TaskInterface *p = ready_hp.front();
+                ready_hp.pop_front();
+                madness::comm_default->am_resume();
+                return p;
+            }
+            if (ready.empty() && !pending.empty()) scan_pending(pending,ready);            
+            if (!ready.empty()) {                        
+                TaskInterface *p = ready.front();
+                ready.pop_front();
+                madness::comm_default->am_resume();
+                return p;
+            }
+            madness::comm_default->am_resume();
+            return 0;
+        };
+
+        inline void yield() const {
             usleep(10);
         };
     };

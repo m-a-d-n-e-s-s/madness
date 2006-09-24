@@ -29,19 +29,20 @@ namespace madness {
         Function<T> in1;
         Function<T> in2;
         Function<T> out1;
+        bool keep;
         int axis;
         Level n;
         Translation l[3];
         
         struct Payload {
-            int in1;
-            int in2;
-            int out1;
-            int axis;
-            Level n1;
-            Level n2;
             Translation l1[3];
             Translation l2[3];
+            short in1;
+            short in2;
+            short out1;
+            char axis;
+            char n1;
+            char n2;
         };
         
         static void forward_task_handler(Communicator& comm, ProcessID src, const AMArg& amarg) {
@@ -79,7 +80,7 @@ namespace madness {
         TaskLeaf(OctTreeTPtr& tree,
                  Function<T>& in1, Function<T>& in2, Function<T>& out1,
                  int axis, Level n, const Translation *l) 
-        : tree(tree), in1(in1), in2(in2), out1(out1), axis(axis), n(n)         
+        : tree(tree), in1(in1), in2(in2), out1(out1), keep(true), axis(axis), n(n)         
         {
             if (l) for (int i=0; i<3; i++) this->l[i] = l[i];
         };
@@ -101,8 +102,8 @@ namespace madness {
                 apply();
             }
             else {
-                if (in1.coeff(tree)) in1._recur_coeff_down2(tree,true);
-                if (in1.ind!=in2.ind  &&  in2.coeff(tree)) in2._recur_coeff_down2(tree,true);
+                if (in1.coeff(tree)) in1._recur_coeff_down2(tree,keep);
+                if (in1.ind!=in2.ind  &&  in2.coeff(tree)) in2._recur_coeff_down2(tree,keep);
                 FOREACH_CHILD(OctTreeTPtr, tree, 
                               if (tree->islocal()) { 
                                   taskq.add_local(new Derived(child, in1, in2, out1, axis, n, l));
@@ -305,6 +306,70 @@ namespace madness {
         f._doreconstruct(tree->find_down(tree,n,x,y,z),s);
     }
     
+    
+    template <typename T>
+    class TaskAutorefine : public TaskLeaf< T, TaskAutorefine<T> > {
+        friend void mratask_register();
+    private:
+        typedef TaskLeaf< T, TaskAutorefine<T> > baseT;
+
+    public:        
+        TaskAutorefine(OctTreeTPtr& tree,
+                       Function<T>& in1, Function<T>& in2, Function<T>& out1,
+                       int axis, Level n, const Translation *l)
+        : baseT(tree, in1, in2, out1, axis, n, l) {
+            MADNESS_ASSERT(tree);
+            baseT::keep = false;
+        };
+        
+        bool probe() const {return true;};
+        
+        bool predicate() const {return !baseT::in1.autorefine_test(baseT::tree);};
+        
+        void apply() {};
+    };
+    
+    template <typename T>
+    Function<T>& Function<T>::autorefine() {
+        reconstruct();
+        TaskAutorefine<T>::generate_tasks1(this->tree(), *this, *this);
+        taskq.global_fence();
+        return *this;
+    }
+    
+
+    template <typename T>
+    class TaskSquare : public TaskLeaf< T, TaskSquare<T> > {
+        friend void mratask_register();
+    private:
+        typedef TaskLeaf< T, TaskSquare<T> > baseT;
+
+    public:        
+        TaskSquare(OctTreeTPtr& tree,
+                   Function<T>& in1, Function<T>& in2, Function<T>& out1,
+                   int axis, Level n, const Translation *l)
+        : baseT(tree, in1, in2, out1, axis, n, l) {
+            MADNESS_ASSERT(tree);
+            baseT::keep = false;
+        };
+        
+        bool probe() const {return true;};
+        
+        bool predicate() const {return !baseT::in1.autorefine_square_test(baseT::tree);};
+        
+        void apply() {baseT::in1.do_square(baseT::tree);};
+    };
+    
+    template <typename T>
+    Function<T>& Function<T>::square() {
+        reconstruct();
+        TaskSquare<T>::generate_tasks1(this->tree(), *this, *this);
+        taskq.global_fence();
+        return *this;
+    }
+
+
+    
     void mratask_register() {
 #define REGAM(f) print("          AM handler",#f,madness::comm_default->am_register(f))
 #define REGGE(f) print("Generic task handler",#f,taskq.register_generic_op(f))
@@ -320,5 +385,9 @@ namespace madness {
     template Function<double_complex> Function<double_complex>::diff(int axis);
     template void Function<double>::project_refine();
     template void Function<double_complex>::project_refine();
+    template Function<double>& Function<double>::autorefine();
+    template Function<double_complex>& Function<double_complex>::autorefine();
+    template Function<double>& Function<double>::square();
+    template Function<double_complex>& Function<double_complex>::square();
 
 }
