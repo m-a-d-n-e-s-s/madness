@@ -115,21 +115,21 @@ namespace madness {
             };           
         };
         
-        /// If in.coeff(tree) spawns task, otherwise recurs down active, local children 
-        static void generate_tasks1(OctTreeTPtr& tree,
-                                    Function<T>& in, Function<T>& out,
+        /// If in1 or in2 has coeff spawns a task, otherwise recurs down active, local children 
+        static void generate_tasks(OctTreeTPtr& tree,
+                                   Function<T>& in1, Function<T>& in2, Function<T>& out,
                                     int axis=0, Level n=0, const Translation *l=0) {
             comm_default->am_poll();
             MADNESS_ASSERT(tree);
-            if (in.coeff(tree)) {
-                taskq.add_local(new Derived(tree, in, in, out, axis, n, l));
+            if (in1.coeff(tree) || in2.coeff(tree)) {
+                taskq.add_local(new Derived(tree, in1, in2, out, axis, n, l));
             }
-            else if (in.isactive(tree)) {
+            else if (in1.isactive(tree) || in2.isactive(tree)) {
                 out.set_active(tree);
                 FOREACH_CHILD(OctTreeTPtr, tree, 
-                              if (in.isactive(child)) {
-                                  if (in.islocal(child)) 
-                                      generate_tasks1(child,in,out,axis,n,l);
+                              if (in1.isactive(child) || in2.isactive(child)) {
+                                  if (child->islocal()) 
+                                      generate_tasks(child,in1,in2,out,axis,n,l);
                                   else
                                       out.set_active(child);
                               });
@@ -179,7 +179,7 @@ namespace madness {
         reconstruct();
         build_global_tree();
         Function<T> df = FunctionFactory<T>().k(k).compress(false).empty();
-        TaskDiff<T>::generate_tasks1(tree(), *this, df, axis);
+        TaskDiff<T>::generate_tasks(tree(), *this, *this, df, axis);
         taskq.global_fence();
         _auto_clean(tree()); 
         clear_global_tree();
@@ -332,7 +332,7 @@ namespace madness {
     template <typename T>
     Function<T>& Function<T>::autorefine() {
         reconstruct();
-        TaskAutorefine<T>::generate_tasks1(this->tree(), *this, *this);
+        TaskAutorefine<T>::generate_tasks(this->tree(), *this, *this, *this);
         taskq.global_fence();
         return *this;
     }
@@ -359,13 +359,60 @@ namespace madness {
         
         void apply() {baseT::in1.do_square(baseT::tree);};
     };
+
     
     template <typename T>
     Function<T>& Function<T>::square() {
         reconstruct();
-        TaskSquare<T>::generate_tasks1(this->tree(), *this, *this);
+        TaskSquare<T>::generate_tasks(this->tree(), *this, *this, *this);
         taskq.global_fence();
         return *this;
+    }
+
+    template <typename T>
+    class TaskMult : public TaskLeaf< T, TaskMult<T> > {
+        friend void mratask_register();
+    private:
+        typedef TaskLeaf< T, TaskMult<T> > baseT;
+        SAV< Tensor<T> > a;
+        SAV< Tensor<T> > b;
+    public:        
+        TaskMult(OctTreeTPtr& tree,
+                 Function<T>& in1, Function<T>& in2, Function<T>& out1,
+                 int axis, Level n, const Translation *l)
+        : baseT(tree, in1, in2, out1, axis, n, l) {
+            MADNESS_ASSERT(tree);
+
+            Level nn = tree->n();
+            Translation ll[3] = {tree->x(),tree->y(),tree->z()};
+
+            if (in1.coeff(tree)) a.set(*in1.coeff(tree));
+            else in1._sock_it_to_me(tree, nn, ll, a);
+
+            if (in2.coeff(tree)) b.set(*in2.coeff(tree));
+            else in2._sock_it_to_me(tree, nn, ll, b);
+        };
+        
+        bool probe() const {return a.probe() && b.probe();};
+        
+        bool predicate() const {
+            return a.get().size>0 && b.get().size>0 &&
+                   !baseT::in1.autorefine_mult_test(baseT::tree,a.get(),b.get());
+        };
+        
+        void apply() {baseT::out1.do_mult(baseT::tree, a.get(), b.get());};
+    };
+    
+    template <typename T>
+    Function<T> Function<T>::mult(Function<T>& other) {
+        reconstruct();
+        other.reconstruct();
+        Function<T> result = FunctionFactory<T>().k(k).compress(false).empty();
+        TaskMult<T>::generate_tasks(this->tree(), *this, other, result);
+        taskq.global_fence();
+        _auto_clean(tree());
+        other._auto_clean(tree());
+        return result;
     }
 
 
@@ -389,5 +436,7 @@ namespace madness {
     template Function<double_complex>& Function<double_complex>::autorefine();
     template Function<double>& Function<double>::square();
     template Function<double_complex>& Function<double_complex>::square();
+    template Function<double> Function<double>::mult(Function<double>& other);
+    template Function<double_complex> Function<double_complex>::mult(Function<double_complex>& other);
 
 }

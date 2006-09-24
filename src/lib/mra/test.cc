@@ -89,7 +89,11 @@ int main(int argc, char* argv[]) {
         
         f.square();
         print("valuesSQ",fred(0.45,0.53,0.48)*fred(0.45,0.53,0.48),f(0.45,0.53,0.48));
-        goto done;
+        
+        
+        Function<double> p = f*f;
+        print("valuesSQ",fred(0.45,0.53,0.48)*fred(0.45,0.53,0.48),p(0.45,0.53,0.48));
+        
         
         Function<double> y = f.copy().autorefine();
         print("err in autoref",y.norm2sq(),f.norm2sq(),(f-y).norm2sq());

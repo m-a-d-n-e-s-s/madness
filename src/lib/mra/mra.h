@@ -618,6 +618,7 @@ namespace madness {
     template <typename T> class TaskAwaitCoeff;
     template <typename T> class TaskDiff;
     template <typename T> class TaskSquare;
+    template <typename T> class TaskMult;
     template <typename T> class TaskAutorefine;
     template <typename T, typename Derived> class TaskLeaf;
     template <typename T> class TaskRecurDownToMakeLocal;
@@ -636,7 +637,9 @@ namespace madness {
         friend class TaskAutorefine<T>;
         friend class TaskLeaf< T, TaskAutorefine<T> >;
         friend class TaskSquare<T>;
+        friend class TaskMult<T>;
         friend class TaskLeaf< T, TaskSquare<T> >;
+        friend class TaskLeaf< T, TaskMult<T> >;
         friend class TaskAwaitCoeff<T>;
         friend class TaskRecurDownToMakeLocal<T>;
         friend class TaskProjectRefine<T>;
@@ -771,12 +774,12 @@ namespace madness {
         };
         
 
-//        /// Multiplication of two functions.
-//    
-//    	/// Crude version using squaring is inaccurate, slow and implies global sync
-//        Function<T> operator*(Function<T>& other) {
-//            return ((*this+other).square()-(*this-other).square()).scale(0.25);
-//        };
+        /// Multiplication of two functions.
+        Function<T> operator*(Function<T>& other) {
+            return mult(other);
+        };
+        
+        Function<T> mult(Function<T>& other);
 
         /// Binary addition.  Works in wavelet basis generating new Function
 
@@ -1550,8 +1553,24 @@ namespace madness {
         };
         
         
+        /// Returns true if this block of scaling coefficients needs autorefining
+        
+        /// Criteria is that the error in the square due to higher order polyn must be below threshold.
+        /// Each additional level of refinement will reduce them by about 0.5^k.
+        inline bool autorefine_mult_test(const OctTreeTPtr& tree, const Tensor<T>& a, const Tensor<T>& b) const {
+            if (!data->autorefine) return false;
+            double alo, ahi, blo, bhi;
+            _tnorms(a, alo, ahi);
+            _tnorms(b, blo, bhi);
+            return sqrt(ahi*bhi+ahi*blo+blo*ahi) > this->truncate_tol(data->thresh,tree->n());
+        };
+
+
         /// Private.  Squares a block of coefficients
         void do_square(OctTreeTPtr& tree);
+        
+        /// Private.  Multiply two blocks of coeffs and set the result
+        void do_mult(OctTreeTPtr& tree, const Tensor<T>& a, const Tensor<T>& b);
         
         /// Private.  Transforms in place coeffs to function values on quadrature grid
         void do_transform_to_function_values(OctTreeTPtr& tree);

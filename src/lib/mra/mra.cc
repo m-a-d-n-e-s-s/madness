@@ -449,6 +449,17 @@ namespace madness {
         transform3d_inplace(t, data->cdata->quad_phiw, data->cdata->work1);
     };
     
+    template <typename T>
+    void Function<T>::do_mult(OctTreeTPtr& tree, const Tensor<T>& a, const Tensor<T>& b) {
+        double scale = std::pow(8.0, 0.5 * tree->n());
+        Tensor<T> aa = ::copy(a);
+        Tensor<T> bb = ::copy(b);
+        transform3d_inplace(aa, data->cdata->quad_phit, data->cdata->work1);
+        transform3d_inplace(bb, data->cdata->quad_phit, data->cdata->work1);
+        aa.emul(bb).scale(scale);
+        transform3d_inplace(aa, data->cdata->quad_phiw, data->cdata->work1);
+        set_coeff(tree,aa);
+    };
 
     template <typename T>
     bool Function<T>::eval_local(double x, double y, double z, T* value) const {
