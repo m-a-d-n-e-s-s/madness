@@ -2,6 +2,8 @@
 using std::cout;
 using std::endl;
 
+//#include <papi.h>
+
 #include <cstring>
 using std::strcmp;
 
@@ -70,6 +72,12 @@ double_complex cfred(double x, double y, double z) {
 }
 
 int main(int argc, char* argv[]) {
+
+//    int retval, Events[3] = {PAPI_TOT_CYC, PAPI_TOT_INS, PAPI_FP_INS};
+//    long_long values[3];
+//    if (PAPI_start_counters(Events,3) != PAPI_OK) return 1;
+    
+
     Communicator& comm = startup(argc,argv);
 
     // To ensure reliable cleanup catch all C++ exceptions here
@@ -77,41 +85,46 @@ int main(int argc, char* argv[]) {
         //comm.set_debug(true);
         // Do useful stuff here
         FunctionDefaults::k=9;
-        FunctionDefaults::initial_level=0;
+        FunctionDefaults::initial_level=2;
         Function<double> f = FunctionFactory<double>(fred).thresh(1e-7).nocompress().refine();
         Function<double> df,dfexact;
 
         print("valuesX",fred(0.45,0.53,0.48),f(0.45,0.53,0.48));
         f.compress();
+        print("DONE WITH THE COMPRESS");
         f.reconstruct();
+        print("DONE WITH THE RECONSTRUCT");
+        f.pnorms();
         print("valuesX",fred(0.45,0.53,0.48),f(0.45,0.53,0.48));
         //f.pnorms();
         
-        f.square();
-        print("valuesSQ",fred(0.45,0.53,0.48)*fred(0.45,0.53,0.48),f(0.45,0.53,0.48));
+        //f.square();
+        //print("valuesSQ",fred(0.45,0.53,0.48)*fred(0.45,0.53,0.48),f(0.45,0.53,0.48));
         
         
-        Function<double> p = f*f;
-        print("valuesSQ",fred(0.45,0.53,0.48)*fred(0.45,0.53,0.48),p(0.45,0.53,0.48));
+//        Function<double> p = f*f;
+//        print("valuesSQ",fred(0.45,0.53,0.48)*fred(0.45,0.53,0.48),p(0.45,0.53,0.48));
         
         
-        Function<double> y = f.copy().autorefine();
-        print("err in autoref",y.norm2sq(),f.norm2sq(),(f-y).norm2sq());
-        y.compress();
-        y.reconstruct();
-        print("err in autoref",y.norm2sq(),f.norm2sq(),(f-y).norm2sq());
+//        Function<double> y = f.copy().autorefine();
+//        print("err in autoref",y.norm2sq(),f.norm2sq(),(f-y).norm2sq());
+//        y.compress();
+//        y.reconstruct();
+//        print("err in autoref",y.norm2sq(),f.norm2sq(),(f-y).norm2sq());
+//
+//        df = y.diff(0);
+//        dfexact = FunctionFactory<double>(dfred_dx).thresh(1e-9);
+//        print("diff norms",df.norm2sq(),dfexact.norm2sq(),f.norm2sq(),y.norm2sq(),(f-y).norm2sq());
+//        print("diff x",df(0.45,0.53,0.48),dfred_dx(0.45,0.53,0.48),"normerrsq",(df-dfexact).norm2sq());
 
-        df = y.diff(0);
-        dfexact = FunctionFactory<double>(dfred_dx).thresh(1e-9);
-        print("diff norms",df.norm2sq(),dfexact.norm2sq(),f.norm2sq(),y.norm2sq(),(f-y).norm2sq());
+        print("ABOUT TO DIFF");
+        df = f.diff(0);
+        print("DONE THE DIFF");
+        dfexact = FunctionFactory<double>(dfred_dx).thresh(1e-7).nocompress().norefine();
+        print("diff norms",df.norm2sq(),dfexact.norm2sq(),f.norm2sq());
         print("diff x",df(0.45,0.53,0.48),dfred_dx(0.45,0.53,0.48),"normerrsq",(df-dfexact).norm2sq());
 
         goto done;
-
-        df = f.diff(0);
-        dfexact = FunctionFactory<double>(dfred_dx).thresh(1e-7).nocompress();
-        print("diff norms",df.norm2sq(),dfexact.norm2sq(),f.norm2sq());
-        print("diff x",df(0.45,0.53,0.48),dfred_dx(0.45,0.53,0.48),"normerrsq",(df-dfexact).norm2sq());
 
         df = f.diff(1);
         dfexact = FunctionFactory<double>(dfred_dy).thresh(1e-7).nocompress();
@@ -145,7 +158,16 @@ int main(int argc, char* argv[]) {
         std::cerr << "Exception (general)" << std::endl;
         comm.Abort();
     }
-    // The follwing should be used for succesful termination
+
+
+//    if (PAPI_stop_counters(values,3) != PAPI_OK) comm.Abort();
+//    print("PAPI",values[0],values[1],values[2]);
+//    comm.global_sum(values,3);
+//    print("PAPI SUM",values[0],values[1],values[2]);
+    
+
+
+    // The following should be used for succesful termination
     done:
     comm.close();
     MPI::Finalize();
