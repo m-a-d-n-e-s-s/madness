@@ -761,7 +761,6 @@ namespace madness {
     void exchangeTrees(std::vector<RootList> *globalList, std::vector<SharedPtr<OctTree<T> > > *treeList,
                        bool glue) {
         Communicator comm;
-//        madness::redirectio(comm);
         int me = comm.rank();
         int glength = 0, tlength = 0, i, j;
         RootList root;
@@ -1002,7 +1001,7 @@ namespace madness {
                     p->insert_remote_child(x, y, z, (*globalList)[i].future_owner);
                 }
                 /* otherwise, remove the tree from my treeList */
-                else {
+                else if (p) {
                     Translation x = (*globalList)[i].x, y = (*globalList)[i].y, z = (*globalList)[i].z;
                     x -= 2*(x/2);
                     y -= 2*(y/2);
@@ -1094,7 +1093,8 @@ namespace madness {
 
 //	sort((*treeList).begin(), (*treeList).end(), less<OctTree<T>* > ());
 	tlength = treeList->size();
-	sort((*treeList).begin(), (*treeList).end());
+//	sort((*treeList).begin(), (*treeList).end());
+	sort((*treeList).begin(), (*treeList).end(), lessPtr<OctTree<T> > ());
 	if (debug)
 	{
 	    std::cout << "exchangeTrees: before gluing, number of trees = " << tlength << std::endl;
@@ -1237,7 +1237,8 @@ namespace madness {
 	    std::cout << "glueTrees: beginning of function, N = " << N << std::endl;
 	}
 
-	sort((*treeList).begin(), (*treeList).end());
+//	sort((*treeList).begin(), (*treeList).end());
+	sort((*treeList).begin(), (*treeList).end(), lessPtr<OctTree<T> > ());
 
 	if (debug)
 	{
@@ -1358,7 +1359,8 @@ namespace madness {
 					<< " either does not exist or is not local, so insert new node "
 					<< "here" << std::endl;
 				}
-				(*treeList)[tmpi]->insert_local_child(child);
+				if (child->islocal())
+				    (*treeList)[tmpi]->insert_local_child(child);
 			    }
 			}
 		    );
@@ -1454,7 +1456,7 @@ namespace madness {
 			    N--;
 			    j = i;
 			}
-			else
+			else if ((*treeList)[i]->islocal())
 			{
 			    if (debug)
 			    {
@@ -1472,6 +1474,10 @@ namespace madness {
 					<< std::endl;
 			    	}
 				p->insert_local_child((*treeList)[i]);
+				std::cout << "glueTrees: inserted local child: n = " <<
+					(*treeList)[i]->n() << ", (" << (*treeList)[i]->x() << ","
+					<< (*treeList)[i]->y() << "," << (*treeList)[i]->z() << ")"
+					<< std::endl;
 			    	if (debug)
 			    	{
 				    std::cout << "glueTrees: parent still ok? n = " << p->n() <<
@@ -1492,6 +1498,14 @@ namespace madness {
 			    	}
 			    	N--;
 			    	j = i;
+			    }
+			}
+			else
+			{
+			    if (debug)
+			    {
+				std::cout << "glueTrees: this is not the right place for this tree"
+					<< std::endl;
 			    }
 			}
 		    }
@@ -1663,7 +1677,8 @@ namespace madness {
 	    }
 	    std::cout << std::endl;
 	}
-	sort(gtList.begin(), gtList.end());
+//	sort(gtList.begin(), gtList.end());
+	sort(gtList.begin(), gtList.end(), lessPtr<OctTree<char> > ());
 	if (debug)
 	{
 	    std::cout << "createGhostTree: after sorting, before gluing" << std::endl;
@@ -1873,10 +1888,12 @@ namespace madness {
 	{
 	    std::cout << "serialLoadBalance: after creating ghostTree" << std::endl;
 	}
+	ghostTree->treeDiagnostics();
         MPI::COMM_WORLD.Barrier();
 	if (me == 0)
 	{
 	    ghostTree->serialPartition(np, &globalList);
+	    std::cout << "    number of broken links = " << globalList.size() << std::endl;
 	    if (debug)
 	    {
 		std::cout << "serialLoadBalance: after serialPartition of ghostTree" << std::endl;

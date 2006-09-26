@@ -345,10 +345,9 @@ namespace madness {
 	inline void mysort(int meth = 1)
 	{
 	    if (meth == 0)
-		sort(_treeList.begin(), _treeList.end());
+		sort(_treeList.begin(), _treeList.end(), lessPtr<OctTree<FunctionNode> > ());
 	    if (meth == 1)
 	        sort(_treeList.begin(), _treeList.end(), depthFirstOrder<FunctionNode>());
-//	        sort(_treeList.begin(), _treeList.end(), depthFirstOrder<SharedPtr<OctTreeT> >());
 	};
 
 	inline std::vector<SharedPtr<OctTree<FunctionNode> > > treeList()
@@ -694,7 +693,9 @@ namespace madness {
                 , k(data->k)
         , ind(data->ind) {
 //	    std::cout << "Function: FunctionFactory constructor: about to _init" << std::endl;
+	    std::cout << "Function: FunctionFactory constructor: index = " << data->ind << std::endl;
             _init(factory);
+	    std::cout << "Function: FunctionFactory constructor: index = " << data->ind << std::endl;
 //	    std::cout << "Function: FunctionFactory constructor: done with _init" << std::endl;
         };
 

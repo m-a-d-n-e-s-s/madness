@@ -19,7 +19,8 @@ double *Cut;
 
 const double PI           = 3.1415926535897932384;
 const double THREE_SQRTPI = 5.31736155271654808184;
-const double thresh       = 1e-5;
+//const double thresh       = 1e-5;
+const double thresh       = 1e-1;
 const double antoau       = 1.889725989;
 
 struct input_data {
@@ -148,7 +149,7 @@ int main(int argc, char* argv[]) {
          }
       	for (int i=0; i<testdata.ncent; i++) {
             if (fin.getline(ss,256)) {
-          	sscanf(ss,"%d %lf %lf %lf",&charge,&x,&y,&z);
+          	sscanf(ss,"%ld %lf %lf %lf",&charge,&x,&y,&z);
           	testdata.charge[i] = static_cast<double>(charge);
           	testdata.coords[3*i] = x*antoau;
           	testdata.coords[3*i+1] = y*antoau;
@@ -245,7 +246,8 @@ int main(int argc, char* argv[]) {
 
 //	Function<double> f = FunctionFactory<double>(V).refine(1).compress(0).initial_level(testdata.initial_level).thresh(testdata.eacc);
 //	Function<double> f = FunctionFactory<double>(V).compress(0).thresh(testdata.eacc);
-	Function<double> f = FunctionFactory<double>(V).compress(0).thresh(1e-4);
+	Function<double> f = FunctionFactory<double>(V).compress(0).thresh(thresh);
+//	Function<double> *f = new Function<double>(FunctionFactory<double>(V).compress(0).thresh(thresh));
 	MPI::COMM_WORLD.Barrier();
 	double t2 = MPI::Wtime();
 	std::cout << "created function" << std::endl;
@@ -259,23 +261,26 @@ int main(int argc, char* argv[]) {
 	MPI::COMM_WORLD.Barrier();
 	double t3 = MPI::Wtime();
 	f.compress();
+//	f->compress();
 	MPI::COMM_WORLD.Barrier();
 	double t4 = MPI::Wtime();
 
 	print("Tree in wavelet form");
-	f.pnorms();
-    	FunctionDefaults::tree->depthFirstTraverse();
+//	f.pnorms();
+//	f->pnorms();
+//    	FunctionDefaults::tree->depthFirstTraverse();
 
 	std::cout << "about to reconstruct" << std::endl;
 	MPI::COMM_WORLD.Barrier();
 	double t5 = MPI::Wtime();
 	f.reconstruct();
+//	f->reconstruct();
 	MPI::COMM_WORLD.Barrier();
 	double t6 = MPI::Wtime();
 
 	//Now, do load balancing
 	std::cout << "before load balancing: " << std::endl;
-    	FunctionDefaults::tree->depthFirstTraverse();
+//    	FunctionDefaults::tree->depthFirstTraverse();
 
 	std::cout << "about to load balance" << std::endl;
 	MPI::COMM_WORLD.Barrier();
@@ -285,16 +290,18 @@ int main(int argc, char* argv[]) {
 	double t8 = MPI::Wtime();
 
 	std::cout << "f depth first traverse:" << std::endl;
-	f.data->trees->depthFirstTraverse();
+//	f.data->trees->depthFirstTraverse();
+//	f->data->trees->depthFirstTraverse();
 	double cost = f.computeMaxCost();
+//	double cost = f->computeMaxCost();
 	std::cout << "cost = " << cost << std::endl;
 //	Function<double> g = FunctionFactory<double>(fred).thresh(1e-2).compress(0);
 //	Function<double> g = FunctionFactory<double>(V).compress(0).thresh(testdata.eacc);
-	Function<double> g = FunctionFactory<double>(V).compress(0).thresh(1e-4);
+	Function<double> g = FunctionFactory<double>(V).compress(0).thresh(thresh);
 	MPI::COMM_WORLD.Barrier();
 	double t85 = MPI::Wtime();
 	std::cout << "created g:" << std::endl;
-	g.data->trees->depthFirstTraverse();
+//	g.data->trees->depthFirstTraverse();
 
 	std::cout << "about to compress" << std::endl;
 	MPI::COMM_WORLD.Barrier();
@@ -304,7 +311,7 @@ int main(int argc, char* argv[]) {
 	double t10 = MPI::Wtime();
 
 	print("Tree in wavelet form");
-	g.pnorms();
+//	g.pnorms();
 
 	std::cout << "about to reconstruct" << std::endl;
 	MPI::COMM_WORLD.Barrier();
@@ -319,8 +326,9 @@ int main(int argc, char* argv[]) {
 	std::cout << "reinitialized cost function" << std::endl;
 	std::cout << "about to make h" << std::endl;
 	MPI::COMM_WORLD.Barrier();
+	std::cout << "made it past barrier" << std::endl;
 	double t13 = MPI::Wtime();
-	Function<double> h = FunctionFactory<double>(V).compress(0).thresh(1e-4);
+	Function<double> h = FunctionFactory<double>(V).compress(0).thresh(thresh);
 	MPI::COMM_WORLD.Barrier();
 	double t14 = MPI::Wtime();
 
@@ -351,7 +359,9 @@ int main(int argc, char* argv[]) {
 	std::cout << "about to make s" << std::endl;
 	MPI::COMM_WORLD.Barrier();
 	double t21 = MPI::Wtime();
-	Function<double> s = FunctionFactory<double>(V).compress(0).thresh(1e-4);
+//	delete f;
+	Function<double> s = FunctionFactory<double>(V).compress(0).thresh(thresh);
+//	f = new Function<double>(FunctionFactory<double>(V).compress(0).thresh(thresh));
 	MPI::COMM_WORLD.Barrier();
 	double t22 = MPI::Wtime();
 
@@ -367,6 +377,7 @@ int main(int argc, char* argv[]) {
 	MPI::COMM_WORLD.Barrier();
 	double t25 = MPI::Wtime();
 	s.compress();
+//	f->compress();
 	MPI::COMM_WORLD.Barrier();
 	double t26 = MPI::Wtime();
 
@@ -374,6 +385,7 @@ int main(int argc, char* argv[]) {
 	MPI::COMM_WORLD.Barrier();
 	double t27 = MPI::Wtime();
 	s.reconstruct();
+//	f->reconstruct();
 	MPI::COMM_WORLD.Barrier();
 	double t28 = MPI::Wtime();
 

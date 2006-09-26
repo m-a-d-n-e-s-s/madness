@@ -177,9 +177,13 @@ namespace madness {
 	friend bool operator < (const OctTree<T>& t1, const OctTree<T>& t2)
 	{
 	    if (t1._n < t2._n)
+	    {
 		return true;
+	    }
 	    else if (t1._n > t2._n)
+	    {
 		return false;
+	    }
 	    else if (t1._n == 0)
 		return true;
 	    else
@@ -387,7 +391,7 @@ namespace madness {
         
 	inline OctTreeT* setChild(int x, int y, int z, OctTreeT* child) {
 	    _c[x][y][z] = SharedPtr<OctTreeT>(child);
-	    child.setParent(this);
+	    child->setParent(this);
 	    return (OctTreeT*) _c[x][y][z];
 	};
 
@@ -630,11 +634,11 @@ namespace madness {
 	/// Depth-first traversal of tree (prints out diagnostic info)
 	void depthFirstTraverseAll()
 	{
-	    /*std::cout << "layer " << n() << ", (x,y,z) = " << x() << ", "
+	    std::cout << "layer " << n() << ", (x,y,z) = " << x() << ", "
 			<< y() << ", " << z() << std::endl;
 	    std::cout << "      hasChildren? " << this->isParent()
 		 << "    isRemote? " << this->isremote()
-		 << "    sendto? " << this->getSendto() << std::endl;*/
+		 << "    sendto? " << this->getSendto() << std::endl;
 	    FOREACH_CHILD(OctTreeTPtr, this,
 		child->depthFirstTraverseAll();
 		);
@@ -810,7 +814,41 @@ namespace madness {
 	    Level d = this->maxDepth();
 	    this->setDepthCost(d, factor);
 	};
+
     
+        void treeDiagnostics()
+        {
+            int nnodes = this->tallyNodes();
+            Cost total = this->computeCost();
+            Level d = this->maxDepth();
+            long nleaves = this->tallyLeaves();
+            long notleaves = nnodes - nleaves;
+            double avgchild = ((double) nnodes)/notleaves;
+
+            std::cout << "treeDiagnostics: " << std::endl;
+            std::cout << "    number of nodes = " << nnodes << std::endl;
+            std::cout << "    total cost = " << total;
+            std::cout << "    maximum depth = " << d << std::endl;
+            std::cout << "    number of leaf nodes = " << nleaves << std::endl;
+            std::cout << "    average number of leaf children per node = " << avgchild << std::endl;
+        }
+
+        long tallyLeaves()
+        {
+            long nleaves = 0;
+            if (this->isParent())
+            {
+                FOREACH_CHILD(OctTreeTPtr, this,
+                    nleaves += child->tallyLeaves();
+                );
+            }
+            else
+            {
+                nleaves = 1;
+            }
+            return nleaves;
+        }
+
 
         /// Apply a user-provided function (or functor) to all nodes
         template <class Op1, class Op2>
@@ -963,15 +1001,16 @@ namespace madness {
                 idealPartition = iP;
             }
 
+	    bool donepartitioning = false;
 	    /* if we still haven't filled the partition */
-	    while (accumulate < idealPartition)
+	    while ((accumulate < idealPartition) && (!donepartitioning))
 	    {
 		/* if this node has already been visited, then we quit */
 		if (this->isVisited())
 		    break;
 		sofar = idealPartition - accumulate;
 		/* partition this subtree, with "sofar" amount of room left in partition */
-		tmp = this->partitionSubtree(sofar, &subtotal, p, lastPartition);
+		tmp = this->partitionSubtree(sofar, &subtotal, p, lastPartition, &donepartitioning);
 		/* add all the subtrees on temp to list */
 		int tmpsize = tmp.size();
 		if (debug)
@@ -1002,7 +1041,7 @@ namespace madness {
 
 
     std::vector<RootList> partitionSubtree(Cost partition, Cost *subtotal, 
-	int partitionNumber, bool lastPartition)
+	int partitionNumber, bool lastPartition, bool *donepartitioning)
     {
 	Cost accumulate = 0, costLeft = 0, temp = 0, subtreeCost = 0;
 //	bool debug = true;
@@ -1037,80 +1076,84 @@ namespace madness {
 	    /* cost of the subtree rooted by the child and add it to the 	 */
 	    /* partition (if the partition is not already full)			 */
 	    FOREACH_LOCAL_CHILD(OctTreeTPtr, this,
-		if (child->isVisited())
+		if (!(*donepartitioning))
 		{
-//		    if (_debug)
-//		    {
-//			std::cout << "(" << child->x() << ", " << child->y() << ", "
+		    if (child->isVisited())
+		    {
+//		        if (_debug)
+//		        {
+//			    std::cout << "(" << child->x() << ", " << child->y() << ", "
 //				<< child->z() << ") has already been visited." 
 //				<< std::endl;
-//		    }
-		}
-		else if (child->getSendto() == -1)
-		{
-		    subtreeCost = child->getLocalSubtreeCost();
-		    costLeft = partition - accumulate;
-		    if (_debug)
-		    {
-			std::cout << "partitionSubtree: getLocalSubtreeCost = "
-			    << subtreeCost << ", costLeft = " << costLeft
-			    << std::endl;
+//		        }
 		    }
-		    if ((costLeft <= 0 ) && (!lastPartition))
+		    else if (child->getSendto() == -1)
 		    {
-			if (_debug)
-			    std::cout << "partition is full" << std::endl;
-			return treelist;
-		    }
-		    if ((subtreeCost <= costLeft) || (lastPartition))
-		    {
-			child->setVisited(partitionNumber);
-			child->setSendto(partitionNumber);
-			if (_debug)
-			{
-			    std::cout << "set remote to true on child, " <<
-				"child->_remote = " << child->_remote << std::endl;
-			}
-	    		treelist.push_back(RootList(child->x(), child->y(), child->z(), 
+		        subtreeCost = child->getLocalSubtreeCost();
+		        costLeft = partition - accumulate;
+		        if (_debug)
+		        {
+			    std::cout << "partitionSubtree: getLocalSubtreeCost = "
+			        << subtreeCost << ", costLeft = " << costLeft
+			        << std::endl;
+		        }
+		        if ((costLeft <= 0 ) && (!lastPartition))
+		        {
+			    if (_debug)
+			        std::cout << "partition is full" << std::endl;
+			    *donepartitioning = true;
+			    return treelist;
+		        }
+		        if ((subtreeCost <= costLeft) || (lastPartition))
+		        {
+			    child->setVisited(partitionNumber);
+			    child->setSendto(partitionNumber);
+			    if (_debug)
+			    {
+			        std::cout << "set remote to true on child, " <<
+				    "child->_remote = " << child->_remote << std::endl;
+			    }
+	    		    treelist.push_back(RootList(child->x(), child->y(), child->z(), 
 				child->n(), 0, child->getSendto()));
-			if (_debug)
-			{
-			    std::cout << "localCost(before recompute): " <<
-				this->getLocalSubtreeCost() << std::endl;
-			}
-			this->computeCost();
-			if (_debug)
-			{
-			    std::cout << "localCost(after recompute): " <<
-				this->getLocalSubtreeCost() << std::endl;
-			}
-			accumulate += subtreeCost;
-			*subtotal += subtreeCost;
-		    }
-		    else if (costLeft > 0)
-		    {
-			if (_debug)
-			{
-			    std::cout << "partitionSubtree: about to call myself"
-				<< " because costLeft = " << costLeft << std::endl;
-			}
-			treelist2 = child->partitionSubtree(costLeft, &temp, 
-				partitionNumber, lastPartition);
-			if (_debug)
-			{
-			     std::cout << "partitionSubtree: back from calling myself"
-				<< " and accumulated subtree(s) of size " << temp << std::endl;
-			}
-			int tl2size = treelist2.size();
-			for (int i = 0; i < tl2size; i++)
-			{
-			    treelist.push_back(treelist2[i]);
-			}
-			if (temp >= 0)
-			{
-			    accumulate += temp;
-			    *subtotal += temp;
-			}
+			    if (_debug)
+			    {
+			        std::cout << "localCost(before recompute): " <<
+				    this->getLocalSubtreeCost() << std::endl;
+			    }
+			    this->computeCost();
+			    if (_debug)
+			    {
+			        std::cout << "localCost(after recompute): " <<
+				    this->getLocalSubtreeCost() << std::endl;
+			    }
+			    accumulate += subtreeCost;
+			    *subtotal += subtreeCost;
+		        }
+		        else if (costLeft > 0)
+		        {
+			    if (_debug)
+			    {
+			        std::cout << "partitionSubtree: about to call myself"
+				    << " because costLeft = " << costLeft << std::endl;
+			    }
+			    treelist2 = child->partitionSubtree(costLeft, &temp, 
+				partitionNumber, lastPartition, donepartitioning);
+			    if (_debug)
+			    {
+			         std::cout << "partitionSubtree: back from calling myself"
+				    << " and accumulated subtree(s) of size " << temp << std::endl;
+			    }
+			    int tl2size = treelist2.size();
+			    for (int i = 0; i < tl2size; i++)
+			    {
+			        treelist.push_back(treelist2[i]);
+			    }
+			    if (temp >= 0)
+			    {
+			        accumulate += temp;
+			        *subtotal += temp;
+			    }
+		        }
 		    }
 		}
 	    ); // end of FOREACH_LOCAL_CHILD
@@ -1126,6 +1169,7 @@ namespace madness {
 	else
 	{
 	    this->setUnVisited();
+	    *donepartitioning = true;
 	}
 	*subtotal = accumulate;
 	return treelist;

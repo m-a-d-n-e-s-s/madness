@@ -26,6 +26,17 @@ using namespace madness;
 namespace madness {
 
     template <class T>
+    struct lessPtr {
+        bool operator() (const SharedPtr<T>& p1, const SharedPtr<T>& p2) {
+            if (!p1.get())
+                return true;
+            if (!p2.get())
+                return false;
+            return (!(*(p1.get()) < *(p2.get())));
+        }
+    };
+
+    template <class T>
     struct less {
         bool operator() (const T p1, const T p2) {
             if (!p1)
@@ -88,24 +99,24 @@ namespace madness {
 
 
         friend bool operator < (const RootList& t1, const RootList& t2) {
-            std::cout << "operator <: beginning:" << std::endl;
-            std::cout << "operator <: t1: n = " << t1.n << " (" << t1.x << "," << t1.y << "," << t1.z << ")"<< std::endl;
-            std::cout << "operator <: t2: n = " << t1.n << " (" << t2.x << "," << t2.y << "," << t2.z << ")"<< std::endl;
+//            std::cout << "operator <: beginning:" << std::endl;
+//            std::cout << "operator <: t1: n = " << t1.n << " (" << t1.x << "," << t1.y << "," << t1.z << ")"<< std::endl;
+//            std::cout << "operator <: t2: n = " << t1.n << " (" << t2.x << "," << t2.y << "," << t2.z << ")"<< std::endl;
             if (t1.n > t2.n) {
-                std::cout << "operator <: t1.n > t2.n" << std::endl;
+//                std::cout << "operator <: t1.n > t2.n" << std::endl;
                 return true;
             } else if (t1.n < t2.n) {
-                std::cout << "operator <: t1.n < t2.n" << std::endl;
+//                std::cout << "operator <: t1.n < t2.n" << std::endl;
                 return false;
             } else {
-                std::cout << "operator <: computing n1 and n2" << std::endl;
+//                std::cout << "operator <: computing n1 and n2" << std::endl;
                 Translation s1, s2, n1 = (Translation) pow(2.0,t1.n-1), n2 = (Translation) pow(2.0,t2.n-1);
-                std::cout << "operator <: n1 = " << n1 << ", n2 = " << n2 << std::endl;
+//                std::cout << "operator <: n1 = " << n1 << ", n2 = " << n2 << std::endl;
                 if (n1 == 0) n1 = 1;
                 if (n2 == 0) n2 = 1;
                 s1 = (t1.x/n1)*4 + (t1.y/n1)*2 + t1.z/n1;
                 s2 = (t2.x/n2)*4 + (t2.y/n2)*2 + t2.z/n2;
-                std::cout << "operator <: computed s1 and s2: " << s1 << " " << s2 << std::endl;
+//                std::cout << "operator <: computed s1 and s2: " << s1 << " " << s2 << std::endl;
                 if (s1 < s2)
                     return true;
                 else if (s1 > s2)
@@ -221,17 +232,17 @@ namespace madness {
 				RootList(t2->x(), t2->y(), t2->z(), t2->n(), 0, 0));
 		    if (ans == 1)
 		    {
-		        std::cout << "t1 < t2 so return true" << std::endl;
+//		        std::cout << "t1 < t2 so return true" << std::endl;
 			retval = true;
 		    }
 		    else if (ans == 0)
 		    {
-			std::cout << "t1 !< t2 so return false" << std::endl;
+//			std::cout << "t1 !< t2 so return false" << std::endl;
 			retval = false;
 		    }
 		    else
 		    {
-			std::cout << "t1 == t2 so false" << std::endl;
+//			std::cout << "t1 == t2 so false" << std::endl;
 			retval = false;
 		    }
 		    return retval;
@@ -239,10 +250,10 @@ namespace madness {
 
 	        if (t1->n() > t2->n())
        		{
-		    std::cout << "depthFirstOrder: n1 > n2" << std::endl;
+//		    std::cout << "depthFirstOrder: n1 > n2" << std::endl;
 	            Translation x1 = t1->x(), y1 = t1->y(), z1 = t1->z();
 	            Level dn = t1->n() - t2->n();
-		    std::cout << "depthFirstOrder: dn = " << dn << std::endl;
+//		    std::cout << "depthFirstOrder: dn = " << dn << std::endl;
 		    Translation twotodn = (Translation) pow(2.0, dn);
         	    x1 /= twotodn; y1 /= twotodn; z1 /= twotodn;
                	    RootList r1 = RootList(x1, y1, z1, t2->n(), 0, 0);
@@ -251,27 +262,27 @@ namespace madness {
 		    bool retval;
 		    if (ans == 1)
 		    {
-		        std::cout << "r1 < r2 so return true" << std::endl;
+//		        std::cout << "r1 < r2 so return true" << std::endl;
 			retval = true;
 		    }
 		    else if (ans == 0)
 		    {
-		        std::cout << "r1 !< r2 so return false" << std::endl;
+//		        std::cout << "r1 !< r2 so return false" << std::endl;
 			retval = false;
 		    }
 		    else
 		    {
-			std::cout << "r1 == r2 but n1 > n2 so compare t1 with t2's first child" << std::endl;
+//			std::cout << "r1 == r2 but n1 > n2 so compare t1 with t2's first child" << std::endl;
 			retval = tiebreaking(t1, t2);
 		    }
 		    return retval;
         	}
         	else
         	{
-		    std::cout << "depthFirstOrder: n1 < n2" << std::endl;
+//		    std::cout << "depthFirstOrder: n1 < n2" << std::endl;
             	    Translation x2 = t2->x(), y2 = t2->y(), z2 = t2->z();
                     Level dn = t2->n() - t1->n();
-		    std::cout << "depthFirstOrder: dn = " << dn << std::endl;
+//		    std::cout << "depthFirstOrder: dn = " << dn << std::endl;
 		    Translation twotodn = (Translation) pow(2.0, dn);
                     x2 /= twotodn; y2 /= twotodn; z2 /= twotodn;
                     RootList r1 = RootList(t1->x(), t1->y(), t1->z(), t1->n(), 0, 0);
@@ -280,17 +291,17 @@ namespace madness {
 		    bool retval;
 		    if (ans == 1)
 		    {
-			std::cout << "r1 < r2 so return true" << std::endl;
+//			std::cout << "r1 < r2 so return true" << std::endl;
 			retval = true;
 		    }
 		    else if (ans == 0)
 		    {
-			std::cout << "r1 !< r2 so return false" << std::endl;
+//			std::cout << "r1 !< r2 so return false" << std::endl;
 			retval = false;
 		    }
 		    else
 		    {
-			std::cout << "r1 == r2 but n1 < n2 so compare t1's first child with t2" << std::endl;
+//			std::cout << "r1 == r2 but n1 < n2 so compare t1's first child with t2" << std::endl;
 			retval = !(tiebreaking(t2, t1));
 		    }
 		    return retval;
@@ -301,19 +312,19 @@ namespace madness {
 	    {
 		long dx, dy, dz;
 		dx = r1.x - r2.x; dy = r1.y - r2.y; dz = r1.z - r2.z;
-		std::cout << "ordering: r1 = (" << r1.x << "," << r1.y << "," << r1.z << "), n = "
-			<< r1.n << std::endl;
-		std::cout << "ordering: r2 = (" << r2.x << "," << r2.y << "," << r2.z << "), n = "
-			<< r2.n << std::endl;
-		std::cout << "ordering: dx = " << dx << ", dy = " << dy << ", dz = " << dz 
-			<< ", n = " << r1.n << std::endl;
+//		std::cout << "ordering: r1 = (" << r1.x << "," << r1.y << "," << r1.z << "), n = "
+//			<< r1.n << std::endl;
+//		std::cout << "ordering: r2 = (" << r2.x << "," << r2.y << "," << r2.z << "), n = "
+//			<< r2.n << std::endl;
+//		std::cout << "ordering: dx = " << dx << ", dy = " << dy << ", dz = " << dz 
+//			<< ", n = " << r1.n << std::endl;
 		if ((r1.x/2 == r2.x/2) && (r1.y/2 == r2.y/2) && (r1.z/2 == r2.z/2))
 		{
 		    if (dx == 0)
 		    {
 			if (dy == 0)
 			{
-			    std::cout << "ordering: about to return and dz = " << dz << std::endl;
+//			    std::cout << "ordering: about to return and dz = " << dz << std::endl;
 			    if (dz < 0)
 				return 1;
 			    else if (dz > 0)
@@ -322,7 +333,7 @@ namespace madness {
 			}
 			else
 			{
-			    std::cout << "ordering: about to return and dy = " << dy << std::endl;
+//			    std::cout << "ordering: about to return and dy = " << dy << std::endl;
 			    if (dy < 0)
 				return 1;
 			    else
@@ -331,7 +342,7 @@ namespace madness {
 		    }
 		    else
 		    {
-			std::cout << "ordering: about to return and dx = " << dx << std::endl;
+//			std::cout << "ordering: about to return and dx = " << dx << std::endl;
 			if (dx < 0)
 			    return 1;
 			else
@@ -340,7 +351,7 @@ namespace madness {
 		}
 		else
 		{
-		    std::cout << "ordering: recursively calling self " << std::endl;
+//		    std::cout << "ordering: recursively calling self " << std::endl;
 		    return (ordering(RootList(r1.x/2, r1.y/2, r1.z/2, r1.n-1, 0, 0),
 				RootList(r2.x/2, r2.y/2, r2.z/2, r2.n-1, 0, 0)));
 		}
@@ -388,7 +399,7 @@ namespace madness {
 		    
 	            Translation x1 = t1->x(), y1 = t1->y(), z1 = t1->z();
 	            Level dn = t1->n() - t2->n();
-		    std::cout << "depthFirstOrder: dn = " << dn << std::endl;
+//		    std::cout << "depthFirstOrder: dn = " << dn << std::endl;
 		    Translation twotodn = (Translation) pow(2.0, dn);
         	    x1 /= twotodn; y1 /= twotodn; z1 /= twotodn;
                	    RootList r1 = RootList(x1, y1, z1, t2->n(), 0, 0);
