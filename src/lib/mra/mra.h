@@ -536,6 +536,7 @@ namespace madness {
             nterminated = 0;
 
             taskq.global_fence();
+            //madness::comm_default->Barrier();
         };
 
         /// Copy constructor

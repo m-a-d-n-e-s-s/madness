@@ -69,21 +69,6 @@ setenv F77 ifc
 
 
 ======================================================================
-Configure options for Cray XT3 with Portland Group Compilers ... jaguar
-
-I vaguely recall that you have to configure with CXX=pgCC and F77=pgf77 
-and once that has run edit lib/MakeVars to reset them to the mpi
-commands ... but I might be wrong.
-
-setenv CC mpicc
-setenv CXX mpicxx
-setenv F77 mpif77
-./configure --with-cxx-optflags="-fastsse -tp k8-64 -Mflushz" \
-   --with-blas="-lsci" --with-lapack="-lsci"
-
-
-
-===========================================================
 
 IBM power4 using IM compilers ... dumb ass 64-bit computer
 only has a 32 bit parallel envirronment!
@@ -145,21 +130,28 @@ the website at some point for convenience
 ================================
   CRAY XT3 (jaguar) with portland compilers
 
-This is a two step process ... first get configure to run, then 
-edit MakeVars to get the correct settings
+Load the GMALLOC module since it is much faster for small memory chunks
 
-setenv CC pgcc
-setenv CXX pgCC
-./configure --with-blas=-lsci --with-lapack=-lsci
+   module load gmalloc
 
-Now edit lib/MakeVars and ...
+Configuring is a two step process.  First get configure to run, then 
+edit MakeVars to get the correct settings.
+
+   ./configure --with-cxx=pgCC --with-cc=pgcc --with-blas=-lsci --with-lapack=-lsci 
+
+Now edit lib/MakeVars and set the following
+
+CXXDEPENDFLAGS = -M -I/opt/xt-mpt/default/mpich2-64/T/include
+CCDEPENDFLAGS = -M -I/opt/xt-mpt/default/mpich2-64/T/include
+
 CXX = CC
 CXXDEPEND = g++
 CC = cc
 CCDEPEND = gcc
-CXXDEPENDFLAGS = -M -I/opt/xt-mpt/default/mpich2-64/T/include
-CCDEPENDFLAGS = -M -I/opt/xt-mpt/default/mpich2-64/T/include
 
 CXXFLAGS = -fastsse -tp k8-64 -Mflushz -Mcache_align -target=catamount
+CFLAGS = -fastsse -tp k8-64 -Mflushz -Mcache_align -target=catamount
+
+LDFLAGS = $(CXXFLAGS)
 
 and remove -lpthreads from SYSLIBS

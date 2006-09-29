@@ -307,7 +307,7 @@ namespace madness {
         };
 
         inline void yield() const {
-            usleep(10);
+            //usleep(10);
         };
     };
 

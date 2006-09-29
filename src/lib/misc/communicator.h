@@ -99,6 +99,7 @@ namespace madness {
     template<> inline MPI::Datatype MPITypeFromType<int>() {return MPI::INT;};
     template<> inline MPI::Datatype MPITypeFromType<unsigned int>() {return MPI::UNSIGNED;};
     template<> inline MPI::Datatype MPITypeFromType<long>() {return MPI::LONG;};
+    template<> inline MPI::Datatype MPITypeFromType< long long >() {return MPI::LONG;};
     template<> inline MPI::Datatype MPITypeFromType<unsigned long>() {return MPI::UNSIGNED_LONG;};
     template<> inline MPI::Datatype MPITypeFromType<double>() {return MPI::DOUBLE;};
     template<> inline MPI::Datatype MPITypeFromType< std::complex<double> >() {return MPI_COMPLEX;};
@@ -367,7 +368,7 @@ namespace madness {
         };
         
 
-        //void usleep(int i) {};
+        void usleep(int i) {};
         inline void backoff(unsigned long& count) {
             count++;
             if (count < 3) return;

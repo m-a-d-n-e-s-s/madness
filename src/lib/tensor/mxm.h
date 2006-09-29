@@ -6,6 +6,10 @@
 // we use a simple reference implementation of the mxm
 // routines for all except T=double.
 
+#ifdef _CRAY
+#undef _CRAY
+#endif
+
 
 /// Matrix * matrix reference implementation (slow but correct)
 template <typename T>

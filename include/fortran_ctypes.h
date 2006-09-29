@@ -8,10 +8,17 @@
 
 /// Fortran integer
 #ifdef _CRAY
-typedef int integer;
+#  ifndef MADNESS_FORINT
+#    define MADNESS_FORINT int
+#  endif
+#endif
+
+#ifdef MADNESS_FORINT
+typedef MADNESS_FORINT integer;
 #else
 typedef long integer;
 #endif
+
 
 /// Fortran double precision
 typedef double real8;

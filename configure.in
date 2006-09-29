@@ -531,6 +531,14 @@ dnl -----------------------------------
 dnl ---------- Misc checks. -----------
 dnl -----------------------------------
 
+dnl ----------- Equivalent C type for fortran integer ---------
+
+AC_ARG_WITH(fortran_integer, 
+[  --with-fortran-integer    Equivalent C type to Fortran integer (default is long)],
+  EXTRADEFINES="$EXTRADEFINES -DMADNESS_FORINT=$withval"
+)
+AC_DEFINE_UNQUOTED(MADNESS_FORTRAN_INTEGER_TYPE, "$MADNESS_FORTRAN_INTEGER_TYPE")
+
 dnl ----------- Fortran symbol names --------------
 dnl No checking is done, expert user is assumed
 
@@ -733,7 +741,7 @@ fi
 
 dnl ==== MPI is required! (for now?) ====
 if test X"$HAVE_MPI" = X; then
-  AC_MSG_ERROR([MADNESS currently cannot be compiled without an MPI library. Cannot proceed.])
+  AC_MSG_WARN([!! MPI not found ... configure proceeding but MADNESS cannot be compiled without MPI headers+library.])
 fi
 
 dnl --------- Template instantiation. ---------

@@ -302,9 +302,12 @@ namespace madness {
         double h = 1.0/two_to_power(n);
         double xlo = lx*h, ylo = ly*h, zlo = lz*h;
         int npt = data->cdata->npt;
+        int npt3 = npt*npt*npt;
         const Tensor<double>& quad_x = data->cdata->quad_x;
-        double x[64], y[64], z[64];
-        MADNESS_ASSERT(npt<=64);
+
+        double* x=new double[npt3];
+        double* y=new double[npt3];
+        double* z=new double[npt3];
 
         int count = 0;
         for (int i=0; i<npt; i++) {
@@ -322,6 +325,10 @@ namespace madness {
         }
 
         vf(npt*npt*npt, x, y, z, fcube.ptr());
+
+        delete [] x;
+        delete [] y;
+        delete [] z;
     }
 
     template <typename T>

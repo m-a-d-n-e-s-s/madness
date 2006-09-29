@@ -241,22 +241,22 @@ testclean::
 
 ifneq ($(CCDEPENDSUF),none)
 %.d: %.c
-	$(CCDEPEND) $(CCDEPENDFLAGS) -c $(CPPFLAGS) $(CFLAGS) $< > /dev/null
+	$(CCDEPEND) $(CCDEPENDFLAGS) -c $(CPPFLAGS) $< > /dev/null
 	sed 's/^$*.o/$*.$(OBJSUF) $*.d/g' < $(*F).$(CCDEPENDSUF) > $(@F)
 	/bin/rm -f $(*F).$(CCDEPENDSUF)
 else
 %.d: %.c
-	$(CCDEPEND) $(CCDEPENDFLAGS) -c $(CPPFLAGS) $(CFLAGS) $< | sed 's/^$*.o/$*.$(OBJSUF) $*.d/g' > $(@F)
+	$(CCDEPEND) $(CCDEPENDFLAGS) -c $(CPPFLAGS) $< | sed 's/^$*.o/$*.$(OBJSUF) $*.d/g' > $(@F)
 endif
 
 ifneq ($(CXXDEPENDSUF),none)
 %.d: %.cc
-	$(CXXDEPEND) $(CXXDEPENDFLAGS) -c $(CPPFLAGS) $(CXXFLAGS) $< > /dev/null
+	$(CXXDEPEND) $(CXXDEPENDFLAGS) -c $(CPPFLAGS) $< > /dev/null
 	sed 's/^$*.o/$*.$(OBJSUF) $*.d/g' < $(*F).$(CXXDEPENDSUF) > $(@F)
 	/bin/rm -f $(*F).$(CXXDEPENDSUF)
 else
 %.d: %.cc
-	$(CXXDEPEND) $(CXXDEPENDFLAGS) -c $(CPPFLAGS) $(CXXFLAGS) $< | sed 's/^$*.o/$*.$(OBJSUF) $*.d/g' > $(@F)
+	$(CXXDEPEND) $(CXXDEPENDFLAGS) -c $(CPPFLAGS) $< | sed 's/^$*.o/$*.$(OBJSUF) $*.d/g' > $(@F)
 endif
 
 #
