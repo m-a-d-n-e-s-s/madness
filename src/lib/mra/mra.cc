@@ -520,7 +520,6 @@ namespace madness {
         return false;
     };
     
-
     // Explicit instantiations for double and complex<double>
 
     template class Function<double>;

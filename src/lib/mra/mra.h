@@ -488,12 +488,15 @@ namespace madness {
 
         int k;                  ///< Wavelet order
         double thresh;          ///< Screening threshold
+        double truncate_thr;    ///< Tolerance for truncation, defaults to thresh
+        double autorefine_thr;  ///< Tolerance for autorefine, defaults to thresh        
         int initial_level;      ///< Initial level for refinement
         int max_refine_level;   ///< Do not refine below this level
         int truncate_method;    ///< 0=default=(|d|<thresh), 1=(|d|<thresh/2^n);
         bool debug;             ///< If true, verbose printing ... unused?
         bool autorefine;        ///< If true, autorefine where appropriate
         bool refine;            ///< If true, refine when constructed
+        bool nonstandard;        ///< If true, compress keeps scaling coeff
         GlobalTree<3> gtree;    ///< Global root knowledge ... needs relocating
 
         FunctionCommonData<T>* cdata;
@@ -522,13 +525,14 @@ namespace madness {
             ind = tree->alloc();
             FunctionDataPointers<T>::set(ind,this);
 
-            thresh = factory._thresh;
+            truncate_thr = autorefine_thr = thresh = factory._thresh;
             initial_level = factory._initial_level;
             max_refine_level = factory._max_refine_level;
             truncate_method = factory._truncate_method;
             debug = factory._debug;
             autorefine = factory._autorefine;
             refine = factory._refine;
+            nonstandard = false;
             f = factory._f;
             vf = factory._vf;
 
@@ -552,12 +556,15 @@ namespace madness {
             FunctionDataPointers<T>::set(ind,this);
 
             thresh = other.thresh;
+            truncate_thr = other.truncate_thr;
+            autorefine_thr = other.autorefine_thr;
             initial_level = other.initial_level;
             max_refine_level = other.max_refine_level;
             truncate_method = other.truncate_method;
             debug = other.debug;
             f = other.f;
             vf = other.vf;
+            nonstandard = other.nonstandard;
 
             compressed = other.compressed;
             nterminated = other.nterminated;
@@ -631,7 +638,6 @@ namespace madness {
     class Function {
     private:
         typedef Tensor<T> TensorT; ///< Type of tensor used to hold coeffs
-        typedef SAV<TensorT> ArgT; ///< Type of single assignment variable for tasks
 
         friend class TaskDiff<T>;
         friend class TaskLeaf< T, TaskDiff<T> >;
@@ -648,6 +654,7 @@ namespace madness {
         friend void mratask_register();
         
         static void set_active_handler(Communicator& comm, ProcessID src, const AMArg& arg); 
+        static void set_inactive_handler(Communicator& comm, ProcessID src, const AMArg& arg); 
         static void recur_down_handler(Communicator& comm, ProcessID src, VectorInputArchive& ar);
         SAV< Tensor<T> > _get_scaling_coeffs2(OctTreeTPtr& t, int axis, int inc);
         void _sock_it_to_me(OctTreeTPtr& tree, Level n, const Translation l[3], SAV< Tensor<T> >& arg);
@@ -780,7 +787,7 @@ namespace madness {
             return mult(other);
         };
         
-        Function<T> mult(Function<T>& other);
+        Function<T> mult(Function<T>& other, double tol=0.0);
 
         /// Binary addition.  Works in wavelet basis generating new Function
 
@@ -844,17 +851,26 @@ namespace madness {
         
         /// Communication, if any, flows down the tree
         /// Returns self for chaining.
-        Function<T>& autorefine();
+        Function<T>& autorefine(double tol=0.0);
 
         
         void ptree() {_ptree(tree());};
 
-        Function<T>& compress();
-        void _compress(OctTreeTPtr& tree, ArgT& parent);
-        void _compressop(OctTreeTPtr& tree, ArgT args[2][2][2], ArgT& parent);
-        ArgT input_arg(const OctTreeTPtr& consumer, const OctTreeTPtr& producer);
+        Function<T>& nsclean(bool leave_compressed);
+        void _nsclean(OctTreeTPtr& tree, bool leave_compressed);
+        Function<T>& compress(bool nonstandard = false);
+        void _compress(OctTreeTPtr& tree, SAV<TensorT>& parent);
+        void _compressop(OctTreeTPtr& tree, SAV<TensorT> args[2][2][2], SAV<TensorT>& parent);
+        SAV<TensorT> input_arg(const OctTreeTPtr& consumer, const OctTreeTPtr& producer);
 
-        Function<T>& truncate(double tol=0.0) {return *this;};
+        Function<T>& truncate(double tol=0.0);
+        void _truncate(OctTreeTPtr& tree, SAV<bool>& parent);
+        void _truncateop(OctTreeTPtr& tree, SAV<bool> args[2][2][2], SAV<bool>& parent);
+        SAV<bool> input_argb(const OctTreeTPtr& consumer, const OctTreeTPtr& producer);
+        void do_set_children_inactive(OctTreeTPtr& tree);
+        
+        
+        
         /// Reconstruct compressed function (wavelet to scaling function)
 
         /// Communication streams down the tree
@@ -885,7 +901,7 @@ namespace madness {
         /// may be involved depending on the distribution of tree nodes.
         ///
         /// Returns self for chaining.
-        Function<T>& square();
+        Function<T>& square(double tol=0.0);
 
 
         /// Inplace Generalized SAXPY to scale and add two functions.
@@ -1052,21 +1068,6 @@ namespace madness {
 //               localTreeMember& subtreeList, ProcessID remoteRank, const long partLevel,
 //               Communicator& commFunc); 
 ////        void dataSaveInShaManSave(const char* f, Archive& ar, const OctTreeT* tree, localTreeMember& subtreeList, ProcessID remoteRank, const long partLevel, Communicator& commFunc); 
-
-    	/// Inplace truncation of small wavelet coefficients
-        
-//        /// Works in the wavelet basis and compression is performed if the
-//        /// function is not already compressed.  Communication streams up the
-//        /// tree.  The default truncation threshold is that used to construct
-//        /// the function.  If the threshold is zero, nothing is done.
-//        /// Returns self for chaining.
-//    	Function<T>& truncate(double tol = -1.0) {
-//            if (tol < 0.0) tol = this->data->thresh;
-//    	    if (tol == 0.0) return *this;
-//            compress();
-//            if (isactive(tree())) _truncate(tol, tree());
-//            return *this;
-//    	};
         
         T inner_local(const Function<T>& other) const {
             const_cast<Function<T>*>(this)->compress();
@@ -1441,17 +1442,6 @@ namespace madness {
         /// No communication involved.
         double _norm2sq_local(const OctTreeTPtr& tree) const;
 
-        /// Private.  Recursive function to refine from initial projection.
-
-//        /// Communication streams all the way down the tree.
-//        void _refine(OctTreeTPtr& tree);
-
-
-        /// Private.  Recursive function to compress tree.
-
-//        /// Communication streams up the tree.
-//        void _compress(OctTreeTPtr& tree);
-
 
         /// Private.  Recursive function to reconstruct the tree.
 
@@ -1480,10 +1470,6 @@ namespace madness {
                           if (isactive(child))
                           _unaryop(result, child, op););
         }
-
-//        /// Private:  Recursive kernel for truncation
-//        void _truncate(double tol, OctTreeTPtr& tree);
-
 
         /// Private.  Recur down the tree printing out the norm of
         /// the coefficients.
@@ -1537,10 +1523,10 @@ namespace madness {
             MADNESS_ASSERT(tree);
             MADNESS_ASSERT(coeff(tree));
             _tnorms(*coeff(tree), lo, hi);
-            return hi > this->truncate_tol(data->thresh,tree->n());
+            return hi > this->truncate_tol(data->autorefine_thr,tree->n());
         };
         
-        /// Returns true if this block of scaling coefficients needs autorefining
+        /// Returns true if this block of scaling coefficients needs autorefining for square
         
         /// Criteria is that the error in the square due to higher order polyn must be below threshold.
         /// Each additional level of refinement will reduce them by about 0.5^k.
@@ -1550,23 +1536,23 @@ namespace madness {
             MADNESS_ASSERT(tree);
             MADNESS_ASSERT(coeff(tree));
             _tnorms(*coeff(tree), lo, hi);
-            return sqrt(hi*hi+2.0*hi*lo) > this->truncate_tol(data->thresh,tree->n());
+            return sqrt(hi*hi+2.0*hi*lo) > this->truncate_tol(data->autorefine_thr,tree->n());
         };
         
         
-        /// Returns true if this block of scaling coefficients needs autorefining
+        /// Returns true if this block of scaling coefficients needs autorefining for mult
         
-        /// Criteria is that the error in the square due to higher order polyn must be below threshold.
+        /// Criteria is that the error in the product due to higher order polyn must be below threshold.
         /// Each additional level of refinement will reduce them by about 0.5^k.
         inline bool autorefine_mult_test(const OctTreeTPtr& tree, const Tensor<T>& a, const Tensor<T>& b) const {
             if (!data->autorefine) return false;
             double alo, ahi, blo, bhi;
             _tnorms(a, alo, ahi);
             _tnorms(b, blo, bhi);
-            return sqrt(ahi*bhi+ahi*blo+blo*ahi) > this->truncate_tol(data->thresh,tree->n());
+            return sqrt(ahi*bhi+ahi*blo+alo*bhi) > this->truncate_tol(data->autorefine_thr,tree->n());
         };
-
-
+        
+        
         /// Private.  Squares a block of coefficients
         void do_square(OctTreeTPtr& tree);
         

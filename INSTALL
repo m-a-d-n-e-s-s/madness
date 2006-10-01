@@ -60,6 +60,9 @@ Configure options for SGI Altix with Intel compilers ... ram
 
 Intel 8* compilers seem to have some problems.  9* seem OK.
 
+USE_REAL_USLEEP ???
+HAS_XTERM_DEBUG ???
+
 module load icc9138 idb9138 ifort9132
 setenv CC icc
 setenv CXX icpc
@@ -122,7 +125,7 @@ the website at some point for convenience
   
   ARCH = -march=pentium-m
   CXXFLAGS = -Wall -ansi -O0 -ggdb $(ARCH)
-  #CXXFLAGS = -Wall -ansi -O3 -funroll-loops -ffast-math -fomit-frame-pointer $(ARCH)
+  #CXXFLAGS = -DUSE_REAL_USLEEP -DHAS_XTERM_DEBUG -Wall -ansi -O3 -funroll-loops -ffast-math -fomit-frame-pointer $(ARCH)
   
   ./configure --with-cxx=mpicxx --with-cc=mpicc --with-cxx-optflags="-Wall -ansi -O0 -ggdb" --with-cc-optflags="-Wall -ansi -O0 -ggdb" 
   

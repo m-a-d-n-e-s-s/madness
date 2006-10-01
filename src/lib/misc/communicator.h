@@ -367,8 +367,12 @@ namespace madness {
             return (handle&1024) == 0;
         };
         
-
-        void usleep(int i) {};
+        
+#ifndef USE_REAL_USLEEP
+        // Jaguar has really bad problems if the real usleep is called
+        inline void usleep(int i) {};
+#endif
+        
         inline void backoff(unsigned long& count) {
             count++;
             if (count < 3) return;
@@ -382,6 +386,11 @@ namespace madness {
         Communicator& operator=(const Communicator&); // Forbidden
 
     public:
+    
+        /// Yield control to other threads
+        
+        /// Only really useful when oversubscribing processors. 
+        inline void yield() {usleep(10);};
 
         /// Use given communicator and setup topology as 3D mesh (P=2^n)
         Communicator(MPI::Intracomm comm) : _comm(comm) {
@@ -642,27 +651,28 @@ namespace madness {
         };
 
 
-        /// Global sum of a scalar via MPI::Allreduce
+        /// Global reduction of a scalar via MPI::Allreduce
         template <typename T>
-        T global_sum(const T t) {
+        T global_sum(const T t, const MPI::Op& op = MPI::SUM) {
             T result;
             if (debug) madness::print(rank(),"Comm: global sum of scalar");
-            _comm.Allreduce(&t, &result, 1, MPITypeFromType<T>(), MPI::SUM);
+            _comm.Allreduce(&t, &result, 1, MPITypeFromType<T>(), op);
             if (debug) madness::print(rank(),"Comm: global sum done");
             return result;
         }
         
         
-        /// Inplace global sum of an array via MPI::Allreduce
+        /// Inplace global reduction of an array via MPI::Allreduce
         template <typename T>
-        void global_sum(T* t, int count) {
+        void global_sum(T* t, int count, const MPI::Op& op = MPI::SUM) {
             T* result = new T[count];
             if (debug) madness::print("Comm: global sum of vector",count);
-            _comm.Allreduce(t, result, count, MPITypeFromType<T>(), MPI::SUM);
+            _comm.Allreduce(t, result, count, MPITypeFromType<T>(), op);
             for (int i=0; i<count; i++) t[i] = result[i];
             delete [] result;
             if (debug) madness::print("Comm: global sum done");
         }
+
 
         /// Register an "active message" handler
         int am_register(void (*handler)(Communicator&, ProcessID, const AMArg&)) {

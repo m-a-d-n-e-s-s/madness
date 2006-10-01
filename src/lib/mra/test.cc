@@ -138,12 +138,19 @@ public:
 };
 #else
 class papi {
-    static double s;
+    static double cpu,wall;
 public:
-    static void start(){s = walltime();};
-    static void stop(const char* msg) {s=cputime()-s;print("TIME:",msg,s);};
+    static void start(){cpu = cputime(); wall = walltime();};
+    static void stop(const char* msg) {
+        double d[2] = {cputime()-cpu,walltime()-wall};
+        print("TIMES: local",msg,d[0],d[1]);
+        if (madness::comm_default->nproc() > 1) {
+            madness::comm_default->global_sum(d,2,MPI::MAX);
+            print("TIMES:   max",msg,d[0],d[1]);
+        }
+     };
 };
-double papi::s;
+double papi::cpu, papi::wall;
 #endif
 
 
@@ -163,7 +170,7 @@ int main(int argc, char* argv[]) {
         // Do useful stuff here
         comm.Barrier();
         papi::start();
-        Function<double> f = FunctionFactory<double>().vf(vfred).thresh(1e-11).nocompress().refine();
+        Function<double> f = FunctionFactory<double>().vf(vfred).thresh(1e-13).nocompress().refine();
         papi::stop("project + refine of f");
         Function<double> df,dfexact;
 
@@ -178,60 +185,31 @@ int main(int argc, char* argv[]) {
         f.reconstruct();
         papi::stop("reconstruct of f");
 
-        comm.Barrier();
-        papi::start();
-        f.compress();
-        papi::stop("compress of f");
-
-        comm.Barrier();
-        papi::start();
-        f.reconstruct();
-        papi::stop("reconstruct of f");
-
-        comm.Barrier();
-        papi::start();
-        f.compress();
-        papi::stop("compress of f");
-
-        comm.Barrier();
-        papi::start();
-        f.reconstruct();
-        papi::stop("reconstruct of f");
-
-        comm.Barrier();
-        papi::start();
-        f.compress();
-        papi::stop("compress of f");
-
-        comm.Barrier();
-        papi::start();
-        f.reconstruct();
-        papi::stop("reconstruct of f");
 
         print("valuesX",fred(0.45,0.53,0.48),f(0.45,0.53,0.48));
-        
-        //f.square();
-        //print("valuesSQ",fred(0.45,0.53,0.48)*fred(0.45,0.53,0.48),f(0.45,0.53,0.48));
-        
         
         papi::start();
         Function<double> p = f*f;
         papi::stop("squaring");
         print("valuesSQ",fred(0.45,0.53,0.48)*fred(0.45,0.53,0.48),p(0.45,0.53,0.48));
         
+        papi::start();
+        Function<double> q = p.copy();
+        papi::start();
+        p.truncate(1e-9);
+        papi::stop("truncate");
+        print("err after truncate 1",(p-q).norm2sq());
+        p.reconstruct();
+        p.truncate(1e-5);
+        print("err after truncate 2",(p-q).norm2sq());
+        p.truncate(1e-3);
+        print("err after truncate 3",(p-q).norm2sq());
         
-//        Function<double> y = f.copy().autorefine();
-//        print("err in autoref",y.norm2sq(),f.norm2sq(),(f-y).norm2sq());
-//        y.compress();
-//        y.reconstruct();
-//        print("err in autoref",y.norm2sq(),f.norm2sq(),(f-y).norm2sq());
-//
-//        df = y.diff(0);
-//        dfexact = FunctionFactory<double>(dfred_dx).thresh(1e-9);
-//        print("diff norms",df.norm2sq(),dfexact.norm2sq(),f.norm2sq(),y.norm2sq(),(f-y).norm2sq());
-//        print("diff x",df(0.45,0.53,0.48),dfred_dx(0.45,0.53,0.48),"normerrsq",(df-dfexact).norm2sq());
-
-
+        p = q.copy();       
+        q.compress(true);
+        q.nsclean(true);
+        print("err after NS compress and clean",(p-q).norm2sq());
+        
         papi::start();
         df = f.diff(0);
         papi::stop("df/dx");

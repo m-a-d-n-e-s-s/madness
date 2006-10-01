@@ -49,30 +49,54 @@ namespace madness {
 
         virtual ~TaskCompress() {};
     };
-
-    static inline int taghash(Level n, Translation x, Translation y, Translation z) {
-        int n4  = (n&15)<<27;
-        int x9 = (x&511)<<18;
-        int y9 = (y&511)<<9;
-        int z9 = (z&511);
-        int tag = n4|x9|y9|z9;
-        if (tag < 2048) tag += 2048; // To avoid collision with registered tags
+    
+    /// Hash from function+node to a "unique" message tag 
+    static inline int taghash(int ind, Level n, Translation x, Translation y, Translation z) {
+        // Presently assume all 31 bits in tag can be used, but in reality MPI::TAG_UB is
+        // the upper bound and some implementations seem to have a limit of 32k.
+        // Also, the first 2048=2^11 tags are reserved.
+        //
+        // Must have all of ind included since operations on difference functions
+        // may be interleaved.  However, operations for a given function are much 
+        // more likely to be ordered and less likely to collide.  Less likely is 
+        // not the same as never.  The only way to improve upon this is by registering
+        // a unique tag for every remote child.  This is doable and we should switch to this.
+        MADNESS_ASSERT(ind<2048);
+        int n3 = n&7;
+        int x2 = x&3;
+        int y2 = y&3;
+        int z2 = z&3;
+        int tag = (ind<<9)|(n3<<6)|(x2<<4)|(y2<<2)|(z2);
+        tag = tag << 11;
         return tag; 
     };
 
     /// Called by consumer to make a variable that will be set by producer
     template <typename T>
-    typename Function<T>::ArgT Function<T>::input_arg(const OctTreeTPtr& consumer,
-            const OctTreeTPtr& producer) {
-        int tag = taghash(producer->n(),producer->x(),producer->y(),producer->z());
+    SAV< Tensor<T> > Function<T>::input_arg(const OctTreeTPtr& consumer, const OctTreeTPtr& producer) {
+        int tag = taghash(ind,producer->n(),producer->x(),producer->y(),producer->z());
         if (consumer->islocal() && producer->islocal())
-            return ArgT();
+            return SAV< Tensor<T> >();
         else if (consumer->islocal() && producer->isremote())
-            return ArgT(producer->rank(), tag, true, this->data->cdata->vk);
+            return SAV< Tensor<T> >(producer->rank(), tag, true, this->data->cdata->vk);
         else if (consumer->isremote() && producer->islocal())
-            return ArgT(consumer->rank(), tag, false, this->data->cdata->vk);
+            return SAV< Tensor<T> >(consumer->rank(), tag, false, this->data->cdata->vk);
         else
             throw "input_arg: should not happen?";
+    };
+
+    /// Called by consumer to make a variable that will be set by producer
+    template <typename T>
+    SAV<bool> Function<T>::input_argb(const OctTreeTPtr& consumer, const OctTreeTPtr& producer) {
+        int tag = taghash(ind,producer->n(),producer->x(),producer->y(),producer->z());
+        if (consumer->islocal() && producer->islocal())
+            return SAV<bool>();
+        else if (consumer->islocal() && producer->isremote())
+            return SAV<bool>(producer->rank(), tag, true);
+        else if (consumer->isremote() && producer->islocal())
+            return SAV<bool>(consumer->rank(), tag, false);
+        else
+            throw "input_argb: should not happen?";
     };
 
 
@@ -81,11 +105,15 @@ namespace madness {
     /// Communication streams up the tree.
     /// Returns self for chaining.
     template <typename T>
-    Function<T>& Function<T>::compress() {
-        build_global_tree();
+    Function<T>& Function<T>::compress(bool nonstandard) {
+        if (data->compressed && data->nonstandard!=nonstandard) {
+            madness::print("!!!! reconstructing before NS compress");
+            reconstruct();
+        }
         if (!data->compressed) {
+            data->nonstandard = nonstandard;
             if (isactive(tree())) {
-                ArgT dummy;
+                SAV<TensorT> dummy;
                 _compress(tree(),dummy);
             }
             taskq.global_fence();
@@ -95,8 +123,8 @@ namespace madness {
     };
 
     template <typename T>
-    void Function<T>::_compress(OctTreeTPtr& tree, Function<T>::ArgT& parent) {
-        ArgT args[2][2][2];
+    void Function<T>::_compress(OctTreeTPtr& tree, SAV<TensorT>& parent) {
+        SAV<TensorT> args[2][2][2];
         FOREACH_ACTIVE_CHILD(OctTreeTPtr, tree,
                              args[i][j][k] = this->input_arg(tree,child);
                              if (child->islocal()) _compress(child,args[i][j][k]););
@@ -107,7 +135,7 @@ namespace madness {
     };
 
     template <typename T>
-    void Function<T>::_compressop(OctTreeTPtr& tree, Function<T>::ArgT args[2][2][2], Function<T>::ArgT& parent) {
+    void Function<T>::_compressop(OctTreeTPtr& tree, SAV<TensorT> args[2][2][2], SAV<TensorT>& parent) {
         Slice* s = data->cdata->s;      
         TensorT t = TensorT(2*k,2*k,2*k);
         int nchild=0;
@@ -123,9 +151,142 @@ namespace madness {
         }
         else {
             parent.set(*coeff(tree));
-            unset_coeff(tree);
+            if (!data->nonstandard) unset_coeff(tree);
         }           
     };
+    
+    template <typename T>
+    Function<T>& Function<T>::nsclean(bool leave_compressed) {
+        MADNESS_ASSERT(iscompressed() && data->nonstandard);
+        _nsclean(tree(),leave_compressed);
+        data->compressed = leave_compressed;      
+        return *this;      
+    };
+    
+    template <typename T>
+    void Function<T>::_nsclean(OctTreeTPtr& tree, bool leave_compressed) {
+        if (isactive(tree) && islocal(tree)) {
+            MADNESS_ASSERT(coeff(tree));
+            Tensor<T>& t = *coeff(tree);
+            if ( (leave_compressed && t.dim[0] == k) || 
+                (!leave_compressed && t.dim[0] != k) ) unset_coeff(tree);
+            FOREACH_ACTIVE_CHILD(OctTreeTPtr, tree, _nsclean(child,leave_compressed););
+        }
+    };
+    
+    /// A task tailored to the needs of truncate which is similar to compress
+    template <typename T>
+    class TaskTruncate : public TaskInterface {
+    public:
+        typedef SAV<bool> ArgT;
+        typedef OctTree<FunctionNode> OctTreeT;
+        typedef Function<T> FunctionT;
+    private:
+        FunctionT* f;
+        OctTreeTPtr tree;
+        ArgT outarg;
+        ArgT inarg[2][2][2];
+    public:
+        TaskTruncate(FunctionT* f, OctTreeTPtr tree, ArgT in[2][2][2], ArgT& out)
+                : f(f)
+                , tree(tree)
+                , outarg(out) 
+        {
+            FORIJK(inarg[i][j][k] = in[i][j][k];);
+        };
+
+        bool probe() const {
+            FOREACH_CHILD(OctTreeTPtr, tree,
+                          if (f->isactive(child) && !inarg[i][j][k].probe())
+                          return false;);
+            return true;
+        };
+
+        void run() {
+            f->_truncateop(tree,inarg,outarg);
+        };
+
+        virtual ~TaskTruncate() {};
+    };
+    
+    template <typename T>
+    void Function<T>::_truncate(OctTreeTPtr& tree, SAV<bool>& parent) {
+        SAV<bool> args[2][2][2];
+        FOREACH_ACTIVE_CHILD(OctTreeTPtr, tree,
+                             args[i][j][k] = this->input_argb(tree,child);
+                             if (child->islocal()) _truncate(child,args[i][j][k]););
+
+        if (tree->islocal()) {
+            taskq.add_local(new TaskTruncate<T>(this,tree,args,parent));
+        }
+    };
+    
+    /// Inplace truncation
+
+    /// Communication streams up the tree.  Returns self for chaining.
+    template <typename T>
+    Function<T>& Function<T>::truncate(double tol) {
+        compress();
+        if (tol <= 0.0) tol = this->data->thresh;
+        this->data->truncate_thr = tol;
+        if (isactive(tree())) {
+            SAV<bool> dummy;
+            _truncate(tree(),dummy);
+        }
+        taskq.global_fence();
+        return *this;
+    };
+    
+    
+    template <typename T>
+    void Function<T>::set_inactive_handler(Communicator& comm, ProcessID src, const AMArg& arg) {
+        int ind = arg.arg0;
+        Level n = arg.arg1;
+        Translation x=arg.arg2, y=arg.arg3, z=arg.arg4;
+        madness::print("set_inactive_handler",ind,n,x,y,z);
+        Function<T> f = Function<T>(ind);
+        OctTreeTPtr t = f.tree();
+        MADNESS_ASSERT(t);
+        if (t->n()==n && t->x()==x && t->y()==y && t->z()==z) {
+            f.do_set_children_inactive(t);
+        }
+        else {
+            MADNESS_EXCEPTION("set_inactive_handler: confused",0);
+        }
+    };
+    
+    
+    template <typename T>   
+    void Function<T>::do_set_children_inactive(OctTreeTPtr& tree) {
+        FOREACH_ACTIVE_CHILD(OctTreeTPtr, tree, if (child->islocal()) set_inactive(child););
+        // Gotta let those pesky away-from-home kids know also
+        ProcessID ranks[8];
+        int np = unique_active_child_procs(tree,ranks);
+        if (np) {
+            AMArg arg(ind, tree->n(), tree->x(), tree->y(), tree->z());
+            for (int i=0; i<np; i++) {
+                comm()->am_send(ranks[i], set_inactive_handler, arg);
+            }
+        }
+    }
+    
+    template <typename T>
+    void Function<T>::_truncateop(OctTreeTPtr& tree, SAV<bool> args[2][2][2], SAV<bool>& parent) {
+        MADNESS_ASSERT(tree->islocal());
+        int nchild=0; // Counts no. of active children with coefficients
+        FOREACH_ACTIVE_CHILD(OctTreeTPtr, tree, if (args[i][j][k].get()) nchild++;);
+        if (coeff(tree)  &&  nchild == 0  &&  tree->n()>0) {
+            const Tensor<T>& t = *coeff(tree);
+            double dnorm = t.normf();
+            if (dnorm < truncate_tol(data->truncate_thr,tree->n())) {
+                unset_coeff(tree);  // Note, we leave it active.
+                do_set_children_inactive(tree);
+            }
+        }
+        parent.set(coeff(tree));
+    };   
+    
+    
     
     template <typename T>
     void Function<T>::_dodiff_kernel(Function<T>& df, OctTreeTPtr& tree, int axis,

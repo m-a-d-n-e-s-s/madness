@@ -225,7 +225,7 @@ namespace madness {
         void wait(MPI::Request& req) {
             madness::comm_default->am_poll();
             while (!req.Test()) {
-                if (!run_next_ready_task()) yield();
+                if (!run_next_ready_task()) madness::comm_default->yield();
                 madness::comm_default->am_poll();
             }
         };
@@ -238,7 +238,7 @@ namespace madness {
                 while(run_next_ready_task()) {
                     madness::comm_default->am_poll();
                 }
-                yield();
+                madness::comm_default->yield();
             }
         };
         
@@ -246,7 +246,7 @@ namespace madness {
         void global_fence() {
             do {
                 local_fence();
-                yield();
+                madness::comm_default->yield();
                 local_fence();
             } while (madness::comm_default->am_ndiff_spmd(bind_mem_fun(this,&TaskQueue::wait),do_local_fence));
         };    
@@ -304,10 +304,6 @@ namespace madness {
             }
             madness::comm_default->am_resume();
             return 0;
-        };
-
-        inline void yield() const {
-            //usleep(10);
         };
     };
 

@@ -330,8 +330,10 @@ namespace madness {
     };
     
     template <typename T>
-    Function<T>& Function<T>::autorefine() {
+    Function<T>& Function<T>::autorefine(double tol) {
         reconstruct();
+        if (tol <= 0.0) tol = data->thresh;
+        data->autorefine_thr = tol;
         TaskAutorefine<T>::generate_tasks(this->tree(), *this, *this, *this);
         taskq.global_fence();
         return *this;
@@ -362,8 +364,11 @@ namespace madness {
 
     
     template <typename T>
-    Function<T>& Function<T>::square() {
+    Function<T>& Function<T>::square(double tol) {
         reconstruct();
+        if (tol <= 0.0) tol = data->thresh;
+        data->autorefine_thr = tol;
+        
         TaskSquare<T>::generate_tasks(this->tree(), *this, *this, *this);
         taskq.global_fence();
         return *this;
@@ -404,10 +409,12 @@ namespace madness {
     };
     
     template <typename T>
-    Function<T> Function<T>::mult(Function<T>& other) {
+    Function<T> Function<T>::mult(Function<T>& other, double tol) {
         reconstruct();
         other.reconstruct();
         Function<T> result = FunctionFactory<T>().k(k).compress(false).empty();
+        if (tol <= 0.) tol = result.data->thresh;
+        result.data->autorefine_thr = tol;
         TaskMult<T>::generate_tasks(this->tree(), *this, other, result);
         taskq.global_fence();
         _auto_clean(tree());
@@ -432,11 +439,11 @@ namespace madness {
     template Function<double_complex> Function<double_complex>::diff(int axis);
     template void Function<double>::project_refine();
     template void Function<double_complex>::project_refine();
-    template Function<double>& Function<double>::autorefine();
-    template Function<double_complex>& Function<double_complex>::autorefine();
-    template Function<double>& Function<double>::square();
-    template Function<double_complex>& Function<double_complex>::square();
-    template Function<double> Function<double>::mult(Function<double>& other);
-    template Function<double_complex> Function<double_complex>::mult(Function<double_complex>& other);
+    template Function<double>& Function<double>::autorefine(double);
+    template Function<double_complex>& Function<double_complex>::autorefine(double);
+    template Function<double>& Function<double>::square(double);
+    template Function<double_complex>& Function<double_complex>::square(double);
+    template Function<double> Function<double>::mult(Function<double>& other, double);
+    template Function<double_complex> Function<double_complex>::mult(Function<double_complex>& other, double);
 
 }

@@ -62,14 +62,17 @@ namespace madness {
         REGAM(task_generic_handler);
         REGAM(Function<double>::set_active_handler);
         REGAM(Function< std::complex<double> >::set_active_handler);
+        REGAM(Function<double>::set_inactive_handler);
+        REGAM(Function< std::complex<double> >::set_inactive_handler);
         REGAM(Function<double>::_sock_it_to_me_handler);
         REGAM(Function< std::complex<double> >::_sock_it_to_me_handler);
         REGAM(Function<double>::recur_down_to_make_handler);
         REGAM(Function< std::complex<double> >::recur_down_to_make_handler);
         
+        mratask_register();
+        
         REGGE(Function<double>::recur_down_handler);
         REGGE(Function< std::complex<double> >::recur_down_handler);
-        mratask_register();
 
         print("");
         taskq.global_fence();
