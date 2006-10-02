@@ -68,6 +68,7 @@ namespace madness {
         int z2 = z&3;
         int tag = (ind<<9)|(n3<<6)|(x2<<4)|(y2<<2)|(z2);
         tag = tag << 11;
+        //madness::print("taghash",ind,n,x,y,z,tag);       
         return tag; 
     };
 
@@ -165,11 +166,13 @@ namespace madness {
     
     template <typename T>
     void Function<T>::_nsclean(OctTreeTPtr& tree, bool leave_compressed) {
-        if (isactive(tree) && islocal(tree)) {
-            MADNESS_ASSERT(coeff(tree));
-            Tensor<T>& t = *coeff(tree);
-            if ( (leave_compressed && t.dim[0] == k) || 
-                (!leave_compressed && t.dim[0] != k) ) unset_coeff(tree);
+        if (isactive(tree)) {
+            if (islocal(tree)) {
+                MADNESS_ASSERT(coeff(tree));
+                Tensor<T>& t = *coeff(tree);
+                if ( (leave_compressed && t.dim[0] == k) || 
+                    (!leave_compressed && t.dim[0] != k) ) unset_coeff(tree);
+            }
             FOREACH_ACTIVE_CHILD(OctTreeTPtr, tree, _nsclean(child,leave_compressed););
         }
     };
