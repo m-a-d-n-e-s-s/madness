@@ -2,8 +2,6 @@
 using std::cout;
 using std::endl;
 
-//#define MADNESS_PAPI
-
 #ifdef MADNESS_PAPI
 #include <papi.h>
 #endif
@@ -119,7 +117,7 @@ double_complex cfred(double x, double y, double z) {
 class papi {
 public:
     static void start() {
-        int Events[] = {PAPI_TOT_CYC, PAPI_TOT_INS, PAPI_FP_INS};
+        static int Events[] = {PAPI_TOT_CYC, PAPI_TOT_INS, PAPI_FP_INS};
         MADNESS_ASSERT(PAPI_start_counters(Events,3) == PAPI_OK);
     };
     static void stop(const char*msg) {
@@ -193,15 +191,21 @@ int main(int argc, char* argv[]) {
         papi::stop("squaring");
         print("valuesSQ",fred(0.45,0.53,0.48)*fred(0.45,0.53,0.48),p(0.45,0.53,0.48));
         
-        papi::start();
         Function<double> q = p.copy();
         papi::start();
         p.truncate(1e-9);
         papi::stop("truncate");
         print("err after truncate 1",(p-q).norm2sq());
+
+
+        print("RECON START");
         p.reconstruct();
+        print("TRUNC START");
         p.truncate(1e-5);
+        print("TRUNC STOP");
+        
         print("err after truncate 2",(p-q).norm2sq());
+        p.reconstruct();
         p.truncate(1e-3);
         print("err after truncate 3",(p-q).norm2sq());
         

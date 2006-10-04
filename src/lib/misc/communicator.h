@@ -368,11 +368,7 @@ namespace madness {
         };
         
         
-#ifndef USE_REAL_USLEEP
-        // Jaguar has really bad problems if the real usleep is called
-        inline void usleep(int i) {};
-#endif
-        
+#ifdef USE_REAL_USLEEP
         inline void backoff(unsigned long& count) {
             count++;
             if (count < 3) return;
@@ -381,6 +377,13 @@ namespace madness {
             else if (count < 3000) usleep(100000); // 100s at 100ms intervals
             else throw "Deadlocked inside backoff"; // FOR DEBUGGING AM ...
         };
+#else
+        inline void backoff(unsigned long& count) {};
+
+        // Jaguar has really bad problems if the real usleep is called
+        inline void usleep(int i) {};
+#endif
+
 
         Communicator(const Communicator&); // Forbidden
         Communicator& operator=(const Communicator&); // Forbidden

@@ -157,4 +157,4 @@ CFLAGS = -fastsse -tp k8-64 -Mflushz -Mcache_align -target=catamount
 
 LDFLAGS = $(CXXFLAGS)
 
-and remove -lpthreads from SYSLIBS
+and remove -lpthread from SYSLIBS

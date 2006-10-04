@@ -300,7 +300,6 @@ namespace madness {
         Translation x, y, z;
         Tensor<T> s;
         ar & ind & n & x & y & z & s;
-        madness::print("RECONSTRUCTION HANDLER",ind,n,x,y,z,s.size);
         Function<T> f(ind);
         OctTreeTPtr tree = f.tree();
         f._doreconstruct(tree->find_down(tree,n,x,y,z),s);

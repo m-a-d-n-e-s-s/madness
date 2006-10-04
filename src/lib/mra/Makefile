@@ -24,12 +24,16 @@ TEST1SRC = test.cc
 TEST2SRC = testq.cc
 TEST3SRC = rhb.cc mraX.cc 
 TEST4SRC = test_serialize.cc
+TEST5SRC = joule.cc
          
 # GlobalMakefile now does most of the work for you
 include $(TOPDIR)/lib/GlobalMakefile
 
 # You must define additional rules to link your test programs
 test: $(TEST1OBJ) $(THISLIBDEPEND) 
+	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ $(SYSLIBS) $(LTLINKBINOPTS)
+
+joule: $(TEST5OBJ) $(THISLIBDEPEND) 
 	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ $(SYSLIBS) $(LTLINKBINOPTS)
 
 testq: $(TEST2OBJ) $(THISLIBDEPEND)
