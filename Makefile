@@ -6,6 +6,8 @@ include $(TOPDIR)/lib/GlobalMakefile
 include $(TOPDIR)/lib/MakeSubDirs
 include $(TOPDIR)/Makedirlist
 
+all:	default
+
 clean::
 	-rm -f depcheck.cc
 
