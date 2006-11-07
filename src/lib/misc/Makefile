@@ -4,6 +4,7 @@ CXXSRC =  walltime.cc checksum_file.cc redirectio.cc am_stuff.cc debug.cc madexc
 TESTPROGS = test
 TEST1SRC = test.cc 
 TEST2SRC = am.cc
+TEST3SRC = test_diskdir.cc
 
 include $(TOPDIR)/lib/GlobalMakefile
 
@@ -14,4 +15,6 @@ test: $(TEST1OBJ) $(THISLIBDEPEND)
 am: $(TEST2OBJ) $(THISLIBDEPEND)
 	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ $(SYSLIBS) $(LTLINKBINOPTS)
 
+test_diskdir: $(TEST3OBJ) 
+	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ ../mra/legendre.o  ../mra/sepop.o  ../mra/gfit.o  ../mra/twoscale.o ../../../lib/libMADmra.a ../../../lib/libMADtensor.a ../../../lib/libMADmisc.a ../../../lib/libMADserialize.a ../../../lib/libMADocttree.a ../../../lib/libMADtasks.a /usr/lib/liblapack.a /usr/lib/libblas.a  -lpthread 
 
