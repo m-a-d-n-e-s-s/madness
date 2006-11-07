@@ -147,12 +147,12 @@ namespace madness {
       }
     }
   };
-
+  
   template <typename T>
   template <class Archive>
   void Function<T>::saveManager(const char* f, Archive& ar, const OctTreeT* tree, const long partLevel, Communicator& commFunc)
   {
-//    void Function<T>::saveManager(const char* f, Archive& ar, const OctTreeT* tree, const long partLevel, Communicator& commFunc) {
+    //    void Function<T>::saveManager(const char* f, Archive& ar, const OctTreeT* tree, const long partLevel, Communicator& commFunc) {
     if (isremote(tree)) {
       shadowManager_save(f, ar, tree, tree->n(), tree->x(), tree->y(), 
 			 tree->z(), tree->rank(), partLevel, commFunc);
@@ -198,11 +198,11 @@ namespace madness {
 	     );
     }
   }
-
+  
   template <typename T>
   template <class Archive>
   void Function<T>::shadowManager_save(const char* f, Archive& ar, const OctTreeT* tree, Level n, Translation x, Translation y, Translation z, ProcessID remoteRank, const long partLevel, Communicator& commFunc) 
-//    void Function<T>::shadowManager_save(const char* f, Archive& ar, const OctTreeT* tree, Level n, Translation x, Translation y, Translation z, ProcessID remoteRank, const long partLevel, Communicator& commFunc) 
+  //    void Function<T>::shadowManager_save(const char* f, Archive& ar, const OctTreeT* tree, Level n, Translation x, Translation y, Translation z, ProcessID remoteRank, const long partLevel, Communicator& commFunc) 
   {
     int nRemoteBranch;
     madness::archive::MPIOutputArchive arout(commFunc, remoteRank);
@@ -238,11 +238,11 @@ namespace madness {
     }
     //      MPI_Barrier(MPI_COMM_WORLD);
   }
-
+  
   template <typename T>
   template <class Archive>
   void Function<T>::_shadowManager_save(const char* f, Archive& ar, const OctTreeT* tree, std::vector<localTreeMember>& subtreeList, ProcessID remoteRank, const long partLevel, Communicator& commFunc, const int nRemoteBranch, int& iter) 
-//    void Function<T>::dataSaveInShaManSave(const char* f, Archive& ar, const OctTreeT* tree, localTreeMember& subtreeList, ProcessID remoteRank, const long partLevel, Communicator& commFunc) 
+  //    void Function<T>::dataSaveInShaManSave(const char* f, Archive& ar, const OctTreeT* tree, localTreeMember& subtreeList, ProcessID remoteRank, const long partLevel, Communicator& commFunc) 
   {
     FORIJK(
 	   if(partLevel > 0 && subtreeList[iter].n == partLevel && !subtreeList[iter].remote) {
@@ -270,7 +270,7 @@ namespace madness {
 	   }
 	   );
   }
-
+  
   template <typename T>
   template <class Archive>
   void Function<T>::dataSaveInShaManSave(const char* f, Archive& ar, const OctTreeT* tree, localTreeMember& subtreeList, ProcessID remoteRank, const long partLevel, Communicator& commFunc) 
@@ -371,17 +371,17 @@ namespace madness {
 		 shadowManager_load(f, iar, tree, n_local3, x_local3, y_local3, z_local3, local_remoteRank, commFunc, partLevel, active_flag, have_child);
 	       }
 	       /*
-        //OctTreeTPtrchild = tree -> child(i, j, k);
-        //bool have_child;
-        ar & have_child;
-        arout & have_child;
-        arout.flush();
-        if(have_child) {
-          ar & active_flag;
-          arin & local_remoteRank & n_local & x_local & y_local & z_local;
-          if(local_remoteRank == 0) {
-            OctTreeT* treemaster = tree->find(n_local, x_local, y_local, z_local);
-            loadManager(f, ar, treemaster, commFunc, active_flag, 0, have_child);
+	       //OctTreeTPtrchild = tree -> child(i, j, k);
+	       //bool have_child;
+	       ar & have_child;
+	       arout & have_child;
+	       arout.flush();
+	       if(have_child) {
+	       ar & active_flag;
+	       arin & local_remoteRank & n_local & x_local & y_local & z_local;
+	       if(local_remoteRank == 0) {
+	       OctTreeT* treemaster = tree->find(n_local, x_local, y_local, z_local);
+	       loadManager(f, ar, treemaster, commFunc, active_flag, 0, have_child);
 	       */
 	     }
 	   }
@@ -408,7 +408,7 @@ namespace madness {
 	   }
 	   );
   }
-
+  
   template <typename T>
   void Function<T>::saveLoadWorker(OctTreeT* tree, Communicator& commFunc, bool save) 
   {
@@ -494,7 +494,7 @@ namespace madness {
 	   }
 	   );
   }
-
+  
   template <typename T>
   void Function<T>::sendRecvDataWorker_save(OctTreeT* tree, Communicator& commFunc)
   {
@@ -519,7 +519,7 @@ namespace madness {
 			sendRecvDataWorker_save(child, commFunc);
 			);
   }
-
+  
   template <typename T>
   void Function<T>::sendRecvDataWorker_load(const OctTreeT* treeclient, Communicator& commFunc)
   {
@@ -563,7 +563,7 @@ namespace madness {
 	   }
 	   );
   }
-
+  
   template <typename T>
   void Function<T>::load(const char* f, Communicator& comm)
   {
@@ -724,30 +724,34 @@ namespace madness {
     strcat(newfilename, tmp);
   }
   template void Function<double>::save(const char* f, const long partLevel, Communicator& comm);
-
+  
   template void Function<double>::load(const char* f, Communicator& comm);
-
+  
   template void Function<double>::save_local<TextFstreamOutputArchive>( TextFstreamOutputArchive& ar);
-
+  
   template void Function<double>::_save_local<TextFstreamOutputArchive>( TextFstreamOutputArchive& ar, const OctTreeT* tree); 
-
+  
   template void Function<double>::load_local<TextFstreamInputArchive>( const TextFstreamInputArchive& ar); 
-
+  
   template void Function<double>::_load_local<TextFstreamInputArchive>( const TextFstreamInputArchive& ar, OctTreeT* tree); 
-
+  
   template void Function<double>::saveMain<TextFstreamOutputArchive>( const char*f, TextFstreamOutputArchive& ar, const long partLevel, Communicator& comm); 
-
+  
   template void Function<double>::saveManager<TextFstreamOutputArchive>( const char* f, TextFstreamOutputArchive& ar, const OctTreeT* tree, const long partLevel, Communicator& commFunc);
-
+  
   template void Function<double>::shadowManager_save<TextFstreamOutputArchive>( const char* f, TextFstreamOutputArchive& ar, const OctTreeT* tree, Level n, Translation x, Translation y, Translation z, ProcessID remoteRank, const long partLevel, Communicator& commFunc); 
 
   template void Function<double>::shadowManager_load<TextFstreamInputArchive>( const char* f, const TextFstreamInputArchive& ar, OctTreeT* tree, Level n, Translation x, Translation y, Translation z, ProcessID remoteRank, Communicator& commFunc, const long partLevel, bool active_flag, bool have_child); 
-
+  
   template void Function<double>::loadManager<TextFstreamInputArchive>( const char* f, const TextFstreamInputArchive& ar, OctTreeT* tree, Communicator& commFunc, bool active_flag, const long partLevel, bool have_child); 
-
+  
   template void Function<double>::dataSaveInShaManSave<TextFstreamOutputArchive>( const char* f, TextFstreamOutputArchive& ar, const OctTreeT* tree, localTreeMember& subtreeList, ProcessID remoteRank, const long partLevel, Communicator& commFunc); 
-
+  
   template void Function<double>::_shadowManager_save<TextFstreamOutputArchive>( const char* f, TextFstreamOutputArchive& ar, const OctTreeT* tree, std::vector<localTreeMember>& subtreeList, ProcessID remoteRank, const long partLevel, Communicator& commFunc, const int nRemoteBranch, int& iter); 
 
+  template void Function<double>::saveLoadWorker(OctTreeT* tree, Communicator& commFunc, bool save); 
+
+  template void Function< std::complex<double> >::saveLoadWorker(OctTreeT* tree, Communicator& commFunc, bool save); 
+  
   //    template void Function<double>::produceNewFilename(const char* f, const long partLevel, const OctTreeTPtr& tree, char newfilename);     
 }

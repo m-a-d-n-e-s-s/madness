@@ -996,10 +996,9 @@ namespace madness {
 	/// This member is worker to send/recieve msg from rank 0.
         void saveLoadWorker(OctTreeT* tree, Communicator& commFunc, bool save);
 	
-	/// This member is member for DiskDir class.
+	/// This member is a member for DiskDir class.
 	void saveLoadWorker4DD(Communicator& comm, bool save){
-	  //             saveLoadWorker(tree(), comm, save);
-	  //saveLoadWorker(tree(), comm, save);
+	  saveLoadWorker(tree(), comm, save);
         } 
 	
 	/// This member Returns localsubtreelist of client computer to Master.
@@ -1032,8 +1031,8 @@ namespace madness {
 	
 	/// Load Managing Function member for DiskDir class. 
 	template <class Archive>
-	  void loadManager4DD(const Archive& ar, Communicator& commFunc, bool active_flag){
-	  //loadManager(ar, tree(), commFunc, active_flag, true);
+	  void loadManager4DD(const char* f, const Archive& ar, Communicator& commFunc, bool active_flag, const long partLevel){
+	  loadManager(f, ar, tree(), commFunc, active_flag, partLevel, true);
 	}
 
 	/// Making Archive class's file name for 2-layer Serialization in sequential calculations.
