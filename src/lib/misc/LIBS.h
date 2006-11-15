@@ -1,1 +1,2 @@
 libMADmisc.LIBSUF
+libMADserialize.LIBSUF
