@@ -968,47 +968,69 @@ namespace madness {
 
 	/// The save function is the member to serialize coefficients.
         /// This member is already parallelized. 
-	void save(const char* f, const long partLevel, Communicator& comm);
+	//void save(const char* f, const long partLevel, Communicator& comm);
+	void save(const char* f, const long partLevel);
 	
 	/// saveMain member controlls before and after treatments of saveManager. 
 	template <class Archive>
-	  void saveMain(const char* f, Archive& ar, const long partLevel, Communicator& comm);
+	  void saveMain(const char* f, Archive& ar, const long partLevel);
+	  //void saveMain(const char* f, Archive& ar, const long partLevel, Communicator& comm);
 
 	/// saveManager Function member serialize coefficients on local (rank 0 ) branch. 
 	template <class Archive>
-	  void saveManager(const char* f, Archive& ar, const OctTreeT* tree, const long partLevel, Communicator& commFunc);
-	//	void saveManager(const char* f, Archive& ar, const OctTreeT* tree, const long partLevel, Communicator& commFunc);
+	  void saveManager(const char* f, Archive& ar, const OctTreeT* tree,
+			   const long partLevel);
+	//void saveManager(const char* f, Archive& ar, const OctTreeT* tree, const long partLevel, Communicator& commFunc);
 	
 	/// This member serializes coefficients on client branch.
 	template <class Archive>
-	  void shadowManager_save(const char* f, Archive& ar, const OctTreeT* tree, Level n, Translation x, Translation y, Translation z, ProcessID remoteRank, const long partLevel, Communicator& commFunc);
-	//	void shadowManager_save(const char* f, Archive& ar, const OctTreeT* tree, Level n, Translation x, Translation y, Translation z, 
-	//        ProcessID remoteRank, const long partLevel, Communicator& commFunc);
+	  void shadowManager_save(const char* f, Archive& ar,
+				  const OctTreeT* tree, Level n,
+				  Translation x, Translation y,
+				  Translation z, ProcessID remoteRank,
+				  const long partLevel);
+	//void shadowManager_save(const char* f, Archive& ar, const OctTreeT* tree, Level n, Translation x, Translation y, Translation z, ProcessID remoteRank, const long partLevel, Communicator& commFunc);
 	
         /// This member serialize client's coeffcients.
 	template <class Archive>
-	  void _shadowManager_save(const char* f, Archive& ar, const OctTreeT* tree, std::vector<localTreeMember>& subtreeList, ProcessID remoteRank, const long partLevel, Communicator& commFunc, const int nRemoteBranch, int& iter); 
+	  void _shadowManager_save(const char* f, Archive& ar,
+				   const OctTreeT* tree,
+				   std::vector<localTreeMember>& subtreeList,
+				   ProcessID remoteRank, const long partLevel,
+				   const int nRemoteBranch, int& iter); 
+	//void _shadowManager_save(const char* f, Archive& ar, const OctTreeT* tree, std::vector<localTreeMember>& subtreeList, ProcessID remoteRank, const long partLevel, Communicator& commFunc, const int nRemoteBranch, int& iter); 
 	
 	/// This member cotrols distributes coefficients to client branch.
 	template <class Archive>
-	  void shadowManager_load(const char* f, const Archive& ar, OctTreeT* tree, Level n, Translation x, Translation y, Translation z, ProcessID remoteRank, Communicator& commFunc, const long partLevel, bool active_flag, bool have_child);
+	  void shadowManager_load(const char* f, const Archive& ar,
+				  OctTreeT* tree, Level n, Translation x,
+				  Translation y, Translation z,
+				  ProcessID remoteRank, const long partLevel,
+				  bool active_flag, bool have_child);
+	//void shadowManager_load(const char* f, const Archive& ar, OctTreeT* tree, Level n, Translation x, Translation y, Translation z, ProcessID remoteRank, Communicator& commFunc, const long partLevel, bool active_flag, bool have_child);
 	
 	/// This member is worker to send/recieve msg from rank 0.
-        void saveLoadWorker(OctTreeT* tree, Communicator& commFunc, bool save);
+        void saveLoadWorker(OctTreeT* tree, bool save);
+        //void saveLoadWorker(OctTreeT* tree, Communicator& commFunc, bool save);
 	
 	/// This member is a member for DiskDir class.
-	void saveLoadWorker4DD(Communicator& comm, bool save){
-	  saveLoadWorker(tree(), comm, save);
+	void saveLoadWorker4DD(bool save){
+	  //void saveLoadWorker4DD(Communicator& comm, bool save){
+	  saveLoadWorker(tree(), save);
+	  //saveLoadWorker(tree(), comm, save);
         } 
 	
 	/// This member Returns localsubtreelist of client computer to Master.
-	void localTreeList(std::vector<localTreeMember> &subtreeList, const OctTreeT* tree);
+	void localTreeList(std::vector<localTreeMember> &subtreeList,
+			   const OctTreeT* tree);
 	
 	/// Send Coefficients to Rank 0. 
-	void sendRecvDataWorker_save(OctTreeT* tree, Communicator& commFunc);
+	void sendRecvDataWorker_save(OctTreeT* tree);
+	//void sendRecvDataWorker_save(OctTreeT* tree, Communicator& commFunc);
 	
 	/// Receive Coefficients from Rank 0. 
-	void sendRecvDataWorker_load(const OctTreeT* treeclient, Communicator& commFunc);
+	void sendRecvDataWorker_load(const OctTreeT* treeclient);
+	//void sendRecvDataWorker_load(const OctTreeT* treeclient, Communicator& commFunc);
 	
 	/// Loading Function members from the file. This member is not parallelized.
 	template <class Archive>
@@ -1022,32 +1044,47 @@ namespace madness {
 	/// Loading Function members from the file. This member is already parallelized.
 	//template <class Archive>
 	//void load(const Archive& iar, Communicator& comm);
-	void load(const char* f, Communicator& comm);
+	//void load(const char* f, Communicator& comm);
+	void load(const char* f);
 	
 	/// Load Managing Function member. 
 	template <class Archive>
-	  void loadManager(const char* f, const Archive& ar, OctTreeT* tree, Communicator& commFunc, bool active_flag, const long partLevel, bool have_child);
-	//	void loadManager(const char* f, const Archive& ar, OctTreeT* tree, Communicator& commFunc, bool active_flag, const long partLevel, bool have_child);
+	  void loadManager(const char* f, const Archive& ar, OctTreeT* tree,
+			   bool active_flag, const long partLevel,
+			   bool have_child);
+	//void loadManager(const char* f, const Archive& ar, OctTreeT* tree, Communicator& commFunc, bool active_flag, const long partLevel, bool have_child);
 	
 	/// Load Managing Function member for DiskDir class. 
 	template <class Archive>
-	  void loadManager4DD(const char* f, const Archive& ar, Communicator& commFunc, bool active_flag, const long partLevel){
-	  loadManager(f, ar, tree(), commFunc, active_flag, partLevel, true);
+	  void loadManager4DD(const char* f, const Archive& ar,
+			      bool active_flag, const long partLevel){
+	  //void loadManager4DD(const char* f, const Archive& ar, Communicator& commFunc, bool active_flag, const long partLevel){
+	  loadManager(f, ar, tree(), comm(), active_flag, partLevel, true);
+	  //loadManager(f, ar, tree(), commFunc, active_flag, partLevel, true);
 	}
 
 	/// Making Archive class's file name for 2-layer Serialization in sequential calculations.
-	void produceNewFilename(const char* f, const long partLevel, const OctTreeTPtr& tree, char ftest[256]);
+	void produceNewFilename(const char* f, const long partLevel,
+				const OctTreeTPtr& tree, char ftest[256]);
 	
 	/// Making Archive class's file name for 2-layer Serialization(save, parallel).
-	void produceNewFilename2(const char* f, const long partLevel, localTreeMember& subtreeList, char ftest[256]);
+	void produceNewFilename2(const char* f, const long partLevel,
+				 localTreeMember& subtreeList,
+				 char ftest[256]);
 	
 	/// Making Archive class's file name for 2-layer Serialization(load, parallel).
-	void produceNewFilename3(const char* f, const long partLevel, Level n, Translation x, Translation y, Translation z, char ftest[256]);
+	void produceNewFilename3(const char* f, const long partLevel,
+				 Level n, Translation x, Translation y,
+				 Translation z, char ftest[256]);
 	
         /// Save Client brach's data on master.
 	template <class Archive>
-	  void dataSaveInShaManSave(const char* f, Archive& ar, const OctTreeT* tree, localTreeMember& subtreeList, ProcessID remoteRank, const long partLevel, Communicator& commFunc); 
-	//        void dataSaveInShaManSave(const char* f, Archive& ar, const OctTreeT* tree, localTreeMember& subtreeList, ProcessID remoteRank, const long partLevel, Communicator& commFunc); 
+	  void dataSaveInShaManSave(const char* f, Archive& ar,
+				    const OctTreeT* tree,
+				    localTreeMember& subtreeList,
+				    ProcessID remoteRank,
+				    const long partLevel); 
+	//void dataSaveInShaManSave(const char* f, Archive& ar, const OctTreeT* tree, localTreeMember& subtreeList, ProcessID remoteRank, const long partLevel, Communicator& commFunc); 
         
         T inner_local(const Function<T>& other) const {
             const_cast<Function<T>*>(this)->compress();

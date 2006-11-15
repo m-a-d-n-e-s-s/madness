@@ -85,9 +85,10 @@ int main(int argc, char* argv[]) {
   Communicator& comm = startup(argc,argv);
 
   try {
+
     ranfn();
     Function<double> ftest = FunctionFactory<double>(ranfred).k(7).thresh(1e-5);
-    Function<double> ftest2 = FunctionFactory<double>(ranfred).k(7).thresh(1e-5);
+    Function<double> ftest2 = FunctionFactory<double>().k(7).thresh(1e-5);
     //Function<double> ftest2 = FunctionFactory<double>();
     const char* f = "tserialize.dat";
     //TextFstreamOutputArchive oar(f);
@@ -95,10 +96,10 @@ int main(int argc, char* argv[]) {
     ftest.truncate();
     //ftest.save_local(oar);
     long partLevel = 2;
-    ftest.save( f, partLevel, comm);
+    ftest.save(f, partLevel);
     //TextFstreamInputArchive iar(f);
     //ftest.load_local(iar);
-    ftest2.load(f, comm);
+    ftest2.load(f);
     cout << " class subtraction test " << (ftest - ftest2).norm2sq() << endl;
 
   } catch (char const* msg) {
@@ -124,7 +125,6 @@ int main(int argc, char* argv[]) {
   }
 
   // The following should be used for succesful termination
- done:
   
   print("TENSOR COUNT OUTSIDE OF SCOPE",BaseTensor::get_instance_count());
   
