@@ -125,6 +125,7 @@ int main(int argc, char* argv[]) {
   }
 
   // The following should be used for succesful termination
+ done:
   
   print("TENSOR COUNT OUTSIDE OF SCOPE",BaseTensor::get_instance_count());
   

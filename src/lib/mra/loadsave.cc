@@ -114,7 +114,7 @@ namespace madness {
   {
     Communicator comm;
     if (comm.rank() == 0) {
-      TextFstreamOutputArchive oar(f);
+      BinaryFstreamOutputArchive oar(f);
       saveMain(f, oar, partLevel);
       oar.close();
     }
@@ -168,7 +168,7 @@ namespace madness {
 	       if(partLevel > 0 && child->n() == partLevel && child->islocal()) {
 		 char ftest[256];
 		 produceNewFilename(f, partLevel, child, ftest);
-		 TextFstreamOutputArchive oar(ftest);
+		 BinaryFstreamOutputArchive oar(ftest);
 		 if(child->islocal()) {
 		   oar & (child!=0);
 		 }
@@ -185,7 +185,7 @@ namespace madness {
 	       if(partLevel > 0 && tree->n() == (partLevel-1)) {
 		 char ftest[256];
 		 produceNewFilename(f, partLevel, child, ftest);
-		 TextFstreamOutputArchive oar(ftest);
+		 BinaryFstreamOutputArchive oar(ftest);
 		 oar & (child!=0);
 	       }
 	       else{
@@ -224,7 +224,7 @@ namespace madness {
       {
         char ftest[256];
         produceNewFilename2(f, partLevel, subtreeList[iter], ftest);
-        TextFstreamOutputArchive oar1(ftest);
+        BinaryFstreamOutputArchive oar1(ftest);
         dataSaveInShaManSave(f, oar1, tree, subtreeList[iter],
 			     remoteRank, partLevel);
         iter += 1;
@@ -253,7 +253,7 @@ namespace madness {
 	   if(partLevel > 0 && subtreeList[iter].n == partLevel && !subtreeList[iter].remote) {
 	     char ftest[256];
 	     produceNewFilename2(f, partLevel, subtreeList[iter], ftest);
-	     TextFstreamOutputArchive oar2(ftest);
+	     BinaryFstreamOutputArchive oar2(ftest);
 	     if(iter < nRemoteBranch) {
 	       dataSaveInShaManSave(f, oar2, tree, subtreeList[iter],
 				    remoteRank, partLevel);
@@ -378,7 +378,7 @@ namespace madness {
 	     char ftest[256];
 	     produceNewFilename3(f, partLevel, n_local2, x_local2,
 				 y_local2, z_local2, ftest);
-	     TextFstreamInputArchive iar(ftest);
+	     BinaryFstreamInputArchive iar(ftest);
 	     iar & have_child;
 	     arout & have_child;
 	     arout.flush();
@@ -595,7 +595,7 @@ namespace madness {
   void Function<T>::load(const char* f)
   {
     Communicator comm;
-    TextFstreamInputArchive iar(comm.rank() ? 0 : f);
+    BinaryFstreamInputArchive iar(comm.rank() ? 0 : f);
     long partLevel;
     if (comm.rank() == 0) {
       iar & partLevel;
@@ -674,7 +674,7 @@ namespace madness {
 	     if(partLevel > 0 && tree->n() == (partLevel-1)) {
 	       char ftest[256];
 	       produceNewFilename(f, partLevel, child, ftest);
-	       TextFstreamInputArchive iar(ftest);
+	       BinaryFstreamInputArchive iar(ftest);
 	       iar & have_child;
 	       if(have_child) {
 		 //OctTreeTPtr child = tree->child(i, j, k);
@@ -769,27 +769,27 @@ namespace madness {
   
   template void Function<double>::load(const char* f);
   
-  template void Function<double>::save_local<TextFstreamOutputArchive>( TextFstreamOutputArchive& ar);
+  template void Function<double>::save_local<BinaryFstreamOutputArchive>( BinaryFstreamOutputArchive& ar);
   
-  template void Function<double>::_save_local<TextFstreamOutputArchive>( TextFstreamOutputArchive& ar, const OctTreeT* tree); 
+  template void Function<double>::_save_local<BinaryFstreamOutputArchive>( BinaryFstreamOutputArchive& ar, const OctTreeT* tree); 
   
-  template void Function<double>::load_local<TextFstreamInputArchive>( const TextFstreamInputArchive& ar); 
+  template void Function<double>::load_local<BinaryFstreamInputArchive>( const BinaryFstreamInputArchive& ar); 
   
-  template void Function<double>::_load_local<TextFstreamInputArchive>( const TextFstreamInputArchive& ar, OctTreeT* tree); 
+  template void Function<double>::_load_local<BinaryFstreamInputArchive>( const BinaryFstreamInputArchive& ar, OctTreeT* tree); 
   
-  template void Function<double>::saveMain<TextFstreamOutputArchive>( const char*f, TextFstreamOutputArchive& ar, const long partLevel); 
+  template void Function<double>::saveMain<BinaryFstreamOutputArchive>( const char*f, BinaryFstreamOutputArchive& ar, const long partLevel); 
   
-  template void Function<double>::saveManager<TextFstreamOutputArchive>( const char* f, TextFstreamOutputArchive& ar, const OctTreeT* tree, const long partLevel);
+  template void Function<double>::saveManager<BinaryFstreamOutputArchive>( const char* f, BinaryFstreamOutputArchive& ar, const OctTreeT* tree, const long partLevel);
   
-  template void Function<double>::shadowManager_save<TextFstreamOutputArchive>( const char* f, TextFstreamOutputArchive& ar, const OctTreeT* tree, Level n, Translation x, Translation y, Translation z, ProcessID remoteRank, const long partLevel); 
+  template void Function<double>::shadowManager_save<BinaryFstreamOutputArchive>( const char* f, BinaryFstreamOutputArchive& ar, const OctTreeT* tree, Level n, Translation x, Translation y, Translation z, ProcessID remoteRank, const long partLevel); 
 
-  template void Function<double>::shadowManager_load<TextFstreamInputArchive>( const char* f, const TextFstreamInputArchive& ar, OctTreeT* tree, Level n, Translation x, Translation y, Translation z, ProcessID remoteRank, const long partLevel, bool active_flag, bool have_child); 
+  template void Function<double>::shadowManager_load<BinaryFstreamInputArchive>( const char* f, const BinaryFstreamInputArchive& ar, OctTreeT* tree, Level n, Translation x, Translation y, Translation z, ProcessID remoteRank, const long partLevel, bool active_flag, bool have_child); 
   
-  template void Function<double>::loadManager<TextFstreamInputArchive>( const char* f, const TextFstreamInputArchive& ar, OctTreeT* tree, bool active_flag, const long partLevel, bool have_child); 
+  template void Function<double>::loadManager<BinaryFstreamInputArchive>( const char* f, const BinaryFstreamInputArchive& ar, OctTreeT* tree, bool active_flag, const long partLevel, bool have_child); 
   
-  template void Function<double>::dataSaveInShaManSave<TextFstreamOutputArchive>( const char* f, TextFstreamOutputArchive& ar, const OctTreeT* tree, localTreeMember& subtreeList, ProcessID remoteRank, const long partLevel); 
+  template void Function<double>::dataSaveInShaManSave<BinaryFstreamOutputArchive>( const char* f, BinaryFstreamOutputArchive& ar, const OctTreeT* tree, localTreeMember& subtreeList, ProcessID remoteRank, const long partLevel); 
   
-  template void Function<double>::_shadowManager_save<TextFstreamOutputArchive>( const char* f, TextFstreamOutputArchive& ar, const OctTreeT* tree, std::vector<localTreeMember>& subtreeList, ProcessID remoteRank, const long partLevel, const int nRemoteBranch, int& iter); 
+  template void Function<double>::_shadowManager_save<BinaryFstreamOutputArchive>( const char* f, BinaryFstreamOutputArchive& ar, const OctTreeT* tree, std::vector<localTreeMember>& subtreeList, ProcessID remoteRank, const long partLevel, const int nRemoteBranch, int& iter); 
 
   template void Function<double>::saveLoadWorker(OctTreeT* tree, bool save); 
 
