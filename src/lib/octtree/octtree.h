@@ -342,9 +342,9 @@ namespace madness {
 
 	/// returns true if node has children
 //	inline bool isParent() {return (!(child(0,0,0) == 0));}
-	inline bool isParent() const {return (bool) ((child(0,0,0)) || (child(0,0,1)) || 
-		(child(0,1,0)) || (child(0,1,1)) || (child(1,0,0)) || 
-		(child(1,0,1)) || (child(1,1,0)) || (child(1,1,1)));};
+	inline bool isParent() const {return (bool) ((child(0,0,0).get()) || (child(0,0,1).get()) || 
+		(child(0,1,0).get()) || (child(0,1,1).get()) || (child(1,0,0).get()) || 
+		(child(1,0,1).get()) || (child(1,1,0).get()) || (child(1,1,1).get()));};
         
         /// returns true if node is the parent of the local subtree
         inline bool islocalsubtreeparent() const {return (_p==0);};
@@ -799,7 +799,15 @@ namespace madness {
 	{
 //	    Cost c = (Cost) pow(2.0, d - this->_n);
 //	    Cost c = (Cost) pow(8.0, d - this->_n);
-	    Cost c = (Cost) pow(factor, d - this->_n);
+	    Cost c;
+	    if (factor > 0.0)
+	    {
+		c = (Cost) pow(factor, d - this->_n);
+	    }
+	    else
+	    {
+		c = (Cost) d;
+	    }
 	    Cost subcost = c;
 	    this->_cost = c;
 	    FOREACH_CHILD(OctTreeTPtr, this,
@@ -823,14 +831,14 @@ namespace madness {
             Level d = this->maxDepth();
             long nleaves = this->tallyLeaves();
             long notleaves = nnodes - nleaves;
-            double avgchild = ((double) nnodes)/notleaves;
+            double avgchild = ((double) nleaves)/((double) notleaves);
 
             std::cout << "treeDiagnostics: " << std::endl;
             std::cout << "    number of nodes = " << nnodes << std::endl;
             std::cout << "    total cost = " << total;
             std::cout << "    maximum depth = " << d << std::endl;
             std::cout << "    number of leaf nodes = " << nleaves << std::endl;
-            std::cout << "    average number of leaf children per node = " << avgchild << std::endl;
+            std::cout << "    average number of leaf children per parent node = " << avgchild << std::endl;
         }
 
         long tallyLeaves()
@@ -844,7 +852,7 @@ namespace madness {
             }
             else
             {
-                nleaves = 1;
+                nleaves++;
             }
             return nleaves;
         }
