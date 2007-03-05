@@ -1,0 +1,108 @@
+To do
+=====
+
+3) transform & other operations needed for test code ... done 
+   in crude form?
+
+4) pilot code
+
+5) notes on what operations are needed to be specialized for 
+   new types.
+   - random number generator
+   - tensor::norm
+   - type information
+
+6) on assignments of scalars for fill, sometimes an explicit
+   cast is necessary, e.g.,
+
+   Tensor<float_complex> t(1,2,3)
+   t = 0;               // fails to compile confusing null pointer and zero.
+
+   t = float_complex(0) // OK
+
+   long x = 0
+   t = x                // OK
+
+7) integer values don't auto convert to complex
+
+8) overlapping slices ... behavior undefined ????
+
+9) recall why templated methods must be defined inline ... essentially
+   because of instantiation problem for general case ???  Or could I
+   just not figute out how to instantiate all of these methods?
+
+11) need to be able to wrap a pointer to memory owned by someone else.
+
+12) need to be able to wrap memory allocated via malloc ... though
+    some types do not support this.
+
+15) documentation
+
+16) dimj -> _dimj in iterators for consistency
+
+18) complex conjugate, real, imag for complex types, initialize
+    from separate real & imag tensors.  clearly, complex types
+    need a lot more thought.
+
+19) with few/no exceptions, class methods (except for the arithmetic
+    operators) should operate inplace or return a view.  functions
+    operating on tensors can return new tensors.
+
+21) change traits templates to use boost ?
+
+22) increase consistency with stl containers including vector and
+    iterators
+
+23) trace should probably be renamed dot ... and appropriately
+    conjugate complex arguments?
+
+24) so do we end up back at containers plus operations on them?
+    sort of, but multiarrays are way too clunky.
+
+25) converters to/from multiarrays and numarrays.
+
+26) wrapping pointers with ownership might enable to optimize
+    away some copy constructors due to the return constructor
+    optimization.
+
+27) boost has a slice class ... with stride as the second arg 
+    so it is not defaultable.
+
+28) shit ... the one past end for the iterator end is a pretty
+    wide convention, and it is nice to type Slice(0,k) rather
+    than Slice(0,k-1) all the time.
+
+    SHOULD WE CHANGE SLICE BACK TO PYTHON CONVENTION ??????
+
+    If so, what about cycledim, etc.
+
+    Problem is with specifying the end.  We chose -1 to mean
+    the last element included is dim-1.  A python slice with
+    -1 would actually give dim-2 as the last element included.
+    Python -1 as a scalar index gives dim-1.
+    In python, the end of a dimension in a slice is specified
+    by leaving the end field blank.  We don't have that luxury.
+    So, if we want Python interface compatibility, we will need to 
+    introduce a symbol and special value to indicate the end.
+
+29) need to be more extensive in our use of STL containers.
+    all of the design and range checking etc. is a good thing
+
+    
+    
+
+
+======
+
+Want to redesign so that slicetensor and tensor can
+have ndim=0, size=1 and contain a scalar.  
+
+Presently, the default constructor specifies ndim=0,
+and forces size=0 and a null pointer.
+
+Probably, we need default construtor to use ndim=-1
+instead, size=0, pointer=0 are OK.
+
+For a scalar, ndim=0, size=1, pointer=valid.
+
+====

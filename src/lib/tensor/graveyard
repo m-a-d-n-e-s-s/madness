@@ -1,0 +1,3 @@
+    TENSOR_ASSERT(x.size==x.dim[0]*x.dim[1]*x.dim[2]*x.dim[3]*x.dim[4]*x.dim[5],"x size error",x.size,&x);\
+    TENSOR_ASSERT(y.size==y.dim[0]*y.dim[1]*y.dim[2]*y.dim[3]*y.dim[4]*y.dim[5],"y size error",y.size,&y);\
+    TENSOR_ASSERT(z.size==z.dim[0]*z.dim[1]*z.dim[2]*z.dim[3]*z.dim[4]*z.dim[5],"z size error",z.size,&z);\

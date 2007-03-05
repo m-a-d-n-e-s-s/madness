@@ -11,6 +11,7 @@
 /// modify it to support the distributed memory interface.
 
 #include <iostream>
+#include <world/worldexc.h>
 
 #ifdef MAD_USE_THREADS
 #include "madatomic.h"
@@ -71,7 +72,7 @@ namespace madness {
     class SharedPtr {
         friend class RemoteReference<T>;
         template <class Q> friend class SharedPtr;
-    private:
+    protected:
         T* p;                   ///< The pointer being wrapped
         SharedCounter *count;   ///< The counter shared by all references
         bool isarray;           ///< If true use delete [] to free the pointer
@@ -94,7 +95,6 @@ namespace madness {
             }
         };
         
-    protected:
         /// Decrement the reference count, freeing pointer if count becomes zero
         void dec() {
             //print("SharedPtr  dec: own ",own, "cntptr", count, "nref", use_count(),"ptr",p);

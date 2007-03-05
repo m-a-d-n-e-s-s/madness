@@ -1,6 +1,6 @@
 TOPDIR = ../..
 
-SUBDIRS = world
+SUBDIRS = world tensor linalg
 
 include $(TOPDIR)/config/GlobalMakefile
 include $(TOPDIR)/config/MakeSubDirs
