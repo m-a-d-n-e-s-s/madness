@@ -1,0 +1,142 @@
+This version dated 5 Dec. 2006
+
+Please send comments, bug reports and enhancements to
+Robert J. Harrison (UT/ORNL) harrisonrj@ornl.gov.
+
+README       = this file
+LICENSE      = BSD license conditions
+fibers.h     = header file with user documentation
+fibers.c     = source
+mpitest.c    = example of use with MPI to implement a crude distributed-
+               memory, Cilk-like model with spawn(), spawn_at(), and 
+               futures.
+ppcaix32.s   = assembly source for PowerPC systems running AIX
+ppcaix64.s   = 64-bit version made from 32-bit with sed (see below)
+test.c       = test C code
+finterface.c = wrappers for F77/F90 courtesy E. D'Azevedo
+test1.f      = F90 test code courtesy E. D'Azevedo
+
+Compile source and test code as described below.  Run a.out and if you
+see the three sets of timing info, it is probably working.
+
+There are three implementations.  Fastest is usually custom assembly
+which is there for x86 32/64-bit and IBM AIX PowerPC 32/64-bit.
+Second fastest is the usual set/longjmp hack which also mostly only
+works on x86 systems.  The most portable is the ucontext interface
+(though obsoleted by open.org) but it is a lot slower due to the
+uncessary system call to save the signal stack.  Here are some timing
+data from the test code as of 11/2006.
+
+2.8GHz Xeon running Fedora 4, gcc 3.4.6 -Os
+               cre+ye+ret+des   yie+cou+yie
+   ucontext:      3000ns            2300ns 
+    longjmp:       130ns              92ns 
+        asm:        43ns              44ns 
+
+1.5 GHz Core-duo (Panasonic Y5 laptop) running CYGWIN, gcc 3.4.4 -Os
+               cre+ye+ret+des   yie+cou+yie
+    longjmp:       350ns             330ns 
+        asm:        65ns              53ns 
+
+2.6 GHz Opteron (CRAY XT3) running catamount 
+               cre+ye+ret+des   yie+cou+yie
+    longjmp:        73ns              57ns    with pgcc 6.1-4
+    longjmp:        96ns              65ns    with gcc 3.2.3 -Os
+    longjmp:        80ns              65ns    with gcc 3.3.3 -Os
+        asm:        38ns              42ns    with gcc 3.3.3 -Os
+        asm:        36ns              37ns    with pgcc 6.1.4 -fastsse
+
+2.0 GHz Opteron running Centos (version?), gcc 3.4.6 -Os
+               cre+ye+ret+des   yie+cou+yie
+   ucontext:       740ns             590ns
+    longjmp:        86ns              62ns
+        asm:        50ns              53ns
+
+1.5 GHz Power4 running AIX 5.2 xlc version 6
+               cre+ye+ret+des   yie+cou+yie
+   ucontext:      4300ns            4300ns
+        asm:       190ns             120ns  64-bit
+        asm:       170ns             120ns  32-bit
+
+1.5 GHz Itanium2 SGI Altix 2.6.5 kernel gcc version 3.3.3
+(times are same with icc 8.1)
+               cre+ye+ret+des   yie+cou+yie
+   ucontext:       530ns             470ns
+
+
+All (?) x86 32-bit machines with support for inline assembly
+------------------------------------------------------------
+
+Various linuxen as well as Cygwin on XP tested.
+
+cc -O -DHAVE_X86_ASM test.c fiber.c
+
+
+
+All (?) x86 64-bit machines with support for inline assembly
+------------------------------------------------------------
+
+Various linuxen and Catamount (Cray XT3) tested on opteron
+
+cc -O -DHAVE_X8664_ASM test.c fiber.c
+
+
+
+IBM AIX Power systems in 32-bit
+-------------------------------
+
+xlc -O3 -DHAVE_PPC_ASM test.c fiber.c ppcaix32.s
+
+and for the MPI example program
+
+mpcc -I. -O -bmaxstack:0x60000000 -bmaxdata:0x60000000 -DHAVE_PPC_ASM \
+         mpitest.c fiber.c ppcaix32.s -lm
+
+Tested on a Power4 system with Aix 5.2
+
+I think that apart from the csect/toc/linkage stuff that the asm
+should be easily ported to other O/Ss for PowerPC because the
+ABIs are the same (?).
+
+
+IBM AIX Power systems in 64-bit
+-------------------------------
+
+setenv OBJECT_MODE 64
+xlc -O3 -DHAVE_PPC_ASM test.c fiber.c ppcaix64.s
+
+ Tested on a Power4 system with Aix 5.2
+
+Edit the 32-bit file if any modifications are necessary.  The 64-bit
+assembler is made from the 32-bit version with this command
+
+sed -e 's/4(4)/8(4)/' -e s/stw/std/g -e s/lwz/ld/g \
+    -e s/aix32/aix64/ -e s/long/llong/ < ppcaix32.s > ppcaix64.s
+
+which changes the toc offset into the target function's toc from 4 to
+8, the store/load operations to working on double words, corrects the
+embedded name of the file, and changes the pseudo-op .long to .llong.
+
+
+x86 32 and 64 bit machines with longjmp 
+---------------------------------------
+
+Tested on various linux releases, Cygwin and Cray XT3 Catamount
+
+cc -O -I. -DHAVE_LONGJMP test.c fiber.c
+
+(on Cygwin also include -DCYGWIN)
+
+
+All machines with ucontext.h routines
+-------------------------------------
+
+IBM AIX with xlc
+All recent linuxes (32/64 bit, x86/ia64)
+SGI Altix (itanium) with gcc and icc
+Solaris ... not tested but should work
+HPUX    ... ditto
+
+cc -O -DHAVE_UCONTEXT test.c fiber.c
+
+
