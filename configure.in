@@ -240,7 +240,7 @@ dnl --------- Check for dot -----------
 if test X$DOT_PATH = Xno; then
   HAVE_DOT=NO
 else
-  AC_PATH_PROG(DOT,dot,,$DOT_PATH:$PATH:/usr/local/bin)
+  AC_PATH_PROG(DOT,dot,,$DOT_PATH:$PATH:/usr/local/bin:/cygdrive/c/Program Files/ATT/Graphviz/bin/dot)
   DOT_PATH=`AS_DIRNAME(["$DOT"])`
   if test X$DOT_PATH = X; then
     HAVE_DOT=NO

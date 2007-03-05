@@ -4531,7 +4531,7 @@ else
   ;;
   *)
   as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
-as_dummy="$DOT_PATH:$PATH:/usr/local/bin"
+as_dummy="$DOT_PATH:$PATH:/usr/local/bin:/cygdrive/c/Program Files/ATT/Graphviz/bin/dot"
 for as_dir in $as_dummy
 do
   IFS=$as_save_IFS

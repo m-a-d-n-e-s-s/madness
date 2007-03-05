@@ -19,6 +19,6 @@ distclean:: clean
 	-rm -f config.log config.status
 	-rm -rf autom4te.cache aclocal.m4
 	-rm -f libtool
-	-rm -f config/*~
+	-rm -f config/MakeVars config/*~
 
 
