@@ -20,7 +20,7 @@ namespace madness {
     template <typename T> struct Hash;
 
 
-    /// Hash a fundamental type
+    /// Hash a single instance
     template <class T>
     static
     inline
@@ -36,7 +36,6 @@ namespace madness {
         }
     };
 
-    /// Hash non-fundamental type invokes Hash<T>::hash(t)
     template <class T>
     static
     inline
@@ -47,7 +46,7 @@ namespace madness {
         return h;
     };
 
-    /// Hash a variable sized array of fundamental stuff
+    /// Hash a variable sized array
     template <class T>
     static
     inline
@@ -67,7 +66,6 @@ namespace madness {
         }
     };
 
-    /// Hash a variable sized array of non-fundamental stuff
     template <class T>
     static
     inline

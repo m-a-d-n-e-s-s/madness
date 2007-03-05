@@ -1,36 +1,22 @@
 TOPDIR=..
 
-include $(TOPDIR)/lib/GlobalMakefile
-include $(TOPDIR)/lib/MakeVars
+##include $(TOPDIR)/config/GlobalMakefile
+include $(TOPDIR)/config/MakeVars
 
 .PHONY: all
-all:: html
-ifneq ($(PDFLATEX),NO)
-  all:: latex
-endif
-
-.PHONY: html
-ifneq ($(DOXYGEN),NO)
-html:
+all:
 	$(DOXYGEN) doxygen.cfg
-endif
 
-.PHONY: latex
-ifneq ($(PDFLATEX),NO)
-latex:
-	cd latex && $(MAKE)
-endif
-
-.PHONY: veryclean
-veryclean:
-	/bin/rm -rf html
-	/bin/rm -rf latex
-	/bin/rm -rf *~
 
 .PHONY: clean
 clean::
-	cd latex && $(MAKE) clean
+	/bin/rm -rf html latex
 	/bin/rm -rf *~
+
+veryclean: clean
+
+distclean: clean
+	/bin/rm doxygen.cfg
 
 install::
 	$(INSTALL) $(INSTALLDIROPT) $(installroot)$(prefix)

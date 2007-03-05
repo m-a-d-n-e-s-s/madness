@@ -1,5 +1,5 @@
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
-#include <world.h>
+#include <world/world.h>
 
 using namespace madness;
 using namespace std;
