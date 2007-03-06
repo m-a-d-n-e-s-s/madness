@@ -4,10 +4,10 @@
 #define _madness_include_madnessconfig_h_
 
 /* The host architecture. */
-#define HOST_ARCH "i686-pc-cygwin"
+#define HOST_ARCH "x86_64-unknown-linux-gnu"
 
 /* The target architecture. */
-#define TARGET_ARCH "i686-pc-cygwin"
+#define TARGET_ARCH "x86_64-unknown-linux-gnu"
 
 /* The version number. */
 #define MADNESS_VERSION "1.0.0-alpha"
@@ -43,10 +43,10 @@
 /* #undef HAVE_STD_LABS */
 
 /* have boost/shared_array.hpp ? */
-/* #undef HAVE_BOOST_SHARED_ARRAY_HPP */
+#define HAVE_BOOST_SHARED_ARRAY_HPP 1
 
 /* can boost::shared_array<> be compiled and link? */
-/* #undef HAVE_BOOST_SHARED_ARRAY_COMPILED */
+#define HAVE_BOOST_SHARED_ARRAY_COMPILED 1
 
 /* have MPI library header? */
 #define HAVE_MPI_H 1
@@ -58,7 +58,7 @@
 /* #undef MPI_H_BREAKS_CXX */
 
 /* if MPI_INIT found -- we have MPI library */
-/* #undef HAVE_MPI_LIB */
+#define HAVE_MPI_LIB 1
 
 /* can use MPI library? */
 #if HAVE_MPI_H && HAVE_MPI_LIB

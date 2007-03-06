@@ -1225,7 +1225,7 @@ namespace madness {
                 unsigned long id;
                 ar & id;
                 implT* ptr = implT::impl_from_id(id);
-                MADNESS_ASSERT(ptr);
+                //MADNESS_ASSERT(ptr);
                 p = SharedPtr<implT>(ptr,false,false); // use_count will be 0, which is good
             }
         }

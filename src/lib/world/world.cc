@@ -45,7 +45,10 @@ void test1(World& world) {
       long reply = -1;
       ProcessID p = world.mpi.random_proc_not_me();
       world.am.send_recv(p,handler,AmArg(me+1000),&reply,sizeof(reply),p,33);
-      if (reply != me+1001) throw "Ooops ...";
+      if (reply != me+1001) {
+	print("bad reply",reply,me+1001);
+        throw "Ooops ...";
+      }
     }
     print(me,"ENTERING FENCE 1");
     world.gop.fence();
@@ -480,7 +483,7 @@ int val1d_func(int input) {
 }
 
 void test10(World& world) {
-    const int ntask = 30000;
+    const int ntask = 100000;
 
     double used = -cpu_time();
     for (int i=0; i<ntask; i++) world.taskq.add(null_func);
@@ -636,15 +639,17 @@ int main(int argc, char** argv) {
         if (std::strcmp(argv[arg],"-dref")==0) world.mpi.set_debug(true);
     }
 
+    world.gop.fence();
+
     try {
-//         test1(world);
-//         test2(world);
-//         test3(world);
-//         test5(world);
-//         test6(world);
-//         test7(world);
-//         test8(world);
-//         test9(world);
+        test1(world);
+        test2(world);
+        test3(world);
+        test5(world);
+        test6(world);
+        test7(world);
+        test8(world);
+        test9(world);
         test10(world);
         test11(world);
     } catch (MPI::Exception e) {

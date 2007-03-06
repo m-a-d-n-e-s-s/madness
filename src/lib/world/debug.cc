@@ -66,7 +66,7 @@ namespace madness {
         if (child < 0) {
             printf("debug: fork failed?\n\n");
         } else if (child > 0) {
-            sleep(10);			/* Release cpu while debugger starts*/
+            sleep(20);			/* Release cpu while debugger starts*/
             xterm_debug_breakpoint();
         } else {
             execv(xterm, (char*const*) argv);

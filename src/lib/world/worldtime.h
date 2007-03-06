@@ -34,7 +34,9 @@ namespace madness {
 #ifdef X8632
         __asm__ volatile (".byte 0x0f, 0x31" : "=A" (x));
 #elif defined(X8664)
-        __asm__ volatile (".byte 0x0f, 0x31" : "=r" (x));
+     unsigned int a,d;
+     __asm__ volatile("rdtsc" : "=a" (a), "=d" (d));
+      x = ((uint64_t)a) | (((uint64_t)d)<<32); 
 #else
         x = wall_time()*1e9;
 #endif
