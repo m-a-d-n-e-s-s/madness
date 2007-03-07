@@ -764,7 +764,7 @@ namespace madness {
                 MAD_ARCHIVE_DEBUG(std::cout << "serialize STL vector<bool>" << std::endl);
                 std::size_t n = v.size();
                 bool* b = new bool[n];
-                for (int i=0; i<n; i++) b[i] = v[i];
+                for (std::size_t i=0; i<n; i++) b[i] = v[i];
                 ar & n & wrap(b,v.size());
                 delete [] b;
             };
@@ -784,7 +784,7 @@ namespace madness {
                 }
                 bool* b = new bool[n];
                 ar & wrap(b,v.size());
-                for (int i=0; i<n; i++) v[i] = b[i];
+                for (std::size_t i=0; i<n; i++) v[i] = b[i];
                 delete [] b;
             };
         };

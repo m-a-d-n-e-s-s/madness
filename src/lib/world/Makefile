@@ -31,7 +31,7 @@ include $(TOPDIR)/config/GlobalMakefile
 world: $(TEST1OBJ) $(THISLIBDEPEND) 
 	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ $(SYSLIBS) $(LTLINKBINOPTS)
 
-hqi: $(TEST1OBJ) $(THISLIBDEPEND) 
+hqi: $(TEST2OBJ) $(THISLIBDEPEND) 
 	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ $(SYSLIBS) $(LTLINKBINOPTS)
 
 testar: $(TEST1OBJ) $(THISLIBDEPEND) 

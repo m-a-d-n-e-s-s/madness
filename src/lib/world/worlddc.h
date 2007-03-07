@@ -279,13 +279,14 @@ namespace madness {
             unsigned long id;
             bool istask;
             ProcessID requestor;
-            keyT key;
             memfunT memfun;
             refT ref; 
+            keyT key;
 
             template <typename Archive>
             void serialize(const Archive& ar) {
-                ar & archive::wrap_opaque(*this);
+                //ar & archive::wrap_opaque(*this);
+                ar & id & istask & requestor & archive::wrap_opaque(memfun) & ref & key;
             }
 
             forward_handler_info() {};
@@ -295,9 +296,9 @@ namespace madness {
                 : id(id)
                 , istask(istask)
                 , requestor(requestor)
-                , key(key)
                 , memfun(memfun)
                 , ref(ref)
+                , key(key)
             {};
 
 
@@ -306,9 +307,9 @@ namespace madness {
                 : id(id)
                 , istask(istask)
                 , requestor(requestor)
-                , key(key)
                 , memfun(memfun)
                 , ref()
+                , key(key)
             {};
         };
 
@@ -319,7 +320,8 @@ namespace madness {
 
             template <typename Archive>
             void serialize(const Archive& ar) {
-                ar & archive::wrap_opaque(*this);
+                //ar & archive::wrap_opaque(*this);
+                ar & id & requestor & key;
             }
 
             handler_info() {};
