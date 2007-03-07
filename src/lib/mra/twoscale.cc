@@ -1,3 +1,4 @@
+#include <world/world.h>
 #include <iostream>
 using std::cout;
 using std::endl;
@@ -314,13 +315,13 @@ namespace madness {
                 _c = Tensor<double>(autoc_k,autoc_k,4*autoc_k);
             }
             for (int k=0; k<=kmax; k++) {
-                comm.broadcast(cache[k].h0.ptr(), k*k, 0);
-                comm.broadcast(cache[k].h1.ptr(), k*k, 0);
-                comm.broadcast(cache[k].g0.ptr(), k*k, 0);
-                comm.broadcast(cache[k].g1.ptr(), k*k, 0);
+                world.gop.broadcast(cache[k].h0.ptr(), k*k, 0);
+                world.gop.broadcast(cache[k].h1.ptr(), k*k, 0);
+                world.gop.broadcast(cache[k].g0.ptr(), k*k, 0);
+                world.gop.broadcast(cache[k].g1.ptr(), k*k, 0);
             }
 
-            comm.broadcast(_c.ptr(), autoc_k*autoc_k*4*autoc_k, 0);
+            world.gop.broadcast(_c.ptr(), autoc_k*autoc_k*4*autoc_k, 0);
 
             loaded = true;
         }

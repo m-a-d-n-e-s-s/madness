@@ -153,7 +153,8 @@ namespace madness {
             for (int i=0; i<32; i++) World::poll_all();
             poll_delay = (cycle_count()-ins)>>5; // Actual cost per poll
             poll_delay = poll_delay<<3;  // *8 --> no more than 12.5% of time in polling
-            print("poll_delay",poll_delay);
+            ///world.mpi.Bcast(poll_delay,0); // For paranoia make sure all have same value?
+            if (rank()==0) print("poll_delay",poll_delay);
         };
 
 

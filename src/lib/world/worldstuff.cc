@@ -71,12 +71,16 @@ namespace madness {
     }
     
     double cpu_frequency() {
-        double used = wall_time();
-        uint64_t ins = cycle_count();
-        if (ins == 0) return 0;
-        while ((cycle_count()-ins) < 10000000);  // 10M cycles at 1GHz = 0.01s
-        ins = cycle_count() - ins;
-        used = wall_time() - used;
-        return ins/used;
+        static double freq = -1.0;
+        if (freq == -1.0) {
+            double used = wall_time();
+            uint64_t ins = cycle_count();
+            if (ins == 0) return 0;
+            while ((cycle_count()-ins) < 10000000);  // 10M cycles at 1GHz = 0.01s
+            ins = cycle_count() - ins;
+            used = wall_time() - used;
+            freq = ins/used;
+        }
+        return freq;
     }
 }

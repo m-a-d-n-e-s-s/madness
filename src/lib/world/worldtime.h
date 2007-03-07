@@ -45,7 +45,9 @@ namespace madness {
 
     /// Estimates frequency of the processor in Hz
 
-    /// May take about 0.1s to execute.
+    /// First call may take about 0.1s to execute.  Subsequent
+    /// calls return value cached from the first call so does
+    /// not respond to changing processor frequency.
     ///
     /// If cycle_count() is returning wall_time() in nanoseconds
     /// this will return 1GHz.

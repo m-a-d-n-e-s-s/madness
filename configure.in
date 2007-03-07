@@ -514,17 +514,17 @@ if test X"$have_abs_long" = Xno; then
   AC_MSG_RESULT([$have_std_labs])
 fi
 
-dnl ---------- Checks for Boost library. -----------
+dnl dnl ---------- Checks for Boost library. -----------
 
-AC_CHECK_HEADERS(boost/shared_array.hpp)
-AC_MSG_CHECKING([if boost::shared_array<double> is usable])
-AC_LINK_IFELSE([AC_LANG_PROGRAM(
-[[#include <boost/shared_array.hpp>]],
-[[boost::shared_array<double> x(new double[1]); boost::shared_array<double> y(x);]])],
-[AC_DEFINE(HAVE_BOOST_SHARED_ARRAY_COMPILED)
- AC_MSG_RESULT([yes])],
-[AC_MSG_RESULT([no])]
-)
+dnl AC_CHECK_HEADERS(boost/shared_array.hpp)
+dnl AC_MSG_CHECKING([if boost::shared_array<double> is usable])
+dnl AC_LINK_IFELSE([AC_LANG_PROGRAM(
+dnl [[#include <boost/shared_array.hpp>]],
+dnl [[boost::shared_array<double> x(new double[1]); boost::shared_array<double> y(x);]])],
+dnl [AC_DEFINE(HAVE_BOOST_SHARED_ARRAY_COMPILED)
+dnl  AC_MSG_RESULT([yes])],
+dnl [AC_MSG_RESULT([no])]
+dnl )
 
 
 dnl -----------------------------------

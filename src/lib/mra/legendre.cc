@@ -1,12 +1,11 @@
+#include <world/world.h>
 #include <iostream>
 using std::cout;
 using std::endl;
 
 #include <cmath>
-
 #include <mra/legendre.h>
 #include <tensor/tensor.h>
-#include <world/world.h>
 
 /// \file legendre.cc
 /// \brief Legendre quadrature, polynomials and scaling functions.

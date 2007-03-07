@@ -3,7 +3,8 @@
   
   #export MADARCH=-march=pentium-m
   export MADARCH=-march=native
-  export MADCOPT="-g -Wall -ansi -O3 -ffast-math -fomit-frame-pointer -funroll-loops $MADARCH"
+  #export MADCOPT="-Wall -ansi -O0 -g $MADARCH"
+  export MADCOPT="-Wall -ansi -O3 -ffast-math -fomit-frame-pointer -funroll-loops $MADARCH"
   export MADDEF="-DX8632 -DHAS_XTERM_DEBUG"
   export MADCXXFLAGS="$MADCOPT $MADDEF"
   export MADLAPACK="-llapack"
