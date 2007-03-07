@@ -653,7 +653,7 @@ namespace madness {
             return procmap(key);
         };
         
-        void probe(const keyT& key) const {
+        bool probe(const keyT& key) const {
             ProcessID dest = owner(key);
             if (dest == me) 
                 return local.find(key) != local.end();
