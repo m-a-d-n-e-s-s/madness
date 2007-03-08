@@ -291,9 +291,7 @@ public:
 
     template <typename Archive>
     void serialize(const Archive& ar) {
-madness::print("before", n, L, hashval);
 	ar & n & L & hashval;
-madness::print("after", n, L, hashval);
     }
 };
 
@@ -349,45 +347,24 @@ private:
     const ProcessID owner;
     vector<TreeCoords> treeList;
 
-/*
-    ProcessID getOwner(const keyT& key) const {
-	unsigned int tlen = treeList.size();
-	for (unsigned int i = 0; i < tlen; i++) {
-	    if (key.isChildOf(treeList[i].key))
-		return treeList[i].owner;
-	}
-	throw "Warning: can't find real owner";
-	return owner;
-    };
-*/
 
     ProcessID getOwner(const keyT& key) const {
 	unsigned int tlen = treeList.size(), index = 0;
-cout << "trying to get owner of ";
-key.print();
-cout << endl;
 	while (index < tlen) {
 	    if (key.n > treeList[index].key.n)
 	    {
 	    	unsigned int dn = key.n - treeList[index].key.n;
 	    	keyT gen(key.myParent(dn));
 	    	if (gen == treeList[index].key) {
-cout << "owner of ";
-key.print();
-cout << "is " << treeList[index].owner << endl;
 		    return treeList[index].owner;
 	    	}
 	    }
 	    else if (key == treeList[index].key) {
-cout << "owner of ";
-key.print();
-cout << "is " << treeList[index].owner << endl;
 		return treeList[index].owner;
 	    }
 	    index++;
 	}
-	cout << "can't find owner!!" << endl;
-	return 1;
+	throw "can't find owner!!";
     };
 	
 
@@ -425,7 +402,7 @@ void build_tree(treeT& tree, const KeyD& key) {
 //    cout << endl;
     NodeData data(1,1,false);  
     NodeD parent(data);
-    if (key.n < 2) {
+    if (key.n < 3) {
 	for (int p=0; p<2; p++) {
 	    for (int q=0; q<2; q++) {
 		parent.set_child(p+2*q);
@@ -433,7 +410,6 @@ void build_tree(treeT& tree, const KeyD& key) {
 	    }
 	}
     }
-/*
     else if ((key.n <= 5)&&(key.L[0] == key.L[1])) {
 	for (int p=0; p<2; p++) {
 	    for (int q=0; q<2; q++) {
@@ -442,38 +418,22 @@ void build_tree(treeT& tree, const KeyD& key) {
 	    }
 	}
     }
-*/
     tree.insert(key,parent);
-//    tree.task(key,&treeT::insert,tree,key,parent);
 }
 
 
 void print_tree(treeT& tree, const KeyD& key) {
-    cout << "print_tree: about to look for key ";
-    key.print();
-    cout << endl;
     treeT::iterator it = tree.find(key);
-    cout << "print_tree: found key" << endl;
     if (it!=tree.end()) {
-cout << "print_tree: found key ";
-key.print();
-cout << endl;
 	const NodeD& node = it->second;
 	NodeData d = node.get_data();
-print("print_tree: got data");
 	for (int i=0; i<(int)key.n; i++) cout << "   ";
-	print(key.n,key.L[0],key.L[1],"owner",tree.owner(key));
-//	print(key.n,key.L[0],key.L[1],"owner",tree.owner(key),"cost",d.cost,"subcost", d.subcost);
-//	print("     ",node.has_child(0), node.has_child(1), node.has_child(2), node.has_child(3));
+	print(key.n,key.L[0],key.L[1],"owner",tree.owner(key),"cost",d.cost,"subcost", d.subcost);
 
 	for (int p = 0; p < 4; p++) {
 	    if (node.has_child(p)) { 
 		KeyD mykey(key.n+1, 2*key.L[0]+p%2, 2*key.L[1]+p/2);
-		cout << "calling print_tree for key"; 
-		mykey.print();
-		cout << endl;
 		print_tree(tree, mykey);
-//		print_tree(tree, KeyD(key.n+1, 2*key.L[0]+p%2, 2*key.L[1]+p/2));
 	    }
 	}
     }
@@ -562,7 +522,7 @@ void meld(treeT& tree, const KeyD& key) {
         d.cost += cheapest;
         tree.erase(key.myChild(mylist[i]));
 	node.set_child(mylist[i], false);
-//cout << "meld: set child " << mylist[i] << " to be false" << endl;
+cout << "meld: set child " << mylist[i] << " to be false" << endl;
     }
     d.istaken = false;
     node.set_data(d);
@@ -571,9 +531,9 @@ void meld(treeT& tree, const KeyD& key) {
     treeT::iterator itd = tree.find(key);
     NodeD noded = it->second;
     NodeData dd = noded.get_data();
-//    cout << "meld: at end, node has these values for children " << noded.has_child(0) << ",";
-//    cout << noded.has_child(1) << "," << noded.has_child(2) << "," << noded.has_child(3) << endl;
-//    cout << "meld: and cost = " << dd.cost << ", subcost = " << dd.subcost << endl;
+    cout << "meld: at end, node has these values for children " << noded.has_child(0) << ",";
+    cout << noded.has_child(1) << "," << noded.has_child(2) << "," << noded.has_child(3) << endl;
+    cout << "meld: and cost = " << dd.cost << ", subcost = " << dd.subcost << endl;
 }
 
 void rollup(treeT tree, KeyD key) {
@@ -671,9 +631,11 @@ Cost makePartition(treeT tree, KeyD key, vector<KeyD>* klist, Cost partitionSize
 
 Cost depthFirstPartition(treeT tree, KeyD key, vector<TreeCoords>* klist, unsigned int npieces, 
 	Cost totalcost = 0, Cost *maxcost = 0) {
+print("depthFirstPartition: at very beginning");
     if (totalcost == 0) {
 	totalcost = computeCost(tree, key);
     }
+print("depthFirstPartition: totalcost =", totalcost);
 
     Cost costLeft = totalcost;
     int partsLeft = npieces;
@@ -681,12 +643,13 @@ Cost depthFirstPartition(treeT tree, KeyD key, vector<TreeCoords>* klist, unsign
     Cost partitionSize = 0;
 
     for (int i = npieces-1; i >= 0; i--) {
-//	cout << endl << "Beginning partition number " << i << endl;
+	cout << endl << "Beginning partition number " << i << endl;
 	vector<KeyD> tmplist;
 	Cost tpart = computePartitionSize(costLeft, partsLeft);
 	if (tpart > partitionSize) {
 	    partitionSize = tpart;
 	}
+print("depthFirstPartition: partitionSize =", partitionSize);
 	Cost usedUp = 0;
 	bool atleaf = false;
 	usedUp = makePartition(tree, key, &tmplist, partitionSize, (i==0), usedUp, &atleaf);
@@ -701,22 +664,44 @@ Cost depthFirstPartition(treeT tree, KeyD key, vector<TreeCoords>* klist, unsign
 }
 
 void removeCost(treeT tree, KeyD key, Cost c) {
+cout << "removeCost: key ";
+key.print();
+cout << endl;
+    if (((int) key.n) < 0) return;
     treeT::iterator it = tree.find(key);
+print("removeCost: found key");
     if (it == tree.end()) return;
     NodeD node = it->second;
     NodeData d = node.get_data();
+print("removeCost: got data");
     d.subcost -= c;
-    removeCost(tree, key.myParent(), c);
+    if (key.n > 0) {
+    	removeCost(tree, key.myParent(), c);
+    }
+cout << "removeCost: before setting, data = ";
+d.print();
     node.set_data(d);
+cout << "removeCost: after setting, data = ";
+node.get_data().print();
     tree.erase(key);
     tree.insert(key,node);
+cout << "removeCost: after inserting, data = ";
+node.get_data().print();
+    treeT::iterator it2 = tree.find(key);
+    NodeD node2 = it2->second;
+    NodeData d2 = node2.get_data();
+cout << "removeCost: key ";
+key.print();
+cout << ", retrieved data = ";
+d2.print();
+cout << endl;
 }
 
 
 Cost makePartition(treeT tree, KeyD key, vector<KeyD>* klist, Cost partitionSize, bool lastPartition, Cost usedUp, bool *atleaf)
 {
-//    cout << "at beginning of makePartition: atleaf = ";
-//    cout << *atleaf << endl;
+    cout << "at beginning of makePartition: atleaf = ";
+    cout << *atleaf << endl;
     double fudgeFactor = 0.1;
     Cost maxAddl = (Cost) (fudgeFactor*partitionSize);
 
@@ -728,20 +713,20 @@ Cost makePartition(treeT tree, KeyD key, vector<KeyD>* klist, Cost partitionSize
     NodeD node = it->second;
     NodeData d = node.get_data();
 
-//    cout << "data for key ";
-//    key.print();
-//    cout << ": cost = " << d.cost << ", subcost = " << d.subcost << endl;
-//    cout << "partitionSize = " << partitionSize << ", lastPartition = " << lastPartition <<
-//	", usedUp = " << usedUp << std::endl;
+    cout << "data for key ";
+    key.print();
+    cout << ": cost = " << d.cost << ", subcost = " << d.subcost << endl;
+    cout << "partitionSize = " << partitionSize << ", lastPartition = " << lastPartition <<
+	", usedUp = " << usedUp << std::endl;
 
     if (d.istaken) {
-//	cout << "this key is taken" << endl; 
+	cout << "this key is taken" << endl; 
 	return usedUp;
     }
 
-//    cout << "back to key ";
-//    key.print();
-//    cout << endl;
+    cout << "back to key ";
+    key.print();
+    cout << endl;
 
     // if either we're at the last partition, the partition is currently empty
     // and this is a single item, or there is still room in the partition and
@@ -750,9 +735,9 @@ Cost makePartition(treeT tree, KeyD key, vector<KeyD>* klist, Cost partitionSize
     if ((lastPartition) || ((usedUp == 0) && (!node.has_children())) || 
 	((usedUp < partitionSize) && (d.subcost+usedUp <= partitionSize+maxAddl))) {
 	// add to partition
-//	cout << "adding to partition ";
-//	key.print();
-//	cout << endl;
+	cout << "adding to partition ";
+	key.print();
+	cout << endl;
 	klist->push_back(KeyD(key));
 	d.istaken = true;
 	usedUp += d.subcost;
@@ -768,20 +753,20 @@ Cost makePartition(treeT tree, KeyD key, vector<KeyD>* klist, Cost partitionSize
 	    for (unsigned int i = 0; i < node.dim; i++) {
 	    	if (node.has_child(i)) {
 	    	    KeyD k = key.myChild(i);
-//	    	    std::cout << "recursively calling ";
-//	    	    k.print();
-//	    	    cout << endl;
+	    	    std::cout << "recursively calling ";
+	    	    k.print();
+	    	    cout << endl;
 	    	    usedUp = makePartition(tree, k, klist, partitionSize, lastPartition, usedUp, atleaf);
 	    	    if ((*atleaf) || (usedUp >= partitionSize)) {
-//			cout << "at leaf = " << *atleaf << ", usedup >= partitionSize? " << 
-//				(usedUp >=partitionSize) << endl;
+			cout << "at leaf = " << *atleaf << ", usedup >= partitionSize? " << 
+				(usedUp >=partitionSize) << endl;
 		        break;
 		    }
 		}
 	    }
 	}
 	else {
-//	    cout << "about to set atleaf = true" << endl;
+	    cout << "about to set atleaf = true" << endl;
 	    *atleaf = true;
 	}
     }
@@ -808,8 +793,12 @@ void findBestPartition(treeT tree, KeyD key, vector<TreeCoords>* klist, unsigned
     costlist.push_back(0);
     Cost totalCost = 0;
 
+print("findBestPartition: about to fixCost");
+
     fixCost(tree, key);
+print("findBestPartition: about to depthFirstPartition");
     totalCost = depthFirstPartition(tree, key, &listoflist[count], npieces, totalCost, &costlist[count]);
+print("findBestPartition: after depthFirstPartition");
     int size = listoflist[count].size();
     std::cout << "Partitioned tree " << count << ":" << std::endl;
     for (int i = 0; i < size; i++)
@@ -936,25 +925,21 @@ int main(int argc, char** argv) {
 	print("Built tree");
 	world.gop.fence();
         print("Done fencing");
-/*
-	print("about to find 1,1,1");
-	treeT::iterator it = tree.find(KeyD(1,1,1));
-    	if (it == tree.end()) { 
-	    print("well this piece of tree doesn't seem to exist", me);
-	}
-	else {
-	    print("well I'll be -- this does exist!", me);
-	}
-*/
+	print("Now we're going to print the tree");
+	print("");
 	if (me == 1) {
 	    print("About to print tree");
 	    print_tree(tree,root);
 	    print("Printed tree");
+	}
+	print("Done printing tree");
+	print("");
+	if (me == 1) {
 //	    Cost cost = computeCost(tree,KeyD(0,0,0));
 //	    print("cost of tree =", cost);
-//	    vector<TreeCoords> klist;
-//	    unsigned int npieces = world.nproc();
-//	    findBestPartition(tree, KeyD(0,0,0), &klist, npieces);
+	    vector<TreeCoords> klist;
+	    unsigned int npieces = world.nproc();
+	    findBestPartition(tree, KeyD(0,0,0), &klist, npieces);
 	}
     } catch (MPI::Exception e) {
         error("caught an MPI exception");
