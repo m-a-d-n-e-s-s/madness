@@ -9,7 +9,12 @@ int main(int argc, char**argv) {
     try {
         startup(world,argc,argv);
 
-        Function<3,double> f;
+        Key<4> key(0,Array<Translation,4>(0));
+        print("Initial key",key);
+        for (KeyChildIterator<4> it(key); it; ++it) 
+            print(it.key());
+
+        Function<double,3> f;
 
     } catch (MPI::Exception e) {
         error("caught an MPI exception");

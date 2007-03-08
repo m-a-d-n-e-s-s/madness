@@ -2,8 +2,6 @@
 #define MAD_MRA_H
 
 #include <world/world.h>
-#include <mra/twoscale.h>
-#include <mra/legendre.h>
 #include <misc/misc.h>
 #include <tensor/mtrand.h>
 #include <tensor/tensor.h>
@@ -16,7 +14,13 @@ namespace madness {
 
     /// Level
     typedef long Level;
+}
 
+#include <mra/twoscale.h>
+#include <mra/legendre.h>
+#include <mra/key.h>
+
+namespace madness {
     /// FunctionDefaults holds default paramaters as static class members
 
     /// Defined and initialized in mra.cc.  Note that it is currently
@@ -51,7 +55,7 @@ namespace madness {
     /// constructor, which is important for massive parallelism and
     /// permitting inexpensive use of temporaries.  The default copy
     /// constructor and assignment operator are used.
-    template <int NDIM, typename T>
+    template <typename T, int NDIM>
     class FunctionCommonData {
     private:
         /// Private.  Make the level-0 blocks of the periodic central difference derivative operator
@@ -144,7 +148,7 @@ namespace madness {
     };
     
 
-    template <int NDIM, typename T> class FunctionData;
+    template <typename T, int NDIM> class FunctionData;
 
 
     /// FunctionFactory implements the named-parameter idiom for Function
@@ -153,13 +157,13 @@ namespace madness {
     /// This class provides something very close.  Create functions as follows
     /// \code
     /// double myfunc(const double x[]);
-    /// Function<3,double> f = FunctionFactory<3,double>(world).f(myfunc).k(11).thresh(1e-9).debug().nocompress()
+    /// Function<double,3> f = FunctionFactory<double,3>(world).f(myfunc).k(11).thresh(1e-9).debug().nocompress()
     /// \endcode
     /// where the methods of function factory, which specify the non-default
     /// arguments eventually passed to the \c Function constructor, can be
     /// used in any order.
-    template <int NDIM, typename T> class FunctionFactory {
-        friend class FunctionData<NDIM,T>;
+    template <typename T, int NDIM> class FunctionFactory {
+        friend class FunctionData<T,NDIM>;
     protected:
         World& _world;
         T (*_f)(const double[NDIM]);
@@ -247,50 +251,15 @@ namespace madness {
     };
 
     /// FunctionNode holds the coefficients, etc., at each node of the 2^NDIM-tree
-    template <int NDIM, typename T>
+    template <typename T, int NDIM>
     struct FunctionNode {
         Tensor<T> coeffs;  ///< The coefficients, if any
-        bool has_coeff;   ///< True if there are coefficients
+        bool has_coeff;    ///< True if there are coefficients
         bool has_children; ///< True if there are children
 
         template <typename Archive>
         inline void serialize(Archive& ar) {
-            throw MADNESS_EXCEPTION("not yet",0);
-        }
-    };
-
-    /// Key is the index for a node of the 2^NDIM-tree
-    template <int NDIM>
-    struct Key {
-        Level n;
-        Translation l[NDIM];
-        hashT hashval;
-
-        Key() {};
-
-        inline Key<NDIM>& operator=(const Key& other) {
-            if (this != &other) {
-                n = other.n;
-                for (int i=0; i<NDIM; i++) l[i] = other.l[i];
-                hashval = other.hashval;
-            }
-            return *this;
-        };
-
-        bool operator==(const Key& other) const {
-            if (hashval != other.hashval) return false;
-            if (n != other.n) return false;
-            for (int i=0; i<NDIM; i++) if (l[i] != other.l[i]) return false;
-            return true;
-        };
-
-        inline hashT hash() const {
-            return hashval;
-        };
-
-        template <typename Archive>
-        inline void serialize(Archive& ar) {
-            ar & archive::wrap((unsigned char*) this, sizeof(this));
+            ar & coeffs & has_coeff & has_children;
         }
     };
 
@@ -301,11 +270,11 @@ namespace madness {
     /// greatly simplifies maintaining consistent state to have all
     /// (permanent) state encapsulated in a single class.  The state
     /// is shared between instances using a SharedPtr<FunctionData>.
-    template <int NDIM, typename T>
+    template <typename T, int NDIM>
     class FunctionData {
     private:
         static const int MAXK = 17;
-        static FunctionCommonData<NDIM,T> commondata[MAXK + 1]; ///< Defined in mra.cc
+        static FunctionCommonData<T,NDIM> commondata[MAXK + 1]; ///< Defined in mra.cc
         static bool initialized;	///< Defined and initialized to false in mra.cc
 
     public:
@@ -323,7 +292,7 @@ namespace madness {
         bool refine;            ///< If true, refine when constructed
         bool nonstandard;        ///< If true, compress keeps scaling coeff
 
-        const FunctionCommonData<NDIM,T>* cdata;
+        const FunctionCommonData<T,NDIM>* cdata;
 
         T (*f)(const double[NDIM]); ///< Scalar interface to function to compress
         void (*vf)(long, const double*, T* restrict); ///< Vector interface to function to compress
@@ -331,12 +300,12 @@ namespace madness {
         bool compressed;        ///< Compression status
         long nterminated;       ///< No. of boxes where adaptive refinement was too deep
 
-        //typedef DistributedContainer< Key<NDIM>, FunctionNode<NDIM,T>, FunctionProcMap<NDIM> > dcT;
-        typedef DistributedContainer< Key<NDIM>, FunctionNode<NDIM,T> > dcT;
+        //typedef DistributedContainer< Key<NDIM>, FunctionNode<T,NDIM>, FunctionProcMap<NDIM> > dcT;
+        typedef DistributedContainer< Key<NDIM>, FunctionNode<T,NDIM> > dcT;
         dcT coeffs;
 
         /// Initialize function data from data in factory
-        FunctionData(const FunctionFactory<NDIM,T>& factory) 
+        FunctionData(const FunctionFactory<T,NDIM>& factory) 
             : world(factory._world)
             , k(factory._k)
             , thresh(factory._thresh)
@@ -365,7 +334,7 @@ namespace madness {
         /// Copy constructor
 
         /// Allocates a \em new function index in preparation for a deep copy
-        FunctionData(const FunctionData<NDIM,T>& other) 
+        FunctionData(const FunctionData<T,NDIM>& other) 
             : world(other.world)
             , k(other.k)
             , thresh(other.thresh)
@@ -389,7 +358,7 @@ namespace madness {
     private:
         /// Initialize static data
         void initialize() {
-            for (int k = 1; k <= MAXK; k++) commondata[k] = FunctionCommonData<NDIM,T>(k);
+            for (int k = 1; k <= MAXK; k++) commondata[k] = FunctionCommonData<T,NDIM>(k);
             initialized = true;
         };
 
@@ -397,18 +366,18 @@ namespace madness {
         //FunctionData<T>& operator=(const FunctionData<T>& other);
     };
 
-    template <int NDIM, typename T>
+    template <typename T, int NDIM>
     class Function {
     private:
-        SharedPtr< FunctionData<NDIM,T> > data;
+        SharedPtr< FunctionData<T,NDIM> > data;
 
     public:
         /// Constructor from FunctionFactory provides named parameter idiom
 
         /// No communication is involved.  Default constructor makes a
         /// zero compressed function.
-        Function(const FunctionFactory<NDIM,T>& factory)
-            : data(new FunctionData<NDIM,T>(factory))
+        Function(const FunctionFactory<T,NDIM>& factory)
+            : data(new FunctionData<T,NDIM>(factory))
         {};
 
         Function()
@@ -418,7 +387,7 @@ namespace madness {
         /// Copy constructor is \em shallow
 
         /// No communication is involved, works in either basis.
-        Function(const Function<NDIM,T>& f)
+        Function(const Function<T,NDIM>& f)
             : data(f.data)
         {};
 
@@ -426,7 +395,7 @@ namespace madness {
         /// Assignment is \em shallow.
 
         /// No communication is involved, works in either basis.
-        Function<NDIM,T>& operator=(const Function<NDIM,T>& f) {
+        Function<T,NDIM>& operator=(const Function<T,NDIM>& f) {
             if (this != &f) data = f.data;
             return *this;
         };

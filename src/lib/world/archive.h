@@ -297,8 +297,6 @@
 #include <vector>
 #include <map>
 #include <world/typestuff.h>
-//#include <tensor/tensor.h>
-//#include <archive_type_names.cc>
 
 #define ARCHIVE_COOKIE "archive"
 #define ARCHIVE_MAJOR_VERSION 0
@@ -315,6 +313,8 @@ using std::endl;
 
 namespace madness {
     
+    template <typename T> class Tensor;
+
     namespace archive {
         
         // There are 64 empty slots for user types.  Free space for
@@ -407,12 +407,12 @@ namespace madness {
         
         ARCHIVE_REGISTER_TYPE_AND_PTR(std::string,31);
         
-        // ARCHIVE_REGISTER_TYPE_AND_PTR(Tensor<int>,32);
-        // ARCHIVE_REGISTER_TYPE_AND_PTR(Tensor<long>,33);
-        // ARCHIVE_REGISTER_TYPE_AND_PTR(Tensor<float>,34);
-        // ARCHIVE_REGISTER_TYPE_AND_PTR(Tensor<double>,35);
-        // ARCHIVE_REGISTER_TYPE_AND_PTR(Tensor< std::complex<float> >,36);
-        // ARCHIVE_REGISTER_TYPE_AND_PTR(Tensor< std::complex<double> >,37);
+        ARCHIVE_REGISTER_TYPE_AND_PTR(Tensor<int>,32);
+        ARCHIVE_REGISTER_TYPE_AND_PTR(Tensor<long>,33);
+        ARCHIVE_REGISTER_TYPE_AND_PTR(Tensor<float>,34);
+        ARCHIVE_REGISTER_TYPE_AND_PTR(Tensor<double>,35);
+        ARCHIVE_REGISTER_TYPE_AND_PTR(Tensor< std::complex<float> >,36);
+        ARCHIVE_REGISTER_TYPE_AND_PTR(Tensor< std::complex<double> >,37);
         
         /// Base class for all archives
         class BaseArchive {
@@ -862,85 +862,6 @@ namespace madness {
         };
         
         
-        // /// Serialize a tensor
-        // template <class Archive, typename T>
-        // struct ArchiveStoreImpl< Archive, Tensor<T> > {
-        //     static inline void store(const Archive& s, const Tensor<T>& t) {
-        //         if (t.iscontiguous()) s & t.id & t.ndim & t.dim & wrap(t.ptr(),t.size);
-        //         else s & copy(t);
-        //     };
-        // };
-        
-        
-        // /// Deserialize a tensor ... existing tensor is replaced
-        // template <class Archive, typename T>
-        // struct ArchiveLoadImpl< Archive, Tensor<T> > {
-        //     static inline void load(const Archive& s, Tensor<T>& t) {
-        //         long id;
-        //         s & id;
-        //         if (id != t.id) throw "type mismatch deserializing a tensor";
-        //         long ndim, dim[TENSOR_MAXDIM];  // Uncool reference to this macro
-        //         s & ndim & dim;
-        //         t = Tensor<T>(ndim, dim, false);
-        //         s & wrap(t.ptr(), t.size);
-        //     };
-        // };
-        
-        // /// Serialize a Tensor thru a BaseTensor pointer
-        // template <class Archive>
-        // struct ArchiveStoreImpl< Archive, BaseTensor* > {
-        //     static inline void store(const Archive& s, const BaseTensor* t) {
-        // //		std::cout << "serizialing thru bt\n";
-        //         if (t)
-        //         {
-        //             s & 1;
-        // //		    std::cout << "t->id = " << t->id << std::endl;
-        //             s & t->id;
-        // //		    std::cout << "serialized id" << std::endl;
-        //             if (t->id == TensorTypeData<double>::id) {
-        // //		        std::cout << "serizialing thru bt ... it's a double!\n";
-        //                 s & *((const Tensor<double>*) t);
-        //             } else {
-        //                 throw "not yet";
-        //             }
-        //         }
-        //         else
-        //         {
-        //             s & 0;
-        //         }
-        //     };
-        // };
-        
-        // /// Deserialize a Tensor thru a BaseTensor pointer
-        
-        // /// It allocates a NEW tensor ... the original point is stomped on
-        // /// and so should not be preallocated.
-        // template <class Archive>
-        // struct ArchiveLoadImpl< Archive, BaseTensor* > {
-        //     static inline void load(const Archive& s, BaseTensor*& t) {
-        //         int loadit;
-        //         s & loadit;
-        //         if (loadit)
-        //         {
-        //             long id;
-        //             s & id;
-        // //		    std::cout << "deserizialing thru bt\n";
-        //             if (id == TensorTypeData<double>::id) {
-        // //		        std::cout << "deserizialing thru bt ... it's a double!\n";
-        //                 Tensor<double>* d = new Tensor<double>();
-        //                 s & *d;
-        //                 t = d;
-        //             } else {
-        //                 throw "not yet";
-        //             }
-        //         }
-        //         else
-        //         {
-        // //		    std::cout << "empty tensor" << std::endl;
-        //             t = 0;
-        //         }
-        //     };
-        // };
         
     }
 }

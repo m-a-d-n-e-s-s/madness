@@ -14,6 +14,7 @@
 
 #include <madness_config.h>
 #include <world/sharedptr.h>
+#include <world/archive.h>
 
 typedef std::complex<float> float_complex;
 typedef std::complex<double> double_complex;
@@ -606,9 +607,10 @@ namespace madness {
                                          iterlevel, optimize, fusedim, jdim);
         }
 
-        /// End point for forward iteration ... MUST OPTIMIZE THIS AWAY!
-        inline TensorIterator<T> end() const { // Can we make this a ref to class static?
-            return TensorIterator<T>(0,0,0,0,0,0);
+        /// End point for forward iteration
+        inline const TensorIterator<T>& end() const {
+            static TensorIterator<T> theend(0,0,0,0,0,0);
+            return theend;
         };
 
         /// Helper for generic base functionality ... shallow copy allocated on heap
@@ -626,15 +628,102 @@ namespace madness {
             return new SliceTensor<T>(*this,&(s[0]));
         };
 
-
         inline BaseTensor* get_base() {
             return (BaseTensor *) this;
         };
+
         virtual ~Tensor() {};
     };
 
     template <class T>
     std::ostream& operator << (std::ostream& out, const Tensor<T>& t);
+
+
+    namespace archive {
+        /// Serialize a tensor
+        template <class Archive, typename T>
+        struct ArchiveStoreImpl< Archive, Tensor<T> > {
+            static inline void store(const Archive& s, const Tensor<T>& t) {
+                if (t.iscontiguous()) {
+                    s & t.id & t.ndim & t.dim & wrap(t.ptr(),t.size);
+                }
+                else {
+                    s & copy(t);
+                }
+            };
+        };
+        
+        
+        /// Deserialize a tensor ... existing tensor is replaced
+        template <class Archive, typename T>
+        struct ArchiveLoadImpl< Archive, Tensor<T> > {
+            static inline void load(const Archive& s, Tensor<T>& t) {
+                long id;
+                s & id;
+                if (id != t.id) throw "type mismatch deserializing a tensor";
+                long ndim, dim[TENSOR_MAXDIM];
+                s & ndim & dim;
+                t = Tensor<T>(ndim, dim, false);
+                s & wrap(t.ptr(), t.size);
+            };
+        };
+        
+//         /// Serialize a Tensor thru a BaseTensor pointer
+//         template <class Archive>
+//         struct ArchiveStoreImpl< Archive, BaseTensor* > {
+//             static inline void store(const Archive& s, const BaseTensor* t) {
+//         //		std::cout << "serizialing thru bt\n";
+//                 if (t)
+//                 {
+//                     s & 1;
+//         //		    std::cout << "t->id = " << t->id << std::endl;
+//                     s & t->id;
+//         //		    std::cout << "serialized id" << std::endl;
+//                     if (t->id == TensorTypeData<double>::id) {
+//         //		        std::cout << "serizialing thru bt ... it's a double!\n";
+//                         s & *((const Tensor<double>*) t);
+//                     } else {
+//                         throw "not yet";
+//                     }
+//                 }
+//                 else
+//                 {
+//                     s & 0;
+//                 }
+//             };
+//         };
+        
+//         /// Deserialize a Tensor thru a BaseTensor pointer
+        
+//         /// It allocates a NEW tensor ... the original point is stomped on
+//         /// and so should not be preallocated.
+//         template <class Archive>
+//         struct ArchiveLoadImpl< Archive, BaseTensor* > {
+//             static inline void load(const Archive& s, BaseTensor*& t) {
+//                 int loadit;
+//                 s & loadit;
+//                 if (loadit)
+//                 {
+//                     long id;
+//                     s & id;
+//         //		    std::cout << "deserizialing thru bt\n";
+//                     if (id == TensorTypeData<double>::id) {
+//         //		        std::cout << "deserizialing thru bt ... it's a double!\n";
+//                         Tensor<double>* d = new Tensor<double>();
+//                         s & *d;
+//                         t = d;
+//                     } else {
+//                         throw "not yet";
+//                     }
+//                 }
+//                 else
+//                 {
+//         //		    std::cout << "empty tensor" << std::endl;
+//                     t = 0;
+//                 }
+//             };
+//         };
+    }
 
 #if HAVE_NESTED_TEMPLATE_XLC_BUG
     /// The class defines tensor op scalar ... here define scalar op tensor.

@@ -21,6 +21,8 @@ typedef UINT64_T uint64_t;
 #endif
 
 #include <world/typestuff.h>
+#include <world/worldhash.h>
+#include <world/array.h>
 #include <world/print.h>
 #include <world/worldexc.h>
 #include <world/sharedptr.h>
@@ -287,7 +289,6 @@ namespace madness {
 #include <world/worldfut.h>
 #include <world/worldtask.h>
 #include <world/worldgop.h>
-#include <world/worldhash.h>
 #include <world/worlddc.h>
 
 namespace madness {

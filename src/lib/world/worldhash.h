@@ -88,7 +88,7 @@ namespace madness {
     template <class T, std::size_t n>
     struct Hash<T[n]> {
         static hashT hash(const T (&t)[n]) {
-            return hash(&t, n);
+            return madness::hash(t, n);
         };
     };
 }

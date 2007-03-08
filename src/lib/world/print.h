@@ -66,13 +66,19 @@ namespace madness {
         return s;
     }
 
-    
-    /// Print a fixed dimension array to cout terminating with a new line
+    /// Easy printing of fixed dimension arrays
+
+    /// STL I/O already does char.
     template <typename T, std::size_t N>
-    void print_array(const T (&v)[N]) {
-        for (int i=0; i<(int)N; i++) std::cout << v[i] << " ";
-        std::cout<<ENDL;
-        FLUSH();
+    typename disable_if<is_same<T,char>, std::ostream&>::type
+    operator<<(std::ostream& s, const T(&v)[N]) {
+        s << "[";
+        for (std::size_t i=0; i<N; i++) {
+            s << v[i];
+            if (i != (N-1)) s << ",";
+        }
+        s << "]";
+        return s;
     }
 
     /// Print a single item to std::cout terminating with new line
