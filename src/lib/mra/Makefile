@@ -10,7 +10,7 @@ TARGET_TO_MAKE = libMADmra
 
 # List all C++ source files (not headers).  Use CSRC and FTNSRC for
 # C (.c) and Fortran (.f) respectively
-CXXSRC = startup.cc legendre.cc twoscale.cc
+CXXSRC = startup.cc legendre.cc twoscale.cc mra.cc
 
 # Data files that should be installed with the library [OPTIONAL]
 DATAFILES = autocorr coeffs gaussleg

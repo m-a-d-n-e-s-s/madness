@@ -14,7 +14,7 @@ int main(int argc, char**argv) {
         for (KeyChildIterator<4> it(key); it; ++it) 
             print(it.key());
 
-        Function<double,3> f;
+        Function<double,3> f = FunctionFactory<double,3>(world);
 
     } catch (MPI::Exception e) {
         error("caught an MPI exception");

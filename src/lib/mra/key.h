@@ -63,6 +63,22 @@ namespace madness {
         const Array<Translation,NDIM>& translation() const {
             return l;
         };
+
+        /// Returns the key of the parent
+
+        /// Default is the immediate parent (generation=1).  To get
+        /// the grandparent use generation=2, and similarly for
+        /// great-grandparents.
+        ///
+        /// !! If there is no such parent it quietly returns the
+        /// closest match (which may be self if this is the top of the
+        /// tree).
+        Key parent(int generation=1) const {
+            Array<Translation,NDIM> pl;
+            if (generation > n) generation = n;
+            for (int i=0; i<NDIM; i++) pl[i] = l[i]>>generation;
+            return Key(n-generation,pl);
+        };
     };
 
     template <int NDIM>
