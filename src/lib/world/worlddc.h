@@ -97,6 +97,39 @@ namespace madness {
     };
 
 
+    // Used to store info about stuff in the cache
+    struct CacheInfo {
+        mutable int nref;  // Reference count
+        mutable std::vector<CallbackInterface*> callbacks;
+
+        CacheInfo(int nref = 0) : nref(nref), callbacks() {};
+
+        // Iterators register their interest here
+        void register_callback(CallbackInterface* callback) {
+            nref++;
+            callbacks.push_back(callback);
+        };
+
+        // Iterators unregister their interest here
+        void unregister_callback(CallbackInterface* callback) {
+            nref--;
+            for (std::size_t i=0; i<callbacks.size(); i++) {
+                if (callbacks[i] == callback) {
+                    callbacks[i] = 0;
+                    break;
+                }
+            }
+        };
+        
+        // Destructor invalidates referencing iterators
+        ~CacheInfo() {
+            for (std::size_t i=0; i<callbacks.size(); i++) {
+                if (callbacks[i]) callbacks[i]->notify();
+            }
+        };
+    };
+
+        
     
     /// Iterator for distributed container wraps the local iterator
 
@@ -106,10 +139,14 @@ namespace madness {
     /// without invalidating your references.  Thus, do NOT take a
     /// direct pointer/reference to a cached value since if you then
     /// free the iterator your pointer may well be junk.
+    ///
+    /// However, the reference counting still leaves the usual problem
+    /// (present in even the STL containers) that if you erase an
+    /// entry (either via the iterator or via the key) that your
+    /// iterators are now invalid.  Just the way it is.
     template <class implT, class internal_iteratorT, class pairT>
-    class DistributedContainerIterator {
+    class DistributedContainerIterator : private CallbackInterface {
     private:
-        // should be a shared ptr for impl?
         typedef typename implT::cacheinfo_iteratorT cacheinfo_iteratorT;
         typedef typename implT::attributes attrT;
 
@@ -118,6 +155,30 @@ namespace madness {
         cacheinfo_iteratorT cacheit;   //< Iterator for reference counting cache
         bool fromcache;                //< True if is a cached remote value
 
+        // Called by the cache to notify iterators to invalidate themselves
+        void notify() {
+            print("Invalidating iterator!",fromcache);
+            impl = 0;
+            it = internal_iteratorT();
+        };
+
+        inline void register_cache_callback() {
+            if (impl && fromcache) cacheit->second.register_callback(static_cast<CallbackInterface*>(this));
+        };
+
+        inline void unregister_cache_callback() {
+            if (impl && fromcache) {
+                CacheInfo& info = cacheit->second;
+                info.unregister_callback(static_cast<CallbackInterface*>(this));
+                MADNESS_ASSERT(info.nref>=0);
+                if (!attrT::CacheReadPolicy && info.nref==0) {
+                    //print("Iterator deleting cached data");
+                    impl->cache_erase(it,cacheit);
+                }
+            }
+        };
+
+            
     public:
         /// Default constructor (same as end())
         DistributedContainerIterator() 
@@ -131,24 +192,25 @@ namespace madness {
                                      bool fromcache) 
             : impl(impl), it(it), cacheit(cacheit), fromcache(fromcache) 
         {
-            if (impl && fromcache) cacheit->second++;
+            register_cache_callback();
         };
 
         /// Copy constructor (increments reference count)
         DistributedContainerIterator(const DistributedContainerIterator& other) 
             : impl(other.impl), it(other.it), cacheit(other.cacheit), fromcache(other.fromcache)
         {
-            if (impl && fromcache) cacheit->second++;
+            register_cache_callback();
         };
 
         /// Assignment (increments reference count)
         DistributedContainerIterator& operator=(const DistributedContainerIterator& other) {
             if (this != &other) {
+                unregister_cache_callback();  // <---
                 impl = other.impl;
                 it = other.it;
                 cacheit = other.cacheit;
                 fromcache = other.fromcache;
-                if (impl && fromcache) cacheit->second++;
+                register_cache_callback();   // <---
             }
             return *this;
         };
@@ -163,7 +225,9 @@ namespace madness {
             return it != other.it;
         };
 
-        /// Pre-increment of an iterator (i.e., ++it)
+        /// Pre-increment of an iterator (i.e., ++it) --- LOCAL iterators only
+
+        /// Trying to increment a remote iterator will throw
         DistributedContainerIterator& operator++() {
             if (impl) {
                 MADNESS_ASSERT(!fromcache);
@@ -172,22 +236,22 @@ namespace madness {
             return *this;
         };
 
-        /// Iterators derefence to std::pair<keyT,valueT>
+        /// Iterators dereference to std::pair<keyT,valueT>
         const pairT* operator->() const {
             return it.operator->();
         };
 
-        /// Iterators derefence to std::pair<keyT,valueT>
+        /// Iterators dereference to std::pair<keyT,valueT>
         pairT* operator->() {
             return it.operator->();
         };
 
-        /// Iterators derefence to std::pair<keyT,valueT>
+        /// Iterators dereference to std::pair<keyT,valueT>
         const pairT& operator*() const {
             return *it;
         };
         
-        /// Iterators derefence to std::pair<keyT,valueT>
+        /// Iterators dereference to std::pair<keyT,valueT>
         pairT& operator*() {
             return *it;
         };
@@ -197,12 +261,13 @@ namespace madness {
             return it;
         };
 
+        /// Returns true if this is a cached remote value
+        bool is_cached() const {
+            return fromcache;
+        };
+
         ~DistributedContainerIterator() {
-            if (impl && fromcache) {
-                int nref = --cacheit->second;
-                MADNESS_ASSERT(nref>=0);
-                if (!attrT::CacheReadPolicy && nref==0) impl->cache_erase(it,cacheit);
-            }
+            unregister_cache_callback();
         };
 
         template <typename Archive>
@@ -227,7 +292,6 @@ namespace madness {
       virtual ~DCPendingMsg(){};
     };
 
-
     /// Implementation of distributed container to enable PIMPL
 
     /// !! Currently assumes that keyT is a contiguous lump of memory
@@ -249,7 +313,7 @@ namespace madness {
                 return hash(t);
             };
         };
-        typedef HASH_MAP_NAMESPACE::hash_map< keyT,int,DCLocalHash<keyT> > cacheinfoT;
+        typedef HASH_MAP_NAMESPACE::hash_map< keyT,CacheInfo,DCLocalHash<keyT> > cacheinfoT;
         typedef HASH_MAP_NAMESPACE::hash_map< keyT,valueT,DCLocalHash<keyT> > internal_containerT;
 #else
         typedef std::map<keyT,int> cacheinfoT;
@@ -378,8 +442,8 @@ namespace madness {
         const ProcessID me;           //< My MPI rank
         internal_containerT local;    //< Locally owned data
         mutable internal_containerT cache;    //< Local cache for remote data
-        mutable cacheinfoT cacheinfo;        //< Maps cached keys to reference count
-        const iterator end_iterator;         //< For fast return of end
+        mutable cacheinfoT cacheinfo;         //< Maps cached keys to info
+        const iterator end_iterator;          //< For fast return of end
         const const_iterator end_const_iterator; //< For fast return of end
 
 
@@ -593,11 +657,11 @@ namespace madness {
         };
 
 
-        /// Removes (remote) item from local cache
-        void cache_erase(const internal_iteratorT& it, const cacheinfo_iteratorT& cacheit) {
-            cache.erase(it);
-            cacheinfo.erase(cacheit);
-        };
+//         /// Removes (remote) item from local cache
+//         void cache_erase(const internal_iteratorT& it, const cacheinfo_iteratorT& cacheit) {
+//             cache.erase(it);
+//             cacheinfo.erase(cacheit);
+//         };
 
 
         /// Removes (remote) item from local cache
@@ -680,9 +744,9 @@ namespace madness {
                     if (cache.size() >= attrT::CacheMaxEntries) 
                         handle_cache_overflow();
                     cache.insert(datum);
-                    cacheinfo.insert(std::pair<keyT,int>(datum.first,0));
+                    cacheinfo.insert(std::pair<keyT,CacheInfo>(datum.first,0));
                 }
-                else if (attrT::CacheReadPolicy) { // Remote writes invalidate cache
+                else if (attrT::CacheReadPolicy) { // Remote writes only invalidate cache
                     cache.erase(datum.first);
                     cacheinfo.erase(datum.first);
                 }
@@ -695,7 +759,8 @@ namespace madness {
 
         void clear() {
             local.clear();
-            //cache.clear(); ... must check refcnt for each entry
+            cache.clear();
+            cacheinfo.clear();
         };
 
 
@@ -705,15 +770,23 @@ namespace madness {
                 local.erase(key);
             }
             else {
-                //cache.erase(key) ... must check refcnt
+                cache.erase(key);
+                cacheinfo.erase(key);
                 world.am.send(dest, erase_handler, AmArg(theid, me, key));
             }                
         };
 
 
         void erase(const iterator& it) {
-            if (it == end()) return;
-            local.erase(it.get_internal_iterator());
+            if (it == end()) {
+                return;
+            }
+            else if (it.is_cached()) {
+                erase(it->first);
+            }
+            else { 
+                local.erase(it.get_internal_iterator());
+            }
         };
 
         void erase(const iterator& start, const iterator& finish) {
@@ -976,8 +1049,6 @@ namespace madness {
 
 
         /// Inserts key+value pair (non-blocking communication if key not local)
-        
-        /// Local caching of writes is not yet enabled.
         void insert(const std::pair<keyT,valueT>& datum) {
             check_initialized();
             p->insert(datum);
@@ -985,8 +1056,6 @@ namespace madness {
 
         
         /// Inserts key+value pair (non-blocking communication if key not local)
-        
-        /// Local caching of writes is not yet enabled.
         void insert(const keyT& key, const valueT& value) {
             insert(pairT(key,value));
         };

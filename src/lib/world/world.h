@@ -95,7 +95,7 @@ namespace madness {
             }
             else {
                 print("do_deferred_cleanup: cleaning",deferred.size(),"items");
-                //deferred.clear();
+                deferred.clear();
                 return true;
             }
         };

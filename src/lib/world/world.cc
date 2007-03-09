@@ -607,7 +607,6 @@ struct Node {
 void test11(World& world) {
     // Test the various flavours of erase
     ProcessID me = world.rank();
-    int nproc = world.nproc();
     DistributedContainer<Key,Node> d(world);
 
     // First build an oct-tree with random depth
