@@ -3,14 +3,9 @@
 function usage() {
    echo "Usage: INSTALL --help        print this text"
    echo " "
-   echo "Usage: INSTALL target"
+   echo "Usage: INSTALL target options"
    echo " "
-   echo " where target is one of the following:"
-   echo " "
-   echo "    mpich-gcc4-x86    ---> 32-bit x86 with mpich 1 or 2 and gcc-4/gfortran"
-   echo "    mpich-gcc4-x86-64 ---> 64-bit x86 with mpich 1 or 2 and gcc-4/gfortran"
-   echo "    mpich-gcc3-x86    ---> 32-bit x86 with mpich 1 or 2 and gcc-3/g77"
-   echo "    mpich-gcc3-x86-64 ---> 64-bit x86 with mpich 1 or 2 and gcc-3/g77"
+   echo " where target options are chosen from the following ... "
    echo " "
    echo "    To override the default choice of BLAS/LAPACK libraries set the environment"
    echo "    variables MADBLAS and/or MADLAPACK."
@@ -27,65 +22,88 @@ function usage() {
    echo " "
 }
 
-if [ $# != 1 ] ; then
-   usage
-   exit 1
+if [ "$1" == "--help" ] ; then
+    usage
+    exit 0
 fi
 
-if [ $1 == "--help" ] ; then
-   usage
-   exit 0
+target="$*"
+
+function contains() {
+    echo "$1" | grep -qi "$2"
+}
+
+function using() {
+    contains "$target" "$1"
+}
+
+function isgcc() {
+    contains "`$CXX -v 2>&1`" "gcc"
+}
+
+function isgcc4() {
+    contains "`$CXX -v 2>&1`" "gcc version 4"
+}
+
+# Assume MPICH-like interface if not CXX is not set
+if [ "$CXX" == "" ] ; then
+    CXX=mpicxx
+    CC=mpicc
 fi
 
-target="$1"
-
-# The initial stuff at the beginning takes care of most UNIX or LINUX platforms.
-# Complete special cases are at the end wrapping the call to configure.
-
-if [ "$MADBLAS" == "" ] ; then
-  MADBLAS="-lblas"
-fi;
+if [ "$MADDEF" == "" ] ; then
+    MADDEF="-DX8632 -DHAS_XTERM_DEBUG"
+fi
 
 if [ "$MADLAPACK" == "" ] ; then
-  MADLAPACK="-llapack"
-fi;
-
-if [ "$MADARCH" == "" ] ; then
-  if [[ "$target" == "mpich-gcc4-x86" || "$target" == "mpich-gcc4-x86-64" ]]; then
-    MADARCH="-march=native"
-  fi
+    MADLAPACK="-llapack"
 fi
 
-if [ "$MADCOPT" == "" ] ; then
-  MADCOPT="-Wall -ansi -O3 -ffast-math -fomit-frame-pointer -funroll-loops -malign-double -mfpmath=sse -msse2"
+if [ "$MADBLAS" == "" ] ; then
+    MADBLAS="-lblas"
 fi
 
-if [ "$target" == "mpich-gcc3-x86-64" ] ; then
-   MADFINT="--with-fortran-integer=int"
-   MADLIBS="$MADLIBS -lg2c"
+# Tweaks for gcc 
+if isgcc ; then
+    if isgcc4 ; then
+        MADARCH=-march=native
+    else
+        MADLIBS="$MADLIBS -lg2c"
+        MADFINT="--with-fortran-integer=int"
+    fi
+    if [ "$MADCOPT" == "" ] ; then
+        if using debug ; then
+            MADCOPT="-Wall -ansi -O0 -g $MADARCH"
+        else
+            MADCOPT="-Wall -ansi -O3 -ffast-math -fomit-frame-pointer -funroll-loops -malign-double -mfpmath=sse -msse2 $MADARCH"
+        fi
+    fi
 fi
 
-if [ "$target" == "mpich-gcc3-x86" ] ; then
-   MADLIBS="$MADLIBS -lg2c"
+if using "x86-64" ; then
+   MADDEF="$MADDEF -DX8664"
+elif using "x86" ; then
+   MADDEF="$MADDEF -DX8632"
 fi
 
+MADCOPT="$MADCOPT $MADDEF"
 
-MADDEF="$MADDEF -DX8632 -DHAS_XTERM_DEBUG"  
 
-MADCXX="mpicxx"
-MADCC="mpicc"
-MADCXXFLAGS="$MADDEF $MADCOPT $MADARCH"
-MADCFLAGS="$MADCXXFLAGS"
+# Now handle all special cases in detail with default covering
+# most systems after setting flags above
+case "$1" in
+    *)
+        echo ./configure --with-cxx=\"$CXX\" \\
+        echo "            "--with-cc=\"$CC\" \\
+        echo "            "--with-cxx-optflags=\"$MADCOPT\"  \\
+        echo "            "--with-cc-optflags=\"$MADCOPT\" \\
+        echo "            "--with-blas=\"$MADBLAS\" --with-lapack=\"$MADLAPACK\" \\
+        echo "            "--with-libs=\"$MADLIBS\" $MADFINT
 
-echo ./configure --with-cxx=\"$MADCXX\" --with-cc=\"$MADCC\"    \\
-echo "            "--with-cxx-optflags=\"$MADCXXFLAGS\"  \\
-echo "            "--with-cc-optflags=\"$MADCFLAGS\" \\
-echo "            "--with-blas=\"$MADBLAS\" --with-lapack=\"$MADLAPACK\" \\
-echo "            "--with-libs=\"$MADLIBS\"
-
-./configure --with-cxx="$MADCXX" --with-cc="$MADCC" \
-            --with-cxx-optflags="$MADCXXFLAGS" --with-cc-optflags="$MADCFLAGS" \
+        ./configure --with-cxx="$CXX" --with-cc="$CC" \
+            --with-cxx-optflags="$MADCOPT" --with-cc-optflags="$MADCOPT" \
             --with-blas="$MADBLAS" --with-lapack="$MADLAPACK" \
-            --with-libs="$MADLIBS"
+            --with-libs="$MADLIBS" $MADFINT
 
-
+        ;;
+esac
