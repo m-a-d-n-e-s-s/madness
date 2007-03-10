@@ -1,174 +1,91 @@
-  ====================
-  CYGWIN on x8632 using mpich2-1.0.5 with pm=gforker and gcc 3.4.4 or 4.2.0
-  
-  #export MADARCH=-march=pentium-m
-  export MADARCH=-march=native
-  export MADCOPT="-Wall -ansi -O0 -g $MADARCH"
-  #export MADCOPT="-Wall -ansi -O3 -ffast-math -fomit-frame-pointer -funroll-loops $MADARCH"
-  export MADDEF="-DX8632 -DHAS_XTERM_DEBUG"
-  export MADCXXFLAGS="$MADCOPT $MADDEF"
-  export MADLAPACK="-llapack"
-  export MADBLAS="-lblas"
-  export MADEXTRALIBS="-lg2c"
-  ./configure --with-cxx=mpicxx --with-cc=mpicc \
-              --with-cxx-optflags="$MADCXXFLAGS" --with-cc-optflags="$MADCXXFLAGS" \
-              --with-blas="$MADBLAS" --with-lapack="$MADLAPACK" \
-              --with-libs="$MADEXTRA_LIBS"
+#!/bin/sh
+
+function usage() {
+   echo "Usage: INSTALL --help        print this text"
+   echo " "
+   echo "Usage: INSTALL target"
+   echo " "
+   echo " where target is one of the following:"
+   echo " "
+   echo "    mpich-gcc4-x86    ---> 32-bit x86 with mpich 1 or 2 and gcc-4/gfortran"
+   echo "    mpich-gcc4-x86-64 ---> 64-bit x86 with mpich 1 or 2 and gcc-4/gfortran"
+   echo "    mpich-gcc3-x86    ---> 32-bit x86 with mpich 1 or 2 and gcc-3/g77"
+   echo "    mpich-gcc3-x86-64 ---> 64-bit x86 with mpich 1 or 2 and gcc-3/g77"
+   echo " "
+   echo "    To override the default choice of BLAS/LAPACK libraries set the environment"
+   echo "    variables MADBLAS and/or MADLAPACK."
+   echo " "
+   echo "    To override the default compiler optimization flags set MADCOPT."
+   echo " "
+   echo "    To override the default architecture choice set MADARCH."
+   echo " "
+   echo "    To set additional defines/includes set MADCDEF."
+   echo " "
+   echo "    To set additional libraries set MADLIBS."
+   echo " "
+   echo "    For full control, run the configure script."
+   echo " "
+}
+
+if [ $# != 1 ] ; then
+   usage
+   exit 1
+fi
+
+if [ $1 == "--help" ] ; then
+   usage
+   exit 0
+fi
+
+target="$1"
+
+# The initial stuff at the beginning takes care of most UNIX or LINUX platforms.
+# Complete special cases are at the end wrapping the call to configure.
+
+if [ "$MADBLAS" == "" ] ; then
+  MADBLAS="-lblas"
+fi;
+
+if [ "$MADLAPACK" == "" ] ; then
+  MADLAPACK="-llapack"
+fi;
+
+if [ "$MADARCH" == "" ] ; then
+  if [[ "$target" == "mpich-gcc4-x86" || "$target" == "mpich-gcc4-x86-64" ]]; then
+    MADARCH="-march=native"
+  fi
+fi
+
+if [ "$MADCOPT" == "" ] ; then
+  MADCOPT="-Wall -ansi -O3 -ffast-math -fomit-frame-pointer -funroll-loops -malign-double -mfpmath=sse -msse2"
+fi
+
+if [ "$target" == "mpich-gcc3-x86-64" ] ; then
+   MADFINT="--with-fortran-integer=int"
+   MADLIBS="$MADLIBS -lg2c"
+fi
+
+if [ "$target" == "mpich-gcc3-x86" ] ; then
+   MADLIBS="$MADLIBS -lg2c"
+fi
 
 
-EVERYTHING BELOW HERE IS THE OLD INSTRUCTIONS AND NEEDS TO BE
-UPDATED TO THE NEW STUFF
+MADDEF="$MADDEF -DX8632 -DHAS_XTERM_DEBUG"  
+
+MADCXX="mpicxx"
+MADCC="mpicc"
+MADCXXFLAGS="$MADDEF $MADCOPT $MADARCH"
+MADCFLAGS="$MADCXXFLAGS"
+
+echo ./configure --with-cxx=\"$MADCXX\" --with-cc=\"$MADCC\"    \\
+echo "            "--with-cxx-optflags=\"$MADCXXFLAGS\"  \\
+echo "            "--with-cc-optflags=\"$MADCFLAGS\" \\
+echo "            "--with-blas=\"$MADBLAS\" --with-lapack=\"$MADLAPACK\" \\
+echo "            "--with-libs=\"$MADLIBS\"
+
+./configure --with-cxx="$MADCXX" --with-cc="$MADCC" \
+            --with-cxx-optflags="$MADCXXFLAGS" --with-cc-optflags="$MADCFLAGS" \
+            --with-blas="$MADBLAS" --with-lapack="$MADLAPACK" \
+            --with-libs="$MADLIBS"
 
 
-
-
-======================================================================
-Configure options for pentium4 with gcc with mpich
-
-#set LAPACK = "/home/rjh/Downloads/liblapack_rjh.a"
-#set BLAS = " -L/home/rjh/Downloads/Linux_P4SSE2/lib -lcblas -lf77blas -latlas"
-# Note default Fedora Core 2/3/4 lapack is broken
-
-setenv CC mpicc
-setenv CXX mpicxx
-setenv F77 mpif77
-
-set ARCHFLAGS = "-march=pentium4 -mtune=pentium4 -msse2 -mfpmath=sse"
-set DEBUGFLAGS = "-Wall -ggdb"
-set OPTFLAGS = "-O3 -funroll-loops -ffast-math -fomit-frame-pointer"
-set CXXOPT = "$DEBUGFLAGS $ARCHFLAGS $OPTFLAGS"
-set LAPACK = "-llapack"
-set BLAS = "-lblas"
-set EXTRALIBS = "-lg2c"
-
-./configure --with-cxx-optflags="$CXXOPT" --with-libs="$EXTRALIBS" \
-            --with-blas="$BLAS" --with-lapack="$LAPACK"
-
-
-======================================================================
-Configure options for pentium4 with icc with mpich
-[not yet working]
-
-#set LAPACK = "/home/rjh/Downloads/liblapack_rjh.a"
-#set BLAS = " -L/home/rjh/Downloads/Linux_P4SSE2/lib -lcblas -lf77blas -latlas"
-# Note default Fedora Core 2/3/4 lapack is broken
-
-setenv CC "mpicc -cc=icc"
-setenv CXX "mpicxx -cxx=icc"
-setenv F77 mpif77
-
-set ARCHFLAGS = " -xN -tpp7"
-set DEBUGFLAGS = ""
-set OPTFLAGS = "-O3"
-set CXXOPT = "$DEBUGFLAGS $ARCHFLAGS $OPTFLAGS"
-set LAPACK = "-llapack"
-set BLAS = "-lblas"
-set EXTRALIBS = "-lg2c"
-
-./configure --with-cxx-optflags="$CXXOPT" --with-libs="$EXTRALIBS" \
-            --with-blas="$BLAS" --with-lapack="$LAPACK"
-
-======================================================================
-Configure options for Cray X1 ... phoenix
-
-!! Run configure on phoenix, then you can make on robin (the 
-!! linux front end) which will be much faster
-
-setenv CXX "CC -hssp"
-setenv CC "cc -hssp"
-setenv CXXOPT "-O5 -h new_for_init -h instantiate=used"
-./configure --with-cxx-optflags="$CXXOPT"
-
-======================================================================
-Configure options for SGI Altix with Intel compilers ... ram
-
-Intel 8* compilers seem to have some problems.  9* seem OK.
-
-USE_REAL_USLEEP ???
-HAS_XTERM_DEBUG ???
-
-module load icc9138 idb9138 ifort9132
-setenv CC icc
-setenv CXX icpc
-setenv F77 ifc
-./configure --with-cxx-optflags="-O3" --with-libs="-lmpi++ -lmpi" \
-            --with-blas="-lscs_i8" --with-lapack=""
-
-
-======================================================================
-
-IBM power4 using IM compilers ... dumb ass 64-bit computer
-only has a 32 bit parallel envirronment!
-
-!!! Not yet working ... need PE3.2 to get the MPI C++ bindings
-!!! and we don't have that ... sigh.
-
-setenv CXX "mpCC_r"
-setenv CC "mpcc_r"
-setenv FC "mpfc_r"
-#set BLASLIB = /spin/home/harrison/Downloads/libblas64.a
-#set LAPACKLIB = /spin/home/harrison/Downloads/liblapack64.a
-set EXTRA_LIBS = "-lxlf -lxlf90"
-set CXXFLAGS = "-O3 -qnoipa -qmaxmem=-1"
-set LDFLAGS = "-bmaxdata:0x80000000"
-
-./configure --with-cxx-optflags="$CXXFLAGS"  \
-            --with-libs="$EXTRA_LIBS" 
-#            --with-blas="$BLASLIB" --with-lapack="$LAPACKLIB"
-
-==============================================================
-MINGW with g++ and MPICH2-1.0.3
-
-A great environment when you get it working.
-Install MINGW, Eclipse+CDT+Subclipse.
-
-Sucks with its bad path management and desparately slow performance.
-Use cygwin instead
-
-The provided C++ library only works with the Intel or MS
-compilers.  Copy 
-
-mpich2-1.0.3/src/binding/cxx/initcxx.cxx as initcxx.cc
-mpich2-1.0.3/src/include/mpihandlemem.h
-
-into the misc sub directory and add initcxx.o to
-the list of object files in the Makefile
-
-Need to compile blas and lapack ... will dump these libraries onto
-the website at some point for convenience
-
-./configure --with-libdirs="-L/c/PROGRA~1/MPICH2/lib -L/home/rj3/Downloads" --with-incdirs="-I/c/PROGRA~1/MPICH2/include" --with-libs="-lmpi -lcxx -lg2c"
-
-  ARCH = -march=pentium-m
- #CXXFLAGS = -Wall -ansi -O0 -ggdb
-  CXXFLAGS = -Wall -ansi -O3 -funroll-loops -ffast-math -fomit-frame-pointer $(ARCH)
-
-
-================================
-  CRAY XT3 (jaguar) with portland compilers
-
-Load the GMALLOC module since it is much faster for small memory chunks
-
-   module load gmalloc
-
-Configuring is a two step process.  First get configure to run, then 
-edit MakeVars to get the correct settings.
-
-   ./configure --with-cxx=pgCC --with-cc=pgcc --with-blas=-lsci --with-lapack=-lsci 
-
-Now edit config/MakeVars and set the following
-
-CXXDEPENDFLAGS = -M -I/opt/xt-mpt/default/mpich2-64/T/include
-CCDEPENDFLAGS = -M -I/opt/xt-mpt/default/mpich2-64/T/include
-
-CXX = CC
-CXXDEPEND = g++
-CC = cc
-CCDEPEND = gcc
-
-CXXFLAGS = -fastsse -tp k8-64 -Mflushz -Mcache_align -target=catamount
-CFLAGS = -fastsse -tp k8-64 -Mflushz -Mcache_align -target=catamount
-
-LDFLAGS = $(CXXFLAGS)
-
-and remove -lpthread from SYSLIBS
