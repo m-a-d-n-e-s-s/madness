@@ -45,7 +45,6 @@ namespace madness {
     template class FunctionDefaults<5>;
     template class FunctionDefaults<6>;
     
-
     template <typename T, int NDIM> FunctionCommonData<T,NDIM> FunctionImpl<T,NDIM>::commondata[FunctionImpl<T,NDIM>::MAXK+1];
     template <typename T, int NDIM> bool FunctionImpl<T,NDIM>::initialized = false;
 

@@ -55,10 +55,6 @@ namespace madness {
     public:
         int k;                  ///< Wavelet order
         int npt;                ///< no. of quadrature points
-        double cell[NDIM][2];   ///< Simulation cell (range over function is defined).
-        double cell_width[NDIM];///< Width of simulation cell in each dimension
-        double rcell_width[NDIM];///< Reciprocal of width
-        double cell_volume;     ///< Volume of simulation cell
 
         Slice s[4];              ///< s[0]=Slice(0,k-1), s[1]=Slice(k,2*k-1), etc.
         std::vector<Slice> s0;  ///< s[0] in each dimension to get scaling coeffs
@@ -99,11 +95,6 @@ namespace madness {
             cell_volume = 1.0;
             for (int i=0; i<NDIM; i++) {
                 s0[i] = s[0];
-                cell[i][0] = FunctionDefaults<NDIM>::cell[i][0];
-                cell[i][1] = FunctionDefaults<NDIM>::cell[i][1];
-                cell_width[i] = cell[i][1] - cell[i][0];
-                rcell_width[i] = 1.0/cell_width[i];
-                cell_volume *= cell_width[i];
                 vk[i] = k;
                 vq[i] = npt;
                 v2k[i] = 2*k;
@@ -118,18 +109,6 @@ namespace madness {
             _make_dc_periodic();
         };
 
-        /// Convert user coords (cell[][]) to simulation coords ([0,1])
-        inline void user_to_sim(double x[NDIM]) const {
-            for (int i=0; i<NDIM; i++)
-                x[i] = (x[i] - cell[i][0]) * rcell_width[0];
-        };
-
-
-        /// Convert simulation coords ([0,1]) to user coords (cell[][])
-        inline void sim_to_user(double x[NDIM]) const {
-            for (int i=0; i<NDIM; i++)
-                x[i] = x[i]*cell_width[i] + cell[i][0];
-        };
     };
     
 
@@ -307,6 +286,14 @@ namespace madness {
         //typedef DistributedContainer< Key<NDIM>, FunctionNode<T,NDIM>, FunctionProcMap<NDIM> > dcT;
         dcT coeffs;
 
+
+        // ... currently not clear how to best handle cell stuff on a per function basis
+        double cell[NDIM][2];   ///< Simulation cell (range over function is defined).
+        double cell_width[NDIM];///< Width of simulation cell in each dimension
+        double rcell_width[NDIM];///< Reciprocal of width
+        double cell_volume;     ///< Volume of simulation cell
+
+
         /// Initialize function impl from data in factory
         FunctionImpl(const FunctionFactory<T,NDIM>& factory) 
             : world(factory._world)
@@ -328,6 +315,14 @@ namespace madness {
             , coeffs(factory._world)
         {
             MADNESS_ASSERT(k>0 && k<MAXK);
+            // Ultimately this needs to be set from the factory not the defaults
+            cell_volume = 1.0;
+            for (int i=0; i<NDIM; i++) {
+                cell[i][0] = FunctionDefaults<NDIM>::cell[i][0];
+                cell[i][1] = FunctionDefaults<NDIM>::cell[i][1];
+                cell_width[i] = cell[i][1] - cell[i][0];
+                rcell_width[i] = 1.0/cell_width[i];
+                cell_volume *= cell_width[i];
             if (!initialized) {
                 this->initialize();
                 cdata = commondata+k;
@@ -375,6 +370,19 @@ namespace madness {
             , coeffs(other.coeffs)
         { };
 
+
+        /// Convert user coords (cell[][]) to simulation coords ([0,1])
+        inline void user_to_sim(double x[NDIM]) const {
+            for (int i=0; i<NDIM; i++)
+                x[i] = (x[i] - cell[i][0]) * rcell_width[0];
+        };
+
+
+        /// Convert simulation coords ([0,1]) to user coords (cell[][])
+        inline void sim_to_user(double x[NDIM]) const {
+            for (int i=0; i<NDIM; i++)
+                x[i] = x[i]*cell_width[i] + cell[i][0];
+        };
 
     private:
         /// Initialize static data
