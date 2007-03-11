@@ -4,6 +4,19 @@
 /// \file worldhash.h
 /// \brief Defines hash functions for use in distributed containers
 
+
+#define WORLDDC_USES_GNU_HASH_MAP
+#define HASH_MAP_NAMESPACE __gnu_cxx
+
+#ifdef WORLDDC_USES_GNU_HASH_MAP
+#  ifdef __GNUG__
+#    include <ext/hash_map>
+#  else
+#    include <hash_map>
+#  endif
+#endif
+
+
 namespace madness {
 
     typedef unsigned int hashT;

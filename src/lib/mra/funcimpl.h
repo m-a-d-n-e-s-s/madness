@@ -8,7 +8,7 @@
 namespace madness {
     /// FunctionDefaults holds default paramaters as static class members
 
-    /// Defined and initialized in mra.cc.  Note that it is currently
+    /// Declared and initialized in mra.cc.  Note that it is currently
     /// not possible to combine functions with different simulation
     /// cells and this is is not even checked for.  Therefore, the
     /// only recommended approach is to set the simulation cell once
@@ -92,7 +92,6 @@ namespace madness {
             vk = std::vector<long>(NDIM);
             vq = std::vector<long>(NDIM);
             v2k = std::vector<long>(NDIM);
-            cell_volume = 1.0;
             for (int i=0; i<NDIM; i++) {
                 s0[i] = s[0];
                 vk[i] = k;
@@ -253,8 +252,8 @@ namespace madness {
     class FunctionImpl {
     private:
         static const int MAXK = 17;
-        static FunctionCommonData<T,NDIM> commondata[MAXK + 1]; ///< Defined in mra.cc
-        static bool initialized;	///< Defined and initialized to false in mra.cc
+        static FunctionCommonData<T,NDIM> commondata[MAXK + 1]; ///< Declared in mra.cc
+        static bool initialized;	///< Declared and initialized to false in mra.cc
 
     public:
         typedef Tensor<T> tensorT;                     ///< Type of tensor used to hold coeffs
@@ -288,10 +287,11 @@ namespace madness {
 
 
         // ... currently not clear how to best handle cell stuff on a per function basis
-        double cell[NDIM][2];   ///< Simulation cell (range over function is defined).
-        double cell_width[NDIM];///< Width of simulation cell in each dimension
-        double rcell_width[NDIM];///< Reciprocal of width
-        double cell_volume;     ///< Volume of simulation cell
+        double cell_volume;       ///< Volume of simulation cell
+        double cell[NDIM][2];     ///< Simulation cell (range over function is defined).
+        double cell_width[NDIM];  ///< Width of simulation cell in each dimension
+        double rcell_width[NDIM]; ///< Reciprocal of width
+        int bc[NDIM][2];          ///< Type of boundary condition -- currently only zero or periodic
 
 
         /// Initialize function impl from data in factory
@@ -315,17 +315,20 @@ namespace madness {
             , coeffs(factory._world)
         {
             MADNESS_ASSERT(k>0 && k<MAXK);
+            if (!initialized) {
+                FunctionImpl<T,NDIM>::initialize();
+                cdata = commondata+k;
+            }
             // Ultimately this needs to be set from the factory not the defaults
             cell_volume = 1.0;
             for (int i=0; i<NDIM; i++) {
+                bc[i][0] = FunctionDefaults<NDIM>::bc[i][0];
+                bc[i][1] = FunctionDefaults<NDIM>::bc[i][1];
                 cell[i][0] = FunctionDefaults<NDIM>::cell[i][0];
                 cell[i][1] = FunctionDefaults<NDIM>::cell[i][1];
                 cell_width[i] = cell[i][1] - cell[i][0];
                 rcell_width[i] = 1.0/cell_width[i];
                 cell_volume *= cell_width[i];
-            if (!initialized) {
-                this->initialize();
-                cdata = commondata+k;
             }
 
             bool compress = factory._compress;
@@ -368,13 +371,23 @@ namespace madness {
             , compressed(other.compressed)
             , nterminated(other.nterminated)
             , coeffs(other.coeffs)
-        { };
+        { 
+            cell_volume = other.cell_volume;
+            for (int i=0; i<NDIM; i++) {
+                bc[i][0] = other.bc[i][0];
+                bc[i][1] = other.bc[i][1];
+                cell[i][0] = other.cell[i][0];
+                cell[i][1] = other.cell[i][1];
+                cell_width[i] = other.cell_width[i];
+                rcell_width[i] = other.rcell_width[i];
+            }
+        };
 
 
         /// Convert user coords (cell[][]) to simulation coords ([0,1])
         inline void user_to_sim(double x[NDIM]) const {
             for (int i=0; i<NDIM; i++)
-                x[i] = (x[i] - cell[i][0]) * rcell_width[0];
+                x[i] = (x[i] - cell[i][0]) * rcell_width[i];
         };
 
 
@@ -386,7 +399,7 @@ namespace madness {
 
     private:
         /// Initialize static data
-        void initialize() {
+        static void initialize() {
             for (int k = 1; k <= MAXK; k++) commondata[k] = FunctionCommonData<T,NDIM>(k);
             initialized = true;
         };

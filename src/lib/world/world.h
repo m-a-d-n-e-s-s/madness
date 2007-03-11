@@ -26,14 +26,59 @@ typedef UINT64_T uint64_t;
 #include <world/print.h>
 #include <world/worldexc.h>
 #include <world/sharedptr.h>
-#include <world/typestuff.h>
 #include <world/nodefaults.h>
 #include <world/worldmpi.h>
 #include <world/worldser.h>
 #include <world/worldtime.h>
 
 namespace madness {
-    
+
+    class World;
+
+    class uniqueidT {
+        friend class World;
+    private:
+        unsigned long worldid;
+        unsigned long objid;
+
+        uniqueidT(unsigned long worldid, unsigned long objid) 
+            : worldid(worldid), objid(objid)
+        {};
+        
+    public:
+        uniqueidT() 
+        : worldid(0), objid(0)
+        {};
+        
+        bool operator==(const uniqueidT& other) const {
+            return  objid==other.objid && worldid==other.worldid;
+        };
+
+        std::size_t operator()(const uniqueidT& id) const { // for GNU hash 
+            return id.objid;
+        };
+
+        operator bool() const {
+            return objid!=0;
+        };
+
+        template <typename Archive>
+        void serialize(Archive& ar) {
+            ar & archive::wrap_opaque(*this);
+        };
+
+        unsigned long get_world_id() const {
+            return worldid;
+        };
+
+        unsigned long get_obj_id() const {
+            return objid;
+        };
+    };
+
+    std::ostream& operator<<(std::ostream& s, const uniqueidT& id);
+
+
     extern void xterm_debug(const char* path, const char* display);
 
     class WorldTaskQueue;
@@ -62,9 +107,6 @@ namespace madness {
         MPI_Abort(MPI_COMM_WORLD,1);
     }
     
-    // This needs cleaning up and perhaps reference counting 
-    // via sharedptr.
-
     /// A parallel world with full functionality wrapping an MPI communicator
 
     /// Multiple worlds with different communicators can co-exist.
@@ -80,6 +122,18 @@ namespace madness {
         static uint64_t poll_delay;//< Min. no. of instructions between calls to poll if working
         static uint64_t last_poll;//< Instruction count at last poll
         
+        struct hashvoidp {
+            inline std::size_t operator()(const void* p) const {
+                return std::size_t(p);    // The ptr's are guaranteed to be unique
+            };
+        };
+
+        typedef HASH_MAP_NAMESPACE::hash_map<uniqueidT, void *, uniqueidT>   map_id_to_ptrT;
+        typedef HASH_MAP_NAMESPACE::hash_map<void *, uniqueidT, hashvoidp>   map_ptr_to_idT;
+        map_id_to_ptrT map_id_to_ptr;
+        map_ptr_to_idT map_ptr_to_id;
+
+
         unsigned long _id;                  //< Universe wide unique ID of this world
         unsigned long obj_id;               //< Counter to generate unique IDs within this world
         void* user_state;                   //< Holds user defined & managed local state
@@ -131,7 +185,7 @@ namespace madness {
     public:
         /// Give me a communicator and I will give you the world
         World(MPI::Intracomm& comm) 
-            : obj_id(0)
+            : obj_id(1)          //< start from 1 so that 0 is an invalid id
             , user_state(0)
             , deferred()
             , mpi(*(new WorldMpiInterface(comm)))
@@ -156,7 +210,7 @@ namespace madness {
             poll_delay = (cycle_count()-ins)>>5; // Actual cost per poll
             poll_delay = poll_delay<<3;  // *8 --> no more than 12.5% of time in polling
             ///world.mpi.Bcast(poll_delay,0); // For paranoia make sure all have same value?
-            if (rank()==0) print("poll_delay",poll_delay);
+            if (rank()==0) print("poll_delay",poll_delay,"cycles",int(1e6*poll_delay/cpu_frequency()),"us");
         };
 
 
@@ -206,17 +260,88 @@ namespace madness {
         /// Returns the number of processes in this world (same as MPI::Get_size())
         ProcessID nproc() const {return nprocess;};
 
+        /// Returns the number of processes in this world (same as MPI::Get_size())
+        ProcessID size() const {return nprocess;};
 
-        /// Returns unique ID for objects created in this world
 
-        /// Currently relies on this being called in the same order
-        /// on every process in order to avoid synchronization.
-        /// Ideally, would like to relax this to only in order
-        /// for the same type.
-        unsigned long unique_obj_id() {
-            return obj_id++;
+        /// Returns new universe-wide unique ID for objects created in this world.  No comms.
+
+        /// You should consider using register_ptr(), unregister_ptr(),
+        /// id_from_ptr() and ptr_from_id() before using this directly.
+        ///
+        /// Currently relies on this being called in the same order on
+        /// every process within the current world in order to avoid
+        /// synchronization.  
+        ///
+        /// The value objid=0 is guaranteed to be invalid.
+        uniqueidT unique_obj_id() {
+            return uniqueidT(_id,obj_id++);
         };
 
+
+        /// Associate a local pointer with a universe-wide unique id
+
+        /// Use the routines register_ptr(), unregister_ptr(),
+        /// id_from_ptr() and ptr_from_id() to map distributed data
+        /// structures identified by the unique id to/from
+        /// process-local data.
+        ///
+        /// !! The pointer will be internally cast to a (void *)
+        /// so don't attempt to shove member pointers in here.
+        ///
+        /// !! ALL unique objects of any type within a world must
+        /// presently be created in the same order on all processes so
+        /// as to provide the uniquess property without global
+        /// communication.
+        template <typename T>
+        uniqueidT register_ptr(T* ptr) {
+            MADNESS_ASSERT(sizeof(T*) == sizeof(void *));
+            uniqueidT id = unique_obj_id();
+            map_id_to_ptr.insert(std::pair<uniqueidT,void*>(id,(void*) ptr));
+            map_ptr_to_id.insert(std::pair<void*,uniqueidT>((void*) ptr,id));
+            return id;
+        };
+
+        /// Unregister a unique id for a local pointer
+        template <typename T>
+        void unregister_ptr(T* ptr) {
+            uniqueidT id = id_from_ptr(ptr);  // Will be zero if invalid
+            map_id_to_ptr.erase(id);
+            map_ptr_to_id.erase((void *) ptr);
+        };
+
+        /// Unregister a unique id for a local pointer based on id
+
+        /// Same as world.unregister_ptr(world.ptr_from_id<T>(id));
+        template <typename T>
+        void unregister_ptr(uniqueidT id) {
+            unregister_ptr(ptr_from_id<T>(id));
+        };
+
+        /// Look up local pointer from world-wide unique id.
+
+        /// Returns NULL if the id was not found.
+        template <typename T>
+        T* ptr_from_id(uniqueidT id) const {
+            map_id_to_ptrT::const_iterator it = map_id_to_ptr.find(id);
+            if (it == map_id_to_ptr.end()) 
+                return 0;
+            else
+                return (T*) (it->second);
+        };
+
+        /// Look up id from local pointer
+
+        /// Returns invalid id if the ptr was not found
+        template <typename T>
+        const uniqueidT& id_from_ptr(T* ptr) const {
+            static uniqueidT invalidid(0,0);
+            map_ptr_to_idT::const_iterator it = map_ptr_to_id.find(ptr);
+            if (it == map_ptr_to_id.end()) 
+                return invalidid;
+            else
+                return it->second;
+        };
 
         /// Returns a pointer to the world with given ID or null if not found
 
@@ -323,7 +448,12 @@ namespace madness {
         delete taskq;
     }
     static void world_assign_id(World* world) {
-        if (world->idbase == 0) world->idbase = MPI::COMM_WORLD.Get_rank()*10000;
+        // Each process in COMM_WORLD is given unique ids for 10K new worlds
+        if (World::idbase == 0 && MPI::COMM_WORLD.Get_rank()) {
+            World::idbase = MPI::COMM_WORLD.Get_rank()*10000;
+        }
+        // The id of a new world is taken from the unique range of ids
+        // assigned to the process with rank=0 in the sub-communicator
         if (world->mpi.rank() == 0) world->_id = World::idbase++;
         world->gop.broadcast(world->_id);
         world->gop.barrier();

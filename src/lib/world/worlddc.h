@@ -4,16 +4,6 @@
 /// \file worlddc.h
 /// \brief Implements DistributedContainer
 
-#define WORLDDC_USES_GNU_HASH_MAP
-#define HASH_MAP_NAMESPACE __gnu_cxx
-
-#ifdef WORLDDC_USES_GNU_HASH_MAP
-#  ifdef __GNUG__
-#    include <ext/hash_map>
-#  else
-#    include <hash_map>
-#  endif
-#endif
 
 /*
   
@@ -283,9 +273,9 @@ namespace madness {
     // we buffer pending messages for containers that don't have their id
     // yet registered.
     struct DCPendingMsg {
-      unsigned long id;
+      uniqueidT id;
       
-      DCPendingMsg(unsigned long id) : id(id) {};
+      DCPendingMsg(uniqueidT id) : id(id) {};
       
       virtual void doit(World& world) = 0;
       
@@ -340,7 +330,7 @@ namespace madness {
         struct forward_handler_info {
             typedef Future< MEMFUN_RETURNT(memfunT) > futureT;
             typedef RemoteReference< FutureImpl< MEMFUN_RETURNT(memfunT) > > refT;
-            unsigned long id;
+            uniqueidT id;
             bool istask;
             ProcessID requestor;
             memfunT memfun;
@@ -355,7 +345,7 @@ namespace madness {
 
             forward_handler_info() {};
             
-            forward_handler_info(unsigned long id, bool istask, ProcessID requestor, 
+            forward_handler_info(uniqueidT id, bool istask, ProcessID requestor, 
                                  const keyT& key, memfunT memfun, const refT& ref)
                 : id(id)
                 , istask(istask)
@@ -366,7 +356,7 @@ namespace madness {
             {};
 
 
-            forward_handler_info(unsigned long id, bool istask, ProcessID requestor, 
+            forward_handler_info(uniqueidT id, bool istask, ProcessID requestor, 
                                  const keyT& key, memfunT memfun)
                 : id(id)
                 , istask(istask)
@@ -378,7 +368,7 @@ namespace madness {
         };
 
         struct handler_info {
-            unsigned long id;
+            uniqueidT id;
             ProcessID requestor;
             keyT key;
 
@@ -390,7 +380,7 @@ namespace madness {
 
             handler_info() {};
 
-            handler_info(unsigned long id, ProcessID requestor, keyT key)
+            handler_info(uniqueidT id, ProcessID requestor, keyT key)
                 : id(id), requestor(requestor), key(key) {};
         };
 
@@ -400,7 +390,7 @@ namespace madness {
             am_handlerT handler;
             AmArg arg;
 
-            shortmsg(unsigned long id, am_handlerT handler, ProcessID src, const AmArg& arg)
+            shortmsg(uniqueidT id, am_handlerT handler, ProcessID src, const AmArg& arg)
                 : DCPendingMsg(id), src(src), handler(handler), arg(arg)
             {};
 
@@ -416,7 +406,7 @@ namespace madness {
             size_t nbyte;
             unsigned char* buf;
 
-            longmsg(unsigned long id, am_long_handlerT handler, ProcessID src, void *arg, size_t nbyte)
+            longmsg(uniqueidT id, am_long_handlerT handler, ProcessID src, void *arg, size_t nbyte)
                 : DCPendingMsg(id), src(src), handler(handler), nbyte(nbyte)
             {
                 this->buf = new unsigned char[nbyte];
@@ -433,11 +423,10 @@ namespace madness {
 
         DistributedContainerImpl();   // Inhibit default constructor
 
-        static registryT registry;               //< Mapping from container id to instance
         static std::list<DCPendingMsg*> pending;   //< Holds pending short/long messages
 
         World& world;
-        const unsigned long theid;    //< Universe-wide unique ID for this instance
+        const uniqueidT theid;    //< Universe-wide unique ID for this instance
         const procmapT procmap;       //< Function/class to map from keys to owning process
         const ProcessID me;           //< My MPI rank
         internal_containerT local;    //< Locally owned data
@@ -445,16 +434,6 @@ namespace madness {
         mutable cacheinfoT cacheinfo;         //< Maps cached keys to info
         const iterator end_iterator;          //< For fast return of end
         const const_iterator end_const_iterator; //< For fast return of end
-
-
-        /// Maps from unique container id to local pointer to implementation
-        static implT* impl_from_id(unsigned long id) {
-            typename registryT::iterator it = registry.find(id);
-            if (it != registry.end()) return it->second;
-            else {
-                return 0;
-            }
-        };
 
 
         /// Handles forwarding of active messages to container items
@@ -466,7 +445,7 @@ namespace madness {
             arg2T arg2;
             arg3T arg3;
             arg->unstuff(nbyte, info, arg1, arg2, arg3);
-            implT* impl = impl_from_id(info.id);
+            implT* impl = world.ptr_from_id<implT>(info.id);
             if (!impl) {
                 pending.push_back(new longmsg(info.id,&implT::template forward_handler3<memfunT,arg1T,arg2T,arg3T>,
                                               src,buf,nbyte));
@@ -494,7 +473,7 @@ namespace madness {
             arg1T arg1;
             arg2T arg2;
             arg->unstuff(nbyte, info, arg1, arg2);
-            implT* impl = impl_from_id(info.id);
+            implT* impl = world.ptr_from_id<implT>(info.id);
             if (!impl) {
                 pending.push_back(new longmsg(info.id,&implT::template forward_handler2<memfunT,arg1T,arg2T>,
                                               src,buf,nbyte));
@@ -523,7 +502,7 @@ namespace madness {
             forward_handler_info<memfunT> info;
             arg1T arg1;
             arg->unstuff(nbyte, info, arg1);
-            implT* impl = impl_from_id(info.id);
+            implT* impl = world.ptr_from_id<implT>(info.id);
             if (!impl) {
                 am_long_handlerT h = implT::template forward_handler1<memfunT,arg1T>;
                 pending.push_back(new longmsg(info.id,h,src,buf,nbyte));
@@ -547,7 +526,7 @@ namespace madness {
         static void forward_handler0(World& world, ProcessID src, const AmArg& arg) {
             forward_handler_info<memfunT> info;
             arg.unstuff(info);
-            implT* impl = impl_from_id(info.id);
+            implT* impl = world.ptr_from_id<implT>(info.id);
             if (!impl) {
                 pending.push_back(new shortmsg(info.id, forward_handler0<memfunT>, src, arg));
             }
@@ -570,7 +549,7 @@ namespace madness {
         /// Handles erasing of items
         static void erase_handler(World& world, ProcessID src, const AmArg& arg) {
             handler_info info = arg;
-            implT* impl = impl_from_id(info.id);
+            implT* impl = world.ptr_from_id<implT>(info.id);
             if (!impl) {
                 pending.push_back(new shortmsg(info.id,implT::erase_handler,src,arg));
             }
@@ -588,7 +567,7 @@ namespace madness {
             handler_info info;
             RemoteReference< FutureImpl<iterator> > ref;
             arg.unstuff(info,ref);
-            implT* impl = impl_from_id(info.id);
+            implT* impl = world.ptr_from_id<implT>(info.id);
             if (!impl) {
                 pending.push_back(new shortmsg(info.id,implT::find_handler,src,arg));
             }
@@ -609,10 +588,10 @@ namespace madness {
         /// Handles insert requests
         static void insert_handler(World& world, ProcessID src, void *buf, size_t nbyte) {
             // !! Not yet handling forwarding by recomputing the local procmap
-            unsigned long id;
+            uniqueidT id;
             pairT datum;
             ((LongAmArg*) buf)->unstuff(nbyte,id,datum);
-            implT* impl = impl_from_id(id);
+            implT* impl = world.ptr_from_id<implT>(id);
             if (!impl) {
                 pending.push_back(new longmsg(id,insert_handler,src,buf,nbyte));
             }
@@ -624,12 +603,12 @@ namespace madness {
         /// Handles replies coming back from find requests
         static void find_reply_handler(World& world, ProcessID src, void *buf, size_t nbyte) {
             LongAmArg* arg = (LongAmArg*) buf;
-            unsigned long id;
+            uniqueidT id;
             bool status;
             RemoteReference< FutureImpl<iterator> > ref;
             BufferInputArchive ar(arg->buf, nbyte-sizeof(arg->header));
             ar & id & status & ref;
-            implT* impl = impl_from_id(id);
+            implT* impl = world.ptr_from_id<implT>(id);
 
             FutureImpl<iterator>* f = ref.get();
             if (status) {
@@ -691,22 +670,21 @@ namespace madness {
         
         DistributedContainerImpl(World& world, const procmapT& procmap)
             : world(world)
-            , theid(world.unique_obj_id()+world.id())
+            , theid(world.register_ptr(this))
             , procmap(procmap)
             , me(world.mpi.rank())
             , local()
             , cache()
             , cacheinfo()
         {
-            registry[theid] = this;
-            print("ENTRY IN REGISTRY",theid,this,registry[theid]);
+            print("ENTRY IN REGISTRY",theid,this,world.ptr_from_id<implT>(theid));
             process_pending();
         };
         
 
         ~DistributedContainerImpl() {
             print("In DCImpl destructor");
-            registry.erase(theid);   
+            world.unregister_ptr(this);
         };
         
         bool is_local(const keyT& key) const {
@@ -1285,7 +1263,7 @@ namespace madness {
         /// This just writes/reads the unique id to/from the archive.  If you want
         /// to serialize the actual contents you'll have to write your own
         /// specialization of archive::ArchiveLoadImpl and ditto for store
-        /// for that type of archive.
+        /// for that specific type of archive, or recast this in that form.
         template <typename Archive>
         void serialize(const Archive& ar) {
             if (Archive::is_output_archive) {
@@ -1293,9 +1271,9 @@ namespace madness {
                 ar & p->theid;
             }
             else {
-                unsigned long id;
+                uniqueidT id;
                 ar & id;
-                implT* ptr = implT::impl_from_id(id);
+                implT* ptr = World::world_from_id(id.get_world_id())->ptr_from_id<implT>(id);
                 //MADNESS_ASSERT(ptr);
                 p = SharedPtr<implT>(ptr,false,false); // use_count will be 0, which is good
             }
@@ -1323,15 +1301,18 @@ namespace madness {
               typename valueT, 
               typename procmapT,
               typename attrT>
-    std::map< unsigned long, madness::DistributedContainerImpl<keyT,valueT,procmapT,attrT>* > 
-    madness::DistributedContainerImpl<keyT,valueT,procmapT,attrT>::registry;
-    
-    template <typename keyT, 
-              typename valueT, 
-              typename procmapT,
-              typename attrT>
     std::list<madness::DCPendingMsg*> 
     madness::DistributedContainerImpl<keyT,valueT,procmapT,attrT>::pending;
+
+
+//     template <typename keyT, 
+//               typename valueT, 
+//               typename procmapT,
+//               typename attrT>
+//     std::map< unsigned long, madness::DistributedContainerImpl<keyT,valueT,procmapT,attrT>* > 
+//     madness::DistributedContainerImpl<keyT,valueT,procmapT,attrT>::registry;
+    
+
 #endif
 }
 

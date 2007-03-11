@@ -38,6 +38,12 @@ namespace madness {
     void task_ready_callback_function(WorldTaskQueue* taskq, TaskInterface* task) {
         taskq->add_ready_task(task);
     }
+
+    std::ostream& operator<<(std::ostream& s, const uniqueidT& id) {
+        s << "{" << id.get_world_id() << "," << id.get_obj_id() << "}";
+        return s;
+    };
+
     
     
     double wall_time() {
