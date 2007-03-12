@@ -414,6 +414,7 @@ namespace madness {
 #include <world/worldfut.h>
 #include <world/worldtask.h>
 #include <world/worldgop.h>
+#include <world/worldobj.h>
 #include <world/worlddc.h>
 
 namespace madness {

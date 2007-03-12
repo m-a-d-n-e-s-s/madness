@@ -622,6 +622,66 @@ void test11(World& world) {
     world.gop.fence();
 }
 
+
+
+class Foo : public DistributedObject<Foo> {
+    int a;
+public:
+    Foo(World& world, int a) 
+        : DistributedObject<Foo>(world)
+        , a(a) 
+    {};
+
+    int get0() {return a;};
+    int get1(int a1) {return a+a1;};
+    int get2(int a1, char a2) {return a+a1+a2;};
+    int get3(int a1, char a2, short a3) {return a+a1+a2+a3;};
+    int get4(int a1, char a2, short a3, long a4) {return a+a1+a2+a3+a4;};
+    int get5(int a1, char a2, short a3, long a4, short a5) {return a+a1+a2+a3+a4+a5;};
+
+    int get0c() const {return a;};
+    int get1c(int a1) const {return a+a1;};
+    int get2c(int a1, char a2) const {return a+a1+a2;};
+    int get3c(int a1, char a2, short a3) const {return a+a1+a2+a3;};
+    int get4c(int a1, char a2, short a3, long a4) const {return a+a1+a2+a3+a4;};
+    int get5c(int a1, char a2, short a3, long a4, short a5) const {return a+a1+a2+a3+a4+a5;};
+
+
+};
+
+void test12(World& world) {
+    ProcessID me = world.rank();
+    ProcessID nproc = world.nproc();
+    Foo a(world, me*100);
+
+    print(a.id());
+    if (me == 0) {
+        for (ProcessID p=0; p<nproc; p++) {
+            MADNESS_ASSERT(a.send(p,&Foo::get0).get() == p*100);
+            if (p) MADNESS_ASSERT(a.send(p,&Foo::get0).get() == p*100);
+
+            MADNESS_ASSERT(a.send(p,&Foo::get1,1).get() == p*100+1);
+            if (p) MADNESS_ASSERT(a.send(p,&Foo::get1,1).get() == p*100+1);
+
+//             MADNESS_ASSERT(a.send(p,&Foo::get2,1,2).get() == p*100+3);
+//             if (p) MADNESS_ASSERT(a.send(p,&Foo::get2,1,2).get() == p*100+3);
+
+//             MADNESS_ASSERT(a.send(p,&Foo::get3,1,2,3).get() == p*100+6);
+//             if (p) MADNESS_ASSERT(a.send(p,&Foo::get4,1,2,3).get() == p*100+6);            
+
+//             MADNESS_ASSERT(a.send(p,&Foo::get4,1,2,3,4).get() == p*100+10);
+//             if (p) MADNESS_ASSERT(a.send(p,&Foo::get4,1,2,3,4).get() == p*100+10);            
+
+//             MADNESS_ASSERT(a.send(p,&Foo::get5,1,2,3,4,5).get() == p*100+15);
+//             if (p) MADNESS_ASSERT(a.send(p,&Foo::get5,1,2,3,4,5).get() == p*100+15);            
+        }
+    }
+    world.gop.fence();
+    print("test 12 seems to be working");
+}
+
+
+
 int main(int argc, char** argv) {
     MPI::Init(argc, argv);
     
@@ -641,16 +701,17 @@ int main(int argc, char** argv) {
     world.gop.fence();
 
     try {
-        test1(world);
-        test2(world);
-        test3(world);
-        test5(world);
-        test6(world);
-        test7(world);
-        test8(world);
-        test9(world);
-        test10(world);
-        test11(world);
+//         test1(world);
+//         test2(world);
+//         test3(world);
+//         test5(world);
+//         test6(world);
+//         test7(world);
+//         test8(world);
+//         test9(world);
+//         test10(world);
+//         test11(world);
+        test12(world);
     } catch (MPI::Exception e) {
         error("caught an MPI exception");
     } catch (madness::MadnessException e) {

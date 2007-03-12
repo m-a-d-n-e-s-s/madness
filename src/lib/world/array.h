@@ -49,16 +49,19 @@ namespace madness {
         /// Assignment is deep
         Array& operator=(const Array<T,N>& other) {
             for (std::size_t i=0; i<N; i++) v[i] = other.v[i];
+            return *this;
         };
 
         /// Assignment is deep
         Array& operator=(const std::vector<T>& other) {
             for (std::size_t i=0; i<N; i++) v[i] = other[i];
+            return *this;
         };
 
         /// Fill from scalar value
         Array& operator=(T t) {
             for (std::size_t i=0; i<N; i++) v[i] = t;
+            return *this;
         };
 
         /// Test for element-wise equality

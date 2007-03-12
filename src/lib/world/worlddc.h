@@ -1273,7 +1273,9 @@ namespace madness {
             else {
                 uniqueidT id;
                 ar & id;
-                implT* ptr = World::world_from_id(id.get_world_id())->ptr_from_id<implT>(id);
+                World* world = World::world_from_id(id.get_world_id());
+                MADNESS_ASSERT(world);
+                implT* ptr = world->ptr_from_id<implT>(id);
                 //MADNESS_ASSERT(ptr);
                 p = SharedPtr<implT>(ptr,false,false); // use_count will be 0, which is good
             }
@@ -1296,6 +1298,8 @@ namespace madness {
     };
 
 
+}
+
 #ifdef WORLD_INSTANTIATE_STATIC_TEMPLATES
     template <typename keyT, 
               typename valueT, 
@@ -1304,16 +1308,6 @@ namespace madness {
     std::list<madness::DCPendingMsg*> 
     madness::DistributedContainerImpl<keyT,valueT,procmapT,attrT>::pending;
 
-
-//     template <typename keyT, 
-//               typename valueT, 
-//               typename procmapT,
-//               typename attrT>
-//     std::map< unsigned long, madness::DistributedContainerImpl<keyT,valueT,procmapT,attrT>* > 
-//     madness::DistributedContainerImpl<keyT,valueT,procmapT,attrT>::registry;
-    
-
 #endif
-}
 
 #endif
