@@ -157,7 +157,8 @@ public:
     Key myChild(int k) const {
 	vector<unsigned int> LL;
 	for (unsigned int i = 0; i < D; i++) {
-	    LL.push_back(2*L[D-i-1] + k%2);
+//	    LL.push_back(2*L[D-i-1] + k%2);
+	    LL.push_back(2*L[i] + k%2);
 	    k/=2;
 	}
 	return Key(n+1, LL);
@@ -196,7 +197,7 @@ public:
 //	k1.print();
 //	cout << " and ";
 //	k2.print();
-	cout << endl;
+//	cout << endl;
 	for (unsigned int i = 0; i < D; i++) {
 	    dL[i] = k1.L[i] - k2.L[i];
 	    if (k1.L[i]/2 != k2.L[i]/2) {
@@ -231,6 +232,7 @@ public:
 	return true;
     };
 
+/*
     bool operator<(const Key& a) const {
 	int ans;
 
@@ -266,12 +268,12 @@ public:
 	else
 	    return false;
     };
+*/
 
-/*
     bool operator<(const Key& a) const {
         if (n < a.n)  return true;
         else if (n == a.n) {
-	    for (int i = 0; i < D; i++) {
+	    for (unsigned int i = 0; i < D; i++) {
                 if (L[i] < a.L[i]) return true;
                 else if (L[i] > a.L[i]) return false;
             }
@@ -279,7 +281,7 @@ public:
         }
         else return false;
     };
-*/
+
 
     void print() const {
 	std::cout << "n = " << n << ", (";
@@ -339,30 +341,24 @@ struct TreeCoords {
     };
 };
 
+typedef map<KeyD, ProcessID> TreeMap;
+typedef TreeMap::const_iterator TreeIterator;
+typedef pair<KeyD, ProcessID> TreePair;
 
 template <typename keyT>
 class MyProcmap {
 private:
     int whichmap;
     const ProcessID owner;
-    vector<TreeCoords> treeList;
+    TreeMap treeMap;
 
 
     ProcessID getOwner(const keyT& key) const {
-	unsigned int tlen = treeList.size(), index = 0;
-	while (index < tlen) {
-	    if (key.n > treeList[index].key.n)
-	    {
-	    	unsigned int dn = key.n - treeList[index].key.n;
-	    	keyT gen(key.myParent(dn));
-	    	if (gen == treeList[index].key) {
-		    return treeList[index].owner;
-	    	}
-	    }
-	    else if (key == treeList[index].key) {
-		return treeList[index].owner;
-	    }
-	    index++;
+	int n = key.n;
+	for (int i = 0; i <= n; i++) {
+	    TreeIterator it = treeMap.find(key.myParent(i));
+	    if (it != treeMap.end())
+		return it->second;
 	}
 	throw "can't find owner!!";
     };
@@ -374,11 +370,10 @@ public:
 
     MyProcmap(vector<TreeCoords> v) : whichmap(1), owner(1) {
 	for (unsigned int i = 0; i < v.size(); i++) {
-	    treeList.push_back(TreeCoords(v[i]));
+	    treeMap.insert(TreePair(v[i].key, v[i].owner));
 	}
-	sort(treeList.begin(), treeList.end());
 	for (unsigned int i = 0; i < v.size(); i++) {
-	    treeList[i].print();
+	    v[i].print();
 	}
     };
 
@@ -402,7 +397,7 @@ void build_tree(treeT& tree, const KeyD& key) {
 //    cout << endl;
     NodeData data(1,1,false);  
     NodeD parent(data);
-    if (key.n < 3) {
+    if (key.n < 5) {
 	for (int p=0; p<2; p++) {
 	    for (int q=0; q<2; q++) {
 		parent.set_child(p+2*q);
@@ -410,7 +405,7 @@ void build_tree(treeT& tree, const KeyD& key) {
 	    }
 	}
     }
-    else if ((key.n <= 5)&&(key.L[0] == key.L[1])) {
+    else if ((key.n <= 9)&&(key.L[0] == key.L[1])) {
 	for (int p=0; p<2; p++) {
 	    for (int q=0; q<2; q++) {
 		parent.set_child(p+2*q);
@@ -426,6 +421,8 @@ void print_tree(treeT& tree, const KeyD& key) {
     treeT::iterator it = tree.find(key);
     if (it!=tree.end()) {
 	const NodeD& node = it->second;
+    	// no longer need iterator
+//    	it = tree.end();
 	NodeData d = node.get_data();
 	for (int i=0; i<(int)key.n; i++) cout << "   ";
 	print(key.n,key.L[0],key.L[1],"owner",tree.owner(key),"cost",d.cost,"subcost", d.subcost);
@@ -452,6 +449,8 @@ Cost computeCost(treeT& tree, const KeyD& key) {
     if (it == tree.end()) return cost;
 
     NodeD node = it->second;
+    // no longer need iterator
+//    it = tree.end();
     for (unsigned int i = 0; i < node.dim; i++) {
 	if (node.has_child(i)) {
 	    KeyD k = key.myChild(i);
@@ -479,6 +478,8 @@ void meld(treeT& tree, const KeyD& key) {
     vector<unsigned int> mylist;
 
     NodeD node = it->second;
+    // no longer need iterator
+//    it = tree.end();
     for (unsigned int i = 0; i < node.dim; i++)
     {
 	if (node.has_child(i)) {
@@ -486,6 +487,8 @@ void meld(treeT& tree, const KeyD& key) {
 	    treeT::iterator itc = tree.find(k);
             if (itc == tree.end()) return;
             NodeD c = itc->second;
+	    // no longer need iterator
+//	    itc = tree.end();
             bool haskids = false;
             for (unsigned int j = 0; j < c.dim; j++) {
                 if (c.has_child(j)) {
@@ -522,18 +525,20 @@ void meld(treeT& tree, const KeyD& key) {
         d.cost += cheapest;
         tree.erase(key.myChild(mylist[i]));
 	node.set_child(mylist[i], false);
-cout << "meld: set child " << mylist[i] << " to be false" << endl;
+//cout << "meld: set child " << mylist[i] << " to be false" << endl;
     }
     d.istaken = false;
     node.set_data(d);
     tree.erase(key);
     tree.insert(key,node);
     treeT::iterator itd = tree.find(key);
-    NodeD noded = it->second;
+    NodeD noded = itd->second;
+    // no longer need iterator
+//    itd = tree.end();
     NodeData dd = noded.get_data();
-    cout << "meld: at end, node has these values for children " << noded.has_child(0) << ",";
-    cout << noded.has_child(1) << "," << noded.has_child(2) << "," << noded.has_child(3) << endl;
-    cout << "meld: and cost = " << dd.cost << ", subcost = " << dd.subcost << endl;
+//    cout << "meld: at end, node has these values for children " << noded.has_child(0) << ",";
+//    cout << noded.has_child(1) << "," << noded.has_child(2) << "," << noded.has_child(3) << endl;
+//    cout << "meld: and cost = " << dd.cost << ", subcost = " << dd.subcost << endl;
 }
 
 void rollup(treeT tree, KeyD key) {
@@ -545,6 +550,8 @@ void rollup(treeT tree, KeyD key) {
 //    key.print();
 //    cout << endl;
     NodeD node = it->second;
+    // no longer need iterator
+//    it = tree.end();
     if (!node.has_children()) {
 //	cout << "rollup: this node has no children; returning" << endl;
 	return; // no rolling to be done here.
@@ -559,6 +566,8 @@ void rollup(treeT tree, KeyD key) {
 //	    k.print();
 //	    cout << endl;
 	    NodeD c = itc->second;
+	    // no longer need iterator
+//	    itc = tree.end();
 	    if (c.has_children()) {
 //		cout << "rollup: child ";
 //		k.print();
@@ -595,6 +604,8 @@ Cost fixCost(treeT tree, KeyD key) {
     if (it == tree.end()) return 0;
 
     NodeD node = it->second;
+    // no longer need iterator
+//    it = tree.end();
     NodeData d = node.get_data();
     d.subcost = d.cost;
     if (node.has_children())
@@ -605,19 +616,27 @@ Cost fixCost(treeT tree, KeyD key) {
 	}
     }
     node.set_data(d);
+//cout << "about to insert key = ";
+//key.print();
+//cout << ", ";
+//node.get_data().print();
     tree.erase(key);
     tree.insert(key,node);
+/*
     treeT::iterator itt = tree.find(key);
     if (itt != tree.end()) {
     	NodeD noded = itt->second;
+	// no longer need iterator
+//	itt = tree.end();
     	NodeData dd = noded.get_data();
-//    	cout << "cost and subcost of ";
-//    	key.print();
-//    	cout << " = " << dd.cost << ", " << dd.subcost << endl;
+    	cout << "cost and subcost of ";
+    	key.print();
+    	cout << " = " << dd.cost << ", " << dd.subcost << endl;
     }
     else {
 	print("uh oh, no node at all!");
     }
+*/
     return d.subcost;
 }
 
@@ -631,7 +650,7 @@ Cost makePartition(treeT tree, KeyD key, vector<KeyD>* klist, Cost partitionSize
 
 Cost depthFirstPartition(treeT tree, KeyD key, vector<TreeCoords>* klist, unsigned int npieces, 
 	Cost totalcost = 0, Cost *maxcost = 0) {
-print("depthFirstPartition: at very beginning");
+//print("depthFirstPartition: at very beginning");
     if (totalcost == 0) {
 	totalcost = computeCost(tree, key);
     }
@@ -664,44 +683,50 @@ print("depthFirstPartition: partitionSize =", partitionSize);
 }
 
 void removeCost(treeT tree, KeyD key, Cost c) {
-cout << "removeCost: key ";
-key.print();
-cout << endl;
+//cout << "removeCost: key ";
+//key.print();
+//cout << endl;
     if (((int) key.n) < 0) return;
     treeT::iterator it = tree.find(key);
-print("removeCost: found key");
+//print("removeCost: found key");
     if (it == tree.end()) return;
     NodeD node = it->second;
+    // no longer need iterator
+//    it = tree.end();
     NodeData d = node.get_data();
-print("removeCost: got data");
+//print("removeCost: got data");
     d.subcost -= c;
     if (key.n > 0) {
     	removeCost(tree, key.myParent(), c);
     }
-cout << "removeCost: before setting, data = ";
-d.print();
+//cout << "removeCost: before setting, data = ";
+//d.print();
     node.set_data(d);
-cout << "removeCost: after setting, data = ";
-node.get_data().print();
+//cout << "removeCost: after setting, data = ";
+//node.get_data().print();
     tree.erase(key);
     tree.insert(key,node);
-cout << "removeCost: after inserting, data = ";
-node.get_data().print();
+//cout << "removeCost: after inserting, data = ";
+//node.get_data().print();
+/*
     treeT::iterator it2 = tree.find(key);
     NodeD node2 = it2->second;
+    // no longer need iterator
+//    it2 = tree.end();
     NodeData d2 = node2.get_data();
 cout << "removeCost: key ";
 key.print();
 cout << ", retrieved data = ";
 d2.print();
 cout << endl;
+*/
 }
 
 
 Cost makePartition(treeT tree, KeyD key, vector<KeyD>* klist, Cost partitionSize, bool lastPartition, Cost usedUp, bool *atleaf)
 {
-    cout << "at beginning of makePartition: atleaf = ";
-    cout << *atleaf << endl;
+//    cout << "at beginning of makePartition: atleaf = ";
+//    cout << *atleaf << endl;
     double fudgeFactor = 0.1;
     Cost maxAddl = (Cost) (fudgeFactor*partitionSize);
 
@@ -712,6 +737,9 @@ Cost makePartition(treeT tree, KeyD key, vector<KeyD>* klist, Cost partitionSize
 
     NodeD node = it->second;
     NodeData d = node.get_data();
+
+    // no longer need iterator
+//    it = tree.end();
 
     cout << "data for key ";
     key.print();
@@ -753,7 +781,8 @@ Cost makePartition(treeT tree, KeyD key, vector<KeyD>* klist, Cost partitionSize
 	    for (unsigned int i = 0; i < node.dim; i++) {
 	    	if (node.has_child(i)) {
 	    	    KeyD k = key.myChild(i);
-	    	    std::cout << "recursively calling ";
+		    key.print();
+	    	    std::cout << " recursively calling ";
 	    	    k.print();
 	    	    cout << endl;
 	    	    usedUp = makePartition(tree, k, klist, partitionSize, lastPartition, usedUp, atleaf);
@@ -793,12 +822,13 @@ void findBestPartition(treeT tree, KeyD key, vector<TreeCoords>* klist, unsigned
     costlist.push_back(0);
     Cost totalCost = 0;
 
-print("findBestPartition: about to fixCost");
+//print("findBestPartition: about to fixCost");
 
     fixCost(tree, key);
-print("findBestPartition: about to depthFirstPartition");
+//    print_tree(tree,KeyD(0,0,0));
+//print("findBestPartition: about to depthFirstPartition");
     totalCost = depthFirstPartition(tree, key, &listoflist[count], npieces, totalCost, &costlist[count]);
-print("findBestPartition: after depthFirstPartition");
+//print("findBestPartition: after depthFirstPartition");
     int size = listoflist[count].size();
     std::cout << "Partitioned tree " << count << ":" << std::endl;
     for (int i = 0; i < size; i++)
@@ -812,7 +842,7 @@ print("findBestPartition: after depthFirstPartition");
     while (notdone) {
 	fixCost(tree, key); 
 	rollup(tree, key);
-	print_tree(tree,KeyD(0,0,0));
+//	print_tree(tree,KeyD(0,0,0));
 	listoflist.push_back(emptylist);
 	costlist.push_back(0);
 	depthFirstPartition(tree, key, &listoflist[count], npieces, totalCost, &costlist[count]);
@@ -826,6 +856,8 @@ print("findBestPartition: after depthFirstPartition");
     	treeT::iterator it = tree.find(key);
     	if (it == tree.end()) return;
     	NodeD node = it->second;
+    	// no longer need iterator
+//    	it = tree.end();
 	if (!(node.has_children()) || (listoflist[count].size() < npieces)) {
 	    notdone = false;
 	}
@@ -916,7 +948,6 @@ int main(int argc, char** argv) {
 */
 	KeyD root(0,0,0);
 	treeT tree(world,MyProcmap<KeyD>(v));
-//	treeT tree(world);
 	print("Made tree");
 	if (me == 0) { 
 	    print("About to build tree");
@@ -929,7 +960,7 @@ int main(int argc, char** argv) {
 	print("");
 	if (me == 1) {
 	    print("About to print tree");
-	    print_tree(tree,root);
+//	    print_tree(tree,root);
 	    print("Printed tree");
 	}
 	print("Done printing tree");
