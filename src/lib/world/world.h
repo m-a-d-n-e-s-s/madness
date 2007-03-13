@@ -137,21 +137,38 @@ namespace madness {
         unsigned long _id;                  //< Universe wide unique ID of this world
         unsigned long obj_id;               //< Counter to generate unique IDs within this world
         void* user_state;                   //< Holds user defined & managed local state
-        std::list< SharedPtr<DeferredCleanupInterface> > deferred; //< List of stuff to delete at next sync point
+        std::list< SharedPtr<DeferredCleanupInterface> > deferred; //< List of stuff to possibly delete at next sync point
 
         // Default copy constructor and assignment won't compile
         // (which is good) due to reference members.
 
+        struct refcnt_is_one {
+            bool operator()(const SharedPtr<DeferredCleanupInterface>& p) const {
+                print("refcnt:",(void*) p.get(), p.use_count());
+                return p.use_count() == 1;
+            };
+        };
+
         /// Does any deferred cleanup and returns true if cleaning was necessary
         bool do_deferred_cleanup() {
-            if (deferred.empty()) {
-                return false;
+            if (deferred.empty()) return false;
+            std::size_t nclean = deferred.size();
+            // !! More STL garbage - it is not specified how arguments
+            // are passed to the STL algorithms so they are free to
+            // pass by value which here causes the use_count() to be
+            // incremented and hence things never to be destroyed.
+            // Hence, not just me being non-PC by not using the STL
+            // algorithm here since the is borked. Concrete example of
+            // failure here is gcc4.2.
+            // //std::remove_if(deferred.begin(),deferred.end(),refcnt_is_one());
+            for (std::list< SharedPtr<DeferredCleanupInterface> >::iterator it = deferred.begin(); 
+                 it != deferred.end();) {
+                print("refcnt:",(void*) it->get(), it->use_count());
+                if (it->use_count() == 1) it = deferred.erase(it);
+                else ++it;
             }
-            else {
-                print("do_deferred_cleanup: cleaning",deferred.size(),"items");
-                deferred.clear();
-                return true;
-            }
+            print("World: deferred cleanup: old size:", nclean, "new size:", deferred.size());
+            return (nclean != deferred.size());
         };
 
         // Private: tries to run a task in each world
@@ -391,8 +408,21 @@ namespace madness {
 
 
         /// Adds item to list of stuff to be deleted at next global_fence()
-        void deferred_cleanup(const SharedPtr<DeferredCleanupInterface>& item) {
-            deferred.push_back(item);
+
+        /// The item must be derived from DeferredCleanupInterface so that the
+        /// pointer type T* can be statically cast to DeferredCleanupInterface*
+        template <typename T>
+        void deferred_cleanup(const SharedPtr<T>& item) {
+            // Not only is there no point storing an unowned pointer, it
+            // is detrimental due to the duplicate checking.
+            if (!item.owned()) return;
+
+            SharedPtr<DeferredCleanupInterface> p(item);
+            // Avoid duplicates since the reference counting will prevent cleaning
+            if (std::find(deferred.begin(),deferred.end(),p) == deferred.end()) {
+                print("deferred adding",(void*)p.get());
+                deferred.push_back(p);
+            }
         };
 
 

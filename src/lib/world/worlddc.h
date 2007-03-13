@@ -981,8 +981,10 @@ namespace madness {
         /// making a container, we have to assume that all processes
         /// execute this constructor in the same order (does not apply
         /// to the non-initializing, default constructor).
-        DistributedContainer(World& world) {
-            p = SharedPtr<implT>(new implT(world,procmapT(world)));
+        DistributedContainer(World& world) 
+            : p(new implT(world,procmapT(world)))
+        {
+            world.deferred_cleanup(p);
         };
         
         /// Makes an initialized, empty container (no communication)
@@ -994,7 +996,9 @@ namespace madness {
         /// to the non-initializing, default constructor).
         DistributedContainer(World& world, const procmapT& procmap) 
             : p(new implT(world,procmap))
-        {};
+        {
+            world.deferred_cleanup(p);
+        };
         
         
         /// Copy constructor is shallow (no communication)
@@ -1289,16 +1293,9 @@ namespace madness {
         /// !!! Currently assumes that the internal shared ptr is never given out
         /// to other containers so that we only have to schedule the deferred
         /// destruction when the use count will become zero.
-        virtual ~DistributedContainer() {
-            if (p && p.use_count()==1) {
-                p->world.deferred_cleanup(SharedPtr<DeferredCleanupInterface>(p));
-            }
-        };
+        virtual ~DistributedContainer() {};
 
     };
-
-
-}
 
 #ifdef WORLD_INSTANTIATE_STATIC_TEMPLATES
     template <typename keyT, 
@@ -1309,5 +1306,8 @@ namespace madness {
     madness::DistributedContainerImpl<keyT,valueT,procmapT,attrT>::pending;
 
 #endif
+
+
+}
 
 #endif

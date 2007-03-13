@@ -223,8 +223,8 @@ namespace madness {
         /// the shared counter but is marked as not owned AND the
         /// reference count is NOT incremented.  This enables an
         /// object containing a SharedPtr to itself to be deleted and
-        /// ensures that destroying the embedded SharedPtr call the
-        /// object destructor again.
+        /// ensures that destroying the embedded SharedPtr does not
+        /// call the object destructor again.
         SharedPtr<T> steal() const {
             SharedPtr<T> r(*this);
             r.dec();

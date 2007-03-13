@@ -94,7 +94,9 @@ namespace madness {
     /// 3) Derived destructor must either be deferred or preceeded by gop.fence()
     ///
     /// This class is deliberately not default constructible and does
-    /// not support assignment or copying.
+    /// not support assignment or copying.  This ensures that each instance
+    /// is unique.  Have a look at the DistributedContainer for an example
+    /// of wrapping this using the PIMPL idiom and a shared pointer.
     template <class Derived>
     class DistributedObject : public DeferredCleanupInterface {
     private:
@@ -226,6 +228,66 @@ namespace madness {
             }
         }
 
+        /// Handler for incoming AM with 3 arguments
+        template <typename memfunT, typename arg1T, typename arg2T, typename arg3T>
+        static void handler(World& world, ProcessID src, void* buf, size_t nbyte) {
+            LongAmArg* arg = (LongAmArg *) buf;
+            detail::info<memfunT> info;
+            arg1T arg1;
+            arg2T arg2;
+            arg3T arg3;
+            arg->unstuff(nbyte, info, arg1, arg2, arg3);
+            Derived* obj = world.ptr_from_id<Derived>(info.id);
+            if (obj) {
+                typename detail::info<memfunT>::futureT result(info.ref);
+                doit(world, info.istask, result, obj, info.memfun, arg1, arg2, arg3);
+            }
+            else {
+                pending.push_back(new detail::PendingLongMsg(info.id, handler<memfunT,arg1T,arg2T,arg3T>, src, buf, nbyte));
+            }
+        }
+
+        /// Handler for incoming AM with 4 arguments
+        template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T>
+        static void handler(World& world, ProcessID src, void* buf, size_t nbyte) {
+            LongAmArg* arg = (LongAmArg *) buf;
+            detail::info<memfunT> info;
+            arg1T arg1;
+            arg2T arg2;
+            arg3T arg3;
+            arg4T arg4;
+            arg->unstuff(nbyte, info, arg1, arg2, arg3, arg4);
+            Derived* obj = world.ptr_from_id<Derived>(info.id);
+            if (obj) {
+                typename detail::info<memfunT>::futureT result(info.ref);
+                doit(world, info.istask, result, obj, info.memfun, arg1, arg2, arg3, arg4);
+            }
+            else {
+                pending.push_back(new detail::PendingLongMsg(info.id, handler<memfunT,arg1T,arg2T,arg3T,arg4T>, src, buf, nbyte));
+            }
+        }
+
+        /// Handler for incoming AM with 5 arguments
+        template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T, typename arg5T>
+        static void handler(World& world, ProcessID src, void* buf, size_t nbyte) {
+            LongAmArg* arg = (LongAmArg *) buf;
+            detail::info<memfunT> info;
+            arg1T arg1;
+            arg2T arg2;
+            arg3T arg3;
+            arg4T arg4;
+            arg5T arg5;
+            arg->unstuff(nbyte, info, arg1, arg2, arg3, arg4, arg5);
+            Derived* obj = world.ptr_from_id<Derived>(info.id);
+            if (obj) {
+                typename detail::info<memfunT>::futureT result(info.ref);
+                doit(world, info.istask, result, obj, info.memfun, arg1, arg2, arg3, arg4, arg5);
+            }
+            else {
+                pending.push_back(new detail::PendingLongMsg(info.id, handler<memfunT,arg1T,arg2T,arg3T,arg4T,arg5T>, src, buf, nbyte));
+            }
+        }
+
         /// Combines implementation of send/task
         template <typename memfunT>
         Future< MEMFUN_RETURNT(memfunT) > 
@@ -320,7 +382,7 @@ namespace madness {
         /// Combines implementation of send/task
         template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T, typename arg5T>
         Future< MEMFUN_RETURNT(memfunT) > 
-        forward(ProcessID dest, bool istask, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, const arg4T& arg4, const arg4T&, const arg5T& arg5) {
+        forward(ProcessID dest, bool istask, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, const arg4T& arg4, const arg5T& arg5) {
             Future< MEMFUN_RETURNT(memfunT) > result;
             Derived* obj = static_cast<Derived*>(this);            
             if (dest == me) {
@@ -341,7 +403,7 @@ namespace madness {
         /// To be called from DERIVED constructor to process pending messages
 
         /// Cannot call this from the DistributedObject constructor since the
-        /// derived class will not yet be fully constructed.
+        /// derived class would not yet be fully constructed.
         void process_pending() {
             for (typename std::list<detail::PendingMsg*>::iterator it = pending.begin();
                  it != pending.end();) {
@@ -396,6 +458,30 @@ namespace madness {
         }
 
 
+        /// Sends active message to derived class method "returnT (this->*memfun)(arg1,arg2,arg3)"
+        template <typename memfunT, typename arg1T, typename arg2T, typename arg3T>
+        Future< MEMFUN_RETURNT(memfunT) > 
+        send(ProcessID dest, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3) {
+            return forward(dest, false, memfun, arg1, arg2, arg3);
+        }
+
+
+        /// Sends active message to derived class method "returnT (this->*memfun)(arg1,arg2,arg3,arg4)"
+        template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T>
+        Future< MEMFUN_RETURNT(memfunT) > 
+        send(ProcessID dest, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, const arg4T& arg4) {
+            return forward(dest, false, memfun, arg1, arg2, arg3, arg4);
+        }
+
+
+        /// Sends active message to derived class method "returnT (this->*memfun)(arg1,arg2,arg3,arg4,arg5)"
+        template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T, typename arg5T>
+        Future< MEMFUN_RETURNT(memfunT) > 
+        send(ProcessID dest, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, const arg4T& arg4, const arg5T& arg5) {
+            return forward(dest, false, memfun, arg1, arg2, arg3, arg4, arg5);
+        }
+
+
         /// Sends task to derived class method "returnT (this->*memfun)()"
         template <typename memfunT>
         Future< MEMFUN_RETURNT(memfunT) > 
@@ -403,21 +489,71 @@ namespace madness {
             return forward(dest, true, memfun);
         }
         
-        /// Sends active message to derived class method "returnT (this->*memfun)(arg1)"
+        /// Sends task to derived class method "returnT (this->*memfun)(arg1)"
         template <typename memfunT, typename arg1T>
         Future< MEMFUN_RETURNT(memfunT) > 
         task(ProcessID dest, memfunT memfun, const arg1T& arg1) {
             return forward(dest, true, memfun, arg1);
         }
 
-        /// Sends active message to derived class method "returnT (this->*memfun)(arg1,arg2)"
+        /// Sends task to derived class method "returnT (this->*memfun)(arg1,arg2)"
         template <typename memfunT, typename arg1T, typename arg2T>
         Future< MEMFUN_RETURNT(memfunT) > 
         task(ProcessID dest, memfunT memfun, const arg1T& arg1, const arg2T& arg2) {
             return forward(dest, true, memfun, arg1, arg2);
         }
+
+        /// Sends task to derived class method "returnT (this->*memfun)(arg1,arg2,arg3)"
+        template <typename memfunT, typename arg1T, typename arg2T, typename arg3T>
+        Future< MEMFUN_RETURNT(memfunT) > 
+        task(ProcessID dest, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3) {
+            return forward(dest, true, memfun, arg1, arg2, arg3);
+        }
+
+
+        /// Sends task to derived class method "returnT (this->*memfun)(arg1,arg2,arg3,arg4)"
+        template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T>
+        Future< MEMFUN_RETURNT(memfunT) > 
+        task(ProcessID dest, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, const arg4T& arg4) {
+            return forward(dest, true, memfun, arg1, arg2, arg3, arg4);
+        }
+
+
+        /// Sends task to derived class method "returnT (this->*memfun)(arg1,arg2,arg3,arg4,arg5)"
+        template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T, typename arg5T>
+        Future< MEMFUN_RETURNT(memfunT) > 
+        task(ProcessID dest, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, const arg4T& arg4, const arg5T& arg5) {
+            return forward(dest, true, memfun, arg1, arg2, arg3, arg4, arg5);
+        }
+
+
+
+
         virtual ~DistributedObject(){};
     };
+
+    namespace archive {
+        template <class Archive>
+        template <class Derived>
+        struct ArchiveLoadImpl<Archive,DistributedObject<Derived>*> {
+            static inline void load(const Archive& ar, DistributedObject<Derived>*& ptr) {
+                uniqueidT id;
+                ar & id;
+                World* world = World::world_from_id(id.get_world_id());
+                MADNESS_ASSERT(world);
+                ptr = world->ptr_from_id< DistributedObject<Derived> >(id);
+                MADNESS_ASSERT(ptr);
+            };
+        };
+        
+        template <class Archive>
+        template <class Derived>
+        struct ArchiveStoreImpl<Archive,DistributedObject<Derived>*> {
+            static inline void store(const Archive& ar, DistributedObject<Derived>*& ptr) {
+                ar & ptr->id();
+            };
+        };
+    }
 
 }
 
