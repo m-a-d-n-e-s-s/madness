@@ -157,7 +157,6 @@ public:
     Key myChild(int k) const {
 	vector<unsigned int> LL;
 	for (unsigned int i = 0; i < D; i++) {
-//	    LL.push_back(2*L[D-i-1] + k%2);
 	    LL.push_back(2*L[i] + k%2);
 	    k/=2;
 	}
@@ -187,6 +186,10 @@ public:
 	    Key mama = this->myParent(dn);
 	    return (mama == key);
 	}
+    };
+
+    bool isParentOf(const Key& key) const {
+	return key.isChildOf(*this);
     };
 	    
 
@@ -232,7 +235,6 @@ public:
 	return true;
     };
 
-/*
     bool operator<(const Key& a) const {
 	int ans;
 
@@ -268,8 +270,8 @@ public:
 	else
 	    return false;
     };
-*/
 
+/*
     bool operator<(const Key& a) const {
         if (n < a.n)  return true;
         else if (n == a.n) {
@@ -281,7 +283,7 @@ public:
         }
         else return false;
     };
-
+*/
 
     void print() const {
 	std::cout << "n = " << n << ", (";
@@ -341,26 +343,101 @@ struct TreeCoords {
     };
 };
 
-typedef map<KeyD, ProcessID> TreeMap;
-typedef TreeMap::const_iterator TreeIterator;
-typedef pair<KeyD, ProcessID> TreePair;
+
+struct Tree {
+    TreeCoords data;
+    vector<Tree*> children;
+    Tree* parent;
+
+    Tree() {};
+    Tree(TreeCoords d) : data(d), parent(0) {};
+    Tree(TreeCoords d, Tree* p) : data(d), parent(p) {};
+
+    void insertChild(TreeCoords d) {
+	Tree* c = new Tree(d, this);
+	children.push_back(c);
+    };
+
+    void print() {
+	data.print();
+	int csize = children.size();
+	for (int j = 0; j < csize; j++) {
+	    children[j]->print();
+	}
+    };
+
+    bool isForeparentOf(KeyD key) const {
+	return (this->data.key.isParentOf(key));
+    };
+
+    void findOwner(const KeyD key, ProcessID *ow) const {
+	if (this->isForeparentOf(key)) {
+	    *ow = this->data.owner;
+	    int csize = children.size();
+	    for (int j = 0; j < csize; j++) {
+		children[j]->findOwner(key, ow);
+	    }
+	}
+    };
+
+    bool fill(vector<TreeCoords> v, int j) {
+	bool success = false;
+	if (this->isForeparentOf(v[j].key)) {
+	    int csize = children.size();
+	    for (int i = 0; i < csize; i++) {
+		if (children[i]->isForeparentOf(v[j].key)) {
+		    success = children[i]->fill(v, j);
+		    
+		}
+	    }
+	    if (!success) {
+		this->insertChild(v[j]);
+		success = true;
+/*
+cout << "successfully? " << success << " placed ";
+v[j].key.print();
+cout << " as child of ";
+this->data.key.print();
+cout << endl;
+*/
+	    }
+	}
+	return success;
+    }
+};
+
+
 
 template <typename keyT>
 class MyProcmap {
 private:
     int whichmap;
     const ProcessID owner;
-    TreeMap treeMap;
+    Tree treeMap;
 
 
     ProcessID getOwner(const keyT& key) const {
-	int n = key.n;
-	for (int i = 0; i <= n; i++) {
-	    TreeIterator it = treeMap.find(key.myParent(i));
-	    if (it != treeMap.end())
-		return it->second;
+	ProcessID owner;
+	treeMap.findOwner(key, &owner);
+	return owner;
+    };
+
+
+    void buildTreeMap(vector<TreeCoords> v) {
+	sort(v.begin(), v.end());
+	int vlen = v.size();
+/*
+print("sorted vector:");
+for (int i = 0; i < vlen; i++) {
+    v[i].print();
+}
+cout << endl;
+*/
+	if (vlen == 0) throw "empty map!!!";
+	treeMap = Tree(v[vlen-1]);
+	for (int j = vlen-2; j >= 0; j--) {
+	    treeMap.fill(v, j);
 	}
-	throw "can't find owner!!";
     };
 	
 
@@ -369,12 +446,8 @@ public:
     MyProcmap(ProcessID owner) : whichmap(0), owner(owner) {};
 
     MyProcmap(vector<TreeCoords> v) : whichmap(1), owner(1) {
-	for (unsigned int i = 0; i < v.size(); i++) {
-	    treeMap.insert(TreePair(v[i].key, v[i].owner));
-	}
-	for (unsigned int i = 0; i < v.size(); i++) {
-	    v[i].print();
-	}
+	buildTreeMap(v);
+	treeMap.print();
     };
 
     ProcessID operator()(const keyT& key) const {
@@ -654,7 +727,7 @@ Cost depthFirstPartition(treeT tree, KeyD key, vector<TreeCoords>* klist, unsign
     if (totalcost == 0) {
 	totalcost = computeCost(tree, key);
     }
-print("depthFirstPartition: totalcost =", totalcost);
+//print("depthFirstPartition: totalcost =", totalcost);
 
     Cost costLeft = totalcost;
     int partsLeft = npieces;
@@ -668,7 +741,7 @@ print("depthFirstPartition: totalcost =", totalcost);
 	if (tpart > partitionSize) {
 	    partitionSize = tpart;
 	}
-print("depthFirstPartition: partitionSize =", partitionSize);
+//print("depthFirstPartition: partitionSize =", partitionSize);
 	Cost usedUp = 0;
 	bool atleaf = false;
 	usedUp = makePartition(tree, key, &tmplist, partitionSize, (i==0), usedUp, &atleaf);
@@ -741,20 +814,20 @@ Cost makePartition(treeT tree, KeyD key, vector<KeyD>* klist, Cost partitionSize
     // no longer need iterator
 //    it = tree.end();
 
-    cout << "data for key ";
-    key.print();
-    cout << ": cost = " << d.cost << ", subcost = " << d.subcost << endl;
-    cout << "partitionSize = " << partitionSize << ", lastPartition = " << lastPartition <<
-	", usedUp = " << usedUp << std::endl;
+//    cout << "data for key ";
+//    key.print();
+//    cout << ": cost = " << d.cost << ", subcost = " << d.subcost << endl;
+//    cout << "partitionSize = " << partitionSize << ", lastPartition = " << lastPartition <<
+//	", usedUp = " << usedUp << std::endl;
 
     if (d.istaken) {
-	cout << "this key is taken" << endl; 
+//	cout << "this key is taken" << endl; 
 	return usedUp;
     }
 
-    cout << "back to key ";
-    key.print();
-    cout << endl;
+//    cout << "back to key ";
+//    key.print();
+//    cout << endl;
 
     // if either we're at the last partition, the partition is currently empty
     // and this is a single item, or there is still room in the partition and
@@ -763,9 +836,9 @@ Cost makePartition(treeT tree, KeyD key, vector<KeyD>* klist, Cost partitionSize
     if ((lastPartition) || ((usedUp == 0) && (!node.has_children())) || 
 	((usedUp < partitionSize) && (d.subcost+usedUp <= partitionSize+maxAddl))) {
 	// add to partition
-	cout << "adding to partition ";
-	key.print();
-	cout << endl;
+//	cout << "adding to partition ";
+//	key.print();
+//	cout << endl;
 	klist->push_back(KeyD(key));
 	d.istaken = true;
 	usedUp += d.subcost;
@@ -781,21 +854,21 @@ Cost makePartition(treeT tree, KeyD key, vector<KeyD>* klist, Cost partitionSize
 	    for (unsigned int i = 0; i < node.dim; i++) {
 	    	if (node.has_child(i)) {
 	    	    KeyD k = key.myChild(i);
-		    key.print();
-	    	    std::cout << " recursively calling ";
-	    	    k.print();
-	    	    cout << endl;
+//		    key.print();
+//	    	    std::cout << " recursively calling ";
+//	    	    k.print();
+//	    	    cout << endl;
 	    	    usedUp = makePartition(tree, k, klist, partitionSize, lastPartition, usedUp, atleaf);
 	    	    if ((*atleaf) || (usedUp >= partitionSize)) {
-			cout << "at leaf = " << *atleaf << ", usedup >= partitionSize? " << 
-				(usedUp >=partitionSize) << endl;
+//			cout << "at leaf = " << *atleaf << ", usedup >= partitionSize? " << 
+//				(usedUp >=partitionSize) << endl;
 		        break;
 		    }
 		}
 	    }
 	}
 	else {
-	    cout << "about to set atleaf = true" << endl;
+//	    cout << "about to set atleaf = true" << endl;
 	    *atleaf = true;
 	}
     }
@@ -948,6 +1021,7 @@ int main(int argc, char** argv) {
 */
 	KeyD root(0,0,0);
 	treeT tree(world,MyProcmap<KeyD>(v));
+//	treeT tree(world,MyProcmap<KeyD>(1));
 	print("Made tree");
 	if (me == 0) { 
 	    print("About to build tree");
