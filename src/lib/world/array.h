@@ -2,6 +2,7 @@
 #define WORLD_ARRAY
 
 #include <vector>
+#include <world/worldexc.h>
 
 namespace madness {
 

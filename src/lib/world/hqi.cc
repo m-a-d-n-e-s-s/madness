@@ -109,44 +109,31 @@ public:
 template <unsigned int D>
 class Key {
 public:
-//    const unsigned int n;
     unsigned int n;
-    mutable vector<unsigned int> L;
-//    const std::size_t hashval; // Saving this here is a big optimization
+    mutable Array<unsigned int, D> L;
     hashT hashval; // Saving this here is a big optimization
 
     Key() {};
 
-    Key(const Key& k) : n(k.n) {
-	for (unsigned int i = 0; i < D; i++) {
-	    L.push_back(k.L[i]);
-	}
+    Key(const Key& k) : n(k.n), L(k.L) {
        hashval = k.hashval;
     };
 
     Key(int n, int i, int j) : n(n) {
-      L.push_back(i); L.push_back(j);
-       hashval = madness::hash(&L[0],D,madness::hash(n));
-   }
-
-    Key(int n, vector<int> v) : n(n) {
-	for (int i = 0; i < v.size(); i++) {
-	    L.push_back(v[i]);
-	}
-	for (int i = v.size(); i < D; i++) {
-	    L.push_back(0);
-	}
-       hashval = madness::hash(&L[0],D,madness::hash(n));
+	L[0] = i; L[1] = j;
+	hashval = madness::hash(&this->n, D+1, 0);
     };
 
-    Key(unsigned int n, vector<unsigned int> v) : n(n) {
-	for (unsigned int i = 0; i < v.size(); i++) {
-	    L.push_back(v[i]);
-	}
-	for (unsigned int i = v.size(); i < D; i++) {
-	    L.push_back(0);
-	}
-       hashval = madness::hash(&L[0],D,madness::hash(n));
+    Key(int n, vector<int> v) : n(n), L(Array<unsigned int, D>(v)) {
+	hashval = madness::hash(&this->n, D+1, 0);
+    };
+
+    Key(unsigned int n, vector<unsigned int> v) : n(n), L(Array<unsigned int, D>(v)) {
+	hashval = madness::hash(&this->n, D+1, 0);
+    };
+
+    Key(unsigned int n, Array<unsigned int, D> L) : n(n), L(L) {
+	hashval = madness::hash(&this->n, D+1, 0);
     };
 
     hashT hash() const {
@@ -155,9 +142,10 @@ public:
 
 
     Key myChild(int k) const {
-	vector<unsigned int> LL;
+//	vector<unsigned int> LL;
+	Array<unsigned int,D> LL;
 	for (unsigned int i = 0; i < D; i++) {
-	    LL.push_back(2*L[i] + k%2);
+	    LL[i] = 2*L[i] + k%2;
 	    k/=2;
 	}
 	return Key(n+1, LL);
@@ -165,10 +153,11 @@ public:
 
     Key myParent(int k=1) const {
 	if (k == 0) return Key(*this);
-	vector<unsigned int> LL;
+//	vector<unsigned int> LL;
+	Array<unsigned int,D> LL;
 	unsigned int twotok = (unsigned int) pow(2.0, k);
 	for (unsigned int i = 0; i < D; i++) {
-	    LL.push_back(L[i]/twotok);
+	    LL[i] = (L[i]/twotok);
 	}
 	return Key(n-k, LL);
     };
@@ -195,7 +184,7 @@ public:
 
     int ordering(const Key& k1, const Key& k2) const {
 	bool egalite = true;
-	vector<int> dL(D, 0);
+	Array<int,D> dL;
 //	cout << "ordering: comparing ";
 //	k1.print();
 //	cout << " and ";
@@ -355,7 +344,7 @@ struct Tree {
 
     void insertChild(TreeCoords d) {
 	Tree* c = new Tree(d, this);
-	children.push_back(c);
+	children.insert(children.begin(),c);
     };
 
     void print() {
@@ -393,13 +382,6 @@ struct Tree {
 	    if (!success) {
 		this->insertChild(v[j]);
 		success = true;
-/*
-cout << "successfully? " << success << " placed ";
-v[j].key.print();
-cout << " as child of ";
-this->data.key.print();
-cout << endl;
-*/
 	    }
 	}
 	return success;
@@ -426,14 +408,9 @@ private:
     void buildTreeMap(vector<TreeCoords> v) {
 	sort(v.begin(), v.end());
 	int vlen = v.size();
-/*
-print("sorted vector:");
-for (int i = 0; i < vlen; i++) {
-    v[i].print();
-}
-cout << endl;
-*/
+
 	if (vlen == 0) throw "empty map!!!";
+
 	treeMap = Tree(v[vlen-1]);
 	for (int j = vlen-2; j >= 0; j--) {
 	    treeMap.fill(v, j);
@@ -462,12 +439,8 @@ public:
 
 typedef Node<NodeData,2> NodeD;
 typedef DistributedContainer< KeyD,NodeD,MyProcmap<KeyD> > treeT;
-//typedef DistributedContainer< KeyD,NodeD > treeT;
 
 void build_tree(treeT& tree, const KeyD& key) {
-//    cout << "at beginning of build_tree with key ";
-//    key.print();
-//    cout << endl;
     NodeData data(1,1,false);  
     NodeD parent(data);
     if (key.n < 5) {
@@ -494,8 +467,6 @@ void print_tree(treeT& tree, const KeyD& key) {
     treeT::iterator it = tree.find(key);
     if (it!=tree.end()) {
 	const NodeD& node = it->second;
-    	// no longer need iterator
-//    	it = tree.end();
 	NodeData d = node.get_data();
 	for (int i=0; i<(int)key.n; i++) cout << "   ";
 	print(key.n,key.L[0],key.L[1],"owner",tree.owner(key),"cost",d.cost,"subcost", d.subcost);
@@ -522,8 +493,6 @@ Cost computeCost(treeT& tree, const KeyD& key) {
     if (it == tree.end()) return cost;
 
     NodeD node = it->second;
-    // no longer need iterator
-//    it = tree.end();
     for (unsigned int i = 0; i < node.dim; i++) {
 	if (node.has_child(i)) {
 	    KeyD k = key.myChild(i);
@@ -551,8 +520,6 @@ void meld(treeT& tree, const KeyD& key) {
     vector<unsigned int> mylist;
 
     NodeD node = it->second;
-    // no longer need iterator
-//    it = tree.end();
     for (unsigned int i = 0; i < node.dim; i++)
     {
 	if (node.has_child(i)) {
@@ -560,8 +527,6 @@ void meld(treeT& tree, const KeyD& key) {
 	    treeT::iterator itc = tree.find(k);
             if (itc == tree.end()) return;
             NodeD c = itc->second;
-	    // no longer need iterator
-//	    itc = tree.end();
             bool haskids = false;
             for (unsigned int j = 0; j < c.dim; j++) {
                 if (c.has_child(j)) {
@@ -606,8 +571,6 @@ void meld(treeT& tree, const KeyD& key) {
     tree.insert(key,node);
     treeT::iterator itd = tree.find(key);
     NodeD noded = itd->second;
-    // no longer need iterator
-//    itd = tree.end();
     NodeData dd = noded.get_data();
 //    cout << "meld: at end, node has these values for children " << noded.has_child(0) << ",";
 //    cout << noded.has_child(1) << "," << noded.has_child(2) << "," << noded.has_child(3) << endl;
@@ -623,8 +586,6 @@ void rollup(treeT tree, KeyD key) {
 //    key.print();
 //    cout << endl;
     NodeD node = it->second;
-    // no longer need iterator
-//    it = tree.end();
     if (!node.has_children()) {
 //	cout << "rollup: this node has no children; returning" << endl;
 	return; // no rolling to be done here.
@@ -639,8 +600,6 @@ void rollup(treeT tree, KeyD key) {
 //	    k.print();
 //	    cout << endl;
 	    NodeD c = itc->second;
-	    // no longer need iterator
-//	    itc = tree.end();
 	    if (c.has_children()) {
 //		cout << "rollup: child ";
 //		k.print();
@@ -677,8 +636,6 @@ Cost fixCost(treeT tree, KeyD key) {
     if (it == tree.end()) return 0;
 
     NodeD node = it->second;
-    // no longer need iterator
-//    it = tree.end();
     NodeData d = node.get_data();
     d.subcost = d.cost;
     if (node.has_children())
@@ -695,21 +652,7 @@ Cost fixCost(treeT tree, KeyD key) {
 //node.get_data().print();
     tree.erase(key);
     tree.insert(key,node);
-/*
-    treeT::iterator itt = tree.find(key);
-    if (itt != tree.end()) {
-    	NodeD noded = itt->second;
-	// no longer need iterator
-//	itt = tree.end();
-    	NodeData dd = noded.get_data();
-    	cout << "cost and subcost of ";
-    	key.print();
-    	cout << " = " << dd.cost << ", " << dd.subcost << endl;
-    }
-    else {
-	print("uh oh, no node at all!");
-    }
-*/
+
     return d.subcost;
 }
 
@@ -764,8 +707,6 @@ void removeCost(treeT tree, KeyD key, Cost c) {
 //print("removeCost: found key");
     if (it == tree.end()) return;
     NodeD node = it->second;
-    // no longer need iterator
-//    it = tree.end();
     NodeData d = node.get_data();
 //print("removeCost: got data");
     d.subcost -= c;
@@ -781,18 +722,6 @@ void removeCost(treeT tree, KeyD key, Cost c) {
     tree.insert(key,node);
 //cout << "removeCost: after inserting, data = ";
 //node.get_data().print();
-/*
-    treeT::iterator it2 = tree.find(key);
-    NodeD node2 = it2->second;
-    // no longer need iterator
-//    it2 = tree.end();
-    NodeData d2 = node2.get_data();
-cout << "removeCost: key ";
-key.print();
-cout << ", retrieved data = ";
-d2.print();
-cout << endl;
-*/
 }
 
 
@@ -811,8 +740,6 @@ Cost makePartition(treeT tree, KeyD key, vector<KeyD>* klist, Cost partitionSize
     NodeD node = it->second;
     NodeData d = node.get_data();
 
-    // no longer need iterator
-//    it = tree.end();
 
 //    cout << "data for key ";
 //    key.print();
@@ -929,8 +856,6 @@ void findBestPartition(treeT tree, KeyD key, vector<TreeCoords>* klist, unsigned
     	treeT::iterator it = tree.find(key);
     	if (it == tree.end()) return;
     	NodeD node = it->second;
-    	// no longer need iterator
-//    	it = tree.end();
 	if (!(node.has_children()) || (listoflist[count].size() < npieces)) {
 	    notdone = false;
 	}
@@ -997,6 +922,29 @@ void findBestPartition(treeT tree, KeyD key, vector<TreeCoords>* klist, unsigned
     }
 }
 
+
+void migrate_data(treeT tfrom, treeT tto, KeyD key) {
+    treeT::iterator it = tfrom.find(key);
+    if (it == tfrom.end()) return;
+
+    NodeD node = it->second;
+
+    if (node.has_children()) {
+	for (unsigned int i = 0; i < node.dim; i++) {
+	    KeyD child = key.myChild(i);
+	    migrate_data(tfrom, tto, child);
+	}
+    }
+    tto.insert(key, node);
+}
+
+
+void migrate(treeT tfrom, treeT tto) {
+    KeyD root(0,0,0);
+    migrate_data(tfrom, tto, root);
+}
+
+
 int main(int argc, char** argv) {
     MPI::Init(argc, argv);
     World world(MPI::COMM_WORLD);
@@ -1023,9 +971,17 @@ int main(int argc, char** argv) {
 	treeT tree(world,MyProcmap<KeyD>(v));
 //	treeT tree(world,MyProcmap<KeyD>(1));
 	print("Made tree");
+	print("About to make tree1");
+	treeT tree1(world,MyProcmap<KeyD>(v));
 	if (me == 0) { 
 	    print("About to build tree");
 	    build_tree(tree,root);
+	    print("About to build tree1");
+	    build_tree(tree1,root);
+	    print("built tree1");
+//	    print_tree(tree1,root);
+	    print("printed tree1");
+	    print("");
 	}
 	print("Built tree");
 	world.gop.fence();
@@ -1034,17 +990,46 @@ int main(int argc, char** argv) {
 	print("");
 	if (me == 1) {
 	    print("About to print tree");
-//	    print_tree(tree,root);
+	    print_tree(tree,root);
 	    print("Printed tree");
 	}
 	print("Done printing tree");
 	print("");
-	if (me == 1) {
-//	    Cost cost = computeCost(tree,KeyD(0,0,0));
-//	    print("cost of tree =", cost);
-	    vector<TreeCoords> klist;
+	vector<TreeCoords> klist;
+	if (me == 0) {
 	    unsigned int npieces = world.nproc();
-	    findBestPartition(tree, KeyD(0,0,0), &klist, npieces);
+	    findBestPartition(tree, root, &klist, npieces);
+	    print("");
+	}
+	world.gop.fence();
+	// Now, broadcast klist
+	if (me == 0) {
+	    unsigned int ksize = klist.size();
+	    world.gop.broadcast<unsigned int>(ksize);
+	    print("broadcasted ksize");
+	    for (unsigned int i = 0; i < ksize; i++) {
+		world.gop.broadcast<TreeCoords>(klist[i]);
+		klist[i].print();
+	    }
+	    print("done broadcasting klist");
+	}
+	else {
+	    unsigned int ksize;
+	    world.gop.broadcast<unsigned int>(ksize);
+	    print("broadcasted ksize");
+	    for (unsigned int i = 0; i < ksize; i++) {
+		TreeCoords t;
+		world.gop.broadcast<TreeCoords>(t);
+		klist.push_back(t);
+		t.print();
+	    }
+	    print("done broadcasting klist");
+	}
+	treeT tree2(world,MyProcmap<KeyD>(klist));
+	if (me == 0) {
+	    migrate(tree1, tree2);
+	    print("copied tree1 to tree2");
+	    print_tree(tree2, root);
 	}
     } catch (MPI::Exception e) {
         error("caught an MPI exception");
