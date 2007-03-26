@@ -142,12 +142,12 @@ namespace madness {
         // Default copy constructor and assignment won't compile
         // (which is good) due to reference members.
 
-        struct refcnt_is_one {
-            bool operator()(const SharedPtr<DeferredCleanupInterface>& p) const {
-                print("refcnt:",(void*) p.get(), p.use_count());
-                return p.use_count() == 1;
-            };
-        };
+//         struct refcnt_is_one {
+//             bool operator()(const SharedPtr<DeferredCleanupInterface>& p) const {
+//                 print("refcnt:",(void*) p.get(), p.use_count());
+//                 return p.use_count() == 1;
+//             };
+//         };
 
         /// Does any deferred cleanup and returns true if cleaning was necessary
         bool do_deferred_cleanup() {
@@ -158,8 +158,8 @@ namespace madness {
             // pass by value which here causes the use_count() to be
             // incremented and hence things never to be destroyed.
             // Hence, not just me being non-PC by not using the STL
-            // algorithm here since the is borked. Concrete example of
-            // failure here is gcc4.2.
+            // algorithm here since the standard is borked. Concrete
+            // example of failure here is gcc4.2.
             // //std::remove_if(deferred.begin(),deferred.end(),refcnt_is_one());
             for (std::list< SharedPtr<DeferredCleanupInterface> >::iterator it = deferred.begin(); 
                  it != deferred.end();) {

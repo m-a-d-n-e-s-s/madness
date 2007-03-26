@@ -256,11 +256,11 @@ void test6(World& world) {
 
     // Everyone inserts distinct values 0..1000 into the container,
     // fences, and then tries to read all values back
-    for (int i=me; i<10000; i+=nproc) c.insert(i,(double) i);
+    for (int i=me; i<100; i+=nproc) c.insert(i,(double) i);
     print("finished inserting");
     world.gop.fence();
 
-    for (int i=0; i<10000; i++) {
+    for (int i=0; i<100; i++) {
         future fut = c.find(i);
         iterator it = fut.get();
 	if (it == c.end()) {
@@ -302,44 +302,6 @@ void test6(World& world) {
     if (me == 0) print("test6 OK");
 }
 
-
-class Mary {
-private:
-    int val;
-public:
-    Mary() : val(0) {};
-    void inc() {
-        val++;
-        print("Mary was just incremented",val);
-    };
-    void add(int i) {
-        val += i;
-        print("Mary was just added",i,val);
-    };
-    void fred(int i, double j) {
-        val += i*(int)j;
-    };
-
-    string alan(int i, int j) {
-        ostringstream s;
-        val += i*j;
-        s << "Alan sends greetings: " << i << " " << j << " " << val << endl;
-        return s.str();
-    };
-
-    int get() const {return val;};
-
-    bool get_me_twice(World* world, const DistributedContainer<int,Mary>& d) {
-        //return (d.owner(i) == world->rank()) && (&d.find(i).get()->second == this);
-        return true;
-    };
-
-    template <typename Archive>
-    void serialize(const Archive& ar) {
-        ar & val;
-    }
-};
-
 void test7(World& world) {
     vector<unsigned char> v;
     VectorOutputArchive arout(v);
@@ -349,69 +311,9 @@ void test7(World& world) {
     VectorInputArchive arin(v);
     arin & p;
     MADNESS_ASSERT(p==&world);
+    if (world.rank() == 0) print("test7 OK");
 }
 
-void test8(World& world) {
-    // test forwarding methods to an item
-    ProcessID me = world.mpi.rank();
-    int nproc = world.mpi.nproc();
-    World::poll_all();
-    DistributedContainer<int,Mary> m(world);
-    typedef DistributedContainer<int,Mary>::iterator iterator;
-    
-    for (int i=0; i<nproc; i++) 
-        m.send(i,&Mary::inc);
-    world.gop.fence();
-
-    for (iterator it=m.begin(); it!=m.end(); ++it) {
-        print("mary",it->first,it->second.get());
-        MADNESS_ASSERT(it->second.get() == nproc);
-    }
-    world.gop.barrier();
-
-    for (int i=0; i<nproc; i++) 
-        m.send(i,&Mary::add,me);
-    world.gop.fence();
-
-    for (iterator it=m.begin(); it!=m.end(); ++it) {
-        print("mary",it->first,it->second.get());
-        MADNESS_ASSERT(it->second.get() == nproc*(nproc+1)/2);
-    }
-    world.gop.fence();
-
-    for (int i=0; i<nproc; i++) 
-        m.send(i,&Mary::fred,2,me);
-    world.gop.fence();
-
-    for (iterator it=m.begin(); it!=m.end(); ++it) {
-        print("mary",it->first,it->second.get());
-        MADNESS_ASSERT(it->second.get() == nproc*(3*nproc-1)/2);
-    }
-    world.gop.fence();
-
-    print("main making vector of results");
-    //vector< Future<string> > results(nproc,Future<string>::default_initializer());
-    vector< Future<string> > results = future_vector_factory<string>(nproc);
-    vector< Future<bool> > b = future_vector_factory<bool>(nproc);
-    print("main finished making vector of results");
-    for (int i=0; i<nproc; i++) {
-        print("main making task",i);
-        results[i] = m.task(i,&Mary::alan,3,4);
-        b[i] = m.send(i,&Mary::get_me_twice,&world,m);
-        print("main finished making task",i);
-    }
-    print("about to fence");
-    world.gop.fence();
-
-    for (int i=0; i<nproc; i++) {
-        MADNESS_ASSERT(results[i].probe());
-        MADNESS_ASSERT(b[i].probe());
-        print("results",i,results[i].get(),b[i].get());
-    };
-
-
-    if (me == 0) print("test8 OK");
-}
 
 
 #include <complex>
@@ -460,9 +362,13 @@ public:
     };
 };
 
+double dumb(int a1, int a2, int a3, int a4, int a5, int a6, int a7) {
+    return a1+a2+a3+a4+a5+a6+a7;
+}
 
 
-void test9(World& world) {
+
+void test8(World& world) {
     int nproc = world.mpi.nproc();
     ProcessID me = world.mpi.rank();
     ProcessID right = (me+1)%nproc;
@@ -492,12 +398,13 @@ void test9(World& world) {
     Future<string> cute = world.taskq.add(right,TTT::kate,&world,"Boo!",-42.0);
     TTT ttt;
     Future<double> jody = world.taskq.add(ttt,&TTT::jody,1.0,2.0,3.0);
+    Future<double> duh = world.taskq.add(me,dumb,0,1,2,3,4,5,6);
     print("done with making futs");
 
     bert_input = 7;
     sara1 = 3.0;
     sara2 = double_complex(2.1,1.2);
-    kate2 = "Who's your daddy?";
+    kate2 = string("Who's your daddy?");
     kate3 = 3.14;
 
     vector< Future<int> > futv = future_vector_factory<int>(7);
@@ -520,12 +427,14 @@ void test9(World& world) {
     MADNESS_ASSERT(cute.probe());
     MADNESS_ASSERT(jody.probe());
     MADNESS_ASSERT(hugh.probe());
+    MADNESS_ASSERT(duh.probe());
 
     MADNESS_ASSERT(mary.get() == 99);
     MADNESS_ASSERT(carl.get() == 88);
     MADNESS_ASSERT(dave.get() == right);
     MADNESS_ASSERT(bert.get() == 8);
     MADNESS_ASSERT(hugh.get() == 21.0);
+    MADNESS_ASSERT(duh.get() == 21.0);
     print("Sara says",sara.get().real(),sara.get().imag());
     print("Kate says",kate.get());
     print("Cute says",cute.get());
@@ -542,7 +451,7 @@ int val1d_func(int input) {
     return input+1;
 }
 
-void test10(World& world) {
+void test9(World& world) {
     const int ntask = 100000;
 
     double used = -cpu_time();
@@ -582,6 +491,135 @@ void test10(World& world) {
     print("Time to  run",ntask,"chain of tasks",used,"time/task",used/ntask);
     MADNESS_ASSERT(result.get() == ntask);
 }
+
+
+class Mary {
+private:
+    int val;
+public:
+    Mary() : val(0) {
+        print("MAKING Mary",(void*)this);
+    };
+    void inc() {
+        print("INC Mary",(void*)this,val);
+        val++;
+        print("Mary was just incremented",val);
+    };
+    void add(int i) {
+        print("ADD Mary",(void*)this,val,i);
+        val += i;
+        print("Mary was just added",i,val);
+    };
+    void fred(int i, double j) {
+        print("FRED Mary",(void*)this,val,i,j);
+        val += i*(int)j;
+    };
+
+    string cary0() {
+        return string("Cary0 sends greetings");
+    };
+
+    string cary(int i) {
+        ostringstream s;
+        val += i;
+        s << "Cary sends greetings: " << i << " " << val << endl;
+        return s.str();
+    };
+
+    string alan(int i, int j) {
+        ostringstream s;
+        val += i*j;
+        s << "Alan sends greetings: " << i << " " << j << " " << val << endl;
+        return s.str();
+    };
+
+    double galahad(const string& str, int j, double z) {
+        istringstream s(str);
+        int i;
+        s >> i;
+        //val += i*j*z;
+        print("Galahad",str,i,j,z,val);
+        return val;
+    };
+        
+
+    int get() const {return val;};
+
+    bool get_me_twice(World* world, const DistributedContainer<int,Mary>& d) {
+        return true;
+    };
+
+    template <typename Archive>
+    void serialize(const Archive& ar) {
+        ar & val;
+    }
+};
+
+void test10(World& world) {
+    // test forwarding methods to an item
+    ProcessID me = world.mpi.rank();
+    int nproc = world.mpi.nproc();
+    World::poll_all();
+    DistributedContainer<int,Mary> m(world);
+    typedef DistributedContainer<int,Mary>::iterator iterator;
+ 
+    for (int i=0; i<nproc; i++) 
+        m.send(i,&Mary::inc);
+    world.gop.fence();
+
+    for (iterator it=m.begin(); it!=m.end(); ++it) {
+        print("mary",it->first,it->second.get());
+        MADNESS_ASSERT(it->second.get() == nproc);
+    }
+    world.gop.barrier();
+
+    for (int i=0; i<nproc; i++) 
+        m.send(i,&Mary::add,me);
+    world.gop.fence();
+
+    for (iterator it=m.begin(); it!=m.end(); ++it) {
+        print("mary",it->first,it->second.get());
+        MADNESS_ASSERT(it->second.get() == nproc*(nproc+1)/2);
+    }
+    world.gop.fence();
+
+    for (int i=0; i<nproc; i++) 
+        m.send(i,&Mary::fred,2,me);
+    world.gop.fence();
+
+    for (iterator it=m.begin(); it!=m.end(); ++it) {
+        print("mary",it->first,it->second.get());
+        MADNESS_ASSERT(it->second.get() == nproc*(3*nproc-1)/2);
+    }
+
+    Future<double>  galahad = m.task(ProcessID(0),&Mary::galahad,string("1"),me,3.14);
+    world.gop.fence();
+    print("result of galahad",galahad.get());
+
+
+    print("main making vector of results");
+    //vector< Future<string> > results(nproc,Future<string>::default_initializer());
+    vector< Future<string> > results = future_vector_factory<string>(nproc);
+    vector< Future<bool> > b = future_vector_factory<bool>(nproc);
+    print("main finished making vector of results");
+    for (int i=0; i<nproc; i++) {
+        print("main making task",i);
+        results[i] = m.task(i,&Mary::alan,3,4);
+        b[i] = m.send(i,&Mary::get_me_twice,&world,m);
+        print("main finished making task",i);
+    }
+    print("about to fence");
+    world.gop.fence();
+
+    for (int i=0; i<nproc; i++) {
+        MADNESS_ASSERT(results[i].probe());
+        MADNESS_ASSERT(b[i].probe());
+        print("results",i,results[i].get(),b[i].get());
+    };
+
+    if (me == 0) print("test8 OK");
+}
+
 
 struct Key {
     typedef unsigned long ulong;
@@ -625,62 +663,62 @@ ostream& operator<<(ostream& s, const Key& key) {
     return s;
 }
 
-struct Node {
-    typedef DistributedContainer<Key,Node> dcT;
-    Key key;
-    double value;
-    bool isleaf;
-    Node() : value(0.0), isleaf(true) {};
-    Node(double value) : value(value), isleaf(true) {};
+// struct Node {
+//     typedef DistributedContainer<Key,Node> dcT;
+//     Key key;
+//     double value;
+//     bool isleaf;
+//     Node() : value(0.0), isleaf(true) {};
+//     Node(double value) : value(value), isleaf(true) {};
 
-    struct do_random_insert {
-        dcT& d;
-        double value;
-        do_random_insert(dcT& d, double value) 
-            : d(d), value(value) {};
-        void operator()(const Key& key) const {
-            d.task(key,&Node::random_insert,d, key, value);
-        };
-    };
-    
-    void random_insert(const dcT& constd, const Key& keyin, double valin) {
-        dcT& d = const_cast<dcT&>(constd);
-        //print("inserting",keyin,valin);
-        key = keyin;
-        value = valin;
-        isleaf = true;
-        if (value > 0.25) {
-            isleaf = false;
-            World& world = d.world();
-            double ran = world.mpi.drand();
-            key.foreach_child(do_random_insert(d,value*ran)); 
-        }
-    };
+//     struct do_random_insert {
+//         dcT& d;
+//         double value;
+//         do_random_insert(dcT& d, double value) 
+//             : d(d), value(value) {};
+//         void operator()(const Key& key) const {
+//             d.task(key,&Node::random_insert,d, key, value);
+//         };
+//     };
+ 
+//     void random_insert(const dcT& constd, const Key& keyin, double valin) {
+//         dcT& d = const_cast<dcT&>(constd);
+//         //print("inserting",keyin,valin);
+//         key = keyin;
+//         value = valin;
+//         isleaf = true;
+//         if (value > 0.25) {
+//             isleaf = false;
+//             World& world = d.world();
+//             double ran = world.mpi.drand();
+//             key.foreach_child(do_random_insert(d,value*ran)); 
+//         }
+//     };
 
-    template <class Archive>
-    void serialize(Archive& ar) {
-        ar & key & value & isleaf;
-    }
-};
+//     template <class Archive>
+//     void serialize(Archive& ar) {
+//         ar & key & value & isleaf;
+//     }
+// };
 
 
-void test11(World& world) {
-    // Test the various flavours of erase
-    ProcessID me = world.rank();
-    DistributedContainer<Key,Node> d(world);
+// void test11(World& world) {
+//     // Test the various flavours of erase
+//     ProcessID me = world.rank();
+//     DistributedContainer<Key,Node> d(world);
 
-    // First build an oct-tree with random depth
-    if (me == 0) {
-        Key root = Key(0,0,0,0);
-        d.task(root,&Node::random_insert,d,root,1.0);
-    }
-    world.gop.fence();
-    print("size before erasing",d.size());
-    //d.clear();
-    d.erase(d.begin(),d.end());
-    print("size after erasing",d.size());
-    world.gop.fence();
-}
+//     // First build an oct-tree with random depth
+//     if (me == 0) {
+//         Key root = Key(0,0,0,0);
+//         d.task(root,&Node::random_insert,d,root,1.0);
+//     }
+//     world.gop.fence();
+//     print("size before erasing",d.size());
+//     //d.clear();
+//     d.erase(d.begin(),d.end());
+//     print("size after erasing",d.size());
+//     world.gop.fence();
+// }
 
 
 
@@ -703,9 +741,9 @@ int main(int argc, char** argv) {
     world.gop.fence();
 
     try {
-        test1(world);
-        test2(world);
-        test3(world);
+//         test1(world);
+//         test2(world);
+//         test3(world);
         test4(world);
         test5(world);
         test6(world);
@@ -713,7 +751,7 @@ int main(int argc, char** argv) {
         test8(world);
         test9(world);
         test10(world);
-        test11(world);
+        //        test11(world);
     } catch (MPI::Exception e) {
         error("caught an MPI exception");
     } catch (madness::MadnessException e) {

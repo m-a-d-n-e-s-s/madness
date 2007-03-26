@@ -753,6 +753,39 @@ namespace madness {
         }
         
         
+        /// Convenience template for serializing arguments into LongAmArg
+        
+        /// Returns size of active message include header
+        template <typename A, typename B, typename C, typename D, typename E, typename F, typename G, typename H>
+        inline size_t stuff(const A& a, const B& b, const C& c, const D& d, const E& e, const F& f, const G& g, const H& h) {
+            BufferOutputArchive ar(buf,sizeof(buf));
+            ar & a & b & c & d & e & f & g & h;
+            return ar.size()+sizeof(header);
+        }
+        
+        
+        /// Convenience template for serializing arguments into LongAmArg
+        
+        /// Returns size of active message include header
+        template <typename A, typename B, typename C, typename D, typename E, typename F, typename G, typename H, typename I>
+        inline size_t stuff(const A& a, const B& b, const C& c, const D& d, const E& e, const F& f, const G& g, const H& h, const I& i) {
+            BufferOutputArchive ar(buf,sizeof(buf));
+            ar & a & b & c & d & e & f & g & h & i;
+            return ar.size()+sizeof(header);
+        }
+        
+        
+        /// Convenience template for serializing arguments into LongAmArg
+        
+        /// Returns size of active message include header
+        template <typename A, typename B, typename C, typename D, typename E, typename F, typename G, typename H, typename I, typename J>
+        inline size_t stuff(const A& a, const B& b, const C& c, const D& d, const E& e, const F& f, const G& g, const H& h, const I& i, const J& j) {
+            BufferOutputArchive ar(buf,sizeof(buf));
+            ar & a & b & c & d & e & f & g & h & i & j;
+            return ar.size()+sizeof(header);
+        }
+        
+        
         /// Convenience template for deserializing arguments from LongAmArg
         template <typename A>
         inline void unstuff(size_t nbyte, A& a) const {
@@ -807,6 +840,31 @@ namespace madness {
             BufferInputArchive ar(buf,nbyte-sizeof(header));
             ar & a & b & c & d & e & f & g;
         }
+        
+        
+        /// Convenience template for deserializing arguments from LongAmArg
+        template <typename A, typename B, typename C, typename D, typename E, typename F, typename G, typename H>
+        inline void unstuff(size_t nbyte, A& a, B& b, C& c, D& d, E& e, F& f, G& g, H& h) const {
+            BufferInputArchive ar(buf,nbyte-sizeof(header));
+            ar & a & b & c & d & e & f & g & h;
+        }
+
+
+        /// Convenience template for deserializing arguments from LongAmArg
+        template <typename A, typename B, typename C, typename D, typename E, typename F, typename G, typename H, typename I>
+        inline void unstuff(size_t nbyte, A& a, B& b, C& c, D& d, E& e, F& f, G& g, H& h, I& i) const {
+            BufferInputArchive ar(buf,nbyte-sizeof(header));
+            ar & a & b & c & d & e & f & g & h & i;
+        }
+
+
+        /// Convenience template for deserializing arguments from LongAmArg
+        template <typename A, typename B, typename C, typename D, typename E, typename F, typename G, typename H, typename I, typename J>
+        inline void unstuff(size_t nbyte, A& a, B& b, C& c, D& d, E& e, F& f, G& g, H& h, I& i, J& j) const {
+            BufferInputArchive ar(buf,nbyte-sizeof(header));
+            ar & a & b & c & d & e & f & g & h & i & j;
+        }
+
     };
 
 }

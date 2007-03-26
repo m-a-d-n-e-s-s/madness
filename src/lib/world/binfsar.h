@@ -23,7 +23,7 @@ public:
 
     template <class T>
     inline
-    typename madness::enable_if< madness::is_fundamental<T>, void >::type
+    typename madness::enable_if< madness::is_serializable<T>, void >::type
     store(const T* t, long n) const {
         os.write((const char *) t, n*sizeof(T));
     }
@@ -55,7 +55,7 @@ public:
 
     template <class T>
     inline
-    typename madness::enable_if< madness::is_fundamental<T>, void >::type
+    typename madness::enable_if< madness::is_serializable<T>, void >::type
     load(T* t, long n) const {
         is.read((char *) t, n*sizeof(T));
     }

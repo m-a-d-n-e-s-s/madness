@@ -10,7 +10,6 @@ namespace madness {
 
     template <typename T> class Future;
 
-
     /// Boost-type-trait-like testing of if a type is a future
     template <typename T>
     struct is_future {
@@ -36,7 +35,6 @@ namespace madness {
     };
 
 #define REMFUTURE(T) typename remove_future< T >::type    
-
 
     /// Implements the functionality of Futures
     template <typename T>
@@ -438,13 +436,18 @@ namespace madness {
     };
 
 
+    /// Futures of futures are forbidden
+    template <typename T> class Future< Future<T> >{
+    private:
+        Future();
+    };
+
+
     /// Specialization of FutureImpl<void> for internal convenience ... does nothing useful!
     template <> class FutureImpl<void> {};
 
-
     /// Specialization of Future<void> for internal convenience ... does nothing useful!
     template <> class Future<void> {
-        
     public:
         RemoteReference< FutureImpl<void> > remote_ref(World& world) const {
             return RemoteReference< FutureImpl<void> >();
@@ -454,6 +457,7 @@ namespace madness {
 
         Future(const RemoteReference< FutureImpl<void> >& ref) {};
 
+        Future(const Future<Void>& f) {};
         
         inline void set(const Future<void>& f) {};
 
@@ -468,6 +472,38 @@ namespace madness {
 
         virtual ~Future(){};
     };
+
+    /// Specialization of FutureImpl<Void> for internal convenience ... does nothing useful!
+    template <> class FutureImpl<Void> {};
+
+    /// Specialization of Future<Void> for internal convenience ... does nothing useful!
+    template <> class Future<Void> {
+    public:
+        RemoteReference< FutureImpl<Void> > remote_ref(World& world) const {
+            return RemoteReference< FutureImpl<Void> >();
+        };
+
+        Future(){};
+
+        Future(const RemoteReference< FutureImpl<Void> >& ref) {};
+
+        Future(const Future<void>& f) {};
+        
+        inline void set(const Future<Void>& f) {};
+
+        inline Future<Void>& operator=(const Future<Void>& f) {
+            return *this;
+        };
+
+        inline void set(const Void& f) {};
+
+        template <class Archive>
+        void serialize(const Archive& ar) {}
+
+        virtual ~Future(){};
+    };
+
+    
 
     /// Specialization of Future for vector of Futures
 
@@ -512,6 +548,12 @@ namespace madness {
     template <typename T>
     std::ostream& operator<<(std::ostream& out, const Future<T>& f);
 
+    template <>
+    std::ostream& operator<<(std::ostream& out, const Future<void>& f);
+
+    template <>
+    std::ostream& operator<<(std::ostream& out, const Future<Void>& f);
+
     /// Factory for vectors of futures (see section Gotchas on the mainpage)
     template <typename T>
     std::vector< Future<T> > future_vector_factory(std::size_t n) {
@@ -543,6 +585,37 @@ namespace madness {
                 f.set(value);
             }
         };
+
+
+        /// Serialize an assigned future
+        template <class Archive>
+        struct ArchiveStoreImpl< Archive, Future<void> > {
+            static inline void store(const Archive& ar, const Future<void>& f) {
+            }
+        };
+        
+        
+        /// Deserialize a future into an unassigned future
+        template <class Archive>
+        struct ArchiveLoadImpl< Archive, Future<void> > {
+            static inline void load(const Archive& ar, Future<void>& f) {
+            }
+        };
+
+        /// Serialize an assigned future
+        template <class Archive>
+        struct ArchiveStoreImpl< Archive, Future<Void> > {
+            static inline void store(const Archive& ar, const Future<Void>& f) {
+            }
+        };
+        
+        
+        /// Deserialize a future into an unassigned future
+        template <class Archive>
+        struct ArchiveLoadImpl< Archive, Future<Void> > {
+            static inline void load(const Archive& ar, Future<Void>& f) {
+            }
+        };
     }
 
 #ifdef WORLD_INSTANTIATE_STATIC_TEMPLATES
@@ -552,6 +625,19 @@ namespace madness {
         else out << "<unassigned>";
         return out;
     }
+
+    template <>
+    std::ostream& operator<<(std::ostream& out, const Future<void>& f) {
+        out << "<void>";
+        return out;
+    }
+
+    template <>
+    std::ostream& operator<<(std::ostream& out, const Future<Void>& f) {
+        out << "<Void>";
+        return out;
+    }
+
 #endif
 
 }

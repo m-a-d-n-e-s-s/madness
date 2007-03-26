@@ -442,7 +442,7 @@ namespace madness {
         
         // Serialize an array of fundamental stuff
         template <class Archive, class T>
-        typename madness::enable_if< madness::type_and_c< madness::is_fundamental<T>::value,
+        typename madness::enable_if< madness::type_and_c< madness::is_serializable<T>::value,
                                                           Archive::is_output_archive >, void >::type
         serialize(const Archive& ar, const T* t, unsigned int n) {
             MAD_ARCHIVE_DEBUG(std::cout << "serialize fund array" << std::endl);
@@ -452,7 +452,7 @@ namespace madness {
         
         // Deserialize an array of fundamental stuff
         template <class Archive, class T>
-        typename madness::enable_if< madness::type_and_c< madness::is_fundamental<T>::value,
+        typename madness::enable_if< madness::type_and_c< madness::is_serializable<T>::value,
                                                           Archive::is_input_archive >, void >::type
         serialize(const Archive& ar, const T* t, unsigned int n) {
             MAD_ARCHIVE_DEBUG(std::cout << "deserialize fund array" << std::endl);
@@ -462,7 +462,7 @@ namespace madness {
         
         // (de)Serialize an array of non-fundamental stuff
         template <class Archive, class T>
-        typename madness::enable_if< madness::type_and_c< !madness::is_fundamental<T>::value,
+        typename madness::enable_if< madness::type_and_c< !madness::is_serializable<T>::value,
                                                           Archive::is_archive >, void >::type
         serialize(const Archive& ar, const T* t, unsigned int n) {
             MAD_ARCHIVE_DEBUG(std::cout << "(de)serialize non-fund array" << std::endl);
@@ -515,11 +515,11 @@ namespace madness {
             };
         };
         
-        
+
         // Redirect \c serialize(ar,t) to \c serialize(ar,&t,1) for fundamental types
         template <class Archive, class T>
         inline
-        typename madness::enable_if< madness::type_and_c< madness::is_fundamental<T>::value,
+        typename madness::enable_if< madness::type_and_c< is_serializable<T>::value,
                                                           Archive::is_archive >,
                                      void >::type
         serialize(const Archive& ar, const T& t) {
@@ -531,7 +531,7 @@ namespace madness {
         // Redirect \c serialize(ar,t) to \c ArchiveSerializeImpl for non-fundamental types
         template <class Archive, class T>
         inline
-        typename madness::enable_if< madness::type_and_c< !madness::is_fundamental<T>::value,
+        typename madness::enable_if< madness::type_and_c< !madness::is_serializable<T>::value,
                                                           Archive::is_archive >,
                                      void >::type
         serialize(const Archive& ar, const T& t) {
@@ -549,17 +549,6 @@ namespace madness {
             };
         };
         
-        /*
-       /// Default load of a thingy via serialize(ar,t)
-       template <class Archive, class T> 
-       struct ArchiveLoadImpl {
-       template <class U>
-       static inline void load(const Archive& ar, const T& t) {
-       MAD_ARCHIVE_DEBUG(std::cout << "load(ar,t) default" << std::endl);
-       serialize(ar,t);
-       };
-       };
-        */
         
         /// Default load of a thingy via serialize(ar,t)
         template <class Archive, class T>
@@ -626,6 +615,7 @@ namespace madness {
         
         
         ///////////////////////////////////////////////////////////////
+
         
         
         
@@ -708,7 +698,8 @@ namespace madness {
                 return ar;
             };
         };
-        
+
+
         /// Serialize a complex number
         template <class Archive, typename T>
         struct ArchiveStoreImpl< Archive, std::complex<T> > {

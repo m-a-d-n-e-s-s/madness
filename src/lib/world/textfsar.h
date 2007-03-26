@@ -39,7 +39,7 @@ public:
     }
 
     template <class T>
-    typename madness::enable_if< madness::is_fundamental<T>, void >::type
+    typename madness::enable_if< madness::is_serializable<T>, void >::type
     store(const T* t, long n) const {
         for (long i=0; i<n; i++) os << t[i] << std::endl;
     }
@@ -152,7 +152,7 @@ public:
     }
 
     template <class T>
-    typename madness::enable_if< madness::is_fundamental<T>, void >::type
+    typename madness::enable_if< madness::is_serializable<T>, void >::type
     load(T* t, long n) const {
         for (long i=0; i<n; i++) is >> t[i];
         eat_eol();

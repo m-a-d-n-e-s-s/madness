@@ -24,7 +24,7 @@ public:
 
     template <class T>
     inline
-    typename madness::enable_if< madness::is_fundamental<T>, void >::type
+    typename madness::enable_if< madness::is_serializable<T>, void >::type
     store(const T* t, long n) const {
         const unsigned char* ptr = (unsigned char*) t;
         v.insert(v.end(),ptr,ptr+n*sizeof(T));
@@ -50,7 +50,7 @@ public:
 
     template <class T>
     inline
-    typename madness::enable_if< madness::is_fundamental<T>, void >::type
+    typename madness::enable_if< madness::is_serializable<T>, void >::type
     load(T* t, long n) const {
         std::size_t m = n*sizeof(T);
         if (m+i >  v.size()) throw "VectorInputArchive: reading past end";

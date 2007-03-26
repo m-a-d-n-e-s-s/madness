@@ -8,7 +8,7 @@ namespace madness {
 
     /// Simple structure used to manage references/pointers to remote instances
 
-    /// This class is really only for internal use and is still rather
+    /// This class is only for internal use and is still rather
     /// poorly thought through.
     ///
     /// Can be copied/sent as a simple, contiguous block of memory.
@@ -33,9 +33,9 @@ namespace madness {
     private:
         static bool debug;  //<
 
-        SharedPtr<T> ptr;  //< Shared pointer (internally marked as not owned)
-        ProcessID rank;    //< MPI rank of the owner
-        unsigned long id;  //< Id of the world valid in all participating processes
+        mutable SharedPtr<T> ptr;  //< Shared pointer (internally marked as not owned)
+        mutable ProcessID rank;    //< MPI rank of the owner
+        mutable unsigned long id;  //< Id of the world valid in all participating processes
 
         void static dec_handler(World& world, ProcessID src, const AmArg& arg) {
             RemoteReference r = arg;
@@ -82,7 +82,7 @@ namespace madness {
         ///
         /// When invoked, the internal information is destroyed by
         /// default since the reference is no longer valid.
-        void dec() {
+        void dec() const {
             if (ptr) {
                 World* world = World::world_from_id(id);
                 if (debug) madness::print(world->mpi.rank(),"RemoteRef::dec", owner(),(void *) get());
