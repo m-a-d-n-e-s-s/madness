@@ -198,20 +198,20 @@ namespace madness {
 
     /// Implements most parts of a globally addressable object (via unique ID)
 
-    /// 1) Derived class has DistributedObject<Derived> as a public base class
+    /// 1) Derived class has WorldObject<Derived> as a public base class
     /// 2) Derived constructor 
-    ///    a) invokes DistributedObject<Derived>(world) constructor
+    ///    a) invokes WorldObject<Derived>(world) constructor
     ///    b) invokes process_pending()
     /// 3) Derived destructor must either be deferred or preceeded by gop.fence()
     ///
     /// This class is deliberately not default constructible and does
     /// not support assignment or copying.  This ensures that each instance
-    /// is unique.  Have a look at the DistributedContainer for an example
+    /// is unique.  Have a look at the WorldContainer for an example
     /// of wrapping this using the PIMPL idiom and a shared pointer.
     template <class Derived>
-    class DistributedObject : public DeferredCleanupInterface {
+    class WorldObject : public DeferredCleanupInterface {
     private:
-        typedef DistributedObject<Derived> objT;
+        typedef WorldObject<Derived> objT;
         static std::list<detail::PendingMsg*> pending;   //< Holds pending short/long messages
         World& world;                              //< Think globally act locally
         uniqueidT objid;                           //< Sense of self
@@ -367,7 +367,7 @@ namespace madness {
 
         /// To be called from \em derived constructor to process pending messages
 
-        /// Cannot call this from the DistributedObject constructor since the
+        /// Cannot call this from the WorldObject constructor since the
         /// derived class would not yet be fully constructed.
         void process_pending() {
             for (typename std::list<detail::PendingMsg*>::iterator it = pending.begin();
@@ -388,7 +388,7 @@ namespace madness {
 
     public:
         /// Associates object with globally unique ID
-        DistributedObject(World& world) 
+        WorldObject(World& world) 
             : world(world)
             , objid(world.register_ptr(static_cast<Derived*>(this)))
             , me(world.rank())
@@ -562,25 +562,25 @@ namespace madness {
             return world.taskq.add(dest, run, this, memfun, arg1, arg2, arg3, arg4, arg5);
         }
 
-        virtual ~DistributedObject(){};
+        virtual ~WorldObject(){};
     };
 
     namespace archive {
         template <class Archive, class Derived>
-        struct ArchiveLoadImpl<Archive,DistributedObject<Derived>*> {
-            static inline void load(const Archive& ar, DistributedObject<Derived>*& ptr) {
+        struct ArchiveLoadImpl<Archive,WorldObject<Derived>*> {
+            static inline void load(const Archive& ar, WorldObject<Derived>*& ptr) {
                 uniqueidT id;
                 ar & id;
                 World* world = World::world_from_id(id.get_world_id());
                 MADNESS_ASSERT(world);
-                ptr = world->ptr_from_id< DistributedObject<Derived> >(id);
+                ptr = world->ptr_from_id< WorldObject<Derived> >(id);
                 MADNESS_ASSERT(ptr);
             };
         };
         
         template <class Archive, class Derived>
-        struct ArchiveStoreImpl<Archive,DistributedObject<Derived>*> {
-            static inline void store(const Archive& ar, const DistributedObject<Derived>*const& ptr) {
+        struct ArchiveStoreImpl<Archive,WorldObject<Derived>*> {
+            static inline void store(const Archive& ar, const WorldObject<Derived>*const& ptr) {
                 ar & ptr->id();
             };
         };
@@ -591,7 +591,7 @@ namespace madness {
 #ifdef WORLD_INSTANTIATE_STATIC_TEMPLATES
 template <typename Derived> 
 std::list<madness::detail::PendingMsg*>
-madness::DistributedObject<Derived>::pending;
+madness::WorldObject<Derived>::pending;
 #endif
 
 #endif

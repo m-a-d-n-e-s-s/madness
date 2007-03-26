@@ -2,7 +2,7 @@
 #define WORLD_DC
 
 /// \file worlddc.h
-/// \brief Implements DistributedContainer
+/// \brief Implements WorldContainer
 
 
 
@@ -31,13 +31,13 @@ namespace madness {
               typename valueT, 
               typename procmapT,
               typename attrT>
-    class DistributedContainer;
+    class WorldContainer;
     
     template <typename keyT, 
               typename valueT, 
               typename procmapT,
               typename attrT>
-    class DistributedContainerImpl;
+    class WorldContainerImpl;
     
     
     /// Defines attributes of the container, esp. caching
@@ -130,7 +130,7 @@ namespace madness {
     /// entry (either via the iterator or via the key) that your
     /// iterators are now invalid.  Just the way it is.
     template <class implT, class internal_iteratorT, class pairT>
-    class DistributedContainerIterator : private CallbackInterface {
+    class WorldContainerIterator : private CallbackInterface {
     private:
         typedef typename implT::cacheinfo_iteratorT cacheinfo_iteratorT;
         typedef typename implT::attributes attrT;
@@ -166,12 +166,12 @@ namespace madness {
         
     public:
         /// Default constructor (same as end())
-        DistributedContainerIterator() 
+        WorldContainerIterator() 
             : impl(0), it(), cacheit(), fromcache(false)
         {};
         
         /// Private: Constructor used internally
-        DistributedContainerIterator(implT* impl, 
+        WorldContainerIterator(implT* impl, 
                                      const internal_iteratorT& it, 
                                      const cacheinfo_iteratorT& cacheit,
                                      bool fromcache) 
@@ -181,14 +181,14 @@ namespace madness {
         };
         
         /// Copy constructor (increments reference count)
-        DistributedContainerIterator(const DistributedContainerIterator& other) 
+        WorldContainerIterator(const WorldContainerIterator& other) 
             : impl(other.impl), it(other.it), cacheit(other.cacheit), fromcache(other.fromcache)
         {
             register_cache_callback();
         };
         
         /// Assignment (increments reference count)
-        DistributedContainerIterator& operator=(const DistributedContainerIterator& other) {
+        WorldContainerIterator& operator=(const WorldContainerIterator& other) {
             if (this != &other) {
                 unregister_cache_callback();  // <---
                 impl = other.impl;
@@ -201,19 +201,19 @@ namespace madness {
         };
         
         /// Determines if two iterators are identical
-        bool operator==(const DistributedContainerIterator& other) const {
+        bool operator==(const WorldContainerIterator& other) const {
             return it==other.it;
         };
         
         /// Determines if two iterators are different
-        bool operator!=(const DistributedContainerIterator& other) const {
+        bool operator!=(const WorldContainerIterator& other) const {
             return it != other.it;
         };
         
         /// Pre-increment of an iterator (i.e., ++it) --- \em local iterators only
         
         /// Trying to increment a remote iterator will throw
-        DistributedContainerIterator& operator++() {
+        WorldContainerIterator& operator++() {
             if (impl) {
                 MADNESS_ASSERT(!fromcache);
                 if (++it == impl->local.end()) *this = impl->end();
@@ -251,7 +251,7 @@ namespace madness {
             return fromcache;
         };
         
-        ~DistributedContainerIterator() {
+        ~WorldContainerIterator() {
             unregister_cache_callback();
         };
         
@@ -269,14 +269,14 @@ namespace madness {
               typename valueT, 
               typename procmapT,
               typename attrT>
-    class DistributedContainerImpl 
-        : public DistributedObject< DistributedContainerImpl<keyT, valueT, procmapT, attrT> >
+    class WorldContainerImpl 
+        : public WorldObject< WorldContainerImpl<keyT, valueT, procmapT, attrT> >
           , private NO_DEFAULTS 
     {
     public:
         typedef std::pair<const keyT,valueT> pairT;
         typedef const std::pair<const keyT,valueT> const_pairT;
-        typedef DistributedContainerImpl<keyT,valueT,procmapT,attrT> implT;
+        typedef WorldContainerImpl<keyT,valueT,procmapT,attrT> implT;
         
 #ifdef WORLDDC_USES_GNU_HASH_MAP
         template <typename T> 
@@ -295,19 +295,19 @@ namespace madness {
         typedef typename cacheinfoT::iterator cacheinfo_iteratorT;
         typedef typename internal_containerT::iterator internal_iteratorT;
         typedef typename internal_containerT::const_iterator internal_const_iteratorT;
-        typedef DistributedContainerIterator<implT,internal_iteratorT,pairT> iteratorT;
-        typedef DistributedContainerIterator<implT,internal_iteratorT,pairT> iterator;
-        typedef DistributedContainerIterator<const implT, internal_const_iteratorT, const_pairT> const_iteratorT;
-        typedef DistributedContainerIterator<const implT, internal_const_iteratorT, const_pairT> const_iterator;
+        typedef WorldContainerIterator<implT,internal_iteratorT,pairT> iteratorT;
+        typedef WorldContainerIterator<implT,internal_iteratorT,pairT> iterator;
+        typedef WorldContainerIterator<const implT, internal_const_iteratorT, const_pairT> const_iteratorT;
+        typedef WorldContainerIterator<const implT, internal_const_iteratorT, const_pairT> const_iterator;
         typedef attrT attributes;
         
-        friend class DistributedContainer<keyT,valueT,procmapT,attrT>;
-        friend class DistributedContainerIterator<implT,internal_iteratorT,pairT>;
-        friend class DistributedContainerIterator<const implT,internal_const_iteratorT,const_pairT>;
+        friend class WorldContainer<keyT,valueT,procmapT,attrT>;
+        friend class WorldContainerIterator<implT,internal_iteratorT,pairT>;
+        friend class WorldContainerIterator<const implT,internal_const_iteratorT,const_pairT>;
         
     private:
         
-        DistributedContainerImpl();   // Inhibit default constructor
+        WorldContainerImpl();   // Inhibit default constructor
         
         World& world;
         const uniqueidT theid;    //< Universe-wide unique ID for this instance
@@ -366,8 +366,8 @@ namespace madness {
         
     public:
         
-        DistributedContainerImpl(World& world, const procmapT& procmap)
-            : DistributedObject< DistributedContainerImpl<keyT, valueT, procmapT, attrT> >(world)
+        WorldContainerImpl(World& world, const procmapT& procmap)
+            : WorldObject< WorldContainerImpl<keyT, valueT, procmapT, attrT> >(world)
             , world(world)
             , theid(world.register_ptr(this))
             , procmap(procmap)
@@ -380,7 +380,7 @@ namespace madness {
         };
         
         
-        ~DistributedContainerImpl() {
+        ~WorldContainerImpl() {
             print("In DCImpl destructor");
         };
         
@@ -591,10 +591,10 @@ namespace madness {
               typename valueT, 
               typename procmapT = DCDefaultProcmap<keyT>,
               typename attrT = DCDefaultAttr>
-    class DistributedContainer {
+    class WorldContainer {
     public:
-        typedef DistributedContainer<keyT,valueT,procmapT,attrT> containerT;
-        typedef DistributedContainerImpl<keyT,valueT,procmapT,attrT> implT;
+        typedef WorldContainer<keyT,valueT,procmapT,attrT> containerT;
+        typedef WorldContainerImpl<keyT,valueT,procmapT,attrT> implT;
         typedef typename implT::pairT pairT;
         typedef typename implT::iterator iterator;
         typedef typename implT::const_iterator const_iterator;
@@ -615,7 +615,7 @@ namespace madness {
         /// The container is useless until assigned to from a fully
         /// constructed container.  There is no need to worry about
         /// default constructors being executed in order.
-        DistributedContainer() 
+        WorldContainer() 
             : p(0)
         {};
         
@@ -627,7 +627,7 @@ namespace madness {
         /// making a container, we have to assume that all processes
         /// execute this constructor in the same order (does not apply
         /// to the non-initializing, default constructor).
-        DistributedContainer(World& world) 
+        WorldContainer(World& world) 
             : p(new implT(world,procmapT(world)))
         {
             world.deferred_cleanup(p);
@@ -640,7 +640,7 @@ namespace madness {
         /// making a container, we have to assume that all processes
         /// execute this constructor in the same order (does not apply
         /// to the non-initializing, default constructor).
-        DistributedContainer(World& world, const procmapT& procmap) 
+        WorldContainer(World& world, const procmapT& procmap) 
             : p(new implT(world,procmap))
         {
             world.deferred_cleanup(p);
@@ -651,7 +651,7 @@ namespace madness {
         
         /// The copy refers to exactly the same container as other
         /// which must be initialized.
-        DistributedContainer(const DistributedContainer& other) 
+        WorldContainer(const WorldContainer& other) 
             : p(other.p)
         {
             check_initialized();
@@ -943,10 +943,10 @@ namespace madness {
         void serialize(const Archive& ar) {
             if (Archive::is_output_archive) {
                 check_initialized();
-                ar & static_cast<DistributedObject<implT>*>(p.get());
+                ar & static_cast<WorldObject<implT>*>(p.get());
             }
             else {
-                DistributedObject<implT>* ptr;
+                WorldObject<implT>* ptr;
                 ar & ptr;
                 MADNESS_ASSERT(ptr);
                 p = SharedPtr<implT>(static_cast<implT*>(ptr),false,false);  // use_count will be 0, which is good
@@ -954,7 +954,7 @@ namespace madness {
         }
         
         /// Destructor passes ownership of implementation to world for deferred cleanup
-        virtual ~DistributedContainer() {};
+        virtual ~WorldContainer() {};
         
     };
 }

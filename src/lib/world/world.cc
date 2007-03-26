@@ -183,11 +183,11 @@ void test4(World& world) {
     if (me == 0) print("test4 OK");
 }
 
-class Foo : public DistributedObject<Foo> {
+class Foo : public WorldObject<Foo> {
     int a;
 public:
     Foo(World& world, int a) 
-        : DistributedObject<Foo>(world)
+        : WorldObject<Foo>(world)
         , a(a) 
     {
         process_pending();
@@ -247,12 +247,12 @@ void test6(World& world) {
     int nproc = world.mpi.nproc();
     ProcessID me = world.mpi.rank();
     World::poll_all();
-    DistributedContainer<int,double> c(world);
+    WorldContainer<int,double> c(world);
     //world.gop.fence();  // Currently needed until we can handle pending
 
-    typedef DistributedContainer<int,double>::iterator iterator;
-    typedef DistributedContainer<int,double>::const_iterator const_iterator;
-    typedef DistributedContainer<int,double>::future future;
+    typedef WorldContainer<int,double>::iterator iterator;
+    typedef WorldContainer<int,double>::const_iterator const_iterator;
+    typedef WorldContainer<int,double>::future future;
 
     // Everyone inserts distinct values 0..1000 into the container,
     // fences, and then tries to read all values back
@@ -291,7 +291,7 @@ void test6(World& world) {
 
 
     // Check shallow copy and const iterator
-    const DistributedContainer<int,double> d(c);
+    const WorldContainer<int,double> d(c);
 
     // Loop thru local stuff with a const iterator
     for (const_iterator it=d.begin(); it != d.end(); ++it) {
@@ -545,7 +545,7 @@ public:
 
     int get() const {return val;};
 
-    bool get_me_twice(World* world, const DistributedContainer<int,Mary>& d) {
+    bool get_me_twice(World* world, const WorldContainer<int,Mary>& d) {
         return true;
     };
 
@@ -560,8 +560,8 @@ void test10(World& world) {
     ProcessID me = world.mpi.rank();
     int nproc = world.mpi.nproc();
     World::poll_all();
-    DistributedContainer<int,Mary> m(world);
-    typedef DistributedContainer<int,Mary>::iterator iterator;
+    WorldContainer<int,Mary> m(world);
+    typedef WorldContainer<int,Mary>::iterator iterator;
  
     for (int i=0; i<nproc; i++) 
         m.send(i,&Mary::inc);
@@ -664,7 +664,7 @@ ostream& operator<<(ostream& s, const Key& key) {
 }
 
 // struct Node {
-//     typedef DistributedContainer<Key,Node> dcT;
+//     typedef WorldContainer<Key,Node> dcT;
 //     Key key;
 //     double value;
 //     bool isleaf;
@@ -705,7 +705,7 @@ ostream& operator<<(ostream& s, const Key& key) {
 // void test11(World& world) {
 //     // Test the various flavours of erase
 //     ProcessID me = world.rank();
-//     DistributedContainer<Key,Node> d(world);
+//     WorldContainer<Key,Node> d(world);
 
 //     // First build an oct-tree with random depth
 //     if (me == 0) {
