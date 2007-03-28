@@ -89,4 +89,16 @@ namespace madness {
         }
         return freq;
     }
+
+    template <>
+    std::ostream& operator<<(std::ostream& out, const Future<void>& f) {
+        out << "<void>";
+        return out;
+    }
+
+    template <>
+    std::ostream& operator<<(std::ostream& out, const Future<Void>& f) {
+        out << "<Void>";
+        return out;
+    }
 }

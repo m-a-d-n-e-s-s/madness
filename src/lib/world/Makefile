@@ -23,6 +23,7 @@ TESTPROGS = world hqi
 TEST1SRC = world.cc
 TEST2SRC = hqi.cc
 TEST3SRC = testar.cc
+TEST4SRC = hqi2.cc loadbal.cc
          
 # GlobalMakefile now does most of the work for you
 include $(TOPDIR)/config/GlobalMakefile
@@ -32,6 +33,9 @@ world: $(TEST1OBJ) $(THISLIBDEPEND)
 	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ $(SYSLIBS) $(LTLINKBINOPTS)
 
 hqi: $(TEST2OBJ) $(THISLIBDEPEND) 
+	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ $(SYSLIBS) $(LTLINKBINOPTS)
+
+hqi2: $(TEST4OBJ) $(THISLIBDEPEND) 
 	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ $(SYSLIBS) $(LTLINKBINOPTS)
 
 testar: $(TEST1OBJ) $(THISLIBDEPEND) 

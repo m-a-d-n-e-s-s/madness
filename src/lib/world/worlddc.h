@@ -142,7 +142,7 @@ namespace madness {
         
         // Called by the cache to notify iterators to invalidate themselves
         void notify() {
-            print("Invalidating iterator!",fromcache);
+//            print("Invalidating iterator!",fromcache);
             impl = 0;
             it = internal_iteratorT();
         };

@@ -471,18 +471,18 @@ void print_tree(treeT& tree, const KeyD& key) {
 	for (int i=0; i<(int)key.n; i++) cout << "   ";
 	print(key.n,key.L[0],key.L[1],"owner",tree.owner(key),"cost",d.cost,"subcost", d.subcost);
 
-	for (int p = 0; p < 4; p++) {
-	    if (node.has_child(p)) { 
-		KeyD mykey(key.n+1, 2*key.L[0]+p%2, 2*key.L[1]+p/2);
-		print_tree(tree, mykey);
-	    }
+	for (int p = 0; p < (int)node.dim; p++) {
+	    KeyD mykey = key.myChild(p);
+	    print_tree(tree, mykey);
 	}
     }
+/*
     else {
 	cout << "print_tree: sorry, couldn't find key ";
 	key.print();
 	cout << endl;
     }
+*/
 }
 
 typedef int Cost;
@@ -494,10 +494,8 @@ Cost computeCost(treeT& tree, const KeyD& key) {
 
     NodeD node = it->second;
     for (unsigned int i = 0; i < node.dim; i++) {
-	if (node.has_child(i)) {
-	    KeyD k = key.myChild(i);
-	    cost += computeCost(tree,k);
-	}
+	KeyD k = key.myChild(i);
+	cost += computeCost(tree,k);
     }
     NodeData d = node.get_data();
     cost += d.cost;
@@ -569,12 +567,6 @@ void meld(treeT& tree, const KeyD& key) {
     node.set_data(d);
     tree.erase(key);
     tree.insert(key,node);
-    treeT::iterator itd = tree.find(key);
-    NodeD noded = itd->second;
-    NodeData dd = noded.get_data();
-//    cout << "meld: at end, node has these values for children " << noded.has_child(0) << ",";
-//    cout << noded.has_child(1) << "," << noded.has_child(2) << "," << noded.has_child(3) << endl;
-//    cout << "meld: and cost = " << dd.cost << ", subcost = " << dd.subcost << endl;
 }
 
 void rollup(treeT tree, KeyD key) {
@@ -945,6 +937,34 @@ void migrate(treeT tfrom, treeT tto) {
 }
 
 
+// convert tree from templated form to tree to be used for load balancing
+template <typename Q, unsigned int N>
+void convert_node(DistributedContainer<KeyD,Node<Q,N>,MyProcmap<KeyD> > orig, treeT skel, KeyD key) {
+    typename DistributedContainer<KeyD,Node<Q,N>,MyProcmap<KeyD> >::iterator it = orig.find(key);
+
+    if (it == orig.end()) return;
+
+    Node<Q,N> node = it->second;
+
+    if (node.has_children()) {
+	for (unsigned int i = 0; i < node.dim; i++) {
+	    KeyD child = key.myChild(i);
+	    convert_node(orig, skel, child);
+	}
+    }
+    
+    NodeD noded(NodeData());
+    skel.insert(key, noded);
+}
+
+/*
+template <typename Q, unsigned int N>
+void convert_tree(DistributedContainer<KeyD,Node<Q,N>,MyProcmap<KeyD> > orig, treeT skel) {
+    KeyD root(0,0,0);
+    convert_node<Q,N>(orig, skel, root);
+}
+*/
+
 int main(int argc, char** argv) {
     MPI::Init(argc, argv);
     World world(MPI::COMM_WORLD);
@@ -976,10 +996,11 @@ int main(int argc, char** argv) {
 	if (me == 0) { 
 	    print("About to build tree");
 	    build_tree(tree,root);
-	    print("About to build tree1");
-	    build_tree(tree1,root);
+	    print("About to convert to tree1");
+//	    convert_tree<NodeData,2>(tree,tree1);
+	    migrate(tree,tree1);
 	    print("built tree1");
-//	    print_tree(tree1,root);
+	    print_tree(tree1,root);
 	    print("printed tree1");
 	    print("");
 	}

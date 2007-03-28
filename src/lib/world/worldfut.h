@@ -618,23 +618,20 @@ namespace madness {
         };
     }
 
+    template <typename T>
+    std::ostream& operator<<(std::ostream& out, const Future<T>& f) ;
+
+    template <>
+    std::ostream& operator<<(std::ostream& out, const Future<void>& f) ;
+
+    template <>
+    std::ostream& operator<<(std::ostream& out, const Future<Void>& f) ;
+
 #ifdef WORLD_INSTANTIATE_STATIC_TEMPLATES
     template <typename T>
     std::ostream& operator<<(std::ostream& out, const Future<T>& f) {
         if (f.probe()) out << f.get();
         else out << "<unassigned>";
-        return out;
-    }
-
-    template <>
-    std::ostream& operator<<(std::ostream& out, const Future<void>& f) {
-        out << "<void>";
-        return out;
-    }
-
-    template <>
-    std::ostream& operator<<(std::ostream& out, const Future<Void>& f) {
-        out << "<Void>";
         return out;
     }
 
