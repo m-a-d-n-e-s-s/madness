@@ -67,6 +67,7 @@ namespace madness {
         mutable Tensor<T> work2;        ///< work space of size (2k,...)
         mutable Tensor<T> workq;        ///< work space of size (npt,...)
         Tensor<T> zero_tensor;  ///< Zero (k,...) tensor for internal convenience of diff
+        Key<NDIM> key0; ///< Key for root node
 
         Tensor<double> quad_x;  ///< quadrature points
         Tensor<double> quad_w;  ///< quadrature weights
@@ -102,6 +103,7 @@ namespace madness {
             work2 = tensorT(v2k);
             workq = tensorT(vq);
             zero_tensor = tensorT(vk);
+            key0 = Key<NDIM>(0,Array<Translation,NDIM>(0));
 
             _init_twoscale();
             _init_quadrature();
@@ -248,8 +250,12 @@ namespace madness {
     /// greatly simplifies maintaining consistent state to have all
     /// (permanent) state encapsulated in a single class.  The state
     /// is shared between instances using a SharedPtr<FunctionImpl>.
+    ///
+    /// The FunctionImpl inherits all of the functionality of WorldContainer
+    /// (to store the coefficients) and WorldObject<WorldContainer> (used
+    /// for RMI and for its unqiue id).
     template <typename T, int NDIM>
-    class FunctionImpl {
+    class FunctionImpl : public WorldContainer< Key<NDIM>, FunctionNode<T,NDIM> > {
     private:
         static const int MAXK = 17;
         static FunctionCommonData<T,NDIM> commondata[MAXK + 1]; ///< Declared in mra.cc
@@ -257,10 +263,10 @@ namespace madness {
 
     public:
         typedef Tensor<T> tensorT;                     ///< Type of tensor used to hold coeffs
+        typedef Array<Translation,NDIM> tranT;         ///< Type of array holding translation
         typedef Key<NDIM> keyT;                        ///< Type of key
         typedef FunctionNode<T,NDIM> nodeT;            ///< Type of node
-        typedef Array<Translation,NDIM> tranT;         ///< Type of array holding translation
-        typedef DistributedContainer<keyT,nodeT> dcT;  ///< Type of container holding the coefficients
+        typedef WorldContainer<keyT,nodeT> dcT;        ///< Type of container holding the coefficients
 
         World& world;
         int k;                  ///< Wavelet order
@@ -271,8 +277,8 @@ namespace madness {
         int max_refine_level;   ///< Do not refine below this level
         int truncate_method;    ///< 0=default=(|d|<thresh), 1=(|d|<thresh/2^n);
         bool autorefine;        ///< If true, autorefine where appropriate
-        bool refine;            ///< If true, refine when constructed
-        bool nonstandard;        ///< If true, compress keeps scaling coeff
+        bool dorefine;          ///< If true, refine when constructed
+        bool nonstandard;       ///< If true, compress keeps scaling coeff
 
         const FunctionCommonData<T,NDIM>* cdata;
 
@@ -282,11 +288,7 @@ namespace madness {
         bool compressed;        ///< Compression status
         long nterminated;       ///< No. of boxes where adaptive refinement was too deep
 
-        //typedef DistributedContainer< Key<NDIM>, FunctionNode<T,NDIM>, FunctionProcMap<NDIM> > dcT;
-        dcT coeffs;
-
-
-        // ... currently not clear how to best handle cell stuff on a per function basis
+        // ... currently not clear how to best handle bc/cell stuff on a per function basis
         double cell_volume;       ///< Volume of simulation cell
         double cell[NDIM][2];     ///< Simulation cell (range over function is defined).
         double cell_width[NDIM];  ///< Width of simulation cell in each dimension
@@ -296,7 +298,8 @@ namespace madness {
 
         /// Initialize function impl from data in factory
         FunctionImpl(const FunctionFactory<T,NDIM>& factory) 
-            : world(factory._world)
+            : dcT(factory._world)
+            , world(factory._world)
             , k(factory._k)
             , thresh(factory._thresh)
             , truncate_thr(factory._thresh)
@@ -305,21 +308,21 @@ namespace madness {
             , max_refine_level(factory._max_refine_level)
             , truncate_method(factory._truncate_method)
             , autorefine(factory._autorefine)
-            , refine(factory._refine)
+            , dorefine(factory._refine)
             , nonstandard(false)
             , cdata(commondata+factory._k)
             , f(factory._f)
             , vf(factory._vf)
             , compressed(false)
             , nterminated(0)
-            , coeffs(factory._world)
         {
             MADNESS_ASSERT(k>0 && k<MAXK);
             if (!initialized) {
                 FunctionImpl<T,NDIM>::initialize();
                 cdata = commondata+k;
             }
-            // Ultimately this needs to be set from the factory not the defaults
+
+            // Ultimately these need to be set from the factory not the defaults
             cell_volume = 1.0;
             for (int i=0; i<NDIM; i++) {
                 bc[i][0] = FunctionDefaults<NDIM>::bc[i][0];
@@ -331,30 +334,36 @@ namespace madness {
                 cell_volume *= cell_width[i];
             }
 
-            bool compress = factory._compress;
-            bool empty = factory._empty;
+//             bool empty = factory._empty;
 
-            if (f || vf) {
-                //project_refine();
-                //if (compress) this->compress();
-            } else if (empty) {             // Do not set any coefficients at all
-                //impl->compressed = compress;
-            } else {                        // Set coefficients so have zero function
-                compressed = compress;
-                if (world.rank() == 0) {
-                    if (compress) 
-                        coeffs.insert(keyT(0,tranT(0)), nodeT(tensorT(cdata->v2k)));
-                    else    
-                        coeffs.insert(keyT(0,tranT(0)), nodeT(tensorT(cdata->vk)));
-                }
-            }
+//             if (f || vf) {
+//                 if (world.rank() == 0) {
+//                     world.taskq.add(coeffs.owner(cdata->key0),
+//                                     *this, &FunctionImpl<T,NDIM>::project_refine, cdata->key0);
+//                 }
+//             } else if (empty) {             // Do not set any coefficients at all
+//                 //impl->compressed = compress;
+//             } else {                        // Set coefficients so have zero function
+//                 if (world.rank() == 0) {
+//                     coeffs.insert(cdata->key0, nodeT(tensorT(cdata->vk)));
+//                 }
+//             }
+//             world.gop.fence();  // Ultimately, this must be optimized away
         };
+
+        void project_refine(const keyT& key) {
+            print("DOING IT!");
+        };
+
 
         /// Copy constructor
 
         /// Allocates a \em new function index in preparation for a deep copy
+        ///
+        /// !!! DOES NOT COPY THE COEFFICIENTS !!!
         FunctionImpl(const FunctionImpl<T,NDIM>& other) 
-            : world(other.world)
+            : dcT(other.world)
+            , world(other.world)
             , k(other.k)
             , thresh(other.thresh)
             , truncate_thr(other.truncate_thr)
@@ -363,14 +372,13 @@ namespace madness {
             , max_refine_level(other.max_refine_level)
             , truncate_method(other.truncate_method)
             , autorefine(other.autorefine)
-            , refine(other.refine)
+            , dorefine(other.dorefine)
             , nonstandard(other.nonstandard)
             , cdata(other.cdata)
             , f(other.f)
             , vf(other.vf)
             , compressed(other.compressed)
             , nterminated(other.nterminated)
-            , coeffs(other.coeffs)
         { 
             cell_volume = other.cell_volume;
             for (int i=0; i<NDIM; i++) {
