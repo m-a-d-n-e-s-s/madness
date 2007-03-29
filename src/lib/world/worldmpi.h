@@ -66,7 +66,7 @@ namespace madness {
             , debug(false)
             , myrand_next(comm.Get_rank())
         {
-            for (int i=0; i<1000; i++) rand(); // Warmup
+            srand();
         };
             
         /// Set debug flag to new value and return old value
@@ -309,7 +309,14 @@ namespace madness {
         };
     public:
 
-        
+        /// Initialize seed for the internal random number generator
+        void srand(unsigned long seed = 0) {
+            if (seed == 0) seed = rank();
+            myrand_next = seed;
+            for (int i=0; i<1000; i++) rand(); // Warmup
+        };
+
+
         /// Returns a CRUDE, LOW-QUALITY, random number uniformly distributed in [0,2**24).
 
         /// Each process has a distinct seed for the generator.

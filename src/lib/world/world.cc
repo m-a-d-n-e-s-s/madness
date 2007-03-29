@@ -2,11 +2,6 @@
 #include <world/world.h>
 
 
-
-//////////////////////////////
-/*    Test code below here  */
-//////////////////////////////
-
 using namespace madness;
 using namespace std;
 
@@ -27,6 +22,34 @@ void handler(World& world, ProcessID from, const AmArg& arg) {
 void hello(World& world, ProcessID from, const AmArg& arg) {
     print(world.mpi.rank(),"got hello from",from);
     cout.flush();
+}
+
+void test0(World& world) {
+    const size_t n=555;
+    char buf[n+2];
+    buf[0] = buf[n+1] = 127;
+
+    BufferOutputArchive arout(buf+1,n-2);
+
+    arout & 1L & 99.9;
+    arout.store("hello",6);
+    arout & 7L & 77.7;
+    MADNESS_ASSERT(buf[0]==127 && buf[n+1]==127);
+
+    long i;
+    double a;
+
+    BufferInputArchive arin(buf+1,n-2);
+    char s[8];
+    s[0] = s[7] = 66;
+    arin & i & a; 
+    MADNESS_ASSERT(i==1 && a==99.9);
+    arin.load(s+1,6);
+    MADNESS_ASSERT(s[0]==66 && s[1]=='h' && s[5]=='o' && s[7]==66);
+    arin & i & a; 
+    MADNESS_ASSERT(i==7 && a==77.7);
+
+    if (world.rank() == 0) print("test0 (serialization to/from buf) seems to be working");
 }
 
 void test1(World& world) {
@@ -59,7 +82,7 @@ void test1(World& world) {
       world.gop.fence();
     }
 
-    if (me == 0) print("AM test1 seems to be working");
+    if (me == 0) print("test1 (short active message basics) seems to be working");
 }
 
 void test2_handler(World& world, ProcessID src, void *buf, size_t len) {
@@ -98,7 +121,7 @@ void test2(World& world) {
 
     test2_handler(world, me, buf, sizeof(buf));
     world.gop.fence();
-    if (me == 0) print("AM test2 seems to be working");
+    if (me == 0) print("test2 (long active message basics) seems to be working");
 }
 
 void test3_handler(World& world, ProcessID src, void *buf, size_t len) {
@@ -128,33 +151,7 @@ void test3(World& world) {
 
     test3_handler(world, me, buf, sizeof(buf));
     world.gop.fence();
-    if (me == 0) print("AM test3 seems to be working");
-}
-
-void testdumbser() {
-    const size_t n=555;
-    char buf[n+2];
-    buf[0] = buf[n+1] = 127;
-
-    BufferOutputArchive arout(buf+1,n-2);
-
-    arout & 1L & 99.9;
-    arout.store("hello",6);
-    arout & 7L & 77.7;
-    MADNESS_ASSERT(buf[0]==127 && buf[n+1]==127);
-
-    long i;
-    double a;
-
-    BufferInputArchive arin(buf+1,n-2);
-    char s[8];
-    s[0] = s[7] = 66;
-    arin & i & a; 
-    MADNESS_ASSERT(i==1 && a==99.9);
-    arin.load(s+1,6);
-    MADNESS_ASSERT(s[0]==66 && s[1]=='h' && s[5]=='o' && s[7]==66);
-    arin & i & a; 
-    MADNESS_ASSERT(i==7 && a==77.7);
+    if (me == 0) print("test3 (managed long active message basics) seems to be working");
 }
 
 void test4(World& world) {
@@ -180,138 +177,7 @@ void test4(World& world) {
     world.gop.barrier();
     print("leaving final barrier");
     
-    if (me == 0) print("test4 OK");
-}
-
-class Foo : public WorldObject<Foo> {
-    int a;
-public:
-    Foo(World& world, int a) 
-        : WorldObject<Foo>(world)
-        , a(a) 
-    {
-        process_pending();
-    };
-
-    int get0() {return a;};
-    int get1(int a1) {return a+a1;};
-    int get2(int a1, char a2) {return a+a1+a2;};
-    int get3(int a1, char a2, short a3) {return a+a1+a2+a3;};
-    int get4(int a1, char a2, short a3, long a4) {return a+a1+a2+a3+a4;};
-    int get5(int a1, char a2, short a3, long a4, short a5) {return a+a1+a2+a3+a4+a5;};
-
-    int get0c() const {return a;};
-    int get1c(int a1) const {return a+a1;};
-    int get2c(int a1, char a2) const {return a+a1+a2;};
-    int get3c(int a1, char a2, short a3) const {return a+a1+a2+a3;};
-    int get4c(int a1, char a2, short a3, long a4) const {return a+a1+a2+a3+a4;};
-    int get5c(int a1, char a2, short a3, long a4, short a5) const {return a+a1+a2+a3+a4+a5;};
-
-
-};
-
-void test5(World& world) {
-    ProcessID me = world.rank();
-    ProcessID nproc = world.nproc();
-    Foo a(world, me*100);
-
-    if (me == 0) {
-        print(a.id());
-        for (ProcessID p=0; p<nproc; p++) {
-            MADNESS_ASSERT(a.send(p,&Foo::get0).get() == p*100);
-            if (p) MADNESS_ASSERT(a.send(p,&Foo::get0).get() == p*100);
-
-            MADNESS_ASSERT(a.send(p,&Foo::get1,1).get() == p*100+1);
-            if (p) MADNESS_ASSERT(a.send(p,&Foo::get1,1).get() == p*100+1);
-
-            MADNESS_ASSERT(a.send(p,&Foo::get2,1,2).get() == p*100+3);
-            if (p) MADNESS_ASSERT(a.send(p,&Foo::get2,1,2).get() == p*100+3);
-
-            MADNESS_ASSERT(a.send(p,&Foo::get3,1,2,3).get() == p*100+6);
-            if (p) MADNESS_ASSERT(a.send(p,&Foo::get3,1,2,3).get() == p*100+6);            
-
-            MADNESS_ASSERT(a.send(p,&Foo::get4,1,2,3,4).get() == p*100+10);
-            if (p) MADNESS_ASSERT(a.send(p,&Foo::get4,1,2,3,4).get() == p*100+10);            
-
-            MADNESS_ASSERT(a.send(p,&Foo::get5,1,2,3,4,5).get() == p*100+15);
-            if (p) MADNESS_ASSERT(a.send(p,&Foo::get5,1,2,3,4,5).get() == p*100+15);            
-        }
-    }
-    world.gop.fence();
-    print("test 5 seems to be working");
-}
-
-
-
-void test6(World& world) {
-    int nproc = world.mpi.nproc();
-    ProcessID me = world.mpi.rank();
-    World::poll_all();
-    WorldContainer<int,double> c(world);
-    //world.gop.fence();  // Currently needed until we can handle pending
-
-    typedef WorldContainer<int,double>::iterator iterator;
-    typedef WorldContainer<int,double>::const_iterator const_iterator;
-    typedef WorldContainer<int,double>::future future;
-
-    // Everyone inserts distinct values 0..1000 into the container,
-    // fences, and then tries to read all values back
-    for (int i=me; i<100; i+=nproc) c.insert(i,(double) i);
-    print("finished inserting");
-    world.gop.fence();
-
-    for (int i=0; i<100; i++) {
-        future fut = c.find(i);
-        iterator it = fut.get();
-	if (it == c.end()) {
-	  print("failing",i);
-	}
-	MADNESS_ASSERT(it != c.end());
-        double j = it->second;
-        MADNESS_ASSERT(j == i);
-    }
-    world.gop.fence();
-    print("finished finding");
-    
-    // Check that unset keys return end correctly
-    for (int i=10001; i<10020; i++) {
-        MADNESS_ASSERT(c.find(i).get() == c.end());
-    }
-
-    // Check that other iterators compare correctly
-    MADNESS_ASSERT(c.find(10).get() == c.find(10).get());
-    MADNESS_ASSERT(c.find(11).get() != c.find(12).get());
-    MADNESS_ASSERT(c.end() == c.end());
-    MADNESS_ASSERT(c.find(12).get() != c.end());
-
-    // Loop thru local stuff
-    for (iterator it=c.begin(); it != c.end(); ++it) {
-        MADNESS_ASSERT(it->first == it->second);
-    };
-
-
-    // Check shallow copy and const iterator
-    const WorldContainer<int,double> d(c);
-
-    // Loop thru local stuff with a const iterator
-    for (const_iterator it=d.begin(); it != d.end(); ++it) {
-        MADNESS_ASSERT(it->first == it->second);
-    };
-
-    world.gop.fence();
-    if (me == 0) print("test6 OK");
-}
-
-void test7(World& world) {
-    vector<unsigned char> v;
-    VectorOutputArchive arout(v);
-    arout & &world;
-
-    World* p;
-    VectorInputArchive arin(v);
-    arin & p;
-    MADNESS_ASSERT(p==&world);
-    if (world.rank() == 0) print("test7 OK");
+    if (me == 0) print("test4 (basic futures) OK");
 }
 
 
@@ -368,7 +234,7 @@ double dumb(int a1, int a2, int a3, int a4, int a5, int a6, int a7) {
 
 
 
-void test8(World& world) {
+void test5(World& world) {
     int nproc = world.mpi.nproc();
     ProcessID me = world.mpi.rank();
     ProcessID right = (me+1)%nproc;
@@ -440,7 +306,154 @@ void test8(World& world) {
     print("Cute says",cute.get());
     print("Jody says",jody.get());
     
-    if (me == 0) print("test9 OK");
+    if (me == 0) print("test5 (tasks and futures) OK");
+}
+
+
+class Foo : public WorldObject<Foo> {
+    int a;
+public:
+    Foo(World& world, int a) 
+        : WorldObject<Foo>(world)
+        , a(a) 
+    {
+        process_pending();
+    };
+
+    int get0() {return a;};
+    int get1(int a1) {return a+a1;};
+    int get2(int a1, char a2) {return a+a1+a2;};
+    int get3(int a1, char a2, short a3) {return a+a1+a2+a3;};
+    int get4(int a1, char a2, short a3, long a4) {return a+a1+a2+a3+a4;};
+    int get5(int a1, char a2, short a3, long a4, short a5) {return a+a1+a2+a3+a4+a5;};
+
+    int get0c() const {return a;};
+    int get1c(int a1) const {return a+a1;};
+    int get2c(int a1, char a2) const {return a+a1+a2;};
+    int get3c(int a1, char a2, short a3) const {return a+a1+a2+a3;};
+    int get4c(int a1, char a2, short a3, long a4) const {return a+a1+a2+a3+a4;};
+    int get5c(int a1, char a2, short a3, long a4, short a5) const {return a+a1+a2+a3+a4+a5;};
+
+
+};
+
+void test6(World& world) {
+    ProcessID me = world.rank();
+    ProcessID nproc = world.nproc();
+    Foo a(world, me*100);
+
+    if (me == 0) {
+        print(a.id());
+        for (ProcessID p=0; p<nproc; p++) {
+            MADNESS_ASSERT(a.send(p,&Foo::get0).get() == p*100);
+            MADNESS_ASSERT(a.task(p,&Foo::get0).get() == p*100);
+
+            MADNESS_ASSERT(a.send(p,&Foo::get1,1).get() == p*100+1);
+            MADNESS_ASSERT(a.task(p,&Foo::get1,1).get() == p*100+1);
+
+            MADNESS_ASSERT(a.send(p,&Foo::get2,1,2).get() == p*100+3);
+            MADNESS_ASSERT(a.task(p,&Foo::get2,1,2).get() == p*100+3);
+
+            MADNESS_ASSERT(a.send(p,&Foo::get3,1,2,3).get() == p*100+6);
+            MADNESS_ASSERT(a.task(p,&Foo::get3,1,2,3).get() == p*100+6);            
+
+            MADNESS_ASSERT(a.send(p,&Foo::get4,1,2,3,4).get() == p*100+10);
+            MADNESS_ASSERT(a.task(p,&Foo::get4,1,2,3,4).get() == p*100+10);            
+
+            MADNESS_ASSERT(a.send(p,&Foo::get5,1,2,3,4,5).get() == p*100+15);
+            MADNESS_ASSERT(a.task(p,&Foo::get5,1,2,3,4,5).get() == p*100+15);            
+
+            MADNESS_ASSERT(a.send(p,&Foo::get0c).get() == p*100);
+            MADNESS_ASSERT(a.task(p,&Foo::get0c).get() == p*100);
+
+            MADNESS_ASSERT(a.send(p,&Foo::get1c,1).get() == p*100+1);
+            MADNESS_ASSERT(a.task(p,&Foo::get1c,1).get() == p*100+1);
+
+            MADNESS_ASSERT(a.send(p,&Foo::get2c,1,2).get() == p*100+3);
+            MADNESS_ASSERT(a.task(p,&Foo::get2c,1,2).get() == p*100+3);
+
+            MADNESS_ASSERT(a.send(p,&Foo::get3c,1,2,3).get() == p*100+6);
+            MADNESS_ASSERT(a.task(p,&Foo::get3c,1,2,3).get() == p*100+6);            
+
+            MADNESS_ASSERT(a.send(p,&Foo::get4c,1,2,3,4).get() == p*100+10);
+            MADNESS_ASSERT(a.task(p,&Foo::get4c,1,2,3,4).get() == p*100+10);            
+
+            MADNESS_ASSERT(a.send(p,&Foo::get5c,1,2,3,4,5).get() == p*100+15);
+            MADNESS_ASSERT(a.task(p,&Foo::get5c,1,2,3,4,5).get() == p*100+15);            
+        }
+    }
+    world.gop.fence();
+
+    print("test 6 (world object active message and tasks) seems to be working");
+}
+
+
+void test7(World& world) {
+    int nproc = world.mpi.nproc();
+    ProcessID me = world.mpi.rank();
+    World::poll_all();
+    WorldContainer<int,double> c(world);
+    //world.gop.fence();  // Currently needed until we can handle pending
+
+    typedef WorldContainer<int,double>::iterator iterator;
+    typedef WorldContainer<int,double>::const_iterator const_iterator;
+    typedef WorldContainer<int,double>::future future;
+
+    // Everyone inserts distinct values 0..1000 into the container,
+    // fences, and then tries to read all values back
+    for (int i=me; i<1000; i+=nproc) c.insert(i,(double) i);
+    world.gop.fence();
+
+    for (int i=999; i>=0; i--) {
+        future fut = c.find(i);
+        iterator it = fut.get();
+	if (it == c.end()) {
+	  print("failing",i);
+	}
+	MADNESS_ASSERT(it != c.end());
+        double j = it->second;
+        MADNESS_ASSERT(j == i);
+    }
+    world.gop.fence();
+    
+    // Check that unset keys return end correctly
+    for (int i=10001; i<10020; i++) {
+        MADNESS_ASSERT(c.find(i).get() == c.end());
+    }
+
+    // Check that other iterators compare correctly
+    MADNESS_ASSERT(c.find(10).get() == c.find(10).get());
+    MADNESS_ASSERT(c.find(11).get() != c.find(12).get());
+    MADNESS_ASSERT(c.end() == c.end());
+    MADNESS_ASSERT(c.find(12).get() != c.end());
+
+    // Loop thru local stuff
+    for (iterator it=c.begin(); it != c.end(); ++it) {
+        MADNESS_ASSERT(it->first == it->second);
+    };
+
+    // Check shallow copy and const iterator
+    const WorldContainer<int,double> d(c);
+
+    // Loop thru local stuff with a const iterator
+    for (const_iterator it=d.begin(); it != d.end(); ++it) {
+        MADNESS_ASSERT(it->first == it->second);
+    };
+
+    world.gop.fence();
+    if (me == 0) print("test7 (world container basics) OK");
+}
+
+void test8(World& world) {
+    vector<unsigned char> v;
+    VectorOutputArchive arout(v);
+    arout & &world;
+
+    World* p;
+    VectorInputArchive arin(v);
+    arin & p;
+    MADNESS_ASSERT(p==&world);
+    if (world.rank() == 0) print("test8 (serializing world pointer) OK");
 }
 
 void null_func(){};
@@ -490,6 +503,7 @@ void test9(World& world) {
     used += cpu_time();
     print("Time to  run",ntask,"chain of tasks",used,"time/task",used/ntask);
     MADNESS_ASSERT(result.get() == ntask);
+    if (world.rank() == 0) print("test9 (time task creation and processing) OK");
 }
 
 
@@ -617,7 +631,7 @@ void test10(World& world) {
         print("results",i,results[i].get(),b[i].get());
     };
 
-    if (me == 0) print("test8 OK");
+    if (me == 0) print("test10 (messaging to world container items) OK");
 }
 
 
@@ -663,62 +677,78 @@ ostream& operator<<(ostream& s, const Key& key) {
     return s;
 }
 
-// struct Node {
-//     typedef WorldContainer<Key,Node> dcT;
-//     Key key;
-//     double value;
-//     bool isleaf;
-//     Node() : value(0.0), isleaf(true) {};
-//     Node(double value) : value(value), isleaf(true) {};
+struct Node {
+    typedef WorldContainer<Key,Node> dcT;
+    Key key;
+    double value;
+    bool isleaf;
+    Node() : value(0.0), isleaf(true) {};
+    Node(double value) : value(value), isleaf(true) {};
 
-//     struct do_random_insert {
-//         dcT& d;
-//         double value;
-//         do_random_insert(dcT& d, double value) 
-//             : d(d), value(value) {};
-//         void operator()(const Key& key) const {
-//             d.task(key,&Node::random_insert,d, key, value);
-//         };
-//     };
- 
-//     void random_insert(const dcT& constd, const Key& keyin, double valin) {
-//         dcT& d = const_cast<dcT&>(constd);
-//         //print("inserting",keyin,valin);
-//         key = keyin;
-//         value = valin;
-//         isleaf = true;
-//         if (value > 0.25) {
-//             isleaf = false;
-//             World& world = d.world();
-//             double ran = world.mpi.drand();
-//             key.foreach_child(do_random_insert(d,value*ran)); 
-//         }
-//     };
+    struct do_random_insert {
+        dcT& d;
+        double value;
+        do_random_insert(dcT& d, double value) 
+            : d(d), value(value) {};
+        void operator()(const Key& key) const {
+            d.task(key,&Node::random_insert,d, key, value);
+        };
+    };
 
-//     template <class Archive>
-//     void serialize(Archive& ar) {
-//         ar & key & value & isleaf;
-//     }
-// };
+    void random_insert(const dcT& constd, const Key& keyin, double valin) {
+        dcT& d = const_cast<dcT&>(constd);
+        //print("inserting",keyin,valin);
+        key = keyin;
+        value = valin;
+        isleaf = true;
+        if (value > 0.25) {
+            isleaf = false;
+            World& world = d.world();
+            double ran = world.mpi.drand();
+            key.foreach_child(do_random_insert(d,value*ran)); 
+        }
+    };
+
+    template <class Archive>
+    void serialize(Archive& ar) {
+        ar & key & value & isleaf;
+    }
+};
 
 
-// void test11(World& world) {
-//     // Test the various flavours of erase
-//     ProcessID me = world.rank();
-//     WorldContainer<Key,Node> d(world);
+void test11(World& world) {
+    // Test the various flavours of erase
+    ProcessID me = world.rank();
+    WorldContainer<Key,Node> d(world);
 
-//     // First build an oct-tree with random depth
-//     if (me == 0) {
-//         Key root = Key(0,0,0,0);
-//         d.task(root,&Node::random_insert,d,root,1.0);
-//     }
-//     world.gop.fence();
-//     print("size before erasing",d.size());
-//     //d.clear();
-//     d.erase(d.begin(),d.end());
-//     print("size after erasing",d.size());
-//     world.gop.fence();
-// }
+    // First build an oct-tree with random depth
+    world.mpi.srand();
+    print("first ran#",world.mpi.drand());
+    world.gop.fence();
+    if (me == 0) {
+        Key root = Key(0,0,0,0);
+        d.task(root,&Node::random_insert,d,root,1.0);
+    }
+    world.gop.fence();
+    print("size before erasing",d.size());
+    //d.clear();
+    d.erase(d.begin(),d.end());
+    print("size after erasing",d.size());
+    world.mpi.srand();
+    print("first ran#",world.mpi.drand());
+    world.gop.fence();
+
+    // rebuild the tree in the same container
+    if (me == 0) {
+        Key root = Key(0,0,0,0);
+        d.task(root,&Node::random_insert,d,root,1.0);
+    }
+    world.gop.fence();
+    print("size before clearing",d.size());
+    d.clear();
+    print("size after clearing",d.size());
+    if (me == 0) print("test11 (erasing and inserting in world containers) OK");
+}
 
 
 
@@ -727,7 +757,6 @@ int main(int argc, char** argv) {
     
     World world(MPI::COMM_WORLD);
     redirectio(world);
-
     print("The processor frequency is",cpu_frequency());
     print("there are",world.mpi.nproc(),"processes and I am process",world.mpi.rank());
 
@@ -741,17 +770,20 @@ int main(int argc, char** argv) {
     world.gop.fence();
 
     try {
-//         test1(world);
-//         test2(world);
-//         test3(world);
-        test4(world);
-        test5(world);
-        test6(world);
-        test7(world);
-        test8(world);
-        test9(world);
-        test10(world);
-        //        test11(world);
+//         test0(world);
+//         if (world.nproc() > 1) {
+//             test1(world);
+//             test2(world);
+//             test3(world);
+//         }
+//         test4(world);
+//         test5(world);
+//         test6(world);
+//         test7(world);
+//         test8(world);
+//         test9(world);
+//         test10(world);
+        test11(world);
     } catch (MPI::Exception e) {
         error("caught an MPI exception");
     } catch (madness::MadnessException e) {
