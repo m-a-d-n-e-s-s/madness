@@ -438,7 +438,7 @@ public:
 };
 
 typedef Node<NodeData,2> NodeD;
-typedef DistributedContainer< KeyD,NodeD,MyProcmap<KeyD> > treeT;
+typedef WorldContainer< KeyD,NodeD,MyProcmap<KeyD> > treeT;
 
 void build_tree(treeT& tree, const KeyD& key) {
     NodeData data(1,1,false);  
@@ -939,8 +939,8 @@ void migrate(treeT tfrom, treeT tto) {
 
 // convert tree from templated form to tree to be used for load balancing
 template <typename Q, unsigned int N>
-void convert_node(DistributedContainer<KeyD,Node<Q,N>,MyProcmap<KeyD> > orig, treeT skel, KeyD key) {
-    typename DistributedContainer<KeyD,Node<Q,N>,MyProcmap<KeyD> >::iterator it = orig.find(key);
+void convert_node(WorldContainer<KeyD,Node<Q,N>,MyProcmap<KeyD> > orig, treeT skel, KeyD key) {
+    typename WorldContainer<KeyD,Node<Q,N>,MyProcmap<KeyD> >::iterator it = orig.find(key);
 
     if (it == orig.end()) return;
 
@@ -959,7 +959,7 @@ void convert_node(DistributedContainer<KeyD,Node<Q,N>,MyProcmap<KeyD> > orig, tr
 
 /*
 template <typename Q, unsigned int N>
-void convert_tree(DistributedContainer<KeyD,Node<Q,N>,MyProcmap<KeyD> > orig, treeT skel) {
+void convert_tree(WorldContainer<KeyD,Node<Q,N>,MyProcmap<KeyD> > orig, treeT skel) {
     KeyD root(0,0,0);
     convert_node<Q,N>(orig, skel, root);
 }

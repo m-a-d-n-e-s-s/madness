@@ -377,7 +377,15 @@ namespace madness {
             , cacheinfo()
         {
             this->process_pending();
-        };
+
+	    unsigned char u[256];
+	    print("insert memfun ptr ");
+	    void (implT::*f)(const pairT&) = &implT::insert;
+	    memcpy(u,&f,sizeof(f));
+//	    for (int i=0; i<sizeof(f); i++)
+//		std::printf("%02.2x",u[i]);
+//	    std::printf("\n");
+	};
         
         
         ~WorldContainerImpl() {

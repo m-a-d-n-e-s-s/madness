@@ -65,6 +65,22 @@ template <unsigned int D>
 void build_tree(typename DClass<D>::treeT& tree, typename DClass<D>::KeyDConst& key) {
     NodeData data(1,1,false);  
     typename DClass<D>::NodeD parent(data);
+    int twotoD = (int) pow(2.0,(int)D);
+    if (key.n < 2) {
+	for (int i = 0; i < twotoD; i++) {
+	    parent.set_child(i);
+	    build_tree<D>(tree, key.myChild(i));
+	}
+    }
+/*
+    else if ((key.n <= 9)&&(key.L[0] == key.L[1])) {
+	for (int i = 0; i < twotoD; i++) {
+	    parent.set_child(i);
+	    build_tree<D>(tree, key.myChild(i));
+	}
+    }
+*/
+/*
     if (key.n < 5) {
 	for (int p=0; p<2; p++) {
 	    for (int q=0; q<2; q++) {
@@ -74,13 +90,14 @@ void build_tree(typename DClass<D>::treeT& tree, typename DClass<D>::KeyDConst& 
 	}
     }
     else if ((key.n <= 9)&&(key.L[0] == key.L[1])) {
-	for (int p=0; p<D; p++) {
-	    for (int q=0; q<D; q++) {
+	for (int p=0; p<2; p++) {
+	    for (int q=0; q<2; q++) {
 		parent.set_child(p+2*q);
 		build_tree<D>(tree,typename DClass<D>::KeyD(key.n+1,2*key.L[0]+p,2*key.L[1]+q));
 	    }
 	}
     }
+*/
     tree.insert(key,parent);
 }
 
@@ -118,7 +135,7 @@ Cost computeCost(typename DClass<D>::treeT& tree, typename DClass<D>::KeyDConst&
     
     d.subcost = cost;
     node.set_data(d);
-    tree.erase(key);
+//    tree.erase(key);
     tree.insert(key,node);
     return cost;
 }
@@ -167,7 +184,7 @@ void meld(typename DClass<D>::treeT& tree, typename DClass<D>::KeyDConst& key) {
 	NodeData d = node.get_data();
 	d.istaken = false;
 	node.set_data(d);
-	tree.erase(key);
+//	tree.erase(key);
 	tree.insert(key,node);
 	return;
     }
@@ -176,13 +193,13 @@ void meld(typename DClass<D>::treeT& tree, typename DClass<D>::KeyDConst& key) {
 
     for (unsigned int i = 0; i < mylist.size(); i++) {
         d.cost += cheapest;
-        tree.erase(key.myChild(mylist[i]));
+//        tree.erase(key.myChild(mylist[i]));
 	node.set_child(mylist[i], false);
 //cout << "meld: set child " << mylist[i] << " to be false" << endl;
     }
     d.istaken = false;
     node.set_data(d);
-    tree.erase(key);
+//    tree.erase(key);
     tree.insert(key,node);
 }
 
@@ -234,7 +251,7 @@ void rollup(typename DClass<D>::treeT tree, typename DClass<D>::KeyD key) {
 //print_tree(tree, key);
 //cout << "rollup: end print tree" << endl;
     node.set_data(d);
-    tree.erase(key);
+//    tree.erase(key);
     tree.insert(key,node);
 //cout << "rollup: print tree" << endl;
 //print_tree(tree, key);
@@ -243,44 +260,44 @@ void rollup(typename DClass<D>::treeT tree, typename DClass<D>::KeyD key) {
 
 template <unsigned int D>
 Cost fixCost(typename DClass<D>::treeT tree, typename DClass<D>::KeyD key) {
-    cout << "fixCost: key = ";
-    key.print();
-    print(" is about to be looked for");
+//    cout << "fixCost: key = ";
+//    key.print();
+//    print(" is about to be looked for");
     typename DClass<D>::treeT::iterator it = tree.find(key);
-    cout << "fixCost: key = ";
-    key.print();
-    print(" was found (looked for),", (it == tree.end()));
+//    cout << "fixCost: key = ";
+//    key.print();
+//    print(" was found (looked for),", (it == tree.end()));
     if (it == tree.end()) return 0;
-    print("fixCost: tree it was found (exists)");
+//    print("fixCost: tree it was found (exists)");
 
     typename DClass<D>::NodeD node = it->second;
-    print("fixCost: got node");
+//    print("fixCost: got node");
     NodeData d = node.get_data();
-    print("fixCost: got data from node");
+//    print("fixCost: got data from node");
     d.subcost = d.cost;
-    print("fixCost: assigned node cost to subcost");
+//    print("fixCost: assigned node cost to subcost");
     if (node.has_children())
     {
-	print("fixCost: node has children");
+//	print("fixCost: node has children");
 	for (unsigned int i = 0; i < node.dim; i++)
 	{
-//	    d.subcost += fixCost<D>(tree, key.myChild(i));
-	    typename DClass<D>::KeyD child = key.myChild(i);
-	    cout << "fixCost: about to call on child ";
-	    child.print();
-	    cout << endl;
-	    d.subcost += fixCost<D>(tree, child);
-	    print("fixCost: returned from recursive call of fixCost");
+	    d.subcost += fixCost<D>(tree, key.myChild(i));
+//	    typename DClass<D>::KeyD child = key.myChild(i);
+//	    cout << "fixCost: about to call on child ";
+//	    child.print();
+//	    cout << endl;
+//	    d.subcost += fixCost<D>(tree, child);
+//	    print("fixCost: returned from recursive call of fixCost");
 	}
     }
     node.set_data(d);
-cout << "about to insert key = ";
-key.print();
-cout << ", ";
-node.get_data().print();
-    tree.erase(key);
+//cout << "about to insert key = ";
+//key.print();
+//cout << ", ";
+//node.get_data().print();
+//tree.erase(key);
     tree.insert(key,node);
-print("fixCost: inserted node");
+//print("fixCost: inserted node");
     return d.subcost;
 }
 
@@ -345,7 +362,7 @@ void removeCost(typename DClass<D>::treeT tree, typename DClass<D>::KeyD key, Co
     node.set_data(d);
 //cout << "removeCost: after setting, data = ";
 //node.get_data().print();
-    tree.erase(key);
+//    tree.erase(key);
     tree.insert(key,node);
 //cout << "removeCost: after inserting, data = ";
 //node.get_data().print();
@@ -400,7 +417,7 @@ Cost makePartition(typename DClass<D>::treeT tree, typename DClass<D>::KeyD key,
 	// REMOVE COST FROM FOREPARENTS (implement this)
 	removeCost<D>(tree, key.myParent(), d.subcost);
 	node.set_data(d);
-	tree.erase(key);
+//	tree.erase(key);
 	tree.insert(key,node);
     }
     else if (usedUp < partitionSize) {
@@ -450,13 +467,13 @@ void findBestPartition(typename DClass<D>::treeT tree, typename DClass<D>::KeyD 
     costlist.push_back(0);
     Cost totalCost = 0;
 
-print("findBestPartition: about to fixCost");
+//print("findBestPartition: about to fixCost");
 
     fixCost<D>(tree, key);
-//    print_tree(tree,typename DClass<D>::KeyD(0,0,0));
+    print_tree<D>(tree,typename DClass<D>::KeyD(0,0,0));
 print("findBestPartition: about to depthFirstPartition");
     totalCost = depthFirstPartition<D>(tree, key, &listoflist[count], npieces, totalCost, &costlist[count]);
-print("findBestPartition: after depthFirstPartition");
+//print("findBestPartition: after depthFirstPartition");
     int size = listoflist[count].size();
     cout << "Partitioned tree " << count << ":" << endl;
     for (int i = 0; i < size; i++)
@@ -470,7 +487,7 @@ print("findBestPartition: after depthFirstPartition");
     while (notdone) {
 	fixCost<D>(tree, key); 
 	rollup<D>(tree, key);
-//	print_tree<D>(tree,typename DClass<D>::KeyD(0,0,0));
+	print_tree<D>(tree,typename DClass<D>::KeyD(0,0,0));
 	listoflist.push_back(emptylist);
 	costlist.push_back(0);
 	depthFirstPartition<D>(tree, key, &listoflist[count], npieces, totalCost, &costlist[count]);

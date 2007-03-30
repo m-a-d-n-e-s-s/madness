@@ -140,6 +140,12 @@ public:
     mutable Array<unsigned int, D> L;
     hashT hashval; // Saving this here is a big optimization
 
+    // Recomputes hashval
+    void rehash() {
+        hashval = madness::hash(n,madness::hash(L));
+//	print(); std::cout << std::endl;
+    };
+
     Key() {};
 
     Key(const Key& k) : n(k.n), L(k.L) {
@@ -148,19 +154,19 @@ public:
 
     Key(int n, int i, int j) : n(n) {
 	L[0] = i; L[1] = j;
-	hashval = madness::hash(&this->n, D+1, 0);
+	rehash();
     };
 
     Key(int n, vector<int> v) : n(n), L(Array<unsigned int, D>(v)) {
-	hashval = madness::hash(&this->n, D+1, 0);
+	rehash();
     };
 
     Key(unsigned int n, vector<unsigned int> v) : n(n), L(Array<unsigned int, D>(v)) {
-	hashval = madness::hash(&this->n, D+1, 0);
+	rehash();
     };
 
     Key(unsigned int n, Array<unsigned int, D> L) : n(n), L(L) {
-	hashval = madness::hash(&this->n, D+1, 0);
+	rehash();
     };
 
     hashT hash() const {
@@ -307,6 +313,7 @@ public:
 	    std::cout << L[i] << ", ";
 	}
 	std::cout << L[D-1] << ")";
+	std::cout << "  hash=" << hashval;
     }
 
     template <typename Archive>

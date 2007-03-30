@@ -57,7 +57,7 @@ int main(int argc, char** argv) {
 	print("");
 	if (me == 1) {
 	    print("About to print tree");
-//	    print_tree<2>(tree,root);
+	    print_tree<2>(tree,root);
 	    print("Printed tree");
 	}
 	print("Done printing tree");

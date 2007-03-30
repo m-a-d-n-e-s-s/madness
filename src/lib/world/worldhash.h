@@ -70,7 +70,7 @@ namespace madness {
         if (((sizeof(T)/sizeof(hashT))*sizeof(hashT)) == sizeof(T)) {
             //std::cout << "hashing words ";
             //for (int i=0; i<n; i++) std::cout << t[i] << " ";
-            hashT result = hashword((const hashT *) t, (n*sizeof(T))/sizeof(hashT), initval);
+            hashT result = hashword((const hashT *) t, n*sizeof(T)/sizeof(hashT), initval);
             //std::cout << " ---> " << result << std::endl;
             return result;
         }
@@ -84,8 +84,9 @@ namespace madness {
     inline
     typename madness::disable_if<madness::is_fundamental<T>, hashT>::type
     hash(const T* t, std::size_t n, hashT initval=0) {
-        for (std::size_t i=0; i<n; i++) initval = hash(t[i],initval);
-        return initval;
+        hashT sum=0;
+        for (std::size_t i=0; i<n; i++) sum = hash(t[i],sum);
+        return sum;
     };
 
     /// Default \c Hash<T>::hash(t) invokes t.hash()
@@ -99,8 +100,8 @@ namespace madness {
     /// Specialization for fixed dim arrays invokes hash(t,n)
     template <class T, std::size_t n>
     struct Hash<T[n]> {
-        static hashT hash(const T (&t)[n]) {
-            return madness::hash(t, n, 0);
+        static hashT hash(const T (&t)[n], hashT initval=0) {
+            return madness::hash(t, n, initval);
         };
     };
 }
