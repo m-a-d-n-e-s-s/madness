@@ -5,25 +5,6 @@
 using namespace madness;
 using namespace std;
 
-class B {
-    long b;
-public:
-    B(long b=0) : b(b) {};
-    void set(long value) {b=value;};
-    long get() const {return b;};
-    ~B(){print("B destructor");};
-    template <typename Archive> void serialize(Archive &ar) {ar&b;}
-};
-
-void handler(World& world, ProcessID from, const AmArg& arg) {
-    world.mpi.Send(arg.buf[0]+1, from, 33);
-}
-
-void hello(World& world, ProcessID from, const AmArg& arg) {
-    print(world.mpi.rank(),"got hello from",from);
-    cout.flush();
-}
-
 void test0(World& world) {
     const size_t n=555;
     char buf[n+2];
@@ -52,6 +33,26 @@ void test0(World& world) {
     if (world.rank() == 0) print("test0 (serialization to/from buf) seems to be working");
 }
 
+class B {
+    long b;
+public:
+    B(long b=0) : b(b) {};
+    void set(long value) {b=value;};
+    long get() const {return b;};
+    ~B(){print("B destructor");};
+    template <typename Archive> void serialize(Archive &ar) {ar&b;}
+};
+
+void handler(World& world, ProcessID from, const AmArg& arg) {
+  
+  world.mpi.Send(arg.buf[0]+1, from, 33);
+}
+
+void hello(World& world, ProcessID from, const AmArg& arg) {
+    print(world.mpi.rank(),"got hello from",from);
+    cout.flush();
+}
+
 void test1(World& world) {
     ProcessID me = world.mpi.rank();
     long nproc = world.mpi.nproc();
@@ -67,7 +68,7 @@ void test1(World& world) {
     for (int i=0; i<20; i++) {
       long reply = -1;
       ProcessID p = world.mpi.random_proc_not_me();
-      world.am.send_recv(p,handler,AmArg(me+1000),&reply,sizeof(reply),p,33);
+      world.am.send_recv(p,handler,AmArg(me+1000L),&reply,sizeof(reply),p,33);
       if (reply != me+1001) {
 	print("bad reply",reply,me+1001);
         throw "Ooops ...";
@@ -407,12 +408,9 @@ void test7(World& world) {
     for (int i=999; i>=0; i--) {
         future fut = c.find(i);
         iterator it = fut.get();
-	if (it == c.end()) {
-	  print("failing",i);
-	}
 	MADNESS_ASSERT(it != c.end());
-        double j = it->second;
-        MADNESS_ASSERT(j == i);
+	double j = it->second;
+	MADNESS_ASSERT(j == i);
     }
     world.gop.fence();
     
@@ -650,7 +648,7 @@ struct Key {
     };
 
     template <typename opT> 
-    void foreach_child(const opT& op) {
+    void foreach_child(const opT& op) const {
         ulong n2 = n+1;
         ulong i2 = i<<1;
         ulong j2 = j<<1;
@@ -684,6 +682,7 @@ struct Node {
     bool isleaf;
     Node() : value(0.0), isleaf(true) {};
     Node(double value) : value(value), isleaf(true) {};
+    Node(const Node& node) : key(node.key), value(node.value), isleaf(node.isleaf) {};
 
     struct do_random_insert {
         dcT& d;
@@ -713,8 +712,66 @@ struct Node {
     void serialize(Archive& ar) {
         ar & key & value & isleaf;
     }
+
+    bool is_leaf() const {return isleaf;};
+
+    double get() const {return value;};
+  
+    void set(double v) {value = v;};
 };
 
+ostream& operator<<(ostream& s, const Node& node) {
+  s << "Node(" << node.get() << "," << node.is_leaf() << ")" << endl;
+  return s;
+}
+
+
+void walker1(WorldContainer<Key,Node>& d, const Key& key);
+
+struct Walker1 {
+  WorldContainer<Key,Node>& d;
+  Walker1(WorldContainer<Key,Node>& d) : d(d) {};
+  void operator()(const Key& key) const {
+    walker1(d,key);
+  };
+};
+
+
+void walker1(WorldContainer<Key,Node>& d, const Key& key) {
+  static double counter = 0;
+  WorldContainer<Key,Node>::iterator it = d.find(key).get();
+  if (it != d.end()) {
+    Node node = it->second;
+    node.set(++counter);
+    d.erase(key);
+    d.insert(key,node);
+    it = d.find(key).get();
+    MADNESS_ASSERT(it != d.end());
+    MADNESS_ASSERT(it->second.get() == counter);
+    if (!node.is_leaf()) {
+      key.foreach_child(Walker1(d));
+    }
+  }
+}
+
+void walker2(WorldContainer<Key,Node>& d, const Key& key) {
+  static double counter = 1;
+  WorldContainer<Key,Node>::iterator it = d.find(key).get();
+  if (it != d.end()) {
+    Node node = it->second;
+    node.set(++counter);
+    d.insert(key,node);
+    it = d.find(key).get();
+    MADNESS_ASSERT(it != d.end());
+    if (it->second.get() != counter) {
+      print("failing",it->second.get(),counter,key,d.owner(key));
+    }
+    MADNESS_ASSERT(it->second.get() == counter);
+    if (!node.is_leaf()) {
+      key.foreach_child(Walker1(d));
+    }
+  }
+}
 
 void test11(World& world) {
     // Test the various flavours of erase
@@ -730,6 +787,7 @@ void test11(World& world) {
         d.task(root,&Node::random_insert,d,root,1.0);
     }
     world.gop.fence();
+
     print("size before erasing",d.size());
     //d.clear();
     d.erase(d.begin(),d.end());
@@ -737,13 +795,28 @@ void test11(World& world) {
     world.mpi.srand();
     print("first ran#",world.mpi.drand());
     world.gop.fence();
-
     // rebuild the tree in the same container
     if (me == 0) {
         Key root = Key(0,0,0,0);
         d.task(root,&Node::random_insert,d,root,1.0);
     }
     world.gop.fence();
+    print("size after rebuilding",d.size());
+ 
+    // Test get, erase, and re-insert of nodes with new value by node 0
+    if (me == 0) {
+        Key root = Key(0,0,0,0);
+	walker1(d,root);
+    }
+    world.gop.fence();
+
+    // Test get and re-insert of nodes with new value by node 0
+    if (me == 0) {
+        Key root = Key(0,0,0,0);
+	walker2(d,root);
+    }
+    world.gop.fence();
+
     print("size before clearing",d.size());
     d.clear();
     print("size after clearing",d.size());
@@ -770,20 +843,20 @@ int main(int argc, char** argv) {
     world.gop.fence();
 
     try {
-//         test0(world);
-//         if (world.nproc() > 1) {
-//             test1(world);
-//             test2(world);
-//             test3(world);
-//         }
-//         test4(world);
-//         test5(world);
-//         test6(world);
-//         test7(world);
-//         test8(world);
-//         test9(world);
-//         test10(world);
-        test11(world);
+      test0(world);
+      if (world.nproc() > 1) {
+	test1(world);
+	test2(world);
+	test3(world);
+      }
+      test4(world);
+      test5(world);
+      test6(world);
+      test7(world);
+      test8(world);
+      test9(world);
+      test10(world);
+      test11(world);
     } catch (MPI::Exception e) {
         error("caught an MPI exception");
     } catch (madness::MadnessException e) {

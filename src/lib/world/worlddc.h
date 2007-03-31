@@ -135,10 +135,13 @@ namespace madness {
         typedef typename implT::cacheinfo_iteratorT cacheinfo_iteratorT;
         typedef typename implT::attributes attrT;
         
+    public:
         implT* impl;                   //< Pointer to container implementation
+    private:
         internal_iteratorT  it;         //< Iterator from local/cache container
         cacheinfo_iteratorT cacheit;   //< Iterator for reference counting cache
         bool fromcache;                //< True if is a cached remote value
+
         
         // Called by the cache to notify iterators to invalidate themselves
         void notify() {
@@ -202,12 +205,17 @@ namespace madness {
         
         /// Determines if two iterators are identical
         bool operator==(const WorldContainerIterator& other) const {
+	  if (impl== 0 || other.impl==0) {
+	    return (impl== 0 && other.impl==0); // comparison with end tests impl=0
+	  }
+	  else {
             return it==other.it;
+	  }
         };
         
         /// Determines if two iterators are different
         bool operator!=(const WorldContainerIterator& other) const {
-            return it != other.it;
+	  return !(*this == other);
         };
         
         /// Pre-increment of an iterator (i.e., ++it) --- \em local iterators only
@@ -254,6 +262,23 @@ namespace madness {
         ~WorldContainerIterator() {
             unregister_cache_callback();
         };
+
+
+	void dump() const {
+	  std::cout << "iterator: impl" << (void *) impl;
+	  if (impl) {
+	    if (it == impl->local.end()) {
+	      std::cout << " local.end()" << std::endl;
+	    }
+	    else {
+	      std::cout << " key " << it->first << " value " << it->second << std::endl;
+	    }
+	  }
+	  else {
+	    std::cout << " empty" << std::endl;
+	  }
+	};
+
         
         template <typename Archive>
         void serialize(const Archive& ar) {
@@ -319,6 +344,15 @@ namespace madness {
         const iterator end_iterator;          //< For fast return of end
         const const_iterator end_const_iterator; //< For fast return of end
         
+	template <typename containerT, typename datumT> 
+	inline
+	static
+        typename containerT::iterator replace(containerT& c, const datumT& d) {
+	  std::pair<typename containerT::iterator,bool> p = c.insert(d);
+	  if (!p.second) p.first->second = d.second;   // Who's on first?
+	  return p.first;
+	};
+
         /// Removes (remote) item from local cache
         void cache_erase (const internal_const_iteratorT& it, const cacheinfo_iteratorT& cacheit) const {
             cache.erase(it->first);
@@ -329,11 +363,15 @@ namespace madness {
         /// Handles find request
         void find_handler(ProcessID requestor, const keyT& key, const RemoteReference< FutureImpl<iterator> >& ref) {
             if (owner(key) != me) {
-                send(owner(key), &implT::find_handler, requestor, key, ref);
+	        MADNESS_EXCEPTION("Forwarding in find handler?", requestor*1000 + owner(key));
+                //send(owner(key), &implT::find_handler, requestor, key, ref);
             }
             else {
                 internal_iteratorT r = local.find(key);
-                if (r == local.end()) send(requestor, &implT::find_failure_handler, ref);
+                if (r == local.end()) {
+		    //print("find_handler: failed",requestor,key);
+		    send(requestor, &implT::find_failure_handler, ref);
+		}
                 else send(requestor, &implT::find_success_handler, ref, *r);
             }
         };
@@ -350,7 +388,9 @@ namespace madness {
                 cacheit = cacheinfo.insert(std::pair<keyT,CacheInfo>(datum.first,CacheInfo(0))).first;
             }
             else {
+	        print("find_success_handler rehit cache",it->second,datum.second);
                 it->second = datum.second;
+		print("   regetting",cache.find(datum.first)->second);
                 cacheit = cacheinfo.find(datum.first);
             }
             f->set(iterator(this, it, cacheit, true));
@@ -361,6 +401,7 @@ namespace madness {
         void find_failure_handler(const RemoteReference< FutureImpl<iterator> >& ref) {
             FutureImpl<iterator>* f = ref.get();
             f->set(end());
+            //print("in remote failure handler");
             ref.dec(); // Matching inc() in find() where ref was made
         };
         
@@ -389,7 +430,7 @@ namespace madness {
         
         
         ~WorldContainerImpl() {
-            print("In DCImpl destructor");
+	  //print("In DCImpl destructor");
         };
         
         bool is_local(const keyT& key) const {
@@ -413,20 +454,21 @@ namespace madness {
         std::size_t size() const {
             return local.size();
         };
+
         
         void handle_cache_overflow() {};
         
         void insert(const pairT& datum) {
             ProcessID dest = owner(datum.first);
             if (dest == me) {
-                local.insert(datum);
+  	        replace(local,datum);
             }
             else {
                 if (attrT::CacheWritePolicy) {  // Remote writes also hit cache
                     if (cache.size() >= attrT::CacheMaxEntries) 
                         handle_cache_overflow();
-                    cache.insert(datum);
-                    cacheinfo.insert(std::pair<keyT,CacheInfo>(datum.first,0));
+                    replace(cache,datum);
+                    replace(cacheinfo,std::pair<keyT,CacheInfo>(datum.first,0));
                 }
                 else if (attrT::CacheReadPolicy) { // Remote writes only invalidate cache
                     cache.erase(datum.first);
@@ -452,7 +494,7 @@ namespace madness {
             else {
                 cache.erase(key);
                 cacheinfo.erase(key);
-                void (implT::*eraser)(const keyT&);
+		void (implT::*eraser)(const keyT&) = &implT::erase;
                 send(dest, eraser, key);
             }                
         };
@@ -505,8 +547,19 @@ namespace madness {
             ProcessID dest = owner(key);
             if (dest == me) {  // Local read
                 internal_iteratorT it = local.find(key);
-                if (it == local.end()) return Future<iterator>(end());
-                else return Future<iterator>(iterator(this,it,cacheinfo_iteratorT(),false));
+                if (it == local.end()) {
+		  return Future<iterator>(end());
+		}
+                else {
+		  Future<iterator> result(iterator(this,it,cacheinfo_iteratorT(),false));
+		  if (result.get() == end()) {
+		    print("!! SUCCESS but failure ?");
+		    result.get().dump();
+		    print(it->first,it->second);
+		    MADNESS_ASSERT(!end().impl);
+		  }
+		  return result;
+		}
             }
             else {             // Remote read
                 if (attrT::CacheReadPolicy) {  // Try cache

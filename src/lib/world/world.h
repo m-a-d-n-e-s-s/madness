@@ -162,12 +162,12 @@ namespace madness {
             // example of failure here is gcc4.2.
             // //std::remove_if(deferred.begin(),deferred.end(),refcnt_is_one());
             for (std::list< SharedPtr<DeferredCleanupInterface> >::iterator it = deferred.begin(); 
-                 it != deferred.end();) {
-                print("refcnt:",(void*) it->get(), it->use_count());
+                it != deferred.end();) {
+	        //print("refcnt:",(void*) it->get(), it->use_count());
                 if (it->use_count() == 1) it = deferred.erase(it);
                 else ++it;
             }
-            print("World: deferred cleanup: old size:", nclean, "new size:", deferred.size());
+            //print("World: deferred cleanup: old size:", nclean, "new size:", deferred.size());
             return (nclean != deferred.size());
         };
 
@@ -420,7 +420,7 @@ namespace madness {
             SharedPtr<DeferredCleanupInterface> p(item);
             // Avoid duplicates since the reference counting will prevent cleaning
             if (std::find(deferred.begin(),deferred.end(),p) == deferred.end()) {
-                print("deferred adding",(void*)p.get());
+	        //print("deferred adding",(void*)p.get());
                 deferred.push_back(p);
             }
         };
