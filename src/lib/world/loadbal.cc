@@ -10,57 +10,6 @@ typedef int Cost;
 typedef double CompCost;
 
 
-/*
-// To enable gnu hash_map to work
-namespace std {
-    template <> struct equal_to<typename madness::DClass<3>::KeyD > {
-        bool operator()(typename madness::DClass<3>::KeyDConst& a, typename madness::DClass<3>::KeyDConst& b) const {
-	    bool retval = (a.n==b.n);
-	    int D = a.L.size();
-	    for (int i = 0; i < D; i++) {
-		if (!retval) break;
-		retval = (retval)&&(a.L[i]==b.L[i]);
-	    }
-            return retval;
-        };
-    };
-}
-
-// To enable gnu hash_map to work
-
-namespace __gnu_cxx {
-    template <> struct hash<typename madness::DClass<3>::KeyD > { 
-        std::size_t operator()(typename madness::DClass<3>::KeyDConst& key) const {
-            return key.hashval;
-        };
-    };
-}
-
-    template <> struct equal_to<typename madness::DClass<2>::KeyD > {
-        bool operator()(typename madness::DClass<2>::KeyDConst& a, typename madness::DClass<2>::KeyDConst& b) const {
-	    bool retval = (a.n==b.n);
-	    int D = a.L.size();
-	    for (int i = 0; i < D; i++) {
-		if (!retval) break;
-		retval = (retval)&&(a.L[i]==b.L[i]);
-	    }
-            return retval;
-        };
-    };
-}
-
-// To enable gnu hash_map to work
-
-namespace __gnu_cxx {
-    template <> struct hash<madness::DClass<2>::KeyD > { 
-        std::size_t operator()(madness::DClass<2>::KeyDConst& key) const {
-            return key.hashval;
-        };
-    };
-}
-*/
-
-
 template <unsigned int D>
 void build_tree(typename DClass<D>::treeT& tree, typename DClass<D>::KeyDConst& key) {
     NodeData data(1,1,false);  
@@ -72,32 +21,12 @@ void build_tree(typename DClass<D>::treeT& tree, typename DClass<D>::KeyDConst& 
 	    build_tree<D>(tree, key.myChild(i));
 	}
     }
-/*
     else if ((key.n <= 9)&&(key.L[0] == key.L[1])) {
 	for (int i = 0; i < twotoD; i++) {
 	    parent.set_child(i);
 	    build_tree<D>(tree, key.myChild(i));
 	}
     }
-*/
-/*
-    if (key.n < 5) {
-	for (int p=0; p<2; p++) {
-	    for (int q=0; q<2; q++) {
-		parent.set_child(p+2*q);
-		build_tree<D>(tree,typename DClass<D>::KeyD(key.n+1,2*key.L[0]+p,2*key.L[1]+q));
-	    }
-	}
-    }
-    else if ((key.n <= 9)&&(key.L[0] == key.L[1])) {
-	for (int p=0; p<2; p++) {
-	    for (int q=0; q<2; q++) {
-		parent.set_child(p+2*q);
-		build_tree<D>(tree,typename DClass<D>::KeyD(key.n+1,2*key.L[0]+p,2*key.L[1]+q));
-	    }
-	}
-    }
-*/
     tree.insert(key,parent);
 }
 
@@ -135,7 +64,6 @@ Cost computeCost(typename DClass<D>::treeT& tree, typename DClass<D>::KeyDConst&
     
     d.subcost = cost;
     node.set_data(d);
-//    tree.erase(key);
     tree.insert(key,node);
     return cost;
 }
@@ -184,7 +112,6 @@ void meld(typename DClass<D>::treeT& tree, typename DClass<D>::KeyDConst& key) {
 	NodeData d = node.get_data();
 	d.istaken = false;
 	node.set_data(d);
-//	tree.erase(key);
 	tree.insert(key,node);
 	return;
     }
@@ -193,13 +120,12 @@ void meld(typename DClass<D>::treeT& tree, typename DClass<D>::KeyDConst& key) {
 
     for (unsigned int i = 0; i < mylist.size(); i++) {
         d.cost += cheapest;
-//        tree.erase(key.myChild(mylist[i]));
+        tree.erase(key.myChild(mylist[i]));
 	node.set_child(mylist[i], false);
 //cout << "meld: set child " << mylist[i] << " to be false" << endl;
     }
     d.istaken = false;
     node.set_data(d);
-//    tree.erase(key);
     tree.insert(key,node);
 }
 
@@ -251,7 +177,6 @@ void rollup(typename DClass<D>::treeT tree, typename DClass<D>::KeyD key) {
 //print_tree(tree, key);
 //cout << "rollup: end print tree" << endl;
     node.set_data(d);
-//    tree.erase(key);
     tree.insert(key,node);
 //cout << "rollup: print tree" << endl;
 //print_tree(tree, key);
@@ -295,7 +220,6 @@ Cost fixCost(typename DClass<D>::treeT tree, typename DClass<D>::KeyD key) {
 //key.print();
 //cout << ", ";
 //node.get_data().print();
-//tree.erase(key);
     tree.insert(key,node);
 //print("fixCost: inserted node");
     return d.subcost;
@@ -307,8 +231,9 @@ Cost computePartitionSize(Cost cost, unsigned int parts) {
 
 
 template <unsigned int D>
-Cost depthFirstPartition(typename DClass<D>::treeT tree, typename DClass<D>::KeyD key, vector<typename DClass<D>::TreeCoords>* klist, 
-	unsigned int npieces, Cost totalcost = 0, Cost *maxcost = 0) {
+Cost depthFirstPartition(typename DClass<D>::treeT tree, typename DClass<D>::KeyD key, 
+	vector<typename DClass<D>::TreeCoords>* klist, unsigned int npieces, 
+	Cost totalcost = 0, Cost *maxcost = 0) {
 //print("depthFirstPartition: at very beginning");
     if (totalcost == 0) {
 	totalcost = computeCost<D>(tree, key);
@@ -362,7 +287,6 @@ void removeCost(typename DClass<D>::treeT tree, typename DClass<D>::KeyD key, Co
     node.set_data(d);
 //cout << "removeCost: after setting, data = ";
 //node.get_data().print();
-//    tree.erase(key);
     tree.insert(key,node);
 //cout << "removeCost: after inserting, data = ";
 //node.get_data().print();
@@ -417,7 +341,6 @@ Cost makePartition(typename DClass<D>::treeT tree, typename DClass<D>::KeyD key,
 	// REMOVE COST FROM FOREPARENTS (implement this)
 	removeCost<D>(tree, key.myParent(), d.subcost);
 	node.set_data(d);
-//	tree.erase(key);
 	tree.insert(key,node);
     }
     else if (usedUp < partitionSize) {
@@ -591,34 +514,6 @@ void migrate(typename DClass<D>::treeT tfrom, typename DClass<D>::treeT tto) {
     migrate_data<D>(tfrom, tto, root);
 }
 
-
-// convert tree from templated form to tree to be used for load balancing
-/*
-template <typename Q, unsigned int N>
-void convert_node(DistributedContainer<KeyD,Node<Q,N>,MyProcmap<KeyD> > orig, treeT skel, KeyD key) {
-    typename DistributedContainer<KeyD,Node<Q,N>,MyProcmap<KeyD> >::iterator it = orig.find(key);
-
-    if (it == orig.end()) return;
-
-    Node<Q,N> node = it->second;
-
-    if (node.has_children()) {
-	for (unsigned int i = 0; i < node.dim; i++) {
-	    KeyD child = key.myChild(i);
-	    convert_node(orig, skel, child);
-	}
-    }
-    
-    DClass<D>::NodeD noded(NodeData());
-    skel.insert(key, noded);
-}
-
-template <typename Q, unsigned int N>
-void convert_tree(DistributedContainer<KeyD,Node<Q,N>,MyProcmap<KeyD> > orig, treeT skel) {
-    KeyD root(0,0,0);
-    convert_node<Q,N>(orig, skel, root);
-}
-*/
 
 // Explicit instantiations for D=2
 

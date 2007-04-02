@@ -13,7 +13,6 @@ template <typename Data, unsigned int D> class LBNode;
 template <unsigned int D> class Key;
 template <unsigned int D> struct TreeCoords;
 template <unsigned int D> struct Tree;
-//template <unsigned int D, typename Key > class MyProcmap;
 template <unsigned int D> class MyProcmap;
 class NodeData;
 
@@ -25,7 +24,6 @@ struct DClass {
     typedef Tree<D> Tree;
     typedef LBNode<NodeData,D> NodeD;
     typedef const LBNode<NodeData,D> NodeDConst;
-//    typedef MyProcmap<D,KeyD> MyProcMap;
     typedef MyProcmap<D> MyProcMap;
     typedef WorldContainer< KeyD,NodeD,MyProcMap > treeT;
 };
@@ -143,7 +141,6 @@ public:
     // Recomputes hashval
     void rehash() {
         hashval = madness::hash(n,madness::hash(L));
-//	print(); std::cout << std::endl;
     };
 
     Key() {};
@@ -175,7 +172,6 @@ public:
 
 
     Key myChild(int k) const {
-//	vector<unsigned int> LL;
 	Array<unsigned int,D> LL;
 	for (unsigned int i = 0; i < D; i++) {
 	    LL[i] = 2*L[i] + k%2;
@@ -186,7 +182,6 @@ public:
 
     Key myParent(int k=1) const {
 	if (k == 0) return Key(*this);
-//	vector<unsigned int> LL;
 	Array<unsigned int,D> LL;
 	unsigned int twotok = (unsigned int) pow(2.0, k);
 	for (unsigned int i = 0; i < D; i++) {
@@ -293,19 +288,6 @@ public:
 	    return false;
     };
 
-/*
-    bool operator<(const Key& a) const {
-        if (n < a.n)  return true;
-        else if (n == a.n) {
-	    for (unsigned int i = 0; i < D; i++) {
-                if (L[i] < a.L[i]) return true;
-                else if (L[i] > a.L[i]) return false;
-            }
-            return false;
-        }
-        else return false;
-    };
-*/
 
     void print() const {
 	std::cout << "n = " << n << ", (";
@@ -400,7 +382,6 @@ struct Tree {
 
 
 
-//template <unsigned int D, typename KeyD >
 template <unsigned int D>
 class MyProcmap {
 private:
@@ -440,7 +421,6 @@ public:
     };
 
     ProcessID operator()(const KeyD& key) const {
-        //return madness::hash(key)%2;
 	if (whichmap == 0)
 	    return owner;
 	else
@@ -449,16 +429,9 @@ public:
 
 };
 
-/*
-typedef Key<2> KeyD;
-typedef LBNode<NodeData,2> NodeD;
-typedef DistributedContainer< KeyD,NodeD,MyProcmap<KeyD> > treeT;
-*/
-
 
 template <unsigned int D>
 void build_tree(typename DClass<D>::treeT& tree, typename DClass<D>::KeyDConst& key);
-
 
 template <unsigned int D>
 void print_tree(typename DClass<D>::treeT& tree, typename DClass<D>::KeyDConst& key);
@@ -478,8 +451,9 @@ Cost fixCost(typename DClass<D>::treeT tree, typename DClass<D>::KeyD key);
 Cost computePartitionSize(Cost cost, unsigned int parts);
 
 template <unsigned int D>
-Cost makePartition(typename DClass<D>::treeT tree, typename DClass<D>::KeyD key, vector<typename DClass<D>::KeyD >* klist, 
-	Cost partitionSize, bool lastPartition, Cost usedUp, bool *atleaf);
+Cost makePartition(typename DClass<D>::treeT tree, typename DClass<D>::KeyD key, 
+	vector<typename DClass<D>::KeyD >* klist, Cost partitionSize, bool lastPartition, 
+	Cost usedUp, bool *atleaf);
 
 template <unsigned int D>
 Cost depthFirstPartition(typename DClass<D>::treeT tree, typename DClass<D>::KeyD key, 
@@ -495,18 +469,10 @@ void findBestPartition(typename DClass<D>::treeT tree, typename DClass<D>::KeyD 
 	vector<typename DClass<D>::TreeCoords>* klist, unsigned int npieces);
 
 template <unsigned int D>
-void migrate_data(typename DClass<D>::treeT tfrom, typename DClass<D>::treeT tto, typename DClass<D>::KeyD key);
+void migrate_data(typename DClass<D>::treeT tfrom, typename DClass<D>::treeT tto, 
+	typename DClass<D>::KeyD key);
 
 template <unsigned int D>
 void migrate(typename DClass<D>::treeT tfrom, typename DClass<D>::treeT tto); 
-
-// convert tree from templated form to tree to be used for load balancing
-/*
-template <typename Q, unsigned int N>
-void convert_node(DistributedContainer<KeyD,Node<Q,N>,MyProcmap<KeyD> > orig, treeT skel, KeyD key);
-
-template <typename Q, unsigned int N>
-void convert_tree(DistributedContainer<KeyD,Node<Q,N>,MyProcmap<KeyD> > orig, treeT skel);
-*/
 
 }
