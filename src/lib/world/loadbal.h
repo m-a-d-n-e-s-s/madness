@@ -36,11 +36,10 @@ template <typename Data, unsigned int D>
 class LBNode {
 private:
     Data data;
-    std::vector<bool> c;
+    Array<bool,D> c;
 
     void nochildren() {
-        c.clear();
-        c.assign(dim, false);
+        c = Array<bool,D>(false);
     };
 
 public:
@@ -54,26 +53,6 @@ public:
 	nochildren();
     };
 
-    unsigned int compute_index(vector<unsigned int> v) {
-	unsigned int vlen = v.size();
-	unsigned int index = 0, twoD = 1;
-	for (unsigned int i = vlen-1; i >= 0; i--) {
-	    index+= (twoD*v[i]);
-	    twoD*=2;
-	}
-	return index;
-    };
-	
-    unsigned int compute_index(vector<int> v) {
-	unsigned int vlen = v.size();
-	unsigned int index = 0, twoD = 1;
-	for (unsigned int i = vlen-1; i >= 0; i--) {
-	    index+= (twoD*v[i]);
-	    twoD*=2;
-	}
-	return index;
-    };
-	
     bool has_children() const {
 	for (unsigned int i = 0; i < dim; i++)
 	    if (c[i]) return true;
@@ -88,16 +67,8 @@ public:
 	return c[i];
     };
 
-    bool has_child(vector<int> vi) const {
-	return c[compute_index(vi)];
-    };
-
     void set_child(int i, bool setto = true) {
 	c[i] = setto;
-    };
-    
-    void set_child(vector<int> vi, bool setto = true) {
-	c[compute_index(vi)] = setto;
     };
     
     void set_data(Data d) {
@@ -108,7 +79,7 @@ public:
 	return data;
     };
 
-    vector<bool> get_c() const {
+    Array<bool,D> get_c() const {
 	return c;
     };
 
