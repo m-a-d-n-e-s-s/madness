@@ -1,5 +1,7 @@
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
+//#ifndef LOADBAL_H
 #include <world/loadbal.h>
+//#endif
 
 using namespace madness;
 using namespace std;
@@ -15,25 +17,21 @@ int main(int argc, char** argv) {
     MPI::Init(argc, argv);
     World world(MPI::COMM_WORLD);
     redirectio(world);
-    xterm_debug("world", 0);
+//    xterm_debug("world", 0);
     ProcessID me = world.rank();
 
 
     try {
+	Array<unsigned long,2> k0, k1, k2;
+	k0[0] = 0; k0[1] = 0;
+	k1[0] = 0; k1[1] = 1;
+	k2[0] = 1; k2[1] = 1;
 	vector<DClass<2>::TreeCoords> v;
-	v.push_back(DClass<2>::TreeCoords(DClass<2>::KeyD(0,0,0),0));
-	v.push_back(DClass<2>::TreeCoords(DClass<2>::KeyD(1,0,1),1));
-	v.push_back(DClass<2>::TreeCoords(DClass<2>::KeyD(1,1,1),1));
-/*
-	v.push_back(TreeCoordsD(KeyD(1,0,1),2));
-	v.push_back(TreeCoordsD(KeyD(0,0,0),6));
-	v.push_back(TreeCoordsD(KeyD(1,1,0),4));
-	v.push_back(TreeCoordsD(KeyD(1,0,0),1));
-	v.push_back(TreeCoordsD(KeyD(2,2,2),5));
-	v.push_back(TreeCoordsD(KeyD(2,1,0),0));
-	v.push_back(TreeCoordsD(KeyD(2,2,0),3));
-*/
-	DClass<2>::KeyD root(0,0,0);
+	v.push_back(DClass<2>::TreeCoords(DClass<2>::KeyD(0,k0),0));
+	v.push_back(DClass<2>::TreeCoords(DClass<2>::KeyD(1,k1),1));
+	v.push_back(DClass<2>::TreeCoords(DClass<2>::KeyD(1,k2),1));
+
+	DClass<2>::KeyD root(0,k0);
 	DClass<2>::treeT tree(world,DClass<2>::MyProcMap(v));
 //	treeT tree(world,MyProcmapD(1));
 	print("Made tree");
@@ -43,7 +41,6 @@ int main(int argc, char** argv) {
 	    print("About to build tree");
 	    build_tree<2>(tree,root);
 	    print("About to convert to tree1");
-//	    convert_tree<NodeData,2>(tree,tree1);
 	    migrate<2>(tree,tree1);
 	    print("built tree1");
 //	    print_tree<2>(tree1,root);

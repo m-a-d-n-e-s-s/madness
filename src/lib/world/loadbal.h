@@ -1,6 +1,9 @@
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
-#include <world/world.h>
+#ifndef LOADBAL_H
+#define LOADBAL_H
 
+#include <world/world.h>
+#include <mra/key.h>
 //using namespace madness;
 using namespace std;
 
@@ -105,6 +108,10 @@ public:
 	return data;
     };
 
+    vector<bool> get_c() const {
+	return c;
+    };
+
     template <typename Archive>
     void serialize(const Archive& ar) {
 	ar & data & c;
@@ -113,10 +120,24 @@ public:
 
 
 template <typename Data, unsigned int D>
+std::ostream& operator<<(std::ostream& s, const LBNode<Data, D>& node) {
+    s << "data = " << node.get_data() << ", c = " << node.get_c();
+    return s;
+};
+
+template <unsigned int D>
+std::ostream& operator<<(std::ostream& s, typename DClass<D>::NodeDConst& node) {
+    s << "data = " << node.get_data() << ", c = " << node.get_c();
+    return s;
+};
+
+
+template <typename Data, unsigned int D>
 unsigned int LBNode<Data,D>::dim = (unsigned int) pow(2.0, (int) D);
 
 
 class NodeData {
+    friend std::ostream& operator<<(std::ostream& s, const NodeData& nd);
 public:
     int cost;
     int subcost;
@@ -128,9 +149,18 @@ public:
     };
     void print() {
 	cout << "cost = " << cost << ", subcost = " << subcost << ", istaken = " << istaken << endl;
-    }
+    };
 };
 
+
+inline std::ostream& operator<<(std::ostream& s, const NodeData& nd) {
+    s << "cost " << nd.cost << ", subcost " << nd.subcost << ", istaken " << nd.istaken;
+    return s;
+};
+
+
+
+/*
 template <unsigned int D>
 class Key {
 public:
@@ -303,6 +333,7 @@ public:
 	ar & n & L & hashval;
     }
 };
+*/
 
 
 template <unsigned int D>
@@ -314,8 +345,7 @@ struct TreeCoords {
     TreeCoords(const TreeCoords& t) : key(Key<D>(t.key)), owner(t.owner) {};
     TreeCoords() : key(Key<D>()), owner(-1) {};
     void print() const {
-	key.print();
-	std::cout << "    owner = " << owner << std::endl;
+	madness::print(key, "   owner =", owner);
     };
 
     bool operator< (const TreeCoords t) const {
@@ -348,7 +378,8 @@ struct Tree {
     };
 
     bool isForeparentOf(Key<D> key) const {
-	return (this->data.key.isParentOf(key));
+//	return (this->data.key.isParentOf(key));
+	return (this->data.key.is_parent_of(key));
     };
 
     void findOwner(const Key<D> key, ProcessID *ow) const {
@@ -368,11 +399,27 @@ struct Tree {
 	    for (int i = 0; i < csize; i++) {
 		if (children[i]->isForeparentOf(v[j].key)) {
 		    success = children[i]->fill(v, j);
-		    
 		}
 	    }
 	    if (!success) {
 		this->insertChild(v[j]);
+		success = true;
+	    }
+	}
+	return success;
+    };
+
+    bool fill(TreeCoords<D> node) {
+	bool success = false;
+	if (this->isForeparentOf(node.key)) {
+	    int csize = children.size();
+	    for (int i = 0; i < csize; i++) {
+		if (children[i]->isForeparentOf(node.key)) {
+		    success = children[i]->fill(node);
+		}
+	    }
+	    if (!success) {
+		this->insertChild(node);
 		success = true;
 	    }
 	}
@@ -406,7 +453,8 @@ private:
 
 	treeMap = Tree<D>(v[vlen-1]);
 	for (int j = vlen-2; j >= 0; j--) {
-	    treeMap.fill(v, j);
+//	    treeMap.fill(v, j);
+	    treeMap.fill(v[j]);
 	}
     };
 	
@@ -476,3 +524,5 @@ template <unsigned int D>
 void migrate(typename DClass<D>::treeT tfrom, typename DClass<D>::treeT tto); 
 
 }
+
+#endif
