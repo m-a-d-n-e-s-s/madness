@@ -5,8 +5,9 @@
 /// \brief Defines TaskInterface and implements WorldTaskQueue and associated stuff.
 
 // To do:
-// a) Arrays/vectors of input futures for multiple dependencies
-// b) 
+// a) Redo this ontop of serializable tasks which will remote much of the clutter 
+//    due to multiple length argument lists.
+// b) Stealing which pretty much presume a) has been done
 
 namespace madness {
 
@@ -19,8 +20,6 @@ namespace madness {
     class TaskInterface : public DependencyInterface{
         friend class WorldTaskQueue;
     private:
-        bool hp;                //< True if high-priority (managed by taskq)
-
         class TaskReadyCallback : public CallbackInterface {
             WorldTaskQueue* taskq;
             TaskInterface* task;
@@ -41,7 +40,6 @@ namespace madness {
         /// Create a new task with ndepend dependencies (default 0)
         TaskInterface(int ndepend=0) 
             : DependencyInterface(ndepend)
-            , hp(false)
             {};
 
 
@@ -68,8 +66,8 @@ namespace madness {
     ///
     /// The pending q for tasks that need probing to have their dependencies
     /// make progress has been removed.  It can be added back.  Similarly,
-    /// rather than having a separate ready q for hp tasks, we now just add
-    /// them at the front of the ready q.  Think KISS.
+    /// rather keeping track of high-priority tasks we presently have 
+    /// only one priority (if it is urgent, send an active message instead).
     class WorldTaskQueue : private NO_DEFAULTS {
         friend class TaskInterface;
     private:
@@ -82,6 +80,7 @@ namespace madness {
         long nregistered;  //< Counts registered tasks with simple dependencies
         const ProcessID me;
         int suspended;      //< If non-zero, task processing is suspended
+        long maxinq;        //< Maximum number of enqueued tasks
 
     public:
         WorldTaskQueue(World& world, int maxfiber=1) 
@@ -89,7 +88,34 @@ namespace madness {
             , maxfiber(maxfiber)
             , nregistered(0)
             , me(world.mpi.rank())
-            , suspended(0) {};
+            , suspended(0) 
+            , max_pending(100000)
+        {};
+
+        /// Returns the number of ready tasks 
+        long nready() const {
+            return ready.size();
+        };
+
+        /// Returns the number of pending (not-ready) tasks
+        long npending() const {
+            return nregistered;
+        };
+
+        /// Returns the total number of enqueued tasks (ready + not ready)
+        long size() const {
+            return nready() + npending();
+        };
+
+        /// Returns the maximum number of enqueued tasks before forced task execution
+        long max_enqueued() const {
+            return maxinq;
+        };
+        
+        /// Sets the maximum number of enqueued tasks before forced task execution
+        void set_max_enqueued(long value) {
+            maxinq = value;
+        };
         
         /// Add a new local task.  The task queue will eventually delete it.
 
@@ -110,8 +136,7 @@ namespace madness {
         /// to zero the callback will be invoked automatically to
         /// insert the task into the ready queue.  All that will be
         /// done here is registering the callback
-        inline void add(TaskInterface* t, bool hp = false) {
-            t->hp = hp;
+        inline void add(TaskInterface* t) {
             nregistered++;
             if (t->probe()) add_ready_task(t);
             else t->callback.register_callback(this,t);
@@ -438,8 +463,7 @@ namespace madness {
         
         /// Private:  Call back for tasks that have satisfied their dependencies.
         inline void add_ready_task(TaskInterface* t) {
-            if (t->hp) ready.push_front(t);
-            else ready.push_back(t);
+            ready.push_back(t);
             nregistered--;
             MADNESS_ASSERT(nregistered>=0);
         };
@@ -714,7 +738,7 @@ namespace madness {
 
         static void handler(World& world, ProcessID src, const AmArg& arg) {
             TaskHandlerInfo<refT,functionT> info = arg;
-            world.taskq.add(new TaskFunction<functionT>(futureT(info.ref),info.func),true);
+            world.taskq.add(new TaskFunction<functionT>(futureT(info.ref),info.func));
         };
 
         static void sender(World& world, ProcessID dest, Future<resultT>& result, functionT func) {
@@ -742,7 +766,7 @@ namespace madness {
             TaskHandlerInfo<refT,functionT> info;
             arg1T arg1;
             arg->unstuff(nbyte, info, arg1);
-            world.taskq.add(new TaskFunction<functionT>(futureT(info.ref),info.func,arg1),true);
+            world.taskq.add(new TaskFunction<functionT>(futureT(info.ref),info.func,arg1));
         };
 
         template <typename a1T>
@@ -785,7 +809,7 @@ namespace madness {
             arg1T arg1;
             arg2T arg2;
             arg->unstuff(nbyte, info, arg1, arg2);
-            world.taskq.add(new TaskFunction<functionT>(futureT(info.ref),info.func,arg1,arg2),true);
+            world.taskq.add(new TaskFunction<functionT>(futureT(info.ref),info.func,arg1,arg2));
         };
 
         template <typename a1T, typename a2T>
@@ -832,7 +856,7 @@ namespace madness {
             arg2T arg2;
             arg3T arg3;
             arg->unstuff(nbyte, info, arg1, arg2, arg3);
-            world.taskq.add(new TaskFunction<functionT>(futureT(info.ref),info.func,arg1,arg2,arg3),true);
+            world.taskq.add(new TaskFunction<functionT>(futureT(info.ref),info.func,arg1,arg2,arg3));
         };
 
         template <typename a1T, typename a2T, typename a3T>
@@ -883,7 +907,7 @@ namespace madness {
             arg3T arg3;
             arg4T arg4;
             arg->unstuff(nbyte, info, arg1, arg2, arg3, arg4);
-            world.taskq.add(new TaskFunction<functionT>(futureT(info.ref),info.func,arg1,arg2,arg3,arg4),true);
+            world.taskq.add(new TaskFunction<functionT>(futureT(info.ref),info.func,arg1,arg2,arg3,arg4));
         };
 
         template <typename a1T, typename a2T, typename a3T, typename a4T>
@@ -938,7 +962,7 @@ namespace madness {
             arg4T arg4;
             arg5T arg5;
             arg->unstuff(nbyte, info, arg1, arg2, arg3, arg4, arg5);
-            world.taskq.add(new TaskFunction<functionT>(futureT(info.ref),info.func,arg1,arg2,arg3,arg4,arg5),true);
+            world.taskq.add(new TaskFunction<functionT>(futureT(info.ref),info.func,arg1,arg2,arg3,arg4,arg5));
         };
 
         template <typename a1T, typename a2T, typename a3T, typename a4T, typename a5T>
@@ -996,7 +1020,7 @@ namespace madness {
             arg5T arg5;
             arg6T arg6;
             arg->unstuff(nbyte, info, arg1, arg2, arg3, arg4, arg5, arg6);
-            world.taskq.add(new TaskFunction<functionT>(futureT(info.ref),info.func,arg1,arg2,arg3,arg4,arg5,arg6),true);
+            world.taskq.add(new TaskFunction<functionT>(futureT(info.ref),info.func,arg1,arg2,arg3,arg4,arg5,arg6));
         };
 
         template <typename a1T, typename a2T, typename a3T, typename a4T, typename a5T, typename a6T>
@@ -1059,7 +1083,7 @@ namespace madness {
             arg6T arg6;
             arg7T arg7;
             arg->unstuff(nbyte, info, arg1, arg2, arg3, arg4, arg5, arg6, arg7);
-            world.taskq.add(new TaskFunction<functionT>(futureT(info.ref),info.func,arg1,arg2,arg3,arg4,arg5,arg6,arg7),true);
+            world.taskq.add(new TaskFunction<functionT>(futureT(info.ref),info.func,arg1,arg2,arg3,arg4,arg5,arg6,arg7));
         };
 
         template <typename a1T, typename a2T, typename a3T, typename a4T, typename a5T, typename a6T, typename a7T>

@@ -13,16 +13,9 @@ It includes
  - Distributed sparse containers with one-sided access to items,
    transparent remote method invocation, an owner-computes task model,
    and optional user control over placement/distribution.
- - Distributed objects which may be globally addressed.
- - Futures to facilitate composition of latency tolerant
+ - Distributed objects that can be globally addressed.
+ - Futures (results of unevaluated expressions) for composition of latency tolerant
    algorithms and expression of depenencies between tasks.
- - Active messages to processes, items in a container, and
-   distributed objects, currently via polling on MPI but ports to GPC,
-   GASNET, and vendor provided libraries are planned.
- - User-space threading or continuations to eliminate the need for explicit
-   continuations or use of Futures when composing 
-   latency tolerant algorithms (coming).
- - Kernel-space threading for use of multi-core processors (coming).
  - Globally accessible task queues in each process which 
    can be used individually or collectively to provide a single global
    task queue.
@@ -31,6 +24,12 @@ It includes
  - Integration with MPI
  - Optional integration with Global Arrays (J. Nieplocha, 
    http://www.emsl.pnl.gov/docs/global).
+ - Active messages to items in a container, distributed objects, 
+   and processes (currently via polling on MPI but ports to GPC,
+   GASNET, and vendor provided libraries are planned).
+ - User-space threading or continuations to eliminate the need for explicit
+   continuations or use of Futures when composing latency tolerant algorithms (coming).
+ - Kernel-space threading for use of multi-core processors (coming).
 
 \section Motivations and attributions
 
@@ -41,8 +40,7 @@ There were several motivations for developing this environment.
     virtualize or even hide the concept of process.  
     The success of applications using the 
     Charm++ environment to scale raplidy to 30+K processes and the enormous effort
-    required to scale most process-centric applications are the central examples
-    here.  
+    required to scale most process-centric applications are the central examples.
  -# The arrival of multi-core processes and the associated needs of
     expressing much more concurrency and adopting techniques for
     latency hiding motivates the use of light weight work queues to
@@ -70,9 +68,9 @@ and the amazingly talented teams and individuals developing these.
 
 \section Introduction
 
-All information about and all functionality of the parallel
-environment is accessed through an instance of the class
-World which is instantiated by wrapping an MPI communicator.
+The entire parallel
+environment is encapsulated in an instance of the class
+\class World which is instantiated by wrapping an MPI communicator.
 Multiple worlds may exist, overlap, or be dynamically created
 and destroyed.
 
@@ -98,10 +96,11 @@ scheduling/placement of computation can be delgated to the container
 and task queue, unless there are spefic performance concerns in which
 case the application can have full knowledge and control of these.
 
-Items in a container may be accessed pretty much as if in a standard
-STL container, but accessors instead return a Future<item_type>, which is
-a container for the result of a possibly unevaluated expression.  If the
-requested item is local, the result is immediately available.
+Items in a container may be accessed largely if in a standard
+STL container, but instead of returning an iterator, accessors instead return a Future<iterator>.
+A future is a container for the result of a possibly unevaluated expression.  In the 
+case of an accessor, if the
+requested item is local then the result is immediately available.
 However, if the item is remote, it may take some time before the data
 is made available locally.  You could immediately try to use the
 future, which would work but with the downside of internally waiting
@@ -111,7 +110,8 @@ ready.
 
 Aside:
   - To avoid a potentially unbounded nested invocation
-    of tasks which could overflow the stack, new tasks
+    of tasks which could overflow the stack and also be the source
+    of live/deadlocks, new tasks
     are not presently started while blocking for communication.
     This will be relaxed in the near future which will reduce
     the negative impact of blocking for an unready future as long
@@ -122,7 +122,7 @@ Aside:
 
 By far the best way to compute with futures is to pass them as
 arguments to a new task.  Once the futures are ready, the task will be
-automatically scheduled as ready for execution.  Tasks that produce a
+automatically scheduled for execution.  Tasks that produce a
 result also return it as a future, so this same mechanism may be used
 to express dependencies between tasks.
 
@@ -135,11 +135,12 @@ recursively (depth or breadth first) traversing the tree and
 generating new tasks for each node.  These in turn generate more tasks
 on their sub-trees.
 
-The \c World.am member provides active message functionality, which is
+The \c World.am member provides inter-process active message functionality, which is
 the foundation on which everything else is built.  We do not recommend
-that applications make routine or direct use of active messages.
-Instead, try to compose applications using distributed containers, the
-task queue(s), and messaging between objects in containers.
+that applications make routine or direct use of inter-process active messages.
+Instead, try to compose applications using messaging 
+to/between items in distributed containers and the local
+task queue(s).
 
 The \c World.mpi member is the preferred way to use MPI since it has a growing
 amount of instrumentation and debugging capability, though MPI
@@ -149,24 +150,77 @@ since it is the portable standard for communication and to facilitate
 integration with legacy applications.
 
 The \c World.ga member provides access to the capabilities of the
-Global Array library (this is still being developed).
+Global Array library (this is still unfolding).
+
+The execution model is sequentially consistent.  That is, 
+from the perspective of a single thread of execution, operations 
+on the same local/remote object behave as if executed sequentially
+in the same order as programmed.   This means that performing
+a read after a write/modify returns the modified value, as expected.
+Such behavior applies only to the view of a single thread --- 
+the execution of multiple threads and active messages from different
+threads may be interleaved arbitrarily.
+
+Creating, executing, and reaping a local task with a single dependency
+presently incurs about 1us overhead, which we believe can be redcued
+to below 300ns (3 GHz Core2).  Creating a remote task adds the
+overhead of interprocess communication which is on the scale of 1-3us
+(Cray XT).  Note that this is not the actual wall-time latency since
+everything is presently performed using asynchronous messaging and
+polling via MPI.  The wall-time latency, which is largely irrelevant
+to the application if it has expressed enough parallelism, is mostly
+determined by the polling interval which is dynamically adjusted
+depending upon the amount of local work available to reduce the
+overhead from polling.  We can improve the runtime through better
+agregation of messages and deeper message queues to reduce the
+overhead of remote task creation to essentially that of a local task.
+
+Thus, circa 1us defines the ganularity above which it is worth
+considering encapsulating work (c.f., Hockney's n1/2).  However, this
+is just considering the balance between overhead incurred v.s. useful
+work performed.  The automatic scheduling of tasks dependent upon
+future arguments confers many benefits, including
+ - hiding the wall-time latency of remote data access,
+ - removing from the programmer the burden of correct scheduling
+   of dependent tasks, 
+ - expressing all parallelism at all scales of the algorithm 
+   for facile scaling to heavily multi-core architectures and
+   massively parallel computers, and
+ - virtualizing the system resources for maximum 
+   future portability and scalability.
+
+Available memory limits the number of tasks that can be generated
+before any are consumed.  In addition to application specific data,
+each task consumes circa 64 bytes on a 64-bit computer.  Thus, a few
+hundred thousand outstanding tasks per processor are eminently
+feasible even on the IBM BG/L.  Rather than making the application
+entirely responsible for throttling it's own task production (which it
+can), if the system exceeds more than a user-settable number of
+outstanding tasks, it starts to run ready tasks before accepting new
+tasks.  The success of this strategy presupposes that there are ready
+tasks and that these tasks on average produce less than one new task
+with unsatisfied dependencies per task run.  Ultimately, similar to
+the Cilk execution model, safe algorithms (in the same sense as safe
+MPI programs) must express tasks so that dependencies can be satisfied
+without unreasonable expectation of buffering.
+
+In a multiscale approach to parallelism, coarse gain tasks are
+first enqueued, and these generate finer-grain tasks, which 
+in turn generate finer and finer grain work.   [Expand this discussion
+and include examples along with work stealing discussion]
 
 Discussion points to add
- -# Sequential memory consistency (read/write ordering)
- -# Sequential execution consistency (also, bounded buffer problem)
- -# Throttling task production (bounded buffer problem)
- -# Multiscale approach to task production
- -# Virtualization of resources
- -# Task stealing
- -# Controlling distribution in containers
- -# Caching in containers
- -# Computing with continuations (user space fibers)
  -# Why arguments to tasks and AM via DC or taskQ are passed
     by value or by const-ref (for remote operations this
     should be clear; for local operations it is to enable
     tasks to be stealable).  Is there a way to circumvent it? Poiners.
+ -# Virtualization of other resources
+ -# Task stealing
+ -# Controlling distribution in containers
+ -# Caching in containers
+ -# Computing with continuations (user space fibers)
 
-    \section Distributed Containers (\class WorldContainer)
+\section Distributed Containers (\class WorldContainer)
 
 The only currently provided containers are associative arrays or maps
 that are almost directly equivalent to the STL map or the GNU
