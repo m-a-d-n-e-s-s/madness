@@ -89,7 +89,7 @@ namespace madness {
             , nregistered(0)
             , me(world.mpi.rank())
             , suspended(0) 
-            , max_pending(100000)
+            , maxinq(100000)
         {};
 
         /// Returns the number of ready tasks 

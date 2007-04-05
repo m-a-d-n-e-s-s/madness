@@ -13,7 +13,7 @@ typedef int Cost;
 typedef double CompCost;
 
 template <typename Data, unsigned int D> class LBNode;
-template <unsigned int D> class Key;
+    //template <unsigned int D> class Key;
 template <unsigned int D> struct TreeCoords;
 template <unsigned int D> struct Tree;
 template <unsigned int D> class MyProcmap;

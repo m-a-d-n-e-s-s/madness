@@ -10,7 +10,7 @@ TARGET_TO_MAKE = libMADworld
 
 # List all C++ source files (not headers).  Use CSRC and FTNSRC for
 # C (.c) and Fortran (.f) respectively
-CXXSRC = worldstuff.cc redirectio.cc archive_type_names.cc debug.cc loadbal.cc
+CXXSRC = worldstuff.cc redirectio.cc archive_type_names.cc debug.cc
 CSRC = lookup3.c
          
 # Data files that should be installed with the library [OPTIONAL]
@@ -23,7 +23,7 @@ TESTPROGS = world hqi
 TEST1SRC = world.cc
 TEST2SRC = hqi.cc
 TEST3SRC = testar.cc
-TEST4SRC = hqi2.cc 
+TEST4SRC = hqi2.cc  loadbal.cc
          
 # GlobalMakefile now does most of the work for you
 include $(TOPDIR)/config/GlobalMakefile
