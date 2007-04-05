@@ -12,6 +12,34 @@ namespace madness {
 typedef int Cost;
 typedef double CompCost;
 
+template <unsigned int D>
+inline unsigned int power(int base = 2) {
+    return (unsigned int) pow((double) base, (int) D);
+};
+
+template <>
+inline unsigned int power<2>(int base) {
+    return (unsigned int) (base*base);
+};
+
+template <>
+inline unsigned int power<3>(int base) {
+    return (unsigned int) (base*base*base);
+};
+
+template <>
+inline unsigned int power<4>(int base) {
+    unsigned int tmp = power<2>(base);
+    return power<2>((int) tmp);
+};
+
+template <>
+inline unsigned int power<6>(int base) {
+    unsigned int tmp = power<3>(base);
+    return power<2>((int) tmp);
+};
+
+
 template <typename Data, unsigned int D> class LBNode;
     //template <unsigned int D> class Key;
 template <unsigned int D> struct TreeCoords;
@@ -54,26 +82,6 @@ public:
 	nochildren();
     };
 
-    unsigned int compute_index(vector<unsigned int> v) {
-	unsigned int vlen = v.size();
-	unsigned int index = 0, twoD = 1;
-	for (unsigned int i = vlen-1; i >= 0; i--) {
-	    index+= (twoD*v[i]);
-	    twoD*=2;
-	}
-	return index;
-    };
-	
-    unsigned int compute_index(vector<int> v) {
-	unsigned int vlen = v.size();
-	unsigned int index = 0, twoD = 1;
-	for (unsigned int i = vlen-1; i >= 0; i--) {
-	    index+= (twoD*v[i]);
-	    twoD*=2;
-	}
-	return index;
-    };
-	
     bool has_children() const {
 	for (unsigned int i = 0; i < dim; i++)
 	    if (c[i]) return true;
@@ -88,16 +96,8 @@ public:
 	return c[i];
     };
 
-    bool has_child(vector<int> vi) const {
-	return c[compute_index(vi)];
-    };
-
     void set_child(int i, bool setto = true) {
 	c[i] = setto;
-    };
-    
-    void set_child(vector<int> vi, bool setto = true) {
-	c[compute_index(vi)] = setto;
     };
     
     void set_data(Data d) {
@@ -133,7 +133,7 @@ std::ostream& operator<<(std::ostream& s, typename DClass<D>::NodeDConst& node) 
 
 
 template <typename Data, unsigned int D>
-unsigned int LBNode<Data,D>::dim = (unsigned int) pow(2.0, (int) D);
+unsigned int LBNode<Data,D>::dim = power<D>();
 
 
 class NodeData {
