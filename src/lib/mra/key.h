@@ -132,7 +132,7 @@ namespace madness {
 
         template <typename Archive>
         inline void serialize(Archive& ar) {
-            ar & archive::wrap((unsigned char*) this, sizeof(this));
+            ar & archive::wrap((unsigned char*) this, sizeof(*this));
         }
 
         Level level() const {
@@ -160,12 +160,12 @@ namespace madness {
         };
 
 	bool is_child_of(const Key key) const {
-	    if (*this == key) {
-		return true; // I am child of myself
-	    }
-	    else if (this->n <= key.n) {
+            if (this->n < key.n) {
             	return false; // I can't be child of something lower on the tree
             }
+	    else if (this->n == key.n) {
+                return (*this == key); // I am child of myself
+	    }
             else {
             	Level dn = this->n - key.n;
             	Key mama = this->parent(dn);
