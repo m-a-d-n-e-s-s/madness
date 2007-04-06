@@ -17,7 +17,7 @@ int main(int argc, char** argv) {
     MPI::Init(argc, argv);
     World world(MPI::COMM_WORLD);
     redirectio(world);
-//    xterm_debug("world", 0);
+    //xterm_debug("hqi2", 0);
     ProcessID me = world.rank();
 
 

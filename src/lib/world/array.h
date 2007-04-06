@@ -8,13 +8,9 @@ namespace madness {
 
     /// A simple, fixed dimension array 
 
-    /// Like a vector, but better!  More functionality, eliminates
-    /// memory allocation cost, is just POD so can be copied easily
-    /// and allocated on the stack, and the known dimension permits
-    /// agressive compiler optimizations.
-    ///
-    /// Presently assumes contents are number like things but
-    /// this would best be moved out to be a specialization.
+    /// Eliminates memory allocation cost, is just POD so can be
+    /// copied easily and allocated on the stack, and the known
+    /// dimension permits agressive compiler optimizations.
     template <typename T, std::size_t N>
     class Array {
     private:
@@ -36,9 +32,9 @@ namespace madness {
             for (std::size_t i=0; i<N; i++) v[i] = t[i];
         };
 
-        /// Construct from an STL vector of the same dimension
+        /// Construct from an STL vector of equal or greater length
         Array(const std::vector<T> t) {
-            MADNESS_ASSERT(t.size() == N);
+            MADNESS_ASSERT(t.size() >= N);
             for (std::size_t i=0; i<N; i++) v[i] = t[i];
         };
         
@@ -161,15 +157,6 @@ namespace madness {
             return r;
         };
 
-        /// Unary negation
-        template <typename Q>
-        Array<T,N> operator-() const {
-            Array<T,N> r;
-            for (std::size_t i=0; i<N; i++) r[i] = -v[i];
-            return r;
-        };
-
-
         /// STL iterator support
         iterator begin() {
             return v;
@@ -199,6 +186,7 @@ namespace madness {
         template <typename Archive>
         void serialize(Archive& ar) {
             ar & v;
+            print("Array after (de)serialize",*this);
         };
 
         /// Support for MADNESS hashing
