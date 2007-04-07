@@ -49,12 +49,16 @@ function isgcc4() {
     contains "`$CXX -v 2>&1`" "gcc version 4"
 }
 
-function isgccx8664() {
-    contains "`$CXX -v 2>&1`" "x86_64"
+function isx8664() {
+    contains "`uname -a 2>&1`" "x86_64"
 }
 
-function isgccx86() {
-    contains "`$CXX -v 2>&1`" "86"
+function isx8632() {
+    contains "`uname -a 2>&1`" "i686"
+}
+
+function ispathscale() {
+    contains "`$CXX -v 2>&1`" "PathScale"
 }
 
 # Assume MPICH-like interface if not CXX is not set
@@ -79,14 +83,16 @@ if [ "$MADFINT" == "" ] ; then
     MADFINT="--with-fortran-integer=int"
 fi
 
-# Tweaks for gcc 
-if isgcc ; then
-    if isgccx8664 ; then
-        MADDEF="$MADDEF -DX8664"
-    elif isgccx86 ; then
-        MADDEF="$MADDEF -DX8632"
+# Pathscale test must be before gcc test
+if ispathscale ; then
+    if [ "$MADCOPT" == "" ] ; then
+        if using debug ; then
+            MADCOPT="-g -O0 -Wall"
+        else
+            MADCOPT="-Wall"
+        fi
     fi
-
+elif isgcc ; then
     if isgcc4 ; then
         MADARCH=-march=native
     else
@@ -96,13 +102,20 @@ if isgcc ; then
     if [ "$MADCOPT" == "" ] ; then
         if using debug ; then
             MADCOPT="-Wall -ansi -O0 -g $MADARCH"
-        elif isgccx8664 ; then
+        elif isx8664 ; then
             MADCOPT="-Wall -ansi -O3 -ffast-math -fomit-frame-pointer -funroll-loops -mfpmath=sse -msse2 -m64 $MADARCH"
-        elif isgccx86 ; then
+        elif isx8632 ; then
             MADCOPT="-Wall -ansi -O3 -ffast-math -fomit-frame-pointer -funroll-loops -mfpmath=sse -msse2 -malign_double $MADARCH"
         fi
     fi
 fi
+
+if isx8664 ; then
+    MADDEF="$MADDEF -DX8664"
+elif isx8632 ; then
+    MADDEF="$MADDEF -DX8632"
+fi
+
 
 MADCOPT="$MADCOPT $MADDEF"
 
