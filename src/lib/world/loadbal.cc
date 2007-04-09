@@ -9,75 +9,42 @@ namespace madness {
 typedef int Cost;
 typedef double CompCost;
 
-/*
-template <unsigned int D>
-std::ostream& operator<<(std::ostream& s, typename DClass<D>::NodeDConst& node) {
-    s << "data = " << node.get_data() << ", c = " << node.get_c();
-    return s;
-};
 
-std::ostream& operator<<(std::ostream& s, const NodeData& nd) {
-template <typename Data, unsigned int D>
-std::ostream& operator<<(std::ostream& s, const LBNode<Data, D>& node) {
-    s << "data = " << node.get_data() << ", c = " << node.get_c();
-    return s;
-};
-
-std::ostream& operator<<(std::ostream& s, const NodeData& nd) {
-    s << "cost " << nd.cost << ", subcost " << nd.subcost << ", istaken " << nd.istaken;
-    return s;
-};
-*/
-
-
-template <unsigned int D>
+template <int D>
 void build_tree(typename DClass<D>::treeT& tree, typename DClass<D>::KeyDConst& key) {
     NodeData data(1,1,false);  
     typename DClass<D>::NodeD parent(data);
-    int twotoD = (int) pow(2.0,(int)D);
-    if (key.level() < 2) {
+    int twotoD = (int) power<D>();
+    if (key.level() < 3) {
 	for (int i = 0; i < twotoD; i++) {
 	    parent.set_child(i);
 	}
 	for (KeyChildIterator<D> kit(key); kit; ++kit) {
-	    print("about to build_tree on", kit.key());
 	    build_tree<D>(tree, kit.key());
-	    print("returned from build_tree on", kit.key());
 	}
     }
-/*
-    else if ((key.level() <= 9)&&(key.translation()[0] == key.translation()[1])) {
+//    else if ((key.level() <= 9)&&(key.translation()[0] == key.translation()[1])) {}
+    else if ((key.level() <= 5)&&(key.translation()[0] == key.translation()[1])) {
 	for (int i = 0; i < twotoD; i++) {
 	    parent.set_child(i);
 	}
 	for (KeyChildIterator<D> kit(key); kit; ++kit) {
-	    print("about to build_tree on", kit.key());
 	    build_tree<D>(tree, kit.key());
-	    print("returned from build_tree on", kit.key());
 	}
     }
-*/
-    print("about to insert", key);
     tree.insert(key,parent);
-    print("returned from insert", key);
 }
 
 
-template <unsigned int D>
+template <int D>
 void print_tree(typename DClass<D>::treeT& tree, typename DClass<D>::KeyDConst& key) {
     typename DClass<D>::treeT::iterator it = tree.find(key);
     if (it!=tree.end()) {
 	typename DClass<D>::NodeDConst& node = it->second;
 	NodeData d = node.get_data();
 	for (int i=0; i<(int)key.level(); i++) cout << "   ";
-	print(key.level(),key.translation()[0],key.translation()[1],"owner",tree.owner(key),"cost",d.cost,"subcost", d.subcost);
-
-/*
-	for (int p = 0; p < (int)node.dim; p++) {
-	    typename DClass<D>::KeyD mykey = key.myChild(p);
-	    print_tree<D>(tree, mykey);
-	}
-*/
+//	print(key,"owner",tree.owner(key),d);
+	print(key,"owner",tree.owner(key),node);
 	for (KeyChildIterator<D> kit(key); kit; ++kit) {
 	    print_tree<D>(tree, kit.key());
 	}
@@ -85,19 +52,13 @@ void print_tree(typename DClass<D>::treeT& tree, typename DClass<D>::KeyDConst& 
 }
 
 
-template <unsigned int D>
+template <int D>
 Cost computeCost(typename DClass<D>::treeT& tree, typename DClass<D>::KeyDConst& key) {
     Cost cost = 0;
     typename DClass<D>::treeT::iterator it = tree.find(key);
     if (it == tree.end()) return cost;
 
     typename DClass<D>::NodeD node = it->second;
-/*
-    for (unsigned int i = 0; i < node.dim; i++) {
-	typename DClass<D>::KeyD k = key.myChild(i);
-	cost += computeCost<D>(tree,k);
-    }
-*/
     for (KeyChildIterator<D> kit(key); kit; ++kit) {
 	cost += computeCost<D>(tree,kit.key());
     }
@@ -110,61 +71,27 @@ Cost computeCost(typename DClass<D>::treeT& tree, typename DClass<D>::KeyDConst&
     return cost;
 }
 
-template <unsigned int D>
+
+template <int D>
 void meld(typename DClass<D>::treeT& tree, typename DClass<D>::KeyDConst& key) {
+//    print("meld: at beginning, finding key", key);
     Cost cheapest = 0;
     typename DClass<D>::treeT::iterator it = tree.find(key);
     if (it == tree.end()) return;
-//    cout << "meld: at beginning, key = ";
-//    key.print();
-//    cout << endl;
 
     vector<unsigned int> mylist;
 
     typename DClass<D>::NodeD node = it->second;
-/*
-    for (unsigned int i = 0; i < node.dim; i++)
-    {
-	if (node.has_child(i)) {
-	    typename DClass<D>::KeyD k = key.myChild(i);
-	    typename DClass<D>::treeT::iterator itc = tree.find(k);
-            if (itc == tree.end()) return;
-            typename DClass<D>::NodeD c = itc->second;
-            bool haskids = false;
-            for (unsigned int j = 0; j < c.dim; j++) {
-                if (c.has_child(j)) {
-                    haskids = true;
-                    break;
-                }
-            }
-            if (!haskids) {
-                Cost cost = c.get_data().cost;
-                if ((cost < cheapest) || (cheapest == 0)) {
-                    cheapest = cost;
-                    mylist.clear();
-                    mylist.push_back(i);
-                }
-                else if (cost == cheapest) {
-                    mylist.push_back(i);
-                }
-            }
-	}
-    }
-*/
     unsigned int i = 0;
+//    print("meld: about to iterate over children of key", key);
     for (KeyChildIterator<D> kit(key); kit; ++kit) {
+//    	print("    meld: iterating over child", i);
 	if (node.has_child(i)) {
 	    typename DClass<D>::treeT::iterator itc = tree.find(kit.key());
             if (itc == tree.end()) return;
             typename DClass<D>::NodeD c = itc->second;
-            bool haskids = false;
-            for (unsigned int j = 0; j < c.dim; j++) {
-                if (c.has_child(j)) {
-                    haskids = true;
-                    break;
-                }
-            }
-            if (!haskids) {
+            if (!c.has_children()) {
+//		print("    meld: child",i,"has no children");
                 Cost cost = c.get_data().cost;
                 if ((cost < cheapest) || (cheapest == 0)) {
                     cheapest = cost;
@@ -180,6 +107,7 @@ void meld(typename DClass<D>::treeT& tree, typename DClass<D>::KeyDConst& key) {
     }
 
     if (cheapest == 0) {
+//	print("meld: this node has no leaf children");
 	NodeData d = node.get_data();
 	d.istaken = false;
 	node.set_data(d);
@@ -189,20 +117,14 @@ void meld(typename DClass<D>::treeT& tree, typename DClass<D>::KeyDConst& key) {
 
     NodeData d = node.get_data();
 
-/*
-    for (unsigned int i = 0; i < mylist.size(); i++) {
-        d.cost += cheapest;
-        tree.erase(key.myChild(mylist[i]));
-	node.set_child(mylist[i], false);
-//cout << "meld: set child " << mylist[i] << " to be false" << endl;
-    }
-*/
     i = 0;
     int j = 0, mlsize = mylist.size();
     for (KeyChildIterator<D> kit(key); kit; ++kit) {
 	if (mylist[j] == i) {
+//	    print("meld: found a match, mylist[",j,"] =",i);
 	    tree.erase(kit.key());
 	    node.set_child(mylist[j], false);
+	    d.cost += cheapest;
 	    j++;
 	}
 	i++;
@@ -211,42 +133,43 @@ void meld(typename DClass<D>::treeT& tree, typename DClass<D>::KeyDConst& key) {
     d.istaken = false;
     node.set_data(d);
     tree.insert(key,node);
+//    print("meld: inserted node back into tree; goodbye!");
 }
 
-template <unsigned int D>
+
+template <int D>
 void rollup(typename DClass<D>::treeT tree, typename DClass<D>::KeyD key) {
-//    cout << "rollup: at beginning" << endl;
+//    print("rollup: at beginning");
     typename DClass<D>::treeT::iterator it = tree.find(key);
     if (it == tree.end()) return;
 
-//    cout << "rollup: about to get node associated with key ";
-//    key.print();
-//    cout << endl;
+//    print("rollup: about to get node associated with key",key);
     typename DClass<D>::NodeD node = it->second;
     if (!node.has_children()) {
-//	cout << "rollup: this node has no children; returning" << endl;
+//	print("rollup: this node has no children; returning");
 	return; // no rolling to be done here.
     }
-//    cout << "rollup: this node has children" << endl;
+//    print("rollup: this node has children");
     bool hasleafchild = false;
-/*
-    for (unsigned int i = 0; i < node.dim; i++) {
-	typename DClass<D>::KeyD k = key.myChild(i);
-	typename DClass<D>::treeT::iterator itc = tree.find(k);
+    for (KeyChildIterator<D> kit(key); kit; ++kit) {
+	typename DClass<D>::treeT::iterator itc = tree.find(kit.key());
 	if (itc != tree.end()) {
-//	    print("rollup: found child", k);
+//	    print("rollup: found child", kit.key());
 	    typename DClass<D>::NodeD c = itc->second;
-	    if (c.has_children()) {
-//		print("rollup: child", k, "has children");
-		rollup<D>(tree, k);
+	    if (!c.has_children()) {
+//		print("rollup: child is leaf");
+		hasleafchild = true;
+		break;
 	    }
 	    else {
-//		cout << "rollup: child is leaf" << endl;
-		hasleafchild = true;
+//		print("rollup: child", kit.key(), "has children");
 	    }
 	}
     }
-*/
+    if (hasleafchild) {
+//	print("rollup: about to meld with key",key);
+	meld<D>(tree,key);
+    }
     for (KeyChildIterator<D> kit(key); kit; ++kit) {
 	typename DClass<D>::treeT::iterator itc = tree.find(kit.key());
 	if (itc != tree.end()) {
@@ -256,25 +179,19 @@ void rollup(typename DClass<D>::treeT tree, typename DClass<D>::KeyD key) {
 //		print("rollup: child", kit.key(), "has children");
 		rollup<D>(tree, kit.key());
 	    }
-	    else {
-//		cout << "rollup: child is leaf" << endl;
-		hasleafchild = true;
-	    }
 	}
-    }
-    if (hasleafchild) {
-//	cout << "rollup: about to meld" << endl;
-	meld<D>(tree,key);
     }
     it = tree.find(key);
     node = it->second;
     NodeData d = node.get_data();
-    d.istaken = false;
-    node.set_data(d);
-    tree.insert(key,node);
+    if (d.istaken) {
+    	d.istaken = false;
+    	node.set_data(d);
+    	tree.insert(key,node);
+    }
 }
 
-template <unsigned int D>
+template <int D>
 Cost fixCost(typename DClass<D>::treeT tree, typename DClass<D>::KeyD key) {
 //    cout << "fixCost: key = ";
 //    key.print();
@@ -295,12 +212,6 @@ Cost fixCost(typename DClass<D>::treeT tree, typename DClass<D>::KeyD key) {
     if (node.has_children())
     {
 //	print("fixCost: node has children");
-/*
-	for (unsigned int i = 0; i < node.dim; i++)
-	{
-	    d.subcost += fixCost<D>(tree, key.myChild(i));
-	}
-*/
 	for (KeyChildIterator<D> kit(key); kit; ++kit) {
 	    d.subcost += fixCost<D>(tree, kit.key());
 	}
@@ -320,7 +231,7 @@ Cost computePartitionSize(Cost cost, unsigned int parts) {
 }
 
 
-template <unsigned int D>
+template <int D>
 Cost depthFirstPartition(typename DClass<D>::treeT tree, typename DClass<D>::KeyD key, 
 	vector<typename DClass<D>::TreeCoords>* klist, unsigned int npieces, 
 	Cost totalcost = 0, Cost *maxcost = 0) {
@@ -356,7 +267,7 @@ Cost depthFirstPartition(typename DClass<D>::treeT tree, typename DClass<D>::Key
     return totalcost;
 }
 
-template <unsigned int D>
+template <int D>
 void removeCost(typename DClass<D>::treeT tree, typename DClass<D>::KeyD key, Cost c) {
 //cout << "removeCost: key ";
 //key.print();
@@ -383,7 +294,7 @@ void removeCost(typename DClass<D>::treeT tree, typename DClass<D>::KeyD key, Co
 }
 
 
-template <unsigned int D>
+template <int D>
 Cost makePartition(typename DClass<D>::treeT tree, typename DClass<D>::KeyD key, vector<typename DClass<D>::KeyD>* klist, 
 	Cost partitionSize, bool lastPartition, Cost usedUp, bool *atleaf) {
 //    cout << "at beginning of makePartition: atleaf = ";
@@ -439,7 +350,7 @@ Cost makePartition(typename DClass<D>::treeT tree, typename DClass<D>::KeyD key,
 	    int i = 0;
 	    for (KeyChildIterator<D> kit(key); kit; ++kit) {
 		if (node.has_child(i)) {
-		    print(key, "recursively calling", kit.key());
+//		    print(key, "recursively calling", kit.key());
 		    usedUp = makePartition<D>(tree, kit.key(), klist, partitionSize, lastPartition,
 			usedUp, atleaf);
 		    if ((*atleaf) || (usedUp >= partitionSize)) {
@@ -448,20 +359,6 @@ Cost makePartition(typename DClass<D>::treeT tree, typename DClass<D>::KeyD key,
 		}
 		i++;
 	    }
-/*
-	    for (unsigned int i = 0; i < node.dim; i++) {
-	    	if (node.has_child(i)) {
-	    	    typename DClass<D>::KeyD k = key.myChild(i);
-		    print(key, "recursively calling", k);
-	    	    usedUp = makePartition<D>(tree, k, klist, partitionSize, lastPartition, usedUp, atleaf);
-	    	    if ((*atleaf) || (usedUp >= partitionSize)) {
-//			cout << "at leaf = " << *atleaf << ", usedup >= partitionSize? " << 
-//				(usedUp >=partitionSize) << endl;
-		        break;
-		    }
-		}
-	    }
-*/
 	}
 	else {
 //	    cout << "about to set atleaf = true" << endl;
@@ -479,7 +376,7 @@ CompCost computeCompCost(Cost c, int n) {
     return compcost;
 }
 
-template <unsigned int D>
+template <int D>
 void findBestPartition(typename DClass<D>::treeT tree, typename DClass<D>::KeyD key, 
 	vector<typename DClass<D>::TreeCoords>* klist, unsigned int npieces) {
     bool notdone = true;
@@ -495,8 +392,7 @@ void findBestPartition(typename DClass<D>::treeT tree, typename DClass<D>::KeyD 
 //print("findBestPartition: about to fixCost");
 
     fixCost<D>(tree, key);
-//    print_tree<D>(tree,typename DClass<D>::KeyD(0,0,0));
-    print_tree<D>(tree,typename DClass<D>::KeyD(0));
+//    print_tree<D>(tree,typename DClass<D>::KeyD(0));
 print("findBestPartition: about to depthFirstPartition");
     totalCost = depthFirstPartition<D>(tree, key, &listoflist[count], npieces, totalCost, &costlist[count]);
 //print("findBestPartition: after depthFirstPartition");
@@ -513,8 +409,7 @@ print("findBestPartition: about to depthFirstPartition");
     while (notdone) {
 	fixCost<D>(tree, key); 
 	rollup<D>(tree, key);
-//	print_tree<D>(tree,typename DClass<D>::KeyD(0,0,0));
-    	print_tree<D>(tree,typename DClass<D>::KeyD(0));
+//    	print_tree<D>(tree,typename DClass<D>::KeyD(0));
 	listoflist.push_back(emptylist);
 	costlist.push_back(0);
 	depthFirstPartition<D>(tree, key, &listoflist[count], npieces, totalCost, &costlist[count]);
@@ -595,38 +490,32 @@ print("findBestPartition: about to depthFirstPartition");
 }
 
 
-template <unsigned int D>
+template <int D>
 void migrate_data(typename DClass<D>::treeT tfrom, typename DClass<D>::treeT tto, typename DClass<D>::KeyD key) {
-    print("migrate_data: about to migrate from", key);
+//    print("migrate_data: about to migrate from", key);
     typename DClass<D>::treeT::iterator it = tfrom.find(key);
     if (it == tfrom.end()) return;
 
-    print("migrate_data: about to get node for", key);
+//    print("migrate_data: about to get node for", key);
     typename DClass<D>::NodeD node = it->second;
 
     if (node.has_children()) {
-	print("migrate_data:", key, "has children");
+//	print("migrate_data:", key, "has children");
         for (KeyChildIterator<D> kit(key); kit; ++kit) {
 	    migrate_data<D>(tfrom, tto, kit.key());
-	    print("migrate_data: back from", kit.key());
+//	    print("migrate_data: back from", kit.key());
 	}
-/*
-	for (unsigned int i = 0; i < node.dim; i++) {
-	    typename DClass<D>::KeyD child = key.myChild(i);
-	    migrate_data<D>(tfrom, tto, child);
-	}
-*/
     }
-    print("migrate_data: about to insert", key);
+//    print("migrate_data: about to insert", key);
     tto.insert(key, node);
-    print("migrate_data: just inserted", key);
+//    print("migrate_data: just inserted", key);
 }
 
 
-template <unsigned int D>
+template <int D>
 void migrate(typename DClass<D>::treeT tfrom, typename DClass<D>::treeT tto) {
     typename DClass<D>::KeyD root(0);
-    print("about to migrate from root,", root);
+//    print("about to migrate from root,", root);
     migrate_data<D>(tfrom, tto, root);
 }
 

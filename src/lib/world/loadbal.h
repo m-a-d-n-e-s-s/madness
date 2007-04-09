@@ -12,42 +12,42 @@ namespace madness {
 typedef int Cost;
 typedef double CompCost;
 
-template <unsigned int D>
-inline unsigned int power(int base = 2) {
-    return (unsigned int) pow((double) base, (int) D);
+template <int D>
+inline int power(int base = 2) {
+    return (int) pow((double) base, (int) D);
 };
 
 template <>
-inline unsigned int power<2>(int base) {
-    return (unsigned int) (base*base);
+inline int power<2>(int base) {
+    return (int) (base*base);
 };
 
 template <>
-inline unsigned int power<3>(int base) {
-    return (unsigned int) (base*base*base);
+inline int power<3>(int base) {
+    return (int) (base*base*base);
 };
 
 template <>
-inline unsigned int power<4>(int base) {
-    unsigned int tmp = power<2>(base);
+inline int power<4>(int base) {
+    int tmp = power<2>(base);
     return power<2>((int) tmp);
 };
 
 template <>
-inline unsigned int power<6>(int base) {
-    unsigned int tmp = power<3>(base);
+inline int power<6>(int base) {
+    int tmp = power<3>(base);
     return power<2>((int) tmp);
 };
 
 
-template <typename Data, unsigned int D> class LBNode;
+template <typename Data, int D> class LBNode;
     //template <unsigned int D> class Key;
-template <unsigned int D> struct TreeCoords;
-template <unsigned int D> struct Tree;
-template <unsigned int D> class MyProcmap;
+template <int D> struct TreeCoords;
+template <int D> struct Tree;
+template <int D> class MyProcmap;
 class NodeData;
 
-template <unsigned int D>
+template <int D>
 struct DClass {
     typedef Key<D> KeyD;
     typedef const Key<D> KeyDConst;
@@ -60,7 +60,7 @@ struct DClass {
 };
 
 
-template <typename Data, unsigned int D>
+template <typename Data, int D>
 class LBNode {
 private:
     Data data;
@@ -72,7 +72,7 @@ private:
     };
 
 public:
-    static unsigned int dim;
+    static int dim;
 
     LBNode() {
 	data = Data();
@@ -83,7 +83,7 @@ public:
     };
 
     bool has_children() const {
-	for (unsigned int i = 0; i < dim; i++)
+	for (int i = 0; i < dim; i++)
 	    if (c[i]) return true;
 	return false;
     };
@@ -119,21 +119,21 @@ public:
 };
 
 
-template <typename Data, unsigned int D>
+template <typename Data, int D>
 std::ostream& operator<<(std::ostream& s, const LBNode<Data, D>& node) {
     s << "data = " << node.get_data() << ", c = " << node.get_c();
     return s;
 };
 
-template <unsigned int D>
+template <int D>
 std::ostream& operator<<(std::ostream& s, typename DClass<D>::NodeDConst& node) {
     s << "data = " << node.get_data() << ", c = " << node.get_c();
     return s;
 };
 
 
-template <typename Data, unsigned int D>
-unsigned int LBNode<Data,D>::dim = power<D>();
+template <typename Data, int D>
+int LBNode<Data,D>::dim = power<D>();
 
 
 class NodeData {
@@ -336,7 +336,7 @@ public:
 */
 
 
-template <unsigned int D>
+template <int D>
 struct TreeCoords {
     Key<D> key;
     ProcessID owner;
@@ -354,7 +354,7 @@ struct TreeCoords {
 };
 
 
-template <unsigned int D>
+template <int D>
 struct Tree {
     TreeCoords<D> data;
     vector<Tree*> children;
@@ -429,7 +429,7 @@ struct Tree {
 
 
 
-template <unsigned int D>
+template <int D>
 class MyProcmap {
 private:
     int whichmap;
@@ -478,49 +478,49 @@ public:
 };
 
 
-template <unsigned int D>
+template <int D>
 void build_tree(typename DClass<D>::treeT& tree, typename DClass<D>::KeyDConst& key);
 
-template <unsigned int D>
+template <int D>
 void print_tree(typename DClass<D>::treeT& tree, typename DClass<D>::KeyDConst& key);
 
-template <unsigned int D>
+template <int D>
 Cost computeCost(typename DClass<D>::treeT& tree, typename DClass<D>::KeyDConst& key);
 
-template <unsigned int D>
+template <int D>
 void meld(typename DClass<D>::treeT& tree, typename DClass<D>::KeyDConst& key);
 
-template <unsigned int D>
+template <int D>
 void rollup(typename DClass<D>::treeT tree, typename DClass<D>::KeyD key);
 
-template <unsigned int D>
+template <int D>
 Cost fixCost(typename DClass<D>::treeT tree, typename DClass<D>::KeyD key); 
 
 Cost computePartitionSize(Cost cost, unsigned int parts);
 
-template <unsigned int D>
+template <int D>
 Cost makePartition(typename DClass<D>::treeT tree, typename DClass<D>::KeyD key, 
 	vector<typename DClass<D>::KeyD >* klist, Cost partitionSize, bool lastPartition, 
 	Cost usedUp, bool *atleaf);
 
-template <unsigned int D>
+template <int D>
 Cost depthFirstPartition(typename DClass<D>::treeT tree, typename DClass<D>::KeyD key, 
 	vector<typename DClass<D>::TreeCoords>* klist, unsigned int npieces, Cost totalcost, Cost *maxcost); 
 
-template <unsigned int D>
+template <int D>
 void removeCost(typename DClass<D>::treeT tree, typename DClass<D>::KeyD key, Cost c); 
 
 CompCost computeCompCost(Cost c, int n);
 
-template <unsigned int D>
+template <int D>
 void findBestPartition(typename DClass<D>::treeT tree, typename DClass<D>::KeyD key, 
 	vector<typename DClass<D>::TreeCoords>* klist, unsigned int npieces);
 
-template <unsigned int D>
+template <int D>
 void migrate_data(typename DClass<D>::treeT tfrom, typename DClass<D>::treeT tto, 
 	typename DClass<D>::KeyD key);
 
-template <unsigned int D>
+template <int D>
 void migrate(typename DClass<D>::treeT tfrom, typename DClass<D>::treeT tto); 
 
 }
