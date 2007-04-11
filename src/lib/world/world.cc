@@ -334,8 +334,6 @@ public:
     int get3c(int a1, char a2, short a3) const {return a+a1+a2+a3;};
     int get4c(int a1, char a2, short a3, long a4) const {return a+a1+a2+a3+a4;};
     int get5c(int a1, char a2, short a3, long a4, short a5) const {return a+a1+a2+a3+a4+a5;};
-
-
 };
 
 void test6(World& world) {
@@ -350,7 +348,7 @@ void test6(World& world) {
             MADNESS_ASSERT(a.task(p,&Foo::get0).get() == p*100);
 
             MADNESS_ASSERT(a.send(p,&Foo::get1,1).get() == p*100+1);
-            MADNESS_ASSERT(a.task(p,&Foo::get1,1).get() == p*100+1);
+            MADNESS_ASSERT(a.task(p,&Foo::get1,Future<int>(1)).get() == p*100+1);
 
             MADNESS_ASSERT(a.send(p,&Foo::get2,1,2).get() == p*100+3);
             MADNESS_ASSERT(a.task(p,&Foo::get2,1,2).get() == p*100+3);
@@ -384,6 +382,7 @@ void test6(World& world) {
         }
     }
     world.gop.fence();
+
 
     print("test 6 (world object active message and tasks) seems to be working");
 }
@@ -700,7 +699,7 @@ struct Node {
         key = keyin;
         value = valin;
         isleaf = true;
-        if (value > 0.25) {
+        if (value > 0.25 && d.size()<4000) {
             isleaf = false;
             World& world = d.world();
             double ran = world.mpi.drand();
@@ -809,6 +808,8 @@ void test11(World& world) {
 	walker1(d,root);
     }
     world.gop.fence();
+    print("walker1 done");
+    
 
     // Test get and re-insert of nodes with new value by node 0
     if (me == 0) {
@@ -816,6 +817,7 @@ void test11(World& world) {
 	walker2(d,root);
     }
     world.gop.fence();
+    print("walker2 done");
 
     print("size before clearing",d.size());
     d.clear();

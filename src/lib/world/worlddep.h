@@ -20,12 +20,15 @@ namespace madness {
     private:
         int ndepend;        //< Counts dependencies
         
-        mutable std::vector<CallbackInterface*> callbacks; //< Called ONCE by dec() ndepend==0
+        //mutable std::vector<CallbackInterface*> callbacks; //< Called ONCE by dec() when ndepend==0
+        static const int MAXCALLBACKS = 8;
+        mutable Stack<CallbackInterface*,MAXCALLBACKS> callbacks; //< Called ONCE by dec() when ndepend==0
 
         inline void do_callbacks() const {
-            for (int i=0; i<(int)callbacks.size(); i++)
-                callbacks[i]->notify();
-            callbacks.clear();
+//             for (int i=0; i<(int)callbacks.size(); i++)
+//                 callbacks[i]->notify();
+//             callbacks.clear();
+            while (callbacks.size()) callbacks.pop()->notify();
         };
 
     public:
@@ -49,7 +52,8 @@ namespace madness {
 
         /// If ndepend == 0, the callback is immediately invoked.
         inline void register_callback(CallbackInterface* callback) {
-            this->callbacks.push_back(callback);
+            //this->callbacks.push_back(callback);
+            this->callbacks.push(callback);
             if (ndepend == 0) do_callbacks();
         };
         

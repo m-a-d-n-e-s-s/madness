@@ -182,11 +182,12 @@ namespace madness {
         friend class WorldGopInterface;
     public:
         // LONG_MSG_LEN and LONG_HEADER_LEN are assumed to be an integral no. of unsigned longs
-        static const int SHORT_MSG_LEN = sizeof(AmArg)-4*sizeof(unsigned long);  //< Length of user data in short message
-        static const int SHORT_MSG_USER_LEN = SHORT_MSG_LEN;  //< Length of user data in short message
-        static const int LONG_MSG_HEADER_LEN = 4*sizeof(unsigned long); //< No. of bytes reserved for long message header
-        static const int LONG_MSG_LEN = 128*1024; //< Length of long messages in bytes including header
-        static const int LONG_MSG_USER_LEN = LONG_MSG_LEN-LONG_MSG_HEADER_LEN; //< Length of user data in long messages
+        static const int SHORT_MSG_LEN = sizeof(AmArg);                             //< Length of short message
+        static const int SHORT_MSG_HEADER_LEN = 2*sizeof(unsigned long);            //< Length of header in short message
+        static const int SHORT_MSG_USER_LEN = SHORT_MSG_LEN-SHORT_MSG_HEADER_LEN;   //< Length of user data in short message
+        static const int LONG_MSG_HEADER_LEN = 4*sizeof(unsigned long);             //< No. of bytes reserved for long message header
+        static const int LONG_MSG_LEN = 128*1024;                                   //< Max length of long messages
+        static const int LONG_MSG_USER_LEN = LONG_MSG_LEN-LONG_MSG_HEADER_LEN;      //< Length of user data in long messages
         
     private:
         // Masks used to set flags field of AmArgs

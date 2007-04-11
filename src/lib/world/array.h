@@ -19,16 +19,16 @@ namespace madness {
         typedef T* iterator;
         typedef const T* const_iterator;
 
-        /// Default constructor does not initialize anything
+        /// Default constructor does not initialize array contents
         Array() {};
 
         /// Initialize all elements to value t
         Array(T t) {
             for (std::size_t i=0; i<N; i++) v[i] = t;
         };
-
+        
         /// Construct from a C++ array of the same dimension
-        Array(const T (&t)[N]) {
+        Array(const T (&t)[N])  {
             for (std::size_t i=0; i<N; i++) v[i] = t[i];
         };
 
@@ -196,7 +196,7 @@ namespace madness {
     };
 
     /// Output array to stream for human consumtion
-    template <std::size_t N, typename T>
+    template <typename T,std::size_t N>
     std::ostream& operator<<(std::ostream& s, const Array<T,N>& a) {
         s << "[";
         for (std::size_t i=0; i<N; i++) {
@@ -206,6 +206,31 @@ namespace madness {
         s << "]";
         return s;
     }
-}
 
+    
+    /// A simple, fixed-size, stack
+    template <typename T,std::size_t N>
+    class Stack {
+    private:
+        Array<T,N> t;
+        std::size_t n;
+        
+    public:
+        Stack() : t(), n(0) {};
+        
+        void push(const T& value) {
+            MADNESS_ASSERT(n < N);
+            t[n++] = value;
+        };
+        
+        T& pop() {
+            MADNESS_ASSERT(n > 0);
+            return t[--n];
+        };
+        
+        std::size_t size() const {
+            return n;
+        };
+    };
+}
 #endif

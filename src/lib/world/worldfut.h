@@ -41,8 +41,11 @@ namespace madness {
     class FutureImpl : NO_DEFAULTS {
         friend class Future<T>;
     private:
-        std::vector<CallbackInterface*> callbacks; 
-        std::vector< SharedPtr< FutureImpl<T> > > assignment_list;
+        static const int MAXCALLBACKS = 4;
+        //std::vector<CallbackInterface*> callbacks; 
+        //std::vector< SharedPtr< FutureImpl<T> > > assignment_list;
+        Stack<CallbackInterface*,MAXCALLBACKS> callbacks;
+        Stack<SharedPtr< FutureImpl<T> >,MAXCALLBACKS> assignment_list;
         volatile bool assigned;
         World * const world;
         RemoteReference< FutureImpl<T> > remote_ref;
@@ -65,16 +68,23 @@ namespace madness {
         inline void set_assigned() {
             MADNESS_ASSERT(!assigned);
             assigned = true;
-            for (int i=0; i<(int)callbacks.size(); i++)  
-                callbacks[i]->notify();
-            callbacks.clear();
-            for (int i=0; i<(int)assignment_list.size(); i++) 
-                assignment_list[i]->set(t);
-            assignment_list.clear();
+//             for (int i=0; i<(int)callbacks.size(); i++)  
+//                 callbacks[i]->notify();
+//             callbacks.clear();
+//             for (int i=0; i<(int)assignment_list.size(); i++) 
+//                 assignment_list[i]->set(t);
+//             assignment_list.clear();
+            while (callbacks.size()) callbacks.pop()->notify();
+            while (assignment_list.size()) {
+                SharedPtr< FutureImpl<T> >& p = assignment_list.pop();
+                p->set(t);
+                p = SharedPtr< FutureImpl<T> >();
+            };
         };
 
         inline void add_to_assignment_list(const SharedPtr< FutureImpl<T> >& f) {
-            assignment_list.push_back(f);
+            //assignment_list.push_back(f);
+            assignment_list.push(f);
         };
             
         
@@ -128,7 +138,8 @@ namespace madness {
         /// invoked.
         inline void register_callback(CallbackInterface* callback) {
             if (assigned) callback->notify();
-            else callbacks.push_back(callback);
+            else callbacks.push(callback);
+            //else callbacks.push_back(callback);
         };
 
          
