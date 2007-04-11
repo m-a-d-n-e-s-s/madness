@@ -522,7 +522,8 @@ namespace madness {
         template <typename memfunT, typename arg1T>
         Future< MEMFUN_RETURNT(memfunT) > 
         task(ProcessID dest, memfunT memfun, const arg1T& arg1) {
-            RETURN_WRAPPERT(MEMFUN_RETURNT(memfunT)) (*run)(objT*, memfunT, const arg1T&) = &objT:: template forward<memfunT,arg1T>;
+            typedef REMFUTURE(arg1T) a1T;
+            RETURN_WRAPPERT(MEMFUN_RETURNT(memfunT)) (*run)(objT*, memfunT, const a1T&) = &objT:: template forward<memfunT,a1T>;
             return world.taskq.add(dest, run, this, memfun, arg1);
         }
 
@@ -530,8 +531,10 @@ namespace madness {
         template <typename memfunT, typename arg1T, typename arg2T>
         Future< MEMFUN_RETURNT(memfunT) > 
         task(ProcessID dest, memfunT memfun, const arg1T& arg1, const arg2T& arg2) {
-            RETURN_WRAPPERT(MEMFUN_RETURNT(memfunT)) (*run)(objT*, memfunT, const arg1T&, const arg2T&)
-                = &objT:: template forward<memfunT,arg1T,arg2T>;
+            typedef REMFUTURE(arg1T) a1T;
+            typedef REMFUTURE(arg2T) a2T;
+            RETURN_WRAPPERT(MEMFUN_RETURNT(memfunT)) (*run)(objT*, memfunT, const a1T&, const a2T&)
+                = &objT:: template forward<memfunT,a1T,a2T>;
             return world.taskq.add(dest, run, this, memfun, arg1, arg2);
         }
 
@@ -539,8 +542,11 @@ namespace madness {
         template <typename memfunT, typename arg1T, typename arg2T, typename arg3T>
         Future< MEMFUN_RETURNT(memfunT) > 
         task(ProcessID dest, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3) {
-            RETURN_WRAPPERT(MEMFUN_RETURNT(memfunT)) (*run)(objT*, memfunT, const arg1T&, const arg2T&, const arg3T&)
-                = &objT:: template forward<memfunT,arg1T,arg2T,arg3T>;
+            typedef REMFUTURE(arg1T) a1T;
+            typedef REMFUTURE(arg2T) a2T;
+            typedef REMFUTURE(arg3T) a3T;
+            RETURN_WRAPPERT(MEMFUN_RETURNT(memfunT)) (*run)(objT*, memfunT, const a1T&, const a2T&, const a3T&)
+                = &objT:: template forward<memfunT,a1T,a2T,a3T>;
             return world.taskq.add(dest, run, this, memfun, arg1, arg2, arg3);
         }
 
@@ -548,8 +554,12 @@ namespace madness {
         template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T>
         Future< MEMFUN_RETURNT(memfunT) > 
         task(ProcessID dest, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, const arg4T& arg4) {
-            RETURN_WRAPPERT(MEMFUN_RETURNT(memfunT)) (*run)(objT*, memfunT, const arg1T&, const arg2T&, const arg3T&, const arg4T&)
-                = &objT:: template forward<memfunT,arg1T,arg2T,arg3T,arg4T>;
+            typedef REMFUTURE(arg1T) a1T;
+            typedef REMFUTURE(arg2T) a2T;
+            typedef REMFUTURE(arg3T) a3T;
+            typedef REMFUTURE(arg4T) a4T;
+            RETURN_WRAPPERT(MEMFUN_RETURNT(memfunT)) (*run)(objT*, memfunT, const a1T&, const a2T&, const a3T&, const a4T&)
+                = &objT:: template forward<memfunT,a1T,a2T,a3T,a4T>;
             return world.taskq.add(dest, run, this, memfun, arg1, arg2, arg3, arg4);
         }
 
@@ -557,8 +567,13 @@ namespace madness {
         template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T, typename arg5T>
         Future< MEMFUN_RETURNT(memfunT) > 
         task(ProcessID dest, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, const arg4T& arg4, const arg5T& arg5) {
-            RETURN_WRAPPERT(MEMFUN_RETURNT(memfunT)) (*run)(objT*, memfunT,const arg1T&, const arg2T&, const arg3T&, const arg4T&, const arg5T&)
-                = &objT:: template forward<memfunT,arg1T,arg2T,arg3T,arg4T,arg5T>;
+            typedef REMFUTURE(arg1T) a1T;
+            typedef REMFUTURE(arg2T) a2T;
+            typedef REMFUTURE(arg3T) a3T;
+            typedef REMFUTURE(arg4T) a4T;
+            typedef REMFUTURE(arg5T) a5T;
+            RETURN_WRAPPERT(MEMFUN_RETURNT(memfunT)) (*run)(objT*, memfunT,const a1T&, const a2T&, const a3T&, const a4T&, const a5T&)
+                = &objT:: template forward<memfunT,a1T,a2T,a3T,a4T,a5T>;
             return world.taskq.add(dest, run, this, memfun, arg1, arg2, arg3, arg4, arg5);
         }
 

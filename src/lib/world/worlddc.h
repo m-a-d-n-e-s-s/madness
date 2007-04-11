@@ -957,7 +957,8 @@ namespace madness {
         Future< MEMFUN_RETURNT(memfunT) >
         task(const keyT& key, memfunT memfun, const arg1T& arg1) {
             check_initialized();
-            RETURN_WRAPPERT(MEMFUN_RETURNT(memfunT)) (implT::*itemfun)(const keyT&, memfunT, const arg1T&) = &implT:: template itemfun<memfunT,arg1T>;
+            typedef REMFUTURE(arg1T) a1T;
+            RETURN_WRAPPERT(MEMFUN_RETURNT(memfunT)) (implT::*itemfun)(const keyT&, memfunT, const a1T&) = &implT:: template itemfun<memfunT,a1T>;
             return p->task(owner(key), itemfun, key, memfun, arg1);
         }
         
@@ -973,7 +974,9 @@ namespace madness {
         Future< MEMFUN_RETURNT(memfunT) >
         task(const keyT& key, memfunT memfun, const arg1T& arg1, const arg2T& arg2) {
             check_initialized();
-            RETURN_WRAPPERT(MEMFUN_RETURNT(memfunT)) (implT::*itemfun)(const keyT&, memfunT, const arg1T&, const arg2T&) = &implT:: template itemfun<memfunT,arg1T,arg2T>;
+            typedef REMFUTURE(arg1T) a1T;
+            typedef REMFUTURE(arg2T) a2T;
+            RETURN_WRAPPERT(MEMFUN_RETURNT(memfunT)) (implT::*itemfun)(const keyT&, memfunT, const a1T&, const a2T&) = &implT:: template itemfun<memfunT,a1T,a2T>;
             return p->task(owner(key), itemfun, key, memfun, arg1, arg2);
         }
         
@@ -989,7 +992,10 @@ namespace madness {
         Future< MEMFUN_RETURNT(memfunT) >
         task(const keyT& key, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3) {
             check_initialized();
-            RETURN_WRAPPERT(MEMFUN_RETURNT(memfunT)) (implT::*itemfun)(const keyT&, memfunT, const arg1T&, const arg2T&, const arg3T&) = &implT:: template itemfun<memfunT,arg1T,arg2T,arg3T>;
+            typedef REMFUTURE(arg1T) a1T;
+            typedef REMFUTURE(arg2T) a2T;
+            typedef REMFUTURE(arg3T) a3T;
+            RETURN_WRAPPERT(MEMFUN_RETURNT(memfunT)) (implT::*itemfun)(const keyT&, memfunT, const a1T&, const a2T&, const a3T&) = &implT:: template itemfun<memfunT,a1T,a2T,a3T>;
             return p->task(owner(key), itemfun, key, memfun, arg1, arg2, arg3);
         }
         
