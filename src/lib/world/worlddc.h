@@ -388,9 +388,9 @@ namespace madness {
                 cacheit = cacheinfo.insert(std::pair<keyT,CacheInfo>(datum.first,CacheInfo(0))).first;
             }
             else {
-	        print("find_success_handler rehit cache",it->second,datum.second);
+//	        print("find_success_handler rehit cache",it->second,datum.second);
                 it->second = datum.second;
-		print("   regetting",cache.find(datum.first)->second);
+//		print("   regetting",cache.find(datum.first)->second);
                 cacheit = cacheinfo.find(datum.first);
             }
             f->set(iterator(this, it, cacheit, true));

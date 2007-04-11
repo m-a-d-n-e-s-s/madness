@@ -23,10 +23,10 @@ namespace madness {
 
 namespace madness {
 
-    template <typename T, int NDIM>
+    template <typename T, int NDIM, typename Pmap=DCDefaultProcmap<Key<NDIM> > >
     class Function {
     private:
-        SharedPtr< FunctionImpl<T,NDIM> > impl;
+        SharedPtr< FunctionImpl<T,NDIM,Pmap> > impl;
 
     public:
 
@@ -41,19 +41,19 @@ namespace madness {
 
 
         /// Constructor from FunctionFactory provides named parameter idiom.  Possible non-blocking communication.
-        Function(const FunctionFactory<T,NDIM>& factory)
-            : impl(new FunctionImpl<T,NDIM>(factory))
+        Function(const FunctionFactory<T,NDIM,Pmap>& factory)
+            : impl(new FunctionImpl<T,NDIM,Pmap>(factory))
         {};
 
 
         /// Copy constructor is \em shallow.  No communication, works in either basis.
-        Function(const Function<T,NDIM>& f)
+        Function(const Function<T,NDIM,Pmap>& f)
             : impl(f.impl)
         {};
 
 
         /// Assignment is \em shallow.  No communication, works in either basis.
-        Function<T,NDIM>& operator=(const Function<T,NDIM>& f) {
+        Function<T,NDIM,Pmap>& operator=(const Function<T,NDIM,Pmap>& f) {
             if (this != &f) impl = f.impl;
             return *this;
         };

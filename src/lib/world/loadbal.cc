@@ -520,9 +520,7 @@ void migrate(typename DClass<D>::treeT tfrom, typename DClass<D>::treeT tto) {
 }
 
 
-// Explicit instantiations for D=2
-
-//template struct DClass<2>;
+// Explicit instantiations for D=2 and D=3
 
 template void build_tree<2>(DClass<2>::treeT& tree, DClass<2>::KeyDConst& key);
 template void print_tree<2>(DClass<2>::treeT& tree, DClass<2>::KeyDConst& key);
@@ -542,4 +540,23 @@ template void findBestPartition<2>(DClass<2>::treeT tree, DClass<2>::KeyD key,
 template void migrate_data<2>(DClass<2>::treeT tfrom, DClass<2>::treeT tto, 
 	DClass<2>::KeyD key);
 template void migrate<2>(DClass<2>::treeT tfrom, DClass<2>::treeT tto);
+
+template void build_tree<3>(DClass<3>::treeT& tree, DClass<3>::KeyDConst& key);
+template void print_tree<3>(DClass<3>::treeT& tree, DClass<3>::KeyDConst& key);
+template Cost computeCost<3>(DClass<3>::treeT& tree, DClass<3>::KeyDConst& key);
+template void meld<3>(DClass<3>::treeT& tree, DClass<3>::KeyDConst& key);
+template void rollup<3>(DClass<3>::treeT tree, DClass<3>::KeyD key);
+template Cost fixCost<3>(DClass<3>::treeT tree, DClass<3>::KeyD key);
+template Cost makePartition<3>(DClass<3>::treeT tree, DClass<3>::KeyD key, 
+	vector<DClass<3>::KeyD>* klist, Cost partitionSize, bool lastPartition, 
+	Cost usedUp, bool *atleaf);
+template Cost depthFirstPartition<3>(DClass<3>::treeT tree, DClass<3>::KeyD key,
+        vector<DClass<3>::TreeCoords>* klist, unsigned int npieces, Cost totalcost, 
+	Cost *maxcost);
+template void removeCost<3>(DClass<3>::treeT tree, DClass<3>::KeyD key, Cost c);
+template void findBestPartition<3>(DClass<3>::treeT tree, DClass<3>::KeyD key,
+        vector<DClass<3>::TreeCoords>* klist, unsigned int npieces);
+template void migrate_data<3>(DClass<3>::treeT tfrom, DClass<3>::treeT tto, 
+	DClass<3>::KeyD key);
+template void migrate<3>(DClass<3>::treeT tfrom, DClass<3>::treeT tto);
 }

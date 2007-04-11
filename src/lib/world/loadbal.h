@@ -12,36 +12,21 @@ namespace madness {
 typedef int Cost;
 typedef double CompCost;
 
-template <int D>
-inline int power(int base = 2) {
-    return (int) pow((double) base, (int) D);
-};
-
-template <>
-inline int power<2>(int base) {
-    return (int) (base*base);
-};
-
-template <>
-inline int power<3>(int base) {
-    return (int) (base*base*base);
-};
-
-template <>
-inline int power<4>(int base) {
-    int tmp = power<2>(base);
-    return power<2>((int) tmp);
-};
-
-template <>
-inline int power<6>(int base) {
-    int tmp = power<3>(base);
-    return power<2>((int) tmp);
-};
-
+inline int nearest_power(int me, int d) {
+    int k = 0;
+    while (me != 0) {
+	if (me%d == 0) {
+	    k++;
+	    me/=d;
+	}
+	else {
+	    break;
+	}
+    }
+    return k;
+}
 
 template <typename Data, int D> class LBNode;
-    //template <unsigned int D> class Key;
 template <int D> struct TreeCoords;
 template <int D> struct Tree;
 template <int D> class MyProcmap;
@@ -66,9 +51,9 @@ private:
     Data data;
     std::vector<bool> c;
 
-    void nochildren() {
+    void allchildren(bool status=false) {
         c.clear();
-        c.assign(dim, false);
+        c.assign(dim, status);
     };
 
 public:
@@ -76,10 +61,11 @@ public:
 
     LBNode() {
 	data = Data();
-	nochildren();
-    }
-    LBNode(Data d) : data(d) {
-	nochildren();
+	allchildren();
+    };
+
+    LBNode(Data d, bool children=false) : data(d) {
+	allchildren(children);
     };
 
     bool has_children() const {
@@ -461,9 +447,26 @@ private:
 
 public:
     MyProcmap() : whichmap(0), owner(0) {};
-    MyProcmap(ProcessID owner) : whichmap(0), owner(owner) {};
+    MyProcmap(World& world) : whichmap(1), owner(0) {
+	int NP = world.nproc();
+	const int level = nearest_power(NP, D);
+	int twotoD = power<D>();
+//	int NPin = power<level>(twotoD);
+	int NPin = (int) pow((double)twotoD,level);
+	vector<TreeCoords<D> > v;
+	
+	for (Translation i=0; i < (Translation)NPin; i++) {
+	    Key<D> key(level,i);
+	    if ((i%twotoD) == 0) {
+		key = key.parent(nearest_power(i, twotoD));
+	    }
+	    v.push_back(TreeCoords<D>(key,i));
+	    buildTreeMap(v);
+	}
+    }; 
+    MyProcmap(World& world, ProcessID owner) : whichmap(0), owner(owner) {};
 
-    MyProcmap(vector<TreeCoords<D> > v) : whichmap(1), owner(1) {
+    MyProcmap(World& world, vector<TreeCoords<D> > v) : whichmap(1), owner(1) {
 	buildTreeMap(v);
 	treeMap.print();
     };

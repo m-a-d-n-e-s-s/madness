@@ -1,5 +1,6 @@
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <mra/mra.h>
+#include <world/loadbal.h>
 
 /// \file mra.cc
 /// \file Declaration and initialization of static data and some implementation
@@ -45,8 +46,8 @@ namespace madness {
     template class FunctionDefaults<5>;
     template class FunctionDefaults<6>;
     
-    template <typename T, int NDIM> FunctionCommonData<T,NDIM> FunctionImpl<T,NDIM>::commondata[FunctionImpl<T,NDIM>::MAXK+1];
-    template <typename T, int NDIM> bool FunctionImpl<T,NDIM>::initialized = false;
+    template <typename T, int NDIM, typename Pmap> FunctionCommonData<T,NDIM> FunctionImpl<T,NDIM,Pmap>::commondata[FunctionImpl<T,NDIM,Pmap>::MAXK+1];
+    template <typename T, int NDIM, typename Pmap> bool FunctionImpl<T,NDIM,Pmap>::initialized = false;
 
     template <typename T, int NDIM>
     void FunctionCommonData<T,NDIM>::_make_dc_periodic() {
@@ -119,10 +120,15 @@ namespace madness {
         quad_phit = transpose(quad_phi);
     }
 
+
     template class Function<double, 1>;
     template class Function<std::complex<double>, 1>;
     template class FunctionImpl<double, 1>;
     template class FunctionImpl<std::complex<double>, 1>;
+    template class Function<double, 1, DClass<1>::MyProcMap>;
+    template class Function<std::complex<double>, 1, DClass<1>::MyProcMap>;
+    template class FunctionImpl<double, 1, DClass<1>::MyProcMap>;
+    template class FunctionImpl<std::complex<double>, 1, DClass<1>::MyProcMap>;
     template class FunctionCommonData<double, 1>;
     template class FunctionCommonData<double_complex, 1>;
 
@@ -130,6 +136,10 @@ namespace madness {
     template class Function<std::complex<double>, 2>;
     template class FunctionImpl<double, 2>;
     template class FunctionImpl<std::complex<double>, 2>;
+    template class Function<double, 2, DClass<2>::MyProcMap>;
+    template class Function<std::complex<double>, 2, DClass<2>::MyProcMap>;
+    template class FunctionImpl<double, 2, DClass<2>::MyProcMap>;
+    template class FunctionImpl<std::complex<double>, 2, DClass<2>::MyProcMap>;
     template class FunctionCommonData<double, 2>;
     template class FunctionCommonData<double_complex, 2>;
 
@@ -137,6 +147,10 @@ namespace madness {
     template class Function<std::complex<double>, 3>;
     template class FunctionImpl<double, 3>;
     template class FunctionImpl<std::complex<double>, 3>;
+    template class Function<double, 3, DClass<3>::MyProcMap>;
+    template class Function<std::complex<double>, 3, DClass<3>::MyProcMap>;
+    template class FunctionImpl<double, 3, DClass<3>::MyProcMap>;
+    template class FunctionImpl<std::complex<double>, 3, DClass<3>::MyProcMap>;
     template class FunctionCommonData<double, 3>;
     template class FunctionCommonData<double_complex, 3>;
 
@@ -144,6 +158,10 @@ namespace madness {
     template class Function<std::complex<double>, 4>;
     template class FunctionImpl<double, 4>;
     template class FunctionImpl<std::complex<double>, 4>;
+    template class Function<double, 4, DClass<4>::MyProcMap>;
+    template class Function<std::complex<double>, 4, DClass<4>::MyProcMap>;
+    template class FunctionImpl<double, 4, DClass<4>::MyProcMap>;
+    template class FunctionImpl<std::complex<double>, 4, DClass<4>::MyProcMap>;
     template class FunctionCommonData<double, 4>;
     template class FunctionCommonData<double_complex, 4>;
 
@@ -151,6 +169,10 @@ namespace madness {
     template class Function<std::complex<double>, 5>;
     template class FunctionImpl<double, 5>;
     template class FunctionImpl<std::complex<double>, 5>;
+    template class Function<double, 5, DClass<5>::MyProcMap>;
+    template class Function<std::complex<double>, 5, DClass<5>::MyProcMap>;
+    template class FunctionImpl<double, 5, DClass<5>::MyProcMap>;
+    template class FunctionImpl<std::complex<double>, 5, DClass<5>::MyProcMap>;
     template class FunctionCommonData<double, 5>;
     template class FunctionCommonData<double_complex, 5>;
 
@@ -158,6 +180,10 @@ namespace madness {
     template class Function<std::complex<double>, 6>;
     template class FunctionImpl<double, 6>;
     template class FunctionImpl<std::complex<double>, 6>;
+    template class Function<double, 6, DClass<6>::MyProcMap>;
+    template class Function<std::complex<double>, 6, DClass<6>::MyProcMap>;
+    template class FunctionImpl<double, 6, DClass<6>::MyProcMap>;
+    template class FunctionImpl<std::complex<double>, 6, DClass<6>::MyProcMap>;
     template class FunctionCommonData<double, 6>;
     template class FunctionCommonData<double_complex, 6>;
 

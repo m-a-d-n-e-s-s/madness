@@ -6,12 +6,6 @@
 using namespace madness;
 using namespace std;
 
-typedef Key<2u> KeyD;
-typedef TreeCoords<2u> TreeCoordsD;
-typedef LBNode<NodeData,2u> NodeD;
-//typedef MyProcmap<2u,KeyD> MyProcmapD;
-typedef MyProcmap<2u> MyProcmapD;
-typedef WorldContainer< KeyD,NodeD,MyProcmapD > treeT;
 
 int main(int argc, char** argv) {
     MPI::Init(argc, argv);
@@ -32,11 +26,13 @@ int main(int argc, char** argv) {
 	v.push_back(DClass<2>::TreeCoords(DClass<2>::KeyD(1,k2),1));
 
 	DClass<2>::KeyD root(0,k0);
-	DClass<2>::treeT tree(world,DClass<2>::MyProcMap(v));
+	DClass<2>::treeT tree(world,DClass<2>::MyProcMap(world,v));
+//	DClass<2>::treeT tree(world,MyProcmap<2>(v));
 //	treeT tree(world,MyProcmapD(1));
 	print("Made tree");
 	print("About to make tree1");
-	DClass<2>::treeT tree1(world,DClass<2>::MyProcMap(v));
+//	DClass<2>::treeT tree1(world,MyProcmap<2>(v));
+	DClass<2>::treeT tree1(world,DClass<2>::MyProcMap(world,v));
 	if (me == 0) { 
 	    print("About to build tree");
 	    build_tree<2>(tree,root);
@@ -83,14 +79,14 @@ int main(int argc, char** argv) {
 	    world.gop.broadcast<unsigned int>(ksize);
 	    print("broadcasted ksize");
 	    for (unsigned int i = 0; i < ksize; i++) {
-		TreeCoordsD t;
+		DClass<2>::TreeCoords t;
 		world.gop.broadcast<DClass<2>::TreeCoords>(t);
 		klist.push_back(t);
 		t.print();
 	    }
 	    print("done broadcasting klist");
 	}
-	treeT tree2(world,DClass<2>::MyProcMap(klist));
+	DClass<2>::treeT tree2(world,DClass<2>::MyProcMap(world,klist));
 	if (me == 0) {
 	    migrate<2>(tree1, tree2);
 	    print("copied tree1 to tree2");

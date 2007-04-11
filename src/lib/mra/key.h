@@ -4,6 +4,8 @@
 /// \file key.h
 /// \brief Multidimension Key for MRA tree and associated iterators 
 
+#include <mra/power.h>
+
 namespace madness {
 
     typedef unsigned long Translation;
@@ -28,6 +30,38 @@ namespace madness {
         void rehash() {
             hashval = madness::hash(n,madness::hash(l));
         };
+	// Helper function for operator <
+	Translation encode() const {
+	    Array<Translation,NDIM> Lcopy = l;
+	    int twotoD = power<NDIM>(), levfact = 1;
+	    Translation retval = 0;
+	    for (long i = 0; i < n; i++) {
+		int factor = 1;
+		for (int j = 0; j < NDIM; j++) {
+		    retval += (Lcopy[NDIM-j-1]%2)*factor*levfact;
+		    Lcopy[NDIM-j-1]/=2;
+		    factor*=2;
+		}
+		levfact*=twotoD;
+	    }
+	    return retval;
+	};
+	// Helper function for (Level, Translation) constructor
+	Array<Translation,NDIM> decode(Level level, Translation k) const {
+	    Array<Translation,NDIM> L(0);
+	    int twotoD = power<NDIM>();
+	    int powr=1, divisor=2;
+	    for (Level i = 0; i < level; i++) {
+		Translation r = k%twotoD;
+		for (int j=0; j<NDIM; j++) {
+		    L[NDIM-j-1]+=(r%divisor)*powr;
+		    r/=divisor;
+		}
+		k/=twotoD;
+		powr*=2;
+	    }
+	    return L;
+	};
     public:
         Key() {};
 
@@ -42,23 +76,46 @@ namespace madness {
             rehash();
 	    
 	};
+
+	Key(Level n, Translation p) : n(n) {
+	    l = decode(n,p);
+	};
+
         bool operator==(const Key& other) const {
             if (hashval != other.hashval) return false;
             if (n != other.n) return false;
             return l == other.l;
         };
 
-/*
-        bool operator<(const Key& other) const {
-            if (hashval < other.hashval) return true;
-            else if (hashval > other.hashval) return false;
-            else if (n < other.n) return true;
-            else if (n > other.n) return false;
-            else return (l < other.l);
-        };
-*/
 	// Sorry, but I need this really really ugly "less than" operator. -hqi
+	// Actually I have figured out a cleaner way of doing it.
+	bool operator<(const Key& other) const {
+	    if (*this == other) return false; // I am not less than self
+	    Translation tthis, tother;
+	    if (this->n == other.n) {
+		tthis = this->encode();
+		tother = other.encode();
+	    }
+	    else if (this->n > other.n) {
+		Level dn = this->n - other.n;
+		Key newthis = this->parent(dn);
+		tthis = newthis.encode();
+		tother = other.encode();
+	    }
+	    else {
+		Level dn = other.n - this->n;
+		Key newother = other.parent(dn);
+		tthis = this->encode();
+		tother = newother.encode();
+	    }
+		
+	    if (tthis == tother)
+		return (this->n > other.n);
+	    else
+		return (tthis < tother);
+	}
 
+/*
 	bool operator<(const Key& other) const {
 	    if (*this == other) return false; // I am not less than self
 	    int ans;
@@ -124,6 +181,7 @@ namespace madness {
                 return 0;
             }
         };
+*/
 
 
         inline hashT hash() const {

@@ -113,8 +113,8 @@ namespace madness {
     };
     
 
-    template <typename T, int NDIM> class FunctionImpl;
-    template <typename T, int NDIM> class Function;
+    template <typename T, int NDIM, typename Pmap> class FunctionImpl;
+    template <typename T, int NDIM, typename Pmap> class Function;
 
 
     /// FunctionFactory implements the named-parameter idiom for Function
@@ -128,8 +128,8 @@ namespace madness {
     /// where the methods of function factory, which specify the non-default
     /// arguments eventually passed to the \c Function constructor, can be
     /// used in any order.
-    template <typename T, int NDIM> class FunctionFactory {
-        friend class FunctionImpl<T,NDIM>;
+    template <typename T, int NDIM, typename Pmap=DCDefaultProcmap<Key<NDIM> > > class FunctionFactory {
+        friend class FunctionImpl<T,NDIM,Pmap>;
     protected:
         World& _world;
         T (*_f)(const double[NDIM]);
@@ -158,7 +158,7 @@ namespace madness {
             , _empty(false)
             , _autorefine(FunctionDefaults<NDIM>::autorefine)
         {};
-        inline FunctionFactory& f(void (*f)(const double[NDIM], T* restrict)) {
+        inline FunctionFactory& f(T (*f)(const double[NDIM])) {
             _f = f;
             return *this;
         };
@@ -254,8 +254,8 @@ namespace madness {
     /// The FunctionImpl inherits all of the functionality of WorldContainer
     /// (to store the coefficients) and WorldObject<WorldContainer> (used
     /// for RMI and for its unqiue id).
-    template <typename T, int NDIM>
-    class FunctionImpl : public WorldContainer< Key<NDIM>, FunctionNode<T,NDIM> > {
+    template <typename T, int NDIM, typename Pmap=DCDefaultProcmap<Key<NDIM> > >
+    class FunctionImpl : public WorldContainer< Key<NDIM>, FunctionNode<T,NDIM>, Pmap > {
     private:
         static const int MAXK = 17;
         static FunctionCommonData<T,NDIM> commondata[MAXK + 1]; ///< Declared in mra.cc
@@ -266,7 +266,7 @@ namespace madness {
         typedef Array<Translation,NDIM> tranT;         ///< Type of array holding translation
         typedef Key<NDIM> keyT;                        ///< Type of key
         typedef FunctionNode<T,NDIM> nodeT;            ///< Type of node
-        typedef WorldContainer<keyT,nodeT> dcT;        ///< Type of container holding the coefficients
+        typedef WorldContainer<keyT,nodeT, Pmap> dcT;  ///< Type of container holding the coefficients
 
         World& world;
         int k;                  ///< Wavelet order
@@ -297,7 +297,7 @@ namespace madness {
 
 
         /// Initialize function impl from data in factory
-        FunctionImpl(const FunctionFactory<T,NDIM>& factory) 
+        FunctionImpl(const FunctionFactory<T,NDIM,Pmap>& factory) 
             : dcT(factory._world)
             , world(factory._world)
             , k(factory._k)
@@ -318,7 +318,7 @@ namespace madness {
         {
             MADNESS_ASSERT(k>0 && k<MAXK);
             if (!initialized) {
-                FunctionImpl<T,NDIM>::initialize();
+                FunctionImpl<T,NDIM,Pmap>::initialize();
                 cdata = commondata+k;
             }
 
@@ -361,7 +361,7 @@ namespace madness {
         /// Allocates a \em new function index in preparation for a deep copy
         ///
         /// !!! DOES NOT COPY THE COEFFICIENTS !!!
-        FunctionImpl(const FunctionImpl<T,NDIM>& other) 
+        FunctionImpl(const FunctionImpl<T,NDIM,Pmap>& other) 
             : dcT(other.world)
             , world(other.world)
             , k(other.k)
