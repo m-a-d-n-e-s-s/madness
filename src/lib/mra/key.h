@@ -63,32 +63,33 @@ namespace madness {
 	    return L;
 	};
     public:
+        /// Default constructor makes an \em uninitialized key
         Key() {};
 
+        /// Constructor with given n, l
         Key(Level n, const Array<Translation,NDIM> l) 
             : n(n), l(l) {
             rehash();
         };
 
-	Key(int k) : n(0) {
-	    for (int i = 0; i < NDIM; i++)
-		l[i] = 0;
+        /// Constructor with given n and l=0
+	Key(int n) : n(n), l(0) {
             rehash();
-	    
 	};
 
+        /// Constructor from lexical index in depth first order
 	Key(Level n, Translation p) : n(n) {
 	    l = decode(n,p);
 	};
 
+        /// Equality test
         bool operator==(const Key& other) const {
             if (hashval != other.hashval) return false;
             if (n != other.n) return false;
             return l == other.l;
         };
 
-	// Sorry, but I need this really really ugly "less than" operator. -hqi
-	// Actually I have figured out a cleaner way of doing it.
+	/// Comparison based upon depth first lexical order
 	bool operator<(const Key& other) const {
 	    if (*this == other) return false; // I am not less than self
 	    Translation tthis, tother;
