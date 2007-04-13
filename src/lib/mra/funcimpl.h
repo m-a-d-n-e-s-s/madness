@@ -6,6 +6,8 @@
 
 
 namespace madness {
+
+
     /// FunctionDefaults holds default paramaters as static class members
 
     /// Declared and initialized in mra.cc.  Note that it is currently
@@ -218,28 +220,52 @@ namespace madness {
 
     /// FunctionNode holds the coefficients, etc., at each node of the 2^NDIM-tree
     template <typename T, int NDIM>
-    struct FunctionNode {
-        Tensor<T> coeffs;  ///< The coefficients, if any
-        bool has_coeff;    ///< True if there are coefficients
-        bool has_children; ///< True if there are children
-
+    class FunctionNode {
+    private:
+        Tensor<T> _coeffs;  ///< The coefficients, if any
+        bool _has_children; ///< True if there are children
+        
+    public:
         /// Default constructor makes node without coeffs or children
         FunctionNode() 
-            : coeffs()
-            , has_coeff(false)
-            , has_children(false)
+            : _coeffs()
+            , _has_children(false)
         {};
 
         /// Construct from given coefficients with optional children
+
+        /// Note that only a shallow copy of the coeffs are taken so
+        /// you should pass in a deep copy if you want the node to
+        /// take ownership.
         FunctionNode(const Tensor<T>& coeffs, bool has_children=false) 
-            : coeffs(coeffs)
-            , has_coeff(true)
-            , has_children(has_children)
+            : _coeffs(coeffs)
+            , _has_children(has_children)
         {};
+
+        /// Returns true if there are coefficients in this node
+        bool has_coeff() const {return coeffs.size>0;};
+
+        /// Returns true if this node has children
+        bool has_children() const {return _has_children;};
+
+        /// Returns true if this does not have children
+        bool is_leaf() const {return !_has_children;};
+
+        /// Returns a non-const references to the tensor containing the coeffs
+        Tensor<T>& coeffs() const {return _coeffs;};
+
+        /// Sets \c has_children attribute to value of \c flag.
+        void set_has_children(bool flag} {_has_children = flag;};
+
+        /// Sets \c has_children attribute to value of \c !flag
+        void set_is_leaf(bool flag} {_has_children = !flag;};
+
+        /// Takes a \em shallow copy of the coeffs --- same as \c this->coeffs()=coeffs
+        void set_coeffs(Tensor<T>& coeffs) {_coeffs = coeffs;}
 
         template <typename Archive>
         inline void serialize(Archive& ar) {
-            ar & coeffs & has_coeff & has_children;
+            ar & _coeffs & _has_coeff & _has_children;
         }
     };
 
@@ -267,6 +293,7 @@ namespace madness {
         typedef Key<NDIM> keyT;                        ///< Type of key
         typedef FunctionNode<T,NDIM> nodeT;            ///< Type of node
         typedef WorldContainer<keyT,nodeT, Pmap> dcT;  ///< Type of container holding the coefficients
+        typedef std::pair<keyT,nodeT>> datumT;         ///< Type of entry in container
 
         World& world;
         int k;                  ///< Wavelet order
@@ -351,16 +378,147 @@ namespace madness {
 //             world.gop.fence();  // Ultimately, this must be optimized away
         };
 
+        void insert_empty_down_to_initial_level(const keyT& key) {
+            if (is_local(key)) insert(key,nodeT(coeffT(),key.n==initial_level));
+            if (key.n < initial_level) {
+                foreach_child(key,insert_empty_down_to_initial_level);
+            }
+        };
+
         void project_refine(const keyT& key) {
+            insert_empty_down_to_initial_level(keyT(0));
+            task_generator(*this, &project_refine_op, 
             print("DOING IT!");
         };
 
+
+        struct true_predicate {
+            bool operator()(const datumT& d) const {
+                return true;
+            };
+        };
+        
+
+        struct is_leaf_predicate {
+            bool operator()(const datumT& d) const {
+                return d.second.is_leaf();
+            };
+        };
+
+        struct is_not_leaf_predicate {
+            bool operator()(const datumT& d) const {
+                return !d.second.is_leaf();
+            };
+        };
+
+        struct  has_coeff_predicate {
+            bool operator()(const datumT& d) const {
+                return d.second.has_coeff();
+            };
+        };
+
+        struct  has_no_coeff_predicate {
+            bool operator()(const datumT& d) const {
+                return !d.second.has_coeff();
+            };
+        };
+
+        /// Returns vector of keys of all local nodes where predicate is true
+        template <typename predicateT>
+        std::vector<keyT> nodes (const predicateT& predicate) {
+            std::vector<keyT> v;
+            v.reserve(size());
+            for (const_iterator it = fa->begin(); it != fa->end(); ++it) {
+                if (predicate(*it)) v.push_back(it->first);
+            }
+            return v;
+        };
+
+        /// Returns vector of keys of all local nodes
+        std::vector<keyT> nodes () {
+            return nodes(true_predicate());
+        };
+
+
+        /// Returns vector of keys of local leaf nodes
+        std::vector<keyT> leaf_nodes () {
+            return nodes(is_leaf_predicate());
+        };
+
+
+        /// Returns vector of keys of all local nodes with coeff
+        std::vector<keyT> coeff_nodes () {
+            return nodes(has_coeff_predicate());
+        };
+
+
+        /// Transform sum coefficients at level n to sums+differences at level n-1
+
+        /// Given scaling function coefficients s[n][l][i] and s[n][l+1][i]
+        /// return the scaling function and wavelet coefficients at the
+        /// coarser level.  I.e., decompose Vn using Vn = Vn-1 + Wn-1.
+        /// \code
+        /// s_i = sum(j) h0_ij*s0_j + h1_ij*s1_j
+        /// d_i = sum(j) g0_ij*s0_j + g1_ij*s1_j
+        //  \endcode
+        /// Returns a new tensor and has no side effects.  Works for any
+        /// number of dimensions.
+        ///
+        /// No communication involved.
+        inline TensorT filter(const TensorT& s) const {
+            return transform(s, cdata->hgT);
+        };
+
+        /// Optimized filter (inplace, contiguous, no err checking)
+
+        /// Transforms coefficients in s returning result also in s.
+        /// Uses work2 from common data to eliminate temporary creation and
+        /// to increase cache locality.
+        ///
+        /// No communication involved.
+        inline void filter_inplace(TensorT& s) {
+            transform_inplace(s, cdata->hgT, cdata->work2);
+        };
+
+
+        ///  Transform sums+differences at level n to sum coefficients at level n+1
+
+        ///  Given scaling function and wavelet coefficients (s and d)
+        ///  returns the scaling function coefficients at the next finer
+        ///  level.  I.e., reconstruct Vn using Vn = Vn-1 + Wn-1.
+        ///  \code
+        ///  s0 = sum(j) h0_ji*s_j + g0_ji*d_j
+        ///  s1 = sum(j) h1_ji*s_j + g1_ji*d_j
+        ///  \endcode
+        ///  Returns a new tensor and has no side effects
+        ///
+        ///  If (sonly) ... then ss is only the scaling function coeffs (and
+        ///  assume the d are zero).  Works for any number of dimensions.
+        ///
+        /// No communication involved.
+        inline TensorT unfilter(const TensorT& ss,
+                                bool sonly = false) const {
+            if (sonly)
+                //return transform(ss,cdata->hgsonly);
+                MADNESS_EXCEPTION("unfilter: sonly : not yet",0);
+            else
+                return transform(ss, cdata->hg);
+        };
+
+        /// Optimized unfilter (see info about filter_inplace)
+
+        /// No communication involved.
+        inline void unfilter_inplace(TensorT& s) {
+            transform_inplace(s, cdata->hg, cdata->work2);
+        };
 
         /// Copy constructor
 
         /// Allocates a \em new function index in preparation for a deep copy
         ///
-        /// !!! DOES NOT COPY THE COEFFICIENTS !!!
+        /// Does \em not copy the coefficients
+        ///
+        /// !!!!!!!!!! SHOULD WE NOT COPY THE PMAP?
         FunctionImpl(const FunctionImpl<T,NDIM,Pmap>& other) 
             : dcT(other.world)
             , world(other.world)
@@ -392,14 +550,14 @@ namespace madness {
         };
 
 
-        /// Convert user coords (cell[][]) to simulation coords ([0,1])
+        /// Convert user coords (cell[][]) to simulation coords ([0,1]^ndim)
         inline void user_to_sim(double x[NDIM]) const {
             for (int i=0; i<NDIM; i++)
                 x[i] = (x[i] - cell[i][0]) * rcell_width[i];
         };
 
 
-        /// Convert simulation coords ([0,1]) to user coords (cell[][])
+        /// Convert simulation coords ([0,1]^ndim) to user coords (cell[][])
         inline void sim_to_user(double x[NDIM]) const {
             for (int i=0; i<NDIM; i++)
                 x[i] = x[i]*cell_width[i] + cell[i][0];
@@ -412,7 +570,7 @@ namespace madness {
             initialized = true;
         };
 
-        /// Assignment is not allowed ... not at all now we have reference member
+        /// Assignment is not allowed ... not even possibloe now that we have reference member
         //FunctionImpl<T>& operator=(const FunctionImpl<T>& other);
     };
 }

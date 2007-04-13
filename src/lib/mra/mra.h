@@ -34,7 +34,6 @@ namespace madness {
 
         /// An unitialized function can only be assigned to.  Any other operation
         /// will throw an exception.
-
         Function()
             : impl(0)
         {};
