@@ -845,6 +845,7 @@ int main(int argc, char** argv) {
     world.gop.fence();
 
     try {
+      DQueue<int>::self_test();
       test0(world);
       if (world.nproc() > 1) {
 	test1(world);

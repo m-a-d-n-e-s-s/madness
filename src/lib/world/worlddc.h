@@ -781,7 +781,7 @@ namespace madness {
         /// Returns true if the key maps to the local processor (no communication)
         bool is_local(const keyT& key) const {
             check_initialized();
-            return p->is_local();
+            return p->is_local(key);
         };
         
         

@@ -71,8 +71,8 @@ namespace madness {
     class WorldTaskQueue : private NO_DEFAULTS {
         friend class TaskInterface;
     private:
-        // Is there a more efficient choice than list?
-        typedef std::list< TaskInterface* > listT;
+        //typedef std::list< TaskInterface* > listT;
+        typedef DQueue< TaskInterface* > listT;
         listT ready;       //< Tasks that are ready to run
 
         World& world;      //< The communication context

@@ -21,10 +21,11 @@ typedef UINT64_T uint64_t;
 #endif
 
 #include <world/typestuff.h>
+#include <world/worldexc.h>
+#include <world/print.h>
 #include <world/worldhash.h>
 #include <world/array.h>
-#include <world/print.h>
-#include <world/worldexc.h>
+#include <world/dqueue.h>
 #include <world/sharedptr.h>
 #include <world/nodefaults.h>
 #include <world/worldmpi.h>
