@@ -29,6 +29,8 @@ int main(int argc, char**argv) {
 	    print("about to construct LoadBalImpl");
 	    LoadBalImpl<double,3,MyProcmap<3> > lbi(f);
 	    print("constructed LoadBalImpl");
+	    lbi.findBestPartition();
+	    print("found best partition");
 	}
 
     } catch (MPI::Exception e) {

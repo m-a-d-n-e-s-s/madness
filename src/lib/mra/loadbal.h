@@ -331,7 +331,7 @@ class LBTree : public WorldContainer<typename DClass<D>::KeyD,typename DClass<D>
 	    Pmap pmap = f->get_procmap();
 	    World world = f->world;
 //	    this = new LBTree(world, pmap);
-	    LBTree(world, pmap);
+//	    LBTree(world, pmap);
 	    typename DClass<D>::KeyD root(0);
 	    this->init_helper<T>(f, root);
 	};
@@ -359,16 +359,16 @@ class LBTree : public WorldContainer<typename DClass<D>::KeyD,typename DClass<D>
 	};
 
 	// Methods:
-	Cost fixCost(typename DClass<D>::KeyD key);
-	Cost depthFirstPartition(typename DClass<D>::KeyD key,
+	Cost fixCost(typename DClass<D>::KeyDConst& key);
+	Cost depthFirstPartition(typename DClass<D>::KeyDConst& key,
         	vector<typename DClass<D>::TreeCoords>* klist, unsigned int npieces,
         	Cost totalcost = 0, Cost *maxcost = 0);
-	void rollup(typename DClass<D>::KeyD key);
+	void rollup(typename DClass<D>::KeyDConst& key);
 	void meld(typename DClass<D>::KeyDConst& key);
-	Cost makePartition(typename DClass<D>::KeyD key, 
+	Cost makePartition(typename DClass<D>::KeyDConst& key, 
 		vector<typename DClass<D>::KeyD>* klist, Cost partitionSize, 
 		bool lastPartition, Cost usedUp, bool *atleaf);
-	void removeCost(typename DClass<D>::KeyD key, Cost c);
+	void removeCost(typename DClass<D>::KeyDConst& key, Cost c);
 	Cost computeCost(typename DClass<D>::KeyDConst& key);
 
 	// inherited methods
@@ -389,10 +389,12 @@ template <typename T, int D, typename Pmap=MyProcmap<D> >
 class LoadBalImpl {
     private:
 	Function<T,D,Pmap> f;
-	typename DClass<D>::treeT skeltree;
+//	typename DClass<D>::treeT skeltree;
+	SharedPtr<typename DClass<D>::treeT> skeltree;
 
 	void construct_skel() {
-	    skeltree.template init_tree<T>(f.impl);
+//	    skeltree.template init_tree<T>(f.impl);
+	    skeltree->template init_tree<T>(f.impl);
 	};
 
     public:
@@ -418,37 +420,6 @@ class LoadBalImpl {
 	    return (f.impl->world);
 	};
 };
-
-
-/*
-template <int D>
-Cost computeCost(typename DClass<D>::treeT& tree, typename DClass<D>::KeyDConst& key);
-
-template <int D>
-void meld(typename DClass<D>::treeT& tree, typename DClass<D>::KeyDConst& key);
-
-template <int D>
-void rollup(typename DClass<D>::treeT tree, typename DClass<D>::KeyD key);
-
-template <int D>
-Cost fixCost(typename DClass<D>::treeT tree, typename DClass<D>::KeyD key); 
-
-template <int D>
-Cost makePartition(typename DClass<D>::treeT tree, typename DClass<D>::KeyD key, 
-	vector<typename DClass<D>::KeyD >* klist, Cost partitionSize, bool lastPartition, 
-	Cost usedUp, bool *atleaf);
-
-template <int D>
-Cost depthFirstPartition(typename DClass<D>::treeT tree, typename DClass<D>::KeyD key, 
-	vector<typename DClass<D>::TreeCoords>* klist, unsigned int npieces, Cost totalcost, Cost *maxcost); 
-
-template <int D>
-void removeCost(typename DClass<D>::treeT tree, typename DClass<D>::KeyD key, Cost c); 
-
-template <int D>
-void findBestPartition(typename DClass<D>::treeT tree, typename DClass<D>::KeyD key, 
-	vector<typename DClass<D>::TreeCoords>* klist, unsigned int npieces);
-*/
 
 CompCost computeCompCost(Cost c, int n);
 

@@ -25,9 +25,12 @@ vector<typename DClass<D>::TreeCoords> LoadBalImpl<T,D,Pmap>::findBestPartition(
 //print("findBestPartition: about to fixCost");
 
     typename DClass<D>::KeyD root(0);
-    this->skeltree.fixCost<D>(root);
+//    this->skeltree.fixCost<D>(root);
+    this->skeltree->template fixCost(root);
 print("findBestPartition: about to depthFirstPartition");
-    totalCost = this->skeltree.depthFirstPartition<D>(root, &listoflist[count], npieces, 
+//    totalCost = this->skeltree.depthFirstPartition<D>(root, &listoflist[count], npieces, 
+//	totalCost, &costlist[count]);
+    totalCost = this->skeltree->template depthFirstPartition(root, &listoflist[count], npieces, 
 	totalCost, &costlist[count]);
 //print("findBestPartition: after depthFirstPartition");
     int size = listoflist[count].size();
@@ -41,11 +44,14 @@ print("findBestPartition: about to depthFirstPartition");
     count++;
 
     while (notdone) {
-	this->skeltree.fixCost<D>(root); 
-	this->skeltree.rollup<D>(root);
+//	this->skeltree.fixCost<D>(root); 
+	this->skeltree->template fixCost(root); 
+//	this->skeltree.rollup<D>(root);
+	this->skeltree->template rollup(root);
 	listoflist.push_back(emptylist);
 	costlist.push_back(0);
-	this->skeltree.depthFirstPartition<D>(root, &listoflist[count], npieces, totalCost, &costlist[count]);
+//	this->skeltree.depthFirstPartition<D>(root, &listoflist[count], npieces, totalCost, &costlist[count]);
+	this->skeltree->template depthFirstPartition(root, &listoflist[count], npieces, totalCost, &costlist[count]);
 	int size = listoflist[count].size();
 	cout << "Partitioned tree " << count << ":" << endl;
 	for (int i = 0; i < size; i++)
@@ -53,8 +59,10 @@ print("findBestPartition: about to depthFirstPartition");
 	cout << "Max cost for this tree = " << costlist[count] << endl;
 	cout << endl;
 	
-    	typename DClass<D>::treeT::iterator it = this->skeltree.find(root);
-    	if (it == this->skeltree.end()) return;
+//    	typename DClass<D>::treeT::iterator it = this->skeltree.find(root);
+    	typename DClass<D>::treeT::iterator it = this->skeltree->find(root);
+//    	if (it == this->skeltree.end()) return klist;
+    	if (it == this->skeltree->end()) return klist;
     	typename DClass<D>::NodeD node = it->second;
 	if (!(node.has_children()) || (listoflist[count].size() < npieces)) {
 	    notdone = false;
@@ -126,7 +134,7 @@ print("findBestPartition: about to depthFirstPartition");
 
 
 template <int D, typename Pmap>
-Cost LBTree<D,Pmap>::fixCost(typename DClass<D>::KeyD key) {
+Cost LBTree<D,Pmap>::fixCost(typename DClass<D>::KeyDConst& key) {
 //    cout << "fixCost: key = ";
 //    key.print();
 //    print(" is about to be looked for");
@@ -147,7 +155,7 @@ Cost LBTree<D,Pmap>::fixCost(typename DClass<D>::KeyD key) {
     {
 //	print("fixCost: node has children");
 	for (KeyChildIterator<D> kit(key); kit; ++kit) {
-	    d.subcost += this->fixCost<D>(kit.key());
+	    d.subcost += this->template fixCost(kit.key());
 	}
     }
     node.set_data(d);
@@ -162,12 +170,12 @@ Cost LBTree<D,Pmap>::fixCost(typename DClass<D>::KeyD key) {
 
 
 template <int D, typename Pmap>
-Cost LBTree<D,Pmap>::depthFirstPartition(typename DClass<D>::KeyD key, 
+Cost LBTree<D,Pmap>::depthFirstPartition(typename DClass<D>::KeyDConst& key, 
 	vector<typename DClass<D>::TreeCoords>* klist, unsigned int npieces, 
 	Cost totalcost, Cost *maxcost) {
 //print("depthFirstPartition: at very beginning");
     if (totalcost == 0) {
-	totalcost = this->computeCost<D>(key);
+	totalcost = this->template computeCost(key);
     }
 //print("depthFirstPartition: totalcost =", totalcost);
 
@@ -186,7 +194,7 @@ Cost LBTree<D,Pmap>::depthFirstPartition(typename DClass<D>::KeyD key,
 //print("depthFirstPartition: partitionSize =", partitionSize);
 	Cost usedUp = 0;
 	bool atleaf = false;
-	usedUp = this->makePartition<D>(key, &tmplist, partitionSize, (i==0), usedUp, &atleaf);
+	usedUp = this->template makePartition(key, &tmplist, partitionSize, (i==0), usedUp, &atleaf);
 	if (*maxcost < usedUp) *maxcost = usedUp;
 	costLeft -= usedUp;
 	partsLeft--;
@@ -198,7 +206,7 @@ Cost LBTree<D,Pmap>::depthFirstPartition(typename DClass<D>::KeyD key,
 }
 
 template <int D, typename Pmap>
-void LBTree<D,Pmap>::rollup(typename DClass<D>::KeyD key) {
+void LBTree<D,Pmap>::rollup(typename DClass<D>::KeyDConst& key) {
 //    print("rollup: at beginning");
     typename DClass<D>::treeT::iterator it = this->find(key);
     if (it == this->end()) return;
@@ -228,7 +236,7 @@ void LBTree<D,Pmap>::rollup(typename DClass<D>::KeyD key) {
     }
     if (hasleafchild) {
 //	print("rollup: about to meld with key",key);
-	this->meld<D>(key);
+	this->template meld(key);
     }
     for (KeyChildIterator<D> kit(key); kit; ++kit) {
 	typename DClass<D>::treeT::iterator itc = this->find(kit.key());
@@ -237,7 +245,7 @@ void LBTree<D,Pmap>::rollup(typename DClass<D>::KeyD key) {
 	    typename DClass<D>::NodeD c = itc->second;
 	    if (c.has_children()) {
 //		print("rollup: child", kit.key(), "has children");
-		this->rollup<D>(kit.key());
+		this->template rollup(kit.key());
 	    }
 	}
     }
@@ -324,7 +332,7 @@ Cost LBTree<D,Pmap>::computeCost(typename DClass<D>::KeyDConst& key) {
 
     typename DClass<D>::NodeD node = it->second;
     for (KeyChildIterator<D> kit(key); kit; ++kit) {
-	cost += this->computeCost<D>(kit.key());
+	cost += this->template computeCost(kit.key());
     }
     NodeData d = node.get_data();
     cost += d.cost;
@@ -337,7 +345,7 @@ Cost LBTree<D,Pmap>::computeCost(typename DClass<D>::KeyDConst& key) {
 
 
 template <int D, typename Pmap>
-Cost LBTree<D,Pmap>::makePartition(typename DClass<D>::KeyD key, 
+Cost LBTree<D,Pmap>::makePartition(typename DClass<D>::KeyDConst& key, 
 	vector<typename DClass<D>::KeyD>* klist, Cost partitionSize, bool lastPartition, 
 	Cost usedUp, bool *atleaf) {
 //    cout << "at beginning of makePartition: atleaf = ";
@@ -383,7 +391,7 @@ Cost LBTree<D,Pmap>::makePartition(typename DClass<D>::KeyD key,
 	d.istaken = true;
 	usedUp += d.subcost;
 	// REMOVE COST FROM FOREPARENTS (implement this)
-	this->removeCost<D>(key.parent(), d.subcost);
+	this->template removeCost(key.parent(), d.subcost);
 	node.set_data(d);
 	this->insert(key,node);
     }
@@ -394,7 +402,7 @@ Cost LBTree<D,Pmap>::makePartition(typename DClass<D>::KeyD key,
 	    for (KeyChildIterator<D> kit(key); kit; ++kit) {
 		if (node.has_child(i)) {
 //		    print(key, "recursively calling", kit.key());
-		    usedUp = this->makePartition<D>(kit.key(), klist, partitionSize, lastPartition,
+		    usedUp = this->template makePartition(kit.key(), klist, partitionSize, lastPartition,
 			usedUp, atleaf);
 		    if ((*atleaf) || (usedUp >= partitionSize)) {
 			break;
@@ -412,7 +420,7 @@ Cost LBTree<D,Pmap>::makePartition(typename DClass<D>::KeyD key,
 }
 
 template <int D, typename Pmap>
-void LBTree<D,Pmap>::removeCost(typename DClass<D>::KeyD key, Cost c) {
+void LBTree<D,Pmap>::removeCost(typename DClass<D>::KeyDConst& key, Cost c) {
 //cout << "removeCost: key ";
 //key.print();
 //cout << endl;
@@ -425,7 +433,7 @@ void LBTree<D,Pmap>::removeCost(typename DClass<D>::KeyD key, Cost c) {
 //print("removeCost: got data");
     d.subcost -= c;
     if (key.level() > 0) {
-    	this->removeCost<D>(key.parent(), c);
+    	this->template removeCost(key.parent(), c);
     }
 //cout << "removeCost: before setting, data = ";
 //d.print();
@@ -477,55 +485,17 @@ void migrate(typename DClass<D>::treeT tfrom, typename DClass<D>::treeT tto) {
 }
 
 // Explicit instantiations for D=2 and D=3
-// commented out are probably no longer needed
 
-/*
-template void build_tree<2>(DClass<2>::treeT& tree, DClass<2>::KeyDConst& key);
-template void print_tree<2>(DClass<2>::treeT& tree, DClass<2>::KeyDConst& key);
-template Cost computeCost<2>(DClass<2>::treeT& tree, DClass<2>::KeyDConst& key);
-template void meld<2>(DClass<2>::treeT& tree, DClass<2>::KeyDConst& key);
-template void rollup<2>(DClass<2>::treeT tree, DClass<2>::KeyD key);
-template Cost fixCost<2>(DClass<2>::treeT tree, DClass<2>::KeyD key);
-template Cost makePartition<2>(DClass<2>::treeT tree, DClass<2>::KeyD key, 
-	vector<DClass<2>::KeyD>* klist, Cost partitionSize, bool lastPartition, 
-	Cost usedUp, bool *atleaf);
-template Cost depthFirstPartition<2>(DClass<2>::treeT tree, DClass<2>::KeyD key,
-        vector<DClass<2>::TreeCoords>* klist, unsigned int npieces, Cost totalcost, 
-	Cost *maxcost);
-template void removeCost<2>(DClass<2>::treeT tree, DClass<2>::KeyD key, Cost c);
-template void findBestPartition<2>(DClass<2>::treeT tree, DClass<2>::KeyD key,
-        vector<DClass<2>::TreeCoords>* klist, unsigned int npieces);
-*/
 template void migrate_data<2>(DClass<2>::treeT tfrom, DClass<2>::treeT tto, 
 	DClass<2>::KeyD key);
 template void migrate<2>(DClass<2>::treeT tfrom, DClass<2>::treeT tto);
 
-/*
-template void build_tree<3>(DClass<3>::treeT& tree, DClass<3>::KeyDConst& key);
-template void print_tree<3>(DClass<3>::treeT& tree, DClass<3>::KeyDConst& key);
-template Cost computeCost<3>(DClass<3>::treeT& tree, DClass<3>::KeyDConst& key);
-template void meld<3>(DClass<3>::treeT& tree, DClass<3>::KeyDConst& key);
-template void rollup<3>(DClass<3>::treeT tree, DClass<3>::KeyD key);
-template Cost fixCost<3>(DClass<3>::treeT tree, DClass<3>::KeyD key);
-template Cost makePartition<3>(DClass<3>::treeT tree, DClass<3>::KeyD key, 
-	vector<DClass<3>::KeyD>* klist, Cost partitionSize, bool lastPartition, 
-	Cost usedUp, bool *atleaf);
-template Cost depthFirstPartition<3>(DClass<3>::treeT tree, DClass<3>::KeyD key,
-        vector<DClass<3>::TreeCoords>* klist, unsigned int npieces, Cost totalcost, 
-	Cost *maxcost);
-template void removeCost<3>(DClass<3>::treeT tree, DClass<3>::KeyD key, Cost c);
-template void findBestPartition<3>(DClass<3>::treeT tree, DClass<3>::KeyD key,
-        vector<DClass<3>::TreeCoords>* klist, unsigned int npieces);
-*/
 template void migrate_data<3>(DClass<3>::treeT tfrom, DClass<3>::treeT tto, 
 	DClass<3>::KeyD key);
 template void migrate<3>(DClass<3>::treeT tfrom, DClass<3>::treeT tto);
 
-/*
-template <> void LBTree<3, DClass<3>::MyProcMap>::init_tree(SharedPtr<FunctionImpl<double, 3,
-	DClass<3>::MyProcMap> >& f);
-
-template <> void LBTree<3, DClass<3>::MyProcMap>::init_helper(SharedPtr<FunctionImpl<double, 3,
-	DClass<3>::MyProcMap> >& f, DClass<3>::KeyDConst key);
-*/
+template class LoadBalImpl<double,2,MyProcmap<2> >;
+template class LoadBalImpl<double,3,MyProcmap<3> >;
+template class LBTree<2,MyProcmap<2> >;
+template class LBTree<3,MyProcmap<3> >;
 }
