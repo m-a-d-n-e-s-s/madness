@@ -276,6 +276,7 @@ std::ostream& operator<<(std::ostream& s, const FunctionNode<T,NDIM>& node) {
 };
 
 
+
     /// FunctionImpl holds all Function state to facilitate shallow copy semantics
 
     /// Since Function assignment and copy constructors are shallow it
@@ -389,8 +390,8 @@ std::ostream& operator<<(std::ostream& s, const FunctionNode<T,NDIM>& node) {
             if (is_local(key)) insert(key,nodeT(tensorT(),key.level()==initial_level));
             if (key.level() < initial_level) {
 //                foreach_child(key,insert_empty_down_to_initial_level);
-		for (KeyChildIterator<NDIM> kit(key); kit; ++kit)
-                    insert_empty_down_to_initial_level(kit.key());
+		for (KeyChildIterator<NDIM> kit(key); kit; ++kit) 
+		    insert_empty_down_to_initial_level(kit.key());
             }
         };
 
@@ -437,7 +438,6 @@ std::ostream& operator<<(std::ostream& s, const FunctionNode<T,NDIM>& node) {
         template <typename predicateT>
         std::vector<keyT> nodes (const predicateT& predicate) {
             std::vector<keyT> v;
-	// !!! several problems here: compiler doesn't understand size(), const_iterator, and fa
 /*
             v.reserve(size());
             for (const_iterator it = fa->begin(); it != fa->end(); ++it) {
@@ -579,6 +579,17 @@ std::ostream& operator<<(std::ostream& s, const FunctionNode<T,NDIM>& node) {
         inline void sim_to_user(double x[NDIM]) const {
             for (int i=0; i<NDIM; i++)
                 x[i] = x[i]*cell_width[i] + cell[i][0];
+        };
+
+        // inherited methods
+        typename WorldContainer<Key<NDIM>,FunctionNode<T,NDIM>,Pmap>::iterator end() {
+            return WorldContainer<Key<NDIM>,FunctionNode<T,NDIM>,Pmap>::end();
+        };
+        typename WorldContainer<Key<NDIM>,FunctionNode<T,NDIM>,Pmap>::iterator find(keyT key) {
+            return WorldContainer<Key<NDIM>,FunctionNode<T,NDIM>,Pmap>::find(key);
+        };
+        Pmap get_procmap() {
+            return WorldContainer<Key<NDIM>,FunctionNode<T,NDIM>,Pmap>::get_procmap();
         };
 
     private:
