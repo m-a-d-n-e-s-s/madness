@@ -243,7 +243,7 @@ namespace madness {
         {};
 
         /// Returns true if there are coefficients in this node
-        bool has_coeff() const {return coeffs.size>0;};
+        bool has_coeff() const {return (_coeffs.size>0);};
 
         /// Returns true if this node has children
         bool has_children() const {return _has_children;};
@@ -252,7 +252,7 @@ namespace madness {
         bool is_leaf() const {return !_has_children;};
 
         /// Returns a non-const references to the tensor containing the coeffs
-        Tensor<T>& coeffs() const {return _coeffs;};
+        Tensor<T> coeffs() const {return _coeffs;};
 
         /// Sets \c has_children attribute to value of \c flag.
         void set_has_children(bool flag) {_has_children = flag;};
@@ -265,9 +265,15 @@ namespace madness {
 
         template <typename Archive>
         inline void serialize(Archive& ar) {
-            ar & _coeffs & _has_coeff & _has_children;
+            ar & _coeffs & _has_children;
         }
     };
+
+template <typename T, int NDIM>
+std::ostream& operator<<(std::ostream& s, const FunctionNode<T,NDIM>& node) {
+    s << "has_coeff = " << node.has_coeff() << ", has_children = " << node.has_children();
+    return s;
+};
 
 
     /// FunctionImpl holds all Function state to facilitate shallow copy semantics
@@ -293,7 +299,7 @@ namespace madness {
         typedef Key<NDIM> keyT;                        ///< Type of key
         typedef FunctionNode<T,NDIM> nodeT;            ///< Type of node
         typedef WorldContainer<keyT,nodeT, Pmap> dcT;  ///< Type of container holding the coefficients
-        typedef std::pair<keyT,nodeT>> datumT;         ///< Type of entry in container
+        typedef std::pair<keyT,nodeT> datumT;         ///< Type of entry in container
 
         World& world;
         int k;                  ///< Wavelet order
@@ -379,15 +385,19 @@ namespace madness {
         };
 
         void insert_empty_down_to_initial_level(const keyT& key) {
-            if (is_local(key)) insert(key,nodeT(coeffT(),key.n==initial_level));
-            if (key.n < initial_level) {
-                foreach_child(key,insert_empty_down_to_initial_level);
+//            if (is_local(key)) insert(key,nodeT(coeffT(),key.n==initial_level));
+            if (is_local(key)) insert(key,nodeT(tensorT(),key.level()==initial_level));
+            if (key.level() < initial_level) {
+//                foreach_child(key,insert_empty_down_to_initial_level);
+		for (KeyChildIterator<NDIM> kit(key); kit; ++kit)
+                    insert_empty_down_to_initial_level(kit.key());
             }
         };
 
         void project_refine(const keyT& key) {
             insert_empty_down_to_initial_level(keyT(0));
-            task_generator(*this, &project_refine_op, 
+	// !!! COMPLETE THE FOLLOWING LINE
+//            task_generator(*this, &project_refine_op, 
             print("DOING IT!");
         };
 
@@ -427,10 +437,13 @@ namespace madness {
         template <typename predicateT>
         std::vector<keyT> nodes (const predicateT& predicate) {
             std::vector<keyT> v;
+	// !!! several problems here: compiler doesn't understand size(), const_iterator, and fa
+/*
             v.reserve(size());
             for (const_iterator it = fa->begin(); it != fa->end(); ++it) {
                 if (predicate(*it)) v.push_back(it->first);
             }
+*/
             return v;
         };
 
@@ -465,8 +478,9 @@ namespace madness {
         /// number of dimensions.
         ///
         /// No communication involved.
-        inline TensorT filter(const TensorT& s) const {
-            return transform(s, cdata->hgT);
+        inline tensorT filter(const tensorT& s) const {
+	// !!! transform not defined
+//            return transform(s, cdata->hgT);
         };
 
         /// Optimized filter (inplace, contiguous, no err checking)
@@ -476,8 +490,9 @@ namespace madness {
         /// to increase cache locality.
         ///
         /// No communication involved.
-        inline void filter_inplace(TensorT& s) {
-            transform_inplace(s, cdata->hgT, cdata->work2);
+        inline void filter_inplace(tensorT& s) {
+	// !!! transform_inplace not defined
+//            transform_inplace(s, cdata->hgT, cdata->work2);
         };
 
 
@@ -496,20 +511,23 @@ namespace madness {
         ///  assume the d are zero).  Works for any number of dimensions.
         ///
         /// No communication involved.
-        inline TensorT unfilter(const TensorT& ss,
+        inline tensorT unfilter(const tensorT& ss,
                                 bool sonly = false) const {
             if (sonly)
                 //return transform(ss,cdata->hgsonly);
                 MADNESS_EXCEPTION("unfilter: sonly : not yet",0);
-            else
-                return transform(ss, cdata->hg);
+            else {
+	// !!! transform not defined
+//                return transform(ss, cdata->hg);
+	    }
         };
 
         /// Optimized unfilter (see info about filter_inplace)
 
         /// No communication involved.
-        inline void unfilter_inplace(TensorT& s) {
-            transform_inplace(s, cdata->hg, cdata->work2);
+        inline void unfilter_inplace(tensorT& s) {
+	// !!! transform_inplace not defined
+//            transform_inplace(s, cdata->hg, cdata->work2);
         };
 
         /// Copy constructor

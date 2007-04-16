@@ -1,6 +1,6 @@
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <mra/mra.h>
-#include <world/loadbal.h>
+#include <mra/loadbal.h>
 
 /// \file mra.cc
 /// \file Declaration and initialization of static data and some implementation

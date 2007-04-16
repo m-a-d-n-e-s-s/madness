@@ -1,5 +1,5 @@
 #include <mra/mra.h>
-#include <world/loadbal.h>
+#include <mra/loadbal.h>
 
 using namespace madness;
 
@@ -16,7 +16,7 @@ int main(int argc, char**argv) {
 
     try {
         startup(world,argc,argv);
-
+	xterm_debug("test", 0);
 /*
         Key<4> key(0,Array<Translation,4>(0));
         print("Initial key",key);
@@ -24,7 +24,12 @@ int main(int argc, char**argv) {
             print(it.key());
 */
 	
-        Function<double,3,MyProcmap<3> > f = FunctionFactory<double,3,MyProcmap<3> >(world).f(myfun).k(3).thresh(1e-2).nocompress();
+        Function<double,3,MyProcmap<3> > f = FunctionFactory<double,3,MyProcmap<3> >(world).f(myfun).k(8).thresh(1e-5).nocompress();
+	if (world.mpi.rank() == 0) {
+	    print("about to construct LoadBalImpl");
+	    LoadBalImpl<double,3,MyProcmap<3> > lbi(f);
+	    print("constructed LoadBalImpl");
+	}
 
     } catch (MPI::Exception e) {
         error("caught an MPI exception");

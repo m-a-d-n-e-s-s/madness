@@ -23,8 +23,11 @@ namespace madness {
 
 namespace madness {
 
+    template <typename T, int NDIM, typename Pmap> class LoadBalImpl;
+
     template <typename T, int NDIM, typename Pmap=DCDefaultProcmap<Key<NDIM> > >
     class Function {
+	friend class LoadBalImpl<T,NDIM,Pmap>;
     private:
         SharedPtr< FunctionImpl<T,NDIM,Pmap> > impl;
 
