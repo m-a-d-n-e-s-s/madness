@@ -255,10 +255,10 @@ namespace madness {
         Tensor<T>& coeffs() const {return _coeffs;};
 
         /// Sets \c has_children attribute to value of \c flag.
-        void set_has_children(bool flag} {_has_children = flag;};
+        void set_has_children(bool flag) {_has_children = flag;};
 
         /// Sets \c has_children attribute to value of \c !flag
-        void set_is_leaf(bool flag} {_has_children = !flag;};
+        void set_is_leaf(bool flag) {_has_children = !flag;};
 
         /// Takes a \em shallow copy of the coeffs --- same as \c this->coeffs()=coeffs
         void set_coeffs(Tensor<T>& coeffs) {_coeffs = coeffs;}
