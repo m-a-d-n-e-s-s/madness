@@ -320,24 +320,13 @@ template <int D, typename Pmap=MyProcmap<D> >
 class LBTree : public WorldContainer<typename DClass<D>::KeyD,typename DClass<D>::NodeD,Pmap> {
     // No new variables necessary
     public:
+	typedef WorldContainer<typename DClass<D>::KeyD,typename DClass<D>::NodeD, Pmap> dcT;
 	LBTree() {};
-	LBTree(World& world, const Pmap& pmap) {
-	    typename WorldContainer<typename DClass<D>::KeyD, typename DClass<D>::NodeD,Pmap>::WorldContainer(world, pmap);
+	LBTree(World& world, const Pmap& pmap) : dcT(world,pmap) {
 	};
-
 	template <typename T>
-	inline void init_tree(SharedPtr<FunctionImpl<T,D,Pmap> > f) {
-	    // copy Pmap
-	    Pmap pmap = f->get_procmap();
-	    World world = f->world;
-//	    this = new LBTree(world, pmap);
-//	    LBTree(world, pmap);
-	    typename DClass<D>::KeyD root(0);
-	    this->init_helper<T>(f, root);
-	};
-
-	template <typename T>
-	inline void init_helper(SharedPtr<FunctionImpl<T,D,Pmap> > f, typename DClass<D>::KeyDConst key) {
+	inline void init_tree(SharedPtr<FunctionImpl<T,D,Pmap> > f, typename DClass<D>::KeyDConst key) {
+madness::print("beginning of init_tree");
 	    // find Node associated with key
 	    typename FunctionImpl<T,D,Pmap>::iterator it = f->find(key);
 	    if (it == f->end()) return;
@@ -353,9 +342,10 @@ class LBTree : public WorldContainer<typename DClass<D>::KeyD,typename DClass<D>
 		this->insert(key, lbnode);
 		// then, call for each child
 		for (KeyChildIterator<D> kit(key); kit; ++kit) {
-		    this->init_helper<T>(f, kit.key());
+		    this->init_tree<T>(f, kit.key());
 		}
 	    }
+madness::print("end of init_tree");
 	};
 
 	// Methods:
@@ -392,16 +382,19 @@ class LoadBalImpl {
 //	typename DClass<D>::treeT skeltree;
 	SharedPtr<typename DClass<D>::treeT> skeltree;
 
-	void construct_skel() {
-//	    skeltree.template init_tree<T>(f.impl);
-	    skeltree->template init_tree<T>(f.impl);
+	void construct_skel(SharedPtr<FunctionImpl<T,D,Pmap> > f) {
+	    skeltree = SharedPtr<typename DClass<D>::treeT>(new typename DClass<D>::treeT(f->world,
+		f->get_procmap()));
+	    typename DClass<D>::KeyD root(0);
+	    skeltree->template init_tree<T>(f,root);
 	};
 
     public:
 	//Constructors
 	LoadBalImpl() {};
 	LoadBalImpl(Function<T,D,Pmap> f) : f(f) {
-	    construct_skel();
+	    madness::print("LoadBalImpl (Function) constructor: f.impl", &f.impl);
+	    construct_skel(f.impl);
 	};
 	~LoadBalImpl() {};
 

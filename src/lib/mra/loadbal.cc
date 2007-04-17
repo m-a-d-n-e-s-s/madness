@@ -484,18 +484,46 @@ void migrate(typename DClass<D>::treeT tfrom, typename DClass<D>::treeT tto) {
     migrate_data<D>(tfrom, tto, root);
 }
 
-// Explicit instantiations for D=2 and D=3
+// Explicit instantiations for D=1:6
 
+template void migrate_data<1>(DClass<1>::treeT tfrom, DClass<1>::treeT tto, 
+	DClass<1>::KeyD key);
 template void migrate_data<2>(DClass<2>::treeT tfrom, DClass<2>::treeT tto, 
 	DClass<2>::KeyD key);
-template void migrate<2>(DClass<2>::treeT tfrom, DClass<2>::treeT tto);
-
 template void migrate_data<3>(DClass<3>::treeT tfrom, DClass<3>::treeT tto, 
 	DClass<3>::KeyD key);
-template void migrate<3>(DClass<3>::treeT tfrom, DClass<3>::treeT tto);
+template void migrate_data<4>(DClass<4>::treeT tfrom, DClass<4>::treeT tto, 
+	DClass<4>::KeyD key);
+template void migrate_data<5>(DClass<5>::treeT tfrom, DClass<5>::treeT tto, 
+	DClass<5>::KeyD key);
+template void migrate_data<6>(DClass<6>::treeT tfrom, DClass<6>::treeT tto, 
+	DClass<6>::KeyD key);
 
+template void migrate<1>(DClass<1>::treeT tfrom, DClass<1>::treeT tto);
+template void migrate<2>(DClass<2>::treeT tfrom, DClass<2>::treeT tto);
+template void migrate<3>(DClass<3>::treeT tfrom, DClass<3>::treeT tto);
+template void migrate<4>(DClass<4>::treeT tfrom, DClass<4>::treeT tto);
+template void migrate<5>(DClass<5>::treeT tfrom, DClass<5>::treeT tto);
+template void migrate<6>(DClass<6>::treeT tfrom, DClass<6>::treeT tto);
+
+template class LoadBalImpl<double,1,MyProcmap<1> >;
 template class LoadBalImpl<double,2,MyProcmap<2> >;
 template class LoadBalImpl<double,3,MyProcmap<3> >;
+template class LoadBalImpl<double,4,MyProcmap<4> >;
+template class LoadBalImpl<double,5,MyProcmap<5> >;
+template class LoadBalImpl<double,6,MyProcmap<6> >;
+
+template class LoadBalImpl<std::complex<double>,1,MyProcmap<1> >;
+template class LoadBalImpl<std::complex<double>,2,MyProcmap<2> >;
+template class LoadBalImpl<std::complex<double>,3,MyProcmap<3> >;
+template class LoadBalImpl<std::complex<double>,4,MyProcmap<4> >;
+template class LoadBalImpl<std::complex<double>,5,MyProcmap<5> >;
+template class LoadBalImpl<std::complex<double>,6,MyProcmap<6> >;
+
+template class LBTree<1,MyProcmap<1> >;
 template class LBTree<2,MyProcmap<2> >;
 template class LBTree<3,MyProcmap<3> >;
+template class LBTree<4,MyProcmap<4> >;
+template class LBTree<5,MyProcmap<5> >;
+template class LBTree<6,MyProcmap<6> >;
 }

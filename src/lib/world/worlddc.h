@@ -432,6 +432,10 @@ namespace madness {
         ~WorldContainerImpl() {
 	  //print("In DCImpl destructor");
         };
+
+	procmapT get_procmap() const {
+	    return procmap;
+	};
         
         bool is_local(const keyT& key) const {
             return owner(key) == me;
@@ -864,6 +868,10 @@ namespace madness {
             return p->size();
         };
         
+
+	inline procmapT get_procmap() const {
+	    return p->get_procmap();
+	};
 
         /// Sends message "resultT memfun()" to item (non-blocking comm if remote)
         
