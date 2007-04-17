@@ -462,49 +462,91 @@ CompCost computeCompCost(Cost c, int n) {
 }
 
 
-template <int D>
-void migrate_data(typename DClass<D>::treeT tfrom, typename DClass<D>::treeT tto, typename DClass<D>::KeyD key) {
-    typename DClass<D>::treeT::iterator it = tfrom.find(key);
-    if (it == tfrom.end()) return;
+template <typename T, int D, typename Pmap>
+void migrate_data(SharedPtr<FunctionImpl<T,D,Pmap> > tfrom, SharedPtr<FunctionImpl<T,D,Pmap> > tto, 
+	typename DClass<D>::KeyD key) {
+    typename FunctionImpl<T,D,Pmap>::iterator it = tfrom->find(key);
+    if (it == tfrom->end()) return;
 
-    typename DClass<D>::NodeD node = it->second;
+    FunctionNode<T,D> node = it->second;
 
     if (node.has_children()) {
         for (KeyChildIterator<D> kit(key); kit; ++kit) {
-	    migrate_data<D>(tfrom, tto, kit.key());
+	    migrate_data<T,D,Pmap>(tfrom, tto, kit.key());
 	}
     }
-    tto.insert(key, node);
+    tto->insert(key, node);
 }
 
 
-template <int D>
-void migrate(typename DClass<D>::treeT tfrom, typename DClass<D>::treeT tto) {
+template <typename T, int D, typename Pmap>
+void migrate(SharedPtr<FunctionImpl<T,D,Pmap> > tfrom, SharedPtr<FunctionImpl<T,D,Pmap> > tto) {
     typename DClass<D>::KeyD root(0);
-    migrate_data<D>(tfrom, tto, root);
+    migrate_data<T,D,Pmap>(tfrom, tto, root);
 }
 
 // Explicit instantiations for D=1:6
+template void migrate<double,3,MyProcmap<3> >(SharedPtr<FunctionImpl<double,3,MyProcmap<3> > > tfrom, 
+	SharedPtr<FunctionImpl<double,3,MyProcmap<3> > > tto);
 
-template void migrate_data<1>(DClass<1>::treeT tfrom, DClass<1>::treeT tto, 
-	DClass<1>::KeyD key);
-template void migrate_data<2>(DClass<2>::treeT tfrom, DClass<2>::treeT tto, 
-	DClass<2>::KeyD key);
-template void migrate_data<3>(DClass<3>::treeT tfrom, DClass<3>::treeT tto, 
-	DClass<3>::KeyD key);
-template void migrate_data<4>(DClass<4>::treeT tfrom, DClass<4>::treeT tto, 
-	DClass<4>::KeyD key);
-template void migrate_data<5>(DClass<5>::treeT tfrom, DClass<5>::treeT tto, 
-	DClass<5>::KeyD key);
-template void migrate_data<6>(DClass<6>::treeT tfrom, DClass<6>::treeT tto, 
-	DClass<6>::KeyD key);
+template void migrate_data<double,3>(SharedPtr<FunctionImpl<double,3,MyProcmap<3> > > tfrom, 
+	SharedPtr<FunctionImpl<double,3,MyProcmap<3> > > tto, DClass<3>::KeyD key);
 
-template void migrate<1>(DClass<1>::treeT tfrom, DClass<1>::treeT tto);
-template void migrate<2>(DClass<2>::treeT tfrom, DClass<2>::treeT tto);
-template void migrate<3>(DClass<3>::treeT tfrom, DClass<3>::treeT tto);
-template void migrate<4>(DClass<4>::treeT tfrom, DClass<4>::treeT tto);
-template void migrate<5>(DClass<5>::treeT tfrom, DClass<5>::treeT tto);
-template void migrate<6>(DClass<6>::treeT tfrom, DClass<6>::treeT tto);
+
+// Who knows why these aren't cooperating, so commented out for now
+/*
+template void migrate_data<double,1>(SharedPtr<FunctionImpl<double,1,MyProcmap<1> > > tfrom, 
+	SharedPtr<FunctionImpl<double,1,MyProcmap<1> > > tto, DClass<1>::KeyD key);
+template void migrate_data<double,2>(SharedPtr<FunctionImpl<double,2,MyProcmap<2> > > tfrom, 
+	SharedPtr<FunctionImpl<double,2,MyProcmap<2> > > tto, DClass<2>::KeyD key);
+template void migrate_data<double,3>(SharedPtr<FunctionImpl<double,3,MyProcmap<3> > > tfrom, 
+	SharedPtr<FunctionImpl<double,3,MyProcmap<3> > > tto, DClass<3>::KeyD key);
+template void migrate_data<double,4>(SharedPtr<FunctionImpl<double,4,MyProcmap<4> > > tfrom, 
+	SharedPtr<FunctionImpl<double,4,MyProcmap<4> > > tto, DClass<4>::KeyD key);
+template void migrate_data<double,5>(SharedPtr<FunctionImpl<double,5,MyProcmap<5> > > tfrom, 
+	SharedPtr<FunctionImpl<double,5,MyProcmap<5> > > tto, DClass<5>::KeyD key);
+template void migrate_data<double,6>(SharedPtr<FunctionImpl<double,6,MyProcmap<6> > > tfrom, 
+	SharedPtr<FunctionImpl<double,6,MyProcmap<6> > > tto, DClass<6>::KeyD key);
+
+template void migrate_data<std::complex<double>,1>(SharedPtr<FunctionImpl<std::complex<double>,1,MyProcmap<1> > > tfrom, 
+	SharedPtr<FunctionImpl<std::complex<double>,1,MyProcmap<1> > > tto, DClass<1>::KeyD key);
+template void migrate_data<std::complex<double>,2>(SharedPtr<FunctionImpl<std::complex<double>,2,MyProcmap<2> > > tfrom, 
+	SharedPtr<FunctionImpl<std::complex<double>,2,MyProcmap<2> > > tto, DClass<2>::KeyD key);
+template void migrate_data<std::complex<double>,3>(SharedPtr<FunctionImpl<std::complex<double>,3,MyProcmap<3> > > tfrom, 
+	SharedPtr<FunctionImpl<std::complex<double>,3,MyProcmap<3> > > tto, DClass<3>::KeyD key);
+template void migrate_data<std::complex<double>,4>(SharedPtr<FunctionImpl<std::complex<double>,4,MyProcmap<4> > > tfrom, 
+	SharedPtr<FunctionImpl<std::complex<double>,4,MyProcmap<4> > > tto, DClass<4>::KeyD key);
+template void migrate_data<std::complex<double>,5>(SharedPtr<FunctionImpl<std::complex<double>,5,MyProcmap<5> > > tfrom, 
+	SharedPtr<FunctionImpl<std::complex<double>,5,MyProcmap<5> > > tto, DClass<5>::KeyD key);
+template void migrate_data<std::complex<double>,6>(SharedPtr<FunctionImpl<std::complex<double>,6,MyProcmap<6> > > tfrom, 
+	SharedPtr<FunctionImpl<std::complex<double>,6,MyProcmap<6> > > tto, DClass<6>::KeyD key);
+
+template void migrate<double,1,MyProcmap<1> >(SharedPtr<FunctionImpl<double,1,MyProcmap<1> > > tfrom, 
+	SharedPtr<FunctionImpl<double,1,MyProcmap<1> > > tto);
+template void migrate<double,2,MyProcmap<2> >(SharedPtr<FunctionImpl<double,2,MyProcmap<2> > > tfrom, 
+	SharedPtr<FunctionImpl<double,2,MyProcmap<2> > > tto);
+template void migrate<double,3,MyProcmap<3> >(SharedPtr<FunctionImpl<double,3,MyProcmap<3> > > tfrom, 
+	SharedPtr<FunctionImpl<double,3,MyProcmap<3> > > tto);
+template void migrate<double,4,MyProcmap<4> >(SharedPtr<FunctionImpl<double,4,MyProcmap<4> > > tfrom, 
+	SharedPtr<FunctionImpl<double,4,MyProcmap<4> > > tto);
+template void migrate<double,5,MyProcmap<5> >(SharedPtr<FunctionImpl<double,5,MyProcmap<5> > > tfrom, 
+	SharedPtr<FunctionImpl<double,5,MyProcmap<5> > > tto);
+template void migrate<double,6,MyProcmap<6> >(SharedPtr<FunctionImpl<double,6,MyProcmap<6> > > tfrom, 
+	SharedPtr<FunctionImpl<double,6,MyProcmap<6> > > tto);
+
+template void migrate<std::complex<double>,1,MyProcmap<1> >(SharedPtr<FunctionImpl<std::complex<double>,1,MyProcmap<1> > tfrom, 
+	SharedPtr<FunctionImpl<std::complex<double>,1,MyProcmap<1> > > tto);
+template void migrate<std::complex<double>,2,MyProcmap<2> >(SharedPtr<FunctionImpl<std::complex<double>,2,MyProcmap<2> > > tfrom, 
+	SharedPtr<FunctionImpl<std::complex<double>,2,MyProcmap<2> > > tto);
+template void migrate<std::complex<double>,3,MyProcmap<3> >(SharedPtr<FunctionImpl<std::complex<double>,3,MyProcmap<3> > > tfrom, 
+	SharedPtr<FunctionImpl<std::complex<double>,3,MyProcmap<3> > > tto);
+template void migrate<std::complex<double>,4,MyProcmap<4> >(SharedPtr<FunctionImpl<std::complex<double>,4,MyProcmap<4> > > tfrom, 
+	SharedPtr<FunctionImpl<std::complex<double>,4,MyProcmap<4> > > tto);
+template void migrate<std::complex<double>,5,MyProcmap<5> >(SharedPtr<FunctionImpl<std::complex<double>,5,MyProcmap<5> > > tfrom, 
+	SharedPtr<FunctionImpl<std::complex<double>,5,MyProcmap<5> > > tto);
+template void migrate<std::complex<double>,6,MyProcmap<6> >(SharedPtr<FunctionImpl<std::complex<double>,6,MyProcmap<6> > > tfrom, 
+	SharedPtr<FunctionImpl<std::complex<double>,6,MyProcmap<6> > > tto);
+*/
 
 template class LoadBalImpl<double,1,MyProcmap<1> >;
 template class LoadBalImpl<double,2,MyProcmap<2> >;

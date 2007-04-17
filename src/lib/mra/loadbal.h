@@ -25,7 +25,9 @@ inline int nearest_power(int me, int d) {
 	}
     }
     return k;
-}
+};
+
+
 
 template <typename Data, int D> class LBNode;
 template <int D> struct TreeCoords;
@@ -47,6 +49,12 @@ struct DClass {
     typedef LBTree<D,MyProcMap> treeT;
 };
 
+template <typename T, int D, typename Pmap>
+void migrate(SharedPtr<FunctionImpl<T,D,Pmap> > tfrom, SharedPtr<FunctionImpl<T,D,Pmap> > tto);
+
+template <typename T, int D, typename Pmap>
+void migrate_data(SharedPtr<FunctionImpl<T,D,Pmap> > tfrom, SharedPtr<FunctionImpl<T,D,Pmap> > tto, 
+	typename DClass<D>::KeyD key);
 
 template <typename Data, int D>
 class LBNode {
@@ -407,6 +415,10 @@ class LoadBalImpl {
 
 	void partition(vector<typename DClass<D>::TreeCoords> v) {
 	    // implement partition: copy to new FunctionImpl and replace within f
+	    Pmap pmap(f.impl->world, v);
+	    SharedPtr<FunctionImpl<T,D,Pmap> > newimpl(new FunctionImpl<T,D,Pmap>(*(f.impl.get()),pmap));
+	    madness::migrate<T,D,Pmap>(f.impl, newimpl);
+	    f.impl = newimpl;
 	};
 
 	World& world() {
@@ -417,13 +429,6 @@ class LoadBalImpl {
 CompCost computeCompCost(Cost c, int n);
 
 Cost computePartitionSize(Cost cost, unsigned int parts);
-
-template <int D>
-void migrate_data(typename DClass<D>::treeT tfrom, typename DClass<D>::treeT tto, 
-	typename DClass<D>::KeyD key);
-
-template <int D>
-void migrate(typename DClass<D>::treeT tfrom, typename DClass<D>::treeT tto); 
 
 }
 

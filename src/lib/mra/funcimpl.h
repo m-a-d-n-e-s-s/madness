@@ -568,6 +568,37 @@ std::ostream& operator<<(std::ostream& s, const FunctionNode<T,NDIM>& node) {
         };
 
 
+        FunctionImpl(const FunctionImpl<T,NDIM,Pmap>& other, const Pmap& pmap) 
+            : dcT(other.world,pmap)
+            , world(other.world)
+            , k(other.k)
+            , thresh(other.thresh)
+            , truncate_thr(other.truncate_thr)
+            , autorefine_thr(other.autorefine_thr)
+            , initial_level(other.initial_level)
+            , max_refine_level(other.max_refine_level)
+            , truncate_method(other.truncate_method)
+            , autorefine(other.autorefine)
+            , dorefine(other.dorefine)
+            , nonstandard(other.nonstandard)
+            , cdata(other.cdata)
+            , f(other.f)
+            , vf(other.vf)
+            , compressed(other.compressed)
+            , nterminated(other.nterminated)
+        { 
+            cell_volume = other.cell_volume;
+            for (int i=0; i<NDIM; i++) {
+                bc[i][0] = other.bc[i][0];
+                bc[i][1] = other.bc[i][1];
+                cell[i][0] = other.cell[i][0];
+                cell[i][1] = other.cell[i][1];
+                cell_width[i] = other.cell_width[i];
+                rcell_width[i] = other.rcell_width[i];
+            }
+        };
+
+
         /// Convert user coords (cell[][]) to simulation coords ([0,1]^ndim)
         inline void user_to_sim(double x[NDIM]) const {
             for (int i=0; i<NDIM; i++)
