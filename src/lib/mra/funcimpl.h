@@ -5,6 +5,8 @@
 /// \brief Provides FunctionDefaults, FunctionCommonData, FunctionImpl and FunctionFactory
 
 
+#include <mra/taskstuff.h>
+
 namespace madness {
 
 
@@ -59,16 +61,16 @@ namespace madness {
         int npt;                ///< no. of quadrature points
 
         Slice s[4];              ///< s[0]=Slice(0,k-1), s[1]=Slice(k,2*k-1), etc.
-        std::vector<Slice> s0;  ///< s[0] in each dimension to get scaling coeffs
+        std::vector<Slice> s0;  ///< s[0] in each dimension to get scaling coeff
         std::vector<long> vk;   ///< (k,...) used to initialize Tensors
         std::vector<long> v2k;  ///< (2k,...) used to initialize Tensors
         std::vector<long> vq;   ///< (npt,...) used to initialize Tensors
 
-        typedef Tensor<T> tensorT; ///< Type of tensor used to hold coeffs
+        typedef Tensor<T> tensorT; ///< Type of tensor used to hold coeff
         mutable Tensor<T> work1;        ///< work space of size (k,...)
         mutable Tensor<T> work2;        ///< work space of size (2k,...)
         mutable Tensor<T> workq;        ///< work space of size (npt,...)
-        Tensor<T> zero_tensor;  ///< Zero (k,...) tensor for internal convenience of diff
+        Tensor<T> zero_coeff;  ///< Zero (k,...) tensor for internal convenience of diff
         Key<NDIM> key0; ///< Key for root node
 
         Tensor<double> quad_x;  ///< quadrature points
@@ -78,7 +80,7 @@ namespace madness {
         Tensor<double> quad_phiw; ///< quad_phiw(i,j) = at x[i] value of w[i]*phi[j]
 
         Tensor<double> h0, h1, g0, g1; ///< The separate blocks of twoscale coefficients
-        Tensor<double> hg, hgT; ///< The full twoscale coeffs (2k,2k) and transpose
+        Tensor<double> hg, hgT; ///< The full twoscale coeff (2k,2k) and transpose
         Tensor<double> hgsonly; ///< hg[0:k,:]
 
         Tensor<double> rm, r0, rp;        ///< Blocks of the derivative operator
@@ -104,7 +106,7 @@ namespace madness {
             work1 = tensorT(vk);
             work2 = tensorT(v2k);
             workq = tensorT(vq);
-            zero_tensor = tensorT(vk);
+            zero_coeff = tensorT(vk);
             key0 = Key<NDIM>(0,Array<Translation,NDIM>(0));
 
             _init_twoscale();
@@ -226,7 +228,7 @@ namespace madness {
         bool _has_children; ///< True if there are children
         
     public:
-        /// Default constructor makes node without coeffs or children
+        /// Default constructor makes node without coeff or children
         FunctionNode() 
             : _coeffs()
             , _has_children(false)
@@ -234,11 +236,11 @@ namespace madness {
 
         /// Construct from given coefficients with optional children
 
-        /// Note that only a shallow copy of the coeffs are taken so
+        /// Note that only a shallow copy of the coeff are taken so
         /// you should pass in a deep copy if you want the node to
         /// take ownership.
-        FunctionNode(const Tensor<T>& coeffs, bool has_children=false) 
-            : _coeffs(coeffs)
+        FunctionNode(const Tensor<T>& coeff, bool has_children=false) 
+            : _coeffs(coeff)
             , _has_children(has_children)
         {};
 
@@ -260,8 +262,8 @@ namespace madness {
         /// Sets \c has_children attribute to value of \c !flag
         void set_is_leaf(bool flag) {_has_children = !flag;};
 
-        /// Takes a \em shallow copy of the coeffs --- same as \c this->coeffs()=coeffs
-        void set_coeffs(Tensor<T>& coeffs) {_coeffs = coeffs;}
+        /// Takes a \em shallow copy of the coeff --- same as \c this->coeff()=coeff
+        void set_coeff(Tensor<T>& coeff) {_coeffs = coeff;}
 
         template <typename Archive>
         inline void serialize(Archive& ar) {
@@ -269,11 +271,11 @@ namespace madness {
         }
     };
 
-template <typename T, int NDIM>
-std::ostream& operator<<(std::ostream& s, const FunctionNode<T,NDIM>& node) {
-    s << "has_coeff = " << node.has_coeff() << ", has_children = " << node.has_children();
-    return s;
-};
+    template <typename T, int NDIM>
+    std::ostream& operator<<(std::ostream& s, const FunctionNode<T,NDIM>& node) {
+        s << "has_coeff = " << node.has_coeff() << ", has_children = " << node.has_children();
+        return s;
+    };
 
 
 
@@ -300,7 +302,8 @@ std::ostream& operator<<(std::ostream& s, const FunctionNode<T,NDIM>& node) {
         typedef Key<NDIM> keyT;                        ///< Type of key
         typedef FunctionNode<T,NDIM> nodeT;            ///< Type of node
         typedef WorldContainer<keyT,nodeT, Pmap> dcT;  ///< Type of container holding the coefficients
-        typedef std::pair<keyT,nodeT> datumT;         ///< Type of entry in container
+        typedef std::pair<keyT,nodeT> datumT;          ///< Type of entry in container
+        typedef FunctionImpl<T,NDIM,Pmap> implT;       ///< Type of this class (implementation)
 
         World& world;
         int k;                  ///< Wavelet order
@@ -368,40 +371,48 @@ std::ostream& operator<<(std::ostream& s, const FunctionNode<T,NDIM>& node) {
                 cell_volume *= cell_width[i];
             }
 
-//             bool empty = factory._empty;
+            bool empty = factory._empty;
+            bool do_compress = factory._compress;
 
-//             if (f || vf) {
-//                 if (world.rank() == 0) {
-//                     world.taskq.add(coeffs.owner(cdata->key0),
-//                                     *this, &FunctionImpl<T,NDIM>::project_refine, cdata->key0);
-//                 }
-//             } else if (empty) {             // Do not set any coefficients at all
-//                 //impl->compressed = compress;
-//             } else {                        // Set coefficients so have zero function
-//                 if (world.rank() == 0) {
-//                     coeffs.insert(cdata->key0, nodeT(tensorT(cdata->vk)));
-//                 }
-//             }
-//             world.gop.fence();  // Ultimately, this must be optimized away
+            if (empty) {        // Do not set any coefficients at all
+                compressed = do_compress;
+            }
+            else if (f || vf) { // Project function and optionally compress
+                compressed = false;
+                insert_zero_down_to_initial_level(keyT(0));
+                //task_generator(this, &implT::project_refine_op, is_leaf_predicate(), true_predicate());
+                world.gop.fence(); // !!! Ultimately this must be optional
+                //if (do_compress) compress();
+            }
+            else {
+                initial_level = 0;
+                compressed = do_compress;
+                insert_zero_down_to_initial_level(keyT(0));
+            };
         };
 
-        void insert_empty_down_to_initial_level(const keyT& key) {
-//            if (is_local(key)) insert(key,nodeT(coeffT(),key.n==initial_level));
-            if (is_local(key)) insert(key,nodeT(tensorT(),key.level()==initial_level));
-            if (key.level() < initial_level) {
-//                foreach_child(key,insert_empty_down_to_initial_level);
-		for (KeyChildIterator<NDIM> kit(key); kit; ++kit) 
-		    insert_empty_down_to_initial_level(kit.key());
+        /// Initialize nodes to zero function at initial_level of refinement. 
+
+        /// Works for either basis.  No communication.
+        void insert_zero_down_to_initial_level(const keyT& key) {
+            if (is_local(key)) {
+                if (compressed) {
+                    insert(key, nodeT(tensorT(cdata->v2k), key.level()<initial_level));
+                }
+                else if (key.level()<initial_level) {
+                    insert(key, nodeT(tensorT(), false));
+                }
+                else {
+                    insert(key, nodeT(tensorT(cdata->vk), true));
+                }
             }
         };
 
         void project_refine(const keyT& key) {
-            insert_empty_down_to_initial_level(keyT(0));
-	// !!! COMPLETE THE FOLLOWING LINE
+            insert_zero_down_to_initial_level(keyT(0));
 //            task_generator(*this, &project_refine_op, 
             print("DOING IT!");
         };
-
 
         struct true_predicate {
             bool operator()(const datumT& d) const {
@@ -434,34 +445,37 @@ std::ostream& operator<<(std::ostream& s, const FunctionNode<T,NDIM>& node) {
             };
         };
 
+        void project_refine_op(const keyT& key, tensorT& coeff) {
+            print("DOING IT!!!!!",key);
+        };
+
+
         /// Returns vector of keys of all local nodes where predicate is true
         template <typename predicateT>
-        std::vector<keyT> nodes (const predicateT& predicate) {
+        std::vector<keyT> keys (const predicateT& predicate) {
             std::vector<keyT> v;
-/*
-            v.reserve(size());
-            for (const_iterator it = fa->begin(); it != fa->end(); ++it) {
+            v.reserve(this->size());
+            for (typename implT::iterator it = this->begin(); it != this->end(); ++it) {
                 if (predicate(*it)) v.push_back(it->first);
             }
-*/
             return v;
         };
 
         /// Returns vector of keys of all local nodes
-        std::vector<keyT> nodes () {
-            return nodes(true_predicate());
+        std::vector<keyT> keys () {
+            return keys(true_predicate());
         };
 
 
         /// Returns vector of keys of local leaf nodes
         std::vector<keyT> leaf_nodes () {
-            return nodes(is_leaf_predicate());
+            return keys(is_leaf_predicate());
         };
 
 
         /// Returns vector of keys of all local nodes with coeff
         std::vector<keyT> coeff_nodes () {
-            return nodes(has_coeff_predicate());
+            return keys(has_coeff_predicate());
         };
 
 
@@ -478,10 +492,10 @@ std::ostream& operator<<(std::ostream& s, const FunctionNode<T,NDIM>& node) {
         /// number of dimensions.
         ///
         /// No communication involved.
-        inline tensorT filter(const tensorT& s) const {
-	// !!! transform not defined
-//            return transform(s, cdata->hgT);
-        };
+//         inline tensorT filter(const tensorT& s) const {
+// 	// !!! transform not defined
+// //            return transform(s, cdata->hgT);
+//         };
 
         /// Optimized filter (inplace, contiguous, no err checking)
 
@@ -490,10 +504,9 @@ std::ostream& operator<<(std::ostream& s, const FunctionNode<T,NDIM>& node) {
         /// to increase cache locality.
         ///
         /// No communication involved.
-        inline void filter_inplace(tensorT& s) {
-	// !!! transform_inplace not defined
-//            transform_inplace(s, cdata->hgT, cdata->work2);
-        };
+//         inline void filter_inplace(tensorT& s) {
+//             transform_inplace(s, cdata->hgT, cdata->work2);
+//         };
 
 
         ///  Transform sums+differences at level n to sum coefficients at level n+1
@@ -507,28 +520,27 @@ std::ostream& operator<<(std::ostream& s, const FunctionNode<T,NDIM>& node) {
         ///  \endcode
         ///  Returns a new tensor and has no side effects
         ///
-        ///  If (sonly) ... then ss is only the scaling function coeffs (and
+        ///  If (sonly) ... then ss is only the scaling function coeff (and
         ///  assume the d are zero).  Works for any number of dimensions.
         ///
         /// No communication involved.
-        inline tensorT unfilter(const tensorT& ss,
-                                bool sonly = false) const {
-            if (sonly)
-                //return transform(ss,cdata->hgsonly);
-                MADNESS_EXCEPTION("unfilter: sonly : not yet",0);
-            else {
-	// !!! transform not defined
-//                return transform(ss, cdata->hg);
-	    }
-        };
+//         inline tensorT unfilter(const tensorT& ss,
+//                                 bool sonly = false) const {
+//             if (sonly)
+//                 //return transform(ss,cdata->hgsonly);
+//                 MADNESS_EXCEPTION("unfilter: sonly : not yet",0);
+//             else {
+// 	// !!! transform not defined
+// //                return transform(ss, cdata->hg);
+// 	    }
+//         };
 
         /// Optimized unfilter (see info about filter_inplace)
 
         /// No communication involved.
-        inline void unfilter_inplace(tensorT& s) {
-	// !!! transform_inplace not defined
-//            transform_inplace(s, cdata->hg, cdata->work2);
-        };
+//         inline void unfilter_inplace(tensorT& s) {
+//             transform_inplace(s, cdata->hg, cdata->work2);
+//         };
 
         /// Copy constructor
 

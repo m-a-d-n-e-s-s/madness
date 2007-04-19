@@ -302,6 +302,13 @@ namespace madness {
         for (KeyChildIterator<NDIM> it(parent); it; ++it) op(it.key());
     };
 
+
+    /// Applies member function of obj to each child key of parent
+    template <int NDIM, typename objT>
+    inline void foreach_child(const Key<NDIM>& parent, objT* obj, void (objT::*memfun)(const Key<NDIM>&)) {
+        for (KeyChildIterator<NDIM> it(parent); it; ++it) (obj->*memfun)(it.key());
+    };
+
 }
 
 #endif
