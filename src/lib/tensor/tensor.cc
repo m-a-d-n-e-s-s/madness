@@ -892,8 +892,8 @@ namespace madness {
     /// changed by specifying \c k0 and \c k1 , the index to contract in
     /// the left and right side tensors, respectively.  The defaults
     /// correspond to (\c k0=-1 and \c k1=0 ).
-    template <class T>
-    Tensor<T> inner(const Tensor<T>& left, const Tensor<T>& right,
+    template <class T, class Q>
+    Tensor<T> inner(const Tensor<T>& left, const Tensor<Q>& right,
                     long k0, long k1) {
         if (k0 < 0) k0 += left.ndim;
         if (k1 < 0) k1 += right.ndim;
@@ -933,8 +933,8 @@ namespace madness {
     /// caller is completely responsible for providing a contiguous tensor
     /// that has the correct dimensions and is appropriately initialized.
     /// The inner product is accumulated into result.
-    template <class T>
-    void inner_result(const Tensor<T>& left, const Tensor<T>& right,
+    template <class T, class Q>
+    void inner_result(const Tensor<T>& left, const Tensor<Q>& right,
                       long k0, long k1, Tensor<T>& result) {
 
 
@@ -979,7 +979,7 @@ namespace madness {
         }
 
         long dimj = left.dim[k0];
-        TensorIterator<T> iter1=right.unary_iterator(1,false,false,k1);
+        TensorIterator<Q> iter1=right.unary_iterator(1,false,false,k1);
 
         for (TensorIterator<T> iter0=left.unary_iterator(1,false,false,k0);
                 iter0._p0; ++iter0) {
@@ -987,7 +987,7 @@ namespace madness {
             long s0 = iter0._s0;
             for (iter1.reset(); iter1._p0; ++iter1) {
                 T* p0 = xp0;
-                T* p1 = iter1._p0;
+                Q* p1 = iter1._p0;
                 long s1 = iter1._s0;
                 T sum = 0;
                 for (long j=0; j<dimj; j++,p0+=s0,p1+=s1) {
@@ -1010,8 +1010,9 @@ namespace madness {
     /// is being performed repeatedly, then you might consider calling \c
     /// fast_transform instead which enables additional optimizations and
     /// can eliminate all constructor overhead and improve cache locality.
-    template <class T>
-    Tensor<T> transform(const Tensor<T>& t, const Tensor<T>& c) {
+    ///
+    template <class T, class Q>
+    Tensor<T> transform(const Tensor<T>& t, const Tensor<Q>& c) {
         TENSOR_ASSERT(c.ndim == 2,"second argument must be a matrix",c.ndim,&c);
         Tensor<T> result = t;
         for (long i=0; i<t.ndim; i++) {

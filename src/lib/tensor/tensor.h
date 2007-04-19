@@ -199,6 +199,13 @@ namespace madness {
     /// copy.  Even for Python native container types, the copy constructor
     /// is not deep.
 
+//     // Define complex*real operation but only for stuff in madness namespace
+//     template <typename T>
+//     inline
+//     std::complex<T> operator*(const std::complex<T>& c, const T t) {
+//         return std::complex<T>(std::real(c)*t,std::imag(c)*t);
+//     };
+
     template <class T> class Tensor : public BaseTensor {
         // Templated member functions should be defined in the header to
         // avoid instantiation problems.  Specializations need to be
@@ -784,8 +791,8 @@ namespace madness {
     template <class T>
     Tensor<T> outer(const Tensor<T>& left, const Tensor<T>& right);
 
-    template <class T>
-    Tensor<T> transform(const Tensor<T>& t, const Tensor<T>& c);
+    template <class T, class Q>
+    Tensor<T> transform(const Tensor<T>& t, const Tensor<Q>& c);
 
     template <class T>
     void fast_transform(const Tensor<T>& t, const Tensor<T>& c,
@@ -794,12 +801,12 @@ namespace madness {
     template <typename T>
     Tensor<T>& transform3d_inplace(Tensor<T>& s, const Tensor<double>& c, Tensor<T>& work);
 
-    template <class T>
-    Tensor<T> inner(const Tensor<T>& left, const Tensor<T>& right,
+    template <class T, class Q>
+    Tensor<T> inner(const Tensor<T>& left, const Tensor<Q>& right,
                     long k0=-1, long k1=0);
 
-    template <class T>
-    void inner_result(const Tensor<T>& left, const Tensor<T>& right,
+    template <class T, class Q>
+    void inner_result(const Tensor<T>& left, const Tensor<Q>& right,
                       long k0, long k1, Tensor<T>& result);
 
     template <class T>

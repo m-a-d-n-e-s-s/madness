@@ -5,6 +5,13 @@ complex_typelist = ["double_complex","float_complex"]
 
 gemm_typelist = ["double","float","double_complex","float_complex"]
 
+transform_typelist = [["double", "double"],
+                      ["float", "float"],
+                      ["double_complex", "double_complex"],
+                      ["double_complex", "double"],
+                      ["float_complex", "float_complex"],
+                      ["float_complex", "float"]]
+
 f = open("tensor_spec.h","w")
 for t in typelist:
     f.write("\n// Instantiations for %s\n" % t)
@@ -13,15 +20,18 @@ for t in typelist:
     f.write("template std::ostream& operator << (std::ostream& s, const Tensor<%s>& t);\n" % t)
     f.write("template Tensor<%s> copy(const Tensor<%s>& t);\n" % (t,t))
     f.write("template Tensor<%s> outer(const Tensor<%s>& left, const Tensor<%s>& right);\n" % (t,t,t))
-    f.write("template void inner_result(const Tensor<%s>& left, const Tensor<%s>& right,\n" % (t,t))
-    f.write("                           long k0, long k1, Tensor<%s>& result);\n" % t)
-    f.write("template Tensor<%s> inner(const Tensor<%s>& left, const Tensor<%s>& right,\n" % (t,t,t))
-    f.write("                         long k0, long k1);\n")
-    f.write("template Tensor<%s> transform(const Tensor<%s>& t, const Tensor<%s>& c);\n" % (t,t,t))
-    f.write("template void fast_transform(const Tensor<%s>& t, const Tensor<%s>& c, " \
-        "Tensor<%s>& result, Tensor<%s>& workspace);\n"% (t,t,t,t))
     f.write("template Tensor< Tensor<%s>::scalar_type > abs(const Tensor<%s>& t);\n" % (t,t))
     f.write("template Tensor<%s> transpose(const Tensor<%s>& t);\n" % (t,t))
+    f.write("template void fast_transform(const Tensor<%s>& t, const Tensor<%s>& c, " \
+            "Tensor<%s>& result, Tensor<%s>& workspace);\n"% (t,t,t,t))
+
+f.write("\n// Instantiations for inner, inner_result and transform \n")
+for t,q in transform_typelist:
+    f.write("template void inner_result(const Tensor<%s>& left, const Tensor<%s>& right,\n" % (t,q))
+    f.write("                           long k0, long k1, Tensor<%s>& result);\n" % t)
+    f.write("template Tensor<%s> inner(const Tensor<%s>& left, const Tensor<%s>& right,\n" % (t,t,q))
+    f.write("                         long k0, long k1);\n")
+    f.write("template Tensor<%s> transform(const Tensor<%s>& t, const Tensor<%s>& c);\n" % (t,t,q))
 
 
 f.write("\n// Instantiations only for complex types\n")

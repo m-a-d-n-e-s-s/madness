@@ -6,16 +6,19 @@
 // we use a simple reference implementation of the mxm
 // routines for all except T=double.
 
+
+// Here undef _CRAY since no longer care about Cray X1
+// and want to ignore it for the XT3/4
 #ifdef _CRAY
 #undef _CRAY
 #endif
 
 
 /// Matrix * matrix reference implementation (slow but correct)
-template <typename T>
+template <typename T, typename Q, typename S>
 STATIC inline void mxm(long dimi, long dimj, long dimk,
-                       T* RESTRICT c, const T* RESTRICT a,
-                       const T* RESTRICT b) {
+                       T* RESTRICT c, const Q* RESTRICT a,
+                       const S* RESTRICT b) {
     /*
       c(i,j) = c(i,j) + sum(k) a(i,k)*b(k,j)
       
@@ -37,11 +40,11 @@ STATIC inline void mxm(long dimi, long dimj, long dimk,
 
 
 /// Matrix transpose * matrix ... reference implementation (slow but correct)
-template <typename T>
+template <typename T, typename Q, typename S>
 STATIC inline
 void mTxm(long dimi, long dimj, long dimk,
-          T* RESTRICT c, const T* RESTRICT a,
-          const T* RESTRICT b) {
+          T* RESTRICT c, const Q* RESTRICT a,
+          const S* RESTRICT b) {
     /*
       c(i,j) = c(i,j) + sum(k) a(k,i)*b(k,j)
       
@@ -64,10 +67,10 @@ void mTxm(long dimi, long dimj, long dimk,
 }
 
 /// Matrix * matrix transpose ... reference implementation (slow but correct)
-template <typename T>
+template <typename T, typename Q, typename S>
 STATIC inline void mxmT(long dimi, long dimj, long dimk,
-                        T* RESTRICT c, const T* RESTRICT a,
-                        const T* RESTRICT b) {
+                        T* RESTRICT c, const Q* RESTRICT a,
+                        const S* RESTRICT b) {
     /*
       c(i,j) = c(i,j) + sum(k) a(i,k)*b(j,k)
       
@@ -89,10 +92,10 @@ STATIC inline void mxmT(long dimi, long dimj, long dimk,
 }
 
 /// Matrix transpose * matrix transpose reference implementation (slow but correct)
-template <typename T>
+template <typename T, typename Q, typename S>
 STATIC inline void mTxmT(long dimi, long dimj, long dimk,
-                         T* RESTRICT c, const T* RESTRICT a,
-                         const T* RESTRICT b) {
+                         T* RESTRICT c, const Q* RESTRICT a,
+                         const S* RESTRICT b) {
     /*
       c(i,j) = c(i,j) + sum(k) a(k,i)*b(j,k)
       
@@ -112,26 +115,8 @@ STATIC inline void mTxmT(long dimi, long dimj, long dimk,
     }
 }
 
-
-/// Matrix transpose * matrix ... double_complex * double
-void mTxm(long dimi, long dimj, long dimk,
-          double_complex* RESTRICT c,
-          const double_complex* RESTRICT a, const double* RESTRICT b) {
-    for (long k=0; k<dimk; k++) {
-        for (long i=0; i<dimi; i++) {
 #ifdef _CRAY
-#pragma _CRI prefervector
-#endif
-            for (long j=0; j<dimj; j++) {
-                c[i*dimj+j] += a[k*dimi+i]*b[k*dimj+j];
-            }
-        }
-    }
-}
-
-
-#ifdef _CRAY
-// Simple loop structure best on the Cray
+// Simple loop structure best on the Cray X1
 template
 void mTxm(long dimi, long dimj, long dimk, double* RESTRICT c,
           const double* RESTRICT a, const double* RESTRICT b);
