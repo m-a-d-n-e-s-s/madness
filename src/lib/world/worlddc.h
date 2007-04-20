@@ -947,10 +947,10 @@ namespace madness {
         /// Returns a future result (Future<void> may be ignored).
         template <typename memfunT>
         Future< MEMFUN_RETURNT(memfunT) >
-        task(const keyT& key, memfunT memfun) {
+        task(const keyT& key, memfunT memfun, const TaskAttributes& attr = TaskAttributes()) {
             check_initialized();
             RETURN_WRAPPERT(MEMFUN_RETURNT(memfunT)) (implT::*itemfun)(const keyT&, memfunT) = &implT:: template itemfun<memfunT>;
-            return p->task(owner(key), itemfun, key, memfun);
+            return p->task(owner(key), itemfun, key, memfun, attr);
         }
         
         /// Adds task "resultT memfun(arg1T)" in process owning item (non-blocking comm if remote)
@@ -963,11 +963,11 @@ namespace madness {
         /// Returns a future result (Future<void> may be ignored).
         template <typename memfunT, typename arg1T>
         Future< MEMFUN_RETURNT(memfunT) >
-        task(const keyT& key, memfunT memfun, const arg1T& arg1) {
+        task(const keyT& key, memfunT memfun, const arg1T& arg1, const TaskAttributes& attr = TaskAttributes()) {
             check_initialized();
             typedef REMFUTURE(arg1T) a1T;
             RETURN_WRAPPERT(MEMFUN_RETURNT(memfunT)) (implT::*itemfun)(const keyT&, memfunT, const a1T&) = &implT:: template itemfun<memfunT,a1T>;
-            return p->task(owner(key), itemfun, key, memfun, arg1);
+            return p->task(owner(key), itemfun, key, memfun, arg1, attr);
         }
         
         /// Adds task "resultT memfun(arg1T,arg2T)" in process owning item (non-blocking comm if remote)
@@ -980,12 +980,12 @@ namespace madness {
         /// Returns a future result (Future<void> may be ignored).
         template <typename memfunT, typename arg1T, typename arg2T>
         Future< MEMFUN_RETURNT(memfunT) >
-        task(const keyT& key, memfunT memfun, const arg1T& arg1, const arg2T& arg2) {
+        task(const keyT& key, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const TaskAttributes& attr = TaskAttributes()) {
             check_initialized();
             typedef REMFUTURE(arg1T) a1T;
             typedef REMFUTURE(arg2T) a2T;
             RETURN_WRAPPERT(MEMFUN_RETURNT(memfunT)) (implT::*itemfun)(const keyT&, memfunT, const a1T&, const a2T&) = &implT:: template itemfun<memfunT,a1T,a2T>;
-            return p->task(owner(key), itemfun, key, memfun, arg1, arg2);
+            return p->task(owner(key), itemfun, key, memfun, arg1, arg2, attr);
         }
         
         /// Adds task "resultT memfun(arg1T,arg2T,arg3T)" in process owning item (non-blocking comm if remote)
@@ -998,13 +998,13 @@ namespace madness {
         /// Returns a future result (Future<void> may be ignored).
         template <typename memfunT, typename arg1T, typename arg2T, typename arg3T>
         Future< MEMFUN_RETURNT(memfunT) >
-        task(const keyT& key, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3) {
+        task(const keyT& key, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, const TaskAttributes& attr = TaskAttributes()) {
             check_initialized();
             typedef REMFUTURE(arg1T) a1T;
             typedef REMFUTURE(arg2T) a2T;
             typedef REMFUTURE(arg3T) a3T;
             RETURN_WRAPPERT(MEMFUN_RETURNT(memfunT)) (implT::*itemfun)(const keyT&, memfunT, const a1T&, const a2T&, const a3T&) = &implT:: template itemfun<memfunT,a1T,a2T,a3T>;
-            return p->task(owner(key), itemfun, key, memfun, arg1, arg2, arg3);
+            return p->task(owner(key), itemfun, key, memfun, arg1, arg2, arg3, attr);
         }
         
         

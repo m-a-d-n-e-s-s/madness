@@ -27,7 +27,7 @@ namespace madness {
     static inline hashT hashulong(const unsigned long* k, size_t length, unsigned long initval) {
         return hashword((const hashT*) k, length*sizeof(long)/sizeof(hashT), 
                         (hashT)(initval));
-    };
+    }
 
 
     template <typename T> struct Hash;
@@ -47,7 +47,7 @@ namespace madness {
         else {
             return hashlittle((const void *) &t, sizeof(T), initval);
         }
-    };
+    }
 
     template <class T>
     static
@@ -57,7 +57,7 @@ namespace madness {
         hashT h = Hash<T>::hash(t);
         if (initval) h = hashword(&h, 1, initval);
         return h;
-    };
+    }
 
     /// Hash a variable sized array
     template <class T>
@@ -77,7 +77,7 @@ namespace madness {
         else {
             return hashlittle((void *) t, n*sizeof(T), initval);
         }
-    };
+    }
 
     template <class T>
     static
@@ -87,7 +87,7 @@ namespace madness {
         hashT sum=0;
         for (std::size_t i=0; i<n; i++) sum = hash(t[i],sum);
         return sum;
-    };
+    }
 
     /// Default \c Hash<T>::hash(t) invokes t.hash()
     template <typename T> 

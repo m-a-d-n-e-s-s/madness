@@ -66,7 +66,7 @@ namespace madness {
         template <typename Archive>
         void serialize(Archive& ar) {
             ar & archive::wrap_opaque(*this);
-        };
+        }
 
         unsigned long get_world_id() const {
             return worldid;
@@ -311,7 +311,7 @@ namespace madness {
             map_id_to_ptr.insert(std::pair<uniqueidT,void*>(id,(void*) ptr));
             map_ptr_to_id.insert(std::pair<void*,uniqueidT>((void*) ptr,id));
             return id;
-        };
+        }
 
         /// Unregister a unique id for a local pointer
         template <typename T>
@@ -319,7 +319,7 @@ namespace madness {
             uniqueidT id = id_from_ptr(ptr);  // Will be zero if invalid
             map_id_to_ptr.erase(id);
             map_ptr_to_id.erase((void *) ptr);
-        };
+        }
 
         /// Unregister a unique id for a local pointer based on id
 
@@ -327,7 +327,7 @@ namespace madness {
         template <typename T>
         void unregister_ptr(uniqueidT id) {
             unregister_ptr(ptr_from_id<T>(id));
-        };
+        }
 
         /// Look up local pointer from world-wide unique id.
 
@@ -339,7 +339,7 @@ namespace madness {
                 return 0;
             else
                 return (T*) (it->second);
-        };
+        }
 
         /// Look up id from local pointer
 
@@ -352,7 +352,7 @@ namespace madness {
                 return invalidid;
             else
                 return it->second;
-        };
+        }
 
         /// Returns a pointer to the world with given ID or null if not found
 
@@ -417,7 +417,7 @@ namespace madness {
 	        //print("deferred adding",(void*)p.get());
                 deferred.push_back(p);
             }
-        };
+        }
 
 
         ~World() {

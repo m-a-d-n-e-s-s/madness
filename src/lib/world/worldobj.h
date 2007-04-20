@@ -513,60 +513,60 @@ namespace madness {
         /// Sends task to derived class method "returnT (this->*memfun)()"
         template <typename memfunT>
         Future< MEMFUN_RETURNT(memfunT) > 
-        task(ProcessID dest, memfunT memfun) {
+        task(ProcessID dest, memfunT memfun, const TaskAttributes& attr = TaskAttributes()) {
             RETURN_WRAPPERT(MEMFUN_RETURNT(memfunT)) (*run)(objT*, memfunT) = &objT:: template forward<memfunT>;
-            return world.taskq.add(dest, run, this, memfun);
+            return world.taskq.add(dest, run, this, memfun, attr);
         }
         
         /// Sends task to derived class method "returnT (this->*memfun)(arg1)"
         template <typename memfunT, typename arg1T>
         Future< MEMFUN_RETURNT(memfunT) > 
-        task(ProcessID dest, memfunT memfun, const arg1T& arg1) {
+        task(ProcessID dest, memfunT memfun, const arg1T& arg1, const TaskAttributes& attr = TaskAttributes()) {
             typedef REMFUTURE(arg1T) a1T;
             RETURN_WRAPPERT(MEMFUN_RETURNT(memfunT)) (*run)(objT*, memfunT, const a1T&) = &objT:: template forward<memfunT,a1T>;
-            return world.taskq.add(dest, run, this, memfun, arg1);
+            return world.taskq.add(dest, run, this, memfun, arg1, attr);
         }
 
         /// Sends task to derived class method "returnT (this->*memfun)(arg1,arg2)"
         template <typename memfunT, typename arg1T, typename arg2T>
         Future< MEMFUN_RETURNT(memfunT) > 
-        task(ProcessID dest, memfunT memfun, const arg1T& arg1, const arg2T& arg2) {
+        task(ProcessID dest, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const TaskAttributes& attr = TaskAttributes()) {
             typedef REMFUTURE(arg1T) a1T;
             typedef REMFUTURE(arg2T) a2T;
             RETURN_WRAPPERT(MEMFUN_RETURNT(memfunT)) (*run)(objT*, memfunT, const a1T&, const a2T&)
                 = &objT:: template forward<memfunT,a1T,a2T>;
-            return world.taskq.add(dest, run, this, memfun, arg1, arg2);
+            return world.taskq.add(dest, run, this, memfun, arg1, arg2, attr);
         }
 
         /// Sends task to derived class method "returnT (this->*memfun)(arg1,arg2,arg3)"
         template <typename memfunT, typename arg1T, typename arg2T, typename arg3T>
         Future< MEMFUN_RETURNT(memfunT) > 
-        task(ProcessID dest, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3) {
+        task(ProcessID dest, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, const TaskAttributes& attr = TaskAttributes()) {
             typedef REMFUTURE(arg1T) a1T;
             typedef REMFUTURE(arg2T) a2T;
             typedef REMFUTURE(arg3T) a3T;
             RETURN_WRAPPERT(MEMFUN_RETURNT(memfunT)) (*run)(objT*, memfunT, const a1T&, const a2T&, const a3T&)
                 = &objT:: template forward<memfunT,a1T,a2T,a3T>;
-            return world.taskq.add(dest, run, this, memfun, arg1, arg2, arg3);
+            return world.taskq.add(dest, run, this, memfun, arg1, arg2, arg3, attr);
         }
 
         /// Sends task to derived class method "returnT (this->*memfun)(arg1,arg2,arg3,arg4)"
         template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T>
         Future< MEMFUN_RETURNT(memfunT) > 
-        task(ProcessID dest, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, const arg4T& arg4) {
+        task(ProcessID dest, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, const arg4T& arg4, const TaskAttributes& attr = TaskAttributes()) {
             typedef REMFUTURE(arg1T) a1T;
             typedef REMFUTURE(arg2T) a2T;
             typedef REMFUTURE(arg3T) a3T;
             typedef REMFUTURE(arg4T) a4T;
             RETURN_WRAPPERT(MEMFUN_RETURNT(memfunT)) (*run)(objT*, memfunT, const a1T&, const a2T&, const a3T&, const a4T&)
                 = &objT:: template forward<memfunT,a1T,a2T,a3T,a4T>;
-            return world.taskq.add(dest, run, this, memfun, arg1, arg2, arg3, arg4);
+            return world.taskq.add(dest, run, this, memfun, arg1, arg2, arg3, arg4, attr);
         }
 
         /// Sends task to derived class method "returnT (this->*memfun)(arg1,arg2,arg3,arg4,arg5)"
         template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T, typename arg5T>
         Future< MEMFUN_RETURNT(memfunT) > 
-        task(ProcessID dest, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, const arg4T& arg4, const arg5T& arg5) {
+        task(ProcessID dest, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, const arg4T& arg4, const arg5T& arg5, const TaskAttributes& attr = TaskAttributes()) {
             typedef REMFUTURE(arg1T) a1T;
             typedef REMFUTURE(arg2T) a2T;
             typedef REMFUTURE(arg3T) a3T;
@@ -574,7 +574,7 @@ namespace madness {
             typedef REMFUTURE(arg5T) a5T;
             RETURN_WRAPPERT(MEMFUN_RETURNT(memfunT)) (*run)(objT*, memfunT,const a1T&, const a2T&, const a3T&, const a4T&, const a5T&)
                 = &objT:: template forward<memfunT,a1T,a2T,a3T,a4T,a5T>;
-            return world.taskq.add(dest, run, this, memfun, arg1, arg2, arg3, arg4, arg5);
+            return world.taskq.add(dest, run, this, memfun, arg1, arg2, arg3, arg4, arg5, attr);
         }
 
         virtual ~WorldObject(){};

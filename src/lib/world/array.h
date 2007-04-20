@@ -101,14 +101,14 @@ namespace madness {
             Array<T,N> r;
             for (std::size_t i=0; i<N; i++) r[i] = v[i] * q;
             return r;
-        };
+        }
 
         /// In-place element-wise multiplcation by a scalar
         template <typename Q>
         Array<T,N>& operator*=(Q q) {
             for (std::size_t i=0; i<N; i++) v[i] *= q;
             return *this;
-        };
+        }
 
         /// Element-wise multiplcation by another array
         template <typename Q>
@@ -116,7 +116,7 @@ namespace madness {
             Array<T,N> r;
             for (std::size_t i=0; i<N; i++) r[i] = v[i]*q[i];
             return r;
-        };
+        }
 
         /// Element-wise addition of a scalar
         template <typename Q>
@@ -124,14 +124,14 @@ namespace madness {
             Array<T,N> r;
             for (std::size_t i=0; i<N; i++) r[i] = v[i] + q;
             return r;
-        };
+        }
 
         /// In-place element-wise addition of a scalar
         template <typename Q>
         Array<T,N>& operator+=(Q q) {
             for (std::size_t i=0; i<N; i++) v[i] += q;
             return *this;
-        };
+        }
 
         /// Element-wise addition of another array
         template <typename Q>
@@ -139,7 +139,7 @@ namespace madness {
             Array<T,N> r;
             for (std::size_t i=0; i<N; i++) r[i] = v[i] + q[i];
             return r;
-        };
+        }
 
         /// Element-wise subtraction of a scalar
         template <typename Q>
@@ -147,7 +147,7 @@ namespace madness {
             Array<T,N> r;
             for (std::size_t i=0; i<N; i++) r[i] = v[i] - q;
             return r;
-        };
+        }
 
         /// Element-wise subtraction of another array
         template <typename Q>
@@ -155,7 +155,7 @@ namespace madness {
             Array<T,N> r;
             for (std::size_t i=0; i<N; i++) r[i] = v[i] - q[i];
             return r;
-        };
+        }
 
         /// STL iterator support
         iterator begin() {
@@ -187,7 +187,7 @@ namespace madness {
         void serialize(Archive& ar) {
             ar & v;
             print("Array after (de)serialize",*this);
-        };
+        }
 
         /// Support for MADNESS hashing
         hashT hash() const {

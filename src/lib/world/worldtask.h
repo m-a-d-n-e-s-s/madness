@@ -11,15 +11,63 @@
 
 namespace madness {
 
+    /// Contains attributes of a task
+
+    /// \c generator_hint : Setting this to true hints that a task
+    /// will produce additional tasks and gives the task receiving
+    /// preferential scheduling in order to maximize available
+    /// parallelism.  The default value is false, which does not
+    /// preclude a task from producing other tasks and results
+    /// in normal priority for the scheduling.
+    ///
+    /// \c stealable : Setting this to true indicates that a task
+    /// may be migrated to another process for dynamic load balancing.
+    /// The default value is false.
+    class TaskAttributes {
+        unsigned long flags;
+        static const unsigned long GENERATOR = 0x1;
+        static const unsigned long STEALABLE = 0x2;
+        
+    public:
+        TaskAttributes() : flags(0) {};
+        
+        TaskAttributes(bool generator_hint, bool stealable=false) 
+            : flags((generator_hint?GENERATOR:0) | (stealable?STEALABLE:0))
+        {};
+        
+        bool is_generator() const {return flags&GENERATOR;};
+        
+        bool is_stealable() const {return flags&STEALABLE;};
+        
+        void set_generator_hint (bool generator_hint) {
+            if (generator_hint) flags |= GENERATOR;
+            else flags &= ~GENERATOR;
+        };
+        
+        void set_stealable (bool stealable) {
+            if (stealable) flags |= STEALABLE;
+            else flags &= ~STEALABLE;
+        };
+        
+        template <typename Archive>
+        void serialize(Archive& ar) {
+            ar & flags;
+        }
+    };
+
+    /// Returns a const reference to a task attributes with generator hint set true
+    const TaskAttributes& task_attr_generator();
+    
     class WorldTaskQueue;
     class TaskInterface;
-
+    
     void task_ready_callback_function(WorldTaskQueue*, TaskInterface*);
-
+    
     /// All tasks must be derived from this public interface
     class TaskInterface : public DependencyInterface{
         friend class WorldTaskQueue;
     private:
+        TaskAttributes attr;
         class TaskReadyCallback : public CallbackInterface {
             WorldTaskQueue* taskq;
             TaskInterface* task;
@@ -37,11 +85,21 @@ namespace madness {
         } callback;   //< Embedded here for efficiency (managed by taskq)
         
     public:
-        /// Create a new task with ndepend dependencies (default 0)
-        TaskInterface(int ndepend=0) 
+        /// Create a new task with ndepend dependencies (default 0) and given attributes
+        TaskInterface(int ndepend=0, const TaskAttributes& attr = TaskAttributes())
             : DependencyInterface(ndepend)
-            {};
+            , attr(attr)
+        {};
 
+        /// Create a new task with zero dependencies and given attributes
+        TaskInterface(const TaskAttributes& attr)
+            : DependencyInterface(0)
+            , attr(attr)
+        {};
+
+        bool is_stealable() const {return attr.is_stealable();};
+
+        bool is_generator() const {return attr.is_generator();};
 
         /// Runs the task ... derived classes MUST implement this.
         virtual void run(World& world) = 0;
@@ -149,8 +207,8 @@ namespace madness {
         /// A future is returned to eventually hold the result of the task.
         /// Future<void> is an empty class that may be ignored.
         template <typename functionT>
-        Future<FUNCTION_RETURNT(functionT)> add(functionT function) {
-            return add(me,function);
+        Future<FUNCTION_RETURNT(functionT)> add(functionT function, const TaskAttributes& attr=TaskAttributes()) {
+            return add(me,function,attr);
         }
 
 
@@ -159,20 +217,20 @@ namespace madness {
         /// A future is returned to eventually hold the result of the task.
         /// Future<void> is an empty class that may be ignored.
         template <typename functionT>
-        Future<FUNCTION_RETURNT(functionT)> add(ProcessID where, functionT function) {
+        Future<FUNCTION_RETURNT(functionT)> add(ProcessID where, functionT function, const TaskAttributes& attr=TaskAttributes()) {
             Future<FUNCTION_RETURNT(functionT)> result;
             if (where == me) 
-                add(new TaskFunction<functionT>(result, function));
+                add(new TaskFunction<functionT>(result, function,attr));
             else 
-                TaskFunction<functionT>::sender(world, where, result, function);
+                TaskFunction<functionT>::sender(world, where, result, function, attr);
             return result;
         }
         
 
         /// Invoke "resultT (*function)(arg1T)" as a local task
         template <typename functionT, typename arg1T>
-        Future<FUNCTION_RETURNT(functionT)> add(functionT function, const arg1T& arg1) {
-            return add(me, function, arg1);
+        Future<FUNCTION_RETURNT(functionT)> add(functionT function, const arg1T& arg1, const TaskAttributes& attr=TaskAttributes()) {
+            return add(me, function, arg1, attr);
         }
 
 
@@ -196,14 +254,14 @@ namespace madness {
         /// everything is ready).
         template <typename functionT, typename arg1T>
         Future<FUNCTION_RETURNT(functionT)> add(ProcessID where, functionT function, 
-                                                const arg1T& arg1) {
+                                                const arg1T& arg1, const TaskAttributes& attr=TaskAttributes()) {
             Future<FUNCTION_RETURNT(functionT)> result;
             if (where == me) {
-                add(new TaskFunction<functionT>(result, function, arg1));
+                add(new TaskFunction<functionT>(result, function, arg1, attr));
             }
             else {
                 MADNESS_ASSERT(future_probe(arg1));  // No dependencies allowed for remote tasks
-                TaskFunction<functionT>::sender(world, where, result, function, arg1);
+                TaskFunction<functionT>::sender(world, where, result, function, arg1, attr);
             }
             return result;
         }
@@ -212,8 +270,8 @@ namespace madness {
         /// Invoke "resultT (*function)(arg1T,arg2T)" as a local task
         template <typename functionT, typename arg1T, typename arg2T>
         Future<FUNCTION_RETURNT(functionT)> add(functionT function, 
-                                                const arg1T& arg1, const arg2T& arg2) {
-            return add(me,function,arg1,arg2);
+                                                const arg1T& arg1, const arg2T& arg2, const TaskAttributes& attr=TaskAttributes()) {
+            return add(me,function,arg1,arg2,attr);
         }
 
 
@@ -223,15 +281,15 @@ namespace madness {
         /// task.  Future<void> is an empty class that may be ignored.
         template <typename functionT, typename arg1T, typename arg2T>
         Future<FUNCTION_RETURNT(functionT)> add(ProcessID where, functionT function, 
-                                                const arg1T& arg1, const arg2T& arg2) {
+                                                const arg1T& arg1, const arg2T& arg2, const TaskAttributes& attr=TaskAttributes()) {
             Future<FUNCTION_RETURNT(functionT)> result;
             if (where == me) {
-                add(new TaskFunction<functionT>(result, function, arg1, arg2));
+                add(new TaskFunction<functionT>(result, function, arg1, arg2, attr));
             }
             else {
                 MADNESS_ASSERT(future_probe(arg1));  // No dependencies allowed for remote tasks
                 MADNESS_ASSERT(future_probe(arg2));  // No dependencies allowed for remote tasks
-                TaskFunction<functionT>::sender(world, where, result, function, arg1, arg2);
+                TaskFunction<functionT>::sender(world, where, result, function, arg1, arg2, attr);
             }
             return result;
         }
@@ -241,8 +299,8 @@ namespace madness {
         template <typename functionT, typename arg1T, typename arg2T, typename arg3T>
         Future<FUNCTION_RETURNT(functionT)> add(functionT function, 
                                                 const arg1T& arg1, const arg2T& arg2, 
-                                                const arg3T& arg3) {
-            return add(me,function,arg1,arg2,arg3);
+                                                const arg3T& arg3, const TaskAttributes& attr=TaskAttributes()) {
+            return add(me,function,arg1,arg2,arg3,attr);
         }
 
 
@@ -253,16 +311,16 @@ namespace madness {
         template <typename functionT, typename arg1T, typename arg2T, typename arg3T>
         Future<FUNCTION_RETURNT(functionT)> add(ProcessID where, functionT function, 
                                                 const arg1T& arg1, const arg2T& arg2,
-                                                const arg3T& arg3) {
+                                                const arg3T& arg3, const TaskAttributes& attr=TaskAttributes()) {
             Future<FUNCTION_RETURNT(functionT)> result;
             if (where == me) {
-                add(new TaskFunction<functionT>(result, function, arg1, arg2, arg3));
+                add(new TaskFunction<functionT>(result, function, arg1, arg2, arg3, attr));
             }
             else {
                 MADNESS_ASSERT(future_probe(arg1));  // No dependencies allowed for remote tasks
                 MADNESS_ASSERT(future_probe(arg2));  // No dependencies allowed for remote tasks
                 MADNESS_ASSERT(future_probe(arg3));  // No dependencies allowed for remote tasks
-                TaskFunction<functionT>::sender(world, where, result, function, arg1, arg2, arg3);
+                TaskFunction<functionT>::sender(world, where, result, function, arg1, arg2, arg3, attr);
             }
             return result;
         }
@@ -275,17 +333,17 @@ namespace madness {
         template <typename functionT, typename arg1T, typename arg2T, typename arg3T, typename arg4T>
         Future<FUNCTION_RETURNT(functionT)> add(ProcessID where, functionT function, 
                                                 const arg1T& arg1, const arg2T& arg2,
-                                                const arg3T& arg3, const arg4T& arg4) {
+                                                const arg3T& arg3, const arg4T& arg4, const TaskAttributes& attr=TaskAttributes()) {
             Future<FUNCTION_RETURNT(functionT)> result;
             if (where == me) {
-                add(new TaskFunction<functionT>(result, function, arg1, arg2, arg3, arg4));
+                add(new TaskFunction<functionT>(result, function, arg1, arg2, arg3, arg4, attr));
             }
             else {
                 MADNESS_ASSERT(future_probe(arg1));  // No dependencies allowed for remote tasks
                 MADNESS_ASSERT(future_probe(arg2));  // No dependencies allowed for remote tasks
                 MADNESS_ASSERT(future_probe(arg3));  // No dependencies allowed for remote tasks
                 MADNESS_ASSERT(future_probe(arg4));  // No dependencies allowed for remote tasks
-                TaskFunction<functionT>::sender(world, where, result, function, arg1, arg2, arg3, arg4);
+                TaskFunction<functionT>::sender(world, where, result, function, arg1, arg2, arg3, arg4, attr);
             }
             return result;
         }
@@ -300,10 +358,10 @@ namespace madness {
         Future<FUNCTION_RETURNT(functionT)> add(ProcessID where, functionT function, 
                                                 const arg1T& arg1, const arg2T& arg2,
                                                 const arg3T& arg3, const arg4T& arg4,
-                                                const arg5T& arg5) {
+                                                const arg5T& arg5, const TaskAttributes& attr=TaskAttributes()) {
             Future<FUNCTION_RETURNT(functionT)> result;
             if (where == me) {
-                add(new TaskFunction<functionT>(result, function, arg1, arg2, arg3, arg4, arg5));
+                add(new TaskFunction<functionT>(result, function, arg1, arg2, arg3, arg4, arg5, attr));
             }
             else {
                 MADNESS_ASSERT(future_probe(arg1));  // No dependencies allowed for remote tasks
@@ -311,7 +369,7 @@ namespace madness {
                 MADNESS_ASSERT(future_probe(arg3));  // No dependencies allowed for remote tasks
                 MADNESS_ASSERT(future_probe(arg4));  // No dependencies allowed for remote tasks
                 MADNESS_ASSERT(future_probe(arg5));  // No dependencies allowed for remote tasks
-                TaskFunction<functionT>::sender(world, where, result, function, arg1, arg2, arg3, arg4, arg5);
+                TaskFunction<functionT>::sender(world, where, result, function, arg1, arg2, arg3, arg4, arg5, attr);
             }
             return result;
         }
@@ -324,10 +382,10 @@ namespace madness {
         Future<FUNCTION_RETURNT(functionT)> add(ProcessID where, functionT function, 
                                                 const arg1T& arg1, const arg2T& arg2,
                                                 const arg3T& arg3, const arg4T& arg4,
-                                                const arg5T& arg5, const arg6T& arg6) {
+                                                const arg5T& arg5, const arg6T& arg6, const TaskAttributes& attr=TaskAttributes()) {
             Future<FUNCTION_RETURNT(functionT)> result;
             if (where == me) {
-                add(new TaskFunction<functionT>(result, function, arg1, arg2, arg3, arg4, arg5, arg6));
+                add(new TaskFunction<functionT>(result, function, arg1, arg2, arg3, arg4, arg5, arg6, attr));
             }
             else {
                 MADNESS_ASSERT(future_probe(arg1));  // No dependencies allowed for remote tasks
@@ -336,7 +394,7 @@ namespace madness {
                 MADNESS_ASSERT(future_probe(arg4));  // No dependencies allowed for remote tasks
                 MADNESS_ASSERT(future_probe(arg5));  // No dependencies allowed for remote tasks
                 MADNESS_ASSERT(future_probe(arg6));  // No dependencies allowed for remote tasks
-                TaskFunction<functionT>::sender(world, where, result, function, arg1, arg2, arg3, arg4, arg5, arg6);
+                TaskFunction<functionT>::sender(world, where, result, function, arg1, arg2, arg3, arg4, arg5, arg6, attr);
             }
             return result;
         }
@@ -349,10 +407,10 @@ namespace madness {
         Future<FUNCTION_RETURNT(functionT)> add(ProcessID where, functionT function, 
                                                 const arg1T& arg1, const arg2T& arg2,
                                                 const arg3T& arg3, const arg4T& arg4,
-                                                const arg5T& arg5, const arg6T& arg6, const arg7T& arg7) {
+                                                const arg5T& arg5, const arg6T& arg6, const arg7T& arg7, const TaskAttributes& attr=TaskAttributes()) {
             Future<FUNCTION_RETURNT(functionT)> result;
             if (where == me) {
-                add(new TaskFunction<functionT>(result, function, arg1, arg2, arg3, arg4, arg5, arg6, arg7));
+                add(new TaskFunction<functionT>(result, function, arg1, arg2, arg3, arg4, arg5, arg6, arg7, attr));
             }
             else {
                 MADNESS_ASSERT(future_probe(arg1));  // No dependencies allowed for remote tasks
@@ -362,7 +420,7 @@ namespace madness {
                 MADNESS_ASSERT(future_probe(arg5));  // No dependencies allowed for remote tasks
                 MADNESS_ASSERT(future_probe(arg6));  // No dependencies allowed for remote tasks
                 MADNESS_ASSERT(future_probe(arg7));  // No dependencies allowed for remote tasks
-                TaskFunction<functionT>::sender(world, where, result, function, arg1, arg2, arg3, arg4, arg5, arg6, arg7);
+                TaskFunction<functionT>::sender(world, where, result, function, arg1, arg2, arg3, arg4, arg5, arg6, arg7, attr);
             }
             return result;
         }
@@ -370,10 +428,10 @@ namespace madness {
         
         /// Invoke "resultT (obj.*memfun)()" as a local task
         template <typename memfunT>
-        Future<MEMFUN_RETURNT(memfunT)> add(MEMFUN_OBJT(memfunT)& obj, memfunT memfun) 
+        Future<MEMFUN_RETURNT(memfunT)> add(MEMFUN_OBJT(memfunT)& obj, memfunT memfun, const TaskAttributes& attr=TaskAttributes()) 
         {
             Future<MEMFUN_RETURNT(memfunT)> result;
-            add(new TaskMemfun<memfunT>(result,obj,memfun));
+            add(new TaskMemfun<memfunT>(result,obj,memfun,attr));
             return result;
         }
 
@@ -382,10 +440,10 @@ namespace madness {
         template <typename memfunT, typename arg1T>
         Future<MEMFUN_RETURNT(memfunT)> add(MEMFUN_OBJT(memfunT)& obj, 
                                             memfunT memfun,
-                                            const arg1T& arg1)
+                                            const arg1T& arg1, const TaskAttributes& attr=TaskAttributes())
         {
             Future<MEMFUN_RETURNT(memfunT)> result;
-            add(new TaskMemfun<memfunT>(result,obj,memfun,arg1));
+            add(new TaskMemfun<memfunT>(result,obj,memfun,arg1,attr));
             return result;
         }
 
@@ -394,10 +452,10 @@ namespace madness {
         template <typename memfunT, typename arg1T, typename arg2T>
         Future<MEMFUN_RETURNT(memfunT)> add(MEMFUN_OBJT(memfunT)& obj, 
                                             memfunT memfun,
-                                            const arg1T& arg1, const arg2T& arg2)
+                                            const arg1T& arg1, const arg2T& arg2, const TaskAttributes& attr=TaskAttributes())
         {
             Future<MEMFUN_RETURNT(memfunT)> result;
-            add(new TaskMemfun<memfunT>(result,obj,memfun,arg1,arg2));
+            add(new TaskMemfun<memfunT>(result,obj,memfun,arg1,arg2,attr));
             return result;
         }
 
@@ -406,10 +464,10 @@ namespace madness {
         template <typename memfunT, typename arg1T, typename arg2T, typename arg3T>
         Future<MEMFUN_RETURNT(memfunT)> add(MEMFUN_OBJT(memfunT)& obj, 
                                             memfunT memfun,
-                                            const arg1T& arg1, const arg2T& arg2, const arg3T& arg3)
+                                            const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, const TaskAttributes& attr=TaskAttributes())
         {
             Future<MEMFUN_RETURNT(memfunT)> result;
-            add(new TaskMemfun<memfunT>(result,obj,memfun,arg1,arg2,arg3));
+            add(new TaskMemfun<memfunT>(result,obj,memfun,arg1,arg2,arg3,attr));
             return result;
         }
 
@@ -418,10 +476,10 @@ namespace madness {
         template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T>
         Future<MEMFUN_RETURNT(memfunT)> add(MEMFUN_OBJT(memfunT)& obj, 
                                             memfunT memfun,
-                                            const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, const arg4T& arg4)
+                                            const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, const arg4T& arg4, const TaskAttributes& attr=TaskAttributes())
         {
             Future<MEMFUN_RETURNT(memfunT)> result;
-            add(new TaskMemfun<memfunT>(result,obj,memfun,arg1,arg2,arg3,arg4));
+            add(new TaskMemfun<memfunT>(result,obj,memfun,arg1,arg2,arg3,arg4,attr));
             return result;
         }
 
@@ -431,10 +489,10 @@ namespace madness {
         template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T, typename arg5T>
         Future<MEMFUN_RETURNT(memfunT)> add(MEMFUN_OBJT(memfunT)& obj, 
                                             memfunT memfun,
-                                            const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, const arg4T& arg4, const arg5T& arg5)
+                                            const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, const arg4T& arg4, const arg5T& arg5, const TaskAttributes& attr=TaskAttributes())
         {
             Future<MEMFUN_RETURNT(memfunT)> result;
-            add(new TaskMemfun<memfunT>(result,obj,memfun,arg1,arg2,arg3,arg4,arg5));
+            add(new TaskMemfun<memfunT>(result,obj,memfun,arg1,arg2,arg3,arg4,arg5,attr));
             return result;
         }
 
@@ -463,7 +521,13 @@ namespace madness {
         
         /// Private:  Call back for tasks that have satisfied their dependencies.
         inline void add_ready_task(TaskInterface* t) {
-            ready.push_back(t);
+            if (t->is_generator()) {
+                ready.push_front(t);
+                print("WorldTaskQueue: just added generator task at front of q");
+            }
+            else {
+                ready.push_back(t);
+            }
             nregistered--;
             MADNESS_ASSERT(nregistered>=0);
         };
@@ -510,8 +574,9 @@ namespace madness {
     struct TaskHandlerInfo {
         refT ref;
         functionT func;
-        TaskHandlerInfo(const refT& ref, functionT func) 
-            : ref(ref), func(func) {};
+        TaskAttributes attr;
+        TaskHandlerInfo(const refT& ref, functionT func, const TaskAttributes& attr) 
+            : ref(ref), func(func),attr(attr) {};
         TaskHandlerInfo() {};
         template <typename Archive> 
         void serialize(const Archive& ar) {
@@ -523,6 +588,11 @@ namespace madness {
     class TaskFunctionBase : public TaskInterface {
     protected:
     public:
+
+        TaskFunctionBase(const TaskAttributes& attributes) 
+            : TaskInterface(attributes) 
+        {};
+
         // Register non-ready future as a dependency
         template <typename T>
         inline void check_dependency(Future<T>& fut) {
@@ -532,7 +602,6 @@ namespace madness {
             }
         }
     };
-
 
     // Internal: This silliness since cannot use a void expression as a void argument
     template <typename resultT>
@@ -738,17 +807,21 @@ namespace madness {
 
         static void handler(World& world, ProcessID src, const AmArg& arg) {
             TaskHandlerInfo<refT,functionT> info = arg;
-            world.taskq.add(new TaskFunction<functionT>(futureT(info.ref),info.func));
+            world.taskq.add(new TaskFunction<functionT>(futureT(info.ref),info.func,info.attr));
         };
 
-        static void sender(World& world, ProcessID dest, Future<resultT>& result, functionT func) {
-            world.am.send(dest, handler, TaskHandlerInfo<refT,functionT>(result.remote_ref(world), func));
+        static void sender(World& world, ProcessID dest, Future<resultT>& result, functionT func, const TaskAttributes& attr) {
+            world.am.send(dest, handler, TaskHandlerInfo<refT,functionT>(result.remote_ref(world), func, attr));
         };
 
         Future<resultT> result; 
         const functionT func;
-        TaskFunction(const futureT& result, functionT func) : result(result), func(func) {};
-
+        TaskFunction(const futureT& result, functionT func, const TaskAttributes& attr) 
+            : TaskFunctionBase(attr)
+            , result(result)
+            , func(func) 
+            {};
+        
         void run(World& world) {TaskFunctionRun<resultT>::run(result,func);}
     };
 
@@ -766,15 +839,15 @@ namespace madness {
             TaskHandlerInfo<refT,functionT> info;
             arg1T arg1;
             arg->unstuff(nbyte, info, arg1);
-            world.taskq.add(new TaskFunction<functionT>(futureT(info.ref),info.func,arg1));
+            world.taskq.add(new TaskFunction<functionT>(futureT(info.ref),info.func,arg1,info.attr));
         };
 
         template <typename a1T>
         static void sender(World& world, ProcessID dest, const futureT& result, functionT func,
-                           const a1T& arg1) {
+                           const a1T& a1, const TaskAttributes& attr) {
             LongAmArg* arg = new LongAmArg();
-            size_t nbyte = arg->stuff(TaskHandlerInfo<refT,functionT>(result.remote_ref(world), func), 
-                                      static_cast<arg1T>(arg1));
+            size_t nbyte = arg->stuff(TaskHandlerInfo<refT,functionT>(result.remote_ref(world), func, attr), 
+                                      static_cast<arg1T>(a1));
             world.am.send_long_managed(dest, TaskFunction<functionT>::handler, arg, nbyte);
         }
 
@@ -783,8 +856,8 @@ namespace madness {
         Future<arg1T> arg1;
 
         template <typename a1T>
-        TaskFunction(const futureT& result, functionT func, const a1T& a1) 
-            : result(result), func(func), arg1(a1) {
+        TaskFunction(const futureT& result, functionT func, const a1T& a1, const TaskAttributes& attr) 
+            : TaskFunctionBase(attr), result(result), func(func), arg1(a1) {
             check_dependency(arg1);
         }
 
@@ -809,14 +882,14 @@ namespace madness {
             arg1T arg1;
             arg2T arg2;
             arg->unstuff(nbyte, info, arg1, arg2);
-            world.taskq.add(new TaskFunction<functionT>(futureT(info.ref),info.func,arg1,arg2));
+            world.taskq.add(new TaskFunction<functionT>(futureT(info.ref),info.func,arg1,arg2,info.attr));
         };
 
         template <typename a1T, typename a2T>
         static void sender(World& world, ProcessID dest, const futureT& result, functionT func,
-                           const a1T& arg1, const a2T& arg2) {
+                           const a1T& arg1, const a2T& arg2, const TaskAttributes& attr) {
             LongAmArg* arg = new LongAmArg();
-            size_t nbyte = arg->stuff(TaskHandlerInfo<refT,functionT>(result.remote_ref(world), func), 
+            size_t nbyte = arg->stuff(TaskHandlerInfo<refT,functionT>(result.remote_ref(world), func, attr), 
                                       static_cast<arg1T>(arg1), static_cast<arg2T>(arg2));
             world.am.send_long_managed(dest, TaskFunction<functionT>::handler, arg, nbyte);
         }
@@ -827,8 +900,8 @@ namespace madness {
         Future<arg2T> arg2;
 
         template <typename a1T, typename a2T>
-        TaskFunction(const futureT& result, functionT func, const a1T& a1, const a2T& a2) 
-            : result(result), func(func), arg1(a1), arg2(a2) {
+        TaskFunction(const futureT& result, functionT func, const a1T& a1, const a2T& a2, const TaskAttributes& attr) 
+            : TaskFunctionBase(attr), result(result), func(func), arg1(a1), arg2(a2) {
             check_dependency(arg1);
             check_dependency(arg2);
         }
@@ -856,14 +929,14 @@ namespace madness {
             arg2T arg2;
             arg3T arg3;
             arg->unstuff(nbyte, info, arg1, arg2, arg3);
-            world.taskq.add(new TaskFunction<functionT>(futureT(info.ref),info.func,arg1,arg2,arg3));
+            world.taskq.add(new TaskFunction<functionT>(futureT(info.ref),info.func,arg1,arg2,arg3,info.attr));
         };
 
         template <typename a1T, typename a2T, typename a3T>
         static void sender(World& world, ProcessID dest, const futureT& result, functionT func,
-                           const a1T& arg1, const a2T& arg2, const a3T& arg3) {
+                           const a1T& arg1, const a2T& arg2, const a3T& arg3, const TaskAttributes& attr) {
             LongAmArg* arg = new LongAmArg();
-            size_t nbyte = arg->stuff(TaskHandlerInfo<refT,functionT>(result.remote_ref(world), func), 
+            size_t nbyte = arg->stuff(TaskHandlerInfo<refT,functionT>(result.remote_ref(world), func, attr), 
                                       static_cast<arg1T>(arg1), static_cast<arg2T>(arg2), static_cast<arg3T>(arg3));
             world.am.send_long_managed(dest, TaskFunction<functionT>::handler, arg, nbyte);
         }
@@ -875,8 +948,8 @@ namespace madness {
         Future<arg3T> arg3;
 
         template <typename a1T, typename a2T, typename a3T>
-        TaskFunction(const futureT& result, functionT func, const a1T& a1, const a2T& a2, const a3T& a3) 
-            : result(result), func(func), arg1(a1), arg2(a2), arg3(a3) {
+        TaskFunction(const futureT& result, functionT func, const a1T& a1, const a2T& a2, const a3T& a3, const TaskAttributes& attr) 
+            : TaskFunctionBase(attr), result(result), func(func), arg1(a1), arg2(a2), arg3(a3) {
             check_dependency(arg1);
             check_dependency(arg2);
             check_dependency(arg3);
@@ -907,14 +980,14 @@ namespace madness {
             arg3T arg3;
             arg4T arg4;
             arg->unstuff(nbyte, info, arg1, arg2, arg3, arg4);
-            world.taskq.add(new TaskFunction<functionT>(futureT(info.ref),info.func,arg1,arg2,arg3,arg4));
+            world.taskq.add(new TaskFunction<functionT>(futureT(info.ref),info.func,arg1,arg2,arg3,arg4,info.attr));
         };
 
         template <typename a1T, typename a2T, typename a3T, typename a4T>
         static void sender(World& world, ProcessID dest, const futureT& result, functionT func,
-                           const a1T& arg1, const a2T& arg2, const a3T& arg3, const a4T& arg4) {
+                           const a1T& arg1, const a2T& arg2, const a3T& arg3, const a4T& arg4, const TaskAttributes& attr) {
             LongAmArg* arg = new LongAmArg();
-            size_t nbyte = arg->stuff(TaskHandlerInfo<refT,functionT>(result.remote_ref(world), func), 
+            size_t nbyte = arg->stuff(TaskHandlerInfo<refT,functionT>(result.remote_ref(world), func, attr), 
                                       static_cast<arg1T>(arg1), static_cast<arg2T>(arg2), static_cast<arg3T>(arg3), static_cast<arg4T>(arg4));
             world.am.send_long_managed(dest, TaskFunction<functionT>::handler, arg, nbyte);
         }
@@ -927,8 +1000,8 @@ namespace madness {
         Future<arg4T> arg4;
 
         template <typename a1T, typename a2T, typename a3T, typename a4T>
-        TaskFunction(const futureT& result, functionT func, const a1T& a1, const a2T& a2, const a3T& a3, const a4T& a4) 
-            : result(result), func(func), arg1(a1), arg2(a2), arg3(a3), arg4(a4) {
+        TaskFunction(const futureT& result, functionT func, const a1T& a1, const a2T& a2, const a3T& a3, const a4T& a4, const TaskAttributes& attr) 
+            : TaskFunctionBase(attr), result(result), func(func), arg1(a1), arg2(a2), arg3(a3), arg4(a4) {
             check_dependency(arg1);
             check_dependency(arg2);
             check_dependency(arg3);
@@ -962,14 +1035,14 @@ namespace madness {
             arg4T arg4;
             arg5T arg5;
             arg->unstuff(nbyte, info, arg1, arg2, arg3, arg4, arg5);
-            world.taskq.add(new TaskFunction<functionT>(futureT(info.ref),info.func,arg1,arg2,arg3,arg4,arg5));
+            world.taskq.add(new TaskFunction<functionT>(futureT(info.ref),info.func,arg1,arg2,arg3,arg4,arg5,info.attr));
         };
 
         template <typename a1T, typename a2T, typename a3T, typename a4T, typename a5T>
         static void sender(World& world, ProcessID dest, const futureT& result, functionT func,
-                           const a1T& arg1, const a2T& arg2, const a3T& arg3, const a4T& arg4, const a5T& arg5) {
+                           const a1T& arg1, const a2T& arg2, const a3T& arg3, const a4T& arg4, const a5T& arg5, const TaskAttributes& attr) {
             LongAmArg* arg = new LongAmArg();
-            size_t nbyte = arg->stuff(TaskHandlerInfo<refT,functionT>(result.remote_ref(world), func), 
+            size_t nbyte = arg->stuff(TaskHandlerInfo<refT,functionT>(result.remote_ref(world), func, attr), 
                                       static_cast<arg1T>(arg1), static_cast<arg2T>(arg2), static_cast<arg3T>(arg3), static_cast<arg4T>(arg4), static_cast<arg5T>(arg5));
             world.am.send_long_managed(dest, TaskFunction<functionT>::handler, arg, nbyte);
         }
@@ -983,8 +1056,8 @@ namespace madness {
         Future<arg5T> arg5;
 
         template <typename a1T, typename a2T, typename a3T, typename a4T, typename a5T>
-        TaskFunction(const futureT& result, functionT func, const a1T& a1, const a2T& a2, const a3T& a3, const a4T& a4, const a5T& a5) 
-            : result(result), func(func), arg1(a1), arg2(a2), arg3(a3), arg4(a4), arg5(a5) {
+        TaskFunction(const futureT& result, functionT func, const a1T& a1, const a2T& a2, const a3T& a3, const a4T& a4, const a5T& a5, const TaskAttributes& attr) 
+            : TaskFunctionBase(attr), result(result), func(func), arg1(a1), arg2(a2), arg3(a3), arg4(a4), arg5(a5) {
             check_dependency(arg1);
             check_dependency(arg2);
             check_dependency(arg3);
@@ -1020,14 +1093,14 @@ namespace madness {
             arg5T arg5;
             arg6T arg6;
             arg->unstuff(nbyte, info, arg1, arg2, arg3, arg4, arg5, arg6);
-            world.taskq.add(new TaskFunction<functionT>(futureT(info.ref),info.func,arg1,arg2,arg3,arg4,arg5,arg6));
+            world.taskq.add(new TaskFunction<functionT>(futureT(info.ref),info.func,arg1,arg2,arg3,arg4,arg5,arg6,info.attr));
         };
 
         template <typename a1T, typename a2T, typename a3T, typename a4T, typename a5T, typename a6T>
         static void sender(World& world, ProcessID dest, const futureT& result, functionT func,
-                           const a1T& arg1, const a2T& arg2, const a3T& arg3, const a4T& arg4, const a5T& arg5, const a6T& arg6) {
+                           const a1T& arg1, const a2T& arg2, const a3T& arg3, const a4T& arg4, const a5T& arg5, const a6T& arg6, const TaskAttributes& attr) {
             LongAmArg* arg = new LongAmArg();
-            size_t nbyte = arg->stuff(TaskHandlerInfo<refT,functionT>(result.remote_ref(world), func), 
+            size_t nbyte = arg->stuff(TaskHandlerInfo<refT,functionT>(result.remote_ref(world), func, attr), 
                                       static_cast<arg1T>(arg1), static_cast<arg2T>(arg2), static_cast<arg3T>(arg3), static_cast<arg4T>(arg4), static_cast<arg5T>(arg5), static_cast<arg6T>(arg6));
             world.am.send_long_managed(dest, TaskFunction<functionT>::handler, arg, nbyte);
         }
@@ -1042,8 +1115,8 @@ namespace madness {
         Future<arg6T> arg6;
 
         template <typename a1T, typename a2T, typename a3T, typename a4T, typename a5T, typename a6T>
-        TaskFunction(const futureT& result, functionT func, const a1T& a1, const a2T& a2, const a3T& a3, const a4T& a4, const a5T& a5, const a6T& a6) 
-            : result(result), func(func), arg1(a1), arg2(a2), arg3(a3), arg4(a4), arg5(a5), arg6(a6) {
+        TaskFunction(const futureT& result, functionT func, const a1T& a1, const a2T& a2, const a3T& a3, const a4T& a4, const a5T& a5, const a6T& a6, const TaskAttributes& attr) 
+            : TaskFunctionBase(attr), result(result), func(func), arg1(a1), arg2(a2), arg3(a3), arg4(a4), arg5(a5), arg6(a6) {
             check_dependency(arg1);
             check_dependency(arg2);
             check_dependency(arg3);
@@ -1083,14 +1156,14 @@ namespace madness {
             arg6T arg6;
             arg7T arg7;
             arg->unstuff(nbyte, info, arg1, arg2, arg3, arg4, arg5, arg6, arg7);
-            world.taskq.add(new TaskFunction<functionT>(futureT(info.ref),info.func,arg1,arg2,arg3,arg4,arg5,arg6,arg7));
+            world.taskq.add(new TaskFunction<functionT>(futureT(info.ref),info.func,arg1,arg2,arg3,arg4,arg5,arg6,arg7,info.attr));
         };
 
         template <typename a1T, typename a2T, typename a3T, typename a4T, typename a5T, typename a6T, typename a7T>
         static void sender(World& world, ProcessID dest, const futureT& result, functionT func,
-                           const a1T& arg1, const a2T& arg2, const a3T& arg3, const a4T& arg4, const a5T& arg5, const a6T& arg6, const a7T& arg7) {
+                           const a1T& arg1, const a2T& arg2, const a3T& arg3, const a4T& arg4, const a5T& arg5, const a6T& arg6, const a7T& arg7, const TaskAttributes& attr) {
             LongAmArg* arg = new LongAmArg();
-            size_t nbyte = arg->stuff(TaskHandlerInfo<refT,functionT>(result.remote_ref(world), func), 
+            size_t nbyte = arg->stuff(TaskHandlerInfo<refT,functionT>(result.remote_ref(world), func, attr), 
                                       static_cast<arg1T>(arg1), static_cast<arg2T>(arg2), static_cast<arg3T>(arg3), static_cast<arg4T>(arg4), static_cast<arg5T>(arg5), static_cast<arg6T>(arg6), static_cast<arg7T>(arg7));
             world.am.send_long_managed(dest, TaskFunction<functionT>::handler, arg, nbyte);
         }
@@ -1106,8 +1179,8 @@ namespace madness {
         Future<arg7T> arg7;
 
         template <typename a1T, typename a2T, typename a3T, typename a4T, typename a5T, typename a6T, typename a7T>
-        TaskFunction(const futureT& result, functionT func, const a1T& a1, const a2T& a2, const a3T& a3, const a4T& a4, const a5T& a5, const a6T& a6, const a7T& a7) 
-            : result(result), func(func), arg1(a1), arg2(a2), arg3(a3), arg4(a4), arg5(a5), arg6(a6), arg7(a7) {
+        TaskFunction(const futureT& result, functionT func, const a1T& a1, const a2T& a2, const a3T& a3, const a4T& a4, const a5T& a5, const a6T& a6, const a7T& a7, const TaskAttributes& attr) 
+            : TaskFunctionBase(attr), result(result), func(func), arg1(a1), arg2(a2), arg3(a3), arg4(a4), arg5(a5), arg6(a6), arg7(a7) {
             check_dependency(arg1);
             check_dependency(arg2);
             check_dependency(arg3);
@@ -1133,8 +1206,8 @@ namespace madness {
         objT& obj;
         const memfunT memfun;
 
-        TaskMemfun(const futureT& result, objT& obj, memfunT memfun) 
-            : result(result), obj(obj), memfun(memfun) {}
+        TaskMemfun(const futureT& result, objT& obj, memfunT memfunc, const TaskAttributes& attr) 
+            : TaskFunctionBase(attr), result(result), obj(obj), memfun(memfun) {}
 
         void run(World& world) {
             TaskMemfunRun<resultT>::run(result,obj,memfun);
@@ -1154,8 +1227,8 @@ namespace madness {
         Future<arg1T> arg1;
 
         template <typename a1T>
-            TaskMemfun(const futureT& result, objT& obj, memfunT memfun, const a1T& a1) 
-            : result(result), obj(obj), memfun(memfun), arg1(a1) {
+            TaskMemfun(const futureT& result, objT& obj, memfunT memfun, const a1T& a1, const TaskAttributes& attr) 
+            : TaskFunctionBase(attr), result(result), obj(obj), memfun(memfun), arg1(a1) {
             check_dependency(arg1);
         }
 
@@ -1179,8 +1252,8 @@ namespace madness {
         Future<arg2T> arg2;
 
         template <typename a1T, typename a2T>
-            TaskMemfun(const futureT& result, objT& obj, memfunT memfun, const a1T& a1, const a2T& a2) 
-            : result(result), obj(obj), memfun(memfun), arg1(a1), arg2(a2) {
+            TaskMemfun(const futureT& result, objT& obj, memfunT memfun, const a1T& a1, const a2T& a2, const TaskAttributes& attr) 
+            : TaskFunctionBase(attr), result(result), obj(obj), memfun(memfun), arg1(a1), arg2(a2) {
             check_dependency(arg1);
             check_dependency(arg2);
         }
@@ -1208,8 +1281,8 @@ namespace madness {
 
         template <typename a1T, typename a2T, typename a3T>
             TaskMemfun(const futureT& result, objT& obj, memfunT memfun, 
-                       const a1T& a1, const a2T& a2, const a3T& a3) 
-            : result(result), obj(obj), memfun(memfun), arg1(a1), arg2(a2), arg3(a3) {
+                       const a1T& a1, const a2T& a2, const a3T& a3, const TaskAttributes& attr) 
+            : TaskFunctionBase(attr), result(result), obj(obj), memfun(memfun), arg1(a1), arg2(a2), arg3(a3) {
             check_dependency(arg1);
             check_dependency(arg2);
             check_dependency(arg3);
@@ -1240,8 +1313,8 @@ namespace madness {
 
         template <typename a1T, typename a2T, typename a3T, typename a4T>
             TaskMemfun(const futureT& result, objT& obj, memfunT memfun, 
-                       const a1T& a1, const a2T& a2, const a3T& a3, const a4T& a4) 
-            : result(result), obj(obj), memfun(memfun), arg1(a1), arg2(a2), arg3(a3), arg4(a4) {
+                       const a1T& a1, const a2T& a2, const a3T& a3, const a4T& a4, const TaskAttributes& attr) 
+            : TaskFunctionBase(attr), result(result), obj(obj), memfun(memfun), arg1(a1), arg2(a2), arg3(a3), arg4(a4) {
             check_dependency(arg1);
             check_dependency(arg2);
             check_dependency(arg3);
@@ -1275,8 +1348,8 @@ namespace madness {
 
         template <typename a1T, typename a2T, typename a3T, typename a4T, typename a5T>
             TaskMemfun(const futureT& result, objT& obj, memfunT memfun, 
-                       const a1T& a1, const a2T& a2, const a3T& a3, const a4T& a4, a5T& a5) 
-            : result(result), obj(obj), memfun(memfun), arg1(a1), arg2(a2), arg3(a3), arg4(a4), arg5(a5) {
+                       const a1T& a1, const a2T& a2, const a3T& a3, const a4T& a4, a5T& a5, const TaskAttributes& attr) 
+            : TaskFunctionBase(attr), result(result), obj(obj), memfun(memfun), arg1(a1), arg2(a2), arg3(a3), arg4(a4), arg5(a5) {
             check_dependency(arg1);
             check_dependency(arg2);
             check_dependency(arg3);
@@ -1313,8 +1386,8 @@ namespace madness {
 
         template <typename a1T, typename a2T, typename a3T, typename a4T, typename a5T, typename a6T>
             TaskMemfun(const futureT& result, objT& obj, memfunT memfun, 
-                       const a1T& a1, const a2T& a2, const a3T& a3, const a4T& a4, a5T& a5, a6T& a6) 
-            : result(result), obj(obj), memfun(memfun), arg1(a1), arg2(a2), arg3(a3), arg4(a4), arg5(a5), arg6(a6) {
+                       const a1T& a1, const a2T& a2, const a3T& a3, const a4T& a4, a5T& a5, a6T& a6, const TaskAttributes& attr) 
+            : TaskFunctionBase(attr), result(result), obj(obj), memfun(memfun), arg1(a1), arg2(a2), arg3(a3), arg4(a4), arg5(a5), arg6(a6) {
             check_dependency(arg1);
             check_dependency(arg2);
             check_dependency(arg3);
@@ -1342,8 +1415,8 @@ namespace madness {
         objT& obj;
         const memfunT memfun;
 
-        TaskMemfun(const futureT& result, objT& obj, memfunT memfun) 
-            : result(result), obj(obj), memfun(memfun) {}
+        TaskMemfun(const futureT& result, objT& obj, memfunT memfunc, const TaskAttributes& attr) 
+            : TaskFunctionBase(attr), result(result), obj(obj), memfun(memfun) {}
 
         void run(World& world) {
             TaskMemfunRun<resultT>::run(result,obj,memfun);
@@ -1363,8 +1436,8 @@ namespace madness {
         Future<arg1T> arg1;
 
         template <typename a1T>
-            TaskMemfun(const futureT& result, objT& obj, memfunT memfun, const a1T& a1) 
-            : result(result), obj(obj), memfun(memfun), arg1(a1) {
+            TaskMemfun(const futureT& result, objT& obj, memfunT memfun, const a1T& a1, const TaskAttributes& attr) 
+            : TaskFunctionBase(attr), result(result), obj(obj), memfun(memfun), arg1(a1) {
             check_dependency(arg1);
         }
 
@@ -1391,8 +1464,8 @@ namespace madness {
 
         template <typename a1T, typename a2T, typename a3T>
             TaskMemfun(const futureT& result, objT& obj, memfunT memfun, 
-                       const a1T& a1, const a2T& a2, const a3T& a3) 
-            : result(result), obj(obj), memfun(memfun), arg1(a1), arg2(a2), arg3(a3) {
+                       const a1T& a1, const a2T& a2, const a3T& a3, const TaskAttributes& attr) 
+            : TaskFunctionBase(attr), result(result), obj(obj), memfun(memfun), arg1(a1), arg2(a2), arg3(a3) {
             check_dependency(arg1);
             check_dependency(arg2);
             check_dependency(arg3);
@@ -1423,8 +1496,8 @@ namespace madness {
 
         template <typename a1T, typename a2T, typename a3T, typename a4T>
             TaskMemfun(const futureT& result, objT& obj, memfunT memfun, 
-                       const a1T& a1, const a2T& a2, const a3T& a3, const a4T& a4) 
-            : result(result), obj(obj), memfun(memfun), arg1(a1), arg2(a2), arg3(a3), arg4(a4) {
+                       const a1T& a1, const a2T& a2, const a3T& a3, const a4T& a4, const TaskAttributes& attr) 
+            : TaskFunctionBase(attr), result(result), obj(obj), memfun(memfun), arg1(a1), arg2(a2), arg3(a3), arg4(a4) {
             check_dependency(arg1);
             check_dependency(arg2);
             check_dependency(arg3);
@@ -1458,8 +1531,8 @@ namespace madness {
 
         template <typename a1T, typename a2T, typename a3T, typename a4T, typename a5T>
             TaskMemfun(const futureT& result, objT& obj, memfunT memfun, 
-                       const a1T& a1, const a2T& a2, const a3T& a3, const a4T& a4, a5T& a5) 
-            : result(result), obj(obj), memfun(memfun), arg1(a1), arg2(a2), arg3(a3), arg4(a4), arg5(a5) {
+                       const a1T& a1, const a2T& a2, const a3T& a3, const a4T& a4, a5T& a5, const TaskAttributes& attr) 
+            : TaskFunctionBase(attr), result(result), obj(obj), memfun(memfun), arg1(a1), arg2(a2), arg3(a3), arg4(a4), arg5(a5) {
             check_dependency(arg1);
             check_dependency(arg2);
             check_dependency(arg3);
@@ -1496,8 +1569,8 @@ namespace madness {
 
         template <typename a1T, typename a2T, typename a3T, typename a4T, typename a5T, typename a6T>
             TaskMemfun(const futureT& result, objT& obj, memfunT memfun, 
-                       const a1T& a1, const a2T& a2, const a3T& a3, const a4T& a4, a5T& a5, a6T& a6) 
-            : result(result), obj(obj), memfun(memfun), arg1(a1), arg2(a2), arg3(a3), arg4(a4), arg5(a5), arg6(a6) {
+                       const a1T& a1, const a2T& a2, const a3T& a3, const a4T& a4, a5T& a5, a6T& a6, const TaskAttributes& attr) 
+            : TaskFunctionBase(attr), result(result), obj(obj), memfun(memfun), arg1(a1), arg2(a2), arg3(a3), arg4(a4), arg5(a5), arg6(a6) {
             check_dependency(arg1);
             check_dependency(arg2);
             check_dependency(arg3);

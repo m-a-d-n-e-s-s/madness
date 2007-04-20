@@ -34,6 +34,13 @@ namespace madness {
         return out;
     }
     
+
+    const TaskAttributes& task_attr_generator() {
+        static const TaskAttributes attr(true,false);
+        return attr;
+    };
+
+
     // Internal: To handle order of class definitions
     void task_ready_callback_function(WorldTaskQueue* taskq, TaskInterface* task) {
         taskq->add_ready_task(task);
