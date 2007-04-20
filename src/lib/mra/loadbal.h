@@ -294,13 +294,16 @@ public:
 		key = key.parent(nearest_power(i, twotoD));
 	    }
 	    v.push_back(TreeCoords<D>(key,i));
-	    buildTreeMap(v);
 	}
+	buildTreeMap(v);
+	madness::print("");
+	treeMap.print();
     }; 
     MyProcmap(World& world, ProcessID owner) : whichmap(0), owner(owner) {};
 
     MyProcmap(World& world, vector<TreeCoords<D> > v) : whichmap(1), owner(1) {
 	buildTreeMap(v);
+	madness::print("");
 	treeMap.print();
     };
 
@@ -334,18 +337,19 @@ class LBTree : public WorldContainer<typename DClass<D>::KeyD,typename DClass<D>
 	};
 	template <typename T>
 	inline void init_tree(SharedPtr<FunctionImpl<T,D,Pmap> > f, typename DClass<D>::KeyDConst key) {
-madness::print("beginning of init_tree");
+//madness::print("beginning of init_tree");
 	    // find Node associated with key
 	    typename FunctionImpl<T,D,Pmap>::iterator it = f->find(key);
 	    if (it == f->end()) return;
 	    // convert Node to LBNode
+	    NodeData nd;
 	    if (!(it->second.has_children())) {
-		typename DClass<D>::NodeD lbnode(false);
+		typename DClass<D>::NodeD lbnode(nd,false);
 	        // insert into "this"
 		this->insert(key, lbnode);
 	    }
 	    else {
-		typename DClass<D>::NodeD lbnode(true);
+		typename DClass<D>::NodeD lbnode(nd,true);
 	        // insert into "this"
 		this->insert(key, lbnode);
 		// then, call for each child
@@ -353,10 +357,19 @@ madness::print("beginning of init_tree");
 		    this->init_tree<T>(f, kit.key());
 		}
 	    }
-madness::print("end of init_tree");
+//madness::print("end of init_tree");
 	};
 
 	// Methods:
+	void print(typename DClass<D>::KeyDConst& key) {
+	    typename DClass<D>::treeT::iterator it = this->find(key);
+	    if (it == this->end()) return;
+	    for (Level i = 0; i < key.level(); i++) cout << "  ";
+	    madness::print(key, it->second);
+	    for (KeyChildIterator<D> kit(key); kit; ++kit) {
+        	print(kit.key());
+            }
+	};
 	Cost fixCost(typename DClass<D>::KeyDConst& key);
 	Cost depthFirstPartition(typename DClass<D>::KeyDConst& key,
         	vector<typename DClass<D>::TreeCoords>* klist, unsigned int npieces,
@@ -394,7 +407,9 @@ class LoadBalImpl {
 	    skeltree = SharedPtr<typename DClass<D>::treeT>(new typename DClass<D>::treeT(f->world,
 		f->get_procmap()));
 	    typename DClass<D>::KeyD root(0);
+madness::print("about to initialize tree");
 	    skeltree->template init_tree<T>(f,root);
+madness::print("just initialized tree");
 	};
 
     public:

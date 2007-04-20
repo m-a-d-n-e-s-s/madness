@@ -400,12 +400,18 @@ namespace madness {
                     insert(key, nodeT(tensorT(cdata->v2k), key.level()<initial_level));
                 }
                 else if (key.level()<initial_level) {
-                    insert(key, nodeT(tensorT(), false));
+                    insert(key, nodeT(tensorT(), true));
                 }
                 else {
-                    insert(key, nodeT(tensorT(cdata->vk), true));
+                    insert(key, nodeT(tensorT(cdata->vk), false));
                 }
             }
+	    if (key.level() < initial_level) {
+		for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
+        	    insert_zero_down_to_initial_level(kit.key());
+        	}
+	    }
+
         };
 
         void project_refine(const keyT& key) {

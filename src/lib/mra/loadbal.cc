@@ -28,8 +28,7 @@ vector<typename DClass<D>::TreeCoords> LoadBalImpl<T,D,Pmap>::findBestPartition(
 //    this->skeltree.fixCost<D>(root);
     this->skeltree->template fixCost(root);
 print("findBestPartition: about to depthFirstPartition");
-//    totalCost = this->skeltree.depthFirstPartition<D>(root, &listoflist[count], npieces, 
-//	totalCost, &costlist[count]);
+    this->skeltree->print(root);
     totalCost = this->skeltree->template depthFirstPartition(root, &listoflist[count], npieces, 
 	totalCost, &costlist[count]);
 //print("findBestPartition: after depthFirstPartition");
