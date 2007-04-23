@@ -283,20 +283,26 @@ public:
     MyProcmap() : whichmap(0), owner(0) {};
     MyProcmap(World& world) : whichmap(1), owner(0) {
 	int NP = world.nproc();
+print("MyProcmap constructor: NP =", NP);
 	int twotoD = power<D>();
 	const int level = nearest_power(NP, twotoD);
+print("MyProcmap constructor: level =", level);
 	int NPin = (int) pow((double)twotoD,level);
+print("MyProcmap constructor: NPin =", NPin);
 	vector<TreeCoords<D> > v;
 	
 	for (Translation i=0; i < (Translation)NPin; i++) {
 	    KeyD key(level,i);
+print("MyProcmap constructor: key =", key);
 	    if ((i%twotoD) == 0) {
-		key = key.parent(nearest_power(twotoD-i, twotoD));
+		key = key.parent(nearest_power(NPin-i, twotoD));
+print("MyProcmap constructor: i divisible by twotoD: key =", key);
 	    }
 	    v.push_back(TreeCoords<D>(key,i));
 	}
+print("MyProcmap constructor: v.size() =", v.size());
 	buildTreeMap(v);
-	madness::print("MyProcmap constructor");
+	madness::print("");
 	treeMap.print();
     }; 
     MyProcmap(World& world, ProcessID owner) : whichmap(0), owner(owner) {};
