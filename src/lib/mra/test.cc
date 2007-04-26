@@ -17,6 +17,16 @@ int main(int argc, char**argv) {
     try {
         startup(world,argc,argv);
 //	xterm_debug("test", 0);
+
+
+        Key<4> keya(5,Array<Translation,4>(1));
+        Key<4> keyb(5,Array<Translation,4>(1));
+	print("a",keya.hash(),"b",keyb.hash(),"a==b",keya==keyb);
+//	return 0;
+
+
+
+
 /*
         Key<4> key(0,Array<Translation,4>(0));
         print("Initial key",key);

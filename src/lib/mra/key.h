@@ -80,13 +80,19 @@ namespace madness {
         /// Constructor from lexical index in depth first order
 	Key(Level n, Translation p) : n(n) {
 	    l = decode(n,p);
+	    rehash();
 	};
 
         /// Equality test
         bool operator==(const Key& other) const {
-            if (hashval != other.hashval) return false;
+//            if (hashval != other.hashval) return false;
             if (n != other.n) return false;
-            return l == other.l;
+            bool result = l == other.l;
+	    if (result && hashval!=other.hashval) {
+		print("!!  keys same but hash is different",hashval,other.hashval,*this,other);
+                MADNESS_EXCEPTION("Tell HQI not RJ3!",0);
+            }
+            return result;
         };
 
 	/// Comparison based upon depth first lexical order
@@ -115,75 +121,6 @@ namespace madness {
 	    else
 		return (tthis < tother);
 	}
-
-/*
-	bool operator<(const Key& other) const {
-	    if (*this == other) return false; // I am not less than self
-	    int ans;
-	    if (this->n == other.n) {
-		ans = ordering(*this, other);
-	    }
-	    else if (this->n > other.n) {
-		Level dn = this->n - other.n;
-		Key newthis = this->parent(dn);
-		if (newthis == other) {
-		    ans = 1;
-		}
-		else {
-		    ans = ordering(newthis, other);
-		}
-	    }
-	    else {
-		Level dn = other.n - this->n;
-		Key newother = other.parent(dn);
-		if (newother == *this) {
-		    ans = 0;
-		}
-		else {
-		    ans = ordering(*this, newother);
-		    if (ans < 0)
-			ans = 1;
-		    else
-			ans = 0;
-		}
-	    }
-	    if (ans > 0)
-		return true;
-	    else
-		return false;
-	};
-
-	int ordering(const Key& k1, const Key& k2) const {
-            bool egalite = true;
-            Array<int,NDIM> dl;
-//          print("ordering: comparing", k1, "and", k2);
-            for (unsigned int i = 0; i < NDIM; i++) {
-                dl[i] = k1.l[i] - k2.l[i];
-                if (k1.l[i]/2 != k2.l[i]/2) {
-                    egalite = false;
-//                  cout << "ordering: k1 and k2 do not have same parent" << endl;
-                }
-            }
-            if (!egalite) {
-                return (ordering(k1.parent(), k2.parent()));
-            }
-            else {
-                for (unsigned int i = 0; i < NDIM; i++) {
-                    if (dl[i] > 0) {
-//                      cout << "ordering: dl[" << i << "] > 0; returning -1" << endl;
-                        return -1;
-                    }
-                    else if (dl[i] < 0) {
-//                      cout << "ordering: dl[" << i << "] < 0; returning 1" << endl;
-                        return 1;
-                    }
-                }
-//              cout << "ordering: no dL greater or less than zero; returning 0" << endl;
-                return 0;
-            }
-        };
-*/
-
 
         inline hashT hash() const {
             return hashval;
@@ -223,11 +160,13 @@ namespace madness {
             	return false; // I can't be child of something lower on the tree
             }
 	    else if (this->n == key.n) {
+//madness::print("equal", *this, "?==?", key, *this==key);
                 return (*this == key); // I am child of myself
 	    }
             else {
             	Level dn = this->n - key.n;
             	Key mama = this->parent(dn);
+//madness::print("foreparent", mama, "?==?", key, mama==key);
             	return (mama == key);
             }
 	};
@@ -281,6 +220,7 @@ namespace madness {
                 }
             }
             finished = (i == NDIM);
+            child.rehash();
             return *this;
         };
 

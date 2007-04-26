@@ -22,16 +22,15 @@ vector<typename DClass<D>::TreeCoords> LoadBalImpl<T,D,Pmap>::findBestPartition(
     costlist.push_back(0);
     Cost totalCost = 0;
 
-//print("findBestPartition: about to fixCost");
+//madness::print("findBestPartition: about to fixCost");
 
     typename DClass<D>::KeyD root(0);
-//    this->skeltree.fixCost<D>(root);
     this->skeltree->template fixCost(root);
-print("findBestPartition: about to depthFirstPartition");
-    this->skeltree->print(root);
+madness::print("findBestPartition: about to depthFirstPartition");
+//    this->skeltree->print(root);
     totalCost = this->skeltree->template depthFirstPartition(root, &listoflist[count], npieces, 
 	totalCost, &costlist[count]);
-//print("findBestPartition: after depthFirstPartition");
+//madness::print("findBestPartition: after depthFirstPartition");
     int size = listoflist[count].size();
     cout << "Partitioned tree " << count << ":" << endl;
     for (int i = 0; i < size; i++)
@@ -49,7 +48,6 @@ print("findBestPartition: about to depthFirstPartition");
 	this->skeltree->template rollup(root);
 	listoflist.push_back(emptylist);
 	costlist.push_back(0);
-//	this->skeltree.depthFirstPartition<D>(root, &listoflist[count], npieces, totalCost, &costlist[count]);
 	this->skeltree->template depthFirstPartition(root, &listoflist[count], npieces, totalCost, &costlist[count]);
 	int size = listoflist[count].size();
 	cout << "Partitioned tree " << count << ":" << endl;
@@ -134,36 +132,29 @@ print("findBestPartition: about to depthFirstPartition");
 
 template <int D, typename Pmap>
 Cost LBTree<D,Pmap>::fixCost(typename DClass<D>::KeyDConst& key) {
-//    cout << "fixCost: key = ";
-//    key.print();
-//    print(" is about to be looked for");
+//    madness::print("fixCost: key =", key, " is about to be looked for");
     typename DClass<D>::treeT::iterator it = this->find(key);
-//    cout << "fixCost: key = ";
-//    key.print();
-//    print(" was found (looked for),", (it == this->end()));
+//    madness::print("fixCost: key =", key, " was found (looked for),", (it == this->end()));
     if (it == this->end()) return 0;
-//    print("fixCost: tree it was found (exists)");
+//    madness::print("fixCost: tree it was found (exists)");
 
     typename DClass<D>::NodeD node = it->second;
-//    print("fixCost: got node");
+//    madness::print("fixCost: got node");
     NodeData d = node.get_data();
-//    print("fixCost: got data from node");
+//    madness::print("fixCost: got data from node");
     d.subcost = d.cost;
-//    print("fixCost: assigned node cost to subcost");
+//    madness::print("fixCost: assigned node cost to subcost");
     if (node.has_children())
     {
-//	print("fixCost: node has children");
+//	madness::print("fixCost: node has children");
 	for (KeyChildIterator<D> kit(key); kit; ++kit) {
 	    d.subcost += this->template fixCost(kit.key());
 	}
     }
     node.set_data(d);
-//cout << "about to insert key = ";
-//key.print();
-//cout << ", ";
-//node.get_data().print();
+//madness::print("fixCost: about to insert key =", key, "," node.get_data());
     this->insert(key,node);
-//print("fixCost: inserted node");
+//madness::print("fixCost: inserted node");
     return d.subcost;
 }
 
@@ -172,11 +163,11 @@ template <int D, typename Pmap>
 Cost LBTree<D,Pmap>::depthFirstPartition(typename DClass<D>::KeyDConst& key, 
 	vector<typename DClass<D>::TreeCoords>* klist, unsigned int npieces, 
 	Cost totalcost, Cost *maxcost) {
-//print("depthFirstPartition: at very beginning");
+//madness::print("depthFirstPartition: at very beginning");
     if (totalcost == 0) {
 	totalcost = this->template computeCost(key);
     }
-//print("depthFirstPartition: totalcost =", totalcost);
+madness::print("depthFirstPartition: totalcost =", totalcost);
 
     Cost costLeft = totalcost;
     int partsLeft = npieces;
@@ -190,7 +181,7 @@ Cost LBTree<D,Pmap>::depthFirstPartition(typename DClass<D>::KeyDConst& key,
 	if (tpart > partitionSize) {
 	    partitionSize = tpart;
 	}
-//print("depthFirstPartition: partitionSize =", partitionSize);
+madness::print("depthFirstPartition: partitionSize =", partitionSize);
 	Cost usedUp = 0;
 	bool atleaf = false;
 	usedUp = this->template makePartition(key, &tmplist, partitionSize, (i==0), usedUp, &atleaf);
@@ -206,44 +197,44 @@ Cost LBTree<D,Pmap>::depthFirstPartition(typename DClass<D>::KeyDConst& key,
 
 template <int D, typename Pmap>
 void LBTree<D,Pmap>::rollup(typename DClass<D>::KeyDConst& key) {
-//    print("rollup: at beginning");
+//    madness::print("rollup: at beginning");
     typename DClass<D>::treeT::iterator it = this->find(key);
     if (it == this->end()) return;
 
-//    print("rollup: about to get node associated with key",key);
+//    madness::print("rollup: about to get node associated with key",key);
     typename DClass<D>::NodeD node = it->second;
     if (!node.has_children()) {
-//	print("rollup: this node has no children; returning");
+//	madness::print("rollup: this node has no children; returning");
 	return; // no rolling to be done here.
     }
-//    print("rollup: this node has children");
+//    madness::print("rollup: this node has children");
     bool hasleafchild = false;
     for (KeyChildIterator<D> kit(key); kit; ++kit) {
 	typename DClass<D>::treeT::iterator itc = this->find(kit.key());
 	if (itc != this->end()) {
-//	    print("rollup: found child", kit.key());
+//	    madness::print("rollup: found child", kit.key());
 	    typename DClass<D>::NodeD c = itc->second;
 	    if (!c.has_children()) {
-//		print("rollup: child is leaf");
+//		madness::print("rollup: child is leaf");
 		hasleafchild = true;
 		break;
 	    }
 	    else {
-//		print("rollup: child", kit.key(), "has children");
+//		madness::print("rollup: child", kit.key(), "has children");
 	    }
 	}
     }
     if (hasleafchild) {
-//	print("rollup: about to meld with key",key);
+//	madness::print("rollup: about to meld with key",key);
 	this->template meld(key);
     }
     for (KeyChildIterator<D> kit(key); kit; ++kit) {
 	typename DClass<D>::treeT::iterator itc = this->find(kit.key());
 	if (itc != this->end()) {
-//	    print("rollup: found child", kit.key());
+//	    madness::print("rollup: found child", kit.key());
 	    typename DClass<D>::NodeD c = itc->second;
 	    if (c.has_children()) {
-//		print("rollup: child", kit.key(), "has children");
+//		madness::print("rollup: child", kit.key(), "has children");
 		this->template rollup(kit.key());
 	    }
 	}
@@ -260,7 +251,7 @@ void LBTree<D,Pmap>::rollup(typename DClass<D>::KeyDConst& key) {
 
 template <int D, typename Pmap>
 void LBTree<D,Pmap>::meld(typename DClass<D>::KeyDConst& key) {
-//    print("meld: at beginning, finding key", key);
+//    madness::print("meld: at beginning, finding key", key);
     Cost cheapest = 0;
     typename DClass<D>::treeT::iterator it = this->find(key);
     if (it == this->end()) return;
@@ -269,15 +260,15 @@ void LBTree<D,Pmap>::meld(typename DClass<D>::KeyDConst& key) {
 
     typename DClass<D>::NodeD node = it->second;
     unsigned int i = 0;
-//    print("meld: about to iterate over children of key", key);
+//    madness::print("meld: about to iterate over children of key", key);
     for (KeyChildIterator<D> kit(key); kit; ++kit) {
-//    	print("    meld: iterating over child", i);
+//    	madness::print("    meld: iterating over child", i);
 	if (node.has_child(i)) {
 	    typename DClass<D>::treeT::iterator itc = this->find(kit.key());
             if (itc == this->end()) return;
             typename DClass<D>::NodeD c = itc->second;
             if (!c.has_children()) {
-//		print("    meld: child",i,"has no children");
+//		madness::print("    meld: child",i,"has no children");
                 Cost cost = c.get_data().cost;
                 if ((cost < cheapest) || (cheapest == 0)) {
                     cheapest = cost;
@@ -293,7 +284,7 @@ void LBTree<D,Pmap>::meld(typename DClass<D>::KeyDConst& key) {
     }
 
     if (cheapest == 0) {
-//	print("meld: this node has no leaf children");
+//	madness::print("meld: this node has no leaf children");
 	NodeData d = node.get_data();
 	d.istaken = false;
 	node.set_data(d);
@@ -307,7 +298,7 @@ void LBTree<D,Pmap>::meld(typename DClass<D>::KeyDConst& key) {
     int j = 0, mlsize = mylist.size();
     for (KeyChildIterator<D> kit(key); kit; ++kit) {
 	if (mylist[j] == i) {
-//	    print("meld: found a match, mylist[",j,"] =",i);
+//	    madness::print("meld: found a match, mylist[",j,"] =",i);
 	    this->erase(kit.key());
 	    node.set_child(mylist[j], false);
 	    d.cost += cheapest;
@@ -319,7 +310,7 @@ void LBTree<D,Pmap>::meld(typename DClass<D>::KeyDConst& key) {
     d.istaken = false;
     node.set_data(d);
     this->insert(key,node);
-//    print("meld: inserted node back into tree; goodbye!");
+//    madness::print("meld: inserted node back into tree; goodbye!");
 }
 
 
@@ -347,8 +338,7 @@ template <int D, typename Pmap>
 Cost LBTree<D,Pmap>::makePartition(typename DClass<D>::KeyDConst& key, 
 	vector<typename DClass<D>::KeyD>* klist, Cost partitionSize, bool lastPartition, 
 	Cost usedUp, bool *atleaf) {
-//    cout << "at beginning of makePartition: atleaf = ";
-//    cout << *atleaf << endl;
+//    madness::print("at beginning of makePartition: atleaf =", *atleaf);
     double fudgeFactor = 0.1;
     Cost maxAddl = (Cost) (fudgeFactor*partitionSize);
 
@@ -360,21 +350,17 @@ Cost LBTree<D,Pmap>::makePartition(typename DClass<D>::KeyDConst& key,
     typename DClass<D>::NodeD node = it->second;
     NodeData d = node.get_data();
 
+    it = this->end();
 
-//    cout << "data for key ";
-//    key.print();
-//    cout << ": cost = " << d.cost << ", subcost = " << d.subcost << endl;
-//    cout << "partitionSize = " << partitionSize << ", lastPartition = " << lastPartition <<
-//	", usedUp = " << usedUp << std::endl;
+    madness::print("makePartition: data for key", key, ":", d);
+    madness::print("makePartition: partitionSize =", partitionSize, ", lastPartition =", lastPartition, ", usedUp =", usedUp);
 
     if (d.istaken) {
-//	cout << "this key is taken" << endl; 
+	madness::print("makePartition: this key is taken"); 
 	return usedUp;
     }
 
-//    cout << "back to key ";
-//    key.print();
-//    cout << endl;
+    madness::print("makePartition: back to key", key);
 
     // if either we're at the last partition, the partition is currently empty
     // and this is a single item, or there is still room in the partition and
@@ -383,9 +369,7 @@ Cost LBTree<D,Pmap>::makePartition(typename DClass<D>::KeyDConst& key,
     if ((lastPartition) || ((usedUp == 0) && (!node.has_children())) || 
 	((usedUp < partitionSize) && (d.subcost+usedUp <= partitionSize+maxAddl))) {
 	// add to partition
-//	cout << "adding to partition ";
-//	key.print();
-//	cout << endl;
+	madness::print("makePartition: adding to partition", key);
 	klist->push_back(typename DClass<D>::KeyD(key));
 	d.istaken = true;
 	usedUp += d.subcost;
@@ -400,7 +384,7 @@ Cost LBTree<D,Pmap>::makePartition(typename DClass<D>::KeyDConst& key,
 	    int i = 0;
 	    for (KeyChildIterator<D> kit(key); kit; ++kit) {
 		if (node.has_child(i)) {
-//		    print(key, "recursively calling", kit.key());
+		    madness::print("makePartition:", key, "recursively calling", kit.key());
 		    usedUp = this->template makePartition(kit.key(), klist, partitionSize, lastPartition,
 			usedUp, atleaf);
 		    if ((*atleaf) || (usedUp >= partitionSize)) {
@@ -411,7 +395,7 @@ Cost LBTree<D,Pmap>::makePartition(typename DClass<D>::KeyDConst& key,
 	    }
 	}
 	else {
-//	    cout << "about to set atleaf = true" << endl;
+	    madness::print("makePartition: about to set atleaf = true");
 	    *atleaf = true;
 	}
     }
@@ -420,32 +404,25 @@ Cost LBTree<D,Pmap>::makePartition(typename DClass<D>::KeyDConst& key,
 
 template <int D, typename Pmap>
 void LBTree<D,Pmap>::removeCost(typename DClass<D>::KeyDConst& key, Cost c) {
-//cout << "removeCost: key ";
-//key.print();
-//cout << endl;
+madness::print("removeCost: key", key, "owner =", owner(key));
+this->get_procmap().print();
     if (((int) key.level()) < 0) return;
     typename DClass<D>::treeT::iterator it = this->find(key);
-//print("removeCost: found key");
+madness::print("removeCost: found key");
     if (it == this->end()) return;
     typename DClass<D>::NodeD node = it->second;
     NodeData d = node.get_data();
-//print("removeCost: got data");
+madness::print("removeCost: got data");
     d.subcost -= c;
     if (key.level() > 0) {
     	this->template removeCost(key.parent(), c);
     }
-//cout << "removeCost: before setting, data = ";
-//d.print();
+madness::print("removeCost: before setting, data =", d);
     node.set_data(d);
-//cout << "removeCost: after setting, data = ";
-//node.get_data().print();
+madness::print("removeCost: after setting, data =", node.get_data());
     this->insert(key,node);
-//cout << "removeCost: after inserting, data = ";
-//node.get_data().print();
+madness::print("removeCost: after inserting, data = ", node.get_data());
 }
-
-
-
 
 
 Cost computePartitionSize(Cost cost, unsigned int parts) {

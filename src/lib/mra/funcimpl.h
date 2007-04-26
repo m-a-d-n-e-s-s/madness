@@ -379,7 +379,8 @@ namespace madness {
             }
             else if (f || vf) { // Project function and optionally compress
                 compressed = false;
-                insert_zero_down_to_initial_level(keyT(0));
+//                insert_zero_down_to_initial_level(keyT(0));
+                insert_weird_tree(keyT(0));
                 //task_generator(this, &implT::project_refine_op, is_leaf_predicate(), true_predicate());
                 world.gop.fence(); // !!! Ultimately this must be optional
                 //if (do_compress) compress();
@@ -391,6 +392,27 @@ namespace madness {
             };
         };
 
+        void insert_weird_tree(const keyT& key) {
+//	    for (Level i = 0; i < key.level(); i++) cout << "  ";
+//	    print(key);
+	    Level Nmax = 1;
+	    if (is_local(key)) {
+            	bool has_children = ((key.level() < Nmax) || ((key.level() < 2*Nmax)&&
+			(key.translation()[0] == key.translation()[NDIM-1])));
+            	FunctionNode<T,NDIM> node(tensorT(0), has_children);
+            	this->insert(key,node);
+            	if (has_children) {
+                    for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
+                    	insert_weird_tree(kit.key());
+                    }
+            	}
+	    }
+	    else if (key.level() < Nmax) {
+		for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
+        	    insert_weird_tree(kit.key());
+        	}
+	    }
+        };
         /// Initialize nodes to zero function at initial_level of refinement. 
 
         /// Works for either basis.  No communication.

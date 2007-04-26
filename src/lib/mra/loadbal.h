@@ -221,11 +221,16 @@ struct Tree {
     };
 
     void findOwner(const Key<D> key, ProcessID *ow) const {
+//madness::print("findOwner: at node", this->data.key);
 	if (this->isForeparentOf(key)) {
+//madness::print("findOwner: node", this->data.key, "is foreparent of", key, "so owner =", this->data.owner);
 	    *ow = this->data.owner;
-	    int csize = children.size();
-	    for (int j = 0; j < csize; j++) {
-		children[j]->findOwner(key, ow);
+	    if (this->data.key.level() < key.level()) {
+	    	int csize = children.size();
+	    	for (int j = 0; j < csize; j++) {
+//madness::print("findOwner: recursively call on ", this->children[j]->data.key);
+		    children[j]->findOwner(key, ow);
+	    	}
 	    }
 	}
     };
@@ -255,13 +260,14 @@ class MyProcmap {
 private:
     int whichmap;
     const ProcessID owner;
-    Tree<D> treeMap;
+    Tree<D>* treeMap;
     typedef Key<D> KeyD;
 
 
     ProcessID getOwner(const KeyD& key) const {
 	ProcessID owner;
-	treeMap.findOwner(key, &owner);
+//	treeMap.findOwner(key, &owner);
+	treeMap->findOwner(key, &owner);
 	return owner;
     };
 
@@ -272,9 +278,11 @@ private:
 
 	if (vlen == 0) throw "empty map!!!";
 
-	treeMap = Tree<D>(v[vlen-1]);
+//	treeMap = Tree<D>(v[vlen-1]);
+	treeMap = new Tree<D>(v[vlen-1]);
 	for (int j = vlen-2; j >= 0; j--) {
-	    treeMap.fill(v[j]);
+//	    treeMap.fill(v[j]);
+	    treeMap->fill(v[j]);
 	}
     };
 	
@@ -297,14 +305,14 @@ public:
 	}
 	buildTreeMap(v);
 	madness::print("MyProcmap constructor");
-	treeMap.print();
+	treeMap->print();
     }; 
     MyProcmap(World& world, ProcessID owner) : whichmap(0), owner(owner) {};
 
     MyProcmap(World& world, vector<TreeCoords<D> > v) : whichmap(1), owner(1) {
 	buildTreeMap(v);
 	madness::print("");
-	treeMap.print();
+	treeMap->print();
     };
 
     MyProcmap(const MyProcmap<D>& other) : whichmap(other.whichmap), owner(other.owner), treeMap(other.treeMap) {};
@@ -316,6 +324,10 @@ public:
 	    treeMap = other.treeMap;
 	}
         return *this;
+    };
+
+    void print() {
+	treeMap->print();
     };
 
     ProcessID operator()(const KeyD& key) const {
@@ -334,10 +346,14 @@ class LBTree : public WorldContainer<typename DClass<D>::KeyD,typename DClass<D>
 	typedef WorldContainer<typename DClass<D>::KeyD,typename DClass<D>::NodeD, Pmap> dcT;
 	LBTree() {};
 	LBTree(World& world, const Pmap& pmap) : dcT(world,pmap) {
+madness::print("LBTree(world, pmap) constructor");
+	    this->get_procmap().print();
+madness::print("LBTree(world, pmap) constructor (goodbye)");
 	};
 	template <typename T>
 	inline void init_tree(SharedPtr<FunctionImpl<T,D,Pmap> > f, typename DClass<D>::KeyDConst key) {
-//madness::print("beginning of init_tree");
+//	    this->get_procmap().print();
+//madness::print("beginning of init_tree, key =", key, "owner =", this->owner(key));
 	    // find Node associated with key
 	    typename FunctionImpl<T,D,Pmap>::iterator it = f->find(key);
 	    if (it == f->end()) return;
