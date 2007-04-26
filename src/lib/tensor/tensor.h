@@ -652,7 +652,8 @@ namespace madness {
         struct ArchiveStoreImpl< Archive, Tensor<T> > {
             static inline void store(const Archive& s, const Tensor<T>& t) {
                 if (t.iscontiguous()) {
-                    s & t.id & t.ndim & t.dim & wrap(t.ptr(),t.size);
+                    s & t.id & t.ndim & t.dim & t.size;
+	            if (t.size) s & wrap(t.ptr(),t.size);
                 }
                 else {
                     s & copy(t);
@@ -671,7 +672,9 @@ namespace madness {
                 long ndim, dim[TENSOR_MAXDIM];
                 s & ndim & dim;
                 t = Tensor<T>(ndim, dim, false);
-                s & wrap(t.ptr(), t.size);
+                long sz;
+                s & sz;
+                if (sz) s & wrap(t.ptr(), t.size);
             };
         };
         
