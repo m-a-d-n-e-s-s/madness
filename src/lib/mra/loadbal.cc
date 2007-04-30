@@ -10,8 +10,22 @@ typedef double CompCost;
 
 template <typename T, int D, typename Pmap>
 vector<typename DClass<D>::TreeCoords> LoadBalImpl<T,D,Pmap>::findBestPartition() { 
-    unsigned int npieces = this->world().nproc(); 	// check this!!!
     vector<typename DClass<D>::TreeCoords> klist;
+    if (this->f.impl->world.mpi.rank() != 0) {
+	print("findBestPartition: leave it to the expert");
+	this->f.impl->world.gop.fence();
+print("about to do broadcast");
+	unsigned int ksize;
+	this->f.impl->world.gop.template broadcast<unsigned int>(ksize);
+	for (unsigned int i = 0; i < ksize; i++) {
+	    typename DClass<D>::TreeCoords t;
+	    this->f.impl->world.gop.template broadcast<typename DClass<D>::TreeCoords>(t);
+	    klist.push_back(t);
+	}
+print("done with broadcast");
+	return klist;
+    }
+    unsigned int npieces = this->f.impl->world.nproc();
     bool notdone = true;
     int count = 0;
     vector<vector<typename DClass<D>::TreeCoords> > listoflist;
@@ -22,7 +36,7 @@ vector<typename DClass<D>::TreeCoords> LoadBalImpl<T,D,Pmap>::findBestPartition(
     costlist.push_back(0);
     Cost totalCost = 0;
 
-//madness::print("findBestPartition: about to fixCost");
+madness::print("findBestPartition: about to fixCost");
 
     typename DClass<D>::KeyD root(0);
     this->skeltree->template fixCost(root);
@@ -126,35 +140,45 @@ madness::print("findBestPartition: about to depthFirstPartition");
 	klist.push_back(listoflist[cc_index][i]);
     }
 
+print("findBestPartition: about to do fence");
+    this->f.impl->world.gop.fence();
+print("about to do broadcast");
+    unsigned int ksize = klist.size();
+    this->f.impl->world.gop.template broadcast<unsigned int>(ksize);
+    for (unsigned int i=0; i < ksize; i++) {
+	this->f.impl->world.gop.template broadcast<typename DClass<D>::TreeCoords>(klist[i]);
+    }
+print("done with broadcast");
+
     return klist;
 }
 
 
 template <int D, typename Pmap>
 Cost LBTree<D,Pmap>::fixCost(typename DClass<D>::KeyDConst& key) {
-//    madness::print("fixCost: key =", key, " is about to be looked for");
+    madness::print("fixCost: key =", key, " is about to be looked for");
     typename DClass<D>::treeT::iterator it = this->find(key);
-//    madness::print("fixCost: key =", key, " was found (looked for),", (it == this->end()));
+    madness::print("fixCost: key =", key, " was found (looked for),", (it == this->end()));
     if (it == this->end()) return 0;
-//    madness::print("fixCost: tree it was found (exists)");
+    madness::print("fixCost: tree it was found (exists)");
 
     typename DClass<D>::NodeD node = it->second;
-//    madness::print("fixCost: got node");
+    madness::print("fixCost: got node");
     NodeData d = node.get_data();
-//    madness::print("fixCost: got data from node");
+    madness::print("fixCost: got data from node");
     d.subcost = d.cost;
-//    madness::print("fixCost: assigned node cost to subcost");
+    madness::print("fixCost: assigned node cost to subcost");
     if (node.has_children())
     {
-//	madness::print("fixCost: node has children");
+	madness::print("fixCost: node has children");
 	for (KeyChildIterator<D> kit(key); kit; ++kit) {
 	    d.subcost += this->template fixCost(kit.key());
 	}
     }
     node.set_data(d);
-//madness::print("fixCost: about to insert key =", key, "," node.get_data());
+madness::print("fixCost: about to insert key =", key, ",", node.get_data());
     this->insert(key,node);
-//madness::print("fixCost: inserted node");
+madness::print("fixCost: inserted node");
     return d.subcost;
 }
 
@@ -458,7 +482,9 @@ void migrate_data(SharedPtr<FunctionImpl<T,D,Pmap> > tfrom, SharedPtr<FunctionIm
 template <typename T, int D, typename Pmap>
 void migrate(SharedPtr<FunctionImpl<T,D,Pmap> > tfrom, SharedPtr<FunctionImpl<T,D,Pmap> > tto) {
     typename DClass<D>::KeyD root(0);
+print("migrate: at beginning");
     migrate_data<T,D,Pmap>(tfrom, tto, root);
+print("migrate: at end");
 }
 
 // Explicit instantiations for D=1:6

@@ -18,34 +18,18 @@ int main(int argc, char**argv) {
         startup(world,argc,argv);
 //	xterm_debug("test", 0);
 
+	double t0, t1, t2, t3;
 
-        Key<4> keya(5,Array<Translation,4>(1));
-        Key<4> keyb(5,Array<Translation,4>(1));
-	print("a",keya.hash(),"b",keyb.hash(),"a==b",keya==keyb);
-//	return 0;
-
-
-
-
-/*
-        Key<4> key(0,Array<Translation,4>(0));
-        print("Initial key",key);
-        for (KeyChildIterator<4> it(key); it; ++it) 
-            print(it.key());
-*/
-	
         Function<double,3,MyProcmap<3> > f = FunctionFactory<double,3,MyProcmap<3> >(world).f(myfun).k(3).thresh(1e-2).nocompress();
-	if (world.mpi.rank() == 0) {
-	    print("about to construct LoadBalImpl");
-	    LoadBalImpl<double,3,MyProcmap<3> > lbi(f);
-	    print("constructed LoadBalImpl");
-//	    lbi.findBestPartition();
-	    lbi.loadBalance();
-	    print("found best partition");
-	}
-    print("entering penultimate fence");
-    world.gop.fence();
-
+	print("about to construct LoadBalImpl");
+	t0 = wall_time();
+	LoadBalImpl<double,3,MyProcmap<3> > lbi(f);
+	t1 = wall_time();
+	print("constructed LoadBalImpl, time =", t1-t0);
+	t2 = wall_time();
+	lbi.loadBalance();
+	t3 = wall_time();
+	print("load balanced, time =", t3-t2);
     } catch (MPI::Exception e) {
         error("caught an MPI exception");
     } catch (madness::MadnessException e) {

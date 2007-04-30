@@ -416,7 +416,6 @@ template <typename T, int D, typename Pmap=MyProcmap<D> >
 class LoadBalImpl {
     private:
 	Function<T,D,Pmap> f;
-//	typename DClass<D>::treeT skeltree;
 	SharedPtr<typename DClass<D>::treeT> skeltree;
 
 	void construct_skel(SharedPtr<FunctionImpl<T,D,Pmap> > f) {
@@ -424,7 +423,9 @@ class LoadBalImpl {
 		f->get_procmap()));
 	    typename DClass<D>::KeyD root(0);
 madness::print("about to initialize tree");
-	    skeltree->template init_tree<T>(f,root);
+	    if (f->world.mpi.rank() == 0) {
+	    	skeltree->template init_tree<T>(f,root);
+	    }
 madness::print("just initialized tree");
 	};
 
@@ -446,15 +447,24 @@ madness::print("just initialized tree");
 
 	void partition(vector<typename DClass<D>::TreeCoords> v) {
 	    // implement partition: copy to new FunctionImpl and replace within f
+madness::print("partition: at beginning");
 	    Pmap pmap(f.impl->world, v);
 	    SharedPtr<FunctionImpl<T,D,Pmap> > newimpl(new FunctionImpl<T,D,Pmap>(*(f.impl.get()),pmap));
-	    madness::migrate<T,D,Pmap>(f.impl, newimpl);
+	    if (f.impl->world.mpi.rank() == 0) {
+	    	madness::migrate<T,D,Pmap>(f.impl, newimpl);
+	    }
+madness::print("partition: at fence");
+	    f.impl->world.gop.fence();
+madness::print("partition: after fence");
 	    f.impl = newimpl;
 	};
 
+// this operator is bad news
+/*
 	World& world() {
 	    return (f.impl->world);
 	};
+*/
 };
 
 CompCost computeCompCost(Cost c, int n);
