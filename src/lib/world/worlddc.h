@@ -416,6 +416,8 @@ namespace madness {
             , local()
             , cache()
             , cacheinfo()
+            , end_iterator()
+            , end_const_iterator()
         {
             this->process_pending();
 

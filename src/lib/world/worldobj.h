@@ -577,7 +577,9 @@ namespace madness {
             return world.taskq.add(dest, run, this, memfun, arg1, arg2, arg3, arg4, arg5, attr);
         }
 
-        virtual ~WorldObject(){};
+        virtual ~WorldObject(){
+            world.unregister_ptr(static_cast<Derived*>(this));
+        };
     };
 
     namespace archive {

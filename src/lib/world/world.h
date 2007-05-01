@@ -278,7 +278,7 @@ namespace madness {
         /// Returns new universe-wide unique ID for objects created in this world.  No comms.
 
         /// You should consider using register_ptr(), unregister_ptr(),
-        /// id_from_ptr() and ptr_from_id() before using this directly.
+        /// id_from_ptr() and ptr_from_id() rather than using this directly.
         ///
         /// Currently relies on this being called in the same order on
         /// every process within the current world in order to avoid
