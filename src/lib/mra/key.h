@@ -31,6 +31,8 @@ namespace madness {
             hashval = madness::hash(n,madness::hash(l));
         };
 	// Helper function for operator <
+/* Problem: int limited in bits */
+/*
 	Translation encode() const {
 	    Array<Translation,NDIM> Lcopy = l;
 	    int twotoD = power<NDIM>(), levfact = 1;
@@ -46,6 +48,24 @@ namespace madness {
 	    }
 	    return retval;
 	};
+*/
+	vector<short>* encode() const {
+	    Array<Translation,NDIM> Lcopy = l;
+	    Translation arrayval = 0;
+	    vector<short> *retvals = new vector<short>(n,0);
+	    for (Level i = n-1; i >= 0; i--) {
+		int factor = 1;
+		for (int j = 0; j < NDIM; j++) {
+		    arrayval += (Lcopy[NDIM-j-1]%2)*factor;
+		    Lcopy[NDIM-j-1]/=2;
+		    factor*=2;
+		}
+		(*retvals)[i] = arrayval;
+		arrayval = 0;
+	    }
+	    return retvals;
+	};
+
 	// Helper function for (Level, Translation) constructor
 	Array<Translation,NDIM> decode(Level level, Translation k) const {
 	    Array<Translation,NDIM> L(0);
@@ -98,28 +118,40 @@ namespace madness {
 	/// Comparison based upon depth first lexical order
 	bool operator<(const Key& other) const {
 	    if (*this == other) return false; // I am not less than self
-	    Translation tthis, tother;
+//	    Translation tthis, tother;
+	    vector<short> *tthis, *tother;
+	    Level nmax;
 	    if (this->n == other.n) {
 		tthis = this->encode();
 		tother = other.encode();
+		nmax = this->n;
 	    }
 	    else if (this->n > other.n) {
 		Level dn = this->n - other.n;
 		Key newthis = this->parent(dn);
 		tthis = newthis.encode();
 		tother = other.encode();
+		nmax = this->n;
 	    }
 	    else {
 		Level dn = other.n - this->n;
 		Key newother = other.parent(dn);
 		tthis = this->encode();
 		tother = newother.encode();
+		nmax = other.n;
 	    }
 		
+/*
 	    if (tthis == tother)
 		return (this->n > other.n);
 	    else
 		return (tthis < tother);
+*/
+	    for (Level i = nmax-1; i >= 0; i--) {
+		if ((*tthis)[i] != (*tother)[i]) 
+		    return ((*tthis)[i] < (*tother)[i]);
+	    }
+	    return (this->n > other.n);
 	}
 
         inline hashT hash() const {
