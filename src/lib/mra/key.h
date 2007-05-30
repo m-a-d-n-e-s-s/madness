@@ -118,40 +118,26 @@ namespace madness {
 	/// Comparison based upon depth first lexical order
 	bool operator<(const Key& other) const {
 	    if (*this == other) return false; // I am not less than self
-//	    Translation tthis, tother;
 	    vector<short> *tthis, *tother;
-	    Level nmax;
-	    if (this->n == other.n) {
-		tthis = this->encode();
-		tother = other.encode();
-		nmax = this->n;
-	    }
-	    else if (this->n > other.n) {
-		Level dn = this->n - other.n;
-		Key newthis = this->parent(dn);
-		tthis = newthis.encode();
-		tother = other.encode();
-		nmax = this->n;
+	    Level nmin;
+	    bool retval = false;
+
+	    tthis = this->encode();
+	    tother = other.encode();
+
+	    if (this->n > other.n) {
+		nmin = other.n;
+		retval = true;
 	    }
 	    else {
-		Level dn = other.n - this->n;
-		Key newother = other.parent(dn);
-		tthis = this->encode();
-		tother = newother.encode();
-		nmax = other.n;
+		nmin = this->n;
 	    }
 		
-/*
-	    if (tthis == tother)
-		return (this->n > other.n);
-	    else
-		return (tthis < tother);
-*/
-	    for (Level i = nmax-1; i >= 0; i--) {
+	    for (Level i = 0; i < nmin; i++) {
 		if ((*tthis)[i] != (*tother)[i]) 
 		    return ((*tthis)[i] < (*tother)[i]);
 	    }
-	    return (this->n > other.n);
+	    return retval;
 	}
 
         inline hashT hash() const {
