@@ -25,8 +25,9 @@ namespace madness {
     /// The default value is false.
     class TaskAttributes {
         unsigned long flags;
-        static const unsigned long GENERATOR = 0x1;
-        static const unsigned long STEALABLE = 0x2;
+        static const unsigned long one = 1ul;
+        static const unsigned long GENERATOR = one<<0;
+        static const unsigned long STEALABLE = one<<1;
         
     public:
         TaskAttributes() : flags(0) {};

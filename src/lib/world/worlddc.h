@@ -229,22 +229,22 @@ namespace madness {
             return *this;
         };
         
-        /// Iterators dereference to std::pair<keyT,valueT>
+        /// Iterators dereference to std::pair<const keyT,valueT>
         const pairT* operator->() const {
             return it.operator->();
         };
         
-        /// Iterators dereference to std::pair<keyT,valueT>
+        /// Iterators dereference to std::pair<const keyT,valueT>
         pairT* operator->() {
             return it.operator->();
         };
         
-        /// Iterators dereference to std::pair<keyT,valueT>
+        /// Iterators dereference to const std::pair<const keyT,valueT>
         const pairT& operator*() const {
             return *it;
         };
         
-        /// Iterators dereference to std::pair<keyT,valueT>
+        /// Iterators dereference to std::pair<const keyT,valueT>
         pairT& operator*() {
             return *it;
         };
@@ -299,8 +299,8 @@ namespace madness {
           , private NO_DEFAULTS 
     {
     public:
-        typedef std::pair<const keyT,valueT> pairT;
-        typedef const std::pair<const keyT,valueT> const_pairT;
+        typedef typename std::pair<const keyT,valueT> pairT;
+        typedef const pairT const_pairT;
         typedef WorldContainerImpl<keyT,valueT,procmapT,attrT> implT;
         
 #ifdef WORLDDC_USES_GNU_HASH_MAP
@@ -385,7 +385,7 @@ namespace madness {
             internal_iteratorT it = cache.find(datum.first);
             if (it == cache.end()) {
                 it = cache.insert(datum).first;
-                cacheit = cacheinfo.insert(std::pair<keyT,CacheInfo>(datum.first,CacheInfo(0))).first;
+                cacheit = cacheinfo.insert(std::pair<const keyT,CacheInfo>(datum.first,CacheInfo(0))).first;
             }
             else {
 //	        print("find_success_handler rehit cache",it->second,datum.second);
@@ -407,7 +407,7 @@ namespace madness {
         
     public:
         
-        WorldContainerImpl(World& world, const procmapT& procmap)
+        WorldContainerImpl(World& world, const procmapT& procmap, bool do_pending)
             : WorldObject< WorldContainerImpl<keyT, valueT, procmapT, attrT> >(world)
             , world(world)
             , theid(world.register_ptr(this))
@@ -419,15 +419,7 @@ namespace madness {
             , end_iterator()
             , end_const_iterator()
         {
-            this->process_pending();
-
-	    unsigned char u[256];
-	    print("insert memfun ptr ");
-	    void (implT::*f)(const pairT&) = &implT::insert;
-	    memcpy(u,&f,sizeof(f));
-//	    for (int i=0; i<sizeof(f); i++)
-//		std::printf("%02.2x",u[i]);
-//	    std::printf("\n");
+            if (do_pending) this->process_pending();
 	};
         
         
@@ -435,7 +427,7 @@ namespace madness {
 	  //print("In DCImpl destructor");
         };
 
-	procmapT get_procmap() const {
+	const procmapT& get_procmap() const {
 	    return procmap;
 	};
         
@@ -474,7 +466,7 @@ namespace madness {
                     if (cache.size() >= attrT::CacheMaxEntries) 
                         handle_cache_overflow();
                     replace(cache,datum);
-                    replace(cacheinfo,std::pair<keyT,CacheInfo>(datum.first,0));
+                    replace(cacheinfo,std::pair<const keyT,CacheInfo>(datum.first,0));
                 }
                 else if (attrT::CacheReadPolicy) { // Remote writes only invalidate cache
                     cache.erase(datum.first);
@@ -666,8 +658,7 @@ namespace madness {
         typedef typename implT::iterator iterator;
         typedef typename implT::const_iterator const_iterator;
         typedef Future<iterator> futureT;
-        typedef Future<iterator> future;
-        typedef Future<const_iterator> const_future;
+        typedef Future<const_iterator> const_futureT;
         
     private:
         SharedPtr<implT> p;
@@ -687,15 +678,15 @@ namespace madness {
         {};
         
         
-        /// Makes a container with default data distribution (no communication)
+        /// Makes an initialized, empty container with default data distribution (no communication)
         
         /// A unique ID is associated with every distributed container
         /// within a world.  In order to avoid synchronization when
         /// making a container, we have to assume that all processes
         /// execute this constructor in the same order (does not apply
         /// to the non-initializing, default constructor).
-        WorldContainer(World& world) 
-            : p(new implT(world,procmapT(world)))
+        WorldContainer(World& world, bool do_pending=true) 
+            : p(new implT(world, procmapT(world), do_pending))
         {
             world.deferred_cleanup(p);
         };
@@ -707,8 +698,8 @@ namespace madness {
         /// making a container, we have to assume that all processes
         /// execute this constructor in the same order (does not apply
         /// to the non-initializing, default constructor).
-        WorldContainer(World& world, const procmapT& procmap) 
-            : p(new implT(world,procmap))
+        WorldContainer(World& world, const procmapT& procmap, bool do_pending=true) 
+            : p(new implT(world,procmap,do_pending))
         {
             world.deferred_cleanup(p);
         };
@@ -744,7 +735,7 @@ namespace madness {
         
         
         /// Inserts key+value pair (non-blocking communication if key not local)
-        void insert(const std::pair<keyT,valueT>& datum) {
+        void insert(const pairT& datum) {
             check_initialized();
             p->insert(datum);
         };
@@ -871,9 +862,18 @@ namespace madness {
         };
         
 
-	inline procmapT get_procmap() const {
+        /// 1) REBECCA ... DOCUMENT THIS STUFF AS IT GETS WRITTEN
+
+        /// 2) SHOULD THIS NOT RETURN A CONST REF INSTEAD OF A COPY? ... made this change
+	inline const procmapT& get_procmap() const {
 	    return p->get_procmap();
 	};
+
+        /// Process pending messages if constructed with \c do_pending=false
+        inline void process_pending() {
+            check_initialized();
+            p->process_pending();
+        };
 
         /// Sends message "resultT memfun()" to item (non-blocking comm if remote)
         

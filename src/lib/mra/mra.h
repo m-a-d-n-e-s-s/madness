@@ -6,6 +6,8 @@
 #include <tensor/mtrand.h>
 #include <tensor/tensor.h>
 
+#define FUNCTION_INSTANTIATE_3
+
 namespace madness {
     void startup(World& world, int argc, char** argv);
 
@@ -30,20 +32,21 @@ namespace madness {
 	friend class LoadBalImpl<T,NDIM,Pmap>;
     private:
         SharedPtr< FunctionImpl<T,NDIM,Pmap> > impl;
-
     public:
+        typedef FunctionImpl<T,NDIM,Pmap> implT;
+        typedef FunctionFactory<T,NDIM,Pmap> factoryT;
+        typedef typename implT::coordT coordT; ///< Type of vector holding coordinates 
 
         /// Default constructor makes uninitialized function.  No communication.
 
-        /// An unitialized function can only be assigned to.  Any other operation
-        /// will throw an exception.
+        /// An unitialized function can only be assigned to.  Any other operation will throw.
         Function()
             : impl(0)
         {};
 
 
         /// Constructor from FunctionFactory provides named parameter idiom.  Possible non-blocking communication.
-        Function(const FunctionFactory<T,NDIM,Pmap>& factory)
+        Function(const factoryT& factory)
             : impl(new FunctionImpl<T,NDIM,Pmap>(factory))
         {};
 
@@ -61,6 +64,19 @@ namespace madness {
         };
 
         ~Function(){};
+
+        /// Evaluates the function at a point in user coordinates.  Possible non-blocking comm.
+
+        /// Only the invoking process will receive the result via the future
+        /// though other processes may be involved in the evaluation.
+        Future<T> eval(const coordT& xuser) {
+            coordT xsim;
+            impl->user_to_sim(xuser,xsim);
+            Future<T> result;
+            impl->eval(xsim, impl->key0(), result.remote_ref(impl->world));
+            return result;
+        };
+
 
     private:
 

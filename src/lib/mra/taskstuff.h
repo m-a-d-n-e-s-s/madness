@@ -21,14 +21,15 @@ namespace madness {
             MADNESS_EXCEPTION("No recur down yet",0);
         };
         
-        // Conditionally applies operator on LOCAL data or recurs
-        // down and forwards task to owner of child.
-        void conditional_apply(const keyT& key) {
-            if (apply_predicate(key)) {
-                task(world.rank(),apply,fa->find(key));
+        // Applied to LOCAL node.  If apply predicate is true,
+        // generates task to apply operator.  Otherwise generates task
+        // to recur down.
+        void conditional_apply(const datumT& d) {
+            if (apply_predicate(d)) {
+                task(world.rank(),d)
             }
             else {
-                foreach_child(key,recur_down);
+                foreach_child(d.firstkey,recur_down);
             }
         };
         
@@ -50,16 +51,14 @@ namespace madness {
             // operations will send messages to recur_down_handler which
             // will be handled after the local list has been generated.
             std::vector<keyT> keys = fa->keys(select_predicate);
-            // was for_each but as usual std::bind1st cannot cut it ... waiting
-            // for boost and/or tr1
             for (typename std::vector<keyT>::iterator it=keys.begin(); it != keys.end(); ++it) {
                 this->conditional_apply(*it);
             };
             this->process_pending();
         };
         
-        void apply(const typename implT::iterator& it) {
-            (fa->*memfun)(it->first,it->second);
+        void apply(const datumT& d) {
+            (fa->*memfun)(d.first,d.second);
         };
     };
 

@@ -60,7 +60,8 @@ throw MadnessException(msg,0,value,__LINE__,__FUNCTION__,__FILE__)
         } while (0)
 #elif defined(MADNESS_ASSERTIONS_ABORT)
 #  include <cstdlib>
-#  define MADNESS_ASSERT(condition) if (!(condition)) ((void (*)())0)()
+#  define MADNESS_ASSERT(condition) \
+     do {if (!(condition)) ((void (*)())0)();} while(0)
 #else
 #  include <cassert>
 #  define MADNESS_ASSERT(condition) assert(condition)

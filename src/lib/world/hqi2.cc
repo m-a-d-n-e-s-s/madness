@@ -16,7 +16,7 @@ int main(int argc, char** argv) {
 
 
     try {
-	Array<unsigned long,2> k0, k1, k2;
+	Vector<unsigned long,2> k0, k1, k2;
 	k0[0] = 0; k0[1] = 0;
 	k1[0] = 0; k1[1] = 1;
 	k2[0] = 1; k2[1] = 1;

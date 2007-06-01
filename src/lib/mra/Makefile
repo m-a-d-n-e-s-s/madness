@@ -10,7 +10,7 @@ TARGET_TO_MAKE = libMADmra
 
 # List all C++ source files (not headers).  Use CSRC and FTNSRC for
 # C (.c) and Fortran (.f) respectively
-CXXSRC = startup.cc legendre.cc twoscale.cc mra.cc
+CXXSRC = mra.cc startup.cc legendre.cc twoscale.cc 
 
 # Data files that should be installed with the library [OPTIONAL]
 DATAFILES = autocorr coeffs gaussleg
@@ -19,7 +19,8 @@ DATAFILES = autocorr coeffs gaussleg
 TESTPROGS = test
 
 # Source files for the test programs (up to six of them)
-TEST1SRC = test.cc loadbal.cc
+TEST1SRC = test.cc 
+#loadbal.cc
 
 # GlobalMakefile now does most of the work for you
 include $(TOPDIR)/config/GlobalMakefile

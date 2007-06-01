@@ -8,8 +8,8 @@ namespace madness {
 
     /// Simple structure used to manage references/pointers to remote instances
 
-    /// This class is only for internal use and is still rather
-    /// poorly thought through.
+    /// This class was intended only for internal use and is still rather
+    /// poorly thought through, however, it seems to fill a wider need.
     ///
     /// Can be copied/sent as a simple, contiguous block of memory.
     ///

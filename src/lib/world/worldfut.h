@@ -43,9 +43,9 @@ namespace madness {
     private:
         static const int MAXCALLBACKS = 4;
         //std::vector<CallbackInterface*> callbacks; 
-        //std::vector< SharedPtr< FutureImpl<T> > > assignment_list;
+        //std::vector< SharedPtr< FutureImpl<T> > > assignments;
         Stack<CallbackInterface*,MAXCALLBACKS> callbacks;
-        Stack<SharedPtr< FutureImpl<T> >,MAXCALLBACKS> assignment_list;
+        Stack<SharedPtr< FutureImpl<T> >,MAXCALLBACKS> assignments;
         volatile bool assigned;
         World * const world;
         RemoteReference< FutureImpl<T> > remote_ref;
@@ -71,20 +71,20 @@ namespace madness {
 //             for (int i=0; i<(int)callbacks.size(); i++)  
 //                 callbacks[i]->notify();
 //             callbacks.clear();
-//             for (int i=0; i<(int)assignment_list.size(); i++) 
-//                 assignment_list[i]->set(t);
-//             assignment_list.clear();
+//             for (int i=0; i<(int)assignments.size(); i++) 
+//                 assignments[i]->set(t);
+//             assignments.clear();
             while (callbacks.size()) callbacks.pop()->notify();
-            while (assignment_list.size()) {
-                SharedPtr< FutureImpl<T> >& p = assignment_list.pop();
+            while (assignments.size()) {
+                SharedPtr< FutureImpl<T> >& p = assignments.pop();
                 p->set(t);
                 p = SharedPtr< FutureImpl<T> >();
             };
         };
 
-        inline void add_to_assignment_list(const SharedPtr< FutureImpl<T> >& f) {
-            //assignment_list.push_back(f);
-            assignment_list.push(f);
+        inline void add_to_assignments(const SharedPtr< FutureImpl<T> >& f) {
+            //assignments.push_back(f);
+            assignments.push(f);
         };
             
         
@@ -93,7 +93,7 @@ namespace madness {
         /// Local unassigned value
         FutureImpl() 
             : callbacks()
-            , assignment_list()
+            , assignments()
             , assigned(false)
             , world(0)
             , remote_ref()
@@ -104,7 +104,7 @@ namespace madness {
         /// Local assigned value
         FutureImpl(const T& t) 
             : callbacks()
-            , assignment_list()
+            , assignments()
             , assigned(false)
             , world(0)
             , remote_ref()
@@ -117,7 +117,7 @@ namespace madness {
         /// Wrapper for a remote future
         FutureImpl(const RemoteReference< FutureImpl<T> >& remote_ref)
             : callbacks()
-            , assignment_list()
+            , assignments()
             , assigned(false)
             , world(World::world_from_id(remote_ref.world_id()))
             , remote_ref(remote_ref)
@@ -146,11 +146,17 @@ namespace madness {
         /// Sets the value of the future (assignment)
         void set(const T& value) {
             if (world) { 
-                LongAmArg* arg = new LongAmArg;
-                size_t nbyte = arg->stuff(remote_ref, value);
-                world->am.send_long_managed(remote_ref.owner(), 
-                                            FutureImpl<T>::set_handler, 
-                                            arg, nbyte);
+                if (remote_ref.owner() == world->rank()) {
+                    remote_ref.get()->set(value); 
+                    remote_ref.dec(); // Releases reference
+                }
+                else {
+                    LongAmArg* arg = new LongAmArg;
+                    size_t nbyte = arg->stuff(remote_ref, value);
+                    world->am.send_long_managed(remote_ref.owner(), 
+                                                FutureImpl<T>::set_handler, 
+                                                arg, nbyte);
+                }
             }
             else {
                 t = value;
@@ -179,6 +185,20 @@ namespace madness {
 
         const T& operator->() const {
             return get();
+        };
+
+        bool try_to_replace_with(const FutureImpl<T>* f) {
+            if (world) return false;
+            MADNESS_ASSERT(!assigned || f->assigned);
+            if (f->world) {
+                world = f->world;
+                remote_ref = f->remote_ref;
+            }
+            while(f->callbacks.size()) callbacks.push(f->callbacks.pop());
+            while(f->assignments.size()) assignments.push(f->assignments.pop());
+
+            
+            
         };
 
         virtual ~FutureImpl() {
@@ -225,6 +245,7 @@ namespace madness {
         };
 
     public:
+        typedef RemoteReference< FutureImpl<T> > remote_refT;
 
         /// Makes an unassigned local future
         Future() 
@@ -245,7 +266,7 @@ namespace madness {
 
 
         /// Makes a future wrapping a remote reference
-        explicit Future(const RemoteReference< FutureImpl<T> >& remote_ref)
+         explicit Future(const remote_refT& remote_ref)
             : f(new FutureImpl<T>(remote_ref))
             , value()
             , value_set(false)
@@ -329,6 +350,8 @@ namespace madness {
         /// and have the same value (though they may/may not refer to 
         /// the same underlying copy of the value and indeed may even
         /// be in different processes).
+        ///
+        /// This routine may not be in use anymore???????
         void set(const Future<T>& other) {
             if (this != &other) { 
                 MADNESS_ASSERT(!probe());
@@ -338,18 +361,43 @@ namespace madness {
                 else if (f) {
                     if (other.f) {
                         // Both are initialized but not assigned.
-                        // Store a reference to this inside other
-                        if (f != other.f) other.f->add_to_assignment_list(f);
+                        // Used to just put this on the assignment list of
+                        // other, but now first check to see if the internal state of
+                        // either can be harmlessly replaced.  This does not depend
+                        // upon the reference count being one.  The main optimization 
+                        // enabled by this is shortcircuiting communication when forwarding
+                        // futures that are actually remote references.  However, it also
+                        // avoids most (all?) uses of the assignment list.  The only
+                        // thing that presently inhibits replacement is a future being 
+                        // a remote reference.
+
+                        if (f == other.f) {
+                            print("future.set(future): you are setting this with this?");
+                        }
+                        else if (f.use_count()==1 && other.f->try_to_replace_with(f)) {
+                            f = other.f;
+                            print("future.set(future): replaced other with this");
+                        }
+                        else if (other.f.use_count()==1 && f->try_to_replace_with(other.f)) {
+                            other.f = f;
+                            print("future.set(future): replaced this with other");
+                        }
+                        else {
+                            print("future.set(future): adding to assignment list");
+                            other.f->add_to_assignments(f);
+                        }
                     }
                     else {
                         // This is initialized but not assigned, and
                         // other is not initialized.  Make other refer
                         // to the same future as this.
+                        print("future.set(future): this initialized and other not initialized");
                         const_cast<Future<T>&>(other).f = f;
                     }
                 }
                 else { 
                     // This is not initialized so just make it refer to other
+                    print("future.set(future): neither initialized");
                     other.initialize();
                     f = other.f;
                 }
@@ -412,7 +460,7 @@ namespace madness {
         };
 
 
-        /// Private: Returns a structure used to pass references to another process.
+        /// Returns a structure used to pass references to another process.
 
         /// This is used for passing pointers/references to another
         /// process.  To make remote references completely safe, the
@@ -422,7 +470,11 @@ namespace madness {
         /// never assigned.  The remote Future is ONLY useful for
         /// setting the future.  It will NOT be notified if the value
         /// is set elsewhere.
-        inline RemoteReference< FutureImpl<T> > remote_ref(World& world) const {
+        ///
+        /// If this is already a reference to a remote future, the
+        /// actual remote reference is returned ... i.e., \em not a
+        /// a reference to the local future.
+        inline remote_refT remote_ref(World& world) const {
             MADNESS_ASSERT(!probe());
             initialize();
             if (f->world) 
@@ -525,7 +577,7 @@ namespace madness {
     template <typename T>
     class Future< std::vector< Future<T> > > : public DependencyInterface {
     private:
-        typedef std::vector< Future<T> > vectorT;
+        typedef typename std::vector< Future<T> > vectorT;
         vectorT v;
 
     public:

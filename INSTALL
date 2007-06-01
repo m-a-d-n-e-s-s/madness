@@ -105,7 +105,7 @@ elif isgcc ; then
         elif isx8664 ; then
             MADCOPT="-Wall -ansi -O3 -ffast-math -fomit-frame-pointer -funroll-loops -mfpmath=sse -msse2 -m64 $MADARCH"
         elif isx8632 ; then
-            MADCOPT="-Wall -ansi -O3 -ffast-math -fomit-frame-pointer -funroll-loops -mfpmath=sse -msse2 -malign_double $MADARCH"
+            MADCOPT="-Wall -ansi -O3 -ffast-math -fomit-frame-pointer -funroll-loops -mfpmath=sse -msse2 $MADARCH"
         fi
     fi
 fi

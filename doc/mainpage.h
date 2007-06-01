@@ -15,7 +15,7 @@ It includes
    and optional user control over placement/distribution.
  - Distributed objects that can be globally addressed.
  - Futures (results of unevaluated expressions) for composition of latency tolerant
-   algorithms and expression of depenencies between tasks.
+   algorithms and expression of dependencies between tasks.
  - Globally accessible task queues in each process which 
    can be used individually or collectively to provide a single global
    task queue.
@@ -37,20 +37,20 @@ There were several motivations for developing this environment.
  -# The rapid evolution of machines from hundreds (pre-2000), to
     millions (post-2008) of processors demonstrates the need to abandon
     process-centric models of computation and move to paradigms that
-    virtualize or even hide the concept of process.  
+    virtualize or even hide the concept of a process.  
     The success of applications using the 
     Charm++ environment to scale raplidy to 30+K processes and the enormous effort
     required to scale most process-centric applications are the central examples.
  -# The arrival of multi-core processes and the associated needs of
     expressing much more concurrency and adopting techniques for
-    latency hiding motivates the use of light weight work queues to
+    latency hiding motivate the use of light weight work queues to
     capture much more concurrency and the use of futures for
     latency hiding.
  -# The complexity of composing irregular applications in partitioned, global-address space
     (PGAS) models using only MPI and/or one-sided memory access (GA, UPC, SHMEM, co-Array) 
     motivates the use of an object-centric active-message or remote method invocation (RMI) model 
     so that computation may be moved to the data with the same ease as 
-    which data can be moved.  This greatly eases the task of maintaining
+    which data can be moved.  This greatly simplifies the task of maintaining
     and using distributed data structures.
  -# Interoperability with existing programming models to leverage existing
     functionality and to provide an evolutionary path forward.
@@ -68,11 +68,10 @@ and the amazingly talented teams and individuals developing these.
 
 \section Introduction
 
-The entire parallel
-environment is encapsulated in an instance of the class
-\class World which is instantiated by wrapping an MPI communicator.
-Multiple worlds may exist, overlap, or be dynamically created
-and destroyed.
+The entire parallel environment is encapsulated in an instance of the
+class World which is instantiated by wrapping an MPI communicator.
+Multiple worlds may exist, overlap, or be dynamically created and
+destroyed.
 
 The World class has members
  - mpi - an instance of WorldMPIInterface,
@@ -85,28 +84,28 @@ Distributed containers (currently associative arrays or hash tables)
 and distributed objects may be constructed from a world instance.
 
 The recommended approaches to develop scalable and latency tolerant
-parallel algorithms are either object- or task-centric decompositions 
-rather than the process-centric approach usually forced upon MPI 
+parallel algorithms are either object- or task-centric decompositions
+rather than the process-centric approach usually forced upon MPI
 applications.  The object-centric approach uses distributed containers
 (or distributed objects) to store application data.  Computation is
-expressed by sending tasks or messages to objects, using the task queue
-to automatically manage dependencies expressed via futures.
-Placement of data and
-scheduling/placement of computation can be delgated to the container
-and task queue, unless there are spefic performance concerns in which
-case the application can have full knowledge and control of these.
+expressed by sending tasks or messages to objects, using the task
+queue to automatically manage dependencies expressed via futures.
+Placement of data and scheduling/placement of computation can be
+delgated to the container and task queue, unless there are spefic
+performance concerns in which case the application can have full
+knowledge and control of these.
 
-Items in a container may be accessed largely if in a standard
-STL container, but instead of returning an iterator, accessors instead return a Future<iterator>.
-A future is a container for the result of a possibly unevaluated expression.  In the 
-case of an accessor, if the
-requested item is local then the result is immediately available.
-However, if the item is remote, it may take some time before the data
-is made available locally.  You could immediately try to use the
-future, which would work but with the downside of internally waiting
-for all of the communication to occur.  Much better is to keep on
-computing with available data and only use the future when it is
-ready. 
+Items in a container may be accessed largely as if in a standard STL
+container, but instead of returning an iterator, accessors instead
+return a Future<iterator>. A future is a container for the result of a
+possibly unevaluated expression.  In the case of an accessor, if the
+requested item is local then the result is immediately
+available. However, if the item is remote, it may take some time
+before the data is made available locally.  You could immediately try
+to use the future, which would work but with the downside of
+internally waiting for all of the communication to occur.  Much better
+is to keep on working and only use the future when it is ready.
+
 
 Aside:
   - To avoid a potentially unbounded nested invocation
@@ -161,9 +160,20 @@ Such behavior applies only to the view of a single thread ---
 the execution of multiple threads and active messages from different
 threads may be interleaved arbitrarily.
 
-Creating, executing, and reaping a local task with a single dependency
-presently incurs about 1us overhead, which we believe can be redcued
-to below 300ns (3 GHz Core2).  Creating a remote task adds the
+Creating, executing, and reaping a local, null task with 
+no arguments or results presently takes about 350ns (Centos 4, 3GHz 
+Core2, Pathscale 3.0 compiler, -Ofast).  The time
+is dominated by \c new and and \c delete of the
+task structure, and as such is unlikely to get any faster
+except by the application caching and reusing the task structures.   
+Creating and then executing a chain of
+dependent tasks with the result of one task fed as the argument
+of the next task (i.e., the input argument is an unevaluated future 
+which is assigned by the next task) requires about 2000ns per
+task, which we believe can be redcued
+to about 1us (3 GHz Core2).  
+
+Creating a remote task adds the
 overhead of interprocess communication which is on the scale of 1-3us
 (Cray XT).  Note that this is not the actual wall-time latency since
 everything is presently performed using asynchronous messaging and
@@ -171,8 +181,8 @@ polling via MPI.  The wall-time latency, which is largely irrelevant
 to the application if it has expressed enough parallelism, is mostly
 determined by the polling interval which is dynamically adjusted
 depending upon the amount of local work available to reduce the
-overhead from polling.  We can improve the runtime through better
-agregation of messages and deeper message queues to reduce the
+overhead from polling.  We can improve the runtime software through better
+agregation of messages and use of deeper message queues to reduce the
 overhead of remote task creation to essentially that of a local task.
 
 Thus, circa 1us defines the ganularity above which it is worth
@@ -213,14 +223,14 @@ Discussion points to add
  -# Why arguments to tasks and AM via DC or taskQ are passed
     by value or by const-ref (for remote operations this
     should be clear; for local operations it is to enable
-    tasks to be stealable).  Is there a way to circumvent it? Poiners.
+    tasks to be stealable).  Is there a way to circumvent it? Pointers.
  -# Virtualization of other resources
  -# Task stealing
  -# Controlling distribution in containers
  -# Caching in containers
  -# Computing with continuations (user space fibers)
 
-\section Distributed Containers (\class WorldContainer)
+\section Distributed Containers (WorldContainer)
 
 The only currently provided containers are associative arrays or maps
 that are almost directly equivalent to the STL map or the GNU
@@ -297,12 +307,12 @@ To be added
  - discussion of overriding the distribution across processes
 
 
-\section Distributed Objects (\class WorldObject)
+\section Distributed Objects (WorldObject)
 
-Distributed objects (\class WorldObject) provide all of the communication
+Distributed objects (WorldObject) provide all of the communication
 and other resources necessary to build new distributed capabilities.
-The distributed container class (\class WorldContainer) actually inherits 
-most of its functionality from the \class WorldObject.
+The distributed container class (WorldContainer) actually inherits 
+most of its functionality from the WorldObject.
 
 \section Compilation and linking
 
@@ -380,6 +390,39 @@ which enables you to write
 \endcode
 which merely blows instead of sucking.
 
+\subsection Reference counting and arguments to STL agorithms
+
+It is not specified how arguments are passed to STL algorithms so
+they are free to pass by value (a concrete example of this "feature"
+is provided by gcc4.2).  For reference counted types (e.g.,
+SharedPtr), this causes the count to be incremented (if passed by
+value) or not incremented (if passed by reference) and hence you
+cannot reliably use an STL algorithm to look for stuff whose reference
+count has a specific value (e.g., one).  
+
+E.g., the following does not work reliably due to the standard
+being incomplete (i.e., borked).
+
+\code
+  struct refcnt_is_one {
+      bool operator()(const SharedPtr<DeferredCleanupInterface>& p) const {
+        return p.use_count() == 1;
+      };
+  };
+
+  std::remove_if(deferred.begin(),deferred.end(),refcnt_is_one());
+\endcode
+Instead, you need the explicit loop
+\code
+  for (std::list< SharedPtr<DeferredCleanupInterface> >::iterator it = deferred.begin(); 
+      it != deferred.end();) {
+      if (it->use_count() == 1) 
+          it = deferred.erase(it);
+      else 
+          ++it;
+  }
+\endcode
+
 
 
 \section Development to-do list
@@ -389,12 +432,9 @@ which merely blows instead of sucking.
  - Prefetch marker for DC cache
  - Verify reference counting for DC cache
  - Forwarding for DC
- - Cache clean for DC
  - Integration with user-space thread/fiber scheduling
  - Performance profiling with Tau
  - ASM clock for PPC and BGL
- - Test with pathscale compiler
  - Test with xlCC
- - What's happening with temporary DC's and deferred destruction?
 
 */

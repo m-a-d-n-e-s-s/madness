@@ -397,7 +397,7 @@ void test7(World& world) {
 
     typedef WorldContainer<int,double>::iterator iterator;
     typedef WorldContainer<int,double>::const_iterator const_iterator;
-    typedef WorldContainer<int,double>::future future;
+    typedef WorldContainer<int,double>::futureT futureT;
 
     // Everyone inserts distinct values 0..1000 into the container,
     // fences, and then tries to read all values back
@@ -405,7 +405,7 @@ void test7(World& world) {
     world.gop.fence();
 
     for (int i=999; i>=0; i--) {
-        future fut = c.find(i);
+        futureT fut = c.find(i);
         iterator it = fut.get();
 	MADNESS_ASSERT(it != c.end());
 	double j = it->second;

@@ -110,7 +110,7 @@ template <unsigned int D>
 class Key {
 public:
     unsigned int n;
-    mutable Array<unsigned int, D> L;
+    mutable Vector<unsigned int, D> L;
     hashT hashval; // Saving this here is a big optimization
 
     Key() {};
@@ -124,15 +124,15 @@ public:
 	hashval = madness::hash(&this->n, D+1, 0);
     };
 
-    Key(int n, vector<int> v) : n(n), L(Array<unsigned int, D>(v)) {
+    Key(int n, vector<int> v) : n(n), L(Vector<unsigned int, D>(v)) {
 	hashval = madness::hash(&this->n, D+1, 0);
     };
 
-    Key(unsigned int n, vector<unsigned int> v) : n(n), L(Array<unsigned int, D>(v)) {
+    Key(unsigned int n, vector<unsigned int> v) : n(n), L(Vector<unsigned int, D>(v)) {
 	hashval = madness::hash(&this->n, D+1, 0);
     };
 
-    Key(unsigned int n, Array<unsigned int, D> L) : n(n), L(L) {
+    Key(unsigned int n, Vector<unsigned int, D> L) : n(n), L(L) {
 	hashval = madness::hash(&this->n, D+1, 0);
     };
 
@@ -143,7 +143,7 @@ public:
 
     Key myChild(int k) const {
 //	vector<unsigned int> LL;
-	Array<unsigned int,D> LL;
+	Vector<unsigned int,D> LL;
 	for (unsigned int i = 0; i < D; i++) {
 	    LL[i] = 2*L[i] + k%2;
 	    k/=2;
@@ -154,7 +154,7 @@ public:
     Key myParent(int k=1) const {
 	if (k == 0) return Key(*this);
 //	vector<unsigned int> LL;
-	Array<unsigned int,D> LL;
+	Vector<unsigned int,D> LL;
 	unsigned int twotok = (unsigned int) pow(2.0, k);
 	for (unsigned int i = 0; i < D; i++) {
 	    LL[i] = (L[i]/twotok);
@@ -184,7 +184,7 @@ public:
 
     int ordering(const Key& k1, const Key& k2) const {
 	bool egalite = true;
-	Array<int,D> dL;
+	Vector<int,D> dL;
 //	cout << "ordering: comparing ";
 //	k1.print();
 //	cout << " and ";

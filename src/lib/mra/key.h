@@ -23,7 +23,7 @@ namespace madness {
         friend class KeyChildIterator<NDIM>;
     private:
         Level n;
-        Array<Translation,NDIM> l;
+        Vector<Translation,NDIM> l;
         hashT hashval;
 
         // Recomputes hashval
@@ -34,7 +34,7 @@ namespace madness {
 /* Problem: int limited in bits */
 /*
 	Translation encode() const {
-	    Array<Translation,NDIM> Lcopy = l;
+	    Vector<Translation,NDIM> Lcopy = l;
 	    int twotoD = power<NDIM>(), levfact = 1;
 	    Translation retval = 0;
 	    for (long i = 0; i < n; i++) {
@@ -50,7 +50,7 @@ namespace madness {
 	};
 */
 	vector<short>* encode() const {
-	    Array<Translation,NDIM> Lcopy = l;
+	    Vector<Translation,NDIM> Lcopy = l;
 	    Translation arrayval = 0;
 	    vector<short> *retvals = new vector<short>(n,0);
 	    for (Level i = n-1; i >= 0; i--) {
@@ -67,8 +67,8 @@ namespace madness {
 	};
 
 	// Helper function for (Level, Translation) constructor
-	Array<Translation,NDIM> decode(Level level, Translation k) const {
-	    Array<Translation,NDIM> L(0);
+	Vector<Translation,NDIM> decode(Level level, Translation k) const {
+	    Vector<Translation,NDIM> L(0);
 	    int twotoD = power<NDIM>();
 	    int powr=1, divisor=2;
 	    for (Level i = 0; i < level; i++) {
@@ -87,7 +87,7 @@ namespace madness {
         Key() {};
 
         /// Constructor with given n, l
-        Key(Level n, const Array<Translation,NDIM> l) 
+        Key(Level n, const Vector<Translation,NDIM> l) 
             : n(n), l(l) {
             rehash();
         };
@@ -153,7 +153,7 @@ namespace madness {
             return n;
         };
 
-        const Array<Translation,NDIM>& translation() const {
+        const Vector<Translation,NDIM>& translation() const {
             return l;
         };
 
@@ -167,7 +167,7 @@ namespace madness {
         /// closest match (which may be self if this is the top of the
         /// tree).
         Key parent(int generation=1) const {
-            Array<Translation,NDIM> pl;
+            Vector<Translation,NDIM> pl;
             if (generation > n) generation = n;
             for (int i=0; i<NDIM; i++) pl[i] = l[i]>>generation;
             return Key(n-generation,pl);
@@ -211,7 +211,7 @@ namespace madness {
     class KeyChildIterator {
         Key<NDIM> parent;
         Key<NDIM> child;
-        Array<Translation,NDIM> p;
+        Vector<Translation,NDIM> p;
         bool finished;
 
     public:
