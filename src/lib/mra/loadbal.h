@@ -5,7 +5,6 @@
 #include <world/world.h>
 #include <mra/key.h>
 #include <mra/mra.h>
-//using namespace madness;
 using namespace std;
 
 namespace madness {
@@ -45,7 +44,6 @@ struct DClass {
     typedef LBNode<NodeData,D> NodeD;
     typedef const LBNode<NodeData,D> NodeDConst;
     typedef MyProcmap<D> MyProcMap;
-//    typedef WorldContainer< KeyD,NodeD,MyProcMap > treeT;
     typedef LBTree<D,MyProcMap> treeT;
 };
 
@@ -266,7 +264,6 @@ private:
 
     ProcessID getOwner(const KeyD& key) const {
 	ProcessID owner;
-//	treeMap.findOwner(key, &owner);
 	treeMap->findOwner(key, &owner);
 	return owner;
     };
@@ -278,10 +275,8 @@ private:
 
 	if (vlen == 0) throw "empty map!!!";
 
-//	treeMap = Tree<D>(v[vlen-1]);
 	treeMap = new Tree<D>(v[vlen-1]);
 	for (int j = vlen-2; j >= 0; j--) {
-//	    treeMap.fill(v[j]);
 	    treeMap->fill(v[j]);
 	}
     };
@@ -344,16 +339,14 @@ class LBTree : public WorldContainer<typename DClass<D>::KeyD,typename DClass<D>
     // No new variables necessary
     public:
 	typedef WorldContainer<typename DClass<D>::KeyD,typename DClass<D>::NodeD, Pmap> dcT;
+
 	LBTree() {};
 	LBTree(World& world, const Pmap& pmap) : dcT(world,pmap) {
-madness::print("LBTree(world, pmap) constructor");
 	    this->get_procmap().print();
-madness::print("LBTree(world, pmap) constructor (goodbye)");
 	};
+
 	template <typename T>
 	inline void init_tree(SharedPtr<FunctionImpl<T,D,Pmap> > f, typename DClass<D>::KeyDConst key) {
-//	    this->get_procmap().print();
-//madness::print("beginning of init_tree, key =", key, "owner =", this->owner(key));
 	    // find Node associated with key
 	    typename FunctionImpl<T,D,Pmap>::iterator it = f->find(key);
 	    if (it == f->end()) return;
@@ -373,7 +366,6 @@ madness::print("LBTree(world, pmap) constructor (goodbye)");
 		    this->init_tree<T>(f, kit.key());
 		}
 	    }
-//madness::print("end of init_tree");
 	};
 
 	// Methods:
@@ -422,18 +414,15 @@ class LoadBalImpl {
 	    skeltree = SharedPtr<typename DClass<D>::treeT>(new typename DClass<D>::treeT(f->world,
 		f->get_procmap()));
 	    typename DClass<D>::KeyD root(0);
-madness::print("about to initialize tree");
 	    if (f->world.mpi.rank() == 0) {
 	    	skeltree->template init_tree<T>(f,root);
 	    }
-madness::print("just initialized tree");
 	};
 
     public:
 	//Constructors
 	LoadBalImpl() {};
 	LoadBalImpl(Function<T,D,Pmap> f) : f(f) {
-	    madness::print("LoadBalImpl (Function) constructor: f.impl", &f.impl);
 	    construct_skel(f.impl);
 	};
 	~LoadBalImpl() {};
@@ -447,15 +436,14 @@ madness::print("just initialized tree");
 
 	void partition(vector<typename DClass<D>::TreeCoords> v) {
 	    // implement partition: copy to new FunctionImpl and replace within f
-madness::print("partition: at beginning");
 	    Pmap pmap(f.impl->world, v);
 	    SharedPtr<FunctionImpl<T,D,Pmap> > newimpl(new FunctionImpl<T,D,Pmap>(*(f.impl.get()),pmap));
 	    if (f.impl->world.mpi.rank() == 0) {
 	    	madness::migrate<T,D,Pmap>(f.impl, newimpl);
+		Key<D> root(0);
+		newimpl->print(root);
 	    }
-madness::print("partition: at fence");
 	    f.impl->world.gop.fence();
-madness::print("partition: after fence");
 	    f.impl = newimpl;
 	};
 

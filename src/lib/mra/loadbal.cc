@@ -36,13 +36,13 @@ print("done with broadcast");
     costlist.push_back(0);
     Cost totalCost = 0;
 
-madness::print("findBestPartition: about to fixCost");
+//madness::print("findBestPartition: about to fixCost");
 
     typename DClass<D>::KeyD root(0);
-    this->skeltree->template fixCost(root);
-madness::print("findBestPartition: about to depthFirstPartition");
+    this->skeltree->fixCost(root);
+//madness::print("findBestPartition: about to depthFirstPartition");
 //    this->skeltree->print(root);
-    totalCost = this->skeltree->template depthFirstPartition(root, &listoflist[count], npieces, 
+    totalCost = this->skeltree->depthFirstPartition(root, &listoflist[count], npieces, 
 	totalCost, &costlist[count]);
 //madness::print("findBestPartition: after depthFirstPartition");
     int size = listoflist[count].size();
@@ -56,13 +56,11 @@ madness::print("findBestPartition: about to depthFirstPartition");
     count++;
 
     while (notdone) {
-//	this->skeltree.fixCost<D>(root); 
-	this->skeltree->template fixCost(root); 
-//	this->skeltree.rollup<D>(root);
-	this->skeltree->template rollup(root);
+	this->skeltree->fixCost(root); 
+	this->skeltree->rollup(root);
 	listoflist.push_back(emptylist);
 	costlist.push_back(0);
-	this->skeltree->template depthFirstPartition(root, &listoflist[count], npieces, totalCost, &costlist[count]);
+	this->skeltree->depthFirstPartition(root, &listoflist[count], npieces, totalCost, &costlist[count]);
 	int size = listoflist[count].size();
 	cout << "Partitioned tree " << count << ":" << endl;
 	for (int i = 0; i < size; i++)
@@ -70,9 +68,7 @@ madness::print("findBestPartition: about to depthFirstPartition");
 	cout << "Max cost for this tree = " << costlist[count] << endl;
 	cout << endl;
 	
-//    	typename DClass<D>::treeT::iterator it = this->skeltree.find(root);
     	typename DClass<D>::treeT::iterator it = this->skeltree->find(root);
-//    	if (it == this->skeltree.end()) return klist;
     	if (it == this->skeltree->end()) return klist;
     	typename DClass<D>::NodeD node = it->second;
 	if (!(node.has_children()) || (listoflist[count].size() < npieces)) {
@@ -156,29 +152,29 @@ print("done with broadcast");
 
 template <int D, typename Pmap>
 Cost LBTree<D,Pmap>::fixCost(typename DClass<D>::KeyDConst& key) {
-    madness::print("fixCost: key =", key, " is about to be looked for");
+//    madness::print("fixCost: key =", key, " is about to be looked for");
     typename DClass<D>::treeT::iterator it = this->find(key);
-    madness::print("fixCost: key =", key, " was found (looked for),", (it == this->end()));
+//    madness::print("fixCost: key =", key, " was found (looked for),", (it == this->end()));
     if (it == this->end()) return 0;
-    madness::print("fixCost: tree it was found (exists)");
+//    madness::print("fixCost: tree it was found (exists)");
 
     typename DClass<D>::NodeD node = it->second;
-    madness::print("fixCost: got node");
+//    madness::print("fixCost: got node");
     NodeData d = node.get_data();
-    madness::print("fixCost: got data from node");
+//    madness::print("fixCost: got data from node");
     d.subcost = d.cost;
-    madness::print("fixCost: assigned node cost to subcost");
+//    madness::print("fixCost: assigned node cost to subcost");
     if (node.has_children())
     {
-	madness::print("fixCost: node has children");
+//	madness::print("fixCost: node has children");
 	for (KeyChildIterator<D> kit(key); kit; ++kit) {
-	    d.subcost += this->template fixCost(kit.key());
+	    d.subcost += this->fixCost(kit.key());
 	}
     }
     node.set_data(d);
-madness::print("fixCost: about to insert key =", key, ",", node.get_data());
+//madness::print("fixCost: about to insert key =", key, ",", node.get_data());
     this->insert(key,node);
-madness::print("fixCost: inserted node");
+//madness::print("fixCost: inserted node");
     return d.subcost;
 }
 
@@ -189,26 +185,27 @@ Cost LBTree<D,Pmap>::depthFirstPartition(typename DClass<D>::KeyDConst& key,
 	Cost totalcost, Cost *maxcost) {
 //madness::print("depthFirstPartition: at very beginning");
     if (totalcost == 0) {
-	totalcost = this->template computeCost(key);
+	totalcost = this->computeCost(key);
     }
-madness::print("depthFirstPartition: totalcost =", totalcost);
+//madness::print("depthFirstPartition: totalcost =", totalcost);
 
     Cost costLeft = totalcost;
     int partsLeft = npieces;
     *maxcost = 0;
     Cost partitionSize = 0;
+    double facter = 1.1;
 
     for (int i = npieces-1; i >= 0; i--) {
 	cout << endl << "Beginning partition number " << i << endl;
 	vector<typename DClass<D>::KeyD> tmplist;
 	Cost tpart = computePartitionSize(costLeft, partsLeft);
-	if (tpart > partitionSize) {
+	if ((tpart > partitionSize) || (tpart*facter < partitionSize)) {
 	    partitionSize = tpart;
 	}
-madness::print("depthFirstPartition: partitionSize =", partitionSize);
+//madness::print("depthFirstPartition: partitionSize =", partitionSize);
 	Cost usedUp = 0;
 	bool atleaf = false;
-	usedUp = this->template makePartition(key, &tmplist, partitionSize, (i==0), usedUp, &atleaf);
+	usedUp = this->makePartition(key, &tmplist, partitionSize, (i==0), usedUp, &atleaf);
 	if (*maxcost < usedUp) *maxcost = usedUp;
 	costLeft -= usedUp;
 	partsLeft--;
@@ -250,7 +247,7 @@ void LBTree<D,Pmap>::rollup(typename DClass<D>::KeyDConst& key) {
     }
     if (hasleafchild) {
 //	madness::print("rollup: about to meld with key",key);
-	this->template meld(key);
+	this->meld(key);
     }
     for (KeyChildIterator<D> kit(key); kit; ++kit) {
 	typename DClass<D>::treeT::iterator itc = this->find(kit.key());
@@ -259,7 +256,7 @@ void LBTree<D,Pmap>::rollup(typename DClass<D>::KeyDConst& key) {
 	    typename DClass<D>::NodeD c = itc->second;
 	    if (c.has_children()) {
 //		madness::print("rollup: child", kit.key(), "has children");
-		this->template rollup(kit.key());
+		this->rollup(kit.key());
 	    }
 	}
     }
@@ -346,7 +343,7 @@ Cost LBTree<D,Pmap>::computeCost(typename DClass<D>::KeyDConst& key) {
 
     typename DClass<D>::NodeD node = it->second;
     for (KeyChildIterator<D> kit(key); kit; ++kit) {
-	cost += this->template computeCost(kit.key());
+	cost += this->computeCost(kit.key());
     }
     NodeData d = node.get_data();
     cost += d.cost;
@@ -376,15 +373,15 @@ Cost LBTree<D,Pmap>::makePartition(typename DClass<D>::KeyDConst& key,
 
     it = this->end();
 
-    madness::print("makePartition: data for key", key, ":", d);
-    madness::print("makePartition: partitionSize =", partitionSize, ", lastPartition =", lastPartition, ", usedUp =", usedUp);
+//    madness::print("makePartition: data for key", key, ":", d);
+//    madness::print("makePartition: partitionSize =", partitionSize, ", lastPartition =", lastPartition, ", usedUp =", usedUp);
 
     if (d.istaken) {
-	madness::print("makePartition: this key is taken"); 
+//	madness::print("makePartition: this key is taken"); 
 	return usedUp;
     }
 
-    madness::print("makePartition: back to key", key);
+//    madness::print("makePartition: back to key", key);
 
     // if either we're at the last partition, the partition is currently empty
     // and this is a single item, or there is still room in the partition and
@@ -393,12 +390,12 @@ Cost LBTree<D,Pmap>::makePartition(typename DClass<D>::KeyDConst& key,
     if ((lastPartition) || ((usedUp == 0) && (!node.has_children())) || 
 	((usedUp < partitionSize) && (d.subcost+usedUp <= partitionSize+maxAddl))) {
 	// add to partition
-	madness::print("makePartition: adding to partition", key);
+//	madness::print("makePartition: adding to partition", key);
 	klist->push_back(typename DClass<D>::KeyD(key));
 	d.istaken = true;
 	usedUp += d.subcost;
 	// REMOVE COST FROM FOREPARENTS (implement this)
-	this->template removeCost(key.parent(), d.subcost);
+	this->removeCost(key.parent(), d.subcost);
 	node.set_data(d);
 	this->insert(key,node);
     }
@@ -408,8 +405,8 @@ Cost LBTree<D,Pmap>::makePartition(typename DClass<D>::KeyDConst& key,
 	    int i = 0;
 	    for (KeyChildIterator<D> kit(key); kit; ++kit) {
 		if (node.has_child(i)) {
-		    madness::print("makePartition:", key, "recursively calling", kit.key());
-		    usedUp = this->template makePartition(kit.key(), klist, partitionSize, lastPartition,
+//		    madness::print("makePartition:", key, "recursively calling", kit.key());
+		    usedUp = this->makePartition(kit.key(), klist, partitionSize, lastPartition,
 			usedUp, atleaf);
 		    if ((*atleaf) || (usedUp >= partitionSize)) {
 			break;
@@ -419,7 +416,7 @@ Cost LBTree<D,Pmap>::makePartition(typename DClass<D>::KeyDConst& key,
 	    }
 	}
 	else {
-	    madness::print("makePartition: about to set atleaf = true");
+//	    madness::print("makePartition: about to set atleaf = true");
 	    *atleaf = true;
 	}
     }
@@ -428,24 +425,24 @@ Cost LBTree<D,Pmap>::makePartition(typename DClass<D>::KeyDConst& key,
 
 template <int D, typename Pmap>
 void LBTree<D,Pmap>::removeCost(typename DClass<D>::KeyDConst& key, Cost c) {
-madness::print("removeCost: key", key, "owner =", owner(key));
-this->get_procmap().print();
+//madness::print("removeCost: key", key, "owner =", owner(key));
+//this->get_procmap().print();
     if (((int) key.level()) < 0) return;
     typename DClass<D>::treeT::iterator it = this->find(key);
-madness::print("removeCost: found key");
+//madness::print("removeCost: found key");
     if (it == this->end()) return;
     typename DClass<D>::NodeD node = it->second;
     NodeData d = node.get_data();
-madness::print("removeCost: got data");
+//madness::print("removeCost: got data");
     d.subcost -= c;
     if (key.level() > 0) {
-    	this->template removeCost(key.parent(), c);
+    	this->removeCost(key.parent(), c);
     }
-madness::print("removeCost: before setting, data =", d);
+//madness::print("removeCost: before setting, data =", d);
     node.set_data(d);
-madness::print("removeCost: after setting, data =", node.get_data());
+//madness::print("removeCost: after setting, data =", node.get_data());
     this->insert(key,node);
-madness::print("removeCost: after inserting, data = ", node.get_data());
+//madness::print("removeCost: after inserting, data = ", node.get_data());
 }
 
 
@@ -482,21 +479,14 @@ void migrate_data(SharedPtr<FunctionImpl<T,D,Pmap> > tfrom, SharedPtr<FunctionIm
 template <typename T, int D, typename Pmap>
 void migrate(SharedPtr<FunctionImpl<T,D,Pmap> > tfrom, SharedPtr<FunctionImpl<T,D,Pmap> > tto) {
     typename DClass<D>::KeyD root(0);
-print("migrate: at beginning");
+//print("migrate: at beginning");
     migrate_data<T,D,Pmap>(tfrom, tto, root);
-print("migrate: at end");
+//print("migrate: at end");
 }
 
 // Explicit instantiations for D=1:6
-template void migrate<double,3,MyProcmap<3> >(SharedPtr<FunctionImpl<double,3,MyProcmap<3> > > tfrom, 
-	SharedPtr<FunctionImpl<double,3,MyProcmap<3> > > tto);
-
-template void migrate_data<double,3>(SharedPtr<FunctionImpl<double,3,MyProcmap<3> > > tfrom, 
-	SharedPtr<FunctionImpl<double,3,MyProcmap<3> > > tto, DClass<3>::KeyD key);
 
 
-// Who knows why these aren't cooperating, so commented out for now
-/*
 template void migrate_data<double,1>(SharedPtr<FunctionImpl<double,1,MyProcmap<1> > > tfrom, 
 	SharedPtr<FunctionImpl<double,1,MyProcmap<1> > > tto, DClass<1>::KeyD key);
 template void migrate_data<double,2>(SharedPtr<FunctionImpl<double,2,MyProcmap<2> > > tfrom, 
@@ -536,8 +526,11 @@ template void migrate<double,5,MyProcmap<5> >(SharedPtr<FunctionImpl<double,5,My
 template void migrate<double,6,MyProcmap<6> >(SharedPtr<FunctionImpl<double,6,MyProcmap<6> > > tfrom, 
 	SharedPtr<FunctionImpl<double,6,MyProcmap<6> > > tto);
 
+// Who knows why this isn't cooperating, so commented out for now
+/*
 template void migrate<std::complex<double>,1,MyProcmap<1> >(SharedPtr<FunctionImpl<std::complex<double>,1,MyProcmap<1> > tfrom, 
 	SharedPtr<FunctionImpl<std::complex<double>,1,MyProcmap<1> > > tto);
+*/
 template void migrate<std::complex<double>,2,MyProcmap<2> >(SharedPtr<FunctionImpl<std::complex<double>,2,MyProcmap<2> > > tfrom, 
 	SharedPtr<FunctionImpl<std::complex<double>,2,MyProcmap<2> > > tto);
 template void migrate<std::complex<double>,3,MyProcmap<3> >(SharedPtr<FunctionImpl<std::complex<double>,3,MyProcmap<3> > > tfrom, 
@@ -548,7 +541,7 @@ template void migrate<std::complex<double>,5,MyProcmap<5> >(SharedPtr<FunctionIm
 	SharedPtr<FunctionImpl<std::complex<double>,5,MyProcmap<5> > > tto);
 template void migrate<std::complex<double>,6,MyProcmap<6> >(SharedPtr<FunctionImpl<std::complex<double>,6,MyProcmap<6> > > tfrom, 
 	SharedPtr<FunctionImpl<std::complex<double>,6,MyProcmap<6> > > tto);
-*/
+
 
 template class LoadBalImpl<double,1,MyProcmap<1> >;
 template class LoadBalImpl<double,2,MyProcmap<2> >;
