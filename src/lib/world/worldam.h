@@ -464,6 +464,7 @@ namespace madness {
                         narrived++;
                         if (nq >= MAXINQ) error("AM: exceeded max OOO q");
                         q[nq].src = status.Get_source();
+                        MADNESS_ASSERT(q[nq].src>=0 && q[nq].src<nproc);
                         q[nq].msgcount = *msg_counters[i];
                         q[nq].i = i;
                         q[nq].nbyte = status.Get_count(MPI::BYTE);
