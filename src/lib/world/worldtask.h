@@ -208,7 +208,7 @@ namespace madness {
         /// A future is returned to eventually hold the result of the task.
         /// Future<void> is an empty class that may be ignored.
         template <typename functionT>
-        Future<FUNCTION_RETURNT(functionT)> add(functionT function, const TaskAttributes& attr=TaskAttributes()) {
+        Future<REMFUTURE(FUNCTION_RETURNT(functionT))> add(functionT function, const TaskAttributes& attr=TaskAttributes()) {
             return add(me,function,attr);
         }
 
@@ -218,8 +218,8 @@ namespace madness {
         /// A future is returned to eventually hold the result of the task.
         /// Future<void> is an empty class that may be ignored.
         template <typename functionT>
-        Future<FUNCTION_RETURNT(functionT)> add(ProcessID where, functionT function, const TaskAttributes& attr=TaskAttributes()) {
-            Future<FUNCTION_RETURNT(functionT)> result;
+        Future<REMFUTURE(FUNCTION_RETURNT(functionT))> add(ProcessID where, functionT function, const TaskAttributes& attr=TaskAttributes()) {
+            Future<REMFUTURE(FUNCTION_RETURNT(functionT))> result;
             if (where == me) 
                 add(new TaskFunction<functionT>(result, function,attr));
             else 
@@ -230,7 +230,7 @@ namespace madness {
 
         /// Invoke "resultT (*function)(arg1T)" as a local task
         template <typename functionT, typename arg1T>
-        Future<FUNCTION_RETURNT(functionT)> add(functionT function, const arg1T& arg1, const TaskAttributes& attr=TaskAttributes()) {
+        Future<REMFUTURE(FUNCTION_RETURNT(functionT))> add(functionT function, const arg1T& arg1, const TaskAttributes& attr=TaskAttributes()) {
             return add(me, function, arg1, attr);
         }
 
@@ -254,9 +254,9 @@ namespace madness {
         /// by making a local task to submit the remote task once
         /// everything is ready).
         template <typename functionT, typename arg1T>
-        Future<FUNCTION_RETURNT(functionT)> add(ProcessID where, functionT function, 
+        Future<REMFUTURE(FUNCTION_RETURNT(functionT))> add(ProcessID where, functionT function, 
                                                 const arg1T& arg1, const TaskAttributes& attr=TaskAttributes()) {
-            Future<FUNCTION_RETURNT(functionT)> result;
+            Future<REMFUTURE(FUNCTION_RETURNT(functionT))> result;
             if (where == me) {
                 add(new TaskFunction<functionT>(result, function, arg1, attr));
             }
@@ -270,7 +270,7 @@ namespace madness {
 
         /// Invoke "resultT (*function)(arg1T,arg2T)" as a local task
         template <typename functionT, typename arg1T, typename arg2T>
-        Future<FUNCTION_RETURNT(functionT)> add(functionT function, 
+        Future<REMFUTURE(FUNCTION_RETURNT(functionT))> add(functionT function, 
                                                 const arg1T& arg1, const arg2T& arg2, const TaskAttributes& attr=TaskAttributes()) {
             return add(me,function,arg1,arg2,attr);
         }
@@ -281,9 +281,9 @@ namespace madness {
         /// A future is returned to eventually hold the result of the
         /// task.  Future<void> is an empty class that may be ignored.
         template <typename functionT, typename arg1T, typename arg2T>
-        Future<FUNCTION_RETURNT(functionT)> add(ProcessID where, functionT function, 
+        Future<REMFUTURE(FUNCTION_RETURNT(functionT))> add(ProcessID where, functionT function, 
                                                 const arg1T& arg1, const arg2T& arg2, const TaskAttributes& attr=TaskAttributes()) {
-            Future<FUNCTION_RETURNT(functionT)> result;
+            Future<REMFUTURE(FUNCTION_RETURNT(functionT))> result;
             if (where == me) {
                 add(new TaskFunction<functionT>(result, function, arg1, arg2, attr));
             }
@@ -298,7 +298,7 @@ namespace madness {
 
         /// Invoke "resultT (*function)(arg1T,arg2T,arg3T)" as a local task
         template <typename functionT, typename arg1T, typename arg2T, typename arg3T>
-        Future<FUNCTION_RETURNT(functionT)> add(functionT function, 
+        Future<REMFUTURE(FUNCTION_RETURNT(functionT))> add(functionT function, 
                                                 const arg1T& arg1, const arg2T& arg2, 
                                                 const arg3T& arg3, const TaskAttributes& attr=TaskAttributes()) {
             return add(me,function,arg1,arg2,arg3,attr);
@@ -310,10 +310,10 @@ namespace madness {
         /// A future is returned to eventually hold the result of the
         /// task.  Future<void> is an empty class that may be ignored.
         template <typename functionT, typename arg1T, typename arg2T, typename arg3T>
-        Future<FUNCTION_RETURNT(functionT)> add(ProcessID where, functionT function, 
+        Future<REMFUTURE(FUNCTION_RETURNT(functionT))> add(ProcessID where, functionT function, 
                                                 const arg1T& arg1, const arg2T& arg2,
                                                 const arg3T& arg3, const TaskAttributes& attr=TaskAttributes()) {
-            Future<FUNCTION_RETURNT(functionT)> result;
+            Future<REMFUTURE(FUNCTION_RETURNT(functionT))> result;
             if (where == me) {
                 add(new TaskFunction<functionT>(result, function, arg1, arg2, arg3, attr));
             }
@@ -332,10 +332,10 @@ namespace madness {
         /// A future is returned to eventually hold the result of the
         /// task.  Future<void> is an empty class that may be ignored.
         template <typename functionT, typename arg1T, typename arg2T, typename arg3T, typename arg4T>
-        Future<FUNCTION_RETURNT(functionT)> add(ProcessID where, functionT function, 
+        Future<REMFUTURE(FUNCTION_RETURNT(functionT))> add(ProcessID where, functionT function, 
                                                 const arg1T& arg1, const arg2T& arg2,
                                                 const arg3T& arg3, const arg4T& arg4, const TaskAttributes& attr=TaskAttributes()) {
-            Future<FUNCTION_RETURNT(functionT)> result;
+            Future<REMFUTURE(FUNCTION_RETURNT(functionT))> result;
             if (where == me) {
                 add(new TaskFunction<functionT>(result, function, arg1, arg2, arg3, arg4, attr));
             }
@@ -356,11 +356,11 @@ namespace madness {
         /// A future is returned to eventually hold the result of the
         /// task.  Future<void> is an empty class that may be ignored.
         template <typename functionT, typename arg1T, typename arg2T, typename arg3T, typename arg4T, typename arg5T>
-        Future<FUNCTION_RETURNT(functionT)> add(ProcessID where, functionT function, 
+        Future<REMFUTURE(FUNCTION_RETURNT(functionT))> add(ProcessID where, functionT function, 
                                                 const arg1T& arg1, const arg2T& arg2,
                                                 const arg3T& arg3, const arg4T& arg4,
                                                 const arg5T& arg5, const TaskAttributes& attr=TaskAttributes()) {
-            Future<FUNCTION_RETURNT(functionT)> result;
+            Future<REMFUTURE(FUNCTION_RETURNT(functionT))> result;
             if (where == me) {
                 add(new TaskFunction<functionT>(result, function, arg1, arg2, arg3, arg4, arg5, attr));
             }
@@ -380,11 +380,11 @@ namespace madness {
         /// A future is returned to eventually hold the result of the
         /// task.  Future<void> is an empty class that may be ignored.
         template <typename functionT, typename arg1T, typename arg2T, typename arg3T, typename arg4T, typename arg5T, typename arg6T>
-        Future<FUNCTION_RETURNT(functionT)> add(ProcessID where, functionT function, 
+        Future<REMFUTURE(FUNCTION_RETURNT(functionT))> add(ProcessID where, functionT function, 
                                                 const arg1T& arg1, const arg2T& arg2,
                                                 const arg3T& arg3, const arg4T& arg4,
                                                 const arg5T& arg5, const arg6T& arg6, const TaskAttributes& attr=TaskAttributes()) {
-            Future<FUNCTION_RETURNT(functionT)> result;
+            Future<REMFUTURE(FUNCTION_RETURNT(functionT))> result;
             if (where == me) {
                 add(new TaskFunction<functionT>(result, function, arg1, arg2, arg3, arg4, arg5, arg6, attr));
             }
@@ -405,11 +405,11 @@ namespace madness {
         /// A future is returned to eventually hold the result of the
         /// task.  Future<void> is an empty class that may be ignored.
         template <typename functionT, typename arg1T, typename arg2T, typename arg3T, typename arg4T, typename arg5T, typename arg6T, typename arg7T>
-        Future<FUNCTION_RETURNT(functionT)> add(ProcessID where, functionT function, 
+        Future<REMFUTURE(FUNCTION_RETURNT(functionT))> add(ProcessID where, functionT function, 
                                                 const arg1T& arg1, const arg2T& arg2,
                                                 const arg3T& arg3, const arg4T& arg4,
                                                 const arg5T& arg5, const arg6T& arg6, const arg7T& arg7, const TaskAttributes& attr=TaskAttributes()) {
-            Future<FUNCTION_RETURNT(functionT)> result;
+            Future<REMFUTURE(FUNCTION_RETURNT(functionT))> result;
             if (where == me) {
                 add(new TaskFunction<functionT>(result, function, arg1, arg2, arg3, arg4, arg5, arg6, arg7, attr));
             }
@@ -429,9 +429,9 @@ namespace madness {
         
         /// Invoke "resultT (obj.*memfun)()" as a local task
         template <typename memfunT>
-        Future<MEMFUN_RETURNT(memfunT)> add(MEMFUN_OBJT(memfunT)& obj, memfunT memfun, const TaskAttributes& attr=TaskAttributes()) 
+        Future<REMFUTURE(MEMFUN_RETURNT(memfunT))> add(MEMFUN_OBJT(memfunT)& obj, memfunT memfun, const TaskAttributes& attr=TaskAttributes()) 
         {
-            Future<MEMFUN_RETURNT(memfunT)> result;
+            Future<REMFUTURE(MEMFUN_RETURNT(memfunT))> result;
             add(new TaskMemfun<memfunT>(result,obj,memfun,attr));
             return result;
         }
@@ -439,11 +439,11 @@ namespace madness {
 
         /// Invoke "resultT (obj.*memfun)(arg1T)" as a local task
         template <typename memfunT, typename arg1T>
-        Future<MEMFUN_RETURNT(memfunT)> add(MEMFUN_OBJT(memfunT)& obj, 
+        Future<REMFUTURE(MEMFUN_RETURNT(memfunT))> add(MEMFUN_OBJT(memfunT)& obj, 
                                             memfunT memfun,
                                             const arg1T& arg1, const TaskAttributes& attr=TaskAttributes())
         {
-            Future<MEMFUN_RETURNT(memfunT)> result;
+            Future<REMFUTURE(MEMFUN_RETURNT(memfunT))> result;
             add(new TaskMemfun<memfunT>(result,obj,memfun,arg1,attr));
             return result;
         }
@@ -451,11 +451,11 @@ namespace madness {
 
         /// Invoke "resultT (obj.*memfun)(arg1T,arg2T)" as a local task
         template <typename memfunT, typename arg1T, typename arg2T>
-        Future<MEMFUN_RETURNT(memfunT)> add(MEMFUN_OBJT(memfunT)& obj, 
+        Future<REMFUTURE(MEMFUN_RETURNT(memfunT))> add(MEMFUN_OBJT(memfunT)& obj, 
                                             memfunT memfun,
                                             const arg1T& arg1, const arg2T& arg2, const TaskAttributes& attr=TaskAttributes())
         {
-            Future<MEMFUN_RETURNT(memfunT)> result;
+            Future<REMFUTURE(MEMFUN_RETURNT(memfunT))> result;
             add(new TaskMemfun<memfunT>(result,obj,memfun,arg1,arg2,attr));
             return result;
         }
@@ -463,11 +463,11 @@ namespace madness {
 
         /// Invoke "resultT (obj.*memfun)(arg1T,arg2T,arg3)" as a local task
         template <typename memfunT, typename arg1T, typename arg2T, typename arg3T>
-        Future<MEMFUN_RETURNT(memfunT)> add(MEMFUN_OBJT(memfunT)& obj, 
+        Future<REMFUTURE(MEMFUN_RETURNT(memfunT))> add(MEMFUN_OBJT(memfunT)& obj, 
                                             memfunT memfun,
                                             const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, const TaskAttributes& attr=TaskAttributes())
         {
-            Future<MEMFUN_RETURNT(memfunT)> result;
+            Future<REMFUTURE(MEMFUN_RETURNT(memfunT))> result;
             add(new TaskMemfun<memfunT>(result,obj,memfun,arg1,arg2,arg3,attr));
             return result;
         }
@@ -475,11 +475,11 @@ namespace madness {
 
         /// Invoke "resultT (obj.*memfun)(arg1T,arg2T,arg3,arg4)" as a local task
         template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T>
-        Future<MEMFUN_RETURNT(memfunT)> add(MEMFUN_OBJT(memfunT)& obj, 
+        Future<REMFUTURE(MEMFUN_RETURNT(memfunT))> add(MEMFUN_OBJT(memfunT)& obj, 
                                             memfunT memfun,
                                             const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, const arg4T& arg4, const TaskAttributes& attr=TaskAttributes())
         {
-            Future<MEMFUN_RETURNT(memfunT)> result;
+            Future<REMFUTURE(MEMFUN_RETURNT(memfunT))> result;
             add(new TaskMemfun<memfunT>(result,obj,memfun,arg1,arg2,arg3,arg4,attr));
             return result;
         }
@@ -488,11 +488,11 @@ namespace madness {
 
         /// Invoke "resultT (obj.*memfun)(arg1T,arg2T,arg3,arg4,arg5)" as a local task
         template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T, typename arg5T>
-        Future<MEMFUN_RETURNT(memfunT)> add(MEMFUN_OBJT(memfunT)& obj, 
+        Future<REMFUTURE(MEMFUN_RETURNT(memfunT))> add(MEMFUN_OBJT(memfunT)& obj, 
                                             memfunT memfun,
                                             const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, const arg4T& arg4, const arg5T& arg5, const TaskAttributes& attr=TaskAttributes())
         {
-            Future<MEMFUN_RETURNT(memfunT)> result;
+            Future<REMFUTURE(MEMFUN_RETURNT(memfunT))> result;
             add(new TaskMemfun<memfunT>(result,obj,memfun,arg1,arg2,arg3,arg4,arg5,attr));
             return result;
         }
@@ -604,218 +604,23 @@ namespace madness {
         }
     };
 
-    // Internal: This silliness since cannot use a void expression as a void argument
-    template <typename resultT>
-    struct TaskFunctionRun {
-        template <typename functionT, typename a1T, typename a2T, typename a3T, typename a4T, typename a5T, typename a6T, typename a7T>
-        static inline void run(Future<resultT>& result, functionT func, a1T& a1, a2T& a2, a3T& a3, a4T& a4, a5T& a5, a6T& a6, a7T& a7) {
-            result.set(func(a1,a2,a3,a4,a5,a6,a7));
-        }
-
-        template <typename functionT, typename a1T, typename a2T, typename a3T, typename a4T, typename a5T, typename a6T>
-        static inline void run(Future<resultT>& result, functionT func, a1T& a1, a2T& a2, a3T& a3, a4T& a4, a5T& a5, a6T& a6) {
-            result.set(func(a1,a2,a3,a4,a5,a6));
-        }
-
-        template <typename functionT, typename a1T, typename a2T, typename a3T, typename a4T, typename a5T>
-        static inline void run(Future<resultT>& result, functionT func, a1T& a1, a2T& a2, a3T& a3, a4T& a4, a5T& a5) {
-            result.set(func(a1,a2,a3,a4,a5));
-        }
-
-        template <typename functionT, typename a1T, typename a2T, typename a3T, typename a4T>
-        static inline void run(Future<resultT>& result, functionT func, a1T& a1, a2T& a2, a3T& a3, a4T& a4) {
-            result.set(func(a1,a2,a3,a4));
-        }
-
-        template <typename functionT, typename a1T, typename a2T, typename a3T>
-        static inline void run(Future<resultT>& result, functionT func, a1T& a1, a2T& a2, a3T& a3) {
-            result.set(func(a1,a2,a3));
-        }
-
-        template <typename functionT, typename a1T, typename a2T>
-        static inline void run(Future<resultT>& result, functionT func, a1T& a1, a2T& a2) {
-            result.set(func(a1,a2));
-        }
-
-        template <typename functionT, typename a1T>
-        static inline void run(Future<resultT>& result, functionT func, a1T& a1) {
-            result.set(func(a1));
-        }
-
-        template <typename functionT>
-        static inline void run(Future<resultT>& result, functionT func) {
-            result.set(func());
-        }
-    };
-
-    // Internal: This silliness since cannot use a void expression as a void argument
-    template <>
-    struct TaskFunctionRun<void> {
-        template <typename functionT, typename a1T, typename a2T, typename a3T, typename a4T, typename a5T, typename a6T, typename a7T>
-        static inline void run(Future<void>& result, functionT func, a1T& a1, a2T& a2, a3T& a3, a4T& a4, a5T& a5, a6T& a6, a7T& a7) {
-            func(a1,a2,a3,a4,a5,a6,a7);
-        }
-
-        template <typename functionT, typename a1T, typename a2T, typename a3T, typename a4T, typename a5T, typename a6T>
-        static inline void run(Future<void>& result, functionT func, a1T& a1, a2T& a2, a3T& a3, a4T& a4, a5T& a5, a6T& a6) {
-            func(a1,a2,a3,a4,a5,a6);
-        }
-
-        template <typename functionT, typename a1T, typename a2T, typename a3T, typename a4T, typename a5T>
-        static inline void run(Future<void>& result, functionT func, a1T& a1, a2T& a2, a3T& a3, a4T& a4, a5T& a5) {
-            func(a1,a2,a3,a4,a5);
-        }
-
-        template <typename functionT, typename a1T, typename a2T, typename a3T, typename a4T>
-        static inline void run(Future<void>& result, functionT func, a1T& a1, a2T& a2, a3T& a3, a4T& a4) {
-            func(a1,a2,a3,a4);
-        }
-
-        template <typename functionT, typename a1T, typename a2T, typename a3T>
-        static inline void run(Future<void>& result, functionT func, a1T& a1, a2T& a2, a3T& a3) {
-            func(a1,a2,a3);
-        }
-
-        template <typename functionT, typename a1T, typename a2T>
-        static inline void run(Future<void>& result, functionT func, a1T& a1, a2T& a2) {
-            func(a1,a2);
-        }
-
-        template <typename functionT, typename a1T>
-        static inline void run(Future<void>& result, functionT func, a1T& a1) {
-            func(a1);
-        }
-
-        template <typename functionT>
-        static inline void run(Future<void>& result, functionT func) {
-            func();
-        }
-    };
-
-
-    // This silliness since cannot use a void expression as a void argument
-    template <typename resultT>
-    struct TaskMemfunRun {
-        template <typename memfunT, typename a1T, typename a2T, typename a3T, typename a4T, typename a5T, typename a6T, typename a7T>
-        static inline void run(Future<resultT>& result, MEMFUN_OBJT(memfunT)& obj, 
-                               memfunT func, a1T& a1, a2T& a2, a3T& a3, a4T& a4, a5T& a5, a6T& a6, a7T& a7) {
-            result.set((obj.*func)(a1,a2,a3,a4,a5,a6,a7));
-        }
-
-        template <typename memfunT, typename a1T, typename a2T, typename a3T, typename a4T, typename a5T, typename a6T>
-        static inline void run(Future<resultT>& result, MEMFUN_OBJT(memfunT)& obj, 
-                               memfunT func, a1T& a1, a2T& a2, a3T& a3, a4T& a4, a5T& a5, a6T& a6) {
-            result.set((obj.*func)(a1,a2,a3,a4,a5,a6));
-        }
-
-        template <typename memfunT, typename a1T, typename a2T, typename a3T, typename a4T, typename a5T>
-        static inline void run(Future<resultT>& result, MEMFUN_OBJT(memfunT)& obj, 
-                               memfunT func, a1T& a1, a2T& a2, a3T& a3, a4T& a4, a5T& a5) {
-            result.set((obj.*func)(a1,a2,a3,a4,a5));
-        }
-
-        template <typename memfunT, typename a1T, typename a2T, typename a3T, typename a4T>
-        static inline void run(Future<resultT>& result, MEMFUN_OBJT(memfunT)& obj, 
-                               memfunT func, a1T& a1, a2T& a2, a3T& a3, a4T& a4) {
-            result.set((obj.*func)(a1,a2,a3,a4));
-        }
-
-        template <typename memfunT, typename a1T, typename a2T, typename a3T>
-        static inline void run(Future<resultT>& result, MEMFUN_OBJT(memfunT)& obj, 
-                               memfunT func, a1T& a1, a2T& a2, a3T& a3) {
-            result.set((obj.*func)(a1,a2,a3));
-        }
-
-        template <typename memfunT, typename a1T, typename a2T>
-        static inline void run(Future<resultT>& result, MEMFUN_OBJT(memfunT)& obj, 
-                               memfunT func, a1T& a1, a2T& a2) {
-            result.set((obj.*func)(a1,a2));
-        }
-
-        template <typename memfunT, typename a1T>
-        static inline void run(Future<resultT>& result, MEMFUN_OBJT(memfunT)& obj, 
-                               memfunT func, a1T& a1) {
-            result.set((obj.*func)(a1));
-        }
-
-        template <typename memfunT>
-        static inline void run(Future<resultT>& result, MEMFUN_OBJT(memfunT)& obj, 
-                               memfunT func) {
-            result.set((obj.*func)());
-        }
-    };
-
-
-    // This silliness since cannot use a void expression as a void argument
-    template <>
-    struct TaskMemfunRun<void> {
-        template <typename memfunT, typename a1T, typename a2T, typename a3T, typename a4T, typename a5T, typename a6T, typename a7T>
-        static inline void run(Future<void>& result, MEMFUN_OBJT(memfunT)& obj, 
-                               memfunT func, a1T& a1, a2T& a2, a3T& a3, a4T& a4, a5T& a5, a6T& a6, a7T& a7) {
-            (obj.*func)(a1,a2,a3,a4,a5,a6,a7);
-        }
-
-        template <typename memfunT, typename a1T, typename a2T, typename a3T, typename a4T, typename a5T, typename a6T>
-        static inline void run(Future<void>& result, MEMFUN_OBJT(memfunT)& obj, 
-                               memfunT func, a1T& a1, a2T& a2, a3T& a3, a4T& a4, a5T& a5, a6T& a6) {
-            (obj.*func)(a1,a2,a3,a4,a5,a6);
-        }
-
-        template <typename memfunT, typename a1T, typename a2T, typename a3T, typename a4T, typename a5T>
-        static inline void run(Future<void>& result, MEMFUN_OBJT(memfunT)& obj, 
-                               memfunT func, a1T& a1, a2T& a2, a3T& a3, a4T& a4, a5T& a5) {
-            (obj.*func)(a1,a2,a3,a4,a5);
-        }
-
-        template <typename memfunT, typename a1T, typename a2T, typename a3T, typename a4T>
-        static inline void run(Future<void>& result, MEMFUN_OBJT(memfunT)& obj, 
-                               memfunT func, a1T& a1, a2T& a2, a3T& a3, a4T& a4) {
-            (obj.*func)(a1,a2,a3,a4);
-        }
-
-        template <typename memfunT, typename a1T, typename a2T, typename a3T>
-        static inline void run(Future<void>& result, MEMFUN_OBJT(memfunT)& obj, 
-                               memfunT func, a1T& a1, a2T& a2, a3T& a3) {
-            (obj.*func)(a1,a2,a3);
-        }
-
-        template <typename memfunT, typename a1T, typename a2T>
-        static inline void run(Future<void>& result, MEMFUN_OBJT(memfunT)& obj, 
-                               memfunT func, a1T& a1, a2T& a2) {
-            (obj.*func)(a1,a2);
-        }
-
-        template <typename memfunT, typename a1T>
-        static inline void run(Future<void>& result, MEMFUN_OBJT(memfunT)& obj, 
-                               memfunT func, a1T& a1) {
-            (obj.*func)(a1);
-        }
-
-        template <typename memfunT>
-        static inline void run(Future<void>& result, MEMFUN_OBJT(memfunT)& obj, 
-                               memfunT func) {
-            (obj.*func)();
-        }
-    };
-
-
     // Task wrapping "resultT (*function)()"
     template <typename resultT>
     struct TaskFunction<resultT (*)()> : public TaskFunctionBase {
         typedef resultT (*functionT)();
-        typedef Future<resultT> futureT;
-        typedef RemoteReference< FutureImpl<resultT> > refT;
+        typedef Future<REMFUTURE(resultT)> futureT;
+        typedef RemoteReference< FutureImpl<REMFUTURE(resultT)> > refT;
 
         static void handler(World& world, ProcessID src, const AmArg& arg) {
             TaskHandlerInfo<refT,functionT> info = arg;
             world.taskq.add(new TaskFunction<functionT>(futureT(info.ref),info.func,info.attr));
         };
-
-        static void sender(World& world, ProcessID dest, Future<resultT>& result, functionT func, const TaskAttributes& attr) {
+        
+        static void sender(World& world, ProcessID dest, Future<REMFUTURE(resultT)>& result, functionT func, const TaskAttributes& attr) {
             world.am.send(dest, handler, TaskHandlerInfo<refT,functionT>(result.remote_ref(world), func, attr));
         };
 
-        Future<resultT> result; 
+        futureT result; 
         const functionT func;
         TaskFunction(const futureT& result, functionT func, const TaskAttributes& attr) 
             : TaskFunctionBase(attr)
@@ -823,7 +628,9 @@ namespace madness {
             , func(func) 
             {};
         
-        void run(World& world) {TaskFunctionRun<resultT>::run(result,func);}
+        void run(World& world) {
+            result.set(func());
+        };
     };
 
 
@@ -832,8 +639,8 @@ namespace madness {
     struct TaskFunction<resultT (*)(arg1_type)> : public TaskFunctionBase {
         typedef resultT (*functionT)(arg1_type);
         typedef REMFUTURE(REMCONST(REMREF(arg1_type))) arg1T;
-        typedef Future<resultT> futureT;
-        typedef RemoteReference< FutureImpl<resultT> > refT;
+        typedef Future<REMFUTURE(resultT)> futureT;
+        typedef RemoteReference< FutureImpl<REMFUTURE(resultT)> > refT;
 
         static void handler(World& world, ProcessID src, void* buf, size_t nbyte) {
             LongAmArg* arg = (LongAmArg*) buf;
@@ -863,7 +670,7 @@ namespace madness {
         }
 
         void run(World& world) {
-            TaskFunctionRun<resultT>::run(result,func,arg1);
+            result.set(func(arg1));
         };
     };
 
@@ -872,10 +679,11 @@ namespace madness {
     template <typename resultT, typename arg1_type, typename arg2_type>
     struct TaskFunction<resultT (*)(arg1_type,arg2_type)> : public TaskFunctionBase {
         typedef resultT (*functionT)(arg1_type,arg2_type);
+
         typedef REMFUTURE(REMCONST(REMREF(arg1_type))) arg1T;
         typedef REMFUTURE(REMCONST(REMREF(arg2_type))) arg2T;
-        typedef Future<resultT> futureT;
-        typedef RemoteReference< FutureImpl<resultT> > refT;
+        typedef Future<REMFUTURE(resultT)> futureT;
+        typedef RemoteReference< FutureImpl<REMFUTURE(resultT)> > refT;
 
         static void handler(World& world, ProcessID src, void* buf, size_t nbyte) {
             LongAmArg* arg = (LongAmArg*) buf;
@@ -908,10 +716,9 @@ namespace madness {
         }
 
         void run(World& world) {
-            TaskFunctionRun<resultT>::run(result,func,arg1,arg2);
+            result.set(func(arg1,arg2));
         };
     };
-
 
     // Task wrapping "resultT (*function)(arg1,arg2,arg3)"
     template <typename resultT, typename arg1_type, typename arg2_type, typename arg3_type>
@@ -920,8 +727,8 @@ namespace madness {
         typedef REMFUTURE(REMCONST(REMREF(arg1_type))) arg1T;
         typedef REMFUTURE(REMCONST(REMREF(arg2_type))) arg2T;
         typedef REMFUTURE(REMCONST(REMREF(arg3_type))) arg3T;
-        typedef Future<resultT> futureT;
-        typedef RemoteReference< FutureImpl<resultT> > refT;
+        typedef Future<REMFUTURE(resultT)> futureT;
+        typedef RemoteReference< FutureImpl<REMFUTURE(resultT)> > refT;
 
         static void handler(World& world, ProcessID src, void* buf, size_t nbyte) {
             LongAmArg* arg = (LongAmArg*) buf;
@@ -957,7 +764,7 @@ namespace madness {
         }
 
         void run(World& world) {
-            TaskFunctionRun<resultT>::run(result,func,arg1,arg2,arg3);
+            result.set(func(arg1,arg2,arg3));
         };
     };
 
@@ -970,8 +777,8 @@ namespace madness {
         typedef REMFUTURE(REMCONST(REMREF(arg2_type))) arg2T;
         typedef REMFUTURE(REMCONST(REMREF(arg3_type))) arg3T;
         typedef REMFUTURE(REMCONST(REMREF(arg4_type))) arg4T;
-        typedef Future<resultT> futureT;
-        typedef RemoteReference< FutureImpl<resultT> > refT;
+        typedef Future<REMFUTURE(resultT)> futureT;
+        typedef RemoteReference< FutureImpl<REMFUTURE(resultT)> > refT;
 
         static void handler(World& world, ProcessID src, void* buf, size_t nbyte) {
             LongAmArg* arg = (LongAmArg*) buf;
@@ -1010,7 +817,7 @@ namespace madness {
         }
 
         void run(World& world) {
-            TaskFunctionRun<resultT>::run(result,func,arg1,arg2,arg3,arg4);
+            result.set(func(arg1,arg2,arg3,arg4));
         };
     };
 
@@ -1024,8 +831,8 @@ namespace madness {
         typedef REMFUTURE(REMCONST(REMREF(arg3_type))) arg3T;
         typedef REMFUTURE(REMCONST(REMREF(arg4_type))) arg4T;
         typedef REMFUTURE(REMCONST(REMREF(arg5_type))) arg5T;
-        typedef Future<resultT> futureT;
-        typedef RemoteReference< FutureImpl<resultT> > refT;
+        typedef Future<REMFUTURE(resultT)> futureT;
+        typedef RemoteReference< FutureImpl<REMFUTURE(resultT)> > refT;
 
         static void handler(World& world, ProcessID src, void* buf, size_t nbyte) {
             LongAmArg* arg = (LongAmArg*) buf;
@@ -1067,7 +874,7 @@ namespace madness {
         }
 
         void run(World& world) {
-            TaskFunctionRun<resultT>::run(result,func,arg1,arg2,arg3,arg4,arg5);
+            result.set(func(arg1,arg2,arg3,arg4,arg5));
         };
     };
 
@@ -1081,8 +888,8 @@ namespace madness {
         typedef REMFUTURE(REMCONST(REMREF(arg4_type))) arg4T;
         typedef REMFUTURE(REMCONST(REMREF(arg5_type))) arg5T;
         typedef REMFUTURE(REMCONST(REMREF(arg6_type))) arg6T;
-        typedef Future<resultT> futureT;
-        typedef RemoteReference< FutureImpl<resultT> > refT;
+        typedef Future<REMFUTURE(resultT)> futureT;
+        typedef RemoteReference< FutureImpl<REMFUTURE(resultT)> > refT;
 
         static void handler(World& world, ProcessID src, void* buf, size_t nbyte) {
             LongAmArg* arg = (LongAmArg*) buf;
@@ -1127,7 +934,7 @@ namespace madness {
         }
 
         void run(World& world) {
-            TaskFunctionRun<resultT>::run(result,func,arg1,arg2,arg3,arg4,arg5,arg6);
+            result.set(func(arg1,arg2,arg3,arg4,arg5,arg6));
         };
     };
 
@@ -1143,8 +950,8 @@ namespace madness {
         typedef REMFUTURE(REMCONST(REMREF(arg5_type))) arg5T;
         typedef REMFUTURE(REMCONST(REMREF(arg6_type))) arg6T;
         typedef REMFUTURE(REMCONST(REMREF(arg7_type))) arg7T;
-        typedef Future<resultT> futureT;
-        typedef RemoteReference< FutureImpl<resultT> > refT;
+        typedef Future<REMFUTURE(resultT)> futureT;
+        typedef RemoteReference< FutureImpl<REMFUTURE(resultT)> > refT;
 
         static void handler(World& world, ProcessID src, void* buf, size_t nbyte) {
             LongAmArg* arg = (LongAmArg*) buf;
@@ -1192,7 +999,7 @@ namespace madness {
         }
 
         void run(World& world) {
-            TaskFunctionRun<resultT>::run(result,func,arg1,arg2,arg3,arg4,arg5,arg6,arg7);
+            result.set(func(arg1,arg2,arg3,arg4,arg5,arg6,arg7));
         };
     };
 
@@ -1201,7 +1008,7 @@ namespace madness {
     template <typename resultT, typename objT>
     struct TaskMemfun<resultT (objT::*)()> : public TaskFunctionBase {
         typedef resultT (objT::*memfunT)();
-        typedef Future<resultT> futureT;
+        typedef Future<REMFUTURE(resultT)> futureT;
 
         futureT result;
         objT& obj;
@@ -1211,7 +1018,7 @@ namespace madness {
             : TaskFunctionBase(attr), result(result), obj(obj), memfun(memfun) {}
 
         void run(World& world) {
-            TaskMemfunRun<resultT>::run(result,obj,memfun);
+            result.set((obj.*memfun)());
         };
     };
 
@@ -1220,7 +1027,7 @@ namespace madness {
     struct TaskMemfun<resultT (objT::*)(arg1_type)> : public TaskFunctionBase {
         typedef resultT (objT::*memfunT)(arg1_type);
         typedef REMFUTURE(REMCONST(REMREF(arg1_type))) arg1T;
-        typedef Future<resultT> futureT;
+        typedef Future<REMFUTURE(resultT)> futureT;
 
         futureT result;
         objT& obj;
@@ -1234,7 +1041,7 @@ namespace madness {
         }
 
         void run(World& world) {
-            TaskMemfunRun<resultT>::run(result,obj,memfun,arg1);
+            result.set((obj.*memfun)(arg1));
         };
     };
 
@@ -1244,7 +1051,7 @@ namespace madness {
         typedef resultT (objT::*memfunT)(arg1_type,arg2_type);
         typedef REMFUTURE(REMCONST(REMREF(arg1_type))) arg1T;
         typedef REMFUTURE(REMCONST(REMREF(arg2_type))) arg2T;
-        typedef Future<resultT> futureT;
+        typedef Future<REMFUTURE(resultT)> futureT;
 
         futureT result;
         objT& obj;
@@ -1260,7 +1067,7 @@ namespace madness {
         }
 
         void run(World& world) {
-            TaskMemfunRun<resultT>::run(result,obj,memfun,arg1,arg2);
+            result.set((obj.*memfun)(arg1,arg2));
         };
     };
 
@@ -1271,7 +1078,7 @@ namespace madness {
         typedef REMFUTURE(REMCONST(REMREF(arg1_type))) arg1T;
         typedef REMFUTURE(REMCONST(REMREF(arg2_type))) arg2T;
         typedef REMFUTURE(REMCONST(REMREF(arg3_type))) arg3T;
-        typedef Future<resultT> futureT;
+        typedef Future<REMFUTURE(resultT)> futureT;
 
         futureT result;
         objT& obj;
@@ -1290,7 +1097,7 @@ namespace madness {
         }
 
         void run(World& world) {
-            TaskMemfunRun<resultT>::run(result,obj,memfun,arg1,arg2,arg3);
+            result.set((obj.*memfun)(arg1,arg2,arg3));
         };
     };
 
@@ -1302,7 +1109,7 @@ namespace madness {
         typedef REMFUTURE(REMCONST(REMREF(arg2_type))) arg2T;
         typedef REMFUTURE(REMCONST(REMREF(arg3_type))) arg3T;
         typedef REMFUTURE(REMCONST(REMREF(arg4_type))) arg4T;
-        typedef Future<resultT> futureT;
+        typedef Future<REMFUTURE(resultT)> futureT;
 
         futureT result;
         objT& obj;
@@ -1323,7 +1130,7 @@ namespace madness {
         }
 
         void run(World& world) {
-            TaskMemfunRun<resultT>::run(result,obj,memfun,arg1,arg2,arg3,arg4);
+            result.set((obj.*memfun)(arg1,arg2,arg3,arg4));
         };
     };
 
@@ -1336,7 +1143,7 @@ namespace madness {
         typedef REMFUTURE(REMCONST(REMREF(arg3_type))) arg3T;
         typedef REMFUTURE(REMCONST(REMREF(arg4_type))) arg4T;
         typedef REMFUTURE(REMCONST(REMREF(arg5_type))) arg5T;
-        typedef Future<resultT> futureT;
+        typedef Future<REMFUTURE(resultT)> futureT;
 
         futureT result;
         objT& obj;
@@ -1359,7 +1166,7 @@ namespace madness {
         }
 
         void run(World& world) {
-            TaskMemfunRun<resultT>::run(result,obj,memfun,arg1,arg2,arg3,arg4,arg5);
+            result.set((obj.*memfun)(arg1,arg2,arg3,arg4,arg5));
         };
     };
 
@@ -1373,7 +1180,7 @@ namespace madness {
         typedef REMFUTURE(REMCONST(REMREF(arg4_type))) arg4T;
         typedef REMFUTURE(REMCONST(REMREF(arg6_type))) arg6T;
         typedef REMFUTURE(REMCONST(REMREF(arg5_type))) arg5T;
-        typedef Future<resultT> futureT;
+        typedef Future<REMFUTURE(resultT)> futureT;
 
         futureT result;
         objT& obj;
@@ -1398,7 +1205,7 @@ namespace madness {
         }
 
         void run(World& world) {
-            TaskMemfunRun<resultT>::run(result,obj,memfun,arg1,arg2,arg3,arg4,arg5,arg6);
+            result.set((obj.*memfun)(arg1,arg2,arg3,arg4,arg5,arg6));
         };
     };
 
@@ -1410,7 +1217,7 @@ namespace madness {
     template <typename resultT, typename objT>
     struct TaskMemfun<resultT (objT::*)()const> : public TaskFunctionBase {
         typedef resultT (objT::*memfunT)()const;
-        typedef Future<resultT> futureT;
+        typedef Future<REMFUTURE(resultT)> futureT;
 
         futureT result;
         objT& obj;
@@ -1420,7 +1227,7 @@ namespace madness {
             : TaskFunctionBase(attr), result(result), obj(obj), memfun(memfun) {}
 
         void run(World& world) {
-            TaskMemfunRun<resultT>::run(result,obj,memfun);
+            result.set((obj.*memfun)());
         };
     };
 
@@ -1429,7 +1236,7 @@ namespace madness {
     struct TaskMemfun<resultT (objT::*)(arg1_type)const> : public TaskFunctionBase {
         typedef resultT (objT::*memfunT)(arg1_type)const;
         typedef REMFUTURE(REMCONST(REMREF(arg1_type))) arg1T;
-        typedef Future<resultT> futureT;
+        typedef Future<REMFUTURE(resultT)> futureT;
 
         futureT result;
         objT& obj;
@@ -1443,7 +1250,35 @@ namespace madness {
         }
 
         void run(World& world) {
-            TaskMemfunRun<resultT>::run(result,obj,memfun,arg1);
+            result.set((obj.*memfun)(arg1));
+        };
+    };
+
+
+    // Task wrapping "resultT (obj.*function)(arg1,arg2)const"
+    template <typename resultT, typename objT, typename arg1_type, typename arg2_type>
+    struct TaskMemfun<resultT (objT::*)(arg1_type,arg2_type)const> : public TaskFunctionBase {
+        typedef resultT (objT::*memfunT)(arg1_type,arg2_type)const;
+        typedef REMFUTURE(REMCONST(REMREF(arg1_type))) arg1T;
+        typedef REMFUTURE(REMCONST(REMREF(arg2_type))) arg2T;
+        typedef Future<REMFUTURE(resultT)> futureT;
+
+        futureT result;
+        objT& obj;
+        const memfunT memfun;
+        Future<arg1T> arg1;
+        Future<arg2T> arg2;
+
+        template <typename a1T, typename a2T>
+            TaskMemfun(const futureT& result, objT& obj, memfunT memfun, 
+                       const a1T& a1, const a2T& a2, const TaskAttributes& attr) 
+            : TaskFunctionBase(attr), result(result), obj(obj), memfun(memfun), arg1(a1), arg2(a2) {
+            check_dependency(arg1);
+            check_dependency(arg2);
+        }
+
+        void run(World& world) {
+            result.set((obj.*memfun)(arg1,arg2));
         };
     };
 
@@ -1454,7 +1289,7 @@ namespace madness {
         typedef REMFUTURE(REMCONST(REMREF(arg1_type))) arg1T;
         typedef REMFUTURE(REMCONST(REMREF(arg2_type))) arg2T;
         typedef REMFUTURE(REMCONST(REMREF(arg3_type))) arg3T;
-        typedef Future<resultT> futureT;
+        typedef Future<REMFUTURE(resultT)> futureT;
 
         futureT result;
         objT& obj;
@@ -1473,7 +1308,7 @@ namespace madness {
         }
 
         void run(World& world) {
-            TaskMemfunRun<resultT>::run(result,obj,memfun,arg1,arg2,arg3);
+            result.set((obj.*memfun)(arg1,arg2,arg3));
         };
     };
 
@@ -1485,7 +1320,7 @@ namespace madness {
         typedef REMFUTURE(REMCONST(REMREF(arg2_type))) arg2T;
         typedef REMFUTURE(REMCONST(REMREF(arg3_type))) arg3T;
         typedef REMFUTURE(REMCONST(REMREF(arg4_type))) arg4T;
-        typedef Future<resultT> futureT;
+        typedef Future<REMFUTURE(resultT)> futureT;
 
         futureT result;
         objT& obj;
@@ -1506,7 +1341,7 @@ namespace madness {
         }
 
         void run(World& world) {
-            TaskMemfunRun<resultT>::run(result,obj,memfun,arg1,arg2,arg3,arg4);
+            result.set((obj.*memfun)(arg1,arg2,arg3,arg4));
         };
     };
 
@@ -1519,7 +1354,7 @@ namespace madness {
         typedef REMFUTURE(REMCONST(REMREF(arg3_type))) arg3T;
         typedef REMFUTURE(REMCONST(REMREF(arg4_type))) arg4T;
         typedef REMFUTURE(REMCONST(REMREF(arg5_type))) arg5T;
-        typedef Future<resultT> futureT;
+        typedef Future<REMFUTURE(resultT)> futureT;
 
         futureT result;
         objT& obj;
@@ -1542,7 +1377,7 @@ namespace madness {
         }
 
         void run(World& world) {
-            TaskMemfunRun<resultT>::run(result,obj,memfun,arg1,arg2,arg3,arg4,arg5);
+            result.set((obj.*memfun)(arg1,arg2,arg3,arg4,arg5));
         };
     };
 
@@ -1556,7 +1391,7 @@ namespace madness {
         typedef REMFUTURE(REMCONST(REMREF(arg4_type))) arg4T;
         typedef REMFUTURE(REMCONST(REMREF(arg5_type))) arg5T; 
         typedef REMFUTURE(REMCONST(REMREF(arg6_type))) arg6T;
-        typedef Future<resultT> futureT;
+        typedef Future<REMFUTURE(resultT)> futureT;
 
         futureT result;
         objT& obj;
@@ -1581,7 +1416,7 @@ namespace madness {
         }
 
         void run(World& world) {
-            TaskMemfunRun<resultT>::run(result,obj,memfun,arg1,arg2,arg3,arg4,arg5,arg6);
+            result.set((obj.*memfun)(arg1,arg2,arg3,arg4,arg5,arg6));
         };
     };
 

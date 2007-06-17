@@ -1,0 +1,318 @@
+    // Junk below due to void should be factored out by using the Void
+    // class recently introduced in typestuff.h as was done already in
+    // worldobj.h.
+
+    // Internal: This silliness since cannot use a void expression as a void argument
+    template <typename resultT>
+    struct TaskFunctionRun {
+        template <typename functionT, typename a1T, typename a2T, typename a3T, typename a4T, typename a5T, typename a6T, typename a7T>
+        static inline void run(Future<resultT>& result, functionT func, a1T& a1, a2T& a2, a3T& a3, a4T& a4, a5T& a5, a6T& a6, a7T& a7) {
+            result.set(func(a1,a2,a3,a4,a5,a6,a7));
+        }
+
+        template <typename functionT, typename a1T, typename a2T, typename a3T, typename a4T, typename a5T, typename a6T>
+        static inline void run(Future<resultT>& result, functionT func, a1T& a1, a2T& a2, a3T& a3, a4T& a4, a5T& a5, a6T& a6) {
+            result.set(func(a1,a2,a3,a4,a5,a6));
+        }
+
+        template <typename functionT, typename a1T, typename a2T, typename a3T, typename a4T, typename a5T>
+        static inline void run(Future<resultT>& result, functionT func, a1T& a1, a2T& a2, a3T& a3, a4T& a4, a5T& a5) {
+            result.set(func(a1,a2,a3,a4,a5));
+        }
+
+        template <typename functionT, typename a1T, typename a2T, typename a3T, typename a4T>
+        static inline void run(Future<resultT>& result, functionT func, a1T& a1, a2T& a2, a3T& a3, a4T& a4) {
+            result.set(func(a1,a2,a3,a4));
+        }
+
+        template <typename functionT, typename a1T, typename a2T, typename a3T>
+        static inline void run(Future<resultT>& result, functionT func, a1T& a1, a2T& a2, a3T& a3) {
+            result.set(func(a1,a2,a3));
+        }
+
+        template <typename functionT, typename a1T, typename a2T>
+        static inline void run(Future<resultT>& result, functionT func, a1T& a1, a2T& a2) {
+            result.set(func(a1,a2));
+        }
+
+        template <typename functionT, typename a1T>
+        static inline void run(Future<resultT>& result, functionT func, a1T& a1) {
+            result.set(func(a1));
+        }
+
+        template <typename functionT>
+        static inline void run(Future<resultT>& result, functionT func) {
+            result.set(func());
+        }
+
+    };
+
+    // Internal: This silliness since cannot use a void expression as a void argument
+    template <>
+    struct TaskFunctionRun<void> {
+        template <typename functionT, typename a1T, typename a2T, typename a3T, typename a4T, typename a5T, typename a6T, typename a7T>
+        static inline void run(Future<void>& result, functionT func, a1T& a1, a2T& a2, a3T& a3, a4T& a4, a5T& a5, a6T& a6, a7T& a7) {
+            func(a1,a2,a3,a4,a5,a6,a7);
+        }
+
+        template <typename functionT, typename a1T, typename a2T, typename a3T, typename a4T, typename a5T, typename a6T>
+        static inline void run(Future<void>& result, functionT func, a1T& a1, a2T& a2, a3T& a3, a4T& a4, a5T& a5, a6T& a6) {
+            func(a1,a2,a3,a4,a5,a6);
+        }
+
+        template <typename functionT, typename a1T, typename a2T, typename a3T, typename a4T, typename a5T>
+        static inline void run(Future<void>& result, functionT func, a1T& a1, a2T& a2, a3T& a3, a4T& a4, a5T& a5) {
+            func(a1,a2,a3,a4,a5);
+        }
+
+        template <typename functionT, typename a1T, typename a2T, typename a3T, typename a4T>
+        static inline void run(Future<void>& result, functionT func, a1T& a1, a2T& a2, a3T& a3, a4T& a4) {
+            func(a1,a2,a3,a4);
+        }
+
+        template <typename functionT, typename a1T, typename a2T, typename a3T>
+        static inline void run(Future<void>& result, functionT func, a1T& a1, a2T& a2, a3T& a3) {
+            func(a1,a2,a3);
+        }
+
+        template <typename functionT, typename a1T, typename a2T>
+        static inline void run(Future<void>& result, functionT func, a1T& a1, a2T& a2) {
+            func(a1,a2);
+        }
+
+        template <typename functionT, typename a1T>
+        static inline void run(Future<void>& result, functionT func, a1T& a1) {
+            func(a1);
+        }
+
+        template <typename functionT>
+        static inline void run(Future<void>& result, functionT func) {
+            func();
+        }
+    };
+
+
+    // This silliness since cannot use a void expression as a void argument
+    template <typename resultT>
+    struct TaskMemfunRun {
+        template <typename memfunT, typename a1T, typename a2T, typename a3T, typename a4T, typename a5T, typename a6T, typename a7T>
+        static inline void run(Future<resultT>& result, MEMFUN_OBJT(memfunT)& obj, 
+                               memfunT func, a1T& a1, a2T& a2, a3T& a3, a4T& a4, a5T& a5, a6T& a6, a7T& a7) {
+            result.set((obj.*func)(a1,a2,a3,a4,a5,a6,a7));
+        }
+
+        template <typename memfunT, typename a1T, typename a2T, typename a3T, typename a4T, typename a5T, typename a6T>
+        static inline void run(Future<resultT>& result, MEMFUN_OBJT(memfunT)& obj, 
+                               memfunT func, a1T& a1, a2T& a2, a3T& a3, a4T& a4, a5T& a5, a6T& a6) {
+            result.set((obj.*func)(a1,a2,a3,a4,a5,a6));
+        }
+
+        template <typename memfunT, typename a1T, typename a2T, typename a3T, typename a4T, typename a5T>
+        static inline void run(Future<resultT>& result, MEMFUN_OBJT(memfunT)& obj, 
+                               memfunT func, a1T& a1, a2T& a2, a3T& a3, a4T& a4, a5T& a5) {
+            result.set((obj.*func)(a1,a2,a3,a4,a5));
+        }
+
+        template <typename memfunT, typename a1T, typename a2T, typename a3T, typename a4T>
+        static inline void run(Future<resultT>& result, MEMFUN_OBJT(memfunT)& obj, 
+                               memfunT func, a1T& a1, a2T& a2, a3T& a3, a4T& a4) {
+            result.set((obj.*func)(a1,a2,a3,a4));
+        }
+
+        template <typename memfunT, typename a1T, typename a2T, typename a3T>
+        static inline void run(Future<resultT>& result, MEMFUN_OBJT(memfunT)& obj, 
+                               memfunT func, a1T& a1, a2T& a2, a3T& a3) {
+            result.set((obj.*func)(a1,a2,a3));
+        }
+
+        template <typename memfunT, typename a1T, typename a2T>
+        static inline void run(Future<resultT>& result, MEMFUN_OBJT(memfunT)& obj, 
+                               memfunT func, a1T& a1, a2T& a2) {
+            result.set((obj.*func)(a1,a2));
+        }
+
+        template <typename memfunT, typename a1T>
+        static inline void run(Future<resultT>& result, MEMFUN_OBJT(memfunT)& obj, 
+                               memfunT func, a1T& a1) {
+            result.set((obj.*func)(a1));
+        }
+
+        template <typename memfunT>
+        static inline void run(Future<resultT>& result, MEMFUN_OBJT(memfunT)& obj, 
+                               memfunT func) {
+            result.set((obj.*func)());
+        }
+    };
+
+
+    // This silliness since cannot use a void expression as a void argument
+    template <>
+    struct TaskMemfunRun<void> {
+        template <typename memfunT, typename a1T, typename a2T, typename a3T, typename a4T, typename a5T, typename a6T, typename a7T>
+        static inline void run(Future<void>& result, MEMFUN_OBJT(memfunT)& obj, 
+                               memfunT func, a1T& a1, a2T& a2, a3T& a3, a4T& a4, a5T& a5, a6T& a6, a7T& a7) {
+            (obj.*func)(a1,a2,a3,a4,a5,a6,a7);
+        }
+
+        template <typename memfunT, typename a1T, typename a2T, typename a3T, typename a4T, typename a5T, typename a6T>
+        static inline void run(Future<void>& result, MEMFUN_OBJT(memfunT)& obj, 
+                               memfunT func, a1T& a1, a2T& a2, a3T& a3, a4T& a4, a5T& a5, a6T& a6) {
+            (obj.*func)(a1,a2,a3,a4,a5,a6);
+        }
+
+        template <typename memfunT, typename a1T, typename a2T, typename a3T, typename a4T, typename a5T>
+        static inline void run(Future<void>& result, MEMFUN_OBJT(memfunT)& obj, 
+                               memfunT func, a1T& a1, a2T& a2, a3T& a3, a4T& a4, a5T& a5) {
+            (obj.*func)(a1,a2,a3,a4,a5);
+        }
+
+        template <typename memfunT, typename a1T, typename a2T, typename a3T, typename a4T>
+        static inline void run(Future<void>& result, MEMFUN_OBJT(memfunT)& obj, 
+                               memfunT func, a1T& a1, a2T& a2, a3T& a3, a4T& a4) {
+            (obj.*func)(a1,a2,a3,a4);
+        }
+
+        template <typename memfunT, typename a1T, typename a2T, typename a3T>
+        static inline void run(Future<void>& result, MEMFUN_OBJT(memfunT)& obj, 
+                               memfunT func, a1T& a1, a2T& a2, a3T& a3) {
+            (obj.*func)(a1,a2,a3);
+        }
+
+        template <typename memfunT, typename a1T, typename a2T>
+        static inline void run(Future<void>& result, MEMFUN_OBJT(memfunT)& obj, 
+                               memfunT func, a1T& a1, a2T& a2) {
+            (obj.*func)(a1,a2);
+        }
+
+        template <typename memfunT, typename a1T>
+        static inline void run(Future<void>& result, MEMFUN_OBJT(memfunT)& obj, 
+                               memfunT func, a1T& a1) {
+            (obj.*func)(a1);
+        }
+
+        template <typename memfunT>
+        static inline void run(Future<void>& result, MEMFUN_OBJT(memfunT)& obj, 
+                               memfunT func) {
+            (obj.*func)();
+        }
+    };
+
+
+
+
+
+        // This silliness since cannot use a void expression as a void argument or return value
+        template <typename returnT>
+        struct MemfunRun {
+            template <typename memfunT, typename a1T, typename a2T, typename a3T, typename a4T, typename a5T, typename a6T, typename a7T>
+            static inline returnT run(MEMFUN_OBJT(memfunT)& obj, 
+                                   memfunT func, a1T& a1, a2T& a2, a3T& a3, a4T& a4, a5T& a5, a6T& a6, a7T& a7) {
+                return (obj.*func)(a1,a2,a3,a4,a5,a6,a7);
+            }
+            
+            template <typename memfunT, typename a1T, typename a2T, typename a3T, typename a4T, typename a5T, typename a6T>
+            static inline returnT run(MEMFUN_OBJT(memfunT)& obj, 
+                                   memfunT func, a1T& a1, a2T& a2, a3T& a3, a4T& a4, a5T& a5, a6T& a6) {
+                return (obj.*func)(a1,a2,a3,a4,a5,a6);
+            }
+            
+            template <typename memfunT, typename a1T, typename a2T, typename a3T, typename a4T, typename a5T>
+            static inline returnT run(MEMFUN_OBJT(memfunT)& obj, 
+                                   memfunT func, a1T& a1, a2T& a2, a3T& a3, a4T& a4, a5T& a5) {
+                return (obj.*func)(a1,a2,a3,a4,a5);
+            }
+            
+            template <typename memfunT, typename a1T, typename a2T, typename a3T, typename a4T>
+            static inline returnT run(MEMFUN_OBJT(memfunT)& obj, 
+                                   memfunT func, a1T& a1, a2T& a2, a3T& a3, a4T& a4) {
+                return (obj.*func)(a1,a2,a3,a4);
+            }
+            
+            template <typename memfunT, typename a1T, typename a2T, typename a3T>
+            static inline returnT run(MEMFUN_OBJT(memfunT)& obj, 
+                                   memfunT func, a1T& a1, a2T& a2, a3T& a3) {
+                return (obj.*func)(a1,a2,a3);
+            }
+            
+            template <typename memfunT, typename a1T, typename a2T>
+            static inline returnT run(MEMFUN_OBJT(memfunT)& obj, 
+                                   memfunT func, a1T& a1, a2T& a2) {
+                return (obj.*func)(a1,a2);
+            }
+            
+            template <typename memfunT, typename a1T>
+            static inline returnT run(MEMFUN_OBJT(memfunT)& obj, 
+                                   memfunT func, a1T& a1) {
+                return (obj.*func)(a1);
+            }
+            
+            template <typename memfunT>
+            static inline returnT run(MEMFUN_OBJT(memfunT)& obj, 
+                                   memfunT func) {
+                return (obj.*func)();
+            }
+        };
+        
+        // This silliness since cannot use a void expression as a void argument or return value
+        template <>
+        struct MemfunRun<void> {
+            template <typename memfunT, typename a1T, typename a2T, typename a3T, typename a4T, typename a5T, typename a6T, typename a7T>
+            static inline Void run(MEMFUN_OBJT(memfunT)& obj, 
+                                   memfunT func, a1T& a1, a2T& a2, a3T& a3, a4T& a4, a5T& a5, a6T& a6, a7T& a7) {
+                (obj.*func)(a1,a2,a3,a4,a5,a6,a7);
+                return Void();
+            }
+            
+            template <typename memfunT, typename a1T, typename a2T, typename a3T, typename a4T, typename a5T, typename a6T>
+            static inline Void run(MEMFUN_OBJT(memfunT)& obj, 
+                                   memfunT func, a1T& a1, a2T& a2, a3T& a3, a4T& a4, a5T& a5, a6T& a6) {
+                (obj.*func)(a1,a2,a3,a4,a5,a6);
+                return Void();
+            }
+            
+            template <typename memfunT, typename a1T, typename a2T, typename a3T, typename a4T, typename a5T>
+            static inline Void run(MEMFUN_OBJT(memfunT)& obj, 
+                                   memfunT func, a1T& a1, a2T& a2, a3T& a3, a4T& a4, a5T& a5) {
+                (obj.*func)(a1,a2,a3,a4,a5);
+                return Void();
+            }
+            
+            template <typename memfunT, typename a1T, typename a2T, typename a3T, typename a4T>
+            static inline Void run(MEMFUN_OBJT(memfunT)& obj, 
+                                   memfunT func, a1T& a1, a2T& a2, a3T& a3, a4T& a4) {
+                (obj.*func)(a1,a2,a3,a4);
+                return Void();
+            }
+            
+            template <typename memfunT, typename a1T, typename a2T, typename a3T>
+            static inline Void run(MEMFUN_OBJT(memfunT)& obj, 
+                                   memfunT func, a1T& a1, a2T& a2, a3T& a3) {
+                (obj.*func)(a1,a2,a3);
+                return Void();
+            }
+            
+            template <typename memfunT, typename a1T, typename a2T>
+            static inline Void run(MEMFUN_OBJT(memfunT)& obj, 
+                                   memfunT func, a1T& a1, a2T& a2) {
+                (obj.*func)(a1,a2);
+                return Void();
+            }
+            
+            template <typename memfunT, typename a1T>
+            static inline Void run(MEMFUN_OBJT(memfunT)& obj, 
+                                   memfunT func, a1T& a1) {
+                (obj.*func)(a1);
+                return Void();
+            }
+            
+            template <typename memfunT>
+            static inline Void run(MEMFUN_OBJT(memfunT)& obj, 
+                                   memfunT func) {
+                (obj.*func)();
+                return Void();
+            }
+        };
+
+
+
+

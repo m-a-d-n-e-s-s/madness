@@ -29,7 +29,7 @@ inline int nearest_power(int me, int d) {
 template <typename Data, int D> class LBNode;
 template <int D> struct TreeCoords;
 template <int D> struct Tree;
-template <int D> class MyProcmap;
+template <int D> class MyPmap;
 class NodeData;
 
 template <int D>
@@ -40,8 +40,8 @@ struct DClass {
     typedef Tree<D> Tree;
     typedef LBNode<NodeData,D> NodeD;
     typedef const LBNode<NodeData,D> NodeDConst;
-    typedef MyProcmap<D> MyProcMap;
-    typedef WorldContainer< KeyD,NodeD,MyProcMap > treeT;
+    typedef MyPmap<D> MyPmap;
+    typedef WorldContainer< KeyD,NodeD,MyPmap > treeT;
 };
 
 
@@ -416,7 +416,7 @@ struct Tree {
 
 
 template <int D>
-class MyProcmap {
+class MyPmap {
 private:
     int whichmap;
     const ProcessID owner;
@@ -446,8 +446,8 @@ private:
 	
 
 public:
-    MyProcmap() : whichmap(0), owner(0) {};
-    MyProcmap(World& world) : whichmap(1), owner(0) {
+    MyPmap() : whichmap(0), owner(0) {};
+    MyPmap(World& world) : whichmap(1), owner(0) {
 	int NP = world.nproc();
 	const int level = nearest_power(NP, D);
 	int twotoD = power<D>();
@@ -464,9 +464,9 @@ public:
 	    buildTreeMap(v);
 	}
     }; 
-    MyProcmap(World& world, ProcessID owner) : whichmap(0), owner(owner) {};
+    MyPmap(World& world, ProcessID owner) : whichmap(0), owner(owner) {};
 
-    MyProcmap(World& world, vector<TreeCoords<D> > v) : whichmap(1), owner(1) {
+    MyPmap(World& world, vector<TreeCoords<D> > v) : whichmap(1), owner(1) {
 	buildTreeMap(v);
 	treeMap.print();
     };

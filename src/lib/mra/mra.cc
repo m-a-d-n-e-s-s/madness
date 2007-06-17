@@ -96,7 +96,7 @@ namespace madness {
     template <int NDIM> bool FunctionDefaults<NDIM>::debug;          
     template <int NDIM> Tensor<int> FunctionDefaults<NDIM>::bc;      
     template <int NDIM> Tensor<double> FunctionDefaults<NDIM>::cell ;
-    
+    template <int NDIM> SharedPtr< WorldDCPmapInterface< Key<NDIM> > > FunctionDefaults<NDIM>::pmap;
 
 
 #ifdef FUNCTION_INSTANTIATE_1

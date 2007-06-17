@@ -37,15 +37,14 @@ class B {
     long b;
 public:
     B(long b=0) : b(b) {};
-    void set(long value) {b=value;};
+    Void set(long value) {b=value; return None;};
     long get() const {return b;};
     ~B(){print("B destructor");};
     template <typename Archive> void serialize(Archive &ar) {ar&b;}
 };
 
 void handler(World& world, ProcessID from, const AmArg& arg) {
-  
-  world.mpi.Send(arg.buf[0]+1, from, 33);
+    world.mpi.Send(arg.buf[0]+1, from, 33);
 }
 
 void hello(World& world, ProcessID from, const AmArg& arg) {
@@ -70,7 +69,7 @@ void test1(World& world) {
       ProcessID p = world.mpi.random_proc_not_me();
       world.am.send_recv(p,handler,AmArg(me+1000L),&reply,sizeof(reply),p,33);
       if (reply != me+1001) {
-	print("bad reply",reply,me+1001);
+        print("bad reply",reply,me+1001);
         throw "Ooops ...";
       }
     }
@@ -97,7 +96,7 @@ void test2_handler(World& world, ProcessID src, void *buf, size_t len) {
 
     if (lens < 10000) {
         lens++;
-	s = new short[lens+8];
+        s = new short[lens+8];
         for (short i=0; i<lens; i++) s[i+8] = i;
         ProcessID dest = world.mpi.random_proc();
         world.am.send_long(dest, test2_handler, s, lens*sizeof(short)+16);
@@ -136,7 +135,7 @@ void test3_handler(World& world, ProcessID src, void *buf, size_t len) {
 
     if (lens < 10000) {
         lens++;
-	s = new short[lens+8];
+        s = new short[lens+8];
         for (short i=0; i<lens; i++) s[i+8] = i;
         ProcessID dest = world.mpi.random_proc();
         world.am.send_long_managed(dest, test3_handler, s, lens*sizeof(short)+16);
@@ -197,7 +196,7 @@ private:
 public:
     TTT() : state(0) {};
 
-    static void fred(){print("Oops-a-daisy!");};
+    static Void fred(){print("Oops-a-daisy!"); return None;};
 
     static int mary() {return 99;};
 
@@ -268,17 +267,17 @@ void test5(World& world) {
     Future<double> duh = world.taskq.add(me,dumb,0,1,2,3,4,5,6);
     print("done with making futs");
 
-    bert_input = 7;
-    sara1 = 3.0;
-    sara2 = double_complex(2.1,1.2);
-    kate2 = string("Who's your daddy?");
-    kate3 = 3.14;
+    bert_input.set(7);
+    sara1.set(3.0);
+    sara2.set(double_complex(2.1,1.2));
+    kate2.set(string("Who's your daddy?"));
+    kate3.set(3.14);
 
     vector< Future<int> > futv = future_vector_factory<int>(7);
     Future<double> hugh = world.taskq.add(ttt,&TTT::hugh,futv);
     for (int i=0; i<7; i++) {
         print("assigning",i,futv[i]);
-        futv[i] = i;
+        futv[i].set(i);
     }
     
     print("about to fence again");
@@ -334,6 +333,8 @@ public:
     int get3c(int a1, char a2, short a3) const {return a+a1+a2+a3;};
     int get4c(int a1, char a2, short a3, long a4) const {return a+a1+a2+a3+a4;};
     int get5c(int a1, char a2, short a3, long a4, short a5) const {return a+a1+a2+a3+a4+a5;};
+
+    Future<int> get0f() {return Future<int>(a);};
 };
 
 void test6(World& world) {
@@ -346,6 +347,9 @@ void test6(World& world) {
         for (ProcessID p=0; p<nproc; p++) {
             MADNESS_ASSERT(a.send(p,&Foo::get0).get() == p*100);
             MADNESS_ASSERT(a.task(p,&Foo::get0).get() == p*100);
+
+            MADNESS_ASSERT(a.send(p,&Foo::get0f).get() == p*100);
+            MADNESS_ASSERT(a.task(p,&Foo::get0f).get() == p*100);
 
             MADNESS_ASSERT(a.send(p,&Foo::get1,1).get() == p*100+1);
             MADNESS_ASSERT(a.task(p,&Foo::get1,Future<int>(1)).get() == p*100+1);
@@ -407,9 +411,9 @@ void test7(World& world) {
     for (int i=999; i>=0; i--) {
         futureT fut = c.find(i);
         iterator it = fut.get();
-	MADNESS_ASSERT(it != c.end());
-	double j = it->second;
-	MADNESS_ASSERT(j == i);
+        MADNESS_ASSERT(it != c.end());
+        double j = it->second;
+        MADNESS_ASSERT(j == i);
     }
     world.gop.fence();
     
@@ -453,7 +457,7 @@ void test8(World& world) {
     if (world.rank() == 0) print("test8 (serializing world pointer) OK");
 }
 
-void null_func(){};
+Void null_func(){return None;};
 
 int val_func() {return 1;};
 
@@ -494,7 +498,7 @@ void test9(World& world) {
     }
     used += cpu_time();
     print("Time to make",ntask,"chain of tasks",used,"time/task",used/ntask);
-    input = 0;
+    input.set(0);
     used = -cpu_time();
     world.taskq.fence();
     used += cpu_time();
@@ -511,19 +515,22 @@ public:
     Mary() : val(0) {
         print("MAKING Mary",(void*)this);
     };
-    void inc() {
+    Void inc() {
         print("INC Mary",(void*)this,val);
         val++;
         print("Mary was just incremented",val);
+        return None;
     };
-    void add(int i) {
+    Void add(int i) {
         print("ADD Mary",(void*)this,val,i);
         val += i;
         print("Mary was just added",i,val);
+        return None;
     };
-    void fred(int i, double j) {
+    Void fred(int i, double j) {
         print("FRED Mary",(void*)this,val,i,j);
         val += i*(int)j;
+        return None;
     };
 
     string cary0() {
@@ -660,7 +667,7 @@ struct Key {
 
     template <typename Archive>
     void serialize(const Archive& ar) {
-	ar & n & i & j & k & hashval;
+        ar & n & i & j & k & hashval;
     }
 
     bool operator==(const Key& b) const {
@@ -693,7 +700,7 @@ struct Node {
         };
     };
 
-    void random_insert(const dcT& constd, const Key& keyin, double valin) {
+    Void random_insert(const dcT& constd, const Key& keyin, double valin) {
         dcT& d = const_cast<dcT&>(constd);
         //print("inserting",keyin,valin);
         key = keyin;
@@ -705,6 +712,7 @@ struct Node {
             double ran = world.mpi.drand();
             key.foreach_child(do_random_insert(d,value*ran)); 
         }
+        return None;
     };
 
     template <class Archive>
@@ -716,7 +724,7 @@ struct Node {
 
     double get() const {return value;};
   
-    void set(double v) {value = v;};
+    Void set(double v) {value = v; return None;};
 };
 
 ostream& operator<<(ostream& s, const Node& node) {
@@ -805,7 +813,7 @@ void test11(World& world) {
     // Test get, erase, and re-insert of nodes with new value by node 0
     if (me == 0) {
         Key root = Key(0,0,0,0);
-	walker1(d,root);
+        walker1(d,root);
     }
     world.gop.fence();
     print("walker1 done");
@@ -814,7 +822,7 @@ void test11(World& world) {
     // Test get and re-insert of nodes with new value by node 0
     if (me == 0) {
         Key root = Key(0,0,0,0);
-	walker2(d,root);
+        walker2(d,root);
     }
     world.gop.fence();
     print("walker2 done");
@@ -848,9 +856,9 @@ int main(int argc, char** argv) {
       DQueue<int>::self_test();
       test0(world);
       if (world.nproc() > 1) {
-	test1(world);
-	test2(world);
-	test3(world);
+        test1(world);
+        test2(world);
+        test3(world);
       }
       test4(world);
       test5(world);

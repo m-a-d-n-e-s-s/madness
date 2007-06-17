@@ -391,7 +391,7 @@ struct Tree {
 
 
 template <typename keyT>
-class MyProcmap {
+class MyPmap {
 private:
     int whichmap;
     const ProcessID owner;
@@ -419,10 +419,10 @@ private:
 	
 
 public:
-    MyProcmap() : whichmap(0), owner(0) {};
-    MyProcmap(ProcessID owner) : whichmap(0), owner(owner) {};
+    MyPmap() : whichmap(0), owner(0) {};
+    MyPmap(ProcessID owner) : whichmap(0), owner(owner) {};
 
-    MyProcmap(vector<TreeCoords> v) : whichmap(1), owner(1) {
+    MyPmap(vector<TreeCoords> v) : whichmap(1), owner(1) {
 	buildTreeMap(v);
 	treeMap.print();
     };
@@ -438,7 +438,7 @@ public:
 };
 
 typedef Node<NodeData,2> NodeD;
-typedef WorldContainer< KeyD,NodeD,MyProcmap<KeyD> > treeT;
+typedef WorldContainer< KeyD,NodeD,MyPmap<KeyD> > treeT;
 
 void build_tree(treeT& tree, const KeyD& key) {
     NodeData data(1,1,false);  
@@ -939,8 +939,8 @@ void migrate(treeT tfrom, treeT tto) {
 
 // convert tree from templated form to tree to be used for load balancing
 template <typename Q, unsigned int N>
-void convert_node(WorldContainer<KeyD,Node<Q,N>,MyProcmap<KeyD> > orig, treeT skel, KeyD key) {
-    typename WorldContainer<KeyD,Node<Q,N>,MyProcmap<KeyD> >::iterator it = orig.find(key);
+void convert_node(WorldContainer<KeyD,Node<Q,N>,MyPmap<KeyD> > orig, treeT skel, KeyD key) {
+    typename WorldContainer<KeyD,Node<Q,N>,MyPmap<KeyD> >::iterator it = orig.find(key);
 
     if (it == orig.end()) return;
 
@@ -959,7 +959,7 @@ void convert_node(WorldContainer<KeyD,Node<Q,N>,MyProcmap<KeyD> > orig, treeT sk
 
 /*
 template <typename Q, unsigned int N>
-void convert_tree(WorldContainer<KeyD,Node<Q,N>,MyProcmap<KeyD> > orig, treeT skel) {
+void convert_tree(WorldContainer<KeyD,Node<Q,N>,MyPmap<KeyD> > orig, treeT skel) {
     KeyD root(0,0,0);
     convert_node<Q,N>(orig, skel, root);
 }
@@ -988,11 +988,11 @@ int main(int argc, char** argv) {
 	v.push_back(TreeCoords(KeyD(2,2,0),3));
 */
 	KeyD root(0,0,0);
-	treeT tree(world,MyProcmap<KeyD>(v));
-//	treeT tree(world,MyProcmap<KeyD>(1));
+	treeT tree(world,MyPmap<KeyD>(v));
+//	treeT tree(world,MyPmap<KeyD>(1));
 	print("Made tree");
 	print("About to make tree1");
-	treeT tree1(world,MyProcmap<KeyD>(v));
+	treeT tree1(world,MyPmap<KeyD>(v));
 	if (me == 0) { 
 	    print("About to build tree");
 	    build_tree(tree,root);
@@ -1046,7 +1046,7 @@ int main(int argc, char** argv) {
 	    }
 	    print("done broadcasting klist");
 	}
-	treeT tree2(world,MyProcmap<KeyD>(klist));
+	treeT tree2(world,MyPmap<KeyD>(klist));
 	if (me == 0) {
 	    migrate(tree1, tree2);
 	    print("copied tree1 to tree2");

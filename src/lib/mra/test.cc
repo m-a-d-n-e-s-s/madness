@@ -64,6 +64,11 @@ int main(int argc, char**argv) {
         print("entering fence after eval");
         world.gop.fence();
 
+        f.compress(false);
+        print("entering fence after compress");
+        world.gop.fence();
+        
+
 
 
 //	xterm_debug("test", 0);

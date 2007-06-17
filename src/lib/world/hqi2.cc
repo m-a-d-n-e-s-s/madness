@@ -26,13 +26,13 @@ int main(int argc, char** argv) {
 	v.push_back(DClass<2>::TreeCoords(DClass<2>::KeyD(1,k2),1));
 
 	DClass<2>::KeyD root(0,k0);
-	DClass<2>::treeT tree(world,DClass<2>::MyProcMap(world,v));
-//	DClass<2>::treeT tree(world,MyProcmap<2>(v));
-//	treeT tree(world,MyProcmapD(1));
+	DClass<2>::treeT tree(world,DClass<2>::MyPmap(world,v));
+//	DClass<2>::treeT tree(world,MyPmap<2>(v));
+//	treeT tree(world,MyPmapD(1));
 	print("Made tree");
 	print("About to make tree1");
-//	DClass<2>::treeT tree1(world,MyProcmap<2>(v));
-	DClass<2>::treeT tree1(world,DClass<2>::MyProcMap(world,v));
+//	DClass<2>::treeT tree1(world,MyPmap<2>(v));
+	DClass<2>::treeT tree1(world,DClass<2>::MyPmap(world,v));
 	if (me == 0) { 
 	    print("About to build tree");
 	    build_tree<2>(tree,root);
@@ -86,7 +86,7 @@ int main(int argc, char** argv) {
 	    }
 	    print("done broadcasting klist");
 	}
-	DClass<2>::treeT tree2(world,DClass<2>::MyProcMap(world,klist));
+	DClass<2>::treeT tree2(world,DClass<2>::MyPmap(world,klist));
 	if (me == 0) {
 	    migrate<2>(tree1, tree2);
 	    print("copied tree1 to tree2");

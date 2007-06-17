@@ -18,6 +18,9 @@ namespace madness {
     /// only recommended approach is to set the simulation cell once
     /// and for all at the start of a calculation and to use it for
     /// all Function instances.  A little work could improve upon this.
+    ///
+    /// N.B.  Ultimately, we may need to make these defaults specific to each
+    /// world as should be all global state.
     template <int NDIM>
     class FunctionDefaults {
     public:
@@ -32,8 +35,9 @@ namespace madness {
         static bool debug;             ///< Controls output of debug info
         static Tensor<int> bc;         ///< bc[NDIM][2] Boundary conditions -- zero(0) or periodic(1)
         static Tensor<double> cell ;   ///< cell[NDIM][2] Simulation cell, cell(0,0)=xlo, cell(0,1)=xhi, ...
+        static SharedPtr< WorldDCPmapInterface< Key<NDIM> > > pmap; ///< Default mapping of keys to processes
 
-        static void set_defaults () {
+        static void set_defaults (World& world) {
             k = 7;
             thresh = 1e-5;
             initial_level = 2;
@@ -46,6 +50,7 @@ namespace madness {
             bc = Tensor<int>(NDIM,2);
             cell = Tensor<double>(NDIM,2);
             cell(_,1) = 1.0;
+            pmap = SharedPtr< WorldDCPmapInterface< Key<NDIM> > >(new WorldDCDefaultPmap< Key<NDIM> >(world));
         };
     };
 
@@ -147,8 +152,8 @@ namespace madness {
         };
     };
 
-    template <typename T, int NDIM, typename Pmap> class FunctionImpl;
-    template <typename T, int NDIM, typename Pmap> class Function;
+    template <typename T, int NDIM> class FunctionImpl;
+    template <typename T, int NDIM> class Function;
 
 
     /// FunctionFactory implements the named-parameter idiom for Function
@@ -163,11 +168,10 @@ namespace madness {
     /// arguments eventually passed to the \c Function constructor, can be
     /// used in any order.
     ///
-    /// Sigh.  Need to add a general functor for initial projection but
-    /// this makes the template crap even uglier.  Suggestions anyone?
-    template <typename T, int NDIM, typename Pmap=DCDefaultProcmap< Key<NDIM> > > 
+    /// Need to add a general functor for initial projection with a standard interface.
+    template <typename T, int NDIM> 
     class FunctionFactory {
-        friend class FunctionImpl<T,NDIM,Pmap>;
+        friend class FunctionImpl<T,NDIM>;
         typedef Vector<double,NDIM> coordT;            ///< Type of vector holding coordinates
     protected:
         World& _world;
@@ -182,6 +186,7 @@ namespace madness {
         bool _refine;
         bool _empty;
         bool _autorefine;
+        SharedPtr< WorldDCPmapInterface< Key<NDIM> > > _pmap;
     public:
         FunctionFactory(World& world) 
             : _world(world)
@@ -196,6 +201,7 @@ namespace madness {
             , _refine(FunctionDefaults<NDIM>::refine)
             , _empty(false)
             , _autorefine(FunctionDefaults<NDIM>::autorefine)
+            , _pmap(FunctionDefaults<NDIM>::pmap)
         {};
         inline FunctionFactory& f(T (*f)(const coordT&)) {
             _f = f;
@@ -252,6 +258,9 @@ namespace madness {
         inline FunctionFactory& noautorefine() {
             _autorefine = false;
             return *this;
+        };
+        inline FunctionFactory& pmap(const SharedPtr< WorldDCPmapInterface< Key<NDIM> > >& pmap) {
+            _pmap = pmap;
         };
     };
 
@@ -326,15 +335,15 @@ namespace madness {
     /// The FunctionImpl inherits all of the functionality of WorldContainer
     /// (to store the coefficients) and WorldObject<WorldContainer> (used
     /// for RMI and for its unqiue id).
-    template <typename T, int NDIM, typename Pmap=DCDefaultProcmap< Key<NDIM> > >
-    class FunctionImpl : public WorldObject< FunctionImpl<T,NDIM,Pmap> > {
+    template <typename T, int NDIM>
+    class FunctionImpl : public WorldObject< FunctionImpl<T,NDIM> > {
     public:
-        typedef FunctionImpl<T,NDIM,Pmap> implT;       ///< Type of this class (implementation)
+        typedef FunctionImpl<T,NDIM> implT;       ///< Type of this class (implementation)
         typedef Tensor<T> tensorT;                     ///< Type of tensor used to hold coeffs
         typedef Vector<Translation,NDIM> tranT;         ///< Type of array holding translation
         typedef Key<NDIM> keyT;                        ///< Type of key
         typedef FunctionNode<T,NDIM> nodeT;            ///< Type of node
-        typedef WorldContainer<keyT,nodeT, Pmap> dcT;  ///< Type of container holding the coefficients
+        typedef WorldContainer<keyT,nodeT> dcT;  ///< Type of container holding the coefficients
         typedef std::pair<const keyT,nodeT> datumT;    ///< Type of entry in container
         typedef Vector<double,NDIM> coordT;            ///< Type of vector holding coordinates
 
@@ -372,7 +381,7 @@ namespace madness {
     public:
 
         /// Initialize function impl from data in factory
-        FunctionImpl(const FunctionFactory<T,NDIM,Pmap>& factory) 
+        FunctionImpl(const FunctionFactory<T,NDIM>& factory) 
             : WorldObject<implT>(factory._world)
             , world(factory._world)
             , k(factory._k)
@@ -433,11 +442,13 @@ namespace madness {
 
         /// Copy constructor
 
-        /// Allocates a \em new function index in preparation for a deep copy
+        /// Allocates a \em new function in preparation for a deep copy
         ///
-        /// Does \em not copy the coefficients ... creates an empty container for them
+        /// By default takes pmap from other but can also specify a different pmap.
+        /// Does \em not copy the coefficients ... creates an empty container.
         ///
-        FunctionImpl(const FunctionImpl<T,NDIM,Pmap>& other, const Pmap& pmap) 
+        FunctionImpl(const FunctionImpl<T,NDIM>& other, 
+                     const SharedPtr< WorldDCPmapInterface< Key<NDIM> > > procmap = 0)
             : WorldObject<implT>(other.world)
             , world(other.world)
             , k(other.k)
@@ -455,7 +466,7 @@ namespace madness {
             , vf(other.vf)
             , compressed(other.compressed)
             , nterminated(other.nterminated)
-            , coeffs(world,pmap)
+            , coeffs(world, procmap ? procmap : other.coeffs.get_pmap())
             , cell(other.cell)
             , bc(other.bc)
             , cell_width(other.cell_width)
@@ -463,60 +474,8 @@ namespace madness {
             , cell_volume(other.cell_volume)
         {};
 
-        /// Copy constructor
-
-        /// Allocates a \em new function index in preparation for a deep copy
-        ///
-        /// Does \em not copy the coefficients ... creates an empty container for them
-        ///
-        FunctionImpl(const FunctionImpl<T,NDIM,Pmap>& other) 
-            : WorldObject<implT>(other.world)
-            , world(other.world)
-            , k(other.k)
-            , thresh(other.thresh)
-            , truncate_thr(other.truncate_thr)
-            , autorefine_thr(other.autorefine_thr)
-            , initial_level(other.initial_level)
-            , max_refine_level(other.max_refine_level)
-            , truncate_mode(other.truncate_mode)
-            , autorefine(other.autorefine)
-            , dorefine(other.dorefine)
-            , nonstandard(other.nonstandard)
-            , cdata(other.cdata)
-            , f(other.f)
-            , vf(other.vf)
-            , compressed(other.compressed)
-            , nterminated(other.nterminated)
-            , coeffs(world,other.coeffs.get_procmap())
-            , cell(other.cell)
-            , bc(other.bc)
-            , cell_width(other.cell_width)
-            , rcell_width(other.rcell_width)
-            , cell_volume(other.cell_volume)
-        {};
-
-
-//         void insert_weird_tree(const keyT& key) {
-// //	    for (Level i = 0; i < key.level(); i++) cout << "  ";
-// //	    print(key);
-// 	    Level Nmax = 1;
-// 	    if (is_local(key)) {
-//             	bool has_children = ((key.level() < Nmax) || ((key.level() < 2*Nmax)&&
-// 			(key.translation()[0] == key.translation()[NDIM-1])));
-//             	FunctionNode<T,NDIM> node(tensorT(0), has_children);
-//             	this->insert(key,node);
-//             	if (has_children) {
-//                     for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
-//                     	insert_weird_tree(kit.key());
-//                     }
-//             	}
-// 	    }
-// 	    else if (key.level() < Nmax) {
-// 		for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
-//         	    insert_weird_tree(kit.key());
-//         	}
-// 	    }
-//         };
+        /// Returns true if the function is compressed.  
+        bool is_compressed() const {return compressed;};
 
 
         /// Initialize nodes to zero function at initial_level of refinement. 
@@ -534,43 +493,12 @@ namespace madness {
                     coeffs.insert(key, nodeT(tensorT(cdata.vk), false));
                 }
             }
-	    if (key.level() < initial_level) {
-		for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
-        	    insert_zero_down_to_initial_level(kit.key());
-        	}
-	    }
+            if (key.level() < initial_level) {
+                for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
+                    insert_zero_down_to_initial_level(kit.key());
+                }
+            }
 
-        };
-
-        struct true_predicate {
-            bool operator()(const datumT& d) const {
-                return true;
-            };
-        };
-        
-
-        struct is_leaf_predicate {
-            bool operator()(const datumT& d) const {
-                return d.second.is_leaf();
-            };
-        };
-
-        struct is_not_leaf_predicate {
-            bool operator()(const datumT& d) const {
-                return !d.second.is_leaf();
-            };
-        };
-
-        struct  has_coeff_predicate {
-            bool operator()(const datumT& d) const {
-                return d.second.has_coeff();
-            };
-        };
-
-        struct  has_no_coeff_predicate {
-            bool operator()(const datumT& d) const {
-                return !d.second.has_coeff();
-            };
         };
 
 
@@ -634,17 +562,20 @@ namespace madness {
         };
 
 
+        /// Returns patch refering to coeffs of child in parent box
+
         /// !! Returns a reference to \em STATIC data !!
+        /// Can be optimized away by precomputing.
         const std::vector<Slice>& child_patch(const keyT& child) const {
             static std::vector<Slice> s(NDIM);
             const Vector<Translation,NDIM>& l = child.translation();
             for (int i=0; i<NDIM; i++) s[i] = cdata.s[l[i]&1]; // Lowest bit of translation
             return s;
         };
-            
+
 
         /// Projection with optional refinement
-        void project_refine_op(const keyT& key) {
+        Void project_refine_op(const keyT& key) {
             //print("DOING PROJECT REFINE",key);
 
             if (dorefine) {
@@ -679,6 +610,7 @@ namespace madness {
             else {
                 coeffs.insert(key,nodeT(project(key),false));
             }
+            return None;
         };
 
 
@@ -687,7 +619,7 @@ namespace madness {
         /// Only the invoking process will get the result via the
         /// remote reference to a future.  Active messages may be sent
         /// to other nodes.
-        void eval(const Vector<double,NDIM>& xin, 
+        Void eval(const Vector<double,NDIM>& xin, 
                   const keyT& keyin, 
                   const typename Future<T>::remote_refT& ref) {
 
@@ -701,7 +633,7 @@ namespace madness {
                 ProcessID owner = coeffs.owner(key);
                 if (owner != me) {
                     send(owner, &implT::eval, x, key, ref);
-                    return;
+                    return None;
                 }
                 else {
                     typename dcT::futureT fut = coeffs.find(key);
@@ -711,7 +643,7 @@ namespace madness {
                     nodeT& node = it->second;
                     if (node.has_coeff()) {
                         Future<T>(ref).set(eval_cube(key.level(), x, node.coeffs()));
-                        return;
+                        return None;
                     }
                     else {
                         for (int i=0; i<NDIM; i++) {
@@ -725,15 +657,8 @@ namespace madness {
                     }
                 }
             }
+            MADNESS_EXCEPTION("should not be here",0);
         };
-
-//         void print_tree(const keyT& key) const {
-//             for (int i=0; i<key.level(); i++) std::cout << "  ";
-//             typename dcT::const_futureT f = coeffs.find(key);
-//             typename dct::const_iterator it = f.get();
-//             print(it->first, it->second);
-//             fuck it.
-//         };
 
 
         T eval_cube(Level n, coordT x, const tensorT s) const {
@@ -755,8 +680,6 @@ namespace madness {
         }
 
 
-
-
         /// Transform sum coefficients at level n to sums+differences at level n-1
 
         /// Given scaling function coefficients s[n][l][i] and s[n][l+1][i]
@@ -773,17 +696,6 @@ namespace madness {
         inline tensorT filter(const tensorT& s) const {
            return transform(s, cdata.hgT);
         };
-
-        /// Optimized filter (inplace, contiguous, no err checking)
-
-        /// Transforms coefficients in s returning result also in s.
-        /// Uses work2 from common data to eliminate temporary creation and
-        /// to increase cache locality.
-        ///
-        /// No communication involved.
-//         inline void filter_inplace(tensorT& s) {
-//             transform_inplace(s, cdata.hgT, cdata.work2);
-//         };
 
 
         ///  Transform sums+differences at level n to sum coefficients at level n+1
@@ -808,16 +720,46 @@ namespace madness {
                 MADNESS_EXCEPTION("unfilter: sonly : not yet",0);
             else {
                 return transform(ss, cdata.hg);
-	    }
+            }
         };
 
-        /// Optimized unfilter (see info about filter_inplace)
 
-        /// No communication involved.
-//         inline void unfilter_inplace(tensorT& s) {
-//             transform_inplace(s, cdata.hg, cdata.work2);
-//         };
+       void compress(bool fence) {
+           if (world.rank() == coeffs.owner(cdata.key0)) compress_spawn(cdata.key0);
+           if (fence) world.gop.fence();
+        };
 
+        // Invoked on node where key is local
+        Future<tensorT> compress_spawn(const keyT& key) {
+            const nodeT& node = coeffs.find(key).get()->second;
+            if (node.has_children()) {
+                std::vector< Future<tensorT> > v = future_vector_factory<tensorT>(1<<NDIM);
+                int i=0;
+                for (KeyChildIterator<NDIM> kit(key); kit; ++kit,++i) {
+                    v[i] = send(coeffs.owner(kit.key()), &implT::compress_spawn, kit.key());
+                }
+                return task(world.rank(),&implT::compress_op, key, v);
+            }
+            else {
+                Future<tensorT> result(node.coeffs());
+                coeffs.erase(key);
+                return result;
+            }
+        };
+
+        tensorT compress_op(const keyT& key, const vector< Future<tensorT> >& v) {
+            // Copy child scaling coeffs into contiguous block
+            tensorT d(cdata.v2k);
+            int i=0;
+            for (KeyChildIterator<NDIM> kit(key); kit; ++kit,++i) {
+                d(child_patch(kit.key())) = v[i].get();
+            };
+            d = filter(d);
+            tensorT s = copy(d(cdata.s0));
+            d(cdata.s0) = 0.0;
+            coeffs.insert(key, d);
+            return s;
+        };
 
 
         /// Convert user coords (cell[][]) to simulation coords ([0,1]^ndim)

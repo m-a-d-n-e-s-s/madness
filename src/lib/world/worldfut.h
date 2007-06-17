@@ -47,7 +47,7 @@ namespace madness {
         Stack<CallbackInterface*,MAXCALLBACKS> callbacks;
         Stack<SharedPtr< FutureImpl<T> >,MAXCALLBACKS> assignments;
         volatile bool assigned;
-        World * const world;
+        World * world;
         RemoteReference< FutureImpl<T> > remote_ref;
         T t;
         
@@ -55,12 +55,12 @@ namespace madness {
         static void set_handler(World& world, ProcessID src, void *buf, size_t nbyte) {
             LongAmArg* arg = (LongAmArg*) buf;
             BufferInputArchive ar(arg->buf,nbyte);
-            RemoteReference< FutureImpl<T> > ptr;
-            ar & ptr;
-            FutureImpl<T>* f = ptr.get();
+            RemoteReference< FutureImpl<T> > ref;
+            ar & ref;
+            FutureImpl<T>* f = ref.get();
             ar & f->t;                    // Assigns value
             f->set_assigned();
-            ptr.dec();                    // Releases reference
+            ref.dec();                    // Releases reference
         };
         
 
@@ -187,18 +187,21 @@ namespace madness {
             return get();
         };
 
-        bool try_to_replace_with(const FutureImpl<T>* f) {
+        bool is_local() const {
+            return world == 0;
+        };
+
+        bool replace_with(FutureImpl<T>* f) {
             if (world) return false;
             MADNESS_ASSERT(!assigned || f->assigned);
             if (f->world) {
                 world = f->world;
                 remote_ref = f->remote_ref;
+                f->world = 0;
             }
             while(f->callbacks.size()) callbacks.push(f->callbacks.pop());
             while(f->assignments.size()) assignments.push(f->assignments.pop());
-
-            
-            
+            return true;
         };
 
         virtual ~FutureImpl() {
@@ -208,6 +211,9 @@ namespace madness {
             }
             if (callbacks.size()) {
                 print("Future: uninvoked callbacks being destroyed?");
+            }
+            if (assignments.size()) {
+                print("Future: uninvoked assignment being destroyed?");
             }
         };
     };
@@ -307,21 +313,25 @@ namespace madness {
         };
 
 
-        /// Assignment future = value is the same as future.set(value)
-        inline Future<T>& operator=(const T& value) {
-            this->set(value);
-            return *this;
-        };
+//         /// Assignment future = value is the same as future.set(value)
+//         inline Future<T>& operator=(const T& value) {
+//             this->set(value);
+//             return *this;
+//         };
 
 
         /// Assignment future = future makes a shallow copy
 
-        /// The future A is replaced by a shallow copy of B.  If B is not
-        /// yet assigned, both A and B will refer to the same underlying
-        /// implementation.  Note that this is NOT the same as set.  
-        /// A.set(B) assigns the (future) value of B to A whereas A=B
-        /// destroys the existing future A and replaces it either with
-        /// the assigned value of B or a reference to its future value.
+        /// The future A is replaced by a shallow copy of B.  If B is
+        /// assigned, A=B causes A to have the same value as B, though
+        /// it does not necessarily refer to the same actual data.  If
+        /// B is not assigned, A=B makes both A and B refer to the
+        /// same underlying future so that both variables will "see"
+        /// the eventual assigned value.
+        ///
+        /// Note that this is \em not the same as A.set(B) which will throw
+        /// if A is already assigned and otherwise ensures that A will
+        /// take on the (future) value of B.
         Future<T>& operator=(const Future<T>& other) {
             if (this != &other) {
                 value_set = other.value_set;
@@ -337,21 +347,20 @@ namespace madness {
             return *this;
         };
 
-
         /// A.set(B) where A & B are futures ensures A has/will-have the same value as B. 
 
         /// An exception is thrown if A is already assigned since a
-        /// Future is a single assignment variable.
+        /// Future is a single assignment variable.  We don't yet
+        /// track multiple assignments from unassigned futures.
         ///
-        /// If B is already assigned, this is the same as A.set(B.get()).
+        /// If B is already assigned, this is the same as A.set(B.get())
+        /// which sets A to the value of B.
         ///
         /// If B has not yet been assigned, the behavior is to ensure
         /// that when B is assigned that both A and B will be assigned
-        /// and have the same value (though they may/may not refer to 
-        /// the same underlying copy of the value and indeed may even
+        /// and have the same value (though they may/may not refer to
+        /// the same underlying copy of the data and indeed may even
         /// be in different processes).
-        ///
-        /// This routine may not be in use anymore???????
         void set(const Future<T>& other) {
             if (this != &other) { 
                 MADNESS_ASSERT(!probe());
@@ -361,31 +370,36 @@ namespace madness {
                 else if (f) {
                     if (other.f) {
                         // Both are initialized but not assigned.
-                        // Used to just put this on the assignment list of
-                        // other, but now first check to see if the internal state of
-                        // either can be harmlessly replaced.  This does not depend
-                        // upon the reference count being one.  The main optimization 
-                        // enabled by this is shortcircuiting communication when forwarding
-                        // futures that are actually remote references.  However, it also
-                        // avoids most (all?) uses of the assignment list.  The only
-                        // thing that presently inhibits replacement is a future being 
-                        // a remote reference.
-
+                        // Used to just put this on the assignment
+                        // list of other, but now first check to see
+                        // if the internal state of either can be
+                        // harmlessly replaced.  This requires that
+                        // one of this or other (but not both) have a
+                        // reference of one.  The main optimization
+                        // enabled by this is shortcircuiting
+                        // communication when forwarding futures that
+                        // are actually remote references.  However,
+                        // it also avoids most uses of the assignment
+                        // list. 
                         if (f == other.f) {
                             print("future.set(future): you are setting this with this?");
+                            return;
                         }
-                        else if (f.use_count()==1 && other.f->try_to_replace_with(f)) {
+                        if (f.use_count()==1 && other.f->is_local()) {
+                            other.f->replace_with(f);
                             f = other.f;
                             print("future.set(future): replaced other with this");
+                            return;
                         }
-                        else if (other.f.use_count()==1 && f->try_to_replace_with(other.f)) {
-                            other.f = f;
+                        if (other.f.use_count()==1 && f->is_local()) {
+                            f->replace_with(other.f);
+                            const_cast<Future<T>&>(other).f = f;
                             print("future.set(future): replaced this with other");
+                            return;
                         }
-                        else {
-                            print("future.set(future): adding to assignment list");
-                            other.f->add_to_assignments(f);
-                        }
+                        print("future.set(future): adding to assignment list");
+                        other.f->add_to_assignments(f);
+                        return;
                     }
                     else {
                         // This is initialized but not assigned, and
@@ -393,13 +407,14 @@ namespace madness {
                         // to the same future as this.
                         print("future.set(future): this initialized and other not initialized");
                         const_cast<Future<T>&>(other).f = f;
+                        return;
                     }
                 }
                 else { 
-                    // This is not initialized so just make it refer to other
-                    print("future.set(future): neither initialized");
+                    // Neither initialized ... make this refer to other
                     other.initialize();
                     f = other.f;
+                    return;
                 }
             }
         };
@@ -499,10 +514,9 @@ namespace madness {
     };
 
 
-    /// Futures of futures are forbidden
+    /// A future of a future is forbidden (by private constructor)
     template <typename T> class Future< Future<T> >{
-    private:
-        Future();
+        Future(){};
     };
 
 

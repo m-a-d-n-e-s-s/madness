@@ -758,8 +758,11 @@ namespace madness {
         return BindNullaryConstMemFun<T,resultT>(t,op);
     }
 
-    /// Something you can return when you want to return void
+    /// A type you can return when you want to return void ... use "return None"
     struct Void {};
+
+    /// None, a la Python
+    static const Void None = Void();
 
     /// Wrapper so that can return something even if returning void
     template <typename T>

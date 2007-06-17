@@ -28,53 +28,49 @@ rush.
 namespace madness {
         
     template <typename keyT, 
-              typename valueT, 
-              typename procmapT,
-              typename attrT>
+              typename valueT>
     class WorldContainer;
     
     template <typename keyT, 
-              typename valueT, 
-              typename procmapT,
-              typename attrT>
+              typename valueT>
     class WorldContainerImpl;
     
-    
-    /// Defines attributes of the container, esp. caching
-    struct DCDefaultAttr {
-        // There are only three sequentially consistent policies supported.
-        // a) No read or write caching.  Every access is remote => false,false.
-        // b) Cache reads. Writes invalidate locally, write remotely => true,false.
-        // c) Cache reads. Writes write locally and remotely => true,true.
-        
-        
-        // !! CURRENTLY, only false,false is supported
-        
-        static const bool CacheReadPolicy = false;
-        static const bool CacheWritePolicy = false;
-        static const size_t CacheMaxEntries = 1024;
+    /// Defines attributes of the container, notably caching --- currently only false,false tested.
+    struct WorldDCAttr {
+        const bool CacheReadPolicy;
+        const bool CacheWritePolicy;
+        const size_t CacheMaxEntries;
     };
+
+    /// Default attributes does no read or write caching
+    static const struct WorldDCAttr world_dc_default_attr = {false, false, 1024};
     
-    
-    /// Default process hash is "random" using madness::hash(key)
+    /// Interface to be provided by any process map
     template <typename keyT>
-    class DCDefaultProcmap {
+    class WorldDCPmapInterface {
+    public:
+        virtual ProcessID owner(const keyT& key) const = 0;
+        virtual ~WorldDCPmapInterface() {};
+    };
+
+    /// Default process map is "random" using madness::hash(key)
+    template <typename keyT>
+    class WorldDCDefaultPmap : public WorldDCPmapInterface<keyT> {
     private:
         int nproc;
         unsigned int mask;
         
     public:
-        DCDefaultProcmap(World& world) {
+        WorldDCDefaultPmap(World& world) {
             nproc = world.mpi.nproc();
-            // Find bit mask to eliminate use of modulo operator which relies
-            // upon having a VERY GOOD hash, which we do.
+            // Find bit mask to eliminate use of modulo operator --- relies
+            // upon having a very good hash, which we do.
             mask = 1;
             while (mask < (unsigned) nproc) mask <<= 1;
             mask--;
         };
         
-        // Assumes key is a contiguous byte stream
-        ProcessID operator()(const keyT& key) const {
+        ProcessID owner(const keyT& key) const {
             if (nproc == 1) return 0;
             hashT hh = hash(key);
             int h = hh&mask;
@@ -129,23 +125,21 @@ namespace madness {
     /// (present in even the STL containers) that if you erase an
     /// entry (either via the iterator or via the key) that your
     /// iterators are now invalid.  Just the way it is.
-    template <class implT, class internal_iteratorT, class pairT>
+    template <class implT, class internal_iteratorT,  class pairT>
     class WorldContainerIterator : private CallbackInterface {
     private:
         typedef typename implT::cacheinfo_iteratorT cacheinfo_iteratorT;
-        typedef typename implT::attributes attrT;
         
     public:
-        implT* impl;                   //< Pointer to container implementation
+        implT* impl;                  //< Pointer to container implementation
     private:
-        internal_iteratorT  it;         //< Iterator from local/cache container
-        cacheinfo_iteratorT cacheit;   //< Iterator for reference counting cache
-        bool fromcache;                //< True if is a cached remote value
+        internal_iteratorT  it;       //< Iterator from local/cache container
+        cacheinfo_iteratorT cacheit;  //< Iterator for reference counting cache
+        bool fromcache;               //< True if is a cached remote value
 
         
         // Called by the cache to notify iterators to invalidate themselves
         void notify() {
-//            print("Invalidating iterator!",fromcache);
             impl = 0;
             it = internal_iteratorT();
         };
@@ -159,7 +153,7 @@ namespace madness {
                 CacheInfo& info = cacheit->second;
                 info.unregister_callback(static_cast<CallbackInterface*>(this));
                 MADNESS_ASSERT(info.nref>=0);
-                if (!attrT::CacheReadPolicy && info.nref==0) {
+                if (!impl->cache_read_policy() && info.nref==0) {
                     //print("Iterator deleting cached data");
                     impl->cache_erase(it,cacheit);
                 }
@@ -287,21 +281,17 @@ namespace madness {
     };
     
     
-    
-    
     /// Implementation of distributed container to enable PIMPL
     template <typename keyT, 
-              typename valueT, 
-              typename procmapT,
-              typename attrT>
+              typename valueT>
     class WorldContainerImpl 
-        : public WorldObject< WorldContainerImpl<keyT, valueT, procmapT, attrT> >
-          , private NO_DEFAULTS 
+        : public WorldObject< WorldContainerImpl<keyT, valueT> >
+        , private NO_DEFAULTS 
     {
     public:
         typedef typename std::pair<const keyT,valueT> pairT;
         typedef const pairT const_pairT;
-        typedef WorldContainerImpl<keyT,valueT,procmapT,attrT> implT;
+        typedef WorldContainerImpl<keyT,valueT> implT;
         
 #ifdef WORLDDC_USES_GNU_HASH_MAP
         template <typename T> 
@@ -324,9 +314,8 @@ namespace madness {
         typedef WorldContainerIterator<implT,internal_iteratorT,pairT> iterator;
         typedef WorldContainerIterator<const implT, internal_const_iteratorT, const_pairT> const_iteratorT;
         typedef WorldContainerIterator<const implT, internal_const_iteratorT, const_pairT> const_iterator;
-        typedef attrT attributes;
         
-        friend class WorldContainer<keyT,valueT,procmapT,attrT>;
+        friend class WorldContainer<keyT,valueT>;
         friend class WorldContainerIterator<implT,internal_iteratorT,pairT>;
         friend class WorldContainerIterator<const implT,internal_const_iteratorT,const_pairT>;
         
@@ -336,7 +325,8 @@ namespace madness {
         
         World& world;
         const uniqueidT theid;    //< Universe-wide unique ID for this instance
-        const procmapT procmap;       //< Function/class to map from keys to owning process
+        const SharedPtr< WorldDCPmapInterface<keyT> > pmap;       //< Function/class to map from keys to owning process
+        const WorldDCAttr attr;  //< Atrributes
         const ProcessID me;           //< My MPI rank
         internal_containerT local;    //< Locally owned data
         mutable internal_containerT cache;    //< Local cache for remote data
@@ -361,7 +351,7 @@ namespace madness {
         
         
         /// Handles find request
-        void find_handler(ProcessID requestor, const keyT& key, const RemoteReference< FutureImpl<iterator> >& ref) {
+        Void find_handler(ProcessID requestor, const keyT& key, const RemoteReference< FutureImpl<iterator> >& ref) {
             if (owner(key) != me) {
 	        MADNESS_EXCEPTION("Forwarding in find handler?", requestor*1000 + owner(key));
                 //send(owner(key), &implT::find_handler, requestor, key, ref);
@@ -374,10 +364,11 @@ namespace madness {
 		}
                 else send(requestor, &implT::find_success_handler, ref, *r);
             }
+            return None;
         };
         
         /// Handles successful find response
-        void find_success_handler(const RemoteReference< FutureImpl<iterator> >& ref, const pairT& datum) {
+        Void find_success_handler(const RemoteReference< FutureImpl<iterator> >& ref, const pairT& datum) {
             FutureImpl<iterator>* f = ref.get();
             // Check if the value is already in the cache.  If so, overwrite it with 
             // the new value ... but don't invalidate any old iterators in the process.
@@ -395,23 +386,26 @@ namespace madness {
             }
             f->set(iterator(this, it, cacheit, true));
             ref.dec(); // Matching inc() in find() where ref was made
+            return None;
         };
         
         /// Handles unsuccessful find response
-        void find_failure_handler(const RemoteReference< FutureImpl<iterator> >& ref) {
+        Void find_failure_handler(const RemoteReference< FutureImpl<iterator> >& ref) {
             FutureImpl<iterator>* f = ref.get();
             f->set(end());
             //print("in remote failure handler");
             ref.dec(); // Matching inc() in find() where ref was made
+            return None;
         };
         
     public:
         
-        WorldContainerImpl(World& world, const procmapT& procmap, bool do_pending)
-            : WorldObject< WorldContainerImpl<keyT, valueT, procmapT, attrT> >(world)
+        WorldContainerImpl(World& world, const SharedPtr< WorldDCPmapInterface<keyT> >& pmap, const WorldDCAttr& attr, bool do_pending)
+            : WorldObject< WorldContainerImpl<keyT, valueT> >(world)
             , world(world)
             , theid(world.register_ptr(this))
-            , procmap(procmap)
+            , pmap(pmap)
+            , attr(attr)
             , me(world.mpi.rank())
             , local()
             , cache()
@@ -424,26 +418,38 @@ namespace madness {
         
         
         ~WorldContainerImpl() {
-	  //print("In DCImpl destructor");
         };
 
-	const procmapT& get_procmap() const {
-	    return procmap;
+	const SharedPtr< WorldDCPmapInterface<keyT> >& get_pmap() const {
+	    return pmap;
 	};
+
+        bool cache_read_policy() const {
+            return attr.CacheReadPolicy;
+        };
+
+
+        bool cache_write_policy() const {
+            return attr.CacheReadPolicy;
+        };
+
+        size_t cache_max_entries() const {
+            return attr.CacheMaxEntries;
+        };
         
         bool is_local(const keyT& key) const {
             return owner(key) == me;
         };
         
         ProcessID owner(const keyT& key) const {
-            return procmap(key);
+            return pmap->owner(key);
         };
         
         bool probe(const keyT& key) const {
             ProcessID dest = owner(key);
             if (dest == me) 
                 return local.find(key) != local.end();
-            else if (attrT::CacheReadPolicy) 
+            else if (cache_read_policy()) 
                 return cache.find(key) != cache.end();
             else 
                 return false;
@@ -453,27 +459,27 @@ namespace madness {
             return local.size();
         };
 
-        
         void handle_cache_overflow() {};
         
-        void insert(const pairT& datum) {
+        Void insert(const pairT& datum) {
             ProcessID dest = owner(datum.first);
             if (dest == me) {
   	        replace(local,datum);
             }
             else {
-                if (attrT::CacheWritePolicy) {  // Remote writes also hit cache
-                    if (cache.size() >= attrT::CacheMaxEntries) 
+                if (cache_write_policy()) {  // Remote writes also hit cache
+                    if (cache.size() >= cache_max_entries()) 
                         handle_cache_overflow();
                     replace(cache,datum);
                     replace(cacheinfo,std::pair<const keyT,CacheInfo>(datum.first,0));
                 }
-                else if (attrT::CacheReadPolicy) { // Remote writes only invalidate cache
+                else if (cache_read_policy()) { // Remote writes only invalidate cache
                     cache.erase(datum.first);
                     cacheinfo.erase(datum.first);
                 }
                 send(dest, &implT::insert, datum);
             }
+            return None;
         };
         
         
@@ -484,7 +490,7 @@ namespace madness {
         };
         
         
-        void erase(const keyT& key) {
+        Void erase(const keyT& key) {
             ProcessID dest = owner(key);
             if (dest == me) {
                 local.erase(key);
@@ -492,9 +498,10 @@ namespace madness {
             else {
                 cache.erase(key);
                 cacheinfo.erase(key);
-		void (implT::*eraser)(const keyT&) = &implT::erase;
+		Void (implT::*eraser)(const keyT&) = &implT::erase;
                 send(dest, eraser, key);
             }                
+            return None;
         };
         
         
@@ -560,7 +567,7 @@ namespace madness {
 		}
             }
             else {             // Remote read
-                if (attrT::CacheReadPolicy) {  // Try cache
+                if (cache_read_policy()) {  // Try cache
                     internal_iteratorT it = cache.find(key);
                     if (it != cache.end()) {
                         return Future<iterator>(iterator(this,it,cacheinfo.find(key),true));
@@ -574,44 +581,44 @@ namespace madness {
         
         // Used to forward call to item member function
         template <typename memfunT>
-        RETURN_WRAPPERT(MEMFUN_RETURNT(memfunT))
+        MEMFUN_RETURNT(memfunT)
             itemfun(const keyT& key, memfunT memfun) {
-            return detail::MemfunRun<MEMFUN_RETURNT(memfunT)>::run(local[key], memfun);
+            return (local[key].*memfun)();
         }
         
         // Used to forward call to item member function
         template <typename memfunT, typename arg1T>
-        RETURN_WRAPPERT(MEMFUN_RETURNT(memfunT))        
+        MEMFUN_RETURNT(memfunT)        
             itemfun(const keyT& key, memfunT memfun, const arg1T& arg1) {
-            return detail::MemfunRun<MEMFUN_RETURNT(memfunT)>::run(local[key], memfun, arg1);
+            return (local[key].*memfun)(arg1);
         }
         
         // Used to forward call to item member function
         template <typename memfunT, typename arg1T, typename arg2T>
-        RETURN_WRAPPERT(MEMFUN_RETURNT(memfunT))        
+        MEMFUN_RETURNT(memfunT)        
             itemfun(const keyT& key, memfunT memfun, const arg1T& arg1, const arg2T& arg2) {
-            return detail::MemfunRun<MEMFUN_RETURNT(memfunT)>::run(local[key], memfun, arg1, arg2);
+            return (local[key].*memfun)(arg1,arg2);
         }
         
         // Used to forward call to item member function
         template <typename memfunT, typename arg1T, typename arg2T, typename arg3T>
-        RETURN_WRAPPERT(MEMFUN_RETURNT(memfunT))        
+        MEMFUN_RETURNT(memfunT)        
             itemfun(const keyT& key, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3) {
-            return detail::MemfunRun<MEMFUN_RETURNT(memfunT)>::run(local[key], memfun, arg1, arg2, arg3);
+            return (local[key].*memfun)(arg1,arg2,arg3);
         }
         
         // Used to forward call to item member function
         template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T>
-        RETURN_WRAPPERT(MEMFUN_RETURNT(memfunT))        
+        MEMFUN_RETURNT(memfunT)        
             itemfun(const keyT& key, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, const arg3T& arg4) {
-            return detail::MemfunRun<MEMFUN_RETURNT(memfunT)>::run(local[key], memfun, arg1, arg2, arg3, arg4);
+            return (local[key].*memfun)(arg1,arg2,arg3,arg4);
         }
         
         // Used to forward call to item member function
         template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T, typename arg5T>
-        RETURN_WRAPPERT(MEMFUN_RETURNT(memfunT))        
+        MEMFUN_RETURNT(memfunT)        
             itemfun(const keyT& key, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, const arg3T& arg4, const arg5T& arg5) {
-            return detail::MemfunRun<MEMFUN_RETURNT(memfunT)>::run(local[key], memfun, arg1, arg2, arg3, arg4, arg5);
+            return (local[key].*memfun)(arg1,arg2,arg3,arg4,arg5);
         }
         
     };
@@ -636,7 +643,7 @@ namespace madness {
     /// Currently, this is untested and no caching is enabled.
     ///
     /// The distribution of data between processes is controlled by
-    /// the process map (ProcMap) class.  The default is uniform
+    /// the process map (Pmap) class.  The default is uniform
     /// hashing based upon a strong (Bob Jenkins, lookup3) bytewise
     /// hash of the key.
     ///
@@ -647,13 +654,11 @@ namespace madness {
     /// !! The key is presently assumed to be small, probably less
     /// than 100 bytes.  This can be relaxed as the need arises.
     template <typename keyT, 
-              typename valueT, 
-              typename procmapT = DCDefaultProcmap<keyT>,
-              typename attrT = DCDefaultAttr>
+              typename valueT>
     class WorldContainer {
     public:
-        typedef WorldContainer<keyT,valueT,procmapT,attrT> containerT;
-        typedef WorldContainerImpl<keyT,valueT,procmapT,attrT> implT;
+        typedef WorldContainer<keyT,valueT> containerT;
+        typedef WorldContainerImpl<keyT,valueT> implT;
         typedef typename implT::pairT pairT;
         typedef typename implT::iterator iterator;
         typedef typename implT::const_iterator const_iterator;
@@ -686,7 +691,10 @@ namespace madness {
         /// execute this constructor in the same order (does not apply
         /// to the non-initializing, default constructor).
         WorldContainer(World& world, bool do_pending=true) 
-            : p(new implT(world, procmapT(world), do_pending))
+            : p(new implT(world, 
+                          SharedPtr< WorldDCPmapInterface<keyT> >(new WorldDCDefaultPmap<keyT>(world)), 
+                          world_dc_default_attr,
+                          do_pending))
         {
             world.deferred_cleanup(p);
         };
@@ -698,8 +706,8 @@ namespace madness {
         /// making a container, we have to assume that all processes
         /// execute this constructor in the same order (does not apply
         /// to the non-initializing, default constructor).
-        WorldContainer(World& world, const procmapT& procmap, bool do_pending=true) 
-            : p(new implT(world,procmap,do_pending))
+        WorldContainer(World& world, const SharedPtr< WorldDCPmapInterface<keyT> >& pmap, bool do_pending=true) 
+            : p(new implT(world,pmap,world_dc_default_attr,do_pending))
         {
             world.deferred_cleanup(p);
         };
@@ -862,14 +870,12 @@ namespace madness {
         };
         
 
-        /// 1) REBECCA ... DOCUMENT THIS STUFF AS IT GETS WRITTEN
-
-        /// 2) SHOULD THIS NOT RETURN A CONST REF INSTEAD OF A COPY? ... made this change
-	inline const procmapT& get_procmap() const {
-	    return p->get_procmap();
+        /// Returns shared pointer to the process mapping
+	inline const SharedPtr< WorldDCPmapInterface<keyT> >& get_pmap() const {
+	    return p->get_pmap();
 	};
 
-        /// Process pending messages if constructed with \c do_pending=false
+        /// Process pending messages 
         inline void process_pending() {
             check_initialized();
             p->process_pending();
@@ -883,10 +889,10 @@ namespace madness {
         /// 
         /// Returns a future result (Future<void> may be ignored).
         template <typename memfunT>
-        Future< MEMFUN_RETURNT(memfunT) > 
+        Future< MEMFUN_RETURNT(memfunT) >
         send(const keyT& key, memfunT memfun) {
             check_initialized();
-            RETURN_WRAPPERT(MEMFUN_RETURNT(memfunT)) (implT::*itemfun)(const keyT&, memfunT) = &implT:: template itemfun<memfunT>;
+            MEMFUN_RETURNT(memfunT) (implT::*itemfun)(const keyT&, memfunT) = &implT:: template itemfun<memfunT>;
             return p->send(owner(key), itemfun, key, memfun);
         }
         
@@ -899,10 +905,10 @@ namespace madness {
         /// 
         /// Returns a future result (Future<void> may be ignored).
         template <typename memfunT, typename arg1T>
-        Future< MEMFUN_RETURNT(memfunT) > 
+        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > 
         send(const keyT& key, memfunT memfun, const arg1T& arg1) {
             check_initialized();
-            RETURN_WRAPPERT(MEMFUN_RETURNT(memfunT)) (implT::*itemfun)(const keyT&, memfunT, const arg1T&) = &implT:: template itemfun<memfunT,arg1T>;
+            MEMFUN_RETURNT(memfunT) (implT::*itemfun)(const keyT&, memfunT, const arg1T&) = &implT:: template itemfun<memfunT,arg1T>;
             return p->send(owner(key), itemfun, key, memfun, arg1);
         }
         
@@ -915,10 +921,10 @@ namespace madness {
         /// 
         /// Returns a future result (Future<void> may be ignored).
         template <typename memfunT, typename arg1T, typename arg2T>
-        Future< MEMFUN_RETURNT(memfunT) > 
+        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > 
         send(const keyT& key, memfunT memfun, const arg1T& arg1, const arg2T& arg2) {
             check_initialized();
-            RETURN_WRAPPERT(MEMFUN_RETURNT(memfunT)) (implT::*itemfun)(const keyT&, memfunT, const arg1T&, const arg2T&) = &implT:: template itemfun<memfunT,arg1T,arg2T>;
+            MEMFUN_RETURNT(memfunT) (implT::*itemfun)(const keyT&, memfunT, const arg1T&, const arg2T&) = &implT:: template itemfun<memfunT,arg1T,arg2T>;
             return p->send(owner(key), itemfun, key, memfun, arg1, arg2);
         }
         
@@ -931,10 +937,10 @@ namespace madness {
         /// 
         /// Returns a future result (Future<void> may be ignored).
         template <typename memfunT, typename arg1T, typename arg2T, typename arg3T>
-        Future< MEMFUN_RETURNT(memfunT) > 
+        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > 
         send(const keyT& key, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3) {
             check_initialized();
-            RETURN_WRAPPERT(MEMFUN_RETURNT(memfunT)) (implT::*itemfun)(const keyT&, memfunT, const arg1T&, const arg2T&, const arg3T&) = &implT:: template itemfun<memfunT,arg1T,arg2T,arg3T>;
+            MEMFUN_RETURNT(memfunT) (implT::*itemfun)(const keyT&, memfunT, const arg1T&, const arg2T&, const arg3T&) = &implT:: template itemfun<memfunT,arg1T,arg2T,arg3T>;
             return p->send(owner(key), itemfun, key, memfun, arg1, arg2, arg3);
         }
         
@@ -948,10 +954,10 @@ namespace madness {
         /// 
         /// Returns a future result (Future<void> may be ignored).
         template <typename memfunT>
-        Future< MEMFUN_RETURNT(memfunT) >
+        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) >
         task(const keyT& key, memfunT memfun, const TaskAttributes& attr = TaskAttributes()) {
             check_initialized();
-            RETURN_WRAPPERT(MEMFUN_RETURNT(memfunT)) (implT::*itemfun)(const keyT&, memfunT) = &implT:: template itemfun<memfunT>;
+            MEMFUN_RETURNT(memfunT) (implT::*itemfun)(const keyT&, memfunT) = &implT:: template itemfun<memfunT>;
             return p->task(owner(key), itemfun, key, memfun, attr);
         }
         
@@ -964,11 +970,11 @@ namespace madness {
         /// 
         /// Returns a future result (Future<void> may be ignored).
         template <typename memfunT, typename arg1T>
-        Future< MEMFUN_RETURNT(memfunT) >
+        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) >
         task(const keyT& key, memfunT memfun, const arg1T& arg1, const TaskAttributes& attr = TaskAttributes()) {
             check_initialized();
             typedef REMFUTURE(arg1T) a1T;
-            RETURN_WRAPPERT(MEMFUN_RETURNT(memfunT)) (implT::*itemfun)(const keyT&, memfunT, const a1T&) = &implT:: template itemfun<memfunT,a1T>;
+            MEMFUN_RETURNT(memfunT) (implT::*itemfun)(const keyT&, memfunT, const a1T&) = &implT:: template itemfun<memfunT,a1T>;
             return p->task(owner(key), itemfun, key, memfun, arg1, attr);
         }
         
@@ -981,12 +987,12 @@ namespace madness {
         /// 
         /// Returns a future result (Future<void> may be ignored).
         template <typename memfunT, typename arg1T, typename arg2T>
-        Future< MEMFUN_RETURNT(memfunT) >
+        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) >
         task(const keyT& key, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const TaskAttributes& attr = TaskAttributes()) {
             check_initialized();
             typedef REMFUTURE(arg1T) a1T;
             typedef REMFUTURE(arg2T) a2T;
-            RETURN_WRAPPERT(MEMFUN_RETURNT(memfunT)) (implT::*itemfun)(const keyT&, memfunT, const a1T&, const a2T&) = &implT:: template itemfun<memfunT,a1T,a2T>;
+            MEMFUN_RETURNT(memfunT) (implT::*itemfun)(const keyT&, memfunT, const a1T&, const a2T&) = &implT:: template itemfun<memfunT,a1T,a2T>;
             return p->task(owner(key), itemfun, key, memfun, arg1, arg2, attr);
         }
         
@@ -999,13 +1005,13 @@ namespace madness {
         /// 
         /// Returns a future result (Future<void> may be ignored).
         template <typename memfunT, typename arg1T, typename arg2T, typename arg3T>
-        Future< MEMFUN_RETURNT(memfunT) >
+        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) >
         task(const keyT& key, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, const TaskAttributes& attr = TaskAttributes()) {
             check_initialized();
             typedef REMFUTURE(arg1T) a1T;
             typedef REMFUTURE(arg2T) a2T;
             typedef REMFUTURE(arg3T) a3T;
-            RETURN_WRAPPERT(MEMFUN_RETURNT(memfunT)) (implT::*itemfun)(const keyT&, memfunT, const a1T&, const a2T&, const a3T&) = &implT:: template itemfun<memfunT,a1T,a2T,a3T>;
+            MEMFUN_RETURNT(memfunT) (implT::*itemfun)(const keyT&, memfunT, const a1T&, const a2T&, const a3T&) = &implT:: template itemfun<memfunT,a1T,a2T,a3T>;
             return p->task(owner(key), itemfun, key, memfun, arg1, arg2, arg3, attr);
         }
         
