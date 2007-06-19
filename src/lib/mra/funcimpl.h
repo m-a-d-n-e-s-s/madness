@@ -327,7 +327,10 @@ namespace madness {
 
     template <typename T, int NDIM>
     std::ostream& operator<<(std::ostream& s, const FunctionNode<T,NDIM>& node) {
-        s << "has_coeff = " << node.has_coeff() << ", has_children = " << node.has_children();
+        s << "(" << node.has_coeff() << ", " << node.has_children() << ", ";
+        double norm = node.has_coeff() ? node.coeff().normf() : 0.0;
+        if (norm < 1e-12) norm = 0.0;
+        s << norm;
         return s;
     };
     
@@ -539,6 +542,23 @@ namespace madness {
             return cdata.key0;
         };
 
+        void print_tree() const {
+            if (world.rank() == 0) do_print_tree(cdata.key0);
+            world.gop.fence();
+        };
+
+        void do_print_tree(const keyT& key) const {
+            const nodeT& node = coeffs.find(key).get()->second;
+            for (int i=0; i<key.level(); i++) std::cout << "  ";
+            std::cout << key << "  " << node << "\n";
+            if (node.has_children()) {
+                for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
+                    do_print_tree(kit.key());
+                };
+            }
+        };
+
+
         /// Compute by projection the scaling function coeffs in specified box
         tensorT project(const keyT& key) const {
             tensorT fval;
@@ -733,6 +753,7 @@ namespace madness {
         void reconstruct(bool fence) {
             if (world.rank() == coeffs.owner(cdata.key0)) reconstruct_op(cdata.key0,tensorT());
             if (fence) world.gop.fence();
+            compressed = false;
         };
 
         // Invoked on node where key is local
@@ -757,6 +778,7 @@ namespace madness {
         void compress(bool fence) {
            if (world.rank() == coeffs.owner(cdata.key0)) compress_spawn(cdata.key0);
            if (fence) world.gop.fence();
+           compressed = true;
         };
 
 
@@ -788,7 +810,7 @@ namespace madness {
             d = filter(d);
             tensorT s = copy(d(cdata.s0));
             if (key.level() > 0) d(cdata.s0) = 0.0;
-            coeffs.insert(key, d);
+            coeffs.insert(key, nodeT(d,true));
             return s;
         };
 

@@ -89,9 +89,10 @@ if ispathscale ; then
         if using debug ; then
             MADCOPT="-g -O0 -Wall"
         else
-            MADCOPT="-Wall"
+            MADCOPT="-Wall -Ofast"
         fi
     fi
+    MADCOPT="$MADCOPY -gnu4"
 elif isgcc ; then
     if isgcc4 ; then
         MADARCH=-march=native

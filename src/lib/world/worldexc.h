@@ -47,8 +47,8 @@ throw MadnessException(msg,0,value,__LINE__,__FUNCTION__,__FILE__)
  * 
  */
 
-//#define MADNESS_ASSERTIONS_THROW
-#define MADNESS_ASSERTIONS_ABORT
+#define MADNESS_ASSERTIONS_THROW
+    //#define MADNESS_ASSERTIONS_ABORT
 
 #ifdef DISABLE_MADNESS_ASSERTIONS
 #  define MADNESS_ASSERT(condition)

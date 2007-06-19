@@ -16,6 +16,11 @@
 #include <map>
 #include <vector>
 
+#ifdef WORLD_SCHED_BACKOFF
+#include <sched.h>
+#endif
+
+
 #ifdef UINT64_T
 typedef UINT64_T uint64_t;
 #endif
@@ -397,6 +402,12 @@ namespace madness {
             while (!probe()) {
                 poll_all(working);  // If working poll_all will increase polling interval
                 working = run_tasks();
+#ifdef WORLD_SLEEP_BACKOFF
+                if (!working) usleep(1000);
+#endif
+#ifdef WORLD_SCHED_BACKOFF
+                if (!working) sched_yield();
+#endif
             }
         }
 

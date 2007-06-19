@@ -121,6 +121,9 @@ namespace madness {
             impl->reconstruct(fence);
         };
 
+        /// Process 0 prints a summary of all nodes in the tree (collective)
+        void print_tree() const {if (impl) impl->print_tree();};
+        
 
     private:
 

@@ -56,7 +56,10 @@ int main(int argc, char**argv) {
     try {
         startup(world,argc,argv);
 
-        Function<double,3> f = FunctionFactory<double,3>(world).f(myg).k(5).thresh(1e-7).nocompress();
+        Function<double,3> f = FunctionFactory<double,3>(world).f(myg).k(5).thresh(1e-3).nocompress();
+        print("The tree after projection");
+        f.print_tree();
+            
 
         Vector<double,3> x = VectorFactory(0.5,0.5,0.5);
         print("the result is",f.eval(x).get()-myg(x));
@@ -67,10 +70,14 @@ int main(int argc, char**argv) {
         f.compress(false);
         print("entering fence after compress");
         world.gop.fence();
+        print("The tree after compress");
+        f.print_tree();
         
         f.reconstruct(false);
         print("entering fence after reconstruct");
         world.gop.fence();
+        print("The tree after reconstruct");
+        f.print_tree();
         
 
 
