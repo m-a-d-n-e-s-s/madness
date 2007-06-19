@@ -347,13 +347,13 @@ void test6(World& world) {
         for (ProcessID p=0; p<nproc; p++) {
             MADNESS_ASSERT(a.send(p,&Foo::get0).get() == p*100);
             MADNESS_ASSERT(a.task(p,&Foo::get0).get() == p*100);
-
+            
             MADNESS_ASSERT(a.send(p,&Foo::get0f).get() == p*100);
             MADNESS_ASSERT(a.task(p,&Foo::get0f).get() == p*100);
-
+            
             MADNESS_ASSERT(a.send(p,&Foo::get1,1).get() == p*100+1);
             MADNESS_ASSERT(a.task(p,&Foo::get1,Future<int>(1)).get() == p*100+1);
-
+            
             MADNESS_ASSERT(a.send(p,&Foo::get2,1,2).get() == p*100+3);
             MADNESS_ASSERT(a.task(p,&Foo::get2,1,2).get() == p*100+3);
 

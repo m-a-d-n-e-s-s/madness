@@ -108,18 +108,18 @@ namespace madness {
             impl->compress(fence);
         };
         
-//         /// Reconstructs the function, transforming into scaling function basis.  Possible non-blocking comm.
+        /// Reconstructs the function, transforming into scaling function basis.  Possible non-blocking comm.
 
-//         /// By default fence=true meaning that this operation completes before returning,
-//         /// otherwise if fence=false it returns without fencing and the user must invoke
-//         /// world.gop.fence() to assure global completion before using the function
-//         /// for other purposes.
-//         ///
-//         /// Noop if already reconstructed or if not initialized.
-//         void compress(bool fence = true) {
-//             if (!impl || !is_compressed()) return;
-//             impl->compress(fence);
-//         };
+        /// By default fence=true meaning that this operation completes before returning,
+        /// otherwise if fence=false it returns without fencing and the user must invoke
+        /// world.gop.fence() to assure global completion before using the function
+        /// for other purposes.
+        ///
+        /// Noop if already reconstructed or if not initialized.
+        void reconstruct(bool fence = true) {
+            if (!impl || !is_compressed()) return;
+            impl->reconstruct(fence);
+        };
 
 
     private:

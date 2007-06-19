@@ -315,4 +315,47 @@
 
 
 
+        // Forwards call to derived class
+        template <typename memfunT>
+        static MEMFUN_RETURNT(memfunT)
+        forward(objT* obj, memfunT memfun) {
+            return ((static_cast<Derived*>(obj)->*memfun)());
+        }
+
+        // Forwards call to derived class
+        template <typename memfunT, typename arg1T>
+        static MEMFUN_RETURNT(memfunT)
+        forward(objT* obj, memfunT memfun,  const arg1T& arg1) {
+            return ((static_cast<Derived*>(obj)->*memfun)(arg1));
+        }
+
+        // Forwards call to derived class
+        template <typename memfunT, typename arg1T, typename arg2T>
+        static MEMFUN_RETURNT(memfunT)
+            forward(objT* obj, memfunT memfun,  const arg1T& arg1, const arg2T& arg2) {
+            return ((static_cast<Derived*>(obj)->*memfun)(arg1,arg2));
+        }
+
+        // Forwards call to derived class
+        template <typename memfunT, typename arg1T, typename arg2T, typename arg3T>
+        static MEMFUN_RETURNT(memfunT)
+            forward(objT* obj, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3) {
+            return ((static_cast<Derived*>(obj)->*memfun)(arg1,arg2,arg3));
+        }
+
+        // Forwards call to derived class
+        template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T>
+        static MEMFUN_RETURNT(memfunT)
+            forward(objT* obj, memfunT memfun,  const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, const arg4T& arg4) {
+            return ((static_cast<Derived*>(obj)->*memfun)(arg1,arg2,arg3,arg4));
+        }
+
+        // Forwards call to derived class
+        template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T, typename arg5T>
+        static MEMFUN_RETURNT(memfunT)
+            forward(objT* obj, memfunT memfun,  const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, const arg4T& arg4, const arg5T& arg5) {
+            return ((static_cast<Derived*>(obj)->*memfun)(arg1,arg2,arg3,arg4,arg5));
+        }
+
+
 

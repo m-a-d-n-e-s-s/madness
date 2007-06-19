@@ -297,11 +297,15 @@ namespace madness {
         /// Returns true if this does not have children
         bool is_leaf() const {return !_has_children;};
 
-        /// Returns a non-const references to the tensor containing the coeffs
-        Tensor<T>& coeffs() {return _coeffs;};
+        /// Returns a non-const reference to the tensor containing the coeffs
+
+        /// Returns an empty tensor if there are no coefficeints.
+        Tensor<T>& coeff() {return _coeffs;};
 
         /// Returns a const reference to the tensor containing the coeffs
-        const Tensor<T>& coeffs() const {return _coeffs;};
+
+        /// Returns an empty tensor if there are no coefficeints.
+        const Tensor<T>& coeff() const {return _coeffs;};
 
         /// Sets \c has_children attribute to value of \c flag.
         void set_has_children(bool flag) {_has_children = flag;};
@@ -310,7 +314,10 @@ namespace madness {
         void set_is_leaf(bool flag) {_has_children = !flag;};
 
         /// Takes a \em shallow copy of the coeff --- same as \c this->coeff()=coeff
-        void set_coeff(Tensor<T>& coeff) {_coeffs = coeff;}
+        void set_coeff(const Tensor<T>& coeff) {_coeffs = coeff;}
+
+        /// Clears the coefficients (has_coeff() will subsequently return false)
+        void clear_coeff() {_coeffs = Tensor<T>();};
 
         template <typename Archive>
         inline void serialize(Archive& ar) {
@@ -642,7 +649,7 @@ namespace madness {
                     //nodeT& node = coeffs.find(key).get()->second;
                     nodeT& node = it->second;
                     if (node.has_coeff()) {
-                        Future<T>(ref).set(eval_cube(key.level(), x, node.coeffs()));
+                        Future<T>(ref).set(eval_cube(key.level(), x, node.coeff()));
                         return None;
                     }
                     else {
@@ -723,15 +730,39 @@ namespace madness {
             }
         };
 
+        void reconstruct(bool fence) {
+            if (world.rank() == coeffs.owner(cdata.key0)) reconstruct_op(cdata.key0,tensorT());
+            if (fence) world.gop.fence();
+        };
 
-       void compress(bool fence) {
+        // Invoked on node where key is local
+        Void reconstruct_op(const keyT& key, const tensorT& s) {
+            nodeT& node = coeffs.find(key).get()->second;
+            if (node.has_coeff()) {
+                tensorT d = node.coeff();
+                if (key.level() > 0) d(cdata.s0) = s;
+                d = unfilter(d);
+                node.clear_coeff();
+                for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
+                    const keyT& child = kit.key();
+                    task(coeffs.owner(child), &implT::reconstruct_op, child, copy(d(child_patch(child))));
+                }
+            }
+            else {
+                node.set_coeff(s);
+            }
+            return None;
+        };
+        
+        void compress(bool fence) {
            if (world.rank() == coeffs.owner(cdata.key0)) compress_spawn(cdata.key0);
            if (fence) world.gop.fence();
         };
 
+
         // Invoked on node where key is local
         Future<tensorT> compress_spawn(const keyT& key) {
-            const nodeT& node = coeffs.find(key).get()->second;
+            nodeT& node = coeffs.find(key).get()->second;
             if (node.has_children()) {
                 std::vector< Future<tensorT> > v = future_vector_factory<tensorT>(1<<NDIM);
                 int i=0;
@@ -741,8 +772,8 @@ namespace madness {
                 return task(world.rank(),&implT::compress_op, key, v);
             }
             else {
-                Future<tensorT> result(node.coeffs());
-                coeffs.erase(key);
+                Future<tensorT> result(node.coeff());
+                node.clear_coeff();
                 return result;
             }
         };
@@ -756,7 +787,7 @@ namespace madness {
             };
             d = filter(d);
             tensorT s = copy(d(cdata.s0));
-            d(cdata.s0) = 0.0;
+            if (key.level() > 0) d(cdata.s0) = 0.0;
             coeffs.insert(key, d);
             return s;
         };

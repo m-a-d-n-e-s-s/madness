@@ -68,6 +68,10 @@ int main(int argc, char**argv) {
         print("entering fence after compress");
         world.gop.fence();
         
+        f.reconstruct(false);
+        print("entering fence after reconstruct");
+        world.gop.fence();
+        
 
 
 

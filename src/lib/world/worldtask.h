@@ -1014,7 +1014,7 @@ namespace madness {
         objT& obj;
         const memfunT memfun;
 
-        TaskMemfun(const futureT& result, objT& obj, memfunT memfunc, const TaskAttributes& attr) 
+        TaskMemfun(const futureT& result, objT& obj, memfunT memfun, const TaskAttributes& attr) 
             : TaskFunctionBase(attr), result(result), obj(obj), memfun(memfun) {}
 
         void run(World& world) {
@@ -1223,8 +1223,8 @@ namespace madness {
         objT& obj;
         const memfunT memfun;
 
-        TaskMemfun(const futureT& result, objT& obj, memfunT memfunc, const TaskAttributes& attr) 
-            : TaskFunctionBase(attr), result(result), obj(obj), memfun(memfun) {}
+        TaskMemfun(const futureT& result, objT& obj, memfunT memfun, const TaskAttributes& attr) 
+            : TaskFunctionBase(attr), result(result), obj(obj), memfun(memfun) {};
 
         void run(World& world) {
             result.set((obj.*memfun)());

@@ -388,7 +388,7 @@ namespace madness {
                         if (f.use_count()==1 && other.f->is_local()) {
                             other.f->replace_with(f);
                             f = other.f;
-                            print("future.set(future): replaced other with this");
+                            //print("future.set(future): replaced other with this");
                             return;
                         }
                         if (other.f.use_count()==1 && f->is_local()) {
@@ -405,7 +405,7 @@ namespace madness {
                         // This is initialized but not assigned, and
                         // other is not initialized.  Make other refer
                         // to the same future as this.
-                        print("future.set(future): this initialized and other not initialized");
+                        //print("future.set(future): this initialized and other not initialized");
                         const_cast<Future<T>&>(other).f = f;
                         return;
                     }
