@@ -1550,3 +1550,18 @@ struct DClass {
 }
 
 #endif
+
+
+    /// Simple distributed map for the tree
+    template <int NDIM>
+    class FunctionSimplePmap<NDIM> : public WorldDCPmapInterface< Key<NDIM> > {
+    private:
+        World* world;
+        Level n;
+
+    public:
+        FunctionSimplePmap() : world(0), n(2) {};
+
+        FunctionSimplePmap(
+
+

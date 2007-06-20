@@ -7,6 +7,7 @@
 
 namespace madness {
 
+
     /// The maximum wavelet order presently supported (up to 31 should work)
     static const int MAXK = 17;
 
@@ -432,6 +433,8 @@ namespace madness {
             else if (f || vf) { // Project function and optionally compress
                 compressed = false;
                 insert_zero_down_to_initial_level(cdata.key0);
+                print("Tree after zero down");
+                print_tree();
                 for(typename dcT::iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
                     print("iterating",it->first,it->second.is_leaf());
                     if (it->second.is_leaf()) task(coeffs.owner(it->first), 

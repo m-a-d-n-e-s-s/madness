@@ -652,8 +652,8 @@ namespace madness {
         struct ArchiveStoreImpl< Archive, Tensor<T> > {
             static inline void store(const Archive& s, const Tensor<T>& t) {
                 if (t.iscontiguous()) {
-                    s & t.id & t.ndim & t.dim & t.size;
-	            if (t.size) s & wrap(t.ptr(),t.size);
+                    s & t.size & t.id;
+	            if (t.size) s & t.ndim & t.dim & wrap(t.ptr(),t.size);
                 }
                 else {
                     s & copy(t);
@@ -666,15 +666,18 @@ namespace madness {
         template <class Archive, typename T>
         struct ArchiveLoadImpl< Archive, Tensor<T> > {
             static inline void load(const Archive& s, Tensor<T>& t) {
-                long id;
-                s & id;
+                long sz, id;
+                s & sz & id;
                 if (id != t.id) throw "type mismatch deserializing a tensor";
-                long ndim, dim[TENSOR_MAXDIM];
-                s & ndim & dim;
-                t = Tensor<T>(ndim, dim, false);
-                long sz;
-                s & sz;
-                if (sz) s & wrap(t.ptr(), t.size);
+                if (sz) {
+                    long ndim, dim[TENSOR_MAXDIM];
+                    s & ndim & dim;
+                    t = Tensor<T>(ndim, dim, false);
+                    s & wrap(t.ptr(), t.size);
+                }
+                else {
+                    t = Tensor<T>();
+                }
             };
         };
         

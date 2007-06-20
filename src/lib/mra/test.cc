@@ -56,7 +56,7 @@ int main(int argc, char**argv) {
     try {
         startup(world,argc,argv);
 
-        Function<double,3> f = FunctionFactory<double,3>(world).f(myg).k(5).thresh(1e-3).nocompress();
+        Function<double,3> f = FunctionFactory<double,3>(world).f(myg).k(5).thresh(1e-5).nocompress();
         print("The tree after projection");
         f.print_tree();
             

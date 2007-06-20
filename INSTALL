@@ -61,7 +61,7 @@ function ispathscale() {
     contains "`$CXX -v 2>&1`" "PathScale"
 }
 
-# Assume MPICH-like interface if not CXX is not set
+# Assume MPICH-like interface if CXX is not set
 if [ "$CXX" == "" ] ; then
     CXX=mpicxx
     CC=mpicc
@@ -117,6 +117,7 @@ elif isx8632 ; then
     MADDEF="$MADDEF -DX8632"
 fi
 
+MADDEF = "$MADDEF -DWORLD_SCHED_BACKOFF"
 
 MADCOPT="$MADCOPT $MADDEF"
 
