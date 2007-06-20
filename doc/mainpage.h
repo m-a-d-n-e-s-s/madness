@@ -339,7 +339,8 @@ data or helper functions associated with them.  These must be defined
 in one and only one file.  To facilitate this definition, the
 necessary templates have been wrapped in C-preprocessor conditional
 block so that they are only enabled if \c
-WORLD_INSTANTIATE_STATIC_TEMPLATES is defined.  In one of your files,
+WORLD_INSTANTIATE_STATIC_TEMPLATES is defined.  In one of your source
+(not header) files,
 define this macro \em before including \c world.h, and then
 instantiate the templates that you are using.
 

@@ -16,9 +16,9 @@ const double myg_expnt = 120.0;
 double myg(const Vector<double,3>& r) {
     /* A square-normalized gaussian */
     double fac = pow(2.0*myg_expnt/PI,0.75);
-    double x = r[0]-0.5;
-    double y = r[1]-0.5;
-    double z = r[2]-0.5;
+    double x = r[0]-0.7;
+    double y = r[1]-0.7;
+    double z = r[2]-0.7;
     return fac*exp(-myg_expnt*(x*x + y*y + z*z));
 };
 
@@ -56,30 +56,34 @@ int main(int argc, char**argv) {
     try {
         startup(world,argc,argv);
 
-        Function<double,3> f = FunctionFactory<double,3>(world).f(myg).k(5).thresh(1e-5).nocompress();
-        print("The tree after projection");
-        f.print_tree();
+        Function<double,3> f = FunctionFactory<double,3>(world).f(myg).k(5).thresh(1e-7).nocompress();
+
+	LoadBalImpl<double,3> lb(f);
+	lb.loadBalance();
+
+        //print("The tree after projection");
+        //f.print_tree();
             
 
-        Vector<double,3> x = VectorFactory(0.5,0.5,0.5);
-        print("the result is",f.eval(x).get()-myg(x));
+//         Vector<double,3> x = VectorFactory(0.5,0.5,0.5);
+//         print("the result is",f.eval(x).get()-myg(x));
 
-        print("entering fence after eval");
-        world.gop.fence();
+//         print("entering fence after eval");
+//         world.gop.fence();
 
-        f.compress(false);
-        print("entering fence after compress");
-        world.gop.fence();
-        print("The tree after compress");
-        f.print_tree();
+//         f.compress(false);
+//         print("entering fence after compress");
+//         world.gop.fence();
+//         print("The tree after compress");
+//         f.print_tree();
         
-        f.reconstruct(false);
-        print("entering fence after reconstruct");
-        world.gop.fence();
-        print("The tree after reconstruct");
-        f.print_tree();
+//         f.reconstruct(false);
+//         print("entering fence after reconstruct");
+//         world.gop.fence();
+//         print("The tree after reconstruct");
+//         f.print_tree();
         
-
+	
 
 
 //	xterm_debug("test", 0);

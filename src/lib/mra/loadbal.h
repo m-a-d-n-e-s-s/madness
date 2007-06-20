@@ -1,11 +1,5 @@
-#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #ifndef LOADBAL_H
 #define LOADBAL_H
-
-#include <world/world.h>
-#include <mra/key.h>
-#include <mra/mra.h>
-using namespace std;
 
 namespace madness {
 
@@ -44,12 +38,12 @@ namespace madness {
         typedef LBTree<D> treeT;
     };
 
-    template <typename T, int D>
-    void migrate(SharedPtr<FunctionImpl<T,D> > tfrom, SharedPtr<FunctionImpl<T,D> > tto);
+//     template <typename T, int D>
+//     void migrate(SharedPtr<FunctionImpl<T,D> > tfrom, SharedPtr<FunctionImpl<T,D> > tto);
 
-    template <typename T, int D>
-    void migrate_data(SharedPtr<FunctionImpl<T,D> > tfrom, SharedPtr<FunctionImpl<T,D> > tto,
-                      typename DClass<D>::KeyD key);
+//     template <typename T, int D>
+//     void migrate_data(SharedPtr<FunctionImpl<T,D> > tfrom, SharedPtr<FunctionImpl<T,D> > tto,
+//                       typename DClass<D>::KeyD key);
 
     template <typename Data, int D>
     class LBNode {
@@ -203,7 +197,7 @@ namespace madness {
             children.insert(children.begin(),SharedPtr<Tree<D> > (c));
         };
 
-        void print() {
+        void print() const {
             data.print();
             int csize = children.size();
             for (int j = 0; j < csize; j++) {
@@ -253,7 +247,7 @@ namespace madness {
     template <int D>
     class MyPmap : public WorldDCPmapInterface< Key<D> > {
     private:
-        bool static_map;
+        bool staticmap;
         const ProcessID staticmap_owner;
         Tree<D>* treeMap;
         typedef Key<D> KeyD;
@@ -293,15 +287,15 @@ namespace madness {
             treeMap->print();
         };
 
-        MyPmap(World& world, ProcessID owner) : staticmap(true), owner(owner) {};
+        MyPmap(World& world, ProcessID owner) : staticmap(true), staticmap_owner(owner) {};
 
-        MyPmap(World& world, vector<TreeCoords<D> > v) : staticmap(false), owner(1) { // owner????????????????
+        MyPmap(World& world, vector<TreeCoords<D> > v) : staticmap(false), staticmap_owner(0) {
             buildTreeMap(v);
             madness::print("");
             treeMap->print();
         };
 
-        MyPmap(const MyPmap<D>& other) : staticmap(other.staticmap), owner(other.owner), treeMap(other.treeMap) {};
+        MyPmap(const MyPmap<D>& other) : staticmap(other.staticmap), staticmap_owner(other.staticmap_owner), treeMap(other.treeMap) {};
 
         MyPmap<D>& operator=(const MyPmap<D>& other) {
             if (this != &other) {
@@ -312,11 +306,11 @@ namespace madness {
             return *this;
         };
 
-        void print() {
+        void print() const {
             treeMap->print();
         };
 
-        ProcessID Owner(const KeyD& key) const {
+        ProcessID owner(const KeyD& key) const {
             if (staticmap)
                 return staticmap_owner;
             else {
@@ -333,9 +327,10 @@ namespace madness {
     public:
         typedef WorldContainer<typename DClass<D>::KeyD,typename DClass<D>::NodeD> dcT;
         LBTree() {};
-        LBTree(World& world, const SharedPtr< WorldDCPmapInterface<DClass<D>::KeyD> >& pmap) : dcT(world,pmap) {
+        LBTree(World& world, const SharedPtr< WorldDCPmapInterface<typename DClass<D>::KeyD> >& pmap) : dcT(world,pmap) {
             madness::print("LBTree(world, pmap) constructor");
-            this->get_mypmap()->print();
+            const MyPmap<D>* ppp = &(this->get_mypmap());
+	    ppp->print();
             madness::print("LBTree(world, pmap) constructor (goodbye)");
         };
         template <typename T>
@@ -400,25 +395,26 @@ namespace madness {
             return WorldContainer<typename DClass<D>::KeyD, typename DClass<D>::NodeD>::find(key);
         };
 
-//         const SharedPtr<WorldDCPmapInterface< DClass<D>::KeyD >& get_pmap() {
+//         const SharedPtr<WorldDCPmapInterface< typename DClass<D>::KeyD >& get_pmap() {
 //             return WorldContainer<typename DClass<D>::KeyD, typename DClass<D>::NodeD>::get_pmap();
 //         };
 
         MyPmap<D>& get_mypmap() {
-            return *static_cast< MyPmap<D>* >(get_pmap().get());
+            return *static_cast< MyPmap<D>* >(this->get_pmap().get());
         };
 
     };
 
-    template <typename T, int D, typename Pmap=MyPmap<D> >
+    template <typename T, int D>
     class LoadBalImpl {
     private:
-        Function<T,D,Pmap> f;
+	typedef MyPmap<D> Pmap;
+        Function<T,D> f;
         SharedPtr<typename DClass<D>::treeT> skeltree;
 
-        void construct_skel(SharedPtr<FunctionImpl<T,D,Pmap> > f) {
+        void construct_skel(SharedPtr<FunctionImpl<T,D> > f) {
             skeltree = SharedPtr<typename DClass<D>::treeT>(new typename DClass<D>::treeT(f->world,
-                       f->coeffs.get_mypmap()));
+                       f->coeffs.get_pmap()));
             typename DClass<D>::KeyD root(0);
             madness::print("about to initialize tree");
             if (f->world.mpi.rank() == 0) {
@@ -432,32 +428,34 @@ namespace madness {
         LoadBalImpl() {};
 
         LoadBalImpl(Function<T,D> f) : f(f) {
-            madness::print("LoadBalImpl (Function) constructor: f.impl", &f.impl);
-            construct_skel(f.impl);
+            madness::print("LoadBalImpl (Function) constructor: f.impl", &f.get_impl());
+            construct_skel(f.get_impl());
         };
 
         ~LoadBalImpl() {};
 
         //Methods
         inline void loadBalance() {
-            partition(findBestPartition());
+            //partition(findBestPartition());
+            findBestPartition();
+	    print("partition this!");
         };
 
         vector<typename DClass<D>::TreeCoords> findBestPartition();
 
-        void partition(vector<typename DClass<D>::TreeCoords> v) {
-            // implement partition: copy to new FunctionImpl and replace within f
-            madness::print("partition: at beginning");
-            Pmap pmap(f.impl->world, v);
-            SharedPtr<FunctionImpl<T,D,Pmap> > newimpl(new FunctionImpl<T,D>(*(f.impl.get()),pmap)); // ???????????????????????????????????
-            if (f.impl->world.mpi.rank() == 0) {
-                madness::migrate<T,D,Pmap>(f.impl, newimpl);
-            }
-            madness::print("partition: at fence");
-            f.impl->world.gop.fence();
-            madness::print("partition: after fence");
-            f.impl = newimpl;
-        };
+//         void partition(vector<typename DClass<D>::TreeCoords> v) {
+//             // implement partition: copy to new FunctionImpl and replace within f
+//             madness::print("partition: at beginning");
+//             Pmap pmap(f.impl->world, v);
+//             SharedPtr< FunctionImpl<T,D> > newimpl(new FunctionImpl<T,D>(*(f.impl.get()),pmap));
+//             if (f.impl->world.mpi.rank() == 0) {
+//                 madness::migrate<T,D,Pmap>(f.impl, newimpl);
+//             }
+//             madness::print("partition: at fence");
+//             f.impl->world.gop.fence();
+//             madness::print("partition: after fence");
+//             f.impl = newimpl;
+//         };
 
     };
 

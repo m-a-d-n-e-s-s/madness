@@ -22,14 +22,12 @@ namespace madness {
 #include <mra/legendre.h>
 #include <mra/key.h>
 #include <mra/funcimpl.h>
+#include <mra/loadbal.h>
 
 namespace madness {
 
-    //template <typename T, int NDIM, typename Pmap> class LoadBalImpl;
-
     template <typename T, int NDIM>
     class Function {
-	//friend class LoadBalImpl<T,NDIM,Pmap>;
     private:
         SharedPtr< FunctionImpl<T,NDIM> > impl;
 
@@ -123,6 +121,12 @@ namespace madness {
 
         /// Process 0 prints a summary of all nodes in the tree (collective)
         void print_tree() const {if (impl) impl->print_tree();};
+
+	/// Returns a shared-pointer to the implementation
+	const SharedPtr< FunctionImpl<T,NDIM> >& get_impl() const {
+	    verify();
+	    return impl;
+	};
         
 
     private:

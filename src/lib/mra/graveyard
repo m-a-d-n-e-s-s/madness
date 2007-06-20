@@ -1565,3 +1565,61 @@ struct DClass {
         FunctionSimplePmap(
 
 
+
+
+
+
+// Who knows why these aren't cooperating, so commented out for now
+    /*
+    template void migrate_data<double,1>(SharedPtr<FunctionImpl<double,1> > tfrom, 
+    	SharedPtr<FunctionImpl<double,1> > tto, DClass<1>::KeyD key);
+    template void migrate_data<double,2>(SharedPtr<FunctionImpl<double,2> > tfrom, 
+    	SharedPtr<FunctionImpl<double,2> > tto, DClass<2>::KeyD key);
+    template void migrate_data<double,3>(SharedPtr<FunctionImpl<double,3> > tfrom, 
+    	SharedPtr<FunctionImpl<double,3> > tto, DClass<3>::KeyD key);
+    template void migrate_data<double,4>(SharedPtr<FunctionImpl<double,4> > tfrom, 
+    	SharedPtr<FunctionImpl<double,4> > tto, DClass<4>::KeyD key);
+    template void migrate_data<double,5>(SharedPtr<FunctionImpl<double,5> > tfrom, 
+    	SharedPtr<FunctionImpl<double,5> > tto, DClass<5>::KeyD key);
+    template void migrate_data<double,6>(SharedPtr<FunctionImpl<double,6> > tfrom, 
+    	SharedPtr<FunctionImpl<double,6> > tto, DClass<6>::KeyD key);
+     
+    template void migrate_data<std::complex<double>,1>(SharedPtr<FunctionImpl<std::complex<double>,1,MyPmap<1> > > tfrom, 
+    	SharedPtr<FunctionImpl<std::complex<double>,1,MyPmap<1> > > tto, DClass<1>::KeyD key);
+    template void migrate_data<std::complex<double>,2>(SharedPtr<FunctionImpl<std::complex<double>,2,MyPmap<2> > > tfrom, 
+    	SharedPtr<FunctionImpl<std::complex<double>,2,MyPmap<2> > > tto, DClass<2>::KeyD key);
+    template void migrate_data<std::complex<double>,3>(SharedPtr<FunctionImpl<std::complex<double>,3,MyPmap<3> > > tfrom, 
+    	SharedPtr<FunctionImpl<std::complex<double>,3,MyPmap<3> > > tto, DClass<3>::KeyD key);
+    template void migrate_data<std::complex<double>,4>(SharedPtr<FunctionImpl<std::complex<double>,4,MyPmap<4> > > tfrom, 
+    	SharedPtr<FunctionImpl<std::complex<double>,4,MyPmap<4> > > tto, DClass<4>::KeyD key);
+    template void migrate_data<std::complex<double>,5>(SharedPtr<FunctionImpl<std::complex<double>,5,MyPmap<5> > > tfrom, 
+    	SharedPtr<FunctionImpl<std::complex<double>,5,MyPmap<5> > > tto, DClass<5>::KeyD key);
+    template void migrate_data<std::complex<double>,6>(SharedPtr<FunctionImpl<std::complex<double>,6,MyPmap<6> > > tfrom, 
+    	SharedPtr<FunctionImpl<std::complex<double>,6,MyPmap<6> > > tto, DClass<6>::KeyD key);
+     
+    template void migrate<double,1,MyPmap<1> >(SharedPtr<FunctionImpl<double,1,MyPmap<1> > > tfrom, 
+    	SharedPtr<FunctionImpl<double,1,MyPmap<1> > > tto);
+    template void migrate<double,2,MyPmap<2> >(SharedPtr<FunctionImpl<double,2,MyPmap<2> > > tfrom, 
+    	SharedPtr<FunctionImpl<double,2,MyPmap<2> > > tto);
+    template void migrate<double,3,MyPmap<3> >(SharedPtr<FunctionImpl<double,3,MyPmap<3> > > tfrom, 
+    	SharedPtr<FunctionImpl<double,3,MyPmap<3> > > tto);
+    template void migrate<double,4,MyPmap<4> >(SharedPtr<FunctionImpl<double,4,MyPmap<4> > > tfrom, 
+    	SharedPtr<FunctionImpl<double,4,MyPmap<4> > > tto);
+    template void migrate<double,5,MyPmap<5> >(SharedPtr<FunctionImpl<double,5,MyPmap<5> > > tfrom, 
+    	SharedPtr<FunctionImpl<double,5,MyPmap<5> > > tto);
+    template void migrate<double,6,MyPmap<6> >(SharedPtr<FunctionImpl<double,6,MyPmap<6> > > tfrom, 
+    	SharedPtr<FunctionImpl<double,6,MyPmap<6> > > tto);
+     
+    template void migrate<std::complex<double>,1,MyPmap<1> >(SharedPtr<FunctionImpl<std::complex<double>,1,MyPmap<1> > tfrom, 
+    	SharedPtr<FunctionImpl<std::complex<double>,1,MyPmap<1> > > tto);
+    template void migrate<std::complex<double>,2,MyPmap<2> >(SharedPtr<FunctionImpl<std::complex<double>,2,MyPmap<2> > > tfrom, 
+    	SharedPtr<FunctionImpl<std::complex<double>,2,MyPmap<2> > > tto);
+    template void migrate<std::complex<double>,3,MyPmap<3> >(SharedPtr<FunctionImpl<std::complex<double>,3,MyPmap<3> > > tfrom, 
+    	SharedPtr<FunctionImpl<std::complex<double>,3,MyPmap<3> > > tto);
+    template void migrate<std::complex<double>,4,MyPmap<4> >(SharedPtr<FunctionImpl<std::complex<double>,4,MyPmap<4> > > tfrom, 
+    	SharedPtr<FunctionImpl<std::complex<double>,4,MyPmap<4> > > tto);
+    template void migrate<std::complex<double>,5,MyPmap<5> >(SharedPtr<FunctionImpl<std::complex<double>,5,MyPmap<5> > > tfrom, 
+    	SharedPtr<FunctionImpl<std::complex<double>,5,MyPmap<5> > > tto);
+    template void migrate<std::complex<double>,6,MyPmap<6> >(SharedPtr<FunctionImpl<std::complex<double>,6,MyPmap<6> > > tfrom, 
+    	SharedPtr<FunctionImpl<std::complex<double>,6,MyPmap<6> > > tto);
+    */

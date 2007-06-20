@@ -6,6 +6,15 @@
 
 
 namespace madness {
+    template <typename T, int NDIM> class FunctionImpl;
+    template <typename T, int NDIM> class Function;
+    template <typename T, int D> class LoadBalImpl;
+    template <int D> class LBTree;
+    template <int D> class MyPmap;
+}
+
+
+namespace madness {
 
 
     /// The maximum wavelet order presently supported (up to 31 should work)
@@ -51,7 +60,8 @@ namespace madness {
             bc = Tensor<int>(NDIM,2);
             cell = Tensor<double>(NDIM,2);
             cell(_,1) = 1.0;
-            pmap = SharedPtr< WorldDCPmapInterface< Key<NDIM> > >(new WorldDCDefaultPmap< Key<NDIM> >(world));
+            //pmap = SharedPtr< WorldDCPmapInterface< Key<NDIM> > >(new WorldDCDefaultPmap< Key<NDIM> >(world));
+            pmap = SharedPtr< WorldDCPmapInterface< Key<NDIM> > >(new MyPmap<NDIM>(world));
         };
     };
 
@@ -152,10 +162,6 @@ namespace madness {
             return data[k];
         };
     };
-
-    template <typename T, int NDIM> class FunctionImpl;
-    template <typename T, int NDIM> class Function;
-
 
     /// FunctionFactory implements the named-parameter idiom for Function
 
@@ -349,6 +355,9 @@ namespace madness {
     template <typename T, int NDIM>
     class FunctionImpl : public WorldObject< FunctionImpl<T,NDIM> > {
     public:
+	friend class LoadBalImpl<T,NDIM>;
+	friend class LBTree<NDIM>;
+
         typedef FunctionImpl<T,NDIM> implT;       ///< Type of this class (implementation)
         typedef Tensor<T> tensorT;                     ///< Type of tensor used to hold coeffs
         typedef Vector<Translation,NDIM> tranT;         ///< Type of array holding translation
@@ -410,7 +419,7 @@ namespace madness {
             , vf(factory._vf)
             , compressed(false)
             , nterminated(0)
-            , coeffs(world,false)  // Note ... pending messages not yet processed
+            , coeffs(world,factory._pmap,false)
             , cell(FunctionDefaults<NDIM>::cell) 
             , bc(FunctionDefaults<NDIM>::bc)
             , cell_width(cell(_,1)-cell(_,0))

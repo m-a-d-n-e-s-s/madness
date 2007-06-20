@@ -1,5 +1,5 @@
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
-#include <mra/loadbal.h>
+#include <mra/mra.h>
 
 using namespace std;
 
@@ -11,21 +11,21 @@ namespace madness {
     template <typename T, int D>
     vector<typename DClass<D>::TreeCoords> LoadBalImpl<T,D>::findBestPartition() {
         vector<typename DClass<D>::TreeCoords> klist;
-        if (this->f.impl->world.mpi.rank() != 0) {
+        if (this->f.get_impl()->world.mpi.rank() != 0) {
             print("findBestPartition: leave it to the expert");
-            this->f.impl->world.gop.fence();
+            this->f.get_impl()->world.gop.fence();
             print("about to do broadcast");
             unsigned int ksize;
-            this->f.impl->world.gop.template broadcast<unsigned int>(ksize);
+            this->f.get_impl()->world.gop.template broadcast<unsigned int>(ksize);
             for (unsigned int i = 0; i < ksize; i++) {
                 typename DClass<D>::TreeCoords t;
-                this->f.impl->world.gop.template broadcast<typename DClass<D>::TreeCoords>(t);
+                this->f.get_impl()->world.gop.template broadcast<typename DClass<D>::TreeCoords>(t);
                 klist.push_back(t);
             }
             print("done with broadcast");
             return klist;
         }
-        unsigned int npieces = this->f.impl->world.nproc();
+        unsigned int npieces = this->f.get_impl()->world.nproc();
         bool notdone = true;
         int count = 0;
         vector<vector<typename DClass<D>::TreeCoords> > listoflist;
@@ -139,12 +139,12 @@ namespace madness {
         }
 
         print("findBestPartition: about to do fence");
-        this->f.impl->world.gop.fence();
+        this->f.get_impl()->world.gop.fence();
         print("about to do broadcast");
         unsigned int ksize = klist.size();
-        this->f.impl->world.gop.template broadcast<unsigned int>(ksize);
+        this->f.get_impl()->world.gop.template broadcast<unsigned int>(ksize);
         for (unsigned int i=0; i < ksize; i++) {
-            this->f.impl->world.gop.template broadcast<typename DClass<D>::TreeCoords>(klist[i]);
+            this->f.get_impl()->world.gop.template broadcast<typename DClass<D>::TreeCoords>(klist[i]);
         }
         print("done with broadcast");
 
@@ -154,28 +154,28 @@ namespace madness {
 
     template <int D>
     Cost LBTree<D>::fixCost(typename DClass<D>::KeyDConst& key) {
-        madness::print("fixCost: key =", key, " is about to be looked for");
+//         madness::print("fixCost: key =", key, " is about to be looked for");
         typename DClass<D>::treeT::iterator it = this->find(key);
-        madness::print("fixCost: key =", key, " was found (looked for),", (it == this->end()));
+//         madness::print("fixCost: key =", key, " was found (looked for),", (it == this->end()));
         if (it == this->end()) return 0;
-        madness::print("fixCost: tree it was found (exists)");
+//         madness::print("fixCost: tree it was found (exists)");
 
         typename DClass<D>::NodeD node = it->second;
-        madness::print("fixCost: got node");
+//         madness::print("fixCost: got node");
         NodeData d = node.get_data();
-        madness::print("fixCost: got data from node");
+//         madness::print("fixCost: got data from node");
         d.subcost = d.cost;
-        madness::print("fixCost: assigned node cost to subcost");
+//         madness::print("fixCost: assigned node cost to subcost");
         if (node.has_children()) {
-            madness::print("fixCost: node has children");
+//             madness::print("fixCost: node has children");
             for (KeyChildIterator<D> kit(key); kit; ++kit) {
                 d.subcost += this->template fixCost(kit.key());
             }
         }
         node.set_data(d);
-        madness::print("fixCost: about to insert key =", key, ",", node.get_data());
+//         madness::print("fixCost: about to insert key =", key, ",", node.get_data());
         this->insert(key,node);
-        madness::print("fixCost: inserted node");
+//         madness::print("fixCost: inserted node");
         return d.subcost;
     }
 
@@ -455,112 +455,57 @@ namespace madness {
     }
 
 
-    template <typename T, int D>
-    void migrate_data(SharedPtr<FunctionImpl<T,D> > tfrom, SharedPtr<FunctionImpl<T,D> > tto,
-                      typename DClass<D>::KeyD key) {
-        typename FunctionImpl<T,D>::iterator it = tfrom->find(key);
-        if (it == tfrom->end()) return;
+//     template <typename T, int D>
+//     void migrate_data(SharedPtr<FunctionImpl<T,D> > tfrom, SharedPtr<FunctionImpl<T,D> > tto,
+//                       typename DClass<D>::KeyD key) {
+//         typename FunctionImpl<T,D>::dcT::iterator it = tfrom->coeffs.find(key);
+//         if (it == tfrom->coeffs.end()) return;
 
-        FunctionNode<T,D> node = it->second;
+//         FunctionNode<T,D> node = it->second;
 
-        if (node.has_children()) {
-            for (KeyChildIterator<D> kit(key); kit; ++kit) {
-                migrate_data<T,D>(tfrom, tto, kit.key());
-            }
-        }
-        tto->insert(key, node);
-    }
-
-
-    template <typename T, int D>
-    void migrate(SharedPtr<FunctionImpl<T,D> > tfrom, SharedPtr<FunctionImpl<T,D> > tto) {
-        typename DClass<D>::KeyD root(0);
-        print("migrate: at beginning");
-        migrate_data<T,D>(tfrom, tto, root);
-        print("migrate: at end");
-    }
-
-    // Explicit instantiations for D=1:6
-    template void migrate<double,3,MyPmap<3> >(SharedPtr<FunctionImpl<double,3,MyPmap<3> > > tfrom,
-            SharedPtr<FunctionImpl<double,3,MyPmap<3> > > tto);
-
-    template void migrate_data<double,3>(SharedPtr<FunctionImpl<double,3,MyPmap<3> > > tfrom,
-                                         SharedPtr<FunctionImpl<double,3,MyPmap<3> > > tto, DClass<3>::KeyD key);
+//         if (node.has_children()) {
+//             for (KeyChildIterator<D> kit(key); kit; ++kit) {
+//                 migrate_data<T,D>(tfrom, tto, kit.key());
+//             }
+//         }
+//         tto->coeffs.insert(key, node);
+//     }
 
 
-// Who knows why these aren't cooperating, so commented out for now
-    /*
-    template void migrate_data<double,1>(SharedPtr<FunctionImpl<double,1,MyPmap<1> > > tfrom, 
-    	SharedPtr<FunctionImpl<double,1,MyPmap<1> > > tto, DClass<1>::KeyD key);
-    template void migrate_data<double,2>(SharedPtr<FunctionImpl<double,2,MyPmap<2> > > tfrom, 
-    	SharedPtr<FunctionImpl<double,2,MyPmap<2> > > tto, DClass<2>::KeyD key);
-    template void migrate_data<double,3>(SharedPtr<FunctionImpl<double,3,MyPmap<3> > > tfrom, 
-    	SharedPtr<FunctionImpl<double,3,MyPmap<3> > > tto, DClass<3>::KeyD key);
-    template void migrate_data<double,4>(SharedPtr<FunctionImpl<double,4,MyPmap<4> > > tfrom, 
-    	SharedPtr<FunctionImpl<double,4,MyPmap<4> > > tto, DClass<4>::KeyD key);
-    template void migrate_data<double,5>(SharedPtr<FunctionImpl<double,5,MyPmap<5> > > tfrom, 
-    	SharedPtr<FunctionImpl<double,5,MyPmap<5> > > tto, DClass<5>::KeyD key);
-    template void migrate_data<double,6>(SharedPtr<FunctionImpl<double,6,MyPmap<6> > > tfrom, 
-    	SharedPtr<FunctionImpl<double,6,MyPmap<6> > > tto, DClass<6>::KeyD key);
-     
-    template void migrate_data<std::complex<double>,1>(SharedPtr<FunctionImpl<std::complex<double>,1,MyPmap<1> > > tfrom, 
-    	SharedPtr<FunctionImpl<std::complex<double>,1,MyPmap<1> > > tto, DClass<1>::KeyD key);
-    template void migrate_data<std::complex<double>,2>(SharedPtr<FunctionImpl<std::complex<double>,2,MyPmap<2> > > tfrom, 
-    	SharedPtr<FunctionImpl<std::complex<double>,2,MyPmap<2> > > tto, DClass<2>::KeyD key);
-    template void migrate_data<std::complex<double>,3>(SharedPtr<FunctionImpl<std::complex<double>,3,MyPmap<3> > > tfrom, 
-    	SharedPtr<FunctionImpl<std::complex<double>,3,MyPmap<3> > > tto, DClass<3>::KeyD key);
-    template void migrate_data<std::complex<double>,4>(SharedPtr<FunctionImpl<std::complex<double>,4,MyPmap<4> > > tfrom, 
-    	SharedPtr<FunctionImpl<std::complex<double>,4,MyPmap<4> > > tto, DClass<4>::KeyD key);
-    template void migrate_data<std::complex<double>,5>(SharedPtr<FunctionImpl<std::complex<double>,5,MyPmap<5> > > tfrom, 
-    	SharedPtr<FunctionImpl<std::complex<double>,5,MyPmap<5> > > tto, DClass<5>::KeyD key);
-    template void migrate_data<std::complex<double>,6>(SharedPtr<FunctionImpl<std::complex<double>,6,MyPmap<6> > > tfrom, 
-    	SharedPtr<FunctionImpl<std::complex<double>,6,MyPmap<6> > > tto, DClass<6>::KeyD key);
-     
-    template void migrate<double,1,MyPmap<1> >(SharedPtr<FunctionImpl<double,1,MyPmap<1> > > tfrom, 
-    	SharedPtr<FunctionImpl<double,1,MyPmap<1> > > tto);
-    template void migrate<double,2,MyPmap<2> >(SharedPtr<FunctionImpl<double,2,MyPmap<2> > > tfrom, 
-    	SharedPtr<FunctionImpl<double,2,MyPmap<2> > > tto);
-    template void migrate<double,3,MyPmap<3> >(SharedPtr<FunctionImpl<double,3,MyPmap<3> > > tfrom, 
-    	SharedPtr<FunctionImpl<double,3,MyPmap<3> > > tto);
-    template void migrate<double,4,MyPmap<4> >(SharedPtr<FunctionImpl<double,4,MyPmap<4> > > tfrom, 
-    	SharedPtr<FunctionImpl<double,4,MyPmap<4> > > tto);
-    template void migrate<double,5,MyPmap<5> >(SharedPtr<FunctionImpl<double,5,MyPmap<5> > > tfrom, 
-    	SharedPtr<FunctionImpl<double,5,MyPmap<5> > > tto);
-    template void migrate<double,6,MyPmap<6> >(SharedPtr<FunctionImpl<double,6,MyPmap<6> > > tfrom, 
-    	SharedPtr<FunctionImpl<double,6,MyPmap<6> > > tto);
-     
-    template void migrate<std::complex<double>,1,MyPmap<1> >(SharedPtr<FunctionImpl<std::complex<double>,1,MyPmap<1> > tfrom, 
-    	SharedPtr<FunctionImpl<std::complex<double>,1,MyPmap<1> > > tto);
-    template void migrate<std::complex<double>,2,MyPmap<2> >(SharedPtr<FunctionImpl<std::complex<double>,2,MyPmap<2> > > tfrom, 
-    	SharedPtr<FunctionImpl<std::complex<double>,2,MyPmap<2> > > tto);
-    template void migrate<std::complex<double>,3,MyPmap<3> >(SharedPtr<FunctionImpl<std::complex<double>,3,MyPmap<3> > > tfrom, 
-    	SharedPtr<FunctionImpl<std::complex<double>,3,MyPmap<3> > > tto);
-    template void migrate<std::complex<double>,4,MyPmap<4> >(SharedPtr<FunctionImpl<std::complex<double>,4,MyPmap<4> > > tfrom, 
-    	SharedPtr<FunctionImpl<std::complex<double>,4,MyPmap<4> > > tto);
-    template void migrate<std::complex<double>,5,MyPmap<5> >(SharedPtr<FunctionImpl<std::complex<double>,5,MyPmap<5> > > tfrom, 
-    	SharedPtr<FunctionImpl<std::complex<double>,5,MyPmap<5> > > tto);
-    template void migrate<std::complex<double>,6,MyPmap<6> >(SharedPtr<FunctionImpl<std::complex<double>,6,MyPmap<6> > > tfrom, 
-    	SharedPtr<FunctionImpl<std::complex<double>,6,MyPmap<6> > > tto);
-    */
+//     template <typename T, int D>
+//     void migrate(SharedPtr<FunctionImpl<T,D> > tfrom, SharedPtr<FunctionImpl<T,D> > tto) {
+//         typename DClass<D>::KeyD root(0);
+//         print("migrate: at beginning");
+//         migrate_data<T,D>(tfrom, tto, root);
+//         print("migrate: at end");
+//     }
 
-    template class LoadBalImpl<double,1,MyPmap<1> >;
-    template class LoadBalImpl<double,2,MyPmap<2> >;
-    template class LoadBalImpl<double,3,MyPmap<3> >;
-    template class LoadBalImpl<double,4,MyPmap<4> >;
-    template class LoadBalImpl<double,5,MyPmap<5> >;
-    template class LoadBalImpl<double,6,MyPmap<6> >;
+//     // Explicit instantiations for D=1:6
+//     template void migrate<double,3>(SharedPtr<FunctionImpl<double,3> > tfrom,
+//             SharedPtr<FunctionImpl<double,3> > tto);
 
-    template class LoadBalImpl<std::complex<double>,1,MyPmap<1> >;
-    template class LoadBalImpl<std::complex<double>,2,MyPmap<2> >;
-    template class LoadBalImpl<std::complex<double>,3,MyPmap<3> >;
-    template class LoadBalImpl<std::complex<double>,4,MyPmap<4> >;
-    template class LoadBalImpl<std::complex<double>,5,MyPmap<5> >;
-    template class LoadBalImpl<std::complex<double>,6,MyPmap<6> >;
+//     template void migrate_data<double,3>(SharedPtr<FunctionImpl<double,3> > tfrom,
+//                                          SharedPtr<FunctionImpl<double,3> > tto, DClass<3>::KeyD key);
 
-    template class LBTree<1,MyPmap<1> >;
-    template class LBTree<2,MyPmap<2> >;
-    template class LBTree<3,MyPmap<3> >;
-    template class LBTree<4,MyPmap<4> >;
-    template class LBTree<5,MyPmap<5> >;
-    template class LBTree<6,MyPmap<6> >;
+
+    template class LoadBalImpl<double,1>;
+    template class LoadBalImpl<double,2>;
+    template class LoadBalImpl<double,3>;
+    template class LoadBalImpl<double,4>;
+    template class LoadBalImpl<double,5>;
+    template class LoadBalImpl<double,6>;
+
+    template class LoadBalImpl<std::complex<double>,1>;
+    template class LoadBalImpl<std::complex<double>,2>;
+    template class LoadBalImpl<std::complex<double>,3>;
+    template class LoadBalImpl<std::complex<double>,4>;
+    template class LoadBalImpl<std::complex<double>,5>;
+    template class LoadBalImpl<std::complex<double>,6>;
+
+    template class LBTree<1>;
+    template class LBTree<2>;
+    template class LBTree<3>;
+    template class LBTree<4>;
+    template class LBTree<5>;
+    template class LBTree<6>;
 }
