@@ -57,9 +57,12 @@ int main(int argc, char**argv) {
         startup(world,argc,argv);
 
         Function<double,3> f = FunctionFactory<double,3>(world).f(myg).k(5).thresh(1e-7).nocompress();
+	Function<double,3> g = copy(f);
 
-	LoadBalImpl<double,3> lb(f);
-	lb.loadBalance();
+	LoadBalImpl<double,3> lb(g);
+	FunctionDefaults<3>::pmap = lb.loadBalance();
+	f = copy(g);
+	
 
         //print("The tree after projection");
         //f.print_tree();

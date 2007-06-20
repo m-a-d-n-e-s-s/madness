@@ -468,9 +468,8 @@ namespace madness {
         ///
         /// By default takes pmap from other but can also specify a different pmap.
         /// Does \em not copy the coefficients ... creates an empty container.
-        ///
         FunctionImpl(const FunctionImpl<T,NDIM>& other, 
-                     const SharedPtr< WorldDCPmapInterface< Key<NDIM> > > procmap = 0)
+                     const SharedPtr< WorldDCPmapInterface< Key<NDIM> > >& pmap = 0)
             : WorldObject<implT>(other.world)
             , world(other.world)
             , k(other.k)
@@ -488,7 +487,7 @@ namespace madness {
             , vf(other.vf)
             , compressed(other.compressed)
             , nterminated(other.nterminated)
-            , coeffs(world, procmap ? procmap : other.coeffs.get_pmap())
+            , coeffs(world, pmap ? pmap : other.coeffs.get_pmap())
             , cell(other.cell)
             , bc(other.bc)
             , cell_width(other.cell_width)
@@ -496,9 +495,19 @@ namespace madness {
             , cell_volume(other.cell_volume)
         {};
 
+	const SharedPtr< WorldDCPmapInterface< Key<NDIM> > >& get_pmap() const {
+	    return coeffs.get_pmap();
+	};
+
+	void copy_coeffs(const implT& other) {
+	    for(typename dcT::const_iterator it=other.coeffs.begin(); it!=other.coeffs.end(); ++it) {
+		coeffs.insert(*it);
+	    };
+	    world.gop.fence();
+	};
+
         /// Returns true if the function is compressed.  
         bool is_compressed() const {return compressed;};
-
 
         /// Initialize nodes to zero function at initial_level of refinement. 
 

@@ -119,8 +119,10 @@ namespace madness {
             impl->reconstruct(fence);
         };
 
+
         /// Process 0 prints a summary of all nodes in the tree (collective)
         void print_tree() const {if (impl) impl->print_tree();};
+
 
 	/// Returns a shared-pointer to the implementation
 	const SharedPtr< FunctionImpl<T,NDIM> >& get_impl() const {
@@ -128,9 +130,31 @@ namespace madness {
 	    return impl;
 	};
         
-
+	Function<T,NDIM> copy(const SharedPtr< WorldDCPmapInterface< Key<NDIM> > >& pmap = 0) const {
+	    Function<T,NDIM> result;
+	    result.impl = SharedPtr<implT>(new implT(*impl,pmap));
+	    result.impl->copy_coeffs(*impl);
+	    return result;
+	};
+	
     private:
 
     };
+
+    /// Create a new copy of the function optionally with different distribution
+    template <typename T, int NDIM>
+    Function<T,NDIM> copy(const Function<T,NDIM>& f, 
+			  const SharedPtr< WorldDCPmapInterface< Key<NDIM> > >& pmap = 
+			  SharedPtr< WorldDCPmapInterface< Key<NDIM> > >(0)) {
+	return f.copy(pmap);
+    };
+	    
+
+
+
+
 }
+
+
+
 #endif

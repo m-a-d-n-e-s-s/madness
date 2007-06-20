@@ -435,28 +435,12 @@ namespace madness {
         ~LoadBalImpl() {};
 
         //Methods
-        inline void loadBalance() {
-            //partition(findBestPartition());
-            findBestPartition();
-	    print("partition this!");
+
+        SharedPtr< WorldDCPmapInterface< Key<D> > > loadBalance() {
+            return SharedPtr< WorldDCPmapInterface< Key<D> > >(new MyPmap<D>(f.get_impl()->world, findBestPartition()));
         };
 
         vector<typename DClass<D>::TreeCoords> findBestPartition();
-
-//         void partition(vector<typename DClass<D>::TreeCoords> v) {
-//             // implement partition: copy to new FunctionImpl and replace within f
-//             madness::print("partition: at beginning");
-//             Pmap pmap(f.impl->world, v);
-//             SharedPtr< FunctionImpl<T,D> > newimpl(new FunctionImpl<T,D>(*(f.impl.get()),pmap));
-//             if (f.impl->world.mpi.rank() == 0) {
-//                 madness::migrate<T,D,Pmap>(f.impl, newimpl);
-//             }
-//             madness::print("partition: at fence");
-//             f.impl->world.gop.fence();
-//             madness::print("partition: after fence");
-//             f.impl = newimpl;
-//         };
-
     };
 
     CompCost computeCompCost(Cost c, int n);
