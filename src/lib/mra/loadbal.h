@@ -333,8 +333,9 @@ namespace madness {
 	    ppp->print();
             madness::print("LBTree(world, pmap) constructor (goodbye)");
         };
+/*
         template <typename T>
-        inline void init_tree(SharedPtr< FunctionImpl<T,D> > f, typename DClass<D>::KeyDConst key) {
+        inline void init_tree(const SharedPtr< FunctionImpl<T,D> >& f, typename DClass<D>::KeyDConst& key) {
             // find Node associated with key
             typename FunctionImpl<T,D>::dcT::iterator it = f->coeffs.find(key);
             if (it == f->coeffs.end()) return;
@@ -351,6 +352,24 @@ namespace madness {
                 // then, call for each child
                 for (KeyChildIterator<D> kit(key); kit; ++kit) {
                     this->init_tree<T>(f, kit.key());
+                }
+            }
+        };
+*/
+        template <typename T>
+        inline void init_tree(const SharedPtr< FunctionImpl<T,D> >& f) {
+            for (typename FunctionImpl<T,D>::dcT::iterator it = f->coeffs.begin(); it != f->coeffs.end(); ++it) {
+            	// convert Node to LBNode
+            	NodeData nd;
+		typename DClass<D>::KeyD key = it->first;
+            	if (!(it->second.has_children())) {
+                	typename DClass<D>::NodeD lbnode(nd,false);
+                	// insert into "this"
+                	this->insert(key, lbnode);
+            	} else {
+                	typename DClass<D>::NodeD lbnode(nd,true);
+                	// insert into "this"
+                	this->insert(key, lbnode);
                 }
             }
         };
@@ -417,9 +436,10 @@ namespace madness {
                        f->coeffs.get_pmap()));
             typename DClass<D>::KeyD root(0);
             madness::print("about to initialize tree");
-            if (f->world.mpi.rank() == 0) {
-                skeltree->template init_tree<T>(f,root);
-            }
+//            if (f->world.mpi.rank() == 0) {
+//                skeltree->template init_tree<T>(f,root);
+//            }
+	    skeltree->template init_tree<T>(f);
             madness::print("just initialized tree");
         };
 
