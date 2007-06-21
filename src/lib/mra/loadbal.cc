@@ -191,13 +191,16 @@ namespace madness {
         int partsLeft = npieces;
         *maxcost = 0;
         Cost partitionSize = 0;
+	double facter = 1.1;
 
         for (int i = npieces-1; i >= 0; i--) {
 	    madness::print("");
 	    madness::print("Beginning partition number", i);
             std::vector<typename DClass<D>::KeyD> tmplist;
             Cost tpart = computePartitionSize(costLeft, partsLeft);
-            if (tpart > partitionSize) {
+	    // Reconsider partition size at every step.  If too small, leaves too much work for P0.
+	    // If too large, leaves NO work for final processors.  So, strike a balance.
+            if ((tpart > partitionSize) || (tpart*facter < partitionSize)) {
                 partitionSize = tpart;
             }
             madness::print("depthFirstPartition: partitionSize =", partitionSize);
