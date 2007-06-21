@@ -38,12 +38,6 @@ namespace madness {
         typedef LBTree<D> treeT;
     };
 
-//     template <typename T, int D>
-//     void migrate(SharedPtr<FunctionImpl<T,D> > tfrom, SharedPtr<FunctionImpl<T,D> > tto);
-
-//     template <typename T, int D>
-//     void migrate_data(SharedPtr<FunctionImpl<T,D> > tfrom, SharedPtr<FunctionImpl<T,D> > tto,
-//                       typename DClass<D>::KeyD key);
 
     template <typename Data, int D>
     class LBNode {
@@ -333,29 +327,6 @@ namespace madness {
 	    ppp->print();
             madness::print("LBTree(world, pmap) constructor (goodbye)");
         };
-/*
-        template <typename T>
-        inline void init_tree(const SharedPtr< FunctionImpl<T,D> >& f, typename DClass<D>::KeyDConst& key) {
-            // find Node associated with key
-            typename FunctionImpl<T,D>::dcT::iterator it = f->coeffs.find(key);
-            if (it == f->coeffs.end()) return;
-            // convert Node to LBNode
-            NodeData nd;
-            if (!(it->second.has_children())) {
-                typename DClass<D>::NodeD lbnode(nd,false);
-                // insert into "this"
-                this->insert(key, lbnode);
-            } else {
-                typename DClass<D>::NodeD lbnode(nd,true);
-                // insert into "this"
-                this->insert(key, lbnode);
-                // then, call for each child
-                for (KeyChildIterator<D> kit(key); kit; ++kit) {
-                    this->init_tree<T>(f, kit.key());
-                }
-            }
-        };
-*/
         template <typename T>
         inline void init_tree(const SharedPtr< FunctionImpl<T,D> >& f) {
             for (typename FunctionImpl<T,D>::dcT::iterator it = f->coeffs.begin(); it != f->coeffs.end(); ++it) {
@@ -435,12 +406,9 @@ namespace madness {
             skeltree = SharedPtr<typename DClass<D>::treeT>(new typename DClass<D>::treeT(f->world,
                        f->coeffs.get_pmap()));
             typename DClass<D>::KeyD root(0);
-            madness::print("about to initialize tree");
-//            if (f->world.mpi.rank() == 0) {
-//                skeltree->template init_tree<T>(f,root);
-//            }
+//            madness::print("about to initialize tree");
 	    skeltree->template init_tree<T>(f);
-            madness::print("just initialized tree");
+//            madness::print("just initialized tree");
         };
 
     public:
@@ -448,7 +416,7 @@ namespace madness {
         LoadBalImpl() {};
 
         LoadBalImpl(Function<T,D> f) : f(f) {
-            madness::print("LoadBalImpl (Function) constructor: f.impl", &f.get_impl());
+//            madness::print("LoadBalImpl (Function) constructor: f.impl", &f.get_impl());
             construct_skel(f.get_impl());
         };
 
