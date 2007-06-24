@@ -1,2 +1,0 @@
-libMADmisc.LIBSUF
-libMADserialize.LIBSUF
