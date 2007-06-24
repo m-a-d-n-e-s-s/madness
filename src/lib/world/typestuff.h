@@ -814,7 +814,7 @@ namespace madness {
 
 
 
-    /* Macros to make some of this crap more readable */
+    /* Macros to make some of this stuff more readable */
 
     /**
        \def REMREF(TYPE)

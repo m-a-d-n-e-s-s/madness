@@ -40,8 +40,6 @@
 
 #define STATIC static
 
-extern "C" void fuckme(){};
-
 //#ifdef _CRAY
 // Cray won't instantiate static function templates (mxm*)
 //#  define STATIC
@@ -317,7 +315,6 @@ namespace madness {
     /// Return a 3d SliceTensor that views the specified range of the 3d Tensor
     template <class T>
     SliceTensor<T> Tensor<T>::operator()(const Slice& s0, const Slice& s1, const Slice& s2) const {
-        if (this->ndim != 3) fuckme();
         TENSOR_ASSERT(this->ndim==3,"invalid number of dimensions",
                       this->ndim,this);
         Slice s[3] = {s0,s1,s2};

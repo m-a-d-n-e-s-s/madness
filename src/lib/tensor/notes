@@ -68,11 +68,9 @@ To do
 27) boost has a slice class ... with stride as the second arg 
     so it is not defaultable.
 
-28) shit ... the one past end for the iterator end is a pretty
+28) the one past end for the iterator end is a pretty
     wide convention, and it is nice to type Slice(0,k) rather
     than Slice(0,k-1) all the time.
-
-    SHOULD WE CHANGE SLICE BACK TO PYTHON CONVENTION ??????
 
     If so, what about cycledim, etc.
 
