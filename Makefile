@@ -8,6 +8,12 @@ include $(TOPDIR)/Makedirlist
 
 all:	default
 
+etags:
+	etags `find . \( -name "*.h" -o -name "*.cc" -o -name "*.c" -o -name "*.hpp" -o -name "*.cpp" \)`
+
+setsvnkeyword:
+	-find . \( -name "*.h" -o -name "*.cc" -o -name "*.c" -o -name "*.hpp" -o -name "*.cpp" \) -exec config/setsvnkey "{}" ";"
+
 clean::
 	-rm -f depcheck.cc *~ lib/* bin/*
 
