@@ -92,28 +92,51 @@ int main(int argc, char**argv) {
         startup(world,argc,argv);
 
 	double t0 = MPI::Wtime();
-//        Function<double,3> f = FunctionFactory<double,3>(world).f(myg).k(5).thresh(1e-7).nocompress();
-        Function<double,3> f = FunctionFactory<double,3>(world).f(myg).k(11).thresh(1e-12).nocompress();
+        Function<double,3> f = FunctionFactory<double,3>(world).f(myg).k(3).thresh(1e-4).nocompress();
+//        Function<double,3> f = FunctionFactory<double,3>(world).f(myg).k(11).thresh(1e-12).nocompress();
+        world.gop.fence();
 	double t1 = MPI::Wtime();
 	Function<double,3> g = copy(f);
+        world.gop.fence();
 
 	double t2 = MPI::Wtime();
-	LoadBalImpl<double,3> lb(g);
+        f.compress(false);
+        world.gop.fence();
 	double t3 = MPI::Wtime();
-	FunctionDefaults<3>::pmap = lb.loadBalance();
+        f.reconstruct(false);
+        world.gop.fence();
 	double t4 = MPI::Wtime();
-	f = copy(g);
+
+	LoadBalImpl<double,3> lb(g);
+        world.gop.fence();
 	double t5 = MPI::Wtime();
+	FunctionDefaults<3>::pmap = lb.load_balance();
+        world.gop.fence();
+	double t6 = MPI::Wtime();
+	f = copy(g);
+        world.gop.fence();
+	double t7 = MPI::Wtime();
+
+        g.compress(false);
+        world.gop.fence();
+	double t8 = MPI::Wtime();
+        g.reconstruct(false);
+        world.gop.fence();
+	double t9 = MPI::Wtime();
 
 	madness::print("Routine            |  Time");
 	madness::print("-------------------+--------------");
 	madness::print("Init f             | ", t1-t0);
 	madness::print("Copy f to g        | ", t2-t1);
-	madness::print("Create LoadBalImpl | ", t3-t2);
-	madness::print("Load Balance       | ", t4-t3);
-	madness::print("Copy g to f        | ", t5-t4);
+	madness::print("Compress f         | ", t3-t2);
+	madness::print("Reconstruct f      | ", t4-t3);
+	madness::print("Create LoadBalImpl | ", t5-t4);
+	madness::print("Load Balance       | ", t6-t5);
+	madness::print("Copy g to f        | ", t7-t6);
+	madness::print("Compress g         | ", t8-t7);
+	madness::print("Reconstruct g      | ", t9-t8);
 	madness::print("-------------------+--------------");
-	madness::print("Total Time         | ", t5-t0);
+	madness::print("Total Time         | ", t9-t0);
 	
 
         //print("The tree after projection");
@@ -137,25 +160,6 @@ int main(int argc, char**argv) {
 //         world.gop.fence();
 //         print("The tree after reconstruct");
 //         f.print_tree();
-        
-	
-
-
-//	xterm_debug("test", 0);
-
-	//double t0, t1, t2, t3;
-        
-        //Function<double,3,MyProcmap<3> > f = FunctionFactory<double,3,MyProcmap<3> >(world).f(myfun).k(3).thresh(1e-2).nocompress();
-
-// 	print("about to construct LoadBalImpl");
-// 	t0 = wall_time();
-// 	LoadBalImpl<double,3,MyProcmap<3> > lbi(f);
-// 	t1 = wall_time();
-// 	print("constructed LoadBalImpl, time =", t1-t0);
-// 	t2 = wall_time();
-// 	lbi.loadBalance();
-// 	t3 = wall_time();
-// 	print("load balanced, time =", t3-t2);
     } catch (const MPI::Exception& e) {
         print(e);
         error("caught an MPI exception");

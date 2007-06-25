@@ -32,6 +32,8 @@
   $Id$
 */
 
+/// \file loadbal.cc
+/// \brief Implements class methods associated with load balancing.
   
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <mra/mra.h>
@@ -42,17 +44,20 @@ namespace madness {
     typedef int Cost;
     typedef double CompCost;
 
-// findBestPartition performs the melding algorithm: it recursively melds and partitions the tree
-// until it has found all possible configurations.
+    /// find_best_partition performs the "melding" algorithm for load balancing: it recursively melds 
+    /// and partitions the tree until it has found all possible configurations.
     template <typename T, int D>
-    std::vector<typename DClass<D>::TreeCoords> LoadBalImpl<T,D>::findBestPartition() {
+    std::vector<typename DClass<D>::TreeCoords> LoadBalImpl<T,D>::find_best_partition() {
 	double t0 = MPI::Wtime();
         std::vector<typename DClass<D>::TreeCoords> klist;
         if (this->f.get_impl()->world.mpi.rank() != 0) {
-//            madness::print("findBestPartition: leave it to the expert");
+//            madness::print("find_best_partition: leave it to the expert");
+	    // Processors who are not the manager just sit around and send information to the 
+	    // manager as it is requested.
             this->f.get_impl()->world.gop.fence();
 //            madness::print("about to do broadcast");
             unsigned int ksize;
+	    // Then, they receive the broadcast of the final partitioning
             this->f.get_impl()->world.gop.template broadcast<unsigned int>(ksize);
             for (unsigned int i = 0; i < ksize; i++) {
                 typename DClass<D>::TreeCoords t;
@@ -62,103 +67,106 @@ namespace madness {
 //            print("done with broadcast");
             return klist;
         }
+	// The manager process coordinates the melding algorithm for load balancing, keeping a list of
+	// lists of the configurations suggested by the melding algorithm, and picking the best
+	// configuration at the end.
         unsigned int npieces = this->f.get_impl()->world.nproc();
         bool notdone = true;
         int count = 0;
-        std::vector<std::vector<typename DClass<D>::TreeCoords> > listoflist;
+        std::vector<std::vector<typename DClass<D>::TreeCoords> > list_of_list;
         std::vector<typename DClass<D>::TreeCoords> emptylist;
         std::vector<Cost> costlist;
 
-        listoflist.push_back(emptylist);
+        list_of_list.push_back(emptylist);
         costlist.push_back(0);
         Cost totalCost = 0;
 
-//        madness::print("findBestPartition: about to fixCost");
+//        madness::print("find_best_partition: about to fix_cost");
 
         typename DClass<D>::KeyD root(0);
-        this->skeltree->fixCost(root);
-//        madness::print("findBestPartition: about to depthFirstPartition");
+        this->skeltree->fix_cost(root);
+//        madness::print("find_best_partition: about to depth_first_partition");
         //    this->skeltree->print(root);
-        totalCost = this->skeltree->depthFirstPartition(root, &listoflist[count], npieces,
+        totalCost = this->skeltree->depth_first_partition(root, &list_of_list[count], npieces,
                     totalCost, &costlist[count]);
-        //madness::print("findBestPartition: after depthFirstPartition");
-        int size = listoflist[count].size();
+        //madness::print("find_best_partition: after depth_first_partition");
+        int size = list_of_list[count].size();
 //	madness::print("Partitioned tree", count, ":");
 //        for (int i = 0; i < size; i++)
-//            listoflist[count][i].print();
+//            list_of_list[count][i].print();
 //	madness::print("Max cost for this tree =", costlist[count]);
 //	madness::print("");
-        if (listoflist[count].size() < npieces)
+        if (list_of_list[count].size() < npieces)
             notdone = false;
         count++;
 
         while (notdone) {
-            //	this->skeltree.fixCost<D>(root);
-            this->skeltree->fixCost(root);
+            //	this->skeltree.fix_cost<D>(root);
+            this->skeltree->fix_cost(root);
             //	this->skeltree.rollup<D>(root);
             this->skeltree->rollup(root);
-            listoflist.push_back(emptylist);
+            list_of_list.push_back(emptylist);
             costlist.push_back(0);
-            this->skeltree->depthFirstPartition(root, &listoflist[count], npieces, totalCost, &costlist[count]);
-            int size = listoflist[count].size();
+            this->skeltree->depth_first_partition(root, &list_of_list[count], npieces, totalCost, &costlist[count]);
+            int size = list_of_list[count].size();
 //	    madness::print("Partitioned tree", count, ":");
 //            for (int i = 0; i < size; i++)
-//                listoflist[count][i].print();
+//                list_of_list[count][i].print();
 //	    madness::print("Max cost for this tree =", costlist[count]);
 //	    madness::print("");
 
             typename DClass<D>::treeT::iterator it = this->skeltree->find(root);
             if (it == this->skeltree->end()) return klist;
             typename DClass<D>::NodeD node = it->second;
-            if (!(node.has_children()) || (listoflist[count].size() < npieces)) {
+            if (!(node.has_children()) || (list_of_list[count].size() < npieces)) {
                 notdone = false;
             }
-            if (listoflist[count].size() < npieces) {
-                listoflist.erase(listoflist.begin()+count);
+            if (list_of_list[count].size() < npieces) {
+                list_of_list.erase(list_of_list.begin()+count);
                 break;
             }
             count++;
         }
-        unsigned int shortestList = 0, SL_index, LB_index;
-        Cost loadBalCost = 0;
+        unsigned int shortest_list = 0, sl_index, lb_index;
+        Cost load_bal_cost = 0;
         std::vector<unsigned int> len;
         for (int i = 0; i < count; i++) {
-            len.push_back(listoflist[i].size());
-            if ((len[i] < shortestList) || (shortestList == 0)) {
-                shortestList = len[i];
-                SL_index = i;
-            } else if ((len[i] == shortestList) && (costlist[i] < costlist[SL_index])) {
+            len.push_back(list_of_list[i].size());
+            if ((len[i] < shortest_list) || (shortest_list == 0)) {
+                shortest_list = len[i];
+                sl_index = i;
+            } else if ((len[i] == shortest_list) && (costlist[i] < costlist[sl_index])) {
                 // all things being equal, prefer better balance
-                shortestList = len[i];
-                SL_index = i;
+                shortest_list = len[i];
+                sl_index = i;
             }
-            if ((costlist[i] < loadBalCost) || (loadBalCost == 0)) {
-                loadBalCost = costlist[i];
-                LB_index = i;
-            } else if ((costlist[i] == loadBalCost) && (len[i] < listoflist[LB_index].size())) {
+            if ((costlist[i] < load_bal_cost) || (load_bal_cost == 0)) {
+                load_bal_cost = costlist[i];
+                lb_index = i;
+            } else if ((costlist[i] == load_bal_cost) && (len[i] < list_of_list[lb_index].size())) {
                 // all things being equal, prefer fewer cuts
-                loadBalCost = costlist[i];
-                LB_index = i;
+                load_bal_cost = costlist[i];
+                lb_index = i;
             }
         }
 
-//	madness::print("The load balance with the fewest broken links has cost", costlist[SL_index], "and",
-//		shortestList-1, "broken links");
-//        for (unsigned int i = 0; i < shortestList; i++) {
-//            listoflist[SL_index][i].print();
+//	madness::print("The load balance with the fewest broken links has cost", costlist[sl_index], "and",
+//		shortest_list-1, "broken links");
+//        for (unsigned int i = 0; i < shortest_list; i++) {
+//            list_of_list[sl_index][i].print();
 //        }
 //	madness::print("");
-//	madness::print("The load balance with the best balance has cost", loadBalCost, "and", 
-//		listoflist[LB_index].size()-1, "broken links");
-//        for (unsigned int i = 0; i < listoflist[LB_index].size(); i++) {
-//            listoflist[LB_index][i].print();
+//	madness::print("The load balance with the best balance has cost", load_bal_cost, "and", 
+//		list_of_list[lb_index].size()-1, "broken links");
+//        for (unsigned int i = 0; i < list_of_list[lb_index].size(); i++) {
+//            list_of_list[lb_index][i].print();
 //        }
 //	madness::print("");
 
         CompCost ccleast = 0;
         int cc_index;
         for (int i = 0; i < count; i++) {
-            CompCost cctmp = computeCompCost(costlist[i], len[i]-1);
+            CompCost cctmp = compute_comp_cost(costlist[i], len[i]-1);
             if ((i==0) || (cctmp < ccleast)) {
                 ccleast = cctmp;
                 cc_index = i;
@@ -167,13 +175,13 @@ namespace madness {
 //	madness::print("The load balance with the best overall computational cost has cost",
 //		costlist[cc_index], "and", len[cc_index]-1, "broken links");
 //        for (unsigned int i = 0; i < len[cc_index]; i++) {
-//            listoflist[cc_index][i].print();
+//            list_of_list[cc_index][i].print();
 //        }
         for (unsigned int i = 0; i < len[cc_index]; i++) {
-            klist.push_back(listoflist[cc_index][i]);
+            klist.push_back(list_of_list[cc_index][i]);
         }
 
-//        madness::print("findBestPartition: about to do fence");
+//        madness::print("find_best_partition: about to do fence");
         this->f.get_impl()->world.gop.fence();
 //        madness::print("about to do broadcast");
         unsigned int ksize = klist.size();
@@ -184,77 +192,88 @@ namespace madness {
 //        madness::print("done with broadcast");
 
 	double t1 = MPI::Wtime();
-	madness::print("findBestPartition: time =", t1-t0);
+	madness::print("find_best_partition: time =", t1-t0);
 
         return klist;
     }
 
-// fixCost resets the tree after the load balancing and melding have been performed, before the next
-// round of load balancing.
+    /// fix_cost resets the tree after the load balancing and melding have been performed, before the next
+    /// round of load balancing.
+    /// Argument: const Key<D> key -- the node to be reset
+    /// Return: Cost of subtree rooted at key
+    /// Side effect: subcost (the cost of the subtree rooted at key) is reset
+    /// Communication: Just what's required for find and insert
 
     template <int D>
-    Cost LBTree<D>::fixCost(typename DClass<D>::KeyDConst& key) {
-//         madness::print("fixCost: key =", key, " is about to be looked for");
+    Cost LBTree<D>::fix_cost(typename DClass<D>::KeyDConst& key) {
+//         madness::print("fix_cost: key =", key, " is about to be looked for");
         typename DClass<D>::treeT::iterator it = this->find(key);
-//         madness::print("fixCost: key =", key, " was found (looked for),", (it == this->end()));
+//         madness::print("fix_cost: key =", key, " was found (looked for),", (it == this->end()));
         if (it == this->end()) return 0;
-//         madness::print("fixCost: tree it was found (exists)");
+//         madness::print("fix_cost: tree it was found (exists)");
 
         typename DClass<D>::NodeD node = it->second;
-//         madness::print("fixCost: got node");
+//         madness::print("fix_cost: got node");
         NodeData d = node.get_data();
-//         madness::print("fixCost: got data from node");
+//         madness::print("fix_cost: got data from node");
         d.subcost = d.cost;
-//         madness::print("fixCost: assigned node cost to subcost");
+//         madness::print("fix_cost: assigned node cost to subcost");
         if (node.has_children()) {
-//             madness::print("fixCost: node has children");
+//             madness::print("fix_cost: node has children");
             for (KeyChildIterator<D> kit(key); kit; ++kit) {
-                d.subcost += this->fixCost(kit.key());
+                d.subcost += this->fix_cost(kit.key());
             }
         }
         node.set_data(d);
-//         madness::print("fixCost: about to insert key =", key, ",", node.get_data());
+//         madness::print("fix_cost: about to insert key =", key, ",", node.get_data());
         this->insert(key,node);
-//         madness::print("fixCost: inserted node");
+//         madness::print("fix_cost: inserted node");
         return d.subcost;
     }
 
 
-// depthFirstPartition finds partitions of trees by calling makePartition.  It figures
-// out the size of the partitions to be made by makePartition at each iteration.
+    /// depth_first_partition finds partitions of trees by calling make_partition.  It figures
+    /// out the size of the partitions to be made by make_partition at each iteration.
+    /// Arguments: const Key<D> key -- node at which we begin
+    ///            vector<TreeCoords<D> >* klist -- list of subtree root nodes obtained from partitioning
+    ///            unsigned int npieces -- number of pieces to partition the tree into
+    ///            Cost totalcost -- cost of tree rooted at key
+    ///            Cost *maxcost -- the maximum cost allowed in a partition
+    /// Return: Cost -- the Cost of what has been used up in the partition so far
+    /// Side effect: klist and maxcost are updated
     template <int D>
-    Cost LBTree<D>::depthFirstPartition(typename DClass<D>::KeyDConst& key,
+    Cost LBTree<D>::depth_first_partition(typename DClass<D>::KeyDConst& key,
             std::vector<typename DClass<D>::TreeCoords>* klist, unsigned int npieces,
             Cost totalcost, Cost *maxcost) {
-//madness::print("depthFirstPartition: at very beginning");
+//madness::print("depth_first_partition: at very beginning");
         if (totalcost == 0) {
-            totalcost = this->computeCost(key);
+            totalcost = this->compute_cost(key);
         }
-//        madness::print("depthFirstPartition: totalcost =", totalcost);
+//        madness::print("depth_first_partition: totalcost =", totalcost);
 
-        Cost costLeft = totalcost;
-        int partsLeft = npieces;
+        Cost cost_left = totalcost;
+        int parts_left = npieces;
         *maxcost = 0;
-        Cost partitionSize = 0;
+        Cost partition_size = 0;
 	double facter = 1.1;
 
         for (int i = npieces-1; i >= 0; i--) {
 //	    madness::print("");
 //	    madness::print("Beginning partition number", i);
             std::vector<typename DClass<D>::KeyD> tmplist;
-            Cost tpart = computePartitionSize(costLeft, partsLeft);
+            Cost tpart = compute_partition_size(cost_left, parts_left);
 	    // Reconsider partition size at every step.  If too small, leaves too much work for P0.
 	    // If too large, leaves NO work for final processors.  So, strike a balance.
-            if ((tpart > partitionSize) || (tpart*facter < partitionSize)) {
-                partitionSize = tpart;
+            if ((tpart > partition_size) || (tpart*facter < partition_size)) {
+                partition_size = tpart;
             }
-//            madness::print("depthFirstPartition: partitionSize =", partitionSize);
-            Cost usedUp = 0;
-            bool atleaf = false;
-            usedUp = this->makePartition(key, &tmplist, partitionSize, (i==0), usedUp, &atleaf);
-            if (*maxcost < usedUp) *maxcost = usedUp;
-            costLeft -= usedUp;
-            partsLeft--;
+//            madness::print("depth_first_partition: partition_size =", partition_size);
+            Cost used_up = 0;
+            bool at_leaf = false;
+            used_up = this->make_partition(key, &tmplist, partition_size, (i==0), used_up, &at_leaf);
+            if (*maxcost < used_up) *maxcost = used_up;
+            cost_left -= used_up;
+            parts_left--;
             for (unsigned int j = 0; j < tmplist.size(); j++) {
                 klist->push_back(typename DClass<D>::TreeCoords(typename DClass<D>::KeyD(tmplist[j]), i));
             }
@@ -262,7 +281,10 @@ namespace madness {
         return totalcost;
     }
 
-// rollup traverses the tree, calling meld upon nodes that have leaf children
+    /// rollup traverses the tree, calling meld upon Nodes that have leaf children
+    /// Arguments: const Key<D> key -- node at which we begin
+    /// Side effect: Nodes are changed by meld
+    /// Communication: just finding the nodes that match a given key
     template <int D>
     void LBTree<D>::rollup(typename DClass<D>::KeyDConst& key) {
 //    madness::print("rollup: at beginning");
@@ -309,14 +331,17 @@ namespace madness {
         it = this->find(key);
         node = it->second;
         NodeData d = node.get_data();
-        if (d.istaken) {
-            d.istaken = false;
+        if (d.is_taken) {
+            d.is_taken = false;
             node.set_data(d);
             this->insert(key,node);
         }
     }
 
-// meld fuses leaf child(ren) to parent and deletes the leaf child(ren) in question
+    /// meld fuses leaf child(ren) to parent and deletes the leaf child(ren) in question
+    /// Arguments: const Key<D> key -- node at which we begin
+    /// Side effect: parent nodes are updated, and leaf nodes are deleted
+    /// Communication: find and insert 
     template <int D>
     void LBTree<D>::meld(typename DClass<D>::KeyDConst& key) {
 //    madness::print("meld: at beginning, finding key", key);
@@ -353,7 +378,7 @@ namespace madness {
         if (cheapest == 0) {
 //	madness::print("meld: this node has no leaf children");
             NodeData d = node.get_data();
-            d.istaken = false;
+            d.is_taken = false;
             node.set_data(d);
             this->insert(key,node);
             return;
@@ -374,22 +399,26 @@ namespace madness {
             i++;
             if (j == mlsize) break;
         }
-        d.istaken = false;
+        d.is_taken = false;
         node.set_data(d);
         this->insert(key,node);
 //    madness::print("meld: inserted node back into tree; goodbye!");
     }
 
-// computeCost resets the subtree cost value for a tree and its descendants.
+    /// compute_cost resets the subtree cost value for a tree and its descendants.
+    /// Arguments: const Key<D> key -- node at which we begin
+    /// Return: Cost -- the Cost of the subtree headed by key
+    /// Side effect: subcost is updated
+    /// Communication: find and insert
     template <int D>
-    Cost LBTree<D>::computeCost(typename DClass<D>::KeyDConst& key) {
+    Cost LBTree<D>::compute_cost(typename DClass<D>::KeyDConst& key) {
         Cost cost = 0;
         typename DClass<D>::treeT::iterator it = this->find(key);
         if (it == this->end()) return cost;
 
         typename DClass<D>::NodeD node = it->second;
         for (KeyChildIterator<D> kit(key); kit; ++kit) {
-            cost += this->computeCost(kit.key());
+            cost += this->compute_cost(kit.key());
         }
         NodeData d = node.get_data();
         cost += d.cost;
@@ -401,19 +430,28 @@ namespace madness {
     }
 
 
-// makePartition creates a partition.  It's called by depthFirstPartition to actually do all the dirty 
-// work for each partition. 
+    /// make_partition creates a partition.  It's called by depth_first_partition to actually do all the dirty 
+    /// work for each partition. 
+    /// Arguments: const Key<D> key -- node at which we begin
+    ///            vector<Key<D> >* klist -- list of subtree root nodes obtained from partitioning
+    ///            Cost partition_size -- the target size for the partition
+    ///            bool last_partition -- is this the final partition
+    ///            Cost used_up -- the cost used up so far in this partition
+    ///            bool *at_leaf -- are we at a leaf node
+    /// Return: Cost -- the Cost of what was used up in this partition 
+    /// Side effect: klist and at_leaf are updated
+    /// Communication: find and insert
     template <int D>
-    Cost LBTree<D>::makePartition(typename DClass<D>::KeyDConst& key,
-	 			       std::vector<typename DClass<D>::KeyD>* klist, Cost partitionSize, 
-				       bool lastPartition, Cost usedUp, bool *atleaf) {
-//    madness::print("at beginning of makePartition: atleaf =", *atleaf);
+    Cost LBTree<D>::make_partition(typename DClass<D>::KeyDConst& key,
+	 			       std::vector<typename DClass<D>::KeyD>* klist, Cost partition_size, 
+				       bool last_partition, Cost used_up, bool *at_leaf) {
+//    madness::print("at beginning of make_partition: at_leaf =", *at_leaf);
         double fudgeFactor = 0.1;
-        Cost maxAddl = (Cost) (fudgeFactor*partitionSize);
+        Cost maxAddl = (Cost) (fudgeFactor*partition_size);
 
         typename DClass<D>::treeT::iterator it = this->find(key);
         if (it == this->end()) {
-            return usedUp;
+            return used_up;
         }
 
         typename DClass<D>::NodeD node = it->second;
@@ -421,90 +459,98 @@ namespace madness {
 
         it = this->end();
 
-//        madness::print("makePartition: data for key", key, ":", d);
-//        madness::print("makePartition: partitionSize =", partitionSize, ", lastPartition =", lastPartition, ", usedUp =", usedUp);
+//        madness::print("make_partition: data for key", key, ":", d);
+//        madness::print("make_partition: partition_size =", partition_size, ", last_partition =", last_partition, ", used_up =", used_up);
 
-        if (d.istaken) {
-//            madness::print("makePartition: this key is taken");
-            return usedUp;
+        if (d.is_taken) {
+//            madness::print("make_partition: this key is taken");
+            return used_up;
         }
 
-//        madness::print("makePartition: back to key", key);
+//        madness::print("make_partition: back to key", key);
 
         // if either we're at the last partition, the partition is currently empty
         // and this is a single item, or there is still room in the partition and
         // adding this to it won't go above the fudge factor,
         // then add this piece to the partition.
-        if ((lastPartition) || ((usedUp == 0) && (!node.has_children())) ||
-                ((usedUp < partitionSize) && (d.subcost+usedUp <= partitionSize+maxAddl))) {
+        if ((last_partition) || ((used_up == 0) && (!node.has_children())) ||
+                ((used_up < partition_size) && (d.subcost+used_up <= partition_size+maxAddl))) {
             // add to partition
-//            madness::print("makePartition: adding to partition", key);
+//            madness::print("make_partition: adding to partition", key);
             klist->push_back(typename DClass<D>::KeyD(key));
-            d.istaken = true;
-            usedUp += d.subcost;
+            d.is_taken = true;
+            used_up += d.subcost;
             // REMOVE COST FROM FOREPARENTS 
-            this->removeCost(key.parent(), d.subcost);
+            this->remove_cost(key.parent(), d.subcost);
             node.set_data(d);
             this->insert(key,node);
-        } else if (usedUp < partitionSize) {
+        } else if (used_up < partition_size) {
             // try this node's children (if any)
             if (node.has_children()) {
                 int i = 0;
                 for (KeyChildIterator<D> kit(key); kit; ++kit) {
                     if (node.has_child(i)) {
-//                        madness::print("makePartition:", key, "recursively calling", kit.key());
-                        usedUp = this->makePartition(kit.key(), klist, partitionSize, lastPartition,
-                                                              usedUp, atleaf);
-                        if ((*atleaf) || (usedUp >= partitionSize)) {
+//                        madness::print("make_partition:", key, "recursively calling", kit.key());
+                        used_up = this->make_partition(kit.key(), klist, partition_size, last_partition,
+                                                              used_up, at_leaf);
+                        if ((*at_leaf) || (used_up >= partition_size)) {
                             break;
                         }
                     }
                     i++;
                 }
             } else {
-//                madness::print("makePartition: about to set atleaf = true");
-                *atleaf = true;
+//                madness::print("make_partition: about to set at_leaf = true");
+                *at_leaf = true;
             }
         }
-        return usedUp;
+        return used_up;
     }
 
-// Remove evidence of a claimed subtree from its foreparents' subtree cost
+    /// Remove evidence of a claimed subtree from its foreparents' subtree cost
 
+    /// Arguments: const Key<D> key -- node at which we begin
+    ///            Cost c -- cost of what is to be removed
+    /// Side effect: Node's subcost is updated
     template <int D>
-    void LBTree<D>::removeCost(typename DClass<D>::KeyDConst& key, Cost c) {
-//        madness::print("removeCost: key", key, "owner =", owner(key));
+    void LBTree<D>::remove_cost(typename DClass<D>::KeyDConst& key, Cost c) {
+//        madness::print("remove_cost: key", key, "owner =", owner(key));
 //        this->get_mypmap().print();
         if (((int) key.level()) < 0) return;
         typename DClass<D>::treeT::iterator it = this->find(key);
-//        madness::print("removeCost: found key");
+//        madness::print("remove_cost: found key");
         if (it == this->end()) return;
         typename DClass<D>::NodeD node = it->second;
         NodeData d = node.get_data();
-//        madness::print("removeCost: got data");
+//        madness::print("remove_cost: got data");
         d.subcost -= c;
         if (key.level() > 0) {
-            this->removeCost(key.parent(), c);
+            this->remove_cost(key.parent(), c);
         }
-//        madness::print("removeCost: before setting, data =", d);
+//        madness::print("remove_cost: before setting, data =", d);
         node.set_data(d);
-//        madness::print("removeCost: after setting, data =", node.get_data());
+//        madness::print("remove_cost: after setting, data =", node.get_data());
         this->insert(key,node);
-//        madness::print("removeCost: after inserting, data = ", node.get_data());
+//        madness::print("remove_cost: after inserting, data = ", node.get_data());
     }
 
 
-    Cost computePartitionSize(Cost cost, unsigned int parts) {
+    /// Compute the partition size: a straight quotient of the cost by the number of
+    /// remaining partitions
+    Cost compute_partition_size(Cost cost, unsigned int parts) {
         return (Cost) ceil(((double) cost)/((double) parts));
     }
 
 
-// Compute the cost of a given configuration: a weighted sum of the cost of the
-// maximally-loaded process and the total number of broken links.
-// In the future, the factors should be calibrated for a given machine, either 
-// during configuration and setup or in real time at the beginning of the program
-// or upon the creation of a LoadBalImpl.
-    CompCost computeCompCost(Cost c, int n) {
+    /// Compute the cost of a given configuration: a weighted sum of the cost of the
+    /// maximally-loaded process and the total number of broken links.
+    /// In the future, the factors should be calibrated for a given machine, either 
+    /// during configuration and setup or in real time at the beginning of the program
+    /// or upon the creation of a LoadBalImpl.
+    /// Arguments: Cost c -- maximum amount of cost assigned to a node
+    ///            int n -- number of broken links
+    /// Return: Cost -- the Cost of what has been used up in the partition so far
+    CompCost compute_comp_cost(Cost c, int n) {
         CompCost compcost;
         CompCost cfactor = 0.01, nfactor = 1.0;
         compcost = cfactor*c + nfactor*n;

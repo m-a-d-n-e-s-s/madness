@@ -32,6 +32,9 @@
   $Id$
 */
 
+/// \file loadbal.h
+/// \brief Declares and partially implements MyPmap, LoadBalImpl and associated load balancing classes.
+
   
 #ifndef LOADBAL_H
 #define LOADBAL_H
@@ -41,6 +44,7 @@ namespace madness {
     typedef int Cost;
     typedef double CompCost;
 
+    /// Finds exponent k such that d^k <= me < d^{k+1}
     inline int nearest_power(int me, int d) {
         int k = 0;
         while (me != 0) {
@@ -61,6 +65,9 @@ namespace madness {
     template <int D> class LBTree;
     class NodeData;
 
+    /// Convenient typedef shortcuts
+
+    /// Makes it easier to handle these unwieldy templated types
     template <int D>
     struct DClass {
         typedef Key<D> KeyD;
@@ -74,29 +81,33 @@ namespace madness {
     };
 
 
+    /// The node that is used in the fascimile copy of the tree to be load balanced
+
+    /// The node used in the tree that is operated upon and load balanced in LoadBalImpl.
     template <typename Data, int D>
     class LBNode {
     private:
         Data data;
-        std::vector<bool> c;
+        std::vector<bool> c; /// Existence of each child individually
 
-        void allchildren(bool status=false) {
+        void all_children(bool status=false) {
             c.clear();
             c.assign(dim, status);
         };
 
     public:
-        static int dim;
+        static int dim; /// Number of children in standard tree (e.g. 2^D)
 
         LBNode() {
             data = Data();
-            allchildren();
+            all_children();
         };
 
         LBNode(Data d, bool children=false) : data(d) {
-            allchildren(children);
+            all_children(children);
         };
 
+	/// Determines whether node has any children at all
         bool has_children() const {
             for (int i = 0; i < dim; i++)
                 if (c[i]) return true;
@@ -151,30 +162,34 @@ namespace madness {
     int LBNode<Data,D>::dim = power<D>();
 
 
+    /// Diagnostic data contained in fascimile tree
+    /// Diagnostic data, including the cost of the node and the subtree headed by that node,
+    /// along with a bool flag used during depth-first partitioning
     class NodeData {
         friend std::ostream& operator<<(std::ostream& s, const NodeData& nd);
     public:
         int cost;
         int subcost;
-        bool istaken;
-        NodeData(int c = 1, int s = 1, bool i = false) : cost(c), subcost(s), istaken(i) {};
+        bool is_taken;
+        NodeData(int c = 1, int s = 1, bool i = false) : cost(c), subcost(s), is_taken(i) {};
         template <typename Archive>
         void serialize(const Archive& ar) {
-            ar & cost & subcost & istaken;
+            ar & cost & subcost & is_taken;
         };
         void print() {
-            cout << "cost = " << cost << ", subcost = " << subcost << ", istaken = " << istaken << endl;
+            cout << "cost = " << cost << ", subcost = " << subcost << ", is_taken = " << is_taken << endl;
         };
     };
 
 
     inline std::ostream& operator<<(std::ostream& s, const NodeData& nd) {
-        s << "cost " << nd.cost << ", subcost " << nd.subcost << ", istaken " << nd.istaken;
+        s << "cost " << nd.cost << ", subcost " << nd.subcost << ", is_taken " << nd.is_taken;
         return s;
     };
 
 
 
+    /// Key + owner, struct used to determine mapping of tree nodes
     template <int D>
     struct TreeCoords {
         Key<D> key;
@@ -194,6 +209,7 @@ namespace madness {
 
 
 
+    /// Tree structure in which procmap is stored
     template <int D>
     struct Tree {
         TreeCoords<D> data;
@@ -216,12 +232,12 @@ namespace madness {
             return *this;
         };
 
-        void insertChild(TreeCoords<D> d) {
+        void insert_child(TreeCoords<D> d) {
             Tree* c = new Tree(d, this);
             children.insert(children.begin(),SharedPtr<Tree<D> > (c));
         };
 
-        void insertChild(const Tree<D>& tree) {
+        void insert_child(const Tree<D>& tree) {
             Tree* c = new Tree(tree, this);
             children.insert(children.begin(),SharedPtr<Tree<D> > (c));
         };
@@ -234,36 +250,38 @@ namespace madness {
             }
         };
 
-        bool isForeparentOf(Key<D> key) const {
+        bool is_foreparent_of(Key<D> key) const {
             return (this->data.key.is_parent_of(key));
         };
 
-        void findOwner(const Key<D> key, ProcessID *ow) const {
-//madness::print("findOwner: at node", this->data.key);
-            if (this->isForeparentOf(key)) {
-//madness::print("findOwner: node", this->data.key, "is foreparent of", key, "so owner =", this->data.owner);
+	/// given a key, determine the owner of the key by traversing the Tree
+        void find_owner(const Key<D> key, ProcessID *ow) const {
+//madness::print("find_owner: at node", this->data.key);
+            if (this->is_foreparent_of(key)) {
+//madness::print("find_owner: node", this->data.key, "is foreparent of", key, "so owner =", this->data.owner);
                 *ow = this->data.owner;
                 if (this->data.key.level() < key.level()) {
                     int csize = children.size();
                     for (int j = 0; j < csize; j++) {
-//madness::print("findOwner: recursively call on ", this->children[j]->data.key);
-                        children[j]->findOwner(key, ow);
+//madness::print("find_owner: recursively call on ", this->children[j]->data.key);
+                        children[j]->find_owner(key, ow);
                     }
                 }
             }
         };
 
+	/// Add node to the Tree in the right location
         bool fill(TreeCoords<D> node) {
             bool success = false;
-            if (this->isForeparentOf(node.key)) {
+            if (this->is_foreparent_of(node.key)) {
                 int csize = children.size();
                 for (int i = 0; i < csize; i++) {
-                    if (children[i]->isForeparentOf(node.key)) {
+                    if (children[i]->is_foreparent_of(node.key)) {
                         success = children[i]->fill(node);
                     }
                 }
                 if (!success) {
-                    this->insertChild(node);
+                    this->insert_child(node);
                     success = true;
                 }
             }
@@ -272,24 +290,26 @@ namespace madness {
     };
 
 
+    /// Procmap implemented using Tree of TreeCoords
 
     template <int D>
     class MyPmap : public WorldDCPmapInterface< Key<D> > {
     private:
         bool staticmap;
         const ProcessID staticmap_owner;
-        Tree<D>* treeMap;
+        Tree<D>* tree_map;
         typedef Key<D> KeyD;
 
-        void buildTreeMap(vector<TreeCoords<D> > v) {
+	/// private method that builds the Tree underlying the procmap
+        void build_tree_map(vector<TreeCoords<D> > v) {
             sort(v.begin(), v.end());
             int vlen = v.size();
 
             if (vlen == 0) throw "empty map!!!";
 
-            treeMap = new Tree<D>(v[vlen-1]);
+            tree_map = new Tree<D>(v[vlen-1]);
             for (int j = vlen-2; j >= 0; j--) {
-                treeMap->fill(v[j]);
+                tree_map->fill(v[j]);
             }
         };
 
@@ -311,45 +331,47 @@ namespace madness {
                 }
                 v.push_back(TreeCoords<D>(key,i));
             }
-            buildTreeMap(v);
+            build_tree_map(v);
             madness::print("MyPmap constructor");
-            treeMap->print();
+            tree_map->print();
         };
 
         MyPmap(World& world, ProcessID owner) : staticmap(true), staticmap_owner(owner) {};
 
         MyPmap(World& world, vector<TreeCoords<D> > v) : staticmap(false), staticmap_owner(0) {
-            buildTreeMap(v);
+            build_tree_map(v);
             madness::print("");
-            treeMap->print();
+            tree_map->print();
         };
 
-        MyPmap(const MyPmap<D>& other) : staticmap(other.staticmap), staticmap_owner(other.staticmap_owner), treeMap(other.treeMap) {};
+        MyPmap(const MyPmap<D>& other) : staticmap(other.staticmap), staticmap_owner(other.staticmap_owner), tree_map(other.tree_map) {};
 
         MyPmap<D>& operator=(const MyPmap<D>& other) {
             if (this != &other) {
                 staticmap = other.staticmap;
                 owner = other.owner;
-                treeMap = other.treeMap;
+                tree_map = other.tree_map;
             }
             return *this;
         };
 
         void print() const {
-            treeMap->print();
+            tree_map->print();
         };
 
+	/// Find the owner of a given key
         ProcessID owner(const KeyD& key) const {
             if (staticmap)
                 return staticmap_owner;
             else {
                 ProcessID owner;
-                treeMap->findOwner(key, &owner);
+                tree_map->find_owner(key, &owner);
                 return owner;
             }
         };
     };
 
+    /// The container in which the fascimile tree with its keys mapping to LBNodes is stored
     template <int D>
     class LBTree : public WorldContainer<typename DClass<D>::KeyD,typename DClass<D>::NodeD> {
         // No new variables necessary
@@ -362,6 +384,7 @@ namespace madness {
 	    ppp->print();
             madness::print("LBTree(world, pmap) constructor (goodbye)");
         };
+	/// Initialize the LBTree by converting a FunctionImpl to a LBTree
         template <typename T>
         inline void init_tree(const SharedPtr< FunctionImpl<T,D> >& f) {
             for (typename FunctionImpl<T,D>::dcT::iterator it = f->coeffs.begin(); it != f->coeffs.end(); ++it) {
@@ -391,9 +414,9 @@ namespace madness {
             }
         };
 
-        Cost fixCost(typename DClass<D>::KeyDConst& key);
+        Cost fix_cost(typename DClass<D>::KeyDConst& key);
 
-        Cost depthFirstPartition(typename DClass<D>::KeyDConst& key,
+        Cost depth_first_partition(typename DClass<D>::KeyDConst& key,
                                  vector<typename DClass<D>::TreeCoords>* klist, unsigned int npieces,
                                  Cost totalcost = 0, Cost *maxcost = 0);
 
@@ -401,13 +424,13 @@ namespace madness {
 
         void meld(typename DClass<D>::KeyDConst& key);
 
-        Cost makePartition(typename DClass<D>::KeyDConst& key,
-                           vector<typename DClass<D>::KeyD>* klist, Cost partitionSize,
-                           bool lastPartition, Cost usedUp, bool *atleaf);
+        Cost make_partition(typename DClass<D>::KeyDConst& key,
+                           vector<typename DClass<D>::KeyD>* klist, Cost partition_size,
+                           bool last_partition, Cost used_up, bool *atleaf);
 
-        void removeCost(typename DClass<D>::KeyDConst& key, Cost c);
+        void remove_cost(typename DClass<D>::KeyDConst& key, Cost c);
 
-        Cost computeCost(typename DClass<D>::KeyDConst& key);
+        Cost compute_cost(typename DClass<D>::KeyDConst& key);
 
         // inherited methods
         typename WorldContainer<typename DClass<D>::KeyD,typename DClass<D>::NodeD>::iterator 
@@ -430,6 +453,9 @@ namespace madness {
 
     };
 
+    /// Implementation of load balancing
+
+    /// Implements the load balancing algorithm upon the tree underlying a function.
     template <typename T, int D>
     class LoadBalImpl {
     private:
@@ -459,16 +485,17 @@ namespace madness {
 
         //Methods
 
-        SharedPtr< WorldDCPmapInterface< Key<D> > > loadBalance() {
-            return SharedPtr< WorldDCPmapInterface< Key<D> > >(new MyPmap<D>(f.get_impl()->world, findBestPartition()));
+	/// Returns a shared pointer to a new process map, which can then be used to redistribute the function
+        SharedPtr< WorldDCPmapInterface< Key<D> > > load_balance() {
+            return SharedPtr< WorldDCPmapInterface< Key<D> > >(new MyPmap<D>(f.get_impl()->world, find_best_partition()));
         };
 
-        vector<typename DClass<D>::TreeCoords> findBestPartition();
+        vector<typename DClass<D>::TreeCoords> find_best_partition();
     };
 
-    CompCost computeCompCost(Cost c, int n);
+    CompCost compute_comp_cost(Cost c, int n);
 
-    Cost computePartitionSize(Cost cost, unsigned int parts);
+    Cost compute_partition_size(Cost cost, unsigned int parts);
 
 }
 
