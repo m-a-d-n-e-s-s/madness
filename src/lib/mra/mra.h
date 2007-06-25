@@ -28,8 +28,9 @@
   tel:   865-241-3937
   fax:   865-572-0680
 
-  $LastChangedDate$
-  $Rev$
+
+  $Revision$,  last changed by $Author$ on $LastChangedDate$ 
+  
 */
 
   
