@@ -49,13 +49,21 @@ namespace madness {
     template <typename T, int D>
     std::vector<typename DClass<D>::TreeCoords> LoadBalImpl<T,D>::find_best_partition() {
 	double t0 = MPI::Wtime();
-        std::vector<typename DClass<D>::TreeCoords> klist;
+	bool keep_going = true;
+	std::vector<typename DClass<D>::TreeCoords> klist;
         if (this->f.get_impl()->world.mpi.rank() != 0) {
-//            madness::print("find_best_partition: leave it to the expert");
-	    // Processors who are not the manager just sit around and send information to the 
-	    // manager as it is requested.
-            this->f.get_impl()->world.gop.fence();
-//            madness::print("about to do broadcast");
+	    while (keep_going) {
+	        this->f.get_impl()->world.gop.fence();
+//		madness::print("find_best_partition: about to rollup()");
+        	this->skeltree->rollup();
+//		madness::print("find_best_partition: finished with rollup()");
+        	this->f.get_impl()->world.gop.fence();
+//		madness::print("find_best_partition: finished with first fence in a row");
+        	this->f.get_impl()->world.gop.fence();
+//		madness::print("find_best_partition: finished with second fence in a row");
+                this->f.get_impl()->world.gop.template broadcast<bool>(keep_going);
+//		madness::print("find_best_partition: received keep_going =", keep_going);
+	    }
             unsigned int ksize;
 	    // Then, they receive the broadcast of the final partitioning
             this->f.get_impl()->world.gop.template broadcast<unsigned int>(ksize);
@@ -66,67 +74,77 @@ namespace madness {
             }
 //            print("done with broadcast");
             return klist;
-        }
+	}
+
 	// The manager process coordinates the melding algorithm for load balancing, keeping a list of
-	// lists of the configurations suggested by the melding algorithm, and picking the best
+	// lists of the configurations suggested by the melding algorithm, and selecting the best
 	// configuration at the end.
         unsigned int npieces = this->f.get_impl()->world.nproc();
-        bool notdone = true;
         int count = 0;
         std::vector<std::vector<typename DClass<D>::TreeCoords> > list_of_list;
         std::vector<typename DClass<D>::TreeCoords> emptylist;
         std::vector<Cost> costlist;
-
-        list_of_list.push_back(emptylist);
-        costlist.push_back(0);
         Cost totalCost = 0;
-
-//        madness::print("find_best_partition: about to fix_cost");
-
         typename DClass<D>::KeyD root(0);
-        this->skeltree->fix_cost(root);
-//        madness::print("find_best_partition: about to depth_first_partition");
-        //    this->skeltree->print(root);
-        totalCost = this->skeltree->depth_first_partition(root, &list_of_list[count], npieces,
-                    totalCost, &costlist[count]);
-        //madness::print("find_best_partition: after depth_first_partition");
-        int size = list_of_list[count].size();
-//	madness::print("Partitioned tree", count, ":");
-//        for (int i = 0; i < size; i++)
-//            list_of_list[count][i].print();
-//	madness::print("Max cost for this tree =", costlist[count]);
-//	madness::print("");
-        if (list_of_list[count].size() < npieces)
-            notdone = false;
-        count++;
 
-        while (notdone) {
-            //	this->skeltree.fix_cost<D>(root);
+	double t1 = MPI::Wtime();
+	while (keep_going) {
+	    double t2 = MPI::Wtime();
             this->skeltree->fix_cost(root);
-            //	this->skeltree.rollup<D>(root);
-            this->skeltree->rollup(root);
+//            madness::print("find_best_partition: just finished fix_cost");
+	    this->f.get_impl()->world.gop.fence();
+//            madness::print("find_best_partition: about to rollup");
+	    double t3 = MPI::Wtime();
+            this->skeltree->rollup();
+//            madness::print("find_best_partition: just finished rollup");
+            this->f.get_impl()->world.gop.fence();
+	    double t4 = MPI::Wtime();
             list_of_list.push_back(emptylist);
+	    madness::print("find_best_partition: about to depth_first_partition this tree:");
+	    this->skeltree->print(root);
             costlist.push_back(0);
-            this->skeltree->depth_first_partition(root, &list_of_list[count], npieces, totalCost, &costlist[count]);
-            int size = list_of_list[count].size();
-//	    madness::print("Partitioned tree", count, ":");
-//            for (int i = 0; i < size; i++)
-//                list_of_list[count][i].print();
-//	    madness::print("Max cost for this tree =", costlist[count]);
-//	    madness::print("");
+//            madness::print("find_best_partition: about to depth_first_partition");
+            totalCost = this->skeltree->depth_first_partition(root, &list_of_list[count], npieces,
+                    totalCost, &costlist[count]);
+//            madness::print("find_best_partition: finished with depth_first_partition");
+	    double t5 = MPI::Wtime();
 
-            typename DClass<D>::treeT::iterator it = this->skeltree->find(root);
-            if (it == this->skeltree->end()) return klist;
-            typename DClass<D>::NodeD node = it->second;
-            if (!(node.has_children()) || (list_of_list[count].size() < npieces)) {
-                notdone = false;
-            }
-            if (list_of_list[count].size() < npieces) {
+	    madness::print("find_best_partition: time for fix_cost number", count, "=", t3-t2);
+	    madness::print("find_best_partition: time for rollup number", count, "=", t4-t3);
+	    madness::print("find_best_partition: time for depth_first_partition number", count, "=", t5-t4);
+//            typename DClass<D>::treeT::iterator it = this->skeltree->find(root);
+//            typename DClass<D>::NodeD node = it->second;
+	    int lolcsize = list_of_list[count].size();
+	    madness::print("find_best_partition: partition number", count, ":");
+	    for (int k = 0; k < lolcsize; k++) {
+		list_of_list[count][k].print();
+//		madness::print("    ", list_of_list[count][k]);
+	    }
+	    madness::print("");
+	    int m = npieces;
+	    bool invalid_partition = false;
+	    for (int k = 0; k < lolcsize; k++) {
+		int difff = m-list_of_list[count][k].owner;
+		if (difff == 1) {
+		    m--;
+		} else if (difff > 1) {
+		    invalid_partition = true;
+		    break;
+		}
+	    }
+            if ((lolcsize < npieces) || (invalid_partition)) {
+                keep_going = false;
                 list_of_list.erase(list_of_list.begin()+count);
-                break;
+                keep_going = false;
+		count-=1;
             }
             count++;
-        }
+//	    madness::print("find_best_partition: before fence");
+            this->f.get_impl()->world.gop.fence();
+//	    madness::print("find_best_partition: after fence, about to broadcast keep_going =", keep_going);
+            this->f.get_impl()->world.gop.template broadcast<bool>(keep_going);
+	}
+	double t6 = MPI::Wtime();
         unsigned int shortest_list = 0, sl_index, lb_index;
         Cost load_bal_cost = 0;
         std::vector<unsigned int> len;
@@ -150,18 +168,18 @@ namespace madness {
             }
         }
 
-//	madness::print("The load balance with the fewest broken links has cost", costlist[sl_index], "and",
-//		shortest_list-1, "broken links");
-//        for (unsigned int i = 0; i < shortest_list; i++) {
-//            list_of_list[sl_index][i].print();
-//        }
-//	madness::print("");
-//	madness::print("The load balance with the best balance has cost", load_bal_cost, "and", 
-//		list_of_list[lb_index].size()-1, "broken links");
-//        for (unsigned int i = 0; i < list_of_list[lb_index].size(); i++) {
-//            list_of_list[lb_index][i].print();
-//        }
-//	madness::print("");
+	madness::print("The load balance with the fewest broken links has cost", costlist[sl_index], "and",
+		shortest_list-1, "broken links");
+        for (unsigned int i = 0; i < shortest_list; i++) {
+            list_of_list[sl_index][i].print();
+        }
+	madness::print("");
+	madness::print("The load balance with the best balance has cost", load_bal_cost, "and", 
+		list_of_list[lb_index].size()-1, "broken links");
+        for (unsigned int i = 0; i < list_of_list[lb_index].size(); i++) {
+            list_of_list[lb_index][i].print();
+        }
+	madness::print("");
 
         CompCost ccleast = 0;
         int cc_index;
@@ -172,17 +190,15 @@ namespace madness {
                 cc_index = i;
             }
         }
-//	madness::print("The load balance with the best overall computational cost has cost",
-//		costlist[cc_index], "and", len[cc_index]-1, "broken links");
-//        for (unsigned int i = 0; i < len[cc_index]; i++) {
-//            list_of_list[cc_index][i].print();
-//        }
+	madness::print("The load balance with the best overall computational cost has cost",
+		costlist[cc_index], "and", len[cc_index]-1, "broken links");
+        for (unsigned int i = 0; i < len[cc_index]; i++) {
+            list_of_list[cc_index][i].print();
+        }
         for (unsigned int i = 0; i < len[cc_index]; i++) {
             klist.push_back(list_of_list[cc_index][i]);
         }
 
-//        madness::print("find_best_partition: about to do fence");
-        this->f.get_impl()->world.gop.fence();
 //        madness::print("about to do broadcast");
         unsigned int ksize = klist.size();
         this->f.get_impl()->world.gop.template broadcast<unsigned int>(ksize);
@@ -191,11 +207,14 @@ namespace madness {
         }
 //        madness::print("done with broadcast");
 
-	double t1 = MPI::Wtime();
-	madness::print("find_best_partition: time =", t1-t0);
+	double t7 = MPI::Wtime();
+
+	madness::print("find_best_partition: total time =", t7-t0);
+	madness::print("find_best_partition: time in loop =", t6-t1);
 
         return klist;
     }
+
 
     /// fix_cost resets the tree after the load balancing and melding have been performed, before the next
     /// round of load balancing.
@@ -249,7 +268,7 @@ namespace madness {
         if (totalcost == 0) {
             totalcost = this->compute_cost(key);
         }
-//        madness::print("depth_first_partition: totalcost =", totalcost);
+        madness::print("depth_first_partition: totalcost =", totalcost);
 
         Cost cost_left = totalcost;
         int parts_left = npieces;
@@ -258,8 +277,8 @@ namespace madness {
 	double facter = 1.1;
 
         for (int i = npieces-1; i >= 0; i--) {
-//	    madness::print("");
-//	    madness::print("Beginning partition number", i);
+	    madness::print("");
+	    madness::print("Beginning partition number", i);
             std::vector<typename DClass<D>::KeyD> tmplist;
             Cost tpart = compute_partition_size(cost_left, parts_left);
 	    // Reconsider partition size at every step.  If too small, leaves too much work for P0.
@@ -281,61 +300,73 @@ namespace madness {
         return totalcost;
     }
 
+
     /// rollup traverses the tree, calling meld upon Nodes that have leaf children
     /// Arguments: const Key<D> key -- node at which we begin
     /// Side effect: Nodes are changed by meld
     /// Communication: just finding the nodes that match a given key
     template <int D>
-    void LBTree<D>::rollup(typename DClass<D>::KeyDConst& key) {
-//    madness::print("rollup: at beginning");
-        typename DClass<D>::treeT::iterator it = this->find(key);
-        if (it == this->end()) return;
-
-//    madness::print("rollup: about to get node associated with key",key);
-        typename DClass<D>::NodeD node = it->second;
-        if (!node.has_children()) {
-//	madness::print("rollup: this node has no children; returning");
-            return; // no rolling to be done here.
-        }
-//    madness::print("rollup: this node has children");
-        bool hasleafchild = false;
-        for (KeyChildIterator<D> kit(key); kit; ++kit) {
-            typename DClass<D>::treeT::iterator itc = this->find(kit.key());
-            if (itc != this->end()) {
-//	    madness::print("rollup: found child", kit.key());
-                typename DClass<D>::NodeD c = itc->second;
-                if (!c.has_children()) {
-//		madness::print("rollup: child is leaf");
-                    hasleafchild = true;
-                    break;
-                } else {
-//		madness::print("rollup: child", kit.key(), "has children");
-                }
-            }
-        }
-        if (hasleafchild) {
-//	madness::print("rollup: about to meld with key",key);
-            this->meld(key);
-        }
-        for (KeyChildIterator<D> kit(key); kit; ++kit) {
-            typename DClass<D>::treeT::iterator itc = this->find(kit.key());
-            if (itc != this->end()) {
-//	    madness::print("rollup: found child", kit.key());
-                typename DClass<D>::NodeD c = itc->second;
-                if (c.has_children()) {
-//		madness::print("rollup: child", kit.key(), "has children");
-                    this->rollup(kit.key());
-                }
-            }
-        }
-        it = this->find(key);
-        node = it->second;
-        NodeData d = node.get_data();
-        if (d.is_taken) {
-            d.is_taken = false;
-            node.set_data(d);
-            this->insert(key,node);
-        }
+    void LBTree<D>::rollup() {
+	// MAKE SURE THAT it IS LOCAL
+	for (typename DClass<D>::treeT::iterator it = this->begin(); it != this->end(); ++it) {
+	    typename DClass<D>::KeyD key = it->first;
+//	    madness::print("rollup: key", key, "is being set to is_taken = true");
+	    typename DClass<D>::NodeD node = it->second;
+	    NodeData d = node.get_data();
+	    d.is_taken = true;
+	    node.set_data(d);
+	    this->insert(key,node);
+//	    madness::print("rollup: key", it->first, "has been set to", it->second);
+	}
+	for (typename DClass<D>::treeT::iterator it = this->begin(); it != this->end(); ++it) {
+	    typename DClass<D>::KeyD key = it->first;
+//	    madness::print("rollup: key", key, "is being rolled upon");
+	    typename DClass<D>::NodeD node = it->second;
+	    if (node.has_children()) {
+	        bool has_leaf_child = false;
+	        for (KeyChildIterator<D> kit(key); kit; ++kit) {
+            	    typename DClass<D>::treeT::iterator itc = this->find(kit.key());
+		    if (itc != this->end()) {
+		        typename DClass<D>::NodeD c = itc->second;
+		        NodeData d = c.get_data();
+		        if ((!c.has_children()) && (d.is_taken)) {
+			    has_leaf_child = true;
+			    break;
+		        }
+		    }
+	        }
+	        if (has_leaf_child) {
+//		    madness::print("rollup: key", key, "has leaf child");
+//		    madness::print("rollup: key", key, "has cost", node.get_data().cost);
+		    this->meld(it);
+//		    it = this->find(key);
+		    node = it->second;
+//		    madness::print("rollup: after melding, key", key, "has cost", node.get_data().cost);
+	        }
+		else {
+//		    madness::print("rollup: key", key, "doesn't have leaf child");
+		}
+	        NodeData d = node.get_data();
+	        if (d.is_taken) {
+		    d.is_taken = false;
+		    node.set_data(d);
+		    this->insert(key,node);
+	        }
+	    }
+	}
+	// Reset for new load balance
+	for (typename DClass<D>::treeT::iterator it = this->begin(); it != this->end(); ++it) {
+	    typename DClass<D>::KeyD key = it->first;
+	    typename DClass<D>::NodeD node = it->second;
+	    NodeData d = node.get_data();
+	    if (d.is_taken) {
+//	        madness::print("rollup: key", key, "is being set to is_taken = false");
+		d.is_taken = false;
+		node.set_data(d);
+		this->insert(key,node);
+	    }
+//	    madness::print("rollup: at the very end key", key, "node", node);
+	}
     }
 
     /// meld fuses leaf child(ren) to parent and deletes the leaf child(ren) in question
@@ -343,66 +374,63 @@ namespace madness {
     /// Side effect: parent nodes are updated, and leaf nodes are deleted
     /// Communication: find and insert 
     template <int D>
-    void LBTree<D>::meld(typename DClass<D>::KeyDConst& key) {
-//    madness::print("meld: at beginning, finding key", key);
-        Cost cheapest = 0;
-        typename DClass<D>::treeT::iterator it = this->find(key);
-        if (it == this->end()) return;
+    void LBTree<D>::meld(typename DClass<D>::treeT::iterator it) {
+	typename DClass<D>::KeyD key = it->first;
+	typename DClass<D>::NodeD node = it->second;
+	std::vector<unsigned int> mylist;
+	unsigned int i = 0;
+	Cost cheapest = 0;
+	bool not_yet_found = true;
 
-        std::vector<unsigned int> mylist;
+//	madness::print("meld: melding on key", key);
 
-        typename DClass<D>::NodeD node = it->second;
-        unsigned int i = 0;
-//    madness::print("meld: about to iterate over children of key", key);
-        for (KeyChildIterator<D> kit(key); kit; ++kit) {
-//    	madness::print("    meld: iterating over child", i);
-            if (node.has_child(i)) {
-                typename DClass<D>::treeT::iterator itc = this->find(kit.key());
-                if (itc == this->end()) return;
-                typename DClass<D>::NodeD c = itc->second;
-                if (!c.has_children()) {
-//		madness::print("    meld: child",i,"has no children");
-                    Cost cost = c.get_data().cost;
-                    if ((cost < cheapest) || (cheapest == 0)) {
-                        cheapest = cost;
-                        mylist.clear();
-                        mylist.push_back(i);
-                    } else if (cost == cheapest) {
-                        mylist.push_back(i);
-                    }
-                }
-            }
-            i++;
-        }
-
-        if (cheapest == 0) {
-//	madness::print("meld: this node has no leaf children");
-            NodeData d = node.get_data();
-            d.is_taken = false;
-            node.set_data(d);
-            this->insert(key,node);
-            return;
-        }
-
-        NodeData d = node.get_data();
-
-        i = 0;
-        int j = 0, mlsize = mylist.size();
-        for (KeyChildIterator<D> kit(key); kit; ++kit) {
-            if (mylist[j] == i) {
-//	    madness::print("meld: found a match, mylist[",j,"] =",i);
-                this->erase(kit.key());
-                node.set_child(mylist[j], false);
-                d.cost += cheapest;
-                j++;
-            }
-            i++;
-            if (j == mlsize) break;
-        }
-        d.is_taken = false;
-        node.set_data(d);
-        this->insert(key,node);
-//    madness::print("meld: inserted node back into tree; goodbye!");
+	for (KeyChildIterator<D> kit(key); kit; ++kit) {
+	    if (node.has_child(i)) {
+//		madness::print("meld: key", key, "has child", kit.key());
+		typename DClass<D>::treeT::iterator itc = this->find(kit.key());
+		typename DClass<D>::NodeD c = itc->second;
+		NodeData d = c.get_data();
+		if ((!c.has_children()) && (d.is_taken)) {
+		    Cost cost = d.cost;
+//		    madness::print("meld: key", key, "has eligible leaf child", kit.key(), "with cost", cost);
+		    if ((cost < cheapest) || (not_yet_found)) {
+			not_yet_found = false;
+			cheapest = cost;
+			mylist.clear();
+//			madness::print("meld: cleared list and then pushed child", i, "onto list");
+			mylist.push_back(i);
+		    } else if (cost == cheapest) {
+			mylist.push_back(i);
+//			madness::print("meld: pushed child", i, "onto list");
+		    }
+		}
+	    }
+	    i++;
+	}
+	if (not_yet_found) {
+	    // this node has no leaf children
+//	    madness::print("meld: key", key, "actually doesn't have any eligible leaf children!");
+	    return;
+	}
+//	madness::print("meld: contents of mylist = ", mylist);
+	NodeData d = node.get_data();
+	i = 0;
+	int j = 0, mlsize = mylist.size();
+	for (KeyChildIterator<D> kit(key); kit; ++kit) {
+	    if (mylist[j] == i) {
+//		madness::print("meld: erasing", key, "'s child number", mylist[j], ":", kit.key());
+		this->erase(kit.key());
+		node.set_child(mylist[j], false);
+		d.cost += cheapest;
+		j++;
+		if (j == mlsize) break;
+	    }
+	    i++;
+	}
+	node.set_data(d);
+	this->insert(key, node);
+//	madness::print("meld: key", key, "has cost", node.get_data().cost, "naturally, and");
+//	madness::print("meld: key", key, "has cost", this->find(key)->second.get_data().cost, "after finding");
     }
 
     /// compute_cost resets the subtree cost value for a tree and its descendants.
@@ -445,9 +473,10 @@ namespace madness {
     Cost LBTree<D>::make_partition(typename DClass<D>::KeyDConst& key,
 	 			       std::vector<typename DClass<D>::KeyD>* klist, Cost partition_size, 
 				       bool last_partition, Cost used_up, bool *at_leaf) {
-//    madness::print("at beginning of make_partition: at_leaf =", *at_leaf);
+    madness::print("at beginning of make_partition: at_leaf =", *at_leaf);
         double fudgeFactor = 0.1;
         Cost maxAddl = (Cost) (fudgeFactor*partition_size);
+	bool my_at_leaf = *at_leaf;
 
         typename DClass<D>::treeT::iterator it = this->find(key);
         if (it == this->end()) {
@@ -457,17 +486,16 @@ namespace madness {
         typename DClass<D>::NodeD node = it->second;
         NodeData d = node.get_data();
 
-        it = this->end();
-
-//        madness::print("make_partition: data for key", key, ":", d);
-//        madness::print("make_partition: partition_size =", partition_size, ", last_partition =", last_partition, ", used_up =", used_up);
+        madness::print("make_partition: data for key", key, ":", d);
+        madness::print("make_partition: partition_size =", partition_size, ", last_partition =", last_partition, ", used_up =", used_up);
 
         if (d.is_taken) {
-//            madness::print("make_partition: this key is taken");
+            madness::print("make_partition: this key is taken");
+	    *at_leaf = true;
             return used_up;
         }
 
-//        madness::print("make_partition: back to key", key);
+        madness::print("make_partition: back to key", key);
 
         // if either we're at the last partition, the partition is currently empty
         // and this is a single item, or there is still room in the partition and
@@ -476,7 +504,7 @@ namespace madness {
         if ((last_partition) || ((used_up == 0) && (!node.has_children())) ||
                 ((used_up < partition_size) && (d.subcost+used_up <= partition_size+maxAddl))) {
             // add to partition
-//            madness::print("make_partition: adding to partition", key);
+            madness::print("make_partition: adding to partition", key);
             klist->push_back(typename DClass<D>::KeyD(key));
             d.is_taken = true;
             used_up += d.subcost;
@@ -490,7 +518,7 @@ namespace madness {
                 int i = 0;
                 for (KeyChildIterator<D> kit(key); kit; ++kit) {
                     if (node.has_child(i)) {
-//                        madness::print("make_partition:", key, "recursively calling", kit.key());
+                        madness::print("make_partition:", key, "recursively calling", kit.key());
                         used_up = this->make_partition(kit.key(), klist, partition_size, last_partition,
                                                               used_up, at_leaf);
                         if ((*at_leaf) || (used_up >= partition_size)) {
@@ -499,8 +527,22 @@ namespace madness {
                     }
                     i++;
                 }
+/*
+		if (my_at_leaf != *at_leaf) {
+		    if (used_up == 0) {
+			madness::print("make_partition: parent with taken children, adding", key);
+			klist->push_back(typename DClass<D>::KeyD(key));
+			d.is_taken = true;
+			used_up += d.subcost;
+			this->remove_cost(key.parent(), d.subcost);
+			node.set_data(d);
+			this->insert(key,node);
+		    }
+		    *at_leaf = my_at_leaf;
+		}
+*/
             } else {
-//                madness::print("make_partition: about to set at_leaf = true");
+                madness::print("make_partition: about to set at_leaf = true");
                 *at_leaf = true;
             }
         }

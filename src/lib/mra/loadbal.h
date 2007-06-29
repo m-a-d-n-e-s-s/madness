@@ -420,9 +420,11 @@ namespace madness {
                                  vector<typename DClass<D>::TreeCoords>* klist, unsigned int npieces,
                                  Cost totalcost = 0, Cost *maxcost = 0);
 
-        void rollup(typename DClass<D>::KeyDConst& key);
+//        void rollup(typename DClass<D>::KeyDConst& key);
+        void rollup();
 
-        void meld(typename DClass<D>::KeyDConst& key);
+//        void meld(typename DClass<D>::KeyDConst& key);
+        void meld(typename DClass<D>::treeT::iterator it);
 
         Cost make_partition(typename DClass<D>::KeyDConst& key,
                            vector<typename DClass<D>::KeyD>* klist, Cost partition_size,
