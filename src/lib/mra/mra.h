@@ -102,6 +102,7 @@ namespace madness {
             return *this;
         };
 
+        /// Destruction of any underlying implementation is deferred to next global fence.
         ~Function(){};
 
         /// Evaluates the function at a point in user coordinates.  Possible non-blocking comm.
@@ -110,14 +111,39 @@ namespace madness {
         /// though other processes may be involved in the evaluation.
         ///
         /// Throws if function is not initialized.
+        ///
+        /// Needs a lot of optimization for efficient parallel execution.
         Future<T> eval(const coordT& xuser) {
             verify();
             coordT xsim;
             impl->user_to_sim(xuser,xsim);
+            print("xuser",xuser);
+            print("xsim",xsim);
             Future<T> result;
             impl->eval(xsim, impl->key0(), result.remote_ref(impl->world));
             return result;
         };
+
+        /// Evaluates the function at a point in user coordinates.  Possible \em blocking comm.
+
+        /// Only the invoking process will receive the result.
+        ///
+        /// Throws if function is not initialized.
+        ///
+        /// This function calls eval and blocks until the result is available.  Therefore,
+        /// if you are evaluating many points in parallel it is \em vastly less efficient than
+        /// calling eval directly.
+        T operator()(const coordT& xuser) {
+            return eval(xuser).get();
+        };
+
+        template <typename opT>
+        double err(const opT& op) const {
+            verify();
+            if (is_compressed()) const_cast<Function<T,NDIM>*>(this)->reconstruct();
+            return sqrt(impl->err_local(op));
+        };
+
 
         /// Returns true if compressed, false otherwise.  No communication.
 
@@ -128,6 +154,26 @@ namespace madness {
             else
                 return false;
         };
+
+        /// Returns the number of multiwavelets (k).  No communication.
+        bool k() const {
+            verify();
+            return impl->get_k();
+        };
+
+	/// Returns a shared-pointer to the implementation
+	const SharedPtr< FunctionImpl<T,NDIM> >& get_impl() const {
+	    verify();
+	    return impl;
+	};
+
+
+        /// Returns a shared pointer to the process map
+        const SharedPtr< WorldDCPmapInterface< Key<NDIM> > >& get_pmap() const {
+            verify();
+            return impl->get_pmap();
+        };
+
 
         /// Compresses the function, transforming into wavelet basis.  Possible non-blocking comm.
 
@@ -160,29 +206,90 @@ namespace madness {
         void print_tree() const {if (impl) impl->print_tree();};
 
 
-	/// Returns a shared-pointer to the implementation
-	const SharedPtr< FunctionImpl<T,NDIM> >& get_impl() const {
-	    verify();
-	    return impl;
-	};
-        
-	Function<T,NDIM> copy(const SharedPtr< WorldDCPmapInterface< Key<NDIM> > >& pmap = 0) const {
-	    Function<T,NDIM> result;
-	    result.impl = SharedPtr<implT>(new implT(*impl,pmap));
-	    result.impl->copy_coeffs(*impl);
+        /// Type conversion implies a deep copy.  No communication except for optional fence.
+
+        /// Works in either basis but any loss of precision may result in different errors
+        /// in applied in a different basis. 
+        ///
+        /// The new function is formed with the options from the default constructor.
+        ///
+        /// There is no automatic type conversion since this is generally a rather dangerous
+        /// thing and because there would be no way to make the fence optional.
+        template <typename Q>
+        Function<Q,NDIM> convert(bool fence = true) const {
+            verify();
+            Function<Q,NDIM> result;
+	    result.impl = SharedPtr< FunctionImpl<Q,NDIM> >(new typename FunctionImpl<Q,NDIM>::implT(*impl));
+	    result.impl->copy_coeffs(*impl, fence);
 	    return result;
 	};
-	
+
+
+        /// Deep copy generating a new function (with same distribution).  No communication except due to optional fence.
+
+        /// Works in either basis.  
+	Function<T,NDIM> copy(bool fence = true) const {
+            verify();
+            return this->copy(get_pmap(), fence);
+	};
+
+
+        /// Deep copy generating a new function with change of process map and optional fence
+
+        /// Works in either basis.  Different distributions imply
+        /// asynchronous communication and the optional fence is
+        /// collective.
+	Function<T,NDIM> copy(const SharedPtr< WorldDCPmapInterface< Key<NDIM> > >& pmap, bool fence = true) const {
+            verify();
+	    Function<T,NDIM> result;
+	    result.impl = SharedPtr<implT>(new implT(*impl, pmap));
+	    result.impl->copy_coeffs(*impl, fence);
+	    return result;
+	};
+
+
+        /// Inplace, scale the function by a constant.  No communication except for optional fence.
+
+        /// Works in either basis.  Returns reference to this for chaining.
+        template <typename Q>
+        Function<T,NDIM>& scale_inplace(const Q q, bool fence=true) {
+            verify();
+            impl->scale_inplace(q,fence);
+            return *this;
+        };
+
+        /// Inplace, general bi-linear operation in wavelet basis.  No communication except for optional fence.
+
+        /// If the functions are not in the wavelet basis they are compressed with implied communication
+        /// and a forced global fence.  Returns this for chaining.
+        ///
+        /// this <-- this*alpha + other*beta
+        template <typename Q, typename R>
+        Function<T,NDIM>& gaxpy_inplace(const T& alpha, 
+                                        const Function<Q,NDIM>& other, const R& beta, bool fence=true) {
+            verify();
+            other.verify();
+            if (!is_compressed()) compress();
+            if (!other.is_compressed()) const_cast<Function<Q,NDIM>*>(&other)->compress();
+            impl->gaxpy_inplace(alpha,*other.impl,beta,fence);
+            return *this;
+        };
     private:
 
     };
 
-    /// Create a new copy of the function optionally with different distribution
+    /// Create a new copy of the function with different distribution and optional fence
     template <typename T, int NDIM>
     Function<T,NDIM> copy(const Function<T,NDIM>& f, 
-			  const SharedPtr< WorldDCPmapInterface< Key<NDIM> > >& pmap = 
-			  SharedPtr< WorldDCPmapInterface< Key<NDIM> > >(0)) {
-	return f.copy(pmap);
+			  const SharedPtr< WorldDCPmapInterface< Key<NDIM> > >& pmap,
+                          bool fence = true) {
+	return f.copy(pmap,fence);
+    };
+	    
+    /// Create a new copy of the function with the same distribution and optional fence
+    template <typename T, int NDIM>
+    Function<T,NDIM> copy(const Function<T,NDIM>& f, bool fence = true) {
+	return f.copy(fence);
     };
 	    
 

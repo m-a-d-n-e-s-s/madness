@@ -99,7 +99,9 @@ namespace madness {
     }
 
     template <typename T, int NDIM>
-    void FunctionCommonData<T,NDIM>::_init_quadrature() {
+    void FunctionCommonData<T,NDIM>::_init_quadrature
+    (int k, int npt, Tensor<double>& quad_x, Tensor<double>& quad_w, 
+     Tensor<double>& quad_phi, Tensor<double>& quad_phiw, Tensor<double>& quad_phit) {
         quad_x = Tensor<double>(npt);
         quad_w = Tensor<double>(npt);
         quad_phi = Tensor<double>(npt,k);

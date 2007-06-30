@@ -57,7 +57,6 @@ namespace madness {
     /// be any better than the clock system call.
     double cpu_time();
 
-
     /// On some machines we have access to a cycle count
     
     /// For small intervals this is probably the most lightweight and accurate timer
@@ -89,7 +88,6 @@ namespace madness {
     ///
     /// If not available returns 0.
     double cpu_frequency();
-
 }
 
 

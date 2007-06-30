@@ -367,6 +367,11 @@ namespace madness {
         struct archive_typeinfo {
             static const unsigned char cookie = 255; //< 255 indicates unknown type
         };
+
+        /// Returns the name of the type, or unknown if not registered.
+        template <typename T>
+        const char* get_type_name() {return archive_type_names[archive_typeinfo<T>::cookie];};
+
         
 #if defined(ARCHIVE_REGISTER_TYPE_INSTANTIATE_HERE) && defined(ARCHIVE_REGISTER_TYPE_IBMBUG)
 #define ARCHIVE_REGISTER_TYPE_XLC_EXTRA(T) \
@@ -890,6 +895,7 @@ namespace madness {
         
         
     }
+
 }
 
 #endif

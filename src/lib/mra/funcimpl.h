@@ -122,9 +122,6 @@ namespace madness {
         /// Private.  Initialize the twoscale coefficients
         void _init_twoscale();
         
-        /// Private.  Initialize the quadrature information
-        void _init_quadrature();
-
         /// Private.  Do first use initialization
         void _initialize(int k) {
             print("initializing commondata for",k);
@@ -149,7 +146,7 @@ namespace madness {
             key0 = Key<NDIM>(0,Vector<Translation,NDIM>(0));
 
             _init_twoscale();
-            _init_quadrature();
+            _init_quadrature(k, npt, quad_x, quad_w, quad_phi, quad_phiw, quad_phit);
             _make_dc_periodic();
             initialized = true;
         };
@@ -196,6 +193,21 @@ namespace madness {
             if (!data[k].initialized) data[k]._initialize(k);
             return data[k];
         };
+
+        /// Initialize the quadrature information
+
+        /// Made public with all arguments thru interface for reuse in FunctionImpl::err_box
+        static void _init_quadrature(int k, int npt, 
+                                     Tensor<double>& quad_x, Tensor<double>& quad_w, 
+                                     Tensor<double>& quad_phi, Tensor<double>& quad_phiw, 
+                                     Tensor<double>& quad_phit);
+    };
+
+    /// Interface required for functors used as input to Functions
+    template <typename T, int NDIM>
+    class FunctionFunctorInterface {
+    public:
+        virtual T operator()(const Vector<double,NDIM>& x) const = 0;
     };
 
     /// FunctionFactory implements the named-parameter idiom for Function
@@ -228,7 +240,9 @@ namespace madness {
         bool _refine;
         bool _empty;
         bool _autorefine;
+        bool _do_fence;
         SharedPtr< WorldDCPmapInterface< Key<NDIM> > > _pmap;
+        SharedPtr< FunctionFunctorInterface<T,NDIM> > _functor;
     public:
         FunctionFactory(World& world) 
             : _world(world)
@@ -243,7 +257,9 @@ namespace madness {
             , _refine(FunctionDefaults<NDIM>::refine)
             , _empty(false)
             , _autorefine(FunctionDefaults<NDIM>::autorefine)
+            , _do_fence(true)
             , _pmap(FunctionDefaults<NDIM>::pmap)
+            , _functor(0)
         {};
         inline FunctionFactory& f(T (*f)(const coordT&)) {
             _f = f;
@@ -301,8 +317,25 @@ namespace madness {
             _autorefine = false;
             return *this;
         };
+        inline FunctionFactory& do_fence(bool fence) {
+            _do_fence = fence;
+            return *this;
+        };
+        inline FunctionFactory& fence() {
+            _do_fence = true;
+            return *this;
+        };
+        inline FunctionFactory& nofence() {
+            _do_fence = false;
+            return *this;
+        };
         inline FunctionFactory& pmap(const SharedPtr< WorldDCPmapInterface< Key<NDIM> > >& pmap) {
             _pmap = pmap;
+            return *this;
+        };
+        inline FunctionFactory& functor(const SharedPtr< FunctionFunctorInterface<T,NDIM> >& functor) {
+            _functor = functor;
+            return *this;
         };
     };
 
@@ -325,10 +358,19 @@ namespace madness {
         /// Note that only a shallow copy of the coeff are taken so
         /// you should pass in a deep copy if you want the node to
         /// take ownership.
-        FunctionNode(const Tensor<T>& coeff, bool has_children=false) 
+        explicit FunctionNode(const Tensor<T>& coeff, bool has_children=false) 
             : _coeffs(coeff)
             , _has_children(has_children)
         {};
+
+        /// Type conversion of coefficients, copying all other state
+
+        /// Choose to not overload copy and type conversion operators
+        /// so there are no automatic type conversions.
+        template <typename Q>
+        FunctionNode<Q,NDIM> convert() const {
+            return FunctionNode<Q,NDIM>(_coeffs,_has_children);
+        };
 
         /// Returns true if there are coefficients in this node
         bool has_coeff() const {return (_coeffs.size>0);};
@@ -361,6 +403,27 @@ namespace madness {
         /// Clears the coefficients (has_coeff() will subsequently return false)
         void clear_coeff() {_coeffs = Tensor<T>();};
 
+        /// General bi-linear operation --- this = this*alpha + other*beta
+
+        /// This/other may not have coefficients.  Has_children will be
+        /// true in the result if either this/other have children.
+        template <typename Q, typename R> 
+        Void gaxpy_inplace(const T& alpha, const FunctionNode<Q,NDIM>& other, const R& beta) {
+            if (other.has_children()) _has_children = true;
+            if (has_coeff()) {
+                if (other.has_coeff()) {
+                    coeff().gaxpy(alpha,other.coeff(),beta);
+                }
+                else {
+                    coeff().scale(alpha);
+                }
+            }
+            else {
+                _coeffs = other.coeff()*beta; //? Is this the correct type conversion?
+            }
+            return None;
+        };
+
         template <typename Archive>
         inline void serialize(Archive& ar) {
             ar & _coeffs & _has_children;
@@ -372,7 +435,7 @@ namespace madness {
         s << "(" << node.has_coeff() << ", " << node.has_children() << ", ";
         double norm = node.has_coeff() ? node.coeff().normf() : 0.0;
         if (norm < 1e-12) norm = 0.0;
-        s << norm;
+        s << norm << ")";
         return s;
     };
     
@@ -412,13 +475,14 @@ namespace madness {
         int max_refine_level;   ///< Do not refine below this level
         int truncate_mode;      ///< 0=default=(|d|<thresh), 1=(|d|<thresh/2^n);
         bool autorefine;        ///< If true, autorefine where appropriate
-        bool dorefine;          ///< If true, refine when constructed
+        bool do_refine;          ///< If true, refine when constructed
         bool nonstandard;       ///< If true, compress keeps scaling coeff
 
         const FunctionCommonData<T,NDIM>& cdata;
 
         T (*f)(const coordT&); ///< Scalar interface to function to compress
         void (*vf)(long, const double*, T* restrict); ///< Vector interface to function to compress
+        SharedPtr< FunctionFunctorInterface<T,NDIM> > functor;
 
         bool compressed;        ///< Compression status
         long nterminated;       ///< No. of boxes where adaptive refinement was too deep
@@ -447,11 +511,12 @@ namespace madness {
             , max_refine_level(factory._max_refine_level)
             , truncate_mode(factory._truncate_mode)
             , autorefine(factory._autorefine)
-            , dorefine(factory._refine)
+            , do_refine(factory._refine)
             , nonstandard(false)
             , cdata(FunctionCommonData<T,NDIM>::get(k))
             , f(factory._f)
             , vf(factory._vf)
+            , functor(factory._functor)
             , compressed(false)
             , nterminated(0)
             , coeffs(world,factory._pmap,false)
@@ -466,28 +531,33 @@ namespace madness {
             // Ultimately, must set cell, bc, etc. from the factory not the defaults
             for (int i=0; i<NDIM; i++) rcell_width(i) = 1.0/rcell_width(i);
 
+            print("CELL WIDTH",cell_width);
+            print("RCELL WIDTH",rcell_width);
+
+
             bool empty = factory._empty;
             bool do_compress = factory._compress;
-            if (dorefine) initial_level = std::max(0,initial_level - 1);
+            bool do_fence = factory._do_fence;
+            if (do_refine) initial_level = std::max(0,initial_level - 1);
 
             if (empty) {        // Do not set any coefficients at all
                 compressed = do_compress;
                 // No need to process pending for coeffs
             }
-            else if (f || vf) { // Project function and optionally compress
+            else if (f || vf || functor) { // Project function and optionally compress
                 compressed = false;
                 insert_zero_down_to_initial_level(cdata.key0);
-                print("Tree after zero down");
-                print_tree();
                 for(typename dcT::iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
-                    print("iterating",it->first,it->second.is_leaf());
                     if (it->second.is_leaf()) task(coeffs.owner(it->first), 
                                                    &implT::project_refine_op, 
                                                    it->first);
                 };
                 coeffs.process_pending(); 
-                world.gop.fence(); // !!! Ultimately this must be optional
-                //if (do_compress) compress();
+                if (do_compress) {
+                    if (do_refine) world.gop.fence();
+                    compress(do_fence);
+                }
+                if (do_fence) world.gop.fence();
             }
             else {  // Set as if a zero function
                 initial_level = 0;
@@ -503,7 +573,8 @@ namespace madness {
         ///
         /// By default takes pmap from other but can also specify a different pmap.
         /// Does \em not copy the coefficients ... creates an empty container.
-        FunctionImpl(const FunctionImpl<T,NDIM>& other, 
+        template <typename Q>
+        FunctionImpl(const FunctionImpl<Q,NDIM>& other, 
                      const SharedPtr< WorldDCPmapInterface< Key<NDIM> > >& pmap = 0)
             : WorldObject<implT>(other.world)
             , world(other.world)
@@ -515,11 +586,12 @@ namespace madness {
             , max_refine_level(other.max_refine_level)
             , truncate_mode(other.truncate_mode)
             , autorefine(other.autorefine)
-            , dorefine(other.dorefine)
+            , do_refine(other.do_refine)
             , nonstandard(other.nonstandard)
             , cdata(other.cdata)
             , f(other.f)
             , vf(other.vf)
+            , functor(other.functor)
             , compressed(other.compressed)
             , nterminated(other.nterminated)
             , coeffs(world, pmap ? pmap : other.coeffs.get_pmap())
@@ -534,15 +606,39 @@ namespace madness {
 	    return coeffs.get_pmap();
 	};
 
-	void copy_coeffs(const implT& other) {
-	    for(typename dcT::const_iterator it=other.coeffs.begin(); it!=other.coeffs.end(); ++it) {
-		coeffs.insert(*it);
+        /// Copy coeffs from other into self
+        template <typename Q>
+	void copy_coeffs(const FunctionImpl<Q,NDIM>& other, bool fence) {
+	    for(typename FunctionImpl<Q,NDIM>::dcT::const_iterator it=other.coeffs.begin(); it!=other.coeffs.end(); ++it) {
+                const keyT& key = it->first;
+                const typename FunctionImpl<Q,NDIM>::nodeT& node = it->second;
+		coeffs.insert(key,node. template convert<Q>());
 	    };
-	    world.gop.fence();
+	    if (fence) world.gop.fence();
 	};
+
+
+        /// Inplace general bilinear operation
+        template <typename Q, typename R>
+        void gaxpy_inplace(const T& alpha,const FunctionImpl<Q,NDIM>& other, const R& beta, bool fence) {
+            // Loop over coefficients in other that are local and then send an AM to 
+            // coeffs in self ... this is so can efficiently add functions with 
+            // different distributions.  Use an AM rather than a task to reduce memory 
+            // footprint on the remote end.
+	    for(typename FunctionImpl<Q,NDIM>::dcT::const_iterator it=other.coeffs.begin(); it!=other.coeffs.end(); ++it) {
+                const keyT& key = it->first;
+                const typename FunctionImpl<Q,NDIM>::nodeT& other_node = it->second;
+                coeffs.send(key, &nodeT:: template gaxpy_inplace<Q,R>, alpha, other_node, beta);
+	    };
+	    if (fence) world.gop.fence();
+	};
+
 
         /// Returns true if the function is compressed.  
         bool is_compressed() const {return compressed;};
+
+        /// Returns the order of the wavelet
+        int get_k() const {return k;};
 
         /// Initialize nodes to zero function at initial_level of refinement. 
 
@@ -569,29 +665,98 @@ namespace madness {
 
 
         /// Evaluate function at quadrature points in the specified box
-        tensorT fcube(const keyT& key) const {
-            MADNESS_ASSERT(NDIM == 3);
-            MADNESS_ASSERT(f);
-
-            tensorT fval(cdata.vq);
+        template <typename F>
+        void fcube(const keyT& key, const F& f, const Tensor<double>& qx, tensorT& fval) const {
             const Vector<Translation,NDIM>& l = key.translation();
             const Level n = key.level();
             const double h = std::pow(0.5,double(n)); 
-            const int npt = cdata.npt;
             coordT c; // will hold the point in user coordinates
+            const int npt = qx.dim[0];
             
-            for (int i=0; i<npt; i++) {
-                c[0] = cell(i,0) + h*cell_width[0]*(l[0] + cdata.quad_x(i)); // x
-                for (int j=0; j<npt; j++) {
-                    c[1] = cell(j,0) + h*cell_width[1]*(l[1] + cdata.quad_x(j)); // y
-                    for (int k=0; k<npt; k++) {
-                        c[2] = cell(k,0) + h*cell_width[2]*(l[2] + cdata.quad_x(k)); // z
-                        fval(i,j,k) = f(c);
+            if (NDIM == 1) {
+                for (int i=0; i<npt; i++) {
+                    c[0] = cell(0,0) + h*cell_width[0]*(l[0] + qx(i)); // x
+                    fval(i) = f(c);
+                }
+            }
+            else if (NDIM == 2) {
+                for (int i=0; i<npt; i++) {
+                    c[0] = cell(0,0) + h*cell_width[0]*(l[0] + qx(i)); // x
+                    for (int j=0; j<npt; j++) {
+                        c[1] = cell(1,0) + h*cell_width[1]*(l[1] + qx(j)); // y
+                        fval(i,j) = f(c);
                     }
                 }
             }
-
-            return fval;
+            else if (NDIM == 3) {
+                for (int i=0; i<npt; i++) {
+                    c[0] = cell(0,0) + h*cell_width[0]*(l[0] + qx(i)); // x
+                    for (int j=0; j<npt; j++) {
+                        c[1] = cell(1,0) + h*cell_width[1]*(l[1] + qx(j)); // y
+                        for (int k=0; k<npt; k++) {
+                            c[2] = cell(2,0) + h*cell_width[2]*(l[2] + qx(k)); // z
+                            fval(i,j,k) = f(c);
+                        }
+                    }
+                }
+            }
+            else if (NDIM == 4) {
+                for (int i=0; i<npt; i++) {
+                    c[0] = cell(0,0) + h*cell_width[0]*(l[0] + qx(i)); // x
+                    for (int j=0; j<npt; j++) {
+                        c[1] = cell(1,0) + h*cell_width[1]*(l[1] + qx(j)); // y
+                        for (int k=0; k<npt; k++) {
+                            c[2] = cell(2,0) + h*cell_width[2]*(l[2] + qx(k)); // z
+                            for (int m=0; m<npt; m++) {
+                                c[3] = cell(3,0) + h*cell_width[3]*(l[3] + qx(m)); // xx
+                                fval(i,j,k,m) = f(c);
+                            }
+                        }
+                    }
+                }
+            }
+            else if (NDIM == 5) {
+                for (int i=0; i<npt; i++) {
+                    c[0] = cell(0,0) + h*cell_width[0]*(l[0] + qx(i)); // x
+                    for (int j=0; j<npt; j++) {
+                        c[1] = cell(1,0) + h*cell_width[1]*(l[1] + qx(j)); // y
+                        for (int k=0; k<npt; k++) {
+                            c[2] = cell(2,0) + h*cell_width[2]*(l[2] + qx(k)); // z
+                            for (int m=0; m<npt; m++) {
+                                c[3] = cell(3,0) + h*cell_width[3]*(l[3] + qx(m)); // xx
+                                for (int n=0; n<npt; n++) {
+                                    c[4] = cell(4,0) + h*cell_width[4]*(l[4] + qx(n)); // xx
+                                    fval(i,j,k,m,n) = f(c);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            else if (NDIM == 6) {
+                for (int i=0; i<npt; i++) {
+                    c[0] = cell(0,0) + h*cell_width[0]*(l[0] + qx(i)); // x
+                    for (int j=0; j<npt; j++) {
+                        c[1] = cell(1,0) + h*cell_width[1]*(l[1] + qx(j)); // y
+                        for (int k=0; k<npt; k++) {
+                            c[2] = cell(2,0) + h*cell_width[2]*(l[2] + qx(k)); // z
+                            for (int m=0; m<npt; m++) {
+                                c[3] = cell(3,0) + h*cell_width[3]*(l[3] + qx(m)); // xx
+                                for (int n=0; n<npt; n++) {
+                                    c[4] = cell(4,0) + h*cell_width[4]*(l[4] + qx(n)); // xx
+                                    for (int p=0; p<npt; p++) {
+                                        c[5] = cell(5,0) + h*cell_width[5]*(l[5] + qx(p)); // xx
+                                        fval(i,j,k,m,n,p) = f(c);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            else {
+                MADNESS_EXCEPTION("FunctionImpl: fcube: confused about NDIM?",NDIM);
+            }
         };
 
         const keyT& key0() const {
@@ -617,12 +782,20 @@ namespace madness {
 
         /// Compute by projection the scaling function coeffs in specified box
         tensorT project(const keyT& key) const {
-            tensorT fval;
+            tensorT fval(cdata.vq);
 
-            if (vf) 
-                MADNESS_ASSERT(0); //fval = vfcube(key);
-            else
-                fval = fcube(key);
+            if (vf) {
+                MADNESS_EXCEPTION("FunctionImpl: project: Vector function interface not yet implemented",0);
+            }
+            else if (f) {
+                fcube(key,f,cdata.quad_x,fval);
+            }
+            else if (functor) {
+                fcube(key,*functor,cdata.quad_x,fval);
+            }
+            else {
+                MADNESS_EXCEPTION("FunctionImpl: project: confusion about function?",0);
+            };
 
             fval.scale(sqrt(cell_volume*pow(0.5,double(NDIM*key.level()))));
             return transform(fval,cdata.quad_phiw);
@@ -661,7 +834,7 @@ namespace madness {
         Void project_refine_op(const keyT& key) {
             //print("DOING PROJECT REFINE",key);
 
-            if (dorefine) {
+            if (do_refine) {
                 // Make in r child scaling function coeffs at level n+1
                 tensorT r(cdata.v2k);
                 for (KeyChildIterator<NDIM> it(key); it; ++it) {
@@ -721,10 +894,9 @@ namespace madness {
                 else {
                     typename dcT::futureT fut = coeffs.find(key);
                     typename dcT::iterator it = fut.get();
-                    print("got node",it->first,it->second.is_leaf(),it->second.has_coeff());
-                    //nodeT& node = coeffs.find(key).get()->second;
                     nodeT& node = it->second;
                     if (node.has_coeff()) {
+                        print("eval: got node",it->first,node);
                         Future<T>(ref).set(eval_cube(key.level(), x, node.coeff()));
                         return None;
                     }
@@ -871,9 +1043,57 @@ namespace madness {
         };
 
 
+        /// Returns the square of the error norm in the box labelled by key
+
+        /// Assumed to be invoked locally but it would be easy to eliminate
+        /// this assumption
+        template <typename opT>
+        double err_box(const keyT& key, const nodeT& node, const opT& func,
+                       int npt, const Tensor<double>& qx, const Tensor<double>& quad_phit, 
+                       const Tensor<double>& quad_phiw) const {
+
+            std::vector<long> vq(NDIM);
+            for (int i=0; i<NDIM; i++) vq[i] = npt;
+            tensorT fval(vq);
+
+            // Compute the "exact" function in this volume
+            fcube(key, func, qx, fval);
+
+            // Transform the polynomial coefficients into values at the quadrature points
+            double scale = pow(2.0,0.5*NDIM*key.level())/sqrt(cell_volume);
+            tensorT tval = transform(node.coeff(),quad_phit).scale(scale);
+
+            // Subtract to get the error
+            tval -= fval;
+
+            // Transform error back into the scaling function basis and compute norm
+            scale = pow(0.5,0.5*NDIM*key.level())*sqrt(cell_volume);
+            tval = transform(tval,quad_phiw).scale(scale);
+
+            double err = tval.normf();
+            return err*err;
+        };
+
+        template <typename opT>
+        double err_local(const opT& func) {
+            // Make quadrature rule of higher order
+            const int npt = cdata.npt + 1;
+            Tensor<double> qx, qw, quad_phi, quad_phiw, quad_phit;
+            FunctionCommonData<T,NDIM>::_init_quadrature(k, npt, qx, qw, quad_phi, quad_phiw, quad_phit);
+
+            double sum = 0.0;
+            for(typename dcT::iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
+                const keyT& key = it->first;
+                const nodeT& node = it->second;
+                if (node.has_coeff()) sum += err_box(key, node, func, npt, qx, quad_phit, quad_phiw);
+            }
+            return sum;
+        };
+            
+
         /// Convert user coords (cell[][]) to simulation coords ([0,1]^ndim)
         inline void user_to_sim(const coordT& xuser, coordT& xsim) const {
-            for (int i=0; i<NDIM; i++)
+            for (int i=0; i<NDIM; i++) 
                 xsim[i] = (xuser[i] - cell(i,0)) * rcell_width[i];
         };
 
@@ -883,6 +1103,17 @@ namespace madness {
             for (int i=0; i<NDIM; i++)
                 xuser[i] = xsim[i]*cell_width[i] + cell(i,0);
         };
+
+        /// In-place scale by a constant
+        template <typename Q>
+        void scale_inplace(const Q q, bool fence) {
+            for(typename dcT::iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
+                nodeT& node = it->second;
+                if (node.has_coeff()) node.coeff.scale(q);
+            }
+            if (fence) world.gop.fence();
+        };
+
 
     private:
         /// Assignment is not allowed ... not even possibloe now that we have reference members

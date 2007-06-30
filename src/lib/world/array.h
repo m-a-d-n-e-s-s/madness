@@ -32,7 +32,6 @@
   $Id$
 */
 
-  
 #ifndef WORLD_ARRAY
 #define WORLD_ARRAY
 
@@ -46,9 +45,6 @@ namespace madness {
     /// Eliminates memory allocation cost, is just POD so can be
     /// copied easily and allocated on the stack, and the known
     /// dimension permits agressive compiler optimizations.
-    ///
-    /// Actually, this behaves more like a vector.
-    /// Why not call it that????????
     template <typename T, std::size_t N>
     class Vector {
     private:
