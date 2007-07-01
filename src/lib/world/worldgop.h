@@ -118,7 +118,7 @@ namespace madness {
         /// Synchronizes all processes in communicator ... does NOT fence pending AM or tasks
         void barrier() {
             long i = rank;
-            global_sum(i);
+            sum(i);
             if (i != nproc*(nproc-1)/2) error("bad value after sum in barrier");
         };
 
@@ -214,7 +214,7 @@ namespace madness {
         
         /// Optimizations can be added for long messages
         template <typename T, class opT>
-        void global_reduce(T* buf, size_t nelem, opT op) {
+        void reduce(T* buf, size_t nelem, opT op) {
             MPI::Request req0, req1;
             ProcessID parent, child0, child1;
             mpi.binary_tree_info(0, parent, child0, child1);
@@ -247,43 +247,43 @@ namespace madness {
         
         /// Inplace global sum while still processing AM & tasks
         template <typename T>
-        inline void global_sum(T* buf, size_t nelem) {
-            global_reduce< T, WorldSumOp<T> >(buf, nelem, WorldSumOp<T>());
+        inline void sum(T* buf, size_t nelem) {
+            reduce< T, WorldSumOp<T> >(buf, nelem, WorldSumOp<T>());
         }
         
         /// Inplace global min while still processing AM & tasks
         template <typename T>
-        inline void global_min(T* buf, size_t nelem) {
-            global_reduce< T, WorldMinOp<T> >(buf, nelem, WorldMinOp<T>());
+        inline void min(T* buf, size_t nelem) {
+            reduce< T, WorldMinOp<T> >(buf, nelem, WorldMinOp<T>());
         }
         
         /// Inplace global max while still processing AM & tasks
         template <typename T>
-        inline void global_max(T* buf, size_t nelem) {
-            global_reduce< T, WorldMaxOp<T> >(buf, nelem, WorldMaxOp<T>());
+        inline void max(T* buf, size_t nelem) {
+            reduce< T, WorldMaxOp<T> >(buf, nelem, WorldMaxOp<T>());
         }
         
         /// Inplace global absmin while still processing AM & tasks
         template <typename T>
-            inline void global_absmin(T* buf, size_t nelem) {
-            global_reduce< T, WorldAbsMinOp<T> >(buf, nelem, WorldAbsMinOp<T>());
+            inline void absmin(T* buf, size_t nelem) {
+            reduce< T, WorldAbsMinOp<T> >(buf, nelem, WorldAbsMinOp<T>());
         }
         
         /// Inplace global absmax while still processing AM & tasks
         template <typename T>
-            inline void global_absmax(T* buf, size_t nelem) {
-            global_reduce< T, WorldAbsMaxOp<T> >(buf, nelem, WorldAbsMaxOp<T>());
+            inline void absmax(T* buf, size_t nelem) {
+            reduce< T, WorldAbsMaxOp<T> >(buf, nelem, WorldAbsMaxOp<T>());
         }
         
         /// Inplace global product while still processing AM & tasks
         template <typename T>
-            inline void global_product(T* buf, size_t nelem) {
-            global_reduce< T, WorldMultOp<T> >(buf, nelem, WorldMultOp<T>());
+            inline void product(T* buf, size_t nelem) {
+            reduce< T, WorldMultOp<T> >(buf, nelem, WorldMultOp<T>());
         }
         
         /// Global sum of a scalar while still processing AM & tasks
         template <typename T>
-            void global_sum(T& a) {global_sum(&a, 1);}
+            void sum(T& a) {sum(&a, 1);}
         
     };        
 }

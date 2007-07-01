@@ -10,7 +10,7 @@ TARGET_TO_MAKE = libMADworld
 
 # List all C++ source files (not headers).  Use CSRC and FTNSRC for
 # C (.c) and Fortran (.f) respectively
-CXXSRC = worldstuff.cc redirectio.cc archive_type_names.cc debug.cc
+CXXSRC = worldstuff.cc redirectio.cc archive_type_names.cc debug.cc print.cc
 CSRC = lookup3.c
          
 # Data files that should be installed with the library [OPTIONAL]

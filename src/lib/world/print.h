@@ -199,5 +199,12 @@ namespace madness {
         std::cout << a << " " << b << " " << c << " " << d << " " << e << " " << f << " " << g << " " << h << " " << i << " " << j << " " << k << " " << l << ENDL;
         FLUSH();
     }
+
+    /// Print a string justified on the left to start at the given column with optional underlining
+    void print_justified(const char* s, int column=0, bool underline=true);
+
+    /// Print a string centered at the given column with optional underlining
+    void print_centered(const char* s, int column=40, bool underline=true);
+
 }
 #endif
