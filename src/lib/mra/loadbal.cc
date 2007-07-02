@@ -79,7 +79,7 @@ namespace madness {
 	// The manager process coordinates the melding algorithm for load balancing, keeping a list of
 	// lists of the configurations suggested by the melding algorithm, and selecting the best
 	// configuration at the end.
-        unsigned int npieces = this->f.get_impl()->world.nproc();
+        int npieces = this->f.get_impl()->world.nproc();
         int count = 0;
         std::vector<std::vector<typename DClass<D>::TreeCoords> > list_of_list;
         std::vector<typename DClass<D>::TreeCoords> emptylist;
@@ -476,7 +476,7 @@ namespace madness {
     madness::print("at beginning of make_partition: at_leaf =", *at_leaf);
         double fudgeFactor = 0.1;
         Cost maxAddl = (Cost) (fudgeFactor*partition_size);
-	bool my_at_leaf = *at_leaf;
+// unused?	bool my_at_leaf = *at_leaf;
 
         typename DClass<D>::treeT::iterator it = this->find(key);
         if (it == this->end()) {

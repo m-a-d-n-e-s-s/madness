@@ -42,6 +42,8 @@
 #include <tensor/mtrand.h>
 #include <tensor/tensor.h>
 
+#define FUNCTION_INSTANTIATE_1
+#define FUNCTION_INSTANTIATE_2
 #define FUNCTION_INSTANTIATE_3
 
 namespace madness {
@@ -117,8 +119,6 @@ namespace madness {
             verify();
             coordT xsim;
             impl->user_to_sim(xuser,xsim);
-            print("xuser",xuser);
-            print("xsim",xsim);
             Future<T> result;
             impl->eval(xsim, impl->key0(), result.remote_ref(impl->world));
             return result;
@@ -137,11 +137,33 @@ namespace madness {
             return eval(xuser).get();
         };
 
-        template <typename opT>
-        double err(const opT& op) const {
+
+        /// Returns an estimate of the difference ||this-func||^2 from local data
+
+        /// No communication is performed.  If the function is not
+        /// reconstructed, it throws an exception.  To get the global
+        /// value either do a global sum of the local values or call
+        /// errsq
+        template <typename funcT>
+        double errsq_local(const funcT& func) const {
+            verify();
+            if (is_compressed()) MADNESS_EXCEPTION("Function:errsq_local:not reconstructed",0);
+            return impl->errsq_local(func);
+        };
+
+
+        /// Returns an estimate of the difference ||this-func|| ... global sum performed
+
+        /// If the function is compressed, it is reconstructed first.  For efficient use
+        /// especially with many functions, reconstruct them all first, and use errsq_local
+        /// instead so you can perform a global sum on all at the same time.
+        template <typename funcT>
+        double err(const funcT& func) const {
             verify();
             if (is_compressed()) const_cast<Function<T,NDIM>*>(this)->reconstruct();
-            return sqrt(impl->err_local(op));
+            double local = impl->errsq_local(func);
+            impl->world.gop.sum(local);
+            return sqrt(local);
         };
 
 
@@ -155,10 +177,27 @@ namespace madness {
                 return false;
         };
 
+        /// Returns the number of coefficients in the function ... collective global sum
+        std::size_t size() const {
+            if (!impl) return 0;
+            return impl->size();
+        };
+
         /// Returns the number of multiwavelets (k).  No communication.
         bool k() const {
             verify();
             return impl->get_k();
+        };
+
+        /// Truncate the function with optional fence.  Compresses with fence if not compressed.
+
+        /// If the truncation threshold is less than or equal to zero the default value
+        /// specified when the function was created is used.
+        /// If the function is not initialized, it just returns.
+        void truncate(double tol = 0.0, bool fence = true) {
+            if (!impl) return;
+            verify();
+            impl->truncate(tol,fence);
         };
 
 	/// Returns a shared-pointer to the implementation
@@ -172,6 +211,26 @@ namespace madness {
         const SharedPtr< WorldDCPmapInterface< Key<NDIM> > >& get_pmap() const {
             verify();
             return impl->get_pmap();
+        };
+
+        
+        /// Returns the square of the norm of the local function ... no communication
+        
+        /// Works in either basis
+        double norm2sq_local() const {
+            verify();
+            return impl->norm2sq_local();
+        };
+
+
+        /// Returns the 2-norm of the function ... global sum ... works in either basis
+        
+        /// See comments for err() w.r.t. applying to many functions.
+        double norm2() const {
+            verify();
+            double local = impl->norm2sq_local();
+            impl->world.gop.sum(local);
+            return sqrt(local);
         };
 
 

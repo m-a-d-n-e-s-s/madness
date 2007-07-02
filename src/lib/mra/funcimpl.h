@@ -52,6 +52,31 @@ namespace madness {
 namespace madness {
 
 
+    /// A simple process map soon to be supplanted by Rebecca's
+    template <typename keyT>
+    class SimpleMap : public WorldDCPmapInterface< keyT > {
+    private:
+        const int nproc;
+        const ProcessID me;
+        const int n;
+
+    public:
+        SimpleMap(World& world, int n = 4) : nproc(world.nproc()), me(world.rank()), n(n) {};
+
+        ProcessID owner(const keyT& key) const {
+            if (key.level() == 0) {
+                return 0;
+            }
+            else if (key.level() <= n) {
+                return hash(key)%nproc;
+            }
+            else {
+                return hash(key.parent(key.level()-n))%nproc;
+            }
+        };
+    };
+
+
     /// The maximum wavelet order presently supported (up to 31 should work)
     static const int MAXK = 17;
 
@@ -97,6 +122,7 @@ namespace madness {
             cell(_,1) = 1.0;
             //pmap = SharedPtr< WorldDCPmapInterface< Key<NDIM> > >(new WorldDCDefaultPmap< Key<NDIM> >(world));
             pmap = SharedPtr< WorldDCPmapInterface< Key<NDIM> > >(new MyPmap<NDIM>(world));
+            //pmap = SharedPtr< WorldDCPmapInterface< Key<NDIM> > >(new SimpleMap< Key<NDIM> >(world));
         };
     };
 
@@ -124,7 +150,6 @@ namespace madness {
         
         /// Private.  Do first use initialization
         void _initialize(int k) {
-            print("initializing commondata for",k);
             this->k = k;
             npt = k;
             for (int i=0; i<4; i++) 
@@ -189,7 +214,6 @@ namespace madness {
 
         static const FunctionCommonData<T,NDIM>& get(int k) {
             MADNESS_ASSERT(k>0 && k<=MAXK);
-            print("common data getting",k,data[k].initialized);
             if (!data[k].initialized) data[k]._initialize(k);
             return data[k];
         };
@@ -469,8 +493,6 @@ namespace madness {
     private:
         int k;                  ///< Wavelet order
         double thresh;          ///< Screening threshold
-        double truncate_thr;    ///< Tolerance for truncation, defaults to thresh
-        double autorefine_thr;  ///< Tolerance for autorefine, defaults to thresh        
         int initial_level;      ///< Initial level for refinement
         int max_refine_level;   ///< Do not refine below this level
         int truncate_mode;      ///< 0=default=(|d|<thresh), 1=(|d|<thresh/2^n);
@@ -505,8 +527,6 @@ namespace madness {
             , world(factory._world)
             , k(factory._k)
             , thresh(factory._thresh)
-            , truncate_thr(factory._thresh)
-            , autorefine_thr(factory._thresh)
             , initial_level(factory._initial_level)
             , max_refine_level(factory._max_refine_level)
             , truncate_mode(factory._truncate_mode)
@@ -530,10 +550,6 @@ namespace madness {
 
             // Ultimately, must set cell, bc, etc. from the factory not the defaults
             for (int i=0; i<NDIM; i++) rcell_width(i) = 1.0/rcell_width(i);
-
-            print("CELL WIDTH",cell_width);
-            print("RCELL WIDTH",rcell_width);
-
 
             bool empty = factory._empty;
             bool do_compress = factory._compress;
@@ -580,8 +596,6 @@ namespace madness {
             , world(other.world)
             , k(other.k)
             , thresh(other.thresh)
-            , truncate_thr(other.truncate_thr)
-            , autorefine_thr(other.autorefine_thr)
             , initial_level(other.initial_level)
             , max_refine_level(other.max_refine_level)
             , truncate_mode(other.truncate_mode)
@@ -663,6 +677,55 @@ namespace madness {
 
         };
 
+
+        /// Truncate according to the threshold with optional global fence
+
+        /// If thresh<=0 the default value of this->thresh is used
+        void truncate(double tol, bool fence) {
+            // Cannot put tol into object since it would make a race condition
+            if (tol <= 0.0) tol = thresh;
+            if (world.rank() == coeffs.owner(cdata.key0)) truncate_spawn(cdata.key0,tol);
+            if (fence) world.gop.fence();
+        };
+
+
+        /// Returns true if after truncation this node has coefficients
+
+        /// Assumed to be invoked on process owning key.  Possible non-blocking
+        /// communication.
+        Future<bool> truncate_spawn(const keyT& key, double tol) {
+            const nodeT& node = coeffs.find(key).get()->second;   // Ugh!
+            if (node.has_children()) {
+                std::vector< Future<bool> > v = future_vector_factory<bool>(1<<NDIM);
+                int i=0;
+                for (KeyChildIterator<NDIM> kit(key); kit; ++kit,++i) {
+                    v[i] = send(coeffs.owner(kit.key()), &implT::truncate_spawn, kit.key(), tol);
+                }
+                return task(world.rank(),&implT::truncate_op, key, tol, v);
+            }
+            else {
+                MADNESS_ASSERT(!node.has_coeff());  // In compressed form leaves should not have coeffs
+                return Future<bool>(false); 
+            }
+        };
+
+        /// Actually do the truncate operation
+        bool truncate_op(const keyT& key, double tol, const std::vector< Future<bool> >& v) {
+            // If any child has coefficients, a parent cannot truncate
+            for (int i=0; i<(1<<NDIM); i++) if (v[i].get()) return true;
+            nodeT& node = coeffs.find(key).get()->second;
+            if (key.level() > 0) {
+                double dnorm = node.coeff().normf();
+                if (dnorm < truncate_tol(tol,key)) {
+                    node.clear_coeff();
+                    node.set_has_children(false);
+                    for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
+                        coeffs.erase(kit.key());
+                    }
+                }
+            }
+            return node.has_coeff();
+        };
 
         /// Evaluate function at quadrature points in the specified box
         template <typename F>
@@ -832,8 +895,6 @@ namespace madness {
 
         /// Projection with optional refinement
         Void project_refine_op(const keyT& key) {
-            //print("DOING PROJECT REFINE",key);
-
             if (do_refine) {
                 // Make in r child scaling function coeffs at level n+1
                 tensorT r(cdata.v2k);
@@ -896,7 +957,6 @@ namespace madness {
                     typename dcT::iterator it = fut.get();
                     nodeT& node = it->second;
                     if (node.has_coeff()) {
-                        print("eval: got node",it->first,node);
                         Future<T>(ref).set(eval_cube(key.level(), x, node.coeff()));
                         return None;
                     }
@@ -916,20 +976,54 @@ namespace madness {
         };
 
 
-        T eval_cube(Level n, coordT x, const tensorT s) const {
-            double px[64], py[64], pz[64];
-            MADNESS_ASSERT(k<64);
-            MADNESS_ASSERT(NDIM==3);
-            legendre_scaling_functions(x[0],k,px);
-            legendre_scaling_functions(x[1],k,py);
-            legendre_scaling_functions(x[2],k,pz);
+        T eval_cube(Level n, coordT x, const tensorT c) const {
+            const int k = cdata.k;
+            double px[NDIM][k];
             T sum = T(0.0);
-            for (int p=0; p<k; p++) {
-                for (int q=0; q<k; q++) {
-                    for (int r=0; r<k; r++) {
-                        sum += s(p,q,r)*px[p]*py[q]*pz[r];
-                    }
-                }
+
+            for (int i=0; i<NDIM; i++) legendre_scaling_functions(x[i],k,px[i]);
+
+            if (NDIM == 1) {
+                for (int p=0; p<k; p++) 
+                    sum += c(p)*px[0][p];
+            }
+            else if (NDIM == 2) {
+                for (int p=0; p<k; p++) 
+                    for (int q=0; q<k; q++) 
+                        sum += c(p,q)*px[0][p]*px[1][q];
+            }
+            else if (NDIM == 3) {
+                for (int p=0; p<k; p++) 
+                    for (int q=0; q<k; q++) 
+                        for (int r=0; r<k; r++) 
+                        sum += c(p,q,r)*px[0][p]*px[1][q]*px[2][r];
+            }
+            else if (NDIM == 4) {
+                for (int p=0; p<k; p++) 
+                    for (int q=0; q<k; q++) 
+                        for (int r=0; r<k; r++) 
+                            for (int s=0; s<k; s++) 
+                                sum += c(p,q,r,s)*px[0][p]*px[1][q]*px[2][r]*px[3][s];
+            }
+            else if (NDIM == 5) {
+                for (int p=0; p<k; p++) 
+                    for (int q=0; q<k; q++) 
+                        for (int r=0; r<k; r++) 
+                            for (int s=0; s<k; s++) 
+                                for (int t=0; t<k; t++) 
+                                sum += c(p,q,r,s,t)*px[0][p]*px[1][q]*px[2][r]*px[3][s]*px[4][t];
+            }
+            else if (NDIM == 6) {
+                for (int p=0; p<k; p++) 
+                    for (int q=0; q<k; q++) 
+                        for (int r=0; r<k; r++) 
+                            for (int s=0; s<k; s++) 
+                                for (int t=0; t<k; t++) 
+                                    for (int u=0; u<k; u++) 
+                                    sum += c(p,q,r,s,t,u)*px[0][p]*px[1][q]*px[2][r]*px[3][s]*px[4][t]*px[5][u];
+            }
+            else {
+                MADNESS_EXCEPTION("FunctionImpl:eval_cube:NDIM?",NDIM);
             }
             return sum*pow(2.0,0.5*NDIM*n)/sqrt(cell_volume);
         }
@@ -1074,22 +1168,50 @@ namespace madness {
             return err*err;
         };
 
+        /// Returns the sum of squares of errors from local infro ... no comms
         template <typename opT>
-        double err_local(const opT& func) {
+        double errsq_local(const opT& func) const {
             // Make quadrature rule of higher order
             const int npt = cdata.npt + 1;
             Tensor<double> qx, qw, quad_phi, quad_phiw, quad_phit;
             FunctionCommonData<T,NDIM>::_init_quadrature(k, npt, qx, qw, quad_phi, quad_phiw, quad_phit);
 
             double sum = 0.0;
-            for(typename dcT::iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
+            for(typename dcT::const_iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
                 const keyT& key = it->first;
                 const nodeT& node = it->second;
                 if (node.has_coeff()) sum += err_box(key, node, func, npt, qx, quad_phit, quad_phiw);
             }
             return sum;
         };
-            
+
+        /// Returns the square of the local norm ... no comms
+        double norm2sq_local() const {
+            double sum = 0.0;
+            for(typename dcT::const_iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
+                const nodeT& node = it->second;
+                if (node.has_coeff()) {
+                    double norm = node.coeff().normf();
+                    sum += norm*norm;
+                }
+            }
+            return sum;
+        };
+
+        /// Returns the number of coefficients in the function ... collective global sum
+        std::size_t size() const {
+            std::size_t sum = 0;
+            for(typename dcT::const_iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
+                const nodeT& node = it->second;
+                if (node.has_coeff()) sum++;
+            }
+            if (is_compressed()) for (int i=0; i<NDIM; i++) sum *= 2*cdata.k;
+            else                 for (int i=0; i<NDIM; i++) sum *=   cdata.k;
+
+            world.gop.sum(sum);
+            return sum;
+        };
+
 
         /// Convert user coords (cell[][]) to simulation coords ([0,1]^ndim)
         inline void user_to_sim(const coordT& xuser, coordT& xsim) const {

@@ -38,12 +38,14 @@
   
 #include <mra/mra.h>
 
+const double PI = 3.1415926535897932384;
+
 using namespace madness;
 
 template <typename T, int NDIM>
 class GaussianFunctor : public FunctionFunctorInterface<T,NDIM> {
 private:
-    typedef Vector<double,NDIM> coordT;            ///< Type of vector holding coordinates
+    typedef Vector<double,NDIM> coordT;
     const coordT center;
     const double exponent;
     const T coefficient;
@@ -70,75 +72,126 @@ void test_basic(World& world) {
     if (world.rank() == 0) 
         print("Test compression of a normalized gaussian at origin, type =",archive::get_type_name<T>(),", ndim =",NDIM);
 
-//     for (int i=0; i<NDIM; i++) {
-//         FunctionDefaults<NDIM>::cell(i,0) = -10.0;
-//         FunctionDefaults<NDIM>::cell(i,1) =  10.0;
-//     }
+    for (int i=0; i<NDIM; i++) {
+        FunctionDefaults<NDIM>::cell(i,0) = -11.0-2*i;  // Deliberately assymetric bounding box
+        FunctionDefaults<NDIM>::cell(i,1) =  10.0+i;
+    }
     FunctionDefaults<NDIM>::k = 7;
-    FunctionDefaults<NDIM>::thresh = 1e-12;
+    FunctionDefaults<NDIM>::thresh = 1e-5;
     FunctionDefaults<NDIM>::compress = false;
     FunctionDefaults<NDIM>::refine = true;
     FunctionDefaults<NDIM>::initial_level = 2;
     
     double used;
-    const double PI = 3.1415926535897932384;
     const coordT origin(0.0);
+    coordT point;
     const double expnt = 1.0;
-    const double coeff = pow(1.0/PI,0.25*NDIM);
+    const double coeff = pow(2.0/PI,0.25*NDIM);
 
     functorT functor(new GaussianFunctor<T,NDIM>(origin, expnt, coeff));
 
+    for (int i=0; i<NDIM; i++) point[i] = 0.1*i;
+
     used = -wall_time();
-    Function<T,NDIM> f = FunctionFactory<double,3>(world).functor(functor);
+    Function<T,NDIM> f = FunctionFactory<double,NDIM>(world).functor(functor);
     used += wall_time();
-    cout << "numerical(0.4,0.5,0.55) " << f(origin) << endl;
-    cout << " analytic(0.4,0.5,0.55) " << (*functor)(origin) << endl;
+    double norm = f.norm2();
+    double err = f.err(*functor);
+    if (world.rank() == 0) {
+        print("project+refine used",used);
+        print("               norm", norm);
+        print("     sampling point", point);
+        print("          numerical", f(point));
+        print("           analytic", (*functor)(point));
+        print("       global error", err);
+        print("");
+    }
 
-    print(f.err(*functor));
+    used = -wall_time();
+    f.compress();
+    used += wall_time();
+    double new_norm = f.norm2();
+    
+    if (world.rank() == 0) {
+        print("   compression used", used);
+        print("               norm", new_norm, norm-new_norm);
+        print("");
+    }
+    MADNESS_ASSERT(abs(norm-new_norm) < 1e-14*norm);
+    
+    used = -wall_time();
+    f.reconstruct();
+    used += wall_time();
+    new_norm = f.norm2();
+    err = f.err(*functor);
+    
+    if (world.rank() == 0) {
+        print("reconstruction used", used);
+        print("               norm", new_norm, norm-new_norm);
+        print("       global error", err);
+    }
+    MADNESS_ASSERT(abs(norm-new_norm) < 1e-14*norm);
+    
+    used = -wall_time();
+    f.compress();
+    used += wall_time();
+    new_norm = f.norm2();
+    
+    if (world.rank() == 0) {
+        print("   compression used", used);
+        print("               norm", new_norm, norm-new_norm);
+        print("");
+    }
+    MADNESS_ASSERT(abs(norm-new_norm) < 1e-14*norm);
 
-//     //if (f.err(myg) > Function::defaults.thresh) error("failed");
-//     cout << " used " << used << "s" << endl;
-//     cout << f.norm2() << endl;
-//     //f.coeff->summarize();
+    used = -wall_time();
+    f.truncate();
+    used += wall_time();
+    new_norm = f.norm2();
+    err = f.err(*functor);
+    if (world.rank() == 0) {
+        print("    truncation used", used);
+        print("               norm", new_norm, norm-new_norm);
+        print("       global error", err);
+    }
     
-//     cout << "Test compression of a simple Gaussian using vector interface" << endl;
-//     used = -wall_time();
-//     Function vf = function_factory().vf(vector_myg).nocompress().initial_level(2).thresh(1e-9);
-//     used += wall_time();
-//     cout << "numerical(0.4,0.5,0.55) " << vf(0.4,0.5,0.55) << endl;
-//     cout << " analytic(0.4,0.5,0.55) " << myg(0.4,0.5,0.55) << endl;
-//     //if (vf.err(myg) > Function::defaults.thresh) error("failed");
-//     cout << " used " << used << "s" << endl;
-//     cout << vf.norm2() << endl;
-//     //vf.coeff->summarize();
-//     vf = Function();
-    
-//     cout << "Testing compress and reconstruct" << endl;
-//     used = -wall_time();
-//     f.compress();
-//     used += wall_time();
-//     cout << " compress used " << used << "s" << endl;
-    
-//     //cout << "compressed function" << endl;
-//     //f.coeff->summarize();
-//     used = -wall_time();
-//     f.reconstruct();
-//     used += wall_time();
-//     cout << " reconstruct used " << used << "s" << endl;
-//     //cout << "reconstructed function" << endl;
-//     //f.coeff->summarize();
-//     if (f.err(myg) > Function::defaults.thresh) error("failed");
-    
-//     cout << "Testing truncate" << endl;
-//     used = -wall_time();
-//     f.truncate();
-//     used += wall_time();
-//     cout << " truncate used " << used << "s" << endl;
-//     cout << "numerical(0.4,0.5,0.55) " << f(0.4,0.5,0.55) << endl;
-//     cout << " analytic(0.4,0.5,0.55) " << myg(0.4,0.5,0.55) << endl;
-//     if (f.err(myg) > Function::defaults.thresh*10.0) error("failed");
-//     //std::exit(0);
+    if (world.rank() == 0) print("projection, compression, reconstruction, truncation OK\n\n");
 }
+
+template <typename T, int NDIM>
+void test_conv(World& world) {
+    typedef Vector<double,NDIM> coordT;
+    typedef SharedPtr< FunctionFunctorInterface<T,NDIM> > functorT;
+
+    if (world.rank() == 0)
+        print("Test convergence - log(err)/(n*k) should be roughly const, a least for each value of k\n");
+    const coordT origin(0.0);
+    const double expnt = 1.0;
+    const double coeff = pow(2.0/PI,0.25*NDIM);
+    functorT functor(new GaussianFunctor<T,NDIM>(origin, expnt, coeff));
+
+    for (int i=0; i<NDIM; i++) {
+        FunctionDefaults<NDIM>::cell(i,0) = -10.0;
+        FunctionDefaults<NDIM>::cell(i,1) =  10.0;
+    }
+
+    for (int k=1; k<=15; k+=2) {
+	if (world.rank() == 0) printf("k=%d\n", k);
+	int ntop = 5;
+	if (NDIM > 2 && k>5) ntop = 4;
+	for (int n=1; n<=ntop; n++) {
+	    Function<T,NDIM> f = FunctionFactory<T,NDIM>(world).functor(functor).nocompress().norefine().initial_level(n).k(k);
+	    double err2 = f.err(*functor);
+            std::size_t size = f.size();
+            if (world.rank() == 0) 
+                printf("   n=%d err=%.2e #coeff=%.2e log(err)/(n*k)=%.2e\n", 
+                       n, err2, double(size), abs(log(err2)/n/k));
+	}
+    }
+
+    if (world.rank() == 0) print("test conv OK\n\n");
+}
+
 
 int main(int argc, char**argv) {
     MPI::Init(argc, argv);
@@ -146,7 +199,14 @@ int main(int argc, char**argv) {
 
     try {
         startup(world,argc,argv);
+        test_basic<double,1>(world);
+        test_conv<double,1>(world);
+
+        test_basic<double,2>(world);
+        test_conv<double,2>(world);
+
         test_basic<double,3>(world);
+        test_conv<double,3>(world);
     } catch (const MPI::Exception& e) {
         print(e);
         error("caught an MPI exception");

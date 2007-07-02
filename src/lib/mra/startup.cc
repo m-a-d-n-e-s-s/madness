@@ -36,11 +36,10 @@
 /// \file mra/startup.cc
 
 #include <mra/mra.h>
+#include <iomanip>
 
 namespace madness {
     void startup(World& world, int argc, char** argv) {
-        redirectio(world);
-        
         if (world.rank() == 0){
             print("The processor frequency is",cpu_frequency());
             print("there are",world.mpi.nproc(),"processes and I am process",world.mpi.rank());
@@ -56,11 +55,17 @@ namespace madness {
                 world.am.set_debug(true);
             else if (std::strcmp(argv[arg],"-dmpi")==0) 
                 world.mpi.set_debug(true);
+            else if (std::strcmp(argv[arg],"-rio")==0)
+                redirectio(world);
         }
 
         world.gop.fence();
 
         std::cout << std::boolalpha;  // Pretty printing of booleans
+        std::cout << std::scientific;
+        std::cout << std::showpoint; 
+        //std::cout << std::showpos;
+        std::cout << std::setprecision(8);
 
 #ifdef FUNCTION_INSTANTIATE_1
         FunctionDefaults<1>::set_defaults(world);
@@ -82,16 +87,16 @@ namespace madness {
 #endif
 
 
-        print("loading coeffs, etc.");
+        if (world.rank() == 0) print("loading coeffs, etc.");
 
         load_coeffs(world);
         load_quadrature(world);
 
-        print("testing coeffs, etc.");
+        if (world.rank() == 0) print("testing coeffs, etc.");
         MADNESS_ASSERT(gauss_legendre_test());
         MADNESS_ASSERT(test_two_scale_coefficients());
 
-        print("done with startup");
+        if (world.rank() == 0) print("done with startup");
 
         world.gop.fence();
     }
