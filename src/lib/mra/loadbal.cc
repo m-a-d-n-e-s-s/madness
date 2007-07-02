@@ -48,28 +48,28 @@ namespace madness {
     /// and partitions the tree until it has found all possible configurations.
     template <typename T, int D>
     std::vector<typename DClass<D>::TreeCoords> LoadBalImpl<T,D>::find_best_partition() {
-	madness::print("find_best_partition: at beginning");
+//	madness::print("find_best_partition: at beginning");
 	double t0 = MPI::Wtime();
 	bool keep_going = true;
 	std::vector<typename DClass<D>::TreeCoords> klist;
         if (this->f.get_impl()->world.mpi.rank() != 0) {
-	    madness::print("find_best_partition: just before while loop");
+//	    madness::print("find_best_partition: just before while loop");
 	    while (keep_going) {
-		madness::print("find_best_partition: just before first fence");
+//		madness::print("find_best_partition: just before first fence");
 	        this->f.get_impl()->world.gop.fence();
-		madness::print("find_best_partition: about to rollup()");
+//		madness::print("find_best_partition: about to rollup()");
 		this->skeltree->reset(true);
 	        this->f.get_impl()->world.gop.fence();
         	this->skeltree->rollup();
 	        this->f.get_impl()->world.gop.fence();
 		this->skeltree->reset(false);
-		madness::print("find_best_partition: finished with rollup()");
+//		madness::print("find_best_partition: finished with rollup()");
         	this->f.get_impl()->world.gop.fence();
-		madness::print("find_best_partition: finished with first fence in a row");
+//		madness::print("find_best_partition: finished with first fence in a row");
         	this->f.get_impl()->world.gop.fence();
-		madness::print("find_best_partition: finished with second fence in a row");
+//		madness::print("find_best_partition: finished with second fence in a row");
                 this->f.get_impl()->world.gop.template broadcast<bool>(keep_going);
-		madness::print("find_best_partition: received keep_going =", keep_going);
+//		madness::print("find_best_partition: received keep_going =", keep_going);
 	    }
             unsigned int ksize;
 	    // Then, they receive the broadcast of the final partitioning
@@ -79,7 +79,7 @@ namespace madness {
                 this->f.get_impl()->world.gop.template broadcast<typename DClass<D>::TreeCoords>(t);
                 klist.push_back(t);
             }
-//            print("done with broadcast");
+//            madness::print("done with broadcast");
             return klist;
 	}
 
@@ -94,29 +94,29 @@ namespace madness {
         Cost totalCost = 0;
         typename DClass<D>::KeyD root(0);
 
-	madness::print("find_best_partition: just before while loop");
+//	madness::print("find_best_partition: just before while loop");
 	double t1 = MPI::Wtime();
 	while (keep_going) {
 	    double t2 = MPI::Wtime();
-	    madness::print("find_best_partition: just before fix_cost");
+//	    madness::print("find_best_partition: just before fix_cost");
             this->skeltree->fix_cost(root);
-            madness::print("find_best_partition: just finished fix_cost");
+//            madness::print("find_best_partition: just finished fix_cost");
 	    this->f.get_impl()->world.gop.fence();
-            madness::print("find_best_partition: about to rollup");
+//            madness::print("find_best_partition: about to rollup");
 	    double t3 = MPI::Wtime();
 	    this->skeltree->reset(true);
 	    this->f.get_impl()->world.gop.fence();
             this->skeltree->rollup();
 	    this->f.get_impl()->world.gop.fence();
 	    this->skeltree->reset(false);
-            madness::print("find_best_partition: just finished rollup");
+//            madness::print("find_best_partition: just finished rollup");
             this->f.get_impl()->world.gop.fence();
 	    double t4 = MPI::Wtime();
             list_of_list.push_back(emptylist);
 //	    madness::print("find_best_partition: about to depth_first_partition this tree:");
 //	    this->skeltree->print(root);
             costlist.push_back(0);
-            madness::print("find_best_partition: about to depth_first_partition");
+//            madness::print("find_best_partition: about to depth_first_partition");
             totalCost = this->skeltree->depth_first_partition(root, &list_of_list[count], npieces,
                     totalCost, &costlist[count]);
 //            madness::print("find_best_partition: finished with depth_first_partition");
@@ -125,15 +125,12 @@ namespace madness {
 	    madness::print("find_best_partition: time for fix_cost number", count, "=", t3-t2);
 	    madness::print("find_best_partition: time for rollup number", count, "=", t4-t3);
 	    madness::print("find_best_partition: time for depth_first_partition number", count, "=", t5-t4);
-//            typename DClass<D>::treeT::iterator it = this->skeltree->find(root);
-//            typename DClass<D>::NodeD node = it->second;
-	    int lolcsize = list_of_list[count].size();
-	    madness::print("find_best_partition: partition number", count, ":");
-	    for (int k = 0; k < lolcsize; k++) {
-		list_of_list[count][k].print();
-//		madness::print("    ", list_of_list[count][k]);
-	    }
-	    madness::print("");
+//	    int lolcsize = list_of_list[count].size();
+//	    madness::print("find_best_partition: partition number", count, ":");
+//	    for (int k = 0; k < lolcsize; k++) {
+//		list_of_list[count][k].print();
+//	    }
+//	    madness::print("");
 	    int m = npieces;
 	    bool invalid_partition = false;
 	    for (int k = 0; k < lolcsize; k++) {
@@ -290,7 +287,7 @@ namespace madness {
 
         for (int i = npieces-1; i >= 0; i--) {
 //	    madness::print("");
-	    madness::print("Beginning partition number", i);
+//	    madness::print("Beginning partition number", i);
             std::vector<typename DClass<D>::KeyD> tmplist;
             Cost tpart = compute_partition_size(cost_left, parts_left);
 	    // Reconsider partition size at every step.  If too small, leaves too much work for P0.
