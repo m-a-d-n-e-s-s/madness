@@ -1207,8 +1207,9 @@ namespace madness {
             }
             if (is_compressed()) for (int i=0; i<NDIM; i++) sum *= 2*cdata.k;
             else                 for (int i=0; i<NDIM; i++) sum *=   cdata.k;
-
-            world.gop.sum(sum);
+	// the following function does not exist, but global_sum does
+//            world.gop.sum(sum);
+            world.gop.global_sum(sum);
             return sum;
         };
 

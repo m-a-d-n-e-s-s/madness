@@ -125,7 +125,7 @@ namespace madness {
 	    madness::print("find_best_partition: time for fix_cost number", count, "=", t3-t2);
 	    madness::print("find_best_partition: time for rollup number", count, "=", t4-t3);
 	    madness::print("find_best_partition: time for depth_first_partition number", count, "=", t5-t4);
-//	    int lolcsize = list_of_list[count].size();
+	    int lolcsize = list_of_list[count].size();
 //	    madness::print("find_best_partition: partition number", count, ":");
 //	    for (int k = 0; k < lolcsize; k++) {
 //		list_of_list[count][k].print();

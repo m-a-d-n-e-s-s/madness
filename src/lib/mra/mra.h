@@ -229,7 +229,9 @@ namespace madness {
         double norm2() const {
             verify();
             double local = impl->norm2sq_local();
-            impl->world.gop.sum(local);
+	// below does not exist
+//            impl->world.gop.sum(local);
+            impl->world.gop.global_sum(local);
             return sqrt(local);
         };
 

@@ -60,7 +60,6 @@ namespace madness {
 
     template <typename Data, int D> class LBNode;
     template <int D> struct TreeCoords;
-    template <int D> struct Tree;
     template <int D> class MyPmap;
     template <int D> class LBTree;
     class NodeData;
@@ -73,7 +72,6 @@ namespace madness {
         typedef Key<D> KeyD;
         typedef const Key<D> KeyDConst;
         typedef TreeCoords<D> TreeCoords;
-        typedef Tree<D> Tree;
         typedef LBNode<NodeData,D> NodeD;
         typedef const LBNode<NodeData,D> NodeDConst;
         typedef MyPmap<D> MyPmap;
@@ -208,85 +206,68 @@ namespace madness {
     };
 
 
-
-    /// Tree structure in which procmap is stored
-    template <int D>
-    struct Tree {
-        TreeCoords<D> data;
-        vector<SharedPtr<Tree> > children;
-        Tree* parent;
-
-        Tree() {};
-        Tree(TreeCoords<D> d) : data(d), parent(0) {};
-        Tree(TreeCoords<D> d, Tree* p) : data(d), parent(p) {};
-
-        Tree(const Tree<D>& tree) : data(tree.data), parent(0) {};
-        Tree(const Tree<D>& tree, Tree* p) : data(tree.data), parent(p) {};
-
-        Tree<D>& operator=(const Tree<D>& other) {
-            if (this != &other) {
-                this->data = other.data;
-                this->parent = other.parent;
-                this->children = other.children;
-            }
-            return *this;
+    template<int D>
+    class ProcMapImpl {
+	public:
+/*
+#ifdef WORLDDC_USES_GNU_HASH_MAP
+        template <typename T>
+        struct PMLocalHash {
+            std::size_t operator()(const T& t) const {
+                return hash(t);
+            };
         };
+        typedef HASH_MAP_NAMESPACE::hash_map< typename DClass<D>::KeyD,ProcessID,PMLocalHash<typename DClass<D>::KeyD > > Mapinfo;
+#else
+*/
+        typedef std::map<typename DClass<D>::KeyD,ProcessID> Mapinfo;
+/*
+#endif
+*/
+	typedef typename Mapinfo::iterator iterator;
+	typedef const iterator iterator_const;
+	typedef std::pair< typename DClass<D>::KeyD, ProcessID > pairT;
 
-        void insert_child(TreeCoords<D> d) {
-            Tree* c = new Tree(d, this);
-            children.insert(children.begin(),SharedPtr<Tree<D> > (c));
-        };
+	ProcMapImpl() {};
+	ProcMapImpl(std::vector< TreeCoords<D> > v) {
+	    int vlen = v.size();
+	    for (int i = 0; i < vlen; i++) {
+	    	themap.insert(pairT(v[i].key, v[i].owner));
+	    }
+	};
 
-        void insert_child(const Tree<D>& tree) {
-            Tree* c = new Tree(tree, this);
-            children.insert(children.begin(),SharedPtr<Tree<D> > (c));
-        };
+	ProcMapImpl(TreeCoords<D> t) {
+	    themap.insert(pairT(t.key, t.owner));
+	};
+	void insert(TreeCoords<D> t) {
+	    themap.insert(pairT(t.key, t.owner));
+	};
+	void erase(TreeCoords<D> t) {
+	    themap.erase(t.key);
+	};
 
-        void print() const {
-            data.print();
-            int csize = children.size();
-            for (int j = 0; j < csize; j++) {
-                children[j]->print();
-            }
-        };
+        ProcessID find_owner(const Key<D> key) {
+//	    typename Mapinfo::iterator it = themap.find(key);
+	    iterator_const it = themap.find(key);
+	    if (it != themap.end()) {
+		return it->second;
+	    } else {
+		return this->find_owner(key.parent());
+	    }
+	};
 
-        bool is_foreparent_of(Key<D> key) const {
-            return (this->data.key.is_parent_of(key));
-        };
+	void print() {
+//	    for (typename Mapinfo::iterator it = themap.begin(); it != themap.end(); ++it) { }
+	    for (iterator it = themap.begin(); it != themap.end(); ++it) {
+		const Key<D> key = it->first;
+		const ProcessID p_id = it->second;
+//		madness::print(it->first, "   ", it->second);
+		madness::print(key, "   ", p_id);
+	    }
+	}
 
-	/// given a key, determine the owner of the key by traversing the Tree
-        void find_owner(const Key<D> key, ProcessID *ow) const {
-//madness::print("find_owner: at node", this->data.key);
-            if (this->is_foreparent_of(key)) {
-//madness::print("find_owner: node", this->data.key, "is foreparent of", key, "so owner =", this->data.owner);
-                *ow = this->data.owner;
-                if (this->data.key.level() < key.level()) {
-                    int csize = children.size();
-                    for (int j = 0; j < csize; j++) {
-//madness::print("find_owner: recursively call on ", this->children[j]->data.key);
-                        children[j]->find_owner(key, ow);
-                    }
-                }
-            }
-        };
-
-	/// Add node to the Tree in the right location
-        bool fill(TreeCoords<D> node) {
-            bool success = false;
-            if (this->is_foreparent_of(node.key)) {
-                int csize = children.size();
-                for (int i = 0; i < csize; i++) {
-                    if (children[i]->is_foreparent_of(node.key)) {
-                        success = children[i]->fill(node);
-                    }
-                }
-                if (!success) {
-                    this->insert_child(node);
-                    success = true;
-                }
-            }
-            return success;
-        }
+	private:
+	Mapinfo themap;
     };
 
 
@@ -297,22 +278,13 @@ namespace madness {
     private:
         bool staticmap;
         const ProcessID staticmap_owner;
-        Tree<D>* tree_map;
+	SharedPtr< ProcMapImpl<D> > tree_map;
         typedef Key<D> KeyD;
 
 	/// private method that builds the Tree underlying the procmap
-        void build_tree_map(vector<TreeCoords<D> > v) {
-            sort(v.begin(), v.end());
-            int vlen = v.size();
-
-            if (vlen == 0) throw "empty map!!!";
-
-            tree_map = new Tree<D>(v[vlen-1]);
-            for (int j = vlen-2; j >= 0; j--) {
-                tree_map->fill(v[j]);
-            }
-        };
-
+	void build_tree_map(std::vector< TreeCoords<D> > v) {
+	    tree_map = SharedPtr< ProcMapImpl<D> > (new ProcMapImpl<D>(v));
+	};
 
     public:
         MyPmap() : staticmap(false), staticmap_owner(0) {};
@@ -364,9 +336,10 @@ namespace madness {
             if (staticmap)
                 return staticmap_owner;
             else {
-                ProcessID owner;
-                tree_map->find_owner(key, &owner);
-                return owner;
+//                ProcessID owner;
+//                tree_map->find_owner(key, &owner);
+//                return owner;
+		  return tree_map->find_owner(key);
             }
         };
     };
