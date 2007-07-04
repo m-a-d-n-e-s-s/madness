@@ -86,7 +86,7 @@ namespace madness {
 	// The manager process coordinates the melding algorithm for load balancing, keeping a list of
 	// lists of the configurations suggested by the melding algorithm, and selecting the best
 	// configuration at the end.
-        unsigned int npieces = this->f.get_impl()->world.nproc();
+        int npieces = this->f.get_impl()->world.nproc();
         int count = 0;
         std::vector<std::vector<typename DClass<D>::TreeCoords> > list_of_list;
         std::vector<typename DClass<D>::TreeCoords> emptylist;
