@@ -245,6 +245,7 @@ namespace madness {
         AmArg send_buf[NSEND];            //< Buffers for short AM Isend
         unsigned char* long_send_buf[NSEND];        //< Managed buffers for long AM Isend
         unsigned long* long_recv_buf[NLONG_RECV];   //< Buffers for long AM Irecv
+	unsigned long* flag_ptrs[NRECV];  //< Points to flags in incoming message headers
         
         // !! Careful if you reorder these to not break the constructor member initialization
         World& world; //< The world which contains this instance of WorldAmInterface
@@ -259,7 +260,6 @@ namespace madness {
         bool debug;                   //< If true, print debug info
         unsigned char* recv_counters; //< Used to impose sequential consistency
         unsigned char* send_counters; //< Used to impose sequential consistency
-        unsigned char* msg_counters[NRECV]; //< Pointers to head of the recv buffers
         
         /// Private: (re)Posts the active message Irecv
         inline void post_recv(int i) {
@@ -338,7 +338,7 @@ namespace madness {
                 poll_short_msg_action(src, msg.tmp);
             }
             else {
-                poll_long_msg_action(src,msg.nbyte,(unsigned long*) msg_counters[i]);
+	        poll_long_msg_action(src,msg.nbyte, long_recv_buf[i-NSHORT_RECV]);
                 post_recv(i);
             }
             nrecv++;                   // Must be after handler invocation
@@ -366,6 +366,12 @@ namespace madness {
             for (int i=0; i<NLONG_RECV; i++) 
                 long_recv_buf[i] = new unsigned long [LONG_MSG_LEN/sizeof(unsigned long)];
 
+	    // Make pointers to flags in short and long incoming messages
+            for (int i=0; i<NSHORT_RECV; i++) 
+                flag_ptrs[i] = &recv_buf[i].flags;
+            for (int i=0; i<NLONG_RECV; i++) 
+	        flag_ptrs[i+NSHORT_RECV] = long_recv_buf[i];
+
             // Allocate counters used to ensure messages are processed
             // in the order sent.  Sigh.  Having multiple irecv
             // buffers for efficiency means that messages may be
@@ -376,12 +382,6 @@ namespace madness {
             for (int i=0; i<world.mpi.nproc(); i++) 
                 recv_counters[i] = send_counters[i] = 0;
             
-            // msg_counters point to head of recv buffers where the counter lives
-            for (int i=0; i<NSHORT_RECV; i++) 
-                msg_counters[i] = (unsigned char*) &recv_buf[i];
-            for (int i=0; i<NLONG_RECV; i++) 
-                msg_counters[i+NSHORT_RECV] = (unsigned char*) long_recv_buf[i];
-
 
             // Post Irecv for all short and long AM buffers
             for (int i=0; i<NRECV; i++)
@@ -433,6 +433,11 @@ namespace madness {
 
         /// dummy routine for jaguar
         static inline void usleep(int) {};
+
+	int get_msg_counter(int i) const {
+  	    return *(flag_ptrs[i])&COUNT_MASK;
+	};
+	
 
         /// Ensures all AM send operations (short and long) have completed
         inline void fence() {
@@ -500,7 +505,7 @@ namespace madness {
                         if (nq >= MAXINQ) error("AM: exceeded max OOO q");
                         q[nq].src = status.Get_source();
                         MADNESS_ASSERT(q[nq].src>=0 && q[nq].src<nproc);
-                        q[nq].msgcount = *msg_counters[i];
+                        q[nq].msgcount = get_msg_counter(i);
                         q[nq].i = i;
                         q[nq].nbyte = status.Get_count(MPI::BYTE);
                         if (i < NSHORT_RECV) {  // Repost short msg buffers ASAP even if OOO
