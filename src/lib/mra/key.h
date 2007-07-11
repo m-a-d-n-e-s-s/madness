@@ -84,10 +84,10 @@ namespace madness {
 	    return retval;
 	};
 */
-	vector<short>* encode() const {
+	SharedPtr<std::vector<short> > encode() const {
 	    Vector<Translation,NDIM> Lcopy = l;
 	    Translation arrayval = 0;
-	    vector<short> *retvals = new vector<short>(n,0);
+	    SharedPtr<std::vector<short> > retvals = SharedPtr<std::vector<short> > (new std::vector<short>(n,0));
 	    for (Level i = n-1; i >= 0; i--) {
 		int factor = 1;
 		for (int j = 0; j < NDIM; j++) {
@@ -153,7 +153,7 @@ namespace madness {
 	/// Comparison based upon depth first lexical order
 	bool operator<(const Key& other) const {
 	    if (*this == other) return false; // I am not less than self
-	    vector<short> *tthis, *tother;
+	    SharedPtr<std::vector<short> > tthis, tother;
 	    Level nmin;
 	    bool retval = false;
 

@@ -101,7 +101,7 @@ namespace madness {
             all_children();
         };
 
-        LBNode(Data d, bool children=false) : data(d) {
+        LBNode(const Data& d, bool children=false) : data(d) {
             all_children(children);
         };
 
@@ -124,7 +124,7 @@ namespace madness {
             c[i] = setto;
         };
 
-        void set_data(Data d) {
+        void set_data(const Data& d) {
             data = d;
         };
 
@@ -193,7 +193,7 @@ namespace madness {
         Key<D> key;
         ProcessID owner;
 
-        TreeCoords(const Key<D> k, ProcessID o) : key(Key<D>(k)), owner(o) {};
+        TreeCoords(const Key<D>& k, ProcessID o) : key(Key<D>(k)), owner(o) {};
         TreeCoords(const TreeCoords& t) : key(Key<D>(t.key)), owner(t.owner) {};
         TreeCoords() : key(Key<D>()), owner(-1) {};
         void print() const {
@@ -217,52 +217,57 @@ namespace madness {
                 return hash(t);
             };
         };
-        typedef HASH_MAP_NAMESPACE::hash_map< typename DClass<D>::KeyD,ProcessID,PMLocalHash<typename DClass<D>::KeyD > > Mapinfo;
+        typedef HASH_MAP_NAMESPACE::hash_map< typename DClass<D>::KeyDConst,ProcessID,PMLocalHash<typename DClass<D>::KeyDConst > > Mapinfo;
 #else
 */
-        typedef std::map<typename DClass<D>::KeyD,ProcessID> Mapinfo;
+        typedef std::map<typename DClass<D>::KeyDConst,ProcessID> Mapinfo;
 /*
 #endif
 */
 	typedef typename Mapinfo::iterator iterator;
 	typedef const iterator iterator_const;
-	typedef std::pair< typename DClass<D>::KeyD, ProcessID > pairT;
+	typedef std::pair< typename DClass<D>::KeyDConst, ProcessID > pairT;
 
 	ProcMapImpl() {};
 	ProcMapImpl(std::vector< TreeCoords<D> > v) {
 	    int vlen = v.size();
 	    for (int i = 0; i < vlen; i++) {
-	    	themap.insert(pairT(v[i].key, v[i].owner));
+//	    	themap.insert(pairT(v[i].key, v[i].owner));
+	    	themap.insert(std::make_pair(v[i].key, v[i].owner));
 	    }
 	};
 
-	ProcMapImpl(TreeCoords<D> t) {
-	    themap.insert(pairT(t.key, t.owner));
+	ProcMapImpl(const TreeCoords<D>& t) {
+//	    themap.insert(pairT(t.key, t.owner));
+	    themap.insert(std::make_pair(t.key, t.owner));
 	};
-	void insert(TreeCoords<D> t) {
-	    themap.insert(pairT(t.key, t.owner));
+	void insert(const TreeCoords<D>& t) {
+//	    themap.insert(pairT(t.key, t.owner));
+	    themap.insert(std::make_pair(t.key, t.owner));
 	};
-	void erase(TreeCoords<D> t) {
+	void erase(const TreeCoords<D>& t) {
 	    themap.erase(t.key);
 	};
 
-        ProcessID find_owner(const Key<D> key) {
-//	    typename Mapinfo::iterator it = themap.find(key);
-	    iterator_const it = themap.find(key);
+        ProcessID find_owner(const Key<D>& key) const {
+//	    iterator_const it = themap.find(key);
+	    typename std::map<typename DClass<D>::KeyDConst,ProcessID>::const_iterator it = themap.find(key);
+//	    madness::print("find_owner: looking for", key);
 	    if (it != themap.end()) {
+//	       madness::print("find_owner: owner of ", key, "is", it->second);
 		return it->second;
+	    } else if (key.level() == 0) {
+		madness::print("find_owner: owner of ", key, "not found but returning 0");
+		return 0;
 	    } else {
+//		madness::print("find_owner: owner of ", key, "not found: look for parent", key.parent());
 		return this->find_owner(key.parent());
 	    }
 	};
 
 	void print() {
-//	    for (typename Mapinfo::iterator it = themap.begin(); it != themap.end(); ++it) { }
 	    for (iterator it = themap.begin(); it != themap.end(); ++it) {
-		const Key<D> key = it->first;
-		const ProcessID p_id = it->second;
-//		madness::print(it->first, "   ", it->second);
-		madness::print(key, "   ", p_id);
+		madness::print(it->first, "   ", it->second);
 	    }
 	}
 
@@ -304,16 +309,16 @@ namespace madness {
                 v.push_back(TreeCoords<D>(key,i));
             }
             build_tree_map(v);
-            madness::print("MyPmap constructor");
-            tree_map->print();
+//            madness::print("MyPmap constructor");
+//            tree_map->print();
         };
 
         MyPmap(World& world, ProcessID owner) : staticmap(true), staticmap_owner(owner) {};
 
         MyPmap(World& world, vector<TreeCoords<D> > v) : staticmap(false), staticmap_owner(0) {
             build_tree_map(v);
-            madness::print("");
-            tree_map->print();
+//            madness::print("");
+//            tree_map->print();
         };
 
         MyPmap(const MyPmap<D>& other) : staticmap(other.staticmap), staticmap_owner(other.staticmap_owner), tree_map(other.tree_map) {};
@@ -352,10 +357,10 @@ namespace madness {
         typedef WorldContainer<typename DClass<D>::KeyD,typename DClass<D>::NodeD> dcT;
         LBTree() {};
         LBTree(World& world, const SharedPtr< WorldDCPmapInterface<typename DClass<D>::KeyD> >& pmap) : dcT(world,pmap) {
-            madness::print("LBTree(world, pmap) constructor");
+//            madness::print("LBTree(world, pmap) constructor");
             const MyPmap<D>* ppp = &(this->get_mypmap());
-	    ppp->print();
-            madness::print("LBTree(world, pmap) constructor (goodbye)");
+//	    ppp->print();
+//            madness::print("LBTree(world, pmap) constructor (goodbye)");
         };
 	/// Initialize the LBTree by converting a FunctionImpl to a LBTree
         template <typename T>
@@ -400,7 +405,7 @@ namespace madness {
         void meld(typename DClass<D>::treeT::iterator it);
 
         Cost make_partition(typename DClass<D>::KeyDConst& key,
-                           vector<typename DClass<D>::KeyD>* klist, Cost partition_size,
+                           std::vector<typename DClass<D>::KeyD>* klist, Cost partition_size,
                            bool last_partition, Cost used_up, bool *atleaf);
 
         void remove_cost(typename DClass<D>::KeyDConst& key, Cost c);

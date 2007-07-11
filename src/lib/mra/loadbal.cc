@@ -40,10 +40,6 @@
 
 
 namespace madness {
-
-    typedef int Cost;
-    typedef double CompCost;
-
     /// find_best_partition performs the "melding" algorithm for load balancing: it recursively melds 
     /// and partitions the tree until it has found all possible configurations.
     template <typename T, int D>

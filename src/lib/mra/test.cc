@@ -68,6 +68,14 @@ void vector_myg(long npt, const double *x, const double *y,
     }
 };
 
+double evil_g(const Vector<double,3> &r) {
+    /* A superbly evil function */
+    double x = r[0]-0.7;
+    double y = r[1]-0.5;
+    double z = r[2]-0.3;
+    return fabs(x+y+z);
+}
+
 // double dmygdx(const double r[3]) {
 //     /* Derivative of myg w.r.t. x */
 //     return -2.0*myg_expnt*(r[0]-0.5)*myg(r);
@@ -90,10 +98,16 @@ int main(int argc, char**argv) {
 
     try {
         startup(world,argc,argv);
+	int k = 6;
+	double thresh = 1e-6;
+//	int k = 3;
+//	double thresh = 1e-3;
 
 	double t0 = MPI::Wtime();
-        Function<double,3> f = FunctionFactory<double,3>(world).f(myg).k(3).thresh(1e-4).nocompress();
+//        Function<double,3> f = FunctionFactory<double,3>(world).f(myg).k(3).thresh(1e-4).nocompress();
 //        Function<double,3> f = FunctionFactory<double,3>(world).f(myg).k(11).thresh(1e-12).nocompress();
+        Function<double,3> f = FunctionFactory<double,3>(world).f(evil_g).k(k).thresh(thresh).nocompress();
+//        Function<double,3> f = FunctionFactory<double,3>(world).f(evil_g).k(3).thresh(1e-3).nocompress();
         world.gop.fence();
 	double t1 = MPI::Wtime();
 	Function<double,3> g = copy(f);
@@ -124,20 +138,22 @@ int main(int argc, char**argv) {
         world.gop.fence();
 	double t9 = MPI::Wtime();
 
-	madness::print("Routine            |  Time");
-	madness::print("-------------------+--------------");
-	madness::print("Init f             | ", t1-t0);
-	madness::print("Copy f to g        | ", t2-t1);
-	madness::print("Compress f         | ", t3-t2);
-	madness::print("Reconstruct f      | ", t4-t3);
-	madness::print("Create LoadBalImpl | ", t5-t4);
-	madness::print("Load Balance       | ", t6-t5);
-	madness::print("Copy g to f        | ", t7-t6);
-	madness::print("Compress g         | ", t8-t7);
-	madness::print("Reconstruct g      | ", t9-t8);
-	madness::print("-------------------+--------------");
-	madness::print("Total Time         | ", t9-t0);
-	
+	if (world.mpi.rank() == 0) {
+	    madness::print("for f with k =", k, "and thresh =", thresh, ":");
+	    madness::print("Routine            |  Time");
+	    madness::print("-------------------+--------------");
+	    madness::print("Init f             | ", t1-t0);
+	    madness::print("Copy f to g        | ", t2-t1);
+	    madness::print("Compress f         | ", t3-t2);
+	    madness::print("Reconstruct f      | ", t4-t3);
+	    madness::print("Create LoadBalImpl | ", t5-t4);
+	    madness::print("Load Balance       | ", t6-t5);
+	    madness::print("Copy g to f        | ", t7-t6);
+	    madness::print("Compress g         | ", t8-t7);
+	    madness::print("Reconstruct g      | ", t9-t8);
+	    madness::print("-------------------+--------------");
+	    madness::print("Total Time         | ", t9-t0);
+	}
 
         //print("The tree after projection");
         //f.print_tree();
@@ -182,9 +198,9 @@ int main(int argc, char**argv) {
         error("caught unhandled exception");
     }
 
-    print("entering final fence");
+//    print("entering final fence");
     world.gop.fence();
-    print("done with final fence");
+//    print("done with final fence");
     MPI::Finalize();
 
     return 0;
