@@ -281,8 +281,10 @@ namespace madness {
     template <int D>
     class MyPmap : public WorldDCPmapInterface< Key<D> > {
     private:
-        bool staticmap;
-        const ProcessID staticmap_owner;
+        bool simplemap;
+	const int nproc;
+	const int n;
+        const ProcessID me;
 	SharedPtr< ProcMapImpl<D> > tree_map;
         typedef Key<D> KeyD;
 
@@ -291,13 +293,22 @@ namespace madness {
 	    tree_map = SharedPtr< ProcMapImpl<D> > (new ProcMapImpl<D>(v));
 	};
 
-    public:
-        MyPmap() : staticmap(false), staticmap_owner(0) {};
+	ProcessID simple_hash(const KeyD& key) const {
+	    if (key.level() == 0) {
+		return 0;
+	    } else if (key.level() <= n) {
+		return hash(key)%nproc;
+	    } else {
+		return hash(key.parent(key.level()-n))%nproc;
+	    }
+	};
 
-        MyPmap(World& world) : staticmap(false), staticmap_owner(0) {
-            int NP = world.nproc();
+    public:
+        MyPmap() : simplemap(false) {};
+
+        MyPmap(World& world) : simplemap(false), nproc(world.nproc()), me(world.rank()), n(0) {
             int twotoD = power<D>();
-            const int level = nearest_power(NP, twotoD);
+            const int level = nearest_power(nproc, twotoD);
             int NPin = (int) pow((double)twotoD,level);
             vector<TreeCoords<D> > v;
 
@@ -313,38 +324,41 @@ namespace madness {
 //            tree_map->print();
         };
 
-        MyPmap(World& world, ProcessID owner) : staticmap(true), staticmap_owner(owner) {};
+        MyPmap(World& world, int n) : simplemap(true), nproc(world.nproc()), me(world.rank()), n(n) {};
 
-        MyPmap(World& world, vector<TreeCoords<D> > v) : staticmap(false), staticmap_owner(0) {
+        MyPmap(World& world, vector<TreeCoords<D> > v) : simplemap(false), nproc(world.nproc()), me(world.rank()), n(0) {
             build_tree_map(v);
 //            madness::print("");
 //            tree_map->print();
         };
 
-        MyPmap(const MyPmap<D>& other) : staticmap(other.staticmap), staticmap_owner(other.staticmap_owner), tree_map(other.tree_map) {};
+        MyPmap(const MyPmap<D>& other) : simplemap(other.staticmap), nproc(other.nproc), me(other.me), n(other.n), tree_map(other.tree_map) {};
 
         MyPmap<D>& operator=(const MyPmap<D>& other) {
             if (this != &other) {
-                staticmap = other.staticmap;
-                owner = other.owner;
+                simplemap = other.simplemap;
+                nproc = other.nproc;
+		me = other.me;
+		n = other.n;
                 tree_map = other.tree_map;
             }
             return *this;
         };
 
         void print() const {
-            tree_map->print();
+	    if (!simplemap) {
+		tree_map->print();
+	    } else {
+		madness::print("MyPmap: simple map with n =", n);
+	    }
         };
 
 	/// Find the owner of a given key
         ProcessID owner(const KeyD& key) const {
-            if (staticmap)
-                return staticmap_owner;
+            if (simplemap)
+                return simple_hash(key);
             else {
-//                ProcessID owner;
-//                tree_map->find_owner(key, &owner);
-//                return owner;
-		  return tree_map->find_owner(key);
+		return tree_map->find_owner(key);
             }
         };
     };

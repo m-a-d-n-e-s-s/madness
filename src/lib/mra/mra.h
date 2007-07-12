@@ -177,6 +177,12 @@ namespace madness {
                 return false;
         };
 
+/// Returns the number of nodes in the function tree ... collective global sum
+	std::size_t tree_size() const {
+	    if (!impl) return 0;
+	    return impl->tree_size();
+	};
+
         /// Returns the number of coefficients in the function ... collective global sum
         std::size_t size() const {
             if (!impl) return 0;

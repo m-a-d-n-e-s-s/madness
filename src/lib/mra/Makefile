@@ -16,13 +16,14 @@ CXXSRC = loadbal.cc mra.cc startup.cc legendre.cc twoscale.cc
 DATAFILES = autocorr coeffs gaussleg
 
 # Names of test programs [OPTIONAL]
-TESTPROGS = test testss testsuite
+TESTPROGS = test testss testsuite tests-hqi
 
 # Source files for the test programs (up to six of them)
 TEST1SRC = test.cc 
 TEST2SRC = testss.cc 
 TEST3SRC = testsuite.cc 
 #loadbal.cc
+TEST4SRC = tests-hqi.cc
 
 # GlobalMakefile now does most of the work for you
 include $(TOPDIR)/config/GlobalMakefile
@@ -35,4 +36,7 @@ testss: $(TEST2OBJ) $(THISLIBDEPEND)
 	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ $(SYSLIBS) $(LTLINKBINOPTS)
 
 testsuite: $(TEST3OBJ) $(THISLIBDEPEND) 
+	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ $(SYSLIBS) $(LTLINKBINOPTS)
+
+tests-hqi: $(TEST4OBJ) $(THISLIBDEPEND) 
 	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ $(SYSLIBS) $(LTLINKBINOPTS)

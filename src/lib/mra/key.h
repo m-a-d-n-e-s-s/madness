@@ -84,6 +84,7 @@ namespace madness {
 	    return retval;
 	};
 */
+/*
 	SharedPtr<std::vector<short> > encode() const {
 	    Vector<Translation,NDIM> Lcopy = l;
 	    Translation arrayval = 0;
@@ -99,6 +100,16 @@ namespace madness {
 		arrayval = 0;
 	    }
 	    return retvals;
+	};
+*/
+
+	int encode(int dig) const {
+	    int retval = 0;
+	    for (int j=0; j < NDIM; j++) {
+		// retval += ((l[j]/2^{n-1-dig}) mod 2) * 2^j
+		retval += ((l[j]>>(n-1-dig))%2)<<j;
+	    }
+	    return retval;
 	};
 
 	// Helper function for (Level, Translation) constructor
@@ -153,12 +164,12 @@ namespace madness {
 	/// Comparison based upon depth first lexical order
 	bool operator<(const Key& other) const {
 	    if (*this == other) return false; // I am not less than self
-	    SharedPtr<std::vector<short> > tthis, tother;
+//	    SharedPtr<std::vector<short> > tthis, tother;
 	    Level nmin;
 	    bool retval = false;
 
-	    tthis = this->encode();
-	    tother = other.encode();
+//	    tthis = this->encode();
+//	    tother = other.encode();
 
 	    if (this->n > other.n) {
 		nmin = other.n;
@@ -169,8 +180,12 @@ namespace madness {
 	    }
 		
 	    for (Level i = 0; i < nmin; i++) {
-		if ((*tthis)[i] != (*tother)[i]) 
-		    return ((*tthis)[i] < (*tother)[i]);
+//		if ((*tthis)[i] != (*tother)[i]) 
+//		    return ((*tthis)[i] < (*tother)[i]);
+		int tthis = this->encode(i), tother = other.encode(i);
+		if (tthis != tother) {
+		    return (tthis < tother);
+		}   
 	    }
 	    return retval;
 	}

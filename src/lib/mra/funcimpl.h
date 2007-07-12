@@ -1198,6 +1198,14 @@ namespace madness {
             return sum;
         };
 
+/// Returns the size of the tree structure of the function ... collective global sum
+	std::size_t tree_size() const {
+	    std::size_t sum = 0;
+	    sum = coeffs.size();
+	    world.gop.sum(sum);
+	    return sum;
+	};
+
         /// Returns the number of coefficients in the function ... collective global sum
         std::size_t size() const {
             std::size_t sum = 0;
