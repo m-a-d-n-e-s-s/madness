@@ -118,9 +118,9 @@ namespace madness {
 //            madness::print("find_best_partition: finished with depth_first_partition");
 	    double t5 = MPI::Wtime();
 
-	    madness::print("find_best_partition: time for fix_cost number", count, "=", t3-t2);
-	    madness::print("find_best_partition: time for rollup number", count, "=", t4-t3);
-	    madness::print("find_best_partition: time for depth_first_partition number", count, "=", t5-t4);
+//	    madness::print("find_best_partition: time for fix_cost number", count, "=", t3-t2);
+//	    madness::print("find_best_partition: time for rollup number", count, "=", t4-t3);
+//	    madness::print("find_best_partition: time for depth_first_partition number", count, "=", t5-t4);
 	    int lolcsize = list_of_list[count].size();
 //	    madness::print("find_best_partition: partition number", count, ":");
 //	    for (int k = 0; k < lolcsize; k++) {
@@ -174,18 +174,18 @@ namespace madness {
             }
         }
 
-	madness::print("The load balance with the fewest broken links has cost", costlist[sl_index], "and",
-		shortest_list-1, "broken links");
-        for (unsigned int i = 0; i < shortest_list; i++) {
-            list_of_list[sl_index][i].print();
-        }
-	madness::print("");
-	madness::print("The load balance with the best balance has cost", load_bal_cost, "and", 
-		list_of_list[lb_index].size()-1, "broken links");
-        for (unsigned int i = 0; i < list_of_list[lb_index].size(); i++) {
-            list_of_list[lb_index][i].print();
-        }
-	madness::print("");
+//	madness::print("The load balance with the fewest broken links has cost", costlist[sl_index], "and",
+//		shortest_list-1, "broken links");
+//        for (unsigned int i = 0; i < shortest_list; i++) {
+//            list_of_list[sl_index][i].print();
+//        }
+//	madness::print("");
+//	madness::print("The load balance with the best balance has cost", load_bal_cost, "and", 
+//		list_of_list[lb_index].size()-1, "broken links");
+//        for (unsigned int i = 0; i < list_of_list[lb_index].size(); i++) {
+//            list_of_list[lb_index][i].print();
+//        }
+//	madness::print("");
 
         CompCost ccleast = 0;
         int cc_index;
@@ -196,11 +196,12 @@ namespace madness {
                 cc_index = i;
             }
         }
-	madness::print("The load balance with the best overall computational cost has cost",
-		costlist[cc_index], "and", len[cc_index]-1, "broken links");
-        for (unsigned int i = 0; i < len[cc_index]; i++) {
-            list_of_list[cc_index][i].print();
-        }
+//	madness::print("The load balance with the best overall computational cost has cost",
+//		costlist[cc_index], "and", len[cc_index]-1, "broken links");
+//        for (unsigned int i = 0; i < len[cc_index]; i++) {
+//            list_of_list[cc_index][i].print();
+//        }
+
         for (unsigned int i = 0; i < len[cc_index]; i++) {
             klist.push_back(list_of_list[cc_index][i]);
         }
@@ -215,9 +216,11 @@ namespace madness {
 
 	double t7 = MPI::Wtime();
 
-	madness::print("find_best_partition: total time =", t7-t0);
-	madness::print("find_best_partition: time in loop =", t6-t1);
+//	madness::print("find_best_partition: total time =", t7-t0);
+//	madness::print("find_best_partition: time in loop =", t6-t1);
 
+	madness::print("find_best_partition: number of broken links =",
+		klist.size()-1);
         return klist;
     }
 

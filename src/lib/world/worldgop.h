@@ -285,6 +285,10 @@ namespace madness {
         template <typename T>
             void sum(T& a) {sum(&a, 1);}
         
+        /// Global max of a scalar while still processing AM & tasks
+        template <typename T>
+            void max(T& a) {max(&a, 1);}
+        
     };        
 }
 

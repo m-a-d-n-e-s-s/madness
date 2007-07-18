@@ -305,7 +305,7 @@ namespace madness {
 
     public:
         MyPmap() : simplemap(false) {};
-
+	/*
         MyPmap(World& world) : simplemap(false), nproc(world.nproc()), me(world.rank()), n(0) {
             int twotoD = power<D>();
             const int level = nearest_power(nproc, twotoD);
@@ -323,6 +323,8 @@ namespace madness {
 //            madness::print("MyPmap constructor");
 //            tree_map->print();
         };
+	*/
+	MyPmap(World& world) : simplemap(true), nproc(world.nproc()), me(world.rank()), n(100) {};
 
         MyPmap(World& world, int n) : simplemap(true), nproc(world.nproc()), me(world.rank()), n(n) {};
 

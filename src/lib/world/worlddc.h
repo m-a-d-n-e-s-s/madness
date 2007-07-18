@@ -86,6 +86,7 @@ namespace madness {
     public:
         virtual ProcessID owner(const keyT& key) const = 0;
         virtual ~WorldDCPmapInterface() {};
+	virtual void print() const {};
     };
 
     /// Default process map is "random" using madness::hash(key)

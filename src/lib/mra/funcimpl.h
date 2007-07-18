@@ -1198,6 +1198,15 @@ namespace madness {
             return sum;
         };
 
+/// Returns the max number of nodes on a processor
+	std::size_t max_nodes() const {
+	    std::size_t maxsize = 0;
+	    maxsize = coeffs.size();
+	    world.gop.max(maxsize);
+	    return maxsize;
+	};
+
+
 /// Returns the size of the tree structure of the function ... collective global sum
 	std::size_t tree_size() const {
 	    std::size_t sum = 0;

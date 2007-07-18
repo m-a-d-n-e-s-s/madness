@@ -79,142 +79,151 @@ public:
 	newcoefficient.insert(newcoefficient.end(), other.coefficient.begin(), other.coefficient.end());
 	return (GaussianFunctor(newcenter, newexponent, newcoefficient));
     };
+
+    void print() const {
+	madness::print("Sum of", center.size(), "gaussians:");
+	for (int i = 0; i < center.size(); i++) {
+	    madness::print("   g[", i, "] : =", coefficient[i], "* exp(", -exponent[i], "(", center[i], "- x )^2 )");
+	}
+    };
 };
 
-template <typename T, int NDIM>
-void test_basic(World& world) {
-    typedef Vector<double,NDIM> coordT;
-    typedef SharedPtr< FunctionFunctorInterface<T,NDIM> > functorT;
-
-    if (world.rank() == 0) 
-        print("Test compression of a normalized gaussian at origin, type =",archive::get_type_name<T>(),", ndim =",NDIM);
-
-    for (int i=0; i<NDIM; i++) {
-        FunctionDefaults<NDIM>::cell(i,0) = -11.0-2*i;  // Deliberately assymetric bounding box
-        FunctionDefaults<NDIM>::cell(i,1) =  10.0+i;
-    }
-    FunctionDefaults<NDIM>::k = 7;
-    FunctionDefaults<NDIM>::thresh = 1e-5;
-    FunctionDefaults<NDIM>::compress = false;
-    FunctionDefaults<NDIM>::refine = true;
-    FunctionDefaults<NDIM>::initial_level = 2;
-    
-    double used;
-    const coordT origin1(0.0);
-    const coordT origin2(0.0);
-    coordT point;
-    const double expnt1 = 1.0;
-    const double coeff1 = pow(2.0/PI,0.25*NDIM);
-    const double expnt2 = 2.0;
-    const double coeff2 = pow(4.0/PI,0.25*NDIM);
-
-//    functorT functor1(new GaussianFunctor<T,NDIM>(origin1, expnt1, coeff1));
-//    functorT functor2(new GaussianFunctor<T,NDIM>(origin2, expnt2, coeff2));
-    functorT functor(new GaussianFunctor<T,NDIM>(GaussianFunctor<T,NDIM>(origin1, expnt1, coeff1) + GaussianFunctor<T,NDIM>(origin2, expnt2, coeff2)));
-//    functorT functor(new GaussianFunctor<T,NDIM>(*(functor1.get()) + *(functor2.get())));
-
-
-    for (int i=0; i<NDIM; i++) point[i] = 0.1*i;
-
-    used = -wall_time();
-    Function<T,NDIM> f = FunctionFactory<double,NDIM>(world).functor(functor);
-    used += wall_time();
-    double norm = f.norm2();
-    double err = f.err(*functor);
-    if (world.rank() == 0) {
-        print("project+refine used",used);
-        print("               norm", norm);
-        print("     sampling point", point);
-        print("          numerical", f(point));
-        print("           analytic", (*functor)(point));
-        print("       global error", err);
-        print("");
-    }
-
-    used = -wall_time();
-    f.compress();
-    used += wall_time();
-    double new_norm = f.norm2();
-    
-    if (world.rank() == 0) {
-        print("   compression used", used);
-        print("               norm", new_norm, norm-new_norm);
-        print("");
-    }
-    MADNESS_ASSERT(abs(norm-new_norm) < 1e-14*norm);
-    
-    used = -wall_time();
-    f.reconstruct();
-    used += wall_time();
-    new_norm = f.norm2();
-    err = f.err(*functor);
-    
-    if (world.rank() == 0) {
-        print("reconstruction used", used);
-        print("               norm", new_norm, norm-new_norm);
-        print("       global error", err);
-    }
-    MADNESS_ASSERT(abs(norm-new_norm) < 1e-14*norm);
-    
-    used = -wall_time();
-    f.compress();
-    used += wall_time();
-    new_norm = f.norm2();
-    
-    if (world.rank() == 0) {
-        print("   compression used", used);
-        print("               norm", new_norm, norm-new_norm);
-        print("");
-    }
-    MADNESS_ASSERT(abs(norm-new_norm) < 1e-14*norm);
-
-    used = -wall_time();
-    f.truncate();
-    used += wall_time();
-    new_norm = f.norm2();
-    err = f.err(*functor);
-    if (world.rank() == 0) {
-        print("    truncation used", used);
-        print("               norm", new_norm, norm-new_norm);
-        print("       global error", err);
-    }
-    
-    if (world.rank() == 0) print("projection, compression, reconstruction, truncation OK\n\n");
-}
 
 template <typename T, int NDIM>
-void test_conv(World& world) {
+void test_loadbal(World& world) {
     typedef Vector<double,NDIM> coordT;
     typedef SharedPtr< FunctionFunctorInterface<T,NDIM> > functorT;
-
-    if (world.rank() == 0)
-        print("Test convergence - log(err)/(n*k) should be roughly const, a least for each value of k\n");
-    const coordT origin(0.0);
-    const double expnt = 1.0;
-    const double coeff = pow(2.0/PI,0.25*NDIM);
-    functorT functor(new GaussianFunctor<T,NDIM>(origin, expnt, coeff));
 
     for (int i=0; i<NDIM; i++) {
         FunctionDefaults<NDIM>::cell(i,0) = -10.0;
         FunctionDefaults<NDIM>::cell(i,1) =  10.0;
     }
 
-    for (int k=1; k<=15; k+=2) {
-	if (world.rank() == 0) printf("k=%d\n", k);
-	if (NDIM > 2 && k>5) ntop = 4;
-	for (int n=1; n<=ntop; n++) {
-	int n = ntop;
-	    Function<T,NDIM> f = FunctionFactory<T,NDIM>(world).functor(functor).nocompress().norefine().initial_level(n).k(k);
-	    double err2 = f.err(*functor);
-            std::size_t size = f.size();
-	    std::size_t tree_size = f.tree_size();
-            if (world.rank() == 0) 
-                printf("   n=%d err=%.2e #coeff=%.2e tree_size=%.2e log(err)/(n*k)=%.2e\n", 
-                       n, err2, double(size), double(tree_size), abs(log(err2)/n/k));
+    int nspikes = 10;
+    std::vector<coordT> vorigin(nspikes);
+    const double expnt = 64.0;
+    const double expnt1 = 4096;
+    std::vector<double> vexpnt(nspikes);
+    Vector<double, NDIM> dcell, avgcell;
+    for (int i = 0; i < NDIM; i++) {
+      dcell[i] = FunctionDefaults<NDIM>::cell(i,1) - FunctionDefaults<NDIM>::cell(i,0);
+      avgcell[i] = (FunctionDefaults<NDIM>::cell(i,0) + FunctionDefaults<NDIM>::cell(i,1))/2;
+    }
+    for (int i = 0; i < nspikes; i++) {
+        Vector<double, NDIM> v(0);
+	for (int j = 0; j < NDIM; j++) {
+	    v[j] = ((double) rand()/(double) RAND_MAX)*dcell[j] - FunctionDefaults<NDIM>::cell(j,1);
+	}
+	if (i%2) {
+	    vexpnt[i] = expnt1;
+        } else {
+	    vexpnt[i] = expnt;
+        }
+	vorigin[i] = v;
+    }
+    const double coeff = pow(2.0/PI,0.25*NDIM);
+    std::vector<double> vcoeff(nspikes,coeff);
+    GaussianFunctor<T,NDIM> *gf = new GaussianFunctor<T,NDIM>(vorigin, vexpnt, vcoeff);
+    functorT functor(gf);
+    if (world.rank() == 0) {
+        gf->print();
+    }
+
+    for (int k=9; k >=9; k-=2) {
+      //MyPmap<NDIM> temppmap(world);
+	FunctionDefaults<NDIM>::pmap = SharedPtr<MyPmap<NDIM> >(new MyPmap<NDIM>(world));
+	/*
+	if (world.rank() == 0) {
+	    FunctionDefaults<NDIM>::pmap->print();
+	}
+	*/
+        int n = 2;
+        //int n = 7;
+	double thresh = 1e-12;
+	//double thresh = 1e-2;
+	if (world.rank() == 0) { 
+	  printf("k=%d:\n", k);
+	}
+        double t0 = MPI::Wtime();
+	//Function<T,NDIM> f = FunctionFactory<T,NDIM>(world).functor(functor).nocompress().norefine().initial_level(n).k(k);
+	Function<T,NDIM> f = FunctionFactory<T,NDIM>(world).functor(functor).nocompress().thresh(thresh).initial_level(n).k(k);
+        double t1 = MPI::Wtime();
+	double err2 = f.err(*functor);
+	std::size_t size = f.size();
+	std::size_t tree_size = f.tree_size();
+	std::size_t maxsize = f.max_nodes();
+        double t2 = MPI::Wtime();
+	if (world.rank() == 0) {
+	    printf("   n=%d err=%.2e #coeff=%.2e tree_size=%.2e max_nodes=%.2e log(err)/(n*k)=%.2e\n", 
+		   n, err2, double(size), double(tree_size), double(maxsize), abs(log(err2)/n/k));
+	}
+	world.gop.fence();
+        double t3 = MPI::Wtime();
+	Function<T,NDIM> g = copy(f);
+	world.gop.fence();
+	double t4 = MPI::Wtime();
+	f.compress(false);
+	world.gop.fence();
+	double t5 = MPI::Wtime();
+	f.reconstruct(false);
+	world.gop.fence();
+	double t6 = MPI::Wtime();
+	LoadBalImpl<T,NDIM> lb(g);
+	world.gop.fence();
+	double t7 = MPI::Wtime();
+	FunctionDefaults<NDIM>::pmap = lb.load_balance();
+	/*
+	if (world.rank() == 0) {
+	    FunctionDefaults<NDIM>::pmap->print();
+	}
+	*/
+	world.gop.fence();
+	Function<T,NDIM> h = FunctionFactory<T,NDIM>(world).functor(functor).nocompress().thresh(thresh).initial_level(n).k(k);
+	double t8 = MPI::Wtime();
+	f = copy(g,FunctionDefaults<NDIM>::pmap);
+        double t9 = MPI::Wtime();
+	double err21 = h.err(*functor);
+	std::size_t size1 = h.size();
+	std::size_t tree_size1 = h.tree_size();
+	std::size_t maxsize1 = h.max_nodes();
+        double t10 = MPI::Wtime();
+	if (world.rank() == 0) {
+	    printf("   n=%d err=%.2e #coeff=%.2e tree_size=%.2e max_nodes=%.2e log(err)/(n*k)=%.2e\n", 
+		   n, err21, double(size1), double(tree_size1), double(maxsize1), abs(log(err21)/n/k));
+	}
+	world.gop.fence();
+	double t11 = MPI::Wtime();
+	h.compress(false);
+	world.gop.fence();
+	double t12 = MPI::Wtime();
+	h.reconstruct(false);
+	world.gop.fence();
+	double t13 = MPI::Wtime();
+
+
+	if (world.rank() == 0) {
+	    madness::print("for f with k =", k, "n =", n, "and thresh =", 
+		thresh, "running on", world.nproc(), "processors:");
+	    madness::print("Routine            |  Time");
+	    madness::print("-------------------+--------------");
+	    madness::print("Init f             | ", t1-t0);
+	    madness::print("Diagnostics for f  | ", t2-t1);
+	    madness::print("Copy f to g        | ", t4-t3);
+	    madness::print("Compress f         | ", t5-t4);
+	    madness::print("Reconstruct f      | ", t6-t5);
+	    madness::print("Create LoadBalImpl | ", t7-t6);
+	    madness::print("Load Balance       | ", t8-t7);
+	    madness::print("Copy g to f        | ", t9-t8);
+	    madness::print("Diagnostics for g  | ", t10-t9);
+	    madness::print("Compress g         | ", t12-t11);
+	    madness::print("Reconstruct g      | ", t13-t12);
+	    madness::print("-------------------+--------------");
+	    madness::print("Total Time         | ", t13-t0);
+	    madness::print("");
 	}
     }
 
-    if (world.rank() == 0) print("test conv OK\n\n");
+    if (world.rank() == 0) print("test loadbal OK\n\n");
 }
 
 
@@ -224,16 +233,7 @@ int main(int argc, char**argv) {
 
     try {
         startup(world,argc,argv);
-/*
-        test_basic<double,1>(world);
-        test_conv<double,1>(world);
-
-        test_basic<double,2>(world);
-        test_conv<double,2>(world);
-*/
-
-        test_basic<double,3>(world);
-        test_conv<double,3>(world);
+        test_loadbal<double,3>(world);
     } catch (const MPI::Exception& e) {
         print(e);
         error("caught an MPI exception");
@@ -256,9 +256,9 @@ int main(int argc, char**argv) {
         error("caught unhandled exception");
     }
 
-    print("entering final fence");
+    //    print("entering final fence");
     world.gop.fence();
-    print("done with final fence");
+    //    print("done with final fence");
     MPI::Finalize();
 
     return 0;
