@@ -283,8 +283,8 @@ namespace madness {
     private:
         bool simplemap;
 	const int nproc;
-	const int n;
         const ProcessID me;
+	const int n;
 	SharedPtr< ProcMapImpl<D> > tree_map;
         typedef Key<D> KeyD;
 
@@ -374,7 +374,7 @@ namespace madness {
         LBTree() {};
         LBTree(World& world, const SharedPtr< WorldDCPmapInterface<typename DClass<D>::KeyD> >& pmap) : dcT(world,pmap) {
 //            madness::print("LBTree(world, pmap) constructor");
-            const MyPmap<D>* ppp = &(this->get_mypmap());
+//            const MyPmap<D>* ppp = &(this->get_mypmap());
 //	    ppp->print();
 //            madness::print("LBTree(world, pmap) constructor (goodbye)");
         };

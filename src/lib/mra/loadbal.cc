@@ -45,7 +45,7 @@ namespace madness {
     template <typename T, int D>
     std::vector<typename DClass<D>::TreeCoords> LoadBalImpl<T,D>::find_best_partition() {
 //	madness::print("find_best_partition: at beginning");
-	double t0 = MPI::Wtime();
+//	double t0 = MPI::Wtime();
 	bool keep_going = true;
 	std::vector<typename DClass<D>::TreeCoords> klist;
         if (this->f.get_impl()->world.mpi.rank() != 0) {
@@ -91,15 +91,15 @@ namespace madness {
         typename DClass<D>::KeyD root(0);
 
 //	madness::print("find_best_partition: just before while loop");
-	double t1 = MPI::Wtime();
+//	double t1 = MPI::Wtime();
 	while (keep_going) {
-	    double t2 = MPI::Wtime();
+//	    double t2 = MPI::Wtime();
 //	    madness::print("find_best_partition: just before fix_cost");
             this->skeltree->fix_cost(root);
 //            madness::print("find_best_partition: just finished fix_cost");
 	    this->f.get_impl()->world.gop.fence();
 //            madness::print("find_best_partition: about to rollup");
-	    double t3 = MPI::Wtime();
+//	    double t3 = MPI::Wtime();
 	    this->skeltree->reset(true);
 	    this->f.get_impl()->world.gop.fence();
             this->skeltree->rollup();
@@ -107,7 +107,7 @@ namespace madness {
 	    this->skeltree->reset(false);
 //            madness::print("find_best_partition: just finished rollup");
             this->f.get_impl()->world.gop.fence();
-	    double t4 = MPI::Wtime();
+//	    double t4 = MPI::Wtime();
             list_of_list.push_back(emptylist);
 //	    madness::print("find_best_partition: about to depth_first_partition this tree:");
 //	    this->skeltree->print(root);
@@ -116,7 +116,7 @@ namespace madness {
             totalCost = this->skeltree->depth_first_partition(root, &list_of_list[count], npieces,
                     totalCost, &costlist[count]);
 //            madness::print("find_best_partition: finished with depth_first_partition");
-	    double t5 = MPI::Wtime();
+//	    double t5 = MPI::Wtime();
 
 //	    madness::print("find_best_partition: time for fix_cost number", count, "=", t3-t2);
 //	    madness::print("find_best_partition: time for rollup number", count, "=", t4-t3);
@@ -150,7 +150,7 @@ namespace madness {
 //	    madness::print("find_best_partition: after fence, about to broadcast keep_going =", keep_going);
             this->f.get_impl()->world.gop.template broadcast<bool>(keep_going);
 	}
-	double t6 = MPI::Wtime();
+//	double t6 = MPI::Wtime();
         unsigned int shortest_list = 0, sl_index, lb_index;
         Cost load_bal_cost = 0;
         std::vector<unsigned int> len;
@@ -214,7 +214,7 @@ namespace madness {
         }
 //        madness::print("done with broadcast");
 
-	double t7 = MPI::Wtime();
+//	double t7 = MPI::Wtime();
 
 //	madness::print("find_best_partition: total time =", t7-t0);
 //	madness::print("find_best_partition: time in loop =", t6-t1);
