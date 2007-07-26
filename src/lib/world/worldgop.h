@@ -288,6 +288,10 @@ namespace madness {
         /// Global max of a scalar while still processing AM & tasks
         template <typename T>
             void max(T& a) {max(&a, 1);}
+
+        /// Global min of a scalar while still processing AM & tasks
+        template <typename T>
+            void min(T& a) {min(&a, 1);}
         
     };        
 }

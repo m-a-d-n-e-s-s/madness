@@ -94,12 +94,15 @@ void test_loadbal(World& world) {
     typedef Vector<double,NDIM> coordT;
     typedef SharedPtr< FunctionFunctorInterface<T,NDIM> > functorT;
 
+    if (world.rank() == 0) print("at beginning of test_loadbal");
+
     for (int i=0; i<NDIM; i++) {
         FunctionDefaults<NDIM>::cell(i,0) = -10.0;
         FunctionDefaults<NDIM>::cell(i,1) =  10.0;
     }
 
-    int nspikes = 10;
+    int nspikes = 2;
+    //int nspikes = 10;
     std::vector<coordT> vorigin(nspikes);
     const double expnt = 64.0;
     const double expnt1 = 4096;
@@ -112,7 +115,8 @@ void test_loadbal(World& world) {
     for (int i = 0; i < nspikes; i++) {
         Vector<double, NDIM> v(0);
 	for (int j = 0; j < NDIM; j++) {
-	    v[j] = ((double) rand()/(double) RAND_MAX)*dcell[j] - FunctionDefaults<NDIM>::cell(j,1);
+	    v[j] = 0.2;
+	    //v[j] = ((double) rand()/(double) RAND_MAX)*dcell[j] - FunctionDefaults<NDIM>::cell(j,1);
 	}
 	if (i%2) {
 	    vexpnt[i] = expnt1;
@@ -123,7 +127,9 @@ void test_loadbal(World& world) {
     }
     const double coeff = pow(2.0/PI,0.25*NDIM);
     std::vector<double> vcoeff(nspikes,coeff);
+    if (world.rank() == 0) print("about to make gf");
     GaussianFunctor<T,NDIM> *gf = new GaussianFunctor<T,NDIM>(vorigin, vexpnt, vcoeff);
+    if (world.rank() == 0) print("about to make functor");
     functorT functor(gf);
     if (world.rank() == 0) {
         gf->print();
@@ -152,31 +158,40 @@ void test_loadbal(World& world) {
 	std::size_t size = f.size();
 	std::size_t tree_size = f.tree_size();
 	std::size_t maxsize = f.max_nodes();
+	std::size_t minsize = f.min_nodes();
         double t2 = MPI::Wtime();
 	if (world.rank() == 0) {
-	    printf("   n=%d err=%.2e #coeff=%.2e tree_size=%.2e max_nodes=%.2e log(err)/(n*k)=%.2e\n", 
-		   n, err2, double(size), double(tree_size), double(maxsize), abs(log(err2)/n/k));
+	    printf("   n=%d err=%.2e #coeff=%.2e tree_size=%.2e max_nodes=%.2e min_nodes=%.2e log(err)/(n*k)=%.2e\n", 
+		   n, err2, double(size), double(tree_size), double(maxsize), double(minsize), abs(log(err2)/n/k));
 	}
 	world.gop.fence();
         double t3 = MPI::Wtime();
 	Function<T,NDIM> g = copy(f);
 	world.gop.fence();
 	double t4 = MPI::Wtime();
+	if (world.rank() == 0) print("ABOUT TO COMPRESS");
 	f.compress(false);
+	if (world.rank() == 0) print("ABOUT TO FENCE");
 	world.gop.fence();
 	double t5 = MPI::Wtime();
+	if (world.rank() == 0) print("ABOUT TO RECON");
 	f.reconstruct(false);
+	if (world.rank() == 0) print("ABOUT TO FENCE");
 	world.gop.fence();
 	double t6 = MPI::Wtime();
+	if (world.rank() == 0) print("ABOUT TO CREATE LOADBAL");
 	LoadBalImpl<T,NDIM> lb(g);
+	if (world.rank() == 0) print("ABOUT TO FENCE");
 	world.gop.fence();
 	double t7 = MPI::Wtime();
+	if (world.rank() == 0) print("ABOUT TO DO LOADBAL");
 	FunctionDefaults<NDIM>::pmap = lb.load_balance();
 	/*
 	if (world.rank() == 0) {
 	    FunctionDefaults<NDIM>::pmap->print();
 	}
 	*/
+	if (world.rank() == 0) print("ABOUT TO FENCE");
 	world.gop.fence();
 	Function<T,NDIM> h = FunctionFactory<T,NDIM>(world).functor(functor).nocompress().thresh(thresh).initial_level(n).k(k);
 	double t8 = MPI::Wtime();
@@ -186,10 +201,11 @@ void test_loadbal(World& world) {
 	std::size_t size1 = h.size();
 	std::size_t tree_size1 = h.tree_size();
 	std::size_t maxsize1 = h.max_nodes();
+	std::size_t minsize1 = h.min_nodes();
         double t10 = MPI::Wtime();
 	if (world.rank() == 0) {
-	    printf("   n=%d err=%.2e #coeff=%.2e tree_size=%.2e max_nodes=%.2e log(err)/(n*k)=%.2e\n", 
-		   n, err21, double(size1), double(tree_size1), double(maxsize1), abs(log(err21)/n/k));
+	    printf("   n=%d err=%.2e #coeff=%.2e tree_size=%.2e max_nodes=%.2e min_nodes=%.2e log(err)/(n*k)=%.2e\n", 
+		   n, err21, double(size1), double(tree_size1), double(maxsize1), double(minsize1), abs(log(err21)/n/k));
 	}
 	world.gop.fence();
 	double t11 = MPI::Wtime();
@@ -232,7 +248,9 @@ int main(int argc, char**argv) {
     World world(MPI::COMM_WORLD);
 
     try {
+        if (world.rank() == 0) print("before startup");
         startup(world,argc,argv);
+        if (world.rank() == 0) print("before test_loadbal");
         test_loadbal<double,3>(world);
     } catch (const MPI::Exception& e) {
         print(e);

@@ -109,7 +109,7 @@ namespace madness {
             this->f.get_impl()->world.gop.fence();
 //	    double t4 = MPI::Wtime();
             list_of_list.push_back(emptylist);
-//	    madness::print("find_best_partition: about to depth_first_partition this tree:");
+	    madness::print("find_best_partition: about to depth_first_partition this tree:");
 //	    this->skeltree->print(root);
             costlist.push_back(0);
 //            madness::print("find_best_partition: about to depth_first_partition");
@@ -188,7 +188,7 @@ namespace madness {
 //	madness::print("");
 
         CompCost ccleast = 0;
-        int cc_index;
+        int cc_index = 0;
         for (int i = 0; i < count; i++) {
             CompCost cctmp = compute_comp_cost(costlist[i], len[i]-1);
             if ((i==0) || (cctmp < ccleast)) {
@@ -222,6 +222,25 @@ namespace madness {
 	madness::print("find_best_partition: number of broken links =",
 		klist.size()-1);
         return klist;
+    }
+
+
+    /// Compute the cost of a given configuration: a weighted sum of the cost of the
+    /// maximally-loaded process and the total number of broken links.
+    /// In the future, the factors should be calibrated for a given machine, either 
+    /// during configuration and setup or in real time at the beginning of the program
+    /// or upon the creation of a LoadBalImpl.
+    /// Arguments: Cost c -- maximum amount of cost assigned to a node
+    ///            int n -- number of broken links
+    /// Return: CompCost -- the cost associated with that partitioning
+    template <typename T, int D>
+    CompCost LoadBalImpl<T,D>::compute_comp_cost(Cost c, int n) {
+        CompCost compcost;
+	int k = f.k();
+	CompCost k_to_D = pow((CompCost) k,D);
+	CompCost twok_to_Dp1 = pow((CompCost) 2.0*k, D+1);
+	compcost = c*(flop_time*D*twok_to_Dp1) + n*(comm_bandw*k_to_D + comm_latency);
+        return compcost;
     }
 
 
@@ -285,8 +304,8 @@ namespace madness {
 	double facter = 1.1;
 
         for (int i = npieces-1; i >= 0; i--) {
-//	    madness::print("");
-//	    madness::print("Beginning partition number", i);
+	    madness::print("");
+	    madness::print("Beginning partition number", i);
             std::vector<typename DClass<D>::KeyD> tmplist;
             Cost tpart = compute_partition_size(cost_left, parts_left);
 	    // Reconsider partition size at every step.  If too small, leaves too much work for P0.
@@ -294,7 +313,7 @@ namespace madness {
             if ((tpart > partition_size) || (tpart*facter < partition_size)) {
                 partition_size = tpart;
             }
-//            madness::print("depth_first_partition: partition_size =", partition_size);
+            madness::print("depth_first_partition: partition_size =", partition_size);
             Cost used_up = 0;
             bool at_leaf = false;
             used_up = this->make_partition(key, &tmplist, partition_size, (i==0), used_up, &at_leaf);
@@ -597,21 +616,6 @@ namespace madness {
         return (Cost) ceil(((double) cost)/((double) parts));
     }
 
-
-    /// Compute the cost of a given configuration: a weighted sum of the cost of the
-    /// maximally-loaded process and the total number of broken links.
-    /// In the future, the factors should be calibrated for a given machine, either 
-    /// during configuration and setup or in real time at the beginning of the program
-    /// or upon the creation of a LoadBalImpl.
-    /// Arguments: Cost c -- maximum amount of cost assigned to a node
-    ///            int n -- number of broken links
-    /// Return: Cost -- the Cost of what has been used up in the partition so far
-    CompCost compute_comp_cost(Cost c, int n) {
-        CompCost compcost;
-        CompCost cfactor = 0.01, nfactor = 1.0;
-        compcost = cfactor*c + nfactor*n;
-        return compcost;
-    }
 
 
      // Explicit instantiations for D=1:6

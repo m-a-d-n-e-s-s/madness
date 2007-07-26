@@ -1206,6 +1206,14 @@ namespace madness {
 	    return maxsize;
 	};
 
+/// Returns the min number of nodes on a processor
+	std::size_t min_nodes() const {
+	    std::size_t minsize = 0;
+	    minsize = coeffs.size();
+	    world.gop.min(minsize);
+	    return minsize;
+	};
+
 
 /// Returns the size of the tree structure of the function ... collective global sum
 	std::size_t tree_size() const {

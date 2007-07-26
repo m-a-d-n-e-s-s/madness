@@ -189,6 +189,12 @@ namespace madness {
 	    return impl->max_nodes();
 	};
 
+/// Returns the min number of nodes on a processor
+	std::size_t min_nodes() const {
+	    if (!impl) return 0;
+	    return impl->min_nodes();
+	};
+
 
         /// Returns the number of coefficients in the function ... collective global sum
         std::size_t size() const {
@@ -197,7 +203,7 @@ namespace madness {
         };
 
         /// Returns the number of multiwavelets (k).  No communication.
-        bool k() const {
+        int k() const {
             verify();
             return impl->get_k();
         };

@@ -457,12 +457,15 @@ namespace madness {
     private:
 	typedef MyPmap<D> Pmap;
         Function<T,D> f;
+	double comm_bandw;
+	double comm_latency;
+	double flop_time;
         SharedPtr<typename DClass<D>::treeT> skeltree;
 
         void construct_skel(SharedPtr<FunctionImpl<T,D> > f) {
             skeltree = SharedPtr<typename DClass<D>::treeT>(new typename DClass<D>::treeT(f->world,
                        f->coeffs.get_pmap()));
-            typename DClass<D>::KeyD root(0);
+	    //            typename DClass<D>::KeyD root(0);
 //            madness::print("about to initialize tree");
 	    skeltree->template init_tree<T>(f);
 //            madness::print("just initialized tree");
@@ -472,7 +475,7 @@ namespace madness {
         //Constructors
         LoadBalImpl() {};
 
-        LoadBalImpl(Function<T,D> f) : f(f) {
+        LoadBalImpl(Function<T,D> f, double a=1e-8, double b=1e-5, double c=5e-10) : f(f), comm_bandw(a), comm_latency(b), flop_time(c) {
 //            madness::print("LoadBalImpl (Function) constructor: f.impl", &f.get_impl());
             construct_skel(f.get_impl());
         };
@@ -487,9 +490,10 @@ namespace madness {
         };
 
         vector<typename DClass<D>::TreeCoords> find_best_partition();
+
+	CompCost compute_comp_cost(Cost c, int n);
     };
 
-    CompCost compute_comp_cost(Cost c, int n);
 
     Cost compute_partition_size(Cost cost, unsigned int parts);
 
