@@ -291,9 +291,11 @@ namespace madness {
 	    if (key.level() == 0) {
 		return 0;
 	    } else if (key.level() <= n) {
-		return hash(key)%nproc;
+//		return hash(key)%nproc;
+		return (key.hash()%nproc);
 	    } else {
-		return hash(key.parent(key.level()-n))%nproc;
+//		return hash(key.parent(key.level()-n))%nproc;
+		return ((key.parent(key.level()-n)).hash()%nproc);
 	    }
 	};
 

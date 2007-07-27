@@ -65,44 +65,8 @@ namespace madness {
         void rehash() {
             hashval = madness::hash(n,madness::hash(l));
         };
-	// Helper function for operator <
-/* Problem: int limited in bits */
-/*
-	Translation encode() const {
-	    Vector<Translation,NDIM> Lcopy = l;
-	    int twotoD = power<NDIM>(), levfact = 1;
-	    Translation retval = 0;
-	    for (long i = 0; i < n; i++) {
-		int factor = 1;
-		for (int j = 0; j < NDIM; j++) {
-		    retval += (Lcopy[NDIM-j-1]%2)*factor*levfact;
-		    Lcopy[NDIM-j-1]/=2;
-		    factor*=2;
-		}
-		levfact*=twotoD;
-	    }
-	    return retval;
-	};
-*/
-/*
-	SharedPtr<std::vector<short> > encode() const {
-	    Vector<Translation,NDIM> Lcopy = l;
-	    Translation arrayval = 0;
-	    SharedPtr<std::vector<short> > retvals = SharedPtr<std::vector<short> > (new std::vector<short>(n,0));
-	    for (Level i = n-1; i >= 0; i--) {
-		int factor = 1;
-		for (int j = 0; j < NDIM; j++) {
-		    arrayval += (Lcopy[NDIM-j-1]%2)*factor;
-		    Lcopy[NDIM-j-1]/=2;
-		    factor*=2;
-		}
-		(*retvals)[i] = arrayval;
-		arrayval = 0;
-	    }
-	    return retvals;
-	};
-*/
 
+	// Helper function for operator <
 	int encode(int dig) const {
 	    int retval = 0;
 	    for (int j=0; j < NDIM; j++) {
@@ -151,7 +115,7 @@ namespace madness {
 
         /// Equality test
         bool operator==(const Key& other) const {
-//            if (hashval != other.hashval) return false;
+            if (hashval != other.hashval) return false;
             if (n != other.n) return false;
             bool result = l == other.l;
 	    if (result && hashval!=other.hashval) {
@@ -164,12 +128,8 @@ namespace madness {
 	/// Comparison based upon depth first lexical order
 	bool operator<(const Key& other) const {
 	    if (*this == other) return false; // I am not less than self
-//	    SharedPtr<std::vector<short> > tthis, tother;
 	    Level nmin;
 	    bool retval = false;
-
-//	    tthis = this->encode();
-//	    tother = other.encode();
 
 	    if (this->n > other.n) {
 		nmin = other.n;
@@ -180,8 +140,6 @@ namespace madness {
 	    }
 		
 	    for (Level i = 0; i < nmin; i++) {
-//		if ((*tthis)[i] != (*tother)[i]) 
-//		    return ((*tthis)[i] < (*tother)[i]);
 		int tthis = this->encode(i), tother = other.encode(i);
 		if (tthis != tother) {
 		    return (tthis < tother);
@@ -228,13 +186,11 @@ namespace madness {
             	return false; // I can't be child of something lower on the tree
             }
 	    else if (this->n == key.n) {
-//madness::print("equal", *this, "?==?", key, *this==key);
                 return (*this == key); // I am child of myself
 	    }
             else {
             	Level dn = this->n - key.n;
             	Key mama = this->parent(dn);
-//madness::print("foreparent", mama, "?==?", key, mama==key);
             	return (mama == key);
             }
 	};
