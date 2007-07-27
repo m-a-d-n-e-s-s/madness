@@ -232,17 +232,14 @@ namespace madness {
 	ProcMapImpl(std::vector< TreeCoords<D> > v) {
 	    int vlen = v.size();
 	    for (int i = 0; i < vlen; i++) {
-//	    	themap.insert(pairT(v[i].key, v[i].owner));
 	    	themap.insert(std::make_pair(v[i].key, v[i].owner));
 	    }
 	};
 
 	ProcMapImpl(const TreeCoords<D>& t) {
-//	    themap.insert(pairT(t.key, t.owner));
 	    themap.insert(std::make_pair(t.key, t.owner));
 	};
 	void insert(const TreeCoords<D>& t) {
-//	    themap.insert(pairT(t.key, t.owner));
 	    themap.insert(std::make_pair(t.key, t.owner));
 	};
 	void erase(const TreeCoords<D>& t) {
@@ -252,15 +249,12 @@ namespace madness {
         ProcessID find_owner(const Key<D>& key) const {
 //	    iterator_const it = themap.find(key);
 	    typename std::map<typename DClass<D>::KeyDConst,ProcessID>::const_iterator it = themap.find(key);
-//	    madness::print("find_owner: looking for", key);
 	    if (it != themap.end()) {
-//	       madness::print("find_owner: owner of ", key, "is", it->second);
 		return it->second;
 	    } else if (key.level() == 0) {
 		madness::print("find_owner: owner of ", key, "not found but returning 0");
 		return 0;
 	    } else {
-//		madness::print("find_owner: owner of ", key, "not found: look for parent", key.parent());
 		return this->find_owner(key.parent());
 	    }
 	};
@@ -373,10 +367,6 @@ namespace madness {
         typedef WorldContainer<typename DClass<D>::KeyD,typename DClass<D>::NodeD> dcT;
         LBTree() {};
         LBTree(World& world, const SharedPtr< WorldDCPmapInterface<typename DClass<D>::KeyD> >& pmap) : dcT(world,pmap) {
-//            madness::print("LBTree(world, pmap) constructor");
-//            const MyPmap<D>* ppp = &(this->get_mypmap());
-//	    ppp->print();
-//            madness::print("LBTree(world, pmap) constructor (goodbye)");
         };
 	/// Initialize the LBTree by converting a FunctionImpl to a LBTree
         template <typename T>
@@ -439,10 +429,6 @@ namespace madness {
             return WorldContainer<typename DClass<D>::KeyD, typename DClass<D>::NodeD>::find(key);
         };
 
-//         const SharedPtr<WorldDCPmapInterface< typename DClass<D>::KeyD >& get_pmap() {
-//             return WorldContainer<typename DClass<D>::KeyD, typename DClass<D>::NodeD>::get_pmap();
-//         };
-
         MyPmap<D>& get_mypmap() {
             return *static_cast< MyPmap<D>* >(this->get_pmap().get());
         };
@@ -476,7 +462,6 @@ namespace madness {
         LoadBalImpl() {};
 
         LoadBalImpl(Function<T,D> f, double a=1e-8, double b=1e-5, double c=5e-10) : f(f), comm_bandw(a), comm_latency(b), flop_time(c) {
-//            madness::print("LoadBalImpl (Function) constructor: f.impl", &f.get_impl());
             construct_skel(f.get_impl());
         };
 
