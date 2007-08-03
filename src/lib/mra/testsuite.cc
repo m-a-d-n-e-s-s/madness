@@ -70,7 +70,8 @@ void test_basic(World& world) {
     typedef SharedPtr< FunctionFunctorInterface<T,NDIM> > functorT;
 
     if (world.rank() == 0) 
-        print("Test compression of a normalized gaussian at origin, type =",archive::get_type_name<T>(),", ndim =",NDIM);
+        print("Test compression of a normalized gaussian at origin, type =",
+              archive::get_type_name<T>(),", ndim =",NDIM);
 
     for (int i=0; i<NDIM; i++) {
         FunctionDefaults<NDIM>::cell(i,0) = -11.0-2*i;  // Deliberately assymetric bounding box
@@ -192,6 +193,86 @@ void test_conv(World& world) {
     if (world.rank() == 0) print("test conv OK\n\n");
 }
 
+template <typename T, int NDIM>
+void test_math(World& world) {
+    typedef Vector<double,NDIM> coordT;
+    typedef SharedPtr< FunctionFunctorInterface<T,NDIM> > functorT;
+
+    if (world.rank() == 0)
+        print("Test basic math operations\n");
+
+    FunctionDefaults<NDIM>::k = 9;
+    FunctionDefaults<NDIM>::thresh = 1e-9;
+    FunctionDefaults<NDIM>::truncate_mode = 0;
+    FunctionDefaults<NDIM>::compress = false;
+    FunctionDefaults<NDIM>::refine = true;
+    FunctionDefaults<NDIM>::autorefine = false;
+    FunctionDefaults<NDIM>::initial_level = 2;
+    for (int i=0; i<NDIM; i++) {
+        FunctionDefaults<NDIM>::cell(i,0) = -10.0;
+        FunctionDefaults<NDIM>::cell(i,1) =  10.0;
+    }
+
+    const coordT origin(0.0);
+    const double expnt = 1.0;
+    const double coeff = pow(2.0/PI,0.25*NDIM);
+    functorT functor(new GaussianFunctor<T,NDIM>(origin, expnt, coeff));
+    functorT functsq(new GaussianFunctor<T,NDIM>(origin, 2.0*expnt, coeff*coeff));
+    
+    // First make sure out of place squaring works
+    Function<T,NDIM> f = FunctionFactory<T,NDIM>(world).functor(functor);
+
+    //world.gop.fence();
+    //f.print_tree();
+
+    f.set_autorefine(false);
+    double err = f.err(*functor);
+    if (world.rank() == 0) 
+        print("Error in f  before squaring",err);
+    Function<T,NDIM> fsq = square(f);
+    err = f.err(*functor);
+    if (world.rank() == 0) 
+        print("Error in f   after squaring",err);
+
+    err = fsq.err(*functsq);
+    if (world.rank() == 0) 
+        print("Error in fsq               ",err);
+
+    // Test same with autorefine
+    f.set_autorefine(true);
+    fsq = square(f);
+    err = fsq.err(*functsq);
+    if (world.rank() == 0) 
+        print("Error in fsq               ",err,"autoref");
+
+
+
+    // Repeat after truncating to see if autorefine works
+    f.set_autorefine(false);
+    f.truncate(1e-5);
+    err = f.err(*functor);
+    if (world.rank() == 0) 
+        print("Error in f   after truncate",err);
+    fsq = square(f);
+    err = fsq.err(*functsq);
+    if (world.rank() == 0) 
+        print("Error in fsq after truncate",err);
+
+    f.set_autorefine(true);
+    fsq = square(f);
+    err = fsq.err(*functsq);
+    if (world.rank() == 0) 
+        print("Error in fsq after truncate",err,"autoref");
+
+    // Finally inplace squaring
+    f.square_inplace();
+    err = f.err(*functsq);
+    if (world.rank() == 0) 
+        print("Error in fsq after truncate",err,"autoref and inplace");
+
+    fsq.clear();
+}
+
 
 int main(int argc, char**argv) {
     MPI::Init(argc, argv);
@@ -201,12 +282,16 @@ int main(int argc, char**argv) {
         startup(world,argc,argv);
         test_basic<double,1>(world);
         test_conv<double,1>(world);
+        test_math<double,1>(world);
 
         test_basic<double,2>(world);
         test_conv<double,2>(world);
+        test_math<double,2>(world);
 
         test_basic<double,3>(world);
         test_conv<double,3>(world);
+        test_math<double,3>(world);
+
     } catch (const MPI::Exception& e) {
         print(e);
         error("caught an MPI exception");
@@ -229,9 +314,9 @@ int main(int argc, char**argv) {
         error("caught unhandled exception");
     }
 
-    print("entering final fence");
+    if (world.rank() == 0) print("entering final fence");
     world.gop.fence();
-    print("done with final fence");
+    if (world.rank() == 0) print("done with final fence");
     MPI::Finalize();
 
     return 0;

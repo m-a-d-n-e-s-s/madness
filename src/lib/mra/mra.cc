@@ -108,12 +108,12 @@ namespace madness {
         quad_phiw = Tensor<double>(npt,k);
 
         gauss_legendre(npt,0.0,1.0,quad_x.ptr(),quad_w.ptr());
-        for (int i=0; i<npt; i++) {
+        for (int mu=0; mu<npt; mu++) {
             double phi[200];
-            legendre_scaling_functions(quad_x(i),k,phi);
+            legendre_scaling_functions(quad_x(mu),k,phi);
             for (int j=0; j<k; j++) {
-                quad_phi(i,j) = phi[j];
-                quad_phiw(i,j) = quad_w(i)*phi[j];
+                quad_phi(mu,j) = phi[j];
+                quad_phiw(mu,j) = quad_w(mu)*phi[j];
             }
         }
         quad_phit = transpose(quad_phi);

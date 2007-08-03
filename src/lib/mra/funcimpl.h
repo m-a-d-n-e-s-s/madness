@@ -155,11 +155,13 @@ namespace madness {
             for (int i=0; i<4; i++) 
                 s[i] = Slice(i*k,(i+1)*k-1);
             s0 = std::vector<Slice>(NDIM);
+            sh = std::vector<Slice>(NDIM);
             vk = std::vector<long>(NDIM);
             vq = std::vector<long>(NDIM);
             v2k = std::vector<long>(NDIM);
             for (int i=0; i<NDIM; i++) {
                 s0[i] = s[0];
+                sh[i] = Slice(0,(k-1)/2);
                 vk[i] = k;
                 vq[i] = npt;
                 v2k[i] = 2*k;
@@ -188,6 +190,7 @@ namespace madness {
         int npt;                ///< no. of quadrature points
         Slice s[4];             ///< s[0]=Slice(0,k-1), s[1]=Slice(k,2*k-1), etc.
         std::vector<Slice> s0;  ///< s[0] in each dimension to get scaling coeff
+        std::vector<Slice> sh;  ///< Slice(0,(k-1)/2) in each dimension for autorefine test
         std::vector<long> vk;   ///< (k,...) used to initialize Tensors
         std::vector<long> v2k;  ///< (2k,...) used to initialize Tensors
         std::vector<long> vq;   ///< (npt,...) used to initialize Tensors
@@ -477,6 +480,7 @@ namespace madness {
     template <typename T, int NDIM>
     class FunctionImpl : public WorldObject< FunctionImpl<T,NDIM> > {
     public:
+	friend class Function<T,NDIM>;
 	friend class LoadBalImpl<T,NDIM>;
 	friend class LBTree<NDIM>;
 
@@ -558,17 +562,21 @@ namespace madness {
 
             if (empty) {        // Do not set any coefficients at all
                 compressed = do_compress;
-                // No need to process pending for coeffs
+                coeffs.process_pending(); 
+                this->process_pending();
             }
             else if (f || vf || functor) { // Project function and optionally compress
                 compressed = false;
+                world.am.suspend();
                 insert_zero_down_to_initial_level(cdata.key0);
                 for(typename dcT::iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
                     if (it->second.is_leaf()) task(coeffs.owner(it->first), 
                                                    &implT::project_refine_op, 
                                                    it->first);
                 };
+                world.am.resume();
                 coeffs.process_pending(); 
+                this->process_pending();
                 if (do_compress) {
                     if (do_refine) world.gop.fence();
                     compress(do_fence);
@@ -579,7 +587,8 @@ namespace madness {
                 initial_level = 0;
                 compressed = do_compress;
                 insert_zero_down_to_initial_level(keyT(0));
-                // No need to process pending
+                coeffs.process_pending(); 
+                this->process_pending();
             };
         };
 
@@ -623,7 +632,8 @@ namespace madness {
         /// Copy coeffs from other into self
         template <typename Q>
 	void copy_coeffs(const FunctionImpl<Q,NDIM>& other, bool fence) {
-	    for(typename FunctionImpl<Q,NDIM>::dcT::const_iterator it=other.coeffs.begin(); it!=other.coeffs.end(); ++it) {
+	    for(typename FunctionImpl<Q,NDIM>::dcT::const_iterator it=other.coeffs.begin(); 
+                it!=other.coeffs.end(); ++it) {
                 const keyT& key = it->first;
                 const typename FunctionImpl<Q,NDIM>::nodeT& node = it->second;
 		coeffs.insert(key,node. template convert<Q>());
@@ -639,7 +649,9 @@ namespace madness {
             // coeffs in self ... this is so can efficiently add functions with 
             // different distributions.  Use an AM rather than a task to reduce memory 
             // footprint on the remote end.
-	    for(typename FunctionImpl<Q,NDIM>::dcT::const_iterator it=other.coeffs.begin(); it!=other.coeffs.end(); ++it) {
+	    for(typename FunctionImpl<Q,NDIM>::dcT::const_iterator it=other.coeffs.begin(); 
+                it!=other.coeffs.end(); 
+                ++it) {
                 const keyT& key = it->first;
                 const typename FunctionImpl<Q,NDIM>::nodeT& other_node = it->second;
                 coeffs.send(key, &nodeT:: template gaxpy_inplace<Q,R>, alpha, other_node, beta);
@@ -650,9 +662,6 @@ namespace madness {
 
         /// Returns true if the function is compressed.  
         bool is_compressed() const {return compressed;};
-
-        /// Returns the order of the wavelet
-        int get_k() const {return k;};
 
         /// Initialize nodes to zero function at initial_level of refinement. 
 
@@ -865,6 +874,7 @@ namespace madness {
         };
 
 
+        /// Returns the truncation threshold according to truncate_method
         inline double truncate_tol(double tol, const keyT& key) const {
             if (truncate_mode == 0) {
                 return tol;
@@ -881,7 +891,7 @@ namespace madness {
         };
 
 
-        /// Returns patch refering to coeffs of child in parent box
+        /// Returns patch referring to coeffs of child in parent box
 
         /// !! Returns a reference to \em STATIC data !!
         /// Can be optimized away by precomputing.
@@ -931,6 +941,174 @@ namespace madness {
         };
 
 
+        /// Compute the Legendre scaling functions for multiplication
+
+        /// Evaluate parent polyn at quadrature points of a child.  The prefactor of 
+        /// 2^n/2 is included.  The tensor must be preallocated as phi(k,npt).
+        /// Refer to the implementation notes for more info.
+        void phi_for_mul(Level np, Translation lp, Level nc, Translation lc, Tensor<double>& phi) const {
+            double p[200];
+            double scale = pow(2.0,double(np-nc));
+            for (int mu=0; mu<cdata.npt; mu++) {
+                double xmu = scale*(cdata.quad_x(mu)+lc) - lp;
+                MADNESS_ASSERT(xmu>-1e-15 && xmu<(1+1e-15));
+                legendre_scaling_functions(xmu,cdata.k,p);
+                for (int i=0; i<k; i++) phi(i,mu) = p[i];
+            }
+            phi.scale(pow(2.0,0.5*np));
+        }
+
+
+        // Testing.
+
+        // This routine was implemented to help test fcube_for_mul.  Instead
+        // of computing the function values in a child cell directly from
+        // the parent coefficients it first recurs the parent coefficients down one
+        // level and then uses the standard transformation to generate the
+        // values.  All looks good!
+        template <typename Q>
+        Tensor<Q> fcube_for_mul2(const keyT& child, const keyT& parent, const Tensor<Q> coeff) const {
+            MADNESS_ASSERT(child.level()-parent.level() == 1);
+            Tensor<Q> w(cdata.v2k);
+            w(cdata.s0) = coeff(___);
+            w = unfilter(w);
+            w = copy(w(child_patch(child)));
+
+            double scale = pow(2.0,0.5*NDIM*child.level())/sqrt(cell_volume);
+            return transform(w,cdata.quad_phit).scale(scale);
+        };
+
+
+        /// Compute the function values for multiplication
+
+        /// Given coefficients from a parent cell, compute the value of
+        /// the functions at the quadrature points of a child
+        template <typename Q>
+        Tensor<Q> fcube_for_mul(const keyT& child, const keyT& parent, const Tensor<Q> coeff) const {
+            if (child.level() == parent.level()) {
+                double scale = pow(2.0,0.5*NDIM*parent.level())/sqrt(cell_volume);
+                return transform(coeff,cdata.quad_phit).scale(scale);
+            }
+            else if (child.level() < parent.level()) {
+                MADNESS_EXCEPTION("FunctionImpl: fcube_for_mul: child-parent relationship bad?",0);
+            }
+            else {
+                Tensor<double> phi(cdata.k,cdata.npt);
+                Tensor<Q> result = coeff;
+                for (int d=0; d<NDIM; d++) {
+                    phi_for_mul(parent.level(),parent.translation()[d],
+                                child.level(), child.translation()[d], phi);
+                    result = inner(result,phi,0,0);
+                }
+                result.scale(1.0/sqrt(cell_volume));
+                return result;
+            }
+        };
+        
+        /// Invoked as a task by mul with the actual coefficients
+        template <typename L, typename R>
+        Void do_mul(const keyT& key, const Tensor<L>& left, const std::pair< const keyT, const Tensor<R> >& arg) {
+            const keyT& rkey = arg.first;
+            const Tensor<R>& rcoeff = arg.second;
+            Tensor<R> rcube = fcube_for_mul(key, rkey, rcoeff);
+            Tensor<L> lcube(cdata.vq);
+            Tensor<T> tcube(cdata.vk,false);
+            TERNARY_OPTIMIZED_ITERATOR(T, tcube, L, lcube, R, rcube, *_p0 = *_p1 * *_p2;);
+            tcube.scale(sqrt(cell_volume*pow(0.5,double(NDIM*key.level()))));
+            return transform(tcube,cdata.quad_phiw);
+        };
+            
+
+        /// Invoked by result to compute the pointwise product result=left*right
+
+        /// This version requires all three functions have the same distribution.
+        /// Should be straightforward to do an efficient version that does not
+        /// require this but I have not thought about that yet.
+        ///
+        /// Possible non-blocking communication and optional fence.
+        template <typename L, typename R>
+        void mul(const FunctionImpl<L,NDIM>& left, const FunctionImpl<R,NDIM>& right, bool fence) {
+            typedef std::pair< keyT,Tensor<R> > rargT;
+            typedef std::pair< keyT,Tensor<L> > largT;
+            MADNESS_ASSERT(coeffs.get_pmap() == left.coeffs.get_pmap() && \
+                           coeffs.get_pmap() == right.coeffs.get_pmap());
+
+            // The three possibilities for the relative position of
+            // the left and right coefficients in the tree are:
+            //
+            // 1.  left==right
+            // 2.  left>right
+            // 3.  left<right
+            //
+            // First loop thru local coeff in left.  Handle right at the same level or above.
+	    for(typename FunctionImpl<L,NDIM>::dcT::const_iterator it=left.coeffs.begin(); 
+                it != left.coeffs.end(); 
+                ++it) {
+                const keyT& key = it->first;
+                const FunctionNode<L,NDIM>& left_node = it->second;
+                if (left_node.has_coeff()) {
+                    if (right.coeffs.probe(key)) {
+                        const FunctionNode<R,NDIM>& right_node = right.coeffs.find(key).get()->second;
+                        if (right_node.has_coeff()) {
+                            task(do_mul, key, left_node.coeff(), argT(key,right_node.coeff()));  // Case 1.
+                        }
+                    }
+                    else { // If right node does not exist then it must be further up the tree
+                        const keyT parent = key.parent();
+                        Future<rargT> arg;
+                        right.send(owner(parent), &FunctionImpl<R,NDIM>::sock_it_to_me, parent, arg.remote_ref());
+                        task(do_mul, key, left_node.coeff(), arg); // Case 2.
+                    }
+                }
+            }
+
+            // Now loop thru local coeff in right and do case 3.
+	    for(typename FunctionImpl<R,NDIM>::dcT::const_iterator it=right.coeffs.begin(); 
+                it != right.coeffs.end(); 
+                ++it) {
+                const keyT& key = it->first;
+                const FunctionNode<R,NDIM>& right_node = it->second;
+                if (right_node.has_coeff()) {
+                    if (!left.coeffs.probe(key)) {
+                        Future<largT> arg;
+                        const keyT& parent = key.parent();
+                        left.send(owner(parent), &FunctionImpl<L,NDIM>::sock_it_to_me, parent, arg.remote_ref());
+                        task(do_mul, key, right_node.coeff(), arg); // Case 3.
+                    }
+                }
+            }
+            if (fence) world.gop.fence();
+        }
+
+        /// Walk up the tree returning pair(key,node) for first node with coefficients
+
+        /// Traditional name for this routine ... you had to be there
+        /// and since you weren't you also missed out on look_out_below
+        /// which was sock_it_to_me's evil twin.
+        ///
+        /// !! This routine is crying out for an optimization to
+        /// manage the number of messages being sent ... presently
+        /// each parent is fetched 2^(n*d) times where n is the no. of
+        /// levels between the level of evaluation and the parent.
+        /// Alternatively, reimplement multiply as a downward tree
+        /// walk and just pass the parent down.  Slightly less
+        /// parallelism but much less communication.
+        Void sock_it_to_me(const keyT& key, 
+                           const RemoteReference< FutureImpl< std::pair<keyT,tensorT> > >& ref) {
+            MADNESS_ASSERT(coeffs.probe(key));
+            const nodeT& node = coeffs.find(key).get()->second;
+            if (node.has_coeff()) {
+                Future< std::pair<keyT,tensorT> > result(ref);
+                result.set(std::pair<keyT,tensorT>(key,node.coeff()));
+            }
+            else {
+                keyT parent = key.parent();
+                send(coeffs.owner(parent), &FunctionImpl<T,NDIM>::sock_it_to_me, parent, ref);
+            }
+            return None;
+        };
+
+
         /// Evaluate the function at a point in \em simulation coordinates
 
         /// Only the invoking process will get the result via the
@@ -973,6 +1151,104 @@ namespace madness {
                 }
             }
             MADNESS_EXCEPTION("should not be here",0);
+        };
+
+
+        /// Computes norm of low/high-order polyn. coeffs for autorefinement test
+
+        /// t is a k^d tensor.  In order to screen the autorefinement
+        /// during multiplication compute the norms of
+        /// ... lo ... the block of t for all polynomials of order < k/2
+        /// ... hi ... the block of t for all polynomials of order >= k/2
+        ///
+        /// k=5   0,1,2,3,4     --> 0,1,2 ... 3,4
+        /// k=6   0,1,2,3,4,5   --> 0,1,2 ... 3,4,5
+        ///
+        /// k=number of wavelets, so k=5 means max order is 4, so max exactly
+        /// representable squarable polynomial is of order 2.
+        void tnorm(const tensorT& t, double* lo, double* hi) const {
+            // Chosen approach looks stupid but it is more accurate
+            // than the simple approach of summing everything and
+            // subtracting off the low-order stuff to get the high
+            // order (assuming the high-order stuff is small relative
+            // to the low-order)
+            cdata.work1(___) = t(___);
+            tensorT tlo = cdata.work1(cdata.sh);
+            *lo = tlo.normf();
+            tlo.fill(0.0);
+            *hi = cdata.work1.normf();
+        };
+
+
+        // This invoked if node has not been autorefined
+        Void do_square_inplace(const keyT& key) {
+            Level n = key.level();
+            nodeT& node = coeffs[key];
+
+            double scale = pow(2.0,0.5*NDIM*n)/sqrt(cell_volume);
+            tensorT tval = transform(node.coeff(),cdata.quad_phit).scale(scale);
+
+            tval.emul(tval);
+            
+            scale = pow(0.5,0.5*NDIM*n)*sqrt(cell_volume);
+            tval = transform(tval,cdata.quad_phiw).scale(scale);
+
+            node.set_coeff(tval);
+
+            return None;
+        };
+
+
+        // This invoked if node has been autorefined
+        Void do_square_inplace2(const keyT& parent, const keyT& child, const tensorT& parent_coeff) {
+            tensorT tval = fcube_for_mul (child, parent, parent_coeff);
+
+            tval.emul(tval);
+            
+            Level n = child.level();
+            double scale = pow(0.5,0.5*NDIM*n)*sqrt(cell_volume);
+            tval = transform(tval,cdata.quad_phiw).scale(scale);
+
+            coeffs.insert(child,nodeT(tval,false));
+
+            return None;
+        };
+
+
+        /// Returns true if this block of coeffs needs autorefining
+        bool autorefine_square_test(const keyT& key, const tensorT& t) const {
+            double lo, hi;
+            tnorm(t, &lo, &hi);
+            double test = 2*lo*hi + hi*hi;
+            //print("autoreftest",key,thresh,truncate_tol(thresh, key),lo,hi,test);
+            return test > truncate_tol(thresh, key);
+        };
+
+
+        /// Pointwise squaring of function with optional global fence
+
+        /// If not autorefining, local computation only if not fencing.
+        /// If autorefining, may result in asynchronous communication.
+        void square_inplace(bool fence) {
+            for(typename dcT::iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
+                const keyT& key = it->first;
+                nodeT& node = it->second;
+                if (node.has_coeff()) {
+                    if (autorefine && autorefine_square_test(key, node.coeff())) {
+                        tensorT t = node.coeff();
+                        node.clear_coeff();
+                        node.set_has_children(true);
+                        for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {         
+                            const keyT& child = kit.key();
+                            task(coeffs.owner(child), &implT::do_square_inplace2, key, child, t);
+                        }
+                    }
+                    else {
+                        task(world.rank(), &implT::do_square_inplace, key);
+                    }
+                }
+            }
+            if (fence) world.gop.fence();
         };
 
 
@@ -1106,6 +1382,7 @@ namespace madness {
 
         // Invoked on node where key is local
         Future<tensorT> compress_spawn(const keyT& key) {
+            MADNESS_ASSERT(coeffs.probe(key));
             nodeT& node = coeffs.find(key).get()->second;
             if (node.has_children()) {
                 std::vector< Future<tensorT> > v = future_vector_factory<tensorT>(1<<NDIM);
@@ -1168,7 +1445,7 @@ namespace madness {
             return err*err;
         };
 
-        /// Returns the sum of squares of errors from local infro ... no comms
+        /// Returns the sum of squares of errors from local info ... no comms
         template <typename opT>
         double errsq_local(const opT& func) const {
             // Make quadrature rule of higher order
@@ -1232,7 +1509,9 @@ namespace madness {
             }
             if (is_compressed()) for (int i=0; i<NDIM; i++) sum *= 2*cdata.k;
             else                 for (int i=0; i<NDIM; i++) sum *=   cdata.k;
+
             world.gop.sum(sum);
+
             return sum;
         };
 

@@ -65,7 +65,17 @@ namespace madness {
 namespace madness {
 
     template <typename T, int NDIM>
+    Function<T,NDIM> square(const Function<T,NDIM>& f, bool fence = true);
+
+    template <typename T, int NDIM>
     class Function {
+
+        template <typename L, typename R>
+        friend
+        Function<T,NDIM> mul(const Function<L,NDIM>& left, const Function<R,NDIM>& right);
+
+        friend Function<T,NDIM> square<T,NDIM>(const Function<T,NDIM>&, bool);
+
     private:
         SharedPtr< FunctionImpl<T,NDIM> > impl;
 
@@ -124,6 +134,7 @@ namespace madness {
             return result;
         };
 
+
         /// Evaluates the function at a point in user coordinates.  Possible \em blocking comm.
 
         /// Only the invoking process will receive the result.
@@ -177,13 +188,16 @@ namespace madness {
                 return false;
         };
 
-/// Returns the number of nodes in the function tree ... collective global sum
+
+        /// Returns the number of nodes in the function tree ... collective global sum
 	std::size_t tree_size() const {
 	    if (!impl) return 0;
 	    return impl->tree_size();
 	};
 
-/// Returns the max number of nodes on a processor
+
+
+        /// Returns the max number of nodes on a processor ... collective global sum
 	std::size_t max_nodes() const {
 	    if (!impl) return 0;
 	    return impl->max_nodes();
@@ -202,11 +216,47 @@ namespace madness {
             return impl->size();
         };
 
+
+        /// Returns value of autorefine flag.  No communication.
+        bool autorefine() const {
+            if (!impl) return true;
+            return impl->autorefine;
+        };
+
+
+        /// Sets the value of the autorefine flag.  Optional global fence.
+
+        /// A fence is required to ensure consistent global state.
+        void set_autorefine(bool value, bool fence = true) {
+            verify();
+            impl->autorefine = value;
+            if (fence) impl->world.gop.fence();
+        };
+
+
+        /// Returns value of truncation threshold.  No communication.
+        double thresh() const {
+            if (!impl) return 0.0;
+            return impl->thresh;
+        };
+
+        
+        /// Sets the vaule of the truncation threshold.  Optional global fence.
+        
+        /// A fence is required to ensure consistent global state.
+        void set_thresh(double value, bool fence = true) {
+            verify();
+            impl->thresh = value;
+            if (fence) impl->world.gop.fence();
+        };
+
+
         /// Returns the number of multiwavelets (k).  No communication.
         int k() const {
             verify();
-            return impl->get_k();
+            return impl->k;
         };
+
 
         /// Truncate the function with optional fence.  Compresses with fence if not compressed.
 
@@ -216,14 +266,18 @@ namespace madness {
         void truncate(double tol = 0.0, bool fence = true) {
             if (!impl) return;
             verify();
+            if (!is_compressed()) compress();
             impl->truncate(tol,fence);
         };
+
+
 
 	/// Returns a shared-pointer to the implementation
 	const SharedPtr< FunctionImpl<T,NDIM> >& get_impl() const {
 	    verify();
 	    return impl;
 	};
+
 
 
         /// Returns a shared pointer to the process map
@@ -233,6 +287,7 @@ namespace madness {
         };
 
         
+
         /// Returns the square of the norm of the local function ... no communication
         
         /// Works in either basis
@@ -242,13 +297,16 @@ namespace madness {
         };
 
 
+
         /// Returns the 2-norm of the function ... global sum ... works in either basis
         
         /// See comments for err() w.r.t. applying to many functions.
         double norm2() const {
             verify();
             double local = impl->norm2sq_local();
+
             impl->world.gop.sum(local);
+
             return sqrt(local);
         };
 
@@ -266,6 +324,7 @@ namespace madness {
             impl->compress(fence);
         };
         
+
         /// Reconstructs the function, transforming into scaling function basis.  Possible non-blocking comm.
 
         /// By default fence=true meaning that this operation completes before returning,
@@ -279,9 +338,25 @@ namespace madness {
             impl->reconstruct(fence);
         };
 
+        /// Clears the function as if constructed uninitialized.  No communication.
+
+        /// Any underlying data will not be freed until the next global fence.
+        void clear() {
+            impl = SharedPtr< FunctionImpl<T,NDIM> >(0);
+        };
+
+
+        /// Zero function
+
+        /// Assigning an arbitrary constant
+
+        /// Adding an arbitrary constant
+
 
         /// Process 0 prints a summary of all nodes in the tree (collective)
-        void print_tree() const {if (impl) impl->print_tree();};
+        void print_tree() const {
+            if (impl) impl->print_tree();
+        };
 
 
         /// Type conversion implies a deep copy.  No communication except for optional fence.
@@ -297,7 +372,7 @@ namespace madness {
         Function<Q,NDIM> convert(bool fence = true) const {
             verify();
             Function<Q,NDIM> result;
-	    result.impl = SharedPtr< FunctionImpl<Q,NDIM> >(new typename FunctionImpl<Q,NDIM>::implT(*impl));
+	    result.impl = SharedPtr< FunctionImpl<Q,NDIM> >(new FunctionImpl<Q,NDIM>(*impl));
 	    result.impl->copy_coeffs(*impl, fence);
 	    return result;
 	};
@@ -352,9 +427,38 @@ namespace madness {
             impl->gaxpy_inplace(alpha,*other.impl,beta,fence);
             return *this;
         };
-    private:
 
+        /// Inplace squaring of function ... global comm only if not reconstructed
+
+        /// Returns *this for chaining.
+        Function<T,NDIM>& square_inplace(bool fence = true) {
+            if (is_compressed()) reconstruct();
+            impl->square_inplace(fence);
+            return *this;
+        };
+
+
+
+    private:
+        /// Private: this becomes left*right
+        template <typename L, typename R>
+        void mul(const Function<L,NDIM>& left, const Function<R,NDIM>& right, bool fence) {
+            left.verify();
+            right.verify();
+            MADNESS_ASSERT(!(left.is_compressed() || right.is_compressed()));
+            impl = SharedPtr< FunctionImpl<T,NDIM > >(new FunctionImpl<T,NDIM>(*left.impl));
+            impl->mul(*left.impl,*right.impl,fence);
+        };
     };
+
+    
+    /// Create a new function that is the square input - global comm only if not reconstructed
+    template <typename T, int NDIM>
+    Function<T,NDIM> square(const Function<T,NDIM>& f, bool fence) {
+        Function<T,NDIM> result = copy(f);
+        return result.square_inplace();
+    };
+    
 
     /// Create a new copy of the function with different distribution and optional fence
     template <typename T, int NDIM>
@@ -363,16 +467,20 @@ namespace madness {
                           bool fence = true) {
 	return f.copy(pmap,fence);
     };
-	    
+        
     /// Create a new copy of the function with the same distribution and optional fence
     template <typename T, int NDIM>
     Function<T,NDIM> copy(const Function<T,NDIM>& f, bool fence = true) {
 	return f.copy(fence);
     };
 	    
-
-
-
+    /// Pointwise multiplication of two functions in scaling function basis.  Async comms and optional fence.
+    template <typename L, typename R,int NDIM>
+    Function<TensorResultType<L,R>,NDIM> mul(const Function<L,NDIM>& left, const Function<R,NDIM>& right) {
+        Function<TensorResultType<L,R>,NDIM> result;
+        result.mul(left,right);
+        return result;
+    };
 
 }
 
