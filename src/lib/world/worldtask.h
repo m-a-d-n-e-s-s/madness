@@ -217,12 +217,8 @@ namespace madness {
         /// \c new and when the task is eventually run the queue
         /// will call the task's destructor using \c delete.
         ///
-        /// The optional argument specifies if the task should have
-        /// high priority. The default is false.
-        ///
         /// If the task has no outstanding dependencies it is immediately
-        /// put into the ready queue (at the end for normal-priority tasks,
-        /// at the beginning for high-priority tasks).
+        /// put into the ready queue.
         ///
         /// If the task has outstanding dependencies then it is
         /// assumed that other activities will be calling task->dec()
@@ -604,6 +600,7 @@ namespace madness {
         };
    
     };
+
 
     // Internal: Convenience for serializing
     template <typename refT, typename functionT>

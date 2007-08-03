@@ -329,7 +329,6 @@ namespace madness {
         typedef const pairT const_pairT;
         typedef WorldContainerImpl<keyT,valueT> implT;
         
-#ifdef WORLDDC_USES_GNU_HASH_MAP
         template <typename T> 
         struct DCLocalHash {
             std::size_t operator()(const T& t) const {
@@ -338,10 +337,6 @@ namespace madness {
         };
         typedef HASH_MAP_NAMESPACE::hash_map< keyT,CacheInfo,DCLocalHash<keyT> > cacheinfoT;
         typedef HASH_MAP_NAMESPACE::hash_map< keyT,valueT,DCLocalHash<keyT> > internal_containerT;
-#else
-        typedef std::map<keyT,int> cacheinfoT;
-        typedef std::map<keyT,valueT> internal_containerT;
-#endif
         
         typedef typename cacheinfoT::iterator cacheinfo_iteratorT;
         typedef typename internal_containerT::iterator internal_iteratorT;
@@ -803,7 +798,7 @@ namespace madness {
         
         
         /// Returns true if local data is immediately available (no communication)
-        void probe(const keyT& key) const {
+        bool probe(const keyT& key) const {
             check_initialized();
             return p->probe(key);
         };
@@ -1050,6 +1045,22 @@ namespace madness {
             MEMFUN_RETURNT(memfunT) (implT::*itemfun)(const keyT&, memfunT, const a1T&, const a2T&, const a3T&) = &implT:: template itemfun<memfunT,a1T,a2T,a3T>;
             return p->task(owner(key), itemfun, key, memfun, arg1, arg2, arg3, attr);
         }
+
+        /// Indexing is same as container[key].get()->second ... blocks until complete
+
+        /// Throws if key is not present.
+        valueT& operator[](const keyT& key) {
+            iterator it = find(key).get();
+            if (it == end()) MADNESS_EXCEPTION("WorldContainer: operator[]: missing entry",0);
+            return it->second;
+        };
+        
+        /// Indexing is same as container[key].get()->second ... blocks until complete
+        const valueT& operator[](const keyT& key) const {
+            const_iterator it = find(key).get();
+            if (it == end()) MADNESS_EXCEPTION("WorldContainer: operator[]: missing entry",0);
+            return it->second;
+        };
         
         
         /// (de)Serialize --- !! ONLY for purpose of interprocess communication

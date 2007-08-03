@@ -41,7 +41,7 @@
 
 
 #define WORLDDC_USES_GNU_HASH_MAP
-#define HASH_MAP_NAMESPACE __gnu_cxx
+//#define WORLDDC_USES_TR1_UNORDERED_MAP
 
 #ifdef WORLDDC_USES_GNU_HASH_MAP
 #  ifdef __GNUG__
@@ -49,6 +49,13 @@
 #  else
 #    include <hash_map>
 #  endif
+#  define HASH_MAP_NAMESPACE __gnu_cxx
+#endif
+
+#ifdef WORLDDC_USES_TR1_UNORDERED_MAP
+#  include <tr1/unordered_map>
+#  define hash_map unordered_map
+#  define HASH_MAP_NAMESPACE std::tr1
 #endif
 
 

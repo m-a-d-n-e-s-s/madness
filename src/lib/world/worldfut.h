@@ -297,7 +297,6 @@ namespace madness {
         {};
 
         /// Makes an assigned local future
-        /// get rid of these?
         explicit Future(const T& t) 
             : f()
             , value(t)
@@ -307,7 +306,7 @@ namespace madness {
 
 
         /// Makes a future wrapping a remote reference
-         explicit Future(const remote_refT& remote_ref)
+        explicit Future(const remote_refT& remote_ref)
             : f(new FutureImpl<T>(remote_ref))
             , value()
             , value_set(false)
