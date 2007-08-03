@@ -150,5 +150,39 @@ public: \
 #define ISSUPPORTED(T,RETURNTYPE) \
 <typename T> typename IsSupported < TensorTypeData<T>, RETURNTYPE >::type
 
+    /// TensorResultType<L,R>::type is the type of (L op R) where op is nominally multiplication
+    template <typename leftT, typename rightT>
+    struct TensorResultType {};
+
+#define SPEC(L,R,T) \
+    template <> struct TensorResultType<L,R> {typedef T type;}; \
+    template <> struct TensorResultType<R,L> {typedef T type;};
+#define DPEC(L,R,T) \
+    template <> struct TensorResultType<L,L> {typedef T type;};
+
+    DPEC(int,int,int);
+    SPEC(int,long,long);
+    SPEC(int,float,float);
+    SPEC(int,double,double);
+    SPEC(int,float_complex,float_complex);
+    SPEC(int,double_complex,double_complex);
+    DPEC(long,long,long);
+    SPEC(long,float,float);
+    SPEC(long,double,double);
+    SPEC(long,float_complex,float_complex);
+    SPEC(long,double_complex,double_complex);
+    DPEC(float,float,float);
+    SPEC(float,double,double);
+    SPEC(float,float_complex,float_complex);
+    SPEC(float,double_complex,double_complex);
+    DPEC(double,double,double);
+    SPEC(double,float_complex,float_complex);
+    SPEC(double,double_complex,double_complex);
+    DPEC(float_complex,float_complex,float_complex);
+    SPEC(float_complex,double_complex,double_complex);
+    DPEC(double_complex,double_complex,double_complex);
+
+#undef DPEC
+#undef SPEC
 }
 #endif

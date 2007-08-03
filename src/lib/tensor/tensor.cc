@@ -522,7 +522,6 @@ namespace madness {
         return *this;
     }
 
-    /// Return the sum of all elements of the tensor
     template <class T>
     T Tensor<T>::sum() const {
         T result = 0;
@@ -530,7 +529,6 @@ namespace madness {
         return result;
     }
 
-    /// Return the sum of the squares of all elements of the tensor
     template <class T>
     T Tensor<T>::sumsq() const {
         T result = 0;
@@ -538,7 +536,6 @@ namespace madness {
         return result;
     }
 
-    /// Return the product of all elements of the tensor
     template <class T>
     T Tensor<T>::product() const {
         T result = 1;
@@ -546,7 +543,6 @@ namespace madness {
         return result;
     }
 
-    /// Return the minimum value (and if ind is non-null, its index) in the Tensor
     template <class T>
     T Tensor<T>::min(long* ind) const {
         T result = *(this->pointer);
@@ -566,7 +562,6 @@ namespace madness {
         return result;
     }
 
-    /// Return the maximum value (and if ind is non-null, its index) in the Tensor
     template <class T>
     T Tensor<T>::max(long* ind) const {
         T result = *(this->pointer);
@@ -586,7 +581,6 @@ namespace madness {
         return result;
     }
 
-    /// Return the Frobenius norm of the tensor (needs correcting for complex??)
     template <class T>
     typename Tensor<T>::float_scalar_type Tensor<T>::normf() const {
         float_scalar_type result = 0;
@@ -594,7 +588,6 @@ namespace madness {
         return (float_scalar_type) std::sqrt(result);
     }
 
-    /// Return the absolute minimum value (and if ind is non-null, its index) in the Tensor
     template <class T>
     typename Tensor<T>::scalar_type Tensor<T>::absmin(long* ind) const {
         scalar_type result = std::abs(*(this->pointer));
@@ -615,7 +608,6 @@ namespace madness {
         return result;
     }
 
-    /// Return the absolute maximum value (and if ind is non-null, its index) in the Tensor
     template <class T>
     typename Tensor<T>::scalar_type Tensor<T>::absmax(long* ind) const {
         scalar_type result = std::abs(*(this->pointer));
@@ -636,14 +628,12 @@ namespace madness {
         return result;
     }
 
-    /// Inplace apply a unary function to each element of the tensor
     template <class T>
     Tensor<T>& Tensor<T>::unaryop(T (*op) (T)) {
         UNARY_OPTIMIZED_ITERATOR(T,(*this),*_p0=op(*_p0));
         return *this;
     }
 
-    /// Return the trace of two tensors (no complex conjugate invoked)
     template <class T>
     T Tensor<T>::trace(const Tensor<T>& t) const {
         T result = 0;
@@ -651,14 +641,12 @@ namespace madness {
         return result;
     }
 
-    /// Inplace multiply by corresponding elements of argument Tensor
     template <class T>
     Tensor<T>& Tensor<T>::emul(const Tensor<T>& t) {
         BINARY_OPTIMIZED_ITERATOR(T,(*this),T,t,*_p0 *= *_p1);
         return *this;
     }
 
-    /// Inplace generalized saxpy ... this = this*alpha + other*beta
     template <class T>
     Tensor<T>& Tensor<T>::gaxpy(T alpha, const Tensor<T>& t, T beta) {
         //BINARY_OPTIMIZED_ITERATOR(T,(*this),T,t, (*_p0) = alpha*(*_p0) + beta*(*_p1));

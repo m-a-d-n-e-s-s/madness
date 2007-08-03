@@ -596,23 +596,50 @@ namespace madness {
         /// Set elements of \c *this less than \c x in absolute magnitude to zero.
         Tensor<T>& screen(double x);
 
+        /// Returns the sum of all elements of the tensor
         T sum() const;
+
+        /// Returns the sum of the squares of the elements
         T sumsq() const;
+
+        /// Return the product of all elements of the tensor
         T product() const;
+
+        /// Return the minimum value (and if ind is non-null, its index) in the Tensor
         T min(long *ind = 0) const;
+
+
+        /// Return the maximum value (and if ind is non-null, its index) in the Tensor
         T max(long *ind = 0) const ;
 
         // For complex types, this next group returns the appropriate real type
         // For real types, the same type as T is returned (type_data.h)
+
+
+        /// Returns the Frobenius norm of the tensor (needs correcting for complex??)
         float_scalar_type normf() const;
+
+        /// Return the absolute minimum value (and if ind is non-null, its index) in the Tensor
         scalar_type absmin(long *ind = 0) const;
+
+
+        /// Return the absolute maximum value (and if ind is non-null, its index) in the Tensor
         scalar_type absmax(long *ind = 0) const;
 
+        /// Return the trace of two tensors (no complex conjugate invoked)
         T trace(const Tensor<T>& t) const;
+
+        /// Inplace apply a unary function to each element of the tensor
         Tensor<T>& unaryop(T (*op) (T));
+
+        /// Inplace multiply by corresponding elements of argument Tensor
         Tensor<T>& emul(const Tensor<T>& t);
+
+
+        /// Inplace generalized saxpy ... this = this*alpha + other*beta
         Tensor<T>& gaxpy(T alpha, const Tensor<T>& t, T beta);
 
+        /// Returns a pointer to the internal data
         inline T* ptr() const {
             return pointer;
         };
