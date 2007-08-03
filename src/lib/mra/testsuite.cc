@@ -164,8 +164,10 @@ void test_conv(World& world) {
     typedef Vector<double,NDIM> coordT;
     typedef SharedPtr< FunctionFunctorInterface<T,NDIM> > functorT;
 
-    if (world.rank() == 0)
-        print("Test convergence - log(err)/(n*k) should be roughly const, a least for each value of k\n");
+    if (world.rank() == 0) {
+        print("Test convergence - log(err)/(n*k) should be roughly const, a least for each value of k");
+        print("                 - type =", archive::get_type_name<T>(),", ndim =",NDIM,"\n");
+    }
     const coordT origin(0.0);
     const double expnt = 1.0;
     const double coeff = pow(2.0/PI,0.25*NDIM);
@@ -198,8 +200,9 @@ void test_math(World& world) {
     typedef Vector<double,NDIM> coordT;
     typedef SharedPtr< FunctionFunctorInterface<T,NDIM> > functorT;
 
-    if (world.rank() == 0)
-        print("Test basic math operations\n");
+    if (world.rank() == 0) {
+        print("Test basic math operations - type =", archive::get_type_name<T>(),", ndim =",NDIM,"\n");
+    }
 
     FunctionDefaults<NDIM>::k = 9;
     FunctionDefaults<NDIM>::thresh = 1e-9;
@@ -271,6 +274,22 @@ void test_math(World& world) {
         print("Error in fsq after truncate",err,"autoref and inplace");
 
     fsq.clear();
+
+    // Test adding a constant in scaling function and wavelet bases
+    double val = f(origin);
+    f.reconstruct();
+    f.add_scalar_inplace(3.0);
+    double val2 = f(origin);
+    if (world.rank() == 0) 
+        print("f(origin)",val,"f(origin)+3",val2);
+
+    f.compress();
+    f.add_scalar_inplace(5.0);
+    f.reconstruct();
+    val2 = f(origin);
+    if (world.rank() == 0) 
+        print("f(origin)",val,"f(origin)+8",val2);
+
 }
 
 
@@ -284,13 +303,13 @@ int main(int argc, char**argv) {
         test_conv<double,1>(world);
         test_math<double,1>(world);
 
-        test_basic<double,2>(world);
-        test_conv<double,2>(world);
-        test_math<double,2>(world);
+//         test_basic<double,2>(world);
+//         test_conv<double,2>(world);
+//         test_math<double,2>(world);
 
-        test_basic<double,3>(world);
-        test_conv<double,3>(world);
-        test_math<double,3>(world);
+//         test_basic<double,3>(world);
+//         test_conv<double,3>(world);
+//         test_math<double,3>(world);
 
     } catch (const MPI::Exception& e) {
         print(e);

@@ -127,6 +127,7 @@ namespace madness {
         /// Needs a lot of optimization for efficient parallel execution.
         Future<T> eval(const coordT& xuser) {
             verify();
+            MADNESS_ASSERT(!is_compressed());
             coordT xsim;
             impl->user_to_sim(xuser,xsim);
             Future<T> result;
@@ -409,6 +410,12 @@ namespace madness {
             verify();
             impl->scale_inplace(q,fence);
             return *this;
+        };
+
+        /// Inplace add scalar.  No communication except for optional fence.
+        void add_scalar_inplace(T t, bool fence=true) {
+            verify();
+            impl->add_scalar_inplace(t,fence);
         };
 
         /// Inplace, general bi-linear operation in wavelet basis.  No communication except for optional fence.

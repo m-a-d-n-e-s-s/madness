@@ -663,6 +663,35 @@ namespace madness {
         /// Returns true if the function is compressed.  
         bool is_compressed() const {return compressed;};
 
+        /// Adds a constant to the function.  Local operation, optional fence
+
+        /// In scaling function basis must add value to first polyn in 
+        /// each box with appropriate scaling for level.  In wavelet basis
+        /// need only add at level zero.
+        void add_scalar_inplace(T t, bool fence) {
+            std::vector<long> v0(NDIM,0L);
+            if (is_compressed()) {
+                if (world.rank() == coeffs.owner(cdata.key0)) {
+                    typename dcT::iterator it = coeffs.find(cdata.key0).get();
+                    MADNESS_ASSERT(it != coeffs.end());
+                    nodeT& node = it->second;
+                    MADNESS_ASSERT(node.has_coeff());
+                    node.coeff()(v0) += t*sqrt(cell_volume);
+                }
+            }
+            else {
+                for(typename dcT::iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
+                    Level n = it->first.level();
+                    nodeT& node = it->second;
+                    if (node.has_coeff()) {
+                        node.coeff()(v0) += t*sqrt(cell_volume*pow(0.5,double(NDIM*n)));
+                    }
+                }
+            }
+            if (fence) world.gop.fence();
+        }
+        
+
         /// Initialize nodes to zero function at initial_level of refinement. 
 
         /// Works for either basis.  No communication.
