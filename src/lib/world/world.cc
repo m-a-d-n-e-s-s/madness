@@ -432,7 +432,6 @@ void test7(World& world) {
     ProcessID me = world.mpi.rank();
     World::poll_all();
     WorldContainer<int,double> c(world);
-    //world.gop.fence();  // Currently needed until we can handle pending
 
     typedef WorldContainer<int,double>::iterator iterator;
     typedef WorldContainer<int,double>::const_iterator const_iterator;

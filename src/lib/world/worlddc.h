@@ -48,14 +48,14 @@ Other containers will follow when this design stabilizes.
 
 To do (in rough order of importance):
 
+a) !!! DO NOT PROCESS ANY AM UNTIL PROCESS PENDING IS CALLED !!!
+
 c) Straighten out semantics for caching and test it
 
 e) Clarification of exception handling
 
 f) Do we need a global iterator?  Not yet for MRA
 
-g) Global clear operation?  Can just assign from a new container so no
-rush.
 
 */
 
@@ -315,7 +315,7 @@ namespace madness {
             throw "Serializing DC iterator ... why?";
         }
     };
-    
+
     
     /// Implementation of distributed container to enable PIMPL
     template <typename keyT, 
@@ -355,7 +355,6 @@ namespace madness {
         WorldContainerImpl();   // Inhibit default constructor
         
         World& world;
-        const uniqueidT theid;    //< Universe-wide unique ID for this instance
         const SharedPtr< WorldDCPmapInterface<keyT> > pmap;       //< Function/class to map from keys to owning process
         const WorldDCAttr attr;  //< Atrributes
         const ProcessID me;           //< My MPI rank
@@ -431,10 +430,10 @@ namespace madness {
         
     public:
         
-        WorldContainerImpl(World& world, const SharedPtr< WorldDCPmapInterface<keyT> >& pmap, const WorldDCAttr& attr, bool do_pending)
+        WorldContainerImpl(World& world, const SharedPtr< WorldDCPmapInterface<keyT> >& pmap, 
+                           const WorldDCAttr& attr, bool do_pending)
             : WorldObject< WorldContainerImpl<keyT, valueT> >(world)
             , world(world)
-            , theid(world.register_ptr(this))
             , pmap(pmap)
             , attr(attr)
             , me(world.mpi.rank())
@@ -668,7 +667,7 @@ namespace madness {
     /// Similarly, when a container is destroyed, the actual
     /// destruction is deferred until a synchronization point
     /// (world.gop.fence()) in order to eliminate the need to fence
-    /// before and after destroying every container.
+    /// before destroying every container.
     ///
     /// The caching behavior is controlled by the attributes class.
     /// Currently, this is untested and no caching is enabled.
@@ -907,6 +906,10 @@ namespace madness {
 	};
 
         /// Process pending messages 
+
+        /// If the constructor was given \c do_pending=false then you
+        /// \em must invoke this routine in order to process both
+        /// prior and future messages.
         inline void process_pending() {
             check_initialized();
             p->process_pending();
@@ -1082,6 +1085,12 @@ namespace madness {
                 p = SharedPtr<implT>(static_cast<implT*>(ptr),false,false);  // use_count will be 0, which is good
             }
         }
+
+        /// Returns the associated unique id ... must be initialized
+        const uniqueidT& id() const {
+            check_initialized();
+            return p->id();
+        };
         
         /// Destructor passes ownership of implementation to world for deferred cleanup
         virtual ~WorldContainer() {};

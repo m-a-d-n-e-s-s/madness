@@ -146,14 +146,15 @@ namespace madness {
         World& world;                              //< Think globally act locally
         uniqueidT objid;                           //< Sense of self
         ProcessID me;                              //< Rank of self
+        bool ready;                                //< True when process_pending has been called
+        bool doing_pending;                        //< Temporary hack to aid in processing pending msg.
     
-
         // Handler for incoming AM with 0 arguments
         template <typename memfunT>
         static void handler(World& world, ProcessID src, const AmArg& arg) {
             detail::info<memfunT> info = arg;
             Derived* obj = world.ptr_from_id<Derived>(info.id);
-            if (obj) {
+            if (is_ready(obj)) {
                 typename detail::info<memfunT>::futureT result(info.ref);
                 result.set((obj->*info.memfun)());
             }
@@ -171,7 +172,7 @@ namespace madness {
             arg1T arg1;
             arg->unstuff(nbyte, info, arg1);
             Derived* obj = world.ptr_from_id<Derived>(info.id);
-            if (obj) {
+            if (is_ready(obj)) {
                 typename detail::info<memfunT>::futureT result(info.ref);
                 result.set((obj->*info.memfun)(arg1));
             }
@@ -189,7 +190,7 @@ namespace madness {
             arg2T arg2;
             arg->unstuff(nbyte, info, arg1, arg2);
             Derived* obj = world.ptr_from_id<Derived>(info.id);
-            if (obj) {
+            if (is_ready(obj)) {
                 typename detail::info<memfunT>::futureT result(info.ref);
                 result.set((obj->*info.memfun)(arg1,arg2));
             }
@@ -208,7 +209,7 @@ namespace madness {
             arg3T arg3;
             arg->unstuff(nbyte, info, arg1, arg2, arg3);
             Derived* obj = world.ptr_from_id<Derived>(info.id);
-            if (obj) {
+            if (is_ready(obj)) {
                 typename detail::info<memfunT>::futureT result(info.ref);
                 result.set((obj->*info.memfun)(arg1,arg2,arg3));
             }
@@ -228,7 +229,7 @@ namespace madness {
             arg4T arg4;
             arg->unstuff(nbyte, info, arg1, arg2, arg3, arg4);
             Derived* obj = world.ptr_from_id<Derived>(info.id);
-            if (obj) {
+            if (is_ready(obj)) {
                 typename detail::info<memfunT>::futureT result(info.ref);
                 result.set((obj->*info.memfun)(arg1,arg2,arg3,arg4));
             }
@@ -249,7 +250,7 @@ namespace madness {
             arg5T arg5;
             arg->unstuff(nbyte, info, arg1, arg2, arg3, arg4, arg5);
             Derived* obj = world.ptr_from_id<Derived>(info.id);
-            if (obj) {
+            if (is_ready(obj)) {
                 typename detail::info<memfunT>::futureT result(info.ref);
                 result.set((obj->*info.memfun)(arg1,arg2,arg3,arg4,arg5));
             }
@@ -263,7 +264,7 @@ namespace madness {
         static void handler_task(World& world, ProcessID src, const AmArg& arg) {
             detail::info<memfunT> info = arg;
             Derived* obj = world.ptr_from_id<Derived>(info.id);
-            if (obj) {
+            if (is_ready(obj)) {
                 typename detail::info<memfunT>::futureT result(info.ref);
                 world.taskq.add(new TaskMemfun<memfunT>(result,*obj,info.memfun,info.attr));
             }
@@ -281,7 +282,7 @@ namespace madness {
             arg1T arg1;
             arg->unstuff(nbyte, info, arg1);
             Derived* obj = world.ptr_from_id<Derived>(info.id);
-            if (obj) {
+            if (is_ready(obj)) {
                 typename detail::info<memfunT>::futureT result(info.ref);
                 world.taskq.add(new TaskMemfun<memfunT>(result,*obj,info.memfun,arg1,info.attr));
             }
@@ -299,7 +300,7 @@ namespace madness {
             arg2T arg2;
             arg->unstuff(nbyte, info, arg1, arg2);
             Derived* obj = world.ptr_from_id<Derived>(info.id);
-            if (obj) {
+            if (is_ready(obj)) {
                 typename detail::info<memfunT>::futureT result(info.ref);
                 world.taskq.add(new TaskMemfun<memfunT>(result,*obj,info.memfun,arg1,arg2,info.attr));
             }
@@ -318,7 +319,7 @@ namespace madness {
             arg3T arg3;
             arg->unstuff(nbyte, info, arg1, arg2, arg3);
             Derived* obj = world.ptr_from_id<Derived>(info.id);
-            if (obj) {
+            if (is_ready(obj)) {
                 typename detail::info<memfunT>::futureT result(info.ref);
                 world.taskq.add(new TaskMemfun<memfunT>(result,*obj,info.memfun,arg1,arg2,arg3,info.attr));
             }
@@ -338,7 +339,7 @@ namespace madness {
             arg4T arg4;
             arg->unstuff(nbyte, info, arg1, arg2, arg3, arg4);
             Derived* obj = world.ptr_from_id<Derived>(info.id);
-            if (obj) {
+            if (is_ready(obj)) {
                 typename detail::info<memfunT>::futureT result(info.ref);
                 world.taskq.add(new TaskMemfun<memfunT>(result,*obj,info.memfun,arg1,arg2,arg3,arg4,info.attr));
             }
@@ -359,7 +360,7 @@ namespace madness {
             arg5T arg5;
             arg->unstuff(nbyte, info, arg1, arg2, arg3, arg4, arg5);
             Derived* obj = world.ptr_from_id<Derived>(info.id);
-            if (obj) {
+            if (is_ready(obj)) {
                 typename detail::info<memfunT>::futureT result(info.ref);
                 world.taskq.add(new TaskMemfun<memfunT>(result,*obj,info.memfun,arg1,arg2,arg3,arg4,arg5,info.attr));
             }
@@ -368,35 +369,82 @@ namespace madness {
             }
         }
 
+        // Returns true if obj is not NULL pointer and is also ready for incoming messages
+        static bool is_ready(Derived* obj) {
+            if (obj) {
+                WorldObject* p = static_cast<WorldObject*>(obj);
+                if (p->doing_pending) {
+                    p->doing_pending = false;
+                    return true;
+                }
+                else {
+                    return p->ready;
+                }
+            }
+            return false;
+        };
+
     protected:
 
         /// To be called from \em derived constructor to process pending messages
 
         /// Cannot call this from the WorldObject constructor since the
         /// derived class would not yet be fully constructed.
+        ///
+        /// !! No incoming messages are processed until this routine is invoked
+        /// so the Derived class may rely upon well defined state until this routine
+        /// is invoked.
         void process_pending() {
-            for (typename std::list<detail::PendingMsg*>::iterator it = pending.begin();
-                 it != pending.end();) {
-                detail::PendingMsg* p = *it;
-                if (p->id == objid) {
-                    p->invokehandler(world);
-                    delete p;
-                    it = pending.erase(it);
-                }
-                else {
-                    ++it;
+            // While processing the pendingQ, an incoming AM may still be appended to the
+            // Q so we must keep processing until all is done.
+
+
+            // This loop and use of ndone/ready/doing_pending requires careful reconsideration
+            // when going multi-threaded.
+            int ndone = 1;
+            while (ndone) {
+                ndone = 0;
+                for (typename std::list<detail::PendingMsg*>::iterator it = pending.begin();
+                     it != pending.end();) {
+                    detail::PendingMsg* p = *it;
+                    if (p->id == objid) {
+                        // Ugh!  Override ready=false just for this message.
+                        // is_ready() looks at doing_pending and resets it
+                        // to false.  This relies on no call to polling
+                        // between here and use of this flag, and also
+                        // that we are single threaded ... something else
+                        // will have to happen for multi-core.
+                        doing_pending = true;
+                        p->invokehandler(world);
+                        delete p;
+                        // Having the erase after the invoke ensures any 
+                        // incoming AM are also digested in this loop.
+                        // But only in polling implementation.
+                        it = pending.erase(it);
+                        ndone ++;
+                    }
+                    else {
+                        ++it;
+                    }
                 }
             }
-            if (!pending.empty()) print("Warning ... remaining pending messages!");
+
+            ready = true;
         };
 
 
     public:
         /// Associates object with globally unique ID
+
+        /// !! The derived class MUST call process_pending both to 
+        /// process any messages that arrived prior to construction
+        /// and to enable processing of future messages.
         WorldObject(World& world) 
             : world(world)
             , objid(world.register_ptr(static_cast<Derived*>(this)))
             , me(world.rank())
+            , ready(false)
+            , doing_pending(false)
         {};
         
         
