@@ -127,7 +127,6 @@ namespace madness {
     template <int NDIM> int FunctionDefaults<NDIM>::initial_level;   
     template <int NDIM> int FunctionDefaults<NDIM>::max_refine_level;
     template <int NDIM> int FunctionDefaults<NDIM>::truncate_mode; 
-    template <int NDIM> bool FunctionDefaults<NDIM>::compress;       
     template <int NDIM> bool FunctionDefaults<NDIM>::refine;         
     template <int NDIM> bool FunctionDefaults<NDIM>::autorefine;     
     template <int NDIM> bool FunctionDefaults<NDIM>::debug;          

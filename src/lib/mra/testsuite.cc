@@ -37,6 +37,7 @@
 
   
 #include <mra/mra.h>
+#include <tensor/random.h>
 
 const double PI = 3.1415926535897932384;
 
@@ -64,6 +65,53 @@ public:
     };
 };
 
+template <typename T, typename L, typename R>
+inline T product(L l, R r) {
+    return T(l*r);
+}
+
+
+/// Makes a square-normalized Gaussian with random origin and exponent
+template <typename T, int NDIM>
+GaussianFunctor<T,NDIM>*
+RandomGaussianFunctor(const Tensor<double> cell, double expntmax=1e5) {
+    typedef Vector<double,NDIM> coordT;
+    coordT origin;
+    for (int i=0; i<NDIM; i++) {
+        origin[i] = RandomNumber<double>()*(cell(i,1)-cell(i,0)) + cell(i,0);
+    }
+    double lo = log(0.1);
+    double hi = log(expntmax);
+    double expnt = exp(RandomNumber<double>()*(hi-lo) + lo);
+    T coeff = pow(2.0*expnt/PI,0.25*NDIM);            
+    print("random origin  ",origin);
+    print("random exponent",expnt);
+    print("random coeff   ",coeff);
+    return new GaussianFunctor<T,NDIM>(origin,expnt,coeff);
+}
+
+/// Returns a new functor combining two functors via operation op(left,right)
+template <typename resultT, typename L, typename R, typename opT, int NDIM>
+class BinaryOpFunctor : public FunctionFunctorInterface<resultT,NDIM> {
+    typedef Vector<double,NDIM> coordT;
+    typedef SharedPtr< FunctionFunctorInterface<L,NDIM> > functorL;
+    typedef SharedPtr< FunctionFunctorInterface<R,NDIM> > functorR;
+
+    functorL left;
+    functorR right;
+    opT op;
+
+public:
+    BinaryOpFunctor(functorL& left, functorR& right, opT& op) 
+        : left(left), right(right), op(op)
+    {};
+
+    resultT operator()(const coordT& x) const {
+        return op((*left)(x),(*right)(x));
+    };
+};
+
+
 template <typename T, int NDIM>
 void test_basic(World& world) {
     typedef Vector<double,NDIM> coordT;
@@ -74,12 +122,11 @@ void test_basic(World& world) {
               archive::get_type_name<T>(),", ndim =",NDIM);
 
     for (int i=0; i<NDIM; i++) {
-        FunctionDefaults<NDIM>::cell(i,0) = -11.0-2*i;  // Deliberately assymetric bounding box
+        FunctionDefaults<NDIM>::cell(i,0) = -11.0-2*i;  // Deliberately asymmetric bounding box
         FunctionDefaults<NDIM>::cell(i,1) =  10.0+i;
     }
     FunctionDefaults<NDIM>::k = 7;
     FunctionDefaults<NDIM>::thresh = 1e-5;
-    FunctionDefaults<NDIM>::compress = false;
     FunctionDefaults<NDIM>::refine = true;
     FunctionDefaults<NDIM>::initial_level = 2;
     
@@ -94,7 +141,7 @@ void test_basic(World& world) {
     for (int i=0; i<NDIM; i++) point[i] = 0.1*i;
 
     used = -wall_time();
-    Function<T,NDIM> f = FunctionFactory<double,NDIM>(world).functor(functor);
+    Function<T,NDIM> f = FunctionFactory<T,NDIM>(world).functor(functor);
     used += wall_time();
     double norm = f.norm2();
     double err = f.err(*functor);
@@ -183,7 +230,7 @@ void test_conv(World& world) {
 	int ntop = 5;
 	if (NDIM > 2 && k>5) ntop = 4;
 	for (int n=1; n<=ntop; n++) {
-	    Function<T,NDIM> f = FunctionFactory<T,NDIM>(world).functor(functor).nocompress().norefine().initial_level(n).k(k);
+	    Function<T,NDIM> f = FunctionFactory<T,NDIM>(world).functor(functor).norefine().initial_level(n).k(k);
 	    double err2 = f.err(*functor);
             std::size_t size = f.size();
             if (world.rank() == 0) 
@@ -207,7 +254,6 @@ void test_math(World& world) {
     FunctionDefaults<NDIM>::k = 9;
     FunctionDefaults<NDIM>::thresh = 1e-9;
     FunctionDefaults<NDIM>::truncate_mode = 0;
-    FunctionDefaults<NDIM>::compress = false;
     FunctionDefaults<NDIM>::refine = true;
     FunctionDefaults<NDIM>::autorefine = false;
     FunctionDefaults<NDIM>::initial_level = 2;
@@ -290,6 +336,30 @@ void test_math(World& world) {
     if (world.rank() == 0) 
         print("f(origin)",val,"f(origin)+8",val2);
 
+    // Test squaring a function by multiplication
+    f = Function<T,NDIM>(FunctionFactory<T,NDIM>(world).functor(functor));
+    fsq = f*f;
+    err = fsq.err(*functsq);
+    if (world.rank() == 0) 
+        print("err in fsq by mul",err);
+
+    f.clear();
+
+    // Test multiplying random functions
+    for (int i=0; i<10; i++) {
+        functorT f1(RandomGaussianFunctor<T,NDIM>(FunctionDefaults<NDIM>::cell,100.0));
+        functorT f2(RandomGaussianFunctor<T,NDIM>(FunctionDefaults<NDIM>::cell,100.0));
+        T (*p)(T,T) = &product<T,T,T>;
+        functorT f3(new BinaryOpFunctor<T,T,T,T(*)(T,T),NDIM>(f1,f2,p));
+        print((*f1)(origin)*(*f2)(origin),(*f3)(origin));
+        Function<T,NDIM> a = FunctionFactory<T,NDIM>(world).functor(f1);
+        Function<T,NDIM> b = FunctionFactory<T,NDIM>(world).functor(f2);
+        print("HERE");
+        Function<T,NDIM> c = a*b;
+        print("THERE");
+        err = c.err(*f3);
+        if (world.rank() == 0) print(i,err);
+    }      
 }
 
 
@@ -303,13 +373,13 @@ int main(int argc, char**argv) {
         test_conv<double,1>(world);
         test_math<double,1>(world);
 
-//         test_basic<double,2>(world);
-//         test_conv<double,2>(world);
-//         test_math<double,2>(world);
+        test_basic<double,2>(world);
+        test_conv<double,2>(world);
+        test_math<double,2>(world);
 
-//         test_basic<double,3>(world);
-//         test_conv<double,3>(world);
-//         test_math<double,3>(world);
+        test_basic<double,3>(world);
+        test_conv<double,3>(world);
+        test_math<double,3>(world);
 
     } catch (const MPI::Exception& e) {
         print(e);

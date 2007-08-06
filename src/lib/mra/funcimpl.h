@@ -99,7 +99,6 @@ namespace madness {
         static int initial_level;      ///< Initial level for fine scale projection
         static int max_refine_level;   ///< Level at which to stop refinement
         static int truncate_mode;    ///< Truncation method
-        static bool compress;          ///< Whether to compress new functions
         static bool refine;            ///< Whether to refine new functions
         static bool autorefine;        ///< Whether to autorefine in multiplication, etc.
         static bool debug;             ///< Controls output of debug info
@@ -113,7 +112,6 @@ namespace madness {
             initial_level = 2;
             max_refine_level = 30;
             truncate_mode = 0;
-            compress = false;
             refine = true;
             autorefine = true;
             debug = false;
@@ -243,7 +241,7 @@ namespace madness {
     /// This class provides something very close.  Create functions as follows
     /// \code
     /// double myfunc(const double x[]);
-    /// Function<double,3> f = FunctionFactory<double,3>(world).f(myfunc).k(11).thresh(1e-9).debug().nocompress()
+    /// Function<double,3> f = FunctionFactory<double,3>(world).f(myfunc).k(11).thresh(1e-9).debug()
     /// \endcode
     /// where the methods of function factory, which specify the non-default
     /// arguments eventually passed to the \c Function constructor, can be
@@ -263,7 +261,6 @@ namespace madness {
         int _initial_level;
         int _max_refine_level;
         int _truncate_mode;
-        bool _compress;
         bool _refine;
         bool _empty;
         bool _autorefine;
@@ -280,7 +277,6 @@ namespace madness {
             , _initial_level(FunctionDefaults<NDIM>::initial_level)
             , _max_refine_level(FunctionDefaults<NDIM>::max_refine_level)
             , _truncate_mode(FunctionDefaults<NDIM>::truncate_mode)
-            , _compress(FunctionDefaults<NDIM>::compress)
             , _refine(FunctionDefaults<NDIM>::refine)
             , _empty(false)
             , _autorefine(FunctionDefaults<NDIM>::autorefine)
@@ -314,14 +310,6 @@ namespace madness {
         };
         inline FunctionFactory& truncate_mode(int truncate_mode) {
             _truncate_mode = truncate_mode;
-            return *this;
-        };
-        inline FunctionFactory& compress(bool compress = true) {
-            _compress = compress;
-            return *this;
-        };
-        inline FunctionFactory& nocompress(bool nocompress = true) {
-            _compress = !nocompress;
             return *this;
         };
         inline FunctionFactory& refine(bool refine = true) {
@@ -501,7 +489,6 @@ namespace madness {
         int max_refine_level;   ///< Do not refine below this level
         int truncate_mode;      ///< 0=default=(|d|<thresh), 1=(|d|<thresh/2^n);
         bool autorefine;        ///< If true, autorefine where appropriate
-        bool do_refine;          ///< If true, refine when constructed
         bool nonstandard;       ///< If true, compress keeps scaling coeff
 
         const FunctionCommonData<T,NDIM>& cdata;
@@ -511,7 +498,6 @@ namespace madness {
         SharedPtr< FunctionFunctorInterface<T,NDIM> > functor;
 
         bool compressed;        ///< Compression status
-        long nterminated;       ///< No. of boxes where adaptive refinement was too deep
 
         dcT coeffs;             ///< The coefficients
 
@@ -522,6 +508,9 @@ namespace madness {
         const Tensor<double> cell_width;///< Width of simulation cell in each dimension
         Tensor<double> rcell_width; ///< Reciprocal of width
         const double cell_volume;       ///< Volume of simulation cell
+
+        // Disable the default copy constructor
+        FunctionImpl(const FunctionImpl<T,NDIM>& p);
 
     public:
 
@@ -535,14 +524,12 @@ namespace madness {
             , max_refine_level(factory._max_refine_level)
             , truncate_mode(factory._truncate_mode)
             , autorefine(factory._autorefine)
-            , do_refine(factory._refine)
             , nonstandard(false)
             , cdata(FunctionCommonData<T,NDIM>::get(k))
             , f(factory._f)
             , vf(factory._vf)
             , functor(factory._functor)
             , compressed(false)
-            , nterminated(0)
             , coeffs(world,factory._pmap,false)
             , cell(FunctionDefaults<NDIM>::cell) 
             , bc(FunctionDefaults<NDIM>::bc)
@@ -550,46 +537,39 @@ namespace madness {
             , rcell_width(copy(cell_width))
             , cell_volume(cell_width.product())
         {
+            // !!! Ensure that all local state is correctly formed
+            // before invoking process_pending for the coeffs and
+            // for this.  Otherwise, there is a race condition.
             MADNESS_ASSERT(k>0 && k<MAXK);
 
             // Ultimately, must set cell, bc, etc. from the factory not the defaults
             for (int i=0; i<NDIM; i++) rcell_width(i) = 1.0/rcell_width(i);
 
             bool empty = factory._empty;
-            bool do_compress = factory._compress;
-            bool do_fence = factory._do_fence;
+            bool do_refine = factory._refine;
+
+
             if (do_refine) initial_level = std::max(0,initial_level - 1);
 
             if (empty) {        // Do not set any coefficients at all
-                compressed = do_compress;
-                coeffs.process_pending(); 
-                this->process_pending();
             }
-            else if (f || vf || functor) { // Project function and optionally compress
-                compressed = false;
-                world.am.suspend();
+            else if (f || vf || functor) { // Project function and optionally refine
                 insert_zero_down_to_initial_level(cdata.key0);
                 for(typename dcT::iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
                     if (it->second.is_leaf()) task(coeffs.owner(it->first), 
                                                    &implT::project_refine_op, 
-                                                   it->first);
+                                                   it->first, do_refine);
                 };
-                world.am.resume();
-                coeffs.process_pending(); 
-                this->process_pending();
-                if (do_compress) {
-                    if (do_refine) world.gop.fence();
-                    compress(do_fence);
-                }
-                if (do_fence) world.gop.fence();
             }
             else {  // Set as if a zero function
                 initial_level = 0;
-                compressed = do_compress;
                 insert_zero_down_to_initial_level(keyT(0));
-                coeffs.process_pending(); 
-                this->process_pending();
             };
+
+            coeffs.process_pending(); 
+            this->process_pending();
+            
+            if (factory._do_fence) world.gop.fence();
         };
 
         /// Copy constructor
@@ -609,14 +589,12 @@ namespace madness {
             , max_refine_level(other.max_refine_level)
             , truncate_mode(other.truncate_mode)
             , autorefine(other.autorefine)
-            , do_refine(other.do_refine)
             , nonstandard(other.nonstandard)
             , cdata(other.cdata)
             , f(other.f)
             , vf(other.vf)
             , functor(other.functor)
             , compressed(other.compressed)
-            , nterminated(other.nterminated)
             , coeffs(world, pmap ? pmap : other.coeffs.get_pmap())
             , cell(other.cell)
             , bc(other.bc)
@@ -933,7 +911,7 @@ namespace madness {
 
 
         /// Projection with optional refinement
-        Void project_refine_op(const keyT& key) {
+        Void project_refine_op(const keyT& key, bool do_refine) {
             if (do_refine) {
                 // Make in r child scaling function coeffs at level n+1
                 tensorT r(cdata.v2k);
@@ -959,7 +937,7 @@ namespace madness {
                     if (key.level()==max_refine_level) print("MAX REFINE LEVEL",key);
                     for (KeyChildIterator<NDIM> it(key); it; ++it) {
                         const keyT& child = it.key();
-                        task(coeffs.owner(child), &implT::project_refine_op, child); // ugh
+                        task(coeffs.owner(child), &implT::project_refine_op, child, do_refine); // ugh
                     }
                 }
             }
@@ -1036,15 +1014,18 @@ namespace madness {
         
         /// Invoked as a task by mul with the actual coefficients
         template <typename L, typename R>
-        Void do_mul(const keyT& key, const Tensor<L>& left, const std::pair< const keyT, const Tensor<R> >& arg) {
+        Void do_mul(const keyT& key, const Tensor<L>& left, const std::pair< keyT, Tensor<R> >& arg) {
             const keyT& rkey = arg.first;
             const Tensor<R>& rcoeff = arg.second;
             Tensor<R> rcube = fcube_for_mul(key, rkey, rcoeff);
-            Tensor<L> lcube(cdata.vq);
+            Tensor<L> lcube = fcube_for_mul(key,  key, left);
+
             Tensor<T> tcube(cdata.vk,false);
             TERNARY_OPTIMIZED_ITERATOR(T, tcube, L, lcube, R, rcube, *_p0 = *_p1 * *_p2;);
-            tcube.scale(sqrt(cell_volume*pow(0.5,double(NDIM*key.level()))));
-            return transform(tcube,cdata.quad_phiw);
+            double scale = pow(0.5,0.5*NDIM*key.level())*sqrt(cell_volume);
+            tcube = transform(tcube,cdata.quad_phiw).scale(scale);
+            coeffs.insert(key, nodeT(tcube,false));
+            return None;
         };
             
 
@@ -1057,11 +1038,13 @@ namespace madness {
         /// Possible non-blocking communication and optional fence.
         template <typename L, typename R>
         void mul(const FunctionImpl<L,NDIM>& left, const FunctionImpl<R,NDIM>& right, bool fence) {
-            typedef std::pair< keyT,Tensor<R> > rargT;
-            typedef std::pair< keyT,Tensor<L> > largT;
+            typedef std::pair< keyT,Tensor<R> > rpairT;
+            typedef std::pair< keyT,Tensor<L> > lpairT;
             MADNESS_ASSERT(coeffs.get_pmap() == left.coeffs.get_pmap() && \
                            coeffs.get_pmap() == right.coeffs.get_pmap());
-
+            MADNESS_ASSERT(left.verify_tree());
+            MADNESS_ASSERT(right.verify_tree());
+            
             // The three possibilities for the relative position of
             // the left and right coefficients in the tree are:
             //
@@ -1075,20 +1058,29 @@ namespace madness {
                 ++it) {
                 const keyT& key = it->first;
                 const FunctionNode<L,NDIM>& left_node = it->second;
+
                 if (left_node.has_coeff()) {
                     if (right.coeffs.probe(key)) {
                         const FunctionNode<R,NDIM>& right_node = right.coeffs.find(key).get()->second;
                         if (right_node.has_coeff()) {
-                            task(do_mul, key, left_node.coeff(), argT(key,right_node.coeff()));  // Case 1.
+                            task(world.rank(), &implT:: template do_mul<L,R>, key, left_node.coeff(), 
+                                 rpairT(key,right_node.coeff()));  // Case 1.
                         }
                     }
                     else { // If right node does not exist then it must be further up the tree
                         const keyT parent = key.parent();
-                        Future<rargT> arg;
-                        right.send(owner(parent), &FunctionImpl<R,NDIM>::sock_it_to_me, parent, arg.remote_ref());
-                        task(do_mul, key, left_node.coeff(), arg); // Case 2.
+                        Future<rpairT> arg;
+                        const_cast<FunctionImpl<R,NDIM>*>(&right)->
+                            send(coeffs.owner(parent), &FunctionImpl<R,NDIM>::sock_it_to_me, 
+                                 parent, arg.remote_ref(world));
+                        task(world.rank(), &implT:: template do_mul<L,R>, key, left_node.coeff(), arg); // Case 2.
                     }
                 }
+                else if (!coeffs.probe(key)) {
+                    // Interior node
+                    coeffs.insert(key,nodeT(tensorT(),true));
+                }
+                    
             }
 
             // Now loop thru local coeff in right and do case 3.
@@ -1099,15 +1091,112 @@ namespace madness {
                 const FunctionNode<R,NDIM>& right_node = it->second;
                 if (right_node.has_coeff()) {
                     if (!left.coeffs.probe(key)) {
-                        Future<largT> arg;
+                        Future<lpairT> arg;
                         const keyT& parent = key.parent();
-                        left.send(owner(parent), &FunctionImpl<L,NDIM>::sock_it_to_me, parent, arg.remote_ref());
-                        task(do_mul, key, right_node.coeff(), arg); // Case 3.
+                        const_cast<FunctionImpl<L,NDIM>*>(&left)->
+                            send(coeffs.owner(parent), &FunctionImpl<L,NDIM>::sock_it_to_me, 
+                                 parent, arg.remote_ref(world));
+                        task(world.rank(), &implT:: template do_mul<R,L>, key, right_node.coeff(), arg); // Case 3.
+                    }
+                }
+                else if (!coeffs.probe(key)) {
+                    // Interior node
+                    coeffs.insert(key,nodeT(tensorT(),true));
+                }
+
+            }
+            if (fence) world.gop.fence();
+            MADNESS_ASSERT(verify_tree());
+        }
+
+
+        /// Verify tree is properly constructed ... global synchronization
+
+        /// Returns true on success.  Otherwise prints messages and returns false.
+        /// Note that not all processes may return the same status.
+        ///
+        /// This is a reasonably quick and scalable operation that is
+        /// useful for debugging and paranoia.
+        bool verify_tree() const {
+            bool err = false;
+            world.gop.fence();
+
+            // Verify consistency of compression status, existence and size of coefficients,
+            // and has_children() flag.
+            for(typename dcT::const_iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
+                const keyT& key = it->first;
+                const nodeT& node = it->second;
+                bool bad = false;
+
+                if (node.has_coeff()) {
+                    if (is_compressed()) {
+                        bad = (node.coeff().dim[0] != 2*cdata.k) || !node.has_children();
+                    }
+                    else {
+                        bad = (node.coeff().dim[0] !=   cdata.k) ||  node.has_children();
+                    }
+                }
+                else {
+                    if (is_compressed()) {
+                        bad = node.has_children();
+                    }
+                    else {
+                        bad = !node.has_children();
+                    }
+                }
+                    
+
+                if (bad) {
+                    err = true;
+                    print(world.rank(), "FunctionImpl: verify: INCONSISTENT TREE NODE, key =", key, ", node =", node,
+                          ", dim[0] =",node.coeff().dim[0],", compressed =",is_compressed());
+                }
+            }
+            world.gop.fence();
+                            
+            // Ensure that parents and children exist appropriately
+            for(typename dcT::const_iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
+                const keyT& key = it->first;
+                const nodeT& node = it->second;
+
+
+                // NOTE MESSED UP CONSTNESS HERE DUE TO INCOMPLETE
+                // INTERFACE TO DC ... NEEDS FIXING IN THE DC CLASS.
+                if (key.level() > 0) {
+                    const keyT parent = key.parent();
+                    typename dcT::iterator pit = coeffs.find(parent).get();
+                    if (pit == const_cast<dcT*>(&coeffs)->end()) {
+                        print(world.rank(), "FunctionImpl: verify: MISSING PARENT",key,parent);
+                        err = true;
+                    }
+                    const nodeT& pnode = pit->second;
+                    if (!pnode.has_children()) {
+                        print(world.rank(), "FunctionImpl: verify: PARENT THINKS IT HAS NO CHILDREN",key,parent);
+                        err = true;
+                    }
+                }
+
+                for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
+                    typename dcT::iterator cit = coeffs.find(kit.key()).get();
+                    if (cit == const_cast<dcT*>(&coeffs)->end()) {
+                        if (node.has_children()) {
+                            print(world.rank(), "FunctionImpl: verify: MISSING CHILD",key,kit.key());
+                            err = true;
+                        }
+                    }
+                    else {
+                        if (! node.has_children()) {
+                            print(world.rank(), "FunctionImpl: verify: UNEXPECTED CHILD",key,kit.key());
+                            err = true;
+                        }
                     }
                 }
             }
-            if (fence) world.gop.fence();
-        }
+
+            world.gop.fence();
+            return !err;
+        };
+
 
         /// Walk up the tree returning pair(key,node) for first node with coefficients
 
@@ -1124,9 +1213,9 @@ namespace madness {
         /// parallelism but much less communication.
         Void sock_it_to_me(const keyT& key, 
                            const RemoteReference< FutureImpl< std::pair<keyT,tensorT> > >& ref) {
-            MADNESS_ASSERT(coeffs.probe(key));
-            const nodeT& node = coeffs.find(key).get()->second;
-            if (node.has_coeff()) {
+            if (coeffs.probe(key)) {
+                const nodeT& node = coeffs.find(key).get()->second;
+                MADNESS_ASSERT(node.has_coeff());
                 Future< std::pair<keyT,tensorT> > result(ref);
                 result.set(std::pair<keyT,tensorT>(key,node.coeff()));
             }

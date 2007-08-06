@@ -370,7 +370,7 @@ namespace madness {
         /// There is no automatic type conversion since this is generally a rather dangerous
         /// thing and because there would be no way to make the fence optional.
         template <typename Q>
-        Function<Q,NDIM> convert(bool fence = true) const {
+       Function<Q,NDIM> convert(bool fence = true) const {
             verify();
             Function<Q,NDIM> result;
 	    result.impl = SharedPtr< FunctionImpl<Q,NDIM> >(new FunctionImpl<Q,NDIM>(*impl));
@@ -445,25 +445,35 @@ namespace madness {
         };
 
 
-
-    private:
-        /// Private: this becomes left*right
+        /// This is replaced with left*right
         template <typename L, typename R>
-        void mul(const Function<L,NDIM>& left, const Function<R,NDIM>& right, bool fence) {
+        void mul(const Function<L,NDIM>& left, const Function<R,NDIM>& right, bool fence=true) {
             left.verify();
             right.verify();
             MADNESS_ASSERT(!(left.is_compressed() || right.is_compressed()));
-            impl = SharedPtr< FunctionImpl<T,NDIM > >(new FunctionImpl<T,NDIM>(*left.impl));
+            impl = SharedPtr<implT>(new implT(*left.impl, left.get_pmap()));
             impl->mul(*left.impl,*right.impl,fence);
         };
     };
 
     
-    /// Create a new function that is the square input - global comm only if not reconstructed
+    template <typename L, typename R, int NDIM>
+    Function< typename TensorResultType<L,R>::type, NDIM>
+    operator*(const Function<L,NDIM>& left, const Function<R,NDIM>& right) {
+        typedef typename TensorResultType<L,R>::type T;
+        Function<T,NDIM> result;
+        if (left.is_compressed()) const_cast<Function<L,NDIM>&>(left).reconstruct();
+        if (right.is_compressed()) const_cast<Function<R,NDIM>&>(right).reconstruct();
+        result.mul(left,right);
+        return result;
+    }
+
+    
+    /// Create a new function that is the square of f - global comm only if not reconstructed
     template <typename T, int NDIM>
     Function<T,NDIM> square(const Function<T,NDIM>& f, bool fence) {
-        Function<T,NDIM> result = copy(f);
-        return result.square_inplace();
+        Function<T,NDIM> result = copy(f,false);
+        return result.square_inplace(fence);
     };
     
 
