@@ -72,6 +72,22 @@ namespace madness {
 
     template <class T> class SliceTensor;
 
+    template <> double RandomNumber<double> () {
+        //return std::rand()/(RAND_MAX+1.0);
+        return genrand_res53();
+    }
+    template <> float RandomNumber<float> () {
+        //return std::rand()/(RAND_MAX+1.0);
+        return float(genrand_real2());
+    }
+    template <> double_complex RandomNumber<double_complex> () {
+        return double_complex(RandomNumber<double>(),RandomNumber<double>());
+    }
+    template <> float_complex RandomNumber<float_complex> () {
+        return float_complex(RandomNumber<float>(),RandomNumber<float>());
+    }
+
+
     /// All new tensors are initialized by init except for the default constructor
     template <class T>
     void Tensor<T>::init(long nd, const long d[], bool dozero) {
