@@ -85,8 +85,8 @@ namespace madness {
     class WorldDCPmapInterface {
     public:
         virtual ProcessID owner(const keyT& key) const = 0;
-        virtual ~WorldDCPmapInterface() {};
-	virtual void print() const {};
+        virtual ~WorldDCPmapInterface() {}
+	virtual void print() const {}
     };
 
     /// Default process map is "random" using madness::hash(key)
@@ -104,7 +104,7 @@ namespace madness {
             mask = 1;
             while (mask < (unsigned) nproc) mask <<= 1;
             mask--;
-        };
+        }
         
         ProcessID owner(const keyT& key) const {
             if (nproc == 1) return 0;
@@ -112,7 +112,7 @@ namespace madness {
             int h = hh&mask;
             if (h >= nproc) h -= nproc;
             return h;
-        };
+        }
     };
     
     
@@ -121,13 +121,13 @@ namespace madness {
         mutable int nref;  // Reference count
         mutable std::vector<CallbackInterface*> callbacks;
         
-        CacheInfo(int nref = 0) : nref(nref), callbacks() {};
+        CacheInfo(int nref = 0) : nref(nref), callbacks() {}
         
         // Iterators register their interest here
         void register_callback(CallbackInterface* callback) {
             nref++;
             callbacks.push_back(callback);
-        };
+        }
         
         // Iterators unregister their interest here
         void unregister_callback(CallbackInterface* callback) {
@@ -138,14 +138,14 @@ namespace madness {
                     break;
                 }
             }
-        };
+        }
         
         // Destructor invalidates referencing iterators
         ~CacheInfo() {
             for (std::size_t i=0; i<callbacks.size(); i++) {
                 if (callbacks[i]) callbacks[i]->notify();
             }
-        };
+        }
     };
     
     /// Iterator for distributed container wraps the local iterator
@@ -178,11 +178,11 @@ namespace madness {
         void notify() {
             impl = 0;
             it = internal_iteratorT();
-        };
+        }
         
         inline void register_cache_callback() {
             if (impl && fromcache) cacheit->second.register_callback(static_cast<CallbackInterface*>(this));
-        };
+        }
         
         inline void unregister_cache_callback() {
             if (impl && fromcache) {
@@ -194,14 +194,14 @@ namespace madness {
                     impl->cache_erase(it,cacheit);
                 }
             }
-        };
+        }
         
         
     public:
         /// Default constructor (same as end())
         WorldContainerIterator() 
             : impl(0), it(), cacheit(), fromcache(false)
-        {};
+        {}
         
         /// Private: Constructor used internally
         WorldContainerIterator(implT* impl, 
@@ -211,14 +211,14 @@ namespace madness {
             : impl(impl), it(it), cacheit(cacheit), fromcache(fromcache) 
         {
             register_cache_callback();
-        };
+        }
         
         /// Copy constructor (increments reference count)
         WorldContainerIterator(const WorldContainerIterator& other) 
             : impl(other.impl), it(other.it), cacheit(other.cacheit), fromcache(other.fromcache)
         {
             register_cache_callback();
-        };
+        }
         
         /// Assignment (increments reference count)
         WorldContainerIterator& operator=(const WorldContainerIterator& other) {
@@ -231,7 +231,7 @@ namespace madness {
                 register_cache_callback();   // <---
             }
             return *this;
-        };
+        }
         
         /// Determines if two iterators are identical
         bool operator==(const WorldContainerIterator& other) const {
@@ -241,12 +241,12 @@ namespace madness {
 	  else {
             return it==other.it;
 	  }
-        };
+        }
         
         /// Determines if two iterators are different
         bool operator!=(const WorldContainerIterator& other) const {
 	  return !(*this == other);
-        };
+        }
         
         /// Pre-increment of an iterator (i.e., ++it) --- \em local iterators only
         
@@ -257,41 +257,41 @@ namespace madness {
                 if (++it == impl->local.end()) *this = impl->end();
             }
             return *this;
-        };
+        }
         
         /// Iterators dereference to std::pair<const keyT,valueT>
         const pairT* operator->() const {
             return it.operator->();
-        };
+        }
         
         /// Iterators dereference to std::pair<const keyT,valueT>
         pairT* operator->() {
             return it.operator->();
-        };
+        }
         
         /// Iterators dereference to const std::pair<const keyT,valueT>
         const pairT& operator*() const {
             return *it;
-        };
+        }
         
         /// Iterators dereference to std::pair<const keyT,valueT>
         pairT& operator*() {
             return *it;
-        };
+        }
         
         /// Private: (or should be) Returns iterator of internal container
         const internal_iteratorT& get_internal_iterator() const {
             return it;
-        };
+        }
         
         /// Returns true if this is a cached remote value
         bool is_cached() const {
             return fromcache;
-        };
+        }
         
         ~WorldContainerIterator() {
             unregister_cache_callback();
-        };
+        }
 
 
 	void dump() const {
@@ -307,7 +307,7 @@ namespace madness {
 	  else {
 	    std::cout << " empty" << std::endl;
 	  }
-	};
+	}
 
         
         template <typename Archive>
@@ -333,7 +333,7 @@ namespace madness {
         struct DCLocalHash {
             std::size_t operator()(const T& t) const {
                 return hash(t);
-            };
+            }
         };
         typedef HASH_MAP_NAMESPACE::hash_map< keyT,CacheInfo,DCLocalHash<keyT> > cacheinfoT;
         typedef HASH_MAP_NAMESPACE::hash_map< keyT,valueT,DCLocalHash<keyT> > internal_containerT;
@@ -371,13 +371,13 @@ namespace madness {
 	  std::pair<typename containerT::iterator,bool> p = c.insert(d);
 	  if (!p.second) p.first->second = d.second;   // Who's on first?
 	  return p.first;
-	};
+	}
 
         /// Removes (remote) item from local cache
         void cache_erase (const internal_const_iteratorT& it, const cacheinfo_iteratorT& cacheit) const {
             cache.erase(it->first);
             cacheinfo.erase(cacheit);
-        };
+        }
         
         
         /// Handles find request
@@ -395,7 +395,7 @@ namespace madness {
                 else send(requestor, &implT::find_success_handler, ref, *r);
             }
             return None;
-        };
+        }
         
         /// Handles successful find response
         Void find_success_handler(const RemoteReference< FutureImpl<iterator> >& ref, const pairT& datum) {
@@ -417,7 +417,7 @@ namespace madness {
             f->set(iterator(this, it, cacheit, true));
             ref.dec(); // Matching inc() in find() where ref was made
             return None;
-        };
+        }
         
         /// Handles unsuccessful find response
         Void find_failure_handler(const RemoteReference< FutureImpl<iterator> >& ref) {
@@ -426,7 +426,7 @@ namespace madness {
             //print("in remote failure handler");
             ref.dec(); // Matching inc() in find() where ref was made
             return None;
-        };
+        }
         
     public:
         
@@ -444,36 +444,36 @@ namespace madness {
             , end_const_iterator()
         {
             if (do_pending) this->process_pending();
-	};
+	}
         
         
         ~WorldContainerImpl() {
-        };
+        }
 
 	const SharedPtr< WorldDCPmapInterface<keyT> >& get_pmap() const {
 	    return pmap;
-	};
+	}
 
         bool cache_read_policy() const {
             return attr.CacheReadPolicy;
-        };
+        }
 
 
         bool cache_write_policy() const {
             return attr.CacheReadPolicy;
-        };
+        }
 
         size_t cache_max_entries() const {
             return attr.CacheMaxEntries;
-        };
+        }
         
         bool is_local(const keyT& key) const {
             return owner(key) == me;
-        };
+        }
         
         ProcessID owner(const keyT& key) const {
             return pmap->owner(key);
-        };
+        }
         
         bool probe(const keyT& key) const {
             ProcessID dest = owner(key);
@@ -483,13 +483,13 @@ namespace madness {
                 return cache.find(key) != cache.end();
             else 
                 return false;
-        };
+        }
         
         std::size_t size() const {
             return local.size();
-        };
+        }
 
-        void handle_cache_overflow() {};
+        void handle_cache_overflow() {}
         
         Void insert(const pairT& datum) {
             ProcessID dest = owner(datum.first);
@@ -510,14 +510,14 @@ namespace madness {
                 send(dest, &implT::insert, datum);
             }
             return None;
-        };
+        }
         
         
         void clear() {
             local.clear();
             cache.clear();
             cacheinfo.clear();
-        };
+        }
         
         
         Void erase(const keyT& key) {
@@ -532,7 +532,7 @@ namespace madness {
                 send(dest, eraser, key);
             }                
             return None;
-        };
+        }
         
         
         void erase(const iterator& it) {
@@ -545,7 +545,7 @@ namespace madness {
             else { 
                 local.erase(it.get_internal_iterator());
             }
-        };
+        }
         
         void erase(const iterator& start, const iterator& finish) {
             iterator it = start;
@@ -554,28 +554,28 @@ namespace madness {
                 ++it;
                 erase(last);
             }
-        };
+        }
         
         iterator begin() {
             internal_iteratorT it = local.begin();
             if (it == local.end()) return end();
             return iterator(this,it,cacheinfo_iteratorT(),false);
-        };
+        }
         
         const_iterator begin() const {
             internal_const_iteratorT it = local.begin();
             if (it == local.end()) return end();
             return const_iterator(const_cast<const implT*>(this),
                                   it, cacheinfo_iteratorT(),false);
-        };
+        }
         
         const iterator& end() {
             return end_iterator;
-        };
+        }
         
         const const_iterator& end() const {
             return end_const_iterator;
-        };
+        }
         
         
         Future<iterator> find(const keyT& key) {
@@ -607,7 +607,7 @@ namespace madness {
                 send(dest, &implT::find_handler, me, key, result.remote_ref(world));
                 return result;
             }
-        };
+        }
         
         // Used to forward call to item member function
         template <typename memfunT>
@@ -700,7 +700,7 @@ namespace madness {
         
         inline void check_initialized() const {
             MADNESS_ASSERT(p);
-        };
+        }
     public:
         
         /// Makes an uninitialized container (no communication)
@@ -710,7 +710,7 @@ namespace madness {
         /// default constructors being executed in order.
         WorldContainer() 
             : p(0)
-        {};
+        {}
         
         
         /// Makes an initialized, empty container with default data distribution (no communication)
@@ -727,7 +727,7 @@ namespace madness {
                           do_pending))
         {
             world.deferred_cleanup(p);
-        };
+        }
         
         /// Makes an initialized, empty container (no communication)
         
@@ -740,7 +740,7 @@ namespace madness {
             : p(new implT(world,pmap,world_dc_default_attr,do_pending))
         {
             world.deferred_cleanup(p);
-        };
+        }
         
         
         /// Copy constructor is shallow (no communication)
@@ -751,7 +751,7 @@ namespace madness {
             : p(other.p)
         {
             check_initialized();
-        };
+        }
         
         /// Assignment is shallow (no communication)
         
@@ -763,26 +763,26 @@ namespace madness {
                 p = other.p;
             }
             return *this;
-        };
+        }
         
         /// Returns the world associated with this container
         World& world() {
             check_initialized();
             return p->world;
-        };
+        }
         
         
         /// Inserts key+value pair (non-blocking communication if key not local)
         void insert(const pairT& datum) {
             check_initialized();
             p->insert(datum);
-        };
+        }
         
         
         /// Inserts key+value pair (non-blocking communication if key not local)
         void insert(const keyT& key, const valueT& value) {
             insert(pairT(key,value));
-        };
+        }
         
         
         /// Inserts pairs (non-blocking communication if key(s) not local)
@@ -800,7 +800,7 @@ namespace madness {
         bool probe(const keyT& key) const {
             check_initialized();
             return p->probe(key);
-        };
+        }
         
         
         /// Returns processor that logically owns key (no communication)
@@ -810,14 +810,14 @@ namespace madness {
         inline ProcessID owner(const keyT& key) const {
             check_initialized();
             return p->owner(key);
-        };
+        }
         
         
         /// Returns true if the key maps to the local processor (no communication)
         bool is_local(const keyT& key) const {
             check_initialized();
             return p->is_local(key);
-        };
+        }
         
         
         /// Returns a future iterator (non-blocking communication if key not local)
@@ -828,32 +828,32 @@ namespace madness {
         Future<iterator> find(const keyT& key) const {
             check_initialized();
             return p->find(key);
-        };
+        }
         
         
         /// Returns an iterator to the beginning of the \em local data (no communication)
         iterator begin() {
             check_initialized();
             return p->begin();
-        };
+        }
         
         /// Returns an iterator to the beginning of the \em local data (no communication)
         const_iterator begin() const {
             check_initialized();
             return const_cast<const implT*>(p.get())->begin();
-        };
+        }
         
         /// Returns an iterator past the end of the \em local data (no communication)
         const iterator& end() {
             check_initialized();
             return p->end();
-        };
+        }
         
         /// Returns an iterator past the end of the \em local data (no communication)
         const const_iterator& end() const {
             check_initialized();
             return const_cast<const implT*>(p.get())->end();
-        };
+        }
         
         /// Erases entry from container (non-blocking comm if remote)
         
@@ -870,19 +870,19 @@ namespace madness {
         void erase(const keyT& key) {
             check_initialized();
             p->erase(key);
-        };
+        }
         
         /// Erases entry corresponding to \em local iterator (no communication)
         void erase(const iterator& it) {
             check_initialized();
             p->erase(it);
-        };            
+        }            
         
         /// Erases range defined by \em local iterators (no communication)
         void erase(const iterator& start, const iterator& finish) {
             check_initialized();
             p->erase(start,finish);
-        };
+        }
         
         
         /// Clears all \em local data (no communication)
@@ -891,19 +891,19 @@ namespace madness {
         void clear() {
             check_initialized();
             p->clear();
-        };
+        }
         
         /// Returns the number of \em local entries (no communication)
         std::size_t size() const {
             check_initialized();
             return p->size();
-        };
+        }
         
 
         /// Returns shared pointer to the process mapping
 	inline const SharedPtr< WorldDCPmapInterface<keyT> >& get_pmap() const {
 	    return p->get_pmap();
-	};
+	}
 
         /// Process pending messages 
 
@@ -913,7 +913,7 @@ namespace madness {
         inline void process_pending() {
             check_initialized();
             p->process_pending();
-        };
+        }
 
         /// Sends message "resultT memfun()" to item (non-blocking comm if remote)
         
@@ -1056,14 +1056,14 @@ namespace madness {
             iterator it = find(key).get();
             if (it == end()) MADNESS_EXCEPTION("WorldContainer: operator[]: missing entry",0);
             return it->second;
-        };
+        }
         
         /// Indexing is same as container[key].get()->second ... blocks until complete
         const valueT& operator[](const keyT& key) const {
             const_iterator it = find(key).get();
             if (it == end()) MADNESS_EXCEPTION("WorldContainer: operator[]: missing entry",0);
             return it->second;
-        };
+        }
         
         
         /// (de)Serialize --- !! ONLY for purpose of interprocess communication
@@ -1090,10 +1090,10 @@ namespace madness {
         const uniqueidT& id() const {
             check_initialized();
             return p->id();
-        };
+        }
         
         /// Destructor passes ownership of implementation to world for deferred cleanup
-        virtual ~WorldContainer() {};
+        virtual ~WorldContainer() {}
         
     };
 }

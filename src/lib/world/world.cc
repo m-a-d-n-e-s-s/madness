@@ -685,7 +685,7 @@ struct Key {
 
     hashT hash() const {
         return hashval;
-    };
+    }
 
     template <typename opT> 
     void foreach_child(const opT& op) const {
@@ -697,7 +697,7 @@ struct Key {
             for (int q=0; q<2; q++)
                 for (int r=0; r<2; r++)
                     op(Key(n2,i2+p,j2+q,k2+r));
-    };
+    }
 
     template <typename Archive>
     void serialize(const Archive& ar) {
@@ -707,7 +707,7 @@ struct Key {
     bool operator==(const Key& b) const {
         // It's extremely probable that different keys will have a different hash
         return hashval==b.hashval && n==b.n && i==b.i && j==b.j && k==b.k;
-    };
+    }
 };
 
 ostream& operator<<(ostream& s, const Key& key) {

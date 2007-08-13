@@ -44,6 +44,7 @@ namespace madness {
     template <typename T, int NDIM> class FunctionImpl;
     template <typename T, int NDIM> class Function;
     template <typename T, int D> class LoadBalImpl;
+//    template <int D> class LBTreeImpl;
     template <int D> class LBTree;
     template <int D> class MyPmap;
 }
@@ -61,7 +62,7 @@ namespace madness {
         const int n;
 
     public:
-        SimpleMap(World& world, int n = 4) : nproc(world.nproc()), me(world.rank()), n(n) {};
+        SimpleMap(World& world, int n = 4) : nproc(world.nproc()), me(world.rank()), n(n) {}
 
         ProcessID owner(const keyT& key) const {
             if (key.level() == 0) {
@@ -73,7 +74,7 @@ namespace madness {
             else {
                 return hash(key.parent(key.level()-n))%nproc;
             }
-        };
+        }
     };
 
 
@@ -121,7 +122,7 @@ namespace madness {
             //pmap = SharedPtr< WorldDCPmapInterface< Key<NDIM> > >(new WorldDCDefaultPmap< Key<NDIM> >(world));
             pmap = SharedPtr< WorldDCPmapInterface< Key<NDIM> > >(new MyPmap<NDIM>(world));
             //pmap = SharedPtr< WorldDCPmapInterface< Key<NDIM> > >(new SimpleMap< Key<NDIM> >(world));
-        };
+        }
     };
 
     /// FunctionCommonData holds all Function data common for given k
@@ -174,11 +175,11 @@ namespace madness {
             _init_quadrature(k, npt, quad_x, quad_w, quad_phi, quad_phiw, quad_phit);
             _make_dc_periodic();
             initialized = true;
-        };
+        }
 
         FunctionCommonData() 
             : initialized(false) 
-        {};
+        {}
         
         bool initialized;
     public:
@@ -217,7 +218,7 @@ namespace madness {
             MADNESS_ASSERT(k>0 && k<=MAXK);
             if (!data[k].initialized) data[k]._initialize(k);
             return data[k];
-        };
+        }
 
         /// Initialize the quadrature information
 
@@ -283,75 +284,75 @@ namespace madness {
             , _do_fence(true)
             , _pmap(FunctionDefaults<NDIM>::pmap)
             , _functor(0)
-        {};
+        {}
         inline FunctionFactory& f(T (*f)(const coordT&)) {
             _f = f;
             return *this;
-        };
+        }
         inline FunctionFactory& vf(void (*vf)(long, const double*, T* RESTRICT)) {
             _vf = vf;
             return *this;
-        };
+        }
         inline FunctionFactory& k(int k) {
             _k = k;
             return *this;
-        };
+        }
         inline FunctionFactory& thresh(double thresh) {
             _thresh = thresh;
             return *this;
-        };
+        }
         inline FunctionFactory& initial_level(int initial_level) {
             _initial_level = initial_level;
             return *this;
-        };
+        }
         inline FunctionFactory& max_refine_level(int max_refine_level) {
             _max_refine_level = max_refine_level;
             return *this;
-        };
+        }
         inline FunctionFactory& truncate_mode(int truncate_mode) {
             _truncate_mode = truncate_mode;
             return *this;
-        };
+        }
         inline FunctionFactory& refine(bool refine = true) {
             _refine = refine;
             return *this;
-        };
+        }
         inline FunctionFactory& norefine(bool norefine = true) {
             _refine = !norefine;
             return *this;
-        };
+        }
         inline FunctionFactory& empty() {
             _empty = true;
             return *this;
-        };
+        }
         inline FunctionFactory& autorefine() {
             _autorefine = true;
             return *this;
-        };
+        }
         inline FunctionFactory& noautorefine() {
             _autorefine = false;
             return *this;
-        };
+        }
         inline FunctionFactory& do_fence(bool fence) {
             _do_fence = fence;
             return *this;
-        };
+        }
         inline FunctionFactory& fence() {
             _do_fence = true;
             return *this;
-        };
+        }
         inline FunctionFactory& nofence() {
             _do_fence = false;
             return *this;
-        };
+        }
         inline FunctionFactory& pmap(const SharedPtr< WorldDCPmapInterface< Key<NDIM> > >& pmap) {
             _pmap = pmap;
             return *this;
-        };
+        }
         inline FunctionFactory& functor(const SharedPtr< FunctionFunctorInterface<T,NDIM> >& functor) {
             _functor = functor;
             return *this;
-        };
+        }
     };
 
     /// FunctionNode holds the coefficients, etc., at each node of the 2^NDIM-tree
@@ -366,7 +367,7 @@ namespace madness {
         FunctionNode() 
             : _coeffs()
             , _has_children(false)
-        {};
+        {}
 
         /// Constructor from given coefficients with optional children
 
@@ -376,7 +377,7 @@ namespace madness {
         explicit FunctionNode(const Tensor<T>& coeff, bool has_children=false) 
             : _coeffs(coeff)
             , _has_children(has_children)
-        {};
+        {}
 
         /// Type conversion of coefficients, copying all other state
 
@@ -385,38 +386,38 @@ namespace madness {
         template <typename Q>
         FunctionNode<Q,NDIM> convert() const {
             return FunctionNode<Q,NDIM>(_coeffs,_has_children);
-        };
+        }
 
         /// Returns true if there are coefficients in this node
-        bool has_coeff() const {return (_coeffs.size>0);};
+        bool has_coeff() const {return (_coeffs.size>0);}
 
         /// Returns true if this node has children
-        bool has_children() const {return _has_children;};
+        bool has_children() const {return _has_children;}
 
         /// Returns true if this does not have children
-        bool is_leaf() const {return !_has_children;};
+        bool is_leaf() const {return !_has_children;}
 
         /// Returns a non-const reference to the tensor containing the coeffs
 
         /// Returns an empty tensor if there are no coefficeints.
-        Tensor<T>& coeff() {return _coeffs;};
+        Tensor<T>& coeff() {return _coeffs;}
 
         /// Returns a const reference to the tensor containing the coeffs
 
         /// Returns an empty tensor if there are no coefficeints.
-        const Tensor<T>& coeff() const {return _coeffs;};
+        const Tensor<T>& coeff() const {return _coeffs;}
 
         /// Sets \c has_children attribute to value of \c flag.
-        void set_has_children(bool flag) {_has_children = flag;};
+        void set_has_children(bool flag) {_has_children = flag;}
 
         /// Sets \c has_children attribute to value of \c !flag
-        void set_is_leaf(bool flag) {_has_children = !flag;};
+        void set_is_leaf(bool flag) {_has_children = !flag;}
 
         /// Takes a \em shallow copy of the coeff --- same as \c this->coeff()=coeff
         void set_coeff(const Tensor<T>& coeff) {_coeffs = coeff;}
 
         /// Clears the coefficients (has_coeff() will subsequently return false)
-        void clear_coeff() {_coeffs = Tensor<T>();};
+        void clear_coeff() {_coeffs = Tensor<T>();}
 
         /// General bi-linear operation --- this = this*alpha + other*beta
 
@@ -437,7 +438,7 @@ namespace madness {
                 _coeffs = other.coeff()*beta; //? Is this the correct type conversion?
             }
             return None;
-        };
+        }
 
         template <typename Archive>
         inline void serialize(Archive& ar) {
@@ -570,7 +571,7 @@ namespace madness {
             this->process_pending();
             
             if (factory._do_fence) world.gop.fence();
-        };
+        }
 
         /// Copy constructor
 
@@ -601,11 +602,11 @@ namespace madness {
             , cell_width(other.cell_width)
             , rcell_width(other.rcell_width)
             , cell_volume(other.cell_volume)
-        {};
+        {}
 
 	const SharedPtr< WorldDCPmapInterface< Key<NDIM> > >& get_pmap() const {
 	    return coeffs.get_pmap();
-	};
+	}
 
         /// Copy coeffs from other into self
         template <typename Q>
@@ -615,9 +616,9 @@ namespace madness {
                 const keyT& key = it->first;
                 const typename FunctionImpl<Q,NDIM>::nodeT& node = it->second;
 		coeffs.insert(key,node. template convert<Q>());
-	    };
+	    }
 	    if (fence) world.gop.fence();
-	};
+	}
 
 
         /// Inplace general bilinear operation
@@ -635,11 +636,11 @@ namespace madness {
                 coeffs.send(key, &nodeT:: template gaxpy_inplace<Q,R>, alpha, other_node, beta);
 	    };
 	    if (fence) world.gop.fence();
-	};
+	}
 
 
         /// Returns true if the function is compressed.  
-        bool is_compressed() const {return compressed;};
+        bool is_compressed() const {return compressed;}
 
         /// Adds a constant to the function.  Local operation, optional fence
 
@@ -691,7 +692,7 @@ namespace madness {
                 }
             }
 
-        };
+        }
 
 
         /// Truncate according to the threshold with optional global fence
@@ -702,7 +703,7 @@ namespace madness {
             if (tol <= 0.0) tol = thresh;
             if (world.rank() == coeffs.owner(cdata.key0)) truncate_spawn(cdata.key0,tol);
             if (fence) world.gop.fence();
-        };
+        }
 
 
         /// Returns true if after truncation this node has coefficients
@@ -723,7 +724,7 @@ namespace madness {
                 MADNESS_ASSERT(!node.has_coeff());  // In compressed form leaves should not have coeffs
                 return Future<bool>(false); 
             }
-        };
+        }
 
         /// Actually do the truncate operation
         bool truncate_op(const keyT& key, double tol, const std::vector< Future<bool> >& v) {
@@ -741,7 +742,7 @@ namespace madness {
                 }
             }
             return node.has_coeff();
-        };
+        }
 
         /// Evaluate function at quadrature points in the specified box
         template <typename F>
@@ -836,16 +837,16 @@ namespace madness {
             else {
                 MADNESS_EXCEPTION("FunctionImpl: fcube: confused about NDIM?",NDIM);
             }
-        };
+        }
 
         const keyT& key0() const {
             return cdata.key0;
-        };
+        }
 
         void print_tree() const {
             if (world.rank() == 0) do_print_tree(cdata.key0);
             world.gop.fence();
-        };
+        }
 
         void do_print_tree(const keyT& key) const {
             const nodeT& node = coeffs.find(key).get()->second;
@@ -856,7 +857,7 @@ namespace madness {
                     do_print_tree(kit.key());
                 };
             }
-        };
+        }
 
 
         /// Compute by projection the scaling function coeffs in specified box
@@ -878,7 +879,7 @@ namespace madness {
 
             fval.scale(sqrt(cell_volume*pow(0.5,double(NDIM*key.level()))));
             return transform(fval,cdata.quad_phiw);
-        };
+        }
 
 
         /// Returns the truncation threshold according to truncate_method
@@ -895,7 +896,7 @@ namespace madness {
             else {
                 MADNESS_EXCEPTION("truncate_mode invalid",truncate_mode);
             };
-        };
+        }
 
 
         /// Returns patch referring to coeffs of child in parent box
@@ -907,7 +908,7 @@ namespace madness {
             const Vector<Translation,NDIM>& l = child.translation();
             for (int i=0; i<NDIM; i++) s[i] = cdata.s[l[i]&1]; // Lowest bit of translation
             return s;
-        };
+        }
 
 
         /// Projection with optional refinement
@@ -945,7 +946,7 @@ namespace madness {
                 coeffs.insert(key,nodeT(project(key),false));
             }
             return None;
-        };
+        }
 
 
         /// Compute the Legendre scaling functions for multiplication
@@ -983,7 +984,7 @@ namespace madness {
 
             double scale = pow(2.0,0.5*NDIM*child.level())/sqrt(cell_volume);
             return transform(w,cdata.quad_phit).scale(scale);
-        };
+        }
 
 
         /// Compute the function values for multiplication
@@ -1010,7 +1011,7 @@ namespace madness {
                 result.scale(1.0/sqrt(cell_volume));
                 return result;
             }
-        };
+        }
         
         /// Invoked as a task by mul with the actual coefficients
         template <typename L, typename R>
@@ -1026,7 +1027,7 @@ namespace madness {
             tcube = transform(tcube,cdata.quad_phiw).scale(scale);
             coeffs.insert(key, nodeT(tcube,false));
             return None;
-        };
+        }
             
 
         /// Invoked by result to compute the pointwise product result=left*right
@@ -1195,7 +1196,7 @@ namespace madness {
 
             world.gop.fence();
             return !err;
-        };
+        }
 
 
         /// Walk up the tree returning pair(key,node) for first node with coefficients
@@ -1224,7 +1225,7 @@ namespace madness {
                 send(coeffs.owner(parent), &FunctionImpl<T,NDIM>::sock_it_to_me, parent, ref);
             }
             return None;
-        };
+        }
 
 
         /// Evaluate the function at a point in \em simulation coordinates
@@ -1269,7 +1270,7 @@ namespace madness {
                 }
             }
             MADNESS_EXCEPTION("should not be here",0);
-        };
+        }
 
 
         /// Computes norm of low/high-order polyn. coeffs for autorefinement test
@@ -1295,7 +1296,7 @@ namespace madness {
             *lo = tlo.normf();
             tlo.fill(0.0);
             *hi = cdata.work1.normf();
-        };
+        }
 
 
         // This invoked if node has not been autorefined
@@ -1314,7 +1315,7 @@ namespace madness {
             node.set_coeff(tval);
 
             return None;
-        };
+        }
 
 
         // This invoked if node has been autorefined
@@ -1330,7 +1331,7 @@ namespace madness {
             coeffs.insert(child,nodeT(tval,false));
 
             return None;
-        };
+        }
 
 
         /// Returns true if this block of coeffs needs autorefining
@@ -1340,7 +1341,7 @@ namespace madness {
             double test = 2*lo*hi + hi*hi;
             //print("autoreftest",key,thresh,truncate_tol(thresh, key),lo,hi,test);
             return test > truncate_tol(thresh, key);
-        };
+        }
 
 
         /// Pointwise squaring of function with optional global fence
@@ -1367,7 +1368,7 @@ namespace madness {
                 }
             }
             if (fence) world.gop.fence();
-        };
+        }
 
 
         T eval_cube(Level n, coordT x, const tensorT c) const {
@@ -1438,7 +1439,7 @@ namespace madness {
         /// No communication involved.
         inline tensorT filter(const tensorT& s) const {
            return transform(s, cdata.hgT);
-        };
+        }
 
 
         ///  Transform sums+differences at level n to sum coefficients at level n+1
@@ -1464,13 +1465,13 @@ namespace madness {
             else {
                 return transform(ss, cdata.hg);
             }
-        };
+        }
 
         void reconstruct(bool fence) {
             if (world.rank() == coeffs.owner(cdata.key0)) reconstruct_op(cdata.key0,tensorT());
             if (fence) world.gop.fence();
             compressed = false;
-        };
+        }
 
         // Invoked on node where key is local
         Void reconstruct_op(const keyT& key, const tensorT& s) {
@@ -1489,13 +1490,13 @@ namespace madness {
                 node.set_coeff(s);
             }
             return None;
-        };
+        }
         
         void compress(bool fence) {
            if (world.rank() == coeffs.owner(cdata.key0)) compress_spawn(cdata.key0);
            if (fence) world.gop.fence();
            compressed = true;
-        };
+        }
 
 
         // Invoked on node where key is local
@@ -1515,7 +1516,7 @@ namespace madness {
                 node.clear_coeff();
                 return result;
             }
-        };
+        }
 
         tensorT compress_op(const keyT& key, const vector< Future<tensorT> >& v) {
             // Copy child scaling coeffs into contiguous block
@@ -1529,7 +1530,7 @@ namespace madness {
             if (key.level() > 0) d(cdata.s0) = 0.0;
             coeffs.insert(key, nodeT(d,true));
             return s;
-        };
+        }
 
 
         /// Returns the square of the error norm in the box labelled by key
@@ -1561,7 +1562,7 @@ namespace madness {
 
             double err = tval.normf();
             return err*err;
-        };
+        }
 
         /// Returns the sum of squares of errors from local info ... no comms
         template <typename opT>
@@ -1578,7 +1579,7 @@ namespace madness {
                 if (node.has_coeff()) sum += err_box(key, node, func, npt, qx, quad_phit, quad_phiw);
             }
             return sum;
-        };
+        }
 
         /// Returns the square of the local norm ... no comms
         double norm2sq_local() const {
@@ -1591,7 +1592,18 @@ namespace madness {
                 }
             }
             return sum;
-        };
+        }
+
+/// Returns the maximum depth of the tree
+	std::size_t max_depth() const {
+	    std::size_t maxdepth = 0;
+	    for (typename dcT::const_iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
+		std::size_t N = (std::size_t) it->first.level();
+		if (N > maxdepth) maxdepth = N;
+	    }
+	    world.gop.max(maxdepth);
+	    return maxdepth;
+	}
 
 /// Returns the max number of nodes on a processor
 	std::size_t max_nodes() const {
@@ -1599,7 +1611,7 @@ namespace madness {
 	    maxsize = coeffs.size();
 	    world.gop.max(maxsize);
 	    return maxsize;
-	};
+	}
 
 /// Returns the min number of nodes on a processor
 	std::size_t min_nodes() const {
@@ -1607,7 +1619,7 @@ namespace madness {
 	    minsize = coeffs.size();
 	    world.gop.min(minsize);
 	    return minsize;
-	};
+	}
 
 
 /// Returns the size of the tree structure of the function ... collective global sum
@@ -1616,7 +1628,7 @@ namespace madness {
 	    sum = coeffs.size();
 	    world.gop.sum(sum);
 	    return sum;
-	};
+	}
 
         /// Returns the number of coefficients in the function ... collective global sum
         std::size_t size() const {
@@ -1631,21 +1643,21 @@ namespace madness {
             world.gop.sum(sum);
 
             return sum;
-        };
+        }
 
 
         /// Convert user coords (cell[][]) to simulation coords ([0,1]^ndim)
         inline void user_to_sim(const coordT& xuser, coordT& xsim) const {
             for (int i=0; i<NDIM; i++) 
                 xsim[i] = (xuser[i] - cell(i,0)) * rcell_width[i];
-        };
+        }
 
 
         /// Convert simulation coords ([0,1]^ndim) to user coords (cell[][])
         inline void sim_to_user(const coordT& xsim, coordT& xuser) const {
             for (int i=0; i<NDIM; i++)
                 xuser[i] = xsim[i]*cell_width[i] + cell(i,0);
-        };
+        }
 
         /// In-place scale by a constant
         template <typename Q>
@@ -1655,7 +1667,7 @@ namespace madness {
                 if (node.has_coeff()) node.coeff.scale(q);
             }
             if (fence) world.gop.fence();
-        };
+        }
 
 
     private:

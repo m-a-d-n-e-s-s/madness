@@ -40,76 +40,164 @@
 
 
 namespace madness {
-    /// find_best_partition performs the "melding" algorithm for load balancing: it recursively melds 
-    /// and partitions the tree until it has found all possible configurations.
+    /// find_best_partition takes the result of find_partitions, determines
+    /// which is the best partition, and broadcasts that to all processors
     template <typename T, int D>
     std::vector<typename DClass<D>::TreeCoords> LoadBalImpl<T,D>::find_best_partition() {
-//	double t0 = MPI::Wtime();
-	bool keep_going = true;
+	std::vector<std::vector<typename DClass<D>::TreeCoords> > list_of_list;
 	std::vector<typename DClass<D>::TreeCoords> klist;
-	if (this->f.get_impl()->world.nproc() == 1) {
-	    klist.push_back(TreeCoords<D>(Key<D>(0), 0));
-	    return klist;
-	}
-        if (this->f.get_impl()->world.mpi.rank() != 0) {
-	    while (keep_going) {
-// Worker processes fence while manager queries them for fix_cost
-	        this->f.get_impl()->world.gop.fence();
-// Set all elements to true before rollup
-		this->skeltree->reset(true);
-// Fence so that everybody starts rollup at the same time
-	        this->f.get_impl()->world.gop.fence();
-        	this->skeltree->rollup();
-// Fence so nobody resets until everyone's done with rollup
-	        this->f.get_impl()->world.gop.fence();
-		this->skeltree->reset(false);
-        	this->f.get_impl()->world.gop.fence();
-// Fence while manager queries for depth_first_partition
-        	this->f.get_impl()->world.gop.fence();
-// Find out whether we're in for another round of load balancing
-                this->f.get_impl()->world.gop.template broadcast<bool>(keep_going);
+	SharedPtr<std::vector<Cost> > costlist = SharedPtr<std::vector<Cost> >(new std::vector<Cost>());
+
+	list_of_list = skeltree->find_partitions(costlist);
+
+	if (this->f.get_impl()->world.mpi.rank() == 0) {
+	    unsigned int shortest_list = 0, sl_index, lb_index;
+	    Cost load_bal_cost = 0;
+	    int count = list_of_list.size();
+	    std::vector<unsigned int> len;
+	    for (int i = 0; i < count; i++) {
+		len.push_back(list_of_list[i].size());
+		if ((len[i] < shortest_list) || (shortest_list == 0)) {
+		    shortest_list = len[i];
+		    sl_index = i;
+		} else if ((len[i] == shortest_list) && ((*costlist)[i] < (*costlist)[sl_index])) {
+		    // all things being equal, prefer better balance
+		    shortest_list = len[i];
+		    sl_index = i;
+		}
+		if (((*costlist)[i] < load_bal_cost) || (load_bal_cost == 0)) {
+		    load_bal_cost = (*costlist)[i];
+		    lb_index = i;
+		} else if (((*costlist)[i] == load_bal_cost) && (len[i] < list_of_list[lb_index].size())) {
+		    // all things being equal, prefer fewer cuts
+		    load_bal_cost = (*costlist)[i];
+		    lb_index = i;
+		}
 	    }
+/*
+	    madness::print("The load balance with the fewest broken links has cost", costlist[sl_index], "and",
+		shortest_list-1, "broken links");
+	    for (unsigned int i = 0; i < shortest_list; i++) {
+		list_of_list[sl_index][i].print();
+	    }
+	    madness::print("");
+	    madness::print("The load balance with the best balance has cost", 
+	                   load_bal_cost, "and", list_of_list[lb_index].size()-1, 
+			   "broken links");
+	    for (unsigned int i = 0; i < list_of_list[lb_index].size(); i++) {
+		list_of_list[lb_index][i].print();
+	    }
+	    madness::print("");
+*/
+	    CompCost ccleast = 0;
+	    int cc_index = 0;
+	    for (int i = 0; i < count; i++) {
+		CompCost cctmp = compute_comp_cost((*costlist)[i], len[i]-1);
+		if ((i==0) || (cctmp < ccleast)) {
+		    ccleast = cctmp;
+		    cc_index = i;
+		}
+	    }
+/*
+	    madness::print("The load balance with the best overall computational cost has cost",
+			   costlist[cc_index], "and", len[cc_index]-1, "broken links");
+	    for (unsigned int i = 0; i < len[cc_index]; i++) {
+		list_of_list[cc_index][i].print();
+	    }
+*/
+	    for (unsigned int i = 0; i < len[cc_index]; i++) {
+		klist.push_back(list_of_list[cc_index][i]);
+	    }
+	    unsigned int ksize = klist.size();
+	    this->f.get_impl()->world.gop.template broadcast<unsigned int>(ksize);
+	    for (unsigned int i=0; i < ksize; i++) {
+		this->f.get_impl()->world.gop.template broadcast<typename DClass<D>::TreeCoords>(klist[i]);
+	    }
+	} else {
             unsigned int ksize;
-	    // Then, they receive the broadcast of the final partitioning
+	    // Receive the broadcast of the final partitioning
             this->f.get_impl()->world.gop.template broadcast<unsigned int>(ksize);
             for (unsigned int i = 0; i < ksize; i++) {
                 typename DClass<D>::TreeCoords t;
                 this->f.get_impl()->world.gop.template broadcast<typename DClass<D>::TreeCoords>(t);
                 klist.push_back(t);
             }
+	}
 //            madness::print("done with broadcast");
-            return klist;
+
+//	double t7 = MPI::Wtime();
+
+//	madness::print("find_best_partition: total time =", t7-t0);
+//	madness::print("find_best_partition: time in loop =", t6-t1);
+
+	if (this->f.get_impl()->world.mpi.rank() == 0) {
+	    madness::print("find_best_partition: number of broken links =",
+		klist.size()-1);
+	}
+        return klist;	
+    };
+
+    /// find_partitions performs the "melding" algorithm for load balancing: it recursively melds 
+    /// and partitions the tree until it has found all possible configurations.
+    template <int D>
+    std::vector< std::vector<typename DClass<D>::TreeCoords> > LBTree<D>::find_partitions(SharedPtr<std::vector<Cost> > costlist) {
+//	double t0 = MPI::Wtime();
+	bool keep_going = true;
+	std::vector< std::vector<typename DClass<D>::TreeCoords> > klists;
+	if (this->world().nproc() == 1) {
+	    klists.push_back(std::vector<TreeCoords<D> >(1,TreeCoords<D>(Key<D>(0), 0)));
+	    return klists;
+	}
+        if (this->world().mpi.rank() != 0) {
+	    while (keep_going) {
+// Worker processes fence while manager queries them for fix_cost
+	        this->world().gop.fence();
+// Set all elements to true before rollup
+		this->reset(true);
+// Fence so that everybody starts rollup at the same time
+	        this->world().gop.fence();
+        	this->rollup();
+// Fence so nobody resets until everyone's done with rollup
+	        this->world().gop.fence();
+		this->reset(false);
+        	this->world().gop.fence();
+// Fence while manager queries for depth_first_partition
+        	this->world().gop.fence();
+// Find out whether we're in for another round of load balancing
+                this->world().gop.template broadcast<bool>(keep_going);
+	    }
+	    klists.push_back(std::vector<TreeCoords<D> >(1,TreeCoords<D>(Key<D>(0), 0)));
+            return klists;
 	}
 
 	// The manager process coordinates the melding algorithm for load balancing, keeping a list of
 	// lists of the configurations suggested by the melding algorithm, and selecting the best
 	// configuration at the end.
-        int npieces = this->f.get_impl()->world.nproc();
+        int npieces = this->world().nproc();
         int count = 0;
         std::vector<std::vector<typename DClass<D>::TreeCoords> > list_of_list;
         std::vector<typename DClass<D>::TreeCoords> emptylist;
-        std::vector<Cost> costlist;
+
         Cost totalCost = 0;
         typename DClass<D>::KeyD root(0);
 
 //	double t1 = MPI::Wtime();
 	while (keep_going) {
 //	    double t2 = MPI::Wtime();
-            this->skeltree->fix_cost(root);
-	    this->f.get_impl()->world.gop.fence();
+            this->fix_cost(root);
+	    this->world().gop.fence();
 //	    double t3 = MPI::Wtime();
-	    this->skeltree->reset(true);
-	    this->f.get_impl()->world.gop.fence();
-            this->skeltree->rollup();
-	    this->f.get_impl()->world.gop.fence();
-	    this->skeltree->reset(false);
-            this->f.get_impl()->world.gop.fence();
+	    this->reset(true);
+	    this->world().gop.fence();
+            this->rollup();
+	    this->world().gop.fence();
+	    this->reset(false);
+            this->world().gop.fence();
 //	    double t4 = MPI::Wtime();
             list_of_list.push_back(emptylist);
-	    madness::print("find_best_partition: about to depth_first_partition this tree");
-            costlist.push_back(0);
-            totalCost = this->skeltree->depth_first_partition(root, &list_of_list[count], npieces,
-                    totalCost, &costlist[count]);
+            costlist->push_back(0);
+            totalCost = this->depth_first_partition(root, &list_of_list[count], npieces,
+                    totalCost, &(*costlist)[count]);
 //	    double t5 = MPI::Wtime();
 
 //	    madness::print("find_best_partition: time for fix_cost number", count, "=", t3-t2);
@@ -143,79 +231,12 @@ namespace madness {
 		count-=1;
             }
             count++;
-            this->f.get_impl()->world.gop.fence();
-            this->f.get_impl()->world.gop.template broadcast<bool>(keep_going);
+            this->world().gop.fence();
+            this->world().gop.template broadcast<bool>(keep_going);
 	}
 //	double t6 = MPI::Wtime();
-        unsigned int shortest_list = 0, sl_index, lb_index;
-        Cost load_bal_cost = 0;
-        std::vector<unsigned int> len;
-        for (int i = 0; i < count; i++) {
-            len.push_back(list_of_list[i].size());
-            if ((len[i] < shortest_list) || (shortest_list == 0)) {
-                shortest_list = len[i];
-                sl_index = i;
-            } else if ((len[i] == shortest_list) && (costlist[i] < costlist[sl_index])) {
-                // all things being equal, prefer better balance
-                shortest_list = len[i];
-                sl_index = i;
-            }
-            if ((costlist[i] < load_bal_cost) || (load_bal_cost == 0)) {
-                load_bal_cost = costlist[i];
-                lb_index = i;
-            } else if ((costlist[i] == load_bal_cost) && (len[i] < list_of_list[lb_index].size())) {
-                // all things being equal, prefer fewer cuts
-                load_bal_cost = costlist[i];
-                lb_index = i;
-            }
-        }
 
-//	madness::print("The load balance with the fewest broken links has cost", costlist[sl_index], "and",
-//		shortest_list-1, "broken links");
-//        for (unsigned int i = 0; i < shortest_list; i++) {
-//            list_of_list[sl_index][i].print();
-//        }
-//	madness::print("");
-//	madness::print("The load balance with the best balance has cost", load_bal_cost, "and", 
-//		list_of_list[lb_index].size()-1, "broken links");
-//        for (unsigned int i = 0; i < list_of_list[lb_index].size(); i++) {
-//            list_of_list[lb_index][i].print();
-//        }
-//	madness::print("");
-
-        CompCost ccleast = 0;
-        int cc_index = 0;
-        for (int i = 0; i < count; i++) {
-            CompCost cctmp = compute_comp_cost(costlist[i], len[i]-1);
-            if ((i==0) || (cctmp < ccleast)) {
-                ccleast = cctmp;
-                cc_index = i;
-            }
-        }
-//	madness::print("The load balance with the best overall computational cost has cost",
-//		costlist[cc_index], "and", len[cc_index]-1, "broken links");
-//        for (unsigned int i = 0; i < len[cc_index]; i++) {
-//            list_of_list[cc_index][i].print();
-//        }
-
-        for (unsigned int i = 0; i < len[cc_index]; i++) {
-            klist.push_back(list_of_list[cc_index][i]);
-        }
-
-        unsigned int ksize = klist.size();
-        this->f.get_impl()->world.gop.template broadcast<unsigned int>(ksize);
-        for (unsigned int i=0; i < ksize; i++) {
-            this->f.get_impl()->world.gop.template broadcast<typename DClass<D>::TreeCoords>(klist[i]);
-        }
-
-//	double t7 = MPI::Wtime();
-
-//	madness::print("find_best_partition: total time =", t7-t0);
-//	madness::print("find_best_partition: time in loop =", t6-t1);
-
-	madness::print("find_best_partition: number of broken links =",
-		klist.size()-1);
-        return klist;
+	return list_of_list;
     }
 
 
@@ -290,8 +311,8 @@ namespace madness {
 	double facter = 1.1;
 
         for (int i = npieces-1; i >= 0; i--) {
-	    madness::print("");
-	    madness::print("Beginning partition number", i);
+//	    madness::print("");
+//	    madness::print("Beginning partition number", i);
             std::vector<typename DClass<D>::KeyD> tmplist;
             Cost tpart = compute_partition_size(cost_left, parts_left);
 	    // Reconsider partition size at every step.  If too small, leaves too much work for P0.
@@ -299,7 +320,7 @@ namespace madness {
             if ((tpart > partition_size) || (tpart*facter < partition_size)) {
                 partition_size = tpart;
             }
-            madness::print("depth_first_partition: partition_size =", partition_size);
+//            madness::print("depth_first_partition: partition_size =", partition_size);
             Cost used_up = 0;
             bool at_leaf = false;
             used_up = this->make_partition(key, &tmplist, partition_size, (i==0), used_up, &at_leaf);

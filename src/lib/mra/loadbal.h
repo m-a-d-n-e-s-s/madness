@@ -173,10 +173,10 @@ namespace madness {
         template <typename Archive>
         void serialize(const Archive& ar) {
             ar & cost & subcost & is_taken;
-        };
+        }
         void print() {
             cout << "cost = " << cost << ", subcost = " << subcost << ", is_taken = " << is_taken << endl;
-        };
+        }
     };
 
 
@@ -399,6 +399,8 @@ namespace madness {
                 print(kit.key());
             }
         };
+
+        std::vector< std::vector<typename DClass<D>::TreeCoords> > find_partitions(SharedPtr<std::vector<Cost> > costlist);
 
         Cost fix_cost(typename DClass<D>::KeyDConst& key);
 

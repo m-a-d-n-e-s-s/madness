@@ -59,7 +59,7 @@ public:
 
     T operator()(const coordT& x) const {
 	T retval = 0;
-	for (int j=0; j<center.size(); j++) {
+	for (unsigned int j=0; j<center.size(); j++) {
 	    double sum = 0.0;
 	    for (int i=0; i<NDIM; i++) {
 		double xx = center[j][i]-x[i];
@@ -82,7 +82,7 @@ public:
 
     void print() const {
 	madness::print("Sum of", center.size(), "gaussians:");
-	for (int i = 0; i < center.size(); i++) {
+	for (unsigned int i = 0; i < center.size(); i++) {
 	    madness::print("   g[", i, "] : =", coefficient[i], "* exp(", -exponent[i], "(", center[i], "- x )^2 )");
 	}
     };
@@ -151,18 +151,19 @@ void test_loadbal(World& world) {
 	  printf("k=%d:\n", k);
 	}
         double t0 = MPI::Wtime();
-	//Function<T,NDIM> f = FunctionFactory<T,NDIM>(world).functor(functor).nocompress().norefine().initial_level(n).k(k);
-	Function<T,NDIM> f = FunctionFactory<T,NDIM>(world).functor(functor).nocompress().thresh(thresh).initial_level(n).k(k);
+	//Function<T,NDIM> f = FunctionFactory<T,NDIM>(world).functor(functor).norefine().initial_level(n).k(k);
+	Function<T,NDIM> f = FunctionFactory<T,NDIM>(world).functor(functor).thresh(thresh).initial_level(n).k(k);
         double t1 = MPI::Wtime();
 	double err2 = f.err(*functor);
 	std::size_t size = f.size();
 	std::size_t tree_size = f.tree_size();
 	std::size_t maxsize = f.max_nodes();
 	std::size_t minsize = f.min_nodes();
+	std::size_t maxdepth = f.max_depth();
         double t2 = MPI::Wtime();
 	if (world.rank() == 0) {
-	    printf("   n=%d err=%.2e #coeff=%.2e tree_size=%.2e max_nodes=%.2e min_nodes=%.2e log(err)/(n*k)=%.2e\n", 
-		   n, err2, double(size), double(tree_size), double(maxsize), double(minsize), abs(log(err2)/n/k));
+	    printf("   n=%d err=%.2e #coeff=%.2e tree_size=%.2e max_depth=%.2e max_nodes=%.2e min_nodes=%.2e log(err)/(n*k)=%.2e\n", 
+		   n, err2, double(size), double(tree_size), double(maxdepth), double(maxsize), double(minsize), abs(log(err2)/n/k));
 	}
 	world.gop.fence();
         double t3 = MPI::Wtime();
@@ -170,12 +171,12 @@ void test_loadbal(World& world) {
 	world.gop.fence();
 	double t4 = MPI::Wtime();
 	if (world.rank() == 0) print("ABOUT TO COMPRESS");
-	f.compress(false);
+	f.compress(true);
 	if (world.rank() == 0) print("ABOUT TO FENCE");
 	world.gop.fence();
 	double t5 = MPI::Wtime();
 	if (world.rank() == 0) print("ABOUT TO RECON");
-	f.reconstruct(false);
+	f.reconstruct(true);
 	if (world.rank() == 0) print("ABOUT TO FENCE");
 	world.gop.fence();
 	double t6 = MPI::Wtime();
@@ -193,7 +194,7 @@ void test_loadbal(World& world) {
 	*/
 	if (world.rank() == 0) print("ABOUT TO FENCE");
 	world.gop.fence();
-	Function<T,NDIM> h = FunctionFactory<T,NDIM>(world).functor(functor).nocompress().thresh(thresh).initial_level(n).k(k);
+	Function<T,NDIM> h = FunctionFactory<T,NDIM>(world).functor(functor).thresh(thresh).initial_level(n).k(k);
 	double t8 = MPI::Wtime();
 	f = copy(g,FunctionDefaults<NDIM>::pmap);
         double t9 = MPI::Wtime();
@@ -202,17 +203,18 @@ void test_loadbal(World& world) {
 	std::size_t tree_size1 = h.tree_size();
 	std::size_t maxsize1 = h.max_nodes();
 	std::size_t minsize1 = h.min_nodes();
+	std::size_t maxdepth1 = h.max_depth();
         double t10 = MPI::Wtime();
 	if (world.rank() == 0) {
-	    printf("   n=%d err=%.2e #coeff=%.2e tree_size=%.2e max_nodes=%.2e min_nodes=%.2e log(err)/(n*k)=%.2e\n", 
-		   n, err21, double(size1), double(tree_size1), double(maxsize1), double(minsize1), abs(log(err21)/n/k));
+	    printf("   n=%d err=%.2e #coeff=%.2e tree_size=%.2e max_depth=%.2e max_nodes=%.2e min_nodes=%.2e log(err)/(n*k)=%.2e\n", 
+		   n, err21, double(size1), double(tree_size1), double(maxdepth1), double(maxsize1), double(minsize1), abs(log(err21)/n/k));
 	}
 	world.gop.fence();
 	double t11 = MPI::Wtime();
-	h.compress(false);
+	h.compress(true);
 	world.gop.fence();
 	double t12 = MPI::Wtime();
-	h.reconstruct(false);
+	h.reconstruct(true);
 	world.gop.fence();
 	double t13 = MPI::Wtime();
 
