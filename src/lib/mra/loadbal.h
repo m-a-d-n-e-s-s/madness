@@ -363,12 +363,20 @@ namespace madness {
 
     /// The container in which the fascimile tree with its keys mapping to LBNodes is stored
     template <int D>
-    class LBTree : public WorldContainer<typename DClass<D>::KeyD,typename DClass<D>::NodeD> {
-        // No new variables necessary
+    class LBTree : public WorldObject< LBTree<D> > {
     public:
+	typedef WorldObject<LBTree<D> > woT;
         typedef WorldContainer<typename DClass<D>::KeyD,typename DClass<D>::NodeD> dcT;
-        LBTree() {};
-        LBTree(World& world, const SharedPtr< WorldDCPmapInterface<typename DClass<D>::KeyD> >& pmap) : dcT(world,pmap) {
+	typedef typename dcT::iterator iterator;
+	World& world;
+
+    private:
+        dcT impl;
+
+    public:
+        //LBTree() {};
+        LBTree(World& world, const SharedPtr< WorldDCPmapInterface<typename DClass<D>::KeyD> >& pmap) : woT(world)
+	    , world(world), impl(world,pmap) {
         };
 	/// Initialize the LBTree by converting a FunctionImpl to a LBTree
         template <typename T>
@@ -379,20 +387,20 @@ namespace madness {
 		typename DClass<D>::KeyD key = it->first;
             	if (!(it->second.has_children())) {
                 	typename DClass<D>::NodeD lbnode(nd,false);
-                	// insert into "this"
-                	this->insert(key, lbnode);
+                	// insert into impl
+                	impl.insert(key, lbnode);
             	} else {
                 	typename DClass<D>::NodeD lbnode(nd,true);
-                	// insert into "this"
-                	this->insert(key, lbnode);
+                	// insert into impl
+                	impl.insert(key, lbnode);
                 }
             }
         };
 
         // Methods:
         void print(typename DClass<D>::KeyDConst& key) {
-            typename DClass<D>::treeT::iterator it = this->find(key);
-            if (it == this->end()) return;
+            typename DClass<D>::treeT::iterator it = impl.find(key);
+            if (it == impl.end()) return;
             for (Level i = 0; i < key.level(); i++) cout << "  ";
             madness::print(key, it->second);
             for (KeyChildIterator<D> kit(key); kit; ++kit) {
@@ -422,19 +430,9 @@ namespace madness {
 
         Cost compute_cost(typename DClass<D>::KeyDConst& key);
 
-        // inherited methods
-        typename WorldContainer<typename DClass<D>::KeyD,typename DClass<D>::NodeD>::iterator 
-        end() {
-            return WorldContainer<typename DClass<D>::KeyD, typename DClass<D>::NodeD>::end();
-        };
-
-        typename WorldContainer<typename DClass<D>::KeyD,typename DClass<D>::NodeD>::iterator
-        find(typename DClass<D>::KeyDConst& key) {
-            return WorldContainer<typename DClass<D>::KeyD, typename DClass<D>::NodeD>::find(key);
-        };
 
         MyPmap<D>& get_mypmap() {
-            return *static_cast< MyPmap<D>* >(this->get_pmap().get());
+            return *static_cast< MyPmap<D>* >(impl.get_pmap().get());
         };
 
     };

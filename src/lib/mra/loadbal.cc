@@ -144,27 +144,27 @@ namespace madness {
 //	double t0 = MPI::Wtime();
 	bool keep_going = true;
 	std::vector< std::vector<typename DClass<D>::TreeCoords> > klists;
-	if (this->world().nproc() == 1) {
+	if (this->world.nproc() == 1) {
 	    klists.push_back(std::vector<TreeCoords<D> >(1,TreeCoords<D>(Key<D>(0), 0)));
 	    return klists;
 	}
-        if (this->world().mpi.rank() != 0) {
+        if (this->world.mpi.rank() != 0) {
 	    while (keep_going) {
-// Worker processes fence while manager queries them for fix_cost
-	        this->world().gop.fence();
-// Set all elements to true before rollup
+                // Worker processes fence while manager queries them for fix_cost
+	        this->world.gop.fence();
+                // Set all elements to true before rollup
 		this->reset(true);
-// Fence so that everybody starts rollup at the same time
-	        this->world().gop.fence();
+                // Fence so that everybody starts rollup at the same time
+	        this->world.gop.fence();
         	this->rollup();
-// Fence so nobody resets until everyone's done with rollup
-	        this->world().gop.fence();
+                // Fence so nobody resets until everyone's done with rollup
+	        this->world.gop.fence();
 		this->reset(false);
-        	this->world().gop.fence();
-// Fence while manager queries for depth_first_partition
-        	this->world().gop.fence();
-// Find out whether we're in for another round of load balancing
-                this->world().gop.template broadcast<bool>(keep_going);
+        	this->world.gop.fence();
+                // Fence while manager queries for depth_first_partition
+        	this->world.gop.fence();
+                // Find out whether we're in for another round of load balancing
+                this->world.gop.template broadcast<bool>(keep_going);
 	    }
 	    klists.push_back(std::vector<TreeCoords<D> >(1,TreeCoords<D>(Key<D>(0), 0)));
             return klists;
@@ -173,7 +173,7 @@ namespace madness {
 	// The manager process coordinates the melding algorithm for load balancing, keeping a list of
 	// lists of the configurations suggested by the melding algorithm, and selecting the best
 	// configuration at the end.
-        int npieces = this->world().nproc();
+        int npieces = this->world.nproc();
         int count = 0;
         std::vector<std::vector<typename DClass<D>::TreeCoords> > list_of_list;
         std::vector<typename DClass<D>::TreeCoords> emptylist;
@@ -185,14 +185,14 @@ namespace madness {
 	while (keep_going) {
 //	    double t2 = MPI::Wtime();
             this->fix_cost(root);
-	    this->world().gop.fence();
+	    this->world.gop.fence();
 //	    double t3 = MPI::Wtime();
 	    this->reset(true);
-	    this->world().gop.fence();
+	    this->world.gop.fence();
             this->rollup();
-	    this->world().gop.fence();
+	    this->world.gop.fence();
 	    this->reset(false);
-            this->world().gop.fence();
+            this->world.gop.fence();
 //	    double t4 = MPI::Wtime();
             list_of_list.push_back(emptylist);
             costlist->push_back(0);
@@ -231,8 +231,8 @@ namespace madness {
 		count-=1;
             }
             count++;
-            this->world().gop.fence();
-            this->world().gop.template broadcast<bool>(keep_going);
+            this->world.gop.fence();
+            this->world.gop.template broadcast<bool>(keep_going);
 	}
 //	double t6 = MPI::Wtime();
 
@@ -268,8 +268,8 @@ namespace madness {
 
     template <int D>
     Cost LBTree<D>::fix_cost(typename DClass<D>::KeyDConst& key) {
-        typename DClass<D>::treeT::iterator it = this->find(key);
-        if (it == this->end()) return 0;
+        typename DClass<D>::treeT::iterator it = impl.find(key);
+        if (it == impl.end()) return 0;
 
         typename DClass<D>::NodeD node = it->second;
         NodeData d = node.get_data();
@@ -282,7 +282,7 @@ namespace madness {
             }
         }
         node.set_data(d);
-        this->insert(key,node);
+        impl.insert(key,node);
         return d.subcost;
     }
 
@@ -341,15 +341,15 @@ namespace madness {
     /// Communication: just finding the nodes that match a given key
     template <int D>
     void LBTree<D>::rollup() {
-	for (typename DClass<D>::treeT::iterator it = this->begin(); it != this->end(); ++it) {
+	for (typename DClass<D>::treeT::iterator it = impl.begin(); it != impl.end(); ++it) {
 	    typename DClass<D>::KeyD key = it->first;
 	    typename DClass<D>::NodeD node = it->second;
 	    if (node.has_children()) {
 // First, check to see if it has any leaf children
 	        bool has_leaf_child = false;
 	        for (KeyChildIterator<D> kit(key); kit; ++kit) {
-            	    typename DClass<D>::treeT::iterator itc = this->find(kit.key());
-		    if (itc != this->end()) {
+            	    typename DClass<D>::treeT::iterator itc = impl.find(kit.key());
+		    if (itc != impl.end()) {
 		        typename DClass<D>::NodeD c = itc->second;
 		        NodeData d = c.get_data();
 		        if ((!c.has_children()) && (d.is_taken)) {
@@ -368,7 +368,7 @@ namespace madness {
 // Setting to false, to signify that this node has been worked on.
 		    d.is_taken = false;
 		    node.set_data(d);
-		    this->insert(key,node);
+		    impl.insert(key,node);
 	        }
 	    }
 	}
@@ -379,14 +379,14 @@ namespace madness {
     /// Communication: none (local iterator)
     template <int D>
     void LBTree<D>::reset(bool taken) {
-	for (typename DClass<D>::treeT::iterator it = this->begin(); it != this->end(); ++it) {
+	for (typename DClass<D>::treeT::iterator it = impl.begin(); it != impl.end(); ++it) {
 	    typename DClass<D>::KeyD key = it->first;
 	    typename DClass<D>::NodeD node = it->second;
 	    NodeData d = node.get_data();
 
 	    d.is_taken = taken;
 	    node.set_data(d);
-	    this->insert(key,node);
+	    impl.insert(key,node);
 	}
     }
 
@@ -405,7 +405,7 @@ namespace madness {
 
 	for (KeyChildIterator<D> kit(key); kit; ++kit) {
 	    if (node.has_child(i)) {
-		typename DClass<D>::treeT::iterator itc = this->find(kit.key());
+		typename DClass<D>::treeT::iterator itc = impl.find(kit.key());
 		typename DClass<D>::NodeD c = itc->second;
 		NodeData d = c.get_data();
 // if the child has no children and the is_taken flag is set to true, then
@@ -438,7 +438,7 @@ namespace madness {
 	int j = 0, mlsize = mylist.size();
 	for (KeyChildIterator<D> kit(key); kit; ++kit) {
 	    if (mylist[j] == i) {
-		this->erase(kit.key());
+		impl.erase(kit.key());
 		node.set_child(mylist[j], false);
 		d.cost += cheapest;
 		j++;
@@ -447,7 +447,7 @@ namespace madness {
 	    i++;
 	}
 	node.set_data(d);
-	this->insert(key, node);
+	impl.insert(key, node);
     }
 
     /// compute_cost resets the subtree cost value for a tree and its descendants.
@@ -458,8 +458,8 @@ namespace madness {
     template <int D>
     Cost LBTree<D>::compute_cost(typename DClass<D>::KeyDConst& key) {
         Cost cost = 0;
-        typename DClass<D>::treeT::iterator it = this->find(key);
-        if (it == this->end()) return cost;
+        typename DClass<D>::treeT::iterator it = impl.find(key);
+        if (it == impl.end()) return cost;
 
         typename DClass<D>::NodeD node = it->second;
         for (KeyChildIterator<D> kit(key); kit; ++kit) {
@@ -470,7 +470,7 @@ namespace madness {
 
         d.subcost = cost;
         node.set_data(d);
-        this->insert(key,node);
+        impl.insert(key,node);
         return cost;
     }
 
@@ -497,8 +497,8 @@ namespace madness {
 	std::vector<bool> my_children_status; 
 	Cost my_current_cost = used_up;
 
-        typename DClass<D>::treeT::iterator it = this->find(key);
-        if (it == this->end()) {
+        typename DClass<D>::treeT::iterator it = impl.find(key);
+        if (it == impl.end()) {
             return used_up;
         }
 
@@ -523,7 +523,7 @@ namespace madness {
             // REMOVE COST FROM FOREPARENTS 
             this->remove_cost(key.parent(), d.subcost);
             node.set_data(d);
-            this->insert(key,node);
+            impl.insert(key,node);
         } else if (used_up < partition_size) {
             // try this node's children (if any)
             if (node.has_children()) {
@@ -570,7 +570,7 @@ namespace madness {
 			used_up += d.subcost;
 			this->remove_cost(key.parent(), d.subcost);
 			node.set_data(d);
-			this->insert(key,node);
+			impl.insert(key,node);
 		    }
 		} else if (used_up != my_current_cost) {
 // Effectively, we're at a leaf, because we've used up all the children of
@@ -592,8 +592,8 @@ namespace madness {
     template <int D>
     void LBTree<D>::remove_cost(typename DClass<D>::KeyDConst& key, Cost c) {
         if (((int) key.level()) < 0) return;
-        typename DClass<D>::treeT::iterator it = this->find(key);
-        if (it == this->end()) return;
+        typename DClass<D>::treeT::iterator it = impl.find(key);
+        if (it == impl.end()) return;
         typename DClass<D>::NodeD node = it->second;
         NodeData d = node.get_data();
         d.subcost -= c;
@@ -601,7 +601,7 @@ namespace madness {
             this->remove_cost(key.parent(), c);
         }
         node.set_data(d);
-        this->insert(key,node);
+        impl.insert(key,node);
     }
 
 
