@@ -95,13 +95,15 @@ namespace madness {
 
     public:
         static int dim; /// Number of children in standard tree (e.g. 2^D)
+	int nrecvd;
 
         LBNode() {
             data = Data();
             all_children();
+	    nrecvd = 0;
         };
 
-        LBNode(const Data& d, bool children=false) : data(d) {
+        LBNode(const Data& d, bool children=false, int n=0) : data(d), nrecvd(n) {
             all_children(children);
         };
 
@@ -119,6 +121,14 @@ namespace madness {
         bool has_child(int i) const {
             return c[i];
         };
+
+	int get_num_children() const {
+	    int nkids = 0;
+	    for (int i=0; i < dim; i++) {
+		if (has_child(i)) nkids++;
+	    }
+	    return nkids;
+	}
 
         void set_child(int i, bool setto = true) {
             c[i] = setto;
@@ -169,7 +179,7 @@ namespace madness {
         int cost;
         int subcost;
         bool is_taken;
-        NodeData(int c = 1, int s = 1, bool i = false) : cost(c), subcost(s), is_taken(i) {};
+        NodeData(int c = 1, int s = 1, bool i = false, int n = 0) : cost(c), subcost(s), is_taken(i) {};
         template <typename Archive>
         void serialize(const Archive& ar) {
             ar & cost & subcost & is_taken;
@@ -410,8 +420,15 @@ namespace madness {
 
         std::vector< std::vector<typename DClass<D>::TreeCoords> > find_partitions(SharedPtr<std::vector<Cost> > costlist);
 
-        Cost fix_cost(typename DClass<D>::KeyDConst& key);
+        void fix_cost();
 
+	void init_fix_cost();
+	void fix_cost_spawn();
+	Void fix_cost_sum(typename DClass<D>::KeyDConst& key, Cost c);
+/*
+	Future<Cost> fix_cost_spawn(typename DClass<D>::KeyDConst& key);
+	Cost fix_cost_add_op(typename DClass<D>::KeyDConst& key, const std::vector< Future<Cost> >& vcost);
+*/
         Cost depth_first_partition(typename DClass<D>::KeyDConst& key,
                                  vector<typename DClass<D>::TreeCoords>* klist, unsigned int npieces,
                                  Cost totalcost = 0, Cost *maxcost = 0);
