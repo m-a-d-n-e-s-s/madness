@@ -590,6 +590,8 @@ namespace madness {
                 TaskInterface *p = ready.front();
                 ready.pop_front();
 
+		// NB THIS ENFORCES SEQUENTIALLY CONSISTENT EXECUTION
+		// ... can be relaxed at expense of possible unbounded memory consumption
                 suspend();
                 p->run(world);
                 resume();

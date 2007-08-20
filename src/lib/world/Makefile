@@ -17,11 +17,12 @@ CSRC = lookup3.c
 DATAFILES = 
 
 # Names of test programs [OPTIONAL]
-TESTPROGS = world hqi
+TESTPROGS = world testar treetest
 
 # Source files for the test programs (up to six of them)
 TEST1SRC = world.cc
 TEST2SRC = testar.cc
+TEST3SRC = treetest.cc
          
 # GlobalMakefile now does most of the work for you
 include $(TOPDIR)/config/GlobalMakefile
@@ -31,5 +32,8 @@ world: $(TEST1OBJ) $(THISLIBDEPEND)
 	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ $(SYSLIBS) $(LTLINKBINOPTS)
 
 testar: $(TEST2OBJ) $(THISLIBDEPEND) 
+	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ $(SYSLIBS) $(LTLINKBINOPTS)
+
+treetest: $(TEST3OBJ) $(THISLIBDEPEND) 
 	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ $(SYSLIBS) $(LTLINKBINOPTS)
 
