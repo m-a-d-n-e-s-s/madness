@@ -101,7 +101,7 @@ namespace madness {
         struct info {
             typedef Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > futureT;
             typedef RemoteReference< FutureImpl< REMFUTURE(MEMFUN_RETURNT(memfunT)) > > refT;
-            uniqueidT id;
+            uniqueidT id; // Must be at front ... see peek.
             ProcessID requestor;
             memfunT memfun;
             refT ref; 
@@ -120,9 +120,28 @@ namespace madness {
 
             template <typename Archive>
             void serialize(const Archive& ar) {
-                ar & archive::wrap_opaque(*this);
+                ar & archive::wrap_opaque(*this); // Must be opaque ... see peek.
             }
         };
+
+        /// Extract the unique object ID from an incoming active message header
+
+        /// We deserialize the header and all arguments at the same
+        /// time to simplify the code.  However, it is common that
+        /// when sending a message to an item in a container to
+        /// include a pointer to the container itself.  But this
+        /// breaks if the container is not initialized since the
+        /// deserialization throws if the object is not initialized
+        /// (which seems preferable to hidden race condition).  Hence,
+        /// we use this routine to extract the unique ID from the very
+        /// front of the info structure.  For efficiency we here rely
+        /// upon the serialization of info being opaque and the 
+        /// id being at the front of info.
+        static inline const uniqueidT& peek(const void *msg) {
+            const char* cmsg = (const char*) msg;
+            return *((uniqueidT*) (cmsg + WorldAmInterface::LONG_MSG_HEADER_LEN));
+        };
+            
     }
 
 
@@ -167,95 +186,100 @@ namespace madness {
         // Handler for incoming AM with 1 argument
         template <typename memfunT, typename arg1T>
         static void handler(World& world, ProcessID src, void* buf, size_t nbyte) {
-            LongAmArg* arg = (LongAmArg *) buf;
-            detail::info<memfunT> info;
-            arg1T arg1;
-            arg->unstuff(nbyte, info, arg1);
-            Derived* obj = world.ptr_from_id<Derived>(info.id);
+            const uniqueidT& id = detail::peek(buf);
+            Derived* obj = world.ptr_from_id<Derived>(id);
             if (is_ready(obj)) {
+                LongAmArg* arg = (LongAmArg *) buf;
+                detail::info<memfunT> info;
+                arg1T arg1;
+                arg->unstuff(nbyte, info, arg1);
                 typename detail::info<memfunT>::futureT result(info.ref);
                 result.set((obj->*info.memfun)(arg1));
             }
             else {
-                pending.push_back(new detail::PendingLongMsg(info.id, handler<memfunT,arg1T>, src, buf, nbyte));
+                pending.push_back(new detail::PendingLongMsg(id, handler<memfunT,arg1T>, src, buf, nbyte));
             }
         }
 
         // Handler for incoming AM with 2 arguments
         template <typename memfunT, typename arg1T, typename arg2T>
         static void handler(World& world, ProcessID src, void* buf, size_t nbyte) {
-            LongAmArg* arg = (LongAmArg *) buf;
-            detail::info<memfunT> info;
-            arg1T arg1;
-            arg2T arg2;
-            arg->unstuff(nbyte, info, arg1, arg2);
-            Derived* obj = world.ptr_from_id<Derived>(info.id);
+            const uniqueidT& id = detail::peek(buf);
+            Derived* obj = world.ptr_from_id<Derived>(id);
             if (is_ready(obj)) {
+                LongAmArg* arg = (LongAmArg *) buf;
+                detail::info<memfunT> info;
+                arg1T arg1;
+                arg2T arg2;
+                arg->unstuff(nbyte, info, arg1, arg2);
                 typename detail::info<memfunT>::futureT result(info.ref);
                 result.set((obj->*info.memfun)(arg1,arg2));
             }
             else {
-                pending.push_back(new detail::PendingLongMsg(info.id, handler<memfunT,arg1T,arg2T>, src, buf, nbyte));
+                pending.push_back(new detail::PendingLongMsg(id, handler<memfunT,arg1T,arg2T>, src, buf, nbyte));
             }
         }
 
         // Handler for incoming AM with 3 arguments
         template <typename memfunT, typename arg1T, typename arg2T, typename arg3T>
         static void handler(World& world, ProcessID src, void* buf, size_t nbyte) {
-            LongAmArg* arg = (LongAmArg *) buf;
-            detail::info<memfunT> info;
-            arg1T arg1;
-            arg2T arg2;
-            arg3T arg3;
-            arg->unstuff(nbyte, info, arg1, arg2, arg3);
-            Derived* obj = world.ptr_from_id<Derived>(info.id);
+            const uniqueidT& id = detail::peek(buf);
+            Derived* obj = world.ptr_from_id<Derived>(id);
             if (is_ready(obj)) {
+                LongAmArg* arg = (LongAmArg *) buf;
+                detail::info<memfunT> info;
+                arg1T arg1;
+                arg2T arg2;
+                arg3T arg3;
+                arg->unstuff(nbyte, info, arg1, arg2, arg3);
                 typename detail::info<memfunT>::futureT result(info.ref);
                 result.set((obj->*info.memfun)(arg1,arg2,arg3));
             }
             else {
-                pending.push_back(new detail::PendingLongMsg(info.id, handler<memfunT,arg1T,arg2T,arg3T>, src, buf, nbyte));
+                pending.push_back(new detail::PendingLongMsg(id, handler<memfunT,arg1T,arg2T,arg3T>, src, buf, nbyte));
             }
         }
 
         // Handler for incoming AM with 4 arguments
         template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T>
         static void handler(World& world, ProcessID src, void* buf, size_t nbyte) {
-            LongAmArg* arg = (LongAmArg *) buf;
-            detail::info<memfunT> info;
-            arg1T arg1;
-            arg2T arg2;
-            arg3T arg3;
-            arg4T arg4;
-            arg->unstuff(nbyte, info, arg1, arg2, arg3, arg4);
-            Derived* obj = world.ptr_from_id<Derived>(info.id);
+            const uniqueidT& id = detail::peek(buf);
+            Derived* obj = world.ptr_from_id<Derived>(id);
             if (is_ready(obj)) {
+                LongAmArg* arg = (LongAmArg *) buf;
+                detail::info<memfunT> info;
+                arg1T arg1;
+                arg2T arg2;
+                arg3T arg3;
+                arg4T arg4;
+                arg->unstuff(nbyte, info, arg1, arg2, arg3, arg4);
                 typename detail::info<memfunT>::futureT result(info.ref);
                 result.set((obj->*info.memfun)(arg1,arg2,arg3,arg4));
             }
             else {
-                pending.push_back(new detail::PendingLongMsg(info.id, handler<memfunT,arg1T,arg2T,arg3T,arg4T>, src, buf, nbyte));
+                pending.push_back(new detail::PendingLongMsg(id, handler<memfunT,arg1T,arg2T,arg3T,arg4T>, src, buf, nbyte));
             }
         }
 
         // Handler for incoming AM with 5 arguments
         template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T, typename arg5T>
         static void handler(World& world, ProcessID src, void* buf, size_t nbyte) {
-            LongAmArg* arg = (LongAmArg *) buf;
-            detail::info<memfunT> info;
-            arg1T arg1;
-            arg2T arg2;
-            arg3T arg3;
-            arg4T arg4;
-            arg5T arg5;
-            arg->unstuff(nbyte, info, arg1, arg2, arg3, arg4, arg5);
-            Derived* obj = world.ptr_from_id<Derived>(info.id);
+            const uniqueidT& id = detail::peek(buf);
+            Derived* obj = world.ptr_from_id<Derived>(id);
             if (is_ready(obj)) {
+                LongAmArg* arg = (LongAmArg *) buf;
+                detail::info<memfunT> info;
+                arg1T arg1;
+                arg2T arg2;
+                arg3T arg3;
+                arg4T arg4;
+                arg5T arg5;
+                arg->unstuff(nbyte, info, arg1, arg2, arg3, arg4, arg5);
                 typename detail::info<memfunT>::futureT result(info.ref);
                 result.set((obj->*info.memfun)(arg1,arg2,arg3,arg4,arg5));
             }
             else {
-                pending.push_back(new detail::PendingLongMsg(info.id, handler<memfunT,arg1T,arg2T,arg3T,arg4T,arg5T>, src, buf, nbyte));
+                pending.push_back(new detail::PendingLongMsg(id, handler<memfunT,arg1T,arg2T,arg3T,arg4T,arg5T>, src, buf, nbyte));
             }
         }
 
@@ -277,99 +301,106 @@ namespace madness {
         // Handler for incoming task with 1 argument
         template <typename memfunT, typename arg1T>
         static void handler_task(World& world, ProcessID src, void* buf, size_t nbyte) {
-            LongAmArg* arg = (LongAmArg *) buf;
-            detail::info<memfunT> info;
-            arg1T arg1;
-            arg->unstuff(nbyte, info, arg1);
-            Derived* obj = world.ptr_from_id<Derived>(info.id);
+            const uniqueidT& id = detail::peek(buf);
+            Derived* obj = world.ptr_from_id<Derived>(id);
             if (is_ready(obj)) {
+                LongAmArg* arg = (LongAmArg *) buf;
+                detail::info<memfunT> info;
+                arg1T arg1;
+                arg->unstuff(nbyte, info, arg1);
                 typename detail::info<memfunT>::futureT result(info.ref);
                 world.taskq.add(new TaskMemfun<memfunT>(result,*obj,info.memfun,arg1,info.attr));
             }
             else {
-                pending.push_back(new detail::PendingLongMsg(info.id, handler_task<memfunT,arg1T>, src, buf, nbyte));
+                pending.push_back(new detail::PendingLongMsg(id, handler_task<memfunT,arg1T>, src, buf, nbyte));
             }
         }
 
         // Handler for incoming task with 2 arguments
         template <typename memfunT, typename arg1T, typename arg2T>
         static void handler_task(World& world, ProcessID src, void* buf, size_t nbyte) {
-            LongAmArg* arg = (LongAmArg *) buf;
-            detail::info<memfunT> info;
-            arg1T arg1;
-            arg2T arg2;
-            arg->unstuff(nbyte, info, arg1, arg2);
-            Derived* obj = world.ptr_from_id<Derived>(info.id);
+            const uniqueidT& id = detail::peek(buf);
+            Derived* obj = world.ptr_from_id<Derived>(id);
             if (is_ready(obj)) {
+                LongAmArg* arg = (LongAmArg *) buf;
+                detail::info<memfunT> info;
+                arg1T arg1;
+                arg2T arg2;
+                arg->unstuff(nbyte, info, arg1, arg2);
                 typename detail::info<memfunT>::futureT result(info.ref);
                 world.taskq.add(new TaskMemfun<memfunT>(result,*obj,info.memfun,arg1,arg2,info.attr));
             }
             else {
-                pending.push_back(new detail::PendingLongMsg(info.id, handler_task<memfunT,arg1T,arg2T>, src, buf, nbyte));
+                pending.push_back(new detail::PendingLongMsg(id, handler_task<memfunT,arg1T,arg2T>, src, buf, nbyte));
             }
         }
 
         // Handler for incoming task with 3 arguments
         template <typename memfunT, typename arg1T, typename arg2T, typename arg3T>
         static void handler_task(World& world, ProcessID src, void* buf, size_t nbyte) {
-            LongAmArg* arg = (LongAmArg *) buf;
-            detail::info<memfunT> info;
-            arg1T arg1;
-            arg2T arg2;
-            arg3T arg3;
-            arg->unstuff(nbyte, info, arg1, arg2, arg3);
-            Derived* obj = world.ptr_from_id<Derived>(info.id);
+            const uniqueidT& id = detail::peek(buf);
+            Derived* obj = world.ptr_from_id<Derived>(id);
             if (is_ready(obj)) {
+                LongAmArg* arg = (LongAmArg *) buf;
+                detail::info<memfunT> info;
+                arg1T arg1;
+                arg2T arg2;
+                arg3T arg3;
+                arg->unstuff(nbyte, info, arg1, arg2, arg3);
                 typename detail::info<memfunT>::futureT result(info.ref);
                 world.taskq.add(new TaskMemfun<memfunT>(result,*obj,info.memfun,arg1,arg2,arg3,info.attr));
             }
             else {
-                pending.push_back(new detail::PendingLongMsg(info.id, handler_task<memfunT,arg1T,arg2T,arg3T>, src, buf, nbyte));
+                pending.push_back(new detail::PendingLongMsg(id, handler_task<memfunT,arg1T,arg2T,arg3T>, src, buf, nbyte));
             }
         }
 
         // Handler for incoming task with 4 arguments
         template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T>
         static void handler_task(World& world, ProcessID src, void* buf, size_t nbyte) {
-            LongAmArg* arg = (LongAmArg *) buf;
-            detail::info<memfunT> info;
-            arg1T arg1;
-            arg2T arg2;
-            arg3T arg3;
-            arg4T arg4;
-            arg->unstuff(nbyte, info, arg1, arg2, arg3, arg4);
-            Derived* obj = world.ptr_from_id<Derived>(info.id);
+            const uniqueidT& id = detail::peek(buf);
+            Derived* obj = world.ptr_from_id<Derived>(id);
             if (is_ready(obj)) {
+                LongAmArg* arg = (LongAmArg *) buf;
+                detail::info<memfunT> info;
+                arg1T arg1;
+                arg2T arg2;
+                arg3T arg3;
+                arg4T arg4;
+                arg->unstuff(nbyte, info, arg1, arg2, arg3, arg4);
                 typename detail::info<memfunT>::futureT result(info.ref);
                 world.taskq.add(new TaskMemfun<memfunT>(result,*obj,info.memfun,arg1,arg2,arg3,arg4,info.attr));
             }
             else {
-                pending.push_back(new detail::PendingLongMsg(info.id, handler_task<memfunT,arg1T,arg2T,arg3T,arg4T>, src, buf, nbyte));
+                pending.push_back(new detail::PendingLongMsg(id, handler_task<memfunT,arg1T,arg2T,arg3T,arg4T>, src, buf, nbyte));
             }
         }
 
         // Handler for incoming task with 5 arguments
         template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T, typename arg5T>
         static void handler_task(World& world, ProcessID src, void* buf, size_t nbyte) {
-            LongAmArg* arg = (LongAmArg *) buf;
-            detail::info<memfunT> info;
-            arg1T arg1;
-            arg2T arg2;
-            arg3T arg3;
-            arg4T arg4;
-            arg5T arg5;
-            arg->unstuff(nbyte, info, arg1, arg2, arg3, arg4, arg5);
-            Derived* obj = world.ptr_from_id<Derived>(info.id);
+            const uniqueidT& id = detail::peek(buf);
+            Derived* obj = world.ptr_from_id<Derived>(id);
             if (is_ready(obj)) {
+                LongAmArg* arg = (LongAmArg *) buf;
+                detail::info<memfunT> info;
+                arg1T arg1;
+                arg2T arg2;
+                arg3T arg3;
+                arg4T arg4;
+                arg5T arg5;
+                arg->unstuff(nbyte, info, arg1, arg2, arg3, arg4, arg5);
                 typename detail::info<memfunT>::futureT result(info.ref);
                 world.taskq.add(new TaskMemfun<memfunT>(result,*obj,info.memfun,arg1,arg2,arg3,arg4,arg5,info.attr));
             }
             else {
-                pending.push_back(new detail::PendingLongMsg(info.id, handler_task<memfunT,arg1T,arg2T,arg3T,arg4T,arg5T>, src, buf, nbyte));
+                pending.push_back(new detail::PendingLongMsg(id, handler_task<memfunT,arg1T,arg2T,arg3T,arg4T,arg5T>, src, buf, nbyte));
             }
         }
 
         // Returns true if obj is not NULL pointer and is also ready for incoming messages
+
+        // look below for the murky nastiness that is doing_pending
         static bool is_ready(Derived* obj) {
             if (obj) {
                 WorldObject* p = static_cast<WorldObject*>(obj);

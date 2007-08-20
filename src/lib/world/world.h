@@ -283,6 +283,11 @@ namespace madness {
             return user_state;
         };
 
+        /// Processes command line arguments
+
+        /// Mostly for world test codes but most usefully provides -dx option
+        /// to start x debugger.
+        void args(int argc, char**argv);
 
         /// Clears user-defined state ... same as set_user_state(0)
         void clear_user_state() {

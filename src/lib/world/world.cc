@@ -877,12 +877,7 @@ int main(int argc, char** argv) {
     print("The processor frequency is",cpu_frequency());
     print("there are",world.mpi.nproc(),"processes and I am process",world.mpi.rank());
 
-    for (int arg=1; arg<argc; arg++) {
-        if (std::strcmp(argv[arg],"-dx")==0) xterm_debug("world", 0);
-        if (std::strcmp(argv[arg],"-dam")==0) world.am.set_debug(true);
-        if (std::strcmp(argv[arg],"-dmpi")==0) world.mpi.set_debug(true);
-        if (std::strcmp(argv[arg],"-dref")==0) world.mpi.set_debug(true);
-    }
+    world.args(argc,argv);
 
     world.gop.fence();
 

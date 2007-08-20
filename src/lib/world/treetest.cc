@@ -29,7 +29,7 @@
   fax:   865-572-0680
 
   
-  $Id: world.cc 289 2007-08-13 15:51:09Z HartmanBaker $
+  $Id$
 */
 
   
@@ -60,7 +60,6 @@ struct Key {
     }
 
     bool operator==(const Key& b) const {
-        // It's extremely probable that different keys will have a different hash
         return hashval==b.hashval && n==b.n && i==b.i && j==b.j && k==b.k;
     }
 
@@ -89,7 +88,7 @@ public:
 	{};
 
     KeyChildIterator& operator++() {
-	if (k == 2) return *this;
+	if (k == 2) return *this;  // k==2 indicates end
 	i++;
 	if (i == 2) {
 	    i = 0;
@@ -99,7 +98,6 @@ public:
 		k++;
 	    }
 	}
-	// k==2 indicates end
 	child = Key(parent.n+1, 2*parent.i+i, 2*parent.j+j, 2*parent.k+k);
 	return *this;
     };
@@ -130,10 +128,10 @@ struct Node {
         dcT& d = const_cast<dcT&>(constd);
         value = valin;
         isleaf = true;
-        if (value > 0.25 && d.size()<9) {
+        if (value > 0.25 && d.size()<40) {
             isleaf = false;
             World& world = d.world();
-            double ran = 0.5; //world.mpi.drand();
+            double ran = world.mpi.drand();
 	    for (KeyChildIterator it(key); it; ++it) {
 		d.task(it.key(),&Node::random_insert, d, it.key(), value*ran);
 	    }		
@@ -157,7 +155,9 @@ struct Node {
     // Void recursive_print(dcT& d) const {  // d should be const
     Void recursive_print(const dcT& constd, const Key& key) const {
         dcT& d = const_cast<dcT&>(constd); // !!!!!!!!!!!!!!
-	cout << d.world().rank() << ": RP: " << key << " " << *this;
+	cout << d.world().rank() << ": RP: ";
+        for (unsigned int i=0; i<key.n; i++) cout << "   ";
+        cout << key << " " << *this;
 	if (! is_leaf()) {
 	    for (KeyChildIterator it(key); it; ++it) {
 		d.send(it.key(),&Node::recursive_print, d, it.key());
@@ -211,17 +211,14 @@ void doit(World& world) {
     Key root(0,0,0,0);
     
     // First build an oct-tree with random depth
-    world.mpi.srand();
-    print("first ran#",world.mpi.drand());
-    world.gop.fence();
     if (me == 0) d.send(root,&Node::random_insert,d,root,1.0);
     world.gop.fence();
-    print("FINISHED INSERTING");
+    if (me == 0) print("FINISHED INSERTING");
 
-    // Now using AM walk the tree ... first in "non-process-centric" manner
+    // Now using AM walk the tree by sending messages between objects
     if (me == 0) d.send(root, &Node::recursive_print, d, root);
     world.gop.fence();
-    print("FINISHED PRINTING");
+    if (me == 0) print("FINISHED PRINTING");
 
 //     // Now add up the tree
 //     for (WorldContainer<Key,Node>::iterator it=d.begin(); it!=d.end(); ++it) {
@@ -241,9 +238,6 @@ void doit(World& world) {
 //     world.gop.fence();
 //     print("FINISHED SUMMING");
 
-    if (me == 0) d.send(root, &Node::recursive_print, d, root);
-    world.gop.fence();
-
     if (me == 0) {
 	print("AND THE FINAL ANSWER IS", d.send(root, &Node::do_sum_spawn, d, root).get());
     }
@@ -253,11 +247,17 @@ void doit(World& world) {
 
 int main(int argc, char** argv) {
     MPI::Init(argc, argv);
+    try {
     World world(MPI::COMM_WORLD);
     redirectio(world);
 
-    try {
+    world.args(argc,argv);
+    
 	doit(world);
+
+    world.gop.fence();
+    print("done with final fence");
+
     } catch (MPI::Exception e) {
         error("caught an MPI exception");
     } catch (madness::MadnessException e) {
@@ -270,8 +270,6 @@ int main(int argc, char** argv) {
         error("caught unhandled exception");
     }
 
-    world.gop.fence();
-    print("done with final fence");
     MPI::Finalize();
 
 
