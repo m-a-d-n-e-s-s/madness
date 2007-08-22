@@ -131,7 +131,7 @@ struct Node {
         if (value > 0.25 && d.size()<40) {
             isleaf = false;
             World& world = d.world();
-            double ran = world.mpi.drand();
+            double ran = world.drand();
 	    for (KeyChildIterator it(key); it; ++it) {
 		d.task(it.key(),&Node::random_insert, d, it.key(), value*ran);
 	    }		
