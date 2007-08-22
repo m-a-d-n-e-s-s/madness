@@ -354,7 +354,6 @@ namespace madness {
         
         WorldContainerImpl();   // Inhibit default constructor
         
-        World& world;
         const SharedPtr< WorldDCPmapInterface<keyT> > pmap;       //< Function/class to map from keys to owning process
         const WorldDCAttr attr;  //< Atrributes
         const ProcessID me;           //< My MPI rank
@@ -433,7 +432,6 @@ namespace madness {
         WorldContainerImpl(World& world, const SharedPtr< WorldDCPmapInterface<keyT> >& pmap, 
                            const WorldDCAttr& attr, bool do_pending)
             : WorldObject< WorldContainerImpl<keyT, valueT> >(world)
-            , world(world)
             , pmap(pmap)
             , attr(attr)
             , me(world.mpi.rank())
@@ -604,7 +602,7 @@ namespace madness {
                     }
                 }
                 Future<iterator> result;
-                send(dest, &implT::find_handler, me, key, result.remote_ref(world));
+                send(dest, &implT::find_handler, me, key, result.remote_ref(this->world));
                 return result;
             }
         }

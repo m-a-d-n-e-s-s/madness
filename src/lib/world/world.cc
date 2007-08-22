@@ -89,7 +89,7 @@ void hello(World& world, ProcessID from, const AmArg& arg) {
 
 void test1(World& world) {
     ProcessID me = world.mpi.rank();
-    long nproc = world.mpi.nproc();
+    long nproc = world.size();
 
     //world.mpi.set_debug(true);
 
@@ -101,7 +101,7 @@ void test1(World& world) {
 
     for (int i=0; i<20; i++) {
       long reply = -1;
-      ProcessID p = world.mpi.random_proc_not_me();
+      ProcessID p = world.random_proc_not_me();
       world.am.send_recv(p,handler,AmArg(me+1000L),&reply,sizeof(reply),p,33);
       if (reply != me+1001) {
         print("bad reply",reply,me+1001);
@@ -133,7 +133,7 @@ void test2_handler(World& world, ProcessID src, void *buf, size_t len) {
         lens++;
         s = new short[lens+8];
         for (short i=0; i<lens; i++) s[i+8] = i;
-        ProcessID dest = world.mpi.random_proc();
+        ProcessID dest = world.random_proc();
         world.am.send_long(dest, test2_handler, s, lens*sizeof(short)+16);
         world.am.fence();
         delete [] s;
@@ -172,14 +172,14 @@ void test3_handler(World& world, ProcessID src, void *buf, size_t len) {
         lens++;
         s = new short[lens+8];
         for (short i=0; i<lens; i++) s[i+8] = i;
-        ProcessID dest = world.mpi.random_proc();
+        ProcessID dest = world.random_proc();
         world.am.send_long_managed(dest, test3_handler, s, lens*sizeof(short)+16);
     }
 }
 
 
 void test3(World& world) {
-    ProcessID me = world.mpi.rank();
+    ProcessID me = world.rank();
     short buf[] = {0,0,0,0,0,0,0,0,0}; // First 8 shorts for system header, 9th for data
 
     // Same as test2 but using managed long buffers
@@ -190,8 +190,8 @@ void test3(World& world) {
 }
 
 void test4(World& world) {
-    int nproc = world.mpi.nproc();
-    ProcessID me = world.mpi.rank();
+    int nproc = world.size();
+    ProcessID me = world.rank();
     ProcessID left = (me+nproc-1) % nproc;
     ProcessID right = (me+1) % nproc;
 
@@ -237,7 +237,7 @@ public:
 
     static int carl() {return 88;};
 
-    static int dave(World* world) {return world->mpi.rank();};
+    static int dave(World* world) {return world->rank();};
 
     static int bert(int input) {return input+1;};
 
@@ -247,7 +247,7 @@ public:
 
     static string kate(World* world, const string& msg, double d) {
         ostringstream s;
-        s << "Process " << world->mpi.rank() << " says '" << msg << "' and " 
+        s << "Process " << world->rank() << " says '" << msg << "' and " 
           << d << " right back at you!";
         return s.str();
     };
@@ -270,8 +270,8 @@ double dumb(int a1, int a2, int a3, int a4, int a5, int a6, int a7) {
 
 
 void test5(World& world) {
-    int nproc = world.mpi.nproc();
-    ProcessID me = world.mpi.rank();
+    int nproc = world.size();
+    ProcessID me = world.rank();
     ProcessID right = (me+1)%nproc;
     TaskInterface* task = new TestTask();
     task->inc();
@@ -428,8 +428,8 @@ void test6(World& world) {
 
 
 void test7(World& world) {
-    int nproc = world.mpi.nproc();
-    ProcessID me = world.mpi.rank();
+    int nproc = world.size();
+    ProcessID me = world.rank();
     World::poll_all();
     WorldContainer<int,double> c(world);
 
@@ -609,8 +609,8 @@ public:
 
 void test10(World& world) {
     // test forwarding methods to an item
-    ProcessID me = world.mpi.rank();
-    int nproc = world.mpi.nproc();
+    ProcessID me = world.rank();
+    int nproc = world.size();
     World::poll_all();
     WorldContainer<int,Mary> m(world);
     typedef WorldContainer<int,Mary>::iterator iterator;
@@ -743,7 +743,7 @@ struct Node {
         if (value > 0.25 && d.size()<4000) {
             isleaf = false;
             World& world = d.world();
-            double ran = world.mpi.drand();
+            double ran = world.drand();
             key.foreach_child(do_random_insert(d,value*ran)); 
         }
         return None;
@@ -820,8 +820,8 @@ void test11(World& world) {
     WorldContainer<Key,Node> d(world);
 
     // First build an oct-tree with random depth
-    world.mpi.srand();
-    print("first ran#",world.mpi.drand());
+    world.srand();
+    print("first ran#",world.drand());
     world.gop.fence();
     if (me == 0) {
         Key root = Key(0,0,0,0);
@@ -833,8 +833,8 @@ void test11(World& world) {
     //d.clear();
     d.erase(d.begin(),d.end());
     print("size after erasing",d.size());
-    world.mpi.srand();
-    print("first ran#",world.mpi.drand());
+    world.srand();
+    print("first ran#",world.drand());
     world.gop.fence();
     // rebuild the tree in the same container
     if (me == 0) {
@@ -875,7 +875,7 @@ int main(int argc, char** argv) {
     World world(MPI::COMM_WORLD);
     redirectio(world);
     print("The processor frequency is",cpu_frequency());
-    print("there are",world.mpi.nproc(),"processes and I am process",world.mpi.rank());
+    print("there are",world.size(),"processes and I am process",world.rank());
 
     world.args(argc,argv);
 

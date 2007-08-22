@@ -91,7 +91,6 @@ namespace madness {
         const ProcessID _rank;  //< MPI rank of current process
         const int _nproc;       //< No. of processes in communicator
         bool debug;             //< If true, print debug information
-        unsigned int myrand_next;
 
     public:
         WorldMpiInterface(MPI::Intracomm& comm) 
@@ -99,10 +98,7 @@ namespace madness {
             , _rank(comm.Get_rank())
             , _nproc(comm.Get_size())
             , debug(false)
-            , myrand_next(comm.Get_rank())
-        {
-            srand();
-        };
+        {};
             
         /// Set debug flag to new value and return old value
         bool set_debug(bool value) {
@@ -343,47 +339,6 @@ namespace madness {
             return result;
         };
     public:
-
-        /// Initialize seed for the internal random number generator
-        void srand(unsigned long seed = 0) {
-            if (seed == 0) seed = rank();
-            myrand_next = seed;
-            for (int i=0; i<1000; i++) rand(); // Warmup
-        };
-
-
-        /// Returns a CRUDE, LOW-QUALITY, random number uniformly distributed in [0,2**24).
-
-        /// Each process has a distinct seed for the generator.
-        int rand() {
-            myrand_next = myrand_next * 1103515245UL + 12345UL;
-            return int((myrand_next>>8) & 0xfffffful);
-        };
-
-
-        /// Returns a CRUDE, LOW-QUALITY, random number uniformly distributed in [0,1).
-        double drand() {
-            return rand()/16777216.0;
-        };
-
-
-        /// Returns a random process number [0,world.size())
-        ProcessID random_proc() {
-            return rand()%size();
-        };
-
-
-        /// Returns a random process number [0,world.size()) != current process
-
-        /// Makes no sense to call this with just one process, but just in case you 
-        /// do it returns -1 in the hope that you won't actually use the result.
-        ProcessID random_proc_not_me() {
-            if (size() == 1) return -1;
-            ProcessID p;
-            do {p = rand()%size();} while (p == rank());
-            return p;
-        };
-
 
         /// Construct info about a binary tree with given root
         

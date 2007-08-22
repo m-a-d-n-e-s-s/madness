@@ -1160,7 +1160,6 @@ namespace madness {
                 const keyT& key = it->first;
                 const nodeT& node = it->second;
 
-
                 // NOTE MESSED UP CONSTNESS HERE DUE TO INCOMPLETE
                 // INTERFACE TO DC ... NEEDS FIXING IN THE DC CLASS.
                 if (key.level() > 0) {
@@ -1201,9 +1200,13 @@ namespace madness {
 
         /// Walk up the tree returning pair(key,node) for first node with coefficients
 
-        /// Traditional name for this routine ... you had to be there
-        /// and since you weren't you also missed out on look_out_below
-        /// which was sock_it_to_me's evil twin.
+        /// Three possibilities.
+        ///
+        /// 1) The coeffs are present and returned with the key of the containing node.
+        ///
+        /// 2) The coeffs are further up the tree ... the request is forwarded up.
+        ///
+        /// 3) The coeffs are futher down the tree ... an empty tensor is returned.
         ///
         /// !! This routine is crying out for an optimization to
         /// manage the number of messages being sent ... presently
@@ -1216,9 +1219,13 @@ namespace madness {
                            const RemoteReference< FutureImpl< std::pair<keyT,tensorT> > >& ref) {
             if (coeffs.probe(key)) {
                 const nodeT& node = coeffs.find(key).get()->second;
-                MADNESS_ASSERT(node.has_coeff());
                 Future< std::pair<keyT,tensorT> > result(ref);
-                result.set(std::pair<keyT,tensorT>(key,node.coeff()));
+                if (node.has_coeff()) {
+                    result.set(std::pair<keyT,tensorT>(key,node.coeff()));
+                }
+                else {
+                    result.set(std::pair<keyT,tensorT>(key,tensorT()));
+                }
             }
             else {
                 keyT parent = key.parent();
@@ -1369,6 +1376,108 @@ namespace madness {
             }
             if (fence) world.gop.fence();
         }
+
+//         /// Differentiation of function with optional global fence
+
+//         /// Result of differentiating f is placed into this
+//         void diff(const implT& f, int axis, bool fence) {
+//             typedef std::pair<keyT,tensorT> argT;
+//             for(typename dcT::iterator it=f.coeffs.begin(); it!=f.coeffs.end(); ++it) {
+//                 const keyT& key = it->first;
+//                 nodeT& node = it->second;
+//                 if (node.has_coeff()) {
+//                     Future<argT> left   = f.find_neighbor(key,axis,-1);
+//                     Future<argT> center = argT(key,node.coeff());
+//                     Future<argT> right  = f.find_neighbor(key,axis, 1);
+//                     task(world.rank(),&implT::do_diff,&f,axis,key,left,center,right);
+//                 }
+//                 else {
+//                     coeffs.insert(key,nodeT(tensorT(),true));
+//                 }
+//             }
+//             if (fence) world.gop.fence();
+//         };
+        
+
+//         /// Called by diff to find key and coeffs of neighbor enforcing BC
+
+//         /// Should work for any (small) step but only tested for step=+/-1
+//         Future< std::pair<keyT,tensorT> > find_neighbor(const keyT& key, int axis, int step) {
+//             typedef std::pair<keyT,tensorT> argT;
+//             Vector<Translation,NDIM> l = key.translation();
+//             Translation two2n = Translation(1)<<key.level();
+
+//             // Translation is an unsigned type so need to be careful if results
+//             // or intermediates are possibly negative.
+
+//             if (step < 0  &&  l[axis] < -step) {
+//                 if (bc[axis][0] == 0) {
+//                     return Future<argT>(argT(key,tensorT(cdata.vk)));  // Zero BC
+//                 }
+//                 else if (bc[axis][0] == 1) {
+//                     l[axis] = (l[axis] + two2n) + step;                // Periodic BC
+//                 }
+//                 else {
+//                     MADNESS_EXCEPTION("find_neighbor: confused left BC?",bc[axis][0]);
+//                 }
+//             }
+//             else if (l[axis]+step >= two2n) {
+//                 if (bc[axis][1] == 0) {
+//                     return Future<argT>(argT(key,tensorT(cdata.vk)));  // Zero BC
+//                 }
+//                 else if (bc[axis][1] == 1) {
+//                     l[axis] = (l[axis] + step) - two2n;                // Periodic BC
+//                 }
+//                 else {
+//                     MADNESS_EXCEPTION("find_neighbor: confused BC right?",bc[axis][1]);
+//                 }
+//             }
+//             else {
+//                 l[axis] += step;
+//             }
+            
+//             keyT neigh(key.level(),l);
+//             Future<argT> result;
+//             send(coeffs.owner(neigh), &implT::sock_it_to_me, neigh, result.remote_ref(world));
+//             return result;
+//         };
+
+
+//         Void do_diff(const implT* f, int axis, const keyT& key, 
+//                      const std::pair<keyT,tensor>& left,
+//                      const std::pair<keyT,tensor>& center,
+//                      const std::pair<keyT,tensor>& right) {
+
+//             // Must futz with the entry/coeffs/has_children for this node
+                                                                      
+//             if (left.second.size==0 || right.second.size==0) {
+//                 typedef std::pair<keyT,tensorT> argT;
+//                 for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
+//                     const keyT& child = kit.key();
+//                     if (left.second.size == 0) {
+//                         left   = f.find_neighbor(key,axis,-1);
+//                     }
+//                     if (right.second.size == 0) {
+//                         Future<argT> right  = f.find_neighbor(key,axis, 1);
+//                     }
+//                     // This must be sent to the owner of the child
+//                     task(world.rank(),&implT::do_diff,&f,axis,key,left,center,right);
+//                 }
+//                 return None;
+//             }
+
+//             DIFF HERE !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!;
+//         };
+        
+
+
+//             }
+
+//             return None;
+
+//         };
+            
+
 
 
         T eval_cube(Level n, coordT x, const tensorT c) const {

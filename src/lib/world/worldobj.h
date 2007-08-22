@@ -157,16 +157,19 @@ namespace madness {
     /// not support assignment or copying.  This ensures that each instance
     /// is unique.  Have a look at the WorldContainer for an example
     /// of wrapping this using the PIMPL idiom and a shared pointer.
+    ///
+    /// Note that world is exposed for convenience as a public data member.
     template <class Derived>
     class WorldObject : public DeferredCleanupInterface {
+    public:
+        World& world;                              //< Think globally act locally
     private:
         typedef WorldObject<Derived> objT;
-        static std::list<detail::PendingMsg*> pending;   //< Holds pending short/long messages
-        World& world;                              //< Think globally act locally
         uniqueidT objid;                           //< Sense of self
         ProcessID me;                              //< Rank of self
         bool ready;                                //< True when process_pending has been called
         bool doing_pending;                        //< Temporary hack to aid in processing pending msg.
+        static std::list<detail::PendingMsg*> pending;   //< Holds pending short/long messages
     
         // Handler for incoming AM with 0 arguments
         template <typename memfunT>

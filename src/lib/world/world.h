@@ -232,6 +232,7 @@ namespace madness {
     private:
         const ProcessID me;      //< My rank ... needs to be declared after MPI
         int nprocess;            //< No. of processes ... ditto
+        unsigned int myrand_next;//< State of crude internal random number generator
 
     public:
         /// Give me a communicator and I will give you the world
@@ -245,8 +246,10 @@ namespace madness {
             , gop(*world_gop_interface_factory(this))
             , me(mpi.rank())
             , nprocess(mpi.nproc())
+            , myrand_next(0)
         {
             worlds.push_back(this); 
+            srand();  // Initialize random number generator
             
             // Assign a globally (within COMM_WORLD) unique ID to this
             // world by assigning to each processor a unique range of indices
@@ -469,6 +472,50 @@ namespace madness {
                 deferred.push_back(p);
             }
         }
+
+
+        /// Initialize seed for the internal random number generator
+
+        /// If seed is zero (default) the actual seed is the process rank()
+        /// so that each process (crudely!!!) has distinct values.
+        void srand(unsigned long seed = 0) {
+            if (seed == 0) seed = rank();
+            myrand_next = seed;
+            for (int i=0; i<1000; i++) rand(); // Warmup
+        };
+
+
+        /// Returns a CRUDE, LOW-QUALITY, random number uniformly distributed in [0,2**24).
+
+        /// Each process has a distinct seed for the generator.
+        int rand() {
+            myrand_next = myrand_next * 1103515245UL + 12345UL;
+            return int((myrand_next>>8) & 0xfffffful);
+        };
+
+
+        /// Returns a CRUDE, LOW-QUALITY, random number uniformly distributed in [0,1).
+        double drand() {
+            return rand()/16777216.0;
+        };
+
+
+        /// Returns a random process number [0,world.size())
+        ProcessID random_proc() {
+            return rand()%size();
+        };
+
+
+        /// Returns a random process number [0,world.size()) != current process
+
+        /// Makes no sense to call this with just one process, but just in case you 
+        /// do it returns -1 in the hope that you won't actually use the result.
+        ProcessID random_proc_not_me() {
+            if (size() == 1) return -1;
+            ProcessID p;
+            do {p = rand()%size();} while (p == rank());
+            return p;
+        };
 
 
         ~World() {
