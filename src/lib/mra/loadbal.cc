@@ -155,7 +155,6 @@ namespace madness {
         if (this->world.mpi.rank() != 0) {
 	    while (keep_going) {
                 // Worker processes fence while manager queries them for fix_cost
-		madness::print("find_partitions (worker): about to fix_cost");
 		this->fix_cost();
 	        this->world.gop.fence();
                 // Set all elements to true before rollup
@@ -190,9 +189,7 @@ namespace madness {
 //	double t1 = MPI::Wtime();
 	while (keep_going) {
 //	    double t2 = MPI::Wtime();
-	    madness::print("about to fix_cost");
             this->fix_cost();
-	    madness::print("finished with fix_cost");
 	    this->world.gop.fence();
 //	    double t3 = MPI::Wtime();
 	    this->reset(true);
@@ -266,34 +263,53 @@ namespace madness {
         return compcost;
     }
 
+    /// recursive_print prints the tree recursively.
+    /// Argument: the key to be printed
+    /// Return: nothing
+    /// Side effect: prints out the key of the node
+    /// Communication: message to owner of next node to print that node
+
+    template <int D>
+    Void LBTree<D>::recursive_print(typename DClass<D>::KeyDConst& key) {
+	std::cout << this->world.rank() << ": recursive_print: " << key << std::endl;
+	typename DClass<D>::treeT::iterator it = impl.find(key);
+	typename DClass<D>::NodeD& node = it->second;
+	if (node.has_children()) {
+	    for (KeyChildIterator<D> kit(key); kit; ++kit) {
+		std::cout << "    " << this->world.rank() << ": recursive_print sending to" << kit.key() << std::endl;
+		send(impl.owner(kit.key()), &LBTree<D>::recursive_print, kit.key());
+	    }
+	}
+	return None;
+    }
+
 
     /// fix_cost resets the tree after the load balancing and melding have been performed, before the next
     /// round of load balancing.
-    /// Argument: const Key<D> key -- the node to be reset
-    /// Return: Cost of subtree rooted at key
+    /// Arguments: none
+    /// Return: none
     /// Side effect: subcost (the cost of the subtree rooted at key) is reset
-    /// Communication: Just what's required for find and insert
-/*
-    template <int D>
-    void LBTree<D>::fix_cost() {
-	if (this->world.rank() == 0) {
-	    fix_cost_spawn(typename DClass<D>::KeyD(0));
-	}
-	this->world.gop.fence();
-    }
-*/
+    /// Communication: none except communication by methods it calls
 
     template <int D>
     void LBTree<D>::fix_cost() {
 	init_fix_cost();
+	this->world.gop.fence();
 	fix_cost_spawn();
 	this->world.gop.fence();
-	madness::print("AFTER FIXING COST");
-	for (typename DClass<D>::treeT::iterator it = impl.begin(); it != impl.end(); ++it) {
-	    madness::print(it->first, it->second);
-	}
-	madness::print("DONE FIXING IT");
+//	madness::print("AFTER FIXING COST");
+//	for (typename DClass<D>::treeT::iterator it = impl.begin(); it != impl.end(); ++it) {
+//	    madness::print(it->first, it->second);
+//	}
+//	madness::print("DONE FIXING IT");
     }
+
+
+    /// init_fix_cost resets and zeroes out nrecvd in each node
+    /// Arguments: none
+    /// Return: none
+    /// Side effects: none
+    /// Communication: none
 
     template <int D>
     void LBTree<D>::init_fix_cost() {
@@ -311,6 +327,12 @@ namespace madness {
     }
 
 
+    /// fix_cost_spawn launches sum up tree, beginning at leaf nodes
+    /// Arguments: none
+    /// Return: none
+    /// Side effects: fixes subcost on each node
+    /// Communication: sends cost of each leaf node to owner of its parent
+
     template <int D>
     void LBTree<D>::fix_cost_spawn() {
 	for (typename DClass<D>::treeT::iterator it = impl.begin(); it != impl.end(); ++it) {
@@ -319,12 +341,21 @@ namespace madness {
 	    if (!node.has_children()) {
 		typename DClass<D>::KeyD parent = key.parent();
 		Cost c = node.get_data().cost;
-		madness::print("fix_cost_spawn: key", key, "is leaf child; sending", c,
-			       "to parent", parent);
-		task(impl.owner(parent), &LBTree<D>::fix_cost_sum, parent, c);
+//		madness::print("fix_cost_spawn: key", key, "is leaf child; sending", c,
+//			       "to parent", parent, "at processor", impl.owner(parent));
+		send(impl.owner(parent), &LBTree<D>::fix_cost_sum, parent, c);
 	    }
 	}
     }
+
+
+    /// fix_cost_sum receives node cost from child, adds to this node's subcost,
+    /// and, if it's added in all the costs from below, sends its cost to its parent
+    /// Arguments: const Key<D> key: the key of the node in question
+    ///            Cost c: the cost of the subtree rooted by the child
+    /// Return: none
+    /// Side effects: none
+    /// Communication: may send its subtree cost to parent
 
     template <int D>
     Void LBTree<D>::fix_cost_sum(typename DClass<D>::KeyDConst& key, Cost c) {
@@ -332,92 +363,20 @@ namespace madness {
 	typename DClass<D>::NodeD node = it->second;
 	NodeData d = node.get_data();
 	d.subcost += c;
-	madness::print("fix_cost_sum:", key, "received cost", c, " subtotal =", d.subcost);
+//	madness::print("fix_cost_sum:", key, "received number", node.nrecvd+1, "cost", 
+//		       c, " subtotal =", d.subcost);
 	node.nrecvd++;
 	node.set_data(d);
 	impl.insert(key, node);
 	if ((node.nrecvd == node.dim) && (key.level()!=0)) {
 	    typename DClass<D>::KeyD parent = key.parent();
-	    madness::print("fix_cost_sum:", key, "sending cost", d.subcost, "to parent", parent);
+//	    madness::print("fix_cost_sum:", key, "sending cost", d.subcost, "to parent", parent);
 	    task(impl.owner(parent), &LBTree<D>::fix_cost_sum, parent, d.subcost);
 	}
 	return None;
 	
     }
 
-
-/*
-    template <int D>
-    void LBTree<D>::fix_cost() {
-	madness::print("fix_cost: hello from fix_cost");
-	typename DClass<D>::KeyDConst root(0);
-	if (this->world.rank() == impl.owner(root)) {
-	    send(impl.owner(root), &LBTree<D>::fix_cost_spawn, root).get();
-	}
-	madness::print("fix_cost: about to fence");
-	this->world.gop.fence();
-	madness::print("fix_cost: done with fence");
-    }
-
-
-    template <int D>
-    Future<Cost> LBTree<D>::fix_cost_spawn(typename DClass<D>::KeyDConst& key) {
-	madness::print("fix_cost_spawn: here at beginning for", key);
-	typename DClass<D>::treeT::iterator it = impl.find(key);
-	if (it == impl.end()) return Future<Cost>(0);
-	typename DClass<D>::NodeD node = it->second;
-	NodeData d = node.get_data();
-	if (node.has_children()) {
-	    std::vector< Future<Cost> > vcost = future_vector_factory<Cost>(1<<D);
-	    int i = 0;
-	    for (KeyChildIterator<D> kit(key); kit; ++kit, ++i) {
-		if (node.has_child(i)) {
-		    madness::print("fix_cost_spawn:     about to send for child", kit.key(), "to", impl.owner(kit.key()));
-	       	    vcost[i] = send(impl.owner(kit.key()), &LBTree<D>::fix_cost_spawn, kit.key());
-		}
-		else {
-		    madness::print("fix_cost_spawn:     child", kit.key(), "does not exist");
-		    vcost[i] = Future<Cost>(0);
-		}
-	    }
-	    madness::print("fix_cost_spawn: about to get task for", key);
-	    return task(impl.owner(key), &LBTree<D>::fix_cost_add_op, key, vcost);
-	}
-	else {
-	    madness::print("fix_cost_spawn: childless node", key);
-	    d.subcost = d.cost;
-	    node.set_data(d);
-	    impl.insert(key,node);
-	    madness::print("fix_cost_spawn: childless node about to return");
-	    return Future<Cost>(d.cost);
-	}
-    }
-
-    template <int D>
-    Cost LBTree<D>::fix_cost_add_op(typename DClass<D>::KeyDConst& key, const std::vector< Future<Cost> >& vcost) {
-	madness::print("fix_cost_add_op: at beginning");
-	int vsize = vcost.size();
-	madness::print("fix_cost_add_op: vsize =", vsize);
-	Cost cost = 0;
-	for (int i = 0; i < vsize; i++) {
-	    madness::print("fix_cost_add_op: about to get for i=", i);
-	    cost += vcost[i].get();
-	}
-
-	typename DClass<D>::treeT::iterator it = impl.find(key);
-	if (it == impl.end()) return Future<Cost>(0);
-	typename DClass<D>::NodeD node = it->second;
-	NodeData d = node.get_data();
-	madness::print("fix_cost_add_op: got task for", key);
-	d.subcost = cost + d.cost;
-	madness::print("fix_cost_add_op: added up subcost");
-	node.set_data(d);	impl.insert(key,node);
-	madness::print("fix_cost_add_op: inserted node");
-
-	madness::print("fix_cost_add_op: about to return cost =", cost);
-	return cost;
-    }
-*/
 
     /// depth_first_partition finds partitions of trees by calling make_partition.  It figures
     /// out the size of the partitions to be made by make_partition at each iteration.

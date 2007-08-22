@@ -257,7 +257,6 @@ namespace madness {
 	};
 
         ProcessID find_owner(const Key<D>& key) const {
-//	    iterator_const it = themap.find(key);
 	    typename std::map<typename DClass<D>::KeyDConst,ProcessID>::const_iterator it = themap.find(key);
 	    if (it != themap.end()) {
 		return it->second;
@@ -301,10 +300,8 @@ namespace madness {
 	    if (key.level() == 0) {
 		return 0;
 	    } else if (key.level() <= n) {
-//		return hash(key)%nproc;
 		return (key.hash()%nproc);
 	    } else {
-//		return hash(key.parent(key.level()-n))%nproc;
 		return ((key.parent(key.level()-n)).hash()%nproc);
 	    }
 	};
@@ -386,7 +383,10 @@ namespace madness {
     public:
         //LBTree() {};
         LBTree(World& world, const SharedPtr< WorldDCPmapInterface<typename DClass<D>::KeyD> >& pmap) : woT(world)
-	    , world(world), impl(world,pmap) {
+	    , world(world)
+	    , impl(world,pmap) {
+	    impl.process_pending();
+	    this->process_pending();
         };
 	/// Initialize the LBTree by converting a FunctionImpl to a LBTree
         template <typename T>
@@ -419,19 +419,18 @@ namespace madness {
         };
 
         std::vector< std::vector<typename DClass<D>::TreeCoords> > find_partitions(SharedPtr<std::vector<Cost> > costlist);
+	Void recursive_print(typename DClass<D>::KeyDConst& key);
 
         void fix_cost();
 
 	void init_fix_cost();
 	void fix_cost_spawn();
 	Void fix_cost_sum(typename DClass<D>::KeyDConst& key, Cost c);
-/*
-	Future<Cost> fix_cost_spawn(typename DClass<D>::KeyDConst& key);
-	Cost fix_cost_add_op(typename DClass<D>::KeyDConst& key, const std::vector< Future<Cost> >& vcost);
-*/
+
         Cost depth_first_partition(typename DClass<D>::KeyDConst& key,
-                                 vector<typename DClass<D>::TreeCoords>* klist, unsigned int npieces,
-                                 Cost totalcost = 0, Cost *maxcost = 0);
+				   std::vector<typename DClass<D>::TreeCoords>* klist, 
+				   unsigned int npieces, Cost totalcost = 0, 
+				   Cost *maxcost = 0);
 
         void rollup();
 
