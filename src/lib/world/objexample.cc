@@ -18,7 +18,7 @@ public:
     ProcessID owner(size_t i) const {return i/v.size();};
 
     /// Read element i 
-    Future<double> read(size_t i) {   // WANT THIS TO BE CONST
+    Future<double> read(size_t i) const {
         if (owner(i) == world.rank())
             return Future<double>(v[i-world.rank()*v.size()]);
         else

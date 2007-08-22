@@ -597,6 +597,49 @@ namespace madness {
             return result;
         }
 
+
+        /// Sends active message to derived class method "returnT (this->*memfun)() const"
+        template <typename memfunT, typename arg1T>
+        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > 
+        send(ProcessID dest, memfunT memfun) const {
+            return const_cast<objT*>(this)->send(dest,memfun);
+        };
+
+        /// Sends active message to derived class method "returnT (this->*memfun)(arg1) const"
+        template <typename memfunT, typename arg1T>
+        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > 
+        send(ProcessID dest, memfunT memfun, const arg1T& arg1) const {
+            return const_cast<objT*>(this)->send(dest,memfun,arg1);
+        };
+
+        /// Sends active message to derived class method "returnT (this->*memfun)(arg1,arg2) const"
+        template <typename memfunT, typename arg1T, typename arg2T>
+        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > 
+        send(ProcessID dest, memfunT memfun, const arg1T& arg1, const arg2T& arg2) const {
+            return const_cast<objT*>(this)->send(dest,memfun,arg1,arg2);
+        };
+
+        /// Sends active message to derived class method "returnT (this->*memfun)(arg1,arg2,arg3) const"
+        template <typename memfunT, typename arg1T, typename arg2T, typename arg3T>
+        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > 
+        send(ProcessID dest, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3) const {
+            return const_cast<objT*>(this)->send(dest,memfun,arg1,arg2,arg3);
+        };
+
+        /// Sends active message to derived class method "returnT (this->*memfun)(arg1,arg2,arg3,arg4) const"
+        template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T>
+        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > 
+        send(ProcessID dest, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, const arg4T& arg4) const {
+            return const_cast<objT*>(this)->send(dest,memfun,arg1,arg2,arg3,arg4);
+        };
+
+        /// Sends active message to derived class method "returnT (this->*memfun)(arg1,arg2,arg3,arg4,arg5) const"
+        template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T, typename arg5T>
+        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > 
+        send(ProcessID dest, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, const arg4T& arg4, const arg5T& arg5) const {
+            return const_cast<objT*>(this)->send(dest,memfun,arg1,arg2,arg3,arg4,arg5);
+        };
+
         /// Sends task to derived class method "returnT (this->*memfun)()"
         template <typename memfunT>
         Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > 
@@ -696,6 +739,50 @@ namespace madness {
                 return result;
             }
         }
+
+
+        /// Sends task to derived class method "returnT (this->*memfun)() const"
+        template <typename memfunT>
+        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > 
+        task(ProcessID dest, memfunT memfun, const TaskAttributes& attr = TaskAttributes()) const {
+            return const_cast<objT*>(this)->task(dest,memfun,attr);
+        }
+
+        /// Sends task to derived class method "returnT (this->*memfun)(arg1) const"
+        template <typename memfunT, typename arg1T>
+        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > 
+        task(ProcessID dest, memfunT memfun, const arg1T& arg1, const TaskAttributes& attr = TaskAttributes()) const {
+            return const_cast<objT*>(this)->task(dest,memfun,arg1,attr);
+        }
+
+        /// Sends task to derived class method "returnT (this->*memfun)(arg1,arg2) const"
+        template <typename memfunT, typename arg1T, typename arg2T>
+        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > 
+        task(ProcessID dest, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const TaskAttributes& attr = TaskAttributes()) const {
+            return const_cast<objT*>(this)->task(dest,memfun,arg1,arg2,attr);
+        }
+
+        /// Sends task to derived class method "returnT (this->*memfun)(arg1,arg2,arg3) const"
+        template <typename memfunT, typename arg1T, typename arg2T, typename arg3T>
+        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > 
+        task(ProcessID dest, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, const TaskAttributes& attr = TaskAttributes()) const {
+            return const_cast<objT*>(this)->task(dest,memfun,arg1,arg2,arg3,attr);
+        }
+
+        /// Sends task to derived class method "returnT (this->*memfun)(arg1,arg2,arg3,arg4) const"
+        template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T>
+        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > 
+        task(ProcessID dest, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, const arg4T& arg4, const TaskAttributes& attr = TaskAttributes()) const {
+            return const_cast<objT*>(this)->task(dest,memfun,arg1,arg2,arg3,arg4,attr);
+        }
+
+        /// Sends task to derived class method "returnT (this->*memfun)(arg1,arg2,arg3,arg4,arg5) const"
+        template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T, typename arg5T>
+        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > 
+        task(ProcessID dest, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, const arg4T& arg4, const arg5T& arg5, const TaskAttributes& attr = TaskAttributes()) const {
+            return const_cast<objT*>(this)->task(dest,memfun,arg1,arg2,arg3,arg4,arg5,attr);
+        }
+
 
         virtual ~WorldObject(){
             world.unregister_ptr(static_cast<Derived*>(this));

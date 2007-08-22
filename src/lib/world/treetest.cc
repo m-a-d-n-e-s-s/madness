@@ -152,9 +152,7 @@ struct Node {
 
     void zero_nrecvd() {nrecvd = 0;};
 
-    // Void recursive_print(dcT& d) const {  // d should be const
-    Void recursive_print(const dcT& constd, const Key& key) const {
-        dcT& d = const_cast<dcT&>(constd); // !!!!!!!!!!!!!!
+    Void recursive_print(const dcT& d, const Key& key) const {
 	cout << d.world().rank() << ": RP: ";
         for (unsigned int i=0; i<key.n; i++) cout << "   ";
         cout << key << " " << *this;
@@ -166,8 +164,7 @@ struct Node {
 	return None;
     };
 
-    Void receive_sum(const dcT& constd, const Key& key, double gift) {
-        dcT& d = const_cast<dcT&>(constd); // !!!!!!!!!!!!!!
+    Void receive_sum(const dcT& d, const Key& key, double gift) {
 	value += gift;
 	nrecvd++;
 	if (nrecvd == 8 && key.n!=0) {
@@ -183,8 +180,7 @@ struct Node {
 	return value;
     };
 
-    Future<double> do_sum_spawn(const dcT& constd, const Key& key) {
-        dcT& d = const_cast<dcT&>(constd); // !!!!!!!!!!!!!!
+    Future<double> do_sum_spawn(const dcT& d, const Key& key) {
 	if (is_leaf()) {
 	    return Future<double>(value);
 	}

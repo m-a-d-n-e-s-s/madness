@@ -764,7 +764,7 @@ namespace madness {
         }
         
         /// Returns the world associated with this container
-        World& world() {
+        World& world() const {
             check_initialized();
             return p->world;
         }
@@ -961,7 +961,7 @@ namespace madness {
         }
         
         
-        /// Sends message "resultT memfun(arg1T,arg2T)" to item (non-blocking comm if remote)
+        /// Sends message "resultT memfun(arg1T,arg2T,arg3T)" to item (non-blocking comm if remote)
         
         /// If item does not exist it is made with the default constructor.
         ///
@@ -975,7 +975,37 @@ namespace madness {
             MEMFUN_RETURNT(memfunT) (implT::*itemfun)(const keyT&, memfunT, const arg1T&, const arg2T&, const arg3T&) = &implT:: template itemfun<memfunT,arg1T,arg2T,arg3T>;
             return p->send(owner(key), itemfun, key, memfun, arg1, arg2, arg3);
         }
-        
+
+
+        /// Sends message "resultT memfun() const" to item (non-blocking comm if remote)
+        template <typename memfunT>
+        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > 
+        send(const keyT& key, memfunT memfun) const {
+            return const_cast<containerT*>(this)->send(key,memfun);
+        }
+
+        /// Sends message "resultT memfun(arg1T) const" to item (non-blocking comm if remote)
+        template <typename memfunT, typename arg1T>
+        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > 
+        send(const keyT& key, memfunT memfun, const arg1T& arg1) const {
+            return const_cast<containerT*>(this)->send(key,memfun,arg1);
+        }
+
+        /// Sends message "resultT memfun(arg1T,arg2T) const" to item (non-blocking comm if remote)
+        template <typename memfunT, typename arg1T, typename arg2T>
+        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > 
+        send(const keyT& key, memfunT memfun, const arg1T& arg1, const arg2T& arg2) const {
+            return const_cast<containerT*>(this)->send(key,memfun,arg1,arg2);
+        }
+
+
+        /// Sends message "resultT memfun(arg1T,arg2T,arg3T) const" to item (non-blocking comm if remote)
+        template <typename memfunT, typename arg1T, typename arg2T, typename arg3T>
+        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > 
+        send(const keyT& key, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3) const {
+            return const_cast<containerT*>(this)->send(key,memfun,arg1,arg2,arg3);
+        }
+
         
         /// Adds task "resultT memfun()" in process owning item (non-blocking comm if remote)
         
@@ -1046,6 +1076,35 @@ namespace madness {
             MEMFUN_RETURNT(memfunT) (implT::*itemfun)(const keyT&, memfunT, const a1T&, const a2T&, const a3T&) = &implT:: template itemfun<memfunT,a1T,a2T,a3T>;
             return p->task(owner(key), itemfun, key, memfun, arg1, arg2, arg3, attr);
         }
+
+        /// Adds task "resultT memfun() const" in process owning item (non-blocking comm if remote)
+        template <typename memfunT>
+        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) >
+        task(const keyT& key, memfunT memfun,  const TaskAttributes& attr = TaskAttributes()) const {
+            return const_cast<containerT*>(this)->task(key,memfun,attr);
+        }
+
+        /// Adds task "resultT memfun(arg1T) const" in process owning item (non-blocking comm if remote)
+        template <typename memfunT, typename arg1T>
+        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) >
+        task(const keyT& key, memfunT memfun, const arg1T& arg1,  const TaskAttributes& attr = TaskAttributes()) const {
+            return const_cast<containerT*>(this)->task(key,memfun,arg1,attr);
+        }
+
+        /// Adds task "resultT memfun(arg1T,arg2T) const" in process owning item (non-blocking comm if remote)
+        template <typename memfunT, typename arg1T, typename arg2T>
+        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) >
+        task(const keyT& key, memfunT memfun, const arg1T& arg1, const arg2T& arg2,  const TaskAttributes& attr = TaskAttributes()) const {
+            return const_cast<containerT*>(this)->task(key,memfun,arg1,arg2,attr);
+        }
+
+        /// Adds task "resultT memfun(arg1T,arg2T,arg3T) const" in process owning item (non-blocking comm if remote)
+        template <typename memfunT, typename arg1T, typename arg2T, typename arg3T>
+        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) >
+        task(const keyT& key, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, const TaskAttributes& attr = TaskAttributes()) const {
+            return const_cast<containerT*>(this)->task(key,memfun,arg1,arg2,arg3,attr);
+        }
+
 
         /// Indexing is same as container[key].get()->second ... blocks until complete
 
