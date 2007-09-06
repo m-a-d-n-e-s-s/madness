@@ -1,0 +1,631 @@
+#!/bin/sh
+
+# This script configures a MADNESS build.  It generates
+# the following files
+
+targetfiles=(config/MakeVars include/madness_config.h doc/doxygen.cfg)
+
+# from the corresponding .in files.
+#
+# We abandoned autoconf due to its unnecessary complexity (at least
+# for our purposes) and the problems with running it on bleeding edge
+# supercomputers.  However, this script works pretty much the same way
+# and has similar conventions so we can switch back without too much
+# pain.
+#
+# !! IT HAS NOT BEEN TESTED EXTENSIVELY ON MANY SYSTEMS YET
+# !! AND IN PARTICULAR HAS NOT YET SEEN A PLAIN BOURNE SHELL.
+# !! IF YOU SEE LOTS OF ERRORS IT IS PROBABLY DUE TO BASHISMS
+# !! THAT NEED TO BE ELIMINATED.
+
+# names is the list of names we will substitute for the corresponding
+# entries in values.
+names=()
+values=()
+
+# contains source item --- returns true if source contains substring item
+function contains() {
+    echo "$1" | grep -qi "$2"
+}
+
+# get_index name --- sets parameter index to the index of name in names
+#                    or end of array if not defined
+function get_index() {
+   index=0
+   for n in ${names[*]} ; do
+     if [ "$n" == "$1" ] ; then
+        break
+     fi
+     let index++
+   done   
+}
+
+# get_value name --- sets parameter value to value of name or ""
+function get_value() {
+   get_index "$1"
+   value=${values[$index]}
+}
+
+
+# set_value name value --- sets the name to value
+function set_value() {
+   get_index "$1"
+   names[$index]=$1
+   values[$index]=$2
+}
+
+
+# append_value name value --- appends value to current value of name with space
+function append_value() {
+   get_index "$1"
+   names[$index]="$1"
+   values[$index]="${values[$index]} $2"
+}
+
+
+# prepend_value name value --- prepends value to current value of name with space
+function prepend_value() {
+   get_index "$1"
+   names[$index]=$1
+   values[$index]="$2 ${values[$index]}"
+}
+
+# compile_testCC compiler program name passval failval 
+#   --- returns the status code of compiling C++ program fragment
+#       If the name argument is not empty, then if the tests passes
+#       then values[name] is set to passval, otherwise failval
+#       If the program is an empty string it is assumed to already
+#       be in ./tmptmp.cc
+function compile_testCC() {
+   if [ "$2" != "" ] ; then
+     /bin/rm -f ./tmptmp.cc
+     echo -e "$2" > ./tmptmp.cc
+   fi
+   $1 tmptmp.cc > /dev/null 2>&1
+   status=$?
+   /bin/rm -f ./tmptmp.cc ./tmptmp.o ./tmptmp.obj ./a.out ./a.exe
+   if [ "$3" != "" ] ; then
+      if [ $status -eq 0 ] ; then
+         set_value "$3" "$4"
+         echo "compile_testCC: $3 '$4'"
+      else
+         set_value "$3" "$5"
+         echo "compile_testCC: $3 '$5'"
+      fi
+   fi
+   ( exit $status )
+}
+
+function error() {
+   echo "error: $1"
+   exit 1
+}
+
+# isgcc compiler --- Returns true if the compiler is GCC
+function isgcc() {
+    contains "`$1 -v 2>&1`" "gcc"
+}
+
+# ispathscale compiler --- Returns true if the compiler is pathscale
+function ispathscale() {
+    contains "`$1 -v 2>&1`" "PathScale"
+}
+
+# do_linux32 --- Set standard configuration options for 32-bit LINUX
+function do_linux32() {
+    set_value HAVE_XTERM_DEBUG  1
+    set_value WORLD_SCHED_BACKOFF 1
+    if [ -e /usr/lib/liblapack.a ] ; then
+        append_value LIBS -llapack
+    fi
+    if [ -e /usr/lib/libblas.a ] ; then
+        append_value LIBS -lblas
+    fi
+}
+
+# do_linux64 --- Set standard configuration options for 64-bit LINUX
+function do_linux64() {
+    set_value HAVE_XTERM_DEBUG  1
+    set_value WORLD_SCHED_BACKOFF 1
+## ?? need 64 on library paths?
+## what about -m64 on GNU compiler
+## what about other compilers?????
+    if [ -e /usr/lib/liblapack.a ] ; then
+        append_value LIBS /usr/lib/liblapack.a
+    fi
+    if [ -e /usr/lib/libblas.a ] ; then
+        append_value LIBS /usr/lib/libblas.a
+    fi
+}
+
+# Set mostly empty/non-functional defaults for all strings in part to
+# document things that can be set and also to automate getting them
+# from the command line.  We do NOT take anything from the environment
+
+# These are not tested for and must be set by hand
+# HAVE_XTERM_DEBUG 0 or 1
+# MADNESS_ASSERTIONS THROW or ABORT or DISABLE 
+# MADNESS_FORINT int or long
+# WORLDDC_USES_TR1_UNORDERED_MAP 0 or 1
+
+echo "Setting defaults ..."
+
+# For things that need a value, setting an initial empty string
+# enables detection of when the user has provided a value or
+# when one of multiple possible settings has succeeded.
+
+MADNESS_MAJOR_VERSION=0
+MADNESS_MINOR_VERSION=1
+set_value MADNESS_MAJOR_VERSION $MADNESS_MAJOR_VERSION
+set_value MADNESS_MINOR_VERSION $MADNESS_MINOR_VERSION
+set_value MADNESS_VERSION "${MADNESS_MAJOR_VERSION}.${MADNESS_MINOR_VERSION}"
+set_value TENSOR_INSTANCE_COUNT 1
+set_value BOUNDS_CHECKING 1
+set_value HAVE_NESTED_TEMPLATE_XLC_BUG ""
+set_value HAVE_STD_ABS_LONG ""
+set_value HAVE_STD_LABS ""
+set_value HAVE_XTERM_DEBUG 0
+set_value BYTE_ORDER ""
+set_value MADNESS_ASSERTIONS "THROW"
+set_value MADNESS_FORINT "long"
+set_value WORLDDC_USES_TR1_UNORDERED_MAP 0
+set_value WORLD_SCHED_BACKOFF 0
+set_value BUILDID "`date`"
+set_value OBJSUF ""
+set_value LIBSUF "a"
+set_value EXESUF ""
+set_value CXXDEPENDSUF "none"
+set_value CCDEPENDSUF "none"
+set_value CXXDEPEND ""
+set_value CXXDEPENDFLAGS "-M"
+set_value CCDEPEND  ""
+set_value CCDEPENDFLAGS "-M"
+set_value CXX ""
+set_value CXXFLAGS
+set_value CC  ""
+set_value CFLAGS ""
+set_value LDFLAGS ""
+set_value AR "ar"
+set_value ARFLAGS "r"
+set_value INSTALL "echo"
+set_value RANLIB "ranlib"
+set_value PERL "perl"
+set_value COMPRESS "gzip"
+set_value UNCOMPRESS "gzip -d"
+set_value LN_S "ln -s"
+set_value F77_SYMBOL ""
+set_value ASTYLE "astyle"
+set_value ASTYLEFLAGS ""
+set_value CPPFLAGS ""
+set_value DEFINES ""
+set_value INCLUDES ""
+set_value LIBS ""
+set_value HAVE_PTHREADS "0"
+set_value DOXYGEN "doxygen"
+set_value PDFLATEX "pdflatex"
+set_value DOT "dot"
+set_value RESTRICT ""
+set_value CROSS_COMPILING 0
+set_value TOP_SRCDIR "`pwd`"
+
+echo "Processing command line overrides ..."
+
+# Take overrides from the command line with format name value
+# If name matches something in the list its value is used
+let i=1
+while [ $i -le $# ] ; do 
+   get_index "${!i}" 
+   if [ "$index" -lt "${#names[*]}" ] ; then
+     let j=$i+1
+     echo "Command line parameters: ${!i}='${!j}'" 
+     set_value "${!i}" "${!j}"
+     let i++
+   fi
+   let i++
+done
+
+# Now implement some standard configurations looking
+# for known targets on the command line
+
+echo "Processing standard configurations ..."
+
+standard=0
+for target in $* ; do
+    if [ "$target" = "IBMBGL" ] ; then
+        do_bgl
+        standard=1
+    elif [  "$target" = "CRAYXTGCC" ] ; then
+        do_crayxtgcc
+        standard=1
+    elif [  "$target" = "CRAYXTGCC" ] ; then
+        do_crayxtgcc
+        standard=1
+    elif [  "$target" = "CRAYXTPG" ] ; then
+        do_crayxtpg
+        standard=1
+    elif [  "$target" = "LINUX32" ] ; then
+        do_linux32
+        standard=1
+    elif [  "$target" = "LINUX64" ] ; then
+        do_linux64
+        standard=1
+    fi
+done
+
+echo "Running general configuration ..."
+
+# Any canned/standard configurations would have been processed
+# by now.  So we do it the hard way.
+
+# Try to figure out what sort of system we are on
+HOST_SYSTEM="`uname -m`"
+if [ "$HOST_SYSTEM" == "x86_64" ] ; then
+    HOST_SYSTEM=X86_64
+elif [ "$HOST_SYSTEM" == "i686" ] ; then
+    HOST_SYSTEM=X86_32
+fi
+set_value HOST_SYSTEM $HOST_SYSTEM
+echo "Host system is $HOST_SYSTEM"
+
+# Now figure out the basic compiler command
+get_value CXX
+if [ "$value" == "" ] ; then
+  echo "Guessing CXX is mpicxx"
+  set_value CXX mpicxx
+fi
+get_value CXX
+
+get_value CXXDEPEND
+if [ "$value" == "" ] ; then
+  echo "Guessing CXXDEPEND is mpicxx"
+  set_value CXXDEPEND mpicxx
+fi
+
+get_value CC
+if [ "$value" == "" ] ; then
+  echo "Guessing CC is mpicc"
+  set_value CC mpicc
+fi
+
+get_value CCDEPEND
+if [ "$value" == "" ] ; then
+  echo "Guessing CCDEPEND is mpicc"
+  set_value CCDEPEND mpicc
+fi
+
+# Build full compiler commands for subsequent tests
+get_value CXX
+CXX="$value"
+get_value INCLUDES
+INCLUDES="$value"
+get_value DEFINES
+DEFINES="$value"
+get_value LIBS
+LIBS="$value"
+CXX_COMPILE="$CXX -c $INCLUDES $DEFINES"
+echo "The C++ compiler is '$CXX_COMPILE'"
+CXX_COMPILE_AND_LINK="$CXX $INCLUDES $DEFINES $LIBS"
+echo "The C++ compiler+linker is '$CXX_COMPILE_AND_LINK'"
+
+# Make sure we can compile and link a simple code
+echo -e "#include <iostream> \n int main() {return 0;}" > tmptmp.cc
+$CXX_COMPILE_AND_LINK -o tmptmp tmptmp.cc
+if [ $? -ne 0 ] ; then
+   echo "Failed to compile and link a simple code"
+   exit 1;
+fi
+echo C++ compiler and linker works
+
+# Determine suffix for executables and see if we can run them
+get_value CROSS_COMPILING
+CROSS_COMPILING="$value"
+if [ -e tmptmp ] ; then
+    set_value EXESUF "none"
+    tmptmp=tmptmp
+elif [ -e tmptmp.exe ] ; then
+    set_value EXESUF "exe"
+    tmptmp=tmptmp.exe
+else
+    error "Cannot find executable from compilation? EXESUF=what?"
+fi
+
+if [ "$CROSS_COMPILING" -eq 0 ] ; then
+    ./$tmptmp
+    if [ $? -ne 0 ] ; then
+        echo Cannot run compiled executable ... assuming we are cross-compiling
+        set_value CROSS_COMPILING 1
+        CROSS_COMPILING=1
+    fi
+fi
+/bin/rm -f tmptmp*
+
+
+cat > tmptmp.cc <<EOF
+void a(){}
+EOF
+/bin/rm -rf tmptmp.o tmptmp.obj
+$CXX_COMPILE tmptmp.cc
+if [ -e tmptmp.o ] ; then
+   set_value OBJSUF "o"
+   /bin/rm -f tmptmp.o
+elif [ -e tmptmp.obj ] ; then
+   set_value OBJSUF "o"
+   /bin/rm -f tmptmp.obj
+else
+   error "Could not figure out what the object file suffix was"
+fi
+get_value OBJSUF
+echo "Object file suffix is .$value"
+
+
+get_value BYTE_ORDER
+if [ "$value" == "" ] ; then
+    if [ $CROSS_COMPILING -eq 0 ] ; then
+        echo "int main(){int i=0;char*p=(char *)&i;p[sizeof(int)]=1;return i==1;}" > tmptmp.cc
+        $CXX_COMPILE_AND_LINK -o tmptmp tmptmp.cc
+        ./$tmptmp > /dev/null 2>&1
+        if [ $? -eq 0 ] ; then
+            set_value BYTE_ORDER LITTLE_ENDIAN
+        else
+            set_value BYTE_ORDER BIG_ENDIAN
+        fi
+        /bin/rm -f tmptmp*
+        get_value BYTE_ORDER
+        echo "Detected byte order is $value"
+    else
+        if [$HOST_SYSTEM == X86_64 || $HOST_SYSTEM == X86_32 ] ; then
+            set_value BYTE_ORDER LITTLE_ENDIAN
+        else 
+            set_value BYTE_ORDER BIG_ENDIAN
+        fi
+        get_value BYTE_ORDER
+        echo "Guessed byte order is $value"
+    fi
+fi
+
+# Make sure we can compile and link with MPI
+compile_testCC  "$CXX_COMPILE_AND_LINK" "#include <mpi.h>\nint main(int argc, char**argv){MPI::Init(argc, argv);MPI::Finalize();return 0;}"
+if [ $? -ne 0 ] ; then
+   error "Failed to compile and link a simple MPI code"
+fi
+echo Can compile and link C++ with MPI
+
+
+# Determine the RESTRICT keyword unless already specified by user
+get_value RESTRICT
+if [ "$value" == "" ] ; then
+    compile_testCC "$CXX_COMPILE" "void foo (int* restrict ip) {}" RESTRICT restrict ""
+fi
+get_value RESTRICT
+if [ "$value" == "" ] ; then
+    compile_testCC "$CXX_COMPILE" "void foo (int* __restrict__ ip) {}" RESTRICT __restrict__ ""
+fi
+get_value RESTRICT
+if [ "$value" == "" ] ; then
+   error "Failed to find working restrict keyword"
+fi
+
+compile_testCC  "$CXX_COMPILE" "static inline void fred(){};" HAVE_UNQUALIFIED_STATIC_DECL 1 0
+
+cat > tmptmp.cc <<EOF
+      template <typename T> struct Traits {
+        enum {FeatureSupported = false};
+      };
+      template <> struct Traits<int> {
+        enum {FeatureSupported = true};
+      };
+      // TypeSelector by default returns double, unless Tr supports Feature
+      template <typename Tr, typename T, bool supp = Tr::FeatureSupported>
+        struct TypeSelector {
+          typedef double result;
+      };
+      template <typename Tr, typename T>
+        struct TypeSelector<Tr,T,true> {
+          typedef T result;
+      };
+
+      template <typename T> typename TypeSelector<Traits<T>,double>::result f(T a) {
+        return a;
+      }
+      // Including this overload changes error completely!
+      double f(int a);
+      void g() {
+        double x = f<int>(1);
+      }
+
+int main () {return 0;}
+EOF
+compile_testCC "$CXX_COMPILE" "" HAVE_NESTED_TEMPLATE_XLC_BUG 0 1
+
+
+cat > tmptmp.cc <<EOF
+#include <cmath>
+#include <cstdlib>
+int main () {
+  long (*labsptr)(long) = &std::labs; long a = -1l;  long b = labs(a);
+  return 0;
+}
+EOF
+compile_testCC "$CXX_COMPILE" "" HAVE_STD_LABS 1 0
+
+cat > tmptmp.cc <<EOF
+#include <cmath>
+#include <cstdlib>
+int main () {
+  long (*absptr)(long) = &std::abs; long a = -1l;  long b = std::abs(a);
+  return 0;
+}
+EOF
+compile_testCC "$CXX_COMPILE" "" HAVE_STD_ABS_LONG 1 0
+
+compile_testCC "$CXX_COMPILE" "#include <sched.h>\nint main() {sched_yield(); return 0;}" WORLD_SCHED_BACKOFF 1 0
+
+
+# Try to figure out good compiler options
+get_value CXXFLAGS
+CXXFLAGS="$value"
+if [ "$CXXFLAGS" == "" ] ; then 
+    if ispathscale ; then
+        OPT="-Wall -Ofast"
+    elif isgcc "$CXX_COMPILE" ; then
+        if contains "$HOST_SYSTEM" 86 ; then
+            OPT="-Wall -ansi -O3 -ffast-math -fomit-frame-pointer -funroll-loops -mfpmath=sse -msse2 -march=native"
+            CXXOPT="$CXX_COMPILE $OPT"
+            compile_testCC "$CXXOPT" "#include <iostream> \n int main() {return 0;}" 
+            if [ $? -ne 0 ] ; then
+                OPT="-Wall -ansi -O3 -ffast-math -fomit-frame-pointer -funroll-loops -mfpmath=sse -msse2"
+                CXXOPT="$CXX_COMPILE $OPT"
+                compile_testCC "$CXXOPT" "#include <iostream> \n int main() {return 0;}" 
+                if [ $? -ne 0 ] ; then
+                    OPT="-Wall -ansi -O2"
+                    CXXOPT="$CXX_COMPILE $OPT"
+                    compile_testCC "$CXXOPT" "#include <iostream> \n int main() {return 0;}" 
+                    if [ $? -ne 0 ] ; then
+                        OPT=""
+                    fi
+                fi
+            fi
+        fi
+    else
+        OPT=""
+    fi
+    set_value CXXFLAGS "$OPT"
+    set_value CFLAGS "$OPT"
+fi
+
+# Now turn our attention to libraries and linking
+
+testsym='extern "C" int SYM();int main(){return SYM();}'
+
+# Pthreads
+echo $testsym | sed -e 's/SYM/pthread_create/g' > tmptmp.cc
+compile_testCC "$CXX_COMPILE_AND_LINK" "" HAVE_PTHREADS 1 0
+get_value HAVE_PTHREADS
+if [ "$value" -eq 0 ] ; then
+    echo "Trying again with -lpthread"
+    CXXTMP="$CXX_COMPILE_AND_LINK -lpthread"
+    compile_testCC "$CXXTMP" "" HAVE_PTHREADS 1 0
+    get_value HAVE_PTHREADS
+    if [ "$value" -eq 1 ] ; then
+        append_value LIBS "-lpthread"
+    fi
+fi
+
+# Verify presence fortran BLAS+LAPACK and verify F77linking conventions
+echo $testsym | sed -e 's/SYM/dgemm_/g' > tmptmp.cc
+compile_testCC "$CXX_COMPILE_AND_LINK" "" F77_SYMBOL "lcu" ""
+if [ $? -ne 0 ] ; then
+    echo $testsym | sed -e 's/SYM/dgemm/g' > tmptmp.cc
+    compile_testCC "$CXX_COMPILE_AND_LINK" "" F77_SYMBOL "lc" ""
+    if [ $? -ne 0 ] ; then
+        echo $testsym | sed -e 's/SYM/DGEMM/g' > tmptmp.cc
+        compile_testCC "$CXX_COMPILE_AND_LINK" "" F77_SYMBOL "uc" ""
+        if [ $? -ne 0 ] ; then
+            echo $testsym | sed -e 's/SYM/DGEMM_/g' > tmptmp.cc
+            compile_testCC "$CXX_COMPILE_AND_LINK" "" F77_SYMBOL "ucu" ""
+            if [ $? -ne 0 ] ; then
+                error "Could not find dgemm with any known C-F77 linking conventions"
+            fi
+        fi
+    fi
+fi
+
+get_value F77_SYMBOL
+if [ "$value" == "lcu" ] ; then
+    dsyev=dsyev_
+elif [ "$value" == "lc" ] ; then
+    dsyev=dsyev
+elif [ "$value" == "uc" ] ; then
+    dsyev=DSYEV
+elif [ "$value" == "ucu" ] ; then
+    dsyev=DSYEV_
+else
+    error "confusion about linking conventions?"
+fi
+echo $testsym | sed -e 's/SYM/dgemm_/g' > tmptmp.cc
+compile_testCC "$CXX_COMPILE_AND_LINK" ""
+if [ $? -ne 0 ] ; then
+    error "Could not link dsyev with chosen C-F77 linking conventions"
+fi
+
+# Test archiver
+get_value AR
+AR="$value"
+get_value ARFLAGS
+ARFLAGS="$value"
+get_value LIBSUF
+LIBSUF="$value"
+$AR $ARFLAGS fred.$LIBSUF
+if [ $? -ne 0 ] ; then
+    echo "ar is acting goofy ... ignored"
+fi
+get_value RANLIB
+RANLIB="$value"
+$RANLIB fred.$LIBSUF
+if [ $? -ne 0 ] ; then
+    echo "ranlib is either not necessary or not working ... disabling"
+    set_value RANLIB echo
+fi
+/bin/rm -f fred.$LIBSUF
+
+# Misc stuff for doxygen
+doxygen --version > /dev/null 2>&1
+if [ $? -ne 0 ] ; then
+    set_value HAVE_DOXYGEN NO
+    echo "doxygen was not found ... you cannot generate the documentation"
+else
+    set_value HAVE_DOXYGEN YES
+fi
+pdflatex --version > /dev/null 2>&1
+if [ $? -ne 0 ] ; then
+    set_value HAVE_PDFLATEX NO
+    echo "pdflatex was not found ... you cannot generate the latex documentation"
+else
+    set_value HAVE_PDFLATEX YES
+fi
+dot --help > /dev/null 2>&1
+if [ $? -ne 0 ] ; then
+    set_value HAVE_DOT NO
+    echo "dot was not found ... you cannot generate the class graphs"
+else
+    set_value HAVE_DOT YES
+fi
+
+
+echo " "
+echo " The configured values are stored in ./configuration "
+echo " "
+
+/bin/rm -f ./configuration
+touch ./configuration
+
+index=0
+for n in ${names[*]} ; do
+    echo "'$n'  '${values[$index]}'" >> configuration
+    let index++
+done
+
+# Write the sed script
+/bin/rm -f ./dosed
+echo "sed \\" >> ./dosed
+index=0
+for n in ${names[*]} ; do
+    echo "    -e 's,@${n}@,${values[$index]},g' \\" >> ./dosed
+    let index++
+done
+echo " " >> ./dosed
+/bin/chmod 755 ./dosed
+
+# Process the target files
+for file in ${targetfiles[*]} ; do
+    echo "Processing $file"
+    ./dosed < ${file}.in > $file
+    if [ $? -ne 0 ] ; then
+        error "Sed script failed for $file"
+    fi
+done
+
+echo ""
+echo "Configured!  Cross your fingers and type 'make'"
+echo ""
+
