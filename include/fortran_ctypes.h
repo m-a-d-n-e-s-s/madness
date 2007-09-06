@@ -40,13 +40,7 @@
 /// \brief Corresponding C and Fortran types
 
 #include <complex>
-
-/// Fortran integer
-#ifdef _CRAY
-#  ifndef MADNESS_FORINT
-#    define MADNESS_FORINT int
-#  endif
-#endif
+#include <madness_config.h>
 
 #ifdef MADNESS_FORINT
 typedef MADNESS_FORINT integer;

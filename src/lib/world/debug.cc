@@ -55,7 +55,7 @@ namespace madness {
         std::cout << "xterm_debug_breakpoint" << std::endl;
     }
 
-#ifndef HAS_XTERM_DEBUG
+#ifndef HAVE_XTERM_DEBUG
     void xterm_debug(const char* path, const char* display) {}
 #else
     void xterm_debug(const char* path, const char* display) {

@@ -65,9 +65,9 @@ namespace madness {
     /// Otherwise uses wall_time() in nanoseconds.
     static inline uint64_t cycle_count() {
         uint64_t x;
-#ifdef X8632
+#ifdef X86_32
         __asm__ volatile (".byte 0x0f, 0x31" : "=A" (x));
-#elif defined(X8664)
+#elif defined(X86_64)
      unsigned int a,d;
      __asm__ volatile("rdtsc" : "=a" (a), "=d" (d));
       x = ((uint64_t)a) | (((uint64_t)d)<<32); 

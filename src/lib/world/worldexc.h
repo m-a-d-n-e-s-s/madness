@@ -74,32 +74,29 @@ namespace madness {
 throw MadnessException(msg,0,value,__LINE__,__FUNCTION__,__FILE__)
 
 /*
- * Default behaviour is MADNESS_ASSERTION maps to C assert()
- * 
- * define DISABLE_MADNESS_ASSERTIONS to disable all MADNESS_ASSERTIONS at compile time.
- * define MADNESS_ASSERTIONS_THROW to make MADNESS_ASSERTIONS throw a MadnessException
- * define MADNESS_ASSERTIONS_ABORT to make MADNESS_ASSERTIONS call abort()
+ * Default behaviour is MADNESS_ASSERTIONS throw a MADNESS exception
+ *
+ * Configure options are MADNESS_ASSERSIONS = THROW, CASSERT, DISABLE, ABORT
  * 
  */
 
-#define MADNESS_ASSERTIONS_THROW
-//#define MADNESS_ASSERTIONS_ABORT
+#if (MADNESS_ASSERTIONS == ABORT)
+#  define MADNESS_ASSERT(condition) \
+     do {if (!(condition)) ((void (*)())0)();} while(0)
 
-#ifdef DISABLE_MADNESS_ASSERTIONS
+#elif (MADNESS_ASSERTIONS == DISABLE)
 #  define MADNESS_ASSERT(condition)
-#elif defined(MADNESS_ASSERTIONS_THROW)
+
+#elif (MADNESS_ASSERTIONS == ASSERT)
+#  include <cassert>
+#  define MADNESS_ASSERT(condition) assert(condition)
+
+#else
 #  define MADNESS_ASSERT(condition) \
      do {if (!(condition)) \
          throw MadnessException("MADNESS ASSERTION FAILED", \
                          #condition,0,__LINE__,__FUNCTION__,__FILE__); \
         } while (0)
-#elif defined(MADNESS_ASSERTIONS_ABORT)
-#  include <cstdlib>
-#  define MADNESS_ASSERT(condition) \
-     do {if (!(condition)) ((void (*)())0)();} while(0)
-#else
-#  include <cassert>
-#  define MADNESS_ASSERT(condition) assert(condition)
 #endif
 
 }

@@ -55,7 +55,7 @@ using madness::Tensor;
 
 #define STATIC static
 
-#if !HAVE_UNQUALIFIED_STATIC_DECL
+#ifdef HAVE_UNQUALIFIED_STATIC_DECL
 #  ifdef STATIC
 #    undef STATIC
 #  endif

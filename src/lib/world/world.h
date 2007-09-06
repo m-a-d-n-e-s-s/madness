@@ -40,6 +40,9 @@
 /// \brief Implements World and includes pretty much every header you'll need
 
 // must include mpi before io stuff
+
+#include <madness_config.h>
+
 #include <mpi.h>
 #include <iostream>
 #include <cstdio>

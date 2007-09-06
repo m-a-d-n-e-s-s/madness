@@ -39,6 +39,7 @@
 /// \file basetensor.h
 /// \brief Declares BaseTensor
 
+#include <madness_config.h>
 #include <tensor/slice.h>
 #include <tensor/tensor_macros.h>
 

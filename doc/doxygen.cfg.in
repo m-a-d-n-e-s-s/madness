@@ -113,7 +113,7 @@ FULL_PATH_NAMES        = NO
 # If left blank the directory from which doxygen is run is used as the 
 # path to strip.
 
-STRIP_FROM_PATH        = "@top_srcdir@"
+STRIP_FROM_PATH        = "@TOP_SRCDIR@"
 
 # The STRIP_FROM_INC_PATH tag can be used to strip a user-defined part of 
 # the path mentioned in the documentation of a class, which tells 
@@ -416,9 +416,9 @@ WARN_LOGFILE           =
 # directories like "/usr/src/myproject". Separate the files or directories 
 # with spaces.
 
-INPUT                  = "@top_srcdir@/src" \
-                         "@top_srcdir@/bin" \
-                         "@top_srcdir@/doc"
+INPUT                  = "@TOP_SRCDIR@/src" \
+                         "@TOP_SRCDIR@/bin" \
+                         "@TOP_SRCDIR@/doc"
 
 # If the value of the INPUT tag contains directories, you can use the 
 # FILE_PATTERNS tag to specify one or more wildcard pattern (like *.cpp 
@@ -439,7 +439,7 @@ RECURSIVE              = YES
 # excluded from the INPUT source files. This way you can easily exclude a 
 # subdirectory from a directory tree whose root is specified with the INPUT tag.
 
-EXCLUDE                = "@top_srcdir@/src/lib/linalg/clapack.h"
+EXCLUDE                = "@TOP_SRCDIR@/src/lib/linalg/clapack.h"
 
 # The EXCLUDE_SYMLINKS tag can be used select whether or not files or directories 
 # that are symbolic links (a Unix filesystem feature) are excluded from the input.
@@ -1087,7 +1087,7 @@ DOT_IMAGE_FORMAT       = png
 # The tag DOT_PATH can be used to specify the path where the dot tool can be 
 # found. If left blank, it is assumed the dot tool can be found on the path.
 
-DOT_PATH               = "@DOT_PATH@"
+DOT_PATH               = "@DOT@"
 
 # The DOTFILE_DIRS tag can be used to specify one or more directories that 
 # contain dot files that are included in the documentation (see the 

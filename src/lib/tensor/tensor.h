@@ -63,8 +63,8 @@ typedef std::complex<double> double_complex;
 #include <tensor/tensoriter.h>
 #include <tensor/tensorexcept.h>
 
-#if !HAVE_STD_ABS_LONG
-#if !HAVE_STD_LABS
+#ifndef HAVE_STD_ABS_LONG
+#ifndef HAVE_STD_LABS
 namespace std {
     static inline long abs(long a) {
         return a>=0 ? a : -a;
