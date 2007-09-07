@@ -81,7 +81,7 @@ function compile_testCC() {
      /bin/rm -f ./tmptmp.cc
      echo -e "$2" > ./tmptmp.cc
    fi
-   $1 tmptmp.cc > /dev/null 2>&1
+   $1 > /dev/null 2>& 1
    status=$?
    /bin/rm -f ./tmptmp.cc ./tmptmp.o ./tmptmp.obj ./a.out ./a.exe
    if [ "$3" != "" ] ; then
@@ -124,6 +124,9 @@ function do_linux32() {
     if [ -e /usr/lib/liblapack.a ] ; then
         prepend_value LIBS -llapack
     fi
+    if [ -e /usr/lib/libg2c.a ] ; then
+        append_value LIBS -lg2c
+    fi
 }
 
 # do_linux64 --- Set standard configuration options for 64-bit LINUX
@@ -138,6 +141,9 @@ function do_linux64() {
     fi
     if [ -e /usr/lib/liblapack.a ] ; then
         prepend_value LIBS -llapack
+    fi
+    if [ -e /usr/lib/libg2c.a ] ; then
+        append_value LIBS -lg2c
     fi
 ## ?? need 64 on library paths?
 ## what about -m64 on GNU compiler
@@ -235,13 +241,11 @@ done
 
 echo "Processing standard configurations ..."
 
+MAD_DEBUG=0
 standard=0
 for target in $* ; do
     if [ "$target" = "IBMBGL" ] ; then
         do_bgl
-        standard=1
-    elif [  "$target" = "CRAYXTGCC" ] ; then
-        do_crayxtgcc
         standard=1
     elif [  "$target" = "CRAYXTGCC" ] ; then
         do_crayxtgcc
@@ -255,6 +259,9 @@ for target in $* ; do
     elif [  "$target" = "LINUX64" ] ; then
         do_linux64
         standard=1
+    elif [  "$target" = "debug" ] ; then
+        MAD_DEBUG=1
+        echo "Configuring for debugging ..."
     fi
 done
 
@@ -330,14 +337,14 @@ get_value DEFINES
 DEFINES="$value"
 get_value LIBS
 LIBS="$value"
-CXX_COMPILE="$CXX -c $INCLUDES $DEFINES"
+CXX_COMPILE="$CXX -c $INCLUDES $DEFINES tmptmp.cc"
 echo "The C++ compiler is '$CXX_COMPILE'"
-CXX_COMPILE_AND_LINK="$CXX $INCLUDES $DEFINES $LIBS"
+CXX_COMPILE_AND_LINK="$CXX $INCLUDES $DEFINES tmptmp.cc $LIBS"
 echo "The C++ compiler+linker is '$CXX_COMPILE_AND_LINK'"
 
 # Make sure we can compile and link a simple code
 echo -e "#include <iostream> \n int main() {return 0;}" > tmptmp.cc
-$CXX_COMPILE_AND_LINK -o tmptmp tmptmp.cc
+$CXX_COMPILE_AND_LINK -o tmptmp 
 if [ $? -ne 0 ] ; then
    echo "Failed to compile and link a simple code"
    exit 1;
@@ -372,7 +379,7 @@ cat > tmptmp.cc <<EOF
 void a(){}
 EOF
 /bin/rm -rf tmptmp.o tmptmp.obj
-$CXX_COMPILE tmptmp.cc
+$CXX_COMPILE
 if [ -e tmptmp.o ] ; then
    set_value OBJSUF "o"
    /bin/rm -f tmptmp.o
@@ -390,7 +397,7 @@ get_value BYTE_ORDER
 if [ "$value" == "" ] ; then
     if [ $CROSS_COMPILING -eq 0 ] ; then
         echo "int main(){int i=0;char*p=(char *)&i;p[sizeof(int)]=1;return i==1;}" > tmptmp.cc
-        $CXX_COMPILE_AND_LINK -o tmptmp tmptmp.cc
+        $CXX_COMPILE_AND_LINK -o tmptmp 
         ./$tmptmp > /dev/null 2>&1
         if [ $? -eq 0 ] ; then
             set_value BYTE_ORDER LITTLE_ENDIAN
@@ -494,19 +501,25 @@ get_value CXXFLAGS
 CXXFLAGS="$value"
 if [ "$CXXFLAGS" == "" ] ; then 
     if ispathscale ; then
-        OPT="-Wall -Ofast"
+        if [ "$MAD_DEBUG" == "1" ] ; then
+           OPT="-Wall -g -O0"
+        else
+           OPT="-Wall -Ofast"
+        fi
     elif isgcc "$CXX_COMPILE" ; then
-        if contains "$HOST_CPU" 86 ; then
+        if [ "$MAD_DEBUG" == "1" ] ; then
+           OPT="-Wall -g -O0"
+        elif contains "$HOST_CPU" 86 ; then
             OPT="-Wall -ansi -O3 -ffast-math -fomit-frame-pointer -funroll-loops -mfpmath=sse -msse2 -march=native"
-            CXXOPT="$CXX_COMPILE $OPT"
+            CXXOPT="$CXX_COMPILE $OPT tmptmp.cc"
             compile_testCC "$CXXOPT" "#include <iostream> \n int main() {return 0;}" 
             if [ $? -ne 0 ] ; then
                 OPT="-Wall -ansi -O3 -ffast-math -fomit-frame-pointer -funroll-loops -mfpmath=sse -msse2"
-                CXXOPT="$CXX_COMPILE $OPT"
+                CXXOPT="$CXX_COMPILE $OPT tmptmp.cc"
                 compile_testCC "$CXXOPT" "#include <iostream> \n int main() {return 0;}" 
                 if [ $? -ne 0 ] ; then
                     OPT="-Wall -ansi -O2"
-                    CXXOPT="$CXX_COMPILE $OPT"
+                    CXXOPT="$CXX_COMPILE $OPT tmptmp.cc"
                     compile_testCC "$CXXOPT" "#include <iostream> \n int main() {return 0;}" 
                     if [ $? -ne 0 ] ; then
                         OPT=""
@@ -515,7 +528,11 @@ if [ "$CXXFLAGS" == "" ] ; then
             fi
         fi
     else
-        OPT=""
+        if [ "$MAD_DEBUG" == "1" ] ; then
+           OPT="-g -O0"
+        else
+           OPT=""
+        fi
     fi
     set_value CXXFLAGS "$OPT"
     set_value CFLAGS "$OPT"

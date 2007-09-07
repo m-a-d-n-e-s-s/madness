@@ -1,141 +1,36 @@
-#!/bin/sh
+We've temporarily (?) abandoned autoconf since
+it was too painful on the bleeding edge machines.
+No doubt it will return and our implementation is
+meant to make this easy.
 
-function usage() {
-   echo "Usage: INSTALL --help        print this text"
-   echo " "
-   echo "Usage: INSTALL target options"
-   echo " "
-   echo " where target options are chosen from the following ... "
-   echo " debug"
-   echo " x86"
-   echo " x8664"
-   echo " "
-   echo " "
-   echo "    To override the default choice of BLAS/LAPACK libraries set the environment"
-   echo "    variables MADBLAS and/or MADLAPACK."
-   echo " "
-   echo "    To override the default compiler optimization flags set MADCOPT."
-   echo " "
-   echo "    To override the default architecture choice set MADARCH."
-   echo " "
-   echo "    To set additional defines/includes set MADCDEF."
-   echo " "
-   echo "    To set additional libraries set MADLIBS."
-   echo " "
-   echo "    For full control, run the configure script."
-   echo " "
-}
+To configure MADNESS run the script doconfig
+in the top level directory (same as this file).
+On most machines it should just work, but you 
+can fine tune things from the commandline.
+It does NOT look in the environment for any info.
 
-if [ "$1" == "--help" ] ; then
-    usage
-    exit 0
-fi
+First, it accepts standard targets as keywords 
+on the command line to direct the
+build process which is important on machines with
+cross compilers.  The currently understood targets
+are
 
-target="$*"
+IBMBGL - not yet
+CRAYXTGCC - not yet
+CRAYXTPG - not yet
+LINUX32
+LINUX64
 
-function contains() {
-    echo "$1" | grep -qi "$2"
-}
+You can also provide the keyword debug to indicate
+that you want the compilation options set suitable
+for rapid compilation and debugging.
 
-function using() {
-    contains "$target" "$1"
-}
+Values for variables may also be set on the command
+line as a pair such as
 
-function isgcc() {
-    contains "`$CXX -v 2>&1`" "gcc"
-}
+doconfig LIBS "/local/atlas/something.a -lfred"
 
-function isgcc4() {
-    contains "`$CXX -v 2>&1`" "gcc version 4"
-}
+The list of interesting variables is in the configure
+script.  At some point (hopefully) real documentation
+will be written
 
-function isx8664() {
-    contains "`uname -a 2>&1`" "x86_64"
-}
-
-function isx8632() {
-    contains "`uname -a 2>&1`" "i686"
-}
-
-function ispathscale() {
-    contains "`$CXX -v 2>&1`" "PathScale"
-}
-
-# Assume MPICH-like interface if CXX is not set
-if [ "$CXX" == "" ] ; then
-    CXX=mpicxx
-    CC=mpicc
-fi
-
-if [ "$MADDEF" == "" ] ; then
-    MADDEF="-DHAS_XTERM_DEBUG"
-fi
-
-if [ "$MADLAPACK" == "" ] ; then
-    MADLAPACK="-llapack"
-fi
-
-if [ "$MADBLAS" == "" ] ; then
-    MADBLAS="-lblas"
-fi
-
-if [ "$MADFINT" == "" ] ; then
-    MADFINT="--with-fortran-integer=int"
-fi
-
-# Pathscale test must be before gcc test
-if ispathscale ; then
-    if [ "$MADCOPT" == "" ] ; then
-        if using debug ; then
-            MADCOPT="-g -O0 -Wall"
-        else
-            MADCOPT="-Wall -Ofast"
-        fi
-    fi
-    MADCOPT="$MADCOPY -gnu4"
-elif isgcc ; then
-    if isgcc4 ; then
-        MADARCH=-march=native
-    else
-        MADLIBS="$MADLIBS -lg2c"
-    fi
-
-    if [ "$MADCOPT" == "" ] ; then
-        if using debug ; then
-            MADCOPT="-Wall -ansi -O0 -g $MADARCH"
-        elif isx8664 ; then
-            MADCOPT="-Wall -ansi -O3 -ffast-math -fomit-frame-pointer -funroll-loops -mfpmath=sse -msse2 -m64 $MADARCH"
-        elif isx8632 ; then
-            MADCOPT="-Wall -ansi -O3 -ffast-math -fomit-frame-pointer -funroll-loops -mfpmath=sse -msse2 $MADARCH"
-        fi
-    fi
-fi
-
-if isx8664 ; then
-    MADDEF="$MADDEF -DX8664"
-elif isx8632 ; then
-    MADDEF="$MADDEF -DX8632"
-fi
-
-MADDEF="$MADDEF -DWORLD_SCHED_BACKOFF"
-
-MADCOPT="$MADCOPT $MADDEF"
-
-# Now handle all special cases in detail with default covering
-# most systems after setting flags above
-case "$1" in
-    *)
-        echo ./configure --with-cxx=\"$CXX\" \\
-        echo "            "--with-cc=\"$CC\" \\
-        echo "            "--with-cxx-optflags=\"$MADCOPT\"  \\
-        echo "            "--with-cc-optflags=\"$MADCOPT\" \\
-        echo "            "--with-blas=\"$MADBLAS\" --with-lapack=\"$MADLAPACK\" \\
-        echo "            "--with-libs=\"$MADLIBS\" $MADFINT
-
-        ./configure --with-cxx="$CXX" --with-cc="$CC" \
-            --with-cxx-optflags="$MADCOPT" --with-cc-optflags="$MADCOPT" \
-            --with-blas="$MADBLAS" --with-lapack="$MADLAPACK" \
-            --with-libs="$MADLIBS" $MADFINT
-
-        ;;
-esac
