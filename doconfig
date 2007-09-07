@@ -118,11 +118,11 @@ function do_linux32() {
     echo ""
     set_value HAVE_XTERM_DEBUG  1
     set_value WORLD_SCHED_BACKOFF 1
-    if [ -e /usr/lib/liblapack.a ] ; then
-        append_value LIBS -llapack
-    fi
     if [ -e /usr/lib/libblas.a ] ; then
-        append_value LIBS -lblas
+        prepend_value LIBS -lblas
+    fi
+    if [ -e /usr/lib/liblapack.a ] ; then
+        prepend_value LIBS -llapack
     fi
 }
 
@@ -133,15 +133,15 @@ function do_linux64() {
     echo ""
     set_value HAVE_XTERM_DEBUG  1
     set_value WORLD_SCHED_BACKOFF 1
+    if [ -e /usr/lib/libblas.a ] ; then
+        prepend_value LIBS -lblas
+    fi
+    if [ -e /usr/lib/liblapack.a ] ; then
+        prepend_value LIBS -llapack
+    fi
 ## ?? need 64 on library paths?
 ## what about -m64 on GNU compiler
 ## what about other compilers?????
-    if [ -e /usr/lib/liblapack.a ] ; then
-        append_value LIBS /usr/lib/liblapack.a
-    fi
-    if [ -e /usr/lib/libblas.a ] ; then
-        append_value LIBS /usr/lib/libblas.a
-    fi
 }
 
 # Set mostly empty/non-functional defaults for all strings in part to
