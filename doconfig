@@ -113,6 +113,9 @@ function ispathscale() {
 
 # do_linux32 --- Set standard configuration options for 32-bit LINUX
 function do_linux32() {
+    echo ""
+    echo "Doing standard 32-bit Linux configuration"
+    echo ""
     set_value HAVE_XTERM_DEBUG  1
     set_value WORLD_SCHED_BACKOFF 1
     if [ -e /usr/lib/liblapack.a ] ; then
@@ -125,6 +128,9 @@ function do_linux32() {
 
 # do_linux64 --- Set standard configuration options for 64-bit LINUX
 function do_linux64() {
+    echo ""
+    echo "Doing standard 64-bit Linux configuration"
+    echo ""
     set_value HAVE_XTERM_DEBUG  1
     set_value WORLD_SCHED_BACKOFF 1
 ## ?? need 64 on library paths?
@@ -257,15 +263,37 @@ echo "Running general configuration ..."
 # Any canned/standard configurations would have been processed
 # by now.  So we do it the hard way.
 
-# Try to figure out what sort of system we are on
-HOST_SYSTEM="`uname -m`"
-if [ "$HOST_SYSTEM" == "x86_64" ] ; then
-    HOST_SYSTEM=X86_64
-elif [ "$HOST_SYSTEM" == "i686" ] ; then
-    HOST_SYSTEM=X86_32
+get_value CROSS_COMPILING
+if [ "$value" == "0" ] ; then
+    # Try to figure out what sort of system we are on
+    HOST_CPU="`uname -m`"
+    if [ "$HOST_CPU" == "x86_64" ] ; then
+        HOST_CPU=X86_64
+    elif [ "$HOST_CPU" == "i686" ] ; then
+        HOST_CPU=X86_32
+    fi
+    set_value HOST_CPU $HOST_CPU
+    echo "Host cpu is $HOST_CPU"
+    
+    HOST_SYSTEM="`uname`"
+    if [ "$HOST_SYSTEM" == "Linux" ] ; then 
+       if [ "$HOST_CPU" == "X86_32" ] ; then
+          HOST_SYSTEM=LINUX32
+          if [ "$standard" == "0" ] ; then
+              do_linux32
+              standard=1
+          fi
+       elif [ "$HOST_CPU" == "X86_64" ] ; then
+          HOST_SYSTEM=LINUX64
+          if [ "$standard" == "0" ] ; then
+              do_linux64
+              standard=1
+          fi
+       fi
+    fi
+    set_value HOST_SYSTEM $HOST_SYSTEM
+    echo "Host system is $HOST_SYSTEM"
 fi
-set_value HOST_SYSTEM $HOST_SYSTEM
-echo "Host system is $HOST_SYSTEM"
 
 # Now figure out the basic compiler command
 get_value CXX
@@ -373,7 +401,7 @@ if [ "$value" == "" ] ; then
         get_value BYTE_ORDER
         echo "Detected byte order is $value"
     else
-        if [$HOST_SYSTEM == X86_64 || $HOST_SYSTEM == X86_32 ] ; then
+        if [$HOST_CPU == X86_64 || $HOST_CPU == X86_32 ] ; then
             set_value BYTE_ORDER LITTLE_ENDIAN
         else 
             set_value BYTE_ORDER BIG_ENDIAN
@@ -468,7 +496,7 @@ if [ "$CXXFLAGS" == "" ] ; then
     if ispathscale ; then
         OPT="-Wall -Ofast"
     elif isgcc "$CXX_COMPILE" ; then
-        if contains "$HOST_SYSTEM" 86 ; then
+        if contains "$HOST_CPU" 86 ; then
             OPT="-Wall -ansi -O3 -ffast-math -fomit-frame-pointer -funroll-loops -mfpmath=sse -msse2 -march=native"
             CXXOPT="$CXX_COMPILE $OPT"
             compile_testCC "$CXXOPT" "#include <iostream> \n int main() {return 0;}" 
@@ -569,21 +597,24 @@ fi
 /bin/rm -f fred.$LIBSUF
 
 # Misc stuff for doxygen
-doxygen --version > /dev/null 2>&1
+get_value DOXYGEN
+$value --version > /dev/null 2>&1
 if [ $? -ne 0 ] ; then
     set_value HAVE_DOXYGEN NO
     echo "doxygen was not found ... you cannot generate the documentation"
 else
     set_value HAVE_DOXYGEN YES
 fi
-pdflatex --version > /dev/null 2>&1
+get_value PDFLATEX
+$value --version > /dev/null 2>&1
 if [ $? -ne 0 ] ; then
     set_value HAVE_PDFLATEX NO
     echo "pdflatex was not found ... you cannot generate the latex documentation"
 else
     set_value HAVE_PDFLATEX YES
 fi
-dot --help > /dev/null 2>&1
+get_value DOT
+$value -V > /dev/null 2>&1
 if [ $? -ne 0 ] ; then
     set_value HAVE_DOT NO
     echo "dot was not found ... you cannot generate the class graphs"

@@ -74,9 +74,9 @@
 #define F77_SYMBOL @F77_SYMBOL@
 
 /* X86 variations */
-#if (@HOST_SYSTEM@ == X86_32) 
+#if (@HOST_CPU@ == X86_32) 
 #  define X86_32
-#elif (@HOST_SYSTEM@ == X86_64) 
+#elif (@HOST_CPU@ == X86_64) 
 #  define X86_64
 #endif
 
