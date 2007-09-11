@@ -977,6 +977,38 @@ namespace madness {
         }
 
 
+        /// Sends message "resultT memfun(arg1T,arg2T,arg3T,arg4T)" to item (non-blocking comm if remote)
+        
+        /// If item does not exist it is made with the default constructor.
+        ///
+        /// Future arguments must be ready for both local and remote messages.
+        /// 
+        /// Returns a future result (Future<void> may be ignored).
+        template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T>
+        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > 
+        send(const keyT& key, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, const arg4T& arg4) {
+            check_initialized();
+            MEMFUN_RETURNT(memfunT) (implT::*itemfun)(const keyT&, memfunT, const arg1T&, const arg2T&, const arg3T&, const arg4T&) = &implT:: template itemfun<memfunT,arg1T,arg2T,arg3T,arg4T>;
+            return p->send(owner(key), itemfun, key, memfun, arg1, arg2, arg3, arg4);
+        }
+
+
+        /// Sends message "resultT memfun(arg1T,arg2T,arg3T,arg4T,arg5T)" to item (non-blocking comm if remote)
+        
+        /// If item does not exist it is made with the default constructor.
+        ///
+        /// Future arguments must be ready for both local and remote messages.
+        /// 
+        /// Returns a future result (Future<void> may be ignored).
+        template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T, typename arg5T>
+        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > 
+        send(const keyT& key, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, const arg4T& arg4, const arg5T& arg5) {
+            check_initialized();
+            MEMFUN_RETURNT(memfunT) (implT::*itemfun)(const keyT&, memfunT, const arg1T&, const arg2T&, const arg3T&, const arg4T&, const arg5T&) = &implT:: template itemfun<memfunT,arg1T,arg2T,arg3T,arg4T,arg5T>;
+            return p->send(owner(key), itemfun, key, memfun, arg1, arg2, arg3, arg4, arg5);
+        }
+
+
         /// Sends message "resultT memfun() const" to item (non-blocking comm if remote)
         template <typename memfunT>
         Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > 
@@ -1000,10 +1032,17 @@ namespace madness {
 
 
         /// Sends message "resultT memfun(arg1T,arg2T,arg3T) const" to item (non-blocking comm if remote)
-        template <typename memfunT, typename arg1T, typename arg2T, typename arg3T>
+        template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T>
         Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > 
-        send(const keyT& key, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3) const {
-            return const_cast<containerT*>(this)->send(key,memfun,arg1,arg2,arg3);
+        send(const keyT& key, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, const arg4T& arg4) const {
+            return const_cast<containerT*>(this)->send(key,memfun,arg1,arg2,arg3,arg4);
+        }
+
+        /// Sends message "resultT memfun(arg1T,arg2T,arg3T) const" to item (non-blocking comm if remote)
+        template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T, typename arg5T>
+        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > 
+        send(const keyT& key, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, const arg4T& arg4, const arg5T& arg5) const {
+            return const_cast<containerT*>(this)->send(key,memfun,arg1,arg2,arg3,arg4,arg5);
         }
 
         
