@@ -79,6 +79,7 @@ class KeyChildIterator {
     Key child;
     ulong i,j,k;
 public:
+    KeyChildIterator() {k=2;};
     KeyChildIterator(const Key& parent) 
 	: parent(parent) 
 	, child(parent.n+1,2*parent.i,2*parent.j,2*parent.k)
@@ -115,14 +116,18 @@ struct Node;
 ostream& operator<<(ostream& s, const Node& node);
 
 struct Node {
+private:
+    mutable KeyChildIterator rpit;
+public:
+
     typedef WorldContainer<Key,Node> dcT;
     double value;
     double value_sum;
     bool isleaf;
 
-    Node() : value(0.0), value_sum(0.0), isleaf(true) {};
-    Node(double value) : value(value), value_sum(0.0), isleaf(true) {};
-    Node(const Node& node) : value(node.value), value_sum(0.0), isleaf(node.isleaf) {};
+    Node() : rpit(), value(0.0), value_sum(0.0), isleaf(true) {};
+    Node(double value) : rpit(), value(value), value_sum(0.0), isleaf(true) {};
+    Node(const Node& node) : rpit(), value(node.value), value_sum(0.0), isleaf(node.isleaf) {};
 
     Void random_insert(const dcT& constd, const Key& key, double valin) {
         dcT& d = const_cast<dcT&>(constd);
@@ -173,7 +178,6 @@ struct Node {
             if (!is_leaf()) {
                 for (KeyChildIterator it(key); it; ++it) {
                     const Key& child = it.key();
-                    print(key,"SENDING TO ", child);
                     cur_cost = d.send(child, &Node::recursive_partition, 
                                       d, child, avg_cost, cur_cost).get();
                 }
@@ -190,12 +194,62 @@ struct Node {
         return cur_cost;
     };
 
+    void rp2_up(const dcT& d, const Key& key, const double avg_cost, double cur_cost) const {
+	if (key.n) {
+	    Key parent = key.parent();
+	    print(key,"sending continue to parent",parent);
+	    d.send(parent, &Node::recursive_partition2, d, parent, avg_cost, cur_cost, false);
+	}
+	else {
+	    print("cost of final partition",cur_cost);
+	}
+    };
+
+
+    Void recursive_partition2(const dcT& d, const Key& key, const double avg_cost, double cur_cost, bool goingdown) const {
+	print("PART2:",key,bool(rpit),goingdown);
+        if (goingdown && (cur_cost+value_sum <= avg_cost)) {
+	    if (key.n == 0) print("Starting new partition",cur_cost);
+            cur_cost += value_sum;
+            print("  ... adding entire sub-tree with root",key,cur_cost,value,value_sum);
+	    rp2_up(d,key,avg_cost,cur_cost);
+	    return None;
+        }
+
+	if (!is_leaf()) {
+	    if (goingdown) {
+		rpit = KeyChildIterator(key);
+	    }
+	    else {
+		++rpit;
+	    }
+	    if (rpit) {
+                    const Key& child = rpit.key();
+                    d.send(child, &Node::recursive_partition2, d, child, avg_cost, cur_cost, true);
+		    return None;
+	    }
+	}
+
+	// Done all children or am a leaf
+	if (cur_cost + value > avg_cost) {
+	    print("Starting new partition",cur_cost);
+	    cur_cost = 0.0;
+	}
+
+	cur_cost += value;
+	print("  ... adding node",key,cur_cost,value,value_sum);
+
+	rp2_up(d,key,avg_cost,cur_cost);
+
+	return None;
+    };
+
 
     double do_sum(vector< Future<double> > v) {
-        value_sum = 0.0;
+        value_sum = value;
 	for (int i=0; i<8; i++) 
 	    value_sum += v[i].get();
-	return value;
+	return value_sum;
     };
 
     Future<double> do_sum_spawn(const dcT& d, const Key& key) {
@@ -243,7 +297,8 @@ void doit(World& world) {
         double total_cost = d.send(root, &Node::get_sum).get();
         print("THE TOTAL COST IS",total_cost);
         double avg_cost = total_cost/world.size()/3.0;
-        d.send(root, &Node::recursive_partition, d, root, avg_cost, 0.0);
+        //d.send(root, &Node::recursive_partition, d, root, avg_cost, 0.0);
+        d.send(root, &Node::recursive_partition2, d, root, avg_cost, 0.0, true);
     }
     world.gop.fence();
 }

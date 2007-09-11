@@ -157,10 +157,10 @@ namespace madness {
                 }
                 
                 broadcast(sum);
-                if (debug) {
-                    print(rank,"fence:",sum0,sum1,sum);
-                    //usleep(1000000);
-                }
+//                if (debug) {
+//                    print(rank,"fence:",sum0,sum1,sum);
+//                    usleep(1000000);
+//                }
             } while (sum);
 
             // If deferred cleanup occured we need another fence, but
