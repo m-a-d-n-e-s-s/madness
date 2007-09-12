@@ -57,7 +57,7 @@ ASTYLEFLAGS = @ASTYLEFLAGS@
 
 # first check for generated include files in the machine dependent directories
 # and then for include files in the src directory
-INCLUDE = -I$(TOPDIR)/include -I$(TOPDIR)/src/lib -I$(SRCTOPDIR)/include -I$(SRCTOPDIR)/src/lib \
+INCLUDE = -I$(TOPDIR)/include -I$(TOPDIR)/src/lib -I$(SRCTOPDIR)/include -I$(SRCTOPDIR)/src/lib -I$(SRCTOPDIR)/src/apps \
 	  @INCLUDES@  @CPPFLAGS@
 DEFINES = @DEFINES@
 
