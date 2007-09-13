@@ -2,7 +2,7 @@
 #define HARTREEFOCK_H_
 
 #include <mra/mra.h>
-// testcomment
+
 namespace madness
 {
   
