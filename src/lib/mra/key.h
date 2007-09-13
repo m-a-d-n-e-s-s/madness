@@ -221,6 +221,15 @@ namespace madness {
         bool finished;
 
     public:
+	KeyChildIterator()
+/* 	    : parent(Key<NDIM>(0)) */
+/* 	    , child(Key<NDIM>(1)) */
+/* 	    , p(0) */
+/* 	    , finished(true) */
+	    : p(0)
+	    , finished(true)
+	{};
+
         KeyChildIterator(const Key<NDIM>& parent) 
             : parent(parent)
             , child(parent.n+1,parent.l*2)

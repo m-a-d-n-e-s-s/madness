@@ -163,6 +163,31 @@ namespace madness {
             if (debug) madness::print("World:",rank(),"Isending",count,"bytes to",dest,"with tag",tag);
             return _comm.Isend(buf,count,datatype,dest,tag);
         };
+
+        /// Disabled for pointers to reduce accidental misuse.
+        template <class T>
+            inline
+            typename enable_if_c< !is_pointer<T>::value, MPI::Request>::type
+            Isend(const T& datum, ProcessID dest, Tag tag=1) const {
+            return Isend((void* )&datum, sizeof(T), MPI::BYTE, dest, tag);
+        }
+
+        /// Same as MPI::Intracomm::Ibsend
+        inline MPI::Request Ibsend(const void* buf, int count, const MPI::Datatype& datatype,
+                                  ProcessID dest, Tag tag) const {
+            if (debug) madness::print("World:",rank(),"Isending",count,"bytes to",dest,"with tag",tag);
+            return _comm.Ibsend(buf,count,datatype,dest,tag);
+        };
+
+        /// Disabled for pointers to reduce accidental misuse.
+        template <class T>
+            inline
+            typename enable_if_c< !is_pointer<T>::value, MPI::Request>::type
+            Ibsend(const T& datum, ProcessID dest, Tag tag=1) const {
+            return Isend((void* )&datum, sizeof(T), MPI::BYTE, dest, tag);
+        }
+        
+        /// Same as MPI::Intracomm::Recv with status
         
         /// Send array of lenbuf elements to process dest 
         template <class T>
@@ -308,6 +333,16 @@ namespace madness {
         void Abort(int code=1) const {
             _comm.Abort(code);
         };
+
+	/// Same as MPI::Attach_buffer
+	void Attach_buffer(void* buffer, int size) {
+	    MPI::Attach_buffer(buffer, size);
+	}
+
+	/// Same as MPI::Detach_buffer
+	void Detach_buffer(void*& buffer) {
+	    MPI::Detach_buffer(buffer);
+	}
 
 
         /// Returns a unique tag for general use (tag is even and > 1023)
