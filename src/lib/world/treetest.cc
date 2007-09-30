@@ -169,7 +169,7 @@ struct Node {
 	nrecvd++;
 	if (nrecvd == 8 && key.n!=0) {
 	    Key parent = key.parent();
-	    d.send(parent, &Node::receive_sum, d, parent, get());
+	    const_cast<dcT&>(d).send(parent, &Node::receive_sum, d, parent, get());
 	}
 	return None;
     };
