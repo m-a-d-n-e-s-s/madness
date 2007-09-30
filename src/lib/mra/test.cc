@@ -104,10 +104,10 @@ int main(int argc, char**argv) {
 //	double thresh = 1e-3;
 
 	double t0 = MPI::Wtime();
-//        Function<double,3> f = FunctionFactory<double,3>(world).f(myg).k(3).thresh(1e-4).nocompress();
-//        Function<double,3> f = FunctionFactory<double,3>(world).f(myg).k(11).thresh(1e-12).nocompress();
-        Function<double,3> f = FunctionFactory<double,3>(world).f(evil_g).k(k).thresh(thresh).nocompress();
-//        Function<double,3> f = FunctionFactory<double,3>(world).f(evil_g).k(3).thresh(1e-3).nocompress();
+//        Function<double,3> f = FunctionFactory<double,3>(world).f(myg).k(3).thresh(1e-4);
+//        Function<double,3> f = FunctionFactory<double,3>(world).f(myg).k(11).thresh(1e-12);
+        Function<double,3> f = FunctionFactory<double,3>(world).f(evil_g).k(k).thresh(thresh);
+//        Function<double,3> f = FunctionFactory<double,3>(world).f(evil_g).k(3).thresh(1e-3);
         world.gop.fence();
 	double t1 = MPI::Wtime();
 	Function<double,3> g = copy(f);

@@ -174,6 +174,7 @@ namespace madness {
 
         throw "gauss_legendre_numeric: why are we in here?";
 
+#if 0
         double midpoint = (xhi + xlo)*0.5;
         double scale    = (xhi - xlo)*0.5;
         double acc = 1e-16;
@@ -211,6 +212,7 @@ namespace madness {
             x[i] = x[i]*scale + midpoint;
             w[i] = w[i]*scale;
         }
+#endif
 
         return true;
     }

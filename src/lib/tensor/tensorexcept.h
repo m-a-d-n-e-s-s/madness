@@ -40,7 +40,7 @@
 /// \brief Declares and implements TensorException
 
 namespace madness {
-/// Tensor is intended to throws only TensorExceptions
+/// Tensor is intended to throw only TensorExceptions
     class TensorException {
     public:
         const char* msg;

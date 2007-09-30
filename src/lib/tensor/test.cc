@@ -197,8 +197,11 @@ template <typename T, typename Q> void Test1() {
 template <typename T> void Test2() {
     // reshape, flat, swapdim, cycledim
 
+    std::cout << "here 1\n";
     Tensor<T>  a(4,6,10);
+    std::cout << "here 2\n";
     a.fillrandom();
+    std::cout << "here 3\n";
 
     try {
         a.reshape(4);
@@ -206,9 +209,13 @@ template <typename T> void Test2() {
     } catch (TensorException e) {
         std::cout << "This exception is expected\n";
         std::cout << e;
+    } catch (...)  {
+        std::cout << "Expected a tensor exception but got something else";
     }
+    std::cout << "here 4\n";
 
     Tensor<T> b = a.reshape(3,2,2,5,2,2);
+    std::cout << "here 5\n";
 
     long i=0;
     ITERATOR6(b,if (b(IND6) != a.ptr()[i++]) error("test2: failed",2));
@@ -234,6 +241,9 @@ template <typename T> void Test2() {
     b = a.swapdim(0,2);
     ITERATOR3(b,if (b(_i,_j,_k) != a(_k,_j,_i)) error("test2: failed",9));
 
+    std::cout << "here 6\n";
+
+
     try {
         b.reshape(240);
         error("test2: expected exception",10);
@@ -253,6 +263,8 @@ template <typename T> void Test2() {
 
     b = b.cycledim(-1,0,-1);
     ITERATOR3(b,if (b(_i,_j,_k) != a(_j,_k,_i)) error("test2: failed",14));
+
+    std::cout << "here 7\n";
 
     b = b.cycledim(-1,0,-1);
     ITERATOR3(b,if (b(_i,_j,_k) != a(_i,_j,_k)) error("test2: failed",15));

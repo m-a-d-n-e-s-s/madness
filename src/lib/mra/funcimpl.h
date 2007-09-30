@@ -1276,7 +1276,7 @@ namespace madness {
                     }
                 }
             }
-            MADNESS_EXCEPTION("should not be here",0);
+            //MADNESS_EXCEPTION("should not be here",0);
         }
 
 

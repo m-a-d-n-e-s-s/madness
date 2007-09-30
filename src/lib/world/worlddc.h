@@ -75,10 +75,12 @@ namespace madness {
         const bool CacheReadPolicy;
         const bool CacheWritePolicy;
         const size_t CacheMaxEntries;
+
+        WorldDCAttr() : CacheReadPolicy(false), CacheWritePolicy(false), CacheMaxEntries(1024) {};
     };
 
     /// Default attributes does no read or write caching
-    static const struct WorldDCAttr world_dc_default_attr = {false, false, 1024};
+    static const struct WorldDCAttr world_dc_default_attr;
     
     /// Interface to be provided by any process map
     template <typename keyT>

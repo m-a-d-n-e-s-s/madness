@@ -519,31 +519,37 @@ namespace madness {
 
     /// Test the Tensor-LAPACK interface ... currently always returns true!
     bool test_tensor_lapack() {
-
-        cout << "error in float svd " << test_svd<float>(20,30) << endl;
-        cout << "error in double svd " << test_svd<double>(30,20) << endl;
-        cout << "error in float_complex svd " << test_svd<float_complex>(23,27) << endl;
-        cout << "error in double_complex svd " << test_svd<double_complex>(37,19) << endl;
-        cout << endl;
-        cout << "error in float gesv " << test_gesv<float>(20,30) << endl;
-        cout << "error in double gesv " << test_gesv<double>(30,20) << endl;
-        cout << "error in float_complex gesv " << test_gesv<float_complex>(23,27) << endl;
-        cout << "error in double_complex gesv " << test_gesv<double_complex>(37,19) << endl;
-        cout << endl;
-        cout << "error in float gelss " << test_gelss<float>(20,30) << endl;
-        cout << "error in double gelss " << test_gelss<double>(30,20) << endl;
-        cout << "error in float_complex gelss " << test_gelss<float_complex>(23,27) << endl;
-        cout << "error in double_complex gelss " << test_gelss<double_complex>(37,19) << endl;
-        cout << endl;
-        cout << "error in float syev " << test_syev<float>(21) << endl;
-        cout << "error in double syev " << test_syev<double>(21) << endl;
-        cout << "error in float_complex syev " << test_syev<float_complex>(21) << endl;
-        cout << "error in double_complex syev " << test_syev<double_complex>(21) << endl;
-        cout << endl;
-        cout << "error in float sygv " << test_sygv<float>(21) << endl;
-        cout << "error in double sygv " << test_sygv<double>(22) << endl;
-        cout << "error in float_complex sygv " << test_sygv<float_complex>(23) << endl;
-        cout << "error in double_complex sygv " << test_sygv<double_complex>(24) << endl;
+        try {
+            cout << "error in float svd " << test_svd<float>(20,30) << endl;
+            cout << "error in double svd " << test_svd<double>(30,20) << endl;
+            cout << "error in float_complex svd " << test_svd<float_complex>(23,27) << endl;
+            cout << "error in double_complex svd " << test_svd<double_complex>(37,19) << endl;
+            cout << endl;
+            cout << "error in float gesv " << test_gesv<float>(20,30) << endl;
+            cout << "error in double gesv " << test_gesv<double>(30,20) << endl;
+            cout << "error in float_complex gesv " << test_gesv<float_complex>(23,27) << endl;
+            cout << "error in double_complex gesv " << test_gesv<double_complex>(37,19) << endl;
+            cout << endl;
+            cout << "error in float gelss " << test_gelss<float>(20,30) << endl;
+            cout << "error in double gelss " << test_gelss<double>(30,20) << endl;
+            cout << "error in float_complex gelss " << test_gelss<float_complex>(23,27) << endl;
+            cout << "error in double_complex gelss " << test_gelss<double_complex>(37,19) << endl;
+            cout << endl;
+            cout << "error in float syev " << test_syev<float>(21) << endl;
+            cout << "error in double syev " << test_syev<double>(21) << endl;
+            cout << "error in float_complex syev " << test_syev<float_complex>(21) << endl;
+            cout << "error in double_complex syev " << test_syev<double_complex>(21) << endl;
+            cout << endl;
+            cout << "error in float sygv " << test_sygv<float>(21) << endl;
+            cout << "error in double sygv " << test_sygv<double>(22) << endl;
+            cout << "error in float_complex sygv " << test_sygv<float_complex>(23) << endl;
+            cout << "error in double_complex sygv " << test_sygv<double_complex>(24) << endl;
+        }
+        catch (const TensorException& e) {
+            cout << "Caught a tensor exception in test_tensor_lapack\n";
+            cout << e;
+            return false;
+        }
 
         return true;			//
     }

@@ -65,6 +65,9 @@
 #  define WORLDDC_USES_TR1_UNORDERED_MAP
 #endif
 
+/* Namespace containing hash_map  */
+#define HASH_MAP_NAMESPACE @HASH_MAP_NAMESPACE@
+
 /* Yield during busy spin */
 #if @WORLD_SCHED_BACKOFF@
 #  define WORLD_SCHED_BACKOFF

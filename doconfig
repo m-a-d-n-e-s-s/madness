@@ -33,7 +33,7 @@ function contains() {
 function get_index() {
    index=0
    for n in ${names[*]} ; do
-     if [ "$n" == "$1" ] ; then
+     if [ "$n" = "$1" ] ; then
         break
      fi
      let index++
@@ -103,13 +103,19 @@ function error() {
 
 # isgcc compiler --- Returns true if the compiler is GCC
 function isgcc() {
-    contains "`$1 -v 2>&1`" "gcc"
+    contains "`$1 --version 2>&1`" "gcc"
 }
 
 # ispathscale compiler --- Returns true if the compiler is pathscale
 function ispathscale() {
     contains "`$1 -v 2>&1`" "PathScale"
 }
+
+# isportland compiler --- Returns true if the compiler is portland group
+function isportland() {
+    contains "`$1 --version 2>&1`" "Portland"
+}
+
 
 # do_linux32 --- Set standard configuration options for 32-bit LINUX
 function do_linux32() {
@@ -150,6 +156,23 @@ function do_linux64() {
 ## what about other compilers?????
 }
 
+# do_crayxt --- Set standard configuration options for CrayXT
+function do_crayxt() {
+    echo ""
+    echo "Doing standard CRAY-XT  configuration"
+    echo ""
+    echo "!! If using catamount be sure to do 'module load gmalloc' before building !!"
+    echo ""
+    set_value WORLD_SCHED_BACKOFF 0
+    set_value CROSS_COMPILING 1
+    set_value HOST_CPU "X86_64"
+    set_value HOST_SYSTEM "CRAYXT"
+    set_value MADNESS_FORINT int
+    set_value CXX CC
+    set_value CC cc
+
+}
+
 # Set mostly empty/non-functional defaults for all strings in part to
 # document things that can be set and also to automate getting them
 # from the command line.  We do NOT take anything from the environment
@@ -159,6 +182,8 @@ function do_linux64() {
 # MADNESS_ASSERTIONS THROW or ABORT or DISABLE 
 # MADNESS_FORINT int or long
 # WORLDDC_USES_TR1_UNORDERED_MAP 0 or 1
+# HASH_MAP_NAMESPACE
+# 
 
 echo "Setting defaults ..."
 
@@ -181,7 +206,7 @@ set_value BYTE_ORDER ""
 set_value MADNESS_ASSERTIONS "THROW"
 set_value MADNESS_FORINT "long"
 set_value WORLDDC_USES_TR1_UNORDERED_MAP 0
-set_value WORLD_SCHED_BACKOFF 0
+set_value WORLD_SCHED_BACKOFF "notset"
 set_value BUILDID "`date`"
 set_value OBJSUF ""
 set_value LIBSUF "a"
@@ -219,11 +244,12 @@ set_value DOT "dot"
 set_value RESTRICT ""
 set_value CROSS_COMPILING 0
 set_value TOP_SRCDIR "`pwd`"
+set_value HASH_MAP_NAMESPACE "NOT_CONFIGURED"
 
 echo "Processing command line overrides ..."
 
-# Take overrides from the command line with format name value
-# If name matches something in the list its value is used
+# Take overrides from the command line as name value pairs.
+# If name matches something in the list its value is used.
 let i=1
 while [ $i -le $# ] ; do 
    get_index "${!i}" 
@@ -247,11 +273,8 @@ for target in $* ; do
     if [ "$target" = "IBMBGL" ] ; then
         do_bgl
         standard=1
-    elif [  "$target" = "CRAYXTGCC" ] ; then
-        do_crayxtgcc
-        standard=1
-    elif [  "$target" = "CRAYXTPG" ] ; then
-        do_crayxtpg
+    elif [  "$target" = "CRAYXT" ] ; then
+        do_crayxt
         standard=1
     elif [  "$target" = "LINUX32" ] ; then
         do_linux32
@@ -271,28 +294,30 @@ echo "Running general configuration ..."
 # by now.  So we do it the hard way.
 
 get_value CROSS_COMPILING
-if [ "$value" == "0" ] ; then
+CROSS_COMPILING="$value"
+
+if [ "$CROSS_COMPILING" = "0" ] ; then
     # Try to figure out what sort of system we are on
     HOST_CPU="`uname -m`"
-    if [ "$HOST_CPU" == "x86_64" ] ; then
+    if [ "$HOST_CPU" = "x86_64" ] ; then
         HOST_CPU=X86_64
-    elif [ "$HOST_CPU" == "i686" ] ; then
+    elif [ "$HOST_CPU" = "i686" ] ; then
         HOST_CPU=X86_32
     fi
     set_value HOST_CPU $HOST_CPU
     echo "Host cpu is $HOST_CPU"
     
     HOST_SYSTEM="`uname`"
-    if [ "$HOST_SYSTEM" == "Linux" ] ; then 
-       if [ "$HOST_CPU" == "X86_32" ] ; then
+    if [ "$HOST_SYSTEM" = "Linux" ] ; then 
+       if [ "$HOST_CPU" = "X86_32" ] ; then
           HOST_SYSTEM=LINUX32
-          if [ "$standard" == "0" ] ; then
+          if [ "$standard" = "0" ] ; then
               do_linux32
               standard=1
           fi
-       elif [ "$HOST_CPU" == "X86_64" ] ; then
+       elif [ "$HOST_CPU" = "X86_64" ] ; then
           HOST_SYSTEM=LINUX64
-          if [ "$standard" == "0" ] ; then
+          if [ "$standard" = "0" ] ; then
               do_linux64
               standard=1
           fi
@@ -301,29 +326,33 @@ if [ "$value" == "0" ] ; then
     set_value HOST_SYSTEM $HOST_SYSTEM
     echo "Host system is $HOST_SYSTEM"
 fi
+get_value HOST_CPU
+HOST_CPU="$value"
+get_value HOST_SYSTEM
+HOST_SYSTEM="$value"
 
 # Now figure out the basic compiler command
 get_value CXX
-if [ "$value" == "" ] ; then
+if [ "$value" = "" ] ; then
   echo "Guessing CXX is mpicxx"
   set_value CXX mpicxx
 fi
 get_value CXX
 
 get_value CXXDEPEND
-if [ "$value" == "" ] ; then
+if [ "$value" = "" ] ; then
   echo "Guessing CXXDEPEND is mpicxx"
   set_value CXXDEPEND mpicxx
 fi
 
 get_value CC
-if [ "$value" == "" ] ; then
+if [ "$value" = "" ] ; then
   echo "Guessing CC is mpicc"
   set_value CC mpicc
 fi
 
 get_value CCDEPEND
-if [ "$value" == "" ] ; then
+if [ "$value" = "" ] ; then
   echo "Guessing CCDEPEND is mpicc"
   set_value CCDEPEND mpicc
 fi
@@ -352,8 +381,6 @@ fi
 echo C++ compiler and linker works
 
 # Determine suffix for executables and see if we can run them
-get_value CROSS_COMPILING
-CROSS_COMPILING="$value"
 if [ -e tmptmp ] ; then
     set_value EXESUF "none"
     tmptmp=tmptmp
@@ -394,9 +421,9 @@ echo "Object file suffix is .$value"
 
 
 get_value BYTE_ORDER
-if [ "$value" == "" ] ; then
+if [ "$value" = "" ] ; then
     if [ $CROSS_COMPILING -eq 0 ] ; then
-        echo "int main(){int i=0;char*p=(char *)&i;p[sizeof(int)]=1;return i==1;}" > tmptmp.cc
+        echo "int main(){int i=0;char*p=(char *)&i;p[sizeof(int)]=1;return i=1;}" > tmptmp.cc
         $CXX_COMPILE_AND_LINK -o tmptmp 
         ./$tmptmp > /dev/null 2>&1
         if [ $? -eq 0 ] ; then
@@ -408,7 +435,7 @@ if [ "$value" == "" ] ; then
         get_value BYTE_ORDER
         echo "Detected byte order is $value"
     else
-        if [$HOST_CPU == X86_64 || $HOST_CPU == X86_32 ] ; then
+        if [[ "$HOST_CPU" = "X86_64" || "$HOST_CPU" = "X86_32" ]] ; then
             set_value BYTE_ORDER LITTLE_ENDIAN
         else 
             set_value BYTE_ORDER BIG_ENDIAN
@@ -428,15 +455,15 @@ echo Can compile and link C++ with MPI
 
 # Determine the RESTRICT keyword unless already specified by user
 get_value RESTRICT
-if [ "$value" == "" ] ; then
+if [ "$value" = "" ] ; then
     compile_testCC "$CXX_COMPILE" "void foo (int* restrict ip) {}" RESTRICT restrict ""
 fi
 get_value RESTRICT
-if [ "$value" == "" ] ; then
+if [ "$value" = "" ] ; then
     compile_testCC "$CXX_COMPILE" "void foo (int* __restrict__ ip) {}" RESTRICT __restrict__ ""
 fi
 get_value RESTRICT
-if [ "$value" == "" ] ; then
+if [ "$value" = "" ] ; then
    error "Failed to find working restrict keyword"
 fi
 
@@ -493,21 +520,34 @@ int main () {
 EOF
 compile_testCC "$CXX_COMPILE" "" HAVE_STD_ABS_LONG 1 0
 
-compile_testCC "$CXX_COMPILE" "#include <sched.h>\nint main() {sched_yield(); return 0;}" WORLD_SCHED_BACKOFF 1 0
-
+if [ "$WORLD_SCHED_BACKOFF" = "notset" ] ; then
+  compile_testCC "$CXX_COMPILE" "#include <sched.h>\nint main() {sched_yield(); return 0;}" WORLD_SCHED_BACKOFF 1 0
+fi
 
 # Try to figure out good compiler options
 get_value CXXFLAGS
 CXXFLAGS="$value"
-if [ "$CXXFLAGS" == "" ] ; then 
-    if ispathscale ; then
-        if [ "$MAD_DEBUG" == "1" ] ; then
+if [ "$CXXFLAGS" = "" ] ; then 
+    if ispathscale "$CXX_COMPILE" ; then
+        echo "Pathscale compiler detected"
+        set_value HASH_MAP_NAMESPACE "NOT_CONFIGURED_SOMEONE_NEEDS_TO_FIX_THIS"
+        if [ "$MAD_DEBUG" = "1" ] ; then
            OPT="-Wall -g -O0"
         else
            OPT="-Wall -Ofast"
         fi
+    elif isportland "$CXX_COMPILE" ; then
+        echo "Portland Group compiler detected"
+        set_value HASH_MAP_NAMESPACE "_STLP_STD"
+        if [ "$MAD_DEBUG" = "1" ] ; then
+           OPT="-Minform=inform -g -O0"
+        else
+           OPT="-Minform=inform -fastsse -tp k8-64 -Mflushz -Mcache_align"
+        fi
     elif isgcc "$CXX_COMPILE" ; then
-        if [ "$MAD_DEBUG" == "1" ] ; then
+        echo "GNU compiler detected"
+        set_value HASH_MAP_NAMESPACE "__gnu_cxx"
+        if [ "$MAD_DEBUG" = "1" ] ; then
            OPT="-Wall -g -O0"
         elif contains "$HOST_CPU" 86 ; then
             OPT="-Wall -ansi -O3 -ffast-math -fomit-frame-pointer -funroll-loops -mfpmath=sse -msse2 -march=native"
@@ -528,7 +568,7 @@ if [ "$CXXFLAGS" == "" ] ; then
             fi
         fi
     else
-        if [ "$MAD_DEBUG" == "1" ] ; then
+        if [ "$MAD_DEBUG" = "1" ] ; then
            OPT="-g -O0"
         else
            OPT=""
@@ -576,13 +616,13 @@ if [ $? -ne 0 ] ; then
 fi
 
 get_value F77_SYMBOL
-if [ "$value" == "lcu" ] ; then
+if [ "$value" = "lcu" ] ; then
     dsyev=dsyev_
-elif [ "$value" == "lc" ] ; then
+elif [ "$value" = "lc" ] ; then
     dsyev=dsyev
-elif [ "$value" == "uc" ] ; then
+elif [ "$value" = "uc" ] ; then
     dsyev=DSYEV
-elif [ "$value" == "ucu" ] ; then
+elif [ "$value" = "ucu" ] ; then
     dsyev=DSYEV_
 else
     error "confusion about linking conventions?"

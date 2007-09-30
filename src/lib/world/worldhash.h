@@ -40,8 +40,9 @@
 /// \brief Defines hash functions for use in distributed containers
 
 
-#define WORLDDC_USES_GNU_HASH_MAP
-//#define WORLDDC_USES_TR1_UNORDERED_MAP
+#ifndef WORLDDC_USES_TR1_UNORDERED_MAP
+#  define WORLDDC_USES_GNU_HASH_MAP
+#endif
 
 #ifdef WORLDDC_USES_GNU_HASH_MAP
 #  ifdef __GNUG__
@@ -49,7 +50,9 @@
 #  else
 #    include <hash_map>
 #  endif
-#  define HASH_MAP_NAMESPACE __gnu_cxx
+#  ifndef HASH_MAP_NAMESPACE
+#    define HASH_MAP_NAMESPACE __gnu_cxx
+#  endif
 #endif
 
 #ifdef WORLDDC_USES_TR1_UNORDERED_MAP
