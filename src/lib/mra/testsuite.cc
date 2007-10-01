@@ -84,9 +84,6 @@ RandomGaussianFunctor(const Tensor<double> cell, double expntmax=1e5) {
     double hi = log(expntmax);
     double expnt = exp(RandomNumber<double>()*(hi-lo) + lo);
     T coeff = pow(2.0*expnt/PI,0.25*NDIM);            
-    print("random origin  ",origin);
-    print("random exponent",expnt);
-    print("random coeff   ",coeff);
     return new GaussianFunctor<T,NDIM>(origin,expnt,coeff);
 }
 
@@ -351,12 +348,9 @@ void test_math(World& world) {
         functorT f2(RandomGaussianFunctor<T,NDIM>(FunctionDefaults<NDIM>::cell,100.0));
         T (*p)(T,T) = &product<T,T,T>;
         functorT f3(new BinaryOpFunctor<T,T,T,T(*)(T,T),NDIM>(f1,f2,p));
-        print((*f1)(origin)*(*f2)(origin),(*f3)(origin));
         Function<T,NDIM> a = FunctionFactory<T,NDIM>(world).functor(f1);
         Function<T,NDIM> b = FunctionFactory<T,NDIM>(world).functor(f2);
-        print("HERE");
         Function<T,NDIM> c = a*b;
-        print("THERE");
         err = c.err(*f3);
         if (world.rank() == 0) print(i,err);
     }      
