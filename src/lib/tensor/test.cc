@@ -770,7 +770,9 @@ int main() {
     << std::endl;
 
     Tensor<double> a(2);
+    std::cout << "made A\n";
     try {
+        std::cout << "testing access\n";
         std::cout << a(2) << std::endl;
         if (a.bounds_checking()) error("bounds check failed to detect error",1);
     } catch (TensorException e) {

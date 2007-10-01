@@ -338,11 +338,12 @@ if [ "$value" = "" ] ; then
   set_value CXX mpicxx
 fi
 get_value CXX
+CXX="$value"
 
 get_value CXXDEPEND
 if [ "$value" = "" ] ; then
-  echo "Guessing CXXDEPEND is mpicxx"
-  set_value CXXDEPEND mpicxx
+  echo "Guessing CXXDEPEND is $CXX"
+  set_value CXXDEPEND "$CXX"
 fi
 
 get_value CC
@@ -350,11 +351,13 @@ if [ "$value" = "" ] ; then
   echo "Guessing CC is mpicc"
   set_value CC mpicc
 fi
+get_value CC
+CC="$value"
 
 get_value CCDEPEND
 if [ "$value" = "" ] ; then
-  echo "Guessing CCDEPEND is mpicc"
-  set_value CCDEPEND mpicc
+  echo "Guessing CCDEPEND is $CC"
+  set_value CCDEPEND "$CC"
 fi
 
 # Build full compiler commands for subsequent tests

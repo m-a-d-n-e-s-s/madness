@@ -233,7 +233,7 @@ namespace madness {
              Tensor< typename Tensor<T>::scalar_type >* s, Tensor<T>* VT) {
         TENSOR_ASSERT(a.ndim == 2, "svd requires matrix",a.ndim,&a);
         integer m = a.dim[0], n = a.dim[1], rmax = min<integer>(m,n);
-        integer lwork = max<integer>(3*min(m,n)+max(m,n),5*min(m,n)-4)*10;
+        integer lwork = max<integer>(3*min(m,n)+max(m,n),5*min(m,n)-4)*32;
         integer info;
         Tensor<T> A(copy(a)), work(lwork);
 
@@ -360,7 +360,7 @@ namespace madness {
         else
             *x = transpose(b);
 
-        integer lwork=(3*min(m,n)+max(max(2*min(m,n),max(m,n)),nrhs))*10;
+        integer lwork=(3*min(m,n)+max(max(2*min(m,n),max(m,n)),nrhs))*32;
         Tensor<T> work(lwork);
         typedef typename TensorTypeData<T>::scalar_type scalar_type;
         *s = Tensor< scalar_type >(n);
@@ -370,6 +370,7 @@ namespace madness {
 
         dgelss_(&m, &n, &nrhs, AT.ptr(), &m, x->ptr(), &m, s->ptr(),
                 &rrcond, &rrank, work.ptr(), &lwork, &info);
+
         TENSOR_ASSERT(info == 0, "gelss failed", info, &a);
 
         *rank = rrank;
@@ -545,7 +546,7 @@ namespace madness {
             cout << "error in float_complex sygv " << test_sygv<float_complex>(23) << endl;
             cout << "error in double_complex sygv " << test_sygv<double_complex>(24) << endl;
         }
-        catch (const TensorException& e) {
+        catch (TensorException e) {
             cout << "Caught a tensor exception in test_tensor_lapack\n";
             cout << e;
             return false;
