@@ -77,6 +77,7 @@ namespace madness {
         typedef const LBNode<NodeData,D> NodeDConst;
         typedef MyPmap<D> MyPmap;
         typedef LBTree<D> treeT;
+      typedef std::vector< std::vector< madness::TreeCoords<D> > > vvTreeCoords;
     };
 
     template <int D>
@@ -98,6 +99,13 @@ namespace madness {
 	    , partition_number(0)
 	    , step_num(0)
 	    , facter(f) { };
+
+	void reset(unsigned int p=1) {
+	  part_list.clear();
+	  maxcost = 0;
+	  cost_left = skel_cost;
+	  partition_number = p;
+	}
 
 	template <typename Archive>
         void serialize(const Archive& ar) {
@@ -432,8 +440,13 @@ namespace madness {
 	typedef WorldObject<LBTree<D> > woT;
         typedef WorldContainer<typename DClass<D>::KeyD,typename DClass<D>::NodeD> dcT;
 	typedef typename dcT::iterator iterator;
+
 	World& world;
+
 	static typename DClass<D>::KeyDConst root;
+	static typename DClass<D>::vvTreeCoords list_of_list;
+	static std::vector<Cost> cost_list;
+
 
     private:
         dcT impl;
@@ -480,15 +493,9 @@ namespace madness {
             }
         };
 
-	void find_partitions(PartitionInfo<D>& pi, 
-			     std::vector< std::vector<typename DClass<D>::TreeCoords> >& list_of_list,
-			     std::vector<Cost>& costlist);
-	bool launch_make_partition(PartitionInfo<D>& pi, 
-				   std::vector< std::vector<typename DClass<D>::TreeCoords> >& list_of_list, 
-				   std::vector<Cost>& costlist, bool first_time);
+	void find_partitions(PartitionInfo<D>& pi);
+	Void launch_make_partition(PartitionInfo<D> pi, bool first_time);
 	Void meld_all(bool first_time);
-
-	Void test_Void(typename DClass<D>::KeyDConst& key);
 
         Cost fix_cost();
 
@@ -510,7 +517,7 @@ namespace madness {
 
         Void make_partition(typename DClass<D>::KeyDConst& key, Cost partition_size,
 			    Cost used_up, PartitionInfo<D> pi, bool downward);
-	void totally_reset(PartitionInfo<D> pi);
+	Void totally_reset(PartitionInfo<D> pi);
 
 	typename DClass<D>::KeyD first_child(typename DClass<D>::KeyDConst& key, const typename DClass<D>::NodeD& node);
 	typename DClass<D>::KeyD next_sibling(typename DClass<D>::KeyDConst& key);
@@ -542,7 +549,7 @@ namespace madness {
        
         template <typename Archive>
         void serialize(const Archive& ar) {
-            ar & impl;
+            ar & root & list_of_list & cost_list & impl;
         }
 
 
@@ -551,6 +558,13 @@ namespace madness {
     template <int D>
 	typename DClass<D>::KeyDConst LBTree<D>::root(0);
 
+    template <int D>
+      //      typename DClass<D>::vvTreeCoords LBTree<D>::list_of_list(1, std::vector< TreeCoords<D> >());
+      typename DClass<D>::vvTreeCoords LBTree<D>::list_of_list;
+
+    template <int D>
+      //      typename std::vector<Cost> LBTree<D>::cost_list(1,0);
+      typename std::vector<Cost> LBTree<D>::cost_list;
 
     /// Implementation of load balancing
 
@@ -573,6 +587,7 @@ namespace madness {
 	    skeltree->template init_tree<T>(f);
 //            madness::print("just initialized tree");
 	    pi.skel_cost = skeltree->fix_cost();
+	    madness::print("construct_skel: pi.skel_cost =", pi.skel_cost); 
 	    pi.cost_left = pi.skel_cost;
         };
 

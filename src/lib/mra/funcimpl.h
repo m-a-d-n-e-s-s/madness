@@ -234,6 +234,7 @@ namespace madness {
     class FunctionFunctorInterface {
     public:
         virtual T operator()(const Vector<double,NDIM>& x) const = 0;
+	virtual ~FunctionFunctorInterface() {};
     };
 
     /// FunctionFactory implements the named-parameter idiom for Function

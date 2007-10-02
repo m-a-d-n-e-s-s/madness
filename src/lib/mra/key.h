@@ -222,10 +222,6 @@ namespace madness {
 
     public:
 	KeyChildIterator()
-/* 	    : parent(Key<NDIM>(0)) */
-/* 	    , child(Key<NDIM>(1)) */
-/* 	    , p(0) */
-/* 	    , finished(true) */
 	    : p(0)
 	    , finished(true)
 	{};
