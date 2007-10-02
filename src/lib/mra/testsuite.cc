@@ -70,6 +70,11 @@ inline T product(L l, R r) {
     return T(l*r);
 }
 
+template <typename T, typename L, typename R>
+inline T sum(L l, R r) {
+    return T(l+r);
+}
+
 
 /// Makes a square-normalized Gaussian with random origin and exponent
 template <typename T, int NDIM>
@@ -351,8 +356,39 @@ void test_math(World& world) {
         Function<T,NDIM> a = FunctionFactory<T,NDIM>(world).functor(f1);
         Function<T,NDIM> b = FunctionFactory<T,NDIM>(world).functor(f2);
         Function<T,NDIM> c = a*b;
-        err = c.err(*f3);
-        if (world.rank() == 0) print(i,err);
+        double err1 = a.err(*f1);
+        double err2 = b.err(*f2);
+        double err3 = c.err(*f3);
+        if (world.rank() == 0) print(i,err1,err2,err3);
+    }      
+
+    // Test adding random functions out of place
+    for (int i=0; i<10; i++) {
+        functorT f1(RandomGaussianFunctor<T,NDIM>(FunctionDefaults<NDIM>::cell,100.0));
+        functorT f2(RandomGaussianFunctor<T,NDIM>(FunctionDefaults<NDIM>::cell,100.0));
+        T (*p)(T,T) = &sum<T,T,T>;
+        functorT f3(new BinaryOpFunctor<T,T,T,T(*)(T,T),NDIM>(f1,f2,p));
+        Function<T,NDIM> a = FunctionFactory<T,NDIM>(world).functor(f1);
+        Function<T,NDIM> b = FunctionFactory<T,NDIM>(world).functor(f2);
+        Function<T,NDIM> c = a+b;
+        double err1 = a.err(*f1);
+        double err2 = b.err(*f2);
+        double err3 = c.err(*f3);
+        if (world.rank() == 0) print(i,err1,err2,err3);
+    }      
+
+    // Test adding random functions in place
+    for (int i=0; i<10; i++) {
+        functorT f1(RandomGaussianFunctor<T,NDIM>(FunctionDefaults<NDIM>::cell,100.0));
+        functorT f2(RandomGaussianFunctor<T,NDIM>(FunctionDefaults<NDIM>::cell,100.0));
+        T (*p)(T,T) = &sum<T,T,T>;
+        functorT f3(new BinaryOpFunctor<T,T,T,T(*)(T,T),NDIM>(f1,f2,p));
+        Function<T,NDIM> a = FunctionFactory<T,NDIM>(world).functor(f1);
+        Function<T,NDIM> b = FunctionFactory<T,NDIM>(world).functor(f2);
+        a += b;
+        double err1 = a.err(*f3);
+        double err2 = b.err(*f2);
+        if (world.rank() == 0) print(i,err1,err2);
     }      
 }
 
@@ -363,6 +399,7 @@ int main(int argc, char**argv) {
 
     try {
         startup(world,argc,argv);
+        if (world.rank() == 0) print("Tensor instance count", BaseTensor::get_instance_count());
         test_basic<double,1>(world);
         test_conv<double,1>(world);
         test_math<double,1>(world);
@@ -371,9 +408,15 @@ int main(int argc, char**argv) {
         test_conv<double,2>(world);
         test_math<double,2>(world);
 
-        test_basic<double,3>(world);
-        test_conv<double,3>(world);
-        test_math<double,3>(world);
+//         test_basic<double,3>(world);
+//         test_conv<double,3>(world);
+//         test_math<double,3>(world);
+
+        if (world.rank() == 0) print("Tensor instance count", BaseTensor::get_instance_count());
+        world.gop.fence();
+        if (world.rank() == 0) print("Tensor instance count", BaseTensor::get_instance_count());
+        world.gop.fence();
+        if (world.rank() == 0) print("Tensor instance count", BaseTensor::get_instance_count());
 
     } catch (const MPI::Exception& e) {
         print(e);

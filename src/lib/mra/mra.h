@@ -357,9 +357,6 @@ namespace madness {
 
         /// Assigning an arbitrary constant
 
-        /// Adding an arbitrary constant
-
-
         /// Process 0 prints a summary of all nodes in the tree (collective)
         void print_tree() const {
             if (impl) impl->print_tree();
@@ -376,7 +373,7 @@ namespace madness {
         /// There is no automatic type conversion since this is generally a rather dangerous
         /// thing and because there would be no way to make the fence optional.
         template <typename Q>
-       Function<Q,NDIM> convert(bool fence = true) const {
+        Function<Q,NDIM> convert(bool fence = true) const {
             verify();
             Function<Q,NDIM> result;
 	    result.impl = SharedPtr< FunctionImpl<Q,NDIM> >(new FunctionImpl<Q,NDIM>(*impl));
@@ -385,7 +382,7 @@ namespace madness {
 	}
 
 
-        /// Deep copy generating a new function (with same distribution).  No communication except due to optional fence.
+        /// Deep copy generating a new function (same distribution).  No communication except optional fence.
 
         /// Works in either basis.  
 	Function<T,NDIM> copy(bool fence = true) const {
@@ -419,9 +416,10 @@ namespace madness {
         }
 
         /// Inplace add scalar.  No communication except for optional fence.
-        void add_scalar_inplace(T t, bool fence=true) {
+        Function<T,NDIM>& add_scalar_inplace(T t, bool fence=true) {
             verify();
             impl->add_scalar_inplace(t,fence);
+            return *this;
         }
 
         /// Inplace, general bi-linear operation in wavelet basis.  No communication except for optional fence.
@@ -441,6 +439,24 @@ namespace madness {
             return *this;
         }
 
+        /// Inplace addition of functions in the wavelet basis
+
+        /// Using operator notation forces a global fence after every operation
+        template <typename Q>
+        Function<T,NDIM>& operator+=(const Function<Q,NDIM>& other) {
+            return gaxpy_inplace(T(1.0), other, Q(1.0), true);
+        };
+
+
+        /// Inplace subtraction of functions in the wavelet basis
+
+        /// Using operator notation forces a global fence after every operation
+        template <typename Q>
+        Function<T,NDIM>& operator-=(const Function<Q,NDIM>& other) {
+            return gaxpy_inplace(T(1.0), other, Q(-1.0), true);
+        };
+
+
         /// Inplace squaring of function ... global comm only if not reconstructed
 
         /// Returns *this for chaining.
@@ -451,27 +467,101 @@ namespace madness {
         }
 
 
-        /// This is replaced with left*right
+        /// This is replaced with left*right ... should be private
         template <typename L, typename R>
-        void mul(const Function<L,NDIM>& left, const Function<R,NDIM>& right, bool fence=true) {
+        Function<T,NDIM>& mul(const Function<L,NDIM>& left, const Function<R,NDIM>& right, bool fence=true) {
             left.verify();
             right.verify();
             MADNESS_ASSERT(!(left.is_compressed() || right.is_compressed()));
             impl = SharedPtr<implT>(new implT(*left.impl, left.get_pmap()));
             impl->mul(*left.impl,*right.impl,fence);
+            return *this;
         }
+
+        /// This is replaced with alpha*left + beta*right ... should be private
+        template <typename L, typename R>
+        Function<T,NDIM>& gaxpy(T alpha, const Function<L,NDIM>& left, 
+                                T beta,  const Function<R,NDIM>& right, bool fence=true) {
+            left.verify();
+            right.verify();
+            MADNESS_ASSERT(left.is_compressed() && right.is_compressed());
+            impl = SharedPtr<implT>(new implT(*left.impl, left.get_pmap()));
+            impl->gaxpy(alpha,*left.impl,beta,*right.impl,fence);
+            return *this;
+        }
+
     };
 
     
+    /// Same as \c operator* but with optional fence and no automatic reconstruction
+    template <typename L, typename R,int NDIM>
+    Function<TENSOR_RESULT_TYPE(L,R),NDIM> 
+    mul(const Function<L,NDIM>& left, const Function<R,NDIM>& right, bool fence=true) {
+        Function<TENSOR_RESULT_TYPE(L,R),NDIM> result;
+        return result.mul(left,right,fence);
+    }
+
+
+    /// Multiplies two functions with the new result being of type TensorResultType<L,R>
+
+    /// Using operator notation forces a global fence after each operation but also
+    /// enables us to automatically reconstruct the input functions as required.
     template <typename L, typename R, int NDIM>
-    Function< typename TensorResultType<L,R>::type, NDIM>
+    Function<TENSOR_RESULT_TYPE(L,R), NDIM>
     operator*(const Function<L,NDIM>& left, const Function<R,NDIM>& right) {
-        typedef typename TensorResultType<L,R>::type T;
-        Function<T,NDIM> result;
-        if (left.is_compressed()) const_cast<Function<L,NDIM>&>(left).reconstruct();
+        if (left.is_compressed())  const_cast<Function<L,NDIM>&>(left).reconstruct();
         if (right.is_compressed()) const_cast<Function<R,NDIM>&>(right).reconstruct();
-        result.mul(left,right);
-        return result;
+        return mul(left,right,true);
+    }
+
+
+    /// Returns new function alpha*left + beta*right optional fence and no automatic compression
+    template <typename L, typename R,int NDIM>
+    Function<TENSOR_RESULT_TYPE(L,R),NDIM> 
+    gaxpy(TENSOR_RESULT_TYPE(L,R) alpha, const Function<L,NDIM>& left, 
+          TENSOR_RESULT_TYPE(L,R) beta,  const Function<R,NDIM>& right, bool fence=true) {
+        Function<TENSOR_RESULT_TYPE(L,R),NDIM> result;
+        return result.gaxpy(alpha, left, beta, right, fence);
+    }
+
+    /// Same as \c operator+ but with optional fence and no automatic compression
+    template <typename L, typename R,int NDIM>
+    Function<TENSOR_RESULT_TYPE(L,R),NDIM> 
+    add(const Function<L,NDIM>& left, const Function<R,NDIM>& right, bool fence=true) {
+        return gaxpy(TENSOR_RESULT_TYPE(L,R)(1.0), left,
+                     TENSOR_RESULT_TYPE(L,R)(1.0), right, fence);
+    }
+
+
+    /// Adds two functions with the new result being of type TensorResultType<L,R>
+
+    /// Using operator notation forces a global fence after each operation
+    template <typename L, typename R, int NDIM>
+    Function<TENSOR_RESULT_TYPE(L,R), NDIM>
+    operator+(const Function<L,NDIM>& left, const Function<R,NDIM>& right) {
+        if (!left.is_compressed())  const_cast<Function<L,NDIM>&>(left).compress();
+        if (!right.is_compressed()) const_cast<Function<R,NDIM>&>(right).compress();
+        return add(left,right,true);
+    }
+
+    /// Same as \c operator- but with optional fence and no automatic compression
+    template <typename L, typename R,int NDIM>
+    Function<TENSOR_RESULT_TYPE(L,R),NDIM> 
+    sub(const Function<L,NDIM>& left, const Function<R,NDIM>& right, bool fence=true) {
+        return gaxpy(TENSOR_RESULT_TYPE(L,R)( 1.0), left,
+                     TENSOR_RESULT_TYPE(L,R)(-1.0), right, fence);
+    }
+
+
+    /// Subtracts two functions with the new result being of type TensorResultType<L,R>
+
+    /// Using operator notation forces a global fence after each operation
+    template <typename L, typename R, int NDIM>
+    Function<TENSOR_RESULT_TYPE(L,R), NDIM>
+    operator-(const Function<L,NDIM>& left, const Function<R,NDIM>& right) {
+        if (!left.is_compressed())  const_cast<Function<L,NDIM>&>(left).compress();
+        if (!right.is_compressed()) const_cast<Function<R,NDIM>&>(right).compress();
+        return sub(left,right,true);
     }
 
     
@@ -497,13 +587,6 @@ namespace madness {
 	return f.copy(fence);
     }
 	    
-    /// Pointwise multiplication of two functions in scaling function basis.  Async comms and optional fence.
-    template <typename L, typename R,int NDIM>
-    Function<TensorResultType<L,R>,NDIM> mul(const Function<L,NDIM>& left, const Function<R,NDIM>& right) {
-        Function<TensorResultType<L,R>,NDIM> result;
-        result.mul(left,right);
-        return result;
-    }
 
 }
 

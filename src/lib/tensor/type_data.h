@@ -60,7 +60,7 @@ namespace madness {
         enum {iscomplex = false};
         enum {memcopyok = false};
         typedef T type;
-        typedef T scalar_type;
+        //typedef T scalar_type;
     };
 
     /// This provides the reverse mapping from integer id to type name
@@ -70,7 +70,7 @@ namespace madness {
         typedef long type;
     };
 
-    // id=unique and sequential identified for each type
+    // id=unique and sequential identifier for each type
     //
     // supported=true for all supported scalar numeric types
     //
@@ -85,9 +85,9 @@ namespace madness {
     //
     // scalar_type = is the type of abs, normf, absmin, absmax, real, imag.
     // Not all of these functions are defined for all types.
-    // Unfortunately, in the current version, most misuses will only be
-    // detected at run time (the tensor class for complex types is still
-    // being designed)
+    // Unfortunately, in the current version, some misuses will only be
+    // detected at run time.
+
 
 #define TYPEINFO(num, T, iscmplx, mcpyok, realT,floatrealT) \
 template<> class TensorTypeData<T> {\
@@ -112,6 +112,7 @@ public: \
     TYPEINFO(4,float_complex,true,true,float,float);
     TYPEINFO(5,double_complex,true,true,double,double);
 #define TENSOR_MAX_TYPE_ID 5
+#undef TYPEINFO
 
 #ifdef TENSOR_CC
     const char *tensor_type_names[TENSOR_MAX_TYPE_ID+1] = {
@@ -181,6 +182,9 @@ public: \
     DPEC(float_complex,float_complex,float_complex);
     SPEC(float_complex,double_complex,double_complex);
     DPEC(double_complex,double_complex,double_complex);
+
+    /// This macro simplifies access to TensorResultType
+#define TENSOR_RESULT_TYPE(L,R) typename TensorResultType<L,R>::type
 
 #undef DPEC
 #undef SPEC

@@ -434,7 +434,7 @@ namespace madness {
                     coeff().scale(alpha);
                 }
             }
-            else {
+            else if (other.has_coeff()) {
                 _coeffs = other.coeff()*beta; //? Is this the correct type conversion?
             }
             return None;
@@ -1029,6 +1029,37 @@ namespace madness {
             return None;
         }
             
+
+        /// Invoked by result to perform result += alpha*left+beta*right in wavelet basis
+
+        /// Does not assume that any of result, left, right have the same distribution.
+        /// For most purposes result will start as an empty so actually are implementing
+        /// out of place gaxpy.  If all functions have the same distribution there is 
+        /// no communication except for the optional fence.
+        template <typename L, typename R>
+        void gaxpy(T alpha, const FunctionImpl<L,NDIM>& left, 
+                   T beta,  const FunctionImpl<R,NDIM>& right, bool fence) {
+            // Loop over local nodes in both functions.  Add in left and subtract right.
+            // Not that efficient in terms of memory bandwidth but ensures we do 
+            // not miss any nodes.
+	    for(typename FunctionImpl<L,NDIM>::dcT::const_iterator it=left.coeffs.begin(); 
+                it!=left.coeffs.end(); 
+                ++it) {
+                const keyT& key = it->first;
+                const typename FunctionImpl<L,NDIM>::nodeT& other_node = it->second;
+                coeffs.send(key, &nodeT:: template gaxpy_inplace<T,L>, 1.0, other_node, alpha);
+	    };
+	    for(typename FunctionImpl<R,NDIM>::dcT::const_iterator it=right.coeffs.begin(); 
+                it!=right.coeffs.end(); 
+                ++it) {
+                const keyT& key = it->first;
+                const typename FunctionImpl<L,NDIM>::nodeT& other_node = it->second;
+                coeffs.send(key, &nodeT:: template gaxpy_inplace<T,R>, 1.0, other_node, beta);
+	    };
+            if (fence) world.gop.fence();
+        }
+
+
 
         /// Invoked by result to compute the pointwise product result=left*right
 
