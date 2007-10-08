@@ -178,6 +178,12 @@ namespace madness {
             return sqrt(local);
         }
 
+        /// Verifies the tree data structure ... returns true if OK ... global sync implied
+        bool verify_tree() const {
+            if (impl) return impl->verify_tree();
+            else return true;
+        };
+
 
         /// Returns true if compressed, false otherwise.  No communication.
 
@@ -345,11 +351,15 @@ namespace madness {
             impl->reconstruct(fence);
         }
 
-        /// Clears the function as if constructed uninitialized.  No communication.
+        /// Clears the function as if constructed uninitialized.  Optional fence.
 
         /// Any underlying data will not be freed until the next global fence.
-        void clear() {
-            impl = SharedPtr< FunctionImpl<T,NDIM> >(0);
+        void clear(bool fence = true) {
+            if (impl) {
+                World& world = impl->world;
+                impl = SharedPtr< FunctionImpl<T,NDIM> >(0);
+                if (fence) world.gop.fence();
+            }
         }
 
 
@@ -409,14 +419,14 @@ namespace madness {
 
         /// Works in either basis.  Returns reference to this for chaining.
         template <typename Q>
-        Function<T,NDIM>& scale_inplace(const Q q, bool fence=true) {
+        Function<T,NDIM>& scale(const Q q, bool fence=true) {
             verify();
             impl->scale_inplace(q,fence);
             return *this;
         }
 
         /// Inplace add scalar.  No communication except for optional fence.
-        Function<T,NDIM>& add_scalar_inplace(T t, bool fence=true) {
+        Function<T,NDIM>& add_scalar(T t, bool fence=true) {
             verify();
             impl->add_scalar_inplace(t,fence);
             return *this;
@@ -429,7 +439,7 @@ namespace madness {
         ///
         /// this <-- this*alpha + other*beta
         template <typename Q, typename R>
-        Function<T,NDIM>& gaxpy_inplace(const T& alpha, 
+        Function<T,NDIM>& gaxpy(const T& alpha, 
                                         const Function<Q,NDIM>& other, const R& beta, bool fence=true) {
             verify();
             other.verify();
@@ -439,13 +449,14 @@ namespace madness {
             return *this;
         }
 
+
         /// Inplace addition of functions in the wavelet basis
 
         /// Using operator notation forces a global fence after every operation
         template <typename Q>
         Function<T,NDIM>& operator+=(const Function<Q,NDIM>& other) {
-            return gaxpy_inplace(T(1.0), other, Q(1.0), true);
-        };
+            return gaxpy(T(1.0), other, Q(1.0), true);
+        }
 
 
         /// Inplace subtraction of functions in the wavelet basis
@@ -454,18 +465,27 @@ namespace madness {
         template <typename Q>
         Function<T,NDIM>& operator-=(const Function<Q,NDIM>& other) {
             return gaxpy_inplace(T(1.0), other, Q(-1.0), true);
-        };
+        }
+
+
+        /// Inplace scaling by a constant
+
+        /// Using operator notation forces a global fence after every operation
+        template <typename Q>
+        Function<T,NDIM>& operator*=(const Q q) {
+            scale(q,true);
+            return *this;
+        }
 
 
         /// Inplace squaring of function ... global comm only if not reconstructed
 
         /// Returns *this for chaining.
-        Function<T,NDIM>& square_inplace(bool fence = true) {
+        Function<T,NDIM>& square(bool fence = true) {
             if (is_compressed()) reconstruct();
             impl->square_inplace(fence);
             return *this;
         }
-
 
         /// This is replaced with left*right ... should be private
         template <typename L, typename R>
@@ -480,8 +500,8 @@ namespace madness {
 
         /// This is replaced with alpha*left + beta*right ... should be private
         template <typename L, typename R>
-        Function<T,NDIM>& gaxpy(T alpha, const Function<L,NDIM>& left, 
-                                T beta,  const Function<R,NDIM>& right, bool fence=true) {
+        Function<T,NDIM>& gaxpy_oop(T alpha, const Function<L,NDIM>& left, 
+                                    T beta,  const Function<R,NDIM>& right, bool fence=true) {
             left.verify();
             right.verify();
             MADNESS_ASSERT(left.is_compressed() && right.is_compressed());
@@ -490,9 +510,54 @@ namespace madness {
             return *this;
         }
 
+        /// This is replaced with alpha*f ... should be private
+        template <typename Q, typename L>
+        Function<T,NDIM>& scale_oop(const Q alpha, const Function<L,NDIM>& f, bool fence=true) { 
+            f.verify();
+            impl = SharedPtr<implT>(new implT(*f.impl, f.get_pmap()));
+            impl->scale_oop(alpha,*f.impl,fence);
+            return *this;
+        }
+
     };
 
     
+    /// Returns new function equal to alpha*f(x) with optional fence
+    template <typename Q, typename T, int NDIM>
+    Function<TENSOR_RESULT_TYPE(Q,T),NDIM> 
+    mul(const Q alpha, const Function<T,NDIM>& f, bool fence=true) {
+        Function<TENSOR_RESULT_TYPE(Q,T),NDIM> result;
+        return result.scale_oop(alpha, f);
+    }        
+
+
+    /// Returns new function equal to f(x)*alpha with optional fence
+    template <typename Q, typename T, int NDIM>
+    Function<TENSOR_RESULT_TYPE(Q,T),NDIM> 
+    mul(const Function<T,NDIM>& f, const Q alpha, bool fence=true) {
+        return mul(alpha,f,fence);
+    }        
+
+
+    /// Returns new function equal to f(x)*alpha
+
+    /// Using operator notation forces a global fence after each operation
+    template <typename Q, typename T, int NDIM>
+    Function<TENSOR_RESULT_TYPE(Q,T),NDIM> 
+    operator*(const Function<T,NDIM>& f, const Q alpha) {
+        return mul(alpha, f, true);
+    }
+
+    /// Returns new function equal to alpha*f(x)
+
+    /// Using operator notation forces a global fence after each operation
+    template <typename Q, typename T, int NDIM>
+    Function<TENSOR_RESULT_TYPE(Q,T),NDIM> 
+    operator*(const Q alpha, const Function<T,NDIM>& f) {
+        return mul(alpha, f, true);
+    }
+
+
     /// Same as \c operator* but with optional fence and no automatic reconstruction
     template <typename L, typename R,int NDIM>
     Function<TENSOR_RESULT_TYPE(L,R),NDIM> 
@@ -518,18 +583,18 @@ namespace madness {
     /// Returns new function alpha*left + beta*right optional fence and no automatic compression
     template <typename L, typename R,int NDIM>
     Function<TENSOR_RESULT_TYPE(L,R),NDIM> 
-    gaxpy(TENSOR_RESULT_TYPE(L,R) alpha, const Function<L,NDIM>& left, 
+    gaxpy_oop(TENSOR_RESULT_TYPE(L,R) alpha, const Function<L,NDIM>& left, 
           TENSOR_RESULT_TYPE(L,R) beta,  const Function<R,NDIM>& right, bool fence=true) {
         Function<TENSOR_RESULT_TYPE(L,R),NDIM> result;
-        return result.gaxpy(alpha, left, beta, right, fence);
+        return result.gaxpy_oop(alpha, left, beta, right, fence);
     }
 
     /// Same as \c operator+ but with optional fence and no automatic compression
     template <typename L, typename R,int NDIM>
     Function<TENSOR_RESULT_TYPE(L,R),NDIM> 
     add(const Function<L,NDIM>& left, const Function<R,NDIM>& right, bool fence=true) {
-        return gaxpy(TENSOR_RESULT_TYPE(L,R)(1.0), left,
-                     TENSOR_RESULT_TYPE(L,R)(1.0), right, fence);
+        return gaxpy_oop(TENSOR_RESULT_TYPE(L,R)(1.0), left,
+                         TENSOR_RESULT_TYPE(L,R)(1.0), right, fence);
     }
 
 
@@ -548,8 +613,8 @@ namespace madness {
     template <typename L, typename R,int NDIM>
     Function<TENSOR_RESULT_TYPE(L,R),NDIM> 
     sub(const Function<L,NDIM>& left, const Function<R,NDIM>& right, bool fence=true) {
-        return gaxpy(TENSOR_RESULT_TYPE(L,R)( 1.0), left,
-                     TENSOR_RESULT_TYPE(L,R)(-1.0), right, fence);
+        return gaxpy_oop(TENSOR_RESULT_TYPE(L,R)( 1.0), left,
+                         TENSOR_RESULT_TYPE(L,R)(-1.0), right, fence);
     }
 
 
@@ -568,8 +633,8 @@ namespace madness {
     /// Create a new function that is the square of f - global comm only if not reconstructed
     template <typename T, int NDIM>
     Function<T,NDIM> square(const Function<T,NDIM>& f, bool fence) {
-        Function<T,NDIM> result = copy(f,false);
-        return result.square_inplace(fence);
+        Function<T,NDIM> result = copy(f,true);  // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        return result.square(fence);
     }
     
 

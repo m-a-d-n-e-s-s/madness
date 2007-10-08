@@ -331,6 +331,18 @@ HOST_CPU="$value"
 get_value HOST_SYSTEM
 HOST_SYSTEM="$value"
 
+# generate canonical form for MADNESS_ASSERTIONS
+get_value MADNESS_ASSERTIONS
+if   [ "$value" = "ABORT" ] ; then
+   set_value MADNESS_ASSERTIONS MADNESS_ASSERTIONS_ABORT
+elif [ "$value" = "ASSERT" ] ; then
+   set_value MADNESS_ASSERTIONS MADNESS_ASSERTIONS_ASSERT
+elif [ "$value" = "DISABLE" ] ; then
+   set_value MADNESS_ASSERTIONS MADNESS_ASSERTIONS_DISABLE
+else
+   set_value MADNESS_ASSERTIONS MADNESS_ASSERTIONS_THROW
+fi
+
 # Now figure out the basic compiler command
 get_value CXX
 if [ "$value" = "" ] ; then

@@ -55,7 +55,7 @@
 #define MADNESS_BYTE_ORDER @BYTE_ORDER@
 
 /* What should madness assersions do? */
-#define MADNESS_ASSERTIONS @MADNESS_ASSERTIONS@
+#define @MADNESS_ASSERTIONS@
 
 /* Corresponding C type to Fortran integers */
 #define MADNESS_FORINT @MADNESS_FORINT@

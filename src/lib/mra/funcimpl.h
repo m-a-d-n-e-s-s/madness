@@ -1075,9 +1075,6 @@ namespace madness {
             typedef std::pair< keyT,Tensor<L> > lpairT;
             MADNESS_ASSERT(coeffs.get_pmap() == left.coeffs.get_pmap() && \
                            coeffs.get_pmap() == right.coeffs.get_pmap());
-            MADNESS_ASSERT(left.verify_tree());
-            MADNESS_ASSERT(right.verify_tree());
-            
             // The three possibilities for the relative position of
             // the left and right coefficients in the tree are:
             //
@@ -1139,11 +1136,10 @@ namespace madness {
 
             }
             if (fence) world.gop.fence();
-            MADNESS_ASSERT(verify_tree());
         }
 
 
-        /// Verify tree is properly constructed ... global synchronization
+        /// Verify tree is properly constructed ... global synchronization involved
 
         /// Returns true on success.  Otherwise prints messages and returns false.
         /// Note that not all processes may return the same status.
@@ -1194,6 +1190,7 @@ namespace madness {
 
                 // NOTE MESSED UP CONSTNESS HERE DUE TO INCOMPLETE
                 // INTERFACE TO DC ... NEEDS FIXING IN THE DC CLASS.
+                // ... might be fixed now ... not yet tried.
                 if (key.level() > 0) {
                     const keyT parent = key.parent();
                     typename dcT::iterator pit = coeffs.find(parent).get();
@@ -1411,7 +1408,8 @@ namespace madness {
 
 //         /// Differentiation of function with optional global fence
 
-//         /// Result of differentiating f is placed into this
+//         /// Result of differentiating f is placed into this which will
+//         /// have the same process map, etc., as f
 //         void diff(const implT& f, int axis, bool fence) {
 //             typedef std::pair<keyT,tensorT> argT;
 //             for(typename dcT::iterator it=f.coeffs.begin(); it!=f.coeffs.end(); ++it) {
@@ -1421,15 +1419,16 @@ namespace madness {
 //                     Future<argT> left   = f.find_neighbor(key,axis,-1);
 //                     Future<argT> center = argT(key,node.coeff());
 //                     Future<argT> right  = f.find_neighbor(key,axis, 1);
-//                     task(world.rank(),&implT::do_diff,&f,axis,key,left,center,right);
+//                     task(world.rank(), &implT::do_diff, &f, axis, key, left, center, right);
 //                 }
 //                 else {
+//                     // Internal empty node can be safely inserted
 //                     coeffs.insert(key,nodeT(tensorT(),true));
 //                 }
 //             }
 //             if (fence) world.gop.fence();
 //         };
-        
+     
 
 //         /// Called by diff to find key and coeffs of neighbor enforcing BC
 
@@ -1437,7 +1436,7 @@ namespace madness {
 //         Future< std::pair<keyT,tensorT> > find_neighbor(const keyT& key, int axis, int step) {
 //             typedef std::pair<keyT,tensorT> argT;
 //             Vector<Translation,NDIM> l = key.translation();
-//             Translation two2n = Translation(1)<<key.level();
+//             const Translation two2n = Translation(1)<<key.level();
 
 //             // Translation is an unsigned type so need to be careful if results
 //             // or intermediates are possibly negative.
@@ -1467,7 +1466,7 @@ namespace madness {
 //             else {
 //                 l[axis] += step;
 //             }
-            
+         
 //             keyT neigh(key.level(),l);
 //             Future<argT> result;
 //             send(coeffs.owner(neigh), &implT::sock_it_to_me, neigh, result.remote_ref(world));
@@ -1476,31 +1475,33 @@ namespace madness {
 
 
 //         Void do_diff(const implT* f, int axis, const keyT& key, 
-//                      const std::pair<keyT,tensor>& left,
-//                      const std::pair<keyT,tensor>& center,
-//                      const std::pair<keyT,tensor>& right) {
+//                      const std::pair<keyT,tensorT>& left,
+//                      const std::pair<keyT,tensorT>& center,
+//                      const std::pair<keyT,tensorT>& right) {
 
-//             // Must futz with the entry/coeffs/has_children for this node
-                                                                      
+//             // Must futz with the entry/coeffs/has_children for this node ?????????
+                                                                   
 //             if (left.second.size==0 || right.second.size==0) {
+//                 // One the neighbors is below us in the tree ... recur down
 //                 typedef std::pair<keyT,tensorT> argT;
 //                 for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
 //                     const keyT& child = kit.key();
 //                     if (left.second.size == 0) {
 //                         left   = f.find_neighbor(key,axis,-1);
+//                             ?????????
 //                     }
 //                     if (right.second.size == 0) {
 //                         Future<argT> right  = f.find_neighbor(key,axis, 1);
 //                     }
 //                     // This must be sent to the owner of the child
-//                     task(world.rank(),&implT::do_diff,&f,axis,key,left,center,right);
+//                     task(coeffs.owner(child), &implT::do_diff, &f, axis, key, left, center, right);
 //                 }
 //                 return None;
 //             }
 
 //             DIFF HERE !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!;
 //         };
-        
+     
 
 
 //             }
@@ -1805,7 +1806,25 @@ namespace madness {
         void scale_inplace(const Q q, bool fence) {
             for(typename dcT::iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
                 nodeT& node = it->second;
-                if (node.has_coeff()) node.coeff.scale(q);
+                if (node.has_coeff()) node.coeff().scale(q);
+            }
+            if (fence) world.gop.fence();
+        }
+
+        /// Out-of-place scale by a constant
+        template <typename Q, typename F>
+        void scale_oop(const Q q, const FunctionImpl<F,NDIM>& f, bool fence) {
+            typedef typename FunctionImpl<F,NDIM>::nodeT fnodeT;
+            typedef typename FunctionImpl<F,NDIM>::dcT fdcT;
+            for(typename fdcT::const_iterator it=f.coeffs.begin(); it!=f.coeffs.end(); ++it) {
+                const keyT& key = it->first;
+                const fnodeT& node = it->second;
+                if (node.has_coeff()) {
+                    coeffs.insert(key,nodeT(node.coeff()*q,node.has_children()));
+                }
+                else {
+                    coeffs.insert(key,nodeT(tensorT(),node.has_children()));
+                }
             }
             if (fence) world.gop.fence();
         }

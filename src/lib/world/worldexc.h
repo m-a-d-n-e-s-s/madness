@@ -39,7 +39,7 @@
 /// \file worldexc.h
 /// \brief Implements MadnessException
 
-
+#include <madness_config.h>
 
 namespace madness {
 		
@@ -76,22 +76,25 @@ throw MadnessException(msg,0,value,__LINE__,__FUNCTION__,__FILE__)
 /*
  * Default behaviour is MADNESS_ASSERTIONS throw a MADNESS exception
  *
- * Configure options are MADNESS_ASSERSIONS = THROW, CASSERT, DISABLE, ABORT
+ * Configure options are MADNESS_ASSERSIONS = THROW, ASSERT, DISABLE, ABORT
  * 
  */
 
-#if (MADNESS_ASSERTIONS == ABORT)
+#ifdef MADNESS_ASSERTIONS_ABORT
 #  define MADNESS_ASSERT(condition) \
      do {if (!(condition)) ((void (*)())0)();} while(0)
+#endif
 
-#elif (MADNESS_ASSERTIONS == DISABLE)
+#ifdef MADNESS_ASSERTIONS_DISABLE
 #  define MADNESS_ASSERT(condition)
+#endif
 
-#elif (MADNESS_ASSERTIONS == ASSERT)
+#ifdef MADNESS_ASSERTIONS_ASSERT
 #  include <cassert>
 #  define MADNESS_ASSERT(condition) assert(condition)
+#endif
 
-#else
+#ifdef MADNESS_ASSERTIONS_THROW
 #  define MADNESS_ASSERT(condition) \
      do {if (!(condition)) \
          throw MadnessException("MADNESS ASSERTION FAILED", \
@@ -101,4 +104,4 @@ throw MadnessException(msg,0,value,__LINE__,__FUNCTION__,__FILE__)
 
 }
 	
-#endif /*MADEXCEPT_H_*/
+#endif

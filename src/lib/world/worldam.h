@@ -643,6 +643,9 @@ namespace madness {
             send_buf[i].function = op;
             if (debug) print(rank,"sending short AM to",dest,"op",(void *) op,"flags",root);
             if (dest == rank) {  // Don't send local messages ... just invoke action
+                
+                // !!!! NEED TO BREAK LONG TREES OF CALLS THAT CAN EXPLODE THE STACK
+
                 poll_short_msg_action(dest, send_buf[i]);
             }
             else {
@@ -663,6 +666,9 @@ namespace madness {
             u[1] = (unsigned long) op;
             if (debug) print(rank,"sending long AM to",dest,"op",(void *) op,"size",nbyte,"flags",root);
             if (dest == rank) {  // Don't send local messages ... just invoke action
+                
+                // !!!! NEED TO BREAK LONG TREES OF CALLS THAT CAN EXPLODE THE STACK
+
                 poll_long_msg_action(dest, nbyte, (unsigned long*) buf);
             }
             else {

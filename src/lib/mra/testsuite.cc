@@ -37,6 +37,8 @@
 
   
 #include <mra/mra.h>
+#include <cstdio>
+
 #include <tensor/random.h>
 
 const double PI = 3.1415926535897932384;
@@ -114,8 +116,21 @@ public:
 };
 
 
+#define CHECK(value, threshold, message) \
+        do { \
+             if (world.rank() == 0) { \
+                bool status = abs(value) < threshold; \
+                const char* msgs[2] = {"FAILED","OK"}; \
+                std::printf("%20.20s :%5d :%30.30s : %10.2e  < %10.2e : %s\n", \
+                            __FUNCTION__,__LINE__,message,abs(value),threshold, msgs[status]); \
+                if (!status) ok = false; \
+             } \
+        } while (0) 
+
+
 template <typename T, int NDIM>
 void test_basic(World& world) {
+    bool ok = true;
     typedef Vector<double,NDIM> coordT;
     typedef SharedPtr< FunctionFunctorInterface<T,NDIM> > functorT;
 
@@ -132,7 +147,6 @@ void test_basic(World& world) {
     FunctionDefaults<NDIM>::refine = true;
     FunctionDefaults<NDIM>::initial_level = 2;
     
-    double used;
     const coordT origin(0.0);
     coordT point;
     const double expnt = 1.0;
@@ -142,69 +156,37 @@ void test_basic(World& world) {
 
     for (int i=0; i<NDIM; i++) point[i] = 0.1*i;
 
-    used = -wall_time();
     Function<T,NDIM> f = FunctionFactory<T,NDIM>(world).functor(functor);
-    used += wall_time();
     double norm = f.norm2();
     double err = f.err(*functor);
-    if (world.rank() == 0) {
-        print("project+refine used",used);
-        print("               norm", norm);
-        print("     sampling point", point);
-        print("          numerical", f(point));
-        print("           analytic", (*functor)(point));
-        print("       global error", err);
-        print("");
-    }
+    T val = f(point);
+    CHECK(abs(norm-1.0), 1e-10, "norm");
+    CHECK(err, 1e-7, "err");
+    CHECK(val-(*functor)(point), 1e-8, "error at a point");
 
-    used = -wall_time();
     f.compress();
-    used += wall_time();
     double new_norm = f.norm2();
+    CHECK(new_norm-norm, 1e-14, "new_norm");
     
-    if (world.rank() == 0) {
-        print("   compression used", used);
-        print("               norm", new_norm, norm-new_norm);
-        print("");
-    }
-    MADNESS_ASSERT(abs(norm-new_norm) < 1e-14*norm);
-    
-    used = -wall_time();
     f.reconstruct();
-    used += wall_time();
     new_norm = f.norm2();
-    err = f.err(*functor);
+    double new_err = f.err(*functor);
+    CHECK(new_norm-norm, 1e-14, "new_norm");
+    CHECK(new_err-err, 1e-14, "new_err");
     
-    if (world.rank() == 0) {
-        print("reconstruction used", used);
-        print("               norm", new_norm, norm-new_norm);
-        print("       global error", err);
-    }
-    MADNESS_ASSERT(abs(norm-new_norm) < 1e-14*norm);
-    
-    used = -wall_time();
     f.compress();
-    used += wall_time();
     new_norm = f.norm2();
-    
-    if (world.rank() == 0) {
-        print("   compression used", used);
-        print("               norm", new_norm, norm-new_norm);
-        print("");
-    }
-    MADNESS_ASSERT(abs(norm-new_norm) < 1e-14*norm);
+    CHECK(new_norm-norm, 1e-14, "new_norm");
 
-    used = -wall_time();
     f.truncate();
-    used += wall_time();
     new_norm = f.norm2();
-    err = f.err(*functor);
-    if (world.rank() == 0) {
-        print("    truncation used", used);
-        print("               norm", new_norm, norm-new_norm);
-        print("       global error", err);
-    }
+    new_err = f.err(*functor);
+    CHECK(new_norm-norm, 1e-9, "new_norm");
+    CHECK(new_err, 1e-6, "new_err");
+
+    MADNESS_ASSERT(ok);
     
+    world.gop.fence();
     if (world.rank() == 0) print("projection, compression, reconstruction, truncation OK\n\n");
 }
 
@@ -241,11 +223,13 @@ void test_conv(World& world) {
 	}
     }
 
+    world.gop.fence();
     if (world.rank() == 0) print("test conv OK\n\n");
 }
 
 template <typename T, int NDIM>
 void test_math(World& world) {
+    bool ok = true;
     typedef Vector<double,NDIM> coordT;
     typedef SharedPtr< FunctionFunctorInterface<T,NDIM> > functorT;
 
@@ -273,81 +257,99 @@ void test_math(World& world) {
     // First make sure out of place squaring works
     Function<T,NDIM> f = FunctionFactory<T,NDIM>(world).functor(functor);
 
-    //world.gop.fence();
-    //f.print_tree();
+    // Out-of-place squaring without autoref
+    f.set_autorefine(false);  world.gop.fence();
 
-    f.set_autorefine(false);
     double err = f.err(*functor);
-    if (world.rank() == 0) 
-        print("Error in f  before squaring",err);
+    CHECK(err, 1e-10, "err in f before squaring");
     Function<T,NDIM> fsq = square(f);
-    err = f.err(*functor);
-    if (world.rank() == 0) 
-        print("Error in f   after squaring",err);
-
-    err = fsq.err(*functsq);
-    if (world.rank() == 0) 
-        print("Error in fsq               ",err);
+    double new_err = f.err(*functor);
+    CHECK(new_err-err,1e-14*err,"err in f after squaring");
+    double errsq = fsq.err(*functsq);
+    CHECK(errsq, 1e-10, "err in fsq");
 
     // Test same with autorefine
-    f.set_autorefine(true);
+    f.set_autorefine(true); world.gop.fence();
     fsq = square(f);
-    err = fsq.err(*functsq);
-    if (world.rank() == 0) 
-        print("Error in fsq               ",err,"autoref");
+    errsq = fsq.err(*functsq);
+    CHECK(errsq, 1e-10, "err in fsq with autoref");
 
-
-
-    // Repeat after truncating to see if autorefine works
-    f.set_autorefine(false);
+    // Repeat after agressive truncating to see if autorefine really works
+    f.set_autorefine(false); world.gop.fence();
     f.truncate(1e-5);
+    f.verify_tree();
     err = f.err(*functor);
-    if (world.rank() == 0) 
-        print("Error in f   after truncate",err);
+    CHECK(err, 1e-5, "error in f after truncating");
     fsq = square(f);
-    err = fsq.err(*functsq);
-    if (world.rank() == 0) 
-        print("Error in fsq after truncate",err);
+    errsq = fsq.err(*functsq);
+    CHECK(errsq, 1e-5, "error in fsq after truncating");
 
-    f.set_autorefine(true);
+    f.set_autorefine(true); world.gop.fence();
     fsq = square(f);
-    err = fsq.err(*functsq);
-    if (world.rank() == 0) 
-        print("Error in fsq after truncate",err,"autoref");
+    errsq = fsq.err(*functsq);
+    CHECK(errsq, 1e-5, "error in fsq truncate+autoref");
 
     // Finally inplace squaring
-    f.square_inplace();
-    err = f.err(*functsq);
-    if (world.rank() == 0) 
-        print("Error in fsq after truncate",err,"autoref and inplace");
+    f.square();
+    double new_errsq = f.err(*functsq);
+    CHECK(new_errsq - errsq, 1e-14*errsq, "err in fsq trunc+auto+inplace");
 
     fsq.clear();
 
     // Test adding a constant in scaling function and wavelet bases
     double val = f(origin);
     f.reconstruct();
-    f.add_scalar_inplace(3.0);
+    f.add_scalar(3.0);
     double val2 = f(origin);
-    if (world.rank() == 0) 
-        print("f(origin)",val,"f(origin)+3",val2);
 
     f.compress();
-    f.add_scalar_inplace(5.0);
+    f.add_scalar(5.0);
     f.reconstruct();
     val2 = f(origin);
-    if (world.rank() == 0) 
-        print("f(origin)",val,"f(origin)+8",val2);
+    CHECK(val2-(val+8),1e-12,"add scalar in place compressed");
+
+    // Test in-place scaling by a constant in scaling function and wavelet bases
+    f.reconstruct();
+    f.scale(3.0);
+    val2 = f(origin);
+    CHECK(val2-3.0*(val+8),1e-12,"in-place scaling reconstructed");
+
+    f.compress();
+    f.scale(4.0);
+    f.reconstruct();
+    val2 = f(origin);
+    CHECK(val2-12.0*(val+8),1e-12,"in-place scaling compressed");
+
+    // Same but using operator notation
+    f.reconstruct();
+    f *= 7.0;
+    val2 = f(origin);
+    CHECK(val2-7.0*12.0*(val+8),1e-11,"in-place scaling (op) recon");
+
+    f.compress();
+    f *= 7.0;
+    f.reconstruct();
+    val2 = f(origin);
+    CHECK(val2-7.0*7.0*12.0*(val+8),1e-10,"in-place scaling (op) comp");
+
 
     // Test squaring a function by multiplication
     f = Function<T,NDIM>(FunctionFactory<T,NDIM>(world).functor(functor));
     fsq = f*f;
-    err = fsq.err(*functsq);
-    if (world.rank() == 0) 
-        print("err in fsq by mul",err);
+    errsq = fsq.err(*functsq);
+    CHECK(errsq, 1e-8, "err in fsq by multiplication");
 
-    f.clear();
+    // Test composing operations using general expression(s)
+    f.compress();
+    err = f.err(*functor);
+    Function<T,NDIM> f6 = f*3.0 + 4.0*f - f;
+    new_err = f.err(*functor);
+    CHECK(new_err-err,1e-14,"general op unchanged input");
+    new_err = (f6 - f.scale(6.0)).norm2();
+    CHECK(new_err,1e-14,"general op output");
 
-    // Test multiplying random functions
+
+    if (world.rank() == 0) print("\nTest multiplying random functions");
     for (int i=0; i<10; i++) {
         functorT f1(RandomGaussianFunctor<T,NDIM>(FunctionDefaults<NDIM>::cell,100.0));
         functorT f2(RandomGaussianFunctor<T,NDIM>(FunctionDefaults<NDIM>::cell,100.0));
@@ -356,13 +358,19 @@ void test_math(World& world) {
         Function<T,NDIM> a = FunctionFactory<T,NDIM>(world).functor(f1);
         Function<T,NDIM> b = FunctionFactory<T,NDIM>(world).functor(f2);
         Function<T,NDIM> c = a*b;
+        MADNESS_ASSERT(a.verify_tree());
+        MADNESS_ASSERT(b.verify_tree());
+        MADNESS_ASSERT(c.verify_tree());
         double err1 = a.err(*f1);
         double err2 = b.err(*f2);
         double err3 = c.err(*f3);
-        if (world.rank() == 0) print(i,err1,err2,err3);
+        if (world.rank() == 0) print("  test ",i);
+        CHECK(err1,1e-8,"err1");
+        CHECK(err2,1e-8,"err2");
+        CHECK(err3,1e-8,"err3");
     }      
 
-    // Test adding random functions out of place
+    if (world.rank() == 0) print("\nTest adding random functions out of place");
     for (int i=0; i<10; i++) {
         functorT f1(RandomGaussianFunctor<T,NDIM>(FunctionDefaults<NDIM>::cell,100.0));
         functorT f2(RandomGaussianFunctor<T,NDIM>(FunctionDefaults<NDIM>::cell,100.0));
@@ -371,13 +379,19 @@ void test_math(World& world) {
         Function<T,NDIM> a = FunctionFactory<T,NDIM>(world).functor(f1);
         Function<T,NDIM> b = FunctionFactory<T,NDIM>(world).functor(f2);
         Function<T,NDIM> c = a+b;
+        MADNESS_ASSERT(a.verify_tree());
+        MADNESS_ASSERT(b.verify_tree());
+        MADNESS_ASSERT(c.verify_tree());
         double err1 = a.err(*f1);
         double err2 = b.err(*f2);
         double err3 = c.err(*f3);
-        if (world.rank() == 0) print(i,err1,err2,err3);
+        if (world.rank() == 0) print("  test ",i);
+        CHECK(err1,1e-8,"err1");
+        CHECK(err2,1e-8,"err2");
+        CHECK(err3,1e-8,"err3");
     }      
 
-    // Test adding random functions in place
+    if (world.rank() == 0) print("\nTest adding random functions in place");
     for (int i=0; i<10; i++) {
         functorT f1(RandomGaussianFunctor<T,NDIM>(FunctionDefaults<NDIM>::cell,100.0));
         functorT f2(RandomGaussianFunctor<T,NDIM>(FunctionDefaults<NDIM>::cell,100.0));
@@ -385,11 +399,21 @@ void test_math(World& world) {
         functorT f3(new BinaryOpFunctor<T,T,T,T(*)(T,T),NDIM>(f1,f2,p));
         Function<T,NDIM> a = FunctionFactory<T,NDIM>(world).functor(f1);
         Function<T,NDIM> b = FunctionFactory<T,NDIM>(world).functor(f2);
+        MADNESS_ASSERT(a.verify_tree());
+        MADNESS_ASSERT(b.verify_tree());
         a += b;
         double err1 = a.err(*f3);
         double err2 = b.err(*f2);
-        if (world.rank() == 0) print(i,err1,err2);
+        if (world.rank() == 0) print("  test ",i);
+        CHECK(err1,1e-8,"err1");
+        CHECK(err2,1e-8,"err2");
     }      
+
+    // Test basic math operations
+
+    MADNESS_ASSERT(ok);
+
+    world.gop.fence();
 }
 
 
@@ -399,24 +423,18 @@ int main(int argc, char**argv) {
 
     try {
         startup(world,argc,argv);
-        if (world.rank() == 0) print("Tensor instance count", BaseTensor::get_instance_count());
+        if (world.rank() == 0) print("Initial tensor instance count", BaseTensor::get_instance_count());
         test_basic<double,1>(world);
-        test_conv<double,1>(world);
+//         test_conv<double,1>(world);
         test_math<double,1>(world);
 
         test_basic<double,2>(world);
-        test_conv<double,2>(world);
+//         test_conv<double,2>(world);
         test_math<double,2>(world);
 
 //         test_basic<double,3>(world);
 //         test_conv<double,3>(world);
 //         test_math<double,3>(world);
-
-        if (world.rank() == 0) print("Tensor instance count", BaseTensor::get_instance_count());
-        world.gop.fence();
-        if (world.rank() == 0) print("Tensor instance count", BaseTensor::get_instance_count());
-        world.gop.fence();
-        if (world.rank() == 0) print("Tensor instance count", BaseTensor::get_instance_count());
 
     } catch (const MPI::Exception& e) {
         print(e);
@@ -443,6 +461,7 @@ int main(int argc, char**argv) {
     if (world.rank() == 0) print("entering final fence");
     world.gop.fence();
     if (world.rank() == 0) print("done with final fence");
+    if (world.rank() == 0) print("Final tensor instance count", BaseTensor::get_instance_count());
     MPI::Finalize();
 
     return 0;

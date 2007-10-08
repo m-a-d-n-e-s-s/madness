@@ -32,6 +32,8 @@
   $Id$
 */
 
+#include <madness_config.h>
+
   
 #include <stdio.h>
 #include <stdlib.h>
