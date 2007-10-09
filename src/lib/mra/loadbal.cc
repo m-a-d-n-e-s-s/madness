@@ -182,19 +182,73 @@ namespace madness {
 
 	if (this->world.mpi.rank() == this->impl.owner(root)) manager = true;
 
-	if (manager) {
-	  //send(impl.owner(root), &LBTree<D>::launch_make_partition, lbi, first_time);
-	  this->launch_make_partition(lbi, first_time);
-	  madness::print("find_partitions: back from launch_make_partition");
-	} else {
-	  while (keep_going) {
+	while (keep_going) {
 	    madness::print("find_partitions: the verdict is to keep_going");
 	    meld_all(first_time);
 	    madness::print("find_partitions: after meld_all");
+	    if (manager) {
+	      unsigned int npieces;
+	      Cost used_up;
+	      if (first_time) {
+		
+	      }
+	      else {
+		lbi.step_num++;
+	      }
+	      
+	      npieces = world.nproc();
+	      lbi.partition_number = npieces-1;
+	      Cost tpart = compute_partition_size(lbi.skel_cost, npieces);
+	      used_up = 0;
+	      //	madness::print("launch_make_partition: lbi =", lbi);
+	      madness::print("launch_make_partition: about to send make_partition");
+	      send(impl.owner(root), &LBTree<D>::make_partition, root, tpart, used_up, lbi, true);
+	      madness::print("launch_make_partition: back from send make_partition; about to return None");
+	    }	      
 	    first_time = false;
-	    //this->world.gop.fence();
+	    this->world.gop.fence();
+	    if (manager) {
+	      if (this->partition_info.partition_number == 0) {
+		// make sure current partition is valid.  If not, quit.
+	    
+		madness::print("totally_reset: add root to partition and be done");
+		int count = this->partition_info.step_num;
+		list_of_list.push_back(this->partition_info.part_list);
+		madness::print("totally_reset: size of list_of_list[", partition_info.step_num, "] =", list_of_list[this->partition_info.step_num].size());
+		madness::print("totally_reset: list_of_list =", list_of_list);
+		int lolcsize = list_of_list[count].size();
+		int npieces = this->world.nproc()-1;
+		madness::print("totally_reset: after resetting some stuff, partition_info =", this->partition_info);
+	    
+		// Making sure we don't have an invalid partition, e.g. a case where one (or
+		// more!) processor(s) do(es)n't have any work.
+		int m = npieces;
+		bool invalid_partition = false;
+		if (npieces > lolcsize) {
+		  invalid_partition = true;
+		} else {
+		  for (int k = 0; k < lolcsize; k++) {
+		    int difff = m-list_of_list[count][k].owner;
+		    if (difff == 1) {
+		      m--;
+		    } else if (difff > 1) {
+		      invalid_partition = true;
+		      break;
+		    }
+		  }
+		}
+		if (invalid_partition) {
+		  list_of_list.erase(list_of_list.begin()+count);
+		  keep_going = false;
+		  count-=1;
+		} else {
+		  cost_list.push_back(this->partition_info.maxcost);
+		}
+		count++;
+		madness::print("totally_reset: the verdict is that keep_going =", keep_going);	
+	      }
+	    }
 	    this->world.gop.template broadcast<bool>(keep_going);
-	  }
 	}
 	this->world.gop.fence();
     }
@@ -204,27 +258,11 @@ namespace madness {
     template <int D>
     Void LBTree<D>::launch_make_partition(PartitionInfo<D> lbi, bool first_time = false) {
 	madness::print("launch_make_partition: at beginning");
-	unsigned int npieces;
-	Cost used_up;
 	// just manager process	    
 	madness::print("launch_make_partition: it's good to be the manager");
 	
 	this->meld_all(first_time);
-
-	if (first_time) {
-	  
-	}
-	else {
-	    lbi.step_num++;
-	}
-	
-	npieces = world.nproc();
-	lbi.partition_number = npieces-1;
-	Cost tpart = compute_partition_size(lbi.skel_cost, npieces);
-	used_up = 0;
-	madness::print("launch_make_partition: lbi =", lbi);
-	send(impl.owner(root), &LBTree<D>::make_partition, root, tpart, used_up, lbi, true);
-	madness::print("launch_make_partition: back from send make_partition");
+	madness::print("launch_make_partition: just finished meld_all");
 
 	return None;
     }
@@ -531,7 +569,7 @@ namespace madness {
 	    madness::print("make_partition: size of part_list =", lbi.part_list.size());
 	    if (key == root) {
 		madness::print("make_partition: OMG root has no children and was added to partition!!!");
-		totally_reset(lbi);
+		send(impl.owner(parent), &LBTree::totally_reset, lbi);
 	    } else {
 	        madness::print("make_partition: sending control over to my parent", parent);
 		send(impl.owner(parent), &LBTree::make_partition, parent, partition_size, used_up, lbi);
@@ -603,57 +641,7 @@ namespace madness {
 
     template <int D>
     Void LBTree<D>::totally_reset(PartitionInfo<D> lbi) {
-        bool keep_going = true;
-	if (lbi.partition_number == 0) {
-	    // make sure current partition is valid.  If not, quit.
-	    
-	    madness::print("totally_reset: add root to partition and be done");
-	    int count = lbi.step_num;
-	    list_of_list.push_back(lbi.part_list);
-	    madness::print("totally_reset: size of list_of_list[", lbi.step_num, "] =", list_of_list[lbi.step_num].size());
-	    madness::print("totally_reset: list_of_list =", list_of_list);
-	    int lolcsize = list_of_list[count].size();
-	    int npieces = this->world.nproc()-1;
-	    madness::print("totally_reset: after resetting some stuff, lbi =", lbi);
-	    
-	    // Making sure we don't have an invalid partition, e.g. a case where one (or
-	    // more!) processor(s) do(es)n't have any work.
-	    int m = npieces;
-	    bool invalid_partition = false;
-	    if (npieces > lolcsize) {
-	      invalid_partition = true;
-	    } else {
-	      for (int k = 0; k < lolcsize; k++) {
-		int difff = m-list_of_list[count][k].owner;
-		if (difff == 1) {
-		    m--;
-		} else if (difff > 1) {
-		    invalid_partition = true;
-		    break;
-		}
-	      }
-	    }
-	    if (invalid_partition) {
-		list_of_list.erase(list_of_list.begin()+count);
-		keep_going = false;
-		count-=1;
-	    } else {
-	        cost_list.push_back(lbi.maxcost);
-	    }
-	    count++;
-	    madness::print("totally_reset: the verdict is that keep_going =", keep_going);	
-	}
-	madness::print("totally_reset: just before fence");
-	//	world.gop.fence();
-	madness::print("totally_reset: just before broadcast");
-	world.gop.template broadcast<bool>(keep_going);
-	if (keep_going) {
-	  lbi.reset(this->world.mpi.nproc());
-	  madness::print("totally_reset: reset lbi");
-	  send(owner(root), &LBTree::launch_make_partition, lbi, false);
-	  madness::print("totally_reset: sent launch_make_partition");
-	}
-	madness::print("totally_reset: about to return None");
+      this->partition_info = lbi;
 	return None;
     }
 

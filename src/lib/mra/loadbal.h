@@ -447,6 +447,7 @@ namespace madness {
 	static typename DClass<D>::vvTreeCoords list_of_list;
 	static std::vector<Cost> cost_list;
 
+	PartitionInfo<D> partition_info;
 
     private:
         dcT impl;
