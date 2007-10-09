@@ -464,7 +464,7 @@ namespace madness {
         /// Using operator notation forces a global fence after every operation
         template <typename Q>
         Function<T,NDIM>& operator-=(const Function<Q,NDIM>& other) {
-            return gaxpy_inplace(T(1.0), other, Q(-1.0), true);
+            return gaxpy(T(1.0), other, Q(-1.0), true);
         }
 
 
