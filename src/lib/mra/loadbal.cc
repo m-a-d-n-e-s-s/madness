@@ -211,42 +211,44 @@ namespace madness {
 	    if (manager) {
 	      if (this->partition_info.partition_number == 0) {
 		// make sure current partition is valid.  If not, quit.
-	    
+		keep_going = verify_partition(this->partition_info.part_list);
 		madness::print("find_partitions: add root to partition and be done");
 		int count = this->partition_info.step_num;
-		list_of_list.push_back(this->partition_info.part_list);
-		madness::print("find_partitions: size of list_of_list[", partition_info.step_num, "] =", list_of_list[this->partition_info.step_num].size());
-		madness::print("find_partitions: list_of_list =", list_of_list);
-		int lolcsize = list_of_list[count].size();
-		int npieces = this->world.nproc()-1;
-		madness::print("find_partitions: after resetting some stuff, partition_info =", this->partition_info);
-	    
+		if (keep_going) {
+		  list_of_list.push_back(this->partition_info.part_list);
+		  madness::print("find_partitions: size of list_of_list[", partition_info.step_num, "] =", list_of_list[this->partition_info.step_num].size());
+		  madness::print("find_partitions: list_of_list =", list_of_list);
+// 		  int lolcsize = list_of_list[count].size();
+// 		  int npieces = this->world.nproc()-1;
+		  madness::print("find_partitions: after resetting some stuff, partition_info =", this->partition_info);
+		  cost_list.push_back(this->partition_info.maxcost);
+		  count++;
+		}
 		// Making sure we don't have an invalid partition, e.g. a case where one (or
 		// more!) processor(s) do(es)n't have any work.
-		int m = npieces;
-		bool invalid_partition = false;
-		if (npieces > lolcsize) {
-		  invalid_partition = true;
-		} else {
-		  for (int k = 0; k < lolcsize; k++) {
-		    int difff = m-list_of_list[count][k].owner;
-		    if (difff == 1) {
-		      m--;
-		    } else if (difff > 1) {
-		      invalid_partition = true;
-		      break;
-		    }
-		  }
-		}
-		if (invalid_partition) {
-		  madness::print("find_partitions: invalid partition");
-		  list_of_list.erase(list_of_list.begin()+count);
-		  keep_going = false;
-		  count-=1;
-		} else {
-		  cost_list.push_back(this->partition_info.maxcost);
-		}
-		count++;
+// 		int m = npieces;
+// 		bool invalid_partition = false;
+// 		if (npieces > lolcsize) {
+// 		  invalid_partition = true;
+// 		} else {
+// 		  for (int k = 0; k < lolcsize; k++) {
+// 		    int difff = m-list_of_list[count][k].owner;
+// 		    if (difff == 1) {
+// 		      m--;
+// 		    } else if (difff > 1) {
+// 		      invalid_partition = true;
+// 		      break;
+// 		    }
+// 		  }
+// 		}
+// 		if (invalid_partition) {
+// 		  madness::print("find_partitions: invalid partition");
+// 		  list_of_list.erase(list_of_list.begin()+count);
+// 		  keep_going = false;
+// 		  count-=1;
+// 		} else {
+// 		}
+// 		count++;
 		madness::print("find_partitions: the verdict is that keep_going =", keep_going);	
 	      } else {
 		keep_going = false;
@@ -258,6 +260,72 @@ namespace madness {
     }
 
 
+    template <int D>
+    bool LBTree<D>::verify_partition(std::vector<TreeCoords<D> >& part_list) {
+      const int min_pieces = this->world.nproc()-1;
+      int size = part_list.size();
+      if (size < min_pieces) return false;
+
+      // Make sure that every process has at least one piece of the partition
+      int m = min_pieces+1;
+      bool invalid_partition = false;
+      for (int k = 0; k < size; k++) {
+	madness::print("verify_partition: looking at", part_list[k]);
+	int difff = m-part_list[k].owner;
+	if (difff == 1) {
+	  m--;
+	} else if (difff > 1) {
+	  invalid_partition = true;
+	  break;
+	}
+      }
+      if (invalid_partition) {
+	madness::print("verify_partition: invalid partition");
+	return false;
+      }
+
+
+      typedef std::pair<typename DClass<D>::KeyD, ProcessID> part_type;
+      typedef std::map<typename DClass<D>::KeyD, ProcessID> map_type;
+
+      map_type part_map;
+      for (int i = 0; i < size; i++) {
+	part_map.insert(part_type(part_list[i].key, part_list[i].owner));
+      }
+      typename map_type::iterator it, fit;
+      for (it = part_map.begin(); it != part_map.end(); ) {
+	typename DClass<D>::KeyD key = it->first;
+	ProcessID owner = it->second;
+	if (key == root) {
+	  ++it;
+	} else {
+	  bool erased_it = false;
+	  int level = key.level();
+	  for (int j = 1; j <= level; j++) {
+	    fit = part_map.find(key.parent(j));
+	    if (fit != part_map.end()) {
+	      if (fit->second == owner) {
+		part_map.erase(it++);
+		erased_it = true;
+	      }
+	      break;
+	    }
+	  }
+	  if (!erased_it) {
+	    ++it;
+	  }
+	}
+      }
+      int pmsize = part_map.size();
+      if (pmsize < min_pieces) return false;
+      if (pmsize != size) {
+	part_list.clear();
+	for (it = part_map.begin(); it != part_map.end(); ++it) {
+	  part_list.push_back(TreeCoords<D>(it->first, it->second));
+	}
+      }
+      return true;
+    }
 
     template <int D>
     Void LBTree<D>::launch_make_partition(PartitionInfo<D> lbi, bool first_time = false) {
@@ -718,6 +786,7 @@ namespace madness {
 	    }
 	    return true;
 	} else {
+	    lbi.cost_left -= used_up;
 	    if (lbi.cost_left > lbi.maxcost) {
 	        lbi.maxcost = lbi.cost_left;
 	    }

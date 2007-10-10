@@ -146,7 +146,7 @@ void test_loadbal(World& world) {
         int n = 2;
         //int n = 7;
 	//double thresh = 1e-12;
-	double thresh = 1e-1;
+	double thresh = 1e-4;
 	if (world.rank() == 0) { 
 	  printf("k=%d:\n", k);
 	}
