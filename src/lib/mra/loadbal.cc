@@ -138,11 +138,12 @@ namespace madness {
 	}
 	else {
  		madness::print("find_best_partition: receiving broadcast");
- 		std::vector<typename DClass<D>::TreeCoords> klist;
+ 		typename DClass<D>::TreeCoords ktmp;
  		unsigned int ksize;
  		skeltree->world.gop.template broadcast<unsigned int>(ksize);
  		for (unsigned int i=0; i < ksize; i++) {
- 		    skeltree->world.gop.template broadcast<typename DClass<D>::TreeCoords>(klist[i]);
+ 		    skeltree->world.gop.template broadcast<typename DClass<D>::TreeCoords>(ktmp);
+		    klist.push_back(ktmp);
  		}
 	}
         return klist;	
@@ -201,9 +202,9 @@ namespace madness {
 	      Cost tpart = compute_partition_size(lbi.skel_cost, npieces);
 	      used_up = 0;
 	      //	madness::print("launch_make_partition: lbi =", lbi);
-	      madness::print("launch_make_partition: about to send make_partition");
+	      madness::print("find_partitions: about to send make_partition");
 	      send(impl.owner(root), &LBTree<D>::make_partition, root, tpart, used_up, lbi, true);
-	      madness::print("launch_make_partition: back from send make_partition; about to return None");
+	      madness::print("find_partitions: back from send make_partition");
 	    }	      
 	    first_time = false;
 	    this->world.gop.fence();
@@ -211,14 +212,14 @@ namespace madness {
 	      if (this->partition_info.partition_number == 0) {
 		// make sure current partition is valid.  If not, quit.
 	    
-		madness::print("totally_reset: add root to partition and be done");
+		madness::print("find_partitions: add root to partition and be done");
 		int count = this->partition_info.step_num;
 		list_of_list.push_back(this->partition_info.part_list);
-		madness::print("totally_reset: size of list_of_list[", partition_info.step_num, "] =", list_of_list[this->partition_info.step_num].size());
-		madness::print("totally_reset: list_of_list =", list_of_list);
+		madness::print("find_partitions: size of list_of_list[", partition_info.step_num, "] =", list_of_list[this->partition_info.step_num].size());
+		madness::print("find_partitions: list_of_list =", list_of_list);
 		int lolcsize = list_of_list[count].size();
 		int npieces = this->world.nproc()-1;
-		madness::print("totally_reset: after resetting some stuff, partition_info =", this->partition_info);
+		madness::print("find_partitions: after resetting some stuff, partition_info =", this->partition_info);
 	    
 		// Making sure we don't have an invalid partition, e.g. a case where one (or
 		// more!) processor(s) do(es)n't have any work.
@@ -238,6 +239,7 @@ namespace madness {
 		  }
 		}
 		if (invalid_partition) {
+		  madness::print("find_partitions: invalid partition");
 		  list_of_list.erase(list_of_list.begin()+count);
 		  keep_going = false;
 		  count-=1;
@@ -245,7 +247,9 @@ namespace madness {
 		  cost_list.push_back(this->partition_info.maxcost);
 		}
 		count++;
-		madness::print("totally_reset: the verdict is that keep_going =", keep_going);	
+		madness::print("find_partitions: the verdict is that keep_going =", keep_going);	
+	      } else {
+		keep_going = false;
 	      }
 	    }
 	    this->world.gop.template broadcast<bool>(keep_going);
@@ -569,6 +573,7 @@ namespace madness {
 	    madness::print("make_partition: size of part_list =", lbi.part_list.size());
 	    if (key == root) {
 		madness::print("make_partition: OMG root has no children and was added to partition!!!");
+		madness::print("make_partition: about to totally_reset, lbi =", lbi);
 		send(impl.owner(parent), &LBTree::totally_reset, lbi);
 	    } else {
 	        madness::print("make_partition: sending control over to my parent", parent);
