@@ -180,6 +180,9 @@ namespace madness {
         bool first_time = true;
 	madness::print("find_partitions: at beginning");
 	this->world.gop.fence();
+	madness::print("find_partitions: begin key child iterator experiment");
+	for (KeyChildIterator<D> huhkit(root); huhkit; ++huhkit) madness::print(huhkit.key());
+	madness::print("find_partitions: end key child iterator experiment");
 
 	if (this->world.mpi.rank() == this->impl.owner(root)) manager = true;
 
@@ -644,17 +647,18 @@ namespace madness {
 		madness::print("make_partition: about to totally_reset, lbi =", lbi);
 		send(impl.owner(parent), &LBTree::totally_reset, lbi);
 	    } else {
-	        madness::print("make_partition: sending control over to my parent", parent);
+	        madness::print("make_partition:", key, "sending control over to my parent", parent);
 		send(impl.owner(parent), &LBTree::make_partition, parent, partition_size, used_up, lbi);
-		madness::print("make_partition: sent control over to my parent", parent);
+		madness::print("make_partition:", key, "sent control over to my parent", parent);
 	    }
+	    madness::print("make_partition:", key, "about to return None");
 	    return None;
 	}
 
 	if (node.has_children()) {
 	    madness::print("make_partition:", key, "too big for partition");
 	    if (downward) {
-		madness::print("make_partition: onward, downward");
+	        madness::print("make_partition: onward, downward");
 		// ADJUST THIS TO ++ until an existing child is found or to end if no more children!!!!
 		node.rpit = KeyChildIterator<D>(key);
 		madness::print("make_partition: set rpit to", node.rpit.key(), node.rpit);
@@ -665,13 +669,14 @@ namespace madness {
 		madness::print("make_partition: incremented rpit to", node.rpit.key(), node.rpit);
 		impl.insert(key,node);
 	    }
+
 	    if (node.rpit) {
 		typename DClass<D>::KeyDConst& child = node.rpit.key();
-		madness::print("make_partition: passing the torch to", child, "owned by", impl.owner(child));
-		send(impl.owner(child), &LBTree::make_partition, child, partition_size, used_up, lbi, true);
-		madness::print("make_partition: torch passed to", child);
+		madness::print("make_partition:", key, "passing the torch to", child, "owned by", impl.owner(child));
 		impl.insert(key,node);
-		madness::print("make_partition: about to return");
+		send(impl.owner(child), &LBTree::make_partition, child, partition_size, used_up, lbi, true);
+		madness::print("make_partition:", key, "torch passed to", child);
+		madness::print("make_partition:", key, "about to return None");
 		return None;
 	    }
 	}

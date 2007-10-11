@@ -138,7 +138,7 @@ namespace madness {
     public:
 	mutable KeyChildIterator<D> rpit;
         static int dim; /// Number of children in standard tree (e.g. 2^D)
-	static typename DClass<D>::KeyDConst root; /// the root
+	//	static typename DClass<D>::KeyDConst root; /// the root
 	int nrecvd;
 
         LBNode() {
@@ -197,7 +197,7 @@ namespace madness {
 
         template <typename Archive>
         void serialize(const Archive& ar) {
-            ar & data & c;
+            ar & data & c & rpit;
         }
     };
 
@@ -205,12 +205,22 @@ namespace madness {
     template <typename Data, int D>
     std::ostream& operator<<(std::ostream& s, const LBNode<Data, D>& node) {
         s << "data = " << node.get_data() << ", c = " << node.get_c();
+	if (node.rpit) {
+	  s  << ", key_iterator = " << node.rpit.key();
+	} else {
+	  s << ", key_iterator = <EMPTY>";
+	}
         return s;
     };
 
     template <int D>
     std::ostream& operator<<(std::ostream& s, typename DClass<D>::NodeDConst& node) {
         s << "data = " << node.get_data() << ", c = " << node.get_c();
+	if (node.rpit) {
+	  s << ", key_iterator = " << node.rpit.key();
+	} else {
+	  s << ", key_iterator = <EMPTY>";
+	}
         return s;
     };
 
@@ -584,7 +594,6 @@ namespace madness {
         void construct_skel(SharedPtr<FunctionImpl<T,D> > f) {
             skeltree = SharedPtr<typename DClass<D>::treeT>(new typename DClass<D>::treeT(f->world,
                        f->coeffs.get_pmap()));
-	    //            typename DClass<D>::KeyD root(0);
 //            madness::print("about to initialize tree");
 	    skeltree->template init_tree<T>(f);
 //            madness::print("just initialized tree");

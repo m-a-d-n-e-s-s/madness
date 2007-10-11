@@ -258,6 +258,12 @@ namespace madness {
             return !finished;
         };
 
+        template <typename Archive>
+        inline void serialize(Archive& ar) {
+            ar & archive::wrap((unsigned char*) this, sizeof(*this));
+        }
+
+
         /// Returns the key of the child
         inline const Key<NDIM>& key() const {
             return child;
