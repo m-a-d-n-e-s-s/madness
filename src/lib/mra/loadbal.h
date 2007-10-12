@@ -487,7 +487,7 @@ namespace madness {
                 	impl.insert(key, lbnode);
                 }
             }
-        };
+        }
 
         // Methods:
 	ProcessID owner(typename DClass<D>::KeyDConst& key) {
@@ -598,7 +598,7 @@ namespace madness {
 	    skeltree->template init_tree<T>(f);
 //            madness::print("just initialized tree");
 	    pi.skel_cost = skeltree->fix_cost();
-	    madness::print("construct_skel: pi.skel_cost =", pi.skel_cost); 
+	    //	    madness::print("construct_skel: pi.skel_cost =", pi.skel_cost); 
 	    pi.cost_left = pi.skel_cost;
         };
 
