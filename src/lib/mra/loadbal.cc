@@ -53,7 +53,7 @@ namespace madness {
 	}
 
 	if (skeltree->world.mpi.rank() == skeltree->owner(skeltree->root)) manager = true;
-	//	madness::print("find_best_partition: just starting out");
+	//madness::print("find_best_partition: just starting out");
 //	skeltree->fix_cost();
 	//madness::print("find_best_partition: fixed cost");
 	skeltree->find_partitions(pi);
@@ -74,6 +74,8 @@ namespace madness {
 
  	    int count = list_of_list.size();
  	    //madness::print("find_best_partition: length of list_of_list =", count);
+	    madness::print("find_best_partition: list_of_list =", list_of_list);
+	    madness::print("find_best_partition: costlist =", costlist);
  	    std::vector<unsigned int> len;
  	    for (int i = 0; i < count; i++) {
  		len.push_back(list_of_list[i].size());
@@ -180,16 +182,16 @@ namespace madness {
         bool first_time = true;
 	//madness::print("find_partitions: at beginning");
 	this->world.gop.fence();
-	//madness::print("find_partitions: begin key child iterator experiment");
-	//for (KeyChildIterator<D> huhkit(root); huhkit; ++huhkit) madness::print(huhkit.key());
-	//madness::print("find_partitions: end key child iterator experiment");
 
 	if (this->world.mpi.rank() == this->impl.owner(root)) manager = true;
 
 	while (keep_going) {
 	  //madness::print("find_partitions: the verdict is to keep_going");
 	    meld_all(first_time);
+	    this->world.gop.fence();
 	    //madness::print("find_partitions: after meld_all");
+	    //madness::print("");
+	    //madness::print("");
 	    if (manager) {
 	      unsigned int npieces;
 	      Cost used_up;
@@ -204,31 +206,44 @@ namespace madness {
 	      lbi.partition_number = npieces-1;
 	      Cost tpart = compute_partition_size(lbi.skel_cost, npieces);
 	      used_up = 0;
-	      //	madness::print("launch_make_partition: lbi =", lbi);
+
 	      //madness::print("find_partitions: about to send make_partition");
 	      send(impl.owner(root), &LBTree<D>::make_partition, root, tpart, used_up, lbi, true);
 	      //madness::print("find_partitions: back from send make_partition");
-	    }	      
+	      //madness::print("");
+	      this->world.gop.fence();
+	    } else {
+	      this->world.gop.template broadcast<bool>(keep_going);
+	      this->world.gop.fence();
+	    }
 	    first_time = false;
 	    this->world.gop.fence();
+	    //madness::print("find_partitions: done with fence");
 	    if (manager) {
+	      //madness::print("find_partitions: this->partition_info =", this->partition_info);
+	      //madness::print("find_partitions: this->temp_list =", this->temp_list);
 	      if (this->partition_info.partition_number == 0) {
 		// make sure current partition is valid.  If not, quit.
-		keep_going = verify_partition(this->partition_info.part_list);
-		//madness::print("find_partitions: add root to partition and be done");
+		keep_going = verify_partition(this->temp_list);
+		//madness::print("find_partitions: verify_partition says,", keep_going);
 		int count = this->partition_info.step_num;
 		if (keep_going) {
-		  list_of_list.push_back(this->partition_info.part_list);
+		  //madness::print("find_partitions: adding", this->temp_list, "to list_of_list");
+		  list_of_list.push_back(this->temp_list);
 		  //madness::print("find_partitions: size of list_of_list[", partition_info.step_num, "] =", list_of_list[this->partition_info.step_num].size());
 		  //madness::print("find_partitions: list_of_list =", list_of_list);
+		  this->temp_list.clear();
 		  //madness::print("find_partitions: after resetting some stuff, partition_info =", this->partition_info);
 		  cost_list.push_back(this->partition_info.maxcost);
+		  //madness::print("find_partitions: cost_list =", cost_list);
+		  lbi.reset(this->world.nproc()-1);
+		  //madness::print("find_partitions: after resetting, lbi =", lbi);
 		  count++;
 		}
-		//madness::print("find_partitions: the verdict is that keep_going =", keep_going);	
 	      } else {
 		keep_going = false;
 	      }
+	      //madness::print("find_partitions: the verdict is that keep_going =", keep_going);	
 	    }
 	    this->world.gop.template broadcast<bool>(keep_going);
 	}
@@ -238,12 +253,14 @@ namespace madness {
 
     template <int D>
     bool LBTree<D>::verify_partition(std::vector<TreeCoords<D> >& part_list) {
-      const int min_pieces = this->world.nproc()-1;
+      const int min_pieces = this->world.nproc();
       int size = part_list.size();
+      //madness::print("verify_partition: size of part_list =", size);
+      //madness::print("verify_partition: part_list =", part_list);
       if (size < min_pieces) return false;
 
       // Make sure that every process has at least one piece of the partition
-      int m = min_pieces+1;
+      int m = min_pieces;
       bool invalid_partition = false;
       for (int k = 0; k < size; k++) {
 	//madness::print("verify_partition: looking at", part_list[k]);
@@ -304,6 +321,7 @@ namespace madness {
     }
 
 
+
     template <int D>
     Void LBTree<D>::meld_all(bool first_time = false) {
       //madness::print("meld_all: after launching on everybody, about to go to fix_cost");
@@ -351,7 +369,7 @@ namespace madness {
 	//this->world.gop.barrier();
 	//madness::print("AFTER FIXING COST");
 	//for (typename DClass<D>::treeT::iterator it = impl.begin(); it != impl.end(); ++it) {
-	//madness::print(it->first, it->second);
+	//    madness::print(it->first, it->second);
 	//}
 	//madness::print("DONE FIXING IT");
 	if (this->world.mpi.rank() == impl.owner(typename DClass<D>::KeyD(0))) {
@@ -576,12 +594,13 @@ namespace madness {
         Cost maxAddl = (Cost) (fudge_factor*partition_size);
 
 	//madness::print("make_partition: at beginning for key =", key);
+	//madness::print("        used_up =", used_up, "downward =", downward);
 	//madness::print("make_partition: at beginning, lbi =", lbi);
 
 	typename DClass<D>::treeT::iterator it = impl.find(key);
 	if (it == impl.end()) {
 	  typename DClass<D>::KeyDConst parent = key.parent();
-	  //madness::print("make_partition: this node doesn't exist; sending back to parent", parent);
+	  //madness::print("make_partition:", key, "doesn't exist; sending back to parent", parent);
 	  send(impl.owner(parent), &LBTree::make_partition, parent, partition_size, used_up, lbi);
 	  return None;
 	}
@@ -601,12 +620,12 @@ namespace madness {
 	    //madness::print("make_partition: adding", key, "of cost", d.subcost, "to partition");
 	    used_up += d.subcost;
 	    //madness::print("make_partition: used_up =", used_up);
-	    lbi.part_list.push_back(TreeCoords<D>(key, lbi.partition_number));
-	    //madness::print("make_partition: size of part_list =", lbi.part_list.size());
+	    send(impl.owner(root), &LBTree::add_to_partition, TreeCoords<D>(key, lbi.partition_number));
+	    //lbi.part_list.push_back(TreeCoords<D>(key, lbi.partition_number));
 	    if (key == root) {
 	      //madness::print("make_partition: OMG root has no children and was added to partition!!!");
 	      //madness::print("make_partition: about to totally_reset, lbi =", lbi);
-		send(impl.owner(parent), &LBTree::totally_reset, lbi);
+		send(impl.owner(root), &LBTree::totally_reset, lbi);
 	    } else {
 	      //madness::print("make_partition:", key, "sending control over to my parent", parent);
 		send(impl.owner(parent), &LBTree::make_partition, parent, partition_size, used_up, lbi);
@@ -649,8 +668,8 @@ namespace madness {
 	    //madness::print("make_partition: adding", key, "with cost", d.cost, "to partition");
 	    used_up += d.cost;
 	    //madness::print("make_partition: used_up =", used_up);
-	    lbi.part_list.push_back(TreeCoords<D>(key, lbi.partition_number));
-	    //madness::print("make_partition: size of part_list =", lbi.part_list.size());
+	    //lbi.part_list.push_back(TreeCoords<D>(key, lbi.partition_number));
+	    send(impl.owner(root), &LBTree::add_to_partition, TreeCoords<D>(key, lbi.partition_number));
 	    if (key == root) {
 	      //madness::print("make_partition: added root at the end, now let's quit");
 	    } else {
@@ -661,6 +680,7 @@ namespace madness {
 	} else {
 	  //madness::print("make_partition: uh oh!  Need to reset partition!");
 	    bool continue_as_normal = reset_partition(key, partition_size, used_up, lbi);
+	    //madness::print("make_partition: after reset_partition, lbi =", lbi);
 	    if (continue_as_normal) {
 	      //madness::print("make_partition: continue as normal");
 		send(impl.owner(key), &LBTree::make_partition, key, partition_size, used_up, lbi, downward);
@@ -668,8 +688,10 @@ namespace madness {
 	    } else {
 		// totally reset
 		//madness::print("make_partition: time to totally reset");
-		//madness::print("make_partition: before totally_reset, list_of_list =", list_of_list);
-		send(impl.owner(root), &LBTree::totally_reset, lbi);
+		//		madness::print("make_partition: before totally_reset, list_of_list =", list_of_list);
+		//		send(impl.owner(root), &LBTree::add_to_partition, TreeCoords<D>(key, lbi.partition_number));
+		//madness::print("make_partition: in else of else");
+		send(impl.owner(root), &LBTree<D>::totally_reset, lbi);
 		//madness::print("make_partition: sent totally_reset");
 	    }
 	}
@@ -677,64 +699,26 @@ namespace madness {
 	return None;
     }
 
-
+  
     template <int D>
     Void LBTree<D>::totally_reset(PartitionInfo<D> lbi) {
-      this->partition_info = lbi;
+      //madness::print("totally_reset: at beginning, lbi =", lbi);
+        this->partition_info = lbi;
+	this->temp_list.push_back(typename DClass<D>::TreeCoords(root, lbi.partition_number));
+	//madness::print("totally_reset: temp_list =", this->temp_list);
+	//madness::print("totally_reset: and lbi =", lbi);
+	bool keep_going = true;
+	this->world.gop.template broadcast<bool>(keep_going);
 	return None;
     }
 
 
     template <int D>
-    typename DClass<D>::KeyD LBTree<D>::first_child(typename DClass<D>::KeyDConst& key, const typename DClass<D>::NodeD& node) {
-	for (int i = 0; i < 1<<D; i++) {
-	    if (node.has_child(i)) {
-		int j = 0;
-		for (KeyChildIterator<D> kit(key); kit; ++kit, ++j) {
-		    if (j == i) {
-			return kit.key();
-		    }
-		}
-	    }
-	}
-	return key;
+    Void LBTree<D>::add_to_partition(typename DClass<D>::TreeCoords p) {
+        this->temp_list.push_back(p);
+	//madness::print("add_to_partition: partition =", temp_list);
+	return None;
     }
-
-
-    template <int D>
-    typename DClass<D>::KeyD LBTree<D>::next_sibling(typename DClass<D>::KeyDConst& key) {
-//	madness::print("next_sibling: at beginning");
-	if (key.level() == 0) return key;
-	typename DClass<D>::KeyD parent = key.parent();
-//	madness::print("next_sibling: computed parent", parent);
-//	typename DClass<D>::NodeD node = send(impl.owner(parent), &LBTree<D>::gimme_node, parent);
-//	madness::print("next_sibling: got back from gimme_node");
-//	typename DClass<D>::treeT::iterator it = impl.find(parent);
-//	madness::print("next_sibling: just did find of parent");
-//	if (it == impl.end()) { 
-//	    madness::print("next_sibling: could not find parent", parent, "returning", key);
-//	    return key;
-//	}
-//	typename DClass<D>::NodeD node = it->second;
-	int j = 0, moi = 1<<(D+1);
-	for (KeyChildIterator<D> kit(parent); kit; ++kit, ++j) {
-//	    madness::print("next_sibling: looking at", kit.key());
-	    if ((kit.key()) == key) {
-		moi = j;
-	    }
-//	    if ((moi < j) && (node.has_child(j)))
-	    if (moi < j)
-		return kit.key();
-	}
-	if (key.level() != 0) {
-//	    madness::print("next_sibling: no existing siblings at this level, look for sibling of parent");
-	    return next_sibling(parent);
-	}
-	else {
-	    return key;
-	}
-    }
-
 
 
     template <int D>
@@ -742,6 +726,7 @@ namespace madness {
 	lbi.partition_number--;
 	if (lbi.partition_number > 0) {
 	    if (used_up > lbi.maxcost) {
+	      //madness::print("reset_partition: reset maxcost to", used_up);
 		lbi.maxcost = used_up;
 	    }
 	    lbi.cost_left -= used_up;
@@ -756,7 +741,9 @@ namespace madness {
 	    if (lbi.cost_left > lbi.maxcost) {
 	        lbi.maxcost = lbi.cost_left;
 	    }
-	    lbi.part_list.push_back(typename DClass<D>::TreeCoords(root, lbi.partition_number));
+	    //madness::print("reset_partition: adding root to partition and returning false");
+	    send(impl.owner(root), &LBTree<D>::add_to_partition, typename DClass<D>::TreeCoords(root, lbi.partition_number));
+	    //lbi.part_list.push_back(typename DClass<D>::TreeCoords(root, lbi.partition_number));
 	    // totally reset!
 	    return false;
 	}

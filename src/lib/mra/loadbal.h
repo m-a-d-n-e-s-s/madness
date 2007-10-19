@@ -84,7 +84,7 @@ namespace madness {
     class PartitionInfo {
 //        friend std::ostream& operator<<(std::ostream& s, const PartitionInfo<D>& pi);
     public:
-	std::vector< typename DClass<D>::TreeCoords > part_list;
+      //std::vector< typename DClass<D>::TreeCoords > part_list;
 	Cost maxcost;
 	Cost cost_left;
 	Cost skel_cost;
@@ -92,8 +92,8 @@ namespace madness {
 	unsigned int step_num;
 	double facter;
 	PartitionInfo(double f=1.1) :
-	    part_list(std::vector<typename DClass<D>::TreeCoords>() )
-	    , maxcost(0)
+	//part_list(std::vector<typename DClass<D>::TreeCoords>() )
+	    maxcost(0)
 	    , cost_left(0)
 	    , skel_cost(0)
 	    , partition_number(0)
@@ -101,23 +101,29 @@ namespace madness {
 	    , facter(f) { };
 
 	void reset(unsigned int p=1) {
-	  part_list.clear();
+	  //part_list.clear();
 	  maxcost = 0;
 	  cost_left = skel_cost;
 	  partition_number = p;
+	  step_num++;
 	}
 
 	template <typename Archive>
         void serialize(const Archive& ar) {
-            ar & part_list & maxcost & cost_left & skel_cost & partition_number & step_num & facter;
+	  //ar & part_list & maxcost & cost_left & skel_cost & partition_number & step_num & facter;
+            ar & maxcost & cost_left & skel_cost & partition_number & step_num & facter;
         }
     };
 
     template <int D>
     std::ostream& operator<<(std::ostream& s, const PartitionInfo<D>& pi) {
-        s << "part_list = " << pi.part_list << std::endl << "maxcost = " << pi.maxcost << std::endl 
-	  << "cost_left = " << pi.cost_left << ", skel_cost = " << pi.skel_cost << ", partition_number = " 
-	  << pi.partition_number << ", step_num = " << pi.step_num << ", facter = " << pi.facter;
+      //s << "part_list = " << pi.part_list << std::endl << "maxcost = " << pi.maxcost << std::endl 
+      //<< "cost_left = " << pi.cost_left << ", skel_cost = " << pi.skel_cost << ", partition_number = " 
+      //<< pi.partition_number << ", step_num = " << pi.step_num << ", facter = " << pi.facter;
+        s << "maxcost = " << pi.maxcost << ", cost_left = " << pi.cost_left << 
+	  ", skel_cost = " << pi.skel_cost << ", partition_number = " << 
+	  pi.partition_number << ", step_num = " << pi.step_num << 
+	  ", facter = " << pi.facter;
         return s;
     };
 
@@ -458,7 +464,8 @@ namespace madness {
 	static std::vector<Cost> cost_list;
 
 	PartitionInfo<D> partition_info;
-
+	std::vector<typename DClass<D>::TreeCoords> temp_list;
+	
     private:
         dcT impl;
 
@@ -530,6 +537,7 @@ namespace madness {
         Void make_partition(typename DClass<D>::KeyDConst& key, Cost partition_size,
 			    Cost used_up, PartitionInfo<D> pi, bool downward);
 	Void totally_reset(PartitionInfo<D> pi);
+	Void add_to_partition(typename DClass<D>::TreeCoords p);
 
 	typename DClass<D>::KeyD first_child(typename DClass<D>::KeyDConst& key, const typename DClass<D>::NodeD& node);
 	typename DClass<D>::KeyD next_sibling(typename DClass<D>::KeyDConst& key);
