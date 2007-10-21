@@ -1180,7 +1180,7 @@ namespace madness {
                 WorldObject<implT>* ptr;
                 ar & ptr;
                 MADNESS_ASSERT(ptr);
-                p = SharedPtr<implT>(static_cast<implT*>(ptr),false,false);  // use_count will be 0, which is good
+                p = SharedPtr<implT>(static_cast<implT*>(ptr),false);  // use_count will be 0, which is good
             }
         }
 

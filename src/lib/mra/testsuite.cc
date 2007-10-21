@@ -280,6 +280,7 @@ void test_math(World& world) {
     f.verify_tree();
     err = f.err(*functor);
     CHECK(err, 1e-5, "error in f after truncating");
+
     fsq = square(f);
     errsq = fsq.err(*functsq);
     CHECK(errsq, 1e-5, "error in fsq after truncating");
@@ -342,11 +343,12 @@ void test_math(World& world) {
     // Test composing operations using general expression(s)
     f.compress();
     err = f.err(*functor);
+    f.compress();
     Function<T,NDIM> f6 = f*3.0 + 4.0*f - f;
     new_err = f.err(*functor);
     CHECK(new_err-err,1e-14,"general op unchanged input");
     new_err = (f6 - f.scale(6.0)).norm2();
-    CHECK(new_err,1e-14,"general op output");
+    CHECK(new_err,1e-13,"general op output");
 
 
     if (world.rank() == 0) print("\nTest multiplying random functions");
@@ -358,9 +360,9 @@ void test_math(World& world) {
         Function<T,NDIM> a = FunctionFactory<T,NDIM>(world).functor(f1);
         Function<T,NDIM> b = FunctionFactory<T,NDIM>(world).functor(f2);
         Function<T,NDIM> c = a*b;
-        MADNESS_ASSERT(a.verify_tree());
-        MADNESS_ASSERT(b.verify_tree());
-        MADNESS_ASSERT(c.verify_tree());
+        a.verify_tree();
+        b.verify_tree();
+        c.verify_tree();
         double err1 = a.err(*f1);
         double err2 = b.err(*f2);
         double err3 = c.err(*f3);
@@ -379,9 +381,9 @@ void test_math(World& world) {
         Function<T,NDIM> a = FunctionFactory<T,NDIM>(world).functor(f1);
         Function<T,NDIM> b = FunctionFactory<T,NDIM>(world).functor(f2);
         Function<T,NDIM> c = a+b;
-        MADNESS_ASSERT(a.verify_tree());
-        MADNESS_ASSERT(b.verify_tree());
-        MADNESS_ASSERT(c.verify_tree());
+        a.verify_tree();
+        b.verify_tree();
+        c.verify_tree();
         double err1 = a.err(*f1);
         double err2 = b.err(*f2);
         double err3 = c.err(*f3);
@@ -399,8 +401,8 @@ void test_math(World& world) {
         functorT f3(new BinaryOpFunctor<T,T,T,T(*)(T,T),NDIM>(f1,f2,p));
         Function<T,NDIM> a = FunctionFactory<T,NDIM>(world).functor(f1);
         Function<T,NDIM> b = FunctionFactory<T,NDIM>(world).functor(f2);
-        MADNESS_ASSERT(a.verify_tree());
-        MADNESS_ASSERT(b.verify_tree());
+        a.verify_tree();
+        b.verify_tree();
         a += b;
         double err1 = a.err(*f3);
         double err2 = b.err(*f2);
@@ -425,16 +427,16 @@ int main(int argc, char**argv) {
         startup(world,argc,argv);
         if (world.rank() == 0) print("Initial tensor instance count", BaseTensor::get_instance_count());
         test_basic<double,1>(world);
-//         test_conv<double,1>(world);
+        test_conv<double,1>(world);
         test_math<double,1>(world);
 
         test_basic<double,2>(world);
-//         test_conv<double,2>(world);
+        test_conv<double,2>(world);
         test_math<double,2>(world);
 
-//         test_basic<double,3>(world);
-//         test_conv<double,3>(world);
-//         test_math<double,3>(world);
+        test_basic<double,3>(world);
+        test_conv<double,3>(world);
+        test_math<double,3>(world);
 
     } catch (const MPI::Exception& e) {
         print(e);

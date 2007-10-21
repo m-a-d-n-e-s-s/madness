@@ -43,7 +43,7 @@ using std::endl;
 static std::ofstream fout;
 namespace madness {
     void redirectio(World& world) {
-        if (world.mpi.rank() != 0) {
+        //if (world.mpi.rank() != 0) {
             char filename[256];
             std::sprintf(filename,"log.%5.5d",world.mpi.rank());
             
@@ -55,7 +55,7 @@ namespace madness {
             
             freopen(filename, "w", stdout);
             freopen(filename, "w", stderr);
-        }
+            //}
     }
 }
 

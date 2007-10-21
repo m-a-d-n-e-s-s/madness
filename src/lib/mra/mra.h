@@ -172,16 +172,17 @@ namespace madness {
         template <typename funcT>
         double err(const funcT& func) const {
             verify();
+            verify_tree();
             if (is_compressed()) const_cast<Function<T,NDIM>*>(this)->reconstruct();
+            verify_tree();
             double local = impl->errsq_local(func);
             impl->world.gop.sum(local);
             return sqrt(local);
         }
 
-        /// Verifies the tree data structure ... returns true if OK ... global sync implied
-        bool verify_tree() const {
-            if (impl) return impl->verify_tree();
-            else return true;
+        /// Verifies the tree data structure ... global sync implied
+        void verify_tree() const {
+            if (impl) impl->verify_tree();
         };
 
 
@@ -434,17 +435,18 @@ namespace madness {
 
         /// Inplace, general bi-linear operation in wavelet basis.  No communication except for optional fence.
 
-        /// If the functions are not in the wavelet basis they are compressed with implied communication
-        /// and a forced global fence.  Returns this for chaining.
+        /// If the functions are not in the wavelet basis an exception is thrown since this routine
+        /// is intended to be fast and unexpected compression is assumed to be a performance bug.
+        ///
+        /// Returns this for chaining.
         ///
         /// this <-- this*alpha + other*beta
         template <typename Q, typename R>
         Function<T,NDIM>& gaxpy(const T& alpha, 
-                                        const Function<Q,NDIM>& other, const R& beta, bool fence=true) {
+                                const Function<Q,NDIM>& other, const R& beta, bool fence=true) {
             verify();
             other.verify();
-            if (!is_compressed()) compress();
-            if (!other.is_compressed()) const_cast<Function<Q,NDIM>*>(&other)->compress();
+            MADNESS_ASSERT(is_compressed() && other.is_compressed());
             impl->gaxpy_inplace(alpha,*other.impl,beta,fence);
             return *this;
         }
@@ -452,9 +454,14 @@ namespace madness {
 
         /// Inplace addition of functions in the wavelet basis
 
-        /// Using operator notation forces a global fence after every operation
+        /// Using operator notation forces a global fence after every operation.
+        /// Functions are compressed if not already so.
         template <typename Q>
         Function<T,NDIM>& operator+=(const Function<Q,NDIM>& other) {
+            if (!is_compressed()) compress();
+            if (!other.is_compressed()) const_cast<Function<Q,NDIM>&>(other).compress();
+            verify_tree();
+            other.verify_tree();
             return gaxpy(T(1.0), other, Q(1.0), true);
         }
 
@@ -464,6 +471,10 @@ namespace madness {
         /// Using operator notation forces a global fence after every operation
         template <typename Q>
         Function<T,NDIM>& operator-=(const Function<Q,NDIM>& other) {
+            if (!is_compressed()) compress();
+            if (!other.is_compressed()) other.compress();
+            verify_tree();
+            other.verify_tree();
             return gaxpy(T(1.0), other, Q(-1.0), true);
         }
 
@@ -483,6 +494,7 @@ namespace madness {
         /// Returns *this for chaining.
         Function<T,NDIM>& square(bool fence = true) {
             if (is_compressed()) reconstruct();
+            verify_tree();
             impl->square_inplace(fence);
             return *this;
         }
@@ -493,6 +505,8 @@ namespace madness {
             left.verify();
             right.verify();
             MADNESS_ASSERT(!(left.is_compressed() || right.is_compressed()));
+            left.verify_tree();
+            right.verify_tree();
             impl = SharedPtr<implT>(new implT(*left.impl, left.get_pmap()));
             impl->mul(*left.impl,*right.impl,fence);
             return *this;
@@ -505,6 +519,8 @@ namespace madness {
             left.verify();
             right.verify();
             MADNESS_ASSERT(left.is_compressed() && right.is_compressed());
+            left.verify_tree();
+            right.verify_tree();
             impl = SharedPtr<implT>(new implT(*left.impl, left.get_pmap()));
             impl->gaxpy(alpha,*left.impl,beta,*right.impl,fence);
             return *this;
@@ -514,6 +530,7 @@ namespace madness {
         template <typename Q, typename L>
         Function<T,NDIM>& scale_oop(const Q alpha, const Function<L,NDIM>& f, bool fence=true) { 
             f.verify();
+            f.verify_tree();
             impl = SharedPtr<implT>(new implT(*f.impl, f.get_pmap()));
             impl->scale_oop(alpha,*f.impl,fence);
             return *this;
@@ -604,6 +621,8 @@ namespace madness {
     template <typename L, typename R, int NDIM>
     Function<TENSOR_RESULT_TYPE(L,R), NDIM>
     operator+(const Function<L,NDIM>& left, const Function<R,NDIM>& right) {
+        left.verify_tree();
+        right.verify_tree();
         if (!left.is_compressed())  const_cast<Function<L,NDIM>&>(left).compress();
         if (!right.is_compressed()) const_cast<Function<R,NDIM>&>(right).compress();
         return add(left,right,true);

@@ -603,7 +603,10 @@ namespace madness {
             , cell_width(other.cell_width)
             , rcell_width(other.rcell_width)
             , cell_volume(other.cell_volume)
-        {}
+        {
+            coeffs.process_pending(); 
+            this->process_pending();
+        }
 
 	const SharedPtr< WorldDCPmapInterface< Key<NDIM> > >& get_pmap() const {
 	    return coeffs.get_pmap();
@@ -806,7 +809,7 @@ namespace madness {
                             for (int m=0; m<npt; m++) {
                                 c[3] = cell(3,0) + h*cell_width[3]*(l[3] + qx(m)); // xx
                                 for (int n=0; n<npt; n++) {
-                                    c[4] = cell(4,0) + h*cell_width[4]*(l[4] + qx(n)); // xx
+                                    c[4] = cell(4,0) + h*cell_width[4]*(l[4] + qx(n)); // yy
                                     fval(i,j,k,m,n) = f(c);
                                 }
                             }
@@ -824,9 +827,9 @@ namespace madness {
                             for (int m=0; m<npt; m++) {
                                 c[3] = cell(3,0) + h*cell_width[3]*(l[3] + qx(m)); // xx
                                 for (int n=0; n<npt; n++) {
-                                    c[4] = cell(4,0) + h*cell_width[4]*(l[4] + qx(n)); // xx
+                                    c[4] = cell(4,0) + h*cell_width[4]*(l[4] + qx(n)); // yy
                                     for (int p=0; p<npt; p++) {
-                                        c[5] = cell(5,0) + h*cell_width[5]*(l[5] + qx(p)); // xx
+                                        c[5] = cell(5,0) + h*cell_width[5]*(l[5] + qx(p)); // zz
                                         fval(i,j,k,m,n,p) = f(c);
                                     }
                                 }
@@ -847,10 +850,16 @@ namespace madness {
         void print_tree() const {
             if (world.rank() == 0) do_print_tree(cdata.key0);
             world.gop.fence();
+            if (world.rank() == 0) std::cout.flush();
+            world.gop.fence();
         }
 
         void do_print_tree(const keyT& key) const {
-            const nodeT& node = coeffs.find(key).get()->second;
+            typename dcT::iterator it = coeffs.find(key).get();
+            if (it == const_cast<dcT*>(&coeffs)->end()) {
+                MADNESS_EXCEPTION("FunctionImpl: do_print_tree: null node pointer",0);
+            }
+            const nodeT& node = it->second;
             for (int i=0; i<key.level(); i++) std::cout << "  ";
             std::cout << key << "  " << node << "\n";
             if (node.has_children()) {
@@ -1141,47 +1150,45 @@ namespace madness {
 
         /// Verify tree is properly constructed ... global synchronization involved
 
-        /// Returns true on success.  Otherwise prints messages and returns false.
-        /// Note that not all processes may return the same status.
+        /// If an inconsistency is detected, prints a message describing the error and 
+        /// then throws a madness exception.
         ///
         /// This is a reasonably quick and scalable operation that is
         /// useful for debugging and paranoia.
-        bool verify_tree() const {
-            bool err = false;
-            world.gop.fence();
+        void verify_tree() const {
+            world.gop.fence();  // Make sure nothing is going on
 
             // Verify consistency of compression status, existence and size of coefficients,
             // and has_children() flag.
             for(typename dcT::const_iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
                 const keyT& key = it->first;
                 const nodeT& node = it->second;
-                bool bad = false;
+                bool bad;
 
-                if (node.has_coeff()) {
-                    if (is_compressed()) {
-                        bad = (node.coeff().dim[0] != 2*cdata.k) || !node.has_children();
+                if (is_compressed()) {
+                    if (node.has_children()) {
+                        bad = node.coeff().dim[0] != 2*cdata.k;
                     }
                     else {
-                        bad = (node.coeff().dim[0] !=   cdata.k) ||  node.has_children();
+                        bad = node.coeff().size != 0;
                     }
                 }
                 else {
-                    if (is_compressed()) {
-                        bad = node.has_children();
+                    if (node.has_children()) {
+                        bad = node.coeff().size != 0;
                     }
                     else {
-                        bad = !node.has_children();
+                        bad = node.coeff().dim[0] != cdata.k;
                     }
                 }
-                    
 
                 if (bad) {
-                    err = true;
                     print(world.rank(), "FunctionImpl: verify: INCONSISTENT TREE NODE, key =", key, ", node =", node,
                           ", dim[0] =",node.coeff().dim[0],", compressed =",is_compressed());
+                    std::cout.flush();
+                    MADNESS_EXCEPTION("FunctionImpl: verify: INCONSISTENT TREE NODE", 0);
                 }
             }
-            world.gop.fence();
                             
             // Ensure that parents and children exist appropriately
             for(typename dcT::const_iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
@@ -1190,18 +1197,19 @@ namespace madness {
 
                 // NOTE MESSED UP CONSTNESS HERE DUE TO INCOMPLETE
                 // INTERFACE TO DC ... NEEDS FIXING IN THE DC CLASS.
-                // ... might be fixed now ... not yet tried.
                 if (key.level() > 0) {
                     const keyT parent = key.parent();
                     typename dcT::iterator pit = coeffs.find(parent).get();
                     if (pit == const_cast<dcT*>(&coeffs)->end()) {
                         print(world.rank(), "FunctionImpl: verify: MISSING PARENT",key,parent);
-                        err = true;
+                        std::cout.flush();
+                        MADNESS_EXCEPTION("FunctionImpl: verify: MISSING PARENT", 0);
                     }
                     const nodeT& pnode = pit->second;
                     if (!pnode.has_children()) {
                         print(world.rank(), "FunctionImpl: verify: PARENT THINKS IT HAS NO CHILDREN",key,parent);
-                        err = true;
+                        std::cout.flush();
+                        MADNESS_EXCEPTION("FunctionImpl: verify: PARENT THINKS IT HAS NO CHILDREN", 0);
                     }
                 }
 
@@ -1210,20 +1218,21 @@ namespace madness {
                     if (cit == const_cast<dcT*>(&coeffs)->end()) {
                         if (node.has_children()) {
                             print(world.rank(), "FunctionImpl: verify: MISSING CHILD",key,kit.key());
-                            err = true;
+                            std::cout.flush();
+                            MADNESS_EXCEPTION("FunctionImpl: verify: MISSING CHILD", 0);
                         }
                     }
                     else {
                         if (! node.has_children()) {
                             print(world.rank(), "FunctionImpl: verify: UNEXPECTED CHILD",key,kit.key());
-                            err = true;
+                            std::cout.flush();
+                            MADNESS_EXCEPTION("FunctionImpl: verify: UNEXPECTED CHILD", 0);
                         }
                     }
                 }
             }
 
             world.gop.fence();
-            return !err;
         }
 
 
@@ -1625,7 +1634,8 @@ namespace madness {
                 node.clear_coeff();
                 for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
                     const keyT& child = kit.key();
-                    task(coeffs.owner(child), &implT::reconstruct_op, child, copy(d(child_patch(child))));
+                    tensorT ss = copy(d(child_patch(child)));
+                    task(coeffs.owner(child), &implT::reconstruct_op, child, ss);
                 }
             }
             else {

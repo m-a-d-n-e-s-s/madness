@@ -95,7 +95,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
    concrete performance evidence I removed the code that offsets the
    stack of each fiber to reduce cache conflicts.  However, I did make
    the default stack size 67kb (a prime number, rather than 64kb) so
-   that up to 64 fibers started in a tight loop are offset in L2 cache
+   that up to 67 fibers started in a tight loop are offset in L2 cache
    (Intel Xeon) by 1k.  If you suspect cache collisions are giving a
    performance problem, let me know.
 */

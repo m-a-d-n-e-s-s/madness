@@ -99,7 +99,18 @@ namespace madness {
         set_dims_and_size(nd, d);
         if (size) {
             try {
-                p = SharedArray<T>(new T[size]);
+
+#ifdef TENSORS_USE_MALLOC 
+                p = SharedPtr<T>((T*) malloc(sizeof(T)*size), ::madness::detail::del_free);
+                if (!p) throw 1;
+#elif defined(TENSORS_USE_POSIX_MEMALIGN)
+#define TENSOR_ALIGNMENT 16
+                T* q;
+                if (posix_memalign((void **) &q, TENSOR_ALIGNMENT, sizeof(T)*size)) throw 1;
+                p = SharedPtr<T>(q, ::madness::detail::del_free);
+#else
+                p = SharedPtr<T>(new T[size]);
+#endif
             } catch (...) {
                 std::printf("new failed nd=%ld type=%ld size=%ld\n", nd, id, size);
                 std::printf("  %ld %ld %ld %ld %ld %ld\n",
@@ -137,21 +148,21 @@ namespace madness {
 
     /// Construct a 1d tensor initialized to zero
     template <class T>
-    Tensor<T>::Tensor(long d0) {
+    Tensor<T>::Tensor(long d0) : p(0) {
         dim[0] = d0;
         init(1, dim);
     }
 
     /// Construct a 1d tensor initialized to zero
     template <class T>
-    Tensor<T>::Tensor(int d0) {
+    Tensor<T>::Tensor(int d0) : p(0) {
         dim[0] = d0;
         init(1, dim);
     }
 
     /// Construct a 2d tensor initialized to zero
     template <class T>
-    Tensor<T>::Tensor(long d0, long d1) {
+    Tensor<T>::Tensor(long d0, long d1) : p(0){
         dim[0] = d0;
         dim[1] = d1;
         init(2, dim);
@@ -159,7 +170,7 @@ namespace madness {
 
     /// Construct a 3d tensor initialized to zero
     template <class T>
-    Tensor<T>::Tensor(long d0, long d1, long d2) {
+    Tensor<T>::Tensor(long d0, long d1, long d2) : p(0) {
         dim[0] = d0;
         dim[1] = d1;
         dim[2] = d2;
@@ -168,7 +179,7 @@ namespace madness {
 
     /// Construct a 4d tensor initialized to zero
     template <class T>
-    Tensor<T>::Tensor(long d0, long d1, long d2, long d3) {
+    Tensor<T>::Tensor(long d0, long d1, long d2, long d3) : p(0) {
         dim[0] = d0;
         dim[1] = d1;
         dim[2] = d2;
@@ -178,7 +189,7 @@ namespace madness {
 
     /// Construct a 5d tensor initialized to zero
     template <class T>
-    Tensor<T>::Tensor(long d0, long d1, long d2, long d3, long d4) {
+    Tensor<T>::Tensor(long d0, long d1, long d2, long d3, long d4) : p(0) {
         dim[0] = d0;
         dim[1] = d1;
         dim[2] = d2;
@@ -189,7 +200,7 @@ namespace madness {
 
     /// Construct a 6d tensor initialized to zero
     template <class T>
-    Tensor<T>::Tensor(long d0, long d1, long d2, long d3, long d4, long d5) {
+    Tensor<T>::Tensor(long d0, long d1, long d2, long d3, long d4, long d5) : p(0) {
         dim[0] = d0;
         dim[1] = d1;
         dim[2] = d2;

@@ -870,7 +870,7 @@ namespace madness {
        \def DISABLE_IF(CONDITION,TYPEIFTRUE)
        \brief Macro to make disable_if<> template easier to use
 
-       \def IS_SAME(TYPE)
+       \def IS_SAME(TYPEA, TYPEB)
        \brief Macro to make is_same<T> template easier to use
 
        \def RETURN_WRAPPERT(TYPE)

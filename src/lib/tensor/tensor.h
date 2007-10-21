@@ -247,7 +247,7 @@ namespace madness {
         // declared above here.
     private:
         void init(long nd, const long d[], bool dozero=true);
-        SharedArray<T> p;
+        SharedPtr<T> p; // init() provides correct deleter
 
     protected:
         T* pointer; // SliceTensor needs access
@@ -264,7 +264,7 @@ namespace madness {
         typedef typename TensorTypeData<T>::float_scalar_type float_scalar_type;
 
         /// Default constructor does not allocate any data and sets ndim=-1, size=0, pointer=0, and id.
-        inline Tensor() {
+        inline Tensor() : p(0) {
             ndim=-1;
             size=0;
             pointer=0;
@@ -293,17 +293,17 @@ namespace madness {
         Tensor(long d0, long d1, long d2, long d3, long d4, long d5);
 
         /// Create and optionally zero new n-d tensor. This is the most general constructor.
-        inline Tensor(const std::vector<long>& d, bool dozero=true) {
+        inline Tensor(const std::vector<long>& d, bool dozero=true) : p(0) {
             init(d.size(),&(d[0]),dozero);
         };
 
         /// Politically incorrect general constructor.
-        inline Tensor(long nd, const long d[], bool dozero=true) {
+        inline Tensor(long nd, const long d[], bool dozero=true) : p(0) {
             init(nd,d,dozero);
         };
 
         /// Copy constructor is \em shallow and is identical to assignment.
-        inline Tensor(const Tensor<T>& t) {
+        inline Tensor(const Tensor<T>& t) : p(0) {
             internal_shallow_copy(t);
         };
 

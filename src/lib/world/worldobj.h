@@ -209,6 +209,7 @@ namespace madness {
         static void handler(World& world, ProcessID src, void* buf, size_t nbyte) {
             const uniqueidT& id = detail::peek(buf);
             Derived* obj = world.ptr_from_id<Derived>(id);
+            //madness::print(world.rank(),"IN HANDLER2", (void *) obj, is_ready(obj));
             if (is_ready(obj)) {
                 LongAmArg* arg = (LongAmArg *) buf;
                 detail::info<memfunT> info;
@@ -454,6 +455,7 @@ namespace madness {
         static bool is_ready(Derived* obj) {
             if (obj) {
                 WorldObject* p = static_cast<WorldObject*>(obj);
+                //print("is_ready:", (void *) obj, (void *) p, p->doing_pending, p->ready);
                 if (p->doing_pending) {
                     p->doing_pending = false;
                     return true;

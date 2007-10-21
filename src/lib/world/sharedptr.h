@@ -95,7 +95,17 @@ namespace madness {
         };
     };
     
-    template <class T> class SharedPtr;
+
+    namespace detail {
+        /// Function to delete arrays for shared pointers
+        template <typename T>
+        inline static void del_array(T* t) {delete [] t;};
+
+        /// Function to delete memory using free()
+        template <typename T>
+        inline static void del_free(T* t) {free(t);};
+    }
+
     template <typename T> class RemoteReference;
 
     /// A SharedPtr wraps a pointer which is deleted when the reference count goes to zero
@@ -103,30 +113,38 @@ namespace madness {
     /// The SharedPtr works pretty much like a regular pointer except that it
     /// is reference counted so there is no need to free it.  When the last
     /// reference is destroyed the underlying pointer will be freed.
-    template <class T> 
+    ///
+    /// By default the pointer is deleted with \c delete, but you can
+    /// optionally provide an additional argument on the constructor 
+    /// for custom deletion.
+    /// This is used by SharedArray to invoke \c delete[]. 
+    template <typename T> 
     class SharedPtr {
         friend class RemoteReference<T>;
         template <class Q> friend class SharedPtr;
+    private:
+
     protected:
         T* p;                   ///< The pointer being wrapped
         SharedCounter *count;   ///< The counter shared by all references
-        bool isarray;           ///< If true use delete [] to free the pointer
         bool own;               ///< True if SharedPtr actually owns the pointer ... if not it won't be freed
+        void (*deleter)(T*);    ///< Function to invoke to free memory (if null uses delete)
         
         /// Free the pointer if we own it and it is not null
         void free() {
             if (own && p) {
-                //print("SharedPtr free: own ",own, "cntptr", count, "nref", use_count(),"ptr",p);
+                //printf("SharedPtr free: own=%d cntptr=%p nref=%d ptr=%p\n", own, count, use_count(), p);
                 MADNESS_ASSERT(use_count() == 0);
-                if (isarray) 
-                    delete [] p;    
+                if (deleter) 
+                    deleter(p);
                 else 
                     delete p;
-                
+
                 delete count;
                 
                 p = 0;      
                 count = 0;
+                deleter = 0;
             }
         };
         
@@ -146,36 +164,40 @@ namespace madness {
         
     public:
         /// Default constructor makes an null pointer
-        SharedPtr() : p(0), count(0), isarray(false), own(true) {
+        SharedPtr() : p(0), count(0), own(true), deleter(0) {
         };
         
 
         /// Wrap a pointer which may be null
         
         /// The explicit qualifier inhibits very dangerous automatic conversions
-        explicit SharedPtr(T* ptr) : p(ptr), count(0), isarray(false), own(true) {
+        explicit SharedPtr(T* ptr, void (*deleter)(T*)=0) : p(ptr), count(0), own(true), deleter(deleter){
             if (p) count = new SharedCounter;
         };
         
         
-        /// Wrap a pointer which may be null, or not owned, or an array
+        /// Wrap a pointer which may be null, or not owned
         
         /// If the pointer is not owned it will not be deleted by the destructor.
         /// If the pointer is an array, delete [] will be called.
-        explicit SharedPtr(T* ptr, bool array, bool own=true) : p(ptr), count(0), isarray(array), own(own) {
+        explicit SharedPtr(T* ptr, bool own, void (*deleter)(T*)=0) : p(ptr), count(0), own(own), deleter(deleter) {
             if (own && p) count = new SharedCounter;
         };
         
         
         /// Copy constructor generates a new reference to the same pointer
-        SharedPtr(const SharedPtr<T>& s) : p(s.p), count(s.count), isarray(s.isarray), own(s.own) {
+        SharedPtr(const SharedPtr<T>& s) : p(s.p), count(s.count), own(s.own), deleter(s.deleter) {
             if (own && count) count->inc();
         };
         
 
         /// Copy constructor with static type conversion generates a new reference to the same pointer
+
+        /// !! This is a potentially unsafe conversion of the deleter.  Probably best only
+        /// done if deleter=0.
         template <typename Q>
-        SharedPtr(const SharedPtr<Q>& s) : p(static_cast<T*>(s.p)), count(s.count), isarray(s.isarray), own(s.own) {
+        SharedPtr(const SharedPtr<Q>& s) : p(static_cast<T*>(s.p)), count(s.count), own(s.own), 
+                                           deleter((void (*)(T*)) s.deleter) {
             if (own && count) count->inc();
         }
         
@@ -187,16 +209,16 @@ namespace madness {
         /// Assignment decrements reference count for current pointer and increments new count
         SharedPtr<T>& operator=(const SharedPtr<T>& s) {
             if (this != &s) {
-                dec();
-                p = s.p;
-                count = s.count;
-                isarray = s.isarray;
-                own = s.own;
+                this->dec();
+                this->p = s.p;
+                this->count = s.count;
+                this->own = s.own;
+                this->deleter = s.deleter;
                 if (own && count) count->inc();
             }
             return *this;
         };
-        
+
         /// Returns number of references
         inline int use_count() const {
             if (count) return count->get();
@@ -273,9 +295,8 @@ namespace madness {
     template <class T>
     class SharedArray : public SharedPtr<T> {
     public:
-        SharedArray(T* ptr = 0) : SharedPtr<T>(ptr,1) {};
+        SharedArray(T* ptr = 0) : SharedPtr<T>(ptr,detail::del_array) {};
         SharedArray(const SharedArray<T>& s) : SharedPtr<T>(s) {};
-        
         
         /// Assignment decrements reference count for current pointer and increments new count
         SharedArray& operator=(const SharedArray& s) {
@@ -283,9 +304,9 @@ namespace madness {
                 this->dec();
                 this->p = s.p;
                 this->count = s.count;
-                this->isarray = s.isarray;
                 this->own = s.own;
-                if (this->count) this->count->inc();
+                this->deleter = s.deleter;
+                if (this->own && this->count) this->count->inc();
             }
             return *this;
         };
