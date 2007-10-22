@@ -48,6 +48,10 @@
 #undef _CRAY
 #endif
 
+#ifdef USE_MTXMQ
+#include <tensor/mtxmq.h>
+#endif
+
 
 /// Matrix * matrix reference implementation (slow but correct)
 template <typename T, typename Q, typename S>
@@ -175,6 +179,22 @@ inline void mTxm(long dimi, long dimj, long dimk,
     4-way unrolled k loop ... empirically fastest on PIII
     compared to 2/3 way unrolling (though not by much).
     */
+
+#ifdef USE_MTXMQ
+    int abad = ((unsigned long) a) & 0x7;  /* Check assumptions */
+    int bbad = ((unsigned long) b) & 0x7;
+    int cbad = ((unsigned long) c) & 0x7;
+    int nibad= dimi & 0x1;
+    int njbad= dimj & 0x1;
+    int nkbad= dimk & 0x1;
+    
+    bool bad = abad || bbad || cbad || nibad || njbad || nkbad;
+
+    if (!bad) {
+        mTxmq(dimi, dimj, dimk, c, a, b);
+        return;
+    }
+#endif
 
     long dimk4 = (dimk/4)*4;
     for (long i=0; i<dimi; i++,c+=dimj) {

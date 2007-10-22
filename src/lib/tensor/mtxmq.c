@@ -1,7 +1,6 @@
-#if defined(X86_64) || defined(X86_32) 
-#  include <stdio.h>
-#  include <stdlib.h>
-
+#include <madness_config.h>
+#include <stdio.h>
+#include <stdlib.h>
 #ifdef X86_64
 extern void mTxm26(long dimi, long dimj, long dimk,
                    double* c, const double* a, const double* b) ;
@@ -86,19 +85,14 @@ extern void TmTxm2(long dimi, long dimj, long dimk,
 void mTxmq(const long dimi, const long dimj, const long dimk,
            double* c, const double* a, const double* b) {
 
-    int abad = ((unsigned long) a) & 0x7;  /* Check assumptions */
-    int bbad = ((unsigned long) b) & 0x7;
-    int cbad = ((unsigned long) c) & 0x7;
-    int nibad= dimi & 0x1;
-    int njbad= dimj & 0x1;
-    int nkbad= dimk & 0x1;
+    /* Assumptions now checked by the caller */
+/*     int abad = ((unsigned long) a) & 0x7;  /\* Check assumptions *\/ */
+/*     int bbad = ((unsigned long) b) & 0x7; */
+/*     int cbad = ((unsigned long) c) & 0x7; */
+/*     int nibad= dimi & 0x1; */
+/*     int njbad= dimj & 0x1; */
+/*     int nkbad= dimk & 0x1; */
     
-    if (abad || bbad || cbad || nibad || njbad || nkbad) {
-        printf("mtxmq: bad arguments: dimi=%ld dimj=%ld dimk=%ld c=%p a=%p b=%p\n",
-               dimi,dimj,dimk,c,a,b);
-        exit(1);
-    }
-
     /* 
        Choice is to unroll i or j 
     */
@@ -117,66 +111,66 @@ void mTxmq(const long dimi, const long dimj, const long dimk,
 #else
         long numj = (nj>10) ? 10 : nj;
 #endif
-	
+        
         switch (numj) {
 #ifdef X86_64
         case 26:
-	  TmTxm26(dimj, dimi, dimk, c, b, a) ;
-	  break; 
-	  
+          TmTxm26(dimj, dimi, dimk, c, b, a) ;
+          break; 
+          
         case 24:
-	  TmTxm24(dimj, dimi, dimk, c, b, a) ;
-	  break; 
-	  
+          TmTxm24(dimj, dimi, dimk, c, b, a) ;
+          break; 
+          
         case 22:
-	  TmTxm22(dimj, dimi, dimk, c, b, a) ;
-	  break; 
-	  
+          TmTxm22(dimj, dimi, dimk, c, b, a) ;
+          break; 
+          
         case 20:
-	  TmTxm20(dimj, dimi, dimk, c, b, a) ;
-	  break; 
-	  
+          TmTxm20(dimj, dimi, dimk, c, b, a) ;
+          break; 
+          
         case 18:
-	  TmTxm18(dimj, dimi, dimk, c, b, a) ;
-	  break; 
-	  
+          TmTxm18(dimj, dimi, dimk, c, b, a) ;
+          break; 
+          
         case 16:
-	  TmTxm16(dimj, dimi, dimk, c, b, a) ;
-	  break; 
-	  
+          TmTxm16(dimj, dimi, dimk, c, b, a) ;
+          break; 
+          
         case 14:
-	  TmTxm14(dimj, dimi, dimk, c, b, a) ;
-	  break; 
-	  
+          TmTxm14(dimj, dimi, dimk, c, b, a) ;
+          break; 
+          
         case 12:
-	  TmTxm12(dimj, dimi, dimk, c, b, a) ;
-	  break; 
+          TmTxm12(dimj, dimi, dimk, c, b, a) ;
+          break; 
 #endif
-	  
+          
         case 10:
-	  TmTxm10(dimj, dimi, dimk, c, b, a) ;
-	  break; 
-	  
+          TmTxm10(dimj, dimi, dimk, c, b, a) ;
+          break; 
+          
         case 8:
-	  TmTxm8(dimj, dimi, dimk, c, b, a) ;
-	  break;
-	  
+          TmTxm8(dimj, dimi, dimk, c, b, a) ;
+          break;
+          
         case 6:
-	  TmTxm6(dimj, dimi, dimk, c, b, a) ;
-	  break;
-	  
+          TmTxm6(dimj, dimi, dimk, c, b, a) ;
+          break;
+          
         case 4:
-	  TmTxm4(dimj, dimi, dimk, c, b, a) ;
-	  break;
-	  
+          TmTxm4(dimj, dimi, dimk, c, b, a) ;
+          break;
+          
         case 2:
-	  TmTxm2(dimj, dimi, dimk, c, b, a) ;
-	  break;
-	  
+          TmTxm2(dimj, dimi, dimk, c, b, a) ;
+          break;
+          
         default:
-	  printf("mtxmq_byj: should not be here!\n");
-	  exit(1);
-	  
+          printf("mtxmq_byj: should not be here!\n");
+          exit(1);
+          
         }
         nj -= numj;
         c += numj;
@@ -191,66 +185,66 @@ void mTxmq(const long dimi, const long dimj, const long dimk,
 #else
         long numi = (ni>10) ? 10 : ni;
 #endif
-	
+        
         switch (numi) {
 #ifdef X86_64
         case 26:
-	  mTxm26(dimi, dimj, dimk, c, a, b) ;
-	  break; 
-	  
+          mTxm26(dimi, dimj, dimk, c, a, b) ;
+          break; 
+          
         case 24:
-	  mTxm24(dimi, dimj, dimk, c, a, b) ;
-	  break; 
-	  
+          mTxm24(dimi, dimj, dimk, c, a, b) ;
+          break; 
+          
         case 22:
-	  mTxm22(dimi, dimj, dimk, c, a, b) ;
-	  break; 
-	  
+          mTxm22(dimi, dimj, dimk, c, a, b) ;
+          break; 
+          
         case 20:
-	  mTxm20(dimi, dimj, dimk, c, a, b) ;
-	  break; 
-	  
+          mTxm20(dimi, dimj, dimk, c, a, b) ;
+          break; 
+          
         case 18:
-	  mTxm18(dimi, dimj, dimk, c, a, b) ;
-	  break; 
-	  
+          mTxm18(dimi, dimj, dimk, c, a, b) ;
+          break; 
+          
         case 16:
-	  mTxm16(dimi, dimj, dimk, c, a, b) ;
-	  break; 
-	  
+          mTxm16(dimi, dimj, dimk, c, a, b) ;
+          break; 
+          
         case 14:
-	  mTxm14(dimi, dimj, dimk, c, a, b) ;
-	  break; 
-	  
+          mTxm14(dimi, dimj, dimk, c, a, b) ;
+          break; 
+          
         case 12:
-	  mTxm12(dimi, dimj, dimk, c, a, b) ;
-	  break; 
+          mTxm12(dimi, dimj, dimk, c, a, b) ;
+          break; 
 #endif
-	  
+          
         case 10:
-	  mTxm10(dimi, dimj, dimk, c, a, b) ;
-	  break; 
-	  
+          mTxm10(dimi, dimj, dimk, c, a, b) ;
+          break; 
+          
         case 8:
-	  mTxm8(dimi, dimj, dimk, c, a, b) ;
-	  break;
-	  
+          mTxm8(dimi, dimj, dimk, c, a, b) ;
+          break;
+          
         case 6:
-	  mTxm6(dimi, dimj, dimk, c, a, b) ;
-	  break;
-	  
+          mTxm6(dimi, dimj, dimk, c, a, b) ;
+          break;
+          
         case 4:
-	  mTxm4(dimi, dimj, dimk, c, a, b) ;
-	  break;
-	  
+          mTxm4(dimi, dimj, dimk, c, a, b) ;
+          break;
+          
         case 2:
-	  mTxm2(dimi, dimj, dimk, c, a, b) ;
-	  break;
-	  
+          mTxm2(dimi, dimj, dimk, c, a, b) ;
+          break;
+          
         default:
-	  printf("mtxmq: should not be here!\n");
-	  exit(1);
-	  
+          printf("mtxmq: should not be here!\n");
+          exit(1);
+          
         }
         ni -= numi;
         c += numi*dimj;
@@ -259,10 +253,3 @@ void mTxmq(const long dimi, const long dimj, const long dimk,
       
     }
 }
-
-#else
-
-  /* Plain old unrolled code is in a header file somewhere else */
-
-
-#endif
