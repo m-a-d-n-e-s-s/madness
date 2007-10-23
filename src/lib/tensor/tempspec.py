@@ -22,8 +22,6 @@ for t in typelist:
     f.write("template Tensor<%s> outer(const Tensor<%s>& left, const Tensor<%s>& right);\n" % (t,t,t))
     f.write("template Tensor< Tensor<%s>::scalar_type > abs(const Tensor<%s>& t);\n" % (t,t))
     f.write("template Tensor<%s> transpose(const Tensor<%s>& t);\n" % (t,t))
-    f.write("template void fast_transform(const Tensor<%s>& t, const Tensor<%s>& c, " \
-            "Tensor<%s>& result, Tensor<%s>& workspace);\n"% (t,t,t,t))
 
 f.write("\n// Instantiations for inner, inner_result and transform \n")
 for t,q in transform_typelist:
@@ -32,6 +30,7 @@ for t,q in transform_typelist:
     f.write("template Tensor<%s> inner(const Tensor<%s>& left, const Tensor<%s>& right,\n" % (t,t,q))
     f.write("                         long k0, long k1);\n")
     f.write("template Tensor<%s> transform(const Tensor<%s>& t, const Tensor<%s>& c);\n" % (t,t,q))
+    f.write("template Tensor<%s>& fast_transform(const Tensor<%s>& t, const Tensor<%s>& c, Tensor<%s>& result, Tensor<%s>& work);\n" % (t,t,q,t,t))
 
 
 f.write("\n// Instantiations only for complex types\n")

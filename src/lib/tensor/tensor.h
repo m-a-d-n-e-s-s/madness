@@ -862,8 +862,8 @@ namespace madness {
     template <class T, class Q>
     Tensor<T> transform(const Tensor<T>& t, const Tensor<Q>& c);
 
-    template <class T>
-    void fast_transform(const Tensor<T>& t, const Tensor<T>& c,
+    template <class T, class Q>
+    Tensor<T>& fast_transform(const Tensor<T>& t, const Tensor<Q>& c,
                         Tensor<T>& result, Tensor<T>& workspace);
 
     template <typename T>

@@ -1589,7 +1589,9 @@ namespace madness {
         ///
         /// No communication involved.
         inline tensorT filter(const tensorT& s) const {
-           return transform(s, cdata.hgT);
+            tensorT r(cdata.v2k,false);
+            return fast_transform(s,cdata.hgT,r,cdata.work2);
+            //return transform(s,cdata.hgT);
         }
 
 
@@ -1608,14 +1610,10 @@ namespace madness {
         ///  assume the d are zero).  Works for any number of dimensions.
         ///
         /// No communication involved.
-        inline tensorT unfilter(const tensorT& ss,
-                                bool sonly = false) const {
-            if (sonly)
-                //return transform(ss,cdata.hgsonly);
-                MADNESS_EXCEPTION("unfilter: sonly : not yet",0);
-            else {
-                return transform(ss, cdata.hg);
-            }
+        inline tensorT unfilter(const tensorT& s) const {
+            tensorT r(cdata.v2k,false);
+            return fast_transform(s,cdata.hg,r,cdata.work2);
+            //return transform(s, cdata.hg);
         }
 
         void reconstruct(bool fence) {

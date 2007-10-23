@@ -1,23 +1,47 @@
 TOPDIR = ../../..
 TARGET_TO_MAKE = libMADtensor
-CXXSRC =  tensor.cc tensoriter.cc basetensor.cc mtrand.cc 
+CXXSRC =  tensor.cc tensoriter.cc basetensor.cc mtrand.cc
 
 TESTPROGS = test
 TEST1SRC = test.o
-include $(TOPDIR)/config/GlobalMakefile
 
+include $(TOPDIR)/config/MakeVars
 
-USE_MTXMQ = yes
+ifeq ($(HOST_CPU),X86_32)
+USE_MTXMQ = YES
 TUNE_MTXMQ = -DCORE_DUO_TUNE
-
-ifneq ($(USE_MTXMQ),"")
-CXXSRC += mtxmq.cc 
-mtxmq.o:	mtxmq.S mtxm_gen.h
-	$(CC) $(CXXFLAGS) -D$(HOST_CPU) $(TUNE_MTXMQ) -c -o $@ 
 endif
+ifeq ($(HOST_CPU),X86_64)
+USE_MTXMQ = YES
+TUNE_MTXMQ = 
+endif
+
+
+ifeq ($(USE_MTXMQ),YES)
+CXXSRC += mtxmq.cc
+endif
+
+
+include $(TOPDIR)/config/GlobalMakefile
 
 
 test: $(TEST1OBJ) $(THISLIBDEPEND)
 	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ $(SYSLIBS) $(LTLINKBINOPTS)
 
+tensoriter_spec.h tensor_spec.h:	tempspec.py
+	python tempspec.py
+
+
+ifeq ($(USE_MTXMQ),YES)
+LIBOBJ += mtxmq_asm.o
+DEFINES += -DTENSORS_USE_POSIX_MEMALIGN -DUSE_MTXMQ
+
+$(TOPDIR)/lib/$(TARGET_TO_MAKE).$(LIBSUF):	mtxmq_asm.o
+
+mtxmq_asm.o:	mtxmq_asm.S mtxm_gen.h
+	$(CC) $(CXXFLAGS) -D$(HOST_CPU) $(TUNE_MTXMQ) -c -o $@ mtxmq_asm.S
+
+mtxm_gen.h:	genmtxm.py 
+	python genmtxm.py > $@
+endif
 

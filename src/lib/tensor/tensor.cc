@@ -63,6 +63,7 @@
 
 #include <tensor/tensor.h>
 #include <tensor/random.h>
+#include <tensor/mtxmq.h>
 
 namespace madness {
 
@@ -1050,45 +1051,54 @@ namespace madness {
 
     /// Restricted but heavily optimized form of transform()
 
-    /// Performs the same operation as \c transform but with the
-    /// restriction that the dimensions of \c c are identical, and it
-    /// requires that the caller pass in workspace and a preallocated
-    /// result, hoping that that both can be reused.  If the result &
-    /// workspace are reused between calls, then no tensor constructors
-    /// need be called and cache locality should be improved.
-    /// By passing in the workspace, this routine is
-    /// kept thread safe.  All input tensors must be contiguous.  The
-    /// workspace and the result must be of the same size as the input \c
-    /// t .  The result tensor need not be initialized before calling
-    /// fast_transform.
-    /// \code
-    /// result(i,j,k...) <-- sum(i',j', k',...) t(i',j',k',...) c(i',i) c(j',j) c(k',k) ...
+    /// Both dimensions of \c c must be the same and match all dimensions
+    /// of the input tensor \c t.  All tensors must be contiguous.
+    ///
+    /// Performs the same operation as \c transform but it requires
+    /// that the caller pass in workspace and a preallocated result,
+    /// hoping that that both can be reused.  If the result and
+    /// workspace are reused between calls, then no tensor
+    /// constructors need be called and cache locality should be
+    /// improved.  By passing in the workspace, this routine is kept
+    /// thread safe.
+    ///
+    /// For more than one dimension the input (\c t ) and output
+    /// (\c result ) tensors may be the same but this is not the
+    /// case in 1D.
+    ///
+    /// All input tensors must be contiguous and fastest
+    /// execution will result if all dimensions are even.  The
+    /// workspace and the result must be of the same size as the input
+    /// \c t .  The result tensor need not be initialized before
+    /// calling fast_transform.  
+    ///
+    /// \code 
+    ///     result(i,j,k,...) <-- sum(i',j', k',...) t(i',j',k',...)  c(i',i) c(j',j) c(k',k) ...  
     /// \endcode
-    /// The input dimensions of \c t must all be the same and agree with the
-    /// first dimension of \c c.
-    template <class T>
-    void fast_transform(const Tensor<T>& t, const Tensor<T>& c, Tensor<T>& result,
-                        Tensor<T>& workspace) {
-        TENSOR_ASSERT(c.ndim == 2,"second argument must be a matrix",c.ndim,&c);
-        TENSOR_ASSERT(c.dim[0] == c.dim[1],"dimensions of c must match",0,&c);
-
-        Tensor<T> *t0, *t1;
-        int odd = t.ndim&1;
-        if (odd) {
-            t0 = &result;
-            t1 = &workspace;
-        } else {
-            t0 = &workspace;
-            t1 = &result;
+    ///
+    /// The input dimensions of \c t must all be the same .
+    template <class T, class Q>
+    Tensor<T>& fast_transform(const Tensor<T>& t, const Tensor<Q>& c, Tensor<T>& result,
+                              Tensor<T>& workspace) {
+        const Q *pc=c.ptr();
+        T *t0=workspace.ptr(), *t1=result.ptr();
+        if (t.ndim&1) {
+            t0 = result.ptr();
+            t1 = workspace.ptr();
         }
-        t0->fill(0);
-        inner_result(t,c,0,0,*t0);
+
+        long dimk = c.dim[0];
+        long dimj = c.dim[1];
+        long dimi = 1;
+        for (int n=1; n<t.ndim; n++) dimi *= dimj;
+
+        mTxmq(dimi, dimj, dimj, t0, t.ptr(), pc); // was mTxmZ
         for (int n=1; n<t.ndim; n++) {
-            t1->fill(0);
-            inner_result(*t0,c,0,0,*t1);
+            mTxmq(dimi, dimj, dimk, t1, t0, pc);
             std::swap(t0,t1);
         }
-        return;
+
+        return result;
     }
 
     /// Optimized transform inplace for 3d assuming contiguous everything

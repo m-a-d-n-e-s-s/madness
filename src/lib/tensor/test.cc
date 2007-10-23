@@ -660,7 +660,7 @@ template <class T> void Test7() {
               if (std::abs(sum-john(_i,_j,_k,_l,_m,_n))> std::abs(sum)*1e-6) error("test7: failed",413));
 
 
-    const long n = 5;
+    const long n = 6; // Was 5 but changed to even value to test fast_transform
     Tensor<T> x(n,n,n,n);
     Tensor<T> r(n,n,n,n);
     Tensor<T> c(n,n);
@@ -713,7 +713,13 @@ template <class T> void Test7() {
     r = copy(x);
     Tensor<T> workspace = copy(x);
     fast_transform(x,c,r,workspace);
-    if ((r-y).normf() > 1e-6*r.normf()) error("test7: failed",555);
+    if ((r-y).normf() > 1e-6*r.normf()) {
+        std::cout << "R\n";
+        std::cout << r;
+        std::cout << "Y\n";
+        std::cout << y;
+        error("test7: failed",555);
+    }
 
     x = Tensor<T>(n,n,n,n,n);	// odd # dimensions
     x.fillrandom();
@@ -745,13 +751,15 @@ template <class T> void Test7() {
     }
 
 
-    x = Tensor<T>(14,14,14);
+    r = Tensor<T>(14,14,14); // result
+    y = Tensor<T>(14,14,14); // workspace
+    x = Tensor<T>(14,14,14); // input
     c = Tensor<T>(14,14);
     x.fillrandom();
     c.fillrandom();
     double start = std::clock();
     for (long i=0; i<1000; i++) {
-        r = transform(x,c);
+        fast_transform(x,c,r,y);
     }
     double used = (std::clock()-start)/CLOCKS_PER_SEC;
     double mops = 1000.0*2*3*1e-6*14.0*14.0*14.0*14.0/used;
