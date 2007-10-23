@@ -216,6 +216,36 @@ void test4(World& world) {
 }
 
 
+bool done4a;
+void handler4a_done(World& world, ProcessID from, const AmArg& arg) {
+    print("Process 0 was told by", from, "that all is finished");
+    done4a = true;
+}
+
+void handler4a(World& world, ProcessID from, const AmArg& arg) {
+    unsigned long counter = arg[0];
+    if (counter < 10000) {
+        world.am.send(world.random_proc(), handler4a, AmArg(counter+1));
+    }
+    else {
+        world.am.send(0, handler4a_done, AmArg());
+    }
+}
+
+
+void test4a(World& world) {
+    if (world.size() == 1) return;
+    // An active messages wanders around the machine
+    // until an internal count hits 10000.
+
+    done4a = false;
+    if (world.rank() == 0) world.am.send(world.random_proc(), handler4a, AmArg(0));
+    world.gop.fence();
+    if (world.rank() == 0) {
+        if (done4a) print("test4a (process-0 waiting) OK");
+        else print("test4a (process-0 waiting) failed !!!!!!!!!!!!!!!!!!!!!!!!");
+    }
+}
 
 #include <complex>
 typedef std::complex<double> double_complex;
@@ -890,6 +920,7 @@ int main(int argc, char** argv) {
         test3(world);
       }
       test4(world);
+      test4a(world);
       test5(world);
       test6(world);
       test7(world);

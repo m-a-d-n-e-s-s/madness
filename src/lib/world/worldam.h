@@ -63,6 +63,15 @@ namespace madness {
         mutable am_handlerT function; //< System managed handler
     public:
         ulong buf[14]; //< System dependent length
+
+        ulong& operator[](int i) {
+            return buf[i];
+        };
+
+        ulong operator[](int i) const {
+            return buf[i];
+        };
+
         
         AmArg() : flags(0), function(0) {};
         AmArg(ulong arg0) 
