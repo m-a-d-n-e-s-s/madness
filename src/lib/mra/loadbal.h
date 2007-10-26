@@ -523,15 +523,12 @@ namespace madness {
 	void fix_cost_spawn();
 	Void fix_cost_sum(typename DClass<D>::KeyDConst& key, Cost c);
 
-//        void depth_first_partition(PartitionInfo<D> pi);
 
         void rollup();
 
 	void reset(bool taken);
 
         void meld(typename DClass<D>::treeT::iterator it);
-
-//        Cost compute_cost(typename DClass<D>::KeyDConst& key);
 
 
         Void make_partition(typename DClass<D>::KeyDConst& key, Cost partition_size,
@@ -542,25 +539,7 @@ namespace madness {
 	typename DClass<D>::KeyD first_child(typename DClass<D>::KeyDConst& key, const typename DClass<D>::NodeD& node);
 	typename DClass<D>::KeyD next_sibling(typename DClass<D>::KeyDConst& key);
 
-//	Void add_to_partition(typename DClass<D>::KeyDConst& key, PartitionInfo<D> pi);
-
-//	PartitionInfo<D> reset_partition(typename DClass<D>::KeyDConst& key, Cost partition_size, 
-//			     Cost used_up, PartitionInfo<D> pi);
-	bool reset_partition(typename DClass<D>::KeyDConst& key, Cost& partition_size, 
-			     Cost& used_up, PartitionInfo<D>& pi);
-
-        Void remove_cost(typename DClass<D>::KeyDConst& key, Cost c);
-
-
-	typename DClass<D>::NodeD gimme_node(typename DClass<D>::KeyDConst& key) {
-	    madness::print("gimme_node: looking for", key);
-	    typename DClass<D>::treeT::iterator it = impl.find(key);
-	    return it->second;
-	}
-
-	CompCost compute_comp_cost(Cost c, int n) {
-	    return (CompCost) (c*0.1 + n* 1.0);
-	}
+	bool reset_partition(Cost& partition_size, Cost& used_up, PartitionInfo<D>& pi);
 
 
         MyPmap<D>& get_mypmap() {
