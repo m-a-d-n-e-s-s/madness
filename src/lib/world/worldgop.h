@@ -126,19 +126,22 @@ namespace madness {
         /// Synchronizes all processes in communicator AND globally ensures no pending AM or tasks
         
         /// Runs Dykstra-like termination algorithm on binary tree by
-        /// summing (nsent-nrecv) over all proceses, applying
-        /// local fence before computing local sum.  If the global sum
-        /// is zero, then we are sure that all tasks and AM are processed
-        /// and there no AM in flight.
+        /// locally ensuring ntask=0 and all am sent and processed,
+        /// and then participating in a global sum of nsent and nrecv.
+        /// Then globally checks that nsent=nrecv and that both are
+        /// constant over two traversals.  We are then we are sure
+        /// that all tasks and AM are processed and there no AM in
+        /// flight.
         ///
-        /// By default fences both tasks and AM.  If the optional argument amonly is
-        /// set to true, if fences only the AM.
+        /// By default fences both tasks and AM.  If the optional
+        /// argument amonly is set to true, if fences only the AM.
         void fence(bool amonly = false) {
-            long sum, sum0=0, sum1=0;
+            unsigned long nsent_prev=0, nrecv_prev=1; // invalid initial condition
             MPI::Request req0, req1;
             ProcessID parent, child0, child1;
             mpi.binary_tree_info(0, parent, child0, child1);
-            do {
+            while (1) {
+                unsigned long sum0[2]={0,0}, sum1[2]={0,0}, sum[2];
                 if (child0 != -1) req0 = mpi.Irecv(&sum0, sizeof(sum0), MPI::BYTE, child0, gfence_tag);
                 if (child1 != -1) req1 = mpi.Irecv(&sum1, sizeof(sum1), MPI::BYTE, child1, gfence_tag);
                 if (child0 != -1) World::await(req0);
@@ -149,7 +152,8 @@ namespace madness {
                 else
                     taskq.fence();
 
-                sum = sum0 + sum1 + am.nsent - am.nrecv;
+                sum[0] = sum0[0] + sum1[0] + am.nsent;
+                sum[1] = sum0[1] + sum1[1] + am.nrecv;
                 
                 if (parent != -1) {
                     req0 = mpi.Isend(&sum, sizeof(sum), MPI::BYTE, parent, gfence_tag);
@@ -157,19 +161,13 @@ namespace madness {
                 }
                 
                 broadcast(sum);
-//                if (debug) {
-//                    print(rank,"fence:",sum0,sum1,sum);
-//                    usleep(1000000);
-//                }
-            } while (sum);
+                
+                if (sum[0]==sum[1] && sum[0]==nsent_prev && sum[1]==nrecv_prev) break;
 
-            // If deferred cleanup occured we need another fence, but
-            // it will be much cheaper the second time since everyone
-            // is already synchronized.
-            //
-            // Uh?  Why do we need another fence?  Commented this out
-            // until I can reconvince myself it really is necessary.
-            //if (world.do_deferred_cleanup()) fence();
+                nsent_prev = sum[0];
+                nrecv_prev = sum[1];
+                
+            };
             world.do_deferred_cleanup();
         };
         

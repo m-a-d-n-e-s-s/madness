@@ -96,8 +96,11 @@ void test1(World& world) {
     if (nproc == 1) throw "Gimme someone to talk to!";
 
     print(me,"ENTERING FENCE 0");
+    world.am.printq();
     world.gop.fence();
     print(me,"EXITING FENCE 0");
+    world.am.printq();
+    world.gop.fence();
 
     for (int i=0; i<20; i++) {
       long reply = -1;
@@ -111,6 +114,7 @@ void test1(World& world) {
     print(me,"ENTERING FENCE 1");
     world.gop.fence();
     print(me,"EXITING FENCE 1");
+    world.gop.fence();
 
     if (nproc < 16) {
       world.am.broadcast(hello,AmArg());  // Everyone says hello to everyone else
@@ -121,21 +125,23 @@ void test1(World& world) {
 }
 
 void test2_handler(World& world, ProcessID src, void *buf, size_t len) {
-    short *s = (short *) buf;
-    short lens = (len-16)/sizeof(short);
-    if ((lens*sizeof(short)) != (len-16))
-        error("test2: msg not a multiple of sizeof(short)");
-
-    for (short i=0; i<lens; i++)
-        if (s[i+8] != i) throw "test2: bad contents";
+    const long offset = WorldAmInterface::LONG_MSG_HEADER_LEN/sizeof(long);
+    long lens = len/sizeof(long) - offset;
+    long *s = (long *) buf;
+    
+    for (long i=0; i<lens; i++)
+        if (s[i+offset] != i) {
+            print(world.rank(),"test2:",i);
+            throw "test2: bad contents";
+        }
 
     if (lens < 10000) {
         lens++;
-        s = new short[lens+8];
-        for (short i=0; i<lens; i++) s[i+8] = i;
+        s = new long[offset+lens];
+        for (long i=0; i<lens; i++) s[i+offset] = i;
         ProcessID dest = world.random_proc();
-        world.am.send_long(dest, test2_handler, s, lens*sizeof(short)+16);
-        world.am.fence();
+        int handle = world.am.send_long(dest, test2_handler, s, (lens+offset)*sizeof(long));
+        world.am.wait_to_complete(handle);
         delete [] s;
     }
 }
@@ -143,10 +149,12 @@ void test2_handler(World& world, ProcessID src, void *buf, size_t len) {
 
 void test2(World& world) {
     ProcessID me = world.mpi.rank();
-    short buf[] = {0,0,0,0,0,0,0,0,0}; // First 8 shorts for system header, 9th for data
+    const long offset = WorldAmInterface::LONG_MSG_HEADER_LEN/sizeof(long);
+    long buf[offset + 1];
+    buf[offset] = 0;
 
     // Each process starts sending to a random process an array of
-    // shorts of length 1 initialized to 0.  The handler checks the
+    // longs of length 1 initialized to 0.  The handler checks the
     // contents, adds another entry on the end, and forwards to
     // another random process unless it already has more than 1000
     // elements.  On average, each process will send/recv 1000
@@ -155,39 +163,49 @@ void test2(World& world) {
     //world.set_debug(true);
 
     test2_handler(world, me, buf, sizeof(buf));
+    print("before fence");
+    world.am.print_stuff();
     world.gop.fence();
+    print("after fence");
+    world.am.print_stuff();
+    world.gop.fence();
+    
     if (me == 0) print("test2 (long active message basics) seems to be working");
 }
 
 void test3_handler(World& world, ProcessID src, void *buf, size_t len) {
-    short *s = (short *) buf;
-    short lens = (len-16)/sizeof(short);
-    if ((lens*sizeof(short)) != (len-16))
-        error("test2: msg not a multiple of sizeof(short)");
-
-    for (short i=0; i<lens; i++)
-        if (s[i+8] != i) throw "test2: bad contents";
+    const long offset = WorldAmInterface::LONG_MSG_HEADER_LEN/sizeof(long);
+    long lens = len/sizeof(long) - offset;
+    long *s = (long *) buf;
+    
+    for (long i=0; i<lens; i++)
+        if (s[i+offset] != i) {
+            print(world.rank(),"test2:",i);
+            throw "test2: bad contents";
+        }
 
     if (lens < 10000) {
         lens++;
-        s = new short[lens+8];
-        for (short i=0; i<lens; i++) s[i+8] = i;
+        s = (long *) new_long_am_arg((offset+lens)*sizeof(long));
+        for (long i=0; i<lens; i++) s[i+offset] = i;
         ProcessID dest = world.random_proc();
-        world.am.send_long_managed(dest, test3_handler, s, lens*sizeof(short)+16);
+        world.am.send_long_managed(dest, test2_handler, s, (lens+offset)*sizeof(long));
     }
 }
 
-
 void test3(World& world) {
-    ProcessID me = world.rank();
-    short buf[] = {0,0,0,0,0,0,0,0,0}; // First 8 shorts for system header, 9th for data
+    ProcessID me = world.mpi.rank();
+    const long offset = WorldAmInterface::LONG_MSG_HEADER_LEN/sizeof(long);
+    long buf[offset + 1];
+    buf[offset] = 0;
 
-    // Same as test2 but using managed long buffers
-
+    // Same as test2 but using send_long_managed instead
     test3_handler(world, me, buf, sizeof(buf));
     world.gop.fence();
+    
     if (me == 0) print("test3 (managed long active message basics) seems to be working");
 }
+
 
 void test4(World& world) {
     int nproc = world.size();
@@ -209,8 +227,11 @@ void test4(World& world) {
     world.gop.fence();
     MADNESS_ASSERT(b.get() == left);
     print("about to enter final barrier");
-    world.gop.barrier();
+    world.am.printq();
+    world.gop.fence();
     print("leaving final barrier");
+    world.am.printq();
+    world.gop.fence();
     
     if (me == 0) print("test4 (basic futures) OK");
 }

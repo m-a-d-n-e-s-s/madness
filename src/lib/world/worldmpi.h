@@ -91,6 +91,7 @@ namespace madness {
         const ProcessID _rank;  //< MPI rank of current process
         const int _nproc;       //< No. of processes in communicator
         bool debug;             //< If true, print debug information
+        Tag mpi_tag_ub;         //< MPI attribute TAG_UB
 
     public:
         WorldMpiInterface(MPI::Intracomm& comm) 
@@ -98,7 +99,9 @@ namespace madness {
             , _rank(comm.Get_rank())
             , _nproc(comm.Get_size())
             , debug(false)
-        {};
+        {
+            _comm.Get_attr(MPI::TAG_UB, &mpi_tag_ub);
+        };
             
         /// Set debug flag to new value and return old value
         bool set_debug(bool value) {
@@ -358,19 +361,19 @@ namespace madness {
         /// Ideally, we would have a separate count per World / MPI
         /// communicator but currently we have one count shared by all
         /// communicators.
-        static Tag unique_tag() {
+        Tag unique_tag() {
             Tag result = dynamic_tag_general;
             dynamic_tag_general += 2;
-            if (dynamic_tag_general > MPI::TAG_UB) dynamic_tag_general = DYNAMIC_TAG_BASE;
+            if (dynamic_tag_general > mpi_tag_ub) dynamic_tag_general = DYNAMIC_TAG_BASE;
             return result;
         };
 
     private:
         /// Private: Returns a unique tag for internal use (tag is odd and > 1023)
-        static Tag unique_reserved_tag() {
+        Tag unique_reserved_tag() {
             Tag result = dynamic_tag_reserved;
             dynamic_tag_reserved += 2;
-            if (dynamic_tag_reserved > MPI::TAG_UB) dynamic_tag_reserved = DYNAMIC_TAG_BASE+1;
+            if (dynamic_tag_reserved > mpi_tag_ub) dynamic_tag_reserved = DYNAMIC_TAG_BASE+1;
             return result;
         };
     public:

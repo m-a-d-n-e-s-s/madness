@@ -1744,7 +1744,7 @@ namespace madness {
             return sum;
         }
 
-/// Returns the maximum depth of the tree
+        /// Returns the maximum depth of the tree
 	std::size_t max_depth() const {
 	    std::size_t maxdepth = 0;
 	    for (typename dcT::const_iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
@@ -1755,7 +1755,7 @@ namespace madness {
 	    return maxdepth;
 	}
 
-/// Returns the max number of nodes on a processor
+        /// Returns the max number of nodes on a processor
 	std::size_t max_nodes() const {
 	    std::size_t maxsize = 0;
 	    maxsize = coeffs.size();
@@ -1763,7 +1763,7 @@ namespace madness {
 	    return maxsize;
 	}
 
-/// Returns the min number of nodes on a processor
+        /// Returns the min number of nodes on a processor
 	std::size_t min_nodes() const {
 	    std::size_t minsize = 0;
 	    minsize = coeffs.size();
@@ -1772,7 +1772,7 @@ namespace madness {
 	}
 
 
-/// Returns the size of the tree structure of the function ... collective global sum
+        /// Returns the size of the tree structure of the function ... collective global sum
 	std::size_t tree_size() const {
 	    std::size_t sum = 0;
 	    sum = coeffs.size();

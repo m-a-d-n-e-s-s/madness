@@ -48,3 +48,9 @@ objexample: $(TEST5OBJ) $(THISLIBDEPEND)
 
 parttree: $(TEST6OBJ) $(THISLIBDEPEND) 
 	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ $(SYSLIBS) $(LTLINKBINOPTS)
+
+runvalg:	world
+	$(VALGRIND) $(VALGOPTS) ./world
+
+runvalg2:	world
+	mpiexec -np 2 $(VALGRIND) $(VALGOPTS) ./world

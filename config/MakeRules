@@ -206,6 +206,9 @@ distclean:: oclean targetclean dclean genclean miscclean
 miscclean::
 	-rm -f BROWSE TAGS
 	-rm -f *~
+	-rm -f valout.*
+	-rm -f *.exe
+	-rm -f *.stackdump
 
 oclean::
 	-rm -rf *.o $(TMPLREPO) cxx_tmpl_repo ti_files *.lo

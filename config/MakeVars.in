@@ -45,6 +45,9 @@ INSTALLLIBOPT = -m 0644
 INSTALLBINOPT = -m 0755
 INSTALLSCRIPTOPT = -m 0755
 
+VALGRIND = valgrind
+VALGOPTS = --tool=memcheck --log-file=valout --num-callers=50 --leak-check=full --workaround-gcc296-bugs=yes 
+
 RANLIB = @RANLIB@
 PERL = @PERL@
 COMPRESS = @COMPRESS@

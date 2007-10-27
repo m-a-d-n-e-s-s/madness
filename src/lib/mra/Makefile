@@ -40,3 +40,6 @@ testsuite: $(TEST3OBJ) $(THISLIBDEPEND)
 
 tests-hqi: $(TEST4OBJ) $(THISLIBDEPEND) 
 	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ $(SYSLIBS) $(LTLINKBINOPTS)
+
+runvalg2:
+	mpiexec -np 3 $(VALGRIND) $(VALGOPTS) ./tests-hqi -rio 
