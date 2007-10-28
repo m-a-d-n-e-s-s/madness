@@ -91,7 +91,7 @@ namespace madness {
         const ProcessID _rank;  //< MPI rank of current process
         const int _nproc;       //< No. of processes in communicator
         bool debug;             //< If true, print debug information
-        Tag mpi_tag_ub;         //< MPI attribute TAG_UB
+        Tag mpi_tag_ub;         //< MPI attribute TAG_UB 
 
     public:
         WorldMpiInterface(MPI::Intracomm& comm) 
@@ -100,7 +100,11 @@ namespace madness {
             , _nproc(comm.Get_size())
             , debug(false)
         {
-            _comm.Get_attr(MPI::TAG_UB, &mpi_tag_ub);
+            long value; // Must be 64-bit on 64-bit machines
+            _comm.Get_attr(MPI::TAG_UB, &value);
+            mpi_tag_ub = value;
+            //std::cout << "MAX_TAG_UB " << value << std::endl;
+            //mpi_tag_ub=32767;
         };
             
         /// Set debug flag to new value and return old value
