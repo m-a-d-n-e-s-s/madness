@@ -292,6 +292,11 @@ namespace madness {
 	    return impl;
 	}
 
+	/// Returns the world
+	World& world() {
+	  verify();
+	  return  impl->world;
+	}
 
 
         /// Returns a shared pointer to the process map
@@ -671,6 +676,7 @@ namespace madness {
 	return f.copy(fence);
     }
 	    
+
 
 }
 

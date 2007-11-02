@@ -24,6 +24,7 @@ TEST2SRC = testss.cc
 TEST3SRC = testsuite.cc 
 #loadbal.cc
 TEST4SRC = tests-hqi.cc
+TEST5SRC = testlong.cc
 
 # GlobalMakefile now does most of the work for you
 include $(TOPDIR)/config/GlobalMakefile
@@ -39,6 +40,9 @@ testsuite: $(TEST3OBJ) $(THISLIBDEPEND)
 	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ $(SYSLIBS) $(LTLINKBINOPTS)
 
 tests-hqi: $(TEST4OBJ) $(THISLIBDEPEND) 
+	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ $(SYSLIBS) $(LTLINKBINOPTS)
+
+testlong: $(TEST5OBJ) $(THISLIBDEPEND)
 	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ $(SYSLIBS) $(LTLINKBINOPTS)
 
 runvalg2:

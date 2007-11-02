@@ -220,11 +220,11 @@ namespace madness {
 	      //madness::print("find_partitions: back from send make_partition");
 	      //madness::print("");
 	      this->world.gop.fence();
-	      madness::print("find_partitions: P0 outside of the fence now");
+	      //madness::print("find_partitions: P0 outside of the fence now");
 	    } else {
-	      this->world.gop.template broadcast<bool>(keep_going);
+//	      this->world.gop.template broadcast<bool>(keep_going);
 	      this->world.gop.fence();
-	      madness::print("find_partitions: outside of the fence now");
+	      //madness::print("find_partitions: outside of the fence now");
 	    }
 	    first_time = false;
 	    this->world.gop.fence();
@@ -615,13 +615,13 @@ namespace madness {
     double fudge_factor = 0.1;
     Cost maxAddl = (Cost) (fudge_factor*partition_size);
 
-    madness::print("starting make_partition");
+//    madness::print("starting make_partition");
     
     typename DClass<D>::treeT::iterator it = impl.find(key);
     if (it == impl.end()) {
       typename DClass<D>::KeyDConst parent = key.parent();
       send(impl.owner(parent), &LBTree::make_partition, parent, partition_size, used_up, lbi);
-      madness::print("RETURN 1");
+      //madness::print("RETURN 1");
       return None;
     }
     typename DClass<D>::NodeD node = it->second;
@@ -637,12 +637,12 @@ namespace madness {
       used_up += d.subcost;
       send(impl.owner(root), &LBTree::add_to_partition, TreeCoords<D>(key, lbi.partition_number));
       if (key == root) {
-	madness::print("make_partition: about to totally_reset");
+	//madness::print("make_partition: about to totally_reset");
 	send(impl.owner(root), &LBTree::totally_reset, lbi);
       } else {
 	send(impl.owner(parent), &LBTree::make_partition, parent, partition_size, used_up, lbi);
       }
-      madness::print("RETURN 2");
+      //madness::print("RETURN 2");
       return None;
     }
     
@@ -659,7 +659,7 @@ namespace madness {
 	typename DClass<D>::KeyDConst& child = node.rpit.key();
 	impl.insert(key,node);
 	send(impl.owner(child), &LBTree::make_partition, child, partition_size, used_up, lbi, true);
-	madness::print("RETURN 3");
+	//madness::print("RETURN 3");
 	return None;
       }
     }
@@ -674,17 +674,17 @@ namespace madness {
       } else {
 	send(impl.owner(parent), &LBTree::make_partition, parent, partition_size, used_up, lbi);
       }
-      madness::print("RETURN 4");
+      //madness::print("RETURN 4");
       return None;
     } else {
       bool continue_as_normal = reset_partition(partition_size, used_up, lbi);
       if (continue_as_normal) {
 	send(impl.owner(key), &LBTree::make_partition, key, partition_size, used_up, lbi, downward);
       } else {
-	madness::print("make_partition: about to totally_reset (else of else)");
+	//madness::print("make_partition: about to totally_reset (else of else)");
 	send(impl.owner(root), &LBTree<D>::totally_reset, lbi);
       }
-      madness::print("RETURN 5");
+      //madness::print("RETURN 5");
       return None;
     }
     madness::print("make_partition: we should not be here");
@@ -701,13 +701,13 @@ namespace madness {
     template <int D>
     Void LBTree<D>::totally_reset(PartitionInfo<D> lbi) {
       //madness::print("totally_reset: at beginning, lbi =", lbi);
-      madness::print("totally_reset: totally resetting");
+//      madness::print("totally_reset: totally resetting");
         this->partition_info = lbi;
 	this->temp_list.push_back(typename DClass<D>::TreeCoords(root, lbi.partition_number));
 	//madness::print("totally_reset: temp_list =", this->temp_list);
 	//madness::print("totally_reset: and lbi =", lbi);
-	bool keep_going = true;
-	this->world.gop.template broadcast<bool>(keep_going);
+	//bool keep_going = true;
+//	this->world.gop.template broadcast<bool>(keep_going);
 	return None;
     }
 
@@ -735,12 +735,12 @@ namespace madness {
     template <int D>
     bool LBTree<D>::reset_partition(Cost& partition_size, Cost& used_up, PartitionInfo<D>& lbi) {
 	lbi.partition_number--;
+	if (used_up > lbi.maxcost) {
+	  //madness::print("reset_partition: reset maxcost to", used_up);
+	  lbi.maxcost = used_up;
+	}
+	lbi.cost_left -= used_up;
 	if (lbi.partition_number > 0) {
-	    if (used_up > lbi.maxcost) {
-	      //madness::print("reset_partition: reset maxcost to", used_up);
-		lbi.maxcost = used_up;
-	    }
-	    lbi.cost_left -= used_up;
 	    used_up = 0;
 	    Cost tpart = compute_partition_size(lbi.cost_left, lbi.partition_number+1);
 	    if ((tpart > partition_size) || (tpart*lbi.facter < partition_size)) {
@@ -748,7 +748,6 @@ namespace madness {
 	    }
 	    return true;
 	} else {
-	    lbi.cost_left -= used_up;
 	    if (lbi.cost_left > lbi.maxcost) {
 	        lbi.maxcost = lbi.cost_left;
 	    }
