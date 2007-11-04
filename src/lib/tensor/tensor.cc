@@ -65,6 +65,9 @@
 #include <tensor/random.h>
 #include <tensor/mtxmq.h>
 
+#define IS_ODD(n) (n&0x1)
+#define IS_UNALIGNED(p) (((unsigned long)p)&0x7)
+
 namespace madness {
 
 #include <tensor/mxm.h>
@@ -1042,11 +1045,18 @@ namespace madness {
     template <class T, class Q>
     Tensor<T> transform(const Tensor<T>& t, const Tensor<Q>& c) {
         TENSOR_ASSERT(c.ndim == 2,"second argument must be a matrix",c.ndim,&c);
-        Tensor<T> result = t;
-        for (long i=0; i<t.ndim; i++) {
-            result = inner(result,c,0,0);
+        if (c.dim[0]==c.dim[1] && t.iscontiguous() && c.iscontiguous()) {
+            Tensor<T> result(t.ndim,t.dim,false);
+            Tensor<T> work(t.ndim,t.dim,false);
+            return fast_transform(t, c, result, work);
         }
-        return result;
+        else {
+            Tensor<T> result = t;
+            for (long i=0; i<t.ndim; i++) {
+                result = inner(result,c,0,0);
+            }
+            return result;
+        }
     }
 
     /// Restricted but heavily optimized form of transform()
@@ -1062,15 +1072,13 @@ namespace madness {
     /// improved.  By passing in the workspace, this routine is kept
     /// thread safe.
     ///
-    /// For more than one dimension the input (\c t ) and output
-    /// (\c result ) tensors may be the same but this is not the
-    /// case in 1D.
+    /// The input, result and workspace tensors must be distinct.
     ///
-    /// All input tensors must be contiguous and fastest
-    /// execution will result if all dimensions are even.  The
-    /// workspace and the result must be of the same size as the input
-    /// \c t .  The result tensor need not be initialized before
-    /// calling fast_transform.  
+    /// All input tensors must be contiguous and fastest execution
+    /// will result if all dimensions are even and data is aligned on
+    /// 16-byte boundaries.  The workspace and the result must be of
+    /// the same size as the input \c t .  The result tensor need not
+    /// be initialized before calling fast_transform.
     ///
     /// \code 
     ///     result(i,j,k,...) <-- sum(i',j', k',...) t(i',j',k',...)  c(i',i) c(j',j) c(k',k) ...  
@@ -1087,42 +1095,32 @@ namespace madness {
             t1 = workspace.ptr();
         }
 
-        long dimk = c.dim[0];
         long dimj = c.dim[1];
         long dimi = 1;
         for (int n=1; n<t.ndim; n++) dimi *= dimj;
+        long nij = dimi*dimj;
 
-        mTxmq(dimi, dimj, dimj, t0, t.ptr(), pc); // was mTxmZ
-        for (int n=1; n<t.ndim; n++) {
-            mTxmq(dimi, dimj, dimk, t1, t0, pc);
-            std::swap(t0,t1);
+
+        if (IS_ODD(dimi) || IS_ODD(dimj) || 
+            IS_UNALIGNED(pc) || IS_UNALIGNED(t0) || IS_UNALIGNED(t1)) {
+            for (long i=0; i<nij; i++) t0[i] = 0.0;
+            mTxm(dimi, dimj, dimj, t0, t.ptr(), pc);
+            for (int n=1; n<t.ndim; n++) {
+                for (long i=0; i<nij; i++) t1[i] = 0.0;
+                mTxm(dimi, dimj, dimj, t1, t0, pc);
+                std::swap(t0,t1);
+            }
+        }
+        else {
+            mTxmq(dimi, dimj, dimj, t0, t.ptr(), pc); 
+            for (int n=1; n<t.ndim; n++) {
+                mTxmq(dimi, dimj, dimj, t1, t0, pc);
+                std::swap(t0,t1);
+            }
         }
 
         return result;
     }
-
-    /// Optimized transform inplace for 3d assuming contiguous everything
-
-    /// Transforms coefficients in s returning result also in s.
-    template <typename T>
-    Tensor<T>& transform3d_inplace(Tensor<T>& s, const Tensor<double>& c, Tensor<T>& work) {
-        T* RESTRICT sptr = s.ptr();
-        T* RESTRICT wptr = work.ptr();
-        double* RESTRICT cptr = c.ptr();
-        long k2 = s.dim[0];
-        long k2sq = k2 * k2;
-        long k2cu = k2sq * k2;
-        for (int i = 0; i < k2cu; i++) wptr[i] = T(0);
-        mTxm(k2sq, k2, k2, wptr, sptr, cptr);
-        for (int i = 0; i < k2cu; i++) sptr[i] = T(0);
-        mTxm(k2sq, k2, k2, sptr, wptr, cptr);
-        for (int i = 0; i < k2cu; i++) wptr[i] = T(0);
-        mTxm(k2sq, k2, k2, wptr, sptr, cptr);
-        for (int i = 0; i < k2cu; i++) sptr[i] = wptr[i];
-
-        return s;
-    }
-
 
     /// Return a new tensor holding the absolute value of each element of t
     template <class T>
@@ -1168,10 +1166,5 @@ namespace madness {
         return result;
     }
 
-    template Tensor<double>& transform3d_inplace(Tensor<double>& s, const Tensor<double>& c, Tensor<double>& work);
-    template Tensor<double_complex>& transform3d_inplace(Tensor<double_complex>& s, const Tensor<double>& c,
-            Tensor<double_complex>& work);
-
-#include "transform3d.cc"
 #include "tensor_spec.h"
 }

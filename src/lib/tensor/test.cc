@@ -758,11 +758,11 @@ template <class T> void Test7() {
     x.fillrandom();
     c.fillrandom();
     double start = std::clock();
-    for (long i=0; i<1000; i++) {
+    for (long i=0; i<10000; i++) {
         fast_transform(x,c,r,y);
     }
     double used = (std::clock()-start)/CLOCKS_PER_SEC;
-    double mops = 1000.0*2*3*1e-6*14.0*14.0*14.0*14.0/used;
+    double mops = 10000.0*2*3*1e-6*14.0*14.0*14.0*14.0/used;
     std::cout << "TRANSFORM MOPS=" << mops << "   " << used << std::endl;
 
     std::cout << "Test7<" << tensor_type_names[TensorTypeData<T>::id] << "> OK\n";

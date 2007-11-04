@@ -34,3 +34,10 @@ The list of interesting variables is in the configure
 script.  At some point (hopefully) real documentation
 will be written
 
+
+Examples
+
+Linux 64-bit using MKL in default install location
+    ./doconfig LIBS "-L/opt/intel/mkl/9.1.023/lib/em64t -lmkl -lguide"
+
+

@@ -565,11 +565,15 @@ if [ "$CXXFLAGS" = "" ] ; then
         if [ "$MAD_DEBUG" = "1" ] ; then
            OPT="-Wall -g -O0"
         elif contains "$HOST_CPU" 86 ; then
-            OPT="-Wall -ansi -O3 -ffast-math -fno-strict-aliasing -fomit-frame-pointer -funroll-loops -mfpmath=sse -msse2 -march=native"
+            # O3 breaks in 4.2.2 ... specifically -finline-functions so run with O2 and add all O3 optimizations
+            # except for inlinign.  Some inling is still done, I think.
+            #OPT="-Wall -ansi -O3 -ffast-math -fomit-frame-pointer -funroll-loops -mfpmath=sse -msse2 -march=native"
+            OPT="-Wall -ansi -O2 -ffast-math  -funroll-loops -mfpmath=sse -msse2 -march=native -funswitch-loops -fgcse-after-reload -fomit-frame-pointer"
             CXXOPT="$CXX_COMPILE $OPT tmptmp.cc"
             compile_testCC "$CXXOPT" "#include <iostream> \n int main() {return 0;}" 
             if [ $? -ne 0 ] ; then
-                OPT="-Wall -ansi -O3 -ffast-math -fno-strict-aliasing -fomit-frame-pointer -funroll-loops -mfpmath=sse -msse2"
+                #OPT="-Wall -ansi -O3 -ffast-math -fno-strict-aliasing -fomit-frame-pointer -funroll-loops -mfpmath=sse -msse2"
+                OPT="-Wall -ansi -O2 -ffast-math  -funroll-loops -mfpmath=sse -msse2 -funswitch-loops -fgcse-after-reload -fomit-frame-pointer"
                 CXXOPT="$CXX_COMPILE $OPT tmptmp.cc"
                 compile_testCC "$CXXOPT" "#include <iostream> \n int main() {return 0;}" 
                 if [ $? -ne 0 ] ; then
@@ -590,8 +594,9 @@ if [ "$CXXFLAGS" = "" ] ; then
         fi
     fi
     set_value CXXFLAGS "$OPT"
-    set_value CFLAGS "$OPT"
 fi
+set_value CFLAGS "$CXXFLAGS"
+set_value LDFLAGS "$CXXFLAGS"
 
 # Now turn our attention to libraries and linking
 

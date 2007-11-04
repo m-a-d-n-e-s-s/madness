@@ -866,9 +866,6 @@ namespace madness {
     Tensor<T>& fast_transform(const Tensor<T>& t, const Tensor<Q>& c,
                         Tensor<T>& result, Tensor<T>& workspace);
 
-    template <typename T>
-    Tensor<T>& transform3d_inplace(Tensor<T>& s, const Tensor<double>& c, Tensor<T>& work);
-
     template <class T, class Q>
     Tensor<T> inner(const Tensor<T>& left, const Tensor<Q>& right,
                     long k0=-1, long k1=0);
@@ -935,14 +932,6 @@ namespace madness {
         SliceTensor<T>& operator=(T x);
         ~SliceTensor() {};		// Tensor<T> destructor does enough
     };
-
-    template <class T>
-    Tensor<T> transform3d(const Tensor<T>& t, const Tensor<T>& c);
-    Tensor<double_complex> transform3d(const Tensor<double_complex>& t, const Tensor<double>& c);
-
-    template <class T>
-    Tensor<T> transform3d_3c(const Tensor<T>& t,
-                             const Tensor<T>& c0, const Tensor<T>& c1, const Tensor<T>& c2);
 
     /*
     template <typename T> 

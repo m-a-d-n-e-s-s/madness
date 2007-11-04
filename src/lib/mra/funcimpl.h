@@ -165,9 +165,9 @@ namespace madness {
                 vq[i] = npt;
                 v2k[i] = 2*k;
             }
-            work1 = tensorT(vk);
-            work2 = tensorT(v2k);
-            workq = tensorT(vq);
+            work1 = tensorT(vk,false);
+            work2 = tensorT(v2k,false);
+            workq = tensorT(vq,false);
             zero_coeff = tensorT(vk);
             key0 = Key<NDIM>(0,Vector<Translation,NDIM>(0));
 
@@ -872,23 +872,25 @@ namespace madness {
 
         /// Compute by projection the scaling function coeffs in specified box
         tensorT project(const keyT& key) const {
-            tensorT fval(cdata.vq);
+            tensorT fval(cdata.vq,false); // this will be the returned result
+            tensorT& work = cdata.work1; // initially evaluate the function in here
 
             if (vf) {
                 MADNESS_EXCEPTION("FunctionImpl: project: Vector function interface not yet implemented",0);
             }
             else if (f) {
-                fcube(key,f,cdata.quad_x,fval);
+                fcube(key,f,cdata.quad_x,work);
             }
             else if (functor) {
-                fcube(key,*functor,cdata.quad_x,fval);
+                fcube(key,*functor,cdata.quad_x,work);
             }
             else {
                 MADNESS_EXCEPTION("FunctionImpl: project: confusion about function?",0);
             };
 
-            fval.scale(sqrt(cell_volume*pow(0.5,double(NDIM*key.level()))));
-            return transform(fval,cdata.quad_phiw);
+            work.scale(sqrt(cell_volume*pow(0.5,double(NDIM*key.level()))));
+            //return transform(work,cdata.quad_phiw);
+            return fast_transform(work,cdata.quad_phiw,fval,cdata.workq);
         }
 
 
@@ -948,7 +950,9 @@ namespace madness {
                     if (key.level()==max_refine_level) print("MAX REFINE LEVEL",key);
                     for (KeyChildIterator<NDIM> it(key); it; ++it) {
                         const keyT& child = it.key();
-                        task(coeffs.owner(child), &implT::project_refine_op, child, do_refine); // ugh
+                        //ProcessID p = coeffs.owner(child);
+                        ProcessID p = world.random_proc();
+                        task(p, &implT::project_refine_op, child, do_refine); // ugh
                     }
                 }
             }
@@ -1002,7 +1006,7 @@ namespace madness {
         /// Given coefficients from a parent cell, compute the value of
         /// the functions at the quadrature points of a child
         template <typename Q>
-        Tensor<Q> fcube_for_mul(const keyT& child, const keyT& parent, const Tensor<Q> coeff) const {
+        Tensor<Q> fcube_for_mul(const keyT& child, const keyT& parent, const Tensor<Q>& coeff) const {
             if (child.level() == parent.level()) {
                 double scale = pow(2.0,0.5*NDIM*parent.level())/sqrt(cell_volume);
                 return transform(coeff,cdata.quad_phit).scale(scale);
@@ -1694,23 +1698,24 @@ namespace madness {
 
             std::vector<long> vq(NDIM);
             for (int i=0; i<NDIM; i++) vq[i] = npt;
-            tensorT fval(vq);
+            tensorT fval(vq,false), work(vq,false), result(vq,false);
 
-            // Compute the "exact" function in this volume
+            // Compute the "exact" function in this volume at npt points
+            // where npt is usually this->npt+1.
             fcube(key, func, qx, fval);
 
-            // Transform the polynomial coefficients into values at the quadrature points
-            double scale = pow(2.0,0.5*NDIM*key.level())/sqrt(cell_volume);
-            tensorT tval = transform(node.coeff(),quad_phit).scale(scale);
+            // Transform into the scaling function basis of order npt
+            double scale = pow(0.5,0.5*NDIM*key.level())*sqrt(cell_volume);
+            fval = fast_transform(fval,quad_phiw,result,work).scale(scale);
 
-            // Subtract to get the error
-            tval -= fval;
+            // Subtract to get the error ... the original coeffs are in the order k
+            // basis but we just computed the coeffs in the order npt(=k+1) basis
+            // so we can either use slices or an iterator macro.
+            const tensorT& coeff = node.coeff();
+            ITERATOR(coeff,fval(IND)-=coeff(IND););
 
-            // Transform error back into the scaling function basis and compute norm
-            scale = pow(0.5,0.5*NDIM*key.level())*sqrt(cell_volume);
-            tval = transform(tval,quad_phiw).scale(scale);
-
-            double err = tval.normf();
+            // Compute the norm of what remains
+            double err = fval.normf();
             return err*err;
         }
 
@@ -1720,7 +1725,7 @@ namespace madness {
             // Make quadrature rule of higher order
             const int npt = cdata.npt + 1;
             Tensor<double> qx, qw, quad_phi, quad_phiw, quad_phit;
-            FunctionCommonData<T,NDIM>::_init_quadrature(k, npt, qx, qw, quad_phi, quad_phiw, quad_phit);
+            FunctionCommonData<T,NDIM>::_init_quadrature(k+1, npt, qx, qw, quad_phi, quad_phiw, quad_phit);
 
             double sum = 0.0;
             for(typename dcT::const_iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {

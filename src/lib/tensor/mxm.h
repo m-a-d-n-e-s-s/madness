@@ -304,7 +304,7 @@ inline void mTxmT(long dimi, long dimj, long dimk,
     where it is assumed that the last index in each array is has unit
     stride and the dimensions are as provided.
 
-    Tiled k, copy row of a into tempory, and uroll j once.
+    Tiled k, copy row of a into temporary, and uroll j once.
     */
 
     const int ktile=32;

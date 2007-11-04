@@ -74,11 +74,11 @@ namespace madness {
 
     static void checksum(int kmax, double *s0, double *s1) {
         double sum0=0, sum1=0;
-        for (int k=0; k<=kmax; k++) {
-            Tensor<double> h0 = cache[k].h0;
-            Tensor<double> h1 = cache[k].h1;
-            Tensor<double> g0 = cache[k].g0;
-            Tensor<double> g1 = cache[k].g1;
+        for (int k=1; k<=kmax; k++) {
+            const Tensor<double>& h0 = cache[k].h0;
+            const Tensor<double>& h1 = cache[k].h1;
+            const Tensor<double>& g0 = cache[k].g0;
+            const Tensor<double>& g1 = cache[k].g1;
             for (int i=0; i<k; i++) {
                 for (int j=0; j<k; j++) {
                     double ij = double(j+k)/(i+k);
@@ -120,7 +120,7 @@ namespace madness {
             cout << "twoscale: failed opening file with twoscale coefficients\n";
             return false;
         }
-        for (int k=0; k<kmax+1; k++) {
+        for (int k=1; k<kmax+1; k++) {
             Tensor <double> h0, g0;
             try {
                 h0 = readmat(k,file);
@@ -334,29 +334,29 @@ namespace madness {
     /// Only process rank 0 will access the files.
     void load_coeffs(World& world) {
         if (!loaded) {
-            int autoc_k = 15;   // Plausible maximum value
+            int ktop = 17;   // Plausible maximum value
             if (world.rank() == 0) {
                 if (!readascii(kmax,asciifile))
                     throw "load_coeffs: failed reading twoscale coeffs";
-                if (!read_data(15))
+                if (!read_data(ktop))
                     throw "load_coeffs: failed reading coeffs";
             } else {
-                for (int k=0; k<=kmax; k++) {
+                for (int k=1; k<=kmax; k++) {
                     cache[k].h0 = Tensor<double>(k,k);
                     cache[k].h1 = Tensor<double>(k,k);
                     cache[k].g0 = Tensor<double>(k,k);
                     cache[k].g1 = Tensor<double>(k,k);
                 }
-                _c = Tensor<double>(autoc_k,autoc_k,4*autoc_k);
+                _c = Tensor<double>(ktop,ktop,4*ktop);
             }
-            for (int k=0; k<=kmax; k++) {
+            for (int k=1; k<=kmax; k++) {
                 world.gop.broadcast(cache[k].h0.ptr(), k*k, 0);
                 world.gop.broadcast(cache[k].h1.ptr(), k*k, 0);
                 world.gop.broadcast(cache[k].g0.ptr(), k*k, 0);
                 world.gop.broadcast(cache[k].g1.ptr(), k*k, 0);
             }
 
-            world.gop.broadcast(_c.ptr(), autoc_k*autoc_k*4*autoc_k, 0);
+            world.gop.broadcast(_c.ptr(), ktop*ktop*4*ktop, 0);
 
             loaded = true;
         }

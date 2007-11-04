@@ -161,7 +161,7 @@ void test_basic(World& world) {
     double err = f.err(*functor);
     T val = f(point);
     CHECK(abs(norm-1.0), 1e-10, "norm");
-    CHECK(err, 1e-7, "err");
+    CHECK(err, 3e-7, "err");
     CHECK(val-(*functor)(point), 1e-8, "error at a point");
 
     f.compress();
@@ -182,7 +182,7 @@ void test_basic(World& world) {
     new_norm = f.norm2();
     new_err = f.err(*functor);
     CHECK(new_norm-norm, 1e-9, "new_norm");
-    CHECK(new_err, 1e-6, "new_err");
+    CHECK(new_err, 3e-5, "new_err");
 
     //MADNESS_ASSERT(ok);
     

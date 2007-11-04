@@ -88,14 +88,14 @@ namespace madness {
     void mTxmq(const long dimi, const long dimj, const long dimk,
                double* RESTRICT c, const double* a, const double* b) {
         
-        /* Assumptions now checked by the caller */
-        /*     int abad = ((unsigned long) a) & 0x7;  /\* Check assumptions *\/ */
-        /*     int bbad = ((unsigned long) b) & 0x7; */
-        /*     int cbad = ((unsigned long) c) & 0x7; */
-        /*     int nibad= dimi & 0x1; */
-        /*     int njbad= dimj & 0x1; */
-        /*     int nkbad= dimk & 0x1; */
-        
+        // The caller is responsible for checking assumptions!
+// #define IS_ODD(n) (n&1)
+// #define IS_UNALIGNED(p) (p&7)
+//         if (IS_ODD(dimi) || IS_ODD(dimj) || IS_ODD(dimk) ||
+//             IS_UNALIGNED(a) || IS_UNALIGNED(b) || IS_UNALIGNED(c)) {
+//             // CALL SLOW CODE
+//         }
+
         /* 
            Choice is to unroll i or j 
         */
