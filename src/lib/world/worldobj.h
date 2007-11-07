@@ -449,9 +449,32 @@ namespace madness {
             }
         }
 
+        // Handler for incoming task with 6 arguments
+        template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T, typename arg5T, typename arg6T>
+        static void handler_task(World& world, ProcessID src, void* buf, size_t nbyte) {
+            const uniqueidT& id = detail::peek(buf);
+            Derived* obj = world.ptr_from_id<Derived>(id);
+            if (is_ready(obj)) {
+                LongAmArg* arg = (LongAmArg *) buf;
+                detail::info<memfunT> info;
+                arg1T arg1;
+                arg2T arg2;
+                arg3T arg3;
+                arg4T arg4;
+                arg5T arg5;
+                arg6T arg6;
+                arg->unstuff(nbyte, info, arg1, arg2, arg3, arg4, arg5, arg6);
+                typename detail::info<memfunT>::futureT result(info.ref);
+                world.taskq.add(new TaskMemfun<memfunT>(result,*obj,info.memfun,arg1,arg2,arg3,arg4,arg5,arg6,info.attr));
+            }
+            else {
+                pending.push_back(new detail::PendingLongMsg(id, handler_task<memfunT,arg1T,arg2T,arg3T,arg4T,arg5T,arg6T>, src, buf, nbyte));
+            }
+        }
+
         // Returns true if obj is not NULL pointer and is also ready for incoming messages
 
-        // look below for the murky nastiness that is doing_pending
+        // Look below for the murky nastiness that is doing_pending
         static bool is_ready(Derived* obj) {
             if (obj) {
                 WorldObject* p = static_cast<WorldObject*>(obj);
@@ -844,6 +867,23 @@ namespace madness {
             }
         }
 
+        /// Sends task to derived class method "returnT (this->*memfun)(arg1,arg2,arg3,arg4,arg5,arg6)"
+        template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T, typename arg5T, typename arg6T>
+        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > 
+        task(ProcessID dest, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, const arg4T& arg4, const arg5T& arg5, const arg6T& arg6, const TaskAttributes& attr = TaskAttributes()) {
+            if (dest == me) {
+                return world.taskq.add(*static_cast<Derived*>(this), memfun, arg1, arg2, arg3, arg4, arg5, arg6, attr);
+            }
+            else {
+                Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > result;
+                detail::info<memfunT> info(objid, me, memfun, result.remote_ref(world), attr);
+                LongAmArg* arg = new_long_am_arg();
+                std::size_t nbyte = arg->stuff(info,arg1, arg2, arg3, arg4, arg5, arg6);
+                world.am.send_long_managed(dest,handler_task<memfunT,arg1T,arg2T,arg3T,arg4T,arg5T,arg6T>,arg,nbyte);
+                return result;
+            }
+        }
+
 
         /// Sends task to derived class method "returnT (this->*memfun)() const"
         template <typename memfunT>
@@ -885,6 +925,13 @@ namespace madness {
         Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > 
         task(ProcessID dest, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, const arg4T& arg4, const arg5T& arg5, const TaskAttributes& attr = TaskAttributes()) const {
             return const_cast<objT*>(this)->task(dest,memfun,arg1,arg2,arg3,arg4,arg5,attr);
+        }
+
+        /// Sends task to derived class method "returnT (this->*memfun)(arg1,arg2,arg3,arg4,arg5,arg6) const"
+        template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T, typename arg5T, typename arg6T>
+        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > 
+        task(ProcessID dest, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, const arg4T& arg4, const arg5T& arg5, const arg6T& arg6, const TaskAttributes& attr = TaskAttributes()) const {
+            return const_cast<objT*>(this)->task(dest,memfun,arg1,arg2,arg3,arg4,arg5,arg6,attr);
         }
 
 

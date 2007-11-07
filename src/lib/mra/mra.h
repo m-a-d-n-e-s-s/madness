@@ -506,7 +506,7 @@ namespace madness {
 
         /// This is replaced with left*right ... should be private
         template <typename L, typename R>
-        Function<T,NDIM>& mul(const Function<L,NDIM>& left, const Function<R,NDIM>& right, bool fence=true) {
+        Function<T,NDIM>& mul(const Function<L,NDIM>& left, const Function<R,NDIM>& right, bool fence) {
             left.verify();
             right.verify();
             MADNESS_ASSERT(!(left.is_compressed() || right.is_compressed()));
@@ -520,7 +520,7 @@ namespace madness {
         /// This is replaced with alpha*left + beta*right ... should be private
         template <typename L, typename R>
         Function<T,NDIM>& gaxpy_oop(T alpha, const Function<L,NDIM>& left, 
-                                    T beta,  const Function<R,NDIM>& right, bool fence=true) {
+                                    T beta,  const Function<R,NDIM>& right, bool fence) {
             left.verify();
             right.verify();
             MADNESS_ASSERT(left.is_compressed() && right.is_compressed());
@@ -533,13 +533,32 @@ namespace madness {
 
         /// This is replaced with alpha*f ... should be private
         template <typename Q, typename L>
-        Function<T,NDIM>& scale_oop(const Q alpha, const Function<L,NDIM>& f, bool fence=true) { 
+        Function<T,NDIM>& scale_oop(const Q alpha, const Function<L,NDIM>& f, bool fence) { 
             f.verify();
             f.verify_tree();
             impl = SharedPtr<implT>(new implT(*f.impl, f.get_pmap()));
             impl->scale_oop(alpha,*f.impl,fence);
             return *this;
         }
+
+        /// This is replaced with df/dx ... should be private.
+        Function<T,NDIM>& diff(const Function<T,NDIM>& f, int axis, bool fence) { 
+            f.verify();
+            f.verify_tree();
+            impl = SharedPtr<implT>(new implT(*f.impl, f.get_pmap()));
+            impl->diff(*f.impl,axis,fence);
+            return *this;
+        };
+
+        /// This is replaced with mapdim(f) ... should be private
+        Function<T,NDIM>& mapdim(const Function<T,NDIM>& f, const std::vector<long>& map, bool fence) { 
+            f.verify();
+            f.verify_tree();
+            for (int i=0; i<NDIM; i++) MADNESS_ASSERT(map[i]>=0 && map[i]<NDIM);
+            impl = SharedPtr<implT>(new implT(*f.impl, f.get_pmap()));
+            impl->mapdim(*f.impl,map,fence);
+            return *this;
+        };
 
     };
 
@@ -675,8 +694,36 @@ namespace madness {
     Function<T,NDIM> copy(const Function<T,NDIM>& f, bool fence = true) {
 	return f.copy(fence);
     }
-	    
 
+    /// Differentiate w.r.t. given coordinate (x=0, y=1, ...) with optional fence
+    
+    /// Returns a new function with the same distribution
+    template <typename T, int NDIM>
+    Function<T,NDIM> 
+    diff(const Function<T,NDIM>& f, int axis, bool fence=true) {
+        Function<T,NDIM> result;
+        return result.diff(f,axis, fence);
+    }
+
+    /// Generate a new function by reordering dimensions ... optional fence
+
+    /// You provide an array of dimension NDIM that maps old to new dimensions
+    /// according to 
+    /// \code
+    ///    newdim = mapdim[olddim]
+    /// \endcode
+    /// Otherwise the process map of the input function is used.
+    ///
+    /// Works in either scaling function or wavelet basis.
+    ///
+    /// Would be easy to modify this to also change the procmap here
+    /// if desired but presently it uses the same procmap as f.
+    template <typename T, int NDIM>
+    Function<T,NDIM>
+    mapdim(const Function<T,NDIM>& f, const std::vector<long>& map, bool fence=true) {
+        Function<T,NDIM> result;
+        return result.mapdim(f,map,fence);
+    }
 
 }
 

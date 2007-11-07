@@ -924,7 +924,7 @@ namespace madness {
     /// the left and right side tensors, respectively.  The defaults
     /// correspond to (\c k0=-1 and \c k1=0 ).
     template <class T, class Q>
-    Tensor<T> inner(const Tensor<T>& left, const Tensor<Q>& right,
+    Tensor<TENSOR_RESULT_TYPE(T,Q)> inner(const Tensor<T>& left, const Tensor<Q>& right,
                     long k0, long k1) {
         if (k0 < 0) k0 += left.ndim;
         if (k1 < 0) k1 += right.ndim;
@@ -947,7 +947,7 @@ namespace madness {
         base--;
         for (long i=k1+1; i<right.ndim; i++) d[i+base] = right.dim[i];
 
-        Tensor<T> result(nd,d);
+        Tensor<TENSOR_RESULT_TYPE(T,Q)> result(nd,d);
 
         inner_result(left,right,k0,k1,result);
 
@@ -966,13 +966,13 @@ namespace madness {
     /// The inner product is accumulated into result.
     template <class T, class Q>
     void inner_result(const Tensor<T>& left, const Tensor<Q>& right,
-                      long k0, long k1, Tensor<T>& result) {
+                      long k0, long k1, Tensor< TENSOR_RESULT_TYPE(T,Q) >& result) {
 
-
+        typedef TENSOR_RESULT_TYPE(T,Q) resultT;
         // Need to include explicit optimizations for common special cases
         // E.g., contiguous, matrix-matrix, and 3d-tensor*matrix
 
-        T* ptr = result.ptr();
+        resultT* ptr = result.ptr();
 
         if (k0 < 0) k0 += left.ndim;
         if (k1 < 0) k1 += right.ndim;
@@ -1020,7 +1020,7 @@ namespace madness {
                 T* p0 = xp0;
                 Q* p1 = iter1._p0;
                 long s1 = iter1._s0;
-                T sum = 0;
+                resultT sum = 0;
                 for (long j=0; j<dimj; j++,p0+=s0,p1+=s1) {
                     sum += (*p0) * (*p1);
                 }
@@ -1043,15 +1043,16 @@ namespace madness {
     /// can eliminate all constructor overhead and improve cache locality.
     ///
     template <class T, class Q>
-    Tensor<T> transform(const Tensor<T>& t, const Tensor<Q>& c) {
+    Tensor<TENSOR_RESULT_TYPE(T,Q)> transform(const Tensor<T>& t, const Tensor<Q>& c) {
+        typedef TENSOR_RESULT_TYPE(T,Q) resultT;
         TENSOR_ASSERT(c.ndim == 2,"second argument must be a matrix",c.ndim,&c);
         if (c.dim[0]==c.dim[1] && t.iscontiguous() && c.iscontiguous()) {
-            Tensor<T> result(t.ndim,t.dim,false);
-            Tensor<T> work(t.ndim,t.dim,false);
+            Tensor<resultT> result(t.ndim,t.dim,false);
+            Tensor<resultT> work(t.ndim,t.dim,false);
             return fast_transform(t, c, result, work);
         }
         else {
-            Tensor<T> result = t;
+            Tensor<resultT> result = t;
             for (long i=0; i<t.ndim; i++) {
                 result = inner(result,c,0,0);
             }
@@ -1086,10 +1087,11 @@ namespace madness {
     ///
     /// The input dimensions of \c t must all be the same .
     template <class T, class Q>
-    Tensor<T>& fast_transform(const Tensor<T>& t, const Tensor<Q>& c, Tensor<T>& result,
-                              Tensor<T>& workspace) {
+    Tensor< TENSOR_RESULT_TYPE(T,Q) >& fast_transform(const Tensor<T>& t, const Tensor<Q>& c,  Tensor< TENSOR_RESULT_TYPE(T,Q) >& result,
+                              Tensor< TENSOR_RESULT_TYPE(T,Q) >& workspace) {
+        typedef  TENSOR_RESULT_TYPE(T,Q) resultT;
         const Q *pc=c.ptr();
-        T *t0=workspace.ptr(), *t1=result.ptr();
+        resultT *t0=workspace.ptr(), *t1=result.ptr();
         if (t.ndim&1) {
             t0 = result.ptr();
             t1 = workspace.ptr();

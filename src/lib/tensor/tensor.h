@@ -860,19 +860,20 @@ namespace madness {
     Tensor<T> outer(const Tensor<T>& left, const Tensor<T>& right);
 
     template <class T, class Q>
-    Tensor<T> transform(const Tensor<T>& t, const Tensor<Q>& c);
+    Tensor<TENSOR_RESULT_TYPE(T,Q)> transform(const Tensor<T>& t, const Tensor<Q>& c);
 
     template <class T, class Q>
-    Tensor<T>& fast_transform(const Tensor<T>& t, const Tensor<Q>& c,
-                        Tensor<T>& result, Tensor<T>& workspace);
+    Tensor<TENSOR_RESULT_TYPE(T,Q)>& fast_transform(const Tensor<T>& t, const Tensor<Q>& c,
+                              Tensor< TENSOR_RESULT_TYPE(T,Q) >& result, 
+                              Tensor< TENSOR_RESULT_TYPE(T,Q) >& workspace);
 
     template <class T, class Q>
-    Tensor<T> inner(const Tensor<T>& left, const Tensor<Q>& right,
+    Tensor<TENSOR_RESULT_TYPE(T,Q)> inner(const Tensor<T>& left, const Tensor<Q>& right,
                     long k0=-1, long k1=0);
 
     template <class T, class Q>
     void inner_result(const Tensor<T>& left, const Tensor<Q>& right,
-                      long k0, long k1, Tensor<T>& result);
+                      long k0, long k1, Tensor< TENSOR_RESULT_TYPE(T,Q) >& result);
 
     template <class T>
     Tensor< typename Tensor<T>::scalar_type > abs(const Tensor<T>& t);

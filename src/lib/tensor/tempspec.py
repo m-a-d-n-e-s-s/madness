@@ -8,9 +8,11 @@ gemm_typelist = ["double","float","double_complex","float_complex"]
 transform_typelist = [["double", "double"],
                       ["float", "float"],
                       ["double_complex", "double_complex"],
-                      ["double_complex", "double"],
                       ["float_complex", "float_complex"],
-                      ["float_complex", "float"]]
+                      ["double_complex", "double"],
+                      ["double"        ,"double_complex"],
+                      ["float_complex", "float"],
+                      ["float"         ,"float_complex"]]
 
 f = open("tensor_spec.h","w")
 for t in typelist:
@@ -26,11 +28,11 @@ for t in typelist:
 f.write("\n// Instantiations for inner, inner_result and transform \n")
 for t,q in transform_typelist:
     f.write("template void inner_result(const Tensor<%s>& left, const Tensor<%s>& right,\n" % (t,q))
-    f.write("                           long k0, long k1, Tensor<%s>& result);\n" % t)
-    f.write("template Tensor<%s> inner(const Tensor<%s>& left, const Tensor<%s>& right,\n" % (t,t,q))
+    f.write("                           long k0, long k1, Tensor< TensorResultType<%s,%s>::type >& result);\n" % (t,q))
+    f.write("template Tensor<TensorResultType<%s,%s>::type> inner(const Tensor<%s>& left, const Tensor<%s>& right,\n" % (t,q,t,q))
     f.write("                         long k0, long k1);\n")
-    f.write("template Tensor<%s> transform(const Tensor<%s>& t, const Tensor<%s>& c);\n" % (t,t,q))
-    f.write("template Tensor<%s>& fast_transform(const Tensor<%s>& t, const Tensor<%s>& c, Tensor<%s>& result, Tensor<%s>& work);\n" % (t,t,q,t,t))
+    f.write("template Tensor<TensorResultType<%s,%s>::type> transform(const Tensor<%s>& t, const Tensor<%s>& c);\n" % (t,q,t,q))
+    f.write("template Tensor<TensorResultType<%s,%s>::type>& fast_transform(const Tensor<%s>& t, const Tensor<%s>& c, Tensor< TensorResultType<%s,%s>::type >& result, Tensor< TensorResultType<%s,%s>::type >& work);\n" % (t,q,t,q,t,q,t,q))
 
 
 f.write("\n// Instantiations only for complex types\n")

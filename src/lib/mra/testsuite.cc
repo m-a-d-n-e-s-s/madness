@@ -46,15 +46,14 @@ const double PI = 3.1415926535897932384;
 using namespace madness;
 
 template <typename T, int NDIM>
-class GaussianFunctor : public FunctionFunctorInterface<T,NDIM> {
-private:
+class Gaussian : public FunctionFunctorInterface<T,NDIM> {
+public:
     typedef Vector<double,NDIM> coordT;
     const coordT center;
     const double exponent;
     const T coefficient;
     
-public:
-    GaussianFunctor(const coordT& center, double exponent, T coefficient) 
+    Gaussian(const coordT& center, double exponent, T coefficient) 
         : center(center), exponent(exponent), coefficient(coefficient) {};
 
     T operator()(const coordT& x) const {
@@ -66,6 +65,34 @@ public:
         return coefficient*exp(-exponent*sum);
     };
 };
+
+template <typename T, int NDIM>
+class DerivativeGaussian : public FunctionFunctorInterface<T,NDIM> {
+public:
+    typedef Vector<double,NDIM> coordT;
+    const coordT center;
+    const double exponent;
+    const T coefficient;
+    const int axis;
+    
+    DerivativeGaussian(const coordT& center, double exponent, T coefficient, int axis) 
+        : center(center), exponent(exponent), coefficient(coefficient), axis(axis) 
+    {};
+
+    DerivativeGaussian(const Gaussian<T,NDIM>& g, int axis) 
+        : center(g.center), exponent(g.exponent), coefficient(g.coefficient), axis(axis)
+    {};
+
+    T operator()(const coordT& x) const {
+        double sum = 0.0;
+        for (int i=0; i<NDIM; i++) {
+            double xx = center[i]-x[i];
+            sum += xx*xx;
+        };
+        return -2.0*exponent*(x[axis]-center[axis])*coefficient*exp(-exponent*sum);
+    };
+};
+
 
 template <typename T, typename L, typename R>
 inline T product(L l, R r) {
@@ -80,8 +107,8 @@ inline T sum(L l, R r) {
 
 /// Makes a square-normalized Gaussian with random origin and exponent
 template <typename T, int NDIM>
-GaussianFunctor<T,NDIM>*
-RandomGaussianFunctor(const Tensor<double> cell, double expntmax=1e5) {
+Gaussian<T,NDIM>*
+RandomGaussian(const Tensor<double> cell, double expntmax=1e5) {
     typedef Vector<double,NDIM> coordT;
     coordT origin;
     for (int i=0; i<NDIM; i++) {
@@ -91,12 +118,12 @@ RandomGaussianFunctor(const Tensor<double> cell, double expntmax=1e5) {
     double hi = log(expntmax);
     double expnt = exp(RandomNumber<double>()*(hi-lo) + lo);
     T coeff = pow(2.0*expnt/PI,0.25*NDIM);            
-    return new GaussianFunctor<T,NDIM>(origin,expnt,coeff);
+    return new Gaussian<T,NDIM>(origin,expnt,coeff);
 }
 
 /// Returns a new functor combining two functors via operation op(left,right)
 template <typename resultT, typename L, typename R, typename opT, int NDIM>
-class BinaryOpFunctor : public FunctionFunctorInterface<resultT,NDIM> {
+class BinaryOp : public FunctionFunctorInterface<resultT,NDIM> {
     typedef Vector<double,NDIM> coordT;
     typedef SharedPtr< FunctionFunctorInterface<L,NDIM> > functorL;
     typedef SharedPtr< FunctionFunctorInterface<R,NDIM> > functorR;
@@ -106,7 +133,7 @@ class BinaryOpFunctor : public FunctionFunctorInterface<resultT,NDIM> {
     opT op;
 
 public:
-    BinaryOpFunctor(functorL& left, functorR& right, opT& op) 
+    BinaryOp(functorL& left, functorR& right, opT& op) 
         : left(left), right(right), op(op)
     {};
 
@@ -152,7 +179,7 @@ void test_basic(World& world) {
     const double expnt = 1.0;
     const double coeff = pow(2.0/PI,0.25*NDIM);
 
-    functorT functor(new GaussianFunctor<T,NDIM>(origin, expnt, coeff));
+    functorT functor(new Gaussian<T,NDIM>(origin, expnt, coeff));
 
     for (int i=0; i<NDIM; i++) point[i] = 0.1*i;
 
@@ -202,7 +229,7 @@ void test_conv(World& world) {
     const coordT origin(0.0);
     const double expnt = 1.0;
     const double coeff = pow(2.0/PI,0.25*NDIM);
-    functorT functor(new GaussianFunctor<T,NDIM>(origin, expnt, coeff));
+    functorT functor(new Gaussian<T,NDIM>(origin, expnt, coeff));
 
     for (int i=0; i<NDIM; i++) {
         FunctionDefaults<NDIM>::cell(i,0) = -10.0;
@@ -251,8 +278,8 @@ void test_math(World& world) {
     const coordT origin(0.0);
     const double expnt = 1.0;
     const double coeff = pow(2.0/PI,0.25*NDIM);
-    functorT functor(new GaussianFunctor<T,NDIM>(origin, expnt, coeff));
-    functorT functsq(new GaussianFunctor<T,NDIM>(origin, 2.0*expnt, coeff*coeff));
+    functorT functor(new Gaussian<T,NDIM>(origin, expnt, coeff));
+    functorT functsq(new Gaussian<T,NDIM>(origin, 2.0*expnt, coeff*coeff));
     
     // First make sure out of place squaring works
     Function<T,NDIM> f = FunctionFactory<T,NDIM>(world).functor(functor);
@@ -353,10 +380,10 @@ void test_math(World& world) {
 
     if (world.rank() == 0) print("\nTest multiplying random functions");
     for (int i=0; i<10; i++) {
-        functorT f1(RandomGaussianFunctor<T,NDIM>(FunctionDefaults<NDIM>::cell,100.0));
-        functorT f2(RandomGaussianFunctor<T,NDIM>(FunctionDefaults<NDIM>::cell,100.0));
+        functorT f1(RandomGaussian<T,NDIM>(FunctionDefaults<NDIM>::cell,100.0));
+        functorT f2(RandomGaussian<T,NDIM>(FunctionDefaults<NDIM>::cell,100.0));
         T (*p)(T,T) = &product<T,T,T>;
-        functorT f3(new BinaryOpFunctor<T,T,T,T(*)(T,T),NDIM>(f1,f2,p));
+        functorT f3(new BinaryOp<T,T,T,T(*)(T,T),NDIM>(f1,f2,p));
         Function<T,NDIM> a = FunctionFactory<T,NDIM>(world).functor(f1);
         Function<T,NDIM> b = FunctionFactory<T,NDIM>(world).functor(f2);
         Function<T,NDIM> c = a*b;
@@ -374,10 +401,10 @@ void test_math(World& world) {
 
     if (world.rank() == 0) print("\nTest adding random functions out of place");
     for (int i=0; i<10; i++) {
-        functorT f1(RandomGaussianFunctor<T,NDIM>(FunctionDefaults<NDIM>::cell,100.0));
-        functorT f2(RandomGaussianFunctor<T,NDIM>(FunctionDefaults<NDIM>::cell,100.0));
+        functorT f1(RandomGaussian<T,NDIM>(FunctionDefaults<NDIM>::cell,100.0));
+        functorT f2(RandomGaussian<T,NDIM>(FunctionDefaults<NDIM>::cell,100.0));
         T (*p)(T,T) = &sum<T,T,T>;
-        functorT f3(new BinaryOpFunctor<T,T,T,T(*)(T,T),NDIM>(f1,f2,p));
+        functorT f3(new BinaryOp<T,T,T,T(*)(T,T),NDIM>(f1,f2,p));
         Function<T,NDIM> a = FunctionFactory<T,NDIM>(world).functor(f1);
         Function<T,NDIM> b = FunctionFactory<T,NDIM>(world).functor(f2);
         Function<T,NDIM> c = a+b;
@@ -395,10 +422,10 @@ void test_math(World& world) {
 
     if (world.rank() == 0) print("\nTest adding random functions in place");
     for (int i=0; i<10; i++) {
-        functorT f1(RandomGaussianFunctor<T,NDIM>(FunctionDefaults<NDIM>::cell,100.0));
-        functorT f2(RandomGaussianFunctor<T,NDIM>(FunctionDefaults<NDIM>::cell,100.0));
+        functorT f1(RandomGaussian<T,NDIM>(FunctionDefaults<NDIM>::cell,100.0));
+        functorT f2(RandomGaussian<T,NDIM>(FunctionDefaults<NDIM>::cell,100.0));
         T (*p)(T,T) = &sum<T,T,T>;
-        functorT f3(new BinaryOpFunctor<T,T,T,T(*)(T,T),NDIM>(f1,f2,p));
+        functorT f3(new BinaryOp<T,T,T,T(*)(T,T),NDIM>(f1,f2,p));
         Function<T,NDIM> a = FunctionFactory<T,NDIM>(world).functor(f1);
         Function<T,NDIM> b = FunctionFactory<T,NDIM>(world).functor(f2);
         a.verify_tree();
@@ -418,6 +445,50 @@ void test_math(World& world) {
     world.gop.fence();
 }
 
+template <typename T, int NDIM>
+void test_diff(World& world) {
+    typedef Vector<double,NDIM> coordT;
+    typedef SharedPtr< FunctionFunctorInterface<T,NDIM> > functorT;
+
+    if (world.rank() == 0) {
+        print("\nTest differentiation - type =", archive::get_type_name<T>(),", ndim =",NDIM,"\n");
+    }
+    const coordT origin(0.0);
+    //for (int i=0; i<NDIM; i++) origin[i] = i/31.4;
+    const double expnt = 1.0;
+    const double coeff = pow(2.0/PI,0.25*NDIM);
+    functorT functor(new Gaussian<T,NDIM>(origin, expnt, coeff));
+
+    FunctionDefaults<NDIM>::k = 5;
+    FunctionDefaults<NDIM>::thresh = 1e-9;
+    FunctionDefaults<NDIM>::refine = true;
+    FunctionDefaults<NDIM>::initial_level = 2;
+    FunctionDefaults<NDIM>::truncate_mode = 1;
+    for (int i=0; i<NDIM; i++) {
+        FunctionDefaults<NDIM>::cell(i,0) = -10.0;
+        FunctionDefaults<NDIM>::cell(i,1) =  10.0;
+    }
+
+    Function<T,NDIM> f = FunctionFactory<T,NDIM>(world).functor(functor);
+    f.truncate();
+    f.verify_tree();
+    f.reconstruct();
+    f.verify_tree();
+    for (int axis=0; axis<NDIM; axis++) {
+        if (world.rank() == 0) print("doing axis", axis);
+        DerivativeGaussian<T,NDIM> df(origin,expnt,coeff,axis);
+        Function<T,NDIM> dfdx = diff(f,axis);
+        dfdx.verify_tree();
+        coordT p(0.0);
+        for (int i=0; i<=40; i++) {
+            p[axis] = (i-20.0)*0.1;
+            print("     x, analytic, err",p[axis],df(p), dfdx(p)-df(p));
+        }
+        print("    error", dfdx.err(df));
+    }
+}
+
+
 
 int main(int argc, char**argv) {
     MPI::Init(argc, argv);
@@ -426,17 +497,20 @@ int main(int argc, char**argv) {
     try {
         startup(world,argc,argv);
         if (world.rank() == 0) print("Initial tensor instance count", BaseTensor::get_instance_count());
-        test_basic<double,1>(world);
-        test_conv<double,1>(world);
-        test_math<double,1>(world);
+//         test_basic<double,1>(world);
+//         test_conv<double,1>(world);
+//         test_math<double,1>(world);
+        test_diff<double,1>(world);
 
-        test_basic<double,2>(world);
-        test_conv<double,2>(world);
-        test_math<double,2>(world);
+//         test_basic<double,2>(world);
+//         test_conv<double,2>(world);
+//         test_math<double,2>(world);
+        test_diff<double,2>(world);
 
-        test_basic<double,3>(world);
-        test_conv<double,3>(world);
-        test_math<double,3>(world);
+//         test_basic<double,3>(world);
+//         test_conv<double,3>(world);
+//         test_math<double,3>(world);
+        test_diff<double,3>(world);
 
     } catch (const MPI::Exception& e) {
         //        print(e);

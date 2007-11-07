@@ -980,6 +980,35 @@ namespace madness {
             phi.scale(pow(2.0,0.5*np));
         }
 
+        /// Directly project parent coeffs to child coeffs
+
+        /// Currently used by diff, but other uses can be anticipated
+        const tensorT parent_to_child(const tensorT& s, const keyT& parent, const keyT& child) const {
+            // An invalid parent/child means that they are out of the box
+            // and it is the responsibility of the caller to worry about that
+            // ... most likely the coefficiencts (s) are zero to reflect
+            // zero B.C. so returning s makes handling this easy.
+            if (parent == child || parent.is_invalid() || child.is_invalid()) return s;
+            
+            tensorT result = fcube_for_mul<T>(child, parent, s);
+            result.scale(sqrt(cell_volume*pow(0.5,double(NDIM*child.level()))));
+            result = transform(result,cdata.quad_phiw);
+
+//             if (parent.level()+1 == child.level()) {
+//                 tensorT d(cdata.v2k);
+//                 d(cdata.s0) = s;
+//                 d = unfilter(d);
+//                 //print("dumb result\n",d(child_patch(child)));
+//                 //print("clev result\n",result);
+//                 double err = (d(child_patch(child))-result).normf();
+//                 if (err > 1e-12) {
+//                     print("bad parent_to_child", parent, child, err, " <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<");
+//                 }
+//             }
+
+            return result;
+        };
+
 
         // Testing.
 
@@ -1020,7 +1049,7 @@ namespace madness {
                 for (int d=0; d<NDIM; d++) {
                     phi_for_mul(parent.level(),parent.translation()[d],
                                 child.level(), child.translation()[d], phi);
-                    result = inner(result,phi,0,0);
+                    result = inner(result,phi,0,0);  //<<<<<<<<<<<<  Needs replacing with direct mtxmq call
                 }
                 result.scale(1.0/sqrt(cell_volume));
                 return result;
@@ -1263,14 +1292,17 @@ namespace madness {
                 const nodeT& node = coeffs.find(key).get()->second;
                 Future< std::pair<keyT,tensorT> > result(ref);
                 if (node.has_coeff()) {
+                    //madness::print("sock found it with coeff",key);
                     result.set(std::pair<keyT,tensorT>(key,node.coeff()));
                 }
                 else {
+                    //madness::print("sock found it without coeff",key);
                     result.set(std::pair<keyT,tensorT>(key,tensorT()));
                 }
             }
             else {
                 keyT parent = key.parent();
+                //madness::print("sock forwarding to parent",key,parent);
                 send(coeffs.owner(parent), &FunctionImpl<T,NDIM>::sock_it_to_me, parent, ref);
             }
             return None;
@@ -1419,111 +1451,166 @@ namespace madness {
             if (fence) world.gop.fence();
         }
 
-//         /// Differentiation of function with optional global fence
+        /// Differentiation of function with optional global fence
 
-//         /// Result of differentiating f is placed into this which will
-//         /// have the same process map, etc., as f
-//         void diff(const implT& f, int axis, bool fence) {
-//             typedef std::pair<keyT,tensorT> argT;
-//             for(typename dcT::iterator it=f.coeffs.begin(); it!=f.coeffs.end(); ++it) {
-//                 const keyT& key = it->first;
-//                 nodeT& node = it->second;
-//                 if (node.has_coeff()) {
-//                     Future<argT> left   = f.find_neighbor(key,axis,-1);
-//                     Future<argT> center = argT(key,node.coeff());
-//                     Future<argT> right  = f.find_neighbor(key,axis, 1);
-//                     task(world.rank(), &implT::do_diff, &f, axis, key, left, center, right);
-//                 }
-//                 else {
-//                     // Internal empty node can be safely inserted
-//                     coeffs.insert(key,nodeT(tensorT(),true));
-//                 }
-//             }
-//             if (fence) world.gop.fence();
-//         };
-     
+        /// Result of differentiating f is placed into this which will
+        /// have the same process map, etc., as f
+        void diff(const implT& f, int axis, bool fence) {
+            typedef std::pair<keyT,tensorT> argT;
+            for(typename dcT::const_iterator it=f.coeffs.begin(); it!=f.coeffs.end(); ++it) {
+                const keyT& key = it->first;
+                const nodeT& node = it->second;
+                if (node.has_coeff()) {
+                    Future<argT> left   = f.find_neighbor(key,axis,-1);
+                    argT center(key,node.coeff());
+                    Future<argT> right  = f.find_neighbor(key,axis, 1);
+                    //madness::print("adding task for",key);
+                    task(world.rank(), &implT::do_diff, &f, axis, key, left, center, right);
+                }
+                else {
+                    // Internal empty node can be safely inserted
+                    coeffs.insert(key,nodeT(tensorT(),true));
+                }
+            }
+            if (fence) world.gop.fence();
+        };
+  
 
-//         /// Called by diff to find key and coeffs of neighbor enforcing BC
+        /// Returns key of neighbor enforcing BC
 
-//         /// Should work for any (small) step but only tested for step=+/-1
-//         Future< std::pair<keyT,tensorT> > find_neighbor(const keyT& key, int axis, int step) {
-//             typedef std::pair<keyT,tensorT> argT;
-//             Vector<Translation,NDIM> l = key.translation();
-//             const Translation two2n = Translation(1)<<key.level();
+        /// Out of volume keys are mapped to enforce the BC as follows.
+        ///   * Periodic BC map back into the volume and return the correct key
+        ///   * Zero BC - returns invalid() to indicate out of volume
+        keyT neighbor(const keyT& key, int axis, int step) const {
+            Vector<Translation,NDIM> l = key.translation();
+            const Translation two2n = Translation(1)<<key.level();
 
-//             // Translation is an unsigned type so need to be careful if results
-//             // or intermediates are possibly negative.
-
-//             if (step < 0  &&  l[axis] < -step) {
-//                 if (bc[axis][0] == 0) {
-//                     return Future<argT>(argT(key,tensorT(cdata.vk)));  // Zero BC
-//                 }
-//                 else if (bc[axis][0] == 1) {
-//                     l[axis] = (l[axis] + two2n) + step;                // Periodic BC
-//                 }
-//                 else {
-//                     MADNESS_EXCEPTION("find_neighbor: confused left BC?",bc[axis][0]);
-//                 }
-//             }
-//             else if (l[axis]+step >= two2n) {
-//                 if (bc[axis][1] == 0) {
-//                     return Future<argT>(argT(key,tensorT(cdata.vk)));  // Zero BC
-//                 }
-//                 else if (bc[axis][1] == 1) {
-//                     l[axis] = (l[axis] + step) - two2n;                // Periodic BC
-//                 }
-//                 else {
-//                     MADNESS_EXCEPTION("find_neighbor: confused BC right?",bc[axis][1]);
-//                 }
-//             }
-//             else {
-//                 l[axis] += step;
-//             }
-         
-//             keyT neigh(key.level(),l);
-//             Future<argT> result;
-//             send(coeffs.owner(neigh), &implT::sock_it_to_me, neigh, result.remote_ref(world));
-//             return result;
-//         };
+            // Translation is an unsigned type so need to be careful if results
+            // or intermediates are possibly negative.
+            if (step < 0  &&  l[axis] < (unsigned)(-step)) {
+                if (bc(axis,0) == 0) {
+                    return keyT::invalid(); // Zero BC
+                }
+                else if (bc(axis,0) == 1) {
+                    l[axis] = (l[axis] + two2n) + step; // Periodic BC
+                }
+                else {
+                    MADNESS_EXCEPTION("neighbor: confused left BC?",bc(axis,0));
+                }
+            }
+            else if (l[axis]+step >= two2n) {
+                if (bc(axis,1) == 0) {
+                    return keyT::invalid(); // Zero BC
+                }
+                else if (bc(axis,1) == 1) {
+                    l[axis] = (l[axis] + step) - two2n; // Periodic BC
+                }
+                else {
+                    MADNESS_EXCEPTION("neighbor: confused BC right?",bc(axis,1));
+                }
+            }
+            else {
+                l[axis] += step;
+            }
+      
+            return keyT(key.level(),l);
+        };
 
 
-//         Void do_diff(const implT* f, int axis, const keyT& key, 
-//                      const std::pair<keyT,tensorT>& left,
-//                      const std::pair<keyT,tensorT>& center,
-//                      const std::pair<keyT,tensorT>& right) {
+        /// Called by diff to find key and coeffs of neighbor enforcing BC
 
-//             // Must futz with the entry/coeffs/has_children for this node ?????????
-                                                                   
-//             if (left.second.size==0 || right.second.size==0) {
-//                 // One the neighbors is below us in the tree ... recur down
-//                 typedef std::pair<keyT,tensorT> argT;
-//                 for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
-//                     const keyT& child = kit.key();
-//                     if (left.second.size == 0) {
-//                         left   = f.find_neighbor(key,axis,-1);
-//                             ?????????
-//                     }
-//                     if (right.second.size == 0) {
-//                         Future<argT> right  = f.find_neighbor(key,axis, 1);
-//                     }
-//                     // This must be sent to the owner of the child
-//                     task(coeffs.owner(child), &implT::do_diff, &f, axis, key, left, center, right);
-//                 }
-//                 return None;
-//             }
-
-//             DIFF HERE !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!;
-//         };
-     
+        /// Should work for any (small) step but only tested for step=+/-1
+        Future< std::pair<keyT,tensorT> > find_neighbor(const keyT& key, int axis, int step) const {
+            typedef std::pair<keyT,tensorT> argT;
+            keyT neigh = neighbor(key, axis, step);
+            if (neigh.is_invalid()) {
+                return Future<argT>(argT(neigh,tensorT(cdata.vk))); // Zero bc
+            }
+            else {
+                Future<argT> result;
+                send(coeffs.owner(neigh), &implT::sock_it_to_me, neigh, result.remote_ref(world));
+                return result;
+            }
+        };
 
 
-//             }
+        Void do_diff(const implT* f, int axis, const keyT& key, 
+                     const std::pair<keyT,tensorT>& left,
+                     const std::pair<keyT,tensorT>& center,
+                     const std::pair<keyT,tensorT>& right) {
+            typedef std::pair<keyT,tensorT> argT;
 
-//             return None;
+            MADNESS_ASSERT(axis>=0 && axis<NDIM);
 
-//         };
-            
+            if (left.second.size==0 || right.second.size==0) {
+                // One of the neighbors is below us in the tree ... recur down
+                coeffs.insert(key,nodeT(tensorT(),true));
+                for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
+                    const keyT& child = kit.key();
+                    if ((child.translation()[axis]&1) == 0) { 
+                        // leftmost child automatically has right sibling
+                        if (left.second.size == 0) {
+                            //print("1:",child,neighbor(child,axis,-1),center.first);
+                            task(coeffs.owner(child), &implT::do_diff, f, axis, child, 
+                                 f->find_neighbor(child,axis,-1), center, center); // High priority task
+                        }
+                        else {
+                            //print("2:",child,left.first,center.first);
+                            task(coeffs.owner(child), &implT::do_diff, f, axis, child, 
+                                 left, center, center); // low priority
+                        }
+                    }
+                    else { 
+                        // rightmost child automatically has left sibling
+                        if (right.second.size == 0) {
+                            //print("3:",child,neighbor(child,axis,1),center.first);
+                            task(coeffs.owner(child), &implT::do_diff, f, axis, child, 
+                                 center, center, f->find_neighbor(child,axis,1)); // high priority
+                        }
+                        else {
+                            //print("4:",child,right.first,center.first);
+                            task(coeffs.owner(child), &implT::do_diff, f, axis, child, 
+                                 center, center, right); // low priority
+                        }
+                    }
+                }
+            }
+            else {
+                //madness::print(world.rank(),"Diffing for real",key,left.first,center.first,right.first);
 
+                tensorT d = madness::inner(cdata.rp, 
+                                           parent_to_child(left.second, left.first, neighbor(key,axis,-1)).swapdim(axis,0), 
+                                           1, 0);
+                inner_result(cdata.r0, 
+                             parent_to_child(center.second, center.first, key).swapdim(axis,0),
+                             1, 0, d);
+                inner_result(cdata.rm, 
+                             parent_to_child(right.second, right.first, neighbor(key,axis,1)).swapdim(axis,0), 
+                             1, 0, d);
+                if (axis) d = copy(d.swapdim(axis,0)); // make it contiguous
+                d.scale(rcell_width[axis]*pow(2.0,(double) key.level()));
+                coeffs.insert(key,nodeT(d,false));
+         }
+
+            return None;
+        };
+
+
+        /// Permute the dimensions according to map
+        void mapdim(const implT& f, const std::vector<long>& map, bool fence) {
+            for(typename dcT::const_iterator it=f.coeffs.begin(); it!=f.coeffs.end(); ++it) {
+                const keyT& key = it->first;
+                const nodeT& node = it->second;
+
+                Vector<Translation,NDIM> l;
+                for (int i=0; i<NDIM; i++) l[map[i]] = key.translation()[i];
+                tensorT c = node.coeff();
+                if (c.size) c = copy(c.mapdim(map));
+
+                coeffs.insert(keyT(key.level(),l), nodeT(c,node.has_children()));
+            }
+            if (fence) world.gop.fence();
+        };
 
 
         T eval_cube(Level n, coordT x, const tensorT c) const {
@@ -1847,6 +1934,28 @@ namespace madness {
         /// Assignment is not allowed ... not even possibloe now that we have reference members
         //FunctionImpl<T>& operator=(const FunctionImpl<T>& other);
     };
+
+    namespace archive {
+        template <class Archive, class T, int NDIM>
+        struct ArchiveLoadImpl<Archive,const FunctionImpl<T,NDIM>*> {
+            static inline void load(const Archive& ar, const FunctionImpl<T,NDIM>*& ptr) {
+                uniqueidT id;
+                ar & id;
+                World* world = World::world_from_id(id.get_world_id());
+                MADNESS_ASSERT(world);
+                ptr = static_cast< const FunctionImpl<T,NDIM>* >(world->ptr_from_id< WorldObject< FunctionImpl<T,NDIM> > >(id));
+                if (!ptr) MADNESS_EXCEPTION("FunctionImpl: remote operation attempting to use a locally uninitialized object",0);
+            };
+        };
+        
+        template <class Archive, class T, int NDIM>
+        struct ArchiveStoreImpl<Archive,const FunctionImpl<T,NDIM>*> {
+            static inline void store(const Archive& ar, const FunctionImpl<T,NDIM>*const& ptr) {
+                ar & ptr->id();
+            };
+        };
+    }
+    
 
 
 }

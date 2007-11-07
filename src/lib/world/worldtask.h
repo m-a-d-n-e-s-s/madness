@@ -529,6 +529,18 @@ namespace madness {
         }
 
 
+        /// Invoke "resultT (obj.*memfun)(arg1T,arg2T,arg3,arg4,arg5,arg6)" as a local task
+        template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T, typename arg5T, typename arg6T>
+        Future<REMFUTURE(MEMFUN_RETURNT(memfunT))> add(MEMFUN_OBJT(memfunT)& obj, 
+                                            memfunT memfun,
+                                                       const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, const arg4T& arg4, const arg5T& arg5, const arg6T& arg6, const TaskAttributes& attr=TaskAttributes())
+        {
+            Future<REMFUTURE(MEMFUN_RETURNT(memfunT))> result;
+            add(new TaskMemfun<memfunT>(result,obj,memfun,arg1,arg2,arg3,arg4,arg5,arg6,attr));
+            return result;
+        }
+
+
         struct TaskQFenceProbe {
             mutable WorldTaskQueue* q;
             TaskQFenceProbe(WorldTaskQueue* q) : q(q) {};

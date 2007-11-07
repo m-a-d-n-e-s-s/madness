@@ -97,7 +97,7 @@ namespace madness {
         Key() {};
 
         /// Constructor with given n, l
-        Key(Level n, const Vector<Translation,NDIM> l) 
+        Key(Level n, const Vector<Translation,NDIM>& l) 
             : n(n), l(l) {
             rehash();
         };
@@ -112,6 +112,16 @@ namespace madness {
 	    l = decode(n,p);
 	    rehash();
 	};
+
+        /// Returns an invalid key
+        static Key<NDIM> invalid() {
+            return Key<NDIM>(-1);
+        };
+
+        /// Checks if a key is invalid
+        bool is_invalid() const {
+            return n == -1;
+        };
 
         /// Equality test
         bool operator==(const Key& other) const {
@@ -181,7 +191,7 @@ namespace madness {
             return Key(n-generation,pl);
         };
 
-	bool is_child_of(const Key key) const {
+	bool is_child_of(const Key& key) const {
             if (this->n < key.n) {
             	return false; // I can't be child of something lower on the tree
             }
@@ -195,7 +205,7 @@ namespace madness {
             }
 	};
 
-	bool is_parent_of(const Key key) const {
+	bool is_parent_of(const Key& key) const {
 	    return (key.is_child_of(*this));
 	};
 
