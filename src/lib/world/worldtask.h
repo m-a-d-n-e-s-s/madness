@@ -567,7 +567,6 @@ namespace madness {
         inline void add_ready_task(TaskInterface* t) {
             if (t->is_generator()) {
                 ready.push_front(t);
-                print("WorldTaskQueue: just added generator task at front of q");
             }
             else {
                 ready.push_back(t);

@@ -1464,8 +1464,7 @@ namespace madness {
                     Future<argT> left   = f.find_neighbor(key,axis,-1);
                     argT center(key,node.coeff());
                     Future<argT> right  = f.find_neighbor(key,axis, 1);
-                    //madness::print("adding task for",key);
-                    task(world.rank(), &implT::do_diff, &f, axis, key, left, center, right);
+                    task(world.rank(), &implT::do_diff1, &f, axis, key, left, center, right, task_attr_generator());
                 }
                 else {
                     // Internal empty node can be safely inserted
@@ -1533,11 +1532,21 @@ namespace madness {
             }
         };
 
+//         ???????????????????????????????????????????????
 
-        Void do_diff(const implT* f, int axis, const keyT& key, 
-                     const std::pair<keyT,tensorT>& left,
-                     const std::pair<keyT,tensorT>& center,
-                     const std::pair<keyT,tensorT>& right) {
+//         Void forward_do_diff1(const implT* f, int axis, const keyT& key, 
+//                       const std::pair<keyT,tensorT>& left,
+//                       const std::pair<keyT,tensorT>& center,
+//                       const std::pair<keyT,tensorT>& right) {
+            
+
+//         }
+
+
+        Void do_diff1(const implT* f, int axis, const keyT& key, 
+                      const std::pair<keyT,tensorT>& left,
+                      const std::pair<keyT,tensorT>& center,
+                      const std::pair<keyT,tensorT>& right) {
             typedef std::pair<keyT,tensorT> argT;
 
             MADNESS_ASSERT(axis>=0 && axis<NDIM);
@@ -1550,51 +1559,54 @@ namespace madness {
                     if ((child.translation()[axis]&1) == 0) { 
                         // leftmost child automatically has right sibling
                         if (left.second.size == 0) {
-                            //print("1:",child,neighbor(child,axis,-1),center.first);
-                            task(coeffs.owner(child), &implT::do_diff, f, axis, child, 
-                                 f->find_neighbor(child,axis,-1), center, center); // High priority task
+                            task(coeffs.owner(child), &implT::do_diff1, f, axis, child, 
+                                 f->find_neighbor(child,axis,-1), center, center, task_attr_generator());
                         }
                         else {
-                            //print("2:",child,left.first,center.first);
-                            task(coeffs.owner(child), &implT::do_diff, f, axis, child, 
-                                 left, center, center); // low priority
+                            task(coeffs.owner(child), &implT::do_diff2, f, axis, child, 
+                                 left, center, center); 
                         }
                     }
                     else { 
                         // rightmost child automatically has left sibling
                         if (right.second.size == 0) {
-                            //print("3:",child,neighbor(child,axis,1),center.first);
-                            task(coeffs.owner(child), &implT::do_diff, f, axis, child, 
-                                 center, center, f->find_neighbor(child,axis,1)); // high priority
+                            task(coeffs.owner(child), &implT::do_diff1, f, axis, child, 
+                                 center, center, f->find_neighbor(child,axis,1), task_attr_generator());
                         }
                         else {
-                            //print("4:",child,right.first,center.first);
-                            task(coeffs.owner(child), &implT::do_diff, f, axis, child, 
-                                 center, center, right); // low priority
+                            task(coeffs.owner(child), &implT::do_diff2, f, axis, child, 
+                                 center, center, right);
                         }
                     }
                 }
             }
             else {
-                //madness::print(world.rank(),"Diffing for real",key,left.first,center.first,right.first);
-
-                tensorT d = madness::inner(cdata.rp, 
-                                           parent_to_child(left.second, left.first, neighbor(key,axis,-1)).swapdim(axis,0), 
-                                           1, 0);
-                inner_result(cdata.r0, 
-                             parent_to_child(center.second, center.first, key).swapdim(axis,0),
-                             1, 0, d);
-                inner_result(cdata.rm, 
-                             parent_to_child(right.second, right.first, neighbor(key,axis,1)).swapdim(axis,0), 
-                             1, 0, d);
-                if (axis) d = copy(d.swapdim(axis,0)); // make it contiguous
-                d.scale(rcell_width[axis]*pow(2.0,(double) key.level()));
-                coeffs.insert(key,nodeT(d,false));
-         }
-
+                task(world.rank(), &implT::do_diff2, f, axis, key, left, center, right); 
+            }
             return None;
         };
 
+        Void do_diff2(const implT* f, int axis, const keyT& key, 
+                      const std::pair<keyT,tensorT>& left,
+                      const std::pair<keyT,tensorT>& center,
+                      const std::pair<keyT,tensorT>& right) {
+            typedef std::pair<keyT,tensorT> argT;
+            //madness::print(world.rank(),"Diffing for real",key,left.first,center.first,right.first);
+            
+            tensorT d = madness::inner(cdata.rp, 
+                                       parent_to_child(left.second, left.first, neighbor(key,axis,-1)).swapdim(axis,0), 
+                                       1, 0);
+            inner_result(cdata.r0, 
+                         parent_to_child(center.second, center.first, key).swapdim(axis,0),
+                         1, 0, d);
+            inner_result(cdata.rm, 
+                         parent_to_child(right.second, right.first, neighbor(key,axis,1)).swapdim(axis,0), 
+                         1, 0, d);
+            if (axis) d = copy(d.swapdim(axis,0)); // make it contiguous
+            d.scale(rcell_width[axis]*pow(2.0,(double) key.level()));
+            coeffs.insert(key,nodeT(d,false));
+            return None;
+        };
 
         /// Permute the dimensions according to map
         void mapdim(const implT& f, const std::vector<long>& map, bool fence) {

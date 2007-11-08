@@ -480,12 +480,17 @@ void test_diff(World& world) {
         Function<T,NDIM> dfdx = diff(f,axis);
         dfdx.verify_tree();
         coordT p(0.0);
-        for (int i=0; i<=40; i++) {
-            p[axis] = (i-20.0)*0.1;
-            print("     x, analytic, err",p[axis],df(p), dfdx(p)-df(p));
+        if (world.rank() == 0) {
+            for (int i=0; i<=40; i++) {
+                p[axis] = (i-20.0)*0.1;
+                print("     x, analytic, err",p[axis],df(p), dfdx(p)-df(p));
+            }
         }
-        print("    error", dfdx.err(df));
+        world.gop.fence();
+        double err = dfdx.err(df);
+        if (world.rank() == 0) print("    error", err);
     }
+    world.gop.fence();
 }
 
 
