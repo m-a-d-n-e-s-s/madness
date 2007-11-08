@@ -568,7 +568,7 @@ namespace madness {
     Function<TENSOR_RESULT_TYPE(Q,T),NDIM> 
     mul(const Q alpha, const Function<T,NDIM>& f, bool fence=true) {
         Function<TENSOR_RESULT_TYPE(Q,T),NDIM> result;
-        return result.scale_oop(alpha, f);
+        return result.scale_oop(alpha, f, fence);
     }        
 
 
