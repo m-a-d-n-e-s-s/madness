@@ -1519,6 +1519,10 @@ namespace madness {
         /// Called by diff to find key and coeffs of neighbor enforcing BC
 
         /// Should work for any (small) step but only tested for step=+/-1
+        ///
+        /// do_diff1 handles the adpative refinement.  If it needs to refine, it calls
+        /// forward_do_diff1 to pass the task locally or remotely with high priority.
+        /// Actual differentiation is performend by do_diff2.
         Future< std::pair<keyT,tensorT> > find_neighbor(const keyT& key, int axis, int step) const {
             typedef std::pair<keyT,tensorT> argT;
             keyT neigh = neighbor(key, axis, step);
@@ -1532,15 +1536,44 @@ namespace madness {
             }
         };
 
-//         ???????????????????????????????????????????????
 
-//         Void forward_do_diff1(const implT* f, int axis, const keyT& key, 
-//                       const std::pair<keyT,tensorT>& left,
-//                       const std::pair<keyT,tensorT>& center,
-//                       const std::pair<keyT,tensorT>& right) {
-            
+        /// Used by diff1 to forward calls to diff1 elsewhere
 
-//         }
+        /// We cannot send a not ready future to another process
+        /// so we send an active message to schedule the remote task.
+        ///
+        /// Local tasks that might produce additional communication
+        /// are scheduled with high priority and plain-old compute
+        /// tasks get normal priority.  This is an attempt to get all
+        /// of the communication and adaptive refinement happening
+        /// in parallel to productive computation.
+        Void forward_do_diff1(const implT* f, int axis, const keyT& key, 
+                      const std::pair<keyT,tensorT>& left,
+                      const std::pair<keyT,tensorT>& center,
+                      const std::pair<keyT,tensorT>& right) {
+            ProcessID owner = coeffs.owner(key);
+            if (owner == world.rank()) {
+                if (left.second.size == 0) {
+                    task(owner, &implT::do_diff1, f, axis, key, 
+                         f->find_neighbor(key,axis,-1), center, right, 
+                         task_attr_generator());
+                }
+                else if (right.second.size == 0) {
+                    task(owner, &implT::do_diff1, f, axis, key, 
+                         left, center, f->find_neighbor(key,axis,1), 
+                         task_attr_generator());
+                }
+                else {
+                    task(owner, &implT::do_diff2, f, axis, key, 
+                         left, center, right);
+                }
+            }
+            else {
+                send(owner, &implT::forward_do_diff1, f, axis, key, 
+                     left, center, right);
+            }
+            return None;
+        };
 
 
         Void do_diff1(const implT* f, int axis, const keyT& key, 
@@ -1558,30 +1591,16 @@ namespace madness {
                     const keyT& child = kit.key();
                     if ((child.translation()[axis]&1) == 0) { 
                         // leftmost child automatically has right sibling
-                        if (left.second.size == 0) {
-                            task(coeffs.owner(child), &implT::do_diff1, f, axis, child, 
-                                 f->find_neighbor(child,axis,-1), center, center, task_attr_generator());
-                        }
-                        else {
-                            task(coeffs.owner(child), &implT::do_diff2, f, axis, child, 
-                                 left, center, center); 
-                        }
+                        forward_do_diff1(f, axis, child, left, center, center);
                     }
                     else { 
                         // rightmost child automatically has left sibling
-                        if (right.second.size == 0) {
-                            task(coeffs.owner(child), &implT::do_diff1, f, axis, child, 
-                                 center, center, f->find_neighbor(child,axis,1), task_attr_generator());
-                        }
-                        else {
-                            task(coeffs.owner(child), &implT::do_diff2, f, axis, child, 
-                                 center, center, right);
-                        }
+                        forward_do_diff1(f, axis, child, center, center, right);
                     }
                 }
             }
             else {
-                task(world.rank(), &implT::do_diff2, f, axis, key, left, center, right); 
+                forward_do_diff1(f, axis, key, left, center, right);
             }
             return None;
         };
@@ -1591,7 +1610,6 @@ namespace madness {
                       const std::pair<keyT,tensorT>& center,
                       const std::pair<keyT,tensorT>& right) {
             typedef std::pair<keyT,tensorT> argT;
-            //madness::print(world.rank(),"Diffing for real",key,left.first,center.first,right.first);
             
             tensorT d = madness::inner(cdata.rp, 
                                        parent_to_child(left.second, left.first, neighbor(key,axis,-1)).swapdim(axis,0), 
