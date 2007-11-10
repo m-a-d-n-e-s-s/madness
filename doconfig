@@ -245,6 +245,9 @@ set_value RESTRICT ""
 set_value CROSS_COMPILING 0
 set_value TOP_SRCDIR "`pwd`"
 set_value HASH_MAP_NAMESPACE "NOT_CONFIGURED"
+set_value WORLD_WATCHDOG 1
+set_value WATCHDOG_BARK_INTERVAL "60.0"
+set_value WATCHDOG_TIMEOUT "300.0"
 
 echo "Processing command line overrides ..."
 

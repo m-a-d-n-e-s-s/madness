@@ -1,3 +1,4 @@
+#include <unistd.h>
 /*
   This file is part of MADNESS.
   
@@ -459,8 +460,8 @@ void test_diff(World& world) {
     const double coeff = pow(2.0/PI,0.25*NDIM);
     functorT functor(new Gaussian<T,NDIM>(origin, expnt, coeff));
 
-    FunctionDefaults<NDIM>::k = 5;
-    FunctionDefaults<NDIM>::thresh = 1e-9;
+    FunctionDefaults<NDIM>::k = 16;
+    FunctionDefaults<NDIM>::thresh = 1e-13;
     FunctionDefaults<NDIM>::refine = true;
     FunctionDefaults<NDIM>::initial_level = 2;
     FunctionDefaults<NDIM>::truncate_mode = 1;
@@ -502,19 +503,19 @@ int main(int argc, char**argv) {
     try {
         startup(world,argc,argv);
         if (world.rank() == 0) print("Initial tensor instance count", BaseTensor::get_instance_count());
-//         test_basic<double,1>(world);
-//         test_conv<double,1>(world);
-//         test_math<double,1>(world);
+        test_basic<double,1>(world);
+        test_conv<double,1>(world);
+        test_math<double,1>(world);
         test_diff<double,1>(world);
 
-//         test_basic<double,2>(world);
-//         test_conv<double,2>(world);
-//         test_math<double,2>(world);
+        test_basic<double,2>(world);
+        test_conv<double,2>(world);
+        test_math<double,2>(world);
         test_diff<double,2>(world);
 
-//         test_basic<double,3>(world);
-//         test_conv<double,3>(world);
-//         test_math<double,3>(world);
+        test_basic<double,3>(world);
+        test_conv<double,3>(world);
+        test_math<double,3>(world);
         test_diff<double,3>(world);
 
     } catch (const MPI::Exception& e) {

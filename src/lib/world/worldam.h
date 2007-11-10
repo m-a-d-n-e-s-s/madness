@@ -242,7 +242,7 @@ namespace madness {
         static const int SHORT_MSG_HEADER_LEN = 2*sizeof(unsigned long);            //< Length of header in short message
         static const int SHORT_MSG_USER_LEN = SHORT_MSG_LEN-SHORT_MSG_HEADER_LEN;   //< Length of user data in short message
         static const int LONG_MSG_HEADER_LEN = 4*sizeof(unsigned long);             //< No. of bytes reserved for long message header
-        static const int LONG_MSG_LEN = 128*1024;                                   //< Max length of long messages
+        static const int LONG_MSG_LEN = 3*128*1024;                                 //< Max length of long messages
         static const int LONG_MSG_USER_LEN = LONG_MSG_LEN-LONG_MSG_HEADER_LEN;      //< Length of user data in long messages
         
     private:
@@ -582,6 +582,7 @@ namespace madness {
                     }
                 }
                 if (msg) {
+                    suspend();  // << ???????????
                     if (msg->is_short) {
                         poll_short_msg_action(msg->src, msg->arg);
                         // Short message receive already reposted.
@@ -592,7 +593,8 @@ namespace madness {
                         if (msg->is_managed) free_long_am_arg(msg->buf);
                     }
                     recv_counters[msg->src]++;
-                    nrecv++;
+                    nrecv++;    // << ??????????????
+                    resume();
                     delete msg;
                 }
             } while (msg);
@@ -792,8 +794,7 @@ namespace madness {
         /// reused or freed without first calling either
         /// am.wait_to_complete(handle) (which waits for just this
         /// message to be sent) or am.fence() (which waits for all
-        /// messages and local actions to complete).  BOTH require
-        /// that processing of active message is not suspended.
+        /// messages and local actions to complete).  
         ///
         /// Returns an integer that can be used to wait for completion
         /// of the send so that the buffer can be reused.

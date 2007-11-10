@@ -83,4 +83,11 @@
 #  define X86_64
 #endif
 
+/* Attempt at deadlock detection */
+#if @WORLD_WATCHDOG@
+#define WORLD_WATCHDOG
+#define WATCHDOG_BARK_INTERVAL @WATCHDOG_BARK_INTERVAL@
+#define WATCHDOG_TIMEOUT @WATCHDOG_TIMEOUT@
+#endif
+
 #endif 

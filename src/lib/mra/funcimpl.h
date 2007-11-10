@@ -542,7 +542,7 @@ namespace madness {
             // !!! Ensure that all local state is correctly formed
             // before invoking process_pending for the coeffs and
             // for this.  Otherwise, there is a race condition.
-            MADNESS_ASSERT(k>0 && k<MAXK);
+            MADNESS_ASSERT(k>0 && k<=MAXK);
 
             // Ultimately, must set cell, bc, etc. from the factory not the defaults
             for (int i=0; i<NDIM; i++) rcell_width(i) = 1.0/rcell_width(i);

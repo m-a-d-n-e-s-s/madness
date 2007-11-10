@@ -444,10 +444,42 @@ namespace madness {
             // Critical here is that poll() is NOT called after a
             // successful test of the request since polling may
             // trigger an activity that invalidates the condition.
+#ifdef WORLD_WATCHDOG
+            double watchdog_start_time=0.0;  // Time when dog started watching
+            double watchdog_last_time=0.0;   // Time when dog last barked
+            bool watchdog_is_watching = false; // True if dog is watching
+#endif
             bool working = false;
             while (!probe()) {
                 poll_all(working);  // If working poll_all will increase polling interval
                 working = run_tasks();
+                
+#ifdef WORLD_WATCHDOG
+                // Attempt to detect deadlock.  If waiting "too long"
+                // without doing useful work start whining and
+                // ultimately commit seppuku.
+                if (!working) {
+                    if (watchdog_is_watching) {
+                        double now = wall_time();
+                        if ((now-watchdog_last_time) > WATCHDOG_BARK_INTERVAL) {
+                            std::cerr << ": World: watchdog: I've been idle for " 
+                                      << now-watchdog_start_time << "s" << std::endl;
+                            watchdog_last_time = now;
+                        }
+                        if ((now-watchdog_start_time) > WATCHDOG_TIMEOUT) 
+                            MADNESS_EXCEPTION("Deadlock detected?",(int) (now-watchdog_start_time));
+                    }
+                    else {
+                        watchdog_last_time = watchdog_start_time = wall_time();
+                        watchdog_is_watching = true;
+                    }
+                }
+                else {
+                    watchdog_is_watching = false;
+                }
+#endif
+
+
 #ifdef WORLD_SLEEP_BACKOFF
                 if (!working) usleep(1000);
 #endif
