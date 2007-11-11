@@ -39,6 +39,8 @@ v  Robert J. Harrison
 #ifndef LOADBAL_H
 #define LOADBAL_H
 
+#include <tensor/random.h>
+
 namespace madness {
 
     typedef int Cost;
@@ -364,6 +366,7 @@ namespace madness {
     template <int D>
     class MyPmap : public WorldDCPmapInterface< Key<D> > {
     private:
+        Tensor<ProcessID> simple_key_map; // map of keys at level n
         bool simplemap;
 	const int nproc;
         const ProcessID me;
@@ -377,13 +380,8 @@ namespace madness {
 	};
 
 	ProcessID simple_hash(const KeyD& key) const {
-	    if (key.level() == 0) {
-		return 0;
-	    } else if (key.level() <= n) {
-		return (key.hash()%nproc);
-	    } else {
-		return ((key.parent(key.level()-n)).hash()%nproc);
-	    }
+            KeyD parent = (key.level() > n) ? key.parent(key.level()-n) : key;
+            return simple_key_map((const long *) &(parent.translation()[0]));
 	};
 
     public:
@@ -407,9 +405,61 @@ namespace madness {
 //            tree_map->print();
         };
 	*/
-	MyPmap(World& world) : simplemap(true), nproc(world.nproc()), me(world.rank()), n(100) {};
 
-        MyPmap(World& world, int n) : simplemap(true), nproc(world.nproc()), me(world.rank()), n(n) {};
+        static bool costmapcmp(const std::pair<KeyD,double>& a, const std::pair<KeyD,double>& b) {
+            return a.second > b.second;
+        };
+
+	MyPmap(World& world) 
+            : simplemap(true)
+            , nproc(world.nproc())
+            , me(world.rank())
+            , n((std::log(world.size())/std::log(2.0)+3)/D + 2)  // 16*nproc = 2^(nD)
+        {
+            // We set n to have about 16 tasks per processor and we try to
+            // give each process a mix of large, medium, and small
+            // tasks.  Currently estimate cost as inversely
+            // proportional to distance from center but we could
+            // enable the user to provide a function.
+
+            if (world.rank() == 0) madness::print("DIM",D,"N IN MAP IS",n);
+
+            std::vector<long> vdim(D);
+            for (int i=0; i<D; i++) vdim[i] = 1L<<n;
+            simple_key_map = Tensor<ProcessID>(vdim);
+            
+            std::list< std::pair<KeyD,double> > costmap;
+            Vector<Translation,D> l;
+            long cent = (1L<<n) / 2;
+            for (TensorIterator<ProcessID> iter=simple_key_map.unary_iterator(0,false,false); iter._p0; ++iter) { 
+                double dist = 0.01;
+                for (int i=0; i<D; i++) {
+                    l[i] = iter.ind[i];
+                    dist += (l[i] - cent)*(l[i] - cent);
+                }
+                double cost = 1.0/dist; // actually dist squared
+                cost *= (1.0 + 0.001*RandomNumber<double>()); // To shuffle (nearly) equal values
+                costmap.push_back(std::pair<KeyD,double>(KeyD(n,l),cost));
+            }
+            costmap.sort(costmapcmp);
+//             if (world.rank() == 0) {
+//                 for (typename std::list< std::pair<KeyD,double> >::iterator it=costmap.begin(); it!=costmap.end(); ++it) {
+//                     madness::print("costmap", it->first, it->second);
+//                 }
+//             }
+            ProcessID p = 0;
+            for (typename std::list< std::pair<KeyD,double> >::iterator it=costmap.begin(); it!=costmap.end(); ++it) {
+                const long *l = (const long *) &(it->first.translation()[0]);
+                simple_key_map(l)  = p;
+                p++;
+                if (p == world.size()) p = 0;
+            }
+//             if (world.rank() == 0) {
+//                 madness::print("SIMPLE MAP", D,"\n", simple_key_map);
+//             }
+        };
+
+        //MyPmap(World& world, int n) : simplemap(true), nproc(world.nproc()), me(world.rank()), n(n) {};
 
         MyPmap(World& world, vector<TreeCoords<D> > v) : simplemap(false), nproc(world.nproc()), me(world.rank()), n(0) {
             build_tree_map(v);
@@ -421,6 +471,7 @@ namespace madness {
 
         MyPmap<D>& operator=(const MyPmap<D>& other) {
             if (this != &other) {
+                simple_key_map = other.simple_key_map; // shallow copy
                 simplemap = other.simplemap;
                 nproc = other.nproc;
 		me = other.me;

@@ -155,6 +155,10 @@ public:
              } \
         } while (0) 
 
+double ttt, sss;
+#define START_TIMER world.gop.fence(); ttt=wall_time(); sss=cpu_time();
+#define END_TIMER(msg) world.gop.fence(); ttt=wall_time()-ttt; sss=cpu_time()-sss; if (world.rank()==0) printf("timer: %20.20s %8.2fs %8.2fs\n", msg, sss, ttt)
+
 
 template <typename T, int NDIM>
 void test_basic(World& world) {
@@ -446,6 +450,7 @@ void test_math(World& world) {
     world.gop.fence();
 }
 
+
 template <typename T, int NDIM>
 void test_diff(World& world) {
     typedef Vector<double,NDIM> coordT;
@@ -460,8 +465,8 @@ void test_diff(World& world) {
     const double coeff = pow(2.0/PI,0.25*NDIM);
     functorT functor(new Gaussian<T,NDIM>(origin, expnt, coeff));
 
-    FunctionDefaults<NDIM>::k = 16;
-    FunctionDefaults<NDIM>::thresh = 1e-13;
+    FunctionDefaults<NDIM>::k = 10;
+    FunctionDefaults<NDIM>::thresh = 1e-10;
     FunctionDefaults<NDIM>::refine = true;
     FunctionDefaults<NDIM>::initial_level = 2;
     FunctionDefaults<NDIM>::truncate_mode = 1;
@@ -469,26 +474,46 @@ void test_diff(World& world) {
         FunctionDefaults<NDIM>::cell(i,0) = -10.0;
         FunctionDefaults<NDIM>::cell(i,1) =  10.0;
     }
-
+    
+    START_TIMER; 
     Function<T,NDIM> f = FunctionFactory<T,NDIM>(world).functor(functor);
+    END_TIMER("project");
+
+    f.print_info();
+
+    START_TIMER;
+    f.compress();
+    END_TIMER("compress");
+
+    START_TIMER;
     f.truncate();
-    f.verify_tree();
+    END_TIMER("truncate");
+
+    START_TIMER;
     f.reconstruct();
-    f.verify_tree();
+    END_TIMER("reconstruct");
+
     for (int axis=0; axis<NDIM; axis++) {
         if (world.rank() == 0) print("doing axis", axis);
         DerivativeGaussian<T,NDIM> df(origin,expnt,coeff,axis);
+
+        START_TIMER;
         Function<T,NDIM> dfdx = diff(f,axis);
-        dfdx.verify_tree();
-        coordT p(0.0);
-        if (world.rank() == 0) {
-            for (int i=0; i<=40; i++) {
-                p[axis] = (i-20.0)*0.1;
-                print("     x, analytic, err",p[axis],df(p), dfdx(p)-df(p));
-            }
-        }
-        world.gop.fence();
+        END_TIMER("diff");
+
+//         coordT p(0.0);
+//         if (world.rank() == 0) {
+//             for (int i=0; i<=40; i++) {
+//                 p[axis] = (i-20.0)*0.1;
+//                 print("     x, analytic, err",p[axis],df(p), dfdx(p)-df(p));
+//             }
+//         }
+//         world.gop.fence();
+ 
+        START_TIMER;
         double err = dfdx.err(df);
+        END_TIMER("err");
+
         if (world.rank() == 0) print("    error", err);
     }
     world.gop.fence();

@@ -494,6 +494,19 @@ namespace madness {
                            l*stride[3]+m*stride[4]+n*stride[5]];
         };
 
+        /// Politically incorrect general indexing operation \em without bounds checking.
+        inline T& operator()(const long ind[]) const {
+            long offset = 0;
+            for (int d=0; d<ndim; d++) {
+                long i = ind[d];
+#ifdef BOUNDS_CHECKING
+                TENSOR_ASSERT(i>=0 && i<dim[0],"non-PC general indexing bounds check failed dim=",d,this);
+#endif
+                offset += i*stride[d];
+            }
+            return pointer[offset];
+        };
+
         /// General indexing operation \em with bounds checking.
         T& operator()(const std::vector<long> ind) const;
 
@@ -861,6 +874,9 @@ namespace madness {
 
     template <class T, class Q>
     Tensor<TENSOR_RESULT_TYPE(T,Q)> transform(const Tensor<T>& t, const Tensor<Q>& c);
+
+    template <class T, class Q>
+    Tensor<TENSOR_RESULT_TYPE(T,Q)> general_transform(const Tensor<T>& t, const Tensor<Q> c[]);
 
     template <class T, class Q>
     Tensor<TENSOR_RESULT_TYPE(T,Q)>& fast_transform(const Tensor<T>& t, const Tensor<Q>& c,

@@ -32,6 +32,7 @@ for t,q in transform_typelist:
     f.write("template Tensor<TensorResultType<%s,%s>::type> inner(const Tensor<%s>& left, const Tensor<%s>& right,\n" % (t,q,t,q))
     f.write("                         long k0, long k1);\n")
     f.write("template Tensor<TensorResultType<%s,%s>::type> transform(const Tensor<%s>& t, const Tensor<%s>& c);\n" % (t,q,t,q))
+    f.write("template Tensor<TensorResultType<%s,%s>::type> general_transform(const Tensor<%s>& t, const Tensor<%s> c[]);\n" % (t,q,t,q))
     f.write("template Tensor<TensorResultType<%s,%s>::type>& fast_transform(const Tensor<%s>& t, const Tensor<%s>& c, Tensor< TensorResultType<%s,%s>::type >& result, Tensor< TensorResultType<%s,%s>::type >& work);\n" % (t,q,t,q,t,q,t,q))
 
 

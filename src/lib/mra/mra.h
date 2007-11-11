@@ -46,6 +46,8 @@
 #define FUNCTION_INSTANTIATE_2
 #define FUNCTION_INSTANTIATE_3
 
+static const bool VERIFY_TREE = false;
+
 namespace madness {
     void startup(World& world, int argc, char** argv);
 
@@ -172,9 +174,9 @@ namespace madness {
         template <typename funcT>
         double err(const funcT& func) const {
             verify();
-            verify_tree();
+            if (VERIFY_TREE) verify_tree();
             if (is_compressed()) const_cast<Function<T,NDIM>*>(this)->reconstruct();
-            verify_tree();
+            if (VERIFY_TREE) verify_tree();
             double local = impl->errsq_local(func);
             impl->world.gop.sum(local);
             return sqrt(local);
@@ -369,14 +371,15 @@ namespace madness {
         }
 
 
-        /// Zero function
-
-        /// Assigning an arbitrary constant
-
         /// Process 0 prints a summary of all nodes in the tree (collective)
         void print_tree() const {
             if (impl) impl->print_tree();
-        }
+        };
+
+        /// Print a summary of the load balancing info
+        void print_info() const {
+            if (impl) impl->print_info();
+        };
 
 
         /// Type conversion implies a deep copy.  No communication except for optional fence.
@@ -465,8 +468,8 @@ namespace madness {
         Function<T,NDIM>& operator+=(const Function<Q,NDIM>& other) {
             if (!is_compressed()) compress();
             if (!other.is_compressed()) const_cast<Function<Q,NDIM>&>(other).compress();
-            verify_tree();
-            other.verify_tree();
+            if (VERIFY_TREE) verify_tree();
+            if (VERIFY_TREE) other.verify_tree();
             return gaxpy(T(1.0), other, Q(1.0), true);
         }
 
@@ -478,8 +481,8 @@ namespace madness {
         Function<T,NDIM>& operator-=(const Function<Q,NDIM>& other) {
             if (!is_compressed()) compress();
             if (!other.is_compressed()) other.compress();
-            verify_tree();
-            other.verify_tree();
+            if (VERIFY_TREE) verify_tree();
+            if (VERIFY_TREE) other.verify_tree();
             return gaxpy(T(1.0), other, Q(-1.0), true);
         }
 
@@ -499,7 +502,7 @@ namespace madness {
         /// Returns *this for chaining.
         Function<T,NDIM>& square(bool fence = true) {
             if (is_compressed()) reconstruct();
-            verify_tree();
+            if (VERIFY_TREE) verify_tree();
             impl->square_inplace(fence);
             return *this;
         }
@@ -510,8 +513,8 @@ namespace madness {
             left.verify();
             right.verify();
             MADNESS_ASSERT(!(left.is_compressed() || right.is_compressed()));
-            left.verify_tree();
-            right.verify_tree();
+            if (VERIFY_TREE) left.verify_tree();
+            if (VERIFY_TREE) right.verify_tree();
             impl = SharedPtr<implT>(new implT(*left.impl, left.get_pmap()));
             impl->mul(*left.impl,*right.impl,fence);
             return *this;
@@ -524,8 +527,8 @@ namespace madness {
             left.verify();
             right.verify();
             MADNESS_ASSERT(left.is_compressed() && right.is_compressed());
-            left.verify_tree();
-            right.verify_tree();
+            if (VERIFY_TREE) left.verify_tree();
+            if (VERIFY_TREE) right.verify_tree();
             impl = SharedPtr<implT>(new implT(*left.impl, left.get_pmap()));
             impl->gaxpy(alpha,*left.impl,beta,*right.impl,fence);
             return *this;
@@ -535,7 +538,7 @@ namespace madness {
         template <typename Q, typename L>
         Function<T,NDIM>& scale_oop(const Q alpha, const Function<L,NDIM>& f, bool fence) { 
             f.verify();
-            f.verify_tree();
+            if (VERIFY_TREE) f.verify_tree();
             impl = SharedPtr<implT>(new implT(*f.impl, f.get_pmap()));
             impl->scale_oop(alpha,*f.impl,fence);
             return *this;
@@ -544,7 +547,7 @@ namespace madness {
         /// This is replaced with df/dx ... should be private.
         Function<T,NDIM>& diff(const Function<T,NDIM>& f, int axis, bool fence) { 
             f.verify();
-            f.verify_tree();
+            if (VERIFY_TREE) f.verify_tree();
             impl = SharedPtr<implT>(new implT(*f.impl, f.get_pmap()));
             impl->diff(*f.impl,axis,fence);
             return *this;
@@ -553,7 +556,7 @@ namespace madness {
         /// This is replaced with mapdim(f) ... should be private
         Function<T,NDIM>& mapdim(const Function<T,NDIM>& f, const std::vector<long>& map, bool fence) { 
             f.verify();
-            f.verify_tree();
+            if (VERIFY_TREE) f.verify_tree();
             for (int i=0; i<NDIM; i++) MADNESS_ASSERT(map[i]>=0 && map[i]<NDIM);
             impl = SharedPtr<implT>(new implT(*f.impl, f.get_pmap()));
             impl->mapdim(*f.impl,map,fence);
@@ -645,8 +648,8 @@ namespace madness {
     template <typename L, typename R, int NDIM>
     Function<TENSOR_RESULT_TYPE(L,R), NDIM>
     operator+(const Function<L,NDIM>& left, const Function<R,NDIM>& right) {
-        left.verify_tree();
-        right.verify_tree();
+        if (VERIFY_TREE) left.verify_tree();
+        if (VERIFY_TREE) right.verify_tree();
         if (!left.is_compressed())  const_cast<Function<L,NDIM>&>(left).compress();
         if (!right.is_compressed()) const_cast<Function<R,NDIM>&>(right).compress();
         return add(left,right,true);

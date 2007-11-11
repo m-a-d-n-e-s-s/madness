@@ -59,48 +59,56 @@ template void inner_result(const Tensor<double>& left, const Tensor<double>& rig
 template Tensor<TensorResultType<double,double>::type> inner(const Tensor<double>& left, const Tensor<double>& right,
                          long k0, long k1);
 template Tensor<TensorResultType<double,double>::type> transform(const Tensor<double>& t, const Tensor<double>& c);
+template Tensor<TensorResultType<double,double>::type> general_transform(const Tensor<double>& t, const Tensor<double> c[]);
 template Tensor<TensorResultType<double,double>::type>& fast_transform(const Tensor<double>& t, const Tensor<double>& c, Tensor< TensorResultType<double,double>::type >& result, Tensor< TensorResultType<double,double>::type >& work);
 template void inner_result(const Tensor<float>& left, const Tensor<float>& right,
                            long k0, long k1, Tensor< TensorResultType<float,float>::type >& result);
 template Tensor<TensorResultType<float,float>::type> inner(const Tensor<float>& left, const Tensor<float>& right,
                          long k0, long k1);
 template Tensor<TensorResultType<float,float>::type> transform(const Tensor<float>& t, const Tensor<float>& c);
+template Tensor<TensorResultType<float,float>::type> general_transform(const Tensor<float>& t, const Tensor<float> c[]);
 template Tensor<TensorResultType<float,float>::type>& fast_transform(const Tensor<float>& t, const Tensor<float>& c, Tensor< TensorResultType<float,float>::type >& result, Tensor< TensorResultType<float,float>::type >& work);
 template void inner_result(const Tensor<double_complex>& left, const Tensor<double_complex>& right,
                            long k0, long k1, Tensor< TensorResultType<double_complex,double_complex>::type >& result);
 template Tensor<TensorResultType<double_complex,double_complex>::type> inner(const Tensor<double_complex>& left, const Tensor<double_complex>& right,
                          long k0, long k1);
 template Tensor<TensorResultType<double_complex,double_complex>::type> transform(const Tensor<double_complex>& t, const Tensor<double_complex>& c);
+template Tensor<TensorResultType<double_complex,double_complex>::type> general_transform(const Tensor<double_complex>& t, const Tensor<double_complex> c[]);
 template Tensor<TensorResultType<double_complex,double_complex>::type>& fast_transform(const Tensor<double_complex>& t, const Tensor<double_complex>& c, Tensor< TensorResultType<double_complex,double_complex>::type >& result, Tensor< TensorResultType<double_complex,double_complex>::type >& work);
 template void inner_result(const Tensor<float_complex>& left, const Tensor<float_complex>& right,
                            long k0, long k1, Tensor< TensorResultType<float_complex,float_complex>::type >& result);
 template Tensor<TensorResultType<float_complex,float_complex>::type> inner(const Tensor<float_complex>& left, const Tensor<float_complex>& right,
                          long k0, long k1);
 template Tensor<TensorResultType<float_complex,float_complex>::type> transform(const Tensor<float_complex>& t, const Tensor<float_complex>& c);
+template Tensor<TensorResultType<float_complex,float_complex>::type> general_transform(const Tensor<float_complex>& t, const Tensor<float_complex> c[]);
 template Tensor<TensorResultType<float_complex,float_complex>::type>& fast_transform(const Tensor<float_complex>& t, const Tensor<float_complex>& c, Tensor< TensorResultType<float_complex,float_complex>::type >& result, Tensor< TensorResultType<float_complex,float_complex>::type >& work);
 template void inner_result(const Tensor<double_complex>& left, const Tensor<double>& right,
                            long k0, long k1, Tensor< TensorResultType<double_complex,double>::type >& result);
 template Tensor<TensorResultType<double_complex,double>::type> inner(const Tensor<double_complex>& left, const Tensor<double>& right,
                          long k0, long k1);
 template Tensor<TensorResultType<double_complex,double>::type> transform(const Tensor<double_complex>& t, const Tensor<double>& c);
+template Tensor<TensorResultType<double_complex,double>::type> general_transform(const Tensor<double_complex>& t, const Tensor<double> c[]);
 template Tensor<TensorResultType<double_complex,double>::type>& fast_transform(const Tensor<double_complex>& t, const Tensor<double>& c, Tensor< TensorResultType<double_complex,double>::type >& result, Tensor< TensorResultType<double_complex,double>::type >& work);
 template void inner_result(const Tensor<double>& left, const Tensor<double_complex>& right,
                            long k0, long k1, Tensor< TensorResultType<double,double_complex>::type >& result);
 template Tensor<TensorResultType<double,double_complex>::type> inner(const Tensor<double>& left, const Tensor<double_complex>& right,
                          long k0, long k1);
 template Tensor<TensorResultType<double,double_complex>::type> transform(const Tensor<double>& t, const Tensor<double_complex>& c);
+template Tensor<TensorResultType<double,double_complex>::type> general_transform(const Tensor<double>& t, const Tensor<double_complex> c[]);
 template Tensor<TensorResultType<double,double_complex>::type>& fast_transform(const Tensor<double>& t, const Tensor<double_complex>& c, Tensor< TensorResultType<double,double_complex>::type >& result, Tensor< TensorResultType<double,double_complex>::type >& work);
 template void inner_result(const Tensor<float_complex>& left, const Tensor<float>& right,
                            long k0, long k1, Tensor< TensorResultType<float_complex,float>::type >& result);
 template Tensor<TensorResultType<float_complex,float>::type> inner(const Tensor<float_complex>& left, const Tensor<float>& right,
                          long k0, long k1);
 template Tensor<TensorResultType<float_complex,float>::type> transform(const Tensor<float_complex>& t, const Tensor<float>& c);
+template Tensor<TensorResultType<float_complex,float>::type> general_transform(const Tensor<float_complex>& t, const Tensor<float> c[]);
 template Tensor<TensorResultType<float_complex,float>::type>& fast_transform(const Tensor<float_complex>& t, const Tensor<float>& c, Tensor< TensorResultType<float_complex,float>::type >& result, Tensor< TensorResultType<float_complex,float>::type >& work);
 template void inner_result(const Tensor<float>& left, const Tensor<float_complex>& right,
                            long k0, long k1, Tensor< TensorResultType<float,float_complex>::type >& result);
 template Tensor<TensorResultType<float,float_complex>::type> inner(const Tensor<float>& left, const Tensor<float_complex>& right,
                          long k0, long k1);
 template Tensor<TensorResultType<float,float_complex>::type> transform(const Tensor<float>& t, const Tensor<float_complex>& c);
+template Tensor<TensorResultType<float,float_complex>::type> general_transform(const Tensor<float>& t, const Tensor<float_complex> c[]);
 template Tensor<TensorResultType<float,float_complex>::type>& fast_transform(const Tensor<float>& t, const Tensor<float_complex>& c, Tensor< TensorResultType<float,float_complex>::type >& result, Tensor< TensorResultType<float,float_complex>::type >& work);
 
 // Instantiations only for complex types

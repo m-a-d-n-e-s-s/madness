@@ -847,24 +847,24 @@ namespace madness {
             return cdata.key0;
         }
 
-        void print_tree() const {
-            if (world.rank() == 0) do_print_tree(cdata.key0);
+        void print_tree(Level maxlevel = 10000) const {
+            if (world.rank() == 0) do_print_tree(cdata.key0, maxlevel);
             world.gop.fence();
             if (world.rank() == 0) std::cout.flush();
             world.gop.fence();
         }
 
-        void do_print_tree(const keyT& key) const {
+        void do_print_tree(const keyT& key, Level maxlevel) const {
             typename dcT::iterator it = coeffs.find(key).get();
             if (it == const_cast<dcT*>(&coeffs)->end()) {
                 MADNESS_EXCEPTION("FunctionImpl: do_print_tree: null node pointer",0);
             }
             const nodeT& node = it->second;
             for (int i=0; i<key.level(); i++) std::cout << "  ";
-            std::cout << key << "  " << node << "\n";
-            if (node.has_children()) {
+            std::cout << key << "  " << node << " --> " << coeffs.owner(key) << "\n";
+            if (key.level() < maxlevel  &&  node.has_children()) {
                 for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
-                    do_print_tree(kit.key());
+                    do_print_tree(kit.key(),maxlevel);
                 };
             }
         }
@@ -1044,15 +1044,13 @@ namespace madness {
                 MADNESS_EXCEPTION("FunctionImpl: fcube_for_mul: child-parent relationship bad?",0);
             }
             else {
-                Tensor<double> phi(cdata.k,cdata.npt);
-                Tensor<Q> result = coeff;
+                Tensor<double> phi[NDIM];
                 for (int d=0; d<NDIM; d++) {
+                    phi[d] = Tensor<double>(cdata.k,cdata.npt);
                     phi_for_mul(parent.level(),parent.translation()[d],
-                                child.level(), child.translation()[d], phi);
-                    result = inner(result,phi,0,0);  //<<<<<<<<<<<<  Needs replacing with direct mtxmq call
+                                child.level(), child.translation()[d], phi[d]);
                 }
-                result.scale(1.0/sqrt(cell_volume));
-                return result;
+                return general_transform(coeff,phi).scale(1.0/sqrt(cell_volume));;
             }
         }
         
@@ -1179,6 +1177,37 @@ namespace madness {
             }
             if (fence) world.gop.fence();
         }
+
+
+        mutable long box_leaf[10000];
+        mutable long box_interior[10000];
+
+        // horrifically non-scalable
+        Void put_in_box(ProcessID from, long nl, long ni) const {
+            box_leaf[from] = nl;
+            box_interior[from] = ni;
+            return None;
+        };
+
+
+        /// Prints summary of data distribution
+        void print_info() const {
+            //print_tree(2);
+            long nleaf=0, ninterior=0;
+            for(typename dcT::const_iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
+                const nodeT& node = it->second;
+                if (node.is_leaf()) nleaf++;
+                else ninterior++;
+            }
+            send(0, &implT::put_in_box, world.rank(), nleaf, ninterior);
+            world.gop.fence();
+            if (world.rank() == 0) {
+                for (int i=0; i<world.size(); i++) {
+                    printf("load: %5d %8ld %8ld\n", i, box_leaf[i], box_interior[i]);
+                }
+            }
+        }
+        
 
 
         /// Verify tree is properly constructed ... global synchronization involved

@@ -1060,6 +1060,25 @@ namespace madness {
         }
     }
 
+    /// Transform all dimensions of the tensor t by distinct matrices c
+
+    /// Similar to transform but each dimension is transformed with a 
+    /// distinct matrix.
+    /// \code
+    /// result(i,j,k...) <-- sum(i',j', k',...) t(i',j',k',...) c[0](i',i) c[1](j',j) c[2](k',k) ...
+    /// \endcode
+    /// The first dimension of the matrices c must match the corresponding
+    /// dimension of t.
+    template <class T, class Q>
+    Tensor<TENSOR_RESULT_TYPE(T,Q)> general_transform(const Tensor<T>& t, const Tensor<Q> c[]) {
+        typedef TENSOR_RESULT_TYPE(T,Q) resultT;
+        Tensor<resultT> result = t;
+        for (long i=0; i<t.ndim; i++) {
+            result = inner(result,c[i],0,0);
+        }
+        return result;
+    }
+
     /// Restricted but heavily optimized form of transform()
 
     /// Both dimensions of \c c must be the same and match all dimensions
