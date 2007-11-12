@@ -479,7 +479,7 @@ void test_diff(World& world) {
     Function<T,NDIM> f = FunctionFactory<T,NDIM>(world).functor(functor);
     END_TIMER("project");
 
-    f.print_info();
+    //f.print_info();  <--------- This is not scalable and might crash the XT
 
     START_TIMER;
     f.compress();
