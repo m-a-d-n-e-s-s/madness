@@ -83,6 +83,21 @@
 #  define X86_64
 #endif
 
+/* Specification of host system */
+#define HOST_SYSTEM @HOST_SYSTEM@
+
+/* These for MTXMQ in tensor library */
+#if @OPTERON_TUNE@
+#  define OPTERON_TUNE
+#endif
+
+/* These for MTXMQ in tensor library */
+#if @CORE_DUO_TUNE@
+#  define CORE_DUO_TUNE
+#endif
+
+
+
 /* Attempt at deadlock detection */
 #if @WORLD_WATCHDOG@
 #define WORLD_WATCHDOG

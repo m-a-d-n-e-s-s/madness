@@ -56,6 +56,7 @@
 
 //#include <cstdio>
 //#include <cstdlib>
+
 #include <algorithm>
 #include <complex>
 #include <cmath>
@@ -65,8 +66,12 @@
 #include <tensor/random.h>
 #include <tensor/mtxmq.h>
 
-#define IS_ODD(n) (n&0x1)
-#define IS_UNALIGNED(p) (((unsigned long)p)&0x7)
+#if (HOST_SYSTEM == CRAYXT)
+  extern "C"  int posix_memalign(void **memptr, std::size_t alignment, std::size_t size);
+#endif
+
+#define IS_ODD(n) ((n)&0x1)
+#define IS_UNALIGNED(p) (((unsigned long)(p))&0x7)
 
 namespace madness {
 
