@@ -46,6 +46,68 @@ namespace madness {
     // It cannot be an instance of FunctionFactory since we want to
     // set the defaults independent of the data type.  
 
+
+    template <typename T, int NDIM>
+    void FunctionCommonData<T,NDIM>::_make_disp() {
+        Vector<int, NDIM> d;
+        int bmax;
+        if (NDIM == 1) bmax = 10;
+        else if (NDIM == 2) bmax = 5;
+        else if (NDIM == 3) bmax = 2;
+        else bmax = 1;
+
+        int num = 1;
+        for (int i=0; i<NDIM; i++) num *= (2*bmax + 1);
+        disp = std::vector< Displacement<NDIM> >(num);
+
+        num = 0;
+        if (NDIM == 1) {
+            for (d[0]=-bmax; d[0]<=bmax; d[0]++)
+                disp[num++] = Displacement<NDIM>(d);
+        }
+        else if (NDIM == 2) {
+            for (d[0]=-bmax; d[0]<=bmax; d[0]++)
+                for (d[1]=-bmax; d[1]<=bmax; d[1]++)
+                    disp[num++] = Displacement<NDIM>(d);
+        }
+        else if (NDIM == 3) {
+            for (d[0]=-bmax; d[0]<=bmax; d[0]++)
+                for (d[1]=-bmax; d[1]<=bmax; d[1]++)
+                    for (d[2]=-bmax; d[2]<=bmax; d[2]++)
+                        disp[num++] = Displacement<NDIM>(d);
+        }
+        else if (NDIM == 4) {
+            for (d[0]=-bmax; d[0]<=bmax; d[0]++)
+                for (d[1]=-bmax; d[1]<=bmax; d[1]++)
+                    for (d[2]=-bmax; d[2]<=bmax; d[2]++)
+                        for (d[3]=-bmax; d[3]<=bmax; d[3]++)
+                            disp[num++] = Displacement<NDIM>(d);
+        }
+        else if (NDIM == 5) {
+            for (d[0]=-bmax; d[0]<=bmax; d[0]++)
+                for (d[1]=-bmax; d[1]<=bmax; d[1]++)
+                    for (d[2]=-bmax; d[2]<=bmax; d[2]++)
+                        for (d[3]=-bmax; d[3]<=bmax; d[3]++)
+                            for (d[4]=-bmax; d[4]<=bmax; d[4]++)
+                                disp[num++] = Displacement<NDIM>(d);
+        }
+        else if (NDIM == 6) {
+            for (d[0]=-bmax; d[0]<=bmax; d[0]++)
+                for (d[1]=-bmax; d[1]<=bmax; d[1]++)
+                    for (d[2]=-bmax; d[2]<=bmax; d[2]++)
+                        for (d[3]=-bmax; d[3]<=bmax; d[3]++)
+                            for (d[4]=-bmax; d[4]<=bmax; d[4]++)
+                                for (d[5]=-bmax; d[5]<=bmax; d[5]++)
+                                    disp[num++] = Displacement<NDIM>(d);
+        }
+        else {
+            MADNESS_EXCEPTION("_make_disp: hard dimension loop",NDIM);
+        }
+
+        std::sort(disp.begin(), disp.end());
+    }
+
+
     template <typename T, int NDIM>
     void FunctionCommonData<T,NDIM>::_make_dc_periodic() {
         // See ABGV for details

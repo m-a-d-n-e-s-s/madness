@@ -125,6 +125,35 @@ namespace madness {
         }
     };
 
+    /// Holds info about displacement to neighbor for application of operators
+    template <int NDIM>
+    struct Displacement {
+        Vector<int,NDIM> d;
+        int distsq;
+        Displacement() {};
+        Displacement(const Vector<int, NDIM>& d) : d(d), distsq(0) {
+            for (int i=0; i<NDIM; i++) distsq += d[i]*d[i];
+        }
+
+        bool operator<(const Displacement<NDIM>& other) const {
+            return distsq < other.distsq;
+        }
+
+        int operator[](int i) const {return d[i];}
+
+        template <typename Archive>
+        inline void serialize(Archive& ar) {
+            ar & d & distsq;
+        }
+    };
+
+    template <int NDIM>
+    std::ostream& operator<<(std::ostream& s, const Displacement<NDIM>& disp) {
+        s << disp.d;
+        return s;
+    } 
+
+
     /// FunctionCommonData holds all Function data common for given k
 
     /// Since Function assignment and copy constructors are shallow it
@@ -146,6 +175,9 @@ namespace madness {
         
         /// Private.  Initialize the twoscale coefficients
         void _init_twoscale();
+        
+        /// Private.  Initialize the displacements
+        void _make_disp();
         
         /// Private.  Do first use initialization
         void _initialize(int k) {
@@ -174,6 +206,7 @@ namespace madness {
             _init_twoscale();
             _init_quadrature(k, npt, quad_x, quad_w, quad_phi, quad_phiw, quad_phit);
             _make_dc_periodic();
+            _make_disp();
             initialized = true;
         }
 
@@ -214,6 +247,8 @@ namespace madness {
         Tensor<double> rm, r0, rp;        ///< Blocks of the derivative operator
         Tensor<double> rm_left, rm_right, rp_left, rp_right; ///< Rank-1 forms rm & rp
 
+        std::vector< Displacement<NDIM> > disp; ///< Displacements in order of increasing distance
+
         static const FunctionCommonData<T,NDIM>& get(int k) {
             MADNESS_ASSERT(k>0 && k<=MAXK);
             if (!data[k].initialized) data[k]._initialize(k);
@@ -234,7 +269,7 @@ namespace madness {
     class FunctionFunctorInterface {
     public:
         virtual T operator()(const Vector<double,NDIM>& x) const = 0;
-	virtual ~FunctionFunctorInterface() {};
+	virtual ~FunctionFunctorInterface() {}
     };
 
     /// FunctionFactory implements the named-parameter idiom for Function
@@ -364,6 +399,7 @@ namespace madness {
         bool _has_children; ///< True if there are children
         
     public:
+        typedef WorldContainer< Key<NDIM>, FunctionNode<T,NDIM> > dcT;  ///< Type of container holding the nodes
         /// Default constructor makes node without coeff or children
         FunctionNode() 
             : _coeffs()
@@ -400,7 +436,7 @@ namespace madness {
 
         /// Returns a non-const reference to the tensor containing the coeffs
 
-        /// Returns an empty tensor if there are no coefficeints.
+        /// Returns an empty tensor if there are no coefficients.
         Tensor<T>& coeff() {return _coeffs;}
 
         /// Returns a const reference to the tensor containing the coeffs
@@ -409,7 +445,7 @@ namespace madness {
         const Tensor<T>& coeff() const {return _coeffs;}
 
         /// Sets \c has_children attribute to value of \c flag.
-        void set_has_children(bool flag) {_has_children = flag;}
+        Void set_has_children(bool flag) {_has_children = flag; return None;}
 
         /// Sets \c has_children attribute to value of \c !flag
         void set_is_leaf(bool flag) {_has_children = !flag;}
@@ -441,6 +477,18 @@ namespace madness {
             return None;
         }
 
+        /// Accumulate inplace and also connect node to parent
+        Void accumulate(const Tensor<T>& t, const typename FunctionNode<T,NDIM>::dcT& c, const Key<NDIM>& key) {
+            if (has_coeff()) {
+                _coeffs += t;
+            }
+            else {
+                _coeffs = copy(t);
+                if (key.level() > 0) const_cast<dcT&>(c).send(key.parent(), &FunctionNode<T,NDIM>::set_has_children, true);
+            }
+            return None;
+        }
+
         template <typename Archive>
         inline void serialize(Archive& ar) {
             ar & _coeffs & _has_children;
@@ -454,7 +502,7 @@ namespace madness {
         if (norm < 1e-12) norm = 0.0;
         s << norm << ")";
         return s;
-    };
+    }
     
 
     /// FunctionImpl holds all Function state to facilitate shallow copy semantics
@@ -561,12 +609,12 @@ namespace madness {
                     if (it->second.is_leaf()) task(coeffs.owner(it->first), 
                                                    &implT::project_refine_op, 
                                                    it->first, do_refine);
-                };
+                }
             }
             else {  // Set as if a zero function
                 initial_level = 0;
                 insert_zero_down_to_initial_level(keyT(0));
-            };
+            }
 
             coeffs.process_pending(); 
             this->process_pending();
@@ -638,7 +686,7 @@ namespace madness {
                 const keyT& key = it->first;
                 const typename FunctionImpl<Q,NDIM>::nodeT& other_node = it->second;
                 coeffs.send(key, &nodeT:: template gaxpy_inplace<Q,R>, alpha, other_node, beta);
-	    };
+	    }
 	    if (fence) world.gop.fence();
 	}
 
@@ -865,7 +913,7 @@ namespace madness {
             if (key.level() < maxlevel  &&  node.has_children()) {
                 for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
                     do_print_tree(kit.key(),maxlevel);
-                };
+                }
             }
         }
 
@@ -886,7 +934,7 @@ namespace madness {
             }
             else {
                 MADNESS_EXCEPTION("FunctionImpl: project: confusion about function?",0);
-            };
+            }
 
             work.scale(sqrt(cell_volume*pow(0.5,double(NDIM*key.level()))));
             //return transform(work,cdata.quad_phiw);
@@ -907,7 +955,7 @@ namespace madness {
             }
             else {
                 MADNESS_EXCEPTION("truncate_mode invalid",truncate_mode);
-            };
+            }
         }
 
 
@@ -1007,7 +1055,7 @@ namespace madness {
 //             }
 
             return result;
-        };
+        }
 
 
         // Testing.
@@ -1089,14 +1137,14 @@ namespace madness {
                 const keyT& key = it->first;
                 const typename FunctionImpl<L,NDIM>::nodeT& other_node = it->second;
                 coeffs.send(key, &nodeT:: template gaxpy_inplace<T,L>, 1.0, other_node, alpha);
-	    };
+	    }
 	    for(typename FunctionImpl<R,NDIM>::dcT::const_iterator it=right.coeffs.begin(); 
                 it!=right.coeffs.end(); 
                 ++it) {
                 const keyT& key = it->first;
                 const typename FunctionImpl<L,NDIM>::nodeT& other_node = it->second;
                 coeffs.send(key, &nodeT:: template gaxpy_inplace<T,R>, 1.0, other_node, beta);
-	    };
+	    }
             if (fence) world.gop.fence();
         }
 
@@ -1187,7 +1235,7 @@ namespace madness {
             box_leaf[from] = nl;
             box_interior[from] = ni;
             return None;
-        };
+        }
 
 
         /// Prints summary of data distribution
@@ -1501,7 +1549,7 @@ namespace madness {
                 }
             }
             if (fence) world.gop.fence();
-        };
+        }
   
 
         /// Returns key of neighbor enforcing BC
@@ -1542,7 +1590,47 @@ namespace madness {
             }
       
             return keyT(key.level(),l);
-        };
+        }
+
+
+        /// Returns key of general neighbor enforcing BC
+
+        /// Out of volume keys are mapped to enforce the BC as follows.
+        ///   * Periodic BC map back into the volume and return the correct key
+        ///   * Zero BC - returns invalid() to indicate out of volume
+        keyT neighbor(const keyT& key, const Displacement<NDIM>& d) const {
+            Translation two2n = 1ul << key.level();
+            Vector<Translation,NDIM> l = key.translation();
+            for (int axis=0; axis<NDIM; axis++) {
+                int step = d[axis];
+                if (step < 0  &&  l[axis] < (unsigned)(-step)) {
+                    if (bc(axis,0) == 0) {
+                        return keyT::invalid(); // Zero BC
+                    }
+                    else if (bc(axis,0) == 1) {
+                        l[axis] = (l[axis] + two2n) + step; // Periodic BC
+                    }
+                    else {
+                        MADNESS_EXCEPTION("neighbor: confused left BC?",bc(axis,0));
+                    }
+                }
+                else if (l[axis]+step >= two2n) {
+                    if (bc(axis,1) == 0) {
+                        return keyT::invalid(); // Zero BC
+                    }
+                    else if (bc(axis,1) == 1) {
+                        l[axis] = (l[axis] + step) - two2n; // Periodic BC
+                    }
+                    else {
+                        MADNESS_EXCEPTION("neighbor: confused BC right?",bc(axis,1));
+                    }
+                }
+                else {
+                    l[axis] += step;
+                }
+            }
+            return keyT(key.level(),l);
+        }
 
 
         /// Called by diff to find key and coeffs of neighbor enforcing BC
@@ -1563,7 +1651,7 @@ namespace madness {
                 send(coeffs.owner(neigh), &implT::sock_it_to_me, neigh, result.remote_ref(world));
                 return result;
             }
-        };
+        }
 
 
         /// Used by diff1 to forward calls to diff1 elsewhere
@@ -1602,7 +1690,7 @@ namespace madness {
                      left, center, right);
             }
             return None;
-        };
+        }
 
 
         Void do_diff1(const implT* f, int axis, const keyT& key, 
@@ -1632,7 +1720,7 @@ namespace madness {
                 forward_do_diff1(f, axis, key, left, center, right);
             }
             return None;
-        };
+        }
 
         Void do_diff2(const implT* f, int axis, const keyT& key, 
                       const std::pair<keyT,tensorT>& left,
@@ -1653,7 +1741,7 @@ namespace madness {
             d.scale(rcell_width[axis]*pow(2.0,(double) key.level()));
             coeffs.insert(key,nodeT(d,false));
             return None;
-        };
+        }
 
         /// Permute the dimensions according to map
         void mapdim(const implT& f, const std::vector<long>& map, bool fence) {
@@ -1669,7 +1757,7 @@ namespace madness {
                 coeffs.insert(keyT(key.level(),l), nodeT(c,node.has_children()));
             }
             if (fence) world.gop.fence();
-        };
+        }
 
 
         T eval_cube(Level n, coordT x, const tensorT c) const {
@@ -1774,12 +1862,32 @@ namespace madness {
 
         // Invoked on node where key is local
         Void reconstruct_op(const keyT& key, const tensorT& s) {
-            nodeT& node = coeffs.find(key).get()->second;
+            // Note that after application of an integral operator not all
+            // siblings may be present so it is necessary to check existence
+            // and if absent insert an empty leaf node.
+            //
+            // If summing the result of an integral operator (i.e., from
+            // non-standard form) there will be significant scaling function
+            // coefficients at all levels and possibly difference coefficients
+            // in leaves, hence the tree may refine as a result.
+            typename dcT::iterator it = coeffs.find(key).get();
+            if (it == coeffs.end()) {
+                coeffs.insert(key,nodeT(tensorT(),false));
+                it = coeffs.find(key).get();
+            }
+            nodeT& node = it->second;
+            
+            // The integral operator will correctly connect interior nodes
+            // to children but may leave interior nodes without coefficients
+            // ... but they still need to sum down so just give them zeros
+            if (node.has_children() && !node.has_coeff()) node.set_coeff(tensorT(cdata.v2k));
+
             if (node.has_coeff()) {
                 tensorT d = node.coeff();
-                if (key.level() > 0) d(cdata.s0) = s;
+                if (key.level() > 0) d(cdata.s0) += s; // -- note accumulate for NS summation
                 d = unfilter(d);
                 node.clear_coeff();
+                node.set_has_children(true);
                 for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
                     const keyT& child = kit.key();
                     tensorT ss = copy(d(child_patch(child)));
@@ -1792,45 +1900,112 @@ namespace madness {
             return None;
         }
         
-        void compress(bool fence) {
-           if (world.rank() == coeffs.owner(cdata.key0)) compress_spawn(cdata.key0);
+        void compress(bool nonstandard, bool fence) {
+           if (world.rank() == coeffs.owner(cdata.key0)) compress_spawn(cdata.key0, nonstandard);
            if (fence) world.gop.fence();
            compressed = true;
         }
 
 
         // Invoked on node where key is local
-        Future<tensorT> compress_spawn(const keyT& key) {
+        Future<tensorT> compress_spawn(const keyT& key, bool nonstandard) {
             MADNESS_ASSERT(coeffs.probe(key));
             nodeT& node = coeffs.find(key).get()->second;
             if (node.has_children()) {
                 std::vector< Future<tensorT> > v = future_vector_factory<tensorT>(1<<NDIM);
                 int i=0;
                 for (KeyChildIterator<NDIM> kit(key); kit; ++kit,++i) {
-                    v[i] = send(coeffs.owner(kit.key()), &implT::compress_spawn, kit.key());
+                    v[i] = send(coeffs.owner(kit.key()), &implT::compress_spawn, kit.key(), nonstandard);
                 }
-                return task(world.rank(),&implT::compress_op, key, v);
+                return task(world.rank(),&implT::compress_op, key, v, nonstandard);
             }
             else {
                 Future<tensorT> result(node.coeff());
-                node.clear_coeff();
+                if (!nonstandard) node.clear_coeff();
                 return result;
             }
         }
 
-        tensorT compress_op(const keyT& key, const vector< Future<tensorT> >& v) {
+        tensorT compress_op(const keyT& key, const vector< Future<tensorT> >& v, bool nonstandard) {
             // Copy child scaling coeffs into contiguous block
             tensorT d(cdata.v2k);
             int i=0;
             for (KeyChildIterator<NDIM> kit(key); kit; ++kit,++i) {
                 d(child_patch(kit.key())) = v[i].get();
-            };
+            }
             d = filter(d);
             tensorT s = copy(d(cdata.s0));
-            if (key.level() > 0) d(cdata.s0) = 0.0;
+            if (key.level() > 0 && !nonstandard) d(cdata.s0) = 0.0;
             coeffs.insert(key, nodeT(d,true));
             return s;
         }
+
+        /// Changes non-standard compressed form to standard compressed form
+        void standard(bool fence) {
+            for(typename dcT::iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
+                const keyT& key = it->first;
+                nodeT& node = it->second;
+                if (key.level() > 0 && node.has_coeff()) {
+                    if (node.has_children()) {
+                        node.coeff()(cdata.s0) = 0.0;
+                    }
+                    else {
+                        node.clear_coeff();
+                    }
+                }
+            }
+            if (fence) world.gop.fence();
+        }
+
+
+        template <typename opT, typename R>
+        Void do_apply(const opT* op, const keyT& key, const Tensor<R>& c) {
+            // This scaling of the norm accounts for the number of 
+            // possible contributions coming into a region which is roughly
+            // the number of neighbors times the number of levels.
+            //
+            // In 1D estimate nneigh=10, 2D 5^2, 3D and higher 3^NDIM
+            //
+            // Not yet computing actual tree depth of the tree.  Estimate as 10.
+            int nmax = 10;
+            int nneigh = std::max(10/NDIM, 3);
+            double fac = std::pow(double(nneigh),-1.0*NDIM) / nmax;
+            double cnorm = fac*c.normf();
+            for (typename std::vector< Displacement<NDIM> >::const_iterator it=cdata.disp.begin(); 
+                 it != cdata.disp.end(); 
+                 ++it) {
+                const Displacement<NDIM>& d = *it;
+
+                keyT dest = neighbor(key, d);
+                if (dest.is_valid()) {
+                    double opnorm = op->norm(key, d);
+                    
+                    // working assumption here is that the operator is isotropic and
+                    // montonically decreasing with distance ... this needs to be validated.
+                    
+                    if (cnorm*opnorm < truncate_tol(thresh, key)) break;
+                    
+                    tensorT result = op->apply(key, d, c);
+                    
+                    coeffs.send(dest, &nodeT::accumulate, result, coeffs, dest);
+                }
+
+            }
+            return None;
+        }
+
+        template <typename opT, typename R>
+        void apply(opT& op, const FunctionImpl<R,NDIM>& f, bool fence) {
+            for(typename dcT::const_iterator it=f.coeffs.begin(); it!=f.coeffs.end(); ++it) {
+                const keyT& key = it->first;
+                const FunctionNode<R,NDIM>& node = it->second;
+                // SCREEN HERE ?
+                task(world.rank(), &implT:: template do_apply<opT,R>, &op, key, node.coeff());
+            }
+            if (fence) world.gop.fence();
+        }
+
+
 
 
         /// Returns the square of the error norm in the box labelled by key
@@ -2004,14 +2179,14 @@ namespace madness {
                 MADNESS_ASSERT(world);
                 ptr = static_cast< const FunctionImpl<T,NDIM>* >(world->ptr_from_id< WorldObject< FunctionImpl<T,NDIM> > >(id));
                 if (!ptr) MADNESS_EXCEPTION("FunctionImpl: remote operation attempting to use a locally uninitialized object",0);
-            };
+            }
         };
         
         template <class Archive, class T, int NDIM>
         struct ArchiveStoreImpl<Archive,const FunctionImpl<T,NDIM>*> {
             static inline void store(const Archive& ar, const FunctionImpl<T,NDIM>*const& ptr) {
                 ar & ptr->id();
-            };
+            }
         };
     }
     

@@ -959,6 +959,26 @@ namespace madness {
                 ar & ptr->id();
             };
         };
+
+        template <class Archive, class Derived>
+        struct ArchiveLoadImpl<Archive,const WorldObject<Derived>*> {
+            static inline void load(const Archive& ar, const WorldObject<Derived>*& ptr) {
+                uniqueidT id;
+                ar & id;
+                World* world = World::world_from_id(id.get_world_id());
+                MADNESS_ASSERT(world);
+                ptr = world->ptr_from_id< WorldObject<Derived> >(id);
+                if (!ptr) MADNESS_EXCEPTION("WorldObj: remote operation attempting to use a locally uninitialized object",0);
+            };
+        };
+        
+        template <class Archive, class Derived>
+        struct ArchiveStoreImpl<Archive,const WorldObject<Derived>*> {
+            static inline void store(const Archive& ar, const WorldObject<Derived>*const& ptr) {
+                ar & ptr->id();
+            };
+        };
+
     }
 
 }

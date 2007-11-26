@@ -16,8 +16,7 @@ cross compilers.  The currently understood targets
 are
 
 IBMBGL - not yet
-CRAYXTGCC - not yet
-CRAYXTPG - not yet
+CRAYXT - for any configuration (PGC/GCC, Linux/Catamount)
 LINUX32
 LINUX64
 
@@ -38,6 +37,12 @@ will be written
 Examples
 
 Linux 64-bit using MKL in default install location
+
     ./doconfig LIBS "-L/opt/intel/mkl/9.1.023/lib/em64t -lmkl -lguide"
+
+Linux 32-bit using MKL in default install location
+
+    ./doconfig LIBS "-L/opt/intel/mkl/9.1.023/lib/32 -lmkl -lguide"
+
 
 

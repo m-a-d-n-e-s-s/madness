@@ -124,11 +124,13 @@ function do_linux32() {
     echo ""
     set_value HAVE_XTERM_DEBUG  1
     set_value WORLD_SCHED_BACKOFF 1
-    if [ -e /usr/lib/libblas.a ] ; then
-        prepend_value LIBS -lblas
-    fi
+    # Put blas and lapack AFTER user provided libs
+    # in case the user provided optimized versions
     if [ -e /usr/lib/liblapack.a ] ; then
-        prepend_value LIBS -llapack
+        append_value LIBS -llapack
+    fi
+    if [ -e /usr/lib/libblas.a ] ; then
+        append_value LIBS -lblas
     fi
     if [ -e /usr/lib/libg2c.a ] ; then
         append_value LIBS -lg2c
@@ -142,11 +144,11 @@ function do_linux64() {
     echo ""
     set_value HAVE_XTERM_DEBUG  1
     set_value WORLD_SCHED_BACKOFF 1
-    if [ -e /usr/lib/libblas.a ] ; then
-        prepend_value LIBS -lblas
-    fi
     if [ -e /usr/lib/liblapack.a ] ; then
-        prepend_value LIBS -llapack
+        append_value LIBS -llapack
+    fi
+    if [ -e /usr/lib/libblas.a ] ; then
+        append_value LIBS -lblas
     fi
     if [ -e /usr/lib/libg2c.a ] ; then
         append_value LIBS -lg2c
@@ -251,6 +253,10 @@ set_value WATCHDOG_BARK_INTERVAL "60.0"
 set_value WATCHDOG_TIMEOUT "300.0"
 set_value OPTERON_TUNE 0
 set_value CORE_DUO_TUNE 0
+set_value MADNESS_CONFIGURATION_USER "`whoami`"
+set_value MADNESS_CONFIGURATION_DATE "`date`"
+set_value MADNESS_CONFIGURATION_HOST "`hostname`"
+
 
 echo "Processing command line overrides ..."
 
@@ -600,9 +606,13 @@ if [ "$CXXFLAGS" = "" ] ; then
         fi
     fi
     set_value CXXFLAGS "$OPT"
+    CXXFLAGS="$OPT"
 fi
 set_value CFLAGS "$CXXFLAGS"
 set_value LDFLAGS "$CXXFLAGS"
+set_value MADNESS_CONFIGURATION_CXXFLAGS "$CXXFLAGS"
+set_value MADNESS_CONFIGURATION_CXX "$CXX_COMPILE_AND_LINK"
+
 
 # Now turn our attention to libraries and linking
 

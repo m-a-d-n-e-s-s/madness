@@ -49,7 +49,7 @@ namespace madness {
     /// Contains attributes of a task
 
     /// \c generator_hint : Setting this to true hints that a task
-    /// will produce additional tasks and gives the task receiving
+    /// will produce additional tasks and gives the task 
     /// preferential scheduling in order to maximize available
     /// parallelism.  The default value is false, which does not
     /// preclude a task from producing other tasks and results
@@ -158,10 +158,15 @@ namespace madness {
     /// modifications to the data structure atomic w.r.t. AM
     /// operations and the execution of multiple fibers.
     ///
+    /// Rather than focus on the concept of task priority for scheduling
+    /// tasks have attributes that can be used for more informed
+    /// control of their execution.  Presently, only the task_generator_hint
+    /// is implemented which indicates that a task may generate additional
+    /// tasks and hence should receive preferential scheduling in order
+    /// to increase available parallelism early in program execution.
+    ///
     /// The pending q for tasks that need probing to have their dependencies
-    /// make progress has been removed.  It can be added back.  Similarly,
-    /// rather keeping track of high-priority tasks we presently have 
-    /// only one priority (if it is urgent, send an active message instead).
+    /// make progress has been removed.  It can be added back.  
     class WorldTaskQueue : private NO_DEFAULTS {
         friend class TaskInterface;
     private:

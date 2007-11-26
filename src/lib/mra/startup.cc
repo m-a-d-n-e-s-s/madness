@@ -40,11 +40,6 @@
 
 namespace madness {
     void startup(World& world, int argc, char** argv) {
-        if (world.rank() == 0){
-            print("The processor frequency is",cpu_frequency());
-            print("there are",world.mpi.nproc(),"processes and I am process",world.mpi.rank());
-        }
-
         for (int arg=1; arg<argc; arg++) {
             if (std::strcmp(argv[arg],"-dx")==0) 
                 xterm_debug("world", 0);

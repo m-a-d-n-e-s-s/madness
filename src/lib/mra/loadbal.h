@@ -422,7 +422,7 @@ namespace madness {
             // proportional to distance from center but we could
             // enable the user to provide a function.
 
-            if (world.rank() == 0) madness::print("DIM",D,"N IN MAP IS",n);
+            //if (world.rank() == 0) madness::print("DIM",D,"N IN MAP IS",n);
 
             std::vector<long> vdim(D);
             for (int i=0; i<D; i++) vdim[i] = 1L<<n;

@@ -95,29 +95,29 @@ namespace madness {
         /// An unitialized function can only be assigned to.  Any other operation will throw.
         Function()
             : impl(0)
-        {};
+        {}
 
 
         /// Constructor from FunctionFactory provides named parameter idiom.  Possible non-blocking communication.
         Function(const factoryT& factory)
             : impl(new FunctionImpl<T,NDIM>(factory))
-        {};
+        {}
 
 
         /// Copy constructor is \em shallow.  No communication, works in either basis.
         Function(const Function<T,NDIM>& f)
             : impl(f.impl)
-        {};
+        {}
 
 
         /// Assignment is \em shallow.  No communication, works in either basis.
         Function<T,NDIM>& operator=(const Function<T,NDIM>& f) {
             if (this != &f) impl = f.impl;
             return *this;
-        };
+        }
 
         /// Destruction of any underlying implementation is deferred to next global fence.
-        ~Function(){};
+        ~Function(){}
 
         /// Evaluates the function at a point in user coordinates.  Possible non-blocking comm.
 
@@ -135,7 +135,7 @@ namespace madness {
             Future<T> result;
             impl->eval(xsim, impl->key0(), result.remote_ref(impl->world));
             return result;
-        };
+        }
 
 
         /// Evaluates the function at a point in user coordinates.  Possible \em blocking comm.
@@ -149,7 +149,7 @@ namespace madness {
         /// calling eval directly.
         T operator()(const coordT& xuser) {
             return eval(xuser).get();
-        };
+        }
 
 
         /// Returns an estimate of the difference ||this-func||^2 from local data
@@ -185,7 +185,7 @@ namespace madness {
         /// Verifies the tree data structure ... global sync implied
         void verify_tree() const {
             if (impl) impl->verify_tree();
-        };
+        }
 
 
         /// Returns true if compressed, false otherwise.  No communication.
@@ -342,7 +342,28 @@ namespace madness {
         /// Noop if already compressed or if not initialized.
         void compress(bool fence = true) {
             if (!impl || is_compressed()) return;
-            impl->compress(fence);
+            impl->compress(false, fence);
+        }
+        
+
+        /// Compresses the function retaining scaling function coeffs.  Possible non-blocking comm.
+
+        /// By default fence=true meaning that this operation completes before returning,
+        /// otherwise if fence=false it returns without fencing and the user must invoke
+        /// world.gop.fence() to assure global completion before using the function
+        /// for other purposes.
+        ///
+        /// Noop if already compressed or if not initialized.
+        void nonstandard(bool fence = true) {
+            verify();
+            if (is_compressed()) reconstruct();
+            impl->compress(true, fence);
+        }
+
+        void standard(bool fence = true) {
+            verify();
+            MADNESS_ASSERT(is_compressed());
+            impl->standard(fence);
         }
         
 
@@ -374,12 +395,12 @@ namespace madness {
         /// Process 0 prints a summary of all nodes in the tree (collective)
         void print_tree() const {
             if (impl) impl->print_tree();
-        };
+        }
 
         /// Print a summary of the load balancing info
         void print_info() const {
             if (impl) impl->print_info();
-        };
+        }
 
 
         /// Type conversion implies a deep copy.  No communication except for optional fence.
@@ -551,7 +572,17 @@ namespace madness {
             impl = SharedPtr<implT>(new implT(*f.impl, f.get_pmap()));
             impl->diff(*f.impl,axis,fence);
             return *this;
-        };
+        }
+
+        /// This is replaced with op(f) ... should be private.
+        template <typename opT, typename R>
+        Function<T,NDIM>& apply(opT& op, const Function<R,NDIM>& f, bool fence) {
+            f.verify();
+            if (VERIFY_TREE) f.verify_tree();
+            impl = SharedPtr<implT>(new implT(*f.impl, f.get_pmap()));
+            impl->apply(op, *f.impl, fence);
+            return *this;
+        }
 
         /// This is replaced with mapdim(f) ... should be private
         Function<T,NDIM>& mapdim(const Function<T,NDIM>& f, const std::vector<long>& map, bool fence) { 
@@ -561,7 +592,7 @@ namespace madness {
             impl = SharedPtr<implT>(new implT(*f.impl, f.get_pmap()));
             impl->mapdim(*f.impl,map,fence);
             return *this;
-        };
+        }
 
     };
 
@@ -707,6 +738,19 @@ namespace madness {
         Function<T,NDIM> result;
         return result.diff(f,axis, fence);
     }
+
+
+    /// Apply operator in non-standard form
+    
+    /// Returns a new function with the same distribution
+    template <typename opT, typename R, int NDIM>
+    Function<typename opT::resultT, NDIM> 
+    apply(const opT& op, const Function<R,NDIM>& f, bool fence=true) {
+        Function<typename opT::resultT,NDIM> result;
+        return result.apply(op, f, fence);
+    }
+
+
 
     /// Generate a new function by reordering dimensions ... optional fence
 

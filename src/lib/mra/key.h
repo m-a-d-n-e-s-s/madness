@@ -123,6 +123,11 @@ namespace madness {
             return n == -1;
         };
 
+        /// Checks if a key is valid
+        bool is_valid() const {
+            return n != -1;
+        };
+
         /// Equality test
         bool operator==(const Key& other) const {
             if (hashval != other.hashval) return false;
@@ -293,7 +298,7 @@ namespace madness {
     inline void foreach_child(const Key<NDIM>& parent, objT* obj, void (objT::*memfun)(const Key<NDIM>&)) {
         for (KeyChildIterator<NDIM> it(parent); it; ++it) (obj->*memfun)(it.key());
     };
-
+    
 }
 
 #endif

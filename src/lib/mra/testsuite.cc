@@ -36,7 +36,7 @@
 /// \file testsuite.cc
 /// \brief The QA/test suite for Function
 
-  
+#define WORLD_INSTANTIATE_STATIC_TEMPLATES  
 #include <mra/mra.h>
 #include <cstdio>
 
@@ -156,8 +156,8 @@ public:
         } while (0) 
 
 double ttt, sss;
-#define START_TIMER world.gop.fence(); ttt=wall_time(); sss=cpu_time();
-#define END_TIMER(msg) world.gop.fence(); ttt=wall_time()-ttt; sss=cpu_time()-sss; if (world.rank()==0) printf("timer: %20.20s %8.2fs %8.2fs\n", msg, sss, ttt)
+#define START_TIMER world.gop.fence(); ttt=wall_time(); sss=cpu_time()
+#define END_TIMER(msg) ttt=wall_time()-ttt; sss=cpu_time()-sss; if (world.rank()==0) printf("timer: %20.20s %8.2fs %8.2fs\n", msg, sss, ttt)
 
 
 template <typename T, int NDIM>
@@ -520,28 +520,156 @@ void test_diff(World& world) {
 }
 
 
+template <typename T, int NDIM> 
+struct TestOp : WorldObject< TestOp<T,NDIM> > {
+    typedef T resultT;
+    typedef TestOp<T,NDIM> opT;
+    const int k;
+    std::vector<long> v2k;
+
+    TestOp(World& world, int k) : WorldObject<opT>(world), k(k), v2k(NDIM) {
+        this->process_pending();
+        for (int i=0; i<NDIM; i++) v2k[i] = 2*k;
+    };
+    
+
+    double norm(const Key<NDIM>& key, const Displacement<NDIM>& d) const {
+        if (d.distsq > 2) return 0.0;
+        else return 1.0;
+    }
+    
+    Tensor<T> apply(const Key<NDIM>& key, const Displacement<NDIM>& d, const Tensor<T>& c) const {
+        print("applying ", key, d);
+        return Tensor<resultT>(v2k);
+    }
+};
+
+
+
+    
+namespace madness {
+    namespace archive {
+        template <class Archive, class T, int NDIM>
+        struct ArchiveLoadImpl<Archive,const TestOp<T,NDIM>*> {
+            static inline void load(const Archive& ar, const TestOp<T,NDIM>*& ptr) {
+                WorldObject< TestOp<T,NDIM> >* p;
+                ar & p;
+                ptr = static_cast< const TestOp<T,NDIM>* >(p);
+            }
+        };
+        
+        template <class Archive, class T, int NDIM>
+        struct ArchiveStoreImpl<Archive,const TestOp<T,NDIM>*> {
+            static inline void store(const Archive& ar, const TestOp<T,NDIM>*const& ptr) {
+                ar & static_cast< const WorldObject< TestOp<T,NDIM> >* > (ptr);
+            }
+        };
+    }
+}
+    
+
+
+template <typename T, int NDIM>
+void test_op(World& world) {
+    typedef Vector<double,NDIM> coordT;
+    typedef SharedPtr< FunctionFunctorInterface<T,NDIM> > functorT;
+
+    if (world.rank() == 0) {
+        print("\nTest separated operators - type =", archive::get_type_name<T>(),", ndim =",NDIM,"\n");
+    }
+    const coordT origin(0.0);
+    const double expnt = 1.0;
+    const double coeff = pow(2.0/PI,0.25*NDIM);
+    functorT functor(new Gaussian<T,NDIM>(origin, expnt, coeff));
+
+    FunctionDefaults<NDIM>::k = 10;
+    FunctionDefaults<NDIM>::thresh = 1e-10;
+    FunctionDefaults<NDIM>::refine = true;
+    FunctionDefaults<NDIM>::initial_level = 2;
+    FunctionDefaults<NDIM>::truncate_mode = 1;
+    for (int i=0; i<NDIM; i++) {
+        FunctionDefaults<NDIM>::cell(i,0) = -10.0;
+        FunctionDefaults<NDIM>::cell(i,1) =  10.0;
+    }
+    
+    START_TIMER; 
+    Function<T,NDIM> f = FunctionFactory<T,NDIM>(world).functor(functor);
+    END_TIMER("project");
+
+    //f.print_info();  <--------- This is not scalable and might crash the XT
+
+    START_TIMER;
+    f.nonstandard();
+    END_TIMER("nonstandard");
+
+    TestOp<T,NDIM> op(world,FunctionDefaults<NDIM>::k);
+    START_TIMER;
+    Function<T,NDIM> r = apply(op,f);
+    END_TIMER("apply");
+
+    r.reconstruct();
+
+    r.verify_tree();
+}
+
+#define TO_STRING(s) TO_STRING2(s)
+#define TO_STRING2(s) #s
 
 int main(int argc, char**argv) {
     MPI::Init(argc, argv);
     World world(MPI::COMM_WORLD);
+    if (world.rank() == 0) {
+        print("");
+        print("--------------------------------------------");
+        print("   MADNESS",MADNESS_VERSION, "multiresolution testsuite");
+        print("--------------------------------------------");
+        print("");
+        print("   number of processors ...", world.size());
+        print("    processor frequency ...", cpu_frequency());
+        print("            host system ...", TO_STRING(HOST_SYSTEM));
+        print("             byte order ...", TO_STRING(MADNESS_BYTE_ORDER));
+        print("          configured by ...", MADNESS_CONFIGURATION_USER);
+        print("          configured on ...", MADNESS_CONFIGURATION_HOST);
+        print("          configured at ...", MADNESS_CONFIGURATION_DATE);
+        print("                    CXX ...", MADNESS_CONFIGURATION_CXX);
+        print("               CXXFLAGS ...", MADNESS_CONFIGURATION_CXXFLAGS);
+#ifdef WORLD_WATCHDOG
+        print("               watchdog ...", WATCHDOG_BARK_INTERVAL, WATCHDOG_TIMEOUT);
+#endif
+#ifdef OPTERON_TUNE
+        print("             tuning for ...", "opteron");
+#elif defined(CORE_DUO_TUNE)
+        print("             tuning for ...", "core duo");
+#else
+        print("             tuning for ...", "core2");
+#endif
+#ifdef BOUNDS_CHECKING
+        print(" tensor bounds checking ...", "enabled");
+#endif
+#ifdef TENSOR_INSTANCE_COUNT
+        print("  tensor instance count ...", "enabled");
+#endif
+        print(" ");
+    }        
 
     try {
         startup(world,argc,argv);
         if (world.rank() == 0) print("Initial tensor instance count", BaseTensor::get_instance_count());
-        test_basic<double,1>(world);
-        test_conv<double,1>(world);
-        test_math<double,1>(world);
-        test_diff<double,1>(world);
+//         test_basic<double,1>(world);
+//         test_conv<double,1>(world);
+//         test_math<double,1>(world);
+//         test_diff<double,1>(world);
+        test_op<double,1>(world);
 
-        test_basic<double,2>(world);
-        test_conv<double,2>(world);
-        test_math<double,2>(world);
-        test_diff<double,2>(world);
+//         test_basic<double,2>(world);
+//         test_conv<double,2>(world);
+//         test_math<double,2>(world);
+//         test_diff<double,2>(world);
 
-        test_basic<double,3>(world);
-        test_conv<double,3>(world);
-        test_math<double,3>(world);
-        test_diff<double,3>(world);
+//         test_basic<double,3>(world);
+//         test_conv<double,3>(world);
+//         test_math<double,3>(world);
+//         test_diff<double,3>(world);
 
     } catch (const MPI::Exception& e) {
         //        print(e);
@@ -573,3 +701,4 @@ int main(int argc, char**argv) {
 
     return 0;
 }
+
