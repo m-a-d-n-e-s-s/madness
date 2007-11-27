@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 # This script configures a MADNESS build.  It generates
 # the following files
@@ -226,7 +226,7 @@ set_value CC  ""
 set_value CFLAGS ""
 set_value LDFLAGS ""
 set_value AR "ar"
-set_value ARFLAGS "r"
+set_value ARFLAGS "-r"
 set_value INSTALL "echo"
 set_value RANLIB "ranlib"
 set_value PERL "perl"
@@ -450,10 +450,10 @@ echo "Object file suffix is .$value"
 get_value BYTE_ORDER
 if [ "$value" = "" ] ; then
     if [ $CROSS_COMPILING -eq 0 ] ; then
-        echo "int main(){int i=0;char*p=(char *)&i;p[sizeof(int)]=1;return i=1;}" > tmptmp.cc
+        echo "int main(){int i=1;return *(char*)&i;}" > tmptmp.cc
         $CXX_COMPILE_AND_LINK -o tmptmp 
         ./$tmptmp > /dev/null 2>&1
-        if [ $? -eq 0 ] ; then
+        if [ $? -eq 1 ] ; then
             set_value BYTE_ORDER LITTLE_ENDIAN
         else
             set_value BYTE_ORDER BIG_ENDIAN
@@ -676,8 +676,21 @@ get_value ARFLAGS
 ARFLAGS="$value"
 get_value LIBSUF
 LIBSUF="$value"
-$AR $ARFLAGS fred.$LIBSUF
-if [ $? -ne 0 ] ; then
+
+
+if [ $HOST_SYSTEM = "Darwin" ] ; then
+	echo "#include<stdio.h>\nint foo();\nint foo(){return 0;}" > tmptmp.cc
+	$CXX_COMPILE
+	$AR $ARFLAGS fred.$LIBSUF *.o
+	status=$?
+	rm tmptmp.cc
+	rm tmptmp.o
+else
+	$AR $ARFLAGS fred.$LIBSUF
+	status = $?
+fi
+
+if [ $status -ne 0 ] ; then
     echo "ar is acting goofy ... ignored"
 fi
 get_value RANLIB
