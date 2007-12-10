@@ -1623,3 +1623,55 @@ struct DClass {
     template void migrate<std::complex<double>,6,MyPmap<6> >(SharedPtr<FunctionImpl<std::complex<double>,6,MyPmap<6> > > tfrom, 
     	SharedPtr<FunctionImpl<std::complex<double>,6,MyPmap<6> > > tto);
     */
+
+
+
+
+
+
+template <typename T, int NDIM> 
+struct TestOp : WorldObject< TestOp<T,NDIM> > {
+    typedef T resultT;
+    typedef TestOp<T,NDIM> opT;
+    const int k;
+    std::vector<long> v2k;
+
+    TestOp(World& world, int k) : WorldObject<opT>(world), k(k), v2k(NDIM) {
+        this->process_pending();
+        for (int i=0; i<NDIM; i++) v2k[i] = 2*k;
+    };
+    
+
+    double norm(const Key<NDIM>& key, const Displacement<NDIM>& d) const {
+        if (d.distsq > 2) return 0.0;
+        else return 1.0;
+    }
+    
+    Tensor<T> apply(const Key<NDIM>& key, const Displacement<NDIM>& d, const Tensor<T>& c) const {
+        print("applying ", key, d);
+        return Tensor<resultT>(v2k);
+    }
+};
+
+
+
+    
+namespace madness {
+    namespace archive {
+        template <class Archive, class T, int NDIM>
+        struct ArchiveLoadImpl<Archive,const TestOp<T,NDIM>*> {
+            static inline void load(const Archive& ar, const TestOp<T,NDIM>*& ptr) {
+                WorldObject< TestOp<T,NDIM> >* p;
+                ar & p;
+                ptr = static_cast< const TestOp<T,NDIM>* >(p);
+            }
+        };
+        
+        template <class Archive, class T, int NDIM>
+        struct ArchiveStoreImpl<Archive,const TestOp<T,NDIM>*> {
+            static inline void store(const Archive& ar, const TestOp<T,NDIM>*const& ptr) {
+                ar & static_cast< const WorldObject< TestOp<T,NDIM> >* > (ptr);
+            }
+        };
+    }
+}

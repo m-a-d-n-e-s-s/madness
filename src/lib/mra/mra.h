@@ -62,6 +62,7 @@ namespace madness {
 #include <mra/legendre.h>
 #include <mra/key.h>
 #include <mra/funcimpl.h>
+#include <mra/operator.h>
 #include <mra/loadbal.h>
 
 namespace madness {
@@ -744,9 +745,9 @@ namespace madness {
     
     /// Returns a new function with the same distribution
     template <typename opT, typename R, int NDIM>
-    Function<typename opT::resultT, NDIM> 
+    Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> 
     apply(const opT& op, const Function<R,NDIM>& f, bool fence=true) {
-        Function<typename opT::resultT,NDIM> result;
+        Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> result;
         return result.apply(op, f, fence);
     }
 

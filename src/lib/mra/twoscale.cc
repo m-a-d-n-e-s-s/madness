@@ -238,7 +238,7 @@ namespace madness {
 
     /// Return the autocorrelation coefficients for scaling functions of given order
 
-    /// Returned is view of a cached copy of the data ... do not modify.
+    /// Returned is a view of the cached data ... do not modify.
     ///
     /// The autocorrelation functions are defined as
     /// \code

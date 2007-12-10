@@ -520,55 +520,6 @@ void test_diff(World& world) {
 }
 
 
-template <typename T, int NDIM> 
-struct TestOp : WorldObject< TestOp<T,NDIM> > {
-    typedef T resultT;
-    typedef TestOp<T,NDIM> opT;
-    const int k;
-    std::vector<long> v2k;
-
-    TestOp(World& world, int k) : WorldObject<opT>(world), k(k), v2k(NDIM) {
-        this->process_pending();
-        for (int i=0; i<NDIM; i++) v2k[i] = 2*k;
-    };
-    
-
-    double norm(const Key<NDIM>& key, const Displacement<NDIM>& d) const {
-        if (d.distsq > 2) return 0.0;
-        else return 1.0;
-    }
-    
-    Tensor<T> apply(const Key<NDIM>& key, const Displacement<NDIM>& d, const Tensor<T>& c) const {
-        print("applying ", key, d);
-        return Tensor<resultT>(v2k);
-    }
-};
-
-
-
-    
-namespace madness {
-    namespace archive {
-        template <class Archive, class T, int NDIM>
-        struct ArchiveLoadImpl<Archive,const TestOp<T,NDIM>*> {
-            static inline void load(const Archive& ar, const TestOp<T,NDIM>*& ptr) {
-                WorldObject< TestOp<T,NDIM> >* p;
-                ar & p;
-                ptr = static_cast< const TestOp<T,NDIM>* >(p);
-            }
-        };
-        
-        template <class Archive, class T, int NDIM>
-        struct ArchiveStoreImpl<Archive,const TestOp<T,NDIM>*> {
-            static inline void store(const Archive& ar, const TestOp<T,NDIM>*const& ptr) {
-                ar & static_cast< const WorldObject< TestOp<T,NDIM> >* > (ptr);
-            }
-        };
-    }
-}
-    
-
-
 template <typename T, int NDIM>
 void test_op(World& world) {
     typedef Vector<double,NDIM> coordT;
@@ -602,7 +553,12 @@ void test_op(World& world) {
     f.nonstandard();
     END_TIMER("nonstandard");
 
-    TestOp<T,NDIM> op(world,FunctionDefaults<NDIM>::k);
+    Tensor<double> coeffs(1), exponents(1);
+    exponents(0L) = 1.0;
+    coeffs(0L) = pow(exponents(0L)/PI, 0.5*NDIM);
+    SeparatedConvolution<T,NDIM> op(world,
+                                    FunctionDefaults<NDIM>::k, FunctionDefaults<NDIM>::thresh,
+                                    coeffs, exponents);
     START_TIMER;
     Function<T,NDIM> r = apply(op,f);
     END_TIMER("apply");
