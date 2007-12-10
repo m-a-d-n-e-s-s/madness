@@ -509,6 +509,10 @@ namespace madness {
             // is detrimental due to the duplicate checking.
             if (!item.owned()) return;
 
+
+            // !! This algorithm is quadratic.  More efficient would be to
+            // !! use a sorted-list/heap/tree/map.
+            
             SharedPtr<DeferredCleanupInterface> p(item);
             // Avoid duplicates since the reference counting will prevent cleaning
             if (std::find(deferred.begin(),deferred.end(),p) == deferred.end()) {

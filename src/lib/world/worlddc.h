@@ -725,9 +725,7 @@ namespace madness {
                           SharedPtr< WorldDCPmapInterface<keyT> >(new WorldDCDefaultPmap<keyT>(world)), 
                           world_dc_default_attr,
                           do_pending))
-        {
-            world.deferred_cleanup(p);
-        }
+        {}
         
         /// Makes an initialized, empty container (no communication)
         
@@ -738,9 +736,7 @@ namespace madness {
         /// to the non-initializing, default constructor).
         WorldContainer(World& world, const SharedPtr< WorldDCPmapInterface<keyT> >& pmap, bool do_pending=true) 
             : p(new implT(world,pmap,world_dc_default_attr,do_pending))
-        {
-            world.deferred_cleanup(p);
-        }
+        {}
         
         
         /// Copy constructor is shallow (no communication)
@@ -1191,7 +1187,9 @@ namespace madness {
         }
         
         /// Destructor passes ownership of implementation to world for deferred cleanup
-        virtual ~WorldContainer() {}
+        virtual ~WorldContainer() {
+            if (p) p->world.deferred_cleanup(p);
+        }
         
     };
 }
