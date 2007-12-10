@@ -55,6 +55,8 @@ namespace madness {
 	    return klist;
 	}
 
+	ProcessID manager_id = skeltree->owner(skeltree->root);
+	//madness::print("find_best_partition: the owner of the root is", skeltree->owner(skeltree->root));
 	if (skeltree->world.mpi.rank() == skeltree->owner(skeltree->root)) manager = true;
 	//madness::print("find_best_partition: just starting out");
 //	skeltree->fix_cost();
@@ -134,9 +136,9 @@ namespace madness {
  	    }
  	    unsigned int ksize;
  	    ksize = klist.size();
- 	    skeltree->world.gop.template broadcast<unsigned int>(ksize);
+ 	    skeltree->world.gop.template broadcast<unsigned int>(ksize, manager_id);
  	    for (unsigned int i=0; i < ksize; i++) {
- 		skeltree->world.gop.template broadcast<typename DClass<D>::TreeCoords>(klist[i]);
+ 	        skeltree->world.gop.template broadcast<typename DClass<D>::TreeCoords>(klist[i], manager_id);
  	    }
 	    madness::print("find_best_partition: number of broken links =",
 		klist.size()-1);
@@ -145,9 +147,9 @@ namespace madness {
 	  //madness::print("find_best_partition: receiving broadcast");
 	  typename DClass<D>::TreeCoords ktmp;
 	  unsigned int ksize;
-	  skeltree->world.gop.template broadcast<unsigned int>(ksize);
+	  skeltree->world.gop.template broadcast<unsigned int>(ksize, manager_id);
 	  for (unsigned int i=0; i < ksize; i++) {
-	    skeltree->world.gop.template broadcast<typename DClass<D>::TreeCoords>(ktmp);
+	    skeltree->world.gop.template broadcast<typename DClass<D>::TreeCoords>(ktmp, manager_id);
 	    klist.push_back(ktmp);
 	  }
 	}
@@ -191,6 +193,7 @@ namespace madness {
 	//madness::print("find_partitions: at beginning");
 	this->world.gop.fence();
 
+	ProcessID manager_id = this->impl.owner(root);
 	if (this->world.mpi.rank() == this->impl.owner(root)) manager = true;
 
 	while (keep_going) {
@@ -255,7 +258,7 @@ namespace madness {
 	      }
 	      //madness::print("find_partitions: the verdict is that keep_going =", keep_going);	
 	    }
-	    this->world.gop.template broadcast<bool>(keep_going);
+	    this->world.gop.template broadcast<bool>(keep_going, manager_id);
 	}
 	this->world.gop.fence();
     }
@@ -326,13 +329,17 @@ namespace madness {
 	}
       }
       int pmsize = part_map.size();
-      if (pmsize < min_pieces) return false;
+      if (pmsize < min_pieces) {
+	//madness::print("verify_partition: pmsize < min_pieces: return false");
+	return false;
+      }
       if (pmsize != size) {
 	part_list.clear();
 	for (it = part_map.begin(); it != part_map.end(); ++it) {
 	  part_list.push_back(TreeCoords<D>(it->first, it->second));
 	}
       }
+      //madness::print("verify_partition: about to return true at very end");
       return true;
     }
 

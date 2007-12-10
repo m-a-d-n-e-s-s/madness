@@ -207,6 +207,11 @@ namespace madness {
             broadcast(&t, 1, 0);
 	}
 
+	/// Broadcast of a scalar from node root to all other nodes
+	template <typename T>
+	void broadcast(T& t, ProcessID root) {
+	    broadcast(&t, 1, root);
+	}
 
         /// Inplace global reduction (like MPI all_reduce) while still processing AM & tasks
         
