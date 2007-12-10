@@ -94,8 +94,8 @@ namespace madness {
             int twok = 2*k;
             Tensor<Q> v(twok);       // Can optimize this away by passing in
             
-            long lkeep = l;
-            if (l<0) l = -l-1;
+            long lkeep = lx;
+            if (lx<0) lx = -lx-1;
             
             /* Apply high-order Gauss Legendre onto subintervals
        
@@ -140,7 +140,7 @@ namespace madness {
             double argmax = fabs(log(1e-22/fabs(scaledcoeff*h)));
             
             for (long box=0; box<nbox; box++) {
-                double xlo = box*h + l;
+                double xlo = box*h + lx;
                 if (beta*xlo*xlo > argmax) break;
                 for (long i=0; i<npt; i++) {
 #ifdef IBMXLC
@@ -150,7 +150,7 @@ namespace madness {
 #endif
                     double xx = xlo + h*quad_x(i);
                     Q ee = scaledcoeff*exp(-beta*xx*xx)*quad_w(i)*h;
-                    legendre_scaling_functions(xx-l,twok,phix);
+                    legendre_scaling_functions(xx-lx,twok,phix);
                     for (long p=0; p<twok; p++) v(p) += ee*phix[p];
                 }
             }
