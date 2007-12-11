@@ -65,7 +65,7 @@ namespace madness {
     template <int D> class MyPmap;
     template <int D> class LBTree;
     class NodeData;
-    template <typename T, int D> class LoadBalImpl;
+    template <int D> class LoadBalImpl;
 
     /// Convenient typedef shortcuts
 
@@ -619,16 +619,20 @@ namespace madness {
     /// Implementation of load balancing
 
     /// Implements the load balancing algorithm upon the tree underlying a function.
-    template <typename T, int D>
+    //    template <typename T, int D>
+    template <int D>
     class LoadBalImpl {
     private:
 	typedef MyPmap<D> Pmap;
-        Function<T,D> f;
+	//        Function<T,D> f;
+	int k;
 	double comm_bandw;
 	double comm_latency;
 	double flop_time;
         SharedPtr<typename DClass<D>::treeT> skeltree;
+	World& world;
 
+	template<typename T>
         void construct_skel(SharedPtr<FunctionImpl<T,D> > f) {
             skeltree = SharedPtr<typename DClass<D>::treeT>(new typename DClass<D>::treeT(f->world,
                        f->coeffs.get_pmap()));
@@ -643,12 +647,14 @@ namespace madness {
     public:
 	PartitionInfo<D> pi;
         //Constructors
-        LoadBalImpl() {};
+	//	LoadBalImpl() {};
 
-        LoadBalImpl(Function<T,D> f, double a=1e-8, double b=1e-5, double c=5e-10, double facter=1.1) : f(f)
+	template<typename T>
+	LoadBalImpl(Function<T,D> f, double a=1e-8, double b=1e-5, double c=5e-10, double facter=1.1) : k(f.get_impl()->k) 
 	    , comm_bandw(a)
 	    , comm_latency(b)
 	    , flop_time(c)
+	    , world(f.get_impl()->world)
 	    , pi(PartitionInfo<D>(facter)) {
             construct_skel(f.get_impl());
 	    pi.partition_number = f.get_impl()->world.mpi.nproc()-1;
@@ -660,7 +666,7 @@ namespace madness {
 
 	/// Returns a shared pointer to a new process map, which can then be used to redistribute the function
         SharedPtr< WorldDCPmapInterface< Key<D> > > load_balance() {
-            return SharedPtr< WorldDCPmapInterface< Key<D> > >(new MyPmap<D>(f.get_impl()->world, find_best_partition()));
+            return SharedPtr< WorldDCPmapInterface< Key<D> > >(new MyPmap<D>(world, find_best_partition()));
         };
 
         std::vector<typename DClass<D>::TreeCoords> find_best_partition();

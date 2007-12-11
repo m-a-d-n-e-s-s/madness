@@ -167,7 +167,7 @@ void test_loadbal(World& world) {
 	test_ops(f);
 	double t4 = MPI::Wtime();
 	//	if (world.rank() == 0) print("ABOUT TO CREATE LOADBAL");
-	LoadBalImpl<T,NDIM> lb(f);
+	LoadBalImpl<NDIM> lb(f);
 	//	if (world.rank() == 0) print("ABOUT TO FENCE");
 	world.gop.fence();
 	double t5 = MPI::Wtime();

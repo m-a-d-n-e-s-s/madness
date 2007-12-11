@@ -43,7 +43,7 @@
 namespace madness {
     template <typename T, int NDIM> class FunctionImpl;
     template <typename T, int NDIM> class Function;
-    template <typename T, int D> class LoadBalImpl;
+    template <int D> class LoadBalImpl;
 //    template <int D> class LBTreeImpl;
     template <int D> class LBTree;
     template <int D> class MyPmap;
@@ -519,7 +519,7 @@ namespace madness {
     class FunctionImpl : public WorldObject< FunctionImpl<T,NDIM> > {
     public:
 	friend class Function<T,NDIM>;
-	friend class LoadBalImpl<T,NDIM>;
+	friend class LoadBalImpl<NDIM>;
 	friend class LBTree<NDIM>;
 
         typedef FunctionImpl<T,NDIM> implT;       ///< Type of this class (implementation)

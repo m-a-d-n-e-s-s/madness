@@ -45,8 +45,8 @@ namespace madness {
     /// Arguments: none
     /// Return: klist -- the best partition
 
-    template <typename T, int D>
-    std::vector<typename DClass<D>::TreeCoords> LoadBalImpl<T,D>::find_best_partition() {
+  template <int D>
+    std::vector<typename DClass<D>::TreeCoords> LoadBalImpl<D>::find_best_partition() {
 	std::vector<typename DClass<D>::TreeCoords> klist;
 	bool manager = false;
 
@@ -166,10 +166,10 @@ namespace madness {
     /// Arguments: Cost c -- maximum amount of cost assigned to a node
     ///            int n -- number of broken links
     /// Return: CompCost -- the cost associated with that partitioning
-    template <typename T, int D>
-    CompCost LoadBalImpl<T,D>::compute_comp_cost(Cost c, int n) {
+    template <int D>
+    CompCost LoadBalImpl<D>::compute_comp_cost(Cost c, int n) {
         CompCost compcost;
-	int k = f.k();
+	//	int k = f.k();
 	CompCost k_to_D = pow((CompCost) k,D);
 	CompCost twok_to_Dp1 = pow((CompCost) 2.0*k, D+1);
 	compcost = c*(flop_time*D*twok_to_Dp1) + n*(comm_bandw*k_to_D + comm_latency);
@@ -778,7 +778,7 @@ namespace madness {
 
 
      // Explicit instantiations for D=1:6
-
+  /*
     template class LoadBalImpl<double,1>;
     template class LoadBalImpl<double,2>;
     template class LoadBalImpl<double,3>;
@@ -792,6 +792,13 @@ namespace madness {
     template class LoadBalImpl<std::complex<double>,4>;
     template class LoadBalImpl<std::complex<double>,5>;
     template class LoadBalImpl<std::complex<double>,6>;
+  */
+    template class LoadBalImpl<1>;
+    template class LoadBalImpl<2>;
+    template class LoadBalImpl<3>;
+    template class LoadBalImpl<4>;
+    template class LoadBalImpl<5>;
+    template class LoadBalImpl<6>;
 
     template class LBTree<1>;
     template class LBTree<2>;
