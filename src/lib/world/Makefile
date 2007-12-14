@@ -23,7 +23,7 @@ TESTPROGS = world helloworld treetest objexample testar
 TEST1SRC = world.cc
 TEST2SRC = testar.cc
 TEST3SRC = treetest.cc
-#TEST4SRC = helloworld.cc
+TEST4SRC = helloworld.cc
 TEST5SRC = objexample.cc
 TEST6SRC = parttree.cc
          
@@ -40,8 +40,8 @@ testar: $(TEST2OBJ) $(THISLIBDEPEND)
 treetest: $(TEST3OBJ) $(THISLIBDEPEND) 
 	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ $(SYSLIBS) $(LTLINKBINOPTS)
 
-#helloworld: $(TEST4OBJ) $(THISLIBDEPEND) 
-#	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ $(SYSLIBS) $(LTLINKBINOPTS)
+helloworld: $(TEST4OBJ) $(THISLIBDEPEND) 
+	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ $(SYSLIBS) $(LTLINKBINOPTS)
 
 objexample: $(TEST5OBJ) $(THISLIBDEPEND) 
 	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ $(SYSLIBS) $(LTLINKBINOPTS)
