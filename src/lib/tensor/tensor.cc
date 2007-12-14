@@ -1192,5 +1192,11 @@ namespace madness {
         return result;
     }
 
+    std::ostream& operator<<(std::ostream& stream, const Slice& s) {
+        stream << "Slice(" << s.start << "," << s.end << "," << s.step << ")";
+        return stream;
+    }
+
+
 #include "tensor_spec.h"
 }

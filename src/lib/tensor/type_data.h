@@ -186,6 +186,7 @@ public: \
     /// This macro simplifies access to TensorResultType
 #define TENSOR_RESULT_TYPE(L,R) typename TensorResultType<L,R>::type
 
+
 #undef DPEC
 #undef SPEC
 }

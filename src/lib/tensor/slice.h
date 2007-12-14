@@ -106,6 +106,8 @@ namespace madness {
         };
     };
 
+    std::ostream& operator<<(std::ostream& stream, const Slice& s);
+
     static const Slice _(0,-1,1);	// Entire dimension
     static const std::vector<Slice> ___ = vector_factory(_,_,_,_,_,_); // Entire tensor
     static const Slice _reverse(-1,0,-1); // Reversed dimension
