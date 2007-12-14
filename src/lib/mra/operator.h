@@ -101,7 +101,7 @@ namespace madness {
         /// \code
         /// beta = alpha * 2^(-2*n) 
         /// \endcode
-        Tensor<Q> rnlp(long n, long l) const {
+        Tensor<Q> rnlp(long n, long lx) const {
             int twok = 2*k;
             Tensor<Q> v(twok);       // Can optimize this away by passing in
             
