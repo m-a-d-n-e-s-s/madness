@@ -51,7 +51,7 @@ namespace madness {
     void FunctionCommonData<T,NDIM>::_make_disp() {
         Vector<int, NDIM> d;
         int bmax;
-        if (NDIM == 1) bmax = 10;
+        if (NDIM == 1) bmax = 7; // !! Make sure that SimpleCache is consistent!!!!
         else if (NDIM == 2) bmax = 5;
         else if (NDIM == 3) bmax = 2;
         else bmax = 1;

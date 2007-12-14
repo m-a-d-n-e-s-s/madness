@@ -1964,12 +1964,10 @@ namespace madness {
             // possible contributions coming into a region which is roughly
             // the number of neighbors times the number of levels.
             //
-            // In 1D estimate nneigh=10, 2D 5^2, 3D and higher 3^NDIM
-            //
             // Not yet computing actual tree depth of the tree.  Estimate as 10.
+            // Also estimate 3^NDIM contributions per box
             int nmax = 10;
-            int nneigh = std::max(10/NDIM, 3);
-            double fac = std::pow(double(nneigh),-1.0*NDIM) / nmax;
+            double fac = std::pow(3.0,-1.0*NDIM) / nmax;
             double cnorm = fac*c.normf();
             for (typename std::vector< Displacement<NDIM> >::const_iterator it=cdata.disp.begin(); 
                  it != cdata.disp.end(); 

@@ -520,16 +520,24 @@ void test_diff(World& world) {
 }
 
 
+
+namespace madness {
+    extern bool test_rnlp();
+}
+
 template <typename T, int NDIM>
 void test_op(World& world) {
+
+    test_rnlp();
+
     typedef Vector<double,NDIM> coordT;
     typedef SharedPtr< FunctionFunctorInterface<T,NDIM> > functorT;
 
     if (world.rank() == 0) {
         print("\nTest separated operators - type =", archive::get_type_name<T>(),", ndim =",NDIM,"\n");
     }
-    const coordT origin(0.0);
-    const double expnt = 1.0;
+    const coordT origin(0.5);
+    const double expnt = 100.0;
     const double coeff = pow(2.0/PI,0.25*NDIM);
     functorT functor(new Gaussian<T,NDIM>(origin, expnt, coeff));
 
@@ -539,8 +547,8 @@ void test_op(World& world) {
     FunctionDefaults<NDIM>::initial_level = 2;
     FunctionDefaults<NDIM>::truncate_mode = 1;
     for (int i=0; i<NDIM; i++) {
-        FunctionDefaults<NDIM>::cell(i,0) = -10.0;
-        FunctionDefaults<NDIM>::cell(i,1) =  10.0;
+        FunctionDefaults<NDIM>::cell(i,0) =  0.0;
+        FunctionDefaults<NDIM>::cell(i,1) =  1.0;
     }
     
     START_TIMER; 
@@ -549,12 +557,22 @@ void test_op(World& world) {
 
     //f.print_info();  <--------- This is not scalable and might crash the XT
 
+
+    f.reconstruct();
+    print("         f norm is", f.norm2());
+    print("     f total error", f.err(*functor));
+
+
     START_TIMER;
     f.nonstandard();
     END_TIMER("nonstandard");
 
+
+    // Convolution exp(-a*x^2) with exp(-b*x^2) is
+    // exp(-x^2*a*b/(a+b))* (Pi/(a+b))^(NDIM/2)
+
     Tensor<double> coeffs(1), exponents(1);
-    exponents(0L) = 1.0;
+    exponents(0L) = 100.0;
     coeffs(0L) = pow(exponents(0L)/PI, 0.5*NDIM);
     SeparatedConvolution<T,NDIM> op(world,
                                     FunctionDefaults<NDIM>::k, FunctionDefaults<NDIM>::thresh,
@@ -562,10 +580,22 @@ void test_op(World& world) {
     START_TIMER;
     Function<T,NDIM> r = apply(op,f);
     END_TIMER("apply");
-
     r.reconstruct();
-
     r.verify_tree();
+
+    double newexpnt = expnt*exponents(0L)/(expnt+exponents(0L));
+    double newcoeff = pow(PI/(expnt+exponents(0L)),0.5*NDIM)*coeff*coeffs(0L);
+    functorT fexact(new Gaussian<T,NDIM>(origin, newexpnt, newcoeff));
+
+
+    print(" numeric at origin", r(origin));
+    print("analytic at origin", (*fexact)(origin));
+    print("      op*f norm is", r.norm2());
+    print("  op*f total error", r.err(*fexact));
+    for (int i=0; i<=100; i++) {
+        coordT c(i*0.01);
+        print("           ",i,r(c),(*fexact)(c));
+    }
 }
 
 #define TO_STRING(s) TO_STRING2(s)
@@ -621,6 +651,7 @@ int main(int argc, char**argv) {
 //         test_conv<double,2>(world);
 //         test_math<double,2>(world);
 //         test_diff<double,2>(world);
+        test_op<double,2>(world);
 
 //         test_basic<double,3>(world);
 //         test_conv<double,3>(world);
