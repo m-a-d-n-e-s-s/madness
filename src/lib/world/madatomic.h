@@ -26,6 +26,12 @@
 ///
 /// \c MADATOMIC_INT_DEC_AND_TEST(ptr) ... decrement an atomic integer and return
 ///                                     true if the result is zero.
+///
+/// The unfortunate mix of macros and routines means these names
+/// are sitting in the global namespace ... probably should turn all
+/// of the macros into routines and rely upon inlining to give
+/// the performance of macros ... not possible for INITIALIZE.
+
 
 #if defined(SINGLE_THREADED)
 
@@ -100,7 +106,7 @@ error What are we compiling on?
 #include <sys/atomic_op.h>
 typedef struct { volatile int ctr; } MADATOMIC_INT;
 #define MADATOMIC_FENCE
-#define MADATOMIC_INITIALIZE(val) {val}
+#define MADATOMIC_INITIALIZE(val) (val)
 #define MADATOMIC_INT_GET(ptr) ((ptr)->ctr)
 #define MADATOMIC_INT_SET(ptr,val) ((ptr)->ctr = val)
 #define MADATOMIC_INT_INC(ptr) (fetch_and_add((atomic_p)&((ptr)->ctr),1))
