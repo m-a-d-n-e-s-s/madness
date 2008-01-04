@@ -191,6 +191,10 @@ namespace madness {
             c[i] = setto;
         };
 
+	void set_all_children(bool setto = true) {
+	  all_children(setto);
+	}
+
         void set_data(const Data& d) {
             data = d;
         };
@@ -544,6 +548,37 @@ namespace madness {
                 	// insert into impl
                 	impl.insert(key, lbnode);
                 }
+            }
+        }
+
+        template <typename T>
+        inline void add_tree(const SharedPtr< FunctionImpl<T,D> >& f) {
+            for (typename FunctionImpl<T,D>::dcT::iterator it = f->coeffs.begin(); it != f->coeffs.end(); ++it) {
+            	// convert Node to LBNode
+            	NodeData nd;
+		typename DClass<D>::KeyD key = it->first;
+		typename DClass<D>::treeT::iterator tree_it = impl.find(key);
+		if (!tree_it) {
+		    if (!(it->second.has_children())) {
+		      typename DClass<D>::NodeD lbnode(nd,false);
+		      // insert into impl
+		      impl.insert(key, lbnode);
+		    } else {
+		      typename DClass<D>::NodeD lbnode(nd,true);
+		      // insert into impl
+		      impl.insert(key, lbnode);
+		    }
+		} else {
+		  typename DClass<D>::NodeD lbnode = tree_it->second;
+		  if (it->second.has_children()) {
+		    lbnode.set_all_children(true);
+		  }
+		  NodeData nd=lbnode.get_data();
+		  nd.cost += 1;
+		  nd.subcost += 1;
+		  lbnode.set_data(nd);
+		  impl.insert(key, lbnode);
+		}
             }
         }
 

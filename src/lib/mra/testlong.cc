@@ -80,6 +80,18 @@ public:
 	return (GaussianFunctor(newcenter, newexponent, newcoefficient));
     };
 
+    GaussianFunctor operator- (const GaussianFunctor& other) const {
+        std::vector<T> newcoefficient;
+	//	for (std::vector<T>::iterator it = other.coefficient.begin(); it != other.coefficient.end(); ++it) {
+	//	  newcoefficient.push_back(-1*(*it));
+	//	}
+	int size = other.coefficient.size();
+	for (int i = 0; i < size; i++) {
+	  newcoefficient.push_back(-1*other.coefficient[i]);
+	return (this + GaussianFunctor(other.center, other.exponent, newcoefficient));
+	}
+    };
+
     void print() const {
 	madness::print("Sum of", center.size(), "gaussians:");
 	for (unsigned int i = 0; i < center.size(); i++) {
@@ -87,6 +99,33 @@ public:
 	}
     };
 };
+
+
+/// Returns a new functor combining two functors via operation op(left,right)
+
+template <typename resultT, typename L, typename R, typename opT, int NDIM>
+class BinaryOp : public FunctionFunctorInterface<resultT,NDIM> {
+    typedef Vector<double,NDIM> coordT;
+    typedef SharedPtr< FunctionFunctorInterface<L,NDIM> > functorL;
+    typedef SharedPtr< FunctionFunctorInterface<R,NDIM> > functorR;
+
+    functorL left;
+    functorR right;
+    opT op;
+
+public:
+    BinaryOp(functorL& left, functorR& right, opT& op) 
+        : left(left), right(right), op(op)
+    {};
+
+    resultT operator()(const coordT& x) const {
+        return op((*left)(x),(*right)(x));
+    };
+};
+
+double ttt, sss;
+#define START_TIMER world.gop.fence(); ttt=wall_time(); sss=cpu_time()
+#define END_TIMER(msg) ttt=wall_time()-ttt; sss=cpu_time()-sss; if (world.rank()==0) printf("timer: %20.20s   %.6e   %.6e\n", msg, sss, ttt)
 
 
 template <typename T, int NDIM>
@@ -135,97 +174,78 @@ void test_loadbal(World& world) {
         gf->print();
     }
 
-    for (int k=9; k >=9; k-=2) {
+    for (int k=5; k >=5; k-=2) {
 	FunctionDefaults<NDIM>::pmap = SharedPtr<MyPmap<NDIM> >(new MyPmap<NDIM>(world));
+
         int n = 2;
 	double thresh = 1e-4;
 //	double thresh = 1e-12;
 //	double thresh = 5e-4;
 	if (world.rank() == 0) { 
-	  printf("k=%d:\n", k);
-	}
-        double t0 = MPI::Wtime();
+	  madness::print("for f with k =", k, "n =", n, "and thresh =", 
+			 thresh, "running on", world.nproc(), "processors:");		}
+	START_TIMER;
 	Function<T,NDIM> f = FunctionFactory<T,NDIM>(world).functor(functor).thresh(thresh).initial_level(n).k(k);
-        double t1 = MPI::Wtime();
+	END_TIMER("H: project");
 	double err2 = f.err(*functor);
 	std::size_t size = f.size();
 	std::size_t tree_size = f.tree_size();
 	std::size_t maxsize = f.max_nodes();
 	std::size_t minsize = f.min_nodes();
 	std::size_t maxdepth = f.max_depth();
-        double t2 = MPI::Wtime();
+	START_TIMER;
 	if (world.rank() == 0) {
 	    printf("   n=%d err=%.2e #coeff=%.2e tree_size=%.2e max_depth=%.2e max_nodes=%.2e min_nodes=%.2e log(err)/(n*k)=%.2e\n", 
 		   n, err2, double(size), double(tree_size), double(maxdepth), double(maxsize), double(minsize), abs(log(err2)/n/k));
 	}
 	world.gop.fence();
-	if (world.rank() == 0) {
-	  madness::print("");
-	  madness::print("hashed distribution");
-	}
-        double t3 = MPI::Wtime();
+	END_TIMER("H: diagnostics");
+	START_TIMER;
 	test_ops(f);
-	double t4 = MPI::Wtime();
+	END_TIMER("H: test_ops");
 	//	if (world.rank() == 0) print("ABOUT TO CREATE LOADBAL");
+	START_TIMER;
 	LoadBalImpl<NDIM> lb(f);
 	//	if (world.rank() == 0) print("ABOUT TO FENCE");
 	world.gop.fence();
-	double t5 = MPI::Wtime();
+	END_TIMER("create LB");
 	//	if (world.rank() == 0) print("ABOUT TO DO LOADBAL");
+	START_TIMER;
 	FunctionDefaults<NDIM>::pmap = lb.load_balance();
 	//	if (world.rank() == 0) print("ABOUT TO FENCE");
 	world.gop.fence();
-	double t6 = MPI::Wtime();
-	Function<T,NDIM> h = copy(f, FunctionDefaults<NDIM>::pmap);
+	END_TIMER("do LB");
+	START_TIMER;
+	Function<T,NDIM> g = copy(f, FunctionDefaults<NDIM>::pmap);
 	world.gop.fence();
-	double t7 = MPI::Wtime();
+	END_TIMER("copy H->LB");
+	START_TIMER;
+	Function<T,NDIM> h = FunctionFactory<T,NDIM>(world).functor(functor).thresh(thresh).initial_level(n).k(k);
+	END_TIMER("new LB fn");
+	START_TIMER;
 	double err21 = h.err(*functor);
 	std::size_t size1 = h.size();
 	std::size_t tree_size1 = h.tree_size();
 	std::size_t maxsize1 = h.max_nodes();
 	std::size_t minsize1 = h.min_nodes();
 	std::size_t maxdepth1 = h.max_depth();
-        double t8 = MPI::Wtime();
 	if (world.rank() == 0) {
 	    printf("   n=%d err=%.2e #coeff=%.2e tree_size=%.2e max_depth=%.2e max_nodes=%.2e min_nodes=%.2e log(err)/(n*k)=%.2e\n", 
 		   n, err21, double(size1), double(tree_size1), double(maxdepth1), double(maxsize1), double(minsize1), abs(log(err21)/n/k));
 	}
 	world.gop.fence();
-	if (world.rank() == 0) {
-	  madness::print("");
-	  madness::print("loadbal distribution");
-	}
-	double t9 = MPI::Wtime();
+	END_TIMER("LB: diagnostics");
+	START_TIMER;
 	test_ops(h);
 	world.gop.fence();
-	double t10 = MPI::Wtime();
-
-
-	if (world.rank() == 0) {
-	    madness::print("");
-	    madness::print("for f with k =", k, "n =", n, "and thresh =", 
-		thresh, "running on", world.nproc(), "processors:");
-	    madness::print("Routine            |  Time");
-	    madness::print("-------------------+--------------");
-	    madness::print("Init f             | ", t1-t0);
-	    madness::print("Diagnostics for f  | ", t2-t1);
-	    madness::print("test_ops for f     | ", t4-t3);
-	    madness::print("Create LoadBalImpl | ", t5-t4);
-	    madness::print("Load Balance       | ", t6-t5);
-	    madness::print("Copy g to f        | ", t7-t6);
-	    madness::print("Diagnostics for g  | ", t8-t7);
-	    madness::print("test_ops for g     | ", t10-t9);
-	    madness::print("-------------------+--------------");
-	    madness::print("Total Time         | ", t10-t0);
-	    madness::print("");
-	}
+	END_TIMER("LB: test_ops");
     }
 
     if (world.rank() == 0) print("test loadbal OK\n\n");
 }
 
 
-
+/*
 void print_results(Vector<double,20> t) {
   double compress, reconstruct, r_copy, r_mult, r_add, r_mineq;
   double compress2, c_copy, c_mult, c_add, c_mineq, c_gaxpy;
@@ -320,6 +340,60 @@ void test_ops(Function<T,NDIM>& f) {
     print_results(t);
   }
 }
+*/
+
+template <typename T, int NDIM>
+void test_ops(Function<T,NDIM>& f) {
+  World& world=f.world();
+  START_TIMER;
+  f.compress();
+  END_TIMER("compress");
+  START_TIMER;
+  Function<T,NDIM> c0 = f; // copy
+  END_TIMER("copy (C)");
+  START_TIMER;
+  f.truncate();
+  END_TIMER("truncate (C)");
+  START_TIMER;
+  f.reconstruct();
+  END_TIMER("reconstruct");
+  for (int axis=0; axis < NDIM; axis++) {
+    START_TIMER;
+    Function<T,NDIM> dfdx = diff(f,axis);
+    END_TIMER("differentiate (R)");
+  }
+  START_TIMER;
+  Function<T,NDIM> c1 = c0;
+  END_TIMER("copy (C)");
+  START_TIMER;
+  c1.reconstruct();
+  END_TIMER("reconstruct");
+  START_TIMER;
+  Function<T,NDIM> r0 = c1;
+  END_TIMER("copy (R)");
+  START_TIMER;
+  Function<T,NDIM> r1 = r0*c1;
+  END_TIMER("multiply (R)");
+  START_TIMER;
+  c1.compress();
+  END_TIMER("compress");
+  START_TIMER;
+  Function<T,NDIM> c2 = c1*c0;
+  END_TIMER("multiply");
+  START_TIMER;
+  c2.compress();
+  END_TIMER("compress");
+  START_TIMER;
+  c1.compress();
+  END_TIMER("compress");
+  START_TIMER;
+  c2.gaxpy(-3.46, c1, 73.216);
+  END_TIMER("gaxpy (C)");
+  START_TIMER;
+  c2.reconstruct();
+  END_TIMER("reconstruct");
+}
+
 
 
 int main(int argc, char**argv) {
