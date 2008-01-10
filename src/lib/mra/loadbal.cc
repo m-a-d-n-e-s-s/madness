@@ -217,8 +217,8 @@ namespace madness {
 	      lbi.partition_number = npieces-1;
 	      Cost tpart = compute_partition_size(lbi.skel_cost, npieces);
 	      used_up = 0;
-
-	      //madness::print("find_partitions: about to send make_partition");
+	      this->print(root);
+	      madness::print("find_partitions: about to send make_partition");
 	      send(impl.owner(root), &LBTree<D>::make_partition, root, tpart, used_up, lbi, true);
 	      //madness::print("find_partitions: back from send make_partition");
 	      //madness::print("");
@@ -233,12 +233,12 @@ namespace madness {
 	    this->world.gop.fence();
 	    //madness::print("find_partitions: done with fence");
 	    if (manager) {
-	      //madness::print("find_partitions: this->partition_info =", this->partition_info);
-	      //madness::print("find_partitions: this->temp_list =", this->temp_list);
+	      madness::print("find_partitions: this->partition_info =", this->partition_info);
+	      madness::print("find_partitions: this->temp_list =", this->temp_list);
 	      if (this->partition_info.partition_number == 0) {
 		// make sure current partition is valid.  If not, quit.
 		keep_going = verify_partition(this->temp_list);
-		//madness::print("find_partitions: verify_partition says,", keep_going);
+		madness::print("find_partitions: verify_partition says,", keep_going);
 		int count = this->partition_info.step_num;
 		if (keep_going) {
 		  //madness::print("find_partitions: adding", this->temp_list, "to list_of_list");
@@ -355,9 +355,9 @@ namespace madness {
       //madness::print("meld_all: after launching on everybody, about to go to fix_cost");
 	this->world.gop.barrier();
 	//madness::print("meld_all: about to fix_cost");
-	if (!first_time) {
+       	if (!first_time) {
 	    this->fix_cost();
-	}
+       	}
 	//madness::print("meld_all: done with fix_cost");
 	this->world.gop.barrier();
 	//madness::print("meld_all: about to reset");
@@ -561,7 +561,7 @@ namespace madness {
 		    Cost cost = d.cost;
 		    if ((cost < cheapest) || (not_yet_found)) {
                         // if this child has the cheapest cost yet, then clear the 
-			// list and addthis child to the list of children to be 
+			// list and add this child to the list of children to be 
 			// melded to the parent
 			not_yet_found = false;
 			cheapest = cost;
@@ -642,6 +642,7 @@ namespace madness {
     if ((downward) && (((used_up == 0) && (!node.has_children())) ||
 		       ((used_up < partition_size) && (d.subcost+used_up <= partition_size+maxAddl)))) {
       used_up += d.subcost;
+      madness::print("make_partition: adding", key, "to partition");
       send(impl.owner(root), &LBTree::add_to_partition, TreeCoords<D>(key, lbi.partition_number));
       if (key == root) {
 	//madness::print("make_partition: about to totally_reset");
@@ -675,6 +676,7 @@ namespace madness {
     if (((used_up == 0) && (!node.has_children())) ||
 	((used_up < partition_size) && (d.cost+used_up <= partition_size+maxAddl))) {
       used_up += d.cost;
+      madness::print("make_partition: adding", key, "to partition");
       send(impl.owner(root), &LBTree::add_to_partition, TreeCoords<D>(key, lbi.partition_number));
       if (key == root) {
 	madness::print("make_partition: key == root");
@@ -688,7 +690,7 @@ namespace madness {
       if (continue_as_normal) {
 	send(impl.owner(key), &LBTree::make_partition, key, partition_size, used_up, lbi, downward);
       } else {
-	//madness::print("make_partition: about to totally_reset (else of else)");
+	madness::print("make_partition: about to totally_reset (else of else)");
 	send(impl.owner(root), &LBTree<D>::totally_reset, lbi);
       }
       //madness::print("RETURN 5");
