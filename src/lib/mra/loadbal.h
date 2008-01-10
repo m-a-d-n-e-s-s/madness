@@ -46,6 +46,11 @@ namespace madness {
     typedef int Cost;
     typedef double CompCost;
 
+    inline Cost default_cost_fun() {
+      return 1;
+    }
+
+
     /// Finds exponent k such that d^k <= me < d^{k+1}
     inline int nearest_power(int me, int d) {
         int k = 0;
@@ -509,16 +514,19 @@ namespace madness {
 
 	PartitionInfo<D> partition_info;
 	std::vector<typename DClass<D>::TreeCoords> temp_list;
-	
+	Cost (*cost_fun)();
+
     private:
         dcT impl;
 
     public:
-        LBTree(World& world, const SharedPtr< WorldDCPmapInterface<typename DClass<D>::KeyD> >& pmap) : woT(world)
+    LBTree(World& world, const SharedPtr< WorldDCPmapInterface<typename DClass<D>::KeyD> >& pmap, Cost (*cost_f)()=&default_cost_fun) : woT(world)
 	    , world(world)
+	  //, cost_fun(cost_fun)
 	    , impl(world,pmap) {
 	    impl.process_pending();
 	    this->process_pending();
+	    this->cost_fun=cost_f;
         };
 	/// Initialize the LBTree by converting a FunctionImpl to a LBTree
         template <typename T>
@@ -528,13 +536,17 @@ namespace madness {
             	NodeData nd;
 		typename DClass<D>::KeyD key = it->first;
             	if (!(it->second.has_children())) {
-                	typename DClass<D>::NodeD lbnode(nd,false);
-                	// insert into impl
-                	impl.insert(key, lbnode);
+		  nd.cost = (*cost_fun)();
+		  nd.subcost = nd.cost;
+		  typename DClass<D>::NodeD lbnode(nd,false);
+		  // insert into impl
+		  impl.insert(key, lbnode);
             	} else {
-                	typename DClass<D>::NodeD lbnode(nd,true);
-                	// insert into impl
-                	impl.insert(key, lbnode);
+		  nd.cost = (*cost_fun)();
+		  nd.subcost = nd.cost;
+		  typename DClass<D>::NodeD lbnode(nd,true);
+		  // insert into impl
+		  impl.insert(key, lbnode);
                 }
             }
         }
@@ -555,8 +567,8 @@ namespace madness {
 		    lbnode.set_all_children(true);
 		  }
 		  NodeData nd=lbnode.get_data();
-		  nd.cost++;
-		  nd.subcost++;
+		  nd.cost+=(*cost_fun)();
+		  nd.subcost+=(*cost_fun)();
 		  lbnode.set_data(nd);
 		  impl.insert(key, lbnode);
 		} else {
@@ -704,7 +716,6 @@ namespace madness {
 
 
     Cost compute_partition_size(Cost cost, unsigned int parts);
-
 
 
 }
