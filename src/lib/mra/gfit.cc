@@ -103,11 +103,7 @@ namespace madness {
         *pcoeff = coeff;
         *pexpnt = expnt;
     }
-}    
-int main() {
-    madness::Tensor<double> coeff, expnt;
-    madness::bsh_fit(0.0,1e-8,10.0,1e-12,&coeff,&expnt,true);
-    return 0;
-}
-    
 
+
+
+}    

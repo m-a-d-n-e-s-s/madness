@@ -1976,16 +1976,17 @@ namespace madness {
 
                 keyT dest = neighbor(key, d);
                 if (dest.is_valid()) {
-                    double opnorm = op->norm(key, d);
+                    double opnorm = op->norm(key.level(), d);
                     
                     // working assumption here is that the operator is isotropic and
                     // montonically decreasing with distance ... this needs to be validated.
-                    
-                    if (cnorm*opnorm < truncate_tol(thresh, key)) break;
-                    
-                    tensorT result = op->apply(key, d, c);
-                    
-                    coeffs.send(dest, &nodeT::accumulate, result, coeffs, dest);
+                    double tol = truncate_tol(thresh, key);
+
+                    if (cnorm*opnorm < tol) break;
+                    //if (cnorm*opnorm > tol) {
+                        tensorT result = op->apply(key, d, c, tol/cnorm);
+                        coeffs.send(dest, &nodeT::accumulate, result, coeffs, dest);
+                        //}
                 }
 
             }

@@ -5,12 +5,19 @@
 
 namespace madness {
 
+    extern void bsh_fit(double mu, double lo, double hi, double eps, 
+                        Tensor<double> *pcoeff, Tensor<double> *pexpnt, bool prnt=false);
+
+
     /// Simplified interface around hash_map to cache stuff
+
+    /// Since insertions into STL containers have the nasty habit of
+    /// invalidating iterators we actually store shared pointers
     template <typename Q>
     class SimpleCache {
     private:
-        typedef HASH_MAP_NAMESPACE::hash_map< unsigned long, Q> mapT;
-        typedef std::pair< unsigned long, Q> pairT;
+        typedef HASH_MAP_NAMESPACE::hash_map< unsigned long, SharedPtr<Q> > mapT;
+        typedef std::pair< unsigned long, SharedPtr<Q> > pairT;
         mapT cache;
         const typename mapT::const_iterator end;
         
@@ -45,20 +52,27 @@ namespace madness {
         inline const Q* getptr(Level n,  const indexT& index) const {
             typename mapT::const_iterator test = cache.find(key(n,index));
             if (test == end) return 0;
-            return &((*test).second);
+            return test->second.get();
         }
         
 
         /// Set value associated with (n,index)
         template <typename indexT>
         inline void set(Level n, const indexT& index, const Q& val) {
-            cache.insert(pairT(key(n,index),val));
+            cache.insert(pairT(key(n,index),SharedPtr<Q>(new Q(val))));
         }
+    };
+
+    template <typename Q>
+    struct ConvolutionData1D {
+        Tensor<Q> R, T;  // R=ns, T=T part of ns
+
+        ConvolutionData1D(const Tensor<Q>& R, const Tensor<Q>& T) : R(R), T(T) {}
     };
 
     /// Stores info about 1D Gaussian convolution
     template <typename Q>
-    class GaussianConvolution {
+    class GaussianConvolution1D {
     public:
         int k;
         int npt;
@@ -68,12 +82,12 @@ namespace madness {
         Tensor<double> hgT;
         Tensor<double> quad_x;
         Tensor<double> quad_w;
+
         mutable SimpleCache< Tensor<Q> > rnlij_cache;
-        mutable SimpleCache< Tensor<Q> > ns_cache;
-        mutable SimpleCache< Tensor<Q> > ns_T_cache;
+        mutable SimpleCache< ConvolutionData1D<Q> > ns_cache;
         
-        GaussianConvolution() : k(-1), npt(-1), coeff(0.0), expnt(0.0) {}; 
-        GaussianConvolution(int k, Q coeff, double expnt)
+        GaussianConvolution1D() : k(-1), npt(-1), coeff(0.0), expnt(0.0) {}; 
+        GaussianConvolution1D(int k, Q coeff, double expnt)
             : k(k), npt(k+11), coeff(coeff), expnt(expnt)
         {
             MADNESS_ASSERT(autoc(k,&c));
@@ -204,10 +218,10 @@ namespace madness {
             return *rnlij_cache.getptr(n,lx);
         };
 
-        /// Returns a reference to the nonstandard form of the operator
-        const Tensor<Q>& nonstandard(long n, long lx) const {
-            const Tensor<Q> *p = ns_cache.getptr(n,lx);
-            if (p) return *p;
+        /// Returns a pointer to the cached nonstandard form of the operator
+        const ConvolutionData1D<Q>* nonstandard(long n, long lx) const {
+            const ConvolutionData1D<Q>* p = ns_cache.getptr(n,lx);
+            if (p) return p;
     
             long lx2 = lx*2;
             Tensor<Q> R(2*k,2*k);
@@ -223,21 +237,15 @@ namespace madness {
                 for (int i=0; i<2*k; i++) 
                     for (int j=0; j<i; j++) 
                         R(i,j) = R(j,i) = ((i+j)&1) ? 0.0 : 0.5*(R(i,j)+R(j,i));
+
+            R = transpose(R);
+            Tensor<Q> T = copy(R(s0,s0));
             
-            ns_cache.set(n,lx,transpose(R));
-            return *(ns_cache.getptr(n,lx));
+            ns_cache.set(n,lx,ConvolutionData1D<Q>(R,T));
+            return ns_cache.getptr(n,lx);
         };
 
 
-        /// Returns a reference to the T block of the nonstandard form
-        const Tensor<Q>& nonstandard_T(long n, long lx) const {
-            const Tensor<Q> *p = ns_T_cache.getptr(n,lx);
-            if (p) return *p;
-            Slice s0(0,k-1);
-            ns_T_cache.set(n,lx,copy(nonstandard(n,lx)(s0,s0)));
-            return *(ns_T_cache.getptr(n,lx));
-        };
-        
         /// Returns true if the block is expected to be small
         bool issmall(long n, long lx) const {
             double beta = expnt*(pow(0.25,double(n)));
@@ -282,73 +290,94 @@ namespace madness {
         return munge_sign_struct<Q, TensorTypeData<Q>::iscomplex>::op(coeff);
     }
             
-    /// Isotropic convolutions in separated form (presently Gaussian)
+
+    template <typename Q, int NDIM>
+    struct SeparatedConvolutionInternal {
+        double norm;
+        const ConvolutionData1D<Q>* ops[NDIM];
+    };
+
+    template <typename Q, int NDIM>
+    struct SeparatedConvolutionData {
+        double norm;
+        std::vector< SeparatedConvolutionInternal<Q,NDIM> > muops;
+
+        SeparatedConvolutionData(int rank) : muops(rank) {}
+        SeparatedConvolutionData(const SeparatedConvolutionData<Q,NDIM>& q) {
+            norm = q.norm;
+            muops = q.muops;
+        }
+    };
+
+
+    /// Convolutions in separated form (presently Gaussian)
     template <typename Q, int NDIM>
     class SeparatedConvolution : public WorldObject< SeparatedConvolution<Q,NDIM> > {
     public:
         typedef Q opT;  ///< The apply function uses this to infer resultT=opT*inputT
     private:
         const int k;
-        const double tol;
         const int rank;
-        std::vector< GaussianConvolution<Q> > ops;
+        const std::vector<long> v2k;
+        const std::vector<Slice> s0;
         std::vector<Q> signs;
-        std::vector<Slice> s0;
-        mutable SimpleCache<double> norms;
+        mutable std::vector< GaussianConvolution1D<Q> > ops;
+        mutable SimpleCache< SeparatedConvolutionData<Q,NDIM> > data;
 
-
-        /// Apply the specified block of the mu'th term to a vector accumulating into the result
+        /// Apply one of the separated terms, accumulating into the result
         template <typename T>
-        void muopxv(const long mu, 
-                    Level n,
-                    const Displacement<NDIM>& shift,
-                    const Tensor<T>& f, Tensor<TENSOR_RESULT_TYPE(T,Q)>& result,
-                    const double tol) const {
-
-            Tensor<TENSOR_RESULT_TYPE(T,Q)> tmp = inner(f,ops[mu].nonstandard(n,shift[0]),0,0);
+        void muopxv(Level n,
+                    const ConvolutionData1D<Q>* const ops[NDIM],
+                    const Tensor<T>& f, const Tensor<T>& f0,
+                    Tensor<TENSOR_RESULT_TYPE(T,Q)>& result,
+                    const double tol,
+                    const double musign) const {
+            // Temporaries can be optimized away
+            Tensor<TENSOR_RESULT_TYPE(T,Q)> tmp = inner(f,ops[0]->R,0,0);
             for (int d=1; d<NDIM; d++) {
-                tmp = inner(tmp,ops[mu].nonstandard(n,shift[d]),0,0);
+                tmp = inner(tmp,ops[d]->R,0,0);
             }
-            result.gaxpy(1.0,tmp,signs[mu]);
+            result.gaxpy(1.0,tmp,musign);
             
             if (n > 0) {
-                tmp = inner(copy(f(s0)),ops[mu].nonstandard_T(n,shift[0]),0,0);
+                tmp = inner(f0,ops[0]->T,0,0);
                 for (int d=1; d<NDIM; d++) {
-                    tmp = inner(tmp,ops[mu].nonstandard_T(n,shift[d]),0,0);
+                    tmp = inner(tmp,ops[d]->T,0,0);
                 }
-                result(s0).gaxpy(1.0,tmp,-signs[mu]);
+                result(s0).gaxpy(1.0,tmp,-musign);
+            }
+        }
+
+        /// Apply transpose of one of the separated terms, accumulating into the result
+
+        /// This is only used when computing the actual 2-norm by the power method
+        template <typename T>
+        void muopxvT(Level n,
+                     const ConvolutionData1D<Q>* ops[],
+                     const Tensor<T>& f, const Tensor<T>& f0,
+                     Tensor<TENSOR_RESULT_TYPE(T,Q)>& result,
+                     const double tol,
+                     const double musign) const {
+            // Temporaries can be optimized away
+            Tensor<TENSOR_RESULT_TYPE(T,Q)> tmp = inner(f,ops[0]->R,0,1);
+            for (int d=1; d<NDIM; d++) {
+                tmp = inner(tmp,ops[d]->R,0,1);
+            }
+            result.gaxpy(1.0,tmp,musign);
+            
+            if (n > 0) {
+                tmp = inner(f0,ops[0]->T,0,1); // Slice+copy can be optimized away
+                for (int d=1; d<NDIM; d++) {
+                    tmp = inner(tmp,ops[d]->T,0,1);
+                }
+                result(s0).gaxpy(1.0,tmp,-musign);
             }
         }
 
 
-        /// Apply the transpose of the specified block of the mu'th term to a vector accumulating into the result
-        template <typename T>
-        void muopxvT(const long mu, 
-                     Level n,
-                     const Displacement<NDIM>& shift,
-                     const Tensor<T>& f, Tensor<TENSOR_RESULT_TYPE(T,Q)>& result,
-                     const double tol) const {
-
-            Tensor<TENSOR_RESULT_TYPE(T,Q)> tmp = inner(f,ops[mu].nonstandard(n,shift[0]),0,1);
-            for (int d=1; d<NDIM; d++) {
-                tmp = inner(tmp,ops[mu].nonstandard(n,shift[d]),0,1);
-            }
-            result.gaxpy(1.0,tmp,signs[mu]);
-            
-            if (n > 0) {
-                tmp = inner(copy(f(s0)),ops[mu].nonstandard_T(n,shift[0]),0,1);
-                for (int d=1; d<NDIM; d++) {
-                    tmp = inner(tmp,ops[mu].nonstandard_T(n,shift[d]),0,1);
-                }
-                result(s0).gaxpy(1.0,tmp,-signs[mu]);
-            }
-        }
-
-        /// Returns the norm of the specified block of the NS operator of the mu'th Gaussian
-        double munorm(long mu, Level n, const Displacement<NDIM>& shift) const {
-            std::vector<long> v2k(NDIM);
-            for (int i=0; i<NDIM; i++) v2k[i] = 2*k;            
-            Tensor<Q> f(v2k), ff(v2k);
+        /// Computes the norm of one of the separated terms
+        double munorm(Level n, const ConvolutionData1D<Q>* ops[]) const {
+            Tensor<Q> f(v2k), f0, ff(v2k);
             
             double tol = 1e-20;
             
@@ -357,93 +386,178 @@ namespace madness {
             double evalp = 1.0, eval, ratio=99.0;
             for (int iter=0; iter<100; iter++) {
                 ff.fill(0.0); 
-                muopxv(mu,n,shift,f,ff,tol);
+                f0 = copy(f(s0));
+                muopxv(n,ops,f,f0,ff,tol,1.0);
                 f.fill(0.0);  
-                muopxvT(mu,n,shift,ff,f,tol);
+                f0 = copy(ff(s0));
+                muopxvT(n,ops,ff,f0,f,tol,1.0);
                 
                 eval = f.normf();
                 if (eval == 0.0) break;
                 f.scale(1.0/eval);
                 eval = sqrt(eval);
                 ratio = eval/evalp;
-                std::printf("munorm: %d %10.2e %10.2e %10.2e \n", iter, eval, evalp, ratio);
+                //std::printf("munorm: %d %10.2e %10.2e %10.2e \n", iter, eval, evalp, ratio);
                 if (iter>0 && ratio<1.2 && ratio>=1.0) break; // 1.2 was 1.02
-                if (iter>10 && eval<1e-30) break;
+                if (iter>10 && eval<tol) break;
                 evalp = eval;
                 if (iter == 99) throw "munorm failed";
             }
             return eval*ratio;
         }
 
+        double munorm2(Level n, const ConvolutionData1D<Q>* ops[]) const {
+            double prod=1.0, sum=0.0;
+            for (int d=0; d<NDIM; d++) {
+                Tensor<Q> q = copy(ops[d]->R);
+                q(s0) = 0.0;
+                double a = q.normf();
+                double b = ops[d]->T.normf();
+                double aa = std::min(a,b);
+                double bb = std::max(a,b);
+                prod *= bb;
+                if (bb > 0.0) sum +=(aa/bb);
+            }
+            if (n) prod *= sum;
 
+            return prod; 
+        }
+
+
+        const SeparatedConvolutionInternal<Q,NDIM> getmuop(int mu, Level n, const Displacement<NDIM>& disp) const {
+            SeparatedConvolutionInternal<Q,NDIM> op;
+            for (int d=0; d<NDIM; d++) {
+                op.ops[d] = ops[mu].nonstandard(n, disp[d]);
+            }
+            double newnorm = munorm2(n, op.ops);
+//             double oldnorm = munorm(n, op.ops);
+//             if (newnorm < oldnorm) print("munorm", mu, newnorm, oldnorm);
+            op.norm = newnorm;
+            return op;
+        }
+
+        
+        /// Returns pointer to cached operator
+        const SeparatedConvolutionData<Q,NDIM>* getop(Level n, const Displacement<NDIM>& d) const {
+            const SeparatedConvolutionData<Q,NDIM>* p = data.getptr(n,d);
+            if (p) return p;
+
+            SeparatedConvolutionData<Q,NDIM> op(rank);
+            for (int mu=0; mu<rank; mu++) {
+                op.muops[mu] = getmuop(mu, n, d);   // ???? SEGV HERE ????
+            }
+
+            double norm = 0.0;
+            for (int mu=0; mu<rank; mu++) {
+                const double munorm = op.muops[mu].norm;
+                norm += munorm*munorm;
+            }
+            op.norm = sqrt(norm);
+            data.set(n, d, op);
+            return data.getptr(n,d);
+        }
 
 
     public:
 
         SeparatedConvolution(World& world,
-                             long k, double tol,
+                             long k, 
                              const Tensor<Q>& coeffs, 
                              const Tensor<double>& expnts)    // restriction to double must be relaxed
             : WorldObject< SeparatedConvolution<Q,NDIM> >(world)
             , k(k)
-            , tol(tol)
             , rank(coeffs.dim[0])
-            , ops(rank)
+            , v2k(NDIM,2*k)
+            , s0(NDIM,Slice(0,k-1))
             , signs(rank) 
-            , s0(NDIM)
+            , ops(rank)
         {
+            // !!! NB ... cell volume obtained from global defaults
+            Tensor<double> cell_width(FunctionDefaults<NDIM>::cell(_,1)-FunctionDefaults<NDIM>::cell(_,0));
+            // Check that the cell is cubic since currently is assumed
+            for (long d=1; d<NDIM; d++) {
+                MADNESS_ASSERT(fabs(cell_width(d)-cell_width(0L)) < 1e-14*cell_width(0L));
+            }
+
             for (int i=0; i<rank; i++) {
                 Q coeff = coeffs(i);
                 signs[i] = munge_sign(coeff); 
                 coeff = std::pow(coeff,1.0/NDIM);
-                ops[i] = GaussianConvolution<Q>(k, coeff, expnts(i));
+                // !!! Note that this assumes cubic box
+                ops[i] = GaussianConvolution1D<Q>(k, 
+                                                  coeff*cell_width(0L), 
+                                                  expnts(i)*cell_width(0L)*cell_width(0L));
             }
 
-            for (int i=0; i<NDIM; i++) s0[i] = Slice(0,k-1);
             this->process_pending();
         }
 
-        
-        double norm(const Key<NDIM>& key, const Displacement<NDIM>& d) const {
-            const double *n = norms.getptr(key.level(),d);
-            if (n) return *n;
-            double thenorm = munorm(0, key.level(), d);
-            norms.set(key.level(), d, thenorm);
-            return thenorm;
+        double norm(Level n, const Displacement<NDIM>& d) const {
+            return getop(n, d)->norm;
         }
 
         template <typename T>
         Tensor<TENSOR_RESULT_TYPE(T,Q)> apply(const Key<NDIM>& source,
                                               const Displacement<NDIM>& shift,
-                                              const Tensor<T>& coeff) const {
+                                              const Tensor<T>& coeff,
+                                              double tol) const {
+            tol = tol/rank;
             typedef TENSOR_RESULT_TYPE(T,Q) resultT;
-            print("sepop",source,shift);
-            std::vector<long> v2k(NDIM);
-            for (int i=0; i<NDIM; i++) v2k[i] = 2*k;            
-            
-            Tensor<resultT> r = Tensor<resultT>(v2k);
-            if (coeff.dim[0] != k) muopxv(0L, source.level(), shift, coeff, r, tol);
+            const SeparatedConvolutionData<Q,NDIM>* op = getop(source.level(), shift);
+            print("sepop",source,shift,op->norm,tol);
+            Tensor<resultT> r(v2k);
+
+            const Tensor<T>* input = &coeff;
+            Tensor<T> dummy;
+
+            if (coeff.dim[0] == k) {
+                dummy = Tensor<T>(v2k);
+                dummy(s0) = coeff;
+                input = &dummy;
+            }
+            const Tensor<T> f0 = copy(coeff(s0));
+            for (int mu=0; mu<rank; mu++) {
+                const SeparatedConvolutionInternal<Q,NDIM>& muop =  op->muops[mu];
+                if (muop.norm > tol) { 
+                    muopxv(source.level(), muop.ops, *input, f0, r, tol, signs[mu]);
+                }
+            }
             return r;
         }
         
-//         double munorm(long mu, long n, long x, long y, long z);
-//         double norm(long n, long x, long y, long z);
-//         void opxv(long n, long x, long y, long z,
-//                   const Tensor<double>& f, Tensor<double>& result,
-//                   double tol);
-//         void opxvt(long n, long x, long y, long z,
-//                    const Tensor<double>& f, Tensor<double>& result,
-//                    double tol);
-//         void muopxv(const long mu, 
-//                     const long n, const long x, const long y, const long z,
-//                     const Tensor<double>& f, Tensor<double>& result,
-//                     const double tol);
-//         void muopxvt(long mu, long n, long x, long y, long z,
-//                      const Tensor<double>& f, Tensor<double>& result,
-//                      double tol);
-
     };
 
+
+    /// Factory function generating separated kernel for convolution with 1/r.
+    template <typename Q, int NDIM>
+    SeparatedConvolution<Q,NDIM> CoulombOperator(World& world,
+                                                 long k,
+                                                 double lo,
+                                                 double eps) {
+        Tensor<double> cell_width(FunctionDefaults<NDIM>::cell(_,1)-FunctionDefaults<NDIM>::cell(_,0));
+        double hi = sqrt(double(NDIM))*cell_width.normf(); // Diagonal width of cell
+        const double pi = 3.14159265358979323846264338328;
+
+        // bsh_fit generates representation for 1/4Pir but we want 1/r
+        // so have to scale eps by 1/4Pi
+        Tensor<double> coeff, expnt;
+        bsh_fit(0.0, lo, hi, eps/(4.0*pi), &coeff, &expnt, true);
+        coeff.scale(4.0*pi);
+        return SeparatedConvolution<Q,NDIM>(world, k, coeff, expnt);
+    }
+
+    /// Factory function generating separated kernel for convolution with exp(-mu*r)/(4*pi*r)
+    template <typename Q, int NDIM>
+    SeparatedConvolution<Q,NDIM> BSHOperator(World& world,
+                                             long k,
+                                             double lo,
+                                             double eps) {
+        Tensor<double> cell_width(FunctionDefaults<NDIM>::cell(_,1)-FunctionDefaults<NDIM>::cell(_,0));
+        double hi = sqrt(double(NDIM))*cell_width.normf(); // Diagonal width of cell
+        Tensor<double> coeff, expnt;
+        bsh_fit(0.0, lo, hi, eps, &coeff, &expnt, true);
+        return SeparatedConvolution<Q,NDIM>(world, k, coeff, expnt);
+    }
 
     namespace archive {
         template <class Archive, class T, int NDIM>

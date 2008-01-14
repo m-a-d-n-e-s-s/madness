@@ -537,18 +537,18 @@ void test_op(World& world) {
         print("\nTest separated operators - type =", archive::get_type_name<T>(),", ndim =",NDIM,"\n");
     }
     const coordT origin(0.5);
-    const double expnt = 100.0;
+    const double expnt = 1.0;
     const double coeff = pow(2.0/PI,0.25*NDIM);
     functorT functor(new Gaussian<T,NDIM>(origin, expnt, coeff));
 
     FunctionDefaults<NDIM>::k = 10;
-    FunctionDefaults<NDIM>::thresh = 1e-10;
+    FunctionDefaults<NDIM>::thresh = 1e-12;
     FunctionDefaults<NDIM>::refine = true;
     FunctionDefaults<NDIM>::initial_level = 2;
     FunctionDefaults<NDIM>::truncate_mode = 1;
     for (int i=0; i<NDIM; i++) {
-        FunctionDefaults<NDIM>::cell(i,0) =  0.0;
-        FunctionDefaults<NDIM>::cell(i,1) =  1.0;
+        FunctionDefaults<NDIM>::cell(i,0) = -10.0;
+        FunctionDefaults<NDIM>::cell(i,1) =  10.0;
     }
     
     START_TIMER; 
@@ -572,11 +572,9 @@ void test_op(World& world) {
     // exp(-x^2*a*b/(a+b))* (Pi/(a+b))^(NDIM/2)
 
     Tensor<double> coeffs(1), exponents(1);
-    exponents(0L) = 100.0;
+    exponents(0L) = 1.0;
     coeffs(0L) = pow(exponents(0L)/PI, 0.5*NDIM);
-    SeparatedConvolution<T,NDIM> op(world,
-                                    FunctionDefaults<NDIM>::k, FunctionDefaults<NDIM>::thresh,
-                                    coeffs, exponents);
+    SeparatedConvolution<T,NDIM> op(world, FunctionDefaults<NDIM>::k, coeffs, exponents);
     START_TIMER;
     Function<T,NDIM> r = apply(op,f);
     END_TIMER("apply");
@@ -597,6 +595,97 @@ void test_op(World& world) {
         print("           ",i,r(c),(*fexact)(c));
     }
 }
+
+/// Computes the electrostatic potential due to a Gaussian charge distribution
+class GaussianPotential : public FunctionFunctorInterface<double,3> {
+public:
+    typedef Vector<double,3> coordT;
+    const coordT center;
+    const double exponent;
+    const double coefficient;
+
+    GaussianPotential(const coordT& center, double expnt, double coefficient) 
+        : center(center)
+        , exponent(sqrt(expnt))
+        , coefficient(coefficient*pow(PI/exponent,1.5)) {}
+        
+    double operator()(const coordT& x) const {
+        double sum = 00;
+        for (int i=0; i<3; i++) {
+            double xx = center[i]-x[i];
+            sum += xx*xx;
+        };
+        double r = sqrt(sum);
+        return coefficient*erf(exponent*r)/r;
+    }
+};
+
+void test_coulomb(World& world) {
+    typedef Vector<double,3> coordT;
+    typedef SharedPtr< FunctionFunctorInterface<double,3> > functorT;
+
+    if (world.rank() == 0) {
+        print("\nTest Coulomb operator - type =", archive::get_type_name<double>(),", ndim = 3 (only)\n");
+    }
+
+    // Normalized Gaussian exponent a produces potential erf(sqrt(a)*r)/r
+    const coordT origin(0.5);
+    const double expnt = 1.0;
+    const double coeff = pow(1.0/PI*expnt,0.5*3);
+    functorT functor(new Gaussian<double,3>(origin, expnt, coeff));
+
+    double thresh = 1e-8;
+
+    FunctionDefaults<3>::k = 10;
+    FunctionDefaults<3>::thresh = thresh;
+    FunctionDefaults<3>::refine = true;
+    FunctionDefaults<3>::initial_level = 2;
+    FunctionDefaults<3>::truncate_mode = 0;
+    for (int i=0; i<3; i++) {
+        FunctionDefaults<3>::cell(i,0) = -10.0;
+        FunctionDefaults<3>::cell(i,1) =  10.0;
+    }
+    
+    START_TIMER; 
+    Function<double,3> f = FunctionFactory<double,3>(world).functor(functor);
+    END_TIMER("project");
+
+    //f.print_info();  <--------- This is not scalable and might crash the XT
+
+    f.reconstruct();
+    print("         f norm is", f.norm2());
+    print("     f total error", f.err(*functor));
+
+    print(" truncating");
+    f.truncate();
+    f.reconstruct();
+    print("         f norm is", f.norm2());
+    print("     f total error", f.err(*functor));
+
+    f.reconstruct();
+    START_TIMER;
+    f.nonstandard();
+    END_TIMER("nonstandard");
+
+    SeparatedConvolution<double,3> op = CoulombOperator<double,3>(world, FunctionDefaults<3>::k, 1e-8, thresh);
+    START_TIMER;
+    Function<double,3> r = apply(op,f);
+    END_TIMER("apply");
+    r.reconstruct();
+    r.verify_tree();
+
+    functorT fexact(new GaussianPotential(origin, expnt, coeff));
+
+    print(" numeric at origin", r(origin));
+    print("analytic at origin", (*fexact)(origin));
+    print("      op*f norm is", r.norm2());
+    print("  op*f total error", r.err(*fexact));
+    for (int i=0; i<=100; i++) {
+        coordT c(i*0.01);
+        print("           ",i,r(c),(*fexact)(c));
+    }
+}
+
 
 #define TO_STRING(s) TO_STRING2(s)
 #define TO_STRING2(s) #s
@@ -641,22 +730,24 @@ int main(int argc, char**argv) {
     try {
         startup(world,argc,argv);
         if (world.rank() == 0) print("Initial tensor instance count", BaseTensor::get_instance_count());
-//         test_basic<double,1>(world);
-//         test_conv<double,1>(world);
-//         test_math<double,1>(world);
-//         test_diff<double,1>(world);
-        test_op<double,1>(world);
+//          test_basic<double,1>(world);
+//          test_conv<double,1>(world);
+//          test_math<double,1>(world);
+//          test_diff<double,1>(world);
+//          test_op<double,1>(world);
 
-//         test_basic<double,2>(world);
-//         test_conv<double,2>(world);
-//         test_math<double,2>(world);
-//         test_diff<double,2>(world);
-        test_op<double,2>(world);
+//          test_basic<double,2>(world);
+//          test_conv<double,2>(world);
+//          test_math<double,2>(world);
+//          test_diff<double,2>(world);
+//          test_op<double,2>(world);
 
-//         test_basic<double,3>(world);
-//         test_conv<double,3>(world);
-//         test_math<double,3>(world);
-//         test_diff<double,3>(world);
+         test_basic<double,3>(world);
+         //         test_conv<double,3>(world);
+        //         test_math<double,3>(world);
+         //         test_diff<double,3>(world);
+//         test_op<double,3>(world);
+        test_coulomb(world);
 
     } catch (const MPI::Exception& e) {
         //        print(e);
