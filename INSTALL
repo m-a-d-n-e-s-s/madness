@@ -42,7 +42,7 @@ Linux 64-bit using MKL in default install location
 
 Linux 32-bit using MKL in default install location
 
-    ./doconfig LIBS "-L/opt/intel/mkl/9.1.023/lib/32 -lmkl -lguide"
+    ./doconfig LIBS "-L/opt/intel/mkl/10.0.1.014/lib/32 -lmkl -lguide"
 
 
 
