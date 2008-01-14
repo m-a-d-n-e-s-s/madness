@@ -1,5 +1,3 @@
-#include <stdio.h>
-#include <stdlib.h>
 #include <tensor/mtxmq.h>
 #ifdef X86_64
 extern "C" void mTxm26(long dimi, long dimj, long dimk,
@@ -171,8 +169,7 @@ namespace madness {
                     break;
                     
                 default:
-                    printf("mtxmq_byj: should not be here!\n");
-                    exit(1);
+                    throw "mtxmq_byj: should not be here";
                     
                 }
                 nj -= numj;
@@ -245,9 +242,7 @@ namespace madness {
                     break;
                     
                 default:
-                    printf("mtxmq: should not be here!\n");
-                    exit(1);
-                    
+                    throw "mtxmq: should not be here!";
                 }
                 ni -= numi;
                 c += numi*dimj;
