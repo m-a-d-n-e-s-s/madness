@@ -7,7 +7,7 @@
 
 namespace madness {
 
-#define WORLD_MUTEX_ATOMIC
+    // #define WORLD_MUTEX_ATOMIC
     
 #ifdef WORLD_MUTEX_ATOMIC
     /// Mutex using spin locks and atomic operations
@@ -82,11 +82,12 @@ namespace madness {
         
         /// Return a pointer to the pthread mutex for use by a condition variable
         inline pthread_mutex_t* ptr() {return &mutex;}
-        
+
         ~Mutex() {pthread_mutex_destroy(&mutex);};
     };
     
 #endif
+
     
     /// Simplified thread wrapper to hide pthread complexity
     class Thread {

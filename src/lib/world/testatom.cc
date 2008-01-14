@@ -25,14 +25,17 @@ void* doit(void *args) {
 
 void* doit_mutex(void *args) {
     Mutex* p = (Mutex *) args;
-    for (int j=0; j<1000; j++) {
-        for (int i=0; i<10000; i++) {
+    for (int j=0; j<10; j++) {
+        for (int i=0; i<100; i++) {
             p->lock();
             sum++;
             p->unlock();
         }
     }
-    MADATOMIC_INT_INC(&ndone);
+
+    p->lock();
+    ndone++;
+    p->unlock();
 
     return 0;
 }
@@ -41,10 +44,10 @@ int main() {
     const int nthread = 4;
     Thread threads[nthread];
 
-    sum = ndone = 0;
-    for (int i=0; i<nthread; i++) threads[i].start(doit,0);
-    while (MADATOMIC_INT_GET(&ndone) != nthread) sleep(1);
-    cout << "SUM " << MADATOMIC_INT_GET(&sum) << endl;
+//     sum = ndone = 0;
+//     for (int i=0; i<nthread; i++) threads[i].start(doit,0);
+//     while (MADATOMIC_INT_GET(&ndone) != nthread) sleep(1);
+//     cout << "SUM " << MADATOMIC_INT_GET(&sum) << endl;
 
     Mutex p;
     sum = ndone = 0;
