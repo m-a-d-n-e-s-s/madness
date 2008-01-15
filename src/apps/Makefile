@@ -1,6 +1,6 @@
 TOPDIR = ../..
 
-SUBDIRS = hf
+SUBDIRS = hf ii
 
 include $(TOPDIR)/config/GlobalMakefile
 include $(TOPDIR)/config/MakeSubDirs
