@@ -549,13 +549,14 @@ namespace madness {
     /// Factory function generating separated kernel for convolution with exp(-mu*r)/(4*pi*r)
     template <typename Q, int NDIM>
     SeparatedConvolution<Q,NDIM> BSHOperator(World& world,
+                                             double mu,
                                              long k,
                                              double lo,
                                              double eps) {
         Tensor<double> cell_width(FunctionDefaults<NDIM>::cell(_,1)-FunctionDefaults<NDIM>::cell(_,0));
         double hi = sqrt(double(NDIM))*cell_width.normf(); // Diagonal width of cell
         Tensor<double> coeff, expnt;
-        bsh_fit(0.0, lo, hi, eps, &coeff, &expnt, true);
+        bsh_fit(mu, lo, hi, eps, &coeff, &expnt, true);
         return SeparatedConvolution<Q,NDIM>(world, k, coeff, expnt);
     }
 
