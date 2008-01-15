@@ -45,6 +45,10 @@ for t in complex_typelist:
     f.write("template Tensor<%s> conj(const Tensor<%s>& t);\n" % (t,t))
     f.write("template Tensor<%s> conj_transpose(const Tensor<%s>& t);\n" % (t,t))
 
+#for t in typelist:
+#    for q in typelist:
+#        f.write("template TENSOR_RESULT_TYPE(%s,%s) Tensor<%s>::trace_conj(const Tensor<%s>& q);\n" % (t,q,t,q))
+
 f.close()
     
 ## f.write("\n\nPUT THESE AT THE BOTTOM OF mxm.cc\n"

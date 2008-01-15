@@ -595,6 +595,19 @@ namespace madness {
             return *this;
         }
 
+	/// Returns the inner product
+
+	/// Needs optimization for computing multiple inner products
+	template <typename R>
+	  TENSOR_RESULT_TYPE(T,R) inner(const Function<R,NDIM>& g) const {
+	  if (!is_compressed()) const_cast<Function<T,NDIM>*>(this)->compress();
+	  if (!g.is_compressed()) const_cast<Function<R,NDIM>*>(&g)->compress();
+
+	  TENSOR_RESULT_TYPE(T,R) local = impl->inner_local(*(g.impl));
+	  impl->world.gop.sum(local);
+	  return local;
+	}
+
     };
 
     
@@ -771,6 +784,14 @@ namespace madness {
     mapdim(const Function<T,NDIM>& f, const std::vector<long>& map, bool fence=true) {
         Function<T,NDIM> result;
         return result.mapdim(f,map,fence);
+    }
+
+    /// Computes the scalar/inner product between two functions
+
+    /// In Maple this would be \c int(conjugate(f(x))*g(x),x=-infinity..infinity)
+    template <typename T, typename R, int NDIM>
+      TENSOR_RESULT_TYPE(T,R) inner(const Function<T,NDIM>& f, const Function<R,NDIM>& g) {
+      return f.inner(g);
     }
 
 }

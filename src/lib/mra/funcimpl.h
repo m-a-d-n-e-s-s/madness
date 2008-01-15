@@ -2069,6 +2069,25 @@ namespace madness {
             return sum;
         }
 
+	/// Returns the inner product ASSUMING same distribution
+	template <typename R>
+	  TENSOR_RESULT_TYPE(T,R) inner_local(const FunctionImpl<R,NDIM>& g) const {
+
+	  TENSOR_RESULT_TYPE(T,R) sum = 0.0;
+	  for(typename dcT::const_iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
+	    const nodeT& fnode = it->second;
+	    if (fnode.has_coeff()) {
+	      if (g.coeffs.probe(it->first)) {
+		const FunctionNode<R,NDIM>& gnode = g.coeffs.find(it->first).get()->second;
+		if (gnode.has_coeff()) {
+		  sum += fnode.coeff().trace_conj(gnode.coeff());
+		}
+	      }
+            }
+	  }
+	  return sum;
+	}
+
         /// Returns the maximum depth of the tree
 	std::size_t max_depth() const {
 	    std::size_t maxdepth = 0;

@@ -80,6 +80,31 @@ namespace std {
 
 namespace madness {
 
+
+    // For real types return value, for complex return conjugate
+    template <typename Q, bool iscomplex> 
+    struct conditional_conj_struct {
+        static Q op(const Q& coeff) {
+            return coeff;
+        }
+    };
+        
+    // For real types return value, for complex return conjugate
+    template <typename Q>
+    struct conditional_conj_struct<Q,true> {
+        static Q op(const Q& coeff) {
+	  return conj(coeff);
+	}
+    };
+
+    template <typename Q>
+    Q conditional_conj(const Q& coeff) {
+      return conditional_conj_struct<Q,TensorTypeData<Q>::iscomplex>::op(coeff);
+    }
+
+
+
+
     /// A templated tensor or multidimensional array of numeric quantities.
 
     /// A tensor provides a multidimensional view of numeric data.  It is
@@ -641,6 +666,14 @@ namespace madness {
 
         /// Return the trace of two tensors (no complex conjugate invoked)
         T trace(const Tensor<T>& t) const;
+
+    /// Return the trace of two tensors with complex conjugate of the leftmost (i.e., this)
+    template <class Q>
+      TENSOR_RESULT_TYPE(T,Q) trace_conj(const Tensor<Q>& t) const {
+      TENSOR_RESULT_TYPE(T,Q) result = 0;
+      BINARY_OPTIMIZED_ITERATOR(T,(*this),Q,t,result += conditional_conj(*_p0)*(*_p1));
+      return result;
+    }
 
         /// Inplace apply a unary function to each element of the tensor
         Tensor<T>& unaryop(T (*op) (T));

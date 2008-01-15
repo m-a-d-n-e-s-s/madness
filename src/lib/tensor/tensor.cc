@@ -677,6 +677,7 @@ namespace madness {
         return result;
     }
 
+
     template <class T>
     Tensor<T>& Tensor<T>::emul(const Tensor<T>& t) {
         BINARY_OPTIMIZED_ITERATOR(T,(*this),T,t,*_p0 *= *_p1);
