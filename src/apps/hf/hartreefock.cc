@@ -4,11 +4,25 @@ namespace madness
 {
 
   //***************************************************************************
-  HartreeFock::HartreeFock(World& world, funcT V, std::vector<funcT> phis)
-    : _world(world), _V(V), _phis(phis)
+  HartreeFock::HartreeFock(World& world, funcT V, std::vector<funcT> phis,
+    std::vector<double> eigs, bool bCoulomb, bool bExchange) :
+  _world(world), _V(V), _phis(phis), _eigs(eigs), _bCoulomb(bCoulomb),
+      _bExchange(bExchange)
   {
     ones = functorT(new OnesFunctor());
     zeros = functorT(new ZerosFunctor());
+  }
+  //***************************************************************************
+  
+  //***************************************************************************
+  HartreeFock::HartreeFock(World& world, funcT V, funcT phi, double eig, 
+      bool bCoulomb, bool bExchange) : _world(world), _V(V),
+      _bCoulomb(bCoulomb), _bExchange(bExchange)
+  {
+    ones = functorT(new OnesFunctor());
+    zeros = functorT(new ZerosFunctor());
+    _phis.push_back(phi);
+    _eigs.push_back(eig);
   }
   //***************************************************************************
   

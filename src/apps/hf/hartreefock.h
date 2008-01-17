@@ -176,7 +176,14 @@ namespace madness
   
     //*************************************************************************
     // Constructor
-    HartreeFock(World& world, funcT V, std::vector<funcT> phis);
+    HartreeFock(World& world, funcT V, std::vector<funcT> phis, 
+        std::vector<double> eigs, bool bCoulomb, bool bExchange);
+    //*************************************************************************
+  
+    //*************************************************************************
+    // Constructor for ground state only
+    HartreeFock(World& world, funcT V, funcT phi, double eig, 
+        bool bCoulomb, bool bExchange);
     //*************************************************************************
   
     //*************************************************************************
