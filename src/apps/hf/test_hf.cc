@@ -11,17 +11,48 @@ using namespace madness;
 const double PI = 3.1415926535897932384;
 
 //*****************************************************************************
-template<typename T, int NDIM> class HarmonicOsc3D :
+template<typename T, int NDIM> class Gaussian :
   public FunctionFunctorInterface<T,NDIM>
 {
 public:
   typedef Vector<double,NDIM> coordT;
   const coordT center;
-  const double coefficient;
+  const double exponent;
+  const T coefficient;
+
+  Gaussian(const coordT& center, double exponent, T coefficient) :
+    center(center), exponent(exponent), coefficient(coefficient)
+  {
+  }
+  
+
+  T operator()(const coordT& x) const
+  {
+    double sum = 0.0;
+    for (int i=0; i<NDIM; i++)
+    {
+      double xx = center[i]-x[i];
+      sum += xx*xx;
+    };
+    return coefficient*exp(-exponent*sum);
+  }
+  
+};
+//*****************************************************************************
+
+//*****************************************************************************
+template<typename T, int NDIM> class HarmonicOsc3D :
+  public FunctionFunctorInterface<T,NDIM>
+{
+public:
+  typedef Vector<double,NDIM> coordT;
+  const coordT _center;
+  const double _coefficient;
+  const double _offset;
 
   //***************************************************************************
-  HarmonicOsc3D(const coordT& center, double coefficient) :
-    center(center), coefficient(coefficient)
+  HarmonicOsc3D(const coordT& center, double coefficient, double offset) :
+    _center(center), _coefficient(coefficient), _offset(offset)
   {
   }
   //***************************************************************************
@@ -32,10 +63,10 @@ public:
     double sum = 0.0;
     for (int i=0; i<NDIM; i++)
     {
-      double xx = center[i]-x[i];
+      double xx = _center[i]-x[i];
       sum += xx*xx;
     };
-    return coefficient*sum;
+    return (_coefficient * sum) + _offset;
   }
   //***************************************************************************
 
@@ -63,12 +94,21 @@ void test_hf_ho(World& world)
   FunctionDefaults<3>::refine = true;
   FunctionDefaults<3>::initial_level = 2;
   
+  // Nuclear potential (harmonic oscillator)
   const coordT origin(0.0);
-  const double coeff = -50.0;
-
-  functorT functor(new HarmonicOsc3D<double,3>(origin, coeff));
-
-  Function<double,3> f = FunctionFactory<double,3>(world).functor(functor);
+  const double coeff = 0.5;
+  const double offset = -50.0;
+  functorT Vnuc_functor(new HarmonicOsc3D<double,3>(origin, coeff, offset));
+  Function<double,3> Vnuc = FunctionFactory<double,3>(world).functor(Vnuc_functor);
+  
+  // Guess for the wavefunction
+  functorT wavefunc_functor(new Gaussian<double,3>(origin, -0.5, 100.0));
+  Function<double,3> psi = FunctionFactory<double,3>(world).functor(Vnuc_functor);
+  
+  // Create HartreeFock object
+  HartreeFock hf(world, Vnuc, psi, -42.5, false, false);
+  //hf.hartree_fock(10);
+  printf("Ground state is: ");
 
 }
 //*****************************************************************************
@@ -121,6 +161,8 @@ int main(int argc, char** argv)
 
   try
   {
+    printf("WSTHORNTON: Starting up the world ... \n");
+    
     startup(world,argc,argv);
     if (world.rank() == 0) print("Initial tensor instance count", BaseTensor::get_instance_count());
     test_hf_ho(world);
