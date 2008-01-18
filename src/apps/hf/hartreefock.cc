@@ -1,3 +1,4 @@
+#define WORLD_INSTANTIATE_STATIC_TEMPLATES  
 #include "hartreefock.h"
 
 namespace madness
@@ -42,6 +43,10 @@ namespace madness
         // Get psi from collection
         funcT psi = _phis[pi];
         // Calculate nuclear contribution
+	madness::print("THIS IS V");
+        _V.print_tree();
+	madness::print("THIS IS PSI");
+        psi.print_tree();
         funcT pnuclear = _V*psi;
         // Calculate the Coulomb contribution to the Fock operator (J)
         funcT pcoulomb = calculate_coulomb(psi);
@@ -51,7 +56,8 @@ namespace madness
         funcT pfunc = pnuclear + 2.0 * pcoulomb - pexchange;
         // Create the free-particle Green's function operator
         SeparatedConvolution<double,3> op = 
-          BSHOperator<double,3>(_world, -2.0*_eigs[pi], FunctionDefaults<3>::k, 1e-4, _thresh);      
+          BSHOperator<double,3>(_world, sqrt(-2.0*_eigs[pi]), 
+              FunctionDefaults<3>::k, 1e-4, _thresh);      
         // Apply the Green's function operator (stubbed)
         funcT tmp = apply(op, pfunc);
         // (Not sure whether we have to do this mask thing or not!)
@@ -63,7 +69,8 @@ namespace madness
           {
             // Get other wavefunction
             funcT psij = _phis[pj];
-            double overlap = 0.0;
+            printf("Calculating overlap on iteration #%d ...\n", it);
+            double overlap = inner(tmp, psij);
             tmp -= overlap*psij;
           }
         }
@@ -71,7 +78,9 @@ namespace madness
         funcT r = tmp - psi;
         double norm = tmp.norm2();
         double eps_old = _eigs[pi];
-        //_eigs[pi] += pfunc.inner() / norm**2;
+        printf("Updating wavefunction on iteration #%d ...\n", it);
+        double ecorrection = inner(pfunc, r) / (norm*norm);
+        _eigs[pi] += ecorrection;
         _phis[pi] = tmp.scale(1.0/tmp.norm2());
         
       }
