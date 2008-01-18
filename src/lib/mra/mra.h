@@ -757,11 +757,19 @@ namespace madness {
     /// Apply operator in non-standard form
     
     /// Returns a new function with the same distribution
+    ///
+    /// !!! For the moment does NOT respect fence option ... always fences
     template <typename opT, typename R, int NDIM>
     Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> 
     apply(const opT& op, const Function<R,NDIM>& f, bool fence=true) {
         Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> result;
-        return result.apply(op, f, fence);
+	Function<R,NDIM>& ff = const_cast< Function<R,NDIM>& >(f);
+	ff.reconstruct();
+	ff.nonstandard();
+	result.apply(op, f, false);
+	result.reconstruct();
+	ff.standard();
+        return result;
     }
 
 

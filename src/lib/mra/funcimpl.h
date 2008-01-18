@@ -2080,6 +2080,10 @@ namespace madness {
 	      if (g.coeffs.probe(it->first)) {
 		const FunctionNode<R,NDIM>& gnode = g.coeffs.find(it->first).get()->second;
 		if (gnode.has_coeff()) {
+                  if (gnode.coeff().dim[0] != fnode.coeff().dim[0]) {
+			madness::print("INNER", it->first, gnode.coeff().dim[0],fnode.coeff().dim[0]);
+                        throw "adios";
+                  }
 		  sum += fnode.coeff().trace_conj(gnode.coeff());
 		}
 	      }
