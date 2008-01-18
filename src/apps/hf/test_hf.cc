@@ -85,8 +85,8 @@ void test_hf_ho(World& world)
   double bsize = 10.0;
   for (int i=0; i<3; i++)
   {
-    FunctionDefaults<3>::cell(1,0) = -bsize;
-    FunctionDefaults<3>::cell(1,1) = bsize;
+    FunctionDefaults<3>::cell(i,0) = -bsize;
+    FunctionDefaults<3>::cell(i,1) = bsize;
   }
   // Function defaults
   FunctionDefaults<3>::k = 7;
@@ -107,8 +107,8 @@ void test_hf_ho(World& world)
   
   // Create HartreeFock object
   HartreeFock hf(world, Vnuc, psi, -42.5, false, false);
-  //hf.hartree_fock(10);
-  printf("Ground state is: ");
+  hf.hartree_fock(10);
+  printf("Ground state is: %.5f\n", hf.get_eig(0));
 
 }
 //*****************************************************************************
