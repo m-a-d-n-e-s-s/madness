@@ -634,9 +634,9 @@ void test_coulomb(World& world) {
     const double coeff = pow(1.0/PI*expnt,0.5*3);
     functorT functor(new Gaussian<double,3>(origin, expnt, coeff));
 
-    double thresh = 1e-8;
+    double thresh = 1e-6;
 
-    FunctionDefaults<3>::k = 10;
+    FunctionDefaults<3>::k = 8;
     FunctionDefaults<3>::thresh = thresh;
     FunctionDefaults<3>::refine = true;
     FunctionDefaults<3>::initial_level = 2;
@@ -653,36 +653,64 @@ void test_coulomb(World& world) {
     //f.print_info();  <--------- This is not scalable and might crash the XT
 
     f.reconstruct();
-    print("         f norm is", f.norm2());
-    print("     f total error", f.err(*functor));
+    double norm = f.norm2(), err = f.err(*functor);
+    if (world.rank() == 0) {
+        print("         f norm is", norm);
+        print("     f total error", err);
+        print(" truncating");
+    }
 
-    print(" truncating");
+    START_TIMER;
     f.truncate();
+    END_TIMER("truncate");
+    START_TIMER;
     f.reconstruct();
-    print("         f norm is", f.norm2());
-    print("     f total error", f.err(*functor));
+    END_TIMER("reconstruct");
+    norm = f.norm2();
+    err = f.err(*functor);
+    if (world.rank() == 0) {
+        print("         f norm is", norm);
+        print("     f total error", err);
+    }
 
     f.reconstruct();
     START_TIMER;
     f.nonstandard();
     END_TIMER("nonstandard");
 
-    SeparatedConvolution<double,3> op = CoulombOperator<double,3>(world, FunctionDefaults<3>::k, 1e-8, thresh);
+    SeparatedConvolution<double,3> op = CoulombOperator<double,3>(world, FunctionDefaults<3>::k, 1e-6, 1e-6);
     START_TIMER;
-    Function<double,3> r = apply(op,f);
+    Function<double,3> r = apply_only(op,f);
     END_TIMER("apply");
+    const double* nflop = op.get_nflop();
+    if (world.rank() == 0) {
+        double totalflops = 0.0;
+        for (int i=0; i<64; i++) {
+            if (nflop[i]) print(i,nflop[i]);
+            totalflops += nflop[i];
+        }
+        print("total flops", totalflops);
+    }
+    START_TIMER;
     r.reconstruct();
+    END_TIMER("reconstruct result");
     r.verify_tree();
 
     functorT fexact(new GaussianPotential(origin, expnt, coeff));
 
-    print(" numeric at origin", r(origin));
-    print("analytic at origin", (*fexact)(origin));
-    print("      op*f norm is", r.norm2());
-    print("  op*f total error", r.err(*fexact));
-    for (int i=0; i<=100; i++) {
-        coordT c(i*0.01);
-        print("           ",i,r(c),(*fexact)(c));
+    double numeric=r(origin);
+    double analytic=(*fexact)(origin);
+    double rnorm = r.norm2();
+    double rerr = r.err(*fexact);
+    if (world.rank() == 0) {
+        print(" numeric at origin", numeric);
+        print("analytic at origin", analytic);
+        print("      op*f norm is", rnorm);
+        print("  op*f total error", rerr);
+//         for (int i=0; i<=100; i++) {
+//             coordT c(i*0.01);
+//             print("           ",i,r(c),(*fexact)(c));
+//         }
     }
 }
 
@@ -730,10 +758,10 @@ int main(int argc, char**argv) {
     try {
         startup(world,argc,argv);
         if (world.rank() == 0) print("Initial tensor instance count", BaseTensor::get_instance_count());
-          test_basic<double,1>(world);
-          test_conv<double,1>(world);
-          test_math<double,1>(world);
-          test_diff<double,1>(world);
+//           test_basic<double,1>(world);
+//           test_conv<double,1>(world);
+//           test_math<double,1>(world);
+//           test_diff<double,1>(world);
 //          test_op<double,1>(world);
 
 //          test_basic<double,2>(world);
@@ -742,12 +770,12 @@ int main(int argc, char**argv) {
 //          test_diff<double,2>(world);
 //          test_op<double,2>(world);
 
-//         test_basic<double,3>(world);
-         //         test_conv<double,3>(world);
-        //         test_math<double,3>(world);
-         //         test_diff<double,3>(world);
-//         test_op<double,3>(world);
-//        test_coulomb(world);
+         test_basic<double,3>(world);
+         test_conv<double,3>(world);
+         test_math<double,3>(world);
+         test_diff<double,3>(world);
+         //test_op<double,3>(world);
+         test_coulomb(world);
 
     } catch (const MPI::Exception& e) {
         //        print(e);

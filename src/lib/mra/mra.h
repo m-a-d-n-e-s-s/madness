@@ -772,6 +772,14 @@ namespace madness {
         return result;
     }
 
+    /// Apply operator ONLY in non-standard form - required other steps missing !!
+    template <typename opT, typename R, int NDIM>
+    Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> 
+    apply_only(const opT& op, const Function<R,NDIM>& f, bool fence=true) {
+        Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> result;
+	return result.apply(op, f, fence);
+    }
+
 
 
     /// Generate a new function by reordering dimensions ... optional fence

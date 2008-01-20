@@ -696,8 +696,8 @@ namespace madness {
       //madness::print("RETURN 5");
       return None;
     }
-    madness::print("make_partition: we should not be here");
-    return None;
+    //madness::print("make_partition: we should not be here");
+    //return None;
   }
 
     /// totally_reset resets the partitioning.  It marks the point at which this round of partitioning

@@ -2,6 +2,7 @@
 #define MAD_OPERATOR_H
 
 #include <mra/mra.h>
+#include <tensor/mtxmq.h>
 
 namespace madness {
 
@@ -299,13 +300,13 @@ namespace madness {
 
     template <typename Q, int NDIM>
     struct SeparatedConvolutionData {
-        double norm;
         std::vector< SeparatedConvolutionInternal<Q,NDIM> > muops;
+        double norm;
 
         SeparatedConvolutionData(int rank) : muops(rank) {}
         SeparatedConvolutionData(const SeparatedConvolutionData<Q,NDIM>& q) {
-            norm = q.norm;
             muops = q.muops;
+            norm = q.norm;
         }
     };
 
@@ -318,13 +319,83 @@ namespace madness {
     private:
         const int k;
         const int rank;
+        const std::vector<long> vk;
         const std::vector<long> v2k;
         const std::vector<Slice> s0;
         std::vector<Q> signs;
         mutable std::vector< GaussianConvolution1D<Q> > ops;
         mutable SimpleCache< SeparatedConvolutionData<Q,NDIM> > data;
+        mutable double nflop[64];
 
         /// Apply one of the separated terms, accumulating into the result
+        template <typename T>
+        void muopxv_fast(Level n,
+                         const ConvolutionData1D<Q>* const ops[NDIM],
+                         const Tensor<T>& f, const Tensor<T>& f0,
+                         Tensor<TENSOR_RESULT_TYPE(T,Q)>& result,
+                         Tensor<TENSOR_RESULT_TYPE(T,Q)>& result0,
+                         const double tol,
+                         const double musign, 
+                         Tensor<TENSOR_RESULT_TYPE(T,Q)>& work1,
+                         Tensor<TENSOR_RESULT_TYPE(T,Q)>& work2,
+                         Tensor<TENSOR_RESULT_TYPE(T,Q)>& work3,
+                         Tensor<TENSOR_RESULT_TYPE(T,Q)>& work4) const {
+
+            long dimj = 2*k;
+            long dimk = 2*k;
+            long dimi = 1;
+            for (int i=1; i<NDIM; i++) dimi *= 2*k;
+            
+            TENSOR_RESULT_TYPE(T,Q) *w1=work1.ptr(), *w2=work2.ptr();
+            mTxmq(dimi, dimj, dimk, w1, f.ptr(), ops[0]->R.ptr());
+            for (int d=1; d<NDIM; d++) {
+                mTxmq(dimi, dimj, dimk, w2, w1, ops[d]->R.ptr());
+                std::swap(w1,w2);
+            }
+
+            nflop[n] += NDIM*dimi*dimj*dimk*2.0;
+
+            
+            if (NDIM&1)
+                result.gaxpy(1.0,work1,musign);
+            else
+                result.gaxpy(1.0,work2,musign);
+            
+            if (n > 0) {
+                if (k&1) {
+                    Tensor<TENSOR_RESULT_TYPE(T,Q)> tmp = inner(f0,ops[0]->T,0,0);
+                    for (int d=1; d<NDIM; d++) {
+                        tmp = inner(tmp,ops[d]->T,0,0);
+                    }
+                    result0.gaxpy(1.0,tmp,-musign);
+                }
+                else {
+                    long dimj = k;
+                    long dimk = k;
+                    long dimi = 1;
+                    for (int i=1; i<NDIM; i++) dimi *= k;
+
+                    TENSOR_RESULT_TYPE(T,Q) *w3=work3.ptr(), *w4=work4.ptr();
+                    mTxmq(dimi, dimj, dimk, w3, f0.ptr(), ops[0]->T.ptr());
+                    for (int d=1; d<NDIM; d++) {
+                        mTxmq(dimi, dimj, dimk, w4, w3, ops[d]->T.ptr());
+                        std::swap(w3,w4);
+                    }
+                    
+                    if (NDIM&1)
+                        result0.gaxpy(1.0,work3,-musign);
+                    else
+                        result0.gaxpy(1.0,work4,-musign);
+                    
+                    nflop[n] += NDIM*dimi*dimj*dimk*2.0;
+                }
+            }
+        }
+
+        /// Apply one of the separated terms, accumulating into the result
+
+        /// !!! Keep this routine exactly consistent with muopxvT so that
+        /// munorm converges correctly
         template <typename T>
         void muopxv(Level n,
                     const ConvolutionData1D<Q>* const ops[NDIM],
@@ -351,6 +422,8 @@ namespace madness {
         /// Apply transpose of one of the separated terms, accumulating into the result
 
         /// This is only used when computing the actual 2-norm by the power method
+        /// !!! Keep this routine exactly consistent with muopxv so that
+        /// munorm converges correctly
         template <typename T>
         void muopxvT(Level n,
                      const ConvolutionData1D<Q>* ops[],
@@ -467,6 +540,7 @@ namespace madness {
             : WorldObject< SeparatedConvolution<Q,NDIM> >(world)
             , k(k)
             , rank(coeffs.dim[0])
+            , vk(NDIM,k)
             , v2k(NDIM,2*k)
             , s0(NDIM,Slice(0,k-1))
             , signs(rank) 
@@ -489,7 +563,14 @@ namespace madness {
                                                   expnts(i)*cell_width(0L)*cell_width(0L));
             }
 
+            for (int i=0; i<64; i++) nflop[i] = 0.0;
+
             this->process_pending();
+        }
+
+        const double* get_nflop() const {
+            static_cast< const WorldObject< SeparatedConvolution<Q,NDIM> >* >(this)->world.gop.sum(nflop,64);
+            return nflop;
         }
 
         double norm(Level n, const Displacement<NDIM>& d) const {
@@ -504,8 +585,9 @@ namespace madness {
             tol = tol/rank;
             typedef TENSOR_RESULT_TYPE(T,Q) resultT;
             const SeparatedConvolutionData<Q,NDIM>* op = getop(source.level(), shift);
-            print("sepop",source,shift,op->norm,tol);
-            Tensor<resultT> r(v2k);
+            //print("sepop",source,shift,op->norm,tol);
+            Tensor<resultT> r(v2k), r0(vk);
+            Tensor<resultT> work1(v2k), work2(v2k), work3(vk), work4(vk);
 
             const Tensor<T>* input = &coeff;
             Tensor<T> dummy;
@@ -519,9 +601,11 @@ namespace madness {
             for (int mu=0; mu<rank; mu++) {
                 const SeparatedConvolutionInternal<Q,NDIM>& muop =  op->muops[mu];
                 if (muop.norm > tol) { 
-                    muopxv(source.level(), muop.ops, *input, f0, r, tol, signs[mu]);
+                    muopxv_fast(source.level(), muop.ops, *input, f0, r, r0, tol, signs[mu], 
+                                work1, work2, work3, work4);
                 }
             }
+            r(s0).gaxpy(1.0,r0,1.0);
             return r;
         }
         
@@ -541,7 +625,7 @@ namespace madness {
         // bsh_fit generates representation for 1/4Pir but we want 1/r
         // so have to scale eps by 1/4Pi
         Tensor<double> coeff, expnt;
-        bsh_fit(0.0, lo, hi, eps/(4.0*pi), &coeff, &expnt, true);
+        bsh_fit(0.0, lo, hi, eps/(4.0*pi), &coeff, &expnt, false);
         coeff.scale(4.0*pi);
         return SeparatedConvolution<Q,NDIM>(world, k, coeff, expnt);
     }
@@ -556,7 +640,7 @@ namespace madness {
         Tensor<double> cell_width(FunctionDefaults<NDIM>::cell(_,1)-FunctionDefaults<NDIM>::cell(_,0));
         double hi = sqrt(double(NDIM))*cell_width.normf(); // Diagonal width of cell
         Tensor<double> coeff, expnt;
-        bsh_fit(mu, lo, hi, eps, &coeff, &expnt, true);
+        bsh_fit(mu, lo, hi, eps, &coeff, &expnt, false);
         return SeparatedConvolution<Q,NDIM>(world, k, coeff, expnt);
     }
 
