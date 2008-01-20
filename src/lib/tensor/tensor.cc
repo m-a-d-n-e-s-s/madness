@@ -686,8 +686,9 @@ namespace madness {
 
     template <class T>
     Tensor<T>& Tensor<T>::gaxpy(T alpha, const Tensor<T>& t, T beta) {
-        //BINARY_OPTIMIZED_ITERATOR(T,(*this),T,t, (*_p0) = alpha*(*_p0) + beta*(*_p1));
-        ITERATOR((*this),(*this)(IND) = alpha*(*this)(IND) + beta*t(IND));
+        //BINARYITERATOR(T,(*this),T,t, (*_p0) = alpha*(*_p0) + beta*(*_p1));
+        BINARY_OPTIMIZED_ITERATOR(T,(*this),T,t, (*_p0) = alpha*(*_p0) + beta*(*_p1));
+        //ITERATOR((*this),(*this)(IND) = alpha*(*this)(IND) + beta*t(IND));
         return *this;
     }
 
