@@ -131,23 +131,24 @@ name: \
         +12     NK               
         +8      NJ
         +4      DIMI
-         0      return address   
-        -4      ebx save
-        -8      esi save
-        -12     edi save
+         0      return address
+        -4      ebp save
+        -8      ebx save
+        -12     esi save
+        -16     edi save
         */
 
 #  define DIMI8  %edi
 #  define NJ     %esi
 #  define NK     %edx
-#  define C      16(%esp)
+#  define C      32(%esp)
 #  define A      %ebx 
 #  define B      %ecx 
 
 #  define NJ8    %eax
-#  define ASAVE  20(%esp)
-#  define BSAVE  24(%esp)
-#  define NKSAVE 12(%esp)
+#  define ASAVE  36(%esp)
+#  define BSAVE  40(%esp)
+#  define NKSAVE 28(%esp)
 
 #  define BKJ %xmm0
 #  define BKJ2 %xmm1
@@ -162,22 +163,25 @@ name: \
 .globl name; \
         .align 128; \
 name: \
-        mov     %ebx,  -4(%esp); \
-        mov     %esi,  -8(%esp); \
-        mov     %edi, -12(%esp); \
-        mov      4(%esp), DIMI8; \
-        mov      8(%esp), NJ; \
-        mov     12(%esp), NK; \
-        mov     20(%esp), A; \
-        mov     24(%esp), B; \
+        pushl   %ebp;            \
+        mov     %esp,  %ebp;     \
+        pushl   %ebx            ;\
+        pushl   %esi            ;\
+        pushl   %edi            ;\
+        mov     20(%esp), DIMI8; \
+        mov     24(%esp), NJ; \
+        mov     28(%esp), NK; \
+        mov     36(%esp), A; \
+        mov     40(%esp), B; \
         shl     $3, DIMI8; \
         mov     NJ, NJ8; \
         shl     $3, NJ8;
 
 #define RETURN  \
-        mov    -4 (%esp), %ebx; \
-        mov    -8 (%esp), %esi; \
-        mov    -12(%esp), %edi; \
+        popl   %edi             ;\
+        popl   %esi             ;\
+        popl   %ebx             ;\
+        popl   %ebp             ;\
         ret
 
 #endif        
