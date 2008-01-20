@@ -111,6 +111,11 @@ function ispathscale() {
     contains "`$1 -v 2>&1`" "PathScale"
 }
 
+# isintel compiler --- Returns true if the compiler is intel
+function isintel() {
+    contains "`$1 --version 2>&1`" "Intel"
+}
+
 # isportland compiler --- Returns true if the compiler is portland group
 function isportland() {
     contains "`$1 --version 2>&1`" "Portland"
@@ -200,7 +205,7 @@ set_value MADNESS_MAJOR_VERSION $MADNESS_MAJOR_VERSION
 set_value MADNESS_MINOR_VERSION $MADNESS_MINOR_VERSION
 set_value MADNESS_VERSION "${MADNESS_MAJOR_VERSION}.${MADNESS_MINOR_VERSION}"
 set_value TENSOR_INSTANCE_COUNT 1
-set_value BOUNDS_CHECKING 1
+set_value BOUNDS_CHECKING 0
 set_value HAVE_NESTED_TEMPLATE_XLC_BUG ""
 set_value HAVE_STD_ABS_LONG ""
 set_value HAVE_STD_LABS ""
@@ -570,6 +575,14 @@ if [ "$CXXFLAGS" = "" ] ; then
            OPT="-Minform=inform -g -O0"
         else
            OPT="-Minform=inform -fastsse -tp k8-64 -Mflushz -Mcache_align"
+        fi
+    elif isintel "$CXX_COMPILE" ; then
+        echo "Intel compiler detected"
+        set_value HASH_MAP_NAMESPACE "__gnu_cxx"
+        if [ "$MAD_DEBUG" = "1" ] ; then
+           OPT="-g -O0 -ansi -Wall"
+        else
+           OPT="-fast -ansi -Wall"
         fi
     elif isgcc "$CXX_COMPILE" ; then
         echo "GNU compiler detected"
