@@ -200,7 +200,8 @@ namespace madness {
                 result.set((obj->*info.memfun)(arg1));
             }
             else {
-                pending.push_back(new detail::PendingLongMsg(id, handler<memfunT,arg1T>, src, buf, nbyte));
+                void (*ptr)(World&, ProcessID, void*, size_t) = handler<memfunT,arg1T>;
+                pending.push_back(new detail::PendingLongMsg(id, ptr, src, buf, nbyte));
             }
         }
 
@@ -220,7 +221,8 @@ namespace madness {
                 result.set((obj->*info.memfun)(arg1,arg2));
             }
             else {
-                pending.push_back(new detail::PendingLongMsg(id, handler<memfunT,arg1T,arg2T>, src, buf, nbyte));
+                void (*ptr)(World&, ProcessID, void*, size_t) = handler<memfunT,arg1T,arg2T>;
+                pending.push_back(new detail::PendingLongMsg(id, ptr, src, buf, nbyte));
             }
         }
 
@@ -240,7 +242,8 @@ namespace madness {
                 result.set((obj->*info.memfun)(arg1,arg2,arg3));
             }
             else {
-                pending.push_back(new detail::PendingLongMsg(id, handler<memfunT,arg1T,arg2T,arg3T>, src, buf, nbyte));
+                void (*ptr)(World&, ProcessID, void*, size_t) = handler<memfunT,arg1T,arg2T,arg3T>;
+                pending.push_back(new detail::PendingLongMsg(id, ptr, src, buf, nbyte));
             }
         }
 
@@ -261,7 +264,8 @@ namespace madness {
                 result.set((obj->*info.memfun)(arg1,arg2,arg3,arg4));
             }
             else {
-                pending.push_back(new detail::PendingLongMsg(id, handler<memfunT,arg1T,arg2T,arg3T,arg4T>, src, buf, nbyte));
+                void (*ptr)(World&, ProcessID, void*, size_t) = handler<memfunT,arg1T,arg2T,arg3T,arg4T>;
+                pending.push_back(new detail::PendingLongMsg(id, ptr, src, buf, nbyte));
             }
         }
 
@@ -283,7 +287,8 @@ namespace madness {
                 result.set((obj->*info.memfun)(arg1,arg2,arg3,arg4,arg5));
             }
             else {
-                pending.push_back(new detail::PendingLongMsg(id, handler<memfunT,arg1T,arg2T,arg3T,arg4T,arg5T>, src, buf, nbyte));
+                void (*ptr)(World&, ProcessID, void*, size_t) = handler<memfunT,arg1T,arg2T,arg3T,arg4T,arg5T>;
+                pending.push_back(new detail::PendingLongMsg(id, ptr, src, buf, nbyte));
             }
         }
 
@@ -306,7 +311,8 @@ namespace madness {
                 result.set((obj->*info.memfun)(arg1,arg2,arg3,arg4,arg5,arg6));
             }
             else {
-                pending.push_back(new detail::PendingLongMsg(id, handler<memfunT,arg1T,arg2T,arg3T,arg4T,arg5T,arg6T>, src, buf, nbyte));
+                void (*ptr)(World&, ProcessID, void*, size_t) = handler<memfunT,arg1T,arg2T,arg3T,arg4T,arg5T,arg6T>;
+                pending.push_back(new detail::PendingLongMsg(id, ptr, src, buf, nbyte));
             }
         }
 
@@ -330,7 +336,8 @@ namespace madness {
                 result.set((obj->*info.memfun)(arg1,arg2,arg3,arg4,arg5,arg6,arg7));
             }
             else {
-                pending.push_back(new detail::PendingLongMsg(id, handler<memfunT,arg1T,arg2T,arg3T,arg4T,arg5T,arg6T,arg7T>, src, buf, nbyte));
+                void (*ptr)(World&, ProcessID, void*, size_t) = handler<memfunT,arg1T,arg2T,arg3T,arg4T,arg5T,arg6T,arg7T>;
+                pending.push_back(new detail::PendingLongMsg(id, ptr, src, buf, nbyte));
             }
         }
 
@@ -363,7 +370,8 @@ namespace madness {
                 world.taskq.add(new TaskMemfun<memfunT>(result,*obj,info.memfun,arg1,info.attr));
             }
             else {
-                pending.push_back(new detail::PendingLongMsg(id, handler_task<memfunT,arg1T>, src, buf, nbyte));
+                void (*ptr)(World&, ProcessID, void*, size_t) = handler_task<memfunT,arg1T>;
+                pending.push_back(new detail::PendingLongMsg(id, ptr, src, buf, nbyte));
             }
         }
 
@@ -382,7 +390,8 @@ namespace madness {
                 world.taskq.add(new TaskMemfun<memfunT>(result,*obj,info.memfun,arg1,arg2,info.attr));
             }
             else {
-                pending.push_back(new detail::PendingLongMsg(id, handler_task<memfunT,arg1T,arg2T>, src, buf, nbyte));
+                void (*ptr)(World&, ProcessID, void*, size_t) = handler_task<memfunT,arg1T,arg2T>;
+                pending.push_back(new detail::PendingLongMsg(id, ptr, src, buf, nbyte));
             }
         }
 
@@ -402,7 +411,8 @@ namespace madness {
                 world.taskq.add(new TaskMemfun<memfunT>(result,*obj,info.memfun,arg1,arg2,arg3,info.attr));
             }
             else {
-                pending.push_back(new detail::PendingLongMsg(id, handler_task<memfunT,arg1T,arg2T,arg3T>, src, buf, nbyte));
+                void (*ptr)(World&, ProcessID, void*, size_t) = handler_task<memfunT,arg1T,arg2T,arg3T>;
+                pending.push_back(new detail::PendingLongMsg(id, ptr, src, buf, nbyte));
             }
         }
 
@@ -423,7 +433,8 @@ namespace madness {
                 world.taskq.add(new TaskMemfun<memfunT>(result,*obj,info.memfun,arg1,arg2,arg3,arg4,info.attr));
             }
             else {
-                pending.push_back(new detail::PendingLongMsg(id, handler_task<memfunT,arg1T,arg2T,arg3T,arg4T>, src, buf, nbyte));
+                void (*ptr)(World&, ProcessID, void*, size_t) = handler_task<memfunT,arg1T,arg2T,arg3T,arg4T>;
+                pending.push_back(new detail::PendingLongMsg(id, ptr, src, buf, nbyte));
             }
         }
 
@@ -445,7 +456,8 @@ namespace madness {
                 world.taskq.add(new TaskMemfun<memfunT>(result,*obj,info.memfun,arg1,arg2,arg3,arg4,arg5,info.attr));
             }
             else {
-                pending.push_back(new detail::PendingLongMsg(id, handler_task<memfunT,arg1T,arg2T,arg3T,arg4T,arg5T>, src, buf, nbyte));
+                void (*ptr)(World&, ProcessID, void*, size_t) = handler_task<memfunT,arg1T,arg2T,arg3T,arg4T,arg5T>;
+                pending.push_back(new detail::PendingLongMsg(id, ptr, src, buf, nbyte));
             }
         }
 
@@ -468,7 +480,8 @@ namespace madness {
                 world.taskq.add(new TaskMemfun<memfunT>(result,*obj,info.memfun,arg1,arg2,arg3,arg4,arg5,arg6,info.attr));
             }
             else {
-                pending.push_back(new detail::PendingLongMsg(id, handler_task<memfunT,arg1T,arg2T,arg3T,arg4T,arg5T,arg6T>, src, buf, nbyte));
+                void (*ptr)(World&, ProcessID, void*, size_t) = handler_task<memfunT,arg1T,arg2T,arg3T,arg4T,arg5T,arg6T>;
+                pending.push_back(new detail::PendingLongMsg(id, ptr, src, buf, nbyte));
             }
         }
 

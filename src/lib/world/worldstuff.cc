@@ -73,7 +73,7 @@ namespace madness {
     const TaskAttributes& task_attr_generator() {
         static const TaskAttributes attr(true,false);
         return attr;
-    };
+    }
 
 
     // Internal: To handle order of class definitions
@@ -84,7 +84,7 @@ namespace madness {
     std::ostream& operator<<(std::ostream& s, const uniqueidT& id) {
         s << "{" << id.get_world_id() << "," << id.get_obj_id() << "}";
         return s;
-    };
+    }
 
     
     
