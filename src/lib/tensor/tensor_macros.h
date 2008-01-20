@@ -255,7 +255,7 @@ for (long _i=0; _i<__xd0; _i++) { \
 #define UNARYITERATOR1(X,x,exp) do { \
 long __xd0=x.dim[0]; \
 long __xs0=x.stride[0]; \
-X* _p0=x.ptr(); \
+X* RESTRICT _p0=x.ptr(); \
 for (long _i=0; _i<__xd0; _i++,_p0+=__xs0) { \
   exp; \
 } } while(0)
@@ -263,9 +263,9 @@ for (long _i=0; _i<__xd0; _i++,_p0+=__xs0) { \
 #define UNARYITERATOR2(X,x,exp) do { \
 long __xd0=x.dim[0], __xd1=x.dim[1]; \
 long __xs0=x.stride[0], __xs1=x.stride[1]; \
-X* __xp0=x.ptr(); \
+X* RESTRICT __xp0=x.ptr(); \
 for (long _i=0; _i<__xd0; _i++,__xp0+=__xs0) { \
-  X* _p0=__xp0; \
+  X* RESTRICT _p0=__xp0; \
   for (long _j=0; _j<__xd1; _j++, _p0+=__xs1) { \
     exp; \
   } } } while(0)
@@ -273,11 +273,11 @@ for (long _i=0; _i<__xd0; _i++,__xp0+=__xs0) { \
 #define UNARYITERATOR3(X,x,exp) do { \
 long __xd0=x.dim[0], __xd1=x.dim[1], __xd2=x.dim[2]; \
 long __xs0=x.stride[0], __xs1=x.stride[1], __xs2=x.stride[2]; \
-X* __xp0=x.ptr(); \
+X* RESTRICT __xp0=x.ptr(); \
 for (long _i=0; _i<__xd0; _i++,__xp0+=__xs0) { \
-  X* __xp1=__xp0; \
+  X* RESTRICT __xp1=__xp0; \
   for (long _j=0; _j<__xd1; _j++, __xp1+=__xs1) { \
-    X* _p0=__xp1; \
+    X* RESTRICT _p0=__xp1; \
     for (long _k=0; _k<__xd2; _k++, _p0+=__xs2) { \
        exp; \
     } } } } while(0)
@@ -287,13 +287,13 @@ long __xd0=x.dim[0], __xd1=x.dim[1], __xd2=x.dim[2], \
      __xd3=x.dim[3]; \
 long __xs0=x.stride[0], __xs1=x.stride[1], __xs2=x.stride[2], \
      __xs3=x.stride[3]; \
-X* __xp0=x.ptr(); \
+X* RESTRICT __xp0=x.ptr(); \
 for (long _i=0; _i<__xd0; _i++,__xp0+=__xs0) { \
-  X* __xp1=__xp0; \
+  X* RESTRICT __xp1=__xp0; \
   for (long _j=0; _j<__xd1; _j++, __xp1+=__xs1) { \
-    X* __xp2=__xp1; \
+    X* RESTRICT __xp2=__xp1; \
     for (long _k=0; _k<__xd2; _k++, __xp2+=__xs2) { \
-       X* _p0=__xp2; \
+       X* RESTRICT _p0=__xp2; \
        for (long _l=0; _l<__xd3; _l++, _p0+=__xs3) { \
           exp; \
        } } } } } while(0)
@@ -303,15 +303,15 @@ long __xd0=x.dim[0], __xd1=x.dim[1], __xd2=x.dim[2], \
      __xd3=x.dim[3], __xd4=x.dim[4]; \
 long __xs0=x.stride[0], __xs1=x.stride[1], __xs2=x.stride[2], \
      __xs3=x.stride[3], __xs4=x.stride[4]; \
-X* __xp0=x.ptr(); \
+X* RESTRICT __xp0=x.ptr(); \
 for (long _i=0; _i<__xd0; _i++,__xp0+=__xs0) { \
-  X* __xp1=__xp0; \
+  X* RESTRICT __xp1=__xp0; \
   for (long _j=0; _j<__xd1; _j++, __xp1+=__xs1) { \
-    X* __xp2=__xp1; \
+    X* RESTRICT __xp2=__xp1; \
     for (long _k=0; _k<__xd2; _k++, __xp2+=__xs2) { \
-       X* __xp3=__xp2; \
+       X* RESTRICT __xp3=__xp2; \
        for (long _l=0; _l<__xd3; _l++, __xp3+=__xs3) { \
-          X* _p0 =__xp3; \
+          X* RESTRICT _p0 =__xp3; \
           for (long _m=0; _m<__xd4; _m++, _p0+=__xs4) { \
             exp; \
           } } } } } } while(0)
@@ -321,17 +321,17 @@ long __xd0=x.dim[0], __xd1=x.dim[1], __xd2=x.dim[2], \
      __xd3=x.dim[3], __xd4=x.dim[4], __xd5=x.dim[5]; \
 long __xs0=x.stride[0], __xs1=x.stride[1], __xs2=x.stride[2], \
      __xs3=x.stride[3], __xs4=x.stride[4], __xs5=x.stride[5]; \
-X* __xp0=x.ptr(); \
+X* RESTRICT __xp0=x.ptr(); \
 for (long _i=0; _i<__xd0; _i++,__xp0+=__xs0) { \
-  X* __xp1=__xp0; \
+  X* RESTRICT __xp1=__xp0; \
   for (long _j=0; _j<__xd1; _j++, __xp1+=__xs1) { \
-    X* __xp2=__xp1; \
+    X* RESTRICT __xp2=__xp1; \
     for (long _k=0; _k<__xd2; _k++, __xp2+=__xs2) { \
-       X* __xp3=__xp2; \
+       X* RESTRICT __xp3=__xp2; \
        for (long _l=0; _l<__xd3; _l++, __xp3+=__xs3) { \
-          X* __xp4=__xp3; \
+          X* RESTRICT __xp4=__xp3; \
           for (long _m=0; _m<__xd4; _m++, __xp4+=__xs4) { \
-            X* _p0=__xp4; \
+            X* RESTRICT _p0=__xp4; \
             for (long _n=0; _n<__xd5; _n++, _p0+=__xs5) { \
               exp; \
           } } } } } } } while(0)
@@ -353,8 +353,8 @@ TENSOR_ASSERT(x.conforms(y),"first and second tensors do not conform",0,&x); \
 long __xd0=x.dim[0]; \
 long __xs0=x.stride[0]; \
 long __ys0=y.stride[0]; \
-X* _p0=x.ptr(); \
-Y* _p1=y.ptr(); \
+X* RESTRICT _p0=x.ptr(); \
+Y* RESTRICT _p1=y.ptr(); \
 for (long _i=0; _i<__xd0; _i++, _p0+=__xs0, _p1+=__ys0) { \
    exp; \
 } } while(0)
@@ -364,11 +364,11 @@ TENSOR_ASSERT(x.conforms(y),"first and second tensors do not conform",0,&x); \
 long __xd0=x.dim[0], __xd1=x.dim[1];\
 long __xs0=x.stride[0], __xs1=x.stride[1]; \
 long __ys0=y.stride[0], __ys1=y.stride[1]; \
-X* __xp0=x.ptr(); \
-Y* __yp0=y.ptr(); \
+X* RESTRICT __xp0=x.ptr(); \
+Y* RESTRICT __yp0=y.ptr(); \
 for (long _i=0; _i<__xd0; _i++, __xp0+=__xs0, __yp0+=__ys0) { \
-  X* _p0=__xp0; \
-  Y* _p1=__yp0; \
+  X* RESTRICT _p0=__xp0; \
+  Y* RESTRICT _p1=__yp0; \
   for (long _j=0; _j<__xd1; _j++, _p0+=__xs1, _p1+=__ys1) { \
      exp; \
   } } } while(0)
@@ -378,14 +378,14 @@ TENSOR_ASSERT(x.conforms(y),"first and second tensors do not conform",0,&x); \
 long __xd0=x.dim[0], __xd1=x.dim[1], __xd2=x.dim[2]; \
 long __xs0=x.stride[0], __xs1=x.stride[1], __xs2=x.stride[2]; \
 long __ys0=y.stride[0], __ys1=y.stride[1], __ys2=y.stride[2]; \
-X* __xp0=x.ptr(); \
-Y* __yp0=y.ptr(); \
+X* RESTRICT __xp0=x.ptr(); \
+Y* RESTRICT __yp0=y.ptr(); \
 for (long _i=0; _i<__xd0; _i++, __xp0+=__xs0, __yp0+=__ys0) { \
-  X* __xp1=__xp0; \
-  Y* __yp1=__yp0; \
+  X* RESTRICT __xp1=__xp0; \
+  Y* RESTRICT __yp1=__yp0; \
   for (long _j=0; _j<__xd1; _j++, __xp1+=__xs1, __yp1+=__ys1) { \
-    X* _p0=__xp1; \
-    Y* _p1=__yp1; \
+    X* RESTRICT _p0=__xp1; \
+    Y* RESTRICT _p1=__yp1; \
     for (long _k=0; _k<__xd2; _k++, _p0+=__xs2, _p1+=__ys2) { \
        exp; \
     } } } } while(0)
@@ -398,17 +398,17 @@ long __xs0=x.stride[0], __xs1=x.stride[1], __xs2=x.stride[2], \
      __xs3=x.stride[3]; \
 long __ys0=y.stride[0], __ys1=y.stride[1], __ys2=y.stride[2], \
      __ys3=y.stride[3]; \
-X* __xp0=x.ptr(); \
-Y* __yp0=y.ptr(); \
+X* RESTRICT __xp0=x.ptr(); \
+Y* RESTRICT __yp0=y.ptr(); \
 for (long _i=0; _i<__xd0; _i++, __xp0+=__xs0, __yp0+=__ys0) { \
-  X* __xp1=__xp0; \
-  Y* __yp1=__yp0; \
+  X* RESTRICT __xp1=__xp0; \
+  Y* RESTRICT __yp1=__yp0; \
   for (long _j=0; _j<__xd1; _j++, __xp1+=__xs1, __yp1+=__ys1) { \
-    X* __xp2=__xp1; \
-    Y* __yp2=__yp1; \
+    X* RESTRICT __xp2=__xp1; \
+    Y* RESTRICT __yp2=__yp1; \
     for (long _k=0; _k<__xd2; _k++, __xp2+=__xs2, __yp2+=__ys2) { \
-      X* _p0=__xp2; \
-      Y* _p1=__yp2; \
+      X* RESTRICT _p0=__xp2; \
+      Y* RESTRICT _p1=__yp2; \
       for (long _l=0; _l<__xd3; _l++, _p0+=__xs3, _p1+=__ys3) { \
          exp; \
       } } } } } while(0)
@@ -421,20 +421,20 @@ long __xs0=x.stride[0], __xs1=x.stride[1], __xs2=x.stride[2], \
      __xs3=x.stride[3], __xs4=x.stride[4]; \
 long __ys0=y.stride[0], __ys1=y.stride[1], __ys2=y.stride[2], \
      __ys3=y.stride[3], __ys4=y.stride[4]; \
-X* __xp0=x.ptr(); \
-Y* __yp0=y.ptr(); \
+X* RESTRICT __xp0=x.ptr(); \
+Y* RESTRICT __yp0=y.ptr(); \
 for (long _i=0; _i<__xd0; _i++, __xp0+=__xs0, __yp0+=__ys0) { \
-  X* __xp1=__xp0; \
-  Y* __yp1=__yp0; \
+  X* RESTRICT __xp1=__xp0; \
+  Y* RESTRICT __yp1=__yp0; \
   for (long _j=0; _j<__xd1; _j++, __xp1+=__xs1, __yp1+=__ys1) { \
-    X* __xp2=__xp1; \
-    Y* __yp2=__yp1; \
+    X* RESTRICT __xp2=__xp1; \
+    Y* RESTRICT __yp2=__yp1; \
     for (long _k=0; _k<__xd2; _k++, __xp2+=__xs2, __yp2+=__ys2) { \
-      X* __xp3=__xp2; \
-      Y* __yp3=__yp2; \
+      X* RESTRICT __xp3=__xp2; \
+      Y* RESTRICT __yp3=__yp2; \
       for (long _l=0; _l<__xd3; _l++, __xp3+=__xs3, __yp3+=__ys3) { \
-        X* _p0=__xp3; \
-        Y* _p1=__yp3; \
+        X* RESTRICT _p0=__xp3; \
+        Y* RESTRICT _p1=__yp3; \
         for (long _m=0; _m<__xd4; _m++, _p0+=__xs4, _p1+=__ys4) { \
            exp; \
         } } } } } } while(0)
@@ -447,23 +447,23 @@ long __xs0=x.stride[0], __xs1=x.stride[1], __xs2=x.stride[2], \
      __xs3=x.stride[3], __xs4=x.stride[4], __xs5=x.stride[5]; \
 long __ys0=y.stride[0], __ys1=y.stride[1], __ys2=y.stride[2], \
      __ys3=y.stride[3], __ys4=y.stride[4], __ys5=y.stride[5]; \
-X* __xp0=x.ptr(); \
-Y* __yp0=y.ptr(); \
+X* RESTRICT __xp0=x.ptr(); \
+Y* RESTRICT __yp0=y.ptr(); \
 for (long _i=0; _i<__xd0; _i++, __xp0+=__xs0, __yp0+=__ys0) { \
-  X* __xp1=__xp0; \
-  Y* __yp1=__yp0; \
+  X* RESTRICT __xp1=__xp0; \
+  Y* RESTRICT __yp1=__yp0; \
   for (long _j=0; _j<__xd1; _j++, __xp1+=__xs1, __yp1+=__ys1) { \
-    X* __xp2=__xp1; \
-    Y* __yp2=__yp1; \
+    X* RESTRICT __xp2=__xp1; \
+    Y* RESTRICT __yp2=__yp1; \
     for (long _k=0; _k<__xd2; _k++, __xp2+=__xs2, __yp2+=__ys2) { \
-      X* __xp3=__xp2; \
-      Y* __yp3=__yp2; \
+      X* RESTRICT __xp3=__xp2; \
+      Y* RESTRICT __yp3=__yp2; \
       for (long _l=0; _l<__xd3; _l++, __xp3+=__xs3, __yp3+=__ys3) { \
-        X* __xp4=__xp3; \
-        Y* __yp4=__yp3; \
+        X* RESTRICT __xp4=__xp3; \
+        Y* RESTRICT __yp4=__yp3; \
         for (long _m=0; _m<__xd4; _m++, __xp4+=__xs4, __yp4+=__ys4) { \
-          X* _p0=__xp4; \
-          Y* _p1=__yp4; \
+          X* RESTRICT _p0=__xp4; \
+          Y* RESTRICT _p1=__yp4; \
           for (long _n=0; _n<__xd5; _n++, _p0+=__xs5, _p1+=__ys5) { \
              exp; \
           } } } } } } } while(0)
@@ -488,9 +488,9 @@ long __xd0=x.dim[0]; \
 long __xs0=x.stride[0]; \
 long __ys0=y.stride[0]; \
 long __zs0=z.stride[0]; \
-X* _p0=x.ptr(); \
-Y* _p1=y.ptr(); \
-Z* _p2=z.ptr(); \
+X* RESTRICT _p0=x.ptr(); \
+Y* RESTRICT _p1=y.ptr(); \
+Z* RESTRICT _p2=z.ptr(); \
 for (long _i=0; _i<__xd0; _i++, _p0+=__xs0, _p1+=__ys0, _p2+=__zs0) { \
   exp; \
 } } while(0)
@@ -502,13 +502,13 @@ long __xd0=x.dim[0], __xd1=x.dim[1]; \
 long __xs0=x.stride[0], __xs1=x.stride[1]; \
 long __ys0=y.stride[0], __ys1=y.stride[1]; \
 long __zs0=z.stride[0], __zs1=z.stride[1]; \
-X* __xp0=x.ptr(); \
-Y* __yp0=y.ptr(); \
-Z* __zp0=z.ptr(); \
+X* RESTRICT __xp0=x.ptr(); \
+Y* RESTRICT __yp0=y.ptr(); \
+Z* RESTRICT __zp0=z.ptr(); \
 for (long _i=0; _i<__xd0; _i++, __xp0+=__xs0, __yp0+=__ys0, __zp0+=__zs0) { \
-  X* _p0=__xp0; \
-  Y* _p1=__yp0; \
-  Z* _p2=__zp0; \
+  X* RESTRICT _p0=__xp0; \
+  Y* RESTRICT _p1=__yp0; \
+  Z* RESTRICT _p2=__zp0; \
   for (long _j=0; _j<__xd1; _j++, _p0+=__xs1, _p1+=__ys1, _p2+=__zs1) { \
     exp; \
   } } } while(0)
@@ -520,17 +520,17 @@ long __xd0=x.dim[0], __xd1=x.dim[1], __xd2=x.dim[2]; \
 long __xs0=x.stride[0], __xs1=x.stride[1], __xs2=x.stride[2]; \
 long __ys0=y.stride[0], __ys1=y.stride[1], __ys2=y.stride[2]; \
 long __zs0=z.stride[0], __zs1=z.stride[1], __zs2=z.stride[2]; \
-X* __xp0=x.ptr(); \
-Y* __yp0=y.ptr(); \
-Z* __zp0=z.ptr(); \
+X* RESTRICT __xp0=x.ptr(); \
+Y* RESTRICT __yp0=y.ptr(); \
+Z* RESTRICT __zp0=z.ptr(); \
 for (long _i=0; _i<__xd0; _i++, __xp0+=__xs0, __yp0+=__ys0, __zp0+=__zs0) { \
-  X* __xp1=__xp0; \
-  Y* __yp1=__yp0; \
-  Z* __zp1=__zp0; \
+  X* RESTRICT __xp1=__xp0; \
+  Y* RESTRICT __yp1=__yp0; \
+  Z* RESTRICT __zp1=__zp0; \
   for (long _j=0; _j<__xd1; _j++, __xp1+=__xs1, __yp1+=__ys1, __zp1+=__zs1) { \
-    X* _p0=__xp1; \
-    Y* _p1=__yp1; \
-    Z* _p2=__zp1; \
+    X* RESTRICT _p0=__xp1; \
+    Y* RESTRICT _p1=__yp1; \
+    Z* RESTRICT _p2=__zp1; \
     for (long _k=0; _k<__xd2; _k++, _p0+=__xs2, _p1+=__ys2, _p2+=__zs2) { \
       exp; \
     } } } } while(0)
@@ -546,21 +546,21 @@ long __ys0=y.stride[0], __ys1=y.stride[1], __ys2=y.stride[2], \
      __ys3=y.stride[3]; \
 long __zs0=z.stride[0], __zs1=z.stride[1], __zs2=z.stride[2], \
      __zs3=z.stride[3]; \
-X* __xp0=x.ptr(); \
-Y* __yp0=y.ptr(); \
-Z* __zp0=z.ptr(); \
+X* RESTRICT __xp0=x.ptr(); \
+Y* RESTRICT __yp0=y.ptr(); \
+Z* RESTRICT __zp0=z.ptr(); \
 for (long _i=0; _i<__xd0; _i++, __xp0+=__xs0, __yp0+=__ys0, __zp0+=__zs0) { \
-  X* __xp1=__xp0; \
-  Y* __yp1=__yp0; \
-  Z* __zp1=__zp0; \
+  X* RESTRICT __xp1=__xp0; \
+  Y* RESTRICT __yp1=__yp0; \
+  Z* RESTRICT __zp1=__zp0; \
   for (long _j=0; _j<__xd1; _j++, __xp1+=__xs1, __yp1+=__ys1, __zp1+=__zs1) { \
-    X* __xp2=__xp1; \
-    Y* __yp2=__yp1; \
-    Z* __zp2=__zp1; \
+    X* RESTRICT __xp2=__xp1; \
+    Y* RESTRICT __yp2=__yp1; \
+    Z* RESTRICT __zp2=__zp1; \
     for (long _k=0; _k<__xd2; _k++, __xp2+=__xs2, __yp2+=__ys2, __zp2+=__zs2) { \
-      X* _p0=__xp2; \
-      Y* _p1=__yp2; \
-      Z* _p2=__zp2; \
+      X* RESTRICT _p0=__xp2; \
+      Y* RESTRICT _p1=__yp2; \
+      Z* RESTRICT _p2=__zp2; \
       for (long _l=0; _l<__xd3; _l++, _p0+=__xs3, _p1+=__ys3, _p2+=__zs3) { \
         exp; \
       } } } } } while(0)
@@ -576,25 +576,25 @@ long __ys0=y.stride[0], __ys1=y.stride[1], __ys2=y.stride[2], \
      __ys3=y.stride[3], __ys4=y.stride[4]; \
 long __zs0=z.stride[0], __zs1=z.stride[1], __zs2=z.stride[2], \
      __zs3=z.stride[3], __zs4=z.stride[4]; \
-X* __xp0=x.ptr(); \
-Y* __yp0=y.ptr(); \
-Z* __zp0=z.ptr(); \
+X* RESTRICT __xp0=x.ptr(); \
+Y* RESTRICT __yp0=y.ptr(); \
+Z* RESTRICT __zp0=z.ptr(); \
 for (long _i=0; _i<__xd0; _i++, __xp0+=__xs0, __yp0+=__ys0, __zp0+=__zs0) { \
-  X* __xp1=__xp0; \
-  Y* __yp1=__yp0; \
-  Z* __zp1=__zp0; \
+  X* RESTRICT __xp1=__xp0; \
+  Y* RESTRICT __yp1=__yp0; \
+  Z* RESTRICT __zp1=__zp0; \
   for (long _j=0; _j<__xd1; _j++, __xp1+=__xs1, __yp1+=__ys1, __zp1+=__zs1) { \
-    X* __xp2=__xp1; \
-    Y* __yp2=__yp1; \
-    Z* __zp2=__zp1; \
+    X* RESTRICT __xp2=__xp1; \
+    Y* RESTRICT __yp2=__yp1; \
+    Z* RESTRICT __zp2=__zp1; \
     for (long _k=0; _k<__xd2; _k++, __xp2+=__xs2, __yp2+=__ys2, __zp2+=__zs2) { \
-      X* __xp3=__xp2; \
-      Y* __yp3=__yp2; \
-      Z* __zp3=__zp2; \
+      X* RESTRICT __xp3=__xp2; \
+      Y* RESTRICT __yp3=__yp2; \
+      Z* RESTRICT __zp3=__zp2; \
       for (long _l=0; _l<__xd3; _l++, __xp3+=__xs3, __yp3+=__ys3, __zp3+=__zs3) { \
-        X* _p0=__xp3; \
-        Y* _p1=__yp3; \
-        Z* _p2=__zp3; \
+        X* RESTRICT _p0=__xp3; \
+        Y* RESTRICT _p1=__yp3; \
+        Z* RESTRICT _p2=__zp3; \
         for (long _m=0; _m<__xd4; _m++, _p0+=__xs4, _p1+=__ys4, _p2+=__zs4) { \
           exp; \
         } } } } } } while(0)
@@ -610,29 +610,29 @@ long __ys0=y.stride[0], __ys1=y.stride[1], __ys2=y.stride[2], \
      __ys3=y.stride[3], __ys4=y.stride[4], __ys5=y.stride[5]; \
 long __zs0=z.stride[0], __zs1=z.stride[1], __zs2=z.stride[2], \
      __zs3=z.stride[3], __zs4=z.stride[4], __zs5=z.stride[5]; \
-X* __xp0=x.ptr(); \
-Y* __yp0=y.ptr(); \
-Z* __zp0=z.ptr(); \
+X* RESTRICT __xp0=x.ptr(); \
+Y* RESTRICT __yp0=y.ptr(); \
+Z* RESTRICT __zp0=z.ptr(); \
 for (long _i=0; _i<__xd0; _i++, __xp0+=__xs0, __yp0+=__ys0, __zp0+=__zs0) { \
-  X* __xp1=__xp0; \
-  Y* __yp1=__yp0; \
-  Z* __zp1=__zp0; \
+  X* RESTRICT __xp1=__xp0; \
+  Y* RESTRICT __yp1=__yp0; \
+  Z* RESTRICT __zp1=__zp0; \
   for (long _j=0; _j<__xd1; _j++, __xp1+=__xs1, __yp1+=__ys1, __zp1+=__zs1) { \
-    X* __xp2=__xp1; \
-    Y* __yp2=__yp1; \
-    Z* __zp2=__zp1; \
+    X* RESTRICT __xp2=__xp1; \
+    Y* RESTRICT __yp2=__yp1; \
+    Z* RESTRICT __zp2=__zp1; \
     for (long _k=0; _k<__xd2; _k++, __xp2+=__xs2, __yp2+=__ys2, __zp2+=__zs2) { \
-      X* __xp3=__xp2; \
-      Y* __yp3=__yp2; \
-      Z* __zp3=__zp2; \
+      X* RESTRICT __xp3=__xp2; \
+      Y* RESTRICT __yp3=__yp2; \
+      Z* RESTRICT __zp3=__zp2; \
       for (long _l=0; _l<__xd3; _l++, __xp3+=__xs3, __yp3+=__ys3, __zp3+=__zs3) { \
-        X* __xp4=__xp3; \
-        Y* __yp4=__yp3; \
-        Z* __zp4=__zp3; \
+        X* RESTRICT __xp4=__xp3; \
+        Y* RESTRICT __yp4=__yp3; \
+        Z* RESTRICT __zp4=__zp3; \
         for (long _m=0; _m<__xd4; _m++, __xp4+=__xs4, __yp4+=__ys4, __zp4+=__zs4) { \
-          X* _p0=__xp4; \
-          Y* _p1=__yp4; \
-          Z* _p2=__zp4; \
+          X* RESTRICT _p0=__xp4; \
+          Y* RESTRICT _p1=__yp4; \
+          Z* RESTRICT _p2=__zp4; \
           for (long _n=0; _n<__xd5; _n++, _p0+=__xs5, _p1+=__ys5, _p2+=__zs5) { \
             exp; \
           } } } } } } } while(0)
