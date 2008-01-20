@@ -9,7 +9,7 @@ include $(TOPDIR)/config/MakeVars
 
 ifeq ($(HOST_CPU),X86_32)
 USE_MTXMQ = YES
-TUNE_MTXMQ = -DCORE_DUO_TUNE
+TUNE_MTXMQ = 
 endif
 ifeq ($(HOST_CPU),X86_64)
 USE_MTXMQ = YES
