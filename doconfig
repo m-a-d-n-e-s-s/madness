@@ -698,7 +698,7 @@ if [ $HOST_SYSTEM = "Darwin" ] ; then
 	rm tmptmp.o
 else
 	$AR $ARFLAGS fred.$LIBSUF
-	status = $?
+	status=$?
 fi
 
 if [ $status -ne 0 ] ; then
