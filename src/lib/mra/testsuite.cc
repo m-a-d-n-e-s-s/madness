@@ -634,9 +634,9 @@ void test_coulomb(World& world) {
     const double coeff = pow(1.0/PI*expnt,0.5*3);
     functorT functor(new Gaussian<double,3>(origin, expnt, coeff));
 
-    double thresh = 1e-6;
+    double thresh = 1e-12;
 
-    FunctionDefaults<3>::k = 8;
+    FunctionDefaults<3>::k = 12;
     FunctionDefaults<3>::thresh = thresh;
     FunctionDefaults<3>::refine = true;
     FunctionDefaults<3>::initial_level = 2;
@@ -647,7 +647,7 @@ void test_coulomb(World& world) {
     }
     
     START_TIMER; 
-    Function<double,3> f = FunctionFactory<double,3>(world).functor(functor);
+    Function<double,3> f = FunctionFactory<double,3>(world).functor(functor).thresh(1e-14);
     END_TIMER("project");
 
     //f.print_info();  <--------- This is not scalable and might crash the XT
@@ -657,28 +657,28 @@ void test_coulomb(World& world) {
     if (world.rank() == 0) {
         print("         f norm is", norm);
         print("     f total error", err);
-        print(" truncating");
+        //print(" truncating");
     }
 
-    START_TIMER;
-    f.truncate();
-    END_TIMER("truncate");
-    START_TIMER;
-    f.reconstruct();
-    END_TIMER("reconstruct");
-    norm = f.norm2();
-    err = f.err(*functor);
-    if (world.rank() == 0) {
-        print("         f norm is", norm);
-        print("     f total error", err);
-    }
+//     START_TIMER;
+//     f.truncate();
+//     END_TIMER("truncate");
+//     START_TIMER;
+//     f.reconstruct();
+//     END_TIMER("reconstruct");
+//     norm = f.norm2();
+//     err = f.err(*functor);
+//     if (world.rank() == 0) {
+//         print("         f norm is", norm);
+//         print("     f total error", err);
+//     }
 
     f.reconstruct();
     START_TIMER;
     f.nonstandard();
     END_TIMER("nonstandard");
 
-    SeparatedConvolution<double,3> op = CoulombOperator<double,3>(world, FunctionDefaults<3>::k, 1e-6, 1e-6);
+    SeparatedConvolution<double,3> op = CoulombOperator<double,3>(world, FunctionDefaults<3>::k, 1e-12, thresh);
     START_TIMER;
     Function<double,3> r = apply_only(op,f);
     END_TIMER("apply");
@@ -770,10 +770,10 @@ int main(int argc, char**argv) {
 //          test_diff<double,2>(world);
 //          test_op<double,2>(world);
 
-         test_basic<double,3>(world);
-         test_conv<double,3>(world);
-         test_math<double,3>(world);
-         test_diff<double,3>(world);
+//         test_basic<double,3>(world);
+//         test_conv<double,3>(world);
+//         test_math<double,3>(world);
+//         test_diff<double,3>(world);
          //test_op<double,3>(world);
          test_coulomb(world);
 

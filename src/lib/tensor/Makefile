@@ -2,8 +2,9 @@ TOPDIR = ../../..
 TARGET_TO_MAKE = libMADtensor
 CXXSRC =  tensor.cc tensoriter.cc basetensor.cc mtrand.cc
 
-TESTPROGS = test
+TESTPROGS = test test_mtxmq
 TEST1SRC = test.o
+TEST2SRC = test_mtxmq.o
 
 include $(TOPDIR)/config/MakeVars
 
@@ -34,7 +35,7 @@ tensoriter_spec.h tensor_spec.h:	tempspec.py
 
 ifeq ($(USE_MTXMQ),YES)
 LIBOBJ += mtxmq_asm.o
-DEFINES += -DTENSORS_USE_POSIX_MEMALIGN -DUSE_MTXMQ
+DEFINES += -DTENSORS_USE_POSIX_MEMALIGN 
 
 $(TOPDIR)/lib/$(TARGET_TO_MAKE).$(LIBSUF):	mtxmq_asm.o
 
@@ -45,6 +46,6 @@ mtxm_gen.h:	genmtxm.py
 	python genmtxm.py > $@
 
 test_mtxmq:	test_mtxmq.o mtxmq.o mtxmq_asm.o
-	$(CXX) -o $@ -I../../../include -I. -I.. $^
+	$(CXX) -o $@  $^
 endif
 

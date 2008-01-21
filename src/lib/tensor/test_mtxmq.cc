@@ -12,7 +12,7 @@ using namespace madness;
 #define FORTRAN_INTEGER long
 #endif
 typedef FORTRAN_INTEGER integer;
-extern void dgemm_(const char *transa, const char *transb, 
+extern "C" void dgemm_(const char *transa, const char *transb, 
                    const integer *m, const integer *n, const integer *k, 
                    const double *alpha, const double *a, const integer *lda, 
                    const double *b, const integer *ldb, const double *beta, 

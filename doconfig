@@ -174,8 +174,9 @@ function do_crayxt() {
     set_value CROSS_COMPILING 1
     set_value HOST_CPU "X86_64"
     set_value HOST_SYSTEM "CRAYXT"
-    set_value OPTERON_TUNE 1
-    set_value CORE2_TUNE 0
+    # Empirically, 2-core XT3 was better with CORE2 parameters
+    #set_value OPTERON_TUNE 1
+    #set_value CORE2_TUNE 0
     set_value MADNESS_FORINT int
     set_value CXX CC
     set_value CC cc
