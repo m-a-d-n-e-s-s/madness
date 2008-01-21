@@ -97,11 +97,15 @@ namespace madness {
         /* 
            Choice is to unroll i or j 
         */
-        
+
 #ifdef OPTERON_TUNE
         if (dimi <= dimj) { /* Based on times from X86_64 Opteron ... an old one */
 #elif defined(CORE_DUO_TUNE)
-        if (1) { /* Based on times from X86_32 Core Duo ... my laptop */
+        if (1) { /* Based on times from X86_32 Core Duo ... my old laptop */
+#elif (defined(CORE2_TUNE) && defined(X86_32))
+        if (0) { /* Based on times from Core2 running in 32-bit mode ... a sad thing */
+#elif (defined(CORE2_TUNE) && defined(X86_64))
+        if (dimj > 12 || dimi <= dimj) { /* Based on times from X86_64 Core2 */
 #else
         if (dimj > 12 || dimi <= dimj) { /* Based on times from X86_64 Core2 */
 #endif

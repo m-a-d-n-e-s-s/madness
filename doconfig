@@ -175,6 +175,7 @@ function do_crayxt() {
     set_value HOST_CPU "X86_64"
     set_value HOST_SYSTEM "CRAYXT"
     set_value OPTERON_TUNE 1
+    set_value CORE2_TUNE 0
     set_value MADNESS_FORINT int
     set_value CXX CC
     set_value CC cc
@@ -258,6 +259,7 @@ set_value WATCHDOG_BARK_INTERVAL "60.0"
 set_value WATCHDOG_TIMEOUT "300.0"
 set_value OPTERON_TUNE 0
 set_value CORE_DUO_TUNE 0
+set_value CORE2_TUNE 1
 set_value MADNESS_CONFIGURATION_USER "`whoami`"
 set_value MADNESS_CONFIGURATION_DATE "`date`"
 set_value MADNESS_CONFIGURATION_HOST "`hostname`"

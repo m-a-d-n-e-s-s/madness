@@ -43,5 +43,8 @@ mtxmq_asm.o:	mtxmq_asm.S mtxm_gen.h
 
 mtxm_gen.h:	genmtxm.py 
 	python genmtxm.py > $@
+
+test_mtxmq:	test_mtxmq.o mtxmq.o mtxmq_asm.o
+	$(CXX) -o $@ -I../../../include -I. -I.. $^
 endif
 

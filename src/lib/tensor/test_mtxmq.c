@@ -3,7 +3,9 @@
 #include <math.h>
 #include <xmmintrin.h>
 
-#include "mtxmq.h"
+#include <tensor/mtxmq.h>
+
+using namespace madness;
 
 #ifdef TIME_DGEMM
 #ifndef FORTRAN_INTEGER
@@ -96,10 +98,10 @@ int main() {
     long ni, nj, nk, i, m;
 
     double *a, *b, *c, *d;
-    posix_memalign((void *) &a, 16, nkmax*nimax*sizeof(double));
-    posix_memalign((void *) &b, 16, nkmax*njmax*sizeof(double));
-    posix_memalign((void *) &c, 16, nimax*njmax*sizeof(double));
-    posix_memalign((void *) &d, 16, nimax*njmax*sizeof(double));
+    posix_memalign((void **) &a, 16, nkmax*nimax*sizeof(double));
+    posix_memalign((void **) &b, 16, nkmax*njmax*sizeof(double));
+    posix_memalign((void **) &c, 16, nimax*njmax*sizeof(double));
+    posix_memalign((void **) &d, 16, nimax*njmax*sizeof(double));
 
     ran_fill(nkmax*nimax, a);
     ran_fill(nkmax*njmax, b);

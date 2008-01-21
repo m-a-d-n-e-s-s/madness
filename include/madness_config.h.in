@@ -98,9 +98,12 @@
 #  define OPTERON_TUNE
 #endif
 
-/* These for MTXMQ in tensor library */
 #if @CORE_DUO_TUNE@
 #  define CORE_DUO_TUNE
+#endif
+
+#if @CORE2_TUNE@
+#  define CORE2_TUNE
 #endif
 
 
