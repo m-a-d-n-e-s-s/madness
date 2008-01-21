@@ -264,7 +264,7 @@ set_value CORE2_TUNE 1
 set_value MADNESS_CONFIGURATION_USER "`whoami`"
 set_value MADNESS_CONFIGURATION_DATE "`date`"
 set_value MADNESS_CONFIGURATION_HOST "`hostname`"
-
+set_value USE_LINUX_RANDOM 0
 
 echo "Processing command line overrides ..."
 
@@ -643,6 +643,10 @@ if [ "$value" -eq 0 ] ; then
         append_value LIBS "-lpthread"
     fi
 fi
+
+# Linux random number generator
+echo $testsym | sed -e 's/SYM/srandom/g' > tmptmp.cc
+compile_testCC "$CXX_COMPILE_AND_LINK" "" USE_LINUX_RANDOM 1 0
 
 # Verify presence fortran BLAS+LAPACK and verify F77linking conventions
 echo $testsym | sed -e 's/SYM/dgemm_/g' > tmptmp.cc

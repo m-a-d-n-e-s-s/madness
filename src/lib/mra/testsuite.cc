@@ -682,14 +682,32 @@ void test_coulomb(World& world) {
     START_TIMER;
     Function<double,3> r = apply_only(op,f);
     END_TIMER("apply");
+
+    // gather stats about load distribution
     const double* nflop = op.get_nflop();
+    double nflop_sum[64], nflop_sumsq[64], nflop_min[64], nflop_max[64];
+    double total=0.0;
+    for (int i=0; i<64; i++) {
+        nflop_sum[i] = nflop_min[i] = nflop_max[i] = nflop[i];
+        nflop_sumsq[i] = nflop[i]*nflop[i];
+        total += nflop[i];
+    }
+    nflop_sum[63] = nflop_max[63] = nflop_min[63] = total; // Shove total into last element
+    nflop_sumsq[63] = total*total;
+    world.gop.sum(nflop_sum,64);
+    world.gop.sum(nflop_sumsq,64);
+    world.gop.min(nflop_min,64);
+    world.gop.max(nflop_max,64);
+    
     if (world.rank() == 0) {
-        double totalflops = 0.0;
         for (int i=0; i<64; i++) {
-            if (nflop[i]) print(i,nflop[i]);
-            totalflops += nflop[i];
+            if (nflop_sum[i]) printf("%2d  %10.1e  %10.1e  %10.1e\n", i,
+                                     nflop_sum[i], nflop_max[i], nflop_min[i]);
         }
-        print("total flops", totalflops);
+        double avg = nflop_sum[63]/world.size();
+        double avgsq = nflop_sumsq[63]/world.size();
+        double stddev = sqrt(avgsq - avg*avg);
+        printf("average = %10.1e      stddev = %10.1e\n", avg ,stddev);
     }
     START_TIMER;
     r.reconstruct();

@@ -106,6 +106,9 @@
 #  define CORE2_TUNE
 #endif
 
+#if @USE_LINUX_RANDOM@
+#  define USE_LINUX_RANDOM
+#endif
 
 
 /* Attempt at deadlock detection */

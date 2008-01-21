@@ -1983,10 +1983,8 @@ namespace madness {
                     double tol = truncate_tol(thresh, key);
 
                     if (cnorm*opnorm < tol) break;
-                    //if (cnorm*opnorm > tol) {
-                        tensorT result = op->apply(key, d, c, tol/cnorm);
-                        coeffs.send(dest, &nodeT::accumulate, result, coeffs, dest);
-                        //}
+                    tensorT result = op->apply(key, d, c, tol/cnorm);
+                    coeffs.send(dest, &nodeT::accumulate, result, coeffs, dest);
                 }
 
             }
@@ -1998,8 +1996,14 @@ namespace madness {
             for(typename dcT::const_iterator it=f.coeffs.begin(); it!=f.coeffs.end(); ++it) {
                 const keyT& key = it->first;
                 const FunctionNode<R,NDIM>& node = it->second;
-                // SCREEN HERE ?
-                task(world.rank(), &implT:: template do_apply<opT,R>, &op, key, node.coeff());
+                ProcessID p = world.random_proc();
+//                 if (world.size() > 16) {
+//                     while ((p=world.random_proc()) == 0);
+//                 }
+//                 else {
+//                     p = world.random_proc();
+//                 }
+                task(p, &implT:: template do_apply<opT,R>, &op, key, node.coeff());
             }
             if (fence) world.gop.fence();
         }

@@ -67,7 +67,6 @@
 #include <sched.h>
 #endif
 
-
 #ifdef UINT64_T
 typedef UINT64_T uint64_t;
 #endif
@@ -83,6 +82,10 @@ typedef UINT64_T uint64_t;
 #include <world/worldmpi.h>
 #include <world/worldser.h>
 #include <world/worldtime.h>
+
+#ifdef USE_LINUX_RANDOM
+#include <stdlib.h>
+#endif
 
 namespace madness {
 
@@ -286,6 +289,9 @@ namespace madness {
         /// of their data with them, they can access local state thru
         /// their world instance.  The user is responsible for
         /// consistently managing and freeing this data.
+        ///
+        /// A more PC C++ style would be for the app to put state in
+        /// a singleton.
         void set_user_state(void* state) {
             user_state = state;
         };
@@ -298,16 +304,16 @@ namespace madness {
             return user_state;
         };
 
+        /// Clears user-defined state ... same as set_user_state(0)
+        void clear_user_state() {
+            set_user_state(0);
+        };
+
         /// Processes command line arguments
 
         /// Mostly for world test codes but most usefully provides -dx option
         /// to start x debugger.
         void args(int argc, char**argv);
-
-        /// Clears user-defined state ... same as set_user_state(0)
-        void clear_user_state() {
-            set_user_state(0);
-        };
 
 
         /// Invokes any necessary polling for all existing worlds
@@ -471,7 +477,7 @@ namespace madness {
                     if (watchdog_is_watching) {
                         double now = wall_time();
                         if ((now-watchdog_last_time) > WATCHDOG_BARK_INTERVAL) {
-                            std::cerr << ": World: watchdog: I've been idle for " 
+                            std::cerr << "World: watchdog: I've been idle for " 
                                       << now-watchdog_start_time << "s" << std::endl;
                             watchdog_last_time = now;
                         }
@@ -528,8 +534,12 @@ namespace madness {
         /// so that each process (crudely!!!) has distinct values.
         void srand(unsigned long seed = 0) {
             if (seed == 0) seed = rank();
+#ifdef USE_LINUX_RANDOM
+            srandom(seed);
+#else
             myrand_next = seed;
             for (int i=0; i<1000; i++) rand(); // Warmup
+#endif
         };
 
 
@@ -537,8 +547,12 @@ namespace madness {
 
         /// Each process has a distinct seed for the generator.
         int rand() {
+#ifdef USE_LINUX_RANDOM
+            return int(random() & 0xfffffful);
+#else
             myrand_next = myrand_next * 1103515245UL + 12345UL;
             return int((myrand_next>>8) & 0xfffffful);
+#endif
         };
 
 

@@ -569,7 +569,6 @@ namespace madness {
         }
 
         const double* get_nflop() const {
-            static_cast< const WorldObject< SeparatedConvolution<Q,NDIM> >* >(this)->world.gop.sum(nflop,64);
             return nflop;
         }
 
