@@ -3,7 +3,7 @@ TOPDIR = ../../..
 
 BIN_OR_LIB = BIN
 TARGET_TO_MAKE = examples
-BINOBJ = hello.o hatom_energy.o
+BINOBJ = hello.o hatom_energy.o molecule.o
 TESTPROGS = hello hatom_energy
 
 # GlobalMakefile now does most of the work for you
