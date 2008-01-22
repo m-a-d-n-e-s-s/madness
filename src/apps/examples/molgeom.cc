@@ -8,21 +8,25 @@
 #include <string>
 #include <iostream>
 
-class AtomCoords {
+class Atom {
 public:
     double x, y, z, q;
     string tag;
+
+    Atom(double x, double , double z, double q, const string& tag)
+        : x(x), y(y), z(z), q(q), tag(tag) 
+    {}
 };
 
 /// Read and manage molecular coordinates
-class MolecularGeometry {
+class Molecule {
 private:
     int natom;
-    std::vector<AtomCoords> coords;
+    std::vector<Atom> atoms;
 
 public:    
-    /// Makes a geometry with zero atoms
-    MolecularGeometry() : natom(0) {};
+    /// Makes a molecule with zero atoms
+    Molecule() : natom(0), atoms() {};
 
     /// Read coordinates from a file
 
@@ -35,10 +39,11 @@ public:
     /// \endcode
     /// The charge \c q is inferred from the tag which is
     /// assumed to be the standard symbol for an element.
+    /// Same as the simplest NWChem format.
     ///
-    /// This is just for the examples ... it is not production 
-    /// quality code.
-    MolecularGeometry(const string& filename) : natom(0) {
+    /// This code is just for the examples ... it is not production 
+    /// quality.
+    Molecule(const string& filename) : natom(0) {
         ifstream f(filename,"r");
         string s;
         while (getline(f,s)) {
@@ -62,29 +67,25 @@ public:
     }
 
     void add_atom(const string& tag, double x, double y, double z) {
-        this->x.push_back(x);
-        this->y.push_back(y);
-        this->z.push_back(z);
-        this->q.push_back(q);
-        this->tag.push_back(tag);
+        double q = tag_to_charge(tag);
+        atoms.push_back(Atom(x,y,z,q,tag));
         natom++;
     }
 
-    int natom() const {return natom;};
+    int get_natom() const {return natom;};
 
-    void set_coords(int i, double x, double y, double z) {
+    void set_coord(int i, double x, double y, double z) {
         MADNESS_ASSSERT(i>=0 && i<natom);
-        this->x[i] = x;
-        this->y[i] = y;
-        this->z[i] = z;
+        atoms[i].x = x;
+        atoms[i].y = y;
+        atoms[i].z = z;
     }
 
-    void get_coords(int i, double x, double y, double z) {
+    const Atom& get_coords(int i) const {
         MADNESS_ASSSERT(i>=0 && i<natom);
-        this->x[i] = x;
-        this->y[i] = y;
-        this->z[i] = z;
+        return atoms[i];
     }
+}
 
     
         
