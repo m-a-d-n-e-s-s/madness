@@ -55,7 +55,13 @@ using std::abs;
 namespace madness {
 
     static const int kmax = 34;
-    static const char *asciifile = "coeffs";
+    static const char *twoscale_filename = "coeffs";  // Will be overridden by load_coeffs
+    static const char *autocorr_filename = "autocorr";  // Will be overriden by load_coeff
+
+
+
+
+
     static const double cksum[] = {
                                       1.57015282218922890,1.48602374574943450
                                   };
@@ -114,8 +120,8 @@ namespace madness {
         return (i&1) ? -1.0 : 1.0;
     }
 
-    static bool readascii(int kmax,const char *filename) {
-        FILE* file = fopen(filename,"r");
+    static bool read_twoscale(int kmax) {
+        FILE* file = fopen(twoscale_filename,"r");
         if (!file) {
             cout << "twoscale: failed opening file with twoscale coefficients\n";
             return false;
@@ -171,7 +177,7 @@ namespace madness {
                                 Tensor<double>* h0, Tensor<double>* h1,
                                 Tensor<double>* g0, Tensor<double>* g1) {
         if (!loaded) {
-            if (!readascii(kmax,asciifile)) return false;
+            if (!read_twoscale(kmax)) return false;
         }
 
         if (k < 1 || k > kmax) return false;
@@ -229,7 +235,6 @@ namespace madness {
 
     // BELOW HERE THE AUTOCORRELATION ROUTINES
 
-    static const char *filename = "autocorr";
     static const int kmax_autoc = 27;
     static int kread = -1;
     static Tensor<double> _c;
@@ -287,7 +292,7 @@ namespace madness {
 
     bool test_autoc() {
         unsigned long correct = 0x638a9b;
-        unsigned long computed = checksum_file(filename);
+        unsigned long computed = checksum_file(autocorr_filename);
         if (correct != computed)
             cout << "test_autoc: file checksum invalid: correct="
             << correct << " computed=" << computed << endl;
@@ -298,7 +303,7 @@ namespace madness {
     static bool read_data(int k) {
         if (!test_autoc()) return false;
         kread = -1;
-        FILE *file = fopen(filename,"r");
+        FILE *file = fopen(autocorr_filename,"r");
         if (!file) {
             cout << "autoc: failed opening file with autocorrelation coefficients" << endl;
             return false;
@@ -332,12 +337,26 @@ namespace madness {
     /// Collective routine to load and cache twoscale & autorrelation coefficients
 
     /// Only process rank 0 will access the files.
-    void load_coeffs(World& world) {
+    void load_coeffs(World& world, const char* dir) {
         if (!loaded) {
             int ktop = 17;   // Plausible maximum value
             if (world.rank() == 0) {
-                if (!readascii(kmax,asciifile))
+                char buf[32768];
+                buf[0] = 0;
+                strcat(buf,dir);
+                strcat(buf,"/");
+                strcat(buf,twoscale_filename);
+                twoscale_filename = strdup(buf);
+
+                buf[0] = 0;
+                strcat(buf,dir);
+                strcat(buf,"/");
+                strcat(buf,autocorr_filename);
+                autocorr_filename = strdup(buf);
+
+                if (!read_twoscale(kmax))
                     throw "load_coeffs: failed reading twoscale coeffs";
+
                 if (!read_data(ktop))
                     throw "load_coeffs: failed reading coeffs";
             } else {
@@ -349,6 +368,7 @@ namespace madness {
                 }
                 _c = Tensor<double>(ktop,ktop,4*ktop);
             }
+
             for (int k=1; k<=kmax; k++) {
                 world.gop.broadcast(cache[k].h0.ptr(), k*k, 0);
                 world.gop.broadcast(cache[k].h1.ptr(), k*k, 0);

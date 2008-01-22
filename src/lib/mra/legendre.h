@@ -40,7 +40,7 @@
 #include <world/world.h>
 
 namespace madness {
-    extern void load_quadrature(World& world);
+    extern void load_quadrature(World& world, const char* dir);
     extern void legendre_polynomials(double x, long order, double *p);
     extern void legendre_scaling_functions(double x, long k, double *p);
     extern bool gauss_legendre(int n, double xlo, double xhi, double *x, double *w);

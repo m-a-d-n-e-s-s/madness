@@ -1,18 +1,18 @@
 TOPDIR = ../../..
 
-CXXSRC = hello.cc hatom_energy.cc
+
+BIN_OR_LIB = BIN
+TARGET_TO_MAKE = examples
+BINOBJ = hello.o hatom_energy.o
+TESTPROGS = hello hatom_energy
 
 # GlobalMakefile now does most of the work for you
 include $(TOPDIR)/config/GlobalMakefile
 
-all:	examples
+default::	$(TESTPROGS)
 
-examples:	hello hatom_energy
-
-# You must define additional rules to link your test programs
 hello:	hello.o $(THISLIBDEPEND) 
 	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ $(SYSLIBS) $(LTLINKBINOPTS)
 
-# You must define additional rules to link your test programs
 hatom_energy:	hatom_energy.o $(THISLIBDEPEND) 
 	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ $(SYSLIBS) $(LTLINKBINOPTS)

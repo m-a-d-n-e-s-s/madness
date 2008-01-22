@@ -41,7 +41,7 @@
 #include <world/world.h>
 
 namespace madness {
-    extern void load_coeffs(World& world);
+    extern void load_coeffs(World& world, const char* dir);
     extern bool two_scale_coefficients(int k,
                                            Tensor<double>* h0, Tensor<double>* h1,
                                            Tensor<double>* g0, Tensor<double>* g1);

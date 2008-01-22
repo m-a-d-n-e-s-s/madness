@@ -30,6 +30,10 @@ TEST6SRC = gfit.cc
 # GlobalMakefile now does most of the work for you
 include $(TOPDIR)/config/GlobalMakefile
 
+HERE := "\"$(abspath .)\""
+DEFINES += -DMRA_DATA_DIR=$(HERE)
+
+
 # You must define additional rules to link your test programs
 test: $(TEST1OBJ) $(THISLIBDEPEND) 
 	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ $(SYSLIBS) $(LTLINKBINOPTS)

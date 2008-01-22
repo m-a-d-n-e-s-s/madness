@@ -102,7 +102,8 @@ namespace madness {
 
     static bool data_is_read = false;
     static const int max_npt = 64;
-    static const char *filename = "gaussleg";
+
+    static const char *filename = "gaussleg";   // Is overridden by 
     // These are the points and weights on [-1,1]
     static Tensor<double> points[max_npt+1];
     static Tensor<double> weights[max_npt+1];
@@ -144,8 +145,15 @@ namespace madness {
     /// Collective routine to pre-load and cache the quadrature points and weights
 
     /// Only process rank 0 will access the file.
-    void load_quadrature(World& world) {
+    void load_quadrature(World& world, const char* dir) {
         if (data_is_read) return;
+        char buf[32768];
+        buf[0] = 0;
+        strcat(buf,dir);
+        strcat(buf,"/");
+        strcat(buf,filename);
+        filename = strdup(buf);
+        
         if (world.rank() == 0) {
             read_data();
         } else {

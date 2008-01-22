@@ -37,9 +37,13 @@
 
 #include <mra/mra.h>
 #include <iomanip>
+#include <cstdlib>
 
 namespace madness {
     void startup(World& world, int argc, char** argv) {
+        const char* data_dir = MRA_DATA_DIR;
+
+        // Process command line arguments
         for (int arg=1; arg<argc; arg++) {
             if (std::strcmp(argv[arg],"-dx")==0) 
                 xterm_debug("world", 0);
@@ -53,6 +57,11 @@ namespace madness {
             else if (std::strcmp(argv[arg],"-rio")==0)
                 redirectio(world);
         }
+
+        // Process environment variables
+        if (getenv("MRA_DATA_DIR")) data_dir = getenv("MRA_DATA_DIR");
+
+        // Need to add an RC file ...
 
         world.gop.fence();
 
@@ -81,11 +90,10 @@ namespace madness {
         FunctionDefaults<6>::set_defaults(world);
 #endif
 
-
         if (world.rank() == 0) print("loading coeffs, etc.");
 
-        load_coeffs(world);
-        load_quadrature(world);
+        load_coeffs(world, data_dir);
+        load_quadrature(world, data_dir);
 
         if (world.rank() == 0) print("testing coeffs, etc.");
         MADNESS_ASSERT(gauss_legendre_test());
