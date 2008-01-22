@@ -1,0 +1,109 @@
+#ifndef MADNESS_MOLECULE_H
+#define MADNESS_MOLECULE_H
+
+/// \file molecule.h
+/// \brief Declaration of molecule related classes and functions
+
+#include <vector>
+#include <string>
+#include <iostream>
+#include <fstream>
+#include <sstream>
+#include <algorithm>
+#include <ctype.h>
+#include <cmath>
+
+struct AtomicData {
+    // !!! The order of declaration here must match the order in the initializer !!!
+    
+    // Nuclear info from L. Visscher and K.G. Dyall, Dirac-Fock
+    // atomic electronic structure calculations using different
+    // nuclear charge distributions, Atom. Data Nucl. Data Tabl., 67,
+    // (1997), 207.
+    //
+    // http://dirac.chem.sdu.dk/doc/FiniteNuclei/FiniteNuclei.shtml
+    const char* const symbol;
+    const char* const symbol_lowercase;
+    const int atomic_number;
+    const int isotope_number;
+    const double nuclear_radius;     //< Radius of the nucleus for the finite nucleus models (in atomic units).
+    const double nuclear_half_charge_radius; //< Half charge radius in the Fermi Model (in atomic units).
+    const double nuclear_gaussian_exponent; //< Exponential parameter in the Gaussian Model (in atomic units).
+
+    /// Covalent radii stolen without shame from NWChem
+    const double covalent_radius;
+};
+
+const AtomicData& get_atomic_data(unsigned int atn);
+    
+int symbol_to_atomic_number(const std::string& symbol);
+
+
+class Atom {
+public:
+    double x, y, z, q;          //< Coordinates and charge in atomic units
+    int atn;                    //< Atomic number
+
+    Atom(double x, double y, double z, double q, int atn)
+        : x(x), y(y), z(z), q(q), atn(atn)
+    {}
+
+    Atom(const Atom& a) 
+        : x(a.x), y(a.y), z(a.z), q(a.q), atn(a.atn)
+    {}
+
+    template <typename Archive>
+    void serialize(Archive& ar) {ar & x & y & z & atn & q;}
+};
+
+std::ostream& operator<<(std::ostream& s, const Atom& atom);
+
+class Molecule {
+private:
+    std::vector<Atom> atoms;
+    std::vector<double> rcut;  // Reciprocal of the smoothing radius
+    
+public:    
+    /// Makes a molecule with zero atoms
+    Molecule() : atoms() {};
+    
+    /// Read coordinates from a file
+    
+    /// Scans the file for the first geometry block in the format
+    /// \code
+    ///    geometry
+    ///       tag x y z
+    ///       ...
+    ///    end
+    /// \endcode
+    /// The charge \c q is inferred from the tag which is
+    /// assumed to be the standard symbol for an element.
+    /// Same as the simplest NWChem format.
+    ///
+    /// This code is just for the examples ... don't trust it!
+    Molecule(const std::string& filename);
+    
+    void add_atom(double x, double y, double z, int atn, double q);
+    
+    int natom() const {return atoms.size();};
+    
+    void set_atom_coords(unsigned int i, double x, double y, double z);
+    
+    const Atom& get_atom(unsigned int i) const;
+    
+    void print() const;
+
+    double inter_atomic_distance(unsigned int i,unsigned int j) const;
+
+    double nuclear_repulsion_energy() const;
+
+    double total_nuclear_charge() const;
+
+    double nuclear_attraction_potential(double x, double y, double z) const;
+    
+    template <typename Archive>
+    void serialize(Archive& ar) {ar & atoms;}
+};
+
+
+#endif
