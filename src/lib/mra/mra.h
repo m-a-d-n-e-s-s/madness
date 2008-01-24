@@ -280,11 +280,14 @@ namespace madness {
         /// If the truncation threshold is less than or equal to zero the default value
         /// specified when the function was created is used.
         /// If the function is not initialized, it just returns.
-        void truncate(double tol = 0.0, bool fence = true) {
-            if (!impl) return;
+        ///
+        /// Returns this for chaining.
+        Function<T,NDIM>& truncate(double tol = 0.0, bool fence = true) {
+            if (!impl) return *this;
             verify();
             if (!is_compressed()) compress();
             impl->truncate(tol,fence);
+            return *this;
         }
 
 
@@ -764,10 +767,12 @@ namespace madness {
     apply(const opT& op, const Function<R,NDIM>& f, bool fence=true) {
         Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> result;
 	Function<R,NDIM>& ff = const_cast< Function<R,NDIM>& >(f);
+        ff.verify_tree();
 	ff.reconstruct();
 	ff.nonstandard();
-	result.apply(op, f, false);
+	result.apply(op, f, true);
 	result.reconstruct();
+        result.verify_tree();
 	ff.standard();
         return result;
     }

@@ -447,6 +447,21 @@ namespace madness {
         /// Sets \c has_children attribute to value of \c flag.
         Void set_has_children(bool flag) {_has_children = flag; return None;}
 
+        /// Sets \c has_children attribute to true recurring up to ensure connected
+        Void set_has_children_recursive(const typename FunctionNode<T,NDIM>::dcT& c, const Key<NDIM>& key) {
+            if (!(_has_children || has_coeff() || key.level()==0)) {
+                // If node already knows it has children or it has
+                // coefficients then it must already be connected to
+                // its parent.  If not, the node was probably just
+                // created for this operation and must be connected to
+                // its parent.
+                Key<NDIM> parent = key.parent();
+                const_cast<dcT&>(c).send(parent, &FunctionNode<T,NDIM>::set_has_children_recursive, c, parent);
+            }
+            _has_children = true;
+            return None;
+        }
+
         /// Sets \c has_children attribute to value of \c !flag
         void set_is_leaf(bool flag) {_has_children = !flag;}
 
@@ -477,14 +492,20 @@ namespace madness {
             return None;
         }
 
-        /// Accumulate inplace and also connect node to parent
+        /// Accumulate inplace and if necessary connect node to parent
         Void accumulate(const Tensor<T>& t, const typename FunctionNode<T,NDIM>::dcT& c, const Key<NDIM>& key) {
             if (has_coeff()) {
                 _coeffs += t;
             }
-            else {
+            else {  
+                // No coeff and no children means the node is newly
+                // created for this operation and therefore we must
+                // tell its parent that it exists.
                 _coeffs = copy(t);
-                if (key.level() > 0) const_cast<dcT&>(c).send(key.parent(), &FunctionNode<T,NDIM>::set_has_children, true);
+                if ((!_has_children) && key.level() > 0) {
+                    Key<NDIM> parent = key.parent();
+                    const_cast<dcT&>(c).send(parent, &FunctionNode<T,NDIM>::set_has_children_recursive, c, parent);
+                }
             }
             return None;
         }
@@ -558,6 +579,7 @@ namespace madness {
         const Tensor<double> cell_width;///< Width of simulation cell in each dimension
         Tensor<double> rcell_width; ///< Reciprocal of width
         const double cell_volume;       ///< Volume of simulation cell
+        const double cell_min_width;    ///< Size of smallest dimension
 
         // Disable the default copy constructor
         FunctionImpl(const FunctionImpl<T,NDIM>& p);
@@ -586,6 +608,7 @@ namespace madness {
             , cell_width(cell(_,1)-cell(_,0))
             , rcell_width(copy(cell_width))
             , cell_volume(cell_width.product())
+            , cell_min_width(cell_width.min())
         {
             // !!! Ensure that all local state is correctly formed
             // before invoking process_pending for the coeffs and
@@ -651,6 +674,7 @@ namespace madness {
             , cell_width(other.cell_width)
             , rcell_width(other.rcell_width)
             , cell_volume(other.cell_volume)
+            , cell_min_width(other.cell_min_width)
         {
             coeffs.process_pending(); 
             this->process_pending();
@@ -948,7 +972,7 @@ namespace madness {
                 return tol;
             }
             else if (truncate_mode == 1) {
-                return tol*pow(0.5,double(key.level()));
+                return tol*std::min(1.0,pow(0.5,double(key.level()))*cell_min_width);
             }
             else if (truncate_mode == 2) {
                 return tol*pow(0.5,0.5*key.level()*NDIM);
@@ -1857,7 +1881,7 @@ namespace madness {
         void reconstruct(bool fence) {
             if (world.rank() == coeffs.owner(cdata.key0)) reconstruct_op(cdata.key0,tensorT());
             if (fence) world.gop.fence();
-            compressed = false;
+            nonstandard = compressed = false;
         }
 
         // Invoked on node where key is local
@@ -1880,14 +1904,16 @@ namespace madness {
             // The integral operator will correctly connect interior nodes
             // to children but may leave interior nodes without coefficients
             // ... but they still need to sum down so just give them zeros
-            if (node.has_children() && !node.has_coeff()) node.set_coeff(tensorT(cdata.v2k));
+            if (node.has_children() && !node.has_coeff()) {
+                node.set_coeff(tensorT(cdata.v2k));
+            }
 
             if (node.has_coeff()) {
                 tensorT d = node.coeff();
                 if (key.level() > 0) d(cdata.s0) += s; // -- note accumulate for NS summation
                 d = unfilter(d);
                 node.clear_coeff();
-                node.set_has_children(true);
+                node.set_has_children(true); 
                 for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
                     const keyT& child = kit.key();
                     tensorT ss = copy(d(child_patch(child)));
@@ -1895,7 +1921,8 @@ namespace madness {
                 }
             }
             else {
-                node.set_coeff(s);
+                if (key.level()) node.set_coeff(copy(s));
+                else node.set_coeff(s);
             }
             return None;
         }
@@ -1903,7 +1930,8 @@ namespace madness {
         void compress(bool nonstandard, bool fence) {
            if (world.rank() == coeffs.owner(cdata.key0)) compress_spawn(cdata.key0, nonstandard);
            if (fence) world.gop.fence();
-           compressed = true;
+           this->compressed = true;
+           this->nonstandard = nonstandard;
         }
 
 
@@ -1967,7 +1995,7 @@ namespace madness {
             // Not yet computing actual tree depth of the tree.  Estimate as 10.
             // Also estimate 3^NDIM contributions per box
             int nmax = 10;
-            double fac = std::pow(3.0,-1.0*NDIM) / nmax;
+            double fac = std::pow(3.0,-1.0*NDIM) * nmax;
             double cnorm = fac*c.normf();
             for (typename std::vector< Displacement<NDIM> >::const_iterator it=cdata.disp.begin(); 
                  it != cdata.disp.end(); 
@@ -1984,6 +2012,7 @@ namespace madness {
 
                     if (cnorm*opnorm < tol) break;
                     tensorT result = op->apply(key, d, c, tol/cnorm);
+                    // Might be worth checking on norm of result to eliminate message
                     coeffs.send(dest, &nodeT::accumulate, result, coeffs, dest);
                 }
 

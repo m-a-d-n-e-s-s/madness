@@ -236,7 +236,10 @@ namespace madness {
     // BELOW HERE THE AUTOCORRELATION ROUTINES
 
     static const int kmax_autoc = 27;
-    static int kread = -1;
+    static int kread = -1;  // value of k for data read from disk into _cread
+    static Tensor<double> _cread;
+
+    static int kcur = -1; // current value of k in for data in _c
     static Tensor<double> _c;
 
     static bool read_data(int k);
@@ -271,17 +274,20 @@ namespace madness {
     /// Return true on success, false on failure (which also prints error
     /// message to stdout).
     bool autoc(int k, Tensor<double>* c) {
-        if (k < 1 || k > kmax_autoc) {
+        if (k < 1 || k > kread) { // was kmax_autoc
             cout << "autoc: invalid k " << k << endl;
             return false;
         }
 
-        // The data is cached in _c ... reread for each new value of k
-        if (kread != k) {
-            if (!read_data(k))  return false;
+        // The data is cached in _c ... reread (now from _cread) for each new value of k
+        if (kcur != k) {
+            _c = Tensor<double>(k,k,4*k);
+            _c(Slice(0,k-1),Slice(0,k-1),Slice(0,2*k-1)) = _cread(Slice(0,k-1),Slice(0,k-1),Slice(0,2*k-1));
+            _c(Slice(0,k-1),Slice(0,k-1),Slice(2*k,4*k-1)) = _cread(Slice(0,k-1),Slice(0,k-1),Slice(2*kread,2*kread+2*k-1));
+            kcur = k;
         }
 
-        *c = _c; //copy(_c(Slice(0,k-1),Slice(0,k-1),Slice(0,4*k-1)));
+        *c = _c;
         return true;
     }
 
@@ -309,7 +315,7 @@ namespace madness {
             return false;
         }
 
-        _c = Tensor<double>(k,k,4*k);
+        _cread = Tensor<double>(k,k,4*k);
 
         long twok = 2*k;
         while (1) {
@@ -324,10 +330,10 @@ namespace madness {
             double ij = parity(i+j);
             double ijp= parity(i+j+p);
 
-            _c(i,j,p)      = val*ijp;	// c-
-            _c(j,i,p)      = val*ij*ijp;
-            _c(i,j,p+twok) = val;	// c+
-            _c(j,i,p+twok) = val*ij;
+            _cread(i,j,p)      = val*ijp;	// c-
+            _cread(j,i,p)      = val*ij*ijp;
+            _cread(i,j,p+twok) = val;	// c+
+            _cread(j,i,p+twok) = val*ij;
         }
         fclose(file);
         kread = k;
@@ -366,7 +372,8 @@ namespace madness {
                     cache[k].g0 = Tensor<double>(k,k);
                     cache[k].g1 = Tensor<double>(k,k);
                 }
-                _c = Tensor<double>(ktop,ktop,4*ktop);
+                _cread = Tensor<double>(ktop,ktop,4*ktop);
+                kread = ktop;
             }
 
             for (int k=1; k<=kmax; k++) {
@@ -376,7 +383,7 @@ namespace madness {
                 world.gop.broadcast(cache[k].g1.ptr(), k*k, 0);
             }
 
-            world.gop.broadcast(_c.ptr(), ktop*ktop*4*ktop, 0);
+            world.gop.broadcast(_cread.ptr(), ktop*ktop*4*ktop, 0);
 
             loaded = true;
         }
