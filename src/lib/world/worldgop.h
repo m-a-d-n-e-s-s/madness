@@ -213,6 +213,26 @@ namespace madness {
 	    broadcast(&t, 1, root);
 	}
 
+        /// Broadcast a serializable object
+
+        /// Current dumb version assumes object fits in 1MB
+        /// ... you are free to add intelligence.
+        template <typename objT>
+        void broadcast_serializable(objT& obj, ProcessID root) {
+            const std::size_t BUFLEN = 1024*1024;
+            unsigned char* buf = new unsigned char[BUFLEN];
+            if (world.rank() == root) {
+                BufferOutputArchive ar(buf,BUFLEN);
+                ar & obj;
+            }
+            broadcast(buf, BUFLEN, root);
+            if (world.rank() != root) {
+                BufferInputArchive ar(buf,BUFLEN);
+                ar & obj;
+            }
+            delete [] buf;
+        }
+        
         /// Inplace global reduction (like MPI all_reduce) while still processing AM & tasks
         
         /// Optimizations can be added for long messages
@@ -247,7 +267,7 @@ namespace madness {
             
             broadcast(buf, nelem, 0);
         }
-        
+
         /// Inplace global sum while still processing AM & tasks
         template <typename T>
         inline void sum(T* buf, size_t nelem) {

@@ -37,6 +37,7 @@
 
 #include <vector>
 #include <world/worldexc.h>
+#include <world/worldhash.h>
 
 namespace madness {
 
