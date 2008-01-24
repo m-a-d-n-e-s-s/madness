@@ -38,6 +38,7 @@ namespace madness
   {
     for (int it = 0; it < maxits; it++)
     {
+      printf("Hartree Fock: iteration #%d\n\n", it);
       for (int pi = 0; pi < _phis.size(); pi++)
       {
         // Get psi from collection

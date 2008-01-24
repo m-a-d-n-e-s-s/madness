@@ -53,8 +53,8 @@ public:
     double xx = x[0];
     double yy = x[1];
     double zz = x[2];
-    return -1.0/sqrt(xx*xx + yy*yy + (zz-0.7)*(zz-7.0)) +
-      -1.0/sqrt(xx*xx + yy*yy + (zz+0.7)*(zz+7.0));
+    return -1.0/(sqrt(xx*xx + yy*yy + (zz-0.7)*(zz-7.0)) + 1e-06) +
+      -1.0/(sqrt(xx*xx + yy*yy + (zz+0.7)*(zz+7.0)) + 1e-06);
   }
 };
 //*****************************************************************************
@@ -125,7 +125,9 @@ void test_hf_ho(World& world)
   Function<double,3> psi = FunctionFactory<double,3>(world).functor(Vnuc_functor);
   
   // Create HartreeFock object
+  cout << "Creating HartreeFock object..." << endl;
   HartreeFock hf(world, Vnuc, psi, -42.5, false, false);
+  cout << "Running HartreeFock object..." << endl;
   hf.hartree_fock(10);
   printf("Ground state is: %.5f\n", hf.get_eig(0));
 
@@ -158,14 +160,19 @@ void test_hf_h2(World& world)
   const double coeff = 0.5;
   const double offset = -50.0;
   functorT Vnuc_functor(new H2Potential());
+  cout << "Creating Function object for nuclear potential ..." << endl;
   Function<double,3> Vnuc = FunctionFactory<double,3>(world).functor(Vnuc_functor);
   
   // Guess for the wavefunction
+  cout << "Creating wavefunc_functor object..." << endl;
   functorT wavefunc_functor(new Gaussian<double,3>(origin, -0.5, 50.0));
+  cout << "Creating wavefunction psi ..." << endl;
   Function<double,3> psi = FunctionFactory<double,3>(world).functor(Vnuc_functor);
   
   // Create HartreeFock object
+  cout << "Creating HartreeFock object..." << endl;
   HartreeFock hf(world, Vnuc, psi, -2.5, true, true);
+  cout << "Running HartreeFock object..." << endl;
   hf.hartree_fock(10);
   printf("Ground state is: %.5f\n", hf.get_eig(0));
 
