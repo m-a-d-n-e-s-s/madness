@@ -248,6 +248,7 @@ void Molecule::read_file(const std::string& filename) {
         std::string::size_type loc = s.find("geometry", 0);
         if(loc != std::string::npos) goto found_it;
     }
+    std::cout << "FILENAME " << filename << std::endl;
     throw "No geometry found in the input file";
  found_it:
     

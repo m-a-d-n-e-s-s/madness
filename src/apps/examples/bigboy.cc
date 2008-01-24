@@ -29,7 +29,7 @@
   fax:   865-572-0680
 
   
-  $Id: test.cc 257 2007-06-25 19:09:38Z HartmanBaker $
+  $Id$
 */
 
 /// \file hartree-fock.cc
@@ -51,68 +51,57 @@ double ttt, sss;
 #define START_TIMER world.gop.fence(); ttt=wall_time(); sss=cpu_time()
 #define END_TIMER(msg) ttt=wall_time()-ttt; sss=cpu_time()-sss; if (world.rank()==0) printf("timer: %20.20s %8.2fs %8.2fs\n", msg, sss, ttt)
 
-class MolecularPotentialFunctor : public FunctionFunctorInterface<double,3> {
+static const double PI = 3.1415926535897932384;
+
+static inline double distance(double x1, double y1, double z1, double x2, double y2, double z2) {
+    double xx = x1-x2;
+    double yy = y1-y2;
+    double zz = z1-z2;
+    return sqrt(xx*xx + yy*yy + zz*zz);
+}
+
+class MolecularDensityFunctor : public FunctionFunctorInterface<double,3> {
 private:
     const Molecule& molecule;
 
 public:
-    MolecularPotentialFunctor(const Molecule& molecule) 
+    MolecularDensityFunctor(const Molecule& molecule) 
         : molecule(molecule)
     {}
 
     double operator()(const coordT& x) const {
-        return molecule.nuclear_attraction_potential(x[0], x[1], x[2]);
+        double sum = 0.0;
+        for (int i=0; i<molecule.natom(); i++) {
+            const Atom& atom = molecule.get_atom(i);
+            double r = distance(x[0],x[1],x[2],atom.x,atom.y,atom.z);
+            sum += exp(-2*r + 1e-6);
+        }
+        return sum;
     }
 };
 
 
-double guess(const Vector<double,3>& r) {
-  return exp(-1.5*sqrt(r[0]*r[0]+r[1]*r[1]+r[2]*r[2])+1e-2);
-}
-
-void hf_solve(World& world, const Molecule& molecule, int nmo) {
-    // Presently nmo is ignored and we are doing a single electron
-    // calculation for the purpose of debugging
-
-    double tol = FunctionDefaults<3>::thresh*0.1; // <<<<<< why?  is not the box size or truncate mode
+void bigboy(World& world, const Molecule& molecule) {
+    // Solves Poisson's equation for a molecule-like charge density
 
     START_TIMER;
-    functionT nuclear_potential = factoryT(world).functor(functorT(new MolecularPotentialFunctor(molecule))).thresh(tol); 
-    END_TIMER("project potential");
+    functionT rho = factoryT(world).functor(functorT(new MolecularDensityFunctor(molecule)));
+    END_TIMER("project density");
     START_TIMER;
-    functionT psi = factoryT(world).f(guess);
-    END_TIMER("project guess psi");
+    double rho_norm = rho.norm2();
+    END_TIMER("density norm");
 
-    double orbital_energy = -0.5;
-    for (int iter=0; iter<20; iter++) {
-        START_TIMER;
-        psi.truncate().scale(1.0/psi.norm2());
-        END_TIMER("truncate psi");
+    if (world.rank() == 0) print("rho norm", rho_norm);
 
-        START_TIMER;
-        functionT Vpsi = nuclear_potential*psi;
-        END_TIMER("V*psi");
+    SeparatedConvolution<double,3> op = CoulombOperator<double,3>(world, 
+                                                                  FunctionDefaults<3>::k, 
+                                                                  1e-3, 
+                                                                  FunctionDefaults<3>::thresh);
 
-        START_TIMER;
-        Vpsi.truncate();
-        END_TIMER("truncate Vpsi");
-
-        operatorT op = BSHOperator<double,3>(world, sqrt(-2.0*orbital_energy), 
-                                             FunctionDefaults<3>::k, 1e-2, FunctionDefaults<3>::thresh);
-
-        START_TIMER;
-        functionT psi_new = apply(op,Vpsi).scale(-2.0);
-        END_TIMER("BSH operator * Vpsi");
-
-//         const double* nflop = op.get_nflop();
-//         for (int i=0; i<64; i++) print(i, nflop[i]);
-
-        double deltanorm = (psi-psi_new).norm2();
-        double newnorm = psi_new.norm2();
-        if (world.rank() == 0) print(iter,"delta norm =",deltanorm, "     new norm =",newnorm);
-        psi = psi_new;
-    }
-        
+    START_TIMER;
+    functionT V = apply(op,rho);
+    END_TIMER("Coulomb operator");
+    world.gop.fence();
 }
 
 int main(int argc, char** argv) {
@@ -126,11 +115,8 @@ int main(int argc, char** argv) {
         // Process 0 reads the molecule information and
         // broadcasts to everyone else
         Molecule molecule;
-        if (world.rank() == 0) molecule.read_file("input");
+        if (world.rank() == 0) molecule.read_file("bigboy.input");
         world.gop.broadcast_serializable(molecule, 0);
-        
-        int nelec = int(molecule.total_nuclear_charge());
-        int nmo = nelec/2;
         
         // Use a cell big enough to have exp(-sqrt(2*I)*r) decay to
         // 1e-6 with I=1ev=0.037Eh --> need 50 a.u. either side of the molecule
@@ -142,8 +128,8 @@ int main(int argc, char** argv) {
         }
         
         // Setup initial defaults for numerical functions
-        FunctionDefaults<3>::k = 6;
-        FunctionDefaults<3>::thresh = 1e-4;
+        FunctionDefaults<3>::k = 12;
+        FunctionDefaults<3>::thresh = 1e-6;
         FunctionDefaults<3>::refine = true;
         FunctionDefaults<3>::initial_level = 2;
         FunctionDefaults<3>::truncate_mode = 1;  
@@ -157,12 +143,10 @@ int main(int argc, char** argv) {
             print("\n");
             print("            box size ", L);
             print(" number of processes ", world.size());
-            print(" number of electrons ", nelec);
-            print(" number of  orbitals ", nmo);
             //if (nelec&1) throw "Closed shell only --- number of electrons is odd";
         }
         
-        hf_solve(world, molecule, nmo);
+        bigboy(world, molecule);
 
         world.gop.fence();
 
