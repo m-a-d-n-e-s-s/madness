@@ -25,7 +25,6 @@ public:
   {
   }
   
-
   T operator()(const coordT& x) const
   {
     double sum = 0.0;
@@ -37,6 +36,26 @@ public:
     return coefficient*exp(-exponent*sum);
   }
   
+};
+//*****************************************************************************
+
+//*****************************************************************************
+class H2Potential :
+  public FunctionFunctorInterface<double,3>
+{
+public:
+  typedef Vector<double,3> coordT;
+  
+  H2Potential() {}
+
+  double operator()(const coordT& x) const
+  {
+    double xx = x[0];
+    double yy = x[1];
+    double zz = x[2];
+    return -1.0/sqrt(xx*xx + yy*yy + (zz-0.7)*(zz-7.0)) +
+      -1.0/sqrt(xx*xx + yy*yy + (zz+0.7)*(zz+7.0));
+  }
 };
 //*****************************************************************************
 
@@ -113,6 +132,46 @@ void test_hf_ho(World& world)
 }
 //*****************************************************************************
 
+//*****************************************************************************
+void test_hf_h2(World& world)
+{
+  cout << "Running test application HartreeFock ..." << endl;
+  
+  typedef Vector<double,3> coordT;
+  typedef SharedPtr< FunctionFunctorInterface<double,3> > functorT;
+
+  // Dimensions of the bounding box
+  double bsize = 10.0;
+  for (int i=0; i<3; i++)
+  {
+    FunctionDefaults<3>::cell(i,0) = -bsize;
+    FunctionDefaults<3>::cell(i,1) = bsize;
+  }
+  // Function defaults
+  FunctionDefaults<3>::k = 7;
+  FunctionDefaults<3>::thresh = 1e-5;
+  FunctionDefaults<3>::refine = true;
+  FunctionDefaults<3>::initial_level = 2;
+  
+  // Nuclear potential (harmonic oscillator)
+  const coordT origin(0.0);
+  const double coeff = 0.5;
+  const double offset = -50.0;
+  functorT Vnuc_functor(new H2Potential());
+  Function<double,3> Vnuc = FunctionFactory<double,3>(world).functor(Vnuc_functor);
+  
+  // Guess for the wavefunction
+  functorT wavefunc_functor(new Gaussian<double,3>(origin, -0.5, 50.0));
+  Function<double,3> psi = FunctionFactory<double,3>(world).functor(Vnuc_functor);
+  
+  // Create HartreeFock object
+  HartreeFock hf(world, Vnuc, psi, -2.5, true, true);
+  hf.hartree_fock(10);
+  printf("Ground state is: %.5f\n", hf.get_eig(0));
+
+}
+//*****************************************************************************
+
 
 #define TO_STRING(s) TO_STRING2(s)
 #define TO_STRING2(s) #s
@@ -165,7 +224,7 @@ int main(int argc, char** argv)
     
     startup(world,argc,argv);
     if (world.rank() == 0) print("Initial tensor instance count", BaseTensor::get_instance_count());
-    test_hf_ho(world);
+    test_hf_h2(world);
   }
   catch (const MPI::Exception& e)
   {
