@@ -2026,12 +2026,7 @@ namespace madness {
                 const keyT& key = it->first;
                 const FunctionNode<R,NDIM>& node = it->second;
                 ProcessID p = world.random_proc();
-//                 if (world.size() > 16) {
-//                     while ((p=world.random_proc()) == 0);
-//                 }
-//                 else {
-//                     p = world.random_proc();
-//                 }
+		//ProcessID p = coeffs.owner(key);
                 task(p, &implT:: template do_apply<opT,R>, &op, key, node.coeff());
             }
             if (fence) world.gop.fence();
