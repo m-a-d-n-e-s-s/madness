@@ -88,6 +88,12 @@ void bigboy(World& world, const Molecule& molecule) {
     functionT rho = factoryT(world).functor(functorT(new MolecularDensityFunctor(molecule)));
     END_TIMER("project density");
     START_TIMER;
+    LoadBalImpl<3> lb(rho);
+    world.gop.fence();
+    FunctionDefaults<3>::pmap = lb.load_balance();
+    rho = copy(rho, FunctionDefaults<3>::pmap);
+    END_TIMER("load balancing");
+    START_TIMER;
     double rho_norm = rho.norm2();
     END_TIMER("density norm");
 
