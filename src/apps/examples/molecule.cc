@@ -140,9 +140,9 @@ static const AtomicData atomic_data[NUMBER_OF_ATOMS_IN_TABLE] = {
     {"Hn",  "hn",  108 , 265  ,  1.1224519460e-04  , 1.36914e-04   ,1.1905722195e+08, 1.40   },
     {"Mt",  "mt",  109 , 266  ,  1.1237267433e-04  , 1.37088e-04   ,1.1878724932e+08, 1.40   } };
 
-const AtomicData& get_atomic_data(unsigned int atn) {
+const AtomicData& get_atomic_data(int atn) {
     if (atn >= NUMBER_OF_ATOMS_IN_TABLE) throw "I am not an alchemist";
-    return atomic_data[i];
+    return atomic_data[atn];
 }
 
     
@@ -155,7 +155,7 @@ int symbol_to_atomic_number(const std::string& symbol) {
 }
 
 
-/// Returns radius for smoothing nuclear potential for energy precision eprec
+/// Returns radius for smoothing nuclear potential with energy precision eprec
 static double smoothing_parameter(double Z, double eprec) {
     // The min is since asymptotic form not so good at low acc.
     // The 2 is from two electrons in 1s closed shell.
@@ -220,7 +220,28 @@ std::ostream& operator<<(std::ostream& s, const Atom& atom) {
     return s;
 }
 
+/// Read coordinates from a file
+
+/// Scans the file for the first geometry block in the format
+/// \code
+///    geometry
+///       tag x y z
+///       ...
+///    end
+/// \endcode
+/// The charge \c q is inferred from the tag which is
+/// assumed to be the standard symbol for an element.
+/// Same as the simplest NWChem format.  For ghost
+/// atoms (\c bq ) the  charge is read as a fifth field
+/// on the line.
+///
+/// This code is just for the examples ... don't trust it!
 Molecule::Molecule(const std::string& filename) {
+    read_file(filename);
+}
+
+void Molecule::read_file(const std::string& filename) {
+    atoms.clear(); rcut.clear();
     std::ifstream f(filename.c_str());
     std::string s;
     while (std::getline(f,s)) {
@@ -251,9 +272,15 @@ void Molecule::add_atom(double x, double y, double z, int atn, double q) {
     atoms.push_back(Atom(x,y,z,atn,q));
     double c = smoothing_parameter(q, 1e-5); // This is error per atom
     rcut.push_back(1.0/c);
+    printf("cut %f\n",c);
 }
 
-void Molecule::set_atom_coords(unsigned int i, double x, double y, double z);
+void Molecule::set_atom_coords(unsigned int i, double x, double y, double z) {
+    if (i>=atoms.size()) throw "trying to set coords of invalid atom";
+    atoms[i].x = x;
+    atoms[i].y = y;
+    atoms[i].z = z;
+}
     
 const Atom& Molecule::get_atom(unsigned int i) const {
     if (i>=atoms.size()) throw "trying to get coords of invalid atom";
@@ -261,16 +288,16 @@ const Atom& Molecule::get_atom(unsigned int i) const {
 }
     
 void Molecule::print() const {
-        std::cout.flush();
-        printf("geometry\n");
-        for (int i=0; i<natom(); i++) {
-            printf("  %-2s  %20.8f %20.8f %20.8f", atomic_data[atoms[i].atn].symbol, 
-                   atoms[i].x, atoms[i].y, atoms[i].z);
-            if (atoms[i].atn == 0) printf("     %20.8f", atoms[i].q);
-            printf("\n");
-        }
-        printf("end\n");
+    std::cout.flush();
+    printf("geometry\n");
+    for (int i=0; i<natom(); i++) {
+        printf("  %-2s  %20.8f %20.8f %20.8f", atomic_data[atoms[i].atn].symbol, 
+               atoms[i].x, atoms[i].y, atoms[i].z);
+        if (atoms[i].atn == 0) printf("     %20.8f", atoms[i].q);
+        printf("\n");
     }
+    printf("end\n");
+}
 
 double Molecule::inter_atomic_distance(unsigned int i,unsigned int j) const {
     if (i>=atoms.size()) throw "trying to compute distance with invalid atom";
@@ -280,7 +307,7 @@ double Molecule::inter_atomic_distance(unsigned int i,unsigned int j) const {
 }
 
 double Molecule::nuclear_repulsion_energy() const {
-    double sum;
+    double sum = 0.0;
     for (unsigned int i=0; i<atoms.size(); i++) {
         for (unsigned int j=1; j<atoms.size(); j++) {
             sum += atoms[i].atn * atoms[j].atn / inter_atomic_distance(i,j);
@@ -289,8 +316,40 @@ double Molecule::nuclear_repulsion_energy() const {
     return sum;
 }
 
+/// Moves the center of nuclear charge to the origin
+void Molecule::center() {
+    double xx=0.0, yy=0.0, zz=0.0, qq=0.0;
+    for (unsigned int i=0; i<atoms.size(); i++) {
+        xx += atoms[i].x;
+        yy += atoms[i].y;
+        zz += atoms[i].z;
+        qq += atoms[i].q;
+    }
+    xx /= qq;
+    yy /= qq;
+    zz /= qq;
+    for (unsigned int i=0; i<atoms.size(); i++) {
+        atoms[i].x -= xx;
+        atoms[i].y -= yy;
+        atoms[i].z -= zz;
+    }
+}
+
+/// Returns the half width of the bounding cube
+
+/// The molecule will be contained in the cube [-L,+L].
+double Molecule::bounding_cube() const {
+    double L = 0.0;
+    for (unsigned int i=0; i<atoms.size(); i++) {
+        L = std::max(L, fabs(atoms[i].x));
+        L = std::max(L, fabs(atoms[i].y));
+        L = std::max(L, fabs(atoms[i].z));
+    }
+    return L;
+}
+
 double Molecule::total_nuclear_charge() const {
-    double sum;
+    double sum = 0.0;
     for (unsigned int i=0; i<atoms.size(); i++) {
         sum += atoms[i].q;
     }
@@ -308,7 +367,8 @@ double Molecule::nuclear_attraction_potential(double x, double y, double z) cons
     double sum = 0.0;
     for (unsigned int i=0; i<atoms.size(); i++) {
         double r = distance(atoms[i].x, atoms[i].y, atoms[i].z, x, y, z);
-        sum -= atoms[i].q * u(r*rcut[i])*rcut[i];
+        //sum -= atoms[i].q/(r+1e-8);
+        sum -= atoms[i].q * smoothed_potential(r*rcut[i])*rcut[i];
     }
     return sum;
 }

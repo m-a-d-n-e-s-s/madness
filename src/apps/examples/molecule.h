@@ -52,6 +52,11 @@ public:
         : x(a.x), y(a.y), z(a.z), q(a.q), atn(a.atn)
     {}
 
+    /// Default construct makes a zero charge ghost atom at origin
+    Atom() 
+        : x(0), y(0), z(0), q(0), atn(0)
+    {}
+
     template <typename Archive>
     void serialize(Archive& ar) {ar & x & y & z & atn & q;}
 };
@@ -60,6 +65,7 @@ std::ostream& operator<<(std::ostream& s, const Atom& atom);
 
 class Molecule {
 private:
+    // If you add more fields don't forget to serialize them
     std::vector<Atom> atoms;
     std::vector<double> rcut;  // Reciprocal of the smoothing radius
     
@@ -67,27 +73,17 @@ public:
     /// Makes a molecule with zero atoms
     Molecule() : atoms() {};
     
-    /// Read coordinates from a file
-    
-    /// Scans the file for the first geometry block in the format
-    /// \code
-    ///    geometry
-    ///       tag x y z
-    ///       ...
-    ///    end
-    /// \endcode
-    /// The charge \c q is inferred from the tag which is
-    /// assumed to be the standard symbol for an element.
-    /// Same as the simplest NWChem format.
-    ///
-    /// This code is just for the examples ... don't trust it!
     Molecule(const std::string& filename);
+
+    void read_file(const std::string& filename);
     
     void add_atom(double x, double y, double z, int atn, double q);
     
     int natom() const {return atoms.size();};
     
     void set_atom_coords(unsigned int i, double x, double y, double z);
+
+    double bounding_cube() const;
     
     const Atom& get_atom(unsigned int i) const;
     
@@ -97,12 +93,14 @@ public:
 
     double nuclear_repulsion_energy() const;
 
+    void center();
+
     double total_nuclear_charge() const;
 
     double nuclear_attraction_potential(double x, double y, double z) const;
     
     template <typename Archive>
-    void serialize(Archive& ar) {ar & atoms;}
+    void serialize(Archive& ar) {ar & atoms & rcut;}
 };
 
 
