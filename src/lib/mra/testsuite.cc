@@ -784,21 +784,21 @@ int main(int argc, char**argv) {
     try {
         startup(world,argc,argv);
         if (world.rank() == 0) print("Initial tensor instance count", BaseTensor::get_instance_count());
-//         test_basic<double,1>(world);
-//         test_conv<double,1>(world);
-//         test_math<double,1>(world);
-//         test_diff<double,1>(world);
-// //          test_op<double,1>(world);
+        test_basic<double,1>(world);
+        test_conv<double,1>(world);
+        test_math<double,1>(world);
+        test_diff<double,1>(world);
+//          test_op<double,1>(world);
 
-//         test_basic<double,2>(world);
-//         test_conv<double,2>(world);
-//         test_math<double,2>(world);
-//         test_diff<double,2>(world);
-// //          test_op<double,2>(world);
+        test_basic<double,2>(world);
+        test_conv<double,2>(world);
+        test_math<double,2>(world);
+        test_diff<double,2>(world);
+//          test_op<double,2>(world);
 
         test_basic<double,3>(world);
-//         test_conv<double,3>(world);
-//         test_math<double,3>(world);
+        test_conv<double,3>(world);
+        test_math<double,3>(world);
         test_diff<double,3>(world);
 //          //test_op<double,3>(world);
         test_coulomb(world);
