@@ -2033,8 +2033,6 @@ namespace madness {
         }
 
 
-
-
         /// Returns the square of the error norm in the box labelled by key
 
         /// Assumed to be invoked locally but it would be easy to eliminate
@@ -2083,6 +2081,30 @@ namespace madness {
             }
             return sum;
         }
+
+
+        /// Returns \c int(f(x),x) in local volume
+        T trace_local() const {
+            std::vector<long> v0(NDIM,0);
+            T sum = 0.0;
+            if (compressed) {
+                if (world.rank() == coeffs.owner(cdata.key0)) {
+                    typename dcT::iterator it = coeffs.find(cdata.key0).get();  // loss of constness ????
+                    if (it != const_cast<dcT*>(&coeffs)->end()) {
+                        const nodeT& node = it->second;
+                        if (node.has_coeff()) sum = node.coeff()(v0);
+                    }
+                }
+            }
+            else {
+                for(typename dcT::const_iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
+                    const nodeT& node = it->second;
+                    if (node.has_coeff()) sum += node.coeff()(v0);
+                }
+            }
+            return sum;
+        }
+
 
         /// Returns the square of the local norm ... no comms
         double norm2sq_local() const {

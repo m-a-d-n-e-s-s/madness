@@ -532,6 +532,26 @@ namespace madness {
             return *this;
         }
 
+
+        /// Returns local contribution to \c int(f(x),x) ... no communication
+
+        /// In the wavelet basis this is just the coefficient of the first scaling
+        /// function which is a constant.  In the scaling function basis we 
+        /// must add up contributions from each box.
+        T trace_local() const {
+            if (!impl) return 0.0;
+            return impl->trace_local();
+        }
+
+
+        /// Returns global value of \c int(f(x),x) ... global comm required
+        T trace() const {
+            if (!impl) return 0.0;
+            T sum = impl->trace_local();
+            impl->world.gop.sum(sum);
+            return sum;
+        }
+
         /// This is replaced with left*right ... should be private
         template <typename L, typename R>
         Function<T,NDIM>& mul(const Function<L,NDIM>& left, const Function<R,NDIM>& right, bool fence) {
@@ -767,12 +787,12 @@ namespace madness {
     apply(const opT& op, const Function<R,NDIM>& f, bool fence=true) {
         Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> result;
 	Function<R,NDIM>& ff = const_cast< Function<R,NDIM>& >(f);
-        ff.verify_tree();
+        if (VERIFY_TREE) ff.verify_tree();
 	ff.reconstruct();
 	ff.nonstandard();
 	result.apply(op, f, true);
 	result.reconstruct();
-        result.verify_tree();
+        if (VERIFY_TREE) result.verify_tree();
 	ff.standard();
         return result;
     }

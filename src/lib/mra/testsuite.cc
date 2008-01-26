@@ -678,6 +678,11 @@ void test_coulomb(World& world) {
     f.nonstandard();
     END_TIMER("nonstandard");
 
+    if (world.rank() == 0) {
+        print("\nbefore operator");
+        world.am.print_stats();
+        print("");
+    }
     SeparatedConvolution<double,3> op = CoulombOperator<double,3>(world, FunctionDefaults<3>::k, 1e-3, thresh);
     START_TIMER;
     Function<double,3> r = apply_only(op,f);
@@ -708,7 +713,10 @@ void test_coulomb(World& world) {
         double avgsq = nflop_sumsq[63]/world.size();
         double stddev = sqrt(avgsq - avg*avg);
         printf("average = %10.1e      stddev = %10.1e\n", avg ,stddev);
+
+        world.am.print_stats();
     }
+
     START_TIMER;
     r.reconstruct();
     END_TIMER("reconstruct result");
@@ -776,24 +784,24 @@ int main(int argc, char**argv) {
     try {
         startup(world,argc,argv);
         if (world.rank() == 0) print("Initial tensor instance count", BaseTensor::get_instance_count());
-        test_basic<double,1>(world);
-        test_conv<double,1>(world);
-        test_math<double,1>(world);
-        test_diff<double,1>(world);
-//          test_op<double,1>(world);
+//         test_basic<double,1>(world);
+//         test_conv<double,1>(world);
+//         test_math<double,1>(world);
+//         test_diff<double,1>(world);
+// //          test_op<double,1>(world);
 
-        test_basic<double,2>(world);
-        test_conv<double,2>(world);
-        test_math<double,2>(world);
-        test_diff<double,2>(world);
-//          test_op<double,2>(world);
+//         test_basic<double,2>(world);
+//         test_conv<double,2>(world);
+//         test_math<double,2>(world);
+//         test_diff<double,2>(world);
+// //          test_op<double,2>(world);
 
-//         test_basic<double,3>(world);
+        test_basic<double,3>(world);
 //         test_conv<double,3>(world);
 //         test_math<double,3>(world);
-//         test_diff<double,3>(world);
-         //test_op<double,3>(world);
-         test_coulomb(world);
+        test_diff<double,3>(world);
+//          //test_op<double,3>(world);
+        test_coulomb(world);
 
     } catch (const MPI::Exception& e) {
         //        print(e);
@@ -819,8 +827,13 @@ int main(int argc, char**argv) {
 
     if (world.rank() == 0) print("entering final fence");
     world.gop.fence();
-    if (world.rank() == 0) print("done with final fence");
-    if (world.rank() == 0) print("Final tensor instance count", BaseTensor::get_instance_count());
+    if (world.rank() == 0) {
+        print("done with final fence");
+        world.am.print_stats();
+        world.taskq.print_stats();
+        print(" ");
+        print("Final tensor instance count", BaseTensor::get_instance_count());
+    }
     MPI::Finalize();
 
     return 0;
