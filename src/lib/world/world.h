@@ -271,16 +271,24 @@ namespace madness {
             // world by assigning to each processor a unique range of indices
             // and broadcasting from node 0 of the current communicator.
             world_assign_id(this);  // Also acts as barrier 
-            
-            // Determine cost of polling and from this limit the
-            // frequency with which poll_all will be run while there
-            // is work in the task queue.
-            uint64_t ins = cycle_count();
-            for (int i=0; i<32; i++) World::poll_all(true);
-            poll_delay = (cycle_count()-ins)>>5; // Actual cost per poll
-            poll_delay = poll_delay<<3;  // *8 --> no more than 12.5% of time in polling
-            ///world.mpi.Bcast(poll_delay,0); // For paranoia make sure all have same value?
-            if (rank()==0) print("poll_delay",poll_delay,"cycles",int(1e6*poll_delay/cpu_frequency()),"us");
+            last_poll = 0; // Static initialization problem on the XT ????????????????????????????
+            if (last_poll == 0) {
+                // Determine cost of polling and from this limit the
+                // frequency with which poll_all will be run while there
+                // is work in the task queue.
+                uint64_t ins = cycle_count();
+                for (int i=0; i<256; i++) World::poll_all(true); // Warm up????
+                ins = cycle_count();
+                for (int i=0; i<256; i++) World::poll_all(true);
+                ins = cycle_count() - ins;
+                // >>8 to get actual cost, <<4 to spend no more than 6% of time polling
+                poll_delay = ins>>4;
+                //print(me,"measured delay",poll_delay);
+                if (poll_delay <= 0) poll_delay = 1;
+                if (poll_delay > (1e-4*cpu_frequency())) poll_delay = int(1e-4*cpu_frequency());
+                //mpi.Bcast(poll_delay,0); // For paranoia make sure all have same value?
+                if (rank()==0) print("cpu frequency",cpu_frequency(),"poll_delay",poll_delay,"cycles",int(1e9*poll_delay/cpu_frequency()),"ns");
+            }
         };
 
 
@@ -322,7 +330,7 @@ namespace madness {
         /// By default only polls at intervals of poll_delay cycles but
         /// setting \c force=true forces polling to occur.
         static void poll_all(bool force = false) {
-            if ((!force) ||  (cycle_count() < last_poll+poll_delay)) return;
+            if ((!force) && cycle_count()<(last_poll+poll_delay)) return;
             for_each(worlds.begin(), worlds.end(), world_do_poll);
             last_poll = cycle_count();
         };

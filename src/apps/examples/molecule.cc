@@ -273,7 +273,6 @@ void Molecule::add_atom(double x, double y, double z, int atn, double q) {
     atoms.push_back(Atom(x,y,z,atn,q));
     double c = smoothing_parameter(q, 1e-5); // This is error per atom
     rcut.push_back(1.0/c);
-    printf("cut %f\n",c);
 }
 
 void Molecule::set_atom_coords(unsigned int i, double x, double y, double z) {

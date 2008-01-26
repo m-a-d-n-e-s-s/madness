@@ -103,15 +103,19 @@ void bigboy(World& world, const Molecule& molecule) {
                                                                   FunctionDefaults<3>::k, 
                                                                   1e-3, 
                                                                   FunctionDefaults<3>::thresh);
-    world.am.print_stats();
-    world.taskq.print_stats();
+    if (world.rank() == 0) {
+        world.am.print_stats();
+        world.taskq.print_stats();
+    }
 
     START_TIMER;
     functionT V = apply(op,rho);
     END_TIMER("Coulomb operator");
 
-    world.am.print_stats();
-    world.taskq.print_stats();
+    if (world.rank() == 0) {
+        world.am.print_stats();
+        world.taskq.print_stats();
+    }
 
     world.gop.fence();
 }
@@ -140,7 +144,7 @@ int main(int argc, char** argv) {
         }
         
         // Setup initial defaults for numerical functions
-        FunctionDefaults<3>::k = 12;
+        FunctionDefaults<3>::k = 8;
         FunctionDefaults<3>::thresh = 1e-6;
         FunctionDefaults<3>::refine = true;
         FunctionDefaults<3>::initial_level = 2;
