@@ -322,7 +322,7 @@ namespace madness {
         static const int NSHORT_RECV = 8;         //< No. of posted short recv buffers
         static const int NLONG_RECV = 16;         //< No. of posted long recv buffers
         static const int NRECV =  NSHORT_RECV + NLONG_RECV;
-        static const int NSEND = 10;              //< Max no. of outstanding short+long Isends
+        static const int NSEND = 20;              //< Max no. of outstanding short+long Isends
         
         MPI::Request recv_handle[NRECV];  //< Handles for AM Irecv
         mutable MPI::Request send_handle[NSEND];  //< Handles for AM Isend
@@ -338,13 +338,20 @@ namespace madness {
         const int nproc;
         const Tag short_tag; //< Reserved tag used for short active messages over MPI
         const Tag long_tag;  //< Reserved tag used for long active messages over MPI
-        volatile unsigned long nsent; //< Counts no. of AM sent
-        volatile unsigned long nrecv; //< Counts no. of AM received
-        volatile long suspended;      //< If non-zero, AM processing is suspended
+        unsigned long nsent; //< Counts no. of AM sent
+        unsigned long nrecv; //< Counts no. of AM received
+        long suspended;      //< If non-zero, AM processing is suspended
         bool debug;                   //< If true, print debug info
-        volatile int nfree_long_recv_buf; //< Tracks number of free long recv buffers
+        int nfree_long_recv_buf; //< Tracks number of free long recv buffers
 
-        std::list<qmsg*> msgq;  //< Queue of messages received but not yet processed
+        std::list<qmsg*> msgq;      //< Queue of messages received but not yet processed
+
+        std::size_t msgq_count;     //< For stats only: #msg currently in q
+        std::size_t msgq_count_max; //< For stats only: lifetime max of msgq_count
+        std::size_t msgq_mem;       //< For stats only: amount of memory used by q
+        std::size_t msgq_mem_max;   //< For stats only: lifetime max of msgq_mem
+        std::size_t nfree_long_recv_bufs; //< For stats only: #times free_long_recv_bufs called
+        std::size_t nbytes_sent, nbytes_recv; //< For stats only: data volume
 
         unsigned char* recv_counters; //< Used to impose sequential consistency
         unsigned char* send_counters; //< Used to impose sequential consistency
@@ -406,13 +413,29 @@ namespace madness {
             // network to avoid dead/livelock but don't don't need to
             // poll in other worlds or run tasks/AM.
             int i;
-            suspend();
-            while (!MPI::Request::Testany(NSEND, send_handle, i)) poll();
+
+            // Was suspending in here but there is no need AS LONG as we
+            // suspend recursive processing of AM which is now a formal 
+            // part of the model.
+            while (!MPI::Request::Testany(NSEND, send_handle, i)) World::poll_all(true);
             if (i == MPI::UNDEFINED) i = 0;
             free_managed_send_buf(i);
-            resume();
             return i;
         };
+
+
+        /// Private: push an active message onto the queue
+
+        /// Separate routine to make capturing statistics easier
+        inline void msgq_push_back(qmsg* qm) {
+            msgq.push_back(qm);
+            msgq_count++;
+            msgq_count_max = std::max(msgq_count,msgq_count_max);
+            if (qm->is_managed) {
+                msgq_mem += qm->nbyte;
+                msgq_mem_max = std::max(msgq_mem,msgq_mem_max);
+            }
+        }
 
 
         /// Private: Sends a short active message setting internal flags
@@ -421,23 +444,25 @@ namespace madness {
             if (root >= 0) flags |= (root << 12) | BCAST_MASK;
             if (debug) print("World:",rank,"sending short AM to",dest,
                              "op",(void *) op,"count",flags&COUNT_MASK);
-            if (dest == rank) {  // Calls to self are appended to the queue
+            if (dest == rank) {  
+                // Calls to self are appended to the queue
                 AmArg* p = const_cast<AmArg*>(&arg);
                 p->flags = flags;
                 p->function = op;
-                msgq.push_back(new qmsg(rank, arg));
+                msgq_push_back(new qmsg(rank, arg));
             }
             else {
-                int i = get_free_send_request();
+                int i = get_free_send_request(); 
                 send_buf[i] = arg; // Must copy since using a non-blocking send
                 send_buf[i].flags = flags;
                 send_buf[i].function = op;
                 send_handle[i] = mpi.Isend(send_buf+i, sizeof(AmArg), MPI::BYTE, dest, short_tag);
             }
             nsent++;
-            suspend();
+            nbytes_sent += sizeof(AmArg);
+            //suspend();
             World::poll_all();
-            resume();
+            //resume();
         };
         
 
@@ -455,18 +480,22 @@ namespace madness {
                       "size",nbyte,"count",flags&COUNT_MASK);
             if (dest == rank) {  
                 i = -1;
-                // Temporary hack.  To enable wait_for_complete of a
-                // local long AM without executing everything in the
-                // call stack (which might violate ordering) we must
-                // copy the darn buffer.  Various optimizations can
-                // sometimes circumvent this but for now go with slow
-                // but correct.
+                // To enable wait_for_complete of a local long AM
+                // without executing everything in the call stack
+                // (which might violate ordering) we must copy the
+                // darn buffer.  Various optimizations can sometimes
+                // circumvent this but for now go with slow but
+                // correct.  Actually it turns out this is not such
+                // a big issue since WorldObj, WorldDC and WorldTask
+                // all separately treat local actions so the only
+                // stuff coming in here is a direct user call which
+                // is not really expected.
                 if (!managed) {
                     unsigned long *tmp = (unsigned long*) new_long_am_arg(nbyte);
                     memcpy(tmp, u, nbyte);
                     u = tmp;
                 }
-                msgq.push_back(new qmsg(rank, u, nbyte, i, true));
+                msgq_push_back(new qmsg(rank, u, nbyte, i, true));
             }
             else {
                 i = get_free_send_request();
@@ -474,10 +503,11 @@ namespace madness {
                 if (managed) managed_send_buf[i] = (unsigned char*) buf;
             }
             nsent++;
+            nbytes_sent += nbyte;
             
-            suspend();
+            //suspend();
             World::poll_all();
-            resume();
+            //resume();
             return i;
         };
 
@@ -518,12 +548,12 @@ namespace madness {
                 ProcessID src = status[m].Get_source();
                 int i = ind[m];
                 if (i < NSHORT_RECV) {
-                    msgq.push_back(new qmsg(src,recv_buf[i]));
+                    msgq_push_back(new qmsg(src,recv_buf[i]));
                     post_recv(i);  // Repost short msg buffers ASAP
                 }
                 else {
                     size_t nbyte = status[m].Get_count(MPI::BYTE);
-                    msgq.push_back(new qmsg(src, long_recv_buf[i-NSHORT_RECV], nbyte, i, false));
+                    msgq_push_back(new qmsg(src, long_recv_buf[i-NSHORT_RECV], nbyte, i, false));
                     nfree_long_recv_buf--;
                     MADNESS_ASSERT(nfree_long_recv_buf>=0);
                 }
@@ -537,6 +567,7 @@ namespace madness {
 
         /// Need to do this in order to avoid deadlock when being flooded.
         void free_long_recv_bufs() {
+            nfree_long_recv_bufs++; // Count times called
             // Iterate backwards thru msg list since in use buffers
             // must be at the end.
             for (std::list<qmsg*>::iterator it= msgq.end(); 
@@ -552,6 +583,9 @@ namespace madness {
                     msg->is_managed = true;
                     msg->i = -1;
                     post_recv(i);
+                    msgq_mem += msg->nbyte;
+                    msgq_mem_max = std::max(msgq_mem, msgq_mem_max);
+
                     if (nfree_long_recv_buf == NLONG_RECV) break;
                 }
             }
@@ -582,20 +616,25 @@ namespace madness {
                     }
                 }
                 if (msg) {
-                    suspend();  // << ???????????
+                    suspend();
                     if (msg->is_short) {
                         poll_short_msg_action(msg->src, msg->arg);
+                        nbytes_recv += sizeof(AmArg);
+
                         // Short message receive already reposted.
                     }
                     else {
                         poll_long_msg_action(msg->src, msg->nbyte, msg->buf);
                         if (msg->i >= 0) post_recv(msg->i);
                         if (msg->is_managed) free_long_am_arg(msg->buf);
+                        nbytes_recv += msg->nbyte;
                     }
                     recv_counters[msg->src]++;
-                    nrecv++;    // << ??????????????
-                    resume();
+                    nrecv++;
+                    msgq_count--;
+                    if (msg->is_managed) msgq_mem -= msg->nbyte;
                     delete msg;
+                    resume(false);
                 }
             } while (msg);
         }
@@ -617,6 +656,13 @@ namespace madness {
             , suspended(0)
             , debug(false)
             , nfree_long_recv_buf(0)
+            , msgq()
+            , msgq_count(0)
+            , msgq_count_max(0)
+            , msgq_mem(0)
+            , msgq_mem_max(0)
+            , nbytes_sent(0)
+            , nbytes_recv(0)
         {
             // Allocate buffers for long message receives
             for (int i=0; i<NLONG_RECV; i++) 
@@ -638,7 +684,6 @@ namespace madness {
                 post_recv(i);
             for (int i=0; i<NSEND; i++)
                 managed_send_buf[i] = 0;
-            
         };
 
 
@@ -674,12 +719,12 @@ namespace madness {
         
 
         /// Resumes processing of AM
-        inline void resume() {
+
+        /// By default will poll for and process AM immediately after resumption
+        inline void resume(bool poll=true) {
             suspended--;
-            if (suspended < 0) {
-                print("World: AM: suspended was negative --- mismatched suspend/resume pairing");
-                suspended = 0;
-            };
+            MADNESS_ASSERT(suspended >= 0);
+            if (poll && !suspended) World::poll_all();
         };
 
         /// Mostly for debugging AM itself.  Print pending message q
@@ -751,6 +796,16 @@ namespace madness {
             }
         };
 
+        void print_stats() const {
+            std::cout << "\n    Active Message Statistics\n";
+            std::cout << "    -------------------------\n";
+            std::cout << "    Sent " << nsent << " messages (" << (nbytes_sent>>20) << " Mbytes)\n";
+            std::cout << "    Recv " << nrecv << " messages (" << (nbytes_recv>>20) << " Mbytes)\n";
+            std::cout << "    Current pending message q " << msgq_count << " messages (" << (msgq_mem>>20) << " Mbytes)\n";
+            std::cout << "    Maximum pending message q " << msgq_count_max << " messages (" << (msgq_mem_max>>20) << " Mbytes)\n";
+            std::cout << "    Number of times ran out of recv bufs " << nfree_long_recv_bufs << "\n";
+            std::cout.flush();
+        }
 
         /// AM polling function (if any) for this world instance
 

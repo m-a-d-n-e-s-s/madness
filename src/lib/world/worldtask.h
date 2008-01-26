@@ -181,6 +181,11 @@ namespace madness {
         int suspended;      //< If non-zero, task processing is suspended
         long maxinq;        //< Maximum number of enqueued tasks
 
+        long xxntotal;    //< For stats only: total number of submitted tasks
+        long xxnqmax;     //< For stats only: lifetime max number of enqueued tasks
+        long xxnready;    //< For stats only: current number in the ready queue
+                                 //< (and total is then (xxnready+nregistered))
+
     public:
         WorldTaskQueue(World& world, int maxfiber=1) 
             : world(world)
@@ -189,11 +194,14 @@ namespace madness {
             , me(world.mpi.rank())
             , suspended(0) 
             , maxinq(100000)
+            , xxntotal(0)
+            , xxnqmax(0)
+            , xxnready(0)
         {};
 
         /// Returns the number of ready tasks 
         long nready() const {
-            return ready.size();
+            return ready.size(); // Note that this can be expensive
         };
 
         /// Returns the number of pending (not-ready) tasks
@@ -232,10 +240,14 @@ namespace madness {
         /// insert the task into the ready queue.  All that will be
         /// done here is registering the callback
         inline void add(TaskInterface* t) {
-            nregistered++;
+            xxntotal++;      // Count total number of tasks over all time
+            nregistered++;   // Counts submitted tasks not yet in the ready queue
+            xxnqmax = std::max(nregistered+xxnready, xxnqmax); // Lifetime max of enqueued tasks
+
             if (t->probe()) add_ready_task(t);
             else t->callback.register_callback(this,t);
-            World::poll_all(true); // Adding tasks is useful work so increase polling interval
+
+            World::poll_all();
         };
 
 
@@ -577,6 +589,7 @@ namespace madness {
                 ready.push_back(t);
             }
             nregistered--;
+            xxnready++;
             MADNESS_ASSERT(nregistered>=0);
         };
 
@@ -590,10 +603,7 @@ namespace madness {
         /// Resume processing of tasks
         inline void resume() {
             suspended--;
-            if (suspended < 0) {
-                print("TaskQueue: suspended was negative --- mismatched suspend/resume pairing");
-                suspended = 0;
-            };
+            MADNESS_ASSERT(suspended>=0);
         };
 
 
@@ -605,9 +615,14 @@ namespace madness {
             else {
                 TaskInterface *p = ready.front();
                 ready.pop_front();
+                xxnready--;
+                if ((unsigned long)xxnready != ready.size()) {
+                    std::cout << "!!!! " << xxnready << " " << ready.size() << std::endl;
+                }
+                MADNESS_ASSERT((unsigned long)xxnready == ready.size());
 
-		// NB THIS ENFORCES SEQUENTIALLY CONSISTENT EXECUTION
-		// ... can be relaxed at expense of possible unbounded memory consumption
+		// Inhibit nested execution of tasks for lots of
+                // good reasons including not blowing out the stack
                 suspend();
                 p->run(world);
                 resume();
@@ -616,6 +631,15 @@ namespace madness {
                 return true;
             }
         };
+
+        void print_stats() const {
+            std::cout << "\n    Task Statistics\n";
+            std::cout << "    ---------------\n";
+            std::cout << "    Current number of tasks " << xxnready+nregistered << " (" << xxnready << " ready, " << nregistered << " pending)\n";
+            std::cout << "    Lifetime maximum number of enqueued tasks " << xxnqmax << "\n";
+            std::cout << "    Lifetime total number of tasks " << xxntotal << "\n";
+            std::cout.flush();
+        }
    
     };
 

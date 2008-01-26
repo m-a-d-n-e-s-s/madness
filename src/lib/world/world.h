@@ -223,6 +223,7 @@ namespace madness {
         // Private: tries to run a task in each world
         static bool run_tasks() {
             bool status = false;
+            // !!!!!!!! THIS IS WRONG IF THERE IS MORE THAN ONE WORLD ... 
             for_each(worlds.begin(), worlds.end(), std::bind2nd(std::ptr_fun(world_do_run_task),&status));
             return status;
         };
@@ -275,7 +276,7 @@ namespace madness {
             // frequency with which poll_all will be run while there
             // is work in the task queue.
             uint64_t ins = cycle_count();
-            for (int i=0; i<32; i++) World::poll_all();
+            for (int i=0; i<32; i++) World::poll_all(true);
             poll_delay = (cycle_count()-ins)>>5; // Actual cost per poll
             poll_delay = poll_delay<<3;  // *8 --> no more than 12.5% of time in polling
             ///world.mpi.Bcast(poll_delay,0); // For paranoia make sure all have same value?
@@ -317,8 +318,11 @@ namespace madness {
 
 
         /// Invokes any necessary polling for all existing worlds
-        static void poll_all(bool working = false) {
-            if (working  &&  (cycle_count() < last_poll+poll_delay)) return;
+
+        /// By default only polls at intervals of poll_delay cycles but
+        /// setting \c force=true forces polling to occur.
+        static void poll_all(bool force = false) {
+            if ((!force) ||  (cycle_count() < last_poll+poll_delay)) return;
             for_each(worlds.begin(), worlds.end(), world_do_poll);
             last_poll = cycle_count();
         };
@@ -466,7 +470,7 @@ namespace madness {
 #endif
             bool working = false;
             while (!probe()) {
-                poll_all(working);  // If working poll_all will increase polling interval
+                poll_all(!working);  // If working poll_all will increase polling interval
                 working = run_tasks();
                 
 #ifdef WORLD_WATCHDOG
@@ -494,10 +498,6 @@ namespace madness {
                 }
 #endif
 
-
-#ifdef WORLD_SLEEP_BACKOFF
-                if (!working) usleep(1000);
-#endif
 #ifdef WORLD_SCHED_BACKOFF
                 if (!working) sched_yield();
 #endif
