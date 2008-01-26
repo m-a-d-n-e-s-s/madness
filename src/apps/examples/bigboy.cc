@@ -32,8 +32,8 @@
   $Id$
 */
 
-/// \file hartree-fock.cc
-/// \brief example solution of the closed-shell HF equations
+/// \file bigboy.cc
+/// \brief artificial benchmark for Cray XT testing
 
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES  
 #include <mra/mra.h>
@@ -103,10 +103,16 @@ void bigboy(World& world, const Molecule& molecule) {
                                                                   FunctionDefaults<3>::k, 
                                                                   1e-3, 
                                                                   FunctionDefaults<3>::thresh);
+    world.am.print_stats();
+    world.taskq.print_stats();
 
     START_TIMER;
     functionT V = apply(op,rho);
     END_TIMER("Coulomb operator");
+
+    world.am.print_stats();
+    world.taskq.print_stats();
+
     world.gop.fence();
 }
 
