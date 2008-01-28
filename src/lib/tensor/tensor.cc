@@ -888,9 +888,14 @@ namespace madness {
     /// Make a deep copy of the tensor (i.e., make an independent and contiguous copy of the data)
     template <class T>
     Tensor<T> copy(const Tensor<T>& t) {	// Deep, contiguous copy of t
-        Tensor<T> result = Tensor<T>(t.ndim,t.dim,false);
-        BINARY_OPTIMIZED_ITERATOR(T, result, T, t, *_p0 = *_p1);
-        return result;
+        if (t.size) {
+            Tensor<T> result = Tensor<T>(t.ndim,t.dim,false);
+            BINARY_OPTIMIZED_ITERATOR(T, result, T, t, *_p0 = *_p1);
+            return result;
+        }
+        else {
+            return Tensor<T>();
+        }
     }
 
     /// Outer product ... result(i,j,...,p,q,...) = left(i,k,...)*right(p,q,...)
