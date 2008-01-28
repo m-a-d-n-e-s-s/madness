@@ -3,8 +3,8 @@ TOPDIR = ../../..
 
 BIN_OR_LIB = BIN
 TARGET_TO_MAKE = all
-BINOBJ = hello.o hatom_energy.o molecule.o hf.o bigboy.o
-TESTPROGS = hello hatom_energy hf bigboy
+BINOBJ = hello.o hatom_energy.o molecule.o hf.o bigboy.o h2.o he.o
+TESTPROGS = hello hatom_energy hf bigboy h2 he
 
 # GlobalMakefile now does most of the work for you
 include $(TOPDIR)/config/GlobalMakefile
@@ -21,5 +21,11 @@ hf:	hf.o molecule.o $(THISLIBDEPEND)
 	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ $(SYSLIBS) $(LTLINKBINOPTS)
 
 bigboy:	bigboy.o molecule.o $(THISLIBDEPEND) 
+	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ $(SYSLIBS) $(LTLINKBINOPTS)
+
+h2:	h2.o $(THISLIBDEPEND) 
+	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ $(SYSLIBS) $(LTLINKBINOPTS)
+
+he:	he.o $(THISLIBDEPEND) 
 	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ $(SYSLIBS) $(LTLINKBINOPTS)
 
