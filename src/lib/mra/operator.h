@@ -3,6 +3,7 @@
 
 #include <mra/mra.h>
 #include <tensor/mtxmq.h>
+#include <linalg/tensor_lapack.h>
 
 namespace madness {
 
@@ -66,9 +67,36 @@ namespace madness {
 
     template <typename Q>
     struct ConvolutionData1D {
-        Tensor<Q> R, T;  // R=ns, T=T part of ns
+        Tensor<Q> R, T;  //< R=ns, T=T part of ns
+        Tensor<Q> RD, TD; //< Diagonal approximations to R and T wth associated errors
+        double RDeps, TDeps;
+        Tensor<Q> RU, RVT, TU, TVT; //< SVD approximations to R and T
+        Tensor<typename Tensor<Q>::scalar_type> Rs, Ts;
 
-        ConvolutionData1D(const Tensor<Q>& R, const Tensor<Q>& T) : R(R), T(T) {}
+        ConvolutionData1D(const Tensor<Q>& R, const Tensor<Q>& T) : R(R), T(T) {
+            make_approx(R, RD, RDeps, RU, Rs, RVT);
+            make_approx(T, TD, TDeps, TU, Ts, TVT);
+        }
+
+        void make_approx(const Tensor<Q>& R, Tensor<Q>& RD, double& RDeps, 
+                         Tensor<Q>& RU, Tensor<typename Tensor<Q>::scalar_type>& Rs, Tensor<Q>& RVT) {
+            int n = R.dim[0];
+            RD = Tensor<Q>(n);
+            for (int i=0; i<n; i++) {
+                RD(i) = R(i,i);
+                R(i,i) = 0.0;
+            }
+            RDeps = R.normf();
+            for (int i=0; i<n; i++) {
+                R(i,i) = RD(i);
+            }
+            svd(R, &RU, &Rs, &RVT);
+            for (int i=0; i<n; i++) {
+                for (int j=0; j<n; j++) {
+                    RVT(i,j) *= Rs[i];
+                }
+            }
+        }
     };
 
     /// Stores info about 1D Gaussian convolution

@@ -416,13 +416,13 @@ namespace madness {
             , _has_children(has_children)
         {}
 
-        /// Type conversion of coefficients, copying all other state
+        /// Copy with possible type conversion of coefficients, copying all other state
 
         /// Choose to not overload copy and type conversion operators
         /// so there are no automatic type conversions.
         template <typename Q>
         FunctionNode<Q,NDIM> convert() const {
-            return FunctionNode<Q,NDIM>(_coeffs,_has_children);
+            return FunctionNode<Q,NDIM>(copy(_coeffs),_has_children);
         }
 
         /// Returns true if there are coefficients in this node

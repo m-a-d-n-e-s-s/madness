@@ -773,6 +773,15 @@ namespace madness {
     Function<T,NDIM> 
     diff(const Function<T,NDIM>& f, int axis, bool fence=true) {
         Function<T,NDIM> result;
+        if (f.is_compressed()) {
+            if (fence) {
+                const_cast<Function<T,NDIM>*>(&f)->reconstruct();
+            }
+            else {
+                MADNESS_EXCEPTION("diff: trying to diff a compressed function without fencing",0);
+            }
+        }
+
         return result.diff(f,axis, fence);
     }
 
