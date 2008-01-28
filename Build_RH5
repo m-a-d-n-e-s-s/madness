@@ -1,0 +1,5 @@
+# make sure lapack is compiled with the same settings as mpi
+# make sure that mpicxx is openmpi ; mpich still has problems 1/28/2008
+ 
+./doconfig LIBS "-L/home/gif/LAPACK -llapack /home/gif/LAPACK/libgoto_opteron-64-r0.98.so -lblas -lgfortran"
+
