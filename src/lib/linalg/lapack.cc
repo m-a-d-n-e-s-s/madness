@@ -195,7 +195,7 @@ STATIC void dsyev_(const char* jobz, const char* uplo, integer *n,
                    complex_real4 *work,  integer *lwork,
                    integer *info, char_len jobzlen, char_len uplo_len ) {
     Tensor<float> rwork(max((integer) 1, (integer) (3* (*n)-2)));
-    std::cout << *n << " " << *lda << " " << *lwork <<std::endl;
+    //std::cout << *n << " " << *lda << " " << *lwork <<std::endl;
     cheev_(jobz, uplo, n, a, lda, w,  work,  lwork, rwork.ptr(),
            info, jobzlen, uplo_len );
 }
@@ -241,7 +241,7 @@ namespace madness {
         *U = Tensor<T>(m,rmax);
         *VT = Tensor<T>(rmax,n);
 
-        std::cout << "n " << n << " m " << m << " lwork " << lwork << std::endl;
+        //std::cout << "n " << n << " m " << m << " lwork " << lwork << std::endl;
         dgesvd_("S","S", &n, &m, A.ptr(), &n, s->ptr(),
                 VT->ptr(), &n, U->ptr(), &rmax, work.ptr(), &lwork,
                 &info, (char_len) 1, (char_len) 1);
