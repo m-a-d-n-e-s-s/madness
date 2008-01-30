@@ -11,6 +11,30 @@ using namespace madness;
 const double PI = 3.1415926535897932384;
 
 //*****************************************************************************
+double V_func(const Vector<double,3>& r)
+{
+  double x = r[0];
+  double y = r[1];
+  double z = r[2];
+  return -1.0/(sqrt(x*x + y*y + (z-0.7)*(z-0.7)) + 1e-8) + 
+    -1.0/(sqrt(x*x + y*y + (z+0.7)*(z+0.7)) + 1e-8);
+}
+//*****************************************************************************
+
+//*****************************************************************************
+double psi_func(const Vector<double,3>& r)
+{
+  double x = r[0];
+  double y = r[1];
+  double z = r[2];
+//  return exp(-0.5*(x*x + y*y + (z-0.7)*(z-0.7))) + 
+//    exp(-0.5*(x*x + y*y + (z+0.7)*(z+0.7)));
+  return exp(-sqrt(x*x + y*y + (z-0.7)*(z-0.7))) + 
+    exp(-sqrt(x*x + y*y + (z+0.7)*(z+0.7)));
+}
+//*****************************************************************************
+
+//*****************************************************************************
 template<typename T, int NDIM> class Gaussian :
   public FunctionFunctorInterface<T,NDIM>
 {
@@ -53,8 +77,8 @@ public:
     double xx = x[0];
     double yy = x[1];
     double zz = x[2];
-    return -1.0/(sqrt(xx*xx + yy*yy + (zz-0.7)*(zz-7.0)) + 1e-06) +
-      -1.0/(sqrt(xx*xx + yy*yy + (zz+0.7)*(zz+7.0)) + 1e-06);
+    return -1.0/(sqrt(xx*xx + yy*yy + (zz-0.7)*(zz-7.0)) + 1e-08) +
+      -1.0/(sqrt(xx*xx + yy*yy + (zz+0.7)*(zz+7.0)) + 1e-08);
   }
 };
 //*****************************************************************************
@@ -108,8 +132,8 @@ void test_hf_ho(World& world)
     FunctionDefaults<3>::cell(i,1) = bsize;
   }
   // Function defaults
-  FunctionDefaults<3>::k = 7;
-  FunctionDefaults<3>::thresh = 1e-5;
+  FunctionDefaults<3>::k = 5;
+  FunctionDefaults<3>::thresh = 1e-3;
   FunctionDefaults<3>::refine = true;
   FunctionDefaults<3>::initial_level = 2;
   
@@ -123,10 +147,11 @@ void test_hf_ho(World& world)
   // Guess for the wavefunction
   functorT wavefunc_functor(new Gaussian<double,3>(origin, -0.5, 100.0));
   Function<double,3> psi = FunctionFactory<double,3>(world).functor(Vnuc_functor);
-  
+  psi.scale(1.0/psi.norm2());
+  printf("Norm of psi = %.5f\n\n", psi.norm2());
   // Create HartreeFock object
   cout << "Creating HartreeFock object..." << endl;
-  HartreeFock hf(world, Vnuc, psi, -42.5, false, false);
+  HartreeFock hf(world, Vnuc, psi, -42.5, false, false, 1e-5);
   cout << "Running HartreeFock object..." << endl;
   hf.hartree_fock(10);
   printf("Ground state is: %.5f\n", hf.get_eig(0));
@@ -143,7 +168,7 @@ void test_hf_h2(World& world)
   typedef SharedPtr< FunctionFunctorInterface<double,3> > functorT;
 
   // Dimensions of the bounding box
-  double bsize = 10.0;
+  double bsize = 22.4;
   for (int i=0; i<3; i++)
   {
     FunctionDefaults<3>::cell(i,0) = -bsize;
@@ -157,21 +182,17 @@ void test_hf_h2(World& world)
   
   // Nuclear potential (harmonic oscillator)
   const coordT origin(0.0);
-  const double coeff = 0.5;
-  const double offset = -50.0;
-  functorT Vnuc_functor(new H2Potential());
   cout << "Creating Function object for nuclear potential ..." << endl;
-  Function<double,3> Vnuc = FunctionFactory<double,3>(world).functor(Vnuc_functor);
-  
+  Function<double,3> Vnuc = FunctionFactory<double,3>(world).f(V_func);
+ 
   // Guess for the wavefunction
-  cout << "Creating wavefunc_functor object..." << endl;
-  functorT wavefunc_functor(new Gaussian<double,3>(origin, -0.5, 50.0));
   cout << "Creating wavefunction psi ..." << endl;
-  Function<double,3> psi = FunctionFactory<double,3>(world).functor(Vnuc_functor);
-  
+  Function<double,3> psi = FunctionFactory<double,3>(world).f(psi_func);
+  psi.scale(1.0/psi.norm2());
+  printf("Norm of psi = %.5f\n\n", psi.norm2());
   // Create HartreeFock object
   cout << "Creating HartreeFock object..." << endl;
-  HartreeFock hf(world, Vnuc, psi, -2.5, true, true);
+  HartreeFock hf(world, Vnuc, psi, -0.6, true, true, 1e-5);
   cout << "Running HartreeFock object..." << endl;
   hf.hartree_fock(10);
   printf("Ground state is: %.5f\n", hf.get_eig(0));
