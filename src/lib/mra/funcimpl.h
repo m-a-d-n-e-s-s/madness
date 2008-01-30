@@ -2102,7 +2102,7 @@ namespace madness {
                     if (node.has_coeff()) sum += node.coeff()(v0);
                 }
             }
-            return sum;
+            return sum*sqrt(cell_volume);
         }
 
 
