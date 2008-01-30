@@ -63,8 +63,7 @@ namespace madness
         printf("iteration #%d: calc exchange ...\n\n", it);
         funcT pexchange = calculate_exchange(psi);
         // Get new wavefunction
-        //funcT pfunc = pnuclear + 2.0 * pcoulomb - pexchange;
-        funcT pfunc = pnuclear + pcoulomb;
+        funcT pfunc = pnuclear + 2.0 * pcoulomb - pexchange;
         pfunc.scale(-2.0).truncate(_thresh);
         printf("iteration #%d: pfunc.norm2() = %.5f\n\n", it, 
           pfunc.norm2());
@@ -106,6 +105,7 @@ namespace madness
         printf("iteration #%d: tmp(/psi).norm2() = %.5f\n\n", it, 
           tmp.norm2());
       }
+      // Display energies
     }
   }
   //***************************************************************************
@@ -257,6 +257,66 @@ namespace madness
       }
     }
     return inner(rfunc, psi);
+  }
+  //***************************************************************************
+
+  //***************************************************************************
+  double HartreeFock::calculate_tot_ke_sp()
+  {
+    double tot_ke = 0.0;
+    for (int pi = 0; pi < _phis.size(); pi++)
+    {
+      // Get psi from collection
+      funcT psi = _phis[pi];
+      // Calculate kinetic energy contribution from psi
+      tot_ke += calculate_ke_sp(psi);
+    }
+    return tot_ke;
+  }
+  //***************************************************************************
+  
+  //***************************************************************************
+  double HartreeFock::calculate_tot_pe_sp()
+  {
+    double tot_pe = 0.0;
+    for (int pi = 0; pi < _phis.size(); pi++)
+    {
+      // Get psi from collection
+      funcT psi = _phis[pi];
+      // Calculate potential energy contribution from psi
+      tot_pe += calculate_pe_sp(psi);
+    }
+    return tot_pe;
+  }
+  //***************************************************************************
+  
+  //***************************************************************************
+  double HartreeFock::calculate_tot_coulomb_energy()
+  {
+    double tot_ce = 0.0;
+    for (int pi = 0; pi < _phis.size(); pi++)
+    {
+      // Get psi from collection
+      funcT psi = _phis[pi];
+      // Calculate coulomb energy contribution from psi
+      tot_ce += calculate_coulomb_energy(psi);
+    }
+    return tot_ce;
+  }
+  //***************************************************************************
+  
+  //***************************************************************************
+  double HartreeFock::calculate_tot_exchange_energy()
+  {
+    double tot_ee = 0.0;
+    for (int pi = 0; pi < _phis.size(); pi++)
+    {
+      // Get psi from collection
+      funcT psi = _phis[pi];
+      // Calculate exchange energy contribution from psi
+      tot_ee += calculate_exchange_energy(psi);
+    }
+    return tot_ee;
   }
   //***************************************************************************
 }

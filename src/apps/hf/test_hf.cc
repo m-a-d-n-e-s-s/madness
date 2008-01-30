@@ -11,7 +11,23 @@ using namespace madness;
 const double PI = 3.1415926535897932384;
 
 //*****************************************************************************
-double V_func(const Vector<double,3>& r)
+static double psi_func_he(const coordT& r)
+{
+  const double x=r[0], y=r[1], z=r[2];
+  return 6.0*exp(-2.0*sqrt(x*x+y*y+z*z)+1e-4);
+}
+//*****************************************************************************
+
+//*****************************************************************************
+static double V_func_he(const coordT& r)
+{
+  const double x=r[0], y=r[1], z=r[2];
+  return -2.0/(sqrt(x*x+y*y+z*z)+1e-6);
+}
+//*****************************************************************************
+
+//*****************************************************************************
+double V_func_h2(const Vector<double,3>& r)
 {
   double x = r[0];
   double y = r[1];
@@ -22,7 +38,7 @@ double V_func(const Vector<double,3>& r)
 //*****************************************************************************
 
 //*****************************************************************************
-double psi_func(const Vector<double,3>& r)
+double psi_func_h2(const Vector<double,3>& r)
 {
   double x = r[0];
   double y = r[1];
@@ -183,11 +199,11 @@ void test_hf_h2(World& world)
   // Nuclear potential (harmonic oscillator)
   const coordT origin(0.0);
   cout << "Creating Function object for nuclear potential ..." << endl;
-  Function<double,3> Vnuc = FunctionFactory<double,3>(world).f(V_func);
+  Function<double,3> Vnuc = FunctionFactory<double,3>(world).f(V_func_h2);
  
   // Guess for the wavefunction
   cout << "Creating wavefunction psi ..." << endl;
-  Function<double,3> psi = FunctionFactory<double,3>(world).f(psi_func);
+  Function<double,3> psi = FunctionFactory<double,3>(world).f(psi_func_h2);
   psi.scale(1.0/psi.norm2());
   printf("Norm of psi = %.5f\n\n", psi.norm2());
   // Create HartreeFock object
@@ -195,11 +211,66 @@ void test_hf_h2(World& world)
   HartreeFock hf(world, Vnuc, psi, -0.6, true, true, 1e-5);
   cout << "Running HartreeFock object..." << endl;
   hf.hartree_fock(10);
-  printf("Ground state is: %.5f\n", hf.get_eig(0));
-
+  double ke = 2.0 * hf.calculate_tot_ke_sp();
+  double pe = 2.0 * hf.calculate_tot_pe_sp();
+  double ce = hf.calculate_tot_coulomb_energy();
+  double ee = hf.calculate_tot_exchange_energy();
+  double ne = 1.0/1.4;
+  printf("Kinetic energy:\t\t\t %.8f\n", ke);
+  printf("Potential energy:\t\t %.8f\n", pe);
+  printf("Two-electron energy:\t\t %.8f\n", 2.0*ce - ee);
+  printf("Total energy:\t\t\t %.8f\n", ke + pe + 2.0*ce - ee + ne);
 }
 //*****************************************************************************
 
+//*****************************************************************************
+void test_hf_he(World& world)
+{
+  cout << "Running test application HartreeFock ..." << endl;
+  
+  typedef Vector<double,3> coordT;
+  typedef SharedPtr< FunctionFunctorInterface<double,3> > functorT;
+
+  // Dimensions of the bounding box
+  double bsize = 22.4;
+  for (int i=0; i<3; i++)
+  {
+    FunctionDefaults<3>::cell(i,0) = -bsize;
+    FunctionDefaults<3>::cell(i,1) = bsize;
+  }
+  // Function defaults
+  FunctionDefaults<3>::k = 7;
+  FunctionDefaults<3>::thresh = 1e-5;
+  FunctionDefaults<3>::refine = true;
+  FunctionDefaults<3>::initial_level = 2;
+  
+  // Nuclear potential (harmonic oscillator)
+  const coordT origin(0.0);
+  cout << "Creating Function object for nuclear potential ..." << endl;
+  Function<double,3> Vnuc = FunctionFactory<double,3>(world).f(V_func_he);
+ 
+  // Guess for the wavefunction
+  cout << "Creating wavefunction psi ..." << endl;
+  Function<double,3> psi = FunctionFactory<double,3>(world).f(psi_func_he);
+  psi.scale(1.0/psi.norm2());
+  printf("Norm of psi = %.5f\n\n", psi.norm2());
+  // Create HartreeFock object
+  cout << "Creating HartreeFock object..." << endl;
+  HartreeFock hf(world, Vnuc, psi, -0.6, true, true, 1e-5);
+  cout << "Running HartreeFock object..." << endl;
+  hf.hartree_fock(10);
+  double ke = 2.0 * hf.calculate_tot_ke_sp();
+  double pe = 2.0 * hf.calculate_tot_pe_sp();
+  double ce = hf.calculate_tot_coulomb_energy();
+  double ee = hf.calculate_tot_exchange_energy();
+  printf("Kinetic energy:\t\t\t %.8f\n", ke);
+  printf("Potential energy:\t\t %.8f\n", pe);
+  printf("Two-electron energy:\t\t %.8f\n", 2.0*ce - ee);
+  printf("Total energy:\t\t\t %.8f\n", ke + pe + 2.0*ce - ee);
+
+
+}
+//*****************************************************************************
 
 #define TO_STRING(s) TO_STRING2(s)
 #define TO_STRING2(s) #s
