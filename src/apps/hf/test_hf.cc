@@ -11,6 +11,24 @@ using namespace madness;
 const double PI = 3.1415926535897932384;
 
 //*****************************************************************************
+static double psi_func_be1(const coordT& rr)
+{
+  const double x=rr[0], y=rr[1], z=rr[2];
+  double r = sqrt(x*x+y*y+z*z);
+  return exp(-4.0*r+1e-4);
+}
+//*****************************************************************************
+
+//*****************************************************************************
+static double psi_func_be2(const coordT& rr)
+{
+  const double x=rr[0], y=rr[1], z=rr[2];
+  double r = sqrt(x*x+y*y+z*z);
+  return (1.0 - 2.0*r*exp(-2.0*r));
+}
+//*****************************************************************************
+
+//*****************************************************************************
 static double psi_func_he(const coordT& r)
 {
   const double x=r[0], y=r[1], z=r[2];
@@ -23,6 +41,14 @@ static double V_func_he(const coordT& r)
 {
   const double x=r[0], y=r[1], z=r[2];
   return -2.0/(sqrt(x*x+y*y+z*z)+1e-6);
+}
+//*****************************************************************************
+
+//*****************************************************************************
+static double V_func_be(const coordT& r)
+{
+  const double x=r[0], y=r[1], z=r[2];
+  return -4.0/(sqrt(x*x+y*y+z*z)+1e-6);
 }
 //*****************************************************************************
 
@@ -267,14 +293,69 @@ void test_hf_he(World& world)
   printf("Potential energy:\t\t %.8f\n", pe);
   printf("Two-electron energy:\t\t %.8f\n", 2.0*ce - ee);
   printf("Total energy:\t\t\t %.8f\n", ke + pe + 2.0*ce - ee);
+}
+//*****************************************************************************
 
+//*****************************************************************************
+void test_hf_be(World& world)
+{
+  cout << "Running test application HartreeFock ..." << endl;
+  
+  typedef Vector<double,3> coordT;
+  typedef SharedPtr< FunctionFunctorInterface<double,3> > functorT;
 
+  // Dimensions of the bounding box
+  double bsize = 20.0;
+  for (int i=0; i<3; i++)
+  {
+    FunctionDefaults<3>::cell(i,0) = -bsize;
+    FunctionDefaults<3>::cell(i,1) = bsize;
+  }
+  // Function defaults
+  FunctionDefaults<3>::k = 7;
+  FunctionDefaults<3>::thresh = 1e-5;
+  FunctionDefaults<3>::refine = true;
+  FunctionDefaults<3>::initial_level = 2;
+  
+  // Nuclear potential (harmonic oscillator)
+  const coordT origin(0.0);
+  cout << "Creating Function object for nuclear potential ..." << endl;
+  Function<double,3> Vnuc = FunctionFactory<double,3>(world).f(V_func_be);
+ 
+  // Guess for the wavefunctions
+  cout << "Creating wavefunction's ..." << endl;
+  Function<double,3> psi1 = FunctionFactory<double,3>(world).f(psi_func_be1);
+  psi1.scale(1.0/psi1.norm2());
+  printf("Norm of psi1 = %.5f\n\n", psi1.norm2());
+  Function<double,3> psi2 = FunctionFactory<double,3>(world).f(psi_func_be2);
+  psi2.scale(1.0/psi2.norm2());
+  printf("Norm of psi2 = %.5f\n\n", psi2.norm2());
+  // Create list of wavefunctions
+  std::vector<funcT> phis;
+  phis.push_back(psi1);
+  phis.push_back(psi2);
+  // Creat list of eigenvalues
+  std::vector<double> eigs;
+  eigs.push_back(-5.0);
+  eigs.push_back(-0.5);
+  // Create HartreeFock object
+  cout << "Creating HartreeFock object..." << endl;
+  HartreeFock hf(world, Vnuc, phis, eigs, true, true, 1e-5);
+  cout << "Running HartreeFock object..." << endl;
+  hf.hartree_fock(20);
+  double ke = 2.0 * hf.calculate_tot_ke_sp();
+  double pe = 2.0 * hf.calculate_tot_pe_sp();
+  double ce = hf.calculate_tot_coulomb_energy();
+  double ee = hf.calculate_tot_exchange_energy();
+  printf("Kinetic energy:\t\t\t %.8f\n", ke);
+  printf("Potential energy:\t\t %.8f\n", pe);
+  printf("Two-electron energy:\t\t %.8f\n", 2.0*ce - ee);
+  printf("Total energy:\t\t\t %.8f\n", ke + pe + 2.0*ce - ee);
 }
 //*****************************************************************************
 
 #define TO_STRING(s) TO_STRING2(s)
 #define TO_STRING2(s) #s
-
 
 //*****************************************************************************
 int main(int argc, char** argv)
@@ -323,7 +404,7 @@ int main(int argc, char** argv)
     
     startup(world,argc,argv);
     if (world.rank() == 0) print("Initial tensor instance count", BaseTensor::get_instance_count());
-    test_hf_h2(world);
+    test_hf_be(world);
   }
   catch (const MPI::Exception& e)
   {

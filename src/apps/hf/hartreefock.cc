@@ -8,22 +8,30 @@ namespace madness
   HartreeFock::HartreeFock(World& world, funcT V, std::vector<funcT> phis,
     std::vector<double> eigs, bool bCoulomb, bool bExchange, double thresh) :
     _V(V), _phis(phis), _eigs(eigs), _bCoulomb(bCoulomb),
-    _bExchange(bExchange), _world(world), _thresh(thresh)
+    _bExchange(bExchange), _world(world), _thresh(thresh),
+    _op(CoulombOperator<double,3>(world, FunctionDefaults<3>::k, 1e-4, thresh))
   {
     ones = functorT(new OnesFunctor());
     zeros = functorT(new ZerosFunctor());
+//    // Create Coulomb operator
+//    _op = 
+//      CoulombOperator<double,3>(_world, FunctionDefaults<3>::k, 1e-4, _thresh);      
   }
   //***************************************************************************
   
   //***************************************************************************
   HartreeFock::HartreeFock(World& world, funcT V, funcT phi, double eig, 
     bool bCoulomb, bool bExchange, double thresh) : _V(V),
-    _bCoulomb(bCoulomb), _bExchange(bExchange), _world(world), _thresh(thresh)
+    _bCoulomb(bCoulomb), _bExchange(bExchange), _world(world), _thresh(thresh),
+    _op(CoulombOperator<double,3>(world, FunctionDefaults<3>::k, 1e-4, thresh))
   {
     ones = functorT(new OnesFunctor());
     zeros = functorT(new ZerosFunctor());
     _phis.push_back(phi);
     _eigs.push_back(eig);
+//    // Create Coulomb operator
+//    _op = 
+//      CoulombOperator<double,3>(_world, FunctionDefaults<3>::k, 1e-4, _thresh);      
   }
   //***************************************************************************
   
@@ -36,11 +44,13 @@ namespace madness
   //***************************************************************************
   void HartreeFock::hartree_fock(int maxits)
   {
+    cout << "bCoulomb is " << _bCoulomb << endl;    
+    cout << "bExchange is " << _bExchange << endl;    
     for (int it = 0; it < maxits; it++)
     {
       printf("//************* iteration #%d *************//\n\n", it);
       printf("thresh = %.4e\n\n", _thresh);
-      for (int pi = 0; pi < _phis.size(); pi++)
+      for (unsigned int pi = 0; pi < _phis.size(); pi++)
       {
         // Get psi from collection
         funcT psi = _phis[pi];
@@ -81,7 +91,7 @@ namespace madness
           tmp.norm2());
         // (Not sure whether we have to do this mask thing or not!)
         printf("iteration #%d: doing gram-schmidt ...\n\n", it);
-        for (int pj = 0; pj < pi; ++pj)
+        for (unsigned int pj = 0; pj < pi; ++pj)
         {
           // Project out the lower states
           // Make sure that pi != pj
@@ -100,12 +110,44 @@ namespace madness
         double eps_old = _eigs[pi];
         printf("Updating wavefunction on iteration #%d ...\n\n", it);
         double ecorrection = -0.5*inner(pfunc, r) / (norm*norm);
-        _eigs[pi] += ecorrection;
+        double eps_new = eps_old + ecorrection;
+        printf("wavefunction #%d: ecorrection = %.5f eps_new = %.5f\n", pi, ecorrection, eps_new);
+        int counter = 0;
+        while (eps_new >= 0.0 && counter < 5)
+        {
+          printf("wavefunction #%d: eps_new = %.5f\n", pi, eps_new);
+          eps_new = eps_old + 0.5*(eps_new - eps_old);
+          counter++;
+        }
+        if (eps_new >= 0.0)
+          {
+            printf("FAILURE OF WST: exiting!!\n\n");
+            _exit(0);
+          }
+        _eigs[pi] = eps_new;
         _phis[pi] = tmp.scale(1.0/tmp.norm2());
         printf("iteration #%d: tmp(/psi).norm2() = %.5f\n\n", it, 
           tmp.norm2());
       }
       // Display energies
+      if (it%3 == 0)
+      {
+        printf("Calculating energies ...\n");
+        printf("Calculating KE ...\n");
+        double ke = 2.0 * calculate_tot_ke_sp();
+        printf("Calculating PE ...\n");
+        double pe = 2.0 * calculate_tot_pe_sp();
+        printf("Calculating CE ...\n");
+        double ce = calculate_tot_coulomb_energy();
+        printf("Calculating EE ...\n");
+        double ee = calculate_tot_exchange_energy();
+        printf("Calculating NE ...\n");
+        double ne = 0.0;
+        printf("Kinetic energy:\t\t\t %.8f\n", ke);
+        printf("Potential energy:\t\t %.8f\n", pe);
+        printf("Two-electron energy:\t\t %.8f\n", 2.0*ce - ee);
+        printf("Total energy:\t\t\t %.8f\n", ke + pe + 2.0*ce - ee + ne);
+      }
     }
   }
   //***************************************************************************
@@ -125,12 +167,15 @@ namespace madness
         // Get phi(j) from iterator
         funcT& phij = (*pj);
         // Compute the j-th density
-        funcT prod = phij*phij;
-        prod.truncate(_thresh);
+        funcT prod = square(phij);
         density += prod;
       }
       // Transform Coulomb operator into a function (stubbed)
       printf("density.norm2() = %.5f\n\n", density.norm2()); 
+      density.compress();
+      printf("density.trace() = %.5f\n\n", density.trace());
+      density.truncate();
+      printf("Applying Coulomb operator to density ...\n\n");
       funcT Vc = apply(op, density);
       // Note that we are not using psi
       // The density is built from all of the wavefunctions. The contribution
@@ -145,31 +190,29 @@ namespace madness
   //***************************************************************************
 
   //***************************************************************************
-  funcT HartreeFock::calculate_exchange(funcT psi)
+    funcT HartreeFock::calculate_exchange(funcT psi)
   {
     // Return value
     funcT rfunc = FunctionFactory<double,3>(_world).functor(zeros);
     if (include_exchange())
     {
       // Create Coulomb operator
-      SeparatedConvolution<double,3> op = 
-        CoulombOperator<double,3>(_world, FunctionDefaults<3>::k, 1e-4, _thresh);      
+      SeparatedConvolution<double,3> op = CoulombOperator<double, 3>(_world,
+          FunctionDefaults<3>::k, 1e-4, _thresh);
       // Use the psi and pj wavefunctions to build a product so that the K 
       // operator can be applied to the wavefunction indexed by pj, NOT PSI.
-      for (std::vector<funcT>::iterator pi = _phis.begin(); pi != _phis.end(); ++pi)
+      for (std::vector<funcT>::iterator pj = _phis.begin(); pj != _phis.end(); ++pj)
       {
-        for (std::vector<funcT>::iterator pj = _phis.begin(); pj != _phis.end(); ++pj)
-        {
-          // Get phi(j) from iterator
-          funcT& phij = (*pj);
-          // NOTE that psi is involved in this calculation
-          funcT prod = phij*psi;
-          printf("prod.norm2() = %.5f\n\n", prod.norm2()); 
-          // Transform Coulomb operator into a function (stubbed)
-          funcT Vex = apply(op, prod);
-          // NOTE that the index is j.
-          rfunc += Vex*phij;
-        }
+        // Get phi(j) from iterator
+        funcT& phij = (*pj);
+        // NOTE that psi is involved in this calculation
+        funcT prod = phij*psi;
+        printf("prod.norm2() = %.5f\n\n", prod.norm2());
+        // Transform Coulomb operator into a function (stubbed)
+        funcT Vex = apply(op, prod);
+        printf("Vex.norm2() = %.5f\n\n", Vex.norm2());
+        // NOTE that the index is j.
+        rfunc += Vex*phij;
       }
     }
     return rfunc;
@@ -237,23 +280,20 @@ namespace madness
     if (include_exchange())
     {
       // Create Coulomb operator
-      SeparatedConvolution<double,3> op = 
-        CoulombOperator<double,3>(_world, FunctionDefaults<3>::k, 1e-4, _thresh);      
+      SeparatedConvolution<double,3> op = CoulombOperator<double, 3>(_world,
+          FunctionDefaults<3>::k, 1e-4, _thresh);
       // Use the psi and pj wavefunctions to build a product so that the K 
       // operator can be applied to the wavefunction indexed by pj, NOT PSI.
-      for (std::vector<funcT>::iterator pi = _phis.begin(); pi != _phis.end(); ++pi)
+      for (std::vector<funcT>::iterator pj = _phis.begin(); pj != _phis.end(); ++pj)
       {
-        for (std::vector<funcT>::iterator pj = _phis.begin(); pj != _phis.end(); ++pj)
-        {
-          // Get phi(j) from iterator
-          funcT& phij = (*pj);
-          // NOTE that psi is involved in this calculation
-          funcT prod = phij*psi;
-          // Transform Coulomb operator into a function (stubbed)
-          funcT Vex = apply(op, prod);
-          // NOTE that the index is j.
-          rfunc += Vex*phij;
-        }
+        // Get phi(j) from iterator
+        funcT& phij = (*pj);
+        // NOTE that psi is involved in this calculation
+        funcT prod = phij*psi;
+        // Transform Coulomb operator into a function (stubbed)
+        funcT Vex = apply(op, prod);
+        // NOTE that the index is j.
+        rfunc += Vex*phij;
       }
     }
     return inner(rfunc, psi);
@@ -264,7 +304,7 @@ namespace madness
   double HartreeFock::calculate_tot_ke_sp()
   {
     double tot_ke = 0.0;
-    for (int pi = 0; pi < _phis.size(); pi++)
+    for (unsigned int pi = 0; pi < _phis.size(); pi++)
     {
       // Get psi from collection
       funcT psi = _phis[pi];
@@ -279,7 +319,7 @@ namespace madness
   double HartreeFock::calculate_tot_pe_sp()
   {
     double tot_pe = 0.0;
-    for (int pi = 0; pi < _phis.size(); pi++)
+    for (unsigned int pi = 0; pi < _phis.size(); pi++)
     {
       // Get psi from collection
       funcT psi = _phis[pi];
@@ -294,7 +334,7 @@ namespace madness
   double HartreeFock::calculate_tot_coulomb_energy()
   {
     double tot_ce = 0.0;
-    for (int pi = 0; pi < _phis.size(); pi++)
+    for (unsigned int pi = 0; pi < _phis.size(); pi++)
     {
       // Get psi from collection
       funcT psi = _phis[pi];
@@ -309,7 +349,7 @@ namespace madness
   double HartreeFock::calculate_tot_exchange_energy()
   {
     double tot_ee = 0.0;
-    for (int pi = 0; pi < _phis.size(); pi++)
+    for (unsigned int pi = 0; pi < _phis.size(); pi++)
     {
       // Get psi from collection
       funcT psi = _phis[pi];
