@@ -210,7 +210,7 @@ void test_hf_h2(World& world)
   typedef SharedPtr< FunctionFunctorInterface<double,3> > functorT;
 
   // Dimensions of the bounding box
-  double bsize = 22.4;
+  double bsize = 30.0;
   for (int i=0; i<3; i++)
   {
     FunctionDefaults<3>::cell(i,0) = -bsize;
@@ -320,7 +320,7 @@ void test_hf_be(World& world)
   // Nuclear potential (harmonic oscillator)
   const coordT origin(0.0);
   cout << "Creating Function object for nuclear potential ..." << endl;
-  Function<double,3> Vnuc = FunctionFactory<double,3>(world).f(V_func_be);
+  Function<double,3> Vnuc = FunctionFactory<double,3>(world).f(V_func_be).thresh(1e-6);
  
   // Guess for the wavefunctions
   cout << "Creating wavefunction's ..." << endl;

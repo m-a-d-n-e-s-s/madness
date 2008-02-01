@@ -63,7 +63,6 @@ namespace madness
         printf("iteration #%d: psi.norm2() = %.5f\n\n", it, 
           psi.norm2());
         funcT pnuclear = _V*psi;
-        pnuclear.truncate(_thresh);
         printf("iteration #%d: pnuclear.norm2() = %.5f\n\n", it, 
           pnuclear.norm2());
         // Calculate the Coulomb contribution to the Fock operator (J)
@@ -86,7 +85,6 @@ namespace madness
         // Apply the Green's function operator (stubbed)
         printf("iteration #%d: apply BSH ...\n\n", it);
         funcT tmp = apply(op, pfunc);
-        tmp.truncate(_thresh);
         printf("iteration #%d (after BSH): tmp.norm2() = %.5f\n\n", it, 
           tmp.norm2());
         // (Not sure whether we have to do this mask thing or not!)
@@ -104,7 +102,6 @@ namespace madness
           }
         }
         // Update e
-        tmp.truncate(_thresh);
         funcT r = tmp - psi;
         double norm = tmp.norm2();
         double eps_old = _eigs[pi];
@@ -112,18 +109,26 @@ namespace madness
         double ecorrection = -0.5*inner(pfunc, r) / (norm*norm);
         double eps_new = eps_old + ecorrection;
         printf("wavefunction #%d: ecorrection = %.5f eps_new = %.5f\n", pi, ecorrection, eps_new);
+        // Sometimes eps_new can go posivite, THIS WILL CAUSE THE ALGORITHM TO CRASH. So,
+        // I bounce the new eigenvalue back into the negative side of the real axis. I 
+        // keep doing this until it's good or I've already done it 10 times.
         int counter = 0;
-        while (eps_new >= 0.0 && counter < 5)
+        while (eps_new >= 0.0 && counter < 10)
         {
           printf("wavefunction #%d: eps_new = %.5f\n", pi, eps_new);
+          // Split the difference between the new and old estimates of the 
+          // pi-th eigenvalue.
           eps_new = eps_old + 0.5*(eps_new - eps_old);
           counter++;
         }
+        // Still no go, forget about it. (1$ to GoodFella's)
         if (eps_new >= 0.0)
           {
             printf("FAILURE OF WST: exiting!!\n\n");
             _exit(0);
           }
+        // Update the eigenvalue estimates and wavefunctions.
+        tmp.truncate(_thresh);
         _eigs[pi] = eps_new;
         _phis[pi] = tmp.scale(1.0/tmp.norm2());
         printf("iteration #%d: tmp(/psi).norm2() = %.5f\n\n", it, 
@@ -172,8 +177,6 @@ namespace madness
       }
       // Transform Coulomb operator into a function (stubbed)
       printf("density.norm2() = %.5f\n\n", density.norm2()); 
-      density.compress();
-      printf("density.trace() = %.5f\n\n", density.trace());
       density.truncate();
       printf("Applying Coulomb operator to density ...\n\n");
       funcT Vc = apply(op, density);
@@ -209,6 +212,7 @@ namespace madness
         funcT prod = phij*psi;
         printf("prod.norm2() = %.5f\n\n", prod.norm2());
         // Transform Coulomb operator into a function (stubbed)
+        prod.truncate(_thresh);
         funcT Vex = apply(op, prod);
         printf("Vex.norm2() = %.5f\n\n", Vex.norm2());
         // NOTE that the index is j.
@@ -236,7 +240,6 @@ namespace madness
   double HartreeFock::calculate_pe_sp(funcT psi)
   {
     funcT vpsi = _V*psi;
-    vpsi.truncate(_thresh);
     return vpsi.inner(psi);
   }
   //***************************************************************************
@@ -257,10 +260,10 @@ namespace madness
         funcT& phij = (*pj);
         // Compute the j-th density
         funcT prod = phij*phij;
-        prod.truncate(_thresh);
         density += prod;
       }
       // Transform Coulomb operator into a function (stubbed)
+      density.truncate(_thresh);
       funcT Vc = apply(op, density);
       // Note that we are not using psi
       // The density is built from all of the wavefunctions. The contribution
