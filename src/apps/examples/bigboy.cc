@@ -53,11 +53,11 @@ double ttt, sss;
 
 static const double PI = 3.1415926535897932384;
 
-static inline double distance(double x1, double y1, double z1, double x2, double y2, double z2) {
+static inline double distancesq(double x1, double y1, double z1, double x2, double y2, double z2) {
     double xx = x1-x2;
     double yy = y1-y2;
     double zz = z1-z2;
-    return sqrt(xx*xx + yy*yy + zz*zz);
+    return (xx*xx + yy*yy + zz*zz);
 }
 
 class MolecularDensityFunctor : public FunctionFunctorInterface<double,3> {
@@ -73,8 +73,11 @@ public:
         double sum = 0.0;
         for (int i=0; i<molecule.natom(); i++) {
             const Atom& atom = molecule.get_atom(i);
-            double r = distance(x[0],x[1],x[2],atom.x,atom.y,atom.z);
-            sum += exp(-2*r + 1e-6);
+            double rsq = distancesq(x[0],x[1],x[2],atom.x,atom.y,atom.z);
+            if (rsq < 144.0) {
+                double r = sqrt(rsq);
+                sum += exp(-2*r + 1e-6);
+            }
         }
         return sum;
     }

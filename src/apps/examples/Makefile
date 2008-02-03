@@ -17,12 +17,6 @@ hello:	hello.o $(THISLIBDEPEND)
 hatom_energy:	hatom_energy.o $(THISLIBDEPEND) 
 	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ $(SYSLIBS) $(LTLINKBINOPTS)
 
-hf:	hf.o molecule.o $(THISLIBDEPEND) 
-	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ $(SYSLIBS) $(LTLINKBINOPTS)
-
-bigboy:	bigboy.o molecule.o $(THISLIBDEPEND) 
-	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ $(SYSLIBS) $(LTLINKBINOPTS)
-
 h2:	h2.o $(THISLIBDEPEND) 
 	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ $(SYSLIBS) $(LTLINKBINOPTS)
 
