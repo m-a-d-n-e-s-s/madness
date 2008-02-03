@@ -24,7 +24,7 @@ struct AtomicData {
     // http://dirac.chem.sdu.dk/doc/FiniteNuclei/FiniteNuclei.shtml
     const char* const symbol;
     const char* const symbol_lowercase;
-    const int atomic_number;
+    const unsigned int atomic_number;
     const int isotope_number;
     const double nuclear_radius;     //< Radius of the nucleus for the finite nucleus models (in atomic units).
     const double nuclear_half_charge_radius; //< Half charge radius in the Fermi Model (in atomic units).
@@ -36,29 +36,29 @@ struct AtomicData {
 
 const AtomicData& get_atomic_data(unsigned int atn);
     
-int symbol_to_atomic_number(const std::string& symbol);
+unsigned int symbol_to_atomic_number(const std::string& symbol);
 
 
 class Atom {
 public:
     double x, y, z, q;          //< Coordinates and charge in atomic units
-    int atn;                    //< Atomic number
+    unsigned int atomic_number; //< Atomic number
 
-    Atom(double x, double y, double z, double q, int atn)
-        : x(x), y(y), z(z), q(q), atn(atn)
+    Atom(double x, double y, double z, double q, unsigned int atomic_number)
+        : x(x), y(y), z(z), q(q), atomic_number(atomic_number)
     {}
 
     Atom(const Atom& a) 
-        : x(a.x), y(a.y), z(a.z), q(a.q), atn(a.atn)
+        : x(a.x), y(a.y), z(a.z), q(a.q), atomic_number(a.atomic_number)
     {}
 
     /// Default construct makes a zero charge ghost atom at origin
     Atom() 
-        : x(0), y(0), z(0), q(0), atn(0)
+        : x(0), y(0), z(0), q(0), atomic_number(0)
     {}
 
     template <typename Archive>
-    void serialize(Archive& ar) {ar & x & y & z & atn & q;}
+    void serialize(Archive& ar) {ar & x & y & z & q & atomic_number;}
 };
 
 std::ostream& operator<<(std::ostream& s, const Atom& atom);

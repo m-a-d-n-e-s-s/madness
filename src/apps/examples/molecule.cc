@@ -27,7 +27,7 @@ static inline double distance_sq(double x1, double y1, double z1, double x2, dou
     return xx*xx + yy*yy + zz*zz;
 }
 
-static const int NUMBER_OF_ATOMS_IN_TABLE = 110;
+static const unsigned int NUMBER_OF_ATOMS_IN_TABLE = 110;
 static const AtomicData atomic_data[NUMBER_OF_ATOMS_IN_TABLE] = {
     {"Bq",  "bq",   0  ,  0   ,  0.0               , 0.0           ,0.0             , 0.0    },
     {"H",   "h",    1  ,  1   ,  2.6569547399e-05  , 1.32234e-05   ,2.1248239171e+09, 0.30   },
@@ -140,15 +140,15 @@ static const AtomicData atomic_data[NUMBER_OF_ATOMS_IN_TABLE] = {
     {"Hn",  "hn",  108 , 265  ,  1.1224519460e-04  , 1.36914e-04   ,1.1905722195e+08, 1.40   },
     {"Mt",  "mt",  109 , 266  ,  1.1237267433e-04  , 1.37088e-04   ,1.1878724932e+08, 1.40   } };
 
-const AtomicData& get_atomic_data(int atn) {
-    if (atn >= NUMBER_OF_ATOMS_IN_TABLE) throw "I am not an alchemist";
-    return atomic_data[atn];
+const AtomicData& get_atomic_data(unsigned int atomic_number) {
+    if (atomic_number >= NUMBER_OF_ATOMS_IN_TABLE) throw "I am not an alchemist";
+    return atomic_data[atomic_number];
 }
 
     
-int symbol_to_atomic_number(const std::string& symbol) {
+unsigned int symbol_to_atomic_number(const std::string& symbol) {
     std::string tlow = lowercase(symbol);
-    for (int i=0; i<NUMBER_OF_ATOMS_IN_TABLE; i++) {
+    for (unsigned int i=0; i<NUMBER_OF_ATOMS_IN_TABLE; i++) {
         if (tlow.compare(atomic_data[i].symbol_lowercase) == 0) return i;
     }
     throw "unknown atom";
@@ -216,7 +216,7 @@ static double dsmoothed_potential(double r)
 
 
 std::ostream& operator<<(std::ostream& s, const Atom& atom) {
-    s << "Atom([" << atom.x << ", " << atom.y << ", " << atom.z << "], " << atom.q << "," << atom.atn << ")";
+    s << "Atom([" << atom.x << ", " << atom.y << ", " << atom.z << "], " << atom.q << "," << atom.atomic_number << ")";
     return s;
 }
 
@@ -269,8 +269,8 @@ void Molecule::read_file(const std::string& filename) {
     ;
 }
     
-void Molecule::add_atom(double x, double y, double z, int atn, double q) {
-    atoms.push_back(Atom(x,y,z,atn,q));
+void Molecule::add_atom(double x, double y, double z, int atomic_number, double q) {
+    atoms.push_back(Atom(x,y,z,atomic_number,q));
     double c = smoothing_parameter(q, 1e-5); // This is error per atom
     rcut.push_back(1.0/c);
 }
@@ -291,9 +291,9 @@ void Molecule::print() const {
     std::cout.flush();
     printf("geometry\n");
     for (int i=0; i<natom(); i++) {
-        printf("  %-2s  %20.8f %20.8f %20.8f", atomic_data[atoms[i].atn].symbol, 
+        printf("  %-2s  %20.8f %20.8f %20.8f", atomic_data[atoms[i].atomic_number].symbol, 
                atoms[i].x, atoms[i].y, atoms[i].z);
-        if (atoms[i].atn == 0) printf("     %20.8f", atoms[i].q);
+        if (atoms[i].atomic_number == 0) printf("     %20.8f", atoms[i].q);
         printf("\n");
     }
     printf("end\n");
@@ -310,7 +310,7 @@ double Molecule::nuclear_repulsion_energy() const {
     double sum = 0.0;
     for (unsigned int i=0; i<atoms.size(); i++) {
         for (unsigned int j=1; j<atoms.size(); j++) {
-            sum += atoms[i].atn * atoms[j].atn / inter_atomic_distance(i,j);
+            sum += atoms[i].atomic_number * atoms[j].atomic_number / inter_atomic_distance(i,j);
         }
     }
     return sum;
