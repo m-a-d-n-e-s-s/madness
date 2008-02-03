@@ -31,6 +31,11 @@ It includes
    continuations or use of Futures when composing latency tolerant algorithms (coming).
  - Kernel-space threading for use of multi-core processors (coming).
 
+\subsection TinyXML
+
+MADNESS uses and redistributes TinyXML (http://sourceforge.net/projects/tinyxml)
+and we express our gratitude to its authors.
+
 \section Motivations and attributions
 
 There were several motivations for developing this environment.
@@ -423,7 +428,6 @@ Instead, you need the explicit loop
           ++it;
   }
 \endcode
-
 
 
 \section Development to-do list
