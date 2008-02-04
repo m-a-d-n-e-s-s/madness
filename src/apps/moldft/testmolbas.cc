@@ -1,7 +1,6 @@
-#include <examples/molecularbasis.h>
+#include <moldft/molecularbasis.h>
 
 using namespace madness;
-
 
 int main() {
     AtomicBasisSet g("sto-3g");

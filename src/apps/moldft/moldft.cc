@@ -39,7 +39,8 @@
 #include <mra/mra.h>
 using namespace madness;
 
-#include <examples/molecule.h>
+#include <moldft/molecule.h>
+#include <moldft/molecularbasis.h>
 
 typedef Vector<double,3> coordT;
 typedef SharedPtr< FunctionFunctorInterface<double,3> > functorT;
@@ -51,10 +52,10 @@ double ttt, sss;
 #define START_TIMER world.gop.fence(); ttt=wall_time(); sss=cpu_time()
 #define END_TIMER(msg) ttt=wall_time()-ttt; sss=cpu_time()-sss; if (world.rank()==0) printf("timer: %20.20s %8.2fs %8.2fs\n", msg, sss, ttt)
 
+
 class MolecularPotentialFunctor : public FunctionFunctorInterface<double,3> {
 private:
     const Molecule& molecule;
-
 public:
     MolecularPotentialFunctor(const Molecule& molecule) 
         : molecule(molecule)
@@ -65,12 +66,26 @@ public:
     }
 };
 
+class MolecularGuessDensityFunctor : public FunctionFunctorInterface<double,3> {
+private:
+    const Molecule& molecule;
+    const AtomicBasisSet& aobasis;
+public:
+    MolecularGuessDensityFunctor(const Molecule& molecule, const AtomicBasisSet& aobasis) 
+        : molecule(molecule), aobasis(aobasis)
+    {}
+
+    double operator()(const coordT& x) const {
+        return aobasis.eval_guess_density(molecule, x[0], x[1], x[2]);
+    }
+};
+
 
 double guess(const Vector<double,3>& r) {
   return exp(-1.5*sqrt(r[0]*r[0]+r[1]*r[1]+r[2]*r[2])+1e-2);
 }
 
-void hf_solve(World& world, const Molecule& molecule, int nmo) {
+void hf_solve(World& world, const Molecule& molecule, const AtomicBasisSet& aobasis, int nmo) {
     // Presently nmo is ignored and we are doing a single electron
     // calculation for the purpose of debugging
 
@@ -79,6 +94,17 @@ void hf_solve(World& world, const Molecule& molecule, int nmo) {
     START_TIMER;
     functionT nuclear_potential = factoryT(world).functor(functorT(new MolecularPotentialFunctor(molecule))).thresh(tol); 
     END_TIMER("project potential");
+
+    START_TIMER;
+    functionT guess_density = factoryT(world).functor(functorT(new MolecularGuessDensityFunctor(molecule,aobasis))).thresh(tol); 
+    END_TIMER("project potential");
+
+    guess_density.compress();
+    print("and the number of electrons is", guess_density.trace());
+    guess_density.reconstruct();
+    print("and the number of electrons is", guess_density.trace());
+    return;
+
     START_TIMER;
     functionT psi = factoryT(world).f(guess);
     END_TIMER("project guess psi");
@@ -123,12 +149,17 @@ int main(int argc, char** argv) {
         // Load info for MADNESS numerical routines
         startup(world,argc,argv);
         
-        // Process 0 reads the molecule information and
-        // broadcasts to everyone else
+        // Process 0 reads the molecule information and broadcasts
         Molecule molecule;
         if (world.rank() == 0) molecule.read_file("input");
         world.gop.broadcast_serializable(molecule, 0);
         
+        // Process 0 reads the LCAO guess information and broadcasts
+        AtomicBasisSet aobasis;
+        if (world.rank() == 0) aobasis.read_file("sto-3g");
+        world.gop.broadcast_serializable(aobasis, 0);
+
+
         int nelec = int(molecule.total_nuclear_charge());
         int nmo = nelec/2;
         
@@ -162,7 +193,7 @@ int main(int argc, char** argv) {
             //if (nelec&1) throw "Closed shell only --- number of electrons is odd";
         }
         
-        hf_solve(world, molecule, nmo);
+        hf_solve(world, molecule, aobasis, nmo);
 
         world.gop.fence();
 

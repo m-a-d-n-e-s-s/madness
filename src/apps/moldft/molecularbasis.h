@@ -1,8 +1,8 @@
 #ifndef MOLECULAR_BASIS_H
 #define MOLECULAR_BASIS_H
 
-#include <examples/molecule.h>
-#include <examples/constants.h>
+#include <constants.h>
+#include <moldft/molecule.h>
 #include <tinyxml/tinyxml.h>
 
 #include <vector>
@@ -68,7 +68,7 @@ public:
     double rangesq() const {return rsqmax;}
 
     /// Evaluates the radial part of the contracted function
-    double operator()(double rsq) const {
+    double eval(double rsq) const {
         double sum = 0.0;
         for (unsigned int i=0; i<coeff.size(); i++) {
             double ersq = expnt[i]*rsq;
@@ -120,6 +120,7 @@ class AtomicBasis {
     std::vector<ContractedGaussianShell> g;
     double rmaxsq;
     int numbf;
+    Tensor<double> dmat, avec, bvec;
 
 public:
     AtomicBasis() : g(), rmaxsq(0.0), numbf(0) {};
@@ -134,6 +135,13 @@ public:
             numbf += g[i].nbf();
         }
     }
+
+    void set_guess_info(const Tensor<double>& dmat, 
+                        const Tensor<double>& avec, const Tensor<double>& bvec) {
+        this->dmat = copy(dmat);
+        this->avec = copy(avec);
+        this->bvec = copy(bvec);
+    }
     
     /// Returns the number of basis functions on the center
     int nbf() const {return numbf;}
@@ -144,22 +152,22 @@ public:
     /// Returns a const reference to the shells
     const std::vector<ContractedGaussianShell>& get_shells() const {return g;};
 
-    /// Evaluates the basis functions at point x, y, z
+    /// Evaluates the basis functions at point x, y, z relative to atomic center
 
     /// The array bf[] must be large enough to hold nbf() values.
     ///
     /// Returned is the incremented pointer.
-    double* operator()(double x, double y, double z, double* bf) const {
+    double* eval(double x, double y, double z, double* bf) const {
         double rsq = x*x + y*y + z*z;
         if (rsq > rmaxsq) {
             for (int i=0; i<numbf; i++) bf[i] = 0.0;
             return bf+numbf;
         }
 
-        double* bfstart;
+        double* bfstart = bf;
         for (unsigned int i=0; i<g.size(); i++) {
             if (rsq < g[i].rangesq()) {
-                double R = g[i](rsq);
+                double R = g[i].eval(rsq);
                 switch (g[i].angular_momentum()) {
                 case 0:
                     bf[0] =  R;
@@ -197,16 +205,48 @@ public:
         return bf;
     }
 
+    /// Evaluates the guess atomic density at point x, y, z relative to atomic center
+    double eval_guess_density(double x, double y, double z) const {
+        MADNESS_ASSERT(has_guess_info());
+        double rsq = x*x + y*y + z*z;
+        if (rsq > rmaxsq) return 0.0;
+
+        double bf[numbf];
+        eval(x, y, z, bf);
+        const double* p = dmat.ptr();
+        double sum = 0.0;
+        for (int i=0; i<numbf; i++, p+=numbf) {
+            double sumj = 0.0;
+            for (int j=0; j<numbf; ++j) 
+                sumj += p[j]*bf[j];
+            sum += bf[i]*sumj;
+        }
+        return sum;
+    }
+
+    bool has_guess_info() const {return dmat.size>0;}
+
+    const Tensor<double>& get_dmat() const {return dmat;};
+
+    const Tensor<double>& get_avec() const {return avec;};
+
+    const Tensor<double>& get_bvec() const {return bvec;};
+
     template <typename Archive>
-    void serialize(Archive& ar) {ar & g & rmaxsq & numbf;}
+    void serialize(Archive& ar) {ar & g & rmaxsq & numbf & dmat & avec & bvec;}
 
 };
 
 std::ostream& operator<<(std::ostream& s, const AtomicBasis& c) {
     const std::vector<ContractedGaussianShell>& shells = c.get_shells();
     for (int i=0; i<c.nshell(); i++) {
-        s << "   " << shells[i] << std::endl;
+        s << "     " << shells[i] << std::endl;
     }
+    if (c.has_guess_info()) {
+        s << "     " << "Guess density matrix" << std::endl;
+        s << c.get_dmat();
+    }
+            
     return s;
 }
 
@@ -228,15 +268,29 @@ class AtomicBasisSet {
         return r;
     }
 
+    template <typename T>
+    Tensor<T> load_tixml_matrix(TiXmlElement* node, int n, int m, const char* name) {
+        TiXmlElement* child = node->FirstChildElement(name);
+        MADNESS_ASSERT(child);
+        std::istringstream s(child->GetText());
+        Tensor<T> r(n,m);
+        for (int i=0; i<n; i++) {
+            for (int j=0; j<m; j++) {
+                MADNESS_ASSERT(s >> r(i,j));
+            }
+        }
+        return r;
+    }
+
 public:
     AtomicBasisSet() : name("unknown"), ag(110) {}
 
 
     AtomicBasisSet(std::string filename) : name(""), ag(110) {
-        load_from_file(filename);
+        read_file(filename);
     }
 
-    void load_from_file(std::string filename) {
+    void read_file(std::string filename) {
         static const bool debug = false;
         TiXmlDocument doc(filename);
         if (!doc.LoadFile()) {
@@ -282,6 +336,17 @@ public:
                 }
                 ag[atn] = AtomicBasis(g);
             }
+            else if (strcmp(node->Value(), "atomicguess") == 0) {
+                const char* symbol = node->Attribute("symbol");
+                if (debug) std::cout << "  atomic guess info for " << symbol << std::endl;
+                int atn = symbol_to_atomic_number(symbol);
+                MADNESS_ASSERT(is_supported(atn));
+                int nbf = ag[atn].nbf();
+                Tensor<double> dmat = load_tixml_matrix<double>(node, nbf, nbf, "guessdensitymatrix");
+                Tensor<double> avec = load_tixml_matrix<double>(node, nbf, nbf, "alphavectors");
+                Tensor<double> bvec = load_tixml_matrix<double>(node, nbf, nbf, "betavectors");
+                ag[atn].set_guess_info(dmat, avec, bvec);
+            }
             else {
                 MADNESS_EXCEPTION("Loading atomic basis set: unexpected XML element", 0);
             }
@@ -300,12 +365,25 @@ public:
         return n;
     }
 
-    void operator()(const Molecule& molecule, double x, double y, double z, double *bf) const {
+    /// Evaluates the basis functions
+    void eval(const Molecule& molecule, double x, double y, double z, double *bf) const {
         for (int i=0; i<molecule.natom(); i++) {
             const Atom& atom = molecule.get_atom(i);
             const int atn = atom.atomic_number;
-            bf = ag[atn](x, y, z, bf);
+            bf = ag[atn].eval(x-atom.x, y-atom.y, z-atom.z, bf);
         }
+    }
+
+
+    /// Evaluates the guess density
+    double eval_guess_density(const Molecule& molecule, double x, double y, double z) const {
+        double sum = 0.0;
+        for (int i=0; i<molecule.natom(); i++) {
+            const Atom& atom = molecule.get_atom(i);
+            const int atn = atom.atomic_number;
+            sum += ag[atn].eval_guess_density(x-atom.x, y-atom.y, z-atom.z);
+        }
+        return sum;
     }
 
     bool is_supported(int atomic_number) {
@@ -314,6 +392,7 @@ public:
 
     /// Print basis info for atoms in the molecule (once for each unique atom type)
     void print(const Molecule& molecule) const {
+        std::cout << "\n " << name << " atomic basis set" << std::endl;
         for (int i=0; i<molecule.natom(); i++) {
             const Atom& atom = molecule.get_atom(i);
             const unsigned int atn = atom.atomic_number;
@@ -322,7 +401,7 @@ public:
                     goto doneitalready;
             }
             std::cout << std::endl;
-            std::cout << "Basis functions on " << get_atomic_data(atn).symbol << std::endl;
+            std::cout << "   " <<  get_atomic_data(i).symbol << std::endl;
             std::cout << ag[atn];
         doneitalready:
             ;
@@ -331,10 +410,10 @@ public:
 
     /// Print basis info for all supported atoms
     void print_all() const {
+        std::cout << "\n " << name << " atomic basis set" << std::endl;
         for (unsigned int i=0; i<ag.size(); i++) {
             if (ag[i].nbf() > 0) {
-                std::cout << std::endl;
-                std::cout << "Basis functions on " << get_atomic_data(i).symbol << std::endl;
+                std::cout << "   " <<  get_atomic_data(i).symbol << std::endl;
                 std::cout << ag[i];
             }
         }
@@ -342,11 +421,6 @@ public:
 
     template <typename Archive>
     void serialize(Archive& ar) {ar & name & ag;}
-
-        
-    
-
-
 };
 
 
