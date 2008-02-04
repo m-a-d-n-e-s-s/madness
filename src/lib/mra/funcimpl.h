@@ -2098,8 +2098,9 @@ namespace madness {
             }
             else {
                 for(typename dcT::const_iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
+                    const keyT& key = it->first;
                     const nodeT& node = it->second;
-                    if (node.has_coeff()) sum += node.coeff()(v0);
+                    if (node.has_coeff()) sum += node.coeff()(v0)*pow(0.5,NDIM*key.level()*0.5);
                 }
             }
             return sum*sqrt(cell_volume);
