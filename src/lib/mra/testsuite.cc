@@ -796,10 +796,10 @@ int main(int argc, char**argv) {
         test_diff<double,2>(world);
 //          test_op<double,2>(world);
 
-        test_basic<double,3>(world);
-        test_conv<double,3>(world);
-        test_math<double,3>(world);
-        test_diff<double,3>(world);
+//         test_basic<double,3>(world);
+//         test_conv<double,3>(world);
+//         test_math<double,3>(world);
+//         test_diff<double,3>(world);
 //          //test_op<double,3>(world);
         test_coulomb(world);
 
@@ -831,6 +831,7 @@ int main(int argc, char**argv) {
         print("done with final fence");
         world.am.print_stats();
         world.taskq.print_stats();
+        world_mem_info()->print();
         print(" ");
         print("Final tensor instance count", BaseTensor::get_instance_count());
     }
