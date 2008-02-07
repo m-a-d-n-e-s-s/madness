@@ -39,6 +39,7 @@
 /// \file worldexc.h
 /// \brief Implements MadnessException
 
+#include <iostream>
 #include <madness_config.h>
 
 namespace madness {

@@ -73,6 +73,7 @@ typedef UINT64_T uint64_t;
 
 #include <world/typestuff.h>
 #include <world/worldexc.h>
+#include <world/worldmem.h>
 #include <world/print.h>
 #include <world/worldhash.h>
 #include <world/array.h>

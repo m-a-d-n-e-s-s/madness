@@ -967,6 +967,7 @@ int main(int argc, char** argv) {
     if (world.rank() == 0) {
         world.am.print_stats();
         world.taskq.print_stats();
+        world_mem_info()->print();
     }
     MPI::Finalize();
     return 0;
