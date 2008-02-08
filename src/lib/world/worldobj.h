@@ -82,7 +82,7 @@ namespace madness {
                 : PendingMsg(id), src(src), handler(handler), nbyte(nbyte)
             {
                 this->buf = new unsigned char[nbyte];
-                std::memcpy(buf,arg,nbyte);
+                memcpy(buf,arg,nbyte);
             };
 
             void invokehandler(World& world) {

@@ -8,7 +8,7 @@ using namespace madness;
 
 
 double psi(const Vector<double,3>& r) {
-  return exp(-sqrt(r[0]*r[0]+r[1]*r[1]+r[2]*r[2]));
+  return exp(-sqrt(r[0]*r[0]+r[1]*r[1]+r[2]*r[2]+1e-6));
 }
 
 double V(const Vector<double,3>& r) {

@@ -349,6 +349,15 @@ double Molecule::nuclear_repulsion_energy() const {
     return sum;
 }
 
+double Molecule::smallest_length_scale() const {
+    double rcmax = 0.0;
+    for (unsigned int i=0; i<atoms.size(); i++) {
+        rcmax = std::max(rcmax,rcut[i]);
+    }
+    return 1.0/rcmax;  // Needs additional factor ???????
+}
+
+
 /// Moves the center of nuclear charge to the origin
 void Molecule::center() {
     double xx=0.0, yy=0.0, zz=0.0, qq=0.0;

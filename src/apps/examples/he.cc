@@ -17,16 +17,16 @@ typedef SeparatedConvolution<double,3> operatorT;
 static const double L = 32.0;   // box size
 static const long k = 8;        // wavelet order
 static const double thresh = 1e-6; // precision
-static const double thresh1 = thresh*0.1;
+static const double thresh1 = thresh;
 
 static double guess(const coordT& r) {
     const double x=r[0], y=r[1], z=r[2];
-    return 6.0*exp(-2.0*sqrt(x*x+y*y+z*z)+1e-4);
+    return 6.0*exp(-2.0*sqrt(x*x+y*y+z*z+1e-4));
 }
 
 static double V(const coordT& r) {
     const double x=r[0], y=r[1], z=r[2];
-    return -2.0/(sqrt(x*x+y*y+z*z)+1e-6);
+    return -2.0/(sqrt(x*x+y*y+z*z+1e-8));
 }
 
 void iterate(World& world, functionT& V, functionT& psi, double& eps) {

@@ -85,9 +85,14 @@ double guess(const Vector<double,3>& r) {
   return exp(-1.5*sqrt(r[0]*r[0]+r[1]*r[1]+r[2]*r[2])+1e-2);
 }
 
+
 void hf_solve(World& world, const Molecule& molecule, const AtomicBasisSet& aobasis, int nmo) {
     // Presently nmo is ignored and we are doing a single electron
     // calculation for the purpose of debugging
+    const double lo = molecule.smallest_length_scale();
+    print("smallest length scale", lo);
+
+    //operatorT coulombOP = CoulombOperator<double, NDIM>(world, FunctionDefaults<3>::k, smallest_lengthscale, 
 
     double tol = FunctionDefaults<3>::thresh*0.1; // <<<<<< why?  is not the box size or truncate mode
 

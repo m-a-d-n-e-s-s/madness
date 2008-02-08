@@ -45,16 +45,16 @@ namespace madness {
 
         // Process command line arguments
         for (int arg=1; arg<argc; arg++) {
-            if (std::strcmp(argv[arg],"-dx")==0) 
+            if (strcmp(argv[arg],"-dx")==0) 
                 xterm_debug("world", 0);
-            else if (std::strcmp(argv[arg],"-dn") ==0 && 
+            else if (strcmp(argv[arg],"-dn") ==0 && 
                      std::atoi(argv[arg+1])==world.rank()) 
                 xterm_debug("world",0);
-            else if (std::strcmp(argv[arg],"-dam")==0) 
+            else if (strcmp(argv[arg],"-dam")==0) 
                 world.am.set_debug(true);
-            else if (std::strcmp(argv[arg],"-dmpi")==0) 
+            else if (strcmp(argv[arg],"-dmpi")==0) 
                 world.mpi.set_debug(true);
-            else if (std::strcmp(argv[arg],"-rio")==0)
+            else if (strcmp(argv[arg],"-rio")==0)
                 redirectio(world);
         }
 

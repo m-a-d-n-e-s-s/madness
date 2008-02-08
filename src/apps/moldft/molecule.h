@@ -93,6 +93,8 @@ public:
 
     double nuclear_repulsion_energy() const;
 
+    double smallest_length_scale() const;
+
     void center();
 
     double total_nuclear_charge() const;

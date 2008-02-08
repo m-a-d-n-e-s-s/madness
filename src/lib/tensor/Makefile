@@ -35,7 +35,6 @@ tensoriter_spec.h tensor_spec.h:	tempspec.py
 
 ifeq ($(USE_MTXMQ),YES)
 LIBOBJ += mtxmq_asm.o
-DEFINES += -DTENSORS_USE_POSIX_MEMALIGN 
 
 $(TOPDIR)/lib/$(TARGET_TO_MAKE).$(LIBSUF):	mtxmq_asm.o
 
