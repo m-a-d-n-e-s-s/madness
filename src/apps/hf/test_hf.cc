@@ -10,6 +10,35 @@ using namespace madness;
 
 const double PI = 3.1415926535897932384;
 
+/// Returns radius for smoothing nuclear potential with energy precision eprec
+static double smoothing_parameter(double Z, double eprec) {
+    // The min is since asymptotic form not so good at low acc.
+    // The 2 is from two electrons in 1s closed shell.
+    if (Z == 0.0) return 1.0;
+    double Z5 = Z*Z*Z*Z*Z;
+    double c = pow(std::min(1e-3,eprec)/2.0/0.00435/Z5,1.0/3.0);
+    return c;
+}
+
+
+/// Regularized 1/r potential.
+
+/// Invoke as \c u(r/c)/c where \c c is the radius of the
+/// smoothed volume.
+static double smoothed_potential(double r) {
+    const double THREE_SQRTPI = 5.31736155271654808184;
+    double r2 = r*r, pot;
+    if (r > 6.5){
+        pot = 1.0/r;
+    } else if (r > 1e-8){
+        pot = erf(r)/r + (exp(-r2) + 16.0*exp(-4.0*r2))/(THREE_SQRTPI);
+    } else{
+        pot = (2.0 + 17.0/3.0)/sqrt(PI);
+    }
+    
+    return pot;
+}
+
 //*****************************************************************************
 static double psi_func_be1(const coordT& rr)
 {
@@ -48,7 +77,9 @@ static double V_func_he(const coordT& r)
 static double V_func_be(const coordT& r)
 {
   const double x=r[0], y=r[1], z=r[2];
-  return -4.0/(sqrt(x*x+y*y+z*z)+1e-6);
+  double rr = sqrt(x*x + y*y + z*z);
+  double c = smoothing_parameter(4.0, 1e-7);
+  return -4.0 * smoothed_potential(rr/c) / c;
 }
 //*****************************************************************************
 
@@ -265,8 +296,8 @@ void test_hf_he(World& world)
     FunctionDefaults<3>::cell(i,1) = bsize;
   }
   // Function defaults
-  FunctionDefaults<3>::k = 7;
-  FunctionDefaults<3>::thresh = 1e-5;
+  FunctionDefaults<3>::k = 10;
+  FunctionDefaults<3>::thresh = 1e-8;
   FunctionDefaults<3>::refine = true;
   FunctionDefaults<3>::initial_level = 2;
   
@@ -305,21 +336,23 @@ void test_hf_be(World& world)
   typedef SharedPtr< FunctionFunctorInterface<double,3> > functorT;
 
   // Dimensions of the bounding box
-  double bsize = 20.0;
+  double bsize = 70.0;
   for (int i=0; i<3; i++)
   {
     FunctionDefaults<3>::cell(i,0) = -bsize;
     FunctionDefaults<3>::cell(i,1) = bsize;
   }
   // Function defaults
-  FunctionDefaults<3>::k = 7;
-  FunctionDefaults<3>::thresh = 1e-5;
+  FunctionDefaults<3>::k = 8;
+  FunctionDefaults<3>::thresh = 1e-6;
   FunctionDefaults<3>::refine = true;
   FunctionDefaults<3>::initial_level = 2;
+  FunctionDefaults<3>::truncate_mode = 1;
   
   // Nuclear potential (harmonic oscillator)
   const coordT origin(0.0);
   cout << "Creating Function object for nuclear potential ..." << endl;
+//  Function<double,3> Vnuc = FunctionFactory<double,3>(world).f(V_func_be).thresh(1e-6);
   Function<double,3> Vnuc = FunctionFactory<double,3>(world).f(V_func_be).thresh(1e-6);
  
   // Guess for the wavefunctions
@@ -340,7 +373,7 @@ void test_hf_be(World& world)
   eigs.push_back(-0.5);
   // Create HartreeFock object
   cout << "Creating HartreeFock object..." << endl;
-  HartreeFock hf(world, Vnuc, phis, eigs, true, true, 1e-5);
+  HartreeFock hf(world, Vnuc, phis, eigs, true, true, 1e-6);
   cout << "Running HartreeFock object..." << endl;
   hf.hartree_fock(20);
   double ke = 2.0 * hf.calculate_tot_ke_sp();
