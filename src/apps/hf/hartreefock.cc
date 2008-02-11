@@ -121,7 +121,7 @@ namespace madness
           eps_new = eps_old + 0.5*(eps_new - eps_old);
           counter++;
         }
-        // Still no go, forget about it. (1$ to GoodFella's)
+        // Still no go, forget about it. (1$ to Donnie Brasco)
         if (eps_new >= 0.0)
           {
             printf("FAILURE OF WST: exiting!!\n\n");
