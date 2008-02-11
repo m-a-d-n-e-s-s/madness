@@ -118,7 +118,7 @@ namespace madness {
                 if (taskq) ::madness::task_ready_callback_function(taskq,task);
                 taskq = 0;
             };
-        } callback;   //< Embedded here for efficiency (managed by taskq)
+        } callback;   ///< Embedded here for efficiency (managed by taskq)
         
     public:
         /// Create a new task with ndepend dependencies (default 0) and given attributes
@@ -172,19 +172,19 @@ namespace madness {
     private:
         //typedef std::list< TaskInterface* > listT;
         typedef DQueue< TaskInterface* > listT;
-        listT ready;       //< Tasks that are ready to run
+        listT ready;       ///< Tasks that are ready to run
 
-        World& world;      //< The communication context
+        World& world;      ///< The communication context
         const int maxfiber;//< Maximum no. of active fibers
-        long nregistered;  //< Counts registered tasks with simple dependencies
+        long nregistered;  ///< Counts registered tasks with simple dependencies
         const ProcessID me;
-        int suspended;      //< If non-zero, task processing is suspended
-        long maxinq;        //< Maximum number of enqueued tasks
+        int suspended;      ///< If non-zero, task processing is suspended
+        long maxinq;        ///< Maximum number of enqueued tasks
 
-        long xxntotal;    //< For stats only: total number of submitted tasks
-        long xxnqmax;     //< For stats only: lifetime max number of enqueued tasks
-        long xxnready;    //< For stats only: current number in the ready queue
-                                 //< (and total is then (xxnready+nregistered))
+        long xxntotal;    ///< For stats only: total number of submitted tasks
+        long xxnqmax;     ///< For stats only: lifetime max number of enqueued tasks
+        long xxnready;    ///< For stats only: current number in the ready queue
+                                 ///< (and total is then (xxnready+nregistered))
 
     public:
         WorldTaskQueue(World& world, int maxfiber=1) 

@@ -173,9 +173,9 @@ namespace madness {
         friend class WorldGopInterface;
         friend void world_assign_id(World* world);
 
-        static unsigned long idbase;        //< Base for unique world ID range for this process
-        static std::list<World*> worlds;    //< Maintains list of active worlds for polling, etc.
-        static std::list<void (*)()> polls; //< List of routines to invoke while polling
+        static unsigned long idbase;        ///< Base for unique world ID range for this process
+        static std::list<World*> worlds;    ///< Maintains list of active worlds for polling, etc.
+        static std::list<void (*)()> polls; ///< List of routines to invoke while polling
         static uint64_t poll_delay;//< Min. no. of instructions between calls to poll if working
         static uint64_t last_poll;//< Instruction count at last poll
         
@@ -191,10 +191,10 @@ namespace madness {
         map_ptr_to_idT map_ptr_to_id;
 
 
-        unsigned long _id;                  //< Universe wide unique ID of this world
-        unsigned long obj_id;               //< Counter to generate unique IDs within this world
-        void* user_state;                   //< Holds user defined & managed local state
-        std::list< SharedPtr<DeferredCleanupInterface> > deferred; //< List of stuff to possibly delete at next sync point
+        unsigned long _id;                  ///< Universe wide unique ID of this world
+        unsigned long obj_id;               ///< Counter to generate unique IDs within this world
+        void* user_state;                   ///< Holds user defined & managed local state
+        std::list< SharedPtr<DeferredCleanupInterface> > deferred; ///< List of stuff to possibly delete at next sync point
 
         // Default copy constructor and assignment won't compile
         // (which is good) due to reference members.
@@ -241,20 +241,20 @@ namespace madness {
         // class methods.
         
         // !!! Order of declaration is important for correct order of initialization !!!
-        WorldMpiInterface& mpi;  //< MPI interface
-        WorldAmInterface& am;    //< AM interface
-        WorldTaskQueue& taskq;   //< Task queue
-        WorldGopInterface& gop;  //< Global operations
+        WorldMpiInterface& mpi;  ///< MPI interface
+        WorldAmInterface& am;    ///< AM interface
+        WorldTaskQueue& taskq;   ///< Task queue
+        WorldGopInterface& gop;  ///< Global operations
 
     private:
-        const ProcessID me;      //< My rank ... needs to be declared after MPI
-        int nprocess;            //< No. of processes ... ditto
+        const ProcessID me;      ///< My rank ... needs to be declared after MPI
+        int nprocess;            ///< No. of processes ... ditto
         unsigned int myrand_next;//< State of crude internal random number generator
 
     public:
         /// Give me a communicator and I will give you the world
         World(MPI::Intracomm& comm) 
-            : obj_id(1)          //< start from 1 so that 0 is an invalid id
+            : obj_id(1)          ///< start from 1 so that 0 is an invalid id
             , user_state(0)
             , deferred()
             , mpi(*(new WorldMpiInterface(comm)))

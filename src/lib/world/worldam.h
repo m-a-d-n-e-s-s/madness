@@ -59,10 +59,10 @@ namespace madness {
     class AmArg {
         friend class WorldAmInterface;
     private:
-        ulong flags;   //< System managed state 
-        mutable am_handlerT function; //< System managed handler
+        ulong flags;   ///< System managed state 
+        mutable am_handlerT function; ///< System managed handler
     public:
-        ulong buf[14]; //< System dependent length
+        ulong buf[14]; ///< System dependent length
 
         ulong& operator[](int i) {
             return buf[i];
@@ -238,12 +238,12 @@ namespace madness {
         friend class WorldGopInterface;
     public:
         // LONG_MSG_LEN and LONG_MSG_HEADER_LEN are assumed to be an integral no. of unsigned longs
-        static const int SHORT_MSG_LEN = sizeof(AmArg);                             //< Length of short message
-        static const int SHORT_MSG_HEADER_LEN = 2*sizeof(unsigned long);            //< Length of header in short message
-        static const int SHORT_MSG_USER_LEN = SHORT_MSG_LEN-SHORT_MSG_HEADER_LEN;   //< Length of user data in short message
-        static const int LONG_MSG_HEADER_LEN = 4*sizeof(unsigned long);             //< No. of bytes reserved for long message header
-        static const int LONG_MSG_LEN = 3*128*1024;                                 //< Max length of long messages
-        static const int LONG_MSG_USER_LEN = LONG_MSG_LEN-LONG_MSG_HEADER_LEN;      //< Length of user data in long messages
+        static const int SHORT_MSG_LEN = sizeof(AmArg);                             ///< Length of short message
+        static const int SHORT_MSG_HEADER_LEN = 2*sizeof(unsigned long);            ///< Length of header in short message
+        static const int SHORT_MSG_USER_LEN = SHORT_MSG_LEN-SHORT_MSG_HEADER_LEN;   ///< Length of user data in short message
+        static const int LONG_MSG_HEADER_LEN = 4*sizeof(unsigned long);             ///< No. of bytes reserved for long message header
+        static const int LONG_MSG_LEN = 3*128*1024;                                 ///< Max length of long messages
+        static const int LONG_MSG_USER_LEN = LONG_MSG_LEN-LONG_MSG_HEADER_LEN;      ///< Length of user data in long messages
         
     private:
         
@@ -319,42 +319,42 @@ namespace madness {
         static const unsigned long COUNT_MASK = 0xff;
         static const unsigned long BCAST_MASK = 0x1ul<<9;
         
-        static const int NSHORT_RECV = 8;         //< No. of posted short recv buffers
-        static const int NLONG_RECV = 16;         //< No. of posted long recv buffers
+        static const int NSHORT_RECV = 8;         ///< No. of posted short recv buffers
+        static const int NLONG_RECV = 16;         ///< No. of posted long recv buffers
         static const int NRECV =  NSHORT_RECV + NLONG_RECV;
-        static const int NSEND = 20;              //< Max no. of outstanding short+long Isends
+        static const int NSEND = 20;              ///< Max no. of outstanding short+long Isends
         
-        MPI::Request recv_handle[NRECV];  //< Handles for AM Irecv
-        mutable MPI::Request send_handle[NSEND];  //< Handles for AM Isend
-        AmArg recv_buf[NSHORT_RECV];      //< Buffers for short AM Irecv
-        AmArg send_buf[NSEND];            //< Buffers for short AM Isend
-        unsigned char* managed_send_buf[NSEND];        //< Managed buffers for long AM Isend
-        unsigned long* long_recv_buf[NLONG_RECV];   //< Buffers for long AM Irecv
+        MPI::Request recv_handle[NRECV];  ///< Handles for AM Irecv
+        mutable MPI::Request send_handle[NSEND];  ///< Handles for AM Isend
+        AmArg recv_buf[NSHORT_RECV];      ///< Buffers for short AM Irecv
+        AmArg send_buf[NSEND];            ///< Buffers for short AM Isend
+        unsigned char* managed_send_buf[NSEND];        ///< Managed buffers for long AM Isend
+        unsigned long* long_recv_buf[NLONG_RECV];   ///< Buffers for long AM Irecv
         
         // !! Careful if you reorder these to not break the constructor member initialization
-        World& world; //< The world which contains this instance of WorldAmInterface
-        WorldMpiInterface& mpi;  //< The corresponding mpi instance for brevity
+        World& world; ///< The world which contains this instance of WorldAmInterface
+        WorldMpiInterface& mpi;  ///< The corresponding mpi instance for brevity
         const ProcessID rank;
         const int nproc;
-        const Tag short_tag; //< Reserved tag used for short active messages over MPI
-        const Tag long_tag;  //< Reserved tag used for long active messages over MPI
-        unsigned long nsent; //< Counts no. of AM sent
-        unsigned long nrecv; //< Counts no. of AM received
-        long suspended;      //< If non-zero, AM processing is suspended
-        bool debug;                   //< If true, print debug info
-        int nfree_long_recv_buf; //< Tracks number of free long recv buffers
+        const Tag short_tag; ///< Reserved tag used for short active messages over MPI
+        const Tag long_tag;  ///< Reserved tag used for long active messages over MPI
+        unsigned long nsent; ///< Counts no. of AM sent
+        unsigned long nrecv; ///< Counts no. of AM received
+        long suspended;      ///< If non-zero, AM processing is suspended
+        bool debug;                   ///< If true, print debug info
+        int nfree_long_recv_buf; ///< Tracks number of free long recv buffers
 
-        std::list<qmsg*> msgq;      //< Queue of messages received but not yet processed
+        std::list<qmsg*> msgq;      ///< Queue of messages received but not yet processed
 
-        std::size_t msgq_count;     //< For stats only: #msg currently in q
-        std::size_t msgq_count_max; //< For stats only: lifetime max of msgq_count
-        std::size_t msgq_mem;       //< For stats only: amount of memory used by q
-        std::size_t msgq_mem_max;   //< For stats only: lifetime max of msgq_mem
-        std::size_t nfree_long_recv_bufs; //< For stats only: #times free_long_recv_bufs called
-        std::size_t nbytes_sent, nbytes_recv; //< For stats only: data volume
+        std::size_t msgq_count;     ///< For stats only: #msg currently in q
+        std::size_t msgq_count_max; ///< For stats only: lifetime max of msgq_count
+        std::size_t msgq_mem;       ///< For stats only: amount of memory used by q
+        std::size_t msgq_mem_max;   ///< For stats only: lifetime max of msgq_mem
+        std::size_t nfree_long_recv_bufs; ///< For stats only: #times free_long_recv_bufs called
+        std::size_t nbytes_sent, nbytes_recv; ///< For stats only: data volume
 
-        unsigned char* recv_counters; //< Used to impose sequential consistency
-        unsigned char* send_counters; //< Used to impose sequential consistency
+        unsigned char* recv_counters; ///< Used to impose sequential consistency
+        unsigned char* send_counters; ///< Used to impose sequential consistency
         
         /// Private: (re)Posts the active message Irecv
         inline void post_recv(int i) {

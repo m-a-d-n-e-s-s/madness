@@ -87,9 +87,9 @@ namespace madness {
         WorldTaskQueue& taskq;
         ProcessID rank;
         int nproc;
-        const Tag bcast_tag;    //< Reserved tag used for broadcasting
-        const Tag gsum_tag;     //< Reserved tag used for up-tree part of global sum
-        const Tag gfence_tag;   //< Reserved tag used for up-tree part of global fence
+        const Tag bcast_tag;    ///< Reserved tag used for broadcasting
+        const Tag gsum_tag;     ///< Reserved tag used for up-tree part of global sum
+        const Tag gfence_tag;   ///< Reserved tag used for up-tree part of global fence
         bool debug;
     public:
 

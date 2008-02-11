@@ -162,14 +162,14 @@ namespace madness {
     template <class Derived>
     class WorldObject : public DeferredCleanupInterface {
     public:
-        World& world;                              //< Think globally act locally
+        World& world;                              ///< Think globally act locally
     private:
         typedef WorldObject<Derived> objT;
-        uniqueidT objid;                           //< Sense of self
-        ProcessID me;                              //< Rank of self
-        bool ready;                                //< True when process_pending has been called
-        bool doing_pending;                        //< Temporary hack to aid in processing pending msg.
-        static std::list<detail::PendingMsg*> pending;   //< Holds pending short/long messages
+        uniqueidT objid;                           ///< Sense of self
+        ProcessID me;                              ///< Rank of self
+        bool ready;                                ///< True when process_pending has been called
+        bool doing_pending;                        ///< Temporary hack to aid in processing pending msg.
+        static std::list<detail::PendingMsg*> pending;   ///< Holds pending short/long messages
     
         // Handler for incoming AM with 0 arguments
         template <typename memfunT>

@@ -66,11 +66,11 @@ namespace madness {
     template <typename T>
     class RemoteReference {
     private:
-        static bool debug;  //<
+        static bool debug;  ///<
 
-        mutable SharedPtr<T> ptr;  //< Shared pointer (internally marked as not owned)
-        mutable ProcessID rank;    //< MPI rank of the owner
-        mutable unsigned long id;  //< Id of the world valid in all participating processes
+        mutable SharedPtr<T> ptr;  ///< Shared pointer (internally marked as not owned)
+        mutable ProcessID rank;    ///< MPI rank of the owner
+        mutable unsigned long id;  ///< Id of the world valid in all participating processes
 
         void static dec_handler(World& world, ProcessID src, const AmArg& arg) {
             RemoteReference r = arg;

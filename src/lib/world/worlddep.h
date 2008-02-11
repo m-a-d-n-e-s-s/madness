@@ -53,11 +53,11 @@ namespace madness {
     /// Provides interface for tracking dependencies
     class DependencyInterface : public CallbackInterface {
     private:
-        int ndepend;        //< Counts dependencies
+        int ndepend;        ///< Counts dependencies
         
-        //mutable std::vector<CallbackInterface*> callbacks; //< Called ONCE by dec() when ndepend==0
+        //mutable std::vector<CallbackInterface*> callbacks; ///< Called ONCE by dec() when ndepend==0
         static const int MAXCALLBACKS = 8;
-        mutable Stack<CallbackInterface*,MAXCALLBACKS> callbacks; //< Called ONCE by dec() when ndepend==0
+        mutable Stack<CallbackInterface*,MAXCALLBACKS> callbacks; ///< Called ONCE by dec() when ndepend==0
 
         inline void do_callbacks() const {
 //             for (int i=0; i<(int)callbacks.size(); i++)

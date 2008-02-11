@@ -52,8 +52,8 @@
 #endif
 */
 
-typedef int ProcessID; //< Used to clearly identify process number/rank
-typedef int Tag;       //< Used to clearly identify message tag/type
+typedef int ProcessID; ///< Used to clearly identify process number/rank
+typedef int Tag;       ///< Used to clearly identify message tag/type
 
 namespace madness {
 
@@ -84,14 +84,14 @@ namespace madness {
 
     private:
         // These are initialized in world.cc
-        static Tag dynamic_tag_reserved; //< Used to deliver "unique" reserved tags
-        static Tag dynamic_tag_general;  //< Used to deliver "unique" general tags
+        static Tag dynamic_tag_reserved; ///< Used to deliver "unique" reserved tags
+        static Tag dynamic_tag_general;  ///< Used to deliver "unique" general tags
         
-        MPI::Intracomm& _comm;  //< Associated communicator
-        const ProcessID _rank;  //< MPI rank of current process
-        const int _nproc;       //< No. of processes in communicator
-        bool debug;             //< If true, print debug information
-        Tag mpi_tag_ub;         //< MPI attribute TAG_UB 
+        MPI::Intracomm& _comm;  ///< Associated communicator
+        const ProcessID _rank;  ///< MPI rank of current process
+        const int _nproc;       ///< No. of processes in communicator
+        bool debug;             ///< If true, print debug information
+        Tag mpi_tag_ub;         ///< MPI attribute TAG_UB 
 
     public:
         WorldMpiInterface(MPI::Intracomm& comm) 

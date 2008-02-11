@@ -51,11 +51,11 @@ namespace madness {
     /// a linked list so as to avoid the new/del overhead.  It will grow as needed,
     /// but presently will not shrink.  The push/pop API is the same as the STL list.
     class DQueue {
-        std::size_t sz;         //< Current capacity
-        std::vector<T> buf;     //< Actual buffer
-        int _front;              //< Index of element at front of buffer
-        int _back;               //< Index of element at back of buffer
-        std::size_t n;          //< Number of elements in the buffer
+        std::size_t sz;         ///< Current capacity
+        std::vector<T> buf;     ///< Actual buffer
+        int _front;              ///< Index of element at front of buffer
+        int _back;               ///< Index of element at back of buffer
+        std::size_t n;          ///< Number of elements in the buffer
 
         void grow() {
             MADNESS_ASSERT(sz == n);

@@ -365,7 +365,7 @@ namespace madness {
         /// Used to enable type checking inside archives
         template <typename T>
         struct archive_typeinfo {
-            static const unsigned char cookie = 255; //< 255 indicates unknown type
+            static const unsigned char cookie = 255; ///< 255 indicates unknown type
         };
 
         /// Returns the name of the type, or unknown if not registered.

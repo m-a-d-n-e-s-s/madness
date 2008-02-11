@@ -169,11 +169,11 @@ namespace madness {
         typedef typename implT::cacheinfo_iteratorT cacheinfo_iteratorT;
         
     public:
-        implT* impl;                  //< Pointer to container implementation
+        implT* impl;                  ///< Pointer to container implementation
     private:
-        internal_iteratorT  it;       //< Iterator from local/cache container
-        cacheinfo_iteratorT cacheit;  //< Iterator for reference counting cache
-        bool fromcache;               //< True if is a cached remote value
+        internal_iteratorT  it;       ///< Iterator from local/cache container
+        cacheinfo_iteratorT cacheit;  ///< Iterator for reference counting cache
+        bool fromcache;               ///< True if is a cached remote value
 
         
         // Called by the cache to notify iterators to invalidate themselves
@@ -356,14 +356,14 @@ namespace madness {
         
         WorldContainerImpl();   // Inhibit default constructor
         
-        const SharedPtr< WorldDCPmapInterface<keyT> > pmap;       //< Function/class to map from keys to owning process
-        const WorldDCAttr attr;  //< Atrributes
-        const ProcessID me;           //< My MPI rank
-        internal_containerT local;    //< Locally owned data
-        mutable internal_containerT cache;    //< Local cache for remote data
-        mutable cacheinfoT cacheinfo;         //< Maps cached keys to info
-        const iterator end_iterator;          //< For fast return of end
-        const const_iterator end_const_iterator; //< For fast return of end
+        const SharedPtr< WorldDCPmapInterface<keyT> > pmap;       ///< Function/class to map from keys to owning process
+        const WorldDCAttr attr;  ///< Atrributes
+        const ProcessID me;           ///< My MPI rank
+        internal_containerT local;    ///< Locally owned data
+        mutable internal_containerT cache;    ///< Local cache for remote data
+        mutable cacheinfoT cacheinfo;         ///< Maps cached keys to info
+        const iterator end_iterator;          ///< For fast return of end
+        const const_iterator end_const_iterator; ///< For fast return of end
         
 	template <typename containerT, typename datumT> 
 	inline
