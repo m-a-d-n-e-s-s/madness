@@ -161,7 +161,7 @@ namespace madness {
     /// (permanent) state encapsulated in a single class.  The state
     /// is shared between instances using a SharedPtr.  Also,
     /// separating shared from instance specific state accelerates the
-    /// constructor, which is important for massive parallelism and
+    /// constructor, which is important for massive parallelism, and
     /// permitting inexpensive use of temporaries.  The default copy
     /// constructor and assignment operator are used but are probably
     /// never invoked.
@@ -301,7 +301,7 @@ namespace madness {
         bool _refine;
         bool _empty;
         bool _autorefine;
-        bool _do_fence;
+        bool _fence;
         SharedPtr< WorldDCPmapInterface< Key<NDIM> > > _pmap;
         SharedPtr< FunctionFunctorInterface<T,NDIM> > _functor;
     public:
@@ -317,7 +317,7 @@ namespace madness {
             , _refine(FunctionDefaults<NDIM>::refine)
             , _empty(false)
             , _autorefine(FunctionDefaults<NDIM>::autorefine)
-            , _do_fence(true)
+            , _fence(true)
             , _pmap(FunctionDefaults<NDIM>::pmap)
             , _functor(0)
         {}
@@ -369,16 +369,12 @@ namespace madness {
             _autorefine = false;
             return *this;
         }
-        inline FunctionFactory& do_fence(bool fence) {
-            _do_fence = fence;
-            return *this;
-        }
-        inline FunctionFactory& fence() {
-            _do_fence = true;
+        inline FunctionFactory& fence(bool fence=true) {
+            _fence = fence;
             return *this;
         }
         inline FunctionFactory& nofence() {
-            _do_fence = false;
+            _fence = false;
             return *this;
         }
         inline FunctionFactory& pmap(const SharedPtr< WorldDCPmapInterface< Key<NDIM> > >& pmap) {
@@ -396,6 +392,7 @@ namespace madness {
     class FunctionNode {
     private:
         Tensor<T> _coeffs;  ///< The coefficients, if any
+        double _norm_tree;  ///< After norm_tree will contain norm of coefficients summed up tree
         bool _has_children; ///< True if there are children
         
     public:
@@ -403,6 +400,7 @@ namespace madness {
         /// Default constructor makes node without coeff or children
         FunctionNode() 
             : _coeffs()
+            , _norm_tree(1e300)
             , _has_children(false)
         {}
 
@@ -413,6 +411,7 @@ namespace madness {
         /// take ownership.
         explicit FunctionNode(const Tensor<T>& coeff, bool has_children=false) 
             : _coeffs(coeff)
+            , _norm_tree(1e300)
             , _has_children(has_children)
         {}
 
@@ -471,6 +470,12 @@ namespace madness {
         /// Clears the coefficients (has_coeff() will subsequently return false)
         void clear_coeff() {_coeffs = Tensor<T>();}
 
+        /// Sets the value of norm_tree
+        Void set_norm_tree(double norm_tree) {_norm_tree = norm_tree; return None;}
+
+        /// Gets the value of norm_tree
+        double get_norm_tree() const {return _norm_tree;}
+        
         /// General bi-linear operation --- this = this*alpha + other*beta
 
         /// This/other may not have coefficients.  Has_children will be
@@ -512,7 +517,7 @@ namespace madness {
 
         template <typename Archive>
         inline void serialize(Archive& ar) {
-            ar & _coeffs & _has_children;
+            ar & _coeffs & _has_children & _norm_tree;
         }
     };
 
@@ -642,7 +647,7 @@ namespace madness {
             coeffs.process_pending(); 
             this->process_pending();
             
-            if (factory._do_fence) world.gop.fence();
+            if (factory._fence) world.gop.fence();
         }
 
         /// Copy constructor
@@ -1250,35 +1255,62 @@ namespace madness {
             if (fence) world.gop.fence();
         }
 
+//         template <typename L, typename R>
+//         Void do_mul_sparse(const FunctionImpl<L,NDIM>* left, const FunctionImpl<R,NDIM>* right, double tol, 
 
-        mutable long box_leaf[10000];
-        mutable long box_interior[10000];
+//         template <typename L, typename R>
+//         void mul_sparse(const FunctionImpl<L,NDIM>& left, const FunctionImpl<R,NDIM>& right, double tol, bool fence) {
+//             typedef std::pair< keyT,Tensor<R> > rpairT;
+//             typedef std::pair< keyT,Tensor<L> > lpairT;
+//             MADNESS_ASSERT(coeffs.get_pmap() == left.coeffs.get_pmap() && coeffs.get_pmap() == right.coeffs.get_pmap());
+            
+            
+//             // Loop thru leaf nodes in left
+// 	    for(typename FunctionImpl<L,NDIM>::dcT::const_iterator it=left.coeffs.begin(); 
+//                 it != left.coeffs.end(); 
+//                 ++it) {
+//                 const keyT& key = it->first;
+//                 const FunctionNode<L,NDIM>& left_node = it->second;
 
-        // horrifically non-scalable
-        Void put_in_box(ProcessID from, long nl, long ni) const {
-            box_leaf[from] = nl;
-            box_interior[from] = ni;
-            return None;
-        }
+//                 if (left_node.has_coeff()) {
+//                     task(world.rank(), &implT:: template do_mul_sparse<R,L>, &left, &right, tol, key, ?????????????????????????????????????
+//                          right.coeffs.send(key, get_norm_tree_recursive));
+//                 }
+//             }
+//             if (fence) world.gop.fence();
+//         }
 
 
-        /// Prints summary of data distribution
-        void print_info() const {
-            //print_tree(2);
-            long nleaf=0, ninterior=0;
-            for(typename dcT::const_iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
-                const nodeT& node = it->second;
-                if (node.is_leaf()) nleaf++;
-                else ninterior++;
-            }
-            send(0, &implT::put_in_box, world.rank(), nleaf, ninterior);
-            world.gop.fence();
-            if (world.rank() == 0) {
-                for (int i=0; i<world.size(); i++) {
-                    printf("load: %5d %8ld %8ld\n", i, box_leaf[i], box_interior[i]);
-                }
-            }
-        }
+        
+
+//         mutable long box_leaf[10000];
+//         mutable long box_interior[10000];
+
+//         // horrifically non-scalable
+//         Void put_in_box(ProcessID from, long nl, long ni) const {
+//             box_leaf[from] = nl;
+//             box_interior[from] = ni;
+//             return None;
+//         }
+
+
+//         /// Prints summary of data distribution
+//         void print_info() const {
+//             //print_tree(2);
+//             long nleaf=0, ninterior=0;
+//             for(typename dcT::const_iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
+//                 const nodeT& node = it->second;
+//                 if (node.is_leaf()) nleaf++;
+//                 else ninterior++;
+//             }
+//             send(0, &implT::put_in_box, world.rank(), nleaf, ninterior);
+//             world.gop.fence();
+//             if (world.rank() == 0) {
+//                 for (int i=0; i<world.size(); i++) {
+//                     printf("load: %5d %8ld %8ld\n", i, box_leaf[i], box_interior[i]);
+//                 }
+//             }
+//         }
         
 
 
@@ -1989,6 +2021,39 @@ namespace madness {
                 Future<tensorT> result(node.coeff());
                 if (!nonstandard) node.clear_coeff();
                 return result;
+            }
+        }
+
+        void norm_tree(bool fence) {
+           if (world.rank() == coeffs.owner(cdata.key0)) norm_tree_spawn(cdata.key0);
+           if (fence) world.gop.fence();
+        }
+
+        double norm_tree_op(const keyT& key, const vector< Future<double> >& v) {
+            double sum = 0.0;
+            int i=0;
+            for (KeyChildIterator<NDIM> kit(key); kit; ++kit,++i) {
+                double value = v[i].get();
+                sum += value*value;
+            }
+            sum = sqrt(sum);
+            coeffs.send(key, &nodeT::set_norm_tree, sum);
+            if (key.level() == 0) std::cout << "NORM_TREE_TOP " << sum << "\n";
+            return sum;
+        }
+
+        Future<double> norm_tree_spawn(const keyT& key) {
+            nodeT& node = coeffs.find(key).get()->second;
+            if (node.has_children()) {
+                std::vector< Future<double> > v = future_vector_factory<double>(1<<NDIM);
+                int i=0;
+                for (KeyChildIterator<NDIM> kit(key); kit; ++kit,++i) {
+                    v[i] = send(coeffs.owner(kit.key()), &implT::norm_tree_spawn, kit.key());
+                }
+                return task(world.rank(),&implT::norm_tree_op, key, v);
+            }
+            else {
+                return Future<double>(node.coeff().normf());
             }
         }
 

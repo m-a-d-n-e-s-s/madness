@@ -176,7 +176,7 @@ namespace madness {
         double err(const funcT& func) const {
             verify();
             if (VERIFY_TREE) verify_tree();
-            if (is_compressed()) const_cast<Function<T,NDIM>*>(this)->reconstruct();
+            if (is_compressed()) reconstruct();
             if (VERIFY_TREE) verify_tree();
             double local = impl->errsq_local(func);
             impl->world.gop.sum(local);
@@ -336,6 +336,14 @@ namespace madness {
         }
 
 
+        /// Initializes information about the function norm at all length scales
+        void norm_tree(bool fence = true) {
+            verify();
+            if (is_compressed()) reconstruct();
+            impl->norm_tree(fence);
+        }
+
+
         /// Compresses the function, transforming into wavelet basis.  Possible non-blocking comm.
 
         /// By default fence=true meaning that this operation completes before returning,
@@ -344,9 +352,12 @@ namespace madness {
         /// for other purposes.
         ///
         /// Noop if already compressed or if not initialized.
-        void compress(bool fence = true) {
+        ///
+        /// Since reconstruction/compression do not discard information we define them
+        /// as const ... "logical constness" not "bitwise constness".
+        void compress(bool fence = true) const {
             if (!impl || is_compressed()) return;
-            impl->compress(false, fence);
+            const_cast<Function<T,NDIM>*>(this)->impl->compress(false, fence);
         }
         
 
@@ -364,6 +375,7 @@ namespace madness {
             impl->compress(true, fence);
         }
 
+
         void standard(bool fence = true) {
             verify();
             MADNESS_ASSERT(is_compressed());
@@ -379,9 +391,12 @@ namespace madness {
         /// for other purposes.
         ///
         /// Noop if already reconstructed or if not initialized.
-        void reconstruct(bool fence = true) {
+        ///
+        /// Since reconstruction/compression do not discard information we define them
+        /// as const ... "logical constness" not "bitwise constness".
+        void reconstruct(bool fence = true) const {
             if (!impl || !is_compressed()) return;
-            impl->reconstruct(fence);
+            const_cast<Function<T,NDIM>*>(this)->impl->reconstruct(fence);
         }
 
         /// Clears the function as if constructed uninitialized.  Optional fence.
@@ -401,10 +416,10 @@ namespace madness {
             if (impl) impl->print_tree();
         }
 
-        /// Print a summary of the load balancing info
-        void print_info() const {
-            if (impl) impl->print_info();
-        }
+//         /// Print a summary of the load balancing info
+//         void print_info() const {
+//             if (impl) impl->print_info();
+//         }
 
 
         /// Type conversion implies a deep copy.  No communication except for optional fence.
@@ -492,7 +507,7 @@ namespace madness {
         template <typename Q>
         Function<T,NDIM>& operator+=(const Function<Q,NDIM>& other) {
             if (!is_compressed()) compress();
-            if (!other.is_compressed()) const_cast<Function<Q,NDIM>&>(other).compress();
+            if (!other.is_compressed()) other.compress();
             if (VERIFY_TREE) verify_tree();
             if (VERIFY_TREE) other.verify_tree();
             return gaxpy(T(1.0), other, Q(1.0), true);
@@ -505,7 +520,7 @@ namespace madness {
         template <typename Q>
         Function<T,NDIM>& operator-=(const Function<Q,NDIM>& other) {
             if (!is_compressed()) compress();
-            if (!other.is_compressed()) const_cast<Function<Q,NDIM>&>(other).compress();
+            if (!other.is_compressed()) compress();
             if (VERIFY_TREE) verify_tree();
             if (VERIFY_TREE) other.verify_tree();
             return gaxpy(T(1.0), other, Q(-1.0), true);
@@ -618,13 +633,23 @@ namespace madness {
             return *this;
         }
 
+
+        /// Returns local part of inner product ... throws if both not compressed
+	template <typename R>
+        TENSOR_RESULT_TYPE(T,R) inner_local(const Function<R,NDIM>& g) const {
+            MADNESS_ASSERT(is_compressed());
+            MADNESS_ASSERT(g.is_compressed());
+            return impl->inner_local(*(g.impl));
+	}
+
+
 	/// Returns the inner product
 
-	/// Needs optimization for computing multiple inner products
+	/// Not efficient for computing multiple inner products
 	template <typename R>
 	  TENSOR_RESULT_TYPE(T,R) inner(const Function<R,NDIM>& g) const {
-	  if (!is_compressed()) const_cast<Function<T,NDIM>*>(this)->compress();
-	  if (!g.is_compressed()) const_cast<Function<R,NDIM>*>(&g)->compress();
+	  if (!is_compressed()) compress();
+	  if (!g.is_compressed()) g.compress();
 
 	  TENSOR_RESULT_TYPE(T,R) local = impl->inner_local(*(g.impl));
 	  impl->world.gop.sum(local);
@@ -686,8 +711,8 @@ namespace madness {
     template <typename L, typename R, int NDIM>
     Function<TENSOR_RESULT_TYPE(L,R), NDIM>
     operator*(const Function<L,NDIM>& left, const Function<R,NDIM>& right) {
-        if (left.is_compressed())  const_cast<Function<L,NDIM>&>(left).reconstruct();
-        if (right.is_compressed()) const_cast<Function<R,NDIM>&>(right).reconstruct();
+        if (left.is_compressed())  left.reconstruct();
+        if (right.is_compressed()) right.reconstruct();
         return mul(left,right,true);
     }
 
@@ -718,8 +743,8 @@ namespace madness {
     operator+(const Function<L,NDIM>& left, const Function<R,NDIM>& right) {
         if (VERIFY_TREE) left.verify_tree();
         if (VERIFY_TREE) right.verify_tree();
-        if (!left.is_compressed())  const_cast<Function<L,NDIM>&>(left).compress();
-        if (!right.is_compressed()) const_cast<Function<R,NDIM>&>(right).compress();
+        if (!left.is_compressed())  left.compress();
+        if (!right.is_compressed()) right.compress();
         return add(left,right,true);
     }
 
@@ -738,8 +763,8 @@ namespace madness {
     template <typename L, typename R, int NDIM>
     Function<TENSOR_RESULT_TYPE(L,R), NDIM>
     operator-(const Function<L,NDIM>& left, const Function<R,NDIM>& right) {
-        if (!left.is_compressed())  const_cast<Function<L,NDIM>&>(left).compress();
-        if (!right.is_compressed()) const_cast<Function<R,NDIM>&>(right).compress();
+        if (!left.is_compressed())  left.compress();
+        if (!right.is_compressed()) right.compress();
         return sub(left,right,true);
     }
 
@@ -775,7 +800,7 @@ namespace madness {
         Function<T,NDIM> result;
         if (f.is_compressed()) {
             if (fence) {
-                const_cast<Function<T,NDIM>*>(&f)->reconstruct();
+                f.reconstruct();
             }
             else {
                 MADNESS_EXCEPTION("diff: trying to diff a compressed function without fencing",0);
@@ -846,6 +871,7 @@ namespace madness {
 
 }
 
+#include <mra/vmra.h>
 
 
 #endif

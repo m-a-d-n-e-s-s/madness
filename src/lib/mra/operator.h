@@ -67,10 +67,10 @@ namespace madness {
 
     template <typename Q>
     struct ConvolutionData1D {
-        Tensor<Q> R, T;  //< R=ns, T=T part of ns
-        Tensor<Q> RD, TD; //< Diagonal approximations to R and T wth associated errors
+        Tensor<Q> R, T;  ///< R=ns, T=T part of ns
+        Tensor<Q> RD, TD; ///< Diagonal approximations to R and T wth associated errors
         double RDeps, TDeps;
-        Tensor<Q> RU, RVT, TU, TVT; //< SVD approximations to R and T
+        Tensor<Q> RU, RVT, TU, TVT; ///< SVD approximations to R and T
         Tensor<typename Tensor<Q>::scalar_type> Rs, Ts;
 
         ConvolutionData1D(const Tensor<Q>& R, const Tensor<Q>& T) : R(R), T(T) {

@@ -365,12 +365,17 @@ void test_math(World& world) {
     val2 = f(origin);
     CHECK(val2-7.0*7.0*12.0*(val+8),1e-10,"in-place scaling (op) comp");
 
-
     // Test squaring a function by multiplication
     f = Function<T,NDIM>(FunctionFactory<T,NDIM>(world).functor(functor));
     fsq = f*f;
     errsq = fsq.err(*functsq);
     CHECK(errsq, 1e-8, "err in fsq by multiplication");
+
+    // Test norm tree operation
+    f.reconstruct();
+    f.norm_tree();
+    double nnn = f.norm2();
+    if (world.rank() == 0) print("nnn", nnn);
 
     // Test composing operations using general expression(s)
     f.compress();
@@ -443,9 +448,7 @@ void test_math(World& world) {
         CHECK(err2,1e-8,"err2");
     }      
 
-    // Test basic math operations
-
-    //MADNESS_ASSERT(ok);
+    MADNESS_ASSERT(ok);
 
     world.gop.fence();
 }
