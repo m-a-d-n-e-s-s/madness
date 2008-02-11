@@ -9,7 +9,7 @@ namespace madness {
     namespace constants {
 
         // Mathematical constants
-        const double pi = 3.14159265358979323846264338328; //< Mathematical constant pi
+        const double pi = 3.14159265358979323846264338328; ///< Mathematical constant pi
 
 
         // Misc physical constants and units
