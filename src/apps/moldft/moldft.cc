@@ -29,7 +29,7 @@
   fax:   865-572-0680
 
   
-  $Id: test.cc 257 2007-06-25 19:09:38Z HartmanBaker $
+  $Id$
 */
 
 /// \file hartree-fock.cc
@@ -81,10 +81,72 @@ public:
 };
 
 
+class AtomicBasisFunctor : public FunctionFunctorInterface<double,3> {
+private:
+    const AtomicBasisFunction aofunc;
+public:
+    AtomicBasisFunctor(const AtomicBasisFunction& aofunc) : aofunc(aofunc)
+    {}
+ 
+    double operator()(const coordT& x) const {
+        return aofunc(x[0], x[1], x[2]);
+    }
+};
+
+
 double guess(const Vector<double,3>& r) {
   return exp(-1.5*sqrt(r[0]*r[0]+r[1]*r[1]+r[2]*r[2])+1e-2);
 }
 
+
+
+vector<functionT> project_ao_basis(World& world, const Molecule& molecule, const AtomicBasisSet& aobasis) {
+    vector<functionT> ao(aobasis.nbf(molecule));
+
+    for (int i=0; i<aobasis.nbf(molecule); i++) {
+        functorT aofunc(new AtomicBasisFunctor(aobasis.get_atomic_basis_function(molecule,i)));
+        ao[i] = factoryT(world).functor(aofunc).initial_level(3).nofence();
+    }
+    world.gop.fence();
+
+    vector<double> norms = norm2(world, ao);
+    if (world.rank() == 0) {
+        for (int i=0; i<aobasis.nbf(molecule); i++) {
+            print(i,"ao.norm", norms[i]);
+            norms[i] = 1.0/norms[i];
+        }
+    }
+
+    scale(world, ao, norms);
+    
+    return ao;
+}
+
+
+Tensor<double> kinetic_energy_matrix(World& world, const vector<functionT>& v) {
+
+    reconstruct(world, v);
+
+    int n = v.size();
+    Tensor<double> r(n,n);
+    for (int axis=0; axis<3; axis++) {
+        vector<functionT> dv = diff(world,v,axis);
+        r += inner(world, dv, dv);
+    }
+    
+    return r.scale(0.5);
+}
+
+vector<functionT> apply_potential(World& world, const functionT& vnuc, const vector<functionT>& v) {
+    return mul(world, vnuc, v);
+}
+
+Tensor<double> potential_energy_matrix(World& world, const functionT& vnuc, const vector<functionT>& v) {
+    vector<functionT> Vpsi = apply_potential(world,vnuc,v);
+    compress(world,Vpsi,false);
+    compress(world,v);
+    return inner(world,v,Vpsi);
+}
 
 void hf_solve(World& world, const Molecule& molecule, const AtomicBasisSet& aobasis, int nmo) {
     // Presently nmo is ignored and we are doing a single electron
@@ -108,6 +170,26 @@ void hf_solve(World& world, const Molecule& molecule, const AtomicBasisSet& aoba
     print("and the number of electrons is", guess_density.trace());
     guess_density.reconstruct();
     print("and the number of electrons is", guess_density.trace());
+
+    vector<functionT> ao = project_ao_basis(world, molecule, aobasis);
+
+    Tensor<double> overlap = inner(world,ao,ao);
+    print("AAAA");
+    Tensor<double> kinetic = kinetic_energy_matrix(world, ao);
+    print("BBBB");
+    Tensor<double> potential = potential_energy_matrix(world, nuclear_potential, ao);
+    print("CCCC");
+    if (world.rank() == 0) {
+        print("THIS iS THE OVERLAP MATRIX");
+        print(overlap);
+        print("THIS iS THE KINETIC MATRIX");
+        print(kinetic);
+        print("THIS iS THE POTENTIAL MATRIX");
+        print(potential);
+    }
+
+    world.gop.fence();
+
     return;
 
     START_TIMER;

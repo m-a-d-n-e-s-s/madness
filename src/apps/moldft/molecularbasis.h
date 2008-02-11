@@ -14,10 +14,11 @@
 
 /// Represents a single shell of contracted, Cartesian, Gaussian primitives
 class ContractedGaussianShell {
-    int type;  //< Angular momentum = 0, 1, 2, ...
+    int type;  ///< Angular momentum = 0, 1, 2, ...
     std::vector<double> coeff;
     std::vector<double> expnt;
     double rsqmax;
+    int numbf;  ///< Number of basis functions in shell (type+1)*(type+2)/2
 
     void normalize() {
         // nwcchem cartesian normalization conventions
@@ -48,14 +49,14 @@ class ContractedGaussianShell {
     
 public:
     ContractedGaussianShell() 
-        : type(-1), coeff(), expnt(), rsqmax(0.0)
+        : type(-1), coeff(), expnt(), rsqmax(0.0), numbf(0)
     {};
 
     ContractedGaussianShell(int type, 
                             const std::vector<double>& coeff, 
                             const std::vector<double>& expnt, 
                             bool donorm=true)
-        : type(type), coeff(coeff), expnt(expnt) 
+        : type(type), coeff(coeff), expnt(expnt), numbf((type+1)*(type+2)/2)
     {
         if (donorm) normalize();
         double minexpnt = expnt[0];
@@ -64,11 +65,14 @@ public:
         rsqmax = 18.4/minexpnt;  // 18.4 = 8*ln(10)
     }
 
+
     /// Returns square of the distance beyond which function is less than 1e-8.
     double rangesq() const {return rsqmax;}
 
+
     /// Evaluates the radial part of the contracted function
-    double eval(double rsq) const {
+    double eval_radial(double rsq) const {
+        if (rsq > rsqmax) return 0.0;
         double sum = 0.0;
         for (unsigned int i=0; i<coeff.size(); i++) {
             double ersq = expnt[i]*rsq;
@@ -77,11 +81,58 @@ public:
         return sum;
     }
 
+
+    /// Evaluates the entire shell returning the incremented result pointer
+    double* eval(double rsq, double x, double y, double z, double* bf) const {
+        double R = eval_radial(rsq);
+        if (R < 1e-8) {
+            for (int i=0; i<numbf; i++) bf[i] = 0.0;
+
+        } 
+        else {
+            switch (type) {
+            case 0:
+                bf[0] =  R;
+                break;
+            case 1:
+                bf[0] =  R*x;
+                bf[1] =  R*y;
+                bf[2] =  R*z;
+                break;
+            case 2:
+                bf[0] = R*x*x;
+                bf[1] = R*x*y;
+                bf[2] = R*x*z ;
+                bf[3] = R*y*y ;
+                bf[4] = R*y*z ;
+                bf[5] = R*z*z;
+                break;
+            case 3:
+                bf[0] = R*x*x*x;
+                bf[1] = R*x*x*y;
+                bf[2] = R*x*x*z;
+                bf[3] = R*x*y*y;
+                bf[4] = R*x*y*z;
+                bf[5] = R*x*z*z;
+                bf[6] = R*y*y*y;
+                bf[7] = R*y*y*z;
+                bf[8] = R*y*z*z;
+                bf[9] = R*z*z*z;
+                break;
+
+            default:
+                throw "UNKNOWN ANGULAR MOMENTUM";
+            }
+        }
+        return bf+numbf;
+    }
+
+
     /// Returns the shell angular momentum
     int angular_momentum() const {return type;}
 
     /// Returns the number of basis functions in the shell
-    int nbf() const {return (type+1)*(type+2)/2;}
+    int nbf() const {return numbf;}
 
     /// Returns the number of primitives in the contraction
     int nprim() const {return coeff.size();}
@@ -93,7 +144,7 @@ public:
     const std::vector<double>& get_expnt() const {return expnt;}
 
     template <typename Archive>
-    void serialize(Archive& ar) {ar & type & coeff & expnt & rsqmax;}
+    void serialize(Archive& ar) {ar & type & coeff & expnt & rsqmax & numbf;}
 };
 
 
@@ -166,39 +217,7 @@ public:
 
         double* bfstart = bf;
         for (unsigned int i=0; i<g.size(); i++) {
-            if (rsq < g[i].rangesq()) {
-                double R = g[i].eval(rsq);
-                switch (g[i].angular_momentum()) {
-                case 0:
-                    bf[0] =  R;
-                    break;
-                case 1:
-                    bf[0] =  R*x;
-                    bf[1] =  R*y;
-                    bf[2] =  R*z;
-                    break;
-                case 2:
-                    bf[0] = R*x*x;
-                    bf[1] = R*x*y;
-                    bf[2] = R*x*z ;
-                    bf[3] = R*y*y ;
-                    bf[4] = R*y*z ;
-                    bf[5] = R*z*z;
-                    break;
-                case 3:
-                    bf[0] = R*x*x*x;
-                    bf[1] = R*x*x*y;
-                    bf[2] = R*x*x*z;
-                    bf[3] = R*x*y*y;
-                    bf[4] = R*x*y*z;
-                    bf[5] = R*x*z*z;
-                    bf[6] = R*y*y*y;
-                    bf[7] = R*y*y*z;
-                    bf[8] = R*y*z*z;
-		    bf[9] = R*z*z*z;
-                }
-            }
-            bf += g[i].nbf();
+            bf = g[i].eval(rsq, x, y, z, bf);
         }
         // paranoia is good
         MADNESS_ASSERT(bf-bfstart == numbf);
@@ -222,6 +241,22 @@ public:
             sum += bf[i]*sumj;
         }
         return sum;
+    }
+
+    /// Return shell that contains basis function ibf and also return index of function in the shell
+    const ContractedGaussianShell& get_shell_with_basis_function(int ibf, int& ibf_in_shell) const {
+        int n=0;
+        for (unsigned int i=0; i<g.size(); i++) {
+            int nbf_in_shell = g[i].nbf();
+            if (ibf>=n && ibf<(n+nbf_in_shell)) {
+                ibf_in_shell = ibf-n;
+                return g[i];
+            }
+            else {
+                n += g[i].nbf();
+            }
+        }
+        MADNESS_EXCEPTION("AtomicBasis: get_shell_with_basis_function", ibf*100000 + nbf());
     }
 
     bool has_guess_info() const {return dmat.size>0;}
@@ -250,6 +285,38 @@ std::ostream& operator<<(std::ostream& s, const AtomicBasis& c) {
     return s;
 }
 
+/// Used to represent one basis function from a shell on a specific center
+class AtomicBasisFunction {
+private:
+    const double xx, yy, zz; // Coordinates of the center
+    const ContractedGaussianShell& shell; // Reference to the underlying atomic shell
+    const int ibf; // Index of basis function in the shell (0, 1, ...)
+    const int nbf; // Number of functions in the shell
+    
+public:
+    AtomicBasisFunction(double x, double y, double z, 
+                        const ContractedGaussianShell& shell, int ibf)
+        : xx(x), yy(y), zz(z), shell(shell), ibf(ibf), nbf(shell.nbf())
+    {}
+
+
+    AtomicBasisFunction(const AtomicBasisFunction& aofunc)
+        : xx(aofunc.xx)
+        , yy(aofunc.yy)
+        , zz(aofunc.zz)
+        , shell(aofunc.shell)
+        , ibf(aofunc.ibf)
+        , nbf(aofunc.nbf)
+    {}
+
+    double operator()(double x, double y, double z) const {
+        double bf[nbf];
+        x-=xx; y-=yy; z-=zz;
+        double rsq = x*x + y*y + z*z;
+        shell.eval(rsq, x, y, z, bf);
+        return bf[ibf];
+    }
+};
 
 /// Contracted Gaussian basis 
 class AtomicBasisSet {
@@ -353,13 +420,36 @@ public:
         }
     }
 
+    /// Returns the ibf'th atomic basis function
+    AtomicBasisFunction get_atomic_basis_function(const Molecule& molecule, int ibf) const {
+        MADNESS_ASSERT(ibf >= 0);
+        int n = 0;
+        for (int i=0; i<molecule.natom(); i++) {
+            // Is the desired function on this atom?
+            const Atom& atom = molecule.get_atom(i);
+            const int atn = atom.atomic_number;
+            MADNESS_ASSERT(is_supported(atn));
+            const int nbf_on_atom = ag[atn].nbf();
+            if (ibf >= n  && (n+nbf_on_atom) > ibf) {
+                int index;
+                const ContractedGaussianShell& shell = 
+                    ag[atn].get_shell_with_basis_function(ibf, index);
+                return AtomicBasisFunction(atom.x, atom.y, atom.z, shell, index);
+            } 
+            else {
+                n += nbf_on_atom;
+            }
+        }
+        MADNESS_EXCEPTION("AtomicBasisSet: get_atomic_basis_function: confused?", ibf);
+    }
+
     /// Given a molecule count the number of basis functions
     int nbf(const Molecule& molecule) const {
         int n = 0;
         for (int i=0; i<molecule.natom(); i++) {
             const Atom& atom = molecule.get_atom(i);
             const int atn = atom.atomic_number;
-            MADNESS_EXCEPTION("AtomicBasisSet: unsupported atom?",atn);
+            MADNESS_ASSERT(is_supported(atn));
             n += ag[atn].nbf();
         }
         return n;
@@ -386,7 +476,7 @@ public:
         return sum;
     }
 
-    bool is_supported(int atomic_number) {
+    bool is_supported(int atomic_number) const {
         return ag[atomic_number].nbf() > 0;
     }
 

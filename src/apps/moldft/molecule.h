@@ -26,9 +26,9 @@ struct AtomicData {
     const char* const symbol_lowercase;
     const unsigned int atomic_number;
     const int isotope_number;
-    const double nuclear_radius;     //< Radius of the nucleus for the finite nucleus models (in atomic units).
-    const double nuclear_half_charge_radius; //< Half charge radius in the Fermi Model (in atomic units).
-    const double nuclear_gaussian_exponent; //< Exponential parameter in the Gaussian Model (in atomic units).
+    const double nuclear_radius;     ///< Radius of the nucleus for the finite nucleus models (in atomic units).
+    const double nuclear_half_charge_radius; ///< Half charge radius in the Fermi Model (in atomic units).
+    const double nuclear_gaussian_exponent; ///< Exponential parameter in the Gaussian Model (in atomic units).
 
     /// Covalent radii stolen without shame from NWChem
     const double covalent_radius;
@@ -41,8 +41,8 @@ unsigned int symbol_to_atomic_number(const std::string& symbol);
 
 class Atom {
 public:
-    double x, y, z, q;          //< Coordinates and charge in atomic units
-    unsigned int atomic_number; //< Atomic number
+    double x, y, z, q;          ///< Coordinates and charge in atomic units
+    unsigned int atomic_number; ///< Atomic number
 
     Atom(double x, double y, double z, double q, unsigned int atomic_number)
         : x(x), y(y), z(z), q(q), atomic_number(atomic_number)
