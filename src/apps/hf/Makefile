@@ -10,7 +10,7 @@ TARGET_TO_MAKE = libHartreeFock
 
 # List all C++ source files (not headers).  Use CSRC and FTNSRC for
 # C (.c) and Fortran (.f) respectively
-CXXSRC = hartreefock.cc
+CXXSRC = hartreefock.cc eigsolver.cc
 CSRC = 
    
 # Data files that should be installed with the library [OPTIONAL]

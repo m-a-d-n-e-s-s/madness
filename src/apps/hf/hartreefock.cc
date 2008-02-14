@@ -1,5 +1,6 @@
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES  
 #include "hartreefock.h"
+#include "util.h"
 
 namespace madness
 {
