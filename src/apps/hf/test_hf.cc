@@ -268,15 +268,15 @@ void test_hf_h2(World& world)
   HartreeFock hf(world, Vnuc, psi, -0.6, true, true, 1e-5);
   cout << "Running HartreeFock object..." << endl;
   hf.hartree_fock(10);
-  double ke = 2.0 * hf.calculate_tot_ke_sp();
-  double pe = 2.0 * hf.calculate_tot_pe_sp();
-  double ce = hf.calculate_tot_coulomb_energy();
-  double ee = hf.calculate_tot_exchange_energy();
-  double ne = 1.0/1.4;
-  printf("Kinetic energy:\t\t\t %.8f\n", ke);
-  printf("Potential energy:\t\t %.8f\n", pe);
-  printf("Two-electron energy:\t\t %.8f\n", 2.0*ce - ee);
-  printf("Total energy:\t\t\t %.8f\n", ke + pe + 2.0*ce - ee + ne);
+//  double ke = 2.0 * hf.calculate_tot_ke_sp();
+//  double pe = 2.0 * hf.calculate_tot_pe_sp();
+//  double ce = hf.calculate_tot_coulomb_energy();
+//  double ee = hf.calculate_tot_exchange_energy();
+//  double ne = 1.0/1.4;
+//  printf("Kinetic energy:\t\t\t %.8f\n", ke);
+//  printf("Potential energy:\t\t %.8f\n", pe);
+//  printf("Two-electron energy:\t\t %.8f\n", 2.0*ce - ee);
+//  printf("Total energy:\t\t\t %.8f\n", ke + pe + 2.0*ce - ee + ne);
 }
 //*****************************************************************************
 
@@ -316,14 +316,14 @@ void test_hf_he(World& world)
   HartreeFock hf(world, Vnuc, psi, -0.6, true, true, 1e-5);
   cout << "Running HartreeFock object..." << endl;
   hf.hartree_fock(10);
-  double ke = 2.0 * hf.calculate_tot_ke_sp();
-  double pe = 2.0 * hf.calculate_tot_pe_sp();
-  double ce = hf.calculate_tot_coulomb_energy();
-  double ee = hf.calculate_tot_exchange_energy();
-  printf("Kinetic energy:\t\t\t %.8f\n", ke);
-  printf("Potential energy:\t\t %.8f\n", pe);
-  printf("Two-electron energy:\t\t %.8f\n", 2.0*ce - ee);
-  printf("Total energy:\t\t\t %.8f\n", ke + pe + 2.0*ce - ee);
+//  double ke = 2.0 * hf.calculate_tot_ke_sp();
+//  double pe = 2.0 * hf.calculate_tot_pe_sp();
+//  double ce = hf.calculate_tot_coulomb_energy();
+//  double ee = hf.calculate_tot_exchange_energy();
+//  printf("Kinetic energy:\t\t\t %.8f\n", ke);
+//  printf("Potential energy:\t\t %.8f\n", pe);
+//  printf("Two-electron energy:\t\t %.8f\n", 2.0*ce - ee);
+//  printf("Total energy:\t\t\t %.8f\n", ke + pe + 2.0*ce - ee);
 }
 //*****************************************************************************
 
@@ -336,7 +336,7 @@ void test_hf_be(World& world)
   typedef SharedPtr< FunctionFunctorInterface<double,3> > functorT;
 
   // Dimensions of the bounding box
-  double bsize = 70.0;
+  double bsize = 40.0;
   for (int i=0; i<3; i++)
   {
     FunctionDefaults<3>::cell(i,0) = -bsize;
@@ -349,7 +349,7 @@ void test_hf_be(World& world)
   FunctionDefaults<3>::initial_level = 2;
   FunctionDefaults<3>::truncate_mode = 1;
   
-  // Nuclear potential (harmonic oscillator)
+  // Nuclear potential (Be)
   const coordT origin(0.0);
   cout << "Creating Function object for nuclear potential ..." << endl;
 //  Function<double,3> Vnuc = FunctionFactory<double,3>(world).f(V_func_be).thresh(1e-6);
@@ -376,14 +376,14 @@ void test_hf_be(World& world)
   HartreeFock hf(world, Vnuc, phis, eigs, true, true, 1e-6);
   cout << "Running HartreeFock object..." << endl;
   hf.hartree_fock(20);
-  double ke = 2.0 * hf.calculate_tot_ke_sp();
-  double pe = 2.0 * hf.calculate_tot_pe_sp();
-  double ce = hf.calculate_tot_coulomb_energy();
-  double ee = hf.calculate_tot_exchange_energy();
-  printf("Kinetic energy:\t\t\t %.8f\n", ke);
-  printf("Potential energy:\t\t %.8f\n", pe);
-  printf("Two-electron energy:\t\t %.8f\n", 2.0*ce - ee);
-  printf("Total energy:\t\t\t %.8f\n", ke + pe + 2.0*ce - ee);
+//  double ke = 2.0 * hf.calculate_tot_ke_sp();
+//  double pe = 2.0 * hf.calculate_tot_pe_sp();
+//  double ce = hf.calculate_tot_coulomb_energy();
+//  double ee = hf.calculate_tot_exchange_energy();
+//  printf("Kinetic energy:\t\t\t %.8f\n", ke);
+//  printf("Potential energy:\t\t %.8f\n", pe);
+//  printf("Two-electron energy:\t\t %.8f\n", 2.0*ce - ee);
+//  printf("Total energy:\t\t\t %.8f\n", ke + pe + 2.0*ce - ee);
 }
 //*****************************************************************************
 

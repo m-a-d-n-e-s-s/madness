@@ -31,11 +31,16 @@ namespace madness
   //***************************************************************************
       EigSolver::~EigSolver()
   {
+    // Eigsolver is responsible for deleting the ops
     for (std::vector<EigSolverOp*>::iterator it = _ops.begin(); it != _ops.end(); 
       it++) delete (*it);
     _ops.clear();
+    // Clear eigenvectors
     _phis.clear();
+    // Clear eigenvalues
     _eigs.clear();
+    // Clear observers
+    _obs.clear();
   }
   //***************************************************************************
   
@@ -102,8 +107,13 @@ namespace madness
         _eigs[pi] = eps_new;
         _phis[pi] = tmp.scale(1.0/tmp.norm2());
       }
+      // Output to observables
+      for (std::vector<IEigSolverObserver*>::iterator itr = _obs.begin(); itr
+        != _obs.end(); ++itr)
+      {
+        (*itr)->iterateOutput(_phis, _eigs, it);
+      }
     }
   }
   //***************************************************************************
-
 }
