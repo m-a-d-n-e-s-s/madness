@@ -416,7 +416,7 @@ namespace madness {
             : simplemap(true)
             , nproc(world.nproc())
             , me(world.rank())
-            , n((std::log(world.size())/std::log(2.0)+3)/D + 2)  // 16*nproc = 2^(nD)
+            , n((std::log((double)world.size())/std::log(2.0)+3)/D + 2)  // 16*nproc = 2^(nD)
         {
             // We set n to have about 16 tasks per processor and we try to
             // give each process a mix of large, medium, and small
@@ -497,7 +497,6 @@ namespace madness {
         };
     };
 
-
     /// The container in which the fascimile tree with its keys mapping to LBNodes is stored
     template <int D>
     class LBTree : public WorldObject< LBTree<D> > {
@@ -529,58 +528,61 @@ namespace madness {
 	    this->cost_fun=cost_f;
         };
 	/// Initialize the LBTree by converting a FunctionImpl to a LBTree
-        template <typename T>
-        inline void init_tree(const SharedPtr< FunctionImpl<T,D> >& f) {
+        template <typename T, typename costfunT>
+        inline void init_tree(const SharedPtr< FunctionImpl<T,D> >& f, const costfunT& costfun) {
             for (typename FunctionImpl<T,D>::dcT::iterator it = f->coeffs.begin(); it != f->coeffs.end(); ++it) {
             	// convert Node to LBNode
             	NodeData nd;
-		typename DClass<D>::KeyD key = it->first;
-            	if (!(it->second.has_children())) {
-		  nd.cost = (*cost_fun)();
-		  nd.subcost = nd.cost;
-		  typename DClass<D>::NodeD lbnode(nd,false);
-		  // insert into impl
-		  impl.insert(key, lbnode);
-            	} else {
-		  nd.cost = (*cost_fun)();
-		  nd.subcost = nd.cost;
-		  typename DClass<D>::NodeD lbnode(nd,true);
-		  // insert into impl
-		  impl.insert(key, lbnode);
-                }
+		const typename DClass<D>::KeyD& key = it->first;
+		const typename FunctionImpl<T,D>::nodeT&  node = it->second;
+
+		nd.cost = costfun(key, node);
+		nd.subcost = nd.cost;
+		typename DClass<D>::NodeD lbnode(nd,node.has_children());
+		impl.insert(key, lbnode);
+
+//             	if (!(it->second.has_children())) {
+// 		  nd.cost = (*cost_fun)();
+// 		  nd.subcost = nd.cost;
+// 		  typename DClass<D>::NodeD lbnode(nd,false);
+// 		  // insert into impl
+// 		  impl.insert(key, lbnode);
+//             	} else {
+// 		  nd.cost = (*cost_fun)();
+// 		  nd.subcost = nd.cost;
+// 		  typename DClass<D>::NodeD lbnode(nd,true);
+// 		  // insert into impl
+// 		  impl.insert(key, lbnode);
+//                 }
             }
         }
 
 
         // Methods:
 
-        template <typename T>
-        inline void add_tree(const SharedPtr< FunctionImpl<T,D> >& f) {
+        template <typename T, typename costfunT>
+        inline void add_tree(const SharedPtr< FunctionImpl<T,D> >& f, const costfunT& costfun) {
             for (typename FunctionImpl<T,D>::dcT::iterator it = f->coeffs.begin(); it != f->coeffs.end(); ++it) {
             	// convert Node to LBNode
             	NodeData nd;
 		typename DClass<D>::KeyD key = it->first;
 		typename DClass<D>::treeT::iterator tree_it = impl.find(key);
+		double new_cost = costfun(it->first,it->second);
 		if (tree_it != impl.end()) {
 		  typename DClass<D>::NodeD lbnode = tree_it->second;
 		  if (it->second.has_children()) {
 		    lbnode.set_all_children(true);
 		  }
 		  NodeData nd=lbnode.get_data();
-		  nd.cost+=(*cost_fun)();
-		  nd.subcost+=(*cost_fun)();
+		  nd.cost+=new_cost;
+		  nd.subcost+=new_cost;
 		  lbnode.set_data(nd);
 		  impl.insert(key, lbnode);
 		} else {
-		    if (!(it->second.has_children())) {
-		      typename DClass<D>::NodeD lbnode(nd,false);
-		      // insert into impl
-		      impl.insert(key, lbnode);
-		    } else {
-		      typename DClass<D>::NodeD lbnode(nd,true);
-		      // insert into impl
-		      impl.insert(key, lbnode);
-		    }
+		  nd.cost = new_cost;
+		  nd.subcost = nd.cost;
+		  typename DClass<D>::NodeD lbnode(nd,it->second.has_children());
+		  impl.insert(key, lbnode);
 		}
             }
         }
@@ -665,31 +667,33 @@ namespace madness {
         SharedPtr<typename DClass<D>::treeT> skeltree;
 	World& world;
 
-	template<typename T>
-        void construct_skel(SharedPtr<FunctionImpl<T,D> > f) {
+	template<typename T, typename costfunT>
+        void construct_skel(SharedPtr<FunctionImpl<T,D> > f, const costfunT& costfun) {
             skeltree = SharedPtr<typename DClass<D>::treeT>(new typename DClass<D>::treeT(f->world,
                        f->coeffs.get_pmap()));
 //            madness::print("about to initialize tree");
-	    skeltree->template init_tree<T>(f);
+	    skeltree->template init_tree<T>(f,costfun);
 //            madness::print("just initialized tree");
 	    pi.skel_cost = skeltree->fix_cost();
 	    //	    madness::print("construct_skel: pi.skel_cost =", pi.skel_cost); 
 	    pi.cost_left = pi.skel_cost;
-        };
+        }
 
     public:
 	PartitionInfo<D> pi;
         //Constructors
-	template <typename T>
-	LoadBalImpl(Function<T,D> f, double a=1e-8, double b=1e-5, double c=5e-10, double facter=1.1) : k(f.get_impl()->k) 
+	template <typename T, typename costfunT>
+	LoadBalImpl(Function<T,D> f, const costfunT& costfun,
+		    double a=1e-8, double b=1e-5, double c=5e-10, double facter=1.1) : k(f.get_impl()->k) 
 	    , comm_bandw(a)
 	    , comm_latency(b)
 	    , flop_time(c)
 	    , world(f.get_impl()->world)
-	    , pi(PartitionInfo<D>(facter)) {
-            construct_skel(f.get_impl());
+	    , pi(PartitionInfo<D>(facter)) 
+	  {
+            construct_skel(f.get_impl(), costfun);
 	    pi.partition_number = f.get_impl()->world.mpi.nproc()-1;
-        };
+	  }
 
         ~LoadBalImpl() {};
 

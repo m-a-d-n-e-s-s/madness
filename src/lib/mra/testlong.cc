@@ -129,6 +129,11 @@ double ttt, sss;
 
 
 template <typename T, int NDIM>
+Cost a_cost_function(const Key<NDIM>& key, const FunctionNode<T,NDIM>& node) {
+  return 1;
+}
+
+template <typename T, int NDIM>
 void test_loadbal(World& world) {
     typedef Vector<double,NDIM> coordT;
     typedef SharedPtr< FunctionFunctorInterface<T,NDIM> > functorT;
@@ -205,7 +210,7 @@ void test_loadbal(World& world) {
 	END_TIMER("H: test_ops");
 	//	if (world.rank() == 0) print("ABOUT TO CREATE LOADBAL");
 	START_TIMER;
-	LoadBalImpl<NDIM> lb(f);
+	LoadBalImpl<NDIM> lb(f,a_cost_function<T,NDIM>);
 	//	if (world.rank() == 0) print("ABOUT TO FENCE");
 	world.gop.fence();
 	END_TIMER("create LB");
