@@ -147,24 +147,25 @@ namespace madness {
     /// Only process rank 0 will access the file.
     void load_quadrature(World& world, const char* dir) {
         if (data_is_read) return;
-        char buf[32768];
-        buf[0] = 0;
-        strcat(buf,dir);
-        strcat(buf,"/");
-        strcat(buf,filename);
-        filename = strdup(buf);
-        
         if (world.rank() == 0) {
-            read_data();
+            char buf[32768];
+            buf[0] = 0;
+            strcat(buf,dir);
+            strcat(buf,"/");
+            strcat(buf,filename);
+            filename = strdup(buf);
+            if (!read_data()) throw "load_quadrature: failed reading quadrature coefficients";
         } else {
             for (int npt=0; npt<=max_npt; npt++) {
                 points[npt] = Tensor<double>(npt);
                 weights[npt] = Tensor<double>(npt);
             }
         }
-        for (int npt=0; npt<=max_npt; npt++) {
+        for (int npt=1; npt<=max_npt; npt++) {
             world.gop.broadcast(points[npt].ptr(), npt, 0);
+            if (world.rank() == 99999999) world.gop.fence(); // Work aroung g++ 4.2.* bug on x86-64
             world.gop.broadcast(weights[npt].ptr(), npt, 0);
+            if (world.rank() == 99999999) world.gop.fence(); // Work aroung g++ 4.2.* bug on x86-64
         }
         data_is_read = true;
     }
