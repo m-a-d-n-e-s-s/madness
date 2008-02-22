@@ -70,8 +70,8 @@ void dgesvd_(const char *jobu, const char *jobvt, integer *m, integer *n,
              real4 *a, integer *lda, real4 *s, real4 *u, integer *ldu,
              real4 *vt, integer *ldvt, real4 *work, integer *lwork,
              integer *info, char_len jobulen, char_len jobvtlen) {
-    std::cout << "n " << *n << " m " << *m << " lwork " << *lwork << std::endl;
-    std::cout << " sizeof(integer) " << sizeof(integer) << std::endl;
+    //std::cout << "n " << *n << " m " << *m << " lwork " << *lwork << std::endl;
+    //std::cout << " sizeof(integer) " << sizeof(integer) << std::endl;
     sgesvd_(jobu, jobvt, m, n, a, lda, s, u, ldu,
             vt, ldvt, work, lwork, info, jobulen, jobvtlen);
 }
@@ -212,6 +212,10 @@ STATIC void dsyev_(const char* jobz, const char* uplo, integer *n,
 
 namespace madness {
 
+    static void mask_info(integer& info) {
+        if ( (info&0xffffffff) == 0) info = 0;
+    }
+
     /** \brief   Compute the singluar value decomposition of an n-by-m matrix using *gesvd.
         
     Returns via arguments U, s, VT where
@@ -245,6 +249,8 @@ namespace madness {
         dgesvd_("S","S", &n, &m, A.ptr(), &n, s->ptr(),
                 VT->ptr(), &n, U->ptr(), &rmax, work.ptr(), &lwork,
                 &info, (char_len) 1, (char_len) 1);
+
+        mask_info(info);
 
         TENSOR_ASSERT(info == 0, "svd: Lapack failed", info, &a);
     }
@@ -301,7 +307,9 @@ namespace madness {
 
         // note overriding of dgesv for other types above
         dgesv_(&n, &nrhs, AT.ptr(), &n, piv.ptr(), x->ptr(), &n, &info);
-        TENSOR_ASSERT(info == 0, "gesv failed", info, &a);
+        mask_info(info);
+
+        TENSOR_ASSERT((info == 0), "gesv failed", info, &a);
 
         if (b.ndim == 2) *x = transpose(*x);
     }
@@ -370,7 +378,7 @@ namespace madness {
 
         dgelss_(&m, &n, &nrhs, AT.ptr(), &m, x->ptr(), &m, s->ptr(),
                 &rrcond, &rrank, work.ptr(), &lwork, &info);
-
+        mask_info(info);
         TENSOR_ASSERT(info == 0, "gelss failed", info, &a);
 
         *rank = rrank;
@@ -419,6 +427,7 @@ namespace madness {
         *e = Tensor<typename Tensor<T>::scalar_type>(n);
         dsyev_("V", "U", &n, V->ptr(), &n, e->ptr(), work.ptr(), &lwork, &info,
                (char_len) 1, (char_len) 1);
+        mask_info(info);
         TENSOR_ASSERT(info == 0, "(s/d)syev/(c/z)heev failed", info, &A);
         *V = transpose(*V);
     }
@@ -495,6 +504,7 @@ namespace madness {
         dsygv_(&ity, "V", "U", &n, V->ptr(), &n, b.ptr(), &n,
                e->ptr(), work.ptr(), &lwork, &info,
                (char_len) 1, (char_len) 1);
+        mask_info(info);
         TENSOR_ASSERT(info == 0, "sygv/hegv failed", info, &A);
         *V = transpose(*V);
     }
