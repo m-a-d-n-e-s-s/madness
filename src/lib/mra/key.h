@@ -40,6 +40,8 @@
 /// \brief Multidimension Key for MRA tree and associated iterators 
 
 #include <mra/power.h>
+#include <world/array.h>
+#include <world/worldhash.h>
 
 namespace madness {
 

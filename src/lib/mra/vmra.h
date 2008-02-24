@@ -1,6 +1,9 @@
 #ifndef MADNESS_VMRA_H
 #define MADNESS_VMRA_H
 
+#include <mra/mra.h>
+#include <cstdio>
+
 namespace madness {
 
     template <typename T, int NDIM> 
@@ -48,6 +51,32 @@ namespace madness {
         }
         if (fence) world.gop.fence();
         return df;
+    }
+    
+    
+    template <typename T, typename R, int NDIM> 
+    std::vector< Function<TENSOR_RESULT_TYPE(T,R),NDIM> > 
+    transform(World& world,
+              const Tensor<R>& c,
+              const std::vector< Function<T,NDIM> >& v, 
+              bool fence=true) {
+
+        typedef TENSOR_RESULT_TYPE(T,R) resultT;
+        int n = v.size();
+        std::vector< Function<resultT,NDIM> > vc(n);
+
+        for (int i=0; i<n; i++) vc[i] = Function<resultT,NDIM>(FunctionFactory<resultT,NDIM>(world));
+        
+        compress(world,vc,false);
+        compress(world, v);
+        
+        for (int i=0; i<n; i++) {
+            for (int j=0; j<n; j++) {
+                vc[i].gaxpy(1.0,v[j],c(j,i),false);
+            }
+        }
+        if (fence) world.gop.fence();
+        return vc;
     }
     
     

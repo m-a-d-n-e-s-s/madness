@@ -39,7 +39,13 @@
 #ifndef LOADBAL_H
 #define LOADBAL_H
 
+#include <world/world.h>
+#include <misc/misc.h>
+#include <tensor/mtrand.h>
+#include <tensor/tensor.h>
 #include <tensor/random.h>
+#include <mra/key.h>
+#include <mra/funcimpl.h>
 
 namespace madness {
 

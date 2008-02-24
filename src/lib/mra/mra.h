@@ -580,6 +580,19 @@ namespace madness {
             return *this;
         }
 
+        /// This is replaced with left*right using sparsity ... should be private
+        template <typename L, typename R>
+        Function<T,NDIM>& mul_sparse(const Function<L,NDIM>& left, const Function<R,NDIM>& right, double tol, bool fence) {
+            left.verify();
+            right.verify();
+            MADNESS_ASSERT(!(left.is_compressed() || right.is_compressed()));
+            if (VERIFY_TREE) left.verify_tree();
+            if (VERIFY_TREE) right.verify_tree();
+            impl = SharedPtr<implT>(new implT(*left.impl, left.get_pmap()));
+            impl->mul_sparse(*left.impl,*right.impl,tol,fence);
+            return *this;
+        }
+
         /// This is replaced with alpha*left + beta*right ... should be private
         template <typename L, typename R>
         Function<T,NDIM>& gaxpy_oop(T alpha, const Function<L,NDIM>& left, 
@@ -702,6 +715,16 @@ namespace madness {
         Function<TENSOR_RESULT_TYPE(L,R),NDIM> result;
         return result.mul(left,right,fence);
     }
+
+
+    /// Sparse multiplication --- right *must* have tree of norms already created
+    template <typename L, typename R,int NDIM>
+    Function<TENSOR_RESULT_TYPE(L,R),NDIM> 
+    mul_sparse(const Function<L,NDIM>& left, const Function<R,NDIM>& right, double tol, bool fence=true) {
+        Function<TENSOR_RESULT_TYPE(L,R),NDIM> result;
+        return result.mul_sparse(left,right,tol,fence);
+    }
+
 
 
     /// Multiplies two functions with the new result being of type TensorResultType<L,R>

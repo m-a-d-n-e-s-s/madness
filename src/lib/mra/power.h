@@ -33,7 +33,6 @@
 */
 
   
-#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #ifndef POWER_H
 #define POWER_H
 
