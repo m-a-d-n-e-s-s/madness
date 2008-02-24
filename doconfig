@@ -266,6 +266,7 @@ set_value MADNESS_CONFIGURATION_DATE "`date`"
 set_value MADNESS_CONFIGURATION_HOST "`hostname`"
 set_value USE_LINUX_RANDOM 0
 set_value WORLD_GATHER_MEM_STATS 1
+set_value WORLD_TAU_TRACE 0
 
 echo "Processing command line overrides ..."
 
@@ -297,15 +298,19 @@ for target in $* ; do
     elif [  "$target" = "CRAYXT" ] ; then
         do_crayxt
         standard=1
-    elif [  "$target" = "LINUX32" ] ; then
+    elif [ "$target" = "LINUX32" ] ; then
         do_linux32
         standard=1
-    elif [  "$target" = "LINUX64" ] ; then
+    elif [ "$target" = "LINUX64" ] ; then
         do_linux64
         standard=1
-    elif [  "$target" = "debug" ] ; then
+    elif [ "$target" = "debug" ] ; then
         MAD_DEBUG=1
         echo "Configuring for debugging ..."
+    elif [ "$target" = "TAU" ] ; then
+        set_value WORLD_TAU_TRACE 1
+    elif [ "$target" = "tau" ] ; then
+        set_value WORLD_TAU_TRACE 1
     fi
 done
 
@@ -592,17 +597,21 @@ if [ "$CXXFLAGS" = "" ] ; then
         echo "GNU compiler detected"
         set_value HASH_MAP_NAMESPACE "__gnu_cxx"
         if [ "$MAD_DEBUG" = "1" ] ; then
-           OPT="-Wall -ansi -g -O0"
+           OPT="-Wall -Wno-strict-aliasing -ansi -g -O0"
         elif contains "$HOST_CPU" 86 ; then
-            OPT="-Wall -ansi -O3 -ffast-math -fomit-frame-pointer -mfpmath=sse -msse -msse2 -msse3 -march=native"
+            OPTLEV="-O3"
+            if [ "$HOST_CPU" = "X86_64" ] ; then
+               OPTLEV="-O2"
+            fi
+            OPT="-Wall -Wno-strict-aliasing -ansi $OPTLEV -ffast-math -fomit-frame-pointer -mfpmath=sse -msse -msse2 -msse3 -march=native"
             CXXOPT="$CXX_COMPILE $OPT tmptmp.cc"
             compile_testCC "$CXXOPT" "#include <iostream> \n int main() {return 0;}" 
             if [ $? -ne 0 ] ; then
-                OPT="-Wall -ansi -O3 -ffast-math -fomit-frame-pointer -mfpmath=sse -msse -msse2 -msse3"
+                OPT="-Wall -Wno-strict-aliasing -ansi $OPTLEV -ffast-math -fomit-frame-pointer -mfpmath=sse -msse -msse2 -msse3"
                 CXXOPT="$CXX_COMPILE $OPT tmptmp.cc"
                 compile_testCC "$CXXOPT" "#include <iostream> \n int main() {return 0;}" 
                 if [ $? -ne 0 ] ; then
-                    OPT="-Wall -ansi -O2"
+                    OPT="-Wall -Wno-strict-aliasing -ansi -O2"
                     CXXOPT="$CXX_COMPILE $OPT tmptmp.cc"
                     compile_testCC "$CXXOPT" "#include <iostream> \n int main() {return 0;}" 
                     if [ $? -ne 0 ] ; then
@@ -710,6 +719,7 @@ fi
 if [ $status -ne 0 ] ; then
     echo "ar is acting goofy ... ignored"
 fi
+
 get_value RANLIB
 RANLIB="$value"
 $RANLIB fred.$LIBSUF
@@ -745,6 +755,16 @@ else
     set_value HAVE_DOT YES
 fi
 
+get_value WORLD_TAU_TRACE
+echo "TAU $value"
+if [ $value -eq 1 ] ; then
+    echo " "
+    echo "!! Tracing with Tau enabled ... overriding C++ compiler to be tau_cxx.sh"
+    echo "!! Before compiling you must set the environment variable TAU_MAKEFILE"
+    echo " "
+    set_value CXX tau_cxx.sh
+    set_value CC tau_cc.sh
+fi
 
 echo " "
 echo " The configured values are stored in ./configuration "
