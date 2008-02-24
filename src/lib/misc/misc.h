@@ -33,14 +33,19 @@
 */
 
   
-#ifndef MISC_H
-#define MISC_H
+#ifndef MADNESS_MISC_H
+#define MADNESS_MISC_H
 
 /// \file misc.h
 /// \brief Header to declare stuff which has not yet found a home
 
+#include <world/worldexc.h>
+#include <iostream>
+#include <string>
+
 namespace madness {
     unsigned long checksum_file(const char* filename);
+    std::istream& position_stream(std::istream& f, const std::string& tag);
 }
 
 #endif
