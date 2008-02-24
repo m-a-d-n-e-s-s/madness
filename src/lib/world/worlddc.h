@@ -578,6 +578,17 @@ namespace madness {
         }
         
         
+        Future<const_iterator> find(const keyT& key) const {
+            // Profound ugliness here to avoid replicating find() and
+            // associated handlers for const.  Assumption is that
+            // const and non-const iterators are idential except for
+            // const attribute ... at some point probably need to do
+            // the right thing.
+            Future<iterator> r = const_cast<implT*>(this)->find(key);
+            return *(Future<const_iterator>*)(&r);
+        }
+
+
         Future<iterator> find(const keyT& key) {
             ProcessID dest = owner(key);
             if (dest == me) {  // Local read
@@ -821,9 +832,20 @@ namespace madness {
         /// Like an std::map an iterator "points" to an std::pair<const keyT,valueT>.
         ///
         /// Refer to Future for info on how to avoid blocking.
-        Future<iterator> find(const keyT& key) const {
+        Future<iterator> find(const keyT& key) {          //
             check_initialized();
             return p->find(key);
+        }
+        
+        
+        /// Returns a future iterator (non-blocking communication if key not local)
+        
+        /// Like an std::map an iterator "points" to an std::pair<const keyT,valueT>.
+        ///
+        /// Refer to Future for info on how to avoid blocking.
+        Future<const_iterator> find(const keyT& key) const {
+            check_initialized();
+            return const_cast<const implT*>(p.get())->find(key);
         }
         
         

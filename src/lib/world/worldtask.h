@@ -44,6 +44,13 @@
 //    due to multiple length argument lists.
 // b) Stealing which pretty much presume a) has been done
 
+#include <world/nodefaults.h>
+#include <world/worldtypes.h>
+#include <world/typestuff.h>
+#include <world/dqueue.h>
+#include <world/worlddep.h>
+#include <world/worldfut.h>
+
 namespace madness {
 
     /// Contains attributes of a task

@@ -41,6 +41,11 @@
 
 namespace madness {
 
+    template <typename T> class RemoteReference;
+
+    template <typename T>
+    std::ostream& operator<<(std::ostream& s, const RemoteReference<T>& ref);
+
     /// Simple structure used to manage references/pointers to remote instances
 
     /// This class was intended only for internal use and is still rather
@@ -65,6 +70,8 @@ namespace madness {
     /// you will have a memory leak.
     template <typename T>
     class RemoteReference {
+        friend std::ostream& operator<< <T> (std::ostream& s, const RemoteReference<T>& ref);
+
     private:
         static bool debug;  ///<
 
@@ -170,6 +177,13 @@ namespace madness {
 
 #ifdef WORLD_INSTANTIATE_STATIC_TEMPLATES
     template <typename T> bool madness::RemoteReference<T>::debug = false;
+
+    template <typename T>
+    std::ostream& operator<<(std::ostream& s, const RemoteReference<T>& ref) {
+        s << "<remote: ptr=" << (void *) ref.ptr << ", rank=" << ref.rank << ", id=" << ref.id << ">";
+        return s;
+    };
+    
 #endif
 
 

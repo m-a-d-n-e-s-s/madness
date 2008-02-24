@@ -36,6 +36,9 @@
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <world/world.h>
 
+#ifdef WORLD_TAU_TRACE
+#include <TAU.h>
+#endif
 
 using namespace madness;
 using namespace std;
@@ -475,6 +478,42 @@ void test6(World& world) {
 
 
     print("test 6 (world object active message and tasks) seems to be working");
+}
+
+class TestFutureForwarding : public WorldObject<TestFutureForwarding> {
+public:
+    TestFutureForwarding(World& world) 
+        : WorldObject<TestFutureForwarding>(world)
+    {
+        this->process_pending();
+    }
+
+    Future<int> test(int state) {
+        if (state < 99) {
+            return send(world.random_proc(), &TestFutureForwarding::test, state+1);
+        }
+        else {
+            return Future<int>(state+1);
+        }
+    }
+};
+
+void test6a(World& world) {
+    
+    if (world.size() < 2) return;
+
+    TestFutureForwarding t(world);
+    if (world.rank() == 0) {
+        Future<int> fred = t.test(0);
+        world.gop.fence();
+        MADNESS_ASSERT(fred.get() == 100);
+    }
+    else {
+        world.gop.fence();
+    }
+    if (world.rank() == 0) {
+        print("If got here test6a is OK!");
+    }
 }
 
 
@@ -922,6 +961,11 @@ void test11(World& world) {
 
 int main(int argc, char** argv) {
     MPI::Init(argc, argv);
+
+#ifdef WORLD_TAU_TRACE    
+    TAU_PROFILE_SET_NODE(MPI::COMM_WORLD.Get_rank());
+#endif
+    
     
     World world(MPI::COMM_WORLD);
     redirectio(world);
@@ -944,6 +988,7 @@ int main(int argc, char** argv) {
       test4a(world);
       test5(world);
       test6(world);
+      test6a(world);
       test7(world);
       test8(world);
       test9(world);

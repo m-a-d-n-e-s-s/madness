@@ -39,6 +39,13 @@
 /// \file worldfut.h
 /// \brief Implements Future
 
+#include <vector>
+#include <world/nodefaults.h>
+#include <world/worlddep.h>
+#include <world/array.h>
+#include <world/sharedptr.h>
+#include <world/worldref.h>
+#include <world/typestuff.h>
 
 namespace madness {
 
@@ -71,10 +78,16 @@ namespace madness {
 
 #define REMFUTURE(T) typename remove_future< T >::type    
 
+    template <typename T>
+    std::ostream& operator<<(std::ostream& out, const Future<T>& f);
+
+
     /// Implements the functionality of Futures
     template <typename T>
     class FutureImpl : NO_DEFAULTS {
         friend class Future<T>;
+        friend std::ostream& operator<< <T>(std::ostream& out, const Future<T>& f);
+
     private:
         static const int MAXCALLBACKS = 4;
         //std::vector<CallbackInterface*> callbacks; 
@@ -227,7 +240,7 @@ namespace madness {
         };
 
         bool replace_with(FutureImpl<T>* f) {
-            if (world) return false;
+            MADNESS_ASSERT(!world); // was return false;
             MADNESS_ASSERT(!assigned || f->assigned);
             if (f->world) {
                 world = f->world;
@@ -253,6 +266,7 @@ namespace madness {
         };
     };
                         
+
     /// A future is a possibly yet unevaluated value
 
     /// Uses delegation to FutureImpl to provide desired
@@ -267,6 +281,8 @@ namespace madness {
     /// that must be peformed for every new shared_ptr.
     template <typename T> 
     class Future {
+        friend std::ostream& operator<< <T>(std::ostream& out, const Future<T>& f);
+
     private:
         mutable SharedPtr< FutureImpl<T> > f;
         mutable T value;
@@ -415,23 +431,24 @@ namespace madness {
                         // are actually remote references.  However,
                         // it also avoids most uses of the assignment
                         // list. 
+                        //
                         if (f == other.f) {
                             print("future.set(future): you are setting this with this?");
                             return;
                         }
-                        if (f.use_count()==1 && other.f->is_local()) {
+                        else if (f.use_count()==1 && other.f.use_count()==1 && other.f->is_local()) {
                             other.f->replace_with(f);
                             f = other.f;
                             //print("future.set(future): replaced other with this");
                             return;
                         }
-                        if (other.f.use_count()==1 && f->is_local()) {
+                        else if (f.use_count()==1 && other.f.use_count()==1 && f->is_local()) {
                             f->replace_with(other.f);
                             const_cast<Future<T>&>(other).f = f;
-                            print("future.set(future): replaced this with other");
+                            //print("future.set(future): replaced this with other");
                             return;
                         }
-                        print("future.set(future): adding to assignment list");
+                        //print("future.set(future): adding to assignment list");
                         other.f->add_to_assignments(f);
                         return;
                     }
@@ -522,7 +539,9 @@ namespace madness {
         ///
         /// If this is already a reference to a remote future, the
         /// actual remote reference is returned ... i.e., \em not a
-        /// a reference to the local future.
+        /// a reference to the local future.  Therefore, the local
+        /// future will not be notified when the result is set
+        /// (i.e., the communication is short circuited).
         inline remote_refT remote_ref(World& world) const {
             MADNESS_ASSERT(!probe());
             initialize();
@@ -530,7 +549,16 @@ namespace madness {
                 return f->remote_ref;
             else 
                 return RemoteReference< FutureImpl<T> >(world, f);
-        };
+        }
+
+
+        inline bool is_local() const {
+            return ((!f) || f->is_local() || probe());
+        }
+
+        inline bool is_remote() const {
+            return !is_local();
+        }
 
 
         /// Registers an object to be called when future is assigned
@@ -742,6 +770,8 @@ namespace madness {
     template <typename T>
     std::ostream& operator<<(std::ostream& out, const Future<T>& f) {
         if (f.probe()) out << f.get();
+        else if (f.is_remote()) out << f.f->remote_ref;
+        else if (f.f) out << "<unassigned refcnt=" << f.f.use_count() << ">";
         else out << "<unassigned>";
         return out;
     }

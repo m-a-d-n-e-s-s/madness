@@ -39,6 +39,9 @@
 /// \file worlddep.h
 /// \brief Defines DependencyInterface and CallbackInterface
 
+#include <world/array.h>
+#include <world/print.h>
+
 namespace madness {
 
     /// This class used for callbacks (e.g., for dependency tracking)

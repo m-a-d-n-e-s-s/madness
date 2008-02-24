@@ -179,6 +179,7 @@ namespace madness {
             MPI::Request req0, req1;
             ProcessID parent, child0, child1;
             mpi.binary_tree_info(root, parent, child0, child1);
+            Tag bcast_tag = mpi.unique_tag();
             
             if (parent != -1) {
                 req0 = mpi.Irecv(buf, nbyte, MPI::BYTE, parent, bcast_tag);

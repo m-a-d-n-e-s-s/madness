@@ -61,6 +61,8 @@
 #  define HASH_MAP_NAMESPACE std::tr1
 #endif
 
+#include <world/typestuff.h>
+
 
 namespace madness {
 

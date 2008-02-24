@@ -39,19 +39,19 @@
 /// \file world.h
 /// \brief Implements World and includes pretty much every header you'll need
 
+#include <mpi.h>
 #include <madness_config.h>
 
-#ifdef SEEK_SET
-#undef SEEK_SET
-#endif
-#ifdef SEEK_CUR
-#undef SEEK_CUR
-#endif
-#ifdef SEEK_END
-#undef SEEK_END
-#endif
+// #ifdef SEEK_SET
+// #undef SEEK_SET
+// #endif
+// #ifdef SEEK_CUR
+// #undef SEEK_CUR
+// #endif
+// #ifdef SEEK_END
+// #undef SEEK_END
+// #endif
 
-#include <mpi.h>
 
 #include <iostream>
 #include <cstdio>

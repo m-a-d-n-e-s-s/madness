@@ -45,8 +45,8 @@
 // systems, and compiler deficiences, we have to be independent for the
 // time being.
 
+#include <cstddef>
 #include <stdint.h>
-
 namespace madness {
     
     /// type_or_c<bool A, bool B>::value will be true if (A || B)
