@@ -4,6 +4,10 @@
 /// \file random.h
 /// \brief Defines and implements RandomNumber
 
+#include <complex>
+typedef std::complex<float> float_complex;
+typedef std::complex<double> double_complex;
+
 #include <tensor/mtrand.h>
 
 namespace madness {
