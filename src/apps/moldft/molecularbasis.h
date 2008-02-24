@@ -1,9 +1,12 @@
 #ifndef MOLECULAR_BASIS_H
 #define MOLECULAR_BASIS_H
 
+#include <madness_config.h>
 #include <constants.h>
 #include <moldft/molecule.h>
 #include <tinyxml/tinyxml.h>
+#include <tensor/tensor.h>
+using namespace madness;
 
 #include <vector>
 #include <algorithm>

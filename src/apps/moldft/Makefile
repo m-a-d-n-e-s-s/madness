@@ -11,7 +11,10 @@ include $(TOPDIR)/config/GlobalMakefile
 include $(TOPDIR)/config/MakeSubDirs
 include $(TOPDIR)/Makedirlist
 
-all:	$(TESTPROGS)
+all:	xc $(TESTPROGS)
+
+xc:
+	cd xc; make
 
 moldft:	moldft.o molecule.o $(THISLIBDEPEND) 
 	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ $(SYSLIBS) $(LTLINKBINOPTS)

@@ -94,12 +94,6 @@ public:
 };
 
 
-double guess(const Vector<double,3>& r) {
-  return exp(-1.5*sqrt(r[0]*r[0]+r[1]*r[1]+r[2]*r[2])+1e-2);
-}
-
-
-
 vector<functionT> project_ao_basis(World& world, const Molecule& molecule, const AtomicBasisSet& aobasis) {
     vector<functionT> ao(aobasis.nbf(molecule));
 
@@ -132,6 +126,8 @@ Tensor<double> kinetic_energy_matrix(World& world, const vector<functionT>& v) {
     for (int axis=0; axis<3; axis++) {
         vector<functionT> dv = diff(world,v,axis);
         r += inner(world, dv, dv);
+
+        dv.clear(); world.gop.fence(); // Allow function memory to be freed
     }
     
     return r.scale(0.5);
@@ -145,12 +141,102 @@ Tensor<double> potential_energy_matrix(World& world, const functionT& vnuc, cons
     vector<functionT> Vpsi = apply_potential(world,vnuc,v);
     compress(world,Vpsi,false);
     compress(world,v);
-    return inner(world,v,Vpsi);
+    Tensor<double> r = inner(world,v,Vpsi);
+
+    Vpsi.clear(); world.gop.fence(); // Allow function memory to be freed
+    return r;
 }
 
-void hf_solve(World& world, const Molecule& molecule, const AtomicBasisSet& aobasis, int nmo) {
-    // Presently nmo is ignored and we are doing a single electron
-    // calculation for the purpose of debugging
+struct CalculationParameters {
+    int nalpha;
+    int nbeta;
+    bool spin_restricted;
+
+    void read_file(const std::string& filename) {
+        std::ifstream f(filename.c_str());
+        position_stream(f, "dft");
+        f >> nalpha >> nbeta >> spin_restricted;
+    }
+
+    template <typename Archive>
+    void serialize(Archive& ar) {ar & nalpha & nbeta & spin_restricted;}
+};
+
+vector<functionT> make_guess_orbitals(World& world, const Molecule& molecule, 
+                                      const AtomicBasisSet& aobasis, const CalculationParameters& param,
+                                      functionT& vnuc)
+{
+    vector<functionT> ao = project_ao_basis(world, molecule, aobasis);
+    if (world.rank()==0) {
+        print("after project AO");
+        world_mem_info()->print();
+    }
+    Tensor<double> overlap = inner(world,ao,ao);
+    if (world.rank()==0) {
+        print("after overlap");
+        world_mem_info()->print();
+    }
+    Tensor<double> kinetic = kinetic_energy_matrix(world, ao);
+    if (world.rank()==0) {
+        print("after diff");
+        world_mem_info()->print();
+    }
+    Tensor<double> potential = potential_energy_matrix(world, vnuc, ao);
+    if (world.rank()==0) {
+        print("after PE");
+        world_mem_info()->print();
+    }
+    world.gop.fence();
+    if (world.rank()==0) {
+        print("after fence after PE");
+        world_mem_info()->print();
+    }
+    Tensor<double> fock = kinetic + potential;
+    Tensor<double> c, e;
+    sygv(fock, overlap, 1, &c, &e);
+    if (world.rank() == 0) {
+        print("THIS iS THE OVERLAP MATRIX");
+        print(overlap);
+        print("THIS iS THE KINETIC MATRIX");
+        print(kinetic);
+        print("THIS iS THE POTENTIAL MATRIX");
+        print(potential);
+        print("THESE ARE THE EIGENVECTORS");
+        print(c);
+        print("THESE ARE THE EIGENVALUES");
+        print(e);
+    }
+
+    int nmo = max(param.nalpha, param.nbeta);
+
+    ao = transform(world, c(_,Slice(0,nmo-1)), ao);
+    if (world.rank()==0) {
+        print("after transform");
+        world_mem_info()->print();
+    }
+    world.gop.fence();
+    if (world.rank()==0) {
+        print("after fence");
+        world_mem_info()->print();
+    }
+    world.gop.fence();
+    if (world.rank()==0) {
+        print("after fence2");
+        world_mem_info()->print();
+    }
+
+    overlap = inner(world,ao,ao);
+    if (world.rank() == 0) {
+        print("NEW overlap matrix");
+        print(overlap);
+    }
+
+
+    return ao;
+}
+    
+
+void hf_solve(World& world, const Molecule& molecule, const AtomicBasisSet& aobasis, const CalculationParameters& param) {
     const double lo = molecule.smallest_length_scale();
     print("smallest length scale", lo);
 
@@ -171,60 +257,43 @@ void hf_solve(World& world, const Molecule& molecule, const AtomicBasisSet& aoba
     guess_density.reconstruct();
     print("and the number of electrons is", guess_density.trace());
 
-    vector<functionT> ao = project_ao_basis(world, molecule, aobasis);
-
-    Tensor<double> overlap = inner(world,ao,ao);
-    print("AAAA");
-    Tensor<double> kinetic = kinetic_energy_matrix(world, ao);
-    print("BBBB");
-    Tensor<double> potential = potential_energy_matrix(world, nuclear_potential, ao);
-    print("CCCC");
-    if (world.rank() == 0) {
-        print("THIS iS THE OVERLAP MATRIX");
-        print(overlap);
-        print("THIS iS THE KINETIC MATRIX");
-        print(kinetic);
-        print("THIS iS THE POTENTIAL MATRIX");
-        print(potential);
-    }
-
-    world.gop.fence();
+    vector<functionT> mo = make_guess_orbitals(world, molecule, aobasis, param, nuclear_potential);
 
     return;
 
-    START_TIMER;
-    functionT psi = factoryT(world).f(guess);
-    END_TIMER("project guess psi");
+//     START_TIMER;
+//     functionT psi = factoryT(world).f(guess);
+//     END_TIMER("project guess psi");
 
-    double orbital_energy = -0.5;
-    for (int iter=0; iter<20; iter++) {
-        START_TIMER;
-        psi.truncate().scale(1.0/psi.norm2());
-        END_TIMER("truncate psi");
+//     double orbital_energy = -0.5;
+//     for (int iter=0; iter<20; iter++) {
+//         START_TIMER;
+//         psi.truncate().scale(1.0/psi.norm2());
+//         END_TIMER("truncate psi");
 
-        START_TIMER;
-        functionT Vpsi = nuclear_potential*psi;
-        END_TIMER("V*psi");
+//         START_TIMER;
+//         functionT Vpsi = nuclear_potential*psi;
+//         END_TIMER("V*psi");
 
-        START_TIMER;
-        Vpsi.truncate();
-        END_TIMER("truncate Vpsi");
+//         START_TIMER;
+//         Vpsi.truncate();
+//         END_TIMER("truncate Vpsi");
 
-        operatorT op = BSHOperator<double,3>(world, sqrt(-2.0*orbital_energy), 
-                                             FunctionDefaults<3>::k, 1e-2, FunctionDefaults<3>::thresh);
+//         operatorT op = BSHOperator<double,3>(world, sqrt(-2.0*orbital_energy), 
+//                                              FunctionDefaults<3>::k, 1e-2, FunctionDefaults<3>::thresh);
 
-        START_TIMER;
-        functionT psi_new = apply(op,Vpsi).scale(-2.0);
-        END_TIMER("BSH operator * Vpsi");
+//         START_TIMER;
+//         functionT psi_new = apply(op,Vpsi).scale(-2.0);
+//         END_TIMER("BSH operator * Vpsi");
 
-//         const double* nflop = op.get_nflop();
-//         for (int i=0; i<64; i++) print(i, nflop[i]);
+// //         const double* nflop = op.get_nflop();
+// //         for (int i=0; i<64; i++) print(i, nflop[i]);
 
-        double deltanorm = (psi-psi_new).norm2();
-        double newnorm = psi_new.norm2();
-        if (world.rank() == 0) print(iter,"delta norm =",deltanorm, "     new norm =",newnorm);
-        psi = psi_new;
-    }
+//         double deltanorm = (psi-psi_new).norm2();
+//         double newnorm = psi_new.norm2();
+//         if (world.rank() == 0) print(iter,"delta norm =",deltanorm, "     new norm =",newnorm);
+//         psi = psi_new;
+//     }
         
 }
 
@@ -238,18 +307,20 @@ int main(int argc, char** argv) {
         
         // Process 0 reads the molecule information and broadcasts
         Molecule molecule;
-        if (world.rank() == 0) molecule.read_file("input");
+        CalculationParameters param;
+        if (world.rank() == 0) {
+            molecule.read_file("input");
+            param.read_file("input");
+        }
+            
         world.gop.broadcast_serializable(molecule, 0);
+        world.gop.broadcast_serializable(param, 0);
         
         // Process 0 reads the LCAO guess information and broadcasts
         AtomicBasisSet aobasis;
         if (world.rank() == 0) aobasis.read_file("sto-3g");
         world.gop.broadcast_serializable(aobasis, 0);
 
-
-        int nelec = int(molecule.total_nuclear_charge());
-        int nmo = nelec/2;
-        
         // Use a cell big enough to have exp(-sqrt(2*I)*r) decay to
         // 1e-6 with I=1ev=0.037Eh --> need 50 a.u. either side of the molecule
         double L = molecule.bounding_cube();
@@ -275,12 +346,11 @@ int main(int argc, char** argv) {
             print("\n");
             print("            box size ", L);
             print(" number of processes ", world.size());
-            print(" number of electrons ", nelec);
-            print(" number of  orbitals ", nmo);
-            //if (nelec&1) throw "Closed shell only --- number of electrons is odd";
+            print(" number of electrons ", param.nalpha, param.nbeta);
+            print("     spin restricted ", param.spin_restricted);
         }
         
-        hf_solve(world, molecule, aobasis, nmo);
+        hf_solve(world, molecule, aobasis, param);
 
         world.gop.fence();
 

@@ -37,6 +37,7 @@
 /// \brief Simple management of molecular information and potential
 
 #include <moldft/molecule.h>
+#include <misc/misc.h>
 
 static const double PI = 3.1415926535897932384;
 
@@ -276,15 +277,9 @@ Molecule::Molecule(const std::string& filename) {
 void Molecule::read_file(const std::string& filename) {
     atoms.clear(); rcut.clear();
     std::ifstream f(filename.c_str());
+    madness::position_stream(f, "geometry");
+
     std::string s;
-    while (std::getline(f,s)) {
-        std::string::size_type loc = s.find("geometry", 0);
-        if(loc != std::string::npos) goto found_it;
-    }
-    std::cout << "FILENAME " << filename << std::endl;
-    throw "No geometry found in the input file";
- found_it:
-    
     while (std::getline(f,s)) {
         std::string::size_type loc = s.find("end", 0);
         if(loc != std::string::npos) goto finished;
