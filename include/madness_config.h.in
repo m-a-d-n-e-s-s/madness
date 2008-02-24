@@ -122,9 +122,14 @@
 
 /* Attempt at deadlock detection */
 #if @WORLD_WATCHDOG@
-#define WORLD_WATCHDOG
-#define WATCHDOG_BARK_INTERVAL @WATCHDOG_BARK_INTERVAL@
-#define WATCHDOG_TIMEOUT @WATCHDOG_TIMEOUT@
+#  define WORLD_WATCHDOG
+#  define WATCHDOG_BARK_INTERVAL @WATCHDOG_BARK_INTERVAL@
+#  define WATCHDOG_TIMEOUT @WATCHDOG_TIMEOUT@
+#endif
+
+/* Enable tracing using tau */
+#if @WORLD_TAU_TRACE@
+#  define WORLD_TAU_TRACE
 #endif
 
 #endif 
