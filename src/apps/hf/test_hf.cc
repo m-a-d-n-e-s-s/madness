@@ -1,5 +1,5 @@
-#include <iostream>
 #include <mra/mra.h>
+#include <iostream>
 
 #include "hartreefock.h"
 
