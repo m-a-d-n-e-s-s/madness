@@ -37,6 +37,45 @@ namespace madness {
         if (fence && must_fence) world.gop.fence();
     }
     
+
+    template <typename T, int NDIM> 
+    void nonstandard(World& world,
+                     std::vector< Function<T,NDIM> >& v, 
+                     bool fence=true) {
+        reconstruct(world, v);
+        for (unsigned int i=0; i<v.size(); i++) {
+            v[i].nonstandard(false);
+        }
+        if (fence) world.gop.fence();
+    }
+    
+
+    template <typename T, int NDIM> 
+    void standard(World& world,
+                     std::vector< Function<T,NDIM> >& v, 
+                     bool fence=true) {
+        for (unsigned int i=0; i<v.size(); i++) {
+            v[i].standard(false);
+        }
+        if (fence) world.gop.fence();
+    }
+    
+
+    template <typename T, int NDIM> 
+    void truncate(World& world,
+                  std::vector< Function<T,NDIM> >& v, 
+                  double tol=0.0,
+                  bool fence=true) {
+
+        compress(world, v);
+
+        for (unsigned int i=0; i<v.size(); i++) {
+            v[i].truncate(tol, false);
+        }
+        
+        if (fence) world.gop.fence();
+    }
+
     
     template <typename T, int NDIM> 
     std::vector< Function<T,NDIM> > diff(World& world,
@@ -54,23 +93,26 @@ namespace madness {
     }
     
     
+    /// Computes new[i] = sum[j] old[j]*c[j,i]
     template <typename T, typename R, int NDIM> 
     std::vector< Function<TENSOR_RESULT_TYPE(T,R),NDIM> > 
     transform(World& world,
-              const Tensor<R>& c,
               const std::vector< Function<T,NDIM> >& v, 
+              const Tensor<R>& c,
               bool fence=true) {
 
         typedef TENSOR_RESULT_TYPE(T,R) resultT;
-        int n = v.size();
-        std::vector< Function<resultT,NDIM> > vc(n);
+        int n = v.size();  // n is the old dimension
+        int m = c.dim[1];  // m is the new dimension
+        MADNESS_ASSERT(n==c.dim[0]);
+        std::vector< Function<resultT,NDIM> > vc(m);
 
-        for (int i=0; i<n; i++) vc[i] = Function<resultT,NDIM>(FunctionFactory<resultT,NDIM>(world));
+        for (int i=0; i<m; i++) vc[i] = Function<resultT,NDIM>(FunctionFactory<resultT,NDIM>(world));
         
-        compress(world,vc,false);
+        compress(world, vc, false);
         compress(world, v);
         
-        for (int i=0; i<n; i++) {
+        for (int i=0; i<m; i++) {
             for (int j=0; j<n; j++) {
                 vc[i].gaxpy(1.0,v[j],c(j,i),false);
             }
@@ -135,5 +177,33 @@ namespace madness {
         if (fence) world.gop.fence();
         return av;
     }
+
+
+    template <typename opT, typename R, int NDIM>
+    std::vector< Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> >
+    apply(World& world,
+          const std::vector< SharedPtr<opT> >& op, 
+          const std::vector< Function<R,NDIM> > f) {
+
+        MADNESS_ASSERT(f.size()==op.size());
+
+        std::vector< Function<R,NDIM> >& ncf = *const_cast< std::vector< Function<R,NDIM> >* >(&f);
+
+        reconstruct(world, f);
+        nonstandard(world, ncf);
+
+        std::vector< Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> > result(f.size());
+        for (unsigned int i=0; i<f.size(); i++) {
+            result[i] = apply_only(*op[i], f[i], false);
+        }
+
+        world.gop.fence();
+
+        standard(world, ncf, false);  // restores promise of logical constness
+	reconstruct(world, result);
+
+        return result;
+    }
+
 }
 #endif

@@ -21,7 +21,6 @@ namespace madness {
         typedef HASH_MAP_NAMESPACE::hash_map< unsigned long, SharedPtr<Q> > mapT;
         typedef std::pair< unsigned long, SharedPtr<Q> > pairT;
         mapT cache;
-        const typename mapT::const_iterator end;
         
         // Turns (n,lx) into key
         inline unsigned long key(Level n, long lx) const {
@@ -38,9 +37,9 @@ namespace madness {
         }
         
     public:
-        SimpleCache() : cache(), end(const_cast<const mapT*>(&cache)->end()) {};
+        SimpleCache() : cache() {};
         
-        SimpleCache(const SimpleCache& c) : cache(c.cache), end(const_cast<const mapT*>(&cache)->end()) {};
+        SimpleCache(const SimpleCache& c) : cache(c.cache) {};
         SimpleCache& operator=(const SimpleCache& c) {
             if (this != &c) {
                 cache.clear();
@@ -53,7 +52,7 @@ namespace madness {
         template <typename indexT>
         inline const Q* getptr(Level n,  const indexT& index) const {
             typename mapT::const_iterator test = cache.find(key(n,index));
-            if (test == end) return 0;
+            if (test == cache.end()) return 0;
             return test->second.get();
         }
         
@@ -669,6 +668,20 @@ namespace madness {
         Tensor<double> coeff, expnt;
         bsh_fit(mu, lo, hi, eps, &coeff, &expnt, false);
         return SeparatedConvolution<Q,NDIM>(world, k, coeff, expnt);
+    }
+
+    /// Factory function generating separated kernel for convolution with exp(-mu*r)/(4*pi*r)
+    template <typename Q, int NDIM>
+    SeparatedConvolution<Q,NDIM>* BSHOperatorPtr(World& world,
+                                                 double mu,
+                                                 long k,
+                                                 double lo,
+                                                 double eps) {
+        Tensor<double> cell_width(FunctionDefaults<NDIM>::cell(_,1)-FunctionDefaults<NDIM>::cell(_,0));
+        double hi = sqrt(double(NDIM))*cell_width.normf(); // Diagonal width of cell
+        Tensor<double> coeff, expnt;
+        bsh_fit(mu, lo, hi, eps, &coeff, &expnt, false);
+        return new SeparatedConvolution<Q,NDIM>(world, k, coeff, expnt);
     }
 
     namespace archive {
