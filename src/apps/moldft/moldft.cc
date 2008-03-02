@@ -37,10 +37,12 @@
 
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES  
 #include <mra/mra.h>
+#include <ctime>
 using namespace madness;
 
 #include <moldft/molecule.h>
 #include <moldft/molecularbasis.h>
+
 
 typedef Vector<double,3> coordT;
 typedef SharedPtr< FunctionFunctorInterface<double,3> > functorT;
@@ -95,240 +97,474 @@ public:
 };
 
 
-vector<functionT> project_ao_basis(World& world, const Molecule& molecule, const AtomicBasisSet& aobasis) {
-    vector<functionT> ao(aobasis.nbf(molecule));
-
-    for (int i=0; i<aobasis.nbf(molecule); i++) {
-        functorT aofunc(new AtomicBasisFunctor(aobasis.get_atomic_basis_function(molecule,i)));
-        ao[i] = factoryT(world).functor(aofunc).initial_level(3).nofence();
-    }
-    world.gop.fence();
-
-    vector<double> norms = norm2(world, ao);
-    if (world.rank() == 0) {
-        for (int i=0; i<aobasis.nbf(molecule); i++) {
-            if (world.rank() == 0) print(i,"ao.norm", norms[i]);
-            norms[i] = 1.0/norms[i];
-        }
-    }
-
-    scale(world, ao, norms);
-    
-    return ao;
-}
-
-
-Tensor<double> make_kinetic_energy_matrix(World& world, const vector<functionT>& v) {
-
-    reconstruct(world, v);
-
-    int n = v.size();
-    Tensor<double> r(n,n);
-    for (int axis=0; axis<3; axis++) {
-        vector<functionT> dv = diff(world,v,axis);
-        r += inner(world, dv, dv);
-
-        dv.clear(); world.gop.fence(); // Allow function memory to be freed
-    }
-    
-    return r.scale(0.5);
-}
-
-vector<functionT> apply_potential(World& world, const functionT& vnuc, const vector<functionT>& v) {
-    return mul(world, vnuc, v);
-}
-
-Tensor<double> make_potential_energy_matrix(World& world, const functionT& vnuc, const vector<functionT>& v) {
-    vector<functionT> Vpsi = apply_potential(world,vnuc,v);
-    compress(world,Vpsi,false);
-    compress(world,v);
-    Tensor<double> r = inner(world,v,Vpsi);
-
-    Vpsi.clear(); world.gop.fence(); // Allow function memory to be freed
-    return r;
-}
 
 struct CalculationParameters {
-    int nalpha;
-    int nbeta;
-    bool spin_restricted;
+    // !!! If you add more data don't forget to add them to serialize method.
+
+    // First list input parameters
+    double charge;              ///< Total molecular charge
+    double smear;               ///< Smearing parameter
+    double econv;               ///< Energy convergence
+    double dconv;               ///< Density convergence
+    double L;                   ///< User coordinates box size
+    double maxrotn;             ///< Step restriction used in autoshift algorithm
+    int nvalpha;                ///< Number of alpha virtuals to compute
+    int nvbeta;                 ///< Number of beta virtuals to compute
+    int nopen;                  ///< Number of unpaired electrons = napha-nbeta
+    bool spin_restricted;       ///< True if spin restricted
+    // Next list inferred parameters
+    int nalpha;                 ///< Number of alpha spin electrons
+    int nbeta;                  ///< Number of beta  spin electrons
+    int nmo_alpha;              ///< Number of alpha spin molecular orbitals
+    int nmo_beta;               ///< Number of beta  spin molecular orbitals
+    double lo;                  ///< Smallest length scale we need to resolve
+    
+    CalculationParameters()
+        : charge(0.0)
+        , smear(0.0)
+        , econv(1e-5)
+        , dconv(1e-4)
+        , L(0.0)
+        , maxrotn(0.25)
+        , nvalpha(1)
+        , nvbeta(1)
+        , nopen(0)
+        , spin_restricted(true)
+        , nalpha(0)
+        , nbeta(0)
+        , nmo_alpha(0)
+        , nmo_beta(0)
+        , lo(1e-10)
+    {}
 
     void read_file(const std::string& filename) {
         std::ifstream f(filename.c_str());
         position_stream(f, "dft");
-        f >> nalpha >> nbeta >> spin_restricted;
-    }
-
-    template <typename Archive>
-    void serialize(Archive& ar) {ar & nalpha & nbeta & spin_restricted;}
-};
-
-
-Tensor<double> make_fock_matrix(World& world, const functionT& vnuc, const vector<functionT>& mos) {
-    Tensor<double> kinetic = make_kinetic_energy_matrix(world, mos);
-    Tensor<double> potential = make_potential_energy_matrix(world, vnuc, mos);
-    return kinetic + potential;
-}
-
-vector<functionT> make_guess_orbitals(World& world, const Molecule& molecule, 
-                                      const AtomicBasisSet& aobasis, const CalculationParameters& param,
-                                      const functionT& vnuc, Tensor<double>& e)
-{
-    vector<functionT> ao = project_ao_basis(world, molecule, aobasis);
-    Tensor<double> overlap = inner(world,ao,ao);
-    Tensor<double> kinetic = make_kinetic_energy_matrix(world, ao);
-    Tensor<double> potential = make_potential_energy_matrix(world, vnuc, ao);
-    Tensor<double> fock = kinetic + potential;
-    Tensor<double> c;
-    sygv(fock, overlap, 1, &c, &e);
-    if (world.rank() == 0) {
-        print("THIS iS THE OVERLAP MATRIX");
-        print(overlap);
-        print("THIS iS THE KINETIC MATRIX");
-        print(kinetic);
-        print("THIS iS THE POTENTIAL MATRIX");
-        print(potential);
-        print("THESE ARE THE EIGENVECTORS");
-        print(c);
-        print("THESE ARE THE EIGENVALUES");
-        print(e);
-    }
-
-    int nmo = max(param.nalpha, param.nbeta);
-
-    ao = transform(world, ao, c(_,Slice(0,nmo-1)));
-
-    overlap = inner(world,ao,ao);
-    if (world.rank() == 0) {
-        print("NEW overlap matrix");
-        print(overlap);
-    }
-
-    e = e(Slice(0,nmo-1));
-
-    return ao;
-}
-    
-vector<poperatorT> make_bsh_operators(World& world, const Tensor<double>& evals, int k, double lo, double tol) {
-    int nmo = evals.dim[0];
-    vector<poperatorT> ops(nmo);
-    for (int i=0; i<nmo; i++) {
-        ops[i] = poperatorT(BSHOperatorPtr<double,3>(world, sqrt(-2.0*evals(i)), k, lo, tol));
-    }
-    return ops;
-}
-
-
-void normalize(World& world, vector<functionT>& v) {
-    vector<double> nn = norm2(world, v);
-    for (unsigned int i=0; i<v.size(); i++) v[i].scale(1.0/nn[i]);
-}
-
-void hf_solve(World& world, const Molecule& molecule, const AtomicBasisSet& aobasis, const CalculationParameters& param) {
-    const double lo = molecule.smallest_length_scale();
-    if (world.rank() == 0) print("smallest length scale", lo);
-
-    //operatorT coulombOP = CoulombOperator<double, NDIM>(world, FunctionDefaults<3>::k, smallest_lengthscale, 
-
-    double tol = FunctionDefaults<3>::thresh;
-    int k = FunctionDefaults<3>::k;
-    Tensor<double> evals;
-
-    START_TIMER;
-    functionT vnuc = factoryT(world).functor(functorT(new MolecularPotentialFunctor(molecule))).thresh(tol*0.1); 
-    END_TIMER("project potential");
-
-//     START_TIMER;
-//     functionT guess_density = factoryT(world).functor(functorT(new MolecularGuessDensityFunctor(molecule,aobasis))).thresh(tol); 
-//     END_TIMER("project potential");
-
-//     guess_density.compress();
-//     print("and the number of electrons is", guess_density.trace());
-//     guess_density.reconstruct();
-//     print("and the number of electrons is", guess_density.trace());
-
-    START_TIMER;
-    vector<functionT> mos = make_guess_orbitals(world, molecule, aobasis, param, vnuc, evals);
-    END_TIMER("Make guess mos");
-
-    int nmo = mos.size();
-
-    for (int iter=0; iter<10; iter++) {
-        START_TIMER;
-        vector<functionT> Vpsi = apply_potential(world,vnuc,mos);
-        END_TIMER("Apply potential");
-
-        truncate(world,Vpsi);
-
-        START_TIMER;
-        vector<poperatorT> ops = make_bsh_operators(world, evals, k, lo, tol);
-        vector<functionT> new_mo = apply(world, ops, Vpsi);
-        END_TIMER("Apply BSH operators");
-
-        truncate(world, new_mo);
-        for (int i=0; i<nmo; i++) mos.push_back(new_mo[i]);
-
-        ops.clear();
-        Vpsi.clear();
-        new_mo.clear();
-        world.gop.fence();
-
-        START_TIMER;
-        Tensor<double> overlap = inner(world,mos,mos);
-        Tensor<double> fock_matrix = make_fock_matrix(world, vnuc, mos);
-        END_TIMER("Make matrices");
-        
-        Tensor<double> c, e;
-        sygv(fock_matrix, overlap, 1, &c, &e); // In practice better to avoid this entirely!
-
-        START_TIMER;
-        mos = transform(world, mos, c(_,Slice(0,nmo-1)));
-        truncate(world, mos);
-        normalize(world, mos);
-        END_TIMER("Transform");
-        evals = e(Slice(0,nmo-1));
-
-        if (world.rank() == 0) {
-            print(iter,"EVALS");
-            print(evals);
+        string s;
+        while (f >> s) {
+            if (s == "end") {
+                break;
+            } else if (s == "charge") {
+                f >> charge;
+            } else if (s == "smear") {
+                f >> smear;
+            } else if (s == "econv") {
+                f >> econv;
+            } else if (s == "dconv") {
+                f >> dconv;
+            } else if (s == "L") {
+                f >> L;
+            } else if (s == "maxrotn") {
+                f >> maxrotn;
+            } else if (s == "nvalpha") {
+                f >> nvalpha;
+            } else if (s == "nvbeta") {
+                f >> nvbeta;
+            } else if (s == "nopen") {
+                f >> nopen;
+            } else if (s == "unrestricted") {
+                spin_restricted = false;
+            } else if (s == "restricted") {
+                spin_restricted = true;
+            } else {
+                std::cout << "moldft: unrecognized input keyword " << s << std::endl;
+                MADNESS_EXCEPTION("input error",0);
+            }
         }
     }
 
-//     START_TIMER;
-//     functionT psi = factoryT(world).f(guess);
-//     END_TIMER("project guess psi");
+    void set_molecular_info(const Molecule& molecule, const AtomicBasisSet& aobasis) {
+        double z = molecule.total_nuclear_charge();
+        int nelec = z - charge;
+        if (fabs(nelec+charge-z) > 1e-6) {
+            error("non-integer number of electrons?", nelec+charge-z);
+        }
+        nalpha = (nelec + nopen)/2;
+        nbeta  = (nelec - nopen)/2;
+        if (nalpha < 0) error("negative number of alpha electrons?", nalpha);
+        if (nbeta < 0) error("negative number of beta electrons?", nbeta);
+        if ((nalpha+nbeta) != nelec) error("nalpha+nbeta != nelec", nalpha+nbeta);
+        nmo_alpha = nalpha + nvalpha;
+        nmo_beta = nbeta + nvbeta;
+        if (nalpha != nbeta) spin_restricted = true;
 
-//     double orbital_energy = -0.5;
-//     for (int iter=0; iter<20; iter++) {
-//         START_TIMER;
-//         psi.truncate().scale(1.0/psi.norm2());
-//         END_TIMER("truncate psi");
-
-//         START_TIMER;
-//         functionT Vpsi = vnuc*psi;
-//         END_TIMER("V*psi");
-
-//         START_TIMER;
-//         Vpsi.truncate();
-//         END_TIMER("truncate Vpsi");
-
-//         operatorT op = BSHOperator<double,3>(world, sqrt(-2.0*orbital_energy), 
-//                                              FunctionDefaults<3>::k, 1e-2, FunctionDefaults<3>::thresh);
-
-//         START_TIMER;
-//         functionT psi_new = apply(op,Vpsi).scale(-2.0);
-//         END_TIMER("BSH operator * Vpsi");
-
-// //         const double* nflop = op.get_nflop();
-// //         for (int i=0; i<64; i++) print(i, nflop[i]);
-
-//         double deltanorm = (psi-psi_new).norm2();
-//         double newnorm = psi_new.norm2();
-//         if (world.rank() == 0) print(iter,"delta norm =",deltanorm, "     new norm =",newnorm);
-//         psi = psi_new;
-//     }
+        // Ensure we have enough basis functions to guess the requested
+        // number of states ... a minimal basis for a closed-shell atom
+        // might not have any functions for virtuals.
+        int nbf = aobasis.nbf(molecule);
+        nmo_alpha = min(nbf,nmo_alpha);  
+        nmo_beta = min(nbf,nmo_beta);  
+        if (nalpha>nbf || nbeta>nbf) error("too few basis functions?", nbf);
         
-}
+        // Unless overridden by the user use a cell big enough to
+        // have exp(-sqrt(2*I)*r) decay to 1e-6 with I=1ev=0.037Eh
+        // --> need 50 a.u. either side of the molecule
+        
+        if (L == 0.0) {
+            L = molecule.bounding_cube() + 50.0;
+        }
+
+        lo = molecule.smallest_length_scale();
+    }
+    
+    void print(World& world) const {
+        time_t t = time((time_t *) 0);
+        char *tmp = ctime(&t);
+        tmp[strlen(tmp)-1] = 0; // lose the trailing newline
+        madness::print(" date of calculation ", tmp);
+        madness::print(" number of processes ", world.size());
+        madness::print("        total charge ", charge);
+        madness::print("            smearing ", smear);
+        madness::print(" number of electrons ", nalpha, nbeta);
+        madness::print("  number of orbitals ", nmo_alpha, nmo_beta);
+        madness::print("     spin restricted ", spin_restricted);
+        madness::print("  energy convergence ", econv);
+        madness::print(" density convergence ", dconv);
+        madness::print("    maximum rotation ", maxrotn);
+    }
+    
+    template <typename Archive>
+    void serialize(Archive& ar) {
+        ar & charge & smear & econv & dconv & L & nvalpha & nvbeta & nopen & spin_restricted;
+        ar & nalpha & nbeta & nmo_alpha & nmo_beta;
+    }
+};
+
+struct Calculation {
+    Molecule molecule;            ///< Molecular coordinates, etc.
+    CalculationParameters param;  ///< User input data, nalpha, etc.
+    AtomicBasisSet aobasis;       ///< Currently always the STO-3G basis
+    functionT vnuc;               ///< The effective nuclear potential
+    vector<functionT> amo, bmo;   ///< alpha and beta molecular orbitals
+    Tensor<double> aocc, bocc;    ///< alpha and beta occupation numbers
+    Tensor<double> aeps, beps;    ///< alpha and beta BSH shifts (eigenvalues if canonical)
+    poperatorT coulop;            ///< Coulomb Green function
+    double vtol;                  ///< Tolerance used for potentials and density
+
+    Calculation(World& world, const char* filename) {
+        if (world.rank() == 0) {
+            molecule.read_file(filename);
+            param.read_file(filename);
+            aobasis.read_file("sto-3g");
+            molecule.center();
+            param.set_molecular_info(molecule,aobasis);
+        }
+            
+        world.gop.broadcast_serializable(molecule, 0);
+        world.gop.broadcast_serializable(param, 0);
+        world.gop.broadcast_serializable(aobasis, 0);
+
+        for (int i=0; i<3; i++) {
+            FunctionDefaults<3>::cell(i,0) = -param.L;
+            FunctionDefaults<3>::cell(i,1) =  param.L;
+        }
+        
+        // Setup initial defaults for numerical functions
+        FunctionDefaults<3>::k = 6;
+        FunctionDefaults<3>::thresh = 1e-4;
+        FunctionDefaults<3>::refine = true;
+        FunctionDefaults<3>::initial_level = 2;
+        FunctionDefaults<3>::truncate_mode = 1;  
+
+        double safety = 0.1;
+        vtol = FunctionDefaults<3>::thresh*safety;
+
+        coulop = poperatorT(CoulombOperatorPtr<double, 3>(world, 
+                                                          FunctionDefaults<3>::k, 
+                                                          param.lo, 
+                                                          vtol));
+    }
+
+    void make_nuclear_potential(World& world) {
+        START_TIMER;
+        vnuc = factoryT(world).functor(functorT(new MolecularPotentialFunctor(molecule))).thresh(vtol); 
+        vnuc.truncate();
+        vnuc.reconstruct();
+        END_TIMER("project nuclear potential");
+    }
+
+    vector<functionT> project_ao_basis(World& world) {
+        vector<functionT> ao(aobasis.nbf(molecule));
+
+        for (int i=0; i<aobasis.nbf(molecule); i++) {
+            functorT aofunc(new AtomicBasisFunctor(aobasis.get_atomic_basis_function(molecule,i)));
+            ao[i] = factoryT(world).functor(aofunc).initial_level(3).nofence();
+        }
+        world.gop.fence();
+
+        vector<double> norms = norm2(world, ao);
+        if (world.rank() == 0) {
+            for (int i=0; i<aobasis.nbf(molecule); i++) {
+                if (world.rank() == 0) print(i,"ao.norm", norms[i]);
+                norms[i] = 1.0/norms[i];
+            }
+        }
+
+        scale(world, ao, norms);
+        
+        return ao;
+    }
+
+    Tensor<double> kinetic_energy_matrix(World& world, const vector<functionT>& v) {
+        reconstruct(world, v);
+        int n = v.size();
+        Tensor<double> r(n,n);
+        for (int axis=0; axis<3; axis++) {
+            vector<functionT> dv = diff(world,v,axis);
+            r += inner(world, dv, dv);
+            dv.clear(); world.gop.fence(); // Allow function memory to be freed
+        }
+        
+        return r.scale(0.5);
+    }
+
+    
+    /// Initializes alpha and beta mos, occupation numbers, eigenvalues
+    void initial_guess(World& world) {
+        vector<functionT> ao   = project_ao_basis(world);
+        Tensor<double> overlap = inner(world,ao,ao);
+        Tensor<double> kinetic = kinetic_energy_matrix(world, ao);
+
+        vector<functionT> vpsi = mul(world, vnuc, ao);
+
+        Tensor<double> potential = inner(world, vpsi, ao); 
+        vpsi.clear(); 
+
+        Tensor<double> fock = kinetic + potential;
+        fock = 0.5*(fock + transpose(fock));
+
+        Tensor<double> c,e;
+        sygv(fock, overlap, 1, &c, &e);
+
+        if (world.rank() == 0) {
+            print("THIS iS THE OVERLAP MATRIX");
+            print(overlap);
+            print("THIS iS THE KINETIC MATRIX");
+            print(kinetic);
+            print("THIS iS THE POTENTIAL MATRIX");
+            print(potential);
+            print("THESE ARE THE EIGENVECTORS");
+            print(c);
+            print("THESE ARE THE EIGENVALUES");
+            print(e);
+        }
+
+        amo = transform(world, ao, c(_,Slice(0,param.nmo_alpha-1)));
+        truncate(world, amo);
+        normalize(world, amo);
+
+        print("this is the new overlap");
+        print(inner(world,amo,amo));
+
+        aeps = e(Slice(0,param.nmo_alpha-1))*0.5; // 0.5 from using bare core Hamiltonian
+        aocc = Tensor<double>(param.nalpha);
+        for (int i=0; i<param.nalpha; i++) aocc[i] = 1.0;
+
+        if (!param.spin_restricted) {
+            bmo = transform(world, ao, c(_,Slice(0,param.nmo_beta-1)));
+            truncate(world, bmo);
+            normalize(world, bmo);
+            beps = e(Slice(0,param.nmo_beta-1));
+            bocc = Tensor<double>(param.nbeta);
+            for (int i=0; i<param.nbeta; i++) bocc[i] = 1.0;
+        }
+    }
+
+    functionT make_density(World& world, const Tensor<double>& occ, const vector<functionT>& v) {
+        vector<functionT> vsq = square(world, v);
+        compress(world,vsq);
+        functionT rho = factoryT(world).thresh(vtol);
+        rho.compress();
+        for (unsigned int i=0; i<vsq.size(); i++) {
+            rho.gaxpy(1.0,vsq[i],occ[i],false);
+        }
+        world.gop.fence();
+        vsq.clear();
+        world.gop.fence();
+        return rho;
+    }
+
+    vector<poperatorT> make_bsh_operators(World& world, const Tensor<double>& evals) {
+        int nmo = evals.dim[0];
+        vector<poperatorT> ops(nmo);
+        int k = FunctionDefaults<3>::k;
+        double tol = FunctionDefaults<3>::thresh;
+        for (int i=0; i<nmo; i++) {
+            double eps = evals(i);
+            if (eps > 0) eps = -0.05;
+            ops[i] = poperatorT(BSHOperatorPtr<double,3>(world, sqrt(-2.0*eps), k, param.lo, tol));
+        }
+        return ops;
+    }
+
+    vector<functionT> apply_hf_exchange(World& world, 
+                                        const Tensor<double>& occ,
+                                        const vector<functionT>& psi,
+                                        const vector<functionT>& f) {
+        int nocc = psi.size();
+        int nf = f.size();
+
+        // Problem here is balancing memory usage vs. parallel efficiency.
+        // Once we start using localized orbitals both the occupied
+        // and target functions will have limited support and hence
+        // simply parallelizing either the loop over f or over occupied
+        // will not generate real concurrency ... need to parallelize
+        // them both.  
+        //
+        // For now just parallelize one loop but will need more
+        // intelligence soon.
+
+        vector<functionT> Kf = zero_functions<double,3>(world, nf);
+
+        compress(world,Kf);
+        reconstruct(world,psi);
+        for (int i=0; i<nocc; i++) {
+            if (occ[i] > 0.0) {
+                vector<functionT> psif = mul(world, psi[i], f);
+                set_thresh(world, psif, vtol);  //<<<<<<<<<<<<<<<<<<<<<<<<< since cannot yet put in apply
+
+                truncate(world,psif);
+                psif = apply(world, *coulop, psif);
+                truncate(world, psif);
+
+                psif = mul(world, psi[i], psif);
+
+                gaxpy(world, 1.0, Kf, occ[i], psif);
+            }
+        }
+        truncate(world, Kf, vtol);
+        return Kf;
+    }
+        
+
+    void update(World& world, 
+                const functionT& vlocal, 
+                Tensor<double>& occ, 
+                Tensor<double>& eps,
+                vector<functionT>& psi) 
+    {
+        int nmo = psi.size();
+        vector<functionT> Vpsi = mul(world, vlocal, psi);
+        vector<functionT> Kpsi = apply_hf_exchange(world, occ, psi, psi);
+        gaxpy(world, 1.0, Vpsi, -1.0, Kpsi);
+        Kpsi.clear();
+        Vpsi[0].scale(-2.0);
+        truncate(world,Vpsi);
+        vector<poperatorT> ops = make_bsh_operators(world, eps);
+
+        set_thresh(world, Vpsi, FunctionDefaults<3>::thresh);  //<<<<< Since cannot set in apply
+        vector<functionT> new_psi = apply(world, ops, Vpsi);
+
+        ops.clear();
+        truncate(world, new_psi);
+        Vpsi[0].scale(-0.5);
+
+        // Approx orthog of new to old (so can level shift and increase sparsity)
+        compress(world, psi);
+        compress(world, new_psi);
+        Tensor<double> oldnew = inner(world, psi, new_psi);
+        for (int i=0; i<nmo; i++) {
+            for (int j=0; j<nmo; j++) {
+                new_psi[i].gaxpy(1.0,psi[j],-oldnew(j,i), false);
+            }
+        }
+        world.gop.fence();
+        truncate(world,new_psi);
+
+        vector<functionT> Vnew_psi = mul(world, vlocal, new_psi);
+        Kpsi = apply_hf_exchange(world, occ, psi, new_psi);
+        gaxpy(world, 1.0, Vnew_psi, -1.0, Kpsi);
+        Kpsi.clear();
+
+        for (int i=0; i<nmo; i++) {
+            psi.push_back(new_psi[i]);
+            Vpsi.push_back(Vnew_psi[i]);
+        }
+        new_psi.clear();
+        Vnew_psi.clear();
+
+        Tensor<double> potential = inner(world, Vpsi, psi);
+        Vpsi.clear();
+        world.gop.fence(); // Frees the memory
+
+        Tensor<double> overlap = inner(world, psi, psi);
+        if (world.rank() == 0) {print("overlap"); print(overlap);}
+
+        Tensor<double> fock = potential + kinetic_energy_matrix(world, psi);
+        fock = (fock + transpose(fock))*0.5;
+        if (world.rank() == 0) {print("fock"); print(fock);}
+
+        // Examine Fock matrix elements to assess convergence
+        double maxocc = -1e300;
+        double minvirt = 1e300;
+        double maxoffd = 0.0;
+        for (int i=0; i<nmo; i++) {
+            for (int j=0; j<nmo; j++) {
+                maxoffd = max(maxoffd, fabs(fock(i,j+nmo)/sqrt(overlap(i,i)*overlap(j+nmo,j+nmo))));
+            }
+        }
+        for (int i=0; i<2*nmo; i++) {
+            if (i<nmo && occ(i)>0.0) maxocc = max(maxocc,fock(i,i));
+            else minvirt = min(minvirt,fock(i,i)/overlap(i,i));
+        }
+        for (int i=0; i<2*nmo; i++) {
+            if (occ(i) > 0.0) maxocc = max(maxocc,fock(i,i));
+            else minvirt = min(minvirt,fock(i,i));
+        }
+        double mingap = minvirt - maxocc;
+
+        // Determine automatic level shift by constraining the largest
+        // Jacobi rotation mixing occupied and virtual.  The
+        // denominator must be positive and we want the overall
+        // rotation maxoffd/(mingap+autoshift) to be less than
+        // maxrotn=0.25=sin(15 degrees).  Thus, ...
+        double autoshift = max(0.0, maxoffd/param.maxrotn - mingap);
+        if (world.rank() == 0) {
+            print("Max. gradient", maxoffd);
+            print("     Min. gap", mingap);
+            print("    Autoshift", autoshift);
+        }            
+                              
+        for (int i=0; i<nmo; i++) fock(i,i) -= autoshift;//param.lshift; // Apply level shift
+        Tensor<double> c, e;
+        sygv(fock, overlap, 1, &c, &e);
+        for (int i=0; i<nmo; i++) e(i) += autoshift;//param.lshift; // Undo level shift
+
+        psi = transform(world, psi, c(_,Slice(0,nmo-1)));
+        truncate(world, psi);
+        normalize(world, psi);
+        eps = e(Slice(0,nmo-1));
+
+        print("PSI thresh at end of iter", psi[0].thresh());
+        // NEED TO UPDATE OCC HERE IF SMEARING <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+    }
+
+    void solve(World& world) {
+        for (int iter=0; iter<30; iter++) {
+            //aeps[0] = -4.732;
+            //aeps[1] = -0.309;
+            functionT arho = make_density(world, aocc, amo);
+            functionT brho = param.spin_restricted ? arho : make_density(world, bocc, bmo);
+            functionT vlocal = vnuc + apply(*coulop, arho+brho);
+            vlocal.truncate();
+            // For DFT add into vlocal the exchange-correlation potentials
+
+            // Could do a lot of the alpha and beta work in parallel
+            // if we need more parallelism ... however it will double
+            // the memory too!
+
+            update(world, vlocal, aocc, aeps, amo);
+            if (!param.spin_restricted) update(world, vlocal, bocc, beps, bmo);
+
+            if (world.rank() == 0) {
+                print(iter,"alpha evals");
+                print(aeps);
+            }
+        }
+    }
+};
+
+
 
 int main(int argc, char** argv) {
     MPI::Init(argc, argv);
@@ -338,52 +574,25 @@ int main(int argc, char** argv) {
         // Load info for MADNESS numerical routines
         startup(world,argc,argv);
         
-        // Process 0 reads the molecule information and broadcasts
-        Molecule molecule;
-        CalculationParameters param;
-        if (world.rank() == 0) {
-            molecule.read_file("input");
-            param.read_file("input");
-        }
-            
-        world.gop.broadcast_serializable(molecule, 0);
-        world.gop.broadcast_serializable(param, 0);
-        
-        // Process 0 reads the LCAO guess information and broadcasts
-        AtomicBasisSet aobasis;
-        if (world.rank() == 0) aobasis.read_file("sto-3g");
-        world.gop.broadcast_serializable(aobasis, 0);
-
-        // Use a cell big enough to have exp(-sqrt(2*I)*r) decay to
-        // 1e-6 with I=1ev=0.037Eh --> need 50 a.u. either side of the molecule
-        double L = molecule.bounding_cube();
-        L += 50.0;
-        for (int i=0; i<3; i++) {
-            FunctionDefaults<3>::cell(i,0) = -L;
-            FunctionDefaults<3>::cell(i,1) =  L;
-        }
-        
-        // Setup initial defaults for numerical functions
-        FunctionDefaults<3>::k = 6;
-        FunctionDefaults<3>::thresh = 1e-4;
-        FunctionDefaults<3>::refine = true;
-        FunctionDefaults<3>::initial_level = 2;
-        FunctionDefaults<3>::truncate_mode = 1;  
+        // Process 0 reads input information and broadcasts
+        Calculation calc(world, "input");
         
         // Warm and fuzzy for the user
         if (world.rank() == 0) {
             print("\n\n");
-            print(" MADNESS example Hartree-Fock program");
-            print(" ------------------------------------\n");
-            molecule.print();
+            print(" MADNESS Hartree-Fock and Density Functional Theory Program");
+            print(" ----------------------------------------------------------\n");
             print("\n");
-            print("            box size ", L);
-            print(" number of processes ", world.size());
-            print(" number of electrons ", param.nalpha, param.nbeta);
-            print("     spin restricted ", param.spin_restricted);
+            calc.molecule.print();
+            print("\n");
+            calc.param.print(world);
         }
+
+        // Make the nuclear potential, initial orbitals, etc.
+        calc.make_nuclear_potential(world);
+        calc.initial_guess(world);
         
-        hf_solve(world, molecule, aobasis, param);
+        calc.solve(world);
 
         world.gop.fence();
 

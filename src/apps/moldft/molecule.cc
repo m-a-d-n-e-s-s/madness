@@ -41,12 +41,6 @@
 
 static const double PI = 3.1415926535897932384;
 
-static std::string lowercase(const std::string& s) {
-    std::string r(s);
-    for (unsigned int i=0; i<r.size(); i++) r[i] = tolower(r[i]);
-    return r;
-}
-
 static inline double distance(double x1, double y1, double z1, double x2, double y2, double z2) {
     double xx = x1-x2;
     double yy = y1-y2;
@@ -181,7 +175,7 @@ const AtomicData& get_atomic_data(unsigned int atomic_number) {
 
     
 unsigned int symbol_to_atomic_number(const std::string& symbol) {
-    std::string tlow = lowercase(symbol);
+    std::string tlow = madness::lowercase(symbol);
     for (unsigned int i=0; i<NUMBER_OF_ATOMS_IN_TABLE; i++) {
         if (tlow.compare(atomic_data[i].symbol_lowercase) == 0) return i;
     }
@@ -317,14 +311,14 @@ const Atom& Molecule::get_atom(unsigned int i) const {
     
 void Molecule::print() const {
     std::cout.flush();
-    printf("geometry\n");
+    printf(" geometry\n");
     for (int i=0; i<natom(); i++) {
-        printf("  %-2s  %20.8f %20.8f %20.8f", atomic_data[atoms[i].atomic_number].symbol, 
+        printf("   %-2s  %20.8f %20.8f %20.8f", atomic_data[atoms[i].atomic_number].symbol, 
                atoms[i].x, atoms[i].y, atoms[i].z);
         if (atoms[i].atomic_number == 0) printf("     %20.8f", atoms[i].q);
         printf("\n");
     }
-    printf("end\n");
+    printf(" end\n");
 }
 
 double Molecule::inter_atomic_distance(unsigned int i,unsigned int j) const {

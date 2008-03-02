@@ -1,7 +1,9 @@
 dft
-  5 4 1
+  maxrotn 0.1
+  nvalpha 0
+  nvbeta 0
 end
 
 geometry
-  F 0 0 0
+  Be 0 0 0
 end
