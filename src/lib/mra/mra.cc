@@ -517,15 +517,23 @@ namespace madness {
 
     template <typename T, int NDIM>
     void FunctionImpl<T,NDIM>::insert_zero_down_to_initial_level(const keyT& key) {
+        if (compressed) initial_level = std::max(initial_level,1); // Otherwise zero function is confused
         if (coeffs.is_local(key)) {
             if (compressed) {
-                coeffs.insert(key, nodeT(tensorT(cdata.v2k), key.level()<initial_level));
-            }
-            else if (key.level()<initial_level) {
-                coeffs.insert(key, nodeT(tensorT(), true));
+                if (key.level() == initial_level) {
+                    coeffs.insert(key, nodeT(tensorT(), false));
+                }
+                else {
+                    coeffs.insert(key, nodeT(tensorT(cdata.v2k), true));
+                }
             }
             else {
-                coeffs.insert(key, nodeT(tensorT(cdata.vk), false));
+                if (key.level()<initial_level) {
+                    coeffs.insert(key, nodeT(tensorT(), true));
+                }
+                else {
+                    coeffs.insert(key, nodeT(tensorT(cdata.vk), false));
+                }
             }
         }
         if (key.level() < initial_level) {
@@ -560,7 +568,7 @@ namespace madness {
         // If any child has coefficients, a parent cannot truncate
         for (int i=0; i<(1<<NDIM); i++) if (v[i].get()) return true;
         nodeT& node = coeffs.find(key).get()->second;
-        if (key.level() > 0) {
+        if (key.level() > 1) { // >1 rather >0 otherwise reconstruct might get confused
             double dnorm = node.coeff().normf();
             if (dnorm < truncate_tol(tol,key)) {
                 node.clear_coeff();

@@ -656,6 +656,24 @@ namespace madness {
         return SeparatedConvolution<Q,NDIM>(world, k, coeff, expnt);
     }
 
+    /// Factory function generating separated kernel for convolution with 1/r.
+    template <typename Q, int NDIM>
+    SeparatedConvolution<Q,NDIM>* CoulombOperatorPtr(World& world,
+                                                     long k,
+                                                     double lo,
+                                                     double eps) {
+        Tensor<double> cell_width(FunctionDefaults<NDIM>::cell(_,1)-FunctionDefaults<NDIM>::cell(_,0));
+        double hi = sqrt(double(NDIM))*cell_width.normf(); // Diagonal width of cell
+        const double pi = 3.14159265358979323846264338328;
+        
+        // bsh_fit generates representation for 1/4Pir but we want 1/r
+        // so have to scale eps by 1/4Pi
+        Tensor<double> coeff, expnt;
+        bsh_fit(0.0, lo, hi, eps/(4.0*pi), &coeff, &expnt, false);
+        coeff.scale(4.0*pi);
+        return new SeparatedConvolution<Q,NDIM>(world, k, coeff, expnt);
+    }
+
     /// Factory function generating separated kernel for convolution with exp(-mu*r)/(4*pi*r)
     template <typename Q, int NDIM>
     SeparatedConvolution<Q,NDIM> BSHOperator(World& world,

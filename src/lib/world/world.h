@@ -160,7 +160,13 @@ namespace madness {
     };
 
     static void error(const char *msg) {
-        fprintf(stderr,"fatal error: %s\n",msg);
+        std::cerr << "MADNESS: fatal error: " << msg << std::endl;
+        MPI_Abort(MPI_COMM_WORLD,1);
+    }
+    
+    template <typename T>
+    static void error(const char *msg, const T& data) {
+        std::cerr << "MADNESS: fatal error: " << msg << " " << data << std::endl;
         MPI_Abort(MPI_COMM_WORLD,1);
     }
     

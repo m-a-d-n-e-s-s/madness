@@ -69,15 +69,86 @@ namespace madness {
 
     template <typename T, int NDIM>
     Function<T,NDIM> square(const Function<T,NDIM>& f, bool fence = true);
+    
+    template <typename T, int NDIM>
+    Function<T,NDIM> 
+    diff(const Function<T,NDIM>& f, int axis, bool fence=true);
+    
+    template <typename T, int NDIM>
+    Function<T,NDIM> 
+    project(const Function<T,NDIM>& other, 
+            int k=FunctionDefaults<NDIM>::k, 
+            double thresh=FunctionDefaults<NDIM>::thresh,
+            bool fence=true);
 
     template <typename T, int NDIM>
     class Function {
 
-        template <typename L, typename R>
+        template <typename L, typename R, int D>
         friend
-        Function<T,NDIM> mul(const Function<L,NDIM>& left, const Function<R,NDIM>& right);
+        Function<TENSOR_RESULT_TYPE(L,R),D> 
+        madness::mul(const Function<L,D>& left, const Function<R,D>& right, bool fence=true);
+
+        template <typename Q, typename R, int D>
+        friend
+        Function<TENSOR_RESULT_TYPE(Q,R),D> 
+        madness::mul(const Q alpha, const Function<R,D>& f, bool fence=true);
+
+        template <typename L, typename R, int D>
+        friend
+        Function<T,D>& madness::mul_sparse(const Function<L,D>& left, const Function<R,D>& right, double tol, bool fence=true);
+
+        template <typename Q, typename R, int D>
+        friend
+        Function<TENSOR_RESULT_TYPE(Q,R),D> 
+        madness::operator*(const Function<R,D>& f, const Q alpha);
+
+        template <typename Q, typename R, int D>
+        friend
+        Function<TENSOR_RESULT_TYPE(Q,R),D> 
+        madness::operator*(const Q alpha, const Function<R,D>& f);
+
+        template <typename L, typename R, int D>
+        friend
+        Function<TENSOR_RESULT_TYPE(L,R),D> 
+        madness::gaxpy_oop(TENSOR_RESULT_TYPE(L,R) alpha, const Function<L,D>& left, 
+                           TENSOR_RESULT_TYPE(L,R) beta,  const Function<R,D>& right, bool fence=true);
+
+        template <typename L, typename R, int D>
+        friend
+        Function<TENSOR_RESULT_TYPE(L,R),D> 
+        madness::add(const Function<L,D>& left, const Function<R,D>& right, bool fence=true);
+
+        template <typename L, typename R, int D>
+        friend
+        Function<TENSOR_RESULT_TYPE(L,R),D> 
+        madness::sub(const Function<L,D>& left, const Function<R,D>& right, bool fence=true);
+
+        template <typename L, typename R, int D>
+        friend
+        Function<TENSOR_RESULT_TYPE(L,R), D>
+        madness::operator+(const Function<L,D>& left, const Function<R,D>& right);
+
+        template <typename L, typename R, int D>
+        friend
+        Function<TENSOR_RESULT_TYPE(L,R), D>
+        madness::operator-(const Function<L,D>& left, const Function<R,D>& right);
+
+        template <typename opT, typename R, int D>
+        friend
+        Function<TENSOR_RESULT_TYPE(typename opT::opT,R), D> 
+        madness::apply_only(const opT& op, const Function<R,D>& f, bool fence=true);
+
+        template <typename opT, typename R, int D>
+        friend
+        Function<TENSOR_RESULT_TYPE(typename opT::opT,R), D> 
+        madness::apply(const opT& op, const Function<R,D>& f, bool fence=true);
 
         friend Function<T,NDIM> square<T,NDIM>(const Function<T,NDIM>&, bool);
+
+        friend Function<T,NDIM> project<T,NDIM>(const Function<T,NDIM>&, int, double, bool);
+
+        friend Function<T,NDIM> diff<T,NDIM>(const Function<T,NDIM>& f, int axis, bool fence);
 
     private:
         SharedPtr< FunctionImpl<T,NDIM> > impl;
@@ -287,6 +358,7 @@ namespace madness {
             verify();
             if (!is_compressed()) compress();
             impl->truncate(tol,fence);
+            if (VERIFY_TREE) verify_tree();
             return *this;
         }
 
@@ -328,6 +400,7 @@ namespace madness {
         /// See comments for err() w.r.t. applying to many functions.
         double norm2() const {
             verify();
+            if (VERIFY_TREE) verify_tree();
             double local = impl->norm2sq_local();
 
             impl->world.gop.sum(local);
@@ -339,6 +412,7 @@ namespace madness {
         /// Initializes information about the function norm at all length scales
         void norm_tree(bool fence = true) {
             verify();
+            if (VERIFY_TREE) verify_tree();
             if (is_compressed()) reconstruct();
             impl->norm_tree(fence);
         }
@@ -357,6 +431,7 @@ namespace madness {
         /// as const ... "logical constness" not "bitwise constness".
         void compress(bool fence = true) const {
             if (!impl || is_compressed()) return;
+            if (VERIFY_TREE) verify_tree();
             const_cast<Function<T,NDIM>*>(this)->impl->compress(false, fence);
         }
         
@@ -371,6 +446,7 @@ namespace madness {
         /// Noop if already compressed or if not initialized.
         void nonstandard(bool fence = true) {
             verify();
+            if (VERIFY_TREE) verify_tree();
             if (is_compressed()) reconstruct();
             impl->compress(true, fence);
         }
@@ -378,6 +454,7 @@ namespace madness {
 
         void standard(bool fence = true) {
             verify();
+            if (VERIFY_TREE) verify_tree();
             MADNESS_ASSERT(is_compressed());
             impl->standard(fence);
         }
@@ -396,6 +473,7 @@ namespace madness {
         /// as const ... "logical constness" not "bitwise constness".
         void reconstruct(bool fence = true) const {
             if (!impl || !is_compressed()) return;
+            if (VERIFY_TREE) verify_tree();
             const_cast<Function<T,NDIM>*>(this)->impl->reconstruct(fence);
         }
 
@@ -458,8 +536,9 @@ namespace madness {
 	Function<T,NDIM> copy(const SharedPtr< WorldDCPmapInterface< Key<NDIM> > >& pmap, bool fence = true) const {
             verify();
 	    Function<T,NDIM> result;
-	    result.impl = SharedPtr<implT>(new implT(*impl, pmap));
+	    result.impl = SharedPtr<implT>(new implT(*impl, pmap, false));
 	    result.impl->copy_coeffs(*impl, fence);
+            if (VERIFY_TREE) result.verify_tree();
 	    return result;
 	}
 
@@ -470,6 +549,7 @@ namespace madness {
         template <typename Q>
         Function<T,NDIM>& scale(const Q q, bool fence=true) {
             verify();
+            if (VERIFY_TREE) verify_tree();
             impl->scale_inplace(q,fence);
             return *this;
         }
@@ -477,6 +557,7 @@ namespace madness {
         /// Inplace add scalar.  No communication except for optional fence.
         Function<T,NDIM>& add_scalar(T t, bool fence=true) {
             verify();
+            if (VERIFY_TREE) verify_tree();
             impl->add_scalar_inplace(t,fence);
             return *this;
         }
@@ -555,6 +636,7 @@ namespace madness {
         /// must add up contributions from each box.
         T trace_local() const {
             if (!impl) return 0.0;
+            if (VERIFY_TREE) verify_tree();
             return impl->trace_local();
         }
 
@@ -567,91 +649,14 @@ namespace madness {
             return sum;
         }
 
-        /// This is replaced with left*right ... should be private
-        template <typename L, typename R>
-        Function<T,NDIM>& mul(const Function<L,NDIM>& left, const Function<R,NDIM>& right, bool fence) {
-            left.verify();
-            right.verify();
-            MADNESS_ASSERT(!(left.is_compressed() || right.is_compressed()));
-            if (VERIFY_TREE) left.verify_tree();
-            if (VERIFY_TREE) right.verify_tree();
-            impl = SharedPtr<implT>(new implT(*left.impl, left.get_pmap()));
-            impl->mul(*left.impl,*right.impl,fence);
-            return *this;
-        }
-
-        /// This is replaced with left*right using sparsity ... should be private
-        template <typename L, typename R>
-        Function<T,NDIM>& mul_sparse(const Function<L,NDIM>& left, const Function<R,NDIM>& right, double tol, bool fence) {
-            left.verify();
-            right.verify();
-            MADNESS_ASSERT(!(left.is_compressed() || right.is_compressed()));
-            if (VERIFY_TREE) left.verify_tree();
-            if (VERIFY_TREE) right.verify_tree();
-            impl = SharedPtr<implT>(new implT(*left.impl, left.get_pmap()));
-            impl->mul_sparse(*left.impl,*right.impl,tol,fence);
-            return *this;
-        }
-
-        /// This is replaced with alpha*left + beta*right ... should be private
-        template <typename L, typename R>
-        Function<T,NDIM>& gaxpy_oop(T alpha, const Function<L,NDIM>& left, 
-                                    T beta,  const Function<R,NDIM>& right, bool fence) {
-            left.verify();
-            right.verify();
-            MADNESS_ASSERT(left.is_compressed() && right.is_compressed());
-            if (VERIFY_TREE) left.verify_tree();
-            if (VERIFY_TREE) right.verify_tree();
-            impl = SharedPtr<implT>(new implT(*left.impl, left.get_pmap()));
-            impl->gaxpy(alpha,*left.impl,beta,*right.impl,fence);
-            return *this;
-        }
-
-        /// This is replaced with alpha*f ... should be private
-        template <typename Q, typename L>
-        Function<T,NDIM>& scale_oop(const Q alpha, const Function<L,NDIM>& f, bool fence) { 
-            f.verify();
-            if (VERIFY_TREE) f.verify_tree();
-            impl = SharedPtr<implT>(new implT(*f.impl, f.get_pmap()));
-            impl->scale_oop(alpha,*f.impl,fence);
-            return *this;
-        }
-
-        /// This is replaced with df/dx ... should be private.
-        Function<T,NDIM>& diff(const Function<T,NDIM>& f, int axis, bool fence) { 
-            f.verify();
-            if (VERIFY_TREE) f.verify_tree();
-            impl = SharedPtr<implT>(new implT(*f.impl, f.get_pmap()));
-            impl->diff(*f.impl,axis,fence);
-            return *this;
-        }
-
-        /// This is replaced with op(f) ... should be private.
-        template <typename opT, typename R>
-        Function<T,NDIM>& apply(opT& op, const Function<R,NDIM>& f, bool fence) {
-            f.verify();
-            if (VERIFY_TREE) f.verify_tree();
-            impl = SharedPtr<implT>(new implT(*f.impl, f.get_pmap()));
-            impl->apply(op, *f.impl, fence);
-            return *this;
-        }
-
-        /// This is replaced with mapdim(f) ... should be private
-        Function<T,NDIM>& mapdim(const Function<T,NDIM>& f, const std::vector<long>& map, bool fence) { 
-            f.verify();
-            if (VERIFY_TREE) f.verify_tree();
-            for (int i=0; i<NDIM; i++) MADNESS_ASSERT(map[i]>=0 && map[i]<NDIM);
-            impl = SharedPtr<implT>(new implT(*f.impl, f.get_pmap()));
-            impl->mapdim(*f.impl,map,fence);
-            return *this;
-        }
-
 
         /// Returns local part of inner product ... throws if both not compressed
 	template <typename R>
         TENSOR_RESULT_TYPE(T,R) inner_local(const Function<R,NDIM>& g) const {
             MADNESS_ASSERT(is_compressed());
             MADNESS_ASSERT(g.is_compressed());
+            if (VERIFY_TREE) verify_tree();
+            if (VERIFY_TREE) g.verify_tree();
             return impl->inner_local(*(g.impl));
 	}
 
@@ -663,11 +668,100 @@ namespace madness {
 	  TENSOR_RESULT_TYPE(T,R) inner(const Function<R,NDIM>& g) const {
 	  if (!is_compressed()) compress();
 	  if (!g.is_compressed()) g.compress();
+          if (VERIFY_TREE) verify_tree();
+          if (VERIFY_TREE) g.verify_tree();
 
 	  TENSOR_RESULT_TYPE(T,R) local = impl->inner_local(*(g.impl));
 	  impl->world.gop.sum(local);
 	  return local;
 	}
+
+    private:
+
+        /// Projects inplace function to new order basis ... private
+        Function<T,NDIM>& project(const Function<T,NDIM>& other, bool fence) {
+            impl->project(*other.impl, fence);
+            return *this;            
+        }
+
+        /// This is replaced with left*right ...  private
+        template <typename L, typename R>
+        Function<T,NDIM>& mul(const Function<L,NDIM>& left, const Function<R,NDIM>& right, bool fence) {
+            left.verify();
+            right.verify();
+            MADNESS_ASSERT(!(left.is_compressed() || right.is_compressed()));
+            if (VERIFY_TREE) left.verify_tree();
+            if (VERIFY_TREE) right.verify_tree();
+            impl = SharedPtr<implT>(new implT(*left.impl, left.get_pmap(), false));
+            impl->mul(*left.impl,*right.impl,fence);
+            return *this;
+        }
+
+        /// This is replaced with left*right using sparsity ...  private
+        template <typename L, typename R>
+        Function<T,NDIM>& mul_sparse(const Function<L,NDIM>& left, const Function<R,NDIM>& right, double tol, bool fence) {
+            left.verify();
+            right.verify();
+            MADNESS_ASSERT(!(left.is_compressed() || right.is_compressed()));
+            if (VERIFY_TREE) left.verify_tree();
+            if (VERIFY_TREE) right.verify_tree();
+            impl = SharedPtr<implT>(new implT(*left.impl, left.get_pmap(), false));
+            impl->mul_sparse(*left.impl,*right.impl,tol,fence);
+            return *this;
+        }
+
+        /// This is replaced with alpha*left + beta*right ...  private
+        template <typename L, typename R>
+        Function<T,NDIM>& gaxpy_oop(T alpha, const Function<L,NDIM>& left, 
+                                    T beta,  const Function<R,NDIM>& right, bool fence) {
+            left.verify();
+            right.verify();
+            MADNESS_ASSERT(left.is_compressed() && right.is_compressed());
+            if (VERIFY_TREE) left.verify_tree();
+            if (VERIFY_TREE) right.verify_tree();
+            impl = SharedPtr<implT>(new implT(*left.impl, left.get_pmap(), false));
+            impl->gaxpy(alpha,*left.impl,beta,*right.impl,fence);
+            return *this;
+        }
+
+        /// This is replaced with alpha*f ...  private
+        template <typename Q, typename L>
+        Function<T,NDIM>& scale_oop(const Q alpha, const Function<L,NDIM>& f, bool fence) { 
+            f.verify();
+            if (VERIFY_TREE) f.verify_tree();
+            impl = SharedPtr<implT>(new implT(*f.impl, f.get_pmap(), false));
+            impl->scale_oop(alpha,*f.impl,fence);
+            return *this;
+        }
+
+        /// This is replaced with df/dx ...  private.
+        Function<T,NDIM>& diff(const Function<T,NDIM>& f, int axis, bool fence) { 
+            f.verify();
+            if (VERIFY_TREE) f.verify_tree();
+            impl = SharedPtr<implT>(new implT(*f.impl, f.get_pmap(), false));
+            impl->diff(*f.impl,axis,fence);
+            return *this;
+        }
+
+        /// This is replaced with op(f) ...  private.
+        template <typename opT, typename R>
+        Function<T,NDIM>& apply(opT& op, const Function<R,NDIM>& f, bool fence) {
+            f.verify();
+            if (VERIFY_TREE) f.verify_tree();
+            impl = SharedPtr<implT>(new implT(*f.impl, f.get_pmap(), true));
+            impl->apply(op, *f.impl, fence);
+            return *this;
+        }
+
+        /// This is replaced with mapdim(f) ...  private
+        Function<T,NDIM>& mapdim(const Function<T,NDIM>& f, const std::vector<long>& map, bool fence) { 
+            f.verify();
+            if (VERIFY_TREE) f.verify_tree();
+            for (int i=0; i<NDIM; i++) MADNESS_ASSERT(map[i]>=0 && map[i]<NDIM);
+            impl = SharedPtr<implT>(new implT(*f.impl, f.get_pmap(), false));
+            impl->mapdim(*f.impl,map,fence);
+            return *this;
+        }
 
     };
 
@@ -794,7 +888,7 @@ namespace madness {
     
     /// Create a new function that is the square of f - global comm only if not reconstructed
     template <typename T, int NDIM>
-    Function<T,NDIM> square(const Function<T,NDIM>& f, bool fence) {
+    Function<T,NDIM> square(const Function<T,NDIM>& f, bool fence=true) {
         Function<T,NDIM> result = copy(f,true);  // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         return result.square(fence);
     }
@@ -883,6 +977,20 @@ namespace madness {
         Function<T,NDIM> result;
         return result.mapdim(f,map,fence);
     }
+
+    template <typename T, int NDIM>
+    Function<T,NDIM> 
+    project(const Function<T,NDIM>& other, 
+            int k=FunctionDefaults<NDIM>::k, 
+            double thresh=FunctionDefaults<NDIM>::thresh,
+            bool fence=true) 
+    {
+        Function<T,NDIM> r = FunctionFactory<T,NDIM>(other.impl->world).k(k).thresh(thresh).empty();
+        other.reconstruct();
+        r.project(other);
+        return r;
+    }
+
 
     /// Computes the scalar/inner product between two functions
 

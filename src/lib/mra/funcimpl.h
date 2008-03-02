@@ -642,14 +642,14 @@ namespace madness {
                 }
             }
             else {  // Set as if a zero function
-                initial_level = 0;
+                initial_level = 1;
                 insert_zero_down_to_initial_level(keyT(0));
             }
 
             coeffs.process_pending(); 
             this->process_pending();
             
-            if (factory._fence) world.gop.fence();
+            if (factory._fence && functor) world.gop.fence();
         }
 
         /// Copy constructor
@@ -660,7 +660,8 @@ namespace madness {
         /// Does \em not copy the coefficients ... creates an empty container.
         template <typename Q>
         FunctionImpl(const FunctionImpl<Q,NDIM>& other, 
-                     const SharedPtr< WorldDCPmapInterface< Key<NDIM> > >& pmap = 0)
+                     const SharedPtr< WorldDCPmapInterface< Key<NDIM> > >& pmap,
+                     bool dozero)
             : WorldObject<implT>(other.world)
             , world(other.world)
             , k(other.k)
@@ -681,6 +682,10 @@ namespace madness {
             , cell_volume(other.cell_volume)
             , cell_min_width(other.cell_min_width)
         {
+            if (dozero) {
+                initial_level = 1;
+                insert_zero_down_to_initial_level(cdata.key0);
+            }
             coeffs.process_pending(); 
             this->process_pending();
         }
@@ -1317,6 +1322,24 @@ namespace madness {
             tensorT r(cdata.v2k,false);
             return fast_transform(s,cdata.hg,r,cdata.work2);
             //return transform(s, cdata.hg);
+        }
+
+        /// Projects old function into new basis (only in reconstructed form)
+        void project(const implT& old, bool fence) {
+            vector<Slice> s(NDIM,Slice(0,old.cdata.k-1));
+            for(typename dcT::const_iterator it=old.coeffs.begin(); it!=old.coeffs.end(); ++it) {
+                const keyT& key = it->first;
+                const nodeT& node = it->second;
+                if (node.has_coeff()) {
+                    tensorT c(cdata.vk);
+                    c(s) = node.coeff();
+                    coeffs.insert(key,nodeT(c,false));
+                }
+                else {
+                    coeffs.insert(key,nodeT(tensorT(),false));
+                }
+            }
+            if (fence) world.gop.fence();
         }
 
         void reconstruct(bool fence) {
