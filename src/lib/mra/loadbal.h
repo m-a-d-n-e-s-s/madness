@@ -49,7 +49,7 @@
 
 namespace madness {
 
-    typedef int Cost;
+    typedef unsigned long Cost;
     typedef double CompCost;
 
     inline Cost default_cost_fun() {
@@ -542,7 +542,8 @@ namespace madness {
 		const typename DClass<D>::KeyD& key = it->first;
 		const typename FunctionImpl<T,D>::nodeT&  node = it->second;
 
-		nd.cost = costfun(key, node);
+		//		nd.cost = Cost(1e6*costfun(key, node));
+		nd.cost = Cost(costfun(key, node));
 		nd.subcost = nd.cost;
 		typename DClass<D>::NodeD lbnode(nd,node.has_children());
 		impl.insert(key, lbnode);
@@ -573,7 +574,8 @@ namespace madness {
             	NodeData nd;
 		typename DClass<D>::KeyD key = it->first;
 		typename DClass<D>::treeT::iterator tree_it = impl.find(key);
-		double new_cost = costfun(it->first,it->second);
+		Cost new_cost = Cost(costfun(it->first,it->second));
+		//		Cost new_cost = Cost(1e6*costfun(it->first,it->second));
 		if (tree_it != impl.end()) {
 		  typename DClass<D>::NodeD lbnode = tree_it->second;
 		  if (it->second.has_children()) {
@@ -711,6 +713,7 @@ namespace madness {
         };
 
         std::vector<typename DClass<D>::TreeCoords> find_best_partition();
+	std::vector< std::vector< typename DClass<D>::TreeCoords > > find_all_partitions();
 
 	CompCost compute_comp_cost(Cost c, int n);
 

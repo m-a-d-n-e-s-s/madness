@@ -158,6 +158,139 @@ namespace madness {
     };
 
 
+    /// find_all_partitions takes the result of find_partitions, determines
+    /// the cost of each partition, and broadcasts the result of find_partitions
+    /// to all processors
+    /// Arguments: none
+    /// Return: a vector of vectors with all the partitions
+
+  template <int D>
+  std::vector< std::vector<typename DClass<D>::TreeCoords> > LoadBalImpl<D>::find_all_partitions() {
+    //	std::vector<typename DClass<D>::TreeCoords> klist;
+	bool manager = false;
+
+	if (skeltree->world.mpi.nproc() == 1) {
+	  std::vector< std::vector< typename DClass<D>::TreeCoords > > listoflist;
+	  listoflist.push_back(std::vector<typename DClass<D>::TreeCoords>(1,typename DClass<D>::TreeCoords(skeltree->root, 0)));
+	    return listoflist;
+	}
+
+	ProcessID manager_id = skeltree->owner(skeltree->root);
+	//madness::print("find_best_partition: the owner of the root is", skeltree->owner(skeltree->root));
+	if (skeltree->world.mpi.rank() == skeltree->owner(skeltree->root)) manager = true;
+	//madness::print("find_best_partition: just starting out");
+//	skeltree->fix_cost();
+	//madness::print("find_best_partition: fixed cost");
+	skeltree->find_partitions(pi);
+	//madness::print("find_best_partition: before fence right after being out of find_partitions");
+	skeltree->world.gop.fence();
+	//madness::print("find_best_partition: just finished find_partitions");
+
+	std::vector< std::vector<typename DClass<D>::TreeCoords> > list_of_list;
+
+	if (manager) {
+	  //madness::print("find_best_partition: I am the manager");
+ 	    unsigned int shortest_list = 0, sl_index = 0, lb_index = 0;
+ 	    Cost load_bal_cost = 0;
+	    std::vector<Cost> costlist;
+	    // is this right?
+	    list_of_list = skeltree->list_of_list;
+	    costlist = skeltree->cost_list;
+
+ 	    int count = list_of_list.size();
+ 	    //madness::print("find_best_partition: length of list_of_list =", count);
+	    //	    madness::print("find_best_partition: list_of_list =", list_of_list);
+	    //	    madness::print("find_best_partition: costlist =", costlist);
+ 	    std::vector<unsigned int> len;
+ 	    for (int i = 0; i < count; i++) {
+ 		len.push_back(list_of_list[i].size());
+ 		if ((len[i] < shortest_list) || (shortest_list == 0)) {
+ 		    shortest_list = len[i];
+ 		    sl_index = i;
+ 		} else if ((len[i] == shortest_list) && (costlist[i] < costlist[sl_index])) {
+ 		    // all things being equal, prefer better balance
+ 		    shortest_list = len[i];
+ 		    sl_index = i;
+ 		}
+ 		if ((costlist[i] < load_bal_cost) || (load_bal_cost == 0)) {
+ 		    load_bal_cost = costlist[i];
+ 		    lb_index = i;
+ 		} else if ((costlist[i] == load_bal_cost) && (len[i] < list_of_list[lb_index].size())) {
+ 		    // all things being equal, prefer fewer cuts
+ 		    load_bal_cost = costlist[i];
+ 		    lb_index = i;
+ 		}
+ 	    }
+	    
+ 	    CompCost ccleast = 0;
+	    std::vector<CompCost> cclist;
+ 	    int cc_index = 0;
+ 	    for (int i = 0; i < count; i++) {
+ 		CompCost cctmp = compute_comp_cost(costlist[i], len[i]-1);
+		cclist.push_back(cctmp);
+ 		if ((i==0) || (cctmp < ccleast)) {
+ 		    ccleast = cctmp;
+ 		    cc_index = i;
+ 		}
+ 	    }
+	    madness::print("The computational cost of each distribution is", cclist);
+
+	    /*
+ 	    madness::print("The load balance with the fewest broken links has cost", 
+ 			   costlist[sl_index], "and", shortest_list-1, "broken links");
+ 	    for (unsigned int i = 0; i < shortest_list; i++) {
+ 		list_of_list[sl_index][i].print();
+ 	    }
+ 	    madness::print("");
+ 	    madness::print("The load balance with the best balance has cost", 
+ 			   load_bal_cost, "and", list_of_list[lb_index].size()-1, 
+ 			   "broken links");
+ 	    for (unsigned int i = 0; i < list_of_list[lb_index].size(); i++) {
+ 		list_of_list[lb_index][i].print();
+ 	    }
+ 	    madness::print("");
+ 	    madness::print("The load balance with the best overall computational cost has cost",
+ 			   costlist[cc_index], "and", len[cc_index]-1, "broken links");
+ 	    for (unsigned int i = 0; i < len[cc_index]; i++) {
+ 		list_of_list[cc_index][i].print();
+ 	    }
+	    */
+	    
+//          for (unsigned int i = 0; i < len[cc_index]; i++) {
+//  		klist.push_back(list_of_list[cc_index][i]);
+//  	    }
+  	    unsigned int ksize;
+ 	    ksize = len.size();
+ 	    skeltree->world.gop.template broadcast<unsigned int>(ksize, manager_id);
+ 	    for (unsigned int i=0; i < ksize; i++) {
+	      skeltree->world.gop.template broadcast<unsigned int>(len[i], manager_id);
+	      for (unsigned int j=0; j < len[i]; j++) {
+ 	        skeltree->world.gop.template broadcast<typename DClass<D>::TreeCoords>(list_of_list[i][j], manager_id);
+	      }
+ 	    }
+	    //	    madness::print("find_best_partition: number of broken links =",
+	    //	klist.size()-1);
+	}
+	else {
+	  //madness::print("find_best_partition: receiving broadcast");
+	  typename DClass<D>::TreeCoords ktmp;
+	  typename std::vector<typename DClass<D>::TreeCoords> emptylist;
+	  unsigned int ksize;
+	  skeltree->world.gop.template broadcast<unsigned int>(ksize, manager_id);
+	  for (unsigned int i=0; i < ksize; i++) {
+	    list_of_list.push_back(emptylist);
+	    unsigned int jmax;
+	    skeltree->world.gop.template broadcast<unsigned int>(jmax, manager_id);
+	    for (unsigned int j=0; j < jmax; j++) {
+	      skeltree->world.gop.template broadcast<typename DClass<D>::TreeCoords>(ktmp, manager_id);
+	      list_of_list[i].push_back(ktmp);
+	    }
+	  }
+	}
+        return list_of_list;	
+    };
+
+
 
     /// Compute the cost of a given configuration: a weighted sum of the cost of the
     /// maximally-loaded process and the total number of broken links.
@@ -170,7 +303,6 @@ namespace madness {
     template <int D>
     CompCost LoadBalImpl<D>::compute_comp_cost(Cost c, int n) {
         CompCost compcost;
-	//	int k = f.k();
 	CompCost k_to_D = pow((CompCost) k,D);
 	CompCost twok_to_Dp1 = pow((CompCost) 2.0*k, D+1);
 	compcost = c*(flop_time*D*twok_to_Dp1) + n*(comm_bandw*k_to_D + comm_latency);
