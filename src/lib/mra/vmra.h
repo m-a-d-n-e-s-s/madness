@@ -230,6 +230,26 @@ namespace madness {
         return r;
     }
 
+    /// Returns new vector of functions r[i] = a[i] - b[i]
+    template <typename T, typename R, int NDIM>
+    std::vector< Function<TENSOR_RESULT_TYPE(T,R), NDIM> >
+    sub(World& world,
+        const std::vector< Function<T,NDIM> >& a, 
+        const std::vector< Function<R,NDIM> >& b, 
+        bool fence=true) 
+    {
+        MADNESS_ASSERT(a.size() == b.size());
+        compress(world, a);
+        compress(world, b);
+
+        std::vector< Function<TENSOR_RESULT_TYPE(T,R),NDIM> > r(a.size());
+        for (unsigned int i=0; i<a.size(); i++) {
+            r[i] = sub(a[i], b[i], false);
+        }
+        if (fence) world.gop.fence();
+        return r;
+    }
+
     template <typename T, typename Q, typename R, int NDIM>
     void gaxpy(World& world,
                Q alpha,
