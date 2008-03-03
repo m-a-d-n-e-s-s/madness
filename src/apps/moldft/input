@@ -1,9 +1,10 @@
 dft
-  maxrotn 0.1
+  maxrotn 0.25
   nvalpha 0
   nvbeta 0
+  nopen 1
 end
 
 geometry
-  Be 0 0 0
+  li 0 0 0
 end

@@ -96,6 +96,39 @@ public:
     }
 };
 
+Tensor<double> sqrt(const Tensor<double>& s, double tol=1e-8) {
+    int n=s.dim[0], m=s.dim[1];
+    MADNESS_ASSERT(n==m);
+    Tensor<double> c, e;
+    //s.gaxpy(0.5,transpose(s),0.5); // Ensure exact symmetry
+    syev(s, &c, &e);
+    for (int i=0; i<n; i++) {
+        if (e(i) < -tol) {
+            MADNESS_EXCEPTION("Matrix square root: negative eigenvalue",i);
+        }
+        else if (e(i) < tol) { // Ugh ..
+            print("Matrix square root: Warning: small eigenvalue ", i, e(i));
+            e(i) = tol;
+        }
+        e(i) = 1.0/sqrt(e(i));
+    }
+    for (int j=0; j<n; j++) {
+        for (int i=0; i<n; i++) {
+            c(j,i) *= e(i);
+        }
+    }
+    return c;
+}
+
+Tensor<double> energy_weighted_orthog(const Tensor<double>& s, const Tensor<double> eps) {
+    int n=s.dim[0], m=s.dim[1];
+    MADNESS_ASSERT(n==m);
+    Tensor<double> d(n,n);
+    for (int i=0; i<n; i++) d(i,i) = eps(i);
+    Tensor<double> c, e;
+    sygv(d, s, 1, &c, &e);
+    return c;
+}
 
 
 struct CalculationParameters {
@@ -170,6 +203,7 @@ struct CalculationParameters {
                 std::cout << "moldft: unrecognized input keyword " << s << std::endl;
                 MADNESS_EXCEPTION("input error",0);
             }
+            if (nopen != 0) spin_restricted = false;
         }
     }
 
@@ -186,7 +220,7 @@ struct CalculationParameters {
         if ((nalpha+nbeta) != nelec) error("nalpha+nbeta != nelec", nalpha+nbeta);
         nmo_alpha = nalpha + nvalpha;
         nmo_beta = nbeta + nvbeta;
-        if (nalpha != nbeta) spin_restricted = true;
+        if (nalpha != nbeta) spin_restricted = false;
 
         // Ensure we have enough basis functions to guess the requested
         // number of states ... a minimal basis for a closed-shell atom
@@ -261,7 +295,7 @@ struct Calculation {
         
         // Setup initial defaults for numerical functions
         FunctionDefaults<3>::k = 6;
-        FunctionDefaults<3>::thresh = 1e-4;
+        FunctionDefaults<3>::thresh = 1e-3;
         FunctionDefaults<3>::refine = true;
         FunctionDefaults<3>::initial_level = 2;
         FunctionDefaults<3>::truncate_mode = 1;  
@@ -436,28 +470,51 @@ struct Calculation {
         return Kf;
     }
         
+    vector<functionT> 
+    apply_potential(World& world, 
+                    const Tensor<double>& occ,
+                    const vector<functionT>& psi, 
+                    const functionT& vlocal) 
+    {
+        vector<functionT> Vpsi = mul(world, vlocal, psi);
+        vector<functionT> Kpsi = apply_hf_exchange(world, occ, psi, psi);
+        gaxpy(world, 1.0, Vpsi, -1.0, Kpsi);
+        Kpsi.clear();
+        world.gop.fence(); // clear memory
+        return Vpsi;
+    }
 
-    void update(World& world, 
-                const functionT& vlocal, 
-                Tensor<double>& occ, 
-                Tensor<double>& eps,
-                vector<functionT>& psi) 
+    /// Updates the orbitals of one spin diagonalizing in the full space old+new
+
+    /// This is not stable at low precision due to the kinetic energy
+    /// in the Fock operator amplifying noise in the corrections.  It
+    /// also applies the potential twice during the iteration (though
+    /// this could be optimized away) and requires 4x the local
+    /// memory.  However, it does provide the most rapid approach to
+    /// the correct occupation and is therefore beneficial early in
+    /// the convergence process.
+    void update_full_diag(World& world, 
+                          const functionT& vlocal, 
+                          Tensor<double>& occ, 
+                          Tensor<double>& eps,
+                          vector<functionT>& psi,
+                          vector<functionT>& unused) 
     {
         int nmo = psi.size();
         vector<functionT> Vpsi = mul(world, vlocal, psi);
         vector<functionT> Kpsi = apply_hf_exchange(world, occ, psi, psi);
         gaxpy(world, 1.0, Vpsi, -1.0, Kpsi);
         Kpsi.clear();
-        Vpsi[0].scale(-2.0);
+        //Vpsi[0].scale(-2.0); <<<<<<<<<<<<<<<!!! should be all entries!!!
         truncate(world,Vpsi);
         vector<poperatorT> ops = make_bsh_operators(world, eps);
 
         set_thresh(world, Vpsi, FunctionDefaults<3>::thresh);  //<<<<< Since cannot set in apply
         vector<functionT> new_psi = apply(world, ops, Vpsi);
 
+        // Don't truncate the new_psi until we have made the KE operator !!
         ops.clear();
-        truncate(world, new_psi);
-        Vpsi[0].scale(-0.5);
+        //Vpsi[0].scale(-0.5); //<!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
         // Approx orthog of new to old (so can level shift and increase sparsity)
         compress(world, psi);
@@ -469,7 +526,6 @@ struct Calculation {
             }
         }
         world.gop.fence();
-        truncate(world,new_psi);
 
         vector<functionT> Vnew_psi = mul(world, vlocal, new_psi);
         Kpsi = apply_hf_exchange(world, occ, psi, new_psi);
@@ -494,22 +550,20 @@ struct Calculation {
         fock = (fock + transpose(fock))*0.5;
         if (world.rank() == 0) {print("fock"); print(fock);}
 
-        // Examine Fock matrix elements to assess convergence
+        // Examine Fock matrix elements to assess/control convergence
         double maxocc = -1e300;
         double minvirt = 1e300;
         double maxoffd = 0.0;
         for (int i=0; i<nmo; i++) {
             for (int j=0; j<nmo; j++) {
-                maxoffd = max(maxoffd, fabs(fock(i,j+nmo)/sqrt(overlap(i,i)*overlap(j+nmo,j+nmo))));
+                double fij = fock(i,j+nmo)/sqrt(overlap(i,i)*overlap(j+nmo,j+nmo));
+                print("fij",i,j,fij);
+                maxoffd = max(maxoffd, fabs(fij));
             }
         }
         for (int i=0; i<2*nmo; i++) {
             if (i<nmo && occ(i)>0.0) maxocc = max(maxocc,fock(i,i));
             else minvirt = min(minvirt,fock(i,i)/overlap(i,i));
-        }
-        for (int i=0; i<2*nmo; i++) {
-            if (occ(i) > 0.0) maxocc = max(maxocc,fock(i,i));
-            else minvirt = min(minvirt,fock(i,i));
         }
         double mingap = minvirt - maxocc;
 
@@ -521,7 +575,9 @@ struct Calculation {
         double autoshift = max(0.0, maxoffd/param.maxrotn - mingap);
         if (world.rank() == 0) {
             print("Max. gradient", maxoffd);
-            print("     Min. gap", mingap);
+            print("     Max. occ", maxocc);
+            print("     Min. vir", minvirt);
+            print("          Gap", mingap);
             print("    Autoshift", autoshift);
         }            
                               
@@ -539,27 +595,114 @@ struct Calculation {
         // NEED TO UPDATE OCC HERE IF SMEARING <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     }
 
+
+    /// Updates the orbitals of one spin diagonalizing occasionally only in the corrected space
+    void update(World& world, 
+                Tensor<double>& occ, 
+                Tensor<double>& eps,
+                vector<functionT>& psi,
+                vector<functionT>& Vpsi) 
+    {
+        int nmo = psi.size();
+        vector<double> fac(nmo,-2.0);
+        scale(world, Vpsi, fac);
+        truncate(world,Vpsi);
+        
+        vector<poperatorT> ops = make_bsh_operators(world, eps);
+        set_thresh(world, Vpsi, FunctionDefaults<3>::thresh);  //<<<<< Since cannot set in apply
+        
+        vector<functionT> new_psi = apply(world, ops, Vpsi);
+
+        ops.clear();            // free memory
+        Vpsi.clear(); 
+        normalize(world, new_psi);
+
+        vector<double> rnorm = norm2(world, sub(world, psi, new_psi));
+        if (world.rank() == 0) {
+            print("rnorms");
+            print(rnorm);
+        }
+
+        for (int i=0; i<nmo; i++) {
+            double step = (rnorm[i] < param.maxrotn) ? 1.0 : rnorm[i]/param.maxrotn;
+            if (step!=1.0 && world.rank()==0) {
+                print("  restricting step for orbital ", i, step);
+            }
+            psi[i].gaxpy(1.0-step, new_psi[i], step, false);
+        }
+        world.gop.fence();
+        new_psi.clear(); // free memory
+
+        truncate(world, psi);
+
+        // Orthog the new orbitals using sqrt(overlap).
+        // Try instead an energy weighted orthogonalization
+        Tensor<double> c = energy_weighted_orthog(inner(world, psi, psi), eps);
+        psi = transform(world, psi, c);
+        truncate(world, psi);
+        normalize(world, psi);
+
+        return;
+    }
+
+    void diag_fock_matrix(World& world, 
+                          vector<functionT>& psi, 
+                          vector<functionT>& Vpsi,
+                          Tensor<double>& occ,
+                          Tensor<double>& evals)
+    {
+        Tensor<double> overlap = inner(world, psi, psi);
+        Tensor<double> fock = inner(world, Vpsi, psi) + kinetic_energy_matrix(world, psi);
+        fock.gaxpy(0.5,transpose(fock),0.5);
+        if (world.rank() == 0) {print("fock"); print(fock);}
+
+        Tensor<double> c;
+        sygv(fock, overlap, 1, &c, &evals);
+
+        Vpsi = transform(world, Vpsi, c);
+        psi = transform(world, psi, c);
+        truncate(world, psi);
+        normalize(world, psi);
+
+        print("PSI thresh at end of iter", psi[0].thresh());
+        // NEED TO UPDATE OCC HERE IF SMEARING <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+    }
+
     void solve(World& world) {
+        functionT arho_old, brho_old;
         for (int iter=0; iter<30; iter++) {
-            //aeps[0] = -4.732;
-            //aeps[1] = -0.309;
             functionT arho = make_density(world, aocc, amo);
             functionT brho = param.spin_restricted ? arho : make_density(world, bocc, bmo);
-            functionT vlocal = vnuc + apply(*coulop, arho+brho);
-            vlocal.truncate();
-            // For DFT add into vlocal the exchange-correlation potentials
 
-            // Could do a lot of the alpha and beta work in parallel
-            // if we need more parallelism ... however it will double
-            // the memory too!
+            if (iter > 0) {
+                double da = (arho - arho_old).norm2();
+                double db = param.spin_restricted ? da : (brho - brho_old).norm2();
+                if (world.rank()==0) print("delta rho", da, db);
+            }
+            arho_old = arho;
+            brho_old = brho;
 
-            update(world, vlocal, aocc, aeps, amo);
-            if (!param.spin_restricted) update(world, vlocal, bocc, beps, bmo);
+            functionT rho = arho+brho;
+            rho.truncate();
+            functionT vlocal = vnuc + apply(*coulop, rho);
+            rho.clear(false);
+            vlocal.truncate(); // For DFT must add exchange-correlation into vlocal
 
+            vector<functionT> Vpsia = apply_potential(world, aocc, amo, vlocal);
+            vector<functionT> Vpsib;
+            if (!param.spin_restricted) Vpsib = apply_potential(world, bocc, bmo, vlocal);
+
+            diag_fock_matrix(world, amo, Vpsia, aocc, aeps);
             if (world.rank() == 0) {
                 print(iter,"alpha evals");
                 print(aeps);
             }
+
+            //update(world, vlocal, aocc, aeps, amo, Vpsia);
+            //if (!param.spin_restricted) update(world, vlocal, bocc, beps, bmo, Vpsib);
+            
+            update(world, aocc, aeps, amo, Vpsia); 
+            if (!param.spin_restricted) update(world, bocc, beps, bmo, Vpsib);
         }
     }
 };
