@@ -2,9 +2,16 @@ dft
   maxrotn 0.25
   nvalpha 0
   nvbeta 0
-  nopen 1
 end
 
 geometry
-  li 0 0 0
+  O  0.0    0.0 0.0
+  H  1.4375 0.0 1.15
+  H -1.4375 0.0 1.15
 end
+
+geometry
+  be 0 0 0
+end
+
+

@@ -247,7 +247,7 @@ public:
     }
 
     /// Return shell that contains basis function ibf and also return index of function in the shell
-    const ContractedGaussianShell& get_shell_with_basis_function(int ibf, int& ibf_in_shell) const {
+    const ContractedGaussianShell& get_shell_from_basis_function(int ibf, int& ibf_in_shell) const {
         int n=0;
         for (unsigned int i=0; i<g.size(); i++) {
             int nbf_in_shell = g[i].nbf();
@@ -259,7 +259,7 @@ public:
                 n += g[i].nbf();
             }
         }
-        MADNESS_EXCEPTION("AtomicBasis: get_shell_with_basis_function", ibf*100000 + nbf());
+        MADNESS_EXCEPTION("AtomicBasis: get_shell_from_basis_function", ibf*100000 + nbf());
     }
 
     bool has_guess_info() const {return dmat.size>0;}
@@ -436,7 +436,7 @@ public:
             if (ibf >= n  && (n+nbf_on_atom) > ibf) {
                 int index;
                 const ContractedGaussianShell& shell = 
-                    ag[atn].get_shell_with_basis_function(ibf, index);
+                    ag[atn].get_shell_from_basis_function(ibf-n, index);
                 return AtomicBasisFunction(atom.x, atom.y, atom.z, shell, index);
             } 
             else {

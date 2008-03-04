@@ -131,6 +131,11 @@ Tensor<double> energy_weighted_orthog(const Tensor<double>& s, const Tensor<doub
 }
 
 
+template <typename T, int NDIM>
+Cost lbcost(const Key<NDIM>& key, const FunctionNode<T,NDIM>& node) {
+  return 1;
+}
+
 struct CalculationParameters {
     // !!! If you add more data don't forget to add them to serialize method.
 
@@ -144,6 +149,7 @@ struct CalculationParameters {
     int nvalpha;                ///< Number of alpha virtuals to compute
     int nvbeta;                 ///< Number of beta virtuals to compute
     int nopen;                  ///< Number of unpaired electrons = napha-nbeta
+    int maxiter;                ///< Maximum number of iterations
     bool spin_restricted;       ///< True if spin restricted
     // Next list inferred parameters
     int nalpha;                 ///< Number of alpha spin electrons
@@ -162,6 +168,7 @@ struct CalculationParameters {
         , nvalpha(1)
         , nvbeta(1)
         , nopen(0)
+        , maxiter(20)
         , spin_restricted(true)
         , nalpha(0)
         , nbeta(0)
@@ -198,7 +205,9 @@ struct CalculationParameters {
             } else if (s == "unrestricted") {
                 spin_restricted = false;
             } else if (s == "restricted") {
-                spin_restricted = true;
+                spin_restricted = true; 
+            } else if (s == "maxiter") {
+                f >> maxiter;
             } else {
                 std::cout << "moldft: unrecognized input keyword " << s << std::endl;
                 MADNESS_EXCEPTION("input error",0);
@@ -294,12 +303,19 @@ struct Calculation {
         }
         
         // Setup initial defaults for numerical functions
-        FunctionDefaults<3>::k = 6;
-        FunctionDefaults<3>::thresh = 1e-3;
+        set_protocol(world, 1e-4);
+    }
+
+    void set_protocol(World& world, double thresh) {
+        FunctionDefaults<3>::thresh = thresh;
+        if (thresh >= 1e-4) FunctionDefaults<3>::k = 6;
+        else if (thresh >= 1e-6) FunctionDefaults<3>::k = 8;
+        else if (thresh >= 1e-8) FunctionDefaults<3>::k = 10;
+        else FunctionDefaults<3>::k = 12;
+
         FunctionDefaults<3>::refine = true;
         FunctionDefaults<3>::initial_level = 2;
         FunctionDefaults<3>::truncate_mode = 1;  
-
         double safety = 0.1;
         vtol = FunctionDefaults<3>::thresh*safety;
 
@@ -307,14 +323,34 @@ struct Calculation {
                                                           FunctionDefaults<3>::k, 
                                                           param.lo, 
                                                           vtol));
+        if (world.rank() == 0) {
+            print("\nSolving with thresh",thresh, "and k", FunctionDefaults<3>::k, "\n");
+        }
     }
 
+    void project(World& world) {
+        reconstruct(world,amo);
+        for (unsigned int i=0; i<amo.size(); i++) {
+            amo[i] = madness::project(amo[i], FunctionDefaults<3>::k, FunctionDefaults<3>::thresh, false);
+        }
+        world.gop.fence();
+        truncate(world,amo);
+        if (!param.spin_restricted) {
+            reconstruct(world,bmo);
+            for (unsigned int i=0; i<bmo.size(); i++) {
+                bmo[i] = madness::project(bmo[i], FunctionDefaults<3>::k, FunctionDefaults<3>::thresh, false);
+            }
+        world.gop.fence();
+        truncate(world,bmo);
+        }
+    }
+        
     void make_nuclear_potential(World& world) {
         START_TIMER;
         vnuc = factoryT(world).functor(functorT(new MolecularPotentialFunctor(molecule))).thresh(vtol); 
         vnuc.truncate();
         vnuc.reconstruct();
-        END_TIMER("project nuclear potential");
+        END_TIMER("Project vnuclear");
     }
 
     vector<functionT> project_ao_basis(World& world) {
@@ -386,9 +422,6 @@ struct Calculation {
         amo = transform(world, ao, c(_,Slice(0,param.nmo_alpha-1)));
         truncate(world, amo);
         normalize(world, amo);
-
-        print("this is the new overlap");
-        print(inner(world,amo,amo));
 
         aeps = e(Slice(0,param.nmo_alpha-1))*0.5; // 0.5 from using bare core Hamiltonian
         aocc = Tensor<double>(param.nalpha);
@@ -557,7 +590,6 @@ struct Calculation {
         for (int i=0; i<nmo; i++) {
             for (int j=0; j<nmo; j++) {
                 double fij = fock(i,j+nmo)/sqrt(overlap(i,i)*overlap(j+nmo,j+nmo));
-                print("fij",i,j,fij);
                 maxoffd = max(maxoffd, fabs(fij));
             }
         }
@@ -591,7 +623,6 @@ struct Calculation {
         normalize(world, psi);
         eps = e(Slice(0,nmo-1));
 
-        print("PSI thresh at end of iter", psi[0].thresh());
         // NEED TO UPDATE OCC HERE IF SMEARING <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     }
 
@@ -611,7 +642,9 @@ struct Calculation {
         vector<poperatorT> ops = make_bsh_operators(world, eps);
         set_thresh(world, Vpsi, FunctionDefaults<3>::thresh);  //<<<<< Since cannot set in apply
         
+        START_TIMER;
         vector<functionT> new_psi = apply(world, ops, Vpsi);
+        END_TIMER("Apply BSH");
 
         ops.clear();            // free memory
         Vpsi.clear(); 
@@ -635,12 +668,14 @@ struct Calculation {
 
         truncate(world, psi);
 
+        START_TIMER;
         // Orthog the new orbitals using sqrt(overlap).
         // Try instead an energy weighted orthogonalization
         Tensor<double> c = energy_weighted_orthog(inner(world, psi, psi), eps);
         psi = transform(world, psi, c);
         truncate(world, psi);
         normalize(world, psi);
+        END_TIMER("Eweight orthog");
 
         return;
     }
@@ -664,35 +699,84 @@ struct Calculation {
         truncate(world, psi);
         normalize(world, psi);
 
-        print("PSI thresh at end of iter", psi[0].thresh());
         // NEED TO UPDATE OCC HERE IF SMEARING <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+    }
+
+    void loadbal(World& world) {
+        if (world.size() == 1) return;
+        LoadBalImpl<3> lb(vnuc, lbcost<double,3>);
+        for (unsigned int i=0; i<amo.size(); i++) {
+            lb.add_tree(amo[i],lbcost<double,3>);
+        }
+        if (!param.spin_restricted) {
+            for (unsigned int i=0; i<bmo.size(); i++) {
+                lb.add_tree(bmo[i],lbcost<double,3>);
+            }
+        }
+        lb.load_balance();
+        FunctionDefaults<3>::pmap = lb.load_balance();
+        world.gop.fence();
+        vnuc = copy(vnuc, FunctionDefaults<3>::pmap, false);
+        for (unsigned int i=0; i<amo.size(); i++) {
+            amo[i] = copy(amo[i], FunctionDefaults<3>::pmap, false);
+        }
+        if (!param.spin_restricted) {
+            for (unsigned int i=0; i<bmo.size(); i++) {
+                bmo[i] = copy(bmo[i], FunctionDefaults<3>::pmap, false);
+            }
+        }
+        world.gop.fence();
     }
 
     void solve(World& world) {
         functionT arho_old, brho_old;
-        for (int iter=0; iter<30; iter++) {
+        for (int iter=0; iter<param.maxiter; iter++) {
+            if (world.rank()==0) print("\nIteration", iter,"\n");
+            START_TIMER;
+            loadbal(world);
+            if (iter > 0) {
+               arho_old = copy(arho_old, FunctionDefaults<3>::pmap, false);
+               if (!param.spin_restricted) {
+                   brho_old = copy(brho_old, FunctionDefaults<3>::pmap, false);
+               }
+            }
+            END_TIMER("Load balancing");
+
+            START_TIMER;
             functionT arho = make_density(world, aocc, amo);
             functionT brho = param.spin_restricted ? arho : make_density(world, bocc, bmo);
+            END_TIMER("Make densities");
 
             if (iter > 0) {
                 double da = (arho - arho_old).norm2();
                 double db = param.spin_restricted ? da : (brho - brho_old).norm2();
                 if (world.rank()==0) print("delta rho", da, db);
+                double dconv = max(FunctionDefaults<3>::thresh, param.dconv);
+                if (da<dconv && db<dconv) {
+                    if (world.rank()==0) print("\nConverged!\n");
+                    return;
+                }
             }
             arho_old = arho;
             brho_old = brho;
 
             functionT rho = arho+brho;
             rho.truncate();
+            START_TIMER;
             functionT vlocal = vnuc + apply(*coulop, rho);
+            END_TIMER("Coulomb");
             rho.clear(false);
             vlocal.truncate(); // For DFT must add exchange-correlation into vlocal
 
+            START_TIMER;
             vector<functionT> Vpsia = apply_potential(world, aocc, amo, vlocal);
             vector<functionT> Vpsib;
             if (!param.spin_restricted) Vpsib = apply_potential(world, bocc, bmo, vlocal);
+            END_TIMER("Apply potential");
 
+            START_TIMER;
             diag_fock_matrix(world, amo, Vpsia, aocc, aeps);
+            END_TIMER("Diag and transform");
             if (world.rank() == 0) {
                 print(iter,"alpha evals");
                 print(aeps);
@@ -703,6 +787,7 @@ struct Calculation {
             
             update(world, aocc, aeps, amo, Vpsia); 
             if (!param.spin_restricted) update(world, bocc, beps, bmo, Vpsib);
+
         }
     }
 };
@@ -732,9 +817,14 @@ int main(int argc, char** argv) {
         }
 
         // Make the nuclear potential, initial orbitals, etc.
+        calc.set_protocol(world,1e-4);
         calc.make_nuclear_potential(world);
         calc.initial_guess(world);
-        
+        calc.solve(world);
+
+        calc.set_protocol(world,1e-6);
+        calc.make_nuclear_potential(world);
+        calc.project(world);
         calc.solve(world);
 
         world.gop.fence();
