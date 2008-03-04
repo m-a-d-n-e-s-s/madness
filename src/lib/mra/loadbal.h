@@ -717,9 +717,9 @@ namespace madness {
 
 	CompCost compute_comp_cost(Cost c, int n);
 
-	template <typename T>
-	void add_tree(Function<T,D> f) {
-	  skeltree->add_tree(f.get_impl());
+	template <typename T, typename costfunT>
+	  void add_tree(Function<T,D> f, const costfunT& costfun) {
+	  skeltree->add_tree(f.get_impl(), costfun);
 	    pi.skel_cost = skeltree->fix_cost();
 	    pi.cost_left = pi.skel_cost;
 

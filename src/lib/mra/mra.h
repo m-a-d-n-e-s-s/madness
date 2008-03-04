@@ -987,7 +987,7 @@ namespace madness {
     {
         Function<T,NDIM> r = FunctionFactory<T,NDIM>(other.impl->world).k(k).thresh(thresh).empty();
         other.reconstruct();
-        r.project(other);
+        r.project(other,fence);
         return r;
     }
 
