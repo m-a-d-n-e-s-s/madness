@@ -98,123 +98,43 @@ namespace madness {
         }
     };
 
-    /// Stores info about 1D Gaussian convolution
+
+    /// Provides the common functionality/interface of all 1D convolutions
+
+    /// Derived classes must implement rnlp and issmall.
     template <typename Q>
-    class GaussianConvolution1D {
+    class Convolution1D {
     public:
         int k;
         int npt;
-        Q coeff;
-        double expnt;
-        Tensor<double> c;
-        Tensor<double> hgT;
         Tensor<double> quad_x;
         Tensor<double> quad_w;
+        Tensor<double> c;
+        Tensor<double> hgT;
 
         mutable SimpleCache< Tensor<Q> > rnlij_cache;
         mutable SimpleCache< ConvolutionData1D<Q> > ns_cache;
         
-        GaussianConvolution1D() : k(-1), npt(-1), coeff(0.0), expnt(0.0) {}; 
-        GaussianConvolution1D(int k, Q coeff, double expnt)
-            : k(k), npt(k+11), coeff(coeff), expnt(expnt)
+        Convolution1D() : k(-1), npt(0) {}; 
+
+        virtual ~Convolution1D() {};
+
+        Convolution1D(int k, int npt) : k(k), npt(npt), quad_x(npt), quad_w(npt)
         {
             MADNESS_ASSERT(autoc(k,&c));
-            quad_x = Tensor<double>(npt);
-            quad_w = Tensor<double>(npt);
+
             gauss_legendre(npt,0.0,1.0,quad_x.ptr(),quad_w.ptr());
-            if (!two_scale_hg(k,&hgT)) throw "need to make a consistent exception framework2!";
+            if (!two_scale_hg(k,&hgT)) throw "need to use the consistent exception framework!";
             hgT = transpose(hgT);
         }
 
         /// Compute the projection of the operator onto the double order polynomials
         
-        /// The returned reference is to a cached tensor ... if you want to
-        /// modify it, take a copy first.
-        ///
-        /// Return in \c v[p] \c p=0..2*k-1
-        /// \code
-        /// r(n,l,p) = 2^(-n) * int(K(2^(-n)*(z+l)) * phi(p,z), z=0..1)
-        /// \endcode
-        /// The kernel is coeff*exp(-expnt*z^2).  This is equivalent to
-        /// \code
-        /// r(n,l,p) = 2^(-n)*coeff * int( exp(-beta*z^2) * phi(p,z-l), z=l..l+1)
-        /// \endcode
-        /// where 
-        /// \code
-        /// beta = alpha * 2^(-2*n) 
-        /// \endcode
-        Tensor<Q> rnlp(long n, long lx) const {
-            int twok = 2*k;
-            Tensor<Q> v(twok);       // Can optimize this away by passing in
-            
-            long lkeep = lx;
-            if (lx<0) lx = -lx-1;
-            
-            /* Apply high-order Gauss Legendre onto subintervals
-       
-               coeff*int(exp(-beta(x+l)**2) * phi[p](x),x=0..1);
-               
-               The translations internally considered are all +ve, so
-               signficant pieces will be on the left.  Finish after things
-               become insignificant.  
-               
-               The resulting coefficients are accurate to about 1e-20.
-            */
-            
-            // Rescale expnt & coeff onto level n so integration range
-            // is [l,l+1]
-            Q scaledcoeff = coeff*pow(sqrt(0.5),double(n));
-            double beta = expnt * pow(0.25,double(n));
-            
-            // Subdivide interval into nbox boxes of length h
-            // ... estimate appropriate size from the exponent.  A
-            // Gaussian with real-part of the exponent beta falls in
-            // magnitude by a factor of 1/e at x=1/sqrt(beta), and by
-            // a factor of e^-49 ~ 5e-22 at x=7/sqrt(beta).  So, if we
-            // use a box of size 1/sqrt(beta) we will need at most 7
-            // boxes.  Incorporate the coefficient into the screening
-            // since it may be large.  We can represent exp(-x^2) over
-            // [l,l+1] with a polynomial of order 21 over [l,l+1] to a
-            // relative precision of better than machine precision for
-            // l=0,1,2,3 and for l>3 the absolute error is less than
-            // 1e-23.  We want to compute matrix elements with
-            // polynomials of order 2*k-1, so the total order is
-            // 2*k+20, which can be integrated with a quadrature rule
-            // of npt=k+11.  npt is set in the constructor.
-            
-            double h = 1.0/sqrt(beta);  // 2.0*sqrt(0.5/beta);
-            long nbox = long(1.0/h);
-            if (nbox < 1) nbox = 1;       // If the exponent is complex ??
-            h = 1.0/nbox;
-            
-            // Find argmax such that h*scaledcoeff*exp(-argmax)=1e-22 ... if
-            // beta*xlo*xlo is already greater than argmax we can neglect this
-            // and subsequent boxes
-            double argmax = std::abs(log(1e-22/std::abs(scaledcoeff*h)));
-            
-            for (long box=0; box<nbox; box++) {
-                double xlo = box*h + lx;
-                if (beta*xlo*xlo > argmax) break;
-                for (long i=0; i<npt; i++) {
-#ifdef IBMXLC
-                    double phix[70];
-#else
-                    double phix[twok];
-#endif
-                    double xx = xlo + h*quad_x(i);
-                    Q ee = scaledcoeff*exp(-beta*xx*xx)*quad_w(i)*h;
-                    legendre_scaling_functions(xx-lx,twok,phix);
-                    for (long p=0; p<twok; p++) v(p) += ee*phix[p];
-                }
-            }
-            
-            if (lkeep < 0) {
-                /* phi[p](1-z) = (-1)^p phi[p](z) */
-                for (long p=1; p<twok; p+=2) v(p) = -v(p);
-            }
+        virtual Tensor<Q> rnlp(long n, long lx) const = 0;
 
-            return v;
-        };
+        /// Returns true if the block is expected to be small
+        virtual bool issmall(long n, long lx) const = 0;
+
 
         /// Computes the transition matrix elements for the convolution for n,l
         
@@ -278,6 +198,111 @@ namespace madness {
             return ns_cache.getptr(n,lx);
         };
 
+
+    };
+
+    /// Stores info about 1D Gaussian convolution
+    template <typename Q>
+    class GaussianConvolution1D : public Convolution1D<Q> {
+    public:
+        Q coeff;
+        double expnt;
+
+        GaussianConvolution1D() : Convolution1D<Q>(), coeff(0.0), expnt(0.0) {}; 
+
+        GaussianConvolution1D(int k, Q coeff, double expnt)
+            : Convolution1D<Q>(k,k+11), coeff(coeff), expnt(expnt)
+        {}
+
+        /// Compute the projection of the operator onto the double order polynomials
+        
+        /// The returned reference is to a cached tensor ... if you want to
+        /// modify it, take a copy first.
+        ///
+        /// Return in \c v[p] \c p=0..2*k-1
+        /// \code
+        /// r(n,l,p) = 2^(-n) * int(K(2^(-n)*(z+l)) * phi(p,z), z=0..1)
+        /// \endcode
+        /// The kernel is coeff*exp(-expnt*z^2).  This is equivalent to
+        /// \code
+        /// r(n,l,p) = 2^(-n)*coeff * int( exp(-beta*z^2) * phi(p,z-l), z=l..l+1)
+        /// \endcode
+        /// where 
+        /// \code
+        /// beta = alpha * 2^(-2*n) 
+        /// \endcode
+        Tensor<Q> rnlp(long n, long lx) const {
+            int twok = 2*this->k;
+            Tensor<Q> v(twok);       // Can optimize this away by passing in
+            
+            long lkeep = lx;
+            if (lx<0) lx = -lx-1;
+            
+            /* Apply high-order Gauss Legendre onto subintervals
+       
+               coeff*int(exp(-beta(x+l)**2) * phi[p](x),x=0..1);
+               
+               The translations internally considered are all +ve, so
+               signficant pieces will be on the left.  Finish after things
+               become insignificant.  
+               
+               The resulting coefficients are accurate to about 1e-20.
+            */
+            
+            // Rescale expnt & coeff onto level n so integration range
+            // is [l,l+1]
+            Q scaledcoeff = coeff*pow(sqrt(0.5),double(n));
+            double beta = expnt * pow(0.25,double(n));
+            
+            // Subdivide interval into nbox boxes of length h
+            // ... estimate appropriate size from the exponent.  A
+            // Gaussian with real-part of the exponent beta falls in
+            // magnitude by a factor of 1/e at x=1/sqrt(beta), and by
+            // a factor of e^-49 ~ 5e-22 at x=7/sqrt(beta).  So, if we
+            // use a box of size 1/sqrt(beta) we will need at most 7
+            // boxes.  Incorporate the coefficient into the screening
+            // since it may be large.  We can represent exp(-x^2) over
+            // [l,l+1] with a polynomial of order 21 over [l,l+1] to a
+            // relative precision of better than machine precision for
+            // l=0,1,2,3 and for l>3 the absolute error is less than
+            // 1e-23.  We want to compute matrix elements with
+            // polynomials of order 2*k-1, so the total order is
+            // 2*k+20, which can be integrated with a quadrature rule
+            // of npt=k+11.  npt is set in the constructor.
+            
+            double h = 1.0/sqrt(beta);  // 2.0*sqrt(0.5/beta);
+            long nbox = long(1.0/h);
+            if (nbox < 1) nbox = 1;       // If the exponent is complex ??
+            h = 1.0/nbox;
+            
+            // Find argmax such that h*scaledcoeff*exp(-argmax)=1e-22 ... if
+            // beta*xlo*xlo is already greater than argmax we can neglect this
+            // and subsequent boxes
+            double argmax = std::abs(log(1e-22/std::abs(scaledcoeff*h)));
+            
+            for (long box=0; box<nbox; box++) {
+                double xlo = box*h + lx;
+                if (beta*xlo*xlo > argmax) break;
+                for (long i=0; i<this->npt; i++) {
+#ifdef IBMXLC
+                    double phix[70];
+#else
+                    double phix[twok];
+#endif
+                    double xx = xlo + h*this->quad_x(i);
+                    Q ee = scaledcoeff*exp(-beta*xx*xx)*this->quad_w(i)*h;
+                    legendre_scaling_functions(xx-lx,twok,phix);
+                    for (long p=0; p<twok; p++) v(p) += ee*phix[p];
+                }
+            }
+            
+            if (lkeep < 0) {
+                /* phi[p](1-z) = (-1)^p phi[p](z) */
+                for (long p=1; p<twok; p+=2) v(p) = -v(p);
+            }
+
+            return v;
+        };
 
         /// Returns true if the block is expected to be small
         bool issmall(long n, long lx) const {
@@ -343,7 +368,7 @@ namespace madness {
     };
 
 
-    /// Convolutions in separated form (presently Gaussian)
+    /// Convolutions in separated form (including Gaussian)
     template <typename Q, int NDIM>
     class SeparatedConvolution : public WorldObject< SeparatedConvolution<Q,NDIM> > {
     public:
