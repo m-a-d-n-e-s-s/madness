@@ -812,32 +812,32 @@ int main(int argc, char**argv) {
         startup(world,argc,argv);
         if (world.rank() == 0) print("Initial tensor instance count", BaseTensor::get_instance_count());
 
-        testadq();
+//         testadq();
         
-        test_basic<double,1>(world);
-        test_conv<double,1>(world);
-        test_math<double,1>(world);
-        test_diff<double,1>(world);
-        test_op<double,1>(world);
+//         test_basic<double,1>(world);
+//         test_conv<double,1>(world);
+//         test_math<double,1>(world);
+//         test_diff<double,1>(world);
+//         test_op<double,1>(world);
 
-        test_basic<double_complex,1>(world);
-        test_conv<double_complex,1>(world);
-        test_math<double_complex,1>(world);
-        test_diff<double_complex,1>(world);
-        // test_op<double_complex,1>(world); // not yet compiling
+//         test_basic<double_complex,1>(world);
+//         test_conv<double_complex,1>(world);
+//         test_math<double_complex,1>(world);
+//         test_diff<double_complex,1>(world);
+        test_op<double_complex,1>(world); // not yet compiling
 
-        test_basic<double,2>(world);
-        test_conv<double,2>(world);
-        test_math<double,2>(world);
-        test_diff<double,2>(world);
-        test_op<double,2>(world);
+//         test_basic<double,2>(world);
+//         test_conv<double,2>(world);
+//         test_math<double,2>(world);
+//         test_diff<double,2>(world);
+//         test_op<double,2>(world);
 
-        test_basic<double,3>(world);
-        test_conv<double,3>(world);
-        test_math<double,3>(world);
-        test_diff<double,3>(world);
-        test_op<double,3>(world);
-        test_coulomb(world);
+//         test_basic<double,3>(world);
+//         test_conv<double,3>(world);
+//         test_math<double,3>(world);
+//         test_diff<double,3>(world);
+//         test_op<double,3>(world);
+//         test_coulomb(world);
 
     } catch (const MPI::Exception& e) {
         //        print(e);

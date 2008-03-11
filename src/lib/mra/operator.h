@@ -190,7 +190,7 @@ namespace madness {
             // Find argmax such that h*scaledcoeff*exp(-argmax)=1e-22 ... if
             // beta*xlo*xlo is already greater than argmax we can neglect this
             // and subsequent boxes
-            double argmax = fabs(log(1e-22/fabs(scaledcoeff*h)));
+            double argmax = std::abs(log(1e-22/std::abs(scaledcoeff*h)));
             
             for (long box=0; box<nbox; box++) {
                 double xlo = box*h + lx;
@@ -299,7 +299,7 @@ namespace madness {
     // For complex types return +1 as the sign and leave coeff unchanged
     template <typename Q, bool iscomplex> 
     struct munge_sign_struct {
-        static Q op(Q& coeff) {
+        static double op(Q& coeff) {
             return 1.0;
         }
     };
@@ -307,7 +307,7 @@ namespace madness {
     // For real types return actual sign and make coeff positive
     template <typename Q>
     struct munge_sign_struct<Q,false> {
-        static Q op(Q& coeff) {
+        static typename Tensor<Q>::scalar_type op(Q& coeff) {
             if (coeff < 0.0) {
                 coeff = -coeff;
                 return -1.0;
@@ -319,7 +319,7 @@ namespace madness {
     };
 
     template <typename Q>
-    Q munge_sign(Q& coeff) {
+    typename Tensor<Q>::scalar_type munge_sign(Q& coeff) {
         return munge_sign_struct<Q, TensorTypeData<Q>::iscomplex>::op(coeff);
     }
             
@@ -354,7 +354,7 @@ namespace madness {
         const std::vector<long> vk;
         const std::vector<long> v2k;
         const std::vector<Slice> s0;
-        std::vector<Q> signs;
+        std::vector< typename Tensor<Q>::scalar_type > signs;
         mutable std::vector< GaussianConvolution1D<Q> > ops;
         mutable SimpleCache< SeparatedConvolutionData<Q,NDIM> > data;
         mutable double nflop[64];
