@@ -107,6 +107,7 @@ namespace madness {
     public:
         int k;
         int npt;
+        double sign;
         Tensor<double> quad_x;
         Tensor<double> quad_w;
         Tensor<double> c;
@@ -115,11 +116,16 @@ namespace madness {
         mutable SimpleCache< Tensor<Q> > rnlij_cache;
         mutable SimpleCache< ConvolutionData1D<Q> > ns_cache;
         
-        Convolution1D() : k(-1), npt(0) {}; 
+        Convolution1D() : k(-1), npt(0), sign(1.0) {}; 
 
         virtual ~Convolution1D() {};
 
-        Convolution1D(int k, int npt) : k(k), npt(npt), quad_x(npt), quad_w(npt)
+        Convolution1D(int k, int npt, double sign=1.0) 
+            : k(k)
+            , npt(npt)
+            , sign(sign)
+            , quad_x(npt)
+            , quad_w(npt)
         {
             MADNESS_ASSERT(autoc(k,&c));
 
@@ -201,7 +207,36 @@ namespace madness {
 
     };
 
-    /// Stores info about 1D Gaussian convolution
+
+    // For complex types return +1 as the sign and leave coeff unchanged
+    template <typename Q, bool iscomplex> 
+    struct munge_sign_struct {
+        static double op(Q& coeff) {
+            return 1.0;
+        }
+    };
+        
+    // For real types return actual sign and make coeff positive
+    template <typename Q>
+    struct munge_sign_struct<Q,false> {
+        static typename Tensor<Q>::scalar_type op(Q& coeff) {
+            if (coeff < 0.0) {
+                coeff = -coeff;
+                return -1.0;
+            }
+            else {
+                return 1.0;
+            }
+        }
+    };
+
+    template <typename Q>
+    typename Tensor<Q>::scalar_type munge_sign(Q& coeff) {
+        return munge_sign_struct<Q, TensorTypeData<Q>::iscomplex>::op(coeff);
+    }
+            
+
+    /// 1D Gaussian convolution with coeff and expnt given in *simulation* coordinates [0,1]
     template <typename Q>
     class GaussianConvolution1D : public Convolution1D<Q> {
     public:
@@ -211,8 +246,10 @@ namespace madness {
         GaussianConvolution1D() : Convolution1D<Q>(), coeff(0.0), expnt(0.0) {}; 
 
         GaussianConvolution1D(int k, Q coeff, double expnt)
-            : Convolution1D<Q>(k,k+11), coeff(coeff), expnt(expnt)
-        {}
+            : Convolution1D<Q>(k,k+11,1.0), coeff(coeff), expnt(expnt)
+        {
+            this->sign = munge_sign(this->coeff);
+        }
 
         /// Compute the projection of the operator onto the double order polynomials
         
@@ -320,35 +357,6 @@ namespace madness {
     };
     
 
-
-    // For complex types return +1 as the sign and leave coeff unchanged
-    template <typename Q, bool iscomplex> 
-    struct munge_sign_struct {
-        static double op(Q& coeff) {
-            return 1.0;
-        }
-    };
-        
-    // For real types return actual sign and make coeff positive
-    template <typename Q>
-    struct munge_sign_struct<Q,false> {
-        static typename Tensor<Q>::scalar_type op(Q& coeff) {
-            if (coeff < 0.0) {
-                coeff = -coeff;
-                return -1.0;
-            }
-            else {
-                return 1.0;
-            }
-        }
-    };
-
-    template <typename Q>
-    typename Tensor<Q>::scalar_type munge_sign(Q& coeff) {
-        return munge_sign_struct<Q, TensorTypeData<Q>::iscomplex>::op(coeff);
-    }
-            
-
     template <typename Q, int NDIM>
     struct SeparatedConvolutionInternal {
         double norm;
@@ -379,8 +387,7 @@ namespace madness {
         const std::vector<long> vk;
         const std::vector<long> v2k;
         const std::vector<Slice> s0;
-        std::vector< typename Tensor<Q>::scalar_type > signs;
-        mutable std::vector< GaussianConvolution1D<Q> > ops;
+        mutable std::vector< SharedPtr< Convolution1D<Q> > > ops;
         mutable SimpleCache< SeparatedConvolutionData<Q,NDIM> > data;
         mutable double nflop[64];
 
@@ -557,7 +564,7 @@ namespace madness {
         const SeparatedConvolutionInternal<Q,NDIM> getmuop(int mu, Level n, const Displacement<NDIM>& disp) const {
             SeparatedConvolutionInternal<Q,NDIM> op;
             for (int d=0; d<NDIM; d++) {
-                op.ops[d] = ops[mu].nonstandard(n, disp[d]);
+                op.ops[d] = ops[mu]->nonstandard(n, disp[d]);
             }
             double newnorm = munorm2(n, op.ops);
 //             double oldnorm = munorm(n, op.ops);
@@ -587,42 +594,58 @@ namespace madness {
             return data.getptr(n,d);
         }
 
-
-    public:
-
-        SeparatedConvolution(World& world,
-                             long k, 
-                             const Tensor<Q>& coeffs, 
-                             const Tensor<double>& expnts)    // restriction to double must be relaxed
-            : WorldObject< SeparatedConvolution<Q,NDIM> >(world)
-            , k(k)
-            , rank(coeffs.dim[0])
-            , vk(NDIM,k)
-            , v2k(NDIM,2*k)
-            , s0(std::max(2,NDIM),Slice(0,k-1))
-            , signs(rank) 
-            , ops(rank)
-        {
+        void check_cubic() {
             // !!! NB ... cell volume obtained from global defaults
             Tensor<double> cell_width(FunctionDefaults<NDIM>::cell(_,1)-FunctionDefaults<NDIM>::cell(_,0));
             // Check that the cell is cubic since currently is assumed
             for (long d=1; d<NDIM; d++) {
                 MADNESS_ASSERT(fabs(cell_width(d)-cell_width(0L)) < 1e-14*cell_width(0L));
             }
+        }
 
-            for (int i=0; i<rank; i++) {
-                Q coeff = coeffs(i);
-                signs[i] = munge_sign(coeff); 
-                coeff = std::pow(coeff,1.0/NDIM);
-                // !!! Note that this assumes cubic box
-                ops[i] = GaussianConvolution1D<Q>(k, 
-                                                  coeff*cell_width(0L), 
-                                                  expnts(i)*cell_width(0L)*cell_width(0L));
-            }
+
+    public:
+
+        // For general convolutions
+        SeparatedConvolution(World& world,
+                             long k, 
+                             std::vector< SharedPtr< Convolution1D<Q> > > ops)
+            : WorldObject< SeparatedConvolution<Q,NDIM> >(world)
+            , k(k)
+            , rank(ops.size())
+            , vk(NDIM,k)
+            , v2k(NDIM,2*k)
+            , s0(std::max(2,NDIM),Slice(0,k-1))
+            , ops(ops)
+        {
+
+            check_cubic();
 
             for (int i=0; i<64; i++) nflop[i] = 0.0;
 
             this->process_pending();
+        }
+
+        /// Contstructor for Gaussian Convolutions (mostly for backward compatability)
+        SeparatedConvolution(World& world, 
+                             int k,
+                             const Tensor<Q>& coeff, const Tensor<double>& expnt) 
+            : WorldObject< SeparatedConvolution<Q,NDIM> >(world)
+            , k(k)
+            , rank(coeff.dim[0])
+            , vk(NDIM,k)
+            , v2k(NDIM,2*k)
+            , s0(std::max(2,NDIM),Slice(0,k-1))
+            , ops(coeff.dim[0]) 
+        {
+            check_cubic();
+            double width = FunctionDefaults<NDIM>::cell(0,1)-FunctionDefaults<NDIM>::cell(0,0);
+
+            for (int i=0; i<rank; i++) {
+                ops[i] = SharedPtr< Convolution1D<Q> >(new GaussianConvolution1D<Q>(k, 
+                                                                                    coeff(i)*width, 
+                                                                                    expnt(i)*width*width));
+            }
         }
 
         const double* get_nflop() const {
@@ -657,9 +680,9 @@ namespace madness {
             for (int mu=0; mu<rank; mu++) {
                 const SeparatedConvolutionInternal<Q,NDIM>& muop =  op->muops[mu];
                 if (muop.norm > tol) {
-                    muopxv_fast(source.level(), muop.ops, *input, f0, r, r0, tol, signs[mu], 
+                    muopxv_fast(source.level(), muop.ops, *input, f0, r, r0, tol, ops[mu]->sign, 
                                 work1, work2, work3, work4);
-                    //muopxv(source.level(), muop.ops, *input, f0, r, tol, signs[mu]);
+                    //muopxv(source.level(), muop.ops, *input, f0, r, tol, ops[mu]->sign);
                 }
             }
             r(s0).gaxpy(1.0,r0,1.0);
