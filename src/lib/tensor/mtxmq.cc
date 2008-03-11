@@ -86,13 +86,23 @@ namespace madness {
     void mTxmq(const long dimi, const long dimj, const long dimk,
                double* RESTRICT c, const double* a, const double* b) {
         
-        // The caller is responsible for checking assumptions!
-// #define IS_ODD(n) (n&1)
-// #define IS_UNALIGNED(p) (p&7)
-//         if (IS_ODD(dimi) || IS_ODD(dimj) || IS_ODD(dimk) ||
-//             IS_UNALIGNED(a) || IS_UNALIGNED(b) || IS_UNALIGNED(c)) {
-//             // CALL SLOW CODE
-//         }
+#define IS_ODD(n) (n&1)
+#define IS_UNALIGNED(p) (((unsigned long) p)&7)
+        if (IS_ODD(dimi) || IS_ODD(dimj) || IS_ODD(dimk) ||
+            IS_UNALIGNED(a) || IS_UNALIGNED(b) || IS_UNALIGNED(c)) {
+             // CALL SLOW CODE
+            for (long i=0; i<dimi; i++,c+=dimj,a++) {
+                for (long j=0; j<dimj; j++) c[j] = 0.0;
+                const double *aik_ptr = a;
+                for (long k=0; k<dimk; k++,aik_ptr+=dimi) {
+                    double aki = *aik_ptr;
+                    for (long j=0; j<dimj; j++) {
+                        c[j] += aki*b[k*dimj+j];
+                    }
+                }
+            }
+            return;
+        }
 
         /* 
            Choice is to unroll i or j 
