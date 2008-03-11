@@ -24,7 +24,7 @@ namespace madness {
         
         // Turns (n,lx) into key
         inline unsigned long key(Level n, long lx) const {
-            return (n<<6) | (lx+8);
+            return (n<<16) | (lx+32768);
         }
         
         // Turns (n,displacement) into key
@@ -32,7 +32,7 @@ namespace madness {
         inline unsigned long key(Level n, const Displacement<NDIM>& d) const {
             MADNESS_ASSERT((6+NDIM*4) <= sizeof(unsigned long)*8);
             unsigned long k = n<<2;
-            for (int i=0; i<NDIM; i++) k = (k<<4) | (d[i]+8);
+            for (int i=0; i<NDIM; i++) k = (k<<4) | (d[i]+7);
             return k;
         }
         
@@ -106,7 +106,7 @@ namespace madness {
         int npt;
         Q coeff;
         double expnt;
-        Tensor<Q> c;
+        Tensor<double> c;
         Tensor<double> hgT;
         Tensor<double> quad_x;
         Tensor<double> quad_w;
@@ -212,7 +212,7 @@ namespace madness {
                 /* phi[p](1-z) = (-1)^p phi[p](z) */
                 for (long p=1; p<twok; p+=2) v(p) = -v(p);
             }
-            
+
             return v;
         };
 
@@ -250,24 +250,29 @@ namespace madness {
         const ConvolutionData1D<Q>* nonstandard(long n, long lx) const {
             const ConvolutionData1D<Q>* p = ns_cache.getptr(n,lx);
             if (p) return p;
-    
-            long lx2 = lx*2;
-            Tensor<Q> R(2*k,2*k);
-            Slice s0(0,k-1), s1(k,2*k-1);
-            
-            R(s0,s0) = R(s1,s1) = rnlij(n+1,lx2);
-            R(s1,s0) = rnlij(n+1,lx2+1);
-            R(s0,s1) = rnlij(n+1,lx2-1);
-            
-            R = transform(R,hgT);
-            // Enforce symmetry because it seems important ... what about complex?????????
-            if (lx == 0) 
-                for (int i=0; i<2*k; i++) 
-                    for (int j=0; j<i; j++) 
-                        R(i,j) = R(j,i) = ((i+j)&1) ? 0.0 : 0.5*(R(i,j)+R(j,i));
 
-            R = transpose(R);
-            Tensor<Q> T = copy(R(s0,s0));
+            Tensor<Q> R(2*k,2*k), T;
+            if (issmall(n, lx)) {
+                T = Tensor<Q>(k,k);
+            }
+            else {
+                long lx2 = lx*2;
+                Slice s0(0,k-1), s1(k,2*k-1);
+                
+                R(s0,s0) = R(s1,s1) = rnlij(n+1,lx2);
+                R(s1,s0) = rnlij(n+1,lx2+1);
+                R(s0,s1) = rnlij(n+1,lx2-1);
+                
+                R = transform(R,hgT);
+                // Enforce symmetry because it seems important ... what about complex?????????
+                if (lx == 0) 
+                    for (int i=0; i<2*k; i++) 
+                        for (int j=0; j<i; j++) 
+                            R(i,j) = R(j,i) = ((i+j)&1) ? 0.0 : 0.5*(R(i,j)+R(j,i));
+                
+                R = transpose(R);
+                T = copy(R(s0,s0));
+            }
             
             ns_cache.set(n,lx,ConvolutionData1D<Q>(R,T));
             return ns_cache.getptr(n,lx);
@@ -544,7 +549,7 @@ namespace madness {
 
             SeparatedConvolutionData<Q,NDIM> op(rank);
             for (int mu=0; mu<rank; mu++) {
-                op.muops[mu] = getmuop(mu, n, d);   // ???? SEGV HERE ????
+                op.muops[mu] = getmuop(mu, n, d);
             }
 
             double norm = 0.0;
@@ -569,7 +574,7 @@ namespace madness {
             , rank(coeffs.dim[0])
             , vk(NDIM,k)
             , v2k(NDIM,2*k)
-            , s0(NDIM,Slice(0,k-1))
+            , s0(std::max(2,NDIM),Slice(0,k-1))
             , signs(rank) 
             , ops(rank)
         {
@@ -626,9 +631,10 @@ namespace madness {
             const Tensor<T> f0 = copy(coeff(s0));
             for (int mu=0; mu<rank; mu++) {
                 const SeparatedConvolutionInternal<Q,NDIM>& muop =  op->muops[mu];
-                if (muop.norm > tol) { 
+                if (muop.norm > tol) {
                     muopxv_fast(source.level(), muop.ops, *input, f0, r, r0, tol, signs[mu], 
                                 work1, work2, work3, work4);
+                    //muopxv(source.level(), muop.ops, *input, f0, r, tol, signs[mu]);
                 }
             }
             r(s0).gaxpy(1.0,r0,1.0);

@@ -46,6 +46,18 @@ const double PI = 3.1415926535897932384;
 
 using namespace madness;
 
+template <typename T>
+T complexify(T c) {return c;}
+
+template <> double_complex complexify<double_complex>(double_complex c) {
+    return c*double_complex(0.5,-sqrt(3.0)*0.5);
+}
+
+template <> float_complex complexify<float_complex>(float_complex c) {
+    return c*float_complex(0.5,-sqrt(3.0)*0.5);
+}
+
+
 template <typename T, int NDIM>
 class Gaussian : public FunctionFunctorInterface<T,NDIM> {
 public:
@@ -55,7 +67,7 @@ public:
     const T coefficient;
     
     Gaussian(const coordT& center, double exponent, T coefficient) 
-        : center(center), exponent(exponent), coefficient(coefficient) {};
+        : center(center), exponent(exponent), coefficient(complexify(coefficient)) {};
 
     T operator()(const coordT& x) const {
         double sum = 0.0;
@@ -77,7 +89,7 @@ public:
     const int axis;
     
     DerivativeGaussian(const coordT& center, double exponent, T coefficient, int axis) 
-        : center(center), exponent(exponent), coefficient(coefficient), axis(axis) 
+        : center(center), exponent(exponent), coefficient(complexify(coefficient)), axis(axis) 
     {};
 
     DerivativeGaussian(const Gaussian<T,NDIM>& g, int axis) 
@@ -284,7 +296,9 @@ void test_math(World& world) {
     const double expnt = 1.0;
     const double coeff = pow(2.0/PI,0.25*NDIM);
     functorT functor(new Gaussian<T,NDIM>(origin, expnt, coeff));
-    functorT functsq(new Gaussian<T,NDIM>(origin, 2.0*expnt, coeff*coeff));
+    T (*p)(T,T) = &product<T,T,T>;
+    functorT functsq(new BinaryOp<T,T,T,T(*)(T,T),NDIM>(functor,functor,p));
+    //functorT functsq(new Gaussian<T,NDIM>(origin, 2.0*expnt, coeff*coeff)); // only correct if real
     
     // First make sure out of place squaring works
     Function<T,NDIM> f = FunctionFactory<T,NDIM>(world).functor(functor);
@@ -330,40 +344,40 @@ void test_math(World& world) {
     fsq.clear();
 
     // Test adding a constant in scaling function and wavelet bases
-    double val = f(origin);
+    T val = f(origin);
     f.reconstruct();
     f.add_scalar(3.0);
-    double val2 = f(origin);
+    T val2 = f(origin);
 
     f.compress();
     f.add_scalar(5.0);
     f.reconstruct();
     val2 = f(origin);
-    CHECK(val2-(val+8),1e-12,"add scalar in place compressed");
+    CHECK(val2-(val+8.0),1e-12,"add scalar in place compressed");
 
     // Test in-place scaling by a constant in scaling function and wavelet bases
     f.reconstruct();
     f.scale(3.0);
     val2 = f(origin);
-    CHECK(val2-3.0*(val+8),1e-12,"in-place scaling reconstructed");
+    CHECK(val2-3.0*(val+8.0),1e-12,"in-place scaling reconstructed");
 
     f.compress();
     f.scale(4.0);
     f.reconstruct();
     val2 = f(origin);
-    CHECK(val2-12.0*(val+8),1e-12,"in-place scaling compressed");
+    CHECK(val2-12.0*(val+8.0),1e-12,"in-place scaling compressed");
 
     // Same but using operator notation
     f.reconstruct();
     f *= 7.0;
     val2 = f(origin);
-    CHECK(val2-7.0*12.0*(val+8),1e-11,"in-place scaling (op) recon");
+    CHECK(val2-7.0*12.0*(val+8.0),1e-11,"in-place scaling (op) recon");
 
     f.compress();
     f *= 7.0;
     f.reconstruct();
     val2 = f(origin);
-    CHECK(val2-7.0*7.0*12.0*(val+8),1e-10,"in-place scaling (op) comp");
+    CHECK(val2-7.0*7.0*12.0*(val+8.0),1e-10,"in-place scaling (op) comp");
 
     // Test squaring a function by multiplication
     f = Function<T,NDIM>(FunctionFactory<T,NDIM>(world).functor(functor));
@@ -583,11 +597,6 @@ void test_op(World& world) {
     print("     f total error", f.err(*functor));
 
 
-    START_TIMER;
-    f.nonstandard();
-    END_TIMER("nonstandard");
-
-
     // Convolution exp(-a*x^2) with exp(-b*x^2) is
     // exp(-x^2*a*b/(a+b))* (Pi/(a+b))^(NDIM/2)
 
@@ -598,21 +607,20 @@ void test_op(World& world) {
     START_TIMER;
     Function<T,NDIM> r = apply(op,f);
     END_TIMER("apply");
-    r.reconstruct();
     r.verify_tree();
+    f.verify_tree();
 
     double newexpnt = expnt*exponents(0L)/(expnt+exponents(0L));
     double newcoeff = pow(PI/(expnt+exponents(0L)),0.5*NDIM)*coeff*coeffs(0L);
     functorT fexact(new Gaussian<T,NDIM>(origin, newexpnt, newcoeff));
-
 
     print(" numeric at origin", r(origin));
     print("analytic at origin", (*fexact)(origin));
     print("      op*f norm is", r.norm2());
     print("  op*f total error", r.err(*fexact));
     for (int i=0; i<=100; i++) {
-        coordT c(i*0.01);
-        print("           ",i,r(c),(*fexact)(c));
+        coordT c(-10.0+20.0*i/100.0);
+        print("           ",i,c[0],r(c),r(c)-(*fexact)(c));
     }
 }
 
@@ -760,7 +768,6 @@ void test_coulomb(World& world) {
     }
 }
 
-
 #define TO_STRING(s) TO_STRING2(s)
 #define TO_STRING2(s) #s
 
@@ -804,23 +811,32 @@ int main(int argc, char**argv) {
     try {
         startup(world,argc,argv);
         if (world.rank() == 0) print("Initial tensor instance count", BaseTensor::get_instance_count());
+
+        testadq();
+        
         test_basic<double,1>(world);
         test_conv<double,1>(world);
         test_math<double,1>(world);
         test_diff<double,1>(world);
-//          test_op<double,1>(world);
+        test_op<double,1>(world);
+
+        test_basic<double_complex,1>(world);
+        test_conv<double_complex,1>(world);
+        test_math<double_complex,1>(world);
+        test_diff<double_complex,1>(world);
+        // test_op<double_complex,1>(world); // not yet compiling
 
         test_basic<double,2>(world);
         test_conv<double,2>(world);
         test_math<double,2>(world);
         test_diff<double,2>(world);
-//          test_op<double,2>(world);
+        test_op<double,2>(world);
 
         test_basic<double,3>(world);
         test_conv<double,3>(world);
         test_math<double,3>(world);
         test_diff<double,3>(world);
-         //test_op<double,3>(world);
+        test_op<double,3>(world);
         test_coulomb(world);
 
     } catch (const MPI::Exception& e) {

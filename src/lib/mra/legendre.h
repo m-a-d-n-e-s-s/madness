@@ -46,6 +46,11 @@ namespace madness {
     extern bool gauss_legendre(int n, double xlo, double xhi, double *x, double *w);
     extern bool gauss_legendre_numeric(int n, double xlo, double xhi, double *x, double *w);
     extern bool gauss_legendre_test(bool print=false);
+
+    template <typename funcT>
+    double adq(double lo, double hi, const funcT& func, double thresh=1e-12);
+
+    bool testadq();
 }
 
 #endif
