@@ -135,7 +135,6 @@ namespace madness {
         }
 
         /// Compute the projection of the operator onto the double order polynomials
-        
         virtual Tensor<Q> rnlp(long n, long lx) const = 0;
 
         /// Returns true if the block is expected to be small
@@ -207,6 +206,69 @@ namespace madness {
 
     };
 
+
+    // To test generic convolution by comparing with GaussianConvolution1D
+    template <typename Q> 
+    class GaussianGenericFunctor {
+    private:
+        Q coeff;
+        double exponent;
+    public:
+        GaussianGenericFunctor(Q coeff, double exponent)
+            : coeff(coeff), exponent(exponent) {}
+
+        Q operator()(double x) const {
+            return coeff*exp(-exponent*x*x);
+        }
+    };
+
+
+    /// Generic 1D convolution using brute force (i.e., slow) adaptive quadrature for rnlp
+
+    /// Calls op(x) with x in *simulation coordinates* to evaluate the function.
+    template <typename Q, typename opT>
+    class GenericConvolution1D : public Convolution1D<Q> {
+    private:
+        opT op;
+    public:
+
+        GenericConvolution1D() {}
+
+        GenericConvolution1D(int k, const opT& op) 
+            : Convolution1D<Q>(k, 20), op(op)
+        {}
+
+        struct Shmoo {
+            typedef Tensor<Q> returnT;
+            int n;
+            long lx;
+            const GenericConvolution1D<Q,opT>& q;
+
+            Shmoo(int n, long lx, const GenericConvolution1D<Q,opT>* q)
+                : n(n), lx(lx), q(*q) {}
+
+            returnT operator()(double x) const {
+                int twok = q.k*2;
+                double fac = std::pow(0.5,n);
+                double phix[twok];
+                legendre_scaling_functions(x-lx,twok,phix);
+                Q f = q.op(fac*x)*sqrt(fac);
+                returnT v(twok);
+                for (long p=0; p<twok; p++) v(p) += f*phix[p];
+                return v;
+            }
+        };
+
+        Tensor<Q> rnlp(long n, long lx) const {
+            return adq1(lx, lx+1, Shmoo(n, lx, this), 1e-12, 
+                        this->npt, this->quad_x.ptr(), this->quad_w.ptr(), 0);
+        }
+
+        bool issmall(long n, long lx) const {
+            return false;
+        }
+    };
+        
 
     // For complex types return +1 as the sign and leave coeff unchanged
     template <typename Q, bool iscomplex> 

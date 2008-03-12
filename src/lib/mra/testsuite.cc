@@ -812,13 +812,23 @@ int main(int argc, char**argv) {
         startup(world,argc,argv);
         if (world.rank() == 0) print("Initial tensor instance count", BaseTensor::get_instance_count());
 
-//         testadq();
+        madness::detail::adqtest::runtest();
+
+        // stupid location for this test
+        GenericConvolution1D<double,GaussianGenericFunctor<double> > gen(10,GaussianGenericFunctor<double>(100.0,100.0));
+        GaussianConvolution1D<double> gau(10, 100.0, 100.0);
+        Tensor<double> gg = gen.rnlp(4,0);
+        Tensor<double> hh = gau.rnlp(4,0);
+        MADNESS_ASSERT((gg-hh).normf() < 1e-13);
+        if (world.rank() == 0) print(" generic and gaussian operator kernels agree\n");
+
+
         
 //         test_basic<double,1>(world);
 //         test_conv<double,1>(world);
 //         test_math<double,1>(world);
 //         test_diff<double,1>(world);
-//         test_op<double,1>(world);
+        test_op<double,1>(world);
 
 //         test_basic<double_complex,1>(world);
 //         test_conv<double_complex,1>(world);
