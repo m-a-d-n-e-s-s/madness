@@ -1342,6 +1342,9 @@ namespace madness {
             if (fence) world.gop.fence();
         }
 
+        // This needed extending to accomodate a user-defined criterion
+        void refine(bool fence);
+
         void reconstruct(bool fence) {
             if (world.rank() == coeffs.owner(cdata.key0)) reconstruct_op(cdata.key0,tensorT());
             if (fence) world.gop.fence();
@@ -1451,10 +1454,14 @@ namespace madness {
                     // montonically decreasing with distance ... this needs to be validated.
                     double tol = truncate_tol(thresh, key);
 
-                    if (cnorm*opnorm < tol) break;
-                    tensorT result = op->apply(key, d, c, tol/cnorm);
-                    // Might be worth checking on norm of result to eliminate message
-                    coeffs.send(dest, &nodeT::accumulate, result, coeffs, dest);
+                    if (cnorm*opnorm > tol) {
+                        tensorT result = op->apply(key, d, c, tol/cnorm);
+                        // Might be worth checking on norm of result to eliminate message
+                        coeffs.send(dest, &nodeT::accumulate, result, coeffs, dest);
+                    }
+                    else if (d.distsq >= 1) { // Assumes monotonic decay beyond nearest neighbor
+                        break;
+                    }
                 }
 
             }

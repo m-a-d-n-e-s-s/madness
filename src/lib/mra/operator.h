@@ -162,10 +162,10 @@ namespace madness {
             R = inner(c,R);
             // Enforce symmetry because it seems important ... is it?
             // What about a complex exponents?
-            if (lx == 0) 
-                for (int i=0; i<k; i++) 
-                    for (int j=0; j<i; j++) 
-                        R(i,j) = R(j,i) = ((i+j)&1) ? 0.0 : 0.5*(R(i,j)+R(j,i));
+//             if (lx == 0) 
+//                 for (int i=0; i<k; i++) 
+//                     for (int j=0; j<i; j++) 
+//                         R(i,j) = R(j,i) = ((i+j)&1) ? 0.0 : 0.5*(R(i,j)+R(j,i));
     
             rnlij_cache.set(n,lx,R);
             return *rnlij_cache.getptr(n,lx);
@@ -190,10 +190,10 @@ namespace madness {
                 
                 R = transform(R,hgT);
                 // Enforce symmetry because it seems important ... what about complex?????????
-                if (lx == 0) 
-                    for (int i=0; i<2*k; i++) 
-                        for (int j=0; j<i; j++) 
-                            R(i,j) = R(j,i) = ((i+j)&1) ? 0.0 : 0.5*(R(i,j)+R(j,i));
+//                 if (lx == 0) 
+//                     for (int i=0; i<2*k; i++) 
+//                         for (int j=0; j<i; j++) 
+//                             R(i,j) = R(j,i) = ((i+j)&1) ? 0.0 : 0.5*(R(i,j)+R(j,i));
                 
                 R = transpose(R);
                 T = copy(R(s0,s0));
@@ -371,7 +371,7 @@ namespace madness {
             
             double h = 1.0/sqrt(beta);  // 2.0*sqrt(0.5/beta);
             long nbox = long(1.0/h);
-            if (nbox < 1) nbox = 1;       // If the exponent is complex ??
+            if (nbox < 1) nbox = 1;
             h = 1.0/nbox;
             
             // Find argmax such that h*scaledcoeff*exp(-argmax)=1e-22 ... if
@@ -652,6 +652,7 @@ namespace madness {
                 norm += munorm*munorm;
             }
             op.norm = sqrt(norm);
+            //print("GETOP", n, d, norm);
             data.set(n, d, op);
             return data.getptr(n,d);
         }

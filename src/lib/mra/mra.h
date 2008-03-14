@@ -477,6 +477,16 @@ namespace madness {
             const_cast<Function<T,NDIM>*>(this)->impl->reconstruct(fence);
         }
 
+
+        /// Inplace autorefines the function using the same test as for squaring.  Possible non-blocking comm.
+
+        /// This needs generalizing to a user-defined threshold and criterion.
+        void refine(bool fence = true) const {
+            verify();
+            if (is_compressed()) reconstruct();
+            impl->refine(fence);
+        }
+
         /// Clears the function as if constructed uninitialized.  Optional fence.
 
         /// Any underlying data will not be freed until the next global fence.

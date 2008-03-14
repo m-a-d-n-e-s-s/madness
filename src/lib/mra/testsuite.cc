@@ -39,6 +39,8 @@
 #include <mra/mra.h>
 #include <unistd.h>
 #include <cstdio>
+#include <constants.h>
+#include <mra/adquad.h>
 
 #include <tensor/random.h>
 
@@ -593,9 +595,12 @@ void test_op(World& world) {
 
 
     f.reconstruct();
-    print("         f norm is", f.norm2());
-    print("     f total error", f.err(*functor));
-
+    double n2 = f.norm2();
+    double e2 = f.err(*functor);
+    if (world.rank() == 0) {
+        print("         f norm is", n2);
+        print("     f total error", e2);
+    }
 
     // Convolution exp(-a*x^2) with exp(-b*x^2) is
     // exp(-x^2*a*b/(a+b))* (Pi/(a+b))^(NDIM/2)
@@ -614,14 +619,20 @@ void test_op(World& world) {
     double newcoeff = pow(PI/(expnt+exponents(0L)),0.5*NDIM)*coeff*coeffs(0L);
     functorT fexact(new Gaussian<T,NDIM>(origin, newexpnt, newcoeff));
 
-    print(" numeric at origin", r(origin));
-    print("analytic at origin", (*fexact)(origin));
-    print("      op*f norm is", r.norm2());
-    print("  op*f total error", r.err(*fexact));
-    for (int i=0; i<=100; i++) {
-        coordT c(-10.0+20.0*i/100.0);
-        print("           ",i,c[0],r(c),r(c)-(*fexact)(c));
+    T ro = r(origin);
+    T eo = (*fexact)(origin);
+    double rn = r.norm2();
+    double re = r.err(*fexact);
+    if (world.rank() == 0) {
+        print(" numeric at origin", ro);
+        print("analytic at origin", eo);
+        print("      op*f norm is", rn);
+        print("  op*f total error", re);
     }
+//     for (int i=0; i<=100; i++) {
+//         coordT c(-10.0+20.0*i/100.0);
+//         print("           ",i,c[0],r(c),r(c)-(*fexact)(c));
+//     }
 }
 
 /// Computes the electrostatic potential due to a Gaussian charge distribution
@@ -768,6 +779,223 @@ void test_coulomb(World& world) {
     }
 }
 
+class QMtest : public FunctionFunctorInterface<double_complex,1> {
+public:
+    typedef Vector<double,1> coordT;
+    const double a;
+    const double v;
+    const double t;
+
+    double_complex operator()(const coordT& coords) const {
+        const double x = coords[0];
+        double_complex denom(1.0,2.0*a*t);
+        const double_complex arg(a*x*x,0.5*v*v*t-x*v);
+        return pow(2.0*a/PI,0.25)*sqrt(1.0/denom)*exp(-arg/denom);
+    }
+
+    QMtest(double a, double v, double t) 
+        : a(a), v(v), t(t) {}
+};
+
+
+/// Class to evaluate the filtered Schrodinger free-particle propagator in real space
+
+/// Follows the corresponding Maple worksheet and the implementation notes.
+class BandlimitedPropagator {
+private:
+    const double c;
+    const double t;
+    const double width;
+    const double ctop;
+    const double L;
+    const double h;
+    const int n;
+    const double dc;
+    
+    std::complex<double> ff(double k) const {
+        if (k>2.54*c) return std::complex<double>(0.0,0.0);
+        const std::complex<double> arg(0,-k*k*t*0.5);
+        return std::exp(arg)/(1.0+std::pow(k/c, 30.0));
+    }
+
+public:
+    typedef double_complex returnT;
+
+    BandlimitedPropagator(double c, double t, double width)
+        : c(c)
+        , t(t)
+        , width(width)
+        , ctop(3.0*c)
+        , L(1.2 * 0.5435*(3.0*pow(c,5.0/3.0)*pow(t,0.75)+400.0)/c) //
+        , h(3.14/ctop)
+        , n(2.0*L/h+1)
+        , dc(2*ctop/(n-1))
+    {
+//         std::cout << " c " << c << std::endl;
+//         std::cout << " t " << t << std::endl;
+//         std::cout << " ctop " << ctop << std::endl;
+//         std::cout << " L " << L << std::endl;
+//         std::cout << " h " << h << std::endl;
+//         std::cout << " n " << n << std::endl;
+//         std::cout << " dc " << dc << std::endl;
+    }
+    
+    std::complex<double> operator()(double x) const {
+        x = width*x;
+        if (fabs(x) > L) return std::complex<double>(0.0,0.0);
+        std::complex<double> base = exp(std::complex<double>(0.0,-x*ctop));
+        std::complex<double>  fac = exp(std::complex<double>(0.0,x*dc));
+        std::complex<double> sum(0.0,0.0);
+        double W = -ctop;
+        for (int i=0; i<n; i++,W+=dc) {
+            //std::complex<double> arg(0.0,x*W);
+            //std::complex<double> base = std::exp(arg);
+            sum += ff(W)*base;
+            base *= fac;
+        }
+        return width*sum*dc*0.5/madness::constants::pi;
+    }
+
+    static void test() {
+//         std::complex<double> maple(1.13851441120840,-.986104972277800);
+//         BandlimitedPropagator bp(31.4, 0.07);
+//         if (std::abs(bp(0.1)-maple) > 1e-12) throw "BandlimitedPropagator: failed test";
+        return;
+    }
+};
+
+
+void test_qm(World& world) {
+    /*
+
+      This is the exact kernel of the free-particle propagator
+
+      g(x,t) = exp(I*x^2/(2*t))/sqrt((2*Pi*I)*t)
+
+      This is a square normalized Gaussian (in 1D) with velocity v.
+      
+      f(x,a,v) = (2*a/Pi)^(1/4)*exp(-a*x^2+I*x*v)
+
+      This is f(x,a,v) evolved to time t
+
+      f(x,a,v,t) = (2*a/Pi)^(1/4)*sqrt(1/(1+(2*I)*a*t))*exp(-(a*x^2-I*x*v+I*v^2*t*1/2)/(1+(2*I)*a*t))
+
+      The fourier transform of f(x,a,v) decays as exp(-k^2/(4*a))
+      and is neglible when k > v + 10*sqrt(a)
+
+      Picking a=v=1 gives an effective bandlimit of c=11.  If we wish this
+      to be accurately propagated for a long time we must request a filtered
+      bandlimit of c = 11*1.8 = 20.
+
+      The center of the packet is at <x> = v*t.
+
+      The width of the packet as measured by sigma^2 = <x^2 - <x>^2> = (1/4)*(1+4*a^2*t^2)/a.
+
+      So the wave packet is actually spreading faster than it is moving (for our choice
+      of parameters).
+
+      The initial support of the Gaussian is about [-5,5] and after 100 units of
+      time it has spread to about [-400,600] so for safety we use a range [-600,800].
+
+      The critical time step is 2*pi/c^2= 0.0157 and we shall attempt to propagate at
+      10x this which is 0.157.
+      
+      The final wave packet is horrible, oscillating thru all space due to the 
+      complex phase ... this could be reduced with a contact (?) transformation but
+      since the point here is test MADNESS to some extent it is better to make things hard.
+
+    */
+    
+//     QMtest f(1,1,0.1);
+
+//     for (int i=0; i<10; i++) {
+//         double x = i*0.1;
+//         print(x,f(x));
+//     }
+
+    typedef SharedPtr< FunctionFunctorInterface<double_complex,1> > functorT;
+    typedef Vector<double,1> coordT;
+    typedef Function<double_complex,1> functionT;
+    typedef FunctionFactory<double_complex,1> factoryT;
+
+    // k=16, thresh=1e-12, gives 3e-10 forever with tstep=5x!
+    int k = 8;
+    double thresh = 1e-6;
+    FunctionDefaults<1>::k = k;
+    FunctionDefaults<1>::thresh = thresh;
+    FunctionDefaults<1>::refine = true;
+    FunctionDefaults<1>::initial_level = 3;
+    FunctionDefaults<1>::cell(0,0) = -600.0;
+    FunctionDefaults<1>::cell(0,1) =  800.0;
+    FunctionDefaults<1>::truncate_mode = 1;
+    double width = FunctionDefaults<1>::cell(0,1)-FunctionDefaults<1>::cell(0,0);
+
+    double a = 1.0;
+    double v = 1.0;
+    double ctarget = v + 10.0*sqrt(a);
+    double c = 1.86*ctarget; //1.86*ctarget;
+    double tcrit = 2*PI/(c*c);
+    double tstep = 10.0*tcrit;
+    int nstep = 100.0/tstep;
+    tstep = 100.0/nstep;
+
+    // For the purpose of testing there is no need to propagate 100 time units.
+    // Just 100 steps.
+    nstep = 100;
+
+    if (world.rank() == 0) {
+        print("\n Testing evolution of a quantum wave packet in",1,"dimensions");
+        print("expnt",a,"velocity",v,"bandw",ctarget,"effbandw",c);
+        print("tcrit",tcrit,"tstep",tstep,"nstep",nstep,"width",width);
+    }
+
+    functorT f(new QMtest(a,v,0.0));
+
+    BandlimitedPropagator::test();
+
+    std::vector< SharedPtr< Convolution1D<double_complex> > > q(1);
+    q[0] = SharedPtr< Convolution1D<double_complex> >(new GenericConvolution1D<double_complex,BandlimitedPropagator>(k,BandlimitedPropagator(c,tstep,width)));
+
+    SeparatedConvolution<double_complex,1> G(world, k, q);
+
+    functionT psi(factoryT(world).functor(f));
+    psi.truncate();
+
+    if (world.rank() == 0) {
+        print("  step    time      norm      error");
+        print(" ------  ------- ---------- ----------");
+    }
+    for (int i=0; i<nstep; i++) {
+        psi.refine();
+        double norm = psi.norm2();
+        double err = psi.err(QMtest(a,v,tstep*i));
+        if (world.rank() == 0)
+            printf("%6d  %7.3f  %10.8f  %9.1e\n",i, i*tstep, norm, err);
+        psi = apply(G,psi);
+        psi.truncate();
+    }
+
+    // Test program does not need to plot!
+//     psi.reconstruct();
+
+//     ofstream plot;
+
+//     if (world.rank() == 0) plot.open("plot.dat",ios::trunc);
+//     int npt = 10001;
+//     double lo = FunctionDefaults<1>::cell(0,0);
+//     double hi = FunctionDefaults<1>::cell(0,1);
+//     double h = (hi-lo)/(npt-1);
+//     for (int i=0; i<npt; i++) {
+//         double x = lo + i*h;
+//         double_complex numeric = psi(x);
+//         double_complex exact = QMtest(a,v,tstep*nstep)(x);
+//         if (world.rank() == 0) plot << x << " " << numeric.real() << " " << numeric.imag() << " " << abs(numeric) << " " << abs(numeric-exact) << endl;
+//     }
+//     if (world.rank() == 0) plot.close();
+    
+    return;
+}
+
 #define TO_STRING(s) TO_STRING2(s)
 #define TO_STRING2(s) #s
 
@@ -812,7 +1040,12 @@ int main(int argc, char**argv) {
         startup(world,argc,argv);
         if (world.rank() == 0) print("Initial tensor instance count", BaseTensor::get_instance_count());
 
-        madness::detail::adqtest::runtest();
+
+        test_basic<double,1>(world);
+        test_conv<double,1>(world);
+        test_math<double,1>(world);
+        test_diff<double,1>(world);
+        test_op<double,1>(world);
 
         // stupid location for this test
         GenericConvolution1D<double,GaussianGenericFunctor<double> > gen(10,GaussianGenericFunctor<double>(100.0,100.0));
@@ -822,32 +1055,27 @@ int main(int argc, char**argv) {
         MADNESS_ASSERT((gg-hh).normf() < 1e-13);
         if (world.rank() == 0) print(" generic and gaussian operator kernels agree\n");
 
+        test_qm(world);
 
-        
-//         test_basic<double,1>(world);
-//         test_conv<double,1>(world);
-//         test_math<double,1>(world);
-//         test_diff<double,1>(world);
-        test_op<double,1>(world);
 
-//         test_basic<double_complex,1>(world);
-//         test_conv<double_complex,1>(world);
-//         test_math<double_complex,1>(world);
-//         test_diff<double_complex,1>(world);
-        test_op<double_complex,1>(world); // not yet compiling
+        test_basic<double_complex,1>(world);
+        test_conv<double_complex,1>(world);
+        test_math<double_complex,1>(world);
+        test_diff<double_complex,1>(world);
+        test_op<double_complex,1>(world);
 
-//         test_basic<double,2>(world);
-//         test_conv<double,2>(world);
-//         test_math<double,2>(world);
-//         test_diff<double,2>(world);
-//         test_op<double,2>(world);
+        test_basic<double,2>(world);
+        test_conv<double,2>(world);
+        test_math<double,2>(world);
+        test_diff<double,2>(world);
+        test_op<double,2>(world);
 
-//         test_basic<double,3>(world);
-//         test_conv<double,3>(world);
-//         test_math<double,3>(world);
-//         test_diff<double,3>(world);
-//         test_op<double,3>(world);
-//         test_coulomb(world);
+        test_basic<double,3>(world);
+        test_conv<double,3>(world);
+        test_math<double,3>(world);
+        test_diff<double,3>(world);
+        test_op<double,3>(world);
+        test_coulomb(world);
 
     } catch (const MPI::Exception& e) {
         //        print(e);

@@ -745,6 +745,27 @@ namespace madness {
         
         return None;
     }
+
+    template <typename T, int NDIM>
+    void FunctionImpl<T,NDIM>::refine(bool fence) 
+    {
+        MADNESS_ASSERT(!compressed);
+        for(typename dcT::iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
+            const keyT& key = it->first;
+            nodeT& node = it->second;
+            if (node.has_coeff() && autorefine_square_test(key, node.coeff())) {
+                const tensorT t = node.coeff();
+                node.clear_coeff();
+                node.set_has_children(true);
+                for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {         
+                    const keyT& child = kit.key();
+                    coeffs.insert(child,nodeT(parent_to_child(t, key, child),false));
+                }
+            }
+        }
+        if (fence) world.gop.fence();
+    }
+
     
     template <typename T, int NDIM>
     void FunctionImpl<T,NDIM>::square_inplace(bool fence) {
