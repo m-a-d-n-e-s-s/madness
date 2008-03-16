@@ -35,7 +35,6 @@
   
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <mra/mra.h>
-//#include <mra/loadbal.h>
 
 /// \file mra.cc
 /// \file Declaration and initialization of static data, some implementation, some instantiation
@@ -713,82 +712,104 @@ namespace madness {
         *hi = cdata.work1.normf();
     }
     
-    template <typename T, int NDIM>
-    Void FunctionImpl<T,NDIM>::do_square_inplace(const keyT& key) {
-        Level n = key.level();
-        nodeT& node = coeffs[key];
-        
-        double scale = pow(2.0,0.5*NDIM*n)/sqrt(cell_volume);
-        tensorT tval = transform(node.coeff(),cdata.quad_phit).scale(scale);
-        
-        tval.emul(tval);
-        
-        scale = pow(0.5,0.5*NDIM*n)*sqrt(cell_volume);
-        tval = transform(tval,cdata.quad_phiw).scale(scale);
-        
-        node.set_coeff(tval);
-        
-        return None;
-    }
-    
-    template <typename T, int NDIM>
-    Void FunctionImpl<T,NDIM>::FunctionImpl<T,NDIM>::do_square_inplace2(const keyT& parent, const keyT& child, const tensorT& parent_coeff) {
-        tensorT tval = fcube_for_mul (child, parent, parent_coeff);
-        
-        tval.emul(tval);
-        
-        Level n = child.level();
-        double scale = pow(0.5,0.5*NDIM*n)*sqrt(cell_volume);
-        tval = transform(tval,cdata.quad_phiw).scale(scale);
-        
-        coeffs.insert(child,nodeT(tval,false));
-        
-        return None;
+    namespace detail {
+        template <typename A, typename B>
+        struct noop {
+            void operator()(const A& a, const B& b) const {};
+
+            template <typename Archive> void serialize(Archive& ar) {}
+        };
+
+        template <typename T, int NDIM>
+        struct scaleinplace {
+            T q;
+            scaleinplace() {}
+            scaleinplace(T q) : q(q) {}
+            void operator()(const Key<NDIM>& key, Tensor<T>& t) const {t.scale(q);}
+            template <typename Archive> void serialize(Archive& ar) {ar & q;}
+        };            
+
+        template <typename T, int NDIM>
+        struct squareinplace {
+            void operator()(const Key<NDIM>& key, Tensor<T>& t) const {t.emul(t);}
+            template <typename Archive> void serialize(Archive& ar) {}
+        };
     }
 
     template <typename T, int NDIM>
     void FunctionImpl<T,NDIM>::refine(bool fence) 
     {
-        MADNESS_ASSERT(!compressed);
-        for(typename dcT::iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
-            const keyT& key = it->first;
-            nodeT& node = it->second;
-            if (node.has_coeff() && autorefine_square_test(key, node.coeff())) {
-                const tensorT t = node.coeff();
-                node.clear_coeff();
-                node.set_has_children(true);
-                for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {         
-                    const keyT& child = kit.key();
-                    coeffs.insert(child,nodeT(parent_to_child(t, key, child),false));
-                }
-            }
+        if (autorefine) {
+            unary_op_coeff_inplace(&implT::autorefine_square_test, detail::noop<keyT,tensorT>(), fence);
         }
-        if (fence) world.gop.fence();
+        else {
+            unary_op_coeff_inplace(&implT::noautorefine, detail::noop<keyT,tensorT>(), fence);
+        }
     }
 
+    template <typename T, int NDIM>
+    void FunctionImpl<T,NDIM>::scale_inplace(const T q, bool fence) 
+    {
+        unary_op_coeff_inplace(&implT::noautorefine, detail::scaleinplace<T,NDIM>(q), fence);
+    }
     
     template <typename T, int NDIM>
     void FunctionImpl<T,NDIM>::square_inplace(bool fence) {
-        for(typename dcT::iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
-            const keyT& key = it->first;
-            nodeT& node = it->second;
-            if (node.has_coeff()) {
-                if (autorefine && autorefine_square_test(key, node.coeff())) {
-                    tensorT t = node.coeff();
-                    node.clear_coeff();
-                    node.set_has_children(true);
-                    for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {         
-                        const keyT& child = kit.key();
-                        task(coeffs.owner(child), &implT::do_square_inplace2, key, child, t);
-                    }
-                }
-                else {
-                    task(world.rank(), &implT::do_square_inplace, key);
+        unary_op_value_inplace(&implT::autorefine_square_test, detail::squareinplace<T,NDIM>(), fence);
+    }
+
+    template <typename T, int NDIM>
+    void FunctionImpl<T,NDIM>::phi_for_mul(Level np, Translation lp, Level nc, Translation lc, Tensor<double>& phi) const {
+        double p[200];
+        double scale = pow(2.0,double(np-nc));
+        for (int mu=0; mu<cdata.npt; mu++) {
+            double xmu = scale*(cdata.quad_x(mu)+lc) - lp;
+            MADNESS_ASSERT(xmu>-1e-15 && xmu<(1+1e-15));
+            legendre_scaling_functions(xmu,cdata.k,p);
+            for (int i=0; i<k; i++) phi(i,mu) = p[i];
+        }
+        phi.scale(pow(2.0,0.5*np));
+    }
+
+    template <typename T, int NDIM>
+    const Tensor<T> FunctionImpl<T,NDIM>::parent_to_child(const tensorT& s, const keyT& parent, const keyT& child) const {
+        // An invalid parent/child means that they are out of the box
+        // and it is the responsibility of the caller to worry about that
+        // ... most likely the coefficiencts (s) are zero to reflect
+        // zero B.C. so returning s makes handling this easy.
+        if (parent == child || parent.is_invalid() || child.is_invalid()) return s;
+        
+        tensorT result = fcube_for_mul<T>(child, parent, s);
+        result.scale(sqrt(cell_volume*pow(0.5,double(NDIM*child.level()))));
+        result = transform(result,cdata.quad_phiw);
+        
+        return result;
+    }
+
+
+    template <typename T, int NDIM>
+    T FunctionImpl<T,NDIM>::trace_local() const {
+        std::vector<long> v0(NDIM,0);
+        T sum = 0.0;
+        if (compressed) {
+            if (world.rank() == coeffs.owner(cdata.key0)) {
+                typename dcT::const_iterator it = coeffs.find(cdata.key0).get();
+                if (it != coeffs.end()) {
+                    const nodeT& node = it->second;
+                    if (node.has_coeff()) sum = node.coeff()(v0);
                 }
             }
         }
-        if (fence) world.gop.fence();
+        else {
+            for(typename dcT::const_iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
+                const keyT& key = it->first;
+                const nodeT& node = it->second;
+                if (node.has_coeff()) sum += node.coeff()(v0)*pow(0.5,NDIM*key.level()*0.5);
+            }
+        }
+        return sum*sqrt(cell_volume);
     }
+
     
     template <typename T, int NDIM>
     void FunctionImpl<T,NDIM>::diff(const implT& f, int axis, bool fence) {

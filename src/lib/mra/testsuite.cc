@@ -403,7 +403,6 @@ void test_math(World& world) {
     new_err = (f6 - f.scale(6.0)).norm2();
     CHECK(new_err,1e-13,"general op output");
 
-
     if (world.rank() == 0) print("\nTest multiplying random functions");
     init_genrand(314159);  // Ensure all processes have the same sequence (for exponents)
     

@@ -815,34 +815,12 @@ namespace madness {
         /// Evaluate parent polyn at quadrature points of a child.  The prefactor of 
         /// 2^n/2 is included.  The tensor must be preallocated as phi(k,npt).
         /// Refer to the implementation notes for more info.
-        void phi_for_mul(Level np, Translation lp, Level nc, Translation lc, Tensor<double>& phi) const {
-            double p[200];
-            double scale = pow(2.0,double(np-nc));
-            for (int mu=0; mu<cdata.npt; mu++) {
-                double xmu = scale*(cdata.quad_x(mu)+lc) - lp;
-                MADNESS_ASSERT(xmu>-1e-15 && xmu<(1+1e-15));
-                legendre_scaling_functions(xmu,cdata.k,p);
-                for (int i=0; i<k; i++) phi(i,mu) = p[i];
-            }
-            phi.scale(pow(2.0,0.5*np));
-        }
+        void phi_for_mul(Level np, Translation lp, Level nc, Translation lc, Tensor<double>& phi) const;
 
         /// Directly project parent coeffs to child coeffs
 
         /// Currently used by diff, but other uses can be anticipated
-        const tensorT parent_to_child(const tensorT& s, const keyT& parent, const keyT& child) const {
-            // An invalid parent/child means that they are out of the box
-            // and it is the responsibility of the caller to worry about that
-            // ... most likely the coefficiencts (s) are zero to reflect
-            // zero B.C. so returning s makes handling this easy.
-            if (parent == child || parent.is_invalid() || child.is_invalid()) return s;
-            
-            tensorT result = fcube_for_mul<T>(child, parent, s);
-            result.scale(sqrt(cell_volume*pow(0.5,double(NDIM*child.level()))));
-            result = transform(result,cdata.quad_phiw);
-
-            return result;
-        }
+        const tensorT parent_to_child(const tensorT& s, const keyT& parent, const keyT& child) const;
 
 
         /// Compute the function values for multiplication
@@ -918,6 +896,92 @@ namespace madness {
         }
 
 
+        template <typename opT>
+        Void unary_op_coeff_inplace_child(const opT& op, const keyT& parent, const keyT& child, const tensorT& t) {
+            coeffs.insert(child, nodeT(parent_to_child(t, parent, child), false));
+            nodeT& node = coeffs[child];
+            op(child, node.coeff());
+            return None;
+        }
+
+        /// Unary operation applied inplace to the coefficients with optional refinement and fence
+        template <typename opT>
+        void unary_op_coeff_inplace(bool (implT::*refineop)(const keyT&, const tensorT&) const, 
+                                    const opT& op, 
+                                    bool fence) 
+        {
+            for(typename dcT::iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
+                const keyT& parent = it->first;
+                nodeT& node = it->second;
+                if (node.has_coeff()) {
+                    tensorT t= node.coeff();
+                    if ((this->*refineop)(parent, t)) {
+                        MADNESS_ASSERT(!compressed);
+                        node.clear_coeff();
+                        node.set_has_children(true);
+                        for (KeyChildIterator<NDIM> kit(parent); kit; ++kit) {         
+                            const keyT& child = kit.key();
+                            // Crucial that this is a task so that nodes inserted as a result of refinement 
+                            // are not operated on  twice due to a race condition if in parallel
+                            task(coeffs.owner(child), &implT:: template unary_op_coeff_inplace_child<opT>, op, parent, child, t);
+                        }
+                    }
+                    else {
+                        op(parent, t);
+                    }
+                }
+            }
+            if (fence) world.gop.fence();
+        }
+        
+
+        template <typename opT>
+        Void unary_op_value_inplace_child(const opT& op, const keyT& parent, const keyT& child, const tensorT& t) {
+            tensorT values = fcube_for_mul(child, parent, t);
+
+            op(child, values);
+
+            double scale = pow(0.5,0.5*NDIM*child.level())*sqrt(cell_volume);
+            tensorT r = transform(values,cdata.quad_phiw).scale(scale);
+
+            if (parent == child) 
+                coeffs[child].set_coeff(r);
+            else 
+                coeffs.insert(child,nodeT(r,false));
+
+            return None;
+        }
+
+        /// Unary operation applied inplace to the values with optional refinement and fence
+        template <typename opT>
+        void unary_op_value_inplace(bool (implT::*refineop)(const keyT&, const tensorT&) const, 
+                                    const opT& op, 
+                                    bool fence) 
+        {
+            for(typename dcT::iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
+                const keyT& parent = it->first;
+                nodeT& node = it->second;
+                if (node.has_coeff()) {
+                    tensorT t= node.coeff();
+                    if ((this->*refineop)(parent, t)) {
+                        MADNESS_ASSERT(!compressed);
+                        node.clear_coeff();
+                        node.set_has_children(true);
+                        for (KeyChildIterator<NDIM> kit(parent); kit; ++kit) {         
+                            const keyT& child = kit.key();
+                            // Crucial that this is a task so that nodes inserted as a result of refinement 
+                            // are not operated on  twice due to a race condition if in parallel
+                            task(coeffs.owner(child), &implT:: template unary_op_value_inplace_child<opT>, op, parent, child, t);
+                        }
+                    }
+                    else {
+                        unary_op_value_inplace_child(op, parent, parent, t);
+                    }
+                }
+            }
+            if (fence) world.gop.fence();
+        }
+        
 
         /// Invoked by result to compute the pointwise product result=left*right
 
@@ -1201,6 +1265,9 @@ namespace madness {
 
         // This invoked if node has been autorefined
         Void do_square_inplace2(const keyT& parent, const keyT& child, const tensorT& parent_coeff);
+
+        /// Always returns false (for when autorefine is not wanted)
+        bool noautorefine(const keyT& key, const tensorT& t) const {return false;}
 
         /// Returns true if this block of coeffs needs autorefining
         bool autorefine_square_test(const keyT& key, const tensorT& t) const {
@@ -1532,27 +1599,7 @@ namespace madness {
 
 
         /// Returns \c int(f(x),x) in local volume
-        T trace_local() const {
-            std::vector<long> v0(NDIM,0);
-            T sum = 0.0;
-            if (compressed) {
-                if (world.rank() == coeffs.owner(cdata.key0)) {
-                    typename dcT::const_iterator it = coeffs.find(cdata.key0).get();
-                    if (it != coeffs.end()) {
-                        const nodeT& node = it->second;
-                        if (node.has_coeff()) sum = node.coeff()(v0);
-                    }
-                }
-            }
-            else {
-                for(typename dcT::const_iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
-                    const keyT& key = it->first;
-                    const nodeT& node = it->second;
-                    if (node.has_coeff()) sum += node.coeff()(v0)*pow(0.5,NDIM*key.level()*0.5);
-                }
-            }
-            return sum*sqrt(cell_volume);
-        }
+        T trace_local() const;
 
 
         /// Returns the square of the local norm ... no comms
@@ -1657,14 +1704,7 @@ namespace madness {
         }
 
         /// In-place scale by a constant
-        template <typename Q>
-        void scale_inplace(const Q q, bool fence) {
-            for(typename dcT::iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
-                nodeT& node = it->second;
-                if (node.has_coeff()) node.coeff().scale(q);
-            }
-            if (fence) world.gop.fence();
-        }
+        void scale_inplace(const T q, bool fence);
 
         /// Out-of-place scale by a constant
         template <typename Q, typename F>

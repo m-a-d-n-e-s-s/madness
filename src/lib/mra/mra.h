@@ -528,6 +528,13 @@ namespace madness {
 	    return result;
 	}
 
+        /// Inplace unary operation with optional autorefining and fence
+        template <typename opT>
+        void unaryop(const opT& op, bool fence=true) {
+            verify();
+            impl->unary_op_value_inplace(&implT::autorefine_square_test, op, fence);
+        }
+
 
         /// Deep copy generating a new function (same distribution).  No communication except optional fence.
 
