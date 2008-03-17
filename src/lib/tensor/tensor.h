@@ -358,16 +358,16 @@ namespace madness {
         // IBM xlC 6.? does not digest the ISSUPORTED template
 
         /// Scale tensor by a scalar of other type (IBM XLC only).
-        template <typename Q> Tensor<T> operator*(const Q& x) const {
-            Tensor<T> result = Tensor<T>(ndim,dim,false);
-            BINARY_OPTIMIZED_ITERATOR(T, result, T, (*this), *_p0 = (T) (*_p1 * x));
+        template <typename Q> Tensor< TENSOR_RESULT_TYPE(T,Q) > operator*(const Q& x) const {
+            Tensor< TENSOR_RESULT_TYPE(T,Q) > result(ndim,dim,false);
+            BINARY_OPTIMIZED_ITERATOR( TENSOR_RESULT_TYPE(T,Q) , result, T, (*this), *_p0 = (*_p1 * x));
             return result;
         }
 
         /// Divide tensor by a scalar of other type (IBM XLC only).
-        template <typename Q> Tensor<T> operator/(const Q& x) const {
-            Tensor<T> result = Tensor<T>(ndim,dim);
-            BINARY_OPTIMIZED_ITERATOR(T, result, T, (*this), *_p0 = (T) (*_p1 / x));
+        template <typename Q> Tensor< TENSOR_RESULT_TYPE(T,Q) > operator/(const Q& x) const {
+            Tensor< TENSOR_RESULT_TYPE(T,Q) > result(ndim,dim);
+            BINARY_OPTIMIZED_ITERATOR( TENSOR_RESULT_TYPE(T,Q) , result, T, (*this), *_p0 = (*_p1 / x));
             return result;
         }
 
@@ -383,16 +383,16 @@ namespace madness {
         }
 #else
         /// Scale tensor by a scalar of a supported type (see type_data.h).
-        template ISSUPPORTED(Q,Tensor<T>) operator*(const Q& x) const {
-            Tensor<T> result = Tensor<T>(ndim,dim,false);
-            BINARY_OPTIMIZED_ITERATOR(T, result, T, (*this), *_p0 = (T) (*_p1 * x));
+        template ISSUPPORTED(Q,Tensor< TENSOR_RESULT_TYPE(T,Q) >) operator*(const Q& x) const {
+            Tensor< TENSOR_RESULT_TYPE(T,Q) > result(ndim,dim,false);
+            BINARY_OPTIMIZED_ITERATOR( TENSOR_RESULT_TYPE(T,Q) , result, T, (*this), *_p0 = (*_p1 * x));
             return result;
         }
 
         /// Divide tensor by a scalar of a supported type (see type_data.h).
-        template ISSUPPORTED(Q,Tensor<T>) operator/(const Q& x) const {
-            Tensor<T> result = Tensor<T>(ndim,dim);
-            BINARY_OPTIMIZED_ITERATOR(T, result, T, (*this), *_p0 = (T) (*_p1 / x));
+        template ISSUPPORTED(Q,Tensor< TENSOR_RESULT_TYPE(T,Q) >) operator/(const Q& x) const {
+            Tensor< TENSOR_RESULT_TYPE(T,Q) > result(ndim,dim);
+            BINARY_OPTIMIZED_ITERATOR( TENSOR_RESULT_TYPE(T,Q) , result, T, (*this), *_p0 = (*_p1 / x));
             return result;
         }
 
@@ -654,7 +654,7 @@ namespace madness {
         // For real types, the same type as T is returned (type_data.h)
 
 
-        /// Returns the Frobenius norm of the tensor (needs correcting for complex??)
+        /// Returns the Frobenius norm of the tensor
         float_scalar_type normf() const;
 
         /// Return the absolute minimum value (and if ind is non-null, its index) in the Tensor

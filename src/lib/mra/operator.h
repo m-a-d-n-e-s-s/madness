@@ -2,6 +2,7 @@
 #define MAD_OPERATOR_H
 
 #include <mra/mra.h>
+#include <mra/adquad.h>
 #include <tensor/mtxmq.h>
 #include <linalg/tensor_lapack.h>
 

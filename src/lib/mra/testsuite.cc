@@ -40,7 +40,7 @@
 #include <unistd.h>
 #include <cstdio>
 #include <constants.h>
-#include <mra/adquad.h>
+#include <mra/qmprop.h>
 
 #include <tensor/random.h>
 
@@ -796,74 +796,6 @@ public:
         : a(a), v(v), t(t) {}
 };
 
-
-/// Class to evaluate the filtered Schrodinger free-particle propagator in real space
-
-/// Follows the corresponding Maple worksheet and the implementation notes.
-class BandlimitedPropagator {
-private:
-    const double c;
-    const double t;
-    const double width;
-    const double ctop;
-    const double L;
-    const double h;
-    const int n;
-    const double dc;
-    
-    std::complex<double> ff(double k) const {
-        if (k>2.54*c) return std::complex<double>(0.0,0.0);
-        const std::complex<double> arg(0,-k*k*t*0.5);
-        return std::exp(arg)/(1.0+std::pow(k/c, 30.0));
-    }
-
-public:
-    typedef double_complex returnT;
-
-    BandlimitedPropagator(double c, double t, double width)
-        : c(c)
-        , t(t)
-        , width(width)
-        , ctop(3.0*c)
-        , L(1.2 * 0.5435*(3.0*pow(c,5.0/3.0)*pow(t,0.75)+400.0)/c) //
-        , h(3.14/ctop)
-        , n(2.0*L/h+1)
-        , dc(2*ctop/(n-1))
-    {
-//         std::cout << " c " << c << std::endl;
-//         std::cout << " t " << t << std::endl;
-//         std::cout << " ctop " << ctop << std::endl;
-//         std::cout << " L " << L << std::endl;
-//         std::cout << " h " << h << std::endl;
-//         std::cout << " n " << n << std::endl;
-//         std::cout << " dc " << dc << std::endl;
-    }
-    
-    std::complex<double> operator()(double x) const {
-        x = width*x;
-        if (fabs(x) > L) return std::complex<double>(0.0,0.0);
-        std::complex<double> base = exp(std::complex<double>(0.0,-x*ctop));
-        std::complex<double>  fac = exp(std::complex<double>(0.0,x*dc));
-        std::complex<double> sum(0.0,0.0);
-        double W = -ctop;
-        for (int i=0; i<n; i++,W+=dc) {
-            //std::complex<double> arg(0.0,x*W);
-            //std::complex<double> base = std::exp(arg);
-            sum += ff(W)*base;
-            base *= fac;
-        }
-        return width*sum*dc*0.5/madness::constants::pi;
-    }
-
-    static void test() {
-//         std::complex<double> maple(1.13851441120840,-.986104972277800);
-//         BandlimitedPropagator bp(31.4, 0.07);
-//         if (std::abs(bp(0.1)-maple) > 1e-12) throw "BandlimitedPropagator: failed test";
-        return;
-    }
-};
-
-
 void test_qm(World& world) {
     /*
 
@@ -949,13 +881,7 @@ void test_qm(World& world) {
     }
 
     functorT f(new QMtest(a,v,0.0));
-
-    BandlimitedPropagator::test();
-
-    std::vector< SharedPtr< Convolution1D<double_complex> > > q(1);
-    q[0] = SharedPtr< Convolution1D<double_complex> >(new GenericConvolution1D<double_complex,BandlimitedPropagator>(k,BandlimitedPropagator(c,tstep,width)));
-
-    SeparatedConvolution<double_complex,1> G(world, k, q);
+    SeparatedConvolution<double_complex,1> G = qm_free_particle_propagator<1>(world, k, c, tstep, width);
 
     functionT psi(factoryT(world).functor(f));
     psi.truncate();

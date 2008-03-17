@@ -84,6 +84,10 @@ namespace madness {
     template <typename T, int NDIM>
     class Function {
 
+        template<typename Q, int D>
+        friend 
+        class Function;
+
         template <typename L, typename R, int D>
         friend
         Function<TENSOR_RESULT_TYPE(L,R),D> 

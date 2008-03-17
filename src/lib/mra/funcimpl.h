@@ -550,7 +550,9 @@ namespace madness {
     template <typename T, int NDIM>
     class FunctionImpl : public WorldObject< FunctionImpl<T,NDIM> > {
     public:
-	friend class Function<T,NDIM>;
+	//friend class Function<T,NDIM>;
+        template <typename Q, int D> friend class Function;
+        template <typename Q, int D> friend class FunctionImpl;
 	friend class LoadBalImpl<NDIM>;
 	friend class LBTree<NDIM>;
 
@@ -671,8 +673,8 @@ namespace madness {
             , truncate_mode(other.truncate_mode)
             , autorefine(other.autorefine)
             , nonstandard(other.nonstandard)
-            , cdata(other.cdata)
-            , functor(other.functor)
+            , cdata(FunctionCommonData<T,NDIM>::get(k))
+            , functor()
             , compressed(other.compressed)
             , coeffs(world, pmap ? pmap : other.coeffs.get_pmap())
             , cell(other.cell)

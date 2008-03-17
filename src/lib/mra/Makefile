@@ -10,7 +10,7 @@ TARGET_TO_MAKE = libMADmra
 
 # List all C++ source files (not headers).  Use CSRC and FTNSRC for
 # C (.c) and Fortran (.f) respectively
-CXXSRC = mra.cc loadbal.cc startup.cc legendre.cc twoscale.cc test_sepop.cc gfit.cc
+CXXSRC = mra.cc loadbal.cc startup.cc legendre.cc twoscale.cc test_sepop.cc gfit.cc qmprop.cc
 
 # Data files that should be installed with the library [OPTIONAL]
 DATAFILES = autocorr coeffs gaussleg
@@ -40,6 +40,11 @@ test: $(TEST1OBJ) $(THISLIBDEPEND)
 
 testss: $(TEST2OBJ) $(THISLIBDEPEND) 
 	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ $(SYSLIBS) $(LTLINKBINOPTS)
+
+jjtests: jjtests.o $(THISLIBDEPEND) 
+	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ $(SYSLIBS) $(LTLINKBINOPTS)
+
+jjtests.o:	sdc.h
 
 testsuite: $(TEST3OBJ) $(THISLIBDEPEND) 
 	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ $(SYSLIBS) $(LTLINKBINOPTS)
