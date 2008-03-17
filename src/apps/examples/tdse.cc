@@ -156,8 +156,7 @@ void propagate(World& world, functionT& potn, functionT& psi0, double& eps) {
     // In the absense of a time-dependent potential we should just have the
     // rotating phase of the ground state wave function
 
-    //double ctarget = constants::pi/(0.5*cut);
-    double ctarget = constants::pi/(2.0*cut);
+    double ctarget = constants::pi/(0.5*cut);
     double c = 1.86*ctarget; //1.86*ctarget;
     double tcrit = 2*constants::pi/(c*c);
     double tstep = 10.0*tcrit;
@@ -177,7 +176,7 @@ void propagate(World& world, functionT& potn, functionT& psi0, double& eps) {
     psi.truncate();
     if (world.rank() == 0) print("initial normalize");    
     psi.scale(1.0/psi.norm2());
-    for (int step=0; step<nstep; step++) {
+    for (int step=-4.0; step<nstep; step++) {
         if (world.rank() == 0) print("\nStarting time step",step,tstep*step);
 
         energy(world, psi, potn+laser(step*tstep)*zdip);  // Use field at current time to evaluate energy
