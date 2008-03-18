@@ -51,9 +51,9 @@ namespace madness {
         Vector<int, NDIM> d;
         int bmax;
         if (NDIM == 1) bmax = 7; // !! Make sure that SimpleCache is consistent!!!!
-        else if (NDIM == 2) bmax = 5;
-        else if (NDIM == 3) bmax = 2;
-        else bmax = 1;
+        else if (NDIM == 2) bmax = 7;
+        else if (NDIM == 3) bmax = 7;
+        else bmax = 3;
 
         int num = 1;
         for (int i=0; i<NDIM; i++) num *= (2*bmax + 1);
