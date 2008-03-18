@@ -14,7 +14,7 @@ using namespace madness;
 static const double L = 23.0;
 static const long k = 12;        // wavelet order
 static const double thresh = 1e-6; // precision
-static const double cut = 0.1;  // smoothing parameter for 1/r
+static const double cut = 0.2;  // smoothing parameter for 1/r
 static const double F = 1.0;  // Laser field strength
 static const double omega = 1.0; // Laser frequency
 
@@ -156,18 +156,24 @@ void propagate(World& world, functionT& potn, functionT& psi0, double& eps) {
     // In the absense of a time-dependent potential we should just have the
     // rotating phase of the ground state wave function
 
-    double ctarget = constants::pi/(0.5*cut);
+    //double ctarget = constants::pi/(0.5*cut);
+    double ctarget = constants::pi/(2.0*cut);
     double c = 1.86*ctarget; //1.86*ctarget;
     double tcrit = 2*constants::pi/(c*c);
     double tstep = 10.0*tcrit;
     int nstep = 100.0/tstep;
+    
+    double Eshift = -0.4985;
+
+    potn.add_scalar(-Eshift);
+
     tstep = 0.005;
 
     if (world.rank() == 0) {
         print("bandlimit",ctarget,"effband",c,"tcrit",tcrit,"tstep",tstep,"nstep",nstep);
     }
 
-    complex_functionT psi = double_complex(sqrt(0.5),sqrt(0.5))*psi0;
+    complex_functionT psi = double_complex(1.0,0.0)*psi0;
     SeparatedConvolution<double_complex,3> G = qm_free_particle_propagator<3>(world, k, c, 0.5*tstep, 2*L);
 
     functionT zdip = factoryT(world).f(zdipole);
@@ -176,22 +182,25 @@ void propagate(World& world, functionT& potn, functionT& psi0, double& eps) {
     psi.truncate();
     if (world.rank() == 0) print("initial normalize");    
     psi.scale(1.0/psi.norm2());
-    for (int step=-4.0; step<nstep; step++) {
+    int steplo = -3;
+    for (int step=steplo; step<nstep; step++) {
         if (world.rank() == 0) print("\nStarting time step",step,tstep*step);
 
-        energy(world, psi, potn+laser(step*tstep)*zdip);  // Use field at current time to evaluate energy
+        energy(world, psi, potn+laser((step)*tstep)*zdip);  // Use field at current time to evaluate energy
 
         double_complex dipole = inner(psi,zdip*psi);
         if (world.rank() == 0) print("THE DIPOLE IS", dipole);
 
-        if (world.rank() == 0) print("load balancing");
-        LoadBalImpl<3> lb(psi, lbcost<double_complex,3>);
-        lb.load_balance();
-        FunctionDefaults<3>::pmap = lb.load_balance();
-        world.gop.fence();
-        psi = copy(psi, FunctionDefaults<3>::pmap, false);
-        potn = copy(potn, FunctionDefaults<3>::pmap, true);
-        zdip = copy(zdip, FunctionDefaults<3>::pmap, true);
+        if (step > steplo) {
+            if (world.rank() == 0) print("load balancing");
+            LoadBalImpl<3> lb(psi, lbcost<double_complex,3>);
+            lb.load_balance();
+            FunctionDefaults<3>::pmap = lb.load_balance();
+            world.gop.fence();
+            psi = copy(psi, FunctionDefaults<3>::pmap, false);
+            potn = copy(potn, FunctionDefaults<3>::pmap, true);
+            zdip = copy(zdip, FunctionDefaults<3>::pmap, true);
+        }
 
         if (world.rank() == 0) print("making expV");
         functionT totalpotn = potn + laser((step+0.5)*tstep)*zdip; // Use midpoint field to advance in time
@@ -209,6 +218,7 @@ void propagate(World& world, functionT& potn, functionT& psi0, double& eps) {
         psi = apply(G, psi);
         psi.truncate();
         psi.refine();
+
         sz = psi.size();
         if (world.rank() == 0) print("multipling by expV",sz);
         psi = expV*psi;
