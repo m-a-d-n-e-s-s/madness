@@ -704,8 +704,9 @@ struct Calculation {
 
     void loadbal(World& world) {
         if (world.size() == 1) return;
-        LoadBalImpl<3> lb(vnuc, lbcost<double,3>);
-        for (unsigned int i=0; i<amo.size(); i++) {
+        //LoadBalImpl<3> lb(vnuc, lbcost<double,3>);
+        LoadBalImpl<3> lb(amo[0], lbcost<double,3>);
+        for (unsigned int i=1; i<amo.size(); i++) {  // was from i=0
             lb.add_tree(amo[i],lbcost<double,3>);
         }
         if (!param.spin_restricted) {
