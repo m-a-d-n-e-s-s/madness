@@ -308,11 +308,9 @@ namespace madness {
 
         GaussianConvolution1D() : Convolution1D<Q>(), coeff(0.0), expnt(0.0) {}; 
 
-        GaussianConvolution1D(int k, Q coeff, double expnt)
-            : Convolution1D<Q>(k,k+11,1.0), coeff(coeff), expnt(expnt)
-        {
-            this->sign = munge_sign(this->coeff);
-        }
+        GaussianConvolution1D(int k, Q coeff, double expnt, double sign=1.0)
+            : Convolution1D<Q>(k,k+11,sign), coeff(coeff), expnt(expnt)
+        {}
 
         /// Compute the projection of the operator onto the double order polynomials
         
@@ -706,9 +704,13 @@ namespace madness {
             double width = FunctionDefaults<NDIM>::cell(0,1)-FunctionDefaults<NDIM>::cell(0,0);
 
             for (int i=0; i<rank; i++) {
+                Q c = coeff(i);
+                double sign = munge_sign(c);
+                c = std::pow(c, 1.0/NDIM);
                 ops[i] = SharedPtr< Convolution1D<Q> >(new GaussianConvolution1D<Q>(k, 
-                                                                                    coeff(i)*width, 
-                                                                                    expnt(i)*width*width));
+                                                                                    c*width, 
+                                                                                    expnt(i)*width*width,
+                                                                                    sign));
             }
         }
 

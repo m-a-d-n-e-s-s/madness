@@ -572,8 +572,8 @@ void test_op(World& world) {
         print("\nTest separated operators - type =", archive::get_type_name<T>(),", ndim =",NDIM,"\n");
     }
     const coordT origin(0.5);
-    const double expnt = 1.0;
-    const double coeff = pow(2.0/PI,0.25*NDIM);
+    const double expnt = 1.0*100;
+    const double coeff = pow(2.0*expnt/PI,0.25*NDIM);
     functorT functor(new Gaussian<T,NDIM>(origin, expnt, coeff));
 
     FunctionDefaults<NDIM>::k = 10;
@@ -582,8 +582,8 @@ void test_op(World& world) {
     FunctionDefaults<NDIM>::initial_level = 2;
     FunctionDefaults<NDIM>::truncate_mode = 1;
     for (int i=0; i<NDIM; i++) {
-        FunctionDefaults<NDIM>::cell(i,0) = -10.0;
-        FunctionDefaults<NDIM>::cell(i,1) =  10.0;
+        FunctionDefaults<NDIM>::cell(i,0) = 0.0;
+        FunctionDefaults<NDIM>::cell(i,1) = 1.0;
     }
     
     START_TIMER; 
@@ -605,7 +605,7 @@ void test_op(World& world) {
     // exp(-x^2*a*b/(a+b))* (Pi/(a+b))^(NDIM/2)
 
     Tensor<double> coeffs(1), exponents(1);
-    exponents(0L) = 1.0;
+    exponents(0L) = 10.0;
     coeffs(0L) = pow(exponents(0L)/PI, 0.5*NDIM);
     SeparatedConvolution<T,NDIM> op(world, FunctionDefaults<NDIM>::k, coeffs, exponents);
     START_TIMER;
@@ -672,7 +672,7 @@ void test_coulomb(World& world) {
     const double coeff = pow(1.0/PI*expnt,0.5*3);
     functorT functor(new Gaussian<double,3>(origin, expnt, coeff));
 
-    double thresh = 1e-7;
+    double thresh = 1e-6;
 
     FunctionDefaults<3>::k = 8;
     FunctionDefaults<3>::thresh = thresh;
@@ -721,6 +721,7 @@ void test_coulomb(World& world) {
         world.am.print_stats();
         print("");
     }
+    f.set_thresh(thresh);
     SeparatedConvolution<double,3> op = CoulombOperator<double,3>(world, FunctionDefaults<3>::k, 1e-3, thresh);
     START_TIMER;
     Function<double,3> r = apply_only(op,f);
@@ -974,7 +975,7 @@ int main(int argc, char**argv) {
 
         // stupid location for this test
         GenericConvolution1D<double,GaussianGenericFunctor<double> > gen(10,GaussianGenericFunctor<double>(100.0,100.0));
-        GaussianConvolution1D<double> gau(10, 100.0, 100.0);
+        GaussianConvolution1D<double> gau(10, 100.0, 100.0, 1.0);
         Tensor<double> gg = gen.rnlp(4,0);
         Tensor<double> hh = gau.rnlp(4,0);
         MADNESS_ASSERT((gg-hh).normf() < 1e-13);
