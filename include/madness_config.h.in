@@ -92,11 +92,10 @@
 /* Symbols used to link Fortran from C ... lc, lcu, uc, ucu */
 #define F77_SYMBOL @F77_SYMBOL@
 
-/* X86 variations */
-#if (@HOST_CPU@ == X86_32) 
-#  define X86_32
-#elif (@HOST_CPU@ == X86_64) 
-#  define X86_64
+
+/* Specification of host cpu */
+#ifndef @HOST_CPU@
+#define @HOST_CPU@
 #endif
 
 /* Specification of host system */
