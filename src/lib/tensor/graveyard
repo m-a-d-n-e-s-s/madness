@@ -1,3 +1,134 @@
     TENSOR_ASSERT(x.size==x.dim[0]*x.dim[1]*x.dim[2]*x.dim[3]*x.dim[4]*x.dim[5],"x size error",x.size,&x);\
     TENSOR_ASSERT(y.size==y.dim[0]*y.dim[1]*y.dim[2]*y.dim[3]*y.dim[4]*y.dim[5],"y size error",y.size,&y);\
     TENSOR_ASSERT(z.size==z.dim[0]*z.dim[1]*z.dim[2]*z.dim[3]*z.dim[4]*z.dim[5],"z size error",z.size,&z);\
+
+
+
+
+
+
+
+                                              
+                                              
+                                              "movddup  (%%r8), %%xmm4;" "addsubpd %%xmm3, %%xmm2;\n"
+                                              "movddup 8(%%r8), %%xmm5;" "addpd  %%xmm2,%%xmm6;\n"
+                                              
+                                              
+                                              "add $16,%%r8;\n"                                 
+                                              "addsubpd %%xmm5, %%xmm4;\n"                      
+                                              "addpd  %%xmm4,%%xmm7;\n"                         
+
+                                              "movddup  (%%r8), %%xmm2;"
+                                              "movddup 8(%%r8), %%xmm3;"
+                                              "add $16,%%r8;\n"                                 
+                                              "movddup  (%%r8), %%xmm4;"
+                                              "movddup 8(%%r8), %%xmm5;"
+                                              "mulpd %%xmm0, %%xmm2;\n"
+                                              "mulpd %%xmm1, %%xmm3;\n"
+                                              "addsubpd %%xmm3, %%xmm2;\n"                      
+                                              "addpd  %%xmm2,%%xmm8;\n"                         
+                                              "mulpd %%xmm0, %%xmm4;\n"
+                                              "mulpd %%xmm1, %%xmm5;\n"
+                                              "add $16,%%r8;\n"                                 
+                                              "addsubpd %%xmm5, %%xmm4;\n"                      
+                                              "addpd  %%xmm4,%%xmm9;\n"                         
+
+                                              "movddup  (%%r8), %%xmm2;"
+                                              "movddup 8(%%r8), %%xmm3;"
+                                              "add $16,%%r8;\n"                                 
+                                              "movddup  (%%r8), %%xmm4;"
+                                              "movddup 8(%%r8), %%xmm5;"
+                                              "mulpd %%xmm0, %%xmm2;\n"
+                                              "mulpd %%xmm1, %%xmm3;\n"
+                                              "addsubpd %%xmm3, %%xmm2;\n"                      
+                                              "addpd  %%xmm2,%%xmm10;\n"                         
+                                              "mulpd %%xmm0, %%xmm4;\n"
+                                              "mulpd %%xmm1, %%xmm5;\n"
+                                              "add $16,%%r8;\n"                                 
+                                              "addsubpd %%xmm5, %%xmm4;\n"                      
+                                              "addpd  %%xmm4,%%xmm11;\n"                         
+
+                                              "movddup  (%%r8), %%xmm2;"
+                                              "movddup 8(%%r8), %%xmm3;"
+                                              "add $16,%%r8;\n"                                 
+                                              "movddup  (%%r8), %%xmm4;"
+                                              "movddup 8(%%r8), %%xmm5;"
+                                              "mulpd %%xmm0, %%xmm2;\n"
+                                              "mulpd %%xmm1, %%xmm3;\n"
+                                              "addsubpd %%xmm3, %%xmm2;\n"                      
+                                              "addpd  %%xmm2,%%xmm12;\n"                         
+                                              "mulpd %%xmm0, %%xmm4;\n"
+                                              "mulpd %%xmm1, %%xmm5;\n"
+                                              "add $16,%%r8;\n"                                 
+                                              "addsubpd %%xmm5, %%xmm4;\n"                      
+                                              "addpd  %%xmm4,%%xmm13;\n"                         
+                                              
+
+
+                                              "movddup  (%%r8), %%xmm2;  mulpd %%xmm0, %%xmm2;\n"
+                                              "movddup 8(%%r8), %%xmm3;  mulpd %%xmm1, %%xmm3;\n"
+                                              "add $16,%%r8;\n"                                    
+                                              "movddup  (%%r8), %%xmm2;  mulpd %%xmm0, %%xmm2;\n"
+                                              "movddup 8(%%r8), %%xmm3;  mulpd %%xmm1, %%xmm3;\n"
+                                              "add $16,%%r8;\n"                                    
+                                              "movddup  (%%r8), %%xmm2;  mulpd %%xmm0, %%xmm2;\n"
+                                              "movddup 8(%%r8), %%xmm3;  mulpd %%xmm1, %%xmm3;\n"
+                                              "add $16,%%r8;\n"                                    
+                                              "movddup  (%%r8), %%xmm2;  mulpd %%xmm0, %%xmm2;\n"
+                                              "movddup 8(%%r8), %%xmm3;  mulpd %%xmm1, %%xmm3;\n"
+                                              "add $16,%%r8;\n"                                    
+                                              "movddup  (%%r8), %%xmm2;  mulpd %%xmm0, %%xmm2;\n"
+                                              "movddup 8(%%r8), %%xmm3;  mulpd %%xmm1, %%xmm3;\n"
+                                              "add $16,%%r8;\n"                                    
+                                              "movddup  (%%r8), %%xmm2;  mulpd %%xmm0, %%xmm2;\n"
+                                              "movddup 8(%%r8), %%xmm3;  mulpd %%xmm1, %%xmm3;\n"
+                                              "add $16,%%r8;\n"                                    
+                                              "movddup  (%%r8), %%xmm2;  mulpd %%xmm0, %%xmm2;\n"
+                                              "movddup 8(%%r8), %%xmm3;  mulpd %%xmm1, %%xmm3;\n"
+                                              "add $16,%%r8;\n"                                    
+                                              "movddup  (%%r8), %%xmm2;  mulpd %%xmm0, %%xmm2;\n"
+                                              "movddup 8(%%r8), %%xmm3;  mulpd %%xmm1, %%xmm3;\n"
+                                              "add $16,%%r8;\n"                                    
+
+
+
+
+
+//                     for (long k=0; k<dimk; k++,ai+=dimi, bk+=dimj) {
+//                     __asm__ __volatile__ (ZERO(%xmm4) ZERO(%xmm5) ZERO(%xmm6) ZERO(%xmm7) ZERO(%xmm8) ZERO(%xmm9) ZERO(%xmm10) ZERO(%xmm11));
+
+//                         //#define LOAD   "movaps (%0), %%xmm0; movaps %%xmm0, %%xmm1; shufpd $1, %%xmm1, %%xmm1;\n"
+
+// #undef LOADA
+// #define LOADA   "movddup  (%0), %%xmm0; movddup 8(%0), %%xmm1;\n"
+// #define DOIT(c) "movaps (%%r8),%%xmm2; movaps %%xmm2,%%xmm3; mulpd %%xmm0,%%xmm2; addpd %%xmm2,"#c"; shufpd $1,%%xmm3,%%xmm3; mulpd %%xmm1,%%xmm3; addsubpd %%xmm3, "#c"; add $16,%%r8;\n"
+
+//                         __asm__ __volatile__ (
+//                                               LOADA
+//                                               DOIT(%%xmm4) 
+//                                               DOIT(%%xmm5) 
+//                                               DOIT(%%xmm6) 
+//                                               DOIT(%%xmm7) 
+//                                               DOIT(%%xmm8) 
+//                                               DOIT(%%xmm9) 
+//                                               DOIT(%%xmm10)
+//                                               DOIT(%%xmm11)
+//                                               :
+//                                               : "r"(ai),"r"(bk)
+//                                               : "r8", "memory"
+//                                               );
+//                     }
+//                     __asm__ __volatile__ (
+//                                           "mov %0, %%r8;\n"
+//                                           STORE(%%xmm4)
+//                                           STORE(%%xmm5)
+//                                           STORE(%%xmm6)
+//                                           STORE(%%xmm7)
+//                                           STORE(%%xmm8)
+//                                           STORE(%%xmm9)
+//                                           STORE(%%xmm10)
+//                                           STORE(%%xmm11)
+//                                           :
+//                                           : "r"(ci)
+//                                           : "r8","memory"
+//                                           );

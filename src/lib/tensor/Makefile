@@ -1,6 +1,6 @@
 TOPDIR = ../../..
 TARGET_TO_MAKE = libMADtensor
-CXXSRC =  tensor.cc tensoriter.cc basetensor.cc mtrand.cc
+CXXSRC =  tensor.cc tensoriter.cc basetensor.cc mtrand.cc mtxmq.cc
 
 TESTPROGS = test test_mtxmq
 TEST1SRC = test.o
@@ -15,11 +15,6 @@ endif
 ifeq ($(HOST_CPU),X86_64)
 USE_MTXMQ = YES
 TUNE_MTXMQ = 
-endif
-
-
-ifeq ($(USE_MTXMQ),YES)
-CXXSRC += mtxmq.cc
 endif
 
 

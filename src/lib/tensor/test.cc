@@ -660,7 +660,7 @@ template <class T> void Test7() {
               if (std::abs(sum-john(_i,_j,_k,_l,_m,_n))> std::abs(sum)*1e-6) error("test7: failed",413));
 
 
-    const long n = 6; // Was 5 but changed to even value to test fast_transform
+    const long n = 8; // Was 5 but changed to even value to test fast_transform
     Tensor<T> x(n,n,n,n);
     Tensor<T> r(n,n,n,n);
     Tensor<T> c(n,n);
@@ -680,7 +680,10 @@ template <class T> void Test7() {
                     for (int ii=0; ii<n; ii++) {
                         sum += x(ii,j,k,l)*c(ii,i);
                     }
-                    if (!check(sum,q(j,k,l,i),1e-6)) error("test7: failed",41);
+                    if (!check(sum,q(j,k,l,i),1e-5)) {
+                        std::cout << sum << " " << q(j,k,l,i) << " " << sum-q(j,k,l,i) << std::endl;
+                        error("test7: failed",41);
+                    }
                 }
             }
         }
@@ -708,7 +711,7 @@ template <class T> void Test7() {
         }
     }
 
-    if ((r-y).normf() > 1e-6*r.normf()) error("test7: failed",5);
+    if ((r-y).normf() > 1e-5*r.normf()) error("test7: failed",5);
 
     r = copy(x);
     Tensor<T> workspace = copy(x);
@@ -751,10 +754,11 @@ template <class T> void Test7() {
     }
 
 
-    r = Tensor<T>(14,14,14); // result
-    y = Tensor<T>(14,14,14); // workspace
-    x = Tensor<T>(14,14,14); // input
-    c = Tensor<T>(14,14);
+    long NNN=24;
+    r = Tensor<T>(NNN,NNN,NNN); // result
+    y = Tensor<T>(NNN,NNN,NNN); // workspace
+    x = Tensor<T>(NNN,NNN,NNN); // input
+    c = Tensor<T>(NNN,NNN);
     x.fillrandom();
     c.fillrandom();
     double start = std::clock();
@@ -762,7 +766,7 @@ template <class T> void Test7() {
         fast_transform(x,c,r,y);
     }
     double used = (std::clock()-start)/CLOCKS_PER_SEC;
-    double mops = 10000.0*2*3*1e-6*14.0*14.0*14.0*14.0/used;
+    double mops = 10000.0*2*3*1e-6*double(NNN)*double(NNN)*double(NNN)*NNN/used;
     std::cout << "TRANSFORM MOPS=" << mops << "   " << used << std::endl;
 
     std::cout << "Test7<" << tensor_type_names[TensorTypeData<T>::id] << "> OK\n";
