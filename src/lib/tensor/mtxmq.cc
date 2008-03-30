@@ -93,13 +93,14 @@ namespace madness {
     template<>
     void mTxmq(const long dimi, const long dimj, const long dimk,
                double* RESTRICT c, const double* a, const double* b) {
-        //std::cout << "IN DOUBLE ASM VERSION\n";
+        //std::cout << "IN DOUBLE ASM VERSION " << dimi << " " << dimj << " " << dimk << "\n";
 
         
 #define IS_ODD(n) (n&1)
 #define IS_UNALIGNED(p) (((unsigned long) p)&7)
         if (IS_ODD(dimi) || IS_ODD(dimj) || IS_ODD(dimk) ||
             IS_UNALIGNED(a) || IS_UNALIGNED(b) || IS_UNALIGNED(c)) {
+            //std::cout << "slow\n";
             // CALL SLOW CODE
             for (long i=0; i<dimi; i++,c+=dimj,a++) {
                 for (long j=0; j<dimj; j++) c[j] = 0.0;
