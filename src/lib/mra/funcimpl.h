@@ -1542,9 +1542,11 @@ namespace madness {
             for(typename dcT::const_iterator it=f.coeffs.begin(); it!=f.coeffs.end(); ++it) {
                 const keyT& key = it->first;
                 const FunctionNode<R,NDIM>& node = it->second;
-                ProcessID p = world.random_proc();
-		//ProcessID p = coeffs.owner(key);
-                task(p, &implT:: template do_apply<opT,R>, &op, key, node.coeff());
+                if (node.coeff().dim[0] != k || op.doleaves) {
+                    ProcessID p = world.random_proc();
+                    //ProcessID p = coeffs.owner(key);
+                    task(p, &implT:: template do_apply<opT,R>, &op, key, node.coeff());
+                }
             }
             if (fence) world.gop.fence();
         }

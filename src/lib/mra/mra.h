@@ -978,7 +978,6 @@ namespace madness {
     }
 
 
-
     /// Generate a new function by reordering dimensions ... optional fence
 
     /// You provide an array of dimension NDIM that maps old to new dimensions

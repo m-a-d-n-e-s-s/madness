@@ -1033,8 +1033,13 @@ namespace madness {
             return result;
         }
     }
-    
-    
+
+
+
+    // 
+    // Below here we instantiate templates defined in this file
+    //
+
     
     template <typename T, int NDIM>
     FunctionCommonData<T,NDIM> FunctionCommonData<T,NDIM>::data[MAXK+1];

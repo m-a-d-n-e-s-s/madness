@@ -8,6 +8,68 @@
 
 namespace madness {
 
+    void aligned_add(long n, double* RESTRICT a, const double* RESTRICT b);
+    void aligned_sub(long n, double* RESTRICT a, const double* RESTRICT b);
+    void aligned_add(long n, double_complex* RESTRICT a, const double_complex* RESTRICT b);
+    void aligned_sub(long n, double_complex* RESTRICT a, const double_complex* RESTRICT b);
+
+    /// a(n,m) --> b(m,n) ... optimized for smallish matrices
+    template <typename T>
+    static void fast_transpose(long n, long m, const T* RESTRICT a, T* RESTRICT b) {
+        // n will always be k or 2k (k=wavelet order) and m will be anywhere
+        // from 2^(NDIM-1) to (2k)^(NDIM-1).
+
+//         for (long i=0; i<n; i++)
+//             for (long j=0; j<m; j++) 
+//                 b[j*n+i] = a[i*m+j];
+
+        if (n==1 || m==1) {
+            long nm=n*m;
+            for (long i=0; i<nm; i++) b[i] = a[i];
+            return;
+        }
+
+        long n4 = (n>>2)<<2;
+        long m4 = m<<2;
+        const T* RESTRICT a0 = a;
+        for (long i=0; i<n4; i+=4, a0+=m4) {
+            const T* RESTRICT a1 = a0+m;
+            const T* RESTRICT a2 = a1+m;
+            const T* RESTRICT a3 = a2+m;
+            T* RESTRICT bi = b+i;
+            for (long j=0; j<m; j++, bi+=n) {
+                T tmp0 = a0[j];
+                T tmp1 = a1[j];
+                T tmp2 = a2[j];
+                T tmp3 = a3[j];
+
+                bi[0] = tmp0;
+                bi[1] = tmp1;
+                bi[2] = tmp2;
+                bi[3] = tmp3;
+            }
+        }
+
+        for (long i=n4; i<n; i++)
+            for (long j=0; j<m; j++) 
+                b[j*n+i] = a[i*m+j];
+
+    }
+
+    /// a(i,j) --> b(i,j) for i=0..n-1 and j=0..r-1 noting dimensions are a(n,m) and b(n,r).
+
+    /// returns b
+    template <typename T>
+    static T* shrink(long n, long m, long r, const T* a, T* RESTRICT b) {
+        T* result = b;
+        for (long i=0; i<n; i++, a+=m, b+=r) {
+            for (long j=0; j<r; j++) {
+                b[j] = a[j];
+            }
+        }
+        return result;
+    }
+
     extern void bsh_fit(double mu, double lo, double hi, double eps, 
                         Tensor<double> *pcoeff, Tensor<double> *pexpnt, bool prnt=false);
 
@@ -68,32 +130,33 @@ namespace madness {
     template <typename Q>
     struct ConvolutionData1D {
         Tensor<Q> R, T;  ///< R=ns, T=T part of ns
-        Tensor<Q> RD, TD; ///< Diagonal approximations to R and T wth associated errors
-        double RDeps, TDeps;
         Tensor<Q> RU, RVT, TU, TVT; ///< SVD approximations to R and T
         Tensor<typename Tensor<Q>::scalar_type> Rs, Ts;
+        double Rnorm, Tnorm;
 
         ConvolutionData1D(const Tensor<Q>& R, const Tensor<Q>& T) : R(R), T(T) {
-            make_approx(R, RD, RDeps, RU, Rs, RVT);
-            make_approx(T, TD, TDeps, TU, Ts, TVT);
+            make_approx(R, RU, Rs, RVT, Rnorm);
+            make_approx(T, TU, Ts, TVT, Tnorm);
         }
 
-        void make_approx(const Tensor<Q>& R, Tensor<Q>& RD, double& RDeps, 
-                         Tensor<Q>& RU, Tensor<typename Tensor<Q>::scalar_type>& Rs, Tensor<Q>& RVT) {
+        void make_approx(const Tensor<Q>& R, 
+                         Tensor<Q>& RU, Tensor<typename Tensor<Q>::scalar_type>& Rs, Tensor<Q>& RVT, double& norm) {
             int n = R.dim[0];
-            RD = Tensor<Q>(n);
-            for (int i=0; i<n; i++) {
-                RD(i) = R(i,i);
-                R(i,i) = 0.0;
-            }
-            RDeps = R.normf();
-            for (int i=0; i<n; i++) {
-                R(i,i) = RD(i);
-            }
             svd(R, &RU, &Rs, &RVT);
             for (int i=0; i<n; i++) {
                 for (int j=0; j<n; j++) {
                     RVT(i,j) *= Rs[i];
+                }
+            }
+            for (int i=n-1; i>1; i--) { // Form cumulative sum of norms
+                Rs[i-1] += Rs[i];
+            }
+            
+            norm = Rs[0];
+            if (Rs[0]>0.0) { // Turn into relative errors
+                double rnorm = 1.0/norm;
+                for (int i=0; i<n; i++) {
+                    Rs[i] *= rnorm;
                 }
             }
         }
@@ -442,6 +505,7 @@ namespace madness {
     class SeparatedConvolution : public WorldObject< SeparatedConvolution<Q,NDIM> > {
     public:
         typedef Q opT;  ///< The apply function uses this to infer resultT=opT*inputT
+        bool doleaves;  ///< If should be applied to leaf coefficients ... false by default
     private:
         const int k;
         const int rank;
@@ -452,6 +516,78 @@ namespace madness {
         mutable SimpleCache< SeparatedConvolutionData<Q,NDIM> > data;
         mutable double nflop[64];
 
+        struct Transformation {
+            long r;     // Effective rank of transformation
+            const Q* U; // Ptr to matrix
+            const Q* VT; 
+        };
+
+        template <typename T, typename R>
+        void apply_transformation(Level n, long dimk,
+                                  const Transformation trans[NDIM],
+                                  const Tensor<T>& f,
+                                  Tensor<R>& work1,
+                                  Tensor<R>& work2,
+                                  Tensor<T>& work3,
+                                  const double musign,
+                                  Tensor<R>& result) const {
+            
+            long size = 1;
+            for (int i=0; i<NDIM; i++) size *= dimk;
+            long dimi = size/dimk;
+
+            R* RESTRICT w1=work1.ptr();
+            R* RESTRICT w2=work2.ptr();
+            T* RESTRICT w3=work3.ptr();
+
+            const T* U;
+
+            U = (trans[0].r == dimk) ? trans[0].U : shrink(dimk,dimk,trans[0].r,trans[0].U,w3);
+            mTxmq(dimi, trans[0].r, dimk, w1, f.ptr(), U);
+            size = trans[0].r * size / dimk;
+            dimi = size/dimk;
+            nflop[n] += dimi*trans[0].r*dimk*2.0;
+            for (int d=1; d<NDIM; d++) {
+                U = (trans[d].r == dimk) ? trans[d].U : shrink(dimk,dimk,trans[d].r,trans[d].U,w3);
+                mTxmq(dimi, trans[d].r, dimk, w2, w1, U);
+                size = trans[d].r * size / dimk;
+                dimi = size/dimk;
+                std::swap(w1,w2);
+                nflop[n] += dimi*trans[d].r*dimk*2.0;
+            }
+
+            // If all blocks are full rank we can skip the transposes
+            bool doit = false;
+            for (int d=0; d<NDIM; d++) doit = doit || trans[d].VT;
+
+            if (doit) {
+                for (int d=0; d<NDIM; d++) {
+                    if (trans[d].VT) {
+                        dimi = size/trans[d].r;
+                        mTxmq(dimi, dimk, trans[d].r, w2, w1, trans[d].VT);
+                        nflop[n] += dimi*trans[d].r*dimk*2.0;
+                        size = dimk*size/trans[d].r;
+                    }
+                    else {
+                        fast_transpose(dimk, dimi, w1, w2);
+                    }
+                    std::swap(w1,w2);
+                }
+            }
+
+            // Assuming here that result is contiguous
+            MADNESS_ASSERT(size == result.size);
+            R* RESTRICT p = result.ptr();
+            if (musign > 0) {
+                //for (long i=0; i<size; i++) p[i] += w1[i];
+                aligned_add(size, p, w1);
+            }
+            else {
+                //for (long i=0; i<size; i++) p[i] -= w1[i];
+                aligned_sub(size, p, w1);
+            }
+        }
+
         /// Apply one of the separated terms, accumulating into the result
         template <typename T>
         void muopxv_fast(Level n,
@@ -459,61 +595,69 @@ namespace madness {
                          const Tensor<T>& f, const Tensor<T>& f0,
                          Tensor<TENSOR_RESULT_TYPE(T,Q)>& result,
                          Tensor<TENSOR_RESULT_TYPE(T,Q)>& result0,
-                         const double tol,
+                         double tol,
                          const double musign, 
                          Tensor<TENSOR_RESULT_TYPE(T,Q)>& work1,
                          Tensor<TENSOR_RESULT_TYPE(T,Q)>& work2,
-                         Tensor<TENSOR_RESULT_TYPE(T,Q)>& work3,
-                         Tensor<TENSOR_RESULT_TYPE(T,Q)>& work4) const {
+                         Tensor<T>& work5) const {
 
-            long dimj = 2*k;
-            long dimk = 2*k;
-            long dimi = 1;
-            for (int i=1; i<NDIM; i++) dimi *= 2*k;
-            
-            TENSOR_RESULT_TYPE(T,Q) *w1=work1.ptr(), *w2=work2.ptr();
-            mTxmq(dimi, dimj, dimk, w1, f.ptr(), ops[0]->R.ptr());
-            for (int d=1; d<NDIM; d++) {
-                mTxmq(dimi, dimj, dimk, w2, w1, ops[d]->R.ptr());
-                std::swap(w1,w2);
-            }
+            Transformation trans[NDIM];
 
-            nflop[n] += NDIM*dimi*dimj*dimk*2.0;
+            const long twok = 2*k;
 
-            
-            if (NDIM&1)
-                result.gaxpy(1.0,work1,musign);
-            else
-                result.gaxpy(1.0,work2,musign);
-            
-            if (n > 0) {
-                if (k&1) {
-                    Tensor<TENSOR_RESULT_TYPE(T,Q)> tmp = inner(f0,ops[0]->T,0,0);
-                    for (int d=1; d<NDIM; d++) {
-                        tmp = inner(tmp,ops[d]->T,0,0);
-                    }
-                    result0.gaxpy(1.0,tmp,-musign);
+            double Rnorm = 1.0;
+            for (int d=0; d<NDIM; d++) Rnorm *= ops[d]->Rnorm;
+               
+            tol = tol/(Rnorm*NDIM);  // Errors are relative within here
+
+            // Determine rank of SVD to use or if to use the full matrix
+            long break_even;
+            if (NDIM==1) break_even = 0.5*twok;
+            else if (NDIM==2) break_even = 0.6*twok;
+            else if (NDIM==3) break_even=0.65*twok;
+            else break_even=0.7*twok;
+            for (int d=0; d<NDIM; d++) {
+                long r;
+                for (r=0; r<twok; r++) {
+                    if (ops[d]->Rs[r] < tol) break;
+                }
+                if (r >= break_even) {
+                    trans[d].r = twok;
+                    trans[d].U = ops[d]->R.ptr();
+                    trans[d].VT = 0;
                 }
                 else {
-                    long dimj = k;
-                    long dimk = k;
-                    long dimi = 1;
-                    for (int i=1; i<NDIM; i++) dimi *= k;
-
-                    TENSOR_RESULT_TYPE(T,Q) *w3=work3.ptr(), *w4=work4.ptr();
-                    mTxmq(dimi, dimj, dimk, w3, f0.ptr(), ops[0]->T.ptr());
-                    for (int d=1; d<NDIM; d++) {
-                        mTxmq(dimi, dimj, dimk, w4, w3, ops[d]->T.ptr());
-                        std::swap(w3,w4);
-                    }
-                    
-                    if (NDIM&1)
-                        result0.gaxpy(1.0,work3,-musign);
-                    else
-                        result0.gaxpy(1.0,work4,-musign);
-                    
-                    nflop[n] += NDIM*dimi*dimj*dimk*2.0;
+                    r += (r&1L);
+                    trans[d].r = std::max(2L,r);
+                    trans[d].U = ops[d]->RU.ptr();
+                    trans[d].VT = ops[d]->RVT.ptr();
                 }
+            }
+            apply_transformation(n, twok, trans, f, work1, work2, work5, musign, result);
+
+            if (n > 0) {
+                if (NDIM==1) break_even = 0.5*k;
+                else if (NDIM==2) break_even = 0.6*k;
+                else if (NDIM==3) break_even=0.65*k;
+                else break_even=0.7*k;
+                for (int d=0; d<NDIM; d++) {
+                    long r;
+                    for (r=0; r<k; r++) {
+                        if (ops[d]->Ts[r] < tol) break;
+                    }
+                    if (r >= break_even) {
+                        trans[d].r = k;
+                        trans[d].U = ops[d]->T.ptr();
+                        trans[d].VT = 0;
+                    }
+                    else {
+                        r += (r&1L);
+                        trans[d].r = std::max(2L,r);
+                        trans[d].U = ops[d]->TU.ptr();
+                        trans[d].VT = ops[d]->TVT.ptr();
+                    }
+                }
+                apply_transformation(n, k, trans, f0, work1, work2, work5, -musign, result0);
             }
         }
 
@@ -651,7 +795,6 @@ namespace madness {
                 norm += munorm*munorm;
             }
             op.norm = sqrt(norm);
-            //print("GETOP", n, d, norm);
             data.set(n, d, op);
             return data.getptr(n,d);
         }
@@ -671,8 +814,10 @@ namespace madness {
         // For general convolutions
         SeparatedConvolution(World& world,
                              long k, 
-                             std::vector< SharedPtr< Convolution1D<Q> > > ops)
+                             std::vector< SharedPtr< Convolution1D<Q> > > ops,
+                             bool doleaves=false)
             : WorldObject< SeparatedConvolution<Q,NDIM> >(world)
+            , doleaves(doleaves)
             , k(k)
             , rank(ops.size())
             , vk(NDIM,k)
@@ -691,8 +836,10 @@ namespace madness {
         /// Contstructor for Gaussian Convolutions (mostly for backward compatability)
         SeparatedConvolution(World& world, 
                              int k,
-                             const Tensor<Q>& coeff, const Tensor<double>& expnt) 
+                             const Tensor<Q>& coeff, const Tensor<double>& expnt,
+                             bool doleaves = false) 
             : WorldObject< SeparatedConvolution<Q,NDIM> >(world)
+            , doleaves(doleaves)
             , k(k)
             , rank(coeff.dim[0])
             , vk(NDIM,k)
@@ -727,27 +874,40 @@ namespace madness {
                                               const Displacement<NDIM>& shift,
                                               const Tensor<T>& coeff,
                                               double tol) const {
-            tol = tol/rank;
             typedef TENSOR_RESULT_TYPE(T,Q) resultT;
-            const SeparatedConvolutionData<Q,NDIM>* op = getop(source.level(), shift);
-            //print("sepop",source,shift,op->norm,tol);
-            Tensor<resultT> r(v2k), r0(vk);
-            Tensor<resultT> work1(v2k), work2(v2k), work3(vk), work4(vk);
-
             const Tensor<T>* input = &coeff;
             Tensor<T> dummy;
 
             if (coeff.dim[0] == k) {
-                dummy = Tensor<T>(v2k);
-                dummy(s0) = coeff;
-                input = &dummy;
+                // This processes leaf nodes with only scaling
+                // coefficients ... FuncImpl::apply by default does not
+                // apply the operator to these since for smoothing operators
+                // it is not necessary.  It is necessary for operators such
+                // as differentiation and time evolution.
+                if (doleaves) {
+                    dummy = Tensor<T>(v2k);
+                    dummy(s0) = coeff;
+                    input = &dummy;
+                }
+                else {
+                    return Tensor<resultT>(v2k); // Not now invoked due to logic in FuncImpl:apply?
+                }
             }
+
+            tol = tol/rank; // Error is per separated term
+
+            const SeparatedConvolutionData<Q,NDIM>* op = getop(source.level(), shift);
+            //print("sepop",source,shift,op->norm,tol);
+            Tensor<resultT> r(v2k), r0(vk);
+            Tensor<resultT> work1(v2k), work2(v2k);
+            Tensor<T> work5(2*k,2*k);
+
             const Tensor<T> f0 = copy(coeff(s0));
             for (int mu=0; mu<rank; mu++) {
                 const SeparatedConvolutionInternal<Q,NDIM>& muop =  op->muops[mu];
                 if (muop.norm > tol) {
                     muopxv_fast(source.level(), muop.ops, *input, f0, r, r0, tol, ops[mu]->sign, 
-                                work1, work2, work3, work4);
+                                work1, work2, work5);
                     //muopxv(source.level(), muop.ops, *input, f0, r, tol, ops[mu]->sign);
                 }
             }

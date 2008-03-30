@@ -850,7 +850,11 @@ void test_qm(World& world) {
     typedef Function<double_complex,1> functionT;
     typedef FunctionFactory<double_complex,1> factoryT;
 
-    // k=16, thresh=1e-12, gives 3e-10 forever with tstep=5x!
+    //int k = 16;
+    //double thresh = 1e-12;
+    // k=16, thresh=1e-12, gives 3e-10 forever with tstep=5x! BUT only 
+    // if applying also on the leaf nodes (which is not on by default)
+
     int k = 8;
     double thresh = 1e-6;
     FunctionDefaults<1>::k = k;
@@ -961,12 +965,12 @@ int main(int argc, char**argv) {
 #endif
         print(" ");
     }        
-
+    
     try {
         startup(world,argc,argv);
         if (world.rank() == 0) print("Initial tensor instance count", BaseTensor::get_instance_count());
-
-
+        
+        
         test_basic<double,1>(world);
         test_conv<double,1>(world);
         test_math<double,1>(world);
@@ -980,7 +984,6 @@ int main(int argc, char**argv) {
         Tensor<double> hh = gau.rnlp(4,0);
         MADNESS_ASSERT((gg-hh).normf() < 1e-13);
         if (world.rank() == 0) print(" generic and gaussian operator kernels agree\n");
-
         test_qm(world);
 
 
@@ -1014,7 +1017,10 @@ int main(int argc, char**argv) {
         error("caught a Tensor exception");
     } catch (const char* s) {
         print(s);
-        error("caught a string exception");
+        error("caught a c-string exception");
+    } catch (char* s) {
+        print(s);
+        error("caught a c-string exception");
     } catch (const std::string& s) {
         print(s);
         error("caught a string (class) exception");

@@ -84,7 +84,7 @@ namespace madness {
         BandlimitedPropagator::test();
         std::vector< SharedPtr< Convolution1D<double_complex> > > q(1);
         q[0] = SharedPtr< Convolution1D<double_complex> >(new GenericConvolution1D<double_complex,BandlimitedPropagator>(k,BandlimitedPropagator(bandlimit,timestep,width)));
-        return SeparatedConvolution<double_complex,NDIM>(world, k, q);
+        return SeparatedConvolution<double_complex,NDIM>(world, k, q, true);
     }
     
 #ifdef FUNCTION_INSTANTIATE_1
