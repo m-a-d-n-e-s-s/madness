@@ -1525,8 +1525,10 @@ namespace madness {
 
                     if (cnorm*opnorm > tol) {
                         tensorT result = op->apply(key, d, c, tol/cnorm);
-                        // Might be worth checking on norm of result to eliminate message
-                        coeffs.send(dest, &nodeT::accumulate, result, coeffs, dest);
+                        // Screen here to reduce communication cost of negligible data
+                        if (result.normf() > 0.3*tol) { // 0.3 is an empirical factor
+                            coeffs.send(dest, &nodeT::accumulate, result, coeffs, dest);
+                        }
                     }
                     else if (d.distsq >= 1) { // Assumes monotonic decay beyond nearest neighbor
                         break;

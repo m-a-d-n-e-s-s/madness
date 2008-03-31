@@ -458,9 +458,9 @@ namespace madness {
 
         void standard(bool fence = true) {
             verify();
-            if (VERIFY_TREE) verify_tree();
             MADNESS_ASSERT(is_compressed());
             impl->standard(fence);
+            if (fence && VERIFY_TREE) verify_tree();
         }
         
 
@@ -477,8 +477,8 @@ namespace madness {
         /// as const ... "logical constness" not "bitwise constness".
         void reconstruct(bool fence = true) const {
             if (!impl || !is_compressed()) return;
-            if (VERIFY_TREE) verify_tree();
             const_cast<Function<T,NDIM>*>(this)->impl->reconstruct(fence);
+            if (fence && VERIFY_TREE) verify_tree(); // Must be after in case nonstandard
         }
 
 
@@ -764,11 +764,10 @@ namespace madness {
             return *this;
         }
 
-        /// This is replaced with op(f) ...  private.
+        /// This is replaced with op(f) in NS form ...  private.
         template <typename opT, typename R>
         Function<T,NDIM>& apply(opT& op, const Function<R,NDIM>& f, bool fence) {
             f.verify();
-            if (VERIFY_TREE) f.verify_tree();
             impl = SharedPtr<implT>(new implT(*f.impl, f.get_pmap(), true));
             impl->apply(op, *f.impl, fence);
             return *this;
@@ -957,8 +956,8 @@ namespace madness {
     template <typename opT, typename R, int NDIM>
     Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> 
     apply(const opT& op, const Function<R,NDIM>& f, bool fence=true) {
-        Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> result;
 	Function<R,NDIM>& ff = const_cast< Function<R,NDIM>& >(f);
+        Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> result;
         if (VERIFY_TREE) ff.verify_tree();
 	ff.reconstruct();
 	ff.nonstandard();
