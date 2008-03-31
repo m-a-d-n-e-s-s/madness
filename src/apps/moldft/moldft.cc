@@ -269,7 +269,7 @@ struct CalculationParameters {
     template <typename Archive>
     void serialize(Archive& ar) {
         ar & charge & smear & econv & dconv & L & nvalpha & nvbeta & nopen & spin_restricted;
-        ar & nalpha & nbeta & nmo_alpha & nmo_beta;
+        ar & nalpha & nbeta & nmo_alpha & nmo_beta & lo;
     }
 };
 
@@ -335,13 +335,15 @@ struct Calculation {
         }
         world.gop.fence();
         truncate(world,amo);
+        normalize(world,amo);
         if (!param.spin_restricted) {
             reconstruct(world,bmo);
             for (unsigned int i=0; i<bmo.size(); i++) {
                 bmo[i] = madness::project(bmo[i], FunctionDefaults<3>::k, FunctionDefaults<3>::thresh, false);
             }
-        world.gop.fence();
-        truncate(world,bmo);
+            world.gop.fence();
+            truncate(world,bmo);
+            normalize(world,bmo);
         }
     }
         
@@ -363,11 +365,10 @@ struct Calculation {
         world.gop.fence();
 
         vector<double> norms = norm2(world, ao);
-        if (world.rank() == 0) {
-            for (int i=0; i<aobasis.nbf(molecule); i++) {
-                if (world.rank() == 0) print(i,"ao.norm", norms[i]);
-                norms[i] = 1.0/norms[i];
-            }
+
+        for (int i=0; i<aobasis.nbf(molecule); i++) {
+            if (world.rank() == 0) print(i,"ao.norm", norms[i]);
+            norms[i] = 1.0/norms[i];
         }
 
         scale(world, ao, norms);
@@ -627,7 +628,7 @@ struct Calculation {
     }
 
 
-    /// Updates the orbitals of one spin diagonalizing occasionally only in the corrected space
+    /// Updates the orbitals and eigenvalues of one spin with no diagonalization
     void update(World& world, 
                 Tensor<double>& occ, 
                 Tensor<double>& eps,
@@ -689,13 +690,13 @@ struct Calculation {
         Tensor<double> overlap = inner(world, psi, psi);
         Tensor<double> fock = inner(world, Vpsi, psi) + kinetic_energy_matrix(world, psi);
         fock.gaxpy(0.5,transpose(fock),0.5);
-        if (world.rank() == 0) {print("fock"); print(fock);}
 
         Tensor<double> c;
         sygv(fock, overlap, 1, &c, &evals);
 
         Vpsi = transform(world, Vpsi, c);
         psi = transform(world, psi, c);
+
         truncate(world, psi);
         normalize(world, psi);
 
@@ -704,9 +705,8 @@ struct Calculation {
 
     void loadbal(World& world) {
         if (world.size() == 1) return;
-        //LoadBalImpl<3> lb(vnuc, lbcost<double,3>);
-        LoadBalImpl<3> lb(amo[0], lbcost<double,3>);
-        for (unsigned int i=1; i<amo.size(); i++) {  // was from i=0
+        LoadBalImpl<3> lb(vnuc, lbcost<double,3>);
+        for (unsigned int i=0; i<amo.size(); i++) {
             lb.add_tree(amo[i],lbcost<double,3>);
         }
         if (!param.spin_restricted) {
@@ -764,7 +764,7 @@ struct Calculation {
             functionT rho = arho+brho;
             rho.truncate();
             START_TIMER;
-            functionT vlocal = vnuc + apply(*coulop, rho);
+            functionT vlocal = apply(*coulop, rho) + vnuc;
             END_TIMER("Coulomb");
             rho.clear(false);
             vlocal.truncate(); // For DFT must add exchange-correlation into vlocal
@@ -777,10 +777,15 @@ struct Calculation {
 
             START_TIMER;
             diag_fock_matrix(world, amo, Vpsia, aocc, aeps);
+            if (!param.spin_restricted) diag_fock_matrix(world, bmo, Vpsib, bocc, beps);
             END_TIMER("Diag and transform");
             if (world.rank() == 0) {
                 print(iter,"alpha evals");
                 print(aeps);
+                if (!param.spin_restricted) {
+                    print(iter,"beta evals");
+                    print(beps);
+                }
             }
 
             //update(world, vlocal, aocc, aeps, amo, Vpsia);
@@ -840,6 +845,9 @@ int main(int argc, char** argv) {
         print(e);
         error("caught a Tensor exception");
     } catch (const char* s) {
+        print(s);
+        error("caught a string exception");
+    } catch (char* s) {
         print(s);
         error("caught a string exception");
     } catch (const std::string& s) {

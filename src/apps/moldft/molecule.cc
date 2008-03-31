@@ -331,7 +331,7 @@ double Molecule::inter_atomic_distance(unsigned int i,unsigned int j) const {
 double Molecule::nuclear_repulsion_energy() const {
     double sum = 0.0;
     for (unsigned int i=0; i<atoms.size(); i++) {
-        for (unsigned int j=1; j<atoms.size(); j++) {
+        for (unsigned int j=i+1; j<atoms.size(); j++) {
             sum += atoms[i].atomic_number * atoms[j].atomic_number / inter_atomic_distance(i,j);
         }
     }
