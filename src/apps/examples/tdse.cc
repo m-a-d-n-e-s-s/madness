@@ -168,6 +168,7 @@ void propagate(World& world, functionT& potn, functionT& psi0, double& eps) {
     potn.add_scalar(-Eshift);
 
     tstep = 0.005;
+    nstep = 0;
 
     if (world.rank() == 0) {
         print("bandlimit",ctarget,"effband",c,"tcrit",tcrit,"tstep",tstep,"nstep",nstep);
@@ -182,7 +183,7 @@ void propagate(World& world, functionT& potn, functionT& psi0, double& eps) {
     psi.truncate();
     if (world.rank() == 0) print("initial normalize");    
     psi.scale(1.0/psi.norm2());
-    int steplo = -3;
+    int steplo = -1;
     for (int step=steplo; step<nstep; step++) {
         if (world.rank() == 0) print("\nStarting time step",step,tstep*step);
 
@@ -204,26 +205,28 @@ void propagate(World& world, functionT& potn, functionT& psi0, double& eps) {
 
         if (world.rank() == 0) print("making expV");
         functionT totalpotn = potn + laser((step+0.5)*tstep)*zdip; // Use midpoint field to advance in time
-        totalpotn.refine();
+        //totalpotn.refine();
+        totalpotn.reconstruct();
         complex_functionT expV = double_complex(0.0,-tstep)*totalpotn;
         expV.unaryop(unaryexp<double_complex,3>());
         expV.truncate();
-        expV.refine();
+        //expV.refine();
+        expV.reconstruct();
         double expVnorm = expV.norm2();
         if (world.rank() == 0) print("expVnorm", expVnorm);
 
         long sz = psi.size();
-        psi.refine();
+        //psi.refine();
         if (world.rank() == 0) print("applying operator 1",sz);
         psi = apply(G, psi);
         psi.truncate();
-        psi.refine();
+        //psi.refine();
 
         sz = psi.size();
         if (world.rank() == 0) print("multipling by expV",sz);
         psi = expV*psi;
         psi.truncate();
-        psi.refine();
+        //psi.refine();
         sz = psi.size();
         if (world.rank() == 0) print("applying operator 2",sz);
         psi = apply(G, psi);
