@@ -12,7 +12,7 @@ using namespace madness;
 
 // Convenient but sleazy use of global variables to define simulation parameters
 static const double L = 23.0;
-static const long k = 12;        // wavelet order
+static const long k = 8;        // wavelet order
 static const double thresh = 1e-6; // precision
 static const double cut = 0.2;  // smoothing parameter for 1/r
 static const double F = 1.0;  // Laser field strength
@@ -119,32 +119,55 @@ void converge(World& world, functionT& potn, functionT& psi, double& eps) {
     // to be circa 10.0.  Hence our largest time step is -ln(10)/V(0).  As we 
     // approach convergence we shrink the time step to the desired precision.
 
+    if (world.rank() == 0) print("load balancing");
+    LoadBalImpl<3> lb(psi, lbcost<double,3>);
+    lb.load_balance();
+    FunctionDefaults<3>::pmap = lb.load_balance();
+    world.gop.fence();
+    psi = copy(psi, FunctionDefaults<3>::pmap, false);
+    potn = copy(potn, FunctionDefaults<3>::pmap, true);
+
     double tmax = -2.3/V(coordT(0.0));
+    tmax = 0.004;
     if (world.rank() == 0) print("tmax", tmax);
 
     functionT expV = (-tmax)*potn;
     expV.unaryop(unaryexp<double,3>());
+    expV.truncate();
 
-    Tensor<double> coeff(1); coeff[0] = 1.0/sqrt(2*constants::pi*tmax);
-    Tensor<double> expnt(1); expnt[0] = 0.5/tmax;
+
+
+    Tensor<double> coeff(1); coeff[0] = 1.0/pow(constants::pi*tmax,1.5);
+    Tensor<double> expnt(1); expnt[0] = 1.0/tmax;
     operatorT* op = new operatorT(world,k,coeff,expnt);
 
-    for (int iter=0; iter<200; iter++) {
+    for (int iter=0; iter<20; iter++) {
         if (world.rank() == 0) print("ITER",iter);
-        psi = apply(*op, expV*psi);
+        psi = apply(*op, psi);
+        psi = expV*psi;
+        psi.truncate();
+        psi = apply(*op, psi);
         psi.truncate();
         double norm = psi.norm2();
         if (world.rank() == 0) print("new norm", norm);
         psi.scale(1.0/norm);
         eps = energy(world, psi,potn);
-        if (((iter+1)%50)==0 && tmax>=0.001) {
+        if (((iter+1)%50)==0 && tmax>0.001) {
+            if (world.rank() == 0) print("load balancing");
+            LoadBalImpl<3> lb(psi, lbcost<double,3>);
+            lb.load_balance();
+            FunctionDefaults<3>::pmap = lb.load_balance();
+            world.gop.fence();
+            psi = copy(psi, FunctionDefaults<3>::pmap, false);
+            potn = copy(potn, FunctionDefaults<3>::pmap, true);
+
             tmax *= 0.5;
             expV = (-tmax)*potn;
             expV.unaryop(unaryexp<double,3>());
 
             delete op;
-            coeff[0] = 1.0/sqrt(2*constants::pi*tmax);
-            expnt[0] = 0.5/tmax;
+            coeff[0] = 1.0/sqrt(constants::pi*tmax);
+            expnt[0] = 1.0/tmax;
             op = new operatorT(world,k,coeff,expnt);
         }        
     }
@@ -168,7 +191,7 @@ void propagate(World& world, functionT& potn, functionT& psi0, double& eps) {
     potn.add_scalar(-Eshift);
 
     tstep = 0.005;
-    nstep = 0;
+    nstep = 10;
 
     if (world.rank() == 0) {
         print("bandlimit",ctarget,"effband",c,"tcrit",tcrit,"tstep",tstep,"nstep",nstep);
@@ -257,12 +280,14 @@ int main(int argc, char** argv) {
 
     functionT psi = factoryT(world).f(guess);
     functionT potn = factoryT(world).f(V);
+    psi.scale(1.0/psi.norm2());
     psi.truncate();
+    psi.scale(1.0/psi.norm2());
 
     energy(world, psi, potn);
 
     double eps = -0.5;
-    //converge(world, potn, psi, eps);
+    converge(world, potn, psi, eps);
     propagate(world, potn, psi, eps);
 
     world.gop.fence();
