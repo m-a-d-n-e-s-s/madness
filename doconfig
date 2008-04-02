@@ -265,7 +265,7 @@ set_value MADNESS_CONFIGURATION_USER "`whoami`"
 set_value MADNESS_CONFIGURATION_DATE "`date`"
 set_value MADNESS_CONFIGURATION_HOST "`hostname`"
 set_value USE_LINUX_RANDOM 0
-set_value WORLD_GATHER_MEM_STATS 1
+set_value WORLD_GATHER_MEM_STATS 0
 set_value WORLD_TAU_TRACE 0
 
 echo "Processing command line overrides ..."
