@@ -3447,7 +3447,7 @@ namespace madness {
             //cout << a << " " << n << " " << l << " " << i << " " << exact << " " << r(i) << " " << err << endl;
             maxerr = max(maxerr,err); 
         }
-        cout << "MAXERR " << maxerr << endl;
+        //cout << "MAXERR " << maxerr << endl;
         return (maxerr < 2e-13);
     }
 }

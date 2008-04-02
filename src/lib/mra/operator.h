@@ -511,6 +511,7 @@ namespace madness {
         const int rank;
         const std::vector<long> vk;
         const std::vector<long> v2k;
+        mutable Tensor<Q> work5;
         const std::vector<Slice> s0;
         mutable std::vector< SharedPtr< Convolution1D<Q> > > ops;
         mutable SimpleCache< SeparatedConvolutionData<Q,NDIM> > data;
@@ -528,7 +529,7 @@ namespace madness {
                                   const Tensor<T>& f,
                                   Tensor<R>& work1,
                                   Tensor<R>& work2,
-                                  Tensor<T>& work3,
+                                  Tensor<Q>& work3,
                                   const double musign,
                                   Tensor<R>& result) const {
             
@@ -538,7 +539,7 @@ namespace madness {
 
             R* RESTRICT w1=work1.ptr();
             R* RESTRICT w2=work2.ptr();
-            T* RESTRICT w3=work3.ptr();
+            Q* RESTRICT w3=work3.ptr();
 
             const T* U;
 
@@ -598,8 +599,7 @@ namespace madness {
                          double tol,
                          const double musign, 
                          Tensor<TENSOR_RESULT_TYPE(T,Q)>& work1,
-                         Tensor<TENSOR_RESULT_TYPE(T,Q)>& work2,
-                         Tensor<T>& work5) const {
+                         Tensor<TENSOR_RESULT_TYPE(T,Q)>& work2) const {
 
             Transformation trans[NDIM];
 
@@ -822,6 +822,7 @@ namespace madness {
             , rank(ops.size())
             , vk(NDIM,k)
             , v2k(NDIM,2*k)
+            , work5(2*k,2*k)
             , s0(std::max(2,NDIM),Slice(0,k-1))
             , ops(ops)
         {
@@ -844,11 +845,13 @@ namespace madness {
             , rank(coeff.dim[0])
             , vk(NDIM,k)
             , v2k(NDIM,2*k)
+            , work5(2*k,2*k)
             , s0(std::max(2,NDIM),Slice(0,k-1))
             , ops(coeff.dim[0]) 
         {
             check_cubic();
             double width = FunctionDefaults<NDIM>::cell(0,1)-FunctionDefaults<NDIM>::cell(0,0);
+            for (int i=0; i<64; i++) nflop[i] = 0.0;
 
             for (int i=0; i<rank; i++) {
                 Q c = coeff(i);
@@ -899,15 +902,14 @@ namespace madness {
             const SeparatedConvolutionData<Q,NDIM>* op = getop(source.level(), shift);
             //print("sepop",source,shift,op->norm,tol);
             Tensor<resultT> r(v2k), r0(vk);
-            Tensor<resultT> work1(v2k), work2(v2k);
-            Tensor<T> work5(2*k,2*k);
+            Tensor<resultT> work1(v2k,false), work2(v2k,false);
 
             const Tensor<T> f0 = copy(coeff(s0));
             for (int mu=0; mu<rank; mu++) {
                 const SeparatedConvolutionInternal<Q,NDIM>& muop =  op->muops[mu];
                 if (muop.norm > tol) {
                     muopxv_fast(source.level(), muop.ops, *input, f0, r, r0, tol, ops[mu]->sign, 
-                                work1, work2, work5);
+                                work1, work2);
                     //muopxv(source.level(), muop.ops, *input, f0, r, tol, ops[mu]->sign);
                 }
             }
