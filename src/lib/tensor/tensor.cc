@@ -60,6 +60,7 @@
 #include <algorithm>
 #include <complex>
 #include <cmath>
+#include <cstring>
 #include <iostream>
 
 #include <tensor/tensor.h>
@@ -96,6 +97,47 @@ namespace madness {
         return float_complex(RandomNumber<float>(),RandomNumber<float>());
     }
 
+    template <typename T>
+    static void aligned_zero(long n, T* RESTRICT a) {
+        long n4 = (n>>2)<<2;
+        long rem = n-n4;
+        for (long i=0; i<n4; i+=4,a+=4) { 
+            a[0] = 0.0;
+            a[1] = 0.0;
+            a[2] = 0.0;
+            a[3] = 0.0;
+        }
+        for (long i=0; i<rem; i++) *a++ = 0.0;
+    }
+
+#if (defined(X86_32) || defined(X86_64))
+    template <> 
+    static void aligned_zero<double>(long n, double* RESTRICT a) {
+        if ((((unsigned long) a) & 0x0f)) throw "WTF";
+        long n4 = (n>>2)<<2;
+        long rem = n-n4;
+        if (n4) {
+            //std::cout << "entering asm " << (void *) a << " " << n4 << std::endl;
+            __asm__ __volatile__ (
+                                  "pxor %%xmm0,%%xmm0;\n"
+                                  ".UGHLOOPQ:\n"
+                                  "movapd   %%xmm0,  (%0);\n"
+                                  "movapd   %%xmm0,16(%0);\n"
+                                  "add $32,%0; sub $4,%1; jnz .UGHLOOPQ;\n"
+                                  : 
+                                  : "r"(a), "r"(n4)
+                                  : "0","1","xmm0", "memory");
+            //std::cout << "leaving asm " << (void *) a << " " << n4 << std::endl;
+            a+=n4;
+        }
+        for (long i=0; i<rem; i++) *a++ = 0.0;
+    }
+
+    template <> 
+    static void aligned_zero<double_complex>(long n, double_complex* RESTRICT a) {
+        aligned_zero(2*n, (double *) a);
+    }
+#endif
 
     /// All new tensors are initialized by init except for the default constructor
     template <class T>
@@ -129,8 +171,11 @@ namespace madness {
             pointer = p.get();		// Null for ndim=-1
             //std::printf("allocated %p [%ld]  %ld\n", pointer, size, p.use_count());
             if (dozero) {
-                T zero = 0;
-                for (long i=0; i<size; i++) pointer[i] = zero;
+                // T zero = 0; for (long i=0; i<size; i++) pointer[i] = zero;
+                // or
+                // memset((void *) pointer, 0, size*sizeof(T));
+                // or
+                aligned_zero(size, pointer);
             }
         } else {
             pointer = 0;

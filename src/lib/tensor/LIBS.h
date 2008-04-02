@@ -1,1 +1,3 @@
+libMADlinalg.LIBSUF
 libMADtensor.LIBSUF
+libMADlinalg.LIBSUF
