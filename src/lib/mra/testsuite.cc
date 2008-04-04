@@ -926,6 +926,49 @@ void test_qm(World& world) {
     return;
 }
 
+template <typename T, int NDIM>
+void test_plot(World& world) {
+    bool ok = true;
+    typedef Vector<double,NDIM> coordT;
+    typedef SharedPtr< FunctionFunctorInterface<T,NDIM> > functorT;
+    if (world.rank() == 0) {
+        print("\nTest plot cube - type =", archive::get_type_name<T>(),", ndim =",NDIM,"\n");
+    }
+    for (int i=0; i<NDIM; i++) {
+        FunctionDefaults<NDIM>::cell(i,0) = -10.0;
+        FunctionDefaults<NDIM>::cell(i,1) =  10.0;
+    }
+    FunctionDefaults<NDIM>::k = 7;
+    FunctionDefaults<NDIM>::thresh = 1e-5;
+    FunctionDefaults<NDIM>::refine = true;
+    FunctionDefaults<NDIM>::initial_level = 2;
+
+    const coordT origin(0.0);
+    const double expnt = 1.0;
+    const double coeff = pow(2.0/PI,0.25*NDIM);
+
+    functorT functor(new Gaussian<T,NDIM>(origin, expnt, coeff));
+    Function<T,NDIM> f = FunctionFactory<T,NDIM>(world).functor(functor);
+
+    //vector<long> npt(NDIM,21); // recommend this if testing in dimension > 3
+    vector<long> npt(NDIM,101);
+    Tensor<T> r = f.eval_cube(FunctionDefaults<NDIM>::cell, npt);
+    if (world.rank() == 0) {
+        for (int i=0; i<11; i++) {
+            double x = -10.0 + i*2;
+            T fplot = r(vector<long>(NDIM,i*10));
+            T fnum  = f(coordT(x));
+            CHECK(fplot-fnum,1e-12,"plot-eval");
+        }
+    }
+    world.gop.fence();
+
+    r = Tensor<T>();
+    plotdx(f, "testplot", FunctionDefaults<NDIM>::cell, npt);
+
+    if (world.rank() == 0) print("evaluation of cube/slice for plotting OK");
+}
+
 #define TO_STRING(s) TO_STRING2(s)
 #define TO_STRING2(s) #s
 
@@ -964,6 +1007,7 @@ int main(int argc, char**argv) {
         print("  tensor instance count ...", "enabled");
 #endif
         print(" ");
+        IndexIterator::test();
     }        
     
     try {
@@ -976,6 +1020,7 @@ int main(int argc, char**argv) {
         test_math<double,1>(world);
         test_diff<double,1>(world);
         test_op<double,1>(world);
+        test_plot<double,1>(world);
 
         // stupid location for this test
         GenericConvolution1D<double,GaussianGenericFunctor<double> > gen(10,GaussianGenericFunctor<double>(100.0,100.0));
@@ -986,18 +1031,19 @@ int main(int argc, char**argv) {
         if (world.rank() == 0) print(" generic and gaussian operator kernels agree\n");
         test_qm(world);
 
-
         test_basic<double_complex,1>(world);
         test_conv<double_complex,1>(world);
         test_math<double_complex,1>(world);
         test_diff<double_complex,1>(world);
         test_op<double_complex,1>(world);
+        test_plot<double_complex,1>(world);
 
         test_basic<double,2>(world);
         test_conv<double,2>(world);
         test_math<double,2>(world);
         test_diff<double,2>(world);
         test_op<double,2>(world);
+        test_plot<double,2>(world);
 
         test_basic<double,3>(world);
         test_conv<double,3>(world);
@@ -1005,6 +1051,10 @@ int main(int argc, char**argv) {
         test_diff<double,3>(world);
         test_op<double,3>(world);
         test_coulomb(world);
+        test_plot<double,3>(world);
+
+        //test_plot<double,4>(world); // slow unless reduce npt in test_plot
+
 
     } catch (const MPI::Exception& e) {
         //        print(e);

@@ -1034,7 +1034,172 @@ namespace madness {
         }
     }
 
+    template <typename T, int NDIM>
+    Tensor<T> FunctionImpl<T,NDIM>::eval_plot_cube(const coordT& plotlo,
+                                                   const coordT& plothi,
+                                                   const std::vector<long>& npt) const {
+        Tensor<T> r(NDIM, &npt[0]);
+        MADNESS_ASSERT(!compressed);
 
+        coordT h; // Increment between points in each dimension
+        for (int i=0; i<NDIM; i++) {
+            if (npt[i] > 1) {
+                h[i] = (plothi[i]-plotlo[i])/(npt[i]-1);
+            }
+            else {
+                MADNESS_ASSERT(plotlo[i] == plothi[i]);
+                h[i] = 0.0;
+            }           
+        }
+        //print("plot info", plotlo, plothi, npt, h);
+
+        // Loop thru local boxes
+        for(typename dcT::const_iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
+            const keyT& key = it->first;
+            const nodeT& node = it->second;
+            if (node.has_coeff()) {
+                //print("Looking at", key);
+                // Determine the points, if any, of the plot grid that
+                // are contained within this box
+                coordT boxlo, boxhi;
+                Vector<int,NDIM> boxnpt;
+                double fac = pow(0.5,double(key.level()));
+                int npttotal = 1;
+                for (int d=0; d<NDIM; d++) {
+                    // Coords of box
+                    boxlo[d] = fac*key.translation()[d];
+                    boxhi[d] = boxlo[d]+fac;
+                    // Restrict to plot range
+                    boxlo[d] = std::max(boxlo[d],plotlo[d]);
+                    boxhi[d] = std::min(boxhi[d],plothi[d]);
+                    //print("box coords", boxlo[d], boxhi[d]);
+                    if (h[d] > 0.0) {
+                        // Round lo up to next plot point; round hi down
+                        boxlo[d] =  ceil((boxlo[d]-plotlo[d])/h[d])*h[d] + plotlo[d];
+                        boxhi[d] = floor((boxhi[d]-plotlo[d])/h[d])*h[d] + plotlo[d];
+                    }
+                    // Determine number of points contained
+                    if (boxhi[d] < boxlo[d]) {
+                        boxnpt[d] = 0;
+                    }
+                    else {
+                        boxnpt[d] = round((boxhi[d]-boxlo[d])/h[d]) + 1;
+                    }
+                    //print("box after", boxlo[d], boxhi[d], npt[d]);
+
+                    npttotal *= boxnpt[d];
+                }
+                if (npttotal > 0) {
+                    const tensorT& coeff = node.coeff();
+                    const Level n = key.level();
+                    const Vector<Translation,NDIM>& l = key.translation();
+                    const double twon = pow(2.0,double(n));
+                    long ind[NDIM];
+                    coordT x; 
+                    for (IndexIterator it(boxnpt); it; ++it) {
+                        for (int d=0; d<NDIM; d++) {
+                            double xd = boxlo[d] + it[d]*h[d]; // Sim. coords of point
+                            x[d] = twon*xd - l[d]; // Offset within box
+                            ind[d] = round((xd-plotlo[d])/h[d]); // Index of plot point
+                            MADNESS_ASSERT(ind[d]>=0 && ind[d]<npt[d]); // sanity
+                        }
+                        r(ind) = eval_cube(n, x, coeff);
+                        //print("computing", p, x, ind);
+                    }                        
+                }
+            }
+        }
+        return r;
+    }
+
+    static void dxprintvalue(FILE* f, const double t) {
+        fprintf(f,"%.6e\n",t);
+    }
+
+    static void dxprintvalue(FILE* f, const double_complex& t) {
+        fprintf(f,"%.6e %.6e\n", t.real(), t.imag());
+    }
+
+    template <typename T, int NDIM>
+    void plotdx(const Function<T,NDIM>& function,
+                const char* filename, 
+                const Tensor<double>& cell, 
+                const std::vector<long>& npt,
+                bool binary) {
+
+        MADNESS_ASSERT(NDIM<=6);
+        const char* element[6] = {"lines","quads","cubes","cubes4D","cubes5D","cubes6D"};
+
+        function.verify();
+        World& world = const_cast< Function<T,NDIM>& >(function).world();
+        FILE *f=0;
+        if (world.rank() == 0) {
+            f = fopen(filename, "w");
+            if (!f) MADNESS_EXCEPTION("plotdx: failed to open the plot file", 0);
+
+            fprintf(f,"object 1 class gridpositions counts ");
+            for (int d=0; d<NDIM; d++) fprintf(f," %ld",npt[d]);
+            fprintf(f,"\n");
+
+            fprintf(f,"origin ");
+            for (int d=0; d<NDIM; d++) fprintf(f, " %.6e", cell(d,0));
+            fprintf(f,"\n");
+
+            for (int d=0; d<NDIM; d++) {
+                fprintf(f,"delta ");
+                for (int c=0; c<d; c++) fprintf(f, " 0");
+                double h = 0.0;
+                if (npt[d]>1) h = (cell(d,1)-cell(d,0))/(npt[d]-1);
+                fprintf(f," %.6e", h);
+                for (int c=d+1; c<NDIM; c++) fprintf(f, " 0");
+                fprintf(f,"\n");
+            }
+            fprintf(f,"\n");
+
+            fprintf(f,"object 2 class gridconnections counts ");
+            for (int d=0; d<NDIM; d++) fprintf(f," %ld",npt[d]);
+            fprintf(f,"\n");
+            fprintf(f, "attribute \"element type\" string \"%s\"\n", element[NDIM-1]);
+            fprintf(f, "attribute \"ref\" string \"positions\"\n");
+            fprintf(f,"\n");
+
+            int npoint = 1;
+            for (int d=0; d<NDIM; d++) npoint *= npt[d];
+            const char* iscomplex = "";
+            if (TensorTypeData<T>::iscomplex) iscomplex = "category complex";
+            const char* isbinary = "";
+            if (binary) isbinary = "binary";
+            fprintf(f,"object 3 class array type double %s rank 0 items %d %s data follows\n",
+                    iscomplex, npoint, isbinary);
+        }
+
+        world.gop.fence(); 
+        Tensor<T> r = function.eval_cube(cell, npt);
+        
+        if (world.rank() == 0) {
+            if (binary) {
+                // This assumes that the values are double precision
+                fflush(f);
+                fwrite((void *) r.ptr(), sizeof(T), r.size, f);
+                fflush(f);
+            }
+            else {
+                for (IndexIterator it(npt); it; ++it) {
+                    //fprintf(f,"%.6e\n",r(*it));
+                    dxprintvalue(f,r(*it));
+                }
+            }
+            fprintf(f,"\n");
+
+            fprintf(f,"object \"%s\" class field\n",filename);
+            fprintf(f,"component \"positions\" value 1\n");
+            fprintf(f,"component \"connections\" value 2\n");
+            fprintf(f,"component \"data\" value 3\n");
+            fprintf(f,"\nend\n");
+            fclose(f);
+        }
+        world.gop.fence(); 
+    }
 
     // 
     // Below here we instantiate templates defined in this file
@@ -1065,6 +1230,11 @@ namespace madness {
     template class FunctionImpl<std::complex<double>, 1>;
     template class FunctionCommonData<double, 1>;
     template class FunctionCommonData<double_complex, 1>;
+
+    template void plotdx<double,1>(const Function<double,1>&, const char*, const Tensor<double>&, 
+                                   const std::vector<long>&, bool binary);
+    template void plotdx<double_complex,1>(const Function<double_complex,1>&, const char*, const Tensor<double>&, 
+                                           const std::vector<long>&, bool binary);
 #endif
 
 #ifdef FUNCTION_INSTANTIATE_2
@@ -1075,6 +1245,11 @@ namespace madness {
     template class FunctionImpl<std::complex<double>, 2>;
     template class FunctionCommonData<double, 2>;
     template class FunctionCommonData<double_complex, 2>;
+
+    template void plotdx<double,2>(const Function<double,2>&, const char*, const Tensor<double>&, 
+                                   const std::vector<long>&, bool binary);
+    template void plotdx<double_complex,2>(const Function<double_complex,2>&, const char*, const Tensor<double>&, 
+                                   const std::vector<long>&, bool binary);
 #endif
 
 #ifdef FUNCTION_INSTANTIATE_3
@@ -1085,6 +1260,11 @@ namespace madness {
     template class FunctionImpl<std::complex<double>, 3>;
     template class FunctionCommonData<double, 3>;
     template class FunctionCommonData<double_complex, 3>;
+
+    template void plotdx<double,3>(const Function<double,3>&, const char*, const Tensor<double>&, 
+                                   const std::vector<long>&, bool binary);
+    template void plotdx<double_complex,3>(const Function<double_complex,3>&, const char*, const Tensor<double>&, 
+                                   const std::vector<long>&, bool binary);
 #endif
 
 #ifdef FUNCTION_INSTANTIATE_4
@@ -1095,6 +1275,11 @@ namespace madness {
     template class FunctionImpl<std::complex<double>, 4>;
     template class FunctionCommonData<double, 4>;
     template class FunctionCommonData<double_complex, 4>;
+
+    template void plotdx<double,4>(const Function<double,4>&, const char*, const Tensor<double>&, 
+                                   const std::vector<long>&, bool binary);
+    template void plotdx<double_complex,4>(const Function<double_complex,4>&, const char*, const Tensor<double>&, 
+                                   const std::vector<long>&, bool binary);
 #endif
 
 #ifdef FUNCTION_INSTANTIATE_5
@@ -1105,6 +1290,11 @@ namespace madness {
     template class FunctionImpl<std::complex<double>, 5>;
     template class FunctionCommonData<double, 5>;
     template class FunctionCommonData<double_complex, 5>;
+
+    template void plotdx<double,5>(const Function<double,5>&, const char*, const Tensor<double>&, 
+                                   const std::vector<long>&, bool binary);
+    template void plotdx<double_complex,5>(const Function<double_complex,5>&, const char*, const Tensor<double>&, 
+                                   const std::vector<long>&, bool binary);
 #endif
 
 #ifdef FUNCTION_INSTANTIATE_6
@@ -1115,6 +1305,10 @@ namespace madness {
     template class FunctionImpl<std::complex<double>, 6>;
     template class FunctionCommonData<double, 6>;
     template class FunctionCommonData<double_complex, 6>;
-#endif
 
+    template void plotdx<double,6>(const Function<double,6>&, const char*, const Tensor<double>&, 
+                                   const std::vector<long>&, bool binary);
+    template void plotdx<double_complex,6>(const Function<double_complex,6>&, const char*, const Tensor<double>&, 
+                                   const std::vector<long>&, bool binary);
+#endif
 }

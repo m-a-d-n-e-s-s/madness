@@ -1198,44 +1198,12 @@ namespace madness {
         Void sock_it_to_me(const keyT& key, 
                            const RemoteReference< FutureImpl< std::pair<keyT,tensorT> > >& ref) const;
 
-//         /// Evaluate a cube of points ... plotlo and plothi are already in simulation coordinates
-//         void eval_plot_cube(const coordT& plotlo,
-//                             const coordT& plothi,
-//                             const Vector<int, NDIM>& npt)  {
-//             MADNESS_ASSERT(!compressed);
-//             coordT h;
-//             for (int i=0; i<NDIM; i++) {
-//                 if (npt[i] > 1) 
-//                     h[i] = (plothi[i]-plotlo[i])/(npt[i]-1);
-//                 else 
-//                     h[i] = 0.0;
-//             }
-//             for(typename dcT::const_iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
-//                 const keyT& key = it->first;
-//                 const nodeT& node = it->second;
-//                 if (node.has_coeff()) {
-//                     tensorT coeff = node.coeff();
-//                     coordT boxlo, boxhi;
-//                     Vector<int,NDIM> boxnpt;
-//                     double fac = pow(0.5,key.level());
-//                     int npttotal = 1;
-//                     for (int i=0; i<NDIM; i++) {
-//                         boxlo[i] = fac*key.translation()[i];
-//                         boxhi[i] = boxlo[i]+fac;
-//                         boxlo[i] = std::max(boxlo[i],plotlo[i]);
-//                         boxhi[i] = std::min(boxhi[i],phithi[i]);
-//                         boxnpt[i] = int((boxhi[i]-boxlo[i]+1e-15)/h[i]);
-//                         npttotal *= boxnpt[i];
-//                     }
-//                     if (npttotal > 0) {
-//                         ???????????????????????????????????
-//                     }
-//                 }
-//             }
+        /// Evaluate a cube/slice of points ... plotlo and plothi are already in simulation coordinates
 
-            
-                             
-
+        /// No communications
+        Tensor<T> eval_plot_cube(const coordT& plotlo,
+                                 const coordT& plothi,
+                                 const std::vector<long>& npt) const;
 
         /// Evaluate the function at a point in \em simulation coordinates
 

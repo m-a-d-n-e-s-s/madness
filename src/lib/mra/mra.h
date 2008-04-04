@@ -45,6 +45,7 @@
 #define FUNCTION_INSTANTIATE_1
 #define FUNCTION_INSTANTIATE_2
 #define FUNCTION_INSTANTIATE_3
+#define FUNCTION_INSTANTIATE_4
 
 static const bool VERIFY_TREE = false;
 
@@ -60,6 +61,7 @@ namespace madness {
 
 #include <mra/twoscale.h>
 #include <mra/legendre.h>
+#include <mra/indexit.h>
 #include <mra/key.h>
 #include <mra/funcimpl.h>
 #include <mra/operator.h>
@@ -157,11 +159,13 @@ namespace madness {
     private:
         SharedPtr< FunctionImpl<T,NDIM> > impl;
 
+
+    public:
+        /// Asserts that the function is initialized
         inline void verify() const {
             MADNESS_ASSERT(impl);
         }
 
-    public:
         typedef FunctionImpl<T,NDIM> implT;
         typedef FunctionFactory<T,NDIM> factoryT;
         typedef typename implT::coordT coordT; ///< Type of vector holding coordinates 
@@ -201,18 +205,72 @@ namespace madness {
         /// though other processes may be involved in the evaluation.
         ///
         /// Throws if function is not initialized.
-        ///
-        /// Needs a lot of optimization for efficient parallel execution.
         Future<T> eval(const coordT& xuser) {
+            const double eps=1e-15;
             verify();
             MADNESS_ASSERT(!is_compressed());
             coordT xsim;
             impl->user_to_sim(xuser,xsim);
+            // If on the boundary, move the point just inside the
+            // volume so that the evaluation logic does not fail
+            for (int d=0; d<NDIM; d++) {
+                if (xsim[d] < -eps) {
+                    MADNESS_EXCEPTION("eval: coordinate lower-bound error in dimension", d);
+                }
+                else if (xsim[d] < eps) {
+                    xsim[d] = eps;
+                }
+
+                if (xsim[d] > 1.0+eps) {
+                    MADNESS_EXCEPTION("eval: coordinate upper-bound error in dimension", d);
+                }
+                else if (xsim[d] > 1.0-eps) {
+                    xsim[d] = 1.0-eps;
+                }
+            }
+
             Future<T> result;
             impl->eval(xsim, impl->key0(), result.remote_ref(impl->world));
             return result;
         }
 
+        /// Evaluates a cube/slice of points (probably for plotting) ... collective but no fence necessary
+
+        /// All processes recieve the entire result (which is a rather severe limit
+        /// on the size of the cube that is possible).
+        Tensor<T> eval_cube(const Tensor<double>& cell, const vector<long>& npt) const {
+            const double eps=1e-15;
+            verify();
+            reconstruct();
+            coordT simlo, simhi;
+            for (int d=0; d<NDIM; d++) {
+                simlo[d] = cell(d,0);
+                simhi[d] = cell(d,1);
+            }
+            impl->user_to_sim(simlo, simlo);
+            impl->user_to_sim(simhi, simhi);
+            // Move the bounding box infintesimally inside the simulation
+            // volume so that the evaluation logic does not fail
+            for (int d=0; d<NDIM; d++) {
+                if (simlo[d] < -eps) {
+                    MADNESS_EXCEPTION("eval_cube: plot volume lower-bound error in dimension", d);
+                }
+                else if (simlo[d] < eps) {
+                    simlo[d] = eps;
+                }
+
+                if (simhi[d] > 1.0+eps) {
+                    MADNESS_EXCEPTION("eval_cube: plot volume upper-bound error in dimension", d);
+                }
+                else if (simhi[d] > 1.0-eps) {
+                    simhi[d] = 1.0-eps;
+                }
+            }
+            Tensor<T> r = impl->eval_plot_cube(simlo, simhi, npt);
+            impl->world.gop.sum(r.ptr(), r.size);
+            return r;
+        }
+        
 
         /// Evaluates the function at a point in user coordinates.  Possible \em blocking comm.
 
@@ -222,7 +280,7 @@ namespace madness {
         ///
         /// This function calls eval and blocks until the result is available.  Therefore,
         /// if you are evaluating many points in parallel it is \em vastly less efficient than
-        /// calling eval directly.
+        /// calling eval directly, saving the futures, and then forcing all of the results.
         T operator()(const coordT& xuser) {
             return eval(xuser).get();
         }
@@ -1018,6 +1076,32 @@ namespace madness {
       TENSOR_RESULT_TYPE(T,R) inner(const Function<T,NDIM>& f, const Function<R,NDIM>& g) {
       return f.inner(g);
     }
+
+
+    /// Writes an OpenDX format file with a cube/slice of points on a uniform grid
+
+    /// Collective operation but only process 0 writes the file.  By convention OpenDX
+    /// files end in ".dx" but this choice is up to the user.  The binary format is 
+    /// more compact and vastly faster to both write and load but is not as portable.
+    ///
+    /// Now follow some brief tips about how to look at files inside OpenDX.
+    ///
+    /// To view a 1D function \c file-selector-->import-->plot -->image.
+    ///
+    /// To view a 2D function as a colored plane \c file-selector-->import-->autocolor-->image.
+    ///
+    /// To view a 2D function as a 3D surface \c file-selector-->import-->rubbersheet-->image.
+    ///
+    /// To view a 3D function as an isosurface \c file-selector-->import-->isosurface-->image.
+    ///
+    /// To select the real/imaginary/absolute value of a complex number insert a compute
+    /// element after the import.
+    template <typename T, int NDIM>
+    void plotdx(const Function<T,NDIM>& f,
+                const char* filename, 
+                const Tensor<double>& cell, 
+                const std::vector<long>& npt,
+                bool binary=true);
 
 }
 
