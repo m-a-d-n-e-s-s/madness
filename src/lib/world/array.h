@@ -46,7 +46,7 @@ namespace madness {
     /// Eliminates memory allocation cost, is just POD so can be
     /// copied easily and allocated on the stack, and the known
     /// dimension permits agressive compiler optimizations.
-    template <typename T, std::size_t N>
+    template <typename T, int N>
     class Vector {
     private:
         T v[N];
@@ -59,46 +59,46 @@ namespace madness {
 
         /// Initialize all elements to value t
         Vector(T t) {
-            for (std::size_t i=0; i<N; i++) v[i] = t;
+            for (int i=0; i<N; i++) v[i] = t;
         };
         
         /// Construct from a C++ array of the same dimension
         Vector(const T (&t)[N])  {
-            for (std::size_t i=0; i<N; i++) v[i] = t[i];
+            for (int i=0; i<N; i++) v[i] = t[i];
         };
 
         /// Construct from an STL vector of equal or greater length
         Vector(const std::vector<T> t) {
             MADNESS_ASSERT(t.size() >= N);
-            for (std::size_t i=0; i<N; i++) v[i] = t[i];
+            for (int i=0; i<N; i++) v[i] = t[i];
         };
         
         /// Copy constructor is deep (since a vector is POD)
         Vector(const Vector<T,N>& other) {
-            for (std::size_t i=0; i<N; i++) v[i] = other.v[i];
+            for (int i=0; i<N; i++) v[i] = other.v[i];
         };
 
         /// Assignment is deep (since a vector is POD)
         Vector& operator=(const Vector<T,N>& other) {
-            for (std::size_t i=0; i<N; i++) v[i] = other.v[i];
+            for (int i=0; i<N; i++) v[i] = other.v[i];
             return *this;
         };
 
         /// Assignment is deep (since a vector is POD)
         Vector& operator=(const std::vector<T>& other) {
-            for (std::size_t i=0; i<N; i++) v[i] = other[i];
+            for (int i=0; i<N; i++) v[i] = other[i];
             return *this;
         };
 
         /// Fill from scalar value
         Vector& operator=(T t) {
-            for (std::size_t i=0; i<N; i++) v[i] = t;
+            for (int i=0; i<N; i++) v[i] = t;
             return *this;
         };
 
         /// Test for element-wise equality
         bool operator==(const Vector<T,N>& other) const {
-            for (std::size_t i=0; i<N; i++) 
+            for (int i=0; i<N; i++) 
                 if (v[i] != other.v[i]) return false;
             return true;
         };
@@ -112,7 +112,7 @@ namespace madness {
 
         /// Can be used to impose a standard ordering on vectors.
         bool operator<(const Vector<T,N>& other) const {
-            for (std::size_t i=0; i<N; i++) {
+            for (int i=0; i<N; i++) {
                 if (v[i] < other.v[i]) return true;
                 else if (v[i] > other.v[i]) return false;
             }
@@ -121,12 +121,12 @@ namespace madness {
         };
 
         /// Indexing
-        T& operator[](std::size_t i) {
+        T& operator[](int i) {
             return v[i];
         };
 
         /// Indexing
-        const T& operator[](std::size_t i) const {
+        const T& operator[](int i) const {
             return v[i];
         };
 
@@ -136,7 +136,7 @@ namespace madness {
         template <typename Q>
         Vector<T,N> operator*(Q q) const {
             Vector<T,N> r;
-            for (std::size_t i=0; i<N; i++) r[i] = v[i] * q;
+            for (int i=0; i<N; i++) r[i] = v[i] * q;
             return r;
         }
 
@@ -145,7 +145,7 @@ namespace madness {
         /// Returns a reference to this for chaining operations
         template <typename Q>
         Vector<T,N>& operator*=(Q q) {
-            for (std::size_t i=0; i<N; i++) v[i] *= q;
+            for (int i=0; i<N; i++) v[i] *= q;
             return *this;
         }
 
@@ -155,7 +155,7 @@ namespace madness {
         template <typename Q>
         Vector<T,N> operator*(const Vector<Q,N>& q) const {
             Vector<T,N> r;
-            for (std::size_t i=0; i<N; i++) r[i] = v[i]*q[i];
+            for (int i=0; i<N; i++) r[i] = v[i]*q[i];
             return r;
         }
 
@@ -165,7 +165,7 @@ namespace madness {
         template <typename Q>
         Vector<T,N> operator+(Q q) const {
             Vector<T,N> r;
-            for (std::size_t i=0; i<N; i++) r[i] = v[i] + q;
+            for (int i=0; i<N; i++) r[i] = v[i] + q;
             return r;
         }
 
@@ -174,7 +174,7 @@ namespace madness {
         /// Returns a reference to this for chaining operations
         template <typename Q>
         Vector<T,N>& operator+=(Q q) {
-            for (std::size_t i=0; i<N; i++) v[i] += q;
+            for (int i=0; i<N; i++) v[i] += q;
             return *this;
         }
 
@@ -184,7 +184,7 @@ namespace madness {
         template <typename Q>
         Vector<T,N> operator+(const Vector<Q,N>& q) const {
             Vector<T,N> r;
-            for (std::size_t i=0; i<N; i++) r[i] = v[i] + q[i];
+            for (int i=0; i<N; i++) r[i] = v[i] + q[i];
             return r;
         }
 
@@ -194,7 +194,7 @@ namespace madness {
         template <typename Q>
         Vector<T,N> operator-(Q q) const {
             Vector<T,N> r;
-            for (std::size_t i=0; i<N; i++) r[i] = v[i] - q;
+            for (int i=0; i<N; i++) r[i] = v[i] - q;
             return r;
         }
 
@@ -204,7 +204,7 @@ namespace madness {
         template <typename Q>
         Vector<T,N> operator-(const Vector<Q,N>& q) const {
             Vector<T,N> r;
-            for (std::size_t i=0; i<N; i++) r[i] = v[i] - q[i];
+            for (int i=0; i<N; i++) r[i] = v[i] - q[i];
             return r;
         }
 
@@ -229,7 +229,7 @@ namespace madness {
         };
 
         /// Length of the vector
-        std::size_t size() const {
+        int size() const {
             return N;
         };
         
@@ -246,10 +246,10 @@ namespace madness {
     };
 
     /// Output vector to stream for human consumtion
-    template <typename T,std::size_t N>
+    template <typename T,int N>
     std::ostream& operator<<(std::ostream& s, const Vector<T,N>& a) {
         s << "[";
-        for (std::size_t i=0; i<N; i++) {
+        for (int i=0; i<N; i++) {
             s << a[i];
             if (i != (N-1)) s << ",";
         }
@@ -259,11 +259,11 @@ namespace madness {
 
     
     /// A simple, fixed-size, stack
-    template <typename T,std::size_t N>
+    template <typename T,int N>
     class Stack {
     private:
         Vector<T,N> t;
-        std::size_t n;
+        int n;
         
     public:
         Stack() : t(), n(0) {};
@@ -278,7 +278,7 @@ namespace madness {
             return t[--n];
         };
 
-        std::size_t size() const {
+        int size() const {
             return n;
         };
     };

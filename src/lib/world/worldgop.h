@@ -236,7 +236,7 @@ namespace madness {
         
         /// Inplace global reduction (like MPI all_reduce) while still processing AM & tasks
         
-        /// Optimizations can be added for long messages
+        /// Optimizations can be added for long messages and to reduce the memory footprint
         template <typename T, class opT>
         void reduce(T* buf, size_t nelem, opT op) {
             MPI::Request req0, req1;
