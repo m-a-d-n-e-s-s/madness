@@ -612,10 +612,10 @@ namespace madness {
 
             // Determine rank of SVD to use or if to use the full matrix
             long break_even;
-            if (NDIM==1) break_even = 0.5*twok;
-            else if (NDIM==2) break_even = 0.6*twok;
-            else if (NDIM==3) break_even=0.65*twok;
-            else break_even=0.7*twok;
+            if (NDIM==1) break_even = long(0.5*twok);
+            else if (NDIM==2) break_even = long(0.6*twok);
+            else if (NDIM==3) break_even=long(0.65*twok);
+            else break_even=long(0.7*twok);
             for (int d=0; d<NDIM; d++) {
                 long r;
                 for (r=0; r<twok; r++) {
@@ -636,10 +636,10 @@ namespace madness {
             apply_transformation(n, twok, trans, f, work1, work2, work5, musign, result);
 
             if (n > 0) {
-                if (NDIM==1) break_even = 0.5*k;
-                else if (NDIM==2) break_even = 0.6*k;
-                else if (NDIM==3) break_even=0.65*k;
-                else break_even=0.7*k;
+                if (NDIM==1) break_even = long(0.5*k);
+                else if (NDIM==2) break_even = long(0.6*k);
+                else if (NDIM==3) break_even=long(0.65*k);
+                else break_even=long(0.7*k);
                 for (int d=0; d<NDIM; d++) {
                     long r;
                     for (r=0; r<k; r++) {
