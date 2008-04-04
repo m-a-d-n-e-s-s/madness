@@ -102,12 +102,12 @@ namespace madness {
         long n4 = (n>>2)<<2;
         long rem = n-n4;
         for (long i=0; i<n4; i+=4,a+=4) { 
-            a[0] = 0.0;
-            a[1] = 0.0;
-            a[2] = 0.0;
-            a[3] = 0.0;
+            a[0] = 0;
+            a[1] = 0;
+            a[2] = 0;
+            a[3] = 0;
         }
-        for (long i=0; i<rem; i++) *a++ = 0.0;
+        for (long i=0; i<rem; i++) *a++ = 0;
     }
 
 #if (defined(X86_32) || defined(X86_64))
@@ -120,10 +120,10 @@ namespace madness {
             //std::cout << "entering asm " << (void *) a << " " << n4 << std::endl;
             __asm__ __volatile__ (
                                   "pxor %%xmm0,%%xmm0;\n"
-                                  ".UGHLOOPQ:\n"
+                                  ".UGHLOOP_%=:\n"
                                   "movapd   %%xmm0,  (%0);\n"
                                   "movapd   %%xmm0,16(%0);\n"
-                                  "add $32,%0; sub $4,%1; jnz .UGHLOOPQ;\n"
+                                  "add $32,%0; sub $4,%1; jnz .UGHLOOP_%=;\n"
                                   : 
                                   : "r"(a), "r"(n4)
                                   : "0","1","xmm0", "memory");
