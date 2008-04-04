@@ -12,10 +12,10 @@ namespace madness {
 #if (defined(X86_32) || defined(X86_64))
             // On core-2 this will give 2 cycles/element - optimal is 1.5
             __asm__ __volatile__ (
-                                  ".UGHLOOP:\n"
+                                  ".UGHLOOPXX_%=:\n"
                                   "movapd   (%0),%%xmm0; addpd   (%1),%%xmm0; movapd %%xmm0,  (%0);\n"
                                   "movapd 16(%0),%%xmm0; addpd 16(%1),%%xmm0; movapd %%xmm0,16(%0);\n"
-                                  "add $32,%0; add $32,%1; sub $4,%2; jnz .UGHLOOP;\n"
+                                  "add $32,%0; add $32,%1; sub $4,%2; jnz .UGHLOOPXX_%=;\n"
                                   : 
                                   : "r"(a), "r"(b), "r"(n4)
                                   : "0","1","2","xmm0", "memory");
@@ -39,10 +39,10 @@ namespace madness {
 #if (defined(X86_32) || defined(X86_64))
             // On core-2 this will give 2 cycles/element - optimal is 1.5
             __asm__ __volatile__ (
-                                  ".UGHLOOPX:\n"
+                                  ".UGHLOOPXXX_%=:\n"
                                   "movapd   (%0),%%xmm0; subpd   (%1),%%xmm0; movapd %%xmm0,  (%0);\n"
                                   "movapd 16(%0),%%xmm0; subpd 16(%1),%%xmm0; movapd %%xmm0,16(%0);\n"
-                                  "add $32,%0; add $32,%1; sub $4,%2; jnz .UGHLOOPX;\n"
+                                  "add $32,%0; add $32,%1; sub $4,%2; jnz .UGHLOOPXXX_%=;\n"
                                   : 
                                   : "r"(a), "r"(b), "r"(n4)
                                   : "0","1","2","xmm0", "memory");

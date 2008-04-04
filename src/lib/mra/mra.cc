@@ -1083,7 +1083,7 @@ namespace madness {
                         boxnpt[d] = 0;
                     }
                     else {
-                        boxnpt[d] = round((boxhi[d]-boxlo[d])/h[d]) + 1;
+                        boxnpt[d] = int(round((boxhi[d]-boxlo[d])/h[d])) + 1;
                     }
                     //print("box after", boxlo[d], boxhi[d], npt[d]);
 
@@ -1100,7 +1100,7 @@ namespace madness {
                         for (int d=0; d<NDIM; d++) {
                             double xd = boxlo[d] + it[d]*h[d]; // Sim. coords of point
                             x[d] = twon*xd - l[d]; // Offset within box
-                            ind[d] = round((xd-plotlo[d])/h[d]); // Index of plot point
+                            ind[d] = long(round((xd-plotlo[d])/h[d])); // Index of plot point
                             MADNESS_ASSERT(ind[d]>=0 && ind[d]<npt[d]); // sanity
                         }
                         r(ind) = eval_cube(n, x, coeff);

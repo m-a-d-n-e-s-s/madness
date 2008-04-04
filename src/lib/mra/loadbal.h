@@ -422,7 +422,7 @@ namespace madness {
             : simplemap(true)
             , nproc(world.nproc())
             , me(world.rank())
-            , n((std::log((double)world.size())/std::log(2.0)+3)/D + 2)  // 16*nproc = 2^(nD)
+            , n(int((std::log((double)world.size())/std::log(2.0)+3)/D) + 2)  // 16*nproc = 2^(nD)
         {
             // We set n to have about 16 tasks per processor and we try to
             // give each process a mix of large, medium, and small
