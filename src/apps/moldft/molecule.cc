@@ -36,6 +36,7 @@
 /// \file molecule.cc
 /// \brief Simple management of molecular information and potential
 
+#include <constants.h>
 #include <moldft/molecule.h>
 #include <misc/misc.h>
 
@@ -272,19 +273,40 @@ void Molecule::read_file(const std::string& filename) {
     atoms.clear(); rcut.clear();
     std::ifstream f(filename.c_str());
     madness::position_stream(f, "geometry");
+    double scale = 1.0;
 
     std::string s;
     while (std::getline(f,s)) {
-        std::string::size_type loc = s.find("end", 0);
-        if(loc != std::string::npos) goto finished;
         std::istringstream ss(s);
-        double xx, yy, zz;
-        std::string tt;
-        ss >> tt >> xx >> yy >> zz;
-        int atn = symbol_to_atomic_number(tt); // Charge of ghost atom
-        double qq = atn;
-        if (atn == 0) ss >> qq;
-        add_atom(xx,yy,zz,qq,atn);
+        std::string tag;
+        ss >> tag;
+        if (tag == "end") {
+            goto finished;
+        }
+        else if (tag == "units") {
+            if (natom()) throw "Molecule: read_file: presently units must be the first line of the geometry block";
+            ss >> tag;
+            if (tag == "a.u." || tag == "au" || tag == "atomic") {
+                std::cout << "\nAtomic units being used " << scale << "\n\n";
+                scale = 1.0;
+            }
+            else if (tag == "angstrom" || tag == "angs") {
+                scale = 1e-10 / madness::constants::atomic_unit_of_length;
+                std::cout << "\nAngstrom being used " << scale << "\n\n";
+            }
+            else {
+                throw "Molecule: read_file: unknown units requested";
+            }
+        }
+        else {
+            double xx, yy, zz;
+            ss >> xx >> yy >> zz;
+            xx *= scale; yy *= scale; zz *= scale;
+            int atn = symbol_to_atomic_number(tag); // Charge of ghost atom
+            double qq = atn;
+            if (atn == 0) ss >> qq;
+            add_atom(xx,yy,zz,qq,atn);
+        }
     }
     throw "No end to the geometry in the input file";
  finished:

@@ -436,7 +436,7 @@ struct Calculation {
         Tensor<double> c,e;
         sygv(fock, overlap, 1, &c, &e);
 
-        if (world.rank() == 0) {
+//        if (world.rank() == 0) {
 //             print("THIS iS THE OVERLAP MATRIX");
 //             print(overlap);
 //             print("THIS iS THE KINETIC MATRIX");
@@ -447,7 +447,7 @@ struct Calculation {
 //             print(c);
 //             print("THESE ARE THE EIGENVALUES");
 //             print(e);
-        }
+//         }
 
         amo = transform(world, ao, c(_,Slice(0,param.nmo_alpha-1)));
         truncate(world, amo);
@@ -714,16 +714,12 @@ struct Calculation {
             }
             END_TIMER("Make densities");
 
+            double da, db;
             if (iter > 0) {
-                double da = (arho - arho_old).norm2();
-                double db = 0.0;
+                da = (arho - arho_old).norm2();
+                db = 0.0;
                 if (param.nbeta && !param.spin_restricted) db = (brho - brho_old).norm2();
                 if (world.rank()==0) print("delta rho", da, db);
-                double dconv = max(FunctionDefaults<3>::thresh, param.dconv);
-                if (da<dconv && db<dconv) {
-                    if (world.rank()==0) print("\nConverged!\n");
-                    return;
-                }
             }
             arho_old = arho;
             brho_old = brho;
@@ -774,6 +770,15 @@ struct Calculation {
                     print(beps);
                 }
             }
+
+            if (iter > 0) {
+                double dconv = max(FunctionDefaults<3>::thresh, param.dconv);
+                if (da<dconv && db<dconv) {
+                    if (world.rank()==0) print("\nConverged!\n");
+                    return;
+                }
+            }
+
 
             //update(world, vlocal, aocc, aeps, amo, Vpsia);
             //if (!param.spin_restricted) update(world, vlocal, bocc, beps, bmo, Vpsib);

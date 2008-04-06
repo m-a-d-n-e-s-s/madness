@@ -6,6 +6,12 @@ dft
 end
 
 geometry
+  units angstrom
+  h 0 0 0
+  h 1 0 0
+end
+
+geometry
   O  0.0    0.0 0.0
   H  1.4375 0.0 1.15
   H -1.4375 0.0 1.15
