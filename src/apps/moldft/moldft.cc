@@ -408,27 +408,52 @@ struct Calculation {
 
     /// Initializes alpha and beta mos, occupation numbers, eigenvalues
     void initial_guess(World& world) {
+        START_TIMER;
+        functionT rho = factoryT(world).functor(functorT(new GuessDensity(molecule, aobasis)));
+        END_TIMER("guess density");
+        double nel = rho.trace();
+        if (world.rank() == 0) print("guess dens trace", nel);
+
+        if (world.size() > 1) {
+            LoadBalImpl<3> lb(rho, lbcost<double,3>);
+            lb.load_balance();
+            FunctionDefaults<3>::pmap = lb.load_balance();
+            world.gop.fence();
+            rho = copy(rho, FunctionDefaults<3>::pmap, false);
+            vnuc = copy(vnuc, FunctionDefaults<3>::pmap, false);
+        }
+
+        START_TIMER;
         vector<functionT> ao   = project_ao_basis(world);
+        END_TIMER("project ao basis");
+        START_TIMER;
         Tensor<double> overlap = matrix_inner(world,ao,ao);
+        END_TIMER("make overlap");
+        START_TIMER;
         Tensor<double> kinetic = kinetic_energy_matrix(world, ao);
+        END_TIMER("make KE matrix");
 
         functionT vlocal;
         if (param.nalpha+param.nbeta > 1) {
-            functionT rho = factoryT(world).functor(functorT(new GuessDensity(molecule, aobasis)));
-            double nel = rho.trace();
-            if (world.rank() == 0) print("guess dens trace", nel);
+            START_TIMER;
             vlocal = vnuc + apply(*coulop, rho) * 0.9;            
+            END_TIMER("guess Coulomb potn");
             vlocal.truncate();
         }
         else {
             vlocal = vnuc;
         }
 
+        vlocal.reconstruct();
+        reconstruct(world, ao);
+        START_TIMER;
         vector<functionT> vpsi = mul(world, vlocal, ao);
-
+        END_TIMER("make V*psi");
+        START_TIMER;
         Tensor<double> potential = matrix_inner(world, vpsi, ao); 
-
+        END_TIMER("make PE matrix");
         vpsi.clear(); 
+        world.gop.fence();
 
         Tensor<double> fock = kinetic + potential;
         fock = 0.5*(fock + transpose(fock));
@@ -436,7 +461,7 @@ struct Calculation {
         Tensor<double> c,e;
         sygv(fock, overlap, 1, &c, &e);
 
-//        if (world.rank() == 0) {
+        if (world.rank() == 0) {
 //             print("THIS iS THE OVERLAP MATRIX");
 //             print(overlap);
 //             print("THIS iS THE KINETIC MATRIX");
@@ -445,11 +470,16 @@ struct Calculation {
 //             print(potential);
 //             print("THESE ARE THE EIGENVECTORS");
 //             print(c);
-//             print("THESE ARE THE EIGENVALUES");
-//             print(e);
-//         }
+             print("THESE ARE THE INITIAL EIGENVALUES");
+             print(e);
+         }
 
+        compress(world,ao);
+        world.gop.fence();
+        START_TIMER;
         amo = transform(world, ao, c(_,Slice(0,param.nmo_alpha-1)));
+        world.gop.fence();
+        END_TIMER("transform initial aMOs");
         truncate(world, amo);
         normalize(world, amo);
 
@@ -597,8 +627,8 @@ struct Calculation {
         if (world.rank() == 0) {
             print("rnorms");
             print(rnorm);
-            print(deps);
-            print(new_eps);
+            //print(deps);
+            //print(new_eps);
         }
 
         eps = new_eps;
@@ -741,7 +771,6 @@ struct Calculation {
             double ekinetic, enuclear, etwo;
             START_TIMER;
             diag_fock_matrix(world, amo, Vpsia, aocc, aeps, ekinetic, enuclear, etwo);
-            print(ekinetic, enuclear, etwo);
             if (param.spin_restricted) {
                 ekinetic*=2;
                 enuclear*=2;
