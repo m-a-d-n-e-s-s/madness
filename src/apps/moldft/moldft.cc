@@ -387,7 +387,7 @@ struct Calculation {
         Tensor<double> r(n,n);
         for (int axis=0; axis<3; axis++) {
             vector<functionT> dv = diff(world,v,axis);
-            r += matrix_inner(world, dv, dv);
+            r += matrix_inner(world, dv, dv, true);
             dv.clear(); world.gop.fence(); // Allow function memory to be freed
         }
         
@@ -427,7 +427,7 @@ struct Calculation {
         vector<functionT> ao   = project_ao_basis(world);
         END_TIMER("project ao basis");
         START_TIMER;
-        Tensor<double> overlap = matrix_inner(world,ao,ao);
+        Tensor<double> overlap = matrix_inner(world,ao,ao,true);
         END_TIMER("make overlap");
         START_TIMER;
         Tensor<double> kinetic = kinetic_energy_matrix(world, ao);
@@ -447,10 +447,12 @@ struct Calculation {
         vlocal.reconstruct();
         reconstruct(world, ao);
         START_TIMER;
-        vector<functionT> vpsi = mul(world, vlocal, ao);
+        //vector<functionT> vpsi = mul(world, vlocal, ao);
+        vector<functionT> vpsi = mul_sparse(world, vlocal, ao, vtol);
         END_TIMER("make V*psi");
-        START_TIMER;
-        Tensor<double> potential = matrix_inner(world, vpsi, ao); 
+        truncate(world, vpsi);
+
+        Tensor<double> potential = matrix_inner(world, vpsi, ao, true); 
         END_TIMER("make PE matrix");
         vpsi.clear(); 
         world.gop.fence();
@@ -548,14 +550,16 @@ struct Calculation {
         reconstruct(world,psi);
         for (int i=0; i<nocc; i++) {
             if (occ[i] > 0.0) {
-                vector<functionT> psif = mul(world, psi[i], f);
+                //vector<functionT> psif = mul(world, psi[i], f);
+                vector<functionT> psif = mul_sparse(world, psi[i], f, vtol);
                 set_thresh(world, psif, vtol);  //<<<<<<<<<<<<<<<<<<<<<<<<< since cannot yet put in apply
 
                 truncate(world,psif);
                 psif = apply(world, *coulop, psif);
                 truncate(world, psif);
 
-                psif = mul(world, psi[i], psif);
+                //psif = mul(world, psi[i], psif);
+                psif = mul_sparse(world, psi[i], psif, vtol);
 
                 gaxpy(world, 1.0, Kf, occ[i], psif);
             }
@@ -570,11 +574,13 @@ struct Calculation {
                     const vector<functionT>& psi, 
                     const functionT& vlocal) 
     {
-        vector<functionT> Vpsi = mul(world, vlocal, psi);
+        //vector<functionT> Vpsi = mul(world, vlocal, psi);
+        vector<functionT> Vpsi = mul_sparse(world, vlocal, psi, vtol);
         vector<functionT> Kpsi = apply_hf_exchange(world, occ, psi, psi);
         gaxpy(world, 1.0, Vpsi, -1.0, Kpsi);
         Kpsi.clear();
-        world.gop.fence(); // clear memory
+        truncate(world,Vpsi);
+        world.gop.fence(); // ensure memory is cleared
         return Vpsi;
     }
 
@@ -588,7 +594,6 @@ struct Calculation {
         int nmo = psi.size();
         vector<double> fac(nmo,-2.0);
         scale(world, Vpsi, fac);
-        truncate(world,Vpsi);
         
         vector<poperatorT> ops = make_bsh_operators(world, eps);
         set_thresh(world, Vpsi, FunctionDefaults<3>::thresh);  // <<<<< Since cannot set in apply
@@ -642,7 +647,7 @@ struct Calculation {
         START_TIMER;
         // Orthog the new orbitals using sqrt(overlap).
         // Try instead an energy weighted orthogonalization
-        Tensor<double> c = energy_weighted_orthog(matrix_inner(world, psi, psi), eps);
+        Tensor<double> c = energy_weighted_orthog(matrix_inner(world, psi, psi, true), eps);
         psi = transform(world, psi, c);
         truncate(world, psi);
         normalize(world, psi);
@@ -663,16 +668,21 @@ struct Calculation {
                           double& ekinetic, double& enuclear, double& etwo)
     {
         // This is unsatisfactory for large molecules, but for now will have to suffice.
-        Tensor<double> overlap = matrix_inner(world, psi, psi);
+        Tensor<double> overlap = matrix_inner(world, psi, psi, true);
         Tensor<double> ke = kinetic_energy_matrix(world, psi);
-        Tensor<double> pe = matrix_inner(world, Vpsi, psi);
-        Tensor<double> en = matrix_inner(world, mul(world, vnuc, psi), psi);
+        Tensor<double> pe = matrix_inner(world, Vpsi, psi, true);
+
+        //vector<functionT> vnucpsi = mul(world, vnuc, psi, vtol);
+        vector<functionT> vnucpsi = mul_sparse(world, vnuc, psi, vtol);
+        truncate(world, vnucpsi);
+        Tensor<double> en = inner(world, vnucpsi, psi);
+        vnucpsi.clear();
 
         int nocc = occ.size;
         ekinetic = enuclear = etwo = 0.0;
         for (int i=0; i<nocc; i++) {
             ekinetic += occ[i]*ke(i,i);
-            enuclear += occ[i]*en(i,i);
+            enuclear += occ[i]*en(i);
             etwo += occ[i]*pe(i,i);
         }
         etwo -= enuclear;
