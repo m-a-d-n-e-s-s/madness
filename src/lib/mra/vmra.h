@@ -128,9 +128,8 @@ namespace madness {
         MADNESS_ASSERT(n==c.dim[0]);
         std::vector< Function<resultT,NDIM> > vc = zero_functions<resultT,NDIM>(world, m);
         
-        compress(world, v, false);
-        compress(world, vc); // Must be this way round to ensure sync
-        
+        compress(world, v);
+        compress(world, vc); 
         
         for (int i=0; i<m; i++) {
             for (int j=0; j<n; j++) {
@@ -169,16 +168,21 @@ namespace madness {
     template <typename T, typename R, int NDIM>
     Tensor< TENSOR_RESULT_TYPE(T,R) > matrix_inner(World& world,
                                                    const std::vector< Function<T,NDIM> >& f, 
-                                                   const std::vector< Function<R,NDIM> >& g) {
+                                                   const std::vector< Function<R,NDIM> >& g,
+                                                   bool sym=false) {
         long n=f.size(), m=g.size();
         Tensor< TENSOR_RESULT_TYPE(T,R) > r(n,m);
+        if (sym) MADNESS_ASSERT(n==m);
         
         compress(world, f);
         compress(world, g);
-        
+
         for (long i=0; i<n; i++) {
-            for (long j=0; j<m; j++) {
+            long jtop = m;
+            if (sym) jtop = i+1;
+            for (long j=0; j<jtop; j++) {
                 r(i,j) = f[i].inner_local(g[j]);
+                if (sym) r(j,i) = r(i,j);
             }
         }
         
@@ -220,6 +224,26 @@ namespace madness {
         std::vector< Function<TENSOR_RESULT_TYPE(T,R),NDIM> > av(v.size());
         for (unsigned int i=0; i<v.size(); i++) {
             av[i] = mul(a, v[i], false);
+        }
+        if (fence) world.gop.fence();
+        return av;
+    }
+
+    /// Multiplies a function against a vector of functions using sparsity of v[i] --- q[i] = a * v[i]
+    template <typename T, typename R, int NDIM>
+    std::vector< Function<TENSOR_RESULT_TYPE(T,R), NDIM> >
+    mul_sparse(World& world,
+               const Function<T,NDIM>& a, 
+               const std::vector< Function<R,NDIM> >& v, 
+               double tol,
+               bool fence=true) 
+    {
+        reconstruct(world, v);
+        a.reconstruct();
+        a.norm_tree();
+        std::vector< Function<TENSOR_RESULT_TYPE(T,R),NDIM> > av(v.size());
+        for (unsigned int i=0; i<v.size(); i++) {
+            av[i] = mul_sparse<T,R,NDIM>(v[i], a, tol, false);
         }
         if (fence) world.gop.fence();
         return av;

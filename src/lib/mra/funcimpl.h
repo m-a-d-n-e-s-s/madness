@@ -1067,11 +1067,11 @@ namespace madness {
 
             if (rarg.second.size > 0) {
                 if (larg.first == key) {
-                    madness::print("L*R",key,larg.first,larg.second.size,rarg.first,rarg.second.size);
+                    //madness::print("L*R",key,larg.first,larg.second.size,rarg.first,rarg.second.size);
                     do_mul(key, larg.second, rarg);
                 }
                 else {
-                    madness::print("R*L",key,larg.first,larg.second.size,rarg.first,rarg.second.size);
+                    //madness::print("R*L",key,larg.first,larg.second.size,rarg.first,rarg.second.size);
                     do_mul(key, rarg.second, larg);
                 }
             }
@@ -1416,7 +1416,7 @@ namespace madness {
             }
             sum = sqrt(sum);
             coeffs.send(key, &nodeT::set_norm_tree, sum);
-            if (key.level() == 0) std::cout << "NORM_TREE_TOP " << sum << "\n";
+            //if (key.level() == 0) std::cout << "NORM_TREE_TOP " << sum << "\n";
             return sum;
         }
 

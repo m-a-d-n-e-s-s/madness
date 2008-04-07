@@ -102,7 +102,13 @@ namespace madness {
 
         template <typename L, typename R, int D>
         friend
-        Function<T,D>& madness::mul_sparse(const Function<L,D>& left, const Function<R,D>& right, double tol, bool fence=true);
+        Function<TENSOR_RESULT_TYPE(L,R),D> 
+        madness::mul_sparse(const Function<L,D>& left, const Function<R,D>& right, double tol, bool fence=true);
+
+        template <typename Q, typename R, int D>
+        friend
+        Function<TENSOR_RESULT_TYPE(Q,R),D> 
+        madness::mul_sparse(const Q alpha, const Function<R,D>& f, double tol, bool fence=true);
 
         template <typename Q, typename R, int D>
         friend
@@ -472,11 +478,11 @@ namespace madness {
 
 
         /// Initializes information about the function norm at all length scales
-        void norm_tree(bool fence = true) {
+        void norm_tree(bool fence = true) const {
             verify();
             if (VERIFY_TREE) verify_tree();
             if (is_compressed()) reconstruct();
-            impl->norm_tree(fence);
+            const_cast<Function<T,NDIM>*>(this)->impl->norm_tree(fence);
         }
 
 
