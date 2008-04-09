@@ -5,16 +5,7 @@ dft
   nvbeta 0
 end
 
-geometry
-  O  0.0    0.0 0.0
-  H  1.4375 0.0 1.15
-  H -1.4375 0.0 1.15
-end
-
-geometry
-  be 0 0 0
-end
-
+# water*9
 geometry
   units angstrom
   O   1.215 0.624 2.639
@@ -46,14 +37,7 @@ geometry
   H   -0.268 2.601 0.249
 end
 
-
-geometry
-  units angstrom
-  h 0 0 0
-  h 1 0 0
-end
-
-
+# water*5
 geometry
   O   1.215 0.624 2.639
   H   1.229 1.615 2.508
@@ -72,6 +56,27 @@ geometry
   H   -0.268 2.601 0.249
 end
 
+
+
+# water
+geometry
+  O  0.0    0.0 0.0
+  H  1.4375 0.0 1.15
+  H -1.4375 0.0 1.15
+end
+
+geometry
+  be 0 0 0
+end
+
+geometry
+  units angstrom
+  h 0 0 0
+  h 1 0 0
+end
+
+
+# water*17
 geometry
   O   1.215 0.624 2.639
   H   1.229 1.615 2.508

@@ -44,6 +44,27 @@ using namespace madness;
 #include <moldft/molecularbasis.h>
 
 
+class LevelPmap : public WorldDCPmapInterface< Key<3> > {
+private:
+    const int nproc;
+public:
+    LevelPmap() : nproc(0) {};
+    
+    LevelPmap(World& world) : nproc(world.nproc()) {}
+    
+    /// Find the owner of a given key
+    ProcessID owner(const Key<3>& key) const {
+        Level n = key.level();
+        if (n == 0) return 0;
+        hashT hash;
+        if (n <= 3 || (n&0x1)) hash = key.hash();
+        else hash = key.parent().hash();
+        //hashT hash = key.hash();
+        return hash%nproc;
+    }
+};
+
+typedef SharedPtr< WorldDCPmapInterface< Key<3> > > pmapT;
 typedef Vector<double,3> coordT;
 typedef SharedPtr< FunctionFunctorInterface<double,3> > functorT;
 typedef Function<double,3> functionT;
@@ -354,8 +375,8 @@ struct Calculation {
         
     void make_nuclear_potential(World& world) {
         START_TIMER;
-        vnuc = factoryT(world).functor(functorT(new MolecularPotentialFunctor(molecule))).thresh(vtol); 
-        vnuc.truncate();
+        vnuc = factoryT(world).functor(functorT(new MolecularPotentialFunctor(molecule))).thresh(vtol).truncate_on_project(); 
+        //vnuc.truncate();
         vnuc.reconstruct();
         END_TIMER("Project vnuclear");
     }
@@ -365,9 +386,10 @@ struct Calculation {
 
         for (int i=0; i<aobasis.nbf(molecule); i++) {
             functorT aofunc(new AtomicBasisFunctor(aobasis.get_atomic_basis_function(molecule,i)));
-            ao[i] = factoryT(world).functor(aofunc).initial_level(3).nofence();
+            ao[i] = factoryT(world).functor(aofunc).initial_level(3).truncate_on_project().nofence();
         }
         world.gop.fence();
+        //truncate(world, ao);
 
         vector<double> norms = norm2(world, ao);
 
@@ -408,30 +430,26 @@ struct Calculation {
 
     /// Initializes alpha and beta mos, occupation numbers, eigenvalues
     void initial_guess(World& world) {
+        // We use the density to help with load balance and also
+        // for computing the initial coulomb potential.
         START_TIMER;
         functionT rho = factoryT(world).functor(functorT(new GuessDensity(molecule, aobasis)));
         END_TIMER("guess density");
+        if (world.rank() == 0) print("\ndistribution of rho");
+        rho.print_info();
+        if (world.rank() == 0) print("\ndistribution of vnuc");
+        vnuc.print_info();
         double nel = rho.trace();
         if (world.rank() == 0) print("guess dens trace", nel);
 
-        if (world.size() > 1) {
-            LoadBalImpl<3> lb(rho, lbcost<double,3>);
-            lb.load_balance();
-            FunctionDefaults<3>::pmap = lb.load_balance();
-            world.gop.fence();
-            rho = copy(rho, FunctionDefaults<3>::pmap, false);
-            vnuc = copy(vnuc, FunctionDefaults<3>::pmap, false);
-        }
-
-        START_TIMER;
-        vector<functionT> ao   = project_ao_basis(world);
-        END_TIMER("project ao basis");
-        START_TIMER;
-        Tensor<double> overlap = matrix_inner(world,ao,ao,true);
-        END_TIMER("make overlap");
-        START_TIMER;
-        Tensor<double> kinetic = kinetic_energy_matrix(world, ao);
-        END_TIMER("make KE matrix");
+//         if (world.size() > 1) {
+//             LoadBalImpl<3> lb(rho, lbcost<double,3>);
+//             lb.load_balance();
+//             FunctionDefaults<3>::pmap = lb.load_balance();
+//             world.gop.fence();
+//             rho = copy(rho, FunctionDefaults<3>::pmap, false);
+//             vnuc = copy(vnuc, FunctionDefaults<3>::pmap, false);
+//         }
 
         functionT vlocal;
         if (param.nalpha+param.nbeta > 1) {
@@ -443,16 +461,59 @@ struct Calculation {
         else {
             vlocal = vnuc;
         }
-
+        rho.clear();
         vlocal.reconstruct();
+
+        START_TIMER;
+        vector<functionT> ao   = project_ao_basis(world);
+        END_TIMER("project ao basis");
+        for (unsigned int i=0; i<ao.size(); i++) {
+            if (world.rank() == 0) print("\ndistribution of ao",i);
+            ao[i].print_info();
+        }
+
+//         if (world.size() > 1) {
+//             LoadBalImpl<3> lb(ao[0], lbcost<double,3>);
+//             for (unsigned int i=1; i<ao.size(); i++) {
+//                 lb.add_tree(ao[i],lbcost<double,3>);
+//             }
+//             lb.load_balance();
+//             FunctionDefaults<3>::pmap = lb.load_balance();
+//             world.gop.fence();
+//             vnuc = copy(vnuc, FunctionDefaults<3>::pmap, false);
+//             vlocal = copy(vlocal, FunctionDefaults<3>::pmap, false);
+//             for (unsigned int i=0; i<amo.size(); i++) {
+//                 ao[i] = copy(ao[i], FunctionDefaults<3>::pmap, false);
+//             }
+//         }
+
+        START_TIMER;
+        Tensor<double> overlap = matrix_inner(world,ao,ao,true);
+        END_TIMER("make overlap");
+        START_TIMER;
+        Tensor<double> kinetic = kinetic_energy_matrix(world, ao);
+        END_TIMER("make KE matrix");
+
         reconstruct(world, ao);
         START_TIMER;
         //vector<functionT> vpsi = mul(world, vlocal, ao);
         vector<functionT> vpsi = mul_sparse(world, vlocal, ao, vtol);
+        world.gop.fence();
         END_TIMER("make V*psi");
+        world.gop.fence();
+        START_TIMER;
+        compress(world,vpsi);
+        END_TIMER("Compressing Vpsi");
+        START_TIMER;
         truncate(world, vpsi);
+        END_TIMER("Truncating vpsi");
+        START_TIMER;
+        compress(world, ao);
+        END_TIMER("Compressing AO");
 
+        START_TIMER;
         Tensor<double> potential = matrix_inner(world, vpsi, ao, true); 
+        world.gop.fence();
         END_TIMER("make PE matrix");
         vpsi.clear(); 
         world.gop.fence();
@@ -706,29 +767,29 @@ struct Calculation {
     }
 
     void loadbal(World& world) {
-        if (world.size() == 1) return;
-        LoadBalImpl<3> lb(vnuc, lbcost<double,3>);
-        for (unsigned int i=0; i<amo.size(); i++) {
-            lb.add_tree(amo[i],lbcost<double,3>);
-        }
-        if (param.nbeta && !param.spin_restricted) {
-            for (unsigned int i=0; i<bmo.size(); i++) {
-                lb.add_tree(bmo[i],lbcost<double,3>);
-            }
-        }
-        lb.load_balance();
-        FunctionDefaults<3>::pmap = lb.load_balance();
-        world.gop.fence();
-        vnuc = copy(vnuc, FunctionDefaults<3>::pmap, false);
-        for (unsigned int i=0; i<amo.size(); i++) {
-            amo[i] = copy(amo[i], FunctionDefaults<3>::pmap, false);
-        }
-        if (param.nbeta && !param.spin_restricted) {
-            for (unsigned int i=0; i<bmo.size(); i++) {
-                bmo[i] = copy(bmo[i], FunctionDefaults<3>::pmap, false);
-            }
-        }
-        world.gop.fence();
+//         if (world.size() == 1) return;
+//         LoadBalImpl<3> lb(vnuc, lbcost<double,3>);
+//         for (unsigned int i=0; i<amo.size(); i++) {
+//             lb.add_tree(amo[i],lbcost<double,3>);
+//         }
+//         if (param.nbeta && !param.spin_restricted) {
+//             for (unsigned int i=0; i<bmo.size(); i++) {
+//                 lb.add_tree(bmo[i],lbcost<double,3>);
+//             }
+//         }
+//         lb.load_balance();
+//         FunctionDefaults<3>::pmap = lb.load_balance();
+//         world.gop.fence();
+//         vnuc = copy(vnuc, FunctionDefaults<3>::pmap, false);
+//         for (unsigned int i=0; i<amo.size(); i++) {
+//             amo[i] = copy(amo[i], FunctionDefaults<3>::pmap, false);
+//         }
+//         if (param.nbeta && !param.spin_restricted) {
+//             for (unsigned int i=0; i<bmo.size(); i++) {
+//                 bmo[i] = copy(bmo[i], FunctionDefaults<3>::pmap, false);
+//             }
+//         }
+//         world.gop.fence();
     }
 
     void solve(World& world) {
@@ -829,15 +890,24 @@ struct Calculation {
     }
 };
 
-
+#include <sched.h>
 
 int main(int argc, char** argv) {
     MPI::Init(argc, argv);
+//     cpu_set_t mask;
+//     CPU_ZERO(&mask);
+//     CPU_SET(MPI::COMM_WORLD.Get_rank(), &mask);
+//     if( sched_setaffinity( 0, sizeof(mask), &mask ) == -1 ) {
+//         printf("WARNING: Could not set CPU Affinity, continuing...\n");
+//     }
+
     World world(MPI::COMM_WORLD);
-    
+
     try {
         // Load info for MADNESS numerical routines
         startup(world,argc,argv);
+        FunctionDefaults<3>::pmap = pmapT(new LevelPmap(world));
+    
         
         // Process 0 reads input information and broadcasts
         Calculation calc(world, "input");
