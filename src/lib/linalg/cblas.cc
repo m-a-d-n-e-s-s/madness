@@ -48,10 +48,8 @@ extern "C" void xerbla_(char *message, integer *info, int length) {
     exit(1);
 }
 
-#ifdef USE_BLAS
-
 /// \file cblas.cc
-/// \brief If USE_BLAS is defined this file provides gemm template BLAS.
+/// \brief This file provides gemm template BLAS.
 
 extern "C" void dgemm_(const char *opa, const char *opb, const long *m, const long *n, const long *k,
                            const double *alpha, const double *a, const long *lda, const double *b, const long *ldb,
@@ -124,5 +122,4 @@ namespace madness {
 
 }
 
-#endif
 

@@ -180,7 +180,7 @@ function do_crayxt() {
     set_value MADNESS_FORINT int
     set_value CXX CC
     set_value CC cc
-
+    set_value LIBS "-lsci -lgfortran"
 }
 
 # Set mostly empty/non-functional defaults for all strings in part to
@@ -256,8 +256,8 @@ set_value CROSS_COMPILING 0
 set_value TOP_SRCDIR "`pwd`"
 set_value HASH_MAP_NAMESPACE "NOT_CONFIGURED"
 set_value WORLD_WATCHDOG 1
-set_value WATCHDOG_BARK_INTERVAL "60.0"
-set_value WATCHDOG_TIMEOUT "300.0"
+set_value WATCHDOG_BARK_INTERVAL "600.0"
+set_value WATCHDOG_TIMEOUT "1800.0"
 set_value OPTERON_TUNE 0
 set_value CORE_DUO_TUNE 0
 set_value CORE2_TUNE 1
