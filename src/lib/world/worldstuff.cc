@@ -162,4 +162,10 @@ namespace madness {
         }
     }
 
+    void watchdog_bark(World& world, double time) {
+        std::cerr << world.rank() << ": World: watchdog: I've been idle for " << time << "s\n";
+        world.am.print_stats();
+        world.taskq.print_stats();
+    }
+
 }

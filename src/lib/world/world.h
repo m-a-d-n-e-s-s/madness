@@ -169,6 +169,8 @@ namespace madness {
         std::cerr << "MADNESS: fatal error: " << msg << " " << data << std::endl;
         MPI_Abort(MPI_COMM_WORLD,1);
     }
+
+    void watchdog_bark(World& world, double time);
     
     /// A parallel world with full functionality wrapping an MPI communicator
 
@@ -496,8 +498,7 @@ namespace madness {
                     if (watchdog_is_watching) {
                         double now = wall_time();
                         if ((now-watchdog_last_time) > WATCHDOG_BARK_INTERVAL) {
-                            std::cerr << "World: watchdog: I've been idle for " 
-                                      << now-watchdog_start_time << "s" << std::endl;
+                            watchdog_bark(**worlds.begin(), now-watchdog_start_time);
                             watchdog_last_time = now;
                         }
                         if ((now-watchdog_start_time) > WATCHDOG_TIMEOUT) 
