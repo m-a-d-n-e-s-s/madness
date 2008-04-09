@@ -572,10 +572,12 @@ namespace madness {
             if (impl) impl->print_tree();
         }
 
-//         /// Print a summary of the load balancing info
-//         void print_info() const {
-//             if (impl) impl->print_info();
-//         }
+        /// Print a summary of the load balancing info
+
+        /// This is serial and VERY expensive
+        void print_info() const {
+            if (impl) impl->print_info();
+        }
 
 
         /// Type conversion implies a deep copy.  No communication except for optional fence.

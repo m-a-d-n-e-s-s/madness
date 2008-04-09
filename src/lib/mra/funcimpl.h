@@ -108,6 +108,9 @@ namespace madness {
         static bool refine;            ///< Whether to refine new functions
         static bool autorefine;        ///< Whether to autorefine in multiplication, etc.
         static bool debug;             ///< Controls output of debug info
+        static bool truncate_on_project; ///< If true initial projection inserts at n-1 not n
+        static bool apply_randomize;   /// If true use randomization for load balancing in apply integral operator
+        static bool project_randomize; /// If true use randomization for load balancing in project/refine
         static Tensor<int> bc;         ///< bc[NDIM][2] Boundary conditions -- zero(0) or periodic(1)
         static Tensor<double> cell ;   ///< cell[NDIM][2] Simulation cell, cell(0,0)=xlo, cell(0,1)=xhi, ...
         static SharedPtr< WorldDCPmapInterface< Key<NDIM> > > pmap; ///< Default mapping of keys to processes
@@ -121,6 +124,9 @@ namespace madness {
             refine = true;
             autorefine = true;
             debug = false;
+            truncate_on_project = false;
+            apply_randomize = false;
+            project_randomize = false;
             bc = Tensor<int>(NDIM,2);
             cell = Tensor<double>(NDIM,2);
             cell(_,1) = 1.0;
@@ -304,6 +310,7 @@ namespace madness {
         bool _refine;
         bool _empty;
         bool _autorefine;
+        bool _truncate_on_project;
         bool _fence;
         SharedPtr< WorldDCPmapInterface< Key<NDIM> > > _pmap;
         SharedPtr< FunctionFunctorInterface<T,NDIM> > _functor;
@@ -327,6 +334,7 @@ namespace madness {
             , _refine(FunctionDefaults<NDIM>::refine)
             , _empty(false)
             , _autorefine(FunctionDefaults<NDIM>::autorefine)
+            , _truncate_on_project(FunctionDefaults<NDIM>::truncate_on_project)
             , _fence(true)
             , _pmap(FunctionDefaults<NDIM>::pmap)
             , _functor(0)
@@ -377,6 +385,14 @@ namespace madness {
         }
         inline FunctionFactory& noautorefine() {
             _autorefine = false;
+            return *this;
+        }
+        inline FunctionFactory& truncate_on_project() {
+            _truncate_on_project = true;
+            return *this;
+        }
+        inline FunctionFactory& notruncate_on_project() {
+            _truncate_on_project = false;
             return *this;
         }
         inline FunctionFactory& fence(bool fence=true) {
@@ -573,6 +589,7 @@ namespace madness {
         int max_refine_level;   ///< Do not refine below this level
         int truncate_mode;      ///< 0=default=(|d|<thresh), 1=(|d|<thresh/2^n);
         bool autorefine;        ///< If true, autorefine where appropriate
+        bool truncate_on_project; ///< If true projection inserts at level n-1 not n
         bool nonstandard;       ///< If true, compress keeps scaling coeff
 
         const FunctionCommonData<T,NDIM>& cdata;
@@ -607,6 +624,7 @@ namespace madness {
             , max_refine_level(factory._max_refine_level)
             , truncate_mode(factory._truncate_mode)
             , autorefine(factory._autorefine)
+            , truncate_on_project(factory._truncate_on_project)
             , nonstandard(false)
             , cdata(FunctionCommonData<T,NDIM>::get(k))
             , functor(factory._functor)
@@ -672,6 +690,7 @@ namespace madness {
             , max_refine_level(other.max_refine_level)
             , truncate_mode(other.truncate_mode)
             , autorefine(other.autorefine)
+            , truncate_on_project(other.truncate_on_project)
             , nonstandard(other.nonstandard)
             , cdata(FunctionCommonData<T,NDIM>::get(k))
             , functor()
@@ -1138,36 +1157,36 @@ namespace madness {
 
         
 
-//         mutable long box_leaf[10000];
-//         mutable long box_interior[10000];
+        mutable long box_leaf[10000];
+        mutable long box_interior[10000];
 
-//         // horrifically non-scalable
-//         Void put_in_box(ProcessID from, long nl, long ni) const {
-//             box_leaf[from] = nl;
-//             box_interior[from] = ni;
-//             return None;
-//         }
+        // horrifically non-scalable
+        Void put_in_box(ProcessID from, long nl, long ni) const {
+            box_leaf[from] = nl;
+            box_interior[from] = ni;
+            return None;
+        }
 
 
-//         /// Prints summary of data distribution
-//         void print_info() const {
-//             //print_tree(2);
-//             long nleaf=0, ninterior=0;
-//             for(typename dcT::const_iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
-//                 const nodeT& node = it->second;
-//                 if (node.is_leaf()) nleaf++;
-//                 else ninterior++;
-//             }
-//             send(0, &implT::put_in_box, world.rank(), nleaf, ninterior);
-//             world.gop.fence();
-//             if (world.rank() == 0) {
-//                 for (int i=0; i<world.size(); i++) {
-//                     printf("load: %5d %8ld %8ld\n", i, box_leaf[i], box_interior[i]);
-//                 }
-//             }
-//         }
-        
-
+        /// Prints summary of data distribution
+        void print_info() const {
+            for (int i=0; i<world.size(); i++) box_leaf[i] = box_interior[i] == 0;
+            world.gop.fence();
+            long nleaf=0, ninterior=0;
+            for(typename dcT::const_iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
+                const nodeT& node = it->second;
+                if (node.is_leaf()) nleaf++;
+                else ninterior++;
+            }
+            send(0, &implT::put_in_box, world.rank(), nleaf, ninterior);
+            world.gop.fence();
+            if (world.rank() == 0) {
+                for (int i=0; i<world.size(); i++) {
+                    printf("load: %5d %8ld %8ld\n", i, box_leaf[i], box_interior[i]);
+                }
+            }
+            world.gop.fence();
+        }
 
         /// Verify tree is properly constructed ... global synchronization involved
 
@@ -1513,8 +1532,13 @@ namespace madness {
                 const keyT& key = it->first;
                 const FunctionNode<R,NDIM>& node = it->second;
                 if (node.coeff().dim[0] != k || op.doleaves) {
-                    ProcessID p = world.random_proc();
-                    //ProcessID p = coeffs.owner(key);
+                    ProcessID p;
+                    if (FunctionDefaults<NDIM>::apply_randomize) {
+                        p = world.random_proc();
+                    }
+                    else {
+                        p = coeffs.owner(key);
+                    }
                     task(p, &implT:: template do_apply<opT,R>, &op, key, node.coeff());
                 }
             }

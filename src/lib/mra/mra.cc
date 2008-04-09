@@ -460,26 +460,36 @@ namespace madness {
                 const keyT& child = it.key();
                 r(child_patch(child)) = project(child);
             }
-            
-            // Insert empty node for parent
-            coeffs.insert(key,nodeT(tensorT(),true));
-            
             // Filter then test difference coeffs at level n
             tensorT d = filter(r);
+            tensorT s0;
+            if (truncate_on_project) s0 = copy(d(cdata.s0));
             d(cdata.s0) = T(0);
             if ( (d.normf() < truncate_tol(thresh,key.level())) && 
                  (key.level() < max_refine_level) ) {
-                for (KeyChildIterator<NDIM> it(key); it; ++it) {
-                    const keyT& child = it.key();
-                    coeffs.insert(child,nodeT(copy(r(child_patch(child))),false));
+                if (truncate_on_project) {
+                    coeffs.insert(key,nodeT(s0,false));
+                }
+                else {
+                    coeffs.insert(key,nodeT(tensorT(),true)); // Insert empty node for parent
+                    for (KeyChildIterator<NDIM> it(key); it; ++it) {
+                        const keyT& child = it.key();
+                        coeffs.insert(child,nodeT(copy(r(child_patch(child))),false));
+                    }
                 }
             }
             else {
+                coeffs.insert(key,nodeT(tensorT(),true)); // Insert empty node for parent
                 if (key.level()==max_refine_level) print("MAX REFINE LEVEL",key);
                 for (KeyChildIterator<NDIM> it(key); it; ++it) {
                     const keyT& child = it.key();
-                    //ProcessID p = coeffs.owner(child);
-                    ProcessID p = world.random_proc();
+                    ProcessID p;
+                    if (FunctionDefaults<NDIM>::project_randomize) {
+                        p = world.random_proc();
+                    }
+                    else {
+                        p = coeffs.owner(child);
+                    }
                     task(p, &implT::project_refine_op, child, do_refine); // ugh
                 }
             }
@@ -1024,6 +1034,7 @@ namespace madness {
             int i=0;
             for (KeyChildIterator<NDIM> kit(key); kit; ++kit,++i) {
                 v[i] = send(coeffs.owner(kit.key()), &implT::compress_spawn, kit.key(), nonstandard);
+                //v[i] = task(coeffs.owner(kit.key()), &implT::compress_spawn, kit.key(), nonstandard);
             }
             return task(world.rank(),&implT::compress_op, key, v, nonstandard);
         }
@@ -1217,6 +1228,9 @@ namespace madness {
     template <int NDIM> bool FunctionDefaults<NDIM>::refine;         
     template <int NDIM> bool FunctionDefaults<NDIM>::autorefine;     
     template <int NDIM> bool FunctionDefaults<NDIM>::debug;          
+    template <int NDIM> bool FunctionDefaults<NDIM>::truncate_on_project;          
+    template <int NDIM> bool FunctionDefaults<NDIM>::apply_randomize;
+    template <int NDIM> bool FunctionDefaults<NDIM>::project_randomize;
     template <int NDIM> Tensor<int> FunctionDefaults<NDIM>::bc;      
     template <int NDIM> Tensor<double> FunctionDefaults<NDIM>::cell ;
     template <int NDIM> SharedPtr< WorldDCPmapInterface< Key<NDIM> > > FunctionDefaults<NDIM>::pmap;
