@@ -1,2 +1,2 @@
 libMADlinalg.LIBSUF
-#include <tensor/LIBS.h>
+libMADtensor.LIBSUF
