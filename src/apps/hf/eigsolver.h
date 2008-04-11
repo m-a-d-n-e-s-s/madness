@@ -17,6 +17,8 @@ class IEigSolverObserver
 public:
   virtual void iterateOutput(const std::vector<funcT>& phis,
       const std::vector<double>& eigs, const int& iter) = 0;
+
+  virtual ~IEigSolverObserver() {};
 };
 //***************************************************************************
 
