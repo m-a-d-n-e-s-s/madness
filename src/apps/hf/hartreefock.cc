@@ -105,7 +105,7 @@ namespace madness
   //*************************************************************************
   HartreeFock::HartreeFock(World& world, funcT V, std::vector<funcT> phis,
     std::vector<double> eigs, bool bCoulomb, bool bExchange, double thresh)
-   : _world(world), _V(V)
+   : _world(world), _V(V), _thresh(thresh)
   {
     _bCoulomb = bCoulomb;
     _bExchange = bExchange;
@@ -134,7 +134,8 @@ namespace madness
   
   //***************************************************************************
   HartreeFock::HartreeFock(World& world, funcT V, funcT phi, double eig, 
-    bool bCoulomb, bool bExchange, double thresh) : _world(world), _V(V)
+    bool bCoulomb, bool bExchange, double thresh) : _world(world), _V(V), 
+    _thresh(thresh)
   {
     // Create temporary list for eigsolver
     std::vector<funcT> phis;

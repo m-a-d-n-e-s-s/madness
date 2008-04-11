@@ -85,7 +85,7 @@ namespace madness
         double eps_old = _eigs[pi];
         double ecorrection = -0.5*inner(pfunc, r) / (norm*norm);
         double eps_new = eps_old + ecorrection;
-        // Sometimes eps_new can go posivite, THIS WILL CAUSE THE ALGORITHM TO CRASH. So,
+        // Sometimes eps_new can go positive, THIS WILL CAUSE THE ALGORITHM TO CRASH. So,
         // I bounce the new eigenvalue back into the negative side of the real axis. I 
         // keep doing this until it's good or I've already done it 10 times.
         int counter = 0;
