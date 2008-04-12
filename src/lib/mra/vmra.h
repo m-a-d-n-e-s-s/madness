@@ -141,7 +141,7 @@ namespace madness {
     }
     
     
-    /// Scales a vector of functions by distinct values
+    /// Scales inplace a vector of functions by distinct values
     template <typename T, int NDIM> 
     void scale(World& world,
                std::vector< Function<T,NDIM> >& v, 

@@ -211,7 +211,7 @@ namespace madness {
         /// though other processes may be involved in the evaluation.
         ///
         /// Throws if function is not initialized.
-        Future<T> eval(const coordT& xuser) {
+        Future<T> eval(const coordT& xuser) const {
             const double eps=1e-15;
             verify();
             MADNESS_ASSERT(!is_compressed());
@@ -287,7 +287,7 @@ namespace madness {
         /// This function calls eval and blocks until the result is available.  Therefore,
         /// if you are evaluating many points in parallel it is \em vastly less efficient than
         /// calling eval directly, saving the futures, and then forcing all of the results.
-        T operator()(const coordT& xuser) {
+        T operator()(const coordT& xuser) const {
             return eval(xuser).get();
         }
 
