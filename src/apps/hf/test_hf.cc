@@ -330,7 +330,7 @@ void test_hf_he(World& world)
 //*****************************************************************************
 void test_hf_be(World& world)
 {
-  cout << "Running test application HartreeFock ..." << endl;
+  //if (world.rank() == 0) cout << "Running test application HartreeFock ..." << endl;
   
   typedef Vector<double,3> coordT;
   typedef SharedPtr< FunctionFunctorInterface<double,3> > functorT;
@@ -343,25 +343,30 @@ void test_hf_be(World& world)
     FunctionDefaults<3>::cell(i,1) = bsize;
   }
   // Function defaults
-  FunctionDefaults<3>::k = 8;
-  FunctionDefaults<3>::thresh = 1e-6;
+  int funck = 8;
+  double thresh = 1e-6;
+  FunctionDefaults<3>::k = funck;
+  FunctionDefaults<3>::thresh = thresh;
   FunctionDefaults<3>::refine = true;
   FunctionDefaults<3>::initial_level = 2;
   FunctionDefaults<3>::truncate_mode = 1;
   
   // Nuclear potential (Be)
   const coordT origin(0.0);
+  if (world.rank() == 0) cout << "Creating Function object for nuclear potential ..." << endl;
   cout << "Creating Function object for nuclear potential ..." << endl;
-//  Function<double,3> Vnuc = FunctionFactory<double,3>(world).f(V_func_be).thresh(1e-6);
-  Function<double,3> Vnuc = FunctionFactory<double,3>(world).f(V_func_be).thresh(1e-6);
+  Function<double,3> Vnuc = FunctionFactory<double,3>(world).f(V_func_be).thresh(thresh);
  
   // Guess for the wavefunctions
+  if (world.rank() == 0) cout << "Creating wavefunction's ..." << endl;
   cout << "Creating wavefunction's ..." << endl;
   Function<double,3> psi1 = FunctionFactory<double,3>(world).f(psi_func_be1);
   psi1.scale(1.0/psi1.norm2());
+  //if (world.rank() == 0) printf("Norm of psi1 = %.5f\n\n", psi1.norm2());
   printf("Norm of psi1 = %.5f\n\n", psi1.norm2());
   Function<double,3> psi2 = FunctionFactory<double,3>(world).f(psi_func_be2);
   psi2.scale(1.0/psi2.norm2());
+  //if (world.rank() == 0) printf("Norm of psi2 = %.5f\n\n", psi2.norm2());
   printf("Norm of psi2 = %.5f\n\n", psi2.norm2());
   // Create list of wavefunctions
   std::vector<funcT> phis;
@@ -372,8 +377,10 @@ void test_hf_be(World& world)
   eigs.push_back(-5.0);
   eigs.push_back(-0.5);
   // Create HartreeFock object
+  if (world.rank() == 0) cout << "Creating HartreeFock object..." << endl;
   cout << "Creating HartreeFock object..." << endl;
-  HartreeFock hf(world, Vnuc, phis, eigs, true, true, 1e-6);
+  HartreeFock hf(world, Vnuc, phis, eigs, true, true, thresh);
+  if (world.rank() == 0) cout << "Running HartreeFock object..." << endl;
   cout << "Running HartreeFock object..." << endl;
   hf.hartree_fock(20);
 //  double ke = 2.0 * hf.calculate_tot_ke_sp();

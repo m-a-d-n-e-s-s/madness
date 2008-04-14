@@ -35,7 +35,7 @@ namespace madness
   //*************************************************************************
   
   //*************************************************************************
-  funcT HartreeFockNuclearPotentialOp::op(const std::vector<funcT>& phis, const funcT& psi)
+  funcT HartreeFockNuclearPotentialOp::op_r(const funcT& rho, const funcT& psi)
   {
     funcT rfunc = _V*psi;
     return rfunc;
@@ -43,38 +43,56 @@ namespace madness
   //*************************************************************************
 
   //*************************************************************************
-  funcT HartreeFockCoulombOp::op(const std::vector<funcT>& phis, const funcT& psi)
+//  funcT HartreeFockCoulombOp::op(const std::vector<funcT>& phis, const funcT& psi)
+//  {
+//    // Electron density
+//    funcT density = FunctionFactory<double,3>(world()).functor(zeros);
+//    // Create Coulomb operator
+//    SeparatedConvolution<double,3> cop = 
+//      CoulombOperator<double,3>(world(), FunctionDefaults<3>::k, 1e-4, thresh());      
+//    for (std::vector<funcT>::const_iterator pj = phis.begin(); pj != phis.end(); ++pj)
+//    {
+//      // Get phi(j) from iterator
+//      const funcT& phij = (*pj);
+//      // Compute the j-th density
+//      funcT prod = square(phij);
+//      density += prod;
+//    }
+//    // Transform Coulomb operator into a function (stubbed)
+//    if (isPrintingNode()) printf("density.norm2() = %.5f\n\n", density.norm2()); 
+//    density.truncate();
+//    if (isPrintingNode()) printf("Applying Coulomb operator to density ...\n\n");
+//    funcT Vc = apply(cop, density);
+//    // Note that we are not using psi
+//    // The density is built from all of the wavefunctions. The contribution
+//    // psi will be subtracted out later during the exchange.
+//    funcT rfunc = Vc*psi;
+//    if (isPrintingNode()) printf("Vc.norm2() = %.5f\n\n", Vc.norm2()); 
+//    if (isPrintingNode()) printf("pcoulomb.norm2() = %.5f\n\n", rfunc.norm2()); 
+//    return  rfunc;
+//  }
+  //*************************************************************************
+  
+  //*************************************************************************
+  funcT HartreeFockCoulombOp::op_r(const funcT& rho, const funcT& psi)
   {
-    // Electron density
-    funcT density = FunctionFactory<double,3>(world()).functor(zeros);
     // Create Coulomb operator
     SeparatedConvolution<double,3> cop = 
       CoulombOperator<double,3>(world(), FunctionDefaults<3>::k, 1e-4, thresh());      
-    for (std::vector<funcT>::const_iterator pj = phis.begin(); pj != phis.end(); ++pj)
-    {
-      // Get phi(j) from iterator
-      const funcT& phij = (*pj);
-      // Compute the j-th density
-      funcT prod = square(phij);
-      density += prod;
-    }
-    // Transform Coulomb operator into a function (stubbed)
-    printf("density.norm2() = %.5f\n\n", density.norm2()); 
-    density.truncate();
-    printf("Applying Coulomb operator to density ...\n\n");
-    funcT Vc = apply(cop, density);
-    // Note that we are not using psi
-    // The density is built from all of the wavefunctions. The contribution
-    // psi will be subtracted out later during the exchange.
+    // Transform Coulomb operator into a function
+    if (isPrintingNode()) printf("rho.norm2() = %.5f\n\n", rho.norm2()); 
+    if (isPrintingNode()) printf("Applying Coulomb operator to density ...\n\n");
+    // Apply the Coulomb operator
+    funcT Vc = apply(cop, rho);
     funcT rfunc = Vc*psi;
-    printf("Vc.norm2() = %.5f\n\n", Vc.norm2()); 
-    printf("pcoulomb.norm2() = %.5f\n\n", rfunc.norm2()); 
+    if (isPrintingNode()) printf("Vc.norm2() = %.5f\n\n", Vc.norm2()); 
+    if (isPrintingNode()) printf("pcoulomb.norm2() = %.5f\n\n", rfunc.norm2()); 
     return  rfunc;
   }
   //*************************************************************************
   
   //*************************************************************************
-  funcT HartreeFockExchangeOp::op(const std::vector<funcT>& phis, const funcT& psi)
+  funcT HartreeFockExchangeOp::op_o(const std::vector<funcT>& phis, const funcT& psi)
   {
     // Return value
     funcT rfunc = FunctionFactory<double,3>(world()).functor(zeros);
@@ -89,11 +107,11 @@ namespace madness
       const funcT& phij = (*pj);
       // NOTE that psi is involved in this calculation
       funcT prod = phij*psi;
-      printf("prod.norm2() = %.5f\n\n", prod.norm2());
+      if (isPrintingNode()) printf("prod.norm2() = %.5f\n\n", prod.norm2());
       // Transform Coulomb operator into a function (stubbed)
       prod.truncate(thresh());
       funcT Vex = apply(cop, prod);
-      printf("Vex.norm2() = %.5f\n\n", Vex.norm2());
+      if (isPrintingNode()) printf("Vex.norm2() = %.5f\n\n", Vex.norm2());
       // NOTE that the index is j.
       rfunc += Vex*phij;
     }
@@ -508,21 +526,21 @@ namespace madness
   {
     if (iter%3 == 0)
     {
-      printf("Calculating energies ...\n");
-      printf("Calculating KE ...\n");
+      if (world().rank() == 0) printf("Calculating energies ...\n");
+      if (world().rank() == 0) printf("Calculating KE ...\n");
       double ke = 2.0 * calculate_tot_ke_sp(phis);
-      printf("Calculating PE ...\n");
+      if (world().rank() == 0) printf("Calculating PE ...\n");
       double pe = 2.0 * calculate_tot_pe_sp(phis);
-      printf("Calculating CE ...\n");
+      if (world().rank() == 0) printf("Calculating CE ...\n");
       double ce = calculate_tot_coulomb_energy(phis);
-      printf("Calculating EE ...\n");
+      if (world().rank() == 0) printf("Calculating EE ...\n");
       double ee = calculate_tot_exchange_energy(phis);
-      printf("Calculating NE ...\n");
+      if (world().rank() == 0) printf("Calculating NE ...\n");
       double ne = 0.0;
-      printf("Kinetic energy:\t\t\t %.8f\n", ke);
-      printf("Potential energy:\t\t %.8f\n", pe);
-      printf("Two-electron energy:\t\t %.8f\n", 2.0*ce - ee);
-      printf("Total energy:\t\t\t %.8f\n", ke + pe + 2.0*ce - ee + ne);
+      if (world().rank() == 0) printf("Kinetic energy:\t\t\t %.8f\n", ke);
+      if (world().rank() == 0) printf("Potential energy:\t\t %.8f\n", pe);
+      if (world().rank() == 0) printf("Two-electron energy:\t\t %.8f\n", 2.0*ce - ee);
+      if (world().rank() == 0) printf("Total energy:\t\t\t %.8f\n", ke + pe + 2.0*ce - ee + ne);
     }
   }
   //***************************************************************************

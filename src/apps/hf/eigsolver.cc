@@ -45,10 +45,30 @@ namespace madness
   //***************************************************************************
   
   //***************************************************************************
+  funcT EigSolver::compute_rho()
+  {
+    // Electron density
+    funcT rho = FunctionFactory<double,3>(_world).functor(zeros);
+    // Loop over all wavefunctions to compute density
+    for (std::vector<funcT>::const_iterator pj = _phis.begin(); pj != _phis.end(); ++pj)
+    {
+      // Get phi(j) from iterator
+      const funcT& phij = (*pj);
+      // Compute the j-th density
+      funcT prod = square(phij);
+      rho += prod;
+    }
+    rho.truncate();
+    return rho;
+  }
+  //***************************************************************************
+
+  //***************************************************************************
   void EigSolver::solve(int maxits)
   {
     for (int it = 0; it < maxits; it++)
     {
+      funcT rho = compute_rho();
       for (unsigned int pi = 0; pi < _phis.size(); pi++)
       {
         // Get psi from collection
@@ -58,7 +78,10 @@ namespace madness
         for (unsigned int oi = 0; oi < _ops.size(); oi++)
         {
           EigSolverOp* op = _ops[oi];
-          pfunc += op->coeff() * op->op(_phis, psi);
+          // Operate with density-dependent operator
+          if (op->is_rd()) pfunc += op->coeff() * op->op_r(rho, psi);
+          // Operate with orbital-dependent operator
+          if (op->is_od()) pfunc += op->coeff() * op->op_o(_phis, psi);
         }
         pfunc.scale(-2.0).truncate(_thresh);
         SeparatedConvolution<double,3> op = 
