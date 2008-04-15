@@ -541,7 +541,7 @@ namespace madness {
             R* RESTRICT w2=work2.ptr();
             Q* RESTRICT w3=work3.ptr();
 
-            const T* U;
+            const Q* U;
 
             U = (trans[0].r == dimk) ? trans[0].U : shrink(dimk,dimk,trans[0].r,trans[0].U,w3);
             mTxmq(dimi, trans[0].r, dimk, w1, f.ptr(), U);
