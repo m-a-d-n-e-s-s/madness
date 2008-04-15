@@ -162,9 +162,15 @@ namespace madness {
         for (unsigned int i=0; i<v.size(); i++) norms[i] = sqrt(norms[i]);
         return norms;
     }
+
+    inline double conj(double x) {return x;}
+
+    inline double conj(float x) {return x;}
     
 
     /// Computes the matrix inner product of two function vectors - q(i,j) = inner(f[i],g[j])
+
+    /// For complex types symmetric is interpreted as Hermitian.
     template <typename T, typename R, int NDIM>
     Tensor< TENSOR_RESULT_TYPE(T,R) > matrix_inner(World& world,
                                                    const std::vector< Function<T,NDIM> >& f, 
@@ -182,7 +188,7 @@ namespace madness {
             if (sym) jtop = i+1;
             for (long j=0; j<jtop; j++) {
                 r(i,j) = f[i].inner_local(g[j]);
-                if (sym) r(j,i) = r(i,j);
+                if (sym) r(j,i) = conj(r(i,j));
             }
         }
         
@@ -272,6 +278,37 @@ namespace madness {
         }
         if (fence) world.gop.fence();
         return vsq;
+    }
+
+    /// Returns the complex conjugate of the vector of functions
+    template <typename T, int NDIM>
+    std::vector< Function<T,NDIM> >
+    conj(World& world,
+         const std::vector< Function<T,NDIM> >& v, 
+         bool fence=true) 
+    {
+        std::vector< Function<T,NDIM> > r = copy(world, v); // Currently don't have oop conj
+        for (unsigned int i=0; i<v.size(); i++) {
+            r[i].conj(false);
+        }
+        if (fence) world.gop.fence();
+        return r;
+    }
+
+
+    /// Returns a deep copy of a vector of functions
+    template <typename T, int NDIM>
+    std::vector< Function<T,NDIM> >
+    copy(World& world,
+         const std::vector< Function<T,NDIM> >& v, 
+         bool fence=true) 
+    {
+        std::vector< Function<T,NDIM> > r(v.size());
+        for (unsigned int i=0; i<v.size(); i++) {
+            r[i] = copy(v[i], false);
+        }
+        if (fence) world.gop.fence();
+        return r;
     }
 
     /// Returns new vector of functions --- q[i] = a[i] + b[i]

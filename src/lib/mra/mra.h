@@ -598,13 +598,36 @@ namespace madness {
 	    return result;
 	}
 
-        /// Inplace unary operation with optional autorefining and fence
+        /// Inplace unary operation on function values with optional autorefining and fence
         template <typename opT>
         void unaryop(const opT& op, bool fence=true) {
             verify();
             impl->unary_op_value_inplace(&implT::autorefine_square_test, op, fence);
         }
 
+
+        /// Unary operation applied inplace to the coefficients with optional fence
+        template <typename opT>
+        void unaryop_coeff(const opT& op, 
+                           bool fence = true) {
+            verify();
+            impl->unary_op_coeff_inplace(&implT::noautorefine, op, fence);
+        }
+
+
+    private:
+        static void doconj(const Key<NDIM>, Tensor<T>& t) {
+            t.conj();
+        }
+    public:
+
+        /// Inplace complex conjugate.  No communication except for optional fence.
+
+        /// Returns this for chaining.  Works in either basis.
+        Function<T,NDIM> conj(bool fence = true) {
+            unaryop_coeff(&Function<T,NDIM>::doconj, fence);
+            return *this;
+        }
 
         /// Deep copy generating a new function (same distribution).  No communication except optional fence.
 
@@ -992,6 +1015,13 @@ namespace madness {
     template <typename T, int NDIM>
     Function<T,NDIM> copy(const Function<T,NDIM>& f, bool fence = true) {
 	return f.copy(fence);
+    }
+
+    /// Return the complex conjugate of the input function with the same distribution and optional fence
+    template <typename T, int NDIM>
+    Function<T,NDIM> conj(const Function<T,NDIM>& f, bool fence = true) {
+        Function<T,NDIM> result = copy(f,true);
+	return result.conj(fence);
     }
 
     /// Differentiate w.r.t. given coordinate (x=0, y=1, ...) with optional fence
