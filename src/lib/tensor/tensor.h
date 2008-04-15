@@ -408,6 +408,12 @@ namespace madness {
             return *this;
         }
 #endif
+        /// Inplace complex conjugate
+        Tensor<T>& conj() {
+            UNARY_OPTIMIZED_ITERATOR(T, (*this), *_p0 = conditional_conj(*_p0));
+            return *this;
+        }
+
 
         /// Add a scalar of the same type to all elements of a tensor producing a new tensor
         Tensor<T> operator+(T x) const;
@@ -435,6 +441,7 @@ namespace madness {
 
         /// Inplace subtract a scalar of the same type from all elements
         Tensor<T>& operator-=(T x);
+
 
         /// Return true if bounds checking was enabled at compile time
         static bool bounds_checking() {
