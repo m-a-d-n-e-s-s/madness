@@ -385,8 +385,16 @@ namespace madness {
 		  lbi.reset(this->world.nproc()-1);
 		  //madness::print("find_partitions: after resetting, lbi =", lbi);
 		  count++;
+		} else if (lbi.step_num == 0) {
+		  list_of_list.push_back(this->temp_list);
+		  cost_list.push_back(this->partition_info.maxcost);
 		}
 	      } else {
+		if (lbi.step_num == 0) {
+		  keep_going = verify_partition(this->temp_list);
+		  list_of_list.push_back(this->temp_list);
+		  cost_list.push_back(this->partition_info.maxcost);
+		}
 		keep_going = false;
 	      }
 	      //madness::print("find_partitions: the verdict is that keep_going =", keep_going);	
