@@ -45,7 +45,7 @@ extern "C" void xerbla_(char *message, integer *info, int length) {
     std::fprintf(stderr,
                  " ** On entry to  %6s, parameter number %2ld had an illegal value\n", message,
                  (long) *info);
-    exit(1);
+    throw "XERBLA";
 }
 
 /// \file cblas.cc
