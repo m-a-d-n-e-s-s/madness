@@ -112,7 +112,7 @@ namespace madness {
 
 #if (defined(X86_32) || defined(X86_64))
     template <> 
-    static void aligned_zero<double>(long n, double* RESTRICT a) {
+    void aligned_zero<double>(long n, double* RESTRICT a) {
         if ((((unsigned long) a) & 0x0f)) throw "WTF";
         long n4 = (n>>2)<<2;
         long rem = n-n4;
@@ -134,7 +134,7 @@ namespace madness {
     }
 
     template <> 
-    static void aligned_zero<double_complex>(long n, double_complex* RESTRICT a) {
+    void aligned_zero<double_complex>(long n, double_complex* RESTRICT a) {
         aligned_zero(2*n, (double *) a);
     }
 #endif
