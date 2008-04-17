@@ -323,41 +323,40 @@ struct Calculation {
         world.gop.broadcast_serializable(param, 0);
         world.gop.broadcast_serializable(aobasis, 0);
 
-        for (int i=0; i<3; i++) {
-            FunctionDefaults<3>::cell(i,0) = -param.L;
-            FunctionDefaults<3>::cell(i,1) =  param.L;
-        }
+        FunctionDefaults<3>::set_cubic_cell(-param.L,param.L);
         
         // Setup initial defaults for numerical functions
         set_protocol(world, 1e-4);
     }
 
     void set_protocol(World& world, double thresh) {
-        FunctionDefaults<3>::thresh = thresh;
-        if (thresh >= 1e-4) FunctionDefaults<3>::k = 6;
-        else if (thresh >= 1e-6) FunctionDefaults<3>::k = 8;
-        else if (thresh >= 1e-8) FunctionDefaults<3>::k = 10;
-        else FunctionDefaults<3>::k = 12;
+        FunctionDefaults<3>::set_thresh(thresh);
+        if (thresh >= 1e-4) FunctionDefaults<3>::set_k(6);
+        else if (thresh >= 1e-6) FunctionDefaults<3>::set_k(8);
+        else if (thresh >= 1e-8) FunctionDefaults<3>::set_k(10);
+        else FunctionDefaults<3>::set_k(12);
 
-        FunctionDefaults<3>::refine = true;
-        FunctionDefaults<3>::initial_level = 2;
-        FunctionDefaults<3>::truncate_mode = 1;  
+        FunctionDefaults<3>::set_refine(true);
+        FunctionDefaults<3>::set_initial_level(2);
+        FunctionDefaults<3>::set_truncate_mode(1);  
+        FunctionDefaults<3>::set_autorefine(false);  
+
         double safety = 0.1;
-        vtol = FunctionDefaults<3>::thresh*safety;
+        vtol = FunctionDefaults<3>::get_thresh()*safety;
 
         coulop = poperatorT(CoulombOperatorPtr<double, 3>(world, 
-                                                          FunctionDefaults<3>::k, 
+                                                          FunctionDefaults<3>::get_k(), 
                                                           param.lo, 
                                                           vtol));
         if (world.rank() == 0) {
-            print("\nSolving with thresh",thresh, "and k", FunctionDefaults<3>::k, "\n");
+            print("\nSolving with thresh",thresh, "and k", FunctionDefaults<3>::get_k(), "\n");
         }
     }
 
     void project(World& world) {
         reconstruct(world,amo);
         for (unsigned int i=0; i<amo.size(); i++) {
-            amo[i] = madness::project(amo[i], FunctionDefaults<3>::k, FunctionDefaults<3>::thresh, false);
+            amo[i] = madness::project(amo[i], FunctionDefaults<3>::get_k(), FunctionDefaults<3>::get_thresh(), false);
         }
         world.gop.fence();
         truncate(world,amo);
@@ -365,7 +364,7 @@ struct Calculation {
         if (param.nbeta && !param.spin_restricted) {
             reconstruct(world,bmo);
             for (unsigned int i=0; i<bmo.size(); i++) {
-                bmo[i] = madness::project(bmo[i], FunctionDefaults<3>::k, FunctionDefaults<3>::thresh, false);
+                bmo[i] = madness::project(bmo[i], FunctionDefaults<3>::get_k(), FunctionDefaults<3>::get_thresh(), false);
             }
             world.gop.fence();
             truncate(world,bmo);
@@ -445,10 +444,10 @@ struct Calculation {
 //         if (world.size() > 1) {
 //             LoadBalImpl<3> lb(rho, lbcost<double,3>);
 //             lb.load_balance();
-//             FunctionDefaults<3>::pmap = lb.load_balance();
+//             FunctionDefaults<3>::set_pmap(lb.load_balance());
 //             world.gop.fence();
-//             rho = copy(rho, FunctionDefaults<3>::pmap, false);
-//             vnuc = copy(vnuc, FunctionDefaults<3>::pmap, false);
+//             rho = copy(rho, FunctionDefaults<3>::get_pmap(), false);
+//             vnuc = copy(vnuc, FunctionDefaults<3>::get_pmap(), false);
 //         }
 
         functionT vlocal;
@@ -478,12 +477,12 @@ struct Calculation {
 //                 lb.add_tree(ao[i],lbcost<double,3>);
 //             }
 //             lb.load_balance();
-//             FunctionDefaults<3>::pmap = lb.load_balance();
+//             FunctionDefaults<3>::set_pmap(lb.load_balance());
 //             world.gop.fence();
-//             vnuc = copy(vnuc, FunctionDefaults<3>::pmap, false);
-//             vlocal = copy(vlocal, FunctionDefaults<3>::pmap, false);
+//             vnuc = copy(vnuc, FunctionDefaults<3>::get_pmap(), false);
+//             vlocal = copy(vlocal, FunctionDefaults<3>::get_pmap(), false);
 //             for (unsigned int i=0; i<amo.size(); i++) {
-//                 ao[i] = copy(ao[i], FunctionDefaults<3>::pmap, false);
+//                 ao[i] = copy(ao[i], FunctionDefaults<3>::get_pmap(), false);
 //             }
 //         }
 
@@ -542,7 +541,7 @@ struct Calculation {
         START_TIMER;
         amo = transform(world, ao, c(_,Slice(0,param.nmo_alpha-1)));
         world.gop.fence();
-        END_TIMER("transform initial aMOs");
+        END_TIMER("transform initial MO");
         truncate(world, amo);
         normalize(world, amo);
 
@@ -578,8 +577,8 @@ struct Calculation {
     vector<poperatorT> make_bsh_operators(World& world, const Tensor<double>& evals) {
         int nmo = evals.dim[0];
         vector<poperatorT> ops(nmo);
-        int k = FunctionDefaults<3>::k;
-        double tol = FunctionDefaults<3>::thresh;
+        int k = FunctionDefaults<3>::get_k();
+        double tol = FunctionDefaults<3>::get_thresh();
         for (int i=0; i<nmo; i++) {
             double eps = evals(i);
             if (eps > 0) eps = -0.05;
@@ -657,7 +656,7 @@ struct Calculation {
         scale(world, Vpsi, fac);
         
         vector<poperatorT> ops = make_bsh_operators(world, eps);
-        set_thresh(world, Vpsi, FunctionDefaults<3>::thresh);  // <<<<< Since cannot set in apply
+        set_thresh(world, Vpsi, FunctionDefaults<3>::get_thresh());  // <<<<< Since cannot set in apply
         
         START_TIMER;
         vector<functionT> new_psi = apply(world, ops, Vpsi);
@@ -778,15 +777,15 @@ struct Calculation {
 //             }
 //         }
 //         lb.load_balance();
-//         FunctionDefaults<3>::pmap = lb.load_balance();
+//         FunctionDefaults<3>::set_pmap(lb.load_balance());
 //         world.gop.fence();
-//         vnuc = copy(vnuc, FunctionDefaults<3>::pmap, false);
+//         vnuc = copy(vnuc, FunctionDefaults<3>::get_pmap(), false);
 //         for (unsigned int i=0; i<amo.size(); i++) {
-//             amo[i] = copy(amo[i], FunctionDefaults<3>::pmap, false);
+//             amo[i] = copy(amo[i], FunctionDefaults<3>::get_pmap(), false);
 //         }
 //         if (param.nbeta && !param.spin_restricted) {
 //             for (unsigned int i=0; i<bmo.size(); i++) {
-//                 bmo[i] = copy(bmo[i], FunctionDefaults<3>::pmap, false);
+//                 bmo[i] = copy(bmo[i], FunctionDefaults<3>::get_pmap(), false);
 //             }
 //         }
 //         world.gop.fence();
@@ -799,9 +798,9 @@ struct Calculation {
             START_TIMER;
             loadbal(world);
             if (iter > 0) {
-               arho_old = copy(arho_old, FunctionDefaults<3>::pmap, false);
+                arho_old = copy(arho_old, FunctionDefaults<3>::get_pmap(), false);
                if (param.nbeta && !param.spin_restricted) {
-                   brho_old = copy(brho_old, FunctionDefaults<3>::pmap, false);
+                   brho_old = copy(brho_old, FunctionDefaults<3>::get_pmap(), false);
                }
             }
             END_TIMER("Load balancing");
@@ -872,7 +871,7 @@ struct Calculation {
             }
 
             if (iter > 0) {
-                double dconv = max(FunctionDefaults<3>::thresh, param.dconv);
+                double dconv = max(FunctionDefaults<3>::get_thresh(), param.dconv);
                 if (da<dconv && db<dconv) {
                     if (world.rank()==0) print("\nConverged!\n");
                     return;
@@ -906,7 +905,7 @@ int main(int argc, char** argv) {
     try {
         // Load info for MADNESS numerical routines
         startup(world,argc,argv);
-        FunctionDefaults<3>::pmap = pmapT(new LevelPmap(world));
+        FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap(world)));
     
         
         // Process 0 reads input information and broadcasts
