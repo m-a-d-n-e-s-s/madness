@@ -310,7 +310,7 @@ namespace madness {
         else {
             MADNESS_EXCEPTION("FunctionImpl:eval_cube:NDIM?",NDIM);
         }
-        return sum*pow(2.0,0.5*NDIM*n)/sqrt(cell_volume);
+        return sum*pow(2.0,0.5*NDIM*n)/sqrt(FunctionDefaults<NDIM>::get_cell_volume());
     }
 
     template <typename T, int NDIM>
@@ -365,6 +365,9 @@ namespace madness {
         coordT c; // will hold the point in user coordinates
         const int npt = qx.dim[0];
         
+        const Tensor<double>& cell_width = FunctionDefaults<NDIM>::get_cell_width();
+        const Tensor<double>& cell = FunctionDefaults<NDIM>::get_cell();
+
         if (NDIM == 1) {
             for (int i=0; i<npt; i++) {
                 c[0] = cell(0,0) + h*cell_width[0]*(l[0] + qx(i)); // x
@@ -484,7 +487,7 @@ namespace madness {
                 for (KeyChildIterator<NDIM> it(key); it; ++it) {
                     const keyT& child = it.key();
                     ProcessID p;
-                    if (FunctionDefaults<NDIM>::project_randomize) {
+                    if (FunctionDefaults<NDIM>::get_project_randomize()) {
                         p = world.random_proc();
                     }
                     else {
@@ -509,7 +512,7 @@ namespace madness {
                 MADNESS_ASSERT(it != coeffs.end());
                 nodeT& node = it->second;
                 MADNESS_ASSERT(node.has_coeff());
-                node.coeff()(v0) += t*sqrt(cell_volume);
+                node.coeff()(v0) += t*sqrt(FunctionDefaults<NDIM>::get_cell_volume());
             }
         }
         else {
@@ -517,7 +520,7 @@ namespace madness {
                 Level n = it->first.level();
                 nodeT& node = it->second;
                 if (node.has_coeff()) {
-                    node.coeff()(v0) += t*sqrt(cell_volume*pow(0.5,double(NDIM*n)));
+                    node.coeff()(v0) += t*sqrt(FunctionDefaults<NDIM>::get_cell_volume()*pow(0.5,double(NDIM*n)));
                 }
             }
         }
@@ -629,7 +632,7 @@ namespace madness {
             MADNESS_EXCEPTION("FunctionImpl: project: confusion about function?",0);
         }
         
-        work.scale(sqrt(cell_volume*pow(0.5,double(NDIM*key.level()))));
+        work.scale(sqrt(FunctionDefaults<NDIM>::get_cell_volume()*pow(0.5,double(NDIM*key.level()))));
         //return transform(work,cdata.quad_phiw);
         return fast_transform(work,cdata.quad_phiw,fval,cdata.workq);
     }
@@ -790,7 +793,7 @@ namespace madness {
         if (parent == child || parent.is_invalid() || child.is_invalid()) return s;
         
         tensorT result = fcube_for_mul<T>(child, parent, s);
-        result.scale(sqrt(cell_volume*pow(0.5,double(NDIM*child.level()))));
+        result.scale(sqrt(FunctionDefaults<NDIM>::get_cell_volume()*pow(0.5,double(NDIM*child.level()))));
         result = transform(result,cdata.quad_phiw);
         
         return result;
@@ -817,7 +820,7 @@ namespace madness {
                 if (node.has_coeff()) sum += node.coeff()(v0)*pow(0.5,NDIM*key.level()*0.5);
             }
         }
-        return sum*sqrt(cell_volume);
+        return sum*sqrt(FunctionDefaults<NDIM>::get_cell_volume());
     }
 
     
@@ -1003,7 +1006,7 @@ namespace madness {
                      parent_to_child(right.second, right.first, neighbor(key,axis,1)).swapdim(axis,0), 
                      1, 0, d);
         if (axis) d = copy(d.swapdim(axis,0)); // make it contiguous
-        d.scale(rcell_width[axis]*pow(2.0,(double) key.level()));
+        d.scale(FunctionDefaults<NDIM>::get_rcell_width()[axis]*pow(2.0,(double) key.level()));
         coeffs.insert(key,nodeT(d,false));
         return None;
     }
@@ -1212,6 +1215,31 @@ namespace madness {
         world.gop.fence(); 
     }
 
+
+    template <int NDIM>
+    void FunctionDefaults<NDIM>::set_defaults (World& world) {
+            k = 7;
+            thresh = 1e-5;
+            initial_level = 2;
+            max_refine_level = 30;
+            truncate_mode = 0;
+            refine = true;
+            autorefine = true;
+            debug = false;
+            truncate_on_project = false;
+            apply_randomize = false;
+            project_randomize = false;
+            bc = Tensor<int>(NDIM,2);
+            cell = Tensor<double>(NDIM,2);
+            cell(_,1) = 1.0;
+            recompute_cell_info();
+
+            //pmap = SharedPtr< WorldDCPmapInterface< Key<NDIM> > >(new WorldDCDefaultPmap< Key<NDIM> >(world));
+            pmap = SharedPtr< WorldDCPmapInterface< Key<NDIM> > >(new MyPmap<NDIM>(world));
+            //pmap = SharedPtr< WorldDCPmapInterface< Key<NDIM> > >(new SimpleMap< Key<NDIM> >(world));
+        }
+
+
     // 
     // Below here we instantiate templates defined in this file
     //
@@ -1232,9 +1260,12 @@ namespace madness {
     template <int NDIM> bool FunctionDefaults<NDIM>::apply_randomize;
     template <int NDIM> bool FunctionDefaults<NDIM>::project_randomize;
     template <int NDIM> Tensor<int> FunctionDefaults<NDIM>::bc;      
-    template <int NDIM> Tensor<double> FunctionDefaults<NDIM>::cell ;
+    template <int NDIM> Tensor<double> FunctionDefaults<NDIM>::cell;
+    template <int NDIM> Tensor<double> FunctionDefaults<NDIM>::cell_width;
+    template <int NDIM> Tensor<double> FunctionDefaults<NDIM>::rcell_width;
+    template <int NDIM> double FunctionDefaults<NDIM>::cell_volume;
+    template <int NDIM> double FunctionDefaults<NDIM>::cell_min_width;
     template <int NDIM> SharedPtr< WorldDCPmapInterface< Key<NDIM> > > FunctionDefaults<NDIM>::pmap;
-
 
 #ifdef FUNCTION_INSTANTIATE_1
     template class FunctionDefaults<1>;

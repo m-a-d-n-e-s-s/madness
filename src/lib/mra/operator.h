@@ -801,7 +801,7 @@ namespace madness {
 
         void check_cubic() {
             // !!! NB ... cell volume obtained from global defaults
-            Tensor<double> cell_width(FunctionDefaults<NDIM>::cell(_,1)-FunctionDefaults<NDIM>::cell(_,0));
+            const Tensor<double>& cell_width = FunctionDefaults<NDIM>::get_cell_width();
             // Check that the cell is cubic since currently is assumed
             for (long d=1; d<NDIM; d++) {
                 MADNESS_ASSERT(fabs(cell_width(d)-cell_width(0L)) < 1e-14*cell_width(0L));
@@ -850,7 +850,7 @@ namespace madness {
             , ops(coeff.dim[0]) 
         {
             check_cubic();
-            double width = FunctionDefaults<NDIM>::cell(0,1)-FunctionDefaults<NDIM>::cell(0,0);
+            double width = FunctionDefaults<NDIM>::get_cell_width()(0L);
             for (int i=0; i<64; i++) nflop[i] = 0.0;
 
             for (int i=0; i<rank; i++) {
@@ -926,7 +926,7 @@ namespace madness {
                                                  long k,
                                                  double lo,
                                                  double eps) {
-        Tensor<double> cell_width(FunctionDefaults<NDIM>::cell(_,1)-FunctionDefaults<NDIM>::cell(_,0));
+        const Tensor<double>& cell_width = FunctionDefaults<NDIM>::get_cell_width();
         double hi = sqrt(double(NDIM))*cell_width.normf(); // Diagonal width of cell
         const double pi = 3.14159265358979323846264338328;
 

@@ -37,13 +37,14 @@
 #define MAD_FUNC_DATA
 
 /// \file funcimpl.h
-/// \brief Provides FunctionDefaults, FunctionCommonData, FunctionImpl and FunctionFactory
+/// \brief Provides FunctionCommonData, FunctionImpl and FunctionFactory
 
 #include <world/world.h>
 #include <misc/misc.h>
 #include <tensor/mtrand.h>
 #include <tensor/tensor.h>
 #include <mra/key.h>
+#include <mra/funcdefaults.h>
 
 namespace madness {
     template <typename T, int NDIM> class FunctionImpl;
@@ -83,59 +84,6 @@ namespace madness {
     };
 
 
-    /// The maximum wavelet order presently supported (up to 31 should work)
-    static const int MAXK = 17;
-
-    /// FunctionDefaults holds default paramaters as static class members
-
-    /// Declared and initialized in mra.cc and/or funcimpl::initialize.  Note that it is currently
-    /// not possible to combine functions with different simulation
-    /// cells and this is is not even checked for.  Therefore, the
-    /// only recommended approach is to set the simulation cell once
-    /// and for all at the start of a calculation and to use it for
-    /// all Function instances.  A little work could improve upon this.
-    ///
-    /// N.B.  Ultimately, we may need to make these defaults specific to each
-    /// world as should be all global state.
-    template <int NDIM>
-    class FunctionDefaults {
-    public:
-        static int k;                  ///< Wavelet order
-        static double thresh;          ///< Truncation threshold
-        static int initial_level;      ///< Initial level for fine scale projection
-        static int max_refine_level;   ///< Level at which to stop refinement
-        static int truncate_mode;    ///< Truncation method
-        static bool refine;            ///< Whether to refine new functions
-        static bool autorefine;        ///< Whether to autorefine in multiplication, etc.
-        static bool debug;             ///< Controls output of debug info
-        static bool truncate_on_project; ///< If true initial projection inserts at n-1 not n
-        static bool apply_randomize;   /// If true use randomization for load balancing in apply integral operator
-        static bool project_randomize; /// If true use randomization for load balancing in project/refine
-        static Tensor<int> bc;         ///< bc[NDIM][2] Boundary conditions -- zero(0) or periodic(1)
-        static Tensor<double> cell ;   ///< cell[NDIM][2] Simulation cell, cell(0,0)=xlo, cell(0,1)=xhi, ...
-        static SharedPtr< WorldDCPmapInterface< Key<NDIM> > > pmap; ///< Default mapping of keys to processes
-
-        static void set_defaults (World& world) {
-            k = 7;
-            thresh = 1e-5;
-            initial_level = 2;
-            max_refine_level = 30;
-            truncate_mode = 0;
-            refine = true;
-            autorefine = true;
-            debug = false;
-            truncate_on_project = false;
-            apply_randomize = false;
-            project_randomize = false;
-            bc = Tensor<int>(NDIM,2);
-            cell = Tensor<double>(NDIM,2);
-            cell(_,1) = 1.0;
-            //pmap = SharedPtr< WorldDCPmapInterface< Key<NDIM> > >(new WorldDCDefaultPmap< Key<NDIM> >(world));
-            pmap = SharedPtr< WorldDCPmapInterface< Key<NDIM> > >(new MyPmap<NDIM>(world));
-            //pmap = SharedPtr< WorldDCPmapInterface< Key<NDIM> > >(new SimpleMap< Key<NDIM> >(world));
-        }
-    };
-
     /// Holds info about displacement to neighbor for application of operators
     template <int NDIM>
     struct Displacement {
@@ -153,7 +101,7 @@ namespace madness {
         int operator[](int i) const {return d[i];}
 
         template <typename Archive>
-        inline void serialize(Archive& ar) {
+        void serialize(Archive& ar) {
             ar & d & distsq;
         }
     };
@@ -312,6 +260,7 @@ namespace madness {
         bool _autorefine;
         bool _truncate_on_project;
         bool _fence;
+        Tensor<int> _bc;
         SharedPtr< WorldDCPmapInterface< Key<NDIM> > > _pmap;
         SharedPtr< FunctionFunctorInterface<T,NDIM> > _functor;
 
@@ -326,84 +275,89 @@ namespace madness {
     public:
         FunctionFactory(World& world) 
             : _world(world)
-            , _k(FunctionDefaults<NDIM>::k)
-            , _thresh(FunctionDefaults<NDIM>::thresh)
-            , _initial_level(FunctionDefaults<NDIM>::initial_level)
-            , _max_refine_level(FunctionDefaults<NDIM>::max_refine_level)
-            , _truncate_mode(FunctionDefaults<NDIM>::truncate_mode)
-            , _refine(FunctionDefaults<NDIM>::refine)
+            , _k(FunctionDefaults<NDIM>::get_k())
+            , _thresh(FunctionDefaults<NDIM>::get_thresh())
+            , _initial_level(FunctionDefaults<NDIM>::get_initial_level())
+            , _max_refine_level(FunctionDefaults<NDIM>::get_max_refine_level())
+            , _truncate_mode(FunctionDefaults<NDIM>::get_truncate_mode())
+            , _refine(FunctionDefaults<NDIM>::get_refine())
             , _empty(false)
-            , _autorefine(FunctionDefaults<NDIM>::autorefine)
-            , _truncate_on_project(FunctionDefaults<NDIM>::truncate_on_project)
+            , _autorefine(FunctionDefaults<NDIM>::get_autorefine())
+            , _truncate_on_project(FunctionDefaults<NDIM>::get_truncate_on_project())
             , _fence(true)
-            , _pmap(FunctionDefaults<NDIM>::pmap)
+            , _bc(FunctionDefaults<NDIM>::get_bc())
+            , _pmap(FunctionDefaults<NDIM>::get_pmap())
             , _functor(0)
         {}
-        inline FunctionFactory& functor(const SharedPtr< FunctionFunctorInterface<T,NDIM> >& functor) {
+        FunctionFactory& functor(const SharedPtr< FunctionFunctorInterface<T,NDIM> >& functor) {
             _functor = functor;
             return *this;
         }
-        inline FunctionFactory& f(T (*f)(const coordT&)) {
+        FunctionFactory& f(T (*f)(const coordT&)) {
             functor(SharedPtr< FunctionFunctorInterface<T,NDIM> >(new FunctorInterfaceWrapper(f)));
             return *this;
         }
-        inline FunctionFactory& k(int k) {
+        FunctionFactory& k(int k) {
             _k = k;
             return *this;
         }
-        inline FunctionFactory& thresh(double thresh) {
+        FunctionFactory& thresh(double thresh) {
             _thresh = thresh;
             return *this;
         }
-        inline FunctionFactory& initial_level(int initial_level) {
+        FunctionFactory& initial_level(int initial_level) {
             _initial_level = initial_level;
             return *this;
         }
-        inline FunctionFactory& max_refine_level(int max_refine_level) {
+        FunctionFactory& max_refine_level(int max_refine_level) {
             _max_refine_level = max_refine_level;
             return *this;
         }
-        inline FunctionFactory& truncate_mode(int truncate_mode) {
+        FunctionFactory& truncate_mode(int truncate_mode) {
             _truncate_mode = truncate_mode;
             return *this;
         }
-        inline FunctionFactory& refine(bool refine = true) {
+        FunctionFactory& refine(bool refine = true) {
             _refine = refine;
             return *this;
         }
-        inline FunctionFactory& norefine(bool norefine = true) {
+        FunctionFactory& norefine(bool norefine = true) {
             _refine = !norefine;
             return *this;
         }
-        inline FunctionFactory& empty() {
+        FunctionFactory& bc(const Tensor<int>& bc) {
+            _bc = copy(bc);
+            return *this;
+        }
+        FunctionFactory& empty() {
             _empty = true;
             return *this;
         }
-        inline FunctionFactory& autorefine() {
+        FunctionFactory& autorefine() {
             _autorefine = true;
             return *this;
         }
-        inline FunctionFactory& noautorefine() {
+        FunctionFactory& noautorefine() {
             _autorefine = false;
             return *this;
         }
-        inline FunctionFactory& truncate_on_project() {
+        FunctionFactory& truncate_on_project() {
             _truncate_on_project = true;
             return *this;
         }
-        inline FunctionFactory& notruncate_on_project() {
+        FunctionFactory& notruncate_on_project() {
             _truncate_on_project = false;
             return *this;
         }
-        inline FunctionFactory& fence(bool fence=true) {
+        FunctionFactory& fence(bool fence=true) {
             _fence = fence;
             return *this;
         }
-        inline FunctionFactory& nofence() {
+        FunctionFactory& nofence() {
             _fence = false;
             return *this;
         }
-        inline FunctionFactory& pmap(const SharedPtr< WorldDCPmapInterface< Key<NDIM> > >& pmap) {
+        FunctionFactory& pmap(const SharedPtr< WorldDCPmapInterface< Key<NDIM> > >& pmap) {
             _pmap = pmap;
             return *this;
         }
@@ -538,7 +492,7 @@ namespace madness {
         }
 
         template <typename Archive>
-        inline void serialize(Archive& ar) {
+        void serialize(Archive& ar) {
             ar & _coeffs & _has_children & _norm_tree;
         }
     };
@@ -601,13 +555,7 @@ namespace madness {
         dcT coeffs;             ///< The coefficients
 
 
-        // ... currently not clear how to best handle bc/cell stuff on a per function basis
-        const Tensor<double> cell;///< Simulation cell (range over function is defined).
         const Tensor<int> bc;     ///< Type of boundary condition -- currently only zero or periodic
-        const Tensor<double> cell_width;///< Width of simulation cell in each dimension
-        Tensor<double> rcell_width; ///< Reciprocal of width
-        const double cell_volume;       ///< Volume of simulation cell
-        const double cell_min_width;    ///< Size of smallest dimension
 
         // Disable the default copy constructor
         FunctionImpl(const FunctionImpl<T,NDIM>& p);
@@ -630,24 +578,15 @@ namespace madness {
             , functor(factory._functor)
             , compressed(false)
             , coeffs(world,factory._pmap,false)
-            , cell(FunctionDefaults<NDIM>::cell) 
-            , bc(FunctionDefaults<NDIM>::bc)
-            , cell_width(cell(_,1)-cell(_,0))
-            , rcell_width(copy(cell_width))
-            , cell_volume(cell_width.product())
-            , cell_min_width(cell_width.min())
+            , bc(factory._bc)
         {
             // !!! Ensure that all local state is correctly formed
             // before invoking process_pending for the coeffs and
             // for this.  Otherwise, there is a race condition.
             MADNESS_ASSERT(k>0 && k<=MAXK);
 
-            // Ultimately, must set cell, bc, etc. from the factory not the defaults
-            for (int i=0; i<NDIM; i++) rcell_width(i) = 1.0/rcell_width(i);
-
             bool empty = factory._empty;
             bool do_refine = factory._refine;
-
 
             if (do_refine) initial_level = std::max(0,initial_level - 1);
 
@@ -696,12 +635,7 @@ namespace madness {
             , functor()
             , compressed(other.compressed)
             , coeffs(world, pmap ? pmap : other.coeffs.get_pmap())
-            , cell(other.cell)
             , bc(other.bc)
-            , cell_width(other.cell_width)
-            , rcell_width(other.rcell_width)
-            , cell_volume(other.cell_volume)
-            , cell_min_width(other.cell_min_width)
         {
             if (dozero) {
                 initial_level = 1;
@@ -744,6 +678,16 @@ namespace madness {
 	    }
 	    if (fence) world.gop.fence();
 	}
+
+//         template <typename Archive>
+//         void load(Ar& ar) {
+//             ar & thresh & initial_level & max_refine_level & truncate_mode & autorefine & truncate_on_project & nonstandard & compressed;
+//             ar & cell & bc & cell_width & rcell-width & cell_volume & cell_min_width;
+
+            
+            
+//         }
+        
 
 
         /// Returns true if the function is compressed.  
@@ -799,12 +743,12 @@ namespace madness {
 
 
         /// Returns the truncation threshold according to truncate_method
-        inline double truncate_tol(double tol, const keyT& key) const {
+        double truncate_tol(double tol, const keyT& key) const {
             if (truncate_mode == 0) {
                 return tol;
             }
             else if (truncate_mode == 1) {
-                return tol*std::min(1.0,pow(0.5,double(key.level()))*cell_min_width);
+                return tol*std::min(1.0,pow(0.5,double(key.level()))*FunctionDefaults<NDIM>::get_cell_min_width());
             }
             else if (truncate_mode == 2) {
                 return tol*pow(0.5,0.5*key.level()*NDIM);
@@ -851,7 +795,7 @@ namespace madness {
         template <typename Q>
         Tensor<Q> fcube_for_mul(const keyT& child, const keyT& parent, const Tensor<Q>& coeff) const {
             if (child.level() == parent.level()) {
-                double scale = pow(2.0,0.5*NDIM*parent.level())/sqrt(cell_volume);
+                double scale = pow(2.0,0.5*NDIM*parent.level())/sqrt(FunctionDefaults<NDIM>::get_cell_volume());
                 return transform(coeff,cdata.quad_phit).scale(scale);
             }
             else if (child.level() < parent.level()) {
@@ -864,7 +808,7 @@ namespace madness {
                     phi_for_mul(parent.level(),parent.translation()[d],
                                 child.level(), child.translation()[d], phi[d]);
                 }
-                return general_transform(coeff,phi).scale(1.0/sqrt(cell_volume));;
+                return general_transform(coeff,phi).scale(1.0/sqrt(FunctionDefaults<NDIM>::get_cell_volume()));;
             }
         }
         
@@ -880,7 +824,7 @@ namespace madness {
 
             Tensor<T> tcube(cdata.vk,false);
             TERNARY_OPTIMIZED_ITERATOR(T, tcube, L, lcube, R, rcube, *_p0 = *_p1 * *_p2;);
-            double scale = pow(0.5,0.5*NDIM*key.level())*sqrt(cell_volume);
+            double scale = pow(0.5,0.5*NDIM*key.level())*sqrt(FunctionDefaults<NDIM>::get_cell_volume());
             tcube = transform(tcube,cdata.quad_phiw).scale(scale);
             coeffs.insert(key, nodeT(tcube,false));
             return None;
@@ -962,7 +906,7 @@ namespace madness {
 
             op(child, values);
 
-            double scale = pow(0.5,0.5*NDIM*child.level())*sqrt(cell_volume);
+            double scale = pow(0.5,0.5*NDIM*child.level())*sqrt(FunctionDefaults<NDIM>::get_cell_volume());
             tensorT r = transform(values,cdata.quad_phiw).scale(scale);
 
             if (parent == child) 
@@ -1352,7 +1296,7 @@ namespace madness {
         /// number of dimensions.
         ///
         /// No communication involved.
-        inline tensorT filter(const tensorT& s) const {
+        tensorT filter(const tensorT& s) const {
             tensorT r(cdata.v2k,false);
             return fast_transform(s,cdata.hgT,r,cdata.work2);
             //return transform(s,cdata.hgT);
@@ -1374,7 +1318,7 @@ namespace madness {
         ///  assume the d are zero).  Works for any number of dimensions.
         ///
         /// No communication involved.
-        inline tensorT unfilter(const tensorT& s) const {
+        tensorT unfilter(const tensorT& s) const {
             tensorT r(cdata.v2k,false);
             return fast_transform(s,cdata.hg,r,cdata.work2);
             //return transform(s, cdata.hg);
@@ -1533,7 +1477,7 @@ namespace madness {
                 const FunctionNode<R,NDIM>& node = it->second;
                 if (node.coeff().dim[0] != k || op.doleaves) {
                     ProcessID p;
-                    if (FunctionDefaults<NDIM>::apply_randomize) {
+                    if (FunctionDefaults<NDIM>::get_apply_randomize()) {
                         p = world.random_proc();
                     }
                     else {
@@ -1564,7 +1508,7 @@ namespace madness {
             fcube(key, func, qx, fval);
 
             // Transform into the scaling function basis of order npt
-            double scale = pow(0.5,0.5*NDIM*key.level())*sqrt(cell_volume);
+            double scale = pow(0.5,0.5*NDIM*key.level())*sqrt(FunctionDefaults<NDIM>::get_cell_volume());
             fval = fast_transform(fval,quad_phiw,result,work).scale(scale);
 
             // Subtract to get the error ... the original coeffs are in the order k
@@ -1687,20 +1631,6 @@ namespace madness {
             return sum;
         }
 
-
-        /// Convert user coords (cell[][]) to simulation coords ([0,1]^ndim)
-        inline void user_to_sim(const coordT& xuser, coordT& xsim) const {
-            for (int i=0; i<NDIM; i++) 
-                xsim[i] = (xuser[i] - cell(i,0)) * rcell_width[i];
-        }
-
-
-        /// Convert simulation coords ([0,1]^ndim) to user coords (cell[][])
-        inline void sim_to_user(const coordT& xsim, coordT& xuser) const {
-            for (int i=0; i<NDIM; i++)
-                xuser[i] = xsim[i]*cell_width[i] + cell(i,0);
-        }
-
         /// In-place scale by a constant
         void scale_inplace(const T q, bool fence);
 
@@ -1731,7 +1661,7 @@ namespace madness {
     namespace archive {
         template <class Archive, class T, int NDIM>
         struct ArchiveLoadImpl<Archive,const FunctionImpl<T,NDIM>*> {
-            static inline void load(const Archive& ar, const FunctionImpl<T,NDIM>*& ptr) {
+            static void load(const Archive& ar, const FunctionImpl<T,NDIM>*& ptr) {
                 uniqueidT id;
                 ar & id;
                 World* world = World::world_from_id(id.get_world_id());
@@ -1743,7 +1673,7 @@ namespace madness {
         
         template <class Archive, class T, int NDIM>
         struct ArchiveStoreImpl<Archive,const FunctionImpl<T,NDIM>*> {
-            static inline void store(const Archive& ar, const FunctionImpl<T,NDIM>*const& ptr) {
+            static void store(const Archive& ar, const FunctionImpl<T,NDIM>*const& ptr) {
                 ar & ptr->id();
             }
         };

@@ -184,14 +184,16 @@ void test_basic(World& world) {
         print("Test compression of a normalized gaussian at origin, type =",
               archive::get_type_name<T>(),", ndim =",NDIM);
 
+    Tensor<double> cell(NDIM,2);
     for (int i=0; i<NDIM; i++) {
-        FunctionDefaults<NDIM>::cell(i,0) = -11.0-2*i;  // Deliberately asymmetric bounding box
-        FunctionDefaults<NDIM>::cell(i,1) =  10.0+i;
+        cell(i,0) = -11.0-2*i;  // Deliberately asymmetric bounding box
+        cell(i,1) =  10.0+i;
     }
-    FunctionDefaults<NDIM>::k = 7;
-    FunctionDefaults<NDIM>::thresh = 1e-5;
-    FunctionDefaults<NDIM>::refine = true;
-    FunctionDefaults<NDIM>::initial_level = 2;
+    FunctionDefaults<NDIM>::set_cell(cell);
+    FunctionDefaults<NDIM>::set_k(7);
+    FunctionDefaults<NDIM>::set_thresh(1e-5);
+    FunctionDefaults<NDIM>::set_refine(true);
+    FunctionDefaults<NDIM>::set_initial_level(2);
     
     const coordT origin(0.0);
     coordT point;
@@ -250,10 +252,7 @@ void test_conv(World& world) {
     const double coeff = pow(2.0/PI,0.25*NDIM);
     functorT functor(new Gaussian<T,NDIM>(origin, expnt, coeff));
 
-    for (int i=0; i<NDIM; i++) {
-        FunctionDefaults<NDIM>::cell(i,0) = -10.0;
-        FunctionDefaults<NDIM>::cell(i,1) =  10.0;
-    }
+    FunctionDefaults<NDIM>::set_cubic_cell(-10,10);
 
     for (int k=1; k<=15; k+=2) {
 	if (world.rank() == 0) printf("k=%d\n", k);
@@ -283,16 +282,13 @@ void test_math(World& world) {
         print("Test basic math operations - type =", archive::get_type_name<T>(),", ndim =",NDIM,"\n");
     }
 
-    FunctionDefaults<NDIM>::k = 9;
-    FunctionDefaults<NDIM>::thresh = 1e-9;
-    FunctionDefaults<NDIM>::truncate_mode = 0;
-    FunctionDefaults<NDIM>::refine = true;
-    FunctionDefaults<NDIM>::autorefine = false;
-    FunctionDefaults<NDIM>::initial_level = 3;
-    for (int i=0; i<NDIM; i++) {
-        FunctionDefaults<NDIM>::cell(i,0) = -10.0;
-        FunctionDefaults<NDIM>::cell(i,1) =  10.0;
-    }
+    FunctionDefaults<NDIM>::set_k(9);
+    FunctionDefaults<NDIM>::set_thresh(1e-9);
+    FunctionDefaults<NDIM>::set_truncate_mode(0);
+    FunctionDefaults<NDIM>::set_refine(true);
+    FunctionDefaults<NDIM>::set_autorefine(false);
+    FunctionDefaults<NDIM>::set_initial_level(3);
+    FunctionDefaults<NDIM>::set_cubic_cell(-10,10);
 
     const coordT origin(0.0);
     const double expnt = 1.0;
@@ -409,8 +405,8 @@ void test_math(World& world) {
     int nfunc = 100;
     if (NDIM >= 3) nfunc = 20;
     for (int i=0; i<nfunc; i++) {
-        functorT f1(RandomGaussian<T,NDIM>(FunctionDefaults<NDIM>::cell,1000.0));
-        functorT f2(RandomGaussian<T,NDIM>(FunctionDefaults<NDIM>::cell,1000.0));
+        functorT f1(RandomGaussian<T,NDIM>(FunctionDefaults<NDIM>::get_cell(),1000.0));
+        functorT f2(RandomGaussian<T,NDIM>(FunctionDefaults<NDIM>::get_cell(),1000.0));
         T (*p)(T,T) = &product<T,T,T>;
         functorT f3(new BinaryOp<T,T,T,T(*)(T,T),NDIM>(f1,f2,p));
         Function<T,NDIM> a = FunctionFactory<T,NDIM>(world).functor(f1);
@@ -443,8 +439,8 @@ void test_math(World& world) {
 
     if (world.rank() == 0) print("\nTest adding random functions out of place");
     for (int i=0; i<10; i++) {
-        functorT f1(RandomGaussian<T,NDIM>(FunctionDefaults<NDIM>::cell,100.0));
-        functorT f2(RandomGaussian<T,NDIM>(FunctionDefaults<NDIM>::cell,100.0));
+        functorT f1(RandomGaussian<T,NDIM>(FunctionDefaults<NDIM>::get_cell(),100.0));
+        functorT f2(RandomGaussian<T,NDIM>(FunctionDefaults<NDIM>::get_cell(),100.0));
         T (*p)(T,T) = &sum<T,T,T>;
         functorT f3(new BinaryOp<T,T,T,T(*)(T,T),NDIM>(f1,f2,p));
         Function<T,NDIM> a = FunctionFactory<T,NDIM>(world).functor(f1);
@@ -464,8 +460,8 @@ void test_math(World& world) {
 
     if (world.rank() == 0) print("\nTest adding random functions in place");
     for (int i=0; i<10; i++) {
-        functorT f1(RandomGaussian<T,NDIM>(FunctionDefaults<NDIM>::cell,100.0));
-        functorT f2(RandomGaussian<T,NDIM>(FunctionDefaults<NDIM>::cell,100.0));
+        functorT f1(RandomGaussian<T,NDIM>(FunctionDefaults<NDIM>::get_cell(),100.0));
+        functorT f2(RandomGaussian<T,NDIM>(FunctionDefaults<NDIM>::get_cell(),100.0));
         T (*p)(T,T) = &sum<T,T,T>;
         functorT f3(new BinaryOp<T,T,T,T(*)(T,T),NDIM>(f1,f2,p));
         Function<T,NDIM> a = FunctionFactory<T,NDIM>(world).functor(f1);
@@ -500,15 +496,12 @@ void test_diff(World& world) {
     const double coeff = pow(2.0/PI,0.25*NDIM);
     functorT functor(new Gaussian<T,NDIM>(origin, expnt, coeff));
 
-    FunctionDefaults<NDIM>::k = 10;
-    FunctionDefaults<NDIM>::thresh = 1e-10;
-    FunctionDefaults<NDIM>::refine = true;
-    FunctionDefaults<NDIM>::initial_level = 2;
-    FunctionDefaults<NDIM>::truncate_mode = 1;
-    for (int i=0; i<NDIM; i++) {
-        FunctionDefaults<NDIM>::cell(i,0) = -10.0;
-        FunctionDefaults<NDIM>::cell(i,1) =  10.0;
-    }
+    FunctionDefaults<NDIM>::set_k(10);
+    FunctionDefaults<NDIM>::set_thresh(1e-10);
+    FunctionDefaults<NDIM>::set_refine(true);
+    FunctionDefaults<NDIM>::set_initial_level(2);
+    FunctionDefaults<NDIM>::set_truncate_mode(1);
+    FunctionDefaults<NDIM>::set_cubic_cell(-10,10);
     
     START_TIMER; 
     Function<T,NDIM> f = FunctionFactory<T,NDIM>(world).functor(functor);
@@ -576,15 +569,12 @@ void test_op(World& world) {
     const double coeff = pow(2.0*expnt/PI,0.25*NDIM);
     functorT functor(new Gaussian<T,NDIM>(origin, expnt, coeff));
 
-    FunctionDefaults<NDIM>::k = 10;
-    FunctionDefaults<NDIM>::thresh = 1e-12;
-    FunctionDefaults<NDIM>::refine = true;
-    FunctionDefaults<NDIM>::initial_level = 2;
-    FunctionDefaults<NDIM>::truncate_mode = 1;
-    for (int i=0; i<NDIM; i++) {
-        FunctionDefaults<NDIM>::cell(i,0) = 0.0;
-        FunctionDefaults<NDIM>::cell(i,1) = 1.0;
-    }
+    FunctionDefaults<NDIM>::set_k(10);
+    FunctionDefaults<NDIM>::set_thresh(1e-12);
+    FunctionDefaults<NDIM>::set_refine(true);
+    FunctionDefaults<NDIM>::set_initial_level(2);
+    FunctionDefaults<NDIM>::set_truncate_mode(1);
+    FunctionDefaults<NDIM>::set_cubic_cell(-10,10);
     
     START_TIMER; 
     Function<T,NDIM> f = FunctionFactory<T,NDIM>(world).functor(functor);
@@ -607,7 +597,7 @@ void test_op(World& world) {
     Tensor<double> coeffs(1), exponents(1);
     exponents(0L) = 10.0;
     coeffs(0L) = pow(exponents(0L)/PI, 0.5*NDIM);
-    SeparatedConvolution<T,NDIM> op(world, FunctionDefaults<NDIM>::k, coeffs, exponents);
+    SeparatedConvolution<T,NDIM> op(world, FunctionDefaults<NDIM>::get_k(), coeffs, exponents);
     START_TIMER;
     Function<T,NDIM> r = apply(op,f);
     END_TIMER("apply");
@@ -674,15 +664,12 @@ void test_coulomb(World& world) {
 
     double thresh = 1e-6;
 
-    FunctionDefaults<3>::k = 8;
-    FunctionDefaults<3>::thresh = thresh;
-    FunctionDefaults<3>::refine = true;
-    FunctionDefaults<3>::initial_level = 2;
-    FunctionDefaults<3>::truncate_mode = 0;
-    for (int i=0; i<3; i++) {
-        FunctionDefaults<3>::cell(i,0) = -10.0;
-        FunctionDefaults<3>::cell(i,1) =  10.0;
-    }
+    FunctionDefaults<3>::set_k(8);
+    FunctionDefaults<3>::set_thresh(thresh);
+    FunctionDefaults<3>::set_refine(true);
+    FunctionDefaults<3>::set_initial_level(2);
+    FunctionDefaults<3>::set_truncate_mode(0);
+    FunctionDefaults<3>::set_cubic_cell(-10,10);
     
     START_TIMER; 
     Function<double,3> f = FunctionFactory<double,3>(world).functor(functor).thresh(1e-8);
@@ -722,7 +709,7 @@ void test_coulomb(World& world) {
         print("");
     }
     f.set_thresh(thresh);
-    SeparatedConvolution<double,3> op = CoulombOperator<double,3>(world, FunctionDefaults<3>::k, 1e-3, thresh);
+    SeparatedConvolution<double,3> op = CoulombOperator<double,3>(world, FunctionDefaults<3>::get_k(), 1e-3, thresh);
     START_TIMER;
     Function<double,3> r = apply_only(op,f);
     END_TIMER("apply");
@@ -857,14 +844,13 @@ void test_qm(World& world) {
 
     int k = 8;
     double thresh = 1e-6;
-    FunctionDefaults<1>::k = k;
-    FunctionDefaults<1>::thresh = thresh;
-    FunctionDefaults<1>::refine = true;
-    FunctionDefaults<1>::initial_level = 3;
-    FunctionDefaults<1>::cell(0,0) = -600.0;
-    FunctionDefaults<1>::cell(0,1) =  800.0;
-    FunctionDefaults<1>::truncate_mode = 1;
-    double width = FunctionDefaults<1>::cell(0,1)-FunctionDefaults<1>::cell(0,0);
+    FunctionDefaults<1>::set_k(k);
+    FunctionDefaults<1>::set_thresh(thresh);
+    FunctionDefaults<1>::set_refine(true);
+    FunctionDefaults<1>::set_initial_level(3);
+    FunctionDefaults<1>::set_cubic_cell(-600,800);
+    FunctionDefaults<1>::set_truncate_mode(1);
+    double width = FunctionDefaults<1>::get_cell_width()(0L);
 
     double a = 1.0;
     double v = 1.0;
@@ -912,8 +898,8 @@ void test_qm(World& world) {
 
 //     if (world.rank() == 0) plot.open("plot.dat",ios::trunc);
 //     int npt = 10001;
-//     double lo = FunctionDefaults<1>::cell(0,0);
-//     double hi = FunctionDefaults<1>::cell(0,1);
+//     double lo = FunctionDefaults<1>::get_cell()(0,0);
+//     double hi = FunctionDefaults<1>::get_cell()(0,1);
 //     double h = (hi-lo)/(npt-1);
 //     for (int i=0; i<npt; i++) {
 //         double x = lo + i*h;
@@ -934,14 +920,11 @@ void test_plot(World& world) {
     if (world.rank() == 0) {
         print("\nTest plot cube - type =", archive::get_type_name<T>(),", ndim =",NDIM,"\n");
     }
-    for (int i=0; i<NDIM; i++) {
-        FunctionDefaults<NDIM>::cell(i,0) = -10.0;
-        FunctionDefaults<NDIM>::cell(i,1) =  10.0;
-    }
-    FunctionDefaults<NDIM>::k = 7;
-    FunctionDefaults<NDIM>::thresh = 1e-5;
-    FunctionDefaults<NDIM>::refine = true;
-    FunctionDefaults<NDIM>::initial_level = 2;
+    FunctionDefaults<NDIM>::set_cubic_cell(-10,10);
+    FunctionDefaults<NDIM>::set_k(7);
+    FunctionDefaults<NDIM>::set_thresh(1e-5);
+    FunctionDefaults<NDIM>::set_refine(true);
+    FunctionDefaults<NDIM>::set_initial_level(2);
 
     const coordT origin(0.0);
     const double expnt = 1.0;
@@ -952,7 +935,7 @@ void test_plot(World& world) {
 
     //vector<long> npt(NDIM,21); // recommend this if testing in dimension > 3
     vector<long> npt(NDIM,101);
-    Tensor<T> r = f.eval_cube(FunctionDefaults<NDIM>::cell, npt);
+    Tensor<T> r = f.eval_cube(FunctionDefaults<NDIM>::get_cell(), npt);
     if (world.rank() == 0) {
         for (int i=0; i<11; i++) {
             double x = -10.0 + i*2;
@@ -964,7 +947,7 @@ void test_plot(World& world) {
     world.gop.fence();
 
     r = Tensor<T>();
-    plotdx(f, "testplot", FunctionDefaults<NDIM>::cell, npt);
+    plotdx(f, "testplot", FunctionDefaults<NDIM>::get_cell(), npt);
 
     if (world.rank() == 0) print("evaluation of cube/slice for plotting OK");
 }

@@ -345,7 +345,7 @@ namespace madness {
     /// Only process rank 0 will access the files.
     void load_coeffs(World& world, const char* dir) {
         if (!loaded) {
-            int ktop = 17;   // Plausible maximum value
+            int ktop = 20;   // Plausible maximum value
             if (world.rank() == 0) {
                 char buf[32768];
                 buf[0] = 0;

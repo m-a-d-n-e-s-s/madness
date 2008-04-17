@@ -216,7 +216,7 @@ namespace madness {
             verify();
             MADNESS_ASSERT(!is_compressed());
             coordT xsim;
-            impl->user_to_sim(xuser,xsim);
+            user_to_sim(xuser,xsim);
             // If on the boundary, move the point just inside the
             // volume so that the evaluation logic does not fail
             for (int d=0; d<NDIM; d++) {
@@ -253,8 +253,8 @@ namespace madness {
                 simlo[d] = cell(d,0);
                 simhi[d] = cell(d,1);
             }
-            impl->user_to_sim(simlo, simlo);
-            impl->user_to_sim(simhi, simhi);
+            user_to_sim(simlo, simlo);
+            user_to_sim(simhi, simhi);
             // Move the bounding box infintesimally inside the simulation
             // volume so that the evaluation logic does not fail
             for (int d=0; d<NDIM; d++) {
@@ -786,6 +786,35 @@ namespace madness {
 	  return local;
 	}
 
+
+//         /// Replaces this function with one loaded from an archive using the default processor map ... collective operation
+//         template <typename Archive>
+//         void load(World& world, Archive& ar) {
+//             // Type checking since we are probably circumventing the
+//             // archive's own type checking
+//             long magic, id, ndim, k;
+//             ar & magic & id & ndim & k;
+//             MADNESS_ASSERT(magic == 7776768); // Mellow Mushroom Pizza tel.# in Knoxville
+//             MADNESS_ASSERT(id == TensorTypeData<T>::id);
+//             MADNESS_ASSERT(ndim == NDIM);
+            
+//             impl = new FunctionImpl<T,NDIM>(FunctionFactory(world).k(k).empty());
+
+//             impl->load(ar);
+//         }
+
+
+//         /// Stores the function to an archive
+//         template <typename Archive>
+//         void store(Archive& ar) {
+//             // For type checking, etc.
+//             ar & long(7776768) & long(TensorTypeData<T>::id) & long(NDIM) & long(k());
+            
+//             impl->store(ar);
+//         }
+
+
+
     private:
 
         /// Projects inplace function to new order basis ... private
@@ -1140,6 +1169,28 @@ namespace madness {
                 const Tensor<double>& cell, 
                 const std::vector<long>& npt,
                 bool binary=true);
+
+
+//     namespace archive {
+//         template <class Archive, class T, int NDIM>
+//         struct ArchiveLoadImpl< Archive, Function<T,NDIM> > {
+//             static inline void load(const Archive& ar, Function<T,NDIM>& f) {
+//                 // This will only compile if ar is a PARALLEL archive and
+//                 // hence knows about world.  If it is a sequential archive
+//                 // you cannot use the simple \c ar&f notation and must
+//                 // instead use \c f.store(world,ar) directly.
+//                 f.load(ar.world(), ar);
+//             }
+//         };
+        
+//         template <class Archive, class T, int NDIM>
+//         struct ArchiveStoreImpl< Archive, FunctionImpl<T,NDIM> > {
+//             static inline void store(const Archive& ar, const FunctionImpl<T,NDIM>& ptr) {
+//                 f.store(ar);
+//             }
+//         };
+//     }
+
 
 }
 

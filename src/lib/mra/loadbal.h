@@ -48,6 +48,7 @@
 #include <mra/funcimpl.h>
 
 namespace madness {
+    template <typename T, int NDIM> class FunctionImpl;
 
     typedef unsigned long Cost;
     typedef double CompCost;
@@ -691,7 +692,7 @@ namespace madness {
 	PartitionInfo<D> pi;
         //Constructors
 	template <typename T, typename costfunT>
-	LoadBalImpl(Function<T,D> f, const costfunT& costfun,
+	LoadBalImpl(Function<T,D>& f, const costfunT& costfun,
 		    double a=1e-8, double b=1e-5, double c=5e-10, double facter=1.1) : k(f.get_impl()->k) 
 	    , comm_bandw(a)
 	    , comm_latency(b)
