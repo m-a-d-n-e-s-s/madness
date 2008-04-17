@@ -122,10 +122,10 @@ void converge(World& world, functionT& potn, functionT& psi, double& eps) {
     if (world.rank() == 0) print("load balancing");
     LoadBalImpl<3> lb(psi, lbcost<double,3>);
     lb.load_balance();
-    FunctionDefaults<3>::pmap = lb.load_balance();
+    FunctionDefaults<3>::set_pmap(lb.load_balance());
     world.gop.fence();
-    psi = copy(psi, FunctionDefaults<3>::pmap, false);
-    potn = copy(potn, FunctionDefaults<3>::pmap, true);
+    psi = copy(psi, FunctionDefaults<3>::get_pmap(), false);
+    potn = copy(potn, FunctionDefaults<3>::get_pmap(), true);
 
     double tmax = -2.3/V(coordT(0.0));
     tmax = 0.004;
@@ -156,10 +156,10 @@ void converge(World& world, functionT& potn, functionT& psi, double& eps) {
             if (world.rank() == 0) print("load balancing");
             LoadBalImpl<3> lb(psi, lbcost<double,3>);
             lb.load_balance();
-            FunctionDefaults<3>::pmap = lb.load_balance();
+            FunctionDefaults<3>::set_pmap(lb.load_balance());
             world.gop.fence();
-            psi = copy(psi, FunctionDefaults<3>::pmap, false);
-            potn = copy(potn, FunctionDefaults<3>::pmap, true);
+            psi = copy(psi, FunctionDefaults<3>::get_pmap(), false);
+            potn = copy(potn, FunctionDefaults<3>::get_pmap(), true);
 
             tmax *= 0.5;
             expV = (-tmax)*potn;
@@ -219,11 +219,11 @@ void propagate(World& world, functionT& potn, functionT& psi0, double& eps) {
             if (world.rank() == 0) print("load balancing");
             LoadBalImpl<3> lb(psi, lbcost<double_complex,3>);
             lb.load_balance();
-            FunctionDefaults<3>::pmap = lb.load_balance();
+            FunctionDefaults<3>::set_pmap(lb.load_balance());
             world.gop.fence();
-            psi = copy(psi, FunctionDefaults<3>::pmap, false);
-            potn = copy(potn, FunctionDefaults<3>::pmap, true);
-            zdip = copy(zdip, FunctionDefaults<3>::pmap, true);
+            psi = copy(psi, FunctionDefaults<3>::get_pmap(), false);
+            potn = copy(potn, FunctionDefaults<3>::get_pmap(), true);
+            zdip = copy(zdip, FunctionDefaults<3>::get_pmap(), true);
         }
 
         if (world.rank() == 0) print("making expV");
@@ -267,14 +267,11 @@ int main(int argc, char** argv) {
     
     startup(world,argc,argv);
 
-    FunctionDefaults<3>::k = k;                 // Wavelet order
-    FunctionDefaults<3>::thresh = thresh;         // Accuracy
-    FunctionDefaults<3>::refine = true;         // Enable adaptive refinement
-    FunctionDefaults<3>::initial_level = 2;     // Initial projection level
-    for (int i=0; i<3; i++) {
-        FunctionDefaults<3>::cell(i,0) = -L;   // User-defined volume
-        FunctionDefaults<3>::cell(i,1) =  L;
-    }
+    FunctionDefaults<3>::set_k(k);                 // Wavelet order
+    FunctionDefaults<3>::set_thresh(thresh);         // Accuracy
+    FunctionDefaults<3>::set_refine(true);         // Enable adaptive refinement
+    FunctionDefaults<3>::set_initial_level(2);     // Initial projection level
+    FunctionDefaults<3>::set_cubic_cell(-L,L);
 
     if (world.rank() == 0) print("V(0)", V(coordT(0)));
 
