@@ -944,7 +944,7 @@ namespace madness {
                                                      long k,
                                                      double lo,
                                                      double eps) {
-        Tensor<double> cell_width(FunctionDefaults<NDIM>::cell(_,1)-FunctionDefaults<NDIM>::cell(_,0));
+        const Tensor<double>& cell_width = FunctionDefaults<NDIM>::get_cell_width();
         double hi = sqrt(double(NDIM))*cell_width.normf(); // Diagonal width of cell
         const double pi = 3.14159265358979323846264338328;
         
@@ -963,7 +963,7 @@ namespace madness {
                                              long k,
                                              double lo,
                                              double eps) {
-        Tensor<double> cell_width(FunctionDefaults<NDIM>::cell(_,1)-FunctionDefaults<NDIM>::cell(_,0));
+        const Tensor<double>& cell_width = FunctionDefaults<NDIM>::get_cell_width();
         double hi = sqrt(double(NDIM))*cell_width.normf(); // Diagonal width of cell
         Tensor<double> coeff, expnt;
         bsh_fit(mu, lo, hi, eps, &coeff, &expnt, false);
@@ -977,7 +977,7 @@ namespace madness {
                                                  long k,
                                                  double lo,
                                                  double eps) {
-        Tensor<double> cell_width(FunctionDefaults<NDIM>::cell(_,1)-FunctionDefaults<NDIM>::cell(_,0));
+        const Tensor<double>& cell_width = FunctionDefaults<NDIM>::get_cell_width();
         double hi = sqrt(double(NDIM))*cell_width.normf(); // Diagonal width of cell
         Tensor<double> coeff, expnt;
         bsh_fit(mu, lo, hi, eps, &coeff, &expnt, false);
