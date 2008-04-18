@@ -554,7 +554,6 @@ namespace madness {
 
         dcT coeffs;             ///< The coefficients
 
-
         const Tensor<int> bc;     ///< Type of boundary condition -- currently only zero or periodic
 
         // Disable the default copy constructor
@@ -679,14 +678,29 @@ namespace madness {
 	    if (fence) world.gop.fence();
 	}
 
-//         template <typename Archive>
-//         void load(Ar& ar) {
-//             ar & thresh & initial_level & max_refine_level & truncate_mode & autorefine & truncate_on_project & nonstandard & compressed;
-//             ar & cell & bc & cell_width & rcell-width & cell_volume & cell_min_width;
+        template <typename Archive>
+        void load(Archive& ar) {
+            int kk;
+            ar & kk;
 
-            
-            
-//         }
+            MADNESS_ASSERT(kk==k);
+
+            // note that functor should not be (re)stored
+            ar & thresh & initial_level & max_refine_level & truncate_mode 
+                & autorefine & truncate_on_project & nonstandard & compressed & bc;
+
+            ar & coeffs;
+        }
+
+
+        template <typename Archive>
+        void store(Archive& ar) {
+            // note that functor should not be (re)stored
+            ar & k & thresh & initial_level & max_refine_level & truncate_mode 
+                & autorefine & truncate_on_project & nonstandard & compressed & bc;
+
+            ar & coeffs;
+        }
         
 
 
