@@ -1182,24 +1182,54 @@ namespace madness {
         }
         
         
-        /// (de)Serialize --- !! ONLY for purpose of interprocess communication
-        
-        /// This just writes/reads the unique id to/from the archive.  If you want
-        /// to serialize the actual contents you'll have to write your own
-        /// specialization of archive::ArchiveLoadImpl and ditto for store
-        /// for that specific type of archive, or recast this in that form.
+        /// (de)Serialize --- To/from anything *except* Buffer*Archive --- collective with fence
         template <typename Archive>
         void serialize(const Archive& ar) {
+            const long magic = 5881828; // Sitar Indian restaurant in Knoxville
+            unsigned long count = 0;
+            check_initialized();
+            world().gop.fence();   // No point serializing until all is quiet
+
+            // Each process simply serializes the local contents to/from the stream.
+            // It is up to the stream to figure out what happens next.
             if (Archive::is_output_archive) {
-                check_initialized();
-                ar & static_cast<WorldObject<implT>*>(p.get());
+                if (world().rank() == 0) ar & magic;
+                for (iterator it=begin(); it!=end(); ++it) count++;
+                ar & count;
+                for (iterator it=begin(); it!=end(); ++it) ar & *it;
             }
             else {
-                WorldObject<implT>* ptr;
-                ar & ptr;
-                MADNESS_ASSERT(ptr);
-                p = SharedPtr<implT>(static_cast<implT*>(ptr),false);  // use_count will be 0, which is good
+                long cookie;
+                if (world.rank() == 0) {
+                    ar & cookie;
+                    MADNESS_ASSERT(cookie == magic);
+                }
+                ar & count;
+                while (count--) {
+                    pairT datum;
+                    ar & datum;
+                    insert(datum);
+                }
             }
+            world().gop.fence(); // Wait for all to complete
+        }
+
+        /// (de)Serialize --- !! ONLY for purpose of interprocess communication
+        
+        /// This just writes/reads the unique id to/from the Buffer*Archive.
+        void serialize(const BufferOutputArchive& ar) {
+            check_initialized();
+            ar & static_cast<WorldObject<implT>*>(p.get());
+        }
+
+        /// (de)Serialize --- !! ONLY for purpose of interprocess communication
+        
+        /// This just writes/reads the unique id to/from the Buffer*Archive.
+        void serialize(const BufferInputArchive& ar) {
+            WorldObject<implT>* ptr;
+            ar & ptr;
+            MADNESS_ASSERT(ptr);
+            p = SharedPtr<implT>(static_cast<implT*>(ptr),false);  // use_count will be 0, which is good
         }
 
         /// Returns the associated unique id ... must be initialized

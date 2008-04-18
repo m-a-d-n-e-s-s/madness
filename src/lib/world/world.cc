@@ -958,6 +958,40 @@ void test11(World& world) {
 }
 
 
+void test12(World& world) {
+    // Test file IO
+    ProcessID me = world.rank();
+    WorldContainer<int,double> d(world);
+
+    // Everyone puts 100 distinct entries in the container
+    for (int i=0; i<100; i++) d.insert(me*100 + i, me*100.0+i);
+
+    world.gop.fence();
+
+    BinaryFstreamOutputArchive out("testme.ar");
+    out & d;
+    out.close();
+
+    world.gop.fence();
+
+    BinaryFstreamInputArchive in("testme.ar");
+    WorldContainer<int,double> c(world);
+    in & c;
+
+    world.gop.fence();
+
+    for (int i=0; i<100; i++) {
+        int key = me*100+i;
+        MADNESS_ASSERT(c.probe(key));
+        MADNESS_ASSERT(c[key] == key);
+    }
+
+    world.gop.fence();
+
+    if (world.rank() == 0) print("test12 (container archive I/O) OK");
+}
+
+
 
 int main(int argc, char** argv) {
     MPI::Init(argc, argv);
@@ -994,6 +1028,7 @@ int main(int argc, char** argv) {
       test9(world);
       test10(world);
       test11(world);
+      test12(world);
     } catch (MPI::Exception e) {
         error("caught an MPI exception");
     } catch (madness::MadnessException e) {
