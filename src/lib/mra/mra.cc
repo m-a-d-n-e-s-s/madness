@@ -1096,9 +1096,14 @@ namespace madness {
                     if (boxhi[d] < boxlo[d]) {
                         boxnpt[d] = 0;
                     }
+                    else if (npt[d] == 1) {
+                        boxnpt[d] = 1;
+                        boxlo[d] = boxhi[d] = plotlo[d];
+                    }
                     else {
                         boxnpt[d] = int(round((boxhi[d]-boxlo[d])/h[d])) + 1;
                     }
+                    
                     //print("box after", boxlo[d], boxhi[d], npt[d]);
 
                     npttotal *= boxnpt[d];
@@ -1114,8 +1119,13 @@ namespace madness {
                         for (int d=0; d<NDIM; d++) {
                             double xd = boxlo[d] + it[d]*h[d]; // Sim. coords of point
                             x[d] = twon*xd - l[d]; // Offset within box
-                            ind[d] = long(round((xd-plotlo[d])/h[d])); // Index of plot point
-                            MADNESS_ASSERT(ind[d]>=0 && ind[d]<npt[d]); // sanity
+                            if (npt[d] > 1) {
+                                ind[d] = long(round((xd-plotlo[d])/h[d])); // Index of plot point
+                            }
+                            else {
+                                ind[d] = 0;
+                            }
+                            MADNESS_ASSERT(ind[d]>=0 && ind[d]<npt[d]); // sanity (upper 
                         }
                         r(ind) = eval_cube(n, x, coeff);
                         //print("computing", p, x, ind);
