@@ -43,42 +43,11 @@ namespace madness
   //*************************************************************************
 
   //*************************************************************************
-//  funcT HartreeFockCoulombOp::op(const std::vector<funcT>& phis, const funcT& psi)
-//  {
-//    // Electron density
-//    funcT density = FunctionFactory<double,3>(world()).functor(zeros);
-//    // Create Coulomb operator
-//    SeparatedConvolution<double,3> cop = 
-//      CoulombOperator<double,3>(world(), FunctionDefaults<3>::k, 1e-4, thresh());      
-//    for (std::vector<funcT>::const_iterator pj = phis.begin(); pj != phis.end(); ++pj)
-//    {
-//      // Get phi(j) from iterator
-//      const funcT& phij = (*pj);
-//      // Compute the j-th density
-//      funcT prod = square(phij);
-//      density += prod;
-//    }
-//    // Transform Coulomb operator into a function (stubbed)
-//    if (isPrintingNode()) printf("density.norm2() = %.5f\n\n", density.norm2()); 
-//    density.truncate();
-//    if (isPrintingNode()) printf("Applying Coulomb operator to density ...\n\n");
-//    funcT Vc = apply(cop, density);
-//    // Note that we are not using psi
-//    // The density is built from all of the wavefunctions. The contribution
-//    // psi will be subtracted out later during the exchange.
-//    funcT rfunc = Vc*psi;
-//    if (isPrintingNode()) printf("Vc.norm2() = %.5f\n\n", Vc.norm2()); 
-//    if (isPrintingNode()) printf("pcoulomb.norm2() = %.5f\n\n", rfunc.norm2()); 
-//    return  rfunc;
-//  }
-  //*************************************************************************
-  
-  //*************************************************************************
   funcT HartreeFockCoulombOp::op_r(const funcT& rho, const funcT& psi)
   {
     // Create Coulomb operator
     SeparatedConvolution<double,3> cop = 
-      CoulombOperator<double,3>(world(), FunctionDefaults<3>::k, 1e-4, thresh());      
+      CoulombOperator<double,3>(world(), FunctionDefaults<3>::get_k(), 1e-4, thresh());      
     // Transform Coulomb operator into a function
     if (isPrintingNode()) printf("rho.norm2() = %.5f\n\n", rho.norm2()); 
     if (isPrintingNode()) printf("Applying Coulomb operator to density ...\n\n");
@@ -98,7 +67,7 @@ namespace madness
     funcT rfunc = FunctionFactory<double,3>(world()).functor(zeros);
     // Create Coulomb operator
     SeparatedConvolution<double,3> cop = CoulombOperator<double, 3>(world(),
-        FunctionDefaults<3>::k, 1e-4, thresh());
+        FunctionDefaults<3>::get_k(), 1e-4, thresh());
     // Use the psi and pj wavefunctions to build a product so that the K 
     // operator can be applied to the wavefunction indexed by pj, NOT PSI.
     for (std::vector<funcT>::const_iterator pj = phis.begin(); pj != phis.end(); ++pj)
@@ -127,39 +96,6 @@ namespace madness
   {
     _bCoulomb = bCoulomb;
     _bExchange = bExchange;
-    // Create ops list 
-    std::vector<EigSolverOp*> ops;
-    // Add nuclear potential to ops list
-    ops.push_back(new HartreeFockNuclearPotentialOp(world, V, 1.0, thresh));
-    // Check for coulomb and exchange, and add as appropriate
-    if (bCoulomb)
-    {
-      ops.push_back(new HartreeFockCoulombOp(world, 2.0, thresh));
-    }
-    if (bExchange)
-    {
-      ops.push_back(new HartreeFockExchangeOp(world, -1.0, thresh));
-    }
-    // Create solver
-    _solver = new EigSolver(world, phis, eigs, ops, thresh);
-    _solver->addObserver(this);
-
-    // Misc.
-    ones = functorT(new OnesFunctor());
-    zeros = functorT(new ZerosFunctor());
-  }
-  //***************************************************************************
-  
-  //***************************************************************************
-  HartreeFock::HartreeFock(World& world, funcT V, funcT phi, double eig, 
-    bool bCoulomb, bool bExchange, double thresh) : _world(world), _V(V), 
-    _thresh(thresh)
-  {
-    // Create temporary list for eigsolver
-    std::vector<funcT> phis;
-    std::vector<double> eigs;
-    phis.push_back(phi);
-    eigs.push_back(eig);
     // Create ops list 
     std::vector<EigSolverOp*> ops;
     // Add nuclear potential to ops list
@@ -409,7 +345,7 @@ namespace madness
       funcT density = FunctionFactory<double,3>(_world).functor(zeros);
       // Create Coulomb operator
       SeparatedConvolution<double,3> op = 
-        CoulombOperator<double,3>(_world, FunctionDefaults<3>::k, 1e-4, _thresh);      
+        CoulombOperator<double,3>(_world, FunctionDefaults<3>::get_k(), 1e-4, _thresh);      
       for (std::vector<funcT>::const_iterator pj = phis.begin(); pj != phis.end(); ++pj)
       {
         // Get phi(j) from iterator
@@ -440,7 +376,7 @@ namespace madness
     {
       // Create Coulomb operator
       SeparatedConvolution<double,3> op = CoulombOperator<double, 3>(world(),
-          FunctionDefaults<3>::k, 1e-4, thresh());
+          FunctionDefaults<3>::get_k(), 1e-4, thresh());
       // Use the psi and pj wavefunctions to build a product so that the K 
       // operator can be applied to the wavefunction indexed by pj, NOT PSI.
       for (std::vector<funcT>::const_iterator pj = phis.begin(); pj != phis.end(); ++pj)

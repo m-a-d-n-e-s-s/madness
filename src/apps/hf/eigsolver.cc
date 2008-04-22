@@ -13,18 +13,17 @@ namespace madness
   {
     ones = functorT(new OnesFunctor());
     zeros = functorT(new ZerosFunctor());
+    compute_rho();
   }
   //***************************************************************************
   
   //***************************************************************************
-  EigSolver::EigSolver(World& world, funcT phi, double eig, 
-      std::vector<EigSolverOp*> ops, double thresh) : _ops(ops), 
-      _world(world), _thresh(thresh)
+  EigSolver::EigSolver(World& world, std::vector<double> eigs, 
+      funcT rho, std::vector<EigSolverOp*> ops, double thresh) : _ops(ops), 
+      _world(world), _thresh(thresh), _rho(rho)
   {
     ones = functorT(new OnesFunctor());
     zeros = functorT(new ZerosFunctor());
-    _phis.push_back(phi);
-    _eigs.push_back(eig);
   }
   //***************************************************************************
   
@@ -45,10 +44,10 @@ namespace madness
   //***************************************************************************
   
   //***************************************************************************
-  funcT EigSolver::compute_rho()
+  void EigSolver::compute_rho()
   {
     // Electron density
-    funcT rho = FunctionFactory<double,3>(_world).functor(zeros);
+    _rho = FunctionFactory<double,3>(_world);
     // Loop over all wavefunctions to compute density
     for (std::vector<funcT>::const_iterator pj = _phis.begin(); pj != _phis.end(); ++pj)
     {
@@ -56,10 +55,9 @@ namespace madness
       const funcT& phij = (*pj);
       // Compute the j-th density
       funcT prod = square(phij);
-      rho += prod;
+      _rho += prod;
     }
-    rho.truncate();
-    return rho;
+    _rho.truncate();
   }
   //***************************************************************************
 
@@ -68,7 +66,7 @@ namespace madness
   {
     for (int it = 0; it < maxits; it++)
     {
-      funcT rho = compute_rho();
+      if (_world.rank() == 0) printf("Iteration #%d\n\n", it);
       for (unsigned int pi = 0; pi < _phis.size(); pi++)
       {
         // Get psi from collection
@@ -79,14 +77,14 @@ namespace madness
         {
           EigSolverOp* op = _ops[oi];
           // Operate with density-dependent operator
-          if (op->is_rd()) pfunc += op->coeff() * op->op_r(rho, psi);
+          if (op->is_rd()) pfunc += op->coeff() * op->op_r(_rho, psi);
           // Operate with orbital-dependent operator
           if (op->is_od()) pfunc += op->coeff() * op->op_o(_phis, psi);
         }
         pfunc.scale(-2.0).truncate(_thresh);
         SeparatedConvolution<double,3> op = 
           BSHOperator<double,3>(_world, sqrt(-2.0*_eigs[pi]), 
-              FunctionDefaults<3>::k, 1e-3, _thresh);      
+              FunctionDefaults<3>::get_k(), 1e-3, _thresh);      
         // Apply the Green's function operator (stubbed)
         funcT tmp = apply(op, pfunc);
         // (Not sure whether we have to do this mask thing or not!)
@@ -121,15 +119,18 @@ namespace madness
         }
         // Still no go, forget about it. (1$ to Donnie Brasco)
         if (eps_new >= 0.0)
-          {
-            printf("FAILURE OF WST: exiting!!\n\n");
-            _exit(0);
-          }
+        {
+          printf("FAILURE OF WST: exiting!!\n\n");
+          _exit(0);
+        }
         // Update the eigenvalue estimates and wavefunctions.
         tmp.truncate(_thresh);
         _eigs[pi] = eps_new;
         _phis[pi] = tmp.scale(1.0/tmp.norm2());
       }
+      // Update rho
+      if (_world.rank() == 0) printf("Computing new density for it == #%d\n\n", it);
+      compute_rho();
       // Output to observables
       for (std::vector<IEigSolverObserver*>::iterator itr = _obs.begin(); itr
         != _obs.end(); ++itr)

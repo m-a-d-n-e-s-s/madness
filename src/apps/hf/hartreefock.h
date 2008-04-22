@@ -1,5 +1,5 @@
-//#ifndef HARTREEFOCK_H_
-//#define HARTREEFOCK_H_
+#ifndef HARTREEFOCK_H_
+#define HARTREEFOCK_H_
 
 #include <mra/mra.h>
 #include <world/world.h>
@@ -138,12 +138,6 @@ namespace madness
     //*************************************************************************
   
     //*************************************************************************
-    // Constructor for ground state only
-    HartreeFock(World& world, funcT V, funcT phi, double eig, 
-      bool bCoulomb, bool bExchange, double thresh);
-    //*************************************************************************
-  
-    //*************************************************************************
     // Destructor
   	virtual ~HartreeFock();
     //*************************************************************************
@@ -270,4 +264,4 @@ private:
 
 }
 
-//#endif /*HARTREEFOCK_H_*/
+#endif /*HARTREEFOCK_H_*/

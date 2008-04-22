@@ -1,6 +1,7 @@
 #include <mra/mra.h>
 #include <iostream>
 
+#include "dft.h"
 #include "hartreefock.h"
 
 using std::cout;
@@ -198,18 +199,22 @@ void test_hf_ho(World& world)
   typedef SharedPtr< FunctionFunctorInterface<double,3> > functorT;
 
   // Dimensions of the bounding box
-  double bsize = 10.0;
-  for (int i=0; i<3; i++)
-  {
-    FunctionDefaults<3>::cell(i,0) = -bsize;
-    FunctionDefaults<3>::cell(i,1) = bsize;
-  }
+//  double bsize = 10.0;
+//  for (int i=0; i<3; i++)
+//  {
+//    FunctionDefaults<3>::cell(i,0) = -bsize;
+//    FunctionDefaults<3>::cell(i,1) = bsize;
+//  }
   // Function defaults
-  FunctionDefaults<3>::k = 5;
-  FunctionDefaults<3>::thresh = 1e-3;
-  FunctionDefaults<3>::refine = true;
-  FunctionDefaults<3>::initial_level = 2;
-  
+  int funck = 8;
+  double thresh = 1e-6;
+  FunctionDefaults<3>::set_k(funck);
+  FunctionDefaults<3>::set_thresh(thresh);
+  FunctionDefaults<3>::set_refine(true);
+  FunctionDefaults<3>::set_initial_level(2);
+  FunctionDefaults<3>::set_truncate_mode(1);
+  FunctionDefaults<3>::set_cubic_cell(-10.0, 10.0);
+
   // Nuclear potential (harmonic oscillator)
   const coordT origin(0.0);
   const double coeff = 0.5;
@@ -224,10 +229,10 @@ void test_hf_ho(World& world)
   printf("Norm of psi = %.5f\n\n", psi.norm2());
   // Create HartreeFock object
   cout << "Creating HartreeFock object..." << endl;
-  HartreeFock hf(world, Vnuc, psi, -42.5, false, false, 1e-5);
-  cout << "Running HartreeFock object..." << endl;
-  hf.hartree_fock(10);
-  printf("Ground state is: %.5f\n", hf.get_eig(0));
+//  HartreeFock hf(world, Vnuc, psi, -42.5, false, false, 1e-5);
+//  cout << "Running HartreeFock object..." << endl;
+//  hf.hartree_fock(10);
+//  printf("Ground state is: %.5f\n", hf.get_eig(0));
 
 }
 //*****************************************************************************
@@ -241,18 +246,22 @@ void test_hf_h2(World& world)
   typedef SharedPtr< FunctionFunctorInterface<double,3> > functorT;
 
   // Dimensions of the bounding box
-  double bsize = 30.0;
-  for (int i=0; i<3; i++)
-  {
-    FunctionDefaults<3>::cell(i,0) = -bsize;
-    FunctionDefaults<3>::cell(i,1) = bsize;
-  }
+//  double bsize = 30.0;
+//  for (int i=0; i<3; i++)
+//  {
+//    FunctionDefaults<3>::cell(i,0) = -bsize;
+//    FunctionDefaults<3>::cell(i,1) = bsize;
+//  }
   // Function defaults
-  FunctionDefaults<3>::k = 7;
-  FunctionDefaults<3>::thresh = 1e-5;
-  FunctionDefaults<3>::refine = true;
-  FunctionDefaults<3>::initial_level = 2;
-  
+  int funck = 8;
+  double thresh = 1e-6;
+  FunctionDefaults<3>::set_k(funck);
+  FunctionDefaults<3>::set_thresh(thresh);
+  FunctionDefaults<3>::set_refine(true);
+  FunctionDefaults<3>::set_initial_level(2);
+  FunctionDefaults<3>::set_truncate_mode(1);
+  FunctionDefaults<3>::set_cubic_cell(30.0, 30.0);
+
   // Nuclear potential (harmonic oscillator)
   const coordT origin(0.0);
   cout << "Creating Function object for nuclear potential ..." << endl;
@@ -265,9 +274,10 @@ void test_hf_h2(World& world)
   printf("Norm of psi = %.5f\n\n", psi.norm2());
   // Create HartreeFock object
   cout << "Creating HartreeFock object..." << endl;
-  HartreeFock hf(world, Vnuc, psi, -0.6, true, true, 1e-5);
-  cout << "Running HartreeFock object..." << endl;
-  hf.hartree_fock(10);
+//  HartreeFock hf(world, Vnuc, psi, -0.6, true, true, 1e-5);
+//  cout << "Running HartreeFock object..." << endl;
+//  hf.hartree_fock(10);
+
 //  double ke = 2.0 * hf.calculate_tot_ke_sp();
 //  double pe = 2.0 * hf.calculate_tot_pe_sp();
 //  double ce = hf.calculate_tot_coulomb_energy();
@@ -290,16 +300,20 @@ void test_hf_he(World& world)
 
   // Dimensions of the bounding box
   double bsize = 22.4;
-  for (int i=0; i<3; i++)
-  {
-    FunctionDefaults<3>::cell(i,0) = -bsize;
-    FunctionDefaults<3>::cell(i,1) = bsize;
-  }
+//  for (int i=0; i<3; i++)
+//  {
+//    FunctionDefaults<3>::cell(i,0) = -bsize;
+//    FunctionDefaults<3>::cell(i,1) = bsize;
+//  }
   // Function defaults
-  FunctionDefaults<3>::k = 10;
-  FunctionDefaults<3>::thresh = 1e-8;
-  FunctionDefaults<3>::refine = true;
-  FunctionDefaults<3>::initial_level = 2;
+  int funck = 8;
+  double thresh = 1e-6;
+  FunctionDefaults<3>::set_k(funck);
+  FunctionDefaults<3>::set_thresh(thresh);
+  FunctionDefaults<3>::set_refine(true);
+  FunctionDefaults<3>::set_initial_level(2);
+  FunctionDefaults<3>::set_truncate_mode(1);
+  FunctionDefaults<3>::set_cubic_cell(-22.4, 22.4);
   
   // Nuclear potential (harmonic oscillator)
   const coordT origin(0.0);
@@ -313,9 +327,10 @@ void test_hf_he(World& world)
   printf("Norm of psi = %.5f\n\n", psi.norm2());
   // Create HartreeFock object
   cout << "Creating HartreeFock object..." << endl;
-  HartreeFock hf(world, Vnuc, psi, -0.6, true, true, 1e-5);
-  cout << "Running HartreeFock object..." << endl;
-  hf.hartree_fock(10);
+//  HartreeFock hf(world, Vnuc, psi, -0.6, true, true, 1e-5);
+//  cout << "Running HartreeFock object..." << endl;
+//  hf.hartree_fock(10);
+  
 //  double ke = 2.0 * hf.calculate_tot_ke_sp();
 //  double pe = 2.0 * hf.calculate_tot_pe_sp();
 //  double ce = hf.calculate_tot_coulomb_energy();
@@ -336,20 +351,21 @@ void test_hf_be(World& world)
   typedef SharedPtr< FunctionFunctorInterface<double,3> > functorT;
 
   // Dimensions of the bounding box
-  double bsize = 40.0;
-  for (int i=0; i<3; i++)
-  {
-    FunctionDefaults<3>::cell(i,0) = -bsize;
-    FunctionDefaults<3>::cell(i,1) = bsize;
-  }
+//  double bsize = 40.0;
+//  for (int i=0; i<3; i++)
+//  {
+//    FunctionDefaults<3>::cell(i,0) = -bsize;
+//    FunctionDefaults<3>::cell(i,1) = bsize;
+//  }
   // Function defaults
   int funck = 8;
   double thresh = 1e-6;
-  FunctionDefaults<3>::k = funck;
-  FunctionDefaults<3>::thresh = thresh;
-  FunctionDefaults<3>::refine = true;
-  FunctionDefaults<3>::initial_level = 2;
-  FunctionDefaults<3>::truncate_mode = 1;
+  FunctionDefaults<3>::set_k(funck);
+  FunctionDefaults<3>::set_thresh(thresh);
+  FunctionDefaults<3>::set_refine(true);
+  FunctionDefaults<3>::set_initial_level(2);
+  FunctionDefaults<3>::set_truncate_mode(1);
+  FunctionDefaults<3>::set_cubic_cell(-40.0, 40.0);
   
   // Nuclear potential (Be)
   const coordT origin(0.0);
@@ -379,10 +395,12 @@ void test_hf_be(World& world)
   // Create HartreeFock object
   if (world.rank() == 0) cout << "Creating HartreeFock object..." << endl;
   cout << "Creating HartreeFock object..." << endl;
-  HartreeFock hf(world, Vnuc, phis, eigs, true, true, thresh);
+  //HartreeFock hf(world, Vnuc, phis, eigs, true, true, thresh);
+  DFT dftcalc(world, Vnuc, phis, eigs, thresh);
   if (world.rank() == 0) cout << "Running HartreeFock object..." << endl;
   cout << "Running HartreeFock object..." << endl;
-  hf.hartree_fock(20);
+  dftcalc.solve(20);
+  //hf.hartree_fock(20);
 //  double ke = 2.0 * hf.calculate_tot_ke_sp();
 //  double pe = 2.0 * hf.calculate_tot_pe_sp();
 //  double ce = hf.calculate_tot_coulomb_energy();
