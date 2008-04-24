@@ -70,7 +70,9 @@ static double psi_func_he(const coordT& r)
 static double V_func_he(const coordT& r)
 {
   const double x=r[0], y=r[1], z=r[2];
-  return -2.0/(sqrt(x*x+y*y+z*z)+1e-6);
+  double rr = sqrt(x*x + y*y + z*z);
+  double c = smoothing_parameter(2.0, 1e-7);
+  return -2.0 * smoothed_potential(rr/c) / c;
 }
 //*****************************************************************************
 
@@ -313,9 +315,9 @@ void test_hf_he(World& world)
   FunctionDefaults<3>::set_refine(true);
   FunctionDefaults<3>::set_initial_level(2);
   FunctionDefaults<3>::set_truncate_mode(1);
-  FunctionDefaults<3>::set_cubic_cell(-22.4, 22.4);
+  FunctionDefaults<3>::set_cubic_cell(-bsize, bsize);
   
-  // Nuclear potential (harmonic oscillator)
+  // Nuclear potential (He atom)
   const coordT origin(0.0);
   cout << "Creating Function object for nuclear potential ..." << endl;
   Function<double,3> Vnuc = FunctionFactory<double,3>(world).f(V_func_he);
@@ -324,11 +326,17 @@ void test_hf_he(World& world)
   cout << "Creating wavefunction psi ..." << endl;
   Function<double,3> psi = FunctionFactory<double,3>(world).f(psi_func_he);
   psi.scale(1.0/psi.norm2());
+  std::vector<funcT> phis;
+  std::vector<double> eigs;
+  phis.push_back(psi);
+  eigs.push_back(-0.6);
   printf("Norm of psi = %.5f\n\n", psi.norm2());
-  // Create HartreeFock object
-  cout << "Creating HartreeFock object..." << endl;
-//  HartreeFock hf(world, Vnuc, psi, -0.6, true, true, 1e-5);
-//  cout << "Running HartreeFock object..." << endl;
+  // Create DFT object
+  if (world.rank() == 0) cout << "Creating DFT object..." << endl;
+  DFT dftcalc(world, Vnuc, phis, eigs, thresh);
+  if (world.rank() == 0) cout << "Running HartreeFock object..." << endl;
+  dftcalc.solve(20);
+//  HartreeFock hf(world, Vnuc, phis, eigs, true, true, thresh);
 //  hf.hartree_fock(10);
   
 //  double ke = 2.0 * hf.calculate_tot_ke_sp();
@@ -393,12 +401,10 @@ void test_hf_be(World& world)
   eigs.push_back(-5.0);
   eigs.push_back(-0.5);
   // Create HartreeFock object
-  if (world.rank() == 0) cout << "Creating HartreeFock object..." << endl;
-  cout << "Creating HartreeFock object..." << endl;
+  if (world.rank() == 0) cout << "Creating DFT object..." << endl;
   //HartreeFock hf(world, Vnuc, phis, eigs, true, true, thresh);
   DFT dftcalc(world, Vnuc, phis, eigs, thresh);
   if (world.rank() == 0) cout << "Running HartreeFock object..." << endl;
-  cout << "Running HartreeFock object..." << endl;
   dftcalc.solve(20);
   //hf.hartree_fock(20);
 //  double ke = 2.0 * hf.calculate_tot_ke_sp();
@@ -462,7 +468,7 @@ int main(int argc, char** argv)
     
     startup(world,argc,argv);
     if (world.rank() == 0) print("Initial tensor instance count", BaseTensor::get_instance_count());
-    test_hf_be(world);
+    test_hf_he(world);
   }
   catch (const MPI::Exception& e)
   {

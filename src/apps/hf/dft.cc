@@ -464,18 +464,22 @@ namespace madness
   //***************************************************************************
 
   //***************************************************************************
-  void dft_xc_lda(const Key<3>& key, Tensor<double>& t)
+  void dft_xc_lda_V(const Key<3>& key, Tensor<double>& t)
   {
-    printf("ONE!!\n\n");
     Tensor<double> dum1 = copy(t);
-    printf("TWO!!\n\n");
     Tensor<double> V = copy(t);
-    printf("THREE\n\n!!");
     xc_rks_generic_lda(t, dum1, V);
-    printf("FOUR\n\n!!");
     t(___) = V(___);
-    printf("FIVE\n\n!!");
-    
+  }
+  //***************************************************************************
+
+  //***************************************************************************
+  void dft_xc_lda_ene(const Key<3>& key, Tensor<double>& t)
+  {
+    Tensor<double> dum1 = copy(t);
+    Tensor<double> enefunc = copy(t);
+    xc_rks_generic_lda(t, enefunc, dum1);
+    t(___) = enefunc(___);
   }
   //***************************************************************************
 
@@ -489,6 +493,15 @@ namespace madness
   }
   //***************************************************************************
 
+  //*************************************************************************
+  DFTCoulombOp::DFTCoulombOp(World& world, double coeff,
+      double thresh) : EigSolverOp(world, coeff, thresh)
+  {
+    ones = functorT(new OnesFunctor());
+    zeros = functorT(new ZerosFunctor());
+  }
+  //*************************************************************************
+  
   //***************************************************************************
   funcT DFTNuclearPotentialOp::op_r(const funcT& rho, const funcT& psi)
   {
@@ -497,6 +510,24 @@ namespace madness
   }
   //***************************************************************************
 
+  //*************************************************************************
+  funcT DFTCoulombOp::op_r(const funcT& rho, const funcT& psi)
+  {
+    // Create Coulomb operator
+    SeparatedConvolution<double,3> cop = 
+      CoulombOperator<double,3>(world(), FunctionDefaults<3>::get_k(), 1e-4, thresh());      
+    // Transform Coulomb operator into a function
+    if (isPrintingNode()) printf("rho.norm2() = %.5f\n\n", rho.norm2()); 
+    if (isPrintingNode()) printf("Applying Coulomb operator to density ...\n\n");
+    // Apply the Coulomb operator
+    funcT Vc = apply(cop, rho);
+    funcT rfunc = Vc*psi;
+    if (isPrintingNode()) printf("Vc.norm2() = %.5f\n\n", Vc.norm2()); 
+    if (isPrintingNode()) printf("pcoulomb.norm2() = %.5f\n\n", rfunc.norm2()); 
+    return  rfunc;
+  }
+  //*************************************************************************
+  
   //***************************************************************************
   XCFunctionalLDA::XCFunctionalLDA(World& world, double coeff, double thresh)
     : EigSolverOp(world, coeff, thresh)
@@ -509,7 +540,7 @@ namespace madness
   {
     funcT V = copy(rho);
     V.reconstruct();
-    V.unaryop(&dft_xc_lda);
+    V.unaryop(&dft_xc_lda_V);
     funcT rfunc = V*psi;
     return rfunc;
   }
@@ -524,7 +555,9 @@ namespace madness
     std::vector<EigSolverOp*> ops;
     // Add nuclear potential to ops list
     ops.push_back(new DFTNuclearPotentialOp(world, V, 1.0, thresh));
-    ops.push_back(new XCFunctionalLDA(world, 1.0, thresh));
+    ops.push_back(new DFTCoulombOp(world, 1.0, thresh));
+    _xcfunc = new XCFunctionalLDA(world, 1.0, thresh);
+    ops.push_back(_xcfunc);
 
     // Create solver
     _solver = new EigSolver(world, phis, eigs, ops, thresh);
@@ -551,9 +584,94 @@ namespace madness
   //***************************************************************************
 
   //***************************************************************************
-  void DFT::iterateOutput(const std::vector<funcT>& phis,
-      const std::vector<double>& eigs, const int& iter)
+  double DFT::calculate_ke_sp(funcT psi)
   {
+    double kenergy = 0.0;
+    for (int axis = 0; axis < 3; axis++)
+    {
+      funcT dpsi = diff(psi, axis);
+      kenergy += 0.5 * inner(dpsi, dpsi);
+    }
+    return kenergy;
+  }
+  //***************************************************************************
+
+  //***************************************************************************
+  double DFT::calculate_tot_ke_sp(const std::vector<funcT>& phis, bool spinpol)
+  {
+    double tot_ke = 0.0;
+    for (unsigned int pi = 0; pi < phis.size(); pi++)
+    {
+      // Get psi from collection
+      const funcT psi = phis[pi];
+      // Calculate kinetic energy contribution from psi
+      tot_ke += calculate_ke_sp(psi);
+    }
+    if (!spinpol) tot_ke *= 2.0;
+    return tot_ke;
+  }
+  //***************************************************************************
+  
+  //***************************************************************************
+  double DFT::calculate_tot_pe_sp(const funcT& rho, const funcT V, bool spinpol)
+  {
+    double tot_pe = V.inner(rho);
+    if (!spinpol) tot_pe *= 2.0;
+    return tot_pe;
+  }
+  //***************************************************************************
+  
+  //***************************************************************************
+  double DFT::calculate_tot_coulomb_energy(const funcT& rho, bool spinpol, 
+      const World& world, const double thresh)
+  {
+    // Create Coulomb operator
+        SeparatedConvolution<double,3> op =
+        CoulombOperator<double,3>(const_cast<World&>(world), 
+            FunctionDefaults<3>::get_k(), 1e-4, thresh);
+        // Apply Coulomb operator and trace with the density
+        funcT Vc = apply(op, rho);
+        double tot_ce = Vc.inner(rho);
+        if (!spinpol) tot_ce *= 2.0;
+        return tot_ce;
+  }
+  //***************************************************************************
+  
+  //***************************************************************************
+  double DFT::calculate_tot_xc_energy(const funcT& rho)
+  {
+    funcT enefunc = copy(rho);
+    enefunc.reconstruct();
+    enefunc.unaryop(&dft_xc_lda_ene);
+    return enefunc.trace();
+  }
+  //***************************************************************************
+
+  //***************************************************************************
+  void DFT::iterateOutput(const std::vector<funcT>& phis,
+      const std::vector<double>& eigs, const funcT& rho, const int& iter)
+  {
+    if (iter%3 == 0)
+    {
+      if (world().rank() == 0) printf("Calculating energies ...\n");
+      if (world().rank() == 0) printf("Calculating KE ...\n");
+      double ke = DFT::calculate_tot_ke_sp(phis, false);
+      if (world().rank() == 0) printf("Calculating PE ...\n");
+      double pe = DFT::calculate_tot_pe_sp(rho, _V, false);
+      if (world().rank() == 0) printf("Calculating CE ...\n");
+      double ce = DFT::calculate_tot_coulomb_energy(rho, false, _world, _thresh);
+      if (world().rank() == 0) printf("Calculating EE ...\n");
+      double xce = DFT::calculate_tot_xc_energy(rho);
+      if (world().rank() == 0) printf("Calculating NE ...\n");
+      double ne = 0.0;
+      if (world().rank() == 0) printf("Kinetic energy:\t\t\t %.8f\n", ke);
+      if (world().rank() == 0) printf("Potential energy:\t\t %.8f\n", pe);
+      if (world().rank() == 0) printf("Coulomb energy:\t\t\t %.8f\n", ce);
+      if (world().rank() == 0) printf("XC energy:\t\t\t %.8f\n", -xce);
+      if (world().rank() == 0) printf("Total energy:\t\t\t %.8f\n", ke + pe + ce - xce + ne);
+      if (world().rank() == 0) printf("gs ene = %.4f\n", eigs[0]);
+      if (world().rank() == 0) printf("1st es ene = %.4f\n", eigs[1]);
+    }
   }
   //***************************************************************************
 }

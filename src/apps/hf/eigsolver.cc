@@ -13,7 +13,7 @@ namespace madness
   {
     ones = functorT(new OnesFunctor());
     zeros = functorT(new ZerosFunctor());
-    compute_rho();
+    _rho = EigSolver::compute_rho(phis, world);
   }
   //***************************************************************************
   
@@ -44,20 +44,21 @@ namespace madness
   //***************************************************************************
   
   //***************************************************************************
-  void EigSolver::compute_rho()
+  funcT EigSolver::compute_rho(std::vector<funcT> phis, const World& world)
   {
     // Electron density
-    _rho = FunctionFactory<double,3>(_world);
+    funcT rho = FunctionFactory<double,3>(const_cast<World&>(world));
     // Loop over all wavefunctions to compute density
-    for (std::vector<funcT>::const_iterator pj = _phis.begin(); pj != _phis.end(); ++pj)
+    for (std::vector<funcT>::const_iterator pj = phis.begin(); pj != phis.end(); ++pj)
     {
       // Get phi(j) from iterator
       const funcT& phij = (*pj);
       // Compute the j-th density
       funcT prod = square(phij);
-      _rho += prod;
+      rho += prod;
     }
-    _rho.truncate();
+    rho.truncate();
+    return rho;
   }
   //***************************************************************************
 
@@ -71,7 +72,7 @@ namespace madness
       {
         // Get psi from collection
         funcT psi = _phis[pi];
-        funcT pfunc = FunctionFactory<double,3>(_world).functor(zeros);
+        funcT pfunc = FunctionFactory<double,3>(_world);
         // Loop through all ops
         for (unsigned int oi = 0; oi < _ops.size(); oi++)
         {
@@ -90,15 +91,13 @@ namespace madness
         // (Not sure whether we have to do this mask thing or not!)
         for (unsigned int pj = 0; pj < pi; ++pj)
         {
+//          // Make sure that pi != pj
+//          MADNESS_ASSERT(pi != pj);
           // Project out the lower states
-          // Make sure that pi != pj
-          if (pi != pj)
-          {
-            // Get other wavefunction
-            funcT psij = _phis[pj];
-            double overlap = inner(tmp, psij);
-            tmp -= overlap*psij;
-          }
+          // Get other wavefunction
+          funcT psij = _phis[pj];
+          double overlap = inner(tmp, psij);
+          tmp -= overlap*psij;
         }
         // Update e
         funcT r = tmp - psi;
@@ -130,12 +129,12 @@ namespace madness
       }
       // Update rho
       if (_world.rank() == 0) printf("Computing new density for it == #%d\n\n", it);
-      compute_rho();
+      _rho = EigSolver::compute_rho(_phis, _world);
       // Output to observables
       for (std::vector<IEigSolverObserver*>::iterator itr = _obs.begin(); itr
         != _obs.end(); ++itr)
       {
-        (*itr)->iterateOutput(_phis, _eigs, it);
+        (*itr)->iterateOutput(_phis, _eigs, _rho, it);
       }
     }
   }

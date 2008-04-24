@@ -18,7 +18,7 @@ class IEigSolverObserver
 {
 public:
   virtual void iterateOutput(const std::vector<funcT>& phis,
-      const std::vector<double>& eigs, const int& iter) = 0;
+      const std::vector<double>& eigs, const funcT& rho, const int& iter) = 0;
 
   virtual ~IEigSolverObserver() {};
 };
@@ -122,10 +122,6 @@ public:
   //*************************************************************************
 
   //*************************************************************************
-  void compute_rho();
-  //*************************************************************************
-
-  //*************************************************************************
   double get_eig(int indx)
   {
     return _eigs[indx];
@@ -158,6 +154,10 @@ public:
   {
     _obs.push_back(obs);
   }
+  //*************************************************************************
+
+  //*************************************************************************
+  static funcT compute_rho(std::vector<funcT> phis, const World& world);
   //*************************************************************************
 
 private:
