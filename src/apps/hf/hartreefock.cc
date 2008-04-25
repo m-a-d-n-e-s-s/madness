@@ -11,8 +11,6 @@ namespace madness
   EigSolverOp(world, coeff, thresh)
   {
     _V = V;
-    ones = functorT(new OnesFunctor());
-    zeros = functorT(new ZerosFunctor());
   }
   //*************************************************************************
 
@@ -20,8 +18,6 @@ namespace madness
   HartreeFockCoulombOp::HartreeFockCoulombOp(World& world, double coeff,
       double thresh) : EigSolverOp(world, coeff, thresh)
   {
-    ones = functorT(new OnesFunctor());
-    zeros = functorT(new ZerosFunctor());
   }
   //*************************************************************************
   
@@ -29,8 +25,6 @@ namespace madness
   HartreeFockExchangeOp::HartreeFockExchangeOp(World& world, double coeff,
       double thresh) : EigSolverOp(world, coeff, thresh)
   {
-    ones = functorT(new OnesFunctor());
-    zeros = functorT(new ZerosFunctor());
   }
   //*************************************************************************
   
@@ -64,7 +58,7 @@ namespace madness
   funcT HartreeFockExchangeOp::op_o(const std::vector<funcT>& phis, const funcT& psi)
   {
     // Return value
-    funcT rfunc = FunctionFactory<double,3>(world()).functor(zeros);
+    funcT rfunc = FunctionFactory<double,3>(world());
     // Create Coulomb operator
     SeparatedConvolution<double,3> cop = CoulombOperator<double, 3>(world(),
         FunctionDefaults<3>::get_k(), 1e-4, thresh());
@@ -112,10 +106,6 @@ namespace madness
     // Create solver
     _solver = new EigSolver(world, phis, eigs, ops, thresh);
     _solver->addObserver(this);
-
-    // Misc.
-    ones = functorT(new OnesFunctor());
-    zeros = functorT(new ZerosFunctor());
   }
   //***************************************************************************
   
@@ -160,7 +150,7 @@ namespace madness
     if (include_coulomb())
     {
       // Electron density
-      funcT density = FunctionFactory<double,3>(_world).functor(zeros);
+      funcT density = FunctionFactory<double,3>(_world);
       // Create Coulomb operator
       SeparatedConvolution<double,3> op = 
         CoulombOperator<double,3>(_world, FunctionDefaults<3>::get_k(), 1e-4, _thresh);      
@@ -189,7 +179,7 @@ namespace madness
   double HartreeFock::calculate_exchange_energy(const std::vector<funcT>& phis, const funcT& psi)
   {
     // Return value
-    funcT rfunc = FunctionFactory<double,3>(world()).functor(zeros);
+    funcT rfunc = FunctionFactory<double,3>(world());
     if (include_exchange())
     {
       // Create Coulomb operator

@@ -11,19 +11,7 @@ namespace madness
       std::vector<double> eigs, std::vector<EigSolverOp*> ops, double thresh)
   : _phis(phis), _eigs(eigs), _ops(ops), _world(world), _thresh(thresh)
   {
-    ones = functorT(new OnesFunctor());
-    zeros = functorT(new ZerosFunctor());
     _rho = EigSolver::compute_rho(phis, world);
-  }
-  //***************************************************************************
-  
-  //***************************************************************************
-  EigSolver::EigSolver(World& world, std::vector<double> eigs, 
-      funcT rho, std::vector<EigSolverOp*> ops, double thresh) : _ops(ops), 
-      _world(world), _thresh(thresh), _rho(rho)
-  {
-    ones = functorT(new OnesFunctor());
-    zeros = functorT(new ZerosFunctor());
   }
   //***************************************************************************
   
@@ -59,6 +47,25 @@ namespace madness
     }
     rho.truncate();
     return rho;
+  }
+  //***************************************************************************
+
+  //***************************************************************************
+  double EigSolver::fock_matrix_element(const funcT& phii, const funcT& phij)
+  {
+    double value = 0.0;
+    funcT pfunc = FunctionFactory<double,3>(_world);
+    // Loop through all ops
+    for (unsigned int oi = 0; oi < _ops.size(); oi++)
+    {
+      EigSolverOp* op = _ops[oi];
+      // Operate with density-dependent operator
+      if (op->is_rd()) pfunc += op->coeff() * op->op_r(_rho, phij);
+      // Operate with orbital-dependent operator
+      if (op->is_od()) pfunc += op->coeff() * op->op_o(_phis, phij);
+      value += pfunc.inner(phii);
+    }
+    return value;
   }
   //***************************************************************************
 

@@ -488,8 +488,6 @@ namespace madness
       double coeff, double thresh) : EigSolverOp(world, coeff, thresh)
   {
     _V = V;
-    ones = functorT(new OnesFunctor());
-    zeros = functorT(new ZerosFunctor());
   }
   //***************************************************************************
 
@@ -497,8 +495,6 @@ namespace madness
   DFTCoulombOp::DFTCoulombOp(World& world, double coeff,
       double thresh) : EigSolverOp(world, coeff, thresh)
   {
-    ones = functorT(new OnesFunctor());
-    zeros = functorT(new ZerosFunctor());
   }
   //*************************************************************************
   
@@ -563,9 +559,6 @@ namespace madness
     _solver = new EigSolver(world, phis, eigs, ops, thresh);
     _solver->addObserver(this);
 
-    // Misc.
-    ones = functorT(new OnesFunctor());
-    zeros = functorT(new ZerosFunctor());
   }
   //***************************************************************************
     
