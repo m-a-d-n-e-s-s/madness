@@ -146,9 +146,9 @@ namespace madness
     //*************************************************************************
 
     //*************************************************************************
-    double fock_matrix_element(const funcT& phii, const funcT& phij)
+    double matrix_element(const funcT& phii, const funcT& phij)
     {
-      return _solver->fock_matrix_element(phii, phij);
+      return _solver->matrix_element(phii, phij);
     }
     //*************************************************************************
 

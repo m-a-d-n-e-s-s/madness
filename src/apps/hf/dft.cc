@@ -2,6 +2,9 @@
 #include "dft.h"
 #include "util.h"
 #include <moldft/xc/f2c.h>
+#include <vector>
+
+  typedef madness::Vector<double,3> coordT;
 
 ////***************************************************************************
 //int rks_x_lda__ (integer *ideriv, integer *npt, doublereal *rhoa1, 
@@ -418,7 +421,24 @@
 
 namespace madness
 {
-  //***************************************************************************
+const double THRESH_RHO = 1e-12;
+const double THRESH_GRHO = 1e-20;
+
+void wst_munge_grho(int npoint, double *rho, double *grho) {
+    for (int i=0; i<npoint; i++) {
+        if (rho[i]<THRESH_RHO) rho[i] = THRESH_RHO;
+        if ((rho[i] <=THRESH_RHO) || 
+            (grho[i] < THRESH_GRHO)) grho[i] = THRESH_GRHO;            
+    }
+}
+
+void wst_munge_rho(int npoint, double *rho) {
+    for (int i=0; i<npoint; i++) {
+        if (rho[i]<THRESH_RHO) rho[i] = THRESH_RHO;
+    }
+}
+
+//***************************************************************************
   void xc_rks_generic_lda(Tensor<double> rho_alpha,           ///< Alpha-spin density at each grid point
                           Tensor<double> f,                         ///< Value of functional at each grid point
                           Tensor<double> df_drho)                   ///< Derivative of functional w.r.t. rho_alpha
@@ -442,6 +462,8 @@ namespace madness
       Tensor<double> td2f_drhodgamma(npt);
       Tensor<double> td2f_dgamma2(npt);
           
+      wst_munge_rho(npt, rho_alpha.ptr());
+      
       int returnvalue = ::rks_x_lda__(&ideriv, &npt, rho_alpha.ptr(), gamma_alpha.ptr(), 
                tf.ptr(), 
                tdf_drho.ptr(), tdf_dgamma.ptr(), 
@@ -460,15 +482,16 @@ namespace madness
             
       f.gaxpy(1.0, tf, 1.0);
       df_drho.gaxpy(1.0, tdf_drho, 1.0);
+      
   }
   //***************************************************************************
 
   //***************************************************************************
   void dft_xc_lda_V(const Key<3>& key, Tensor<double>& t)
   {
-    Tensor<double> dum1 = copy(t);
+    Tensor<double> enefunc = copy(t);
     Tensor<double> V = copy(t);
-    xc_rks_generic_lda(t, dum1, V);
+    xc_rks_generic_lda(t, enefunc, V);
     t(___) = V(___);
   }
   //***************************************************************************
@@ -476,9 +499,9 @@ namespace madness
   //***************************************************************************
   void dft_xc_lda_ene(const Key<3>& key, Tensor<double>& t)
   {
-    Tensor<double> dum1 = copy(t);
+    Tensor<double> V = copy(t);
     Tensor<double> enefunc = copy(t);
-    xc_rks_generic_lda(t, enefunc, dum1);
+    xc_rks_generic_lda(t, enefunc, V);
     t(___) = enefunc(___);
   }
   //***************************************************************************
@@ -513,13 +536,9 @@ namespace madness
     SeparatedConvolution<double,3> cop = 
       CoulombOperator<double,3>(world(), FunctionDefaults<3>::get_k(), 1e-4, thresh());      
     // Transform Coulomb operator into a function
-    if (isPrintingNode()) printf("rho.norm2() = %.5f\n\n", rho.norm2()); 
-    if (isPrintingNode()) printf("Applying Coulomb operator to density ...\n\n");
     // Apply the Coulomb operator
     funcT Vc = apply(cop, rho);
     funcT rfunc = Vc*psi;
-    if (isPrintingNode()) printf("Vc.norm2() = %.5f\n\n", Vc.norm2()); 
-    if (isPrintingNode()) printf("pcoulomb.norm2() = %.5f\n\n", rfunc.norm2()); 
     return  rfunc;
   }
   //*************************************************************************
@@ -534,10 +553,37 @@ namespace madness
   //***************************************************************************
   funcT XCFunctionalLDA::op_r(const funcT& rho, const funcT& psi)
   {
-    funcT V = copy(rho);
-    V.reconstruct();
-    V.unaryop(&dft_xc_lda_V);
-    funcT rfunc = V*psi;
+    printf("In function 'XCFunctionalLDA::op_r'\n\n");
+    funcT V_rho = copy(rho);
+    V_rho.reconstruct();
+    V_rho.unaryop(&dft_xc_lda_V);
+    funcT rfunc = V_rho * psi;
+    
+    coordT point;
+    point[0] = 0.5; point[0] = 0.5; point[0] = 0.5;
+    rho.reconstruct(true);
+    V_rho.reconstruct(true);
+    double rhopt = rho(point);
+    double Vpt = V_rho(point);
+    rho.compress(true);
+    V_rho.compress(true);
+    
+    integer ideriv = 1;
+    integer npt = 1;
+    doublereal rhoa1 = rhopt;
+    doublereal sigmaaa1 = 0.0;
+    doublereal zk = 0.0;
+    doublereal vrhoa = 0.0;
+    doublereal vsigmaaa = 0.0;
+    doublereal v2rhoa2 = 0.0;
+    doublereal v2rhoasigmaaa = 0.0;
+    doublereal v2sigmaaa2 = 0.0;
+    
+    ::rks_c_vwn5__(&ideriv, &npt, &rhoa1, &sigmaaa1, &zk, &vrhoa, &vsigmaaa, 
+        &v2rhoa2, &v2rhoasigmaaa, &v2sigmaaa2);
+    
+    printf("V_rho = %.8f\t\tvrhoa = %.8f\n\n", Vpt, vrhoa);
+
     return rfunc;
   }
   //***************************************************************************

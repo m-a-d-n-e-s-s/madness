@@ -51,7 +51,7 @@ namespace madness
   //***************************************************************************
 
   //***************************************************************************
-  double EigSolver::fock_matrix_element(const funcT& phii, const funcT& phij)
+  double EigSolver::matrix_element(const funcT& phii, const funcT& phij)
   {
     double value = 0.0;
     funcT pfunc = FunctionFactory<double,3>(_world);
@@ -135,7 +135,7 @@ namespace madness
         _phis[pi] = tmp.scale(1.0/tmp.norm2());
       }
       // Update rho
-      if (_world.rank() == 0) printf("Computing new density for it == #%d\n\n", it);
+//      if (_world.rank() == 0) printf("Computing new density for it == #%d\n\n", it);
       _rho = EigSolver::compute_rho(_phis, _world);
       // Output to observables
       for (std::vector<IEigSolverObserver*>::iterator itr = _obs.begin(); itr
