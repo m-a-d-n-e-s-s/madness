@@ -335,7 +335,7 @@ void test_hf_he(World& world)
   if (world.rank() == 0) cout << "Creating DFT object..." << endl;
   DFT dftcalc(world, Vnuc, phis, eigs, thresh);
   if (world.rank() == 0) cout << "Running HartreeFock object..." << endl;
-  dftcalc.solve(5);
+  dftcalc.solve(10);
 //  HartreeFock hf(world, Vnuc, phis, eigs, true, true, thresh);
 //  hf.hartree_fock(10);
   

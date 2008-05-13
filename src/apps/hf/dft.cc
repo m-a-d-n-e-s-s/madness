@@ -464,6 +464,15 @@ void wst_munge_rho(int npoint, double *rho) {
           
       wst_munge_rho(npt, rho_alpha.ptr());
       
+      f.fill(0.0);
+      df_drho.fill(0.0);
+      
+      double* rhoptr = rho_alpha.ptr();
+      for (int i = 0; i < npt; i++)
+      {
+        rhoptr[i] *= 2.0;
+      }
+      
       int returnvalue = ::rks_x_lda__(&ideriv, &npt, rho_alpha.ptr(), gamma_alpha.ptr(), 
                tf.ptr(), 
                tdf_drho.ptr(), tdf_dgamma.ptr(), 
@@ -510,6 +519,8 @@ void wst_munge_rho(int npoint, double *rho) {
   DFTNuclearPotentialOp::DFTNuclearPotentialOp(World& world, funcT V, 
       double coeff, double thresh) : EigSolverOp(world, coeff, thresh)
   {
+    // Message for the matrix element output
+    messageME("NuclearPotentialOp");
     _V = V;
   }
   //***************************************************************************
@@ -518,6 +529,8 @@ void wst_munge_rho(int npoint, double *rho) {
   DFTCoulombOp::DFTCoulombOp(World& world, double coeff,
       double thresh) : EigSolverOp(world, coeff, thresh)
   {
+    // Message for the matrix element output
+    messageME("CoulombOp");
   }
   //*************************************************************************
   
@@ -547,42 +560,71 @@ void wst_munge_rho(int npoint, double *rho) {
   XCFunctionalLDA::XCFunctionalLDA(World& world, double coeff, double thresh)
     : EigSolverOp(world, coeff, thresh)
   {
+    // Message for the matrix element output
+    messageME("XCFunctionalLDA");
   }
   //***************************************************************************
 
   //***************************************************************************
   funcT XCFunctionalLDA::op_r(const funcT& rho, const funcT& psi)
   {
-    printf("In function 'XCFunctionalLDA::op_r'\n\n");
     funcT V_rho = copy(rho);
     V_rho.reconstruct();
     V_rho.unaryop(&dft_xc_lda_V);
     funcT rfunc = V_rho * psi;
     
-    coordT point;
-    point[0] = 0.5; point[0] = 0.5; point[0] = 0.5;
-    rho.reconstruct(true);
-    V_rho.reconstruct(true);
-    double rhopt = rho(point);
-    double Vpt = V_rho(point);
-    rho.compress(true);
-    V_rho.compress(true);
-    
-    integer ideriv = 1;
-    integer npt = 1;
-    doublereal rhoa1 = rhopt;
-    doublereal sigmaaa1 = 0.0;
-    doublereal zk = 0.0;
-    doublereal vrhoa = 0.0;
-    doublereal vsigmaaa = 0.0;
-    doublereal v2rhoa2 = 0.0;
-    doublereal v2rhoasigmaaa = 0.0;
-    doublereal v2sigmaaa2 = 0.0;
-    
-    ::rks_c_vwn5__(&ideriv, &npt, &rhoa1, &sigmaaa1, &zk, &vrhoa, &vsigmaaa, 
-        &v2rhoa2, &v2rhoasigmaaa, &v2sigmaaa2);
-    
-    printf("V_rho = %.8f\t\tvrhoa = %.8f\n\n", Vpt, vrhoa);
+//    // get point
+//    coordT point1, point2;
+//    point1[0] = 0.5; point1[0] = 0.5; point1[0] = 0.5;
+//    point2[0] = 0.75; point2[0] = 0.5; point2[0] = 0.75;
+//    
+//    // Reconstruct functions
+//    rho.reconstruct(true);
+//    V_rho.reconstruct(true);
+//    
+//    // What's the density at this point?
+////    double rhopt[2];
+////    rhopt[0] = rho(point1);
+////    rhopt[1] = rho(point2);
+//    double rhopt = rho(point1);
+//    
+//    // What's the potential at this point?
+////    Tensor<double> Vpt(2);
+////    Tensor<double> f(2);
+////    double V_DIRECT[2], V_LDA[2], V_VWN5[2];
+////    Vpt[0] = V_rho(point1);
+////    Vpt[1] = V_rho(point2);
+//    double Vpt = V_rho(point1);
+//    
+//    // Compress functions
+//    rho.compress(true);
+//    V_rho.compress(true);
+//    
+//    integer ideriv = 1;
+//    integer npt = 1;
+//    doublereal sigmaaa1 = 0.0;
+//    doublereal zk = 0.0;
+//    doublereal vrhoa = 0.0;
+//    doublereal vsigmaaa = 0.0;
+//    doublereal v2rhoa2 = 0.0;
+//    doublereal v2rhoasigmaaa = 0.0;
+//    doublereal v2sigmaaa2 = 0.0;
+//    
+//    doublereal vrhoa1 = 0.0;
+//    doublereal vrhoa2 = 0.0;
+//    
+//    ::rks_x_lda__(&ideriv, &npt, &rhopt, &sigmaaa1, &zk, &vrhoa1, &vsigmaaa, 
+//        &v2rhoa2, &v2rhoasigmaaa, &v2sigmaaa2);
+//    ::rks_c_vwn5__(&ideriv, &npt, &rhopt, &sigmaaa1, &zk, &vrhoa2, &vsigmaaa, 
+//        &v2rhoa2, &v2rhoasigmaaa, &v2sigmaaa2);
+//    
+////    V_DIRECT[0] = V_LDA[0] + V_VWN5[0];
+////    V_DIRECT[1] = V_LDA[1] + V_VWN5[1];
+//    
+//    vrhoa = vrhoa1 + vrhoa2;
+//    
+//    printf("vrhoa1 = %.8f\t\tvrhoa2 = %.8f\n", vrhoa1, vrhoa2);
+//    printf("V_rho = %.8f\t\tvrhoa = %.8f\n\n", Vpt, vrhoa);
 
     return rfunc;
   }
@@ -706,10 +748,13 @@ void wst_munge_rho(int npoint, double *rho) {
       if (world().rank() == 0) printf("Kinetic energy:\t\t\t %.8f\n", ke);
       if (world().rank() == 0) printf("Potential energy:\t\t %.8f\n", pe);
       if (world().rank() == 0) printf("Coulomb energy:\t\t\t %.8f\n", ce);
-      if (world().rank() == 0) printf("XC energy:\t\t\t %.8f\n", -xce);
-      if (world().rank() == 0) printf("Total energy:\t\t\t %.8f\n", ke + pe + ce - xce + ne);
+      if (world().rank() == 0) printf("XC energy:\t\t\t %.8f\n", xce);
+      if (world().rank() == 0) printf("Total energy:\t\t\t %.8f\n", ke + pe + ce + xce + ne);
       if (world().rank() == 0) printf("gs ene = %.4f\n", eigs[0]);
       if (world().rank() == 0) printf("1st es ene = %.4f\n", eigs[1]);
+      double mtxe = matrix_element(phis[0], phis[0]);
+      if (world().rank() == 0) printf("KS matrix element:\t\t\t%.8f\n\n", mtxe);
+      print_matrix_elements(phis[0], phis[0]);
     }
   }
   //***************************************************************************

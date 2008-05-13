@@ -10,6 +10,8 @@ namespace madness
     funcT V, double coeff, double thresh) :
   EigSolverOp(world, coeff, thresh)
   {
+    // Message for the matrix element output
+    messageME("HartreeFockNuclearPotentialOp");
     _V = V;
   }
   //*************************************************************************
@@ -18,6 +20,8 @@ namespace madness
   HartreeFockCoulombOp::HartreeFockCoulombOp(World& world, double coeff,
       double thresh) : EigSolverOp(world, coeff, thresh)
   {
+    // Message for the matrix element output
+    messageME("HartreeFockCoulombOp");
   }
   //*************************************************************************
   
@@ -25,6 +29,8 @@ namespace madness
   HartreeFockExchangeOp::HartreeFockExchangeOp(World& world, double coeff,
       double thresh) : EigSolverOp(world, coeff, thresh)
   {
+    // Message for the matrix element output
+    messageME("HartreeFockExchangeOp");
   }
   //*************************************************************************
   

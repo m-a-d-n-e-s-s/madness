@@ -3,6 +3,9 @@
 #include "eigsolver.h"
 #include "util.h"
 
+using std::cout;
+using std::endl;
+
 namespace madness
 {
 
@@ -54,18 +57,58 @@ namespace madness
   double EigSolver::matrix_element(const funcT& phii, const funcT& phij)
   {
     double value = 0.0;
-    funcT pfunc = FunctionFactory<double,3>(_world);
+    // Kinetic energy operator
+    for (int axis = 0; axis < 3; axis++)
+    {
+      funcT dpsi_j = diff(phij, axis);
+      funcT dpsi_i = diff(phii, axis);
+      value += 0.5 * inner(dpsi_i, dpsi_j);
+    }
     // Loop through all ops
     for (unsigned int oi = 0; oi < _ops.size(); oi++)
     {
       EigSolverOp* op = _ops[oi];
       // Operate with density-dependent operator
-      if (op->is_rd()) pfunc += op->coeff() * op->op_r(_rho, phij);
+      if (op->is_rd()) value += op->coeff() * phii.inner(op->op_r(_rho, phij));
       // Operate with orbital-dependent operator
-      if (op->is_od()) pfunc += op->coeff() * op->op_o(_phis, phij);
-      value += pfunc.inner(phii);
+      if (op->is_od()) value += op->coeff() * phii.inner(op->op_o(_phis, phij));
     }
     return value;
+  }
+  //***************************************************************************
+
+  //***************************************************************************
+  void EigSolver::print_matrix_elements(const funcT& phii, const funcT& phij)
+  {
+    double value = 0.0;
+    // Kinetic energy operator
+    for (int axis = 0; axis < 3; axis++)
+    {
+      funcT dpsi_j = diff(phij, axis);
+      funcT dpsi_i = diff(phii, axis);
+      value += 0.5 * inner(dpsi_i, dpsi_j);
+    }
+    if (_world.rank() == 0)
+    {
+      cout << "***** Evaluation of matrix elements *****" << endl;
+      cout << "KineticEnergyOp:\t\t\t" << value << endl;
+    }
+    
+    // Loop through all ops
+    for (unsigned int oi = 0; oi < _ops.size(); oi++)
+    {
+      value = 0.0;
+      EigSolverOp* op = _ops[oi];
+      // Operate with density-dependent operator
+      if (op->is_rd()) value += op->coeff() * phii.inner(op->op_r(_rho, phij));
+      // Operate with orbital-dependent operator
+      if (op->is_od()) value += op->coeff() * phii.inner(op->op_o(_phis, phij));
+      if (_world.rank() == 0)
+      {
+        cout << op->messsageME() << ":\t\t\t" << value << endl;
+      }
+    }
+    if (_world.rank() == 0) printf("\n\n");
   }
   //***************************************************************************
 
