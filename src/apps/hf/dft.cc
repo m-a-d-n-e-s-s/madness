@@ -451,7 +451,7 @@ void wst_munge_rho(int npoint, double *rho) {
     f = f.flat();
     df_drho = df_drho.flat();
     
-      integer ideriv = 1;
+      integer ideriv = 2;
       integer npt = rho_alpha.dim[0];
       
       Tensor<double> gamma_alpha(npt);
@@ -531,13 +531,15 @@ void wst_munge_rho(int npoint, double *rho) {
   {
     // Message for the matrix element output
     messageME("CoulombOp");
+    // For now, no spin polarized
+    _spinPolarized = false;
   }
   //*************************************************************************
   
   //***************************************************************************
   funcT DFTNuclearPotentialOp::op_r(const funcT& rho, const funcT& psi)
   {
-    funcT rfunc = _V*psi;
+    funcT rfunc = _V * psi;
     return rfunc;
   }
   //***************************************************************************
@@ -545,13 +547,14 @@ void wst_munge_rho(int npoint, double *rho) {
   //*************************************************************************
   funcT DFTCoulombOp::op_r(const funcT& rho, const funcT& psi)
   {
+    double factor = (_spinPolarized) ? 1.0 : 2.0;
     // Create Coulomb operator
     SeparatedConvolution<double,3> cop = 
       CoulombOperator<double,3>(world(), FunctionDefaults<3>::get_k(), 1e-4, thresh());      
     // Transform Coulomb operator into a function
     // Apply the Coulomb operator
     funcT Vc = apply(cop, rho);
-    funcT rfunc = Vc*psi;
+    funcT rfunc = factor * Vc * psi;
     return  rfunc;
   }
   //*************************************************************************
