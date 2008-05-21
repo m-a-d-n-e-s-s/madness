@@ -1359,20 +1359,25 @@ namespace madness {
         // This needed extending to accomodate a user-defined criterion
         void refine(bool fence);
 
+//         // Ensures the function is gradually refined before application of an operator
+//         void ensure_gradual(bool fence);
+
         void reconstruct(bool fence) {
+            // Must set true here so that successive calls without fence do the right thing
+            nonstandard = compressed = false;
             if (world.rank() == coeffs.owner(cdata.key0)) reconstruct_op(cdata.key0,tensorT());
             if (fence) world.gop.fence();
-            nonstandard = compressed = false;
         }
 
         // Invoked on node where key is local
         Void reconstruct_op(const keyT& key, const tensorT& s);
         
         void compress(bool nonstandard, bool fence) {
-           if (world.rank() == coeffs.owner(cdata.key0)) compress_spawn(cdata.key0, nonstandard);
-           if (fence) world.gop.fence();
-           this->compressed = true;
-           this->nonstandard = nonstandard;
+            // Must set true here so that successive calls without fence do the right thing
+            this->compressed = true;
+            this->nonstandard = nonstandard;
+            if (world.rank() == coeffs.owner(cdata.key0)) compress_spawn(cdata.key0, nonstandard);
+            if (fence) world.gop.fence();
         }
 
 
@@ -1453,8 +1458,8 @@ namespace madness {
             // Not yet computing actual tree depth of the tree.  Estimate as 10.
             // Also estimate 3^NDIM contributions per box
             int nmax = 10;
-            double fac = std::pow(3.0,-1.0*NDIM) * nmax;
-            double cnorm = fac*c.normf();
+            double fac = std::pow(3.0,1.0*NDIM) * nmax;
+            double cnorm = c.normf();
             for (typename std::vector< Displacement<NDIM> >::const_iterator it=cdata.disp.begin(); 
                  it != cdata.disp.end(); 
                  ++it) {
@@ -1463,17 +1468,19 @@ namespace madness {
                 keyT dest = neighbor(key, d);
                 if (dest.is_valid()) {
                     double opnorm = op->norm(key.level(), d);
+                    //print("DOAPP", key, d, opnorm);
                     
                     // working assumption here is that the operator is isotropic and
                     // montonically decreasing with distance ... this needs to be validated.
                     double tol = truncate_tol(thresh, key);
 
-                    if (cnorm*opnorm > tol) {
-                        tensorT result = op->apply(key, d, c, tol/cnorm);
+                    if (cnorm*opnorm > tol/fac) {
+                        tensorT result = op->apply(key, d, c, tol/fac/cnorm);
+                        //print("APPLY", key, d, opnorm, cnorm, result.normf());
                         // Screen here to reduce communication cost of negligible data
-                        if (result.normf() > 0.3*tol) { // 0.3 is an empirical factor
+                        //if (result.normf() > 0.3*tol) { // 0.3 is an empirical factor
                             coeffs.send(dest, &nodeT::accumulate, result, coeffs, dest);
-                        }
+                        //}
                     }
                     else if (d.distsq >= 1) { // Assumes monotonic decay beyond nearest neighbor
                         break;

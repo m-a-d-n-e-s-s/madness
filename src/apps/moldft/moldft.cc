@@ -40,6 +40,11 @@
 #include <ctime>
 using namespace madness;
 
+extern int x_rks_s__(const double *rho, double *f, double *dfdra);
+extern int c_rks_vwn5__(const double *rho, double *f, double *dfdra);
+// extern int x_uks_s__(const double *rho, double *f, double *dfdra);
+// extern int c_uks_vwn5__(const double *rho, double *f, double *dfdra);
+
 #include <moldft/molecule.h>
 #include <moldft/molecularbasis.h>
 
@@ -176,6 +181,7 @@ struct CalculationParameters {
     int nopen;                  ///< Number of unpaired electrons = napha-nbeta
     int maxiter;                ///< Maximum number of iterations
     bool spin_restricted;       ///< True if spin restricted
+    bool lda;                   ///< True if LDA (HF if false)
     // Next list inferred parameters
     int nalpha;                 ///< Number of alpha spin electrons
     int nbeta;                  ///< Number of beta  spin electrons
@@ -185,7 +191,7 @@ struct CalculationParameters {
 
     template <typename Archive>
     void serialize(Archive& ar) {
-        ar & charge & smear & econv & dconv & L & nvalpha & nvbeta & nopen & spin_restricted;
+        ar & charge & smear & econv & dconv & L & nvalpha & nvbeta & nopen & spin_restricted & lda;
         ar & nalpha & nbeta & nmo_alpha & nmo_beta & lo;
     }
 
@@ -201,6 +207,7 @@ struct CalculationParameters {
         , nopen(0)
         , maxiter(20)
         , spin_restricted(true)
+        , lda(true)
         , nalpha(0)
         , nbeta(0)
         , nmo_alpha(0)
@@ -239,6 +246,10 @@ struct CalculationParameters {
                 spin_restricted = true; 
             } else if (s == "maxiter") {
                 f >> maxiter;
+            } else if (s == "lda") {
+                lda = true;
+            } else if (s == "hf") {
+                lda = false;
             } else {
                 std::cout << "moldft: unrecognized input keyword " << s << std::endl;
                 MADNESS_EXCEPTION("input error",0);
@@ -285,6 +296,7 @@ struct CalculationParameters {
         time_t t = time((time_t *) 0);
         char *tmp = ctime(&t);
         tmp[strlen(tmp)-1] = 0; // lose the trailing newline
+        const char* calctype[2] = {"Hartree-Fock","LDA"};
         madness::print(" date of calculation ", tmp);
         madness::print(" number of processes ", world.size());
         madness::print("        total charge ", charge);
@@ -295,6 +307,7 @@ struct CalculationParameters {
         madness::print("  energy convergence ", econv);
         madness::print(" density convergence ", dconv);
         madness::print("    maximum rotation ", maxrotn);
+        madness::print("    calculation type ", calctype[int(lda)]);
     }
     
 };
@@ -306,7 +319,7 @@ struct Calculation {
     functionT vnuc;               ///< The effective nuclear potential
     vector<functionT> amo, bmo;   ///< alpha and beta molecular orbitals
     Tensor<double> aocc, bocc;    ///< alpha and beta occupation numbers
-    Tensor<double> aeps, beps;    ///< alpha and beta BSH shifts (eigenvalues if canonical)
+    Tensor<double> aeps, beps;    ///< alpha and beta energy shifts (eigenvalues if canonical)
     poperatorT coulop;            ///< Coulomb Green function
     double vtol;                  ///< Tolerance used for potentials and density
 
@@ -331,7 +344,8 @@ struct Calculation {
 
     void set_protocol(World& world, double thresh) {
         FunctionDefaults<3>::set_thresh(thresh);
-        if (thresh >= 1e-4) FunctionDefaults<3>::set_k(6);
+        if (thresh >= 1e-2) FunctionDefaults<3>::set_k(4);
+        else if (thresh >= 1e-4) FunctionDefaults<3>::set_k(6);
         else if (thresh >= 1e-6) FunctionDefaults<3>::set_k(8);
         else if (thresh >= 1e-8) FunctionDefaults<3>::set_k(10);
         else FunctionDefaults<3>::set_k(12);
@@ -453,9 +467,16 @@ struct Calculation {
         functionT vlocal;
         if (param.nalpha+param.nbeta > 1) {
             START_TIMER;
-            vlocal = vnuc + apply(*coulop, rho) * 0.9;            
+            vlocal = vnuc + apply(*coulop, rho);
             END_TIMER("guess Coulomb potn");
+
+            // Shove the closed-shell LDA potential on there also
+            bool save = param.spin_restricted;
+            param.spin_restricted = true;
+            rho.scale(0.5);
+            vlocal = vlocal + make_lda_potential(world, rho, rho, functionT(), functionT());
             vlocal.truncate();
+            param.spin_restricted = save;
         }
         else {
             vlocal = vnuc;
@@ -532,7 +553,7 @@ struct Calculation {
 //             print(potential);
 //             print("THESE ARE THE EIGENVECTORS");
 //             print(c);
-             print("THESE ARE THE INITIAL EIGENVALUES");
+            print("initial eigenvalues");
              print(e);
          }
 
@@ -560,6 +581,19 @@ struct Calculation {
         }
     }
 
+//     void localize(World& world, const vector<functionT>& psi) {
+//         Tensor<double> t = matrix_inner(world, project_ao_basis(world), psi);
+//         print("Initial t matrix", t);
+//         for (int iter=0; iter<100; iter++) {
+//             Tensor<double> tsq = copy(t).emul(t);
+//             Tensor<double> tcub = copy(tsq).emul(t);
+//             print("target function", tsq.sumsq());
+//             Tensor<double> u = transpose(t).inner(tcub).scale(2.0);
+//             Tensor<double> w = transpose(tsq).inner(tsq);
+            
+
+//     }
+
     functionT make_density(World& world, const Tensor<double>& occ, const vector<functionT>& v) {
         vector<functionT> vsq = square(world, v);
         compress(world,vsq);
@@ -581,7 +615,12 @@ struct Calculation {
         double tol = FunctionDefaults<3>::get_thresh();
         for (int i=0; i<nmo; i++) {
             double eps = evals(i);
-            if (eps > 0) eps = -0.05;
+            if (eps > 0) {
+                if (world.rank() == 0) {
+                    print("bsh: warning: positive eigenvalue", i, eps);
+                }
+                eps = -0.05;
+            }
             ops[i] = poperatorT(BSHOperatorPtr<double,3>(world, sqrt(-2.0*eps), k, param.lo, tol));
         }
         return ops;
@@ -628,21 +667,81 @@ struct Calculation {
         return Kf;
     }
         
+
+    static double munge(double r) {
+        if (r < 1e-12) r = 1e-12;
+        return r;
+    }
+
+    static void ldaop(const Key<3>& key, Tensor<double>& t) {
+        UNARY_OPTIMIZED_ITERATOR(double, t, double r=munge(2.0* *_p0); double q; double dq1; double dq2;x_rks_s__(&r, &q, &dq1);c_rks_vwn5__(&r, &q, &dq2); *_p0 = dq1+dq2);
+    }
+
+    static void ldaeop(const Key<3>& key, Tensor<double>& t) {
+        UNARY_OPTIMIZED_ITERATOR(double, t, double r=munge(2.0* *_p0); double q1; double q2; double dq;x_rks_s__(&r, &q1, &dq);c_rks_vwn5__(&r, &q2, &dq); *_p0 = q1+q2);
+    }
+
+
+    functionT
+    make_lda_potential(World& world, 
+                       const functionT& arho,
+                       const functionT& brho,
+                       const functionT& adelrhosq,
+                       const functionT& bdelrhosq)
+    {
+        MADNESS_ASSERT(param.spin_restricted);
+        functionT vlda = copy(arho);
+        vlda.reconstruct();
+        vlda.unaryop(&ldaop);
+        return vlda;
+    }
+
+    double
+    make_lda_energy(World& world, 
+                    const functionT& arho,
+                    const functionT& brho,
+                    const functionT& adelrhosq,
+                    const functionT& bdelrhosq)
+    {
+        MADNESS_ASSERT(param.spin_restricted);
+        functionT vlda = copy(arho);
+        vlda.reconstruct();
+        vlda.unaryop(&ldaeop);
+        return vlda.trace();
+    }
+
     vector<functionT> 
     apply_potential(World& world, 
                     const Tensor<double>& occ,
-                    const vector<functionT>& psi, 
-                    const functionT& vlocal) 
+                    const vector<functionT>& amo, 
+                    const functionT& arho,
+                    const functionT& brho,
+                    const functionT& adelrhosq,
+                    const functionT& bdelrhosq,
+                    const functionT& vlocal,
+                    double& exc) 
     {
-        //vector<functionT> Vpsi = mul(world, vlocal, psi);
-        vector<functionT> Vpsi = mul_sparse(world, vlocal, psi, vtol);
-        vector<functionT> Kpsi = apply_hf_exchange(world, occ, psi, psi);
-        gaxpy(world, 1.0, Vpsi, -1.0, Kpsi);
-        Kpsi.clear();
+
+        functionT vloc = vlocal;
+        if (param.lda) {
+            exc = make_lda_energy(world, arho, brho, adelrhosq, bdelrhosq);
+            vloc = vloc + make_lda_potential(world, arho, brho, adelrhosq, bdelrhosq);
+        }
+
+        vector<functionT> Vpsi = mul_sparse(world, vloc, amo, vtol);
+
+        if (!param.lda) {
+            vector<functionT> Kamo = apply_hf_exchange(world, occ, amo, amo);
+            exc = -inner(world, Kamo, amo).sum();
+            gaxpy(world, 1.0, Vpsi, -1.0, Kamo);
+            Kamo.clear();
+        }
+
         truncate(world,Vpsi);
         world.gop.fence(); // ensure memory is cleared
         return Vpsi;
     }
+
 
     /// Updates the orbitals and eigenvalues of one spin
     void update(World& world, 
@@ -677,7 +776,7 @@ struct Calculation {
         Tensor<double> new_eps(nmo);
 
         for (int i=0; i<nmo; i++) {
-            double step = (rnorm[i] < param.maxrotn) ? 1.0 : rnorm[i]/param.maxrotn;
+            double step = (rnorm[i] < param.maxrotn) ? 1.0 : param.maxrotn;
             if (step!=1.0 && world.rank()==0) {
                 print("  restricting step for orbital ", i, step);
             }
@@ -687,17 +786,15 @@ struct Calculation {
             new_eps[i] = eps[i] + dd;
             if (new_eps[i] > -0.05) new_eps = -0.05;
         }
+        world.gop.fence();
 
 
         if (world.rank() == 0) {
-            print("rnorms");
+            print("residual norms");
             print(rnorm);
-            //print(deps);
-            //print(new_eps);
         }
 
         eps = new_eps;
-
 
         world.gop.fence();
         new_psi.clear(); // free memory
@@ -725,7 +822,11 @@ struct Calculation {
                           vector<functionT>& Vpsi,
                           Tensor<double>& occ,
                           Tensor<double>& evals,
-                          double& ekinetic, double& enuclear, double& etwo)
+                          const functionT& arho, 
+                          const functionT& brho, 
+                          const functionT& adelrhosq, 
+                          const functionT& bdelrhosq, 
+                          double& ekinetic)
     {
         // This is unsatisfactory for large molecules, but for now will have to suffice.
         Tensor<double> overlap = matrix_inner(world, psi, psi, true);
@@ -739,14 +840,10 @@ struct Calculation {
         vnucpsi.clear();
 
         int nocc = occ.size;
-        ekinetic = enuclear = etwo = 0.0;
+        ekinetic = 0.0;
         for (int i=0; i<nocc; i++) {
             ekinetic += occ[i]*ke(i,i);
-            enuclear += occ[i]*en(i);
-            etwo += occ[i]*pe(i,i);
         }
-        etwo -= enuclear;
-        etwo *= 0.5;
 
         en = Tensor<double>();
 
@@ -793,6 +890,7 @@ struct Calculation {
 
     void solve(World& world) {
         functionT arho_old, brho_old;
+        functionT adelrhosq, bdelrhosq; // placeholders for GGAs
         for (int iter=0; iter<param.maxiter; iter++) {
             if (world.rank()==0) print("\nIteration", iter,"\n");
             START_TIMER;
@@ -807,7 +905,7 @@ struct Calculation {
 
             START_TIMER;
             functionT arho = make_density(world, aocc, amo);
-            functionT brho = factoryT(world);
+            functionT brho;
             if (param.nbeta) {
                 if (param.spin_restricted) brho = arho;
                 else brho = make_density(world, bocc, bmo);
@@ -826,54 +924,65 @@ struct Calculation {
 
             functionT rho = arho+brho;
             rho.truncate();
+
+            double enuclear = inner(rho, vnuc);
+
             START_TIMER;
-            functionT vlocal = apply(*coulop, rho) + vnuc;
+            functionT vcoul = apply(*coulop, rho);
             END_TIMER("Coulomb");
+
+            double ecoulomb = 0.5*inner(rho, vcoul);
             rho.clear(false);
-            vlocal.truncate(); // For DFT must add exchange-correlation into vlocal
+
+            functionT vlocal = vcoul + vnuc;
+            vcoul.clear(false);
+            vlocal.truncate(); 
 
             START_TIMER;
-            vector<functionT> Vpsia = apply_potential(world, aocc, amo, vlocal);
+            double exca=0.0, excb=0.0;
+            vector<functionT> Vpsia = apply_potential(world, aocc, amo, arho, brho, adelrhosq, bdelrhosq, vlocal, exca);
             vector<functionT> Vpsib;
-            if (param.nbeta && !param.spin_restricted) Vpsib = apply_potential(world, bocc, bmo, vlocal);
+            if (param.nbeta && !param.spin_restricted) {
+                Vpsib = apply_potential(world, bocc, bmo, brho, arho, bdelrhosq, adelrhosq, vlocal, excb);
+            }
             END_TIMER("Apply potential");
-
-            double ekinetic, enuclear, etwo;
+            
+            double ekina=0.0, ekinb=0.0;;
             START_TIMER;
-            diag_fock_matrix(world, amo, Vpsia, aocc, aeps, ekinetic, enuclear, etwo);
+            diag_fock_matrix(world, amo, Vpsia, aocc, aeps, arho, brho, adelrhosq, bdelrhosq, ekina);
             if (param.spin_restricted) {
-                ekinetic*=2;
-                enuclear*=2;
-                etwo*=2;
+                ekinb = ekina;
             }
             else if (param.nbeta) {
-                double ekineticb, enuclearb, etwob;
-                diag_fock_matrix(world, bmo, Vpsib, bocc, beps, ekineticb, enuclearb, etwob);
-                ekinetic+=ekineticb; enuclear+=enuclearb; etwo+=etwob;
+                diag_fock_matrix(world, bmo, Vpsib, bocc, beps, brho, arho, bdelrhosq, adelrhosq, ekinb);
             }
             END_TIMER("Diag and transform");
 
             if (world.rank() == 0) {
                 double enrep = molecule.nuclear_repulsion_energy();
-                double etot = ekinetic + enuclear + etwo + enrep;
-                print("              kinetic", ekinetic);
-                print("   nuclear attraction", enuclear);
-                print("         two-electron", etwo);
-                print("    nuclear-repulsion", enrep);
-                print("                total", etot);
-                print(" ");
-                print("alpha evals");
-                print(aeps);
-                if (param.nbeta && !param.spin_restricted) {
-                    print("beta evals");
-                    print(beps);
-                }
+                double ekinetic = ekina + ekinb;
+                double exc = exca + excb;
+                double etot = ekinetic + enuclear + ecoulomb + exc + enrep;
+                printf("\n              kinetic %16.8f\n", ekinetic);
+                printf("   nuclear attraction %16.8f\n", enuclear);
+                printf("              coulomb %16.8f\n", ecoulomb);
+                printf(" exchange-correlation %16.8f\n", exc);
+                printf("    nuclear-repulsion %16.8f\n", enrep);
+                printf("                total %16.8f\n\n", etot);
             }
 
             if (iter > 0) {
                 double dconv = max(FunctionDefaults<3>::get_thresh(), param.dconv);
                 if (da<dconv && db<dconv) {
                     if (world.rank()==0) print("\nConverged!\n");
+                    print(" ");
+                    print("alpha eigenvalues");
+                    print(aeps);
+                    if (param.nbeta && !param.spin_restricted) {
+                        print("beta eigenvalues");
+                        print(beps);
+                    }
+
                     return;
                 }
             }
@@ -889,7 +998,7 @@ struct Calculation {
     }
 };
 
-#include <sched.h>
+//#include <sched.h>
 
 int main(int argc, char** argv) {
     MPI::Init(argc, argv);

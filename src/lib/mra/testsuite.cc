@@ -858,6 +858,7 @@ void test_qm(World& world) {
     double c = 1.86*ctarget; //1.86*ctarget;
     double tcrit = 2*PI/(c*c);
     double tstep = 10.0*tcrit;
+
     int nstep = 100.0/tstep;
     tstep = 100.0/nstep;
 
@@ -873,6 +874,7 @@ void test_qm(World& world) {
 
     functorT f(new QMtest(a,v,0.0));
     SeparatedConvolution<double_complex,1> G = qm_free_particle_propagator<1>(world, k, c, tstep, width);
+    G.doleaves = true;
 
     functionT psi(factoryT(world).functor(f));
     psi.truncate();

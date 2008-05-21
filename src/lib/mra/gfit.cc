@@ -19,9 +19,21 @@ namespace madness {
     /// exp(-mu*r) / (4*pi*r) = sum(k) c[k]*exp(-t[k]*r^2)  + O(eps) for lo<=r<=hi
     void bsh_fit(double mu, double lo, double hi, double eps, 
                  Tensor<double> *pcoeff, Tensor<double> *pexpnt, bool prnt) {
+
+
+        if (mu > 0) {
+            // Restrict hi according to the exponential decay
+            double r = -log(4*pi*0.01*eps);
+            r = -log(r * 4*pi*0.01*eps);
+            if (hi > r) {
+                //print("RESTRICTING HI", hi, r);
+                hi = r;
+            }
+        }
+
         double T;
         double slo, shi;
-        
+
         if (eps >= 1e-2) T = 5;
         else if (eps >= 1e-4) T = 10;
         else if (eps >= 1e-6) T = 14;
@@ -76,16 +88,15 @@ namespace madness {
             }
             coeff = coeff(Slice(0,npt-1));
             expnt = expnt(Slice(0,npt-1));
-            if (prnt) {
-                for (int i=0; i<npt; i++) 
-                    cout << i << " " << coeff[i] << " " << expnt[i] << endl;
-            }
         }
-        
+
         if (prnt) {
+            for (int i=0; i<npt; i++) 
+                cout << i << " " << coeff[i] << " " << expnt[i] << endl;
+
             long npt = 300;
-            double hi = 1.0;
-            if (mu) hi = min(1.0,30.0/mu);
+            //double hi = 1.0;
+            //if (mu) hi = min(1.0,30.0/mu);
             cout << "       x         value   abserr   relerr" << endl;
             cout << "  ------------  ------- -------- -------- " << endl;
             double step = exp(log(hi/lo)/(npt+1));

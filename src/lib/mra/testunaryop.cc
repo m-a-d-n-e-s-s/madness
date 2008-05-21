@@ -64,7 +64,7 @@ public:
 
 template <typename T, int NDIM>
 void squareit(const Key<NDIM>& key, Tensor<T>& t) {
-    print("squareit", key);
+    print("squareit", key,t);
     UNARY_OPTIMIZED_ITERATOR(T, t, *_p0 *= *_p0);
 }
 
@@ -77,18 +77,14 @@ void test_unaryop(World& world) {
         print("Test unary operation (pointwise function-of-a-function), type =",
               archive::get_type_name<T>(),", ndim =",NDIM);
 
-    for (int i=0; i<NDIM; i++) {
-        FunctionDefaults<NDIM>::cell(i,0) = -10;
-        FunctionDefaults<NDIM>::cell(i,1) =  10;
-    }
-    FunctionDefaults<NDIM>::k = 7;
-    FunctionDefaults<NDIM>::thresh = 1e-5;
-    FunctionDefaults<NDIM>::refine = true;
-    FunctionDefaults<NDIM>::initial_level = 2;
+    FunctionDefaults<NDIM>::set_cubic_cell(-10,10);
+    FunctionDefaults<NDIM>::set_k(7);
+    FunctionDefaults<NDIM>::set_thresh(1e-5);
+    FunctionDefaults<NDIM>::set_autorefine(false);
     
     const coordT origin(0.0);
     const double expnt = 1.0;
-    const double coeff = pow(2.0/constants::pi,0.25*NDIM);
+    const double coeff = 1.0;// pow(2.0/constants::pi,0.25*NDIM);
 
     Function<T,NDIM> f = FunctionFactory<T,NDIM>(world).functor(functorT(new Gaussian<T,NDIM>(origin, expnt, coeff)));
     double norm = f.norm2();
@@ -100,6 +96,9 @@ void test_unaryop(World& world) {
     print("norm of the squared function", gnorm);
     
     double err = (f*f - g).norm2();
+    print("norm of the error", err);
+
+    err = g.err(Gaussian<T,NDIM>(origin, expnt*2.0, coeff*coeff));
     print("norm of the error", err);
     
     world.gop.fence();

@@ -52,7 +52,7 @@ namespace madness {
         int bmax;
         if (NDIM == 1) bmax = 7; // !! Make sure that SimpleCache is consistent!!!!
         else if (NDIM == 2) bmax = 7;
-        else if (NDIM == 3) bmax = 7;
+        else if (NDIM == 3) bmax = 3;
         else bmax = 3;
 
         int num = 1;
@@ -752,12 +752,12 @@ namespace madness {
     template <typename T, int NDIM>
     void FunctionImpl<T,NDIM>::refine(bool fence) 
     {
-        if (autorefine) {
-            unary_op_coeff_inplace(&implT::autorefine_square_test, detail::noop<keyT,tensorT>(), fence);
-        }
-        else {
-            unary_op_coeff_inplace(&implT::noautorefine, detail::noop<keyT,tensorT>(), fence);
-        }
+        //if (autorefine) {
+        unary_op_coeff_inplace(&implT::autorefine_square_test, detail::noop<keyT,tensorT>(), fence);
+        //}
+        //else {
+        //    unary_op_coeff_inplace(&implT::noautorefine, detail::noop<keyT,tensorT>(), fence);
+        //}
     }
 
     template <typename T, int NDIM>
@@ -823,7 +823,80 @@ namespace madness {
         return sum*sqrt(FunctionDefaults<NDIM>::get_cell_volume());
     }
 
+//     template <typename T, int NDIM>
+//     Void FunctionImpl<T,NDIM>::recursive_ensure_gradual(const keyT& neigh, const keyT& me) {
+//         // The neighbor (who has coefficients) sent this node (or a
+//         // child thereof) a message to ensure that my level of
+//         // refinement is not more than one level from his.  There are
+//         // three scenarios.
+//         //
+//         // This node exists and is a leaf ... test to see if I have to refine.
+//         //
+//         // This node exists and is not a leaf ... just ignore the message.
+//         //
+//         // This node does not exist ... pass message up to my parent
+//         if (coeffs.probe(me)) {
+//             nodeT& node = coeffs[me];
+//             if (node.is_leaf()) {
+//                 if ((neigh.level()-me.level()) > 1) {
+//                     tensorT r(v2k);
+//                     r(cdata.s0) = node.coeffs();
+//                     r = unfilter(r);
+//                     for (KeyChildIterator<NDIM> it(me); it; ++it) {
+//                         const keyT& child = it.key();
+//                         coeffs.insert(child,nodeT(copy(r(child_patch(child))),false));
+//                         // Send the new child a message telling it to check its level.
+//                         // We only need to do this if it makes contact with the original neighbor.
+//                         if (touches ?????) {
+//                             send(coeffs.owner(child), &implT::recursive_ensure_gradual, key, child);
+//                         }
+//                         // Send the neighbors of the new child (not including the siblings
+//                         // we are presently making) messages to check their refinement
+//                         // Even translations send left.  Odd translations send right
+//                         for (int axis=0; axis<NDIM; axis++) {
+//                             // Need to check here than the neighbor is valid.
+//                             int step = -1;
+//                             if ((child.translation()[axis]&0x1)) step = 1;
+//                             keyT neigh = neighbor(child, axis, step);
+//                             // COULD EXCLUDE THE NEIGHBOR THAT STARTED THIS CHAIN OF EVENTS
+//                             if (neigh.is_valid())
+//                                 send(coeffs.owner(neigh), &implT::recursive_ensure_gradual, child, neigh);
+//                         }
+//                     }
+//                 }
+//             }
+//         }
+//         else {
+//             keyT parent = me.parent();
+//             send(coeffs.owner(parent), &implT::recursive_ensure_gradual, neigh, parent);
+//         }
+        
+//         return None;
+//     }
+
+//     template <typename T, int NDIM>
+//     void FunctionImpl<T,NDIM>::ensure_gradual(bool fence) {
+//         MADNESS_ASSERT(compressed);
+//         for(typename dcT::iterator it=f.coeffs.begin(); it!=f.coeffs.end(); ++it) {
+//             const keyT& key = it->first;
+//             const nodeT& node = it->second;
+//             if (node.has_coeff()) {
+//                 for (int axis=0; axis<NDIM; axis++) {
+//                     keyT left  = neighbor(key, axis,-1);
+//                     keyT right = neighbor(key, axis, 1);
+//                     // Need to check here than the neighbor is valid.
+//                     if (right.is_valid())
+//                         send(coeffs.owner(right), &implT::recursive_ensure_gradual, key, right);
+//                     if (left.is_valid())
+//                         send(coeffs.owner(left),  &implT::recursive_ensure_gradual, key, left);
+//                 }
+//             }
+//         }
+//         if (fence) world.gop.fence();
+//     }
     
+    
+
     template <typename T, int NDIM>
     void FunctionImpl<T,NDIM>::diff(const implT& f, int axis, bool fence) {
         typedef std::pair<keyT,tensorT> argT;

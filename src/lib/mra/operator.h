@@ -2,6 +2,7 @@
 #define MAD_OPERATOR_H
 
 #include <mra/mra.h>
+#include <limits.h>
 #include <mra/adquad.h>
 #include <tensor/mtxmq.h>
 #include <linalg/tensor_lapack.h>
@@ -87,7 +88,7 @@ namespace madness {
         
         // Turns (n,lx) into key
         inline unsigned long key(Level n, long lx) const {
-            return (n<<16) | (lx+32768);
+            return (n<<25) | (lx+16777216);
         }
         
         // Turns (n,displacement) into key
@@ -165,7 +166,7 @@ namespace madness {
 
     /// Provides the common functionality/interface of all 1D convolutions
 
-    /// Derived classes must implement rnlp and issmall.
+    /// Derived classes must implement rnlp, issmall, natural_level
     template <typename Q>
     class Convolution1D {
     public:
@@ -176,7 +177,9 @@ namespace madness {
         Tensor<double> quad_w;
         Tensor<double> c;
         Tensor<double> hgT;
+        Tensor<double> hgT2k;
 
+        mutable SimpleCache< Tensor<Q> > rnlp_cache;
         mutable SimpleCache< Tensor<Q> > rnlij_cache;
         mutable SimpleCache< ConvolutionData1D<Q> > ns_cache;
         
@@ -194,8 +197,14 @@ namespace madness {
             MADNESS_ASSERT(autoc(k,&c));
 
             gauss_legendre(npt,0.0,1.0,quad_x.ptr(),quad_w.ptr());
-            if (!two_scale_hg(k,&hgT)) throw "need to use the consistent exception framework!";
+            MADNESS_ASSERT(two_scale_hg(k,&hgT));
             hgT = transpose(hgT);
+            MADNESS_ASSERT(two_scale_hg(2*k,&hgT2k));
+            hgT2k = transpose(hgT2k);
+
+            // Cannot construct the coefficients here since the
+            // derived class is not yet constructed so cannot call
+            // (even indirectly) a virtual method
         }
 
         /// Compute the projection of the operator onto the double order polynomials
@@ -204,6 +213,8 @@ namespace madness {
         /// Returns true if the block is expected to be small
         virtual bool issmall(long n, long lx) const = 0;
 
+        /// Returns the level for projection
+        virtual Level natural_level() const {return 10;}
 
         /// Computes the transition matrix elements for the convolution for n,l
         
@@ -220,8 +231,8 @@ namespace madness {
     
             long twok = 2*k;
             Tensor<Q>  R(2*twok);
-            R(Slice(0,twok-1)) = rnlp(n,lx-1);
-            R(Slice(twok,2*twok-1)) = rnlp(n,lx);
+            R(Slice(0,twok-1)) = get_rnlp(n,lx-1);
+            R(Slice(twok,2*twok-1)) = get_rnlp(n,lx);
             R.scale(pow(0.5,0.5*n));        
             R = inner(c,R);
             // Enforce symmetry because it seems important ... is it?
@@ -230,7 +241,7 @@ namespace madness {
 //                 for (int i=0; i<k; i++) 
 //                     for (int j=0; j<i; j++) 
 //                         R(i,j) = R(j,i) = ((i+j)&1) ? 0.0 : 0.5*(R(i,j)+R(j,i));
-    
+
             rnlij_cache.set(n,lx,R);
             return *rnlij_cache.getptr(n,lx);
         };
@@ -264,10 +275,36 @@ namespace madness {
             }
             
             ns_cache.set(n,lx,ConvolutionData1D<Q>(R,T));
+
             return ns_cache.getptr(n,lx);
         };
 
-
+        const Tensor<Q>& get_rnlp(long n, long lx) const 
+        {
+            const Tensor<Q>* p=rnlp_cache.getptr(n,lx);
+            if (p) return *p;
+            
+            long twok = 2*k;
+            Tensor<Q> r;
+            
+            if (issmall(n, lx)) {
+                r = Tensor<Q>(twok);
+            }
+            else if (n < natural_level()) {
+                Tensor<Q>  R(2*twok);
+                R(Slice(0,twok-1)) = get_rnlp(n+1,2*lx);
+                R(Slice(twok,2*twok-1)) = get_rnlp(n+1,2*lx+1);
+                
+                R = transform(R, hgT2k);
+                r = copy(R(Slice(0,twok-1)));
+            }
+            else {
+                r = rnlp(n, lx);
+            }
+            
+            rnlp_cache.set(n, lx, r);
+            return *rnlp_cache.getptr(n,lx);
+        }
     };
 
 
@@ -294,13 +331,32 @@ namespace madness {
     class GenericConvolution1D : public Convolution1D<Q> {
     private:
         opT op;
+        long maxl; //< At natural level is l beyond which operator is zero
     public:
 
         GenericConvolution1D() {}
 
         GenericConvolution1D(int k, const opT& op) 
-            : Convolution1D<Q>(k, 20), op(op)
-        {}
+            : Convolution1D<Q>(k, 20), op(op), maxl(LONG_MAX-1)
+        {
+            // For efficiency carefully compute outwards at the "natural" level
+            // until several successive boxes are determined to be zero.  This 
+            // then defines the future range of the operator and also serves 
+            // to precompute the values used in the rnlp cache.
+
+            Level natl = this->natural_level();
+            int nzero = 0;
+            for (long lx=0; lx<(1L<<natl); lx++) {
+                const Tensor<Q>& rp = this->get_rnlp(natl, lx);
+                const Tensor<Q>& rm = this->get_rnlp(natl,-lx);
+                if (rp.normf()<1e-12 && rm.normf()<1e-12) nzero++;
+                if (nzero == 3) {
+                    print("SETTING NATURAL RANGE TO", lx, "AT LEVEL", natl);
+                    maxl = lx-2;
+                    break;
+                }
+            }
+        }
 
         struct Shmoo {
             typedef Tensor<Q> returnT;
@@ -329,7 +385,16 @@ namespace madness {
         }
 
         bool issmall(long n, long lx) const {
-            return false;
+            if (lx < 0) lx = 1 - lx;
+            // Always compute contributions to nearest neighbor coupling
+            // ... we are two levels below so 0,1 --> 0,1,2,3 --> 0,...,7
+            if (lx <= 7) return false;
+            
+            n = this->natural_level()-n;
+            if (n >= 0) lx = lx << n;
+            else lx = lx >> n;
+
+            return lx >= maxl;
         }
     };
         
@@ -466,7 +531,7 @@ namespace madness {
         };
 
         /// Returns true if the block is expected to be small
-        bool issmall(long n, long lx) const {
+        bool issmall(long n, long lx) const { 
             double beta = expnt*(pow(0.25,double(n)));
             long ll;
             if (lx > 0)
@@ -476,7 +541,7 @@ namespace madness {
             else
                 ll = 0;
             
-            return (beta*ll*ll > 49.0);      // 49 -> 5e-22
+            return (beta*ll*ll > 49.0);      // 49 -> 5e-22     69 -> 1e-30
         };
     };
     
@@ -772,8 +837,9 @@ namespace madness {
                 op.ops[d] = ops[mu]->nonstandard(n, disp[d]);
             }
             double newnorm = munorm2(n, op.ops);
-//             double oldnorm = munorm(n, op.ops);
-//             if (newnorm < oldnorm) print("munorm", mu, newnorm, oldnorm);
+            //double oldnorm = munorm(n, op.ops);
+            //if (newnorm < oldnorm) 
+            //print("munorm", n, disp, mu, newnorm, oldnorm);
             op.norm = newnorm;
             return op;
         }
@@ -907,6 +973,7 @@ namespace madness {
             const Tensor<T> f0 = copy(coeff(s0));
             for (int mu=0; mu<rank; mu++) {
                 const SeparatedConvolutionInternal<Q,NDIM>& muop =  op->muops[mu];
+                //print(source, shift, mu, muop.norm);
                 if (muop.norm > tol) {
                     muopxv_fast(source.level(), muop.ops, *input, f0, r, r0, tol, ops[mu]->sign, 
                                 work1, work2);
@@ -927,7 +994,7 @@ namespace madness {
                                                  double lo,
                                                  double eps) {
         const Tensor<double>& cell_width = FunctionDefaults<NDIM>::get_cell_width();
-        double hi = sqrt(double(NDIM))*cell_width.normf(); // Diagonal width of cell
+        double hi = cell_width.normf(); // Diagonal width of cell
         const double pi = 3.14159265358979323846264338328;
 
         // bsh_fit generates representation for 1/4Pir but we want 1/r
@@ -945,7 +1012,7 @@ namespace madness {
                                                      double lo,
                                                      double eps) {
         const Tensor<double>& cell_width = FunctionDefaults<NDIM>::get_cell_width();
-        double hi = sqrt(double(NDIM))*cell_width.normf(); // Diagonal width of cell
+        double hi = cell_width.normf(); // Diagonal width of cell
         const double pi = 3.14159265358979323846264338328;
         
         // bsh_fit generates representation for 1/4Pir but we want 1/r
@@ -964,7 +1031,7 @@ namespace madness {
                                              double lo,
                                              double eps) {
         const Tensor<double>& cell_width = FunctionDefaults<NDIM>::get_cell_width();
-        double hi = sqrt(double(NDIM))*cell_width.normf(); // Diagonal width of cell
+        double hi = cell_width.normf(); // Diagonal width of cell
         Tensor<double> coeff, expnt;
         bsh_fit(mu, lo, hi, eps, &coeff, &expnt, false);
         return SeparatedConvolution<Q,NDIM>(world, k, coeff, expnt);
@@ -978,7 +1045,7 @@ namespace madness {
                                                  double lo,
                                                  double eps) {
         const Tensor<double>& cell_width = FunctionDefaults<NDIM>::get_cell_width();
-        double hi = sqrt(double(NDIM))*cell_width.normf(); // Diagonal width of cell
+        double hi = cell_width.normf(); // Diagonal width of cell
         Tensor<double> coeff, expnt;
         bsh_fit(mu, lo, hi, eps, &coeff, &expnt, false);
         return new SeparatedConvolution<Q,NDIM>(world, k, coeff, expnt);

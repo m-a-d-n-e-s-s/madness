@@ -69,7 +69,7 @@ namespace madness {
         std::cout << std::scientific;
         std::cout << std::showpoint; 
         //std::cout << std::showpos;
-        std::cout << std::setprecision(8);
+        std::cout << std::setprecision(2);
 
 #ifdef FUNCTION_INSTANTIATE_1
         FunctionDefaults<1>::set_defaults(world);
