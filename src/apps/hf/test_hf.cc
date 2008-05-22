@@ -332,9 +332,9 @@ void test_hf_he(World& world)
   eigs.push_back(-0.6);
   printf("Norm of psi = %.5f\n\n", psi.norm2());
   // Create DFT object
-  if (world.rank() == 0) cout << "Creating DFT object..." << endl;
+  if (world.rank() == 0) cout << "Creating DFT object ..." << endl;
   DFT dftcalc(world, Vnuc, phis, eigs, thresh);
-  if (world.rank() == 0) cout << "Running HartreeFock object..." << endl;
+  if (world.rank() == 0) cout << "Running DFT calculation ..." << endl;
   dftcalc.solve(10);
 //  HartreeFock hf(world, Vnuc, phis, eigs, true, true, thresh);
 //  hf.hartree_fock(10);
@@ -404,7 +404,7 @@ void test_hf_be(World& world)
   if (world.rank() == 0) cout << "Creating DFT object..." << endl;
   //HartreeFock hf(world, Vnuc, phis, eigs, true, true, thresh);
   DFT dftcalc(world, Vnuc, phis, eigs, thresh);
-  if (world.rank() == 0) cout << "Running HartreeFock object..." << endl;
+  if (world.rank() == 0) cout << "Running DFT object..." << endl;
   dftcalc.solve(20);
   //hf.hartree_fock(20);
 //  double ke = 2.0 * hf.calculate_tot_ke_sp();
@@ -468,7 +468,7 @@ int main(int argc, char** argv)
     
     startup(world,argc,argv);
     if (world.rank() == 0) print("Initial tensor instance count", BaseTensor::get_instance_count());
-    test_hf_he(world);
+    test_hf_be(world);
   }
   catch (const MPI::Exception& e)
   {

@@ -532,7 +532,7 @@ void wst_munge_rho(int npoint, double *rho) {
     // Message for the matrix element output
     messageME("CoulombOp");
     // For now, no spin polarized
-    _spinPolarized = false;
+    _spinpol = false;
   }
   //*************************************************************************
   
@@ -547,7 +547,7 @@ void wst_munge_rho(int npoint, double *rho) {
   //*************************************************************************
   funcT DFTCoulombOp::op_r(const funcT& rho, const funcT& psi)
   {
-    double factor = (_spinPolarized) ? 1.0 : 2.0;
+    double factor = (_spinpol) ? 1.0 : 2.0;
     // Create Coulomb operator
     SeparatedConvolution<double,3> cop = 
       CoulombOperator<double,3>(world(), FunctionDefaults<3>::get_k(), 1e-4, thresh());      
@@ -575,60 +575,6 @@ void wst_munge_rho(int npoint, double *rho) {
     V_rho.reconstruct();
     V_rho.unaryop(&dft_xc_lda_V);
     funcT rfunc = V_rho * psi;
-    
-//    // get point
-//    coordT point1, point2;
-//    point1[0] = 0.5; point1[0] = 0.5; point1[0] = 0.5;
-//    point2[0] = 0.75; point2[0] = 0.5; point2[0] = 0.75;
-//    
-//    // Reconstruct functions
-//    rho.reconstruct(true);
-//    V_rho.reconstruct(true);
-//    
-//    // What's the density at this point?
-////    double rhopt[2];
-////    rhopt[0] = rho(point1);
-////    rhopt[1] = rho(point2);
-//    double rhopt = rho(point1);
-//    
-//    // What's the potential at this point?
-////    Tensor<double> Vpt(2);
-////    Tensor<double> f(2);
-////    double V_DIRECT[2], V_LDA[2], V_VWN5[2];
-////    Vpt[0] = V_rho(point1);
-////    Vpt[1] = V_rho(point2);
-//    double Vpt = V_rho(point1);
-//    
-//    // Compress functions
-//    rho.compress(true);
-//    V_rho.compress(true);
-//    
-//    integer ideriv = 1;
-//    integer npt = 1;
-//    doublereal sigmaaa1 = 0.0;
-//    doublereal zk = 0.0;
-//    doublereal vrhoa = 0.0;
-//    doublereal vsigmaaa = 0.0;
-//    doublereal v2rhoa2 = 0.0;
-//    doublereal v2rhoasigmaaa = 0.0;
-//    doublereal v2sigmaaa2 = 0.0;
-//    
-//    doublereal vrhoa1 = 0.0;
-//    doublereal vrhoa2 = 0.0;
-//    
-//    ::rks_x_lda__(&ideriv, &npt, &rhopt, &sigmaaa1, &zk, &vrhoa1, &vsigmaaa, 
-//        &v2rhoa2, &v2rhoasigmaaa, &v2sigmaaa2);
-//    ::rks_c_vwn5__(&ideriv, &npt, &rhopt, &sigmaaa1, &zk, &vrhoa2, &vsigmaaa, 
-//        &v2rhoa2, &v2rhoasigmaaa, &v2sigmaaa2);
-//    
-////    V_DIRECT[0] = V_LDA[0] + V_VWN5[0];
-////    V_DIRECT[1] = V_LDA[1] + V_VWN5[1];
-//    
-//    vrhoa = vrhoa1 + vrhoa2;
-//    
-//    printf("vrhoa1 = %.8f\t\tvrhoa2 = %.8f\n", vrhoa1, vrhoa2);
-//    printf("V_rho = %.8f\t\tvrhoa = %.8f\n\n", Vpt, vrhoa);
-
     return rfunc;
   }
   //***************************************************************************
@@ -756,7 +702,7 @@ void wst_munge_rho(int npoint, double *rho) {
       if (world().rank() == 0) printf("gs ene = %.4f\n", eigs[0]);
       if (world().rank() == 0) printf("1st es ene = %.4f\n", eigs[1]);
       double mtxe = matrix_element(phis[0], phis[0]);
-      if (world().rank() == 0) printf("KS matrix element:\t\t\t%.8f\n\n", mtxe);
+      if (world().rank() == 0) printf("\nKS matrix element:\t\t\t%.8f\n\n", mtxe);
       print_matrix_elements(phis[0], phis[0]);
     }
   }
