@@ -1200,7 +1200,7 @@ namespace madness {
             }
             else {
                 long cookie;
-                if (world.rank() == 0) {
+                if (world().rank() == 0) {
                     ar & cookie;
                     MADNESS_ASSERT(cookie == magic);
                 }

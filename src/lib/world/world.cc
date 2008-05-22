@@ -959,6 +959,7 @@ void test11(World& world) {
 
 
 void test12(World& world) {
+    if (world.size() != 1) return;
     // Test file IO
     ProcessID me = world.rank();
     WorldContainer<int,double> d(world);

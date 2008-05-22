@@ -991,8 +991,8 @@ int main(int argc, char**argv) {
 #ifdef TENSOR_INSTANCE_COUNT
         print("  tensor instance count ...", "enabled");
 #endif
-        print(" ");
-        IndexIterator::test();
+//         print(" ");
+//         IndexIterator::test();
     }        
     
     try {

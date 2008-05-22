@@ -45,10 +45,12 @@
 
 namespace madness {
 
-    static inline unsigned int sdbm(int n, const unsigned char* c, unsigned int sum=0) {
-        for (int i=0; i<n; i++) sum = c[i] + (sum << 6) + (sum << 16) - sum;
-        return sum;
-    }
+//     // this has problems when nproc is a large-ish power of 2 such as 256
+//     // and leads to bad data distribution.
+//     static inline unsigned int sdbm(int n, const unsigned char* c, unsigned int sum=0) {
+//         for (int i=0; i<n; i++) sum = c[i] + (sum << 6) + (sum << 16) - sum;
+//         return sum;
+//     }
 
     typedef unsigned long Translation;
     typedef long Level;
@@ -70,8 +72,9 @@ namespace madness {
 
         // Recomputes hashval
         void rehash() {
-            hashval = sdbm(sizeof(n)+sizeof(l), (unsigned char*)(&n));
-            //hashval = madness::hash(n,madness::hash(l));
+            //hashval = sdbm(sizeof(n)+sizeof(l), (unsigned char*)(&n));
+            // default hash is still best
+            hashval = madness::hash(n,madness::hash(l));
         };
 
 	// Helper function for operator <

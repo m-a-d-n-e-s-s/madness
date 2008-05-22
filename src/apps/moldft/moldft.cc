@@ -595,8 +595,11 @@ struct Calculation {
 //     }
 
     functionT make_density(World& world, const Tensor<double>& occ, const vector<functionT>& v) {
+        world.gop.fence();
         vector<functionT> vsq = square(world, v);
+        world.gop.fence();
         compress(world,vsq);
+        world.gop.fence();
         functionT rho = factoryT(world).thresh(vtol);
         rho.compress();
         for (unsigned int i=0; i<vsq.size(); i++) {
@@ -605,6 +608,9 @@ struct Calculation {
         world.gop.fence();
         vsq.clear();
         world.gop.fence();
+
+        double dtrace = rho.trace();
+        if (world.rank() == 0) print("trace of density", dtrace);
         return rho;
     }
 

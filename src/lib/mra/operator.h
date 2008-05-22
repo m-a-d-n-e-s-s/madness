@@ -351,7 +351,6 @@ namespace madness {
                 const Tensor<Q>& rm = this->get_rnlp(natl,-lx);
                 if (rp.normf()<1e-12 && rm.normf()<1e-12) nzero++;
                 if (nzero == 3) {
-                    print("SETTING NATURAL RANGE TO", lx, "AT LEVEL", natl);
                     maxl = lx-2;
                     break;
                 }

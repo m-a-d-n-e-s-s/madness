@@ -14,7 +14,7 @@ namespace madness {
         const double pi = 3.14159265358979323846264338328;
         double exact, err;
         {
-            cout << "Testing accuracy of rnlp against results from Maple" << endl;
+            //cout << "Testing accuracy of rnlp against results from Maple" << endl;
             double a = 1e-4;
             GaussianConvolution1D<double> g(8,sqrt(a/pi),a);
             n = 0; l=-2;
