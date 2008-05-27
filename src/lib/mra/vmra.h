@@ -255,14 +255,26 @@ namespace madness {
         return av;
     }
 
-    /// Sets the threshold in a vector of functions
-    template <typename T, int NDIM>
-    void set_thresh(World& world, std::vector< Function<T,NDIM> >& v, double thresh, bool fence=true) {
-        for (unsigned int j=0; j<v.size(); j++) {
-            v[j].set_thresh(thresh,false);
+    /// Multiplies two vectors of functions q[i] = a[i] * b[i]
+    template <typename T, typename R, int NDIM>
+    std::vector< Function<TENSOR_RESULT_TYPE(T,R), NDIM> >
+    mul(World& world,
+        const std::vector< Function<T,NDIM> >& a, 
+        const std::vector< Function<R,NDIM> >& b, 
+        bool fence=true) 
+    {
+        reconstruct(world, a, false);
+        if (&a != &b) reconstruct(world, b, false);
+        world.gop.fence();
+
+        std::vector< Function<TENSOR_RESULT_TYPE(T,R),NDIM> > q(a.size());
+        for (unsigned int i=0; i<a.size(); i++) {
+            q[i] = mul(a[i], b[i], false);
         }
         if (fence) world.gop.fence();
+        return q;
     }
+
 
     /// Computes the square of a vector of functions --- q[i] = v[i]**2
     template <typename T, int NDIM>
@@ -271,13 +283,23 @@ namespace madness {
         const std::vector< Function<T,NDIM> >& v, 
         bool fence=true) 
     {
-        reconstruct(world, v);
-        std::vector< Function<T,NDIM> > vsq(v.size());
-        for (unsigned int i=0; i<v.size(); i++) {
-            vsq[i] = square(v[i], false);
+        return mul<T,T,NDIM>(world, v, v, fence);
+//         std::vector< Function<T,NDIM> > vsq(v.size());
+//         for (unsigned int i=0; i<v.size(); i++) {
+//             vsq[i] = square(v[i], false);
+//         }
+//         if (fence) world.gop.fence();
+//         return vsq;
+    }
+
+
+    /// Sets the threshold in a vector of functions
+    template <typename T, int NDIM>
+    void set_thresh(World& world, std::vector< Function<T,NDIM> >& v, double thresh, bool fence=true) {
+        for (unsigned int j=0; j<v.size(); j++) {
+            v[j].set_thresh(thresh,false);
         }
         if (fence) world.gop.fence();
-        return vsq;
     }
 
     /// Returns the complex conjugate of the vector of functions

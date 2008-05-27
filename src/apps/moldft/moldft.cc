@@ -191,7 +191,7 @@ struct CalculationParameters {
 
     template <typename Archive>
     void serialize(Archive& ar) {
-        ar & charge & smear & econv & dconv & L & nvalpha & nvbeta & nopen & spin_restricted & lda;
+        ar & charge & smear & econv & dconv & L & maxrotn & nvalpha & nvbeta & nopen & maxiter & spin_restricted & lda;
         ar & nalpha & nbeta & nmo_alpha & nmo_beta & lo;
     }
 
@@ -363,7 +363,8 @@ struct Calculation {
                                                           param.lo, 
                                                           vtol));
         if (world.rank() == 0) {
-            print("\nSolving with thresh",thresh, "and k", FunctionDefaults<3>::get_k(), "\n");
+            print("\nSolving with thresh", thresh, "    k", FunctionDefaults<3>::get_k(), 
+                  "   conv", max(thresh, param.dconv), "\n");
         }
     }
 
@@ -397,17 +398,38 @@ struct Calculation {
     vector<functionT> project_ao_basis(World& world) {
         vector<functionT> ao(aobasis.nbf(molecule));
 
+        Level initial_level = 3;
         for (int i=0; i<aobasis.nbf(molecule); i++) {
             functorT aofunc(new AtomicBasisFunctor(aobasis.get_atomic_basis_function(molecule,i)));
-            ao[i] = factoryT(world).functor(aofunc).initial_level(3).truncate_on_project().nofence();
+//             if (world.rank() == 0) {
+//                 aobasis.get_atomic_basis_function(molecule,i).print_me(cout);
+//             }
+            ao[i] = factoryT(world).functor(aofunc).initial_level(initial_level).truncate_on_project().nofence();
         }
         world.gop.fence();
         //truncate(world, ao);
 
-        vector<double> norms = norm2(world, ao);
+        vector<double> norms;
+
+        while (1) {
+            norms = norm2(world, ao);
+            initial_level += 2;
+            if (initial_level >= 11) throw "project_ao_basis: projection failed?";
+            int nredone = 0;
+            for (int i=0; i<aobasis.nbf(molecule); i++) {
+                if (norms[i] < 1e-1) {
+                    nredone++;
+                    if (world.rank() == 0) print("re-projecting ao basis function", i,"at level",initial_level);
+                    functorT aofunc(new AtomicBasisFunctor(aobasis.get_atomic_basis_function(molecule,i)));
+                    ao[i] = factoryT(world).functor(aofunc).initial_level(6).truncate_on_project().nofence();
+                }
+            }
+            world.gop.fence();
+            if (nredone == 0) break;
+        }
 
         for (int i=0; i<aobasis.nbf(molecule); i++) {
-            if (world.rank() == 0) print(i,"ao.norm", norms[i]);
+            if (world.rank() == 0) print(i,"ao norm", norms[i]);
             norms[i] = 1.0/norms[i];
         }
 
@@ -467,7 +489,7 @@ struct Calculation {
         functionT vlocal;
         if (param.nalpha+param.nbeta > 1) {
             START_TIMER;
-            vlocal = vnuc + apply(*coulop, rho);
+            vlocal = vnuc + apply(*coulop, rho).scale(1.0-1.0/nel); // Reduce coulomb to increase binding
             END_TIMER("guess Coulomb potn");
 
             // Shove the closed-shell LDA potential on there also
@@ -487,10 +509,10 @@ struct Calculation {
         START_TIMER;
         vector<functionT> ao   = project_ao_basis(world);
         END_TIMER("project ao basis");
-        for (unsigned int i=0; i<ao.size(); i++) {
-            if (world.rank() == 0) print("\ndistribution of ao",i);
-            ao[i].print_info();
-        }
+//         for (unsigned int i=0; i<ao.size(); i++) {
+//             if (world.rank() == 0) print("\ndistribution of ao",i);
+//             ao[i].print_info();
+//         }
 
 //         if (world.size() > 1) {
 //             LoadBalImpl<3> lb(ao[0], lbcost<double,3>);
@@ -595,11 +617,8 @@ struct Calculation {
 //     }
 
     functionT make_density(World& world, const Tensor<double>& occ, const vector<functionT>& v) {
-        world.gop.fence();
         vector<functionT> vsq = square(world, v);
-        world.gop.fence();
         compress(world,vsq);
-        world.gop.fence();
         functionT rho = factoryT(world).thresh(vtol);
         rho.compress();
         for (unsigned int i=0; i<vsq.size(); i++) {
@@ -610,7 +629,7 @@ struct Calculation {
         world.gop.fence();
 
         double dtrace = rho.trace();
-        if (world.rank() == 0) print("trace of density", dtrace);
+        if (world.rank() == 0) print("err in trace of density", dtrace-v.size());
         return rho;
     }
 
@@ -625,7 +644,7 @@ struct Calculation {
                 if (world.rank() == 0) {
                     print("bsh: warning: positive eigenvalue", i, eps);
                 }
-                eps = -0.05;
+                eps = -0.1;
             }
             ops[i] = poperatorT(BSHOperatorPtr<double,3>(world, sqrt(-2.0*eps), k, param.lo, tol));
         }
@@ -980,13 +999,15 @@ struct Calculation {
             if (iter > 0) {
                 double dconv = max(FunctionDefaults<3>::get_thresh(), param.dconv);
                 if (da<dconv && db<dconv) {
-                    if (world.rank()==0) print("\nConverged!\n");
-                    print(" ");
-                    print("alpha eigenvalues");
-                    print(aeps);
-                    if (param.nbeta && !param.spin_restricted) {
-                        print("beta eigenvalues");
-                        print(beps);
+                    if (world.rank()==0) {
+                        print("\nConverged!\n");
+                        print(" ");
+                        print("alpha eigenvalues");
+                        print(aeps);
+                        if (param.nbeta && !param.spin_restricted) {
+                            print("beta eigenvalues");
+                            print(beps);
+                        }
                     }
 
                     return;

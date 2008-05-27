@@ -63,11 +63,14 @@
 #include <cstring>
 #include <iostream>
 
+#include <madness_config.h>
 #include <tensor/tensor.h>
 #include <tensor/random.h>
 #include <tensor/mtxmq.h>
 
 #if (HOST_SYSTEM == CRAYXT)
+#undef STATIC
+#define STATIC
   extern "C"  int posix_memalign(void **memptr, std::size_t alignment, std::size_t size);
 #endif
 
@@ -120,10 +123,10 @@ namespace madness {
             //std::cout << "entering asm " << (void *) a << " " << n4 << std::endl;
             __asm__ __volatile__ (
                                   "pxor %%xmm0,%%xmm0;\n"
-                                  ".UGHLOOP_%=:\n"
+                                  ".UGHLOOP_47:\n"
                                   "movapd   %%xmm0,  (%0);\n"
                                   "movapd   %%xmm0,16(%0);\n"
-                                  "add $32,%0; sub $4,%1; jnz .UGHLOOP_%=;\n"
+                                  "add $32,%0; sub $4,%1; jnz .UGHLOOP_47;\n"
                                   : 
                                   : "r"(a), "r"(n4)
                                   : "0","1","xmm0", "memory");

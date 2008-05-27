@@ -119,7 +119,9 @@ namespace madness {
            Choice is to unroll i or j 
         */
         
-#ifdef OPTERON_TUNE
+#if   defined(AMD_QUADCORE_TUNE)
+        bool test = dimj >= 8;
+#elif defined(OPTERON_TUNE)
         bool test = dimi <= dimj; /* Based on times from X86_64 Opteron ... an old one */
 #elif defined(CORE_DUO_TUNE)
         bool test = true; /* Based on times from X86_32 Core Duo ... my old laptop */
@@ -314,8 +316,8 @@ namespace madness {
         const long dimj16 = dimj<<4;
 
 #define ZERO(c) "pxor " #c "," #c ";\n"
-#define LOADA   "movddup  (%%r9), %%xmm0; mov %%r10,%%r8; movddup 8(%%r9), %%xmm1; add %2,%%r9; add %3,%%r10; prefetcht0 (%%r9);\n"
-#define ENTRY(loop) "mov %0,%%r9; mov %1, %%r10; mov %4,%%r11;.align 16;"#loop": "
+#define LOADA   "movddup  (%%r9), %%xmm0; mov %%r10,%%r8; movddup 8(%%r9), %%xmm1; add %q2,%%r9; add %q3,%%r10; prefetcht0 (%%r9);\n"
+#define ENTRY(loop) "mov %q0,%%r9; mov %q1, %%r10; mov %q4,%%r11;.align 16;"#loop": "
 #define DOIT(c) "movaps (%%r8),%%xmm2; movaps %%xmm2,%%xmm3; mulpd %%xmm0,%%xmm2; addpd %%xmm2,"#c"; shufpd $1,%%xmm3,%%xmm3; mulpd %%xmm1,%%xmm3; addsubpd %%xmm3, "#c"; \n"
 #define NEXT(loop) "sub $1,%%r11; jnz "#loop";"
 #define STORE(c) "movaps " #c ", (%%r8); add $16,%%r8;\n"
@@ -340,7 +342,7 @@ namespace madness {
                                           DOIT(%%xmm4)
                                           NEXT(.KLOOP1)
 
-                                          "mov %5, %%r8;\n"
+                                          "mov %q5, %%r8;\n"
                                           STORE(%%xmm4)
                                           :
                                           : "r"(ai),"r"(bk),"r"(dimi16),"r"(dimj16),"r"(dimk), "r"(ci)
@@ -359,7 +361,7 @@ namespace madness {
                                           DOIT(%%xmm5)
                                           NEXT(.KLOOP2)
 
-                                          "mov %5, %%r8;\n"
+                                          "mov %q5, %%r8;\n"
                                           STORE(%%xmm4)
                                           STORE(%%xmm5)
                                           :
@@ -381,7 +383,7 @@ namespace madness {
                                           DOIT(%%xmm6)
                                           NEXT(.KLOOP3)
 
-                                          "mov %5, %%r8;\n"
+                                          "mov %q5, %%r8;\n"
                                           STORE(%%xmm4)
                                           STORE(%%xmm5)
                                           STORE(%%xmm6)
@@ -406,7 +408,7 @@ namespace madness {
                                           DOIT(%%xmm7)
                                           NEXT(.KLOOP4)
 
-                                          "mov %5, %%r8;\n"
+                                          "mov %q5, %%r8;\n"
                                           STORE(%%xmm4)
                                           STORE(%%xmm5)
                                           STORE(%%xmm6)
@@ -434,7 +436,7 @@ namespace madness {
                                           DOIT(%%xmm8)
                                           NEXT(.KLOOP5)
 
-                                          "mov %5, %%r8;\n"
+                                          "mov %q5, %%r8;\n"
                                           STORE(%%xmm4)
                                           STORE(%%xmm5)
                                           STORE(%%xmm6)
@@ -465,7 +467,7 @@ namespace madness {
                                           DOIT(%%xmm9)
                                           NEXT(.KLOOP6)
 
-                                          "mov %5, %%r8;\n"
+                                          "mov %q5, %%r8;\n"
                                           STORE(%%xmm4)
                                           STORE(%%xmm5)
                                           STORE(%%xmm6)
@@ -500,7 +502,7 @@ namespace madness {
                                           DOIT(%%xmm10)
                                           NEXT(.KLOOP7)
 
-                                          "mov %5, %%r8;\n"
+                                          "mov %q5, %%r8;\n"
                                           STORE(%%xmm4)
                                           STORE(%%xmm5)
                                           STORE(%%xmm6)
@@ -537,7 +539,7 @@ namespace madness {
                                           DOIT(%%xmm11)
                                           NEXT(.KLOOP8)
 
-                                          "mov %5, %%r8;\n"
+                                          "mov %q5, %%r8;\n"
                                           STORE(%%xmm4)
                                           STORE(%%xmm5)
                                           STORE(%%xmm6)
@@ -577,7 +579,7 @@ namespace madness {
                                           DOIT(%%xmm12)
                                           NEXT(.KLOOP9)
 
-                                          "mov %5, %%r8;\n"
+                                          "mov %q5, %%r8;\n"
                                           STORE(%%xmm4)
                                           STORE(%%xmm5)
                                           STORE(%%xmm6)
@@ -620,7 +622,7 @@ namespace madness {
                                           DOIT(%%xmm13)
                                           NEXT(.KLOOP10)
 
-                                          "mov %5, %%r8;\n"
+                                          "mov %q5, %%r8;\n"
                                           STORE(%%xmm4)
                                           STORE(%%xmm5)
                                           STORE(%%xmm6)
@@ -666,7 +668,7 @@ namespace madness {
                                           DOIT(%%xmm14)
                                           NEXT(.KLOOP11)
 
-                                          "mov %5, %%r8;\n"
+                                          "mov %q5, %%r8;\n"
                                           STORE(%%xmm4)
                                           STORE(%%xmm5)
                                           STORE(%%xmm6)
@@ -715,7 +717,7 @@ namespace madness {
                                           DOIT(%%xmm15)
                                           NEXT(.KLOOP12)
 
-                                          "mov %5, %%r8;\n"
+                                          "mov %q5, %%r8;\n"
                                           STORE(%%xmm4)
                                           STORE(%%xmm5)
                                           STORE(%%xmm6)

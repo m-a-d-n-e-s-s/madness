@@ -36,6 +36,9 @@
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <mra/mra.h>
 
+extern "C" double round(double x);
+
+
 /// \file mra.cc
 /// \file Declaration and initialization of static data, some implementation, some instantiation
 

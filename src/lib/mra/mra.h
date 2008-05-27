@@ -69,12 +69,60 @@ namespace madness {
 
 namespace madness {
 
+    // Forward declarations of friends demanded by PGI
+
     template <typename T, int NDIM>
     Function<T,NDIM> square(const Function<T,NDIM>& f, bool fence = true);
     
     template <typename T, int NDIM>
     Function<T,NDIM> 
     diff(const Function<T,NDIM>& f, int axis, bool fence=true);
+
+    template <typename L, typename R, int D>
+    Function<TENSOR_RESULT_TYPE(L,R),D> 
+    mul(const Function<L,D>& left, const Function<R,D>& right, bool fence=true);
+
+    template <typename Q, typename R, int D>
+    Function<TENSOR_RESULT_TYPE(Q,R),D> 
+    mul(const Q alpha, const Function<R,D>& f, bool fence=true);
+
+    template <typename L, typename R, int D>
+    Function<TENSOR_RESULT_TYPE(L,R),D> 
+    mul_sparse(const Function<L,D>& left, const Function<R,D>& right, double tol, bool fence=true);
+
+    template <typename Q, typename R, int D>
+    Function<TENSOR_RESULT_TYPE(Q,R),D> 
+    mul_sparse(const Q alpha, const Function<R,D>& f, double tol, bool fence=true);
+
+    template <typename L, typename R, int D>
+    Function<TENSOR_RESULT_TYPE(L,R),D> 
+    gaxpy_oop(TENSOR_RESULT_TYPE(L,R) alpha, const Function<L,D>& left, 
+              TENSOR_RESULT_TYPE(L,R) beta,  const Function<R,D>& right, bool fence=true);
+    
+    template <typename L, typename R, int D>
+    Function<TENSOR_RESULT_TYPE(L,R),D> 
+    add(const Function<L,D>& left, const Function<R,D>& right, bool fence=true);
+    
+    template <typename L, typename R, int D>
+    Function<TENSOR_RESULT_TYPE(L,R),D> 
+    sub(const Function<L,D>& left, const Function<R,D>& right, bool fence=true);
+    
+    template <typename L, typename R, int D>
+    Function<TENSOR_RESULT_TYPE(L,R), D>
+    operator+(const Function<L,D>& left, const Function<R,D>& right);
+    
+    template <typename L, typename R, int D>
+    Function<TENSOR_RESULT_TYPE(L,R), D>
+    operator-(const Function<L,D>& left, const Function<R,D>& right);
+    
+    template <typename opT, typename R, int D>
+    Function<TENSOR_RESULT_TYPE(typename opT::opT,R), D> 
+    apply_only(const opT& op, const Function<R,D>& f, bool fence=true);
+    
+    template <typename opT, typename R, int D>
+    Function<TENSOR_RESULT_TYPE(typename opT::opT,R), D> 
+    apply(const opT& op, const Function<R,D>& f, bool fence=true);
+
     
     template <typename T, int NDIM>
     Function<T,NDIM> 
@@ -602,7 +650,12 @@ namespace madness {
         template <typename opT>
         void unaryop(const opT& op, bool fence=true) {
             verify();
-            impl->unary_op_value_inplace(&implT::autorefine_square_test, op, fence);
+            if (autorefine()) {
+                impl->unary_op_value_inplace(&implT::autorefine_square_test, op, fence);
+            }
+            else {
+                impl->unary_op_value_inplace(&implT::noautorefine, op, fence);
+            }
         }
 
 
@@ -907,7 +960,7 @@ namespace madness {
     /// Returns new function equal to alpha*f(x) with optional fence
     template <typename Q, typename T, int NDIM>
     Function<TENSOR_RESULT_TYPE(Q,T),NDIM> 
-    mul(const Q alpha, const Function<T,NDIM>& f, bool fence=true) {
+    mul(const Q alpha, const Function<T,NDIM>& f, bool fence) {
         Function<TENSOR_RESULT_TYPE(Q,T),NDIM> result;
         return result.scale_oop(alpha, f, fence);
     }        
@@ -916,7 +969,7 @@ namespace madness {
     /// Returns new function equal to f(x)*alpha with optional fence
     template <typename Q, typename T, int NDIM>
     Function<TENSOR_RESULT_TYPE(Q,T),NDIM> 
-    mul(const Function<T,NDIM>& f, const Q alpha, bool fence=true) {
+    mul(const Function<T,NDIM>& f, const Q alpha, bool fence) {
         return mul(alpha,f,fence);
     }        
 
@@ -943,7 +996,7 @@ namespace madness {
     /// Same as \c operator* but with optional fence and no automatic reconstruction
     template <typename L, typename R,int NDIM>
     Function<TENSOR_RESULT_TYPE(L,R),NDIM> 
-    mul(const Function<L,NDIM>& left, const Function<R,NDIM>& right, bool fence=true) {
+    mul(const Function<L,NDIM>& left, const Function<R,NDIM>& right, bool fence) {
         Function<TENSOR_RESULT_TYPE(L,R),NDIM> result;
         return result.mul(left,right,fence);
     }
@@ -952,7 +1005,7 @@ namespace madness {
     /// Sparse multiplication --- right *must* have tree of norms already created
     template <typename L, typename R,int NDIM>
     Function<TENSOR_RESULT_TYPE(L,R),NDIM> 
-    mul_sparse(const Function<L,NDIM>& left, const Function<R,NDIM>& right, double tol, bool fence=true) {
+    mul_sparse(const Function<L,NDIM>& left, const Function<R,NDIM>& right, double tol, bool fence) {
         Function<TENSOR_RESULT_TYPE(L,R),NDIM> result;
         return result.mul_sparse(left,right,tol,fence);
     }
@@ -976,7 +1029,7 @@ namespace madness {
     template <typename L, typename R,int NDIM>
     Function<TENSOR_RESULT_TYPE(L,R),NDIM> 
     gaxpy_oop(TENSOR_RESULT_TYPE(L,R) alpha, const Function<L,NDIM>& left, 
-          TENSOR_RESULT_TYPE(L,R) beta,  const Function<R,NDIM>& right, bool fence=true) {
+          TENSOR_RESULT_TYPE(L,R) beta,  const Function<R,NDIM>& right, bool fence) {
         Function<TENSOR_RESULT_TYPE(L,R),NDIM> result;
         return result.gaxpy_oop(alpha, left, beta, right, fence);
     }
@@ -984,7 +1037,7 @@ namespace madness {
     /// Same as \c operator+ but with optional fence and no automatic compression
     template <typename L, typename R,int NDIM>
     Function<TENSOR_RESULT_TYPE(L,R),NDIM> 
-    add(const Function<L,NDIM>& left, const Function<R,NDIM>& right, bool fence=true) {
+    add(const Function<L,NDIM>& left, const Function<R,NDIM>& right, bool fence) {
         return gaxpy_oop(TENSOR_RESULT_TYPE(L,R)(1.0), left,
                          TENSOR_RESULT_TYPE(L,R)(1.0), right, fence);
     }
@@ -1006,7 +1059,7 @@ namespace madness {
     /// Same as \c operator- but with optional fence and no automatic compression
     template <typename L, typename R,int NDIM>
     Function<TENSOR_RESULT_TYPE(L,R),NDIM> 
-    sub(const Function<L,NDIM>& left, const Function<R,NDIM>& right, bool fence=true) {
+    sub(const Function<L,NDIM>& left, const Function<R,NDIM>& right, bool fence) {
         return gaxpy_oop(TENSOR_RESULT_TYPE(L,R)( 1.0), left,
                          TENSOR_RESULT_TYPE(L,R)(-1.0), right, fence);
     }
@@ -1026,9 +1079,9 @@ namespace madness {
     
     /// Create a new function that is the square of f - global comm only if not reconstructed
     template <typename T, int NDIM>
-    Function<T,NDIM> square(const Function<T,NDIM>& f, bool fence=true) {
+    Function<T,NDIM> square(const Function<T,NDIM>& f, bool fence) {
         Function<T,NDIM> result = copy(f,true);  // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-        return result.square(fence);
+        return result.square(true); //fence);  // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     }
     
 
@@ -1058,7 +1111,7 @@ namespace madness {
     /// Returns a new function with the same distribution
     template <typename T, int NDIM>
     Function<T,NDIM> 
-    diff(const Function<T,NDIM>& f, int axis, bool fence=true) {
+    diff(const Function<T,NDIM>& f, int axis, bool fence) {
         Function<T,NDIM> result;
         if (f.is_compressed()) {
             if (fence) {
@@ -1080,7 +1133,7 @@ namespace madness {
     /// !!! For the moment does NOT respect fence option ... always fences
     template <typename opT, typename R, int NDIM>
     Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> 
-    apply(const opT& op, const Function<R,NDIM>& f, bool fence=true) {
+    apply(const opT& op, const Function<R,NDIM>& f, bool fence) {
 	Function<R,NDIM>& ff = const_cast< Function<R,NDIM>& >(f);
         Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> result;
         if (VERIFY_TREE) ff.verify_tree();
@@ -1096,7 +1149,7 @@ namespace madness {
     /// Apply operator ONLY in non-standard form - required other steps missing !!
     template <typename opT, typename R, int NDIM>
     Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> 
-    apply_only(const opT& op, const Function<R,NDIM>& f, bool fence=true) {
+    apply_only(const opT& op, const Function<R,NDIM>& f, bool fence) {
         Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> result;
 	return result.apply(op, f, fence);
     }
@@ -1125,9 +1178,9 @@ namespace madness {
     template <typename T, int NDIM>
     Function<T,NDIM> 
     project(const Function<T,NDIM>& other, 
-            int k=FunctionDefaults<NDIM>::k, 
-            double thresh=FunctionDefaults<NDIM>::thresh,
-            bool fence=true) 
+            int k,
+            double thresh,
+            bool fence) 
     {
         Function<T,NDIM> r = FunctionFactory<T,NDIM>(other.impl->world).k(k).thresh(thresh).empty();
         other.reconstruct();

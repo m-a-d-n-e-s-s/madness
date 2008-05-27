@@ -3,9 +3,12 @@
 #include <math.h>
 #include <xmmintrin.h>
 
+#include <tensor/tensor.h>
 #include <tensor/mtxmq.h>
 
 using namespace madness;
+
+  extern "C"  int posix_memalign(void **memptr, std::size_t alignment, std::size_t size);
 
 #ifdef TIME_DGEMM
 #ifndef FORTRAN_INTEGER

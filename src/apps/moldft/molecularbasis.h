@@ -319,6 +319,15 @@ public:
         shell.eval(rsq, x, y, z, bf);
         return bf[ibf];
     }
+
+    void print_me(std::ostream& s) const {
+        s << "atomic basis function: center " << xx << " " << yy << " " << zz << " : ibf " << ibf << " nbf " << nbf << " : shell " << shell << std::endl;
+    }
+};
+
+std::ostream& operator<<(std::ostream& s, const AtomicBasisFunction& a) {
+    a.print_me(s);
+    return s;
 };
 
 /// Contracted Gaussian basis 

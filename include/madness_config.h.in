@@ -102,6 +102,10 @@
 #define HOST_SYSTEM @HOST_SYSTEM@
 
 /* These for MTXMQ in tensor library */
+#if @AMD_QUADCORE_TUNE@
+#  define AMD_QUADCORE_TUNE
+#endif
+
 #if @OPTERON_TUNE@
 #  define OPTERON_TUNE
 #endif

@@ -174,14 +174,15 @@ function do_crayxt() {
     set_value CROSS_COMPILING 1
     set_value HOST_CPU "X86_64"
     set_value HOST_SYSTEM "CRAYXT"
-    # Empirically, 2-core XT3 was better with CORE2 parameters
-    #set_value OPTERON_TUNE 1
-    #set_value CORE2_TUNE 0
+    # Empirically, 2-core XT3 was better with CORE2 parameters, quad-core is different
+    set_value OPTERON_TUNE 0
+    set_value CORE2_TUNE 0
+    set_value AMD_QUADCORE_TUNE 1
     set_value MADNESS_FORINT long
-# was int ??????????????????????????????????
     set_value CXX CC
     set_value CC cc
-    set_value LIBS "-lsci -lgfortran"
+    # Using the default libraries is apparently better
+    #set_value LIBS "-lsci -lgfortran"
 }
 
 # Set mostly empty/non-functional defaults for all strings in part to
@@ -584,7 +585,7 @@ if [ "$CXXFLAGS" = "" ] ; then
         if [ "$MAD_DEBUG" = "1" ] ; then
            OPT="-Minform=inform -g -O0"
         else
-           OPT="-Minform=inform -fastsse -tp k8-64 -Mflushz -Mcache_align"
+           OPT="-Minform=inform -fastsse -Mflushz -Mcache_align"
         fi
     elif isintel "$CXX_COMPILE" ; then
         echo "Intel compiler detected"
@@ -604,7 +605,12 @@ if [ "$CXXFLAGS" = "" ] ; then
             if [ "$HOST_CPU" = "X86_64" ] ; then
                OPTLEV="-O2"
             fi
-            OPT="-Wall -Wno-strict-aliasing -ansi $OPTLEV -ffast-math -fomit-frame-pointer -mfpmath=sse -msse -msse2 -msse3 -march=native"
+            get_value HOST_SYSTEM
+            if [ $value == "CRAYXT" ] ; then
+                OPT="-Wall -Wno-strict-aliasing -ansi $OPTLEV -ffast-math -fomit-frame-pointer -mfpmath=sse -msse -msse2 -msse3"
+            else
+                OPT="-Wall -Wno-strict-aliasing -ansi $OPTLEV -ffast-math -fomit-frame-pointer -mfpmath=sse -msse -msse2 -msse3 -march=native"
+            fi
             CXXOPT="$CXX_COMPILE $OPT tmptmp.cc"
             compile_testCC "$CXXOPT" "#include <iostream> \n int main() {return 0;}" 
             if [ $? -ne 0 ] ; then
