@@ -47,7 +47,7 @@
 #define FUNCTION_INSTANTIATE_3
 #define FUNCTION_INSTANTIATE_4
 
-static const bool VERIFY_TREE = false;
+static const bool VERIFY_TREE = true;
 
 namespace madness {
     void startup(World& world, int argc, char** argv);

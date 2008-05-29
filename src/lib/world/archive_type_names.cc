@@ -36,6 +36,7 @@
 #define MAD_ARCHIVE_TYPE_NAMES_CC
 #define ARCHIVE_REGISTER_TYPE_INSTANTIATE_HERE
 #include <world/archive.h>
+#include <cstring>
 
 namespace madness {
     namespace archive {

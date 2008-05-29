@@ -1,6 +1,6 @@
 TOPDIR = ../../..
 TARGET_TO_MAKE = libMADtensor
-CXXSRC =  tensor.cc tensoriter.cc basetensor.cc mtrand.cc mtxmq.cc
+CXXSRC =  tensor.cc tensoriter.cc basetensor.cc mtrand.cc mtxmq.cc aligned.cc alignedc.cc
 
 TESTPROGS = test test_mtxmq
 TEST1SRC = test.o

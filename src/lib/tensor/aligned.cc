@@ -1,9 +1,32 @@
 #include <madness_config.h>
+
+
+#include <tensor/aligned.h>
 #include <tensor/tensor.h>
-
-// <insert whining about compilers and x86 architecture here>
-
 namespace madness {
+#if (defined(X86_32) || defined(X86_64))
+    template <> 
+    void aligned_zero<double>(long n, double* a) {
+        if ((((unsigned long) a) & 0x0f)) throw "WTF";
+        long n4 = (n>>2)<<2;
+        long rem = n-n4;
+        if (n4) {
+            //std::cout << "entering asm " << (void *) a << " " << n4 << std::endl;
+            __asm__ __volatile__ (
+                                  "pxor %%xmm0,%%xmm0;\n"
+                                  ".UGHLOOP_47:\n"
+                                  "movapd   %%xmm0,  (%0);\n"
+                                  "movapd   %%xmm0,16(%0);\n"
+                                  "add $32,%0; sub $4,%1; jnz .UGHLOOP_47;\n"
+                                  : 
+                                  : "r"(a), "r"(n4)
+                                  : "0","1","xmm0", "memory");
+            //std::cout << "leaving asm " << (void *) a << " " << n4 << std::endl;
+            a+=n4;
+        }
+        for (long i=0; i<rem; i++) *a++ = 0.0;
+    }
+#endif
 
     void aligned_add(long n, double* RESTRICT a, const double* RESTRICT b) {
         long n4 = (n>>2)<<2;
@@ -58,15 +81,5 @@ namespace madness {
         }
         for (long i=0; i<rem; i++) *a++ -= *b++;
     }
-
-
-    void aligned_add(long n, double_complex* RESTRICT a, const double_complex* RESTRICT b) {
-        aligned_add(2*n, (double*) a, (const double*) b);
-    }
-
-    void aligned_sub(long n, double_complex* RESTRICT a, const double_complex* RESTRICT b) {
-        aligned_sub(2*n, (double*) a, (const double*) b);
-    }
-
 
 }

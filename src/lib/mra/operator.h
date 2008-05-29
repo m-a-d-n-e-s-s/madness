@@ -5,6 +5,7 @@
 #include <limits.h>
 #include <mra/adquad.h>
 #include <tensor/mtxmq.h>
+#include <tensor/aligned.h>
 #include <linalg/tensor_lapack.h>
 
 namespace madness {

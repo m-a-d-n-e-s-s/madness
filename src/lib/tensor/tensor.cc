@@ -67,6 +67,7 @@
 #include <tensor/tensor.h>
 #include <tensor/random.h>
 #include <tensor/mtxmq.h>
+#include <tensor/aligned.h>
 
 #if (HOST_SYSTEM == CRAYXT)
 #undef STATIC
@@ -100,47 +101,6 @@ namespace madness {
         return float_complex(RandomNumber<float>(),RandomNumber<float>());
     }
 
-    template <typename T>
-    STATIC void aligned_zero(long n, T* RESTRICT a) {
-        long n4 = (n>>2)<<2;
-        long rem = n-n4;
-        for (long i=0; i<n4; i+=4,a+=4) { 
-            a[0] = 0;
-            a[1] = 0;
-            a[2] = 0;
-            a[3] = 0;
-        }
-        for (long i=0; i<rem; i++) *a++ = 0;
-    }
-
-#if (defined(X86_32) || defined(X86_64))
-    template <> 
-    STATIC void aligned_zero<double>(long n, double* RESTRICT a) {
-        if ((((unsigned long) a) & 0x0f)) throw "WTF";
-        long n4 = (n>>2)<<2;
-        long rem = n-n4;
-        if (n4) {
-            //std::cout << "entering asm " << (void *) a << " " << n4 << std::endl;
-            __asm__ __volatile__ (
-                                  "pxor %%xmm0,%%xmm0;\n"
-                                  ".UGHLOOP_47:\n"
-                                  "movapd   %%xmm0,  (%0);\n"
-                                  "movapd   %%xmm0,16(%0);\n"
-                                  "add $32,%0; sub $4,%1; jnz .UGHLOOP_47;\n"
-                                  : 
-                                  : "r"(a), "r"(n4)
-                                  : "0","1","xmm0", "memory");
-            //std::cout << "leaving asm " << (void *) a << " " << n4 << std::endl;
-            a+=n4;
-        }
-        for (long i=0; i<rem; i++) *a++ = 0.0;
-    }
-
-    template <> 
-    STATIC void aligned_zero<double_complex>(long n, double_complex* RESTRICT a) {
-        aligned_zero(2*n, (double *) a);
-    }
-#endif
 
     /// All new tensors are initialized by init except for the default constructor
     template <class T>

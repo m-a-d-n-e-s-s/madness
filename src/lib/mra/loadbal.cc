@@ -38,6 +38,8 @@
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <mra/mra.h>
 
+#include <mra/loadbal.h>
+
 
 namespace madness {
     /// find_best_partition takes the result of find_partitions, determines
@@ -46,12 +48,12 @@ namespace madness {
     /// Return: klist -- the best partition
 
   template <int D>
-    std::vector<typename DClass<D>::TreeCoords> LoadBalImpl<D>::find_best_partition() {
-	std::vector<typename DClass<D>::TreeCoords> klist;
+  std::vector< TreeCoords<D> > LoadBalImpl<D>::find_best_partition() {
+    std::vector< TreeCoords<D> > klist;
 	bool manager = false;
 
 	if (skeltree->world.mpi.nproc() == 1) {
-	    klist.push_back(typename DClass<D>::TreeCoords(skeltree->root, 0));
+	  klist.push_back(TreeCoords<D>(skeltree->root, 0));
 	    return klist;
 	}
 
@@ -71,7 +73,7 @@ namespace madness {
 	  //madness::print("find_best_partition: I am the manager");
  	    unsigned int shortest_list = 0, sl_index = 0, lb_index = 0;
  	    Cost load_bal_cost = 0;
-	    std::vector< std::vector<typename DClass<D>::TreeCoords> > list_of_list;
+	    std::vector< std::vector<TreeCoords<D> > > list_of_list;
 	    std::vector<Cost> costlist;
 	    // is this right?
 	    list_of_list = skeltree->list_of_list;
@@ -139,18 +141,18 @@ namespace madness {
  	    ksize = klist.size();
  	    skeltree->world.gop.template broadcast<unsigned int>(ksize, manager_id);
  	    for (unsigned int i=0; i < ksize; i++) {
- 	        skeltree->world.gop.template broadcast<typename DClass<D>::TreeCoords>(klist[i], manager_id);
+ 	        skeltree->world.gop.template broadcast<TreeCoords<D> >(klist[i], manager_id);
  	    }
 	    //	    madness::print("find_best_partition: number of broken links =",
 	    //	klist.size()-1);
 	}
 	else {
 	  //madness::print("find_best_partition: receiving broadcast");
-	  typename DClass<D>::TreeCoords ktmp;
+	  TreeCoords<D> ktmp;
 	  unsigned int ksize;
 	  skeltree->world.gop.template broadcast<unsigned int>(ksize, manager_id);
 	  for (unsigned int i=0; i < ksize; i++) {
-	    skeltree->world.gop.template broadcast<typename DClass<D>::TreeCoords>(ktmp, manager_id);
+	    skeltree->world.gop.template broadcast<TreeCoords<D> >(ktmp, manager_id);
 	    klist.push_back(ktmp);
 	  }
 	}
@@ -165,13 +167,13 @@ namespace madness {
     /// Return: a vector of vectors with all the partitions
 
   template <int D>
-  std::vector< std::vector<typename DClass<D>::TreeCoords> > LoadBalImpl<D>::find_all_partitions() {
-    //	std::vector<typename DClass<D>::TreeCoords> klist;
+  std::vector< std::vector< TreeCoords<D> > > LoadBalImpl<D>::find_all_partitions() {
+        std::vector< TreeCoords<D> > klist;
 	bool manager = false;
 
 	if (skeltree->world.mpi.nproc() == 1) {
-	  std::vector< std::vector< typename DClass<D>::TreeCoords > > listoflist;
-	  listoflist.push_back(std::vector<typename DClass<D>::TreeCoords>(1,typename DClass<D>::TreeCoords(skeltree->root, 0)));
+	  std::vector< std::vector< TreeCoords<D> > > listoflist;
+	  listoflist.push_back(std::vector<TreeCoords<D> >(1,TreeCoords<D>(skeltree->root, 0)));
 	    return listoflist;
 	}
 
@@ -186,7 +188,7 @@ namespace madness {
 	skeltree->world.gop.fence();
 	//madness::print("find_best_partition: just finished find_partitions");
 
-	std::vector< std::vector<typename DClass<D>::TreeCoords> > list_of_list;
+	std::vector< std::vector<TreeCoords<D> > > list_of_list;
 
 	if (manager) {
 	  //madness::print("find_best_partition: I am the manager");
@@ -265,7 +267,7 @@ namespace madness {
  	    for (unsigned int i=0; i < ksize; i++) {
 	      skeltree->world.gop.template broadcast<unsigned int>(len[i], manager_id);
 	      for (unsigned int j=0; j < len[i]; j++) {
- 	        skeltree->world.gop.template broadcast<typename DClass<D>::TreeCoords>(list_of_list[i][j], manager_id);
+ 	        skeltree->world.gop.template broadcast<TreeCoords<D> >(list_of_list[i][j], manager_id);
 	      }
  	    }
 	    //	    madness::print("find_best_partition: number of broken links =",
@@ -273,8 +275,8 @@ namespace madness {
 	}
 	else {
 	  //madness::print("find_best_partition: receiving broadcast");
-	  typename DClass<D>::TreeCoords ktmp;
-	  typename std::vector<typename DClass<D>::TreeCoords> emptylist;
+	  TreeCoords<D> ktmp;
+	  typename std::vector<TreeCoords<D> > emptylist;
 	  unsigned int ksize;
 	  skeltree->world.gop.template broadcast<unsigned int>(ksize, manager_id);
 	  for (unsigned int i=0; i < ksize; i++) {
@@ -282,7 +284,7 @@ namespace madness {
 	    unsigned int jmax;
 	    skeltree->world.gop.template broadcast<unsigned int>(jmax, manager_id);
 	    for (unsigned int j=0; j < jmax; j++) {
-	      skeltree->world.gop.template broadcast<typename DClass<D>::TreeCoords>(ktmp, manager_id);
+	      skeltree->world.gop.template broadcast<TreeCoords<D> >(ktmp, manager_id);
 	      list_of_list[i].push_back(ktmp);
 	    }
 	  }
@@ -438,8 +440,8 @@ namespace madness {
       }
 
 
-      typedef std::pair<typename DClass<D>::KeyD, ProcessID> part_type;
-      typedef std::map<typename DClass<D>::KeyD, ProcessID> map_type;
+      typedef std::pair<Key<D>, ProcessID> part_type;
+      typedef std::map<Key<D>, ProcessID> map_type;
 
       map_type part_map;
       for (int i = 0; i < size; i++) {
@@ -447,7 +449,7 @@ namespace madness {
       }
       typename map_type::iterator it, fit;
       for (it = part_map.begin(); it != part_map.end(); ) {
-	typename DClass<D>::KeyD key = it->first;
+	Key<D> key = it->first;
 	ProcessID owner = it->second;
 	if (key == root) {
 	  ++it;
@@ -537,12 +539,12 @@ namespace madness {
 	this->world.gop.fence();
 	//this->world.gop.barrier();
 	//madness::print("AFTER FIXING COST");
-	//for (typename DClass<D>::treeT::iterator it = impl.begin(); it != impl.end(); ++it) {
+	//for (LBTree<D>::iterator it = impl.begin(); it != impl.end(); ++it) {
 	//    madness::print(it->first, it->second);
 	//}
 	//madness::print("DONE FIXING IT");
-	if (this->world.mpi.rank() == impl.owner(typename DClass<D>::KeyD(0))) {
-	    typename DClass<D>::treeT::iterator it = impl.find(typename DClass<D>::KeyD(0));
+	if (this->world.mpi.rank() == impl.owner(Key<D>(0))) {
+	    typename LBTree<D>::iterator it = impl.find(Key<D>(0));
 	    return it->second.get_data().subcost;
 	} else {
 	    return 0;
@@ -558,9 +560,9 @@ namespace madness {
 
     template <int D>
     void LBTree<D>::init_fix_cost() {
-	for (typename DClass<D>::treeT::iterator it = impl.begin(); it != impl.end(); ++it) {
-	    typename DClass<D>::KeyDConst& key = it->first;
-	    typename DClass<D>::NodeD& node = it->second;
+	for (typename LBTree<D>::iterator it = impl.begin(); it != impl.end(); ++it) {
+	    const Key<D>& key = it->first;
+	    LBNode<D>& node = it->second;
 
 	    int dim = node.dim;
 	    NodeData d = node.get_data();
@@ -580,11 +582,11 @@ namespace madness {
 
     template <int D>
     void LBTree<D>::fix_cost_spawn() {
-	for (typename DClass<D>::treeT::iterator it = impl.begin(); it != impl.end(); ++it) {
-	    typename DClass<D>::KeyDConst& key = it->first;
-	    typename DClass<D>::NodeD& node = it->second;
+	for (typename LBTree<D>::iterator it = impl.begin(); it != impl.end(); ++it) {
+	    const Key<D>& key = it->first;
+	    LBNode<D>& node = it->second;
 	    if (!node.has_children()) {
-		typename DClass<D>::KeyD parent = key.parent();
+		Key<D> parent = key.parent();
 		Cost c = node.get_data().cost;
 //		madness::print("fix_cost_spawn: key", key, "is leaf child; sending", c,
 //	       		       "to parent", parent, "at processor", impl.owner(parent));
@@ -603,9 +605,9 @@ namespace madness {
     /// Communication: may send its subtree cost to parent
 
     template <int D>
-    Void LBTree<D>::fix_cost_sum(typename DClass<D>::KeyDConst& key, Cost c) {
-	typename DClass<D>::treeT::iterator it = impl.find(key);
-	typename DClass<D>::NodeD node = it->second;
+    Void LBTree<D>::fix_cost_sum(const Key<D>& key, Cost c) {
+	typename LBTree<D>::iterator it = impl.find(key);
+	LBNode<D> node = it->second;
 	NodeData d = node.get_data();
 	d.subcost += c;
 //	madness::print("fix_cost_sum:", key, "received number", node.nrecvd+1, "cost", 
@@ -614,7 +616,7 @@ namespace madness {
 	node.set_data(d);
 	impl.insert(key, node);
 	if ((node.nrecvd == node.dim) && (key.level()!=0)) {
-	    typename DClass<D>::KeyD parent = key.parent();
+	    Key<D> parent = key.parent();
 //	    madness::print("fix_cost_sum:", key, "sending cost", d.subcost, "to parent", parent);
 	    task(impl.owner(parent), &LBTree<D>::fix_cost_sum, parent, d.subcost);
 	}
@@ -629,16 +631,16 @@ namespace madness {
     /// Communication: just finding the nodes that match a given key
     template <int D>
     void LBTree<D>::rollup() {
-	for (typename DClass<D>::treeT::iterator it = impl.begin(); it != impl.end(); ++it) {
-	    typename DClass<D>::KeyD key = it->first;
-	    typename DClass<D>::NodeD node = it->second;
+	for (typename LBTree<D>::iterator it = impl.begin(); it != impl.end(); ++it) {
+	    Key<D> key = it->first;
+	    LBNode<D> node = it->second;
 	    if (node.has_children()) {
                 // First, check to see if it has any leaf children
 	        bool has_leaf_child = false;
 	        for (KeyChildIterator<D> kit(key); kit; ++kit) {
-            	    typename DClass<D>::treeT::iterator itc = impl.find(kit.key());
+            	    typename LBTree<D>::iterator itc = impl.find(kit.key());
 		    if (itc != impl.end()) {
-		        typename DClass<D>::NodeD c = itc->second;
+		        LBNode<D> c = itc->second;
 		        NodeData d = c.get_data();
 		        if ((!c.has_children()) && (d.is_taken)) {
 			    has_leaf_child = true;
@@ -667,9 +669,9 @@ namespace madness {
     /// Communication: none (local iterator)
     template <int D>
     void LBTree<D>::reset(bool taken) {
-	for (typename DClass<D>::treeT::iterator it = impl.begin(); it != impl.end(); ++it) {
-	    typename DClass<D>::KeyD key = it->first;
-	    typename DClass<D>::NodeD node = it->second;
+	for (typename LBTree<D>::iterator it = impl.begin(); it != impl.end(); ++it) {
+	    Key<D> key = it->first;
+	    LBNode<D> node = it->second;
 	    NodeData d = node.get_data();
 
 	    d.is_taken = taken;
@@ -683,9 +685,9 @@ namespace madness {
     /// Side effect: parent nodes are updated, and leaf nodes are deleted
     /// Communication: find and insert 
     template <int D>
-    void LBTree<D>::meld(typename DClass<D>::treeT::iterator it) {
-	typename DClass<D>::KeyD key = it->first;
-	typename DClass<D>::NodeD node = it->second;
+    void LBTree<D>::meld(typename LBTree<D>::iterator it) {
+	Key<D> key = it->first;
+	LBNode<D> node = it->second;
 	std::vector<unsigned int> mylist;
 	unsigned int i = 0;
 	Cost cheapest = 0;
@@ -693,8 +695,8 @@ namespace madness {
 
 	for (KeyChildIterator<D> kit(key); kit; ++kit) {
 	    if (node.has_child(i)) {
-		typename DClass<D>::treeT::iterator itc = impl.find(kit.key());
-		typename DClass<D>::NodeD c = itc->second;
+		typename LBTree<D>::iterator itc = impl.find(kit.key());
+		LBNode<D> c = itc->second;
 		NodeData d = c.get_data();
 		// if the child has no children and the is_taken flag is set to true, 
 		// then this child is eligible to be melded into parent
@@ -756,7 +758,7 @@ namespace madness {
 
 
   template <int D>
-  Void LBTree<D>::make_partition(typename DClass<D>::KeyDConst& key, Cost partition_size, Cost used_up, PartitionInfo<D> lbi, bool downward = false) {
+  Void LBTree<D>::make_partition(const Key<D>& key, Cost partition_size, Cost used_up, PartitionInfo<D> lbi, bool downward) {
     
     // The fudge factor is the fraction by which you are willing to let the
     // partitions exceed the ideal partition size
@@ -765,16 +767,16 @@ namespace madness {
 
 //    madness::print("starting make_partition");
     
-    typename DClass<D>::treeT::iterator it = impl.find(key);
+    typename LBTree<D>::iterator it = impl.find(key);
     if (it == impl.end()) {
-      typename DClass<D>::KeyDConst parent = key.parent();
-      send(impl.owner(parent), &LBTree::make_partition, parent, partition_size, used_up, lbi);
+      const Key<D> parent = key.parent();
+      send(impl.owner(parent), &LBTree::make_partition, parent, partition_size, used_up, lbi, false);
       //madness::print("RETURN 1");
       return None;
     }
-    typename DClass<D>::NodeD node = it->second;
+    LBNode<D> node = it->second;
     
-    typename DClass<D>::KeyDConst parent = key.parent();
+    const Key<D> parent = key.parent();
     NodeData d = node.get_data();
     
     // if either the partition is currently empty and this is a single item, or there is still 
@@ -789,7 +791,7 @@ namespace madness {
 	//madness::print("make_partition: about to totally_reset");
 	send(impl.owner(root), &LBTree::totally_reset, lbi);
       } else {
-	send(impl.owner(parent), &LBTree::make_partition, parent, partition_size, used_up, lbi);
+	send(impl.owner(parent), &LBTree::make_partition, parent, partition_size, used_up, lbi, false);
       }
       //madness::print("RETURN 2");
       return None;
@@ -805,7 +807,7 @@ namespace madness {
       }
       
       if (node.rpit) {
-	typename DClass<D>::KeyDConst& child = node.rpit.key();
+	const Key<D>& child = node.rpit.key();
 	impl.insert(key,node);
 	send(impl.owner(child), &LBTree::make_partition, child, partition_size, used_up, lbi, true);
 	//madness::print("RETURN 3");
@@ -822,7 +824,7 @@ namespace madness {
       if (key == root) {
 	//madness::print("make_partition: key == root");
       } else {
-	send(impl.owner(parent), &LBTree::make_partition, parent, partition_size, used_up, lbi);
+	send(impl.owner(parent), &LBTree::make_partition, parent, partition_size, used_up, lbi, false);
       }
       //madness::print("RETURN 4");
       return None;
@@ -853,7 +855,7 @@ namespace madness {
       //madness::print("totally_reset: at beginning, lbi =", lbi);
 //      madness::print("totally_reset: totally resetting");
         this->partition_info = lbi;
-	this->temp_list.push_back(typename DClass<D>::TreeCoords(root, lbi.partition_number));
+	this->temp_list.push_back(TreeCoords<D>(root, lbi.partition_number));
 	//madness::print("totally_reset: temp_list =", this->temp_list);
 	//madness::print("totally_reset: and lbi =", lbi);
 	//bool keep_going = true;
@@ -868,7 +870,7 @@ namespace madness {
     /// Communication: none
 
     template <int D>
-    Void LBTree<D>::add_to_partition(typename DClass<D>::TreeCoords p) {
+    Void LBTree<D>::add_to_partition(TreeCoords<D> p) {
         this->temp_list.push_back(p);
 	//madness::print("add_to_partition: partition =", temp_list);
 	return None;
@@ -902,8 +904,8 @@ namespace madness {
 	        lbi.maxcost = lbi.cost_left;
 	    }
 	    //madness::print("reset_partition: adding root to partition and returning false");
-	    send(impl.owner(root), &LBTree<D>::add_to_partition, typename DClass<D>::TreeCoords(root, lbi.partition_number));
-	    //lbi.part_list.push_back(typename DClass<D>::TreeCoords(root, lbi.partition_number));
+	    send(impl.owner(root), &LBTree<D>::add_to_partition, TreeCoords<D>(root, lbi.partition_number));
+	    //lbi.part_list.push_back(TreeCoords<D>(root, lbi.partition_number));
 	    // totally reset!
 	    return false;
 	}
