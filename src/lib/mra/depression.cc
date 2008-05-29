@@ -18,7 +18,7 @@ namespace madness {
                                   "add $32,%0; add $32,%1; sub $4,%2; jnz .UGHLOOPXX_99;\n"
                                   : 
                                   : "r"(a), "r"(b), "r"(n4)
-                                  : "0","1","2","xmm0", "memory");
+                                  : "0","1","2", "memory");
             a+=n4; b+=n4;
 #else
             for (long i=0; i<n4; i+=4,a+=4,b+=4) { 
@@ -45,7 +45,7 @@ namespace madness {
                                   "add $32,%0; add $32,%1; sub $4,%2; jnz .UGHLOOPXXX_98;\n"
                                   : 
                                   : "r"(a), "r"(b), "r"(n4)
-                                  : "0","1","2","xmm0", "memory");
+                                  : "0","1","2","memory");
             a+=n4; b+=n4;
 #else
             for (long i=0; i<n4; i+=4,a+=4,b+=4) { 
