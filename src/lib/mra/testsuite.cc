@@ -635,7 +635,7 @@ public:
     GaussianPotential(const coordT& center, double expnt, double coefficient) 
         : center(center)
         , exponent(sqrt(expnt))
-        , coefficient(coefficient*pow(PI/exponent,1.5)) {}
+        , coefficient(coefficient*pow(PI/exponent,1.5)*pow(expnt,-0.75)) {}
         
     double operator()(const coordT& x) const {
         double sum = 00;
@@ -658,7 +658,7 @@ void test_coulomb(World& world) {
 
     // Normalized Gaussian exponent a produces potential erf(sqrt(a)*r)/r
     const coordT origin(0.5);
-    const double expnt = 1.0;
+    const double expnt = 100.0;
     const double coeff = pow(1.0/PI*expnt,0.5*3);
     functorT functor(new Gaussian<double,3>(origin, expnt, coeff));
 
@@ -672,7 +672,7 @@ void test_coulomb(World& world) {
     FunctionDefaults<3>::set_cubic_cell(-10,10);
     
     START_TIMER; 
-    Function<double,3> f = FunctionFactory<double,3>(world).functor(functor).thresh(1e-8);
+    Function<double,3> f = FunctionFactory<double,3>(world).functor(functor).thresh(thresh*0.1).initial_level(4);
     END_TIMER("project");
 
     //f.print_info();  <--------- This is not scalable and might crash the XT
@@ -710,6 +710,9 @@ void test_coulomb(World& world) {
     }
     f.set_thresh(thresh);
     SeparatedConvolution<double,3> op = CoulombOperator<double,3>(world, FunctionDefaults<3>::get_k(), 1e-3, thresh);
+
+    FunctionDefaults<3>::set_apply_randomize(true);
+
     START_TIMER;
     Function<double,3> r = apply_only(op,f);
     END_TIMER("apply");
@@ -729,6 +732,7 @@ void test_coulomb(World& world) {
     world.gop.sum(nflop_sumsq,64);
     world.gop.min(nflop_min,64);
     world.gop.max(nflop_max,64);
+
     
     if (world.rank() == 0) {
         for (int i=0; i<64; i++) {
@@ -874,7 +878,7 @@ void test_qm(World& world) {
 
     functorT f(new QMtest(a,v,0.0));
     SeparatedConvolution<double_complex,1> G = qm_free_particle_propagator<1>(world, k, c, tstep, width);
-    G.doleaves = true;
+    //G.doleaves = true;
 
     functionT psi(factoryT(world).functor(f));
     psi.truncate();
@@ -1076,7 +1080,13 @@ int main(int argc, char**argv) {
         print(" ");
         print("Final tensor instance count", BaseTensor::get_instance_count());
     }
+
+    int id = MPI::COMM_WORLD.Get_rank();
+    int nproc = MPI::COMM_WORLD.Get_size();
+
     MPI::Finalize();
+    
+    gprofexit(id,nproc);
 
     return 0;
 }

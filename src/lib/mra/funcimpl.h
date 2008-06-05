@@ -1457,8 +1457,10 @@ namespace madness {
             //
             // Not yet computing actual tree depth of the tree.  Estimate as 10.
             // Also estimate 3^NDIM contributions per box
-            int nmax = 10;
-            double fac = std::pow(3.0,1.0*NDIM) * nmax;
+            //int nmax = 10;
+
+            double fac = 3.0; //std::pow(3.0,1.0*NDIM);
+
             double cnorm = c.normf();
             for (typename std::vector< Displacement<NDIM> >::const_iterator it=cdata.disp.begin(); 
                  it != cdata.disp.end(); 
@@ -1478,9 +1480,9 @@ namespace madness {
                         tensorT result = op->apply(key, d, c, tol/fac/cnorm);
                         //print("APPLY", key, d, opnorm, cnorm, result.normf());
                         // Screen here to reduce communication cost of negligible data
-                        //if (result.normf() > 0.3*tol) { // 0.3 is an empirical factor
+                        if (result.normf() > 0.3*tol/fac) { // 0.3 is an empirical factor
                             coeffs.send(dest, &nodeT::accumulate, result, coeffs, dest);
-                        //}
+                        }
                     }
                     else if (d.distsq >= 1) { // Assumes monotonic decay beyond nearest neighbor
                         break;
