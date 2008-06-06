@@ -47,6 +47,7 @@ namespace madness {
     unsigned long checksum_file(const char* filename);
     std::istream& position_stream(std::istream& f, const std::string& tag);
     std::string lowercase(const std::string& s);
+    void gprofexit(int id, int nproc);
 }
 
 #endif
