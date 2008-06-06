@@ -1086,7 +1086,7 @@ int main(int argc, char**argv) {
 
     MPI::Finalize();
     
-    gprofexit(id,nproc);
+    //gprofexit(id,nproc);
 
     return 0;
 }
