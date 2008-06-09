@@ -837,17 +837,19 @@ namespace madness {
                 op.ops[d] = ops[mu]->nonstandard(n, disp[d]);
             }
 
-            double newnorm = munorm2(n, op.ops);
+            double newnorm;
             if (disp.distsq < 2) {
                 newnorm = munorm(n, op.ops);
             }
             else {
+                newnorm = munorm2(n, op.ops);
                 for (int d=0; d<NDIM; d++)  {
-                    if (disp[d] < 2) newnorm *= 0.7;
+                    if (disp[d] == 0) newnorm *= 0.5;
+                    else if (std::abs(disp[d]) == 1) newnorm *= 0.8;
                 }
             }
 
-            //double oldnorm = munorm(n, op.ops);
+//             double oldnorm = munorm(n, op.ops);
 //             if (oldnorm > 1e-16 && (newnorm < 0.5*oldnorm || newnorm > 2.0*oldnorm) )
 //                 print("munorm", n, disp, mu, newnorm, oldnorm, newnorm/oldnorm);
 

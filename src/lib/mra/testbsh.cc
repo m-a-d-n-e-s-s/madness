@@ -115,7 +115,8 @@ void test_bsh(World& world) {
     f.truncate();
     f.reconstruct();
     print("before",f.size());
-    f.refine();
+    f.widen();
+    f.verify_tree();
     print("after ",f.size());
 
 //     for (int i=0; i<nn; i++) {

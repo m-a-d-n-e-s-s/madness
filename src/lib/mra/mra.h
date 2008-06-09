@@ -47,7 +47,7 @@
 #define FUNCTION_INSTANTIATE_3
 #define FUNCTION_INSTANTIATE_4
 
-static const bool VERIFY_TREE = true;
+static const bool VERIFY_TREE = false; //true;
 
 namespace madness {
     void startup(World& world, int argc, char** argv);
@@ -574,7 +574,13 @@ namespace madness {
             impl->standard(fence);
             if (fence && VERIFY_TREE) verify_tree();
         }
-        
+
+        void widen(bool fence = true) {
+            verify();
+            if (is_compressed()) reconstruct();
+            impl->widen(fence);
+            if (fence && VERIFY_TREE) verify_tree();
+        }
 
         /// Reconstructs the function, transforming into scaling function basis.  Possible non-blocking comm.
 
@@ -614,7 +620,6 @@ namespace madness {
             }
         }
 
-
         /// Process 0 prints a summary of all nodes in the tree (collective)
         void print_tree() const {
             if (impl) impl->print_tree();
@@ -626,7 +631,6 @@ namespace madness {
         void print_info() const {
             if (impl) impl->print_info();
         }
-
 
         /// Type conversion implies a deep copy.  No communication except for optional fence.
 

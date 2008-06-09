@@ -826,6 +826,88 @@ namespace madness {
         return sum*sqrt(FunctionDefaults<NDIM>::get_cell_volume());
     }
 
+
+    template <typename T, int NDIM>
+    Void FunctionImpl<T,NDIM>::recur_down_with_fill(const keyT& target, const keyT& key) {
+        typename dcT::iterator it = coeffs.find(key).get();
+
+        // a) Node does not exist ... forward request up with the correct target
+        // b) Node exists and has coefficients ... start downward recursion
+        // c) Node exists does not have children and does not have coefficients ... forward up
+        // d) Node exists has children and does not have coefficients ... foward down
+
+        if (it == coeffs.end() || (!it->second.has_coeff() && !it->second.has_children())) { // a and c
+            keyT parent = key.parent();
+            madness::print("rdwf: forwarding up ac", target, parent);
+            send(coeffs.owner(parent), &implT::recur_down_with_fill, target, parent);
+        }
+        else if (it->second.has_coeff()) { // b
+            // Have coefficients ... recur down to make all children telling
+            // only the appropriate branch to also recur further
+            tensorT s = tensorT(cdata.v2k);
+            s(cdata.s0) = it->second.coeff();
+            s = unfilter(s);
+            for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
+                const keyT& child = kit.key();
+                tensorT ss = copy(s(child_patch(child)));
+                madness::print("rdwf: inserting", child);
+                coeffs.insert(child,nodeT(ss,false));
+                if (child.level() != target.level() && target.is_child_of(child)) {
+                    send(coeffs.owner(child), &implT::recur_down_with_fill, target, child);
+                }                    
+            }
+            it->second.set_has_children(true);
+            it->second.clear_coeff();
+        }
+        else if (key.level() != (target.level()-1)) { // d
+            //it->second.set_has_children(true);
+            for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
+                const keyT& child = kit.key();
+                if (target.is_child_of(child)) {
+                    send(coeffs.owner(child), &implT::recur_down_with_fill, target, child);
+                    break;
+                }                    
+            }
+        }
+    
+        return None;
+    }
+
+    template <typename T, int NDIM>
+    Void FunctionImpl<T,NDIM>::ensure_exists(const keyT& key) {
+        if (!coeffs.probe(key)) {
+            keyT parent = key.parent();
+            // If the node does not exist this implies that it will
+            // be a leaf ... make it here so that we only send one
+            // request up the tree to make it.
+            coeffs.insert(key,nodeT(tensorT(),false));
+            //madness::print("ensure_exists: sending recur up from", key, "to", parent);
+            send(coeffs.owner(parent), &implT::recur_down_with_fill, key, parent);            
+        }
+        return None;
+    }
+
+
+    template <typename T, int NDIM>
+    void FunctionImpl<T,NDIM>::widen(bool fence) {
+        for(typename dcT::iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
+            const keyT& key = it->first;
+            const nodeT& node = it->second;
+            if (node.is_leaf()) {
+                for (int axis=0; axis<NDIM; axis++) {
+                    for (int step=-1; step<=1; step+=2) {
+                        keyT neigh = neighbor(key, axis, step);
+                        if (neigh.is_valid()) {
+                            send(coeffs.owner(neigh), &implT::ensure_exists, neigh);
+                        }
+                    }
+                }
+            }
+        }
+        if (fence) world.gop.fence();
+    }
+
+
 //     template <typename T, int NDIM>
 //     Void FunctionImpl<T,NDIM>::recursive_ensure_gradual(const keyT& neigh, const keyT& me) {
 //         // The neighbor (who has coefficients) sent this node (or a

@@ -1362,6 +1362,10 @@ namespace madness {
 //         // Ensures the function is gradually refined before application of an operator
 //         void ensure_gradual(bool fence);
 
+
+        // Widens the support of the tree by 1 in preparation for integral operator
+        void widen(bool fence);
+
         void reconstruct(bool fence) {
             // Must set true here so that successive calls without fence do the right thing
             nonstandard = compressed = false;
@@ -1679,6 +1683,9 @@ namespace madness {
     private:
         /// Assignment is not allowed ... not even possibloe now that we have reference members
         //FunctionImpl<T>& operator=(const FunctionImpl<T>& other);
+
+        Void ensure_exists(const keyT& key);
+        Void recur_down_with_fill(const keyT& target, const keyT& key);
     };
 
     namespace archive {
