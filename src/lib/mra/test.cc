@@ -38,6 +38,11 @@
 
 using namespace madness;
 
+template <typename T, int N>
+Cost lbcost(const Key<N>& key, const FunctionNode<T,N>& node) {
+  return 1;
+}
+
 double myfun(const double x[]) {
     double r2=0.0;
     for (int i=0; i < 3; i++)
@@ -121,10 +126,10 @@ int main(int argc, char**argv) {
         world.gop.fence();
 	double t4 = MPI::Wtime();
 
-	LoadBalImpl<double,3> lb(g);
+	LoadBalImpl<3> lb(g, lbcost<double,3>);
         world.gop.fence();
 	double t5 = MPI::Wtime();
-	FunctionDefaults<3>::pmap = lb.load_balance();
+	FunctionDefaults<3>::set_pmap(lb.load_balance());
         world.gop.fence();
 	double t6 = MPI::Wtime();
 	f = copy(g);
