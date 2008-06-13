@@ -533,6 +533,23 @@ void wst_munge_rho(int npoint, double *rho) {
     messageME("CoulombOp");
     // For now, no spin polarized
     _spinpol = false;
+    // Create Coulomb operator
+    _cop = CoulombOperatorPtr<double,3>(world, FunctionDefaults<3>::get_k(), 
+        1e-4, thresh);      
+  }
+  //*************************************************************************
+  
+  //*************************************************************************
+  DFTCoulombPeriodicOp::DFTCoulombPeriodicOp(World& world, double coeff,
+      double thresh) : EigSolverOp(world, coeff, thresh)
+  {
+    // Message for the matrix element output
+    messageME("CoulombOp");
+    // For now, no spin polarized
+    _spinpol = false;
+    // Create Coulomb operator
+    _cop = CoulombOperatorPtr<double,3>(world, FunctionDefaults<3>::get_k(), 
+        1e-4, thresh);      
   }
   //*************************************************************************
   
@@ -548,12 +565,23 @@ void wst_munge_rho(int npoint, double *rho) {
   funcT DFTCoulombOp::op_r(const funcT& rho, const funcT& psi)
   {
     double factor = (_spinpol) ? 1.0 : 2.0;
-    // Create Coulomb operator
-    SeparatedConvolution<double,3> cop = 
-      CoulombOperator<double,3>(world(), FunctionDefaults<3>::get_k(), 1e-4, thresh());      
     // Transform Coulomb operator into a function
     // Apply the Coulomb operator
-    funcT Vc = apply(cop, rho);
+    printf("Applying Coulomb operator ...\n\n");
+    funcT Vc = apply(*_cop, rho);
+    funcT rfunc = factor * Vc * psi;
+    return  rfunc;
+  }
+  //*************************************************************************
+  
+  //*************************************************************************
+  funcT DFTCoulombPeriodicOp::op_r(const funcT& rho, const funcT& psi)
+  {
+    double factor = (_spinpol) ? 1.0 : 2.0;
+    // Transform Coulomb operator into a function
+    // Apply the Coulomb operator
+    printf("Applying Coulomb operator ...\n\n");
+    funcT Vc = apply(*_cop, rho);
     funcT rfunc = factor * Vc * psi;
     return  rfunc;
   }
@@ -593,7 +621,7 @@ void wst_munge_rho(int npoint, double *rho) {
     ops.push_back(_xcfunc);
 
     // Create solver
-    _solver = new EigSolver(world, phis, eigs, ops, thresh);
+    _solver = new EigSolver(world, phis, eigs, ops, thresh, false);
     _solver->addObserver(this);
 
   }

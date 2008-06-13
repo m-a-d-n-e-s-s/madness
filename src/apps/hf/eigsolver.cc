@@ -11,10 +11,12 @@ namespace madness
 
   //***************************************************************************
   EigSolver::EigSolver(World& world, std::vector<funcT> phis, 
-      std::vector<double> eigs, std::vector<EigSolverOp*> ops, double thresh)
+      std::vector<double> eigs, std::vector<EigSolverOp*> ops, double thresh, 
+      bool periodic)
   : _phis(phis), _eigs(eigs), _ops(ops), _world(world), _thresh(thresh)
   {
     _rho = EigSolver::compute_rho(phis, world);
+    _periodic = periodic;
   }
   //***************************************************************************
   
@@ -124,6 +126,7 @@ namespace madness
         funcT psi = _phis[pi];
         funcT pfunc = FunctionFactory<double,3>(_world);
         // Loop through all ops
+        if (_world.rank() == 0) printf("Looping through the ops ...\n\n");
         for (unsigned int oi = 0; oi < _ops.size(); oi++)
         {
           EigSolverOp* op = _ops[oi];
@@ -133,12 +136,23 @@ namespace madness
           if (op->is_od()) pfunc += op->coeff() * op->op_o(_phis, psi);
         }
         pfunc.scale(-2.0).truncate(_thresh);
-        SeparatedConvolution<double,3> op = 
-          BSHOperator<double,3>(_world, sqrt(-2.0*_eigs[pi]), 
+        if (_world.rank() == 0) printf("Creating BSH operator ...\n\n");
+        SeparatedConvolution<double,3>* op = 0;
+        if (_periodic)
+        {
+          op = BSHOperatorPtr<double,3>(_world, sqrt(-2.0*_eigs[pi]), 
               FunctionDefaults<3>::get_k(), 1e-3, _thresh);      
+        }
+        else
+        {
+          op = BSHOperatorPtr<double,3>(_world, sqrt(-2.0*_eigs[pi]), 
+              FunctionDefaults<3>::get_k(), 1e-3, _thresh);      
+        }
         // Apply the Green's function operator (stubbed)
-        funcT tmp = apply(op, pfunc);
+          if (_world.rank() == 0) printf("Applying BSH operator ...\n\n");
+        funcT tmp = apply(*op, pfunc);
         // (Not sure whether we have to do this mask thing or not!)
+        if (_world.rank() == 0) printf("Gram-Schmidt ...\n\n");
         for (unsigned int pj = 0; pj < pi; ++pj)
         {
 //          // Make sure that pi != pj
@@ -150,6 +164,7 @@ namespace madness
           tmp -= overlap*psij;
         }
         // Update e
+        if (_world.rank() == 0) printf("Updating e ...\n\n");
         funcT r = tmp - psi;
         double norm = tmp.norm2();
         double eps_old = _eigs[pi];

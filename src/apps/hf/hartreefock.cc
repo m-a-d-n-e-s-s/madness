@@ -110,7 +110,7 @@ namespace madness
       ops.push_back(new HartreeFockExchangeOp(world, -1.0, thresh));
     }
     // Create solver
-    _solver = new EigSolver(world, phis, eigs, ops, thresh);
+    _solver = new EigSolver(world, phis, eigs, ops, thresh, false);
     _solver->addObserver(this);
   }
   //***************************************************************************
