@@ -10,7 +10,7 @@ TARGET_TO_MAKE = libHartreeFock
 
 # List all C++ source files (not headers).  Use CSRC and FTNSRC for
 # C (.c) and Fortran (.f) respectively
-CXXSRC = hartreefock.cc eigsolver.cc dft.cc
+CXXSRC = hartreefock.cc eigsolver.cc dft.cc test_lattice.cc
 CSRC = 
    
 # Data files that should be installed with the library [OPTIONAL]
@@ -28,3 +28,8 @@ include $(TOPDIR)/config/GlobalMakefile
 # You must define additional rules to link your test programs
 test_hf:	$(TEST1OBJ) $(THISLIBDEPEND) 
 	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ $(SYSLIBS) $(LTLINKBINOPTS)
+	
+test_lattice:	test_lattice.o $(THISLIBDEPEND) 
+	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ $(SYSLIBS) $(LTLINKBINOPTS)
+		
+	
