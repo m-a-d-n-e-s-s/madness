@@ -570,7 +570,12 @@ namespace madness {
         /// Returns the globally unique object ID
         const uniqueidT& id() const {
             return objid;
-        };
+        }
+
+        /// Returns a reference to the world
+        World& get_world() const {
+            return const_cast<WorldObject<Derived>*>(this)->world;
+        }
 
 
         /// Sends active message to derived class method "returnT (this->*memfun)()"
@@ -950,46 +955,46 @@ namespace madness {
 
         virtual ~WorldObject(){
             world.unregister_ptr(static_cast<Derived*>(this));
-        };
+        }
     };
 
     namespace archive {
-        template <class Archive, class Derived>
-        struct ArchiveLoadImpl<Archive,WorldObject<Derived>*> {
-            static inline void load(const Archive& ar, WorldObject<Derived>*& ptr) {
+        template <class Derived>
+        struct ArchiveLoadImpl<BufferInputArchive,WorldObject<Derived>*> {
+            static inline void load(const BufferInputArchive& ar, WorldObject<Derived>*& ptr) {
                 uniqueidT id;
                 ar & id;
                 World* world = World::world_from_id(id.get_world_id());
                 MADNESS_ASSERT(world);
                 ptr = world->ptr_from_id< WorldObject<Derived> >(id);
                 if (!ptr) MADNESS_EXCEPTION("WorldObj: remote operation attempting to use a locally uninitialized object",0);
-            };
+            }
         };
         
-        template <class Archive, class Derived>
-        struct ArchiveStoreImpl<Archive,WorldObject<Derived>*> {
-            static inline void store(const Archive& ar, const WorldObject<Derived>*const& ptr) {
+        template <class Derived>
+        struct ArchiveStoreImpl<BufferOutputArchive,WorldObject<Derived>*> {
+            static inline void store(const BufferOutputArchive& ar, const WorldObject<Derived>*const& ptr) {
                 ar & ptr->id();
-            };
+            }
         };
 
-        template <class Archive, class Derived>
-        struct ArchiveLoadImpl<Archive,const WorldObject<Derived>*> {
-            static inline void load(const Archive& ar, const WorldObject<Derived>*& ptr) {
+        template <class Derived>
+        struct ArchiveLoadImpl<BufferInputArchive,const WorldObject<Derived>*> {
+            static inline void load(const BufferInputArchive& ar, const WorldObject<Derived>*& ptr) {
                 uniqueidT id;
                 ar & id;
                 World* world = World::world_from_id(id.get_world_id());
                 MADNESS_ASSERT(world);
                 ptr = world->ptr_from_id< WorldObject<Derived> >(id);
                 if (!ptr) MADNESS_EXCEPTION("WorldObj: remote operation attempting to use a locally uninitialized object",0);
-            };
+            }
         };
         
-        template <class Archive, class Derived>
-        struct ArchiveStoreImpl<Archive,const WorldObject<Derived>*> {
-            static inline void store(const Archive& ar, const WorldObject<Derived>*const& ptr) {
+        template <class Derived>
+        struct ArchiveStoreImpl<BufferOutputArchive,const WorldObject<Derived>*> {
+            static inline void store(const BufferOutputArchive& ar, const WorldObject<Derived>*const& ptr) {
                 ar & ptr->id();
-            };
+            }
         };
 
     }

@@ -460,11 +460,11 @@ namespace madness {
             static const bool is_archive = true;
             static const bool is_input_archive = false;
             static const bool is_output_archive = false;
+            static const bool is_parallel_archive = false;
             BaseArchive() {
                 archive_initialize_type_names();
             };
         };
-        
         
         /// Base class for input archives
         class BaseInputArchive : public BaseArchive {

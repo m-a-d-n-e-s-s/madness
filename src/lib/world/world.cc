@@ -832,7 +832,7 @@ struct Node {
         isleaf = true;
         if (value > 0.25 && d.size()<4000) {
             isleaf = false;
-            World& world = d.world();
+            World& world = d.get_world();
             double ran = world.drand();
             key.foreach_child(do_random_insert(d,value*ran)); 
         }
@@ -965,7 +965,7 @@ void test12(World& world) {
     WorldContainer<int,double> d(world);
 
     // Everyone puts 100 distinct entries in the container
-    for (int i=0; i<100; i++) d.insert(me*100 + i, me*100.0+i);
+    for (int i=0; i<100; i++) d.insert(me*100 + i, me*100+i);
 
     world.gop.fence();
 
@@ -992,6 +992,59 @@ void test12(World& world) {
     if (world.rank() == 0) print("test12 (container archive I/O) OK");
 }
 
+void test13(World& world) {
+    // Basic functionality with 1 (default) writer
+    ParallelOutputArchive fout(world, "fred");
+    fout & 1.0 & "hello";
+    fout.close();
+
+    double v;
+    char s[6];
+    ParallelInputArchive fin(world, "fred");
+    fin & v & s;
+    fin.close();
+    fin.remove();
+
+    print("This is what I read", v, s);
+    world.gop.fence();
+
+    
+    // Store and load an archive with multiple writers
+
+    int nio = (world.size()-1)/2 + 1;
+    if (nio > 10) nio = 10;
+
+    print("nio",nio);
+
+    ProcessID me = world.rank();
+    WorldContainer<int,double> d(world);
+    // Everyone puts 100 distinct entries in the container
+    for (int i=0; i<100; i++) {
+        int key = me*100+i;
+        d.insert(key, double(key));
+    }
+
+    world.gop.fence();
+
+    fout.open(world,"fred",nio);
+    fout & d;
+    fout.close();
+
+    WorldContainer<int,double> c(world);
+    fin.open(world,"fred"); 
+    fin & c;
+
+    for (int i=0; i<100; i++) {
+        int key = me*100+i;
+        MADNESS_ASSERT(c[key] == key);
+    }
+
+    fin.close();
+    ParallelOutputArchive::remove(world, "fred");
+
+    print("Test13 OK");
+    world.gop.fence();
+}
 
 
 int main(int argc, char** argv) {
@@ -1012,6 +1065,7 @@ int main(int argc, char** argv) {
     world.gop.fence();
 
     try {
+
       DQueue<int>::self_test();
       test0(world);
       if (world.nproc() > 1) {
@@ -1030,6 +1084,7 @@ int main(int argc, char** argv) {
       test10(world);
       test11(world);
       test12(world);
+      test13(world);
     } catch (MPI::Exception e) {
         error("caught an MPI exception");
     } catch (madness::MadnessException e) {

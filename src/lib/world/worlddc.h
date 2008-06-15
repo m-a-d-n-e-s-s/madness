@@ -59,6 +59,8 @@ f) Do we need a global iterator?  Not yet for MRA
 
 */
 
+#include <world/parar.h>
+
 
 namespace madness {
         
@@ -696,7 +698,7 @@ namespace madness {
     /// than 100 bytes.  This can be relaxed as the need arises.
     template <typename keyT, 
               typename valueT>
-    class WorldContainer {
+    class WorldContainer : public ParallelSerializableObject {
     public:
         typedef WorldContainer<keyT,valueT> containerT;
         typedef WorldContainerImpl<keyT,valueT> implT;
@@ -773,7 +775,7 @@ namespace madness {
         }
         
         /// Returns the world associated with this container
-        World& world() const {
+        World& get_world() const {
             check_initialized();
             return p->world;
         }
@@ -1182,28 +1184,29 @@ namespace madness {
         }
         
         
-        /// (de)Serialize --- To/from anything *except* Buffer*Archive --- collective with fence
+        /// (de)Serialize --- *Local* data only to/from anything *except* Buffer*Archive and Parallel*Archive
+
+        /// Advisable for *you* to fence before and after this to ensure consistency
         template <typename Archive>
         void serialize(const Archive& ar) {
+            //
+            // !! If you change the format of this stream make sure that
+            // !! the parallel in/out archive below is compatible
+            //
             const long magic = 5881828; // Sitar Indian restaurant in Knoxville
             unsigned long count = 0;
             check_initialized();
-            world().gop.fence();   // No point serializing until all is quiet
 
-            // Each process simply serializes the local contents to/from the stream.
-            // It is up to the stream to figure out what happens next.
             if (Archive::is_output_archive) {
-                if (world().rank() == 0) ar & magic;
+                ar & magic;
                 for (iterator it=begin(); it!=end(); ++it) count++;
                 ar & count;
                 for (iterator it=begin(); it!=end(); ++it) ar & *it;
             }
             else {
                 long cookie;
-                if (world().rank() == 0) {
-                    ar & cookie;
-                    MADNESS_ASSERT(cookie == magic);
-                }
+                ar & cookie;
+                MADNESS_ASSERT(cookie == magic);
                 ar & count;
                 while (count--) {
                     pairT datum;
@@ -1211,7 +1214,6 @@ namespace madness {
                     insert(datum);
                 }
             }
-            world().gop.fence(); // Wait for all to complete
         }
 
         /// (de)Serialize --- !! ONLY for purpose of interprocess communication
@@ -1242,8 +1244,99 @@ namespace madness {
         virtual ~WorldContainer() {
             if (p) p->world.deferred_cleanup(p);
         }
-        
     };
+
+    namespace archive {
+        /// Write container to parallel archive
+
+        /// Each node (process) is served by a designated IO node.
+        /// The IO node has a binary local file archive to which is
+        /// first written a cookie and the number of clients.  The IO
+        /// node then loops thru all of its clients and in turn tells
+        /// each to write its data over an MPI stream, which is copied
+        /// directly to the output file.  The stream contents are then
+        /// cookie, #clients, foreach client (usual sequential archive).
+        template <class keyT, class valueT>
+        struct ArchiveStoreImpl< ParallelOutputArchive, WorldContainer<keyT,valueT> > {
+            static void store(const ParallelOutputArchive& ar, const WorldContainer<keyT,valueT>& t) {
+                const long magic = -5881828; // Sitar Indian restaurant in Knoxville (negative to indicate parallel!)
+                typedef WorldContainer<keyT,valueT> dcT;
+                typedef typename dcT::const_iterator iterator;
+                typedef typename dcT::pairT pairT;
+                World* world = ar.get_world();
+                ProcessID me = world->rank();
+                world->gop.fence();
+                if (ar.is_io_node()) {
+                    BinaryFstreamOutputArchive& localar = ar.local_archive();
+                    localar & magic & ar.num_io_clients();
+                    for (ProcessID p=0; p<world->size(); p++) {
+                        if (p == me) {
+                            localar & t;
+                        }
+                        else if (ar.io_node(p) == me) {
+                            world->mpi.Send(int(1),p); // Tell client to start sending
+                            MPIInputArchive source(*world, p);
+                            long cookie;
+                            unsigned long count;
+
+                            ArchivePrePostImpl<BinaryFstreamOutputArchive,dcT>::preamble_store(localar);
+
+                            source & cookie & count;
+                            localar & cookie & count;
+                            while (count--) {
+                                pairT datum;
+                                source & datum;
+                                localar & datum;
+                            }
+
+                            ArchivePrePostImpl<BinaryFstreamOutputArchive,dcT>::postamble_store(localar);
+                        }
+                    }
+                }
+                else {
+                    ProcessID p = ar.my_io_node();
+                    int flag;
+                    world->mpi.Recv(flag,p);
+                    MPIOutputArchive dest(*world, p);
+                    dest & t;
+                    dest.flush();
+                }
+                world->gop.fence();
+            }
+        };
+
+        template <class keyT, class valueT>
+        struct ArchiveLoadImpl< ParallelInputArchive, WorldContainer<keyT,valueT> > {
+            /// Read container from parallel archive
+
+            /// See store method above for format of file content.
+            /// !!! We presently ASSUME that the number of writers and readers are
+            /// the same.  This is frustrating but not a show stopper since you
+            /// can always run a separate job to copy to a different number.
+            /// 
+            /// The IO node simply reads all data and inserts entries.
+            static void load(const ParallelInputArchive& ar, WorldContainer<keyT,valueT>& t) {
+                const long magic = -5881828; // Sitar Indian restaurant in Knoxville (negative to indicate parallel!)
+                typedef WorldContainer<keyT,valueT> dcT;
+                typedef typename dcT::iterator iterator;
+                typedef typename dcT::pairT pairT;
+                World* world = ar.get_world();
+                world->gop.fence();
+                if (ar.is_io_node()) {
+                    long cookie;
+                    int nclient;
+                    BinaryFstreamInputArchive& localar = ar.local_archive();
+                    localar & cookie & nclient;
+                    MADNESS_ASSERT(cookie == magic);
+                    while(nclient--) {
+                        localar & t;
+                    }
+                }
+                world->gop.fence();
+            }
+        };
+    }
+
 }
 
 #endif

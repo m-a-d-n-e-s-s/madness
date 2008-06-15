@@ -607,6 +607,7 @@ namespace madness {
     };
 }
 
+
 // Order of these is important
 #include <world/worldam.h>
 #include <world/worldref.h>
@@ -614,6 +615,15 @@ namespace madness {
 #include <world/worldfut.h>
 #include <world/worldtask.h>
 #include <world/worldgop.h>
+#include <world/parar.h>
+#include <world/mpiar.h>
+namespace madness {
+    using archive::ParallelOutputArchive;
+    using archive::ParallelInputArchive;
+    using archive::MPIInputArchive;
+    using archive::MPIOutputArchive;
+    using archive::ParallelSerializableObject;
+}
 #include <world/worldobj.h>
 #include <world/worlddc.h>
 
