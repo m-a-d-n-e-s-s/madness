@@ -958,6 +958,47 @@ void test_plot(World& world) {
     if (world.rank() == 0) print("evaluation of cube/slice for plotting OK");
 }
 
+template <typename T, int NDIM>
+void test_io(World& world) {
+    if (world.rank() == 0) {
+        print("\nTest IO - type =", archive::get_type_name<T>(),", ndim =",NDIM,"\n");
+    }
+ 
+    typedef Vector<double,NDIM> coordT;
+    typedef SharedPtr< FunctionFunctorInterface<T,NDIM> > functorT;
+
+    FunctionDefaults<NDIM>::set_k(5);
+    FunctionDefaults<NDIM>::set_thresh(1e-10); // We want lots of boxes
+    FunctionDefaults<NDIM>::set_truncate_mode(0);
+    FunctionDefaults<NDIM>::set_refine(true);
+    FunctionDefaults<NDIM>::set_initial_level(3);
+    FunctionDefaults<NDIM>::set_cubic_cell(-10,10);
+
+    const coordT origin(0.0);
+    const double expnt = 10.0;
+    const double coeff = pow(2.0/PI,0.25*NDIM);
+    functorT functor(new Gaussian<T,NDIM>(origin, expnt, coeff));
+    Function<T,NDIM> f = FunctionFactory<T,NDIM>(world).functor(functor);
+
+    int nio = (world.size()-1)/2 + 1;
+    ParallelOutputArchive out(world, "mary", nio);
+    out & f;
+    out.close();
+
+    Function<T,NDIM> g;
+
+    ParallelInputArchive in(world, "mary", nio);
+    in & g;
+    in.close();
+    in.remove();
+
+    MADNESS_ASSERT((g-f).norm2() == 0.0);
+
+    if (world.rank() == 0) print("test_io OK");
+    world.gop.fence();
+}
+
+
 #define TO_STRING(s) TO_STRING2(s)
 #define TO_STRING2(s) #s
 
@@ -1010,6 +1051,7 @@ int main(int argc, char**argv) {
         test_diff<double,1>(world);
         test_op<double,1>(world);
         test_plot<double,1>(world);
+        test_io<double,1>(world);
 
         // stupid location for this test
         GenericConvolution1D<double,GaussianGenericFunctor<double> > gen(10,GaussianGenericFunctor<double>(100.0,100.0));
@@ -1026,6 +1068,7 @@ int main(int argc, char**argv) {
         test_diff<double_complex,1>(world);
         test_op<double_complex,1>(world);
         test_plot<double_complex,1>(world);
+        test_io<double_complex,1>(world);
 
         test_basic<double,2>(world);
         test_conv<double,2>(world);
@@ -1033,6 +1076,7 @@ int main(int argc, char**argv) {
         test_diff<double,2>(world);
         test_op<double,2>(world);
         test_plot<double,2>(world);
+        test_io<double,2>(world);
 
         test_basic<double,3>(world);
         test_conv<double,3>(world);
@@ -1041,6 +1085,7 @@ int main(int argc, char**argv) {
         test_op<double,3>(world);
         test_coulomb(world);
         test_plot<double,3>(world);
+        test_io<double,3>(world);
 
         //test_plot<double,4>(world); // slow unless reduce npt in test_plot
 
@@ -1081,8 +1126,8 @@ int main(int argc, char**argv) {
         print("Final tensor instance count", BaseTensor::get_instance_count());
     }
 
-    int id = MPI::COMM_WORLD.Get_rank();
-    int nproc = MPI::COMM_WORLD.Get_size();
+    //int id = MPI::COMM_WORLD.Get_rank();
+    //int nproc = MPI::COMM_WORLD.Get_size();
 
     MPI::Finalize();
     

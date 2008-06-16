@@ -1247,7 +1247,7 @@ namespace madness {
     };
 
     namespace archive {
-        /// Write container to parallel archive
+        /// Write container to parallel archive with optional fence
 
         /// Each node (process) is served by a designated IO node.
         /// The IO node has a binary local file archive to which is
@@ -1256,6 +1256,13 @@ namespace madness {
         /// each to write its data over an MPI stream, which is copied
         /// directly to the output file.  The stream contents are then
         /// cookie, #clients, foreach client (usual sequential archive).
+        ///
+        /// If ar.dofence() is true (default) fence is invoked before and
+        /// after the IO. The fence is optional but it is of course
+        /// necessary to be sure that all updates have completed
+        /// before doing IO, and that all IO has completed before
+        /// subsequent modifications. Also, there is always at least
+        /// some synchronization between a client and its IO server.
         template <class keyT, class valueT>
         struct ArchiveStoreImpl< ParallelOutputArchive, WorldContainer<keyT,valueT> > {
             static void store(const ParallelOutputArchive& ar, const WorldContainer<keyT,valueT>& t) {
@@ -1265,7 +1272,7 @@ namespace madness {
                 typedef typename dcT::pairT pairT;
                 World* world = ar.get_world();
                 ProcessID me = world->rank();
-                world->gop.fence();
+                if (ar.dofence()) world->gop.fence();
                 if (ar.is_io_node()) {
                     BinaryFstreamOutputArchive& localar = ar.local_archive();
                     localar & magic & ar.num_io_clients();
@@ -1301,7 +1308,7 @@ namespace madness {
                     dest & t;
                     dest.flush();
                 }
-                world->gop.fence();
+                if (ar.dofence()) world->gop.fence();
             }
         };
 
@@ -1321,7 +1328,7 @@ namespace madness {
                 typedef typename dcT::iterator iterator;
                 typedef typename dcT::pairT pairT;
                 World* world = ar.get_world();
-                world->gop.fence();
+                if (ar.dofence()) world->gop.fence();
                 if (ar.is_io_node()) {
                     long cookie;
                     int nclient;
@@ -1332,7 +1339,7 @@ namespace madness {
                         localar & t;
                     }
                 }
-                world->gop.fence();
+                if (ar.dofence()) world->gop.fence();
             }
         };
     }

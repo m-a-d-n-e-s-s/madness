@@ -132,7 +132,7 @@ namespace madness {
             bool fence=true);
 
     template <typename T, int NDIM>
-    class Function {
+    class Function : public ParallelSerializableObject {
 
         template<typename Q, int D>
         friend 
@@ -844,31 +844,39 @@ namespace madness {
 	}
 
 
-//         /// Replaces this function with one loaded from an archive using the default processor map ... collective operation
-//         template <typename Archive>
-//         void load(World& world, Archive& ar) {
-//             // Type checking since we are probably circumventing the
-//             // archive's own type checking
-//             long magic, id, ndim, k;
-//             ar & magic & id & ndim & k;
-//             MADNESS_ASSERT(magic == 7776768); // Mellow Mushroom Pizza tel.# in Knoxville
-//             MADNESS_ASSERT(id == TensorTypeData<T>::id);
-//             MADNESS_ASSERT(ndim == NDIM);
-            
-//             impl = new FunctionImpl<T,NDIM>(FunctionFactory(world).k(k).empty());
+        /// Replaces this function with one loaded from an archive using the default processor map
 
-//             impl->load(ar);
-//         }
+        /// Archive can be sequential or parallel.
+        /// 
+        /// The & operator for serializing will only work with parallel archives.
+        template <typename Archive>
+        void load(World& world, Archive& ar) {
+            // Type checking since we are probably circumventing the archive's own type checking
+            long magic, id, ndim, k;
+            ar & magic & id & ndim & k;
+            MADNESS_ASSERT(magic == 7776768); // Mellow Mushroom Pizza tel.# in Knoxville
+            MADNESS_ASSERT(id == TensorTypeData<T>::id);
+            MADNESS_ASSERT(ndim == NDIM);
+         
+            impl = SharedPtr<implT>(new implT(FunctionFactory<T,NDIM>(world).k(k).empty()));
+
+            impl->load(ar);
+        }
 
 
-//         /// Stores the function to an archive
-//         template <typename Archive>
-//         void store(Archive& ar) {
-//             // For type checking, etc.
-//             ar & long(7776768) & long(TensorTypeData<T>::id) & long(NDIM) & long(k());
-            
-//             impl->store(ar);
-//         }
+        /// Stores the function to an archive
+
+        /// Archive can be sequential or parallel.
+        /// 
+        /// The & operator for serializing will only work with parallel archives.
+        template <typename Archive>
+        void store(Archive& ar) const {
+            verify();
+            // For type checking, etc.
+            ar & long(7776768) & long(TensorTypeData<T>::id) & long(NDIM) & long(k());
+         
+            impl->store(ar);
+        }
 
 
 
@@ -1228,25 +1236,21 @@ namespace madness {
                 bool binary=true);
 
 
-//     namespace archive {
-//         template <class Archive, class T, int NDIM>
-//         struct ArchiveLoadImpl< Archive, Function<T,NDIM> > {
-//             static inline void load(const Archive& ar, Function<T,NDIM>& f) {
-//                 // This will only compile if ar is a PARALLEL archive and
-//                 // hence knows about world.  If it is a sequential archive
-//                 // you cannot use the simple \c ar&f notation and must
-//                 // instead use \c f.store(world,ar) directly.
-//                 f.load(ar.world(), ar);
-//             }
-//         };
-        
-//         template <class Archive, class T, int NDIM>
-//         struct ArchiveStoreImpl< Archive, FunctionImpl<T,NDIM> > {
-//             static inline void store(const Archive& ar, const FunctionImpl<T,NDIM>& ptr) {
-//                 f.store(ar);
-//             }
-//         };
-//     }
+    namespace archive {
+        template <class T, int NDIM>
+        struct ArchiveLoadImpl< ParallelInputArchive, Function<T,NDIM> > {
+            static inline void load(const ParallelInputArchive& ar, Function<T,NDIM>& f) {
+                f.load(*ar.get_world(), ar);
+            }
+        };
+     
+        template <class T, int NDIM>
+        struct ArchiveStoreImpl< ParallelOutputArchive, Function<T,NDIM> > {
+            static inline void store(const ParallelOutputArchive& ar, const Function<T,NDIM>& f) {
+                f.store(ar);
+            }
+        };
+    }
 
 
 }

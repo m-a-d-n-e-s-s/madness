@@ -48,11 +48,13 @@ namespace madness {
         
         /// Wraps an archive around a binary file stream for output
         class BinaryFstreamOutputArchive : public BaseOutputArchive {
+            static const std::size_t IOBUFSIZE = 4*1024*1024;
+            SharedPtr<char> iobuf;
             mutable std::ofstream os;
         public:
             BinaryFstreamOutputArchive(const char* filename = 0,
                                        std::ios_base::openmode mode = std::ios_base::binary | \
-                                       std::ios_base::out | std::ios_base::trunc) {
+                                       std::ios_base::out | std::ios_base::trunc) : iobuf(0) {
                 if (filename) open(filename, mode);
             }
             
@@ -66,12 +68,18 @@ namespace madness {
             void open(const char* filename,
                       std::ios_base::openmode mode = std::ios_base::binary | \
                       std::ios_base::out |  std::ios_base::trunc) {
+                iobuf = SharedPtr<char>(new char[IOBUFSIZE]);
                 os.open(filename, mode);
+                os.rdbuf()->pubsetbuf(iobuf, IOBUFSIZE);
+
                 store(ARCHIVE_COOKIE, strlen(ARCHIVE_COOKIE)+1);
             };
             
             void close() {
-                os.close();
+                if (iobuf) {
+                    os.close();
+                    iobuf = SharedPtr<char>(0);
+                }
             };
             
             void flush() {
@@ -82,9 +90,13 @@ namespace madness {
         
         /// Wraps an archive around a binary file stream for input
         class BinaryFstreamInputArchive : public BaseInputArchive {
+            static const std::size_t IOBUFSIZE = 4*1024*1024;
+            SharedPtr<char> iobuf;
             mutable std::ifstream is;
         public:
-            BinaryFstreamInputArchive(const char* filename = 0, std::ios_base::openmode mode = std::ios_base::binary | std::ios_base::in)  {
+            BinaryFstreamInputArchive(const char* filename = 0, std::ios_base::openmode mode = std::ios_base::binary | std::ios_base::in) 
+                : iobuf(0)
+            {
                 if (filename) open(filename, mode);
             }
             
@@ -96,7 +108,9 @@ namespace madness {
             }
             
             void open(const char* filename,  std::ios_base::openmode mode = std::ios_base::binary | std::ios_base::in) {
+                iobuf = SharedPtr<char>(new char[IOBUFSIZE]);
                 is.open(filename, mode);
+                is.rdbuf()->pubsetbuf(iobuf, IOBUFSIZE);
                 char cookie[255];
                 int n = strlen(ARCHIVE_COOKIE)+1;
                 load(cookie, n);
@@ -105,7 +119,10 @@ namespace madness {
             };
             
             void close() {
-                is.close();
+                if (iobuf) {
+                    is.close();
+                    iobuf = SharedPtr<char>(0);
+                }
             };
         };
     }

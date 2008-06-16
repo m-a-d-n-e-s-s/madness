@@ -23,13 +23,14 @@ namespace madness {
             World* world;       //< Yep, the world.
             mutable Archive ar; //< The local archive
             int nio;            //< Number of IO nodes (always includes node zero)
+            bool do_fence;      //< If true (default) read/write of parallel objects fence before and after IO
             char fname[256];    //< Name of the archive
             int nclient;        //< Number of clients of this node including self.  Zero if not IO node.
 
         public:
             static const bool is_parallel_archive = true;
 
-            BaseParallelArchive() : world(0), ar(), nio(0) {}
+            BaseParallelArchive() : world(0), ar(), nio(0), do_fence(true) {}
 
             /// Returns the process doing IO for given node
 
@@ -72,10 +73,13 @@ namespace madness {
             /// fewer processes originally used to write it.  If you
             /// want to fix this have a look in worlddc.h for the only
             /// spot that currently needs changing to make that work.
+            ///
+            /// The default number of IO nodes is one and there is an
+            /// arbitrary maximum of 50 set.
             void open(World& world, const char* filename, int nwriter=1) {
                 this->world = &world;
                 nio = nwriter;
-                if (nio > 100) nio = 100; // Sanity?
+                if (nio > 50) nio = 50; // Sanity?
                 if (nio > world.size()) nio = world.size();
 
                 MADNESS_ASSERT(filename);
@@ -150,6 +154,15 @@ namespace madness {
             void remove() {
                 MADNESS_ASSERT(world);
                 remove(*world, fname);
+            }
+
+
+            bool dofence() const {
+                return this->do_fence;
+            }
+
+            void set_dofence(bool dofence) {
+                this->dofence = do_fence;
             }
         };
 
