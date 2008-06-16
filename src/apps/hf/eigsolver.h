@@ -8,14 +8,14 @@ namespace madness
 {
 //***************************************************************************
 // TYPEDEFS
-typedef SharedPtr< FunctionFunctorInterface<double,3> > functorT;
-typedef Function<double,3> funcT;
 typedef Vector<double,3> coordT;
 //***************************************************************************
 
 //***************************************************************************
+template <typename T>
 class IEigSolverObserver
 {
+  typedef Function<T,3> funcT;
 public:
   virtual void iterateOutput(const std::vector<funcT>& phis,
       const std::vector<double>& eigs, const funcT& rho, const int& iter) = 0;
@@ -25,8 +25,11 @@ public:
 //***************************************************************************
 
 //***************************************************************************
+template <typename T>
 class EigSolverOp
 {
+  // Typedef's
+  typedef Function<T,3> funcT;
 public:
   //*************************************************************************
   // Constructor
@@ -53,7 +56,7 @@ public:
   // Orbital-dependent portion of operator
   virtual funcT op_o(const std::vector<funcT>& phis, const funcT& psi)
   {
-    funcT func = FunctionFactory<double,3>(_world);
+    funcT func = FunctionFactory<T,3>(_world);
     return func;
   }
   //*************************************************************************
@@ -62,7 +65,7 @@ public:
   // Density-dependent portion of operator
   virtual funcT op_r(const funcT& rho, const funcT& psi)
   {
-    funcT func = FunctionFactory<double,3>(_world);
+    funcT func = FunctionFactory<T,3>(_world);
     return func;
   }
   //*************************************************************************
@@ -124,13 +127,16 @@ private:
 //***************************************************************************
 
 //***************************************************************************
+template <typename T>
 class EigSolver
 {
 public:
+  // Typedef's
+  typedef Function<T,3> funcT;
   //*************************************************************************
   // Constructor
   EigSolver(World& world, std::vector<funcT> phis, std::vector<double> eigs,
-      std::vector<EigSolverOp*> ops, double thresh, bool periodic);
+      std::vector<EigSolverOp<T>*> ops, double thresh, bool periodic);
   //*************************************************************************
 
   //*************************************************************************
@@ -171,14 +177,14 @@ public:
   //*************************************************************************
 
   //*************************************************************************
-  void addObserver(IEigSolverObserver* obs)
+  void addObserver(IEigSolverObserver<T>* obs)
   {
     _obs.push_back(obs);
   }
   //*************************************************************************
 
   //*************************************************************************
-  double matrix_element(const funcT& phii, const funcT& phij);
+  T matrix_element(const funcT& phii, const funcT& phij);
   //*************************************************************************
 
   //*************************************************************************
@@ -202,7 +208,7 @@ private:
 
   //*************************************************************************
   // List of the ops
-  std::vector<EigSolverOp*> _ops;
+  std::vector< EigSolverOp<T>* > _ops;
   //*************************************************************************
 
   //*************************************************************************
@@ -215,7 +221,7 @@ private:
 
   //*************************************************************************
   // List of the ops
-  std::vector<IEigSolverObserver*> _obs;
+  std::vector<IEigSolverObserver<T>*> _obs;
   //*************************************************************************
 
   //*************************************************************************

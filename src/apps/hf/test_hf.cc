@@ -326,14 +326,14 @@ void test_hf_he(World& world)
   cout << "Creating wavefunction psi ..." << endl;
   Function<double,3> psi = FunctionFactory<double,3>(world).f(psi_func_he);
   psi.scale(1.0/psi.norm2());
-  std::vector<funcT> phis;
+  std::vector<Function<double,3> > phis;
   std::vector<double> eigs;
   phis.push_back(psi);
   eigs.push_back(-0.6);
   printf("Norm of psi = %.5f\n\n", psi.norm2());
   // Create DFT object
   if (world.rank() == 0) cout << "Creating DFT object ..." << endl;
-  DFT dftcalc(world, Vnuc, phis, eigs, thresh);
+  DFT<double> dftcalc(world, Vnuc, phis, eigs, thresh);
   if (world.rank() == 0) cout << "Running DFT calculation ..." << endl;
   dftcalc.solve(10);
 //  HartreeFock hf(world, Vnuc, phis, eigs, true, true, thresh);
@@ -393,7 +393,7 @@ void test_hf_be(World& world)
   //if (world.rank() == 0) printf("Norm of psi2 = %.5f\n\n", psi2.norm2());
   printf("Norm of psi2 = %.5f\n\n", psi2.norm2());
   // Create list of wavefunctions
-  std::vector<funcT> phis;
+  std::vector<Function<double,3> > phis;
   phis.push_back(psi1);
   phis.push_back(psi2);
   // Creat list of eigenvalues
@@ -403,7 +403,7 @@ void test_hf_be(World& world)
   // Create HartreeFock object
   if (world.rank() == 0) cout << "Creating DFT object..." << endl;
   //HartreeFock hf(world, Vnuc, phis, eigs, true, true, thresh);
-  DFT dftcalc(world, Vnuc, phis, eigs, thresh);
+  DFT<double> dftcalc(world, Vnuc, phis, eigs, thresh);
   if (world.rank() == 0) cout << "Running DFT object..." << endl;
   dftcalc.solve(20);
   //hf.hartree_fock(20);

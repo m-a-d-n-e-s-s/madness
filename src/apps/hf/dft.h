@@ -11,15 +11,11 @@ namespace madness
 {
     
   //***************************************************************************
-  // TYPEDEFS
-  typedef SharedPtr< FunctionFunctorInterface<double,3> > functorT;
-  typedef Function<double,3> funcT;
-  typedef Vector<double,3> coordT;
-  //***************************************************************************
-
-  //***************************************************************************
-  class DFTNuclearPotentialOp : public EigSolverOp
+  template <typename T>
+  class DFTNuclearPotentialOp : public EigSolverOp<T>
   {
+    // Typedef's
+    typedef Function<T,3> funcT;
   public:
     //*************************************************************************
     // Constructor
@@ -48,8 +44,11 @@ namespace madness
   //***************************************************************************
 
   //***************************************************************************
-  class DFTCoulombOp : public EigSolverOp
+  template <typename T>
+  class DFTCoulombOp : public EigSolverOp<T>
   {
+    // Typedef's
+    typedef Function<T,3> funcT;
   public:
     //*************************************************************************
     // Constructor
@@ -82,8 +81,11 @@ namespace madness
   //***************************************************************************
 
   //***************************************************************************
-  class DFTCoulombPeriodicOp : public EigSolverOp
+  template <typename T>
+  class DFTCoulombPeriodicOp : public EigSolverOp<T>
   {
+    // Typedef's
+    typedef Function<T,3> funcT;
   public:
     //*************************************************************************
     // Constructor
@@ -116,8 +118,11 @@ namespace madness
   //***************************************************************************
 
   //***************************************************************************
-  class XCFunctionalLDA : public EigSolverOp
+  template <typename T>
+  class XCFunctionalLDA : public EigSolverOp<T>
   {
+    // Typedef's
+    typedef Function<T,3> funcT;
   public:
     //*************************************************************************
     // Constructor
@@ -141,8 +146,11 @@ namespace madness
   //***************************************************************************
 
   //***************************************************************************
-  class DFT : public IEigSolverObserver
+  template <typename T>
+  class DFT : public IEigSolverObserver<T>
   {
+    // Typedef's
+    typedef Function<T,3> funcT;
   public:
     //*************************************************************************
     // Constructor
@@ -189,7 +197,7 @@ namespace madness
      //***************************************************************************
 
      //*************************************************************************
-     double matrix_element(const funcT& phii, const funcT& phij)
+     T matrix_element(const funcT& phii, const funcT& phij)
      {
        return _solver->matrix_element(phii, phij);
      }
@@ -239,7 +247,7 @@ namespace madness
 
       //*************************************************************************
       // Eigenvalue solver
-      EigSolver* _solver;
+      EigSolver<T>* _solver;
       //*************************************************************************
       
       //*************************************************************************
@@ -257,7 +265,7 @@ namespace madness
       //*************************************************************************
       // Exchange-correlation functional. Needed to compute the energy Exc[rho]
       // Gets deleted my the EigSolver class during the EigSolver destructor
-      EigSolverOp* _xcfunc;
+      EigSolverOp<T>* _xcfunc;
       //*************************************************************************
 
       //*************************************************************************

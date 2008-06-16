@@ -10,8 +10,9 @@ namespace madness
 {
 
   //***************************************************************************
-  EigSolver::EigSolver(World& world, std::vector<funcT> phis, 
-      std::vector<double> eigs, std::vector<EigSolverOp*> ops, double thresh, 
+  template <typename T>
+  EigSolver<T>::EigSolver(World& world, std::vector<funcT> phis, 
+      std::vector<double> eigs, std::vector<EigSolverOp<T>*> ops, double thresh, 
       bool periodic)
   : _phis(phis), _eigs(eigs), _ops(ops), _world(world), _thresh(thresh)
   {
@@ -21,10 +22,11 @@ namespace madness
   //***************************************************************************
   
   //***************************************************************************
-      EigSolver::~EigSolver()
+  template <typename T>
+  EigSolver<T>::~EigSolver()
   {
     // Eigsolver is responsible for deleting the ops
-    for (std::vector<EigSolverOp*>::iterator it = _ops.begin(); it != _ops.end(); 
+    for (typename std::vector< EigSolverOp<T>* >::iterator it = _ops.begin(); it != _ops.end(); 
       it++) delete (*it);
     _ops.clear();
     // Clear eigenvectors
@@ -37,12 +39,14 @@ namespace madness
   //***************************************************************************
   
   //***************************************************************************
-  funcT EigSolver::compute_rho(std::vector<funcT> phis, const World& world)
+  template <typename T>
+  Function<T,3> EigSolver<T>::compute_rho(typename std::vector<funcT> phis, const World& world)
   {
     // Electron density
-    funcT rho = FunctionFactory<double,3>(const_cast<World&>(world));
+    funcT rho = FunctionFactory<T,3>(const_cast<World&>(world));
     // Loop over all wavefunctions to compute density
-    for (std::vector<funcT>::const_iterator pj = phis.begin(); pj != phis.end(); ++pj)
+    for (typename std::vector<funcT>::const_iterator pj = phis.begin();
+      pj != phis.end(); ++pj)
     {
       // Get phi(j) from iterator
       const funcT& phij = (*pj);
@@ -56,7 +60,8 @@ namespace madness
   //***************************************************************************
 
   //***************************************************************************
-  double EigSolver::matrix_element(const funcT& phii, const funcT& phij)
+  template <typename T>
+  T EigSolver<T>::matrix_element(const funcT& phii, const funcT& phij)
   {
     double value = 0.0;
     // Kinetic energy operator
@@ -69,7 +74,7 @@ namespace madness
     // Loop through all ops
     for (unsigned int oi = 0; oi < _ops.size(); oi++)
     {
-      EigSolverOp* op = _ops[oi];
+      EigSolverOp<T>* op = _ops[oi];
       // Operate with density-dependent operator
       if (op->is_rd()) value += op->coeff() * phii.inner(op->op_r(_rho, phij));
       // Operate with orbital-dependent operator
@@ -80,9 +85,10 @@ namespace madness
   //***************************************************************************
 
   //***************************************************************************
-  void EigSolver::print_matrix_elements(const funcT& phii, const funcT& phij)
+  template <typename T>
+  void EigSolver<T>::print_matrix_elements(const funcT& phii, const funcT& phij)
   {
-    double value = 0.0;
+    T value = 0.0;
     // Kinetic energy operator
     for (int axis = 0; axis < 3; axis++)
     {
@@ -100,7 +106,7 @@ namespace madness
     for (unsigned int oi = 0; oi < _ops.size(); oi++)
     {
       value = 0.0;
-      EigSolverOp* op = _ops[oi];
+      EigSolverOp<T>* op = _ops[oi];
       // Operate with density-dependent operator
       if (op->is_rd()) value += op->coeff() * phii.inner(op->op_r(_rho, phij));
       // Operate with orbital-dependent operator
@@ -115,7 +121,8 @@ namespace madness
   //***************************************************************************
 
   //***************************************************************************
-  void EigSolver::solve(int maxits)
+  template <typename T>
+  void EigSolver<T>::solve(int maxits)
   {
     for (int it = 0; it < maxits; it++)
     {
@@ -124,12 +131,12 @@ namespace madness
       {
         // Get psi from collection
         funcT psi = _phis[pi];
-        funcT pfunc = FunctionFactory<double,3>(_world);
+        funcT pfunc = FunctionFactory<T,3>(_world);
         // Loop through all ops
         if (_world.rank() == 0) printf("Looping through the ops ...\n\n");
         for (unsigned int oi = 0; oi < _ops.size(); oi++)
         {
-          EigSolverOp* op = _ops[oi];
+          EigSolverOp<T>* op = _ops[oi];
           // Operate with density-dependent operator
           if (op->is_rd()) pfunc += op->coeff() * op->op_r(_rho, psi);
           // Operate with orbital-dependent operator
@@ -137,16 +144,16 @@ namespace madness
         }
         pfunc.scale(-2.0).truncate(_thresh);
         if (_world.rank() == 0) printf("Creating BSH operator ...\n\n");
-        SeparatedConvolution<double,3>* op = 0;
+        SeparatedConvolution<T,3>* op = 0;
         if (_periodic)
         {
-          op = BSHOperatorPtr<double,3>(_world, sqrt(-2.0*_eigs[pi]), 
-              FunctionDefaults<3>::get_k(), 1e-3, _thresh);      
+          op = BSHOperatorPtr<T,3>(_world, sqrt(-2.0*_eigs[pi]), 
+              FunctionDefaults<3>::get_k(), 1e-4, _thresh);      
         }
         else
         {
-          op = BSHOperatorPtr<double,3>(_world, sqrt(-2.0*_eigs[pi]), 
-              FunctionDefaults<3>::get_k(), 1e-3, _thresh);      
+          op = BSHOperatorPtr<T,3>(_world, sqrt(-2.0*_eigs[pi]), 
+              FunctionDefaults<3>::get_k(), 1e-4, _thresh);      
         }
         // Apply the Green's function operator (stubbed)
           if (_world.rank() == 0) printf("Applying BSH operator ...\n\n");
@@ -196,7 +203,7 @@ namespace madness
 //      if (_world.rank() == 0) printf("Computing new density for it == #%d\n\n", it);
       _rho = EigSolver::compute_rho(_phis, _world);
       // Output to observables
-      for (std::vector<IEigSolverObserver*>::iterator itr = _obs.begin(); itr
+      for (typename std::vector<IEigSolverObserver<T>*>::iterator itr = _obs.begin(); itr
         != _obs.end(); ++itr)
       {
         (*itr)->iterateOutput(_phis, _eigs, _rho, it);
@@ -204,4 +211,10 @@ namespace madness
     }
   }
   //***************************************************************************
+
+  //***************************************************************************
+  template class EigSolver<double>;
+  //***************************************************************************
 }
+
+

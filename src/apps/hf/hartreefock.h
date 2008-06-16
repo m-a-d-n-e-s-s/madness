@@ -11,15 +11,11 @@ namespace madness
 {
     
   //***************************************************************************
-  // TYPEDEFS
-  typedef SharedPtr< FunctionFunctorInterface<double,3> > functorT;
-  typedef Function<double,3> funcT;
-  typedef Vector<double,3> coordT;
-  //***************************************************************************
-
-  //***************************************************************************
-  class HartreeFockNuclearPotentialOp : public EigSolverOp
+  template <typename T>
+  // Typedef's
+  class HartreeFockNuclearPotentialOp : public EigSolverOp<T>
   {
+    typedef Function<T,3> funcT;
   public:
     //*************************************************************************
     // Constructor
@@ -48,8 +44,11 @@ namespace madness
   //***************************************************************************
 
   //***************************************************************************
-  class HartreeFockCoulombOp : public EigSolverOp
+  template <typename T>
+  // Typedef's
+  class HartreeFockCoulombOp : public EigSolverOp<T>
   {
+    typedef Function<T,3> funcT;
   public:
     //*************************************************************************
     // Constructor
@@ -74,9 +73,12 @@ namespace madness
   //***************************************************************************
 
   //***************************************************************************
-  class HartreeFockExchangeOp : public EigSolverOp
+  template <typename T>
+  // Typedef's
+  class HartreeFockExchangeOp : public EigSolverOp<T>
   {
   public:
+    typedef Function<T,3> funcT;
     //*************************************************************************
     // Constructor
     HartreeFockExchangeOp(World& world, double coeff, double thresh);
@@ -100,10 +102,11 @@ namespace madness
   //***************************************************************************
 
   //***************************************************************************
-  class HartreeFock : public IEigSolverObserver
+  template <typename T>
+  class HartreeFock : public IEigSolverObserver<T>
   {
   public:
-  
+    typedef Function<T,3> funcT;
     //*************************************************************************
     // Constructor
     HartreeFock(World& world, funcT V, std::vector<funcT> phis, 
@@ -146,7 +149,7 @@ namespace madness
     //*************************************************************************
 
     //*************************************************************************
-    double matrix_element(const funcT& phii, const funcT& phij)
+    T matrix_element(const funcT& phii, const funcT& phij)
     {
       return _solver->matrix_element(phii, phij);
     }
@@ -219,7 +222,7 @@ private:
 
     //*************************************************************************
     // Eigenvalue solver
-    EigSolver* _solver;
+    EigSolver<T>* _solver;
     //*************************************************************************
     
     //*************************************************************************

@@ -6,36 +6,40 @@ namespace madness
 {
 
   //*************************************************************************
-  HartreeFockNuclearPotentialOp::HartreeFockNuclearPotentialOp(World& world,
+  template <typename T>
+  HartreeFockNuclearPotentialOp<T>::HartreeFockNuclearPotentialOp(World& world,
     funcT V, double coeff, double thresh) :
-  EigSolverOp(world, coeff, thresh)
+  EigSolverOp<T>(world, coeff, thresh)
   {
     // Message for the matrix element output
-    messageME("HartreeFockNuclearPotentialOp");
+    this->messageME("HartreeFockNuclearPotentialOp");
     _V = V;
   }
   //*************************************************************************
 
   //*************************************************************************
-  HartreeFockCoulombOp::HartreeFockCoulombOp(World& world, double coeff,
-      double thresh) : EigSolverOp(world, coeff, thresh)
+  template <typename T>
+  HartreeFockCoulombOp<T>::HartreeFockCoulombOp(World& world, double coeff,
+      double thresh) : EigSolverOp<T>(world, coeff, thresh)
   {
     // Message for the matrix element output
-    messageME("HartreeFockCoulombOp");
+    this->messageME("HartreeFockCoulombOp");
   }
   //*************************************************************************
   
   //*************************************************************************
-  HartreeFockExchangeOp::HartreeFockExchangeOp(World& world, double coeff,
-      double thresh) : EigSolverOp(world, coeff, thresh)
+  template <typename T>
+  HartreeFockExchangeOp<T>::HartreeFockExchangeOp(World& world, double coeff,
+      double thresh) : EigSolverOp<T>(world, coeff, thresh)
   {
     // Message for the matrix element output
-    messageME("HartreeFockExchangeOp");
+    this->messageME("HartreeFockExchangeOp");
   }
   //*************************************************************************
   
   //*************************************************************************
-  funcT HartreeFockNuclearPotentialOp::op_r(const funcT& rho, const funcT& psi)
+  template <typename T>
+  Function<T,3> HartreeFockNuclearPotentialOp<T>::op_r(const funcT& rho, const funcT& psi)
   {
     funcT rfunc = _V*psi;
     return rfunc;
@@ -43,11 +47,12 @@ namespace madness
   //*************************************************************************
 
   //*************************************************************************
-  funcT HartreeFockCoulombOp::op_r(const funcT& rho, const funcT& psi)
+  template <typename T>
+  Function<T,3> HartreeFockCoulombOp<T>::op_r(const funcT& rho, const funcT& psi)
   {
     // Create Coulomb operator
-    SeparatedConvolution<double,3> cop = 
-      CoulombOperator<double,3>(world(), FunctionDefaults<3>::get_k(), 1e-4, thresh());      
+    SeparatedConvolution<T,3> cop = 
+      CoulombOperator<T,3>(this->world(), FunctionDefaults<3>::get_k(), 1e-4, this->thresh());      
     // Transform Coulomb operator into a function
 //    if (isPrintingNode()) printf("rho.norm2() = %.5f\n\n", rho.norm2()); 
 //    if (isPrintingNode()) printf("Applying Coulomb operator to density ...\n\n");
@@ -61,16 +66,17 @@ namespace madness
   //*************************************************************************
   
   //*************************************************************************
-  funcT HartreeFockExchangeOp::op_o(const std::vector<funcT>& phis, const funcT& psi)
+  template <typename T>
+  Function<T,3> HartreeFockExchangeOp<T>::op_o(const std::vector<funcT>& phis, const funcT& psi)
   {
     // Return value
-    funcT rfunc = FunctionFactory<double,3>(world());
+    funcT rfunc = FunctionFactory<T,3>(this->world());
     // Create Coulomb operator
-    SeparatedConvolution<double,3> cop = CoulombOperator<double, 3>(world(),
-        FunctionDefaults<3>::get_k(), 1e-4, thresh());
+    SeparatedConvolution<T,3> cop = CoulombOperator<T, 3>(this->world(),
+        FunctionDefaults<3>::get_k(), 1e-4, this->thresh());
     // Use the psi and pj wavefunctions to build a product so that the K 
     // operator can be applied to the wavefunction indexed by pj, NOT PSI.
-    for (std::vector<funcT>::const_iterator pj = phis.begin(); pj != phis.end(); ++pj)
+    for (typename std::vector<funcT>::const_iterator pj = phis.begin(); pj != phis.end(); ++pj)
     {
       // Get phi(j) from iterator
       const funcT& phij = (*pj);
@@ -78,7 +84,7 @@ namespace madness
       funcT prod = phij*psi;
 //      if (isPrintingNode()) printf("prod.norm2() = %.5f\n\n", prod.norm2());
       // Transform Coulomb operator into a function (stubbed)
-      prod.truncate(thresh());
+      prod.truncate(this->thresh());
       funcT Vex = apply(cop, prod);
 //      if (isPrintingNode()) printf("Vex.norm2() = %.5f\n\n", Vex.norm2());
       // NOTE that the index is j.
@@ -90,47 +96,51 @@ namespace madness
   //*************************************************************************
   
   //*************************************************************************
-  HartreeFock::HartreeFock(World& world, funcT V, std::vector<funcT> phis,
+  template <typename T>
+  HartreeFock<T>::HartreeFock(World& world, funcT V, std::vector<funcT> phis,
     std::vector<double> eigs, bool bCoulomb, bool bExchange, double thresh)
    : _world(world), _V(V), _thresh(thresh)
   {
     _bCoulomb = bCoulomb;
     _bExchange = bExchange;
     // Create ops list 
-    std::vector<EigSolverOp*> ops;
+    std::vector<EigSolverOp<T>*> ops;
     // Add nuclear potential to ops list
-    ops.push_back(new HartreeFockNuclearPotentialOp(world, V, 1.0, thresh));
+    ops.push_back(new HartreeFockNuclearPotentialOp<T>(world, V, 1.0, thresh));
     // Check for coulomb and exchange, and add as appropriate
     if (bCoulomb)
     {
-      ops.push_back(new HartreeFockCoulombOp(world, 2.0, thresh));
+      ops.push_back(new HartreeFockCoulombOp<T>(world, 2.0, thresh));
     }
     if (bExchange)
     {
-      ops.push_back(new HartreeFockExchangeOp(world, -1.0, thresh));
+      ops.push_back(new HartreeFockExchangeOp<T>(world, -1.0, thresh));
     }
     // Create solver
-    _solver = new EigSolver(world, phis, eigs, ops, thresh, false);
+    _solver = new EigSolver<T>(world, phis, eigs, ops, thresh, false);
     _solver->addObserver(this);
   }
   //***************************************************************************
   
   //***************************************************************************
-  HartreeFock::~HartreeFock()
+  template <typename T>
+  HartreeFock<T>::~HartreeFock()
   {
     delete _solver;
   }
   //***************************************************************************
   
   //***************************************************************************
-  void HartreeFock::hartree_fock(int maxits)
+  template <typename T>
+  void HartreeFock<T>::hartree_fock(int maxits)
   {
     _solver->solve(maxits);
   }
   //***************************************************************************
 
   //***************************************************************************
-  double HartreeFock::calculate_ke_sp(funcT psi)
+  template <typename T>
+  double HartreeFock<T>::calculate_ke_sp(funcT psi)
   {
     double kenergy = 0.0;
     for (int axis = 0; axis < 3; axis++)
@@ -143,7 +153,8 @@ namespace madness
   //***************************************************************************
 
   //***************************************************************************
-  double HartreeFock::calculate_pe_sp(funcT psi)
+  template <typename T>
+  double HartreeFock<T>::calculate_pe_sp(funcT psi)
   {
     funcT vpsi = _V*psi;
     return vpsi.inner(psi);
@@ -151,16 +162,17 @@ namespace madness
   //***************************************************************************
 
   //***************************************************************************
-  double HartreeFock::calculate_coulomb_energy(const std::vector<funcT>& phis, const funcT& psi)
+  template <typename T>
+  double HartreeFock<T>::calculate_coulomb_energy(const std::vector<funcT>& phis, const funcT& psi)
   {
     if (include_coulomb())
     {
       // Electron density
-      funcT density = FunctionFactory<double,3>(_world);
+      funcT density = FunctionFactory<T,3>(_world);
       // Create Coulomb operator
-      SeparatedConvolution<double,3> op = 
-        CoulombOperator<double,3>(_world, FunctionDefaults<3>::get_k(), 1e-4, _thresh);      
-      for (std::vector<funcT>::const_iterator pj = phis.begin(); pj != phis.end(); ++pj)
+      SeparatedConvolution<T,3> op = 
+        CoulombOperator<T,3>(_world, FunctionDefaults<3>::get_k(), 1e-4, _thresh);      
+      for (typename std::vector<funcT>::const_iterator pj = phis.begin(); pj != phis.end(); ++pj)
       {
         // Get phi(j) from iterator
         const funcT& phij = (*pj);
@@ -182,18 +194,20 @@ namespace madness
   //***************************************************************************
 
   //***************************************************************************
-  double HartreeFock::calculate_exchange_energy(const std::vector<funcT>& phis, const funcT& psi)
+  template <typename T>
+  double HartreeFock<T>::calculate_exchange_energy(const std::vector<funcT>& phis,
+      const funcT& psi)
   {
     // Return value
     funcT rfunc = FunctionFactory<double,3>(world());
     if (include_exchange())
     {
       // Create Coulomb operator
-      SeparatedConvolution<double,3> op = CoulombOperator<double, 3>(world(),
+      SeparatedConvolution<T,3> op = CoulombOperator<T, 3>(world(),
           FunctionDefaults<3>::get_k(), 1e-4, thresh());
       // Use the psi and pj wavefunctions to build a product so that the K 
       // operator can be applied to the wavefunction indexed by pj, NOT PSI.
-      for (std::vector<funcT>::const_iterator pj = phis.begin(); pj != phis.end(); ++pj)
+      for (typename std::vector<funcT>::const_iterator pj = phis.begin(); pj != phis.end(); ++pj)
       {
         // Get phi(j) from iterator
         const funcT& phij = (*pj);
@@ -210,7 +224,8 @@ namespace madness
   //***************************************************************************
 
   //***************************************************************************
-  double HartreeFock::calculate_tot_ke_sp(const std::vector<funcT>& phis)
+  template <typename T>
+  double HartreeFock<T>::calculate_tot_ke_sp(const std::vector<funcT>& phis)
   {
     double tot_ke = 0.0;
     for (unsigned int pi = 0; pi < phis.size(); pi++)
@@ -225,7 +240,8 @@ namespace madness
   //***************************************************************************
   
   //***************************************************************************
-  double HartreeFock::calculate_tot_pe_sp(const std::vector<funcT>& phis)
+  template <typename T>
+  double HartreeFock<T>::calculate_tot_pe_sp(const std::vector<funcT>& phis)
   {
     double tot_pe = 0.0;
     for (unsigned int pi = 0; pi < phis.size(); pi++)
@@ -240,7 +256,8 @@ namespace madness
   //***************************************************************************
   
   //***************************************************************************
-  double HartreeFock::calculate_tot_coulomb_energy(const std::vector<funcT>& phis)
+  template <typename T>
+  double HartreeFock<T>::calculate_tot_coulomb_energy(const std::vector<funcT>& phis)
   {
     double tot_ce = 0.0;
     for (unsigned int pi = 0; pi < phis.size(); pi++)
@@ -255,7 +272,8 @@ namespace madness
   //***************************************************************************
   
   //***************************************************************************
-  double HartreeFock::calculate_tot_exchange_energy(const std::vector<funcT>& phis)
+  template <typename T>
+  double HartreeFock<T>::calculate_tot_exchange_energy(const std::vector<funcT>& phis)
   {
     double tot_ee = 0.0;
     for (unsigned int pi = 0; pi < phis.size(); pi++)
@@ -270,7 +288,8 @@ namespace madness
   //***************************************************************************
 
   //***************************************************************************
-  void HartreeFock::iterateOutput(const std::vector<funcT>& phis,
+  template <typename T>
+  void HartreeFock<T>::iterateOutput(const std::vector<funcT>& phis,
       const std::vector<double>& eigs,const funcT& rho, const int& iter)
   {
     if (iter%3 == 0)
