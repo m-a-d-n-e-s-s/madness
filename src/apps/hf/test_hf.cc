@@ -366,8 +366,8 @@ void test_hf_be(World& world)
 //    FunctionDefaults<3>::cell(i,1) = bsize;
 //  }
   // Function defaults
-  int funck = 8;
-  double thresh = 1e-6;
+  int funck = 6;
+  double thresh = 1e-4;
   FunctionDefaults<3>::set_k(funck);
   FunctionDefaults<3>::set_thresh(thresh);
   FunctionDefaults<3>::set_refine(true);
@@ -403,7 +403,11 @@ void test_hf_be(World& world)
   // Create HartreeFock object
   if (world.rank() == 0) cout << "Creating DFT object..." << endl;
   //HartreeFock hf(world, Vnuc, phis, eigs, true, true, thresh);
-  DFT<double> dftcalc(world, Vnuc, phis, eigs, thresh);
+  std::vector< Vector<double,3> > kpoints(1);
+  Vector<double,3> gammapt;
+  gammapt[0] = 0.0; gammapt[1] = 0.0; gammapt[2] = 0.0;
+  kpoints[0] = gammapt;
+  DFT<double> dftcalc(world, Vnuc, phis, eigs, kpoints, thresh);
   if (world.rank() == 0) cout << "Running DFT object..." << endl;
   dftcalc.solve(20);
   //hf.hartree_fock(20);

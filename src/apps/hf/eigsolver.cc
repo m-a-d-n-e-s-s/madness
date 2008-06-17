@@ -12,15 +12,26 @@ namespace madness
   //***************************************************************************
   template <typename T>
   EigSolver<T>::EigSolver(World& world, std::vector<funcT> phis, 
-      std::vector<double> eigs, std::vector<EigSolverOp<T>*> ops, double thresh, 
-      bool periodic)
-  : _phis(phis), _eigs(eigs), _ops(ops), _world(world), _thresh(thresh)
+      std::vector<double> eigs, std::vector< EigSolverOp<T>* > ops, 
+      std::vector<kvec3dT> kpoints, double thresh)
+  : _phis(phis), _eigs(eigs), _ops(ops), _kpoints(kpoints), _world(world), _thresh(thresh)
   {
     _rho = EigSolver::compute_rho(phis, world);
-    _periodic = periodic;
+    _periodic = true;
   }
   //***************************************************************************
   
+  //***************************************************************************
+  template <typename T>
+  EigSolver<T>::EigSolver(World& world, std::vector<funcT> phis, 
+      std::vector<double> eigs, std::vector< EigSolverOp<T>* > ops, double thresh)
+  : _phis(phis), _eigs(eigs), _ops(ops), _world(world), _thresh(thresh)
+  {
+    _rho = EigSolver::compute_rho(phis, world);
+    _periodic = false;
+  }
+  //***************************************************************************
+    
   //***************************************************************************
   template <typename T>
   EigSolver<T>::~EigSolver()
@@ -43,7 +54,7 @@ namespace madness
   Function<T,3> EigSolver<T>::compute_rho(typename std::vector<funcT> phis, const World& world)
   {
     // Electron density
-    funcT rho = FunctionFactory<T,3>(const_cast<World&>(world));
+    Function<double,3> rho = FunctionFactory<double,3>(const_cast<World&>(world));
     // Loop over all wavefunctions to compute density
     for (typename std::vector<funcT>::const_iterator pj = phis.begin();
       pj != phis.end(); ++pj)
@@ -51,7 +62,7 @@ namespace madness
       // Get phi(j) from iterator
       const funcT& phij = (*pj);
       // Compute the j-th density
-      funcT prod = square(phij);
+      Function<double,3> prod = square(phij);
       rho += prod;
     }
     rho.truncate();
@@ -142,16 +153,22 @@ namespace madness
           // Operate with orbital-dependent operator
           if (op->is_od()) pfunc += op->coeff() * op->op_o(_phis, psi);
         }
-        pfunc.scale(-2.0).truncate(_thresh);
         if (_world.rank() == 0) printf("Creating BSH operator ...\n\n");
         SeparatedConvolution<T,3>* op = 0;
         if (_periodic)
         {
+          // Subtract the k dot nabla part
+          kvec3dT k = _kpoints[pi];
+          pfunc -= k[0] * diff(psi, 0); 
+          pfunc -= k[1] * diff(psi, 1);
+          pfunc -= k[2] * diff(psi, 2);
+          pfunc.scale(-2.0).truncate(_thresh);
           op = BSHOperatorPtr<T,3>(_world, sqrt(-2.0*_eigs[pi]), 
               FunctionDefaults<3>::get_k(), 1e-4, _thresh);      
         }
         else
         {
+          pfunc.scale(-2.0).truncate(_thresh);
           op = BSHOperatorPtr<T,3>(_world, sqrt(-2.0*_eigs[pi]), 
               FunctionDefaults<3>::get_k(), 1e-4, _thresh);      
         }

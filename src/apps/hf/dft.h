@@ -70,7 +70,7 @@ namespace madness
     //*************************************************************************
 
     //*************************************************************************
-    SeparatedConvolution<double,3>* _cop;
+    SeparatedConvolution<T,3>* _cop;
     //*************************************************************************
 
   private:
@@ -107,7 +107,7 @@ namespace madness
     //*************************************************************************
 
     //*************************************************************************
-    SeparatedConvolution<double,3>* _cop;
+    SeparatedConvolution<T,3>* _cop;
     //*************************************************************************
 
   private:
@@ -151,16 +151,24 @@ namespace madness
   {
     // Typedef's
     typedef Function<T,3> funcT;
+    typedef Vector<double,3> kvec3dT;
   public:
     //*************************************************************************
     // Constructor
-    DFT(World& world, funcT V, std::vector<funcT> phis, 
+    DFT(World& world, Function<double,3> V, std::vector<funcT> phis, 
       std::vector<double> eigs, double thresh);
     //*************************************************************************
   
     //*************************************************************************
+    // Constructor
+    DFT(World& world, Function<double,3> V, std::vector<funcT> phis, 
+      std::vector<double> eigs, std::vector<kvec3dT> kpoints, double thresh);
+    //*************************************************************************
+  
+    //*************************************************************************
     // Constructor for ground state only
-    DFT(World& world, funcT V, funcT rho, double eig, double thresh);
+    DFT(World& world, Function<double,3> V, Function<double,3> rho, 
+        double eig, double thresh);
     //*************************************************************************
   
   	//*************************************************************************
@@ -184,16 +192,17 @@ namespace madness
      //***************************************************************************
      
      //***************************************************************************
-     static double calculate_tot_pe_sp(const funcT& rho, const funcT V, bool spinpol);
+     static double calculate_tot_pe_sp(const Function<double,3>& rho, 
+         const funcT V, bool spinpol);
      //***************************************************************************
      
      //***************************************************************************
-     static double calculate_tot_coulomb_energy(const funcT& rho, bool spinpol, 
-         const World& world, const double thresh);
+     static double calculate_tot_coulomb_energy(const Function<double,3>& rho, 
+         bool spinpol, const World& world, const double thresh);
      //***************************************************************************
      
      //***************************************************************************
-     static double calculate_tot_xc_energy(const funcT& rho);
+     static double calculate_tot_xc_energy(const Function<double,3>& rho);
      //***************************************************************************
 
      //*************************************************************************
@@ -212,7 +221,8 @@ namespace madness
 
      //*************************************************************************
      virtual void iterateOutput(const std::vector<funcT>& phis,
-         const std::vector<double>& eigs, const funcT& rho, const int& iter);
+         const std::vector<double>& eigs, const Function<double,3>& rho, 
+         const int& iter);
      //*************************************************************************
 
      //*************************************************************************
@@ -255,7 +265,7 @@ namespace madness
       //*************************************************************************
 
       //*************************************************************************
-      funcT _V;
+      Function<double,3> _V;
       //*************************************************************************
 
       //*************************************************************************

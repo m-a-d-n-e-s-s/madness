@@ -617,7 +617,7 @@ void wst_munge_rho(int npoint, double *rho) {
 
   //***************************************************************************
   template <typename T>
-  DFT<T>::DFT(World& world, funcT V, std::vector<funcT> phis, 
+  DFT<T>::DFT(World& world, Function<double,3> V, std::vector<funcT> phis, 
       std::vector<double> eigs, double thresh)
   : _world(world), _V(V), _thresh(thresh)
   {
@@ -630,12 +630,33 @@ void wst_munge_rho(int npoint, double *rho) {
     ops.push_back(_xcfunc);
 
     // Create solver
-    _solver = new EigSolver<T>(world, phis, eigs, ops, thresh, false);
+    _solver = new EigSolver<T>(world, phis, eigs, ops, thresh);
     _solver->addObserver(this);
 
   }
   //***************************************************************************
     
+  //***************************************************************************
+  template <typename T>
+  DFT<T>::DFT(World& world, Function<double,3> V, std::vector<funcT> phis, 
+      std::vector<double> eigs, std::vector<kvec3dT> kpoints, double thresh)
+  : _world(world), _V(V), _thresh(thresh)
+  {
+    // Create ops list 
+    std::vector<EigSolverOp<T>*> ops;
+    // Add nuclear potential to ops list
+    ops.push_back(new DFTNuclearPotentialOp<T>(world, V, 1.0, thresh));
+    ops.push_back(new DFTCoulombPeriodicOp<T>(world, 1.0, thresh));
+    _xcfunc = new XCFunctionalLDA<T>(world, 1.0, thresh);
+    ops.push_back(_xcfunc);
+
+    // Create solver
+    _solver = new EigSolver<T>(world, phis, eigs, ops, kpoints, thresh);
+    _solver->addObserver(this);
+
+  }
+  //***************************************************************************
+        
   //***************************************************************************
   template <typename T>
   DFT<T>::~DFT()
@@ -685,7 +706,8 @@ void wst_munge_rho(int npoint, double *rho) {
   
   //***************************************************************************
   template <typename T>
-  double DFT<T>::calculate_tot_pe_sp(const funcT& rho, const funcT V, bool spinpol)
+  double DFT<T>::calculate_tot_pe_sp(const Function<double,3>& rho, 
+      const funcT V, bool spinpol)
   {
     double tot_pe = V.inner(rho);
     if (!spinpol) tot_pe *= 2.0;
@@ -695,8 +717,8 @@ void wst_munge_rho(int npoint, double *rho) {
   
   //***************************************************************************
   template <typename T>
-  double DFT<T>::calculate_tot_coulomb_energy(const funcT& rho, bool spinpol, 
-      const World& world, const double thresh)
+  double DFT<T>::calculate_tot_coulomb_energy(const Function<double,3>& rho, 
+      bool spinpol, const World& world, const double thresh)
   {
     // Create Coulomb operator
         SeparatedConvolution<T,3> op =
@@ -712,7 +734,7 @@ void wst_munge_rho(int npoint, double *rho) {
   
   //***************************************************************************
   template <typename T>
-  double DFT<T>::calculate_tot_xc_energy(const funcT& rho)
+  double DFT<T>::calculate_tot_xc_energy(const Function<double,3>& rho)
   {
     funcT enefunc = copy(rho);
     enefunc.reconstruct();
@@ -724,7 +746,7 @@ void wst_munge_rho(int npoint, double *rho) {
   //***************************************************************************
   template <typename T>
   void DFT<T>::iterateOutput(const std::vector<funcT>& phis,
-      const std::vector<double>& eigs, const funcT& rho, const int& iter)
+      const std::vector<double>& eigs, const Function<double,3>& rho, const int& iter)
   {
     if (iter%3 == 0)
     {
@@ -746,7 +768,7 @@ void wst_munge_rho(int npoint, double *rho) {
       if (world().rank() == 0) printf("Total energy:\t\t\t %.8f\n", ke + pe + ce + xce + ne);
       if (world().rank() == 0) printf("gs ene = %.4f\n", eigs[0]);
       if (world().rank() == 0) printf("1st es ene = %.4f\n", eigs[1]);
-      double mtxe = matrix_element(phis[0], phis[0]);
+      T mtxe = matrix_element(phis[0], phis[0]);
       if (world().rank() == 0) printf("\nKS matrix element:\t\t\t%.8f\n\n", mtxe);
       print_matrix_elements(phis[0], phis[0]);
     }
@@ -755,5 +777,6 @@ void wst_munge_rho(int npoint, double *rho) {
   
   //***************************************************************************
   template class DFT<double>;
+//  template class DFT< std::complex<double> >;
   //***************************************************************************
 }
