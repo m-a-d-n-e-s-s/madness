@@ -768,7 +768,7 @@ namespace madness {
         template <typename Q>
         Function<T,NDIM>& operator-=(const Function<Q,NDIM>& other) {
             if (!is_compressed()) compress();
-            if (!other.is_compressed()) compress();
+            if (!other.is_compressed()) other.compress();
             if (VERIFY_TREE) verify_tree();
             if (VERIFY_TREE) other.verify_tree();
             return gaxpy(T(1.0), other, Q(-1.0), true);
