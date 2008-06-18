@@ -575,10 +575,10 @@ namespace madness {
             if (fence && VERIFY_TREE) verify_tree();
         }
 
-        void widen(bool fence = true) {
+        void widen(bool fence = true, int ndiff = 1) {
             verify();
             if (is_compressed()) reconstruct();
-            impl->widen(fence);
+            impl->widen(fence, ndiff);
             if (fence && VERIFY_TREE) verify_tree();
         }
 

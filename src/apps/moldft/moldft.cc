@@ -489,7 +489,7 @@ struct Calculation {
         functionT vlocal;
         if (param.nalpha+param.nbeta > 1) {
             START_TIMER;
-            vlocal = vnuc + apply(*coulop, rho).scale(1.0-1.0/nel); // Reduce coulomb to increase binding
+            vlocal = vnuc + apply(*coulop, rho); //.scale(1.0-1.0/nel); // Reduce coulomb to increase binding
             END_TIMER("guess Coulomb potn");
 
             // Shove the closed-shell LDA potential on there also

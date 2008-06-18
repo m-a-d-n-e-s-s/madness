@@ -1363,8 +1363,8 @@ namespace madness {
 //         void ensure_gradual(bool fence);
 
 
-        // Widens the support of the tree by 1 in preparation for integral operator
-        void widen(bool fence);
+        // Widens the support of the tree in preparation for integral operator
+        void widen(bool fence, int ndiff);
 
         void reconstruct(bool fence) {
             // Must set true here so that successive calls without fence do the right thing
@@ -1487,6 +1487,12 @@ namespace madness {
                         if (result.normf() > 0.3*tol/fac) { // 0.3 is an empirical factor
                             coeffs.send(dest, &nodeT::accumulate, result, coeffs, dest);
                         }
+                        else if (d.distsq == 0) {
+                            // If there is not a diagonal contribution there
+                            // won't be off-diagonal stuff ... REALLY?????
+                            break;
+                        }
+                            
                     }
                     else if (d.distsq >= 1) { // Assumes monotonic decay beyond nearest neighbor
                         break;

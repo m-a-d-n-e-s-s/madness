@@ -63,7 +63,20 @@ public:
     };
 };
 
+
+double aa;
+
 double q (double r)
+{
+  if (r < 0.1e-4)
+      return(0.2e1 * exp(0.1e1 / aa / 0.4e1) * exp(-0.1e1 / aa / 0.4e1) * sqrt(aa) / sqrt(constants::pi) + exp(0.1e1 / aa / 0.4e1) * erf(0.1e1 / sqrt(aa) / 0.2e1) - exp(0.1e1 / aa / 0.4e1) + (0.2e1 / 0.3e1 * exp(0.1e1 / aa / 0.4e1) * exp(-0.1e1 / aa / 0.4e1) * (0.1e1 / 0.2e1 - aa) * sqrt(aa) / sqrt(constants::pi) + exp(0.1e1 / aa / 0.4e1) * erf(0.1e1 / sqrt(aa) / 0.2e1) / 0.6e1 - exp(0.1e1 / aa / 0.4e1) / 0.6e1) * r * r);
+  else
+    return((-exp((0.1e1 + 0.4e1 * aa * r) / aa / 0.4e1) + exp(-(-0.1e1 + 0.4e1 * aa * r) / aa / 0.4e1) + exp((0.1e1 + 0.4e1 * aa * r) / aa / 0.4e1) * erf((0.2e1 * aa * r + 0.1e1) / sqrt(aa) / 0.2e1) + exp(-(-0.1e1 + 0.4e1 * aa * r) / aa / 0.4e1) * erf((-0.1e1 + 0.2e1 * aa * r) / sqrt(aa) / 0.2e1)) / r / 0.2e1);
+}
+
+
+
+double qold (double r)
 {
     const double pi = constants::pi;
     const double fac = pow(2.0/pi,0.25*3)/(4.0*pi);
@@ -99,8 +112,8 @@ void test_bsh(World& world) {
               archive::get_type_name<T>(),", ndim =",3);
 
     FunctionDefaults<3>::set_cubic_cell(-20,20);
-    FunctionDefaults<3>::set_k(9);
-    FunctionDefaults<3>::set_thresh(1e-7);
+    FunctionDefaults<3>::set_k(13);
+    FunctionDefaults<3>::set_thresh(1e-11);
     FunctionDefaults<3>::set_initial_level(2);
     FunctionDefaults<3>::set_refine(true);
     FunctionDefaults<3>::set_autorefine(true);
@@ -108,14 +121,15 @@ void test_bsh(World& world) {
     FunctionDefaults<3>::set_truncate_on_project(false);
     
     const coordT origin(0.0);
-    const double expnt = 1.0;
-    const double coeff = pow(2.0/constants::pi,0.25*3);
+    const double expnt = 100.0;
+    aa = expnt;
+    const double coeff = pow(expnt/constants::pi,1.5);
 
     Function<T,3> f = FunctionFactory<T,3>(world).functor(functorT(new Gaussian<T,3>(origin, expnt, coeff)));
     f.truncate();
     f.reconstruct();
     print("before",f.size());
-    f.widen();
+    f.widen(true,0);
     f.verify_tree();
     print("after ",f.size());
 
@@ -134,20 +148,21 @@ void test_bsh(World& world) {
 //         print(z, f(p), f(p)-exact);
 //     }
 
-    double norm = f.norm2();
+    double norm = f.trace();
     print("norm of initial function", norm, f.err(Gaussian<T,3>(origin, expnt, coeff)));
 
     SeparatedConvolution<T,3> op = BSHOperator<T,3>(world, 
                                                     mu, 
                                                     FunctionDefaults<3>::get_k(), 
-                                                    1e-5, 
-                                                    1e-12);
+                                                    1e-4, 
+                                                    1e-11);
     //op.doleaves = true;
 
     print("applying - 1");
+    double start = cpu_time();
     Function<T,3> opf = apply(op,f);
-    print("done");
-    print("err in opf", opf.err(Qfunc()));
+    print("done",cpu_time()-start);
+//     print("err in opf", opf.err(Qfunc()));
 
 //     Function<double,3> qf = FunctionFactory<T,3>(world).functor(functorT(new Qfunc()));
 //     Function<double,3> xerror = qf-opf;
@@ -175,35 +190,35 @@ void test_bsh(World& world) {
         opinvopf = opinvopf - diff(diff(opf,axis),axis);
     }
 
-//     plotdx(opinvopf, "opinvopf.dx", FunctionDefaults<3>::get_cell(), npt);
+// //     plotdx(opinvopf, "opinvopf.dx", FunctionDefaults<3>::get_cell(), npt);
 
     print("norm of (-del^2+mu^2)*G*f", opinvopf.norm2());
     Function<T,3> error = (f-opinvopf);
-    
-//     error.reconstruct();
-//     plotdx(error, "err.dx", FunctionDefaults<3>::get_cell(), npt);
-
     print("error",error.norm2());
+    
+// //     error.reconstruct();
+// //     plotdx(error, "err.dx", FunctionDefaults<3>::get_cell(), npt);
 
-    opinvopf.reconstruct();
-    f.reconstruct();
-    error.reconstruct();
 
-//     for (int i=0; i<101; i++) {
-//         double z=-4 + 0.08*i;
-//         coordT p(z);
-//         print(z, opinvopf(p), f(p), opinvopf(p)/f(p), error(p));
+//     opinvopf.reconstruct();
+//     f.reconstruct();
+//     error.reconstruct();
+
+// //     for (int i=0; i<101; i++) {
+// //         double z=-4 + 0.08*i;
+// //         coordT p(z);
+// //         print(z, opinvopf(p), f(p), opinvopf(p)/f(p), error(p));
+// //     }
+
+//     opf.clear(); opinvopf.clear();
+
+//     Function<T,3> g = (mu*mu)*f;
+//     for (int axis=0; axis<3; axis++) {
+//         g = g - diff(diff(f,axis),axis);
 //     }
-
-    opf.clear(); opinvopf.clear();
-
-    Function<T,3> g = (mu*mu)*f;
-    for (int axis=0; axis<3; axis++) {
-        g = g - diff(diff(f,axis),axis);
-    }
-    g = apply(op,g);
-    print("norm of G*(-del^2+mu^2)*f",g.norm2());
-    print("error",(g-f).norm2());
+//     g = apply(op,g);
+//     print("norm of G*(-del^2+mu^2)*f",g.norm2());
+//     print("error",(g-f).norm2());
 
     world.gop.fence();
 

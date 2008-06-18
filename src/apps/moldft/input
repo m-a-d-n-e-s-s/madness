@@ -6,13 +6,19 @@ dft
 end
 
 
+
+
 # water*1
 geometry
-  units angstrom
   O  0.0    0.0 0.0
   H  1.4375 0.0 1.15
   H -1.4375 0.0 1.15
 end
+
+geometry
+  be 0 0 0
+end
+
 
 # water dimer
 geometry
@@ -119,9 +125,6 @@ end
 
 
 
-geometry
-  be 0 0 0
-end
 
 
 

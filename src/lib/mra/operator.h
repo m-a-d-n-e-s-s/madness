@@ -75,6 +75,8 @@ namespace madness {
     extern void bsh_fit(double mu, double lo, double hi, double eps, 
                         Tensor<double> *pcoeff, Tensor<double> *pexpnt, bool prnt=false);
 
+    extern void bsh_fit_mod(double mu, double lo, double hi, double eps, 
+                            Tensor<double> *pcoeff, Tensor<double> *pexpnt, bool prnt=false);
 
     /// Simplified interface around hash_map to cache stuff
 
@@ -1014,7 +1016,7 @@ namespace madness {
         // bsh_fit generates representation for 1/4Pir but we want 1/r
         // so have to scale eps by 1/4Pi
         Tensor<double> coeff, expnt;
-        bsh_fit(0.0, lo, hi, eps/(4.0*pi), &coeff, &expnt, false);
+        bsh_fit(0.0, lo, hi, eps/(4.0*pi), &coeff, &expnt, true);
         coeff.scale(4.0*pi);
         return SeparatedConvolution<Q,NDIM>(world, k, coeff, expnt);
     }
@@ -1032,7 +1034,7 @@ namespace madness {
         // bsh_fit generates representation for 1/4Pir but we want 1/r
         // so have to scale eps by 1/4Pi
         Tensor<double> coeff, expnt;
-        bsh_fit(0.0, lo, hi, eps/(4.0*pi), &coeff, &expnt, false);
+        bsh_fit(0.0, lo, hi, eps/(4.0*pi), &coeff, &expnt, true);
         coeff.scale(4.0*pi);
         return new SeparatedConvolution<Q,NDIM>(world, k, coeff, expnt);
     }
@@ -1047,7 +1049,7 @@ namespace madness {
         const Tensor<double>& cell_width = FunctionDefaults<NDIM>::get_cell_width();
         double hi = cell_width.normf(); // Diagonal width of cell
         Tensor<double> coeff, expnt;
-        bsh_fit(mu, lo, hi, eps, &coeff, &expnt, false);
+        bsh_fit(mu, lo, hi, eps, &coeff, &expnt, true);
         return SeparatedConvolution<Q,NDIM>(world, k, coeff, expnt);
     }
 
@@ -1061,7 +1063,7 @@ namespace madness {
         const Tensor<double>& cell_width = FunctionDefaults<NDIM>::get_cell_width();
         double hi = cell_width.normf(); // Diagonal width of cell
         Tensor<double> coeff, expnt;
-        bsh_fit(mu, lo, hi, eps, &coeff, &expnt, false);
+        bsh_fit(mu, lo, hi, eps, &coeff, &expnt, true);
         return new SeparatedConvolution<Q,NDIM>(world, k, coeff, expnt);
     }
 
