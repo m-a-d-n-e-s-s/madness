@@ -53,14 +53,9 @@ namespace madness
     // Create Coulomb operator
     SeparatedConvolution<T,3> cop = 
       CoulombOperator<T,3>(this->world(), FunctionDefaults<3>::get_k(), 1e-4, this->thresh());      
-    // Transform Coulomb operator into a function
-//    if (isPrintingNode()) printf("rho.norm2() = %.5f\n\n", rho.norm2()); 
-//    if (isPrintingNode()) printf("Applying Coulomb operator to density ...\n\n");
     // Apply the Coulomb operator
     funcT Vc = apply(cop, rho);
     funcT rfunc = Vc*psi;
-//    if (isPrintingNode()) printf("Vc.norm2() = %.5f\n\n", Vc.norm2()); 
-//    if (isPrintingNode()) printf("pcoulomb.norm2() = %.5f\n\n", rfunc.norm2()); 
     return  rfunc;
   }
   //*************************************************************************
@@ -82,11 +77,9 @@ namespace madness
       const funcT& phij = (*pj);
       // NOTE that psi is involved in this calculation
       funcT prod = phij*psi;
-//      if (isPrintingNode()) printf("prod.norm2() = %.5f\n\n", prod.norm2());
       // Transform Coulomb operator into a function (stubbed)
       prod.truncate(this->thresh());
       funcT Vex = apply(cop, prod);
-//      if (isPrintingNode()) printf("Vex.norm2() = %.5f\n\n", Vex.norm2());
       // NOTE that the index is j.
       rfunc += Vex*phij;
     }

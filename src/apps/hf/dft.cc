@@ -538,6 +538,8 @@ void wst_munge_rho(int npoint, double *rho) {
     // Create Coulomb operator
     _cop = CoulombOperatorPtr<T,3>(world, FunctionDefaults<3>::get_k(), 
         1e-4, thresh);      
+    // Initialize potential
+    _Vc = FunctionFactory<T,3>(world);
   }
   //*************************************************************************
   
@@ -552,10 +554,28 @@ void wst_munge_rho(int npoint, double *rho) {
     _spinpol = false;
     // Create Coulomb operator
     _cop = CoulombOperatorPtr<T,3>(world, FunctionDefaults<3>::get_k(), 
-        1e-4, thresh);      
+        1e-4, thresh);
+    // Initialize potential
+    _Vc = FunctionFactory<T,3>(world);
   }
   //*************************************************************************
   
+  //***************************************************************************
+  template <typename T>
+  void DFTCoulombOp<T>::prepare_op(Function<double,3> rho)
+  {
+    _Vc = apply(*_cop, rho);
+  }
+  //***************************************************************************
+
+  //***************************************************************************
+  template <typename T>
+  void DFTCoulombPeriodicOp<T>::prepare_op(Function<double,3> rho)
+  {
+    _Vc = apply(*_cop, rho);
+  }
+  //***************************************************************************
+
   //***************************************************************************
   template <typename T>
   Function<T,3> DFTNuclearPotentialOp<T>::op_r(const funcT& rho, const funcT& psi)
@@ -569,12 +589,10 @@ void wst_munge_rho(int npoint, double *rho) {
   template <typename T>
   Function<T,3> DFTCoulombOp<T>::op_r(const funcT& rho, const funcT& psi)
   {
+    // If not spin-polarized, multiply by 2.0
     double factor = (_spinpol) ? 1.0 : 2.0;
-    // Transform Coulomb operator into a function
-    // Apply the Coulomb operator
     printf("Applying Coulomb operator ...\n\n");
-    funcT Vc = apply(*_cop, rho);
-    funcT rfunc = factor * Vc * psi;
+    funcT rfunc = factor * _Vc * psi;
     return  rfunc;
   }
   //*************************************************************************
@@ -583,12 +601,10 @@ void wst_munge_rho(int npoint, double *rho) {
   template <typename T>
   Function<T,3> DFTCoulombPeriodicOp<T>::op_r(const funcT& rho, const funcT& psi)
   {
+    // If not spin-polarized, multiply by 2.0
     double factor = (_spinpol) ? 1.0 : 2.0;
-    // Transform Coulomb operator into a function
-    // Apply the Coulomb operator
     printf("Applying Coulomb operator ...\n\n");
-    funcT Vc = apply(*_cop, rho);
-    funcT rfunc = factor * Vc * psi;
+    funcT rfunc = factor * _Vc * psi;
     return  rfunc;
   }
   //*************************************************************************

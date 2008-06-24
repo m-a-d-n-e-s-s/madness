@@ -72,6 +72,21 @@ namespace madness
 
   //***************************************************************************
   template <typename T>
+  void EigSolver<T>::prepare_ops()
+  {
+    // Loop through all of the density-dependent ops and prepare them, i.e. 
+    // build the rho-dependent potentials.
+    for (unsigned int oi = 0; oi < _ops.size(); oi++)
+    {
+      EigSolverOp<T>* op = _ops[oi];
+      // Prepare density-dependent operator
+      if (op->is_rd()) op->prepare_op(_rho);
+    }
+  }
+  //***************************************************************************
+  
+  //***************************************************************************
+  template <typename T>
   T EigSolver<T>::matrix_element(const funcT& phii, const funcT& phij)
   {
     double value = 0.0;
@@ -137,6 +152,10 @@ namespace madness
   {
     for (int it = 0; it < maxits; it++)
     {
+      // Since, the density has already been computed (it's fresh outta the 
+      // oven), go ahead and build all of the density-dependent potentials that
+      // we can.
+      prepare_ops();
       if (_world.rank() == 0) printf("Iteration #%d\n\n", it);
       for (unsigned int pi = 0; pi < _phis.size(); pi++)
       {
