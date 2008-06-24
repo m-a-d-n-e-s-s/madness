@@ -23,10 +23,20 @@ namespace madness {
 
     // Returns in q[0..4] int(r^2(n+1)*exp(-mu*r)/(4*Pi*r),r=0..R) n=-1,0,1,2
     static void bsh_spherical_moments(double mu, double R, Tensor<double>& q) {
-        q[0] = (exp(mu * R) - 0.1e1) / mu * exp(-mu * R) / pi / 0.4e1;
-        q[1] = -(-exp(mu * R) + 0.1e1 + mu * R) * pow(mu, -0.2e1) / pi * exp(-mu * R) / 0.4e1;
-        q[2] = -(-0.2e1 * exp(mu * R) + 0.2e1 + 0.2e1 * mu * R + R*R * pow(mu, 0.2e1)) * pow(mu, -0.3e1) / pi * exp(-mu * R) / 0.4e1;
-        q[3] = -(-0.6e1 * exp(mu * R) + 0.6e1 + 0.6e1 * mu * R + 0.3e1 * R*R * pow(mu, 0.2e1) + pow(R, 0.3e1) * pow(mu, 0.3e1)) * pow(mu, -0.4e1) / pi * exp(-mu * R) / 0.4e1;
+        if (mu == 0.0) {
+            q[0] = R / pi  / 0.4e1;
+            q[1] = pow(R, 0.2e1) / pi / 0.8e1;
+            q[2] = pow(R, 0.3e1) / pi / 0.12e2;
+            q[3] = pow(R, 0.4e1) / pi / 0.16e2;
+        }
+        else  {
+            q[0] = (exp(mu * R) - 0.1e1) / mu * exp(-mu * R) / pi / 0.4e1;
+            q[1] = -(-exp(mu * R) + 0.1e1 + mu * R) * pow(mu, -0.2e1) / pi * exp(-mu * R) / 0.4e1;
+            q[2] = -(-0.2e1 * exp(mu * R) + 0.2e1 + 0.2e1 * mu * R + R*R * pow(mu, 0.2e1)) * 
+                pow(mu, -0.3e1) / pi * exp(-mu * R) / 0.4e1;
+            q[3] = -(-0.6e1 * exp(mu * R) + 0.6e1 + 0.6e1 * mu * R + 0.3e1 * R*R * pow(mu, 0.2e1) + 
+                     pow(R, 0.3e1) * pow(mu, 0.3e1)) * pow(mu, -0.4e1) / pi * exp(-mu * R) / 0.4e1;
+        }
     }
     
     
