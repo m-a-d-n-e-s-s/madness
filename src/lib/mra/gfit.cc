@@ -36,8 +36,8 @@ namespace madness {
     /// See Harrison et al in LNCS for details
     ///
     /// exp(-mu*r) / (4*pi*r) = sum(k) c[k]*exp(-t[k]*r^2)  + O(eps) for lo<=r<=hi
-    void bsh_fit(double mu, double lo, double hi, double eps, 
-                 Tensor<double> *pcoeff, Tensor<double> *pexpnt, bool prnt) {
+    void bsh_fit_old(double mu, double lo, double hi, double eps, 
+                     Tensor<double> *pcoeff, Tensor<double> *pexpnt, bool prnt) {
 
 
         if (mu > 0) {
@@ -134,8 +134,8 @@ namespace madness {
         *pexpnt = expnt;
     }
 
-    void bsh_fit_mod(double mu, double lo, double hi, double eps, 
-                     Tensor<double> *pcoeff, Tensor<double> *pexpnt, bool prnt) {
+    void bsh_fit(double mu, double lo, double hi, double eps, 
+                 Tensor<double> *pcoeff, Tensor<double> *pexpnt, bool prnt) {
         
         if (mu > 0) {
             // Restrict hi according to the exponential decay
@@ -218,7 +218,7 @@ namespace madness {
         const int nmom = 3;
         Tensor<double> q(4), qg(4);
         double range = sqrt(-log(1e-6)/expnt[nmom-1]);
-        print("exponent(nmom-1)",expnt[nmom-1],"has range", range);
+        if (prnt) print("exponent(nmom-1)",expnt[nmom-1],"has range", range);
 
         bsh_spherical_moments(mu, range, q);
         Tensor<double> M(nmom,nmom);
@@ -231,8 +231,10 @@ namespace madness {
             q = q(Slice(1,nmom)); 
             qg = qg(Slice(1,nmom));
         }
-        print("moments", q);
-        print("moments", qg);
+        if (prnt) {
+            print("moments", q);
+            print("moments", qg);
+        }
         q = copy(q - qg);
         for (int j=0; j<nmom; j++) {
             Tensor<double> qt(4);            
@@ -244,9 +246,11 @@ namespace madness {
         }
         Tensor<double> ncoeff;
         gesv(M, q, &ncoeff);
-        print("M\n",M);
-        print("old coeffs", coeff(Slice(0,nmom-1)));
-        print("new coeffs", ncoeff);
+        if (prnt) {
+            print("M\n",M);
+            print("old coeffs", coeff(Slice(0,nmom-1)));
+            print("new coeffs", ncoeff);
+        }
                 
         coeff(Slice(0,nmom-1)) = ncoeff;
 
