@@ -545,10 +545,11 @@ namespace madness {
         ///
         /// Since reconstruction/compression do not discard information we define them
         /// as const ... "logical constness" not "bitwise constness".
-        void compress(bool fence = true) const {
-            if (!impl || is_compressed()) return;
+        const Function<T,NDIM>& compress(bool fence = true) const {
+            if (!impl || is_compressed()) return *this;
             if (VERIFY_TREE) verify_tree();
-            const_cast<Function<T,NDIM>*>(this)->impl->compress(false, fence);
+            const_cast<Function<T,NDIM>*>(this)->impl->compress(false, false, fence);
+            return *this;
         }
 
 
@@ -560,11 +561,11 @@ namespace madness {
         /// for other purposes.
         ///
         /// Noop if already compressed or if not initialized.
-        void nonstandard(bool fence = true) {
+        void nonstandard(bool keepleaves, bool fence) {
             verify();
             if (VERIFY_TREE) verify_tree();
             if (is_compressed()) reconstruct();
-            impl->compress(true, fence);
+            impl->compress(true, keepleaves, fence);
         }
 
 
@@ -1156,7 +1157,7 @@ namespace madness {
         Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> result;
         if (VERIFY_TREE) ff.verify_tree();
 	ff.reconstruct();
-	ff.nonstandard();
+	ff.nonstandard(op.doleaves, true);
 	result.apply(op, f, true);
 	result.reconstruct();
         if (VERIFY_TREE) result.verify_tree();

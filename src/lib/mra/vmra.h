@@ -51,7 +51,7 @@ namespace madness {
                      bool fence=true) {
         reconstruct(world, v);
         for (unsigned int i=0; i<v.size(); i++) {
-            v[i].nonstandard(false);
+            v[i].nonstandard(false,false);
         }
         if (fence) world.gop.fence();
     }

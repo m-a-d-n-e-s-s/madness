@@ -68,18 +68,25 @@ double aa;
 
 double q (double r)
 {
+    double val;
   if (r < 0.1e-4)
-      return(0.2e1 * exp(0.1e1 / aa / 0.4e1) * exp(-0.1e1 / aa / 0.4e1) * sqrt(aa) / sqrt(constants::pi) + exp(0.1e1 / aa / 0.4e1) * erf(0.1e1 / sqrt(aa) / 0.2e1) - exp(0.1e1 / aa / 0.4e1) + (0.2e1 / 0.3e1 * exp(0.1e1 / aa / 0.4e1) * exp(-0.1e1 / aa / 0.4e1) * (0.1e1 / 0.2e1 - aa) * sqrt(aa) / sqrt(constants::pi) + exp(0.1e1 / aa / 0.4e1) * erf(0.1e1 / sqrt(aa) / 0.2e1) / 0.6e1 - exp(0.1e1 / aa / 0.4e1) / 0.6e1) * r * r);
+      val = (0.2e1 * exp(0.1e1 / aa / 0.4e1) * exp(-0.1e1 / aa / 0.4e1) * sqrt(aa) / sqrt(constants::pi) + exp(0.1e1 / aa / 0.4e1) * erf(0.1e1 / sqrt(aa) / 0.2e1) - exp(0.1e1 / aa / 0.4e1) + (0.2e1 / 0.3e1 * exp(0.1e1 / aa / 0.4e1) * exp(-0.1e1 / aa / 0.4e1) * (0.1e1 / 0.2e1 - aa) * sqrt(aa) / sqrt(constants::pi) + exp(0.1e1 / aa / 0.4e1) * erf(0.1e1 / sqrt(aa) / 0.2e1) / 0.6e1 - exp(0.1e1 / aa / 0.4e1) / 0.6e1) * r * r);
   else
-    return((-exp((0.1e1 + 0.4e1 * aa * r) / aa / 0.4e1) + exp(-(-0.1e1 + 0.4e1 * aa * r) / aa / 0.4e1) + exp((0.1e1 + 0.4e1 * aa * r) / aa / 0.4e1) * erf((0.2e1 * aa * r + 0.1e1) / sqrt(aa) / 0.2e1) + exp(-(-0.1e1 + 0.4e1 * aa * r) / aa / 0.4e1) * erf((-0.1e1 + 0.2e1 * aa * r) / sqrt(aa) / 0.2e1)) / r / 0.2e1);
+    val = ((-exp((0.1e1 + 0.4e1 * aa * r) / aa / 0.4e1) + exp(-(-0.1e1 + 0.4e1 * aa * r) / aa / 0.4e1) + exp((0.1e1 + 0.4e1 * aa * r) / aa / 0.4e1) * erf((0.2e1 * aa * r + 0.1e1) / sqrt(aa) / 0.2e1) + exp(-(-0.1e1 + 0.4e1 * aa * r) / aa / 0.4e1) * erf((-0.1e1 + 0.2e1 * aa * r) / sqrt(aa) / 0.2e1)) / r / 0.2e1);
+
+  return val / (4.0*constants::pi);
 }
 
 
 
-double qold (double r)
+double qfred (double r)
 {
     const double pi = constants::pi;
-    const double fac = pow(2.0/pi,0.25*3)/(4.0*pi);
+    double fac = pow(2.0/pi,0.25*3)/(4.0*pi);
+
+
+    fac /= pow(2*pi,0.75);
+
     if (r < 1e-4) {
         return fac*(2.854819526231167-1.618591848021335*r*r);
     }
@@ -105,19 +112,19 @@ void test_bsh(World& world) {
     typedef SharedPtr< FunctionFunctorInterface<T,3> > functorT;
 
     int nn = 1001;
-    double lo = -2.0, hi=2.0, range=hi-lo;
+    double lo = 0.0, hi=4.0, range=hi-lo;
 
     if (world.rank() == 0) 
         print("Test BSH operation, type =",
               archive::get_type_name<T>(),", ndim =",3);
 
     FunctionDefaults<3>::set_cubic_cell(-20,20);
-    FunctionDefaults<3>::set_k(13);
-    FunctionDefaults<3>::set_thresh(1e-11);
-    FunctionDefaults<3>::set_initial_level(2);
+    FunctionDefaults<3>::set_k(6);
+    FunctionDefaults<3>::set_thresh(1e-4);
+    FunctionDefaults<3>::set_initial_level(3);
     FunctionDefaults<3>::set_refine(true);
     FunctionDefaults<3>::set_autorefine(true);
-    FunctionDefaults<3>::set_truncate_mode(1);
+    FunctionDefaults<3>::set_truncate_mode(0);
     FunctionDefaults<3>::set_truncate_on_project(false);
     
     const coordT origin(0.0);
@@ -128,76 +135,69 @@ void test_bsh(World& world) {
     Function<T,3> f = FunctionFactory<T,3>(world).functor(functorT(new Gaussian<T,3>(origin, expnt, coeff)));
     f.truncate();
     f.reconstruct();
-    print("before",f.size());
-    f.widen(true,0);
-    f.verify_tree();
-    print("after ",f.size());
-
-//     for (int i=0; i<nn; i++) {
-//         double z=lo + i*range/double(nn-1);
-//         coordT p(z);
-//         double  exact = Gaussian<T,3>(origin, expnt, coeff)(p);
-//         print(z, f(p), exact, f(p)-exact);
-//     }
-
-//     plotdx(f, "f.dx", FunctionDefaults<3>::get_cell(), npt);
-//     for (int i=0; i<101; i++) {
-//         double z=-4 + 0.08*i;
-//         coordT p(z);
-//         double exact = Gaussian<T,3>(origin, expnt, coeff)(p);
-//         print(z, f(p), f(p)-exact);
-//     }
 
     double norm = f.trace();
     print("norm of initial function", norm, f.err(Gaussian<T,3>(origin, expnt, coeff)));
 
+
+    // expnt=100 err=1e-9 use lo=2e-2 = .2/sqrt(expnt) and eps=5e-9
+
+    // expnt=100 err=1e-7 use lo=2e-2 and eps=5e-7
+  
+    // expnt=100 err=1e-5 use lo=2e-e and eps=5e-5
+
+    // expnt=100 err=1e-3 use lo=2e-2 and eps=5e-3
+
+
     SeparatedConvolution<T,3> op = BSHOperator<T,3>(world, 
                                                     mu, 
                                                     FunctionDefaults<3>::get_k(), 
-                                                    1e-4, 
-                                                    1e-11);
-    //op.doleaves = true;
+                                                    2e-2, 
+                                                    5e-4);
+    cout.precision(8);
 
+    Function<T,3> ff = copy(f);
     print("applying - 1");
     double start = cpu_time();
-    Function<T,3> opf = apply(op,f);
+    Function<T,3> opf = apply(op,ff);
     print("done",cpu_time()-start);
-//     print("err in opf", opf.err(Qfunc()));
+    ff.clear();
+    opf.verify_tree();
+    print("err in opf", opf.err(Qfunc()));
 
-//     Function<double,3> qf = FunctionFactory<T,3>(world).functor(functorT(new Qfunc()));
-//     Function<double,3> xerror = qf-opf;
-//     //xerror.truncate();
-//     xerror.reconstruct();
-//     xerror.print_tree();
-//     //return;
+    Function<double,3> qf = FunctionFactory<T,3>(world).functor(functorT(new Qfunc()));
+    print("qf norm ", qf.norm2());
+    print("opf norm", opf.norm2());
 
-//     opf.reconstruct();
-//     coordT pt(0.1);
-//     print("compare");
-//     print(q(0.1*sqrt(3.0)), opf(pt), opf(pt)/q(0.1*sqrt(3.0)));
+    opf.reconstruct();
 //     for (int i=0; i<nn; i++) {
 //         double z=lo + i*range/double(nn-1);
+
 //         double r = fabs(z)*sqrt(3.0);
 //         coordT p(z);
-//         print(z, opf(p), q(r), q(r)/opf(p), q(r)-opf(p));
+// //         double r = z;
+// //         coordT p(0.0); p[0] = z;
+
+//         print(z, opf(p),q(r),opf(p)-q(r));
 //     }
 
 //     plotdx(opf, "opf.dx", FunctionDefaults<3>::get_cell(), npt);
 
+    opf.truncate();
     Function<T,3> opinvopf = opf*(mu*mu);
     for (int axis=0; axis<3; axis++) {
         print("diffing",axis);
-        opinvopf = opinvopf - diff(diff(opf,axis),axis);
+        opinvopf.gaxpy(1.0,diff(diff(opf,axis),axis).compress(),-1.0);
     }
 
-// //     plotdx(opinvopf, "opinvopf.dx", FunctionDefaults<3>::get_cell(), npt);
+//     plotdx(opinvopf, "opinvopf.dx", FunctionDefaults<3>::get_cell(), npt);
 
     print("norm of (-del^2+mu^2)*G*f", opinvopf.norm2());
     Function<T,3> error = (f-opinvopf);
     print("error",error.norm2());
     
-// //     error.reconstruct();
-// //     plotdx(error, "err.dx", FunctionDefaults<3>::get_cell(), npt);
+//     error.reconstruct();
+//     plotdx(error, "err.dx", FunctionDefaults<3>::get_cell(), npt);
 
 
 //     opinvopf.reconstruct();
@@ -210,106 +210,18 @@ void test_bsh(World& world) {
 // //         print(z, opinvopf(p), f(p), opinvopf(p)/f(p), error(p));
 // //     }
 
-//     opf.clear(); opinvopf.clear();
+    opf.clear(); opinvopf.clear();
 
-//     Function<T,3> g = (mu*mu)*f;
-//     for (int axis=0; axis<3; axis++) {
-//         g = g - diff(diff(f,axis),axis);
-//     }
-//     g = apply(op,g);
-//     print("norm of G*(-del^2+mu^2)*f",g.norm2());
-//     print("error",(g-f).norm2());
+    Function<T,3> g = (mu*mu)*f;
+    for (int axis=0; axis<3; axis++) {
+        g = g - diff(diff(f,axis),axis);
+    }
+    g = apply(op,g);
+    print("norm of G*(-del^2+mu^2)*f",g.norm2());
+    print("error",(g-f).norm2());
 
     world.gop.fence();
 
-}
-
-template <typename T, int NDIM>
-void test_op(World& world) {
-
-    typedef Vector<double,NDIM> coordT;
-    typedef SharedPtr< FunctionFunctorInterface<T,NDIM> > functorT;
-
-    if (world.rank() == 0) {
-        print("\nTest separated operators - type =", archive::get_type_name<T>(),", ndim =",NDIM,"\n");
-    }
-    const coordT origin(0.5);
-    const double expnt = 4096.0; //1.0;
-    const double coeff = pow(2.0*expnt/constants::pi,0.25*NDIM);
-    functorT functor(new Gaussian<T,NDIM>(origin, expnt, coeff));
-
-    FunctionDefaults<NDIM>::set_k(16);
-    FunctionDefaults<NDIM>::set_thresh(1e-13);
-    FunctionDefaults<NDIM>::set_refine(true);
-    FunctionDefaults<NDIM>::set_initial_level(10);
-    FunctionDefaults<NDIM>::set_truncate_mode(0);
-    FunctionDefaults<NDIM>::set_cubic_cell(-100.0,100.0);
-    
-    Function<T,NDIM> f = FunctionFactory<T,NDIM>(world).functor(functor);
-
-    f.truncate();
-    f.reconstruct();
-
-//     print("F INITIAL PROJECTION");
-//     f.print_tree();
-//     print("F COMPRESSED");
-//     f.compress();
-//     f.print_tree();
-//     print("F RECONSTRUCTED");
-//     f.reconstruct();
-//     f.print_tree();
-//     print("F NONSTANDARD");
-//     f.nonstandard();
-//     f.print_tree();
-
-//     f.standard();
-
-    //f.truncate();
-//     print("fsize before refine1 ", f.size());
-//     f.refine();
-//     print("fsize before refine2 ", f.size());
-//     f.refine();
-//     print("fsize  after refine2 ", f.size());
-//     f.refine();
-//     print("fsize  after refine3 ", f.size());
-
-    double n2 = f.norm2();
-    double t2 = f.trace();
-    double e2 = f.err(*functor);
-    if (world.rank() == 0) {
-        print("         f  norm is", n2);
-        print("         f trace is", t2);
-        print("      f total error", e2);
-    }
-
-    // Convolution exp(-a*x^2) with exp(-b*x^2) is
-    // exp(-x^2*a*b/(a+b))* (Pi/(a+b))^(NDIM/2)
-
-    Tensor<double> coeffs(1), exponents(1);
-    exponents(0L) = 1.0; //4096.0; //0.015625;
-    //    while (exponents(0L) < 1.1e6) {
-        coeffs(0L) = pow(exponents(0L)/constants::pi, 0.5*NDIM);
-
-        SeparatedConvolution<T,NDIM> op(world, FunctionDefaults<NDIM>::get_k(), coeffs, exponents);
-        //op.doleaves = true;
-        //GenericConvolution1D<double,GaussianGenericFunctor<double> > gen(FunctionDefaults<NDIM>::get_k(),
-        //                                                                         GaussianGenericFunctor<double>(coeffs[0L],exponents[0L]));
-
-
-        Function<T,NDIM> r = apply(op,f);
-        r.verify_tree();
-        f.verify_tree();
-
-        double newexpnt = expnt*exponents(0L)/(expnt+exponents(0L));
-        double newcoeff = pow(constants::pi/(expnt+exponents(0L)),0.5*NDIM)*coeff*coeffs(0L);
-        functorT fexact(new Gaussian<T,NDIM>(origin, newexpnt, newcoeff));
-
-        double rn = r.norm2();
-        double re = r.err(*fexact);
-        if (world.rank() == 0) print("exponent",exponents[0L],"norm",rn,"err",re);
-
-        exponents[0L] *= 2.0;
-        //    }
 }
 
 
@@ -320,7 +232,6 @@ int main(int argc, char**argv) {
     try {
         startup(world,argc,argv);
         
-        //test_op<double,1>(world);
         test_bsh<double>(world);
 
     } catch (const MPI::Exception& e) {

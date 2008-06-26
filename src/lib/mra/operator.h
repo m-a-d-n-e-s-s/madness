@@ -75,8 +75,8 @@ namespace madness {
     extern void bsh_fit(double mu, double lo, double hi, double eps, 
                         Tensor<double> *pcoeff, Tensor<double> *pexpnt, bool prnt=false);
 
-    extern void bsh_fit_mod(double mu, double lo, double hi, double eps, 
-                            Tensor<double> *pcoeff, Tensor<double> *pexpnt, bool prnt=false);
+//     extern void bsh_fit_mod(double mu, double lo, double hi, double eps, 
+//                             Tensor<double> *pcoeff, Tensor<double> *pexpnt, bool prnt=false);
 
     /// Simplified interface around hash_map to cache stuff
 
@@ -573,6 +573,8 @@ namespace madness {
     public:
         typedef Q opT;  ///< The apply function uses this to infer resultT=opT*inputT
         bool doleaves;  ///< If should be applied to leaf coefficients ... false by default
+        bool dowiden0;  ///< If true widen operator if diagonal term significant ... false by default
+        bool dowiden1;  ///< If true widen operator if make off-diaginal contrib ... false by default
     private:
         const int k;
         const int rank;
@@ -900,6 +902,8 @@ namespace madness {
                              bool doleaves=false)
             : WorldObject< SeparatedConvolution<Q,NDIM> >(world)
             , doleaves(doleaves)
+            , dowiden0(false)
+            , dowiden1(false)
             , k(k)
             , rank(ops.size())
             , vk(NDIM,k)
@@ -923,6 +927,8 @@ namespace madness {
                              bool doleaves = false) 
             : WorldObject< SeparatedConvolution<Q,NDIM> >(world)
             , doleaves(doleaves)
+            , dowiden0(false)
+            , dowiden1(false)
             , k(k)
             , rank(coeff.dim[0])
             , vk(NDIM,k)
@@ -968,15 +974,14 @@ namespace madness {
                 // coefficients ... FuncImpl::apply by default does not
                 // apply the operator to these since for smoothing operators
                 // it is not necessary.  It is necessary for operators such
-                // as differentiation and time evolution.
-                if (doleaves) {
-                    dummy = Tensor<T>(v2k);
-                    dummy(s0) = coeff;
-                    input = &dummy;
-                }
-                else {
-                    return Tensor<resultT>(v2k); // Not now invoked due to logic in FuncImpl:apply?
-                }
+                // as differentiation and time evolution and will also occur
+                // if the application of the operator widens the tree.
+                dummy = Tensor<T>(v2k);
+                dummy(s0) = coeff;
+                input = &dummy;
+            }
+            else {
+                MADNESS_ASSERT(coeff.dim[0]==2*k);
             }
 
             tol = tol/rank; // Error is per separated term
@@ -1016,7 +1021,7 @@ namespace madness {
         // bsh_fit generates representation for 1/4Pir but we want 1/r
         // so have to scale eps by 1/4Pi
         Tensor<double> coeff, expnt;
-        bsh_fit(0.0, lo, hi, eps/(4.0*pi), &coeff, &expnt, true);
+        bsh_fit(0.0, lo, hi, eps/(4.0*pi), &coeff, &expnt, false);
         coeff.scale(4.0*pi);
         return SeparatedConvolution<Q,NDIM>(world, k, coeff, expnt);
     }
@@ -1034,7 +1039,7 @@ namespace madness {
         // bsh_fit generates representation for 1/4Pir but we want 1/r
         // so have to scale eps by 1/4Pi
         Tensor<double> coeff, expnt;
-        bsh_fit(0.0, lo, hi, eps/(4.0*pi), &coeff, &expnt, true);
+        bsh_fit(0.0, lo, hi, eps/(4.0*pi), &coeff, &expnt, false);
         coeff.scale(4.0*pi);
         return new SeparatedConvolution<Q,NDIM>(world, k, coeff, expnt);
     }
@@ -1049,7 +1054,7 @@ namespace madness {
         const Tensor<double>& cell_width = FunctionDefaults<NDIM>::get_cell_width();
         double hi = cell_width.normf(); // Diagonal width of cell
         Tensor<double> coeff, expnt;
-        bsh_fit(mu, lo, hi, eps, &coeff, &expnt, true);
+        bsh_fit(mu, lo, hi, eps, &coeff, &expnt, false);
         return SeparatedConvolution<Q,NDIM>(world, k, coeff, expnt);
     }
 
@@ -1063,7 +1068,7 @@ namespace madness {
         const Tensor<double>& cell_width = FunctionDefaults<NDIM>::get_cell_width();
         double hi = cell_width.normf(); // Diagonal width of cell
         Tensor<double> coeff, expnt;
-        bsh_fit(mu, lo, hi, eps, &coeff, &expnt, true);
+        bsh_fit(mu, lo, hi, eps, &coeff, &expnt, false);
         return new SeparatedConvolution<Q,NDIM>(world, k, coeff, expnt);
     }
 

@@ -1115,21 +1115,20 @@ namespace madness {
     
     
     template <typename T, int NDIM>
-    Future< Tensor<T> > FunctionImpl<T,NDIM>::compress_spawn(const Key<NDIM>& key, bool nonstandard) {
+    Future< Tensor<T> > FunctionImpl<T,NDIM>::compress_spawn(const Key<NDIM>& key, bool nonstandard, bool keepleaves) {
         MADNESS_ASSERT(coeffs.probe(key));
         nodeT& node = coeffs.find(key).get()->second;
         if (node.has_children()) {
             std::vector< Future<tensorT> > v = future_vector_factory<tensorT>(1<<NDIM);
             int i=0;
             for (KeyChildIterator<NDIM> kit(key); kit; ++kit,++i) {
-                v[i] = send(coeffs.owner(kit.key()), &implT::compress_spawn, kit.key(), nonstandard);
-                //v[i] = task(coeffs.owner(kit.key()), &implT::compress_spawn, kit.key(), nonstandard);
+                v[i] = send(coeffs.owner(kit.key()), &implT::compress_spawn, kit.key(), nonstandard, keepleaves);
             }
             return task(world.rank(),&implT::compress_op, key, v, nonstandard);
         }
         else {
             Future<tensorT> result(node.coeff());
-            if (!nonstandard) node.clear_coeff();
+            if (!keepleaves) node.clear_coeff();
             return result;
         }
     }

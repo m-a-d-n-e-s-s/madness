@@ -700,7 +700,7 @@ void test_coulomb(World& world) {
 
     f.reconstruct();
     START_TIMER;
-    f.nonstandard();
+    f.nonstandard(false,true);
     END_TIMER("nonstandard");
 
     if (world.rank() == 0) {
@@ -709,7 +709,7 @@ void test_coulomb(World& world) {
         print("");
     }
     f.set_thresh(thresh);
-    SeparatedConvolution<double,3> op = CoulombOperator<double,3>(world, FunctionDefaults<3>::get_k(), 1e-3, thresh);
+    SeparatedConvolution<double,3> op = CoulombOperator<double,3>(world, FunctionDefaults<3>::get_k(), 1e-2, thresh);
 
     FunctionDefaults<3>::set_apply_randomize(true);
 
@@ -846,8 +846,8 @@ void test_qm(World& world) {
     // k=16, thresh=1e-12, gives 3e-10 forever with tstep=5x! BUT only 
     // if applying also on the leaf nodes (which is not on by default)
 
-    int k = 8;
-    double thresh = 1e-6;
+    int k = 16;
+    double thresh = 1e-12;
     FunctionDefaults<1>::set_k(k);
     FunctionDefaults<1>::set_thresh(thresh);
     FunctionDefaults<1>::set_refine(true);
@@ -861,10 +861,10 @@ void test_qm(World& world) {
     double ctarget = v + 10.0*sqrt(a);
     double c = 1.86*ctarget; //1.86*ctarget;
     double tcrit = 2*PI/(c*c);
-    double tstep = 10.0*tcrit;
+    double tstep = 5*tcrit;
 
     int nstep = 100.0/tstep;
-    tstep = 100.0/nstep;
+    tstep = 100.0/nstep; // so we finish exactly at 100.0
 
     // For the purpose of testing there is no need to propagate 100 time units.
     // Just 100 steps.
