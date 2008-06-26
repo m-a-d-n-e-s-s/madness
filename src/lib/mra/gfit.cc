@@ -217,11 +217,12 @@ namespace madness {
 
         // Modify the coeffs of the largest exponents to satisfy the moment conditions
         //
-        // !!!!! THIS TURNS OUT TO BE A BAD IDEA AS CURRENTLY IMPLEMENTED ... SET NMOM=0
-        //
+        // SETTING NMOM>1 TURNS OUT TO BE A BAD IDEA (AS CURRENTLY IMPLEMENTED)
         // [It is accurate and efficient for a one-shot application but it seems to
         //  introduce fine-scale noise that amplifies during iterative solution of
-        //  the SCF and DFT equations]
+        //  the SCF and DFT equations ... the symptom is negative coeffs in the fit]
+        //
+        // SET NMOM=0 or 1 (1 recommended) unless you are doing a one-shot application
         //
         // Determine the effective range of the four largest exponents and compute
         // moments of the exact and remainder of the fit.  Then adjust the coeffs
@@ -231,7 +232,7 @@ namespace madness {
         // in the moment list
         //
         // <r^i|gj> cj = <r^i|exact-remainder>
-        const long nmom = 0;
+        const long nmom = 1;
         if (nmom > 0) {
             Tensor<double> q(4), qg(4);
             double range = sqrt(-log(1e-6)/expnt[nmom-1]);
