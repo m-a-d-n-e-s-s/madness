@@ -182,6 +182,9 @@ struct CalculationParameters {
     int maxiter;                ///< Maximum number of iterations
     bool spin_restricted;       ///< True if spin restricted
     bool lda;                   ///< True if LDA (HF if false)
+    int plotlo,plothi;          ///< Range of MOs to print (for both spins if polarized)
+    bool plotdens;              ///< If true print the density at convergence
+    bool plotcoul;              ///< If true plot the total coulomb potential at convergence
     // Next list inferred parameters
     int nalpha;                 ///< Number of alpha spin electrons
     int nbeta;                  ///< Number of beta  spin electrons
@@ -192,6 +195,7 @@ struct CalculationParameters {
     template <typename Archive>
     void serialize(Archive& ar) {
         ar & charge & smear & econv & dconv & L & maxrotn & nvalpha & nvbeta & nopen & maxiter & spin_restricted & lda;
+        ar & plotlo & plothi & plotdens & plotcoul;
         ar & nalpha & nbeta & nmo_alpha & nmo_beta & lo;
     }
 
@@ -208,6 +212,10 @@ struct CalculationParameters {
         , maxiter(20)
         , spin_restricted(true)
         , lda(true)
+        , plotlo(0)
+        , plothi(-1)
+        , plotdens(false)
+        , plotcoul(false)
         , nalpha(0)
         , nbeta(0)
         , nmo_alpha(0)
@@ -250,6 +258,12 @@ struct CalculationParameters {
                 lda = true;
             } else if (s == "hf") {
                 lda = false;
+            } else if (s == "plotmos") {
+                f >> plotlo >> plothi;
+            } else if (s == "plotdens") {
+                plotdens = true;
+            } else if (s == "plotcoul") {
+                plotcoul = true;
             } else {
                 std::cout << "moldft: unrecognized input keyword " << s << std::endl;
                 MADNESS_EXCEPTION("input error",0);
@@ -361,7 +375,7 @@ struct Calculation {
         coulop = poperatorT(CoulombOperatorPtr<double, 3>(world, 
                                                           FunctionDefaults<3>::get_k(), 
                                                           param.lo, 
-                                                          vtol));
+                                                          vtol/safety)); // No need for safety here!
         if (world.rank() == 0) {
             print("\nSolving with thresh", thresh, "    k", FunctionDefaults<3>::get_k(), 
                   "   conv", max(thresh, param.dconv), "\n");

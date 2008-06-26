@@ -374,7 +374,7 @@ double Molecule::smallest_length_scale() const {
     for (unsigned int i=0; i<atoms.size(); i++) {
         rcmax = std::max(rcmax,rcut[i]);
     }
-    return 0.1/rcmax;
+    return 1.0/rcmax;
 }
 
 
