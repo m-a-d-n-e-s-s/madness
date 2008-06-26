@@ -217,6 +217,12 @@ namespace madness {
 
         // Modify the coeffs of the largest exponents to satisfy the moment conditions
         //
+        // !!!!! THIS TURNS OUT TO BE A BAD IDEA AS CURRENTLY IMPLEMENTED ... SET NMOM=0
+        //
+        // [It is accurate and efficient for a one-shot application but it seems to
+        //  introduce fine-scale noise that amplifies during iterative solution of
+        //  the SCF and DFT equations]
+        //
         // Determine the effective range of the four largest exponents and compute
         // moments of the exact and remainder of the fit.  Then adjust the coeffs
         // to reproduce the exact moments in that volume.
@@ -225,45 +231,47 @@ namespace madness {
         // in the moment list
         //
         // <r^i|gj> cj = <r^i|exact-remainder>
-        const int nmom = 3;
-        Tensor<double> q(4), qg(4);
-        double range = sqrt(-log(1e-6)/expnt[nmom-1]);
-        if (prnt) print("exponent(nmom-1)",expnt[nmom-1],"has range", range);
-
-        bsh_spherical_moments(mu, range, q);
-        Tensor<double> M(nmom,nmom);
-        for (int i=nmom; i<npt; i++) {
-            Tensor<double> qt(4);            
-            gaussian_spherical_moments(expnt[i], range, qt);
-            qg += qt*coeff[i];
-        }
-        if (nmom != 4) {
-            q = q(Slice(1,nmom)); 
-            qg = qg(Slice(1,nmom));
-        }
-        if (prnt) {
-            print("moments", q);
-            print("moments", qg);
-        }
-        q = copy(q - qg);
-        for (int j=0; j<nmom; j++) {
-            Tensor<double> qt(4);            
-            gaussian_spherical_moments(expnt[j], range, qt);
-            if (nmom != 4) qt = qt(Slice(1,nmom));
-            for (int i=0; i<nmom; i++) {
-                M(i,j) = qt[i];
+        const long nmom = 0;
+        if (nmom > 0) {
+            Tensor<double> q(4), qg(4);
+            double range = sqrt(-log(1e-6)/expnt[nmom-1]);
+            if (prnt) print("exponent(nmom-1)",expnt[nmom-1],"has range", range);
+            
+            bsh_spherical_moments(mu, range, q);
+            Tensor<double> M(nmom,nmom);
+            for (int i=nmom; i<npt; i++) {
+                Tensor<double> qt(4);            
+                gaussian_spherical_moments(expnt[i], range, qt);
+                qg += qt*coeff[i];
             }
+            if (nmom != 4) {
+                q = q(Slice(1,nmom)); 
+                qg = qg(Slice(1,nmom));
+            }
+            if (prnt) {
+                print("moments", q);
+                print("moments", qg);
+            }
+            q = copy(q - qg);
+            for (int j=0; j<nmom; j++) {
+                Tensor<double> qt(4);            
+                gaussian_spherical_moments(expnt[j], range, qt);
+                if (nmom != 4) qt = qt(Slice(1,nmom));
+                for (int i=0; i<nmom; i++) {
+                    M(i,j) = qt[i];
+                }
+            }
+            Tensor<double> ncoeff;
+            gesv(M, q, &ncoeff);
+            if (prnt) {
+                print("M\n",M);
+                print("old coeffs", coeff(Slice(0,nmom-1)));
+                print("new coeffs", ncoeff);
+            }
+            
+            coeff(Slice(0,nmom-1)) = ncoeff;
         }
-        Tensor<double> ncoeff;
-        gesv(M, q, &ncoeff);
-        if (prnt) {
-            print("M\n",M);
-            print("old coeffs", coeff(Slice(0,nmom-1)));
-            print("new coeffs", ncoeff);
-        }
-                
-        coeff(Slice(0,nmom-1)) = ncoeff;
-
+        
         if (prnt) {
             for (int i=0; i<npt; i++) 
                 cout << i << " " << coeff[i] << " " << expnt[i] << endl;
