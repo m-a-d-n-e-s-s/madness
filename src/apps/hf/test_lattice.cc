@@ -83,7 +83,7 @@ struct PeriodicConditionalRefineTest
   {
     // Is the box above the level from where we want to refine?
     int n = key.level();
-    if (n >= 6) return false;
+    if (n >= 5) return false;
     // Are we on the boundary?
     Translation l1 = key.translation()[0];
     Translation l2 = key.translation()[1];
@@ -325,7 +325,7 @@ void testscott(int argc, char**argv)
   // Just printing, nothing to see here
   for (int j = 0; j < coeff.dim[0]; j++)
   {
-    coeff[j]=pow(coeff[j], 1.0/3.0);
+    coeff[j] = (coeff[j] < 0) ? -pow(-coeff[j], 1.0/3.0) : pow(coeff[j], 1.0/3.0);
     if (world.rank() == 0) printf("expt[%d] = %.8f\t\tcoeff[%d] = %.8f\n", j, expnt[j], j, coeff[j]);
   }
 
@@ -337,60 +337,60 @@ void testscott(int argc, char**argv)
   print("before", rho.size());
   rho.conditional_refine(PeriodicConditionalRefineTest());
   print("after", rho.size());
-  Function<double,3> phi_test1 = apply(op, rho);
+  //Function<double,3> phi_test1 = apply(op, rho);
 
   // One gaussian only (with lattice)
   std::vector< SharedPtr< Convolution1D<double> > > opsumcoll(1);
   opsumcoll[0]
         = SharedPtr< Convolution1D<double> >(new GenericConvolution1D< double,wstFunctor<double> >(funck,wstFunctor<double>(4, 100.0, 0.01*1298190.0)));
   SeparatedConvolution<double,3> opsum(world, funck, opsumcoll);
-  opsum.doleaves=true;
+  //opsum.doleaves=true;
 
-  Function<double,3> phi_test2 = apply(opsum, rho);
+  //Function<double,3> phi_test2 = apply(opsum, rho);
 
   // One gaussian only (using different operator)
   Tensor<double> xcoeff(1), xexpnt(1);
   xcoeff[0] = 1e6;
   xexpnt[0] = 0.01*1298190.0;
   SeparatedConvolution<double,3> xop(world, funck, xcoeff, xexpnt);
-  xop.doleaves = true;
+  //xop.doleaves = true;
   Function<double,3> phi_testx = apply(xop, rho);
 
-  // Full set of gaussians (with lattice sum)
-  std::vector< SharedPtr< Convolution1D<double> > > opfulllattice;
-  for (int i = 0; i < coeff.dim[0]; i++)
-  {
-    if (expnt[i] > 0.24)
-    {
-      // How many lattice spaces do I need to sum in real space?
-      double dum = log(2.0/eps);
-      int kmax = ceil(sqrt(dum/expnt[i]));
-      printf("kmax[%d] = %d\t\tcoeff[%d] = %.8f\t\texpnt[%d] = %.8f\n", i, kmax, i, coeff[i], i, expnt[i]);
-      // Add exponential with kmax, coeff, and expnt to list
-      opfulllattice.push_back(SharedPtr< Convolution1D<double> >(new GenericConvolution1D< double,wstFunctor<double> >(funck,wstFunctor<double>(kmax, coeff[i], expnt[i]))));
-    }
-  }
-  printf("creating opsumfull ...\n\n");
-  SeparatedConvolution<double,3> opsumfull(world, funck, opfulllattice);
-  printf("applying opsumfull ...\n\n");
-  Function<double,3> phi_test3 = apply(opsumfull, rho);
-  printf("done applying opsumfull ...\n\n");
+//   // Full set of gaussians (with lattice sum)
+//   std::vector< SharedPtr< Convolution1D<double> > > opfulllattice;
+//   for (int i = 0; i < coeff.dim[0]; i++)
+//   {
+//     if (expnt[i] > 0.24)
+//     {
+//       // How many lattice spaces do I need to sum in real space?
+//       double dum = log(2.0/eps);
+//       int kmax = ceil(sqrt(dum/expnt[i]));
+//       printf("kmax[%d] = %d\t\tcoeff[%d] = %.8f\t\texpnt[%d] = %.8f\n", i, kmax, i, coeff[i], i, expnt[i]);
+//       // Add exponential with kmax, coeff, and expnt to list
+//       opfulllattice.push_back(SharedPtr< Convolution1D<double> >(new GenericConvolution1D< double,wstFunctor<double> >(funck,wstFunctor<double>(kmax, coeff[i], expnt[i]))));
+//     }
+//   }
+//   printf("creating opsumfull ...\n\n");
+//   SeparatedConvolution<double,3> opsumfull(world, funck, opfulllattice);
+//   printf("applying opsumfull ...\n\n");
+//   Function<double,3> phi_test3 = apply(opsumfull, rho);
+//   printf("done applying opsumfull ...\n\n");
 
   /// Point to be tested
   coordT3d point1(0.49);
 
-  double ptpt1 = phi_test1(point1);
-  double ptpt2 = phi_test2(point1);
-  double ptptx = phi_testx(point1);
-  double ptpt3 = phi_test3(point1);
-  if (world.rank() == 0) printf("ptpt1 = %.8e\n\n", ptpt1);
-  if (world.rank() == 0) printf("ptpt2 = %.8e\n\n", ptpt2);
-  if (world.rank() == 0) printf("ptptx = %.8e\n\n", ptptx);
+//   double ptpt1 = phi_test1(point1);
+//   double ptpt2 = phi_test2(point1);
+//   double ptptx = phi_testx(point1);
+//   double ptpt3 = phi_test3(point1);
+//   if (world.rank() == 0) printf("ptpt1 = %.8e\n\n", ptpt1);
+//   if (world.rank() == 0) printf("ptpt2 = %.8e\n\n", ptpt2);
+//   if (world.rank() == 0) printf("ptptx = %.8e\n\n", ptptx);
   for (int i=0; i<101; i++) {
     coordT3d p(-0.5 + i*0.01);
-    printf("%.2f  %.8f\n", p[0], phi_test3(p));
+    printf("%.2f  %.8f\n", p[0], phi_testx(p));
   }
-  if (world.rank() == 0) printf("ptpt3 = %.8e\n\n", ptpt3);
+//   if (world.rank() == 0) printf("ptpt3 = %.8e\n\n", ptpt3);
 
   MPI::Finalize();
 }
