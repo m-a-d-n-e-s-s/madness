@@ -20,7 +20,7 @@ TESTPROGS = test testss testsuite tests-hqi
 
 # Source files for the test programs (up to six of them)
 TEST1SRC = test.cc 
-TEST2SRC = testss.cc 
+TEST2SRC = testqm.cc 
 TEST3SRC = testsuite.cc 
 #loadbal.cc
 TEST4SRC = tests-hqi.cc
@@ -38,7 +38,7 @@ DEFINES += -DMRA_DATA_DIR=$(HERE)
 test: $(TEST1OBJ) $(THISLIBDEPEND) 
 	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ $(SYSLIBS) $(LTLINKBINOPTS)
 
-testss: $(TEST2OBJ) $(THISLIBDEPEND) 
+testqm: $(TEST2OBJ) $(THISLIBDEPEND) 
 	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ $(SYSLIBS) $(LTLINKBINOPTS)
 
 jjtests: jjtests.o $(THISLIBDEPEND) 
