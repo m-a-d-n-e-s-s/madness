@@ -54,15 +54,16 @@ int main(int argc, char** argv) {
     
     startup(world,argc,argv);
 
-    FunctionDefaults<3>::k = k;
-    FunctionDefaults<3>::thresh = thresh;
-    FunctionDefaults<3>::refine = true;
-    FunctionDefaults<3>::initial_level = 2;
-    FunctionDefaults<3>::truncate_mode = 0;  
-    for (int i=0; i<3; i++) {
-        FunctionDefaults<3>::cell(i,0) = -L/2;
-        FunctionDefaults<3>::cell(i,1) =  L/2;
-    }
+    FunctionDefaults<3>::set_k(k);
+    FunctionDefaults<3>::set_thresh(thresh);
+    FunctionDefaults<3>::set_refine(true);
+    FunctionDefaults<3>::set_initial_level(2);
+    FunctionDefaults<3>::set_truncate_mode(0);  
+    FunctionDefaults<3>::set_cubic_cell(-L/2, L/2);
+    // for (int i=0; i<3; i++) {
+    // FunctionDefaults<3>::cell(i,0) = -L/2;
+    // FunctionDefaults<3>::cell(i,1) =  L/2;
+    // }
     
     functionT Vnuc = factoryT(world).f(V);
     functionT psi  = factoryT(world).f(guess);
