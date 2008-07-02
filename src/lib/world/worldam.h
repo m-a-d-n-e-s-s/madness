@@ -374,6 +374,7 @@ namespace madness {
         
         /// Private:
         inline void poll_short_msg_action(ProcessID src, const AmArg& arg) {
+            PROFILE_FUNC;
             bool isbcast = arg.flags & BCAST_MASK;
             if (debug) print("World:",rank,"got short AM from",src,
                              "isbcast",isbcast,
@@ -387,6 +388,7 @@ namespace madness {
         
         /// Private:
         inline void poll_long_msg_action(ProcessID src, size_t nbyte, unsigned long* buf) {
+            PROFILE_FUNC;
             unsigned long flags = buf[0];
             am_long_handlerT function = (am_long_handlerT) (buf[1]);
             bool isbcast = flags & BCAST_MASK;
@@ -400,6 +402,7 @@ namespace madness {
         };
 
         inline void free_managed_send_buf(int i) {
+            PROFILE_FUNC;
             if (managed_send_buf[i]) {
                 free_long_am_arg((unsigned long*) managed_send_buf[i]);
                 managed_send_buf[i] = 0;
@@ -428,6 +431,7 @@ namespace madness {
 
         /// Separate routine to make capturing statistics easier
         inline void msgq_push_back(qmsg* qm) {
+            PROFILE_FUNC;
             msgq.push_back(qm);
             msgq_count++;
             msgq_count_max = std::max(msgq_count,msgq_count_max);
@@ -440,6 +444,7 @@ namespace madness {
 
         /// Private: Sends a short active message setting internal flags
         inline void _send(ProcessID dest, am_handlerT op, const AmArg& arg, ProcessID root) {
+            PROFILE_FUNC;
             unsigned long flags = send_counters[dest]++;
             if (root >= 0) flags |= (root << 12) | BCAST_MASK;
             if (debug) print("World:",rank,"sending short AM to",dest,
@@ -469,6 +474,7 @@ namespace madness {
         /// Private: Sends a long active message setting internal flags
         inline int _send_long(ProcessID dest, am_long_handlerT op, void *buf, size_t nbyte, 
                               ProcessID root, bool managed) {
+            PROFILE_FUNC;
             unsigned long flags = send_counters[dest]++;
             int i;
             if (root >= 0) flags |= (root << 12) | BCAST_MASK;
@@ -540,6 +546,7 @@ namespace madness {
         };
 
         long pull_msgs_into_q() {
+            PROFILE_FUNC;
             MPI::Status status[NRECV];
             int ind[NRECV];
             long narrived = MPI::Request::Testsome(NRECV, recv_handle, ind, status);
@@ -567,6 +574,7 @@ namespace madness {
 
         /// Need to do this in order to avoid deadlock when being flooded.
         void free_long_recv_bufs() {
+            PROFILE_FUNC;
             nfree_long_recv_bufs++; // Count times called
             // Iterate backwards thru msg list since in use buffers
             // must be at the end.
@@ -592,6 +600,7 @@ namespace madness {
         };
 
         void process_messages_in_q() {
+            PROFILE_FUNC;
             // All incoming messages regardless of origin are put into this queue.
             //
             // Sequential consistency must be maintained using the message counters.
@@ -812,6 +821,7 @@ namespace madness {
         /// The AM processing guarantees sequential consistency so the
         /// messages are processed in the order sent.
         void poll() {
+            PROFILE_FUNC;
             // We suck and process messages until nothing more arrives.
             // We don't wait for all messages to be processed.
 

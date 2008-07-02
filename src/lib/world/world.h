@@ -71,6 +71,10 @@
 typedef UINT64_T uint64_t;
 #endif
 
+namespace madness {
+    class World;
+}
+
 #include <world/typestuff.h>
 #include <world/worldexc.h>
 #include <world/worldmem.h>
@@ -83,6 +87,7 @@ typedef UINT64_T uint64_t;
 #include <world/worldmpi.h>
 #include <world/worldser.h>
 #include <world/worldtime.h>
+#include <world/worldprofile.h>
 
 #ifdef USE_LINUX_RANDOM
 #include <stdlib.h>
@@ -477,6 +482,7 @@ namespace madness {
         /// Ensures progress is made in all worlds.
         template <typename Probe>
         static void inline await(const Probe& probe) {
+            PROFILE_BLOCK(await_generic);
             // Critical here is that poll() is NOT called after a
             // successful test of the request since polling may
             // trigger an activity that invalidates the condition.

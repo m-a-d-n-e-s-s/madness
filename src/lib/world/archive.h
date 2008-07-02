@@ -332,6 +332,7 @@
 #include <vector>
 #include <map>
 #include <world/typestuff.h>
+#include <world/worldprofile.h>
 
 #define ARCHIVE_COOKIE "archive"
 #define ARCHIVE_MAJOR_VERSION 0
@@ -626,6 +627,7 @@ namespace madness {
         inline
         typename madness::enable_if_c<Archive::is_output_archive, const Archive&>::type
         operator<<(const Archive& ar, const T& t) {
+            //PROFILE_FUNC;
             return ArchiveImpl<Archive,T>::wrap_store(ar,t);
         }
         
@@ -634,6 +636,7 @@ namespace madness {
         inline
         typename madness::enable_if_c<Archive::is_input_archive, const Archive&>::type
         operator>>(const Archive& ar, const T& t) {
+            //PROFILE_FUNC;
             return ArchiveImpl<Archive,T>::wrap_load(ar,t);
         }
         
@@ -642,6 +645,7 @@ namespace madness {
         inline
         typename madness::enable_if_c<Archive::is_output_archive, const Archive&>::type
         operator&(const Archive& ar, const T& t) {
+            //PROFILE_FUNC;
             return ArchiveImpl<Archive,T>::wrap_store(ar,t);
         }
         
@@ -650,6 +654,7 @@ namespace madness {
         inline
         typename madness::enable_if_c<Archive::is_input_archive, const Archive&>::type
         operator&(const Archive& ar, const T& t) {
+            //PROFILE_FUNC;
             return ArchiveImpl<Archive,T>::wrap_load(ar,t);
         }
         

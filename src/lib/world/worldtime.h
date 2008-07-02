@@ -39,6 +39,10 @@
 #include <time.h>
 #include <sys/time.h>
 
+#ifdef _CRAY
+#include <catamount/dclock.h>
+#endif
+
 /// \file worldtime.h
 /// \brief Wrappers around platform dependent timers and performance info
 
@@ -50,12 +54,6 @@ namespace madness {
     /// As accurate and lightweight as we can get it, but may not
     /// be any better than the gettime of day system call.
     double wall_time();
-
-    /// Returns the cpu time in seconds relative to arbitrary origin
-
-    /// As accurate and lightweight as we can get it, but may not
-    /// be any better than the clock system call.
-    double cpu_time();
 
     /// On some machines we have access to a cycle count
     
@@ -88,6 +86,21 @@ namespace madness {
     ///
     /// If not available returns 0.
     double cpu_frequency();
+
+    /// Returns the cpu time in seconds relative to arbitrary origin
+    
+    /// As accurate and lightweight as we can get it, but may not
+    /// be any better than the clock system call.
+    static inline double cpu_time() {
+#if defined(X86_32) || defined(X86_64) 
+        static const double rfreq = 1.0/cpu_frequency();
+        return cycle_count()*rfreq;
+#elif defined(_CRAY)
+        return dclock();
+#else
+        return double(clock())/CLOCKS_PER_SEC;
+#endif
+    }
 }
 
 

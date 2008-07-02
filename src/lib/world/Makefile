@@ -25,7 +25,7 @@ TEST2SRC = testar.cc
 TEST3SRC = treetest.cc
 TEST4SRC = helloworld.cc
 TEST5SRC = objexample.cc
-TEST6SRC = parttree.cc
+TEST6SRC = worldprofile.cc
          
 # GlobalMakefile now does most of the work for you
 include $(TOPDIR)/config/GlobalMakefile
@@ -46,7 +46,7 @@ helloworld: $(TEST4OBJ) $(THISLIBDEPEND)
 objexample: $(TEST5OBJ) $(THISLIBDEPEND) 
 	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ $(SYSLIBS) $(LTLINKBINOPTS)
 
-parttree: $(TEST6OBJ) $(THISLIBDEPEND) 
+worldprofile: $(TEST6OBJ) $(THISLIBDEPEND) 
 	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ $(SYSLIBS) $(LTLINKBINOPTS)
 
 runvalg:	world

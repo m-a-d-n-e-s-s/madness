@@ -44,6 +44,7 @@ using namespace madness;
 using namespace std;
 
 void test0(World& world) {
+    PROFILE_FUNC;
     const size_t n=555;
     char buf[n+2];
     buf[0] = buf[n+1] = 127;
@@ -91,6 +92,7 @@ void hello(World& world, ProcessID from, const AmArg& arg) {
 }
 
 void test1(World& world) {
+    PROFILE_FUNC;
     ProcessID me = world.mpi.rank();
     long nproc = world.size();
 
@@ -128,6 +130,7 @@ void test1(World& world) {
 }
 
 void test2_handler(World& world, ProcessID src, void *buf, size_t len) {
+    PROFILE_FUNC;
     const long offset = WorldAmInterface::LONG_MSG_HEADER_LEN/sizeof(long);
     long lens = len/sizeof(long) - offset;
     long *s = (long *) buf;
@@ -151,6 +154,7 @@ void test2_handler(World& world, ProcessID src, void *buf, size_t len) {
 
 
 void test2(World& world) {
+    PROFILE_FUNC;
     ProcessID me = world.mpi.rank();
     const long offset = WorldAmInterface::LONG_MSG_HEADER_LEN/sizeof(long);
     long buf[offset + 1];
@@ -177,6 +181,7 @@ void test2(World& world) {
 }
 
 void test3_handler(World& world, ProcessID src, void *buf, size_t len) {
+    PROFILE_FUNC;
     const long offset = WorldAmInterface::LONG_MSG_HEADER_LEN/sizeof(long);
     long lens = len/sizeof(long) - offset;
     long *s = (long *) buf;
@@ -197,6 +202,7 @@ void test3_handler(World& world, ProcessID src, void *buf, size_t len) {
 }
 
 void test3(World& world) {
+    PROFILE_FUNC;
     ProcessID me = world.mpi.rank();
     const long offset = WorldAmInterface::LONG_MSG_HEADER_LEN/sizeof(long);
     long buf[offset + 1];
@@ -211,6 +217,7 @@ void test3(World& world) {
 
 
 void test4(World& world) {
+    PROFILE_FUNC;
     int nproc = world.size();
     ProcessID me = world.rank();
     ProcessID left = (me+nproc-1) % nproc;
@@ -242,11 +249,13 @@ void test4(World& world) {
 
 bool done4a;
 void handler4a_done(World& world, ProcessID from, const AmArg& arg) {
+    PROFILE_FUNC;
     print("Process 0 was told by", from, "that all is finished");
     done4a = true;
 }
 
 void handler4a(World& world, ProcessID from, const AmArg& arg) {
+    PROFILE_FUNC;
     unsigned long counter = arg[0];
     if (counter < 10000) {
         world.am.send(world.random_proc(), handler4a, AmArg(counter+1));
@@ -258,6 +267,7 @@ void handler4a(World& world, ProcessID from, const AmArg& arg) {
 
 
 void test4a(World& world) {
+    PROFILE_FUNC;
     if (world.size() == 1) return;
     // An active messages wanders around the machine
     // until an internal count hits 10000.
@@ -324,6 +334,7 @@ double dumb(int a1, int a2, int a3, int a4, int a5, int a6, int a7) {
 
 
 void test5(World& world) {
+    PROFILE_FUNC;
     int nproc = world.size();
     ProcessID me = world.rank();
     ProcessID right = (me+1)%nproc;
@@ -427,6 +438,7 @@ public:
 };
 
 void test6(World& world) {
+    PROFILE_FUNC;
     ProcessID me = world.rank();
     ProcessID nproc = world.nproc();
     Foo a(world, me*100);
@@ -499,6 +511,7 @@ public:
 };
 
 void test6a(World& world) {
+    PROFILE_FUNC;
     
     if (world.size() < 2) return;
 
@@ -518,6 +531,7 @@ void test6a(World& world) {
 
 
 void test7(World& world) {
+    PROFILE_FUNC;
     int nproc = world.size();
     ProcessID me = world.rank();
     World::poll_all();
@@ -570,6 +584,7 @@ void test7(World& world) {
 }
 
 void test8(World& world) {
+    PROFILE_FUNC;
     vector<unsigned char> v;
     VectorOutputArchive arout(v);
     arout & &world;
@@ -590,6 +605,7 @@ int val1d_func(int input) {
 }
 
 void test9(World& world) {
+    PROFILE_FUNC;
     const int ntask = 100000;
 
     double used = -cpu_time();
@@ -698,6 +714,7 @@ public:
 };
 
 void test10(World& world) {
+    PROFILE_FUNC;
     // test forwarding methods to an item
     ProcessID me = world.rank();
     int nproc = world.size();
@@ -905,6 +922,7 @@ void walker2(WorldContainer<Key,Node>& d, const Key& key) {
 }
 
 void test11(World& world) {
+    PROFILE_FUNC;
     // Test the various flavours of erase
     ProcessID me = world.rank();
     WorldContainer<Key,Node> d(world);
@@ -959,6 +977,7 @@ void test11(World& world) {
 
 
 void test12(World& world) {
+    PROFILE_FUNC;
     if (world.size() != 1) return;
     // Test file IO
     ProcessID me = world.rank();
@@ -993,6 +1012,7 @@ void test12(World& world) {
 }
 
 void test13(World& world) {
+    PROFILE_FUNC;
     // Basic functionality with 1 (default) writer
     ParallelOutputArchive fout(world, "fred");
     fout & 1.0 & "hello";
@@ -1065,6 +1085,7 @@ int main(int argc, char** argv) {
     world.gop.fence();
 
     try {
+        PROFILE_BLOCK(main_program);
 
       DQueue<int>::self_test();
       test0(world);
@@ -1105,6 +1126,8 @@ int main(int argc, char** argv) {
         world.taskq.print_stats();
         world_mem_info()->print();
     }
+
+    WorldProfile::print(world);
     MPI::Finalize();
     return 0;
 }

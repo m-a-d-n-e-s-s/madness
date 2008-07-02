@@ -38,10 +38,6 @@
 /// \file worldstuff.cc
 /// \brief Static variables/functions that must be linked in
 
-#ifdef _CRAY
-#include <catamount/dclock.h>
-#endif
-
 #ifdef __CYGWIN__
 #include <windows.h>
 #endif
@@ -119,14 +115,6 @@ namespace madness {
 #endif
     }
     
-    double cpu_time() {
-#ifdef _CRAY
-        return dclock();
-#else
-        return double(clock())/CLOCKS_PER_SEC;
-#endif
-    }
-    
     double cpu_frequency() {
         static double freq = -1.0;
         if (freq == -1.0) {
@@ -167,5 +155,135 @@ namespace madness {
         world.am.print_stats();
         world.taskq.print_stats();
     }
+
+
+    WorldProfileObj* WorldProfileObj::call_stack = 0;
+    std::vector<WorldProfileEntry> WorldProfile::items;
+    double WorldProfile::cpu_start = madness::cpu_time();
+
+
+    static void est_profile_overhead() {
+        PROFILE_FUNC;
+    }
+
+    void WorldProfile::print(World& world) {
+#ifdef WORLD_PROFILE_ENABLE
+        for (int i=0; i<100; i++) est_profile_overhead();
+
+        ProcessID me = world.rank();
+        for (unsigned int i=0; i<items.size(); i++) {
+            items[i].init_par_stats(me);
+        }
+        
+        recv_stats(world, 2*me+1);
+        recv_stats(world, 2*me+2);
+
+        if (me) {
+            MPIOutputArchive ar(world, (me-1)/2);
+            ar & items;
+        }
+        else {
+            double overhead = 0.0;
+            int overid = find("est_profile_overhead");
+            if (overid != -1) {
+                overhead = get_entry(overid).xcpu.sum/get_entry(overid).count.sum;
+            }
+
+            std::vector<WorldProfileEntry> v(items);
+            std::sort(v.begin(), v.end());  
+            std::reverse(v.begin(), v.end());  
+            
+            double cpu_total = 0.0;
+            for (unsigned int i=0; i<v.size(); i++) 
+                cpu_total += v[i].xcpu.sum;
+            
+            std::printf("\n    MADNESS global parallel profile\n");
+            std::printf("    -------------------------------\n\n");
+            std::printf("    o  estimated profiling overhead %.1e seconds per call\n", overhead);
+            std::printf("    o  items sorted in descending order by total exclusive cpu time\n");
+            std::printf("    o  exclusive cpu time excludes called profiled routines\n");
+            std::printf("    o  inclusive cpu time includes called profiled routines and\n");
+            std::printf("       does not double count recursive calls\n");
+            std::printf("    o  process with max/min value is printed under the entry\n");
+            std::printf("    o  in emacs use toggle-truncate-lines to toggle wrapping long lines\n");
+            std::printf("\n");
+            std::printf("      cum%% - percent cumulative exclusive cpu time (summed over all nodes)\n");
+            std::printf("      cpu%% - percent exclusive cpu time (summed over all nodes)\n");
+            std::printf("       cpu - total exclusive cpu time (summed over all nodes)\n");
+            std::printf("   cpu-min - minimum exclusive cpu time on any processor\n");
+            std::printf("   cpu-avg - mean exclusive cpu time per processor\n");
+            std::printf("   cpu-max - maximum exclusive cpu time on any processor\n");
+            std::printf(" cpu-imbal - percent imbalance in exclusive cpu time = (max-min)/avg\n");
+            std::printf("       inc - total inclusive cpu time (summed over all nodes)\n");
+            std::printf("   inc-min - minimum inclusive cpu time on any processor\n");
+            std::printf("   inc-avg - mean inclusive cpu time per processor\n");
+            std::printf("   inc-max - maximum inclusive cpu time on any processor\n");
+            std::printf(" inc-imbal - percent imbalance in inclusive cpu time = (max-min)/avg\n");
+            std::printf("     calls - total number calls time\n");
+            std::printf(" calls-min - minimum number calls on any processor\n");
+            std::printf(" calls-avg - mean number calls per processor\n");
+            std::printf(" calls-max - maximum number calls on any processor\n");
+            std::printf(" calls-imb - percent imbalance in number calls = (max-min)/avg\n");
+            std::printf("\n");
+            double cpu_sum = 0.0;
+            std::printf("  cum%%  cpu%%   cpu/s   cpu-min  cpu-avg  cpu-max  cpu-imb   inc/s   inc-min  inc-avg  inc-max  inc-imb   calls  call-min call-avg call-max call-imb name\n");
+            std::printf(" ----- ----- -------- -------- -------- -------- -------- -------- -------- -------- -------- --------  ------- -------- -------- -------- -------- --------------------\n");
+            
+            // 
+            for (unsigned int i=0; i<v.size(); i++) {
+                double cpu = v[i].xcpu.sum;
+                double inc = v[i].icpu.sum;
+                double count = v[i].count.sum;
+                
+                cpu_sum += cpu;
+                
+                double cum_cpu_percent = cpu_total ? 100.0*cpu_sum/cpu_total : 0.0;
+                double cpu_percent = cpu_total ? 100.0*cpu/cpu_total : 0.0;
+                
+                double cpu_mean = cpu/world.size();
+                double count_mean = count/world.size();
+                double count_imbalance = count_mean ? (v[i].count.max-v[i].count.min)/count_mean : 0.0;
+                double cpu_imbalance = cpu_mean ? (v[i].xcpu.max-v[i].xcpu.min)/cpu_mean : 0.0;
+
+                double inc_mean = inc/world.size();
+                double inc_imbalance = inc_mean ? (v[i].icpu.max-v[i].icpu.min)/inc_mean : 0.0;
+
+                printf("%6.1f%6.1f%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e %s\n",
+                       cum_cpu_percent,
+                       cpu_percent,
+                       cpu, v[i].xcpu.min, cpu_mean, v[i].xcpu.max, cpu_imbalance,
+                       inc, v[i].icpu.min, inc_mean, v[i].icpu.max, inc_imbalance,
+                       double(count), double(v[i].count.min), count_mean, double(v[i].count.max), double(count_imbalance),
+                       v[i].name.c_str());
+                       printf("                  %9d         %9d                  %9d         %9d                  %9d         %9d\n",
+                              v[i].xcpu.pmin, v[i].xcpu.pmax,
+                              v[i].icpu.pmin, v[i].icpu.pmax,
+                              v[i].count.pmin, v[i].count.pmax);
+            }
+        }
+        
+        world.gop.fence();
+#endif
+    }
+
+    
+    void WorldProfile::recv_stats(World& world, ProcessID p) {
+        if (p >= world.size()) return;
+        MPIInputArchive ar(world, p);
+        const std::vector<WorldProfileEntry> v;
+        ar & v;
+        for (unsigned int i=0; i<v.size(); i++) {
+            int id = find(v[i].name);
+            if (id != -1) {
+                WorldProfileEntry& d = get_entry(id);
+                d.par_reduce(v[i]);
+            }
+            else {
+                id = register_id(v[i].name.c_str());
+                WorldProfileEntry& d = get_entry(id);
+                d = v[i];
+            }
+        }
+    }      
 
 }

@@ -620,6 +620,7 @@ namespace madness {
                 return false;
             }
             else {
+                PROFILE_BLOCK(run_task);
                 TaskInterface *p = ready.front();
                 ready.pop_front();
                 xxnready--;
