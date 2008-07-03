@@ -1043,9 +1043,9 @@ int main(int argc, char**argv) {
     try {
         startup(world,argc,argv);
         if (world.rank() == 0) print("Initial tensor instance count", BaseTensor::get_instance_count());
+        PROFILE_BLOCK(testsuite);
         
-        
-        test_basic<double,1>(world);
+         test_basic<double,1>(world);
         test_conv<double,1>(world);
         test_math<double,1>(world);
         test_diff<double,1>(world);
@@ -1128,6 +1128,8 @@ int main(int argc, char**argv) {
 
     //int id = MPI::COMM_WORLD.Get_rank();
     //int nproc = MPI::COMM_WORLD.Get_size();
+
+    WorldProfile::print(world);
 
     MPI::Finalize();
     

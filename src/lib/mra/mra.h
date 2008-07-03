@@ -235,7 +235,9 @@ namespace madness {
         /// Constructor from FunctionFactory provides named parameter idiom.  Possible non-blocking communication.
         Function(const factoryT& factory)
             : impl(new FunctionImpl<T,NDIM>(factory))
-        {}
+        {
+            PROFILE_MEMBER_FUNC(Function);
+        }
 
 
         /// Copy constructor is \em shallow.  No communication, works in either basis.
@@ -293,6 +295,7 @@ namespace madness {
         /// All processes recieve the entire result (which is a rather severe limit
         /// on the size of the cube that is possible).
         Tensor<T> eval_cube(const Tensor<double>& cell, const vector<long>& npt) const {
+            PROFILE_MEMBER_FUNC(Function);
             const double eps=1e-15;
             verify();
             reconstruct();
@@ -336,6 +339,7 @@ namespace madness {
         /// if you are evaluating many points in parallel it is \em vastly less efficient than
         /// calling eval directly, saving the futures, and then forcing all of the results.
         T operator()(const coordT& xuser) const {
+            PROFILE_MEMBER_FUNC(Function);
             return eval(xuser).get();
         }
 
@@ -348,6 +352,7 @@ namespace madness {
         /// errsq
         template <typename funcT>
         double errsq_local(const funcT& func) const {
+            PROFILE_MEMBER_FUNC(Function);
             verify();
             if (is_compressed()) MADNESS_EXCEPTION("Function:errsq_local:not reconstructed",0);
             return impl->errsq_local(func);
@@ -361,6 +366,7 @@ namespace madness {
         /// instead so you can perform a global sum on all at the same time.
         template <typename funcT>
         double err(const funcT& func) const {
+            PROFILE_MEMBER_FUNC(Function);
             verify();
             if (VERIFY_TREE) verify_tree();
             if (is_compressed()) reconstruct();
@@ -372,6 +378,7 @@ namespace madness {
 
         /// Verifies the tree data structure ... global sync implied
         void verify_tree() const {
+            PROFILE_MEMBER_FUNC(Function);
             if (impl) impl->verify_tree();
         }
 
@@ -389,6 +396,7 @@ namespace madness {
 
         /// Returns the number of nodes in the function tree ... collective global sum
 	std::size_t tree_size() const {
+            PROFILE_MEMBER_FUNC(Function);
 	    if (!impl) return 0;
 	    return impl->tree_size();
 	}
@@ -396,6 +404,7 @@ namespace madness {
 
 	/// Returns the maximum depth of the function tree
 	std::size_t max_depth() const {
+            PROFILE_MEMBER_FUNC(Function);
 	    if (!impl) return 0;
 	    return impl->max_depth();
 	}
@@ -403,12 +412,14 @@ namespace madness {
 
         /// Returns the max number of nodes on a processor
 	std::size_t max_nodes() const {
+            PROFILE_MEMBER_FUNC(Function);
 	    if (!impl) return 0;
 	    return impl->max_nodes();
 	}
 
         /// Returns the min number of nodes on a processor
 	std::size_t min_nodes() const {
+            PROFILE_MEMBER_FUNC(Function);
 	    if (!impl) return 0;
 	    return impl->min_nodes();
 	}
@@ -416,6 +427,7 @@ namespace madness {
 
         /// Returns the number of coefficients in the function ... collective global sum
         std::size_t size() const {
+            PROFILE_MEMBER_FUNC(Function);
             if (!impl) return 0;
             return impl->size();
         }
@@ -470,6 +482,7 @@ namespace madness {
         ///
         /// Returns this for chaining.
         Function<T,NDIM>& truncate(double tol = 0.0, bool fence = true) {
+            PROFILE_MEMBER_FUNC(Function);
             if (!impl) return *this;
             verify();
             if (!is_compressed()) compress();
@@ -505,6 +518,7 @@ namespace madness {
 
         /// Works in either basis
         double norm2sq_local() const {
+            PROFILE_MEMBER_FUNC(Function);
             verify();
             return impl->norm2sq_local();
         }
@@ -515,6 +529,7 @@ namespace madness {
 
         /// See comments for err() w.r.t. applying to many functions.
         double norm2() const {
+            PROFILE_MEMBER_FUNC(Function);
             verify();
             if (VERIFY_TREE) verify_tree();
             double local = impl->norm2sq_local();
@@ -527,6 +542,7 @@ namespace madness {
 
         /// Initializes information about the function norm at all length scales
         void norm_tree(bool fence = true) const {
+            PROFILE_MEMBER_FUNC(Function);
             verify();
             if (VERIFY_TREE) verify_tree();
             if (is_compressed()) reconstruct();
@@ -546,6 +562,7 @@ namespace madness {
         /// Since reconstruction/compression do not discard information we define them
         /// as const ... "logical constness" not "bitwise constness".
         const Function<T,NDIM>& compress(bool fence = true) const {
+            PROFILE_MEMBER_FUNC(Function);
             if (!impl || is_compressed()) return *this;
             if (VERIFY_TREE) verify_tree();
             const_cast<Function<T,NDIM>*>(this)->impl->compress(false, false, fence);
@@ -562,6 +579,7 @@ namespace madness {
         ///
         /// Noop if already compressed or if not initialized.
         void nonstandard(bool keepleaves, bool fence) {
+            PROFILE_MEMBER_FUNC(Function);
             verify();
             if (VERIFY_TREE) verify_tree();
             if (is_compressed()) reconstruct();
@@ -570,6 +588,7 @@ namespace madness {
 
 
         void standard(bool fence = true) {
+            PROFILE_MEMBER_FUNC(Function);
             verify();
             MADNESS_ASSERT(is_compressed());
             impl->standard(fence);
@@ -577,6 +596,7 @@ namespace madness {
         }
 
         void widen(bool fence = true, int ndiff = 1) {
+            PROFILE_MEMBER_FUNC(Function);
             verify();
             if (is_compressed()) reconstruct();
             impl->widen(fence, ndiff);
@@ -595,6 +615,7 @@ namespace madness {
         /// Since reconstruction/compression do not discard information we define them
         /// as const ... "logical constness" not "bitwise constness".
         void reconstruct(bool fence = true) const {
+            PROFILE_MEMBER_FUNC(Function);
             if (!impl || !is_compressed()) return;
             const_cast<Function<T,NDIM>*>(this)->impl->reconstruct(fence);
             if (fence && VERIFY_TREE) verify_tree(); // Must be after in case nonstandard
@@ -605,6 +626,7 @@ namespace madness {
 
         /// This needs generalizing to a user-defined threshold and criterion.
         void refine(bool fence = true) const {
+            PROFILE_MEMBER_FUNC(Function);
             verify();
             if (is_compressed()) reconstruct();
             impl->refine(fence);
@@ -614,6 +636,7 @@ namespace madness {
 
         /// Any underlying data will not be freed until the next global fence.
         void clear(bool fence = true) {
+            PROFILE_MEMBER_FUNC(Function);
             if (impl) {
                 World& world = impl->world;
                 impl = SharedPtr< FunctionImpl<T,NDIM> >(0);
@@ -644,6 +667,7 @@ namespace madness {
         /// thing and because there would be no way to make the fence optional.
         template <typename Q>
         Function<Q,NDIM> convert(bool fence = true) const {
+            PROFILE_MEMBER_FUNC(Function);
             verify();
             Function<Q,NDIM> result;
 	    result.impl = SharedPtr< FunctionImpl<Q,NDIM> >(new FunctionImpl<Q,NDIM>(*impl));
@@ -654,6 +678,7 @@ namespace madness {
         /// Inplace unary operation on function values with optional autorefining and fence
         template <typename opT>
         void unaryop(const opT& op, bool fence=true) {
+            PROFILE_MEMBER_FUNC(Function);
             verify();
             if (autorefine()) {
                 impl->unary_op_value_inplace(&implT::autorefine_square_test, op, fence);
@@ -668,6 +693,7 @@ namespace madness {
         template <typename opT>
         void unaryop_coeff(const opT& op,
                            bool fence = true) {
+            PROFILE_MEMBER_FUNC(Function);
             verify();
             impl->unary_op_coeff_inplace(&implT::noautorefine, op, fence);
         }
@@ -683,6 +709,7 @@ namespace madness {
 
         /// Returns this for chaining.  Works in either basis.
         Function<T,NDIM> conj(bool fence = true) {
+            PROFILE_MEMBER_FUNC(Function);
             unaryop_coeff(&Function<T,NDIM>::doconj, fence);
             return *this;
         }
@@ -691,6 +718,7 @@ namespace madness {
 
         /// Works in either basis.
 	Function<T,NDIM> copy(bool fence = true) const {
+            PROFILE_MEMBER_FUNC(Function);
             verify();
             return this->copy(get_pmap(), fence);
 	}
@@ -702,6 +730,7 @@ namespace madness {
         /// asynchronous communication and the optional fence is
         /// collective.
 	Function<T,NDIM> copy(const SharedPtr< WorldDCPmapInterface< Key<NDIM> > >& pmap, bool fence = true) const {
+            PROFILE_MEMBER_FUNC(Function);
             verify();
 	    Function<T,NDIM> result;
 	    result.impl = SharedPtr<implT>(new implT(*impl, pmap, false));
@@ -716,6 +745,7 @@ namespace madness {
         /// Works in either basis.  Returns reference to this for chaining.
         template <typename Q>
         Function<T,NDIM>& scale(const Q q, bool fence=true) {
+            PROFILE_MEMBER_FUNC(Function);
             verify();
             if (VERIFY_TREE) verify_tree();
             impl->scale_inplace(q,fence);
@@ -724,6 +754,7 @@ namespace madness {
 
         /// Inplace add scalar.  No communication except for optional fence.
         Function<T,NDIM>& add_scalar(T t, bool fence=true) {
+            PROFILE_MEMBER_FUNC(Function);
             verify();
             if (VERIFY_TREE) verify_tree();
             impl->add_scalar_inplace(t,fence);
@@ -741,6 +772,7 @@ namespace madness {
         template <typename Q, typename R>
         Function<T,NDIM>& gaxpy(const T& alpha,
                                 const Function<Q,NDIM>& other, const R& beta, bool fence=true) {
+            PROFILE_MEMBER_FUNC(Function);
             verify();
             other.verify();
             MADNESS_ASSERT(is_compressed() && other.is_compressed());
@@ -755,6 +787,7 @@ namespace madness {
         /// Functions are compressed if not already so.
         template <typename Q>
         Function<T,NDIM>& operator+=(const Function<Q,NDIM>& other) {
+            PROFILE_MEMBER_FUNC(Function);
             if (!is_compressed()) compress();
             if (!other.is_compressed()) other.compress();
             if (VERIFY_TREE) verify_tree();
@@ -768,6 +801,7 @@ namespace madness {
         /// Using operator notation forces a global fence after every operation
         template <typename Q>
         Function<T,NDIM>& operator-=(const Function<Q,NDIM>& other) {
+            PROFILE_MEMBER_FUNC(Function);
             if (!is_compressed()) compress();
             if (!other.is_compressed()) other.compress();
             if (VERIFY_TREE) verify_tree();
@@ -781,6 +815,7 @@ namespace madness {
         /// Using operator notation forces a global fence after every operation
         template <typename Q>
         Function<T,NDIM>& operator*=(const Q q) {
+            PROFILE_MEMBER_FUNC(Function);
             scale(q,true);
             return *this;
         }
@@ -790,6 +825,7 @@ namespace madness {
 
         /// Returns *this for chaining.
         Function<T,NDIM>& square(bool fence = true) {
+            PROFILE_MEMBER_FUNC(Function);
             if (is_compressed()) reconstruct();
             if (VERIFY_TREE) verify_tree();
             impl->square_inplace(fence);
@@ -809,6 +845,7 @@ namespace madness {
         /// function which is a constant.  In the scaling function basis we
         /// must add up contributions from each box.
         T trace_local() const {
+            PROFILE_MEMBER_FUNC(Function);
             if (!impl) return 0.0;
             if (VERIFY_TREE) verify_tree();
             return impl->trace_local();
@@ -817,6 +854,7 @@ namespace madness {
 
         /// Returns global value of \c int(f(x),x) ... global comm required
         T trace() const {
+            PROFILE_MEMBER_FUNC(Function);
             if (!impl) return 0.0;
             T sum = impl->trace_local();
             impl->world.gop.sum(sum);
@@ -827,6 +865,7 @@ namespace madness {
         /// Returns local part of inner product ... throws if both not compressed
 	template <typename R>
         TENSOR_RESULT_TYPE(T,R) inner_local(const Function<R,NDIM>& g) const {
+            PROFILE_MEMBER_FUNC(Function);
             MADNESS_ASSERT(is_compressed());
             MADNESS_ASSERT(g.is_compressed());
             if (VERIFY_TREE) verify_tree();
@@ -840,6 +879,7 @@ namespace madness {
 	/// Not efficient for computing multiple inner products
 	template <typename R>
 	  TENSOR_RESULT_TYPE(T,R) inner(const Function<R,NDIM>& g) const {
+            PROFILE_MEMBER_FUNC(Function);
 	  if (!is_compressed()) compress();
 	  if (!g.is_compressed()) g.compress();
           if (VERIFY_TREE) verify_tree();
@@ -858,6 +898,7 @@ namespace madness {
         /// The & operator for serializing will only work with parallel archives.
         template <typename Archive>
         void load(World& world, Archive& ar) {
+            PROFILE_MEMBER_FUNC(Function);
             // Type checking since we are probably circumventing the archive's own type checking
             long magic, id, ndim, k;
             ar & magic & id & ndim & k;
@@ -878,6 +919,7 @@ namespace madness {
         /// The & operator for serializing will only work with parallel archives.
         template <typename Archive>
         void store(Archive& ar) const {
+            PROFILE_MEMBER_FUNC(Function);
             verify();
             // For type checking, etc.
             ar & long(7776768) & long(TensorTypeData<T>::id) & long(NDIM) & long(k());
@@ -891,6 +933,7 @@ namespace madness {
 
         /// Projects inplace function to new order basis ... private
         Function<T,NDIM>& project(const Function<T,NDIM>& other, bool fence) {
+            PROFILE_MEMBER_FUNC(Function);
             impl->project(*other.impl, fence);
             return *this;
         }
@@ -898,6 +941,7 @@ namespace madness {
         /// This is replaced with left*right ...  private
         template <typename L, typename R>
         Function<T,NDIM>& mul(const Function<L,NDIM>& left, const Function<R,NDIM>& right, bool fence) {
+            PROFILE_MEMBER_FUNC(Function);
             left.verify();
             right.verify();
             MADNESS_ASSERT(!(left.is_compressed() || right.is_compressed()));
@@ -911,6 +955,7 @@ namespace madness {
         /// This is replaced with left*right using sparsity ...  private
         template <typename L, typename R>
         Function<T,NDIM>& mul_sparse(const Function<L,NDIM>& left, const Function<R,NDIM>& right, double tol, bool fence) {
+            PROFILE_MEMBER_FUNC(Function);
             left.verify();
             right.verify();
             MADNESS_ASSERT(!(left.is_compressed() || right.is_compressed()));
@@ -925,6 +970,7 @@ namespace madness {
         template <typename L, typename R>
         Function<T,NDIM>& gaxpy_oop(T alpha, const Function<L,NDIM>& left,
                                     T beta,  const Function<R,NDIM>& right, bool fence) {
+            PROFILE_MEMBER_FUNC(Function);
             left.verify();
             right.verify();
             MADNESS_ASSERT(left.is_compressed() && right.is_compressed());
@@ -938,6 +984,7 @@ namespace madness {
         /// This is replaced with alpha*f ...  private
         template <typename Q, typename L>
         Function<T,NDIM>& scale_oop(const Q alpha, const Function<L,NDIM>& f, bool fence) {
+            PROFILE_MEMBER_FUNC(Function);
             f.verify();
             if (VERIFY_TREE) f.verify_tree();
             impl = SharedPtr<implT>(new implT(*f.impl, f.get_pmap(), false));
@@ -947,6 +994,7 @@ namespace madness {
 
         /// This is replaced with df/dx ...  private.
         Function<T,NDIM>& diff(const Function<T,NDIM>& f, int axis, bool fence) {
+            PROFILE_MEMBER_FUNC(Function);
             f.verify();
             if (VERIFY_TREE) f.verify_tree();
             impl = SharedPtr<implT>(new implT(*f.impl, f.get_pmap(), false));
@@ -957,6 +1005,7 @@ namespace madness {
         /// This is replaced with op(f) in NS form ...  private.
         template <typename opT, typename R>
         Function<T,NDIM>& apply(opT& op, const Function<R,NDIM>& f, bool fence) {
+            PROFILE_MEMBER_FUNC(Function);
             f.verify();
             impl = SharedPtr<implT>(new implT(*f.impl, f.get_pmap(), true));
             impl->apply(op, *f.impl, fence);
@@ -965,6 +1014,7 @@ namespace madness {
 
         /// This is replaced with mapdim(f) ...  private
         Function<T,NDIM>& mapdim(const Function<T,NDIM>& f, const std::vector<long>& map, bool fence) {
+            PROFILE_MEMBER_FUNC(Function);
             f.verify();
             if (VERIFY_TREE) f.verify_tree();
             for (int i=0; i<NDIM; i++) MADNESS_ASSERT(map[i]>=0 && map[i]<NDIM);
@@ -980,6 +1030,7 @@ namespace madness {
     template <typename Q, typename T, int NDIM>
     Function<TENSOR_RESULT_TYPE(Q,T),NDIM>
     mul(const Q alpha, const Function<T,NDIM>& f, bool fence) {
+        PROFILE_FUNC;
         Function<TENSOR_RESULT_TYPE(Q,T),NDIM> result;
         return result.scale_oop(alpha, f, fence);
     }
@@ -989,6 +1040,7 @@ namespace madness {
     template <typename Q, typename T, int NDIM>
     Function<TENSOR_RESULT_TYPE(Q,T),NDIM>
     mul(const Function<T,NDIM>& f, const Q alpha, bool fence) {
+        PROFILE_FUNC;
         return mul(alpha,f,fence);
     }
 
@@ -999,6 +1051,7 @@ namespace madness {
     template <typename Q, typename T, int NDIM>
     Function<TENSOR_RESULT_TYPE(Q,T),NDIM>
     operator*(const Function<T,NDIM>& f, const Q alpha) {
+        PROFILE_FUNC;
         return mul(alpha, f, true);
     }
 
@@ -1008,6 +1061,7 @@ namespace madness {
     template <typename Q, typename T, int NDIM>
     Function<TENSOR_RESULT_TYPE(Q,T),NDIM>
     operator*(const Q alpha, const Function<T,NDIM>& f) {
+        PROFILE_FUNC;
         return mul(alpha, f, true);
     }
 
@@ -1016,6 +1070,7 @@ namespace madness {
     template <typename L, typename R,int NDIM>
     Function<TENSOR_RESULT_TYPE(L,R),NDIM>
     mul(const Function<L,NDIM>& left, const Function<R,NDIM>& right, bool fence) {
+        PROFILE_FUNC;
         Function<TENSOR_RESULT_TYPE(L,R),NDIM> result;
         return result.mul(left,right,fence);
     }
@@ -1025,6 +1080,7 @@ namespace madness {
     template <typename L, typename R,int NDIM>
     Function<TENSOR_RESULT_TYPE(L,R),NDIM>
     mul_sparse(const Function<L,NDIM>& left, const Function<R,NDIM>& right, double tol, bool fence) {
+        PROFILE_FUNC;
         Function<TENSOR_RESULT_TYPE(L,R),NDIM> result;
         return result.mul_sparse(left,right,tol,fence);
     }
@@ -1038,6 +1094,7 @@ namespace madness {
     template <typename L, typename R, int NDIM>
     Function<TENSOR_RESULT_TYPE(L,R), NDIM>
     operator*(const Function<L,NDIM>& left, const Function<R,NDIM>& right) {
+        PROFILE_FUNC;
         if (left.is_compressed())  left.reconstruct();
         if (right.is_compressed()) right.reconstruct();
         return mul(left,right,true);
@@ -1049,6 +1106,7 @@ namespace madness {
     Function<TENSOR_RESULT_TYPE(L,R),NDIM>
     gaxpy_oop(TENSOR_RESULT_TYPE(L,R) alpha, const Function<L,NDIM>& left,
           TENSOR_RESULT_TYPE(L,R) beta,  const Function<R,NDIM>& right, bool fence) {
+        PROFILE_FUNC;
         Function<TENSOR_RESULT_TYPE(L,R),NDIM> result;
         return result.gaxpy_oop(alpha, left, beta, right, fence);
     }
@@ -1057,6 +1115,7 @@ namespace madness {
     template <typename L, typename R,int NDIM>
     Function<TENSOR_RESULT_TYPE(L,R),NDIM>
     add(const Function<L,NDIM>& left, const Function<R,NDIM>& right, bool fence) {
+        PROFILE_FUNC;
         return gaxpy_oop(TENSOR_RESULT_TYPE(L,R)(1.0), left,
                          TENSOR_RESULT_TYPE(L,R)(1.0), right, fence);
     }
@@ -1068,6 +1127,7 @@ namespace madness {
     template <typename L, typename R, int NDIM>
     Function<TENSOR_RESULT_TYPE(L,R), NDIM>
     operator+(const Function<L,NDIM>& left, const Function<R,NDIM>& right) {
+        PROFILE_FUNC;
         if (VERIFY_TREE) left.verify_tree();
         if (VERIFY_TREE) right.verify_tree();
         if (!left.is_compressed())  left.compress();
@@ -1079,6 +1139,7 @@ namespace madness {
     template <typename L, typename R,int NDIM>
     Function<TENSOR_RESULT_TYPE(L,R),NDIM>
     sub(const Function<L,NDIM>& left, const Function<R,NDIM>& right, bool fence) {
+        PROFILE_FUNC;
         return gaxpy_oop(TENSOR_RESULT_TYPE(L,R)( 1.0), left,
                          TENSOR_RESULT_TYPE(L,R)(-1.0), right, fence);
     }
@@ -1090,6 +1151,7 @@ namespace madness {
     template <typename L, typename R, int NDIM>
     Function<TENSOR_RESULT_TYPE(L,R), NDIM>
     operator-(const Function<L,NDIM>& left, const Function<R,NDIM>& right) {
+        PROFILE_FUNC;
         if (!left.is_compressed())  left.compress();
         if (!right.is_compressed()) right.compress();
         return sub(left,right,true);
@@ -1099,6 +1161,7 @@ namespace madness {
     /// Create a new function that is the square of f - global comm only if not reconstructed
     template <typename T, int NDIM>
     Function<T,NDIM> square(const Function<T,NDIM>& f, bool fence) {
+        PROFILE_FUNC;
         Function<T,NDIM> result = copy(f,true);  // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         return result.square(true); //fence);  // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     }
@@ -1109,18 +1172,21 @@ namespace madness {
     Function<T,NDIM> copy(const Function<T,NDIM>& f,
 			  const SharedPtr< WorldDCPmapInterface< Key<NDIM> > >& pmap,
                           bool fence = true) {
+        PROFILE_FUNC;
 	return f.copy(pmap,fence);
     }
 
     /// Create a new copy of the function with the same distribution and optional fence
     template <typename T, int NDIM>
     Function<T,NDIM> copy(const Function<T,NDIM>& f, bool fence = true) {
+        PROFILE_FUNC;
 	return f.copy(fence);
     }
 
     /// Return the complex conjugate of the input function with the same distribution and optional fence
     template <typename T, int NDIM>
     Function<T,NDIM> conj(const Function<T,NDIM>& f, bool fence = true) {
+        PROFILE_FUNC;
         Function<T,NDIM> result = copy(f,true);
 	return result.conj(fence);
     }
@@ -1131,6 +1197,7 @@ namespace madness {
     template <typename T, int NDIM>
     Function<T,NDIM>
     diff(const Function<T,NDIM>& f, int axis, bool fence) {
+        PROFILE_FUNC;
         Function<T,NDIM> result;
         if (f.is_compressed()) {
             if (fence) {
@@ -1153,6 +1220,7 @@ namespace madness {
     template <typename opT, typename R, int NDIM>
     Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM>
     apply(const opT& op, const Function<R,NDIM>& f, bool fence) {
+        PROFILE_FUNC;
 	Function<R,NDIM>& ff = const_cast< Function<R,NDIM>& >(f);
         Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> result;
         if (VERIFY_TREE) ff.verify_tree();
@@ -1169,6 +1237,7 @@ namespace madness {
     template <typename opT, typename R, int NDIM>
     Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM>
     apply_only(const opT& op, const Function<R,NDIM>& f, bool fence) {
+        PROFILE_FUNC;
         Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> result;
 	return result.apply(op, f, fence);
     }
@@ -1190,6 +1259,7 @@ namespace madness {
     template <typename T, int NDIM>
     Function<T,NDIM>
     mapdim(const Function<T,NDIM>& f, const std::vector<long>& map, bool fence=true) {
+        PROFILE_FUNC;
         Function<T,NDIM> result;
         return result.mapdim(f,map,fence);
     }
@@ -1201,6 +1271,7 @@ namespace madness {
             double thresh,
             bool fence)
     {
+        PROFILE_FUNC;
         Function<T,NDIM> r = FunctionFactory<T,NDIM>(other.impl->world).k(k).thresh(thresh).empty();
         other.reconstruct();
         r.project(other,fence);
@@ -1213,6 +1284,7 @@ namespace madness {
     /// In Maple this would be \c int(conjugate(f(x))*g(x),x=-infinity..infinity)
     template <typename T, typename R, int NDIM>
       TENSOR_RESULT_TYPE(T,R) inner(const Function<T,NDIM>& f, const Function<R,NDIM>& g) {
+        PROFILE_FUNC;
       return f.inner(g);
     }
 
