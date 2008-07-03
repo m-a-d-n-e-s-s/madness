@@ -169,8 +169,8 @@ namespace madness {
             cpu_total += v[i].xcpu.sum;
         
         double cpu_sum = 0.0;
-        std::printf("  cum%%  cpu%%   cpu/s   cpu-min  cpu-avg  cpu-max  cpu-imb   inc/s   inc-min  inc-avg  inc-max  inc-imb   calls  call-min call-avg call-max call-imb name\n");
-        std::printf(" ----- ----- -------- -------- -------- -------- -------- -------- -------- -------- -------- --------  ------- -------- -------- -------- -------- --------------------\n");
+        std::printf(" cum%% cpu%%   cpu/s   cpu-min  cpu-avg  cpu-max  cpu-imb   inc/s   inc-min  inc-avg  inc-max  inc-imb   calls  call-min call-avg call-max call-imb name\n");
+        std::printf(" ---- ---- -------- -------- -------- -------- -------- -------- -------- -------- -------- --------  ------- -------- -------- -------- -------- --------------------\n");
         
         // 
         for (unsigned int i=0; i<v.size(); i++) {
@@ -191,14 +191,14 @@ namespace madness {
             double inc_mean = inc/world.size();
             double inc_imbalance = inc_mean ? (v[i].icpu.max-v[i].icpu.min)/inc_mean : 0.0;
             
-            printf("%6.1f%6.1f%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e %s\n",
+            printf("%5.1f%5.1f%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e %s\n",
                    cum_cpu_percent,
                    cpu_percent,
                    cpu, v[i].xcpu.min, cpu_mean, v[i].xcpu.max, cpu_imbalance,
                    inc, v[i].icpu.min, inc_mean, v[i].icpu.max, inc_imbalance,
                    double(count), double(v[i].count.min), count_mean, double(v[i].count.max), double(count_imbalance),
                    v[i].name.c_str());
-            printf("                  %9d         %9d                  %9d         %9d                  %9d         %9d\n",
+            printf("                %9d         %9d                  %9d         %9d                  %9d         %9d\n",
                    v[i].xcpu.pmin, v[i].xcpu.pmax,
                    v[i].icpu.pmin, v[i].icpu.pmax,
                    v[i].count.pmin, v[i].count.pmax);
