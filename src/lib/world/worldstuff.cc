@@ -162,8 +162,51 @@ namespace madness {
     double WorldProfile::cpu_start = madness::cpu_time();
 
 
+
+    static void profile_do_print(World& world, const std::vector<WorldProfileEntry>& v) {
+        double cpu_total = 0.0;
+        for (unsigned int i=0; i<v.size(); i++) 
+            cpu_total += v[i].xcpu.sum;
+        
+        double cpu_sum = 0.0;
+        std::printf("  cum%%  cpu%%   cpu/s   cpu-min  cpu-avg  cpu-max  cpu-imb   inc/s   inc-min  inc-avg  inc-max  inc-imb   calls  call-min call-avg call-max call-imb name\n");
+        std::printf(" ----- ----- -------- -------- -------- -------- -------- -------- -------- -------- -------- --------  ------- -------- -------- -------- -------- --------------------\n");
+        
+        // 
+        for (unsigned int i=0; i<v.size(); i++) {
+            double cpu = v[i].xcpu.sum;
+            double inc = v[i].icpu.sum;
+            double count = v[i].count.sum;
+            
+            cpu_sum += cpu;
+            
+            double cum_cpu_percent = cpu_total ? 100.0*cpu_sum/cpu_total : 0.0;
+            double cpu_percent = cpu_total ? 100.0*cpu/cpu_total : 0.0;
+            
+            double cpu_mean = cpu/world.size();
+            double count_mean = count/world.size();
+            double count_imbalance = count_mean ? (v[i].count.max-v[i].count.min)/count_mean : 0.0;
+            double cpu_imbalance = cpu_mean ? (v[i].xcpu.max-v[i].xcpu.min)/cpu_mean : 0.0;
+            
+            double inc_mean = inc/world.size();
+            double inc_imbalance = inc_mean ? (v[i].icpu.max-v[i].icpu.min)/inc_mean : 0.0;
+            
+            printf("%6.1f%6.1f%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e %s\n",
+                   cum_cpu_percent,
+                   cpu_percent,
+                   cpu, v[i].xcpu.min, cpu_mean, v[i].xcpu.max, cpu_imbalance,
+                   inc, v[i].icpu.min, inc_mean, v[i].icpu.max, inc_imbalance,
+                   double(count), double(v[i].count.min), count_mean, double(v[i].count.max), double(count_imbalance),
+                   v[i].name.c_str());
+            printf("                  %9d         %9d                  %9d         %9d                  %9d         %9d\n",
+                   v[i].xcpu.pmin, v[i].xcpu.pmax,
+                   v[i].icpu.pmin, v[i].icpu.pmax,
+                   v[i].count.pmin, v[i].count.pmax);
+        }
+    }
+
     static void est_profile_overhead() {
-        PROFILE_FUNC;
+        PROFILE_MEMBER_FUNC(WorldProfile);
     }
 
     void WorldProfile::print(World& world) {
@@ -189,22 +232,15 @@ namespace madness {
                 overhead = get_entry(overid).xcpu.sum/get_entry(overid).count.sum;
             }
 
-            std::vector<WorldProfileEntry> v(items);
-            std::sort(v.begin(), v.end());  
-            std::reverse(v.begin(), v.end());  
-            
-            double cpu_total = 0.0;
-            for (unsigned int i=0; i<v.size(); i++) 
-                cpu_total += v[i].xcpu.sum;
-            
             std::printf("\n    MADNESS global parallel profile\n");
             std::printf("    -------------------------------\n\n");
             std::printf("    o  estimated profiling overhead %.1e seconds per call\n", overhead);
-            std::printf("    o  items sorted in descending order by total exclusive cpu time\n");
             std::printf("    o  exclusive cpu time excludes called profiled routines\n");
             std::printf("    o  inclusive cpu time includes called profiled routines and\n");
             std::printf("       does not double count recursive calls\n");
             std::printf("    o  process with max/min value is printed under the entry\n");
+            std::printf("    o  first printed with items sorted in descending order by total exclusive\n");
+            std::printf("       cpu time and then sorted by total inclusive cpu time\n");
             std::printf("    o  in emacs use toggle-truncate-lines to toggle wrapping long lines\n");
             std::printf("\n");
             std::printf("      cum%% - percent cumulative exclusive cpu time (summed over all nodes)\n");
@@ -225,47 +261,21 @@ namespace madness {
             std::printf(" calls-max - maximum number calls on any processor\n");
             std::printf(" calls-imb - percent imbalance in number calls = (max-min)/avg\n");
             std::printf("\n");
-            double cpu_sum = 0.0;
-            std::printf("  cum%%  cpu%%   cpu/s   cpu-min  cpu-avg  cpu-max  cpu-imb   inc/s   inc-min  inc-avg  inc-max  inc-imb   calls  call-min call-avg call-max call-imb name\n");
-            std::printf(" ----- ----- -------- -------- -------- -------- -------- -------- -------- -------- -------- --------  ------- -------- -------- -------- -------- --------------------\n");
+
+            std::vector<WorldProfileEntry> v(items);
+            std::sort(v.begin(), v.end(), &WorldProfileEntry::exclusivecmp);
+            std::printf("  ** sorted by exclusive cpu time **\n");
+            profile_do_print(world, v);
+
+            std::sort(v.begin(), v.end(), &WorldProfileEntry::inclusivecmp);
+            std::printf("  ** sorted by inclusive cpu time **\n");
+            profile_do_print(world, v);
             
-            // 
-            for (unsigned int i=0; i<v.size(); i++) {
-                double cpu = v[i].xcpu.sum;
-                double inc = v[i].icpu.sum;
-                double count = v[i].count.sum;
-                
-                cpu_sum += cpu;
-                
-                double cum_cpu_percent = cpu_total ? 100.0*cpu_sum/cpu_total : 0.0;
-                double cpu_percent = cpu_total ? 100.0*cpu/cpu_total : 0.0;
-                
-                double cpu_mean = cpu/world.size();
-                double count_mean = count/world.size();
-                double count_imbalance = count_mean ? (v[i].count.max-v[i].count.min)/count_mean : 0.0;
-                double cpu_imbalance = cpu_mean ? (v[i].xcpu.max-v[i].xcpu.min)/cpu_mean : 0.0;
-
-                double inc_mean = inc/world.size();
-                double inc_imbalance = inc_mean ? (v[i].icpu.max-v[i].icpu.min)/inc_mean : 0.0;
-
-                printf("%6.1f%6.1f%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e %s\n",
-                       cum_cpu_percent,
-                       cpu_percent,
-                       cpu, v[i].xcpu.min, cpu_mean, v[i].xcpu.max, cpu_imbalance,
-                       inc, v[i].icpu.min, inc_mean, v[i].icpu.max, inc_imbalance,
-                       double(count), double(v[i].count.min), count_mean, double(v[i].count.max), double(count_imbalance),
-                       v[i].name.c_str());
-                       printf("                  %9d         %9d                  %9d         %9d                  %9d         %9d\n",
-                              v[i].xcpu.pmin, v[i].xcpu.pmax,
-                              v[i].icpu.pmin, v[i].icpu.pmax,
-                              v[i].count.pmin, v[i].count.pmax);
-            }
         }
-        
         world.gop.fence();
+        
 #endif
     }
-
     
     void WorldProfile::recv_stats(World& world, ProcessID p) {
         if (p >= world.size()) return;

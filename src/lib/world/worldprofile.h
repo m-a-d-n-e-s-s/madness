@@ -61,8 +61,12 @@ namespace madness {
             : name(name), depth(0)
         {};
 
-        bool operator<(const WorldProfileEntry& other) const {
-            return xcpu.value < other.xcpu.value;
+        static bool exclusivecmp(const WorldProfileEntry&a, const WorldProfileEntry& b) {
+            return a.xcpu.value > b.xcpu.value;
+        }
+
+        static bool inclusivecmp(const WorldProfileEntry&a, const WorldProfileEntry& b) {
+            return a.icpu.value > b.icpu.value;
         }
 
         void init_par_stats(ProcessID me) {
@@ -91,7 +95,7 @@ namespace madness {
     
     /// Singleton-like class for holding profiling data and functionality
 
-    /// Use the macros PROFILE_FUNC, PROFILE_BLOCK 
+    /// Use the macros PROFILE_FUNC, PROFILE_BLOCK, PROFILE_MEMBER_FUNC
     class WorldProfile {
         static std::vector<WorldProfileEntry> items;
         static double cpu_start;
@@ -106,6 +110,16 @@ namespace madness {
             if (id < 0) {
                 id = items.size();
                 items.push_back(name);
+            }
+            return id;
+        }
+
+        static int register_id(const char* classname, const char* function) {
+            std::string name = std::string(classname) + std::string("::") + std::string(function);
+            int id = find(name.c_str());
+            if (id < 0) {
+                id = items.size();
+                items.push_back(name.c_str());
             }
             return id;
         }
@@ -196,6 +210,12 @@ namespace madness {
 #  define PROFILE_FUNC                                                    \
     static const int __profile_id=madness::WorldProfile::register_id(__FUNCTION__); \
     madness::WorldProfileObj __profile_obj(__profile_id)
+
+#  define PROFILE_MEMBER_FUNC(classname)                                       \
+    static const int __profile_id=madness::WorldProfile::register_id(PROFILE_STRINGIFY(classname),  __FUNCTION__); \
+    madness::WorldProfileObj __profile_obj(__profile_id)
+
+
 #else
 
 #  define PROFILE_BLOCK(name)

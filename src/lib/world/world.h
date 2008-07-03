@@ -482,7 +482,7 @@ namespace madness {
         /// Ensures progress is made in all worlds.
         template <typename Probe>
         static void inline await(const Probe& probe) {
-            PROFILE_BLOCK(await_generic);
+            PROFILE_MEMBER_FUNC(World);
             // Critical here is that poll() is NOT called after a
             // successful test of the request since polling may
             // trigger an activity that invalidates the condition.
