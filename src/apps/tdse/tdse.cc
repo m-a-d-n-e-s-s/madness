@@ -12,11 +12,12 @@ using namespace madness;
 
 // Convenient but sleazy use of global variables to define simulation parameters
 static const double L = 33.0;
-static const long k = 12;        // wavelet order
-static const double thresh = 1e-8; // precision
-static const double cut = 0.1;  // smoothing parameter for 1/r
-static const double F = 1.0;  // Laser field strength
-static const double omega = 1.0; // Laser frequency
+static const long k = 12;           // wavelet order
+static const double thresh = 1e-4; // precision
+static const double cut = 0.3;     // smoothing parameter for 1/r    0.1 is what we seek
+static const double F = 1.0;       // Laser field strength
+static const double omega = 1.0;   // Laser frequency
+static const double Z = 1.0;       // Nuclear charge
 
 // typedefs to make life less verbose
 typedef Vector<double,3> coordT;
@@ -33,7 +34,7 @@ typedef SeparatedConvolution<double_complex,3> complex_operatorT;
 
 /// Invoke as \c u(r/c)/c where \c c is the radius of the
 /// smoothed volume.
-static double smoothed_potential(double r) {
+static double old_smoothed_potential(double r) {
     const double PI = 3.1415926535897932384;
     const double THREE_SQRTPI = 5.31736155271654808184;
     double r2 = r*r, pot;
@@ -48,6 +49,39 @@ static double smoothed_potential(double r) {
     return pot;
 }
 
+
+/// Derivative of new smoothed 1/r approximation
+static double d_smoothed_potential(double r) {
+    double r2 = r*r;
+
+    if (r > 6.5) {
+        return -1.0/r2;
+    }
+    else if (r > 1e-2) {
+        return -(1.1283791670955126*(0.88622692545275800*erf(r)-exp(-r2)*r*(1.0-r2)))/r2;
+    }
+    else {
+        return (-1.880631945159187623160265+(1.579730833933717603454623-0.7253866074185437975046736*r2)*r2)*r;
+    }
+}
+
+
+/// Regularized 1/r potential.
+
+/// Invoke as \c u(r/c)/c where \c c is the radius of the
+/// smoothed volume.  Only the zero-moment of the error is non-zero.
+static double smoothed_potential(double r) {
+    double r2 = r*r, pot;
+    if (r > 6.5){
+        pot = 1.0/r;
+    } else if (r > 1e-2){
+        pot = erf(r)/r + exp(-r2)*0.56418958354775630;
+    } else{
+        pot = 1.6925687506432689-r2*(0.94031597257959381-r2*(0.39493270848342941-0.12089776790309064*r2));
+    }
+    
+    return pot;
+}
 
 
 static inline double s(double x) {
@@ -87,7 +121,7 @@ double mask_function(const coordT& r) {
 static double V(const coordT& r) {
     const double x=r[0], y=r[1], z=r[2];
     const double rr = sqrt(x*x+y*y+z*z);
-    return -smoothed_potential(rr/cut)/cut;
+    return -Z*smoothed_potential(rr/cut)/cut;
 }
 
 /// Initial guess wave function
@@ -130,23 +164,15 @@ double energy(World& world, const Function<T,3>& psi, const functionT& potn) {
     return -std::abs(E); // ugh
 }
 
-template<typename T, int NDIM>
-struct unaryexp {
-    void operator()(const Key<NDIM>& key, Tensor<T>& t) const {
-        UNARY_OPTIMIZED_ITERATOR(T, t, *_p0 = exp(*_p0););
-    }
-    template <typename Archive>
-    void serialize(Archive& ar) {}
-};
-
 template <typename T, int NDIM>
 Cost lbcost(const Key<NDIM>& key, const FunctionNode<T,NDIM>& node) {
   return 1;
 }
 
 void converge(World& world, functionT& potn, functionT& psi, double& eps) {
-    for (int iter=0; iter<20; iter++) {
-        operatorT op = BSHOperator<double,3>(world, sqrt(-2*eps), k, 0.1*cut, thresh);
+    PROFILE_FUNC;
+    for (int iter=0; iter<3; iter++) {
+        operatorT op = BSHOperator<double,3>(world, sqrt(-2*eps), k, cut, thresh);
         functionT Vpsi = (potn*psi);
         Vpsi.scale(-2.0).truncate();
         functionT tmp = apply(op,Vpsi).truncate();
@@ -162,92 +188,100 @@ void converge(World& world, functionT& potn, functionT& psi, double& eps) {
     }
 }
 
-/// Evolve the wave function in real time
-void propagate(World& world, functionT& potn, functionT& psi0, double& eps) {
-    // In the absense of a time-dependent potential we should just have the
-    // rotating phase of the ground state wave function
+complex_functionT chin_chen(const complex_functionT& expV,
+                            const complex_functionT& expVtilde,
+                            const complex_operatorT& G,
+                            const complex_functionT& psi0) {
 
-    //double ctarget = constants::pi/(0.5*cut);
-    double ctarget = constants::pi/(2.0*cut);
-    double c = 1.86*ctarget; //1.86*ctarget;
-    double tcrit = 2*constants::pi/(c*c);
-    double tstep = 10.0*tcrit;
-    int nstep = 100.0/tstep;
+    // psi(t) = exp(-i*V(t)*t/6) exp(-i*T*t/2) exp(-i*2*Vtilde(t/2)*t/3) exp(-i*T*t/2) exp(-i*V(0)*t/6)
+
+    complex_functionT psi1;
+
+    psi1 = expV*psi0;       psi1.truncate();
+    psi1 = apply(G,psi1);   psi1.truncate();
+    psi1 = expVtilde*psi1;  psi1.truncate();
+    psi1 = apply(G,psi1);   psi1.truncate();
+    psi1 = expV*psi1;       psi1.truncate();
+
+    return psi1;
+}
+
+complex_functionT trotter(const complex_functionT& expV, 
+                          const complex_operatorT& G, 
+                          const complex_functionT& psi0) {
+    //    psi(t) = exp(-i*T*t/2) exp(-i*V(t/2)*t) exp(-i*T*t/2) psi(0)
+
+    complex_functionT psi1;
+
+    print("APPLYING G", psi0.size());
+    psi1 = apply(G,psi0);  psi1.truncate();
+    print("APPLYING expV", psi1.size());
+    psi1 = expV*psi1;      psi1.truncate();
+    print("APPLYING G again", psi1.size());
+    psi1 = apply(G,psi1);  psi1.truncate();
+    print("DONE", psi1.size());
     
-    double Eshift = -0.4985;
+    return psi1;
+}
 
-    potn.add_scalar(-Eshift);
+template<typename T, int NDIM>
+struct unaryexp {
+    void operator()(const Key<NDIM>& key, Tensor<T>& t) const {
+        UNARY_OPTIMIZED_ITERATOR(T, t, *_p0 = exp(*_p0););
+    }
+    template <typename Archive>
+    void serialize(Archive& ar) {}
+};
 
-    tstep = 0.005;
-    nstep = 10;
+
+/// Returns exp(-I*t*V)
+complex_functionT make_exp(double t, const functionT& v) {
+    PROFILE_FUNC;
+    v.reconstruct();
+    complex_functionT expV = double_complex(0.0,-t)*v;
+    expV.unaryop(unaryexp<double_complex,3>());
+    return expV;
+}
+
+/// Evolve the wave function in real time
+void propagate(World& world, const functionT& potn, const functionT& psi0, const double eps) {
+    PROFILE_FUNC;
+    double ctarget = 10.0/cut;                // From Fourier analysis of the potential
+    double c = 1.86*ctarget;
+    double tcrit = 2*constants::pi/(c*c);
+
+    double tstep = tcrit;
+    int nstep = 10;
+    
+    //double Eshift = eps;
+
+    //potn.add_scalar(-Eshift);
 
     if (world.rank() == 0) {
         print("bandlimit",ctarget,"effband",c,"tcrit",tcrit,"tstep",tstep,"nstep",nstep);
     }
 
     complex_functionT psi = double_complex(1.0,0.0)*psi0;
+
     SeparatedConvolution<double_complex,3> G = qm_free_particle_propagator<3>(world, k, c, 0.5*tstep, 2*L);
 
-    functionT zdip = factoryT(world).f(zdipole);
+    complex_functionT expV = make_exp(tstep, potn);
 
-    if (world.rank() == 0) print("truncating");
-    psi.truncate();
-    if (world.rank() == 0) print("initial normalize");    
-    psi.scale(1.0/psi.norm2());
-    int steplo = -1;
-    for (int step=steplo; step<nstep; step++) {
-        if (world.rank() == 0) print("\nStarting time step",step,tstep*step);
-
-        energy(world, psi, potn+laser((step)*tstep)*zdip);  // Use field at current time to evaluate energy
-
-        double_complex dipole = inner(psi,zdip*psi);
-        if (world.rank() == 0) print("THE DIPOLE IS", dipole);
-
-        if (step > steplo) {
-            if (world.rank() == 0) print("load balancing");
-            LoadBalImpl<3> lb(psi, lbcost<double_complex,3>);
-            lb.load_balance();
-            FunctionDefaults<3>::set_pmap(lb.load_balance());
-            world.gop.fence();
-            psi = copy(psi, FunctionDefaults<3>::get_pmap(), false);
-            potn = copy(potn, FunctionDefaults<3>::get_pmap(), true);
-            zdip = copy(zdip, FunctionDefaults<3>::get_pmap(), true);
-        }
-
-        if (world.rank() == 0) print("making expV");
-        functionT totalpotn = potn + laser((step+0.5)*tstep)*zdip; // Use midpoint field to advance in time
-        //totalpotn.refine();
-        totalpotn.reconstruct();
-        complex_functionT expV = double_complex(0.0,-tstep)*totalpotn;
-        expV.unaryop(unaryexp<double_complex,3>());
-        expV.truncate();
-        //expV.refine();
-        expV.reconstruct();
-        double expVnorm = expV.norm2();
-        if (world.rank() == 0) print("expVnorm", expVnorm);
-
-        long sz = psi.size();
-        //psi.refine();
-        if (world.rank() == 0) print("applying operator 1",sz);
-        psi = apply(G, psi);
-        psi.truncate();
-        //psi.refine();
-
-        sz = psi.size();
-        if (world.rank() == 0) print("multipling by expV",sz);
-        psi = expV*psi;
-        psi.truncate();
-        //psi.refine();
-        sz = psi.size();
-        if (world.rank() == 0) print("applying operator 2",sz);
-        psi = apply(G, psi);
-        psi.truncate();
-        sz = psi.size();
-        double norm = psi.norm2();
-        if (world.rank() == 0) print(step, step*tstep, norm,sz);
+    for (int step=0; step<nstep; step++) {
+        double t = step * tstep;
+        double_complex phase = psi0.inner(psi);
+        double radius = abs(phase);
+        double theta = arg(phase);
+        double theta_exact = -t*0.5;
+        while (theta_exact > constants::pi) theta_exact -= 2.0*constants::pi;
+        while (theta_exact < -constants::pi) theta_exact += 2.0*constants::pi;
+      
+        print("step", step, "time", t, "radius", radius, "arg", theta, "exact", theta_exact, "phase err", theta_exact-theta);
+        //energy(v, psi);
+      
+        psi = trotter(expV, G, psi);
     }
 }
-    
 
 int main(int argc, char** argv) {
     MPI::Init(argc, argv);
@@ -257,26 +291,49 @@ int main(int argc, char** argv) {
     cout.precision(8);
 
     FunctionDefaults<3>::set_k(k);                 // Wavelet order
-    FunctionDefaults<3>::set_thresh(thresh);         // Accuracy
+    FunctionDefaults<3>::set_thresh(thresh);       // Accuracy
     FunctionDefaults<3>::set_refine(true);         // Enable adaptive refinement
     FunctionDefaults<3>::set_initial_level(2);     // Initial projection level
     FunctionDefaults<3>::set_cubic_cell(-L,L);
+    FunctionDefaults<3>::set_apply_randomize(true);
 
-    if (world.rank() == 0) print("V(0)", V(coordT(0)));
-
-    functionT psi = factoryT(world).f(guess);
     functionT potn = factoryT(world).f(V);  potn.truncate();
-    psi.scale(1.0/psi.norm2());
-    psi.truncate();
-    psi.scale(1.0/psi.norm2());
+    functionT psi; 
+    double eps;
+    
+    string prefix;  // Prefix for filenames
+    int ndump;      // Dump restart info every ndump time steps
+    int step0;      // Initial step -1=ground state, >=0 means file <prefix>.<step0>
+    
+    //std::cin >> prefix >> ndump >> step0;
 
-    energy(world, psi, potn);
+    prefix = "tdse";
+    ndump = 1;
+    step0 = -1;
 
-    double eps = -0.5;
-    converge(world, potn, psi, eps);
-    //propagate(world, potn, psi, eps);
+    if (step0 == -1) {
+        if (world.rank() == 0) print("Computing initial wavefunction");
+        psi = factoryT(world).f(guess);
+        psi.scale(1.0/psi.norm2());
+        psi.truncate();
+        psi.scale(1.0/psi.norm2());
+
+        energy(world, psi, potn);
+        
+        double eps = -0.5*Z*Z;
+        converge(world, potn, psi, eps);
+    }
+
+    propagate(world, potn, psi, eps);
 
     world.gop.fence();
+    if (world.rank() == 0) {
+        world.am.print_stats();
+        world.taskq.print_stats();
+        world_mem_info()->print();
+    }
+
+    WorldProfile::print(world);
 
     MPI::Finalize();
     return 0;
