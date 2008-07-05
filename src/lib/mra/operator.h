@@ -136,11 +136,19 @@ namespace madness {
         Tensor<Q> R, T;  ///< R=ns, T=T part of ns
         Tensor<Q> RU, RVT, TU, TVT; ///< SVD approximations to R and T
         Tensor<typename Tensor<Q>::scalar_type> Rs, Ts;
-        double Rnorm, Tnorm;
+        double Rnorm, Tnorm, Rnormf, Tnormf, NSnormf;
 
         ConvolutionData1D(const Tensor<Q>& R, const Tensor<Q>& T) : R(R), T(T) {
             make_approx(R, RU, Rs, RVT, Rnorm);
             make_approx(T, TU, Ts, TVT, Tnorm);
+            Rnormf = R.normf();
+            Tnormf = T.normf();
+            int k = T.dim[0];
+            Tensor<Q> NS = copy(R);
+            for (int i=0; i<k; i++) 
+                for (int j=0; j<k; j++)
+                    NS(i,j) = 0.0;
+            NSnormf = NS.normf();
         }
 
         void make_approx(const Tensor<Q>& R, 
@@ -254,6 +262,8 @@ namespace madness {
             const ConvolutionData1D<Q>* p = ns_cache.getptr(n,lx);
             if (p) return p;
 
+            PROFILE_MEMBER_FUNC(ConvolutionData1D);
+            
             Tensor<Q> R(2*k,2*k), T;
             if (issmall(n, lx)) {
                 T = Tensor<Q>(k,k);
@@ -286,7 +296,7 @@ namespace madness {
         {
             const Tensor<Q>* p=rnlp_cache.getptr(n,lx);
             if (p) return *p;
-            
+
             long twok = 2*k;
             Tensor<Q> r;
             
@@ -342,6 +352,8 @@ namespace madness {
         GenericConvolution1D(int k, const opT& op) 
             : Convolution1D<Q>(k, 20), op(op), maxl(LONG_MAX-1)
         {
+            PROFILE_MEMBER_FUNC(GenericConvolution1D);
+            
             // For efficiency carefully compute outwards at the "natural" level
             // until several successive boxes are determined to be zero.  This 
             // then defines the future range of the operator and also serves 
@@ -460,6 +472,7 @@ namespace madness {
         /// beta = alpha * 2^(-2*n) 
         /// \endcode
         Tensor<Q> rnlp(long n, long lx) const {
+            PROFILE_MEMBER_FUNC(GaussianConvolution1D);
             int twok = 2*this->k;
             Tensor<Q> v(twok);       // Can optimize this away by passing in
             
@@ -602,6 +615,7 @@ namespace madness {
                                   const double musign,
                                   Tensor<R>& result) const {
             
+            PROFILE_MEMBER_FUNC(SeparatedConvolution);
             long size = 1;
             for (int i=0; i<NDIM; i++) size *= dimk;
             long dimi = size/dimk;
@@ -670,6 +684,7 @@ namespace madness {
                          Tensor<TENSOR_RESULT_TYPE(T,Q)>& work1,
                          Tensor<TENSOR_RESULT_TYPE(T,Q)>& work2) const {
 
+            PROFILE_MEMBER_FUNC(SeparatedConvolution);
             Transformation trans[NDIM];
 
             const long twok = 2*k;
@@ -741,6 +756,7 @@ namespace madness {
                     Tensor<TENSOR_RESULT_TYPE(T,Q)>& result,
                     const double tol,
                     const double musign) const {
+            PROFILE_MEMBER_FUNC(SeparatedConvolution);
             // Temporaries can be optimized away
             Tensor<TENSOR_RESULT_TYPE(T,Q)> tmp = inner(f,ops[0]->R,0,0);
             for (int d=1; d<NDIM; d++) {
@@ -769,6 +785,7 @@ namespace madness {
                      Tensor<TENSOR_RESULT_TYPE(T,Q)>& result,
                      const double tol,
                      const double musign) const {
+            PROFILE_MEMBER_FUNC(SeparatedConvolution);
             // Temporaries can be optimized away
             Tensor<TENSOR_RESULT_TYPE(T,Q)> tmp = inner(f,ops[0]->R,0,1);
             for (int d=1; d<NDIM; d++) {
@@ -786,8 +803,9 @@ namespace madness {
         }
 
 
-        /// Computes the norm of one of the separated terms
+        /// Computes the 2-norm of one of the separated terms
         double munorm(Level n, const ConvolutionData1D<Q>* ops[]) const {
+            PROFILE_MEMBER_FUNC(SeparatedConvolution);
             Tensor<Q> f(v2k), f0, ff(v2k);
             
             double tol = 1e-20;
@@ -817,45 +835,53 @@ namespace madness {
             return eval*ratio;
         }
 
+        /// Computes the Frobenius norm of one of the separated terms
         double munorm2(Level n, const ConvolutionData1D<Q>* ops[]) const {
-            double prod=1.0, sum=0.0;
+            PROFILE_MEMBER_FUNC(SeparatedConvolution);
+            double prodR=1.0, prodT=1.0;
             for (int d=0; d<NDIM; d++) {
-                Tensor<Q> q = copy(ops[d]->R);
-                q(s0) = 0.0;
-                double a = q.normf();
-                double b = ops[d]->T.normf();
-                double aa = std::min(a,b);
-                double bb = std::max(a,b);
-                prod *= bb;
-                if (bb > 0.0) sum +=(aa/bb);
-            }
-            if (n) prod *= sum;
+                prodR *= ops[d]->Rnormf;
+                prodT *= ops[d]->Tnormf;
 
-            return prod; 
+            }
+            if (n) prodR = sqrt(prodR*prodR - prodT*prodT);
+
+            if (prodR < 1e-8*prodT) {
+                double prod=1.0, sum=0.0;
+                for (int d=0; d<NDIM; d++) {
+                    double a = ops[d]->NSnormf;
+                    double b = ops[d]->Tnormf;
+                    double aa = std::min(a,b);
+                    double bb = std::max(a,b);
+                    prod *= bb;
+                    if (bb > 0.0) sum +=(aa/bb);
+                }
+                if (n) prod *= sum;
+                prodR = prod;
+            }
+
+            return prodR;
         }
 
 
         const SeparatedConvolutionInternal<Q,NDIM> getmuop(int mu, Level n, const Displacement<NDIM>& disp) const {
+            PROFILE_MEMBER_FUNC(SeparatedConvolution);
             SeparatedConvolutionInternal<Q,NDIM> op;
             for (int d=0; d<NDIM; d++) {
                 op.ops[d] = ops[mu]->nonstandard(n, disp[d]);
             }
 
-            double newnorm;
-            if (disp.distsq < 2) {
-                newnorm = munorm(n, op.ops);
-            }
-            else {
-                newnorm = munorm2(n, op.ops);
-                for (int d=0; d<NDIM; d++)  {
-                    if (disp[d] == 0) newnorm *= 0.5;
-                    else if (std::abs(disp[d]) == 1) newnorm *= 0.8;
-                }
+            double newnorm = munorm2(n, op.ops);
+            // This rescaling empirically based upon BSH separated expansion
+            // ... needs more testing.
+            for (int d=0; d<NDIM; d++)  {
+                if (disp[d] == 0) newnorm *= 0.5;
+                else if (std::abs(disp[d]) == 1) newnorm *= 0.8;
             }
 
 //             double oldnorm = munorm(n, op.ops);
-//             if (oldnorm > 1e-16 && (newnorm < 0.5*oldnorm || newnorm > 2.0*oldnorm) )
-//                 print("munorm", n, disp, mu, newnorm, oldnorm, newnorm/oldnorm);
+//             if (oldnorm > 1e-13 && (n3 < 0.5*oldnorm || n3 > 2.0*oldnorm) )
+//                 print("munorm", n, disp, mu, newnorm, n3, oldnorm, n3/oldnorm);
 
             op.norm = newnorm;
 
@@ -865,6 +891,7 @@ namespace madness {
         
         /// Returns pointer to cached operator
         const SeparatedConvolutionData<Q,NDIM>* getop(Level n, const Displacement<NDIM>& d) const {
+            PROFILE_MEMBER_FUNC(SeparatedConvolution);
             const SeparatedConvolutionData<Q,NDIM>* p = data.getptr(n,d);
             if (p) return p;
 
@@ -965,6 +992,7 @@ namespace madness {
                                               const Displacement<NDIM>& shift,
                                               const Tensor<T>& coeff,
                                               double tol) const {
+            PROFILE_MEMBER_FUNC(SeparatedConvolution);
             typedef TENSOR_RESULT_TYPE(T,Q) resultT;
             const Tensor<T>* input = &coeff;
             Tensor<T> dummy;

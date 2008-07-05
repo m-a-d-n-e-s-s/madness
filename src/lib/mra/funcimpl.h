@@ -429,6 +429,7 @@ namespace madness {
 
         /// Sets \c has_children attribute to true recurring up to ensure connected
         Void set_has_children_recursive(const typename FunctionNode<T,NDIM>::dcT& c, const Key<NDIM>& key) {
+            PROFILE_MEMBER_FUNC(FunctionNode);
             if (!(_has_children || has_coeff() || key.level()==0)) {
                 // If node already knows it has children or it has
                 // coefficients then it must already be connected to
@@ -466,6 +467,7 @@ namespace madness {
         /// true in the result if either this/other have children.
         template <typename Q, typename R> 
         Void gaxpy_inplace(const T& alpha, const FunctionNode<Q,NDIM>& other, const R& beta) {
+            PROFILE_MEMBER_FUNC(FuncNode);
             if (other.has_children()) _has_children = true;
             if (has_coeff()) {
                 if (other.has_coeff()) {
@@ -570,6 +572,7 @@ namespace madness {
             , coeffs(world,factory._pmap,false)
             , bc(factory._bc)
         {
+            PROFILE_MEMBER_FUNC(FunctionImpl);
             // !!! Ensure that all local state is correctly formed
             // before invoking process_pending for the coeffs and
             // for this.  Otherwise, there is a race condition.
@@ -801,6 +804,7 @@ namespace madness {
         /// the functions at the quadrature points of a child
         template <typename Q>
         Tensor<Q> fcube_for_mul(const keyT& child, const keyT& parent, const Tensor<Q>& coeff) const {
+            PROFILE_MEMBER_FUNC(FunctionImpl);
             if (child.level() == parent.level()) {
                 double scale = pow(2.0,0.5*NDIM*parent.level())/sqrt(FunctionDefaults<NDIM>::get_cell_volume());
                 return transform(coeff,cdata.quad_phit).scale(scale);
@@ -822,6 +826,7 @@ namespace madness {
         /// Invoked as a task by mul with the actual coefficients
         template <typename L, typename R>
         Void do_mul(const keyT& key, const Tensor<L>& left, const std::pair< keyT, Tensor<R> >& arg) {
+            PROFILE_MEMBER_FUNC(FunctionImpl);
             const keyT& rkey = arg.first;
             const Tensor<R>& rcoeff = arg.second;
             //madness::print("do_mul: r", rkey, rcoeff.size);
@@ -964,6 +969,7 @@ namespace madness {
         /// Possible non-blocking communication and optional fence.
         template <typename L, typename R>
         void mul(const FunctionImpl<L,NDIM>& left, const FunctionImpl<R,NDIM>& right, bool fence) {
+            PROFILE_MEMBER_FUNC(FunctionImpl);
             typedef std::pair< keyT,Tensor<R> > rpairT;
             typedef std::pair< keyT,Tensor<L> > lpairT;
             MADNESS_ASSERT(coeffs.get_pmap() == left.coeffs.get_pmap() && \
@@ -1034,6 +1040,7 @@ namespace madness {
                             const std::pair< keyT,Tensor<L> >& larg, 
                             const std::pair< keyT,Tensor<R> >& rarg,
                             const FunctionImpl<R,NDIM>* right) {
+            PROFILE_MEMBER_FUNC(FunctionImpl);
 
             if (rarg.second.size > 0) {
                 if (larg.first == key) {
@@ -1064,6 +1071,7 @@ namespace madness {
         template <typename L, typename R>
         Void do_mul_sparse(const Tensor<L>& left_coeff, const FunctionImpl<R,NDIM>* right, double tol, 
                            const keyT& key, double right_norm) {
+            PROFILE_MEMBER_FUNC(FunctionImpl);
             if (left_coeff.normf()*right_norm > truncate_tol(tol,key)) {
                 typedef std::pair< keyT,Tensor<R> > rpairT;
                 typedef std::pair< keyT,Tensor<L> > lpairT;
@@ -1387,6 +1395,7 @@ namespace madness {
         }
 
         double norm_tree_op(const keyT& key, const vector< Future<double> >& v) {
+            PROFILE_MEMBER_FUNC(FunctionImpl);
             double sum = 0.0;
             int i=0;
             for (KeyChildIterator<NDIM> kit(key); kit; ++kit,++i) {
@@ -1415,6 +1424,7 @@ namespace madness {
         }
 
         tensorT compress_op(const keyT& key, const vector< Future<tensorT> >& v, bool nonstandard) {
+            PROFILE_MEMBER_FUNC(FunctionImpl);
             // Copy child scaling coeffs into contiguous block
             tensorT d(cdata.v2k);
             int i=0;
@@ -1453,6 +1463,7 @@ namespace madness {
                                    const keyT& target,
                                    const Tensor<R>& r) {
 
+            PROFILE_MEMBER_FUNC(FunctionImpl);
             // We send the coeffs down in this routine so we have effectively
             // atomic insert+apply to eliminate a race condition leading to
             // double application of the operator.
@@ -1535,6 +1546,7 @@ namespace madness {
 
         template <typename opT, typename R>
         Void do_apply_acc(const opT* op, const FunctionImpl<R,NDIM>* f, const keyT& key, const Tensor<T>& t) {
+            PROFILE_MEMBER_FUNC(FunctionImpl);
             if (!coeffs.probe(key)) coeffs.insert(key, nodeT());
             nodeT& node = coeffs[key];
 
@@ -1568,6 +1580,7 @@ namespace madness {
 
         template <typename opT, typename R>
         Void do_apply(const opT* op, const FunctionImpl<R,NDIM>* f, const keyT& key, const Tensor<R>& c) {
+            PROFILE_MEMBER_FUNC(FunctionImpl);
             double fac = 3.0;
             double cnorm = c.normf();
             for (typename std::vector< Displacement<NDIM> >::const_iterator it=cdata.disp.begin(); 
@@ -1625,6 +1638,7 @@ namespace madness {
 
         template <typename opT, typename R>
         void apply(opT& op, const FunctionImpl<R,NDIM>& f, bool fence) {
+            PROFILE_MEMBER_FUNC(FunctionImpl);
             for(typename dcT::const_iterator it=f.coeffs.begin(); it!=f.coeffs.end(); ++it) {
                 const keyT& key = it->first;
                 const FunctionNode<R,NDIM>& node = it->second;
@@ -1680,6 +1694,7 @@ namespace madness {
         /// Returns the sum of squares of errors from local info ... no comms
         template <typename opT>
         double errsq_local(const opT& func) const {
+            PROFILE_MEMBER_FUNC(FunctionImpl);
             // Make quadrature rule of higher order
             const int npt = cdata.npt + 1;
             Tensor<double> qx, qw, quad_phi, quad_phiw, quad_phit;
@@ -1701,6 +1716,7 @@ namespace madness {
 
         /// Returns the square of the local norm ... no comms
         double norm2sq_local() const {
+            PROFILE_MEMBER_FUNC(FunctionImpl);
             double sum = 0.0;
             for(typename dcT::const_iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
                 const nodeT& node = it->second;

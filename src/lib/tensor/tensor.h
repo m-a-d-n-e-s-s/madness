@@ -48,6 +48,7 @@
 #include <cstdlib>
 
 #include <madness_config.h>
+#include <world/worldprofile.h>
 #include <world/sharedptr.h>
 #include <world/archive.h>
 
@@ -766,6 +767,7 @@ namespace madness {
         template <class Archive, typename T>
         struct ArchiveStoreImpl< Archive, Tensor<T> > {
             static inline void store(const Archive& s, const Tensor<T>& t) {
+                PROFILE_MEMBER_FUNC(Tensor);
                 if (t.iscontiguous()) {
                     s & t.size & t.id;
 	            if (t.size) s & t.ndim & t.dim & wrap(t.ptr(),t.size);
@@ -781,6 +783,7 @@ namespace madness {
         template <class Archive, typename T>
         struct ArchiveLoadImpl< Archive, Tensor<T> > {
             static inline void load(const Archive& s, Tensor<T>& t) {
+                PROFILE_MEMBER_FUNC(Tensor);
                 long sz, id;
                 s & sz & id;
                 if (id != t.id) throw "type mismatch deserializing a tensor";

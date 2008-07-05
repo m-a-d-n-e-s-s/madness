@@ -93,6 +93,7 @@ namespace madness {
     template<>
     void mTxmq(const long dimi, const long dimj, const long dimk,
                double* RESTRICT c, const double* a, const double* b) {
+        PROFILE_BLOCK(mTxmq_double_asm);
         //std::cout << "IN DOUBLE ASM VERSION " << dimi << " " << dimj << " " << dimk << "\n";
 
         
@@ -289,6 +290,7 @@ namespace madness {
     template <>
     void mTxmq(long dimi, long dimj, long dimk,
                double* RESTRICT c, const double* a, const double* b) {
+        PROFILE_BLOCK(mTxmq_double_slow);
         for (long i=0; i<dimi; i++,c+=dimj,a++) {
             for (long j=0; j<dimj; j++) c[j] = 0.0;
             const double *ai = a;
@@ -312,6 +314,7 @@ namespace madness {
     void mTxmq(const long dimi, const long dimj, const long dimk,
                double_complex* RESTRICT c, const double_complex* a, const double_complex* b) {
 
+        PROFILE_BLOCK(mTxmq_complex_asm);
         const long dimi16 = dimi<<4;
         const long dimj16 = dimj<<4;
 
@@ -748,6 +751,7 @@ namespace madness {
     template <>
     void mTxmq(long dimi, long dimj, long dimk,
                double_complex* RESTRICT c, const double_complex* a, const double_complex* b) {
+        PROFILE_BLOCK(mTxmq_complex_slow);
         for (long i=0; i<dimi; i++,c+=dimj,a++) {
             for (long j=0; j<dimj; j++) c[j] = 0.0;
             const double_complex *ai = a;

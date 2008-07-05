@@ -169,7 +169,7 @@ namespace madness {
             cpu_total += v[i].xcpu.sum;
         
         double cpu_sum = 0.0;
-        std::printf(" cum%% cpu%%   cpu/s   cpu-min  cpu-avg  cpu-max  cpu-imb   inc/s   inc-min  inc-avg  inc-max  inc-imb   calls  call-min call-avg call-max call-imb name\n");
+        std::printf(" cum%% cpu%%   cpu/s   cpu-min  cpu-avg  cpu-max  cpu-eff   inc/s   inc-min  inc-avg  inc-max  inc-imb   calls  call-min call-avg call-max call-imb name\n");
         std::printf(" ---- ---- -------- -------- -------- -------- -------- -------- -------- -------- -------- --------  ------- -------- -------- -------- -------- --------------------\n");
         
         // 
@@ -186,16 +186,16 @@ namespace madness {
             double cpu_mean = cpu/world.size();
             double count_mean = count/world.size();
             double count_imbalance = count_mean ? (v[i].count.max-v[i].count.min)/count_mean : 0.0;
-            double cpu_imbalance = cpu_mean ? (v[i].xcpu.max-v[i].xcpu.min)/cpu_mean : 0.0;
+            double cpu_eff = v[i].xcpu.max ? cpu_mean/v[i].xcpu.max : 1.0;
             
             double inc_mean = inc/world.size();
-            double inc_imbalance = inc_mean ? (v[i].icpu.max-v[i].icpu.min)/inc_mean : 0.0;
+            double inc_eff = v[i].icpu.max ? inc_mean/v[i].icpu.max : 0.0;
             
             printf("%5.1f%5.1f%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e %s\n",
                    cum_cpu_percent,
                    cpu_percent,
-                   cpu, v[i].xcpu.min, cpu_mean, v[i].xcpu.max, cpu_imbalance,
-                   inc, v[i].icpu.min, inc_mean, v[i].icpu.max, inc_imbalance,
+                   cpu, v[i].xcpu.min, cpu_mean, v[i].xcpu.max, cpu_eff,
+                   inc, v[i].icpu.min, inc_mean, v[i].icpu.max, inc_eff,
                    double(count), double(v[i].count.min), count_mean, double(v[i].count.max), double(count_imbalance),
                    v[i].name.c_str());
             printf("                %9d         %9d                  %9d         %9d                  %9d         %9d\n",
@@ -249,12 +249,12 @@ namespace madness {
             std::printf("   cpu-min - minimum exclusive cpu time on any processor\n");
             std::printf("   cpu-avg - mean exclusive cpu time per processor\n");
             std::printf("   cpu-max - maximum exclusive cpu time on any processor\n");
-            std::printf(" cpu-imbal - percent imbalance in exclusive cpu time = (max-min)/avg\n");
+            std::printf("   cpu-eff - cpu efficiency = avg/max\n");
             std::printf("       inc - total inclusive cpu time (summed over all nodes)\n");
             std::printf("   inc-min - minimum inclusive cpu time on any processor\n");
             std::printf("   inc-avg - mean inclusive cpu time per processor\n");
             std::printf("   inc-max - maximum inclusive cpu time on any processor\n");
-            std::printf(" inc-imbal - percent imbalance in inclusive cpu time = (max-min)/avg\n");
+            std::printf("   inc-eff - inclusive cpu efficiency = avg/max\n");
             std::printf("     calls - total number calls time\n");
             std::printf(" calls-min - minimum number calls on any processor\n");
             std::printf(" calls-avg - mean number calls per processor\n");

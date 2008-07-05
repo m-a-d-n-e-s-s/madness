@@ -119,8 +119,8 @@ void test_bsh(World& world) {
               archive::get_type_name<T>(),", ndim =",3);
 
     FunctionDefaults<3>::set_cubic_cell(-20,20);
-    FunctionDefaults<3>::set_k(6);
-    FunctionDefaults<3>::set_thresh(1e-4);
+    FunctionDefaults<3>::set_k(10);
+    FunctionDefaults<3>::set_thresh(1e-8);
     FunctionDefaults<3>::set_initial_level(3);
     FunctionDefaults<3>::set_refine(true);
     FunctionDefaults<3>::set_autorefine(true);

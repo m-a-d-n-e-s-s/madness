@@ -186,6 +186,7 @@ namespace madness {
 
     template <typename T, int NDIM>
     void FunctionImpl<T,NDIM>::verify_tree() const {
+        PROFILE_MEMBER_FUNC(FunctionImpl);
         world.gop.fence();  // Make sure nothing is going on
         
         // Verify consistency of compression status, existence and size of coefficients,
@@ -265,6 +266,7 @@ namespace madness {
 
     template <typename T, int NDIM>
     T FunctionImpl<T,NDIM>::eval_cube(Level n, coordT x, const tensorT c) const {
+        PROFILE_MEMBER_FUNC(FunctionImpl);
         const int k = cdata.k;
         double px[NDIM][k];
         T sum = T(0.0);
@@ -318,6 +320,7 @@ namespace madness {
 
     template <typename T, int NDIM>
     Void FunctionImpl<T,NDIM>::reconstruct_op(const keyT& key, const tensorT& s) {
+        PROFILE_MEMBER_FUNC(FunctionImpl);
         // Note that after application of an integral operator not all
         // siblings may be present so it is necessary to check existence
         // and if absent insert an empty leaf node.
@@ -362,6 +365,7 @@ namespace madness {
 
     template <typename T, int NDIM>
     void FunctionImpl<T,NDIM>::fcube(const keyT& key, const FunctionFunctorInterface<T,NDIM>& f, const Tensor<double>& qx, tensorT& fval) const {
+        PROFILE_MEMBER_FUNC(FunctionImpl);
         const Vector<Translation,NDIM>& l = key.translation();
         const Level n = key.level();
         const double h = std::pow(0.5,double(n)); 
@@ -459,6 +463,7 @@ namespace madness {
 
     template <typename T, int NDIM>
     Void FunctionImpl<T,NDIM>::project_refine_op(const keyT& key, bool do_refine) {
+        PROFILE_MEMBER_FUNC(FunctionImpl);
         if (do_refine) {
             // Make in r child scaling function coeffs at level n+1
             tensorT r(cdata.v2k);
@@ -532,6 +537,7 @@ namespace madness {
 
     template <typename T, int NDIM>
     void FunctionImpl<T,NDIM>::insert_zero_down_to_initial_level(const keyT& key) {
+        PROFILE_MEMBER_FUNC(FunctionImpl);
         if (compressed) initial_level = std::max(initial_level,1); // Otherwise zero function is confused
         if (coeffs.is_local(key)) {
             if (compressed) {
@@ -562,6 +568,7 @@ namespace madness {
     
     template <typename T, int NDIM>
     Future<bool> FunctionImpl<T,NDIM>::truncate_spawn(const keyT& key, double tol) {
+        PROFILE_MEMBER_FUNC(FunctionImpl);
         const nodeT& node = coeffs.find(key).get()->second;   // Ugh!
         if (node.has_children()) {
             std::vector< Future<bool> > v = future_vector_factory<bool>(1<<NDIM);
@@ -580,6 +587,7 @@ namespace madness {
 
     template <typename T, int NDIM>
     bool FunctionImpl<T,NDIM>::truncate_op(const keyT& key, double tol, const std::vector< Future<bool> >& v) {
+        PROFILE_MEMBER_FUNC(FunctionImpl);
         // If any child has coefficients, a parent cannot truncate
         for (int i=0; i<(1<<NDIM); i++) if (v[i].get()) return true;
         nodeT& node = coeffs.find(key).get()->second;
@@ -625,6 +633,7 @@ namespace madness {
     
     template <typename T, int NDIM>
     Tensor<T> FunctionImpl<T,NDIM>::project(const keyT& key) const {
+        PROFILE_MEMBER_FUNC(FunctionImpl);
         tensorT fval(cdata.vq,false); // this will be the returned result
         tensorT& work = cdata.work1; // initially evaluate the function in here
         
@@ -654,6 +663,7 @@ namespace madness {
     template <typename T, int NDIM>
     Void FunctionImpl<T,NDIM>::sock_it_to_me(const keyT& key, 
                                              const RemoteReference< FutureImpl< std::pair<keyT,tensorT> > >& ref) const {
+        PROFILE_MEMBER_FUNC(FunctionImpl);
         if (coeffs.probe(key)) {
             const nodeT& node = coeffs.find(key).get()->second;
             Future< std::pair<keyT,tensorT> > result(ref);
@@ -679,6 +689,7 @@ namespace madness {
                                     const keyT& keyin, 
                                     const typename Future<T>::remote_refT& ref) {
         
+        PROFILE_MEMBER_FUNC(FunctionImpl);
         // This is ugly.  We must figure out a clean way to use 
         // owner computes rule from the container.
         Vector<double,NDIM> x = xin;
@@ -716,6 +727,7 @@ namespace madness {
     
     template <typename T, int NDIM>
     void FunctionImpl<T,NDIM>::tnorm(const tensorT& t, double* lo, double* hi) const {
+        PROFILE_MEMBER_FUNC(FunctionImpl);
         // Chosen approach looks stupid but it is more accurate
         // than the simple approach of summing everything and
         // subtracting off the low-order stuff to get the high
@@ -776,6 +788,7 @@ namespace madness {
 
     template <typename T, int NDIM>
     void FunctionImpl<T,NDIM>::phi_for_mul(Level np, Translation lp, Level nc, Translation lc, Tensor<double>& phi) const {
+        PROFILE_MEMBER_FUNC(FunctionImpl);
         double p[200];
         double scale = pow(2.0,double(np-nc));
         for (int mu=0; mu<cdata.npt; mu++) {
@@ -789,6 +802,7 @@ namespace madness {
 
     template <typename T, int NDIM>
     const Tensor<T> FunctionImpl<T,NDIM>::parent_to_child(const tensorT& s, const keyT& parent, const keyT& child) const {
+        PROFILE_MEMBER_FUNC(FunctionImpl);
         // An invalid parent/child means that they are out of the box
         // and it is the responsibility of the caller to worry about that
         // ... most likely the coefficiencts (s) are zero to reflect
@@ -805,6 +819,7 @@ namespace madness {
 
     template <typename T, int NDIM>
     T FunctionImpl<T,NDIM>::trace_local() const {
+        PROFILE_MEMBER_FUNC(FunctionImpl);
         std::vector<long> v0(NDIM,0);
         T sum = 0.0;
         if (compressed) {
@@ -829,6 +844,7 @@ namespace madness {
 
     template <typename T, int NDIM>
     Void FunctionImpl<T,NDIM>::recur_down_with_fill(const keyT& target, const keyT& key) {
+        PROFILE_MEMBER_FUNC(FunctionImpl);
         typename dcT::iterator it = coeffs.find(key).get();
 
         // a) Node does not exist ... forward request up with the correct target
@@ -875,6 +891,7 @@ namespace madness {
 
     template <typename T, int NDIM>
     Void FunctionImpl<T,NDIM>::ensure_exists(const keyT& key) {
+        PROFILE_MEMBER_FUNC(FunctionImpl);
         if (!coeffs.probe(key)) {
             keyT parent = key.parent();
             // If the node does not exist this implies that it will
@@ -890,6 +907,7 @@ namespace madness {
 
     template <typename T, int NDIM>
     void FunctionImpl<T,NDIM>::widen(bool fence, int ndiff) {
+        PROFILE_MEMBER_FUNC(FunctionImpl);
         double tol = std::min(1e3*thresh, sqrt(thresh));
         for(typename dcT::iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
             const keyT& key = it->first;
@@ -912,6 +930,7 @@ namespace madness {
 
     template <typename T, int NDIM>
     void FunctionImpl<T,NDIM>::diff(const implT& f, int axis, bool fence) {
+        PROFILE_MEMBER_FUNC(FunctionImpl);
         typedef std::pair<keyT,tensorT> argT;
         for(typename dcT::const_iterator it=f.coeffs.begin(); it!=f.coeffs.end(); ++it) {
             const keyT& key = it->first;
@@ -1004,6 +1023,7 @@ namespace madness {
     template <typename T, int NDIM>
     Future< std::pair< Key<NDIM>,Tensor<T> > > 
     FunctionImpl<T,NDIM>::find_neighbor(const Key<NDIM>& key, int axis, int step) const {
+        PROFILE_MEMBER_FUNC(FunctionImpl);
         typedef std::pair< Key<NDIM>,Tensor<T> > argT;
         keyT neigh = neighbor(key, axis, step);
         if (neigh.is_invalid()) {
@@ -1021,6 +1041,7 @@ namespace madness {
                                                 const std::pair<keyT,tensorT>& left,
                                                 const std::pair<keyT,tensorT>& center,
                                                 const std::pair<keyT,tensorT>& right) {
+        PROFILE_MEMBER_FUNC(FunctionImpl);
         ProcessID owner = coeffs.owner(key);
         if (owner == world.rank()) {
             if (left.second.size == 0) {
@@ -1050,6 +1071,7 @@ namespace madness {
                                         const std::pair<keyT,tensorT>& left,
                                         const std::pair<keyT,tensorT>& center,
                                         const std::pair<keyT,tensorT>& right) {
+        PROFILE_MEMBER_FUNC(FunctionImpl);
         typedef std::pair<keyT,tensorT> argT;
         
         MADNESS_ASSERT(axis>=0 && axis<NDIM);
@@ -1080,6 +1102,7 @@ namespace madness {
                                         const std::pair<keyT,tensorT>& left,
                                         const std::pair<keyT,tensorT>& center,
                                         const std::pair<keyT,tensorT>& right) {
+        PROFILE_MEMBER_FUNC(FunctionImpl);
         typedef std::pair<keyT,tensorT> argT;
         
         tensorT d = madness::inner(cdata.rp, 
@@ -1099,6 +1122,7 @@ namespace madness {
     
     template <typename T, int NDIM>
     void FunctionImpl<T,NDIM>::mapdim(const implT& f, const std::vector<long>& map, bool fence) {
+        PROFILE_MEMBER_FUNC(FunctionImpl);
         for(typename dcT::const_iterator it=f.coeffs.begin(); it!=f.coeffs.end(); ++it) {
             const keyT& key = it->first;
             const nodeT& node = it->second;
@@ -1116,6 +1140,7 @@ namespace madness {
     
     template <typename T, int NDIM>
     Future< Tensor<T> > FunctionImpl<T,NDIM>::compress_spawn(const Key<NDIM>& key, bool nonstandard, bool keepleaves) {
+        PROFILE_MEMBER_FUNC(FunctionImpl);
         MADNESS_ASSERT(coeffs.probe(key));
         nodeT& node = coeffs.find(key).get()->second;
         if (node.has_children()) {
@@ -1137,6 +1162,7 @@ namespace madness {
     Tensor<T> FunctionImpl<T,NDIM>::eval_plot_cube(const coordT& plotlo,
                                                    const coordT& plothi,
                                                    const std::vector<long>& npt) const {
+        PROFILE_MEMBER_FUNC(FunctionImpl);
         Tensor<T> r(NDIM, &npt[0]);
         MADNESS_ASSERT(!compressed);
 
@@ -1235,7 +1261,7 @@ namespace madness {
                 const Tensor<double>& cell, 
                 const std::vector<long>& npt,
                 bool binary) {
-
+        PROFILE_FUNC;
         MADNESS_ASSERT(NDIM<=6);
         const char* element[6] = {"lines","quads","cubes","cubes4D","cubes5D","cubes6D"};
 
