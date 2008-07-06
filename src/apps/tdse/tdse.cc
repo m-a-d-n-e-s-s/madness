@@ -52,40 +52,40 @@ public:
     }
 };
 
-/// Regularized 1/r potential.
+// /// Regularized 1/r potential.
 
-/// Invoke as \c u(r/c)/c where \c c is the radius of the
-/// smoothed volume.
-static double old_smoothed_potential(double r) {
-    const double PI = 3.1415926535897932384;
-    const double THREE_SQRTPI = 5.31736155271654808184;
-    double r2 = r*r, pot;
-    if (r > 6.5){
-        pot = 1.0/r;
-    } else if (r > 1e-8){
-        pot = erf(r)/r + (exp(-r2) + 16.0*exp(-4.0*r2))/(THREE_SQRTPI);
-    } else{
-        pot = (2.0 + 17.0/3.0)/sqrt(PI);
-    }
+// /// Invoke as \c u(r/c)/c where \c c is the radius of the
+// /// smoothed volume.
+// static double old_smoothed_potential(double r) {
+//     const double PI = 3.1415926535897932384;
+//     const double THREE_SQRTPI = 5.31736155271654808184;
+//     double r2 = r*r, pot;
+//     if (r > 6.5){
+//         pot = 1.0/r;
+//     } else if (r > 1e-8){
+//         pot = erf(r)/r + (exp(-r2) + 16.0*exp(-4.0*r2))/(THREE_SQRTPI);
+//     } else{
+//         pot = (2.0 + 17.0/3.0)/sqrt(PI);
+//     }
     
-    return pot;
-}
+//     return pot;
+// }
 
 
-/// Derivative of new smoothed 1/r approximation
-static double d_smoothed_potential(double r) {
-    double r2 = r*r;
+// /// Derivative of new smoothed 1/r approximation
+// static double d_smoothed_potential(double r) {
+//     double r2 = r*r;
 
-    if (r > 6.5) {
-        return -1.0/r2;
-    }
-    else if (r > 1e-2) {
-        return -(1.1283791670955126*(0.88622692545275800*erf(r)-exp(-r2)*r*(1.0-r2)))/r2;
-    }
-    else {
-        return (-1.880631945159187623160265+(1.579730833933717603454623-0.7253866074185437975046736*r2)*r2)*r;
-    }
-}
+//     if (r > 6.5) {
+//         return -1.0/r2;
+//     }
+//     else if (r > 1e-2) {
+//         return -(1.1283791670955126*(0.88622692545275800*erf(r)-exp(-r2)*r*(1.0-r2)))/r2;
+//     }
+//     else {
+//         return (-1.880631945159187623160265+(1.579730833933717603454623-0.7253866074185437975046736*r2)*r2)*r;
+//     }
+// }
 
 
 /// Regularized 1/r potential.
@@ -268,7 +268,7 @@ complex_functionT make_exp(double t, const functionT& v) {
 }
 
 /// Evolve the wave function in real time
-void propagate(World& world, const functionT& potn, const functionT& psi0, const double eps) {
+void propagate(World& world, const functionT& potn, const complex_functionT& psi0, const double eps) {
     PROFILE_FUNC;
     double ctarget = 10.0/cut;                // From Fourier analysis of the potential
     double c = 1.86*ctarget;
@@ -288,7 +288,7 @@ void propagate(World& world, const functionT& potn, const functionT& psi0, const
         print("bandlimit",ctarget,"effband",c,"tcrit",tcrit,"tstep",tstep,"nstep",nstep);
     }
 
-    complex_functionT psi = double_complex(1.0,0.0)*psi0;
+    complex_functionT psi = copy(psi0);
     SeparatedConvolution<double_complex,3> G = qm_free_particle_propagator<3>(world, k, c, 0.5*tstep, 2*L);
     complex_functionT expV = make_exp(tstep, potn);
 
@@ -326,31 +326,55 @@ int main(int argc, char** argv) {
     FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap(world)));
 
     functionT potn = factoryT(world).f(V);  potn.truncate();
-    functionT psi; 
-    double eps;
     
-    string prefix;  // Prefix for filenames
-    int ndump;      // Dump restart info every ndump time steps
-    int step0;      // Initial step -1=ground state, >=0 means file <prefix>.<step0>
+    string prefix = "tdse";  // Prefix for filenames
+    int ndump = 10;          // Dump restart info every ndump time steps
+    int step0;               // Initial time step ... filenames are <prefix>-<step0>
     
-    //std::cin >> prefix >> ndump >> step0;
-
-    prefix = "tdse";
-    ndump = 1;
-    step0 = -1;
-
-    if (step0 == -1) {
-        if (world.rank() == 0) print("Computing initial wavefunction");
-        psi = factoryT(world).f(guess);
-        psi.scale(1.0/psi.norm2());
-        psi.truncate();
-        psi.scale(1.0/psi.norm2());
-
-        energy(world, psi, potn);
-        
-        eps = -0.5*Z*Z;
-        converge(world, potn, psi, eps);
+    if (world.rank() == 0) {
+        std::ifstream f("input");
+        f >> step0;
     }
+    world.gop.broadcast(step0);
+
+    // See if the restart file exists
+    char buf[256];
+    sprintf(buf, "%s-%5.5d", prefix.c_str(), step0);
+    bool exists = ParallelInputArchive::exists(world, buf);
+
+    if (!exists) {
+        if (step0 == 0) {
+            if (world.rank() == 0) print("Computing initial ground state wavefunction");
+            functionT psi = factoryT(world).f(guess);
+            psi.scale(1.0/psi.norm2());
+            psi.truncate();
+            psi.scale(1.0/psi.norm2());
+            
+            double eps = energy(world, psi, potn);
+            converge(world, potn, psi, eps);
+
+            complex_functionT psic = double_complex(1.0,0.0)*psi;
+            
+            ParallelOutputArchive ar(world,  buf, 1);
+            ar & eps & psic;
+        }
+        else {
+            if (world.rank() == 0) {
+                print("The requested restart file was not found", buf);
+                error("restart failed", 0);
+            }
+            world.gop.fence();
+        }
+    }
+
+    complex_functionT psi;
+    double eps;
+    ParallelInputArchive ar(world, buf, 1);
+    ar & eps & psi;
+    ar.close();
+
+    if (world.rank() == 0) 
+        print("Restarting from time step", step0);
 
     propagate(world, potn, psi, eps);
 

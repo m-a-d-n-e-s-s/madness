@@ -6,6 +6,7 @@
 
 #include <world/archive.h>
 
+#include <unistd.h>
 #include <cstring>
 #include <cstdio>
 
@@ -83,7 +84,7 @@ namespace madness {
                 if (nio > world.size()) nio = world.size();
 
                 MADNESS_ASSERT(filename);
-                MADNESS_ASSERT(strlen(filename)<sizeof(fname));
+                MADNESS_ASSERT(strlen(filename)-1<sizeof(fname));
                 strcpy(fname,filename); // Save the filename for later
                 char buf[256];
                 MADNESS_ASSERT(strlen(filename)+7 <= sizeof(buf));
@@ -114,6 +115,20 @@ namespace madness {
 //                 else {
 //                     madness::print("I am a client served by",my_io_node(),fname);
 //                 }
+            }
+
+            /// Returns true if the named, unopened archive exists on disk with read access ... collective
+            static bool exists(World& world, const char* filename) {
+                char buf[256];
+                MADNESS_ASSERT(strlen(filename)+7 <= sizeof(buf));
+                sprintf(buf, "%s.%5.5d", filename, world.rank());
+                bool status;
+                if (world.rank() == 0) 
+                    status = (access(buf, F_OK|R_OK) == 0);
+
+                world.gop.broadcast(status);
+
+                return status;
             }
                 
             /// Closes the parallel archive

@@ -871,19 +871,20 @@ namespace madness {
                 op.ops[d] = ops[mu]->nonstandard(n, disp[d]);
             }
 
-            double newnorm = munorm2(n, op.ops);
-            // This rescaling empirically based upon BSH separated expansion
-            // ... needs more testing.
-            for (int d=0; d<NDIM; d++)  {
-                if (disp[d] == 0) newnorm *= 0.5;
-                else if (std::abs(disp[d]) == 1) newnorm *= 0.8;
+//             double newnorm = munorm2(n, op.ops);
+//             // This rescaling empirically based upon BSH separated expansion
+//             // ... needs more testing.  OK also for TDSE.
+//             // All is good except for some 000 blocks which are up to sqrt(k^d) off.
+//             for (int d=0; d<NDIM; d++)  {
+//                 if (disp[d] == 0) newnorm *= 0.5;
+//                 else if (std::abs(disp[d]) == 1) newnorm *= 0.8;
             }
 
-//             double oldnorm = munorm(n, op.ops);
-//             if (oldnorm > 1e-13 && (n3 < 0.5*oldnorm || n3 > 2.0*oldnorm) )
-//                 print("munorm", n, disp, mu, newnorm, n3, oldnorm, n3/oldnorm);
+            double oldnorm = munorm(n, op.ops);
+//             if (oldnorm > 1e-13 && (newnorm < 0.5*oldnorm || newnorm > 2.0*oldnorm) )
+//                 print("munorm", n, disp, mu, newnorm, oldnorm, newnorm/oldnorm);
 
-            op.norm = newnorm;
+            op.norm = oldnorm;
 
             return op;
         }
