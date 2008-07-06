@@ -242,7 +242,7 @@ namespace madness {
         static const int SHORT_MSG_HEADER_LEN = 2*sizeof(unsigned long);            ///< Length of header in short message
         static const int SHORT_MSG_USER_LEN = SHORT_MSG_LEN-SHORT_MSG_HEADER_LEN;   ///< Length of user data in short message
         static const int LONG_MSG_HEADER_LEN = 4*sizeof(unsigned long);             ///< No. of bytes reserved for long message header
-        static const int LONG_MSG_LEN = 3*128*1024;                                 ///< Max length of long messages
+        static const int LONG_MSG_LEN = 1024*1024;                                  ///< Max length of long messages
         static const int LONG_MSG_USER_LEN = LONG_MSG_LEN-LONG_MSG_HEADER_LEN;      ///< Length of user data in long messages
         
     private:

@@ -300,7 +300,12 @@ namespace madness {
                 //print(me,"measured delay",poll_delay);
                 if (poll_delay <= 0) poll_delay = 1;
                 if (poll_delay > (1e-4*cpu_frequency())) poll_delay = int(1e-4*cpu_frequency());
-                //mpi.Bcast(poll_delay,0); // For paranoia make sure all have same value?
+
+                // This for CRAY-XT performance debugging <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+                poll_delay = uint64_t(1e-3/cpu_frequency());
+
+                mpi.Bcast(poll_delay,0); // For paranoia make sure all have same value
+
                 if (rank()==0) print("cpu frequency",cpu_frequency(),"poll_delay",poll_delay,"cycles",int(1e9*poll_delay/cpu_frequency()),"ns");
             }
         };

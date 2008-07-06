@@ -12,8 +12,8 @@ using namespace madness;
 
 // Convenient but sleazy use of global variables to define simulation parameters
 static const double L = 33.0;
-static const long k = 12;           // wavelet order
-static const double thresh = 1e-4; // precision
+static const long k = 16;           // wavelet order
+static const double thresh = 1e-8; // precision
 static const double cut = 0.3;     // smoothing parameter for 1/r    0.1 is what we seek
 static const double F = 1.0;       // Laser field strength
 static const double omega = 1.0;   // Laser frequency
@@ -29,6 +29,28 @@ typedef SharedPtr< FunctionFunctorInterface<double_complex,3> > complex_functorT
 typedef Function<double_complex,3> complex_functionT;
 typedef FunctionFactory<double_complex,3> complex_factoryT;
 typedef SeparatedConvolution<double_complex,3> complex_operatorT;
+typedef SharedPtr< WorldDCPmapInterface< Key<3> > > pmapT;
+
+
+class LevelPmap : public WorldDCPmapInterface< Key<3> > {
+private:
+    const int nproc;
+public:
+    LevelPmap() : nproc(0) {};
+    
+    LevelPmap(World& world) : nproc(world.nproc()) {}
+    
+    /// Find the owner of a given key
+    ProcessID owner(const Key<3>& key) const {
+        Level n = key.level();
+        if (n == 0) return 0;
+        hashT hash;
+        if (n <= 3 || (n&0x1)) hash = key.hash();
+        else hash = key.parent().hash();
+        //hashT hash = key.hash();
+        return hash%nproc;
+    }
+};
 
 /// Regularized 1/r potential.
 
@@ -206,20 +228,22 @@ complex_functionT chin_chen(const complex_functionT& expV,
     return psi1;
 }
 
-complex_functionT trotter(const complex_functionT& expV, 
+complex_functionT trotter(World& world,
+                          const complex_functionT& expV, 
                           const complex_operatorT& G, 
                           const complex_functionT& psi0) {
     //    psi(t) = exp(-i*T*t/2) exp(-i*V(t/2)*t) exp(-i*T*t/2) psi(0)
 
     complex_functionT psi1;
 
-    print("APPLYING G", psi0.size());
-    psi1 = apply(G,psi0);  psi1.truncate();
-    print("APPLYING expV", psi1.size());
-    psi1 = expV*psi1;      psi1.truncate();
-    print("APPLYING G again", psi1.size());
-    psi1 = apply(G,psi1);  psi1.truncate();
-    print("DONE", psi1.size());
+    unsigned long size = psi0.size();
+    if (world.rank() == 0) print("APPLYING G", size);
+    psi1 = apply(G,psi0);  psi1.truncate();  size = psi1.size();
+    if (world.rank() == 0) print("APPLYING expV", size);
+    psi1 = expV*psi1;      psi1.truncate();  size = psi1.size();
+    if (world.rank() == 0) print("APPLYING G again", size);
+    psi1 = apply(G,psi1);  psi1.truncate();  size = psi1.size();
+    if (world.rank() == 0) print("DONE", size);
     
     return psi1;
 }
@@ -250,21 +274,22 @@ void propagate(World& world, const functionT& potn, const functionT& psi0, const
     double c = 1.86*ctarget;
     double tcrit = 2*constants::pi/(c*c);
 
-    double tstep = tcrit;
-    int nstep = 10;
-    
+    double tstep = tcrit * 0.1; // <<<<<<<<<<<<<<<<<<< note 0.1
+    int nstep = 2;
     //double Eshift = eps;
 
     //potn.add_scalar(-Eshift);
+
+    // Ensure everyone has the same data
+    world.gop.broadcast(c);
+    world.gop.broadcast(tstep);
 
     if (world.rank() == 0) {
         print("bandlimit",ctarget,"effband",c,"tcrit",tcrit,"tstep",tstep,"nstep",nstep);
     }
 
     complex_functionT psi = double_complex(1.0,0.0)*psi0;
-
     SeparatedConvolution<double_complex,3> G = qm_free_particle_propagator<3>(world, k, c, 0.5*tstep, 2*L);
-
     complex_functionT expV = make_exp(tstep, potn);
 
     for (int step=0; step<nstep; step++) {
@@ -276,10 +301,12 @@ void propagate(World& world, const functionT& potn, const functionT& psi0, const
         while (theta_exact > constants::pi) theta_exact -= 2.0*constants::pi;
         while (theta_exact < -constants::pi) theta_exact += 2.0*constants::pi;
       
-        print("step", step, "time", t, "radius", radius, "arg", theta, "exact", theta_exact, "phase err", theta_exact-theta);
+        if (world.rank() == 0) 
+            print("step", step, "time", t, "radius", radius, "arg", theta, "exact", theta_exact, "phase err", theta_exact-theta);
+
         //energy(v, psi);
       
-        psi = trotter(expV, G, psi);
+        psi = trotter(world, expV, G, psi);
     }
 }
 
@@ -296,6 +323,7 @@ int main(int argc, char** argv) {
     FunctionDefaults<3>::set_initial_level(2);     // Initial projection level
     FunctionDefaults<3>::set_cubic_cell(-L,L);
     FunctionDefaults<3>::set_apply_randomize(true);
+    FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap(world)));
 
     functionT potn = factoryT(world).f(V);  potn.truncate();
     functionT psi; 
@@ -320,7 +348,7 @@ int main(int argc, char** argv) {
 
         energy(world, psi, potn);
         
-        double eps = -0.5*Z*Z;
+        eps = -0.5*Z*Z;
         converge(world, potn, psi, eps);
     }
 
@@ -338,14 +366,4 @@ int main(int argc, char** argv) {
     MPI::Finalize();
     return 0;
 }
-
-
-
-//             if (world.rank() == 0) print("load balancing");
-//             LoadBalImpl<3> lb(psi, lbcost<double,3>);
-//             lb.load_balance();
-//             FunctionDefaults<3>::set_pmap(lb.load_balance());
-//             world.gop.fence();
-//             psi = copy(psi, FunctionDefaults<3>::get_pmap(), false);
-//             potn = copy(potn, FunctionDefaults<3>::get_pmap(), true);
 

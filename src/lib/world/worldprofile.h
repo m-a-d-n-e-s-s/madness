@@ -99,6 +99,7 @@ namespace madness {
     class WorldProfile {
         static std::vector<WorldProfileEntry> items;
         static double cpu_start;
+        static double wall_start;
     public:
         /// Registers the name and returns index of the entry
 
@@ -135,6 +136,7 @@ namespace madness {
         /// Clears all profiling information
         static void clear() {
             cpu_start = madness::cpu_time();
+            wall_start = madness::wall_time();
             for (unsigned int i=0; i<items.size(); i++) {
                 items[i].clear();
             }

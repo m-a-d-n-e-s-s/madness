@@ -160,6 +160,7 @@ namespace madness {
     WorldProfileObj* WorldProfileObj::call_stack = 0;
     std::vector<WorldProfileEntry> WorldProfile::items;
     double WorldProfile::cpu_start = madness::cpu_time();
+    double WorldProfile::wall_start = madness::wall_time();
 
 
 
@@ -169,7 +170,7 @@ namespace madness {
             cpu_total += v[i].xcpu.sum;
         
         double cpu_sum = 0.0;
-        std::printf(" cum%% cpu%%   cpu/s   cpu-min  cpu-avg  cpu-max  cpu-eff   inc/s   inc-min  inc-avg  inc-max  inc-imb   calls  call-min call-avg call-max call-imb name\n");
+        std::printf(" cum%% cpu%%   cpu/s   cpu-min  cpu-avg  cpu-max  cpu-eff   inc/s   inc-min  inc-avg  inc-max  inc-eff   calls  call-min call-avg call-max call-eff name\n");
         std::printf(" ---- ---- -------- -------- -------- -------- -------- -------- -------- -------- -------- --------  ------- -------- -------- -------- -------- --------------------\n");
         
         // 
@@ -185,18 +186,18 @@ namespace madness {
             
             double cpu_mean = cpu/world.size();
             double count_mean = count/world.size();
-            double count_imbalance = count_mean ? (v[i].count.max-v[i].count.min)/count_mean : 0.0;
+            double count_eff = v[i].count.max ? count_mean/v[i].count.max : 1.0;
             double cpu_eff = v[i].xcpu.max ? cpu_mean/v[i].xcpu.max : 1.0;
             
             double inc_mean = inc/world.size();
-            double inc_eff = v[i].icpu.max ? inc_mean/v[i].icpu.max : 0.0;
+            double inc_eff = v[i].icpu.max ? inc_mean/v[i].icpu.max : 1.0;
             
             printf("%5.1f%5.1f%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e %s\n",
                    cum_cpu_percent,
                    cpu_percent,
                    cpu, v[i].xcpu.min, cpu_mean, v[i].xcpu.max, cpu_eff,
                    inc, v[i].icpu.min, inc_mean, v[i].icpu.max, inc_eff,
-                   double(count), double(v[i].count.min), count_mean, double(v[i].count.max), double(count_imbalance),
+                   double(count), double(v[i].count.min), count_mean, double(v[i].count.max), count_eff,
                    v[i].name.c_str());
             printf("                %9d         %9d                  %9d         %9d                  %9d         %9d\n",
                    v[i].xcpu.pmin, v[i].xcpu.pmax,
@@ -227,7 +228,7 @@ namespace madness {
         }
         else {
             double overhead = 0.0;
-            int overid = find("est_profile_overhead");
+            int overid = find("WorldProfile::est_profile_overhead");
             if (overid != -1) {
                 overhead = get_entry(overid).xcpu.sum/get_entry(overid).count.sum;
             }
@@ -235,6 +236,8 @@ namespace madness {
             std::printf("\n    MADNESS global parallel profile\n");
             std::printf("    -------------------------------\n\n");
             std::printf("    o  estimated profiling overhead %.1e seconds per call\n", overhead);
+            std::printf("    o  total  cpu time on process zero %.1e seconds\n", madness::cpu_time()-WorldProfile::cpu_start);
+            std::printf("    o  total wall time on process zero %.1e seconds\n", madness::wall_time()-WorldProfile::wall_start);
             std::printf("    o  exclusive cpu time excludes called profiled routines\n");
             std::printf("    o  inclusive cpu time includes called profiled routines and\n");
             std::printf("       does not double count recursive calls\n");
@@ -259,7 +262,7 @@ namespace madness {
             std::printf(" calls-min - minimum number calls on any processor\n");
             std::printf(" calls-avg - mean number calls per processor\n");
             std::printf(" calls-max - maximum number calls on any processor\n");
-            std::printf(" calls-imb - percent imbalance in number calls = (max-min)/avg\n");
+            std::printf(" calls-eff - calls efficiency = avg/max\n");
             std::printf("\n");
 
             std::vector<WorldProfileEntry> v(items);
