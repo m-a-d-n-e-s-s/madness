@@ -878,7 +878,7 @@ namespace madness {
 //             for (int d=0; d<NDIM; d++)  {
 //                 if (disp[d] == 0) newnorm *= 0.5;
 //                 else if (std::abs(disp[d]) == 1) newnorm *= 0.8;
-            }
+//             }
 
             double oldnorm = munorm(n, op.ops);
 //             if (oldnorm > 1e-13 && (newnorm < 0.5*oldnorm || newnorm > 2.0*oldnorm) )

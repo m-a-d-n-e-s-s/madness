@@ -62,11 +62,11 @@ namespace madness {
         {};
 
         static bool exclusivecmp(const WorldProfileEntry&a, const WorldProfileEntry& b) {
-            return a.xcpu.value > b.xcpu.value;
+            return a.xcpu.sum > b.xcpu.sum;
         }
 
         static bool inclusivecmp(const WorldProfileEntry&a, const WorldProfileEntry& b) {
-            return a.icpu.value > b.icpu.value;
+            return a.icpu.sum > b.icpu.sum;
         }
 
         void init_par_stats(ProcessID me) {

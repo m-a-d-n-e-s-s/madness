@@ -183,6 +183,7 @@ function do_crayxt() {
     set_value CC cc
     # Using the default libraries is apparently better
     #set_value LIBS "-lsci -lgfortran"
+    set_value LIBS "-lacml -lgfortran"
 }
 
 # Set mostly empty/non-functional defaults for all strings in part to

@@ -44,5 +44,37 @@ Linux 32-bit using MKL in default install location
 
     ./doconfig LIBS "-L/opt/intel/mkl/10.0.1.014/lib/32 -lmkl -lguide"
 
+CRAY-XT4 (ORNL Jaguar) with GNU compilers and ACML
+
+    The GNU compilers are much faster (10x ?) at compilation than PGI hence
+    these are recommended for development.  The runtime performance has not
+    been evaluated.
+
+    Build in your work directory (/tmp/work/username) since the user filesystem
+    is bizarrely not accessible from the compute nodes
+
+    [assuming default modules loaded]
+    module swap PrgEnv-pgi PrgEnv-gnu
+    module load subversion
+    module load acml/4.1.0
+    ./doconfig CRAYXT LIBS "-lacml -lgfortran"
+
+    to run you will need to set an environment variable to point to
+    the data files
+
+    setenv MRA_DATA_DIR /tmp/work/$USER/m-a-d-n-e-s-s/trunk/src/lib/mra
+
+CRAY-XT4 (ORNL Jaguar) with PGI compilers and SCILIB
+
+    build in your work directory (/tmp/work/username) since the user filesystem
+    is bizarrely not accessible from the compute nodes
+
+    [assuming default modules loaded]
+    ./doconfig CRAYXT LIBS ???????????????????????????
+
+    to run you will need to set an environment variable to point to
+    the data files
+
+    setenv MRA_DATA_DIR /tmp/work/$USER/m-a-d-n-e-s-s/trunk/src/lib/mra
 
 

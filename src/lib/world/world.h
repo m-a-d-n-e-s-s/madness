@@ -299,10 +299,10 @@ namespace madness {
                 poll_delay = ins>>4;
                 //print(me,"measured delay",poll_delay);
                 if (poll_delay <= 0) poll_delay = 1;
-                if (poll_delay > (1e-4*cpu_frequency())) poll_delay = int(1e-4*cpu_frequency());
+                if (poll_delay > (1e-4*cpu_frequency())) poll_delay = uint64_t(1e-4*cpu_frequency());
 
                 // This for CRAY-XT performance debugging <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-                poll_delay = uint64_t(1e-3/cpu_frequency());
+                poll_delay = uint64_t(1e-4*cpu_frequency());
 
                 mpi.Bcast(poll_delay,0); // For paranoia make sure all have same value
 
@@ -496,7 +496,7 @@ namespace madness {
             double watchdog_last_time=0.0;   // Time when dog last barked
             bool watchdog_is_watching = false; // True if dog is watching
 #endif
-            bool working = false;
+            bool working = true;  // was false <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
             while (!probe()) {
                 poll_all(!working);  // If working poll_all will increase polling interval
                 working = run_tasks();
@@ -506,6 +506,7 @@ namespace madness {
                 // without doing useful work start whining and
                 // ultimately commit seppuku.
                 if (!working) {
+                    PROFILE_BLOCK(idle);
                     if (watchdog_is_watching) {
                         double now = wall_time();
                         if ((now-watchdog_last_time) > WATCHDOG_BARK_INTERVAL) {

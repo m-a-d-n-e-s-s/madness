@@ -1051,7 +1051,6 @@ namespace madness {
     template <typename Q, typename T, int NDIM>
     Function<TENSOR_RESULT_TYPE(Q,T),NDIM>
     operator*(const Function<T,NDIM>& f, const Q alpha) {
-        PROFILE_FUNC;
         return mul(alpha, f, true);
     }
 
@@ -1061,7 +1060,6 @@ namespace madness {
     template <typename Q, typename T, int NDIM>
     Function<TENSOR_RESULT_TYPE(Q,T),NDIM>
     operator*(const Q alpha, const Function<T,NDIM>& f) {
-        PROFILE_FUNC;
         return mul(alpha, f, true);
     }
 
@@ -1070,7 +1068,6 @@ namespace madness {
     template <typename L, typename R,int NDIM>
     Function<TENSOR_RESULT_TYPE(L,R),NDIM>
     mul(const Function<L,NDIM>& left, const Function<R,NDIM>& right, bool fence) {
-        PROFILE_FUNC;
         Function<TENSOR_RESULT_TYPE(L,R),NDIM> result;
         return result.mul(left,right,fence);
     }
@@ -1094,7 +1091,6 @@ namespace madness {
     template <typename L, typename R, int NDIM>
     Function<TENSOR_RESULT_TYPE(L,R), NDIM>
     operator*(const Function<L,NDIM>& left, const Function<R,NDIM>& right) {
-        PROFILE_FUNC;
         if (left.is_compressed())  left.reconstruct();
         if (right.is_compressed()) right.reconstruct();
         return mul(left,right,true);
@@ -1115,7 +1111,6 @@ namespace madness {
     template <typename L, typename R,int NDIM>
     Function<TENSOR_RESULT_TYPE(L,R),NDIM>
     add(const Function<L,NDIM>& left, const Function<R,NDIM>& right, bool fence) {
-        PROFILE_FUNC;
         return gaxpy_oop(TENSOR_RESULT_TYPE(L,R)(1.0), left,
                          TENSOR_RESULT_TYPE(L,R)(1.0), right, fence);
     }
@@ -1127,7 +1122,6 @@ namespace madness {
     template <typename L, typename R, int NDIM>
     Function<TENSOR_RESULT_TYPE(L,R), NDIM>
     operator+(const Function<L,NDIM>& left, const Function<R,NDIM>& right) {
-        PROFILE_FUNC;
         if (VERIFY_TREE) left.verify_tree();
         if (VERIFY_TREE) right.verify_tree();
         if (!left.is_compressed())  left.compress();
@@ -1139,7 +1133,6 @@ namespace madness {
     template <typename L, typename R,int NDIM>
     Function<TENSOR_RESULT_TYPE(L,R),NDIM>
     sub(const Function<L,NDIM>& left, const Function<R,NDIM>& right, bool fence) {
-        PROFILE_FUNC;
         return gaxpy_oop(TENSOR_RESULT_TYPE(L,R)( 1.0), left,
                          TENSOR_RESULT_TYPE(L,R)(-1.0), right, fence);
     }

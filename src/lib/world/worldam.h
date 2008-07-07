@@ -319,10 +319,10 @@ namespace madness {
         static const unsigned long COUNT_MASK = 0xff;
         static const unsigned long BCAST_MASK = 0x1ul<<9;
         
-        static const int NSHORT_RECV = 8*2;         ///< No. of posted short recv buffers
-        static const int NLONG_RECV = 16*4;         ///< No. of posted long recv buffers
+        static const int NSHORT_RECV = 16;         ///< No. of posted short recv buffers
+        static const int NLONG_RECV = 64;          ///< No. of posted long recv buffers
         static const int NRECV =  NSHORT_RECV + NLONG_RECV;
-        static const int NSEND = 16*4;              ///< Max no. of outstanding short+long Isends
+        static const int NSEND = 128;              ///< Max no. of outstanding short+long Isends
         
         MPI::Request recv_handle[NRECV];  ///< Handles for AM Irecv
         mutable MPI::Request send_handle[NSEND];  ///< Handles for AM Isend
@@ -412,6 +412,7 @@ namespace madness {
 
         /// Private: Finds/waits for a free send request
         inline int get_free_send_request() {
+            PROFILE_MEMBER_FUNC(WorldAM);
             // Must call poll here to keep pulling messages off the
             // network to avoid dead/livelock but don't don't need to
             // poll in other worlds or run tasks/AM.

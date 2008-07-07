@@ -11,8 +11,8 @@
 using namespace madness;
 
 // Convenient but sleazy use of global variables to define simulation parameters
-static const double L = 33.0;
-static const long k = 16;           // wavelet order
+static const double L = 330.0;
+static const long k = 12;          // wavelet order
 static const double thresh = 1e-8; // precision
 static const double cut = 0.3;     // smoothing parameter for 1/r    0.1 is what we seek
 static const double F = 1.0;       // Laser field strength
@@ -193,7 +193,7 @@ Cost lbcost(const Key<NDIM>& key, const FunctionNode<T,NDIM>& node) {
 
 void converge(World& world, functionT& potn, functionT& psi, double& eps) {
     PROFILE_FUNC;
-    for (int iter=0; iter<3; iter++) {
+    for (int iter=0; iter<10; iter++) {
         operatorT op = BSHOperator<double,3>(world, sqrt(-2*eps), k, cut, thresh);
         functionT Vpsi = (potn*psi);
         Vpsi.scale(-2.0).truncate();
@@ -274,8 +274,8 @@ void propagate(World& world, const functionT& potn, const complex_functionT& psi
     double c = 1.86*ctarget;
     double tcrit = 2*constants::pi/(c*c);
 
-    double tstep = tcrit * 0.1; // <<<<<<<<<<<<<<<<<<< note 0.1
-    int nstep = 2;
+    double tstep = tcrit; //
+    int nstep = 1;
     //double Eshift = eps;
 
     //potn.add_scalar(-Eshift);
@@ -290,6 +290,7 @@ void propagate(World& world, const functionT& potn, const complex_functionT& psi
 
     complex_functionT psi = copy(psi0);
     SeparatedConvolution<double_complex,3> G = qm_free_particle_propagator<3>(world, k, c, 0.5*tstep, 2*L);
+    //G.doleaves = true;
     complex_functionT expV = make_exp(tstep, potn);
 
     for (int step=0; step<nstep; step++) {
@@ -297,7 +298,7 @@ void propagate(World& world, const functionT& potn, const complex_functionT& psi
         double_complex phase = psi0.inner(psi);
         double radius = abs(phase);
         double theta = arg(phase);
-        double theta_exact = -t*0.5;
+        double theta_exact = -t*eps;
         while (theta_exact > constants::pi) theta_exact -= 2.0*constants::pi;
         while (theta_exact < -constants::pi) theta_exact += 2.0*constants::pi;
       
@@ -320,9 +321,11 @@ int main(int argc, char** argv) {
     FunctionDefaults<3>::set_k(k);                 // Wavelet order
     FunctionDefaults<3>::set_thresh(thresh);       // Accuracy
     FunctionDefaults<3>::set_refine(true);         // Enable adaptive refinement
-    FunctionDefaults<3>::set_initial_level(2);     // Initial projection level
+    FunctionDefaults<3>::set_initial_level(4);     // Initial projection level
     FunctionDefaults<3>::set_cubic_cell(-L,L);
     FunctionDefaults<3>::set_apply_randomize(true);
+    FunctionDefaults<3>::set_autorefine(false);
+    FunctionDefaults<3>::set_truncate_mode(1);
     FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap(world)));
 
     functionT potn = factoryT(world).f(V);  potn.truncate();
