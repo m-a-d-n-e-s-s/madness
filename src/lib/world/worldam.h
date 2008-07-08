@@ -242,7 +242,7 @@ namespace madness {
         static const int SHORT_MSG_HEADER_LEN = 2*sizeof(unsigned long);            ///< Length of header in short message
         static const int SHORT_MSG_USER_LEN = SHORT_MSG_LEN-SHORT_MSG_HEADER_LEN;   ///< Length of user data in short message
         static const int LONG_MSG_HEADER_LEN = 4*sizeof(unsigned long);             ///< No. of bytes reserved for long message header
-        static const int LONG_MSG_LEN = 1024*1024;                                  ///< Max length of long messages
+        static const int LONG_MSG_LEN = 3*128*1024;                                 ///< Max length of long messages
         static const int LONG_MSG_USER_LEN = LONG_MSG_LEN-LONG_MSG_HEADER_LEN;      ///< Length of user data in long messages
         
     private:
@@ -319,10 +319,11 @@ namespace madness {
         static const unsigned long COUNT_MASK = 0xff;
         static const unsigned long BCAST_MASK = 0x1ul<<9;
         
-        static const int NSHORT_RECV = 16;         ///< No. of posted short recv buffers
-        static const int NLONG_RECV = 64;          ///< No. of posted long recv buffers
+        static const int NSHORT_RECV = 32;          ///< No. of posted short recv buffers
+        static const int NLONG_RECV = 128;          ///< No. of posted long recv buffers
         static const int NRECV =  NSHORT_RECV + NLONG_RECV;
-        static const int NSEND = 128;              ///< Max no. of outstanding short+long Isends
+        static const int LOG2_NSEND = 7;
+        static const int NSEND = 1<<LOG2_NSEND;    ///< Max no. of outstanding short+long Isends
         
         MPI::Request recv_handle[NRECV];  ///< Handles for AM Irecv
         mutable MPI::Request send_handle[NSEND];  ///< Handles for AM Isend
@@ -409,6 +410,24 @@ namespace madness {
             }
         };
 
+
+//         /// Private: Finds/waits for a free send request
+//         inline int get_free_send_request() {
+//             PROFILE_MEMBER_FUNC(WorldAM);
+//             static int cur_msg = 0;
+//             static const int MASK = (1<<LOG2_NSEND)-1; // this is why we need a power of 2 messages
+
+//             // Must call poll here to keep pulling messages off the
+//             // network to avoid dead/livelock but don't don't need to
+//             // poll in other worlds or run tasks/AM.
+//             while (!send_handle[cur_msg].Test())  World::poll_all(true);
+
+//             free_managed_send_buf(cur_msg);
+
+//             int i = cur_msg;
+//             cur_msg = (cur_msg + 1) & MASK;
+//             return i;
+//         };
 
         /// Private: Finds/waits for a free send request
         inline int get_free_send_request() {
