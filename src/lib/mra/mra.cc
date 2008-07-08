@@ -1194,31 +1194,36 @@ namespace madness {
                     // Coords of box
                     boxlo[d] = fac*key.translation()[d];
                     boxhi[d] = boxlo[d]+fac;
-                    // Restrict to plot range
-                    boxlo[d] = std::max(boxlo[d],plotlo[d]);
-                    boxhi[d] = std::min(boxhi[d],plothi[d]);
-                    //print("box coords", boxlo[d], boxhi[d]);
-                    if (h[d] > 0.0) {
-                        // Round lo up to next plot point; round hi down
-                        boxlo[d] =  ceil((boxlo[d]-plotlo[d])/h[d])*h[d] + plotlo[d];
-                        boxhi[d] = floor((boxhi[d]-plotlo[d])/h[d])*h[d] + plotlo[d];
-                    }
-                    // Determine number of points contained
-                    if (boxhi[d] < boxlo[d]) {
-                        boxnpt[d] = 0;
+                    
+                    if (boxlo[d] > plothi[d] || boxhi[d] < plotlo[d]) {
+                        // Discard boxes out of the plot range
+                        npttotal = boxnpt[d] = 0;
+                        //print("OO range?");
+                        break;
                     }
                     else if (npt[d] == 1) {
-                        boxnpt[d] = 1;
+                        // This dimension is only a single point
                         boxlo[d] = boxhi[d] = plotlo[d];
+                        boxnpt[d] = 1;
                     }
                     else {
-                        boxnpt[d] = int(round((boxhi[d]-boxlo[d])/h[d])) + 1;
+                        // Restrict to plot range
+                        boxlo[d] = std::max(boxlo[d],plotlo[d]);
+                        boxhi[d] = std::min(boxhi[d],plothi[d]);
+                        
+                        // Round lo up to next plot point; round hi down
+                        double xlo = long((boxlo[d]-plotlo[d])/h[d])*h[d] + plotlo[d];
+                        if (xlo < boxlo[d]) xlo += h[d];
+                        boxlo[d] =  xlo;
+                        double xhi = long((boxhi[d]-plotlo[d])/h[d])*h[d] + plotlo[d];
+                        if (xhi > boxhi[d]) xhi -= h[d];
+                        MADNESS_ASSERT(xhi >= xlo);
+                        boxhi[d] = xhi;
+                        boxnpt[d] = long(round((boxhi[d] - boxlo[d])/h[d])) + 1;
                     }
-                    
-                    //print("box after", boxlo[d], boxhi[d], npt[d]);
-
                     npttotal *= boxnpt[d];
                 }
+                //print("    box", boxlo, boxhi, boxnpt, npttotal);
                 if (npttotal > 0) {
                     const tensorT& coeff = node.coeff();
                     const Level n = key.level();
@@ -1230,13 +1235,14 @@ namespace madness {
                         for (int d=0; d<NDIM; d++) {
                             double xd = boxlo[d] + it[d]*h[d]; // Sim. coords of point
                             x[d] = twon*xd - l[d]; // Offset within box
+                            MADNESS_ASSERT(x[d]>=0.0 && x[d] <=1.0);  // sanity
                             if (npt[d] > 1) {
                                 ind[d] = long(round((xd-plotlo[d])/h[d])); // Index of plot point
                             }
                             else {
                                 ind[d] = 0;
                             }
-                            MADNESS_ASSERT(ind[d]>=0 && ind[d]<npt[d]); // sanity (upper 
+                            MADNESS_ASSERT(ind[d]>=0 && ind[d]<npt[d]); // sanity
                         }
                         r(ind) = eval_cube(n, x, coeff);
                         //print("computing", p, x, ind);
@@ -1244,6 +1250,7 @@ namespace madness {
                 }
             }
         }
+
         return r;
     }
 
