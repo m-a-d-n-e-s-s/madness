@@ -1,5 +1,5 @@
 /// volumeINT.cc
-/// compute the 1D integral over r
+/// compute the 3D integral over r
 
 #include <mra/mra.h>
 #include <complex>
@@ -25,11 +25,12 @@ int main(int argc, char**argv) {
   startup(world,argc,argv);
   
   // Setup defaults for numerical functions
-  FunctionDefaults<NDIM>::set_k(11);                // Wavelet order
-  FunctionDefaults<NDIM>::set_thresh(1e-7);       // Accuracy
-  FunctionDefaults<NDIM>::set_cubic_cell(-30.0, 30.0);
+  FunctionDefaults<NDIM>::set_k(12);             // Wavelet order
+  FunctionDefaults<NDIM>::set_thresh(1e-1);       // Accuracy
+  FunctionDefaults<NDIM>::set_cubic_cell(-20.0, 20.0);
 
   f11Tester(world);
-  MPI::Finalize();				//FLAG
+  
+    MPI::Finalize();				//FLAG
   return 0;
 }

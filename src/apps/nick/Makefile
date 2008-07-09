@@ -21,6 +21,3 @@ test:	$(TESTOBJ)
 
 toms707.o:
 	$(FC) toms707.f -c
-
-#coul36-f90.o:
-#	$(FC) coul36-f90.f -c

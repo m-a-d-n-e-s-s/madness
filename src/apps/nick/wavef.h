@@ -18,7 +18,7 @@ using namespace madness;
 const int NDIM  = 3;
 typedef std::complex<double> complexd;
 typedef SharedPtr< FunctionFunctorInterface<complexd,NDIM> > functorT;
-
+typedef Vector<double,NDIM> coordT;
 
 extern "C" complexd hypergf_(complexd* AA, complexd* BB, complexd* X, 
 			     double* EPS, int* LIMIT, int* KIN, double* ERR, 
@@ -37,7 +37,6 @@ complexd f11(complexd AA, complexd BB, complexd ZZ);
 void test1F1(complexd (*func1F1)(complexd,complexd,complexd), char* fName);
 void f11Tester(World&);
 
-
 const complexd I(0,1);
 const double PI = M_PI;
 
@@ -49,8 +48,6 @@ class WaveFunction : public FunctionFunctorInterface<complexd,NDIM>
  public:
   typedef Vector<double,NDIM> coordT;
   WaveFunction(double M, double Z);
-  //WHY  is it bad to have a templated virtual class?
-  //http://www.devx.com/tips/Tip/5738
   virtual complexd operator()(const coordT& x) const=0; 
  protected:
   double _M;
@@ -86,6 +83,21 @@ class BoundWF : public WaveFunction
   int n;
   int l;
   int m;
+};
+
+/******************************************
+ *Exp[ I*(k.r) ]
+ ******************************************/
+class Expikr : public FunctionFunctorInterface<complexd,NDIM>
+{
+ public:
+  typedef Vector<double,NDIM> coordT;
+  Expikr(const coordT& kVec);
+  complexd operator()(const coordT& r) const;
+ private:
+  coordT kVec;
+  double k;
+  double costhK;
 };
 
 #endif
