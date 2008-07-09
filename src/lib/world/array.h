@@ -68,7 +68,8 @@ namespace madness {
         };
 
         /// Construct from an STL vector of equal or greater length
-        Vector(const std::vector<T> t) {
+        template <typename Q>
+        Vector(const std::vector<Q> t) {
             MADNESS_ASSERT(t.size() >= N);
             for (int i=0; i<N; i++) v[i] = t[i];
         };
