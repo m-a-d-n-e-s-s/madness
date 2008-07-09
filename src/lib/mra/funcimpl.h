@@ -798,6 +798,53 @@ namespace madness {
         const tensorT parent_to_child(const tensorT& s, const keyT& parent, const keyT& child) const;
 
 
+        /// Get the scaling function coeffs at level n starting from NS form
+        tensorT coeffs_for_jun(Level n) {
+            MADNESS_ASSERT(compressed && nonstandard && NDIM<=3);
+            long dim[6];
+            for (int d=0; d<NDIM; d++) {
+                dim[d     ] = 1<<n;
+                dim[d+NDIM] = cdata.k;
+            }
+
+            tensorT r(NDIM,dim);
+
+            ProcessID me = world.rank();
+            Vector<long,NDIM> t(1l<<n);
+            for (IndexIterator it(t); it; ++it) {
+                keyT key(n, Vector<Translation,NDIM>(*it));
+                if (coeffs.owner(key) == me) {
+                    typename dcT::iterator it = coeffs.find(key).get();
+                    tensorT q;
+
+                    if (it == coeffs.end()) {
+                        // must get from above
+                        typedef std::pair< keyT,Tensor<T> > pairT;
+                        Future<pairT> result;
+                        sock_it_to_me(key,  result.remote_ref(world));
+                        const keyT& parent = result.get().first;
+                        const tensorT& t = result.get().second;
+
+                        q = parent_to_child(t, parent, key);
+                    }
+                    else {
+                        q = it->second.coeff();
+                    }
+                    std::vector<Slice> s(NDIM*2);
+                    for (int d=0; d<NDIM; d++) {
+                        Translation l = key.translation()[d];
+                        s[d     ] = Slice(l,l,0);
+                        s[d+NDIM] = Slice(0,k-1,1);
+                    }
+                    r(s) = q(cdata.s0);
+                }
+            }
+
+            world.gop.fence();
+            world.gop.sum(r);
+        }
+        
+
         /// Compute the function values for multiplication
 
         /// Given coefficients from a parent cell, compute the value of
