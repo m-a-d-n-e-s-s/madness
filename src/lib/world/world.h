@@ -302,7 +302,7 @@ namespace madness {
                 if (poll_delay > (1e-4*cpu_frequency())) poll_delay = uint64_t(1e-4*cpu_frequency());
 
                 // This for CRAY-XT performance debugging <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-                poll_delay = uint64_t(1e-4*cpu_frequency());
+                //poll_delay = uint64_t(1e-4*cpu_frequency());
 
                 mpi.Bcast(poll_delay,0); // For paranoia make sure all have same value
 
@@ -496,7 +496,7 @@ namespace madness {
             double watchdog_last_time=0.0;   // Time when dog last barked
             bool watchdog_is_watching = false; // True if dog is watching
 #endif
-            bool working = true;  // was false <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+            bool working = false;
             while (!probe()) {
                 poll_all(!working);  // If working poll_all will increase polling interval
                 working = run_tasks();

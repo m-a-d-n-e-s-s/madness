@@ -320,7 +320,7 @@ namespace madness {
         static const unsigned long BCAST_MASK = 0x1ul<<9;
         
         static const int NSHORT_RECV = 32;          ///< No. of posted short recv buffers
-        static const int NLONG_RECV = 128;          ///< No. of posted long recv buffers
+        static const int NLONG_RECV = 256;          ///< No. of posted long recv buffers
         static const int NRECV =  NSHORT_RECV + NLONG_RECV;
         static const int LOG2_NSEND = 7;
         static const int NSEND = 1<<LOG2_NSEND;    ///< Max no. of outstanding short+long Isends

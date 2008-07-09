@@ -200,6 +200,20 @@ namespace madness {
         FLUSH();
     }
 
+    /// Print thirteen items separated by spaces to std::cout terminating with new line
+    template <class A, class B, class C, class D, class E, class F, class G, class H, class I, class J, class K, class L, class M>
+    void print(const A& a, const B& b, const C& c, const D& d, const E& e, const F& f, const G& g, const H& h, const I& i, const J& j, const K& k, const L& l, const M& m) {
+        std::cout << a << " " << b << " " << c << " " << d << " " << e << " " << f << " " << g << " " << h << " " << i << " " << j << " " << k << " " << l << " " << m << ENDL;
+        FLUSH();
+    }
+
+    /// Print fourteen items separated by spaces to std::cout terminating with new line
+    template <class A, class B, class C, class D, class E, class F, class G, class H, class I, class J, class K, class L, class M, class N>
+    void print(const A& a, const B& b, const C& c, const D& d, const E& e, const F& f, const G& g, const H& h, const I& i, const J& j, const K& k, const L& l, const M& m, const N& n) {
+        std::cout << a << " " << b << " " << c << " " << d << " " << e << " " << f << " " << g << " " << h << " " << i << " " << j << " " << k << " " << l << " " << m << " " << n << ENDL;
+        FLUSH();
+    }
+
     /// Print a string justified on the left to start at the given column with optional underlining
     void print_justified(const char* s, int column=0, bool underline=true);
 
