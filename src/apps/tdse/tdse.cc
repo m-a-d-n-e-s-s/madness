@@ -11,13 +11,22 @@
 using namespace madness;
 
 // Convenient but sleazy use of global variables to define simulation parameters
-static const double L = 330.0;
-static const long k = 12;          // wavelet order
-static const double thresh = 1e-8; // precision
-static const double cut = 0.3;     // smoothing parameter for 1/r    0.1 is what we seek
-static const double F = 1.0;       // Laser field strength
-static const double omega = 1.0;   // Laser frequency
+static const double L = 400.0;      // Box size for the simulation
+static const double Lsmall = 20.0;  // Box size for small (near nucleus) plots
+static const double Llarge = 200.0; // Box size for large (far from nucleus) plots
+
+static const double F = 0.125;     // Laser field strength
+static const double omega = 0.057; // Laser frequency
 static const double Z = 1.0;       // Nuclear charge
+
+static const long k = 12;          // wavelet order
+static const double thresh = 1e-7; // precision
+static const double cut = 0.2;     // smoothing parameter for 1/r
+
+const string prefix = "tdse";      // Prefix for filenames
+const int ndump = 10;              // dump wave function to disk every ndump steps
+const int nplot = 1;               // dump opendx plot to disk every nplot steps
+const int nio = 1;                 // Number of IO nodes 
 
 // typedefs to make life less verbose
 typedef Vector<double,3> coordT;
@@ -31,7 +40,7 @@ typedef FunctionFactory<double_complex,3> complex_factoryT;
 typedef SeparatedConvolution<double_complex,3> complex_operatorT;
 typedef SharedPtr< WorldDCPmapInterface< Key<3> > > pmapT;
 
-
+// This controls the distribution of data across the machine
 class LevelPmap : public WorldDCPmapInterface< Key<3> > {
 private:
     const int nproc;
@@ -40,63 +49,43 @@ public:
     
     LevelPmap(World& world) : nproc(world.nproc()) {}
     
-    /// Find the owner of a given key
+    // Find the owner of a given key
     ProcessID owner(const Key<3>& key) const {
         Level n = key.level();
         if (n == 0) return 0;
         hashT hash;
-        if (n <= 3 || (n&0x1)) hash = key.hash();
-        else hash = key.parent().hash();
-        //hashT hash = key.hash();
+//         if (n <= 3 || (n&0x1)) hash = key.hash();
+//         else hash = key.parent().hash();
+        hash = key.hash();
         return hash%nproc;
     }
 };
 
-// /// Regularized 1/r potential.
+// Derivative of the smoothed 1/r approximation
 
-// /// Invoke as \c u(r/c)/c where \c c is the radius of the
-// /// smoothed volume.
-// static double old_smoothed_potential(double r) {
-//     const double PI = 3.1415926535897932384;
-//     const double THREE_SQRTPI = 5.31736155271654808184;
-//     double r2 = r*r, pot;
-//     if (r > 6.5){
-//         pot = 1.0/r;
-//     } else if (r > 1e-8){
-//         pot = erf(r)/r + (exp(-r2) + 16.0*exp(-4.0*r2))/(THREE_SQRTPI);
-//     } else{
-//         pot = (2.0 + 17.0/3.0)/sqrt(PI);
-//     }
-    
-//     return pot;
-// }
+// Invoke as \c du(r/c)/(c*c) where \c c is the radius of the smoothed volume.  
+static double d_smoothed_potential(double r) {
+    double r2 = r*r;
 
+    if (r > 6.5) {
+        return -1.0/r2;
+    }
+    else if (r > 1e-2) {
+        return -(1.1283791670955126*(0.88622692545275800*erf(r)-exp(-r2)*r*(1.0-r2)))/r2;
+    }
+    else {
+        return (-1.880631945159187623160265+(1.579730833933717603454623-0.7253866074185437975046736*r2)*r2)*r;
+    }
+}
 
-// /// Derivative of new smoothed 1/r approximation
-// static double d_smoothed_potential(double r) {
-//     double r2 = r*r;
+// Smoothed 1/r potential.
 
-//     if (r > 6.5) {
-//         return -1.0/r2;
-//     }
-//     else if (r > 1e-2) {
-//         return -(1.1283791670955126*(0.88622692545275800*erf(r)-exp(-r2)*r*(1.0-r2)))/r2;
-//     }
-//     else {
-//         return (-1.880631945159187623160265+(1.579730833933717603454623-0.7253866074185437975046736*r2)*r2)*r;
-//     }
-// }
-
-
-/// Regularized 1/r potential.
-
-/// Invoke as \c u(r/c)/c where \c c is the radius of the
-/// smoothed volume.  Only the zero-moment of the error is non-zero.
+// Invoke as \c u(r/c)/c where \c c is the radius of the smoothed volume.  
 static double smoothed_potential(double r) {
     double r2 = r*r, pot;
     if (r > 6.5){
         pot = 1.0/r;
-    } else if (r > 1e-2){
+    } else if (r > 1e-2) {
         pot = erf(r)/r + exp(-r2)*0.56418958354775630;
     } else{
         pot = 1.6925687506432689-r2*(0.94031597257959381-r2*(0.39493270848342941-0.12089776790309064*r2));
@@ -105,68 +94,77 @@ static double smoothed_potential(double r) {
     return pot;
 }
 
-
-static inline double s(double x) {
-  /* Iterated first beta function to switch smoothly 
-     from 0->1 in [0,1].  n iterations produce 2*n-1 
-     zero derivatives at the end points. Order of polyn
-     is 3^n.
-
-     Currently use one iteration so that first deriv.
-     is zero at interior boundary and is exactly representable
-     by low order multiwavelet without refinement */
-#define B1(x) (x*x*(3.-2.*x))
-  x = B1(x);
-  return x;
-}
-
-double mask_function(const coordT& r) {
-    const double lo = 0.0625;
-    const double hi = 1.0-lo;
-    double result = 1.0;
-
-    coordT rsim;
-    user_to_sim(r, rsim);
-
-    for (int d=0; d<3; d++) {
-        double x = rsim[d];
-        if (x<lo)
-            result *= s(x/lo);
-        else if (x>hi)
-            result *= s((1.0-x)/lo);
-    }
-
-    return result;
-}
-
-/// Smoothed 1/r nuclear potential
+// Nuclear attraction potential
 static double V(const coordT& r) {
     const double x=r[0], y=r[1], z=r[2];
     const double rr = sqrt(x*x+y*y+z*z);
     return -Z*smoothed_potential(rr/cut)/cut;
 }
 
-/// Initial guess wave function
+// dV/dx
+static double dVdx(const coordT& r) {
+    const double x=r[0], y=r[1], z=r[2];
+    if (x == 0.0) return 0.0;
+    const double rr = sqrt(x*x+y*y+z*z);
+    return -Z*x*d_smoothed_potential(rr/cut)/(rr*cut*cut);
+}
+
+// dV/dy
+static double dVdy(const coordT& r) {
+    const double x=r[0], y=r[1], z=r[2];
+    if (y == 0.0) return 0.0;
+    const double rr = sqrt(x*x+y*y+z*z);
+    return -Z*y*d_smoothed_potential(rr/cut)/(rr*cut*cut);
+}
+
+// dV/dz
+static double dVdz(const coordT& r) {
+    const double x=r[0], y=r[1], z=r[2];
+    if (z == 0.0) return 0.0;
+    const double rr = sqrt(x*x+y*y+z*z);
+    return -Z*z*d_smoothed_potential(rr/cut)/(rr*cut*cut);
+}
+
+// Initial guess wave function for 1e atoms
 static double guess(const coordT& r) {
     const double x=r[0], y=r[1], z=r[2];
     return exp(-1.0*sqrt(x*x+y*y+z*z+cut*cut)); // Change 1.0 to 0.6 to make bad guess
 }
 
-/// z-dipole
+// x-dipole
+double xdipole(const coordT& r) {
+    return r[0];
+}
+
+// y-dipole
+double ydipole(const coordT& r) {
+    return r[1];
+}
+
+// z-dipole
 double zdipole(const coordT& r) {
     return r[2];
 }
 
-/// Strength of the laser field at time t ... 1 full cycle
+// Strength of the laser field at time t ... 1 full cycle
 double laser(double t) {
     double omegat = omega*t;
-    if (omegat < 0.0 || omegat > 1) return 0.0;
-    else return F*sin(2*constants::pi*omegat);
+
+    if (omegat < 0.0 || omegat/24.0 > constants::pi) return 0.0;
+
+    double envelope = sin(omegat/24.0);
+    envelope *= envelope;
+    return F*envelope*sin(omegat);
 }
 
-/// Given psi and V evaluate the energy
+double myreal(double t) {return t;}
+
+double myreal(const double_complex& t) {return real(t);}
+
+// Given psi and V evaluate the energy
 template <typename T>
 double energy(World& world, const Function<T,3>& psi, const functionT& potn) {
+    PROFILE_FUNC;
     T S = psi.inner(psi);
     T PE = psi.inner(psi*potn);
     T KE = 0.0;
@@ -176,19 +174,14 @@ double energy(World& world, const Function<T,3>& psi, const functionT& potn) {
     }
     T E = (KE+PE)/S;
     world.gop.fence();
+//     if (world.rank() == 0) {
+//         print("the overlap integral is",S);
+//         print("the kinetic energy integral",KE);
+//         print("the potential energy integral",PE);
+//         print("the total energy",E);
+//     }
 
-    if (world.rank() == 0) {
-        print("the overlap integral is",S);
-        print("the kinetic energy integral",KE);
-        print("the potential energy integral",PE);
-        print("the total energy",E);
-    }
-    return -std::abs(E); // ugh
-}
-
-template <typename T, int NDIM>
-Cost lbcost(const Key<NDIM>& key, const FunctionNode<T,NDIM>& node) {
-  return 1;
+    return myreal(E);
 }
 
 void converge(World& world, functionT& potn, functionT& psi, double& eps) {
@@ -258,7 +251,7 @@ struct unaryexp {
 };
 
 
-/// Returns exp(-I*t*V)
+// Returns exp(-I*t*V)
 complex_functionT make_exp(double t, const functionT& v) {
     PROFILE_FUNC;
     v.reconstruct();
@@ -267,47 +260,143 @@ complex_functionT make_exp(double t, const functionT& v) {
     return expV;
 }
 
-/// Evolve the wave function in real time
-void propagate(World& world, const functionT& potn, const complex_functionT& psi0, const double eps) {
+void print_stats_header(World& world) {
+    printf("step time  field  energy  norm  overlap0 x-dipole  y-dipole z-dipole accel");
+}
+
+void print_stats(World& world, int step, double t, const functionT& v, 
+                 const functionT& x, const functionT& y, const functionT& z,
+                 const complex_functionT& psi0, const complex_functionT& psi) {
     PROFILE_FUNC;
-    double ctarget = 10.0/cut;                // From Fourier analysis of the potential
+    double current_energy = energy(world, psi, v);
+    double xdip = real(inner(psi, x*psi));
+    double ydip = real(inner(psi, y*psi));
+    double zdip = real(inner(psi, z*psi));
+    double norm = psi.norm2();
+    double overlap0 = std::abs(psi.inner(psi0));
+    double accel = 0.0;
+    if (world.rank() == 0) {
+        printf("%6d %12.8f %12.8f %12.8f %12.8f %12.8f %12.8f %12.8f %12.8f %12.8f\n", step, t, laser(t), current_energy, norm, overlap0, xdip, ydip, zdip, accel);
+        print("step", step, "time", t, "field", laser(t), "norm", norm, "energy", current_energy, "dipole", xdip, ydip, zdip);
+    }
+}
+
+const char* wave_function_filename(int step) {
+    static char fname[1024];
+    sprintf(fname, "%s-%5.5d", prefix.c_str(), step);
+    return fname;
+}
+
+const char* wave_function_small_plot_filename(int step) {
+    static char fname[1024];
+    sprintf(fname, "%s-%5.5dS.dx", prefix.c_str(), step);
+    return fname;
+}
+
+const char* wave_function_large_plot_filename(int step) {
+    static char fname[1024];
+    sprintf(fname, "%s-%5.5dL.dx", prefix.c_str(), step);
+    return fname;
+}
+
+complex_functionT wave_function_load(World& world, int step) {
+    complex_functionT psi;
+    ParallelInputArchive ar(world, wave_function_filename(step));
+    ar & psi;
+    return psi;
+}
+
+void wave_function_store(World& world, int step, const complex_functionT& psi) {
+    ParallelOutputArchive ar(world, wave_function_filename(step), nio);
+    ar & psi;
+}
+
+bool wave_function_exists(World& world, int step) {
+    return ParallelInputArchive::exists(world, wave_function_filename(step));
+}
+
+void doplot(World& world, int step, const complex_functionT& psi, double Lplot, long numpt, const char* fname) { 
+    Tensor<double> cell(3,2);
+    std::vector<long> npt(3, numpt);
+    cell(_,0) = -Lplot;
+    cell(_,1) =  Lplot;
+    plotdx(psi, fname, cell, npt);
+}
+
+// Evolve the wave function in real time starting from given time step on disk
+void propagate(World& world, int step0) {
+    PROFILE_FUNC;
+    //double ctarget = 10.0/cut;                // From Fourier analysis of the potential
+    double ctarget = 1.0/cut;                   // From wishful thinking
     double c = 1.86*ctarget;
     double tcrit = 2*constants::pi/(c*c);
 
-    double tstep = tcrit; //
-    int nstep = 1;
-    //double Eshift = eps;
-
-    //potn.add_scalar(-Eshift);
+    double time_step = tcrit;
+    int nstep = 20;
 
     // Ensure everyone has the same data
     world.gop.broadcast(c);
-    world.gop.broadcast(tstep);
+    world.gop.broadcast(time_step);
 
     if (world.rank() == 0) {
-        print("bandlimit",ctarget,"effband",c,"tcrit",tcrit,"tstep",tstep,"nstep",nstep);
+        print("bandlimit",ctarget,"effband",c,"tcrit",tcrit,"time_step",time_step,"nstep",nstep);
     }
 
-    complex_functionT psi = copy(psi0);
-    SeparatedConvolution<double_complex,3> G = qm_free_particle_propagator<3>(world, k, c, 0.5*tstep, 2*L);
-    //G.doleaves = true;
-    complex_functionT expV = make_exp(tstep, potn);
+    // Free particle propagator for both Trotter and Chin-Chen --- exp(-I*T*time_step/2)
+    SeparatedConvolution<double_complex,3> G = qm_free_particle_propagator<3>(world, k, c, 0.5*time_step, 2*L);
 
-    for (int step=0; step<nstep; step++) {
-        double t = step * tstep;
-        double_complex phase = psi0.inner(psi);
-        double radius = abs(phase);
-        double theta = arg(phase);
-        double theta_exact = -t*eps;
-        while (theta_exact > constants::pi) theta_exact -= 2.0*constants::pi;
-        while (theta_exact < -constants::pi) theta_exact += 2.0*constants::pi;
-      
-        if (world.rank() == 0) 
-            print("step", step, "time", t, "radius", radius, "arg", theta, "exact", theta_exact, "phase err", theta_exact-theta);
+    // The time-independent part of the potential plus derivatives for
+    // Chin-Chen and also for computing the power spectrum ... compute
+    // derivatives analytically to reduce numerical noise
+    functionT potn = factoryT(world).f(V);         potn.truncate();
+    functionT dpotn_dx = factoryT(world).f(dVdx);  dpotn_dx.truncate();
+    functionT dpotn_dy = factoryT(world).f(dVdy);  dpotn_dy.truncate();
+    functionT dpotn_dz = factoryT(world).f(dVdz);  dpotn_dz.truncate();
 
-        //energy(v, psi);
-      
-        psi = trotter(world, expV, G, psi);
+    // Dipole moment functions for laser field and for printing statistics
+    functionT x = factoryT(world).f(xdipole);
+    functionT y = factoryT(world).f(ydipole);
+    functionT z = factoryT(world).f(zdipole);
+
+    // Wave function at time t=0 for printing statistics
+    complex_functionT psi0 = wave_function_load(world, 0); 
+
+    int step = step0;                    // The current step
+    double t = step0 * time_step;        // The current time
+    complex_functionT psi = wave_function_load(world, step); // The wave function at time t
+
+    functionT vt = potn+laser(t)*z; // The total potential at time t
+
+    print_stats(world, step0, t, vt, x, y, z, psi0, psi);
+
+    while (step < nstep) {
+        {
+            // Make the potential at time t + step/2 
+            functionT vhalf = potn + laser(t+0.5*time_step)*z;
+
+            // Apply Trotter to advance from time t to time t+step
+            complex_functionT expV = make_exp(time_step, vhalf);
+            psi = trotter(world, expV, G, psi);
+        }
+
+        // Update counters, print info, dump/plot as necessary
+        step++;
+        t += time_step;
+        vt = potn+laser(t)*z;
+
+        print_stats(world, step, t, vt, x, y, z, psi0, psi);
+
+        if ((step%ndump) == 0 || step==nstep) {
+            wave_function_store(world, step, psi);
+            // Update the input file for automatic restarting
+            if (world.rank() == 0) std::ofstream("input") << step;
+            world.gop.fence();
+        }
+
+        if ((step%nplot) == 0 || step==nstep) {
+            doplot(world, step, psi,  20.0, 200, wave_function_small_plot_filename(step));
+            doplot(world, step, psi, 200.0, 200, wave_function_large_plot_filename(step));
+        }
     }
 }
 
@@ -323,27 +412,20 @@ int main(int argc, char** argv) {
     FunctionDefaults<3>::set_refine(true);         // Enable adaptive refinement
     FunctionDefaults<3>::set_initial_level(4);     // Initial projection level
     FunctionDefaults<3>::set_cubic_cell(-L,L);
-    FunctionDefaults<3>::set_apply_randomize(true);
+    FunctionDefaults<3>::set_apply_randomize(false);
     FunctionDefaults<3>::set_autorefine(false);
     FunctionDefaults<3>::set_truncate_mode(1);
     FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap(world)));
 
     functionT potn = factoryT(world).f(V);  potn.truncate();
     
-    string prefix = "tdse";  // Prefix for filenames
-    int ndump = 10;          // Dump restart info every ndump time steps
     int step0;               // Initial time step ... filenames are <prefix>-<step0>
     
-    if (world.rank() == 0) {
-        std::ifstream f("input");
-        f >> step0;
-    }
+    if (world.rank() == 0) 
+        std::ifstream("input") >> step0;
     world.gop.broadcast(step0);
 
-    // See if the restart file exists
-    char buf[256];
-    sprintf(buf, "%s-%5.5d", prefix.c_str(), step0);
-    bool exists = ParallelInputArchive::exists(world, buf);
+    bool exists = wave_function_exists(world, step0);
 
     if (!exists) {
         if (step0 == 0) {
@@ -357,29 +439,21 @@ int main(int argc, char** argv) {
             converge(world, potn, psi, eps);
 
             complex_functionT psic = double_complex(1.0,0.0)*psi;
-            
-            ParallelOutputArchive ar(world,  buf, 1);
-            ar & eps & psic;
+            wave_function_store(world, 0, psic);
         }
         else {
             if (world.rank() == 0) {
-                print("The requested restart file was not found", buf);
+                print("The requested restart was not found ---", step0);
                 error("restart failed", 0);
             }
             world.gop.fence();
         }
     }
 
-    complex_functionT psi;
-    double eps;
-    ParallelInputArchive ar(world, buf, 1);
-    ar & eps & psi;
-    ar.close();
-
     if (world.rank() == 0) 
         print("Restarting from time step", step0);
 
-    propagate(world, potn, psi, eps);
+    propagate(world, step0);
 
     world.gop.fence();
     if (world.rank() == 0) {
