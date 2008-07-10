@@ -842,6 +842,8 @@ namespace madness {
 
             world.gop.fence();
             world.gop.sum(r);
+
+            return r;
         }
         
 

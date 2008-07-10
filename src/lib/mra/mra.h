@@ -296,7 +296,7 @@ namespace madness {
         /// on the size of the cube that is possible).
         Tensor<T> eval_cube(const Tensor<double>& cell, const vector<long>& npt) const {
             PROFILE_MEMBER_FUNC(Function);
-            const double eps=1e-15;
+            const double eps=1e-13;
             verify();
             reconstruct();
             coordT simlo, simhi;
@@ -306,23 +306,18 @@ namespace madness {
             }
             user_to_sim(simlo, simlo);
             user_to_sim(simhi, simhi);
-            // Move the bounding box infintesimally inside the simulation
-            // volume so that the evaluation logic does not fail
-            for (int d=0; d<NDIM; d++) {
-                if (simlo[d] < -eps) {
-                    MADNESS_EXCEPTION("eval_cube: plot volume lower-bound error in dimension", d);
-                }
-                else if (simlo[d] < eps) {
-                    simlo[d] = eps;
-                }
 
-                if (simhi[d] > 1.0+eps) {
-                    MADNESS_EXCEPTION("eval_cube: plot volume upper-bound error in dimension", d);
-                }
-                else if (simhi[d] > 1.0-eps) {
-                    simhi[d] = 1.0-eps;
-                }
+            // Move the bounding box infintesimally inside dyadic
+            // points so that the evaluation logic does not fail
+            for (int d=0; d<NDIM; d++) {
+                MADNESS_ASSERT(simhi[d] >= simlo[d]);
+                MADNESS_ASSERT(simlo[d] >= 0.0);
+                MADNESS_ASSERT(simhi[d] <= 1.0);
+
+                simlo[d] += eps;
+                simhi[d] -= eps;
             }
+            //madness::print("plotbox in sim", simlo, simhi);
             Tensor<T> r = impl->eval_plot_cube(simlo, simhi, npt);
             impl->world.gop.sum(r.ptr(), r.size);
             return r;
