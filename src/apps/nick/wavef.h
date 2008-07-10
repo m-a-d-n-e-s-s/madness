@@ -18,7 +18,7 @@ using namespace madness;
 const int NDIM  = 3;
 typedef std::complex<double> complexd;
 typedef SharedPtr< FunctionFunctorInterface<complexd,NDIM> > functorT;
-typedef Vector<double,NDIM> coordT;
+typedef Vector<double,NDIM> vector3D;
 
 extern "C" complexd hypergf_(complexd* AA, complexd* BB, complexd* X, 
 			     double* EPS, int* LIMIT, int* KIN, double* ERR, 
@@ -29,6 +29,7 @@ extern "C" complexd conhyp_(complexd* AA, complexd* BB, complexd* ZZ,
 
 int fact(int);
 complexd gamma(complexd AA);
+complexd gamma(double re, double im);
 complexd pochhammer(complexd AA,int n);
 complexd hypergf(complexd AA, complexd BB, complexd ZZ);
 complexd conHyp(complexd AA, complexd BB, complexd ZZ);
@@ -46,9 +47,9 @@ const double PI = M_PI;
 class WaveFunction : public FunctionFunctorInterface<complexd,NDIM>
 {
  public:
-  typedef Vector<double,NDIM> coordT;
+  typedef Vector<double,NDIM> vector3D;
   WaveFunction(double M, double Z);
-  virtual complexd operator()(const coordT& x) const=0; 
+  virtual complexd operator()(const vector3D& x) const=0; 
  protected:
   double _M;
   double _Z;
@@ -61,11 +62,11 @@ class WaveFunction : public FunctionFunctorInterface<complexd,NDIM>
 class ScatteringWF : public WaveFunction
 { 
  public:
-  typedef Vector<double,NDIM> coordT;
-  ScatteringWF(double M, double Z, const coordT& kVec );
-  virtual complexd operator()(const coordT& x) const;
+  typedef Vector<double,NDIM> vector3D;
+  ScatteringWF(double M, double Z, const vector3D& kVec );
+  virtual complexd operator()(const vector3D& x) const;
  private:
-  coordT kVec;
+  vector3D kVec;
   double k;
   double costhK;
 };
@@ -76,9 +77,9 @@ class ScatteringWF : public WaveFunction
 class BoundWF : public WaveFunction
 {
  public:
-  typedef Vector<double,NDIM> coordT;
+  typedef Vector<double,NDIM> vector3D;
   BoundWF(double M, double Z, int nn, int ll, int mm );
-  virtual complexd operator()(const coordT& x) const;
+  virtual complexd operator()(const vector3D& x) const;
  private:
   int n;
   int l;
@@ -91,11 +92,11 @@ class BoundWF : public WaveFunction
 class Expikr : public FunctionFunctorInterface<complexd,NDIM>
 {
  public:
-  typedef Vector<double,NDIM> coordT;
-  Expikr(const coordT& kVec);
-  complexd operator()(const coordT& r) const;
+  typedef Vector<double,NDIM> vector3D;
+  Expikr(const vector3D& kVec);
+  complexd operator()(const vector3D& r) const;
  private:
-  coordT kVec;
+  vector3D kVec;
   double k;
   double costhK;
 };

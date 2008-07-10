@@ -26,7 +26,7 @@ int main(int argc, char**argv) {
   
   // Setup defaults for numerical functions
   FunctionDefaults<NDIM>::set_k(12);             // Wavelet order
-  FunctionDefaults<NDIM>::set_thresh(1e-1);       // Accuracy
+  FunctionDefaults<NDIM>::set_thresh(1e-2);       // Accuracy
   FunctionDefaults<NDIM>::set_cubic_cell(-20.0, 20.0);
 
   f11Tester(world);

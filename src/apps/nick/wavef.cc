@@ -17,7 +17,7 @@ clock_t breakTime(string message, clock_t started);
 /******************************************
  * ScatteringWF
  ******************************************/
-ScatteringWF::ScatteringWF(double M, double Z, const coordT& kVec) : 
+ScatteringWF::ScatteringWF(double M, double Z, const vector3D& kVec) : 
     WaveFunction(M,Z), kVec(kVec) 
 {
     double sum = 0.0;
@@ -28,7 +28,7 @@ ScatteringWF::ScatteringWF(double M, double Z, const coordT& kVec) :
     costhK = kVec[2]/k;
 }
 
-complexd ScatteringWF::operator()(const coordT& rVec) const
+complexd ScatteringWF::operator()(const vector3D& rVec) const
 {
     double sum = 0.0;
     for(int i=0; i<NDIM; i++) { sum += rVec[i]*rVec[i]; }
@@ -67,7 +67,7 @@ BoundWF::BoundWF(double M, double Z, int nn, int ll, int mm ) : WaveFunction(M,Z
     m=mm;
 }
 
-complexd BoundWF::operator()(const coordT& rVec) const
+complexd BoundWF::operator()(const vector3D& rVec) const
 {
     double sum = 0.0;
     for(int i=0; i<NDIM; i++) { sum += rVec[i]*rVec[i]; }
@@ -102,7 +102,7 @@ WaveFunction::WaveFunction(double M, double Z)
 /*****************************************
  *Exp[ I*(k.r) ]
  *****************************************/
-Expikr::Expikr( const coordT& kVec)
+Expikr::Expikr( const vector3D& kVec) : kVec(kVec)
 {
     double sum = 0.0;
     for(int i=0; i<NDIM; i++) { sum += kVec[i]*kVec[i]; }
@@ -112,19 +112,22 @@ Expikr::Expikr( const coordT& kVec)
     costhK = kVec[2]/k;
 }
 
-complexd Expikr::operator()(const coordT& rVec) const
+complexd Expikr::operator()(const vector3D& rVec) const
 {
     double kDOTr = 0.0;
     for(int i=0; i<NDIM; i++) {
-	kDOTr += kVec[i]*rVec[i];
+			kDOTr += kVec[i]*rVec[i];
     }
     return exp(I*kDOTr);
 }
 
+
+
+
     
 /*******************************************************
- * Here is where I splice together my two functions
- * See personal journal C page 31 for a derivation of the cut off
+ * Here is where I splice together my two representations of the hypergeometric
+ * function. See personal journal C page 31 for a derivation of the cut off
  *******************************************************/
 complexd f11(complexd AA, complexd BB, complexd ZZ)
 {
@@ -199,16 +202,16 @@ void test1F1(complexd (*func1F1)(complexd,complexd,complexd), char *fName)
     complexd BB(1.0,0.0);
     for(int i=0; i<kMAX; i++)
     {
-	complexd AA(0.0, -1.0/k[i]);
-	cout << "***********" << endl;
-	for(int j=0; j<rMAX; j++)
-	{
-	    complexd ZZ(0.0, -1*k[i]*r[j]*(1 + cos(theta)*cos(thetaK) ));
-	    printf( "%s[ %5.0fI, 1, %9.3f]= %+.10e, %+.10eI\n",fName, 
-		    imag(AA), imag(ZZ), real((*func1F1)(AA, BB, ZZ)),
-		    imag((*func1F1)(AA, BB, ZZ))
-		);
-	}
+				complexd AA(0.0, -1.0/k[i]);
+				cout << "***********" << endl;
+				for(int j=0; j<rMAX; j++)
+				{
+						complexd ZZ(0.0, -1*k[i]*r[j]*(1 + cos(theta)*cos(thetaK) ));
+						printf( "%s[ %5.0fI, 1, %9.3f]= %+.10e, %+.10eI\n",fName, 
+							imag(AA), imag(ZZ), real((*func1F1)(AA, BB, ZZ)),
+							imag((*func1F1)(AA, BB, ZZ))
+					);
+				}
     }
 }
 
@@ -235,6 +238,15 @@ void testFact()
     cout << fact(-1) << endl;
 }
 
+complexd gamma(double re, double im)
+{
+    gsl_sf_result lnr;
+    gsl_sf_result arg;
+    gsl_sf_lngamma_complex_e(re, im, &lnr, &arg);
+    complexd ANS(exp(lnr.val)*cos(arg.val), exp(lnr.val)*sin(arg.val) );
+    return ANS;
+}
+
 complexd gamma(complexd AA)
 {
     gsl_sf_result lnr;
@@ -247,13 +259,10 @@ complexd gamma(complexd AA)
 void testGamma(double re, double im)
 {
     cout << "Testing Gamma:================================================" << endl;
-    gsl_sf_result lnr;
-    gsl_sf_result arg;
-    gsl_sf_lngamma_complex_e(re, im, &lnr, &arg);
-    cout << "lnr = " <<  lnr.val << endl;
-    cout << "arg = " <<  arg.val << endl;
-    cout << "re = "  <<  exp(lnr.val)*cos(arg.val) << endl;
-    cout << "im = "  <<  exp(lnr.val)*sin(arg.val) << endl;
+    cout << "gamma(3.0,0.0) = " << gamma(3.0,0.0) << endl;
+    cout << "gamma(0.0,3.0) = " << gamma(0.0,3.0) << endl;
+    cout << "gamma(3.0,1.0) = " << gamma(3.0,1.0) << endl;
+    cout << "gamma(1.0,3.0) = " << gamma(1.0,3.0) << endl;
 }
 	
 complexd pochhammer(complexd AA, int n)
@@ -261,8 +270,8 @@ complexd pochhammer(complexd AA, int n)
     complexd VAL(1.0,0.0);
     for(int i=0; i<n; i++)
     {
-	complexd II(i,0.0);
-	VAL *= AA + II;
+			complexd II(i,0.0);
+			VAL *= AA + II;
     }
     return VAL;
 }
@@ -275,20 +284,28 @@ void testPochhammer()
     complexd Iplus3(3,1);
     cout << "Testing Pochhammer:===========================================" << endl;
     cout << "Pochhammer[" << ZERO << ", " << 0 <<"] = " << pochhammer(ZERO,0) << endl;
-    cout << "Pochhammer[" << ZERO << 1 <<"] = " << pochhammer(ZERO,1) << endl;
-    cout << "Pochhammer[" << ONE <<  0 <<"] = " << pochhammer(ONE,0) << endl;
-    cout << "Pochhammer[" << ONE <<  1 <<"] = " << pochhammer(ONE,1) << endl;
-    cout << "Pochhammer[" << I <<    2 <<"] = " << pochhammer(I,2) << endl;
-    cout << "Pochhammer[" << I <<    2 <<"] = " << pochhammer(I,2) << endl;
-    cout << "Pochhammer[" << Iplus3 <<  2 <<"] = " << pochhammer(Iplus3,2) << endl;
-    cout << "Pochhammer[" << _ONE << 3 <<"] = " << pochhammer(ZERO,3) << endl;
+    cout << "Pochhammer[" << ZERO << ", " << 1 <<"] = " << pochhammer(ZERO,1) << endl;
+    cout << "Pochhammer[" << ONE <<  ", " << 0 <<"] = " << pochhammer(ONE,0) << endl;
+    cout << "Pochhammer[" << ONE <<  ", " << 1 <<"] = " << pochhammer(ONE,1) << endl;
+    cout << "Pochhammer[" << I <<    ", " << 2 <<"] = " << pochhammer(I,2) << endl;
+    cout << "Pochhammer[" << I <<    ", " << 2 <<"] = " << pochhammer(I,2) << endl;
+    cout << "Pochhammer[" << Iplus3 <<", "<< 2 <<"] = " << pochhammer(Iplus3,2) << endl;
+    cout << "Pochhammer[" << _ONE << ", " << 3 <<"] = " << pochhammer(ZERO,3) << endl;
 }
 
+//The Coulomb potential
+complexd V(const vector3D& r)
+{
+	return -1.0/sqrt(r[0]*r[0] + r[1]*r[1] + r[2]*r[2] + 1e-8);
+}
+
+//Prints out the time elapsed since start
 clock_t breakTime(string message, clock_t start) 
 {
     cout.precision(1);
     clock_t finish = clock();
-    cout << message << " took " << ((double)finish - start)/CLOCKS_PER_SEC << " seconds " << endl;
+    cout << message << " took " << 
+					((double)finish - start)/CLOCKS_PER_SEC << " seconds " << endl;
     cout.precision(12);
     return clock();
 }
@@ -297,12 +314,11 @@ void f11Tester(World& world)
 {
     cout.precision(3);
     testPochhammer();
-    testGamma(1.0,0.0);
     testFact();
     cout.precision(12);
-    test1F1(f11   ,"   f11");
+    //test1F1(f11   ,"   f11");
     clock_t time = clock();
-    cout << "Testing the wave functions:==================================" << endl;
+    cout << "Testing the wave functions:===================================" << endl;
 
 //  Bound States
     Function<complexd,NDIM> psi_100 = FunctionFactory<complexd,NDIM>(world).functor( 
@@ -321,37 +337,58 @@ void f11Tester(World& world)
 
 //  z-axis k vector
     const double zHat[NDIM] = {0.0, 0.0, 1.0};
-    coordT k1Vec(zHat);
+    vector3D k1Vec(zHat);
+
+//	Calculate energy of |100>
+		Function<complexd,NDIM> dPsi_100 = diff(psi_100,0);
+    time = breakTime("Calculating d/dx|211>       ",time);  
+		Function<complexd,NDIM> v = FunctionFactory<complexd,NDIM>(world).f(V);
+    time = breakTime("Projecting 1/r              ",time);  
+		complexd KE = 3*0.5*(dPsi_100.inner(dPsi_100));
+    time = breakTime("<dPsi_100|dPsi_100>         ",time);  
+		complexd PE = psi_100.inner(v*psi_100);
+    time = breakTime("<Psi_100|V|Psi_100>         ",time);  
+		cout << "The total energy is: " << KE+PE << endl;
+
+//	Calculate energy of |211>
+		Function<complexd,NDIM> dPsi_211 = diff(psi_211,0);
+    time = breakTime("Calculating d/dx|211>       ",time);  
+		KE = 3*0.5*(dPsi_211.inner(dPsi_211));
+    time = breakTime("<dPsi_211|dPsi_211>         ",time);  
+		PE = psi_211.inner(v*psi_211);
+    time = breakTime("<Psi_211|V|Psi_211>         ",time);  
+		cout << "The total energy is: " << KE+PE << endl;
 
 //  Scattering States
     Function<complexd,NDIM> psi_k1 = FunctionFactory<complexd,NDIM>(world).functor( 
-	functorT( new ScatteringWF(1.0, 1.0, k1Vec)));
+			functorT( new ScatteringWF(1.0, 1.0, k1Vec)));
     time = breakTime("Projecting |k=1.0z^Hat>     ",time);
 
 //  Checking orthogonality
     cout << "<100|psi_k1> = " << psi_100.inner(psi_k1) << endl;
-    time = breakTime("<100|k=1.0z^Hat>            ",time);  
+    time = breakTime("<100|k=1.0>                 ",time);  
 
 //  Linearly polarized laser operator 
-    coordT FVec(zHat);
+    vector3D FVec(zHat);
     Function<complexd,NDIM> laserOp = FunctionFactory<complexd,NDIM>(world).functor( 
-	functorT( new Expikr(FVec) ));
+			functorT( new Expikr(FVec) ));
+		Function<complexd,NDIM> ket = laserOp*psi_100;
     time = breakTime("Projecting laserOp          ",time);  
-    cout << "<psi_k1|Exp[ik.r]|100> = " << psi_k1.inner(laserOp*psi_100) << endl;
+//  cout << "<psi_k1|Exp[ik.r]|100> = " << psi_k1.inner(ket) << endl;
     time = breakTime("<psi_k1|Exp[ik.r]|100>      ",time);  
 
 //  Off-axis k vector
     double k   = 1.0; 
     double thK = PI/4;
     const double temp2[NDIM] = {0.0, k*sin(thK), k*cos(thK)};
-    coordT k1_45Vec(temp2);
+    vector3D k1_45Vec(temp2);
 
 //  Off-Axis Positive Energy State
     Function<complexd,NDIM> psi_k1_45 = FunctionFactory<complexd,NDIM>(world).functor( 
-	functorT( new ScatteringWF(1.0, 1.0, k1_45Vec) ));
+			functorT( new ScatteringWF(1.0, 1.0, k1_45Vec) ));
     time = breakTime("Projecting |psi_k1_45>      ",time);  
     cout << "<psi_k1|Exp[ik.r]|100> = " << psi_k1_45.inner(laserOp*psi_100) << endl;
-    time = breakTime("<psi_k1_45|Exp[iF.r]|100>      ",time);  
+    time = breakTime("<psi_k1_45|Exp[iF.r]|100>   ",time);  
 
 }
 
