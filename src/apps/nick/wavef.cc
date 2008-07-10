@@ -15,7 +15,9 @@ clock_t breakTime(string message, clock_t started);
 
 
 /******************************************
- * ScatteringWF
+ * The Scattering Wave Function
+ * See Landau and Lifshitz Quantum Mechanics Volume 3
+ * Third Edition Formula (136.9)
  ******************************************/
 ScatteringWF::ScatteringWF(double M, double Z, const vector3D& kVec) : 
     WaveFunction(M,Z), kVec(kVec) 
@@ -362,11 +364,11 @@ void f11Tester(World& world)
 //  Scattering States
     Function<complexd,NDIM> psi_k1 = FunctionFactory<complexd,NDIM>(world).functor( 
 			functorT( new ScatteringWF(1.0, 1.0, k1Vec)));
-    time = breakTime("Projecting |k=1.0z^Hat>     ",time);
+    time = breakTime("Projecting |psi_k1>         ",time);
 
 //  Checking orthogonality
     cout << "<100|psi_k1> = " << psi_100.inner(psi_k1) << endl;
-    time = breakTime("<100|k=1.0>                 ",time);  
+    time = breakTime("<100|k=1>                   ",time);  
 
 //  Linearly polarized laser operator 
     vector3D FVec(zHat);
@@ -374,7 +376,7 @@ void f11Tester(World& world)
 			functorT( new Expikr(FVec) ));
 		Function<complexd,NDIM> ket = laserOp*psi_100;
     time = breakTime("Projecting laserOp          ",time);  
-//  cout << "<psi_k1|Exp[ik.r]|100> = " << psi_k1.inner(ket) << endl;
+    cout << "<psi_k1|Exp[ik.r]|100> = " << psi_k1.inner(ket) << endl;
     time = breakTime("<psi_k1|Exp[ik.r]|100>      ",time);  
 
 //  Off-axis k vector
