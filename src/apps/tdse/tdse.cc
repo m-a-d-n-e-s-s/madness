@@ -20,8 +20,8 @@ static const double omega = 0.057; // Laser frequency
 static const double Z = 1.0;       // Nuclear charge
 
 static const long k = 12;          // wavelet order
-static const double thresh = 1e-7; // precision
-static const double cut = 0.2;     // smoothing parameter for 1/r
+static const double thresh = 1e-6; // precision
+static const double cut = 0.3;     // smoothing parameter for 1/r
 
 const string prefix = "tdse";      // Prefix for filenames
 const int ndump = 10;              // dump wave function to disk every ndump steps
@@ -261,7 +261,10 @@ complex_functionT make_exp(double t, const functionT& v) {
 }
 
 void print_stats_header(World& world) {
-    printf("step time  field  energy  norm  overlap0 x-dipole  y-dipole z-dipole accel");
+    if (world.rank() == 0) {
+        printf("  step     time        field       energy        norm       overlap0     x-dipole     y-dipole     z-dipole       accel\n");
+        printf("------ ------------ ------------ ------------ ------------ ------------ ------------ ------------ ------------ ------------\n");
+    }
 }
 
 void print_stats(World& world, int step, double t, const functionT& v, 
@@ -277,7 +280,6 @@ void print_stats(World& world, int step, double t, const functionT& v,
     double accel = 0.0;
     if (world.rank() == 0) {
         printf("%6d %12.8f %12.8f %12.8f %12.8f %12.8f %12.8f %12.8f %12.8f %12.8f\n", step, t, laser(t), current_energy, norm, overlap0, xdip, ydip, zdip, accel);
-        print("step", step, "time", t, "field", laser(t), "norm", norm, "energy", current_energy, "dipole", xdip, ydip, zdip);
     }
 }
 
@@ -318,8 +320,8 @@ bool wave_function_exists(World& world, int step) {
 void doplot(World& world, int step, const complex_functionT& psi, double Lplot, long numpt, const char* fname) { 
     Tensor<double> cell(3,2);
     std::vector<long> npt(3, numpt);
-    cell(_,0) = -Lplot;
-    cell(_,1) =  Lplot;
+    cell(_,0) =  Lplot;
+    cell(_,1) = -Lplot;
     plotdx(psi, fname, cell, npt);
 }
 
@@ -327,7 +329,7 @@ void doplot(World& world, int step, const complex_functionT& psi, double Lplot, 
 void propagate(World& world, int step0) {
     PROFILE_FUNC;
     //double ctarget = 10.0/cut;                // From Fourier analysis of the potential
-    double ctarget = 1.0/cut;                   // From wishful thinking
+    double ctarget = 4.0/cut;                   // From wishful thinking
     double c = 1.86*ctarget;
     double tcrit = 2*constants::pi/(c*c);
 
@@ -367,6 +369,7 @@ void propagate(World& world, int step0) {
 
     functionT vt = potn+laser(t)*z; // The total potential at time t
 
+    print_stats_header(world);
     print_stats(world, step0, t, vt, x, y, z, psi0, psi);
 
     while (step < nstep) {
@@ -400,11 +403,7 @@ void propagate(World& world, int step0) {
     }
 }
 
-int main(int argc, char** argv) {
-    MPI::Init(argc, argv);
-    World world(MPI::COMM_WORLD);
-    
-    startup(world,argc,argv);
+void doit(World& world) {
     cout.precision(8);
 
     FunctionDefaults<3>::set_k(k);                 // Wavelet order
@@ -454,6 +453,41 @@ int main(int argc, char** argv) {
         print("Restarting from time step", step0);
 
     propagate(world, step0);
+}
+
+int main(int argc, char** argv) {
+    MPI::Init(argc, argv);
+    World world(MPI::COMM_WORLD);
+    
+    startup(world,argc,argv);
+
+    try {
+        doit(world);
+    } catch (const MPI::Exception& e) {
+        print(e);
+        error("caught an MPI exception");
+    } catch (const madness::MadnessException& e) {
+        print(e);
+        error("caught a MADNESS exception");
+    } catch (const madness::TensorException& e) {
+        print(e);
+        error("caught a Tensor exception");
+    } catch (const char* s) {
+        print(s);
+        error("caught a c-string exception");
+    } catch (char* s) {
+        print(s);
+        error("caught a c-string exception");
+    } catch (const std::string& s) {
+        print(s);
+        error("caught a string (class) exception");
+    } catch (const std::exception& e) {
+        print(e.what());
+        error("caught an STL exception");
+    } catch (...) {
+        error("caught unhandled exception");
+    }
+
 
     world.gop.fence();
     if (world.rank() == 0) {
