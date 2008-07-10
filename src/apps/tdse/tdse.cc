@@ -320,8 +320,8 @@ bool wave_function_exists(World& world, int step) {
 void doplot(World& world, int step, const complex_functionT& psi, double Lplot, long numpt, const char* fname) { 
     Tensor<double> cell(3,2);
     std::vector<long> npt(3, numpt);
-    cell(_,0) =  Lplot;
-    cell(_,1) = -Lplot;
+    cell(_,0) = -Lplot;
+    cell(_,1) =  Lplot;
     plotdx(psi, fname, cell, npt);
 }
 
@@ -329,12 +329,12 @@ void doplot(World& world, int step, const complex_functionT& psi, double Lplot, 
 void propagate(World& world, int step0) {
     PROFILE_FUNC;
     //double ctarget = 10.0/cut;                // From Fourier analysis of the potential
-    double ctarget = 4.0/cut;                   // From wishful thinking
+    double ctarget = 1.0/cut;                   // From wishful thinking ... probably 6ish is OK
     double c = 1.86*ctarget;
     double tcrit = 2*constants::pi/(c*c);
 
     double time_step = tcrit;
-    int nstep = 20;
+    int nstep = 2;
 
     // Ensure everyone has the same data
     world.gop.broadcast(c);
@@ -397,8 +397,8 @@ void propagate(World& world, int step0) {
         }
 
         if ((step%nplot) == 0 || step==nstep) {
-            doplot(world, step, psi,  20.0, 200, wave_function_small_plot_filename(step));
-            doplot(world, step, psi, 200.0, 200, wave_function_large_plot_filename(step));
+            doplot(world, step, psi,  20.0, 101, wave_function_small_plot_filename(step));
+            doplot(world, step, psi, 200.0, 101, wave_function_large_plot_filename(step));
         }
     }
 }
