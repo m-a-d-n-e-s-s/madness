@@ -1,9 +1,15 @@
 #ifndef WAVEF_H
 #define WAVEF_H
-/**********************
- * By:Nick Vence
- * The Coulomb WaveFunction
- * ********************/
+/***********************************************************************
+ * Here are some useful hydrogenic wave functions represented as madness 
+ * functors. The bound states come from the Gnu Scientific Library. The
+ * scattering states are generated with the confluent hypergeometric 
+ * function. 
+ * 
+ * Using: Gnu Scientific Library
+ *        http://www.netlib.org/toms/707
+ * By:    Nick Vence
+ **********************************************************************/
 
 #include <mra/mra.h>
 #include <complex>
@@ -19,6 +25,22 @@ const int NDIM  = 3;
 typedef std::complex<double> complexd;
 typedef SharedPtr< FunctionFunctorInterface<complexd,NDIM> > functorT;
 typedef Vector<double,NDIM> vector3D;
+const complexd I(0,1);
+const double PI = M_PI;
+
+complexd hypergf(complexd AA, complexd BB, complexd ZZ);
+complexd conHyp(complexd AA, complexd BB, complexd ZZ);
+complexd aForm(complexd AA, complexd BB, complexd ZZ);
+complexd f11(complexd AA, complexd BB, complexd ZZ);
+void     test1F1(World&, complexd (*func1F1)(complexd,complexd,complexd), char* fName);
+int      fact(int);
+void     testFact(World&);
+complexd gamma(complexd AA);
+complexd gamma(double re, double im);
+void     testGamma(World&);
+complexd pochhammer(complexd AA,int n);
+void     testPochhammer(World&);
+void f11Tester(World&);
 
 extern "C" complexd hypergf_(complexd* AA, complexd* BB, complexd* X, 
 			     double* EPS, int* LIMIT, int* KIN, double* ERR, 
@@ -26,20 +48,6 @@ extern "C" complexd hypergf_(complexd* AA, complexd* BB, complexd* X,
 			     double* ACC16);
 extern "C" complexd conhyp_(complexd* AA, complexd* BB, complexd* ZZ, 
 			    int* LNCHF, int* IP);
-
-int fact(int);
-complexd gamma(complexd AA);
-complexd gamma(double re, double im);
-complexd pochhammer(complexd AA,int n);
-complexd hypergf(complexd AA, complexd BB, complexd ZZ);
-complexd conHyp(complexd AA, complexd BB, complexd ZZ);
-complexd aForm(complexd AA, complexd BB, complexd ZZ);
-complexd f11(complexd AA, complexd BB, complexd ZZ);
-void test1F1(complexd (*func1F1)(complexd,complexd,complexd), char* fName);
-void f11Tester(World&);
-
-const complexd I(0,1);
-const double PI = M_PI;
 
 /******************************************
  * Virtual class for all wave functions 

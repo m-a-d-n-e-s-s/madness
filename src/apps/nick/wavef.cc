@@ -1,7 +1,13 @@
-/**********************
- * By:Nick Vence
- * Testing the Hypergeometric 1F1 
- * ********************/
+/***********************************************************************
+ * Here are some useful hydrogenic wave functions represented as madness 
+ * functors. The bound states come from the Gnu Scientific Library. The
+ * scattering states are generated with the confluent hypergeometric 
+ * function. 
+ * 
+ * Using: Gnu Scientific Library
+ *        http://www.netlib.org/toms/707
+ * By:    Nick Vence
+ **********************************************************************/
 
 #include <nick/wavef.h>
 #include <gsl/gsl_sf_trig.h>
@@ -11,14 +17,16 @@
 #include <ctime>
 #include <string>
 
-clock_t breakTime(string message, clock_t started);
-
-
-/******************************************
+double ttt;
+double sss;
+#define START_TIMER world.gop.fence(); ttt=wall_time()
+#define END_TIMER(msg) ttt=wall_time()-ttt;  if (world.rank()==0) printf("timer: %24.24s    took%8.2f seconds\n", msg, ttt)
+#define PRINT_COMPLEX(msg,re,im) if(world.rank()==0) printf("%34.34s %9.6f + %9.6fI\n", msg, re, im)
+/***********************************************************************
  * The Scattering Wave Function
  * See Landau and Lifshitz Quantum Mechanics Volume 3
  * Third Edition Formula (136.9)
- ******************************************/
+ **********************************************************************/
 ScatteringWF::ScatteringWF(double M, double Z, const vector3D& kVec) : 
     WaveFunction(M,Z), kVec(kVec) 
 {
@@ -192,7 +200,7 @@ complexd aForm(complexd AA, complexd BB, complexd ZZ)
     return coeffA*termA + coeffB*termB;
 }
 
-void test1F1(complexd (*func1F1)(complexd,complexd,complexd), char *fName)
+void test1F1(World&, complexd (*func1F1)(complexd,complexd,complexd), const char* fileChar)
 {
     cout << "Testing 1F1:==================================================" << endl;
     double r[] = { 1.0, 10.0, 100.0, 1000.0, 10000.0 };
@@ -204,16 +212,16 @@ void test1F1(complexd (*func1F1)(complexd,complexd,complexd), char *fName)
     complexd BB(1.0,0.0);
     for(int i=0; i<kMAX; i++)
     {
-				complexd AA(0.0, -1.0/k[i]);
-				cout << "***********" << endl;
-				for(int j=0; j<rMAX; j++)
-				{
-						complexd ZZ(0.0, -1*k[i]*r[j]*(1 + cos(theta)*cos(thetaK) ));
-						printf( "%s[ %5.0fI, 1, %9.3f]= %+.10e, %+.10eI\n",fName, 
-							imag(AA), imag(ZZ), real((*func1F1)(AA, BB, ZZ)),
-							imag((*func1F1)(AA, BB, ZZ))
-					);
-				}
+		complexd AA(0.0, -1.0/k[i]);
+		cout << "***********" << endl;
+		for(int j=0; j<rMAX; j++)
+		{
+			complexd ZZ(0.0, -1*k[i]*r[j]*(1 + cos(theta)*cos(thetaK) ));
+			printf( "%s[ %5.0fI, 1, %9.3f]= %+.10e, %+.10eI\n", fileChar, 
+				imag(AA), imag(ZZ), real((*func1F1)(AA, BB, ZZ)),
+				imag((*func1F1)(AA, BB, ZZ))
+			);
+		}
     }
 }
 
@@ -230,14 +238,15 @@ int fact(int n)
     return result;
 }
 
-void testFact()
+void testFact(World& world)
 {
-    cout << "Testing Factorial:============================================" << endl;
-    cout << fact(0) << endl;
-    cout << fact(1) << endl;
-    cout << fact(2) << endl;
-    cout << fact(3) << endl;
-    cout << fact(-1) << endl;
+    if(world.rank() == 0) 
+	cout << "Testing Factorial:============================================" << endl;
+    if(world.rank() == 0) cout << fact(0) << endl;
+    if(world.rank() == 0) cout << fact(1) << endl;
+    if(world.rank() == 0) cout << fact(2) << endl;
+    if(world.rank() == 0) cout << fact(3) << endl;
+    if(world.rank() == 0) cout << fact(-1) << endl;
 }
 
 complexd gamma(double re, double im)
@@ -258,13 +267,13 @@ complexd gamma(complexd AA)
     return ANS;
 }
 
-void testGamma(double re, double im)
+void testGamma(World& world)
 {
-    cout << "Testing Gamma:================================================" << endl;
-    cout << "gamma(3.0,0.0) = " << gamma(3.0,0.0) << endl;
-    cout << "gamma(0.0,3.0) = " << gamma(0.0,3.0) << endl;
-    cout << "gamma(3.0,1.0) = " << gamma(3.0,1.0) << endl;
-    cout << "gamma(1.0,3.0) = " << gamma(1.0,3.0) << endl;
+    if(world.rank() == 0) cout << "Testing Gamma:================================================" << endl;
+    if(world.rank() == 0) cout << "gamma(3.0,0.0) = " << gamma(3.0,0.0) << endl;
+    if(world.rank() == 0) cout << "gamma(0.0,3.0) = " << gamma(0.0,3.0) << endl;
+    if(world.rank() == 0) cout << "gamma(3.0,1.0) = " << gamma(3.0,1.0) << endl;
+    if(world.rank() == 0) cout << "gamma(1.0,3.0) = " << gamma(1.0,3.0) << endl;
 }
 	
 complexd pochhammer(complexd AA, int n)
@@ -278,21 +287,21 @@ complexd pochhammer(complexd AA, int n)
     return VAL;
 }
 
-void testPochhammer()
+void testPochhammer(World& world)
 {
     complexd ZERO(0.0,0.0);
     complexd ONE(1.0,0.0);
     complexd _ONE(-1.0,0.0);
     complexd Iplus3(3,1);
-    cout << "Testing Pochhammer:===========================================" << endl;
-    cout << "Pochhammer[" << ZERO << ", " << 0 <<"] = " << pochhammer(ZERO,0) << endl;
-    cout << "Pochhammer[" << ZERO << ", " << 1 <<"] = " << pochhammer(ZERO,1) << endl;
-    cout << "Pochhammer[" << ONE <<  ", " << 0 <<"] = " << pochhammer(ONE,0) << endl;
-    cout << "Pochhammer[" << ONE <<  ", " << 1 <<"] = " << pochhammer(ONE,1) << endl;
-    cout << "Pochhammer[" << I <<    ", " << 2 <<"] = " << pochhammer(I,2) << endl;
-    cout << "Pochhammer[" << I <<    ", " << 2 <<"] = " << pochhammer(I,2) << endl;
-    cout << "Pochhammer[" << Iplus3 <<", "<< 2 <<"] = " << pochhammer(Iplus3,2) << endl;
-    cout << "Pochhammer[" << _ONE << ", " << 3 <<"] = " << pochhammer(ZERO,3) << endl;
+    if(world.rank() == 0) cout << "Testing Pochhammer:===========================================" << endl;
+    if(world.rank() == 0) cout << "Pochhammer[" << ZERO << ", " << 0 <<"] = " << pochhammer(ZERO,0) << endl;
+    if(world.rank() == 0) cout << "Pochhammer[" << ZERO << ", " << 1 <<"] = " << pochhammer(ZERO,1) << endl;
+    if(world.rank() == 0) cout << "Pochhammer[" << ONE <<  ", " << 0 <<"] = " << pochhammer(ONE,0) << endl;
+    if(world.rank() == 0) cout << "Pochhammer[" << ONE <<  ", " << 1 <<"] = " << pochhammer(ONE,1) << endl;
+    if(world.rank() == 0) cout << "Pochhammer[" << I <<    ", " << 2 <<"] = " << pochhammer(I,2) << endl;
+    if(world.rank() == 0) cout << "Pochhammer[" << I <<    ", " << 2 <<"] = " << pochhammer(I,2) << endl;
+    if(world.rank() == 0) cout << "Pochhammer[" << Iplus3 <<", "<< 2 <<"] = " << pochhammer(Iplus3,2) << endl;
+    if(world.rank() == 0) cout << "Pochhammer[" << _ONE << ", " << 3 <<"] = " << pochhammer(ZERO,3) << endl;
 }
 
 //The Coulomb potential
@@ -306,78 +315,105 @@ clock_t breakTime(string message, clock_t start)
 {
     cout.precision(1);
     clock_t finish = clock();
-    cout << message << " took " << 
-					((double)finish - start)/CLOCKS_PER_SEC << " seconds " << endl;
+    cout << message << " took " <<
+	((double)finish - start)/CLOCKS_PER_SEC << " seconds " << endl;
     cout.precision(12);
     return clock();
 }
 
 void f11Tester(World& world) 
 {
-    cout.precision(3);
-    testPochhammer();
-    testFact();
-    cout.precision(12);
-    //test1F1(f11   ,"   f11");
-    clock_t time = clock();
-    cout << "Testing the wave functions:===================================" << endl;
+    if(world.rank() == 0)
+	{
+		cout.precision(3);
+		testPochhammer(world);
+		testFact(world);
+		cout.precision(12);
+		test1F1(world, f11   ,"   f11");
+		if(world.rank() == 0) cout << 
+		 "Testing the wave functions:===================================" << endl;
+	}
 
 //  Bound States
+    START_TIMER;
     Function<complexd,NDIM> psi_100 = FunctionFactory<complexd,NDIM>(world).functor( 
 	functorT(new BoundWF(1.0, 1.0, 1, 0, 0)));  
-    time = breakTime("Projecting |100>            ",time);
+    END_TIMER("Projecting |100>            ");
     // A second way to declare a functor
+    START_TIMER;
     functorT psiA(new BoundWF(1.0, 1.0, 2, 1, 1));  
     Function<complexd,NDIM> psi_211 = FunctionFactory<complexd,NDIM>(world).functor( psiA );
-    time = breakTime("Projecting |211>            ",time);  
-
+    END_TIMER("Projecting |211>    ");  
+    
 //  Checking orthonormality
-    cout << "<100|100> = " << psi_100.inner(psi_100) << endl;
-    time = breakTime("<100|100>                   ",time);  
-    cout << "<100|211> = " << psi_100.inner(psi_211) << endl;
-    time = breakTime("<100|211>                   ",time);  
+    START_TIMER;
+    complexd printMe = psi_100.inner(psi_100);
+    PRINT_COMPLEX("<100|100> =                        ",real(printMe),imag(printMe));
+    END_TIMER("<100|100>                            ");  
+    printMe = psi_100.inner(psi_211);
+    PRINT_COMPLEX("<100|211> =                        ",real(printMe),imag(printMe));
+    END_TIMER("<100|211>                            "); 
 
 //  z-axis k vector
     const double zHat[NDIM] = {0.0, 0.0, 1.0};
     vector3D k1Vec(zHat);
 
 //	Calculate energy of |100>
-		Function<complexd,NDIM> dPsi_100 = diff(psi_100,0);
-    time = breakTime("Calculating d/dx|211>       ",time);  
-		Function<complexd,NDIM> v = FunctionFactory<complexd,NDIM>(world).f(V);
-    time = breakTime("Projecting 1/r              ",time);  
-		complexd KE = 3*0.5*(dPsi_100.inner(dPsi_100));
-    time = breakTime("<dPsi_100|dPsi_100>         ",time);  
-		complexd PE = psi_100.inner(v*psi_100);
-    time = breakTime("<Psi_100|V|Psi_100>         ",time);  
-		cout << "The total energy is: " << KE+PE << endl;
+    START_TIMER;
+    Function<complexd,NDIM> dPsi_100 = diff(psi_100,0);
+    END_TIMER("Differentiating Psi_100             ");
+    START_TIMER;
+    Function<complexd,NDIM> v = FunctionFactory<complexd,NDIM>(world).f(V);
+    END_TIMER("Projecting 1/r                      ");
+    START_TIMER;
+    complexd KE = 3*0.5*(dPsi_100.inner(dPsi_100));
+    END_TIMER("<dPsi_100|dPsi_100>                 ");
+	PRINT_COMPLEX("KE =                              ",real(KE), imag(KE));
+    START_TIMER;
+    complexd PE = psi_100.inner(v*psi_100);
+    END_TIMER("<Psi_100|V|Psi_100>                 ");
+	PRINT_COMPLEX("PE =                              ",real(PE), imag(PE));
+	PRINT_COMPLEX("The total energy is:              ",real(PE+KE), imag(PE+KE));
 
 //	Calculate energy of |211>
-		Function<complexd,NDIM> dPsi_211 = diff(psi_211,0);
-    time = breakTime("Calculating d/dx|211>       ",time);  
-		KE = 3*0.5*(dPsi_211.inner(dPsi_211));
-    time = breakTime("<dPsi_211|dPsi_211>         ",time);  
-		PE = psi_211.inner(v*psi_211);
-    time = breakTime("<Psi_211|V|Psi_211>         ",time);  
-		cout << "The total energy is: " << KE+PE << endl;
+	START_TIMER;
+    Function<complexd,NDIM> dPsi_211 = diff(psi_211,0);
+    END_TIMER("Projecting dPsi_211                ");
+    START_TIMER;
+    KE = 3*0.5*(dPsi_211.inner(dPsi_211));
+    END_TIMER("<dPsi_211|dPsi_211>                 ");
+	PRINT_COMPLEX("KE =                              ",real(KE), imag(KE));
+    START_TIMER;
+    PE = psi_211.inner(v*psi_211);
+    END_TIMER("<Psi_211|V|Psi_211>                 ");
+	PRINT_COMPLEX("PE =                              ",real(PE), imag(PE));
+	PRINT_COMPLEX("The total energy is:              ",real(PE+KE), imag(PE+KE));
 
 //  Scattering States
+    START_TIMER;
     Function<complexd,NDIM> psi_k1 = FunctionFactory<complexd,NDIM>(world).functor( 
 			functorT( new ScatteringWF(1.0, 1.0, k1Vec)));
-    time = breakTime("Projecting |psi_k1>         ",time);
+	END_TIMER("Projecting |psi_k1>                 ");
 
 //  Checking orthogonality
-    cout << "<100|psi_k1> = " << psi_100.inner(psi_k1) << endl;
-    time = breakTime("<100|k=1>                   ",time);  
+	START_TIMER;
+	printMe = psi_100.inner(psi_k1);
+    END_TIMER("Projecting dPsi_211                 ");
+	PRINT_COMPLEX("<Psi_k1|100>                      ",real(printMe), imag(printMe));
 
-//  Linearly polarized laser operator 
+    //  Linearly polarized laser operator 
     vector3D FVec(zHat);
+    START_TIMER;
     Function<complexd,NDIM> laserOp = FunctionFactory<complexd,NDIM>(world).functor( 
-			functorT( new Expikr(FVec) ));
-		Function<complexd,NDIM> ket = laserOp*psi_100;
-    time = breakTime("Projecting laserOp          ",time);  
-    cout << "<psi_k1|Exp[ik.r]|100> = " << psi_k1.inner(ket) << endl;
-    time = breakTime("<psi_k1|Exp[ik.r]|100>      ",time);  
+                                      functorT( new Expikr(FVec) ));
+	END_TIMER("Projecting ExpIkr                    ");
+	START_TIMER;
+    Function<complexd,NDIM> ket = laserOp*psi_100;
+	END_TIMER("ExpIkr * Psi_100       ");
+	START_TIMER;
+	printMe =  psi_k1.inner(ket);
+    END_TIMER("<psi_k1|Exp[ik.r]|100> =             ");
+    PRINT_COMPLEX("<psi_k1|Exp[ik.r]|100> =           ",real(printMe), imag(printMe));
 
 //  Off-axis k vector
     double k   = 1.0; 
@@ -386,12 +422,12 @@ void f11Tester(World& world)
     vector3D k1_45Vec(temp2);
 
 //  Off-Axis Positive Energy State
+	START_TIMER;
     Function<complexd,NDIM> psi_k1_45 = FunctionFactory<complexd,NDIM>(world).functor( 
 			functorT( new ScatteringWF(1.0, 1.0, k1_45Vec) ));
-    time = breakTime("Projecting |psi_k1_45>      ",time);  
-    cout << "<psi_k1|Exp[ik.r]|100> = " << psi_k1_45.inner(laserOp*psi_100) << endl;
-    time = breakTime("<psi_k1_45|Exp[iF.r]|100>   ",time);  
-
+	END_TIMER("Projecting |psi_k1_45>               ");
+	START_TIMER;
+	printMe =  psi_k1_45.inner(laserOp*psi_100);
+	END_TIMER("<psi_k1_45|Exp[ik.r]|100> =             ");
+	PRINT_COMPLEX("<psi_k1_45|Exp[ik.r]|100> =           ",real(printMe),imag(printMe)); 
 }
-
-			     
