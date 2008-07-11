@@ -54,26 +54,35 @@ namespace madness {
         /// Type checking is disabled for efficiency. 
         ///
         /// Throws MadnessException in case of buffer overflow
+        ///
+        /// Default constructor can be used to count stuff.
         class BufferOutputArchive : public BaseOutputArchive {
         private:
-            unsigned char * const ptr;
-            const std::size_t nbyte;
-            mutable std::size_t i;
+            unsigned char * const ptr;    // Buffer
+            const std::size_t nbyte;      // Buffer size
+            mutable std::size_t i;        // Current output location
+            bool countonly;               // If true just count, don't copy
         public:
+            BufferOutputArchive() 
+                : ptr(0), nbyte(0), i(0), countonly(true) {};
+            
             BufferOutputArchive(void* ptr, std::size_t nbyte) 
-                : ptr((unsigned char *) ptr), nbyte(nbyte), i(0) {};
+                : ptr((unsigned char *) ptr), nbyte(nbyte), i(0), countonly(false) {};
 
             template <class T>
             inline
             typename madness::enable_if< madness::is_serializable<T>, void >::type
             store(const T* t, long n) const {
                 std::size_t m = n*sizeof(T);
-                if (i+m > nbyte) {
+                if (countonly) {
+                    i += m;
+                } else if (i+m > nbyte) {
                     madness::print("BufferOutputArchive:ptr,nbyte,i,n,m,i+m:",(void *)ptr,nbyte,i,n,m,i+m);
                     MADNESS_ASSERT(i+m<=nbyte);
+                } else {
+                    memcpy(ptr+i, t, m);
+                    i += m;
                 }
-                memcpy(ptr+i, t, m);
-                i += m;
             }
             
             void open(std::size_t hint) {};

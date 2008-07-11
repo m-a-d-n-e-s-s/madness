@@ -735,10 +735,9 @@ namespace madness {
         template <typename a1T>
         static void sender(World& world, ProcessID dest, const futureT& result, functionT func,
                            const a1T& a1, const TaskAttributes& attr) {
-            LongAmArg* arg = new_long_am_arg();
-            size_t nbyte = arg->stuff(TaskHandlerInfo<refT,functionT>(result.remote_ref(world), func, attr), 
-                                      static_cast<arg1T>(a1));
-            world.am.send_long_managed(dest, TaskFunction<functionT>::handler, arg, nbyte);
+            world.am.send_long_managed(dest, TaskFunction<functionT>::handler,
+                                       new_long_am_arg(TaskHandlerInfo<refT,functionT>(result.remote_ref(world), func, attr), 
+                                                       static_cast<arg1T>(a1)));
         }
 
         futureT result;
@@ -779,10 +778,9 @@ namespace madness {
         template <typename a1T, typename a2T>
         static void sender(World& world, ProcessID dest, const futureT& result, functionT func,
                            const a1T& arg1, const a2T& arg2, const TaskAttributes& attr) {
-            LongAmArg* arg = new_long_am_arg();
-            size_t nbyte = arg->stuff(TaskHandlerInfo<refT,functionT>(result.remote_ref(world), func, attr), 
-                                      static_cast<arg1T>(arg1), static_cast<arg2T>(arg2));
-            world.am.send_long_managed(dest, TaskFunction<functionT>::handler, arg, nbyte);
+            world.am.send_long_managed(dest, TaskFunction<functionT>::handler, 
+                                       new_long_am_arg(TaskHandlerInfo<refT,functionT>(result.remote_ref(world), func, attr), 
+                                                       static_cast<arg1T>(arg1), static_cast<arg2T>(arg2)));
         }
 
         futureT result;
@@ -825,10 +823,9 @@ namespace madness {
         template <typename a1T, typename a2T, typename a3T>
         static void sender(World& world, ProcessID dest, const futureT& result, functionT func,
                            const a1T& arg1, const a2T& arg2, const a3T& arg3, const TaskAttributes& attr) {
-            LongAmArg* arg = new_long_am_arg();
-            size_t nbyte = arg->stuff(TaskHandlerInfo<refT,functionT>(result.remote_ref(world), func, attr), 
-                                      static_cast<arg1T>(arg1), static_cast<arg2T>(arg2), static_cast<arg3T>(arg3));
-            world.am.send_long_managed(dest, TaskFunction<functionT>::handler, arg, nbyte);
+            world.am.send_long_managed(dest, TaskFunction<functionT>::handler, 
+                                       new_long_am_arg(TaskHandlerInfo<refT,functionT>(result.remote_ref(world), func, attr), 
+                                                       static_cast<arg1T>(arg1), static_cast<arg2T>(arg2), static_cast<arg3T>(arg3)));
         }
 
         futureT result;
@@ -876,10 +873,10 @@ namespace madness {
         template <typename a1T, typename a2T, typename a3T, typename a4T>
         static void sender(World& world, ProcessID dest, const futureT& result, functionT func,
                            const a1T& arg1, const a2T& arg2, const a3T& arg3, const a4T& arg4, const TaskAttributes& attr) {
-            LongAmArg* arg = new_long_am_arg();
-            size_t nbyte = arg->stuff(TaskHandlerInfo<refT,functionT>(result.remote_ref(world), func, attr), 
-                                      static_cast<arg1T>(arg1), static_cast<arg2T>(arg2), static_cast<arg3T>(arg3), static_cast<arg4T>(arg4));
-            world.am.send_long_managed(dest, TaskFunction<functionT>::handler, arg, nbyte);
+            world.am.send_long_managed(dest, TaskFunction<functionT>::handler, 
+                                       new_long_am_arg(TaskHandlerInfo<refT,functionT>(result.remote_ref(world), func, attr), 
+                                                       static_cast<arg1T>(arg1), static_cast<arg2T>(arg2), 
+                                                       static_cast<arg3T>(arg3), static_cast<arg4T>(arg4)));
         }
 
         futureT result;
@@ -931,10 +928,10 @@ namespace madness {
         template <typename a1T, typename a2T, typename a3T, typename a4T, typename a5T>
         static void sender(World& world, ProcessID dest, const futureT& result, functionT func,
                            const a1T& arg1, const a2T& arg2, const a3T& arg3, const a4T& arg4, const a5T& arg5, const TaskAttributes& attr) {
-            LongAmArg* arg = new_long_am_arg();
-            size_t nbyte = arg->stuff(TaskHandlerInfo<refT,functionT>(result.remote_ref(world), func, attr), 
-                                      static_cast<arg1T>(arg1), static_cast<arg2T>(arg2), static_cast<arg3T>(arg3), static_cast<arg4T>(arg4), static_cast<arg5T>(arg5));
-            world.am.send_long_managed(dest, TaskFunction<functionT>::handler, arg, nbyte);
+            world.am.send_long_managed(dest, TaskFunction<functionT>::handler, 
+                                       new_long_am_arg(TaskHandlerInfo<refT,functionT>(result.remote_ref(world), func, attr), 
+                                                       static_cast<arg1T>(arg1), static_cast<arg2T>(arg2), static_cast<arg3T>(arg3), 
+                                                       static_cast<arg4T>(arg4), static_cast<arg5T>(arg5)));
         }
 
         futureT result;
@@ -989,10 +986,10 @@ namespace madness {
         template <typename a1T, typename a2T, typename a3T, typename a4T, typename a5T, typename a6T>
         static void sender(World& world, ProcessID dest, const futureT& result, functionT func,
                            const a1T& arg1, const a2T& arg2, const a3T& arg3, const a4T& arg4, const a5T& arg5, const a6T& arg6, const TaskAttributes& attr) {
-            LongAmArg* arg = new_long_am_arg();
-            size_t nbyte = arg->stuff(TaskHandlerInfo<refT,functionT>(result.remote_ref(world), func, attr), 
-                                      static_cast<arg1T>(arg1), static_cast<arg2T>(arg2), static_cast<arg3T>(arg3), static_cast<arg4T>(arg4), static_cast<arg5T>(arg5), static_cast<arg6T>(arg6));
-            world.am.send_long_managed(dest, TaskFunction<functionT>::handler, arg, nbyte);
+            world.am.send_long_managed(dest, TaskFunction<functionT>::handler, 
+                                       new_long_am_arg(TaskHandlerInfo<refT,functionT>(result.remote_ref(world), func, attr), 
+                                                       static_cast<arg1T>(arg1), static_cast<arg2T>(arg2), static_cast<arg3T>(arg3), 
+                                                       static_cast<arg4T>(arg4), static_cast<arg5T>(arg5), static_cast<arg6T>(arg6)));
         }
 
         futureT result;
@@ -1052,10 +1049,12 @@ namespace madness {
         template <typename a1T, typename a2T, typename a3T, typename a4T, typename a5T, typename a6T, typename a7T>
         static void sender(World& world, ProcessID dest, const futureT& result, functionT func,
                            const a1T& arg1, const a2T& arg2, const a3T& arg3, const a4T& arg4, const a5T& arg5, const a6T& arg6, const a7T& arg7, const TaskAttributes& attr) {
-            LongAmArg* arg = new_long_am_arg();
-            size_t nbyte = arg->stuff(TaskHandlerInfo<refT,functionT>(result.remote_ref(world), func, attr), 
-                                      static_cast<arg1T>(arg1), static_cast<arg2T>(arg2), static_cast<arg3T>(arg3), static_cast<arg4T>(arg4), static_cast<arg5T>(arg5), static_cast<arg6T>(arg6), static_cast<arg7T>(arg7));
-            world.am.send_long_managed(dest, TaskFunction<functionT>::handler, arg, nbyte);
+            
+            world.am.send_long_managed(dest, TaskFunction<functionT>::handler, 
+                                       new_long_am_arg(TaskHandlerInfo<refT,functionT>(result.remote_ref(world), func, attr), 
+                                                       static_cast<arg1T>(arg1), static_cast<arg2T>(arg2), static_cast<arg3T>(arg3), 
+                                                       static_cast<arg4T>(arg4), static_cast<arg5T>(arg5), static_cast<arg6T>(arg6), 
+                                                       static_cast<arg7T>(arg7)));
         }
 
         futureT result;

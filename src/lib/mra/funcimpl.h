@@ -1178,6 +1178,7 @@ namespace madness {
 
         /// Prints summary of data distribution
         void print_info() const {
+            MADNESS_ASSERT(world.size() < 10000);
             for (int i=0; i<world.size(); i++) box_leaf[i] = box_interior[i] == 0;
             world.gop.fence();
             long nleaf=0, ninterior=0;
@@ -1630,7 +1631,7 @@ namespace madness {
         template <typename opT, typename R>
         Void do_apply(const opT* op, const FunctionImpl<R,NDIM>* f, const keyT& key, const Tensor<R>& c) {
             PROFILE_MEMBER_FUNC(FunctionImpl);
-            double fac = 3.0;
+            double fac = 30.0;
             double cnorm = c.normf();
             for (typename std::vector< Displacement<NDIM> >::const_iterator it=cdata.disp.begin(); 
                  it != cdata.disp.end(); 

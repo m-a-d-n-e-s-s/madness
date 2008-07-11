@@ -43,6 +43,11 @@
 #include <catamount/dclock.h>
 #endif
 
+#ifdef UINT64_T
+typedef UINT64_T uint64_t;
+#endif
+
+
 /// \file worldtime.h
 /// \brief Wrappers around platform dependent timers and performance info
 

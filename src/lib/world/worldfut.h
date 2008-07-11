@@ -199,11 +199,9 @@ namespace madness {
                     remote_ref.dec(); // Releases reference
                 }
                 else {
-                    LongAmArg* arg = new_long_am_arg();
-                    size_t nbyte = arg->stuff(remote_ref, value);
                     world->am.send_long_managed(remote_ref.owner(), 
                                                 FutureImpl<T>::set_handler, 
-                                                arg, nbyte);
+                                                new_long_am_arg(remote_ref, value));
                 }
             }
             else {

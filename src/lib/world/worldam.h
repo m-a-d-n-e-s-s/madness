@@ -319,10 +319,10 @@ namespace madness {
         static const unsigned long COUNT_MASK = 0xff;
         static const unsigned long BCAST_MASK = 0x1ul<<9;
         
-        static const int NSHORT_RECV = 32;          ///< No. of posted short recv buffers
-        static const int NLONG_RECV = 256;          ///< No. of posted long recv buffers
+        static const int NSHORT_RECV = 512;          ///< No. of posted short recv buffers
+        static const int NLONG_RECV = 512;          ///< No. of posted long recv buffers
         static const int NRECV =  NSHORT_RECV + NLONG_RECV;
-        static const int LOG2_NSEND = 7;
+        static const int LOG2_NSEND = 10;
         static const int NSEND = 1<<LOG2_NSEND;    ///< Max no. of outstanding short+long Isends
         
         MPI::Request recv_handle[NRECV];  ///< Handles for AM Irecv
@@ -351,8 +351,9 @@ namespace madness {
         std::size_t msgq_count_max; ///< For stats only: lifetime max of msgq_count
         std::size_t msgq_mem;       ///< For stats only: amount of memory used by q
         std::size_t msgq_mem_max;   ///< For stats only: lifetime max of msgq_mem
-        std::size_t nfree_long_recv_bufs; ///< For stats only: #times free_long_recv_bufs called
+        std::size_t ncall_free_recv_buf; ///< For stats only: #times free_long_recv_bufs called
         std::size_t nbytes_sent, nbytes_recv; ///< For stats only: data volume
+        std::size_t nsend_req_wait; ///< Number of times ran out of send requests
 
         unsigned char* recv_counters; ///< Used to impose sequential consistency
         unsigned char* send_counters; ///< Used to impose sequential consistency
@@ -411,40 +412,44 @@ namespace madness {
         };
 
 
-//         /// Private: Finds/waits for a free send request
-//         inline int get_free_send_request() {
-//             PROFILE_MEMBER_FUNC(WorldAM);
-//             static int cur_msg = 0;
-//             static const int MASK = (1<<LOG2_NSEND)-1; // this is why we need a power of 2 messages
-
-//             // Must call poll here to keep pulling messages off the
-//             // network to avoid dead/livelock but don't don't need to
-//             // poll in other worlds or run tasks/AM.
-//             while (!send_handle[cur_msg].Test())  World::poll_all(true);
-
-//             free_managed_send_buf(cur_msg);
-
-//             int i = cur_msg;
-//             cur_msg = (cur_msg + 1) & MASK;
-//             return i;
-//         };
-
         /// Private: Finds/waits for a free send request
         inline int get_free_send_request() {
             PROFILE_MEMBER_FUNC(WorldAM);
+            static int cur_msg = 0;
+            static const int MASK = (1<<LOG2_NSEND)-1; // this is why we need a power of 2 messages
+
             // Must call poll here to keep pulling messages off the
             // network to avoid dead/livelock but don't don't need to
             // poll in other worlds or run tasks/AM.
-            int i;
+            if (!send_handle[cur_msg].Test()) {
+                nsend_req_wait++;
+                World::poll_all(true);
+                while (!send_handle[cur_msg].Test())  World::poll_all(true);
+            }
 
-            // Was suspending in here but there is no need AS LONG as we
-            // suspend recursive processing of AM which is now a formal 
-            // part of the model.
-            while (!MPI::Request::Testany(NSEND, send_handle, i)) World::poll_all(true);
-            if (i == MPI::UNDEFINED) i = 0;
-            free_managed_send_buf(i);
+            free_managed_send_buf(cur_msg);
+
+            int i = cur_msg;
+            cur_msg = (cur_msg + 1) & MASK;
             return i;
         };
+
+//         /// Private: Finds/waits for a free send request
+//         inline int get_free_send_request() {
+//             PROFILE_MEMBER_FUNC(WorldAM);
+//             // Must call poll here to keep pulling messages off the
+//             // network to avoid dead/livelock but don't don't need to
+//             // poll in other worlds or run tasks/AM.
+//             int i;
+
+//             // Was suspending in here but there is no need AS LONG as we
+//             // suspend recursive processing of AM which is now a formal 
+//             // part of the model.
+//             while (!MPI::Request::Testany(NSEND, send_handle, i)) World::poll_all(true);
+//             if (i == MPI::UNDEFINED) i = 0;
+//             free_managed_send_buf(i);
+//             return i;
+//         };
 
 
         /// Private: push an active message onto the queue
@@ -595,7 +600,7 @@ namespace madness {
         /// Need to do this in order to avoid deadlock when being flooded.
         void free_long_recv_bufs() {
             PROFILE_MEMBER_FUNC(WorldAM);
-            nfree_long_recv_bufs++; // Count times called
+            ncall_free_recv_buf++; // Count times called
             // Iterate backwards thru msg list since in use buffers
             // must be at the end.
             for (std::list<qmsg*>::iterator it= msgq.end(); 
@@ -692,6 +697,7 @@ namespace madness {
             , msgq_mem_max(0)
             , nbytes_sent(0)
             , nbytes_recv(0)
+            , nsend_req_wait(0)
         {
             // Allocate buffers for long message receives
             for (int i=0; i<NLONG_RECV; i++) 
@@ -832,7 +838,8 @@ namespace madness {
             std::cout << "    Recv " << nrecv << " messages (" << (nbytes_recv>>20) << " Mbytes)\n";
             std::cout << "    Current pending message q " << msgq_count << " messages (" << (msgq_mem>>20) << " Mbytes)\n";
             std::cout << "    Maximum pending message q " << msgq_count_max << " messages (" << (msgq_mem_max>>20) << " Mbytes)\n";
-            std::cout << "    Number of times ran out of recv bufs " << nfree_long_recv_bufs << "\n";
+            std::cout << "    Number of times ran out of recv bufs " << ncall_free_recv_buf << "\n";
+            std::cout << "    Number of times ran out of send reqs " << nsend_req_wait << "\n";
             std::cout.flush();
         }
 
@@ -850,6 +857,11 @@ namespace madness {
             // what in order to avoid lots of problems.  Of course
             // we don't have an unbounded memory so don't get too
             // carried away.
+
+            // Call here in hope of processing pending local messages
+            // to free memory
+            if (!suspended) process_messages_in_q();
+
             long narrived;
             do {
                 narrived = pull_msgs_into_q();
@@ -857,8 +869,6 @@ namespace madness {
                 if (nfree_long_recv_buf == 0) free_long_recv_bufs();
             } while (narrived);
         };
-
-
 
 
         /// Sends a short active message
@@ -887,7 +897,6 @@ namespace madness {
             return _send_long(dest, op, buf, nbyte, -1, false);
         }
 
-
         /// Sends a long active message passing ownership of buffer to World
 
         /// The buffer, assumed to be allocated with 
@@ -901,6 +910,10 @@ namespace madness {
         /// more info about the long AM interface.
         inline void send_long_managed(ProcessID dest, am_long_handlerT op, void *buf, size_t nbyte) {
             _send_long(dest, op, buf, nbyte, -1, true);
+        }
+
+        inline void send_long_managed(ProcessID dest, am_long_handlerT op, const std::pair<void*,size_t>& arg) {
+            _send_long(dest, op, arg.first, arg.second, -1, true);
         }
 
 
@@ -936,118 +949,8 @@ namespace madness {
     /// Convenience class for using arguments for long active messages
     struct LongAmArg {
         unsigned char header[WorldAmInterface::LONG_MSG_HEADER_LEN];
-        unsigned char buf[WorldAmInterface::LONG_MSG_USER_LEN];
+        unsigned char buf[8]; // Payload
 
-        /// Convenience template for serializing arguments into LongAmArg
-        
-        /// Returns total size of active message include header
-        template <typename A>
-        inline size_t stuff(const A& a) {
-            BufferOutputArchive ar(buf,sizeof(buf));
-            ar & a;
-            return ar.size()+sizeof(header);
-        }
-
-
-        /// Convenience template for serializing arguments into LongAmArg
-        
-        /// Returns size of active message include header
-        template <typename A, typename B>
-        inline size_t stuff(const A& a, const B& b) {
-            BufferOutputArchive ar(buf,sizeof(buf));
-            ar & a & b;
-            return ar.size()+sizeof(header);
-        }
-
-
-        /// Convenience template for serializing arguments into LongAmArg
-        
-        /// Returns size of active message include header
-        template <typename A, typename B, typename C>
-        inline size_t stuff(const A& a, const B& b, const C& c) {
-            BufferOutputArchive ar(buf,sizeof(buf));
-            ar & a & b & c;
-            return ar.size()+sizeof(header);
-        }
-        
-        
-        /// Convenience template for serializing arguments into LongAmArg
-        
-        /// Returns size of active message include header
-        template <typename A, typename B, typename C, typename D>
-        inline size_t stuff(const A& a, const B& b, const C& c, const D& d) {
-            BufferOutputArchive ar(buf,sizeof(buf));
-            ar & a & b & c & d;
-            return ar.size()+sizeof(header);
-        }
-        
-        
-        /// Convenience template for serializing arguments into LongAmArg
-        
-        /// Returns size of active message include header
-        template <typename A, typename B, typename C, typename D, typename E>
-        inline size_t stuff(const A& a, const B& b, const C& c, const D& d, const E& e) {
-            BufferOutputArchive ar(buf,sizeof(buf));
-            ar & a & b & c & d & e;
-            return ar.size()+sizeof(header);
-        }
-        
-        
-        /// Convenience template for serializing arguments into LongAmArg
-        
-        /// Returns size of active message include header
-        template <typename A, typename B, typename C, typename D, typename E, typename F>
-        inline size_t stuff(const A& a, const B& b, const C& c, const D& d, const E& e, const F& f) {
-            BufferOutputArchive ar(buf,sizeof(buf));
-            ar & a & b & c & d & e & f;
-            return ar.size()+sizeof(header);
-        }
-        
-        
-        /// Convenience template for serializing arguments into LongAmArg
-        
-        /// Returns size of active message include header
-        template <typename A, typename B, typename C, typename D, typename E, typename F, typename G>
-        inline size_t stuff(const A& a, const B& b, const C& c, const D& d, const E& e, const F& f, const G& g) {
-            BufferOutputArchive ar(buf,sizeof(buf));
-            ar & a & b & c & d & e & f & g;
-            return ar.size()+sizeof(header);
-        }
-        
-        
-        /// Convenience template for serializing arguments into LongAmArg
-        
-        /// Returns size of active message include header
-        template <typename A, typename B, typename C, typename D, typename E, typename F, typename G, typename H>
-        inline size_t stuff(const A& a, const B& b, const C& c, const D& d, const E& e, const F& f, const G& g, const H& h) {
-            BufferOutputArchive ar(buf,sizeof(buf));
-            ar & a & b & c & d & e & f & g & h;
-            return ar.size()+sizeof(header);
-        }
-        
-        
-        /// Convenience template for serializing arguments into LongAmArg
-        
-        /// Returns size of active message include header
-        template <typename A, typename B, typename C, typename D, typename E, typename F, typename G, typename H, typename I>
-        inline size_t stuff(const A& a, const B& b, const C& c, const D& d, const E& e, const F& f, const G& g, const H& h, const I& i) {
-            BufferOutputArchive ar(buf,sizeof(buf));
-            ar & a & b & c & d & e & f & g & h & i;
-            return ar.size()+sizeof(header);
-        }
-        
-        
-        /// Convenience template for serializing arguments into LongAmArg
-        
-        /// Returns size of active message include header
-        template <typename A, typename B, typename C, typename D, typename E, typename F, typename G, typename H, typename I, typename J>
-        inline size_t stuff(const A& a, const B& b, const C& c, const D& d, const E& e, const F& f, const G& g, const H& h, const I& i, const J& j) {
-            BufferOutputArchive ar(buf,sizeof(buf));
-            ar & a & b & c & d & e & f & g & h & i & j;
-            return ar.size()+sizeof(header);
-        }
-        
-        
         /// Convenience template for deserializing arguments from LongAmArg
         template <typename A>
         inline void unstuff(size_t nbyte, A& a) const {
@@ -1136,6 +1039,144 @@ namespace madness {
         //print("newnew",(void *) buf, nbyte);
         return buf;
     };
+
+    /// Convenience template for serializing arguments into LongAmArg
+    template <typename A, typename B, typename C, typename D, typename E, typename F, typename G, typename H, typename I, typename J>
+    inline std::pair<void*, std::size_t> new_long_am_arg(const A& a, const B& b, const C& c, const D& d, 
+                                                              const E& e, const F& f, const G& g, const H& h, 
+                                                              const I& i, const J& j) {
+        BufferOutputArchive count;
+        count & a & b & c & d & e & f & g & h & i & j;
+        std::size_t size = count.size();
+        LongAmArg* arg = new_long_am_arg(size+WorldAmInterface::LONG_MSG_LEN);
+        BufferOutputArchive ar(arg->buf,size);
+        ar & a & b & c & d & e & f & g & h & i & j;
+        size += WorldAmInterface::LONG_MSG_LEN;
+        return std::pair<void*, std::size_t>((void *) arg, size);
+    }
+
+    /// Convenience template for serializing arguments into LongAmArg
+    template <typename A, typename B, typename C, typename D, typename E, typename F, typename G, typename H, typename I>
+    inline std::pair<void*, std::size_t> new_long_am_arg(const A& a, const B& b, const C& c, const D& d, 
+                                                              const E& e, const F& f, const G& g, const H& h, 
+                                                              const I& i) {
+        BufferOutputArchive count;
+        count & a & b & c & d & e & f & g & h & i;
+        std::size_t size = count.size();
+        LongAmArg* arg = new_long_am_arg(size+WorldAmInterface::LONG_MSG_LEN);
+        BufferOutputArchive ar(arg->buf,size);
+        ar & a & b & c & d & e & f & g & h & i;
+        size += WorldAmInterface::LONG_MSG_LEN;
+        return std::pair<void*, std::size_t>((void *) arg, size);
+    }
+
+    /// Convenience template for serializing arguments into LongAmArg
+    template <typename A, typename B, typename C, typename D, typename E, typename F, typename G, typename H>
+    inline std::pair<void*, std::size_t> new_long_am_arg(const A& a, const B& b, const C& c, const D& d, 
+                                                              const E& e, const F& f, const G& g, const H& h) {
+        BufferOutputArchive count;
+        count & a & b & c & d & e & f & g & h;
+        std::size_t size = count.size();
+        LongAmArg* arg = new_long_am_arg(size+WorldAmInterface::LONG_MSG_LEN);
+        BufferOutputArchive ar(arg->buf,size);
+        ar & a & b & c & d & e & f & g & h;
+        size += WorldAmInterface::LONG_MSG_LEN;
+        return std::pair<void*, std::size_t>((void *) arg, size);
+    }
+
+    /// Convenience template for serializing arguments into LongAmArg
+    template <typename A, typename B, typename C, typename D, typename E, typename F, typename G>
+    inline std::pair<void*, std::size_t> new_long_am_arg(const A& a, const B& b, const C& c, const D& d, 
+                                                              const E& e, const F& f, const G& g) {
+        BufferOutputArchive count;
+        count & a & b & c & d & e & f & g;
+        std::size_t size = count.size();
+        LongAmArg* arg = new_long_am_arg(size+WorldAmInterface::LONG_MSG_LEN);
+        BufferOutputArchive ar(arg->buf,size);
+        ar & a & b & c & d & e & f & g;
+        size += WorldAmInterface::LONG_MSG_LEN;
+        return std::pair<void*, std::size_t>((void *) arg, size);
+    }
+
+    /// Convenience template for serializing arguments into LongAmArg
+    template <typename A, typename B, typename C, typename D, typename E, typename F>
+    inline std::pair<void*, std::size_t> new_long_am_arg(const A& a, const B& b, const C& c, const D& d, 
+                                                              const E& e, const F& f) {
+        BufferOutputArchive count;
+        count & a & b & c & d & e & f;
+        std::size_t size = count.size();
+        LongAmArg* arg = new_long_am_arg(size+WorldAmInterface::LONG_MSG_LEN);
+        BufferOutputArchive ar(arg->buf,size);
+        ar & a & b & c & d & e & f;
+        size += WorldAmInterface::LONG_MSG_LEN;
+        return std::pair<void*, std::size_t>((void *) arg, size);
+    }
+
+    /// Convenience template for serializing arguments into LongAmArg
+    template <typename A, typename B, typename C, typename D, typename E>
+    inline std::pair<void*, std::size_t> new_long_am_arg(const A& a, const B& b, const C& c, const D& d, 
+                                                              const E& e) {
+        BufferOutputArchive count;
+        count & a & b & c & d & e;
+        std::size_t size = count.size();
+        LongAmArg* arg = new_long_am_arg(size+WorldAmInterface::LONG_MSG_LEN);
+        BufferOutputArchive ar(arg->buf,size);
+        ar & a & b & c & d & e;
+        size += WorldAmInterface::LONG_MSG_LEN;
+        return std::pair<void*, std::size_t>((void *) arg, size);
+    }
+
+    /// Convenience template for serializing arguments into LongAmArg
+    template <typename A, typename B, typename C, typename D>
+    inline std::pair<void*, std::size_t> new_long_am_arg(const A& a, const B& b, const C& c, const D& d) {
+        BufferOutputArchive count;
+        count & a & b & c & d;
+        std::size_t size = count.size();
+        LongAmArg* arg = new_long_am_arg(size+WorldAmInterface::LONG_MSG_LEN);
+        BufferOutputArchive ar(arg->buf,size);
+        ar & a & b & c & d;
+        size += WorldAmInterface::LONG_MSG_LEN;
+        return std::pair<void*, std::size_t>((void *) arg, size);
+    }
+
+    /// Convenience template for serializing arguments into LongAmArg
+    template <typename A, typename B, typename C>
+    inline std::pair<void*, std::size_t> new_long_am_arg(const A& a, const B& b, const C& c) {
+        BufferOutputArchive count;
+        count & a & b & c;
+        std::size_t size = count.size();
+        LongAmArg* arg = new_long_am_arg(size+WorldAmInterface::LONG_MSG_LEN);
+        BufferOutputArchive ar(arg->buf,size);
+        ar & a & b & c;
+        size += WorldAmInterface::LONG_MSG_LEN;
+        return std::pair<void*, std::size_t>((void *) arg, size);
+    }
+
+    /// Convenience template for serializing arguments into LongAmArg
+    template <typename A, typename B>
+    inline std::pair<void*, std::size_t> new_long_am_arg(const A& a, const B& b) {
+        BufferOutputArchive count;
+        count & a & b;
+        std::size_t size = count.size();
+        LongAmArg* arg = new_long_am_arg(size+WorldAmInterface::LONG_MSG_LEN);
+        BufferOutputArchive ar(arg->buf,size);
+        ar & a & b;
+        size += WorldAmInterface::LONG_MSG_LEN;
+        return std::pair<void*, std::size_t>((void *) arg, size);
+    }
+
+    /// Convenience template for serializing arguments into LongAmArg
+    template <typename A>
+    inline std::pair<void*, std::size_t> new_long_am_arg(const A& a) {
+        BufferOutputArchive count;
+        count & a;
+        std::size_t size = count.size();
+        LongAmArg* arg = new_long_am_arg(size+WorldAmInterface::LONG_MSG_LEN);
+        BufferOutputArchive ar(arg->buf,size);
+        ar & a;
+        size += WorldAmInterface::LONG_MSG_LEN;
+        return std::pair<void*, std::size_t>((void *) arg, size);
+    }
 
 }
 

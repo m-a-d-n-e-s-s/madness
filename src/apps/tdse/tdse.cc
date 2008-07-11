@@ -21,11 +21,11 @@ static const double Z = 1.0;       // Nuclear charge
 
 static const long k = 12;          // wavelet order
 static const double thresh = 1e-8; // precision
-static const double cut = 0.3;     // smoothing parameter for 1/r
+static const double cut = 0.5;     // smoothing parameter for 1/r
 
 const string prefix = "tdse";      // Prefix for filenames
-const int ndump = 10;              // dump wave function to disk every ndump steps
-const int nplot = 1;               // dump opendx plot to disk every nplot steps
+const int ndump = 50;              // dump wave function to disk every ndump steps
+const int nplot = 50;              // dump opendx plot to disk every nplot steps
 const int nio = 1;                 // Number of IO nodes 
 
 // typedefs to make life less verbose
@@ -54,9 +54,22 @@ public:
         Level n = key.level();
         if (n == 0) return 0;
         hashT hash;
-//         if (n <= 3 || (n&0x1)) hash = key.hash();
-//         else hash = key.parent().hash();
-        hash = key.hash();
+
+        // This randomly hashes levels 0-2 and then
+        // hashes nodes by their grand-parent key so as
+        // to increase locality separately on each level.
+        if (n <= 2) hash = key.hash();
+        else hash = key.parent(2).hash();
+
+        // This randomly hashes levels 0-3 and then 
+        // maps nodes on even levels to the same
+        // random node as their parent.
+        // if (n <= 3 || (n&0x1)) hash = key.hash();
+        // else hash = key.parent().hash();
+
+        // This randomly hashes each key
+        // hash = key.hash();
+
         return hash%nproc;
     }
 };
@@ -336,7 +349,7 @@ void propagate(World& world, int step0) {
     double tcrit = 2*constants::pi/(c*c);
 
     double time_step = tcrit;
-    int nstep = 20;
+    int nstep = 2;
 
     // Ensure everyone has the same data
     world.gop.broadcast(c);
@@ -372,7 +385,6 @@ void propagate(World& world, int step0) {
     int step = step0;                    // The current step
     double t = step0 * time_step;        // The current time
     complex_functionT psi = wave_function_load(world, step); // The wave function at time t
-
     functionT vt = potn+laser(t)*z; // The total potential at time t
 
     print_stats_header(world);
@@ -429,8 +441,8 @@ void propagate(World& world, int step0) {
         }
 
         if ((step%nplot) == 0 || step==nstep) {
-            doplot(world, step, psi,  20.0, 101, wave_function_small_plot_filename(step));
-            doplot(world, step, psi, 200.0, 101, wave_function_large_plot_filename(step));
+            doplot(world, step, psi, Lsmall, 101, wave_function_small_plot_filename(step));
+            doplot(world, step, psi, Llarge, 101, wave_function_large_plot_filename(step));
         }
     }
 }
@@ -496,7 +508,7 @@ int main(int argc, char** argv) {
     try {
         doit(world);
     } catch (const MPI::Exception& e) {
-        print(e);
+        //print(e);
         error("caught an MPI exception");
     } catch (const madness::MadnessException& e) {
         print(e);

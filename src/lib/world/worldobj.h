@@ -605,9 +605,8 @@ namespace madness {
             }
             else {
                 detail::info<memfunT> info(objid, me, memfun, result.remote_ref(world));
-                LongAmArg* arg = new_long_am_arg();
-                std::size_t nbyte = arg->stuff(info,arg1);
-                world.am.send_long_managed(dest,handler<memfunT,arg1T>,arg,nbyte);
+                world.am.send_long_managed(dest,handler<memfunT,arg1T>,
+                                           new_long_am_arg(info,arg1));
             }
             return result;
         }
@@ -624,9 +623,8 @@ namespace madness {
             }
             else {
                 detail::info<memfunT> info(objid, me, memfun, result.remote_ref(world));
-                LongAmArg* arg = new_long_am_arg();
-                std::size_t nbyte = arg->stuff(info,arg1,arg2);
-                world.am.send_long_managed(dest,handler<memfunT,arg1T,arg2T>,arg,nbyte);
+                world.am.send_long_managed(dest,handler<memfunT,arg1T,arg2T>,
+                                           new_long_am_arg(info,arg1,arg2));
             }
             return result;
         }
@@ -643,9 +641,8 @@ namespace madness {
             }
             else {
                 detail::info<memfunT> info(objid, me, memfun, result.remote_ref(world));
-                LongAmArg* arg = new_long_am_arg();
-                std::size_t nbyte = arg->stuff(info,arg1,arg2,arg3);
-                world.am.send_long_managed(dest,handler<memfunT,arg1T,arg2T,arg3T>,arg,nbyte);
+                world.am.send_long_managed(dest,handler<memfunT,arg1T,arg2T,arg3T>,
+                                           new_long_am_arg(info,arg1,arg2,arg3));
             }
             return result;
         }
@@ -662,9 +659,8 @@ namespace madness {
             }
             else {
                 detail::info<memfunT> info(objid, me, memfun, result.remote_ref(world));
-                LongAmArg* arg = new_long_am_arg();
-                std::size_t nbyte = arg->stuff(info,arg1,arg2,arg3,arg4);
-                world.am.send_long_managed(dest,handler<memfunT,arg1T,arg2T,arg3T,arg4T>,arg,nbyte);
+                world.am.send_long_managed(dest,handler<memfunT,arg1T,arg2T,arg3T,arg4T>,
+                                           new_long_am_arg(info,arg1,arg2,arg3,arg4));
             }
             return result;
         }
@@ -680,9 +676,8 @@ namespace madness {
             }
             else {
                 detail::info<memfunT> info(objid, me, memfun, result.remote_ref(world));
-                LongAmArg* arg = new_long_am_arg();
-                std::size_t nbyte = arg->stuff(info,arg1,arg2,arg3,arg4,arg5);
-                world.am.send_long_managed(dest,handler<memfunT,arg1T,arg2T,arg3T,arg4T,arg5T>,arg,nbyte);
+                world.am.send_long_managed(dest,handler<memfunT,arg1T,arg2T,arg3T,arg4T,arg5T>,
+                                           new_long_am_arg(info,arg1,arg2,arg3,arg4,arg5));
             }
             return result;
         }
@@ -699,9 +694,8 @@ namespace madness {
             }
             else {
                 detail::info<memfunT> info(objid, me, memfun, result.remote_ref(world));
-                LongAmArg* arg = new_long_am_arg();
-                std::size_t nbyte = arg->stuff(info,arg1,arg2,arg3,arg4,arg5,arg6);
-                world.am.send_long_managed(dest,handler<memfunT,arg1T,arg2T,arg3T,arg4T,arg5T,arg6T>,arg,nbyte);
+                world.am.send_long_managed(dest,handler<memfunT,arg1T,arg2T,arg3T,arg4T,arg5T,arg6T>,
+                                           new_long_am_arg(info,arg1,arg2,arg3,arg4,arg5,arg6));
             }
             return result;
         }
@@ -718,9 +712,8 @@ namespace madness {
             }
             else {
                 detail::info<memfunT> info(objid, me, memfun, result.remote_ref(world));
-                LongAmArg* arg = new_long_am_arg();
-                std::size_t nbyte = arg->stuff(info,arg1,arg2,arg3,arg4,arg5,arg6,arg7);
-                world.am.send_long_managed(dest,handler<memfunT,arg1T,arg2T,arg3T,arg4T,arg5T,arg6T,arg7T>,arg,nbyte);
+                world.am.send_long_managed(dest,handler<memfunT,arg1T,arg2T,arg3T,arg4T,arg5T,arg6T,arg7T>,
+                                           new_long_am_arg(info,arg1,arg2,arg3,arg4,arg5,arg6,arg7));
             }
             return result;
         }
@@ -810,9 +803,8 @@ namespace madness {
             else {
                 Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > result;
                 detail::info<memfunT> info(objid, me, memfun, result.remote_ref(world), attr);
-                LongAmArg* arg = new_long_am_arg();
-                std::size_t nbyte = arg->stuff(info,arg1);
-                world.am.send_long_managed(dest,handler_task<memfunT,arg1T>,arg,nbyte);
+                world.am.send_long_managed(dest,handler_task<memfunT,arg1T>,
+                                           new_long_am_arg(info,arg1));
                 return result;
             }
         }
@@ -827,9 +819,8 @@ namespace madness {
             else {
                 Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > result;
                 detail::info<memfunT> info(objid, me, memfun, result.remote_ref(world), attr);
-                LongAmArg* arg = new_long_am_arg();
-                std::size_t nbyte = arg->stuff(info,arg1, arg2);
-                world.am.send_long_managed(dest,handler_task<memfunT,arg1T,arg2T>,arg,nbyte);
+                world.am.send_long_managed(dest,handler_task<memfunT,arg1T,arg2T>,
+                                           new_long_am_arg(info,arg1, arg2));
                 return result;
             }
         }
@@ -844,9 +835,8 @@ namespace madness {
             else {
                 Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > result;
                 detail::info<memfunT> info(objid, me, memfun, result.remote_ref(world), attr);
-                LongAmArg* arg = new_long_am_arg();
-                std::size_t nbyte = arg->stuff(info,arg1, arg2, arg3);
-                world.am.send_long_managed(dest,handler_task<memfunT,arg1T,arg2T,arg3T>,arg,nbyte);
+                world.am.send_long_managed(dest,handler_task<memfunT,arg1T,arg2T,arg3T>,
+                                           new_long_am_arg(info,arg1, arg2, arg3));
                 return result;
             }
         }
@@ -861,9 +851,8 @@ namespace madness {
             else {
                 Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > result;
                 detail::info<memfunT> info(objid, me, memfun, result.remote_ref(world), attr);
-                LongAmArg* arg = new_long_am_arg();
-                std::size_t nbyte = arg->stuff(info,arg1, arg2, arg3, arg4);
-                world.am.send_long_managed(dest,handler_task<memfunT,arg1T,arg2T,arg3T,arg4T>,arg,nbyte);
+                world.am.send_long_managed(dest,handler_task<memfunT,arg1T,arg2T,arg3T,arg4T>,
+                                           new_long_am_arg(info,arg1, arg2, arg3, arg4));
                 return result;
             }
         }
@@ -878,9 +867,8 @@ namespace madness {
             else {
                 Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > result;
                 detail::info<memfunT> info(objid, me, memfun, result.remote_ref(world), attr);
-                LongAmArg* arg = new_long_am_arg();
-                std::size_t nbyte = arg->stuff(info,arg1, arg2, arg3, arg4, arg5);
-                world.am.send_long_managed(dest,handler_task<memfunT,arg1T,arg2T,arg3T,arg4T,arg5T>,arg,nbyte);
+                world.am.send_long_managed(dest,handler_task<memfunT,arg1T,arg2T,arg3T,arg4T,arg5T>,
+                                           new_long_am_arg(info,arg1, arg2, arg3, arg4, arg5));
                 return result;
             }
         }
@@ -895,9 +883,8 @@ namespace madness {
             else {
                 Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > result;
                 detail::info<memfunT> info(objid, me, memfun, result.remote_ref(world), attr);
-                LongAmArg* arg = new_long_am_arg();
-                std::size_t nbyte = arg->stuff(info,arg1, arg2, arg3, arg4, arg5, arg6);
-                world.am.send_long_managed(dest,handler_task<memfunT,arg1T,arg2T,arg3T,arg4T,arg5T,arg6T>,arg,nbyte);
+                world.am.send_long_managed(dest,handler_task<memfunT,arg1T,arg2T,arg3T,arg4T,arg5T,arg6T>,
+                                           new_long_am_arg(info,arg1, arg2, arg3, arg4, arg5, arg6));
                 return result;
             }
         }
