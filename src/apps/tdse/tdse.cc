@@ -15,12 +15,12 @@ static const double L = 400.0;      // Box size for the simulation
 static const double Lsmall = 20.0;  // Box size for small (near nucleus) plots
 static const double Llarge = 200.0; // Box size for large (far from nucleus) plots
 
-static const double F = 0.125;     // Laser field strength
+static const double F = 0.0; //0.125;     // Laser field strength
 static const double omega = 0.057; // Laser frequency
 static const double Z = 1.0;       // Nuclear charge
 
 static const long k = 12;          // wavelet order
-static const double thresh = 1e-6; // precision
+static const double thresh = 1e-8; // precision
 static const double cut = 0.3;     // smoothing parameter for 1/r
 
 const string prefix = "tdse";      // Prefix for filenames
@@ -203,20 +203,22 @@ void converge(World& world, functionT& potn, functionT& psi, double& eps) {
     }
 }
 
-complex_functionT chin_chen(const complex_functionT& expV,
-                            const complex_functionT& expVtilde,
+complex_functionT chin_chen(const complex_functionT& expV_0,
+                            const complex_functionT& expV_tilde,
+                            const complex_functionT& expV_1,
                             const complex_operatorT& G,
                             const complex_functionT& psi0) {
 
     // psi(t) = exp(-i*V(t)*t/6) exp(-i*T*t/2) exp(-i*2*Vtilde(t/2)*t/3) exp(-i*T*t/2) exp(-i*V(0)*t/6)
+    // .             expV_1            G               expV_tilde             G             expV_0
 
     complex_functionT psi1;
 
-    psi1 = expV*psi0;       psi1.truncate();
+    psi1 = expV_0*psi0;     psi1.truncate();
     psi1 = apply(G,psi1);   psi1.truncate();
-    psi1 = expVtilde*psi1;  psi1.truncate();
+    psi1 = expV_tilde*psi1; psi1.truncate();
     psi1 = apply(G,psi1);   psi1.truncate();
-    psi1 = expV*psi1;       psi1.truncate();
+    psi1 = expV_1*psi1;     psi1.truncate();
 
     return psi1;
 }
@@ -329,12 +331,12 @@ void doplot(World& world, int step, const complex_functionT& psi, double Lplot, 
 void propagate(World& world, int step0) {
     PROFILE_FUNC;
     //double ctarget = 10.0/cut;                // From Fourier analysis of the potential
-    double ctarget = 1.0/cut;                   // From wishful thinking ... probably 6ish is OK
+    double ctarget = 5.0/cut;
     double c = 1.86*ctarget;
     double tcrit = 2*constants::pi/(c*c);
 
     double time_step = tcrit;
-    int nstep = 2;
+    int nstep = 20;
 
     // Ensure everyone has the same data
     world.gop.broadcast(c);
@@ -346,14 +348,18 @@ void propagate(World& world, int step0) {
 
     // Free particle propagator for both Trotter and Chin-Chen --- exp(-I*T*time_step/2)
     SeparatedConvolution<double_complex,3> G = qm_free_particle_propagator<3>(world, k, c, 0.5*time_step, 2*L);
+    //G.doleaves = true;
 
     // The time-independent part of the potential plus derivatives for
     // Chin-Chen and also for computing the power spectrum ... compute
     // derivatives analytically to reduce numerical noise
     functionT potn = factoryT(world).f(V);         potn.truncate();
-    functionT dpotn_dx = factoryT(world).f(dVdx);  dpotn_dx.truncate();
-    functionT dpotn_dy = factoryT(world).f(dVdy);  dpotn_dy.truncate();
-    functionT dpotn_dz = factoryT(world).f(dVdz);  dpotn_dz.truncate();
+    functionT dpotn_dx = factoryT(world).f(dVdx);  
+    functionT dpotn_dy = factoryT(world).f(dVdy);  
+    functionT dpotn_dz = factoryT(world).f(dVdz);  
+
+    functionT dpotn_dx_sq = dpotn_dx*dpotn_dx;
+    functionT dpotn_dy_sq = dpotn_dy*dpotn_dy;
 
     // Dipole moment functions for laser field and for printing statistics
     functionT x = factoryT(world).f(xdipole);
@@ -372,14 +378,40 @@ void propagate(World& world, int step0) {
     print_stats_header(world);
     print_stats(world, step0, t, vt, x, y, z, psi0, psi);
 
+    psi.refine();
+
+    bool use_trotter = false;
     while (step < nstep) {
-        {
+        if (use_trotter) {
             // Make the potential at time t + step/2 
             functionT vhalf = potn + laser(t+0.5*time_step)*z;
 
             // Apply Trotter to advance from time t to time t+step
             complex_functionT expV = make_exp(time_step, vhalf);
             psi = trotter(world, expV, G, psi);
+        }
+        else { // Chin-Chen
+            // Make z-component of del V at time tstep/2
+            functionT dV_dz = copy(dpotn_dz);
+            dV_dz.add_scalar(laser(t+0.5*time_step));
+
+            // Make Vtilde at time tstep/2
+            functionT Vtilde = potn + laser(t+0.5*time_step)*z;
+            functionT dvsq = dpotn_dx_sq + dpotn_dy_sq + dV_dz*dV_dz;
+            Vtilde.gaxpy(1.0, dvsq, -time_step*time_step/48.0);
+            
+            // Exponentiate potentials
+            complex_functionT expv_0     = make_exp(time_step/6.0, vt);
+            complex_functionT expv_tilde = make_exp(2.0*time_step/3.0, Vtilde);
+            complex_functionT expv_1     = make_exp(time_step/6.0, potn + laser(t+time_step)*z);
+
+            // Free up some memory
+            dV_dz.clear();
+            Vtilde.clear();
+            dvsq.clear();
+            
+            // Apply Chin-Chen
+            psi = chin_chen(expv_0, expv_tilde, expv_1, G, psi);
         }
 
         // Update counters, print info, dump/plot as necessary
