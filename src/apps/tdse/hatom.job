@@ -1,0 +1,23 @@
+#PBS -A csc045mad 
+#PBS -l size=4096
+#PBS -l walltime=4:00:00
+#PBS -j oe
+#PBS -M harrisonrj@ornl.gov
+#PBS -m a
+#PBS -m e
+#PBS -m b
+#PSB -S /bin/csh
+
+module swap PrgEnv-pgi PrgEnv-gnu
+module load subversion
+module load acml/4.1.0
+setenv MRA_DATA_DIR /tmp/work/harrison/m-a-d-n-e-s-s/trunk/src/lib/mra
+setenv MPICH_PTL_UNEX_EVENTS 204800
+setenv MPICH_MAX_SHORT_MSG_SIZE 655360
+setenv MPICH_UNEX_BUFFER_SIZE 1073741824
+unsetenv MPICH_PTL_EAGER_LONG 
+
+cd /tmp/work/harrison/m-a-d-n-e-s-s/trunk/src/apps/tdse
+
+aprun -n 4096 ./tdse
+
