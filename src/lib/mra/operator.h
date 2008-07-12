@@ -827,7 +827,7 @@ namespace madness {
                 eval = sqrt(eval);
                 ratio = eval/evalp;
                 //std::printf("munorm: %d %10.2e %10.2e %10.2e \n", iter, eval, evalp, ratio);
-                if (iter>0 && ratio<1.2 && ratio>=1.0) break; // 1.2 was 1.02
+                if (iter>0 && ratio<1.2 && ratio>0.9999) break; // 1.2 was 1.02;  >0.9999 was >=1.0
                 if (iter>10 && eval<tol) break;
                 evalp = eval;
                 if (iter == 99) throw "munorm failed";
@@ -879,7 +879,6 @@ namespace madness {
 //                 if (disp[d] == 0) newnorm *= 0.5;
 //                 else if (std::abs(disp[d]) == 1) newnorm *= 0.8;
 //             }
-
             double oldnorm = munorm(n, op.ops);
 //             if (oldnorm > 1e-13 && (newnorm < 0.5*oldnorm || newnorm > 2.0*oldnorm) )
 //                 print("munorm", n, disp, mu, newnorm, oldnorm, newnorm/oldnorm);

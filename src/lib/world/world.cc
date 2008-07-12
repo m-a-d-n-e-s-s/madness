@@ -194,7 +194,7 @@ void test3_handler(World& world, ProcessID src, void *buf, size_t len) {
 
     if (lens < 10000) {
         lens++;
-        s = (long *) new_long_am_arg((offset+lens)*sizeof(long));
+        s = (long *) alloc_long_am_arg((offset+lens)*sizeof(long));
         for (long i=0; i<lens; i++) s[i+offset] = i;
         ProcessID dest = world.random_proc();
         world.am.send_long_managed(dest, test2_handler, s, (lens+offset)*sizeof(long));
@@ -229,13 +229,20 @@ void test4(World& world) {
     MADNESS_ASSERT(a.get() == 1);
 
     Future<int> b;
+    print("AAA");
     RemoteReference< FutureImpl<int> > rb=b.remote_ref(world), rc;
+    print("BBB");
     world.mpi.Sendrecv(&rb,sizeof(rb),MPI::BYTE,left,1,
                        &rc,sizeof(rc),MPI::BYTE,right,1);
+    print("CCC");
     Future<int> c(rc);
+    print("DDD");
     c.set(me);
+    print("EEE");
     world.gop.fence();
+    print("FFF");
     MADNESS_ASSERT(b.get() == left);
+    print("GGG");
     print("about to enter final barrier");
     world.am.printq();
     world.gop.fence();

@@ -926,13 +926,14 @@ void test_plot(World& world) {
     if (world.rank() == 0) {
         print("\nTest plot cube - type =", archive::get_type_name<T>(),", ndim =",NDIM,"\n");
     }
-    FunctionDefaults<NDIM>::set_cubic_cell(-10,10);
+    const double L = 4.0;
+    FunctionDefaults<NDIM>::set_cubic_cell(-L,L);
     FunctionDefaults<NDIM>::set_k(7);
-    FunctionDefaults<NDIM>::set_thresh(1e-5);
+    FunctionDefaults<NDIM>::set_thresh(1e-7);
     FunctionDefaults<NDIM>::set_refine(true);
     FunctionDefaults<NDIM>::set_initial_level(2);
 
-    const coordT origin(0.0);
+    const coordT origin(0.6666666);
     const double expnt = 1.0;
     const double coeff = pow(2.0/PI,0.25*NDIM);
 
@@ -943,9 +944,10 @@ void test_plot(World& world) {
     vector<long> npt(NDIM,101);
     Tensor<T> r = f.eval_cube(FunctionDefaults<NDIM>::get_cell(), npt);
     if (world.rank() == 0) {
-        for (int i=0; i<11; i++) {
-            double x = -10.0 + i*2;
-            T fplot = r(vector<long>(NDIM,i*10));
+        const double h = 2.0*L/(npt[0]-1.0);
+        for (int i=0; i<npt[0]; i++) {
+            double x = -L + i*h;
+            T fplot = r(vector<long>(NDIM,i));
             T fnum  = f(coordT(x));
             CHECK(fplot-fnum,1e-12,"plot-eval");
         }
@@ -1045,7 +1047,7 @@ int main(int argc, char**argv) {
         if (world.rank() == 0) print("Initial tensor instance count", BaseTensor::get_instance_count());
         PROFILE_BLOCK(testsuite);
         
-         test_basic<double,1>(world);
+        test_basic<double,1>(world);
         test_conv<double,1>(world);
         test_math<double,1>(world);
         test_diff<double,1>(world);
@@ -1060,7 +1062,7 @@ int main(int argc, char**argv) {
         Tensor<double> hh = gau.rnlp(4,0);
         MADNESS_ASSERT((gg-hh).normf() < 1e-13);
         if (world.rank() == 0) print(" generic and gaussian operator kernels agree\n");
-        test_qm(world);
+     test_qm(world);
 
         test_basic<double_complex,1>(world);
         test_conv<double_complex,1>(world);
@@ -1078,14 +1080,14 @@ int main(int argc, char**argv) {
         test_plot<double,2>(world);
         test_io<double,2>(world);
 
-        test_basic<double,3>(world);
-        test_conv<double,3>(world);
-        test_math<double,3>(world);
-        test_diff<double,3>(world);
-        test_op<double,3>(world);
-        test_coulomb(world);
-        test_plot<double,3>(world);
-        test_io<double,3>(world);
+//         test_basic<double,3>(world);
+//         test_conv<double,3>(world);
+//         test_math<double,3>(world);
+//         test_diff<double,3>(world);
+//         test_op<double,3>(world);
+//         test_coulomb(world);
+//         test_plot<double,3>(world);
+//         test_io<double,3>(world);
 
         //test_plot<double,4>(world); // slow unless reduce npt in test_plot
 

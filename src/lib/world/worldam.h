@@ -228,8 +228,7 @@ namespace madness {
     };
 
     /// Convenience routine to allocate a LongAmArg but using "new (unsigned long)[]"
-    LongAmArg* new_long_am_arg(std::size_t nbyte = 0);
-
+    LongAmArg* alloc_long_am_arg(std::size_t nbyte = 0);
 
     class WorldGopInterface;
 
@@ -522,7 +521,7 @@ namespace madness {
                 // stuff coming in here is a direct user call which
                 // is not really expected.
                 if (!managed) {
-                    unsigned long *tmp = (unsigned long*) new_long_am_arg(nbyte);
+                    unsigned long *tmp = (unsigned long*) alloc_long_am_arg(nbyte);
                     memcpy(tmp, u, nbyte);
                     u = tmp;
                 }
@@ -610,7 +609,7 @@ namespace madness {
                 if (!msg->is_short && !msg->is_managed) {
                     int i=msg->i;
                     //print("freeing buffer",i); std::cout.flush();
-                    unsigned long* buf = (unsigned long*) new_long_am_arg(msg->nbyte);
+                    unsigned long* buf = (unsigned long*) alloc_long_am_arg(msg->nbyte);
                     memcpy((void*) buf, (void*) long_recv_buf[i-NSHORT_RECV], msg->nbyte);
                     msg->buf = buf;
                     msg->is_managed = true;
@@ -1033,10 +1032,9 @@ namespace madness {
     };
 
 
-    inline LongAmArg* new_long_am_arg(std::size_t nbyte) {
+    inline LongAmArg* alloc_long_am_arg(std::size_t nbyte) {
         if (nbyte == 0) nbyte = WorldAmInterface::LONG_MSG_LEN;
         LongAmArg *buf = (LongAmArg*) new unsigned long[(nbyte-1)/sizeof(long)+1];
-        //print("newnew",(void *) buf, nbyte);
         return buf;
     };
 
@@ -1048,10 +1046,10 @@ namespace madness {
         BufferOutputArchive count;
         count & a & b & c & d & e & f & g & h & i & j;
         std::size_t size = count.size();
-        LongAmArg* arg = new_long_am_arg(size+WorldAmInterface::LONG_MSG_LEN);
+        LongAmArg* arg = alloc_long_am_arg(size+WorldAmInterface::LONG_MSG_HEADER_LEN);
         BufferOutputArchive ar(arg->buf,size);
         ar & a & b & c & d & e & f & g & h & i & j;
-        size += WorldAmInterface::LONG_MSG_LEN;
+        size += WorldAmInterface::LONG_MSG_HEADER_LEN;
         return std::pair<void*, std::size_t>((void *) arg, size);
     }
 
@@ -1063,10 +1061,10 @@ namespace madness {
         BufferOutputArchive count;
         count & a & b & c & d & e & f & g & h & i;
         std::size_t size = count.size();
-        LongAmArg* arg = new_long_am_arg(size+WorldAmInterface::LONG_MSG_LEN);
+        LongAmArg* arg = alloc_long_am_arg(size+WorldAmInterface::LONG_MSG_HEADER_LEN);
         BufferOutputArchive ar(arg->buf,size);
         ar & a & b & c & d & e & f & g & h & i;
-        size += WorldAmInterface::LONG_MSG_LEN;
+        size += WorldAmInterface::LONG_MSG_HEADER_LEN;
         return std::pair<void*, std::size_t>((void *) arg, size);
     }
 
@@ -1077,10 +1075,10 @@ namespace madness {
         BufferOutputArchive count;
         count & a & b & c & d & e & f & g & h;
         std::size_t size = count.size();
-        LongAmArg* arg = new_long_am_arg(size+WorldAmInterface::LONG_MSG_LEN);
+        LongAmArg* arg = alloc_long_am_arg(size+WorldAmInterface::LONG_MSG_HEADER_LEN);
         BufferOutputArchive ar(arg->buf,size);
         ar & a & b & c & d & e & f & g & h;
-        size += WorldAmInterface::LONG_MSG_LEN;
+        size += WorldAmInterface::LONG_MSG_HEADER_LEN;
         return std::pair<void*, std::size_t>((void *) arg, size);
     }
 
@@ -1091,10 +1089,10 @@ namespace madness {
         BufferOutputArchive count;
         count & a & b & c & d & e & f & g;
         std::size_t size = count.size();
-        LongAmArg* arg = new_long_am_arg(size+WorldAmInterface::LONG_MSG_LEN);
+        LongAmArg* arg = alloc_long_am_arg(size+WorldAmInterface::LONG_MSG_HEADER_LEN);
         BufferOutputArchive ar(arg->buf,size);
         ar & a & b & c & d & e & f & g;
-        size += WorldAmInterface::LONG_MSG_LEN;
+        size += WorldAmInterface::LONG_MSG_HEADER_LEN;
         return std::pair<void*, std::size_t>((void *) arg, size);
     }
 
@@ -1105,10 +1103,10 @@ namespace madness {
         BufferOutputArchive count;
         count & a & b & c & d & e & f;
         std::size_t size = count.size();
-        LongAmArg* arg = new_long_am_arg(size+WorldAmInterface::LONG_MSG_LEN);
+        LongAmArg* arg = alloc_long_am_arg(size+WorldAmInterface::LONG_MSG_HEADER_LEN);
         BufferOutputArchive ar(arg->buf,size);
         ar & a & b & c & d & e & f;
-        size += WorldAmInterface::LONG_MSG_LEN;
+        size += WorldAmInterface::LONG_MSG_HEADER_LEN;
         return std::pair<void*, std::size_t>((void *) arg, size);
     }
 
@@ -1119,10 +1117,10 @@ namespace madness {
         BufferOutputArchive count;
         count & a & b & c & d & e;
         std::size_t size = count.size();
-        LongAmArg* arg = new_long_am_arg(size+WorldAmInterface::LONG_MSG_LEN);
+        LongAmArg* arg = alloc_long_am_arg(size+WorldAmInterface::LONG_MSG_HEADER_LEN);
         BufferOutputArchive ar(arg->buf,size);
         ar & a & b & c & d & e;
-        size += WorldAmInterface::LONG_MSG_LEN;
+        size += WorldAmInterface::LONG_MSG_HEADER_LEN;
         return std::pair<void*, std::size_t>((void *) arg, size);
     }
 
@@ -1132,10 +1130,10 @@ namespace madness {
         BufferOutputArchive count;
         count & a & b & c & d;
         std::size_t size = count.size();
-        LongAmArg* arg = new_long_am_arg(size+WorldAmInterface::LONG_MSG_LEN);
+        LongAmArg* arg = alloc_long_am_arg(size+WorldAmInterface::LONG_MSG_HEADER_LEN);
         BufferOutputArchive ar(arg->buf,size);
         ar & a & b & c & d;
-        size += WorldAmInterface::LONG_MSG_LEN;
+        size += WorldAmInterface::LONG_MSG_HEADER_LEN;
         return std::pair<void*, std::size_t>((void *) arg, size);
     }
 
@@ -1145,10 +1143,10 @@ namespace madness {
         BufferOutputArchive count;
         count & a & b & c;
         std::size_t size = count.size();
-        LongAmArg* arg = new_long_am_arg(size+WorldAmInterface::LONG_MSG_LEN);
+        LongAmArg* arg = alloc_long_am_arg(size+WorldAmInterface::LONG_MSG_HEADER_LEN);
         BufferOutputArchive ar(arg->buf,size);
         ar & a & b & c;
-        size += WorldAmInterface::LONG_MSG_LEN;
+        size += WorldAmInterface::LONG_MSG_HEADER_LEN;
         return std::pair<void*, std::size_t>((void *) arg, size);
     }
 
@@ -1158,10 +1156,10 @@ namespace madness {
         BufferOutputArchive count;
         count & a & b;
         std::size_t size = count.size();
-        LongAmArg* arg = new_long_am_arg(size+WorldAmInterface::LONG_MSG_LEN);
+        LongAmArg* arg = alloc_long_am_arg(size+WorldAmInterface::LONG_MSG_HEADER_LEN);
         BufferOutputArchive ar(arg->buf,size);
         ar & a & b;
-        size += WorldAmInterface::LONG_MSG_LEN;
+        size += WorldAmInterface::LONG_MSG_HEADER_LEN;
         return std::pair<void*, std::size_t>((void *) arg, size);
     }
 
@@ -1171,10 +1169,10 @@ namespace madness {
         BufferOutputArchive count;
         count & a;
         std::size_t size = count.size();
-        LongAmArg* arg = new_long_am_arg(size+WorldAmInterface::LONG_MSG_LEN);
+        LongAmArg* arg = alloc_long_am_arg(size+WorldAmInterface::LONG_MSG_HEADER_LEN);
         BufferOutputArchive ar(arg->buf,size);
         ar & a;
-        size += WorldAmInterface::LONG_MSG_LEN;
+        size += WorldAmInterface::LONG_MSG_HEADER_LEN;
         return std::pair<void*, std::size_t>((void *) arg, size);
     }
 
