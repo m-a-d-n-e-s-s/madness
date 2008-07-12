@@ -15,18 +15,45 @@ static const double L = 400.0;      // Box size for the simulation
 static const double Lsmall = 20.0;  // Box size for small (near nucleus) plots
 static const double Llarge = 200.0; // Box size for large (far from nucleus) plots
 
-static const double F = 0.0; //0.125;     // Laser field strength
-static const double omega = 0.057; // Laser frequency
-static const double Z = 1.0;       // Nuclear charge
+static const double F = 0.125;      // Laser field strength
+static const double omega = 0.057;  // Laser frequency
+static const double Z = 1.0;        // Nuclear charge
 
-static const long k = 12;          // wavelet order
-static const double thresh = 1e-8; // precision
-static const double cut = 0.5;     // smoothing parameter for 1/r
+static const long k = 16;           // wavelet order
+static const double thresh = 1e-8;  // precision
+static const double cut = 0.2;      // smoothing parameter for 1/r
 
-const string prefix = "tdse";      // Prefix for filenames
-const int ndump = 50;              // dump wave function to disk every ndump steps
-const int nplot = 50;              // dump opendx plot to disk every nplot steps
-const int nio = 1;                 // Number of IO nodes 
+static const string prefix = "tdse";// Prefix for filenames
+static const int ndump = 30;        // dump wave function to disk every ndump steps
+static const int nplot = 30;        // dump opendx plot to disk every nplot steps
+static const int nio = 10;          // Number of IO nodes 
+
+static double zero_field_time;      // Laser actually switches on after this time (set by propagate)
+                                    // Delay provides for several steps with no field before start
+
+static const double target_time = 24.0*constants::pi/omega;
+
+void print_param(World& world) {
+    if (world.rank() == 0) {
+        printf("\n");
+        printf("       Simulation parameters\n");
+        printf("       ---------------------\n");
+        printf("             L = %.1f\n", L);
+        printf("        Lsmall = %.1f\n", Lsmall);
+        printf("        Llarge = %.1f\n", Llarge);
+        printf("             F = %.6f\n", F);
+        printf("         omega = %.6f\n", omega);
+        printf("             Z = %.1f\n", Z);
+        printf("             k = %ld\n", k);
+        printf("        thresh = %.1e\n", thresh);
+        printf("           cut = %.2f\n", cut);
+        printf("        prefix = %s\n", prefix.c_str());
+        printf("         ndump = %d\n", ndump);
+        printf("         nplot = %d\n", nplot);
+        printf("           nio = %d\n", nio);
+        printf("\n");
+    }
+}
 
 // typedefs to make life less verbose
 typedef Vector<double,3> coordT;
@@ -58,8 +85,8 @@ public:
         // This randomly hashes levels 0-2 and then
         // hashes nodes by their grand-parent key so as
         // to increase locality separately on each level.
-        if (n <= 2) hash = key.hash();
-        else hash = key.parent(2).hash();
+        //if (n <= 2) hash = key.hash();
+        //else hash = key.parent(2).hash();
 
         // This randomly hashes levels 0-3 and then 
         // maps nodes on even levels to the same
@@ -68,7 +95,7 @@ public:
         // else hash = key.parent().hash();
 
         // This randomly hashes each key
-        // hash = key.hash();
+        hash = key.hash();
 
         return hash%nproc;
     }
@@ -277,8 +304,8 @@ complex_functionT make_exp(double t, const functionT& v) {
 
 void print_stats_header(World& world) {
     if (world.rank() == 0) {
-        printf("  step     time        field       energy        norm       overlap0     x-dipole     y-dipole     z-dipole       accel\n");
-        printf("------ ------------ ------------ ------------ ------------ ------------ ------------ ------------ ------------ ------------\n");
+        printf("  step       time            field           energy            norm           overlap0         x-dipole         y-dipole         z-dipole           accel      wall-time(s)\n");
+        printf("------- ---------------- ---------------- ---------------- ---------------- ---------------- ---------------- ---------------- ---------------- ---------------- ------------\n");
     }
 }
 
@@ -294,7 +321,7 @@ void print_stats(World& world, int step, double t, const functionT& v,
     double overlap0 = std::abs(psi.inner(psi0));
     double accel = 0.0;
     if (world.rank() == 0) {
-        printf("%6d %12.8f %12.8f %12.8f %12.8f %12.8f %12.8f %12.8f %12.8f %12.8f\n", step, t, laser(t), current_energy, norm, overlap0, xdip, ydip, zdip, accel);
+        printf("%7d %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e %9.1f\n", step, t, laser(t), current_energy, norm, overlap0, xdip, ydip, zdip, accel, wall_time());
     }
 }
 
@@ -348,16 +375,18 @@ void propagate(World& world, int step0) {
     double c = 1.86*ctarget;
     double tcrit = 2*constants::pi/(c*c);
 
-    double time_step = tcrit;
-    int nstep = 2;
+    double time_step = tcrit * 0.5; // <<<<<<<<<<<< NOTE 0.5 for testing convergence rate of Chin-Chen
+    
+    zero_field_time = 10.0*time_step;
+
+    int nstep = (target_time + zero_field_time)/time_step + 1;
+
+    nstep = 150;
 
     // Ensure everyone has the same data
     world.gop.broadcast(c);
     world.gop.broadcast(time_step);
-
-    if (world.rank() == 0) {
-        print("bandlimit",ctarget,"effband",c,"tcrit",tcrit,"time_step",time_step,"nstep",nstep);
-    }
+    world.gop.broadcast(nstep);
 
     // Free particle propagator for both Trotter and Chin-Chen --- exp(-I*T*time_step/2)
     SeparatedConvolution<double_complex,3> G = qm_free_particle_propagator<3>(world, k, c, 0.5*time_step, 2*L);
@@ -382,18 +411,37 @@ void propagate(World& world, int step0) {
     // Wave function at time t=0 for printing statistics
     complex_functionT psi0 = wave_function_load(world, 0); 
 
-    int step = step0;                    // The current step
-    double t = step0 * time_step;        // The current time
+    int step = step0;  // The current step
+    double t = step0 * time_step - zero_field_time;        // The current time
     complex_functionT psi = wave_function_load(world, step); // The wave function at time t
     functionT vt = potn+laser(t)*z; // The total potential at time t
+
+    if (world.rank() == 0) {
+        printf("\n");
+        printf("        Evolution parameters\n");
+        printf("       --------------------\n");
+        printf("     bandlimit = %.2f\n", ctarget);
+        printf(" eff-bandlimit = %.2f\n", c);
+        printf("         tcrit = %.6f\n", tcrit);
+        printf("     time step = %.6f\n", time_step);
+        printf(" no field time = %.6f\n", zero_field_time);
+        printf("   target time = %.2f\n", target_time);
+        printf("         nstep = %d\n", nstep);
+        printf("\n");
+        printf("  restart step = %d\n", step0);
+        printf("  restart time = %.6f\n", t);
+        printf("\n");
+    }
 
     print_stats_header(world);
     print_stats(world, step0, t, vt, x, y, z, psi0, psi);
 
-    psi.refine();
+    psi.truncate();
 
     bool use_trotter = false;
     while (step < nstep) {
+        long depth = psi.max_depth(); long size=psi.size();
+        if (world.rank() == 0) print(step, "depth", depth, "size", size);
         if (use_trotter) {
             // Make the potential at time t + step/2 
             functionT vhalf = potn + laser(t+0.5*time_step)*z;
@@ -436,7 +484,7 @@ void propagate(World& world, int step0) {
         if ((step%ndump) == 0 || step==nstep) {
             wave_function_store(world, step, psi);
             // Update the input file for automatic restarting
-            if (world.rank() == 0) std::ofstream("input") << step;
+            if (world.rank() == 0) std::ofstream("input") << step << std::endl;
             world.gop.fence();
         }
 
@@ -449,6 +497,8 @@ void propagate(World& world, int step0) {
 
 void doit(World& world) {
     cout.precision(8);
+
+    print_param(world);
 
     FunctionDefaults<3>::set_k(k);                 // Wavelet order
     FunctionDefaults<3>::set_thresh(thresh);       // Accuracy
@@ -492,9 +542,6 @@ void doit(World& world) {
             world.gop.fence();
         }
     }
-
-    if (world.rank() == 0) 
-        print("Restarting from time step", step0);
 
     propagate(world, step0);
 }

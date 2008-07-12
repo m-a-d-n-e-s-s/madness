@@ -241,7 +241,7 @@ namespace madness {
         static const int SHORT_MSG_HEADER_LEN = 2*sizeof(unsigned long);            ///< Length of header in short message
         static const int SHORT_MSG_USER_LEN = SHORT_MSG_LEN-SHORT_MSG_HEADER_LEN;   ///< Length of user data in short message
         static const int LONG_MSG_HEADER_LEN = 4*sizeof(unsigned long);             ///< No. of bytes reserved for long message header
-        static const int LONG_MSG_LEN = 3*128*1024;                                 ///< Max length of long messages
+        static const int LONG_MSG_LEN = 9*128*1024;                                 ///< Max length of long messages
         static const int LONG_MSG_USER_LEN = LONG_MSG_LEN-LONG_MSG_HEADER_LEN;      ///< Length of user data in long messages
         
     private:
@@ -318,17 +318,17 @@ namespace madness {
         static const unsigned long COUNT_MASK = 0xff;
         static const unsigned long BCAST_MASK = 0x1ul<<9;
         
-        static const int NSHORT_RECV = 512;          ///< No. of posted short recv buffers
+        static const int NSHORT_RECV = 64;         ///< No. of posted short recv buffers
         static const int NLONG_RECV = 512;          ///< No. of posted long recv buffers
         static const int NRECV =  NSHORT_RECV + NLONG_RECV;
-        static const int LOG2_NSEND = 10;
+        static const int LOG2_NSEND = 8;
         static const int NSEND = 1<<LOG2_NSEND;    ///< Max no. of outstanding short+long Isends
         
         MPI::Request recv_handle[NRECV];  ///< Handles for AM Irecv
         mutable MPI::Request send_handle[NSEND];  ///< Handles for AM Isend
         AmArg recv_buf[NSHORT_RECV];      ///< Buffers for short AM Irecv
         AmArg send_buf[NSEND];            ///< Buffers for short AM Isend
-        unsigned char* managed_send_buf[NSEND];        ///< Managed buffers for long AM Isend
+        unsigned char* managed_send_buf[NSEND];     ///< Managed buffers for long AM Isend
         unsigned long* long_recv_buf[NLONG_RECV];   ///< Buffers for long AM Irecv
         
         // !! Careful if you reorder these to not break the constructor member initialization

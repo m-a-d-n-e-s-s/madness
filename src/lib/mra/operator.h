@@ -225,7 +225,7 @@ namespace madness {
         virtual bool issmall(long n, long lx) const = 0;
 
         /// Returns the level for projection
-        virtual Level natural_level() const {return 10;}
+        virtual Level natural_level() const {return 12;}
 
         /// Computes the transition matrix elements for the convolution for n,l
         
