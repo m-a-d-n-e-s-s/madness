@@ -20,11 +20,11 @@ static const double omega = 0.057;  // Laser frequency
 static const double Z = 1.0;        // Nuclear charge
 
 static const long k = 16;           // wavelet order
-static const double thresh = 1e-8;  // precision
-static const double cut = 0.2;      // smoothing parameter for 1/r
+static const double thresh = 1e-9;  // precision
+static const double cut = 0.3;      // smoothing parameter for 1/r
 
 static const string prefix = "tdse";// Prefix for filenames
-static const int ndump = 30;        // dump wave function to disk every ndump steps
+static const int ndump = 10;        // dump wave function to disk every ndump steps
 static const int nplot = 30;        // dump opendx plot to disk every nplot steps
 static const int nio = 10;          // Number of IO nodes 
 
@@ -311,15 +311,16 @@ void print_stats_header(World& world) {
 
 void print_stats(World& world, int step, double t, const functionT& v, 
                  const functionT& x, const functionT& y, const functionT& z,
+                 const functionT& dV_dz,
                  const complex_functionT& psi0, const complex_functionT& psi) {
     PROFILE_FUNC;
-    double current_energy = energy(world, psi, v);
-    double xdip = real(inner(psi, x*psi));
-    double ydip = real(inner(psi, y*psi));
-    double zdip = real(inner(psi, z*psi));
     double norm = psi.norm2();
-    double overlap0 = std::abs(psi.inner(psi0));
-    double accel = 0.0;
+    double current_energy = energy(world, psi, v);
+    double xdip = real(inner(psi, x*psi))/(norm*norm);
+    double ydip = real(inner(psi, y*psi))/(norm*norm);
+    double zdip = real(inner(psi, z*psi))/(norm*norm);
+    double overlap0 = std::abs(psi.inner(psi0))/norm;
+    double accel = std::abs(psi.inner(psi*dV_dz))/(norm*norm);
     if (world.rank() == 0) {
         printf("%7d %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e %9.1f\n", step, t, laser(t), current_energy, norm, overlap0, xdip, ydip, zdip, accel, wall_time());
     }
@@ -365,6 +366,34 @@ void doplot(World& world, int step, const complex_functionT& psi, double Lplot, 
     cell(_,0) = -Lplot;
     cell(_,1) =  Lplot;
     plotdx(psi, fname, cell, npt);
+}
+
+
+void line_plot(World& world, int step, complex_functionT& psi) {
+    static const int npt = 10001;
+    double_complex v[10001];
+    psi.reconstruct();
+    for (int i=0; i<npt; i++) 
+        v[i] = 0.0;
+    for (int i=world.rank(); i<npt; i+=world.size()) {
+        double z = -Llarge + 2.0*i*Llarge/(npt-1);
+        coordT r(0.0);
+        r[2] = z;
+        v[i] = psi(r);
+    }
+    world.gop.fence();
+    world.gop.sum(v, npt);
+    if (world.rank() == 0) {
+        char buf[256];
+        sprintf(buf, "%s.lineplot", wave_function_filename(step));
+        ofstream f(buf);
+        f.precision(10);
+        for (int i=0; i<npt; i++) {
+            double z = -Llarge + 2.0*i*Llarge/(npt-1);
+            f << z << " " << v[i] << "\n";
+        }
+    }
+    world.gop.fence();
 }
 
 // Evolve the wave function in real time starting from given time step on disk
@@ -434,12 +463,20 @@ void propagate(World& world, int step0) {
     }
 
     print_stats_header(world);
-    print_stats(world, step0, t, vt, x, y, z, psi0, psi);
+    {
+        // Make gradient of potential at time t in z direction to compute HHG
+        functionT dV_dz = copy(dpotn_dz);
+        dV_dz.add_scalar(laser(t));
+        
+        print_stats(world, step, t, vt, x, y, z, dV_dz, psi0, psi);
+    }
 
     psi.truncate();
 
     bool use_trotter = false;
     while (step < nstep) {
+        line_plot(world, step, psi);
+
         long depth = psi.max_depth(); long size=psi.size();
         if (world.rank() == 0) print(step, "depth", depth, "size", size);
         if (use_trotter) {
@@ -479,12 +516,23 @@ void propagate(World& world, int step0) {
         t += time_step;
         vt = potn+laser(t)*z;
 
-        print_stats(world, step, t, vt, x, y, z, psi0, psi);
+
+        {
+            // Make gradient of potential at time t in z direction to compute HHG
+            functionT dV_dz = copy(dpotn_dz);
+            dV_dz.add_scalar(laser(t));
+
+            print_stats(world, step, t, vt, x, y, z, dV_dz, psi0, psi);
+        }
 
         if ((step%ndump) == 0 || step==nstep) {
+            double start = wall_time();
             wave_function_store(world, step, psi);
             // Update the input file for automatic restarting
-            if (world.rank() == 0) std::ofstream("input") << step << std::endl;
+            if (world.rank() == 0) {
+                std::ofstream("input") << step << std::endl;
+                print("dumping took", wall_time()-start);
+            }
             world.gop.fence();
         }
 
