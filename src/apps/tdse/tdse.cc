@@ -10,36 +10,115 @@
 
 using namespace madness;
 
-// Convenient but sleazy use of global variables to define simulation parameters
+struct InputParameters {
+  static const int MAXNATOM=3;
+  
+  double L;           // Box size for the simulation
+  double Lsmall;      // Box size for small (near nucleus) plots
+  double Llarge;      // Box size for large (far from nucleus) plots
+  double F;           // Laser field strength
+  double omega;       // Laser frequency
+  int natom;          // Number of atoms
+  double Z[MAXNATOM]; // Nuclear charge of atoms
+  double R[MAXNATOM][3]; // Coordinates of atoms
+  int k;              // wavelet order
+  double thresh;      // precision
+  double cut;         // smoothing parameter for 1/r (same for all atoms for now)
+  string prefix;      // Prefix for filenames
+  int ndump;          // dump wave function to disk every ndump steps
+  int nplot;          // dump opendx plot to disk every nplot steps
+  int nio;            // Number of IO nodes 
+  double target_time;// Target end-time for the simulation
+  
+  void read(const char* filename) {
+    ifstream f(filename);
+    string tag;
+    printf("\n");
+    printf("       Simulation parameters\n");
+    printf("       ---------------------\n");
+    while(f >> tag) {
+      if (tag == "L") {
+        f >> L;
+        printf("             L = %.1f\n", L);
+      }
+      else if (tag == "Lsmall") {
+        f >> Lsmall;
+        printf("        Lsmall = %.1f\n", Lsmall);
+      }
+      else if (tag == "Llarge") {
+        f >> Llarge;
+        printf("        Llarge = %.1f\n", Llarge);
+      }
+      else if (tag == "F") {
+        f >> F;
+        printf("             F = %.6f\n", F);
+      }
+      else if (tag == "omega") {
+        f >> omega;
+        printf("         omega = %.6f\n", omega);
+      }
+      else if (tag == "natom") {
+        f >> natom;
+        printf("         natom = %d\n", natom);
+        for (int i=0; i<natom; i++) {
+          f >> Z[i] >> R[i][0] >> R[i][1] >> R[i][2];
+          printf("           atom %2d   %.1f  %10.6f  %10.6f  %10.6f\n", i, Z[i], R[i][0], R[i][1], R[i][2]);
+        }
+      }
+      else if (tag == "k") {
+        f >> k;
+        printf("             k = %d\n", k);
+      }
+      else if (tag == "thresh") {
+        f >> thresh;
+        printf("        thresh = %.1e\n", thresh);
+      }
+      else if (tag == "cut") {
+        f >> cut;
+        printf("           cut = %.2f\n", cut);
+      }
+      else if (tag == "prefix") {
+        f >> prefix;
+        printf("        prefix = %s\n", prefix.c_str());
+      }
+      else if (tag == "ndump") {
+        f >> ndump;
+        printf("         ndump = %d\n", ndump);
+      }
+      else if (tag == "nplot") {
+        f >> nplot;
+        printf("         nplot = %d\n", nplot);
+      }
+      else if (tag == "nio") {
+        f >> nio;
+        printf("           nio = %d\n", nio);
+      }
+      else if (tag == "target_time") {
+	f >> target_time;
+        printf("   target_time = %.3f\n", target_time);
+      }
+      else {
+        MADNESS_EXCEPTION("unknown input option", 0);
+      }
+    }
+  }
+  
+  template <typename Archive>
+  void serialize(Archive & ar) {
+    ar & L & Lsmall & Llarge & F & omega & natom & Z;
+    ar & archive::wrap_opaque(&(R[0][0]), 3*MAXNATOM*sizeof(double));
+    ar & k & thresh & cut & prefix & ndump & nplot & nio & target_time;
+  }
+};
 
-const int MAXNATOM=3;
+ostream& operator<<(ostream& s, const InputParameters& p) {
+  s << p.L<< " " << p.Lsmall<< " " << p.Llarge<< " " << p.F<< " " << p.omega<< " " << p.Z<< " " << p.R[0]<< " " << p.k<< " " << p.thresh<< " " << p.cut<< " " << p.prefix<< " " << p.ndump<< " " << p.nplot<< " " << p.nio << std::endl;
+}
 
-// THE FOLLOWING ARE ALL READ FROM THE INPUT
-double L=0.0;           // Box size for the simulation
-double Lsmall=0.0;      // Box size for small (near nucleus) plots
-double Llarge=0.0;      // Box size for large (far from nucleus) plots
-
-double F=0.0;           // Laser field strength
-double omega=0.0;       // Laser frequency
-int natom=0;            // Number of atoms
-double Z[MAXNATOM];     // Nuclear charge of atoms
-double R[MAXNATOM][3];  // Coordinates of atoms
-
-int k=0;                // wavelet order
-double thresh=0;        // precision
-double cut=0;           // smoothing parameter for 1/r (same for all atoms for now)
-
-string prefix;          // Prefix for filenames
-int ndump=0;            // dump wave function to disk every ndump steps
-int nplot=0;            // dump opendx plot to disk every nplot steps
-int nio=0;              // Number of IO nodes 
-
-double target_time=0;   // Target end-time for the simulation
-// END OF INPUT VARIABLES
+InputParameters param;
 
 static double zero_field_time;      // Laser actually switches on after this time (set by propagate)
                                     // Delay provides for several steps with no field before start
-
 
 // typedefs to make life less verbose
 typedef Vector<double,3> coordT;
@@ -124,15 +203,15 @@ static double smoothed_potential(double r) {
 static double V(const coordT& r) {
     const double x=r[0], y=r[1], z=r[2];
     double sum = 0.0;
-    MADNESS_ASSERT(natom == 1);
-    MADNESS_ASSERT(Z[0] == 1.0);
-    for (int i=0; i<natom; i++) {
-      double xx = x-R[i][0];
-      double yy = y-R[i][1];
-      double zz = z-R[i][2];
+    MADNESS_ASSERT(param.natom == 1);
+    MADNESS_ASSERT(param.Z[0] == 1.0);
+    for (int i=0; i<param.natom; i++) {
+      double xx = x-param.R[i][0];
+      double yy = y-param.R[i][1];
+      double zz = z-param.R[i][2];
       double rr = sqrt(xx*xx+yy*yy+zz*zz);
       
-      sum +=  -Z[i]*smoothed_potential(rr/cut)/cut;
+      sum +=  -param.Z[i]*smoothed_potential(rr/param.cut)/param.cut;
     }
     return sum;
 }
@@ -141,13 +220,13 @@ static double V(const coordT& r) {
 static double dVdx(const coordT& r) {
     const double x=r[0], y=r[1], z=r[2];
     double sum = 0.0;
-    for (int i=0; i<natom; i++) {
-      double xx = x-R[i][0];
-      double yy = y-R[i][1];
-      double zz = z-R[i][2];
+    for (int i=0; i<param.natom; i++) {
+      double xx = x-param.R[i][0];
+      double yy = y-param.R[i][1];
+      double zz = z-param.R[i][2];
       if (xx) {
 	double rr = sqrt(xx*xx+yy*yy+zz*zz);
-	sum += -Z[i]*xx*d_smoothed_potential(rr/cut)/(rr*cut*cut);
+	sum += -param.Z[i]*xx*d_smoothed_potential(rr/param.cut)/(rr*param.cut*param.cut);
       }
     }
     return sum;
@@ -157,13 +236,13 @@ static double dVdx(const coordT& r) {
 static double dVdy(const coordT& r) {
     const double x=r[0], y=r[1], z=r[2];
     double sum = 0.0;
-    for (int i=0; i<natom; i++) {
-      double xx = x-R[i][0];
-      double yy = y-R[i][1];
-      double zz = z-R[i][2];
+    for (int i=0; i<param.natom; i++) {
+      double xx = x-param.R[i][0];
+      double yy = y-param.R[i][1];
+      double zz = z-param.R[i][2];
       if (yy) {
 	double rr = sqrt(xx*xx+yy*yy+zz*zz);
-	sum += -Z[i]*yy*d_smoothed_potential(rr/cut)/(rr*cut*cut);
+	sum += -param.Z[i]*yy*d_smoothed_potential(rr/param.cut)/(rr*param.cut*param.cut);
       }
     }
     return sum;
@@ -173,13 +252,13 @@ static double dVdy(const coordT& r) {
 static double dVdz(const coordT& r) {
     const double x=r[0], y=r[1], z=r[2];
     double sum = 0.0;
-    for (int i=0; i<natom; i++) {
-      double xx = x-R[i][0];
-      double yy = y-R[i][1];
-      double zz = z-R[i][2];
+    for (int i=0; i<param.natom; i++) {
+      double xx = x-param.R[i][0];
+      double yy = y-param.R[i][1];
+      double zz = z-param.R[i][2];
       if (zz) {
 	double rr = sqrt(xx*xx+yy*yy+zz*zz);
-	sum += -Z[i]*zz*d_smoothed_potential(rr/cut)/(rr*cut*cut);
+	sum += -param.Z[i]*zz*d_smoothed_potential(rr/param.cut)/(rr*param.cut*param.cut);
       }
     }
     return sum;
@@ -189,14 +268,14 @@ static double dVdz(const coordT& r) {
 static double guess(const coordT& r) {
     const double x=r[0], y=r[1], z=r[2];
     double sum = 0.0;
-    MADNESS_ASSERT(natom == 1);
-    MADNESS_ASSERT(Z[0] == 1.0);
-    for (int i=0; i<natom; i++) {
-      double xx = x-R[i][0];
-      double yy = y-R[i][1];
-      double zz = z-R[i][2];
-      double rr = sqrt(xx*xx+yy*yy+zz*zz+cut*cut);
-      sum += sqrt(3.14*Z[i]*Z[i]*Z[i])*exp(-Z[i]*rr);
+    MADNESS_ASSERT(param.natom == 1);
+    MADNESS_ASSERT(param.Z[0] == 1.0);
+    for (int i=0; i<param.natom; i++) {
+      double xx = x-param.R[i][0];
+      double yy = y-param.R[i][1];
+      double zz = z-param.R[i][2];
+      double rr = sqrt(xx*xx+yy*yy+zz*zz+param.cut*param.cut);
+      sum += sqrt(3.14*param.Z[i]*param.Z[i]*param.Z[i])*exp(-param.Z[i]*rr);
     }
     return sum;
 }
@@ -218,13 +297,13 @@ double zdipole(const coordT& r) {
 
 // Strength of the laser field at time t
 double laser(double t) {
-    double omegat = omega*t;
+    double omegat = param.omega*t;
 
     if (omegat < 0.0 || omegat/4.0 > constants::pi) return 0.0;
 
     double envelope = sin(omegat/4.0);
     envelope *= envelope;
-    return F*envelope*sin(omegat);
+    return param.F*envelope*sin(omegat);
 }
 
 double myreal(double t) {return t;}
@@ -257,7 +336,7 @@ double energy(World& world, const Function<T,3>& psi, const functionT& potn) {
 void converge(World& world, functionT& potn, functionT& psi, double& eps) {
     PROFILE_FUNC;
     for (int iter=0; iter<10; iter++) {
-        operatorT op = BSHOperator<double,3>(world, sqrt(-2*eps), k, cut, thresh);
+        operatorT op = BSHOperator<double,3>(world, sqrt(-2*eps), param.k, param.cut, param.thresh);
         functionT Vpsi = (potn*psi);
         Vpsi.scale(-2.0).truncate();
         functionT tmp = apply(op,Vpsi).truncate();
@@ -358,19 +437,19 @@ void print_stats(World& world, int step, double t, const functionT& v,
 
 const char* wave_function_filename(int step) {
     static char fname[1024];
-    sprintf(fname, "%s-%5.5d", prefix.c_str(), step);
+    sprintf(fname, "%s-%5.5d", param.prefix.c_str(), step);
     return fname;
 }
 
 const char* wave_function_small_plot_filename(int step) {
     static char fname[1024];
-    sprintf(fname, "%s-%5.5dS.dx", prefix.c_str(), step);
+    sprintf(fname, "%s-%5.5dS.dx", param.prefix.c_str(), step);
     return fname;
 }
 
 const char* wave_function_large_plot_filename(int step) {
     static char fname[1024];
-    sprintf(fname, "%s-%5.5dL.dx", prefix.c_str(), step);
+    sprintf(fname, "%s-%5.5dL.dx", param.prefix.c_str(), step);
     return fname;
 }
 
@@ -382,7 +461,7 @@ complex_functionT wave_function_load(World& world, int step) {
 }
 
 void wave_function_store(World& world, int step, const complex_functionT& psi) {
-    ParallelOutputArchive ar(world, wave_function_filename(step), nio);
+    ParallelOutputArchive ar(world, wave_function_filename(step), param.nio);
     ar & psi;
 }
 
@@ -406,7 +485,7 @@ void line_plot(World& world, int step, complex_functionT& psi) {
     for (int i=0; i<npt; i++) 
         v[i] = 0.0;
     for (int i=world.rank(); i<npt; i+=world.size()) {
-        double z = -Llarge + 2.0*i*Llarge/(npt-1);
+        double z = -param.Llarge + 2.0*i*param.Llarge/(npt-1);
         coordT r(0.0);
         r[2] = z;
         v[i] = psi(r);
@@ -419,7 +498,7 @@ void line_plot(World& world, int step, complex_functionT& psi) {
         ofstream f(buf);
         f.precision(10);
         for (int i=0; i<npt; i++) {
-            double z = -Llarge + 2.0*i*Llarge/(npt-1);
+            double z = -param.Llarge + 2.0*i*param.Llarge/(npt-1);
             f << z << " " << v[i] << "\n";
         }
     }
@@ -429,8 +508,8 @@ void line_plot(World& world, int step, complex_functionT& psi) {
 // Evolve the wave function in real time starting from given time step on disk
 void propagate(World& world, int step0) {
     PROFILE_FUNC;
-    //double ctarget = 10.0/cut;                // From Fourier analysis of the potential
-    double ctarget = 5.0/cut;
+    //double ctarget = 10.0/param.cut;                // From Fourier analysis of the potential
+    double ctarget = 5.0/param.cut;
     double c = 1.86*ctarget;
     double tcrit = 2*constants::pi/(c*c);
 
@@ -438,7 +517,7 @@ void propagate(World& world, int step0) {
     
     zero_field_time = 10.0*time_step;
 
-    int nstep = (target_time + zero_field_time)/time_step + 1;
+    int nstep = (param.target_time + zero_field_time)/time_step + 1;
 
     nstep = 150;
 
@@ -448,7 +527,7 @@ void propagate(World& world, int step0) {
     world.gop.broadcast(nstep);
 
     // Free particle propagator for both Trotter and Chin-Chen --- exp(-I*T*time_step/2)
-    SeparatedConvolution<double_complex,3> G = qm_free_particle_propagator<3>(world, k, c, 0.5*time_step, 2*L);
+    SeparatedConvolution<double_complex,3> G = qm_free_particle_propagator<3>(world, param.k, c, 0.5*time_step, 2*param.L);
     //G.doleaves = true;
 
     // The time-independent part of the potential plus derivatives for
@@ -484,7 +563,7 @@ void propagate(World& world, int step0) {
         printf("         tcrit = %.6f\n", tcrit);
         printf("     time step = %.6f\n", time_step);
         printf(" no field time = %.6f\n", zero_field_time);
-        printf("   target time = %.2f\n", target_time);
+        printf("   target time = %.2f\n", param.target_time);
         printf("         nstep = %d\n", nstep);
         printf("\n");
         printf("  restart step = %d\n", step0);
@@ -555,7 +634,7 @@ void propagate(World& world, int step0) {
             print_stats(world, step, t, vt, x, y, z, dV_dz, psi0, psi);
         }
 
-        if ((step%ndump) == 0 || step==nstep) {
+        if ((step%param.ndump) == 0 || step==nstep) {
             double start = wall_time();
             wave_function_store(world, step, psi);
             // Update the restart file for automatic restarting
@@ -566,134 +645,33 @@ void propagate(World& world, int step0) {
             world.gop.fence();
         }
 
-        if ((step%nplot) == 0 || step==nstep) {
-            doplot(world, step, psi, Lsmall, 101, wave_function_small_plot_filename(step));
-            doplot(world, step, psi, Llarge, 101, wave_function_large_plot_filename(step));
+        if ((step%param.nplot) == 0 || step==nstep) {
+            doplot(world, step, psi, param.Lsmall, 101, wave_function_small_plot_filename(step));
+            doplot(world, step, psi, param.Llarge, 101, wave_function_large_plot_filename(step));
         }
     }
-}
-
-void read_input(World& world) {
-  //
-  // !!!!! IF YOU ADD MORE PARAMETERS DON'T FORGET TO BROADCAST TO EVERYONE
-  //
-  if (world.rank() == 0) {
-    ifstream f("input");
-    string tag;
-    printf("\n");
-    printf("       Simulation parameters\n");
-    printf("       ---------------------\n");
-    while(f >> tag) {
-      if (tag == "L") {
-        f >> L;
-        printf("             L = %.1f\n", L);
-      }
-      else if (tag == "Lsmall") {
-        f >> Lsmall;
-        printf("        Lsmall = %.1f\n", Lsmall);
-      }
-      else if (tag == "Llarge") {
-        f >> Llarge;
-        printf("        Llarge = %.1f\n", Llarge);
-      }
-      else if (tag == "F") {
-        f >> F;
-        printf("             F = %.6f\n", F);
-      }
-      else if (tag == "omega") {
-        f >> omega;
-        printf("         omega = %.6f\n", omega);
-      }
-      else if (tag == "natom") {
-        f >> natom;
-        printf("         natom = %d\n", natom);
-        for (int i=0; i<natom; i++) {
-          f >> Z[i] >> R[i][0] >> R[i][1] >> R[i][2];
-          printf("              %.1f  %10.6f  %10.6f  %10.6f\n", Z[i], R[i][0], R[i][1], R[i][2]);
-        }
-      }
-      else if (tag == "k") {
-        f >> k;
-        printf("             k = %d\n", k);
-      }
-      else if (tag == "thresh") {
-        f >> thresh;
-        printf("        thresh = %.1e\n", thresh);
-      }
-      else if (tag == "cut") {
-        f >> cut;
-        printf("           cut = %.2f\n", cut);
-      }
-      else if (tag == "prefix") {
-        f >> prefix;
-        printf("        prefix = %s\n", prefix.c_str());
-      }
-      else if (tag == "ndump") {
-        f >> ndump;
-        printf("         ndump = %d\n", ndump);
-      }
-      else if (tag == "nplot") {
-        f >> nplot;
-        printf("         nplot = %d\n", nplot);
-      }
-      else if (tag == "nio") {
-        f >> nio;
-        printf("           nio = %d\n", nio);
-      }
-      else if (tag == "target_time") {
-	f >> target_time;
-        printf("   target_time = %.3f\n", target_time);
-      }
-      else {
-        MADNESS_EXCEPTION("unknown input option", 0);
-      }
-    }
-  }
-  if (world.rank() == 0) print("A");
-  world.gop.broadcast(L);
-  if (world.rank() == 0) print("B");
-  world.gop.broadcast(Lsmall);
-  if (world.rank() == 0) print("C");
-  world.gop.broadcast(Llarge);
-  if (world.rank() == 0) print("D");
-  world.gop.broadcast(F);
-  if (world.rank() == 0) print("E");
-  world.gop.broadcast(omega);
-  if (world.rank() == 0) print("F");
-  world.gop.broadcast(natom);
-  if (world.rank() == 0) print("G");
-  world.gop.broadcast(&Z[0], MAXNATOM, 0);
-  if (world.rank() == 0) print("H");
-  world.gop.broadcast(&R[0][0], MAXNATOM*3, 0);
-  if (world.rank() == 0) print("I");
-  world.gop.broadcast(k);
-  if (world.rank() == 0) print("J");
-  world.gop.broadcast(thresh);
-  if (world.rank() == 0) print("K");
-  world.gop.broadcast(cut);
-  if (world.rank() == 0) print("L");
-  world.gop.broadcast_serializable(prefix,0);
-  if (world.rank() == 0) print("M");
-  world.gop.broadcast(ndump);
-  if (world.rank() == 0) print("N");
-  world.gop.broadcast(nplot);
-  if (world.rank() == 0) print("O");
-  world.gop.broadcast(nio);
-  if (world.rank() == 0) print("P");
-  world.gop.broadcast(target_time);
-  if (world.rank() == 0) print("Q");
 }
 
 void doit(World& world) {
     cout.precision(8);
 
-    read_input(world);
+    if (world.rank() == 0) param.read("input");
+    world.gop.broadcast_serializable(param, 0);
 
-    FunctionDefaults<3>::set_k(k);                 // Wavelet order
-    FunctionDefaults<3>::set_thresh(thresh);       // Accuracy
+	    for (ProcessID p=0; p<world.size(); p++) {
+	      if (world.rank() == p) {
+		std::cout << world.rank() << std::endl;
+		print("param");
+		std::cout << std::endl;
+	      }
+	      world.gop.fence();
+	    }
+
+    FunctionDefaults<3>::set_k(param.k);                 // Wavelet order
+    FunctionDefaults<3>::set_thresh(param.thresh);       // Accuracy
     FunctionDefaults<3>::set_refine(true);         // Enable adaptive refinement
     FunctionDefaults<3>::set_initial_level(4);     // Initial projection level
-    FunctionDefaults<3>::set_cubic_cell(-L,L);
+    FunctionDefaults<3>::set_cubic_cell(-param.L,param.L);
     FunctionDefaults<3>::set_apply_randomize(false);
     FunctionDefaults<3>::set_autorefine(false);
     FunctionDefaults<3>::set_truncate_mode(1);
@@ -723,7 +701,10 @@ void doit(World& world) {
             psi.truncate();
             psi.scale(1.0/psi.norm2());
             
+	    world.gop.fence();
 	    if (world.rank() == 0) print("THERE");
+	    world.gop.fence();
+
             double eps = energy(world, psi, potn);
             converge(world, potn, psi, eps);
 
@@ -788,4 +769,5 @@ int main(int argc, char** argv) {
     MPI::Finalize();
     return 0;
 }
+
 
