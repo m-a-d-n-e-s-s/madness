@@ -11,49 +11,35 @@
 using namespace madness;
 
 // Convenient but sleazy use of global variables to define simulation parameters
-static const double L = 400.0;      // Box size for the simulation
-static const double Lsmall = 20.0;  // Box size for small (near nucleus) plots
-static const double Llarge = 200.0; // Box size for large (far from nucleus) plots
 
-static const double F = 0.125;      // Laser field strength
-static const double omega = 0.057;  // Laser frequency
-static const double Z = 1.0;        // Nuclear charge
+const int MAXNATOM=3;
 
-static const long k = 16;           // wavelet order
-static const double thresh = 1e-9;  // precision
-static const double cut = 0.3;      // smoothing parameter for 1/r
+// THE FOLLOWING ARE ALL READ FROM THE INPUT
+double L=0.0;           // Box size for the simulation
+double Lsmall=0.0;      // Box size for small (near nucleus) plots
+double Llarge=0.0;      // Box size for large (far from nucleus) plots
 
-static const string prefix = "tdse";// Prefix for filenames
-static const int ndump = 10;        // dump wave function to disk every ndump steps
-static const int nplot = 30;        // dump opendx plot to disk every nplot steps
-static const int nio = 10;          // Number of IO nodes 
+double F=0.0;           // Laser field strength
+double omega=0.0;       // Laser frequency
+int natom=0;            // Number of atoms
+double Z[MAXNATOM];     // Nuclear charge of atoms
+double R[MAXNATOM][3];  // Coordinates of atoms
+
+int k=0;                // wavelet order
+double thresh=0;        // precision
+double cut=0;           // smoothing parameter for 1/r (same for all atoms for now)
+
+string prefix;          // Prefix for filenames
+int ndump=0;            // dump wave function to disk every ndump steps
+int nplot=0;            // dump opendx plot to disk every nplot steps
+int nio=0;              // Number of IO nodes 
+
+double target_time=0;   // Target end-time for the simulation
+// END OF INPUT VARIABLES
 
 static double zero_field_time;      // Laser actually switches on after this time (set by propagate)
                                     // Delay provides for several steps with no field before start
 
-static const double target_time = 24.0*constants::pi/omega;
-
-void print_param(World& world) {
-    if (world.rank() == 0) {
-        printf("\n");
-        printf("       Simulation parameters\n");
-        printf("       ---------------------\n");
-        printf("             L = %.1f\n", L);
-        printf("        Lsmall = %.1f\n", Lsmall);
-        printf("        Llarge = %.1f\n", Llarge);
-        printf("             F = %.6f\n", F);
-        printf("         omega = %.6f\n", omega);
-        printf("             Z = %.1f\n", Z);
-        printf("             k = %ld\n", k);
-        printf("        thresh = %.1e\n", thresh);
-        printf("           cut = %.2f\n", cut);
-        printf("        prefix = %s\n", prefix.c_str());
-        printf("         ndump = %d\n", ndump);
-        printf("         nplot = %d\n", nplot);
-        printf("           nio = %d\n", nio);
-        printf("\n");
-    }
-}
 
 // typedefs to make life less verbose
 typedef Vector<double,3> coordT;
@@ -137,38 +123,82 @@ static double smoothed_potential(double r) {
 // Nuclear attraction potential
 static double V(const coordT& r) {
     const double x=r[0], y=r[1], z=r[2];
-    const double rr = sqrt(x*x+y*y+z*z);
-    return -Z*smoothed_potential(rr/cut)/cut;
+    double sum = 0.0;
+    MADNESS_ASSERT(natom == 1);
+    MADNESS_ASSERT(Z[0] == 1.0);
+    for (int i=0; i<natom; i++) {
+      double xx = x-R[i][0];
+      double yy = y-R[i][1];
+      double zz = z-R[i][2];
+      double rr = sqrt(xx*xx+yy*yy+zz*zz);
+      
+      sum +=  -Z[i]*smoothed_potential(rr/cut)/cut;
+    }
+    return sum;
 }
 
 // dV/dx
 static double dVdx(const coordT& r) {
     const double x=r[0], y=r[1], z=r[2];
-    if (x == 0.0) return 0.0;
-    const double rr = sqrt(x*x+y*y+z*z);
-    return -Z*x*d_smoothed_potential(rr/cut)/(rr*cut*cut);
+    double sum = 0.0;
+    for (int i=0; i<natom; i++) {
+      double xx = x-R[i][0];
+      double yy = y-R[i][1];
+      double zz = z-R[i][2];
+      if (xx) {
+	double rr = sqrt(xx*xx+yy*yy+zz*zz);
+	sum += -Z[i]*xx*d_smoothed_potential(rr/cut)/(rr*cut*cut);
+      }
+    }
+    return sum;
 }
 
 // dV/dy
 static double dVdy(const coordT& r) {
     const double x=r[0], y=r[1], z=r[2];
-    if (y == 0.0) return 0.0;
-    const double rr = sqrt(x*x+y*y+z*z);
-    return -Z*y*d_smoothed_potential(rr/cut)/(rr*cut*cut);
+    double sum = 0.0;
+    for (int i=0; i<natom; i++) {
+      double xx = x-R[i][0];
+      double yy = y-R[i][1];
+      double zz = z-R[i][2];
+      if (yy) {
+	double rr = sqrt(xx*xx+yy*yy+zz*zz);
+	sum += -Z[i]*yy*d_smoothed_potential(rr/cut)/(rr*cut*cut);
+      }
+    }
+    return sum;
 }
 
 // dV/dz
 static double dVdz(const coordT& r) {
     const double x=r[0], y=r[1], z=r[2];
-    if (z == 0.0) return 0.0;
-    const double rr = sqrt(x*x+y*y+z*z);
-    return -Z*z*d_smoothed_potential(rr/cut)/(rr*cut*cut);
+    double sum = 0.0;
+    for (int i=0; i<natom; i++) {
+      double xx = x-R[i][0];
+      double yy = y-R[i][1];
+      double zz = z-R[i][2];
+      if (zz) {
+	double rr = sqrt(xx*xx+yy*yy+zz*zz);
+	sum += -Z[i]*zz*d_smoothed_potential(rr/cut)/(rr*cut*cut);
+      }
+    }
+    return sum;
 }
 
-// Initial guess wave function for 1e atoms
+// Initial guess wave function using symmetric superposition of 1s orbital on atoms
 static double guess(const coordT& r) {
     const double x=r[0], y=r[1], z=r[2];
-    return exp(-1.0*sqrt(x*x+y*y+z*z+cut*cut)); // Change 1.0 to 0.6 to make bad guess
+    double sum = 0.0;
+    MADNESS_ASSERT(natom == 1);
+    MADNESS_ASSERT(Z[0] == 1.0);
+    for (int i=0; i<natom; i++) {
+      double xx = x-R[i][0];
+      double yy = y-R[i][1];
+      double zz = z-R[i][2];
+      double rr = sqrt(xx*xx+yy*yy+zz*zz+cut*cut);
+      sum += sqrt(3.14*Z[i]*Z[i]*Z[i])*exp(-Z[i]*rr);
+    }
+    return sum;
 }
 
 // x-dipole
@@ -186,13 +216,13 @@ double zdipole(const coordT& r) {
     return r[2];
 }
 
-// Strength of the laser field at time t ... 1 full cycle
+// Strength of the laser field at time t
 double laser(double t) {
     double omegat = omega*t;
 
-    if (omegat < 0.0 || omegat/24.0 > constants::pi) return 0.0;
+    if (omegat < 0.0 || omegat/4.0 > constants::pi) return 0.0;
 
-    double envelope = sin(omegat/24.0);
+    double envelope = sin(omegat/4.0);
     envelope *= envelope;
     return F*envelope*sin(omegat);
 }
@@ -404,7 +434,7 @@ void propagate(World& world, int step0) {
     double c = 1.86*ctarget;
     double tcrit = 2*constants::pi/(c*c);
 
-    double time_step = tcrit * 0.5; // <<<<<<<<<<<< NOTE 0.5 for testing convergence rate of Chin-Chen
+    double time_step = tcrit * 4.0; // <<<<<<<<<<<< NOTE 4 for testing convergence rate of Chin-Chen
     
     zero_field_time = 10.0*time_step;
 
@@ -528,9 +558,9 @@ void propagate(World& world, int step0) {
         if ((step%ndump) == 0 || step==nstep) {
             double start = wall_time();
             wave_function_store(world, step, psi);
-            // Update the input file for automatic restarting
+            // Update the restart file for automatic restarting
             if (world.rank() == 0) {
-                std::ofstream("input") << step << std::endl;
+                std::ofstream("restart") << step << std::endl;
                 print("dumping took", wall_time()-start);
             }
             world.gop.fence();
@@ -543,10 +573,121 @@ void propagate(World& world, int step0) {
     }
 }
 
+void read_input(World& world) {
+  //
+  // !!!!! IF YOU ADD MORE PARAMETERS DON'T FORGET TO BROADCAST TO EVERYONE
+  //
+  if (world.rank() == 0) {
+    ifstream f("input");
+    string tag;
+    printf("\n");
+    printf("       Simulation parameters\n");
+    printf("       ---------------------\n");
+    while(f >> tag) {
+      if (tag == "L") {
+        f >> L;
+        printf("             L = %.1f\n", L);
+      }
+      else if (tag == "Lsmall") {
+        f >> Lsmall;
+        printf("        Lsmall = %.1f\n", Lsmall);
+      }
+      else if (tag == "Llarge") {
+        f >> Llarge;
+        printf("        Llarge = %.1f\n", Llarge);
+      }
+      else if (tag == "F") {
+        f >> F;
+        printf("             F = %.6f\n", F);
+      }
+      else if (tag == "omega") {
+        f >> omega;
+        printf("         omega = %.6f\n", omega);
+      }
+      else if (tag == "natom") {
+        f >> natom;
+        printf("         natom = %d\n", natom);
+        for (int i=0; i<natom; i++) {
+          f >> Z[i] >> R[i][0] >> R[i][1] >> R[i][2];
+          printf("              %.1f  %10.6f  %10.6f  %10.6f\n", Z[i], R[i][0], R[i][1], R[i][2]);
+        }
+      }
+      else if (tag == "k") {
+        f >> k;
+        printf("             k = %d\n", k);
+      }
+      else if (tag == "thresh") {
+        f >> thresh;
+        printf("        thresh = %.1e\n", thresh);
+      }
+      else if (tag == "cut") {
+        f >> cut;
+        printf("           cut = %.2f\n", cut);
+      }
+      else if (tag == "prefix") {
+        f >> prefix;
+        printf("        prefix = %s\n", prefix.c_str());
+      }
+      else if (tag == "ndump") {
+        f >> ndump;
+        printf("         ndump = %d\n", ndump);
+      }
+      else if (tag == "nplot") {
+        f >> nplot;
+        printf("         nplot = %d\n", nplot);
+      }
+      else if (tag == "nio") {
+        f >> nio;
+        printf("           nio = %d\n", nio);
+      }
+      else if (tag == "target_time") {
+	f >> target_time;
+        printf("   target_time = %.3f\n", target_time);
+      }
+      else {
+        MADNESS_EXCEPTION("unknown input option", 0);
+      }
+    }
+  }
+  if (world.rank() == 0) print("A");
+  world.gop.broadcast(L);
+  if (world.rank() == 0) print("B");
+  world.gop.broadcast(Lsmall);
+  if (world.rank() == 0) print("C");
+  world.gop.broadcast(Llarge);
+  if (world.rank() == 0) print("D");
+  world.gop.broadcast(F);
+  if (world.rank() == 0) print("E");
+  world.gop.broadcast(omega);
+  if (world.rank() == 0) print("F");
+  world.gop.broadcast(natom);
+  if (world.rank() == 0) print("G");
+  world.gop.broadcast(&Z[0], MAXNATOM, 0);
+  if (world.rank() == 0) print("H");
+  world.gop.broadcast(&R[0][0], MAXNATOM*3, 0);
+  if (world.rank() == 0) print("I");
+  world.gop.broadcast(k);
+  if (world.rank() == 0) print("J");
+  world.gop.broadcast(thresh);
+  if (world.rank() == 0) print("K");
+  world.gop.broadcast(cut);
+  if (world.rank() == 0) print("L");
+  world.gop.broadcast_serializable(prefix,0);
+  if (world.rank() == 0) print("M");
+  world.gop.broadcast(ndump);
+  if (world.rank() == 0) print("N");
+  world.gop.broadcast(nplot);
+  if (world.rank() == 0) print("O");
+  world.gop.broadcast(nio);
+  if (world.rank() == 0) print("P");
+  world.gop.broadcast(target_time);
+  if (world.rank() == 0) print("Q");
+}
+
 void doit(World& world) {
     cout.precision(8);
 
-    print_param(world);
+    read_input(world);
 
     FunctionDefaults<3>::set_k(k);                 // Wavelet order
     FunctionDefaults<3>::set_thresh(thresh);       // Accuracy
@@ -559,23 +700,30 @@ void doit(World& world) {
     FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap(world)));
 
     functionT potn = factoryT(world).f(V);  potn.truncate();
-    
+
+    // Read restart information
     int step0;               // Initial time step ... filenames are <prefix>-<step0>
-    
-    if (world.rank() == 0) 
-        std::ifstream("input") >> step0;
+    if (world.rank() == 0) std::ifstream("restart") >> step0;
     world.gop.broadcast(step0);
 
+  if (world.rank() == 0) print("R");
     bool exists = wave_function_exists(world, step0);
+  if (world.rank() == 0) print("S",exists);
 
     if (!exists) {
         if (step0 == 0) {
             if (world.rank() == 0) print("Computing initial ground state wavefunction");
             functionT psi = factoryT(world).f(guess);
+	    if (world.rank() == 0) print("HERE");
+	    double nn = psi.norm2();
+	    if (world.rank() == 0) print("HERE", nn);
+	    nn = potn.norm2();
+	    if (world.rank() == 0) print("HERE", nn);
             psi.scale(1.0/psi.norm2());
             psi.truncate();
             psi.scale(1.0/psi.norm2());
             
+	    if (world.rank() == 0) print("THERE");
             double eps = energy(world, psi, potn);
             converge(world, potn, psi, eps);
 

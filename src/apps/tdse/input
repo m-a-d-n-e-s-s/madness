@@ -1,1 +1,15 @@
-60
+L 1000.0
+Lsmall 20.0
+Llarge 200.0
+F 0.177
+omega 0.06
+natom 1
+   1.0    0.0 0.0 0.0
+k 16
+thresh 1e-9
+cut 0.3
+prefix data
+ndump 20
+nplot 20
+nio 20
+
