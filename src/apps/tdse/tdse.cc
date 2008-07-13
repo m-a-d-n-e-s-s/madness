@@ -12,6 +12,11 @@ using namespace madness;
 
 struct InputParameters {
   static const int MAXNATOM=3;
+
+    // IF YOU ADD A NEW PARAMETER DON'T FORGET TO INCLUDE IT IN
+    // a) read()
+    // b) serialize()
+    // c) operator<<()
   
   double L;           // Box size for the simulation
   double Lsmall;      // Box size for small (near nucleus) plots
@@ -204,8 +209,6 @@ static double smoothed_potential(double r) {
 static double V(const coordT& r) {
     const double x=r[0], y=r[1], z=r[2];
     double sum = 0.0;
-    MADNESS_ASSERT(param.natom == 1);
-    MADNESS_ASSERT(param.Z[0] == 1.0);
     for (int i=0; i<param.natom; i++) {
       double xx = x-param.R[i][0];
       double yy = y-param.R[i][1];
@@ -269,8 +272,6 @@ static double dVdz(const coordT& r) {
 static double guess(const coordT& r) {
     const double x=r[0], y=r[1], z=r[2];
     double sum = 0.0;
-    MADNESS_ASSERT(param.natom == 1);
-    MADNESS_ASSERT(param.Z[0] == 1.0);
     for (int i=0; i<param.natom; i++) {
       double xx = x-param.R[i][0];
       double yy = y-param.R[i][1];
@@ -471,11 +472,13 @@ bool wave_function_exists(World& world, int step) {
 }
 
 void doplot(World& world, int step, const complex_functionT& psi, double Lplot, long numpt, const char* fname) { 
+    double start = wall_time();
     Tensor<double> cell(3,2);
     std::vector<long> npt(3, numpt);
     cell(_,0) = -Lplot;
     cell(_,1) =  Lplot;
     plotdx(psi, fname, cell, npt);
+    if (world.rank() == 0) print("plotting used", wall_time()-start);
 }
 
 
@@ -511,16 +514,15 @@ void propagate(World& world, int step0) {
     PROFILE_FUNC;
     //double ctarget = 10.0/param.cut;                // From Fourier analysis of the potential
     double ctarget = 5.0/param.cut;
-    double c = 1.86*ctarget;
+    //double c = 1.86*ctarget; // This for 10^5 steps
+    double c = 1.72*ctarget;   // This for 10^4 steps
     double tcrit = 2*constants::pi/(c*c);
 
-    double time_step = tcrit * 4.0; // <<<<<<<<<<<< NOTE 4 for testing convergence rate of Chin-Chen
+    double time_step = tcrit * 3.0;
     
     zero_field_time = 10.0*time_step;
 
     int nstep = (param.target_time + zero_field_time)/time_step + 1;
-
-    nstep = 150;
 
     // Ensure everyone has the same data
     world.gop.broadcast(c);
@@ -647,8 +649,8 @@ void propagate(World& world, int step0) {
         }
 
         if ((step%param.nplot) == 0 || step==nstep) {
-            doplot(world, step, psi, param.Lsmall, 101, wave_function_small_plot_filename(step));
-            doplot(world, step, psi, param.Llarge, 101, wave_function_large_plot_filename(step));
+            doplot(world, step, psi, param.Lsmall, 201, wave_function_small_plot_filename(step));
+            doplot(world, step, psi, param.Llarge, 201, wave_function_large_plot_filename(step));
         }
     }
 }

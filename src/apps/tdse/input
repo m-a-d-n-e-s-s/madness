@@ -9,7 +9,7 @@ k 16
 thresh 1e-9
 cut 0.3
 prefix data
-ndump 20
-nplot 20
+ndump 2
+nplot 2
 nio 20
-
+target_time 209.44
