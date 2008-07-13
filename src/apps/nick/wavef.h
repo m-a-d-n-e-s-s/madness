@@ -16,8 +16,6 @@
 #include <iostream>
 #include <stdio.h>
 using std::printf;
-#include <string>
-using std::string;
 
 using namespace madness;
 
@@ -42,6 +40,7 @@ complexd pochhammer(complexd AA,int n);
 void     testPochhammer(World&);
 void f11Tester(World&);
 
+//Fortran functions
 extern "C" complexd hypergf_(complexd* AA, complexd* BB, complexd* X, 
 			     double* EPS, int* LIMIT, int* KIN, double* ERR, 
 			     int* NITS, double* FPMAX, double* ACC8,

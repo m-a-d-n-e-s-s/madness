@@ -14,14 +14,14 @@
 #include <gsl/gsl_sf_coulomb.h>
 #include <gsl/gsl_sf_gamma.h>
 #include <gsl/gsl_sf_legendre.h>
-#include <ctime>
-#include <string>
 
-double ttt;
-double sss;
-#define START_TIMER world.gop.fence(); ttt=wall_time()
-#define END_TIMER(msg) ttt=wall_time()-ttt;  if (world.rank()==0) printf("timer: %24.24s    took%8.2f seconds\n", msg, ttt)
+//MPI printing macros
+double tt;
+#define PRINTLINE(str) if(world.rank()==0) cout << str << endl;
+#define START_TIMER world.gop.fence(); tt=wall_time()
+#define END_TIMER(msg) tt=wall_time()-tt;  if (world.rank()==0) printf("timer: %24.24s    took%8.2f seconds\n", msg, tt)
 #define PRINT_COMPLEX(msg,re,im) if(world.rank()==0) printf("%34.34s %9.6f + %9.6fI\n", msg, re, im)
+
 /***********************************************************************
  * The Scattering Wave Function
  * See Landau and Lifshitz Quantum Mechanics Volume 3
@@ -44,10 +44,7 @@ complexd ScatteringWF::operator()(const vector3D& rVec) const
     for(int i=0; i<NDIM; i++) { sum += rVec[i]*rVec[i]; }
     double r = sqrt(sum);
     double kDOTr = 0.0;
-    for(int i=0; i<NDIM; i++) 
-    { 
-	kDOTr += rVec[i]*kVec[i]; 
-    }
+    for(int i=0; i<NDIM; i++) { kDOTr += rVec[i]*kVec[i]; }
     return exp(PI/(2*k))
 	 * gamma(1.0+I/k)
  	 * exp(I*kDOTr)
@@ -308,17 +305,6 @@ void testPochhammer(World& world)
 complexd V(const vector3D& r)
 {
 	return -1.0/sqrt(r[0]*r[0] + r[1]*r[1] + r[2]*r[2] + 1e-8);
-}
-
-//Prints out the time elapsed since start
-clock_t breakTime(string message, clock_t start) 
-{
-    cout.precision(1);
-    clock_t finish = clock();
-    cout << message << " took " <<
-	((double)finish - start)/CLOCKS_PER_SEC << " seconds " << endl;
-    cout.precision(12);
-    return clock();
 }
 
 void f11Tester(World& world) 
