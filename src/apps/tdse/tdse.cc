@@ -659,14 +659,14 @@ void doit(World& world) {
     if (world.rank() == 0) param.read("input");
     world.gop.broadcast_serializable(param, 0);
 
-	    for (ProcessID p=0; p<world.size(); p++) {
-	      if (world.rank() == p) {
-		std::cout << world.rank() << std::endl;
-                std::cout << param;
-		std::cout << std::endl;
-	      }
-	      world.gop.fence();
-	    }
+// 	    for (ProcessID p=0; p<world.size(); p++) {
+// 	      if (world.rank() == p) {
+// 		std::cout << world.rank() << std::endl;
+//                 std::cout << param;
+// 		std::cout << std::endl;
+// 	      }
+// 	      world.gop.fence();
+// 	    }
 
     FunctionDefaults<3>::set_k(param.k);                 // Wavelet order
     FunctionDefaults<3>::set_thresh(param.thresh);       // Accuracy
@@ -678,38 +678,23 @@ void doit(World& world) {
     FunctionDefaults<3>::set_truncate_mode(1);
     FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap(world)));
 
-    print("COMPRESSING POTN");
-
     functionT potn = factoryT(world).f(V);  potn.truncate();
-
-    print("DON WITH POTN");
 
     // Read restart information
     int step0;               // Initial time step ... filenames are <prefix>-<step0>
     if (world.rank() == 0) std::ifstream("restart") >> step0;
     world.gop.broadcast(step0);
 
-  if (world.rank() == 0) print("R");
     bool exists = wave_function_exists(world, step0);
-  if (world.rank() == 0) print("S",exists);
 
     if (!exists) {
         if (step0 == 0) {
             if (world.rank() == 0) print("Computing initial ground state wavefunction");
             functionT psi = factoryT(world).f(guess);
-	    if (world.rank() == 0) print("HERE");
-	    double nn = psi.norm2();
-	    if (world.rank() == 0) print("HERE", nn);
-	    nn = potn.norm2();
-	    if (world.rank() == 0) print("HERE", nn);
             psi.scale(1.0/psi.norm2());
             psi.truncate();
             psi.scale(1.0/psi.norm2());
             
-	    world.gop.fence();
-	    if (world.rank() == 0) print("THERE");
-	    world.gop.fence();
-
             double eps = energy(world, psi, potn);
             converge(world, potn, psi, eps);
 
