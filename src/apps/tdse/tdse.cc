@@ -106,13 +106,14 @@ struct InputParameters {
   template <typename Archive>
   void serialize(Archive & ar) {
     ar & L & Lsmall & Llarge & F & omega & natom & Z;
-    ar & archive::wrap_opaque(&(R[0][0]), 3*MAXNATOM*sizeof(double));
+    ar & archive::wrap(&(R[0][0]), 3*MAXNATOM);
     ar & k & thresh & cut & prefix & ndump & nplot & nio & target_time;
   }
 };
 
 ostream& operator<<(ostream& s, const InputParameters& p) {
   s << p.L<< " " << p.Lsmall<< " " << p.Llarge<< " " << p.F<< " " << p.omega<< " " << p.Z<< " " << p.R[0]<< " " << p.k<< " " << p.thresh<< " " << p.cut<< " " << p.prefix<< " " << p.ndump<< " " << p.nplot<< " " << p.nio << std::endl;
+return s;
 }
 
 InputParameters param;
@@ -661,7 +662,7 @@ void doit(World& world) {
 	    for (ProcessID p=0; p<world.size(); p++) {
 	      if (world.rank() == p) {
 		std::cout << world.rank() << std::endl;
-		print("param");
+                std::cout << param;
 		std::cout << std::endl;
 	      }
 	      world.gop.fence();
@@ -677,7 +678,11 @@ void doit(World& world) {
     FunctionDefaults<3>::set_truncate_mode(1);
     FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap(world)));
 
+    print("COMPRESSING POTN");
+
     functionT potn = factoryT(world).f(V);  potn.truncate();
+
+    print("DON WITH POTN");
 
     // Read restart information
     int step0;               // Initial time step ... filenames are <prefix>-<step0>
