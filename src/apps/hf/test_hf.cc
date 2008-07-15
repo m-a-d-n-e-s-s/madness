@@ -36,9 +36,28 @@ static double smoothed_potential(double r) {
     } else{
         pot = (2.0 + 17.0/3.0)/sqrt(PI);
     }
-    
+
     return pot;
 }
+
+//*****************************************************************************
+class StupidFunctor
+{
+public:
+  StupidFunctor(double param)
+  {
+    _param = param;
+  }
+
+  double operator*(const coordT& r)
+  {
+    return _param;
+  }
+
+private:
+  double _param;
+};
+//*****************************************************************************
 
 //*****************************************************************************
 static double psi_func_be1(const coordT& rr)
@@ -92,7 +111,7 @@ double V_func_h2(const Vector<double,3>& r)
   double x = r[0];
   double y = r[1];
   double z = r[2];
-  return -1.0/(sqrt(x*x + y*y + (z-0.7)*(z-0.7)) + 1e-8) + 
+  return -1.0/(sqrt(x*x + y*y + (z-0.7)*(z-0.7)) + 1e-8) +
     -1.0/(sqrt(x*x + y*y + (z+0.7)*(z+0.7)) + 1e-8);
 }
 //*****************************************************************************
@@ -103,9 +122,9 @@ double psi_func_h2(const Vector<double,3>& r)
   double x = r[0];
   double y = r[1];
   double z = r[2];
-//  return exp(-0.5*(x*x + y*y + (z-0.7)*(z-0.7))) + 
+//  return exp(-0.5*(x*x + y*y + (z-0.7)*(z-0.7))) +
 //    exp(-0.5*(x*x + y*y + (z+0.7)*(z+0.7)));
-  return exp(-sqrt(x*x + y*y + (z-0.7)*(z-0.7))) + 
+  return exp(-sqrt(x*x + y*y + (z-0.7)*(z-0.7))) +
     exp(-sqrt(x*x + y*y + (z+0.7)*(z+0.7)));
 }
 //*****************************************************************************
@@ -124,7 +143,7 @@ public:
     center(center), exponent(exponent), coefficient(coefficient)
   {
   }
-  
+
   T operator()(const coordT& x) const
   {
     double sum = 0.0;
@@ -135,7 +154,7 @@ public:
     };
     return coefficient*exp(-exponent*sum);
   }
-  
+
 };
 //*****************************************************************************
 
@@ -145,7 +164,7 @@ class H2Potential :
 {
 public:
   typedef Vector<double,3> coordT;
-  
+
   H2Potential() {}
 
   double operator()(const coordT& x) const
@@ -196,7 +215,7 @@ public:
 void test_hf_ho(World& world)
 {
   cout << "Running test application HartreeFock ..." << endl;
-  
+
   typedef Vector<double,3> coordT;
   typedef SharedPtr< FunctionFunctorInterface<double,3> > functorT;
 
@@ -223,7 +242,7 @@ void test_hf_ho(World& world)
   const double offset = -50.0;
   functorT Vnuc_functor(new HarmonicOsc3D<double,3>(origin, coeff, offset));
   Function<double,3> Vnuc = FunctionFactory<double,3>(world).functor(Vnuc_functor);
-  
+
   // Guess for the wavefunction
   functorT wavefunc_functor(new Gaussian<double,3>(origin, -0.5, 100.0));
   Function<double,3> psi = FunctionFactory<double,3>(world).functor(Vnuc_functor);
@@ -243,7 +262,7 @@ void test_hf_ho(World& world)
 void test_hf_h2(World& world)
 {
   cout << "Running test application HartreeFock ..." << endl;
-  
+
   typedef Vector<double,3> coordT;
   typedef SharedPtr< FunctionFunctorInterface<double,3> > functorT;
 
@@ -268,7 +287,7 @@ void test_hf_h2(World& world)
   const coordT origin(0.0);
   cout << "Creating Function object for nuclear potential ..." << endl;
   Function<double,3> Vnuc = FunctionFactory<double,3>(world).f(V_func_h2);
- 
+
   // Guess for the wavefunction
   cout << "Creating wavefunction psi ..." << endl;
   Function<double,3> psi = FunctionFactory<double,3>(world).f(psi_func_h2);
@@ -296,7 +315,7 @@ void test_hf_h2(World& world)
 void test_hf_he(World& world)
 {
   cout << "Running test application HartreeFock ..." << endl;
-  
+
   typedef Vector<double,3> coordT;
   typedef SharedPtr< FunctionFunctorInterface<double,3> > functorT;
 
@@ -316,12 +335,12 @@ void test_hf_he(World& world)
   FunctionDefaults<3>::set_initial_level(2);
   FunctionDefaults<3>::set_truncate_mode(1);
   FunctionDefaults<3>::set_cubic_cell(-bsize, bsize);
-  
+
   // Nuclear potential (He atom)
   const coordT origin(0.0);
   cout << "Creating Function object for nuclear potential ..." << endl;
   Function<double,3> Vnuc = FunctionFactory<double,3>(world).f(V_func_he);
- 
+
   // Guess for the wavefunction
   cout << "Creating wavefunction psi ..." << endl;
   Function<double,3> psi = FunctionFactory<double,3>(world).f(psi_func_he);
@@ -338,7 +357,7 @@ void test_hf_he(World& world)
   dftcalc.solve(10);
 //  HartreeFock hf(world, Vnuc, phis, eigs, true, true, thresh);
 //  hf.hartree_fock(10);
-  
+
 //  double ke = 2.0 * hf.calculate_tot_ke_sp();
 //  double pe = 2.0 * hf.calculate_tot_pe_sp();
 //  double ce = hf.calculate_tot_coulomb_energy();
@@ -353,7 +372,7 @@ void test_hf_he(World& world)
 //*****************************************************************************
 void test_be_roberts_code(World& world)
 {
-  
+
 }
 //*****************************************************************************
 
@@ -361,7 +380,7 @@ void test_be_roberts_code(World& world)
 void test_hf_be(World& world)
 {
   //if (world.rank() == 0) cout << "Running test application HartreeFock ..." << endl;
-  
+
   typedef Vector<double,3> coordT;
   typedef SharedPtr< FunctionFunctorInterface<double,3> > functorT;
 
@@ -381,13 +400,13 @@ void test_hf_be(World& world)
   FunctionDefaults<3>::set_initial_level(2);
   FunctionDefaults<3>::set_truncate_mode(1);
   FunctionDefaults<3>::set_cubic_cell(-40.0, 40.0);
-  
+
   // Nuclear potential (Be)
   const coordT origin(0.0);
   if (world.rank() == 0) cout << "Creating Function object for nuclear potential ..." << endl;
   cout << "Creating Function object for nuclear potential ..." << endl;
   Function<double,3> Vnuc = FunctionFactory<double,3>(world).f(V_func_be).thresh(thresh);
- 
+
   // Guess for the wavefunctions
   if (world.rank() == 0) cout << "Creating wavefunction's ..." << endl;
   cout << "Creating wavefunction's ..." << endl;
@@ -476,7 +495,7 @@ int main(int argc, char** argv)
   try
   {
     printf("WSTHORNTON: Starting up the world ... \n");
-    
+
     startup(world,argc,argv);
     if (world.rank() == 0) print("Initial tensor instance count", BaseTensor::get_instance_count());
     test_hf_be(world);

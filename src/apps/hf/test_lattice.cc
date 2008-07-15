@@ -83,7 +83,7 @@ struct PeriodicConditionalRefineTest
   {
     // Is the box above the level from where we want to refine?
     int n = key.level();
-    if (n >= 5) return false;
+    if (n >= 6) return false;
     // Are we on the boundary?
     Translation l1 = key.translation()[0];
     Translation l2 = key.translation()[1];
@@ -287,7 +287,11 @@ void testscott(int argc, char**argv)
   double bsize = 0.5;
   int funck = 8;
   double thresh = 1e-8;
+
+  // BSH fit parameters
   double eps = 1e-6;
+  double hi = 10.0;
+  double lo = 1e-4;
 
 //  Tensor<int> bc(1,2);
 //  bc(_) = 0;
@@ -301,12 +305,29 @@ void testscott(int argc, char**argv)
 
   // Test function
   Function<double,3> rho = FunctionFactory<double,3>(world).f(rho_func3d);
+  print("before", rho.size());
+  rho.conditional_refine(PeriodicConditionalRefineTest());
+  print("after", rho.size());
 
   // Get exponents and coefficients
-  Tensor<double> coeff, expnt;
-  bsh_fit(0.0, 1e-2, 30.0, eps, &coeff, &expnt, true);
-  // Needed to add the 1/4pi to the coefficients
-  coeff.scale(4.0*WST_PI);
+//  Tensor<double> coeff, expnt;
+//  bsh_fit(0.0, lo, hi, eps, &coeff, &expnt, true);
+//  // Needed to add the 1/4pi to the coefficients
+//  coeff.scale(4.0*WST_PI);
+
+  Tensor<double> coeff(3), expnt(3);
+  coeff(1) = 27.0;
+  coeff(2) = 64.0;
+  coeff(3) = 1000000.0;
+  expnt(1) = 10.0;
+  expnt(2) = 1000.0;
+  expnt(3) = 55000,0;
+
+  printf("coeff(1) = %.5f\texptnt(1) = %.3f\n", coeff[1], expnt[1]);
+  printf("coeff(2) = %.5f\texptnt(2) = %.3f\n", coeff[2], expnt[2]);
+  printf("coeff(3) = %.5f\texptnt(3) = %.3f\n", coeff[3], expnt[3]);
+  printf("coeff.dim[0] = %d", coeff.dim[0]);
+
 
   // Just looking to see of the 1/r is truly "1/r"
   double pt1 = 1e-1;
@@ -322,75 +343,76 @@ void testscott(int argc, char**argv)
   if (world.rank() == 0) printf("pt3 = %.5e\t\tf3 = %.5e\n", pt3, f3);
   if (world.rank() == 0) printf("pt4 = %.5e\t\tf4 = %.5e\n", pt4, f4);
 
-  // Just printing, nothing to see here
-  for (int j = 0; j < coeff.dim[0]; j++)
+  // Rescaling the coefficients for 3 dimensions
+  for (int j = 1; j <= coeff.dim[0]; j++)
   {
-    coeff[j] = (coeff[j] < 0) ? -pow(-coeff[j], 1.0/3.0) : pow(coeff[j], 1.0/3.0);
+    coeff[j] = (coeff[j] < 0.0) ? -pow(-coeff[j], 1.0/3.0) : pow(coeff[j], 1.0/3.0);
     if (world.rank() == 0) printf("expt[%d] = %.8f\t\tcoeff[%d] = %.8f\n", j, expnt[j], j, coeff[j]);
   }
+
+  // The exponent being tested.
+  double w = 55000.0;
+  double c = 100.0;
 
   // One gaussian only (no lattice sum)
   std::vector< SharedPtr< Convolution1D<double> > > ops(1);
   ops[0]
-        = SharedPtr< Convolution1D<double> >(new GenericConvolution1D< double,wstFunctor<double> >(funck,wstFunctor<double>(0, 100.0, 0.01*1298190.0)));
+        = SharedPtr< Convolution1D<double> >(new GenericConvolution1D< double,wstFunctor<double> >(funck,wstFunctor<double>(0, c, w)));
   SeparatedConvolution<double,3> op(world, funck, ops);
-  print("before", rho.size());
-  rho.conditional_refine(PeriodicConditionalRefineTest());
-  print("after", rho.size());
   //Function<double,3> phi_test1 = apply(op, rho);
+  Function<double,3> phi_test1 = copy(rho);
+  //phi_test1.scale(c*sqrt(WST_PI/w));
 
-  // One gaussian only (with lattice)
-  std::vector< SharedPtr< Convolution1D<double> > > opsumcoll(1);
-  opsumcoll[0]
-        = SharedPtr< Convolution1D<double> >(new GenericConvolution1D< double,wstFunctor<double> >(funck,wstFunctor<double>(4, 100.0, 0.01*1298190.0)));
-  SeparatedConvolution<double,3> opsum(world, funck, opsumcoll);
-  //opsum.doleaves=true;
-
-  //Function<double,3> phi_test2 = apply(opsum, rho);
+//  // One gaussian only (with lattice)
+//  std::vector< SharedPtr< Convolution1D<double> > > opsumcoll(1);
+//  opsumcoll[0]
+//        = SharedPtr< Convolution1D<double> >(new GenericConvolution1D< double,wstFunctor<double> >(funck,wstFunctor<double>(1, c, w)));
+//  SeparatedConvolution<double,3> opsum(world, funck, opsumcoll);
+//  Function<double,3> phi_test2 = apply(opsum, rho);
 
   // One gaussian only (using different operator)
   Tensor<double> xcoeff(1), xexpnt(1);
-  xcoeff[0] = 1e6;
-  xexpnt[0] = 0.01*1298190.0;
+  xcoeff[0] = c*c*c;
+  xexpnt[0] = w;
   SeparatedConvolution<double,3> xop(world, funck, xcoeff, xexpnt);
-  //xop.doleaves = true;
   Function<double,3> phi_testx = apply(xop, rho);
 
-//   // Full set of gaussians (with lattice sum)
-//   std::vector< SharedPtr< Convolution1D<double> > > opfulllattice;
-//   for (int i = 0; i < coeff.dim[0]; i++)
-//   {
-//     if (expnt[i] > 0.24)
-//     {
-//       // How many lattice spaces do I need to sum in real space?
-//       double dum = log(2.0/eps);
-//       int kmax = ceil(sqrt(dum/expnt[i]));
-//       printf("kmax[%d] = %d\t\tcoeff[%d] = %.8f\t\texpnt[%d] = %.8f\n", i, kmax, i, coeff[i], i, expnt[i]);
-//       // Add exponential with kmax, coeff, and expnt to list
-//       opfulllattice.push_back(SharedPtr< Convolution1D<double> >(new GenericConvolution1D< double,wstFunctor<double> >(funck,wstFunctor<double>(kmax, coeff[i], expnt[i]))));
-//     }
-//   }
-//   printf("creating opsumfull ...\n\n");
-//   SeparatedConvolution<double,3> opsumfull(world, funck, opfulllattice);
-//   printf("applying opsumfull ...\n\n");
-//   Function<double,3> phi_test3 = apply(opsumfull, rho);
-//   printf("done applying opsumfull ...\n\n");
+   // Full set of gaussians (with lattice sum)
+   std::vector< SharedPtr< Convolution1D<double> > > opfulllattice;
+   for (int i = 1; i <= coeff.dim[0]; i++)
+   {
+     if (expnt[i] > 0.24)
+     {
+       // How many lattice spaces do I need to sum in real space?
+       double dum = log(2.0/eps);
+       int kmax = ceil(sqrt(dum/expnt[i]));
+       printf("kmax[%d] = %d\t\tcoeff[%d] = %.8f\t\texpnt[%d] = %.8f\n", i, kmax, i, coeff[i], i, expnt[i]);
+       // Add exponential with kmax, coeff, and expnt to list
+       opfulllattice.push_back(SharedPtr< Convolution1D<double> >(new GenericConvolution1D< double,wstFunctor<double> >(funck,wstFunctor<double>(kmax, coeff[i], expnt[i]))));
+     }
+   }
+   printf("creating opsumfull ...\n\n");
+   SeparatedConvolution<double,3> opsumfull(world, funck, opfulllattice);
+   printf("applying opsumfull ...\n\n");
+   Function<double,3> phi_test3 = apply(opsumfull, rho);
+   printf("done applying opsumfull ...\n\n");
 
   /// Point to be tested
   coordT3d point1(0.49);
 
-//   double ptpt1 = phi_test1(point1);
+   double ptpt1 = c * c * c * phi_test1(point1) * phi_test1(point1) * phi_test1(point1) * pow(WST_PI/w, 1.5);
 //   double ptpt2 = phi_test2(point1);
-//   double ptptx = phi_testx(point1);
-//   double ptpt3 = phi_test3(point1);
-//   if (world.rank() == 0) printf("ptpt1 = %.8e\n\n", ptpt1);
+   double ptptx = phi_testx(point1);
+   double ptpt3 = phi_test3(point1);
+//  for (int i=0; i<101; i++) {
+//    coordT3d p(-0.5 + i*0.01);
+//    printf("%.2f  %.8f\n", p[0], phi_testx(p));
+//  }
+   if (world.rank() == 0) printf("\n\n");
+   //if (world.rank() == 0) printf("ptpt1 = %.8e\n\n", ptpt1);
 //   if (world.rank() == 0) printf("ptpt2 = %.8e\n\n", ptpt2);
-//   if (world.rank() == 0) printf("ptptx = %.8e\n\n", ptptx);
-  for (int i=0; i<101; i++) {
-    coordT3d p(-0.5 + i*0.01);
-    printf("%.2f  %.8f\n", p[0], phi_testx(p));
-  }
-//   if (world.rank() == 0) printf("ptpt3 = %.8e\n\n", ptpt3);
+   if (world.rank() == 0) printf("ptptx = %.8e\n\n", ptptx);
+   if (world.rank() == 0) printf("ptpt3 = %.8e\n\n", ptpt3);
 
   MPI::Finalize();
 }
