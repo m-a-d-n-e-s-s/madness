@@ -871,6 +871,7 @@ namespace madness {
                 op.ops[d] = ops[mu]->nonstandard(n, disp[d]);
             }
 
+            op.norm = munorm2(n, op.ops);
 //             double newnorm = munorm2(n, op.ops);
 //             // This rescaling empirically based upon BSH separated expansion
 //             // ... needs more testing.  OK also for TDSE.
@@ -879,11 +880,10 @@ namespace madness {
 //                 if (disp[d] == 0) newnorm *= 0.5;
 //                 else if (std::abs(disp[d]) == 1) newnorm *= 0.8;
 //             }
-            double oldnorm = munorm(n, op.ops);
+//            double oldnorm = munorm(n, op.ops);
 //             if (oldnorm > 1e-13 && (newnorm < 0.5*oldnorm || newnorm > 2.0*oldnorm) )
 //                 print("munorm", n, disp, mu, newnorm, oldnorm, newnorm/oldnorm);
-
-            op.norm = oldnorm;
+//            op.norm = oldnorm;
 
             return op;
         }

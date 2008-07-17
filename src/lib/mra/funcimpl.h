@@ -1631,7 +1631,7 @@ namespace madness {
         template <typename opT, typename R>
         Void do_apply(const opT* op, const FunctionImpl<R,NDIM>* f, const keyT& key, const Tensor<R>& c) {
             PROFILE_MEMBER_FUNC(FunctionImpl);
-            double fac = 10.0; //////////////////////////// was 3.0
+            double fac = 3.0; // 10.0 seems good for qmprop
             double cnorm = c.normf();
             for (typename std::vector< Displacement<NDIM> >::const_iterator it=cdata.disp.begin(); 
                  it != cdata.disp.end(); 
