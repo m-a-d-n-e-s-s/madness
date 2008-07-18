@@ -435,7 +435,7 @@ void test_hf_be(World& world)
   kpoints[0] = gammapt;
   DFT<double> dftcalc(world, Vnuc, phis, eigs, kpoints, thresh);
   if (world.rank() == 0) cout << "Running DFT object..." << endl;
-  dftcalc.solve(20);
+  dftcalc.solve(31);
   //hf.hartree_fock(20);
 //  double ke = 2.0 * hf.calculate_tot_ke_sp();
 //  double pe = 2.0 * hf.calculate_tot_pe_sp();
