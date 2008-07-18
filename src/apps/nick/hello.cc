@@ -1,5 +1,5 @@
 /// hello.cc
-/// compute the 3D integral over r
+/// We are projecting a time evolved wave function onto some bound states
 
 #include <mra/mra.h>
 #include <complex>
@@ -10,32 +10,60 @@ using std::ofstream;
 
 using namespace madness;
 
-const string prefix = "hello";
+const int nIOProcessors =1;
+const string prefix = "data";
 typedef std::complex<double> complexd;
 typedef Function<complexd,NDIM> complex_functionT;
 
+const char* wave_function_filename(int step);
+bool wave_function_exists(World& world, int step);
 void wave_function_store(World& world, int step, const complex_functionT& psi);
 complex_functionT wave_function_load(World& world, int step);
-const char* wave_function_filename(int step);
 
-void wave_function_store(World& world, int step, const complex_functionT& psi) {
-	int nIOProcessors =1;
-    ParallelOutputArchive ar(world, wave_function_filename(step), nIOProcessors);
-    ar & psi;
-}
 
 const char* wave_function_filename(int step) {
-    static char fname[1024];
-    sprintf(fname, "%s-%5.5d", prefix.c_str(), step);
-    return fname;
+  static char fname[1024];
+  sprintf(fname, "%s-%5.5d", prefix.c_str(), step);
+  return fname;
+}
+
+bool wave_function_exists(World& world, int step) {
+  return ParallelInputArchive::exists(world, wave_function_filename(step));
+}
+
+void wave_function_store(World& world, int step, const complex_functionT& psi) {
+  ParallelOutputArchive ar(world, wave_function_filename(step), nIOProcessors);
+  ar & psi;
 }
 
 complex_functionT wave_function_load(World& world, int step) {
-    complex_functionT psi;
-    ParallelInputArchive ar(world, wave_function_filename(step));
-    ar & psi;
-    return psi;
+  complex_functionT psi;
+  ParallelInputArchive ar(world, wave_function_filename(step));
+  ar & psi;
+  return psi;
 }
+
+
+void doWork(World& world) { 
+  printf("Creating three basis functions");
+  Function<complexd,NDIM> psi100 = FunctionFactory<complexd,NDIM>(world).
+    functor(functorT( new BoundWF(1.0, 1.0, 1,0,0)));
+  Function<complexd,NDIM> psi200 = FunctionFactory<complexd,NDIM>(world).
+    functor(functorT( new BoundWF(1.0, 1.0, 2,0,0)));
+  Function<complexd,NDIM> psi210 = FunctionFactory<complexd,NDIM>(world).
+    functor(functorT( new BoundWF(1.0, 1.0, 2,1,0)));
+
+  int step = 0;
+  printf("Testing our capacity to load a wave function from disk");
+  Function<complexd, NDIM> loadedFunc = wave_function_load(world, step);
+  
+  if(wave_function_exists(world,step)) {
+      cout << "<data|100> =  " << loadedFunc.inner(psi100) << endl;
+      cout << "<data|200> =  " << loadedFunc.inner(psi200) << endl;
+      cout << "<data|210> =  " << loadedFunc.inner(psi210) << endl;
+    } else cout << "LoadedFunc doesn't exist" << endl;
+}
+
 
 int main(int argc, char**argv) {
   // Initialize the parallel programming environment
@@ -46,18 +74,38 @@ int main(int argc, char**argv) {
   startup(world,argc,argv);
   
   // Setup defaults for numerical functions
-  FunctionDefaults<NDIM>::set_k(12);             // Wavelet order
+  FunctionDefaults<NDIM>::set_k(16);             // Wavelet order
   FunctionDefaults<NDIM>::set_thresh(1e-2);       // Accuracy
   FunctionDefaults<NDIM>::set_cubic_cell(-20.0, 20.0);
 
-  // Testing our capacity to load a wave function
-  Function<complexd,NDIM> psi200 = FunctionFactory<complexd,NDIM>(world).
-	  functor(functorT( new BoundWF(1.0, 1.0, 2,0,0)));
-  wave_function_store(world, 1, psi200);
-  Function<complexd, NDIM> loadedFunc = wave_function_load(world, 1);
-  cout << "We are dotting the wave function with itself " 
-	  << psi200.inner(loadedFunc) << endl;
-  
-    MPI::Finalize();				//FLAG
+
+  try {
+    doWork(world);
+  } catch (const MPI::Exception& e) {
+    //print(e);
+    error("caught an MPI exception");
+  } catch (const madness::MadnessException& e) {
+    print(e);
+    error("caught a MADNESS exception");
+  } catch (const madness::TensorException& e) {
+    print(e);
+    error("caught a Tensor exception");
+  } catch (const char* s) {
+    print(s);
+    error("caught a c-string exception");
+  } catch (char* s) {
+    print(s);
+    error("caught a c-string exception");
+  } catch (const std::string& s) {
+    print(s);
+    error("caught a string (class) exception");
+  } catch (const std::exception& e) {
+    print(e.what());
+    error("caught an STL exception");
+  } catch (...) {
+    error("caught unhandled exception");
+  }
+
+  MPI::Finalize();				//FLAG
   return 0;
 }
