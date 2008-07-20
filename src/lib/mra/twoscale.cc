@@ -54,17 +54,10 @@ using std::abs;
 
 namespace madness {
 
-    static const int kmax = 34;
+    static const int kmax = 60;
     static const char *twoscale_filename = "coeffs";  // Will be overridden by load_coeffs
     static const char *autocorr_filename = "autocorr";  // Will be overriden by load_coeff
 
-
-
-
-
-    static const double cksum[] = {
-                                      1.57015282218922890,1.48602374574943450
-                                  };
 
     static class twoscale_cache_class {
         /// This caches the two-scale coefficients
@@ -78,28 +71,6 @@ namespace madness {
 
     static bool loaded = 0;
 
-    static void checksum(int kmax, double *s0, double *s1) {
-        double sum0=0, sum1=0;
-        for (int k=1; k<=kmax; k++) {
-            const Tensor<double>& h0 = cache[k].h0;
-            const Tensor<double>& h1 = cache[k].h1;
-            const Tensor<double>& g0 = cache[k].g0;
-            const Tensor<double>& g1 = cache[k].g1;
-            for (int i=0; i<k; i++) {
-                for (int j=0; j<k; j++) {
-                    double ij = double(j+k)/(i+k);
-                    sum0 += ij*(std::abs(h0(i,j)) + std::abs(h1(i,j)) +
-                                std::abs(g0(i,j)) + std::abs(g1(i,j)));
-                    sum1 += ij*(h0(i,j) + h1(i,j) +
-                                g0(i,j) + g1(i,j));
-                    while (sum0 > 2.0) sum0 *= 0.25;
-                    while (std::abs(sum1) > 2.0) sum1 *= 0.25;
-                }
-            }
-        }
-        *s0 = sum0;
-        *s1 = sum1;
-    }
 
     static Tensor<double> readmat(int k, FILE* file) {
         Tensor<double> a(k,k);
@@ -121,6 +92,9 @@ namespace madness {
     }
 
     static bool read_twoscale(int kmax) {
+        unsigned long correct = 6931979l;
+        unsigned long computed = checksum_file(twoscale_filename);
+        MADNESS_ASSERT(correct == computed);
         FILE* file = fopen(twoscale_filename,"r");
         if (!file) {
             cout << "twoscale: failed opening file with twoscale coefficients\n";
@@ -152,18 +126,6 @@ namespace madness {
             cache[k].g1 = g1;
         }
         fclose(file);
-
-        double sum0, sum1;
-        checksum(kmax,&sum0,&sum1);
-        if (std::abs(cksum[0]-sum0) > 1e-14 || std::abs(cksum[1]-sum1) > 3e-14) {
-            cout.setf(ios::scientific);
-            cout.precision(17);
-            cout.width(30);
-            cout << cksum[0] << " " << cksum[1] << endl;
-            cout << sum0 << " " << sum1 << endl;
-            return false;
-        }
-        //cout << "\ntwoscale: read valid twoscale coeffients from disk\n";
 
         loaded = true;
         return true;

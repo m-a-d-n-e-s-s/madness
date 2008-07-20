@@ -12,11 +12,11 @@
 namespace madness {
     template <typename T, int NDIM> class FunctionImpl;
 
-    /// The maximum wavelet order presently supported (up to 31 should work)
-    static const int MAXK = 20;
+    /// The maximum wavelet order presently supported
+    static const int MAXK = 30;
 
     /// The maximum depth of refinement possible
-    static const int MAXLEVEL = 8*sizeof(Translation)-1;
+    static const int MAXLEVEL = 8*sizeof(Translation)-2;
 
     /// FunctionDefaults holds default paramaters as static class members
 

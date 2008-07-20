@@ -254,7 +254,7 @@ void test_conv(World& world) {
 
     FunctionDefaults<NDIM>::set_cubic_cell(-10,10);
 
-    for (int k=1; k<=15; k+=2) {
+    for (int k=2; k<=30; k+=2) {
 	if (world.rank() == 0) printf("k=%d\n", k);
 	int ntop = 5;
 	if (NDIM > 2 && k>5) ntop = 4;
@@ -846,12 +846,12 @@ void test_qm(World& world) {
     // k=16, thresh=1e-12, gives 3e-10 forever with tstep=5x! BUT only 
     // if applying also on the leaf nodes (which is not on by default)
 
-    int k = 16;
-    double thresh = 1e-12;
+    int k = 8;
+    double thresh = 1e-4;
     FunctionDefaults<1>::set_k(k);
     FunctionDefaults<1>::set_thresh(thresh);
     FunctionDefaults<1>::set_refine(true);
-    FunctionDefaults<1>::set_initial_level(3);
+    FunctionDefaults<1>::set_initial_level(5);
     FunctionDefaults<1>::set_cubic_cell(-600,800);
     FunctionDefaults<1>::set_truncate_mode(1);
     double width = FunctionDefaults<1>::get_cell_width()(0L);
@@ -893,7 +893,13 @@ void test_qm(World& world) {
         double err = psi.err(QMtest(a,v,tstep*i));
         if (world.rank() == 0)
             printf("%6d  %7.3f  %10.8f  %9.1e\n",i, i*tstep, norm, err);
-        psi = apply(G,psi);
+
+        psi.set_thresh(thresh*1e-2);
+        FunctionDefaults<1>::set_thresh(thresh*1e-2);
+          psi = apply(G,psi);
+        psi.set_thresh(thresh);
+        FunctionDefaults<1>::set_thresh(thresh);
+
         psi.truncate();
     }
 
