@@ -1164,7 +1164,7 @@ namespace madness {
                                                    const std::vector<long>& npt) const {
         PROFILE_MEMBER_FUNC(FunctionImpl);
         Tensor<T> r(NDIM, &npt[0]);
-//         r(___) = 99.0;
+        //         r(___) = 99.0;
         MADNESS_ASSERT(!compressed);
 
         coordT h; // Increment between points in each dimension
@@ -1209,8 +1209,8 @@ namespace madness {
                     }
                     else {
                         // Restrict to plot range
-                        boxlo[d] = std::max(boxlo[d],plotlo[d]);
-                        boxhi[d] = std::min(boxhi[d],plothi[d]);
+//                         boxlo[d] = std::max(boxlo[d],plotlo[d]);
+//                         boxhi[d] = std::min(boxhi[d],plothi[d]);
                         
                         // Round lo up to next plot point; round hi down
                         double xlo = long((boxlo[d]-plotlo[d])/h[d])*h[d] + plotlo[d];
@@ -1246,13 +1246,13 @@ namespace madness {
                             MADNESS_ASSERT(ind[d]>=0 && ind[d]<npt[d]); // sanity
                         }
                         r(ind) = eval_cube(n, x, coeff);
-                        //print("computing", p, x, ind);
+                        //print("computing", n, x, ind, r(ind));
                     }                        
                 }
             }
         }
 
-//         ITERATOR(r, if (r(IND) == 99.0) {print("BAD", IND); error("bad",0);});
+        //        ITERATOR(r, if (r(IND) == 99.0) {print("BAD", IND); error("bad",0);});
 
         return r;
     }

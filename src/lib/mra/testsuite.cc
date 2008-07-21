@@ -950,12 +950,15 @@ void test_plot(World& world) {
     vector<long> npt(NDIM,101);
     Tensor<T> r = f.eval_cube(FunctionDefaults<NDIM>::get_cell(), npt);
     if (world.rank() == 0) {
-        const double h = 2.0*L/(npt[0]-1.0);
+        const double h = (2.0*L - 12e-13)/(npt[0]-1.0);
         for (int i=0; i<npt[0]; i++) {
-            double x = -L + i*h;
+            double x = -L + i*h + 2e-13;
             T fplot = r(vector<long>(NDIM,i));
             T fnum  = f(coordT(x));
             CHECK(fplot-fnum,1e-12,"plot-eval");
+            if (world.rank() == 0 && std::abs(fplot-fnum) > 1e-12) {
+                print("bad", i, coordT(x), fplot, fnum);
+            }
         }
     }
     world.gop.fence();

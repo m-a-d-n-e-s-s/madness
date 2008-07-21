@@ -296,7 +296,7 @@ namespace madness {
         /// on the size of the cube that is possible).
         Tensor<T> eval_cube(const Tensor<double>& cell, const vector<long>& npt) const {
             PROFILE_MEMBER_FUNC(Function);
-            const double eps=1e-13;
+            const double eps=1e-14;
             verify();
             reconstruct();
             coordT simlo, simhi;
@@ -313,9 +313,10 @@ namespace madness {
                 MADNESS_ASSERT(simhi[d] >= simlo[d]);
                 MADNESS_ASSERT(simlo[d] >= 0.0);
                 MADNESS_ASSERT(simhi[d] <= 1.0);
-
-                simlo[d] += eps;
-                simhi[d] -= eps;
+                
+                double delta = eps*simhi[d];
+                simlo[d] += delta;
+                simhi[d] -= 2*delta;  // deliberate asymmetry
             }
             //madness::print("plotbox in sim", simlo, simhi);
             Tensor<T> r = impl->eval_plot_cube(simlo, simhi, npt);
