@@ -416,7 +416,7 @@ namespace madness {
 
         /// Returns an empty tensor if there are no coefficients.
         Tensor<T>& coeff() {
-            MADNESS_ASSERT(_coeffs.dim[0]<=34 && _coeffs.dim[0]>=0);
+            MADNESS_ASSERT(_coeffs.dim[0]<=2*MAXK && _coeffs.dim[0]>=0);
             return _coeffs;}
 
         /// Returns a const reference to the tensor containing the coeffs
@@ -449,7 +449,7 @@ namespace madness {
         /// Takes a \em shallow copy of the coeff --- same as \c this->coeff()=coeff
         void set_coeff(const Tensor<T>& coeff) {
             _coeffs = coeff;
-            MADNESS_ASSERT(coeff.dim[0]<=34 && coeff.dim[0]>=0);
+            MADNESS_ASSERT(coeff.dim[0]<=2*MAXK && coeff.dim[0]>=0);
         }
 
         /// Clears the coefficients (has_coeff() will subsequently return false)
@@ -807,7 +807,7 @@ namespace madness {
                 dim[d+NDIM] = cdata.k;
             }
 
-            tensorT r(NDIM,dim);
+            tensorT r(2*NDIM,dim);
 
             ProcessID me = world.rank();
             Vector<long,NDIM> t(1l<<n);

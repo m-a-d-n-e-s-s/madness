@@ -127,8 +127,8 @@ namespace madness {
     template <typename T, int NDIM>
     Function<T,NDIM>
     project(const Function<T,NDIM>& other,
-            int k=FunctionDefaults<NDIM>::k,
-            double thresh=FunctionDefaults<NDIM>::thresh,
+            int k=FunctionDefaults<NDIM>::get_k(),
+            double thresh=FunctionDefaults<NDIM>::get_thresh(),
             bool fence=true);
 
     template <typename T, int NDIM>
@@ -627,6 +627,12 @@ namespace madness {
             if (is_compressed()) reconstruct();
             impl->refine(fence);
         }
+
+	/// Get the scaling function coeffs at level n starting from NS form
+	Tensor<T> coeffs_for_jun(Level n) {
+	    nonstandard(true,true);
+	    return impl->coeffs_for_jun(n);
+	}
 
         /// Clears the function as if constructed uninitialized.  Optional fence.
 
