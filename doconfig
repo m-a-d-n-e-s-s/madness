@@ -25,7 +25,7 @@ values=()
 
 # contains source item --- returns true if source contains substring item
 function contains() {
-    echo "$1" | grep -qi "$2"
+    echo "$1" | egrep -qi "$2"
 }
 
 # get_index name --- sets parameter index to the index of name in names
@@ -103,7 +103,7 @@ function error() {
 
 # isgcc compiler --- Returns true if the compiler is GCC
 function isgcc() {
-    contains "`$1 --version 2>&1`" "gcc"
+    contains "`$1 --version 2>&1`" "gcc|gnu|g++"
 }
 
 # ispathscale compiler --- Returns true if the compiler is pathscale
@@ -630,6 +630,7 @@ if [ "$CXXFLAGS" = "" ] ; then
             fi
         fi
     else
+        echo "WHAT COMPILER ARE YOU USING ????????"
         if [ "$MAD_DEBUG" = "1" ] ; then
            OPT="-g -O0"
         else
