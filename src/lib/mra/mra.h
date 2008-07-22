@@ -496,7 +496,7 @@ namespace madness {
 	}
 
 	/// Returns the world
-	World& world() {
+	World& world() const {
 	  verify();
 	  return  impl->world;
 	}
@@ -1308,6 +1308,107 @@ namespace madness {
                 const Tensor<double>& cell,
                 const std::vector<long>& npt,
                 bool binary=true);
+
+
+    static inline void plot_line_print_value(FILE* f, double_complex v) {
+        fprintf(f, "    %.6e %.6e   ", real(v), imag(v));
+    }
+
+    static inline void plot_line_print_value(FILE* f, double v) {
+        fprintf(f, " %.6e", v);
+    }
+
+
+    /// Generates ASCI file tabulating f(r) at npoints along line r=lo,...,hi
+
+    /// The ordinate is distance from lo
+    template <typename T, int NDIM>
+    void plot_line(const char* filename, int npt, const Vector<double,NDIM>& lo, const Vector<double,NDIM>& hi, 
+                   const Function<T,NDIM>& f) {
+        typedef Vector<double,NDIM> coordT;
+        coordT h = (hi - lo)*(1.0/(npt-1));
+        
+        double sum = 0.0;
+        for (int i=0; i<NDIM; i++) sum += h[i]*h[i];
+        sum = sqrt(sum);
+        
+        World& world = f.world();
+        f.reconstruct();
+        if (world.rank() == 0) {
+            FILE* file = fopen(filename,"w");
+            for (int i=0; i<npt; i++) {
+                coordT r = lo + h*double(i);
+                fprintf(file, "%.6e ", i*sum);
+                plot_line_print_value(file, f(r));
+                fprintf(file,"\n");
+            }
+            fclose(file);
+        }
+        world.gop.fence();
+    }
+
+    /// Generates ASCI file tabulating f(r) and g(r) at npoints along line r=lo,...,hi
+
+    /// The ordinate is distance from lo
+    template <typename T, typename U, int NDIM>
+    void plot_line(const char* filename, int npt, const Vector<double,NDIM>& lo, const Vector<double,NDIM>& hi, 
+                   const Function<T,NDIM>& f, const Function<U,NDIM>& g) {
+        typedef Vector<double,NDIM> coordT;
+        coordT h = (hi - lo)*(1.0/(npt-1));
+        
+        double sum = 0.0;
+        for (int i=0; i<NDIM; i++) sum += h[i]*h[i];
+        sum = sqrt(sum);
+        
+        World& world = f.world();
+        f.reconstruct();
+        g.reconstruct();
+        if (world.rank() == 0) {
+            FILE* file = fopen(filename,"w");
+            for (int i=0; i<npt; i++) {
+                coordT r = lo + h*double(i);
+                fprintf(file, "%.6e ", i*sum);
+                plot_line_print_value(file, f(r));
+                plot_line_print_value(file, g(r));
+                fprintf(file,"\n");
+            }
+            fclose(file);
+        }
+        world.gop.fence();
+    }
+
+
+    /// Generates ASCI file tabulating f(r), g(r), and a(r) at npoints along line r=lo,...,hi
+
+    /// The ordinate is distance from lo
+    template <typename T, typename U, typename V, int NDIM>
+    void plot_line(const char* filename, int npt, const Vector<double,NDIM>& lo, const Vector<double,NDIM>& hi, 
+                   const Function<T,NDIM>& f, const Function<U,NDIM>& g, const Function<V,NDIM>& a) {
+        typedef Vector<double,NDIM> coordT;
+        coordT h = (hi - lo)*(1.0/(npt-1));
+        
+        double sum = 0.0;
+        for (int i=0; i<NDIM; i++) sum += h[i]*h[i];
+        sum = sqrt(sum);
+        
+        World& world = f.world();
+        f.reconstruct();
+        g.reconstruct();
+        a.reconstruct();
+        if (world.rank() == 0) {
+            FILE* file = fopen(filename,"w");
+            for (int i=0; i<npt; i++) {
+                coordT r = lo + h*double(i);
+                fprintf(file, "%.6e ", i*sum);
+                plot_line_print_value(file, f(r));
+                plot_line_print_value(file, g(r));
+                plot_line_print_value(file, a(r));
+                fprintf(file,"\n");
+            }
+            fclose(file);
+        }
+        world.gop.fence();
+    }
 
 
     namespace archive {

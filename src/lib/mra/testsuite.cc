@@ -966,6 +966,10 @@ void test_plot(World& world) {
     r = Tensor<T>();
     plotdx(f, "testplot", FunctionDefaults<NDIM>::get_cell(), npt);
 
+    plot_line("testline1", 101, coordT(-L), coordT(L), f);
+    plot_line("testline2", 101, coordT(-L), coordT(L), f, f*f);
+    plot_line("testline3", 101, coordT(-L), coordT(L), f, f*f, 2.0*f);
+
     if (world.rank() == 0) print("evaluation of cube/slice for plotting OK");
 }
 

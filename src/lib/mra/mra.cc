@@ -1346,7 +1346,6 @@ namespace madness {
         world.gop.fence(); 
     }
 
-
     template <int NDIM>
     void FunctionDefaults<NDIM>::set_defaults (World& world) {
             k = 7;
