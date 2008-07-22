@@ -112,7 +112,6 @@ namespace madness {
         return s;
     }
 
-
     /// FunctionCommonData holds all Function data common for given k
 
     /// Since Function assignment and copy constructors are shallow it
@@ -1661,12 +1660,25 @@ namespace madness {
             PROFILE_MEMBER_FUNC(FunctionImpl);
             double fac = 3.0; // 10.0 seems good for qmprop
             double cnorm = c.normf();
+            const long lmax = 1L << (key.level()-1);
             for (typename std::vector< Displacement<NDIM> >::const_iterator it=cdata.disp.begin();
                  it != cdata.disp.end();
                  ++it) {
                 const Displacement<NDIM>& d = *it;
 
                 keyT dest = neighbor(key, d);
+
+                // For periodic directions restrict translations to be no more than
+                // half of the unit cell to avoid double counting.
+                bool doit = true;
+                for (int i=0; i<NDIM; i++) {
+                    if (bc(i,0) == 1) {
+                        if (d[i] > lmax || d[i] <= -lmax) doit = false;
+                        break;
+                    }
+                }
+                if (!doit) break;
+
                 if (dest.is_valid()) {
                     double opnorm = op->norm(key.level(), d);
                     // working assumption here is that the operator is isotropic and
