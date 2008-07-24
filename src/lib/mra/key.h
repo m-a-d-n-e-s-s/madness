@@ -237,6 +237,15 @@ namespace madness {
 
     };
 
+
+    template <int NDIM>
+    struct KeyHash {
+        std::size_t operator()(const Key<NDIM>& t) const {
+            return t.hash();
+        }
+    };
+
+
     template <int NDIM>
     std::ostream& operator<<(std::ostream& s, const Key<NDIM>& key) {
         s << "(" << key.level() << "," << key.translation() << ")";

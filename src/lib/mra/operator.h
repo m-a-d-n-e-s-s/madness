@@ -78,35 +78,23 @@ namespace madness {
 //     extern void bsh_fit_mod(double mu, double lo, double hi, double eps, 
 //                             Tensor<double> *pcoeff, Tensor<double> *pexpnt, bool prnt=false);
 
-    /// Simplified interface around hash_map to cache stuff
+
+    /// Simplified interface around hash_map to cache stuff for 1D
 
     /// Since insertions into STL containers have the nasty habit of
     /// invalidating iterators we actually store shared pointers
-    template <typename Q>
+    template <typename Q, int NDIM>
     class SimpleCache {
     private:
-        typedef HASH_MAP_NAMESPACE::hash_map< unsigned long, SharedPtr<Q> > mapT;
-        typedef std::pair< unsigned long, SharedPtr<Q> > pairT;
+        typedef HASH_MAP_NAMESPACE::hash_map< Key<NDIM>, SharedPtr<Q> , KeyHash<NDIM> > mapT;
+        typedef std::pair< Key<NDIM>, SharedPtr<Q> > pairT;
         mapT cache;
-        
-        // Turns (n,lx) into key
-        inline unsigned long key(Level n, long lx) const {
-            return (n<<25) | (lx+16777216);
-        }
-        
-        // Turns (n,displacement) into key
-        template <int NDIM>
-        inline unsigned long key(Level n, const Key<NDIM>& d) const {
-            MADNESS_ASSERT((6+NDIM*4) <= sizeof(unsigned long)*8);
-            unsigned long k = n<<2;
-            for (int i=0; i<NDIM; i++) k = (k<<4) | (d.translation()[i]+7);
-            return k;
-        }
         
     public:
         SimpleCache() : cache() {};
         
         SimpleCache(const SimpleCache& c) : cache(c.cache) {};
+
         SimpleCache& operator=(const SimpleCache& c) {
             if (this != &c) {
                 cache.clear();
@@ -115,21 +103,48 @@ namespace madness {
             return *this;
         }
         
-        /// If (n,index) is present return pointer to cached value, otherwise return NULL
-        template <typename indexT>
-        inline const Q* getptr(Level n,  const indexT& index) const {
-            typename mapT::const_iterator test = cache.find(key(n,index));
+        /// If key is present return pointer to cached value, otherwise return NULL
+        inline const Q* getptr(const Key<NDIM>& key) const {
+            typename mapT::const_iterator test = cache.find(key);
             if (test == cache.end()) return 0;
             return test->second.get();
         }
         
 
-        /// Set value associated with (n,index)
-        template <typename indexT>
-        inline void set(Level n, const indexT& index, const Q& val) {
-            cache.insert(pairT(key(n,index),SharedPtr<Q>(new Q(val))));
+        /// If key=(n,l) is present return pointer to cached value, otherwise return NULL
+
+        /// This for the convenience (backward compatibility) of 1D routines
+        inline const Q* getptr(int n, Translation l) const {
+            Key<NDIM> key(n,Vector<Translation,NDIM>(l));
+            return getptr(key);
+        }
+        
+
+        /// If key=(n,l) is present return pointer to cached value, otherwise return NULL
+
+        /// This for the convenience (backward compatibility) of 1D routines
+        inline const Q* getptr(int n, const Key<NDIM>& disp) const {
+            Key<NDIM> key(n,disp.translation());
+            return getptr(key);
+        }
+        
+
+        /// Set value associated with key ... gives ownership of a new copy to the container
+        inline void set(const Key<NDIM>& key, const Q& val) {
+            cache.insert(pairT(key,SharedPtr<Q>(new Q(val))));
+        }
+
+        inline void set(int n, Translation l, const Q& val) {
+            Key<NDIM> key(n,Vector<Translation,NDIM>(l));
+            set(key, val);
+        }
+
+        inline void set(int n, const Key<NDIM>& disp, const Q& val) {
+            Key<NDIM> key(n,disp.translation());
+            set(key, val);
         }
     };
+
 
     template <typename Q>
     struct ConvolutionData1D {
@@ -174,7 +189,6 @@ namespace madness {
         }
     };
 
-
     /// Provides the common functionality/interface of all 1D convolutions
 
     /// Derived classes must implement rnlp, issmall, natural_level
@@ -190,9 +204,9 @@ namespace madness {
         Tensor<double> hgT;
         Tensor<double> hgT2k;
 
-        mutable SimpleCache< Tensor<Q> > rnlp_cache;
-        mutable SimpleCache< Tensor<Q> > rnlij_cache;
-        mutable SimpleCache< ConvolutionData1D<Q> > ns_cache;
+        mutable SimpleCache<Tensor<Q>, 1> rnlp_cache;
+        mutable SimpleCache<Tensor<Q>, 1> rnlij_cache;
+        mutable SimpleCache<ConvolutionData1D<Q>, 1> ns_cache;
         
         Convolution1D() : k(-1), npt(0), sign(1.0) {}; 
 
@@ -596,7 +610,7 @@ namespace madness {
         mutable Tensor<Q> work5;
         const std::vector<Slice> s0;
         mutable std::vector< SharedPtr< Convolution1D<Q> > > ops;
-        mutable SimpleCache< SeparatedConvolutionData<Q,NDIM> > data;
+        mutable SimpleCache< SeparatedConvolutionData<Q,NDIM>, NDIM > data;
         mutable double nflop[64];
 
         struct Transformation {

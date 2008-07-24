@@ -1706,3 +1706,57 @@ namespace madness {
         return s;
     }
 
+
+
+    /// Simplified interface around hash_map to cache stuff
+
+    /// Since insertions into STL containers have the nasty habit of
+    /// invalidating iterators we actually store shared pointers
+    template <typename Q>
+    class SimpleCache {
+    private:
+        typedef HASH_MAP_NAMESPACE::hash_map< unsigned long, SharedPtr<Q> > mapT;
+        typedef std::pair< unsigned long, SharedPtr<Q> > pairT;
+        mapT cache;
+        
+        // Turns (n,lx) into key
+        inline unsigned long key(Level n, long lx) const {
+            return (n<<25) | (lx+16777216);
+        }
+        
+        // Turns (n,displacement) into key
+        template <int NDIM>
+        inline unsigned long key(Level n, const Key<NDIM>& d) const {
+            MADNESS_ASSERT((6+NDIM*4) <= sizeof(unsigned long)*8);
+            unsigned long k = n<<2;
+            for (int i=0; i<NDIM; i++) k = (k<<4) | (d.translation()[i]+7);
+            return k;
+        }
+        
+    public:
+        SimpleCache() : cache() {};
+        
+        SimpleCache(const SimpleCache& c) : cache(c.cache) {};
+        SimpleCache& operator=(const SimpleCache& c) {
+            if (this != &c) {
+                cache.clear();
+                cache = c.cache;
+            }
+            return *this;
+        }
+        
+        /// If (n,index) is present return pointer to cached value, otherwise return NULL
+        template <typename indexT>
+        inline const Q* getptr(Level n,  const indexT& index) const {
+            typename mapT::const_iterator test = cache.find(key(n,index));
+            if (test == cache.end()) return 0;
+            return test->second.get();
+        }
+        
+
+        /// Set value associated with (n,index)
+        template <typename indexT>
+        inline void set(Level n, const indexT& index, const Q& val) {
+            cache.insert(pairT(key(n,index),SharedPtr<Q>(new Q(val))));
+        }
+    };
