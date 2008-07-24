@@ -114,7 +114,7 @@ namespace madness {
         /// If key=(n,l) is present return pointer to cached value, otherwise return NULL
 
         /// This for the convenience (backward compatibility) of 1D routines
-        inline const Q* getptr(int n, Translation l) const {
+        inline const Q* getptr(Level n, Translation l) const {
             Key<NDIM> key(n,Vector<Translation,NDIM>(l));
             return getptr(key);
         }
@@ -123,7 +123,7 @@ namespace madness {
         /// If key=(n,l) is present return pointer to cached value, otherwise return NULL
 
         /// This for the convenience (backward compatibility) of 1D routines
-        inline const Q* getptr(int n, const Key<NDIM>& disp) const {
+        inline const Q* getptr(Level n, const Key<NDIM>& disp) const {
             Key<NDIM> key(n,disp.translation());
             return getptr(key);
         }
@@ -134,12 +134,12 @@ namespace madness {
             cache.insert(pairT(key,SharedPtr<Q>(new Q(val))));
         }
 
-        inline void set(int n, Translation l, const Q& val) {
+        inline void set(Level n, Translation l, const Q& val) {
             Key<NDIM> key(n,Vector<Translation,NDIM>(l));
             set(key, val);
         }
 
-        inline void set(int n, const Key<NDIM>& disp, const Q& val) {
+        inline void set(Level n, const Key<NDIM>& disp, const Q& val) {
             Key<NDIM> key(n,disp.translation());
             set(key, val);
         }
@@ -233,10 +233,10 @@ namespace madness {
         }
 
         /// Compute the projection of the operator onto the double order polynomials
-        virtual Tensor<Q> rnlp(long n, long lx) const = 0;
+        virtual Tensor<Q> rnlp(Level n, Translation lx) const = 0;
 
         /// Returns true if the block is expected to be small
-        virtual bool issmall(long n, long lx) const = 0;
+        virtual bool issmall(Level n, Translation lx) const = 0;
 
         /// Returns the level for projection
         virtual Level natural_level() const {return 13;}
@@ -250,7 +250,7 @@ namespace madness {
         /// This is computed from the matrix elements over the correlation
         /// function which in turn are computed from the matrix elements
         /// over the double order legendre polynomials.
-        const Tensor<Q>& rnlij(long n, long lx) const {
+        const Tensor<Q>& rnlij(Level n, Translation lx) const {
             const Tensor<Q>* p=rnlij_cache.getptr(n,lx);
             if (p) return *p;
     
@@ -272,7 +272,7 @@ namespace madness {
         };
 
         /// Returns a pointer to the cached nonstandard form of the operator
-        const ConvolutionData1D<Q>* nonstandard(long n, long lx) const {
+        const ConvolutionData1D<Q>* nonstandard(Level n, Translation lx) const {
             const ConvolutionData1D<Q>* p = ns_cache.getptr(n,lx);
             if (p) return p;
 
@@ -283,7 +283,7 @@ namespace madness {
                 T = Tensor<Q>(k,k);
             }
             else {
-                long lx2 = lx*2;
+                Translation lx2 = lx*2;
                 Slice s0(0,k-1), s1(k,2*k-1);
                 
                 R(s0,s0) = R(s1,s1) = rnlij(n+1,lx2);
@@ -306,7 +306,7 @@ namespace madness {
             return ns_cache.getptr(n,lx);
         };
 
-        const Tensor<Q>& get_rnlp(long n, long lx) const 
+        const Tensor<Q>& get_rnlp(Level n, Translation lx) const 
         {
             const Tensor<Q>* p=rnlp_cache.getptr(n,lx);
             if (p) return *p;
@@ -375,7 +375,7 @@ namespace madness {
 
             Level natl = this->natural_level();
             int nzero = 0;
-            for (long lx=0; lx<(1L<<natl); lx++) {
+            for (Translation lx=0; lx<(1L<<natl); lx++) {
                 const Tensor<Q>& rp = this->get_rnlp(natl, lx);
                 const Tensor<Q>& rm = this->get_rnlp(natl,-lx);
                 if (rp.normf()<1e-12 && rm.normf()<1e-12) nzero++;
@@ -388,11 +388,11 @@ namespace madness {
 
         struct Shmoo {
             typedef Tensor<Q> returnT;
-            int n;
-            long lx;
+            Level n;
+            Translation lx;
             const GenericConvolution1D<Q,opT>& q;
 
-            Shmoo(int n, long lx, const GenericConvolution1D<Q,opT>* q)
+            Shmoo(Level n, Translation lx, const GenericConvolution1D<Q,opT>* q)
                 : n(n), lx(lx), q(*q) {}
 
             returnT operator()(double x) const {
@@ -407,12 +407,12 @@ namespace madness {
             }
         };
 
-        Tensor<Q> rnlp(long n, long lx) const {
+        Tensor<Q> rnlp(Level n, Translation lx) const {
             return adq1(lx, lx+1, Shmoo(n, lx, this), 1e-12, 
                         this->npt, this->quad_x.ptr(), this->quad_w.ptr(), 0);
         }
 
-        bool issmall(long n, long lx) const {
+        bool issmall(Level n, Translation lx) const {
             if (lx < 0) lx = 1 - lx;
             // Always compute contributions to nearest neighbor coupling
             // ... we are two levels below so 0,1 --> 0,1,2,3 --> 0,...,7
@@ -468,6 +468,8 @@ namespace madness {
             : Convolution1D<Q>(k,k+11,sign), coeff(coeff), expnt(expnt)
         {}
 
+        virtual ~GaussianConvolution1D(){}
+
         /// Compute the projection of the operator onto the double order polynomials
         
         /// The returned reference is to a cached tensor ... if you want to
@@ -485,12 +487,12 @@ namespace madness {
         /// \code
         /// beta = alpha * 2^(-2*n) 
         /// \endcode
-        Tensor<Q> rnlp(long n, long lx) const {
+        Tensor<Q> rnlp(Level n, Translation lx) const {
             PROFILE_MEMBER_FUNC(GaussianConvolution1D);
             int twok = 2*this->k;
             Tensor<Q> v(twok);       // Can optimize this away by passing in
             
-            long lkeep = lx;
+            Translation lkeep = lx;
             if (lx<0) lx = -lx-1;
             
             /* Apply high-order Gauss Legendre onto subintervals
@@ -560,9 +562,9 @@ namespace madness {
         };
 
         /// Returns true if the block is expected to be small
-        bool issmall(long n, long lx) const { 
+        bool issmall(Level n, Translation lx) const { 
             double beta = expnt*(pow(0.25,double(n)));
-            long ll;
+            Translation ll;
             if (lx > 0)
                 ll = lx - 1;
             else if (lx < 0)
@@ -573,6 +575,40 @@ namespace madness {
             return (beta*ll*ll > 49.0);      // 49 -> 5e-22     69 -> 1e-30
         };
     };
+
+    /// 1D Periodic Gaussian convolution
+
+    /// r_periodic(n,l) = sum(R=-maxR,+maxR)[r_nonperiodic(n,l+R*2^n)]
+    template <typename Q>
+    class PeriodicGaussianConvolution1D : public Convolution1D<Q> {
+    public:
+        
+        int k;
+        int maxR;
+        GaussianConvolution1D<Q> g;
+
+        PeriodicGaussianConvolution1D(int k, int maxR, Q coeff, double expnt, double sign=1.0)
+            : k(k), maxR(maxR), g(k,coeff,expnt,sign)
+        {}
+
+        virtual ~PeriodicGaussianConvolution1D(){}
+
+        Tensor<Q> rnlp(Level n, Translation lx) const {
+            Translation twon = Translation(1)<<n;
+            Tensor<Q> r(2*k);
+            for (int R=-maxR; R<=maxR; R++) {
+                r += g.get_rnlp(n,R*twon+lx);
+            }
+            return r;
+        }
+
+        bool issmall(Level n, Translation lx) const {
+            return false; // INEFFICIENT BUT GOOD FOR INITIAL CORRECTNESS TESTING
+        }
+
+        Level natural_level() const {return 10;}
+    };
+    
     
 
     template <typename Q, int NDIM>
