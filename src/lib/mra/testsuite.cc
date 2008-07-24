@@ -846,8 +846,8 @@ void test_qm(World& world) {
     // k=16, thresh=1e-12, gives 3e-10 forever with tstep=5x! BUT only 
     // if applying also on the leaf nodes (which is not on by default)
 
-    int k = 8;
-    double thresh = 1e-4;
+    int k = 12;
+    double thresh = 1e-8;
     FunctionDefaults<1>::set_k(k);
     FunctionDefaults<1>::set_thresh(thresh);
     FunctionDefaults<1>::set_refine(true);

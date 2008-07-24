@@ -42,6 +42,7 @@
 #include <mra/power.h>
 #include <world/array.h>
 #include <world/worldhash.h>
+#include <stdint.h>
 
 namespace madness {
 
@@ -52,8 +53,8 @@ namespace madness {
 //         return sum;
 //     }
 
-    typedef unsigned long Translation;
-    typedef long Level;
+    typedef int64_t Translation;
+    typedef int Level;
 
     template <int NDIM> class KeyChildIterator;
 
@@ -190,6 +191,15 @@ namespace madness {
         const Vector<Translation,NDIM>& translation() const {
             return l;
         };
+
+        uint64_t distsq() const {
+            uint64_t dist=0;
+            for (int d=0; d<NDIM; d++) {
+                dist += l[d]*l[d];
+            }
+            return dist;
+        }
+
 
         /// Returns the key of the parent
 

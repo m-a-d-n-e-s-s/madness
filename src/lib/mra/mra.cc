@@ -44,6 +44,13 @@ extern "C" double round(double x);
 
 namespace madness {
 
+    /// For sorting displacements into ascending order by distance
+    template <int NDIM>
+    static bool cmp_keys(const Key<NDIM>& a, const Key<NDIM>& b) {
+        return a.distsq() < b.distsq();
+    }
+
+
     // Definition and initialization of FunctionDefaults static members
     // It cannot be an instance of FunctionFactory since we want to
     // set the defaults independent of the data type.  
@@ -51,7 +58,7 @@ namespace madness {
 
     template <typename T, int NDIM>
     void FunctionCommonData<T,NDIM>::_make_disp() {
-        Vector<int, NDIM> d;
+        Vector<Translation,NDIM> d;
         int bmax;
         if (NDIM == 1) bmax = 7; // !! Make sure that SimpleCache is consistent!!!!
         else if (NDIM == 2) bmax = 7;
@@ -60,30 +67,30 @@ namespace madness {
 
         int num = 1;
         for (int i=0; i<NDIM; i++) num *= (2*bmax + 1);
-        disp = std::vector< Displacement<NDIM> >(num);
+        disp = std::vector< Key<NDIM> >(num);
 
         num = 0;
         if (NDIM == 1) {
             for (d[0]=-bmax; d[0]<=bmax; d[0]++)
-                disp[num++] = Displacement<NDIM>(d);
+                disp[num++] = Key<NDIM>(0,d);
         }
         else if (NDIM == 2) {
             for (d[0]=-bmax; d[0]<=bmax; d[0]++)
                 for (d[1]=-bmax; d[1]<=bmax; d[1]++)
-                    disp[num++] = Displacement<NDIM>(d);
+                    disp[num++] = Key<NDIM>(0,d);
         }
         else if (NDIM == 3) {
             for (d[0]=-bmax; d[0]<=bmax; d[0]++)
                 for (d[1]=-bmax; d[1]<=bmax; d[1]++)
                     for (d[2]=-bmax; d[2]<=bmax; d[2]++)
-                        disp[num++] = Displacement<NDIM>(d);
+                        disp[num++] = Key<NDIM>(0,d);
         }
         else if (NDIM == 4) {
             for (d[0]=-bmax; d[0]<=bmax; d[0]++)
                 for (d[1]=-bmax; d[1]<=bmax; d[1]++)
                     for (d[2]=-bmax; d[2]<=bmax; d[2]++)
                         for (d[3]=-bmax; d[3]<=bmax; d[3]++)
-                            disp[num++] = Displacement<NDIM>(d);
+                            disp[num++] = Key<NDIM>(0,d);
         }
         else if (NDIM == 5) {
             for (d[0]=-bmax; d[0]<=bmax; d[0]++)
@@ -91,7 +98,7 @@ namespace madness {
                     for (d[2]=-bmax; d[2]<=bmax; d[2]++)
                         for (d[3]=-bmax; d[3]<=bmax; d[3]++)
                             for (d[4]=-bmax; d[4]<=bmax; d[4]++)
-                                disp[num++] = Displacement<NDIM>(d);
+                                disp[num++] = Key<NDIM>(0,d);
         }
         else if (NDIM == 6) {
             for (d[0]=-bmax; d[0]<=bmax; d[0]++)
@@ -100,13 +107,13 @@ namespace madness {
                         for (d[3]=-bmax; d[3]<=bmax; d[3]++)
                             for (d[4]=-bmax; d[4]<=bmax; d[4]++)
                                 for (d[5]=-bmax; d[5]<=bmax; d[5]++)
-                                    disp[num++] = Displacement<NDIM>(d);
+                                    disp[num++] = Key<NDIM>(0,d);
         }
         else {
             MADNESS_EXCEPTION("_make_disp: hard dimension loop",NDIM);
         }
 
-        std::sort(disp.begin(), disp.end());
+        std::sort(disp.begin(), disp.end(), cmp_keys<NDIM>);
     }
 
 
@@ -949,72 +956,57 @@ namespace madness {
         if (fence) world.gop.fence();
     }
     
+    static bool enforce_bc(int bc_left, int bc_right, Level n, Translation& l) {
+        Translation two2n = 1ul << n;
+        if (l < 0) {
+            if (bc_left == 0) {
+                return false; // Zero BC
+            }
+            else if (bc_left == 1) {
+                l += two2n; // Periodic BC
+            }
+            else {
+                MADNESS_EXCEPTION("enforce_bc: confused left BC?",bc_left);
+            }
+        }
+        else if (l >= two2n) {
+            if (bc_right == 0) {
+                return false; // Zero BC
+            }
+            else if (bc_right == 1) {
+                l -= two2n; // Periodic BC
+            }
+            else {
+                MADNESS_EXCEPTION("enforce_bc: confused BC right?",bc_left);
+            }
+        }
+        return true;
+    }
+
+
     template <typename T, int NDIM>
     Key<NDIM> FunctionImpl<T,NDIM>::neighbor(const keyT& key, int axis, int step) const {
         Vector<Translation,NDIM> l = key.translation();
-        const Translation two2n = Translation(1)<<key.level();
         
-        // Translation is an unsigned type so need to be careful if results
-        // or intermediates are possibly negative.
-        if (step < 0  &&  l[axis] < (unsigned)(-step)) {
-            if (bc(axis,0) == 0) {
-                return keyT::invalid(); // Zero BC
-            }
-            else if (bc(axis,0) == 1) {
-                l[axis] = (l[axis] + two2n) + step; // Periodic BC
-            }
-            else {
-                MADNESS_EXCEPTION("neighbor: confused left BC?",bc(axis,0));
-            }
-        }
-        else if (l[axis]+step >= two2n) {
-            if (bc(axis,1) == 0) {
-                return keyT::invalid(); // Zero BC
-            }
-            else if (bc(axis,1) == 1) {
-                l[axis] = (l[axis] + step) - two2n; // Periodic BC
-            }
-            else {
-                MADNESS_EXCEPTION("neighbor: confused BC right?",bc(axis,1));
-            }
+        l[axis] += step;
+
+        if (!enforce_bc(bc(axis,0), bc(axis,1), key.level(), l[axis])) {
+            return keyT::invalid();
         }
         else {
-            l[axis] += step;
+            return keyT(key.level(),l);
         }
-        
-        return keyT(key.level(),l);
     }
     
     template <typename T, int NDIM>
-    Key<NDIM> FunctionImpl<T,NDIM>::neighbor(const keyT& key, const Displacement<NDIM>& d) const {
-        Translation two2n = 1ul << key.level();
+    Key<NDIM> FunctionImpl<T,NDIM>::neighbor(const keyT& key, const Key<NDIM>& disp) const {
         Vector<Translation,NDIM> l = key.translation();
+
         for (int axis=0; axis<NDIM; axis++) {
-            int step = d[axis];
-            if (step < 0  &&  l[axis] < (unsigned)(-step)) {
-                if (bc(axis,0) == 0) {
-                    return keyT::invalid(); // Zero BC
-                }
-                else if (bc(axis,0) == 1) {
-                    l[axis] = (l[axis] + two2n) + step; // Periodic BC
-                }
-                else {
-                    MADNESS_EXCEPTION("neighbor: confused left BC?",bc(axis,0));
-                }
-            }
-            else if (l[axis]+step >= two2n) {
-                if (bc(axis,1) == 0) {
-                    return keyT::invalid(); // Zero BC
-                }
-                else if (bc(axis,1) == 1) {
-                    l[axis] = (l[axis] + step) - two2n; // Periodic BC
-                }
-                else {
-                    MADNESS_EXCEPTION("neighbor: confused BC right?",bc(axis,1));
-                }
-            }
-            else {
-                l[axis] += step;
+            l[axis] += disp.translation()[axis];
+
+            if (!enforce_bc(bc(axis,0), bc(axis,1), key.level(), l[axis])) {
+                return keyT::invalid();
             }
         }
         return keyT(key.level(),l);

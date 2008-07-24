@@ -96,10 +96,10 @@ namespace madness {
         
         // Turns (n,displacement) into key
         template <int NDIM>
-        inline unsigned long key(Level n, const Displacement<NDIM>& d) const {
+        inline unsigned long key(Level n, const Key<NDIM>& d) const {
             MADNESS_ASSERT((6+NDIM*4) <= sizeof(unsigned long)*8);
             unsigned long k = n<<2;
-            for (int i=0; i<NDIM; i++) k = (k<<4) | (d[i]+7);
+            for (int i=0; i<NDIM; i++) k = (k<<4) | (d.translation()[i]+7);
             return k;
         }
         
@@ -864,14 +864,16 @@ namespace madness {
         }
 
 
-        const SeparatedConvolutionInternal<Q,NDIM> getmuop(int mu, Level n, const Displacement<NDIM>& disp) const {
+        const SeparatedConvolutionInternal<Q,NDIM> getmuop(int mu, Level n, const Key<NDIM>& disp) const {
             PROFILE_MEMBER_FUNC(SeparatedConvolution);
             SeparatedConvolutionInternal<Q,NDIM> op;
             for (int d=0; d<NDIM; d++) {
-                op.ops[d] = ops[mu]->nonstandard(n, disp[d]);
+                op.ops[d] = ops[mu]->nonstandard(n, disp.translation()[d]);
             }
 
             op.norm = munorm2(n, op.ops);
+            //op.norm = munorm(n, op.ops);
+
 //             double newnorm = munorm2(n, op.ops);
 //             // This rescaling empirically based upon BSH separated expansion
 //             // ... needs more testing.  OK also for TDSE.
@@ -883,14 +885,13 @@ namespace madness {
 //            double oldnorm = munorm(n, op.ops);
 //             if (oldnorm > 1e-13 && (newnorm < 0.5*oldnorm || newnorm > 2.0*oldnorm) )
 //                 print("munorm", n, disp, mu, newnorm, oldnorm, newnorm/oldnorm);
-//            op.norm = oldnorm;
 
             return op;
         }
 
         
         /// Returns pointer to cached operator
-        const SeparatedConvolutionData<Q,NDIM>* getop(Level n, const Displacement<NDIM>& d) const {
+        const SeparatedConvolutionData<Q,NDIM>* getop(Level n, const Key<NDIM>& d) const {
             PROFILE_MEMBER_FUNC(SeparatedConvolution);
             const SeparatedConvolutionData<Q,NDIM>* p = data.getptr(n,d);
             if (p) return p;
@@ -983,13 +984,13 @@ namespace madness {
             return nflop;
         }
 
-        double norm(Level n, const Displacement<NDIM>& d) const {
+        double norm(Level n, const Key<NDIM>& d) const {
             return getop(n, d)->norm;
         }
 
         template <typename T>
         Tensor<TENSOR_RESULT_TYPE(T,Q)> apply(const Key<NDIM>& source,
-                                              const Displacement<NDIM>& shift,
+                                              const Key<NDIM>& shift,
                                               const Tensor<T>& coeff,
                                               double tol) const {
             PROFILE_MEMBER_FUNC(SeparatedConvolution);

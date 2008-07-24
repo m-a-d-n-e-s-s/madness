@@ -83,35 +83,6 @@ namespace madness {
         }
     };
 
-
-    /// Holds info about displacement to neighbor for application of operators
-    template <int NDIM>
-    struct Displacement {
-        Vector<int,NDIM> d;
-        int distsq;
-        Displacement() {};
-        Displacement(const Vector<int, NDIM>& d) : d(d), distsq(0) {
-            for (int i=0; i<NDIM; i++) distsq += d[i]*d[i];
-        }
-
-        bool operator<(const Displacement<NDIM>& other) const {
-            return distsq < other.distsq;
-        }
-
-        int operator[](int i) const {return d[i];}
-
-        template <typename Archive>
-        void serialize(Archive& ar) {
-            ar & d & distsq;
-        }
-    };
-
-    template <int NDIM>
-    std::ostream& operator<<(std::ostream& s, const Displacement<NDIM>& disp) {
-        s << disp.d;
-        return s;
-    }
-
     /// FunctionCommonData holds all Function data common for given k
 
     /// Since Function assignment and copy constructors are shallow it
@@ -205,7 +176,7 @@ namespace madness {
         Tensor<double> rm, r0, rp;        ///< Blocks of the derivative operator
         Tensor<double> rm_left, rm_right, rp_left, rp_right; ///< Rank-1 forms rm & rp
 
-        std::vector< Displacement<NDIM> > disp; ///< Displacements in order of increasing distance
+        std::vector< Key<NDIM> > disp; ///< Displacements in order of increasing distance
 
         static const FunctionCommonData<T,NDIM>& get(int k) {
             MADNESS_ASSERT(k>0 && k<=MAXK);
@@ -1330,7 +1301,7 @@ namespace madness {
         /// Out of volume keys are mapped to enforce the BC as follows.
         ///   * Periodic BC map back into the volume and return the correct key
         ///   * Zero BC - returns invalid() to indicate out of volume
-        keyT neighbor(const keyT& key, const Displacement<NDIM>& d) const;
+        keyT neighbor(const keyT& key, const keyT& disp) const;
 
 
         /// Called by diff to find key and coeffs of neighbor enforcing BC
@@ -1661,10 +1632,10 @@ namespace madness {
             double fac = 3.0; // 10.0 seems good for qmprop
             double cnorm = c.normf();
             const long lmax = 1L << (key.level()-1);
-            for (typename std::vector< Displacement<NDIM> >::const_iterator it=cdata.disp.begin();
+            for (typename std::vector<keyT>::const_iterator it=cdata.disp.begin();
                  it != cdata.disp.end();
                  ++it) {
-                const Displacement<NDIM>& d = *it;
+                const keyT& d = *it;
 
                 keyT dest = neighbor(key, d);
 
@@ -1673,7 +1644,7 @@ namespace madness {
                 bool doit = true;
                 for (int i=0; i<NDIM; i++) {
                     if (bc(i,0) == 1) {
-                        if (d[i] > lmax || d[i] <= -lmax) doit = false;
+                        if (d.translation()[i] > lmax || d.translation()[i] <= -lmax) doit = false;
                         break;
                     }
                 }
@@ -1696,28 +1667,28 @@ namespace madness {
                             //coeffs.send(dest, &nodeT::accumulate, result, coeffs, dest);
                             //madness::print("apply rrrrr       ", key, dest, result.normf());
                             send(coeffs.owner(dest), &implT:: template do_apply_acc<opT,R>, op, f, dest, result);
-                            if (op->dowiden0 && d.distsq == 0) {
-                                // Be sure that all touching neighbors have also applied the operator
-                                for (int axis=0; axis<NDIM; axis++) {
-                                    for (int step=-1; step<=1; step+=2) {
-                                        keyT neigh = neighbor(key, axis, step);
-                                        if (neigh.is_valid()) {
-                                            //madness::print("checking neighbor", key, "-->", neigh);
-                                            send(coeffs.owner(neigh), &implT:: template recur_down_with_apply<opT,R>,
-                                                 op, f, neigh, neigh, Tensor<R>());
-                                        }
-                                    }
-                                }
-                            }
+//                             if (op->dowiden0 && d.distsq() == 0) {
+//                                 // Be sure that all touching neighbors have also applied the operator
+//                                 for (int axis=0; axis<NDIM; axis++) {
+//                                     for (int step=-1; step<=1; step+=2) {
+//                                         keyT neigh = neighbor(key, axis, step);
+//                                         if (neigh.is_valid()) {
+//                                             //madness::print("checking neighbor", key, "-->", neigh);
+//                                             send(coeffs.owner(neigh), &implT:: template recur_down_with_apply<opT,R>,
+//                                                  op, f, neigh, neigh, Tensor<R>());
+//                                         }
+//                                     }
+//                                 }
+//                             }
                         }
-                        else if (d.distsq == 0) {
+                        else if (d.distsq() == 0) {
                             // If there is not a diagonal contribution there
                             // won't be off-diagonal stuff ... REALLY?????
                             break;
                         }
 
                     }
-                    else if (d.distsq >= 1) { // Assumes monotonic decay beyond nearest neighbor
+                    else if (d.distsq() >= 1) { // Assumes monotonic decay beyond nearest neighbor
                         break;
                     }
                 }

@@ -49,20 +49,15 @@
 
 static const bool VERIFY_TREE = false; //true;
 
+
 namespace madness {
     void startup(World& world, int argc, char** argv);
-
-    /// Translation in 1d ... more than 31 levels of refinement will require wide integers
-    typedef unsigned long Translation;
-
-    /// Level
-    typedef long Level;
 }
 
+#include <mra/key.h>
 #include <mra/twoscale.h>
 #include <mra/legendre.h>
 #include <mra/indexit.h>
-#include <mra/key.h>
 #include <mra/funcimpl.h>
 #include <mra/operator.h>
 #include <mra/loadbal.h>

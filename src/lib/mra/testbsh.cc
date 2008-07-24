@@ -118,10 +118,10 @@ void test_bsh(World& world) {
         print("Test BSH operation, type =",
               archive::get_type_name<T>(),", ndim =",3);
 
-    FunctionDefaults<3>::set_cubic_cell(-20,20);
+    FunctionDefaults<3>::set_cubic_cell(-100,100);
     FunctionDefaults<3>::set_k(10);
     FunctionDefaults<3>::set_thresh(1e-8);
-    FunctionDefaults<3>::set_initial_level(3);
+    FunctionDefaults<3>::set_initial_level(5);
     FunctionDefaults<3>::set_refine(true);
     FunctionDefaults<3>::set_autorefine(true);
     FunctionDefaults<3>::set_truncate_mode(0);
@@ -152,8 +152,8 @@ void test_bsh(World& world) {
     SeparatedConvolution<T,3> op = BSHOperator<T,3>(world, 
                                                     mu, 
                                                     FunctionDefaults<3>::get_k(), 
-                                                    2e-2, 
-                                                    5e-4);
+                                                    1e-4, 
+                                                    1e-8);
     cout.precision(8);
 
     Function<T,3> ff = copy(f);

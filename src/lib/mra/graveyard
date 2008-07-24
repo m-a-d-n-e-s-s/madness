@@ -1675,3 +1675,34 @@ namespace madness {
         };
     }
 }
+
+
+
+    /// Holds info about displacement to neighbor for application of operators
+    template <int NDIM>
+    struct Displacement {
+        Vector<Translation,NDIM> d;
+        uint64_t distsq;
+        Displacement() {};
+        Displacement(const Vector<int, NDIM>& d) : d(d), distsq(0) {
+            for (int i=0; i<NDIM; i++) distsq += d[i]*d[i];
+        }
+
+        bool operator<(const Displacement<NDIM>& other) const {
+            return distsq < other.distsq;
+        }
+
+        Translation operator[](int i) const {return d[i];}
+
+        template <typename Archive>
+        void serialize(Archive& ar) {
+            ar & d & distsq;
+        }
+    };
+
+    template <int NDIM>
+    std::ostream& operator<<(std::ostream& s, const Displacement<NDIM>& disp) {
+        s << disp.d;
+        return s;
+    }
+
