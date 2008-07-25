@@ -8,6 +8,9 @@
 using std::ofstream;
 #include <nick/wavef.h>
 
+#define PRINT(str) if(world.rank()==0) cout << str 
+#define PRINTLINE(str) if(world.rank()==0) cout << str << endl
+
 using namespace madness;
 
 const int nIOProcessors =1;
@@ -45,7 +48,7 @@ complex_functionT wave_function_load(World& world, int step) {
 
 
 void doWork(World& world) { 
-  printf("Creating three basis functions");
+  PRINTLINE("Creating three basis functions");
   Function<complexd,NDIM> psi100 = FunctionFactory<complexd,NDIM>(world).
     functor(functorT( new BoundWF(1.0, 1.0, 1,0,0)));
   Function<complexd,NDIM> psi200 = FunctionFactory<complexd,NDIM>(world).
@@ -54,14 +57,13 @@ void doWork(World& world) {
     functor(functorT( new BoundWF(1.0, 1.0, 2,1,0)));
 
   int step = 0;
-  printf("Testing our capacity to load a wave function from disk");
-  Function<complexd, NDIM> loadedFunc = wave_function_load(world, step);
-  
+  PRINTLINE("Testing our capacity to load a wave function from disk");
   if(wave_function_exists(world,step)) {
-      cout << "<data|100> =  " << loadedFunc.inner(psi100) << endl;
-      cout << "<data|200> =  " << loadedFunc.inner(psi200) << endl;
-      cout << "<data|210> =  " << loadedFunc.inner(psi210) << endl;
-    } else cout << "LoadedFunc doesn't exist" << endl;
+			Function<complexd, NDIM> loadedFunc = wave_function_load(world, step);
+      PRINT("<data|100> =  ") << loadedFunc.inner(psi100) << endl;
+      PRINT("<data|200> =  ") << loadedFunc.inner(psi200) << endl;
+      PRINT("<data|210> =  ") << loadedFunc.inner(psi210) << endl;
+    } else PRINTLINE("LoadedFunc doesn't exist");
 }
 
 
@@ -69,15 +71,12 @@ int main(int argc, char**argv) {
   // Initialize the parallel programming environment
   MPI::Init(argc, argv);
   World world(MPI::COMM_WORLD);
-  
   // Load info for MADNESS numerical routines
   startup(world,argc,argv);
-  
   // Setup defaults for numerical functions
   FunctionDefaults<NDIM>::set_k(16);             // Wavelet order
-  FunctionDefaults<NDIM>::set_thresh(1e-2);       // Accuracy
+  FunctionDefaults<NDIM>::set_thresh(1e-9);       // Accuracy
   FunctionDefaults<NDIM>::set_cubic_cell(-20.0, 20.0);
-
 
   try {
     doWork(world);
