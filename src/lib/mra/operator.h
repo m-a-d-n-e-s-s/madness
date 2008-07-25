@@ -208,7 +208,7 @@ namespace madness {
         mutable SimpleCache<Tensor<Q>, 1> rnlij_cache;
         mutable SimpleCache<ConvolutionData1D<Q>, 1> ns_cache;
         
-        Convolution1D() : k(-1), npt(0), sign(1.0) {}; 
+//         Convolution1D() : k(-1), npt(0), sign(1.0) {}; 
 
         virtual ~Convolution1D() {};
 
@@ -459,8 +459,8 @@ namespace madness {
     template <typename Q>
     class GaussianConvolution1D : public Convolution1D<Q> {
     public:
-        Q coeff;
-        double expnt;
+        const Q coeff;
+        const double expnt;        
 
         GaussianConvolution1D() : Convolution1D<Q>(), coeff(0.0), expnt(0.0) {}; 
 
@@ -509,7 +509,6 @@ namespace madness {
             // Rescale expnt & coeff onto level n so integration range
             // is [l,l+1]
             Q scaledcoeff = coeff*pow(sqrt(0.5),double(n));
-            double beta = expnt * pow(0.25,double(n));
             
             // Subdivide interval into nbox boxes of length h
             // ... estimate appropriate size from the exponent.  A
@@ -527,6 +526,7 @@ namespace madness {
             // 2*k+20, which can be integrated with a quadrature rule
             // of npt=k+11.  npt is set in the constructor.
             
+            double beta = expnt * pow(0.25,double(n));
             double h = 1.0/sqrt(beta);  // 2.0*sqrt(0.5/beta);
             long nbox = long(1.0/h);
             if (nbox < 1) nbox = 1;
@@ -563,7 +563,7 @@ namespace madness {
 
         /// Returns true if the block is expected to be small
         bool issmall(Level n, Translation lx) const { 
-            double beta = expnt*(pow(0.25,double(n)));
+            double beta = expnt * pow(0.25,double(n));
             Translation ll;
             if (lx > 0)
                 ll = lx - 1;
@@ -576,20 +576,22 @@ namespace madness {
         };
     };
 
-    /// 1D Periodic Gaussian convolution
+    /// 1D Gaussian convolution summed over periodic translations
 
     /// r_periodic(n,l) = sum(R=-maxR,+maxR)[r_nonperiodic(n,l+R*2^n)]
     template <typename Q>
     class PeriodicGaussianConvolution1D : public Convolution1D<Q> {
     public:
         
-        int k;
-        int maxR;
+        const int k;
+        const int maxR;
         GaussianConvolution1D<Q> g;
 
         PeriodicGaussianConvolution1D(int k, int maxR, Q coeff, double expnt, double sign=1.0)
-            : k(k), maxR(maxR), g(k,coeff,expnt,sign)
-        {}
+            : Convolution1D<Q>(k,k,1.0), k(k), maxR(maxR), g(k,coeff,expnt,sign)
+        {
+            print("K", k, "MAXR", maxR);
+        }
 
         virtual ~PeriodicGaussianConvolution1D(){}
 
@@ -597,7 +599,7 @@ namespace madness {
             Translation twon = Translation(1)<<n;
             Tensor<Q> r(2*k);
             for (int R=-maxR; R<=maxR; R++) {
-                r += g.get_rnlp(n,R*twon+lx);
+                r.gaxpy(1.0, g.get_rnlp(n,R*twon+lx), 1.0);
             }
             return r;
         }
@@ -609,8 +611,6 @@ namespace madness {
         Level natural_level() const {return 10;}
     };
     
-    
-
     template <typename Q, int NDIM>
     struct SeparatedConvolutionInternal {
         double norm;
@@ -630,12 +630,160 @@ namespace madness {
     };
 
 
+    /// Holds displacements for applying operators to avoid replicating for all operators
+    template <int NDIM>
+    class Displacements {
+
+        static std::vector< Key<NDIM> > disp;
+        static std::vector< Key<NDIM> > disp_periodicsum[64];
+
+        static int bmax_default() {
+            int bmax;
+            if (NDIM == 1) bmax = 7;
+
+            else if (NDIM == 3) bmax = 3;
+            else bmax = 2;
+            return bmax;
+        }
+
+        static bool cmp_keys(const Key<NDIM>& a, const Key<NDIM>& b) {
+            return a.distsq() < b.distsq();
+        }
+
+        static bool cmp_keys_periodicsum(const Key<NDIM>& a, const Key<NDIM>& b) {
+            Translation twonm1 = (Translation(1)<<a.level())>>1;
+
+            uint64_t suma=0, sumb=0;
+            for (int d=0; d<NDIM; d++) {
+                Translation la = a.translation()[d];
+                if (la > twonm1) la -= twonm1*2;
+                if (la <-twonm1) la += twonm1*2;
+                suma += la*la;
+
+                Translation lb = b.translation()[d];
+                if (lb > twonm1) lb -= twonm1*2;
+                if (lb <-twonm1) lb += twonm1*2;
+                sumb += lb*lb;
+            }
+            return suma < sumb;
+        }
+
+        static void make_disp(int bmax) {
+            // Note newer loop structure in make_disp_periodic_sum
+            Vector<Translation,NDIM> d;
+
+            int num = 1;
+            for (int i=0; i<NDIM; i++) num *= (2*bmax + 1);
+            disp = std::vector< Key<NDIM> >(num);
+            
+            num = 0;
+            if (NDIM == 1) {
+                for (d[0]=-bmax; d[0]<=bmax; d[0]++)
+                    disp[num++] = Key<NDIM>(0,d);
+            }
+            else if (NDIM == 2) {
+                for (d[0]=-bmax; d[0]<=bmax; d[0]++)
+                    for (d[1]=-bmax; d[1]<=bmax; d[1]++)
+                        disp[num++] = Key<NDIM>(0,d);
+            }
+            else if (NDIM == 3) {
+                for (d[0]=-bmax; d[0]<=bmax; d[0]++)
+                    for (d[1]=-bmax; d[1]<=bmax; d[1]++)
+                        for (d[2]=-bmax; d[2]<=bmax; d[2]++)
+                            disp[num++] = Key<NDIM>(0,d);
+            }
+            else if (NDIM == 4) {
+                for (d[0]=-bmax; d[0]<=bmax; d[0]++)
+                    for (d[1]=-bmax; d[1]<=bmax; d[1]++)
+                        for (d[2]=-bmax; d[2]<=bmax; d[2]++)
+                            for (d[3]=-bmax; d[3]<=bmax; d[3]++)
+                                disp[num++] = Key<NDIM>(0,d);
+            }
+            else if (NDIM == 5) {
+                for (d[0]=-bmax; d[0]<=bmax; d[0]++)
+                    for (d[1]=-bmax; d[1]<=bmax; d[1]++)
+                        for (d[2]=-bmax; d[2]<=bmax; d[2]++)
+                            for (d[3]=-bmax; d[3]<=bmax; d[3]++)
+                                for (d[4]=-bmax; d[4]<=bmax; d[4]++)
+
+                                    disp[num++] = Key<NDIM>(0,d);
+            }
+            else if (NDIM == 6) {
+                for (d[0]=-bmax; d[0]<=bmax; d[0]++)
+                    for (d[1]=-bmax; d[1]<=bmax; d[1]++)
+                        for (d[2]=-bmax; d[2]<=bmax; d[2]++)
+                            for (d[3]=-bmax; d[3]<=bmax; d[3]++)
+                                for (d[4]=-bmax; d[4]<=bmax; d[4]++)
+                                    for (d[5]=-bmax; d[5]<=bmax; d[5]++)
+                                        disp[num++] = Key<NDIM>(0,d);
+            }
+            else {
+                MADNESS_EXCEPTION("_make_disp: hard dimension loop",NDIM);
+            }
+            
+            std::sort(disp.begin(), disp.end(), cmp_keys);
+        }
+
+        static void make_disp_periodicsum(int bmax, Level n) {
+            Translation twon = Translation(1)<<n;
+
+            if (bmax > (twon-1)) bmax=twon-1;
+
+            // Make permissible 1D translations
+            Translation b[4*bmax+1];
+            int i=0;
+            for (Translation lx=-bmax; lx<=bmax; lx++) {
+                b[i++] = lx;
+                if ((lx < 0) && (lx+twon > bmax)) b[i++] = lx + twon;
+                if ((lx > 0) && (lx-twon <-bmax)) b[i++] = lx - twon;
+            }
+            MADNESS_ASSERT(i <= 4*bmax+1);            
+            int numb = i;
+
+            disp_periodicsum[n] = std::vector< Key<NDIM> >();
+            Vector<long,NDIM> lim(numb);
+            for (IndexIterator index(lim); index; ++index) {
+                Vector<Translation,NDIM> d;
+                for (int i=0; i<NDIM; i++) {
+                    d[i] = b[index[i]];
+                }
+                disp_periodicsum[n].push_back(Key<NDIM>(n,d));
+            }
+            
+            std::sort(disp_periodicsum[n].begin(), disp_periodicsum[n].end(), cmp_keys_periodicsum);
+//             print("KEYS AT LEVEL", n);
+//             print(disp_periodicsum[n]);
+        }
+
+
+    public:
+        Displacements() {
+            if (disp.size() == 0) {
+                make_disp(bmax_default());
+                
+                Level nmax = 8*sizeof(Translation) - 2;
+                for (Level n=0; n<nmax; n++) make_disp_periodicsum(bmax_default(), n);
+            }
+        }
+
+        const std::vector< Key<NDIM> >& get_disp(Level n, bool isperiodicsum) {
+            if (isperiodicsum) {
+                return disp_periodicsum[n];
+            }
+            else {
+                return disp;
+            }
+        }
+
+    };
+
     /// Convolutions in separated form (including Gaussian)
     template <typename Q, int NDIM>
     class SeparatedConvolution : public WorldObject< SeparatedConvolution<Q,NDIM> > {
     public:
         typedef Q opT;  ///< The apply function uses this to infer resultT=opT*inputT
         bool doleaves;  ///< If should be applied to leaf coefficients ... false by default
+        bool isperiodicsum;///< If true the operator 1D kernels have been summed over lattice translations and may be non-zero at both ends of the unit cell
         bool dowiden0;  ///< If true widen operator if diagonal term significant ... false by default
         bool dowiden1;  ///< If true widen operator if make off-diaginal contrib ... false by default
     private:
@@ -646,7 +794,9 @@ namespace madness {
         mutable Tensor<Q> work5;
         const std::vector<Slice> s0;
         mutable std::vector< SharedPtr< Convolution1D<Q> > > ops;
+
         mutable SimpleCache< SeparatedConvolutionData<Q,NDIM>, NDIM > data;
+
         mutable double nflop[64];
 
         struct Transformation {
@@ -970,16 +1120,17 @@ namespace madness {
             }
         }
 
-
     public:
 
         // For general convolutions
         SeparatedConvolution(World& world,
                              long k, 
-                             std::vector< SharedPtr< Convolution1D<Q> > > ops,
-                             bool doleaves=false)
+                             std::vector< SharedPtr< Convolution1D<Q> > >& ops,
+                             bool doleaves = false,
+                             bool isperiodicsum = false)
             : WorldObject< SeparatedConvolution<Q,NDIM> >(world)
             , doleaves(doleaves)
+            , isperiodicsum(isperiodicsum)
             , dowiden0(false)
             , dowiden1(false)
             , k(k)
@@ -998,13 +1149,14 @@ namespace madness {
             this->process_pending();
         }
 
-        /// Contstructor for Gaussian Convolutions (mostly for backward compatability)
+        /// Constructor for Gaussian Convolutions (mostly for backward compatability)
         SeparatedConvolution(World& world, 
                              int k,
                              const Tensor<Q>& coeff, const Tensor<double>& expnt,
-                             bool doleaves = false) 
+                             bool doleaves = false)
             : WorldObject< SeparatedConvolution<Q,NDIM> >(world)
             , doleaves(doleaves)
+            , isperiodicsum(false)
             , dowiden0(false)
             , dowiden1(false)
             , k(k)
@@ -1028,6 +1180,10 @@ namespace madness {
                                                                                     expnt(i)*width*width,
                                                                                     sign));
             }
+        }
+
+        const std::vector< Key<NDIM> > get_disp(Level n) const {
+            return Displacements<NDIM>().get_disp(n, isperiodicsum);
         }
 
         const double* get_nflop() const {

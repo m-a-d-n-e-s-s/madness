@@ -105,9 +105,6 @@ namespace madness {
         /// Private.  Initialize the twoscale coefficients
         void _init_twoscale();
 
-        /// Private.  Initialize the displacements
-        void _make_disp();
-
         /// Private.  Do first use initialization
         void _initialize(int k) {
             this->k = k;
@@ -135,7 +132,6 @@ namespace madness {
             _init_twoscale();
             _init_quadrature(k, npt, quad_x, quad_w, quad_phi, quad_phiw, quad_phit);
             _make_dc_periodic();
-            _make_disp();
             initialized = true;
         }
 
@@ -175,8 +171,6 @@ namespace madness {
 
         Tensor<double> rm, r0, rp;        ///< Blocks of the derivative operator
         Tensor<double> rm_left, rm_right, rp_left, rp_right; ///< Rank-1 forms rm & rp
-
-        std::vector< Key<NDIM> > disp; ///< Displacements in order of increasing distance
 
         static const FunctionCommonData<T,NDIM>& get(int k) {
             MADNESS_ASSERT(k>0 && k<=MAXK);
@@ -1632,9 +1626,8 @@ namespace madness {
             double fac = 3.0; // 10.0 seems good for qmprop
             double cnorm = c.normf();
             const long lmax = 1L << (key.level()-1);
-            for (typename std::vector<keyT>::const_iterator it=cdata.disp.begin();
-                 it != cdata.disp.end();
-                 ++it) {
+            const std::vector<keyT>& disp = op->get_disp(key.level());
+            for (typename std::vector<keyT>::const_iterator it=disp.begin();  it != disp.end(); ++it) {
                 const keyT& d = *it;
 
                 keyT dest = neighbor(key, d);

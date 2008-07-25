@@ -44,78 +44,9 @@ extern "C" double round(double x);
 
 namespace madness {
 
-    /// For sorting displacements into ascending order by distance
-    template <int NDIM>
-    static bool cmp_keys(const Key<NDIM>& a, const Key<NDIM>& b) {
-        return a.distsq() < b.distsq();
-    }
-
-
     // Definition and initialization of FunctionDefaults static members
     // It cannot be an instance of FunctionFactory since we want to
     // set the defaults independent of the data type.  
-
-
-    template <typename T, int NDIM>
-    void FunctionCommonData<T,NDIM>::_make_disp() {
-        Vector<Translation,NDIM> d;
-        int bmax;
-        if (NDIM == 1) bmax = 7; // !! Make sure that SimpleCache is consistent!!!!
-        else if (NDIM == 2) bmax = 7;
-        else if (NDIM == 3) bmax = 3;
-        else bmax = 3;
-
-        int num = 1;
-        for (int i=0; i<NDIM; i++) num *= (2*bmax + 1);
-        disp = std::vector< Key<NDIM> >(num);
-
-        num = 0;
-        if (NDIM == 1) {
-            for (d[0]=-bmax; d[0]<=bmax; d[0]++)
-                disp[num++] = Key<NDIM>(0,d);
-        }
-        else if (NDIM == 2) {
-            for (d[0]=-bmax; d[0]<=bmax; d[0]++)
-                for (d[1]=-bmax; d[1]<=bmax; d[1]++)
-                    disp[num++] = Key<NDIM>(0,d);
-        }
-        else if (NDIM == 3) {
-            for (d[0]=-bmax; d[0]<=bmax; d[0]++)
-                for (d[1]=-bmax; d[1]<=bmax; d[1]++)
-                    for (d[2]=-bmax; d[2]<=bmax; d[2]++)
-                        disp[num++] = Key<NDIM>(0,d);
-        }
-        else if (NDIM == 4) {
-            for (d[0]=-bmax; d[0]<=bmax; d[0]++)
-                for (d[1]=-bmax; d[1]<=bmax; d[1]++)
-                    for (d[2]=-bmax; d[2]<=bmax; d[2]++)
-                        for (d[3]=-bmax; d[3]<=bmax; d[3]++)
-                            disp[num++] = Key<NDIM>(0,d);
-        }
-        else if (NDIM == 5) {
-            for (d[0]=-bmax; d[0]<=bmax; d[0]++)
-                for (d[1]=-bmax; d[1]<=bmax; d[1]++)
-                    for (d[2]=-bmax; d[2]<=bmax; d[2]++)
-                        for (d[3]=-bmax; d[3]<=bmax; d[3]++)
-                            for (d[4]=-bmax; d[4]<=bmax; d[4]++)
-                                disp[num++] = Key<NDIM>(0,d);
-        }
-        else if (NDIM == 6) {
-            for (d[0]=-bmax; d[0]<=bmax; d[0]++)
-                for (d[1]=-bmax; d[1]<=bmax; d[1]++)
-                    for (d[2]=-bmax; d[2]<=bmax; d[2]++)
-                        for (d[3]=-bmax; d[3]<=bmax; d[3]++)
-                            for (d[4]=-bmax; d[4]<=bmax; d[4]++)
-                                for (d[5]=-bmax; d[5]<=bmax; d[5]++)
-                                    disp[num++] = Key<NDIM>(0,d);
-        }
-        else {
-            MADNESS_EXCEPTION("_make_disp: hard dimension loop",NDIM);
-        }
-
-        std::sort(disp.begin(), disp.end(), cmp_keys<NDIM>);
-    }
-
 
     template <typename T, int NDIM>
     void FunctionCommonData<T,NDIM>::_make_dc_periodic() {
@@ -1389,6 +1320,9 @@ namespace madness {
     template <int NDIM> double FunctionDefaults<NDIM>::cell_min_width;
     template <int NDIM> SharedPtr< WorldDCPmapInterface< Key<NDIM> > > FunctionDefaults<NDIM>::pmap;
 
+    template <int NDIM> std::vector< Key<NDIM> > Displacements<NDIM>::disp;
+    template <int NDIM> std::vector< Key<NDIM> > Displacements<NDIM>::disp_periodicsum[64];
+
 #ifdef FUNCTION_INSTANTIATE_1
     template class FunctionDefaults<1>;
     template class Function<double, 1>;
@@ -1397,6 +1331,7 @@ namespace madness {
     template class FunctionImpl<std::complex<double>, 1>;
     template class FunctionCommonData<double, 1>;
     template class FunctionCommonData<double_complex, 1>;
+    template class Displacements<1>;
 
     template void plotdx<double,1>(const Function<double,1>&, const char*, const Tensor<double>&, 
                                    const std::vector<long>&, bool binary);
@@ -1412,6 +1347,7 @@ namespace madness {
     template class FunctionImpl<std::complex<double>, 2>;
     template class FunctionCommonData<double, 2>;
     template class FunctionCommonData<double_complex, 2>;
+    template class Displacements<2>;
 
     template void plotdx<double,2>(const Function<double,2>&, const char*, const Tensor<double>&, 
                                    const std::vector<long>&, bool binary);
@@ -1427,6 +1363,7 @@ namespace madness {
     template class FunctionImpl<std::complex<double>, 3>;
     template class FunctionCommonData<double, 3>;
     template class FunctionCommonData<double_complex, 3>;
+    template class Displacements<3>;
 
     template void plotdx<double,3>(const Function<double,3>&, const char*, const Tensor<double>&, 
                                    const std::vector<long>&, bool binary);
@@ -1442,6 +1379,7 @@ namespace madness {
     template class FunctionImpl<std::complex<double>, 4>;
     template class FunctionCommonData<double, 4>;
     template class FunctionCommonData<double_complex, 4>;
+    template class Displacements<4>;
 
     template void plotdx<double,4>(const Function<double,4>&, const char*, const Tensor<double>&, 
                                    const std::vector<long>&, bool binary);
@@ -1457,6 +1395,7 @@ namespace madness {
     template class FunctionImpl<std::complex<double>, 5>;
     template class FunctionCommonData<double, 5>;
     template class FunctionCommonData<double_complex, 5>;
+    template class Displacements<5>;
 
     template void plotdx<double,5>(const Function<double,5>&, const char*, const Tensor<double>&, 
                                    const std::vector<long>&, bool binary);
@@ -1472,6 +1411,7 @@ namespace madness {
     template class FunctionImpl<std::complex<double>, 6>;
     template class FunctionCommonData<double, 6>;
     template class FunctionCommonData<double_complex, 6>;
+    template class Displacements<6>;
 
     template void plotdx<double,6>(const Function<double,6>&, const char*, const Tensor<double>&, 
                                    const std::vector<long>&, bool binary);
