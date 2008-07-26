@@ -45,7 +45,7 @@ using namespace madness;
 typedef Vector<double,3> coordT;
 
 double source(const coordT& r) {
-    return cos(2*constants::pi*r[0])*cos(2*constants::pi*r[1])*cos(2*constants::pi*r[2]);
+    return cos(4*2*constants::pi*r[0])*cos(4*2*constants::pi*r[1])*cos(4*2*constants::pi*r[2]);
 }
 
 double potential(const coordT& r) {
@@ -53,31 +53,61 @@ double potential(const coordT& r) {
 }
 
 void test_periodic(World& world) {
-    const long k = 10;
-    const double thresh = 1e-8;
+    double maple[22] = {
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.257380016185e-13,
+        3.380170823023e-07,
+        5.542104317870e-04,
+        2.244102656751e-02,
+        1.427995147839e-01,
+        3.602207596042e-01,
+        5.721234392206e-01,
+        7.210248654090e-01,
+        8.094322295048e-01,
+        8.576214176506e-01,
+        8.827814139059e-01,
+        8.956368674033e-01,
+        9.021346272394e-01,
+        9.054011635752e-01,
+        9.070388644916e-01,
+        9.078588254753e-01,
+        9.082690838913e-01};
+
+    const long k = 14;
+    const double thresh = 1e-12;
     const double L = 0.5;
     FunctionDefaults<3>::set_k(k);
     FunctionDefaults<3>::set_cubic_cell(-L,L);
     FunctionDefaults<3>::set_thresh(thresh);
     
     Function<double,3> f = FunctionFactory<double,3>(world).f(source);
+    f.truncate();
 
     std::vector< SharedPtr< Convolution1D<double> > > ops(1);
 
-    ops[0] = SharedPtr< Convolution1D<double> >(new PeriodicGaussianConvolution1D<double>(k, 12, 100.0, 80000.0));
-
-    SeparatedConvolution<double,3> op(world, k, ops, false, true);
-
-    Function<double,3> opf = apply(op,f);
-
-    coordT r(0.49);
-
-    opf.reconstruct();
-    f.reconstruct();
-
     cout.precision(10);
+    for (int i=-1; i<=20; i++) {
+        double expnt = pow(2.0,double(i));
+        double coeff = sqrt(expnt/constants::pi);
+        ops[0] = SharedPtr< Convolution1D<double> >(new PeriodicGaussianConvolution1D<double>(k, 16, coeff, expnt));
 
-    print(r, f(r), source(r), opf(r));
+        SeparatedConvolution<double,3> op(world, k, ops, false, true);
+
+        Function<double,3> opf = apply(op,f);
+
+        coordT r(0.49);
+
+        opf.reconstruct();
+        f.reconstruct();
+
+        print(i, expnt, r, f(r), source(r), opf(r), opf(r)-maple[i+1]);
+
+        //plot_line("plot.dat", 101, coordT(-L), coordT(L), f, opf);
+    }
 
     world.gop.fence();
 

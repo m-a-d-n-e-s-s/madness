@@ -358,7 +358,7 @@ namespace madness {
     class GenericConvolution1D : public Convolution1D<Q> {
     private:
         opT op;
-        long maxl; //< At natural level is l beyond which operator is zero
+        long maxl;    //< At natural level is l beyond which operator is zero
     public:
 
         GenericConvolution1D() {}
@@ -461,14 +461,15 @@ namespace madness {
     public:
         const Q coeff;
         const double expnt;        
-
-        GaussianConvolution1D() : Convolution1D<Q>(), coeff(0.0), expnt(0.0) {}; 
+        const Level natlev;
 
         GaussianConvolution1D(int k, Q coeff, double expnt, double sign=1.0)
-            : Convolution1D<Q>(k,k+11,sign), coeff(coeff), expnt(expnt)
+            : Convolution1D<Q>(k,k+11,sign), coeff(coeff), expnt(expnt), natlev(0.5*log(expnt)/log(2)+1)
         {}
 
         virtual ~GaussianConvolution1D(){}
+
+        Level natural_level() const {return natlev;}
 
         /// Compute the projection of the operator onto the double order polynomials
         
@@ -589,11 +590,11 @@ namespace madness {
 
         PeriodicGaussianConvolution1D(int k, int maxR, Q coeff, double expnt, double sign=1.0)
             : Convolution1D<Q>(k,k,1.0), k(k), maxR(maxR), g(k,coeff,expnt,sign)
-        {
-            print("K", k, "MAXR", maxR);
-        }
+        {}
 
         virtual ~PeriodicGaussianConvolution1D(){}
+
+        Level natural_level() const {return g.natural_level();}
 
         Tensor<Q> rnlp(Level n, Translation lx) const {
             Translation twon = Translation(1)<<n;
@@ -605,10 +606,12 @@ namespace madness {
         }
 
         bool issmall(Level n, Translation lx) const {
-            return false; // INEFFICIENT BUT GOOD FOR INITIAL CORRECTNESS TESTING
+            Translation twon = Translation(1)<<n;
+            for (int R=-maxR; R<=maxR; R++) {
+                if (!g.issmall(n, R*twon+lx)) return false;
+            }
+            return true;
         }
-
-        Level natural_level() const {return 10;}
     };
     
     template <typename Q, int NDIM>
