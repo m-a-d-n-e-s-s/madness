@@ -23,16 +23,19 @@ struct InputParameters {
   double Llarge;      // Box size for large (far from nucleus) plots
   double F;           // Laser field strength
   double omega;       // Laser frequency
+  double ncycle;      // Number of laser cycles in envelope
   int natom;          // Number of atoms
   double Z[MAXNATOM]; // Nuclear charge of atoms
   double R[MAXNATOM][3]; // Coordinates of atoms
   int k;              // wavelet order
-  double thresh;      // precision
+  double thresh;      // precision for truncating wave function
+  double safety;      // additional precision (thresh*safety) for operators and potential
   double cut;         // smoothing parameter for 1/r (same for all atoms for now)
   string prefix;      // Prefix for filenames
   int ndump;          // dump wave function to disk every ndump steps
   int nplot;          // dump opendx plot to disk every nplot steps
   int nio;            // Number of IO nodes 
+
   double target_time;// Target end-time for the simulation
   
   void read(const char* filename) {
@@ -62,6 +65,10 @@ struct InputParameters {
         f >> omega;
         printf("         omega = %.6f\n", omega);
       }
+      else if (tag == "ncycle") {
+        f >> ncycle;
+        printf("         ncycle = %.6f\n", ncycle);
+      }
       else if (tag == "natom") {
         f >> natom;
         printf("         natom = %d\n", natom);
@@ -77,6 +84,10 @@ struct InputParameters {
       else if (tag == "thresh") {
         f >> thresh;
         printf("        thresh = %.1e\n", thresh);
+      }
+      else if (tag == "safety") {
+        f >> safety;
+        printf("        safety = %.1e\n", safety);
       }
       else if (tag == "cut") {
         f >> cut;
@@ -110,14 +121,14 @@ struct InputParameters {
   
   template <typename Archive>
   void serialize(Archive & ar) {
-    ar & L & Lsmall & Llarge & F & omega & natom & Z;
+    ar & L & Lsmall & Llarge & F & omega & ncycle & natom & Z;
     ar & archive::wrap(&(R[0][0]), 3*MAXNATOM);
-    ar & k & thresh & cut & prefix & ndump & nplot & nio & target_time;
+    ar & k & thresh & safety & cut & prefix & ndump & nplot & nio & target_time;
   }
 };
 
 ostream& operator<<(ostream& s, const InputParameters& p) {
-  s << p.L<< " " << p.Lsmall<< " " << p.Llarge<< " " << p.F<< " " << p.omega<< " " << p.Z<< " " << p.R[0]<< " " << p.k<< " " << p.thresh<< " " << p.cut<< " " << p.prefix<< " " << p.ndump<< " " << p.nplot<< " " << p.nio << std::endl;
+    s << p.L<< " " << p.Lsmall<< " " << p.Llarge<< " " << p.F<< " " << p.omega<< " " << p.ncycle << " " << p.Z<< " " << p.R[0]<< " " << p.k<< " " << p.thresh<< " " << p.cut<< " " << p.prefix<< " " << p.ndump<< " " << p.nplot<< " " << p.nio << std::endl;
 return s;
 }
 
@@ -301,9 +312,9 @@ double zdipole(const coordT& r) {
 double laser(double t) {
     double omegat = param.omega*t;
 
-    if (omegat < 0.0 || omegat/4.0 > constants::pi) return 0.0;
+    if (omegat < 0.0 || omegat/(2*param.ncycle) > constants::pi) return 0.0;
 
-    double envelope = sin(omegat/4.0);
+    double envelope = sin(omegat/(2*param.ncycle));
     envelope *= envelope;
     return param.F*envelope*sin(omegat);
 }
@@ -312,18 +323,26 @@ double myreal(double t) {return t;}
 
 double myreal(const double_complex& t) {return real(t);}
 
-// Given psi and V evaluate the energy
+// Given psi and V evaluate the energy ... leaves psi compressed, potn reconstructed
 template <typename T>
 double energy(World& world, const Function<T,3>& psi, const functionT& potn) {
     PROFILE_FUNC;
+    // First do all work in the scaling function basis
+    bool DOFENCE = false;
+    psi.reconstruct();
+    Function<T,3> dx = diff(psi,0,DOFENCE);
+    Function<T,3> dy = diff(psi,1,DOFENCE);
+    Function<T,3> dz = diff(psi,2,DOFENCE);
+    Function<T,3> Vpsi = psi*potn;
+
+    // Now do all work in the wavelet basis
+    psi.compress(DOFENCE); Vpsi.compress(DOFENCE); dx.compress(DOFENCE); dy.compress(DOFENCE); dz.compress(true);
     T S = psi.inner(psi);
-    T PE = psi.inner(psi*potn);
-    T KE = 0.0;
-    for (int axis=0; axis<3; axis++) {
-        Function<T,3> dpsi = diff(psi,axis);
-        KE += inner(dpsi,dpsi)*0.5;
-    }
+    T PE = psi.inner(Vpsi);
+    T KE = 0.5*(inner(dx,dx) + inner(dy,dy) + inner(dz,dz));
     T E = (KE+PE)/S;
+
+    dx.clear(); dy.clear(); dz.clear(); Vpsi.clear(); // To free memory on return
     world.gop.fence();
 //     if (world.rank() == 0) {
 //         print("the overlap integral is",S);
@@ -337,11 +356,16 @@ double energy(World& world, const Function<T,3>& psi, const functionT& potn) {
 
 void converge(World& world, functionT& potn, functionT& psi, double& eps) {
     PROFILE_FUNC;
-    for (int iter=0; iter<10; iter++) {
+
+    for (int iter=0; iter<30; iter++) {
+        if (world.rank() == 0) print("beginning iter", iter, wall_time());
         operatorT op = BSHOperator<double,3>(world, sqrt(-2*eps), param.k, param.cut, param.thresh);
         functionT Vpsi = (potn*psi);
+        if (world.rank() == 0) print("made V*psi", wall_time());
         Vpsi.scale(-2.0).truncate();
-        functionT tmp = apply(op,Vpsi).truncate();
+        if (world.rank() == 0) print("tryuncated V*psi", wall_time());
+        functionT tmp = apply(op,Vpsi).truncate(param.thresh);
+        if (world.rank() == 0) print("applied operator", wall_time());
         double norm = tmp.norm2();
         functionT r = tmp-psi;
         double rnorm = r.norm2();
@@ -351,6 +375,7 @@ void converge(World& world, functionT& potn, functionT& psi, double& eps) {
         }
         psi = tmp.scale(1.0/norm);
         eps = eps_new;
+        if (rnorm < std::max(1e-5,param.thresh)) break;
     }
 }
 
@@ -359,6 +384,7 @@ complex_functionT chin_chen(const complex_functionT& expV_0,
                             const complex_functionT& expV_1,
                             const complex_operatorT& G,
                             const complex_functionT& psi0) {
+    PROFILE_FUNC;
 
     // psi(t) = exp(-i*V(t)*t/6) exp(-i*T*t/2) exp(-i*2*Vtilde(t/2)*t/3) exp(-i*T*t/2) exp(-i*V(0)*t/6)
     // .             expV_1            G               expV_tilde             G             expV_0
@@ -369,7 +395,7 @@ complex_functionT chin_chen(const complex_functionT& expV_0,
     psi1 = apply(G,psi1);   psi1.truncate();
     psi1 = expV_tilde*psi1; psi1.truncate();
     psi1 = apply(G,psi1);   psi1.truncate();
-    psi1 = expV_1*psi1;     psi1.truncate();
+    psi1 = expV_1*psi1;     psi1.truncate(param.thresh);
 
     return psi1;
 }
@@ -388,7 +414,7 @@ complex_functionT trotter(World& world,
     if (world.rank() == 0) print("APPLYING expV", size);
     psi1 = expV*psi1;      psi1.truncate();  size = psi1.size();
     if (world.rank() == 0) print("APPLYING G again", size);
-    psi1 = apply(G,psi1);  psi1.truncate();  size = psi1.size();
+    psi1 = apply(G,psi1);  psi1.truncate(param.thresh);  size = psi1.size();
     if (world.rank() == 0) print("DONE", size);
     
     return psi1;
@@ -518,8 +544,8 @@ void propagate(World& world, int step0) {
     double c = 1.72*ctarget;   // This for 10^4 steps
     double tcrit = 2*constants::pi/(c*c);
 
-    double time_step = tcrit * 3.0;
-    
+    double time_step = tcrit * 1.0;
+
     zero_field_time = 10.0*time_step;
 
     int nstep = (param.target_time + zero_field_time)/time_step + 1;
@@ -600,6 +626,7 @@ void propagate(World& world, int step0) {
             psi = trotter(world, expV, G, psi);
         }
         else { // Chin-Chen
+            PROFILE_BLOCK(build_and_apply_chin_chen);
             // Make z-component of del V at time tstep/2
             functionT dV_dz = copy(dpotn_dz);
             dV_dz.add_scalar(laser(t+0.5*time_step));
@@ -661,19 +688,9 @@ void doit(World& world) {
     if (world.rank() == 0) param.read("input");
     world.gop.broadcast_serializable(param, 0);
 
-// 	    for (ProcessID p=0; p<world.size(); p++) {
-// 	      if (world.rank() == p) {
-// 		std::cout << world.rank() << std::endl;
-//                 std::cout << param;
-// 		std::cout << std::endl;
-// 	      }
-// 	      world.gop.fence();
-// 	    }
-
-    FunctionDefaults<3>::set_k(param.k);                 // Wavelet order
-    FunctionDefaults<3>::set_thresh(param.thresh);       // Accuracy
-    FunctionDefaults<3>::set_refine(true);         // Enable adaptive refinement
-    FunctionDefaults<3>::set_initial_level(4);     // Initial projection level
+    FunctionDefaults<3>::set_k(param.k);                        // Wavelet order
+    FunctionDefaults<3>::set_thresh(param.thresh*param.safety);       // Accuracy
+    FunctionDefaults<3>::set_initial_level(4);
     FunctionDefaults<3>::set_cubic_cell(-param.L,param.L);
     FunctionDefaults<3>::set_apply_randomize(false);
     FunctionDefaults<3>::set_autorefine(false);
@@ -691,14 +708,18 @@ void doit(World& world) {
 
     if (!exists) {
         if (step0 == 0) {
-            if (world.rank() == 0) print("Computing initial ground state wavefunction");
+            if (world.rank() == 0) print("Computing initial ground state wavefunction", wall_time());
             functionT psi = factoryT(world).f(guess);
             psi.scale(1.0/psi.norm2());
             psi.truncate();
             psi.scale(1.0/psi.norm2());
+            if (world.rank() == 0) print("got psi", wall_time());
             
             double eps = energy(world, psi, potn);
-            converge(world, potn, psi, eps);
+            if (world.rank() == 0) print("guess energy", eps, wall_time()); 
+           converge(world, potn, psi, eps);
+
+            psi.truncate(param.thresh);
 
             complex_functionT psic = double_complex(1.0,0.0)*psi;
             wave_function_store(world, 0, psic);
@@ -724,25 +745,25 @@ int main(int argc, char** argv) {
     try {
         doit(world);
     } catch (const MPI::Exception& e) {
-        //print(e);
+        //print(e); std::cout.flush();
         error("caught an MPI exception");
     } catch (const madness::MadnessException& e) {
-        print(e);
+        print(e); std::cout.flush();
         error("caught a MADNESS exception");
     } catch (const madness::TensorException& e) {
-        print(e);
+        print(e); std::cout.flush();
         error("caught a Tensor exception");
     } catch (const char* s) {
-        print(s);
+        print(s); std::cout.flush();
         error("caught a c-string exception");
     } catch (char* s) {
-        print(s);
+        print(s); std::cout.flush();
         error("caught a c-string exception");
     } catch (const std::string& s) {
-        print(s);
+        print(s); std::cout.flush();
         error("caught a string (class) exception");
     } catch (const std::exception& e) {
-        print(e.what());
+        print(e.what()); std::cout.flush();
         error("caught an STL exception");
     } catch (...) {
         error("caught unhandled exception");
