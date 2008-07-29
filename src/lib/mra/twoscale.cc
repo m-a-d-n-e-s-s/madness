@@ -259,7 +259,7 @@ namespace madness {
     }
 
     bool test_autoc() {
-        unsigned long correct = 0x638a9b;
+        unsigned long correct = 9056188; // 0x638a9b;
         unsigned long computed = checksum_file(autocorr_filename);
         if (correct != computed)
             cout << "test_autoc: file checksum invalid: correct="

@@ -290,6 +290,7 @@ namespace madness {
             for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
                 const keyT& child = kit.key();
                 tensorT ss = copy(d(child_patch(child)));
+                PROFILE_BLOCK(recon_send);
                 task(coeffs.owner(child), &implT::reconstruct_op, child, ss);
             }
         }
@@ -439,6 +440,7 @@ namespace madness {
                     else {
                         p = coeffs.owner(child);
                     }
+                    PROFILE_BLOCK(proj_refine_send);
                     task(p, &implT::project_refine_op, child, do_refine); // ugh
                 }
             }
@@ -512,6 +514,7 @@ namespace madness {
             std::vector< Future<bool> > v = future_vector_factory<bool>(1<<NDIM);
             int i=0;
             for (KeyChildIterator<NDIM> kit(key); kit; ++kit,++i) {
+                PROFILE_BLOCK(truncate_send);
                 v[i] = send(coeffs.owner(kit.key()), &implT::truncate_spawn, kit.key(), tol);
             }
             return task(world.rank(),&implT::truncate_op, key, tol, v);
@@ -617,6 +620,7 @@ namespace madness {
         else {
             keyT parent = key.parent();
             //madness::print("sock forwarding to parent",key,parent);
+            PROFILE_BLOCK(sitome_send);
             send(coeffs.owner(parent), &FunctionImpl<T,NDIM>::sock_it_to_me, parent, ref);
         }
         return None;
@@ -637,6 +641,7 @@ namespace madness {
         while (1) {
             ProcessID owner = coeffs.owner(key);
             if (owner != me) {
+                PROFILE_BLOCK(eval_send);
                 send(owner, &implT::eval, x, key, ref);
                 return None;
             }
@@ -874,6 +879,7 @@ namespace madness {
             const keyT& key = it->first;
             const nodeT& node = it->second;
             if (node.has_coeff()) {
+                PROFILE_BLOCK(diff_send);
                 Future<argT> left   = f.find_neighbor(key,axis,-1);
                 argT center(key,node.coeff());
                 Future<argT> right  = f.find_neighbor(key,axis, 1);
@@ -954,6 +960,7 @@ namespace madness {
         }
         else {
             Future<argT> result;
+            PROFILE_BLOCK(find_neigh_send);
             send(coeffs.owner(neigh), &implT::sock_it_to_me, neigh, result.remote_ref(world));
             return result;
         }
@@ -1070,6 +1077,7 @@ namespace madness {
             std::vector< Future<tensorT> > v = future_vector_factory<tensorT>(1<<NDIM);
             int i=0;
             for (KeyChildIterator<NDIM> kit(key); kit; ++kit,++i) {
+                PROFILE_BLOCK(compress_send);
                 v[i] = send(coeffs.owner(kit.key()), &implT::compress_spawn, kit.key(), nonstandard, keepleaves);
             }
             return task(world.rank(),&implT::compress_op, key, v, nonstandard);

@@ -1623,7 +1623,7 @@ namespace madness {
         template <typename opT, typename R>
         Void do_apply(const opT* op, const FunctionImpl<R,NDIM>* f, const keyT& key, const Tensor<R>& c) {
             PROFILE_MEMBER_FUNC(FunctionImpl);
-            double fac = 3.0; // 10.0 seems good for qmprop
+            double fac = 10.0; // 10.0 seems good for qmprop ... 3.0 OK for others
             double cnorm = c.normf();
             const long lmax = 1L << (key.level()-1);
             const std::vector<keyT>& disp = op->get_disp(key.level());
