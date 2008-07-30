@@ -5,7 +5,7 @@ F 0.177
 omega 0.06
 natom 1
    1.0    0.0 0.0 0.0
-k 24
+k 20
 thresh 1e-7
 safety 1e-2
 cut 0.3
