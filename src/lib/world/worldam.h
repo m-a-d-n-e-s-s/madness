@@ -318,11 +318,18 @@ namespace madness {
         static const unsigned long COUNT_MASK = 0xff;
         static const unsigned long BCAST_MASK = 0x1ul<<9;
         
+#ifdef _CRAY
         static const int NSHORT_RECV = 64;         ///< No. of posted short recv buffers
-        static const int NLONG_RECV = 512;          ///< No. of posted long recv buffers
+        static const int NLONG_RECV = 512;         ///< No. of posted long recv buffers
+        static const int NSEND = 1024;             ///< Max no. of outstanding short+long Isends
+        // NSEND=1024 OK
+        // NSEND=1500 or 2048 overflows portals resources on XT
+#else
+        static const int NSHORT_RECV = 32;         ///< No. of posted short recv buffers
+        static const int NLONG_RECV = 64;          ///< No. of posted long recv buffers
+        static const int NSEND = 128;              ///< Max no. of outstanding short+long Isends
+#endif
         static const int NRECV =  NSHORT_RECV + NLONG_RECV;
-        static const int LOG2_NSEND = 8;
-        static const int NSEND = 1<<LOG2_NSEND;    ///< Max no. of outstanding short+long Isends
         
         MPI::Request recv_handle[NRECV];  ///< Handles for AM Irecv
         mutable MPI::Request send_handle[NSEND];  ///< Handles for AM Isend
@@ -414,37 +421,41 @@ namespace madness {
         /// Private: Finds/waits for a free send request
         inline int get_free_send_request() {
             PROFILE_MEMBER_FUNC(WorldAM);
-            static int cur_msg = 0;
-            static const int MASK = (1<<LOG2_NSEND)-1; // this is why we need a power of 2 messages
+            static volatile int cur_msg = 0;
+
+            int i = cur_msg;
+            cur_msg++;
+            if (cur_msg >= NSEND) cur_msg = 0;
 
             // Must call poll here to keep pulling messages off the
             // network to avoid dead/livelock but don't don't need to
             // poll in other worlds or run tasks/AM.
-            if (!send_handle[cur_msg].Test()) {
+            if (!send_handle[i].Test()) {
                 nsend_req_wait++;
                 World::poll_all(true);
-                while (!send_handle[cur_msg].Test())  World::poll_all(true);
+                while (!send_handle[i].Test())  World::poll_all(true);
             }
 
-            free_managed_send_buf(cur_msg);
+            free_managed_send_buf(i);
 
-            int i = cur_msg;
-            cur_msg = (cur_msg + 1) & MASK;
             return i;
         };
 
 //         /// Private: Finds/waits for a free send request
 //         inline int get_free_send_request() {
+//             // THIS VERSION SEEMS TO SCALE LINEARLY WITH #POSTED MESSAGES ON THE XT
+
 //             PROFILE_MEMBER_FUNC(WorldAM);
 //             // Must call poll here to keep pulling messages off the
-//             // network to avoid dead/livelock but don't don't need to
-//             // poll in other worlds or run tasks/AM.
+//             // network to avoid dead/livelock.  Was suspending in here
+//             // but there is no need AS LONG as we suspend recursive
+//             // processing of AM which is now a formal part of the model.
 //             int i;
-
-//             // Was suspending in here but there is no need AS LONG as we
-//             // suspend recursive processing of AM which is now a formal 
-//             // part of the model.
-//             while (!MPI::Request::Testany(NSEND, send_handle, i)) World::poll_all(true);
+//             if (!MPI::Request::Testany(NSEND, send_handle, i)) {
+//                 nsend_req_wait++;
+//                 World::poll_all(true);
+//                 while (!MPI::Request::Testany(NSEND, send_handle, i)) World::poll_all(true);
+//             }
 //             if (i == MPI::UNDEFINED) i = 0;
 //             free_managed_send_buf(i);
 //             return i;
@@ -485,10 +496,12 @@ namespace madness {
                 send_buf[i] = arg; // Must copy since using a non-blocking send
                 send_buf[i].flags = flags;
                 send_buf[i].function = op;
+                MADNESS_ASSERT(send_handle[i].Test());
                 send_handle[i] = mpi.Isend(send_buf+i, sizeof(AmArg), MPI::BYTE, dest, short_tag);
+
+                nsent++;
+                nbytes_sent += sizeof(AmArg);
             }
-            nsent++;
-            nbytes_sent += sizeof(AmArg);
             //suspend();
             World::poll_all();
             //resume();
@@ -529,11 +542,13 @@ namespace madness {
             }
             else {
                 i = get_free_send_request();
+                MADNESS_ASSERT(send_handle[i].Test());
                 send_handle[i] = mpi.Isend(buf, nbyte, MPI::BYTE, dest, long_tag);
                 if (managed) managed_send_buf[i] = (unsigned char*) buf;
+
+                nsent++;
+                nbytes_sent += nbyte;
             }
-            nsent++;
-            nbytes_sent += nbyte;
             
             //suspend();
             World::poll_all();
@@ -571,22 +586,29 @@ namespace madness {
 
         long pull_msgs_into_q() {
             PROFILE_MEMBER_FUNC(WorldAM);
-            MPI::Status status[NRECV];
-            int ind[NRECV];
-            long narrived = MPI::Request::Testsome(NRECV, recv_handle, ind, status);
-            MADNESS_ASSERT(narrived != MPI::UNDEFINED);
-            for (long m=0; m<narrived; m++) {
-                ProcessID src = status[m].Get_source();
-                int i = ind[m];
-                if (i < NSHORT_RECV) {
-                    msgq_push_back(new qmsg(src,recv_buf[i]));
-                    post_recv(i);  // Repost short msg buffers ASAP
-                }
-                else {
-                    size_t nbyte = status[m].Get_count(MPI::BYTE);
-                    msgq_push_back(new qmsg(src, long_recv_buf[i-NSHORT_RECV], nbyte, i, false));
-                    nfree_long_recv_buf--;
-                    MADNESS_ASSERT(nfree_long_recv_buf>=0);
+            static MPI::Status status[NRECV];  // static here to eliminate constructor overhead on xt
+            static int ind[NRECV];
+            long narrived;
+            {
+                PROFILE_BLOCK(mpi_testsome);
+                narrived = MPI::Request::Testsome(NRECV, recv_handle, ind, status);
+                MADNESS_ASSERT(narrived != MPI::UNDEFINED);
+            }
+            if (narrived) {
+                PROFILE_BLOCK(copy_msgs_into_q);
+                for (long m=0; m<narrived; m++) {
+                    ProcessID src = status[m].Get_source();
+                    int i = ind[m];
+                    if (i < NSHORT_RECV) {
+                        msgq_push_back(new qmsg(src,recv_buf[i]));
+                        post_recv(i);  // Repost short msg buffers ASAP
+                    }
+                    else {
+                        size_t nbyte = status[m].Get_count(MPI::BYTE);
+                        msgq_push_back(new qmsg(src, long_recv_buf[i-NSHORT_RECV], nbyte, i, false));
+                        nfree_long_recv_buf--;
+                        MADNESS_ASSERT(nfree_long_recv_buf>=0);
+                    }
                 }
             }
 
@@ -663,7 +685,7 @@ namespace madness {
                         nbytes_recv += msg->nbyte;
                     }
                     recv_counters[msg->src]++;
-                    nrecv++;
+                    if (msg->src != rank) nrecv++;  // Note that nrecv/nsent now count remote only
                     msgq_count--;
                     if (msg->is_managed) msgq_mem -= msg->nbyte;
                     delete msg;
