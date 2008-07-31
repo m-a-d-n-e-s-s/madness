@@ -374,7 +374,7 @@ namespace madness {
         *s = Tensor< scalar_type >(n);
         integer info;
         scalar_type rrcond = rcond;
-        integer rrank;
+        integer rrank=0;
 
         dgelss_(&m, &n, &nrhs, AT.ptr(), &m, x->ptr(), &m, s->ptr(),
                 &rrcond, &rrank, work.ptr(), &lwork, &info);
