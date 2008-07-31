@@ -73,6 +73,7 @@ typedef SharedPtr< WorldDCPmapInterface< Key<3> > > pmapT;
 typedef Vector<double,3> coordT;
 typedef SharedPtr< FunctionFunctorInterface<double,3> > functorT;
 typedef Function<double,3> functionT;
+typedef vector<functionT> vecfuncT;
 typedef FunctionFactory<double,3> factoryT;
 typedef SeparatedConvolution<double,3> operatorT;
 typedef SharedPtr<operatorT> poperatorT;
@@ -294,6 +295,8 @@ struct CalculationParameters {
         nmo_alpha = min(nbf,nmo_alpha);  
         nmo_beta = min(nbf,nmo_beta);  
         if (nalpha>nbf || nbeta>nbf) error("too few basis functions?", nbf);
+        nvalpha = nmo_alpha - nalpha;
+        nvbeta = nmo_beta - nbeta;
         
         // Unless overridden by the user use a cell big enough to
         // have exp(-sqrt(2*I)*r) decay to 1e-6 with I=1ev=0.037Eh
@@ -331,7 +334,7 @@ struct Calculation {
     CalculationParameters param;  ///< User input data, nalpha, etc.
     AtomicBasisSet aobasis;       ///< Currently always the STO-3G basis
     functionT vnuc;               ///< The effective nuclear potential
-    vector<functionT> amo, bmo;   ///< alpha and beta molecular orbitals
+    vecfuncT amo, bmo;   ///< alpha and beta molecular orbitals
     Tensor<double> aocc, bocc;    ///< alpha and beta occupation numbers
     Tensor<double> aeps, beps;    ///< alpha and beta energy shifts (eigenvalues if canonical)
     poperatorT coulop;            ///< Coulomb Green function
@@ -409,8 +412,8 @@ struct Calculation {
         END_TIMER("Project vnuclear");
     }
 
-    vector<functionT> project_ao_basis(World& world) {
-        vector<functionT> ao(aobasis.nbf(molecule));
+    vecfuncT project_ao_basis(World& world) {
+        vecfuncT ao(aobasis.nbf(molecule));
 
         Level initial_level = 3;
         for (int i=0; i<aobasis.nbf(molecule); i++) {
@@ -452,12 +455,12 @@ struct Calculation {
         return ao;
     }
 
-    Tensor<double> kinetic_energy_matrix(World& world, const vector<functionT>& v) {
+    Tensor<double> kinetic_energy_matrix(World& world, const vecfuncT& v) {
         reconstruct(world, v);
         int n = v.size();
         Tensor<double> r(n,n);
         for (int axis=0; axis<3; axis++) {
-            vector<functionT> dv = diff(world,v,axis);
+            vecfuncT dv = diff(world,v,axis);
             r += matrix_inner(world, dv, dv, true);
             dv.clear(); world.gop.fence(); // Allow function memory to be freed
         }
@@ -521,7 +524,7 @@ struct Calculation {
         vlocal.reconstruct();
 
         START_TIMER;
-        vector<functionT> ao   = project_ao_basis(world);
+        vecfuncT ao   = project_ao_basis(world);
         END_TIMER("project ao basis");
 //         for (unsigned int i=0; i<ao.size(); i++) {
 //             if (world.rank() == 0) print("\ndistribution of ao",i);
@@ -552,8 +555,8 @@ struct Calculation {
 
         reconstruct(world, ao);
         START_TIMER;
-        //vector<functionT> vpsi = mul(world, vlocal, ao);
-        vector<functionT> vpsi = mul_sparse(world, vlocal, ao, vtol);
+        //vecfuncT vpsi = mul(world, vlocal, ao);
+        vecfuncT vpsi = mul_sparse(world, vlocal, ao, vtol);
         world.gop.fence();
         END_TIMER("make V*psi");
         world.gop.fence();
@@ -604,20 +607,22 @@ struct Calculation {
 
         aeps = e(Slice(0,param.nmo_alpha-1));
 
-        aocc = Tensor<double>(param.nalpha);
+        aocc = Tensor<double>(param.nmo_alpha);
         for (int i=0; i<param.nalpha; i++) aocc[i] = 1.0;
+
+        print("AOCC", aocc);
 
         if (param.nbeta && !param.spin_restricted) {
             bmo = transform(world, ao, c(_,Slice(0,param.nmo_beta-1)));
             truncate(world, bmo);
             normalize(world, bmo);
             beps = e(Slice(0,param.nmo_beta-1));
-            bocc = Tensor<double>(param.nbeta);
+            bocc = Tensor<double>(param.nmo_beta);
             for (int i=0; i<param.nbeta; i++) bocc[i] = 1.0;
         }
     }
 
-//     void localize(World& world, const vector<functionT>& psi) {
+//     void localize(World& world, const vecfuncT& psi) {
 //         Tensor<double> t = matrix_inner(world, project_ao_basis(world), psi);
 //         print("Initial t matrix", t);
 //         for (int iter=0; iter<100; iter++) {
@@ -630,20 +635,20 @@ struct Calculation {
 
 //     }
 
-    functionT make_density(World& world, const Tensor<double>& occ, const vector<functionT>& v) {
-        vector<functionT> vsq = square(world, v);
+    functionT make_density(World& world, const Tensor<double>& occ, const vecfuncT& v) {
+        vecfuncT vsq = square(world, v);
         compress(world,vsq);
         functionT rho = factoryT(world).thresh(vtol);
         rho.compress();
         for (unsigned int i=0; i<vsq.size(); i++) {
-            rho.gaxpy(1.0,vsq[i],occ[i],false);
+            if (occ[i]) rho.gaxpy(1.0,vsq[i],occ[i],false);
         }
         world.gop.fence();
         vsq.clear();
         world.gop.fence();
 
         double dtrace = rho.trace();
-        if (world.rank() == 0) print("err in trace of density", dtrace-v.size());
+        if (world.rank() == 0) print("err in trace of density", dtrace-occ.sum());
         return rho;
     }
 
@@ -665,10 +670,10 @@ struct Calculation {
         return ops;
     }
 
-    vector<functionT> apply_hf_exchange(World& world, 
+    vecfuncT apply_hf_exchange(World& world, 
                                         const Tensor<double>& occ,
-                                        const vector<functionT>& psi,
-                                        const vector<functionT>& f) {
+                                        const vecfuncT& psi,
+                                        const vecfuncT& f) {
         int nocc = psi.size();
         int nf = f.size();
 
@@ -682,14 +687,14 @@ struct Calculation {
         // For now just parallelize one loop but will need more
         // intelligence soon.
 
-        vector<functionT> Kf = zero_functions<double,3>(world, nf);
+        vecfuncT Kf = zero_functions<double,3>(world, nf);
 
         compress(world,Kf);
         reconstruct(world,psi);
         for (int i=0; i<nocc; i++) {
             if (occ[i] > 0.0) {
-                //vector<functionT> psif = mul(world, psi[i], f);
-                vector<functionT> psif = mul_sparse(world, psi[i], f, vtol);
+                //vecfuncT psif = mul(world, psi[i], f);
+                vecfuncT psif = mul_sparse(world, psi[i], f, vtol);
                 set_thresh(world, psif, vtol);  //<<<<<<<<<<<<<<<<<<<<<<<<< since cannot yet put in apply
 
                 truncate(world,psif);
@@ -706,7 +711,6 @@ struct Calculation {
         return Kf;
     }
         
-
     static double munge(double r) {
         if (r < 1e-12) r = 1e-12;
         return r;
@@ -749,10 +753,10 @@ struct Calculation {
         return vlda.trace();
     }
 
-    vector<functionT> 
+    vecfuncT 
     apply_potential(World& world, 
                     const Tensor<double>& occ,
-                    const vector<functionT>& amo, 
+                    const vecfuncT& amo, 
                     const functionT& arho,
                     const functionT& brho,
                     const functionT& adelrhosq,
@@ -767,11 +771,15 @@ struct Calculation {
             vloc = vloc + make_lda_potential(world, arho, brho, adelrhosq, bdelrhosq);
         }
 
-        vector<functionT> Vpsi = mul_sparse(world, vloc, amo, vtol);
+        vecfuncT Vpsi = mul_sparse(world, vloc, amo, vtol);
 
         if (!param.lda) {
-            vector<functionT> Kamo = apply_hf_exchange(world, occ, amo, amo);
-            exc = -inner(world, Kamo, amo).sum();
+            vecfuncT Kamo = apply_hf_exchange(world, occ, amo, amo);
+            Tensor<double> excv = inner(world, Kamo, amo);
+            exc = 0.0;
+            for (unsigned long i=0; i<amo.size(); i++) {
+                exc -= 0.5*excv[i]*occ[i];
+            }
             gaxpy(world, 1.0, Vpsi, -1.0, Kamo);
             Kamo.clear();
         }
@@ -786,8 +794,8 @@ struct Calculation {
     void update(World& world, 
                 Tensor<double>& occ, 
                 Tensor<double>& eps,
-                vector<functionT>& psi,
-                vector<functionT>& Vpsi) 
+                vecfuncT& psi,
+                vecfuncT& Vpsi) 
     {
         int nmo = psi.size();
         vector<double> fac(nmo,-2.0);
@@ -797,12 +805,12 @@ struct Calculation {
         set_thresh(world, Vpsi, FunctionDefaults<3>::get_thresh());  // <<<<< Since cannot set in apply
         
         START_TIMER;
-        vector<functionT> new_psi = apply(world, ops, Vpsi);
+        vecfuncT new_psi = apply(world, ops, Vpsi);
         END_TIMER("Apply BSH");
 
         ops.clear();            // free memory
         
-        vector<functionT> r = sub(world, psi, new_psi); // residuals
+        vecfuncT r = sub(world, psi, new_psi); // residuals
         vector<double> rnorm = norm2(world, r);
         vector<double> new_norm = norm2(world, new_psi);
         Tensor<double> Vpr = inner(world, Vpsi, r); // Numerator of delta_epsilon
@@ -840,14 +848,14 @@ struct Calculation {
 
         truncate(world, psi);
 
-        START_TIMER;
-        // Orthog the new orbitals using sqrt(overlap).
-        // Try instead an energy weighted orthogonalization
-        Tensor<double> c = energy_weighted_orthog(matrix_inner(world, psi, psi, true), eps);
-        psi = transform(world, psi, c);
-        truncate(world, psi);
-        normalize(world, psi);
-        END_TIMER("Eweight orthog");
+//         START_TIMER;
+//         // Orthog the new orbitals using sqrt(overlap).
+//         // Try instead an energy weighted orthogonalization
+//         Tensor<double> c = energy_weighted_orthog(matrix_inner(world, psi, psi, true), eps);
+//         psi = transform(world, psi, c);
+//         truncate(world, psi);
+//         normalize(world, psi);
+//         END_TIMER("Eweight orthog");
 
         return;
     }
@@ -857,8 +865,8 @@ struct Calculation {
     /// Also computes energy contributions for this spin (consistent with the input 
     /// orbitals not the output)
     void diag_fock_matrix(World& world, 
-                          vector<functionT>& psi, 
-                          vector<functionT>& Vpsi,
+                          vecfuncT& psi, 
+                          vecfuncT& Vpsi,
                           Tensor<double>& occ,
                           Tensor<double>& evals,
                           const functionT& arho, 
@@ -872,19 +880,11 @@ struct Calculation {
         Tensor<double> ke = kinetic_energy_matrix(world, psi);
         Tensor<double> pe = matrix_inner(world, Vpsi, psi, true);
 
-        //vector<functionT> vnucpsi = mul(world, vnuc, psi, vtol);
-        vector<functionT> vnucpsi = mul_sparse(world, vnuc, psi, vtol);
-        truncate(world, vnucpsi);
-        Tensor<double> en = inner(world, vnucpsi, psi);
-        vnucpsi.clear();
-
         int nocc = occ.size;
         ekinetic = 0.0;
         for (int i=0; i<nocc; i++) {
             ekinetic += occ[i]*ke(i,i);
         }
-
-        en = Tensor<double>();
 
         Tensor<double> fock = ke + pe;
         pe = Tensor<double>();
@@ -893,6 +893,8 @@ struct Calculation {
 
         Tensor<double> c;
         sygv(fock, overlap, 1, &c, &evals);
+
+        print("NEW EVALS", evals);
 
         Vpsi = transform(world, Vpsi, c);
         psi = transform(world, psi, c);
@@ -930,6 +932,7 @@ struct Calculation {
     void solve(World& world) {
         functionT arho_old, brho_old;
         functionT adelrhosq, bdelrhosq; // placeholders for GGAs
+
         for (int iter=0; iter<param.maxiter; iter++) {
             if (world.rank()==0) print("\nIteration", iter,"\n");
             START_TIMER;
@@ -971,6 +974,7 @@ struct Calculation {
             END_TIMER("Coulomb");
 
             double ecoulomb = 0.5*inner(rho, vcoul);
+            print("ECOULOMB fresh", ecoulomb, rho.trace(), rho.inner(rho));
             rho.clear(false);
 
             functionT vlocal = vcoul + vnuc;
@@ -979,9 +983,12 @@ struct Calculation {
 
             START_TIMER;
             double exca=0.0, excb=0.0;
-            vector<functionT> Vpsia = apply_potential(world, aocc, amo, arho, brho, adelrhosq, bdelrhosq, vlocal, exca);
-            vector<functionT> Vpsib;
-            if (param.nbeta && !param.spin_restricted) {
+            vecfuncT Vpsia = apply_potential(world, aocc, amo, arho, brho, adelrhosq, bdelrhosq, vlocal, exca);
+            vecfuncT Vpsib;
+            if (param.spin_restricted) {
+                excb = exca;
+            }
+            else if (param.nbeta) {
                 Vpsib = apply_potential(world, bocc, bmo, brho, arho, bdelrhosq, adelrhosq, vlocal, excb);
             }
             END_TIMER("Apply potential");
@@ -1028,15 +1035,12 @@ struct Calculation {
                 }
             }
 
-
-            //update(world, vlocal, aocc, aeps, amo, Vpsia);
-            //if (!param.spin_restricted) update(world, vlocal, bocc, beps, bmo, Vpsib);
-            
             update(world, aocc, aeps, amo, Vpsia); 
             if (param.nbeta && !param.spin_restricted) update(world, bocc, beps, bmo, Vpsib);
 
         }
     }
+
 };
 
 //#include <sched.h>

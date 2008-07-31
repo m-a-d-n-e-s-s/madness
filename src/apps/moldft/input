@@ -1,11 +1,15 @@
 dft
-  nopen 0
+  nopen 1
   maxrotn 0.25
   nvalpha 0
   nvbeta 0
+  hf
 end
 
-
+# Lithium atom
+geometry
+  Li 0 0 0
+end
 
 
 # water*1
