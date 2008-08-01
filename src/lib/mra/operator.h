@@ -1074,8 +1074,8 @@ namespace madness {
                 op.ops[d] = ops[mu]->nonstandard(n, disp.translation()[d]);
             }
 
-            //op.norm = munorm2(n, op.ops);
-            op.norm = munorm(n, op.ops);
+            op.norm = munorm2(n, op.ops);
+            //op.norm = munorm(n, op.ops);
 
 //             double newnorm = munorm2(n, op.ops);
 //             // This rescaling empirically based upon BSH separated expansion
