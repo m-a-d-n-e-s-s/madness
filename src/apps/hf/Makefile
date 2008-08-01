@@ -17,16 +17,21 @@ CSRC =
 DATAFILES = 
 
 # Names of test programs [OPTIONAL]
-TESTPROGS = test_lattice
+TESTPROGS = test_hf
 
 # Source files for the test programs (up to six of them)
-TEST1SRC = test_lattice.cc 
+TEST1SRC = test_hf.cc 
+TEST2SRC = test_lattice.cc
          
 # GlobalMakefile now does most of the work for you
 include $(TOPDIR)/config/GlobalMakefile
 
 # You must define additional rules to link your test programs
-test_lattice:	$(TEST1OBJ) $(THISLIBDEPEND) 
+test_hf:	$(TEST1OBJ) $(THISLIBDEPEND) 
+	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ $(SYSLIBS) $(LTLINKBINOPTS)
+			
+	
+test_lattice:	$(TEST2OBJ) $(THISLIBDEPEND) 
 	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ $(SYSLIBS) $(LTLINKBINOPTS)
 			
 	
