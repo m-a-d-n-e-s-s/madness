@@ -382,9 +382,9 @@ double Molecule::smallest_length_scale() const {
 void Molecule::center() {
     double xx=0.0, yy=0.0, zz=0.0, qq=0.0;
     for (unsigned int i=0; i<atoms.size(); i++) {
-        xx += atoms[i].x;
-        yy += atoms[i].y;
-        zz += atoms[i].z;
+        xx += atoms[i].x*atoms[i].q;
+        yy += atoms[i].y*atoms[i].q;
+        zz += atoms[i].z*atoms[i].q;
         qq += atoms[i].q;
     }
     xx /= qq;

@@ -37,6 +37,7 @@
 
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES  
 #include <mra/mra.h>
+#include <tensor/random.h>
 #include <ctime>
 using namespace madness;
 
@@ -48,6 +49,14 @@ extern int c_rks_vwn5__(const double *rho, double *f, double *dfdra);
 #include <moldft/molecule.h>
 #include <moldft/molecularbasis.h>
 
+void drot(long n, double* RESTRICT a, double* RESTRICT b, double s, double c) {
+    for (long i=0; i<n; i++) {
+        double aa = a[i]*c - b[i]*s;
+        double bb = b[i]*c + a[i]*s;
+        a[i] = aa;
+        b[i] = bb;
+    }
+}
 
 class LevelPmap : public WorldDCPmapInterface< Key<3> > {
 private:
@@ -120,6 +129,16 @@ public:
  
     double operator()(const coordT& x) const {
         return aofunc(x[0], x[1], x[2]);
+    }
+};
+
+class DipoleFunctor : public FunctionFunctorInterface<double,3> {
+private:
+    int axis;
+public:
+    DipoleFunctor(int axis) : axis(axis) {}
+    double operator()(const coordT& x) const {
+        return x[axis];
     }
 };
 
@@ -434,7 +453,7 @@ struct Calculation {
             if (initial_level >= 11) throw "project_ao_basis: projection failed?";
             int nredone = 0;
             for (int i=0; i<aobasis.nbf(molecule); i++) {
-                if (norms[i] < 1e-1) {
+                if (norms[i] < 0.99) {
                     nredone++;
                     if (world.rank() == 0) print("re-projecting ao basis function", i,"at level",initial_level);
                     functorT aofunc(new AtomicBasisFunctor(aobasis.get_atomic_basis_function(molecule,i)));
@@ -454,6 +473,252 @@ struct Calculation {
         
         return ao;
     }
+
+    void localize(World& world, vecfuncT& mo) {
+        // Form the ao-mo overlap matrix
+        
+        truncate(world,mo);
+
+        vecfuncT ao = project_ao_basis(world);
+        Tensor<double> S = matrix_inner(world, mo, ao);
+        Tensor<double> Sorig = copy(S);
+
+        long nmo = mo.size();
+        long nao = ao.size();
+
+        Tensor<double> U(nmo,nmo);
+        for (long i=0; i<nmo; i++) U(i,i) = 1.0;
+
+        print("S before");
+        print(S);
+
+        const double thresh = 1e-9; // Final convergence test
+        double tol = 0.1;           // Current test
+        long ndone=0;               // Total no. of rotations performed
+
+
+        for (long iter=0; iter<100; iter++) {
+            // Compute the objective function to track convergence
+            double sum = 0.0;
+            for (long i=0; i<nmo; i++) {
+                for (long mu=0; mu<nao; mu++) {
+                    double si = S(i,mu);
+                    sum += si*si*si*si;
+                }
+            }
+
+            //tol *= 0.25;
+            tol *= 0.5;
+            if (tol < thresh) tol = thresh;
+            long ndone_iter=0; // No. of rotations done this iteration
+            double screen = tol*sum;
+
+            print("iteration", iter, sum, ndone);
+            for (long i=0; i<nmo; i++) {
+                for (long j=0; j<i; j++) {
+                    double g = 0.0;
+                    double h = 0.0;
+                    double sij = 0.0; // Estimate of the overlap of |i> and |j>
+                    for (long mu=0; mu<nao; mu++) {
+                        double si = S(i,mu);
+                        double sj = S(j,mu);
+                        g += si*sj*sj*sj - si*si*si*sj;
+                        h += 6*si*si*sj*sj - si*si*si*si - sj*sj*sj*sj;
+                        sij += si*si*sj*sj;
+                    }
+
+                    double thetamax = 0.5;  // circa 30 degrees
+                    if (h == 0.0) {
+                        //print("     exactly zero h", i, j, h);
+                        h = -1e-20;
+                        thetamax *= 0.5;
+                    }
+                    else if (h > 0.0) {
+                        //print("     forcing negative h", i, j, h);
+                        h = -h;
+                        thetamax *= 0.5;
+                    }
+
+                    double theta = -g/h;
+
+                    if (fabs(theta) > thetamax) {
+                        //print("  restricting", i, j);
+                        if (g < 0) theta = -thetamax;
+                        else       theta =  thetamax*0.8; // Breaking symmetry is good
+                    }
+
+                    if (iter == 0 && sij > 0.01 && theta < 0.01) {
+                        //print("   randomizing", i, j, h, g, sij, theta);
+                        theta += (RandomNumber<double>() - 0.5);
+                    }
+                    
+                    if (fabs(theta) > screen) {
+                        ndone_iter++;
+                        //print("    ", i, j, g, h, theta);
+                        
+                        double c = cos(theta);
+                        double s = sin(theta);
+                        drot(nao, &S(i,0), &S(j,0), s, c);
+                        drot(nmo, &U(i,0), &U(j,0), s, c);
+                    }
+                }
+            }
+            ndone += ndone_iter;
+            if (ndone_iter==0 && tol==thresh) {
+                print("Converged!", ndone);
+                break;
+            }
+        }
+        U = transpose(U);
+
+        print(S);
+
+        print("err in SU", (S-inner(transpose(U),Sorig)).normf());
+
+        vecfuncT monew = transform(world, mo, U);
+        truncate(world,monew);
+
+        Tensor<double> Snew = matrix_inner(world, monew, ao);
+
+        print("err in Snew", (S-Snew).normf());
+        print(Snew);
+
+        long nold=0, nnew=0;
+        for (int i=0; i<nmo; i++) {
+            int nn = monew[i].size();
+            int no = mo[i].size();
+            nnew += nn;
+            nold += no;
+            print(i, no, nn);
+        }
+        print("totals", nold, nnew);
+
+        throw "done";
+    }
+
+//     void localize_boys(World& world, vecfuncT& mo) {
+//         // Form the dipole moment matrices
+
+        
+        
+//         truncate(world,mo);
+
+//         vecfuncT ao = project_ao_basis(world);
+//         Tensor<double> S = matrix_inner(world, mo, ao);
+//         Tensor<double> Sorig = copy(S);
+
+//         long nmo = mo.size();
+//         long nao = ao.size();
+
+//         Tensor<double> U(nmo,nmo);
+//         for (long i=0; i<nmo; i++) U(i,i) = 1.0;
+
+//         print("S before");
+//         print(S);
+
+//         const double thresh = 1e-9; // Final convergence test
+//         double tol = 0.1;           // Current test
+//         long ndone=0;               // Total no. of rotations performed
+
+
+//         for (long iter=0; iter<100; iter++) {
+//             // Compute the objective function to track convergence
+//             double sum = 0.0;
+//             for (long i=0; i<nmo; i++) {
+//                 for (long mu=0; mu<nao; mu++) {
+//                     double si = S(i,mu);
+//                     sum += si*si*si*si;
+//                 }
+//             }
+
+//             //tol *= 0.25;
+//             tol *= 0.5;
+//             if (tol < thresh) tol = thresh;
+//             long ndone_iter=0; // No. of rotations done this iteration
+//             double screen = tol*sum;
+
+//             print("iteration", iter, sum, ndone);
+//             for (long i=0; i<nmo; i++) {
+//                 for (long j=0; j<i; j++) {
+//                     double g = 0.0;
+//                     double h = 0.0;
+//                     double sij = 0.0; // Estimate of the overlap of |i> and |j>
+//                     for (long mu=0; mu<nao; mu++) {
+//                         double si = S(i,mu);
+//                         double sj = S(j,mu);
+//                         g += si*sj*sj*sj - si*si*si*sj;
+//                         h += 6*si*si*sj*sj - si*si*si*si - sj*sj*sj*sj;
+//                         sij += si*si*sj*sj;
+//                     }
+
+//                     double thetamax = 0.5;  // circa 30 degrees
+//                     if (h == 0.0) {
+//                         //print("     exactly zero h", i, j, h);
+//                         h = -1e-20;
+//                         thetamax *= 0.5;
+//                     }
+//                     else if (h > 0.0) {
+//                         //print("     forcing negative h", i, j, h);
+//                         h = -h;
+//                         thetamax *= 0.5;
+//                     }
+
+//                     double theta = -g/h;
+
+//                     if (fabs(theta) > thetamax) {
+//                         //print("  restricting", i, j);
+//                         if (g < 0) theta = -thetamax;
+//                         else       theta =  thetamax*0.8; // Breaking symmetry is good
+//                     }
+
+//                     if (iter == 0 && sij > 0.01 && theta < 0.01) {
+//                         //print("   randomizing", i, j, h, g, sij, theta);
+//                         theta += (RandomNumber<double>() - 0.5);
+//                     }
+                    
+//                     if (fabs(theta) > screen) {
+//                         ndone_iter++;
+//                         //print("    ", i, j, g, h, theta);
+                        
+//                         double c = cos(theta);
+//                         double s = sin(theta);
+//                         drot(nao, &S(i,0), &S(j,0), s, c);
+//                         drot(nmo, &U(i,0), &U(j,0), s, c);
+//                     }
+//                 }
+//             }
+//             ndone += ndone_iter;
+//             if (ndone_iter==0 && tol==thresh) {
+//                 print("Converged!", ndone);
+//                 break;
+//             }
+//         }
+//         U = transpose(U);
+
+//         print(S);
+
+//         print("err in SU", (S-inner(transpose(U),Sorig)).normf());
+
+//         vecfuncT monew = transform(world, mo, U);
+//         truncate(world,monew);
+
+//         Tensor<double> Snew = matrix_inner(world, monew, ao);
+
+//         print("err in Snew", (S-Snew).normf());
+//         print(Snew);
+
+//         long nold=0, nnew=0;
+//         for (int i=0; i<nmo; i++) {
+//             int nn = monew[i].size();
+//             int no = mo[i].size();
+//             nnew += nn;
+//             nold += no;
+//             print(i, no, nn);
+//         }
+//         print("totals", nold, nnew);
+
+//         throw "done";
+//     }
 
     Tensor<double> kinetic_energy_matrix(World& world, const vecfuncT& v) {
         reconstruct(world, v);
@@ -620,20 +885,9 @@ struct Calculation {
             bocc = Tensor<double>(param.nmo_beta);
             for (int i=0; i<param.nbeta; i++) bocc[i] = 1.0;
         }
+        
+//         localize(world, amo);
     }
-
-//     void localize(World& world, const vecfuncT& psi) {
-//         Tensor<double> t = matrix_inner(world, project_ao_basis(world), psi);
-//         print("Initial t matrix", t);
-//         for (int iter=0; iter<100; iter++) {
-//             Tensor<double> tsq = copy(t).emul(t);
-//             Tensor<double> tcub = copy(tsq).emul(t);
-//             print("target function", tsq.sumsq());
-//             Tensor<double> u = transpose(t).inner(tcub).scale(2.0);
-//             Tensor<double> w = transpose(tsq).inner(tsq);
-            
-
-//     }
 
     functionT make_density(World& world, const Tensor<double>& occ, const vecfuncT& v) {
         vecfuncT vsq = square(world, v);
@@ -986,12 +1240,14 @@ struct Calculation {
             vecfuncT Vpsia = apply_potential(world, aocc, amo, arho, brho, adelrhosq, bdelrhosq, vlocal, exca);
             vecfuncT Vpsib;
             if (param.spin_restricted) {
-                excb = exca;
+                if (!param.lda) excb = exca;
             }
             else if (param.nbeta) {
                 Vpsib = apply_potential(world, bocc, bmo, brho, arho, bdelrhosq, adelrhosq, vlocal, excb);
             }
             END_TIMER("Apply potential");
+
+            print("xcstuff", exca, excb, param.lda);
             
             double ekina=0.0, ekinb=0.0;;
             START_TIMER;
