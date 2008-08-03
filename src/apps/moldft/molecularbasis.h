@@ -146,6 +146,17 @@ public:
     /// Returns a const reference to the exponents
     const std::vector<double>& get_expnt() const {return expnt;}
 
+    /// Returns a string description of the basis function type
+    const char* get_desc(int ibf) const {
+        static const char* tags[4][10] = {
+            {"s"   ,""    ,""    ,""    ,""    ,""    ,""    ,""    ,""    ,""    } ,
+            {"px"  ,"py"  ,"pz"  ,""    ,""    ,""    ,""    ,""    ,""    ,""    } ,
+            {"dxx" ,"dxy" ,"dxz" ,"dyy" ,"dyz" ,"dzz" ,""    ,""    ,""    ,""    } ,
+            {"fxxx","fxxy","fxxz","fxyy","fxyz","fxzz","fxzz","fyyy","fyzz","fzzz"}};
+        MADNESS_ASSERT(ibf<numbf && ibf >= 0);
+        return tags[type][ibf];
+    }
+
     template <typename Archive>
     void serialize(Archive& ar) {ar & type & coeff & expnt & rsqmax & numbf;}
 };
@@ -323,6 +334,18 @@ public:
     void print_me(std::ostream& s) const {
         s << "atomic basis function: center " << xx << " " << yy << " " << zz << " : ibf " << ibf << " nbf " << nbf << " : shell " << shell << std::endl;
     }
+
+    const ContractedGaussianShell& get_shell() const {
+        return shell;
+    }
+
+    int get_index() const {
+        return ibf;
+    }
+
+    const char* get_desc() const {
+        return shell.get_desc(ibf);
+    }
 };
 
 std::ostream& operator<<(std::ostream& s, const AtomicBasisFunction& a) {
@@ -432,6 +455,26 @@ public:
         }
     }
 
+    /// Returns the number of the atom the ibf'th basis function is on
+    int basisfn_to_atom(const Molecule& molecule, int ibf) const {
+        MADNESS_ASSERT(ibf >= 0);
+        int n = 0;
+        for (int i=0; i<molecule.natom(); i++) {
+            // Is the desired function on this atom?
+            const Atom& atom = molecule.get_atom(i);
+            const int atn = atom.atomic_number;
+            MADNESS_ASSERT(is_supported(atn));
+            const int nbf_on_atom = ag[atn].nbf();
+            if (ibf >= n  && (n+nbf_on_atom) > ibf) {
+                return i;
+            }
+            else {
+                n += nbf_on_atom;
+            }
+        }
+        MADNESS_EXCEPTION("AtomicBasisSet: get_atomic_basis_function: confused?", ibf);
+    }
+
     /// Returns the ibf'th atomic basis function
     AtomicBasisFunction get_atomic_basis_function(const Molecule& molecule, int ibf) const {
         MADNESS_ASSERT(ibf >= 0);
@@ -454,6 +497,7 @@ public:
         }
         MADNESS_EXCEPTION("AtomicBasisSet: get_atomic_basis_function: confused?", ibf);
     }
+
 
     /// Given a molecule count the number of basis functions
     int nbf(const Molecule& molecule) const {
@@ -510,6 +554,62 @@ public:
         }
     }
 
+    /// Given a vector of AO coefficients prints an analysis 
+
+    /// For each significant coeff it prints
+    /// - atomic symbol
+    /// - atom number
+    /// - basis function type (e.g., dxy)
+    /// - basis function number
+    /// - MO coeff
+    template <typename T> 
+    void print_anal(const Molecule& molecule, const Tensor<T>& v) {
+        typedef typename Tensor<T>::scalar_type scalarT;
+        scalarT thresh = v.normf()*0.7;
+        if (thresh == 0.0) {
+            printf("    zero vector\n");
+            return;
+        }
+        long nbf = int(v.dim[0]);
+        long list[nbf];
+        long ngot=0;
+        while (!ngot) {
+            for (long i=0; i<nbf; i++) {
+                if (std::abs(v(i)) > thresh) {
+                    list[ngot++] = i;
+                }
+            }
+            thresh *= 0.7;
+        }
+
+        const char* format;
+        if (molecule.natom() < 10) {
+            format = "  %2s(%1d)%4s(%2ld)%6.3f  ";
+        }
+        else if (molecule.natom() < 100) {
+            format = "  %2s(%2d)%4s(%3ld)%6.3f  ";
+        }
+        else if (molecule.natom() < 1000) {
+            format = "  %2s(%3d)%4s(%4ld)%6.3f  ";
+        }
+        else {
+            format = "  %2s(%4d)%4s(%5ld)%6.3f  ";
+        }
+        for (long ii=0; ii<ngot; ii++) {
+            long ibf = list[ii];
+
+            const int iat = basisfn_to_atom(molecule, ibf);
+            const Atom& atom = molecule.get_atom(iat);
+            const AtomicBasisFunction ao = get_atomic_basis_function(molecule, ibf);
+            const char* desc = ao.get_desc();
+            const char* element = get_atomic_data(atom.atomic_number).symbol;
+
+            // This will need wrapping in a template for a complex MO vector
+            printf(format, element, iat, desc, ibf, v[ibf]);
+        }
+        printf("\n");
+    }
+        
     /// Print basis info for all supported atoms
     void print_all() const {
         std::cout << "\n " << name << " atomic basis set" << std::endl;
