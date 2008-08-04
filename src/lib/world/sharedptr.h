@@ -71,20 +71,20 @@ namespace madness {
         //#ifdef IBMXLC
         //        SharedCounter() {MADATOMIC_INT_SET(&count,1);};
         //#else
-        SharedCounter() : count(1) {};
+        SharedCounter() : count(1) {}
         //#endif
         
         /// Get the count
         inline int get() {
             //return MADATOMIC_INT_GET(&count);
             return count;
-        };
+        }
         
         /// Increment the count
         inline void inc() {
             //MADATOMIC_INT_INC(&count);
             count++;
-        };
+        }
         
         /// Decrement the count and return true if the decremented value is zero
         inline bool dec_and_test() {
@@ -92,18 +92,18 @@ namespace madness {
             count--;
             //	    std::cout << "dec_and_test: count = " << count << std::endl;
             return count==0;
-        };
+        }
     };
     
 
     namespace detail {
         /// Function to delete arrays for shared pointers
         template <typename T>
-        inline static void del_array(T* t) {delete [] t;};
+        inline static void del_array(T* t) {delete [] t;}
 
         /// Function to delete memory using free()
         template <typename T>
-        inline static void del_free(T* t) {free(t);};
+        inline static void del_free(T* t) {free(t);}
     }
 
     template <typename T> class RemoteReference;
@@ -146,26 +146,26 @@ namespace madness {
                 count = 0;
                 deleter = 0;
             }
-        };
+        }
         
         /// Decrement the reference count, freeing pointer if count becomes zero
         void dec() {
             //print("SharedPtr  dec: own ",own, "cntptr", count, "nref", use_count(),"ptr",p);
             if (own && count && count->dec_and_test()) free();
-        };
+        }
         
         void mark_as_unowned() {
             own = false;
-        };
+        }
         
         void mark_as_owned() {
             own = true;
-        };
+        }
         
     public:
         /// Default constructor makes an null pointer
         SharedPtr() : p(0), count(0), own(true), deleter(0) {
-        };
+        }
         
 
         /// Wrap a pointer which may be null
@@ -173,7 +173,7 @@ namespace madness {
         /// The explicit qualifier inhibits very dangerous automatic conversions
         explicit SharedPtr(T* ptr, void (*deleter)(T*)=0) : p(ptr), count(0), own(true), deleter(deleter){
             if (p) count = new SharedCounter;
-        };
+        }
         
         
         /// Wrap a pointer which may be null, or not owned
@@ -182,13 +182,13 @@ namespace madness {
         /// If the pointer is an array, delete [] will be called.
         explicit SharedPtr(T* ptr, bool own, void (*deleter)(T*)=0) : p(ptr), count(0), own(own), deleter(deleter) {
             if (own && p) count = new SharedCounter;
-        };
+        }
         
         
         /// Copy constructor generates a new reference to the same pointer
         SharedPtr(const SharedPtr<T>& s) : p(s.p), count(s.count), own(s.own), deleter(s.deleter) {
             if (own && count) count->inc();
-        };
+        }
         
 
         /// Copy constructor with static type conversion generates a new reference to the same pointer
@@ -203,7 +203,7 @@ namespace madness {
         
 
         /// Destructor decrements reference count freeing data only if count is zero
-        virtual ~SharedPtr() {dec();};
+        virtual ~SharedPtr() {dec();}
         
         
         /// Assignment decrements reference count for current pointer and increments new count
@@ -217,62 +217,62 @@ namespace madness {
                 if (own && count) count->inc();
             }
             return *this;
-        };
+        }
 
         /// Returns number of references
         inline int use_count() const {
             if (count) return count->get();
             else return 0;
-        };
+        }
         
         /// Returns the value of the pointer
-        inline T* get() const {return p;};
+        inline T* get() const {return p;}
         
         /// Returns true if the SharedPtr owns the pointer
-        inline bool owned() const {return own;};
+        inline bool owned() const {return own;}
         
         /// Cast of SharedPtr<T> to T* returns the value of the pointer
-        inline operator T*() const {return p;};
+        inline operator T*() const {return p;}
         
         /// Return pointer+offset
         inline T* operator+(long offset) const {
             return p+offset;
-        };
+        }
         
         /// Return pointer-offset
         inline T* operator-(long offset) const {
             return p-offset;
-        };
+        }
         
         /// Dereferencing SharedPtr<T> returns a reference to pointed value
         inline T& operator*() const {
             return *p;
-        };
+        }
         
         /// Member access via pointer works as expected
         inline T* operator->() const {
             return p;
-        };
+        }
         
         /// Array indexing returns reference to indexed value
         inline T& operator[](long index) const {
             return p[index];
-        };
+        }
         
         /// Boolean value (test for null pointer)
         inline operator bool() const {
             return p;
-        };
+        }
         
         /// Are two pointers equal?
         inline bool operator==(const SharedPtr<T>& other) const {
             return p == other.p;
-        };
+        }
         
         /// Are two pointers not equal?
         inline bool operator!=(const SharedPtr<T>& other) const {
             return p != other.p;
-        };
+        }
         
         /// Steal an un-owned reference to the pointer 
         
@@ -287,7 +287,7 @@ namespace madness {
             r.dec();
             r.own = false;
             return r;
-        };
+        }
 
     };
     
@@ -295,8 +295,8 @@ namespace madness {
     template <class T>
     class SharedArray : public SharedPtr<T> {
     public:
-        SharedArray(T* ptr = 0) : SharedPtr<T>(ptr,detail::del_array) {};
-        SharedArray(const SharedArray<T>& s) : SharedPtr<T>(s) {};
+        SharedArray(T* ptr = 0) : SharedPtr<T>(ptr,detail::del_array) {}
+        SharedArray(const SharedArray<T>& s) : SharedPtr<T>(s) {}
         
         /// Assignment decrements reference count for current pointer and increments new count
         SharedArray& operator=(const SharedArray& s) {
@@ -309,7 +309,7 @@ namespace madness {
                 if (this->own && this->count) this->count->inc();
             }
             return *this;
-        };
+        }
     };
 }
 #endif

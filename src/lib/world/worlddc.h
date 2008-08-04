@@ -960,10 +960,14 @@ namespace madness {
         /// Returns a future result (Future<void> may be ignored).
         template <typename memfunT, typename arg1T>
         Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > 
-        send(const keyT& key, memfunT memfun, const arg1T& arg1) {
+        send(const keyT& key, const memfunT& memfun, const arg1T& arg1) {
             check_initialized();
-            MEMFUN_RETURNT(memfunT) (implT::*itemfun)(const keyT&, memfunT, const arg1T&) = &implT:: template itemfun<memfunT,arg1T>;
-            return p->send(owner(key), itemfun, key, memfun, arg1);
+            // To work around bug in g++ 4.3.* use static cast as alternative mechanism to force type deduction
+            //MEMFUN_RETURNT(memfunT) (implT::*itemfun)(const keyT&, memfunT, const arg1T&) = &implT:: template itemfun<memfunT,arg1T>;
+            //return p->send(owner(key), itemfun, key, memfun, arg1);
+            return p->send(owner(key), 
+                           static_cast<MEMFUN_RETURNT(memfunT) (implT::*)(const keyT&, memfunT, const arg1T&)>(&implT:: template itemfun<memfunT,arg1T>), 
+                           key, memfun, arg1);
         }
         
         
@@ -978,8 +982,12 @@ namespace madness {
         Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > 
         send(const keyT& key, memfunT memfun, const arg1T& arg1, const arg2T& arg2) {
             check_initialized();
-            MEMFUN_RETURNT(memfunT) (implT::*itemfun)(const keyT&, memfunT, const arg1T&, const arg2T&) = &implT:: template itemfun<memfunT,arg1T,arg2T>;
-            return p->send(owner(key), itemfun, key, memfun, arg1, arg2);
+            // To work around bug in g++ 4.3.* use static cast as alternative mechanism to force type deduction
+            //MEMFUN_RETURNT(memfunT) (implT::*itemfun)(const keyT&, memfunT, const arg1T&, const arg2T&) = &implT:: template itemfun<memfunT,arg1T,arg2T>;
+            //return p->send(owner(key), itemfun, key, memfun, arg1, arg2);
+            return p->send(owner(key), 
+                           static_cast<MEMFUN_RETURNT(memfunT) (implT::*)(const keyT&, memfunT, const arg1T&, const arg2T&)>(&implT:: template itemfun<memfunT,arg1T,arg2T>), 
+                           key, memfun, arg1, arg2);
         }
         
         

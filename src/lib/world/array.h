@@ -55,59 +55,59 @@ namespace madness {
         typedef const T* const_iterator;
 
         /// Default constructor does not initialize vector contents
-        Vector() {};
+        Vector() {}
 
         /// Initialize all elements to value t
         Vector(T t) {
             for (int i=0; i<N; i++) v[i] = t;
-        };
+        }
         
         /// Construct from a C++ array of the same dimension
         Vector(const T (&t)[N])  {
             for (int i=0; i<N; i++) v[i] = t[i];
-        };
+        }
 
         /// Construct from an STL vector of equal or greater length
         template <typename Q>
         Vector(const std::vector<Q> t) {
             MADNESS_ASSERT(t.size() >= N);
             for (int i=0; i<N; i++) v[i] = t[i];
-        };
+        }
         
         /// Copy constructor is deep (since a vector is POD)
         Vector(const Vector<T,N>& other) {
             for (int i=0; i<N; i++) v[i] = other.v[i];
-        };
+        }
 
         /// Assignment is deep (since a vector is POD)
         Vector& operator=(const Vector<T,N>& other) {
             for (int i=0; i<N; i++) v[i] = other.v[i];
             return *this;
-        };
+        }
 
         /// Assignment is deep (since a vector is POD)
         Vector& operator=(const std::vector<T>& other) {
             for (int i=0; i<N; i++) v[i] = other[i];
             return *this;
-        };
+        }
 
         /// Fill from scalar value
         Vector& operator=(T t) {
             for (int i=0; i<N; i++) v[i] = t;
             return *this;
-        };
+        }
 
         /// Test for element-wise equality
         bool operator==(const Vector<T,N>& other) const {
             for (int i=0; i<N; i++) 
                 if (v[i] != other.v[i]) return false;
             return true;
-        };
+        }
 
         /// Same as !(*this==other)
         bool operator!=(const Vector<T,N>& other) const {
             return !(*this==other);
-        };
+        }
 
         /// Tests a<b in sense of lexically ordered index
 
@@ -119,17 +119,17 @@ namespace madness {
             }
             if (v[N-1] == other.v[N-1]) return false; // equality
             return true;
-        };
+        }
 
         /// Indexing
         T& operator[](int i) {
             return v[i];
-        };
+        }
 
         /// Indexing
         const T& operator[](int i) const {
             return v[i];
-        };
+        }
 
         /// Element-wise multiplcation by a scalar
 
@@ -212,27 +212,27 @@ namespace madness {
         /// STL iterator support
         iterator begin() {
             return v;
-        };
+        }
 
         /// STL iterator support
         const_iterator begin() const {
             return v;
-        };
+        }
 
         /// STL iterator support
         iterator end() {
             return v+N;
-        };
+        }
 
         /// STL iterator support
         const_iterator end() const {
             return v+N;
-        };
+        }
 
         /// Length of the vector
         int size() const {
             return N;
-        };
+        }
         
         /// Support for MADNESS serialization
         template <typename Archive>
@@ -243,7 +243,7 @@ namespace madness {
         /// Support for MADNESS hashing
         hashT hash() const {
             return madness::hash(v);
-        };
+        }
     };
 
     /// Output vector to stream for human consumtion

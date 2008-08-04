@@ -140,7 +140,7 @@ namespace madness {
         static inline const uniqueidT& peek(const void *msg) {
             const char* cmsg = (const char*) msg;
             return *((uniqueidT*) (cmsg + WorldAmInterface::LONG_MSG_HEADER_LEN));
-        };
+        }
             
     }
 

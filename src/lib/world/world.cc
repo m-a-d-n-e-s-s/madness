@@ -603,9 +603,9 @@ void test8(World& world) {
     if (world.rank() == 0) print("test8 (serializing world pointer) OK");
 }
 
-Void null_func(){return None;};
+Void null_func(){return None;}
 
-int val_func() {return 1;};
+int val_func() {return 1;}
 
 int val1d_func(int input) {
     return input+1;

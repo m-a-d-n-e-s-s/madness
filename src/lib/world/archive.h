@@ -149,7 +149,7 @@
 /// class A {
 ///     float a;
 /// public:
-///     A(float a = 0.0) : a(a) {};
+///     A(float a = 0.0) : a(a) {}
 ///
 ///     template <class Archive>
 ///     inline void serialize(const Archive& ar) {ar & a;}
@@ -371,7 +371,7 @@ namespace madness {
 
         /// Returns the name of the type, or unknown if not registered.
         template <typename T>
-        const char* get_type_name() {return archive_type_names[archive_typeinfo<T>::cookie];};
+        const char* get_type_name() {return archive_type_names[archive_typeinfo<T>::cookie];}
 
         
 #if defined(ARCHIVE_REGISTER_TYPE_INSTANTIATE_HERE) && defined(ARCHIVE_REGISTER_TYPE_IBMBUG)
@@ -464,7 +464,7 @@ namespace madness {
             static const bool is_parallel_archive = false;
             BaseArchive() {
                 archive_initialize_type_names();
-            };
+            }
         };
         
         /// Base class for input archives
@@ -529,7 +529,7 @@ namespace madness {
                 } else {
                     MAD_ARCHIVE_DEBUG(std::cout << "read cookie " << archive_type_names[cookie] << std::endl);
                 }
-            };
+            }
             
             
             /// Serialize a cookie for type checking
@@ -537,14 +537,14 @@ namespace madness {
                 unsigned char ck = archive_typeinfo<T>::cookie;
                 ar.store(&ck, 1); // cannot use <<
                 MAD_ARCHIVE_DEBUG(std::cout << "wrote cookie " << archive_type_names[ck] << std::endl);
-            };
+            }
             
             
             /// By default there is no postamble
-            static inline void postamble_load(const Archive& ar) {};
+            static inline void postamble_load(const Archive& ar) {}
             
             /// By default there is no postamble
-            static inline void postamble_store(const Archive& ar) {};
+            static inline void postamble_store(const Archive& ar) {}
         };
         
         
@@ -553,7 +553,7 @@ namespace madness {
         struct ArchiveSerializeImpl {
             static inline void serialize(const Archive& ar, T& t) {
                 t.serialize(ar);
-            };
+            }
         };
         
 
@@ -587,7 +587,7 @@ namespace madness {
             static inline void store(const Archive& ar, const T& t) {
                 MAD_ARCHIVE_DEBUG(std::cout << "store(ar,t) default" << std::endl);
                 serialize(ar,t);
-            };
+            }
         };
         
         
@@ -597,7 +597,7 @@ namespace madness {
             static inline void load(const Archive& ar, const T& t) {
                 MAD_ARCHIVE_DEBUG(std::cout << "load(ar,t) default" << std::endl);
                 serialize(ar,t);
-            };
+            }
         };
         
         
@@ -610,7 +610,7 @@ namespace madness {
                 ArchiveStoreImpl<Archive,T>::store(ar,t);
                 ArchivePrePostImpl<Archive,T>::postamble_store(ar);
                 return ar;
-            };
+            }
             
             static inline const Archive& wrap_load(const Archive& ar, const T& t) {
                 MAD_ARCHIVE_DEBUG(std::cout << "wrap_load for default" << std::endl);
@@ -618,7 +618,7 @@ namespace madness {
                 ArchiveLoadImpl<Archive,T>::load(ar,(T&) t);  // Loses constness here!
                 ArchivePrePostImpl<Archive,T>::postamble_load(ar);
                 return ar;
-            };
+            }
         };
         
         
@@ -671,7 +671,7 @@ namespace madness {
             const T* ptr;
             unsigned int n;
             inline
-            archive_array(const T *ptr, unsigned int n) : ptr(ptr), n(n) {};
+            archive_array(const T *ptr, unsigned int n) : ptr(ptr), n(n) {}
         };
         
         
@@ -710,7 +710,7 @@ namespace madness {
                 //ArchivePrePostImpl<Archive,T>::postamble_store(ar);
                 ArchivePrePostImpl<Archive,T*>::postamble_store(ar);
                 return ar;
-            };
+            }
             
             static inline const Archive& wrap_load(const Archive& ar, const archive_array<T>& t) {
                 MAD_ARCHIVE_DEBUG(std::cout << "wrap_load for archive_array" << std::endl);
@@ -724,7 +724,7 @@ namespace madness {
                 //ArchivePrePostImpl<Archive,T>::postamble_load(ar);
                 ArchivePrePostImpl<Archive,T*>::postamble_load(ar);
                 return ar;
-            };
+            }
         };
         
         
@@ -735,13 +735,13 @@ namespace madness {
                 MAD_ARCHIVE_DEBUG(std::cout << "wrap_store for array" << std::endl);
                 ar << wrap(&t[0],n);
                 return ar;
-            };
+            }
             
             static inline const Archive& wrap_load(const Archive& ar, const T (&t)[n]) {
                 MAD_ARCHIVE_DEBUG(std::cout << "wrap_load for array" << std::endl);
                 ar >> wrap(&t[0],n);
                 return ar;
-            };
+            }
         };
 
 
@@ -774,7 +774,7 @@ namespace madness {
                 MAD_ARCHIVE_DEBUG(std::cout << "serialize STL vector" << std::endl);
                 ar & v.size();
                 ar & wrap(&v[0],v.size());
-            };
+            }
         };
         
         
@@ -790,7 +790,7 @@ namespace madness {
                     v.resize(n);
                 }
                 ar & wrap((T *) &v[0],n);
-            };
+            }
         };
         
         /// Serialize STL vector<bool> (as plain array of bool)
@@ -803,7 +803,7 @@ namespace madness {
                 for (std::size_t i=0; i<n; i++) b[i] = v[i];
                 ar & n & wrap(b,v.size());
                 delete [] b;
-            };
+            }
         };
         
         
@@ -822,7 +822,7 @@ namespace madness {
                 ar & wrap(b,v.size());
                 for (std::size_t i=0; i<n; i++) v[i] = b[i];
                 delete [] b;
-            };
+            }
         };
         
         /// Serialize STL string
@@ -832,7 +832,7 @@ namespace madness {
                 MAD_ARCHIVE_DEBUG(std::cout << "serialize STL string" << std::endl);
                 ar & v.size();
                 ar & wrap((const char*) &v[0],v.size());
-            };
+            }
         };
         
         
@@ -848,7 +848,7 @@ namespace madness {
                     v.resize(n);
                 }
                 ar & wrap((char*) &v[0],n);
-            };
+            }
         };
         
         
@@ -858,7 +858,7 @@ namespace madness {
             static inline void serialize(const Archive& ar, std::pair<T,Q>& t) {
                 MAD_ARCHIVE_DEBUG(std::cout << "(de)serialize STL pair" << std::endl);
                 ar & t.first & t.second;
-            };
+            }
         };
         
         
@@ -878,7 +878,7 @@ namespace madness {
                     std::pair<T,Q> pp = *p;
                     ar & pp;
                 }
-            };
+            }
         };
         
         
@@ -894,7 +894,7 @@ namespace madness {
                     ar & p;
                     t[p.first] = p.second;
                 }
-            };
+            }
         };
         
         

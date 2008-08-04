@@ -66,46 +66,46 @@ namespace madness {
 
         ulong& operator[](int i) {
             return buf[i];
-        };
+        }
 
         ulong operator[](int i) const {
             return buf[i];
-        };
+        }
 
         
-        AmArg() : flags(0), function(0) {};
+        AmArg() : flags(0), function(0) {}
         AmArg(ulong arg0) 
             : flags(0), function(0) {
             buf[0]=arg0;
-        };
+        }
         AmArg(ulong arg0, ulong arg1) 
             : flags(0), function(0) {
             buf[0]=arg0; buf[1]=arg1;
-        };
+        }
         AmArg(ulong arg0, ulong arg1, ulong arg2) 
             : flags(0), function(0) {
             buf[0]=arg0; buf[1]=arg1; buf[2]=arg2;
-        };
+        }
         AmArg(ulong arg0, ulong arg1, ulong arg2, ulong arg3) 
             : flags(0), function(0) {
             buf[0]=arg0; buf[1]=arg1; buf[2]=arg2; buf[3]=arg3;
-        };
+        }
         AmArg(ulong arg0, ulong arg1, ulong arg2, ulong arg3, ulong arg4) 
             : flags(0), function(0) {
             buf[0]=arg0; buf[1]=arg1; buf[2]=arg2; buf[3]=arg3; buf[4]=arg4;
-        };
+        }
         AmArg(ulong arg0, ulong arg1, ulong arg2, ulong arg3, ulong arg4, ulong arg5) 
             : flags(0), function(0) {
             buf[0]=arg0; buf[1]=arg1; buf[2]=arg2; buf[3]=arg3; buf[4]=arg4; buf[5]=arg5;
-        };
+        }
         AmArg(ulong arg0, ulong arg1, ulong arg2, ulong arg3, ulong arg4, ulong arg5, ulong arg6) 
             : flags(0), function(0) {
             buf[0]=arg0; buf[1]=arg1; buf[2]=arg2; buf[3]=arg3; buf[4]=arg4; buf[5]=arg5; buf[6]=arg6; 
-        };
+        }
         AmArg(ulong arg0, ulong arg1, ulong arg2, ulong arg3, ulong arg4, ulong arg5, ulong arg6, ulong arg7)  
             : flags(0), function(0) {
             buf[0]=arg0; buf[1]=arg1; buf[2]=arg2; buf[3]=arg3; buf[4]=arg4; buf[5]=arg5; buf[6]=arg6; buf[7]=arg7; 
-        };
+        }
 
         template <typename A>
         AmArg(const A& a) : flags(0), function(0) {
@@ -225,7 +225,7 @@ namespace madness {
     /// Central location for freeing managed long buffers
     inline void free_long_am_arg(unsigned long *buf) {
         delete [] buf;
-    };
+    }
 
     /// Convenience routine to allocate a LongAmArg but using "new (unsigned long)[]"
     LongAmArg* alloc_long_am_arg(std::size_t nbyte = 0);
@@ -266,7 +266,7 @@ namespace madness {
                 , count(arg.flags&COUNT_MASK)
                 , is_managed(false)
                 , is_short(true)
-            {};
+            {}
             
             qmsg(ProcessID src, unsigned long* buf, size_t nbyte, int i, bool is_managed)
                 : arg()
@@ -277,7 +277,7 @@ namespace madness {
                 , count(buf[0]&COUNT_MASK)
                 , is_managed(is_managed)
                 , is_short(false)
-            {};
+            {}
 
             void printout(std::ostream& s) const {
                 if (is_short) {
@@ -305,7 +305,7 @@ namespace madness {
                       << ", count=" << count 
                       << ")\n";
                 }
-            };
+            }
 
         };
 
@@ -378,7 +378,7 @@ namespace madness {
                 nfree_long_recv_buf++;
                 MADNESS_ASSERT(nfree_long_recv_buf<=NLONG_RECV);
             }
-        };    
+        }    
         
         /// Private:
         inline void poll_short_msg_action(ProcessID src, const AmArg& arg) {
@@ -392,7 +392,7 @@ namespace madness {
                 _broadcast(arg.function, arg, arg.flags>>12);
             
             arg.function(world, src, arg);
-        };
+        }
         
         /// Private:
         inline void poll_long_msg_action(ProcessID src, size_t nbyte, unsigned long* buf) {
@@ -407,7 +407,7 @@ namespace madness {
                 _broadcast_long(function, buf, nbyte, flags>>12);
             
             function(world, src, buf, nbyte);
-        };
+        }
 
         inline void free_managed_send_buf(int i) {
             PROFILE_MEMBER_FUNC(WorldAM);
@@ -415,7 +415,7 @@ namespace madness {
                 free_long_am_arg((unsigned long*) managed_send_buf[i]);
                 managed_send_buf[i] = 0;
             }
-        };
+        }
 
 
         /// Private: Finds/waits for a free send request
@@ -439,7 +439,7 @@ namespace madness {
             free_managed_send_buf(i);
 
             return i;
-        };
+        }
 
 //         /// Private: Finds/waits for a free send request
 //         inline int get_free_send_request() {
@@ -459,7 +459,7 @@ namespace madness {
 //             if (i == MPI::UNDEFINED) i = 0;
 //             free_managed_send_buf(i);
 //             return i;
-//         };
+//         }
 
 
         /// Private: push an active message onto the queue
@@ -505,7 +505,7 @@ namespace madness {
             //suspend();
             World::poll_all();
             //resume();
-        };
+        }
         
 
         /// Private: Sends a long active message setting internal flags
@@ -554,7 +554,7 @@ namespace madness {
             World::poll_all();
             //resume();
             return i;
-        };
+        }
 
         /// Private: broadcasts a short active message to all other nodes
         inline void _broadcast(am_handlerT op, const AmArg& arg, ProcessID root) {
@@ -563,7 +563,7 @@ namespace madness {
 
             if (child0 != -1) _send(child0, op, arg, root);
             if (child1 != -1) _send(child1, op, arg, root);
-        };
+        }
 
 
         /// Private: broadcasts a long active message to all other nodes
@@ -582,7 +582,7 @@ namespace madness {
             if (child0 != -1) _send_long(child0, op, buf, nbyte, root, false);
             if (child1 != -1) _send_long(child1, op, buf, nbyte, root, false);
             fence();
-        };
+        }
 
         long pull_msgs_into_q() {
             PROFILE_MEMBER_FUNC(WorldAM);
@@ -613,7 +613,7 @@ namespace madness {
             }
 
             return narrived;
-        };
+        }
 
 
         /// Private: Copy data of long pending messages to free up recv buffers
@@ -643,7 +643,7 @@ namespace madness {
                     if (nfree_long_recv_buf == NLONG_RECV) break;
                 }
             }
-        };
+        }
 
         void process_messages_in_q() {
             PROFILE_MEMBER_FUNC(WorldAM);
@@ -740,7 +740,7 @@ namespace madness {
                 post_recv(i);
             for (int i=0; i<NSEND; i++)
                 managed_send_buf[i] = 0;
-        };
+        }
 
 
         virtual ~WorldAmInterface() {
@@ -757,7 +757,7 @@ namespace madness {
             for (int i=0; i<NLONG_RECV; i++) {
                 delete [] long_recv_buf[i];
             }
-        };
+        }
         
         
         /// Set debug flag to new value and return old value
@@ -765,13 +765,13 @@ namespace madness {
             bool status = debug;
             debug = value;
             return status;
-        };
+        }
         
 
         /// Suspends processing of AM
         inline void suspend() {
             suspended++;
-        };
+        }
         
 
         /// Resumes processing of AM
@@ -781,14 +781,14 @@ namespace madness {
             suspended--;
             MADNESS_ASSERT(suspended >= 0);
             if (poll && !suspended) World::poll_all();
-        };
+        }
 
         /// Mostly for debugging AM itself.  Print pending message q
         void printq() const {
             print(world.rank(),"World: number of messages in local q", msgq.size());
             for (std::list<qmsg*>::const_iterator it = msgq.begin(); it != msgq.end(); ++it) (*it)->printout(std::cout);
             std::cout.flush();
-        };            
+        }            
 
         /// Mostly for debugging AM itself.  Print bunch of stuff.
         void print_stuff() const {
@@ -814,20 +814,20 @@ namespace madness {
                 }
             }
             printq();
-        };
+        }
 
         /// dummy routine for jaguar
-        static inline void usleep(int) {};
+        static inline void usleep(int) {}
 
 
         struct FenceProbe {
             mutable MPI::Request* send_handle;
             mutable std::list<qmsg*>* plist;
             FenceProbe(MPI::Request* send_handle, std::list<qmsg*>* plist)
-                : send_handle(send_handle), plist(plist) {};
+                : send_handle(send_handle), plist(plist) {}
             bool operator()() const {
                 return MPI::Request::Testall(NSEND, send_handle) && plist->empty();
-            };
+            }
         };
 
         /// Ensures all local AM operations have completed
@@ -843,14 +843,14 @@ namespace madness {
             MADNESS_ASSERT(!suspended);
             World::await(FenceProbe(send_handle, &msgq));
             for (int i=0; i<NSEND; i++) free_managed_send_buf(i);
-        };
+        }
 
         /// Wait for completion of a send request so you can reuse your buffer
         void wait_to_complete(int handle) {
             if (handle >= 0) {
                 World::await(send_handle[handle]);
             }
-        };
+        }
 
         void print_stats() const {
             std::cout << "\n    Active Message Statistics\n";
@@ -889,13 +889,13 @@ namespace madness {
                 if (!suspended) process_messages_in_q();
                 if (nfree_long_recv_buf == 0) free_long_recv_bufs();
             } while (narrived);
-        };
+        }
 
 
         /// Sends a short active message
         inline void send(ProcessID dest, am_handlerT op, const AmArg& arg) {
             _send(dest, op, arg, -1);
-        };
+        }
         
         
         /// Sends a long active message (non-blocking ... see details)
@@ -963,7 +963,7 @@ namespace madness {
             MPI::Request req = mpi.Irecv(buf, count, MPI::BYTE, q, tag);
             send(p,handler,arg);
             World::await(req); 
-        };
+        }
     };
 
 
@@ -1058,7 +1058,7 @@ namespace madness {
         if (nbyte == 0) nbyte = WorldAmInterface::LONG_MSG_LEN;
         LongAmArg *buf = (LongAmArg*) new unsigned long[(nbyte-1)/sizeof(long)+1];
         return buf;
-    };
+    }
 
     /// Convenience template for serializing arguments into LongAmArg
     template <typename A, typename B, typename C, typename D, typename E, typename F, typename G, typename H, typename I, typename J>
