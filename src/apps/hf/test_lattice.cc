@@ -334,7 +334,7 @@ void testPeriodicGaussian(World& world, double coeff, double expnt, int lmax, in
 
   // Create operator
   std::vector< SharedPtr< Convolution1D<double> > > ops(1);
-  ops[0] = SharedPtr< Convolution1D<double> >(new PeriodicGaussianConvolution1D<double>(k, 0, coeff, expnt));
+  ops[0] = SharedPtr< Convolution1D<double> >(new PeriodicGaussianConvolution1D<double>(k, 2, coeff, expnt));
   SeparatedConvolution<double,3> op(world, k, ops);
 
   // Apply operator
@@ -357,32 +357,32 @@ int main(int argc, char**argv)
 
   double maple_data_2500[21] =
     {
-      -5.502768362,
-      -37.84516862,
+      -44.02214685,
+      -37.86955441,
       -23.31010082,
       -8.939789115,
       -1.299027398,
-       0.0,
-       1.299027398,
-       8.939789115,
-       23.31010082,
-       37.86955441,
-       44.02214685,
-       37.86955441,
-       23.31010082,
-       8.939789115,
-       1.299027398,
-       0.0,
+      0.0,
+      1.299027398,
+      8.939789115,
+      23.31010082,
+      37.86955441,
+      44.02214685,
+      37.86955441,
+      23.31010082,
+      8.939789115,
+      1.299027398,
+      0.0,
       -1.299027398,
       -8.939789115,
       -23.31010082,
-      -37.84516862,
-      -5.502768362
+      -37.86955441,
+      -44.02214685
     };
 
   double maple_data_25000[21] =
     {
-      -0.1758775678,
+      -1.407020542,
       -1.210373524,
       -0.7450293332,
       -0.2857304296,
@@ -402,12 +402,12 @@ int main(int argc, char**argv)
       -0.2857304296,
       -0.7450293332,
       -1.210373524,
-      -0.1758775678
+      -1.407020542
     };
 
   double maple_data_55000[21] =
     {
-      -0.05393329933,
+      -0.4314663948,
       -0.3711640906,
       -0.2284651223,
       -0.08761995618,
@@ -427,12 +427,12 @@ int main(int argc, char**argv)
       -0.08761995618,
       -0.2284651223,
       -0.3711640906,
-      -0.05393329933
+      -0.4314663948
     };
 
   double maple_data_95000[21] =
     {
-      -0.02376369977,
+      -0.1901095982,
       -0.1635396336,
       -0.1006646476,
       -0.03860647055,
@@ -452,44 +452,46 @@ int main(int argc, char**argv)
       -0.03860647055,
       -0.1006646476,
       -0.1635396336,
-      -0.02376369977
+      -0.1901095982
     };
 
-  double maple_data_225000[21] =
-    {
-      -0.006520845252,
-      -0.04487586757,
-      -0.02762274377,
-      -0.01059375530,
-      -0.001539362749,
-      0.0,
-      0.001539362749,
-      0.01059375530,
-      0.02762274377,
-      0.04487586757,
-      0.05216676201,
-      0.04487586757,
-      0.02762274377,
-      0.01059375530,
-      0.001539362749,
-      0.0,
-      -0.001539362749,
-      -0.01059375530,
-      -0.02762274377,
-      -0.04487586757,
-      -0.006520845252
-    };
-
+//  double maple_data_225000[21] =
+//    {
+//      -0.05216676201
+//      -0.04487586757
+//      -0.02762274377
+//      -0.01059375530
+//      0.0
+//      0.
+//      0.0
+//      0.01059375530
+//      0.02762274377
+//      0.04487586757
+//      0.05216676201
+//      0.04487586757
+//      0.02762274377
+//      0.01059375530
+//      0.0
+//      0.
+//      -0.001539362749
+//      -0.01059375530
+//      -0.02762274377
+//      -0.04487586757
+//      -0.05216676201
+//    };
+//
+  int k = 8;
+  double thresh = 1e-6;
   printf("\nTesting with exponent = 2500\n\n");
-  testPeriodicGaussian(world, 100, 2500, 0, 14, 1e-16, &maple_data_2500[0]);
+  testPeriodicGaussian(world, 100, 2500, 16, k, thresh, &maple_data_2500[0]);
   printf("\nTesting with exponent = 25000\n\n");
-  testPeriodicGaussian(world, 100, 25000, 0, 14, 1e-16, &maple_data_25000[0]);
+  testPeriodicGaussian(world, 100, 25000, 16, k, thresh, &maple_data_25000[0]);
   printf("\nTesting with exponent = 55000\n\n");
-  testPeriodicGaussian(world, 100, 55000, 0, 14, 1e-16, &maple_data_55000[0]);
+  testPeriodicGaussian(world, 100, 55000, 16, k, thresh, &maple_data_55000[0]);
   printf("\nTesting with exponent = 95000\n\n");
-  testPeriodicGaussian(world, 100, 95000, 0, 14, 1e-16, &maple_data_95000[0]);
-  printf("\nTesting with exponent = 225000\n\n");
-  testPeriodicGaussian(world, 100, 225000, 0, 14, 1e-16, &maple_data_225000[0]);
+  testPeriodicGaussian(world, 100, 95000, 16, k, thresh, &maple_data_95000[0]);
+//  printf("\nTesting with exponent = 225000\n\n");
+//  testPeriodicGaussian(world, 100, 225000, 0, 14, 1e-16, &maple_data_225000[0]);
   MPI::Finalize();
   return 0;
 }
