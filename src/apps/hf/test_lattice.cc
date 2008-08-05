@@ -455,6 +455,31 @@ int main(int argc, char**argv)
       -0.02376369977
     };
 
+  double maple_data_225000[21] =
+    {
+      -0.006520845252,
+      -0.04487586757,
+      -0.02762274377,
+      -0.01059375530,
+      -0.001539362749,
+      0.0,
+      0.001539362749,
+      0.01059375530,
+      0.02762274377,
+      0.04487586757,
+      0.05216676201,
+      0.04487586757,
+      0.02762274377,
+      0.01059375530,
+      0.001539362749,
+      0.0,
+      -0.001539362749,
+      -0.01059375530,
+      -0.02762274377,
+      -0.04487586757,
+      -0.006520845252
+    };
+
   printf("\nTesting with exponent = 2500\n\n");
   testPeriodicGaussian(world, 100, 2500, 0, 14, 1e-16, &maple_data_2500[0]);
   printf("\nTesting with exponent = 25000\n\n");
@@ -463,6 +488,8 @@ int main(int argc, char**argv)
   testPeriodicGaussian(world, 100, 55000, 0, 14, 1e-16, &maple_data_55000[0]);
   printf("\nTesting with exponent = 95000\n\n");
   testPeriodicGaussian(world, 100, 95000, 0, 14, 1e-16, &maple_data_95000[0]);
+  printf("\nTesting with exponent = 225000\n\n");
+  testPeriodicGaussian(world, 100, 225000, 0, 14, 1e-16, &maple_data_225000[0]);
   MPI::Finalize();
   return 0;
 }
