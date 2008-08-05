@@ -249,7 +249,7 @@ void test_hf_ho(World& world)
   psi.scale(1.0/psi.norm2());
   printf("Norm of psi = %.5f\n\n", psi.norm2());
   // Create HartreeFock object
-  cout << "Creating HartreeFock object..." << endl;
+  madness::print("Creating Hartree Fock Object ...");
 //  HartreeFock hf(world, Vnuc, psi, -42.5, false, false, 1e-5);
 //  cout << "Running HartreeFock object..." << endl;
 //  hf.hartree_fock(10);
@@ -403,21 +403,15 @@ void test_hf_be(World& world)
 
   // Nuclear potential (Be)
   const coordT origin(0.0);
-  if (world.rank() == 0) cout << "Creating Function object for nuclear potential ..." << endl;
-  cout << "Creating Function object for nuclear potential ..." << endl;
+  if (world.rank() == 0) madness::print("Creating Function object for nuclear potential ...");
   Function<double,3> Vnuc = FunctionFactory<double,3>(world).f(V_func_be).thresh(thresh);
 
   // Guess for the wavefunctions
-  if (world.rank() == 0) cout << "Creating wavefunction's ..." << endl;
-  cout << "Creating wavefunction's ..." << endl;
+  if (world.rank() == 0) madness::print("Creating wavefunction's ...");
   Function<double,3> psi1 = FunctionFactory<double,3>(world).f(psi_func_be1);
   psi1.scale(1.0/psi1.norm2());
-  //if (world.rank() == 0) printf("Norm of psi1 = %.5f\n\n", psi1.norm2());
-  printf("Norm of psi1 = %.5f\n\n", psi1.norm2());
   Function<double,3> psi2 = FunctionFactory<double,3>(world).f(psi_func_be2);
   psi2.scale(1.0/psi2.norm2());
-  //if (world.rank() == 0) printf("Norm of psi2 = %.5f\n\n", psi2.norm2());
-  printf("Norm of psi2 = %.5f\n\n", psi2.norm2());
   // Create list of wavefunctions
   std::vector<Function<double,3> > phis;
   phis.push_back(psi1);
@@ -427,14 +421,14 @@ void test_hf_be(World& world)
   eigs.push_back(-5.0);
   eigs.push_back(-0.5);
   // Create HartreeFock object
-  if (world.rank() == 0) cout << "Creating DFT object..." << endl;
+  if (world.rank() == 0) madness::print("Creating DFT object...");
   //HartreeFock hf(world, Vnuc, phis, eigs, true, true, thresh);
   std::vector< Vector<double,3> > kpoints(1);
   Vector<double,3> gammapt;
   gammapt[0] = 0.0; gammapt[1] = 0.0; gammapt[2] = 0.0;
   kpoints[0] = gammapt;
   DFT<double> dftcalc(world, Vnuc, phis, eigs, kpoints, thresh);
-  if (world.rank() == 0) cout << "Running DFT object..." << endl;
+  if (world.rank() == 0) madness::print("Running DFT object...");
   dftcalc.solve(31);
   //hf.hartree_fock(20);
 //  double ke = 2.0 * hf.calculate_tot_ke_sp();

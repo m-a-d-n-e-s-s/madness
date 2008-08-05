@@ -191,7 +191,7 @@ namespace madness
         funcT psi = _phis[pi];
         funcT pfunc = FunctionFactory<T,3>(_world);
         // Loop through all ops
-        if (_world.rank() == 0) printf("Looping through the ops ...\n\n");
+        if (_world.rank() == 0) madness::print("Looping through the ops ...\n\n");
         for (unsigned int oi = 0; oi < _ops.size(); oi++)
         {
           EigSolverOp<T>* op = _ops[oi];
@@ -200,7 +200,7 @@ namespace madness
           // Operate with orbital-dependent operator
           if (op->is_od()) pfunc += op->coeff() * op->op_o(_phis, psi);
         }
-        if (_world.rank() == 0) printf("Creating BSH operator ...\n\n");
+        if (_world.rank() == 0) madness::print("Creating BSH operator ...\n\n");
         SeparatedConvolution<T,3>* op = 0;
         if (_periodic)
         {
@@ -220,12 +220,12 @@ namespace madness
               FunctionDefaults<3>::get_k(), 1e-4, _thresh);
         }
         // Apply the Green's function operator (stubbed)
-        if (_world.rank() == 0) printf("Applying BSH operator ...\n\n");
+        if (_world.rank() == 0) madness::print("Applying BSH operator ...\n\n");
         funcT tmp = apply(*op, pfunc);
         // (Not sure whether we have to do this mask thing or not!)
         // WSTHORNTON DEBUG
         double ttnorm = tmp.norm2();
-        if (_world.rank() == 0) printf("pi = %d\tttnorm = %.5f\n\n", pi, ttnorm);
+        if (_world.rank() == 0) madness::print("pi = ", pi, "\tttnorm = %.5f\n\n", ttnorm);
         if (_world.rank() == 0) printf("Gram-Schmidt ...\n\n");
         for (unsigned int pj = 0; pj < pi; ++pj)
         {
@@ -368,19 +368,18 @@ namespace madness
         // I bounce the new eigenvalue back into the negative side of the real axis. I
         // keep doing this until it's good or I've already done it 10 times.
         int counter = 10;
-        printf("ei = %d\teps_new = %.5f\teps_old = %.5f\n\n", ei, eps_new, eps_old);
         while (eps_new >= 0.0 && counter < 20)
         {
           // Split the difference between the new and old estimates of the
           // pi-th eigenvalue.
-          printf("ei = %d\teps_new = %.5f\teps_old = %.5f\n\n", ei, eps_new, eps_old);
+          if (_world.rank() == 0) printf("ei = %d\teps_new = %.5f\teps_old = %.5f\n\n", ei, eps_new, eps_old);
           eps_new = eps_old + 0.5*(eps_new - eps_old);
           counter++;
         }
         // Still no go, forget about it. (1$ to Donnie Brasco)
         if (eps_new >= 0.0)
         {
-          printf("FAILURE OF WST: exiting!!\n\n");
+          if (_world.rank() == 0) printf("FAILURE OF WST: exiting!!\n\n");
           _exit(0);
         }
         // Set new eigenvalue

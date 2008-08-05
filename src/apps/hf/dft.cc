@@ -591,6 +591,7 @@ void wst_munge_rho(int npoint, double *rho) {
   {
     // If not spin-polarized, multiply by 2.0
     double factor = (_spinpol) ? 1.0 : 2.0;
+//    if (_world.rank() == 0) printf("Applying Coulomb operator ...\n\n");
     printf("Applying Coulomb operator ...\n\n");
     funcT rfunc = factor * _Vc * psi;
     return  rfunc;
@@ -603,6 +604,7 @@ void wst_munge_rho(int npoint, double *rho) {
   {
     // If not spin-polarized, multiply by 2.0
     double factor = (_spinpol) ? 1.0 : 2.0;
+//    if (_world.rank() == 0) printf("Applying Coulomb operator ...\n\n");
     printf("Applying Coulomb operator ...\n\n");
     funcT rfunc = factor * _Vc * psi;
     return  rfunc;
