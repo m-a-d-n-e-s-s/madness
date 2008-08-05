@@ -103,92 +103,6 @@ struct PeriodicConditionalRefineTest
 //*****************************************************************************
 
 //*****************************************************************************
-void test3d(int argc, char**argv)
-{
-  MPI::Init(argc, argv);
-  World world(MPI::COMM_WORLD);
-  startup(world,argc,argv);
-
-  // Function defaults
-  double bsize = 0.5;
-  int funck = 8;
-  double thresh = 1e-8;
-  double eps = 1e-12;
-  Tensor<int> bc(3,2);
-  bc(_) = 0;
-  FunctionDefaults<3>::set_bc(bc);
-  FunctionDefaults<3>::set_k(funck);
-  FunctionDefaults<3>::set_thresh(thresh);
-  FunctionDefaults<3>::set_refine(true);
-  FunctionDefaults<3>::set_initial_level(2);
-  FunctionDefaults<3>::set_truncate_mode(1);
-  FunctionDefaults<3>::set_cubic_cell(-bsize, bsize);
-
-  Function<double,3> rho = FunctionFactory<double,3>(world).f(rho_func3d);
-  Function<double,3> phi_exact = FunctionFactory<double,3>(world).f(phi_func3d);
-
-  SeparatedConvolution<double,3> op = PBSHOperator<double,3>(world, 0.0, funck, 1e-8, eps);
-  Function<double,3> phi_test = apply(op, rho);
-  //phi_test.scale(-1.0);
-  Function<double,3> rho_test = laplacian<Function<double,3>, 3>(phi_test);
-  rho_test.scale(1.0/4.0/WST_PI);
-
-//  coordT3d point1;
-//  point1[0] = 0.254; point1[1] = 0.114; point1[2] = 0.854;
-//  coordT3d point2;
-//  point2[0] = 0.1054; point2[1] = 0.930114; point2[2] = 0.00054;
-//
-//  double pept1 = phi_exact(point1);
-//  double pept2 = phi_exact(point2);
-//  double ptpt1 = phi_test(point1);
-//  double ptpt2 = phi_test(point2);
-//  if (world.rank() == 0) printf("pept1 = %.8f\t\tptpt1 = %.8f\n\n", pept1, ptpt1);
-//  if (world.rank() == 0) printf("pept2 = %.8f\t\tptpt2 = %.8f\n\n", pept2, ptpt2);
-//  if (world.rank() == 0) printf("ptpt1 / pept1 = %.8f\n\n", ptpt1 / pept1);
-//  if (world.rank() == 0) printf("ptpt2 / pept2 = %.8f\n\n", ptpt2 / pept2);
-
-  vector<long> npt(3,101);
-  Function<double,3> phi_diff = phi_exact - phi_test;
-  Function<double,3> rho_diff = rho - rho_test;
-  plotdx(phi_test, "phitest.dx", FunctionDefaults<3>::get_cell(), npt);
-  plotdx(phi_exact, "phiexact.dx", FunctionDefaults<3>::get_cell(), npt);
-  plotdx(phi_diff, "phidiff.dx", FunctionDefaults<3>::get_cell(), npt);
-  plotdx(phi_diff, "rhodiff.dx", FunctionDefaults<3>::get_cell(), npt);
-
-  coordT3d point1;
-  point1[0] = 0.49; point1[1] = 0.49; point1[2] = 0.49;
-  coordT3d point2;
-  point2[0] = 0.1; point2[1] = 0.1; point2[2] = 0.1;
-
-  phi_exact.reconstruct(true);
-  double pept1 = phi_exact(point1);
-  double pept2 = phi_exact(point2);
-  double ptpt1 = phi_test(point1);
-  double ptpt2 = phi_test(point2);
-  if (world.rank() == 0) printf("pept1 = %.8f\t\tptpt1 = %.8f\n\n", pept1, ptpt1);
-  if (world.rank() == 0) printf("pept2 = %.8f\t\tptpt2 = %.8f\n\n", pept2, ptpt2);
-  if (world.rank() == 0) printf("ptpt1 / pept1 = %.8f\n\n", ptpt1 / pept1);
-  if (world.rank() == 0) printf("ptpt2 / pept2 = %.8f\n\n", ptpt2 / pept2);
-  if (world.rank() == 0) printf("rept1 = %.8f\t\trtpt1 = %.8f\n\n", pept1, ptpt1);
-  if (world.rank() == 0) printf("rept2 = %.8f\t\trtpt2 = %.8f\n\n", pept2, ptpt2);
-  if (world.rank() == 0) printf("rtpt1 / rept1 = %.8f\n\n", ptpt1 / pept1);
-  if (world.rank() == 0) printf("rtpt2 / rept2 = %.8f\n\n", ptpt2 / pept2);
-
-  double error = (phi_exact - phi_test).norm2();
-  if (world.rank() == 0) printf("Error is %.8f\n\n", error);
-
-  double phitest_norm = phi_test.norm2();
-  double phiexact_norm = phi_exact.norm2();
-  double rho_norm = rho.norm2();
-  if (world.rank() == 0) printf("Norm of phi_test = %.8f\n\n", phitest_norm);
-  if (world.rank() == 0) printf("Norm of phi_exact = %.8f\n\n", phiexact_norm);
-  if (world.rank() == 0) printf("Norm of rho = %.8f\n\n", rho_norm);
-
-  MPI::Finalize();
-}
-//*****************************************************************************
-
-//*****************************************************************************
 void testscott(int argc, char**argv)
 {
   MPI::Init(argc, argv);
@@ -319,7 +233,6 @@ void testscott(int argc, char**argv)
 }
 //*****************************************************************************
 
-
 //*****************************************************************************
 void testPeriodicGaussian(World& world, double coeff, double expnt, int lmax, int k, double thresh, double* data)
 {
@@ -349,7 +262,7 @@ void testPeriodicGaussian(World& world, double coeff, double expnt, int lmax, in
 //*****************************************************************************
 
 //*****************************************************************************
-int main(int argc, char**argv)
+void testSinglePeriodicGaussians(int argc, char** argv)
 {
   MPI::Init(argc, argv);
   World world(MPI::COMM_WORLD);
@@ -455,31 +368,6 @@ int main(int argc, char**argv)
       -0.1901095982
     };
 
-//  double maple_data_225000[21] =
-//    {
-//      -0.05216676201
-//      -0.04487586757
-//      -0.02762274377
-//      -0.01059375530
-//      0.0
-//      0.
-//      0.0
-//      0.01059375530
-//      0.02762274377
-//      0.04487586757
-//      0.05216676201
-//      0.04487586757
-//      0.02762274377
-//      0.01059375530
-//      0.0
-//      0.
-//      -0.001539362749
-//      -0.01059375530
-//      -0.02762274377
-//      -0.04487586757
-//      -0.05216676201
-//    };
-//
   int k = 8;
   double thresh = 1e-6;
   printf("\nTesting with exponent = 2500\n\n");
@@ -490,9 +378,56 @@ int main(int argc, char**argv)
   testPeriodicGaussian(world, 100, 55000, 16, k, thresh, &maple_data_55000[0]);
   printf("\nTesting with exponent = 95000\n\n");
   testPeriodicGaussian(world, 100, 95000, 16, k, thresh, &maple_data_95000[0]);
-//  printf("\nTesting with exponent = 225000\n\n");
-//  testPeriodicGaussian(world, 100, 225000, 0, 14, 1e-16, &maple_data_225000[0]);
   MPI::Finalize();
+}
+//*****************************************************************************
+
+//*****************************************************************************
+void testPeriodicCoulomb3d(int argc, char**argv)
+{
+  MPI::Init(argc, argv);
+  World world(MPI::COMM_WORLD);
+  startup(world,argc,argv);
+
+  // Function defaults
+  int k = 8;
+  double thresh = 1e-6;
+  double eps = 1e-6;
+  double bsize = 0.5;
+  FunctionDefaults<3>::set_k(k);
+  FunctionDefaults<3>::set_cubic_cell(-bsize,bsize);
+  FunctionDefaults<3>::set_thresh(thresh);
+
+  // Create test charge density and the exact solution to Poisson's equation
+  // with said charge density
+  Function<double,3> rho = FunctionFactory<double,3>(world).f(rho_func3d);
+  Function<double,3> phi_exact = FunctionFactory<double,3>(world).f(phi_func3d);
+
+  // Create operator and apply
+  SeparatedConvolution<double,3> op = PeriodicCoulombOp<double,3>(world, k, 1e-8, eps);
+  Function<double,3> phi_test = apply(op, rho);
+
+  for (int i=0; i<101; i++)
+  {
+    coordT3d p(-0.5 + i*0.01);
+    printf("%.2f\t\t%.8f\t%.8f\t%.8f\n", p[0], phi_exact(p), phi_test(p), fabs(phi_exact(p) - phi_test(p)));
+  }
+
+  // Plot to OpenDX
+  vector<long> npt(3,101);
+  Function<double,3> phi_diff = phi_exact - phi_test;
+  plotdx(phi_test, "phitest.dx", FunctionDefaults<3>::get_cell(), npt);
+  plotdx(phi_exact, "phiexact.dx", FunctionDefaults<3>::get_cell(), npt);
+  plotdx(phi_diff, "phidiff.dx", FunctionDefaults<3>::get_cell(), npt);
+
+  MPI::Finalize();
+}
+//*****************************************************************************
+
+//*****************************************************************************
+int main(int argc, char**argv)
+{
+  testPeriodicCoulomb3d(argc, argv);
   return 0;
 }
 //*****************************************************************************
