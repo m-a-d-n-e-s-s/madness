@@ -5,6 +5,13 @@ dft
   nvbeta 0
 end
 
+# water*1
+geometry
+  O  0.0    0.0 0.0
+  H  1.4375 0.0 1.15
+  H -1.4375 0.0 1.15
+end
+
 # water dimer
 geometry
   units angstrom
@@ -71,12 +78,6 @@ end
 
 
 
-# water*1
-geometry
-  O  0.0    0.0 0.0
-  H  1.4375 0.0 1.15
-  H -1.4375 0.0 1.15
-end
 
 # Lithium atom
 geometry

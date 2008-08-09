@@ -554,6 +554,16 @@ public:
         }
     }
 
+    template <typename T>
+    class AnalysisSorter {
+        const Tensor<T> v;
+    public:
+        AnalysisSorter(const Tensor<T>& v) : v(v) {}
+        bool operator()(long i, long j) const {
+            return std::abs(v[i]) > std::abs(v[j]);
+        }
+    };
+
     /// Given a vector of AO coefficients prints an analysis 
 
     /// For each significant coeff it prints
@@ -564,8 +574,7 @@ public:
     /// - MO coeff
     template <typename T> 
     void print_anal(const Molecule& molecule, const Tensor<T>& v) {
-        typedef typename Tensor<T>::scalar_type scalarT;
-        scalarT thresh = v.normf()*0.7;
+        const double thresh = 0.2*v.normf();
         if (thresh == 0.0) {
             printf("    zero vector\n");
             return;
@@ -573,14 +582,12 @@ public:
         long nbf = int(v.dim[0]);
         long list[nbf];
         long ngot=0;
-        while (!ngot) {
-            for (long i=0; i<nbf; i++) {
-                if (std::abs(v(i)) > thresh) {
-                    list[ngot++] = i;
-                }
+        for (long i=0; i<nbf; i++) {
+            if (std::abs(v(i)) > thresh) {
+                list[ngot++] = i;
             }
-            thresh *= 0.7;
         }
+        std::sort(list,list+ngot,AnalysisSorter<T>(v));
 
         const char* format;
         if (molecule.natom() < 10) {
