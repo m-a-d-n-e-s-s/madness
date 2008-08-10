@@ -514,91 +514,87 @@ struct Calculation {
         // Form the ao-mo overlap matrix
         vecfuncT ao = project_ao_basis(world);
         tensorT S = matrix_inner(world, mo, ao);
-        tensorT Sorig = copy(S);
-
         long nmo = mo.size();
         long nao = ao.size();
 
         tensorT U(nmo,nmo);
-        for (long i=0; i<nmo; i++) U(i,i) = 1.0;
 
-        const double thresh = 1e-9; // Final convergence test
-        double tol = 0.1;           // Current test
-        long ndone=0;               // Total no. of rotations performed
-
-        for (long iter=0; iter<100; iter++) {
-            // Compute the objective function to track convergence
-            double sum = 0.0;
-            for (long i=0; i<nmo; i++) {
-                for (long mu=0; mu<nao; mu++) {
-                    double si = S(i,mu);
-                    sum += si*si*si*si;
-                }
-            }
-
-            //tol *= 0.25;
-            tol *= 0.5;
-            if (tol < thresh) tol = thresh;
-            long ndone_iter=0; // No. of rotations done this iteration
-            double screen = tol*sum;
-
-            for (long i=0; i<nmo; i++) {
-                for (long j=0; j<i; j++) {
-                    double g = 0.0;
-                    double h = 0.0;
-                    double sij = 0.0; // Estimate of the overlap of |i> and |j>
+        if (world.rank() == 0) {
+            for (long i=0; i<nmo; i++) U(i,i) = 1.0;
+            
+            const double thresh = 1e-9; // Final convergence test
+            double tol = 0.1;           // Current test
+            long ndone=0;               // Total no. of rotations performed
+            for (long iter=0; iter<100; iter++) {
+                // Compute the objective function to track convergence
+                double sum = 0.0;
+                for (long i=0; i<nmo; i++) {
                     for (long mu=0; mu<nao; mu++) {
                         double si = S(i,mu);
-                        double sj = S(j,mu);
-                        g += si*sj*sj*sj - si*si*si*sj;
-                        h += 6*si*si*sj*sj - si*si*si*si - sj*sj*sj*sj;
-                        sij += si*si*sj*sj;
-                    }
-
-                    double thetamax = 0.5;  // circa 30 degrees
-                    if (h == 0.0) {
-                        //print("     exactly zero h", i, j, h);
-                        h = -1e-20;
-                        thetamax *= 0.5;
-                    }
-                    else if (h > 0.0) {
-                        //print("     forcing negative h", i, j, h);
-                        h = -h;
-                        thetamax *= 0.5;
-                    }
-
-                    double theta = -g/h;
-
-                    if (fabs(theta) > thetamax) {
-                        //print("  restricting", i, j);
-                        if (g < 0) theta = -thetamax;
-                        else       theta =  thetamax*0.8; // Breaking symmetry is good
-                    }
-
-                    if (iter == 0 && sij > 0.01 && theta < 0.01) {
-                        //print("   randomizing", i, j, h, g, sij, theta);
-                        theta += (RandomNumber<double>() - 0.5);
-                    }
-                    
-                    if (fabs(theta) > screen) {
-                        ndone_iter++;
-                        //print("    ", i, j, g, h, theta);
-                        
-                        double c = cos(theta);
-                        double s = sin(theta);
-                        drot(nao, &S(i,0), &S(j,0), s, c, 1);
-                        drot(nmo, &U(i,0), &U(j,0), s, c, 1);
+                        sum += si*si*si*si;
                     }
                 }
+                
+                tol *= 0.5;
+                if (tol < thresh) tol = thresh;
+                long ndone_iter=0; // No. of rotations done this iteration
+                double screen = tol*sum;
+                
+                for (long i=0; i<nmo; i++) {
+                    for (long j=0; j<i; j++) {
+                        double g = 0.0;
+                        double h = 0.0;
+                        double sij = 0.0; // Estimate of the overlap of |i> and |j>
+                        for (long mu=0; mu<nao; mu++) {
+                            double si = S(i,mu);
+                            double sj = S(j,mu);
+                            g += si*sj*sj*sj - si*si*si*sj;
+                            h += 6*si*si*sj*sj - si*si*si*si - sj*sj*sj*sj;
+                            sij += si*si*sj*sj;
+                        }
+                        
+                        double thetamax = 0.5;  // circa 30 degrees
+                        if (h == 0.0) {
+                            h = -1e-20;
+                            thetamax *= 0.5;
+                        }
+                        else if (h > 0.0) {
+                            h = -h;
+                            thetamax *= 0.5;
+                        }
+                        
+                        double theta = -g/h;
+                        
+                        if (fabs(theta) > thetamax) {
+                            if (g < 0) theta = -thetamax;
+                            else       theta =  thetamax*0.8; // Breaking symmetry is good
+                        }
+                        
+                        if (iter == 0 && sij > 0.01 && theta < 0.01) {
+                            theta += (RandomNumber<double>() - 0.5);
+                        }
+                        
+                        if (fabs(theta) > screen) {
+                            ndone_iter++;
+                            
+                            double c = cos(theta);
+                            double s = sin(theta);
+                            drot(nao, &S(i,0), &S(j,0), s, c, 1);
+                            drot(nmo, &U(i,0), &U(j,0), s, c, 1);
+                        }
+                    }
+                }
+                ndone += ndone_iter;
+                if (ndone_iter==0 && tol==thresh) {
+                    print("Converged!", ndone);
+                    break;
+                }
             }
-            ndone += ndone_iter;
-            if (ndone_iter==0 && tol==thresh) {
-                print("Converged!", ndone);
-                break;
-            }
+            U = transpose(U);
         }
+        world.gop.broadcast(U.ptr(), U.size, 0);
 
-        return transpose(U);
+        return U;
     }
 
     /// Prints an analysis of the MO vectors by projection onto the minimal AO set
@@ -1339,6 +1335,15 @@ struct Calculation {
             if (world.rank() == 0) print("Analysis of beta MO vectors");
             analyze_vectors(world, bmo, bocc, beps);
         }
+
+        tensorT U = localize_maxao(world, amo);
+        vecfuncT locmo = transform(world, amo, U);
+        print("Localized by MAXAO analysis");
+        analyze_vectors(world, locmo);
+        U = localize_boys(world, amo);
+        locmo = transform(world, amo, U);
+        print("Localized by BOYS analysis");
+        analyze_vectors(world, locmo);
     }
 
 };
