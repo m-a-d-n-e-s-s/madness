@@ -763,23 +763,61 @@ namespace madness {
 
 
         /// Get the scaling function coeffs at level n starting from NS form
-        tensorT coeffs_for_jun(Level n) {
+	// N=2^n, M=N/q, q must be power of 2 
+	// q=0 return coeffs [N,k] for direct sum 
+	// q>0 return coeffs [k,q,M] for fft sum
+        tensorT coeffs_for_jun(Level n, long q=0) {
             MADNESS_ASSERT(compressed && nonstandard && NDIM<=3);
-            long dim[6];
-            for (int d=0; d<NDIM; d++) {
-                dim[d     ] = 1<<n;
-                dim[d+NDIM] = cdata.k;
-            }
+	    tensorT r,r0;
+	    long N=1<<n;
+	    long M = (q ? N/q: N);
+	    if (q==0) {
+	    	q = 1;
+	    	long dim[2*NDIM];
+            	for (int d=0; d<NDIM; d++) {
+                	dim[d     ] = N;
+                	dim[d+NDIM] = cdata.k;
+		}
+		tensorT rr(2*NDIM,dim);
+		r0=r=rr;
+		//NNkk->MqMqkk, since fuse is not allowed. Now needs to move back to 2*NDIM, since tensor max dim is 6
+		//for (int d=NDIM-1; d>=0; --d) r.splitdim_inplace_base(d,M,q);
+            } else {
+	  	long dim[2*NDIM];
+                for (int d=0; d<NDIM; d++) {
+                        //dim[d+NDIM*2] = M;
+                        dim[d+NDIM  ] = N;
+			dim[d       ] = cdata.k;
+                }
+		tensorT rr(2*NDIM,dim);
+		r0=r=rr;
+		/*vector<long> map(3*NDIM);
+		for (int d=0; d<NDIM; ++d) {
+			map[d]=d+2*NDIM;
+			map[NDIM+d]=2*d+1;
+			map[2*NDIM+d]=2*d;
+		}
+		r.mapdim_inplace_base(map);
+		//print(rr);
+		//for (int d=1; d<NDIM; ++d) rr.swapdim_inplace_base(2*NDIM+d,NDIM+d); //kkqqMM->kkqMqM
+		//print(rr);
+		//for (int d=0; d<NDIM; ++d) rr.swapdim_inplace_base(NDIM+2*d,NDIM+2*d-1); //kkqMqM->kkMqMq
+		//print(rr);
+		//for (int d=0; d<NDIM; ++d) rr.fusedim_inplace_base(NDIM+d); //->kkNN
+		//seems that this fuse is not allowed :(
 
-            tensorT r(2*NDIM,dim);
-
+		//print(rr);
+		*/
+		r.cycledim_inplace_base(NDIM,0,-1); //->NNkk or MqMqkk
+	    }
+	    //print("faking done M q r(fake) r0(real)",M,q,"\n", r,r0);
             ProcessID me = world.rank();
-            Vector<long,NDIM> t(1l<<n);
+            Vector<long,NDIM> t(N);
             for (IndexIterator it(t); it; ++it) {
                 keyT key(n, Vector<Translation,NDIM>(*it));
                 if (coeffs.owner(key) == me) {
                     typename dcT::iterator it = coeffs.find(key).get();
-                    tensorT q;
+                    tensorT qq;
 
                     if (it == coeffs.end()) {
                         // must get from above
@@ -789,25 +827,40 @@ namespace madness {
                         const keyT& parent = result.get().first;
                         const tensorT& t = result.get().second;
 
-                        q = parent_to_child(t, parent, key);
+                        qq = parent_to_child(t, parent, key);
                     }
                     else {
-                        q = it->second.coeff();
+                        qq = it->second.coeff();
                     }
                     std::vector<Slice> s(NDIM*2);
+		    long ll = 0;
                     for (int d=0; d<NDIM; d++) {
                         Translation l = key.translation()[d];
-                        s[d     ] = Slice(l,l,0);
-                        s[d+NDIM] = Slice(0,k-1,1);
+			ll += (l % q)*pow(M,NDIM)*pow(q,NDIM-d-1) + (l/q)*pow(M,NDIM-d-1);
+			//print(d,l,(l % q)*pow(M,NDIM)*pow(q,NDIM-d-1) + (l/q)*pow(M,NDIM-d-1));
+
+			//print("translation",l);
+			//s[d       ] = Slice(l,l,0);
+                        //s[d+NDIM  ] = Slice(l%q,l%q,0);
+                        //s[d+NDIM] = Slice(0,k-1,1);
                     }
-                    r(s) = q(cdata.s0);
+		    //long dum = ll;
+		    for (int d=0; d<NDIM; d++) {
+		    	Translation l = ll / pow(N,NDIM-d-1);
+			s[d     ] = Slice(l,l,0);
+			s[d+NDIM] = Slice(0,k-1,1);
+			ll = ll % long(pow(N,NDIM-d-1));
+		    }
+		    //print(s, dum, key.translation());
+                    r(s) = qq(cdata.s0);
                 }
             }
 
             world.gop.fence();
-            world.gop.sum(r);
+            world.gop.sum(r0);
+	    //print(r,r0);
 
-            return r;
+            return r0;
         }
 
 

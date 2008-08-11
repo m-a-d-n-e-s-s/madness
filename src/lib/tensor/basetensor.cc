@@ -199,6 +199,7 @@ namespace madness {
 
     void BaseTensor::cycledim_inplace_base(long nshift, long start, long end) {
         /// Cyclic shift by nshift places of the dimensions [start,....,end]
+	/// right shift?
 
         /// start and end specify inclusive range of dimensions ...
         /// (PREVIOUS behavior was Pythonic and end was one larger.)
