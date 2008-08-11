@@ -836,7 +836,7 @@ namespace madness {
 		    long ll = 0;
                     for (int d=0; d<NDIM; d++) {
                         Translation l = key.translation()[d];
-			ll += (l % q)*pow(M,NDIM)*pow(q,NDIM-d-1) + (l/q)*pow(M,NDIM-d-1);
+			ll += (l % q)*pow((double)M,NDIM)*pow((double)q,NDIM-d-1) + (l/q)*pow((double)M,NDIM-d-1);
 			//print(d,l,(l % q)*pow(M,NDIM)*pow(q,NDIM-d-1) + (l/q)*pow(M,NDIM-d-1));
 
 			//print("translation",l);
@@ -846,10 +846,10 @@ namespace madness {
                     }
 		    //long dum = ll;
 		    for (int d=0; d<NDIM; d++) {
-		    	Translation l = ll / pow(N,NDIM-d-1);
+		    	Translation l = ll / pow((double)N,NDIM-d-1);
 			s[d     ] = Slice(l,l,0);
 			s[d+NDIM] = Slice(0,k-1,1);
-			ll = ll % long(pow(N,NDIM-d-1));
+			ll = ll % long(pow((double)N,NDIM-d-1));
 		    }
 		    //print(s, dum, key.translation());
                     r(s) = qq(cdata.s0);
