@@ -27,8 +27,13 @@ namespace madness {
         {
             for (unsigned int d=0; d<n.size(); d++) n[d] = limits[d];
         }
-            
-        
+
+	IndexIterator& reset() {
+		for (unsigned int d=0; d<n.size(); d++) i[d] = 0;
+		finished = false;
+		return *this;
+	}
+     
         long operator[](int d) const {MADNESS_ASSERT(!finished); return i[d];}
         
         const std::vector<long>& operator*() const {MADNESS_ASSERT(!finished); return i;}
