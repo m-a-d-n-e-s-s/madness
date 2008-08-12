@@ -7,12 +7,14 @@ using namespace madness;
 typedef Vector<double,3> coordT3d;
 typedef Vector<double,1> coordT1d;
 
+const double L = 10.0;
+
 //*****************************************************************************
 static double rho_func3d(const coordT3d& r)
 {
   const double x=r[0], y=r[1], z=r[2];
   double twopi = 2 * WST_PI;
-  return  cos(twopi*x) * cos(twopi*y) * cos(twopi*z);
+  return  cos(twopi*x/L) * cos(twopi*y/L) * cos(twopi*z/L);
 }
 //*****************************************************************************
 
@@ -22,9 +24,19 @@ static double phi_func3d(const coordT3d& r)
   const double x=r[0], y=r[1], z=r[2];
   double twopi = 2 * WST_PI;
   double threepi = 3 * WST_PI;
-  return  (1/threepi) * cos(twopi*x) * cos(twopi*y) * cos(twopi*z);
+  return  (L*L/threepi) * cos(twopi*x/L) * cos(twopi*y/L) * cos(twopi*z/L);
 }
 //*****************************************************************************
+
+////*****************************************************************************
+//static double phi_func3d(const coordT3d& r)
+//{
+//  const double x=r[0], y=r[1], z=r[2];
+//  double twopi = 2 * WST_PI;
+//  double threepi = 3 * WST_PI;
+//  return  (1/threepi) * cos(twopi*x) * cos(twopi*y) * cos(twopi*z);
+//}
+////*****************************************************************************
 
 //*****************************************************************************
 static double phi_bsh_func3d(const coordT3d& r)
@@ -32,7 +44,7 @@ static double phi_bsh_func3d(const coordT3d& r)
   const double x=r[0], y=r[1], z=r[2];
   double twopi = 2 * WST_PI;
   double sixteenpisquared = 16 * WST_PI * WST_PI;
-  return  (1/sixteenpisquared) * cos(twopi*x) * cos(twopi*y) * cos(twopi*z);
+  return  (L*L/sixteenpisquared) * cos(twopi*x/L) * cos(twopi*y/L) * cos(twopi*z/L);
 }
 //*****************************************************************************
 
@@ -251,35 +263,38 @@ void testPeriodicCoulomb3d(int argc, char**argv)
   startup(world,argc,argv);
 
   // Function defaults
-  int k = 8;
-  double thresh = 1e-6;
+  int k = 16;
+  double thresh = 1e-14;
   double eps = 1e-6;
-  double bsize = 0.5;
   FunctionDefaults<3>::set_k(k);
-  FunctionDefaults<3>::set_cubic_cell(-bsize,bsize);
+  FunctionDefaults<3>::set_cubic_cell(-L/2,L/2);
   FunctionDefaults<3>::set_thresh(thresh);
 
   // Create test charge density and the exact solution to Poisson's equation
   // with said charge density
+  printf("building rho ...\n\n");
   Function<double,3> rho = FunctionFactory<double,3>(world).f(rho_func3d);
+  printf("building phi_exact ...\n\n");
   Function<double,3> phi_exact = FunctionFactory<double,3>(world).f(phi_func3d);
 
   // Create operator and apply
   SeparatedConvolution<double,3> op = PeriodicCoulombOp<double,3>(world, k, 1e-8, eps);
+  printf("applying operator ...\n\n");
   Function<double,3> phi_test = apply(op, rho);
 
+  double bstep = L / 100.0;
   for (int i=0; i<101; i++)
   {
-    coordT3d p(-0.5 + i*0.01);
+    coordT3d p(-L/2 + i*bstep);
     printf("%.2f\t\t%.8f\t%.8f\t%.8f\n", p[0], phi_exact(p), phi_test(p), fabs(phi_exact(p) - phi_test(p)));
   }
 
   // Plot to OpenDX
-  vector<long> npt(3,101);
-  Function<double,3> phi_diff = phi_exact - phi_test;
-  plotdx(phi_test, "phitest.dx", FunctionDefaults<3>::get_cell(), npt);
-  plotdx(phi_exact, "phiexact.dx", FunctionDefaults<3>::get_cell(), npt);
-  plotdx(phi_diff, "phidiff.dx", FunctionDefaults<3>::get_cell(), npt);
+//  vector<long> npt(3,101);
+//  Function<double,3> phi_diff = phi_exact - phi_test;
+//  plotdx(phi_test, "phitest.dx", FunctionDefaults<3>::get_cell(), npt);
+//  plotdx(phi_exact, "phiexact.dx", FunctionDefaults<3>::get_cell(), npt);
+//  plotdx(phi_diff, "phidiff.dx", FunctionDefaults<3>::get_cell(), npt);
 
   MPI::Finalize();
 }
@@ -296,9 +311,8 @@ void testPeriodicBSH3d(int argc, char**argv)
   int k = 8;
   double thresh = 1e-6;
   double eps = 1e-6;
-  double bsize = 0.5;
   FunctionDefaults<3>::set_k(k);
-  FunctionDefaults<3>::set_cubic_cell(-bsize,bsize);
+  FunctionDefaults<3>::set_cubic_cell(-L/2,L/2);
   FunctionDefaults<3>::set_thresh(thresh);
 
   // Create test charge density and the exact solution to Poisson's equation
@@ -308,30 +322,34 @@ void testPeriodicBSH3d(int argc, char**argv)
 
   // Create operator and apply
   double twopi = 2 * WST_PI;
-  SeparatedConvolution<double,3> op = PeriodicBSHOp<double,3>(world, twopi, k, 1e-8, eps);
+  SeparatedConvolution<double,3> op = PeriodicBSHOp<double,3>(world, twopi/L, k, 1e-8, eps, L);
   Function<double,3> phi_test = apply(op, rho);
 
+  double bstep = L / 100.0;
   for (int i=0; i<101; i++)
   {
-    coordT3d p(-0.5 + i*0.01);
-    printf("%.2f\t\t%.8f\t%.8f\t%.8f\n", p[0], phi_exact(p), phi_test(p), fabs(phi_exact(p) - phi_test(p)));
+    coordT3d p(-L/2 + i*bstep);
+    printf("%.2f\t\t%.8f\t%.8f\t%.8f\t%.8f\n", p[0], phi_exact(p), phi_test(p), phi_exact(p)/phi_test(p), fabs(phi_exact(p) - phi_test(p)));
   }
 
   // Plot to OpenDX
-  vector<long> npt(3,101);
-  Function<double,3> phi_diff = phi_exact - phi_test;
-  plotdx(phi_test, "phitest.dx", FunctionDefaults<3>::get_cell(), npt);
-  plotdx(phi_exact, "phiexact.dx", FunctionDefaults<3>::get_cell(), npt);
-  plotdx(phi_diff, "phidiff.dx", FunctionDefaults<3>::get_cell(), npt);
+//  printf("plotting to openDX ...\n\n");
+//  vector<long> npt(3,101);
+//  Function<double,3> phi_diff = phi_exact - phi_test;
+//  plotdx(phi_test, "phitest.dx", FunctionDefaults<3>::get_cell(), npt);
+//  plotdx(phi_exact, "phiexact.dx", FunctionDefaults<3>::get_cell(), npt);
+//  plotdx(phi_diff, "phidiff.dx", FunctionDefaults<3>::get_cell(), npt);
+//  printf("finished plotting to openDX ...\n\n");
 
   MPI::Finalize();
+  printf("done!\n\n");
 }
 //*****************************************************************************
 
 //*****************************************************************************
 int main(int argc, char**argv)
 {
-  testPeriodicBSH3d(argc, argv);
+  testPeriodicCoulomb3d(argc, argv);
   return 0;
 }
 //*****************************************************************************

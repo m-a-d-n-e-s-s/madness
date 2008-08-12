@@ -10,7 +10,7 @@ namespace madness
 
   //***************************************************************************
   template<typename Q, int NDIM>
-  SeparatedConvolution<Q, NDIM> PeriodicCoulombOp(World& world, long k, double lo, double eps)
+  SeparatedConvolution<Q, NDIM> PeriodicCoulombOp(World& world, long k, double lo, double eps, double L = 1.0)
   {
     // bsh_fit generates representation for 1/4Pir but we want 1/r
     // so have to scale eps by 1/4Pi
@@ -21,10 +21,11 @@ namespace madness
 
     // Scale coefficients according to the dimensionality and add to the list of operators
     std::vector< SharedPtr< Convolution1D<Q> > > ops;
-    for (int i=0; (i < coeff.dim[0]) && (expnt[i] >= acut1e_6); ++i)
+    for (int i=0; (i < coeff.dim[0]) && (expnt[i]/L/L >= acut1e_6); ++i)
     {
+      coeff[i] *= L;
       coeff[i]=pow(coeff[i], 1.0/double(NDIM));
-      ops.push_back(SharedPtr< Convolution1D<Q> >(new PeriodicGaussianConvolution1D<double>(k, 16, coeff[i], expnt[i])));
+      ops.push_back(SharedPtr< Convolution1D<Q> >(new PeriodicGaussianConvolution1D<double>(k, 16, coeff[i], expnt[i]/L/L)));
     }
 
     return SeparatedConvolution<Q, NDIM>(world, k, ops);
@@ -33,7 +34,7 @@ namespace madness
 
   //***************************************************************************
   template<typename Q, int NDIM>
-  SeparatedConvolution<Q, NDIM> PeriodicBSHOp(World& world, double mu, long k, double lo, double eps)
+  SeparatedConvolution<Q, NDIM> PeriodicBSHOp(World& world, double mu, long k, double lo, double eps, double L = 1.0)
   {
     // bsh_fit generates representation for 1/4Pir but we want 1/r
     // so have to scale eps by 1/4Pi
@@ -45,8 +46,9 @@ namespace madness
     std::vector< SharedPtr< Convolution1D<Q> > > ops;
     for (int i=0; (i < coeff.dim[0]); ++i)
     {
+      coeff[i] *= L;
       coeff[i]=pow(coeff[i], 1.0/double(NDIM));
-      ops.push_back(SharedPtr< Convolution1D<Q> >(new PeriodicGaussianConvolution1D<double>(k, 16, coeff[i], expnt[i])));
+      ops.push_back(SharedPtr< Convolution1D<Q> >(new PeriodicGaussianConvolution1D<double>(k, 16, coeff[i], expnt[i]/L/L)));
     }
 
     return SeparatedConvolution<Q, NDIM>(world, k, ops);
