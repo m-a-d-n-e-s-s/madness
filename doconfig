@@ -186,6 +186,18 @@ function do_crayxt() {
     set_value LIBS "-lacml -lgfortran"
 }
 
+function do_macosx() {
+    echo ""
+    echo "Doing standard mac-osx leopard  configuration"
+    echo "Assume that you have gcc-4.2 or better and Xcode 3.1 for Leopard "
+    echo "Also assume that  you are using mpicc i n64 bit with openmpi-1.2.6"
+    echo ""
+    set_value MADNESS_FORINT long
+    set_value DEFINES -DTENSORS_USE_MALLOC
+    set_value LIBS "-llapack -lblas -lgfortran"
+}
+
+
 # Set mostly empty/non-functional defaults for all strings in part to
 # document things that can be set and also to automate getting them
 # from the command line.  We do NOT take anything from the environment
@@ -307,6 +319,9 @@ for target in $* ; do
         standard=1
     elif [ "$target" = "LINUX64" ] ; then
         do_linux64
+        standard=1
+    elif [ "$target" = "MACOSX" ] ; then
+        do_macosx
         standard=1
     elif [ "$target" = "debug" ] ; then
         MAD_DEBUG=1
