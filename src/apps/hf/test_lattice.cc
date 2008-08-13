@@ -43,7 +43,7 @@ static double phi_bsh_func3d(const coordT3d& r)
 {
   const double x=r[0], y=r[1], z=r[2];
   double twopi = 2 * WST_PI;
-  double sixteenpisquared = 16 * WST_PI * WST_PI;
+  double sixteenpisquared = 16.0 * WST_PI * WST_PI;
   return  (L*L/sixteenpisquared) * cos(twopi*x/L) * cos(twopi*y/L) * cos(twopi*z/L);
 }
 //*****************************************************************************
@@ -263,8 +263,8 @@ void testPeriodicCoulomb3d(int argc, char**argv)
   startup(world,argc,argv);
 
   // Function defaults
-  int k = 16;
-  double thresh = 1e-14;
+  int k = 8;
+  double thresh = 1e-6;
   double eps = 1e-6;
   FunctionDefaults<3>::set_k(k);
   FunctionDefaults<3>::set_cubic_cell(-L/2,L/2);
@@ -278,7 +278,7 @@ void testPeriodicCoulomb3d(int argc, char**argv)
   Function<double,3> phi_exact = FunctionFactory<double,3>(world).f(phi_func3d);
 
   // Create operator and apply
-  SeparatedConvolution<double,3> op = PeriodicCoulombOp<double,3>(world, k, 1e-8, eps);
+  SeparatedConvolution<double,3> op = PeriodicCoulombOp<double,3>(world, k, 1e-8, eps, L);
   printf("applying operator ...\n\n");
   Function<double,3> phi_test = apply(op, rho);
 
@@ -286,7 +286,8 @@ void testPeriodicCoulomb3d(int argc, char**argv)
   for (int i=0; i<101; i++)
   {
     coordT3d p(-L/2 + i*bstep);
-    printf("%.2f\t\t%.8f\t%.8f\t%.8f\n", p[0], phi_exact(p), phi_test(p), fabs(phi_exact(p) - phi_test(p)));
+    double error = fabs(phi_exact(p) - phi_test(p));
+    printf("%.2f\t\t%.8f\t%.8f\t%.8f\t%.8f\n", p[0], phi_exact(p), phi_test(p), error, error / phi_exact(p));
   }
 
   // Plot to OpenDX
@@ -349,7 +350,7 @@ void testPeriodicBSH3d(int argc, char**argv)
 //*****************************************************************************
 int main(int argc, char**argv)
 {
-  testPeriodicCoulomb3d(argc, argv);
+  testPeriodicBSH3d(argc, argv);
   return 0;
 }
 //*****************************************************************************
