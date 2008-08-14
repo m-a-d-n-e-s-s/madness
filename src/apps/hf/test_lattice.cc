@@ -7,7 +7,7 @@ using namespace madness;
 typedef Vector<double,3> coordT3d;
 typedef Vector<double,1> coordT1d;
 
-const double L = 10.0;
+const double L = 1.0;
 
 //*****************************************************************************
 static double rho_func3d(const coordT3d& r)
@@ -350,6 +350,7 @@ void testPeriodicBSH3d(int argc, char**argv)
 //*****************************************************************************
 int main(int argc, char**argv)
 {
+//  testPeriodicCoulomb3d(argc, argv);
   testPeriodicBSH3d(argc, argv);
   return 0;
 }

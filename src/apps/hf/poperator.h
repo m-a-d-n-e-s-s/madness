@@ -18,8 +18,20 @@ namespace madness
     // so have to scale eps by 1/4Pi
     Tensor<double> coeff, expnt;
     //if (mu==0) eps /= 4.0*pi;
-    bsh_fit(0.0, lo, 10.0*L, eps, &coeff, &expnt, false); //eps /(4.0*pi)
+    bsh_fit(0.0, lo, 10.0*L, eps/(4.0 * WST_PI), &coeff, &expnt, false); //eps /(4.0*pi)
     coeff.scale(4.0*WST_PI);
+
+    for (int i = 0; i < 5; i++)
+    {
+      double x = std::pow(10.0, i-3);
+      double y = 0.0;
+      for (int ei=0; ei < coeff.dim[0]; ++ei)
+      {
+        y += coeff[ei]*exp(-expnt[ei]*x*x);
+      }
+      printf("%.8f\t%.8f\t%.8f\n", x, y, fabs(y-1/x));
+    }
+    printf("\n");
 
     // Scale coefficients according to the dimensionality and add to the list of operators
     std::vector< SharedPtr< Convolution1D<Q> > > ops;
