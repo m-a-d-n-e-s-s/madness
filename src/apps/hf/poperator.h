@@ -35,11 +35,10 @@ namespace madness
 
     // Scale coefficients according to the dimensionality and add to the list of operators
     std::vector< SharedPtr< Convolution1D<Q> > > ops;
-    for (int i=0; (i < coeff.dim[0]) && (expnt[i]/L/L >= acut1e_6); ++i)
+    for (int i=0; (i < coeff.dim[0]) && (expnt[i]*L*L >= acut1e_6); ++i)
     {
-        coeff[i] *= L;
         coeff[i]=pow(coeff[i], 1.0/double(NDIM));
-        ops.push_back(SharedPtr< Convolution1D<Q> >(new PeriodicGaussianConvolution1D<double>(k, 16, coeff[i], expnt[i]/L/L)));
+        ops.push_back(SharedPtr< Convolution1D<Q> >(new PeriodicGaussianConvolution1D<double>(k, 16, L*coeff[i], expnt[i]*L*L)));
     }
 
     return SeparatedConvolution<Q, NDIM>(world, k, ops);
@@ -72,9 +71,8 @@ namespace madness
     std::vector< SharedPtr< Convolution1D<Q> > > ops;
     for (int i=0; (i < coeff.dim[0]); ++i)
     {
-      coeff[i] *= L;
       coeff[i]=pow(coeff[i], 1.0/double(NDIM));
-      ops.push_back(SharedPtr< Convolution1D<Q> >(new PeriodicGaussianConvolution1D<double>(k, 16, coeff[i], expnt[i]/L/L)));
+      ops.push_back(SharedPtr< Convolution1D<Q> >(new PeriodicGaussianConvolution1D<double>(k, 16, L*coeff[i], expnt[i]*L*L)));
     }
 
     return SeparatedConvolution<Q, NDIM>(world, k, ops);
