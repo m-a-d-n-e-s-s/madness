@@ -7,7 +7,7 @@ using namespace madness;
 typedef Vector<double,3> coordT3d;
 typedef Vector<double,1> coordT1d;
 
-const double L = 1.0;
+const double L = 10.0;
 
 //*****************************************************************************
 static double rho_func3d(const coordT3d& r)

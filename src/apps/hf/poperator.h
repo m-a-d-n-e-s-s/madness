@@ -54,7 +54,7 @@ namespace madness
     // so have to scale eps by 1/4Pi
     Tensor<double> coeff, expnt;
     //if (mu==0) eps /= 4.0*pi;
-    bsh_fit(mu, lo, 10.0*L, eps, &coeff, &expnt, false); //eps /(4.0*pi)
+    bsh_fit(mu, lo, 10.0*L, eps, &coeff, &expnt, true); //eps /(4.0*pi)
 
     for (int i = 0; i < 5; i++)
     {
@@ -64,7 +64,7 @@ namespace madness
       {
         y += coeff[ei]*exp(-expnt[ei]*x*x);
       }
-      printf("%.8f\t%.8f\t%.8f\n", x, y, fabs(y-(exp(-mu*x)/x)));
+      printf("%.8f\t%.8f\t%.8f\n", x, y, fabs(y-(exp(-mu*x)/(4.0*WST_PI*x))));
     }
     printf("\n");
 
