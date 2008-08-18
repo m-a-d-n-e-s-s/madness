@@ -9,14 +9,14 @@
 
 namespace madness
 {
-    
+
   //***************************************************************************
-  template <typename T>
+  template <typename T, int NDIM>
   // Typedef's
-  class HartreeFockNuclearPotentialOp : public EigSolverOp<T>
+  class HartreeFockNuclearPotentialOp : public EigSolverOp<T,NDIM>
   {
-    typedef Function<T,3> funcT;
   public:
+    typedef Function<T,NDIM> funcT;
     //*************************************************************************
     // Constructor
     HartreeFockNuclearPotentialOp(World& world, funcT V, double coeff, double thresh);
@@ -44,12 +44,12 @@ namespace madness
   //***************************************************************************
 
   //***************************************************************************
-  template <typename T>
+  template <typename T, int NDIM>
   // Typedef's
-  class HartreeFockCoulombOp : public EigSolverOp<T>
+  class HartreeFockCoulombOp : public EigSolverOp<T,NDIM>
   {
-    typedef Function<T,3> funcT;
   public:
+    typedef Function<T,NDIM> funcT;
     //*************************************************************************
     // Constructor
     HartreeFockCoulombOp(World& world, double coeff, double thresh);
@@ -73,12 +73,12 @@ namespace madness
   //***************************************************************************
 
   //***************************************************************************
-  template <typename T>
+  template <typename T, int NDIM>
   // Typedef's
-  class HartreeFockExchangeOp : public EigSolverOp<T>
+  class HartreeFockExchangeOp : public EigSolverOp<T,NDIM>
   {
   public:
-    typedef Function<T,3> funcT;
+    typedef Function<T,NDIM> funcT;
     //*************************************************************************
     // Constructor
     HartreeFockExchangeOp(World& world, double coeff, double thresh);
@@ -102,26 +102,26 @@ namespace madness
   //***************************************************************************
 
   //***************************************************************************
-  template <typename T>
-  class HartreeFock : public IEigSolverObserver<T>
+  template <typename T, int NDIM>
+  class HartreeFock : public IEigSolverObserver<T,NDIM>
   {
   public:
-    typedef Function<T,3> funcT;
+    typedef Function<T,NDIM> funcT;
     //*************************************************************************
     // Constructor
-    HartreeFock(World& world, funcT V, std::vector<funcT> phis, 
+    HartreeFock(World& world, funcT V, std::vector<funcT> phis,
       std::vector<double> eigs, bool bCoulomb, bool bExchange, double thresh);
     //*************************************************************************
-  
+
     //*************************************************************************
     // Destructor
   	virtual ~HartreeFock();
     //*************************************************************************
-  
+
     //*************************************************************************
   	void hartree_fock(int maxits);
     //*************************************************************************
-  
+
     //*************************************************************************
     funcT calculate_coulomb(funcT psi);
     //*************************************************************************
@@ -187,7 +187,7 @@ namespace madness
       return _solver->get_phi(indx);
     }
     //*************************************************************************
-    
+
     //*************************************************************************
     const std::vector<double>& eigs()
     {
@@ -222,9 +222,9 @@ private:
 
     //*************************************************************************
     // Eigenvalue solver
-    EigSolver<T>* _solver;
+    EigSolver<T,NDIM>* _solver;
     //*************************************************************************
-    
+
     //*************************************************************************
     // Flags for whether to include the coulomb and exchange
     bool _bCoulomb;
@@ -242,7 +242,7 @@ private:
     //*************************************************************************
     double _thresh;
     //*************************************************************************
-    
+
     //*************************************************************************
     World& world() {return _world;}
     //*************************************************************************

@@ -7,11 +7,6 @@
 namespace madness
 {
 //***************************************************************************
-// TYPEDEFS
-typedef Vector<double,3> coordT;
-//***************************************************************************
-
-//***************************************************************************
 /// This is the interface the an observer wishing to receive output must
 /// implement. This call back gives the current eigenfunctions, eigenvalues,
 /// and the density.
@@ -20,24 +15,24 @@ typedef Vector<double,3> coordT;
 /// \f[
 /// c^2 = a^2 + b^2
 /// \f]
-template <typename T>
+template <typename T, int NDIM>
 class IEigSolverObserver
 {
-  typedef Function<T,3> funcT;
+  typedef Function<T,NDIM> funcT;
 public:
   virtual void iterateOutput(const std::vector<funcT>& phis,
-      const std::vector<double>& eigs, const funcT& rho, const int& iter) = 0;
+      const std::vector<double>& eigs, const Function<double, NDIM>& rho, const int& iter) = 0;
 
   virtual ~IEigSolverObserver() {};
 };
 //***************************************************************************
 
 //***************************************************************************
-template <typename T>
+template <typename T, int NDIM>
 class EigSolverOp
 {
   // Typedef's
-  typedef Function<T,3> funcT;
+  typedef Function<T,NDIM> funcT;
 public:
   //*************************************************************************
   // Constructor
@@ -62,14 +57,14 @@ public:
 
   //*************************************************************************
   /// Build the potential from a density if a density-dependent operator.
-  virtual void prepare_op(Function<double,3> rho) {}
+  virtual void prepare_op(funcT rho) {}
   //*************************************************************************
 
   //*************************************************************************
   /// Orbital-dependent portion of operator
   virtual funcT op_o(const std::vector<funcT>& phis, const funcT& psi)
   {
-    funcT func = FunctionFactory<T,3>(_world);
+    funcT func = FunctionFactory<T,NDIM>(_world);
     return func;
   }
   //*************************************************************************
@@ -78,7 +73,7 @@ public:
   /// Density-dependent portion of operator
   virtual funcT op_r(const funcT& rho, const funcT& psi)
   {
-    funcT func = FunctionFactory<T,3>(_world);
+    funcT func = FunctionFactory<T,NDIM>(_world);
     return func;
   }
   //*************************************************************************
@@ -88,7 +83,7 @@ public:
   virtual std::vector<funcT> multi_op_o(const std::vector<funcT>& phis)
   {
     // Collection of empty functions
-    std::vector<funcT> newphis(phis.size(), FunctionFactory<T,3>(_world));
+    std::vector<funcT> newphis(phis.size(), FunctionFactory<T,NDIM>(_world));
     for (unsigned int pi = 0; pi < phis.size(); pi++)
     {
       newphis[pi] = op_o(phis, phis[pi]);
@@ -102,7 +97,7 @@ public:
   /// Density-dependent portion of operator
   virtual std::vector<funcT> multi_op_r(const funcT& rho, const std::vector<funcT>& phis)
   {
-    std::vector<funcT> newphis(phis.size(), FunctionFactory<T,3>(_world));
+    std::vector<funcT> newphis(phis.size(), FunctionFactory<T,NDIM>(_world));
     for (unsigned int pi = 0; pi < phis.size(); pi++)
     {
       newphis[pi] = op_r(rho, phis[pi]);
@@ -160,29 +155,29 @@ private:
 /// Fock and the DFT algorithms. This class relies on the wrapper class to
 /// give it a list of operators to implement as its potential. This should
 /// allow for much more reuse.
-template <typename T>
+template <typename T, int NDIM>
 class EigSolver
 {
 public:
   //*************************************************************************
   // Typedef's
-  typedef Function<T,3> funcT;
-  typedef Vector<double,3> kvec3dT;
-  typedef SeparatedConvolution<double,3> operatorT;
+  typedef Function<T,NDIM> funcT;
+  typedef Vector<double,NDIM> kvecT;
+  typedef SeparatedConvolution<double,NDIM> operatorT;
   typedef SharedPtr<operatorT> poperatorT;
   //*************************************************************************
 
   //*************************************************************************
   /// Constructor for periodic system
   EigSolver(World& world, std::vector<funcT> phis, std::vector<double> eigs,
-      std::vector<EigSolverOp<T>*> ops, std::vector<kvec3dT> kpoints,
+      std::vector<EigSolverOp<T,NDIM>*> ops, std::vector<kvecT> kpoints,
       double thresh);
   //*************************************************************************
 
   //*************************************************************************
   /// Constructor for non-periodic system
   EigSolver(World& world, std::vector<funcT> phis, std::vector<double> eigs,
-      std::vector<EigSolverOp<T>*> ops, double thresh);
+      std::vector<EigSolverOp<T,NDIM>*> ops, double thresh);
   //*************************************************************************
 
   //*************************************************************************
@@ -231,7 +226,7 @@ public:
   //*************************************************************************
 
   //*************************************************************************
-  void addObserver(IEigSolverObserver<T>* obs)
+  void addObserver(IEigSolverObserver<T,NDIM>* obs)
   {
     _obs.push_back(obs);
   }
@@ -275,12 +270,12 @@ private:
 
   //*************************************************************************
   /// List of the ops
-  std::vector< EigSolverOp<T>* > _ops;
+  std::vector< EigSolverOp<T,NDIM>* > _ops;
   //*************************************************************************
 
   //*************************************************************************
   /// List of the ops
-  std::vector<kvec3dT> _kpoints;
+  std::vector<kvecT> _kpoints;
   //*************************************************************************
 
   //*************************************************************************
@@ -293,11 +288,11 @@ private:
 
   //*************************************************************************
   // List of the obs
-  std::vector<IEigSolverObserver<T>*> _obs;
+  std::vector<IEigSolverObserver<T,NDIM>*> _obs;
   //*************************************************************************
 
   //*************************************************************************
-  Function<double,3> _rho;
+  Function<double,NDIM> _rho;
   //*************************************************************************
 
   //*************************************************************************

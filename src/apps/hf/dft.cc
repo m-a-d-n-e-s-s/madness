@@ -496,7 +496,8 @@ void wst_munge_rho(int npoint, double *rho) {
   //***************************************************************************
 
   //***************************************************************************
-  void dft_xc_lda_V(const Key<3>& key, Tensor<double>& t)
+  template <int NDIM>
+  void dft_xc_lda_V(const Key<NDIM>& key, Tensor<double>& t)
   {
     Tensor<double> enefunc = copy(t);
     Tensor<double> V = copy(t);
@@ -506,7 +507,8 @@ void wst_munge_rho(int npoint, double *rho) {
   //***************************************************************************
 
   //***************************************************************************
-  void dft_xc_lda_ene(const Key<3>& key, Tensor<double>& t)
+  template <int NDIM>
+  void dft_xc_lda_ene(const Key<NDIM>& key, Tensor<double>& t)
   {
     Tensor<double> V = copy(t);
     Tensor<double> enefunc = copy(t);
@@ -516,9 +518,9 @@ void wst_munge_rho(int npoint, double *rho) {
   //***************************************************************************
 
   //***************************************************************************
-  template <typename T>
-  DFTNuclearPotentialOp<T>::DFTNuclearPotentialOp(World& world, funcT V,
-      double coeff, double thresh) : EigSolverOp<T>(world, coeff, thresh)
+  template <typename T, int NDIM>
+  DFTNuclearPotentialOp<T,NDIM>::DFTNuclearPotentialOp(World& world, funcT V,
+      double coeff, double thresh) : EigSolverOp<T,NDIM>(world, coeff, thresh)
   {
     // Message for the matrix element output
     this->messageME("NuclearPotentialOp");
@@ -527,58 +529,58 @@ void wst_munge_rho(int npoint, double *rho) {
   //***************************************************************************
 
   //*************************************************************************
-  template <typename T>
-  DFTCoulombOp<T>::DFTCoulombOp(World& world, double coeff,
-      double thresh) : EigSolverOp<T>(world, coeff, thresh)
+  template <typename T, int NDIM>
+  DFTCoulombOp<T,NDIM>::DFTCoulombOp(World& world, double coeff,
+      double thresh) : EigSolverOp<T,NDIM>(world, coeff, thresh)
   {
     // Message for the matrix element output
     this->messageME("CoulombOp");
     // For now, no spin polarized
     _spinpol = false;
     // Create Coulomb operator
-    _cop = CoulombOperatorPtr<T,3>(world, FunctionDefaults<3>::get_k(),
+    _cop = CoulombOperatorPtr<T,NDIM>(world, FunctionDefaults<NDIM>::get_k(),
         1e-4, thresh);
     // Initialize potential
-    _Vc = FunctionFactory<T,3>(world);
+    _Vc = FunctionFactory<T,NDIM>(world);
   }
   //*************************************************************************
 
   //*************************************************************************
-  template <typename T>
-  DFTCoulombPeriodicOp<T>::DFTCoulombPeriodicOp(World& world, double coeff,
-      double thresh) : EigSolverOp<T>(world, coeff, thresh)
+  template <typename T, int NDIM>
+  DFTCoulombPeriodicOp<T,NDIM>::DFTCoulombPeriodicOp(World& world, double coeff,
+      double thresh) : EigSolverOp<T,NDIM>(world, coeff, thresh)
   {
     // Message for the matrix element output
     this->messageME("CoulombOp");
     // For now, no spin polarized
     _spinpol = false;
     // Create Coulomb operator
-    _cop = CoulombOperatorPtr<T,3>(world, FunctionDefaults<3>::get_k(),
+    _cop = CoulombOperatorPtr<T,NDIM>(world, FunctionDefaults<NDIM>::get_k(),
         1e-4, thresh);
     // Initialize potential
-    _Vc = FunctionFactory<T,3>(world);
+    _Vc = FunctionFactory<T,NDIM>(world);
   }
   //*************************************************************************
 
   //***************************************************************************
-  template <typename T>
-  void DFTCoulombOp<T>::prepare_op(Function<double,3> rho)
+  template <typename T, int NDIM>
+  void DFTCoulombOp<T,NDIM>::prepare_op(Function<double,NDIM> rho)
   {
     _Vc = apply(*_cop, rho);
   }
   //***************************************************************************
 
   //***************************************************************************
-  template <typename T>
-  void DFTCoulombPeriodicOp<T>::prepare_op(Function<double,3> rho)
+  template <typename T, int NDIM>
+  void DFTCoulombPeriodicOp<T,NDIM>::prepare_op(Function<double,NDIM> rho)
   {
     _Vc = apply(*_cop, rho);
   }
   //***************************************************************************
 
   //***************************************************************************
-  template <typename T>
-  Function<T,3> DFTNuclearPotentialOp<T>::op_r(const funcT& rho, const funcT& psi)
+  template <typename T, int NDIM>
+  Function<T,NDIM> DFTNuclearPotentialOp<T,NDIM>::op_r(const funcT& rho, const funcT& psi)
   {
     funcT rfunc = _V * psi;
     return rfunc;
@@ -586,8 +588,8 @@ void wst_munge_rho(int npoint, double *rho) {
   //***************************************************************************
 
   //*************************************************************************
-  template <typename T>
-  Function<T,3> DFTCoulombOp<T>::op_r(const funcT& rho, const funcT& psi)
+  template <typename T, int NDIM>
+  Function<T,NDIM> DFTCoulombOp<T,NDIM>::op_r(const funcT& rho, const funcT& psi)
   {
     // If not spin-polarized, multiply by 2.0
     double factor = (_spinpol) ? 1.0 : 2.0;
@@ -599,8 +601,8 @@ void wst_munge_rho(int npoint, double *rho) {
   //*************************************************************************
 
   //*************************************************************************
-  template <typename T>
-  Function<T,3> DFTCoulombPeriodicOp<T>::op_r(const funcT& rho, const funcT& psi)
+  template <typename T, int NDIM>
+  Function<T,NDIM> DFTCoulombPeriodicOp<T,NDIM>::op_r(const funcT& rho, const funcT& psi)
   {
     // If not spin-polarized, multiply by 2.0
     double factor = (_spinpol) ? 1.0 : 2.0;
@@ -612,9 +614,9 @@ void wst_munge_rho(int npoint, double *rho) {
   //*************************************************************************
 
   //***************************************************************************
-  template <typename T>
-  XCFunctionalLDA<T>::XCFunctionalLDA(World& world, double coeff, double thresh)
-    : EigSolverOp<T>(world, coeff, thresh)
+  template <typename T, int NDIM>
+  XCFunctionalLDA<T,NDIM>::XCFunctionalLDA(World& world, double coeff, double thresh)
+    : EigSolverOp<T,NDIM>(world, coeff, thresh)
   {
     // Message for the matrix element output
     this->messageME("XCFunctionalLDA");
@@ -622,12 +624,12 @@ void wst_munge_rho(int npoint, double *rho) {
   //***************************************************************************
 
   //***************************************************************************
-  template <typename T>
-  Function<T,3> XCFunctionalLDA<T>::op_r(const funcT& rho, const funcT& psi)
+  template <typename T, int NDIM>
+  Function<T,NDIM> XCFunctionalLDA<T,NDIM>::op_r(const funcT& rho, const funcT& psi)
   {
     funcT V_rho = copy(rho);
     V_rho.reconstruct();
-    V_rho.unaryop(&dft_xc_lda_V);
+    V_rho.unaryop(&dft_xc_lda_V<NDIM>);
     funcT rfunc = V_rho * psi;
     // WSTHORNTON DEBUG
     double pnorm = psi.norm2();
@@ -638,66 +640,66 @@ void wst_munge_rho(int npoint, double *rho) {
   //***************************************************************************
 
   //***************************************************************************
-  template <typename T>
-  DFT<T>::DFT(World& world, Function<double,3> V, std::vector<funcT> phis,
+  template <typename T, int NDIM>
+  DFT<T,NDIM>::DFT(World& world, funcT V, std::vector<funcT> phis,
       std::vector<double> eigs, double thresh)
   : _world(world), _V(V), _thresh(thresh)
   {
     // Create ops list
-    std::vector<EigSolverOp<T>*> ops;
+    std::vector<EigSolverOp<T,NDIM>*> ops;
     // Add nuclear potential to ops list
-    ops.push_back(new DFTNuclearPotentialOp<T>(world, V, 1.0, thresh));
-    ops.push_back(new DFTCoulombOp<T>(world, 1.0, thresh));
-    _xcfunc = new XCFunctionalLDA<T>(world, 1.0, thresh);
+    ops.push_back(new DFTNuclearPotentialOp<T,NDIM>(world, V, 1.0, thresh));
+    ops.push_back(new DFTCoulombOp<T,NDIM>(world, 1.0, thresh));
+    _xcfunc = new XCFunctionalLDA<T,NDIM>(world, 1.0, thresh);
     ops.push_back(_xcfunc);
 
     // Create solver
-    _solver = new EigSolver<T>(world, phis, eigs, ops, thresh);
+    _solver = new EigSolver<T,NDIM>(world, phis, eigs, ops, thresh);
     _solver->addObserver(this);
 
   }
   //***************************************************************************
 
   //***************************************************************************
-  template <typename T>
-  DFT<T>::DFT(World& world, Function<double,3> V, std::vector<funcT> phis,
-      std::vector<double> eigs, std::vector<kvec3dT> kpoints, double thresh)
+  template <typename T, int NDIM>
+  DFT<T,NDIM>::DFT(World& world, funcT V, std::vector<funcT> phis,
+      std::vector<double> eigs, std::vector<kvecT> kpoints, double thresh)
   : _world(world), _V(V), _thresh(thresh)
   {
     // Create ops list
-    std::vector<EigSolverOp<T>*> ops;
+    std::vector<EigSolverOp<T,NDIM>*> ops;
     // Add nuclear potential to ops list
-    ops.push_back(new DFTNuclearPotentialOp<T>(world, V, 1.0, thresh));
-    ops.push_back(new DFTCoulombPeriodicOp<T>(world, 1.0, thresh));
-    _xcfunc = new XCFunctionalLDA<T>(world, 1.0, thresh);
+    ops.push_back(new DFTNuclearPotentialOp<T,NDIM>(world, V, 1.0, thresh));
+    ops.push_back(new DFTCoulombPeriodicOp<T,NDIM>(world, 1.0, thresh));
+    _xcfunc = new XCFunctionalLDA<T,NDIM>(world, 1.0, thresh);
     ops.push_back(_xcfunc);
 
     // Create solver
-    _solver = new EigSolver<T>(world, phis, eigs, ops, kpoints, thresh);
+    _solver = new EigSolver<T,NDIM>(world, phis, eigs, ops, kpoints, thresh);
     _solver->addObserver(this);
 
   }
   //***************************************************************************
 
   //***************************************************************************
-  template <typename T>
-  DFT<T>::~DFT()
+  template <typename T, int NDIM>
+  DFT<T,NDIM>::~DFT()
   {
     delete _solver;
   }
   //***************************************************************************
 
   //***************************************************************************
-  template <typename T>
-  void DFT<T>::solve(int maxits)
+  template <typename T, int NDIM>
+  void DFT<T,NDIM>::solve(int maxits)
   {
     _solver->multi_solve(maxits);
   }
   //***************************************************************************
 
   //***************************************************************************
-  template <typename T>
-  double DFT<T>::calculate_ke_sp(funcT psi)
+  template <typename T, int NDIM>
+  double DFT<T,NDIM>::calculate_ke_sp(funcT psi)
   {
     double kenergy = 0.0;
     for (int axis = 0; axis < 3; axis++)
@@ -710,8 +712,8 @@ void wst_munge_rho(int npoint, double *rho) {
   //***************************************************************************
 
   //***************************************************************************
-  template <typename T>
-  double DFT<T>::calculate_tot_ke_sp(const std::vector<funcT>& phis, bool spinpol)
+  template <typename T, int NDIM>
+  double DFT<T,NDIM>::calculate_tot_ke_sp(const std::vector<funcT>& phis, bool spinpol)
   {
     double tot_ke = 0.0;
     for (unsigned int pi = 0; pi < phis.size(); pi++)
@@ -727,8 +729,8 @@ void wst_munge_rho(int npoint, double *rho) {
   //***************************************************************************
 
   //***************************************************************************
-  template <typename T>
-  double DFT<T>::calculate_tot_pe_sp(const Function<double,3>& rho,
+  template <typename T, int NDIM>
+  double DFT<T,NDIM>::calculate_tot_pe_sp(const Function<double, NDIM>& rho,
       const funcT V, bool spinpol)
   {
     double tot_pe = V.inner(rho);
@@ -738,14 +740,14 @@ void wst_munge_rho(int npoint, double *rho) {
   //***************************************************************************
 
   //***************************************************************************
-  template <typename T>
-  double DFT<T>::calculate_tot_coulomb_energy(const Function<double,3>& rho,
+  template <typename T, int NDIM>
+  double DFT<T,NDIM>::calculate_tot_coulomb_energy(const Function<double, NDIM>& rho,
       bool spinpol, const World& world, const double thresh)
   {
     // Create Coulomb operator
-        SeparatedConvolution<T,3> op =
-        CoulombOperator<T,3>(const_cast<World&>(world),
-            FunctionDefaults<3>::get_k(), 1e-4, thresh);
+        SeparatedConvolution<T,NDIM> op =
+        CoulombOperator<T,NDIM>(const_cast<World&>(world),
+            FunctionDefaults<NDIM>::get_k(), 1e-4, thresh);
         // Apply Coulomb operator and trace with the density
         funcT Vc = apply(op, rho);
         double tot_ce = Vc.inner(rho);
@@ -755,20 +757,20 @@ void wst_munge_rho(int npoint, double *rho) {
   //***************************************************************************
 
   //***************************************************************************
-  template <typename T>
-  double DFT<T>::calculate_tot_xc_energy(const Function<double,3>& rho)
+  template <typename T, int NDIM>
+  double DFT<T,NDIM>::calculate_tot_xc_energy(const Function<double, NDIM>& rho)
   {
     funcT enefunc = copy(rho);
     enefunc.reconstruct();
-    enefunc.unaryop(&dft_xc_lda_ene);
+    enefunc.unaryop(&dft_xc_lda_ene<NDIM>);
     return enefunc.trace();
   }
   //***************************************************************************
 
   //***************************************************************************
-  template <typename T>
-  void DFT<T>::iterateOutput(const std::vector<funcT>& phis,
-      const std::vector<double>& eigs, const Function<double,3>& rho, const int& iter)
+  template <typename T, int NDIM>
+  void DFT<T,NDIM>::iterateOutput(const std::vector<funcT>& phis,
+      const std::vector<double>& eigs, const Function<double, NDIM>& rho, const int& iter)
   {
     if (iter%3 == 0)
     {
@@ -798,7 +800,9 @@ void wst_munge_rho(int npoint, double *rho) {
   //***************************************************************************
 
   //***************************************************************************
-  template class DFT<double>;
+  template class DFT<double, 1>;
+  template class DFT<double, 2>;
+  template class DFT<double, 3>;
 //  template class DFT< std::complex<double> >;
   //***************************************************************************
 }

@@ -11,6 +11,8 @@ using namespace madness;
 
 const double PI = 3.1415926535897932384;
 
+typedef Vector<double,3> coordT;
+
 /// Returns radius for smoothing nuclear potential with energy precision eprec
 static double smoothing_parameter(double Z, double eprec) {
     // The min is since asymptotic form not so good at low acc.
@@ -40,24 +42,24 @@ static double smoothed_potential(double r) {
     return pot;
 }
 
-//*****************************************************************************
-class StupidFunctor
-{
-public:
-  StupidFunctor(double param)
-  {
-    _param = param;
-  }
-
-  double operator*(const coordT& r)
-  {
-    return _param;
-  }
-
-private:
-  double _param;
-};
-//*****************************************************************************
+////*****************************************************************************
+//class StupidFunctor
+//{
+//public:
+//  StupidFunctor(double param)
+//  {
+//    _param = param;
+//  }
+//
+//  double operator*(const coordT& r)
+//  {
+//    return _param;
+//  }
+//
+//private:
+//  double _param;
+//};
+////*****************************************************************************
 
 //*****************************************************************************
 static double psi_func_be1(const coordT& rr)
@@ -352,7 +354,7 @@ void test_hf_he(World& world)
   printf("Norm of psi = %.5f\n\n", psi.norm2());
   // Create DFT object
   if (world.rank() == 0) cout << "Creating DFT object ..." << endl;
-  DFT<double> dftcalc(world, Vnuc, phis, eigs, thresh);
+  DFT<double,3> dftcalc(world, Vnuc, phis, eigs, thresh);
   if (world.rank() == 0) cout << "Running DFT calculation ..." << endl;
   dftcalc.solve(10);
 //  HartreeFock hf(world, Vnuc, phis, eigs, true, true, thresh);
@@ -427,7 +429,7 @@ void test_hf_be(World& world)
   Vector<double,3> gammapt;
   gammapt[0] = 0.0; gammapt[1] = 0.0; gammapt[2] = 0.0;
   kpoints[0] = gammapt;
-  DFT<double> dftcalc(world, Vnuc, phis, eigs, kpoints, thresh);
+  DFT<double,3> dftcalc(world, Vnuc, phis, eigs, kpoints, thresh);
   if (world.rank() == 0) madness::print("Running DFT object...");
   dftcalc.solve(31);
   //hf.hartree_fock(20);

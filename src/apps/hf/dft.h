@@ -9,14 +9,13 @@
 
 namespace madness
 {
-    
+
   //***************************************************************************
-  template <typename T>
-  class DFTNuclearPotentialOp : public EigSolverOp<T>
+  template <typename T, int NDIM>
+  class DFTNuclearPotentialOp : public EigSolverOp<T,NDIM>
   {
-    // Typedef's
-    typedef Function<T,3> funcT;
   public:
+    typedef Function<T,NDIM> funcT;
     //*************************************************************************
     // Constructor
     DFTNuclearPotentialOp(World& world, funcT V, double coeff, double thresh);
@@ -44,11 +43,11 @@ namespace madness
   //***************************************************************************
 
   //***************************************************************************
-  template <typename T>
-  class DFTCoulombOp : public EigSolverOp<T>
+  template <typename T, int NDIM>
+  class DFTCoulombOp : public EigSolverOp<T,NDIM>
   {
     // Typedef's
-    typedef Function<T,3> funcT;
+    typedef Function<T,NDIM> funcT;
   public:
     //*************************************************************************
     // Constructor
@@ -71,11 +70,11 @@ namespace madness
 
     //*************************************************************************
     // Build the potential from a density if a density-dependent operator.
-    virtual void prepare_op(Function<double,3> rho);
+    virtual void prepare_op(Function<double,NDIM> rho);
     //*************************************************************************
 
     //*************************************************************************
-    SeparatedConvolution<T,3>* _cop;
+    SeparatedConvolution<T,NDIM>* _cop;
     //*************************************************************************
 
   private:
@@ -90,11 +89,11 @@ namespace madness
   //***************************************************************************
 
   //***************************************************************************
-  template <typename T>
-  class DFTCoulombPeriodicOp : public EigSolverOp<T>
+  template <typename T, int NDIM>
+  class DFTCoulombPeriodicOp : public EigSolverOp<T,NDIM>
   {
     // Typedef's
-    typedef Function<T,3> funcT;
+    typedef Function<T,NDIM> funcT;
   public:
     //*************************************************************************
     // Constructor
@@ -117,11 +116,11 @@ namespace madness
 
     //*************************************************************************
     // Build the potential from a density if a density-dependent operator.
-    virtual void prepare_op(Function<double,3> rho);
+    virtual void prepare_op(Function<double,NDIM> rho);
     //*************************************************************************
 
     //*************************************************************************
-    SeparatedConvolution<T,3>* _cop;
+    SeparatedConvolution<T,NDIM>* _cop;
     //*************************************************************************
 
   private:
@@ -136,11 +135,11 @@ namespace madness
   //***************************************************************************
 
   //***************************************************************************
-  template <typename T>
-  class XCFunctionalLDA : public EigSolverOp<T>
+  template <typename T, int NDIM>
+  class XCFunctionalLDA : public EigSolverOp<T,NDIM>
   {
     // Typedef's
-    typedef Function<T,3> funcT;
+    typedef Function<T,NDIM> funcT;
   public:
     //*************************************************************************
     // Constructor
@@ -164,31 +163,31 @@ namespace madness
   //***************************************************************************
 
   //***************************************************************************
-  template <typename T>
-  class DFT : public IEigSolverObserver<T>
+  template <typename T, int NDIM>
+  class DFT : public IEigSolverObserver<T,NDIM>
   {
     // Typedef's
-    typedef Function<T,3> funcT;
-    typedef Vector<double,3> kvec3dT;
+    typedef Function<T,NDIM> funcT;
+    typedef Vector<double,NDIM> kvecT;
   public:
     //*************************************************************************
     // Constructor
-    DFT(World& world, Function<double,3> V, std::vector<funcT> phis, 
+    DFT(World& world, funcT V, std::vector<funcT> phis,
       std::vector<double> eigs, double thresh);
     //*************************************************************************
-  
+
     //*************************************************************************
     // Constructor
-    DFT(World& world, Function<double,3> V, std::vector<funcT> phis, 
-      std::vector<double> eigs, std::vector<kvec3dT> kpoints, double thresh);
+    DFT(World& world, funcT V, std::vector<funcT> phis,
+      std::vector<double> eigs, std::vector<kvecT> kpoints, double thresh);
     //*************************************************************************
-  
+
     //*************************************************************************
     // Constructor for ground state only
-    DFT(World& world, Function<double,3> V, Function<double,3> rho, 
+    DFT(World& world, Function<double,NDIM> V, Function<double,NDIM> rho,
         double eig, double thresh);
     //*************************************************************************
-  
+
   	//*************************************************************************
     DFT();
     //*************************************************************************
@@ -200,7 +199,7 @@ namespace madness
     //*************************************************************************
      void solve(int maxits);
      //*************************************************************************
-   
+
      //***************************************************************************
      static double calculate_ke_sp(funcT psi);
      //***************************************************************************
@@ -208,19 +207,19 @@ namespace madness
      //***************************************************************************
      static double calculate_tot_ke_sp(const std::vector<funcT>& phis, bool spinpol);
      //***************************************************************************
-     
+
      //***************************************************************************
-     static double calculate_tot_pe_sp(const Function<double,3>& rho, 
+     static double calculate_tot_pe_sp(const Function<double,NDIM>& rho,
          const funcT V, bool spinpol);
      //***************************************************************************
-     
+
      //***************************************************************************
-     static double calculate_tot_coulomb_energy(const Function<double,3>& rho, 
+     static double calculate_tot_coulomb_energy(const Function<double,NDIM>& rho,
          bool spinpol, const World& world, const double thresh);
      //***************************************************************************
-     
+
      //***************************************************************************
-     static double calculate_tot_xc_energy(const Function<double,3>& rho);
+     static double calculate_tot_xc_energy(const Function<double,NDIM>& rho);
      //***************************************************************************
 
      //*************************************************************************
@@ -239,7 +238,7 @@ namespace madness
 
      //*************************************************************************
      virtual void iterateOutput(const std::vector<funcT>& phis,
-         const std::vector<double>& eigs, const Function<double,3>& rho, 
+         const std::vector<double>& eigs, const Function<double,NDIM>& rho,
          const int& iter);
      //*************************************************************************
 
@@ -256,7 +255,7 @@ namespace madness
        return _solver->get_phi(indx);
      }
      //*************************************************************************
-     
+
      //*************************************************************************
      const std::vector<double>& eigs()
      {
@@ -275,25 +274,25 @@ namespace madness
 
       //*************************************************************************
       // Eigenvalue solver
-      EigSolver<T>* _solver;
+      EigSolver<T,NDIM>* _solver;
       //*************************************************************************
-      
+
       //*************************************************************************
       World& _world;
       //*************************************************************************
 
       //*************************************************************************
-      Function<double,3> _V;
+      Function<double,NDIM> _V;
       //*************************************************************************
 
       //*************************************************************************
       double _thresh;
       //*************************************************************************
-      
+
       //*************************************************************************
       // Exchange-correlation functional. Needed to compute the energy Exc[rho]
       // Gets deleted my the EigSolver class during the EigSolver destructor
-      EigSolverOp<T>* _xcfunc;
+      EigSolverOp<T,NDIM>* _xcfunc;
       //*************************************************************************
 
       //*************************************************************************
