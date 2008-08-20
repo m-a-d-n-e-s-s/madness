@@ -528,8 +528,8 @@ namespace madness {
 	  hash_table.insert(data);
 	}
 	else {
-	  double curval = it->second, avg= data.second;
-	  data.second = curval + (curval-avg)*decay_val;
+	  double s = it->second, y = data.second;
+	  data.second = s + (y-s)*decay_val;
 	  hash_table.insert(data);
 	}
       }
@@ -1712,10 +1712,12 @@ namespace madness {
         Void do_apply(const opT* op, const FunctionImpl<R,NDIM>* f, const keyT& key, const Tensor<R>& c) {
             PROFILE_MEMBER_FUNC(FunctionImpl);
 	    // insert timer here
-	    double start_time = cpu_time();
+	    double start_time = 0;// cpu_time();
+	    double end_time = 0, cum_time = 0;
             double fac = 10.0; // 10.0 seems good for qmprop ... 3.0 OK for others
             double cnorm = c.normf();
 	    const long lmax = 1L << (key.level()-1);
+	    start_time = cpu_time();
             const std::vector<keyT>& disp = op->get_disp(key.level());
             for (typename std::vector<keyT>::const_iterator it=disp.begin();  it != disp.end(); ++it) {
                 const keyT& d = *it;
@@ -1750,7 +1752,10 @@ namespace madness {
                         if (result.normf() > 0.3*tol/fac) {
                             //coeffs.send(dest, &nodeT::accumulate, result, coeffs, dest);
                             //madness::print("apply rrrrr       ", key, dest, result.normf());
+			  //			  start_time=cpu_time();
                             send(coeffs.owner(dest), &implT:: template do_apply_acc<opT,R>, op, f, dest, result);
+			    //			    end_time = cpu_time();
+			    //			    cum_time += (end_time-start_time);
 //                             if (op->dowiden0 && d.distsq() == 0) {
 //                                 // Be sure that all touching neighbors have also applied the operator
 //                                 for (int axis=0; axis<NDIM; axis++) {
@@ -1779,10 +1784,11 @@ namespace madness {
 
             }
 	    // update Apply_Time
-	    double end_time = cpu_time();
+	    end_time = cpu_time();
 	    //	    madness::print("time for key", key, ":", end_time-start_time);
 	    if (apply_time) {
-	      apply_time->update(key, end_time-start_time);
+	      cum_time = end_time - start_time;
+	      apply_time->update(key, cum_time);
 	    }
             return None;
         }
