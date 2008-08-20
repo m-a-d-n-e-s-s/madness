@@ -83,6 +83,7 @@ namespace madness {
         }
     };
 
+
     /// FunctionCommonData holds all Function data common for given k
 
     /// Since Function assignment and copy constructors are shallow it
@@ -413,6 +414,10 @@ namespace madness {
         /// Takes a \em shallow copy of the coeff --- same as \c this->coeff()=coeff
         void set_coeff(const Tensor<T>& coeff) {
             _coeffs = coeff;
+	    if ((coeff.dim[0] < 0) || (coeff.dim[0]>2*MAXK)) {
+	      print("set_coeff: may have a problem");
+	      print("set_coeff: coeff.dim[0] =", coeff.dim[0], ", 2* MAXK =", 2*MAXK);
+	    }
             MADNESS_ASSERT(coeff.dim[0]<=2*MAXK && coeff.dim[0]>=0);
         }
 
@@ -462,6 +467,85 @@ namespace madness {
         s << norm << ")";
         return s;
     }
+
+    /// ApplyTime is a class for finding out the time taken in the apply
+    /// function.
+
+    template <int NDIM>
+    class ApplyTime {
+      typedef Key<NDIM> keyT;
+      typedef WorldContainer<keyT, double> dcT;
+      typedef std::pair<const keyT, double> datumT;
+
+    private:
+      World& world;
+      dcT hash_table;
+      double decay_val;
+
+    public:
+      ApplyTime(World& world) 
+	: world(world)
+	, hash_table(dcT(world))
+	, decay_val(0.9)
+	{}
+
+      void set(datumT data) {
+	hash_table.insert(data);
+      }
+
+      void clear() {
+	hash_table.clear();
+      }
+
+      double get(keyT& key) {
+	typename dcT::iterator it = hash_table.find(key);
+	if (it == hash_table.end()) {
+	  return 0.0;
+	}
+	else {
+	  return it->second;
+	}
+      }
+
+      double get(const keyT& key) {
+	typename dcT::iterator it = hash_table.find(key);
+	if (it == hash_table.end()) {
+	  return 0.0;
+	}
+	else {
+	  return it->second;
+	}
+      }
+
+      /* datumT get(keyT& key) { */
+/* 	double result = this->get(key); */
+/* 	return datumT(key, result); */
+/*       } */
+
+      void update(datumT data) {
+	typename dcT::iterator it = hash_table.find(data.first).get();
+	if (it == hash_table.end()) {
+	  hash_table.insert(data);
+	}
+	else {
+	  double curval = it->second, avg= data.second;
+	  data.second = curval + (curval-avg)*decay_val;
+	  hash_table.insert(data);
+	}
+      }
+
+      void update(keyT key, double d) {
+	update(datumT(key, d));
+      }
+
+      void print() {
+	for (typename dcT::iterator it = hash_table.begin(); it != hash_table.end(); ++it) {
+	  madness::print(it->first, "  ", it->second);
+	}
+      }
+
+    };
+
 
 
     /// FunctionImpl holds all Function state to facilitate shallow copy semantics
@@ -513,6 +597,8 @@ namespace madness {
 
         const Tensor<int> bc;     ///< Type of boundary condition -- currently only zero or periodic
 
+	SharedPtr<ApplyTime<NDIM> > apply_time;
+
         // Disable the default copy constructor
         FunctionImpl(const FunctionImpl<T,NDIM>& p);
 
@@ -535,6 +621,7 @@ namespace madness {
             , compressed(false)
             , coeffs(world,factory._pmap,false)
             , bc(factory._bc)
+	    , apply_time(SharedPtr<ApplyTime<NDIM> > ())
         {
             PROFILE_MEMBER_FUNC(FunctionImpl);
             // !!! Ensure that all local state is correctly formed
@@ -593,6 +680,7 @@ namespace madness {
             , compressed(other.compressed)
             , coeffs(world, pmap ? pmap : other.coeffs.get_pmap())
             , bc(other.bc)
+	  , apply_time(other.apply_time)
         {
             if (dozero) {
                 initial_level = 1;
@@ -728,8 +816,8 @@ namespace madness {
                 return tol*std::min(1.0,pow(0.25,double(key.level()))*L*L);
             }
             else {
-                MADNESS_EXCEPTION("truncate_mode invalid",truncate_mode);
-            }
+                MADNESS_EXCEPTION("truncate_mode invalid",truncate_mode); 
+           }
         }
 
 
@@ -763,61 +851,23 @@ namespace madness {
 
 
         /// Get the scaling function coeffs at level n starting from NS form
-	// N=2^n, M=N/q, q must be power of 2 
-	// q=0 return coeffs [N,k] for direct sum 
-	// q>0 return coeffs [k,q,M] for fft sum
-        tensorT coeffs_for_jun(Level n, long q=0) {
+        tensorT coeffs_for_jun(Level n) {
             MADNESS_ASSERT(compressed && nonstandard && NDIM<=3);
-	    tensorT r,r0;
-	    long N=1<<n;
-	    long M = (q ? N/q: N);
-	    if (q==0) {
-	    	q = 1;
-	    	long dim[2*NDIM];
-            	for (int d=0; d<NDIM; d++) {
-                	dim[d     ] = N;
-                	dim[d+NDIM] = cdata.k;
-		}
-		tensorT rr(2*NDIM,dim);
-		r0=r=rr;
-		//NNkk->MqMqkk, since fuse is not allowed. Now needs to move back to 2*NDIM, since tensor max dim is 6
-		//for (int d=NDIM-1; d>=0; --d) r.splitdim_inplace_base(d,M,q);
-            } else {
-	  	long dim[2*NDIM];
-                for (int d=0; d<NDIM; d++) {
-                        //dim[d+NDIM*2] = M;
-                        dim[d+NDIM  ] = N;
-			dim[d       ] = cdata.k;
-                }
-		tensorT rr(2*NDIM,dim);
-		r0=r=rr;
-		/*vector<long> map(3*NDIM);
-		for (int d=0; d<NDIM; ++d) {
-			map[d]=d+2*NDIM;
-			map[NDIM+d]=2*d+1;
-			map[2*NDIM+d]=2*d;
-		}
-		r.mapdim_inplace_base(map);
-		//print(rr);
-		//for (int d=1; d<NDIM; ++d) rr.swapdim_inplace_base(2*NDIM+d,NDIM+d); //kkqqMM->kkqMqM
-		//print(rr);
-		//for (int d=0; d<NDIM; ++d) rr.swapdim_inplace_base(NDIM+2*d,NDIM+2*d-1); //kkqMqM->kkMqMq
-		//print(rr);
-		//for (int d=0; d<NDIM; ++d) rr.fusedim_inplace_base(NDIM+d); //->kkNN
-		//seems that this fuse is not allowed :(
+            long dim[6];
+            for (int d=0; d<NDIM; d++) {
+                dim[d     ] = 1<<n;
+                dim[d+NDIM] = cdata.k;
+            }
 
-		//print(rr);
-		*/
-		r.cycledim_inplace_base(NDIM,0,-1); //->NNkk or MqMqkk
-	    }
-	    //print("faking done M q r(fake) r0(real)",M,q,"\n", r,r0);
+            tensorT r(2*NDIM,dim);
+
             ProcessID me = world.rank();
-            Vector<long,NDIM> t(N);
+            Vector<long,NDIM> t(1l<<n);
             for (IndexIterator it(t); it; ++it) {
                 keyT key(n, Vector<Translation,NDIM>(*it));
                 if (coeffs.owner(key) == me) {
                     typename dcT::iterator it = coeffs.find(key).get();
-                    tensorT qq;
+                    tensorT q;
 
                     if (it == coeffs.end()) {
                         // must get from above
@@ -827,40 +877,25 @@ namespace madness {
                         const keyT& parent = result.get().first;
                         const tensorT& t = result.get().second;
 
-                        qq = parent_to_child(t, parent, key);
+                        q = parent_to_child(t, parent, key);
                     }
                     else {
-                        qq = it->second.coeff();
+                        q = it->second.coeff();
                     }
                     std::vector<Slice> s(NDIM*2);
-		    long ll = 0;
                     for (int d=0; d<NDIM; d++) {
                         Translation l = key.translation()[d];
-			ll += (l % q)*pow((double)M,NDIM)*pow((double)q,NDIM-d-1) + (l/q)*pow((double)M,NDIM-d-1);
-			//print(d,l,(l % q)*pow(M,NDIM)*pow(q,NDIM-d-1) + (l/q)*pow(M,NDIM-d-1));
-
-			//print("translation",l);
-			//s[d       ] = Slice(l,l,0);
-                        //s[d+NDIM  ] = Slice(l%q,l%q,0);
-                        //s[d+NDIM] = Slice(0,k-1,1);
+                        s[d     ] = Slice(l,l,0);
+                        s[d+NDIM] = Slice(0,k-1,1);
                     }
-		    //long dum = ll;
-		    for (int d=0; d<NDIM; d++) {
-		    	Translation l = ll / pow((double)N,NDIM-d-1);
-			s[d     ] = Slice(l,l,0);
-			s[d+NDIM] = Slice(0,k-1,1);
-			ll = ll % long(pow((double)N,NDIM-d-1));
-		    }
-		    //print(s, dum, key.translation());
-                    r(s) = qq(cdata.s0);
+                    r(s) = q(cdata.s0);
                 }
             }
 
             world.gop.fence();
-            world.gop.sum(r0);
-	    //print(r,r0);
+            world.gop.sum(r);
 
-            return r0;
+            return r;
         }
 
 
@@ -1676,9 +1711,11 @@ namespace madness {
         template <typename opT, typename R>
         Void do_apply(const opT* op, const FunctionImpl<R,NDIM>* f, const keyT& key, const Tensor<R>& c) {
             PROFILE_MEMBER_FUNC(FunctionImpl);
-            double fac = 3.0; //10.0; // 10.0 seems good for qmprop ... 3.0 OK for others
+	    // insert timer here
+	    double start_time = cpu_time();
+            double fac = 10.0; // 10.0 seems good for qmprop ... 3.0 OK for others
             double cnorm = c.normf();
-            const long lmax = 1L << (key.level()-1);
+	    const long lmax = 1L << (key.level()-1);
             const std::vector<keyT>& disp = op->get_disp(key.level());
             for (typename std::vector<keyT>::const_iterator it=disp.begin();  it != disp.end(); ++it) {
                 const keyT& d = *it;
@@ -1695,6 +1732,7 @@ namespace madness {
                     }
                 }
                 if (!doit) break;
+
 
                 if (dest.is_valid()) {
                     double opnorm = op->norm(key.level(), d);
@@ -1740,6 +1778,12 @@ namespace madness {
                 }
 
             }
+	    // update Apply_Time
+	    double end_time = cpu_time();
+	    //	    madness::print("time for key", key, ":", end_time-start_time);
+	    if (apply_time) {
+	      apply_time->update(key, end_time-start_time);
+	    }
             return None;
         }
 
@@ -1765,6 +1809,19 @@ namespace madness {
             if (fence) world.gop.fence();
         }
 
+      /// accessor functions for apply_time
+      // no good place to put them, so here seems as good as any
+//       double get_apply_time(const keyT& key) {
+// 	return apply_time.get(key);
+//       }
+
+//       void print_apply_time() {
+// 	apply_time.print();
+//       }
+
+      void set_apply_time_ptr(SharedPtr<ApplyTime<NDIM> > ptr) {
+	apply_time = ptr;
+      }
 
         /// Returns the square of the error norm in the box labelled by key
 

@@ -626,7 +626,9 @@ namespace madness {
 	/// Get the scaling function coeffs at level n starting from NS form
 	Tensor<T> coeffs_for_jun(Level n, long mode=0) {
 	    nonstandard(true,true);
-	    return impl->coeffs_for_jun(n,mode);
+	    // NOTE: This is not valid form for FuncImpl at the moment, so commented out - hqi
+	    //	    return impl->coeffs_for_jun(n,mode);
+	    return impl->coeffs_for_jun(n);
 	}
 
         /// Clears the function as if constructed uninitialized.  Optional fence.
@@ -925,6 +927,9 @@ namespace madness {
         }
 
 
+      void set_apply_time_ptr(SharedPtr<ApplyTime<NDIM> > ptr) {
+	impl->set_apply_time_ptr(ptr);
+      }
 
     private:
 
