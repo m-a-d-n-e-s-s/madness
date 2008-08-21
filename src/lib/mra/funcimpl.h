@@ -868,8 +868,7 @@ namespace madness {
 		}
 		tensorT rr(2*NDIM,dim);
 		r0=r=rr;
-		//NNkk->MqMqkk, since fuse is not allowed. Now needs to move back to 2*NDIM, since tensor 
-max dim is 6
+		//NNkk->MqMqkk, since fuse is not allowed. Now needs to move back to 2*NDIM, since tensor max dim is 6
 		//for (int d=NDIM-1; d>=0; --d) r.splitdim_inplace_base(d,M,q);
             } else {
 	  	long dim[2*NDIM];
@@ -925,8 +924,7 @@ max dim is 6
 		    long ll = 0;
                     for (int d=0; d<NDIM; d++) {
                         Translation l = key.translation()[d];
-			ll += (l % q)*pow((double)M,NDIM)*pow((double)q,NDIM-d-1) + 
-(l/q)*pow((double)M,NDIM-d-1);
+			ll += (l % q)*pow((double)M,NDIM)*pow((double)q,NDIM-d-1) + (l/q)*pow((double)M,NDIM-d-1);
 			//print(d,l,(l % q)*pow(M,NDIM)*pow(q,NDIM-d-1) + (l/q)*pow(M,NDIM-d-1));
 
 			//print("translation",l);

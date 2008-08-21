@@ -626,9 +626,8 @@ namespace madness {
 	/// Get the scaling function coeffs at level n starting from NS form
 	Tensor<T> coeffs_for_jun(Level n, long mode=0) {
 	    nonstandard(true,true);
-	    // NOTE: This is not valid form for FuncImpl at the moment, so commented out - hqi
-	    //	    return impl->coeffs_for_jun(n,mode);
-	    return impl->coeffs_for_jun(n);
+	    return impl->coeffs_for_jun(n,mode);
+	    //return impl->coeffs_for_jun(n);
 	}
 
         /// Clears the function as if constructed uninitialized.  Optional fence.
