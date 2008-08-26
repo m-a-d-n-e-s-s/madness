@@ -21,7 +21,7 @@ class IEigSolverObserver
   typedef Function<T,NDIM> funcT;
 public:
   virtual void iterateOutput(const std::vector<funcT>& phis,
-      const std::vector<double>& eigs, const Function<double, NDIM>& rho, const int& iter) = 0;
+      const std::vector<double>& eigs, const Function<double, NDIM>& rho, const int& iter, bool periodic) = 0;
 
   virtual ~IEigSolverObserver() {};
 };

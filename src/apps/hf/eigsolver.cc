@@ -2,6 +2,12 @@
 
 #include "eigsolver.h"
 #include "util.h"
+#include "poperator.h"
+#include "outputwriter.h"
+
+#define DEBUG_STREAM *(OutputWriter::instance()->debug_stream())
+#define LOG_STREAM *(OutputWriter::instance()->log_stream())
+#define EIGV_STREAM *(OutputWriter::instance()->eigv_stream())
 
 using std::cout;
 using std::endl;
@@ -129,7 +135,7 @@ namespace madness
         {
             if (_world.rank() == 0)
             {
-                print("bsh: warning: positive eigenvalue", i, eps);
+                DEBUG_STREAM << "bsh: warning: positive eigenvalue" << i << eps << endl;
             }
             eps = -0.1;
         }
@@ -152,8 +158,8 @@ namespace madness
     }
     if (_world.rank() == 0)
     {
-      cout << "***** Evaluation of matrix elements *****" << endl;
-      cout << "KineticEnergyOp:\t\t\t" << value << endl;
+      DEBUG_STREAM << "***** Evaluation of matrix elements *****" << endl;
+      DEBUG_STREAM << "KineticEnergyOp:\t\t\t" << value << endl;
     }
 
     // Loop through all ops
@@ -167,7 +173,7 @@ namespace madness
       if (op->is_od()) value += op->coeff() * phii.inner(op->op_o(_phis, phij));
       if (_world.rank() == 0)
       {
-        cout << op->messsageME() << ":\t\t\t" << value << endl;
+        DEBUG_STREAM << op->messsageME() << ":\t\t\t" << value << endl;
       }
     }
     if (_world.rank() == 0) printf("\n\n");
@@ -184,14 +190,15 @@ namespace madness
       // oven), go ahead and build all of the density-dependent potentials that
       // we can.
       prepare_ops();
-      if (_world.rank() == 0) printf("Iteration #%d\n\n", it);
+      if (_world.rank() == 0) DEBUG_STREAM << "Iteration #%d\n\n" << it << endl;
+      if (_world.rank() == 0) cout << "Iteration #%d\n\n" << it << endl;
       for (unsigned int pi = 0; pi < _phis.size(); pi++)
       {
         // Get psi from collection
         funcT psi = _phis[pi];
         funcT pfunc = FunctionFactory<T,NDIM>(_world);
         // Loop through all ops
-        if (_world.rank() == 0) madness::print("Looping through the ops ...\n\n");
+        if (_world.rank() == 0) DEBUG_STREAM << "Looping through the ops ...\n\n" << endl;
         for (unsigned int oi = 0; oi < _ops.size(); oi++)
         {
           EigSolverOp<T,NDIM>* op = _ops[oi];
@@ -200,7 +207,7 @@ namespace madness
           // Operate with orbital-dependent operator
           if (op->is_od()) pfunc += op->coeff() * op->op_o(_phis, psi);
         }
-        if (_world.rank() == 0) madness::print("Creating BSH operator ...\n\n");
+        if (_world.rank() == 0) DEBUG_STREAM << "Creating BSH operator ...\n\n" << endl;
         SeparatedConvolution<T,NDIM>* op = 0;
         if (_periodic)
         {
@@ -210,8 +217,9 @@ namespace madness
           pfunc -= k[1] * diff(psi, 1);
           pfunc -= k[2] * diff(psi, 2);
           pfunc.scale(-2.0).truncate(_thresh);
-          op = BSHOperatorPtr<T,NDIM>(_world, sqrt(-2.0*_eigs[pi]),
-              FunctionDefaults<NDIM>::get_k(), 1e-4, _thresh);
+          Tensor<double> L = FunctionDefaults<NDIM>::get_cell_width();
+          op = PeriodicBSHOpPtr<T,NDIM>(_world, sqrt(-2.0*_eigs[pi]),
+              FunctionDefaults<NDIM>::get_k(), 1e-4, _thresh, L);
         }
         else
         {
@@ -220,13 +228,14 @@ namespace madness
               FunctionDefaults<NDIM>::get_k(), 1e-4, _thresh);
         }
         // Apply the Green's function operator (stubbed)
-        if (_world.rank() == 0) madness::print("Applying BSH operator ...\n\n");
+        if (_world.rank() == 0) DEBUG_STREAM << "Applying BSH operator ...\n\n" << endl;
         funcT tmp = apply(*op, pfunc);
         // (Not sure whether we have to do this mask thing or not!)
         // WSTHORNTON DEBUG
         double ttnorm = tmp.norm2();
-        if (_world.rank() == 0) madness::print("pi = ", pi, "\tttnorm = %.5f\n\n", ttnorm);
-        if (_world.rank() == 0) printf("Gram-Schmidt ...\n\n");
+        if (_world.rank() == 0) DEBUG_STREAM << "pi = " << pi
+          << "\tttnorm = %.5f\n\n" << ttnorm << endl;
+        if (_world.rank() == 0) DEBUG_STREAM << "Gram-Schmidt ...\n\n" << DEBUG_STREAM;
         for (unsigned int pj = 0; pj < pi; ++pj)
         {
 //          // Make sure that pi != pj
@@ -239,17 +248,18 @@ namespace madness
         }
         // WSTHORNTON DEBUG
         double tttnorm = tmp.norm2();
-        if (_world.rank() == 0) printf("pi = %d\tttnorm = %.5f\n\n", pi, tttnorm);
+        if (_world.rank() == 0) DEBUG_STREAM << "pi = " << pi << "ttnorm = " << tttnorm << endl;
         // Update e
-        if (_world.rank() == 0) printf("Updating e ...\n\n");
+        if (_world.rank() == 0) DEBUG_STREAM << "Updating e ...\n\n" << endl;
         funcT r = tmp - psi;
         double tnorm = tmp.norm2();
         double eps_old = _eigs[pi];
         double ecorrection = -0.5*inner(pfunc, r) / (tnorm*tnorm);
         double eps_new = eps_old + ecorrection;
         double rnorm = r.norm2();
-        if (_world.rank() == 0) printf("pi = %d\trnorm = %.5f\n\n", pi, rnorm);
-        if (_world.rank() == 0) printf("pi = %d\teps_new = %.5f\teps_old = %.5f\n\n", pi, eps_new, eps_old);
+        if (_world.rank() == 0) DEBUG_STREAM << "pi = " << pi << "rnorm = " << rnorm << endl << endl;
+        if (_world.rank() == 0) EIGV_STREAM <<  "pi = " << pi << "enew = " << eps_new
+          << "eps_old = " << eps_old << endl;
         // Sometimes eps_new can go positive, THIS WILL CAUSE THE ALGORITHM TO CRASH. So,
         // I bounce the new eigenvalue back into the negative side of the real axis. I
         // keep doing this until it's good or I've already done it 10 times.
@@ -267,7 +277,7 @@ namespace madness
         // Still no go, forget about it. (1$ to Donnie Brasco)
         if (eps_new >= 0.0)
         {
-          printf("FAILURE OF WST: exiting!!\n\n");
+          LOG_STREAM << "FAILURE OF WST: exiting!!\n" << endl;;
           _exit(0);
         }
         // Update the eigenvalue estimates and wavefunctions.
@@ -282,7 +292,7 @@ namespace madness
       for (typename std::vector<IEigSolverObserver<T,NDIM>*>::iterator itr = _obs.begin(); itr
         != _obs.end(); ++itr)
       {
-        (*itr)->iterateOutput(_phis, _eigs, _rho, it);
+        (*itr)->iterateOutput(_phis, _eigs, _rho, it, _periodic);
       }
     }
   }
@@ -372,7 +382,8 @@ namespace madness
         {
           // Split the difference between the new and old estimates of the
           // pi-th eigenvalue.
-          if (_world.rank() == 0) printf("ei = %d\teps_new = %.5f\teps_old = %.5f\n\n", ei, eps_new, eps_old);
+//          if (_world.rank() == 0) EIGV_STREAM  << "ei = %d\teps_new = %.5f\teps_old = %.5f\n\n"
+//            << ei << eps_new, eps_old);
           eps_new = eps_old + 0.5*(eps_new - eps_old);
           counter++;
         }
@@ -398,7 +409,7 @@ namespace madness
       for (typename std::vector<IEigSolverObserver<T,NDIM>*>::iterator itr = _obs.begin(); itr
         != _obs.end(); ++itr)
       {
-        (*itr)->iterateOutput(_phis, _eigs, _rho, it);
+        (*itr)->iterateOutput(_phis, _eigs, _rho, it, _periodic);
       }
     }
   }

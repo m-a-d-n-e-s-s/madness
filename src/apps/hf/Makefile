@@ -22,6 +22,7 @@ TESTPROGS = test_hf
 # Source files for the test programs (up to six of them)
 TEST1SRC = test_hf.cc 
 TEST2SRC = test_lattice.cc
+TEST3SRC = test_coulomb.cc
          
 # GlobalMakefile now does most of the work for you
 include $(TOPDIR)/config/GlobalMakefile
@@ -29,9 +30,11 @@ include $(TOPDIR)/config/GlobalMakefile
 # You must define additional rules to link your test programs
 test_hf:	$(TEST1OBJ) $(THISLIBDEPEND) 
 	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ $(SYSLIBS) $(LTLINKBINOPTS)
-			
 	
 test_lattice:	$(TEST2OBJ) $(THISLIBDEPEND) 
+	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ $(SYSLIBS) $(LTLINKBINOPTS)
+			
+test_coulomb:	$(TEST3OBJ) $(THISLIBDEPEND) 
 	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ $(SYSLIBS) $(LTLINKBINOPTS)
 			
 	

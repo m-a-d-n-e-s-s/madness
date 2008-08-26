@@ -173,7 +173,7 @@ namespace madness
     //*************************************************************************
     // Constructor
     DFT(World& world, funcT V, std::vector<funcT> phis,
-      std::vector<double> eigs, double thresh);
+      std::vector<double> eigs, double thresh, bool periodic = false);
     //*************************************************************************
 
     //*************************************************************************
@@ -182,11 +182,11 @@ namespace madness
       std::vector<double> eigs, std::vector<kvecT> kpoints, double thresh);
     //*************************************************************************
 
-    //*************************************************************************
-    // Constructor for ground state only
-    DFT(World& world, Function<double,NDIM> V, Function<double,NDIM> rho,
-        double eig, double thresh);
-    //*************************************************************************
+//    //*************************************************************************
+//    // Constructor for ground state only
+//    DFT(World& world, Function<double,NDIM> V, Function<double,NDIM> rho,
+//        double eig, double thresh);
+//    //*************************************************************************
 
   	//*************************************************************************
     DFT();
@@ -201,11 +201,12 @@ namespace madness
      //*************************************************************************
 
      //***************************************************************************
-     static double calculate_ke_sp(funcT psi);
+     static double calculate_ke_sp(funcT psi, bool periodic = false);
      //***************************************************************************
 
      //***************************************************************************
-     static double calculate_tot_ke_sp(const std::vector<funcT>& phis, bool spinpol);
+     static double calculate_tot_ke_sp(const std::vector<funcT>& phis,
+         bool spinpol, bool periodic = false);
      //***************************************************************************
 
      //***************************************************************************
@@ -215,7 +216,8 @@ namespace madness
 
      //***************************************************************************
      static double calculate_tot_coulomb_energy(const Function<double,NDIM>& rho,
-         bool spinpol, const World& world, const double thresh);
+         bool spinpol, const World& world, const double thresh,
+         bool periodic = false);
      //***************************************************************************
 
      //***************************************************************************
@@ -239,7 +241,7 @@ namespace madness
      //*************************************************************************
      virtual void iterateOutput(const std::vector<funcT>& phis,
          const std::vector<double>& eigs, const Function<double,NDIM>& rho,
-         const int& iter);
+         const int& iter, bool periodic = false);
      //*************************************************************************
 
      //*************************************************************************

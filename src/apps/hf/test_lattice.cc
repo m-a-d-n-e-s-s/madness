@@ -273,9 +273,9 @@ void testPeriodicCoulomb3d(int argc, char**argv)
   startup(world,argc,argv);
 
   // Function defaults
-  int k = 8;
-  double thresh = 1e-6;
-  double eps = 1e-6;
+  int k = 12;
+  double thresh = 1e-10;
+  double eps = 1e-10;
   FunctionDefaults<3>::set_k(k);
   FunctionDefaults<3>::set_cubic_cell(-L/2,L/2);
   FunctionDefaults<3>::set_thresh(thresh);
@@ -288,7 +288,8 @@ void testPeriodicCoulomb3d(int argc, char**argv)
   Function<double,3> phi_exact = FunctionFactory<double,3>(world).f(phi_coulomb_func3d);
 
   // Create operator and apply
-  SeparatedConvolution<double,3> op = PeriodicCoulombOp<double,3>(world, k, 1e-8, eps, L);
+  Tensor<double> cellsize = FunctionDefaults<3>::get_cell_width();
+  SeparatedConvolution<double,3> op = PeriodicCoulombOp<double,3>(world, k, 1e-6, eps, cellsize);
   printf("applying operator ...\n\n");
   Function<double,3> phi_test = apply(op, rho);
 
@@ -333,7 +334,8 @@ void testPeriodicBSH3d(int argc, char**argv)
 
   // Create operator and apply
   double twopi = 2 * WST_PI;
-  SeparatedConvolution<double,3> op = PeriodicBSHOp<double,3>(world, twopi/L, k, 1e-8, eps, L);
+  Tensor<double> cellsize = FunctionDefaults<3>::get_cell_width();
+  SeparatedConvolution<double,3> op = PeriodicBSHOp<double,3>(world, twopi/L, k, 1e-8, eps, cellsize);
   Function<double,3> phi_test = apply(op, rho);
 
   double bstep = L / 100.0;
