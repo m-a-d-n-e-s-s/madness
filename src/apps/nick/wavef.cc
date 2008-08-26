@@ -83,7 +83,7 @@ complexd BoundWF::operator()(const vector3D& rVec) const
     //cos(th) = z/r
     double costh = rVec[2]/r;
     if(m==0) {
-	return complexd(gsl_sf_hydrogenicR(n, l, 1.0*_Z, r) 
+	return complexd(gsl_sf_hydrogenicR(n, l, _Z, r) 
 		      * gsl_sf_legendre_sphPlm(l, m, costh), 0.0);
     }
     else {

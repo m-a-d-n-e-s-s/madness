@@ -8,7 +8,7 @@
 using std::ofstream;
 #include <nick/wavef.h>
 
-#define PRINT(str) if(world.rank()==0) cout << str 
+#define PRINT(str) if(world.rank()==0) cout << str
 #define PRINTLINE(str) if(world.rank()==0) cout << str << endl
 
 using namespace madness;
@@ -47,7 +47,7 @@ complex_functionT wave_function_load(World& world, int step) {
 }
 
 
-void doWork(World& world) { 
+void doWork(World& world) {
   PRINTLINE("Creating three basis functions");
   Function<complexd,NDIM> psi100 = FunctionFactory<complexd,NDIM>(world).
     functor(functorT( new BoundWF(1.0, 1.0, 1,0,0)));
@@ -59,11 +59,12 @@ void doWork(World& world) {
   int step = 0;
   PRINTLINE("Testing our capacity to load a wave function from disk");
   if(wave_function_exists(world,step)) {
-			Function<complexd, NDIM> loadedFunc = wave_function_load(world, step);
-      PRINT("<data|100> =  ") << loadedFunc.inner(psi100) << endl;
-      PRINT("<data|200> =  ") << loadedFunc.inner(psi200) << endl;
-      PRINT("<data|210> =  ") << loadedFunc.inner(psi210) << endl;
-    } else PRINTLINE("LoadedFunc doesn't exist");
+    PRINTLINE("wave_function_exists = true");
+   Function<complexd, NDIM> loadedFunc = wave_function_load(world, step);
+    PRINT("<data|100> =  ") << loadedFunc.inner(psi100) << endl;
+    PRINT("<data|200> =  ") << loadedFunc.inner(psi200) << endl;
+    PRINT("<data|210> =  ") << loadedFunc.inner(psi210) << endl;
+  } else PRINTLINE("LoadedFunc doesn't exist");
 }
 
 
@@ -74,8 +75,8 @@ int main(int argc, char**argv) {
   // Load info for MADNESS numerical routines
   startup(world,argc,argv);
   // Setup defaults for numerical functions
-  FunctionDefaults<NDIM>::set_k(16);             // Wavelet order
-  FunctionDefaults<NDIM>::set_thresh(1e-9);       // Accuracy
+  FunctionDefaults<NDIM>::set_k(8);             // Wavelet order
+  FunctionDefaults<NDIM>::set_thresh(1e-6);       // Accuracy
   FunctionDefaults<NDIM>::set_cubic_cell(-20.0, 20.0);
 
   try {
