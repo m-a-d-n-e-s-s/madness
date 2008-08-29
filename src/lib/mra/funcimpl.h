@@ -901,13 +901,24 @@ namespace madness {
 	    //print("faking done M q r(fake) r0(real)",M,q,"\n", r,r0);
             ProcessID me = world.rank();
             Vector<long,NDIM> t(N);
+	    
+	    Vector<long,NDIM> powq, powN, powM;
+	    long NDIM1 = NDIM-1;
+	    powM[NDIM1]=powq[NDIM1]=powN[NDIM1]=1;
+	    for (int d=NDIM1-1; d>=0; --d) {
+	    	powM[d] = powM[d+1]*M;
+		powq[d] = powq[d+1]*q;
+		powN[d] = powN[d+1]*N;
+	    }
+	    long powMNDIM = powM[0]*M;
+	    
             for (IndexIterator it(t); it; ++it) {
                 keyT key(n, Vector<Translation,NDIM>(*it));
                 if (coeffs.owner(key) == me) {
                     typename dcT::iterator it = coeffs.find(key).get();
-                    tensorT qq;
+		    tensorT qq;
 
-                    if (it == coeffs.end()) {
+		    if (it == coeffs.end()) {
                         // must get from above
                         typedef std::pair< keyT,Tensor<T> > pairT;
                         Future<pairT> result;
@@ -924,8 +935,9 @@ namespace madness {
 		    long ll = 0;
                     for (int d=0; d<NDIM; d++) {
                         Translation l = key.translation()[d];
-			ll += (l % q)*pow((double)M,NDIM)*pow((double)q,NDIM-d-1) + (l/q)*pow((double)M,NDIM-d-1);
-			//print(d,l,(l % q)*pow(M,NDIM)*pow(q,NDIM-d-1) + (l/q)*pow(M,NDIM-d-1));
+			long dum = float(l)/q;
+			ll += (l - dum*q)*powMNDIM*powq[d] + dum*powM[d];
+			//ll += (l % q)*powM[NDIM]*pow((double)q,NDIM-d-1) + (l/q)*pow((double)M,NDIM-d-1);
 
 			//print("translation",l);
 			//s[d       ] = Slice(l,l,0);
@@ -934,13 +946,16 @@ namespace madness {
                     }
 		    //long dum = ll;
 		    for (int d=0; d<NDIM; d++) {
-		    	Translation l = ll / pow((double)N,NDIM-d-1);
+		    	Translation l = float(ll) / powN[d];
+			//Translation l = ll / pow((double)N,NDIM-d-1);
 			s[d     ] = Slice(l,l,0);
 			s[d+NDIM] = Slice(0,k-1,1);
-			ll = ll % long(pow((double)N,NDIM-d-1));
+			ll = ll - l*powN[d];
+			//ll = ll % long(pow((double)N,NDIM-d-1));
 		    }
 		    //print(s, dum, key.translation());
                     r(s) = qq(cdata.s0);
+
                 }
             }
 

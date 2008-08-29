@@ -572,6 +572,7 @@ namespace madness {
         void nonstandard(bool keepleaves, bool fence) {
             PROFILE_MEMBER_FUNC(Function);
             verify();
+	    if (impl->nonstandard) return;
             if (VERIFY_TREE) verify_tree();
             if (is_compressed()) reconstruct();
             impl->compress(true, keepleaves, fence);
