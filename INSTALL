@@ -1,80 +1,68 @@
-We've temporarily (?) abandoned autoconf since
-it was too painful on the bleeding edge machines.
-No doubt it will return and our implementation is
-meant to make this easy.
+We are back to using autoconf and standard GNU configure scripts.
 
-To configure MADNESS run the script doconfig
-in the top level directory (same as this file).
-On most machines it should just work, but you 
-can fine tune things from the commandline.
-It does NOT look in the environment for any info.
+Prequisites:
 
-First, it accepts standard targets as keywords 
-on the command line to direct the
-build process which is important on machines with
-cross compilers.  The currently understood targets
-are
+  o  MPI-2
 
-IBMBGL - not yet
-CRAYXT - for any configuration (PGC/GCC, Linux/Catamount)
-LINUX32
-LINUX64
+  o  BLAS
 
-You can also provide the keyword debug to indicate
-that you want the compilation options set suitable
-for rapid compilation and debugging.
+  o  LAPACK
 
-Values for variables may also be set on the command
-line as a pair such as
+  o  C and C++ compilers
 
-doconfig LIBS "/local/atlas/something.a -lfred"
+  o  If you are building from the respository you will also need
+     autoconf and automake.
 
-The list of interesting variables is in the configure
-script.  At some point (hopefully) real documentation
-will be written
+How to build:
 
+If you checked the source out of subversion you will need to build the
+".in" files from the autoconf and automake templates (you do not need
+to do this if building from the distribution tar file).  In the top
+source directory (the one with configure.ac) run
 
-Examples
+     autoreconf
 
-Linux 64-bit using MKL in default install location
+Assuming you are not cross compiling and that mpicxx and mpicc (or
+equivalent) are in your path, you only need to tell configure where to
+find your BLAS and LAPACK libraries (including any libraries necessary
+to link against those libraries).  Some examples follow.
 
-    ./doconfig LIBS "-L/opt/intel/mkl/9.1.023/lib/em64t -lmkl -lguide"
+  o  64-bit Linux with Intel MKL installed.
 
-Linux 32-bit using MKL in default install location
+     ./configure LIBS="-L/opt/intel/mkl/10.0.1.014/lib/em64t -lmkl -lguide -lpthread -lm"
 
-    ./doconfig LIBS "-L/opt/intel/mkl/10.0.1.014/lib/32 -lmkl -lguide"
+  o  32-bit Linux with Intel MKL installed
 
-CRAY-XT4 (ORNL Jaguar) with GNU compilers and ACML
+     ./configure LIBS="-L/opt/intel/mkl/10.0.1.014/lib/32 -lmkl -lguide -lpthread -lm"
 
-    The GNU compilers are much faster (10x ?) at compilation than PGI hence
-    these are recommended for development.  The runtime performance has not
-    been evaluated.
+  o  Linux (32 or 64 bit) using system default BLAS and LAPACK
+    
+     ./configure LIBS="-llapack -lblas"
 
-    Build in your work directory (/tmp/work/username) since the user filesystem
-    is bizarrely not accessible from the compute nodes
+     (some systems might require additional libraries to resolve Fortran
+      symbols used by LAPACK/BLAS)
 
-    [assuming default modules loaded]
-    module swap PrgEnv-pgi PrgEnv-gnu
-    module load subversion
-    module load acml/4.1.0
-    ./doconfig CRAYXT LIBS "-lacml -lgfortran"
+Systems requiring special actions:
 
-    to run you will need to set an environment variable to point to
-    the data files
+  o  Cray-XT with GNU compilers and ACML
 
-    setenv MRA_DATA_DIR /tmp/work/$USER/m-a-d-n-e-s-s/trunk/src/lib/mra
+     ?????
 
-CRAY-XT4 (ORNL Jaguar) with PGI compilers and SCILIB
+  o  Cray-XT with GNU compilers and scilib
 
-    build in your work directory (/tmp/work/username) since the user filesystem
-    is bizarrely not accessible from the compute nodes
+     ?????
 
-    [assuming default modules loaded]
-    ./doconfig CRAYXT LIBS ???????????????????????????
+  o  Cray-XT with PGI compilers and ACML
 
-    to run you will need to set an environment variable to point to
-    the data files
+     ?????
 
-    setenv MRA_DATA_DIR /tmp/work/$USER/m-a-d-n-e-s-s/trunk/src/lib/mra
+  o  Cray-XT with PGI compilers and scilib
+
+     ?????
+
+  o  IBM BlueGene-P
+
+     ?????
+
 
 
