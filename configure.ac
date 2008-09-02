@@ -1,4 +1,5 @@
-AC_PREREQ(2.61)
+AC_PREREQ(2.59)
+# was 2.61 but jaguar is not up to date
 AC_INIT([madness], [0.9], [http://code.google.com/p/m-a-d-n-e-s-s])
 AC_CONFIG_SRCDIR([configure.ac])
 
@@ -45,7 +46,8 @@ AM_SANITY_CHECK
 AC_PROG_RANLIB
 AC_PROG_INSTALL
 AC_PROG_LN_S
-AC_PROG_SED
+#AC_PROG_SED
+AC_CHECK_PROG([canrunsed],[sed],[yes],[no])
 AC_PROG_MAKE_SET
 AM_PROG_AS
 
@@ -61,11 +63,9 @@ AC_TYPE_PID_T
 AC_C_RESTRICT
 AC_TYPE_SIZE_T
 AC_HEADER_TIME
-AC_TYPE_UINT8_T
-AC_TYPE_UINT16_T
-AC_TYPE_UINT32_T
-AC_TYPE_UINT64_T
-AC_TYPE_INT64_T
+#AC_TYPE_UINT64_T
+#AC_TYPE_INT64_T
+AC_CHECK_TYPES([uint64_t, int64_t, uint32_t, int32_t, uint16_t, uint8_t])
 AC_C_VOLATILE
 AC_C_CONST
 AC_C_INLINE
