@@ -53,12 +53,14 @@ using madness::Tensor;
 #include <linalg/tensor_lapack.h>
 #include <linalg/clapack.h>
 
-#define STATIC static
+#ifdef STATIC
+#  undef STATIC
+#endif
 
-#ifdef HAVE_UNQUALIFIED_STATIC_DECL
-#  ifdef STATIC
-#    undef STATIC
-#  endif
+#if HAVE_UNQUALIFIED_STATIC_DECL
+#  define STATIC static
+#else
+// Cray X1 compiler won't instantiate static function templates (mxm*)
 #  define STATIC
 #endif
 

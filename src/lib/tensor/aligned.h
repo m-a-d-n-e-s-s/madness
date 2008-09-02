@@ -27,10 +27,10 @@ namespace madness {
   void aligned_zero<double_complex>(long n, double_complex* a);
 #endif
 
-  void aligned_add(long n, double* RESTRICT a, const double* RESTRICT b);
-  void aligned_sub(long n, double* RESTRICT a, const double* RESTRICT b);
-  void aligned_add(long n, double_complex* RESTRICT a, const double_complex* RESTRICT b);
-  void aligned_sub(long n, double_complex* RESTRICT a, const double_complex* RESTRICT b);
+  void aligned_add(long n, double* restrict a, const double* restrict b);
+  void aligned_sub(long n, double* restrict a, const double* restrict b);
+  void aligned_add(long n, double_complex* restrict a, const double_complex* restrict b);
+  void aligned_sub(long n, double_complex* restrict a, const double_complex* restrict b);
 }
 
 #endif

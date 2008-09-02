@@ -89,7 +89,7 @@ namespace madness {
 #include <world/worldtime.h>
 #include <world/worldprofile.h>
 
-#ifdef USE_LINUX_RANDOM
+#ifdef HAVE_RANDOM
 #include <stdlib.h>
 #endif
 
@@ -562,7 +562,7 @@ namespace madness {
         /// so that each process (crudely!!!) has distinct values.
         void srand(unsigned long seed = 0) {
             if (seed == 0) seed = rank();
-#ifdef USE_LINUX_RANDOM
+#ifdef HAVE_RANDOM
             srandom(seed);
 #else
             myrand_next = seed;
@@ -575,7 +575,7 @@ namespace madness {
 
         /// Each process has a distinct seed for the generator.
         int rand() {
-#ifdef USE_LINUX_RANDOM
+#ifdef HAVE_RANDOM
             return int(random() & 0xfffffful);
 #else
             myrand_next = myrand_next * 1103515245UL + 12345UL;

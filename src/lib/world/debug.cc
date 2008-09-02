@@ -57,9 +57,7 @@ namespace madness {
         std::cout << "xterm_debug_breakpoint" << std::endl;
     }
 
-#ifndef HAVE_XTERM_DEBUG
-    void xterm_debug(const char* path, const char* display) {}
-#else
+#if defined(HAVE_XTERM) && defined(HAVE_FORK) && defined(HAVE_GDB) && defined(HAVE_SLEEP)
     void xterm_debug(const char* path, const char* display) {
         int rank = MPI::COMM_WORLD.Get_rank();
         pid_t child;
@@ -111,6 +109,9 @@ namespace madness {
             printf("util_debug: execv of xterm with debugger failed\n\n");
         }
     }
+
+#else
+    void xterm_debug(const char* path, const char* display) {}
 #endif
 }
 

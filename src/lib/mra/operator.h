@@ -10,14 +10,14 @@
 
 namespace madness {
 
-    void aligned_add(long n, double* RESTRICT a, const double* RESTRICT b);
-    void aligned_sub(long n, double* RESTRICT a, const double* RESTRICT b);
-    void aligned_add(long n, double_complex* RESTRICT a, const double_complex* RESTRICT b);
-    void aligned_sub(long n, double_complex* RESTRICT a, const double_complex* RESTRICT b);
+    void aligned_add(long n, double* restrict a, const double* restrict b);
+    void aligned_sub(long n, double* restrict a, const double* restrict b);
+    void aligned_add(long n, double_complex* restrict a, const double_complex* restrict b);
+    void aligned_sub(long n, double_complex* restrict a, const double_complex* restrict b);
 
     /// a(n,m) --> b(m,n) ... optimized for smallish matrices
     template <typename T>
-    static void fast_transpose(long n, long m, const T* RESTRICT a, T* RESTRICT b) {
+    static void fast_transpose(long n, long m, const T* restrict a, T* restrict b) {
         // n will always be k or 2k (k=wavelet order) and m will be anywhere
         // from 2^(NDIM-1) to (2k)^(NDIM-1).
 
@@ -33,12 +33,12 @@ namespace madness {
 
         long n4 = (n>>2)<<2;
         long m4 = m<<2;
-        const T* RESTRICT a0 = a;
+        const T* restrict a0 = a;
         for (long i=0; i<n4; i+=4, a0+=m4) {
-            const T* RESTRICT a1 = a0+m;
-            const T* RESTRICT a2 = a1+m;
-            const T* RESTRICT a3 = a2+m;
-            T* RESTRICT bi = b+i;
+            const T* restrict a1 = a0+m;
+            const T* restrict a2 = a1+m;
+            const T* restrict a3 = a2+m;
+            T* restrict bi = b+i;
             for (long j=0; j<m; j++, bi+=n) {
                 T tmp0 = a0[j];
                 T tmp1 = a1[j];
@@ -62,7 +62,7 @@ namespace madness {
 
     /// returns b
     template <typename T>
-    static T* shrink(long n, long m, long r, const T* a, T* RESTRICT b) {
+    static T* shrink(long n, long m, long r, const T* a, T* restrict b) {
         T* result = b;
         for (long i=0; i<n; i++, a+=m, b+=r) {
             for (long j=0; j<r; j++) {
@@ -823,9 +823,9 @@ namespace madness {
             for (int i=0; i<NDIM; i++) size *= dimk;
             long dimi = size/dimk;
 
-            R* RESTRICT w1=work1.ptr();
-            R* RESTRICT w2=work2.ptr();
-            Q* RESTRICT w3=work3.ptr();
+            R* restrict w1=work1.ptr();
+            R* restrict w2=work2.ptr();
+            Q* restrict w3=work3.ptr();
 
             const Q* U;
 
@@ -864,7 +864,7 @@ namespace madness {
 
             // Assuming here that result is contiguous
             MADNESS_ASSERT(size == result.size);
-            R* RESTRICT p = result.ptr();
+            R* restrict p = result.ptr();
             if (musign > 0) {
                 //for (long i=0; i<size; i++) p[i] += w1[i];
                 aligned_add(size, p, w1);

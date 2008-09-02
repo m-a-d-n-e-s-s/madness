@@ -1760,3 +1760,37 @@ namespace madness {
             cache.insert(pairT(key(n,index),SharedPtr<Q>(new Q(val))));
         }
     };
+
+
+
+
+
+# You must define additional rules to link your test programs
+test: $(TEST1OBJ) $(THISLIBDEPEND) 
+	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ $(SYSLIBS) $(LTLINKBINOPTS)
+
+testqm: $(TEST2OBJ) $(THISLIBDEPEND) 
+	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ $(SYSLIBS) $(LTLINKBINOPTS)
+
+jjtests: jjtests.o $(THISLIBDEPEND) 
+	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ $(SYSLIBS) $(LTLINKBINOPTS)
+
+jjtests.o:	sdc.h
+
+testsuite: $(TEST3OBJ) $(THISLIBDEPEND) 
+	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ $(SYSLIBS) $(LTLINKBINOPTS)
+
+tests-hqi: $(TEST4OBJ) $(THISLIBDEPEND) 
+	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ $(SYSLIBS) $(LTLINKBINOPTS)
+
+testperiodic: $(TEST5OBJ) $(THISLIBDEPEND)
+	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ $(SYSLIBS) $(LTLINKBINOPTS)
+
+gfit: $(TEST6OBJ) $(THISLIBDEPEND)
+	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ $(SYSLIBS) $(LTLINKBINOPTS)
+
+testbsh: $(TEST6OBJ) $(THISLIBDEPEND)
+	$(LTLINK) $(LD) $(LDFLAGS) -o $@ $^ $(SYSLIBS) $(LTLINKBINOPTS)
+
+runvalg2:
+	mpiexec -np 3 $(VALGRIND) $(VALGOPTS) ./tests-hqi -rio 

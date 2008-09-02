@@ -127,7 +127,7 @@ int main() {
 //             if (steplen > 0.5*xnorm) {
 //                 double damp = 0.3*xnorm/steplen;
 //                 if (damp < 0.1) damp = 0.1;
-//                 print("RESTRICTING", steplen, xnorm, damp);
+//                 print("restrictING", steplen, xnorm, damp);
 //                 xnew = damp*xnew + (1.0-damp)*x(m-1,_);
 //             }
             

@@ -92,7 +92,7 @@ namespace madness {
     
     template<>
     void mTxmq(const long dimi, const long dimj, const long dimk,
-               double* RESTRICT c, const double* a, const double* b) {
+               double* restrict c, const double* a, const double* b) {
         PROFILE_BLOCK(mTxmq_double_asm);
         //std::cout << "IN DOUBLE ASM VERSION " << dimi << " " << dimj << " " << dimk << "\n";
 
@@ -289,7 +289,7 @@ namespace madness {
 namespace madness {
     template <>
     void mTxmq(long dimi, long dimj, long dimk,
-               double* RESTRICT c, const double* a, const double* b) {
+               double* restrict c, const double* a, const double* b) {
         PROFILE_BLOCK(mTxmq_double_slow);
         for (long i=0; i<dimi; i++,c+=dimj,a++) {
             for (long j=0; j<dimj; j++) c[j] = 0.0;
@@ -312,7 +312,7 @@ namespace madness {
 namespace madness {
     template <>
     void mTxmq(const long dimi, const long dimj, const long dimk,
-               double_complex* RESTRICT c, const double_complex* a, const double_complex* b) {
+               double_complex* restrict c, const double_complex* a, const double_complex* b) {
 
         PROFILE_BLOCK(mTxmq_complex_asm);
         const long dimi16 = dimi<<4;
@@ -330,7 +330,7 @@ namespace madness {
         const double_complex* asave = a;
         for (long jlo=0; jlo<dimj; jlo+=jtile,c+=jtile,b+=jtile) {
             long nj = std::min(dimj-jlo,jtile);
-            double_complex* RESTRICT ci = c;
+            double_complex* restrict ci = c;
             a = asave;
             for (long i=0; i<dimi; i++,ci+=dimj,a++) {
                 const double_complex *ai = a;
@@ -750,7 +750,7 @@ namespace madness {
 namespace madness {
     template <>
     void mTxmq(long dimi, long dimj, long dimk,
-               double_complex* RESTRICT c, const double_complex* a, const double_complex* b) {
+               double_complex* restrict c, const double_complex* a, const double_complex* b) {
         PROFILE_BLOCK(mTxmq_complex_slow);
         for (long i=0; i<dimi; i++,c+=dimj,a++) {
             for (long j=0; j<dimj; j++) c[j] = 0.0;

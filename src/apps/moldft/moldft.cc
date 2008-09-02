@@ -51,7 +51,7 @@ extern int c_rks_vwn5__(const double *rho, double *f, double *dfdra);
 
 
 /// Simple (?) version of BLAS-1 DROT(N, DX, INCX, DY, INCY, DC, DS)
-void drot(long n, double* RESTRICT a, double* RESTRICT b, double s, double c, long inc) {
+void drot(long n, double* restrict a, double* restrict b, double s, double c, long inc) {
     if (inc == 1) {
         for (long i=0; i<n; i++) {
             double aa = a[i]*c - b[i]*s;

@@ -48,7 +48,6 @@ typedef MADNESS_FORINT integer;
 typedef long integer;
 #endif
 
-
 /// Fortran double precision
 typedef double real8;
 typedef double double_precision ;

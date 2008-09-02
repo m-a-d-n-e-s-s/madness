@@ -16,7 +16,7 @@ namespace madness {
     /// \endcode
     template <typename aT, typename bT, typename cT>
     void mTxmq(long dimi, long dimj, long dimk,
-               cT* RESTRICT c, const aT* a, const bT* b) {
+               cT* restrict c, const aT* a, const bT* b) {
 
         //std::cout << "IN GENERIC mTxmq " << tensor_type_names[TensorTypeData<aT>::id] << " " << tensor_type_names[TensorTypeData<bT>::id] << " " << tensor_type_names[TensorTypeData<cT>::id] << "\n";
 
@@ -35,11 +35,11 @@ namespace madness {
 
     template <>
     void mTxmq(long dimi, long dimj, long dimk,
-               double* RESTRICT c, const double* a, const double* b);
+               double* restrict c, const double* a, const double* b);
 
     template <>
     void mTxmq(long dimi, long dimj, long dimk,
-               double_complex* RESTRICT c, const double_complex* a, const double_complex* b);
+               double_complex* restrict c, const double_complex* a, const double_complex* b);
 }
 
 #endif

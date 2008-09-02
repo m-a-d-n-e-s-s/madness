@@ -53,6 +53,7 @@ int main(int argc, char** argv) {
     World world(MPI::COMM_WORLD);
     
     startup(world,argc,argv);
+    cout.precision(6);
 
     FunctionDefaults<3>::set_k(k);
     FunctionDefaults<3>::set_thresh(thresh);

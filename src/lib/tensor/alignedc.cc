@@ -12,11 +12,11 @@ namespace madness {
     }
 #endif
 
-    void aligned_add(long n, double_complex* RESTRICT a, const double_complex* RESTRICT b) {
+    void aligned_add(long n, double_complex* restrict a, const double_complex* restrict b) {
         aligned_add(2*n, (double*) a, (const double*) b);
     }
 
-    void aligned_sub(long n, double_complex* RESTRICT a, const double_complex* RESTRICT b) {
+    void aligned_sub(long n, double_complex* restrict a, const double_complex* restrict b) {
         aligned_sub(2*n, (double*) a, (const double*) b);
     }
 }

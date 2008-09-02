@@ -28,7 +28,7 @@ namespace madness {
     }
 #endif
 
-    void aligned_add(long n, double* RESTRICT a, const double* RESTRICT b) {
+    void aligned_add(long n, double* restrict a, const double* restrict b) {
         long n4 = (n>>2)<<2;
         long rem = n-n4;
         if (n4) {
@@ -55,7 +55,7 @@ namespace madness {
         for (long i=0; i<rem; i++) *a++ += *b++;
     }
 
-    void aligned_sub(long n, double* RESTRICT a, const double* RESTRICT b) {
+    void aligned_sub(long n, double* restrict a, const double* restrict b) {
         long n4 = (n>>2)<<2;
         long rem = n-n4;
         if (n4) {

@@ -63,7 +63,7 @@ double myg(const Vector<double,3>& r) {
 };
 
 void vector_myg(long npt, const double *x, const double *y, 
-                const double *z, double* RESTRICT f) {
+                const double *z, double* restrict f) {
     const double fac = pow(2.0*myg_expnt/PI,0.75);
     for (int i=0; i<npt; i++) {
         double xx = x[i] - 0.5;

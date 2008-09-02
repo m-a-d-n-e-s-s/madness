@@ -38,24 +38,17 @@
 /// \file tensor.cc
 /// \brief Completes the implementation of Tensor and instantiates all specializations for fast compiles.
 
-#define STATIC static
 
-//#ifdef _CRAY
-// Cray won't instantiate static function templates (mxm*)
-//#  define STATIC
-//#else
-//#  define STATIC static
-//#endif
+#ifdef STATIC
+#  undef STATIC
+#endif
 
-//#if !HAVE_UNQUALIFIED_STATIC_DECL
-//#  ifdef STATIC
-//#    undef STATIC
-//#  endif
-//#  define STATIC
-//#endif
-
-//#include <cstdio>
-//#include <cstdlib>
+#if HAVE_UNQUALIFIED_STATIC_DECL
+#  define STATIC static
+#else
+// Cray X1 compiler won't instantiate static function templates (mxm*)
+#  define STATIC
+#endif
 
 #include <algorithm>
 #include <complex>
@@ -69,9 +62,7 @@
 #include <tensor/mtxmq.h>
 #include <tensor/aligned.h>
 
-#if (HOST_SYSTEM == CRAYXT)
-#undef STATIC
-#define STATIC
+#if MISSING_POSIX_MEMALIGN_PROTO
   extern "C"  int posix_memalign(void **memptr, std::size_t alignment, std::size_t size);
 #endif
 
@@ -114,17 +105,17 @@ namespace madness {
         if (size) {
             try {
 
-#ifdef TENSORS_USE_MALLOC 
-                p = SharedPtr<T>((T*) malloc(sizeof(T)*size), ::madness::detail::del_free);
-                if (!p) throw 1;
-#elif defined(TENSORS_USE_POSIX_MEMALIGN)
 #define TENSOR_ALIGNMENT 16
+#ifdef HAVE_POSIX_MEMALIGN
                 T* q;
                 if (posix_memalign((void **) &q, TENSOR_ALIGNMENT, sizeof(T)*size)) throw 1;
                 p = SharedPtr<T>(q, ::madness::detail::del_free);
-#else
+#elif defined(WORLD_GATHER_MEM_STATS)
                 p = SharedPtr<T>(new T[size]);
+#else
+#  error Need a mechanism to allocated aligned memory
 #endif
+
             } catch (...) {
                 std::printf("new failed nd=%ld type=%ld size=%ld\n", nd, id, size);
                 std::printf("  %ld %ld %ld %ld %ld %ld\n",

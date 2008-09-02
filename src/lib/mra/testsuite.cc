@@ -1023,13 +1023,12 @@ int main(int argc, char**argv) {
     if (world.rank() == 0) {
         print("");
         print("--------------------------------------------");
-        print("   MADNESS",MADNESS_VERSION, "multiresolution testsuite");
+        print("   MADNESS",PACKAGE_VERSION, "multiresolution testsuite");
         print("--------------------------------------------");
         print("");
         print("   number of processors ...", world.size());
         print("    processor frequency ...", cpu_frequency());
-        print("            host system ...", TO_STRING(HOST_SYSTEM));
-        print("             byte order ...", TO_STRING(MADNESS_BYTE_ORDER));
+        print("            host system ...", HOST_SYSTEM);
         print("          configured by ...", MADNESS_CONFIGURATION_USER);
         print("          configured on ...", MADNESS_CONFIGURATION_HOST);
         print("          configured at ...", MADNESS_CONFIGURATION_DATE);
@@ -1093,14 +1092,14 @@ int main(int argc, char**argv) {
         test_plot<double,2>(world);
         test_io<double,2>(world);
 
-//         test_basic<double,3>(world);
-//         test_conv<double,3>(world);
-//         test_math<double,3>(world);
-//         test_diff<double,3>(world);
-//         test_op<double,3>(world);
-//         test_coulomb(world);
-//         test_plot<double,3>(world);
-//         test_io<double,3>(world);
+        test_basic<double,3>(world);
+        test_conv<double,3>(world);
+        test_math<double,3>(world);
+        test_diff<double,3>(world);
+        test_op<double,3>(world);
+        test_coulomb(world);
+        test_plot<double,3>(world);
+        test_io<double,3>(world);
 
         //test_plot<double,4>(world); // slow unless reduce npt in test_plot
 

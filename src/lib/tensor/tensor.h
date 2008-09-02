@@ -996,10 +996,10 @@ namespace madness {
     /*
     template <typename T> 
     void mTxm(long dimi, long dimj, long dimk,
-          T* RESTRICT c, const T* RESTRICT a, const T* RESTRICT b);
+          T* restrict c, const T* restrict a, const T* restrict b);
 
     void mTxm(long dimi, long dimj, long dimk,
-          double_complex* RESTRICT c, const double_complex* RESTRICT a, const double* RESTRICT b);
+          double_complex* restrict c, const double_complex* restrict a, const double* restrict b);
 
     */
 

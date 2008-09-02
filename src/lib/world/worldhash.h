@@ -40,25 +40,19 @@
 /// \brief Defines hash functions for use in distributed containers
 
 
-#ifndef WORLDDC_USES_TR1_UNORDERED_MAP
-#  define WORLDDC_USES_GNU_HASH_MAP
-#endif
-
-#ifdef WORLDDC_USES_GNU_HASH_MAP
+#ifdef HAVE_GNU_HASHMAP
 #  ifdef __GNUG__
 #    include <ext/hash_map>
 #  else
 #    include <hash_map>
 #  endif
-#  ifndef HASH_MAP_NAMESPACE
-#    define HASH_MAP_NAMESPACE __gnu_cxx
-#  endif
-#endif
-
-#ifdef WORLDDC_USES_TR1_UNORDERED_MAP
+#  define HASH_MAP_NAMESPACE GNU_HASHMAP_NAMESPACE
+#elif HAVE_UNORDERED_MAP
 #  include <tr1/unordered_map>
 #  define hash_map unordered_map
 #  define HASH_MAP_NAMESPACE std::tr1
+#else
+#  error Need either GNU hash_map or TR1 unordered_map
 #endif
 
 #include <world/typestuff.h>

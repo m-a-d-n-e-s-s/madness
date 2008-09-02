@@ -222,6 +222,7 @@ namespace madness {
 
 #  define PROFILE_BLOCK(name)
 #  define PROFILE_FUNC
+#  define PROFILE_MEMBER_FUNC(classname)
 
 #endif
 

@@ -55,7 +55,7 @@ namespace madness {
             double r = -log(4*pi*0.01*eps);
             r = -log(r * 4*pi*0.01*eps);
             if (hi > r) {
-                //print("RESTRICTING HI", hi, r);
+                //print("restrictING HI", hi, r);
                 hi = r;
             }
         }

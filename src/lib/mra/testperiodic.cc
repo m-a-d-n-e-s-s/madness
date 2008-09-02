@@ -99,12 +99,14 @@ void test_periodic(World& world) {
 
         Function<double,3> opf = apply(op,f);
 
-        coordT r(0.49);
+        coordT r0(0.49);
+        coordT r1(0.01);
 
         opf.reconstruct();
         f.reconstruct();
 
-        print(i, expnt, r, f(r), source(r), opf(r), opf(r)-maple[i+1]);
+        print(i, expnt, r0, f(r0), source(r0), opf(r0), opf(r0)-maple[i+1]);
+        print(i, expnt, r1, f(r1), source(r1), opf(r1), opf(r1)-maple[i+1]);
 
         //plot_line("plot.dat", 101, coordT(-L), coordT(L), f, opf);
     }

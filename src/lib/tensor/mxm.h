@@ -52,8 +52,8 @@
 /// Matrix * matrix reference implementation (slow but correct)
 template <typename T, typename Q, typename S>
 STATIC inline void mxm(long dimi, long dimj, long dimk,
-                       T* RESTRICT c, const Q* RESTRICT a,
-                       const S* RESTRICT b) {
+                       T* restrict c, const Q* restrict a,
+                       const S* restrict b) {
     /*
       c(i,j) = c(i,j) + sum(k) a(i,k)*b(k,j)
       
@@ -78,8 +78,8 @@ STATIC inline void mxm(long dimi, long dimj, long dimk,
 template <typename T, typename Q, typename S>
 STATIC inline
 void mTxm(long dimi, long dimj, long dimk,
-          T* RESTRICT c, const Q* RESTRICT a,
-          const S* RESTRICT b) {
+          T* restrict c, const Q* restrict a,
+          const S* restrict b) {
     /*
       c(i,j) = c(i,j) + sum(k) a(k,i)*b(k,j)
       
@@ -104,8 +104,8 @@ void mTxm(long dimi, long dimj, long dimk,
 /// Matrix * matrix transpose ... reference implementation (slow but correct)
 template <typename T, typename Q, typename S>
 STATIC inline void mxmT(long dimi, long dimj, long dimk,
-                        T* RESTRICT c, const Q* RESTRICT a,
-                        const S* RESTRICT b) {
+                        T* restrict c, const Q* restrict a,
+                        const S* restrict b) {
     /*
       c(i,j) = c(i,j) + sum(k) a(i,k)*b(j,k)
       
@@ -129,8 +129,8 @@ STATIC inline void mxmT(long dimi, long dimj, long dimk,
 /// Matrix transpose * matrix transpose reference implementation (slow but correct)
 template <typename T, typename Q, typename S>
 STATIC inline void mTxmT(long dimi, long dimj, long dimk,
-                         T* RESTRICT c, const Q* RESTRICT a,
-                         const S* RESTRICT b) {
+                         T* restrict c, const Q* restrict a,
+                         const S* restrict b) {
     /*
       c(i,j) = c(i,j) + sum(k) a(k,i)*b(j,k)
       
@@ -153,8 +153,8 @@ STATIC inline void mTxmT(long dimi, long dimj, long dimk,
 #ifdef _CRAY
 // Simple loop structure best on the Cray X1
 template
-void mTxm(long dimi, long dimj, long dimk, double* RESTRICT c,
-          const double* RESTRICT a, const double* RESTRICT b);
+void mTxm(long dimi, long dimj, long dimk, double* restrict c,
+          const double* restrict a, const double* restrict b);
 #else
 // The following are restricted to double only
 
@@ -162,8 +162,8 @@ void mTxm(long dimi, long dimj, long dimk, double* RESTRICT c,
 
 template <>
 inline void mTxm(long dimi, long dimj, long dimk,
-                 double* RESTRICT c, const double* RESTRICT a,
-                 const double* RESTRICT b) {
+                 double* restrict c, const double* restrict a,
+                 const double* restrict b) {
     /*
     c(i,j) = c(i,j) + sum(k) a(k,i)*b(k,j)  <--- NOTE ACCUMULATION INTO C
 
@@ -209,8 +209,8 @@ inline void mTxm(long dimi, long dimj, long dimk,
 
 template <>
 inline void mxmT(long dimi, long dimj, long dimk,
-                 double* RESTRICT c,
-                 const double* RESTRICT a, const double* RESTRICT b) {
+                 double* restrict c,
+                 const double* restrict a, const double* restrict b) {
     /*
     c(i,j) = c(i,j) + sum(k) a(i,k)*b(j,k)
 
@@ -227,8 +227,8 @@ inline void mxmT(long dimi, long dimj, long dimk,
     for (long i=0; i<dimi2; i+=2) {
         const double* ai0 = a+i*dimk;
         const double* ai1 = a+i*dimk+dimk;
-        double* RESTRICT ci0 = c+i*dimj;
-        double* RESTRICT ci1 = c+i*dimj+dimj;
+        double* restrict ci0 = c+i*dimj;
+        double* restrict ci1 = c+i*dimj+dimj;
         for (long j=0; j<dimj; j++) {
             double sum0 = 0;
             double sum1 = 0;
@@ -243,7 +243,7 @@ inline void mxmT(long dimi, long dimj, long dimk,
     }
     for (long i=dimi2; i<dimi; i++) {
         const double* ai = a+i*dimk;
-        double* RESTRICT ci = c+i*dimj;
+        double* restrict ci = c+i*dimj;
         for (long j=0; j<dimj; j++) {
             double sum = 0;
             const double* bj = b+j*dimk;
@@ -258,7 +258,7 @@ inline void mxmT(long dimi, long dimj, long dimk,
 /// Matrix * matrix (hand unrolled version)
 template <>
 inline void mxm(long dimi, long dimj, long dimk,
-                double* RESTRICT c, const double* RESTRICT a, const double* RESTRICT b) {
+                double* restrict c, const double* restrict a, const double* restrict b) {
     /*
     c(i,j) = c(i,j) + sum(k) a(i,k)*b(k,j)
 
@@ -297,7 +297,7 @@ inline void mxm(long dimi, long dimj, long dimk,
 /// Matrix transpose * matrix transpose (hand tiled and unrolled)
 template <>
 inline void mTxmT(long dimi, long dimj, long dimk,
-                  double* RESTRICT c, const double* RESTRICT a, const double* RESTRICT b) {
+                  double* restrict c, const double* restrict a, const double* restrict b) {
     /*
     c(i,j) = c(i,j) + sum(k) a(k,i)*b(j,k)
 
@@ -311,7 +311,7 @@ inline void mTxmT(long dimi, long dimj, long dimk,
     double ai[ktile];
     long dimj2 = (dimj/2)*2;
 
-    double* RESTRICT csave = c;
+    double* restrict csave = c;
     const double* asave = a;
     for (long klo=0; klo<dimk; klo+=ktile, asave+=ktile*dimi, b+=ktile) {
         long khi = klo+ktile;
