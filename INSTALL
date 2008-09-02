@@ -44,25 +44,39 @@ to link against those libraries).  Some examples follow.
 
 Systems requiring special actions:
 
-  o  Cray-XT with GNU compilers and ACML
+  o  Cray-XT (e.g., jaguar@ornl) with GNU compilers and ACML
 
      ?????
 
-  o  Cray-XT with GNU compilers and scilib
+  o  Cray-XT (e.g., jaguar@ornl) with GNU compilers and scilib
 
      ?????
 
-  o  Cray-XT with PGI compilers and ACML
+  o  Cray-XT (e.g., jaguar@ornl) with PGI compilers and ACML
 
      ?????
 
-  o  Cray-XT with PGI compilers and scilib
+  o  Cray-XT (e.g., jaguar@ornl) with PGI compilers and scilib
 
      ?????
 
   o  IBM BlueGene-P
 
      ?????
+
+  o  Smoky, the eccentric AMD+IB cluster at ORNL used for development. 
+     This using MVAPICH2, GNU and ACML (my install of ACML though there 
+     should module available for it now)
+
+     module swap PE-pgi PE-gnu
+     module load PE-gnu/4.2.0
+     module swap ompi mvapich2
+     setenv LD_LIBRARY_PATH /ccs/home/harrison/smokyinstall/gfortran64_int64/lib:$LD_LIBRARY_PATH
+     ./configure LIBS="-L/ccs/home/harrison/smokyinstall/gfortran64_int64/lib  -lacml  -lacml_mv -lgfortran"
+
+
+
+  
 
 
 
