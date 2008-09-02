@@ -47,10 +47,28 @@ AM_SANITY_CHECK
 AC_PROG_RANLIB
 AC_PROG_INSTALL
 AC_PROG_LN_S
-#AC_PROG_SED
-AC_CHECK_PROG([canrunsed],[sed],[yes],[no])
 AC_PROG_MAKE_SET
 AM_PROG_AS
+#AC_PROG_SED
+AC_CHECK_PROG([HAVE_SED],[sed],[YES],[NO])
+if test $HAVE_SED = YES; then
+   AC_PATH_PROG(SED,sed)
+fi
+
+# We need these to build the documentation
+AC_CHECK_PROG([HAVE_DOXYGEN],[doxygen],[YES],[NO])
+if test $HAVE_DOXYGEN = YES; then
+   AC_PATH_PROG(DOXYGEN,doxygen)
+fi
+AC_CHECK_PROG([HAVE_DOT],[dot],[YES],[NO])
+if test $HAVE_DOT = YES; then
+   AC_PATH_PROG(DOT,dot)
+fi
+AC_CHECK_PROG([HAVE_PDFLATEX],[pdflatex],[YES],[NO])
+if test $HAVE_PDFLATEX = YES; then
+   AC_PATH_PROG(PDFLATEX,pdflatex)
+fi
+AM_CONDITIONAL([CAN_BUILD_DOC], [test $HAVE_DOXYGEN = YES])
 
 # System headers
 AC_HEADER_TIME
@@ -195,6 +213,8 @@ AC_CONFIG_FILES([
        src/apps/moldft/Makefile
            src/apps/moldft/xc/Makefile
        src/apps/hf/Makefile
+    doc/Makefile
+    doc/doxygen.cfg
 ])
 
 AC_OUTPUT

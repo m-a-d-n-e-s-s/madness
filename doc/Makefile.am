@@ -1,8 +1,6 @@
-TOPDIR=..
+include $(top_srcdir)/config/MakeGlobal.am
 
-##include $(TOPDIR)/config/GlobalMakefile
-include $(TOPDIR)/config/MakeVars
-
+if CAN_BUILD_DOC
 .PHONY: all
 all:
 	$(DOXYGEN) doxygen.cfg
@@ -23,4 +21,9 @@ install::
 	/bin/cp -r html $(installroot)$(prefix)
 
 install_devel::
+
+else
+all:
+	doxygen is not available ... cannot build documentation ... sorry
+endif
 
