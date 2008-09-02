@@ -23,7 +23,7 @@ mtxm_gen.h:	genmtxm.py
 endif
 
 if USE_X86_32_ASM
-  libMADtensor_a_SOURCES += mtxm_asm.S mtxm_gen.h genmtxm.py
+  libMADtensor_a_SOURCES += mtxmq_asm.S mtxm_gen.h genmtxm.py
 mtxmq_asm.o:	mtxmq_asm.S mtxm_gen.h
 	$(CC) $(CXXFLAGS) -DX86_32 $(TUNE_MTXMQ) -c -o $@ mtxmq_asm.S
 
