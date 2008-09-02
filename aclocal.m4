@@ -888,11 +888,11 @@ AC_SUBST([am__tar])
 AC_SUBST([am__untar])
 ]) # _AM_PROG_TAR
 
+m4_include([config/acx_detect_cxx.m4])
 m4_include([config/acx_fortran_symbols.m4])
 m4_include([config/acx_gnu_hashmap.m4])
 m4_include([config/acx_mpi.m4])
+m4_include([config/acx_optimal_cxxflags.m4])
 m4_include([config/acx_posix_memalign.m4])
 m4_include([config/acx_std_abs.m4])
 m4_include([config/acx_unqal_stat_decl.m4])
-m4_include([config/acx_detect_cxx.m4])
-m4_include([config/acx_optimal_cxxflags.m4])
