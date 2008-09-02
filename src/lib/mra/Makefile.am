@@ -1,6 +1,6 @@
 include $(top_srcdir)/config/MakeGlobal.am
 
-AM_CPPFLAGS += -DMRA_DATA_DIR="`pwd`"
+AM_CPPFLAGS += -DMRA_DATA_DIR="\"`pwd`\""
 
 bin_PROGRAMS = testsuite  testperiodic testbsh
 lib_LIBRARIES = libMADmra.a

@@ -1,5 +1,6 @@
 AC_PREREQ(2.59)
-# was 2.61 but jaguar is not up to date
+# was 2.61 but jaguar is not up to date so backported which
+# involved replacing AC_PROG_SED and UINT*_T type checks.
 AC_INIT([madness], [0.9], [http://code.google.com/p/m-a-d-n-e-s-s])
 AC_CONFIG_SRCDIR([configure.ac])
 
@@ -72,7 +73,7 @@ AC_C_INLINE
 AC_CHECK_TYPES([ptrdiff_t])
 
 # Library functions
-AC_CHECK_FUNCS([sleep random execv perror gettimeofday memmove memset pow sqrt strchr strdup])
+AC_CHECK_FUNCS([sleep random execv perror gettimeofday memmove memset pow sqrt strchr strdup getenv])
 AC_FUNC_FORK
 AC_FUNC_MALLOC
 AC_FUNC_ERROR_AT_LINE
