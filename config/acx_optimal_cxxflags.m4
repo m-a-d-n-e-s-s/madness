@@ -4,9 +4,11 @@ AC_DEFUN([ACX_OPTIMAL_CXXFLAGS], [
     save_CXXFLAGS="$CXXFLAGS"
     case $CXXVENDOR in
          GNU)
-            CXXMAJOR=[`$CXX -dumpversion | sed -e 's/\.[.0-9]*//'`]
-            CXXMINOR=[`$CXX -dumpversion | sed -e 's/[0-9]*\.//' -e 's/\.[0-9]*//'`]
-            CXXMICRO=[`$CXX -dumpversion | sed -e 's/[0-9]*\.[0-9]*\.//'`]
+            # Delete trailing -stuff from X.X.X-stuff
+            CXXVERSION=[`$CXX -dumpversion | sed -e 's/-.*//'`]
+            CXXMAJOR=[`echo $CXXVERSION | sed -e 's/\.[.0-9a-zA-Z\-_]*//'`]
+            CXXMINOR=[`echo $CXXVERSION | sed -e 's/[0-9]*\.//' -e 's/\.[0-9]*//'`]
+            CXXMICRO=[`echo $CXXVERSION | sed -e 's/[0-9]*\.[0-9]*\.//'`]
             echo "Setting compiler flags for GNU C++ major=$CXXMAJOR minor=$CXXMINOR micro=$CXXMICRO"
 
 
