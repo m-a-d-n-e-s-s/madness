@@ -656,9 +656,9 @@ void wst_munge_rho(int npoint, double *rho) {
     // Add nuclear potential to ops list
     ops.push_back(new DFTNuclearPotentialOp<T,NDIM>(world, V, 1.0, thresh));
     if (periodic)
-      ops.push_back(new DFTCoulombOp<T,NDIM>(world, 1.0, thresh));
-    else
       ops.push_back(new DFTCoulombPeriodicOp<T,NDIM>(world, 1.0, thresh));
+    else
+      ops.push_back(new DFTCoulombOp<T,NDIM>(world, 1.0, thresh));
     _xcfunc = new XCFunctionalLDA<T,NDIM>(world, 1.0, thresh);
     ops.push_back(_xcfunc);
 
