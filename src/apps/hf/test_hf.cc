@@ -429,7 +429,7 @@ void test_hf_be(World& world)
   Vector<double,3> gammapt;
   gammapt[0] = 0.0; gammapt[1] = 0.0; gammapt[2] = 0.0;
   kpoints[0] = gammapt;
-  DFT<double,3> dftcalc(world, Vnuc, phis, eigs, kpoints, thresh);
+  DFT<double,3> dftcalc(world, Vnuc, phis, eigs, thresh, false);
   if (world.rank() == 0) madness::print("Running DFT object...");
   dftcalc.solve(31);
   //hf.hartree_fock(20);
@@ -456,7 +456,7 @@ int main(int argc, char** argv)
   {
     print("");
     print("--------------------------------------------");
-    print("   MADNESS", MADNESS_VERSION, "multiresolution testsuite");
+    print("   MADNESS", " multiresolution testsuite");
     print("--------------------------------------------");
     print("");
     print("   number of processors ...", world.size());

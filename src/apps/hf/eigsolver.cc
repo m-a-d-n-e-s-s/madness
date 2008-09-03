@@ -5,9 +5,13 @@
 #include "poperator.h"
 #include "outputwriter.h"
 
-#define DEBUG_STREAM *(OutputWriter::instance()->debug_stream())
-#define LOG_STREAM *(OutputWriter::instance()->log_stream())
-#define EIGV_STREAM *(OutputWriter::instance()->eigv_stream())
+//#define DEBUG_STREAM *(OutputWriter::instance()->debug_stream())
+//#define LOG_STREAM *(OutputWriter::instance()->log_stream())
+//#define EIGV_STREAM *(OutputWriter::instance()->eigv_stream())
+
+#define DEBUG_STREAM cout
+#define LOG_STREAM cout
+#define EIGV_STREAM cout
 
 using std::cout;
 using std::endl;
@@ -190,15 +194,16 @@ namespace madness
       // oven), go ahead and build all of the density-dependent potentials that
       // we can.
       prepare_ops();
-      if (_world.rank() == 0) DEBUG_STREAM << "Iteration #%d\n\n" << it << endl;
-      if (_world.rank() == 0) cout << "Iteration #%d\n\n" << it << endl;
+      if (_world.rank() == 0) DEBUG_STREAM << "Iteration #" << it
+        << endl << endl;
       for (unsigned int pi = 0; pi < _phis.size(); pi++)
       {
         // Get psi from collection
         funcT psi = _phis[pi];
         funcT pfunc = FunctionFactory<T,NDIM>(_world);
         // Loop through all ops
-        if (_world.rank() == 0) DEBUG_STREAM << "Looping through the ops ...\n\n" << endl;
+        if (_world.rank() == 0) DEBUG_STREAM << "Looping through the ops ..."
+          << endl << endl;
         for (unsigned int oi = 0; oi < _ops.size(); oi++)
         {
           EigSolverOp<T,NDIM>* op = _ops[oi];
@@ -207,7 +212,8 @@ namespace madness
           // Operate with orbital-dependent operator
           if (op->is_od()) pfunc += op->coeff() * op->op_o(_phis, psi);
         }
-        if (_world.rank() == 0) DEBUG_STREAM << "Creating BSH operator ...\n\n" << endl;
+        if (_world.rank() == 0) DEBUG_STREAM << "Creating BSH operator ..."
+          << endl << endl;
         SeparatedConvolution<T,NDIM>* op = 0;
         if (_periodic)
         {
@@ -228,14 +234,16 @@ namespace madness
               FunctionDefaults<NDIM>::get_k(), 1e-4, _thresh);
         }
         // Apply the Green's function operator (stubbed)
-        if (_world.rank() == 0) DEBUG_STREAM << "Applying BSH operator ...\n\n" << endl;
+        if (_world.rank() == 0) DEBUG_STREAM << "Applying BSH operator ..."
+          << endl << endl;
         funcT tmp = apply(*op, pfunc);
         // (Not sure whether we have to do this mask thing or not!)
         // WSTHORNTON DEBUG
         double ttnorm = tmp.norm2();
         if (_world.rank() == 0) DEBUG_STREAM << "pi = " << pi
-          << "\tttnorm = %.5f\n\n" << ttnorm << endl;
-        if (_world.rank() == 0) DEBUG_STREAM << "Gram-Schmidt ...\n\n" << DEBUG_STREAM;
+          << "\tttnorm = " << ttnorm << endl << endl;
+        if (_world.rank() == 0) DEBUG_STREAM << "Gram-Schmidt ..."
+          << endl << endl;
         for (unsigned int pj = 0; pj < pi; ++pj)
         {
 //          // Make sure that pi != pj
@@ -248,18 +256,21 @@ namespace madness
         }
         // WSTHORNTON DEBUG
         double tttnorm = tmp.norm2();
-        if (_world.rank() == 0) DEBUG_STREAM << "pi = " << pi << "ttnorm = " << tttnorm << endl;
+        if (_world.rank() == 0) DEBUG_STREAM << "pi = " << pi << "ttnorm = "
+          << tttnorm << endl;
         // Update e
-        if (_world.rank() == 0) DEBUG_STREAM << "Updating e ...\n\n" << endl;
+        if (_world.rank() == 0) DEBUG_STREAM << "Updating e ..."
+          << endl << endl;
         funcT r = tmp - psi;
         double tnorm = tmp.norm2();
         double eps_old = _eigs[pi];
         double ecorrection = -0.5*inner(pfunc, r) / (tnorm*tnorm);
         double eps_new = eps_old + ecorrection;
         double rnorm = r.norm2();
-        if (_world.rank() == 0) DEBUG_STREAM << "pi = " << pi << "rnorm = " << rnorm << endl << endl;
-        if (_world.rank() == 0) EIGV_STREAM <<  "pi = " << pi << "enew = " << eps_new
-          << "eps_old = " << eps_old << endl;
+        if (_world.rank() == 0) DEBUG_STREAM << "pi = " << pi
+          << "rnorm = " << rnorm << endl << endl;
+        if (_world.rank() == 0) EIGV_STREAM <<  "pi = " << pi
+          << "enew = " << eps_new << " eps_old = " << eps_old << endl;
         // Sometimes eps_new can go positive, THIS WILL CAUSE THE ALGORITHM TO CRASH. So,
         // I bounce the new eigenvalue back into the negative side of the real axis. I
         // keep doing this until it's good or I've already done it 10 times.
@@ -277,7 +288,7 @@ namespace madness
         // Still no go, forget about it. (1$ to Donnie Brasco)
         if (eps_new >= 0.0)
         {
-          LOG_STREAM << "FAILURE OF WST: exiting!!\n" << endl;;
+          LOG_STREAM << "FAILURE OF WST: exiting!!\n" << endl;
           _exit(0);
         }
         // Update the eigenvalue estimates and wavefunctions.

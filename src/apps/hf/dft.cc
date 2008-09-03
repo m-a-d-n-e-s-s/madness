@@ -647,6 +647,10 @@ void wst_munge_rho(int npoint, double *rho) {
       std::vector<double> eigs, double thresh, bool periodic)
   : _world(world), _V(V), _thresh(thresh)
   {
+
+    if (world.rank() == 0 && !periodic) printf("DFT constructor (non-peridic) ...\n\n");
+    if (world.rank() == 0 && periodic) printf("DFT constructor (periodic) ...\n\n");
+
     // Create ops list
     std::vector<EigSolverOp<T,NDIM>*> ops;
     // Add nuclear potential to ops list
