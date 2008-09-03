@@ -45,8 +45,11 @@ to link against those libraries).  Some examples follow.
 Systems requiring special actions:
 
   o  Cray-XT (e.g., jaguar@ornl) with GNU compilers and ACML
-
-     ?????
+     
+     module load subversion
+     module swap PrgEnv-pgi PrgEnv-gnu
+     module load acml/4.1.0
+     ./configure LIBS="-lacml -lacml_mv -lgfortran" CC=cc CXX=CC MPICC=cc MPICXX=CC
 
   o  Cray-XT (e.g., jaguar@ornl) with GNU compilers and scilib
 
