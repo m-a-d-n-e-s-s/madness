@@ -13,7 +13,10 @@ AC_CONFIG_AUX_DIR([config])
 AC_CONFIG_MACRO_DIR([config])
 
 # Test for IBM/AIX ... must be before running C compiler (why?)
+
+# Detect specific systems so can provide their whacky defaults
 AC_AIX
+ACX_CRAYXT
 
 # All source will be built with the MPI C++ and C compilers
 ACX_MPI

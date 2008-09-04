@@ -318,7 +318,7 @@ namespace madness {
         static const unsigned long COUNT_MASK = 0xff;
         static const unsigned long BCAST_MASK = 0x1ul<<9;
         
-#ifdef _CRAY
+#ifdef HAVE_CRAYXT
         static const int NSHORT_RECV = 64;         ///< No. of posted short recv buffers
         static const int NLONG_RECV = 512;         ///< No. of posted long recv buffers
         static const int NSEND = 1024;             ///< Max no. of outstanding short+long Isends

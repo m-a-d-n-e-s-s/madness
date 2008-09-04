@@ -933,6 +933,7 @@ fi
 INSTALL_STRIP_PROGRAM="\${SHELL} \$(install_sh) -c -s"
 AC_SUBST([INSTALL_STRIP_PROGRAM])])
 
+m4_include([config/acx_crayxt.m4])
 m4_include([config/acx_detect_cxx.m4])
 m4_include([config/acx_fortran_symbols.m4])
 m4_include([config/acx_gnu_hashmap.m4])

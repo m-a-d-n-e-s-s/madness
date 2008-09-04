@@ -15,9 +15,8 @@ libMADtensor_a_SOURCES = tensor.cc tensoriter.cc basetensor.cc mtrand.cc mtxmq.c
 
 if USE_X86_64_ASM
   libMADtensor_a_SOURCES += mtxmq_asm.S mtxm_gen.h genmtxm.py
-TUNE_MTXMQ=AMD_QUADCORE_TUNE
 mtxmq_asm.o:	mtxmq_asm.S mtxm_gen.h
-	$(CC) $(CXXFLAGS) -DX86_64 $(TUNE_MTXMQ) -c -o $@ mtxmq_asm.S
+	$(CC) $(CXXFLAGS) -DX86_64 -c -o $@ mtxmq_asm.S
 
 mtxm_gen.h:	genmtxm.py 
 	python genmtxm.py > $@
@@ -26,7 +25,7 @@ endif
 if USE_X86_32_ASM
   libMADtensor_a_SOURCES += mtxmq_asm.S mtxm_gen.h genmtxm.py
 mtxmq_asm.o:	mtxmq_asm.S mtxm_gen.h
-	$(CC) $(CXXFLAGS) -DX86_32 $(TUNE_MTXMQ) -c -o $@ mtxmq_asm.S
+	$(CC) $(CXXFLAGS) -DX86_32 -c -o $@ mtxmq_asm.S
 
 mtxm_gen.h:	genmtxm.py 
 	python genmtxm.py > $@

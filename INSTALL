@@ -42,14 +42,14 @@ to link against those libraries).  Some examples follow.
      (some systems might require additional libraries to resolve Fortran
       symbols used by LAPACK/BLAS)
 
-Systems requiring special actions:
+Systems of special interest
 
   o  Cray-XT (e.g., jaguar@ornl) with GNU compilers and ACML
      
      module load subversion
      module swap PrgEnv-pgi PrgEnv-gnu
      module load acml/4.1.0
-     ./configure LIBS="-lacml -lacml_mv -lgfortran" CC=cc CXX=CC MPICC=cc MPICXX=CC
+     ./configure
 
   o  Cray-XT (e.g., jaguar@ornl) with GNU compilers and scilib
 

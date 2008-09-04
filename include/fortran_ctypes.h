@@ -65,11 +65,7 @@ typedef std::complex<float> complex_real4;
 typedef std::complex<float> single_precision_complex;
 
 /// Type of variable appended to argument list for length of fortran character strings
-#ifdef _CRAY
-    typedef long char_len;
-#else
-    typedef int char_len;
-#endif
+typedef int char_len;
 
 
 #endif
