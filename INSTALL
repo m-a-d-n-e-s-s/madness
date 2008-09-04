@@ -44,9 +44,14 @@ to link against those libraries).  Some examples follow.
 
 Systems of special interest
 
-  o  Cray-XT (e.g., jaguar@ornl) with GNU compilers and ACML
+  o  Cray-XT (e.g., jaguar@ornl) with GNU compilers and ACML - RECOMMENDED
+     [Assuming you start from the default which is PGI and scilib]
+
+     This is recommended since the GNU compiler is about 10x faster at
+     compiling and has comparable execution speed to PGI.  ACML is also
+     faster than the Goto BLAS in scilib for the small matrices
+     primarily used by MADNESS
      
-     module load subversion
      module swap PrgEnv-pgi PrgEnv-gnu
      module load acml/4.1.0
      ./configure
@@ -60,8 +65,10 @@ Systems of special interest
      ?????
 
   o  Cray-XT (e.g., jaguar@ornl) with PGI compilers and scilib
+     [Assuming you start from the default which is PGI and scilib]
 
-     ?????
+     ./configure
+     
 
   o  IBM BlueGene-P
 

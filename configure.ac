@@ -27,6 +27,11 @@ else
   echo "Using user specified C++ compiler flags '$CXXFLAGS'"
 fi
 
+AC_PROG_CC([$MPICC])
+AC_PROG_CXX([$MPICXX])
+AC_LANG_CPLUSPLUS
+echo "Compiler choices after 'AC LANG' ... $CXX and $CC"
+
 # Default options for automake ??
 AM_INIT_AUTOMAKE([-Wall -Werror nostdinc foreign])
 
@@ -35,10 +40,6 @@ AC_CONFIG_HEADERS([include/madness_config.h])
 
 # Check for basic build functionality
 AM_SANITY_CHECK
-# Don't need to check again for C and C++, and the PROG_CC
-# will destroy our setting of CC=MPICC
-#AC_PROG_CC
-#AC_PROG_CXX
 AC_PROG_RANLIB
 AC_PROG_INSTALL
 AC_PROG_LN_S
