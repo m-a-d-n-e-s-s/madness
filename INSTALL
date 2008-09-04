@@ -27,48 +27,52 @@ equivalent) are in your path, you only need to tell configure where to
 find your BLAS and LAPACK libraries (including any libraries necessary
 to link against those libraries).  Some examples follow.
 
-  o  64-bit Linux with Intel MKL installed.
-
-     ./configure LIBS="-L/opt/intel/mkl/10.0.1.014/lib/em64t -lmkl -lguide -lpthread -lm"
-
-  o  32-bit Linux with Intel MKL installed
-
-     ./configure LIBS="-L/opt/intel/mkl/10.0.1.014/lib/32 -lmkl -lguide -lpthread -lm"
-
-  o  Linux (32 or 64 bit) using system default BLAS and LAPACK
-    
-     ./configure LIBS="-llapack -lblas"
-
+  o  Linux workstation or cluster using GNU compilers
      (some systems might require additional libraries to resolve Fortran
       symbols used by LAPACK/BLAS)
 
-Systems of special interest
+     - 64-bit with Intel MKL installed.
 
-  o  Cray-XT (e.g., jaguar@ornl) with GNU compilers and ACML - RECOMMENDED
-     [Assuming you start from the default which is PGI and scilib]
+       ./configure LIBS="-L/opt/intel/mkl/10.0.1.014/lib/em64t -lmkl -lguide -lpthread -lm"
 
-     This is recommended since the GNU compiler is about 10x faster at
-     compiling and has comparable execution speed to PGI.  ACML is also
-     faster than the Goto BLAS in scilib for the small matrices
-     primarily used by MADNESS
+     - 32-bit with Intel MKL installed
+
+       ./configure LIBS="-L/opt/intel/mkl/10.0.1.014/lib/32 -lmkl -lguide -lpthread -lm"
+
+     - 32 or 64 bit using system default BLAS and LAPACK
+    
+       ./configure LIBS="-llapack -lblas"
+
+
+  o  Cray-XT (e.g., jaguar@ornl) 
+     [Module commands assume you start from the default which is PGI and scilib]
+
+     - with GNU compilers and ACML - RECOMMENDED
+
+       This is recommended since the GNU compiler is about 10x faster at
+       compiling and has comparable execution speed to PGI.  ACML is
+       also faster than the Goto BLAS in scilib for the small matrices
+       primarily used by MADNESS and does not have a huge piece of
+       static memory reserved.
      
-     module swap PrgEnv-pgi PrgEnv-gnu
-     module load acml/4.1.0
-     ./configure
+       module swap PrgEnv-pgi PrgEnv-gnu
+       module load acml/4.1.0
+       ./configure
 
-  o  Cray-XT (e.g., jaguar@ornl) with GNU compilers and scilib
+     - with GNU compilers and scilib
 
-     ?????
+       module swap PrgEnv-pgi PrgEnv-gnu
+       ./configure
 
-  o  Cray-XT (e.g., jaguar@ornl) with PGI compilers and ACML
 
-     ?????
+     - with PGI compilers and scilib
 
-  o  Cray-XT (e.g., jaguar@ornl) with PGI compilers and scilib
-     [Assuming you start from the default which is PGI and scilib]
+       ./configure
 
-     ./configure
-     
+     - with PGI compilers and acml
+
+       module load acml/4.1.0
+       ./configure
 
   o  IBM BlueGene-P
 
