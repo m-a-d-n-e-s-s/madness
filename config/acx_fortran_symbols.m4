@@ -2,7 +2,7 @@ AC_DEFUN([ACX_FORTRAN_SYMBOLS], [
 # Dubiously checks for Fortran linking conventions and BLAS+LAPACK at the same time
 # mostly to avoid the need for having a fortran compiler installed
     fsym=no
-    echo " Checking Fortran-C linking conventions (dgemm -> ?)"
+    echo "Checking Fortran-C linking conventions (dgemm -> ?)"
     AC_CHECK_FUNC([dgemm_],[fsym="lcu"])
     if test $fsym = no; then
         AC_CHECK_FUNC([dgemm__],[fsym="lcuu"])
@@ -19,6 +19,8 @@ AC_DEFUN([ACX_FORTRAN_SYMBOLS], [
     if test $fsym = no; then
         AC_MSG_ERROR([Could not find dgemm with any known linking conventions])
     fi
+
+    echo "Fortran linking convention is $fsym" 
 
     if test $fsym = lcu; then
         AC_DEFINE([FORTRAN_LINKAGE_LCU],[1],[Fortran-C linking convention lower case with single underscore])

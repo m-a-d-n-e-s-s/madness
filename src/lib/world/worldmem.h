@@ -48,9 +48,10 @@ namespace madness {
     ///
     /// Default for max_mem_limit is unlimited.
     class WorldMemInfo {
+#ifdef WORLD_GATHER_MEM_STATS
         friend void* ::operator new (size_t size);
         friend void ::operator delete (void *p);
-
+#endif
     private:
         /// Invoked when user pointer p is allocated with size bytes
         void do_new(void *p, std::size_t size) {

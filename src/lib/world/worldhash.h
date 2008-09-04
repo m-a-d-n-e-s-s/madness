@@ -39,6 +39,8 @@
 /// \file worldhash.h
 /// \brief Defines hash functions for use in distributed containers
 
+#include <madness_config.h>
+
 
 #ifdef HAVE_GNU_HASHMAP
 #  ifdef __GNUG__

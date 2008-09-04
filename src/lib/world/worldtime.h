@@ -36,6 +36,7 @@
 #ifndef WORLD_TIME_H
 #define WORLD_TIME_H
 
+#include <stdint.h>
 #include <time.h>
 #include <sys/time.h>
 

@@ -13,13 +13,13 @@ AC_DEFUN([ACX_OPTIMAL_CXXFLAGS], [
 
             TARGET_ARCH="native"
             if test "x$HAVE_CRAYXT" = xyes; then
-                echo Setting target architecture for GNU compilers to barcelona for CRAYXT
+                echo "Setting target architecture for GNU compilers to barcelona for CRAYXT"
                 TARGET_ARCH=barcelona
             fi
 
             CXXFLAGS="-Wall -Wno-strict-aliasing -Wno-deprecated -ansi -O3 -ffast-math -fomit-frame-pointer -mfpmath=sse"
             if test $CXXMAJOR -ge 4; then
-               # Older compilers con't understand native
+               # Older compilers don't understand native
                CXXFLAGS="$CXXFLAGS -march=$TARGET_ARCH"
             fi
             ;;
@@ -27,15 +27,17 @@ AC_DEFUN([ACX_OPTIMAL_CXXFLAGS], [
          Pathscale)
             CXXFLAGS="-Wall -Ofast"
             if test "x$HAVE_CRAYXT" = xyes; then
-                echo "Setting Pathscale CXX architecture to -barcelona for Cray-XT
+                echo "Setting Pathscale CXX architecture to -barcelona for Cray-XT"
                 CXXFLAGS="$CXXFLAGS -march=barcelona"             
             fi
             ;;
 
          Portland)
             CXXFLAGS="-O3 -fastsse -Mflushz -Mcache_align"    
+            echo "Appending -pgf90libs to LIBS so can link against Fortran BLAS/linalg"
+            LIBS="$LIBS -pgf90libs"
             if test "x$HAVE_CRAYXT" = xyes; then
-                echo "Setting PGI CXX architecture to -tp barcelona-64 for Cray-XT
+                echo "Setting PGI CXX architecture to -tp barcelona-64 for Cray-XT"
                 CXXFLAGS="$CXXFLAGS -tp barcelona-64"             
             fi
             ;;

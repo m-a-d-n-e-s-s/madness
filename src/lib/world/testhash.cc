@@ -1,8 +1,8 @@
 #include <iostream>
-#include <ext/hash_map>
+#include <world/worldhash.h>
 
 using namespace std;
-using namespace __gnu_cxx;
+using namespace HASH_MAP_NAMESPACE;
 
 int main() {
    hash_map<int,int> h;

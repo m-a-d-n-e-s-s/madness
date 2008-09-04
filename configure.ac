@@ -12,20 +12,12 @@ AC_CONFIG_AUX_DIR([config])
 # This is where local macros will be stored (by us)
 AC_CONFIG_MACRO_DIR([config])
 
-# Test for IBM/AIX ... must be before running C compiler (why?)
-
 # Detect specific systems so can provide their whacky defaults
-AC_AIX
 ACX_CRAYXT
+#AC_AIX
 
 # All source will be built with the MPI C++ and C compilers
 ACX_MPI
-AC_LANG_PUSH([C++])
-ACX_MPI
-AC_LANG_POP([C++])
-CC="$MPICC"
-CXX="$MPICXX"
-LIBS="$MPILIBS $LIBS"
 
 # If the user did not specify compiler flags attempt to select optimal ones here.
 # Do this now so subsequent checks use/modify these flags.
