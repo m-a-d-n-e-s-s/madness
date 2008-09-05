@@ -44,6 +44,7 @@ namespace madness {
     typedef unsigned long ulong;
 
     class AmArg;
+    class WorldAmInterface;
     
     /// Type of AM handler functions for short messages
     typedef void (*am_handlerT)(World&, ProcessID, const AmArg&);
@@ -51,14 +52,14 @@ namespace madness {
     /// Type of AM handler functions for long messages
     typedef void (*am_long_handlerT)(World&, ProcessID, void *buf, size_t nbyte);
     
-
     /// Holds arguments sent via short active messages
 
     /// Total size is 128 bytes on a 64-bit machine and accords with
     /// gasnet minimum size for 64-bit architectures.
     class AmArg {
         friend class WorldAmInterface;
-    private:
+        //    private:
+    public:
         ulong flags;   ///< System managed state 
         mutable am_handlerT function; ///< System managed handler
     public:

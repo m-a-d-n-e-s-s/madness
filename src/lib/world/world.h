@@ -468,9 +468,9 @@ namespace madness {
 
         // Cannot use bind_nullary here since MPI::Request::Test is non-const
         struct MpiRequestTester {
-            mutable MPI::Request& r;
-            MpiRequestTester(MPI::Request& r) : r(r) {};
-            bool operator()() const {return r.Test();};
+            mutable MPI::Request* r;
+            MpiRequestTester(MPI::Request& r) : r(&r) {};
+            bool operator()() const {return r->Test();};
         };
 
 

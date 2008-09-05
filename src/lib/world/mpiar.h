@@ -44,42 +44,42 @@ namespace madness {
     namespace archive {
         
         class MPIRawOutputArchive : public BaseOutputArchive {
-            mutable World& world;
+            mutable World* world;
             ProcessID dest;
             int tag;
             static const int MPIAR_TAG=88;
         public:
             MPIRawOutputArchive(World& world, const ProcessID& dest, int tag=MPIAR_TAG)
-                : world(world), dest(dest), tag(tag) {};
+                : world(&world), dest(dest), tag(tag) {};
             
             template <class T>
             inline
             typename madness::enable_if< madness::is_fundamental<T>, void >::type
             store(const T* t, long n) const {
-                world.mpi.Send(t, n, dest, tag);
+                world->mpi.Send(t, n, dest, tag);
             }
         };
         
         class MPIRawInputArchive : public BaseInputArchive {
-            mutable World& world;
+            mutable World* world;
             ProcessID src;
             int tag;
             static const int MPIAR_TAG=88;
         public:
             MPIRawInputArchive(World& world, const ProcessID& src, int tag=MPIAR_TAG)
-                : world(world), src(src), tag(tag) {};
+                : world(&world), src(src), tag(tag) {};
             
             template <class T>
             inline
             typename madness::enable_if< madness::is_fundamental<T>, void >::type
             load(T* t, long n) const {
-                world.mpi.Recv(t, n, src, tag);
+                world->mpi.Recv(t, n, src, tag);
             }
         };
         
         
         class MPIOutputArchive : public BaseOutputArchive {
-            mutable World& world;
+            mutable World* world;
             ProcessID dest;
             int tag;
             const std::size_t bufsize;
@@ -88,7 +88,7 @@ namespace madness {
             static const int MPIAR_TAG=88;
         public:
             MPIOutputArchive(World& world, const ProcessID& dest, int tag=MPIAR_TAG)
-                : world(world), dest(dest), tag(tag), bufsize(1024*1024), v(), var(v)
+                : world(&world), dest(dest), tag(tag), bufsize(1024*1024), v(), var(v)
             {v.reserve(2*bufsize);};
             
             template <class T>
@@ -102,8 +102,8 @@ namespace madness {
             
             void flush() const {
                 if (v.size()) {
-                    world.mpi.Send(v.size(), dest, tag);
-                    world.mpi.Send(&v[0], v.size(), dest, tag);
+                    world->mpi.Send(v.size(), dest, tag);
+                    world->mpi.Send(&v[0], v.size(), dest, tag);
                     v.clear();
                     if (v.capacity() < 2*bufsize) v.reserve(2*bufsize); // ?? why ??
                 }
@@ -115,7 +115,7 @@ namespace madness {
         };
         
         class MPIInputArchive : public BaseInputArchive {
-            mutable World& world;
+            mutable World* world;
             ProcessID src;
             int tag;
             mutable std::vector<unsigned char> v;
@@ -123,7 +123,7 @@ namespace madness {
             static const int MPIAR_TAG=88;
         public:
             MPIInputArchive(World& world, const ProcessID& src, int tag=MPIAR_TAG)
-                : world(world), src(src), tag(tag), v(), var(v) {};
+                : world(&world), src(src), tag(tag), v(), var(v) {};
             
             template <class T>
             inline
@@ -132,9 +132,9 @@ namespace madness {
                 if (!var.nbyte_avail()) {
                     var.rewind();
                     std::size_t m;
-                    world.mpi.Recv(m, src, tag);
+                    world->mpi.Recv(m, src, tag);
                     v.resize(m);
-                    world.mpi.Recv(&v[0], m, src, tag);
+                    world->mpi.Recv(&v[0], m, src, tag);
                 }
                 var.load(t,n);
             }

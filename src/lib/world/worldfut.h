@@ -84,7 +84,7 @@ namespace madness {
 
     /// Implements the functionality of Futures
     template <typename T>
-    class FutureImpl : NO_DEFAULTS {
+    class FutureImpl : private NO_DEFAULTS {
         friend class Future<T>;
         friend std::ostream& operator<< <T>(std::ostream& out, const Future<T>& f);
 
