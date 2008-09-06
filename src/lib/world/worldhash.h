@@ -43,7 +43,7 @@
 
 
 #ifdef HAVE_GNU_HASHMAP
-#  ifdef __GNUG__
+#  ifdef INCLUDE_EXT_HASH_MAP
 #    include <ext/hash_map>
 #  else
 #    include <hash_map>

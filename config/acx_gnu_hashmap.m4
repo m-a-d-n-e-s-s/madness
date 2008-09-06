@@ -6,6 +6,7 @@ AC_DEFUN([ACX_GNU_HASHMAP], [
 #include <ext/hash_map>
 using __gnu_cxx::hash_map; ]])],
         [ AC_DEFINE(GNU_HASHMAP_NAMESPACE, __gnu_cxx, [GNU hashmap namespace]) 
+          AC_DEFINE(INCLUDE_EXT_HASH_MAP,[1],[If defined header is in ext directory])
           AC_MSG_RESULT([yes])
           gotgnuhashmap=yes ],
         [AC_MSG_RESULT([no])])
