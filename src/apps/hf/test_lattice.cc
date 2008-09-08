@@ -11,6 +11,7 @@ const double L = 50.0;
 const double N = 8.0;
 
 //*****************************************************************************
+// Test function for the periodic BSH operator.
 static double rho_bsh_func3d(const coordT3d& r)
 {
   const double x=r[0], y=r[1], z=r[2];
@@ -20,6 +21,7 @@ static double rho_bsh_func3d(const coordT3d& r)
 //*****************************************************************************
 
 //*****************************************************************************
+// Test charge density for the periodic coulomb operator.
 static double rho_coulomb_func3d(const coordT3d& r)
 {
   const double x=r[0], y=r[1], z=r[2];
@@ -29,15 +31,22 @@ static double rho_coulomb_func3d(const coordT3d& r)
 //*****************************************************************************
 
 //*****************************************************************************
+// Test function used to check the consistency of the coulomb operator and the
+// periodic coulomb operator. We must insure that the total charge density is zero.
 static double rho_gaussian_func3d(const coordT3d& r)
 {
   const double x=r[0], y=r[1], z=r[2];
-  const double expnt = 15.0;
-  return exp(-expnt * (x*x + y*y + z*z));
+  const double expnt1 = 2.0;
+  const double expnt2 = 12.0;
+  const double coeff1 = sqrt(expnt1/WST_PI);
+  const double coeff2 = sqrt(expnt2/WST_PI);
+  return (coeff1 * exp(-expnt1 * (x*x + y*y + z*z)) -
+      coeff2 * exp(-expnt2 * (x*x + y*y + z*z)));
 }
 //*****************************************************************************
 
 //*****************************************************************************
+// Test function for the periodic coulomb operator.
 static double phi_coulomb_func3d(const coordT3d& r)
 {
   const double x=r[0], y=r[1], z=r[2];
@@ -58,6 +67,7 @@ static double phi_coulomb_func3d(const coordT3d& r)
 ////*****************************************************************************
 
 //*****************************************************************************
+// Test function for periodic BSH operator.
 static double phi_bsh_func3d(const coordT3d& r)
 {
   const double x=r[0], y=r[1], z=r[2];
@@ -126,7 +136,10 @@ struct PeriodicConditionalRefineTest
 //*****************************************************************************
 
 //*****************************************************************************
-void testPeriodicGaussian(World& world, double coeff, double expnt, int lmax, int k, double thresh, double* data)
+// This code tests the convolution of a periodic charge density with just one gaussian
+// with periodic boundary conditions.
+void testPeriodicGaussian(World& world, double coeff, double expnt,
+    int lmax, int k, double thresh, double* data)
 {
   // Function defaults
   double bsize = 0.5;
@@ -386,6 +399,14 @@ void testPeriodicCoulomb3d_gauss(int argc, char**argv)
   FunctionDefaults<3>::set_cubic_cell(-L/2,L/2);
   FunctionDefaults<3>::set_thresh(thresh);
 
+  // Test for a noncubic system
+  //  Tensor<double> csize(3,3);
+//  double sz = L/2;
+//  csize(0,0) = -1.2 * sz; csize(0,1) = 1.2 * sz;
+//  csize(1,0) = -1.5 * sz; csize(1,1) = 1.5 * sz;
+//  csize(2,0) = -1.0 * sz; csize(2,1) = 1.0 * sz;
+//  FunctionDefaults<3>::set_cell(csize);
+
   // Create test charge density and the exact solution to Poisson's equation
   // with said charge density
   printf("building gaussian charge distribution ...\n\n");
@@ -397,7 +418,7 @@ void testPeriodicCoulomb3d_gauss(int argc, char**argv)
   printf("applying periodic operator ...\n\n");
   Function<double,3> phi_periodic = apply(pop, rho);
   SeparatedConvolution<double,3> op = CoulombOperator<double,3>(world, FunctionDefaults<3>::get_k(),
-      1e-4, thresh);
+      1e-6, thresh);
   printf("applying non-periodic operator ...\n\n");
   Function<double,3> phi_nonperiodic = apply(op, rho);
 
@@ -406,7 +427,7 @@ void testPeriodicCoulomb3d_gauss(int argc, char**argv)
   {
     coordT3d p(-L/2 + i*bstep);
     double error = fabs(phi_periodic(p) - phi_nonperiodic(p));
-    printf("%.2f\t\t%.8f\t%.8f\t%.8f\t%.8f\n", p[0], phi_periodic(p), phi_nonperiodic(p), error, error / phi_nonperiodic(p));
+    printf("%.2f\t\t%.8f\t%.8f\t%.8f\t%.8f\n", p[0], phi_periodic(p), phi_nonperiodic(p), error, phi_periodic(p) / phi_nonperiodic(p));
   }
 
   // Plot to OpenDX
