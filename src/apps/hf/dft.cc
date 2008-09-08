@@ -712,7 +712,7 @@ void wst_munge_rho(int npoint, double *rho) {
   template <typename T, int NDIM>
   void DFT<T,NDIM>::solve(int maxits)
   {
-    _solver->multi_solve(maxits);
+    _solver->solve(maxits);
   }
   //***************************************************************************
 
@@ -720,12 +720,29 @@ void wst_munge_rho(int npoint, double *rho) {
   template <typename T, int NDIM>
   double DFT<T,NDIM>::calculate_ke_sp(funcT psi, bool periodic)
   {
+    // Check for periodic boundary conditions
+    Tensor<int> oldbc = FunctionDefaults<NDIM>::get_bc();
+    if (periodic)
+    {
+      Tensor<int> bc(NDIM,2);
+      bc(___) = 1;
+      FunctionDefaults<NDIM>::set_bc(bc);
+    }
+    else
+    {
+      Tensor<int> bc(NDIM,2);
+      bc(___) = 0;
+      FunctionDefaults<NDIM>::set_bc(bc);
+    }
+    // Do calculation
     double kenergy = 0.0;
     for (int axis = 0; axis < 3; axis++)
     {
       funcT dpsi = diff(psi, axis);
       kenergy += 0.5 * inner(dpsi, dpsi);
     }
+    // Restore previous boundary conditions
+    FunctionDefaults<NDIM>::set_bc(oldbc);
     return kenergy;
   }
   //***************************************************************************

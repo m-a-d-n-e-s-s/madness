@@ -7,7 +7,7 @@ using namespace madness;
 typedef Vector<double,3> coordT3d;
 typedef Vector<double,1> coordT1d;
 
-const double L = 7.0;
+const double L = 50.0;
 const double N = 8.0;
 
 //*****************************************************************************
@@ -25,6 +25,15 @@ static double rho_coulomb_func3d(const coordT3d& r)
   const double x=r[0], y=r[1], z=r[2];
   double npi = N * WST_PI;
   return  cos(npi*x/L) * cos(npi*y/L) * cos(npi*z/L);
+}
+//*****************************************************************************
+
+//*****************************************************************************
+static double rho_gaussian_func3d(const coordT3d& r)
+{
+  const double x=r[0], y=r[1], z=r[2];
+  const double expnt = 15.0;
+  return exp(-expnt * (x*x + y*y + z*z));
 }
 //*****************************************************************************
 
@@ -302,11 +311,11 @@ void testPeriodicCoulomb3d(int argc, char**argv)
   }
 
   // Plot to OpenDX
-//  vector<long> npt(3,101);
-//  Function<double,3> phi_diff = phi_exact - phi_test;
-//  plotdx(phi_test, "phitest.dx", FunctionDefaults<3>::get_cell(), npt);
-//  plotdx(phi_exact, "phiexact.dx", FunctionDefaults<3>::get_cell(), npt);
-//  plotdx(phi_diff, "phidiff.dx", FunctionDefaults<3>::get_cell(), npt);
+  vector<long> npt(3,101);
+  Function<double,3> phi_diff = phi_exact - phi_test;
+  plotdx(phi_test, "phitest.dx", FunctionDefaults<3>::get_cell(), npt);
+  plotdx(phi_exact, "phiexact.dx", FunctionDefaults<3>::get_cell(), npt);
+  plotdx(phi_diff, "phidiff.dx", FunctionDefaults<3>::get_cell(), npt);
 
   MPI::Finalize();
 }
@@ -360,9 +369,61 @@ void testPeriodicBSH3d(int argc, char**argv)
 //*****************************************************************************
 
 //*****************************************************************************
+// This function test both the periodic and non-periodic versions of the Coulomb
+// operator. In order to make this test valid set L to a high value so that
+// charge distribution should not be able to see its neighbor.
+void testPeriodicCoulomb3d_gauss(int argc, char**argv)
+{
+  MPI::Init(argc, argv);
+  World world(MPI::COMM_WORLD);
+  startup(world,argc,argv);
+
+  // Function defaults
+  int k = 10;
+  double thresh = 1e-8;
+  double eps = 1e-8;
+  FunctionDefaults<3>::set_k(k);
+  FunctionDefaults<3>::set_cubic_cell(-L/2,L/2);
+  FunctionDefaults<3>::set_thresh(thresh);
+
+  // Create test charge density and the exact solution to Poisson's equation
+  // with said charge density
+  printf("building gaussian charge distribution ...\n\n");
+  Function<double,3> rho = FunctionFactory<double,3>(world).f(rho_gaussian_func3d);
+
+  // Create operator and apply
+  Tensor<double> cellsize = FunctionDefaults<3>::get_cell_width();
+  SeparatedConvolution<double,3> pop = PeriodicCoulombOp<double,3>(world, k,1e-6, eps, cellsize);
+  printf("applying periodic operator ...\n\n");
+  Function<double,3> phi_periodic = apply(pop, rho);
+  SeparatedConvolution<double,3> op = CoulombOperator<double,3>(world, FunctionDefaults<3>::get_k(),
+      1e-4, thresh);
+  printf("applying non-periodic operator ...\n\n");
+  Function<double,3> phi_nonperiodic = apply(op, rho);
+
+  double bstep = L / 100.0;
+  for (int i=0; i<101; i++)
+  {
+    coordT3d p(-L/2 + i*bstep);
+    double error = fabs(phi_periodic(p) - phi_nonperiodic(p));
+    printf("%.2f\t\t%.8f\t%.8f\t%.8f\t%.8f\n", p[0], phi_periodic(p), phi_nonperiodic(p), error, error / phi_nonperiodic(p));
+  }
+
+  // Plot to OpenDX
+  vector<long> npt(3,101);
+  Function<double,3> phi_diff = phi_periodic - phi_nonperiodic;
+  plotdx(phi_periodic, "phiperiodic.dx", FunctionDefaults<3>::get_cell(), npt);
+  plotdx(phi_nonperiodic, "phinonperiodic.dx", FunctionDefaults<3>::get_cell(), npt);
+  plotdx(phi_diff, "phidiff.dx", FunctionDefaults<3>::get_cell(), npt);
+
+  MPI::Finalize();
+}
+//*****************************************************************************
+
+//*****************************************************************************
 int main(int argc, char**argv)
 {
-  testPeriodicCoulomb3d(argc, argv);
+  testPeriodicCoulomb3d_gauss(argc, argv);
 //  testPeriodicBSH3d(argc, argv);
   return 0;
 }
