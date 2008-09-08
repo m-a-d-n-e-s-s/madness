@@ -50,7 +50,7 @@ static double rho_gaussian_func3d(const coordT3d& r)
   double piece1 = coeff1 * exp(-expnt1 * (x*x + y*y + z*z));
   double piece2 = -coeff2 * exp(-expnt2 * (x*x + y*y + z*z));
 
-  return piece1 + piece2;
+  return piece1;
 }
 //*****************************************************************************
 
@@ -524,7 +524,7 @@ void testPeriodicBSH3d_gauss(int argc, char**argv)
 int main(int argc, char**argv)
 {
   testPeriodicBSH3d_gauss(argc, argv);
-//  testPeriodicBSH3d(argc, argv);
+  //testPeriodicCoulomb3d_gauss(argc, argv);
   return 0;
 }
 //*****************************************************************************
