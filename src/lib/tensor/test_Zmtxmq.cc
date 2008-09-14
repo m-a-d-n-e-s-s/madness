@@ -2,49 +2,53 @@
 #include <stdlib.h>
 #include <math.h>
 #include <xmmintrin.h>
+#include <complex>
 
 #include <tensor/tensor.h>
 #include <tensor/mtxmq.h>
 
 using namespace madness;
 
-  extern "C"  int posix_memalign(void **memptr, std::size_t alignment, std::size_t size);
+extern "C"  int posix_memalign(void **memptr, std::size_t alignment, std::size_t size);
 
 #ifdef TIME_DGEMM
 #ifndef FORTRAN_INTEGER
 #define FORTRAN_INTEGER long
 #endif
 typedef FORTRAN_INTEGER integer;
-extern "C" void dgemm_(const char *transa, const char *transb, 
+extern "C" void zgemm_(const char *transa, const char *transb, 
                    const integer *m, const integer *n, const integer *k, 
-                   const double *alpha, const double *a, const integer *lda, 
-                   const double *b, const integer *ldb, const double *beta, 
-                   double *c, const integer *ldc, int la, int lb);
-void mTxm_dgemm(long ni, long nj, long nk, double* c, const double* a, const double*b ) {
+                   const double_complex *alpha, const double_complex *a, const integer *lda, 
+                   const double_complex *b, const integer *ldb, const double_complex *beta, 
+                   double_complex *c, const integer *ldc, int la, int lb);
+void mTxm_dgemm(long ni, long nj, long nk, double_complex* c, const double_complex* a, const double_complex*b ) {
   integer fni=ni;
   integer fnj=nj;
   integer fnk=nk;
-  double one=1.0;
-  dgemm_("n","t",&fnj,&fni,&fnk,&one,b,&fnj,a,&fni,&one,c,&fnj,1,1);
+  double_complex one=1.0;
+  zgemm_("n","t",&fnj,&fni,&fnk,&one,b,&fnj,a,&fni,&one,c,&fnj,1,1);
 }  
 
 #endif
 
-double ran()
+double_complex ran()
 {
   static unsigned long seed = 76521;
 
-  seed = seed *1812433253 + 12345;
+  seed = seed*1812433253 + 12345;
+  double d1 = double(seed & 0x7fffffff)*4.6566128752458e-10;
+  seed = seed*1812433253 + 12345;
+  double d2 = double(seed & 0x7fffffff)*4.6566128752458e-10;
 
-  return ((double) (seed & 0x7fffffff)) * 4.6566128752458e-10;
+  return double_complex(d1,d2);
 }
 
-void ran_fill(int n, double *a) {
+void ran_fill(int n, double_complex *a) {
     while (n--) *a++ = ran();
 }
 
 void mTxm(long dimi, long dimj, long dimk,
-          double* c, const double* a, const double* b) {
+          double_complex* c, const double_complex* a, const double_complex* b) {
     int i, j, k;
     for (k=0; k<dimk; k++) {
         for (j=0; j<dimj; j++) {
@@ -66,7 +70,7 @@ void crap(double rate, double fastest, long long start) {
 }
 
 
-void timer(const char* s, long ni, long nj, long nk, double *a, double *b, double *c) {
+void timer(const char* s, long ni, long nj, long nk, double_complex *a, double_complex *b, double_complex *c) {
   double fastest=0.0, fastest_dgemm=0.0;
   
   double nflop = 2.0*ni*nj*nk;
@@ -94,7 +98,7 @@ void timer(const char* s, long ni, long nj, long nk, double *a, double *b, doubl
   printf("%20s %3ld %3ld %3ld %8.2f %8.2f\n",s, ni,nj,nk, fastest, fastest_dgemm);
 }
 
-void trantimer(const char* s, long ni, long nj, long nk, double *a, double *b, double *c) {
+void trantimer(const char* s, long ni, long nj, long nk, double_complex *a, double_complex *b, double_complex *c) {
   double fastest=0.0, fastest_dgemm=0.0;
   
   double nflop = 3.0*2.0*ni*nj*nk;
@@ -132,11 +136,11 @@ int main() {
     const long nkmax=100;
     long ni, nj, nk, i, m;
 
-    double *a, *b, *c, *d;
-    posix_memalign((void **) &a, 16, nkmax*nimax*sizeof(double));
-    posix_memalign((void **) &b, 16, nkmax*njmax*sizeof(double));
-    posix_memalign((void **) &c, 16, nimax*njmax*sizeof(double));
-    posix_memalign((void **) &d, 16, nimax*njmax*sizeof(double));
+    double_complex *a, *b, *c, *d;
+    posix_memalign((void **) &a, 16, nkmax*nimax*sizeof(double_complex));
+    posix_memalign((void **) &b, 16, nkmax*njmax*sizeof(double_complex));
+    posix_memalign((void **) &c, 16, nimax*njmax*sizeof(double_complex));
+    posix_memalign((void **) &d, 16, nimax*njmax*sizeof(double_complex));
 
     ran_fill(nkmax*nimax, a);
     ran_fill(nkmax*njmax, b);
@@ -155,21 +159,21 @@ int main() {
 /*     return 0; */
 
     printf("Starting to test ... \n");
-    for (ni=2; ni<60; ni+=2) {
-        for (nj=2; nj<100; nj+=6) {
-            for (nk=2; nk<100; nk+=6) {
+    for (ni=1; ni<12; ni+=1) {
+        for (nj=1; nj<12; nj+=1) {
+            for (nk=1; nk<12; nk+=1) {
                 for (i=0; i<ni*nj; i++) d[i] = c[i] = 0.0;
                 mTxm (ni,nj,nk,c,a,b);
                 mTxmq(ni,nj,nk,d,a,b);
                 for (i=0; i<ni*nj; i++) {
-                    double err = fabs(d[i]-c[i]);
+                    double err = std::abs(d[i]-c[i]);
                     /* This test is sensitive to the compilation options.
                        Be sure to have the reference code above compiled
                        -msse2 -fpmath=sse if using GCC.  Otherwise, to
                        pass the test you may need to change the threshold 
                        to circa 1e-13.
                     */
-                    if (err > 1e-15) {
+                    if (err > 2e-14) {
                         printf("test_mtxmq: error %ld %ld %ld %e\n",ni,nj,nk,err);
                         exit(1);
                     }
@@ -180,8 +184,9 @@ int main() {
     printf("... OK!\n");
 
     for (ni=2; ni<60; ni+=2) timer("(m*m)T*(m*m)", ni,ni,ni,a,b,c);
-    for (m=2; m<=30; m+=2) timer("(m*m,m)T*(m*m)", m*m,m,m,a,b,c);
-    for (m=2; m<=30; m+=2) trantimer("tran(m,m,m)", m*m,m,m,a,b,c);
-    for (m=2; m<=20; m+=2) timer("(20*20,20)T*(20,m)", 20*20,m,20,a,b,c);
+    for (m=1; m<=30; m+=1) timer("(m*m,m)T*(m*m)", m*m,m,m,a,b,c);
+    for (m=1; m<=30; m+=1) trantimer("tran(m,m,m)", m*m,m,m,a,b,c);
+    for (m=1; m<=20; m+=1) timer("(20*20,20)T*(20,m)", 20*20,m,20,a,b,c);
+
     return 0;
 }

@@ -1,11 +1,18 @@
 include $(top_srcdir)/config/MakeGlobal.am
 
-bin_PROGRAMS = test
+bin_PROGRAMS = test test_mtxmq test_Zmtxmq
 lib_LIBRARIES = libMADtensor.a
 
 test_SOURCES = test.cc
 test_LDADD = libMADtensor.a $(LIBWORLD)
 
+test_mtxmq_SOURCES = test_mtxmq.cc
+test_mtxmq_LDADD = libMADtensor.a $(LIBWORLD)
+test_mtxmq_CPPFLAGS = $(AM_CPPFLAGS) -DTIME_DGEMM
+
+test_Zmtxmq_SOURCES = test_Zmtxmq.cc
+test_Zmtxmq_LDADD = libMADtensor.a $(LIBWORLD)
+test_Zmtxmq_CPPFLAGS = $(AM_CPPFLAGS) -DTIME_DGEMM
 
 libMADtensor_a_SOURCES = tensor.cc tensoriter.cc basetensor.cc mtrand.cc mtxmq.cc aligned.cc alignedc.cc \
                          \

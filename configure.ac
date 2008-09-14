@@ -21,7 +21,7 @@ ACX_MPI
 
 # If the user did not specify compiler flags attempt to select optimal ones here.
 # Do this now so subsequent checks use/modify these flags.
-if test x$initial_CXXFLAGS = x; then
+if test "x$initial_CXXFLAGS" = "x"; then
   ACX_OPTIMAL_CXXFLAGS
 else
   echo "Using user specified C++ compiler flags '$CXXFLAGS'"

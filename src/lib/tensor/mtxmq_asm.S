@@ -224,7 +224,9 @@ name: \
         movhpd  reg,  (B); \
         add     NJ8,    B
 
-#define STORET(reg) movapd  reg,  (B); add $16, B
+/* For main application need result in cache so movntps is counter productive 
+   e.g., 2.3GHz Barcelona 7+GF -> 4GF in transform() */        
+#define STORET(reg) movaps  reg,  (B); add $16, B
 	
         /* For 32-bit C and BSAVE will be in memory so also use B as 
            a temporary register for incrementing */

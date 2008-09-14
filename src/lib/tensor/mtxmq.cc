@@ -121,7 +121,7 @@ namespace madness {
         */
         
 #if   defined(AMD_QUADCORE_TUNE)
-        bool test = dimj >= 8;
+        bool test = dimj>=14 && dimj<=26;
 #elif defined(OPTERON_TUNE)
         bool test = dimi <= dimj; /* Based on times from X86_64 Opteron ... an old one */
 #elif defined(CORE_DUO_TUNE)
@@ -319,11 +319,21 @@ namespace madness {
         const long dimj16 = dimj<<4;
 
 #define ZERO(c) "pxor " #c "," #c ";\n"
-#define LOADA   "movddup  (%%r9), %%xmm0; mov %%r10,%%r8; movddup 8(%%r9), %%xmm1; add %q2,%%r9; add %q3,%%r10; prefetcht0 (%%r9);\n"
-#define ENTRY(loop) "mov %q0,%%r9; mov %q1, %%r10; mov %q4,%%r11;.align 16;"#loop": "
-#define DOIT(c) "movaps (%%r8),%%xmm2; movaps %%xmm2,%%xmm3; mulpd %%xmm0,%%xmm2; addpd %%xmm2,"#c"; shufpd $1,%%xmm3,%%xmm3; mulpd %%xmm1,%%xmm3; addsubpd %%xmm3, "#c"; \n"
+
+#ifdef AMD_QUADCORE_TUNE
+#  define ENTRY(loop) "mov %q0,%%r9;  prefetcht0 (%%r9); mov %q1, %%r10; mov %q4,%%r11;.align 32;"#loop": "
+#  define LOADA   "movaps (%%r9),%%xmm0; movaps %%xmm0, %%xmm1; shufpd $1,%%xmm1,%%xmm1;  mov %%r10,%%r8; add %q2,%%r9; add %q3,%%r10; prefetcht0 (%%r9);\n"
+#  define DOIT(c) "movddup (%%r8),%%xmm2; mulpd %%xmm0,%%xmm2; addpd %%xmm2,"#c"; movddup 8(%%r8),%%xmm2; mulpd %%xmm1,%%xmm2; addsubpd %%xmm2,"#c"; \n"
+#else
+#  define ENTRY(loop) "mov %q0,%%r9; mov %q1, %%r10; mov %q4,%%r11;.align 32;"#loop": "
+#  define LOADA   "movddup  (%%r9), %%xmm0; mov %%r10,%%r8; movddup 8(%%r9), %%xmm1; add %q2,%%r9; add %q3,%%r10; prefetcht0 (%%r9);\n"
+#  define DOIT(c) "movaps (%%r8),%%xmm2; movaps %%xmm2,%%xmm3; mulpd %%xmm0,%%xmm2; addpd %%xmm2,"#c"; shufpd $1,%%xmm3,%%xmm3; mulpd %%xmm1,%%xmm3; addsubpd %%xmm3, "#c"; \n"
+#endif
+
+// see comment in mtxmq_asm.S about movaps vs. movntps
+#  define STORE(c) "movaps " #c ", (%%r8); add $16,%%r8;\n"
+
 #define NEXT(loop) "sub $1,%%r11; jnz "#loop";"
-#define STORE(c) "movaps " #c ", (%%r8); add $16,%%r8;\n"
 #define INCB    "add $16,%%r8;\n"
 
         const long jtile = 12;
