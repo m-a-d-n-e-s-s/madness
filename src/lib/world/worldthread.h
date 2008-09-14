@@ -7,8 +7,8 @@
 
 namespace madness {
 
-    // #define WORLD_MUTEX_ATOMIC
-    
+#define WORLD_MUTEX_ATOMIC
+
 #ifdef WORLD_MUTEX_ATOMIC
     /// Mutex using spin locks and atomic operations
     
@@ -18,8 +18,6 @@ namespace madness {
     /// these Mutexes with pthread condition variables.
     class Mutex {
     private:
-        // Can add padding before and after to avoid false
-        // sharing on cache-line
         MADATOMIC_INT flag;
         
         /// Copy constructor is forbidden
@@ -93,7 +91,7 @@ namespace madness {
     class Thread {
     public:
         pthread_t id;               ///< posix thread id
-        int num;                    ///< integer thread id
+        int num;                    ///< madness integer thread id
         
         /// Default constructor ... must invoke \c start() to actually begin the thread.
         Thread() {};

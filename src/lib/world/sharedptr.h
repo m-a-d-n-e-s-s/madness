@@ -49,7 +49,7 @@
 #include <world/worldexc.h>
 
 #ifdef MAD_USE_THREADS
-#include "madatomic.h"
+#include <world/madatomic.h>
 #else
 #define MADATOMIC_INT long
 #define MADATOMIC_INT_INC(ptr) (++(*(ptr)))
@@ -68,30 +68,29 @@ namespace madness {
         void operator=(const SharedCounter& x); // verboten
         
     public:
-        //#ifdef IBMXLC
-        //        SharedCounter() {MADATOMIC_INT_SET(&count,1);};
-        //#else
+#ifdef IBMXLC
+        SharedCounter() {MADATOMIC_INT_SET(&count,1);};
+#else
         SharedCounter() : count(1) {}
-        //#endif
+#endif
         
         /// Get the count
         inline int get() {
-            //return MADATOMIC_INT_GET(&count);
-            return count;
+            return MADATOMIC_INT_GET(&count);
+            //return count;
         }
         
         /// Increment the count
         inline void inc() {
-            //MADATOMIC_INT_INC(&count);
-            count++;
+            MADATOMIC_INT_INC(&count);
+            //count++;
         }
         
         /// Decrement the count and return true if the decremented value is zero
         inline bool dec_and_test() {
-            //return MADATOMIC_INT_DEC_AND_TEST(&count);
-            count--;
-            //	    std::cout << "dec_and_test: count = " << count << std::endl;
-            return count==0;
+            return MADATOMIC_INT_DEC_AND_TEST(&count);
+            //count--;
+            //return count==0;
         }
     };
     
