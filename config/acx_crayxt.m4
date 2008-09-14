@@ -5,7 +5,7 @@ AC_DEFUN([ACX_CRAYXT], [
         #   - sets MPICXX=CC and MPICC=cc if the user has not already set them
         AC_CHECK_FILE([/proc/cray_xt],[HAVE_CRAYXT=yes AC_DEFINE([HAVE_CRAYXT],[1],[Defined if we are running on a Cray-XT])],[])
         if test "x$HAVE_CRAYXT" = xyes; then
-                AC_DEFINE(TUNE_MTXMQ,[AMD_QUADCORE_TUNE],"Target for tuning mtxmq kernels")
+                AC_DEFINE(AMD_QUADCORE_TUNE,[1],"Target for tuning mtxmq kernels")
                 if test "x$MPICC" = x; then
                         echo "Choosing MPICC=cc for Cray-XT"
                         MPICC=cc;
