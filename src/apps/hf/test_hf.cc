@@ -354,7 +354,7 @@ void test_hf_he(World& world)
   printf("Norm of psi = %.5f\n\n", psi.norm2());
   // Create DFT object
   if (world.rank() == 0) cout << "Creating DFT object ..." << endl;
-  DFT<double,3> dftcalc(world, Vnuc, phis, eigs, thresh, true);
+  DFT<double,3> dftcalc(world, Vnuc, phis, eigs, thresh, false);
   if (world.rank() == 0) cout << "Running DFT calculation ..." << endl;
   dftcalc.solve(20);
 //  HartreeFock hf(world, Vnuc, phis, eigs, true, true, thresh);
@@ -429,7 +429,7 @@ void test_hf_be(World& world)
   Vector<double,3> gammapt;
   gammapt[0] = 0.0; gammapt[1] = 0.0; gammapt[2] = 0.0;
   kpoints[0] = gammapt;
-  DFT<double,3> dftcalc(world, Vnuc, phis, eigs, thresh, false);
+  DFT<double,3> dftcalc(world, Vnuc, phis, eigs, thresh, true);
   if (world.rank() == 0) madness::print("Running DFT object...");
   dftcalc.solve(31);
   //hf.hartree_fock(20);
@@ -494,7 +494,7 @@ int main(int argc, char** argv)
 
     startup(world,argc,argv);
     if (world.rank() == 0) print("Initial tensor instance count", BaseTensor::get_instance_count());
-    test_hf_he(world);
+    test_hf_be(world);
   }
   catch (const MPI::Exception& e)
   {
