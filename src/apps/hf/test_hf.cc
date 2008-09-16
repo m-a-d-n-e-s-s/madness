@@ -322,7 +322,7 @@ void test_hf_he(World& world)
   typedef SharedPtr< FunctionFunctorInterface<double,3> > functorT;
 
   // Dimensions of the bounding box
-  double bsize = 22.4;
+  double bsize = 42.4;
 //  for (int i=0; i<3; i++)
 //  {
 //    FunctionDefaults<3>::cell(i,0) = -bsize;
@@ -354,9 +354,9 @@ void test_hf_he(World& world)
   printf("Norm of psi = %.5f\n\n", psi.norm2());
   // Create DFT object
   if (world.rank() == 0) cout << "Creating DFT object ..." << endl;
-  DFT<double,3> dftcalc(world, Vnuc, phis, eigs, thresh);
+  DFT<double,3> dftcalc(world, Vnuc, phis, eigs, thresh, true);
   if (world.rank() == 0) cout << "Running DFT calculation ..." << endl;
-  dftcalc.solve(10);
+  dftcalc.solve(20);
 //  HartreeFock hf(world, Vnuc, phis, eigs, true, true, thresh);
 //  hf.hartree_fock(10);
 
@@ -494,7 +494,7 @@ int main(int argc, char** argv)
 
     startup(world,argc,argv);
     if (world.rank() == 0) print("Initial tensor instance count", BaseTensor::get_instance_count());
-    test_hf_be(world);
+    test_hf_he(world);
   }
   catch (const MPI::Exception& e)
   {

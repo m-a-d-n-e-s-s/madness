@@ -7,7 +7,7 @@ using namespace madness;
 typedef Vector<double,3> coordT3d;
 typedef Vector<double,1> coordT1d;
 
-const double L = 15.0;
+const double L = 5.0;
 const double N = 8.0;
 
 //*****************************************************************************
@@ -43,7 +43,7 @@ static double rho_coulomb_func3d(const coordT3d& r)
 static double rho_gaussian_func3d(const coordT3d& r)
 {
   const double x=r[0], y=r[1], z=r[2];
-  const double expnt1 = 2.0;
+  const double expnt1 = 1.0;
   const double expnt2 = 12.0;
   const double coeff1 = pow(expnt1/WST_PI, 1.5);
   const double coeff2 = pow(expnt2/WST_PI, 1.5);
@@ -88,10 +88,28 @@ static double phi_bsh_func3d(const coordT3d& r)
 
 //*****************************************************************************
 template <typename Q, int NDIM>
-Q laplacian(const Q& f) {
-        Q lapf = diff(diff(f,0),0);
-        for (int i=1; i<NDIM; ++i) lapf += diff(diff(f,i),i);
-        return lapf;
+Q laplacian(const Q& f, bool periodic = false)
+{
+  // Check for periodic boundary conditions
+  Tensor<int> oldbc = FunctionDefaults<NDIM>::get_bc();
+  if (periodic)
+  {
+    Tensor<int> bc(NDIM,2);
+    bc(___) = 1;
+    FunctionDefaults<NDIM>::set_bc(bc);
+  }
+  else
+  {
+    Tensor<int> bc(NDIM,2);
+    bc(___) = 0;
+    FunctionDefaults<NDIM>::set_bc(bc);
+  }
+  // Do calculation
+  Q lapf = diff(diff(f,0),0);
+  for (int i=1; i<NDIM; ++i) lapf += diff(diff(f,i),i);
+  // Restore previous boundary conditions
+  FunctionDefaults<NDIM>::set_bc(oldbc);
+  return lapf;
 };
 //*****************************************************************************
 
@@ -304,9 +322,9 @@ void testPeriodicCoulomb3d(int argc, char**argv)
   startup(world,argc,argv);
 
   // Function defaults
-  int k = 12;
-  double thresh = 1e-10;
-  double eps = 1e-10;
+  int k = 8;
+  double thresh = 1e-6;
+  double eps = 1e-6;
   FunctionDefaults<3>::set_k(k);
   FunctionDefaults<3>::set_cubic_cell(-L/2,L/2);
   FunctionDefaults<3>::set_thresh(thresh);
@@ -324,12 +342,23 @@ void testPeriodicCoulomb3d(int argc, char**argv)
   printf("applying operator ...\n\n");
   Function<double,3> phi_test = apply(op, rho);
 
+  // Apply the laplacian operator the phi_test and see if we get rho back
+  printf("applying laplacian operator to phi_test ...\n\n");
+  Function<double,3> rho_test = laplacian<Function<double,3>, 3>(phi_test, false);
+  rho_test.scale(-1.0/4/WST_PI);
+  Function<double,3> rho_diff = rho - rho_test;
+
+  rho.reconstruct();
+  rho_test.reconstruct();
+  rho_diff.reconstruct();
+
   double bstep = L / 100.0;
   for (int i=0; i<101; i++)
   {
     coordT3d p(-L/2 + i*bstep);
     double error = fabs(phi_exact(p) - phi_test(p));
-    printf("%.2f\t\t%.8f\t%.8f\t%.8f\t%.8f\n", p[0], phi_exact(p), phi_test(p), error, error / phi_exact(p));
+//    printf("%.2f\t\t%.8f\t%.8f\t%.8f\t%.8f\n", p[0], phi_exact(p), phi_test(p), error, rho_diff(p));
+    printf("%.2f\t\t%.8f\t%.8f\t%.8f\t%.8f\n", p[0], rho(p), rho_test(p), rho_diff(p), 0.0);
   }
 
   // Plot to OpenDX
@@ -338,6 +367,54 @@ void testPeriodicCoulomb3d(int argc, char**argv)
   plotdx(phi_test, "phitest.dx", FunctionDefaults<3>::get_cell(), npt);
   plotdx(phi_exact, "phiexact.dx", FunctionDefaults<3>::get_cell(), npt);
   plotdx(phi_diff, "phidiff.dx", FunctionDefaults<3>::get_cell(), npt);
+
+  MPI::Finalize();
+}
+//*****************************************************************************
+
+//*****************************************************************************
+// This method is just a simple test of the coulomb operator without periodic
+// boundary conditions.
+void testNonPeriodicCoulomb3d(int argc, char**argv)
+{
+  MPI::Init(argc, argv);
+  World world(MPI::COMM_WORLD);
+  startup(world,argc,argv);
+
+  // Function defaults
+  int k = 14;
+  double thresh = 1e-12;
+  double eps = 1e-12;
+  FunctionDefaults<3>::set_k(k);
+  FunctionDefaults<3>::set_cubic_cell(-L/2,L/2);
+  FunctionDefaults<3>::set_thresh(thresh);
+
+  // Create test charge density and the exact solution to Poisson's equation
+  // with said charge density
+  printf("building rho ...\n\n");
+  Function<double,3> rho = FunctionFactory<double,3>(world).f(rho_gaussian_func3d);
+
+  // Create operator and apply
+  SeparatedConvolution<double,3> op = CoulombOperator<double,3>(world, k, 1e-6, eps);
+  printf("applying operator ...\n\n");
+  Function<double,3> phi_test = apply(op, rho);
+
+  // Apply the laplacian operator the phi_test and see if we get rho back
+  printf("applying laplacian operator to phi_test ...\n\n");
+  Function<double,3> rho_test = laplacian<Function<double,3>, 3>(phi_test, false);
+  rho_test.scale(-1.0/4/WST_PI);
+  Function<double,3> rho_diff = rho - rho_test;
+
+  rho.reconstruct();
+  rho_test.reconstruct();
+  rho_diff.reconstruct();
+
+  double bstep = L / 100.0;
+  for (int i=0; i<101; i++)
+  {
+    coordT3d p(-L/2 + i*bstep);
+    printf("%.2f\t\t%.8f\t%.8f\t%.8f\t%.8f\n", p[0], rho(p), rho_test(p), rho_diff(p), rho_test(p) / rho(p));
+  }
 
   MPI::Finalize();
 }
@@ -523,8 +600,10 @@ void testPeriodicBSH3d_gauss(int argc, char**argv)
 //*****************************************************************************
 int main(int argc, char**argv)
 {
-  testPeriodicBSH3d_gauss(argc, argv);
+  //testPeriodicBSH3d_gauss(argc, argv);
   //testPeriodicCoulomb3d_gauss(argc, argv);
+  //testNonPeriodicCoulomb3d(argc, argv);
+  testPeriodicCoulomb3d(argc, argv);
   return 0;
 }
 //*****************************************************************************
