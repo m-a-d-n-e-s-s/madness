@@ -431,7 +431,7 @@ void test_hf_be(World& world)
   kpoints[0] = gammapt;
   DFT<double,3> dftcalc(world, Vnuc, phis, eigs, thresh, true);
   if (world.rank() == 0) madness::print("Running DFT object...");
-  dftcalc.solve(31);
+  dftcalc.solve(51);
   //hf.hartree_fock(20);
 //  double ke = 2.0 * hf.calculate_tot_ke_sp();
 //  double pe = 2.0 * hf.calculate_tot_pe_sp();

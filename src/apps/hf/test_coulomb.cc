@@ -20,7 +20,7 @@ typedef Vector<double,3> coordT3d;
 typedef Vector<double,1> coordT1d;
 
 const double L = 30.0;
-const double alpha = 13.5;
+const double alpha = 4.5;
 
 /// Returns radius for smoothing nuclear potential with energy precision eprec
 //*****************************************************************************
@@ -102,7 +102,50 @@ static double phi_initial_guess1D(const coordT1d& r)
 //*****************************************************************************
 static double phi_initial_guess3D(const coordT3d& r)
 {
-  return gaussian_func<3>(r);
+  const double x=r[0]; const double y = r[1]; const double z = r[2];
+  double twopi = 2 * WST_PI;
+
+//  // From Matlab diagonalization in a PW basis
+//  // Coefficients for alpha = 4.5 and L = 30.0
+//  // Size of subspace is 15 x 15 x 15
+//  double coeffs[15] = {
+//    -0.0270,
+//    -0.0642,
+//    -0.1175,
+//    -0.1878,
+//    -0.2689,
+//    -0.3468,
+//    -0.4040,
+//    -0.4250,
+//    -0.4040,
+//    -0.3468,
+//    -0.2689,
+//    -0.1878,
+//    -0.1175,
+//    -0.0642,
+//    -0.0270};
+
+  // From Matlab diagonalization in a PW basis
+  // Coefficients for alpha = 4.5 and L = 30.0
+  // Size of subspace is 3 x 3 x 3
+  double coeffs[3] = {
+    -0.4991,
+    -0.7083,
+    -0.4991};
+
+
+  double rval = coeffs[0];
+  for (int nx = 1; nx < 3; nx++)
+  {
+    for (int ny = 1; ny < 3; nx++)
+    {
+      for (int nz = 1; nz < 3; nx++)
+      {
+        rval += 2 * coeffs[nx] * coeffs[ny] * coeffs[nz] * cos(twopi*x*nx/L)*cos(twopi*y*ny/L)*cos(twopi*z*nz/L);
+      }
+    }
+  }
+  return  rval;
 }
 //*****************************************************************************
 
@@ -200,7 +243,7 @@ void test_cosine_3D(int argc, char** argv)
   phis.push_back(psi);
   // Create list of eigenvalues
   std::vector<double> eigs;
-  eigs.push_back(-50.0);
+  eigs.push_back(-26.33);
   // Create list of operators
   std::vector<EigSolverOp<double,3>*> ops;
   ops.push_back(new DFTNuclearPotentialOp<double,3>(world, Vnuc, 1.0, thresh));
@@ -209,7 +252,7 @@ void test_cosine_3D(int argc, char** argv)
   // Constructor for non-periodic system
   EigSolver<double,3> solver(world, phis, eigs, ops, thresh);
   if (world.rank() == 0) madness::print("Diagonalizing Hamiltonian ...");
-  solver.solve(45);
+  solver.solve(155);
 
   double eval = solver.get_eig(0);
   Function<double,3> func = solver.get_phi(0);

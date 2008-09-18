@@ -188,7 +188,9 @@ namespace madness
   template <typename T, int NDIM>
   void EigSolver<T,NDIM>::solve(int maxits)
   {
-    for (int it = 0; it < maxits; it++)
+	cout.setf(ios::fixed,ios::floatfield);
+	cout.precision(8);
+	for (int it = 0; it < maxits; it++)
     {
       // Since, the density has already been computed (it's fresh outta the
       // oven), go ahead and build all of the density-dependent potentials that
@@ -270,7 +272,7 @@ namespace madness
         if (_world.rank() == 0) DEBUG_STREAM << "pi = " << pi
           << "rnorm = " << rnorm << endl << endl;
         if (_world.rank() == 0) EIGV_STREAM <<  "pi = " << pi
-          << "enew = " << eps_new << " eps_old = " << eps_old << endl;
+          << " enew = " << eps_new << " eps_old = " << eps_old << endl;
         // Sometimes eps_new can go positive, THIS WILL CAUSE THE ALGORITHM TO CRASH. So,
         // I bounce the new eigenvalue back into the negative side of the real axis. I
         // keep doing this until it's good or I've already done it 10 times.
