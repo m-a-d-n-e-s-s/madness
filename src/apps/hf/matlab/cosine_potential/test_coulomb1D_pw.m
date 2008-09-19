@@ -1,8 +1,8 @@
 clear all;
 close all;
 
-alpha = 13.5;
-npts = 51;
+alpha = 4.5;
+npts = 30;
 L = 30.0;
 
 beta = L*L/(4*pi*pi);

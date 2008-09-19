@@ -4,7 +4,7 @@ close all;
 % lattice constant
 npts = 15;
 L = 30.0;
-alpha = 3.5;
+alpha = 13.5;
 
 % build one component of the Hamiltonian
 Hi = buildHamiltonian1D(L, npts,alpha);

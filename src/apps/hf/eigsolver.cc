@@ -238,7 +238,9 @@ namespace madness
         // Apply the Green's function operator (stubbed)
         if (_world.rank() == 0) DEBUG_STREAM << "Applying BSH operator ..."
           << endl << endl;
+        pfunc.truncate();
         funcT tmp = apply(*op, pfunc);
+        tmp.truncate();
         // (Not sure whether we have to do this mask thing or not!)
         // WSTHORNTON DEBUG
         double ttnorm = tmp.norm2();

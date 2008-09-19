@@ -105,47 +105,42 @@ static double phi_initial_guess3D(const coordT3d& r)
   const double x=r[0]; const double y = r[1]; const double z = r[2];
   double twopi = 2 * WST_PI;
 
-//  // From Matlab diagonalization in a PW basis
-//  // Coefficients for alpha = 4.5 and L = 30.0
-//  // Size of subspace is 15 x 15 x 15
-//  double coeffs[15] = {
-//    -0.0270,
-//    -0.0642,
-//    -0.1175,
-//    -0.1878,
-//    -0.2689,
-//    -0.3468,
-//    -0.4040,
-//    -0.4250,
-//    -0.4040,
-//    -0.3468,
-//    -0.2689,
-//    -0.1878,
-//    -0.1175,
-//    -0.0642,
-//    -0.0270};
-
   // From Matlab diagonalization in a PW basis
   // Coefficients for alpha = 4.5 and L = 30.0
-  // Size of subspace is 3 x 3 x 3
-  double coeffs[3] = {
-    -0.4991,
-    -0.7083,
-    -0.4991};
+  // Size of subspace is 15 x 15 x 15
+  double coeffs[15] = {
+      -0.4174,
+      -0.3775,
+      -0.3088,
+      -0.2286,
+      -0.1533,
+      -0.0932,
+      -0.0514,
+      -0.0258,
+      -0.0118,
+      -0.0049,
+      -0.0019,
+      -0.0007,
+      -0.0002,
+      -0.0001,
+      -0.0000};
 
-
-  double rval = coeffs[0];
-  for (int nx = 1; nx < 3; nx++)
+  double rvalx = 0.0;
+  double rvaly = 0.0;
+  double rvalz = 0.0;
+  for (int nx = 0; nx < 15; nx++)
   {
-    for (int ny = 1; ny < 3; nx++)
-    {
-      for (int nz = 1; nz < 3; nx++)
-      {
-        rval += 2 * coeffs[nx] * coeffs[ny] * coeffs[nz] * cos(twopi*x*nx/L)*cos(twopi*y*ny/L)*cos(twopi*z*nz/L);
-      }
-    }
+    rvalx += 2 * coeffs[nx] * cos(twopi*x*(nx+1)/L);
   }
-  return  rval;
+  for (int ny = 0; ny < 15; ny++)
+  {
+    rvaly += 2 * coeffs[ny] * cos(twopi*y*(ny+1)/L);
+  }
+  for (int nz = 0; nz < 15; nz++)
+  {
+    rvalz += 2 * coeffs[nz] * cos(twopi*z*(nz+1)/L);
+  }
+  return  rvalx * rvaly * rvalz;
 }
 //*****************************************************************************
 
@@ -234,10 +229,12 @@ void test_cosine_3D(int argc, char** argv)
   //const coordT origin(0.0);
   if (world.rank() == 0) madness::print("Creating Function object for nuclear potential ...");
   Function<double,3> Vnuc = FunctionFactory<double,3>(world).f(V_cosine3D_sep).thresh(thresh);
+  Vnuc.truncate();
 
   // Guess for the wavefunctions
   if (world.rank() == 0) madness::print("Creating wavefunction's ...");
   Function<double,3> psi = FunctionFactory<double,3>(world).f(phi_initial_guess3D);
+  psi.truncate();
   psi.scale(1.0/psi.norm2());
   std::vector<Function<double,3> > phis;
   phis.push_back(psi);
