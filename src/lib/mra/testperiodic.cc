@@ -44,7 +44,7 @@ using namespace madness;
 
 typedef Vector<double,3> coordT;
 
-const double L = 0.5;  // [-L,L]
+const double L = 3.0;  // [-L,L]
 const int nwave = 2;
 
 double source(const coordT& r) {
@@ -52,7 +52,7 @@ double source(const coordT& r) {
 }
 
 double potential(const coordT& r) {
-    const double fac = 4*L*L/(3*nwave*nwave*constants::pi);
+    const double fac = 1.0/(3*nwave*nwave*constants::pi);
     return source(r)*fac;
 }
 
@@ -122,8 +122,8 @@ void test_periodic(World& world) {
 
 
 void test_periodic2(World& world) {
-    const long k = 8;
-    const double thresh = 1e-6;
+    const long k = 10;
+    const double thresh = 1e-8;
     FunctionDefaults<3>::set_k(k);
     FunctionDefaults<3>::set_cubic_cell(-L,L);
     FunctionDefaults<3>::set_thresh(thresh);
