@@ -116,6 +116,49 @@ void test_periodic(World& world) {
 }
 
 
+
+void test_periodic2(World& world) {
+    const long k = 8;
+    const double thresh = 1e-6;
+    const double L = 0.5;
+    FunctionDefaults<3>::set_k(k);
+    FunctionDefaults<3>::set_cubic_cell(-L,L);
+    FunctionDefaults<3>::set_thresh(thresh);
+    
+    Function<double,3> f = FunctionFactory<double,3>(world).f(source);
+    f.truncate();
+
+    Tensor<double> coeff, expnt;
+    bsh_fit(0.0, thresh, 100*L, thresh, &coeff, &expnt);
+    const double acut = 0.25 / (4.0*L*L);
+    
+    std::vector< SharedPtr< Convolution1D<double> > > ops;
+    for (int i=0; i<coeff.dim[0]; i++) {
+        if (expnt[i] > acut) {
+            double c = pow(4*constants::pi,1.0/3.0);
+            ops.push_back(SharedPtr< Convolution1D<double> >(new PeriodicGaussianConvolution1D<double>(k, 16, c, expnt[i])));
+        }
+    }
+    
+    SeparatedConvolution<double,3> op(world, k, ops, false, true);
+    cout.precision(10);
+
+    Function<double,3> opf = apply(op,f);
+    opf.reconstruct();
+
+    for (int i=0; i<101; i++) {
+        coordT r = coordT(-L + i*2*L/100.0);
+        double value = opf(r);
+        double exact = potential(r);
+        print(i,value,exact);
+    }
+
+    world.gop.fence();
+
+}
+
+
+
 int main(int argc, char**argv) {
     MPI::Init(argc, argv);
     World world(MPI::COMM_WORLD);
@@ -123,7 +166,8 @@ int main(int argc, char**argv) {
     try {
         startup(world,argc,argv);
         
-        test_periodic(world);
+        test_periodic2(world);
+        //test_periodic(world);
 
     } catch (const MPI::Exception& e) {
         //        print(e);
