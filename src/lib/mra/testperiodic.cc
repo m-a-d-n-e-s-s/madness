@@ -44,12 +44,16 @@ using namespace madness;
 
 typedef Vector<double,3> coordT;
 
+const double L = 0.5;  // [-L,L]
+const int nwave = 2;
+
 double source(const coordT& r) {
-    return cos(4*2*constants::pi*r[0])*cos(4*2*constants::pi*r[1])*cos(4*2*constants::pi*r[2]);
+    return cos(nwave*constants::pi*r[0]/L)*cos(nwave*constants::pi*r[1]/L)*cos(nwave*constants::pi*r[2]/L);
 }
 
 double potential(const coordT& r) {
-    return -source(r)/3.0;
+    const double fac = 4*L*L/(3*nwave*nwave*constants::pi);
+    return source(r)*fac;
 }
 
 void test_periodic(World& world) {
@@ -120,7 +124,6 @@ void test_periodic(World& world) {
 void test_periodic2(World& world) {
     const long k = 8;
     const double thresh = 1e-6;
-    const double L = 0.5;
     FunctionDefaults<3>::set_k(k);
     FunctionDefaults<3>::set_cubic_cell(-L,L);
     FunctionDefaults<3>::set_thresh(thresh);
@@ -135,8 +138,9 @@ void test_periodic2(World& world) {
     std::vector< SharedPtr< Convolution1D<double> > > ops;
     for (int i=0; i<coeff.dim[0]; i++) {
         if (expnt[i] > acut) {
-            double c = pow(4*constants::pi,1.0/3.0);
+            double c = pow(4*constants::pi*coeff[i],1.0/3.0);
             ops.push_back(SharedPtr< Convolution1D<double> >(new PeriodicGaussianConvolution1D<double>(k, 16, c, expnt[i])));
+            print(ops.size(), c, expnt[i]);
         }
     }
     
@@ -150,7 +154,7 @@ void test_periodic2(World& world) {
         coordT r = coordT(-L + i*2*L/100.0);
         double value = opf(r);
         double exact = potential(r);
-        print(i,value,exact);
+        print(i,value,exact,value/exact);
     }
 
     world.gop.fence();
