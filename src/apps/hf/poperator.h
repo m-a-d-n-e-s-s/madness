@@ -7,7 +7,7 @@
 namespace madness
 {
   //***************************************************************************
-  const double acut1e_6 = 0.24; //0.6450626287524907;
+  const double acut1e_6 = 0.12; //0.6450626287524907;
   //***************************************************************************
 
   //***************************************************************************
@@ -18,7 +18,7 @@ namespace madness
     // so have to scale eps by 1/4Pi
     Tensor<double> coeff, expnt;
     //if (mu==0) eps /= 4.0*pi;
-    bsh_fit(0.0, lo, 10.0*L[0], eps/(4.0 * WST_PI), &coeff, &expnt, false); //eps /(4.0*pi)
+    bsh_fit(0.0, lo, 16.0*L[0], eps/(4.0 * WST_PI), &coeff, &expnt, false); //eps /(4.0*pi)
     coeff.scale(4.0*WST_PI);
 
     // Scale coefficients according to the dimensionality and add to the list of operators

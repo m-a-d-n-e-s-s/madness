@@ -7,8 +7,8 @@ using namespace madness;
 typedef Vector<double,3> coordT3d;
 typedef Vector<double,1> coordT1d;
 
-const double L = 5.0;
-const double N = 8.0;
+const double L = 40.0;
+const double N = 6.0;
 
 //*****************************************************************************
 // Test function for the periodic BSH operator.
@@ -50,7 +50,7 @@ static double rho_gaussian_func3d(const coordT3d& r)
   double piece1 = coeff1 * exp(-expnt1 * (x*x + y*y + z*z));
   double piece2 = -coeff2 * exp(-expnt2 * (x*x + y*y + z*z));
 
-  return piece1;
+  return piece1+piece2;
 }
 //*****************************************************************************
 
@@ -169,9 +169,8 @@ void testPeriodicGaussian(World& world, double coeff, double expnt,
     int lmax, int k, double thresh, double* data)
 {
   // Function defaults
-  double bsize = 0.5;
   FunctionDefaults<3>::set_k(k);
-  FunctionDefaults<3>::set_cubic_cell(-bsize,bsize);
+  FunctionDefaults<3>::set_cubic_cell(-L/2,L/2);
   FunctionDefaults<3>::set_thresh(thresh);
 
   // Test function
@@ -179,7 +178,7 @@ void testPeriodicGaussian(World& world, double coeff, double expnt,
 
   // Create operator
   std::vector< SharedPtr< Convolution1D<double> > > ops(1);
-  ops[0] = SharedPtr< Convolution1D<double> >(new PeriodicGaussianConvolution1D<double>(k, 2, coeff, expnt));
+  ops[0] = SharedPtr< Convolution1D<double> >(new PeriodicGaussianConvolution1D<double>(k, 2, coeff*L, expnt*L*L));
   SeparatedConvolution<double,3> op(world, k, ops);
 
   // Apply operator
@@ -187,7 +186,9 @@ void testPeriodicGaussian(World& world, double coeff, double expnt,
 
   for (int i=0; i<21; i++)
   {
-    coordT3d p(-0.5 + i*0.05);
+    double start = L/2;
+    double step = L / 20;
+    coordT3d p(-start + i*step);
     printf("%.2f\t\t%.8f\t%.8f\t%.8f\n", p[0], phi(p), data[i], fabs(phi(p) - data[i]));
   }
 }
@@ -315,6 +316,127 @@ void testSinglePeriodicGaussians(int argc, char** argv)
 //*****************************************************************************
 
 //*****************************************************************************
+void testSinglePeriodicGaussians_L10(int argc, char** argv)
+{
+  MPI::Init(argc, argv);
+  World world(MPI::COMM_WORLD);
+  startup(world,argc,argv);
+
+  double maple_data_2500[21] =
+    {
+      -1.407020542,
+      -1.210373524,
+      -0.7450293332,
+      -0.2857304296,
+      -0.04151906172,
+      0.0,
+      0.04151906172,
+      0.2857304296,
+      0.7450293332,
+       1.210373524,
+       1.407020542,
+       1.210373524,
+      0.7450293332,
+      0.2857304296,
+      0.04151906172,
+      0.0,
+      -0.04151906172,
+      -0.2857304296,
+      -0.7450293332,
+      -1.210373524,
+      -1.407020542
+    };
+
+  double maple_data_25000[21] =
+    {
+      -1.407020542,
+      -1.210373524,
+      -0.7450293332,
+      -0.2857304296,
+      -0.04151906172,
+      0.0,
+      0.04151906172,
+      0.2857304296,
+      0.7450293332,
+      1.210373524,
+      1.407020542,
+      1.210373524,
+      0.7450293332,
+      0.2857304296,
+      0.04151906172,
+      0.0,
+      -0.04151906172,
+      -0.2857304296,
+      -0.7450293332,
+      -1.210373524,
+      -1.407020542
+    };
+
+  double maple_data_55000[21] =
+    {
+      -0.4314663948,
+      -0.3711640906,
+      -0.2284651223,
+      -0.08761995618,
+      -0.01273192489,
+      0.0,
+      0.01273192489,
+      0.08761995618,
+      0.2284651223,
+      0.3711640906,
+      0.4314663948,
+      0.3711640906,
+      0.2284651223,
+      0.08761995618,
+      0.01273192489,
+      0.0,
+      -0.01273192489,
+      -0.08761995618,
+      -0.2284651223,
+      -0.3711640906,
+      -0.4314663948
+    };
+
+  double maple_data_95000[21] =
+    {
+      -0.1901095982,
+      -0.1635396336,
+      -0.1006646476,
+      -0.03860647055,
+      -0.005609848544,
+      0.0,
+      0.005609848544,
+      0.03860647055,
+      0.1006646476,
+      0.1635396336,
+      0.1901095982,
+      0.1635396336,
+      0.1006646476,
+      0.03860647055,
+      0.005609848544,
+      0.0,
+      -0.005609848544,
+      -0.03860647055,
+      -0.1006646476,
+      -0.1635396336,
+      -0.1901095982
+    };
+
+  int k = 8;
+  double thresh = 1e-6;
+  printf("\nTesting with exponent = 2500\n\n");
+  testPeriodicGaussian(world, 100, 2500, 16, k, thresh, &maple_data_2500[0]);
+//  printf("\nTesting with exponent = 25000\n\n");
+//  testPeriodicGaussian(world, 100, 25000, 16, k, thresh, &maple_data_25000[0]);
+//  printf("\nTesting with exponent = 55000\n\n");
+//  testPeriodicGaussian(world, 100, 55000, 16, k, thresh, &maple_data_55000[0]);
+//  printf("\nTesting with exponent = 95000\n\n");
+//  testPeriodicGaussian(world, 100, 95000, 16, k, thresh, &maple_data_95000[0]);
+  MPI::Finalize();
+}
+//*****************************************************************************
+
+//*****************************************************************************
 void testPeriodicCoulomb3d(int argc, char**argv)
 {
   MPI::Init(argc, argv);
@@ -351,14 +473,16 @@ void testPeriodicCoulomb3d(int argc, char**argv)
   rho.reconstruct();
   rho_test.reconstruct();
   rho_diff.reconstruct();
+  phi_exact.reconstruct();
+  phi_test.reconstruct();
 
   double bstep = L / 100.0;
   for (int i=0; i<101; i++)
   {
     coordT3d p(-L/2 + i*bstep);
     double error = fabs(phi_exact(p) - phi_test(p));
-//    printf("%.2f\t\t%.8f\t%.8f\t%.8f\t%.8f\n", p[0], phi_exact(p), phi_test(p), error, rho_diff(p));
-    printf("%.2f\t\t%.8f\t%.8f\t%.8f\t%.8f\n", p[0], rho(p), rho_test(p), rho_diff(p), 0.0);
+    printf("%.2f\t\t%.8f\t%.8f\t%.8f\n", p[0], phi_exact(p), phi_test(p), error);
+//    printf("%.2f\t\t%.8f\t%.8f\t%.8f\t%.8f\n", p[0], rho(p), rho_test(p), rho_diff(p), 0.0);
   }
 
   // Plot to OpenDX
@@ -497,21 +621,28 @@ void testPeriodicCoulomb3d_gauss(int argc, char**argv)
   // with said charge density
   printf("building gaussian charge distribution ...\n\n");
   Function<double,3> rho = FunctionFactory<double,3>(world).f(rho_gaussian_func3d);
+  rho.truncate();
 
   // Average value of the test function
   Function<double,3> ones = FunctionFactory<double,3>(world).f(func_ones);
-  double avgval = inner(rho,ones);
+  //double avgval = inner(rho,ones);
+  double avgval = rho.trace();
   printf("Average value of rho is %.8f\n\n", avgval);
 
   // Create operator and apply
   Tensor<double> cellsize = FunctionDefaults<3>::get_cell_width();
-  SeparatedConvolution<double,3> pop = PeriodicCoulombOp<double,3>(world, k,1e-6, eps, cellsize);
+  SeparatedConvolution<double,3> pop = PeriodicCoulombOp<double,3>(world, k,1e-10, eps, cellsize);
   printf("applying periodic operator ...\n\n");
   Function<double,3> phi_periodic = apply(pop, rho);
   SeparatedConvolution<double,3> op = CoulombOperator<double,3>(world, FunctionDefaults<3>::get_k(),
-      1e-6, thresh);
+      1e-10, eps);
   printf("applying non-periodic operator ...\n\n");
   Function<double,3> phi_nonperiodic = apply(op, rho);
+  phi_nonperiodic.truncate();
+  phi_periodic.truncate();
+
+  phi_periodic.reconstruct();
+  phi_nonperiodic.reconstruct();
 
   double bstep = L / 100.0;
   for (int i=0; i<101; i++)
@@ -522,11 +653,11 @@ void testPeriodicCoulomb3d_gauss(int argc, char**argv)
   }
 
   // Plot to OpenDX
-  vector<long> npt(3,101);
-  Function<double,3> phi_diff = phi_periodic - phi_nonperiodic;
-  plotdx(phi_periodic, "phiperiodic.dx", FunctionDefaults<3>::get_cell(), npt);
-  plotdx(phi_nonperiodic, "phinonperiodic.dx", FunctionDefaults<3>::get_cell(), npt);
-  plotdx(phi_diff, "phidiff.dx", FunctionDefaults<3>::get_cell(), npt);
+//  vector<long> npt(3,101);
+//  Function<double,3> phi_diff = phi_periodic - phi_nonperiodic;
+//  plotdx(phi_periodic, "phiperiodic.dx", FunctionDefaults<3>::get_cell(), npt);
+//  plotdx(phi_nonperiodic, "phinonperiodic.dx", FunctionDefaults<3>::get_cell(), npt);
+//  plotdx(phi_diff, "phidiff.dx", FunctionDefaults<3>::get_cell(), npt);
 
   MPI::Finalize();
 }
@@ -562,6 +693,7 @@ void testPeriodicBSH3d_gauss(int argc, char**argv)
   // with said charge density
   printf("building gaussian charge distribution ...\n\n");
   Function<double,3> rho = FunctionFactory<double,3>(world).f(rho_gaussian_func3d);
+  rho.truncate();
 
   // Average value of the test function
   Function<double,3> ones = FunctionFactory<double,3>(world).f(func_ones);
@@ -586,12 +718,12 @@ void testPeriodicBSH3d_gauss(int argc, char**argv)
     printf("%.2f\t\t%.8f\t%.8f\t%.8f\t%.8f\n", p[0], phi_periodic(p), phi_nonperiodic(p), error, phi_periodic(p) / phi_nonperiodic(p));
   }
 
-  // Plot to OpenDX
-  vector<long> npt(3,101);
-  Function<double,3> phi_diff = phi_periodic - phi_nonperiodic;
-  plotdx(phi_periodic, "phiperiodic.dx", FunctionDefaults<3>::get_cell(), npt);
-  plotdx(phi_nonperiodic, "phinonperiodic.dx", FunctionDefaults<3>::get_cell(), npt);
-  plotdx(phi_diff, "phidiff.dx", FunctionDefaults<3>::get_cell(), npt);
+//  // Plot to OpenDX
+//  vector<long> npt(3,101);
+//  Function<double,3> phi_diff = phi_periodic - phi_nonperiodic;
+//  plotdx(phi_periodic, "phiperiodic.dx", FunctionDefaults<3>::get_cell(), npt);
+//  plotdx(phi_nonperiodic, "phinonperiodic.dx", FunctionDefaults<3>::get_cell(), npt);
+//  plotdx(phi_diff, "phidiff.dx", FunctionDefaults<3>::get_cell(), npt);
 
   MPI::Finalize();
 }
@@ -604,6 +736,8 @@ int main(int argc, char**argv)
   //testPeriodicCoulomb3d_gauss(argc, argv);
   //testNonPeriodicCoulomb3d(argc, argv);
   testPeriodicCoulomb3d(argc, argv);
+  //testPeriodicBSH3d_gauss(argc, argv);
+  //testSinglePeriodicGaussians_L10(argc,argv);
   return 0;
 }
 //*****************************************************************************
