@@ -7,8 +7,8 @@ using namespace madness;
 typedef Vector<double,3> coordT3d;
 typedef Vector<double,1> coordT1d;
 
-const double L = 40.0;
-const double N = 6.0;
+const double L = 12.0;
+const double N = 8.0;
 
 //*****************************************************************************
 // Test function for the periodic BSH operator.
@@ -444,9 +444,8 @@ void testPeriodicCoulomb3d(int argc, char**argv)
   startup(world,argc,argv);
 
   // Function defaults
-  int k = 8;
-  double thresh = 1e-6;
-  double eps = 1e-6;
+  int k = 10;
+  double thresh = 1e-8;
   FunctionDefaults<3>::set_k(k);
   FunctionDefaults<3>::set_cubic_cell(-L/2,L/2);
   FunctionDefaults<3>::set_thresh(thresh);
@@ -455,12 +454,13 @@ void testPeriodicCoulomb3d(int argc, char**argv)
   // with said charge density
   printf("building rho ...\n\n");
   Function<double,3> rho = FunctionFactory<double,3>(world).f(rho_coulomb_func3d);
+  rho.truncate();
   printf("building phi_exact ...\n\n");
   Function<double,3> phi_exact = FunctionFactory<double,3>(world).f(phi_coulomb_func3d);
 
   // Create operator and apply
   Tensor<double> cellsize = FunctionDefaults<3>::get_cell_width();
-  SeparatedConvolution<double,3> op = PeriodicCoulombOp<double,3>(world, k, 1e-6, eps, cellsize);
+  SeparatedConvolution<double,3> op = PeriodicCoulombOp<double,3>(world, k, 1e-8, thresh, cellsize);
   printf("applying operator ...\n\n");
   Function<double,3> phi_test = apply(op, rho);
 
@@ -481,7 +481,7 @@ void testPeriodicCoulomb3d(int argc, char**argv)
   {
     coordT3d p(-L/2 + i*bstep);
     double error = fabs(phi_exact(p) - phi_test(p));
-    printf("%.2f\t\t%.8f\t%.8f\t%.8f\n", p[0], phi_exact(p), phi_test(p), error);
+    printf("%.2f\t\t%.8f\t%.8f\t%.8f\t%.8f\n", p[0], phi_exact(p), phi_test(p), error, error / phi_exact(p));
 //    printf("%.2f\t\t%.8f\t%.8f\t%.8f\t%.8f\n", p[0], rho(p), rho_test(p), rho_diff(p), 0.0);
   }
 
@@ -732,10 +732,10 @@ void testPeriodicBSH3d_gauss(int argc, char**argv)
 //*****************************************************************************
 int main(int argc, char**argv)
 {
-  //testPeriodicBSH3d_gauss(argc, argv);
-  //testPeriodicCoulomb3d_gauss(argc, argv);
+  //testPeriodicBSH3d(argc, argv);
+  testPeriodicCoulomb3d_gauss(argc, argv);
   //testNonPeriodicCoulomb3d(argc, argv);
-  testPeriodicCoulomb3d(argc, argv);
+  //testPeriodicCoulomb3d(argc, argv);
   //testPeriodicBSH3d_gauss(argc, argv);
   //testSinglePeriodicGaussians_L10(argc,argv);
   return 0;
