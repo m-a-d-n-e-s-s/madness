@@ -98,6 +98,16 @@ static double V_func_he(const coordT& r)
 //*****************************************************************************
 
 //*****************************************************************************
+static double rho_func_he(const coordT& r)
+{
+  const double x=r[0], y=r[1], z=r[2];
+  double e1 = 100.0;
+  double coeff = pow(e1/PI, 1.5);
+  return -2.0 * coeff * exp(-e1 * (x*x + y*y + z*z));
+}
+//*****************************************************************************
+
+//*****************************************************************************
 static double V_func_be(const coordT& r)
 {
   const double x=r[0], y=r[1], z=r[2];
@@ -322,7 +332,7 @@ void test_hf_he(World& world)
   typedef SharedPtr< FunctionFunctorInterface<double,3> > functorT;
 
   // Dimensions of the bounding box
-  double bsize = 42.4;
+  double bsize = 22.4;
 //  for (int i=0; i<3; i++)
 //  {
 //    FunctionDefaults<3>::cell(i,0) = -bsize;
@@ -340,23 +350,44 @@ void test_hf_he(World& world)
 
   // Nuclear potential (He atom)
   const coordT origin(0.0);
-  cout << "Creating Function object for nuclear potential ..." << endl;
-  Function<double,3> Vnuc = FunctionFactory<double,3>(world).f(V_func_he);
+  cout << "Creating Function object for nuclear charge density ..." << endl;
+  Function<double,3> rhon = FunctionFactory<double,3>(world).f(rho_func_he);
+  Function<double,3> vnuc = FunctionFactory<double,3>(world).f(V_func_he);
+  rhon.truncate();
+  vnuc.truncate();
+  cout << "Operating on nuclear charge density ..." << endl;
+  SeparatedConvolution<double,3> op = CoulombOperator<double,3>(world, FunctionDefaults<3>::get_k(),
+      1e-8, thresh);
+  Function<double,3> V_from_rho_nuc = apply(op, rhon);
+  printf("\n");
+  double L = 2.0 * bsize;
+  double bstep = L / 100.0;
+  vnuc.reconstruct();
+  V_from_rho_nuc.reconstruct();
+  for (int i=0; i<101; i++)
+  {
+    coordT p(-L/2 + i*bstep);
+    double error = fabs(vnuc(p) - V_from_rho_nuc(p));
+    printf("%.2f\t\t%.8f\t%.8f\t%.8f\t%.8f\n", p[0], vnuc(p), V_from_rho_nuc(p), error, error / vnuc(p));
+  }
+  printf("\n");
 
   // Guess for the wavefunction
   cout << "Creating wavefunction psi ..." << endl;
   Function<double,3> psi = FunctionFactory<double,3>(world).f(psi_func_he);
   psi.scale(1.0/psi.norm2());
+
+  // Create lists
   std::vector<Function<double,3> > phis;
   std::vector<double> eigs;
   phis.push_back(psi);
   eigs.push_back(-0.6);
-  printf("Norm of psi = %.5f\n\n", psi.norm2());
+
   // Create DFT object
   if (world.rank() == 0) cout << "Creating DFT object ..." << endl;
-  DFT<double,3> dftcalc(world, Vnuc, phis, eigs, thresh, false);
+  DFT<double,3> dftcalc(world, rhon, phis, eigs, thresh, false);
   if (world.rank() == 0) cout << "Running DFT calculation ..." << endl;
-  dftcalc.solve(20);
+  dftcalc.solve(1);
 //  HartreeFock hf(world, Vnuc, phis, eigs, true, true, thresh);
 //  hf.hartree_fock(10);
 
@@ -494,7 +525,7 @@ int main(int argc, char** argv)
 
     startup(world,argc,argv);
     if (world.rank() == 0) print("Initial tensor instance count", BaseTensor::get_instance_count());
-    test_hf_be(world);
+    test_hf_he(world);
   }
   catch (const MPI::Exception& e)
   {

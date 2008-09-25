@@ -19,15 +19,50 @@ using std::endl;
 namespace madness
 {
 
+//  //***************************************************************************
+//  template <typename T, int NDIM>
+//  EigSolver<T,NDIM>::EigSolver(World& world, std::vector<funcT> phis,
+//      std::vector<double> eigs, std::vector< EigSolverOp<T,NDIM>* > ops,
+//      std::vector<kvecT> kpoints, double thresh)
+//  : _phis(phis), _eigs(eigs), _ops(ops), _kpoints(kpoints), _world(world), _thresh(thresh)
+//  {
+//    _rho = EigSolver::compute_rho(phis, world);
+//    _periodic = true;
+//  }
+//  //***************************************************************************
+//
+//  //***************************************************************************
+//  template <typename T, int NDIM>
+//  EigSolver<T,NDIM>::EigSolver(World& world, std::vector<funcT> phis,
+//      std::vector<double> eigs, std::vector< EigSolverOp<T,NDIM>* > ops, double thresh)
+//  : _phis(phis), _eigs(eigs), _ops(ops), _world(world), _thresh(thresh)
+//  {
+//    _rho = EigSolver::compute_rho(phis, world);
+//    _periodic = false;
+//  }
+//  //***************************************************************************
+
   //***************************************************************************
   template <typename T, int NDIM>
-  EigSolver<T,NDIM>::EigSolver(World& world, std::vector<funcT> phis,
+  EigSolver<T,NDIM>::EigSolver(World& world, funcT rhon, std::vector<funcT> phis,
       std::vector<double> eigs, std::vector< EigSolverOp<T,NDIM>* > ops,
       std::vector<kvecT> kpoints, double thresh)
-  : _phis(phis), _eigs(eigs), _ops(ops), _kpoints(kpoints), _world(world), _thresh(thresh)
+  : _phis(phis), _eigs(eigs), _ops(ops), _kpoints(kpoints), _rhon(rhon),
+    _world(world), _thresh(thresh)
   {
-    _rho = EigSolver::compute_rho(phis, world);
+    _rho = EigSolver::compute_rho(phis, world, rhon);
     _periodic = true;
+  }
+  //***************************************************************************
+
+  //***************************************************************************
+  template <typename T, int NDIM>
+  EigSolver<T,NDIM>::EigSolver(World& world, funcT rhon, std::vector<funcT> phis,
+      std::vector<double> eigs, std::vector< EigSolverOp<T,NDIM>* > ops, double thresh)
+  : _phis(phis), _eigs(eigs), _ops(ops), _rhon(rhon), _world(world), _thresh(thresh)
+  {
+    _rho = EigSolver::compute_rho(phis, world, rhon);
+    _periodic = false;
   }
   //***************************************************************************
 
@@ -37,7 +72,8 @@ namespace madness
       std::vector<double> eigs, std::vector< EigSolverOp<T,NDIM>* > ops, double thresh)
   : _phis(phis), _eigs(eigs), _ops(ops), _world(world), _thresh(thresh)
   {
-    _rho = EigSolver::compute_rho(phis, world);
+    _rhon = FunctionFactory<double,NDIM>(const_cast<World&>(world));
+    _rho = EigSolver::compute_rho(phis, world, _rhon);
     _periodic = false;
   }
   //***************************************************************************
@@ -61,10 +97,12 @@ namespace madness
 
   //***************************************************************************
   template <typename T, int NDIM>
-  Function<T, NDIM> EigSolver<T,NDIM>::compute_rho(typename std::vector<funcT> phis, const World& world)
+  Function<T, NDIM> EigSolver<T,NDIM>::compute_rho(typename std::vector<funcT> phis,
+      const World& world, funcT rhon)
   {
     // Electron density
-    funcT rho = FunctionFactory<double,NDIM>(const_cast<World&>(world));
+//    funcT rho = FunctionFactory<double,NDIM>(const_cast<World&>(world));
+    funcT rho = copy(rhon);
     // Loop over all wavefunctions to compute density
     for (typename std::vector<funcT>::const_iterator pj = phis.begin();
       pj != phis.end(); ++pj)
@@ -196,6 +234,9 @@ namespace madness
       // oven), go ahead and build all of the density-dependent potentials that
       // we can.
       prepare_ops();
+      // Trace of rho
+      double rhotrace = _rho.trace();
+      printf("The trace of rho is %.8f\n\n", rhotrace);
       if (_world.rank() == 0) DEBUG_STREAM << "Iteration #" << it
         << endl << endl;
       for (unsigned int pi = 0; pi < _phis.size(); pi++)
@@ -302,7 +343,7 @@ namespace madness
       }
       // Update rho
 //      if (_world.rank() == 0) printf("Computing new density for it == #%d\n\n", it);
-      _rho = EigSolver::compute_rho(_phis, _world);
+      _rho = EigSolver::compute_rho(_phis, _world, _rhon);
       // Output to observables
       for (typename std::vector<IEigSolverObserver<T,NDIM>*>::iterator itr = _obs.begin(); itr
         != _obs.end(); ++itr)
@@ -419,7 +460,7 @@ namespace madness
       }
       // Update rho
       if (_world.rank() == 0) printf("Computing new density for it == #%d\n\n", it);
-      _rho = EigSolver::compute_rho(_phis, _world);
+      _rho = EigSolver::compute_rho(_phis, _world, _rhon);
       // Output to observables
       for (typename std::vector<IEigSolverObserver<T,NDIM>*>::iterator itr = _obs.begin(); itr
         != _obs.end(); ++itr)

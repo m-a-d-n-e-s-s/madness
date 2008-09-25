@@ -7,7 +7,7 @@ using namespace madness;
 typedef Vector<double,3> coordT3d;
 typedef Vector<double,1> coordT1d;
 
-const double L = 12.0;
+const double L = 10.0;
 const double N = 8.0;
 
 //*****************************************************************************
@@ -44,13 +44,14 @@ static double rho_gaussian_func3d(const coordT3d& r)
 {
   const double x=r[0], y=r[1], z=r[2];
   const double expnt1 = 1.0;
-  const double expnt2 = 12.0;
+  const double expnt2 = 2.0;
   const double coeff1 = pow(expnt1/WST_PI, 1.5);
   const double coeff2 = pow(expnt2/WST_PI, 1.5);
   double piece1 = coeff1 * exp(-expnt1 * (x*x + y*y + z*z));
   double piece2 = -coeff2 * exp(-expnt2 * (x*x + y*y + z*z));
 
-  return piece1+piece2;
+  //  return piece1-(1/L/L/L);
+    return piece1;
 }
 //*****************************************************************************
 
@@ -733,10 +734,10 @@ void testPeriodicBSH3d_gauss(int argc, char**argv)
 int main(int argc, char**argv)
 {
   //testPeriodicBSH3d(argc, argv);
-  testPeriodicCoulomb3d_gauss(argc, argv);
+  //testPeriodicCoulomb3d_gauss(argc, argv);
   //testNonPeriodicCoulomb3d(argc, argv);
   //testPeriodicCoulomb3d(argc, argv);
-  //testPeriodicBSH3d_gauss(argc, argv);
+  testPeriodicBSH3d_gauss(argc, argv);
   //testSinglePeriodicGaussians_L10(argc,argv);
   return 0;
 }

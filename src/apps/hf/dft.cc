@@ -641,11 +641,50 @@ void wst_munge_rho(int npoint, double *rho) {
   }
   //***************************************************************************
 
+//  //***************************************************************************
+//  template <typename T, int NDIM>
+//  DFT<T,NDIM>::DFT(World& world, funcT V, std::vector<funcT> phis,
+//      std::vector<double> eigs, double thresh, bool periodic)
+//  : _world(world), _V(V), _thresh(thresh)
+//  {
+//
+//    if (world.rank() == 0 && !periodic) printf("DFT constructor (non-peridic) ...\n\n");
+//    if (world.rank() == 0 && periodic) printf("DFT constructor (periodic) ...\n\n");
+//
+//    // Create ops list
+//    std::vector<EigSolverOp<T,NDIM>*> ops;
+//    // Add nuclear potential to ops list
+//    ops.push_back(new DFTNuclearPotentialOp<T,NDIM>(world, V, 1.0, thresh));
+//    if (periodic)
+//      ops.push_back(new DFTCoulombPeriodicOp<T,NDIM>(world, 1.0, thresh));
+//    else
+//      ops.push_back(new DFTCoulombOp<T,NDIM>(world, 1.0, thresh));
+//    _xcfunc = new XCFunctionalLDA<T,NDIM>(world, 1.0, thresh);
+//    ops.push_back(_xcfunc);
+//
+//    // Create solver
+//    if (periodic)
+//    {
+//      std::vector<kvecT> kpoints;
+//      kvecT gammap(0.0);
+//      kpoints.push_back(gammap);
+//      _solver = new EigSolver<T,NDIM>(world, phis, eigs, ops, kpoints, thresh);
+//    }
+//    else
+//    {
+//      _solver = new EigSolver<T,NDIM>(world, phis, eigs, ops, thresh);
+//    }
+//    _solver->addObserver(this);
+//
+//  }
+//  //***************************************************************************
+//
+
   //***************************************************************************
   template <typename T, int NDIM>
-  DFT<T,NDIM>::DFT(World& world, funcT V, std::vector<funcT> phis,
+  DFT<T,NDIM>::DFT(World& world, funcT rhon, std::vector<funcT> phis,
       std::vector<double> eigs, double thresh, bool periodic)
-  : _world(world), _V(V), _thresh(thresh)
+  : _world(world), _rhon(rhon), _thresh(thresh)
   {
 
     if (world.rank() == 0 && !periodic) printf("DFT constructor (non-peridic) ...\n\n");
@@ -654,7 +693,7 @@ void wst_munge_rho(int npoint, double *rho) {
     // Create ops list
     std::vector<EigSolverOp<T,NDIM>*> ops;
     // Add nuclear potential to ops list
-    ops.push_back(new DFTNuclearPotentialOp<T,NDIM>(world, V, 1.0, thresh));
+//    ops.push_back(new DFTNuclearPotentialOp<T,NDIM>(world, V, 1.0, thresh));
     if (periodic)
       ops.push_back(new DFTCoulombPeriodicOp<T,NDIM>(world, 1.0, thresh));
     else
@@ -668,37 +707,37 @@ void wst_munge_rho(int npoint, double *rho) {
       std::vector<kvecT> kpoints;
       kvecT gammap(0.0);
       kpoints.push_back(gammap);
-      _solver = new EigSolver<T,NDIM>(world, phis, eigs, ops, kpoints, thresh);
+      _solver = new EigSolver<T,NDIM>(world, rhon, phis, eigs, ops, kpoints, thresh);
     }
     else
     {
-      _solver = new EigSolver<T,NDIM>(world, phis, eigs, ops, thresh);
+      _solver = new EigSolver<T,NDIM>(world, rhon, phis, eigs, ops, thresh);
     }
     _solver->addObserver(this);
 
   }
   //***************************************************************************
 
-  //***************************************************************************
-  template <typename T, int NDIM>
-  DFT<T,NDIM>::DFT(World& world, funcT V, std::vector<funcT> phis,
-      std::vector<double> eigs, std::vector<kvecT> kpoints, double thresh)
-  : _world(world), _V(V), _thresh(thresh)
-  {
-    // Create ops list
-    std::vector<EigSolverOp<T,NDIM>*> ops;
-    // Add nuclear potential to ops list
-    ops.push_back(new DFTNuclearPotentialOp<T,NDIM>(world, V, 1.0, thresh));
-    ops.push_back(new DFTCoulombPeriodicOp<T,NDIM>(world, 1.0, thresh));
-    _xcfunc = new XCFunctionalLDA<T,NDIM>(world, 1.0, thresh);
-    ops.push_back(_xcfunc);
-
-    // Create solver
-    _solver = new EigSolver<T,NDIM>(world, phis, eigs, ops, kpoints, thresh);
-    _solver->addObserver(this);
-
-  }
-  //***************************************************************************
+//  //***************************************************************************
+//  template <typename T, int NDIM>
+//  DFT<T,NDIM>::DFT(World& world, funcT V, std::vector<funcT> phis,
+//      std::vector<double> eigs, std::vector<kvecT> kpoints, double thresh)
+//  : _world(world), _V(V), _thresh(thresh)
+//  {
+//    // Create ops list
+//    std::vector<EigSolverOp<T,NDIM>*> ops;
+//    // Add nuclear potential to ops list
+//    ops.push_back(new DFTNuclearPotentialOp<T,NDIM>(world, V, 1.0, thresh));
+//    ops.push_back(new DFTCoulombPeriodicOp<T,NDIM>(world, 1.0, thresh));
+//    _xcfunc = new XCFunctionalLDA<T,NDIM>(world, 1.0, thresh);
+//    ops.push_back(_xcfunc);
+//
+//    // Create solver
+//    _solver = new EigSolver<T,NDIM>(world, phis, eigs, ops, kpoints, thresh);
+//    _solver->addObserver(this);
+//
+//  }
+//  //***************************************************************************
 
   //***************************************************************************
   template <typename T, int NDIM>
@@ -720,20 +759,6 @@ void wst_munge_rho(int npoint, double *rho) {
   template <typename T, int NDIM>
   double DFT<T,NDIM>::calculate_ke_sp(funcT psi, bool periodic)
   {
-    // Check for periodic boundary conditions
-    Tensor<int> oldbc = FunctionDefaults<NDIM>::get_bc();
-    if (periodic)
-    {
-      Tensor<int> bc(NDIM,2);
-      bc(___) = 1;
-      FunctionDefaults<NDIM>::set_bc(bc);
-    }
-    else
-    {
-      Tensor<int> bc(NDIM,2);
-      bc(___) = 0;
-      FunctionDefaults<NDIM>::set_bc(bc);
-    }
     // Do calculation
     double kenergy = 0.0;
     for (int axis = 0; axis < 3; axis++)
@@ -741,8 +766,6 @@ void wst_munge_rho(int npoint, double *rho) {
       funcT dpsi = diff(psi, axis);
       kenergy += 0.5 * inner(dpsi, dpsi);
     }
-    // Restore previous boundary conditions
-    FunctionDefaults<NDIM>::set_bc(oldbc);
     return kenergy;
   }
   //***************************************************************************
@@ -824,8 +847,10 @@ void wst_munge_rho(int npoint, double *rho) {
       if (world().rank() == 0) printf("Calculating energies ...\n");
       if (world().rank() == 0) printf("Calculating KE ...\n");
       double ke = DFT::calculate_tot_ke_sp(phis, false, periodic);
-      if (world().rank() == 0) printf("Calculating PE ...\n");
-      double pe = DFT::calculate_tot_pe_sp(rho, _V, false);
+      // For right now, we'll just include the nuclear charge density along with
+      // the electronic charge density.
+//      if (world().rank() == 0) printf("Calculating PE ...\n");
+//      double pe = DFT::calculate_tot_pe_sp(rho, _V, false);
       if (world().rank() == 0) printf("Calculating CE ...\n");
       double ce = DFT::calculate_tot_coulomb_energy(rho, false, _world, _thresh, periodic);
       if (world().rank() == 0) printf("Calculating EE ...\n");
@@ -833,7 +858,10 @@ void wst_munge_rho(int npoint, double *rho) {
       if (world().rank() == 0) printf("Calculating NE ...\n");
       double ne = 0.0;
       if (world().rank() == 0) printf("Kinetic energy:\t\t\t %.8f\n", ke);
-      if (world().rank() == 0) printf("Potential energy:\t\t %.8f\n", pe);
+      // Again for now pe (potential energy) will be lumped into
+      // ce (coulomb energy).
+//      if (world().rank() == 0) printf("Potential energy:\t\t %.8f\n", pe);
+      double pe = 0.0;
       if (world().rank() == 0) printf("Coulomb energy:\t\t\t %.8f\n", ce);
       if (world().rank() == 0) printf("XC energy:\t\t\t %.8f\n", xce);
       if (world().rank() == 0) printf("Total energy:\t\t\t %.8f\n", ke + pe + ce + xce + ne);

@@ -170,17 +170,23 @@ namespace madness
     typedef Function<T,NDIM> funcT;
     typedef Vector<double,NDIM> kvecT;
   public:
-    //*************************************************************************
-    // Constructor
-    DFT(World& world, funcT V, std::vector<funcT> phis,
-      std::vector<double> eigs, double thresh, bool periodic = false);
-    //*************************************************************************
+//    //*************************************************************************
+//    // Constructor
+//    DFT(World& world, funcT V, std::vector<funcT> phis,
+//      std::vector<double> eigs, double thresh, bool periodic = false);
+//    //*************************************************************************
 
     //*************************************************************************
     // Constructor
-    DFT(World& world, funcT V, std::vector<funcT> phis,
-      std::vector<double> eigs, std::vector<kvecT> kpoints, double thresh);
+    DFT(World& world, funcT rhon, std::vector<funcT> phis,
+      std::vector<double> eigs, double thresh, bool periodic = false);
     //*************************************************************************
+
+//    //*************************************************************************
+//    // Constructor
+//    DFT(World& world, funcT V, std::vector<funcT> phis,
+//      std::vector<double> eigs, std::vector<kvecT> kpoints, double thresh);
+//    //*************************************************************************
 
 //    //*************************************************************************
 //    // Constructor for ground state only
@@ -283,8 +289,12 @@ namespace madness
       World& _world;
       //*************************************************************************
 
+//      //*************************************************************************
+//      Function<double,NDIM> _V;
+//      //*************************************************************************
+
       //*************************************************************************
-      Function<double,NDIM> _V;
+      Function<double,NDIM> _rhon;
       //*************************************************************************
 
       //*************************************************************************

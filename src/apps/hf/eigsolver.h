@@ -62,7 +62,7 @@ public:
 
   //*************************************************************************
   /// Orbital-dependent portion of operator
-  virtual funcT op_o(const std::vector<funcT>& phis, const funcT& psi)
+  virtual funcT op_o(const std::vector<funcT>& phisa, const funcT& psi)
   {
     funcT func = FunctionFactory<T,NDIM>(_world);
     return func;
@@ -169,9 +169,15 @@ public:
 
   //*************************************************************************
   /// Constructor for periodic system
-  EigSolver(World& world, std::vector<funcT> phis, std::vector<double> eigs,
+  EigSolver(World& world, funcT rhon, std::vector<funcT> phis, std::vector<double> eigs,
       std::vector<EigSolverOp<T,NDIM>*> ops, std::vector<kvecT> kpoints,
       double thresh);
+  //*************************************************************************
+
+  //*************************************************************************
+  /// Constructor for non-periodic system
+  EigSolver(World& world, funcT rhon, std::vector<funcT> phis, std::vector<double> eigs,
+      std::vector<EigSolverOp<T,NDIM>*> ops, double thresh);
   //*************************************************************************
 
   //*************************************************************************
@@ -254,7 +260,8 @@ public:
 
   //*************************************************************************
   /// Computes the electronic density
-  static funcT compute_rho(std::vector<funcT> phis, const World& world);
+  static funcT compute_rho(std::vector<funcT> phis, const World& world,
+      funcT rhon);
   //*************************************************************************
 
 private:
@@ -276,6 +283,10 @@ private:
   //*************************************************************************
   /// List of the ops
   std::vector<kvecT> _kpoints;
+  //*************************************************************************
+
+  //*************************************************************************
+  funcT _rhon;
   //*************************************************************************
 
   //*************************************************************************
