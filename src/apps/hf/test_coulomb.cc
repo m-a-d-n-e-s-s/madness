@@ -163,109 +163,109 @@ static double V_func_he(const coordT3d& r)
 //*****************************************************************************
 
 
-//*****************************************************************************
-void test_cosine_1D(int argc, char** argv)
-{
-  MPI::Init(argc, argv);
-  World world(MPI::COMM_WORLD);
-  startup(world,argc,argv);
+////*****************************************************************************
+//void test_cosine_1D(int argc, char** argv)
+//{
+//  MPI::Init(argc, argv);
+//  World world(MPI::COMM_WORLD);
+//  startup(world,argc,argv);
+//
+//  // Function defaults
+//  int funck = 6;
+//  double thresh = 1e-4;
+//  FunctionDefaults<1>::set_k(funck);
+//  FunctionDefaults<1>::set_thresh(thresh);
+//  FunctionDefaults<1>::set_refine(true);
+//  FunctionDefaults<1>::set_initial_level(2);
+//  FunctionDefaults<1>::set_truncate_mode(1);
+//  FunctionDefaults<1>::set_cubic_cell(-L/2, L/2);
+//
+//  // Nuclear potential (Be)
+//  //const coordT origin(0.0);
+//  if (world.rank() == 0) madness::print("Creating Function object for nuclear potential ...");
+//  Function<double,1> Vnuc = FunctionFactory<double,1>(world).f(V_cosine1D).thresh(thresh);
+//
+//  // Guess for the wavefunctions
+//  if (world.rank() == 0) madness::print("Creating wavefunction's ...");
+//  Function<double,1> psi = FunctionFactory<double,1>(world).f(phi_initial_guess1D);
+//  psi.scale(1.0/psi.norm2());
+//  std::vector<Function<double,1> > phis;
+//  phis.push_back(psi);
+//  // Create list of eigenvalues
+//  std::vector<double> eigs;
+//  eigs.push_back(-5.0);
+//  // Create list of operators
+//  std::vector<EigSolverOp<double,1>*> ops;
+//  ops.push_back(new DFTNuclearPotentialOp<double,1>(world, Vnuc, 1.0, thresh));
+//  // Create eigensolver
+//  if (world.rank() == 0) madness::print("Creating Eigensolver object...");
+//  // Constructor for non-periodic system
+//  EigSolver<double,1> solver(world, phis, eigs, ops, thresh);
+//  if (world.rank() == 0) madness::print("Diagonalizing Hamiltonian ...");
+//  solver.solve(11);
+//
+//  MPI::Finalize();
+//}
+////*****************************************************************************
 
-  // Function defaults
-  int funck = 6;
-  double thresh = 1e-4;
-  FunctionDefaults<1>::set_k(funck);
-  FunctionDefaults<1>::set_thresh(thresh);
-  FunctionDefaults<1>::set_refine(true);
-  FunctionDefaults<1>::set_initial_level(2);
-  FunctionDefaults<1>::set_truncate_mode(1);
-  FunctionDefaults<1>::set_cubic_cell(-L/2, L/2);
-
-  // Nuclear potential (Be)
-  //const coordT origin(0.0);
-  if (world.rank() == 0) madness::print("Creating Function object for nuclear potential ...");
-  Function<double,1> Vnuc = FunctionFactory<double,1>(world).f(V_cosine1D).thresh(thresh);
-
-  // Guess for the wavefunctions
-  if (world.rank() == 0) madness::print("Creating wavefunction's ...");
-  Function<double,1> psi = FunctionFactory<double,1>(world).f(phi_initial_guess1D);
-  psi.scale(1.0/psi.norm2());
-  std::vector<Function<double,1> > phis;
-  phis.push_back(psi);
-  // Create list of eigenvalues
-  std::vector<double> eigs;
-  eigs.push_back(-5.0);
-  // Create list of operators
-  std::vector<EigSolverOp<double,1>*> ops;
-  ops.push_back(new DFTNuclearPotentialOp<double,1>(world, Vnuc, 1.0, thresh));
-  // Create eigensolver
-  if (world.rank() == 0) madness::print("Creating Eigensolver object...");
-  // Constructor for non-periodic system
-  EigSolver<double,1> solver(world, phis, eigs, ops, thresh);
-  if (world.rank() == 0) madness::print("Diagonalizing Hamiltonian ...");
-  solver.solve(11);
-
-  MPI::Finalize();
-}
-//*****************************************************************************
-
-//*****************************************************************************
-void test_cosine_3D(int argc, char** argv)
-{
-  MPI::Init(argc, argv);
-  World world(MPI::COMM_WORLD);
-  startup(world,argc,argv);
-
-  // Function defaults
-  int funck = 8;
-  double thresh = 1e-6;
-  FunctionDefaults<3>::set_k(funck);
-  FunctionDefaults<3>::set_thresh(thresh);
-  FunctionDefaults<3>::set_refine(true);
-  FunctionDefaults<3>::set_initial_level(2);
-  FunctionDefaults<3>::set_truncate_mode(1);
-  FunctionDefaults<3>::set_cubic_cell(-L/2, L/2);
-
-  // Nuclear potential (Be)
-  //const coordT origin(0.0);
-  if (world.rank() == 0) madness::print("Creating Function object for nuclear potential ...");
-  Function<double,3> Vnuc = FunctionFactory<double,3>(world).f(V_cosine3D_sep).thresh(thresh);
-  Vnuc.truncate();
-
-  // Guess for the wavefunctions
-  if (world.rank() == 0) madness::print("Creating wavefunction's ...");
-  Function<double,3> psi = FunctionFactory<double,3>(world).f(phi_initial_guess3D);
-  psi.truncate();
-  psi.scale(1.0/psi.norm2());
-  std::vector<Function<double,3> > phis;
-  phis.push_back(psi);
-  // Create list of eigenvalues
-  std::vector<double> eigs;
-  eigs.push_back(-26.33);
-  // Create list of operators
-  std::vector<EigSolverOp<double,3>*> ops;
-  ops.push_back(new DFTNuclearPotentialOp<double,3>(world, Vnuc, 1.0, thresh));
-  // Create eigensolver
-  if (world.rank() == 0) madness::print("Creating Eigensolver object...");
-  // Constructor for non-periodic system
-  EigSolver<double,3> solver(world, phis, eigs, ops, thresh);
-  if (world.rank() == 0) madness::print("Diagonalizing Hamiltonian ...");
-  solver.solve(155);
-
-  double eval = solver.get_eig(0);
-  Function<double,3> func = solver.get_phi(0);
-  if (world.rank() == 0) printf("reconstructing func ...\n\n");
-  func.reconstruct();
-  coordT3d pt1(0.3);
-  coordT3d pt2(1.3);
-  if (world.rank() == 0) printf("evaluating points ...\n\n");
-  double funcpt1 = func(pt1);
-  double funcpt2 = func(pt2);
-  if (world.rank() == 0) printf("eval = %.8f\n\n", eval);
-  if (world.rank() == 0) printf("func(pt1) = %.8f\tfunc(pt2) = %.8f\n\n", funcpt1, funcpt2);
-
-  MPI::Finalize();
-}
-//*****************************************************************************
+////*****************************************************************************
+//void test_cosine_3D(int argc, char** argv)
+//{
+//  MPI::Init(argc, argv);
+//  World world(MPI::COMM_WORLD);
+//  startup(world,argc,argv);
+//
+//  // Function defaults
+//  int funck = 8;
+//  double thresh = 1e-6;
+//  FunctionDefaults<3>::set_k(funck);
+//  FunctionDefaults<3>::set_thresh(thresh);
+//  FunctionDefaults<3>::set_refine(true);
+//  FunctionDefaults<3>::set_initial_level(2);
+//  FunctionDefaults<3>::set_truncate_mode(1);
+//  FunctionDefaults<3>::set_cubic_cell(-L/2, L/2);
+//
+//  // Nuclear potential (Be)
+//  //const coordT origin(0.0);
+//  if (world.rank() == 0) madness::print("Creating Function object for nuclear potential ...");
+//  Function<double,3> Vnuc = FunctionFactory<double,3>(world).f(V_cosine3D_sep).thresh(thresh);
+//  Vnuc.truncate();
+//
+//  // Guess for the wavefunctions
+//  if (world.rank() == 0) madness::print("Creating wavefunction's ...");
+//  Function<double,3> psi = FunctionFactory<double,3>(world).f(phi_initial_guess3D);
+//  psi.truncate();
+//  psi.scale(1.0/psi.norm2());
+//  std::vector<Function<double,3> > phis;
+//  phis.push_back(psi);
+//  // Create list of eigenvalues
+//  std::vector<double> eigs;
+//  eigs.push_back(-26.33);
+//  // Create list of operators
+//  std::vector<EigSolverOp<double,3>*> ops;
+//  ops.push_back(new DFTNuclearPotentialOp<double,3>(world, Vnuc, 1.0, thresh));
+//  // Create eigensolver
+//  if (world.rank() == 0) madness::print("Creating Eigensolver object...");
+//  // Constructor for non-periodic system
+//  EigSolver<double,3> solver(world, phis, eigs, ops, thresh);
+//  if (world.rank() == 0) madness::print("Diagonalizing Hamiltonian ...");
+//  solver.solve(155);
+//
+//  double eval = solver.get_eig(0);
+//  Function<double,3> func = solver.get_phi(0);
+//  if (world.rank() == 0) printf("reconstructing func ...\n\n");
+//  func.reconstruct();
+//  coordT3d pt1(0.3);
+//  coordT3d pt2(1.3);
+//  if (world.rank() == 0) printf("evaluating points ...\n\n");
+//  double funcpt1 = func(pt1);
+//  double funcpt2 = func(pt2);
+//  if (world.rank() == 0) printf("eval = %.8f\n\n", eval);
+//  if (world.rank() == 0) printf("func(pt1) = %.8f\tfunc(pt2) = %.8f\n\n", funcpt1, funcpt2);
+//
+//  MPI::Finalize();
+//}
+////*****************************************************************************
 
 //*****************************************************************************
 void test_he(int argc, char** argv)
@@ -316,6 +316,6 @@ void test_he(int argc, char** argv)
 int main(int argc, char** argv)
 {
   //test_he(argc, argv);
-  test_cosine_3D(argc, argv);
+  //test_cosine_3D(argc, argv);
   return 0;
 }
