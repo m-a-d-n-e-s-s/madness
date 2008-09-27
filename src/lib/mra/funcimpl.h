@@ -1327,7 +1327,7 @@ namespace madness {
 
         /// Prints summary of data distribution
         void print_info() const {
-            MADNESS_ASSERT(world.size() < 10000);
+            if (world.size() >= 1000) return;
             for (int i=0; i<world.size(); i++) box_leaf[i] = box_interior[i] == 0;
             world.gop.fence();
             long nleaf=0, ninterior=0;

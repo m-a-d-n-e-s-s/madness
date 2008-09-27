@@ -98,11 +98,13 @@ namespace madness {
     void Tensor<T>::init(long nd, const long d[], bool dozero) {
         id = TensorTypeData<T>::id;
         TENSOR_ASSERT(nd>0 && nd <= TENSOR_MAXDIM,"invalid ndim in new tensor", nd, 0);
+        // sanity check ... 2GB in doubles
         for (int i=0; i<nd; i++) {
-            TENSOR_ASSERT(d[i]>=0 && d[i]<200000, "invalid dimension size in new tensor",i,0);
+            TENSOR_ASSERT(d[i]>=0 && d[i]<268435456, "invalid dimension size in new tensor",d[i],0);
         }
         set_dims_and_size(nd, d);
         if (size) {
+            TENSOR_ASSERT(size>=0 && size<268435456, "invalid size in new tensor",size,0);
             try {
 
 #define TENSOR_ALIGNMENT 16
