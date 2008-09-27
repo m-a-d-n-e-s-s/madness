@@ -582,7 +582,7 @@ void wst_munge_rho(int npoint, double *rho) {
 
   //***************************************************************************
   template <typename T, int NDIM>
-  Function<T,NDIM> DFTNuclearPotentialOp<T,NDIM>::op_r(const funcT& rho, const funcT& psi)
+  Function<T,NDIM> DFTNuclearPotentialOp<T,NDIM>::op_r(const funcT& rho, const funcT& rhon, const funcT& psi)
   {
     funcT rfunc = _V * psi;
     return rfunc;
@@ -591,7 +591,7 @@ void wst_munge_rho(int npoint, double *rho) {
 
   //*************************************************************************
   template <typename T, int NDIM>
-  Function<T,NDIM> DFTCoulombOp<T,NDIM>::op_r(const funcT& rho, const funcT& psi)
+  Function<T,NDIM> DFTCoulombOp<T,NDIM>::op_r(const funcT& rho, const funcT& rhon, const funcT& psi)
   {
     // If not spin-polarized, multiply by 2.0
     double factor = (_spinpol) ? 1.0 : 2.0;
@@ -604,7 +604,7 @@ void wst_munge_rho(int npoint, double *rho) {
 
   //*************************************************************************
   template <typename T, int NDIM>
-  Function<T,NDIM> DFTCoulombPeriodicOp<T,NDIM>::op_r(const funcT& rho, const funcT& psi)
+  Function<T,NDIM> DFTCoulombPeriodicOp<T,NDIM>::op_r(const funcT& rho, const funcT& rhon, const funcT& psi)
   {
     // If not spin-polarized, multiply by 2.0
     double factor = (_spinpol) ? 1.0 : 2.0;
@@ -627,7 +627,7 @@ void wst_munge_rho(int npoint, double *rho) {
 
   //***************************************************************************
   template <typename T, int NDIM>
-  Function<T,NDIM> XCFunctionalLDA<T,NDIM>::op_r(const funcT& rho, const funcT& psi)
+  Function<T,NDIM> XCFunctionalLDA<T,NDIM>::op_r(const funcT& rho, const funcT& rhon, const funcT& psi)
   {
     funcT V_rho = copy(rho);
     V_rho.reconstruct();

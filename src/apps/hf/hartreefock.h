@@ -33,7 +33,7 @@ namespace madness
     //*************************************************************************
 
     //*************************************************************************
-    virtual funcT op_r(const funcT& rho, const funcT& psi);
+    virtual funcT op_r(const funcT& rho, const funcT& rhon, const funcT& psi);
     //*************************************************************************
 
   private:
@@ -66,7 +66,7 @@ namespace madness
     //*************************************************************************
 
     //*************************************************************************
-    virtual funcT op_r(const funcT& rho, const funcT& psi);
+    virtual funcT op_r(const funcT& rho, const funcT& rhon, const funcT& psi);
     //*************************************************************************
 
   };

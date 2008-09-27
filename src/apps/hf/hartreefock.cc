@@ -38,7 +38,7 @@ namespace madness
 
   //*************************************************************************
   template <typename T, int NDIM>
-  Function<T,NDIM> HartreeFockNuclearPotentialOp<T,NDIM>::op_r(const funcT& rho, const funcT& psi)
+  Function<T,NDIM> HartreeFockNuclearPotentialOp<T,NDIM>::op_r(const funcT& rho, const funcT& rhon, const funcT& psi)
   {
     funcT rfunc = _V*psi;
     return rfunc;
@@ -47,7 +47,7 @@ namespace madness
 
   //*************************************************************************
   template <typename T, int NDIM>
-  Function<T,NDIM> HartreeFockCoulombOp<T,NDIM>::op_r(const funcT& rho, const funcT& psi)
+  Function<T,NDIM> HartreeFockCoulombOp<T,NDIM>::op_r(const funcT& rho, const funcT& rhon, const funcT& psi)
   {
     // Create Coulomb operator
     SeparatedConvolution<T,3> cop =
@@ -61,7 +61,7 @@ namespace madness
 
   //*************************************************************************
   template <typename T, int NDIM>
-  Function<T,NDIM> HartreeFockExchangeOp<T,NDIM>::op_o(const std::vector<funcT>& phis, const funcT& psi)
+  Function<T,NDIM> HartreeFockExchangeOp<T,NDIM>::op_o(const std::vector<funcT>& phis, const funcT& rhon, const funcT& psi)
   {
     // Return value
     funcT rfunc = FunctionFactory<T,3>(this->world());

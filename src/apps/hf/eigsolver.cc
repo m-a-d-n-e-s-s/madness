@@ -50,7 +50,7 @@ namespace madness
   : _phis(phis), _eigs(eigs), _ops(ops), _kpoints(kpoints), _rhon(rhon),
     _world(world), _thresh(thresh)
   {
-    _rho = EigSolver::compute_rho(phis, world, rhon);
+    _rho = EigSolver::compute_rho(phis, world);
     _periodic = true;
   }
   //***************************************************************************
@@ -61,7 +61,7 @@ namespace madness
       std::vector<double> eigs, std::vector< EigSolverOp<T,NDIM>* > ops, double thresh)
   : _phis(phis), _eigs(eigs), _ops(ops), _rhon(rhon), _world(world), _thresh(thresh)
   {
-    _rho = EigSolver::compute_rho(phis, world, rhon);
+    _rho = EigSolver::compute_rho(phis, world);
     _periodic = false;
   }
   //***************************************************************************
@@ -73,7 +73,7 @@ namespace madness
   : _phis(phis), _eigs(eigs), _ops(ops), _world(world), _thresh(thresh)
   {
     _rhon = FunctionFactory<double,NDIM>(const_cast<World&>(world));
-    _rho = EigSolver::compute_rho(phis, world, _rhon);
+    _rho = EigSolver::compute_rho(phis, world);
     _periodic = false;
   }
   //***************************************************************************
@@ -98,11 +98,10 @@ namespace madness
   //***************************************************************************
   template <typename T, int NDIM>
   Function<T, NDIM> EigSolver<T,NDIM>::compute_rho(typename std::vector<funcT> phis,
-      const World& world, funcT rhon)
+      const World& world)
   {
     // Electron density
-//    funcT rho = FunctionFactory<double,NDIM>(const_cast<World&>(world));
-    funcT rho = copy(rhon);
+    funcT rho = FunctionFactory<double,NDIM>(const_cast<World&>(world));
     // Loop over all wavefunctions to compute density
     for (typename std::vector<funcT>::const_iterator pj = phis.begin();
       pj != phis.end(); ++pj)
@@ -150,9 +149,9 @@ namespace madness
     {
       EigSolverOp<T,NDIM>* op = _ops[oi];
       // Operate with density-dependent operator
-      if (op->is_rd()) value += op->coeff() * phii.inner(op->op_r(_rho, phij));
+      if (op->is_rd()) value += op->coeff() * phii.inner(op->op_r(_rho, _rhon, phij));
       // Operate with orbital-dependent operator
-      if (op->is_od()) value += op->coeff() * phii.inner(op->op_o(_phis, phij));
+      if (op->is_od()) value += op->coeff() * phii.inner(op->op_o(_phis, _rhon, phij));
     }
     return value;
   }
@@ -210,9 +209,9 @@ namespace madness
       value = 0.0;
       EigSolverOp<T,NDIM>* op = _ops[oi];
       // Operate with density-dependent operator
-      if (op->is_rd()) value += op->coeff() * phii.inner(op->op_r(_rho, phij));
+      if (op->is_rd()) value += op->coeff() * phii.inner(op->op_r(_rho, _rhon, phij));
       // Operate with orbital-dependent operator
-      if (op->is_od()) value += op->coeff() * phii.inner(op->op_o(_phis, phij));
+      if (op->is_od()) value += op->coeff() * phii.inner(op->op_o(_phis, _rhon, phij));
       if (_world.rank() == 0)
       {
         DEBUG_STREAM << op->messsageME() << ":\t\t\t" << value << endl;
@@ -251,9 +250,9 @@ namespace madness
         {
           EigSolverOp<T,NDIM>* op = _ops[oi];
           // Operate with density-dependent operator
-          if (op->is_rd()) pfunc += op->coeff() * op->op_r(_rho, psi);
+          if (op->is_rd()) pfunc += op->coeff() * op->op_r(_rho, _rhon, psi);
           // Operate with orbital-dependent operator
-          if (op->is_od()) pfunc += op->coeff() * op->op_o(_phis, psi);
+          if (op->is_od()) pfunc += op->coeff() * op->op_o(_phis, _rhon, psi);
         }
         if (_world.rank() == 0) DEBUG_STREAM << "Creating BSH operator ..."
           << endl << endl;
@@ -343,7 +342,7 @@ namespace madness
       }
       // Update rho
 //      if (_world.rank() == 0) printf("Computing new density for it == #%d\n\n", it);
-      _rho = EigSolver::compute_rho(_phis, _world, _rhon);
+      _rho = EigSolver::compute_rho(_phis, _world);
       // Output to observables
       for (typename std::vector<IEigSolverObserver<T,NDIM>*>::iterator itr = _obs.begin(); itr
         != _obs.end(); ++itr)
@@ -375,9 +374,9 @@ namespace madness
       {
         EigSolverOp<T,NDIM>* op = _ops[oi];
         // Operate with density-dependent operator
-        if (op->is_rd()) gaxpy(_world, 1.0, pfuncs, op->coeff(), op->multi_op_r(_rho, _phis));
+        if (op->is_rd()) gaxpy(_world, 1.0, pfuncs, op->coeff(), op->multi_op_r(_rho, _rhon, _phis));
         // Operate with orbital-dependent operator
-        if (op->is_od()) gaxpy(_world, 1.0, pfuncs, op->coeff(), op->multi_op_o(_phis));
+        if (op->is_od()) gaxpy(_world, 1.0, pfuncs, op->coeff(), op->multi_op_o(_phis, _rhon));
       }
 //      // WSTHORNTON DEBUG
 //      for (unsigned int pfi = 0; pfi < pfuncs.size(); pfi++)
@@ -460,7 +459,7 @@ namespace madness
       }
       // Update rho
       if (_world.rank() == 0) printf("Computing new density for it == #%d\n\n", it);
-      _rho = EigSolver::compute_rho(_phis, _world, _rhon);
+      _rho = EigSolver::compute_rho(_phis, _world);
       // Output to observables
       for (typename std::vector<IEigSolverObserver<T,NDIM>*>::iterator itr = _obs.begin(); itr
         != _obs.end(); ++itr)

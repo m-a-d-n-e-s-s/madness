@@ -62,7 +62,7 @@ public:
 
   //*************************************************************************
   /// Orbital-dependent portion of operator
-  virtual funcT op_o(const std::vector<funcT>& phisa, const funcT& psi)
+  virtual funcT op_o(const std::vector<funcT>& phis, const funcT& rhon, const funcT& psi)
   {
     funcT func = FunctionFactory<T,NDIM>(_world);
     return func;
@@ -71,7 +71,7 @@ public:
 
   //*************************************************************************
   /// Density-dependent portion of operator
-  virtual funcT op_r(const funcT& rho, const funcT& psi)
+  virtual funcT op_r(const funcT& rho, const funcT& rhon, const funcT& psi)
   {
     funcT func = FunctionFactory<T,NDIM>(_world);
     return func;
@@ -80,13 +80,13 @@ public:
 
   //*************************************************************************
   /// Orbital-dependent portion of operator
-  virtual std::vector<funcT> multi_op_o(const std::vector<funcT>& phis)
+  virtual std::vector<funcT> multi_op_o(const std::vector<funcT>& phis, const funcT& rhon)
   {
     // Collection of empty functions
     std::vector<funcT> newphis(phis.size(), FunctionFactory<T,NDIM>(_world));
     for (unsigned int pi = 0; pi < phis.size(); pi++)
     {
-      newphis[pi] = op_o(phis, phis[pi]);
+      newphis[pi] = op_o(phis, rhon, phis[pi]);
     }
     _world.gop.fence();
     return newphis;
@@ -95,12 +95,12 @@ public:
 
   //*************************************************************************
   /// Density-dependent portion of operator
-  virtual std::vector<funcT> multi_op_r(const funcT& rho, const std::vector<funcT>& phis)
+  virtual std::vector<funcT> multi_op_r(const funcT& rho, const funcT& rhon, const std::vector<funcT>& phis)
   {
     std::vector<funcT> newphis(phis.size(), FunctionFactory<T,NDIM>(_world));
     for (unsigned int pi = 0; pi < phis.size(); pi++)
     {
-      newphis[pi] = op_r(rho, phis[pi]);
+      newphis[pi] = op_r(rho, rhon, phis[pi]);
     }
     _world.gop.fence();
     return newphis;
@@ -260,8 +260,7 @@ public:
 
   //*************************************************************************
   /// Computes the electronic density
-  static funcT compute_rho(std::vector<funcT> phis, const World& world,
-      funcT rhon);
+  static funcT compute_rho(std::vector<funcT> phis, const World& world);
   //*************************************************************************
 
 private:
