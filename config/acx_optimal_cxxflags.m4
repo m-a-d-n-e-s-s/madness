@@ -18,9 +18,12 @@ AC_DEFUN([ACX_OPTIMAL_CXXFLAGS], [
             fi
 
             CXXFLAGS="-Wall -Wno-strict-aliasing -Wno-deprecated -ansi -O3 -ffast-math -fomit-frame-pointer -mfpmath=sse"
-            if test $CXXMAJOR -ge 4; then
-               # Older compilers don't understand native
+            if test $CXXMAJOR -gt 4; then
                CXXFLAGS="$CXXFLAGS -march=$TARGET_ARCH"
+            elif test $CXXMAJOR -eq 4; then
+               if test $CXXMINOR -gt 1; then
+                  CXXFLAGS="$CXXFLAGS -march=$TARGET_ARCH"
+               fi
             fi
             ;;
 
