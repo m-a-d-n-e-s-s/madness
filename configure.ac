@@ -14,6 +14,7 @@ AC_CONFIG_MACRO_DIR([config])
 
 # Detect specific systems so can provide their whacky defaults
 ACX_CRAYXT
+ACX_MAC
 #AC_AIX
 
 # All source will be built with the MPI C++ and C compilers
@@ -105,6 +106,11 @@ AC_CANONICAL_HOST
 echo "HOST INFORMATION:   $host    $host_cpu    $host_vendor    $host_os"
 AC_DEFINE_UNQUOTED([HOST_CPU], ["$host_cpu"], [Defines the host cpu (x86, x86_64, ...).])
 AC_DEFINE_UNQUOTED([HOST_SYSTEM], ["$host_os"], [Defines the host os (linux-gnu, ...).])
+
+if test $ON_A_MAC=1; then
+   echo "Disabling X86 assembler because you are on a mac ... "
+   host_cpu="mac$host_cpu"
+fi
 
 # Pick out CPUs for which we have special source files (assembler)
 use_x86_64_asm=no
@@ -209,6 +215,7 @@ AC_CONFIG_FILES([
        src/apps/moldft/Makefile
            src/apps/moldft/xc/Makefile
        src/apps/hf/Makefile
+       src/apps/vnuc/Makefile
     doc/Makefile
     doc/doxygen.cfg
 ])
