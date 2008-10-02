@@ -734,10 +734,10 @@ void testPeriodicBSH3d_gauss(int argc, char**argv)
 int main(int argc, char**argv)
 {
   //testPeriodicBSH3d(argc, argv);
-  //testPeriodicCoulomb3d_gauss(argc, argv);
+  testPeriodicCoulomb3d_gauss(argc, argv);
   //testNonPeriodicCoulomb3d(argc, argv);
   //testPeriodicCoulomb3d(argc, argv);
-  testPeriodicBSH3d_gauss(argc, argv);
+  //testPeriodicBSH3d_gauss(argc, argv);
   //testSinglePeriodicGaussians_L10(argc,argv);
   return 0;
 }

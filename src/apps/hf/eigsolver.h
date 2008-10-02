@@ -62,7 +62,7 @@ public:
 
   //*************************************************************************
   /// Orbital-dependent portion of operator
-  virtual funcT op_o(const std::vector<funcT>& phis, const funcT& rhon, const funcT& psi)
+  virtual funcT op_o(const std::vector<funcT>& phis, const funcT& psi)
   {
     funcT func = FunctionFactory<T,NDIM>(_world);
     return func;
@@ -71,7 +71,7 @@ public:
 
   //*************************************************************************
   /// Density-dependent portion of operator
-  virtual funcT op_r(const funcT& rho, const funcT& rhon, const funcT& psi)
+  virtual funcT op_r(const funcT& rho, const funcT& psi)
   {
     funcT func = FunctionFactory<T,NDIM>(_world);
     return func;
@@ -80,13 +80,13 @@ public:
 
   //*************************************************************************
   /// Orbital-dependent portion of operator
-  virtual std::vector<funcT> multi_op_o(const std::vector<funcT>& phis, const funcT& rhon)
+  virtual std::vector<funcT> multi_op_o(const std::vector<funcT>& phis)
   {
     // Collection of empty functions
     std::vector<funcT> newphis(phis.size(), FunctionFactory<T,NDIM>(_world));
     for (unsigned int pi = 0; pi < phis.size(); pi++)
     {
-      newphis[pi] = op_o(phis, rhon, phis[pi]);
+      newphis[pi] = op_o(phis, phis[pi]);
     }
     _world.gop.fence();
     return newphis;
@@ -95,12 +95,12 @@ public:
 
   //*************************************************************************
   /// Density-dependent portion of operator
-  virtual std::vector<funcT> multi_op_r(const funcT& rho, const funcT& rhon, const std::vector<funcT>& phis)
+  virtual std::vector<funcT> multi_op_r(const funcT& rho, const std::vector<funcT>& phis)
   {
     std::vector<funcT> newphis(phis.size(), FunctionFactory<T,NDIM>(_world));
     for (unsigned int pi = 0; pi < phis.size(); pi++)
     {
-      newphis[pi] = op_r(rho, rhon, phis[pi]);
+      newphis[pi] = op_r(rho, phis[pi]);
     }
     _world.gop.fence();
     return newphis;
@@ -177,7 +177,8 @@ public:
   //*************************************************************************
   /// Constructor for non-periodic system
   EigSolver(World& world, funcT rhon, std::vector<funcT> phis, std::vector<double> eigs,
-      std::vector<EigSolverOp<T,NDIM>*> ops, double thresh);
+      std::vector<EigSolverOp<T,NDIM>*> ops, double thresh,
+      bool periodic = false);
   //*************************************************************************
 
   //*************************************************************************
@@ -284,6 +285,7 @@ private:
   std::vector<kvecT> _kpoints;
   //*************************************************************************
 
+  // Nuclear charge density
   //*************************************************************************
   funcT _rhon;
   //*************************************************************************
@@ -301,6 +303,7 @@ private:
   std::vector<IEigSolverObserver<T,NDIM>*> _obs;
   //*************************************************************************
 
+  // Electronic charge density
   //*************************************************************************
   Function<double,NDIM> _rho;
   //*************************************************************************

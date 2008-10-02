@@ -1,11 +1,15 @@
 include $(top_srcdir)/config/MakeGlobal.am
 
-bin_PROGRAMS = test_hf test_lattice test_coulomb test_hydro
+bin_PROGRAMS = test_hf test_lattice test_coulomb test_hydro test_he test_be
 lib_LIBRARIES = libHartreeFock.a
 
-libHartreeFock_a_SOURCES = eigsolver.cc dft.cc dft.h  eigsolver.h poperator.h util.h
+libHartreeFock_a_SOURCES = eigsolver.cc dft.cc dft.h eigsolver.h poperator.h util.h
 
 test_hf_SOURCES = test_hf.cc
+
+test_he_SOURCES = test_he.cc
+
+test_be_SOURCES = test_be.cc
 
 test_hydro_SOURCES = test_hydro.cc
 

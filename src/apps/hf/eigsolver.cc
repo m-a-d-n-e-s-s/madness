@@ -58,11 +58,17 @@ namespace madness
   //***************************************************************************
   template <typename T, int NDIM>
   EigSolver<T,NDIM>::EigSolver(World& world, funcT rhon, std::vector<funcT> phis,
-      std::vector<double> eigs, std::vector< EigSolverOp<T,NDIM>* > ops, double thresh)
+      std::vector<double> eigs, std::vector< EigSolverOp<T,NDIM>* > ops,
+      double thresh, bool periodic)
   : _phis(phis), _eigs(eigs), _ops(ops), _rhon(rhon), _world(world), _thresh(thresh)
   {
+    if (periodic)
+    {
+      kvecT gammap(0.0);
+      _kpoints.push_back(gammap);
+    }
     _rho = EigSolver::compute_rho(phis, world);
-    _periodic = false;
+    _periodic = periodic;
   }
   //***************************************************************************
 
@@ -91,6 +97,8 @@ namespace madness
     // Clear eigenvalues
     _eigs.clear();
     // Clear observers
+//    for (typename std::vector< IEigSolverObserver<T,NDIM>* >::iterator it = _obs.begin();
+//      it != _obs.end(); it++) delete (*it);
     _obs.clear();
   }
   //***************************************************************************
@@ -138,7 +146,7 @@ namespace madness
   {
     double value = 0.0;
     // Kinetic energy operator
-    for (int axis = 0; axis < 3; axis++)
+    for (int axis = 0; axis < NDIM; axis++)
     {
       funcT dpsi_j = diff(phij, axis);
       funcT dpsi_i = diff(phii, axis);
@@ -149,9 +157,9 @@ namespace madness
     {
       EigSolverOp<T,NDIM>* op = _ops[oi];
       // Operate with density-dependent operator
-      if (op->is_rd()) value += op->coeff() * phii.inner(op->op_r(_rho, _rhon, phij));
+      if (op->is_rd()) value += op->coeff() * phii.inner(op->op_r(_rho, phij));
       // Operate with orbital-dependent operator
-      if (op->is_od()) value += op->coeff() * phii.inner(op->op_o(_phis, _rhon, phij));
+      if (op->is_od()) value += op->coeff() * phii.inner(op->op_o(_phis, phij));
     }
     return value;
   }
@@ -209,9 +217,9 @@ namespace madness
       value = 0.0;
       EigSolverOp<T,NDIM>* op = _ops[oi];
       // Operate with density-dependent operator
-      if (op->is_rd()) value += op->coeff() * phii.inner(op->op_r(_rho, _rhon, phij));
+      if (op->is_rd()) value += op->coeff() * phii.inner(op->op_r(_rho, phij));
       // Operate with orbital-dependent operator
-      if (op->is_od()) value += op->coeff() * phii.inner(op->op_o(_phis, _rhon, phij));
+      if (op->is_od()) value += op->coeff() * phii.inner(op->op_o(_phis, phij));
       if (_world.rank() == 0)
       {
         DEBUG_STREAM << op->messsageME() << ":\t\t\t" << value << endl;
@@ -250,9 +258,9 @@ namespace madness
         {
           EigSolverOp<T,NDIM>* op = _ops[oi];
           // Operate with density-dependent operator
-          if (op->is_rd()) pfunc += op->coeff() * op->op_r(_rho, _rhon, psi);
+          if (op->is_rd()) pfunc += op->coeff() * op->op_r(_rho, psi);
           // Operate with orbital-dependent operator
-          if (op->is_od()) pfunc += op->coeff() * op->op_o(_phis, _rhon, psi);
+          if (op->is_od()) pfunc += op->coeff() * op->op_o(_phis, psi);
         }
         if (_world.rank() == 0) DEBUG_STREAM << "Creating BSH operator ..."
           << endl << endl;
@@ -281,6 +289,8 @@ namespace madness
         pfunc.truncate();
         funcT tmp = apply(*op, pfunc);
         tmp.truncate();
+        // delete op
+        delete op;
         // (Not sure whether we have to do this mask thing or not!)
         // WSTHORNTON DEBUG
         double ttnorm = tmp.norm2();
@@ -336,7 +346,7 @@ namespace madness
           _exit(0);
         }
         // Update the eigenvalue estimates and wavefunctions.
-        tmp.truncate(_thresh);
+        tmp.truncate();
         _eigs[pi] = eps_new;
         _phis[pi] = tmp.scale(1.0/tmp.norm2());
       }
@@ -374,9 +384,9 @@ namespace madness
       {
         EigSolverOp<T,NDIM>* op = _ops[oi];
         // Operate with density-dependent operator
-        if (op->is_rd()) gaxpy(_world, 1.0, pfuncs, op->coeff(), op->multi_op_r(_rho, _rhon, _phis));
+        if (op->is_rd()) gaxpy(_world, 1.0, pfuncs, op->coeff(), op->multi_op_r(_rho, _phis));
         // Operate with orbital-dependent operator
-        if (op->is_od()) gaxpy(_world, 1.0, pfuncs, op->coeff(), op->multi_op_o(_phis, _rhon));
+        if (op->is_od()) gaxpy(_world, 1.0, pfuncs, op->coeff(), op->multi_op_o(_phis));
       }
 //      // WSTHORNTON DEBUG
 //      for (unsigned int pfi = 0; pfi < pfuncs.size(); pfi++)

@@ -422,6 +422,7 @@ typedef madness::Vector<double,3> coordT;
 
 namespace madness
 {
+
 const double THRESH_RHO = 1e-12;
 const double THRESH_GRHO = 1e-20;
 
@@ -508,13 +509,29 @@ void wst_munge_rho(int npoint, double *rho) {
   //***************************************************************************
 
   //***************************************************************************
-  template <int NDIM>
-  void dft_xc_lda_ene(const Key<NDIM>& key, Tensor<double>& t)
+  template <typename T, int NDIM>
+  DFTNuclearChargeDensityOp<T,NDIM>::DFTNuclearChargeDensityOp(World& world, funcT rhon,
+      double coeff, double thresh, bool periodic) : EigSolverOp<T,NDIM>(world, coeff, thresh)
   {
-    Tensor<double> V = copy(t);
-    Tensor<double> enefunc = copy(t);
-    xc_rks_generic_lda(t, enefunc, V);
-    t(___) = enefunc(___);
+    // Message for the matrix element output
+    this->messageME("NuclearChargeDensityOp");
+    _rhon = rhon;
+    SeparatedConvolution<T,NDIM>* cop;
+    if (periodic)
+    {
+      Tensor<double> L = FunctionDefaults<NDIM>::get_cell_width();
+      cop = PeriodicCoulombOpPtr<T,NDIM>(world, FunctionDefaults<NDIM>::get_k(),
+          1e-4, thresh, L);
+    }
+    else
+    {
+      cop =
+        CoulombOperatorPtr<T,NDIM>(world,
+            FunctionDefaults<NDIM>::get_k(), 1e-8, thresh);
+    }
+    // Apply operator to get potential
+    _Vnuc = apply(*cop, rhon);
+    delete cop;
   }
   //***************************************************************************
 
@@ -582,7 +599,16 @@ void wst_munge_rho(int npoint, double *rho) {
 
   //***************************************************************************
   template <typename T, int NDIM>
-  Function<T,NDIM> DFTNuclearPotentialOp<T,NDIM>::op_r(const funcT& rho, const funcT& rhon, const funcT& psi)
+  Function<T,NDIM> DFTNuclearChargeDensityOp<T,NDIM>::op_r(const funcT& rho, const funcT& psi)
+  {
+    funcT rfunc = _Vnuc * psi;
+    return rfunc;
+  }
+  //***************************************************************************
+
+  //***************************************************************************
+  template <typename T, int NDIM>
+  Function<T,NDIM> DFTNuclearPotentialOp<T,NDIM>::op_r(const funcT& rho, const funcT& psi)
   {
     funcT rfunc = _V * psi;
     return rfunc;
@@ -591,7 +617,7 @@ void wst_munge_rho(int npoint, double *rho) {
 
   //*************************************************************************
   template <typename T, int NDIM>
-  Function<T,NDIM> DFTCoulombOp<T,NDIM>::op_r(const funcT& rho, const funcT& rhon, const funcT& psi)
+  Function<T,NDIM> DFTCoulombOp<T,NDIM>::op_r(const funcT& rho, const funcT& psi)
   {
     // If not spin-polarized, multiply by 2.0
     double factor = (_spinpol) ? 1.0 : 2.0;
@@ -604,7 +630,7 @@ void wst_munge_rho(int npoint, double *rho) {
 
   //*************************************************************************
   template <typename T, int NDIM>
-  Function<T,NDIM> DFTCoulombPeriodicOp<T,NDIM>::op_r(const funcT& rho, const funcT& rhon, const funcT& psi)
+  Function<T,NDIM> DFTCoulombPeriodicOp<T,NDIM>::op_r(const funcT& rho, const funcT& psi)
   {
     // If not spin-polarized, multiply by 2.0
     double factor = (_spinpol) ? 1.0 : 2.0;
@@ -627,7 +653,7 @@ void wst_munge_rho(int npoint, double *rho) {
 
   //***************************************************************************
   template <typename T, int NDIM>
-  Function<T,NDIM> XCFunctionalLDA<T,NDIM>::op_r(const funcT& rho, const funcT& rhon, const funcT& psi)
+  Function<T,NDIM> XCFunctionalLDA<T,NDIM>::op_r(const funcT& rho, const funcT& psi)
   {
     funcT V_rho = copy(rho);
     V_rho.reconstruct();
@@ -640,6 +666,20 @@ void wst_munge_rho(int npoint, double *rho) {
     return rfunc;
   }
   //***************************************************************************
+}
+
+namespace madness
+{
+//***************************************************************************
+template <int NDIM>
+void dft_xc_lda_ene(const Key<NDIM>& key, Tensor<double>& t)
+{
+  Tensor<double> V = copy(t);
+  Tensor<double> enefunc = copy(t);
+  xc_rks_generic_lda(t, enefunc, V);
+  t(___) = enefunc(___);
+}
+//***************************************************************************
 
 //  //***************************************************************************
 //  template <typename T, int NDIM>
@@ -679,7 +719,6 @@ void wst_munge_rho(int npoint, double *rho) {
 //  }
 //  //***************************************************************************
 //
-
   //***************************************************************************
   template <typename T, int NDIM>
   DFT<T,NDIM>::DFT(World& world, funcT rhon, std::vector<funcT> phis,
@@ -694,10 +733,15 @@ void wst_munge_rho(int npoint, double *rho) {
     std::vector<EigSolverOp<T,NDIM>*> ops;
     // Add nuclear potential to ops list
 //    ops.push_back(new DFTNuclearPotentialOp<T,NDIM>(world, V, 1.0, thresh));
+    ops.push_back(new DFTNuclearChargeDensityOp<T,NDIM>(world, rhon, 1.0, thresh, periodic));
     if (periodic)
+    {
       ops.push_back(new DFTCoulombPeriodicOp<T,NDIM>(world, 1.0, thresh));
+    }
     else
+    {
       ops.push_back(new DFTCoulombOp<T,NDIM>(world, 1.0, thresh));
+    }
     _xcfunc = new XCFunctionalLDA<T,NDIM>(world, 1.0, thresh);
     ops.push_back(_xcfunc);
 
@@ -790,19 +834,35 @@ void wst_munge_rho(int npoint, double *rho) {
 
   //***************************************************************************
   template <typename T, int NDIM>
-  double DFT<T,NDIM>::calculate_tot_pe_sp(const Function<double, NDIM>& rho,
-      const funcT V, bool spinpol)
+  double DFT<T,NDIM>::calculate_tot_pe_sp(const World& world, const Function<double,NDIM>& rho,
+      const Function<double,NDIM>& rhon, bool spinpol, const double thresh, bool periodic)
   {
-    double tot_pe = V.inner(rho);
+    // Create Coulomb operator
+    SeparatedConvolution<T,NDIM>* op;
+    if (periodic)
+    {
+      Tensor<double> L = FunctionDefaults<NDIM>::get_cell_width();
+      op = PeriodicCoulombOpPtr<T,NDIM>(const_cast<World&>(world),
+        FunctionDefaults<NDIM>::get_k(), 1e-4, thresh, L);
+    }
+    else
+    {
+      op = CoulombOperatorPtr<T,NDIM>(const_cast<World&>(world),
+        FunctionDefaults<NDIM>::get_k(), 1e-4, thresh);
+    }
+    // Apply Coulomb operator and trace with the density
+    funcT Vnuc = apply(*op, rhon);
+    double tot_pe = Vnuc.inner(rho);
     if (!spinpol) tot_pe *= 2.0;
+    delete op;
     return tot_pe;
   }
   //***************************************************************************
 
   //***************************************************************************
   template <typename T, int NDIM>
-  double DFT<T,NDIM>::calculate_tot_coulomb_energy(const Function<double, NDIM>& rho,
-      bool spinpol, const World& world, const double thresh, bool periodic)
+  double DFT<T,NDIM>::calculate_tot_coulomb_energy(const World& world, const Function<double, NDIM>& rho,
+      bool spinpol, const double thresh, bool periodic)
   {
     // Create Coulomb operator
     SeparatedConvolution<T,NDIM>* op;
@@ -821,6 +881,7 @@ void wst_munge_rho(int npoint, double *rho) {
     funcT Vc = apply(*op, rho);
     double tot_ce = Vc.inner(rho);
     if (!spinpol) tot_ce *= 2.0;
+    delete op;
     return tot_ce;
   }
   //***************************************************************************
@@ -847,21 +908,16 @@ void wst_munge_rho(int npoint, double *rho) {
       if (world().rank() == 0) printf("Calculating energies ...\n");
       if (world().rank() == 0) printf("Calculating KE ...\n");
       double ke = DFT::calculate_tot_ke_sp(phis, false, periodic);
-      // For right now, we'll just include the nuclear charge density along with
-      // the electronic charge density.
-//      if (world().rank() == 0) printf("Calculating PE ...\n");
-//      double pe = DFT::calculate_tot_pe_sp(rho, _V, false);
+      if (world().rank() == 0) printf("Calculating PE ...\n");
+      double pe = DFT::calculate_tot_pe_sp(_world, rho, _rhon, false, _thresh, periodic);
       if (world().rank() == 0) printf("Calculating CE ...\n");
-      double ce = DFT::calculate_tot_coulomb_energy(rho, false, _world, _thresh, periodic);
+      double ce = DFT::calculate_tot_coulomb_energy(_world, rho, false, _thresh, periodic);
       if (world().rank() == 0) printf("Calculating EE ...\n");
       double xce = DFT::calculate_tot_xc_energy(rho);
       if (world().rank() == 0) printf("Calculating NE ...\n");
       double ne = 0.0;
       if (world().rank() == 0) printf("Kinetic energy:\t\t\t %.8f\n", ke);
-      // Again for now pe (potential energy) will be lumped into
-      // ce (coulomb energy).
-//      if (world().rank() == 0) printf("Potential energy:\t\t %.8f\n", pe);
-      double pe = 0.0;
+      if (world().rank() == 0) printf("Potential energy:\t\t %.8f\n", pe);
       if (world().rank() == 0) printf("Coulomb energy:\t\t\t %.8f\n", ce);
       if (world().rank() == 0) printf("XC energy:\t\t\t %.8f\n", xce);
       if (world().rank() == 0) printf("Total energy:\t\t\t %.8f\n", ke + pe + ce + xce + ne);
@@ -878,6 +934,8 @@ void wst_munge_rho(int npoint, double *rho) {
   template class DFT<double, 1>;
   template class DFT<double, 2>;
   template class DFT<double, 3>;
+
+
 //  template class DFT< std::complex<double> >;
   //***************************************************************************
 }

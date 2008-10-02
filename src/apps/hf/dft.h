@@ -10,6 +10,12 @@
 namespace madness
 {
 
+//*****************************************************************************
+void xc_rks_generic_lda(Tensor<double> rho_alpha,           ///< Alpha-spin density at each grid point
+                        Tensor<double> f,                   ///< Value of functional at each grid point
+                        Tensor<double> df_drho);            ///< Derivative of functional w.r.t. rho_alpha
+//*****************************************************************************
+
   //***************************************************************************
   template <typename T, int NDIM>
   class DFTNuclearPotentialOp : public EigSolverOp<T,NDIM>
@@ -32,7 +38,7 @@ namespace madness
     //*************************************************************************
 
     //*************************************************************************
-    virtual funcT op_r(const funcT& rho, const funcT& rhon, const funcT& psi);
+    virtual funcT op_r(const funcT& rho, const funcT& psi);
     //*************************************************************************
 
   private:
@@ -65,7 +71,7 @@ namespace madness
     //*************************************************************************
 
     //*************************************************************************
-    virtual funcT op_r(const funcT& rho, const funcT& rhon, const funcT& psi);
+    virtual funcT op_r(const funcT& rho, const funcT& psi);
     //*************************************************************************
 
     //*************************************************************************
@@ -111,7 +117,7 @@ namespace madness
     //*************************************************************************
 
     //*************************************************************************
-    virtual funcT op_r(const funcT& rho, const funcT& rhon, const funcT& psi);
+    virtual funcT op_r(const funcT& rho, const funcT& psi);
     //*************************************************************************
 
     //*************************************************************************
@@ -157,7 +163,54 @@ namespace madness
     //*************************************************************************
 
     //*************************************************************************
-    virtual funcT op_r(const funcT& rho, const funcT& rhon, const funcT& psi);
+    virtual funcT op_r(const funcT& rho, const funcT& psi);
+    //*************************************************************************
+  };
+  //***************************************************************************
+
+  //***************************************************************************
+  template <typename T, int NDIM>
+  class DFTNuclearChargeDensityOp : public EigSolverOp<T,NDIM>
+  {
+  public:
+    typedef Function<T,NDIM> funcT;
+    //*************************************************************************
+    // Constructor
+    DFTNuclearChargeDensityOp(World& world, funcT rhon, double coeff,
+        double thresh, bool periodic);
+    //*************************************************************************
+
+    //*************************************************************************
+    ~DFTNuclearChargeDensityOp()
+    {
+    }
+    //*************************************************************************
+
+    //*************************************************************************
+    // Is there an orbitally-dependent term?
+    virtual bool is_od() {return false;}
+    //*************************************************************************
+
+    //*************************************************************************
+    // Is there a density-dependent term?
+    virtual bool is_rd() {return true;}
+    //*************************************************************************
+
+    //*************************************************************************
+    void prepare_op(Function<double,NDIM> rho) {}
+    //*************************************************************************
+
+    //*************************************************************************
+    virtual funcT op_r(const funcT& rho, const funcT& psi);
+    //*************************************************************************
+
+  private:
+    //*************************************************************************
+    funcT _rhon;
+    //*************************************************************************
+
+    //*************************************************************************
+    funcT _Vnuc;
     //*************************************************************************
   };
   //***************************************************************************
@@ -216,13 +269,14 @@ namespace madness
      //***************************************************************************
 
      //***************************************************************************
-     static double calculate_tot_pe_sp(const Function<double,NDIM>& rho,
-         const funcT V, bool spinpol);
+     static double calculate_tot_pe_sp(const World& world,
+         const Function<double,NDIM>& rho, const Function<double,NDIM>& rhon, bool spinpol,
+         const double thresh, bool periodic);
      //***************************************************************************
 
      //***************************************************************************
-     static double calculate_tot_coulomb_energy(const Function<double,NDIM>& rho,
-         bool spinpol, const World& world, const double thresh,
+     static double calculate_tot_coulomb_energy(const World& world,
+         const Function<double,NDIM>& rho, bool spinpol, const double thresh,
          bool periodic = false);
      //***************************************************************************
 

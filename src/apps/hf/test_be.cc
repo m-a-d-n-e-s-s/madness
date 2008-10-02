@@ -64,38 +64,6 @@ static double psi_func_be2(const coordT& rr)
 }
 //*****************************************************************************
 
-//*****************************************************************************
-static double psi_func_he(const coordT& r)
-{
-  const double x=r[0], y=r[1], z=r[2];
-  return 6.0*exp(-2.0*sqrt(x*x+y*y+z*z)+1e-4);
-}
-//*****************************************************************************
-
-//*****************************************************************************
-static double V_func_he(const coordT& r)
-{
-  const double x=r[0], y=r[1], z=r[2];
-  double rr = sqrt(x*x + y*y + z*z);
-  double c = smoothing_parameter(2.0, 1e-7);
-  return -2.0 * smoothed_potential(rr/c) / c;
-}
-//*****************************************************************************
-
-//*****************************************************************************
-static double rho_func_he(const coordT& rr)
-{
-  const double x=rr[0], y=rr[1], z=rr[2];
-//  double e1 = 100.0;
-//  double coeff = pow(e1/PI, 1.5);
-//  return -1.0 * coeff * exp(-e1 * (x*x + y*y + z*z));
-  double c = 0.1;
-  double r = sqrt(x*x + y*y + z*z);
-  r = r / c;
-  const double RPITO1P5 = 0.1795871221251665617; // 1.0/Pi^1.5
-  return 2.0 * ((-3.0/2.0+(1.0/3.0)*r*r)*exp(-r*r)+(-32.0+(256.0/3.0)*r*r)*exp(-4.0*r*r))*RPITO1P5/c/c/c;
-}
-//*****************************************************************************
 
 //*****************************************************************************
 static double V_func_be(const coordT& r)
@@ -104,182 +72,6 @@ static double V_func_be(const coordT& r)
   double rr = sqrt(x*x + y*y + z*z);
   double c = smoothing_parameter(4.0, 1e-7);
   return -4.0 * smoothed_potential(rr/c) / c;
-}
-//*****************************************************************************
-
-//*****************************************************************************
-double V_func_h2(const Vector<double,3>& r)
-{
-  double x = r[0];
-  double y = r[1];
-  double z = r[2];
-  return -1.0/(sqrt(x*x + y*y + (z-0.7)*(z-0.7)) + 1e-8) +
-    -1.0/(sqrt(x*x + y*y + (z+0.7)*(z+0.7)) + 1e-8);
-}
-//*****************************************************************************
-
-//*****************************************************************************
-double psi_func_h2(const Vector<double,3>& r)
-{
-  double x = r[0];
-  double y = r[1];
-  double z = r[2];
-//  return exp(-0.5*(x*x + y*y + (z-0.7)*(z-0.7))) +
-//    exp(-0.5*(x*x + y*y + (z+0.7)*(z+0.7)));
-  return exp(-sqrt(x*x + y*y + (z-0.7)*(z-0.7))) +
-    exp(-sqrt(x*x + y*y + (z+0.7)*(z+0.7)));
-}
-//*****************************************************************************
-
-//*****************************************************************************
-class H2Potential :
-  public FunctionFunctorInterface<double,3>
-{
-public:
-  typedef Vector<double,3> coordT;
-
-  H2Potential() {}
-
-  double operator()(const coordT& x) const
-  {
-    double xx = x[0];
-    double yy = x[1];
-    double zz = x[2];
-    return -1.0/(sqrt(xx*xx + yy*yy + (zz-0.7)*(zz-7.0)) + 1e-08) +
-      -1.0/(sqrt(xx*xx + yy*yy + (zz+0.7)*(zz+7.0)) + 1e-08);
-  }
-};
-//*****************************************************************************
-
-//*****************************************************************************
-void test_hf_h2(World& world)
-{
-  cout << "Running test application HartreeFock ..." << endl;
-
-  typedef Vector<double,3> coordT;
-  typedef SharedPtr< FunctionFunctorInterface<double,3> > functorT;
-
-  // Dimensions of the bounding box
-//  double bsize = 30.0;
-//  for (int i=0; i<3; i++)
-//  {
-//    FunctionDefaults<3>::cell(i,0) = -bsize;
-//    FunctionDefaults<3>::cell(i,1) = bsize;
-//  }
-  // Function defaults
-  int funck = 8;
-  double thresh = 1e-6;
-  FunctionDefaults<3>::set_k(funck);
-  FunctionDefaults<3>::set_thresh(thresh);
-  FunctionDefaults<3>::set_refine(true);
-  FunctionDefaults<3>::set_initial_level(2);
-  FunctionDefaults<3>::set_truncate_mode(1);
-  FunctionDefaults<3>::set_cubic_cell(30.0, 30.0);
-
-  // Nuclear potential (harmonic oscillator)
-  const coordT origin(0.0);
-  cout << "Creating Function object for nuclear potential ..." << endl;
-  Function<double,3> Vnuc = FunctionFactory<double,3>(world).f(V_func_h2);
-
-  // Guess for the wavefunction
-  cout << "Creating wavefunction psi ..." << endl;
-  Function<double,3> psi = FunctionFactory<double,3>(world).f(psi_func_h2);
-  psi.scale(1.0/psi.norm2());
-  printf("Norm of psi = %.5f\n\n", psi.norm2());
-  // Create HartreeFock object
-  cout << "Creating HartreeFock object..." << endl;
-//  HartreeFock hf(world, Vnuc, psi, -0.6, true, true, 1e-5);
-//  cout << "Running HartreeFock object..." << endl;
-//  hf.hartree_fock(10);
-
-//  double ke = 2.0 * hf.calculate_tot_ke_sp();
-//  double pe = 2.0 * hf.calculate_tot_pe_sp();
-//  double ce = hf.calculate_tot_coulomb_energy();
-//  double ee = hf.calculate_tot_exchange_energy();
-//  double ne = 1.0/1.4;
-//  printf("Kinetic energy:\t\t\t %.8f\n", ke);
-//  printf("Potential energy:\t\t %.8f\n", pe);
-//  printf("Two-electron energy:\t\t %.8f\n", 2.0*ce - ee);
-//  printf("Total energy:\t\t\t %.8f\n", ke + pe + 2.0*ce - ee + ne);
-}
-//*****************************************************************************
-
-//*****************************************************************************
-void test_hf_he(World& world)
-{
-  cout << "Running test application HartreeFock ..." << endl;
-
-  typedef Vector<double,3> coordT;
-  typedef SharedPtr< FunctionFunctorInterface<double,3> > functorT;
-
-  // Dimensions of the bounding box
-  double bsize = 22.4;
-//  for (int i=0; i<3; i++)
-//  {
-//    FunctionDefaults<3>::cell(i,0) = -bsize;
-//    FunctionDefaults<3>::cell(i,1) = bsize;
-//  }
-  // Function defaults
-  int funck = 8;
-  double thresh = 1e-6;
-  FunctionDefaults<3>::set_k(funck);
-  FunctionDefaults<3>::set_thresh(thresh);
-  FunctionDefaults<3>::set_refine(true);
-  FunctionDefaults<3>::set_initial_level(2);
-  FunctionDefaults<3>::set_truncate_mode(1);
-  FunctionDefaults<3>::set_cubic_cell(-bsize, bsize);
-
-  // Nuclear potential (He atom)
-  const coordT origin(0.0);
-  cout << "Creating Function object for nuclear charge density ..." << endl;
-  Function<double,3> rhon = FunctionFactory<double,3>(world).f(rho_func_he);
-  Function<double,3> vnuc = FunctionFactory<double,3>(world).f(V_func_he);
-  rhon.truncate();
-  vnuc.truncate();
-  cout << "Operating on nuclear charge density ..." << endl;
-  SeparatedConvolution<double,3> op = CoulombOperator<double,3>(world, FunctionDefaults<3>::get_k(),
-      1e-8, thresh);
-  Function<double,3> V_from_rho_nuc = apply(op, rhon);
-  printf("\n");
-  double L = 2.0 * bsize;
-  double bstep = L / 100.0;
-  vnuc.reconstruct();
-  V_from_rho_nuc.reconstruct();
-  for (int i=0; i<101; i++)
-  {
-    coordT p(-L/2 + i*bstep);
-    double error = fabs(vnuc(p) - V_from_rho_nuc(p));
-    printf("%.2f\t\t%.8f\t%.8f\t%.8f\t%.8f\n", p[0], vnuc(p), V_from_rho_nuc(p), error, error / vnuc(p));
-  }
-  printf("\n");
-
-  // Guess for the wavefunction
-  cout << "Creating wavefunction psi ..." << endl;
-  Function<double,3> psi = FunctionFactory<double,3>(world).f(psi_func_he);
-  psi.scale(1.0/psi.norm2());
-
-  // Create lists
-  std::vector<Function<double,3> > phis;
-  std::vector<double> eigs;
-  phis.push_back(psi);
-  eigs.push_back(-0.6);
-
-  // Create DFT object
-  if (world.rank() == 0) cout << "Creating DFT object ..." << endl;
-  DFT<double,3> dftcalc(world, rhon, phis, eigs, thresh, false);
-  if (world.rank() == 0) cout << "Running DFT calculation ..." << endl;
-  dftcalc.solve(35);
-//  HartreeFock hf(world, Vnuc, phis, eigs, true, true, thresh);
-//  hf.hartree_fock(10);
-
-//  double ke = 2.0 * hf.calculate_tot_ke_sp();
-//  double pe = 2.0 * hf.calculate_tot_pe_sp();
-//  double ce = hf.calculate_tot_coulomb_energy();
-//  double ee = hf.calculate_tot_exchange_energy();
-//  printf("Kinetic energy:\t\t\t %.8f\n", ke);
-//  printf("Potential energy:\t\t %.8f\n", pe);
-//  printf("Two-electron energy:\t\t %.8f\n", 2.0*ce - ee);
-//  printf("Total energy:\t\t\t %.8f\n", ke + pe + 2.0*ce - ee);
 }
 //*****************************************************************************
 
@@ -334,7 +126,7 @@ void test_hf_be(World& world)
   Vector<double,3> gammapt;
   gammapt[0] = 0.0; gammapt[1] = 0.0; gammapt[2] = 0.0;
   kpoints[0] = gammapt;
-  DFT<double,3> dftcalc(world, Vnuc, phis, eigs, thresh, true);
+  DFT<double,3> dftcalc(world, Vnuc, phis, eigs, thresh, false);
   if (world.rank() == 0) madness::print("Running DFT object...");
   dftcalc.solve(51);
   //hf.hartree_fock(20);
@@ -399,7 +191,7 @@ int main(int argc, char** argv)
 
     startup(world,argc,argv);
     if (world.rank() == 0) print("Initial tensor instance count", BaseTensor::get_instance_count());
-    test_hf_he(world);
+    test_hf_be(world);
   }
   catch (const MPI::Exception& e)
   {
@@ -448,3 +240,4 @@ int main(int argc, char** argv)
   return 0;
 }
 //*****************************************************************************
+
