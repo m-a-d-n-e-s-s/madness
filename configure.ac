@@ -215,7 +215,6 @@ AC_CONFIG_FILES([
        src/apps/moldft/Makefile
            src/apps/moldft/xc/Makefile
        src/apps/hf/Makefile
-#UNEDF       src/apps/vnuc/Makefile
     doc/Makefile
     doc/doxygen.cfg
 ])
