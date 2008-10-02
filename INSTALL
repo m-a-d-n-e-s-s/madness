@@ -41,7 +41,7 @@ to link against those libraries).  Some examples follow.
 
      - 32 or 64 bit using system default BLAS and LAPACK
     
-       ./configure LIBS="-llapack -lblas"
+       ./configure LIBS="-llapack -lblas -lgfortran"
 
 
   o  Cray-XT (e.g., jaguar@ornl) 
@@ -87,6 +87,12 @@ to link against those libraries).  Some examples follow.
      module swap ompi mvapich2
      setenv LD_LIBRARY_PATH /ccs/home/harrison/smokyinstall/gfortran64_int64/lib:$LD_LIBRARY_PATH
      ./configure LIBS="-L/ccs/home/harrison/smokyinstall/gfortran64_int64/lib  -lacml  -lacml_mv -lgfortran"
+
+  o  MACOSX Leopard, the Intel Mac with Xcode 3.1 for v10.5.  Also fink
+     with version gcc, g++, gfortran 4.2.3.  This install script was tested with openmpi-1.2.6.
+
+     ./configure CXXFLAGS="-DON_A_MAC -Wall -Wno-strict-aliasing -Wno-deprecated -ansi -O3 -fomit-frame-pointer -msse -msse2" LIBS="-lapack -lblas -lgfortran"
+
 
 
 
