@@ -8,7 +8,20 @@
 
 using namespace madness;
 
+
+#if ON_A_MAC
+#include <sys/errno.h>
+static inline int posix_memalign(void **memptr, std::size_t alignment, std::size_t size){
+  *memptr=malloc(size);
+  if (*memptr) return 0;
+  else return ENOMEM;
+}
+#elif MISSING_POSIX_MEMALIGN_PROTO
   extern "C"  int posix_memalign(void **memptr, std::size_t alignment, std::size_t size);
+#endif
+
+/*  extern "C"  int posix_memalign(void **memptr, std::size_t alignment, std::size_t size);
+ */
 
 #ifdef TIME_DGEMM
 #ifndef FORTRAN_INTEGER
