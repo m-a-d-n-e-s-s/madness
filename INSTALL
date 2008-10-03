@@ -91,7 +91,7 @@ to link against those libraries).  Some examples follow.
   o  MACOSX Leopard, the Intel Mac with Xcode 3.1 for v10.5.  Also fink
      with version gcc, g++, gfortran 4.2.3.  This install script was tested with openmpi-1.2.6.
 
-     ./configure CXXFLAGS="-DON_A_MAC -Wall -Wno-strict-aliasing -Wno-deprecated -ansi -O3 -fomit-frame-pointer -msse -msse2" LIBS="-lapack -lblas -lgfortran"
+     ./configure CXXFLAGS="-DON_A_MAC -Wall -Wno-strict-aliasing -Wno-deprecated -ansi -O3 -fomit-frame-pointer -msse -msse2" LIBS="-llapack -lblas -lgfortran"
 
 
 
