@@ -4,6 +4,7 @@
 #include "dft.h"
 #include "hartreefock.h"
 #include "poperator.h"
+#include "util.h"
 
 using std::cout;
 using std::endl;
@@ -26,6 +27,19 @@ static double smoothing_parameter(double Z, double eprec) {
 }
 //*****************************************************************************
 
+void printfunc(const World& world, Function<double,3> f, int npts)
+{
+  Tensor<double> LL = FunctionDefaults<3>::get_cell_width();
+  double L = LL[0];
+  double bstep = L / npts;
+  f.reconstruct();
+  for (int i = 0; i <= npts; i++)
+  {
+    Vector<double,3> p(-L/2 + i * bstep);
+    if (world.rank() == 0) printf("%.2f\t\t%.8f\n", p[0], f(p));
+  }
+  if (world.rank() == 0) printf("\n");
+}
 
 /// Regularized 1/r potential.
 
@@ -112,11 +126,11 @@ void test_hf_he(World& world)
   Function<double,3> vnuc = FunctionFactory<double,3>(world).f(V_func_he);
   rhon.truncate();
   vnuc.truncate();
-  cout << "Operating on nuclear charge density ..." << endl;
+  if (world.rank() == 0) cout << "Operating on nuclear charge density ..." << endl;
   SeparatedConvolution<double,3> op = CoulombOperator<double,3>(world, FunctionDefaults<3>::get_k(),
       1e-8, thresh);
   Function<double,3> V_from_rho_nuc = apply(op, rhon);
-  printf("\n");
+  if (world.rank() == 0) printf("\n");
   double L = 2.0 * bsize;
   double bstep = L / 100.0;
   vnuc.reconstruct();
@@ -125,12 +139,12 @@ void test_hf_he(World& world)
   {
     coordT p(-L/2 + i*bstep);
     double error = fabs(vnuc(p) - V_from_rho_nuc(p));
-    printf("%.2f\t\t%.8f\t%.8f\t%.8f\t%.8f\n", p[0], vnuc(p), V_from_rho_nuc(p), error, error / vnuc(p));
+    if (world.rank() == 0) printf("%.2f\t\t%.8f\t%.8f\t%.8f\t%.8f\n", p[0], vnuc(p), V_from_rho_nuc(p), error, error / vnuc(p));
   }
-  printf("\n");
+  if (world.rank() == 0) printf("\n");
 
   // Guess for the wavefunction
-  cout << "Creating wavefunction psi ..." << endl;
+  if (world.rank() == 0) cout << "Creating wavefunction psi ..." << endl;
   Function<double,3> psi = FunctionFactory<double,3>(world).f(psi_func_he);
   psi.scale(1.0/psi.norm2());
 
@@ -142,9 +156,11 @@ void test_hf_he(World& world)
 
   // Create DFT object
   if (world.rank() == 0) cout << "Creating DFT object ..." << endl;
-  DFT<double,3> dftcalc(world, rhon, phis, eigs, thresh, false);
+  DFT<double,3> dftcalc(world, rhon, phis, eigs, thresh, true);
   if (world.rank() == 0) cout << "Running DFT calculation ..." << endl;
-  dftcalc.solve(35);
+//  dftcalc.print_matrix_elements(psi, psi);
+  dftcalc.solve(1);
+  printfunc(world, dftcalc.get_phi(0), 100);
 //  HartreeFock hf(world, Vnuc, phis, eigs, true, true, thresh);
 //  hf.hartree_fock(10);
 
@@ -201,17 +217,19 @@ void test_he_potential(World& world)
 
   cout << "Creating nuclear and electronic ops ..." << endl << endl;
   Tensor<double> cellsize = FunctionDefaults<3>::get_cell_width();
-  SeparatedConvolution<double,3> cop = PeriodicCoulombOp<double,3>(world, funck,1e-10, thresh, cellsize);
+  SeparatedConvolution<double,3>* cop = PeriodicCoulombOpPtr<double,3>(world, funck,1e-10, thresh, cellsize);
   SeparatedConvolution<double,3> op = CoulombOperator<double,3>(world, funck,1e-10, thresh);
 
   cout << "Building potentials ..." << endl << endl;
-  Function<double,3> vnuc = apply(cop, rhon);
-  Function<double,3> velec = apply(cop, rho);
+  Function<double,3> vnuc = apply(op, rhon);
+  Function<double,3> velec = apply(op, rho);
   Function<double,3> totalV = vnuc + velec;
-  Function<double,3> totalV2 = apply(cop, rho + rhon);
+  Function<double,3> totalV2 = apply(*cop, rho + rhon);
   // printing out
   double L = 2.0 * bsize;
   double bstep = L / 100.0;
+  rho.reconstruct();
+  rhon.reconstruct();
   vnuc0.reconstruct();
   vnuc.reconstruct();
   velec.reconstruct();
@@ -220,17 +238,20 @@ void test_he_potential(World& world)
   for (int i=0; i<101; i++)
   {
     coordT p(-L/2 + i*bstep);
-    printf("%.2f\t\t%.8f\t%.8f\t%.8f\t%.8f\t%.8f\t%.8f\n", p[0], vnuc0(p), vnuc(p), vnuc0(p) - vnuc(p), velec(p), totalV(p), totalV2(p));
+    printf("%.2f\t\t%.8f\t%.8f\t%.8f\n", p[0], rhon(p), rho(p), totalV2(p));
   }
   printf("\n");
 
   cout.precision(8);
   cout << "Trace of rho is " << rho.trace() << endl << endl;
   cout << "Trace of rhon is " << rhon.trace() << endl << endl;
-  cout << "Trace of vnuc0 is " << vnuc0.trace() << endl << endl;
-  cout << "Trace of vnuc is " << vnuc.trace() << endl << endl;
-  cout << "Trace of velec is " << velec.trace() << endl << endl;
   cout << "Trace of totalV is " << totalV.trace() << endl << endl;
+  cout << "Trace of totalV2 is " << totalV2.trace() << endl << endl;
+  cout << "value: " << totalV.trace()/L/L/L << endl << endl;
+
+  // matrix elements
+  printf("matrix element for totalV: %.8f\n\n", inner(psi, totalV * psi));
+  printf("matrix element for totalV2: %.8f\n\n", inner(psi, totalV2 * psi));
 }
 //*****************************************************************************
 
@@ -284,7 +305,7 @@ int main(int argc, char** argv)
 
     startup(world,argc,argv);
     if (world.rank() == 0) print("Initial tensor instance count", BaseTensor::get_instance_count());
-    test_he_potential(world);
+    test_hf_he(world);
   }
   catch (const MPI::Exception& e)
   {

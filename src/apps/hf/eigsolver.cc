@@ -18,7 +18,6 @@ using std::endl;
 
 namespace madness
 {
-
 //  //***************************************************************************
 //  template <typename T, int NDIM>
 //  EigSolver<T,NDIM>::EigSolver(World& world, std::vector<funcT> phis,
@@ -198,6 +197,7 @@ namespace madness
   void EigSolver<T,NDIM>::print_matrix_elements(const funcT& phii, const funcT& phij)
   {
     T value = 0.0;
+    prepare_ops();
     // Kinetic energy operator
     for (int axis = 0; axis < 3; axis++)
     {

@@ -44,7 +44,6 @@ namespace madness
     Tensor<double> coeff, expnt;
     //if (mu==0) eps /= 4.0*pi;
     bsh_fit(0.0, lo, 100.0*L[0], eps/(4.0 * WST_PI), &coeff, &expnt, false); //eps /(4.0*pi)
-    coeff.scale(4.0*WST_PI);
 
     // Scale coefficients according to the dimensionality and add to the list of operators
     std::vector< SharedPtr< Convolution1D<Q> > > ops;
