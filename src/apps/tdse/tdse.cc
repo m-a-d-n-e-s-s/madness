@@ -35,6 +35,7 @@ struct InputParameters {
   int ndump;          // dump wave function to disk every ndump steps
   int nplot;          // dump opendx plot to disk every nplot steps
   int nio;            // Number of IO nodes 
+  double tScale;      // Scaling parameter for optimization
 
   double target_time;// Target end-time for the simulation
   
@@ -113,6 +114,10 @@ struct InputParameters {
 	f >> target_time;
         printf("   target_time = %.3f\n", target_time);
       }
+      else if (tag == "tScale") {
+        f >> tScale;
+        printf("           tScale = %.5f\n", tScale);
+      }
       else {
         MADNESS_EXCEPTION("unknown input option", 0);
       }
@@ -123,12 +128,16 @@ struct InputParameters {
   void serialize(Archive & ar) {
     ar & L & Lsmall & Llarge & F & omega & ncycle & natom & Z;
     ar & archive::wrap(&(R[0][0]), 3*MAXNATOM);
-    ar & k & thresh & safety & cut & prefix & ndump & nplot & nio & target_time;
+    ar & k & thresh & safety & cut & prefix & ndump & nplot & nio & target_time &
+		tScale;
   }
 };
 
 ostream& operator<<(ostream& s, const InputParameters& p) {
-    s << p.L<< " " << p.Lsmall<< " " << p.Llarge<< " " << p.F<< " " << p.omega<< " " << p.ncycle << " " << p.Z<< " " << p.R[0]<< " " << p.k<< " " << p.thresh<< " " << p.cut<< " " << p.prefix<< " " << p.ndump<< " " << p.nplot<< " " << p.nio << std::endl;
+    s << p.L<< " " << p.Lsmall<< " " << p.Llarge<< " " << p.F<< " " << p.omega<<
+			 " " << p.ncycle << " " << p.Z<< " " << p.R[0]<< " " << p.k<< " " <<
+			 p.thresh<< " " << p.cut<< " " << p.prefix<< " " << p.ndump<< " " <<
+			 p.nplot<< " " << p.nio << p.tScale << std::endl;
 return s;
 }
 
@@ -544,7 +553,7 @@ void propagate(World& world, int step0) {
     double c = 1.72*ctarget;   // This for 10^4 steps
     double tcrit = 2*constants::pi/(c*c);
 
-    double time_step = tcrit * 1.0;
+    double time_step = tcrit * param.tScale;
 
     zero_field_time = 10.0*time_step;
 
