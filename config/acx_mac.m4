@@ -4,8 +4,8 @@ AC_DEFUN([ACX_MAC], [
         #   - stomp on ipod
         #   - toss iphone in toilet
         #   - call george
-        uname -a | grep -iq Darwin
         ON_A_MAC="no"
+        uname -a | grep -iq Darwin
         if test $? = 0; then
             ON_A_MAC="yes"
             echo "Sorry ... you are building on a mac"
