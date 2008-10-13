@@ -6,7 +6,7 @@ AM_CPPFLAGS += -DMRA_DATA_DIR=\"$(abs_srcdir)\"
 bin_PROGRAMS = testsuite  testperiodic testbsh
 lib_LIBRARIES = libMADmra.a
 
-DATAFILES = autocorr coeffs gaussleg
+data_DATA = autocorr coeffs gaussleg
 
 LDADD = libMADmra.a $(LIBLINALG) $(LIBTENSOR) $(LIBMISC) $(LIBWORLD)
 
