@@ -483,7 +483,7 @@ namespace madness {
       double decay_val;
 
     public:
-      ApplyTime(World& world) 
+      ApplyTime(World& world)
 	: world(world)
 	, hash_table(dcT(world))
 	, decay_val(0.9)
@@ -595,7 +595,7 @@ namespace madness {
 
         dcT coeffs;             ///< The coefficients
 
-        const Tensor<int> bc;     ///< Type of boundary condition -- currently only zero or periodic
+        Tensor<int> bc;     ///< Type of boundary condition -- currently only zero or periodic
 
 	SharedPtr<ApplyTime<NDIM> > apply_time;
 
@@ -816,7 +816,7 @@ namespace madness {
                 return tol*std::min(1.0,pow(0.25,double(key.level()))*L*L);
             }
             else {
-                MADNESS_EXCEPTION("truncate_mode invalid",truncate_mode); 
+                MADNESS_EXCEPTION("truncate_mode invalid",truncate_mode);
            }
         }
 
@@ -850,9 +850,12 @@ namespace madness {
         const tensorT parent_to_child(const tensorT& s, const keyT& parent, const keyT& child) const;
 
 
+        ///Change bv on the fly. Temporary workaround until better bc handling is introduced.
+        void set_bc(const Tensor<int>& value) {bc=copy(value); MADNESS_ASSERT(bc.dim[0]==NDIM && bc.dim[1]==2 && bc.ndim==2);}
+
         /// Get the scaling function coeffs at level n starting from NS form
-	// N=2^n, M=N/q, q must be power of 2 
-	// q=0 return coeffs [N,k] for direct sum 
+	// N=2^n, M=N/q, q must be power of 2
+	// q=0 return coeffs [N,k] for direct sum
 	// q>0 return coeffs [k,q,M] for fft sum
         tensorT coeffs_for_jun(Level n, long q=0) {
             MADNESS_ASSERT(compressed && nonstandard && NDIM<=3);
@@ -901,7 +904,7 @@ namespace madness {
 	    //print("faking done M q r(fake) r0(real)",M,q,"\n", r,r0);
             ProcessID me = world.rank();
             Vector<long,NDIM> t(N);
-	    
+
 	    Vector<long,NDIM> powq, powN, powM;
 	    long NDIM1 = NDIM-1;
 	    powM[NDIM1]=powq[NDIM1]=powN[NDIM1]=1;
@@ -911,7 +914,7 @@ namespace madness {
 		powN[d] = powN[d+1]*N;
 	    }
 	    long powMNDIM = powM[0]*M;
-	    
+
             for (IndexIterator it(t); it; ++it) {
                 keyT key(n, Vector<Translation,NDIM>(*it));
                 if (coeffs.owner(key) == me) {
@@ -967,7 +970,7 @@ namespace madness {
         }
 
 
-        
+
         /// Compute the function values for multiplication
 
         /// Given coefficients from a parent cell, compute the value of

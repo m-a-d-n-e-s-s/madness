@@ -308,7 +308,7 @@ namespace madness {
                 MADNESS_ASSERT(simhi[d] >= simlo[d]);
                 MADNESS_ASSERT(simlo[d] >= 0.0);
                 MADNESS_ASSERT(simhi[d] <= 1.0);
-                
+
                 double delta = eps*simhi[d];
                 simlo[d] += delta;
                 simhi[d] -= 2*delta;  // deliberate asymmetry
@@ -631,7 +631,10 @@ namespace madness {
 	    //return impl->coeffs_for_jun(n);
 	}
 
-        /// Clears the function as if constructed uninitialized.  Optional fence.
+	  ///Change bv on the fly. Temporary workaround until better bc handling is introduced.
+		void set_bc(const Tensor<int>& value) { impl->set_bc(value);}
+
+	/// Clears the function as if constructed uninitialized.  Optional fence.
 
         /// Any underlying data will not be freed until the next global fence.
         void clear(bool fence = true) {
@@ -1323,15 +1326,15 @@ namespace madness {
 
     /// The ordinate is distance from lo
     template <typename T, int NDIM>
-    void plot_line(const char* filename, int npt, const Vector<double,NDIM>& lo, const Vector<double,NDIM>& hi, 
+    void plot_line(const char* filename, int npt, const Vector<double,NDIM>& lo, const Vector<double,NDIM>& hi,
                    const Function<T,NDIM>& f) {
         typedef Vector<double,NDIM> coordT;
         coordT h = (hi - lo)*(1.0/(npt-1));
-        
+
         double sum = 0.0;
         for (int i=0; i<NDIM; i++) sum += h[i]*h[i];
         sum = sqrt(sum);
-        
+
         World& world = f.world();
         f.reconstruct();
         if (world.rank() == 0) {
@@ -1351,15 +1354,15 @@ namespace madness {
 
     /// The ordinate is distance from lo
     template <typename T, typename U, int NDIM>
-    void plot_line(const char* filename, int npt, const Vector<double,NDIM>& lo, const Vector<double,NDIM>& hi, 
+    void plot_line(const char* filename, int npt, const Vector<double,NDIM>& lo, const Vector<double,NDIM>& hi,
                    const Function<T,NDIM>& f, const Function<U,NDIM>& g) {
         typedef Vector<double,NDIM> coordT;
         coordT h = (hi - lo)*(1.0/(npt-1));
-        
+
         double sum = 0.0;
         for (int i=0; i<NDIM; i++) sum += h[i]*h[i];
         sum = sqrt(sum);
-        
+
         World& world = f.world();
         f.reconstruct();
         g.reconstruct();
@@ -1382,15 +1385,15 @@ namespace madness {
 
     /// The ordinate is distance from lo
     template <typename T, typename U, typename V, int NDIM>
-    void plot_line(const char* filename, int npt, const Vector<double,NDIM>& lo, const Vector<double,NDIM>& hi, 
+    void plot_line(const char* filename, int npt, const Vector<double,NDIM>& lo, const Vector<double,NDIM>& hi,
                    const Function<T,NDIM>& f, const Function<U,NDIM>& g, const Function<V,NDIM>& a) {
         typedef Vector<double,NDIM> coordT;
         coordT h = (hi - lo)*(1.0/(npt-1));
-        
+
         double sum = 0.0;
         for (int i=0; i<NDIM; i++) sum += h[i]*h[i];
         sum = sqrt(sum);
-        
+
         World& world = f.world();
         f.reconstruct();
         g.reconstruct();
