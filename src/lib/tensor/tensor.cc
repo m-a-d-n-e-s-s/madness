@@ -1,22 +1,22 @@
 /*
   This file is part of MADNESS.
-  
+
   Copyright (C) <2007> <Oak Ridge National Laboratory>
-  
+
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation; either version 2 of the License, or
   (at your option) any later version.
-  
+
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
   GNU General Public License for more details.
-  
+
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
-  
+
   For more information please contact:
 
   Robert J. Harrison
@@ -24,15 +24,15 @@
   One Bethel Valley Road
   P.O. Box 2008, MS-6367
 
-  email: harrisonrj@ornl.gov 
+  email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
 
-  
+
   $Id$
 */
 
-  
+
 #define TENSOR_CC
 
 /// \file tensor.cc
@@ -982,7 +982,7 @@ namespace madness {
     /// of the result tensor in inner loops when the result tensor may be
     /// reused or accumulated into.  If the user calls this routine
     /// directly very little checking is done since it is intended as an
-    /// optmization for small tensors.  As far as the result goes, the
+    /// optimization for small tensors.  As far as the result goes, the
     /// caller is completely responsible for providing a contiguous tensor
     /// that has the correct dimensions and is appropriately initialized.
     /// The inner product is accumulated into result.
@@ -1084,7 +1084,7 @@ namespace madness {
 
     /// Transform all dimensions of the tensor t by distinct matrices c
 
-    /// Similar to transform but each dimension is transformed with a 
+    /// Similar to transform but each dimension is transformed with a
     /// distinct matrix.
     /// \code
     /// result(i,j,k...) <-- sum(i',j', k',...) t(i',j',k',...) c[0](i',i) c[1](j',j) c[2](k',k) ...
@@ -1122,8 +1122,8 @@ namespace madness {
     /// the same size as the input \c t .  The result tensor need not
     /// be initialized before calling fast_transform.
     ///
-    /// \code 
-    ///     result(i,j,k,...) <-- sum(i',j', k',...) t(i',j',k',...)  c(i',i) c(j',j) c(k',k) ...  
+    /// \code
+    ///     result(i,j,k,...) <-- sum(i',j', k',...) t(i',j',k',...)  c(i',i) c(j',j) c(k',k) ...
     /// \endcode
     ///
     /// The input dimensions of \c t must all be the same .
@@ -1144,7 +1144,7 @@ namespace madness {
         long nij = dimi*dimj;
 
 
-        if (IS_ODD(dimi) || IS_ODD(dimj) || 
+        if (IS_ODD(dimi) || IS_ODD(dimj) ||
             IS_UNALIGNED(pc) || IS_UNALIGNED(t0) || IS_UNALIGNED(t1)) {
             for (long i=0; i<nij; i++) t0[i] = 0.0;
             mTxm(dimi, dimj, dimj, t0, t.ptr(), pc);
@@ -1155,7 +1155,7 @@ namespace madness {
             }
         }
         else {
-            mTxmq(dimi, dimj, dimj, t0, t.ptr(), pc); 
+            mTxmq(dimi, dimj, dimj, t0, t.ptr(), pc);
             for (int n=1; n<t.ndim; n++) {
                 mTxmq(dimi, dimj, dimj, t1, t0, pc);
                 std::swap(t0,t1);
