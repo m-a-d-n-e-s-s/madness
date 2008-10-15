@@ -5,16 +5,12 @@ F 0.176
 omega 0.06
 natom 1
    1.0    0.0 0.0 0.0
+k 8
 thresh 1e-3
-k 20
-thresh 1e-7
-safety 1e-2
 cut 0.3
 prefix data
 ndump 1
 nplot 1
 nio 1
-nplot 999
-nio 10
-ncycle 2
 target_time 209.44
+safety 1e-1

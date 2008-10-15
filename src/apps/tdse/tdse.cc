@@ -693,6 +693,7 @@ void propagate(World& world, int step0) {
 
 void doit(World& world) {
     cout.precision(8);
+	cout << "in doIt" << std::endl;
 
     if (world.rank() == 0) param.read("input");
     world.gop.broadcast_serializable(param, 0);
@@ -707,6 +708,7 @@ void doit(World& world) {
     FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap(world)));
 
     functionT potn = factoryT(world).f(V);  potn.truncate();
+	cout << "in doIt:after FunctionDefaults" << std::endl;
 
     // Read restart information
     int step0;               // Initial time step ... filenames are <prefix>-<step0>
@@ -750,6 +752,7 @@ int main(int argc, char** argv) {
     World world(MPI::COMM_WORLD);
     
     startup(world,argc,argv);
+	cout << "in Main" << std::endl;
 
     try {
         doit(world);

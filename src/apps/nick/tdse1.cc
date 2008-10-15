@@ -351,33 +351,27 @@ double myreal(const double_complex& t) {return real(t);}
 double energy(World& world, const complex_functionT& psi, const functionT& potn) {
   PROFILE_FUNC;
   // First do all work in the scaling function basis
-  bool DOFENCE = false;
   psi.reconstruct();
 
   double_complex KE = 0.0; //0.5*(inner(dx,dx) + inner(dy,dy) + inner(dz,dz));
   for(int i=0; i<NDIM; i++) 
     {
-      complex_functionT dx = diff(psi,i,DOFENCE);
+      complex_functionT dx = diff(psi,i);
       cout << "In energy" << endl;
-      cout << "i = " << i << endl;
-      cout << "HERE" << endl;
-      if(i!=NDIM){
-	cout << "if" << endl;
-	dx.compress(DOFENCE);
-      } else {
-	cout << "else" << endl;
-	dx.compress(true);
-      }
+      cout << "NDIM = " << i+1 << endl;
+      dx.compress();
       cout << "After if else" << endl;
       KE   += 0.5*inner(dx,dx);
       cout << "After inner" << i << endl;
       dx.clear();
     }
+  cout << "After dx.compress" << endl;
   complex_functionT Vpsi = psi*potn;
   double_complex S = psi.inner(psi);
   double_complex PE = psi.inner(Vpsi);
   double_complex E = (KE+PE)/S;
 
+  
   Vpsi.clear(); // To free memory on return
   world.gop.fence();
   //     if (world.rank() == 0) {
@@ -386,7 +380,7 @@ double energy(World& world, const complex_functionT& psi, const functionT& potn)
   //         print("the potential energy integral",PE);
   //         print("the total energy",E);
   //     }
-
+      cout << "End of energy()" << endl;
   return myreal(E);
 }
 
@@ -777,6 +771,7 @@ void doit(World& world) {
     }
   }
   cout << "in doIt: before propagate()" << std::endl;
+  cout << "end of doIt()" << endl;
   propagate(world, step0);
 }
 

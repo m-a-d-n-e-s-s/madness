@@ -1,4 +1,5 @@
-SUBDIRS = examples tdse hf nick
+SUBDIRS = examples tdse hf  
+#vnuc
 
 
 

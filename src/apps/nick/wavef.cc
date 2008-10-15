@@ -10,10 +10,10 @@
  **********************************************************************/
 
 #include <nick/wavef.h>
-#include <gsl/gsl_sf_trig.h>
-#include <gsl/gsl_sf_coulomb.h>
-#include <gsl/gsl_sf_gamma.h>
-#include <gsl/gsl_sf_legendre.h>
+#include "gsl/gsl_sf_trig.h"
+#include "gsl/gsl_sf_coulomb.h"
+#include "gsl/gsl_sf_gamma.h"
+#include "gsl/gsl_sf_legendre.h"
 
 //MPI printing macros
 double tt;
