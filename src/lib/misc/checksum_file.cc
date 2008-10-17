@@ -39,12 +39,12 @@ using std::fgetc;
 using std::fclose;
 
 /// \file checksum_file.cc
-/// \brief Miscellaneous useful stuff
+/// \brief Miscellaneous useful stuffx
 
 namespace madness {
 
     /// Simple checksum for ASCII characters in file
-    unsigned long checksum_file(const char* filename) {
+    unsigned  long checksum_file(const char* filename) {
         FILE *file = fopen(filename,"r");
         if (!file) return 0;
 
