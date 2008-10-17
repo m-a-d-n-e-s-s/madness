@@ -214,9 +214,8 @@ AC_CONFIG_FILES([
        src/apps/examples/Makefile
        src/apps/tdse/Makefile
        src/apps/moldft/Makefile
-	   src/apps/moldft/xc/Makefile
+		 src/apps/moldft/xc/Makefile
        src/apps/hf/Makefile
-	   src/apps/nick/Makefile
     doc/Makefile
     doc/doxygen.cfg
 ])
