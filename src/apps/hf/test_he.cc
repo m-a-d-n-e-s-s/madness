@@ -156,11 +156,11 @@ void test_hf_he(World& world)
 
   // Create DFT object
   if (world.rank() == 0) cout << "Creating DFT object ..." << endl;
-  DFT<double,3> dftcalc(world, rhon, phis, eigs, thresh, true);
+  DFT<double,3> dftcalc(world, rhon, phis, eigs, thresh, false);
   if (world.rank() == 0) cout << "Running DFT calculation ..." << endl;
 //  dftcalc.print_matrix_elements(psi, psi);
-  dftcalc.solve(1);
-  printfunc(world, dftcalc.get_phi(0), 100);
+  dftcalc.solve(35);
+//  printfunc(world, dftcalc.get_phi(0), 100);
 //  HartreeFock hf(world, Vnuc, phis, eigs, true, true, thresh);
 //  hf.hartree_fock(10);
 
