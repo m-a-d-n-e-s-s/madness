@@ -770,7 +770,6 @@ void dft_xc_lda_ene(const Key<NDIM>& key, Tensor<double>& t)
       _solver = new EigSolver<T,NDIM>(world, rhon, phis, eigs, ops, thresh);
     }
     _solver->addObserver(this);
-
   }
   //***************************************************************************
 
@@ -850,21 +849,39 @@ void dft_xc_lda_ene(const Key<NDIM>& key, Tensor<double>& t)
       const Function<double,NDIM>& rhon, bool spinpol, const double thresh, bool periodic)
   {
     // Create Coulomb operator
-    SeparatedConvolution<T,NDIM>* op;
+    SeparatedConvolution<T,NDIM>* op = 0;
     if (periodic)
     {
       Tensor<double> L = FunctionDefaults<NDIM>::get_cell_width();
-      op = PeriodicCoulombOpPtr<T,NDIM>(const_cast<World&>(world),
-        FunctionDefaults<NDIM>::get_k(), 1e-4, thresh, L);
+      op = CoulombOperatorPtr<T,NDIM>(const_cast<World&>(world),
+          FunctionDefaults<NDIM>::get_k(), 1e-4, thresh);
     }
     else
     {
       op = CoulombOperatorPtr<T,NDIM>(const_cast<World&>(world),
-        FunctionDefaults<NDIM>::get_k(), 1e-4, thresh);
+          FunctionDefaults<NDIM>::get_k(), 1e-4, thresh);
     }
     // Apply Coulomb operator and trace with the density
-    funcT Vnuc = apply(*op, rhon + rho);
-    double tot_pe = Vnuc.inner(rho);
+    funcT tmp = rhon + rho;
+    funcT Vnuc = apply(*op, tmp);
+
+//    // DEBUG ******************************************************************
+//    if (world.rank() == 0) cout << "Printing out the electronic charge density and potential ..." << endl;
+//    if (world.rank() == 0) printf("\n");
+//    //Tensor<double> L = FunctionDefaults<NDIM>::get_cell_width();
+//    double LLL = L[0];
+//    double bstep = LLL / 100.0;
+//    Vnuc.reconstruct();
+//    Vnuc2.reconstruct();
+//    for (int i=0; i<101; i++)
+//    {
+//      coordT p(-LLL/2 + i*bstep);
+//      if (world.rank() == 0) printf("%.2f\t\t%.8f\t%.8f\n", p[0], Vnuc(p), Vnuc2(p));
+//    }
+//    if (world.rank() == 0) printf("\n");
+//    // DEBUG ******************************************************************
+
+    double tot_pe = inner(Vnuc, rho);
     if (!spinpol) tot_pe *= 2.0;
     delete op;
     return tot_pe;
@@ -891,6 +908,7 @@ void dft_xc_lda_ene(const Key<NDIM>& key, Tensor<double>& t)
     }
     // Apply Coulomb operator and trace with the density
     funcT Vc = apply(*op, rho);
+
     double tot_ce = Vc.inner(rho);
     if (!spinpol) tot_ce *= 2.0;
     delete op;
@@ -924,7 +942,6 @@ void dft_xc_lda_ene(const Key<NDIM>& key, Tensor<double>& t)
       double pe = DFT::calculate_tot_pe_sp(_world, rho, _rhon, false, _thresh, periodic);
       if (world().rank() == 0) printf("Calculating CE ...\n");
       double ce = DFT::calculate_tot_coulomb_energy(_world, rho, false, _thresh, periodic);
-      ce = 0.0;
       if (world().rank() == 0) printf("Calculating EE ...\n");
       double xce = DFT::calculate_tot_xc_energy(rho);
       if (world().rank() == 0) printf("Calculating NE ...\n");

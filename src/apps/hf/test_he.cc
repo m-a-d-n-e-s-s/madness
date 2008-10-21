@@ -115,8 +115,6 @@ void test_hf_he(World& world)
   FunctionDefaults<3>::set_k(funck);
   FunctionDefaults<3>::set_thresh(thresh);
   FunctionDefaults<3>::set_refine(true);
-  FunctionDefaults<3>::set_initial_level(2);
-  FunctionDefaults<3>::set_truncate_mode(1);
   FunctionDefaults<3>::set_cubic_cell(-bsize, bsize);
 
   // Nuclear potential (He atom)
@@ -126,22 +124,24 @@ void test_hf_he(World& world)
   Function<double,3> vnuc = FunctionFactory<double,3>(world).f(V_func_he);
   rhon.truncate();
   vnuc.truncate();
-  if (world.rank() == 0) cout << "Operating on nuclear charge density ..." << endl;
-  SeparatedConvolution<double,3> op = CoulombOperator<double,3>(world, FunctionDefaults<3>::get_k(),
-      1e-8, thresh);
-  Function<double,3> V_from_rho_nuc = apply(op, rhon);
-  if (world.rank() == 0) printf("\n");
-  double L = 2.0 * bsize;
-  double bstep = L / 100.0;
-  vnuc.reconstruct();
-  V_from_rho_nuc.reconstruct();
-  for (int i=0; i<101; i++)
-  {
-    coordT p(-L/2 + i*bstep);
-    double error = fabs(vnuc(p) - V_from_rho_nuc(p));
-    if (world.rank() == 0) printf("%.2f\t\t%.8f\t%.8f\t%.8f\t%.8f\n", p[0], vnuc(p), V_from_rho_nuc(p), error, error / vnuc(p));
-  }
-  if (world.rank() == 0) printf("\n");
+
+  //  if (world.rank() == 0) cout << "Operating on nuclear charge density ..." << endl;
+//  SeparatedConvolution<double,3> op = CoulombOperator<double,3>(world, FunctionDefaults<3>::get_k(),
+//      1e-8, thresh);
+//  Function<double,3> V_from_rho_nuc = apply(op, rhon);
+//  if (world.rank() == 0) printf("\n");
+//  double L = 2.0 * bsize;
+//  double bstep = L / 100.0;
+//  vnuc.reconstruct();
+//  V_from_rho_nuc.reconstruct();
+//  for (int i=0; i<101; i++)
+//  {
+//    coordT p(-L/2 + i*bstep);
+//    double error = fabs(vnuc(p) - V_from_rho_nuc(p));
+//    if (world.rank() == 0) printf("%.2f\t\t%.8f\t%.8f\t%.8f\t%.8f\n", p[0], vnuc(p), V_from_rho_nuc(p), error, error / vnuc(p));
+//  }
+//  if (world.rank() == 0) printf("\n");
+//
 
   // Guess for the wavefunction
   if (world.rank() == 0) cout << "Creating wavefunction psi ..." << endl;
@@ -156,10 +156,10 @@ void test_hf_he(World& world)
 
   // Create DFT object
   if (world.rank() == 0) cout << "Creating DFT object ..." << endl;
-  DFT<double,3> dftcalc(world, rhon, phis, eigs, thresh, false);
+  DFT<double,3> dftcalc(world, rhon, phis, eigs, thresh, true);
   if (world.rank() == 0) cout << "Running DFT calculation ..." << endl;
 //  dftcalc.print_matrix_elements(psi, psi);
-  dftcalc.solve(35);
+  dftcalc.solve(13);
 //  printfunc(world, dftcalc.get_phi(0), 100);
 //  HartreeFock hf(world, Vnuc, phis, eigs, true, true, thresh);
 //  hf.hartree_fock(10);
@@ -238,20 +238,23 @@ void test_he_potential(World& world)
   for (int i=0; i<101; i++)
   {
     coordT p(-L/2 + i*bstep);
-    printf("%.2f\t\t%.8f\t%.8f\t%.8f\n", p[0], rhon(p), rho(p), totalV2(p));
+    printf("%.2f\t\t%.8f\t%.8f\n", p[0], totalV(p), totalV2(p));
   }
   printf("\n");
 
   cout.precision(8);
-  cout << "Trace of rho is " << rho.trace() << endl << endl;
-  cout << "Trace of rhon is " << rhon.trace() << endl << endl;
-  cout << "Trace of totalV is " << totalV.trace() << endl << endl;
-  cout << "Trace of totalV2 is " << totalV2.trace() << endl << endl;
-  cout << "value: " << totalV.trace()/L/L/L << endl << endl;
+  cout << "energy (periodic) is " << inner(totalV2, rho) << endl << endl;
+  cout << "energy (non-periodic) is " << inner(totalV, rho) << endl << endl;
 
-  // matrix elements
-  printf("matrix element for totalV: %.8f\n\n", inner(psi, totalV * psi));
-  printf("matrix element for totalV2: %.8f\n\n", inner(psi, totalV2 * psi));
+  cout << "Trace of rhon is " << rhon.trace() << endl << endl;
+  cout << "Trace of rho is " << rho.trace() << endl << endl;
+//  cout << "Trace of totalV is " << totalV.trace() << endl << endl;
+//  cout << "Trace of totalV2 is " << totalV2.trace() << endl << endl;
+//  cout << "value: " << totalV.trace()/L/L/L << endl << endl;
+//
+//  // matrix elements
+//  printf("matrix element for totalV: %.8f\n\n", inner(psi, totalV * psi));
+//  printf("matrix element for totalV2: %.8f\n\n", inner(psi, totalV2 * psi));
 }
 //*****************************************************************************
 

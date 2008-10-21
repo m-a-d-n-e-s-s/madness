@@ -241,9 +241,6 @@ namespace madness
       // oven), go ahead and build all of the density-dependent potentials that
       // we can.
       prepare_ops();
-      // Trace of rho
-      double rhotrace = _rho.trace();
-      printf("The trace of rho is %.8f\n\n", rhotrace);
       if (_world.rank() == 0) DEBUG_STREAM << "Iteration #" << it
         << endl << endl;
       for (unsigned int pi = 0; pi < _phis.size(); pi++)
@@ -353,6 +350,9 @@ namespace madness
       // Update rho
 //      if (_world.rank() == 0) printf("Computing new density for it == #%d\n\n", it);
       _rho = EigSolver::compute_rho(_phis, _world);
+      // Trace of rho
+      double rhotrace = _rho.trace();
+      printf("The trace of rho is %.8f\n\n", rhotrace);
       // Output to observables
       for (typename std::vector<IEigSolverObserver<T,NDIM>*>::iterator itr = _obs.begin(); itr
         != _obs.end(); ++itr)
