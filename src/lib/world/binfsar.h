@@ -49,7 +49,7 @@ namespace madness {
         /// Wraps an archive around a binary file stream for output
         class BinaryFstreamOutputArchive : public BaseOutputArchive {
             static const std::size_t IOBUFSIZE = 4*1024*1024;
-            SharedPtr<char> iobuf;
+            SharedArray<char> iobuf;
             mutable std::ofstream os;
         public:
             BinaryFstreamOutputArchive(const char* filename = 0,
@@ -68,7 +68,7 @@ namespace madness {
             void open(const char* filename,
                       std::ios_base::openmode mode = std::ios_base::binary | \
                       std::ios_base::out |  std::ios_base::trunc) {
-                iobuf = SharedPtr<char>(new char[IOBUFSIZE]);
+                iobuf = SharedArray<char>(new char[IOBUFSIZE]);
                 os.open(filename, mode);
                 os.rdbuf()->pubsetbuf(iobuf, IOBUFSIZE);
 
@@ -78,7 +78,7 @@ namespace madness {
             void close() {
                 if (iobuf) {
                     os.close();
-                    iobuf = SharedPtr<char>(0);
+                    iobuf = SharedArray<char>(0);
                 }
             };
             
@@ -91,7 +91,7 @@ namespace madness {
         /// Wraps an archive around a binary file stream for input
         class BinaryFstreamInputArchive : public BaseInputArchive {
             static const std::size_t IOBUFSIZE = 4*1024*1024;
-            SharedPtr<char> iobuf;
+            SharedArray<char> iobuf;
             mutable std::ifstream is;
         public:
             BinaryFstreamInputArchive(const char* filename = 0, std::ios_base::openmode mode = std::ios_base::binary | std::ios_base::in) 
@@ -108,7 +108,7 @@ namespace madness {
             }
             
             void open(const char* filename,  std::ios_base::openmode mode = std::ios_base::binary | std::ios_base::in) {
-                iobuf = SharedPtr<char>(new char[IOBUFSIZE]);
+                iobuf = SharedArray<char>(new char[IOBUFSIZE]);
                 is.open(filename, mode);
                 is.rdbuf()->pubsetbuf(iobuf, IOBUFSIZE);
                 char cookie[255];
@@ -121,7 +121,7 @@ namespace madness {
             void close() {
                 if (iobuf) {
                     is.close();
-                    iobuf = SharedPtr<char>(0);
+                    iobuf = SharedArray<char>(0);
                 }
             };
         };

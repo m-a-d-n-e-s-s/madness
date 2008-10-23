@@ -55,6 +55,7 @@ AC_DEFUN([ACX_OPTIMAL_CXXFLAGS], [
          *)
             ;;
     esac
+    CXXFLAGS="$CXXFLAGS -D_REENTRANT "
     echo "Changing CXXFLAGS from '$save_CXXFLAGS'"
     echo "to '$CXXFLAGS'"
 ])

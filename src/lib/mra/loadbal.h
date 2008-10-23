@@ -43,7 +43,7 @@
 #include <misc/misc.h>
 #include <tensor/mtrand.h>
 #include <tensor/tensor.h>
-#include <tensor/random.h>
+#include <misc/ran.h>
 #include <mra/key.h>
 #include <mra/funcimpl.h>
 
@@ -448,7 +448,7 @@ namespace madness {
                     dist += (l[i] - cent)*(l[i] - cent);
                 }
                 double cost = 1.0/dist; // actually dist squared
-                cost *= (1.0 + 0.001*RandomNumber<double>()); // To shuffle (nearly) equal values
+                cost *= (1.0 + 0.001*RandomValue<double>()); // To shuffle (nearly) equal values
                 costmap.push_back(std::pair<KeyD,double>(KeyD(n,l),cost));
             }
             costmap.sort(costmapcmp);

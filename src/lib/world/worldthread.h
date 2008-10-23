@@ -1,54 +1,208 @@
 #ifndef MAD_WORLDTHREAD_H
 #define MAD_WORLDTHREAD_H
 
+/// \file worldthread.h
+/// \brief Implements Mutex (pthread or spin-lock), Dqueue, Thread, ThreadBase and ThreadPool
+
+#include <cstdlib>
+#include <iostream>
 #include <pthread.h>
 #include <unistd.h>
+#include <utility>
+#include <vector>
 #include <world/madatomic.h>
+#include <world/nodefaults.h>
 
 namespace madness {
-
+    
 #define WORLD_MUTEX_ATOMIC
+    
+    class MutexWaiter {
+    private:
+        unsigned int count;
+
+        /// Yield for specified number of microseconds
+        void yield(int us) {
+            usleep(us);
+        }
+        
+    public:
+        MutexWaiter() : count(0) {}
+
+        void reset() {count = 0;}
+
+        /// Call inside spin loop to yield processor if waiting a long time
+
+        /// Under Linux with the default scheduler usleep calls
+        /// nanosleep that in turn seems to spin for short periods but
+        /// otherwise blocks in select with a granularity of the
+        /// kernel timer which is circa 1-10ms.  nanosleep() is POSIX
+        /// standard. Sched_yield() on the other hand is non-standard
+        /// and has undefined resume time and impact on thread
+        /// priority.  The in principle nice thing about sched_yield
+        /// is that if there is nothing else to run we just keep
+        /// running, but this also means we are spinning in the kernel
+        /// which can have bigger performance implications.  Hence, to
+        /// control the performance impact of yielding we ...
+        ///
+        /// - Spin for first 10000000 calls --> circa 10ms (at 1GHz polling)
+        ///
+        /// - For next 1000 sleeps for 1ms --> circa 1s to 10s
+        ///
+        /// - Subsequently sleep for 100ms
+        void wait() {
+            const unsigned int nspin = 10000000;
+            const unsigned int  nnap = nspin + 1000;
+            const int   naptime = 1000;
+            const int sleeptime = naptime*100;
+            count++;
+            if (count < nspin) return;
+            else if (count < nnap) yield(naptime);
+            else yield(sleeptime);
+        }
+    };
+
 
 #ifdef WORLD_MUTEX_ATOMIC
     /// Mutex using spin locks and atomic operations
     
-    /// Should be much faster than pthread operations for infrequent busy
-    /// waiting ... however, expect pathalogical slowdown for busy
-    /// waiting if you oversubscribe the processors.  Also cannot use
-    /// these Mutexes with pthread condition variables.
-    class Mutex {
+    /// Should be much faster than pthread operations for infrequent
+    /// busy waiting ... however, expect pathalogical slowdown for
+    /// busy waiting if you oversubscribe the processors.  Also cannot
+    /// use these Mutexes with pthread condition variables.
+    class Mutex : NO_DEFAULTS {
     private:
-        MADATOMIC_INT flag;
-        
-        /// Copy constructor is forbidden
-        Mutex(const Mutex& m) {}
-        
-        /// Assignment is forbidden
-        void operator=(const Mutex& m) {}
-        
+        mutable MADATOMIC_INT flag;
     public:
         /// Make and initialize a mutex ... initial state is unlocked
         Mutex() {
             MADATOMIC_INT_SET(&flag,1L);
         }
         
+        /// Try to acquire the mutex ... return true on success, false on failure
+        bool try_lock() const {
+            if (MADATOMIC_INT_DEC_AND_TEST(&flag)) return true;
+            MADATOMIC_INT_INC(&flag);
+            return false;
+        }
+            
         /// Acquire the mutex waiting if necessary
-        inline void lock() {
-            while (1) {
-                if (MADATOMIC_INT_DEC_AND_TEST(&flag)) return;
-                MADATOMIC_INT_INC(&flag);
-                //if (yield) sched_yield();
-            }
+        void lock() const {
+            MutexWaiter waiter;
+            while (!try_lock()) waiter.wait();
         }
         
         /// Free a mutex owned by this thread
-        inline void unlock() {
+        void unlock() const {
             MADATOMIC_INT_INC(&flag);
         }
+
+        //pthread_mutex_t* ptr() const {throw "there is no pthread_mutex";}
         
-        inline pthread_mutex_t* ptr() {throw "there is no pthread_mutex";}
+        virtual ~Mutex() {};
+    };
+
+
+    class MutexReaderWriter : NO_DEFAULTS {
+        mutable MADATOMIC_INT nreader;
+        mutable MADATOMIC_INT writeflag;
+    public:
+        static const int NOLOCK=0;
+        static const int READLOCK=1;
+        static const int WRITELOCK=2;
+
+        MutexReaderWriter() {
+            MADATOMIC_INT_SET(&nreader,0);
+            MADATOMIC_INT_SET(&writeflag,1L);
+        }
+
+        bool try_read_lock() const {
+            MADATOMIC_INT_INC(&nreader);
+            if (MADATOMIC_INT_GET(&writeflag) == 0) {
+                return true;
+            }
+            else {
+                MADATOMIC_INT_DEC(&nreader);
+                return false;
+            }
+        }
         
-        ~Mutex() {};
+        bool try_write_lock() const {
+            if (MADATOMIC_INT_DEC_AND_TEST(&writeflag) && MADATOMIC_INT_GET(&nreader) == 0) {
+                return true;
+            }
+            else {
+                MADATOMIC_INT_INC(&writeflag);
+                return false;
+            }
+        }
+
+        bool try_lock(int lockmode) const {
+            if (lockmode == READLOCK) {
+                return try_read_lock();
+            }
+            else if (lockmode == WRITELOCK) {
+                return try_write_lock();
+            }
+            else if (lockmode == NOLOCK) {
+                return true;
+            }
+            else {
+                throw "MutexReaderWriter: try_lock: invalid lock mode";
+            }
+        }
+
+        bool try_convert_read_lock_to_write_lock() const {
+            if (MADATOMIC_INT_DEC_AND_TEST(&writeflag) && MADATOMIC_INT_GET(&nreader) == 1) {
+                MADATOMIC_INT_DEC(&nreader);
+                return true;
+            }
+            else {
+                MADATOMIC_INT_INC(&writeflag);
+                return false;
+            }
+        }
+
+        void read_lock() const {
+            MutexWaiter waiter;
+            while (!try_read_lock()) waiter.wait();
+        }
+
+        void write_lock() const {
+            MutexWaiter waiter;
+            while (!try_write_lock()) waiter.wait();
+        }
+
+        void lock(int lockmode) const {
+            MutexWaiter waiter;
+            while (!try_lock(lockmode)) waiter.wait();
+        }
+
+        void read_unlock() const {
+            MADATOMIC_INT_DEC(&nreader);
+        }
+
+        void write_unlock() const {
+            MADATOMIC_INT_INC(&writeflag);
+        }
+
+        void unlock(int lockmode) const {
+            if (lockmode == READLOCK) read_unlock();
+            else if (lockmode == WRITELOCK) write_unlock();
+            else if (lockmode != NOLOCK) throw "MutexReaderWriter: try_lock: invalid lock mode";            
+        }
+
+        void convert_read_lock_to_write_lock() const {
+            MutexWaiter waiter;
+            while (!try_convert_read_lock_to_write_lock()) waiter.wait();
+        }
+
+        void convert_write_lock_to_read_lock() const {
+            MADATOMIC_INT_INC(&nreader);
+            MADATOMIC_INT_INC(&writeflag);
+        }
+
+        virtual ~MutexReaderWriter(){};
     };
     
 #else
@@ -56,7 +210,7 @@ namespace madness {
     /// Mutex using pthread operations
     class Mutex {
     private:
-        pthread_mutex_t mutex;
+        mutable pthread_mutex_t mutex;
         
         /// Copy constructor is forbidden
         Mutex(const Mutex& m) {}
@@ -67,49 +221,370 @@ namespace madness {
     public:
         /// Make and initialize a mutex ... initial state is unlocked
         Mutex() {pthread_mutex_init(&mutex, 0);}
+
+        /// Try to acquire the mutex ... return true on success, false on failure
+        bool try_lock() const {
+            return pthread_mutex_trylock(&mutex)==0;
+        }
         
         /// Acquire the mutex waiting if necessary
-        inline void lock() {
+        void lock() const {
             if (pthread_mutex_lock(&mutex)) throw "failed acquiring mutex";
         }
         
         /// Free a mutex owned by this thread
-        inline void unlock() {
+        void unlock() const {
             if (pthread_mutex_unlock(&mutex)) throw "failed releasing mutex";
         }
         
         /// Return a pointer to the pthread mutex for use by a condition variable
-        inline pthread_mutex_t* ptr() {return &mutex;}
+        pthread_mutex_t* ptr() const {return &mutex;}
 
-        ~Mutex() {pthread_mutex_destroy(&mutex);};
+        virtual ~Mutex() {pthread_mutex_destroy(&mutex);};
     };
+
+
+    class MutexReaderWriter : private Mutex, NO_DEFAULTS {
+        volatile mutable int nreader;
+        volatile mutable bool writeflag;
+    public:
+        static const int NOLOCK=0;
+        static const int READLOCK=1;
+        static const int WRITELOCK=2;
+
+        MutexReaderWriter() : nreader(0), writeflag(false) 
+        {}
+
+        bool try_read_lock() const {
+            Mutex::lock();
+            bool gotit = !writeflag;
+            if (gotit) nreader++;
+            Mutex::unlock();
+            return gotit;
+        }
+        
+        bool try_write_lock() const {
+            Mutex::lock();
+            bool gotit = (!writeflag) && (nreader==0);
+            if (gotit) writeflag = true;
+            Mutex::unlock();
+            return gotit;
+        }
+
+        bool try_lock(int lockmode) const {
+            if (lockmode == READLOCK) {
+                return try_read_lock();
+            }
+            else if (lockmode == WRITELOCK) {
+                return try_write_lock();
+            }
+            else if (lockmode == NOLOCK) {
+                return true;
+            }
+            else {
+                throw "MutexReaderWriter: try_lock: invalid lock mode";
+            }
+        }
+
+        bool try_convert_read_lock_to_write_lock() const {
+            Mutex::lock();
+            bool gotit = (!writeflag) && (nreader==1);
+            if (gotit) {
+                nreader = 0;
+                writeflag = true;
+            }
+            Mutex::unlock();
+            return gotit;
+        }
+
+        void read_lock() const {
+            MutexWaiter waiter;
+            while (!try_read_lock()) waiter.wait();
+        }
+
+        void write_lock() const {
+            MutexWaiter waiter;
+            while (!try_write_lock()) waiter.wait();
+        }
+
+        void lock(int lockmode) const {
+            MutexWaiter waiter;
+            while (!try_lock(lockmode)) waiter.wait();
+        }
+
+        void read_unlock() const {
+            Mutex::lock();
+            nreader--;
+            Mutex::unlock();
+        }
+
+        void write_unlock() const {
+            // Only a single thread should be setting writeflag but
+            // probably still need the mutex just to get memory fence
+            Mutex::lock();  
+            writeflag = false;
+            Mutex::unlock();
+        }
+
+        void unlock(int lockmode) const {
+            if (lockmode == READLOCK) read_unlock();
+            else if (lockmode == WRITELOCK) write_unlock();
+            else if (lockmode != NOLOCK) throw "MutexReaderWriter: try_lock: invalid lock mode";            
+        }
+
+        /// Converts read to write lock without releasing the read lock
+
+        /// Note that deadlock is guaranteed if two+ threads wait to convert at the same time.
+        void convert_read_lock_to_write_lock() const {
+            MutexWaiter waiter;
+            while (!try_convert_read_lock_to_write_lock()) waiter.wait();
+        }
+
+        /// Always succeeds immediately
+        void convert_write_lock_to_read_lock() const {
+            Mutex::lock();  
+            nreader++;
+            writeflag=false;
+            Mutex::unlock();
+        }
+
+        virtual ~MutexReaderWriter(){};
+    };
+
     
 #endif
 
-    
-    /// Simplified thread wrapper to hide pthread complexity
-    class Thread {
+    /// Mutex that is applied/released at start/end of a scope
+    class ScopedMutex {
+        const Mutex* m;
     public:
-        pthread_t id;               ///< posix thread id
-        int num;                    ///< madness integer thread id
+        ScopedMutex(const Mutex* m) : m(m) {m->lock();}
+        ScopedMutex(const Mutex& m) : m(&m) {m.lock();}
+        virtual ~ScopedMutex() {m->unlock();}
+    };
+
+
+    /// Attempt to acquire two locks without blocking while holding either one
+
+    /// The code will first attempt to acquire mutex m1 and if successful
+    /// will then attempt to acquire mutex m2.  
+    inline bool try_two_locks(const Mutex& m1, const Mutex& m2) {
+        if (!m1.try_lock()) return false;
+        if (m2.try_lock()) return true;
+        m1.unlock();
+        return false;
+    }
+
+
+    /// Simple wrapper for Pthread condition variables with its own mutex
+
+    /// Use this when you need to block in the kernel without consuming cycles.
+    /// Scheduling granularity is presumably at the level of kernel ticks.
+    class ConditionVariable : NO_DEFAULTS {
+    private:
+        pthread_cond_t cv;
+        pthread_mutex_t mutex;
+
+    public:
+        ConditionVariable() {
+            pthread_cond_init(&cv, NULL);
+            pthread_mutex_init(&mutex, 0);
+        }            
+
+        pthread_mutex_t& get_pthread_mutex() {return mutex;}
+
+        template <typename conditionT>
+        void wait(conditionT& condition) {
+            if (pthread_mutex_lock(&mutex)) throw "ConditionVariable: acquiring mutex";
+            while (!condition()) pthread_cond_wait(&cv,&mutex);
+        }
+
+        void signal() {
+            if (pthread_cond_signal(&cv)) throw "ConditionalVariable: signalling failed";
+        }
+
+        virtual ~ConditionVariable() {
+            pthread_mutex_destroy(&mutex);
+            pthread_cond_destroy(&cv);
+        }
+
+    };
+
+
+    /// A thread safe, fast but simple doubled-ended queue.  You can push or pop at either end ... that's it.
+
+    /// Since the point is speed, the implementation is a circular
+    /// buffer rather than a linked list so as to avoid the new/del
+    /// overhead.  It will grow as needed, but presently will not
+    /// shrink.  Had to modify STL API to make things thread safe.
+    ///
+    /// Was wrapping a vector but making it thread safe and resizable
+    /// was too painful.
+    template <typename T>
+    class DQueue : private Mutex {
+        volatile size_t sz;              ///< Current capacity
+        volatile T* volatile buf;        ///< Actual buffer
+        volatile int _front;  ///< Index of element at front of buffer
+        volatile int _back;    ///< Index of element at back of buffer
+        volatile size_t n;      ///< Number of elements in the buffer
+
+        void grow() {
+            // ASSUME WE ALREADY HAVE THE MUTEX WHEN IN HERE
+            if (sz != n) throw "assertion failure in dqueue::grow";
+            size_t oldsz = sz;
+            if (sz < 32768) 
+                sz = 65536;
+            else if (sz <= 1048576) 
+                sz *= 2;
+            else 
+                sz += 1048576;
+            volatile T* volatile nbuf = new T[sz];
+            int lo = sz/2 - oldsz/2;
+            for (int i=_front; i<int(oldsz); i++,lo++) {
+                nbuf[lo] = buf[i];
+            }
+            if (_front > 0) {
+                for (int i=0; i<=_back; i++,lo++) {
+                    nbuf[lo] = buf[i];
+                }
+            }
+            _front = sz/2 - oldsz/2;
+            _back = _front + n - 1;
+            buf = nbuf;
+            sanity_check();
+        }
+
+        void sanity_check() const {
+            // ASSUME WE ALREADY HAVE THE MUTEX WHEN IN HERE
+            int num = _back - _front + 1;
+            if (num < 0) num += sz;
+            if (num==int(sz) && n==0) num=0;
+            if (num==0 && n==sz) num=sz;
+            //if (long(n) != num) print("size",sz,"front",_front,"back",_back,"n",n,"num",num);
+            if (long(n) != num) throw "assertion failure in dqueue::sanity";
+        }
+
+    public:
+        DQueue(size_t hint=32768) 
+            : sz(hint>2 ? hint : 2)
+            , buf(new T[sz])
+            , _front(sz/2)
+            , _back(_front-1)
+            , n(0)
+        {}
+
+        virtual ~DQueue() {
+            delete buf;
+        }
+
+        /// Insert value at front of queue
+        void push_front(const T& value) {
+            madness::ScopedMutex obolus(this);
+            sanity_check();
+            if (n == sz) grow();
+            _front--;
+            if (_front < 0) _front = sz-1;
+            buf[_front] = value;
+            n++;
+        }
+
+        /// Insert element at back of queue
+        void push_back(const T& value) {
+            madness::ScopedMutex obolus(this);
+            sanity_check();
+            if (n == sz) grow();
+            _back++;
+            if (_back >= int(sz)) _back = 0;
+            buf[_back] = value;
+            n++;
+        }
+
+        /// Pop value off the front of queue
+        std::pair<T,bool> pop_front() {
+            madness::ScopedMutex obolus(this);
+            bool status=true; 
+            T result;
+            if (n) {
+                sanity_check();
+                n--;
+                result = buf[_front];
+                _front++;
+                if (_front >= long(sz)) _front = 0;
+            }
+            else {
+                status = false;
+            }
+            return std::pair<T,bool>(result,status);
+        }
+
+
+        /// Pop value off the back of queue
+        std::pair<T,bool> pop_back() {
+            madness::ScopedMutex obolus(this);
+            bool status=true; 
+            T result;
+            if (n) {
+                sanity_check();
+                n--;
+                result = buf[_back];
+                _back--;
+                if (_back<0) _back = sz-1;
+            }
+            else {
+                status = false;
+            }
+            return std::pair<T,bool>(result,status);
+        }
+
+        size_t size() const {
+            return n;
+        }
+        
+        bool empty() const {
+            return n==0;
+        }
+    };
+
+
+    class ThreadPool;           // Forward decl.
+
+    /// Simplified thread wrapper to hide pthread complexity
+
+    /// If the thread is using any of the object state you cannot
+    /// delete the object until the thread has terminated.
+    ///
+    /// The cleanest solution is to put the object on the heap and
+    /// have the run method "delete this" at its end.
+    class ThreadBase {
+        friend class ThreadPool;
+
+        static void* main(void* self) {((ThreadBase*)(self))->run(); return 0;}
+        int pool_num; ///< Stores index of thread in pool or -1
+        pthread_t id; 
+
+        void set_pool_thread_index(int i) {
+            pool_num = i;
+        }
+
+    public:
         
         /// Default constructor ... must invoke \c start() to actually begin the thread.
-        Thread() {};
+        ThreadBase() : pool_num(-1) {};
+
+        virtual ~ThreadBase() {};
         
-        /// Create a thread and start it running f(args)
-        Thread(void* (*f) (void *), void* args=0) {
-            this->start(f,args);
-        };
+        /// You implement this to do useful work
+        virtual void run() = 0;
         
-        /// Start a thread made with default constructor executing \c f(args)
-        void start(void* (*f) (void *), void* args=0) {
+        /// Start the thread running
+        void start() {
             pthread_attr_t attr;
             // Want detached thread with kernel scheduling so can use multiple cpus
             // RJH ... why not checking success/failure????
             pthread_attr_init(&attr);    
             pthread_attr_setdetachstate(&attr,PTHREAD_CREATE_DETACHED);
             pthread_attr_setscope(&attr, PTHREAD_SCOPE_SYSTEM); 
-            if (pthread_create(&id, &attr, f, args))
+            if (pthread_create(&id, &attr, &ThreadBase::main, (void *) this))
                 throw "failed creating thread";
             
             pthread_attr_destroy(&attr);
@@ -117,8 +592,214 @@ namespace madness {
         
         /// A thread can call this to terminate its execution
         static void exit() {pthread_exit(0);}
+        
+        /// Get the pthread id of this thread (if running)
+        const pthread_t& get_id() const {return id;}
+
+        /// Get index of thread in ThreadPool (0,...,nthread-1) or -1 if not in ThreadPool
+        int get_pool_thread_index() const {return pool_num;}
+        
+        /// Cancel this thread
+        int cancel() const {return pthread_cancel(get_id());}
     };
     
+    
+    /// Simplified thread wrapper to hide pthread complexity
+    class Thread : public ThreadBase {
+        void* (*f)(void *); 
+        void* args;
+        
+        void run() {f(args);}
+    public:
+        /// Default constructor ... must invoke \c start() to actually begin the thread.
+        Thread() : f(0), args(0) {};
+        
+        /// Create a thread and start it running f(args)
+        Thread(void* (*f) (void *), void* args=0) 
+            : f(f), args(args) 
+        {
+            ThreadBase::start();
+        }
+        
+        void start(void* (*f) (void *), void* args=0) {
+            this->f = f;
+            this->args = args;
+            ThreadBase::start();
+        }
+
+        virtual ~Thread() {}
+    };
+    
+    
+    /// Contains attributes of a task
+    
+    /// \c generator : Setting this hints that a task will produce
+    /// additional tasks and is used by the scheduler to
+    /// increase/throttle parallelism. The default is false.
+    ///
+    /// \c stealable : Setting this indicates that a task may be
+    /// migrated to another process for dynamic load balancing.  The
+    /// default value is false.
+    ///
+    /// \c highpriority : indicates a high priority task.
+    class TaskAttributes {
+        unsigned long flags;
+        static const unsigned long one = 1ul;
+    public:
+        static const unsigned long GENERATOR = one<<0;
+        static const unsigned long STEALABLE = one<<1;
+        static const unsigned long HIGHPRIORITY = one<<2;
+
+        TaskAttributes(unsigned long flags = 0) : flags(flags) {}
+
+        bool is_generator() const {return flags&GENERATOR;}
+
+        bool is_stealable() const {return flags&STEALABLE;}
+
+        bool is_high_priority() const {return flags&HIGHPRIORITY;}
+
+        void set_generator (bool generator_hint) {
+            if (generator_hint) flags |= GENERATOR;
+            else flags &= ~GENERATOR;
+        }
+
+        void set_stealable (bool stealable) {
+            if (stealable) flags |= STEALABLE;
+            else flags &= ~STEALABLE;
+        }
+
+        void set_highpriority (bool hipri) {
+            if (hipri) flags |= HIGHPRIORITY;
+            else flags &= ~HIGHPRIORITY;
+        }
+
+        template <typename Archive>
+        void serialize(Archive& ar) {
+            ar & flags;
+        }
+
+        static TaskAttributes generator() {return TaskAttributes(GENERATOR);}
+
+        static TaskAttributes hipri() {return TaskAttributes(HIGHPRIORITY);}
+    };
+
+
+    class PoolTaskInterface : public TaskAttributes {
+    public:
+        PoolTaskInterface() {}
+
+        explicit PoolTaskInterface(const TaskAttributes& attr)
+            : TaskAttributes(attr) {}
+
+        virtual void run() = 0;
+
+        virtual ~PoolTaskInterface() {}
+    };
+
+
+    /// A singleton pool of threads for dynamic execution of tasks.
+
+    /// YOU MUST INSTANTIATE THE POOL WHILE RUNNING WITH JUST ONE THREAD
+    class ThreadPool {
+    private:
+        Thread *threads;              ///< Array of threads
+        DQueue<PoolTaskInterface*> queue; ///< Queue of tasks
+        int nthreads;		  ///< No. of threads
+
+        static ThreadPool* instance_ptr;
+
+        /// The constructor is private to enforce the singleton model
+        ThreadPool(int nthread=-1) : nthreads(nthread) {
+            instance_ptr = this;
+            if (nthreads < 0) nthreads = default_nthread();
+            std::cout << "POOL " << nthreads << std::endl;
+
+            try {
+                if (nthreads > 0) threads = new Thread[nthreads];
+            else threads = 0;
+            }
+            catch (...) {
+                throw "memory allocation failed";
+            }
+
+            for (int i=0; i<nthreads; i++) {
+                threads[i].set_pool_thread_index(i);
+                threads[i].start(pool_thread_main, (void *) (threads+i));
+            }
+        }
+
+        ThreadPool(const ThreadPool&);           // Verboten
+        void operator=(const ThreadPool&);       // Verboten
+
+        /// Get number of threads from the environment
+        int default_nthread() {
+            int nthread;
+            char *cnthread = getenv("POOL_NTHREAD");
+
+            if (cnthread) {
+                if (sscanf(cnthread, "%d", &nthread) != 1) 
+                    throw "POOL_NTHREAD is not an integer";
+                else
+                    return nthread;
+            }
+            return 1;
+        }
+
+        void thread_main(Thread* thread) {
+            MutexWaiter waiter;
+            while (1) {
+                std::pair<PoolTaskInterface*,bool> t = queue.pop_front();
+                if (t.second) {
+                    t.first->run();          // What we are here to do
+                    delete t.first;
+                    waiter.reset();
+                }
+                else {
+                    waiter.wait();
+                }
+            }
+        }
+
+        /// Forwards thread to bound member function
+        static void* pool_thread_main(void *v) {
+            instance()->thread_main((Thread*)(v));
+            return 0;
+        }
+
+
+        /// Return a pointer to the only instance constructing as necessary
+        static ThreadPool* instance(int nthread=-1) {
+            if (!instance_ptr) instance_ptr = new ThreadPool(nthread);
+            return instance_ptr;
+        };
+
+
+    public:
+        /// Please invoke while in single threaded environment
+        static void begin(int nthread=-1) {instance(nthread);}
+
+        /// Add a new task to the pool
+        static void add(PoolTaskInterface* task) {
+            if (task->is_high_priority()) {
+                instance()->queue.push_front(task);
+            }
+            else {
+                instance()->queue.push_back(task);
+            }
+        }
+
+        /// Add a vector of tasks to the pool
+        static void add(const std::vector<PoolTaskInterface*>& tasks) {
+            typedef std::vector<PoolTaskInterface*>::const_iterator iteratorT;
+            for (iteratorT it=tasks.begin(); it!=tasks.end(); ++it) {
+                add(*it);
+            }
+        }
+        
+
+        ~ThreadPool() {};
+    };
 }
+    
 
 #endif

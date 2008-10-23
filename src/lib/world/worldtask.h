@@ -47,236 +47,210 @@
 #include <world/nodefaults.h>
 #include <world/worldtypes.h>
 #include <world/typestuff.h>
-#include <world/dqueue.h>
 #include <world/worlddep.h>
 #include <world/worldfut.h>
+#include <world/worldthread.h>
 
 namespace madness {
 
-    /// Contains attributes of a task
-
-    /// \c generator_hint : Setting this to true hints that a task
-    /// will produce additional tasks and gives the task 
-    /// preferential scheduling in order to maximize available
-    /// parallelism.  The default value is false, which does not
-    /// preclude a task from producing other tasks and results
-    /// in normal priority for the scheduling.
-    ///
-    /// \c stealable : Setting this to true indicates that a task
-    /// may be migrated to another process for dynamic load balancing.
-    /// The default value is false.
-    class TaskAttributes {
-        unsigned long flags;
-        static const unsigned long one = 1ul;
-        static const unsigned long GENERATOR = one<<0;
-        static const unsigned long STEALABLE = one<<1;
-        
-    public:
-        TaskAttributes() : flags(0) {};
-        
-        TaskAttributes(bool generator_hint, bool stealable=false) 
-            : flags((generator_hint?GENERATOR:0) | (stealable?STEALABLE:0))
-        {};
-        
-        bool is_generator() const {return flags&GENERATOR;};
-        
-        bool is_stealable() const {return flags&STEALABLE;};
-        
-        void set_generator_hint (bool generator_hint) {
-            if (generator_hint) flags |= GENERATOR;
-            else flags &= ~GENERATOR;
-        };
-        
-        void set_stealable (bool stealable) {
-            if (stealable) flags |= STEALABLE;
-            else flags &= ~STEALABLE;
-        };
-        
-        template <typename Archive>
-        void serialize(Archive& ar) {
-            ar & flags;
-        }
-    };
-
-    /// Returns a const reference to a task attributes with generator hint set true
-    const TaskAttributes& task_attr_generator();
-    
+    // Forward decls
     class WorldTaskQueue;
     class TaskInterface;
-    
-    void task_ready_callback_function(WorldTaskQueue*, TaskInterface*);
-    
-    /// All tasks must be derived from this public interface
-    class TaskInterface : public DependencyInterface{
-        friend class WorldTaskQueue;
-    private:
-        TaskAttributes attr;
-        class TaskReadyCallback : public CallbackInterface {
-            WorldTaskQueue* taskq;
-            TaskInterface* task;
-        public:
-            TaskReadyCallback() : taskq(0), task(0) {};
-            void register_callback(WorldTaskQueue* taskq, TaskInterface* task) {
-                this->taskq = taskq;
-                this->task = task;
-                static_cast<DependencyInterface*>(task)->register_callback(this);
-            };
-            void notify() {
-                if (taskq) ::madness::task_ready_callback_function(taskq,task);
-                taskq = 0;
-            };
-        } callback;   ///< Embedded here for efficiency (managed by taskq)
-        
-    public:
-        /// Create a new task with ndepend dependencies (default 0) and given attributes
-        TaskInterface(int ndepend=0, const TaskAttributes& attr = TaskAttributes())
-            : DependencyInterface(ndepend)
-            , attr(attr)
-        {};
-
-        /// Create a new task with zero dependencies and given attributes
-        TaskInterface(const TaskAttributes& attr)
-            : DependencyInterface(0)
-            , attr(attr)
-        {};
-
-        bool is_stealable() const {return attr.is_stealable();};
-
-        bool is_generator() const {return attr.is_generator();};
-
-        /// Runs the task ... derived classes MUST implement this.
-        virtual void run(World& world) = 0;
-
-        /// Virtual base class destructor so that derived class destructor is called
-        virtual ~TaskInterface() {};
-    };
-
-    class WorldTaskQueue;
-
     template <typename functionT> class TaskFunction;
     template <typename memfunT> class TaskMemfun;
 
-    /// Queue to manage and run tasks.
-    
-    /// Note that even though the queue is presently single threaded,
-    /// the invocation of poll() and/or fiber scheduling can still
-    /// cause multiple entries through the task layer.  If modifying
-    /// this class (indeed, any World class) be careful about keeping
-    /// modifications to the data structure atomic w.r.t. AM
-    /// operations and the execution of multiple fibers.
-    ///
-    /// Rather than focus on the concept of task priority for scheduling
-    /// tasks have attributes that can be used for more informed
-    /// control of their execution.  Presently, only the task_generator_hint
-    /// is implemented which indicates that a task may generate additional
-    /// tasks and hence should receive preferential scheduling in order
-    /// to increase available parallelism early in program execution.
-    ///
-    /// The pending q for tasks that need probing to have their dependencies
-    /// make progress has been removed.  It can be added back.  
-    class WorldTaskQueue : private NO_DEFAULTS {
-        friend class TaskInterface;
+    /// All tasks must be derived from this public interface
+    class TaskInterface : public DependencyInterface , PoolTaskInterface {
+        friend class WorldTaskQueue;
     private:
-        //typedef std::list< TaskInterface* > listT;
-        typedef DQueue< TaskInterface* > listT;
-        listT ready;       ///< Tasks that are ready to run
+        volatile World* world;
 
-        World& world;      ///< The communication context
-        const int maxfiber;//< Maximum no. of active fibers
-        long nregistered;  ///< Counts registered tasks with simple dependencies
-        const ProcessID me;
-        int suspended;      ///< If non-zero, task processing is suspended
-        long maxinq;        ///< Maximum number of enqueued tasks
+        struct Submit : public CallbackInterface {
+            PoolTaskInterface* p;
+            Submit(PoolTaskInterface* p) : p(p) {}
+            void notify() {
+                ThreadPool::add(p);
+            }
+        } submit;
 
-        long xxntotal;    ///< For stats only: total number of submitted tasks
-        long xxnqmax;     ///< For stats only: lifetime max number of enqueued tasks
-        long xxnready;    ///< For stats only: current number in the ready queue
-                                 ///< (and total is then (xxnready+nregistered))
+        CallbackInterface* completed;
+
+        void set_info(World* world, CallbackInterface* completed) {
+            this->world = world;
+            this->completed = completed;
+        }
+
+    protected:
+        void run() // This is what thread pool will invoke
+        { 
+            MADNESS_ASSERT(world);
+            MADNESS_ASSERT(completed);
+            World* w = const_cast<World*>(world);
+            if (debug) std::cerr << w->rank() << ": Task " << (void*) this << " is now running" << std::endl;
+            run(*w);            
+            if (debug) std::cerr << w->rank() << ": Task " << (void*) this << " has completed" << std::endl;
+        }
 
     public:
-        WorldTaskQueue(World& world, int maxfiber=1) 
+        static bool debug;
+
+        /// Create a new task with ndepend dependencies (default 0) and given attributes
+
+        /// In addition to the ndepend user-specified dependencies there is a
+        /// hidden dependency that is satisfied by submission to the taskq.
+        /// This avoids a race condition between user dependencies being satisfied and
+        /// registering the task in the queue.
+        TaskInterface(int ndepend=0, const TaskAttributes& attr = TaskAttributes())
+            : DependencyInterface(ndepend+1)
+            , PoolTaskInterface(attr)
+            , world(0)
+            , submit(this)
+            , completed(0)
+        {
+            register_callback(&submit);
+        }
+
+
+        /// Create a new task with zero dependencies and given attributes
+        explicit TaskInterface(const TaskAttributes& attr)
+            : DependencyInterface(1)
+            , PoolTaskInterface(attr)
+            , world(0)
+            , submit(this)
+            , completed(0)
+        {
+            register_callback(&submit);
+        }
+
+        virtual ~TaskInterface() {completed->notify();}
+
+        template <typename Archive>
+        void serialize(Archive& ar) {
+            throw "there is no way this is correct";
+            ar & *static_cast<PoolTaskInterface*>(this) & world;
+        }
+
+        /// Runs the task ... derived classes must implement this.
+        virtual void run(World& world) = 0;
+    };
+
+
+    /// Multi-threaded queue to manage and run tasks.
+    class WorldTaskQueue : public CallbackInterface, private NO_DEFAULTS {
+        friend class TaskInterface;
+    private:
+        World& world;              ///< The communication context
+        const ProcessID me;        ///< This process
+        MADATOMIC_INT nregistered; ///< Counts pending tasks
+
+        void notify() {
+            MADATOMIC_INT_DEC(&nregistered);  
+        }
+
+    public:
+        WorldTaskQueue(World& world) 
             : world(world)
-            , maxfiber(maxfiber)
-            , nregistered(0)
             , me(world.mpi.rank())
-            , suspended(0) 
-            , maxinq(100000)
-            , xxntotal(0)
-            , xxnqmax(0)
-            , xxnready(0)
-        {};
+        {
+            MADATOMIC_INT_SET(&nregistered, 0);
+        }
 
-        /// Returns the number of ready tasks 
-        long nready() const {
-            return ready.size(); // Note that this can be expensive
-        };
+        /// Returns the number of pending tasks
+        size_t size() const {
+            return MADATOMIC_INT_GET(&nregistered);
+        }
 
-        /// Returns the number of pending (not-ready) tasks
-        long npending() const {
-            return nregistered;
-        };
-
-        /// Returns the total number of enqueued tasks (ready + not ready)
-        long size() const {
-            return nready() + npending();
-        };
-
-        /// Returns the maximum number of enqueued tasks before forced task execution
-        long max_enqueued() const {
-            return maxinq;
-        };
-        
-        /// Sets the maximum number of enqueued tasks before forced task execution
-        void set_max_enqueued(long value) {
-            maxinq = value;
-        };
-        
-        /// Add a new local task.  The task queue will eventually delete it.
+        /// Add a new local task taking ownership of the pointer
 
         /// The task pointer (t) is assumed to have been created with
         /// \c new and when the task is eventually run the queue
         /// will call the task's destructor using \c delete.
         ///
-        /// If the task has no outstanding dependencies it is immediately
-        /// put into the ready queue.
+        /// All tasks have at least one dependency that is satisfied
+        /// by submission to the world taskq.  This enables
+        /// registration of necessary info without a race condition
+        /// against other dependencies and we don't need a mutex.
         ///
         /// If the task has outstanding dependencies then it is
         /// assumed that other activities will be calling task->dec()
         /// to decrement the dependency count.  When this count goes
         /// to zero the callback will be invoked automatically to
-        /// insert the task into the ready queue.  All that will be
-        /// done here is registering the callback
-        inline void add(TaskInterface* t) {
-            xxntotal++;      // Count total number of tasks over all time
-            nregistered++;   // Counts submitted tasks not yet in the ready queue
-            xxnqmax = std::max(nregistered+xxnready, xxnqmax); // Lifetime max of enqueued tasks
+        /// insert the task into the pool.
+        ///
+        /// Once the task is complete it will execute
+        /// task_complete_callback to decrement the number of pending
+        /// tasks and be deleted.
+        void add(TaskInterface* t) 
+        {
+            t->set_info(&world, this);       // Stuff info
+            MADATOMIC_INT_INC(&nregistered); // Count 
+            MADNESS_ASSERT(t->ndep()>=1);
+            MADNESS_ASSERT(MADATOMIC_INT_GET(&nregistered)>=1);
+            if (TaskInterface::debug) std::cerr << world.rank() << ": Task " << (void*) t << " submitted with ndep=" << t->ndep()-1 << std::endl;
+            t->dec();                        // Set free
+        }
 
-            if (t->probe()) add_ready_task(t);
-            else t->callback.register_callback(this,t);
+        void add(const std::vector<TaskInterface*>& v) 
+        {
+            for (unsigned int i=0; i<v.size(); i++)
+                add(v[i]);
+        }
 
-            World::poll_all();
+        template <typename T> 
+        struct PredicateTrue {
+            bool operator()(const T& t) const {return true;}
+        };
+
+        /// For each item in range if \c predicate(iterator) is true submit task formed by \c maketask(iterator) 
+
+        /// The default predicate is true.
+        ///
+        /// To enable use when the tasks might modify the data structure referred to 
+        /// by the iterators, the entire list of tasks is first formed and
+        /// then submitted en-masse.  
+        ///
+        /// To throttle the number of tasks we can add a maxtasks and submit 
+        /// a continuation task to finish the submission, and/or add granularity control.
+        /// However, both assume that tasks can be completed in the order submitted
+        /// and should probably be via a separate interface.
+        /// This gets into the Intel TBB concepts of splitting ranges, etc.
+        template < typename iteratorT, typename maketaskT, typename predicateT >
+        void for_each(const iteratorT& begin, 
+                      const iteratorT& end, 
+                      const maketaskT& maketask, 
+                      const predicateT& predicate=PredicateTrue<iteratorT>()) 
+        {
+            std::vector<TaskInterface*> v;
+            for (iteratorT it=begin; it!=end; ++it) {
+                if (predicate(it)) v.push_back(maketask(it));
+            }
+            add(v);
         };
 
 
         /// Invoke "resultT (*function)(void)" as a local task
 
-        /// A future is returned to eventually hold the result of the task.
+        /// A future is returned to hold the eventual result of the task.
         /// Future<void> is an empty class that may be ignored.
         template <typename functionT>
-        Future<REMFUTURE(FUNCTION_RETURNT(functionT))> add(functionT function, const TaskAttributes& attr=TaskAttributes()) {
+        Future<REMFUTURE(FUNCTION_RETURNT(functionT))> 
+        add(functionT function, const TaskAttributes& attr=TaskAttributes()) 
+        {
             return add(me,function,attr);
         }
 
 
         /// Invoke "resultT (*function)(void)" as a task, local or remote
 
-        /// A future is returned to eventually hold the result of the task.
+        /// A future is returned to hold the eventual result of the task.
         /// Future<void> is an empty class that may be ignored.
         template <typename functionT>
-        Future<REMFUTURE(FUNCTION_RETURNT(functionT))> add(ProcessID where, functionT function, const TaskAttributes& attr=TaskAttributes()) {
+        Future<REMFUTURE(FUNCTION_RETURNT(functionT))> 
+        add(ProcessID where, functionT function, const TaskAttributes& attr=TaskAttributes()) 
+        {
             Future<REMFUTURE(FUNCTION_RETURNT(functionT))> result;
             if (where == me) 
-                add(new TaskFunction<functionT>(result, function,attr));
+                add(new TaskFunction<functionT>(result, function, attr));
             else 
                 TaskFunction<functionT>::sender(world, where, result, function, attr);
             return result;
@@ -285,14 +259,16 @@ namespace madness {
 
         /// Invoke "resultT (*function)(arg1T)" as a local task
         template <typename functionT, typename arg1T>
-        Future<REMFUTURE(FUNCTION_RETURNT(functionT))> add(functionT function, const arg1T& arg1, const TaskAttributes& attr=TaskAttributes()) {
+        Future<REMFUTURE(FUNCTION_RETURNT(functionT))> 
+        add(functionT function, const arg1T& arg1, const TaskAttributes& attr=TaskAttributes()) 
+        {
             return add(me, function, arg1, attr);
         }
 
 
         /// Invoke "resultT (*function)(arg1T)" as a task, local or remote
 
-        /// A future is returned to eventually hold the result of the
+        /// A future is returned to hold the eventual result of the
         /// task.  Future<void> is an empty class that may be ignored.
         ///
         /// Arguments must be (de)serializable and must of course make
@@ -309,8 +285,10 @@ namespace madness {
         /// by making a local task to submit the remote task once
         /// everything is ready).
         template <typename functionT, typename arg1T>
-        Future<REMFUTURE(FUNCTION_RETURNT(functionT))> add(ProcessID where, functionT function, 
-                                                const arg1T& arg1, const TaskAttributes& attr=TaskAttributes()) {
+        Future<REMFUTURE(FUNCTION_RETURNT(functionT))> 
+        add(ProcessID where, functionT function, 
+            const arg1T& arg1, const TaskAttributes& attr=TaskAttributes()) 
+        {
             Future<REMFUTURE(FUNCTION_RETURNT(functionT))> result;
             if (where == me) {
                 add(new TaskFunction<functionT>(result, function, arg1, attr));
@@ -325,19 +303,23 @@ namespace madness {
 
         /// Invoke "resultT (*function)(arg1T,arg2T)" as a local task
         template <typename functionT, typename arg1T, typename arg2T>
-        Future<REMFUTURE(FUNCTION_RETURNT(functionT))> add(functionT function, 
-                                                const arg1T& arg1, const arg2T& arg2, const TaskAttributes& attr=TaskAttributes()) {
+        Future<REMFUTURE(FUNCTION_RETURNT(functionT))> 
+        add(functionT function, 
+            const arg1T& arg1, const arg2T& arg2, const TaskAttributes& attr=TaskAttributes()) 
+        {
             return add(me,function,arg1,arg2,attr);
         }
 
 
         /// Invoke "resultT (*function)(arg1T,arg2T)" as a task, local or remote
 
-        /// A future is returned to eventually hold the result of the
+        /// A future is returned to hold the eventual result of the
         /// task.  Future<void> is an empty class that may be ignored.
         template <typename functionT, typename arg1T, typename arg2T>
-        Future<REMFUTURE(FUNCTION_RETURNT(functionT))> add(ProcessID where, functionT function, 
-                                                const arg1T& arg1, const arg2T& arg2, const TaskAttributes& attr=TaskAttributes()) {
+        Future<REMFUTURE(FUNCTION_RETURNT(functionT))> 
+        add(ProcessID where, functionT function, 
+            const arg1T& arg1, const arg2T& arg2, const TaskAttributes& attr=TaskAttributes()) 
+        {
             Future<REMFUTURE(FUNCTION_RETURNT(functionT))> result;
             if (where == me) {
                 add(new TaskFunction<functionT>(result, function, arg1, arg2, attr));
@@ -353,21 +335,25 @@ namespace madness {
 
         /// Invoke "resultT (*function)(arg1T,arg2T,arg3T)" as a local task
         template <typename functionT, typename arg1T, typename arg2T, typename arg3T>
-        Future<REMFUTURE(FUNCTION_RETURNT(functionT))> add(functionT function, 
-                                                const arg1T& arg1, const arg2T& arg2, 
-                                                const arg3T& arg3, const TaskAttributes& attr=TaskAttributes()) {
+        Future<REMFUTURE(FUNCTION_RETURNT(functionT))> 
+        add(functionT function, 
+            const arg1T& arg1, const arg2T& arg2, 
+            const arg3T& arg3, const TaskAttributes& attr=TaskAttributes()) 
+        {
             return add(me,function,arg1,arg2,arg3,attr);
         }
 
 
         /// Invoke "resultT (*function)(arg1T,arg2T,arg3T)" as a task, local or remote
 
-        /// A future is returned to eventually hold the result of the
+        /// A future is returned to hold the eventual result of the
         /// task.  Future<void> is an empty class that may be ignored.
         template <typename functionT, typename arg1T, typename arg2T, typename arg3T>
-        Future<REMFUTURE(FUNCTION_RETURNT(functionT))> add(ProcessID where, functionT function, 
-                                                const arg1T& arg1, const arg2T& arg2,
-                                                const arg3T& arg3, const TaskAttributes& attr=TaskAttributes()) {
+        Future<REMFUTURE(FUNCTION_RETURNT(functionT))> 
+        add(ProcessID where, functionT function, 
+            const arg1T& arg1, const arg2T& arg2,
+            const arg3T& arg3, const TaskAttributes& attr=TaskAttributes()) 
+        {
             Future<REMFUTURE(FUNCTION_RETURNT(functionT))> result;
             if (where == me) {
                 add(new TaskFunction<functionT>(result, function, arg1, arg2, arg3, attr));
@@ -384,12 +370,14 @@ namespace madness {
         
         /// Invoke "resultT (*function)(arg1T,arg2T,arg3T,arg4T)" as a task, local or remote
 
-        /// A future is returned to eventually hold the result of the
+        /// A future is returned to hold the eventual result of the
         /// task.  Future<void> is an empty class that may be ignored.
         template <typename functionT, typename arg1T, typename arg2T, typename arg3T, typename arg4T>
-        Future<REMFUTURE(FUNCTION_RETURNT(functionT))> add(ProcessID where, functionT function, 
-                                                const arg1T& arg1, const arg2T& arg2,
-                                                const arg3T& arg3, const arg4T& arg4, const TaskAttributes& attr=TaskAttributes()) {
+        Future<REMFUTURE(FUNCTION_RETURNT(functionT))> 
+        add(ProcessID where, functionT function, 
+            const arg1T& arg1, const arg2T& arg2,
+            const arg3T& arg3, const arg4T& arg4, const TaskAttributes& attr=TaskAttributes()) 
+        {
             Future<REMFUTURE(FUNCTION_RETURNT(functionT))> result;
             if (where == me) {
                 add(new TaskFunction<functionT>(result, function, arg1, arg2, arg3, arg4, attr));
@@ -408,13 +396,15 @@ namespace madness {
         
         /// Invoke "resultT (*function)(arg1T,arg2T,arg3T,arg4T,arg5T)" as a task, local or remote
 
-        /// A future is returned to eventually hold the result of the
+        /// A future is returned to hold the eventual result of the
         /// task.  Future<void> is an empty class that may be ignored.
         template <typename functionT, typename arg1T, typename arg2T, typename arg3T, typename arg4T, typename arg5T>
-        Future<REMFUTURE(FUNCTION_RETURNT(functionT))> add(ProcessID where, functionT function, 
-                                                const arg1T& arg1, const arg2T& arg2,
-                                                const arg3T& arg3, const arg4T& arg4,
-                                                const arg5T& arg5, const TaskAttributes& attr=TaskAttributes()) {
+        Future<REMFUTURE(FUNCTION_RETURNT(functionT))> 
+        add(ProcessID where, functionT function, 
+            const arg1T& arg1, const arg2T& arg2,
+            const arg3T& arg3, const arg4T& arg4,
+            const arg5T& arg5, const TaskAttributes& attr=TaskAttributes()) 
+        {
             Future<REMFUTURE(FUNCTION_RETURNT(functionT))> result;
             if (where == me) {
                 add(new TaskFunction<functionT>(result, function, arg1, arg2, arg3, arg4, arg5, attr));
@@ -432,13 +422,15 @@ namespace madness {
         
         /// Invoke "resultT (*function)(arg1T,arg2T,arg3T,arg4T,arg5T,arg6T)" as a task, local or remote
 
-        /// A future is returned to eventually hold the result of the
+        /// A future is returned to hold the eventual result of the
         /// task.  Future<void> is an empty class that may be ignored.
         template <typename functionT, typename arg1T, typename arg2T, typename arg3T, typename arg4T, typename arg5T, typename arg6T>
-        Future<REMFUTURE(FUNCTION_RETURNT(functionT))> add(ProcessID where, functionT function, 
-                                                const arg1T& arg1, const arg2T& arg2,
-                                                const arg3T& arg3, const arg4T& arg4,
-                                                const arg5T& arg5, const arg6T& arg6, const TaskAttributes& attr=TaskAttributes()) {
+        Future<REMFUTURE(FUNCTION_RETURNT(functionT))> 
+        add(ProcessID where, functionT function, 
+            const arg1T& arg1, const arg2T& arg2,
+            const arg3T& arg3, const arg4T& arg4,
+            const arg5T& arg5, const arg6T& arg6, const TaskAttributes& attr=TaskAttributes()) 
+        {
             Future<REMFUTURE(FUNCTION_RETURNT(functionT))> result;
             if (where == me) {
                 add(new TaskFunction<functionT>(result, function, arg1, arg2, arg3, arg4, arg5, arg6, attr));
@@ -457,13 +449,15 @@ namespace madness {
 
         /// Invoke "resultT (*function)(arg1T,arg2T,arg3T,arg4T,arg5T,arg6T,arg7T)" as a task, local or remote
 
-        /// A future is returned to eventually hold the result of the
+        /// A future is returned to hold the eventual result of the
         /// task.  Future<void> is an empty class that may be ignored.
         template <typename functionT, typename arg1T, typename arg2T, typename arg3T, typename arg4T, typename arg5T, typename arg6T, typename arg7T>
-        Future<REMFUTURE(FUNCTION_RETURNT(functionT))> add(ProcessID where, functionT function, 
-                                                const arg1T& arg1, const arg2T& arg2,
-                                                const arg3T& arg3, const arg4T& arg4,
-                                                const arg5T& arg5, const arg6T& arg6, const arg7T& arg7, const TaskAttributes& attr=TaskAttributes()) {
+        Future<REMFUTURE(FUNCTION_RETURNT(functionT))> 
+        add(ProcessID where, functionT function, 
+            const arg1T& arg1, const arg2T& arg2,
+            const arg3T& arg3, const arg4T& arg4,
+            const arg5T& arg5, const arg6T& arg6, const arg7T& arg7, const TaskAttributes& attr=TaskAttributes()) 
+        {
             Future<REMFUTURE(FUNCTION_RETURNT(functionT))> result;
             if (where == me) {
                 add(new TaskFunction<functionT>(result, function, arg1, arg2, arg3, arg4, arg5, arg6, arg7, attr));
@@ -484,7 +478,8 @@ namespace madness {
         
         /// Invoke "resultT (obj.*memfun)()" as a local task
         template <typename memfunT>
-        Future<REMFUTURE(MEMFUN_RETURNT(memfunT))> add(MEMFUN_OBJT(memfunT)& obj, memfunT memfun, const TaskAttributes& attr=TaskAttributes()) 
+        Future<REMFUTURE(MEMFUN_RETURNT(memfunT))> 
+        add(MEMFUN_OBJT(memfunT)& obj, memfunT memfun, const TaskAttributes& attr=TaskAttributes()) 
         {
             Future<REMFUTURE(MEMFUN_RETURNT(memfunT))> result;
             add(new TaskMemfun<memfunT>(result,obj,memfun,attr));
@@ -494,9 +489,10 @@ namespace madness {
 
         /// Invoke "resultT (obj.*memfun)(arg1T)" as a local task
         template <typename memfunT, typename arg1T>
-        Future<REMFUTURE(MEMFUN_RETURNT(memfunT))> add(MEMFUN_OBJT(memfunT)& obj, 
-                                            memfunT memfun,
-                                            const arg1T& arg1, const TaskAttributes& attr=TaskAttributes())
+        Future<REMFUTURE(MEMFUN_RETURNT(memfunT))> 
+        add(MEMFUN_OBJT(memfunT)& obj, 
+            memfunT memfun,
+            const arg1T& arg1, const TaskAttributes& attr=TaskAttributes())
         {
             Future<REMFUTURE(MEMFUN_RETURNT(memfunT))> result;
             add(new TaskMemfun<memfunT>(result,obj,memfun,arg1,attr));
@@ -506,9 +502,10 @@ namespace madness {
 
         /// Invoke "resultT (obj.*memfun)(arg1T,arg2T)" as a local task
         template <typename memfunT, typename arg1T, typename arg2T>
-        Future<REMFUTURE(MEMFUN_RETURNT(memfunT))> add(MEMFUN_OBJT(memfunT)& obj, 
-                                            memfunT memfun,
-                                            const arg1T& arg1, const arg2T& arg2, const TaskAttributes& attr=TaskAttributes())
+        Future<REMFUTURE(MEMFUN_RETURNT(memfunT))> 
+        add(MEMFUN_OBJT(memfunT)& obj, 
+            memfunT memfun,
+            const arg1T& arg1, const arg2T& arg2, const TaskAttributes& attr=TaskAttributes())
         {
             Future<REMFUTURE(MEMFUN_RETURNT(memfunT))> result;
             add(new TaskMemfun<memfunT>(result,obj,memfun,arg1,arg2,attr));
@@ -518,9 +515,10 @@ namespace madness {
 
         /// Invoke "resultT (obj.*memfun)(arg1T,arg2T,arg3)" as a local task
         template <typename memfunT, typename arg1T, typename arg2T, typename arg3T>
-        Future<REMFUTURE(MEMFUN_RETURNT(memfunT))> add(MEMFUN_OBJT(memfunT)& obj, 
-                                            memfunT memfun,
-                                            const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, const TaskAttributes& attr=TaskAttributes())
+        Future<REMFUTURE(MEMFUN_RETURNT(memfunT))> 
+        add(MEMFUN_OBJT(memfunT)& obj, 
+            memfunT memfun,
+            const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, const TaskAttributes& attr=TaskAttributes())
         {
             Future<REMFUTURE(MEMFUN_RETURNT(memfunT))> result;
             add(new TaskMemfun<memfunT>(result,obj,memfun,arg1,arg2,arg3,attr));
@@ -530,9 +528,11 @@ namespace madness {
 
         /// Invoke "resultT (obj.*memfun)(arg1T,arg2T,arg3,arg4)" as a local task
         template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T>
-        Future<REMFUTURE(MEMFUN_RETURNT(memfunT))> add(MEMFUN_OBJT(memfunT)& obj, 
-                                            memfunT memfun,
-                                            const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, const arg4T& arg4, const TaskAttributes& attr=TaskAttributes())
+        Future<REMFUTURE(MEMFUN_RETURNT(memfunT))> 
+        add(MEMFUN_OBJT(memfunT)& obj, 
+            memfunT memfun,
+            const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, const arg4T& arg4, 
+            const TaskAttributes& attr=TaskAttributes())
         {
             Future<REMFUTURE(MEMFUN_RETURNT(memfunT))> result;
             add(new TaskMemfun<memfunT>(result,obj,memfun,arg1,arg2,arg3,arg4,attr));
@@ -543,9 +543,11 @@ namespace madness {
 
         /// Invoke "resultT (obj.*memfun)(arg1T,arg2T,arg3,arg4,arg5)" as a local task
         template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T, typename arg5T>
-        Future<REMFUTURE(MEMFUN_RETURNT(memfunT))> add(MEMFUN_OBJT(memfunT)& obj, 
-                                            memfunT memfun,
-                                            const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, const arg4T& arg4, const arg5T& arg5, const TaskAttributes& attr=TaskAttributes())
+        Future<REMFUTURE(MEMFUN_RETURNT(memfunT))> 
+        add(MEMFUN_OBJT(memfunT)& obj, 
+            memfunT memfun,
+            const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, const arg4T& arg4, const arg5T& arg5, 
+            const TaskAttributes& attr=TaskAttributes())
         {
             Future<REMFUTURE(MEMFUN_RETURNT(memfunT))> result;
             add(new TaskMemfun<memfunT>(result,obj,memfun,arg1,arg2,arg3,arg4,arg5,attr));
@@ -555,9 +557,11 @@ namespace madness {
 
         /// Invoke "resultT (obj.*memfun)(arg1T,arg2T,arg3,arg4,arg5,arg6)" as a local task
         template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T, typename arg5T, typename arg6T>
-        Future<REMFUTURE(MEMFUN_RETURNT(memfunT))> add(MEMFUN_OBJT(memfunT)& obj, 
-                                            memfunT memfun,
-                                                       const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, const arg4T& arg4, const arg5T& arg5, const arg6T& arg6, const TaskAttributes& attr=TaskAttributes())
+        Future<REMFUTURE(MEMFUN_RETURNT(memfunT))> 
+        add(MEMFUN_OBJT(memfunT)& obj, 
+            memfunT memfun,
+            const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, const arg4T& arg4, const arg5T& arg5, const arg6T& arg6, 
+            const TaskAttributes& attr=TaskAttributes())
         {
             Future<REMFUTURE(MEMFUN_RETURNT(memfunT))> result;
             add(new TaskMemfun<memfunT>(result,obj,memfun,arg1,arg2,arg3,arg4,arg5,arg6,attr));
@@ -565,90 +569,13 @@ namespace madness {
         }
 
 
-        struct TaskQFenceProbe {
-            mutable WorldTaskQueue* q;
-            TaskQFenceProbe(WorldTaskQueue* q) : q(q) {};
-            bool operator()() const {
-                return (q->nregistered==0 && q->ready.empty());
-            };
-        };
-
         /// Returns after all local tasks have completed AND am locally fenced
         void fence() {
-            // Critical here is to ensure BOTH taskq is drained and
-            // the AM locally fenced when we return.  Thus, drain the
-            // queue, fence the AM, and if there are any new tasks we
-            // have to repeat until all is quiet.  Do NOT poll
-            // once this condition has been established.
             do {
-                World::await(TaskQFenceProbe(this));
                 world.am.fence();
-            } while (nregistered || !ready.empty());
-        };
-
-        
-        /// Private:  Call back for tasks that have satisfied their dependencies.
-        inline void add_ready_task(TaskInterface* t) {
-            if (t->is_generator()) {
-                ready.push_front(t);
-            }
-            else {
-                ready.push_back(t);
-            }
-            nregistered--;
-            xxnready++;
-            MADNESS_ASSERT(nregistered>=0);
-        };
-
-
-        /// Suspend processing of tasks
-        inline void suspend() {
-            suspended++;
-        };
-
-
-        /// Resume processing of tasks
-        inline void resume() {
-            suspended--;
-            MADNESS_ASSERT(suspended>=0);
-        };
-
-
-        /// Run the next ready task, returning true if one was run
-        inline bool run_next_ready_task() {
-            if (suspended || ready.empty()) {
-                return false;
-            }
-            else {
-                PROFILE_BLOCK(run_task);
-                TaskInterface *p = ready.front();
-                ready.pop_front();
-                xxnready--;
-                if ((unsigned long)xxnready != ready.size()) {
-                    std::cout << "!!!! " << xxnready << " " << ready.size() << std::endl;
-                }
-                MADNESS_ASSERT((unsigned long)xxnready == ready.size());
-
-		// Inhibit nested execution of tasks for lots of
-                // good reasons including not blowing out the stack
-                suspend();
-                p->run(world);
-                resume();
-
-                delete p;
-                return true;
-            }
-        };
-
-        void print_stats() const {
-            std::cout << "\n    Task Statistics\n";
-            std::cout << "    ---------------\n";
-            std::cout << "    Current number of tasks " << xxnready+nregistered << " (" << xxnready << " ready, " << nregistered << " pending)\n";
-            std::cout << "    Lifetime maximum number of enqueued tasks " << xxnqmax << "\n";
-            std::cout << "    Lifetime total number of tasks " << xxntotal << "\n";
-            std::cout.flush();
+                //usleep(1000000);
+            } while (MADATOMIC_INT_GET(&nregistered));
         }
-   
     };
 
 
@@ -671,8 +598,8 @@ namespace madness {
     class TaskFunctionBase : public TaskInterface {
     protected:
     public:
-
-        TaskFunctionBase(const TaskAttributes& attributes) 
+        
+        TaskFunctionBase(const madness::TaskAttributes& attributes) 
             : TaskInterface(attributes) 
         {};
 
@@ -684,6 +611,8 @@ namespace madness {
                 fut.register_callback(this);
             }
         }
+
+        virtual ~TaskFunctionBase() {};
     };
 
     // Task wrapping "resultT (*function)()"
@@ -693,13 +622,14 @@ namespace madness {
         typedef Future<REMFUTURE(resultT)> futureT;
         typedef RemoteReference< FutureImpl<REMFUTURE(resultT)> > refT;
 
-        static void handler(World& world, ProcessID src, const AmArg& arg) {
-            TaskHandlerInfo<refT,functionT> info = arg;
-            world.taskq.add(new TaskFunction<functionT>(futureT(info.ref),info.func,info.attr));
+        static void handler(const AmArg& arg) {
+            TaskHandlerInfo<refT,functionT> info;
+            arg & info;
+            arg.get_world()->taskq.add(new TaskFunction<functionT>(futureT(info.ref),info.func,info.attr));
         };
         
         static void sender(World& world, ProcessID dest, Future<REMFUTURE(resultT)>& result, functionT func, const TaskAttributes& attr) {
-            world.am.send(dest, handler, TaskHandlerInfo<refT,functionT>(result.remote_ref(world), func, attr));
+            world.am.send(dest, handler, new_am_arg(TaskHandlerInfo<refT,functionT>(result.remote_ref(world), func, attr)));
         };
 
         futureT result; 
@@ -713,6 +643,8 @@ namespace madness {
         void run(World& world) {
             result.set(func());
         };
+
+        virtual ~TaskFunction(){};
     };
 
 
@@ -724,20 +656,19 @@ namespace madness {
         typedef Future<REMFUTURE(resultT)> futureT;
         typedef RemoteReference< FutureImpl<REMFUTURE(resultT)> > refT;
 
-        static void handler(World& world, ProcessID src, void* buf, size_t nbyte) {
-            LongAmArg* arg = (LongAmArg*) buf;
+        static void handler(const AmArg& arg) {
             TaskHandlerInfo<refT,functionT> info;
             arg1T arg1;
-            arg->unstuff(nbyte, info, arg1);
-            world.taskq.add(new TaskFunction<functionT>(futureT(info.ref),info.func,arg1,info.attr));
+            arg & info & arg1;
+            arg.get_world()->taskq.add(new TaskFunction<functionT>(futureT(info.ref),info.func,arg1,info.attr));
         };
 
         template <typename a1T>
         static void sender(World& world, ProcessID dest, const futureT& result, functionT func,
                            const a1T& a1, const TaskAttributes& attr) {
-            world.am.send_long_managed(dest, TaskFunction<functionT>::handler,
-                                       new_long_am_arg(TaskHandlerInfo<refT,functionT>(result.remote_ref(world), func, attr), 
-                                                       static_cast<arg1T>(a1)));
+            world.am.send(dest, TaskFunction<functionT>::handler,
+                          new_am_arg(TaskHandlerInfo<refT,functionT>(result.remote_ref(world), func, attr), 
+                                          static_cast<arg1T>(a1)));
         }
 
         futureT result;
@@ -766,21 +697,20 @@ namespace madness {
         typedef Future<REMFUTURE(resultT)> futureT;
         typedef RemoteReference< FutureImpl<REMFUTURE(resultT)> > refT;
 
-        static void handler(World& world, ProcessID src, void* buf, size_t nbyte) {
-            LongAmArg* arg = (LongAmArg*) buf;
+        static void handler(const AmArg& arg) {
             TaskHandlerInfo<refT,functionT> info;
             arg1T arg1;
             arg2T arg2;
-            arg->unstuff(nbyte, info, arg1, arg2);
-            world.taskq.add(new TaskFunction<functionT>(futureT(info.ref),info.func,arg1,arg2,info.attr));
+            arg & info & arg1 & arg2;
+            arg.get_world()->taskq.add(new TaskFunction<functionT>(futureT(info.ref),info.func,arg1,arg2,info.attr));
         };
 
         template <typename a1T, typename a2T>
         static void sender(World& world, ProcessID dest, const futureT& result, functionT func,
                            const a1T& arg1, const a2T& arg2, const TaskAttributes& attr) {
-            world.am.send_long_managed(dest, TaskFunction<functionT>::handler, 
-                                       new_long_am_arg(TaskHandlerInfo<refT,functionT>(result.remote_ref(world), func, attr), 
-                                                       static_cast<arg1T>(arg1), static_cast<arg2T>(arg2)));
+            world.am.send(dest, TaskFunction<functionT>::handler, 
+                          new_am_arg(TaskHandlerInfo<refT,functionT>(result.remote_ref(world), func, attr), 
+                                          static_cast<arg1T>(arg1), static_cast<arg2T>(arg2)));
         }
 
         futureT result;
@@ -810,22 +740,21 @@ namespace madness {
         typedef Future<REMFUTURE(resultT)> futureT;
         typedef RemoteReference< FutureImpl<REMFUTURE(resultT)> > refT;
 
-        static void handler(World& world, ProcessID src, void* buf, size_t nbyte) {
-            LongAmArg* arg = (LongAmArg*) buf;
+        static void handler(const AmArg& arg) {
             TaskHandlerInfo<refT,functionT> info;
             arg1T arg1;
             arg2T arg2;
             arg3T arg3;
-            arg->unstuff(nbyte, info, arg1, arg2, arg3);
-            world.taskq.add(new TaskFunction<functionT>(futureT(info.ref),info.func,arg1,arg2,arg3,info.attr));
+            arg & info & arg1 & arg2 & arg3;
+            arg.get_world()->taskq.add(new TaskFunction<functionT>(futureT(info.ref),info.func,arg1,arg2,arg3,info.attr));
         };
 
         template <typename a1T, typename a2T, typename a3T>
         static void sender(World& world, ProcessID dest, const futureT& result, functionT func,
                            const a1T& arg1, const a2T& arg2, const a3T& arg3, const TaskAttributes& attr) {
-            world.am.send_long_managed(dest, TaskFunction<functionT>::handler, 
-                                       new_long_am_arg(TaskHandlerInfo<refT,functionT>(result.remote_ref(world), func, attr), 
-                                                       static_cast<arg1T>(arg1), static_cast<arg2T>(arg2), static_cast<arg3T>(arg3)));
+            world.am.send(dest, TaskFunction<functionT>::handler, 
+                          new_am_arg(TaskHandlerInfo<refT,functionT>(result.remote_ref(world), func, attr), 
+                                          static_cast<arg1T>(arg1), static_cast<arg2T>(arg2), static_cast<arg3T>(arg3)));
         }
 
         futureT result;
@@ -859,24 +788,23 @@ namespace madness {
         typedef Future<REMFUTURE(resultT)> futureT;
         typedef RemoteReference< FutureImpl<REMFUTURE(resultT)> > refT;
 
-        static void handler(World& world, ProcessID src, void* buf, size_t nbyte) {
-            LongAmArg* arg = (LongAmArg*) buf;
+        static void handler(const AmArg& arg) {
             TaskHandlerInfo<refT,functionT> info;
             arg1T arg1;
             arg2T arg2;
             arg3T arg3;
             arg4T arg4;
-            arg->unstuff(nbyte, info, arg1, arg2, arg3, arg4);
-            world.taskq.add(new TaskFunction<functionT>(futureT(info.ref),info.func,arg1,arg2,arg3,arg4,info.attr));
+            arg & info & arg1 & arg2 & arg3 & arg4;
+            arg.get_world()->taskq.add(new TaskFunction<functionT>(futureT(info.ref),info.func,arg1,arg2,arg3,arg4,info.attr));
         };
 
         template <typename a1T, typename a2T, typename a3T, typename a4T>
         static void sender(World& world, ProcessID dest, const futureT& result, functionT func,
                            const a1T& arg1, const a2T& arg2, const a3T& arg3, const a4T& arg4, const TaskAttributes& attr) {
-            world.am.send_long_managed(dest, TaskFunction<functionT>::handler, 
-                                       new_long_am_arg(TaskHandlerInfo<refT,functionT>(result.remote_ref(world), func, attr), 
-                                                       static_cast<arg1T>(arg1), static_cast<arg2T>(arg2), 
-                                                       static_cast<arg3T>(arg3), static_cast<arg4T>(arg4)));
+            world.am.send(dest, TaskFunction<functionT>::handler, 
+                          new_am_arg(TaskHandlerInfo<refT,functionT>(result.remote_ref(world), func, attr), 
+                                          static_cast<arg1T>(arg1), static_cast<arg2T>(arg2), 
+                                          static_cast<arg3T>(arg3), static_cast<arg4T>(arg4)));
         }
 
         futureT result;
@@ -913,25 +841,24 @@ namespace madness {
         typedef Future<REMFUTURE(resultT)> futureT;
         typedef RemoteReference< FutureImpl<REMFUTURE(resultT)> > refT;
 
-        static void handler(World& world, ProcessID src, void* buf, size_t nbyte) {
-            LongAmArg* arg = (LongAmArg*) buf;
+        static void handler(const AmArg& arg) {
             TaskHandlerInfo<refT,functionT> info;
             arg1T arg1;
             arg2T arg2;
             arg3T arg3;
             arg4T arg4;
             arg5T arg5;
-            arg->unstuff(nbyte, info, arg1, arg2, arg3, arg4, arg5);
-            world.taskq.add(new TaskFunction<functionT>(futureT(info.ref),info.func,arg1,arg2,arg3,arg4,arg5,info.attr));
+            arg & info & arg1 & arg2 & arg3 & arg4 & arg5;
+            arg.get_world()->taskq.add(new TaskFunction<functionT>(futureT(info.ref),info.func,arg1,arg2,arg3,arg4,arg5,info.attr));
         };
 
         template <typename a1T, typename a2T, typename a3T, typename a4T, typename a5T>
         static void sender(World& world, ProcessID dest, const futureT& result, functionT func,
                            const a1T& arg1, const a2T& arg2, const a3T& arg3, const a4T& arg4, const a5T& arg5, const TaskAttributes& attr) {
-            world.am.send_long_managed(dest, TaskFunction<functionT>::handler, 
-                                       new_long_am_arg(TaskHandlerInfo<refT,functionT>(result.remote_ref(world), func, attr), 
-                                                       static_cast<arg1T>(arg1), static_cast<arg2T>(arg2), static_cast<arg3T>(arg3), 
-                                                       static_cast<arg4T>(arg4), static_cast<arg5T>(arg5)));
+            world.am.send(dest, TaskFunction<functionT>::handler, 
+                          new_am_arg(TaskHandlerInfo<refT,functionT>(result.remote_ref(world), func, attr), 
+                                          static_cast<arg1T>(arg1), static_cast<arg2T>(arg2), static_cast<arg3T>(arg3), 
+                                          static_cast<arg4T>(arg4), static_cast<arg5T>(arg5)));
         }
 
         futureT result;
@@ -943,7 +870,8 @@ namespace madness {
         Future<arg5T> arg5;
 
         template <typename a1T, typename a2T, typename a3T, typename a4T, typename a5T>
-        TaskFunction(const futureT& result, functionT func, const a1T& a1, const a2T& a2, const a3T& a3, const a4T& a4, const a5T& a5, const TaskAttributes& attr) 
+        TaskFunction(const futureT& result, functionT func, const a1T& a1, const a2T& a2, const a3T& a3, const a4T& a4, 
+                     const a5T& a5, const TaskAttributes& attr) 
             : TaskFunctionBase(attr), result(result), func(func), arg1(a1), arg2(a2), arg3(a3), arg4(a4), arg5(a5) {
             check_dependency(arg1);
             check_dependency(arg2);
@@ -970,8 +898,7 @@ namespace madness {
         typedef Future<REMFUTURE(resultT)> futureT;
         typedef RemoteReference< FutureImpl<REMFUTURE(resultT)> > refT;
 
-        static void handler(World& world, ProcessID src, void* buf, size_t nbyte) {
-            LongAmArg* arg = (LongAmArg*) buf;
+        static void handler(const AmArg& arg) {
             TaskHandlerInfo<refT,functionT> info;
             arg1T arg1;
             arg2T arg2;
@@ -979,17 +906,18 @@ namespace madness {
             arg4T arg4;
             arg5T arg5;
             arg6T arg6;
-            arg->unstuff(nbyte, info, arg1, arg2, arg3, arg4, arg5, arg6);
-            world.taskq.add(new TaskFunction<functionT>(futureT(info.ref),info.func,arg1,arg2,arg3,arg4,arg5,arg6,info.attr));
+            arg & info & arg1 & arg2 & arg3 & arg4 & arg5 & arg6;
+            arg.get_world()->taskq.add(new TaskFunction<functionT>(futureT(info.ref),info.func,arg1,arg2,arg3,arg4,arg5,arg6,info.attr));
         };
 
         template <typename a1T, typename a2T, typename a3T, typename a4T, typename a5T, typename a6T>
         static void sender(World& world, ProcessID dest, const futureT& result, functionT func,
-                           const a1T& arg1, const a2T& arg2, const a3T& arg3, const a4T& arg4, const a5T& arg5, const a6T& arg6, const TaskAttributes& attr) {
-            world.am.send_long_managed(dest, TaskFunction<functionT>::handler, 
-                                       new_long_am_arg(TaskHandlerInfo<refT,functionT>(result.remote_ref(world), func, attr), 
-                                                       static_cast<arg1T>(arg1), static_cast<arg2T>(arg2), static_cast<arg3T>(arg3), 
-                                                       static_cast<arg4T>(arg4), static_cast<arg5T>(arg5), static_cast<arg6T>(arg6)));
+                           const a1T& arg1, const a2T& arg2, const a3T& arg3, const a4T& arg4, const a5T& arg5, const a6T& arg6, 
+                           const TaskAttributes& attr) {
+            world.am.send(dest, TaskFunction<functionT>::handler, 
+                          new_am_arg(TaskHandlerInfo<refT,functionT>(result.remote_ref(world), func, attr), 
+                                          static_cast<arg1T>(arg1), static_cast<arg2T>(arg2), static_cast<arg3T>(arg3), 
+                                          static_cast<arg4T>(arg4), static_cast<arg5T>(arg5), static_cast<arg6T>(arg6)));
         }
 
         futureT result;
@@ -1002,7 +930,8 @@ namespace madness {
         Future<arg6T> arg6;
 
         template <typename a1T, typename a2T, typename a3T, typename a4T, typename a5T, typename a6T>
-        TaskFunction(const futureT& result, functionT func, const a1T& a1, const a2T& a2, const a3T& a3, const a4T& a4, const a5T& a5, const a6T& a6, const TaskAttributes& attr) 
+        TaskFunction(const futureT& result, functionT func, const a1T& a1, const a2T& a2, const a3T& a3, const a4T& a4, const a5T& a5, 
+                     const a6T& a6, const TaskAttributes& attr) 
             : TaskFunctionBase(attr), result(result), func(func), arg1(a1), arg2(a2), arg3(a3), arg4(a4), arg5(a5), arg6(a6) {
             check_dependency(arg1);
             check_dependency(arg2);
@@ -1019,7 +948,8 @@ namespace madness {
 
 
     // Task wrapping "resultT (*function)(arg1,arg2,arg3,arg4,arg5,arg6,arg7)"
-    template <typename resultT, typename arg1_type, typename arg2_type, typename arg3_type, typename arg4_type, typename arg5_type, typename arg6_type, typename arg7_type>
+    template <typename resultT, typename arg1_type, typename arg2_type, typename arg3_type, typename arg4_type, 
+              typename arg5_type, typename arg6_type, typename arg7_type>
     struct TaskFunction<resultT (*)(arg1_type,arg2_type,arg3_type,arg4_type,arg5_type,arg6_type,arg7_type)> : public TaskFunctionBase {
         typedef resultT (*functionT)(arg1_type,arg2_type,arg3_type,arg4_type,arg5_type,arg6_type,arg7_type);
         typedef REMFUTURE(REMCONST(REMREF(arg1_type))) arg1T;
@@ -1032,8 +962,7 @@ namespace madness {
         typedef Future<REMFUTURE(resultT)> futureT;
         typedef RemoteReference< FutureImpl<REMFUTURE(resultT)> > refT;
 
-        static void handler(World& world, ProcessID src, void* buf, size_t nbyte) {
-            LongAmArg* arg = (LongAmArg*) buf;
+        static void handler(const AmArg& arg) {
             TaskHandlerInfo<refT,functionT> info;
             arg1T arg1;
             arg2T arg2;
@@ -1042,19 +971,20 @@ namespace madness {
             arg5T arg5;
             arg6T arg6;
             arg7T arg7;
-            arg->unstuff(nbyte, info, arg1, arg2, arg3, arg4, arg5, arg6, arg7);
-            world.taskq.add(new TaskFunction<functionT>(futureT(info.ref),info.func,arg1,arg2,arg3,arg4,arg5,arg6,arg7,info.attr));
+            arg & info & arg1 & arg2 & arg3 & arg4 & arg5 & arg6 & arg7;
+            arg.get_world()->taskq.add(new TaskFunction<functionT>(futureT(info.ref),info.func,arg1,arg2,arg3,arg4,arg5,arg6,arg7,info.attr));
         };
 
         template <typename a1T, typename a2T, typename a3T, typename a4T, typename a5T, typename a6T, typename a7T>
         static void sender(World& world, ProcessID dest, const futureT& result, functionT func,
-                           const a1T& arg1, const a2T& arg2, const a3T& arg3, const a4T& arg4, const a5T& arg5, const a6T& arg6, const a7T& arg7, const TaskAttributes& attr) {
+                           const a1T& arg1, const a2T& arg2, const a3T& arg3, const a4T& arg4, const a5T& arg5, const a6T& arg6, 
+                           const a7T& arg7, const TaskAttributes& attr) {
             
-            world.am.send_long_managed(dest, TaskFunction<functionT>::handler, 
-                                       new_long_am_arg(TaskHandlerInfo<refT,functionT>(result.remote_ref(world), func, attr), 
-                                                       static_cast<arg1T>(arg1), static_cast<arg2T>(arg2), static_cast<arg3T>(arg3), 
-                                                       static_cast<arg4T>(arg4), static_cast<arg5T>(arg5), static_cast<arg6T>(arg6), 
-                                                       static_cast<arg7T>(arg7)));
+            world.am.send(dest, TaskFunction<functionT>::handler, 
+                          new_am_arg(TaskHandlerInfo<refT,functionT>(result.remote_ref(world), func, attr), 
+                                          static_cast<arg1T>(arg1), static_cast<arg2T>(arg2), static_cast<arg3T>(arg3), 
+                                          static_cast<arg4T>(arg4), static_cast<arg5T>(arg5), static_cast<arg6T>(arg6), 
+                                          static_cast<arg7T>(arg7)));
         }
 
         futureT result;
@@ -1068,7 +998,8 @@ namespace madness {
         Future<arg7T> arg7;
 
         template <typename a1T, typename a2T, typename a3T, typename a4T, typename a5T, typename a6T, typename a7T>
-        TaskFunction(const futureT& result, functionT func, const a1T& a1, const a2T& a2, const a3T& a3, const a4T& a4, const a5T& a5, const a6T& a6, const a7T& a7, const TaskAttributes& attr) 
+        TaskFunction(const futureT& result, functionT func, const a1T& a1, const a2T& a2, const a3T& a3, const a4T& a4, 
+                     const a5T& a5, const a6T& a6, const a7T& a7, const TaskAttributes& attr) 
             : TaskFunctionBase(attr), result(result), func(func), arg1(a1), arg2(a2), arg3(a3), arg4(a4), arg5(a5), arg6(a6), arg7(a7) {
             check_dependency(arg1);
             check_dependency(arg2);
@@ -1252,7 +1183,8 @@ namespace madness {
     };
 
     // Task wrapping "resultT (obj.*function)(arg1,arg2,arg3,arg4,arg5,arg6)"
-    template <typename resultT, typename objT, typename arg1_type, typename arg2_type, typename arg3_type, typename arg4_type, typename arg5_type, typename arg6_type>
+    template <typename resultT, typename objT, typename arg1_type, typename arg2_type, typename arg3_type, typename arg4_type, 
+              typename arg5_type, typename arg6_type>
     struct TaskMemfun<resultT (objT::*)(arg1_type,arg2_type,arg3_type,arg4_type,arg5_type,arg6_type)> : public TaskFunctionBase {
         typedef resultT (objT::*memfunT)(arg1_type,arg2_type,arg3_type,arg4_type,arg5_type,arg6_type);
         typedef REMFUTURE(REMCONST(REMREF(arg1_type))) arg1T;

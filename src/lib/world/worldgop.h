@@ -86,7 +86,7 @@ namespace madness {
         WorldAmInterface& am;
         WorldTaskQueue& taskq;
         ProcessID rank;
-        int nproc;
+        const int nproc;
         const Tag bcast_tag;    ///< Reserved tag used for broadcasting
         const Tag gsum_tag;     ///< Reserved tag used for up-tree part of global sum
         const Tag gfence_tag;   ///< Reserved tag used for up-tree part of global fence
@@ -137,13 +137,13 @@ namespace madness {
         /// argument amonly is set to true, if fences only the AM.
         void fence(bool amonly = false) {
             unsigned long nsent_prev=0, nrecv_prev=1; // invalid initial condition
-            MPI::Request req0, req1;
+            SafeMPI::Request req0, req1;
             ProcessID parent, child0, child1;
             mpi.binary_tree_info(0, parent, child0, child1);
             while (1) {
                 unsigned long sum0[2]={0,0}, sum1[2]={0,0}, sum[2];
-                if (child0 != -1) req0 = mpi.Irecv(&sum0, sizeof(sum0), MPI::BYTE, child0, gfence_tag);
-                if (child1 != -1) req1 = mpi.Irecv(&sum1, sizeof(sum1), MPI::BYTE, child1, gfence_tag);
+                if (child0 != -1) req0 = mpi.Irecv((void*) &sum0, sizeof(sum0), MPI::BYTE, child0, gfence_tag);
+                if (child1 != -1) req1 = mpi.Irecv((void*) &sum1, sizeof(sum1), MPI::BYTE, child1, gfence_tag);
                 if (child0 != -1) World::await(req0);
                 if (child1 != -1) World::await(req1);
                 
@@ -176,7 +176,7 @@ namespace madness {
         
         /// Optimizations can be added for long messages
         void broadcast(void* buf, size_t nbyte, ProcessID root) {
-            MPI::Request req0, req1;
+            SafeMPI::Request req0, req1;
             ProcessID parent, child0, child1;
             mpi.binary_tree_info(root, parent, child0, child1);
             Tag bcast_tag = mpi.unique_tag();
@@ -239,7 +239,7 @@ namespace madness {
         /// Optimizations can be added for long messages and to reduce the memory footprint
         template <typename T, class opT>
         void reduce(T* buf, size_t nelem, opT op) {
-            MPI::Request req0, req1;
+            SafeMPI::Request req0, req1;
             ProcessID parent, child0, child1;
             mpi.binary_tree_info(0, parent, child0, child1);
             

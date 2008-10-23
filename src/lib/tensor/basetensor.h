@@ -43,6 +43,10 @@
 #include <tensor/slice.h>
 #include <tensor/tensor_macros.h>
 
+#ifdef TENSOR_INSTANCE_COUNT
+#include <world/madatomic.h>
+#endif
+
 namespace madness {
     /// The base class for tensors defines generic capabilities.
 
@@ -67,8 +71,7 @@ namespace madness {
     class BaseTensor {
     private:
 #ifdef TENSOR_INSTANCE_COUNT
-        static long instance_count;	///< For debug, count total# instances
-        /// ... initialized in basetensor.cc ... not thread safe!
+        static MADATOMIC_INT instance_count;	///< For debug, count total# instances
 #endif
 
     protected:
@@ -83,10 +86,10 @@ namespace madness {
 
 #ifdef TENSOR_INSTANCE_COUNT
         BaseTensor() {
-            instance_count++;
+            MADATOMIC_INT_INC(&instance_count);
         };
         virtual ~BaseTensor() {
-            instance_count--;
+            MADATOMIC_INT_DEC(&instance_count);
         };
 #else
         BaseTensor() {};
@@ -99,7 +102,7 @@ namespace madness {
         /// Returns the count of all current instances of tensors & slice tensors of all types.
 #ifdef TENSOR_INSTANCE_COUNT
         static inline int get_instance_count() {
-            return instance_count;
+            return MADATOMIC_INT_GET(&instance_count);
         };
 #else
         static inline int get_instance_count() {

@@ -46,11 +46,7 @@ namespace madness {
     
     std::list<World*> World::worlds;
     unsigned long World::idbase = 0;
-    uint64_t World::poll_delay = 0;
-    uint64_t World::last_poll = 0;
-    
-    Tag WorldMpiInterface::dynamic_tag_general  = DYNAMIC_TAG_BASE;
-    Tag WorldMpiInterface::dynamic_tag_reserved = DYNAMIC_TAG_BASE+1;
+    bool TaskInterface::debug = false;
     
     // Enables easy printing of MadnessExceptions
     std::ostream& operator<<(std::ostream& out, const MadnessException& e) {
@@ -65,17 +61,6 @@ namespace madness {
         return out;
     }
     
-
-    const TaskAttributes& task_attr_generator() {
-        static const TaskAttributes attr(true,false);
-        return attr;
-    }
-
-
-    // Internal: To handle order of class definitions
-    void task_ready_callback_function(WorldTaskQueue* taskq, TaskInterface* task) {
-        taskq->add_ready_task(task);
-    }
 
     std::ostream& operator<<(std::ostream& s, const uniqueidT& id) {
         s << "{" << id.get_world_id() << "," << id.get_obj_id() << "}";
@@ -144,24 +129,17 @@ namespace madness {
     void World::args(int argc, char** argv) {
         for (int arg=1; arg<argc; arg++) {
             if (strcmp(argv[arg],"-dx")==0) xterm_debug("world", 0);
-            if (strcmp(argv[arg],"-dam")==0) am.set_debug(true);
-            if (strcmp(argv[arg],"-dmpi")==0) mpi.set_debug(true);
-            if (strcmp(argv[arg],"-dref")==0) mpi.set_debug(true);
+//             if (strcmp(argv[arg],"-dam")==0) am.set_debug(true);
+//            if (strcmp(argv[arg],"-dmpi")==0) mpi.set_debug(true);
+//             if (strcmp(argv[arg],"-dref")==0) mpi.set_debug(true);
         }
     }
 
-    void watchdog_bark(World& world, double time) {
-        std::cerr << world.rank() << ": World: watchdog: I've been idle for " << time << "s\n";
-        world.am.print_stats();
-        world.taskq.print_stats();
-    }
-
-
+#define WORLD_PROFILE_ENABLE
     WorldProfileObj* WorldProfileObj::call_stack = 0;
     std::vector<WorldProfileEntry> WorldProfile::items;
     double WorldProfile::cpu_start = madness::cpu_time();
     double WorldProfile::wall_start = madness::wall_time();
-
 
 
     static void profile_do_print(World& world, const std::vector<WorldProfileEntry>& v) {

@@ -8,4 +8,4 @@ libMADlinalg_a_SOURCES = lapack.cc cblas.cc \
                          tensor_lapack.h cblas.h  clapack.h  lapack_functions.h
 
 test_SOURCES = test.cc
-test_LDADD = libMADlinalg.a $(LIBTENSOR) $(LIBWORLD)
+test_LDADD = libMADlinalg.a $(LIBTENSOR) $(LIBMISC) $(LIBWORLD)

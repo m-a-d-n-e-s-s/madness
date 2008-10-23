@@ -59,7 +59,7 @@
 
 #include <madness_config.h>
 #include <tensor/tensor.h>
-#include <tensor/random.h>
+#include <misc/ran.h>
 #include <tensor/mtxmq.h>
 #include <tensor/aligned.h>
 
@@ -85,22 +85,6 @@ namespace madness {
     template <class T> class Tensor;
 
     template <class T> class SliceTensor;
-
-    template <> double RandomNumber<double> () {
-        //return std::rand()/(RAND_MAX+1.0);
-        return genrand_res53();
-    }
-    template <> float RandomNumber<float> () {
-        //return std::rand()/(RAND_MAX+1.0);
-        return float(genrand_real2());
-    }
-    template <> double_complex RandomNumber<double_complex> () {
-        return double_complex(RandomNumber<double>(),RandomNumber<double>());
-    }
-    template <> float_complex RandomNumber<float_complex> () {
-        return float_complex(RandomNumber<float>(),RandomNumber<float>());
-    }
-
 
     /// All new tensors are initialized by init except for the default constructor
     template <class T>
@@ -530,7 +514,7 @@ namespace madness {
         return result;
     }
 
-    /// Return a new Tensor view with a general permutaiton ... idim_new = map[idim_old]
+    /// Return a new Tensor view with a general permutation ... idim_new = map[idim_old]
     template <class T>
     Tensor<T> Tensor<T>::mapdim(const std::vector<long>& map) const {
         Tensor<T> result(*this);
@@ -538,10 +522,15 @@ namespace madness {
         return result;
     }
 
-    /// Fill the Tensor with random values ... see RandomNumber for details
+    /// Fill the Tensor with random values ... see RandomVector for details
     template <class T>
     Tensor<T>& Tensor<T>::fillrandom() {
-        UNARY_OPTIMIZED_ITERATOR(T,(*this), *_p0 = RandomNumber<T>());
+        if (iscontiguous()) {
+            RandomVector<T>(size, ptr());
+        }
+        else {
+            UNARY_OPTIMIZED_ITERATOR(T,(*this), *_p0 = RandomValue<T>());
+        }
         return *this;
     }
 

@@ -48,6 +48,9 @@
 #include <cstdlib>
 
 #include <madness_config.h>
+namespace madness {
+    class World;
+}
 #include <world/worldprofile.h>
 #include <world/sharedptr.h>
 #include <world/archive.h>

@@ -3,10 +3,10 @@
 
 #include <world/worldtypes.h>
 #include <world/worldtime.h>
+#include <world/worldthread.h>
+#include <world/worldhashmap.h>
 
 namespace madness {
-
-    class World;
 
     /// Simple container for parallel profile statistic
     template <typename T>
@@ -96,16 +96,13 @@ namespace madness {
     /// Singleton-like class for holding profiling data and functionality
 
     /// Use the macros PROFILE_FUNC, PROFILE_BLOCK, PROFILE_MEMBER_FUNC
-    class WorldProfile {
+    class WorldProfile : private Mutex {
+        //static ConcurrentHashMap<std::string,WorldProfileEntry> items;
         static std::vector<WorldProfileEntry> items;
         static double cpu_start;
         static double wall_start;
     public:
         /// Registers the name and returns index of the entry
-
-        /// The user should keep the index for the entry and *NOT* a
-        /// pointer to the entry since pointers may be invalidated as
-        /// more entries are added.
         static int register_id(const char* name) {
             int id = find(name);
             if (id < 0) {
@@ -149,7 +146,6 @@ namespace madness {
             return items[id];
         }
         
-        
         /// Prints global profiling information.  Global fence involved.  Implemented in worldstuff.cc
         static void print(World& world);
 
@@ -161,6 +157,11 @@ namespace madness {
     
     class WorldProfileObj {
         static WorldProfileObj* call_stack;  ///< Current top of the call stack
+
+
+        //????????????????????????????
+        //... need a thread-specific stack ... 
+
 
         WorldProfileObj* const prev; ///< Pointer to the entry that called me 
         const int id;                ///< My entry in the world profiler
@@ -200,7 +201,7 @@ namespace madness {
     };
 }
 
-#define WORLD_PROFILE_ENABLE
+//#define WORLD_PROFILE_ENABLE
 
 #ifdef WORLD_PROFILE_ENABLE
 #  define PROFILE_STRINGIFY(s) #s

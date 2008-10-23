@@ -39,7 +39,7 @@
 /// \file world.h
 /// \brief Implements World and includes pretty much every header you'll need
 
-#include <mpi.h>
+#include <world/safempi.h>
 #include <madness_config.h>
 
 // #ifdef SEEK_SET
@@ -63,10 +63,6 @@
 #include <map>
 #include <vector>
 
-#ifdef WORLD_SCHED_BACKOFF
-#include <sched.h>
-#endif
-
 #ifdef UINT64_T
 typedef UINT64_T uint64_t;
 #endif
@@ -75,11 +71,14 @@ namespace madness {
     class World;
 }
 
+#include <world/madatomic.h>
+#include <world/worldthread.h>
+#include <world/worldrmi.h>
 #include <world/typestuff.h>
 #include <world/worldexc.h>
-#include <world/worldmem.h>
+//#include <world/worldmem.h>
 #include <world/print.h>
-#include <world/worldhash.h>
+//#include <world/worldhash.h>
 #include <world/array.h>
 #include <world/dqueue.h>
 #include <world/sharedptr.h>
@@ -87,7 +86,7 @@ namespace madness {
 #include <world/worldmpi.h>
 #include <world/worldser.h>
 #include <world/worldtime.h>
-#include <world/worldprofile.h>
+//#include <world/worldprofile.h>
 
 #ifdef HAVE_RANDOM
 #include <stdlib.h>
@@ -148,8 +147,6 @@ namespace madness {
     class WorldGopInterface;
     class World; 
    
-    static void world_do_poll(World* world);
-    static void world_do_run_task(World* world, bool* status);
     static WorldAmInterface* world_am_interface_factory(World* world);
     static void world_am_interface_unfactory(WorldAmInterface* am);
     static WorldGopInterface* world_gop_interface_factory(World* world);
@@ -175,8 +172,6 @@ namespace madness {
         MPI_Abort(MPI_COMM_WORLD,1);
     }
 
-    void watchdog_bark(World& world, double time);
-    
     /// A parallel world with full functionality wrapping an MPI communicator
 
     /// Multiple worlds with different communicators can co-exist.
@@ -187,10 +182,7 @@ namespace madness {
         friend void world_assign_id(World* world);
 
         static unsigned long idbase;        ///< Base for unique world ID range for this process
-        static std::list<World*> worlds;    ///< Maintains list of active worlds for polling, etc.
-        static std::list<void (*)()> polls; ///< List of routines to invoke while polling
-        static uint64_t poll_delay;//< Min. no. of instructions between calls to poll if working
-        static uint64_t last_poll;//< Instruction count at last poll
+        static std::list<World*> worlds;    ///< Maintains list of active worlds
         
         struct hashvoidp {
             inline std::size_t operator()(const void* p) const {
@@ -234,15 +226,6 @@ namespace madness {
             return (nclean != deferred.size());
         };
 
-        // Private: tries to run a task in each world
-        static bool run_tasks() {
-            bool status = false;
-            // !!!!!!!! THIS IS WRONG IF THERE IS MORE THAN ONE WORLD ... 
-            for_each(worlds.begin(), worlds.end(), std::bind2nd(std::ptr_fun(world_do_run_task),&status));
-            return status;
-        };
-
-
     public:
         // Here we use Pimpl to both hide implementation details and also
         // to partition the namespace for users as world.mpi, world.am, etc.
@@ -280,34 +263,14 @@ namespace madness {
         {
             worlds.push_back(this); 
             srand();  // Initialize random number generator
+            cpu_frequency();
+
+            std::cout << "WORLD " << me << " " << mpi.rank() << " " << comm.Get_rank() << std::endl;
             
             // Assign a globally (within COMM_WORLD) unique ID to this
             // world by assigning to each processor a unique range of indices
             // and broadcasting from node 0 of the current communicator.
             world_assign_id(this);  // Also acts as barrier 
-            last_poll = 0; // Static initialization problem on the XT ????????????????????????????
-            if (last_poll == 0) {
-                // Determine cost of polling and from this limit the
-                // frequency with which poll_all will be run while there
-                // is work in the task queue.
-                uint64_t ins = cycle_count();
-                for (int i=0; i<256; i++) World::poll_all(true); // Warm up????
-                ins = cycle_count();
-                for (int i=0; i<256; i++) World::poll_all(true);
-                ins = cycle_count() - ins;
-                // >>8 to get actual cost, <<4 to spend no more than 6% of time polling
-                poll_delay = ins>>4;
-                //print(me,"measured delay",poll_delay);
-                if (poll_delay <= 0) poll_delay = 1;
-                if (poll_delay > (1e-4*cpu_frequency())) poll_delay = uint64_t(1e-4*cpu_frequency());
-
-                // This for CRAY-XT performance debugging <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-                //poll_delay = uint64_t(1e-4*cpu_frequency());
-
-                mpi.Bcast(poll_delay,0); // For paranoia make sure all have same value
-
-                if (rank()==0) print("cpu frequency",cpu_frequency(),"poll_delay",poll_delay,"cycles",int(1e9*poll_delay/cpu_frequency()),"ns");
-            }
         };
 
 
@@ -332,27 +295,18 @@ namespace madness {
             return user_state;
         };
 
+
         /// Clears user-defined state ... same as set_user_state(0)
         void clear_user_state() {
             set_user_state(0);
         };
+
 
         /// Processes command line arguments
 
         /// Mostly for world test codes but most usefully provides -dx option
         /// to start x debugger.
         void args(int argc, char**argv);
-
-
-        /// Invokes any necessary polling for all existing worlds
-
-        /// By default only polls at intervals of poll_delay cycles but
-        /// setting \c force=true forces polling to occur.
-        static void poll_all(bool force = false) {
-            if ((!force) && cycle_count()<(last_poll+poll_delay)) return;
-            for_each(worlds.begin(), worlds.end(), world_do_poll);
-            last_poll = cycle_count();
-        };
 
 
         /// Returns the system-wide unique integer ID of this world
@@ -410,6 +364,7 @@ namespace madness {
             return id;
         }
 
+
         /// Unregister a unique id for a local pointer
         template <typename T>
         void unregister_ptr(T* ptr) {
@@ -418,6 +373,7 @@ namespace madness {
             map_ptr_to_id.erase((void *) ptr);
         }
 
+
         /// Unregister a unique id for a local pointer based on id
 
         /// Same as world.unregister_ptr(world.ptr_from_id<T>(id));
@@ -425,6 +381,7 @@ namespace madness {
         void unregister_ptr(uniqueidT id) {
             unregister_ptr(ptr_from_id<T>(id));
         }
+
 
         /// Look up local pointer from world-wide unique id.
 
@@ -438,6 +395,7 @@ namespace madness {
                 return (T*) (it->second);
         }
 
+
         /// Look up id from local pointer
 
         /// Returns invalid id if the ptr was not found
@@ -450,6 +408,7 @@ namespace madness {
             else
                 return it->second;
         }
+
 
         /// Returns a pointer to the world with given ID or null if not found
 
@@ -468,68 +427,26 @@ namespace madness {
 
         // Cannot use bind_nullary here since MPI::Request::Test is non-const
         struct MpiRequestTester {
-            mutable MPI::Request* r;
-            MpiRequestTester(MPI::Request& r) : r(&r) {};
+            mutable SafeMPI::Request* r;
+            MpiRequestTester(SafeMPI::Request& r) : r(&r) {};
             bool operator()() const {return r->Test();};
         };
 
 
-        /// Wait for MPI request to complete while polling and processing tasks
-        static void inline await(MPI::Request& request) {
+        /// Wait for MPI request to complete 
+        static void inline await(SafeMPI::Request& request) {
             await(MpiRequestTester(request));
         };
 
 
-        /// Wait for a condition to become true while polling and processing tasks
+        /// Gracefully wait for a condition to become true
 
         /// Probe should be an object that when called returns the status.
-        ///
-        /// Ensures progress is made in all worlds.
         template <typename Probe>
         static void inline await(const Probe& probe) {
-            PROFILE_MEMBER_FUNC(World);
-            // Critical here is that poll() is NOT called after a
-            // successful test of the request since polling may
-            // trigger an activity that invalidates the condition.
-#ifdef WORLD_WATCHDOG
-            double watchdog_start_time=0.0;  // Time when dog started watching
-            double watchdog_last_time=0.0;   // Time when dog last barked
-            bool watchdog_is_watching = false; // True if dog is watching
-#endif
-            bool working = false;
-            while (!probe()) {
-                poll_all(!working);  // If working poll_all will increase polling interval
-                working = run_tasks();
-                
-#ifdef WORLD_WATCHDOG
-                // Attempt to detect deadlock.  If waiting "too long"
-                // without doing useful work start whining and
-                // ultimately commit seppuku.
-                if (!working) {
-                    PROFILE_BLOCK(idle);
-                    if (watchdog_is_watching) {
-                        double now = wall_time();
-                        if ((now-watchdog_last_time) > WATCHDOG_BARK_INTERVAL) {
-                            watchdog_bark(**worlds.begin(), now-watchdog_start_time);
-                            watchdog_last_time = now;
-                        }
-                        if ((now-watchdog_start_time) > WATCHDOG_TIMEOUT) 
-                            MADNESS_EXCEPTION("Deadlock detected?",(int) (now-watchdog_start_time));
-                    }
-                    else {
-                        watchdog_last_time = watchdog_start_time = wall_time();
-                        watchdog_is_watching = true;
-                    }
-                }
-                else {
-                    watchdog_is_watching = false;
-                }
-#endif
-
-#ifdef WORLD_SCHED_BACKOFF
-                if (!working) sched_yield();
-#endif
-            }
+            // NEED TO RESTORE THE WATCHDOG STUFF
+            MutexWaiter waiter;
+            while (!probe()) {waiter.wait();}
         }
 
 
@@ -542,7 +459,6 @@ namespace madness {
             // Not only is there no point storing an unowned pointer, it
             // is detrimental due to the duplicate checking.
             if (!item.owned()) return;
-
 
             // !! This algorithm is quadratic.  More efficient would be to
             // !! use a sorted-list/heap/tree/map.
@@ -619,7 +535,6 @@ namespace madness {
     };
 }
 
-
 // Order of these is important
 #include <world/worldam.h>
 #include <world/worldref.h>
@@ -646,12 +561,6 @@ namespace madness {
 
     void redirectio(World& world);
 
-    static inline void world_do_poll(World* world) {
-        if (world) world->am.poll();
-    }
-    static inline void world_do_run_task(World* world, bool* status) {
-        if (world) *status = *status || world->taskq.run_next_ready_task();
-    }
     static WorldAmInterface* world_am_interface_factory(World* world) {
         return new WorldAmInterface(*world);
     }

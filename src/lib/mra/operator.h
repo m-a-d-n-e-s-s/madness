@@ -83,10 +83,12 @@ namespace madness {
 
     /// Since insertions into STL containers have the nasty habit of
     /// invalidating iterators we actually store shared pointers
+    /// [Now that we are using the thread-safe container this is
+    /// not an issue any more].
     template <typename Q, int NDIM>
     class SimpleCache {
     private:
-        typedef HASH_MAP_NAMESPACE::hash_map< Key<NDIM>, SharedPtr<Q> , KeyHash<NDIM> > mapT;
+        typedef ConcurrentHashMap< Key<NDIM>, SharedPtr<Q> , KeyHash<NDIM> > mapT;
         typedef std::pair< Key<NDIM>, SharedPtr<Q> > pairT;
         mapT cache;
         
@@ -275,7 +277,7 @@ namespace madness {
         const ConvolutionData1D<Q>* nonstandard(Level n, Translation lx) const {
             const ConvolutionData1D<Q>* p = ns_cache.getptr(n,lx);
             if (p) return p;
-
+            
             PROFILE_MEMBER_FUNC(ConvolutionData1D);
             
             Tensor<Q> R(2*k,2*k), T;
@@ -794,7 +796,6 @@ namespace madness {
         const int rank;
         const std::vector<long> vk;
         const std::vector<long> v2k;
-        mutable Tensor<Q> work5;
         const std::vector<Slice> s0;
         mutable std::vector< SharedPtr< Convolution1D<Q> > > ops;
 
@@ -817,7 +818,7 @@ namespace madness {
                                   Tensor<Q>& work3,
                                   const double musign,
                                   Tensor<R>& result) const {
-            
+
             PROFILE_MEMBER_FUNC(SeparatedConvolution);
             long size = 1;
             for (int i=0; i<NDIM; i++) size *= dimk;
@@ -885,7 +886,8 @@ namespace madness {
                          double tol,
                          const double musign, 
                          Tensor<TENSOR_RESULT_TYPE(T,Q)>& work1,
-                         Tensor<TENSOR_RESULT_TYPE(T,Q)>& work2) const {
+                         Tensor<TENSOR_RESULT_TYPE(T,Q)>& work2,
+                         Tensor<Q>& work5) const {
 
             PROFILE_MEMBER_FUNC(SeparatedConvolution);
             Transformation trans[NDIM];
@@ -1140,7 +1142,6 @@ namespace madness {
             , rank(ops.size())
             , vk(NDIM,k)
             , v2k(NDIM,2*k)
-            , work5(2*k,2*k)
             , s0(std::max(2,NDIM),Slice(0,k-1))
             , ops(ops)
         {
@@ -1166,7 +1167,6 @@ namespace madness {
             , rank(coeff.dim[0])
             , vk(NDIM,k)
             , v2k(NDIM,2*k)
-            , work5(2*k,2*k)
             , s0(std::max(2,NDIM),Slice(0,k-1))
             , ops(coeff.dim[0]) 
         {
@@ -1225,9 +1225,11 @@ namespace madness {
             tol = tol/rank; // Error is per separated term
 
             const SeparatedConvolutionData<Q,NDIM>* op = getop(source.level(), shift);
+
             //print("sepop",source,shift,op->norm,tol);
             Tensor<resultT> r(v2k), r0(vk);
             Tensor<resultT> work1(v2k,false), work2(v2k,false);
+            Tensor<Q> work5(2*k,2*k);
 
             const Tensor<T> f0 = copy(coeff(s0));
             for (int mu=0; mu<rank; mu++) {
@@ -1235,7 +1237,7 @@ namespace madness {
                 //print(source, shift, mu, muop.norm);
                 if (muop.norm > tol) {
                     muopxv_fast(source.level(), muop.ops, *input, f0, r, r0, tol, ops[mu]->sign, 
-                                work1, work2);
+                                work1, work2, work5);
                     //muopxv(source.level(), muop.ops, *input, f0, r, tol, ops[mu]->sign);
                 }
             }

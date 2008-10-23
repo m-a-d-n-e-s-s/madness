@@ -1794,3 +1794,225 @@ testbsh: $(TEST6OBJ) $(THISLIBDEPEND)
 
 runvalg2:
 	mpiexec -np 3 $(VALGRIND) $(VALGOPTS) ./tests-hqi -rio 
+
+
+
+
+    template <typename T, int NDIM>
+    Void FunctionImpl<T,NDIM>::ensure_exists(const keyT& key) {
+        PROFILE_MEMBER_FUNC(FunctionImpl);
+        if (!coeffs.probe(key)) {
+            keyT parent = key.parent();
+            // If the node does not exist this implies that it will
+            // be a leaf ... make it here so that we only send one
+            // request up the tree to make it.
+            coeffs.insert(key,nodeT(tensorT(),false));
+            //madness::print("ensure_exists: sending recur up from", key, "to", parent);
+            send(coeffs.owner(parent), &implT::recur_down_with_fill, key, parent);            
+        }
+        return None;
+    }
+
+
+    template <typename T, int NDIM>
+    void FunctionImpl<T,NDIM>::widen(bool fence, int ndiff) {
+        PROFILE_MEMBER_FUNC(FunctionImpl);
+        double tol = std::min(1e3*thresh, sqrt(thresh));
+        for(typename dcT::iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
+            const keyT& key = it->first;
+            const nodeT& node = it->second;
+            if (node.is_leaf() && node.coeff().normf()>tol) {
+                for (int axis=0; axis<NDIM; axis++) {
+                    for (int step=-1; step<=1; step+=2) {
+                        keyT neigh = neighbor(key, axis, step);
+                        if (neigh.is_valid()) {
+                            if (ndiff > 0) neigh = neigh.parent(ndiff);
+                            send(coeffs.owner(neigh), &implT::ensure_exists, neigh);
+                        }
+                    }
+                }
+            }
+        }
+        if (fence) world.gop.fence();
+    }
+
+
+        // Widens the support of the tree in preparation for integral operator
+        void widen(bool fence, int ndiff);
+
+
+        void widen(bool fence = true, int ndiff = 1) {
+            PROFILE_MEMBER_FUNC(Function);
+            verify();
+            if (is_compressed()) reconstruct();
+            impl->widen(fence, ndiff);
+            if (fence && VERIFY_TREE) verify_tree();
+        }
+
+
+
+
+        template <typename testT>
+        void conditional_refine_doit(const testT& test, const keyT& key) {
+          nodeT& node = coeffs[key];
+          if (node.has_coeff() && test(key, node.coeff())) {
+            tensorT s(cdata.v2k);
+            s(cdata.s0) = node.coeff();
+            s = unfilter(s);
+            node.clear_coeff();
+            node.set_has_children(true);
+            for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
+               const keyT& child = kit.key();
+               task(coeffs.owner(child), &implT:: template conditional_refine_insert_doit<testT>,
+                    test, child, copy(s(child_patch(child))));
+            }
+          }
+        }
+
+        template <typename testT>
+        void conditional_refine(const testT& test, bool fence) {
+          MADNESS_ASSERT(!compressed);
+          for(typename dcT::iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
+            const keyT& key = it->first;
+            conditional_refine_doit(test, key);
+          }
+          if (fence) world.gop.fence();
+        }
+
+
+
+        template <typename testT>
+        void conditional_refine(const testT& test, bool fence=true) {
+          if (is_compressed()) reconstruct();
+          impl->conditional_refine(test, fence);
+        }
+
+
+
+
+        template <typename opT, typename R>
+        Void do_apply_acc(const opT* op, const FunctionImpl<R,NDIM>* f, const keyT& key, const Tensor<T>& t) {
+            PROFILE_MEMBER_FUNC(FunctionImpl);
+            if (!coeffs.probe(key)) coeffs.replace(key, nodeT());
+            nodeT& node = coeffs[key];
+
+            // Accumulate into the box
+            if (node.has_coeff()) {
+                node.coeff().gaxpy(1.0,t,1.0);
+            }
+            else {
+                node.set_coeff(copy(t));
+                // No existing coeff and no children means the node is newly created for
+                // this operation and we must tell its parent that it exists.
+                if ((!node.has_children()) && (key.level() > 0)) {
+                    Key<NDIM> parent = key.parent();
+                    coeffs.send(parent, &FunctionNode<T,NDIM>::set_has_children_recursive, coeffs, parent);
+                }
+
+                if (op->dowiden1) {
+                    typename FunctionImpl<R,NDIM>::dcT::const_iterator it = f->coeffs.find(key);
+                    if ((it==f->coeffs.end() || it->second.is_invalid()) &&
+                        (t.normf() > truncate_tol(thresh,key))) {
+                        // We just made the first contribution to box that did not
+                        // exist in the source.  Make the source box with any
+                        // missing parents and apply the operator to each of them.
+                        recur_down_with_apply(op, f, key.parent(), key, Tensor<R>());
+                    }
+                }
+
+            }
+            return None;
+        }
+
+
+
+        // This routine MUST be executed in an AM handler for atomicity
+        template <typename opT, typename R>
+        Void recur_down_with_apply(const opT* op,
+                                   const FunctionImpl<R,NDIM>* cf,
+                                   const keyT& key,
+                                   const keyT& target,
+                                   const Tensor<R>& r) {
+
+            PROFILE_MEMBER_FUNC(FunctionImpl);
+            // We send the coeffs down in this routine so we have effectively
+            // atomic insert+apply to eliminate a race condition leading to
+            // double application of the operator.
+
+            FunctionImpl<R,NDIM>* f = const_cast<FunctionImpl<R,NDIM>*>(cf);
+
+            // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<  race condition??????
+
+            if (!f->coeffs.probe(key)) {
+                //madness::print("not there", key);
+                f->coeffs.replace(key,FunctionNode<R,NDIM>());
+            }
+            FunctionNode<R,NDIM>& node = f->coeffs[key];
+
+            if (r.size) {
+                // If r has data then it will be the coefficients for this node.
+                // If we don't already have coeffs courtesy of someone else then
+                // insert them and apply the operator.
+                if (!node.has_coeff()) {
+                    MADNESS_ASSERT(r.iscontiguous());
+                    node.set_coeff(r);
+                    //madness::print("EXTENDED APPLY", key, node.coeff().normf());
+                    task(world.rank(), &implT:: template do_apply<opT,R>, op, cf, key, node.coeff());
+                    if (key.level() == target.level()) return None; // Mission accomplished!
+                    if (!target.is_child_of(key)) return None; // This is a sibling of the correct path
+                }
+            }
+
+            // If r does not have data or we are not yet at our target then we
+            // must look at the node to see what to do
+
+            // - If key==target
+            //   The coeffs should already have been made (and the operator applied)
+            //   while someone else was making another node.
+            //
+            // - Otherwise
+            // a) Node does not exist ... forward up.  Accessing the node in the manner
+            //    above would have made an invalid node ... so this is captured by b)
+            // b) Node exists but is invalid ... forward up (this means that someone else
+            //    is already trying to make this node ... better would be to attach
+            //    a callback so that when the coeffs are set this task is initiated).
+            // c) Node exists and has children ... forward down
+            // d) Node exists and has no children  ... recur down
+
+            Tensor<R> empty;
+
+            if (node.has_coeff()) { // d ... recur down if appropriate
+                if (key.level() < target.level() && target.is_child_of(key)) {
+                    const Tensor<R>& r = node.coeff();
+                    Tensor<R> s;
+                    if (r.dim[0] == k) {
+                        Tensor<R> d(cdata.v2k);
+                        d(cdata.s0) = node.coeff()(cdata.s0);
+                        s = unfilter(d);
+                    }
+                    else if (r.dim[0] == 2*k) {
+                        s = unfilter(node.coeff());
+                    }
+                    else {
+                        MADNESS_EXCEPTION("Uh?",r.dim[0]);
+                    }
+
+                    node.set_has_children(true);
+                    for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
+                        const keyT& child = kit.key();
+                        Tensor<R> ss = copy(s(child_patch(child)));
+                        //madness::print("EXTENDED DOWN-2", key, "to", child, ss.normf());
+                        task(coeffs.owner(child), &implT:: template recur_down_with_apply<opT,R>,
+                             op, cf, child, target, ss);
+                    }
+                }
+            }
+            else { // a and b ... forward up
+                keyT parent = key.parent();
+                //madness::print("EXTENDED UP", key, "to", parent);
+                task(coeffs.owner(parent), &implT:: template recur_down_with_apply<opT,R>, op, cf, parent, target, empty);
+            }
+
+            return None;
+        }
+

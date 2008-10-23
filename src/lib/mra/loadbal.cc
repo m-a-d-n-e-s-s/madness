@@ -569,7 +569,7 @@ namespace madness {
 	    d.subcost = d.cost;
 	    node.nrecvd = dim - node.get_num_children();
 	    node.set_data(d);
-	    impl.insert(key,node);
+	    impl.replace(key,node);
 	}
     }
 
@@ -614,7 +614,7 @@ namespace madness {
 //		       c, " subtotal =", d.subcost);
 	node.nrecvd++;
 	node.set_data(d);
-	impl.insert(key, node);
+	impl.replace(key, node);
 	if ((node.nrecvd == node.dim) && (key.level()!=0)) {
 	    Key<D> parent = key.parent();
 //	    madness::print("fix_cost_sum:", key, "sending cost", d.subcost, "to parent", parent);
@@ -658,7 +658,7 @@ namespace madness {
                     // Setting to false, to signify that this node has been worked on.
 		    d.is_taken = false;
 		    node.set_data(d);
-		    impl.insert(key,node);
+		    impl.replace(key,node);
 	        }
 	    }
 	}
@@ -676,14 +676,14 @@ namespace madness {
 
 	    d.is_taken = taken;
 	    node.set_data(d);
-	    impl.insert(key,node);
+	    impl.replace(key,node);
 	}
     }
 
     /// meld fuses leaf child(ren) to parent and deletes the leaf child(ren) in question
     /// Arguments: const Key<D> key -- node at which we begin
     /// Side effect: parent nodes are updated, and leaf nodes are deleted
-    /// Communication: find and insert 
+    /// Communication: find and replace 
     template <int D>
     void LBTree<D>::meld(typename LBTree<D>::iterator it) {
 	Key<D> key = it->first;
@@ -739,7 +739,7 @@ namespace madness {
 	    i++;
 	}
 	node.set_data(d);
-	impl.insert(key, node);
+	impl.replace(key, node);
     }
 
 
@@ -800,15 +800,15 @@ namespace madness {
     if (node.has_children()) {
       if (downward) {
 	node.rpit = KeyChildIterator<D>(key);
-	impl.insert(key,node);
+	impl.replace(key,node);
       } else {
 	++(node.rpit);
-	impl.insert(key,node);
+	impl.replace(key,node);
       }
       
       if (node.rpit) {
 	const Key<D>& child = node.rpit.key();
-	impl.insert(key,node);
+	impl.replace(key,node);
 	send(impl.owner(child), &LBTree::make_partition, child, partition_size, used_up, lbi, true);
 	//madness::print("RETURN 3");
 	return None;

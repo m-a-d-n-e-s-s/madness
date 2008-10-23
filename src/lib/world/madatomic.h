@@ -56,7 +56,7 @@ typedef gint MADATOMIC_INT;
 #define MADATOMIC_INITIALIZE(val) (val)
 #define MADATOMIC_INT_INC(ptr) g_atomic_int_inc(ptr)
 #define MADATOMIC_INT_GET(ptr) g_atomic_int_get(ptr)
-#define MADATOMIC_INT_SET(ptr,val) (*(ptr) = val)
+#define MADATOMIC_INT_SET(ptr,val) g_atomic_int_set(ptr,val)
 #define MADATOMIC_INT_DEC_AND_TEST(ptr) g_atomic_int_dec_and_test(ptr)
 
 #elif defined(__GNUC__)
@@ -75,6 +75,7 @@ typedef volatile int MADATOMIC_INT;
 #define MADATOMIC_FENCE 
 #define MADATOMIC_INITIALIZE(val) (val)
 #define MADATOMIC_INT_INC(ptr) (__gnu_cxx::__atomic_add(ptr, 1))
+#define MADATOMIC_INT_DEC(ptr) (__gnu_cxx::__atomic_add(ptr,-1))
 #define MADATOMIC_INT_GET(ptr) (*(ptr))
 #define MADATOMIC_INT_SET(ptr,val) (*(ptr) = val)
 #define MADATOMIC_INT_DEC_AND_TEST(ptr) ((__gnu_cxx::__exchange_and_add(ptr,-1)) == 1)

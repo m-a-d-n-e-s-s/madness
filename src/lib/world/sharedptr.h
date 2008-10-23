@@ -39,24 +39,11 @@
 /// \file sharedptr.h
 /// \brief Minimal, modified (and renamed) Boost-like SharedPtr & SharedArray 
 
-/// This implementation is thread safe. However, the thread safety is
-/// presently NOT turned on by default while we are implementing the
-/// distributed memory code.  In addition to the usual problems with
-/// building boost we we using our own shared_ptr since we need to
-/// modify it to support the distributed memory interface.
+/// This implementation is thread safe. 
 
 #include <iostream>
 #include <world/worldexc.h>
-
-#ifdef MAD_USE_THREADS
 #include <world/madatomic.h>
-#else
-#define MADATOMIC_INT long
-#define MADATOMIC_INT_INC(ptr) (++(*(ptr)))
-#define MADATOMIC_INT_GET(ptr) (*(ptr))
-#define MADATOMIC_INT_SET(ptr,val) (*(ptr) = val)
-#define MADATOMIC_INT_DEC_AND_TEST(ptr) ((--(*(ptr))) == 0)
-#endif
 
 namespace madness {
     
@@ -208,12 +195,12 @@ namespace madness {
         /// Assignment decrements reference count for current pointer and increments new count
         SharedPtr<T>& operator=(const SharedPtr<T>& s) {
             if (this != &s) {
+                if (s.own && s.count) s.count->inc();
                 this->dec();
                 this->p = s.p;
                 this->count = s.count;
                 this->own = s.own;
                 this->deleter = s.deleter;
-                if (own && count) count->inc();
             }
             return *this;
         }
@@ -283,8 +270,8 @@ namespace madness {
         /// call the object destructor again.
         SharedPtr<T> steal() const {
             SharedPtr<T> r(*this);
-            r.dec();
             r.own = false;
+            r.dec();
             return r;
         }
 
@@ -300,12 +287,12 @@ namespace madness {
         /// Assignment decrements reference count for current pointer and increments new count
         SharedArray& operator=(const SharedArray& s) {
             if (this != &s) {
+                if (s.own && s.count) s.count->inc();
                 this->dec();
                 this->p = s.p;
                 this->count = s.count;
                 this->own = s.own;
                 this->deleter = s.deleter;
-                if (this->own && this->count) this->count->inc();
             }
             return *this;
         }

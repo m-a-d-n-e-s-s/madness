@@ -41,7 +41,6 @@
 
 #include <madness_config.h>
 
-
 #ifdef HAVE_GNU_HASHMAP
 #  ifdef INCLUDE_EXT_HASH_MAP
 #    include <ext/hash_map>
@@ -59,7 +58,6 @@
 
 #include <world/typestuff.h>
 
-
 namespace madness {
 
     typedef unsigned int hashT;
@@ -72,9 +70,7 @@ namespace madness {
                         (hashT)(initval));
     }
 
-
     template <typename T> struct Hash;
-
 
     /// Hash a single instance
     template <class T>

@@ -884,6 +884,7 @@ namespace madness {
 #define RETURN_WRAPPERT(TYPE) typename ReturnWrapper< TYPE >::type
 
 #define MEMFUN_RETURNT(MEMFUN) typename memfunc_traits< MEMFUN >::result_type
+#define MEMFUN_CONSTNESS(MEMFUN) memfunc_traits< MEMFUN >::constness
 #define MEMFUN_OBJT(MEMFUN)    typename memfunc_traits< MEMFUN >::obj_type
 #define MEMFUN_ARITY(MEMFUN)   memfunc_traits< MEMFUN >::arity
 #define MEMFUN_ARG1T(MEMFUN)   typename memfunc_traits< MEMFUN >::arg1_type

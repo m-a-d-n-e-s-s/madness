@@ -4,7 +4,7 @@ bin_PROGRAMS = test test_mtxmq test_Zmtxmq
 lib_LIBRARIES = libMADtensor.a
 
 test_SOURCES = test.cc
-test_LDADD = libMADtensor.a $(LIBWORLD)
+test_LDADD = libMADtensor.a $(LIBMISC) $(LIBWORLD) 
 
 test_mtxmq_SOURCES = test_mtxmq.cc
 test_mtxmq_LDADD = libMADtensor.a $(LIBWORLD)
@@ -16,8 +16,8 @@ test_Zmtxmq_CPPFLAGS = $(AM_CPPFLAGS) -DTIME_DGEMM
 
 libMADtensor_a_SOURCES = tensor.cc tensoriter.cc basetensor.cc mtrand.cc mtxmq.cc aligned.cc alignedc.cc \
                          \
-                        aligned.h     mtrand.h       mxm.h     tensorexcept.h  tensoriter_spec.h  type_data.h \
-                        basetensor.h  random.h  tensor.h        tensor_macros.h    vector_factory.h \
+                        aligned.h     mxm.h     tensorexcept.h  tensoriter_spec.h  type_data.h \
+                        basetensor.h  tensor.h        tensor_macros.h    vector_factory.h \
                         mtxmq.h     slice.h   tensoriter.h    tensor_spec.h
 
 if USE_X86_64_ASM

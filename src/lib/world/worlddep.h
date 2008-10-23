@@ -41,6 +41,7 @@
 
 #include <world/array.h>
 #include <world/print.h>
+#include <world/worldthread.h>
 
 namespace madness {
 
@@ -54,32 +55,34 @@ namespace madness {
         
 
     /// Provides interface for tracking dependencies
-    class DependencyInterface : public CallbackInterface {
+    class DependencyInterface : public CallbackInterface, private Mutex {
     private:
-        int ndepend;        ///< Counts dependencies
+        volatile int ndepend;   ///< Counts dependencies
         
-        //mutable std::vector<CallbackInterface*> callbacks; ///< Called ONCE by dec() when ndepend==0
         static const int MAXCALLBACKS = 8;
-        mutable Stack<CallbackInterface*,MAXCALLBACKS> callbacks; ///< Called ONCE by dec() when ndepend==0
+        typedef Stack<CallbackInterface*,MAXCALLBACKS> callbackT;
+        mutable volatile callbackT callbacks; ///< Called ONCE by dec() when ndepend==0
 
-        inline void do_callbacks() const {
-//             for (int i=0; i<(int)callbacks.size(); i++)
-//                 callbacks[i]->notify();
-//             callbacks.clear();
-            while (callbacks.size()) callbacks.pop()->notify();
+        void do_callbacks() const {
+            // ASSUME THAT WE HAVE THE LOCK WHILE IN HERE
+            callbackT& cb = const_cast<callbackT&>(callbacks);
+            if (cb.size()) {
+                while (cb.size()) {
+                    CallbackInterface* p = cb.pop();
+                    p->notify();
+                }
+            }
         };
 
     public:
-        DependencyInterface(int ndepend = 0) : 
-            ndepend(ndepend), callbacks() {};
+        DependencyInterface(int ndep = 0) : ndepend(ndep) {}; 
+
 
         /// Returns the number of unsatisfied dependencies
-        inline int ndep() const {
-            return ndepend;
-        };
+        int ndep() const {return ndepend;}
 
         /// Returns true if ndepend == 0
-        inline bool probe() const {return ndep() == 0;};
+        bool probe() const {return ndep() == 0;};
 
 
         /// Invoked by callbacks to notifiy of dependencies being satisfied
@@ -89,26 +92,30 @@ namespace madness {
         /// Registers a callback for when ndepend=0
 
         /// If ndepend == 0, the callback is immediately invoked.
-        inline void register_callback(CallbackInterface* callback) {
-            //this->callbacks.push_back(callback);
-            this->callbacks.push(callback);
+        void register_callback(CallbackInterface* callback) {
+            ScopedMutex hold(this);
+            const_cast<callbackT&>(this->callbacks).push(callback);
             if (ndepend == 0) do_callbacks();
         };
         
+
         /// Increment the number of dependencies
-        inline void inc() {
+        void inc() {
+            ScopedMutex hold(this);
             MADNESS_ASSERT(ndepend>=0);
             ndepend++;
         };
         
+
         /// Decrement the number of dependencies and invoke callback if ndepend=0
-        inline void dec() {
-            ndepend--;
-            MADNESS_ASSERT(ndepend>=0);
-            if (ndepend == 0) do_callbacks();
+        void dec() {
+            ScopedMutex hold(this);
+            if (--ndepend == 0) do_callbacks();
         };
 
+
         virtual ~DependencyInterface() {
+            ScopedMutex hold(this); 
             if (ndepend) {
                 print("DependencyInterface: destructor with ndepend =",ndepend,"?");
             }

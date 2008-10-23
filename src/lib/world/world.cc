@@ -82,211 +82,6 @@ public:
     template <typename Archive> void serialize(Archive &ar) {ar&b;}
 };
 
-void handler(World& world, ProcessID from, const AmArg& arg) {
-    world.mpi.Send(arg.buf[0]+1, from, 33);
-}
-
-void hello(World& world, ProcessID from, const AmArg& arg) {
-    print(world.mpi.rank(),"got hello from",from);
-    cout.flush();
-}
-
-void test1(World& world) {
-    PROFILE_FUNC;
-    ProcessID me = world.mpi.rank();
-    long nproc = world.size();
-
-    //world.mpi.set_debug(true);
-
-    if (nproc == 1) throw "Gimme someone to talk to!";
-
-    print(me,"ENTERING FENCE 0");
-    world.am.printq();
-    world.gop.fence();
-    print(me,"EXITING FENCE 0");
-    world.am.printq();
-    world.gop.fence();
-
-    for (int i=0; i<20; i++) {
-      long reply = -1;
-      ProcessID p = world.random_proc_not_me();
-      world.am.send_recv(p,handler,AmArg(me+1000L),&reply,sizeof(reply),p,33);
-      if (reply != me+1001) {
-        print("bad reply",reply,me+1001);
-        throw "Ooops ...";
-      }
-    }
-    print(me,"ENTERING FENCE 1");
-    world.gop.fence();
-    print(me,"EXITING FENCE 1");
-    world.gop.fence();
-
-    if (nproc < 16) {
-      world.am.broadcast(hello,AmArg());  // Everyone says hello to everyone else
-      world.gop.fence();
-    }
-
-    if (me == 0) print("test1 (short active message basics) seems to be working");
-}
-
-void test2_handler(World& world, ProcessID src, void *buf, size_t len) {
-    PROFILE_FUNC;
-    const long offset = WorldAmInterface::LONG_MSG_HEADER_LEN/sizeof(long);
-    long lens = len/sizeof(long) - offset;
-    long *s = (long *) buf;
-    
-    for (long i=0; i<lens; i++)
-        if (s[i+offset] != i) {
-            print(world.rank(),"test2:",i);
-            throw "test2: bad contents";
-        }
-
-    if (lens < 10000) {
-        lens++;
-        s = new long[offset+lens];
-        for (long i=0; i<lens; i++) s[i+offset] = i;
-        ProcessID dest = world.random_proc();
-        int handle = world.am.send_long(dest, test2_handler, s, (lens+offset)*sizeof(long));
-        world.am.wait_to_complete(handle);
-        delete [] s;
-    }
-}
-
-
-void test2(World& world) {
-    PROFILE_FUNC;
-    ProcessID me = world.mpi.rank();
-    const long offset = WorldAmInterface::LONG_MSG_HEADER_LEN/sizeof(long);
-    long buf[offset + 1];
-    buf[offset] = 0;
-
-    // Each process starts sending to a random process an array of
-    // longs of length 1 initialized to 0.  The handler checks the
-    // contents, adds another entry on the end, and forwards to
-    // another random process unless it already has more than 1000
-    // elements.  On average, each process will send/recv 1000
-    // messages.
-
-    //world.set_debug(true);
-
-    test2_handler(world, me, buf, sizeof(buf));
-    print("before fence");
-    world.am.print_stuff();
-    world.gop.fence();
-    print("after fence");
-    world.am.print_stuff();
-    world.gop.fence();
-    
-    if (me == 0) print("test2 (long active message basics) seems to be working");
-}
-
-void test3_handler(World& world, ProcessID src, void *buf, size_t len) {
-    PROFILE_FUNC;
-    const long offset = WorldAmInterface::LONG_MSG_HEADER_LEN/sizeof(long);
-    long lens = len/sizeof(long) - offset;
-    long *s = (long *) buf;
-    
-    for (long i=0; i<lens; i++)
-        if (s[i+offset] != i) {
-            print(world.rank(),"test2:",i);
-            throw "test2: bad contents";
-        }
-
-    if (lens < 10000) {
-        lens++;
-        s = (long *) alloc_long_am_arg((offset+lens)*sizeof(long));
-        for (long i=0; i<lens; i++) s[i+offset] = i;
-        ProcessID dest = world.random_proc();
-        world.am.send_long_managed(dest, test2_handler, s, (lens+offset)*sizeof(long));
-    }
-}
-
-void test3(World& world) {
-    PROFILE_FUNC;
-    ProcessID me = world.mpi.rank();
-    const long offset = WorldAmInterface::LONG_MSG_HEADER_LEN/sizeof(long);
-    long buf[offset + 1];
-    buf[offset] = 0;
-
-    // Same as test2 but using send_long_managed instead
-    test3_handler(world, me, buf, sizeof(buf));
-    world.gop.fence();
-    
-    if (me == 0) print("test3 (managed long active message basics) seems to be working");
-}
-
-
-void test4(World& world) {
-    PROFILE_FUNC;
-    int nproc = world.size();
-    ProcessID me = world.rank();
-    ProcessID left = (me+nproc-1) % nproc;
-    ProcessID right = (me+1) % nproc;
-
-    // First check local futures
-    Future<int> a;
-    a.set(1);
-    MADNESS_ASSERT(a.get() == 1);
-
-    Future<int> b;
-    print("AAA");
-    RemoteReference< FutureImpl<int> > rb=b.remote_ref(world), rc;
-    print("BBB");
-    world.mpi.Sendrecv(&rb,sizeof(rb),MPI::BYTE,left,1,
-                       &rc,sizeof(rc),MPI::BYTE,right,1);
-    print("CCC");
-    Future<int> c(rc);
-    print("DDD");
-    c.set(me);
-    print("EEE");
-    world.gop.fence();
-    print("FFF");
-    MADNESS_ASSERT(b.get() == left);
-    print("GGG");
-    print("about to enter final barrier");
-    world.am.printq();
-    world.gop.fence();
-    print("leaving final barrier");
-    world.am.printq();
-    world.gop.fence();
-    
-    if (me == 0) print("test4 (basic futures) OK");
-}
-
-
-bool done4a;
-void handler4a_done(World& world, ProcessID from, const AmArg& arg) {
-    PROFILE_FUNC;
-    print("Process 0 was told by", from, "that all is finished");
-    done4a = true;
-}
-
-void handler4a(World& world, ProcessID from, const AmArg& arg) {
-    PROFILE_FUNC;
-    unsigned long counter = arg[0];
-    if (counter < 10000) {
-        world.am.send(world.random_proc(), handler4a, AmArg(counter+1));
-    }
-    else {
-        world.am.send(0, handler4a_done, AmArg());
-    }
-}
-
-
-void test4a(World& world) {
-    PROFILE_FUNC;
-    if (world.size() == 1) return;
-    // An active messages wanders around the machine
-    // until an internal count hits 10000.
-
-    done4a = false;
-    if (world.rank() == 0) world.am.send(world.random_proc(), handler4a, AmArg(0));
-    world.gop.fence();
-    if (world.rank() == 0) {
-        if (done4a) print("test4a (process-0 waiting) OK");
-        else print("test4a (process-0 waiting) failed !!!!!!!!!!!!!!!!!!!!!!!!");
-    }
-}
 
 #include <complex>
 typedef std::complex<double> double_complex;
@@ -541,7 +336,6 @@ void test7(World& world) {
     PROFILE_FUNC;
     int nproc = world.size();
     ProcessID me = world.rank();
-    World::poll_all();
     WorldContainer<int,double> c(world);
 
     typedef WorldContainer<int,double>::iterator iterator;
@@ -550,7 +344,9 @@ void test7(World& world) {
 
     // Everyone inserts distinct values 0..1000 into the container,
     // fences, and then tries to read all values back
-    for (int i=me; i<1000; i+=nproc) c.insert(i,(double) i);
+
+    // Note that insertion with key or accessor should be safe
+    for (int i=me; i<1000; i+=nproc) c.replace(i,(double) i);
     world.gop.fence();
 
     for (int i=999; i>=0; i--) {
@@ -657,25 +453,19 @@ void test9(World& world) {
 
 class Mary {
 private:
-    int val;
+    uint64_t val;
 public:
-    Mary() : val(0) {
-        print("MAKING Mary",(void*)this);
-    };
+    Mary() : val(0) {}
+
     Void inc() {
-        print("INC Mary",(void*)this,val);
         val++;
-        print("Mary was just incremented",val);
         return None;
     };
     Void add(int i) {
-        print("ADD Mary",(void*)this,val,i);
         val += i;
-        print("Mary was just added",i,val);
         return None;
     };
     Void fred(int i, double j) {
-        print("FRED Mary",(void*)this,val,i,j);
         val += i*(int)j;
         return None;
     };
@@ -708,7 +498,7 @@ public:
     };
         
 
-    int get() const {return val;};
+    uint64_t get() const {return val;};
 
     bool get_me_twice(World* world, const WorldContainer<int,Mary>& d) {
         return true;
@@ -720,14 +510,20 @@ public:
     }
 };
 
+Void pounder(WorldContainer<int,Mary>* m, int ind) {
+    for (int i=0; i<100000; i++)
+        m->send(ind, &Mary::inc);
+    return None;
+}
+
 void test10(World& world) {
     PROFILE_FUNC;
     // test forwarding methods to an item
     ProcessID me = world.rank();
     int nproc = world.size();
-    World::poll_all();
     WorldContainer<int,Mary> m(world);
     typedef WorldContainer<int,Mary>::iterator iterator;
+    //world.gop.fence();
  
     for (int i=0; i<nproc; i++) 
         m.send(i,&Mary::inc);
@@ -735,9 +531,9 @@ void test10(World& world) {
 
     for (iterator it=m.begin(); it!=m.end(); ++it) {
         print("mary",it->first,it->second.get());
-        MADNESS_ASSERT(it->second.get() == nproc);
+        MADNESS_ASSERT(int(it->second.get()) == nproc);
     }
-    world.gop.barrier();
+    world.gop.fence();
 
     for (int i=0; i<nproc; i++) 
         m.send(i,&Mary::add,me);
@@ -745,7 +541,7 @@ void test10(World& world) {
 
     for (iterator it=m.begin(); it!=m.end(); ++it) {
         print("mary",it->first,it->second.get());
-        MADNESS_ASSERT(it->second.get() == nproc*(nproc+1)/2);
+        MADNESS_ASSERT(long(it->second.get()) == nproc*(nproc+1)/2);
     }
     world.gop.fence();
 
@@ -755,8 +551,28 @@ void test10(World& world) {
 
     for (iterator it=m.begin(); it!=m.end(); ++it) {
         print("mary",it->first,it->second.get());
-        MADNESS_ASSERT(it->second.get() == nproc*(3*nproc-1)/2);
+        MADNESS_ASSERT(long(it->second.get()) == nproc*(3*nproc-1)/2);
     }
+
+    // Test that item methods are executed atomically by having 
+    // everyone pound on one item
+
+    const int ind = 9999999;
+    if (world.rank() == 0) m.replace(std::pair<int,Mary>(ind,Mary()));
+    world.gop.fence();
+    world.taskq.add(pounder, &m, ind);
+    world.taskq.add(pounder, &m, ind);
+    world.taskq.add(pounder, &m, ind);
+    world.taskq.add(pounder, &m, ind);
+    world.taskq.add(pounder, &m, ind);
+    world.taskq.add(pounder, &m, ind);
+    world.taskq.add(pounder, &m, ind);
+    world.taskq.add(pounder, &m, ind);
+    world.taskq.add(pounder, &m, ind);
+    world.taskq.add(pounder, &m, ind);
+    world.gop.fence();
+    if (world.rank() == 0) 
+        MADNESS_ASSERT(long(m[ind].get()) == nproc * 100000 * 10);
 
     Future<double>  galahad = m.task(ProcessID(0),&Mary::galahad,string("1"),me,3.14);
     world.gop.fence();
@@ -899,7 +715,7 @@ void walker1(WorldContainer<Key,Node>& d, const Key& key) {
     Node node = it->second;
     node.set(++counter);
     d.erase(key);
-    d.insert(key,node);
+    d.replace(key,node);
     it = d.find(key).get();
     MADNESS_ASSERT(it != d.end());
     MADNESS_ASSERT(it->second.get() == counter);
@@ -915,7 +731,7 @@ void walker2(WorldContainer<Key,Node>& d, const Key& key) {
   if (it != d.end()) {
     Node node = it->second;
     node.set(++counter);
-    d.insert(key,node);
+    d.replace(key,node);
     it = d.find(key).get();
     MADNESS_ASSERT(it != d.end());
     if (it->second.get() != counter) {
@@ -991,7 +807,7 @@ void test12(World& world) {
     WorldContainer<int,double> d(world);
 
     // Everyone puts 100 distinct entries in the container
-    for (int i=0; i<100; i++) d.insert(me*100 + i, me*100+i);
+    for (int i=0; i<100; i++) d.replace(me*100 + i, me*100+i);
 
     world.gop.fence();
 
@@ -1048,7 +864,7 @@ void test13(World& world) {
     // Everyone puts 100 distinct entries in the container
     for (int i=0; i<100; i++) {
         int key = me*100+i;
-        d.insert(key, double(key));
+        d.replace(key, double(key));
     }
 
     world.gop.fence();
@@ -1075,12 +891,16 @@ void test13(World& world) {
 
 
 int main(int argc, char** argv) {
+    // START UP MUST BE IN THIS ORDER!!!!
     MPI::Init(argc, argv);
+    ThreadPool::begin();
+    RMI::begin();
+    //RMI::set_debug(true);
+    MPI::COMM_WORLD.Barrier();
 
 #ifdef WORLD_TAU_TRACE    
     TAU_PROFILE_SET_NODE(MPI::COMM_WORLD.Get_rank());
 #endif
-    
     
     World world(MPI::COMM_WORLD);
     redirectio(world);
@@ -1094,15 +914,14 @@ int main(int argc, char** argv) {
     try {
         PROFILE_BLOCK(main_program);
 
-      DQueue<int>::self_test();
       test0(world);
-      if (world.nproc() > 1) {
-        test1(world);
-        test2(world);
-        test3(world);
-      }
-      test4(world);
-      test4a(world);
+//       if (world.nproc() > 1) {
+//         test1(world);
+//         test2(world);
+//         test3(world);
+//       }
+//       test4(world);
+//       test4a(world);
       test5(world);
       test6(world);
       test6a(world);
@@ -1128,13 +947,14 @@ int main(int argc, char** argv) {
     print("entering final fence");
     world.gop.fence();
     print("done with final fence");
-    if (world.rank() == 0) {
-        world.am.print_stats();
-        world.taskq.print_stats();
-        world_mem_info()->print();
-    }
+//     if (world.rank() == 0) {
+//         world.am.print_stats();
+//         world.taskq.print_stats();
+//         world_mem_info()->print();
+//     }
 
-    WorldProfile::print(world);
+    //WorldProfile::print(world);
+    RMI::end();
     MPI::Finalize();
     return 0;
 }

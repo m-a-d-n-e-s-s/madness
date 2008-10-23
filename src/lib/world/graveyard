@@ -441,3 +441,65 @@
             free_managed_send_buf(i);
             return i;
         };
+
+
+
+
+
+
+//         /// Send array of lenbuf elements to process dest 
+//         template <class T>
+//             void Send(const T* buf, long lenbuf, ProcessID dest, Tag tag) const {
+//             Send((void* )buf, lenbuf*sizeof(T), MPI::BYTE, dest, tag);
+//         }
+        
+//         /// Send element to process dest with default tag=1
+        
+//         /// Disabled for pointers to reduce accidental misuse.
+//         template <class T>
+//         typename enable_if_c< !is_pointer<T>::value, void>::type
+//         Send(const T& datum, ProcessID dest, Tag tag=1) const {
+//             Send((void* )&datum, sizeof(T), MPI::BYTE, dest, tag);
+//         }
+        
+//         /// Same as MPI::Intracomm::Recv with status
+//         void Recv(void* buf, int count, const MPI::Datatype& datatype,
+//                          ProcessID source, Tag tag, MPI::Status& status) const {
+//             if (debug) madness::print("World:",rank(),"receiving",count,"bytes from",source,"with tag",tag);
+//             Recv(buf,count,datatype,source,tag,status);
+//             if (debug) madness::print("World:",rank(),"received");
+//         }
+        
+        
+//         /// Same as MPI::Intracomm::Recv
+//         void Recv(void* buf, int count, const MPI::Datatype& datatype,
+//                          ProcessID source, Tag tag) const {
+//             if (debug) madness::print("World:",rank(),"receiving",count,"bytes from",source,"with tag",tag);
+//             Recv(buf,count,datatype,source,tag);
+//             if (debug) madness::print("World:",rank(),"received");
+//         }
+        
+        
+//         /// Receive data of up to lenbuf elements from process dest
+//         template <class T>
+//             void
+//             Recv(T* buf, long lenbuf, ProcessID src, Tag tag) const {
+//             Recv(buf, lenbuf*sizeof(T), MPI::BYTE, src, tag);
+//         }
+        
+//         /// Receive data of up to lenbuf elements from process dest with status
+//         template <class T>
+//             void
+//             Recv(T* buf, long lenbuf, ProcessID src, Tag tag, MPI::Status& status) const {
+//             Recv(buf, lenbuf*sizeof(T), MPI::BYTE, src, tag, status);
+//         }
+        
+        
+//         /// Receive datum from process src with default tag=1
+//         template <class T>
+            
+//             typename enable_if_c< !is_pointer<T>::value, void>::type
+//             Recv(T& buf, ProcessID src, Tag tag=1) const {
+//             Recv(&buf, sizeof(T), MPI::BYTE, src, tag);
+//         }
+        

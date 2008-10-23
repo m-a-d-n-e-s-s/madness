@@ -587,14 +587,6 @@ namespace madness {
             if (fence && VERIFY_TREE) verify_tree();
         }
 
-        void widen(bool fence = true, int ndiff = 1) {
-            PROFILE_MEMBER_FUNC(Function);
-            verify();
-            if (is_compressed()) reconstruct();
-            impl->widen(fence, ndiff);
-            if (fence && VERIFY_TREE) verify_tree();
-        }
-
         /// Reconstructs the function, transforming into scaling function basis.  Possible non-blocking comm.
 
         /// By default fence=true meaning that this operation completes before returning,
@@ -833,13 +825,6 @@ namespace madness {
             impl->square_inplace(fence);
             return *this;
         }
-
-        template <typename testT>
-        void conditional_refine(const testT& test, bool fence=true) {
-          if (is_compressed()) reconstruct();
-          impl->conditional_refine(test, fence);
-        }
-
 
         /// Returns local contribution to \c int(f(x),x) ... no communication
 
@@ -1295,7 +1280,7 @@ namespace madness {
     ///
     /// Now follow some brief tips about how to look at files inside OpenDX.
     ///
-    /// To view a 1D function \c file-selector-->import-->plot -->image.
+    /// To view a 1D function \c file-selector-->import-->plot-->image.
     ///
     /// To view a 2D function as a colored plane \c file-selector-->import-->autocolor-->image.
     ///

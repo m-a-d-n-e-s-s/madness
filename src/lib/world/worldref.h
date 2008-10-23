@@ -79,10 +79,10 @@ namespace madness {
         mutable ProcessID rank;    ///< MPI rank of the owner
         mutable unsigned long id;  ///< Id of the world valid in all participating processes
 
-        void static dec_handler(World& world, ProcessID src, const AmArg& arg) {
-            RemoteReference r = arg;
-            MADNESS_ASSERT(world.id() == r.id);
-            if (debug) madness::print(world.mpi.rank(),"RemoteRef::dec_handler",src,(void *) r.get());
+        void static dec_handler(const AmArg& arg) {
+            RemoteReference r;
+            arg & r;
+            if (debug) madness::print(arg.get_world()->rank(),"RemoteRef::dec_handler",arg.get_src(),(void *) r.get());
             r.dec();
         };
 
@@ -134,7 +134,7 @@ namespace madness {
                     ptr.mark_as_unowned();// Don't want destructor to actually work
                 }
                 else {
-                    world->am.send(rank, dec_handler, AmArg(*this));
+                    world->am.send(rank, dec_handler, new_am_arg(*this));
                 }
                 ptr = SharedPtr<T>(0);   // Invalidate all contents
                 id = 0xffffffff;

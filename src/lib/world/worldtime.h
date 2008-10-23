@@ -39,6 +39,7 @@
 #include <stdint.h>
 #include <time.h>
 #include <sys/time.h>
+#include <madness_config.h>
 
 #ifdef _CRAY
 #include <catamount/dclock.h>

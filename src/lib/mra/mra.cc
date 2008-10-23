@@ -269,7 +269,7 @@ namespace madness {
         // in leaves, hence the tree may refine as a result.
         typename dcT::iterator it = coeffs.find(key).get();
         if (it == coeffs.end()) {
-            coeffs.insert(key,nodeT(tensorT(),false));
+            coeffs.replace(key,nodeT(tensorT(),false));
             it = coeffs.find(key).get();
         }
         nodeT& node = it->second;
@@ -415,22 +415,22 @@ namespace madness {
             tensorT s0;
             if (truncate_on_project) s0 = copy(d(cdata.s0));
             d(cdata.s0) = T(0);
-            if ( (d.normf() < truncate_tol(thresh,key.level())) &&
-                 (key.level() < max_refine_level) ) {
+
+            if (d.normf()<truncate_tol(thresh,key.level()) || key.level()>=max_refine_level) {
+                if (key.level()>=max_refine_level) print("MAX REFINE LEVEL",key);
                 if (truncate_on_project) {
-                    coeffs.insert(key,nodeT(s0,false));
+                    coeffs.replace(key,nodeT(s0,false));
                 }
                 else {
-                    coeffs.insert(key,nodeT(tensorT(),true)); // Insert empty node for parent
+                    coeffs.replace(key,nodeT(tensorT(),true)); // Insert empty node for parent
                     for (KeyChildIterator<NDIM> it(key); it; ++it) {
                         const keyT& child = it.key();
-                        coeffs.insert(child,nodeT(copy(r(child_patch(child))),false));
+                        coeffs.replace(child,nodeT(copy(r(child_patch(child))),false));
                     }
                 }
             }
             else {
-                coeffs.insert(key,nodeT(tensorT(),true)); // Insert empty node for parent
-                if (key.level()==max_refine_level) print("MAX REFINE LEVEL",key);
+                coeffs.replace(key,nodeT(tensorT(),true)); // Insert empty node for parent
                 for (KeyChildIterator<NDIM> it(key); it; ++it) {
                     const keyT& child = it.key();
                     ProcessID p;
@@ -446,7 +446,7 @@ namespace madness {
             }
         }
         else {
-            coeffs.insert(key,nodeT(project(key),false));
+            coeffs.replace(key,nodeT(project(key),false));
         }
         return None;
     }
@@ -474,7 +474,7 @@ namespace madness {
         }
         if (fence) world.gop.fence();
     }
-
+    
     template <typename T, int NDIM>
     void FunctionImpl<T,NDIM>::insert_zero_down_to_initial_level(const keyT& key) {
         PROFILE_MEMBER_FUNC(FunctionImpl);
@@ -482,18 +482,18 @@ namespace madness {
         if (coeffs.is_local(key)) {
             if (compressed) {
                 if (key.level() == initial_level) {
-                    coeffs.insert(key, nodeT(tensorT(), false));
+                    coeffs.replace(key, nodeT(tensorT(), false));
                 }
                 else {
-                    coeffs.insert(key, nodeT(tensorT(cdata.v2k), true));
+                    coeffs.replace(key, nodeT(tensorT(cdata.v2k), true));
                 }
             }
             else {
                 if (key.level()<initial_level) {
-                    coeffs.insert(key, nodeT(tensorT(), true));
+                    coeffs.replace(key, nodeT(tensorT(), true));
                 }
                 else {
-                    coeffs.insert(key, nodeT(tensorT(cdata.vk), false));
+                    coeffs.replace(key, nodeT(tensorT(cdata.vk), false));
                 }
             }
         }
@@ -514,8 +514,7 @@ namespace madness {
             std::vector< Future<bool> > v = future_vector_factory<bool>(1<<NDIM);
             int i=0;
             for (KeyChildIterator<NDIM> kit(key); kit; ++kit,++i) {
-                PROFILE_BLOCK(truncate_send);
-                v[i] = send(coeffs.owner(kit.key()), &implT::truncate_spawn, kit.key(), tol);
+                v[i] = task(coeffs.owner(kit.key()), &implT::truncate_spawn, kit.key(), tol, TaskAttributes::generator());
             }
             return task(world.rank(),&implT::truncate_op, key, tol, v);
         }
@@ -546,7 +545,6 @@ namespace madness {
     }
 
 
-
     template <typename T, int NDIM>
     void FunctionImpl<T,NDIM>::print_tree(Level maxlevel) const {
         if (world.rank() == 0) do_print_tree(cdata.key0, maxlevel);
@@ -575,8 +573,10 @@ namespace madness {
     template <typename T, int NDIM>
     Tensor<T> FunctionImpl<T,NDIM>::project(const keyT& key) const {
         PROFILE_MEMBER_FUNC(FunctionImpl);
+        MADNESS_ASSERT(cdata.npt == cdata.k); // only necessary due to use of fast transform
         tensorT fval(cdata.vq,false); // this will be the returned result
-        tensorT& work = cdata.work1; // initially evaluate the function in here
+        tensorT work(cdata.vk,false); // initially evaluate the function in here
+        tensorT workq(cdata.vq,false); // initially evaluate the function in here
 
         if (functor) {
             fcube(key,*functor,cdata.quad_x,work);
@@ -587,7 +587,7 @@ namespace madness {
 
         work.scale(sqrt(FunctionDefaults<NDIM>::get_cell_volume()*pow(0.5,double(NDIM*key.level()))));
         //return transform(work,cdata.quad_phiw);
-        return fast_transform(work,cdata.quad_phiw,fval,cdata.workq);
+        return fast_transform(work,cdata.quad_phiw,fval,workq);
     }
 
     template <typename T, int NDIM>
@@ -597,7 +597,7 @@ namespace madness {
         }
         MADNESS_ASSERT(key.level());
         keyT parent = key.parent();
-        return send(coeffs.owner(parent), &implT::get_norm_tree_recursive, parent);
+        return task(coeffs.owner(parent), &implT::get_norm_tree_recursive, parent, TaskAttributes::hipri());
     }
 
 
@@ -621,7 +621,7 @@ namespace madness {
             keyT parent = key.parent();
             //madness::print("sock forwarding to parent",key,parent);
             PROFILE_BLOCK(sitome_send);
-            send(coeffs.owner(parent), &FunctionImpl<T,NDIM>::sock_it_to_me, parent, ref);
+            task(coeffs.owner(parent), &FunctionImpl<T,NDIM>::sock_it_to_me, parent, ref, TaskAttributes::hipri());
         }
         return None;
     }
@@ -642,7 +642,7 @@ namespace madness {
             ProcessID owner = coeffs.owner(key);
             if (owner != me) {
                 PROFILE_BLOCK(eval_send);
-                send(owner, &implT::eval, x, key, ref);
+                task(owner, &implT::eval, x, key, ref, TaskAttributes::hipri());
                 return None;
             }
             else {
@@ -676,11 +676,11 @@ namespace madness {
         // subtracting off the low-order stuff to get the high
         // order (assuming the high-order stuff is small relative
         // to the low-order)
-        cdata.work1(___) = t(___);
-        tensorT tlo = cdata.work1(cdata.sh);
+        tensorT work = copy(t);
+        tensorT tlo = work(cdata.sh);
         *lo = tlo.normf();
         tlo.fill(0.0);
-        *hi = cdata.work1.normf();
+        *hi = work.normf();
     }
 
     namespace detail {
@@ -710,12 +710,7 @@ namespace madness {
     template <typename T, int NDIM>
     void FunctionImpl<T,NDIM>::refine(bool fence)
     {
-        //if (autorefine) {
         unary_op_coeff_inplace(&implT::autorefine_square_test, detail::noop<keyT,tensorT>(), fence);
-        //}
-        //else {
-        //    unary_op_coeff_inplace(&implT::noautorefine, detail::noop<keyT,tensorT>(), fence);
-        //}
     }
 
     template <typename T, int NDIM>
@@ -786,92 +781,6 @@ namespace madness {
 
 
     template <typename T, int NDIM>
-    Void FunctionImpl<T,NDIM>::recur_down_with_fill(const keyT& target, const keyT& key) {
-        PROFILE_MEMBER_FUNC(FunctionImpl);
-        typename dcT::iterator it = coeffs.find(key).get();
-
-        // a) Node does not exist ... forward request up with the correct target
-        // b) Node exists and has coefficients ... start downward recursion
-        // c) Node exists does not have children and does not have coefficients ... forward up
-        // d) Node exists has children and does not have coefficients ... foward down
-
-        if (it == coeffs.end() || (!it->second.has_coeff() && !it->second.has_children())) { // a and c
-            keyT parent = key.parent();
-            madness::print("rdwf: forwarding up ac", target, parent);
-            send(coeffs.owner(parent), &implT::recur_down_with_fill, target, parent);
-        }
-        else if (it->second.has_coeff()) { // b
-            // Have coefficients ... recur down to make all children telling
-            // only the appropriate branch to also recur further
-            tensorT s = tensorT(cdata.v2k);
-            s(cdata.s0) = it->second.coeff();
-            s = unfilter(s);
-            for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
-                const keyT& child = kit.key();
-                tensorT ss = copy(s(child_patch(child)));
-                madness::print("rdwf: inserting", child);
-                coeffs.insert(child,nodeT(ss,false));
-                if (child.level() != target.level() && target.is_child_of(child)) {
-                    send(coeffs.owner(child), &implT::recur_down_with_fill, target, child);
-                }
-            }
-            it->second.set_has_children(true);
-            it->second.clear_coeff();
-        }
-        else if (key.level() != (target.level()-1)) { // d
-            //it->second.set_has_children(true);
-            for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
-                const keyT& child = kit.key();
-                if (target.is_child_of(child)) {
-                    send(coeffs.owner(child), &implT::recur_down_with_fill, target, child);
-                    break;
-                }
-            }
-        }
-
-        return None;
-    }
-
-    template <typename T, int NDIM>
-    Void FunctionImpl<T,NDIM>::ensure_exists(const keyT& key) {
-        PROFILE_MEMBER_FUNC(FunctionImpl);
-        if (!coeffs.probe(key)) {
-            keyT parent = key.parent();
-            // If the node does not exist this implies that it will
-            // be a leaf ... make it here so that we only send one
-            // request up the tree to make it.
-            coeffs.insert(key,nodeT(tensorT(),false));
-            //madness::print("ensure_exists: sending recur up from", key, "to", parent);
-            send(coeffs.owner(parent), &implT::recur_down_with_fill, key, parent);
-        }
-        return None;
-    }
-
-
-    template <typename T, int NDIM>
-    void FunctionImpl<T,NDIM>::widen(bool fence, int ndiff) {
-        PROFILE_MEMBER_FUNC(FunctionImpl);
-        double tol = std::min(1e3*thresh, sqrt(thresh));
-        for(typename dcT::iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
-            const keyT& key = it->first;
-            const nodeT& node = it->second;
-            if (node.is_leaf() && node.coeff().normf()>tol) {
-                for (int axis=0; axis<NDIM; axis++) {
-                    for (int step=-1; step<=1; step+=2) {
-                        keyT neigh = neighbor(key, axis, step);
-                        if (neigh.is_valid()) {
-                            if (ndiff > 0) neigh = neigh.parent(ndiff);
-                            send(coeffs.owner(neigh), &implT::ensure_exists, neigh);
-                        }
-                    }
-                }
-            }
-        }
-        if (fence) world.gop.fence();
-    }
-
-
-    template <typename T, int NDIM>
     void FunctionImpl<T,NDIM>::diff(const implT& f, int axis, bool fence) {
         PROFILE_MEMBER_FUNC(FunctionImpl);
         typedef std::pair<keyT,tensorT> argT;
@@ -879,15 +788,14 @@ namespace madness {
             const keyT& key = it->first;
             const nodeT& node = it->second;
             if (node.has_coeff()) {
-                PROFILE_BLOCK(diff_send);
-                Future<argT> left   = f.find_neighbor(key,axis,-1);
+                Future<argT> left = f.find_neighbor(key,axis,-1);
                 argT center(key,node.coeff());
                 Future<argT> right  = f.find_neighbor(key,axis, 1);
-                task(world.rank(), &implT::do_diff1, &f, axis, key, left, center, right, task_attr_generator());
+                task(world.rank(), &implT::do_diff1, &f, axis, key, left, center, right);
             }
             else {
                 // Internal empty node can be safely inserted
-                coeffs.insert(key,nodeT(tensorT(),true));
+                coeffs.replace(key,nodeT(tensorT(),true));
             }
         }
         if (fence) world.gop.fence();
@@ -961,7 +869,7 @@ namespace madness {
         else {
             Future<argT> result;
             PROFILE_BLOCK(find_neigh_send);
-            send(coeffs.owner(neigh), &implT::sock_it_to_me, neigh, result.remote_ref(world));
+            task(coeffs.owner(neigh), &implT::sock_it_to_me, neigh, result.remote_ref(world), TaskAttributes::hipri());
             return result;
         }
     }
@@ -975,23 +883,17 @@ namespace madness {
         ProcessID owner = coeffs.owner(key);
         if (owner == world.rank()) {
             if (left.second.size == 0) {
-                task(owner, &implT::do_diff1, f, axis, key,
-                     f->find_neighbor(key,axis,-1), center, right,
-                     task_attr_generator());
+                task(owner, &implT::do_diff1, f, axis, key, f->find_neighbor(key,axis,-1), center, right, TaskAttributes::hipri());
             }
             else if (right.second.size == 0) {
-                task(owner, &implT::do_diff1, f, axis, key,
-                     left, center, f->find_neighbor(key,axis,1),
-                     task_attr_generator());
+                task(owner, &implT::do_diff1, f, axis, key, left, center, f->find_neighbor(key,axis,1), TaskAttributes::hipri());
             }
             else {
-                task(owner, &implT::do_diff2, f, axis, key,
-                     left, center, right);
+                task(owner, &implT::do_diff2, f, axis, key, left, center, right);
             }
         }
         else {
-            send(owner, &implT::forward_do_diff1, f, axis, key,
-                 left, center, right);
+            task(owner, &implT::forward_do_diff1, f, axis, key, left, center, right, TaskAttributes::hipri());
         }
         return None;
     }
@@ -1008,7 +910,7 @@ namespace madness {
 
         if (left.second.size==0 || right.second.size==0) {
             // One of the neighbors is below us in the tree ... recur down
-            coeffs.insert(key,nodeT(tensorT(),true));
+            coeffs.replace(key,nodeT(tensorT(),true));
             for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
                 const keyT& child = kit.key();
                 if ((child.translation()[axis]&1) == 0) {
@@ -1046,7 +948,7 @@ namespace madness {
                      1, 0, d);
         if (axis) d = copy(d.swapdim(axis,0)); // make it contiguous
         d.scale(FunctionDefaults<NDIM>::get_rcell_width()[axis]*pow(2.0,(double) key.level()));
-        coeffs.insert(key,nodeT(d,false));
+        coeffs.replace(key,nodeT(d,false));
         return None;
     }
 
@@ -1062,7 +964,7 @@ namespace madness {
             tensorT c = node.coeff();
             if (c.size) c = copy(c.mapdim(map));
 
-            coeffs.insert(keyT(key.level(),l), nodeT(c,node.has_children()));
+            coeffs.replace(keyT(key.level(),l), nodeT(c,node.has_children()));
         }
         if (fence) world.gop.fence();
     }
@@ -1078,7 +980,7 @@ namespace madness {
             int i=0;
             for (KeyChildIterator<NDIM> kit(key); kit; ++kit,++i) {
                 PROFILE_BLOCK(compress_send);
-                v[i] = send(coeffs.owner(kit.key()), &implT::compress_spawn, kit.key(), nonstandard, keepleaves);
+                v[i] = task(coeffs.owner(kit.key()), &implT::compress_spawn, kit.key(), nonstandard, keepleaves, TaskAttributes::hipri());
             }
             return task(world.rank(),&implT::compress_op, key, v, nonstandard);
         }
@@ -1110,7 +1012,7 @@ namespace madness {
         }
         //print("plot info", plotlo, plothi, npt, h);
 
-        // Loop thru local boxes
+        // Loop thru local boxes ... THIS NEEDS MULTITHREADING !!!
         for(typename dcT::const_iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
             const keyT& key = it->first;
             const nodeT& node = it->second;
@@ -1427,3 +1329,7 @@ namespace madness {
                                    const std::vector<long>&, bool binary);
 #endif
 }
+
+/// Quietly used as a global lock when looking for bugs with multiple threads
+madness::Mutex THELOCK;
+

@@ -43,6 +43,8 @@
 #include <iostream>
 #include <complex>
 #include <list>
+#include <vector>
+#include <world/typestuff.h>
 
 #ifdef BRAINDEAD
 // Cray XT nonsense
