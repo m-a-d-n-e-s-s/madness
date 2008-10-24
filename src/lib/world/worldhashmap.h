@@ -16,6 +16,7 @@
 #include <iostream>
 #include <world/worldthread.h>
 #include <world/madatomic.h>
+#include <world/worldhash.h>
 
 namespace madness {
 
@@ -145,9 +146,10 @@ namespace madness {
 
         };
   
+        template <typename T>
         class defhashT {
         public:
-            static unsigned int hash(int i) {return i;}
+            hashT operator()(const T& t) const {return hash(t);}
         };
 
         /// iterator for hash
@@ -272,7 +274,7 @@ namespace madness {
 
     } // End of namespace Hash_private
 
-    template <class keyT, class valueT, class hashfunT = Hash_private::defhashT> 
+    template < class keyT, class valueT, class hashfunT = Hash_private::defhashT<keyT> > 
     class ConcurrentHashMap {
     public:
         typedef ConcurrentHashMap<keyT,valueT,hashfunT> hashT;

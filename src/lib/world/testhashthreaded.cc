@@ -5,6 +5,7 @@
 #include <vector>
 #include <algorithm>
 #include <world/worldtime.h>
+#include <world/worldhash.h>
 #include <world/worldhashmap.h>
 
 /// \file testhashthreaded.cc

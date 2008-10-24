@@ -18,6 +18,9 @@ double V(const Vector<double,3>& r) {
 int main(int argc, char**argv) {
   // Initialize the parallel programming environment
   MPI::Init(argc, argv);
+  ThreadPool::begin();
+  RMI::begin();
+  MPI::COMM_WORLD.Barrier();
   World world(MPI::COMM_WORLD);
   
   // Load info for MADNESS numerical routines

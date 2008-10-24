@@ -777,6 +777,9 @@ void doit(World& world) {
 
 int main(int argc, char** argv) {
   MPI::Init(argc, argv);
+  ThreadPool::begin();
+  RMI::begin();
+  MPI::COMM_WORLD.Barrier();
   World world(MPI::COMM_WORLD);
     
   startup(world,argc,argv);

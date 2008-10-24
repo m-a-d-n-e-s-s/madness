@@ -549,7 +549,7 @@ namespace madness {
 		nd.cost = Cost(costfun(key, node));
 		nd.subcost = nd.cost;
 		LBNode<D> lbnode(nd,node.has_children());
-		impl.insert(key, lbnode);
+		impl.replace(key, lbnode);
 
 //             	if (!(it->second.has_children())) {
 // 		  nd.cost = (*cost_fun)();

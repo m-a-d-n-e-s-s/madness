@@ -1352,6 +1352,10 @@ struct Calculation {
 
 int main(int argc, char** argv) {
     MPI::Init(argc, argv);
+    ThreadPool::begin();
+    RMI::begin();
+    MPI::COMM_WORLD.Barrier();
+
 //     cpu_set_t mask;
 //     CPU_ZERO(&mask);
 //     CPU_SET(MPI::COMM_WORLD.Get_rank(), &mask);

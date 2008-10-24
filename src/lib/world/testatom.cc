@@ -57,8 +57,6 @@ public:
     }
 };
 
-volatile int PingPong::a = MADATOMIC_INT_INITIALIZE(1);
-
 int main() {
     const int nthread = 4;
     Thread threads[nthread];
@@ -76,9 +74,8 @@ int main() {
         cout << "SUM " << MADATOMIC_INT_GET(&sum) << endl;
         
         sum = ndone = 0;
-        ThreadPool *pool = ThreadPool::instance();
-        pool->add(new Greet());
-        for (int i=0; i<100000000; i++) pool->add(new Adder());
+        ThreadPool::add(new Greet());
+        for (int i=0; i<100000000; i++) ThreadPool::add(new Adder());
         while (!MADATOMIC_INT_GET(&ndone)) sleep(1);
         cout << "SUM " << MADATOMIC_INT_GET(&sum) << endl;
     }

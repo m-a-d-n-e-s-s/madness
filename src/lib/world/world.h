@@ -190,8 +190,8 @@ namespace madness {
             };
         };
 
-        typedef HASH_MAP_NAMESPACE::hash_map<uniqueidT, void *, uniqueidT>   map_id_to_ptrT;
-        typedef HASH_MAP_NAMESPACE::hash_map<void *, uniqueidT, hashvoidp>   map_ptr_to_idT;
+        typedef madness::ConcurrentHashMap<uniqueidT, void *, uniqueidT> map_id_to_ptrT;
+        typedef madness::ConcurrentHashMap<void *, uniqueidT, hashvoidp> map_ptr_to_idT;
         map_id_to_ptrT map_id_to_ptr;
         map_ptr_to_idT map_ptr_to_id;
 

@@ -39,6 +39,8 @@ namespace SafeMPI {
             GLOBAL_MUTEX;
             return MPI::Request::Testsome(n, request, ind, status);
         }
+
+        void Wait() {MPI::Request::Wait();}
     };
 
     class Intracomm {
