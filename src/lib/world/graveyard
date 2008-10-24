@@ -503,3 +503,46 @@
 //             Recv(&buf, sizeof(T), MPI::BYTE, src, tag);
 //         }
         
+
+
+
+        /// For each item in range if \c predicate(iterator) is true submit task formed by \c maketask(iterator) 
+
+        /// The default predicate is true.
+        ///
+        /// To enable use when the tasks might modify the data structure referred to 
+        /// by the iterators, the entire list of tasks is first formed and
+        /// then submitted en-masse.  
+        ///
+        /// To throttle the number of tasks we can add a maxtasks and submit 
+        /// a continuation task to finish the submission, and/or add granularity control.
+        /// However, both assume that tasks can be completed in the order submitted
+        /// and should probably be via a separate interface.
+        /// This gets into the Intel TBB concepts of splitting ranges, etc.
+        template < typename iteratorT, typename maketaskT, typename predicateT >
+        void for_each(const iteratorT& begin, 
+                      const iteratorT& end, 
+                      const maketaskT& maketask, 
+                      const predicateT& predicate=PredicateTrue<iteratorT>()) 
+        {
+            std::vector<TaskInterface*> v;
+            for (iteratorT it=begin; it!=end; ++it) {
+                if (predicate(it)) v.push_back(maketask(it));
+            }
+            add(v);
+        };
+
+        template <typename T> 
+        struct PredicateTrue {
+            bool operator()(const T& t) const {return true;}
+        };
+
+
+        void add(const std::vector<TaskInterface*>& v) 
+        {
+            for (unsigned int i=0; i<v.size(); i++)
+                add(v[i]);
+        }
+
+
+

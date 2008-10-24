@@ -1759,6 +1759,7 @@ namespace madness {
             apply_time = ptr;
         }
 
+
         /// Returns the square of the error norm in the box labelled by key
 
         /// Assumed to be invoked locally but it would be easy to eliminate
@@ -1791,6 +1792,42 @@ namespace madness {
             return err*err;
         }
 
+        template <typename opT>
+        class do_err_box {
+            const implT* impl;
+            const opT* func;
+            int npt;
+            Tensor<double> qx;
+            Tensor<double> quad_phit;
+            Tensor<double> quad_phiw;
+        public:
+            do_err_box() {}
+            
+            do_err_box(const implT* impl, const opT* func, int npt, const Tensor<double>& qx, 
+                       const Tensor<double>& quad_phit, const Tensor<double>& quad_phiw)
+                : impl(impl), func(func), npt(npt), qx(qx), quad_phit(quad_phit), quad_phiw(quad_phiw)
+            {}
+
+            do_err_box(const do_err_box& e)
+                : impl(e.impl), func(e.func), npt(e.npt), qx(e.qx), quad_phit(e.quad_phit), quad_phiw(e.quad_phiw)
+            {}
+
+            double operator()(typename dcT::const_iterator& it) const {
+                const keyT& key = it->first;
+                const nodeT& node = it->second;
+                if (node.has_coeff()) return impl->err_box(key, node, *func, npt, qx, quad_phit, quad_phiw);
+                else return 0.0;
+            }
+            
+            double operator()(double a, double b) const {return a+b;}
+
+            template <typename Archive>
+            void serialize(const Archive& ar) {
+                throw "not yet";
+            }
+        };
+
+
         /// Returns the sum of squares of errors from local info ... no comms
         template <typename opT>
         double errsq_local(const opT& func) const {
@@ -1800,13 +1837,18 @@ namespace madness {
             Tensor<double> qx, qw, quad_phi, quad_phiw, quad_phit;
             FunctionCommonData<T,NDIM>::_init_quadrature(k+1, npt, qx, qw, quad_phi, quad_phiw, quad_phit);
 
-            double sum = 0.0;
-            for(typename dcT::const_iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
-                const keyT& key = it->first;
-                const nodeT& node = it->second;
-                if (node.has_coeff()) sum += err_box(key, node, func, npt, qx, quad_phit, quad_phiw);
-            }
-            return sum;
+//             double sum = 0.0;
+//             for(typename dcT::const_iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
+//                 const keyT& key = it->first;
+//                 const nodeT& node = it->second;
+//                 if (node.has_coeff()) sum += err_box(key, node, func, npt, qx, quad_phit, quad_phiw);
+//             }
+//             return sum;
+            
+            typedef Range<typename dcT::const_iterator> rangeT;
+            rangeT range(coeffs.begin(), coeffs.end());
+            return world.taskq.reduce< double,rangeT,do_err_box<opT> >(range,
+                                                                       do_err_box<opT>(this, &func, npt, qx, quad_phit, quad_phiw));
         }
 
 

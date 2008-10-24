@@ -443,7 +443,7 @@ void test9(World& world) {
     print("Time to make",ntask,"chain of tasks",used,"time/task",used/ntask);
     input.set(0);
     used = -cpu_time();
-    world.taskq.fence();
+    world.taskq.fence(1000000000);
     used += cpu_time();
     print("Time to  run",ntask,"chain of tasks",used,"time/task",used/ntask);
     MADNESS_ASSERT(result.get() == ntask);
@@ -894,7 +894,7 @@ int main(int argc, char** argv) {
     // START UP MUST BE IN THIS ORDER!!!!
     MPI::Init(argc, argv);
     ThreadPool::begin();
-    RMI::begin();
+    if (MPI::COMM_WORLD.Get_size() > 1) RMI::begin();
     //RMI::set_debug(true);
     MPI::COMM_WORLD.Barrier();
 

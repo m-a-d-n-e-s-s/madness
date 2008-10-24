@@ -376,10 +376,10 @@ namespace madness {
     }
 
 
-    /// Simple wrapper for Pthread condition variables with its own mutex
+    /// Simple wrapper for Pthread condition variable with its own mutex
 
-    /// Use this when you need to block in the kernel without consuming cycles.
-    /// Scheduling granularity is presumably at the level of kernel ticks.
+    /// Use this when you need to block without consuming cycles.
+    /// Scheduling granularity is at the level of kernel ticks.
     class ConditionVariable : NO_DEFAULTS {
     private:
         pthread_cond_t cv;
@@ -393,10 +393,17 @@ namespace madness {
 
         pthread_mutex_t& get_pthread_mutex() {return mutex;}
 
-        template <typename conditionT>
-        void wait(conditionT& condition) {
+        void lock() {
             if (pthread_mutex_lock(&mutex)) throw "ConditionVariable: acquiring mutex";
-            while (!condition()) pthread_cond_wait(&cv,&mutex);
+        }
+
+        void unlock() {
+            if (pthread_mutex_unlock(&mutex)) throw "ConditionVariable: releasing mutex";
+        }
+
+        /// You should have acquired the mutex before entering here
+        void wait() {
+            pthread_cond_wait(&cv,&mutex);
         }
 
         void signal() {
@@ -480,7 +487,7 @@ namespace madness {
         /// Insert value at front of queue
         void push_front(const T& value) {
             madness::ScopedMutex obolus(this);
-            sanity_check();
+            //sanity_check();
             if (n == sz) grow();
             _front--;
             if (_front < 0) _front = sz-1;
@@ -491,7 +498,7 @@ namespace madness {
         /// Insert element at back of queue
         void push_back(const T& value) {
             madness::ScopedMutex obolus(this);
-            sanity_check();
+            //sanity_check();
             if (n == sz) grow();
             _back++;
             if (_back >= int(sz)) _back = 0;
@@ -505,7 +512,7 @@ namespace madness {
             bool status=true; 
             T result;
             if (n) {
-                sanity_check();
+                //sanity_check();
                 n--;
                 result = buf[_front];
                 _front++;
@@ -524,7 +531,7 @@ namespace madness {
             bool status=true; 
             T result;
             if (n) {
-                sanity_check();
+                //sanity_check();
                 n--;
                 result = buf[_back];
                 _back--;
@@ -646,8 +653,8 @@ namespace madness {
         unsigned long flags;
         static const unsigned long one = 1ul;
     public:
-        static const unsigned long GENERATOR = one<<0;
-        static const unsigned long STEALABLE = one<<1;
+        static const unsigned long GENERATOR    = one;
+        static const unsigned long STEALABLE    = one<<1;
         static const unsigned long HIGHPRIORITY = one<<2;
 
         TaskAttributes(unsigned long flags = 0) : flags(flags) {}
@@ -683,6 +690,63 @@ namespace madness {
         static TaskAttributes hipri() {return TaskAttributes(HIGHPRIORITY);}
     };
 
+    /// Dummy class a la Intel TBB used to distinguish splitting constructor
+    class Split{};
+    
+    /// Range vaguely a la Intel TBB encapsulates STL-like start and end iterators with chunksize
+    template <typename iteratorT>
+    class Range {
+        long n;
+        iteratorT start;
+        iteratorT finish;
+        const int chunksize;
+    public:
+        typedef iteratorT iterator;
+        /// Makes the range [start,finish) ... cost is O(n) due to dumb, linear counting of items
+        
+        /// Ideally need the full power of the Intel TBB range,
+        /// partitioner, split, concepts, etc.
+        Range(const iterator& start, const iterator& finish, int chunksize=1) 
+            : n(0), start(start), finish(finish), chunksize(chunksize)
+        {
+            for (iterator it=start; it!=finish; ++it) n++;
+        }
+        
+        /// Copy constructor ... cost is O(1)
+        Range(const Range& r) 
+            : n(r.n), start(r.start), finish(r.finish), chunksize(r.chunksize)
+        {}
+        
+        /// Splits range between new and old (r) objects ... cost is O(n/2)
+        
+        /// Presently only bisection down to given chunksize and
+        /// executes iterator circa Nlog(N) times so it had better be cheap
+        /// compared to the operation being performed.
+        Range(Range& r, const Split& split) 
+            : n(0), start(r.start), finish(), chunksize(r.chunksize)
+        {
+            if (r.n > chunksize) {
+                long nhalf = n/2;
+                while (nhalf--) {
+                    n++;
+                    r.n--;
+                    ++r.start;
+                }
+            }
+            finish = r.start;
+        }
+        
+        /// Returns number of items in the range (cost is O(1))
+        size_t size() const {return n;}
+        
+        /// Returns true if size=0
+        bool empty() const {return n==0;}
+
+        const iterator& begin() const {return start;}
+
+        const iterator& end() const {return finish;}
+    };
+    
 
     class PoolTaskInterface : public TaskAttributes {
     public:
@@ -794,6 +858,11 @@ namespace madness {
             for (iteratorT it=tasks.begin(); it!=tasks.end(); ++it) {
                 add(*it);
             }
+        }
+
+        /// Returns number of threads in the pool
+        static size_t size() {
+            return instance()->nthreads;
         }
         
 

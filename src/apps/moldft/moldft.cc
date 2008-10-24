@@ -571,7 +571,7 @@ struct Calculation {
                         }
                         
                         if (iter == 0 && sij > 0.01 && theta < 0.01) {
-                            theta += (RandomNumber<double>() - 0.5);
+                            theta += (RandomValue<double>() - 0.5);
                         }
                         
                         if (fabs(theta) > screen) {
@@ -714,7 +714,7 @@ struct Calculation {
                         if (iter == 0 && sij > 0.01 && fabs(theta) < 0.01) { //
                             randomized=true;
                             if (doprint) print("   randomizing", i, j, h, g, sij, theta);
-                            theta += (RandomNumber<double>() - 0.5);
+                            theta += (RandomValue<double>() - 0.5);
                         }
                         
                         if (fabs(theta) > screen || randomized) {
@@ -1353,7 +1353,7 @@ struct Calculation {
 int main(int argc, char** argv) {
     MPI::Init(argc, argv);
     ThreadPool::begin();
-    RMI::begin();
+    if (MPI::COMM_WORLD.Get_size() > 1) RMI::begin();
     MPI::COMM_WORLD.Barrier();
 
 //     cpu_set_t mask;

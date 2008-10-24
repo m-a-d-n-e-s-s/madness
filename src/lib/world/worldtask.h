@@ -142,6 +142,7 @@ namespace madness {
         World& world;              ///< The communication context
         const ProcessID me;        ///< This process
         MADATOMIC_INT nregistered; ///< Counts pending tasks
+        ConditionVariable cv;      ///< Used to suspend main thread while fencing
 
         void notify() {
             MADATOMIC_INT_DEC(&nregistered);  
@@ -190,42 +191,34 @@ namespace madness {
             t->dec();                        // Set free
         }
 
-        void add(const std::vector<TaskInterface*>& v) 
-        {
-            for (unsigned int i=0; i<v.size(); i++)
-                add(v[i]);
+        /// Used in reduce kernel
+        template <typename resultT, typename opT>
+        static resultT sum(const resultT& left, const resultT& right, const opT& op) {
+            return op(left,right);
         }
 
-        template <typename T> 
-        struct PredicateTrue {
-            bool operator()(const T& t) const {return true;}
-        };
-
-        /// For each item in range if \c predicate(iterator) is true submit task formed by \c maketask(iterator) 
-
-        /// The default predicate is true.
-        ///
-        /// To enable use when the tasks might modify the data structure referred to 
-        /// by the iterators, the entire list of tasks is first formed and
-        /// then submitted en-masse.  
-        ///
-        /// To throttle the number of tasks we can add a maxtasks and submit 
-        /// a continuation task to finish the submission, and/or add granularity control.
-        /// However, both assume that tasks can be completed in the order submitted
-        /// and should probably be via a separate interface.
-        /// This gets into the Intel TBB concepts of splitting ranges, etc.
-        template < typename iteratorT, typename maketaskT, typename predicateT >
-        void for_each(const iteratorT& begin, 
-                      const iteratorT& end, 
-                      const maketaskT& maketask, 
-                      const predicateT& predicate=PredicateTrue<iteratorT>()) 
-        {
-            std::vector<TaskInterface*> v;
-            for (iteratorT it=begin; it!=end; ++it) {
-                if (predicate(it)) v.push_back(maketask(it));
+        /// Reduce op(item) for all items in range using op(sum,op(item))
+        template <typename resultT, typename rangeT, typename opT>
+        Future<resultT> reduce(const rangeT& range, const opT& op) {
+            rangeT left = range;
+            rangeT right(left,Split());
+            
+            if (right.empty()) {
+                resultT sum = resultT();
+                for (typename rangeT::iterator it=left.begin(); 
+                     it != left.end();
+                     ++it) {
+                    sum = op(sum,op(it));
+                }
+                return Future<resultT>(sum);
             }
-            add(v);
-        };
+            else {
+                Future<resultT>  leftsum = add(*this, &WorldTaskQueue::reduce<resultT,rangeT,opT>, left,  op);
+                Future<resultT> rightsum = add(*this, &WorldTaskQueue::reduce<resultT,rangeT,opT>, right, op);
+                return add(&WorldTaskQueue::sum<resultT,opT>, leftsum, rightsum, op);
+            }
+            
+        }
 
 
         /// Invoke "resultT (*function)(void)" as a local task
@@ -569,12 +562,43 @@ namespace madness {
         }
 
 
+        class TaskFence : public TaskInterface {
+        public:
+            void run(World& world) {
+                WorldTaskQueue& q = world.taskq;
+                //usleep(10000);
+                //std::cout << "TASK RUNNING " << MADATOMIC_INT_GET(&q.nregistered) << std::endl;
+                //if (MADATOMIC_INT_GET(&q.nregistered) <= int(ThreadPool::size())) q.cv.signal();
+                if (MADATOMIC_INT_GET(&q.nregistered) == 1) q.cv.signal();
+                else q.add(new TaskFence);
+            }
+        };
+
         /// Returns after all local tasks have completed AND am locally fenced
-        void fence() {
+
+        /// For work loads in which the number runnable tasks is often less than the
+        /// number of threads it is beneficial to spin for longer rather than wait
+        /// in the kernel.
+        void fence(int nspin=1000) {
+            // Spin for a while and if not successful block in the kernel
             do {
                 world.am.fence();
-                //usleep(1000000);
-            } while (MADATOMIC_INT_GET(&nregistered));
+            } while (MADATOMIC_INT_GET(&nregistered) && --nspin);
+            
+            if (nspin==0) {
+                do {
+                    if (MADATOMIC_INT_GET(&nregistered)) {
+                        //std::cout << "MAIN THREAD ABOUT TO SLEEP " << TaskAttributes().is_high_priority() << std::endl;
+                        cv.lock();
+                        add(new TaskFence);
+                        cv.wait();
+                        cv.unlock();
+                        //std::cout << "MAIN THREAD WAS SIGNALED" << std::endl;
+                        //usleep(10000);
+                    }
+                    world.am.fence();
+                } while (MADATOMIC_INT_GET(&nregistered));
+            }
         }
     };
 
