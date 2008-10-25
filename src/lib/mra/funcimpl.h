@@ -1836,14 +1836,6 @@ namespace madness {
             const int npt = cdata.npt + 1;
             Tensor<double> qx, qw, quad_phi, quad_phiw, quad_phit;
             FunctionCommonData<T,NDIM>::_init_quadrature(k+1, npt, qx, qw, quad_phi, quad_phiw, quad_phit);
-
-//             double sum = 0.0;
-//             for(typename dcT::const_iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
-//                 const keyT& key = it->first;
-//                 const nodeT& node = it->second;
-//                 if (node.has_coeff()) sum += err_box(key, node, func, npt, qx, quad_phit, quad_phiw);
-//             }
-//             return sum;
             
             typedef Range<typename dcT::const_iterator> rangeT;
             rangeT range(coeffs.begin(), coeffs.end());
@@ -1856,18 +1848,30 @@ namespace madness {
         T trace_local() const;
 
 
-        /// Returns the square of the local norm ... no comms
-        double norm2sq_local() const {
-            PROFILE_MEMBER_FUNC(FunctionImpl);
-            double sum = 0.0;
-            for(typename dcT::const_iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
+        struct do_norm2sq_local {
+            double operator()(typename dcT::const_iterator& it) const {
                 const nodeT& node = it->second;
                 if (node.has_coeff()) {
                     double norm = node.coeff().normf();
-                    sum += norm*norm;
+                    return norm*norm;
+                }
+                else {
+                    return 0.0;
                 }
             }
-            return sum;
+
+            double operator()(double a, double b) const {return a+b;}
+
+            template <typename Archive> void serialize(const Archive& ar){};
+        };
+
+
+        /// Returns the square of the local norm ... no comms
+        double norm2sq_local() const {
+            PROFILE_MEMBER_FUNC(FunctionImpl);
+            typedef Range<typename dcT::const_iterator> rangeT;
+            return world.taskq.reduce<double,rangeT,do_norm2sq_local>(rangeT(coeffs.begin(),coeffs.end(),100000000), 
+                                                                      do_norm2sq_local());
         }
 
 	/// Returns the inner product ASSUMING same distribution

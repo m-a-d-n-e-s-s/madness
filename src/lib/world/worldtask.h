@@ -198,6 +198,22 @@ namespace madness {
         }
 
         /// Reduce op(item) for all items in range using op(sum,op(item))
+
+        /// The operation must provide the following interface of
+        /// which the \c operator() methods are required by reduce()
+        /// and the rest by the task interface.
+        /// \code 
+        /// struct opT {
+        ///     opT(); 
+        ///     opT(const &opT);
+        ///     resultT operator()(const rangeT::iterator& it) const;
+        ///     resultT operator()(const resultT& left, const resultT& right); 
+        ///     template <typename Archive> void serialize(const Archive& ar);
+        /// }
+        /// \endcode
+        /// Note that the serialize method does not actually have to
+        /// work unless you want to have the task be stealable.
+        /// Adjust the chunksize in the range to control granularity.
         template <typename resultT, typename rangeT, typename opT>
         Future<resultT> reduce(const rangeT& range, const opT& op) {
             rangeT left = range;
@@ -217,7 +233,41 @@ namespace madness {
                 Future<resultT> rightsum = add(*this, &WorldTaskQueue::reduce<resultT,rangeT,opT>, right, op);
                 return add(&WorldTaskQueue::sum<resultT,opT>, leftsum, rightsum, op);
             }
+        }
+
+        /// Apply op(item) for all items in range
+
+        /// The operation must provide the following interface of
+        /// which the \c operator() method is required by for_each()
+        /// and the rest by the task interface.
+        /// \code 
+        /// struct opT {
+        ///     opT(); 
+        ///     opT(const &opT);
+        ///     resultT operator()(const rangeT::iterator& it) const;
+        ///     resultT operator()(const resultT& left, const resultT& right); 
+        ///     template <typename Archive> void serialize(const Archive& ar);
+        /// }
+        /// \endcode
+        /// Note that the serialize method does not actually have to
+        /// work unless you want to have the task be stealable.
+        /// Adjust the chunksize in the range to control granularity.
+        template <typename rangeT, typename opT> 
+        void for_each(const rangeT& range, const opT& op) {
+            rangeT left = range;
+            rangeT right(left,Split());
             
+            if (right.empty()) {
+                for (typename rangeT::iterator it=left.begin(); 
+                     it != left.end();
+                     ++it) {
+                    op(it);
+                }
+            }
+            else {
+                add(*this, &WorldTaskQueue::for_each<rangeT,opT>, left,  op);
+                add(*this, &WorldTaskQueue::for_each<rangeT,opT>, right, op);
+            }
         }
 
 
