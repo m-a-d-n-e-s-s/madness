@@ -667,7 +667,7 @@ namespace madness {
             }
             else if (functor) { // Project function and optionally refine
                 insert_zero_down_to_initial_level(cdata.key0);
-                for(typename dcT::iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
+                for (typename dcT::iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
                     if (it->second.is_leaf()) 
                         task(coeffs.owner(it->first), &implT::project_refine_op, it->first, do_refine);
                 }
@@ -725,7 +725,7 @@ namespace madness {
         /// Copy coeffs from other into self
         template <typename Q>
 	void copy_coeffs(const FunctionImpl<Q,NDIM>& other, bool fence) {
-	    for(typename FunctionImpl<Q,NDIM>::dcT::const_iterator it=other.coeffs.begin();
+	    for (typename FunctionImpl<Q,NDIM>::dcT::const_iterator it=other.coeffs.begin();
                 it!=other.coeffs.end(); ++it) {
                 const keyT& key = it->first;
                 const typename FunctionImpl<Q,NDIM>::nodeT& node = it->second;
@@ -742,7 +742,7 @@ namespace madness {
             // coeffs in self ... this is so can efficiently add functions with
             // different distributions.  Use an AM rather than a task to reduce memory
             // footprint on the remote end.
-	    for(typename FunctionImpl<Q,NDIM>::dcT::const_iterator it=other.coeffs.begin();
+	    for (typename FunctionImpl<Q,NDIM>::dcT::const_iterator it=other.coeffs.begin();
                 it!=other.coeffs.end();
                 ++it) {
                 const keyT& key = it->first;
@@ -1055,14 +1055,14 @@ namespace madness {
             // Loop over local nodes in both functions.  Add in left and subtract right.
             // Not that efficient in terms of memory bandwidth but ensures we do
             // not miss any nodes.
-	    for(typename FunctionImpl<L,NDIM>::dcT::const_iterator it=left.coeffs.begin();
+	    for (typename FunctionImpl<L,NDIM>::dcT::const_iterator it=left.coeffs.begin();
                 it!=left.coeffs.end();
                 ++it) {
                 const keyT& key = it->first;
                 const typename FunctionImpl<L,NDIM>::nodeT& other_node = it->second;
                 coeffs.send(key, &nodeT:: template gaxpy_inplace<T,L>, 1.0, other_node, alpha);
 	    }
-	    for(typename FunctionImpl<R,NDIM>::dcT::const_iterator it=right.coeffs.begin();
+	    for (typename FunctionImpl<R,NDIM>::dcT::const_iterator it=right.coeffs.begin();
                 it!=right.coeffs.end();
                 ++it) {
                 const keyT& key = it->first;
@@ -1087,7 +1087,7 @@ namespace madness {
                                     const opT& op,
                                     bool fence)
         {
-            for(typename dcT::iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
+            for (typename dcT::iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
                 const keyT& parent = it->first;
                 nodeT& node = it->second;
                 if (node.has_coeff()) {
@@ -1138,7 +1138,7 @@ namespace madness {
                                     const opT& op,
                                     bool fence)
         {
-            for(typename dcT::iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
+            for (typename dcT::iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
                 const keyT& parent = it->first;
                 nodeT& node = it->second;
                 if (node.has_coeff()) {
@@ -1185,7 +1185,7 @@ namespace madness {
             // 3.  left<right
             //
             // First loop thru local coeff in left.  Handle right at the same level or above.
-	    for(typename FunctionImpl<L,NDIM>::dcT::const_iterator it=left.coeffs.begin();
+	    for (typename FunctionImpl<L,NDIM>::dcT::const_iterator it=left.coeffs.begin();
                 it != left.coeffs.end();
                 ++it) {
                 const keyT& key = it->first;
@@ -1215,7 +1215,7 @@ namespace madness {
             }
 
             // Now loop thru local coeff in right and do case 3.
-	    for(typename FunctionImpl<R,NDIM>::dcT::const_iterator it=right.coeffs.begin();
+	    for (typename FunctionImpl<R,NDIM>::dcT::const_iterator it=right.coeffs.begin();
                 it != right.coeffs.end();
                 ++it) {
                 const keyT& key = it->first;
@@ -1293,7 +1293,7 @@ namespace madness {
         template <typename L, typename R>
         void mul_sparse(const FunctionImpl<L,NDIM>& left, const FunctionImpl<R,NDIM>& right, double tol, bool fence) {
             // Loop thru leaf nodes in left
-	    for(typename FunctionImpl<L,NDIM>::dcT::const_iterator it=left.coeffs.begin();
+	    for (typename FunctionImpl<L,NDIM>::dcT::const_iterator it=left.coeffs.begin();
                 it != left.coeffs.end();
                 ++it) {
                 const keyT& key = it->first;
@@ -1332,7 +1332,7 @@ namespace madness {
             for (int i=0; i<world.size(); i++) box_leaf[i] = box_interior[i] == 0;
             world.gop.fence();
             long nleaf=0, ninterior=0;
-            for(typename dcT::const_iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
+            for (typename dcT::const_iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
                 const nodeT& node = it->second;
                 if (node.is_leaf()) nleaf++;
                 else ninterior++;
@@ -1544,7 +1544,7 @@ namespace madness {
         /// Projects old function into new basis (only in reconstructed form)
         void project(const implT& old, bool fence) {
             vector<Slice> s(NDIM,Slice(0,old.cdata.k-1));
-            for(typename dcT::const_iterator it=old.coeffs.begin(); it!=old.coeffs.end(); ++it) {
+            for (typename dcT::const_iterator it=old.coeffs.begin(); it!=old.coeffs.end(); ++it) {
                 const keyT& key = it->first;
                 const nodeT& node = it->second;
                 if (node.has_coeff()) {
@@ -1640,7 +1640,7 @@ namespace madness {
 
         /// Changes non-standard compressed form to standard compressed form
         void standard(bool fence) {
-            for(typename dcT::iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
+            for (typename dcT::iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
                 const keyT& key = it->first;
                 nodeT& node = it->second;
                 if (key.level() > 0 && node.has_coeff()) {
@@ -1726,7 +1726,7 @@ namespace madness {
         template <typename opT, typename R>
         void apply(opT& op, const FunctionImpl<R,NDIM>& f, bool fence) {
             PROFILE_MEMBER_FUNC(FunctionImpl);
-            for(typename dcT::const_iterator it=f.coeffs.begin(); it!=f.coeffs.end(); ++it) {
+            for (typename dcT::const_iterator it=f.coeffs.begin(); it!=f.coeffs.end(); ++it) {
                 const keyT& key = it->first;
                 const FunctionNode<R,NDIM>& node = it->second;
                 if (node.has_coeff()) {
@@ -1870,7 +1870,7 @@ namespace madness {
         double norm2sq_local() const {
             PROFILE_MEMBER_FUNC(FunctionImpl);
             typedef Range<typename dcT::const_iterator> rangeT;
-            return world.taskq.reduce<double,rangeT,do_norm2sq_local>(rangeT(coeffs.begin(),coeffs.end(),100000000), 
+            return world.taskq.reduce<double,rangeT,do_norm2sq_local>(rangeT(coeffs.begin(),coeffs.end()), 
                                                                       do_norm2sq_local());
         }
 
@@ -1879,7 +1879,7 @@ namespace madness {
 	  TENSOR_RESULT_TYPE(T,R) inner_local(const FunctionImpl<R,NDIM>& g) const {
 
 	  TENSOR_RESULT_TYPE(T,R) sum = 0.0;
-	  for(typename dcT::const_iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
+	  for (typename dcT::const_iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
 	    const nodeT& fnode = it->second;
 	    if (fnode.has_coeff()) {
 	      if (g.coeffs.probe(it->first)) {
@@ -1936,7 +1936,7 @@ namespace madness {
         /// Returns the number of coefficients in the function ... collective global sum
         std::size_t size() const {
             std::size_t sum = 0;
-            for(typename dcT::const_iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
+            for (typename dcT::const_iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
                 const nodeT& node = it->second;
                 if (node.has_coeff()) sum++;
             }
@@ -1956,7 +1956,7 @@ namespace madness {
         void scale_oop(const Q q, const FunctionImpl<F,NDIM>& f, bool fence) {
             typedef typename FunctionImpl<F,NDIM>::nodeT fnodeT;
             typedef typename FunctionImpl<F,NDIM>::dcT fdcT;
-            for(typename fdcT::const_iterator it=f.coeffs.begin(); it!=f.coeffs.end(); ++it) {
+            for (typename fdcT::const_iterator it=f.coeffs.begin(); it!=f.coeffs.end(); ++it) {
                 const keyT& key = it->first;
                 const fnodeT& node = it->second;
                 if (node.has_coeff()) {
