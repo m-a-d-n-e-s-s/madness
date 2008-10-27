@@ -510,7 +510,7 @@ namespace madness {
         std::pair<T,bool> pop_front() {
             madness::ScopedMutex obolus(this);
             bool status=true; 
-            T result;
+            T result = T();
             if (n) {
                 //sanity_check();
                 n--;

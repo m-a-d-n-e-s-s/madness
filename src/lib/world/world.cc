@@ -894,7 +894,7 @@ int main(int argc, char** argv) {
     // START UP MUST BE IN THIS ORDER!!!!
     MPI::Init(argc, argv);
     ThreadPool::begin();
-    if (MPI::COMM_WORLD.Get_size() > 1) RMI::begin();
+    RMI::begin();
     //RMI::set_debug(true);
     MPI::COMM_WORLD.Barrier();
 
