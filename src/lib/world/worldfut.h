@@ -189,7 +189,7 @@ namespace madness {
         /// future is already assigned the callback is immediately
         /// invoked.
         inline void register_callback(CallbackInterface* callback) {
-            ScopedMutex fred(this);
+            ScopedMutex<Mutex> fred(this);
             if (assigned) callback->notify();
             else const_cast<callbackT&>(callbacks).push(callback);
         };
@@ -197,7 +197,7 @@ namespace madness {
          
         /// Sets the value of the future (assignment)
         void set(const T& value) {
-            ScopedMutex fred(this);
+            ScopedMutex<Mutex> fred(this);
             if (world) { 
                 if (remote_ref.owner() == world->rank()) {
                     remote_ref.get()->set(value); 
@@ -244,7 +244,7 @@ namespace madness {
 
         bool replace_with(FutureImpl<T>* f) {
             throw "IS THIS WORKING? maybe now we have the mutex";
-//            ScopedMutex fred(this);
+//            ScopedMutex<Mutex> fred(this);
 //             MADNESS_ASSERT(!world); // was return false;
 //             MADNESS_ASSERT(!assigned || f->assigned);
 //             if (f->world) {
@@ -258,7 +258,7 @@ namespace madness {
         };
 
         virtual ~FutureImpl() {
-            ScopedMutex fred(this);
+            ScopedMutex<Mutex> fred(this);
             if (!assigned && world) {
                 print("Future: unassigned remote future being destroyed?");
                 //remote_ref.dec();

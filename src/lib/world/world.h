@@ -265,8 +265,6 @@ namespace madness {
             srand();  // Initialize random number generator
             cpu_frequency();
 
-            std::cout << "WORLD " << me << " " << mpi.rank() << " " << comm.Get_rank() << std::endl;
-            
             // Assign a globally (within COMM_WORLD) unique ID to this
             // world by assigning to each processor a unique range of indices
             // and broadcasting from node 0 of the current communicator.

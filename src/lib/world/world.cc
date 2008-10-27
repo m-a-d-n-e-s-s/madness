@@ -417,7 +417,7 @@ void test9(World& world) {
     print("Time to add",ntask,"null, local tasks",used,"time/task",used/ntask);
     
     used = -cpu_time();
-    world.taskq.fence();
+    world.taskq.fence(100000000);
     used += cpu_time();
     print("Time to run",ntask,"null, local tasks",used,"time/task",used/ntask);
 
@@ -428,22 +428,28 @@ void test9(World& world) {
     print("Time to add",ntask,"value, local tasks",used,"time/task",used/ntask);
     
     used = -cpu_time();
-    world.taskq.fence();
+    print("AAAAAAAAAAAAAAAA0"); std::cout.flush();
+    world.taskq.fence(100000000);
+    print("AAAAAAAAAAAAAAAA1"); std::cout.flush();
     used += cpu_time();
     print("Time to run",ntask,"value, local tasks",used,"time/task",used/ntask);
     v.clear();
-
+    print("AAAAAAAAAAAAAAAA"); std::cout.flush();
     Future<int> input;
     Future<int> result = input;
     used = -cpu_time();
+    print("AAAAAAAAAAAAAAAA2"); std::cout.flush();
     for (int i=0; i<ntask; i++) {
         result = world.taskq.add(val1d_func,result);
     }
     used += cpu_time();
+    print("AAAAAAAAAAAAAAAA3"); std::cout.flush();
     print("Time to make",ntask,"chain of tasks",used,"time/task",used/ntask);
     input.set(0);
     used = -cpu_time();
+    print("AAAAAAAAAAAAAAAA4"); std::cout.flush();
     world.taskq.fence(1000000000);
+    print("AAAAAAAAAAAAAAAA5"); std::cout.flush();
     used += cpu_time();
     print("Time to  run",ntask,"chain of tasks",used,"time/task",used/ntask);
     MADNESS_ASSERT(result.get() == ntask);

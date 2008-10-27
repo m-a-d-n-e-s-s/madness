@@ -93,7 +93,7 @@ namespace madness {
 
         /// If ndepend == 0, the callback is immediately invoked.
         void register_callback(CallbackInterface* callback) {
-            ScopedMutex hold(this);
+            ScopedMutex<Mutex> hold(this);
             const_cast<callbackT&>(this->callbacks).push(callback);
             if (ndepend == 0) do_callbacks();
         };
@@ -101,7 +101,7 @@ namespace madness {
 
         /// Increment the number of dependencies
         void inc() {
-            ScopedMutex hold(this);
+            ScopedMutex<Mutex> hold(this);
             MADNESS_ASSERT(ndepend>=0);
             ndepend++;
         };
@@ -109,13 +109,13 @@ namespace madness {
 
         /// Decrement the number of dependencies and invoke callback if ndepend=0
         void dec() {
-            ScopedMutex hold(this);
+            ScopedMutex<Mutex> hold(this);
             if (--ndepend == 0) do_callbacks();
         };
 
 
         virtual ~DependencyInterface() {
-            ScopedMutex hold(this); 
+            ScopedMutex<Mutex> hold(this); 
             if (ndepend) {
                 print("DependencyInterface: destructor with ndepend =",ndepend,"?");
             }

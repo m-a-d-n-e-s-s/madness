@@ -619,9 +619,6 @@ namespace madness {
         public:
             void run(World& world) {
                 WorldTaskQueue& q = world.taskq;
-                //usleep(10000);
-                //std::cout << "TASK RUNNING " << MADATOMIC_INT_GET(&q.nregistered) << std::endl;
-                //if (MADATOMIC_INT_GET(&q.nregistered) <= int(ThreadPool::size())) q.cv.signal();
                 if (MADATOMIC_INT_GET(&q.nregistered) == 1) q.cv.signal();
                 else q.add(new TaskFence);
             }
@@ -632,22 +629,21 @@ namespace madness {
         /// For work loads in which the number runnable tasks is often less than the
         /// number of threads it is beneficial to spin for longer rather than wait
         /// in the kernel.
-        void fence(int nspin=1000) {
+        void fence(int nspin=1000000000) {
             // Spin for a while and if not successful block in the kernel
+            MutexWaiter waiter;
             do {
                 world.am.fence();
+                waiter.wait();
             } while (MADATOMIC_INT_GET(&nregistered) && --nspin);
             
             if (nspin==0) {
                 do {
                     if (MADATOMIC_INT_GET(&nregistered)) {
-                        //std::cout << "MAIN THREAD ABOUT TO SLEEP " << TaskAttributes().is_high_priority() << std::endl;
                         cv.lock();
                         add(new TaskFence);
                         cv.wait();
                         cv.unlock();
-                        //std::cout << "MAIN THREAD WAS SIGNALED" << std::endl;
-                        //usleep(10000);
                     }
                     world.am.fence();
                 } while (MADATOMIC_INT_GET(&nregistered));

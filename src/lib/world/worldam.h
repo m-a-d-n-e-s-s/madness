@@ -325,7 +325,6 @@ namespace madness {
             , nsent(0)
             , nrecv(0)
         {
-            std::cerr << "AM CONSTRUCTOR " << world.mpi.rank() << std::endl;
             lock();
             for (int i=0; i<NSEND; i++) managed_send_buf[i] = 0;
             unlock();

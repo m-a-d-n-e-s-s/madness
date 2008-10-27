@@ -129,9 +129,11 @@ namespace madness {
                     std::cerr << rank << ":RMI: about to call Waitsome with " 
                               << n_in_q << " messages in the queue" << std::endl;
 
+                // If MPI is not safe for simultaneous entry by multiple threads we
+                // cannot call Waitsome ... have to poll via Testsome
                 int narrived;
                 while (!(narrived = SafeMPI::Request::Testsome(NRECV, recv_req, ind, status))) {
-                    usleep(100); //sched_yield();
+                    //usleep(100);
                     if (finished) return;
                 }
 

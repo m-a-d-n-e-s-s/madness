@@ -23,7 +23,7 @@ namespace madness {
 
         /// Yield for specified number of microseconds
         void yield(int us) {
-            usleep(us);
+            //usleep(us);
         }
         
     public:
@@ -243,7 +243,6 @@ namespace madness {
         virtual ~Mutex() {pthread_mutex_destroy(&mutex);};
     };
 
-
     class MutexReaderWriter : private Mutex, NO_DEFAULTS {
         volatile mutable int nreader;
         volatile mutable bool writeflag;
@@ -350,18 +349,95 @@ namespace madness {
 
         virtual ~MutexReaderWriter(){};
     };
-
-    
+  
 #endif
 
-    /// Mutex that is applied/released at start/end of a scope
-    class ScopedMutex {
-        const Mutex* m;
+    /// A scalable and fair mutex (not recursive)
+    class MutexFair : private Mutex {
+    private:
+        static const int MAX_NTHREAD = 64;
+        mutable volatile bool* volatile q[MAX_NTHREAD]; 
+        mutable volatile int n;
+        mutable volatile int front;
+        mutable volatile int back;
+
     public:
-        ScopedMutex(const Mutex* m) : m(m) {m->lock();}
-        ScopedMutex(const Mutex& m) : m(&m) {m.lock();}
+        MutexFair() : n(0), front(0), back(0) {};
+
+        void lock() const {
+            // The mutex controls access to the queue (a circular buffer)
+            // On entry, increment n and then ...
+            //
+            // If (n == 1) the lock is ours. 
+            //
+            // Otherwise, put oursleves on the back of the queue by
+            // appending a pointer to a bool on our own stack.  We
+            // then spin waiting for this to become true.  Hence we
+            // are not generating memory traffic while waiting.
+            //
+            // When releasing a lock we must check to see if someone
+            // else is waiting ... if they are then update front/back,
+            // release the lock and set their flag
+            volatile bool myturn = false;
+            Mutex::lock();
+            if (n < 0 || n >= MAX_NTHREAD) throw "MutexFair: lock: invalid state?";
+            n++;
+            if (n == 1) {
+                if (front != back) throw "MutexFair: lock: invalid state (2) ?";
+                myturn = true;
+            }
+            else {
+                back++;
+                if (back >= MAX_NTHREAD) back = 0;
+                q[back] = &myturn;
+            }
+            Mutex::unlock();
+
+            //if (!myturn) std::cout << "WAITING IN FAIR LOCK " << (void *) &myturn << std::endl;
+
+            MutexWaiter waiter;
+            while (!myturn) waiter.wait();
+
+            return;
+        }
+
+        bool unlock() const {
+            volatile bool* p = 0;
+            Mutex::lock();
+            if (n < 1 || n > MAX_NTHREAD) throw "MutexFair: unlock: invalid state?";
+            n--;
+            if (n > 0) {
+                front++;
+                if (front >= MAX_NTHREAD) front = 0;
+                p = q[front];
+                //std::cout << "IN MUTEXFAIRUNLOCK " << n << " " << front << " " << back << " " << (void *) p << std::endl;
+            }
+            else {
+                if (front != back) throw "MutexFair: unlock: invalid state (2) ?";
+            }
+            Mutex::unlock();
+            if (p) *p = true;
+        }
+    };
+
+
+    /// Mutex that is applied/released at start/end of a scope
+
+    /// The mutex must provide lock and unlock methods
+    template <class mutexT = Mutex>
+    class ScopedMutex {
+        const mutexT* m;
+    public:
+        ScopedMutex(const mutexT* m) : m(m) {m->lock();}
+        ScopedMutex(const mutexT& m) : m(&m) {m.lock();}
         virtual ~ScopedMutex() {m->unlock();}
     };
+
+    template <class mutexT>
+    ScopedMutex<mutexT> scoped_mutex(const mutexT& mutex) {return ScopedMutex<mutexT>(mutex);}
+
+    template <class mutexT>
+    ScopedMutex<mutexT> scoped_mutex(const mutexT* mutex) {return ScopedMutex<mutexT>(mutex);}
 
 
     /// Attempt to acquire two locks without blocking while holding either one
@@ -428,7 +504,7 @@ namespace madness {
     /// Was wrapping a vector but making it thread safe and resizable
     /// was too painful.
     template <typename T>
-    class DQueue : private Mutex {
+    class DQueue : private MutexFair {
         volatile size_t sz;              ///< Current capacity
         volatile T* volatile buf;        ///< Actual buffer
         volatile int _front;  ///< Index of element at front of buffer
@@ -486,7 +562,7 @@ namespace madness {
 
         /// Insert value at front of queue
         void push_front(const T& value) {
-            madness::ScopedMutex obolus(this);
+            madness::ScopedMutex<MutexFair> obolus(this);
             //sanity_check();
             if (n == sz) grow();
             _front--;
@@ -497,7 +573,7 @@ namespace madness {
 
         /// Insert element at back of queue
         void push_back(const T& value) {
-            madness::ScopedMutex obolus(this);
+            madness::ScopedMutex<MutexFair> obolus(this);
             //sanity_check();
             if (n == sz) grow();
             _back++;
@@ -508,7 +584,7 @@ namespace madness {
 
         /// Pop value off the front of queue
         std::pair<T,bool> pop_front() {
-            madness::ScopedMutex obolus(this);
+            madness::ScopedMutex<MutexFair> obolus(this);
             bool status=true; 
             T result = T();
             if (n) {
@@ -527,7 +603,7 @@ namespace madness {
 
         /// Pop value off the back of queue
         std::pair<T,bool> pop_back() {
-            madness::ScopedMutex obolus(this);
+            madness::ScopedMutex<MutexFair> obolus(this);
             bool status=true; 
             T result;
             if (n) {
@@ -719,7 +795,7 @@ namespace madness {
         ThreadPool(int nthread=-1) : nthreads(nthread) {
             instance_ptr = this;
             if (nthreads < 0) nthreads = default_nthread();
-            std::cout << "POOL " << nthreads << std::endl;
+            //std::cout << "POOL " << nthreads << std::endl;
 
             try {
                 if (nthreads > 0) threads = new Thread[nthreads];
