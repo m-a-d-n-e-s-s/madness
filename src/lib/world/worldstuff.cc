@@ -47,7 +47,7 @@ namespace madness {
     std::list<World*> World::worlds;
     unsigned long World::idbase = 0;
     bool TaskInterface::debug = false;
-    
+
     // Enables easy printing of MadnessExceptions
     std::ostream& operator<<(std::ostream& out, const MadnessException& e) {
         out << "MadnessException : ";

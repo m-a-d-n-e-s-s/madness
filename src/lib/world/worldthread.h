@@ -7,6 +7,7 @@
 #include <cstdlib>
 #include <iostream>
 #include <pthread.h>
+#include <cstring>
 #include <unistd.h>
 #include <utility>
 #include <vector>
@@ -393,15 +394,17 @@ namespace madness {
             }
             Mutex::unlock();
 
-            //if (!myturn) std::cout << "WAITING IN FAIR LOCK " << (void *) &myturn << std::endl;
-
-            MutexWaiter waiter;
-            while (!myturn) waiter.wait();
+            if (!myturn) {
+                //std::cout << "WAITING IN FAIR LOCK " << (void *) &myturn << std::endl;
+                MutexWaiter waiter;
+                while (!myturn) waiter.wait();
+                //std::cout << "WOKENUP AFTER WAITING IN FAIR LOCK " << (void *) &myturn << std::endl;
+            }
 
             return;
         }
 
-        bool unlock() const {
+        void unlock() const {
             volatile bool* p = 0;
             Mutex::lock();
             if (n < 1 || n > MAX_NTHREAD) throw "MutexFair: unlock: invalid state?";
@@ -416,8 +419,24 @@ namespace madness {
                 if (front != back) throw "MutexFair: unlock: invalid state (2) ?";
             }
             Mutex::unlock();
-            if (p) *p = true;
+            if (p) {
+                //std::cout << "ABOUT TO UNLOCK " << (void *)(p) << std::endl;
+                *p = true;
+            }
         }
+
+        /// Makes little sense to spin outside a fair lock ... but if you wanna ...
+        bool try_lock() const {
+            bool got_lock;
+
+            Mutex::lock();
+            got_lock = (n == 0);
+            if (got_lock) n++;
+            Mutex::unlock();
+
+            return got_lock;
+        }
+                
     };
 
 
@@ -640,6 +659,9 @@ namespace madness {
     /// have the run method "delete this" at its end.
     class ThreadBase {
         friend class ThreadPool;
+        static bool bind[3];
+        static int cpulo[3];
+        static int cpuhi[3];
 
         static void* main(void* self) {((ThreadBase*)(self))->run(); return 0;}
         int pool_num; ///< Stores index of thread in pool or -1
@@ -684,6 +706,57 @@ namespace madness {
         
         /// Cancel this thread
         int cancel() const {return pthread_cancel(get_id());}
+
+        /// Specify the affinity pattern or how to bind threads to cpus
+        static void set_affinity_pattern(const bool bind[3], const int cpu[3]) {
+            memcpy(ThreadBase::bind, bind, 3*sizeof(bool));
+            memcpy(ThreadBase::cpulo, cpu, 3*sizeof(int));
+
+            int ncpu = sysconf(_SC_NPROCESSORS_CONF);
+            if (ncpu <= 0) throw "ThreadBase: set_affinity_pattern: sysconf(_SC_NPROCESSORS_CONF)";
+
+            // impose sanity and compute cpuhi
+            for (int i=0; i<3; i++) {
+                if (cpulo[i] < 0) cpulo[i] = 0;
+                if (cpulo[i] >= ncpu) cpulo[i] = ncpu-1;
+
+                if (i<2 && bind[i]) cpuhi[i] = cpulo[i];
+                else cpuhi[i] = ncpu-1;
+
+                std::cout << "PATTERN " << i << " " << bind[i] << " " << cpulo[i] << " " << cpuhi[i] << std::endl;
+            }
+        }
+
+        static void set_affinity(int logical_id, int ind=-1) {
+            if (logical_id < 0 || logical_id > 2) throw "ThreadBase: set_affinity: logical_id bad?";
+                
+            int ncpu = sysconf(_SC_NPROCESSORS_CONF);
+            if (ncpu <= 0) throw "ThreadBase: set_affinity_pattern: sysconf(_SC_NPROCESSORS_CONF)";
+
+            // If binding the main or rmi threads the cpu id is a specific cpu.
+            //
+            // If binding a pool thread, the cpuid is the lowest cpu
+            // to be used.
+            //
+            // If floating any thread it is floated from the cpuid to ncpu-1
+
+            int lo=cpulo[logical_id], hi=cpuhi[logical_id];
+
+            if (logical_id == 2) {
+                if (ind < 0) throw "ThreadBase: set_affinity: pool thread index bad?";
+                
+                int nnn = hi-lo+1;
+                lo += (ind % nnn);
+            }
+
+            std::cout << "BINDING THREAD: id " << logical_id << " ind " << ind << " lo " << lo << " hi " << hi << " ncpu " << ncpu << std::endl;
+            
+            cpu_set_t mask;
+            CPU_ZERO(&mask);
+            for (int i=lo; i<=hi; i++) CPU_SET(i,&mask);
+            if(sched_setaffinity( 0, sizeof(mask), &mask ) == -1 )
+                throw "ThreadBase: set_affinity: Could not set cpu Affinity";
+        }
     };
     
     
@@ -822,13 +895,17 @@ namespace madness {
             if (cnthread) {
                 if (sscanf(cnthread, "%d", &nthread) != 1) 
                     throw "POOL_NTHREAD is not an integer";
-                else
-                    return nthread;
             }
-            return 1;
+            else {
+                nthread = sysconf(_SC_NPROCESSORS_CONF);
+                if (nthread < 2) nthread = 2;
+                nthread = nthread - 1; // One less than # physical processors
+            }
+            return nthread;
         }
 
         void thread_main(Thread* thread) {
+            thread->set_affinity(2, thread->get_pool_thread_index());
             MutexWaiter waiter;
             while (1) {
                 std::pair<PoolTaskInterface*,bool> t = queue.pop_front();

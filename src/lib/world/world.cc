@@ -898,20 +898,26 @@ void test13(World& world) {
 
 int main(int argc, char** argv) {
     // START UP MUST BE IN THIS ORDER!!!!
-    MPI::Init(argc, argv);
-    ThreadPool::begin();
-    RMI::begin();
-    //RMI::set_debug(true);
-    MPI::COMM_WORLD.Barrier();
+
+    bool bind[3] = {true, true, true};
+    int cpulo[3] = {0, 0, 1};
+    ThreadBase::set_affinity_pattern(bind, cpulo); // Decide how to locate threads before doing anything
+    ThreadBase::set_affinity(0);         // The main thread is logical thread 0
+
+    MPI::Init(argc, argv);      // MPI starts the universe
+    ThreadPool::begin();        // Must have thread pool before any AM arrives
+    RMI::begin();               // Must have RMI while still running single threaded
+    MPI::COMM_WORLD.Barrier();  // Make sure everyone is up and running
 
 #ifdef WORLD_TAU_TRACE    
     TAU_PROFILE_SET_NODE(MPI::COMM_WORLD.Get_rank());
 #endif
     
     World world(MPI::COMM_WORLD);
+
     redirectio(world);
     print("The processor frequency is",cpu_frequency());
-    print("there are",world.size(),"processes and I am process",world.rank());
+    print("There are",world.size(),"processes and I am process",world.rank(),"with",ThreadPool::size(),"threads");
 
     world.args(argc,argv);
 

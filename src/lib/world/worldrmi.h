@@ -102,6 +102,7 @@ namespace madness {
         };
 
         void run() {
+            ThreadBase::set_affinity(1); // The RMI thread is logical thread 1
             if (debugging)
                 std::cerr << rank << ":RMI: server thread is running" << std::endl;
             // The RMI server thread spends its life in here
