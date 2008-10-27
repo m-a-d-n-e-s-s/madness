@@ -1057,114 +1057,75 @@ namespace madness {
             // not miss any nodes.
 	    for (typename FunctionImpl<L,NDIM>::dcT::const_iterator it=left.coeffs.begin();
                 it!=left.coeffs.end();
-                ++it) {
+                 ++it) {
                 const keyT& key = it->first;
                 const typename FunctionImpl<L,NDIM>::nodeT& other_node = it->second;
                 coeffs.send(key, &nodeT:: template gaxpy_inplace<T,L>, 1.0, other_node, alpha);
 	    }
 	    for (typename FunctionImpl<R,NDIM>::dcT::const_iterator it=right.coeffs.begin();
-                it!=right.coeffs.end();
-                ++it) {
+                 it!=right.coeffs.end();
+                 ++it) {
                 const keyT& key = it->first;
                 const typename FunctionImpl<L,NDIM>::nodeT& other_node = it->second;
                 coeffs.send(key, &nodeT:: template gaxpy_inplace<T,R>, 1.0, other_node, beta);
 	    }
             if (fence) world.gop.fence();
         }
-
-
-        template <typename opT>
-        Void unary_op_coeff_inplace_child(const opT& op, const keyT& parent, const keyT& child, const tensorT& t) {
-            coeffs.replace(child, nodeT(parent_to_child(t, parent, child), false));
-            nodeT& node = coeffs[child];
-            op(child, node.coeff());
-            return None;
-        }
-
-        /// Unary operation applied inplace to the coefficients with optional refinement and fence
+        
+        
         template <typename opT>
         void unary_op_coeff_inplace(bool (implT::*refineop)(const keyT&, const tensorT&) const,
                                     const opT& op,
-                                    bool fence)
+                                    bool fence) {
+            throw "not working now";
+        }
+        
+        
+        /// Unary operation applied inplace to the coefficients WITHOUT refinement, optional fence
+        template <typename opT>
+        void unary_op_coeff_inplace(const opT& op, bool fence)
         {
             for (typename dcT::iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
                 const keyT& parent = it->first;
                 nodeT& node = it->second;
                 if (node.has_coeff()) {
-                    tensorT t= node.coeff();
-                    if ((this->*refineop)(parent, t)) {
-                        MADNESS_ASSERT(!compressed);
-                        node.clear_coeff();
-                        node.set_has_children(true);
-                        for (KeyChildIterator<NDIM> kit(parent); kit; ++kit) {
-                            const keyT& child = kit.key();
-                            // ???????????????????????????
-                            // THIS NEEDS FIXING
-                            // ???????????????????????????
-                            // Crucial that this is a task so that nodes inserted as a result of refinement
-                            // are not operated on  twice due to a race condition if in parallel
-                            task(coeffs.owner(child), &implT:: template unary_op_coeff_inplace_child<opT>, op, parent, child, t);
-                        }
-                    }
-                    else {
-                        op(parent, t);
-                    }
+                    op(parent, node.coeff());
                 }
             }
             if (fence) world.gop.fence();
         }
-
-
-        template <typename opT>
-        Void unary_op_value_inplace_child(const opT& op, const keyT& parent, const keyT& child, const tensorT& t) {
-            tensorT values = fcube_for_mul(child, parent, t);
-
-            op(child, values);
-
-            double scale = pow(0.5,0.5*NDIM*child.level())*sqrt(FunctionDefaults<NDIM>::get_cell_volume());
-            tensorT r = transform(values,cdata.quad_phiw).scale(scale);
-
-            if (parent == child)
-                coeffs[child].set_coeff(r);
-            else
-                coeffs.replace(child,nodeT(r,false));
-
-            return None;
-        }
-
-        /// Unary operation applied inplace to the values with optional refinement and fence
+        
+        
         template <typename opT>
         void unary_op_value_inplace(bool (implT::*refineop)(const keyT&, const tensorT&) const,
                                     const opT& op,
-                                    bool fence)
+                                    bool fence) {
+            
+            throw "not working now";
+        }
+        
+        /// Unary operation applied inplace to the values with optional refinement and fence
+        template <typename opT>
+        void unary_op_value_inplace(const opT& op, bool fence)
         {
             for (typename dcT::iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
-                const keyT& parent = it->first;
+                const keyT& key = it->first;
                 nodeT& node = it->second;
                 if (node.has_coeff()) {
-                    tensorT t= node.coeff();
-                    if ((this->*refineop)(parent, t)) {
-                        MADNESS_ASSERT(!compressed);
-                        node.clear_coeff();
-                        node.set_has_children(true);
-                        for (KeyChildIterator<NDIM> kit(parent); kit; ++kit) {
-                            const keyT& child = kit.key();
-                            // Crucial that this is a task so that nodes inserted as a result of refinement
-                            // are not operated on  twice due to a race condition if in parallel
-                            task(coeffs.owner(child), &implT:: template unary_op_value_inplace_child<opT>, op, parent, child, t);
-                        }
-                    }
-                    else {
-                        unary_op_value_inplace_child(op, parent, parent, t);
-                    }
+                    tensorT& t= node.coeff();
+
+                    tensorT values = fcube_for_mul(key, key, t);
+                    op(key, values);
+                    double scale = pow(0.5,0.5*NDIM*key.level())*sqrt(FunctionDefaults<NDIM>::get_cell_volume());
+                    t = transform(values,cdata.quad_phiw).scale(scale);
                 }
             }
             if (fence) world.gop.fence();
         }
-
-
+        
+        
         /// Invoked by result to compute the pointwise product result=left*right
-
+        
         /// This version requires all three functions have the same distribution.
         /// Should be straightforward to do an efficient version that does not
         /// require this but I have not thought about that yet.
@@ -1559,11 +1520,41 @@ namespace madness {
             if (fence) world.gop.fence();
         }
 
-        // This needed extending to accomodate a user-defined criterion
-        void refine(bool fence);
+        Void refine_op(const keyT& key) {
+            nodeT& node = coeffs.find(key).get()->second;
+            if (key.level() < max_refine_level && autorefine_square_test(key, node.coeff())) {
+                tensorT d(cdata.v2k);
+                d(cdata.s0) = node.coeff();
+                d = unfilter(d);
+                node.clear_coeff();
+                node.set_has_children(true);
+                for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
+                    const keyT& child = kit.key();
+                    tensorT ss = copy(d(child_patch(child)));
+                    coeffs.replace(child,nodeT(ss,false));
+                }
+            }
+            return None;
+        }
 
-//         // Ensures the function is gradually refined before application of an operator
-//         void ensure_gradual(bool fence);
+        Void refine_spawn(const keyT& key) {
+            nodeT& node = coeffs.find(key).get()->second;
+            if (node.has_children()) {
+                for (KeyChildIterator<NDIM> kit(key); kit; ++kit)
+                    task(coeffs.owner(kit.key()), &implT::refine_spawn, kit.key(), TaskAttributes::hipri());
+            }
+            else {
+                task(coeffs.owner(key), &implT::refine_op, key);
+            }
+            return None;
+        }
+
+        // This needed extending to accomodate a user-defined criterion
+        void refine(bool fence) {
+            if (world.rank() == coeffs.owner(cdata.key0)) 
+                task(coeffs.owner(cdata.key0), &implT::refine_spawn, cdata.key0, TaskAttributes::hipri());
+            if (fence) world.gop.fence();
+        }
 
 
         void reconstruct(bool fence) {

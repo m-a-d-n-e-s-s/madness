@@ -704,7 +704,7 @@ void doit(World& world) {
     FunctionDefaults<3>::set_cubic_cell(-param.L,param.L);
     FunctionDefaults<3>::set_apply_randomize(false);
     FunctionDefaults<3>::set_autorefine(false);
-    FunctionDefaults<3>::set_truncate_mode(1);
+    FunctionDefaults<3>::set_truncate_mode(2);
     FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap(world)));
 
     functionT potn = factoryT(world).f(V);  potn.truncate();

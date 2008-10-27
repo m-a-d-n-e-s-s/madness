@@ -678,18 +678,23 @@ namespace madness {
                 impl->unary_op_value_inplace(&implT::autorefine_square_test, op, fence);
             }
             else {
-                impl->unary_op_value_inplace(&implT::noautorefine, op, fence);
+                impl->unary_op_value_inplace(op, fence);
             }
         }
 
 
-        /// Unary operation applied inplace to the coefficients with optional fence
+        /// Unary operation applied inplace to the coefficients with optional autorefining and fence
         template <typename opT>
         void unaryop_coeff(const opT& op,
                            bool fence = true) {
             PROFILE_MEMBER_FUNC(Function);
             verify();
-            impl->unary_op_coeff_inplace(&implT::noautorefine, op, fence);
+            if (autorefine()) {
+                impl->unary_op_coeff_inplace(&implT::autorefine_square_test, op, fence);
+            }
+            else {
+                impl->unary_op_coeff_inplace(op, fence);
+            }
         }
 
 

@@ -148,6 +148,17 @@ namespace madness {
             MADATOMIC_INT_DEC(&nregistered);  
         }
 
+        // Used in for_each kernel to check completion
+        static bool completion_status(bool left, bool right) {return (left && right);}
+
+
+        // Used in reduce kernel 
+        template <typename resultT, typename opT>
+        static resultT sum(const resultT& left, const resultT& right, const opT& op) {
+            return op(left,right);
+        }
+
+
     public:
         WorldTaskQueue(World& world) 
             : world(world)
@@ -189,12 +200,6 @@ namespace madness {
             MADNESS_ASSERT(MADATOMIC_INT_GET(&nregistered)>=1);
             if (TaskInterface::debug) std::cerr << world.rank() << ": Task " << (void*) t << " submitted with ndep=" << t->ndep()-1 << std::endl;
             t->dec();                        // Set free
-        }
-
-        /// Used in reduce kernel
-        template <typename resultT, typename opT>
-        static resultT sum(const resultT& left, const resultT& right, const opT& op) {
-            return op(left,right);
         }
 
         /// Reduce op(item) for all items in range using op(sum,op(item))
@@ -253,20 +258,18 @@ namespace madness {
         /// work unless you want to have the task be stealable.
         /// Adjust the chunksize in the range to control granularity.
         template <typename rangeT, typename opT> 
-        void for_each(const rangeT& range, const opT& op) {
+        Future<bool> for_each(const rangeT& range, const opT& op) {
             rangeT left = range;
             rangeT right(left,Split());
-            
+
             if (right.empty()) {
-                for (typename rangeT::iterator it=left.begin(); 
-                     it != left.end();
-                     ++it) {
-                    op(it);
-                }
+                for (typename rangeT::iterator it=left.begin(); it != left.end(); ++it) op(it);
+                return Future<bool>(true);
             }
             else {
-                add(*this, &WorldTaskQueue::for_each<rangeT,opT>, left,  op);
-                add(*this, &WorldTaskQueue::for_each<rangeT,opT>, right, op);
+                Future<bool>  leftsum = add(*this, &WorldTaskQueue::for_each<rangeT,opT>, left,  op);
+                Future<bool> rightsum = add(*this, &WorldTaskQueue::for_each<rangeT,opT>, right, op);
+                return add(&WorldTaskQueue::completion_status, leftsum, rightsum);
             }
         }
 

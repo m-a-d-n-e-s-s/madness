@@ -708,20 +708,15 @@ namespace madness {
     }
 
     template <typename T, int NDIM>
-    void FunctionImpl<T,NDIM>::refine(bool fence)
-    {
-        unary_op_coeff_inplace(&implT::autorefine_square_test, detail::noop<keyT,tensorT>(), fence);
-    }
-
-    template <typename T, int NDIM>
     void FunctionImpl<T,NDIM>::scale_inplace(const T q, bool fence)
     {
-        unary_op_coeff_inplace(&implT::noautorefine, detail::scaleinplace<T,NDIM>(q), fence);
+        unary_op_coeff_inplace(detail::scaleinplace<T,NDIM>(q), fence);
     }
 
     template <typename T, int NDIM>
     void FunctionImpl<T,NDIM>::square_inplace(bool fence) {
-        unary_op_value_inplace(&implT::autorefine_square_test, detail::squareinplace<T,NDIM>(), fence);
+        //unary_op_value_inplace(&implT::autorefine_square_test, detail::squareinplace<T,NDIM>(), fence);
+        unary_op_value_inplace(detail::squareinplace<T,NDIM>(), fence);
     }
 
     template <typename T, int NDIM>
@@ -968,7 +963,6 @@ namespace madness {
         }
         if (fence) world.gop.fence();
     }
-
 
     template <typename T, int NDIM>
     Future< Tensor<T> > FunctionImpl<T,NDIM>::compress_spawn(const Key<NDIM>& key, bool nonstandard, bool keepleaves) {

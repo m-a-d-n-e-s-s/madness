@@ -690,63 +690,6 @@ namespace madness {
         static TaskAttributes hipri() {return TaskAttributes(HIGHPRIORITY);}
     };
 
-    /// Dummy class a la Intel TBB used to distinguish splitting constructor
-    class Split{};
-    
-    /// Range vaguely a la Intel TBB encapsulates STL-like start and end iterators with chunksize
-    template <typename iteratorT>
-    class Range {
-        long n;
-        iteratorT start;
-        iteratorT finish;
-        const int chunksize;
-    public:
-        typedef iteratorT iterator;
-        /// Makes the range [start,finish) ... cost is O(n) due to dumb, linear counting of items
-        
-        /// Ideally need the full power of the Intel TBB range,
-        /// partitioner, split, concepts, etc.
-        Range(const iterator& start, const iterator& finish, int chunksize=1) 
-            : n(0), start(start), finish(finish), chunksize(chunksize)
-        {
-            for (iterator it=start; it!=finish; ++it) n++;
-        }
-        
-        /// Copy constructor ... cost is O(1)
-        Range(const Range& r) 
-            : n(r.n), start(r.start), finish(r.finish), chunksize(r.chunksize)
-        {}
-        
-        /// Splits range between new and old (r) objects ... cost is O(n/2)
-        
-        /// Presently only bisection down to given chunksize and
-        /// executes iterator circa Nlog(N) times so it had better be cheap
-        /// compared to the operation being performed.
-        Range(Range& r, const Split& split) 
-            : n(0), start(r.start), finish(), chunksize(r.chunksize)
-        {
-            if (r.n > chunksize) {
-                long nhalf = n/2;
-                while (nhalf--) {
-                    n++;
-                    r.n--;
-                    ++r.start;
-                }
-            }
-            finish = r.start;
-        }
-        
-        /// Returns number of items in the range (cost is O(1))
-        size_t size() const {return n;}
-        
-        /// Returns true if size=0
-        bool empty() const {return n==0;}
-
-        const iterator& begin() const {return start;}
-
-        const iterator& end() const {return finish;}
-    };
-    
 
     class PoolTaskInterface : public TaskAttributes {
     public:
@@ -868,6 +811,70 @@ namespace madness {
 
         ~ThreadPool() {};
     };
+
+    /// Dummy class a la Intel TBB used to distinguish splitting constructor
+    class Split{};
+    
+    /// Range vaguely a la Intel TBB encapsulates STL-like start and end iterators with chunksize
+    template <typename iteratorT>
+    class Range {
+        long n;
+        iteratorT start;
+        iteratorT finish;
+        int chunksize;
+    public:
+        typedef iteratorT iterator;
+
+        /// Makes the range [start,finish) ... cost is O(n) due to dumb, linear counting of items
+        
+        /// The motivated reader should look at the Intel TBB range,
+        /// partitioner, split, concepts, etc..
+        ///
+        /// Default chunksize is to make 10 tasks per thread to
+        /// facilitate dynamic load balancing.  
+        Range(const iterator& start, const iterator& finish, int chunksize=-1) 
+            : n(0), start(start), finish(finish), chunksize(chunksize)
+        {
+            for (iterator it=start; it!=finish; ++it) n++;
+            if (chunksize == -1) chunksize = n / (10*ThreadPool::size());
+            if (chunksize < 1) chunksize = 1;
+        }
+        
+        /// Copy constructor ... cost is O(1)
+        Range(const Range& r) 
+            : n(r.n), start(r.start), finish(r.finish), chunksize(r.chunksize)
+        {}
+        
+        /// Splits range between new and old (r) objects ... cost is O(n/2)
+        
+        /// Presently only bisection down to given chunksize and
+        /// executes iterator circa Nlog(N) times so it had better be cheap
+        /// compared to the operation being performed.
+        Range(Range& r, const Split& split) 
+            : n(0), start(r.start), finish(), chunksize(r.chunksize)
+        {
+            if (r.n > chunksize) {
+                long nhalf = n/2;
+                while (nhalf--) {
+                    n++;
+                    r.n--;
+                    ++r.start;
+                }
+            }
+            finish = r.start;
+        }
+        
+        /// Returns number of items in the range (cost is O(1))
+        size_t size() const {return n;}
+        
+        /// Returns true if size=0
+        bool empty() const {return n==0;}
+
+        const iterator& begin() const {return start;}
+
+        const iterator& end() const {return finish;}
+    };
+
 }
     
 
