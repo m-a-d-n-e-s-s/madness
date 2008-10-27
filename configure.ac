@@ -108,7 +108,7 @@ echo "HOST INFORMATION:   $host    $host_cpu    $host_vendor    $host_os"
 AC_DEFINE_UNQUOTED([HOST_CPU], ["$host_cpu"], [Defines the host cpu (x86, x86_64, ...).])
 AC_DEFINE_UNQUOTED([HOST_SYSTEM], ["$host_os"], [Defines the host os (linux-gnu, ...).])
 
-if test $ON_A_MAC=1; then
+if test $ON_A_MAC = 1; then
    echo "Disabling X86 assembler because you are on a mac ... "
    host_cpu="mac$host_cpu"
 fi
