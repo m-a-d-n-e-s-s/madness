@@ -18,38 +18,16 @@ using std::endl;
 
 namespace madness
 {
-//  //***************************************************************************
-//  template <typename T, int NDIM>
-//  EigSolver<T,NDIM>::EigSolver(World& world, std::vector<funcT> phis,
-//      std::vector<double> eigs, std::vector< EigSolverOp<T,NDIM>* > ops,
-//      std::vector<kvecT> kpoints, double thresh)
-//  : _phis(phis), _eigs(eigs), _ops(ops), _kpoints(kpoints), _world(world), _thresh(thresh)
-//  {
-//    _rho = EigSolver::compute_rho(phis, world);
-//    _periodic = true;
-//  }
-//  //***************************************************************************
-//
-//  //***************************************************************************
-//  template <typename T, int NDIM>
-//  EigSolver<T,NDIM>::EigSolver(World& world, std::vector<funcT> phis,
-//      std::vector<double> eigs, std::vector< EigSolverOp<T,NDIM>* > ops, double thresh)
-//  : _phis(phis), _eigs(eigs), _ops(ops), _world(world), _thresh(thresh)
-//  {
-//    _rho = EigSolver::compute_rho(phis, world);
-//    _periodic = false;
-//  }
-//  //***************************************************************************
-
   //***************************************************************************
   template <typename T, int NDIM>
   EigSolver<T,NDIM>::EigSolver(World& world, funcT rhon, std::vector<funcT> phis,
       std::vector<double> eigs, std::vector< EigSolverOp<T,NDIM>* > ops,
-      std::vector<kvecT> kpoints, double thresh)
+      std::vector<kvecT> kpoints, double ncharge)
   : _phis(phis), _eigs(eigs), _ops(ops), _kpoints(kpoints), _rhon(rhon),
-    _world(world), _thresh(thresh)
+    _world(world)
   {
     _periodic = true;
+    _ncharge = ncharge;
     // fill the occupation numbers
     int size = eigs.size();
     for (int i = 0; i < size; i++) _occs.push_back(2.0);
@@ -61,15 +39,17 @@ namespace madness
   template <typename T, int NDIM>
   EigSolver<T,NDIM>::EigSolver(World& world, funcT rhon, std::vector<funcT> phis,
       std::vector<double> eigs, std::vector< EigSolverOp<T,NDIM>* > ops,
-      double thresh, bool periodic)
-  : _phis(phis), _eigs(eigs), _ops(ops), _rhon(rhon), _world(world), _thresh(thresh)
+      double ncharge, bool periodic)
+  : _phis(phis), _eigs(eigs), _ops(ops), _rhon(rhon), _world(world)
   {
     if (periodic)
     {
+      //kvecT gammap(0.0, 0.0, 0.0, 1.0);
       kvecT gammap(0.0);
       _kpoints.push_back(gammap);
     }
     _periodic = periodic;
+    _ncharge = ncharge;
     // fill the occupation numbers
     int size = eigs.size();
     for (int i = 0; i < size; i++)  _occs.push_back(2.0);
@@ -80,11 +60,13 @@ namespace madness
   //***************************************************************************
   template <typename T, int NDIM>
   EigSolver<T,NDIM>::EigSolver(World& world, std::vector<funcT> phis,
-      std::vector<double> eigs, std::vector< EigSolverOp<T,NDIM>* > ops, double thresh)
-  : _phis(phis), _eigs(eigs), _ops(ops), _world(world), _thresh(thresh)
+      std::vector<double> eigs, std::vector< EigSolverOp<T,NDIM>* > ops,
+      double ncharge)
+  : _phis(phis), _eigs(eigs), _ops(ops), _world(world)
   {
     _rhon = FunctionFactory<double,NDIM>(const_cast<World&>(world));
     _periodic = false;
+    _ncharge = ncharge;
     // fill the occupation numbers
     int size = eigs.size();
     for (int i = 0; i < size; i++) _occs.push_back(2.0);
@@ -174,6 +156,51 @@ namespace madness
 
   //***************************************************************************
   template <typename T, int NDIM>
+  void EigSolver<T,NDIM>::update_occupation()
+  {
+    // Find max/min eigenvalues
+    double emax = -1.0e12;
+    double emin = 1.0e12;
+    for (int i = 0; i < _eigs.size(); i++)
+    {
+      emax = (_eigs[i] > emax) ? _eigs[i] : emax;
+      emin = (_eigs[i] < emin) ? _eigs[i] : emin;
+    }
+
+    int maxits = 100;
+    // This is hardcoded to 2.0 (non-spinpolarized case) for now.
+    double occmax = 2.0;
+    // Fermi energy
+    double efermi = 0.0;
+    // Use bisection method to find the fermi energy and update occupation numbers
+    bool bstop = false;
+    for (int it = 0; (it < maxits)&&(!bstop); it++)
+    {
+      // Proposed fermi energy
+      double efermi = 0.5 * (emax + emin);
+      // Accumulated charge
+      double charge = 0.0;
+      // Some smoothing parameter
+      double t1 = 0.1;
+      // Loop over all orbitals and count the charge
+      for (int i = 0; i < _phis.size(); i++)
+      {
+        double x = (efermi-_eigs[i]) * t1;
+        _occs[i] = occmax;
+        //charge += _kpoints[i].weight() * _occs[i];
+      }
+      if (fabs(emax-emin) < 1e-5)
+        bstop = true;
+      else if (charge < _ncharge)
+        emin = efermi;
+      else
+        emax = efermi;
+    }
+  }
+  //***************************************************************************
+
+  //***************************************************************************
+  template <typename T, int NDIM>
   void EigSolver<T,NDIM>::make_bsh_operators()
   {
     // Clear BSH vector
@@ -243,6 +270,7 @@ namespace madness
   {
 	cout.setf(ios::fixed,ios::floatfield);
 	cout.precision(8);
+  double thresh = FunctionDefaults<NDIM>::get_thresh();
 	for (int it = 0; it < maxits; it++)
     {
       // Since, the density has already been computed (it's fresh outta the
@@ -277,16 +305,16 @@ namespace madness
           pfunc -= k[0] * diff(psi, 0);
           pfunc -= k[1] * diff(psi, 1);
           pfunc -= k[2] * diff(psi, 2);
-          pfunc.scale(-2.0).truncate(_thresh);
+          pfunc.scale(-2.0).truncate();
           Tensor<double> L = FunctionDefaults<NDIM>::get_cell_width();
           op = PeriodicBSHOpPtr<T,NDIM>(_world, sqrt(-2.0*_eigs[pi]),
-              FunctionDefaults<NDIM>::get_k(), 1e-4, _thresh, L);
+              FunctionDefaults<NDIM>::get_k(), 1e-4, thresh, L);
         }
         else
         {
-          pfunc.scale(-2.0).truncate(_thresh);
+          pfunc.scale(-2.0).truncate();
           op = BSHOperatorPtr<T,NDIM>(_world, sqrt(-2.0*_eigs[pi]),
-              FunctionDefaults<NDIM>::get_k(), 1e-4, _thresh);
+              FunctionDefaults<NDIM>::get_k(), 1e-4, thresh);
         }
         // Apply the Green's function operator (stubbed)
         if (_world.rank() == 0) DEBUG_STREAM << "Applying BSH operator ..."

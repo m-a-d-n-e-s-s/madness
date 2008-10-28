@@ -960,6 +960,6 @@ void dft_xc_lda_ene(const Key<NDIM>& key, Tensor<double>& t)
   template class DFT<double, 3>;
 
 
-//  template class DFT< std::complex<double> >;
+//  template class DFT< std::complex<double>, 3>;
   //***************************************************************************
 }

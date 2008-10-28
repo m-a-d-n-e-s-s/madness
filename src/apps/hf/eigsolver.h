@@ -27,6 +27,40 @@ public:
 };
 //***************************************************************************
 
+class KPoint
+{
+public:
+  KPoint(double kx, double ky, double kz, double weight)
+  {
+    _kx = kx; _ky = ky; _kz = kz;
+    _weight = weight;
+  }
+
+  //*************************************************************************
+  double kx() {return _kx;}
+  double ky() {return _ky;}
+  double kz() {return _kz;}
+  //*************************************************************************
+
+  //*************************************************************************
+  double weight() {return _weight;}
+  //*************************************************************************
+
+private:
+  //*************************************************************************
+  // the actual k-point
+  double _kx;
+  double _ky;
+  double _kz;
+  //*************************************************************************
+
+  //*************************************************************************
+  // weight
+  double _weight;
+  //*************************************************************************
+
+};
+
 //***************************************************************************
 template <typename T, int NDIM>
 class EigSolverOp
@@ -162,6 +196,7 @@ public:
   //*************************************************************************
   // Typedef's
   typedef Function<T,NDIM> funcT;
+//  typedef KPoint<NDIM> kvecT;
   typedef Vector<double,NDIM> kvecT;
   typedef SeparatedConvolution<double,NDIM> operatorT;
   typedef SharedPtr<operatorT> poperatorT;
@@ -171,20 +206,20 @@ public:
   /// Constructor for periodic system
   EigSolver(World& world, funcT rhon, std::vector<funcT> phis, std::vector<double> eigs,
       std::vector<EigSolverOp<T,NDIM>*> ops, std::vector<kvecT> kpoints,
-      double thresh);
+      double ncharge);
   //*************************************************************************
 
   //*************************************************************************
   /// Constructor for non-periodic system
   EigSolver(World& world, funcT rhon, std::vector<funcT> phis, std::vector<double> eigs,
-      std::vector<EigSolverOp<T,NDIM>*> ops, double thresh,
+      std::vector<EigSolverOp<T,NDIM>*> ops, double ncharge,
       bool periodic = false);
   //*************************************************************************
 
   //*************************************************************************
   /// Constructor for non-periodic system
   EigSolver(World& world, std::vector<funcT> phis, std::vector<double> eigs,
-      std::vector<EigSolverOp<T,NDIM>*> ops, double thresh);
+      std::vector<EigSolverOp<T,NDIM>*> ops, double ncharge);
   //*************************************************************************
 
   //*************************************************************************
@@ -260,6 +295,10 @@ public:
   //*************************************************************************
 
   //*************************************************************************
+  void update_occupation();
+  //*************************************************************************
+
+  //*************************************************************************
   /// Computes the electronic density
   static funcT compute_rho(std::vector<funcT> phis, std::vector<double> occs,
       const World& world);
@@ -311,6 +350,10 @@ private:
 
   //*************************************************************************
   bool _periodic;
+  //*************************************************************************
+
+  //*************************************************************************
+  double _ncharge;
   //*************************************************************************
 
   //*************************************************************************
