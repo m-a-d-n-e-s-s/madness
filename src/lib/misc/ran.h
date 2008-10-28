@@ -55,7 +55,7 @@ namespace madness {
         virtual ~Random();
 
         double get() {
-            ScopedMutex safe(this);
+            ScopedMutex<Mutex> safe(this);
             if (cur >= r) generate();
             return u[cur++];
         }
@@ -63,7 +63,7 @@ namespace madness {
         /// Returns a vector of uniform doubles in [0,1)
         template <typename T>
         void getv(int n, T * restrict v) {
-            ScopedMutex safe(this);
+            ScopedMutex<Mutex> safe(this);
             while (n) {
                 if (cur >= r) generate();
                 int ndo = std::min(n,r-cur);

@@ -117,7 +117,7 @@ namespace madness {
     //     };
         
     void Random::getbytes(int n, unsigned char * restrict v) {
-        ScopedMutex safe(this);
+        ScopedMutex<Mutex> safe(this);
         while (n) {
             if (cur >= r) generate();
             int ndo = std::min(n,r-cur);
@@ -130,7 +130,7 @@ namespace madness {
     }
     
     RandomState Random::getstate() const {
-        ScopedMutex safe(this);
+        ScopedMutex<Mutex> safe(this);
         RandomState s;
         s.cur = cur;
         for (int i=0; i<r; i++) s.u[i] = u[i];
@@ -138,7 +138,7 @@ namespace madness {
     }
     
     void Random::setstate(const RandomState &s) {
-        ScopedMutex safe(this);
+        ScopedMutex<Mutex> safe(this);
         cur = s.cur;
         for (int i=0; i<r; i++) u[i] = s.u[i];
     }

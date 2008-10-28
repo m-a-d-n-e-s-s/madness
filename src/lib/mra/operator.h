@@ -22,7 +22,7 @@ namespace madness {
         // from 2^(NDIM-1) to (2k)^(NDIM-1).
 
 //         for (long i=0; i<n; i++)
-//             for (long j=0; j<m; j++) 
+//             for (long j=0; j<m; j++)
 //                 b[j*n+i] = a[i*m+j];
 
         if (n==1 || m==1) {
@@ -53,7 +53,7 @@ namespace madness {
         }
 
         for (long i=n4; i<n; i++)
-            for (long j=0; j<m; j++) 
+            for (long j=0; j<m; j++)
                 b[j*n+i] = a[i*m+j];
 
     }
@@ -72,10 +72,10 @@ namespace madness {
         return result;
     }
 
-    extern void bsh_fit(double mu, double lo, double hi, double eps, 
+    extern void bsh_fit(double mu, double lo, double hi, double eps,
                         Tensor<double> *pcoeff, Tensor<double> *pexpnt, bool prnt=false);
 
-//     extern void bsh_fit_mod(double mu, double lo, double hi, double eps, 
+//     extern void bsh_fit_mod(double mu, double lo, double hi, double eps,
 //                             Tensor<double> *pcoeff, Tensor<double> *pexpnt, bool prnt=false);
 
 
@@ -91,10 +91,10 @@ namespace madness {
         typedef ConcurrentHashMap< Key<NDIM>, SharedPtr<Q> , KeyHash<NDIM> > mapT;
         typedef std::pair< Key<NDIM>, SharedPtr<Q> > pairT;
         mapT cache;
-        
+
     public:
         SimpleCache() : cache() {};
-        
+
         SimpleCache(const SimpleCache& c) : cache(c.cache) {};
 
         SimpleCache& operator=(const SimpleCache& c) {
@@ -104,14 +104,14 @@ namespace madness {
             }
             return *this;
         }
-        
+
         /// If key is present return pointer to cached value, otherwise return NULL
         inline const Q* getptr(const Key<NDIM>& key) const {
             typename mapT::const_iterator test = cache.find(key);
             if (test == cache.end()) return 0;
             return test->second.get();
         }
-        
+
 
         /// If key=(n,l) is present return pointer to cached value, otherwise return NULL
 
@@ -120,7 +120,7 @@ namespace madness {
             Key<NDIM> key(n,Vector<Translation,NDIM>(l));
             return getptr(key);
         }
-        
+
 
         /// If key=(n,l) is present return pointer to cached value, otherwise return NULL
 
@@ -129,7 +129,7 @@ namespace madness {
             Key<NDIM> key(n,disp.translation());
             return getptr(key);
         }
-        
+
 
         /// Set value associated with key ... gives ownership of a new copy to the container
         inline void set(const Key<NDIM>& key, const Q& val) {
@@ -162,13 +162,13 @@ namespace madness {
             Tnormf = T.normf();
             int k = T.dim[0];
             Tensor<Q> NS = copy(R);
-            for (int i=0; i<k; i++) 
+            for (int i=0; i<k; i++)
                 for (int j=0; j<k; j++)
                     NS(i,j) = 0.0;
             NSnormf = NS.normf();
         }
 
-        void make_approx(const Tensor<Q>& R, 
+        void make_approx(const Tensor<Q>& R,
                          Tensor<Q>& RU, Tensor<typename Tensor<Q>::scalar_type>& Rs, Tensor<Q>& RVT, double& norm) {
             int n = R.dim[0];
             svd(R, &RU, &Rs, &RVT);
@@ -180,7 +180,7 @@ namespace madness {
             for (int i=n-1; i>1; i--) { // Form cumulative sum of norms
                 Rs[i-1] += Rs[i];
             }
-            
+
             norm = Rs[0];
             if (Rs[0]>0.0) { // Turn into relative errors
                 double rnorm = 1.0/norm;
@@ -209,12 +209,12 @@ namespace madness {
         mutable SimpleCache<Tensor<Q>, 1> rnlp_cache;
         mutable SimpleCache<Tensor<Q>, 1> rnlij_cache;
         mutable SimpleCache<ConvolutionData1D<Q>, 1> ns_cache;
-        
-//         Convolution1D() : k(-1), npt(0), sign(1.0) {}; 
+
+//         Convolution1D() : k(-1), npt(0), sign(1.0) {};
 
         virtual ~Convolution1D() {};
 
-        Convolution1D(int k, int npt, double sign=1.0) 
+        Convolution1D(int k, int npt, double sign=1.0)
             : k(k)
             , npt(npt)
             , sign(sign)
@@ -244,8 +244,8 @@ namespace madness {
         virtual Level natural_level() const {return 13;}
 
         /// Computes the transition matrix elements for the convolution for n,l
-        
-        /// Returns the tensor 
+
+        /// Returns the tensor
         /// \code
         ///   r(i,j) = int(K(x-y) phi[n0](x) phi[nl](y), x=0..1, y=0..1)
         /// \endcode
@@ -255,18 +255,18 @@ namespace madness {
         const Tensor<Q>& rnlij(Level n, Translation lx) const {
             const Tensor<Q>* p=rnlij_cache.getptr(n,lx);
             if (p) return *p;
-    
+
             long twok = 2*k;
             Tensor<Q>  R(2*twok);
             R(Slice(0,twok-1)) = get_rnlp(n,lx-1);
             R(Slice(twok,2*twok-1)) = get_rnlp(n,lx);
-            R.scale(pow(0.5,0.5*n));        
+            R.scale(pow(0.5,0.5*n));
             R = inner(c,R);
             // Enforce symmetry because it seems important ... is it?
             // What about a complex exponents?
-//             if (lx == 0) 
-//                 for (int i=0; i<k; i++) 
-//                     for (int j=0; j<i; j++) 
+//             if (lx == 0)
+//                 for (int i=0; i<k; i++)
+//                     for (int j=0; j<i; j++)
 //                         R(i,j) = R(j,i) = ((i+j)&1) ? 0.0 : 0.5*(R(i,j)+R(j,i));
 
             rnlij_cache.set(n,lx,R);
@@ -279,7 +279,7 @@ namespace madness {
             if (p) return p;
             
             PROFILE_MEMBER_FUNC(ConvolutionData1D);
-            
+
             Tensor<Q> R(2*k,2*k), T;
             if (issmall(n, lx)) {
                 T = Tensor<Q>(k,k);
@@ -287,35 +287,35 @@ namespace madness {
             else {
                 Translation lx2 = lx*2;
                 Slice s0(0,k-1), s1(k,2*k-1);
-                
+
                 R(s0,s0) = R(s1,s1) = rnlij(n+1,lx2);
                 R(s1,s0) = rnlij(n+1,lx2+1);
                 R(s0,s1) = rnlij(n+1,lx2-1);
-                
+
                 R = transform(R,hgT);
                 // Enforce symmetry because it seems important ... what about complex?????????
-//                 if (lx == 0) 
-//                     for (int i=0; i<2*k; i++) 
-//                         for (int j=0; j<i; j++) 
+//                 if (lx == 0)
+//                     for (int i=0; i<2*k; i++)
+//                         for (int j=0; j<i; j++)
 //                             R(i,j) = R(j,i) = ((i+j)&1) ? 0.0 : 0.5*(R(i,j)+R(j,i));
-                
+
                 R = transpose(R);
                 T = copy(R(s0,s0));
             }
-            
+
             ns_cache.set(n,lx,ConvolutionData1D<Q>(R,T));
 
             return ns_cache.getptr(n,lx);
         };
 
-        const Tensor<Q>& get_rnlp(Level n, Translation lx) const 
+        const Tensor<Q>& get_rnlp(Level n, Translation lx) const
         {
             const Tensor<Q>* p=rnlp_cache.getptr(n,lx);
             if (p) return *p;
 
             long twok = 2*k;
             Tensor<Q> r;
-            
+
             if (issmall(n, lx)) {
                 r = Tensor<Q>(twok);
             }
@@ -323,14 +323,14 @@ namespace madness {
                 Tensor<Q>  R(2*twok);
                 R(Slice(0,twok-1)) = get_rnlp(n+1,2*lx);
                 R(Slice(twok,2*twok-1)) = get_rnlp(n+1,2*lx+1);
-                
+
                 R = transform(R, hgT2k);
                 r = copy(R(Slice(0,twok-1)));
             }
             else {
                 r = rnlp(n, lx);
             }
-            
+
             rnlp_cache.set(n, lx, r);
             return *rnlp_cache.getptr(n,lx);
         }
@@ -338,7 +338,7 @@ namespace madness {
 
 
     // To test generic convolution by comparing with GaussianConvolution1D
-    template <typename Q> 
+    template <typename Q>
     class GaussianGenericFunctor {
     private:
         Q coeff;
@@ -365,14 +365,14 @@ namespace madness {
 
         GenericConvolution1D() {}
 
-        GenericConvolution1D(int k, const opT& op) 
+        GenericConvolution1D(int k, const opT& op)
             : Convolution1D<Q>(k, 20), op(op), maxl(LONG_MAX-1)
         {
             PROFILE_MEMBER_FUNC(GenericConvolution1D);
-            
+
             // For efficiency carefully compute outwards at the "natural" level
-            // until several successive boxes are determined to be zero.  This 
-            // then defines the future range of the operator and also serves 
+            // until several successive boxes are determined to be zero.  This
+            // then defines the future range of the operator and also serves
             // to precompute the values used in the rnlp cache.
 
             Level natl = this->natural_level();
@@ -410,7 +410,7 @@ namespace madness {
         };
 
         Tensor<Q> rnlp(Level n, Translation lx) const {
-            return adq1(lx, lx+1, Shmoo(n, lx, this), 1e-12, 
+            return adq1(lx, lx+1, Shmoo(n, lx, this), 1e-12,
                         this->npt, this->quad_x.ptr(), this->quad_w.ptr(), 0);
         }
 
@@ -419,7 +419,7 @@ namespace madness {
             // Always compute contributions to nearest neighbor coupling
             // ... we are two levels below so 0,1 --> 0,1,2,3 --> 0,...,7
             if (lx <= 7) return false;
-            
+
             n = this->natural_level()-n;
             if (n >= 0) lx = lx << n;
             else lx = lx >> n;
@@ -427,16 +427,16 @@ namespace madness {
             return lx >= maxl;
         }
     };
-        
+
 
     // For complex types return +1 as the sign and leave coeff unchanged
-    template <typename Q, bool iscomplex> 
+    template <typename Q, bool iscomplex>
     struct munge_sign_struct {
         static double op(Q& coeff) {
             return 1.0;
         }
     };
-        
+
     // For real types return actual sign and make coeff positive
     template <typename Q>
     struct munge_sign_struct<Q,false> {
@@ -455,14 +455,14 @@ namespace madness {
     typename Tensor<Q>::scalar_type munge_sign(Q& coeff) {
         return munge_sign_struct<Q, TensorTypeData<Q>::iscomplex>::op(coeff);
     }
-            
+
 
     /// 1D Gaussian convolution with coeff and expnt given in *simulation* coordinates [0,1]
     template <typename Q>
     class GaussianConvolution1D : public Convolution1D<Q> {
     public:
         const Q coeff;
-        const double expnt;        
+        const double expnt;
         const Level natlev;
 
         GaussianConvolution1D(int k, Q coeff, double expnt, double sign=1.0)
@@ -474,7 +474,7 @@ namespace madness {
         Level natural_level() const {return natlev;}
 
         /// Compute the projection of the operator onto the double order polynomials
-        
+
         /// The returned reference is to a cached tensor ... if you want to
         /// modify it, take a copy first.
         ///
@@ -486,33 +486,33 @@ namespace madness {
         /// \code
         /// r(n,l,p) = 2^(-n)*coeff * int( exp(-beta*z^2) * phi(p,z-l), z=l..l+1)
         /// \endcode
-        /// where 
+        /// where
         /// \code
-        /// beta = alpha * 2^(-2*n) 
+        /// beta = alpha * 2^(-2*n)
         /// \endcode
         Tensor<Q> rnlp(Level n, Translation lx) const {
             PROFILE_MEMBER_FUNC(GaussianConvolution1D);
             int twok = 2*this->k;
             Tensor<Q> v(twok);       // Can optimize this away by passing in
-            
+
             Translation lkeep = lx;
             if (lx<0) lx = -lx-1;
-            
+
             /* Apply high-order Gauss Legendre onto subintervals
-       
+
                coeff*int(exp(-beta(x+l)**2) * phi[p](x),x=0..1);
-               
+
                The translations internally considered are all +ve, so
                signficant pieces will be on the left.  Finish after things
-               become insignificant.  
-               
+               become insignificant.
+
                The resulting coefficients are accurate to about 1e-20.
             */
-            
+
             // Rescale expnt & coeff onto level n so integration range
             // is [l,l+1]
             Q scaledcoeff = coeff*pow(sqrt(0.5),double(n));
-            
+
             // Subdivide interval into nbox boxes of length h
             // ... estimate appropriate size from the exponent.  A
             // Gaussian with real-part of the exponent beta falls in
@@ -528,18 +528,18 @@ namespace madness {
             // polynomials of order 2*k-1, so the total order is
             // 2*k+20, which can be integrated with a quadrature rule
             // of npt=k+11.  npt is set in the constructor.
-            
+
             double beta = expnt * pow(0.25,double(n));
             double h = 1.0/sqrt(beta);  // 2.0*sqrt(0.5/beta);
             long nbox = long(1.0/h);
             if (nbox < 1) nbox = 1;
             h = 1.0/nbox;
-            
+
             // Find argmax such that h*scaledcoeff*exp(-argmax)=1e-22 ... if
             // beta*xlo*xlo is already greater than argmax we can neglect this
             // and subsequent boxes
             double argmax = std::abs(log(1e-22/std::abs(scaledcoeff*h)));
-            
+
             for (long box=0; box<nbox; box++) {
                 double xlo = box*h + lx;
                 if (beta*xlo*xlo > argmax) break;
@@ -555,7 +555,7 @@ namespace madness {
                     for (long p=0; p<twok; p++) v(p) += ee*phix[p];
                 }
             }
-            
+
             if (lkeep < 0) {
                 /* phi[p](1-z) = (-1)^p phi[p](z) */
                 for (long p=1; p<twok; p+=2) v(p) = -v(p);
@@ -565,7 +565,7 @@ namespace madness {
         };
 
         /// Returns true if the block is expected to be small
-        bool issmall(Level n, Translation lx) const { 
+        bool issmall(Level n, Translation lx) const {
             double beta = expnt * pow(0.25,double(n));
             Translation ll;
             if (lx > 0)
@@ -574,7 +574,7 @@ namespace madness {
                 ll = -1 - lx;
             else
                 ll = 0;
-            
+
             return (beta*ll*ll > 49.0);      // 49 -> 5e-22     69 -> 1e-30
         };
     };
@@ -585,7 +585,7 @@ namespace madness {
     template <typename Q>
     class PeriodicGaussianConvolution1D : public Convolution1D<Q> {
     public:
-        
+
         const int k;
         const int maxR;
         GaussianConvolution1D<Q> g;
@@ -615,7 +615,7 @@ namespace madness {
             return true;
         }
     };
-    
+
     template <typename Q, int NDIM>
     struct SeparatedConvolutionInternal {
         double norm;
@@ -680,7 +680,7 @@ namespace madness {
             int num = 1;
             for (int i=0; i<NDIM; i++) num *= (2*bmax + 1);
             disp = std::vector< Key<NDIM> >(num);
-            
+
             num = 0;
             if (NDIM == 1) {
                 for (d[0]=-bmax; d[0]<=bmax; d[0]++)
@@ -725,7 +725,7 @@ namespace madness {
             else {
                 MADNESS_EXCEPTION("_make_disp: hard dimension loop",NDIM);
             }
-            
+
             std::sort(disp.begin(), disp.end(), cmp_keys);
         }
 
@@ -742,7 +742,7 @@ namespace madness {
                 if ((lx < 0) && (lx+twon > bmax)) b[i++] = lx + twon;
                 if ((lx > 0) && (lx-twon <-bmax)) b[i++] = lx - twon;
             }
-            MADNESS_ASSERT(i <= 4*bmax+1);            
+            MADNESS_ASSERT(i <= 4*bmax+1);
             int numb = i;
 
             disp_periodicsum[n] = std::vector< Key<NDIM> >();
@@ -754,7 +754,7 @@ namespace madness {
                 }
                 disp_periodicsum[n].push_back(Key<NDIM>(n,d));
             }
-            
+
             std::sort(disp_periodicsum[n].begin(), disp_periodicsum[n].end(), cmp_keys_periodicsum);
 //             print("KEYS AT LEVEL", n);
 //             print(disp_periodicsum[n]);
@@ -765,7 +765,7 @@ namespace madness {
         Displacements() {
             if (disp.size() == 0) {
                 make_disp(bmax_default());
-                
+
                 Level nmax = 8*sizeof(Translation) - 2;
                 for (Level n=0; n<nmax; n++) make_disp_periodicsum(bmax_default(), n);
             }
@@ -806,7 +806,7 @@ namespace madness {
         struct Transformation {
             long r;     // Effective rank of transformation
             const Q* U; // Ptr to matrix
-            const Q* VT; 
+            const Q* VT;
         };
 
         template <typename T, typename R>
@@ -884,7 +884,7 @@ namespace madness {
                          Tensor<TENSOR_RESULT_TYPE(T,Q)>& result,
                          Tensor<TENSOR_RESULT_TYPE(T,Q)>& result0,
                          double tol,
-                         const double musign, 
+                         const double musign,
                          Tensor<TENSOR_RESULT_TYPE(T,Q)>& work1,
                          Tensor<TENSOR_RESULT_TYPE(T,Q)>& work2,
                          Tensor<Q>& work5) const {
@@ -896,7 +896,7 @@ namespace madness {
 
             double Rnorm = 1.0;
             for (int d=0; d<NDIM; d++) Rnorm *= ops[d]->Rnorm;
-               
+
             tol = tol/(Rnorm*NDIM);  // Errors are relative within here
 
             // Determine rank of SVD to use or if to use the full matrix
@@ -968,7 +968,7 @@ namespace madness {
                 tmp = inner(tmp,ops[d]->R,0,0);
             }
             result.gaxpy(1.0,tmp,musign);
-            
+
             if (n > 0) {
                 tmp = inner(f0,ops[0]->T,0,0);
                 for (int d=1; d<NDIM; d++) {
@@ -997,7 +997,7 @@ namespace madness {
                 tmp = inner(tmp,ops[d]->R,0,1);
             }
             result.gaxpy(1.0,tmp,musign);
-            
+
             if (n > 0) {
                 tmp = inner(f0,ops[0]->T,0,1); // Slice+copy can be optimized away
                 for (int d=1; d<NDIM; d++) {
@@ -1012,20 +1012,20 @@ namespace madness {
         double munorm(Level n, const ConvolutionData1D<Q>* ops[]) const {
             PROFILE_MEMBER_FUNC(SeparatedConvolution);
             Tensor<Q> f(v2k), f0, ff(v2k);
-            
+
             double tol = 1e-20;
-            
+
             f.fillrandom();
             f.scale(1.0/f.normf());
             double evalp = 1.0, eval, ratio=99.0;
             for (int iter=0; iter<100; iter++) {
-                ff.fill(0.0); 
+                ff.fill(0.0);
                 f0 = copy(f(s0));
                 muopxv(n,ops,f,f0,ff,tol,1.0);
-                f.fill(0.0);  
+                f.fill(0.0);
                 f0 = copy(ff(s0));
                 muopxvT(n,ops,ff,f0,f,tol,1.0);
-                
+
                 eval = f.normf();
                 if (eval == 0.0) break;
                 f.scale(1.0/eval);
@@ -1094,7 +1094,7 @@ namespace madness {
             return op;
         }
 
-        
+
         /// Returns pointer to cached operator
         const SeparatedConvolutionData<Q,NDIM>* getop(Level n, const Key<NDIM>& d) const {
             PROFILE_MEMBER_FUNC(SeparatedConvolution);
@@ -1129,7 +1129,7 @@ namespace madness {
 
         // For general convolutions
         SeparatedConvolution(World& world,
-                             long k, 
+                             long k,
                              std::vector< SharedPtr< Convolution1D<Q> > >& ops,
                              bool doleaves = false,
                              bool isperiodicsum = false)
@@ -1154,7 +1154,7 @@ namespace madness {
         }
 
         /// Constructor for Gaussian Convolutions (mostly for backward compatability)
-        SeparatedConvolution(World& world, 
+        SeparatedConvolution(World& world,
                              int k,
                              const Tensor<Q>& coeff, const Tensor<double>& expnt,
                              bool doleaves = false)
@@ -1168,7 +1168,7 @@ namespace madness {
             , vk(NDIM,k)
             , v2k(NDIM,2*k)
             , s0(std::max(2,NDIM),Slice(0,k-1))
-            , ops(coeff.dim[0]) 
+            , ops(coeff.dim[0])
         {
             check_cubic();
             double width = FunctionDefaults<NDIM>::get_cell_width()(0L);
@@ -1178,8 +1178,8 @@ namespace madness {
                 Q c = coeff(i);
                 double sign = munge_sign(c);
                 c = std::pow(c, 1.0/NDIM);
-                ops[i] = SharedPtr< Convolution1D<Q> >(new GaussianConvolution1D<Q>(k, 
-                                                                                    c*width, 
+                ops[i] = SharedPtr< Convolution1D<Q> >(new GaussianConvolution1D<Q>(k,
+                                                                                    c*width,
                                                                                     expnt(i)*width*width,
                                                                                     sign));
             }
@@ -1236,7 +1236,7 @@ namespace madness {
                 const SeparatedConvolutionInternal<Q,NDIM>& muop =  op->muops[mu];
                 //print(source, shift, mu, muop.norm);
                 if (muop.norm > tol) {
-                    muopxv_fast(source.level(), muop.ops, *input, f0, r, r0, tol, ops[mu]->sign, 
+                    muopxv_fast(source.level(), muop.ops, *input, f0, r, r0, tol, ops[mu]->sign,
                                 work1, work2, work5);
                     //muopxv(source.level(), muop.ops, *input, f0, r, tol, ops[mu]->sign);
                 }
@@ -1244,7 +1244,7 @@ namespace madness {
             r(s0).gaxpy(1.0,r0,1.0);
             return r;
         }
-        
+
     };
 
 
@@ -1275,7 +1275,7 @@ namespace madness {
         const Tensor<double>& cell_width = FunctionDefaults<NDIM>::get_cell_width();
         double hi = cell_width.normf(); // Diagonal width of cell
         const double pi = 3.14159265358979323846264338328;
-        
+
         // bsh_fit generates representation for 1/4Pir but we want 1/r
         // so have to scale eps by 1/4Pi
         Tensor<double> coeff, expnt;
@@ -1321,7 +1321,7 @@ namespace madness {
                 ptr = static_cast< const SeparatedConvolution<T,NDIM>* >(p);
             }
         };
-        
+
         template <class Archive, class T, int NDIM>
         struct ArchiveStoreImpl<Archive,const SeparatedConvolution<T,NDIM>*> {
             static inline void store(const Archive& ar, const SeparatedConvolution<T,NDIM>*const& ptr) {
