@@ -83,14 +83,14 @@ static double V_func_he(const coordT& r)
 static double rho_func_he(const coordT& rr)
 {
   const double x=rr[0], y=rr[1], z=rr[2];
-//  double e1 = 100.0;
-//  double coeff = pow(e1/PI, 1.5);
-//  return -1.0 * coeff * exp(-e1 * (x*x + y*y + z*z));
-  double c = 0.1;
-  double r = sqrt(x*x + y*y + z*z);
-  r = r / c;
-  const double RPITO1P5 = 0.1795871221251665617; // 1.0/Pi^1.5
-  return 2.0 * ((-3.0/2.0+(1.0/3.0)*r*r)*exp(-r*r)+(-32.0+(256.0/3.0)*r*r)*exp(-4.0*r*r))*RPITO1P5/c/c/c;
+  double e1 = 50.0;
+  double coeff = pow(e1/PI, 1.5);
+  return -2.0 * coeff * exp(-e1 * (x*x + y*y + z*z));
+//  double c = 0.1;
+//  double r = sqrt(x*x + y*y + z*z);
+//  r = r / c;
+//  const double RPITO1P5 = 0.1795871221251665617; // 1.0/Pi^1.5
+//  return 2.0 * ((-3.0/2.0+(1.0/3.0)*r*r)*exp(-r*r)+(-32.0+(256.0/3.0)*r*r)*exp(-4.0*r*r))*RPITO1P5/c/c/c;
 }
 //*****************************************************************************
 
@@ -114,8 +114,8 @@ void test_hf_he(World& world)
   double thresh = 1e-6;
   FunctionDefaults<3>::set_k(funck);
   FunctionDefaults<3>::set_thresh(thresh);
-  FunctionDefaults<3>::set_refine(true);
   FunctionDefaults<3>::set_cubic_cell(-bsize, bsize);
+  FunctionDefaults<3>::set_autorefine(false);
 
   // Nuclear potential (He atom)
   const coordT origin(0.0);
@@ -156,10 +156,10 @@ void test_hf_he(World& world)
 
   // Create DFT object
   if (world.rank() == 0) cout << "Creating DFT object ..." << endl;
-  DFT<double,3> dftcalc(world, rhon, phis, eigs, thresh, true);
+  DFT<double,3> dftcalc(world, rhon, phis, eigs, thresh, false);
   if (world.rank() == 0) cout << "Running DFT calculation ..." << endl;
 //  dftcalc.print_matrix_elements(psi, psi);
-  dftcalc.solve(13);
+  dftcalc.solve(35);
 //  printfunc(world, dftcalc.get_phi(0), 100);
 //  HartreeFock hf(world, Vnuc, phis, eigs, true, true, thresh);
 //  hf.hartree_fock(10);

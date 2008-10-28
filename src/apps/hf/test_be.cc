@@ -76,6 +76,21 @@ static double V_func_be(const coordT& r)
 //*****************************************************************************
 
 //*****************************************************************************
+static double rho_func_be(const coordT& rr)
+{
+  const double x=rr[0], y=rr[1], z=rr[2];
+//  double e1 = 20.0;
+//  double coeff = pow(e1/PI, 1.5);
+//  return -4.0 * coeff * exp(-e1 * (x*x + y*y + z*z));
+  double c = 0.1;
+  double r = sqrt(x*x + y*y + z*z);
+  r = r / c;
+  const double RPITO1P5 = 0.1795871221251665617; // 1.0/Pi^1.5
+  return 4.0 * ((-3.0/2.0+(1.0/3.0)*r*r)*exp(-r*r)+(-32.0+(256.0/3.0)*r*r)*exp(-4.0*r*r))*RPITO1P5/c/c/c;
+}
+//*****************************************************************************
+
+//*****************************************************************************
 void test_hf_be(World& world)
 {
   //if (world.rank() == 0) cout << "Running test application HartreeFock ..." << endl;
@@ -83,27 +98,45 @@ void test_hf_be(World& world)
   typedef Vector<double,3> coordT;
   typedef SharedPtr< FunctionFunctorInterface<double,3> > functorT;
 
-  // Dimensions of the bounding box
-//  double bsize = 40.0;
-//  for (int i=0; i<3; i++)
-//  {
-//    FunctionDefaults<3>::cell(i,0) = -bsize;
-//    FunctionDefaults<3>::cell(i,1) = bsize;
-//  }
   // Function defaults
+  double bsize = 42.4;
   int funck = 6;
   double thresh = 1e-4;
   FunctionDefaults<3>::set_k(funck);
   FunctionDefaults<3>::set_thresh(thresh);
-  FunctionDefaults<3>::set_refine(true);
-  FunctionDefaults<3>::set_initial_level(2);
-  FunctionDefaults<3>::set_truncate_mode(1);
-  FunctionDefaults<3>::set_cubic_cell(-40.0, 40.0);
+  FunctionDefaults<3>::set_autorefine(false);
+  FunctionDefaults<3>::set_cubic_cell(-bsize, bsize);
 
   // Nuclear potential (Be)
   const coordT origin(0.0);
-  if (world.rank() == 0) madness::print("Creating Function object for nuclear potential ...");
-  Function<double,3> Vnuc = FunctionFactory<double,3>(world).f(V_func_be).thresh(thresh);
+  if (world.rank() == 0) madness::print("Creating Function object for nuclear charge density  ...");
+  Function<double,3> rhon = FunctionFactory<double,3>(world).f(rho_func_be).thresh(thresh).initial_level(4);
+  Function<double,3> vnuc = FunctionFactory<double,3>(world).f(V_func_be).thresh(thresh);
+
+  double rhontrace = rhon.trace();
+  if (world.rank() == 0)
+    printf("trace of rhon = %.8f\n\n", rhontrace);
+
+  if (world.rank() == 0)
+    cout << "Operating on nuclear charge density ..." << endl;
+  SeparatedConvolution<double, 3> op = CoulombOperator<double, 3> (world,
+    FunctionDefaults<3>::get_k(), 1e-8, thresh);
+  Function<double, 3> V_from_rho_nuc = apply(op, rhon);
+  if (world.rank() == 0)  printf("\n");
+  double L = 2.0 * bsize;
+  double bstep = L / 100.0;
+  vnuc.reconstruct();
+  V_from_rho_nuc.reconstruct();
+  for (int i = 0; i < 101; i++)
+  {
+    coordT p(-L / 2 + i * bstep);
+    double error = fabs(vnuc(p) - V_from_rho_nuc(p));
+    if (world.rank() == 0)
+      printf("%.2f\t\t%.8f\t%.8f\t%.8f\t%.8f\n", p[0], vnuc(p), V_from_rho_nuc(p),
+          error, error / vnuc(p));
+  }
+  if (world.rank() == 0) printf("\n");
+
 
   // Guess for the wavefunctions
   if (world.rank() == 0) madness::print("Creating wavefunction's ...");
@@ -111,33 +144,24 @@ void test_hf_be(World& world)
   psi1.scale(1.0/psi1.norm2());
   Function<double,3> psi2 = FunctionFactory<double,3>(world).f(psi_func_be2);
   psi2.scale(1.0/psi2.norm2());
+
   // Create list of wavefunctions
   std::vector<Function<double,3> > phis;
   phis.push_back(psi1);
   phis.push_back(psi2);
+
   // Creat list of eigenvalues
   std::vector<double> eigs;
   eigs.push_back(-5.0);
   eigs.push_back(-0.5);
-  // Create HartreeFock object
+
+  // Create DFT object
   if (world.rank() == 0) madness::print("Creating DFT object...");
   //HartreeFock hf(world, Vnuc, phis, eigs, true, true, thresh);
-  std::vector< Vector<double,3> > kpoints(1);
-  Vector<double,3> gammapt;
-  gammapt[0] = 0.0; gammapt[1] = 0.0; gammapt[2] = 0.0;
-  kpoints[0] = gammapt;
-  DFT<double,3> dftcalc(world, Vnuc, phis, eigs, thresh, false);
+  DFT<double,3> dftcalc(world, rhon, phis, eigs, thresh, false);
   if (world.rank() == 0) madness::print("Running DFT object...");
   dftcalc.solve(51);
-  //hf.hartree_fock(20);
-//  double ke = 2.0 * hf.calculate_tot_ke_sp();
-//  double pe = 2.0 * hf.calculate_tot_pe_sp();
-//  double ce = hf.calculate_tot_coulomb_energy();
-//  double ee = hf.calculate_tot_exchange_energy();
-//  printf("Kinetic energy:\t\t\t %.8f\n", ke);
-//  printf("Potential energy:\t\t %.8f\n", pe);
-//  printf("Two-electron energy:\t\t %.8f\n", 2.0*ce - ee);
-//  printf("Total energy:\t\t\t %.8f\n", ke + pe + 2.0*ce - ee);
+
 }
 //*****************************************************************************
 

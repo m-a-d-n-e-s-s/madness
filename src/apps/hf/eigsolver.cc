@@ -49,8 +49,11 @@ namespace madness
   : _phis(phis), _eigs(eigs), _ops(ops), _kpoints(kpoints), _rhon(rhon),
     _world(world), _thresh(thresh)
   {
-    _rho = EigSolver::compute_rho(phis, world);
     _periodic = true;
+    // fill the occupation numbers
+    int size = eigs.size();
+    for (int i = 0; i < size; i++) _occs.push_back(2.0);
+    _rho = EigSolver::compute_rho(phis, _occs, world);
   }
   //***************************************************************************
 
@@ -66,8 +69,11 @@ namespace madness
       kvecT gammap(0.0);
       _kpoints.push_back(gammap);
     }
-    _rho = EigSolver::compute_rho(phis, world);
     _periodic = periodic;
+    // fill the occupation numbers
+    int size = eigs.size();
+    for (int i = 0; i < size; i++)  _occs.push_back(2.0);
+    _rho = EigSolver::compute_rho(phis, _occs, world);
   }
   //***************************************************************************
 
@@ -78,8 +84,11 @@ namespace madness
   : _phis(phis), _eigs(eigs), _ops(ops), _world(world), _thresh(thresh)
   {
     _rhon = FunctionFactory<double,NDIM>(const_cast<World&>(world));
-    _rho = EigSolver::compute_rho(phis, world);
     _periodic = false;
+    // fill the occupation numbers
+    int size = eigs.size();
+    for (int i = 0; i < size; i++) _occs.push_back(2.0);
+    _rho = EigSolver::compute_rho(phis, _occs, world);
   }
   //***************************************************************************
 
@@ -105,19 +114,18 @@ namespace madness
   //***************************************************************************
   template <typename T, int NDIM>
   Function<T, NDIM> EigSolver<T,NDIM>::compute_rho(typename std::vector<funcT> phis,
-      const World& world)
+      std::vector<double> occs, const World& world)
   {
     // Electron density
     funcT rho = FunctionFactory<double,NDIM>(const_cast<World&>(world));
     // Loop over all wavefunctions to compute density
-    for (typename std::vector<funcT>::const_iterator pj = phis.begin();
-      pj != phis.end(); ++pj)
+    for (int j = 0; j < phis.size(); j++)
     {
       // Get phi(j) from iterator
-      const funcT& phij = (*pj);
+      const funcT& phij = phis[j];
       // Compute the j-th density
       funcT prod = square(phij);
-      rho += prod;
+      rho += occs[j]*prod;
     }
     rho.truncate();
     return rho;
@@ -349,7 +357,7 @@ namespace madness
       }
       // Update rho
 //      if (_world.rank() == 0) printf("Computing new density for it == #%d\n\n", it);
-      _rho = EigSolver::compute_rho(_phis, _world);
+      _rho = EigSolver::compute_rho(_phis, _occs, _world);
       // Trace of rho
       double rhotrace = _rho.trace();
       printf("The trace of rho is %.8f\n\n", rhotrace);
@@ -469,7 +477,7 @@ namespace madness
       }
       // Update rho
       if (_world.rank() == 0) printf("Computing new density for it == #%d\n\n", it);
-      _rho = EigSolver::compute_rho(_phis, _world);
+      _rho = EigSolver::compute_rho(_phis, _occs, _world);
       // Output to observables
       for (typename std::vector<IEigSolverObserver<T,NDIM>*>::iterator itr = _obs.begin(); itr
         != _obs.end(); ++itr)

@@ -585,9 +585,7 @@ void wst_munge_rho(int npoint, double *rho) {
   template <typename T, int NDIM>
   void DFTCoulombOp<T,NDIM>::prepare_op(Function<double,NDIM> rho)
   {
-    // If not spin-polarized, multiply by 2.0
-    double factor = (_spinpol) ? 1.0 : 2.0;
-    _Vc = apply(*_cop, factor * rho);
+    _Vc = apply(*_cop, rho);
   }
   //***************************************************************************
 
@@ -595,9 +593,7 @@ void wst_munge_rho(int npoint, double *rho) {
   template <typename T, int NDIM>
   void DFTCoulombPeriodicOp<T,NDIM>::prepare_op(Function<double,NDIM> rho)
   {
-    // If not spin-polarized, multiply by 2.0
-    double factor = (_spinpol) ? 1.0 : 2.0;
-    _Vc = apply(*_cop, (factor * rho) + _rhon);
+    _Vc = apply(*_cop, rho + _rhon);
 ////    _Vc.reconstruct();
 ////    rho.reconstruct();
 ////    _rhon.reconstruct();
@@ -667,7 +663,7 @@ void wst_munge_rho(int npoint, double *rho) {
   template <typename T, int NDIM>
   Function<T,NDIM> XCFunctionalLDA<T,NDIM>::op_r(const funcT& rho, const funcT& psi)
   {
-    funcT V_rho = copy(rho);
+    funcT V_rho = 0.5 * copy(rho);
     V_rho.reconstruct();
     V_rho.unaryop(&dft_xc_lda_V<NDIM>);
     funcT rfunc = V_rho * psi;
@@ -882,7 +878,6 @@ void dft_xc_lda_ene(const Key<NDIM>& key, Tensor<double>& t)
 //    // DEBUG ******************************************************************
 
     double tot_pe = inner(Vnuc, rho);
-    if (!spinpol) tot_pe *= 2.0;
     delete op;
     return tot_pe;
   }
@@ -910,7 +905,6 @@ void dft_xc_lda_ene(const Key<NDIM>& key, Tensor<double>& t)
     funcT Vc = apply(*op, rho);
 
     double tot_ce = Vc.inner(rho);
-    if (!spinpol) tot_ce *= 2.0;
     delete op;
     return tot_ce;
   }
@@ -920,7 +914,7 @@ void dft_xc_lda_ene(const Key<NDIM>& key, Tensor<double>& t)
   template <typename T, int NDIM>
   double DFT<T,NDIM>::calculate_tot_xc_energy(const Function<double, NDIM>& rho)
   {
-    funcT enefunc = copy(rho);
+    funcT enefunc = 0.5 * copy(rho);
     enefunc.reconstruct();
     enefunc.unaryop(&dft_xc_lda_ene<NDIM>);
     return enefunc.trace();

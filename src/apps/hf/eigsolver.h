@@ -261,7 +261,8 @@ public:
 
   //*************************************************************************
   /// Computes the electronic density
-  static funcT compute_rho(std::vector<funcT> phis, const World& world);
+  static funcT compute_rho(std::vector<funcT> phis, std::vector<double> occs,
+      const World& world);
   //*************************************************************************
 
 private:
@@ -315,6 +316,11 @@ private:
   //*************************************************************************
   // List of the ops
   std::vector<poperatorT> _bops;
+  //*************************************************************************
+
+  //*************************************************************************
+  // List of the occupation numbers
+  std::vector<double> _occs;
   //*************************************************************************
 
 };
