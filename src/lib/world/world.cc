@@ -517,7 +517,7 @@ public:
 };
 
 Void pounder(WorldContainer<int,Mary>* m, int ind) {
-    for (int i=0; i<100000; i++)
+    for (int i=0; i<1000; i++)
         m->send(ind, &Mary::inc);
     return None;
 }
@@ -559,6 +559,7 @@ void test10(World& world) {
         print("mary",it->first,it->second.get());
         MADNESS_ASSERT(long(it->second.get()) == nproc*(3*nproc-1)/2);
     }
+    world.gop.fence();
 
     // Test that item methods are executed atomically by having 
     // everyone pound on one item
@@ -573,12 +574,11 @@ void test10(World& world) {
     world.taskq.add(pounder, &m, ind);
     world.taskq.add(pounder, &m, ind);
     world.taskq.add(pounder, &m, ind);
-    world.taskq.add(pounder, &m, ind);
-    world.taskq.add(pounder, &m, ind);
-    world.taskq.add(pounder, &m, ind);
     world.gop.fence();
     if (world.rank() == 0) 
-        MADNESS_ASSERT(long(m[ind].get()) == nproc * 100000 * 10);
+        MADNESS_ASSERT(long(m[ind].get()) == nproc * 1000 * 7);
+
+    world.gop.fence();
 
     Future<double>  galahad = m.task(ProcessID(0),&Mary::galahad,string("1"),me,3.14);
     world.gop.fence();
@@ -604,6 +604,8 @@ void test10(World& world) {
         MADNESS_ASSERT(b[i].probe());
         print("results",i,results[i].get(),b[i].get());
     };
+
+    world.gop.fence();
 
     if (me == 0) print("test10 (messaging to world container items) OK");
 }
@@ -900,7 +902,7 @@ int main(int argc, char** argv) {
     // START UP MUST BE IN THIS ORDER!!!!
 
     bool bind[3] = {true, true, true};
-    int cpulo[3] = {0, 0, 1};
+    int cpulo[3] = {0, 1, 2};
     ThreadBase::set_affinity_pattern(bind, cpulo); // Decide how to locate threads before doing anything
     ThreadBase::set_affinity(0);         // The main thread is logical thread 0
 

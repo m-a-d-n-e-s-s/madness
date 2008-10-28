@@ -25,7 +25,7 @@ namespace madness {
 
         /// Yield for specified number of microseconds
         void yield(int us) {
-            //usleep(us);
+            usleep(us);
         }
         
     public:
@@ -724,7 +724,7 @@ namespace madness {
                 if (i<2 && bind[i]) cpuhi[i] = cpulo[i];
                 else cpuhi[i] = ncpu-1;
 
-                std::cout << "PATTERN " << i << " " << bind[i] << " " << cpulo[i] << " " << cpuhi[i] << std::endl;
+                //std::cout << "PATTERN " << i << " " << bind[i] << " " << cpulo[i] << " " << cpuhi[i] << std::endl;
             }
         }
 
@@ -761,7 +761,7 @@ namespace madness {
                 }
             }
 
-            std::cout << "BINDING THREAD: id " << logical_id << " ind " << ind << " lo " << lo << " hi " << hi << " ncpu " << ncpu << std::endl;
+            //std::cout << "BINDING THREAD: id " << logical_id << " ind " << ind << " lo " << lo << " hi " << hi << " ncpu " << ncpu << std::endl;
             
             cpu_set_t mask;
             CPU_ZERO(&mask);

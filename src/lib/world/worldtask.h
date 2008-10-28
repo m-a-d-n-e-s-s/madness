@@ -629,7 +629,7 @@ namespace madness {
         /// For work loads in which the number runnable tasks is often less than the
         /// number of threads it is beneficial to spin for longer rather than wait
         /// in the kernel.
-        void fence(int nspin=1000000000) {
+        void fence(int nspin=1000) {
             // Spin for a while and if not successful block in the kernel
             MutexWaiter waiter;
             do {
