@@ -8,6 +8,7 @@
 #include <iostream>
 #include <pthread.h>
 #include <cstring>
+#include <cstdio>
 #include <unistd.h>
 #include <utility>
 #include <vector>
@@ -728,10 +729,16 @@ namespace madness {
         }
 
         static void set_affinity(int logical_id, int ind=-1) {
-            if (logical_id < 0 || logical_id > 2) throw "ThreadBase: set_affinity: logical_id bad?";
+            if (logical_id < 0 || logical_id > 2) {
+                std::cout << "ThreadBase: set_affinity: logical_id bad?" << std::endl;
+                return;
+            }
                 
             int ncpu = sysconf(_SC_NPROCESSORS_CONF);
-            if (ncpu <= 0) throw "ThreadBase: set_affinity_pattern: sysconf(_SC_NPROCESSORS_CONF)";
+            if (ncpu <= 0) {
+                std::cout << "ThreadBase: set_affinity_pattern: sysconf(_SC_NPROCESSORS_CONF)" << std::endl;
+                return;
+            }
 
             // If binding the main or rmi threads the cpu id is a specific cpu.
             //
@@ -743,10 +750,15 @@ namespace madness {
             int lo=cpulo[logical_id], hi=cpuhi[logical_id];
 
             if (logical_id == 2) {
-                if (ind < 0) throw "ThreadBase: set_affinity: pool thread index bad?";
-                
-                int nnn = hi-lo+1;
-                lo += (ind % nnn);
+                if (ind < 0) {
+                    std::cout << "ThreadBase: set_affinity: pool thread index bad?" << std::endl;
+                    return;
+                }
+                if (bind[2]) {
+                    int nnn = hi-lo+1;
+                    lo += (ind % nnn);
+                    hi = lo;
+                }
             }
 
             std::cout << "BINDING THREAD: id " << logical_id << " ind " << ind << " lo " << lo << " hi " << hi << " ncpu " << ncpu << std::endl;
@@ -754,8 +766,11 @@ namespace madness {
             cpu_set_t mask;
             CPU_ZERO(&mask);
             for (int i=lo; i<=hi; i++) CPU_SET(i,&mask);
-            if(sched_setaffinity( 0, sizeof(mask), &mask ) == -1 )
-                throw "ThreadBase: set_affinity: Could not set cpu Affinity";
+            if(sched_setaffinity( 0, sizeof(mask), &mask ) == -1 ) {
+                perror("system error message");
+                std::cout << "ThreadBase: set_affinity: Could not set cpu Affinity" << std::endl;
+
+            }
         }
     };
     
