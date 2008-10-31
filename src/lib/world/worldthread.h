@@ -25,7 +25,7 @@ namespace madness {
 
         /// Yield for specified number of microseconds
         void yield(int us) {
-            usleep(us);
+            //usleep(us);
         }
         
     public:
@@ -354,7 +354,75 @@ namespace madness {
   
 #endif
 
+    /// Scalable and fair condition variable (spins on local value)
+    class ConditionVariable : Mutex {
+    public:
+        static const int MAX_NTHREAD = 64;
+        mutable volatile int nsig; // No. of outstanding signals
+        mutable volatile int n;    // No. of blocking threads
+        mutable volatile int front;
+        mutable volatile int back;
+        mutable volatile bool* volatile q[MAX_NTHREAD]; // Circular buffer of flags
+
+    public:
+        ConditionVariable() : nsig(0), n(0), front(0), back(0) {}
+
+        void unlock() const {
+            Mutex::unlock();
+        }
+
+        void lock() const {
+            Mutex::lock();
+        }
+
+        /// You should have acquired the mutex before waiting
+        void wait() {
+            if (nsig > 0) { // Outstanding signal
+                nsig--;
+            }
+            else if (nsig < 0) {
+                throw "ConditionVariable: wait: invalid state";
+            }
+            else {
+                do {
+                    // We put a pointer to a thread-local variable at the
+                    // end of the queue and wait for that value to be set,
+                    // thus generate no memory traffic while waiting.
+                    n++;
+                    back++;
+                    if (back >= MAX_NTHREAD) back = 0;
+                    volatile bool myturn = false;
+                    q[back] = &myturn;
+                    unlock(); // Release lock before blocking
+                    while (!myturn);
+                    lock();
+                } while (nsig == 0);
+            }
+        }
+
+        /// You should have acquired the mutex before signalling
+        void signal() {
+            nsig++;
+            if (n > 0) { // Wake a thread up
+                front++;
+                if (front >= MAX_NTHREAD) front = 0;
+                *q[front] = true;
+            }
+            else if (n == 0) {
+                unlock();
+            }
+            else {
+                throw "ConditionVariable: signal: invalid state";
+            }
+        }
+
+        virtual ~ConditionVariable() {}
+    };
+
+
     /// A scalable and fair mutex (not recursive)
+
+    /// Needs rewriting to use the CV above
     class MutexFair : private Mutex {
     private:
         static const int MAX_NTHREAD = 64;
@@ -476,13 +544,13 @@ namespace madness {
 
     /// Use this when you need to block without consuming cycles.
     /// Scheduling granularity is at the level of kernel ticks.
-    class ConditionVariable : NO_DEFAULTS {
+    class PthreadConditionVariable : NO_DEFAULTS {
     private:
         pthread_cond_t cv;
         pthread_mutex_t mutex;
 
     public:
-        ConditionVariable() {
+        PthreadConditionVariable() {
             pthread_cond_init(&cv, NULL);
             pthread_mutex_init(&mutex, 0);
         }            
@@ -506,13 +574,12 @@ namespace madness {
             if (pthread_cond_signal(&cv)) throw "ConditionalVariable: signalling failed";
         }
 
-        virtual ~ConditionVariable() {
+        virtual ~PthreadConditionVariable() {
             pthread_mutex_destroy(&mutex);
             pthread_cond_destroy(&cv);
         }
 
     };
-
 
     /// A thread safe, fast but simple doubled-ended queue.  You can push or pop at either end ... that's it.
 
@@ -524,7 +591,7 @@ namespace madness {
     /// Was wrapping a vector but making it thread safe and resizable
     /// was too painful.
     template <typename T>
-    class DQueue : private MutexFair {
+    class DQueue : private ConditionVariable {
         volatile size_t sz;              ///< Current capacity
         volatile T* volatile buf;        ///< Actual buffer
         volatile int _front;  ///< Index of element at front of buffer
@@ -582,7 +649,7 @@ namespace madness {
 
         /// Insert value at front of queue
         void push_front(const T& value) {
-            madness::ScopedMutex<MutexFair> obolus(this);
+            madness::ScopedMutex<ConditionVariable> obolus(this);
             //sanity_check();
             if (n == sz) grow();
             _front--;
@@ -593,7 +660,7 @@ namespace madness {
 
         /// Insert element at back of queue
         void push_back(const T& value) {
-            madness::ScopedMutex<MutexFair> obolus(this);
+            madness::ScopedMutex<ConditionVariable> obolus(this);
             //sanity_check();
             if (n == sz) grow();
             _back++;
@@ -604,7 +671,7 @@ namespace madness {
 
         /// Pop value off the front of queue
         std::pair<T,bool> pop_front() {
-            madness::ScopedMutex<MutexFair> obolus(this);
+            madness::ScopedMutex<ConditionVariable> obolus(this);
             bool status=true; 
             T result = T();
             if (n) {
@@ -623,7 +690,7 @@ namespace madness {
 
         /// Pop value off the back of queue
         std::pair<T,bool> pop_back() {
-            madness::ScopedMutex<MutexFair> obolus(this);
+            madness::ScopedMutex<ConditionVariable> obolus(this);
             bool status=true; 
             T result;
             if (n) {
@@ -650,6 +717,7 @@ namespace madness {
 
 
     class ThreadPool;           // Forward decl.
+    class WorldTaskQueue;
 
     /// Simplified thread wrapper to hide pthread complexity
 
@@ -761,7 +829,7 @@ namespace madness {
                 }
             }
 
-            //std::cout << "BINDING THREAD: id " << logical_id << " ind " << ind << " lo " << lo << " hi " << hi << " ncpu " << ncpu << std::endl;
+            std::cout << "BINDING THREAD: id " << logical_id << " ind " << ind << " lo " << lo << " hi " << hi << " ncpu " << ncpu << std::endl;
             
             cpu_set_t mask;
             CPU_ZERO(&mask);
@@ -873,6 +941,7 @@ namespace madness {
     /// YOU MUST INSTANTIATE THE POOL WHILE RUNNING WITH JUST ONE THREAD
     class ThreadPool {
     private:
+        friend class WorldTaskQueue;
         Thread *threads;              ///< Array of threads
         DQueue<PoolTaskInterface*> queue; ///< Queue of tasks
         int nthreads;		  ///< No. of threads
@@ -919,14 +988,21 @@ namespace madness {
             return nthread;
         }
 
+        /// Attempts to run next text ... returns true if one was run
+        bool run_next_task() {
+            std::pair<PoolTaskInterface*,bool> t = queue.pop_front();
+            if (t.second) {
+                t.first->run();          // What we are here to do
+                delete t.first;
+            }
+            return t.second;
+        }
+
         void thread_main(Thread* thread) {
             thread->set_affinity(2, thread->get_pool_thread_index());
             MutexWaiter waiter;
             while (1) {
-                std::pair<PoolTaskInterface*,bool> t = queue.pop_front();
-                if (t.second) {
-                    t.first->run();          // What we are here to do
-                    delete t.first;
+                if (run_next_task()) {
                     waiter.reset();
                 }
                 else {

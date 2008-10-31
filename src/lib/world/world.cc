@@ -417,7 +417,7 @@ void test9(World& world) {
     print("Time to add",ntask,"null, local tasks",used,"time/task",used/ntask);
     
     used = -cpu_time();
-    world.taskq.fence(100000000);
+    world.taskq.fence();
     used += cpu_time();
     print("Time to run",ntask,"null, local tasks",used,"time/task",used/ntask);
 
@@ -429,7 +429,7 @@ void test9(World& world) {
     
     used = -cpu_time();
     print("AAAAAAAAAAAAAAAA0"); std::cout.flush();
-    world.taskq.fence(100000000);
+    world.taskq.fence();
     print("AAAAAAAAAAAAAAAA1"); std::cout.flush();
     used += cpu_time();
     print("Time to run",ntask,"value, local tasks",used,"time/task",used/ntask);
@@ -448,7 +448,7 @@ void test9(World& world) {
     input.set(0);
     used = -cpu_time();
     print("AAAAAAAAAAAAAAAA4"); std::cout.flush();
-    world.taskq.fence(1000000000);
+    world.taskq.fence();
     print("AAAAAAAAAAAAAAAA5"); std::cout.flush();
     used += cpu_time();
     print("Time to  run",ntask,"chain of tasks",used,"time/task",used/ntask);
@@ -909,7 +909,6 @@ int main(int argc, char** argv) {
     MPI::Init(argc, argv);      // MPI starts the universe
     ThreadPool::begin();        // Must have thread pool before any AM arrives
     RMI::begin();               // Must have RMI while still running single threaded
-    MPI::COMM_WORLD.Barrier();  // Make sure everyone is up and running
 
 #ifdef WORLD_TAU_TRACE    
     TAU_PROFILE_SET_NODE(MPI::COMM_WORLD.Get_rank());

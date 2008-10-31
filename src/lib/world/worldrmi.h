@@ -86,8 +86,13 @@ namespace madness {
         typedef SafeMPI::Request Request;
 
     private:
+#ifdef HAVE_CRAYXT
+        static const int NRECV=128;
+        static const int MAXQ=4*NRECV;
+#else
         static const int NRECV=32;
         static const int MAXQ=4*NRECV;
+#endif        
 
         SafeMPI::Intracomm comm;
         const Tag tag;              // The MPI message type 

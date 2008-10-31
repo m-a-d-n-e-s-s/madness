@@ -419,7 +419,7 @@ namespace madness {
         //    if we are doing a queued/pending message --> ready
         //    else this is a new message --> not ready
         static bool is_ready(const uniqueidT& id, Derived* obj, const AmArg& arg, am_handlerT ptr) {
-            WorldObject* p;
+            WorldObject* p=0;
             if (obj) {
                 p = static_cast<WorldObject*>(obj);
                 if (p->ready || arg.is_pending()) return true;

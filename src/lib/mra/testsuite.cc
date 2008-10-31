@@ -312,32 +312,32 @@ void test_math(World& world) {
     double errsq = fsq.err(*functsq);
     CHECK(errsq, 1e-10, "err in fsq");
 
-    // Test same with autorefine
-    f.set_autorefine(true); world.gop.fence();
-    fsq = square(f);
-    errsq = fsq.err(*functsq);
-    CHECK(errsq, 1e-10, "err in fsq with autoref");
+//     // Test same with autorefine
+//     f.set_autorefine(true); world.gop.fence();
+//     fsq = square(f);
+//     errsq = fsq.err(*functsq);
+//     CHECK(errsq, 1e-10, "err in fsq with autoref");
 
-    // Repeat after agressive truncating to see if autorefine really works
-    f.set_autorefine(false); world.gop.fence();
-    f.truncate(1e-5);
-    f.verify_tree();
-    err = f.err(*functor);
-    CHECK(err, 1e-5, "error in f after truncating");
+//     // Repeat after agressive truncating to see if autorefine really works
+//     f.set_autorefine(false); world.gop.fence();
+//     f.truncate(1e-5);
+//     f.verify_tree();
+//     err = f.err(*functor);
+//     CHECK(err, 1e-5, "error in f after truncating");
 
-    fsq = square(f);
-    errsq = fsq.err(*functsq);
-    CHECK(errsq, 1e-5, "error in fsq after truncating");
+//     fsq = square(f);
+//     errsq = fsq.err(*functsq);
+//     CHECK(errsq, 1e-5, "error in fsq after truncating");
 
-    f.set_autorefine(true); world.gop.fence();
-    fsq = square(f);
-    errsq = fsq.err(*functsq);
-    CHECK(errsq, 1e-5, "error in fsq truncate+autoref");
+//     f.set_autorefine(true); world.gop.fence();
+//     fsq = square(f);
+//     errsq = fsq.err(*functsq);
+//     CHECK(errsq, 1e-5, "error in fsq truncate+autoref");
 
-    // Finally inplace squaring
-    f.square();
-    double new_errsq = f.err(*functsq);
-    CHECK(new_errsq - errsq, 1e-14*errsq, "err in fsq trunc+auto+inplace");
+//     // Finally inplace squaring
+//     f.square();
+//     double new_errsq = f.err(*functsq);
+//     CHECK(new_errsq - errsq, 1e-14*errsq, "err in fsq trunc+auto+inplace");
 
     fsq.clear();
 
@@ -401,6 +401,8 @@ void test_math(World& world) {
 
     if (world.rank() == 0) print("\nTest multiplying random functions");
     init_genrand(314159);  // Ensure all processes have the same sequence (for exponents)
+
+    FunctionDefaults<NDIM>::set_autorefine(false);
     
     int nfunc = 100;
     if (NDIM >= 3) nfunc = 20;
@@ -1042,6 +1044,11 @@ void test_io(World& world) {
 #define TO_STRING2(s) #s
 
 int main(int argc, char**argv) {
+    bool bind[3] = {true, true, true};
+    int cpulo[3] = {0, 1, 2};
+    ThreadBase::set_affinity_pattern(bind, cpulo); // Decide how to locate threads before doing anything
+    ThreadBase::set_affinity(0);         // The main thread is logical thread 0
+
     MPI::Init(argc, argv);
     ThreadPool::begin();
     RMI::begin();

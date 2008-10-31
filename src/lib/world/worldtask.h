@@ -142,7 +142,6 @@ namespace madness {
         World& world;              ///< The communication context
         const ProcessID me;        ///< This process
         MADATOMIC_INT nregistered; ///< Counts pending tasks
-        ConditionVariable cv;      ///< Used to suspend main thread while fencing
 
         void notify() {
             MADATOMIC_INT_DEC(&nregistered);  
@@ -614,40 +613,15 @@ namespace madness {
             return result;
         }
 
-
-        class TaskFence : public TaskInterface {
-        public:
-            void run(World& world) {
-                WorldTaskQueue& q = world.taskq;
-                if (MADATOMIC_INT_GET(&q.nregistered) == 1) q.cv.signal();
-                else q.add(new TaskFence);
-            }
-        };
-
         /// Returns after all local tasks have completed AND am locally fenced
 
-        /// For work loads in which the number runnable tasks is often less than the
-        /// number of threads it is beneficial to spin for longer rather than wait
-        /// in the kernel.
-        void fence(int nspin=1000) {
-            // Spin for a while and if not successful block in the kernel
-            MutexWaiter waiter;
+        /// While waiting run tasks
+        void fence() {
             do {
+/*                 while (MADATOMIC_INT_GET(&nregistered))  */
+/*                     ThreadPool::instance()->run_next_task(); */
                 world.am.fence();
-                waiter.wait();
-            } while (MADATOMIC_INT_GET(&nregistered) && --nspin);
-            
-            if (nspin==0) {
-                do {
-                    if (MADATOMIC_INT_GET(&nregistered)) {
-                        cv.lock();
-                        add(new TaskFence);
-                        cv.wait();
-                        cv.unlock();
-                    }
-                    world.am.fence();
-                } while (MADATOMIC_INT_GET(&nregistered));
-            }
+            } while (MADATOMIC_INT_GET(&nregistered));
         }
     };
 

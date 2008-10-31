@@ -14,6 +14,12 @@ AC_DEFUN([ACX_CRAYXT], [
                         echo "Choosing MPICXX=CC for Cray-XT"
                         MPICXX=CC;
                 fi
+                echo "int main(){return 0;}" > dddd.cc
+                CC dddd.cc -lacml
+                if test $? = 0; then
+                        echo "AMD ACML library detected"
+                        LIBS="$LIBS -lacml"
+                fi
         fi
 ])
 
