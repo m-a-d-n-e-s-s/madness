@@ -375,43 +375,47 @@ namespace madness {
             Mutex::lock();
         }
 
-        /// You should have acquired the mutex before waiting
+        /// You should acquire the mutex before waiting
         void wait() {
-            if (nsig > 0) { // Outstanding signal
-                nsig--;
-            }
-            else if (nsig < 0) {
-                throw "ConditionVariable: wait: invalid state";
-            }
-            else {
+            if (nsig == 0) {
+                n++;
                 do {
                     // We put a pointer to a thread-local variable at the
                     // end of the queue and wait for that value to be set,
                     // thus generate no memory traffic while waiting.
-                    n++;
-                    back++;
-                    if (back >= MAX_NTHREAD) back = 0;
                     volatile bool myturn = false;
-                    q[back] = &myturn;
+                    int b = back;
+                    q[b] = &myturn;
+                    b++;
+                    if (b >= MAX_NTHREAD) back = 0;
+                    else back = b;
+
                     unlock(); // Release lock before blocking
                     while (!myturn);
                     lock();
+
                 } while (nsig == 0);
             }
+            else if (nsig < 0) {
+                throw "ConditionVariable: wait: invalid state";
+            }
+            nsig--;
         }
 
-        /// You should have acquired the mutex before signalling
+        /// You should acquire the mutex before signalling
         void signal() {
             nsig++;
-            if (n > 0) { // Wake a thread up
-                front++;
-                if (front >= MAX_NTHREAD) front = 0;
-                *q[front] = true;
+            int nn = n;
+            if (nn > 0) { // Wake a thread up
+                n = --nn;
+                int f = front;
+                *q[f] = true;
+                q[f] = 0; // To better detect stupidities
+                f++;
+                if (f >= MAX_NTHREAD) front = 0;
+                else front = f;
             }
-            else if (n == 0) {
-                unlock();
-            }
-            else {
+            else if (n < 0) {
                 throw "ConditionVariable: signal: invalid state";
             }
         }
@@ -656,6 +660,7 @@ namespace madness {
             if (_front < 0) _front = sz-1;
             buf[_front] = value;
             n++;
+            signal();
         }
 
         /// Insert element at back of queue
@@ -667,11 +672,13 @@ namespace madness {
             if (_back >= int(sz)) _back = 0;
             buf[_back] = value;
             n++;
+            signal();
         }
 
         /// Pop value off the front of queue
-        std::pair<T,bool> pop_front() {
+        std::pair<T,bool> pop_front(bool wait) {
             madness::ScopedMutex<ConditionVariable> obolus(this);
+            if (wait) ConditionVariable::wait();
             bool status=true; 
             T result = T();
             if (n) {
@@ -689,8 +696,9 @@ namespace madness {
 
 
         /// Pop value off the back of queue
-        std::pair<T,bool> pop_back() {
+        std::pair<T,bool> pop_back(bool wait=true) {
             madness::ScopedMutex<ConditionVariable> obolus(this);
+            if (wait) ConditionVariable::wait();
             bool status=true; 
             T result;
             if (n) {
@@ -988,9 +996,9 @@ namespace madness {
             return nthread;
         }
 
-        /// Attempts to run next text ... returns true if one was run
-        bool run_next_task() {
-            std::pair<PoolTaskInterface*,bool> t = queue.pop_front();
+        /// Run next task ... returns true if one was run ... blocks if wait is true
+        bool run_task(bool wait) {
+            std::pair<PoolTaskInterface*,bool> t = queue.pop_front(wait);
             if (t.second) {
                 t.first->run();          // What we are here to do
                 delete t.first;
@@ -1000,15 +1008,8 @@ namespace madness {
 
         void thread_main(Thread* thread) {
             thread->set_affinity(2, thread->get_pool_thread_index());
-            MutexWaiter waiter;
-            while (1) {
-                if (run_next_task()) {
-                    waiter.reset();
-                }
-                else {
-                    waiter.wait();
-                }
-            }
+            while (1) 
+                run_task(true);
         }
 
         /// Forwards thread to bound member function
@@ -1045,6 +1046,14 @@ namespace madness {
             for (iteratorT it=tasks.begin(); it!=tasks.end(); ++it) {
                 add(*it);
             }
+        }
+
+
+        /// An otherwise idle thread can all this to run a task
+
+        /// Returns true if one was run
+        static bool run_task() {
+            return instance()->run_task(false);
         }
 
         /// Returns number of threads in the pool

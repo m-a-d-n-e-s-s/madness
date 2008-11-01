@@ -618,8 +618,8 @@ namespace madness {
         /// While waiting run tasks
         void fence() {
             do {
-/*                 while (MADATOMIC_INT_GET(&nregistered))  */
-/*                     ThreadPool::instance()->run_next_task(); */
+                while (MADATOMIC_INT_GET(&nregistered)) 
+                    ThreadPool::run_task();
                 world.am.fence();
             } while (MADATOMIC_INT_GET(&nregistered));
         }

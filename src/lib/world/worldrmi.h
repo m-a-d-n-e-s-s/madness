@@ -150,7 +150,7 @@ namespace madness {
                 // cannot call Waitsome ... have to poll via Testsome
                 int narrived;
                 while (!(narrived = SafeMPI::Request::Testsome(NRECV, recv_req, ind, status))) {
-                    //usleep(100);
+                    usleep(100);
                     if (finished) return;
                 }
 
