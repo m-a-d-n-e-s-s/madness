@@ -1,9 +1,12 @@
 include $(top_srcdir)/config/MakeGlobal.am
 
-bin_PROGRAMS = world testatom testhashthreaded
+bin_PROGRAMS = world testatom testhashthreaded testdc
 lib_LIBRARIES = libMADworld.a
 
 testatom_SOURCES = testatom.cc threadpool.cc
+
+testdc_SOURCES = testdc.cc
+testdc_LDADD = libMADworld.a
 
 testhashthreaded_SOURCES = testhashthreaded.cc threadpool.cc
 testhashthreaded_LDADD = libMADworld.a

@@ -39,7 +39,6 @@
 
 #include <world/world.h>
 #include <misc/misc.h>
-#include <tensor/mtrand.h>
 #include <tensor/tensor.h>
 
 #define FUNCTION_INSTANTIATE_1

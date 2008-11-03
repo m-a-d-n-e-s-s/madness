@@ -84,6 +84,9 @@ namespace madness {
         /// Restores state of the generator
         void setstate(const RandomState &s);
 
+        /// Sets state of the generator from integer
+        void setstate(unsigned int seed);
+
         /// Test the generator
         static void test();
     };

@@ -37,15 +37,18 @@ namespace madness {
         
         
     Random::Random(unsigned int seed) : r(1279), s(861), beta(7.0), cur(0), u(new double [r]) {
-        // Constructor must be single threaded
-
         // If you switch r don't forget to change size in RandomState
 
         // a) not clear if beta != 1 is an improvement.
         // b) must ensure s >= r/2.
         // c) r=19937, s=10095 or r=1279, s=861 seem worse than 4423/3004 ?
         // Random(unsigned int seed = 5461) : r(4423), s(3004), beta(7.0), cur(0) {
-        
+
+        setstate(seed);
+    }
+
+    void Random::setstate(unsigned int seed) {
+        ScopedMutex<Mutex> safe(this);
         // Initialize startup generator
         if ((seed&1) == 0) seed += 1;
         simple_state = seed;

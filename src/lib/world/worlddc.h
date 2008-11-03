@@ -203,6 +203,12 @@ namespace madness {
         }
     };
 
+    template <class internal_iteratorT, class pairT>
+    std::ostream& operator<<(std::ostream& s, const WorldContainerIterator<internal_iteratorT, pairT>& it) {
+        s << "WCIterator(" << *it << ")";
+        return s;
+    }
+
     
     /// Implementation of distributed container to enable PIMPL
     template <typename keyT, 
@@ -258,9 +264,11 @@ namespace madness {
         Void find_handler(ProcessID requestor, const keyT& key, const RemoteReference< FutureImpl<iterator> >& ref) {
             internal_iteratorT r = local.find(key);
             if (r == local.end()) {
+                //print("find_handler: failure:", key);
                 send(requestor, &implT::find_failure_handler, ref);
             }
             else {
+                //print("find_handler: success:", key, r->first, r->second);
                 send(requestor, &implT::find_success_handler, ref, *r);
             }
             return None;
@@ -270,6 +278,7 @@ namespace madness {
         Void find_success_handler(const RemoteReference< FutureImpl<iterator> >& ref, const pairT& datum) {
             FutureImpl<iterator>* f = ref.get();
             f->set(iterator(datum));
+            //print("find_success_handler: success:", datum.first, datum.second, f->get()->first, f->get()->second);
             ref.dec(); // Matching inc() in find() where ref was made
             return None;
         }
@@ -278,6 +287,7 @@ namespace madness {
         Void find_failure_handler(const RemoteReference< FutureImpl<iterator> >& ref) {
             FutureImpl<iterator>* f = ref.get();
             f->set(end());
+            //print("find_failure_handler");
             ref.dec(); // Matching inc() in find() where ref was made
             return None;
         }
@@ -408,7 +418,7 @@ namespace madness {
                 return Future<iterator>(iterator(local.find(key)));
             }
             else {
-                Future<iterator> result;
+                Future<iterator> result; 
                 send(dest, &implT::find_handler, me, key, result.remote_ref(this->world));
                 return result;
             }
@@ -1046,23 +1056,6 @@ namespace madness {
         }
 
 
-        /// Indexing is same as container[key].get()->second ... blocks until complete
-
-        /// Throws if key is not present
-        valueT& operator[](const keyT& key) {
-            iterator it = find(key).get();
-            if (it == end()) MADNESS_EXCEPTION("WorldContainer: operator[]: missing entry",0);
-            return it->second;
-        }
-        
-        /// Indexing is same as container[key].get()->second ... blocks until complete
-        const valueT& operator[](const keyT& key) const {
-            const_iterator it = find(key).get();
-            if (it == end()) MADNESS_EXCEPTION("WorldContainer: operator[]: missing entry",0);
-            return it->second;
-        }
-        
-        
         /// (de)Serialize --- *Local* data only to/from anything *except* Buffer*Archive and Parallel*Archive
 
         /// Advisable for *you* to fence before and after this to ensure consistency

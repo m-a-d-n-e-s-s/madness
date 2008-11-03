@@ -90,7 +90,7 @@ namespace madness {
         static const int NRECV=128;
         static const int MAXQ=4*NRECV;
 #else
-        static const int NRECV=32;
+        static const int NRECV=1;
         static const int MAXQ=4*NRECV;
 #endif        
 

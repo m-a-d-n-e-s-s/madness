@@ -150,7 +150,9 @@ namespace madness {
             , world(0)
             , remote_ref()
             , t()
-        {};
+        {
+            //print("FUTCON(a)",(void*) this);
+        };
         
         
         /// Local assigned value
@@ -162,6 +164,7 @@ namespace madness {
             , remote_ref()
             , t(t)
         {
+            //print("FUTCON(b)",(void*) this);
             set_assigned();
         };
         
@@ -174,7 +177,9 @@ namespace madness {
             , world(World::world_from_id(remote_ref.world_id()))
             , remote_ref(remote_ref)
             , t()
-        {};
+        {
+            //print("FUTCON(c)",(void*) this);
+        };
 
 
         /// Returns true if the value has been assigned
@@ -259,6 +264,7 @@ namespace madness {
 
         virtual ~FutureImpl() {
             ScopedMutex<Mutex> fred(this);
+            //print("FUTDEL",(void*) this);
             if (!assigned && world) {
                 print("Future: unassigned remote future being destroyed?");
                 //remote_ref.dec();

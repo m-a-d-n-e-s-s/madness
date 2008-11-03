@@ -14,7 +14,7 @@ test_Zmtxmq_SOURCES = test_Zmtxmq.cc
 test_Zmtxmq_LDADD = libMADtensor.a $(LIBWORLD)
 test_Zmtxmq_CPPFLAGS = $(AM_CPPFLAGS) -DTIME_DGEMM
 
-libMADtensor_a_SOURCES = tensor.cc tensoriter.cc basetensor.cc mtrand.cc mtxmq.cc aligned.cc alignedc.cc \
+libMADtensor_a_SOURCES = tensor.cc tensoriter.cc basetensor.cc mtxmq.cc aligned.cc alignedc.cc \
                          \
                         aligned.h     mxm.h     tensorexcept.h  tensoriter_spec.h  type_data.h \
                         basetensor.h  tensor.h        tensor_macros.h    vector_factory.h \

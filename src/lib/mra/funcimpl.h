@@ -41,7 +41,6 @@
 
 #include <world/world.h>
 #include <misc/misc.h>
-#include <tensor/mtrand.h>
 #include <tensor/tensor.h>
 #include <mra/key.h>
 #include <mra/funcdefaults.h>
@@ -484,7 +483,7 @@ namespace madness {
 
         template <typename Archive>
         void serialize(Archive& ar) {
-            ar & coeff() & bool(_has_children) & double(_norm_tree);
+            ar & coeff() & _has_children & double(_norm_tree);
         }
     };
 
@@ -679,7 +678,6 @@ namespace madness {
 
             coeffs.process_pending();
             this->process_pending();
-
             if (factory._fence && functor) world.gop.fence();
         }
 

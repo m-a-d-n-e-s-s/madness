@@ -576,7 +576,7 @@ void test10(World& world) {
     world.taskq.add(pounder, &m, ind);
     world.gop.fence();
     if (world.rank() == 0) 
-        MADNESS_ASSERT(long(m[ind].get()) == nproc * 1000 * 7);
+        MADNESS_ASSERT(long(m.find(ind).get()->second.get()) == nproc * 1000 * 7);
 
     world.gop.fence();
 
@@ -834,7 +834,7 @@ void test12(World& world) {
     for (int i=0; i<100; i++) {
         int key = me*100+i;
         MADNESS_ASSERT(c.probe(key));
-        MADNESS_ASSERT(c[key] == key);
+        MADNESS_ASSERT(c.find(key).get()->second == key);
     }
 
     world.gop.fence();
@@ -887,7 +887,7 @@ void test13(World& world) {
 
     for (int i=0; i<100; i++) {
         int key = me*100+i;
-        MADNESS_ASSERT(c[key] == key);
+        MADNESS_ASSERT(c.find(key).get()->second == key);
     }
 
     fin.close();

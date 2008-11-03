@@ -41,7 +41,6 @@
 
 #include <world/world.h>
 #include <misc/misc.h>
-#include <tensor/mtrand.h>
 #include <tensor/tensor.h>
 #include <misc/ran.h>
 #include <mra/key.h>

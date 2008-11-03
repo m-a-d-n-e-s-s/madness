@@ -136,8 +136,17 @@ namespace madness {
         
         /// Decrement the reference count, freeing pointer if count becomes zero
         void dec() {
-            //print("SharedPtr  dec: own ",own, "cntptr", count, "nref", use_count(),"ptr",p);
+            //if (own && count) print("SharedPtr  dec: own ",own, "cntptr", count, "nref", use_count(),"ptr",p);
             if (own && count && count->dec_and_test()) free();
+        }
+
+        /// Same as dec() but works on unowned pointers to avoid a race condition
+
+        /// Race was mark_as_owned(); dec(); mark_as_unowned();
+        void dec_not_owned() {
+            //if (count) print("SharedPtr  dec_not_owned: own ",own, "cntptr", count, "nref", use_count(),"ptr",p);
+            MADNESS_ASSERT(!own);
+            if (count && count->dec_and_test()) free();
         }
         
         void mark_as_unowned() {

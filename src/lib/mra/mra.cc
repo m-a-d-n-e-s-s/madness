@@ -403,6 +403,7 @@ namespace madness {
     template <typename T, int NDIM>
     Void FunctionImpl<T,NDIM>::project_refine_op(const keyT& key, bool do_refine) {
         PROFILE_MEMBER_FUNC(FunctionImpl);
+        madness::print("DOING ", key);
         if (do_refine) {
             // Make in r child scaling function coeffs at level n+1
             tensorT r(cdata.v2k);
@@ -422,6 +423,7 @@ namespace madness {
                     coeffs.replace(key,nodeT(s0,false));
                 }
                 else {
+                    madness::print("setting parenthood(a)",key);
                     coeffs.replace(key,nodeT(tensorT(),true)); // Insert empty node for parent
                     for (KeyChildIterator<NDIM> it(key); it; ++it) {
                         const keyT& child = it.key();
@@ -430,6 +432,7 @@ namespace madness {
                 }
             }
             else {
+                madness::print("setting parenthood(b)",key);
                 coeffs.replace(key,nodeT(tensorT(),true)); // Insert empty node for parent
                 for (KeyChildIterator<NDIM> it(key); it; ++it) {
                     const keyT& child = it.key();
@@ -593,7 +596,7 @@ namespace madness {
     template <typename T, int NDIM>
     Future<double> FunctionImpl<T,NDIM>::get_norm_tree_recursive(const keyT& key) const {
         if (coeffs.probe(key)) {
-            return Future<double>(coeffs[key].get_norm_tree());
+            return Future<double>(coeffs.find(key).get()->second.get_norm_tree());
         }
         MADNESS_ASSERT(key.level());
         keyT parent = key.parent();

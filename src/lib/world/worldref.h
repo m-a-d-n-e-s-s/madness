@@ -73,8 +73,6 @@ namespace madness {
         friend std::ostream& operator<< <T> (std::ostream& s, const RemoteReference<T>& ref);
 
     private:
-        static bool debug;  ///<
-
         mutable SharedPtr<T> ptr;  ///< Shared pointer (internally marked as not owned)
         mutable ProcessID rank;    ///< MPI rank of the owner
         mutable unsigned long id;  ///< Id of the world valid in all participating processes
@@ -82,7 +80,7 @@ namespace madness {
         void static dec_handler(const AmArg& arg) {
             RemoteReference r;
             arg & r;
-            if (debug) madness::print(arg.get_world()->rank(),"RemoteRef::dec_handler",arg.get_src(),(void *) r.get());
+            madness::print(arg.get_world()->rank(),"RemoteRef::dec_handler",arg.get_src(),(void *) r.get());
             r.dec();
         };
 
@@ -106,18 +104,6 @@ namespace madness {
         };
 
 
-        /// Set debug flag to new value and return old value
-        
-        /// Debugging applies to all instances of this class and
-        /// will cause method handlers/wrappers to print hopefully
-        /// useful stuff.
-        static bool set_debug(bool value) {
-            bool status = debug;
-            debug = value;
-            return status;
-        };
-
-
         /// Call this when you logically release the remote reference
 
         /// Can be called locally or remotely.
@@ -127,11 +113,9 @@ namespace madness {
         void dec() const {
             if (ptr) {
                 World* world = World::world_from_id(id);
-                if (debug) madness::print(world->mpi.rank(),"RemoteRef::dec", owner(),(void *) get());
+                //madness::print(world->mpi.rank(),"RemoteRef::dec", owner(),(void *) get());
                 if (rank == world->mpi.rank()) {
-                    ptr.mark_as_owned();  // Must be owned for dec to work as desired
-                    ptr.dec();
-                    ptr.mark_as_unowned();// Don't want destructor to actually work
+                    ptr.dec_not_owned();
                 }
                 else {
                     world->am.send(rank, dec_handler, new_am_arg(*this));
@@ -176,14 +160,11 @@ namespace madness {
     };
 
 #ifdef WORLD_INSTANTIATE_STATIC_TEMPLATES
-    template <typename T> bool madness::RemoteReference<T>::debug = false;
-
     template <typename T>
     std::ostream& operator<<(std::ostream& s, const RemoteReference<T>& ref) {
         s << "<remote: ptr=" << (void *) ref.ptr << ", rank=" << ref.rank << ", id=" << ref.id << ">";
         return s;
     };
-    
 #endif
 
 

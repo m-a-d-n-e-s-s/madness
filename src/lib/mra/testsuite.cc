@@ -133,6 +133,7 @@ RandomGaussian(const Tensor<double> cell, double expntmax=1e5) {
     double hi = log(expntmax);
     double expnt = exp(RandomValue<double>()*(hi-lo) + lo);
     T coeff = pow(2.0*expnt/PI,0.25*NDIM);            
+    print("MYGAUSSIAN", expnt, origin);
     return new Gaussian<T,NDIM>(origin,expnt,coeff);
 }
 
@@ -176,6 +177,20 @@ double ttt, sss;
 
 template <typename T, int NDIM>
 void test_basic(World& world) {
+
+
+    print("size of bool", sizeof(bool));
+    unsigned char bbb[32768];
+    BufferOutputArchive bb(bbb,sizeof(bbb));
+    bb & FunctionNode<double,1>(Tensor<double>(),true) & true;
+    BufferInputArchive cc(bbb,sizeof(bbb));
+    print("BB",bb.size());
+    FunctionNode<double,1> frf;
+    bool dd=false;
+    cc & frf & dd;
+    print("THIS IS dd", dd);
+    print("THIS IS FRF",frf);
+
     bool ok = true;
     typedef Vector<double,NDIM> coordT;
     typedef SharedPtr< FunctionFunctorInterface<T,NDIM> > functorT;
@@ -400,7 +415,7 @@ void test_math(World& world) {
     CHECK(new_err,1e-13,"general op output");
 
     if (world.rank() == 0) print("\nTest multiplying random functions");
-    init_genrand(314159);  // Ensure all processes have the same sequence (for exponents)
+    default_random_generator.setstate(314159);  // Ensure all processes have the same sequence (for exponents)
 
     FunctionDefaults<NDIM>::set_autorefine(false);
     
@@ -412,12 +427,12 @@ void test_math(World& world) {
         T (*p)(T,T) = &product<T,T,T>;
         functorT f3(new BinaryOp<T,T,T,T(*)(T,T),NDIM>(f1,f2,p));
         Function<T,NDIM> a = FunctionFactory<T,NDIM>(world).functor(f1);
+        a.verify_tree();
         Function<T,NDIM> b = FunctionFactory<T,NDIM>(world).functor(f2);
+        b.verify_tree();
         //print("NORMS", a.norm2(), b.norm2());
         //std::cout.flush();
         Function<T,NDIM> c = a*b;
-        a.verify_tree();
-        b.verify_tree();
         c.verify_tree();
         double err1 = a.err(*f1);
         double err2 = b.err(*f2);
@@ -1120,25 +1135,25 @@ int main(int argc, char**argv) {
         test_plot<double_complex,1>(world);
         test_io<double_complex,1>(world);
 
-        //TaskInterface::debug = true;
-        test_basic<double,2>(world);
-        test_conv<double,2>(world);
-        test_math<double,2>(world);
-        test_diff<double,2>(world);
-        test_op<double,2>(world);
-        test_plot<double,2>(world);
-        test_io<double,2>(world);
+//         //TaskInterface::debug = true;
+//         test_basic<double,2>(world);
+//         test_conv<double,2>(world);
+//         test_math<double,2>(world);
+//         test_diff<double,2>(world);
+//         test_op<double,2>(world);
+//         test_plot<double,2>(world);
+//         test_io<double,2>(world);
 
-        test_basic<double,3>(world);
-        test_conv<double,3>(world);
-        test_math<double,3>(world);
-        test_diff<double,3>(world);
-        test_op<double,3>(world);
-        test_coulomb(world);
-        test_plot<double,3>(world);
-        test_io<double,3>(world);
+//         test_basic<double,3>(world);
+//         test_conv<double,3>(world);
+//         test_math<double,3>(world);
+//         test_diff<double,3>(world);
+//         test_op<double,3>(world);
+//         test_coulomb(world);
+//         test_plot<double,3>(world);
+//         test_io<double,3>(world);
 
-        test_plot<double,4>(world); // slow unless reduce npt in test_plot
+//         test_plot<double,4>(world); // slow unless reduce npt in test_plot
 
 
     } catch (const MPI::Exception& e) {
