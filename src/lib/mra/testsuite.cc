@@ -133,7 +133,6 @@ RandomGaussian(const Tensor<double> cell, double expntmax=1e5) {
     double hi = log(expntmax);
     double expnt = exp(RandomValue<double>()*(hi-lo) + lo);
     T coeff = pow(2.0*expnt/PI,0.25*NDIM);            
-    print("MYGAUSSIAN", expnt, origin);
     return new Gaussian<T,NDIM>(origin,expnt,coeff);
 }
 
@@ -1135,23 +1134,23 @@ int main(int argc, char**argv) {
         test_plot<double_complex,1>(world);
         test_io<double_complex,1>(world);
 
-//         //TaskInterface::debug = true;
-//         test_basic<double,2>(world);
-//         test_conv<double,2>(world);
-//         test_math<double,2>(world);
-//         test_diff<double,2>(world);
-//         test_op<double,2>(world);
-//         test_plot<double,2>(world);
-//         test_io<double,2>(world);
+        //TaskInterface::debug = true;
+        test_basic<double,2>(world);
+        test_conv<double,2>(world);
+        test_math<double,2>(world);
+        test_diff<double,2>(world);
+        test_op<double,2>(world);
+        test_plot<double,2>(world);
+        test_io<double,2>(world);
 
-//         test_basic<double,3>(world);
-//         test_conv<double,3>(world);
-//         test_math<double,3>(world);
-//         test_diff<double,3>(world);
-//         test_op<double,3>(world);
-//         test_coulomb(world);
-//         test_plot<double,3>(world);
-//         test_io<double,3>(world);
+        test_basic<double,3>(world);
+        test_conv<double,3>(world);
+        test_math<double,3>(world);
+        test_diff<double,3>(world);
+        test_op<double,3>(world);
+        test_coulomb(world);
+        test_plot<double,3>(world);
+        test_io<double,3>(world);
 
 //         test_plot<double,4>(world); // slow unless reduce npt in test_plot
 

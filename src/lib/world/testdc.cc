@@ -28,6 +28,7 @@ struct Key {
 
 ostream& operator<<(ostream&s, const Key& key) {
     s << "Key(" << key.k << ")";
+    return s;
 }
 
 struct Node {
@@ -47,6 +48,7 @@ struct Node {
     
 ostream& operator<<(ostream&s, const Node& node) {
     s << "Node(" << node.k << ")";
+    return s;
 }
 
 

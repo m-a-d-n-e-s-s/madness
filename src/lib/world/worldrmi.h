@@ -90,7 +90,7 @@ namespace madness {
         static const int NRECV=128;
         static const int MAXQ=4*NRECV;
 #else
-        static const int NRECV=1;
+        static const int NRECV=32;
         static const int MAXQ=4*NRECV;
 #endif        
 
@@ -150,7 +150,7 @@ namespace madness {
                 // cannot call Waitsome ... have to poll via Testsome
                 int narrived;
                 while (!(narrived = SafeMPI::Request::Testsome(NRECV, recv_req, ind, status))) {
-                    usleep(100);
+                    //usleep(100);
                     if (finished) return;
                 }
 

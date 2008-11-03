@@ -1,3 +1,3 @@
 #include <world/safempi.h>
 
-madness::Mutex SafeMPI::charon;
+madness::MutexFair SafeMPI::charon;

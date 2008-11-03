@@ -249,7 +249,7 @@ namespace madness {
     public:
         static const int MSG_LEN = RMI::MAX_MSG_LEN - sizeof(AmArg); ///< Max length of user payload in message
     private:
-        static const int NSEND = 1; ///< Max no. of pending sends
+        static const int NSEND = 128; ///< Max no. of pending sends
 
         // Multiple threads are making their way thru here ... must be careful
         // to ensure updates are atomic and consistent
