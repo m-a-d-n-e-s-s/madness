@@ -27,7 +27,7 @@ namespace madness {
         /// Yield for specified number of microseconds
         void yield(int us) {
 #ifndef HAVE_CRAYXT
-            usleep(us);
+            //usleep(us);
 #endif
         }
         

@@ -619,13 +619,12 @@ namespace madness {
             bool operator() () const {return (MADATOMIC_INT_GET(&tq->nregistered) == 0);}
         };
 
-        /// Returns after all local tasks have completed AND am locally fenced
+        /// Returns after all local tasks have completed
 
-        /// While waiting run tasks
+        /// While waiting the calling thread will run tasks.
         void fence() {
             do {
                 world.await(ProbeAllDone(this));
-                world.am.fence();
             } while (MADATOMIC_INT_GET(&nregistered));
         }
     };

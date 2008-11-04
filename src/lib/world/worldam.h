@@ -263,7 +263,7 @@ namespace madness {
         volatile unsigned long nsent;     ///< Counts no. of AM sent for purpose of termination detection
         volatile unsigned long nrecv;     ///< Counts no. of AM received for purpose of termination detection
 
-        inline void free_managed_send_buf(int i) {
+        void free_managed_send_buf(int i) {
             // WE ASSUME WE ARE INSIDE A CRITICAL SECTION WHEN IN HERE
             if (managed_send_buf[i]) {
                 free_am_arg(managed_send_buf[i]);
@@ -272,7 +272,7 @@ namespace madness {
         }
 
         /// Private: Finds/waits for a free send request
-        inline int get_free_send_request() {
+        int get_free_send_request() {
             // WE ASSUME WE ARE INSIDE A CRITICAL SECTION WHEN IN HERE
             static volatile int cur_msg = 0;
             while (!send_req[cur_msg].Test()) {
@@ -295,7 +295,7 @@ namespace madness {
             MADNESS_ASSERT(world);
             MADNESS_ASSERT(func);
             func(*arg);
-            world->am.nrecv++;
+            world->am.nrecv++;  // Must be AFTER execution of the function
         }
 
         /// Sends a non-blocking active message
@@ -332,33 +332,9 @@ namespace madness {
 
         virtual ~WorldAmInterface() {}
         
-        /// Ensures all local AM operations have completed
 
-        /// After this call completes, all outgoing messages will
-        /// have been sent so that buffers may be reused, and all
-        /// incoming messages will have executed.
-        ///
-        /// Tasks and other activities are executed while waiting.
-        ///
-        /// Calling this from an AM handler will cause a hang.
-        inline void fence() {
-            int npending;
-            MutexWaiter waiter;
-            do {
-                npending = 0;
-                for (int i=0; i<NSEND; i++) {
-                    lock();
-                    if (send_req[i].Test()) {
-                        free_managed_send_buf(i);
-                    }
-                    else {
-                        npending++;
-                    }
-                    unlock();
-                }
-                waiter.wait();
-            } while (npending);
-        }
+        /// Currently a noop
+        void fence() {}
 
         /// Sends an unmanaged non-blocking active message
         RMI::Request isend_(ProcessID dest, am_handlerT op, const AmArg* arg, int attr=RMI::ATTR_ORDERED) {

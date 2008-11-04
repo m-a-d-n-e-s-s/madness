@@ -132,10 +132,7 @@ namespace madness {
         /// constant over two traversals.  We are then we are sure
         /// that all tasks and AM are processed and there no AM in
         /// flight.
-        ///
-        /// By default fences both tasks and AM.  If the optional
-        /// argument amonly is set to true, if fences only the AM.
-        void fence(bool amonly = false) {
+        void fence() {
             unsigned long nsent_prev=0, nrecv_prev=1; // invalid initial condition
             SafeMPI::Request req0, req1;
             ProcessID parent, child0, child1;
@@ -153,13 +150,27 @@ namespace madness {
                 if (child0 != -1) World::await(req0);
                 if (child1 != -1) World::await(req1);
                 
-                if (amonly)
-                    am.fence();
-                else
+                bool finished;
+                uint64_t ntask1, nsent1, nrecv1, ntask2, nsent2, nrecv2;
+                do {
                     taskq.fence();
 
-                sum[0] = sum0[0] + sum1[0] + am.nsent;
-                sum[1] = sum0[1] + sum1[1] + am.nrecv;
+                    // Since the number of outstanding tasks and number of AM sent/recv
+                    // don't share a critical section read each twice and ensure they
+                    // are unchanged to ensure that are consistent
+                    ntask1 = taskq.size();
+                    nsent1 = am.nsent;
+                    nrecv1 = am.nrecv;
+
+                    ntask2 = taskq.size();
+                    nsent2 = am.nsent;
+                    nrecv2 = am.nrecv;
+
+                    finished = (ntask2==0) && (ntask1==0) && (nsent1==nsent2) && (nrecv1==nrecv2);
+                } while(!finished);
+
+                sum[0] = sum0[0] + sum1[0] + nsent2; // Must use values read above
+                sum[1] = sum0[1] + sum1[1] + nrecv2;
                 
                 if (parent != -1) {
                     req0 = mpi.Isend(&sum, sizeof(sum), MPI::BYTE, parent, gfence_tag);
@@ -171,12 +182,7 @@ namespace madness {
                 npass++;
                 madness::print("GOPFENCE", npass, sum[0], nsent_prev, sum[1], nrecv_prev, tagub);
 
-                if (sum[0]==sum[1] && sum[0]==nsent_prev && sum[1]==nrecv_prev) {
-                    // The necessity for this barrier is not clearly understood but
-                    // clearly points to a defect in the termination detection
-                    mpi.Barrier();
-                    break;
-                }
+                if (sum[0]==sum[1] && sum[0]==nsent_prev && sum[1]==nrecv_prev) break;
 
                 nsent_prev = sum[0];
                 nrecv_prev = sum[1];
