@@ -140,6 +140,12 @@ namespace madness {
             SafeMPI::Request req0, req1;
             ProcessID parent, child0, child1;
             mpi.binary_tree_info(0, parent, child0, child1);
+            int npass = 0;
+
+
+            long tagub;
+            mpi.Get_comm().Get_attr(MPI::TAG_UB, &tagub);
+
             while (1) {
                 unsigned long sum0[2]={0,0}, sum1[2]={0,0}, sum[2];
                 if (child0 != -1) req0 = mpi.Irecv((void*) &sum0, sizeof(sum0), MPI::BYTE, child0, gfence_tag);
@@ -162,6 +168,9 @@ namespace madness {
                 
                 broadcast(sum);
                 
+                npass++;
+                madness::print("GOPFENCE", npass, sum[0], nsent_prev, sum[1], nrecv_prev, tagub);
+
                 if (sum[0]==sum[1] && sum[0]==nsent_prev && sum[1]==nrecv_prev) break;
 
                 nsent_prev = sum[0];

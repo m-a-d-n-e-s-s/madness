@@ -134,11 +134,11 @@ namespace SafeMPI {
             GLOBAL_MUTEX;
             static volatile int tag = 1024;
             int result = tag++;
-            if (tag > mpi_tag_ub) tag = 1024;
+            if (tag >= mpi_tag_ub) tag = 1024;
             return result;
         }
 
-        /// Returns a unique tag reserved for system use (tag<1023)
+        /// Returns a unique tag reserved for system use (tag<1022)
 
         /// Note that the MPI RMI server thread reserves tag 1023 so 
         /// user tags begin above that number.
@@ -146,7 +146,7 @@ namespace SafeMPI {
             GLOBAL_MUTEX;
             static volatile int tag = 1;
             int result = tag++;
-            if (tag > 1022) tag = 1;
+            if (tag > 1021) tag = 1;
             return result;
         }
 

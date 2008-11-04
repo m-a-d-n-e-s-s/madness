@@ -437,14 +437,18 @@ namespace madness {
         };
 
 
-        /// Gracefully wait for a condition to become true
+        /// Gracefully wait for a condition to become true ... executes tasks if any in queue
 
         /// Probe should be an object that when called returns the status.
         template <typename Probe>
         static void inline await(const Probe& probe) {
             // NEED TO RESTORE THE WATCHDOG STUFF
             MutexWaiter waiter;
-            while (!probe()) {waiter.wait();}
+            while (!probe()) {
+                bool working = ThreadPool::run_task();
+                if (working) waiter.reset();
+                else waiter.wait();
+            }
         }
 
 

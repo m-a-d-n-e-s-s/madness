@@ -140,6 +140,7 @@ namespace madness {
             qmsg q[MAXQ];
             int n_in_q = 0;
             
+            MutexWaiter waiter;
             while (1) {
 
                 if (debugging && n_in_q)
@@ -150,9 +151,10 @@ namespace madness {
                 // cannot call Waitsome ... have to poll via Testsome
                 int narrived;
                 while (!(narrived = SafeMPI::Request::Testsome(NRECV, recv_req, ind, status))) {
-                    //usleep(100);
                     if (finished) return;
+                    waiter.wait();
                 }
+                waiter.reset();
 
                 if (debugging)
                     std::cerr << rank << ":RMI: " << narrived 

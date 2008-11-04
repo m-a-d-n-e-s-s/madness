@@ -319,20 +319,25 @@ namespace madness {
         }
 
 
-        /// Evaluates the function at a point in user coordinates.  Possible \em blocking comm.
+        /// Evaluates the function at a point in user coordinates.  Collective operation.
 
-        /// Only the invoking process will receive the result.
+        /// *CHANGE* All processess receive the result.
         ///
         /// Throws if function is not initialized.
         ///
-        /// This function calls eval and blocks until the result is available.  Therefore,
-        /// if you are evaluating many points in parallel it is \em vastly less efficient than
-        /// calling eval directly, saving the futures, and then forcing all of the results.
+        /// This function calls eval, blocks until the result is
+        /// available and then broadcasts the result to everyone.
+        /// Therefore, if you are evaluating many points in parallel
+        /// it is \em vastly less efficient than calling eval
+        /// directly, saving the futures, and then forcing all of the
+        /// results.
         T operator()(const coordT& xuser) const {
             PROFILE_MEMBER_FUNC(Function);
-            return eval(xuser).get();
+            T result;
+            if (impl->world.rank() == 0) result = eval(xuser).get();
+            impl->world.gop.broadcast(result);
+            return result;
         }
-
 
         /// Returns an estimate of the difference ||this-func||^2 from local data
 

@@ -924,7 +924,9 @@ void test_qm(World& world) {
         print(" ------  ------- ---------- ----------");
     }
     for (int i=0; i<nstep; i++) {
+        world.gop.fence();
         psi.refine();
+        world.gop.fence();
         double norm = psi.norm2();
         double err = psi.err(QMtest(a,v,tstep*i));
         if (world.rank() == 0)
@@ -932,9 +934,11 @@ void test_qm(World& world) {
 
         psi.set_thresh(thresh*1e-2);
         FunctionDefaults<1>::set_thresh(thresh*1e-2);
+        world.gop.fence();
           psi = apply(G,psi);
         psi.set_thresh(thresh);
         FunctionDefaults<1>::set_thresh(thresh);
+        world.gop.fence();
 
         psi.truncate();
     }
@@ -984,7 +988,9 @@ void test_plot(World& world) {
 
     //vector<long> npt(NDIM,21); // recommend this if testing in dimension > 3
     vector<long> npt(NDIM,101);
+        world.gop.fence();
     Tensor<T> r = f.eval_cube(FunctionDefaults<NDIM>::get_cell(), npt);
+        world.gop.fence();
     if (world.rank() == 0) {
         const double h = (2.0*L - 12e-13)/(npt[0]-1.0);
         for (int i=0; i<npt[0]; i++) {
@@ -1064,48 +1070,48 @@ int main(int argc, char**argv) {
     ThreadBase::set_affinity(0);         // The main thread is logical thread 0
 
     MPI::Init(argc, argv);
-    ThreadPool::begin();
-    RMI::begin();
-    World world(MPI::COMM_WORLD);
-    if (world.rank() == 0) {
-        print("");
-        print("--------------------------------------------");
-        print("   MADNESS",PACKAGE_VERSION, "multiresolution testsuite");
-        print("--------------------------------------------");
-        print("");
-        print("   number of processors ...", world.size());
-        print("    processor frequency ...", cpu_frequency());
-        print("            host system ...", HOST_SYSTEM);
-        print("          configured by ...", MADNESS_CONFIGURATION_USER);
-        print("          configured on ...", MADNESS_CONFIGURATION_HOST);
-        print("          configured at ...", MADNESS_CONFIGURATION_DATE);
-        print("                    CXX ...", MADNESS_CONFIGURATION_CXX);
-        print("               CXXFLAGS ...", MADNESS_CONFIGURATION_CXXFLAGS);
+    try {
+        ThreadPool::begin();
+        RMI::begin();
+        World world(MPI::COMM_WORLD);
+        if (world.rank() == 0) {
+            print("");
+            print("--------------------------------------------");
+            print("   MADNESS",PACKAGE_VERSION, "multiresolution testsuite");
+            print("--------------------------------------------");
+            print("");
+            print("   number of processors ...", world.size());
+            print("    processor frequency ...", cpu_frequency());
+            print("            host system ...", HOST_SYSTEM);
+            print("          configured by ...", MADNESS_CONFIGURATION_USER);
+            print("          configured on ...", MADNESS_CONFIGURATION_HOST);
+            print("          configured at ...", MADNESS_CONFIGURATION_DATE);
+            print("                    CXX ...", MADNESS_CONFIGURATION_CXX);
+            print("               CXXFLAGS ...", MADNESS_CONFIGURATION_CXXFLAGS);
 #ifdef WORLD_WATCHDOG
-        print("               watchdog ...", WATCHDOG_BARK_INTERVAL, WATCHDOG_TIMEOUT);
+            print("               watchdog ...", WATCHDOG_BARK_INTERVAL, WATCHDOG_TIMEOUT);
 #endif
 #ifdef OPTERON_TUNE
-        print("             tuning for ...", "opteron");
+            print("             tuning for ...", "opteron");
 #elif defined(CORE_DUO_TUNE)
-        print("             tuning for ...", "core duo");
+            print("             tuning for ...", "core duo");
 #else
-        print("             tuning for ...", "core2");
+            print("             tuning for ...", "core2");
 #endif
 #ifdef BOUNDS_CHECKING
-        print(" tensor bounds checking ...", "enabled");
+            print(" tensor bounds checking ...", "enabled");
 #endif
 #ifdef TENSOR_INSTANCE_COUNT
-        print("  tensor instance count ...", "enabled");
+            print("  tensor instance count ...", "enabled");
 #endif
-//         print(" ");
-//         IndexIterator::test();
-    }        
-    
-    try {
+            //         print(" ");
+            //         IndexIterator::test();
+        }        
+        
         startup(world,argc,argv);
         if (world.rank() == 0) print("Initial tensor instance count", BaseTensor::get_instance_count());
         PROFILE_BLOCK(testsuite);
-
+        
         cout.precision(8);
         
         test_basic<double,1>(world);
@@ -1155,6 +1161,14 @@ int main(int argc, char**argv) {
 //         test_plot<double,4>(world); // slow unless reduce npt in test_plot
 
 
+        if (world.rank() == 0) print("entering final fence");
+        world.gop.fence();
+        if (world.rank() == 0) {
+            print("done with final fence");
+            print(" ");
+            print("Final tensor instance count", BaseTensor::get_instance_count());
+        }
+
     } catch (const MPI::Exception& e) {
         //        print(e);
         error("caught an MPI exception");
@@ -1179,22 +1193,6 @@ int main(int argc, char**argv) {
     } catch (...) {
         error("caught unhandled exception");
     }
-
-    if (world.rank() == 0) print("entering final fence");
-    world.gop.fence();
-    if (world.rank() == 0) {
-        print("done with final fence");
-        //world.am.print_stats();
-        //world.taskq.print_stats();
-        //world_mem_info()->print();
-        print(" ");
-        print("Final tensor instance count", BaseTensor::get_instance_count());
-    }
-
-    //int id = MPI::COMM_WORLD.Get_rank();
-    //int nproc = MPI::COMM_WORLD.Get_size();
-
-    //WorldProfile::print(world);
 
     RMI::end();
     MPI::Finalize();

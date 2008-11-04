@@ -613,13 +613,18 @@ namespace madness {
             return result;
         }
 
+        struct ProbeAllDone {
+            WorldTaskQueue* tq;
+            ProbeAllDone(WorldTaskQueue* tq) : tq(tq) {}
+            bool operator() () const {return (MADATOMIC_INT_GET(&tq->nregistered) == 0);}
+        };
+
         /// Returns after all local tasks have completed AND am locally fenced
 
         /// While waiting run tasks
         void fence() {
             do {
-                while (MADATOMIC_INT_GET(&nregistered)) 
-                    ThreadPool::run_task();
+                world.await(ProbeAllDone(this));
                 world.am.fence();
             } while (MADATOMIC_INT_GET(&nregistered));
         }

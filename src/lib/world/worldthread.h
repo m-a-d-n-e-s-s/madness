@@ -12,6 +12,7 @@
 #include <unistd.h>
 #include <utility>
 #include <vector>
+#include <madness_config.h>
 #include <world/madatomic.h>
 #include <world/nodefaults.h>
 
@@ -25,7 +26,9 @@ namespace madness {
 
         /// Yield for specified number of microseconds
         void yield(int us) {
-            //usleep(us);
+#ifndef HAVE_CRAYXT
+            usleep(us);
+#endif
         }
         
     public:
@@ -809,6 +812,8 @@ namespace madness {
                 std::cout << "ThreadBase: set_affinity: logical_id bad?" << std::endl;
                 return;
             }
+
+            if (!bind[logical_id]) return;
                 
             int ncpu = sysconf(_SC_NPROCESSORS_CONF);
             if (ncpu <= 0) {
