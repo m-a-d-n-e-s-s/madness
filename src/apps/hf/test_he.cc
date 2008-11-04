@@ -83,15 +83,67 @@ static double V_func_he(const coordT& r)
 static double rho_func_he(const coordT& rr)
 {
   const double x=rr[0], y=rr[1], z=rr[2];
-  double e1 = 50.0;
-  double coeff = pow(e1/PI, 1.5);
-  return -2.0 * coeff * exp(-e1 * (x*x + y*y + z*z));
-//  double c = 0.1;
-//  double r = sqrt(x*x + y*y + z*z);
-//  r = r / c;
-//  const double RPITO1P5 = 0.1795871221251665617; // 1.0/Pi^1.5
-//  return 2.0 * ((-3.0/2.0+(1.0/3.0)*r*r)*exp(-r*r)+(-32.0+(256.0/3.0)*r*r)*exp(-4.0*r*r))*RPITO1P5/c/c/c;
+//  double e1 = 50.0;
+//  double coeff = pow(e1/PI, 1.5);
+//  return -2.0 * coeff * exp(-e1 * (x*x + y*y + z*z));
+  double c = 0.1;
+  double r = sqrt(x*x + y*y + z*z);
+  r = r / c;
+  const double RPITO1P5 = 0.1795871221251665617; // 1.0/Pi^1.5
+  return 2.0 * ((-3.0/2.0+(1.0/3.0)*r*r)*exp(-r*r)+(-32.0+(256.0/3.0)*r*r)*exp(-4.0*r*r))*RPITO1P5/c/c/c;
 }
+//*****************************************************************************
+
+//*****************************************************************************
+template <typename T, int NDIM>
+class HeElectronicChargeDensityIGuess : public FunctionFunctorInterface<T,NDIM>
+{
+public:
+    typedef Vector<double,NDIM> coordT;
+    const coordT center;
+
+    HeElectronicChargeDensityIGuess(const coordT& center)
+        : center(center) {};
+
+    T operator()(const coordT& rr) const
+    {
+        double sum = 0.0;
+        for (int i=0; i < NDIM; i++)
+        {
+            double xx = center[i]-rr[i];
+            sum += xx*xx;
+        };
+        return 6.0*exp(-2.0*sqrt(sum)+1e-4);
+    };
+};
+//*****************************************************************************
+
+//*****************************************************************************
+template <typename T, int NDIM>
+class HeNuclearChargeDensityIGuess : public FunctionFunctorInterface<T,NDIM>
+{
+public:
+    typedef Vector<double,NDIM> coordT;
+    const coordT center;
+
+    HeNuclearChargeDensityIGuess(const coordT& center)
+        : center(center) {};
+
+    T operator()(const coordT& rr) const
+    {
+        double sum = 0.0;
+        for (int i=0; i < NDIM; i++)
+        {
+            double xx = center[i]-rr[i];
+            sum += xx*xx;
+        };
+        double c = 0.1;
+        double r = sqrt(sum);
+        r = r / c;
+        const double RPITO1P5 = 0.1795871221251665617; // 1.0/Pi^1.5
+        return 2.0 * ((-3.0/2.0+(1.0/3.0)*r*r)*exp(-r*r)+(-32.0+(256.0/3.0)*r*r)*exp(-4.0*r*r))*RPITO1P5/c/c/c;
+    };
+};
 //*****************************************************************************
 
 //*****************************************************************************
@@ -120,7 +172,9 @@ void test_hf_he(World& world)
   // Nuclear potential (He atom)
   const coordT origin(0.0);
   cout << "Creating Function object for nuclear charge density ..." << endl;
-  Function<double,3> rhon = FunctionFactory<double,3>(world).f(rho_func_he);
+//  Function<double,3> rhon = FunctionFactory<double,3>(world).f(rho_func_he);
+  Function<double,3> rhon =
+    FunctionFactory<double,3>(world).functor(functorT(new HeNuclearChargeDensityIGuess<double,3>(origin)));
   Function<double,3> vnuc = FunctionFactory<double,3>(world).f(V_func_he);
   rhon.truncate();
   vnuc.truncate();
@@ -145,7 +199,9 @@ void test_hf_he(World& world)
 
   // Guess for the wavefunction
   if (world.rank() == 0) cout << "Creating wavefunction psi ..." << endl;
-  Function<double,3> psi = FunctionFactory<double,3>(world).f(psi_func_he);
+//  Function<double,3> psi = FunctionFactory<double,3>(world).f(psi_func_he);
+  Function<double,3> psi =
+    FunctionFactory<double,3>(world).functor(functorT(new HeElectronicChargeDensityIGuess<double,3>(origin)));
   psi.scale(1.0/psi.norm2());
 
   // Create lists
