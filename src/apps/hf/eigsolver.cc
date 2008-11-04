@@ -186,6 +186,7 @@ namespace madness
       for (int i = 0; i < _phis.size(); i++)
       {
         double x = (efermi-_eigs[i]) * t1;
+        // need to add some smearing function here
         _occs[i] = occmax;
         //charge += _kpoints[i].weight() * _occs[i];
       }

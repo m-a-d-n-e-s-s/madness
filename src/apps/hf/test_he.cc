@@ -254,7 +254,7 @@ void test_he_potential(World& world)
   FunctionDefaults<3>::set_cubic_cell(-bsize, bsize);
 
   // Nuclear potential (He atom)
-  const coordT origin(0.0);
+  const coordT origin(8.0);
   cout << "Creating Function object for nuclear charge density ..." << endl;
   Function<double,3> rhon = FunctionFactory<double,3>(world).f(rho_func_he);
   Function<double,3> vnuc0 = FunctionFactory<double,3>(world).f(V_func_he);

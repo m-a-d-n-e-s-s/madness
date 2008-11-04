@@ -904,7 +904,7 @@ void dft_xc_lda_ene(const Key<NDIM>& key, Tensor<double>& t)
     // Apply Coulomb operator and trace with the density
     funcT Vc = apply(*op, rho);
 
-    double tot_ce = Vc.inner(rho);
+    double tot_ce = 2*Vc.inner(rho);
     delete op;
     return tot_ce;
   }
