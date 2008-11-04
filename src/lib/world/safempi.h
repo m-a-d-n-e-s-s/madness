@@ -121,6 +121,11 @@ namespace SafeMPI {
             comm.Abort(code);
         }
 
+        void Barrier() const {
+            GLOBAL_MUTEX;
+            comm.Barrier();
+        }
+
 
         /// Returns a unique tag for general use (tag>1023)
 

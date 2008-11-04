@@ -147,7 +147,7 @@ namespace madness {
             mpi.Get_comm().Get_attr(MPI::TAG_UB, &tagub);
 
             while (1) {
-                unsigned long sum0[2]={0,0}, sum1[2]={0,0}, sum[2];
+                uint64_t sum0[2]={0,0}, sum1[2]={0,0}, sum[2];
                 if (child0 != -1) req0 = mpi.Irecv((void*) &sum0, sizeof(sum0), MPI::BYTE, child0, gfence_tag);
                 if (child1 != -1) req1 = mpi.Irecv((void*) &sum1, sizeof(sum1), MPI::BYTE, child1, gfence_tag);
                 if (child0 != -1) World::await(req0);
@@ -171,7 +171,12 @@ namespace madness {
                 npass++;
                 madness::print("GOPFENCE", npass, sum[0], nsent_prev, sum[1], nrecv_prev, tagub);
 
-                if (sum[0]==sum[1] && sum[0]==nsent_prev && sum[1]==nrecv_prev) break;
+                if (sum[0]==sum[1] && sum[0]==nsent_prev && sum[1]==nrecv_prev) {
+                    // The necessity for this barrier is not clearly understood but
+                    // clearly points to a defect in the termination detection
+                    mpi.Barrier();
+                    break;
+                }
 
                 nsent_prev = sum[0];
                 nrecv_prev = sum[1];
