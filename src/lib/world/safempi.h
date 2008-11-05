@@ -47,7 +47,6 @@ namespace SafeMPI {
         MPI::Intracomm& comm;
         int me;
         int numproc;
-        int mpi_tag_ub;
 
     public:
         Intracomm(MPI::Intracomm& comm) : comm(comm)
@@ -55,11 +54,6 @@ namespace SafeMPI {
             GLOBAL_MUTEX;
             me = comm.Get_rank();
             numproc = comm.Get_size();
-
-            long value; // Must be 64-bit on 64-bit machines
-            comm.Get_attr(MPI::TAG_UB, &value);
-            mpi_tag_ub = value;
-            mpi_tag_ub = 4095;
         }
         
         int Get_rank() const {
@@ -128,20 +122,28 @@ namespace SafeMPI {
         }
 
 
-        /// Returns a unique tag for temporary use (tag>1023)
+        /// Returns a unique tag for temporary use (1023<tag<=4095)
 
-        /// These tags are intended for one/few time use to avoid tag
-        /// collisions with other message around the same time period.
+        /// These tags are intended for one time use to avoid tag
+        /// collisions with other messages around the same time period.
         /// It simply increments/wraps a counter and returns the next
-        /// legal value. So that send and receiver agree on the
-        /// tag all processes need to call this routine in the same
-        /// sequence.
+        /// legal value. 
+        ///
+        /// So that send and receiver agree on the tag all processes
+        /// need to call this routine in the same sequence.
+        ///
+        /// tags in [1,999] ... allocated once by unique_reserved_tag
+        ///
+        /// tags in [1000,1023] ... statically assigned inside MADNESS
+        ///
+        /// tags in [1024,4095] ... allocated round-robin by unique_tag
+        ///
+        /// tags in [4096,MPI::TAG_UB] ... not used/managed by madness
         static int unique_tag() {
             GLOBAL_MUTEX;
             static volatile int tag = 1024;
             int result = tag++;
-            int mpi_tag_ub = 4097; // SINCE WE MADE THE ROUTINE STATIC
-            if (tag >= mpi_tag_ub) tag = 1024;
+            if (tag >= 4095) tag = 1024;
             return result;
         }
 
