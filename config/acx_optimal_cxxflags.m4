@@ -17,7 +17,8 @@ AC_DEFUN([ACX_OPTIMAL_CXXFLAGS], [
                 TARGET_ARCH=barcelona
             fi
 
-            CXXFLAGS="-Wall -Wno-strict-aliasing -Wno-deprecated -ansi -O3 -ffast-math -fomit-frame-pointer -mfpmath=sse"
+            # -fomit-frame-pointer 
+            CXXFLAGS="-g -Wall -Wno-strict-aliasing -Wno-deprecated -ansi -O3 -ffast-math -mfpmath=sse"
             if test $CXXMAJOR -gt 4; then
                CXXFLAGS="$CXXFLAGS -march=$TARGET_ARCH"
             elif test $CXXMAJOR -eq 4; then
