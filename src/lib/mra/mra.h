@@ -1341,7 +1341,7 @@ namespace madness {
             for (int i=0; i<npt; i++) {
                 coordT r = lo + h*double(i);
                 fprintf(file, "%.6e ", i*sum);
-                plot_line_print_value(file, f(r));
+                plot_line_print_value(file, f.eval(r));
                 fprintf(file,"\n");
             }
             fclose(file);
@@ -1370,8 +1370,8 @@ namespace madness {
             for (int i=0; i<npt; i++) {
                 coordT r = lo + h*double(i);
                 fprintf(file, "%.6e ", i*sum);
-                plot_line_print_value(file, f(r));
-                plot_line_print_value(file, g(r));
+                plot_line_print_value(file, f.eval(r));
+                plot_line_print_value(file, g.eval(r));
                 fprintf(file,"\n");
             }
             fclose(file);
@@ -1402,9 +1402,9 @@ namespace madness {
             for (int i=0; i<npt; i++) {
                 coordT r = lo + h*double(i);
                 fprintf(file, "%.6e ", i*sum);
-                plot_line_print_value(file, f(r));
-                plot_line_print_value(file, g(r));
-                plot_line_print_value(file, a(r));
+                plot_line_print_value(file, f.eval(r));
+                plot_line_print_value(file, g.eval(r));
+                plot_line_print_value(file, a.eval(r));
                 fprintf(file,"\n");
             }
             fclose(file);
