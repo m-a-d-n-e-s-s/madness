@@ -172,7 +172,7 @@ namespace madness {
                 broadcast(sum);
                 
                 npass++;
-                madness::print("GOPFENCE", npass, sum[0], nsent_prev, sum[1], nrecv_prev);
+                //madness::print("GOPFENCE", npass, sum[0], nsent_prev, sum[1], nrecv_prev);
 
                 if (sum[0]==sum[1] && sum[0]==nsent_prev && sum[1]==nrecv_prev) break;
 
@@ -193,7 +193,7 @@ namespace madness {
             mpi.binary_tree_info(root, parent, child0, child1);
             Tag bcast_tag = mpi.unique_tag();
 
-            print("BCAST TAG", bcast_tag);
+            //print("BCAST TAG", bcast_tag);
             
             if (parent != -1) {
                 req0 = mpi.Irecv(buf, nbyte, MPI::BYTE, parent, bcast_tag);

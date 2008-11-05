@@ -47,9 +47,8 @@ namespace madness {
             mutable World* world;
             ProcessID dest;
             int tag;
-            static const int MPIAR_TAG=1022;
         public:
-            MPIRawOutputArchive(World& world, const ProcessID& dest, int tag=MPIAR_TAG)
+            MPIRawOutputArchive(World& world, const ProcessID& dest, int tag=SafeMPI::MPIAR_TAG)
                 : world(&world), dest(dest), tag(tag) {};
             
             template <class T>
@@ -64,9 +63,8 @@ namespace madness {
             mutable World* world;
             ProcessID src;
             int tag;
-            static const int MPIAR_TAG=1022;
         public:
-            MPIRawInputArchive(World& world, const ProcessID& src, int tag=MPIAR_TAG)
+            MPIRawInputArchive(World& world, const ProcessID& src, int tag=SafeMPI::MPIAR_TAG)
                 : world(&world), src(src), tag(tag) {};
             
             template <class T>
@@ -85,9 +83,8 @@ namespace madness {
             const std::size_t bufsize;
             mutable std::vector<unsigned char> v;
             madness::archive::VectorOutputArchive var;
-            static const int MPIAR_TAG=1022;
         public:
-            MPIOutputArchive(World& world, const ProcessID& dest, int tag=MPIAR_TAG)
+            MPIOutputArchive(World& world, const ProcessID& dest, int tag=SafeMPI::MPIAR_TAG)
                 : world(&world), dest(dest), tag(tag), bufsize(1024*1024), v(), var(v)
             {v.reserve(2*bufsize);};
             
@@ -120,9 +117,8 @@ namespace madness {
             int tag;
             mutable std::vector<unsigned char> v;
             madness::archive::VectorInputArchive var;
-            static const int MPIAR_TAG=1022;
         public:
-            MPIInputArchive(World& world, const ProcessID& src, int tag=MPIAR_TAG)
+            MPIInputArchive(World& world, const ProcessID& src, int tag=SafeMPI::MPIAR_TAG)
                 : world(&world), src(src), tag(tag), v(), var(v) {};
             
             template <class T>

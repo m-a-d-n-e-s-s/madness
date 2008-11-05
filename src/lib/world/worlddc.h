@@ -1169,7 +1169,7 @@ namespace madness {
                             localar & t;
                         }
                         else if (ar.io_node(p) == me) {
-                            world->mpi.Send(int(1),p); // Tell client to start sending
+                            world->mpi.Send(int(1),p,tag); // Tell client to start sending
                             MPIInputArchive source(*world, p);
                             long cookie;
                             unsigned long count;
@@ -1191,7 +1191,7 @@ namespace madness {
                 else {
                     ProcessID p = ar.my_io_node();
                     int flag;
-                    world->mpi.Recv(flag,p);
+                    world->mpi.Recv(flag,p,tag);
                     MPIOutputArchive dest(*world, p);
                     dest & t;
                     dest.flush();

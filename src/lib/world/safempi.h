@@ -19,6 +19,18 @@ namespace SafeMPI {
 #define GLOBAL_MUTEX
 #endif
 
+    /// tags in [1,999] ... allocated once by unique_reserved_tag
+    ///
+    /// tags in [1000,1023] ... statically assigned here
+    ///
+    /// tags in [1024,4095] ... allocated round-robin by unique_tag
+    ///
+    /// tags in [4096,MPI::TAG_UB] ... not used/managed by madness
+    
+    static const int RMI_TAG = 1023;
+    static const int MPIAR_TAG = 1022;
+    static const int DEFAULT_SEND_RECV_TAG = 1022;
+
     class Request : private MPI::Request{
     public:
         Request() : MPI::Request() {}
@@ -121,7 +133,6 @@ namespace SafeMPI {
             comm.Barrier();
         }
 
-
         /// Returns a unique tag for temporary use (1023<tag<=4095)
 
         /// These tags are intended for one time use to avoid tag
@@ -131,14 +142,6 @@ namespace SafeMPI {
         ///
         /// So that send and receiver agree on the tag all processes
         /// need to call this routine in the same sequence.
-        ///
-        /// tags in [1,999] ... allocated once by unique_reserved_tag
-        ///
-        /// tags in [1000,1023] ... statically assigned inside MADNESS
-        ///
-        /// tags in [1024,4095] ... allocated round-robin by unique_tag
-        ///
-        /// tags in [4096,MPI::TAG_UB] ... not used/managed by madness
         static int unique_tag() {
             GLOBAL_MUTEX;
             static volatile int tag = 1024;
@@ -171,14 +174,14 @@ namespace SafeMPI {
         /// Isend one element ... disabled for pointers to reduce accidental misuse.
         template <class T>
         typename madness::enable_if_c< !madness::is_pointer<T>::value, SafeMPI::Request>::type
-        Isend(const T& datum, int dest, int tag=1) const {
+        Isend(const T& datum, int dest, int tag=DEFAULT_SEND_RECV_TAG) const {
             return Isend(&datum, sizeof(T), MPI::BYTE, dest, tag);
         }
 
         /// Async receive data of up to lenbuf elements from process dest
         template <class T>
         SafeMPI::Request
-        Irecv(T* buf, int count, int source, int tag) const {
+        Irecv(T* buf, int count, int source, int tag=DEFAULT_SEND_RECV_TAG) const {
             return Irecv(buf, count*sizeof(T), MPI::BYTE, source, tag);
         }
         
@@ -186,14 +189,14 @@ namespace SafeMPI {
         /// Async receive datum from process dest with default tag=1
         template <class T>
         typename madness::enable_if_c< !madness::is_pointer<T>::value, SafeMPI::Request>::type
-        Irecv(T& buf, int source, int tag=1) const {
+        Irecv(T& buf, int source, int tag=DEFAULT_SEND_RECV_TAG) const {
             return Irecv(&buf, sizeof(T), MPI::BYTE, source, tag);
         }
         
 
         /// Send array of lenbuf elements to process dest 
         template <class T>
-        void Send(const T* buf, long lenbuf, int dest, int tag) const {
+        void Send(const T* buf, long lenbuf, int dest, int tag=DEFAULT_SEND_RECV_TAG) const {
             Send((void* )buf, lenbuf*sizeof(T), MPI::BYTE, dest, tag);
         }
      
@@ -203,7 +206,7 @@ namespace SafeMPI {
         /// Disabled for pointers to reduce accidental misuse.
         template <class T>
         typename madness::enable_if_c< !madness::is_pointer<T>::value, void>::type
-        Send(const T& datum, int dest, int tag=1001) const {
+        Send(const T& datum, int dest, int tag=DEFAULT_SEND_RECV_TAG) const {
             Send((void* )&datum, sizeof(T), MPI::BYTE, dest, tag);
         }
      
@@ -223,10 +226,10 @@ namespace SafeMPI {
         }
      
      
-        /// Receive datum from process src with default tag=1
+        /// Receive datum from process src
         template <class T>
         typename madness::enable_if_c< !madness::is_pointer<T>::value, void>::type
-        Recv(T& buf, int src, int tag=1) const {
+        Recv(T& buf, int src, int tag=DEFAULT_SEND_RECV_TAG) const {
             Recv(&buf, sizeof(T), MPI::BYTE, src, tag);
         }
 

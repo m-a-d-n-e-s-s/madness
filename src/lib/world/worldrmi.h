@@ -256,7 +256,7 @@ namespace madness {
 
         RMI() 
             : comm(MPI::COMM_WORLD)
-            , tag(1023)
+            , tag(SafeMPI::RMI_TAG)
             , nproc(comm.Get_size())
             , rank(comm.Get_rank())
             , debugging(false)
