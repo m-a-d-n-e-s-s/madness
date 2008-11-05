@@ -996,7 +996,7 @@ void test_plot(World& world) {
         for (int i=0; i<npt[0]; i++) {
             double x = -L + i*h + 2e-13;
             T fplot = r(vector<long>(NDIM,i));
-            T fnum  = f(coordT(x));
+            T fnum  = f.eval(coordT(x)).get();
             CHECK(fplot-fnum,1e-12,"plot-eval");
             if (world.rank() == 0 && std::abs(fplot-fnum) > 1e-12) {
                 print("bad", i, coordT(x), fplot, fnum);
