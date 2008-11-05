@@ -59,6 +59,7 @@ namespace SafeMPI {
             long value; // Must be 64-bit on 64-bit machines
             comm.Get_attr(MPI::TAG_UB, &value);
             mpi_tag_ub = value;
+            mpi_tag_ub = 4095;
         }
         
         int Get_rank() const {
@@ -127,31 +128,33 @@ namespace SafeMPI {
         }
 
 
-        /// Returns a unique tag for general use (tag>1023)
+        /// Returns a unique tag for temporary use (tag>1023)
 
-        /// Unique is slightly optimistic.  The method simply
-        /// increments/wraps a counter and returns the next legal
-        /// value. For most MPIs with maximum tag values equal to
-        /// 2^31-1 this is adequate.  For MPIs such as LAM which only
-        /// provide the bare minimum of 32768 tags you have a greater
-        /// chance of collision.
-        int unique_tag() {
+        /// These tags are intended for one/few time use to avoid tag
+        /// collisions with other message around the same time period.
+        /// It simply increments/wraps a counter and returns the next
+        /// legal value. So that send and receiver agree on the
+        /// tag all processes need to call this routine in the same
+        /// sequence.
+        static int unique_tag() {
             GLOBAL_MUTEX;
             static volatile int tag = 1024;
             int result = tag++;
+            int mpi_tag_ub = 4097; // SINCE WE MADE THE ROUTINE STATIC
             if (tag >= mpi_tag_ub) tag = 1024;
             return result;
         }
 
-        /// Returns a unique tag reserved for system use (tag<1022)
+        /// Returns a unique tag reserved for long-term use (0<tag<1000)
 
-        /// Note that the MPI RMI server thread reserves tag 1023 so 
-        /// user tags begin above that number.
-        int unique_reserved_tag() {
+        /// Get a tag from this routine for long-term/repeated use.
+        ///
+        /// Tags in [1000,1023] are statically assigned.
+        static int unique_reserved_tag() {
             GLOBAL_MUTEX;
             static volatile int tag = 1;
             int result = tag++;
-            if (tag > 1021) tag = 1;
+            if (result >= 1000) throw "too many reserved tags in use";
             return result;
         }
 
@@ -193,12 +196,12 @@ namespace SafeMPI {
         }
      
 
-        /// Send element to process dest with default tag=1
+        /// Send element to process dest with default tag=1001
         
         /// Disabled for pointers to reduce accidental misuse.
         template <class T>
         typename madness::enable_if_c< !madness::is_pointer<T>::value, void>::type
-        Send(const T& datum, int dest, int tag=1) const {
+        Send(const T& datum, int dest, int tag=1001) const {
             Send((void* )&datum, sizeof(T), MPI::BYTE, dest, tag);
         }
      

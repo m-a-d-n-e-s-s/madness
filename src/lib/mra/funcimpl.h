@@ -1519,8 +1519,12 @@ namespace madness {
         }
 
         Void refine_op(const keyT& key) {
-            nodeT& node = coeffs.find(key).get()->second;
-            if (key.level() < max_refine_level && autorefine_square_test(key, node.coeff())) {
+            // Must allow for someone already having autorefined the coeffs
+            // and we get a write accessor just in case they are already executing
+            typename dcT::accessor acc;
+            MADNESS_ASSERT(coeffs.find(acc,key));
+            nodeT& node = acc->second;
+            if (node.has_coeff() && key.level() < max_refine_level && autorefine_square_test(key, node.coeff())) {
                 tensorT d(cdata.v2k);
                 d(cdata.s0) = node.coeff();
                 d = unfilter(d);

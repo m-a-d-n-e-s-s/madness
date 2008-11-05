@@ -87,9 +87,6 @@ namespace madness {
         WorldTaskQueue& taskq;
         ProcessID rank;
         const int nproc;
-        const Tag bcast_tag;    ///< Reserved tag used for broadcasting
-        const Tag gsum_tag;     ///< Reserved tag used for up-tree part of global sum
-        const Tag gfence_tag;   ///< Reserved tag used for up-tree part of global fence
         bool debug;
     public:
 
@@ -101,9 +98,6 @@ namespace madness {
             , taskq(world.taskq)
             , rank(world.mpi.rank())
             , nproc(world.mpi.size())
-            , bcast_tag(mpi.unique_reserved_tag())
-            , gsum_tag(mpi.unique_reserved_tag())
-            , gfence_tag(mpi.unique_reserved_tag())
             , debug(false)
             {};
 
@@ -137,11 +131,8 @@ namespace madness {
             SafeMPI::Request req0, req1;
             ProcessID parent, child0, child1;
             mpi.binary_tree_info(0, parent, child0, child1);
+            Tag gfence_tag = mpi.unique_tag();
             int npass = 0;
-
-
-            long tagub;
-            mpi.Get_comm().Get_attr(MPI::TAG_UB, &tagub);
 
             while (1) {
                 uint64_t sum0[2]={0,0}, sum1[2]={0,0}, sum[2];
@@ -157,7 +148,8 @@ namespace madness {
 
                     // Since the number of outstanding tasks and number of AM sent/recv
                     // don't share a critical section read each twice and ensure they
-                    // are unchanged to ensure that are consistent
+                    // are unchanged to ensure that are consistent ... they don't have
+                    // to be current.
                     ntask1 = taskq.size();
                     nsent1 = am.nsent;
                     nrecv1 = am.nrecv;
@@ -180,7 +172,7 @@ namespace madness {
                 broadcast(sum);
                 
                 npass++;
-                madness::print("GOPFENCE", npass, sum[0], nsent_prev, sum[1], nrecv_prev, tagub);
+                madness::print("GOPFENCE", npass, sum[0], nsent_prev, sum[1], nrecv_prev);
 
                 if (sum[0]==sum[1] && sum[0]==nsent_prev && sum[1]==nrecv_prev) break;
 
@@ -200,6 +192,8 @@ namespace madness {
             ProcessID parent, child0, child1;
             mpi.binary_tree_info(root, parent, child0, child1);
             Tag bcast_tag = mpi.unique_tag();
+
+            print("BCAST TAG", bcast_tag);
             
             if (parent != -1) {
                 req0 = mpi.Irecv(buf, nbyte, MPI::BYTE, parent, bcast_tag);
@@ -262,6 +256,7 @@ namespace madness {
             SafeMPI::Request req0, req1;
             ProcessID parent, child0, child1;
             mpi.binary_tree_info(0, parent, child0, child1);
+            Tag gsum_tag = mpi.unique_tag();
             
             T* buf0 = new T[nelem];
             T* buf1 = new T[nelem];

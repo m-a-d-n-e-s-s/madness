@@ -315,6 +315,7 @@ namespace madness {
             //madness::print("plotbox in sim", simlo, simhi);
             Tensor<T> r = impl->eval_plot_cube(simlo, simhi, npt);
             impl->world.gop.sum(r.ptr(), r.size);
+            impl->world.gop.fence();
             return r;
         }
 
@@ -336,6 +337,7 @@ namespace madness {
             T result;
             if (impl->world.rank() == 0) result = eval(xuser).get();
             impl->world.gop.broadcast(result);
+            impl->world.gop.fence();
             return result;
         }
 
@@ -368,6 +370,7 @@ namespace madness {
             if (VERIFY_TREE) verify_tree();
             double local = impl->errsq_local(func);
             impl->world.gop.sum(local);
+            impl->world.gop.fence();
             return sqrt(local);
         }
 
@@ -530,7 +533,7 @@ namespace madness {
             double local = impl->norm2sq_local();
 
             impl->world.gop.sum(local);
-
+            impl->world.gop.fence();
             return sqrt(local);
         }
 
@@ -854,6 +857,7 @@ namespace madness {
             if (!impl) return 0.0;
             T sum = impl->trace_local();
             impl->world.gop.sum(sum);
+            impl->world.gop.fence();
             return sum;
         }
 
@@ -883,6 +887,7 @@ namespace madness {
 
 	  TENSOR_RESULT_TYPE(T,R) local = impl->inner_local(*(g.impl));
 	  impl->world.gop.sum(local);
+          world.gop.fence();
 	  return local;
 	}
 

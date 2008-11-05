@@ -160,6 +160,7 @@ namespace madness {
         for (unsigned int i=0; i<v.size(); i++) norms[i] = v[i].norm2sq_local();
         world.gop.sum(&norms[0], norms.size());
         for (unsigned int i=0; i<v.size(); i++) norms[i] = sqrt(norms[i]);
+        world.gop.fence();
         return norms;
     }
 
@@ -193,6 +194,7 @@ namespace madness {
         }
 
         world.gop.sum(r.ptr(),n*m);
+        world.gop.fence();
         return r;
     }
 
@@ -213,6 +215,7 @@ namespace madness {
         }
 
         world.gop.sum(r.ptr(),n);
+        world.gop.fence();
         return r;
     }
 

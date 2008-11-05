@@ -1158,6 +1158,7 @@ namespace madness {
                 typedef typename dcT::const_iterator iterator;
                 typedef typename dcT::pairT pairT;
                 World* world = ar.get_world();
+                Tag tag = world->mpi.unique_tag();
                 ProcessID me = world->rank();
                 if (ar.dofence()) world->gop.fence();
                 if (ar.is_io_node()) {
