@@ -631,7 +631,7 @@ namespace madness {
 	}
 
 	  ///Change bv on the fly. Temporary workaround until better bc handling is introduced.
-		void set_bc(const Tensor<int>& value) { impl->set_bc(value);}
+		Function<T,NDIM>& set_bc(const Tensor<int>& value) { impl->set_bc(value); return *this;}
 
 	/// Clears the function as if constructed uninitialized.  Optional fence.
 

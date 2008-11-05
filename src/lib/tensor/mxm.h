@@ -1,22 +1,22 @@
 /*
   This file is part of MADNESS.
-  
+
   Copyright (C) <2007> <Oak Ridge National Laboratory>
-  
+
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation; either version 2 of the License, or
   (at your option) any later version.
-  
+
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
   GNU General Public License for more details.
-  
+
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
-  
+
   For more information please contact:
 
   Robert J. Harrison
@@ -24,15 +24,15 @@
   One Bethel Valley Road
   P.O. Box 2008, MS-6367
 
-  email: harrisonrj@ornl.gov 
+  email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
 
-  
+
   $Id$
 */
 
-  
+
 
 // This file is ONLY included into tensor.cc ... separated here just
 // to shrink file size.  Don't try to include anywhere else
@@ -51,12 +51,12 @@
 
 /// Matrix * matrix reference implementation (slow but correct)
 template <typename T, typename Q, typename S>
-STATIC inline void mxm(long dimi, long dimj, long dimk,
+static inline void mxm(long dimi, long dimj, long dimk,
                        T* restrict c, const Q* restrict a,
                        const S* restrict b) {
     /*
       c(i,j) = c(i,j) + sum(k) a(i,k)*b(k,j)
-      
+
       where it is assumed that the last index in each array is has unit
       stride and the dimensions are as provided.
     */
@@ -76,17 +76,17 @@ STATIC inline void mxm(long dimi, long dimj, long dimk,
 
 /// Matrix transpose * matrix ... reference implementation (slow but correct)
 template <typename T, typename Q, typename S>
-STATIC inline
+static inline
 void mTxm(long dimi, long dimj, long dimk,
           T* restrict c, const Q* restrict a,
           const S* restrict b) {
     /*
       c(i,j) = c(i,j) + sum(k) a(k,i)*b(k,j)
-      
+
       where it is assumed that the last index in each array is has unit
       stride and the dimensions are as provided.
-      
-      i loop might be long in anticpated application
+
+      i loop might be long in anticipated application
     */
 
     for (long k=0; k<dimk; k++) {
@@ -103,16 +103,16 @@ void mTxm(long dimi, long dimj, long dimk,
 
 /// Matrix * matrix transpose ... reference implementation (slow but correct)
 template <typename T, typename Q, typename S>
-STATIC inline void mxmT(long dimi, long dimj, long dimk,
+static inline void mxmT(long dimi, long dimj, long dimk,
                         T* restrict c, const Q* restrict a,
                         const S* restrict b) {
     /*
       c(i,j) = c(i,j) + sum(k) a(i,k)*b(j,k)
-      
+
       where it is assumed that the last index in each array is has unit
       stride and the dimensions are as provided.
-      
-      i loop might be long in anticpated application
+
+      i loop might be long in anticipated application
     */
 
     for (long i=0; i<dimi; i++) {
@@ -128,12 +128,12 @@ STATIC inline void mxmT(long dimi, long dimj, long dimk,
 
 /// Matrix transpose * matrix transpose reference implementation (slow but correct)
 template <typename T, typename Q, typename S>
-STATIC inline void mTxmT(long dimi, long dimj, long dimk,
+static inline void mTxmT(long dimi, long dimj, long dimk,
                          T* restrict c, const Q* restrict a,
                          const S* restrict b) {
     /*
       c(i,j) = c(i,j) + sum(k) a(k,i)*b(j,k)
-      
+
       where it is assumed that the last index in each array is has unit
       stride and the dimensions are as provided.
     */
@@ -170,7 +170,7 @@ inline void mTxm(long dimi, long dimj, long dimk,
     where it is assumed that the last index in each array is has unit
     stride and the dimensions are as provided.
 
-    i loop might be long in anticpated application
+    i loop might be long in anticipated application
 
     4-way unrolled k loop ... empirically fastest on PIII
     compared to 2/3 way unrolling (though not by much).
@@ -217,7 +217,7 @@ inline void mxmT(long dimi, long dimj, long dimk,
     where it is assumed that the last index in each array is has unit
     stride and the dimensions are as provided.
 
-    j loop might be long in anticpated application
+    j loop might be long in anticipated application
 
     Unrolled i loop.  Empirically fastest on PIII compared
     to unrolling j, or both i&j.
@@ -304,7 +304,7 @@ inline void mTxmT(long dimi, long dimj, long dimk,
     where it is assumed that the last index in each array is has unit
     stride and the dimensions are as provided.
 
-    Tiled k, copy row of a into temporary, and uroll j once.
+    Tiled k, copy row of a into temporary, and unroll j once.
     */
 
     const int ktile=32;
