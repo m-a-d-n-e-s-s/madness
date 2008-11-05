@@ -842,7 +842,7 @@ namespace madness {
                 }
             }
 
-            std::cout << "BINDING THREAD: id " << logical_id << " ind " << ind << " lo " << lo << " hi " << hi << " ncpu " << ncpu << std::endl;
+            //std::cout << "BINDING THREAD: id " << logical_id << " ind " << ind << " lo " << lo << " hi " << hi << " ncpu " << ncpu << std::endl;
             
             cpu_set_t mask;
             CPU_ZERO(&mask);
