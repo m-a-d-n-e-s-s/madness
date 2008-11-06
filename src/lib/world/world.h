@@ -593,6 +593,12 @@ namespace madness {
         world->gop.barrier();
     }
 
+    /// Call this once at the very top of your main program instead of calling MPI::Init
+    void initialize(int argc, char** argv);
+
+    /// Call this once at the very end of your main program instead of calling MPI::Finalize
+    void finalize();
+
     namespace archive {
         template <class Archive>
         struct ArchiveLoadImpl<Archive,World*> {

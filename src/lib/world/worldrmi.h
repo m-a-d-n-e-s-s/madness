@@ -71,6 +71,17 @@ namespace madness {
     // This is the generic low-level interface for a message handler
     typedef void (*rmi_handlerT)(void* buf, size_t nbyte);
 
+    // Holds message passing statistics
+    struct RMIStats {
+        uint64_t nmsg_sent;
+        uint64_t nbyte_sent;
+        uint64_t nmsg_recv;
+        uint64_t nbyte_recv;
+
+        RMIStats() 
+            : nmsg_sent(0), nbyte_sent(0), nmsg_recv(0), nbyte_recv(0)
+        {}
+    };
 
     class RMI : private madness::ThreadBase , madness::Mutex {
     public:
@@ -94,6 +105,7 @@ namespace madness {
         static const int MAXQ=4*NRECV;
 #endif        
 
+        RMIStats stats;
         SafeMPI::Intracomm comm;
         const Tag tag;              // The MPI message type 
         const int nproc;            // No. of processes in comm world
@@ -165,6 +177,9 @@ namespace madness {
                         int src = status[m].Get_source();
                         size_t len = status[m].Get_count(MPI::BYTE);
                         int i = ind[m];
+
+                        stats.nmsg_recv++;
+                        stats.nbyte_recv += len;
                     
                         const header* h = (const header*)(recv_buf[i]);
                         rmi_handlerT func = h->func;
@@ -294,12 +309,16 @@ namespace madness {
 
             if (nbyte < HEADER_LEN) 
                 throw "RMI::isend --- your buffer is too small to hold the header";
+
+            // Since most uses are ordered and we need the mutex to accumulate stats
+            // we presently always get the lock
+            lock();
         
             // If ordering need the mutex to enclose sending the message
             // otherwise there is a livelock scenario due to a starved thread
             // holding an early counter.
             if (is_ordered(attr)) {
-                lock();
+                //lock();
                 attr |= ((send_counters[dest]++)<<16);
             }
 
@@ -307,9 +326,13 @@ namespace madness {
             h->func = func;
             h->attr = attr;
 
+            stats.nmsg_sent++;
+            stats.nbyte_sent += nbyte;
+
             Request result = comm.Isend(buf, nbyte, MPI::BYTE, dest, tag);
 
-            if (is_ordered(attr)) unlock();
+            //if (is_ordered(attr)) unlock();
+            unlock();
 
             return result;
         }
@@ -343,6 +366,10 @@ namespace madness {
 
         static bool get_debug() {
             return instance()->debugging;
+        }
+
+        static const RMIStats& get_stats() {
+            return instance()->stats;
         }
     };
 }

@@ -43,6 +43,30 @@
 #endif
 
 namespace madness {
+    void initialize(int argc, char** argv) {
+        bool bind[3] = {true, true, true};
+        int cpulo[3] = {0, 1, 2};
+        ThreadBase::set_affinity_pattern(bind, cpulo); // Decide how to locate threads before doing anything
+        ThreadBase::set_affinity(0);         // The main thread is logical thread 0
+        
+#ifdef SERIALIZE_MPI    
+        int required = MPI::THREAD_SERIALIZED;
+#else
+        int required = MPI::THREAD_MULTIPLE;
+#endif
+        int provided = MPI::Init_thread(argc, argv, required);
+        if (provided < required && MPI::COMM_WORLD.Get_rank() == 0) {
+            std::cout << "!! Warning: MPI::Init_thread did not provide requested functionality" << std::endl;
+        }
+        
+        ThreadPool::begin();        // Must have thread pool before any AM arrives
+        RMI::begin();               // Must have RMI while still running single threaded
+    }
+
+    void finalize() {
+        RMI::end();
+        MPI::Finalize();
+    }
     
     std::list<World*> World::worlds;
     unsigned long World::idbase = 0;

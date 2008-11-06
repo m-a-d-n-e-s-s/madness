@@ -887,7 +887,7 @@ namespace madness {
 
 	  TENSOR_RESULT_TYPE(T,R) local = impl->inner_local(*(g.impl));
 	  impl->world.gop.sum(local);
-          world.gop.fence();
+          impl->world.gop.fence();
 	  return local;
 	}
 
@@ -1282,7 +1282,7 @@ namespace madness {
     template <typename T, typename R, int NDIM>
       TENSOR_RESULT_TYPE(T,R) inner(const Function<T,NDIM>& f, const Function<R,NDIM>& g) {
         PROFILE_FUNC;
-      return f.inner(g);
+        return f.inner(g);
     }
 
 

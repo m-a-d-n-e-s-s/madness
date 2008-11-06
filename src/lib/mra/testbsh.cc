@@ -226,7 +226,7 @@ void test_bsh(World& world) {
 
 
 int main(int argc, char**argv) {
-    MPI::Init(argc, argv);
+    initialize(argc,argv);
     World world(MPI::COMM_WORLD);
     
     try {

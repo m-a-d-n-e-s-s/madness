@@ -37,7 +37,7 @@
 
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES  
 #include <mra/mra.h>
-#include <tensor/random.h>
+#include <misc/ran.h>
 #include <ctime>
 using namespace madness;
 
@@ -1351,17 +1351,7 @@ struct Calculation {
 //#include <sched.h>
 
 int main(int argc, char** argv) {
-    MPI::Init(argc, argv);
-    ThreadPool::begin();
-    if (MPI::COMM_WORLD.Get_size() > 1) RMI::begin();
-    MPI::COMM_WORLD.Barrier();
-
-//     cpu_set_t mask;
-//     CPU_ZERO(&mask);
-//     CPU_SET(MPI::COMM_WORLD.Get_rank(), &mask);
-//     if( sched_setaffinity( 0, sizeof(mask), &mask ) == -1 ) {
-//         printf("WARNING: Could not set CPU Affinity, continuing...\n");
-//     }
+    initialize(argc, argv);
 
     World world(MPI::COMM_WORLD);
 

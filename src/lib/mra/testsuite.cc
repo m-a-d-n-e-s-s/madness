@@ -1050,15 +1050,8 @@ void test_io(World& world) {
 #define TO_STRING2(s) #s
 
 int main(int argc, char**argv) {
-    bool bind[3] = {true, true, true};
-    int cpulo[3] = {0, 1, 2};
-    ThreadBase::set_affinity_pattern(bind, cpulo); // Decide how to locate threads before doing anything
-    ThreadBase::set_affinity(0);         // The main thread is logical thread 0
-
-    MPI::Init(argc, argv);
+    initialize(argc, argv);
     try {
-        ThreadPool::begin();
-        RMI::begin();
         World world(MPI::COMM_WORLD);
         if (world.rank() == 0) {
             print("");
