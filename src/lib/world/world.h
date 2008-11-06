@@ -599,6 +599,10 @@ namespace madness {
     /// Call this once at the very end of your main program instead of calling MPI::Finalize
     void finalize();
 
+    /// Call this to print misc. stats ... collective
+    void print_stats(World& world);
+
+
     namespace archive {
         template <class Archive>
         struct ArchiveLoadImpl<Archive,World*> {

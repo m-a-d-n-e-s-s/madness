@@ -947,13 +947,9 @@ int main(int argc, char** argv) {
     print("entering final fence");
     world.gop.fence();
     print("done with final fence");
-//     if (world.rank() == 0) {
-//         world.am.print_stats();
-//         world.taskq.print_stats();
-//         world_mem_info()->print();
-//     }
 
-    //WorldProfile::print(world);
+
+    print_stats(world);
     finalize();
     return 0;
 }

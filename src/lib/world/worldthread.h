@@ -588,6 +588,21 @@ namespace madness {
 
     };
 
+
+    struct DQStats { // Dilly bar, blizzard, ...
+        uint64_t nmax;          //< Lifetime max. entries in the queue
+        uint64_t npush_back;    //< #calls to push_back
+        uint64_t npush_front;   //< #calls to push_front
+        uint64_t npop_back;     //< #calls to pop_back
+        uint64_t npop_front;    //< #calls to pop_front
+        uint64_t ngrow;         //< #calls to grow
+
+        DQStats() 
+            : nmax(0), npush_back(0), npush_front(0), npop_back(0), npop_front(0), ngrow(0)
+        {}
+    };
+
+
     /// A thread safe, fast but simple doubled-ended queue.  You can push or pop at either end ... that's it.
 
     /// Since the point is speed, the implementation is a circular
@@ -604,9 +619,11 @@ namespace madness {
         volatile int _front;  ///< Index of element at front of buffer
         volatile int _back;    ///< Index of element at back of buffer
         volatile size_t n;      ///< Number of elements in the buffer
+        DQStats stats;
 
         void grow() {
             // ASSUME WE ALREADY HAVE THE MUTEX WHEN IN HERE
+            stats.ngrow++;
             if (sz != n) throw "assertion failure in dqueue::grow";
             size_t oldsz = sz;
             if (sz < 32768) 
@@ -657,30 +674,35 @@ namespace madness {
         /// Insert value at front of queue
         void push_front(const T& value) {
             madness::ScopedMutex<ConditionVariable> obolus(this);
+            stats.npush_front++;
             //sanity_check();
             if (n == sz) grow();
             _front--;
             if (_front < 0) _front = sz-1;
             buf[_front] = value;
             n++;
+            if (n > stats.nmax) stats.nmax = n;
             signal();
         }
 
         /// Insert element at back of queue
         void push_back(const T& value) {
             madness::ScopedMutex<ConditionVariable> obolus(this);
+            stats.npush_back++;
             //sanity_check();
             if (n == sz) grow();
             _back++;
             if (_back >= int(sz)) _back = 0;
             buf[_back] = value;
             n++;
+            if (n > stats.nmax) stats.nmax = n;
             signal();
         }
 
         /// Pop value off the front of queue
         std::pair<T,bool> pop_front(bool wait) {
             madness::ScopedMutex<ConditionVariable> obolus(this);
+            stats.npop_front++;
             if (wait) ConditionVariable::wait();
             bool status=true; 
             T result = T();
@@ -701,6 +723,7 @@ namespace madness {
         /// Pop value off the back of queue
         std::pair<T,bool> pop_back(bool wait=true) {
             madness::ScopedMutex<ConditionVariable> obolus(this);
+            stats.npop_back++;
             if (wait) ConditionVariable::wait();
             bool status=true; 
             T result;
@@ -724,8 +747,11 @@ namespace madness {
         bool empty() const {
             return n==0;
         }
-    };
 
+        const DQStats& get_stats() const {
+            return stats;
+        }
+    };
 
     class ThreadPool;           // Forward decl.
     class WorldTaskQueue;
@@ -1054,6 +1080,7 @@ namespace madness {
         }
 
 
+
         /// An otherwise idle thread can all this to run a task
 
         /// Returns true if one was run
@@ -1061,9 +1088,16 @@ namespace madness {
             return instance()->run_task(false);
         }
 
+
         /// Returns number of threads in the pool
         static size_t size() {
             return instance()->nthreads;
+        }
+
+
+        /// Returns queue statistics
+        static const DQStats& get_stats() {
+            return instance()->queue.get_stats();
         }
         
 

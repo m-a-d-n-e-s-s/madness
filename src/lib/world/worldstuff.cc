@@ -43,7 +43,13 @@
 #endif
 
 namespace madness {
+    static double start_cpu_time;
+    static double start_wall_time;
+
     void initialize(int argc, char** argv) {
+        start_cpu_time = cpu_time();
+        start_wall_time = wall_time();
+
         bool bind[3] = {true, true, true};
         int cpulo[3] = {0, 1, 2};
         ThreadBase::set_affinity_pattern(bind, cpulo); // Decide how to locate threads before doing anything
@@ -301,4 +307,103 @@ namespace madness {
         }
     }      
 
+    void print_stats(World& world) {
+        RMIStats rmi = RMI::get_stats();
+        DQStats q = ThreadPool::get_stats();
+
+        double nmsg_sent = rmi.nmsg_sent;
+        double nmsg_recv = rmi.nmsg_recv;
+        double nbyte_sent = rmi.nbyte_sent;
+        double nbyte_recv = rmi.nbyte_recv;
+        world.gop.sum(nmsg_sent);
+        world.gop.sum(nmsg_recv);
+        world.gop.sum(nbyte_sent);
+        world.gop.sum(nbyte_recv);
+
+        double max_nmsg_sent = rmi.nmsg_sent;
+        double max_nmsg_recv = rmi.nmsg_recv;
+        double max_nbyte_sent = rmi.nbyte_sent;
+        double max_nbyte_recv = rmi.nbyte_recv;
+        world.gop.max(max_nmsg_sent);
+        world.gop.max(max_nmsg_recv);
+        world.gop.max(max_nbyte_sent);
+        world.gop.max(max_nbyte_recv);
+
+        double min_nmsg_sent = rmi.nmsg_sent;
+        double min_nmsg_recv = rmi.nmsg_recv;
+        double min_nbyte_sent = rmi.nbyte_sent;
+        double min_nbyte_recv = rmi.nbyte_recv;
+        world.gop.min(min_nmsg_sent);
+        world.gop.min(min_nmsg_recv);
+        world.gop.min(min_nbyte_sent);
+        world.gop.min(min_nbyte_recv);
+
+
+        double npush_back = q.npush_back; 
+        double npush_front = q.npush_front;
+        double npop_back = q.npop_back;  
+        double npop_front = q.npop_front; 
+        double ntask = q.npush_back + q.npush_front;
+        double nmax = q.nmax;
+        world.gop.sum(npush_back);
+        world.gop.sum(npush_front);
+        world.gop.sum(npop_back);
+        world.gop.sum(npop_front);
+        world.gop.sum(ntask);
+        world.gop.sum(nmax);
+
+        double max_npush_back = q.npush_back; 
+        double max_npush_front = q.npush_front;
+        double max_npop_back = q.npop_back;  
+        double max_npop_front = q.npop_front; 
+        double max_ntask = q.npush_back + q.npush_front;
+        double max_nmax = q.nmax;
+        world.gop.max(max_npush_back);
+        world.gop.max(max_npush_front);
+        world.gop.max(max_npop_back);
+        world.gop.max(max_npop_front);
+        world.gop.max(max_ntask);
+        world.gop.max(max_nmax);
+
+        double min_npush_back = q.npush_back; 
+        double min_npush_front = q.npush_front;
+        double min_npop_back = q.npop_back;  
+        double min_npop_front = q.npop_front; 
+        double min_ntask = q.npush_back + q.npush_front;
+        double min_nmax = q.nmax;
+        world.gop.min(min_npush_back);
+        world.gop.min(min_npush_front);
+        world.gop.min(min_npop_back);
+        world.gop.min(min_npop_front);
+        world.gop.min(min_ntask);
+        world.gop.min(min_nmax);
+
+        if (world.rank() == 0) {
+            printf("\n");
+            printf("  RMI message statistics (min / avg / max)\n");
+            printf("  ----------------------\n");
+            printf(" #messages sent per node    %.2e / %.2e / %.2e\n", 
+                   min_nmsg_sent, nmsg_sent/world.size(), max_nmsg_sent);
+            printf("    #bytes sent per node    %.2e / %.2e / %.2e\n",
+                   min_nbyte_sent, nbyte_sent/world.size(), max_nbyte_sent);
+            printf(" #messages recv per node    %.2e / %.2e / %.2e\n", 
+                   min_nmsg_recv, nmsg_recv/world.size(), max_nmsg_recv);
+            printf("    #bytes recv per node    %.2e / %.2e / %.2e\n",
+                   min_nbyte_recv, nbyte_recv/world.size(), max_nbyte_recv);
+            printf("\n");
+            printf("  Thread pool statistics (min / avg / max)\n");
+            printf("  ----------------------\n");
+            printf("         #tasks per node    %.2e / %.2e / %.2e\n",
+                   min_ntask, ntask/world.size(), max_ntask);
+            printf("     #max q len per node    %.2e / %.2e / %.2e\n",
+                   min_nmax, nmax/world.size(), max_nmax);
+            printf("  #hi-pri tasks per node    %.2e / %.2e / %.2e\n",
+                   min_npush_front, npush_front/world.size(), max_npush_front);
+            printf("\n");
+            printf("       #threads per node    %d+main+server = %d\n", int(ThreadPool::size()), int(ThreadPool::size()+2));
+            printf(" Total wall time: %.1fs\n", wall_time()-start_wall_time);
+            printf(" Total  cpu time: %.1fs\n", cpu_time()-start_cpu_time);
+        }
+        world.gop.fence();
+    }
 }
