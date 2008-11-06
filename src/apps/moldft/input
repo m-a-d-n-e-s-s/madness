@@ -5,13 +5,6 @@ dft
   nvbeta 0
 end
 
-# water*1
-geometry
-  O  0.0    0.0 0.0
-  H  1.4375 0.0 1.15
-  H -1.4375 0.0 1.15
-end
-
 # D6h benzene at 6-31g* SCF =m
 geometry
   C  0.00000000    2.61951159     0.00000000
@@ -27,6 +20,14 @@ geometry
   H  4.02886772   -2.32598919     0.00000000
   H -4.02886772   -2.32598919     0.00000000
 end
+
+# water*1
+geometry
+  O  0.0    0.0 0.0
+  H  1.4375 0.0 1.15
+  H -1.4375 0.0 1.15
+end
+
 
 # water dimer
 geometry

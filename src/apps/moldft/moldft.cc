@@ -1,4 +1,4 @@
-/*
+*
   This file is part of MADNESS.
   
   Copyright (C) <2007> <Oak Ridge National Laboratory>
@@ -586,7 +586,7 @@ struct Calculation {
                 }
                 ndone += ndone_iter;
                 if (ndone_iter==0 && tol==thresh) {
-                    print("Converged!", ndone);
+                    if (world.rank() == 0) print("Converged!", ndone);
                     break;
                 }
             }
@@ -913,8 +913,6 @@ struct Calculation {
         aocc = tensorT(param.nmo_alpha);
         for (int i=0; i<param.nalpha; i++) aocc[i] = 1.0;
 
-        print("AOCC", aocc);
-
         if (param.nbeta && !param.spin_restricted) {
             bmo = transform(world, ao, c(_,Slice(0,param.nmo_beta-1)));
             truncate(world, bmo);
@@ -1186,8 +1184,6 @@ struct Calculation {
         tensorT c;
         sygv(fock, overlap, 1, &c, &evals);
 
-        print("NEW EVALS", evals);
-
         Vpsi = transform(world, Vpsi, c);
         psi = transform(world, psi, c);
 
@@ -1338,11 +1334,11 @@ struct Calculation {
 
         tensorT U = localize_maxao(world, amo);
         vecfuncT locmo = transform(world, amo, U);
-        print("Localized by MAXAO analysis");
+        if (world.rank() == 0) print("Localized by MAXAO analysis");
         analyze_vectors(world, locmo);
         U = localize_boys(world, amo);
         locmo = transform(world, amo, U);
-        print("Localized by BOYS analysis");
+        if (world.rank() == 0) print("Localized by BOYS analysis");
         analyze_vectors(world, locmo);
     }
 
@@ -1387,6 +1383,7 @@ int main(int argc, char** argv) {
         calc.solve(world);
 
         world.gop.fence();
+        print_stats(world);
 
     } catch (const MPI::Exception& e) {
         //        print(e);

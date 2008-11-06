@@ -1148,6 +1148,8 @@ int main(int argc, char**argv) {
             print("Final tensor instance count", BaseTensor::get_instance_count());
         }
 
+        print_stats(world);
+
     } catch (const MPI::Exception& e) {
         //        print(e);
         error("caught an MPI exception");
@@ -1173,11 +1175,7 @@ int main(int argc, char**argv) {
         error("caught unhandled exception");
     }
 
-    RMI::end();
-    MPI::Finalize();
-    
-    //gprofexit(id,nproc);
-
+    finalize();
     return 0;
 }
 
