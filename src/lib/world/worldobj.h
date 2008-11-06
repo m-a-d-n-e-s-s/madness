@@ -134,16 +134,17 @@ namespace madness {
     /// Note that world is exposed for convenience as a public data member.
     template <class Derived>
     class WorldObject : public DeferredCleanupInterface {
+        typedef WorldObject<Derived> objT;
+        typedef std::list<detail::PendingMsg> pendingT;
     public:
         World& world;                              ///< Think globally act locally
     private:
-        typedef WorldObject<Derived> objT;
-        uniqueidT objid;                           ///< Sense of self
-        ProcessID me;                              ///< Rank of self
+        // The order here matters in a multi-threaded world
         volatile bool ready;                       ///< True if ready to rock 'n roll
-        typedef std::list<detail::PendingMsg> pendingT;
-        static volatile pendingT pending; ///< Buffers pending messages
+        ProcessID me;                              ///< Rank of self
         static Mutex pending_mutex;
+        static volatile pendingT pending;          ///< Buffers pending messages
+        uniqueidT objid;                           ///< Sense of self
     
         // Handler for incoming AM with 0 arguments
         template <typename memfunT>
@@ -487,9 +488,9 @@ namespace madness {
         /// and to enable processing of future messages.
         WorldObject(World& world) 
             : world(world)
-            , objid(world.register_ptr(static_cast<Derived*>(this)))
-            , me(world.rank())
             , ready(false)
+            , me(world.rank())
+            , objid(world.register_ptr(static_cast<Derived*>(this)))
         {};
         
         
