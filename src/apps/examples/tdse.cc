@@ -262,7 +262,7 @@ void propagate(World& world, functionT& potn, functionT& psi0, double& eps) {
     
 
 int main(int argc, char** argv) {
-    MPI::Init(argc, argv);
+    initialize(argc, argv);
     ThreadPool::begin();
     RMI::begin();
     MPI::COMM_WORLD.Barrier();
@@ -292,7 +292,6 @@ int main(int argc, char** argv) {
 
     world.gop.fence();
 
-    RMI::end();
-    MPI::Finalize();
+    finalize();
     return 0;
 }

@@ -1413,7 +1413,7 @@ int main(int argc, char** argv) {
         error("caught unhandled exception");
     }
 
-    MPI::Finalize();
+    finalize();
     
     return 0;
 }

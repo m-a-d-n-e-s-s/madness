@@ -124,7 +124,7 @@ void bigboy(World& world, const Molecule& molecule) {
 }
 
 int main(int argc, char** argv) {
-    MPI::Init(argc, argv);
+    initialize(argc,argv);
     World world(MPI::COMM_WORLD);
     
     try {
@@ -191,7 +191,7 @@ int main(int argc, char** argv) {
         error("caught unhandled exception");
     }
 
-    MPI::Finalize();
+    finalize();
     
     return 0;
 }

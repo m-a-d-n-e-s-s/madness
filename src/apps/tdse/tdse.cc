@@ -748,10 +748,7 @@ void doit(World& world) {
 }
 
 int main(int argc, char** argv) {
-    MPI::Init(argc, argv);
-    ThreadPool::begin();
-    RMI::begin();
-    MPI::COMM_WORLD.Barrier();
+    initialize(argc,argv);
     World world(MPI::COMM_WORLD);
     
     startup(world,argc,argv);
@@ -786,15 +783,8 @@ int main(int argc, char** argv) {
 
 
     world.gop.fence();
-//     if (world.rank() == 0) {
-//         //        world.am.print_stats();
-//         //world.taskq.print_stats();
-//         //world_mem_info()->print();
-//     }
-
-//     WorldProfile::print(world);
-    RMI::end();
-    MPI::Finalize();
+    print_stats(world);
+    finalize();
     return 0;
 }
 
