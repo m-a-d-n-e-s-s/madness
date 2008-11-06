@@ -243,21 +243,14 @@ static double dsmoothed_potential(double r)
     return value;
 }
 
-// /// Charge density corresponding to smoothed 1/r potential
+/// Charge density corresponding to smoothed 1/r potential
 
-// /// Invoke as \c rho(r/c)/c^3 where \c c is the radius of the
-// /// smoothed volume.
-// static double smoothed_density(double r) {
-//     const double RPITO1P5 = 0.1795871221251665617; // 1.0/Pi^1.5
-//     return ((-3.0/2.0+(1.0/3.0)*r^2)*exp(-r^2)+(-32.0+(256.0/3.0)*r^2)*exp(-4.0*r^2))*RPITO1P5;
-// }
-
+/// Invoke as \c rho(r/c)/c^3 where \c c is the radius of the
+/// smoothed volume.
 static double smoothed_density(double r)
 {
-  double c = 0.1;
-  r = r / c;
-  const double RPITO1P5 = 0.1795871221251665617; // 1.0/Pi^1.5
-  return ((-3.0/2.0+(1.0/3.0)*r*r)*exp(-r*r)+(-32.0+(256.0/3.0)*r*r)*exp(-4.0*r*r))*RPITO1P5/c/c/c;
+    const double RPITO1P5 = 0.1795871221251665617; // 1.0/Pi^1.5
+    return ((-3.0/2.0+(1.0/3.0)*r^2)*exp(-r^2)+(-32.0+(256.0/3.0)*r^2)*exp(-4.0*r^2))*RPITO1P5;
 }
 
 std::ostream& operator<<(std::ostream& s, const Atom& atom) {
@@ -442,26 +435,14 @@ double MolecularEntity::nuclear_attraction_potential(double x, double y, double 
     return sum;
 }
 
-double MolecularEntity::nuclear_charge_density(double x, double y, double z) const
-{
-    double sum = 0.0;
-    for (unsigned int i=0; i<atoms.size(); i++)
-    {
-        double r = distance(atoms[i].x, atoms[i].y, atoms[i].z, x, y, z);
-        sum -= atoms[i].q * smoothed_density(r);
-    }
-    return sum;
+double MolecularEntity::nuclear_charge_density(double x, double y, double z) const {
+  double sum = 0.0;
+  for (unsigned int i=0; i<atoms.size(); i++) {
+    double r = distance(atoms[i].x, atoms[i].y, atoms[i].z, x, y, z) * rcut;
+    //sum -= atoms[i].q/(r+1e-8);
+    sum -= atoms[i].q * smoothed_charge_density(r*rcut[i])*rcut[i]*rcut[i]*rcut[i];
+  }
+return sum;
 }
-
-// double MolecularEntity::nuclear_charge_density(double x, double y, double z) const {
-//     if > 6 return 0.0
-//     double sum = 0.0;
-//     for (unsigned int i=0; i<atoms.size(); i++) {
-//         double r = distance(atoms[i].x, atoms[i].y, atoms[i].z, x, y, z) * rcut;
-//         //sum -= atoms[i].q/(r+1e-8);
-//         sum -= atoms[i].q * smoothed_charge_density(r*rcut[i])*rcut[i]*rcut[i]*rcut[i];
-//     }
-//     return sum;
-// }
 
 

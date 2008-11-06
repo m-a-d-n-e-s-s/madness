@@ -143,6 +143,71 @@ Cost lbcost(const Key<NDIM>& key, const FunctionNode<T,NDIM>& node) {
   return 1;
 }
 
+struct ElectronicStructureParams
+{
+  // Size of the cubic box (this needs to change)
+  double L;
+  // Amount of electronic charge
+  double ncharge;
+  // 1 - LDA; 2 - Hartree-Fock
+  int functional;
+  // Low value in the BSH / Coulomb fit
+  double lo;
+  // Spin-polarized
+  bool spinpol;
+  // Periodic system
+  bool periodic;
+  // Maximum number of interations
+  int maxits;
+  // Thresh
+  double thresh;
+  // Number of empty states
+  int nempty;
+  // Smearing parameter
+  double smear;
+
+  ElectronicStructureParams()
+  {
+    L = 10.0;
+    ncharge = 1.0;
+    functional = 1;
+    lo = 1e-4;
+    spinpol = false;
+    periodic = false;
+    maxits = 100;
+    thresh = 1e-6;
+    nempty = 5;
+  }
+
+  void read_file(const std::string& filename) {
+      std::ifstream f(filename.c_str());
+      position_stream(f, "dft");
+      string s;
+      while (f >> s) {
+          if (s == "end") {
+              break;
+          } else if (s == "L") {
+              f >> L;
+          } else if (s == "functional") {
+              f >> functional;
+          } else if (s == "lo") {
+              f >> smear;
+          } else if (s == "maxits") {
+              f >> maxits;
+          } else if (s == "thresh") {
+              f >> thresh;
+          } else if (s == "nempty") {
+              f >> nempty;
+          } else {
+              std::cout << "moldft: unrecognized input keyword " << s << std::endl;
+              MADNESS_EXCEPTION("input error",0);
+          }
+      }
+  }
+
+
+};
+
 class ElectronicStructureApp
 {
 public:
@@ -166,7 +231,7 @@ public:
 
   void read_params(const std::string& filename)
   {
-
+    _params.read_file(filename);
   }
 
   void read_positions(const std::string& filename)
@@ -176,18 +241,16 @@ public:
 
   void make_nuclear_potential(World& world)
   {
-      //vnuc = factoryT(world).functor(functorT(new MolecularPotentialFunctor(molecule))).thresh(vtol).truncate_on_project();
-      //vnuc.truncate();
-      //vnuc.reconstruct();
       Function<double, 3> rhon = factoryT(world).functor(
           functorT(new MolecularNuclearChargeDensityFunctor(_mentity))).
-          thresh(vtol).truncate_on_project();
+          thresh(_params.thresh).truncate_on_project();
   }
-
 
 private:
   MolecularEntity* _mentity = 0;
   AtomicBasisSet aobasis;
+  ElectronicStructureParams _params;
+  Function<double,3> _vnuc;
 };
 
 #endif /* ELECTRONICSTRUCTUREAPP_H_ */
