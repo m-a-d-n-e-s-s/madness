@@ -62,9 +62,17 @@ namespace madness {
             const int   naptime = 1000;
             const int sleeptime = naptime*10;
             count++;
-            if (count < nspin) return;
-            else if (count < nnap) yield(naptime);
-            else yield(sleeptime);
+            if (count < nspin) {
+                for (int i=0; i<100; i++) count++;
+                count -= 100;
+                return;
+            }
+            else if (count < nnap) {
+                yield(naptime);
+            }
+            else {
+                yield(sleeptime);
+            }
         }
     };
 
