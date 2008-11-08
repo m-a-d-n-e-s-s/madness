@@ -49,6 +49,9 @@ namespace madness {
     void initialize(int argc, char** argv) {
         start_cpu_time = cpu_time();
         start_wall_time = wall_time();
+#ifdef HAVE_PAPI
+        initialize_papi();
+#endif
 
         bool bind[3] = {true, true, true};
         int cpulo[3] = {0, 1, 2};

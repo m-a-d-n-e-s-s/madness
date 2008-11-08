@@ -998,11 +998,13 @@ namespace madness {
         DQueue<PoolTaskInterface*> queue; ///< Queue of tasks
         int nthreads;		  ///< No. of threads
         volatile bool finish;              ///< Set to true when time to stop
+        MADATOMIC_INT nfinished;
 
         static ThreadPool* instance_ptr;
 
         /// The constructor is private to enforce the singleton model
         ThreadPool(int nthread=-1) : nthreads(nthread), finish(false) {
+            MADATOMIC_INT_SET(&nfinished,0);
             instance_ptr = this;
             if (nthreads < 0) nthreads = default_nthread();
             //std::cout << "POOL " << nthreads << std::endl;
@@ -1055,6 +1057,8 @@ namespace madness {
             thread->set_affinity(2, thread->get_pool_thread_index());
             while (!finish) 
                 run_task(true);
+            MADATOMIC_INT_INC(&nfinished);
+            std::cout << "THREADENDING\n";
         }
 
         /// Forwards thread to bound member function
@@ -1071,7 +1075,9 @@ namespace madness {
         }
 
         class PoolTaskNull : public PoolTaskInterface {
-            void run() {};
+            void run() {
+                std::cout << "NULL RUNNING " << std::endl;
+            };
         };
 
     public:
@@ -1080,8 +1086,10 @@ namespace madness {
 
         static void end() {
             instance()->finish = true;
+            std::cout << "ENDING THREADS" << std::endl;
             for (int i=0; i<instance()->nthreads; i++) instance()->add(new PoolTaskNull);
-            usleep(10000);
+            while (MADATOMIC_INT_GET(&instance()->nfinished) != instance()->nthreads);
+            std::cout << "DONE ENDING THREADS" << std::endl;
         }
 
         /// Add a new task to the pool
