@@ -311,6 +311,8 @@ namespace madness {
     }      
 
     void print_stats(World& world) {
+        double total_wall_time = wall_time()-start_wall_time;
+        double total_cpu_time = cpu_time()-start_cpu_time;
         RMIStats rmi = RMI::get_stats();
         DQStats q = ThreadPool::get_stats();
 #ifdef HAVE_PAPI
@@ -398,6 +400,13 @@ namespace madness {
 
         if (world.rank() == 0) {
             printf("\n");
+            printf("    Parallel environment\n");
+            printf("    --------------------\n");
+            printf("                  #nodes    %d\n", world.size());
+            printf("       #threads per node    %d+main+server = %d\n", int(ThreadPool::size()), int(ThreadPool::size()+2));
+            printf("          #total threads    %d\n", int(ThreadPool::size()+2)*world.size());
+            printf("\n");
+
             printf("  RMI message statistics (min / avg / max)\n");
             printf("  ----------------------\n");
             printf(" #messages sent per node    %.2e / %.2e / %.2e\n", 
@@ -408,6 +417,8 @@ namespace madness {
                    min_nmsg_recv, nmsg_recv/world.size(), max_nmsg_recv);
             printf("    #bytes recv per node    %.2e / %.2e / %.2e\n",
                    min_nbyte_recv, nbyte_recv/world.size(), max_nbyte_recv);
+            printf("       #bytes systemwide    %.2e\n", nbyte_sent);
+            printf("        #msgs systemwide    %.2e\n", nmsg_sent);
             printf("\n");
             printf("  Thread pool statistics (min / avg / max)\n");
             printf("  ----------------------\n");
@@ -418,19 +429,27 @@ namespace madness {
             printf("  #hi-pri tasks per node    %.2e / %.2e / %.2e\n",
                    min_npush_front, npush_front/world.size(), max_npush_front);
             printf("\n");
-            printf("       #threads per node    %d+main+server = %d\n", int(ThreadPool::size()), int(ThreadPool::size()+2));
-            printf(" Total wall time: %.1fs\n", wall_time()-start_wall_time);
-            printf(" Total  cpu time: %.1fs\n", cpu_time()-start_cpu_time);
-            printf("\n");
 #ifdef HAVE_PAPI
             printf("  PAPI statistics (min / avg / max)\n");
             printf("  ---------------\n");
             for (int i=0; i<NUMEVENTS; i++) {
-            printf("  %3d   #events per node    %.2e / %.2e / %.2e\n",
-                   i, min_val[i], val[i]/world.size(), max_val[i]);
+                printf("  %3d   #events per node    %.2e / %.2e / %.2e\n",
+                       i, min_val[i], val[i]/world.size(), max_val[i]);
+            }
+            for (int i=0; i<NUMEVENTS; i++) {
+                printf("  %3d #events systemwide    %.2e", i, val[i]);
+            }
+            if (total_wall_time > 0) {
+                for (int i=0; i<NUMEVENTS; i++) {
+                    printf("  %3d   #op/s systemwide    %.2e", i, val[i]/total_wall_time);
+                }
             }
             printf("\n");
 #endif
+
+            printf("         Total wall time    %.1fs\n", total_wall_time);
+            printf("         Total  cpu time    %.1fs\n", total_cpu_time);
+            printf("\n");
         }
         world.gop.fence();
     }

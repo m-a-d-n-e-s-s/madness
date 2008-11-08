@@ -363,13 +363,25 @@ namespace madness {
     public:
         static const int MAX_NTHREAD = 64;
         mutable volatile int nsig; // No. of outstanding signals
-        mutable volatile int n;    // No. of blocking threads
         mutable volatile int front;
         mutable volatile int back;
         mutable volatile bool* volatile q[MAX_NTHREAD]; // Circular buffer of flags
 
+    private:
+        void wakeup() {
+            // ASSUME we have the lock already when in here
+            if (nsig && front != back) {
+                int f = front;
+                *q[f] = true;
+                q[f] = 0; // To better detect stupidities
+                f++;
+                if (f >= MAX_NTHREAD) front = 0;
+                else front = f;
+            }
+        }
+
     public:
-        ConditionVariable() : nsig(0), n(0), front(0), back(0) {}
+        ConditionVariable() : nsig(0), front(0), back(0) {}
 
         void unlock() const {
             Mutex::unlock();
@@ -382,7 +394,6 @@ namespace madness {
         /// You should acquire the mutex before waiting
         void wait() {
             if (nsig == 0) {
-                n++;
                 do {
                     // We put a pointer to a thread-local variable at the
                     // end of the queue and wait for that value to be set,
@@ -393,35 +404,23 @@ namespace madness {
                     b++;
                     if (b >= MAX_NTHREAD) back = 0;
                     else back = b;
-
+                    
                     unlock(); // Release lock before blocking
                     while (!myturn);
                     lock();
-
                 } while (nsig == 0);
             }
             else if (nsig < 0) {
                 throw "ConditionVariable: wait: invalid state";
             }
             nsig--;
+            wakeup();
         }
-
+        
         /// You should acquire the mutex before signalling
         void signal() {
             nsig++;
-            int nn = n;
-            if (nn > 0) { // Wake a thread up
-                n = --nn;
-                int f = front;
-                *q[f] = true;
-                q[f] = 0; // To better detect stupidities
-                f++;
-                if (f >= MAX_NTHREAD) front = 0;
-                else front = f;
-            }
-            else if (n < 0) {
-                throw "ConditionVariable: signal: invalid state";
-            }
+            wakeup();
         }
 
         virtual ~ConditionVariable() {}
@@ -610,9 +609,6 @@ namespace madness {
     /// buffer rather than a linked list so as to avoid the new/del
     /// overhead.  It will grow as needed, but presently will not
     /// shrink.  Had to modify STL API to make things thread safe.
-    ///
-    /// Was wrapping a vector but making it thread safe and resizable
-    /// was too painful.
     template <typename T>
     class DQueue : private ConditionVariable {
         volatile size_t sz;              ///< Current capacity
@@ -676,7 +672,7 @@ namespace madness {
         void push_front(const T& value) {
             madness::ScopedMutex<ConditionVariable> obolus(this);
             stats.npush_front++;
-            //sanity_check();
+            sanity_check();
             if (n == sz) grow();
             _front--;
             if (_front < 0) _front = sz-1;
@@ -690,7 +686,7 @@ namespace madness {
         void push_back(const T& value) {
             madness::ScopedMutex<ConditionVariable> obolus(this);
             stats.npush_back++;
-            //sanity_check();
+            sanity_check();
             if (n == sz) grow();
             _back++;
             if (_back >= int(sz)) _back = 0;
@@ -708,7 +704,7 @@ namespace madness {
             bool status=true; 
             T result = T();
             if (n) {
-                //sanity_check();
+                sanity_check();
                 n--;
                 result = buf[_front];
                 _front++;
@@ -1087,7 +1083,10 @@ namespace madness {
         static void end() {
             instance()->finish = true;
             std::cout << "ENDING THREADS" << std::endl;
-            for (int i=0; i<instance()->nthreads; i++) instance()->add(new PoolTaskNull);
+            for (int i=0; i<instance()->nthreads; i++) {
+                std::cout << "ADDING PTN\n";
+                add(new PoolTaskNull);
+            }
             while (MADATOMIC_INT_GET(&instance()->nfinished) != instance()->nthreads);
             std::cout << "DONE ENDING THREADS" << std::endl;
         }
