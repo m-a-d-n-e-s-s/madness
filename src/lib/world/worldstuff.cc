@@ -310,6 +310,12 @@ namespace madness {
     void print_stats(World& world) {
         RMIStats rmi = RMI::get_stats();
         DQStats q = ThreadPool::get_stats();
+#ifdef HAVE_PAPI
+        // For papi ... this only make sense if done once after all 
+        // other worker threads have exited
+        end_papi_measurement();
+        const long long* values = get_papi_measurement();
+#endif
 
         double nmsg_sent = rmi.nmsg_sent;
         double nmsg_recv = rmi.nmsg_recv;
@@ -337,7 +343,6 @@ namespace madness {
         world.gop.min(min_nmsg_recv);
         world.gop.min(min_nbyte_sent);
         world.gop.min(min_nbyte_recv);
-
 
         double npush_back = q.npush_back; 
         double npush_front = q.npush_front;
@@ -378,6 +383,16 @@ namespace madness {
         world.gop.min(min_ntask);
         world.gop.min(min_nmax);
 
+#ifdef HAVE_PAPI
+        double val[NUMEVENTS], max_val[NUMEVENTS], min_val[NUMEVENTS];
+        for (int i=0; i<NUMEVENTS; i++) {
+            val[i] = max_val[i] = min_val[i] = values[i];
+        }
+        world.gop.sum(val, NUMEVENTS);
+        world.gop.max(max_val, NUMEVENTS);
+        world.gop.min(min_val, NUMEVENTS);
+#endif
+
         if (world.rank() == 0) {
             printf("\n");
             printf("  RMI message statistics (min / avg / max)\n");
@@ -403,6 +418,16 @@ namespace madness {
             printf("       #threads per node    %d+main+server = %d\n", int(ThreadPool::size()), int(ThreadPool::size()+2));
             printf(" Total wall time: %.1fs\n", wall_time()-start_wall_time);
             printf(" Total  cpu time: %.1fs\n", cpu_time()-start_cpu_time);
+            printf("\n");
+#ifdef HAVE_PAPI
+            printf("  PAPI statistics (min / avg / max)\n");
+            printf("  ---------------\n");
+            for (int i=0; i<NUMEVENTS; i++) {
+            printf("  %3d   #events per node    %.2e / %.2e / %.2e\n",
+                   i, min_val[i], val[i]/world.size(), max_val[i]);
+            }
+            printf("\n");
+#endif
         }
         world.gop.fence();
     }

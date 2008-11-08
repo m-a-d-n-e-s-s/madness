@@ -15,6 +15,7 @@
 #include <madness_config.h>
 #include <world/madatomic.h>
 #include <world/nodefaults.h>
+#include <world/worldpapi.h>
 
 namespace madness {
     
@@ -54,12 +55,12 @@ namespace madness {
         ///
         /// - For next 1000 sleeps for 1ms --> circa 1s to 10s
         ///
-        /// - Subsequently sleep for 100ms
+        /// - Subsequently sleep for 10ms
         void wait() {
             const unsigned int nspin = 10000000;
             const unsigned int  nnap = nspin + 1000;
             const int   naptime = 1000;
-            const int sleeptime = naptime*100;
+            const int sleeptime = naptime*10;
             count++;
             if (count < nspin) return;
             else if (count < nnap) yield(naptime);
@@ -769,7 +770,19 @@ namespace madness {
         static int cpulo[3];
         static int cpuhi[3];
 
-        static void* main(void* self) {((ThreadBase*)(self))->run(); return 0;}
+        static void* main(void* self) {
+#ifdef HAVE_PAPI
+            begin_papi_measurement();
+#endif
+
+            ((ThreadBase*)(self))->run(); 
+
+#ifdef HAVE_PAPI
+            end_papi_measurement();
+#endif
+            return 0;
+        }
+
         int pool_num; ///< Stores index of thread in pool or -1
         pthread_t id; 
 
@@ -984,11 +997,12 @@ namespace madness {
         Thread *threads;              ///< Array of threads
         DQueue<PoolTaskInterface*> queue; ///< Queue of tasks
         int nthreads;		  ///< No. of threads
+        volatile bool finish;              ///< Set to true when time to stop
 
         static ThreadPool* instance_ptr;
 
         /// The constructor is private to enforce the singleton model
-        ThreadPool(int nthread=-1) : nthreads(nthread) {
+        ThreadPool(int nthread=-1) : nthreads(nthread), finish(false) {
             instance_ptr = this;
             if (nthreads < 0) nthreads = default_nthread();
             //std::cout << "POOL " << nthreads << std::endl;
@@ -1039,7 +1053,7 @@ namespace madness {
 
         void thread_main(Thread* thread) {
             thread->set_affinity(2, thread->get_pool_thread_index());
-            while (1) 
+            while (!finish) 
                 run_task(true);
         }
 
@@ -1054,12 +1068,21 @@ namespace madness {
         static ThreadPool* instance(int nthread=-1) {
             if (!instance_ptr) instance_ptr = new ThreadPool(nthread);
             return instance_ptr;
-        };
+        }
 
+        class PoolTaskNull : public PoolTaskInterface {
+            void run() {};
+        };
 
     public:
         /// Please invoke while in single threaded environment
         static void begin(int nthread=-1) {instance(nthread);}
+
+        static void end() {
+            instance()->finish = true;
+            for (int i=0; i<instance()->nthreads; i++) instance()->add(new PoolTaskNull);
+            usleep(10000);
+        }
 
         /// Add a new task to the pool
         static void add(PoolTaskInterface* task) {

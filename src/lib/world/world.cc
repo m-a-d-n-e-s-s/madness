@@ -948,7 +948,7 @@ int main(int argc, char** argv) {
     world.gop.fence();
     print("done with final fence");
 
-
+    ThreadPool::end();
     print_stats(world);
     finalize();
     return 0;

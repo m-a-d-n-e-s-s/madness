@@ -177,6 +177,9 @@ if test "$memstats" = "yes"; then
   AC_DEFINE([WORLD_GATHER_MEM_STATS], [1], [Set if MADNESS gathers memory statistics])
 fi
 
+# PAPI
+AC_ARG_WITH([papi], [Enables use of PAPI], [echo "Enabling use of PAPI"; AC_DEFINE(HAVE_PAPI,[1], [Define if have PAPI])], [])
+
 # Capture configuration info for user by compiled code
 AC_DEFINE_UNQUOTED([MADNESS_CONFIGURATION_USER],["$USER"],[User that configured the code])
 AC_DEFINE_UNQUOTED([MADNESS_CONFIGURATION_DATE],["`date`"],[Date of configuration])
