@@ -70,6 +70,10 @@ namespace madness {
         
         ThreadPool::begin();        // Must have thread pool before any AM arrives
         RMI::begin();               // Must have RMI while still running single threaded
+
+#ifdef HAVE_PAPI
+        begin_papi_measurement();
+#endif    
     }
 
     void finalize() {
@@ -430,18 +434,18 @@ namespace madness {
                    min_npush_front, npush_front/world.size(), max_npush_front);
             printf("\n");
 #ifdef HAVE_PAPI
-            printf("  PAPI statistics (min / avg / max)\n");
-            printf("  ---------------\n");
+            printf("         PAPI statistics (min / avg / max)\n");
+            printf("         ---------------\n");
             for (int i=0; i<NUMEVENTS; i++) {
                 printf("  %3d   #events per node    %.2e / %.2e / %.2e\n",
                        i, min_val[i], val[i]/world.size(), max_val[i]);
             }
             for (int i=0; i<NUMEVENTS; i++) {
-                printf("  %3d #events systemwide    %.2e", i, val[i]);
+                printf("  %3d #events systemwide    %.2e\n", i, val[i]);
             }
             if (total_wall_time > 0) {
                 for (int i=0; i<NUMEVENTS; i++) {
-                    printf("  %3d   #op/s systemwide    %.2e", i, val[i]/total_wall_time);
+                    printf("  %3d   #op/s systemwide    %.2e\n", i, val[i]/total_wall_time);
                 }
             }
             printf("\n");

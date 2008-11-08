@@ -546,3 +546,106 @@
 
 
 
+
+    class MutexReaderWriter : NO_DEFAULTS {
+        mutable MADATOMIC_INT nreader;
+        mutable MADATOMIC_INT writeflag;
+    public:
+        static const int NOLOCK=0;
+        static const int READLOCK=1;
+        static const int WRITELOCK=2;
+
+        MutexReaderWriter() {
+            MADATOMIC_INT_SET(&nreader,0);
+            MADATOMIC_INT_SET(&writeflag,1L);
+        }
+
+        bool try_read_lock() const {
+            MADATOMIC_INT_INC(&nreader);
+            if (MADATOMIC_INT_GET(&writeflag) == 0) {
+                return true;
+            }
+            else {
+                MADATOMIC_INT_DEC(&nreader);
+                return false;
+            }
+        }
+        
+        bool try_write_lock() const {
+            if (MADATOMIC_INT_DEC_AND_TEST(&writeflag) && MADATOMIC_INT_GET(&nreader) == 0) {
+                return true;
+            }
+            else {
+                MADATOMIC_INT_INC(&writeflag);
+                return false;
+            }
+        }
+
+        bool try_lock(int lockmode) const {
+            if (lockmode == READLOCK) {
+                return try_read_lock();
+            }
+            else if (lockmode == WRITELOCK) {
+                return try_write_lock();
+            }
+            else if (lockmode == NOLOCK) {
+                return true;
+            }
+            else {
+                throw "MutexReaderWriter: try_lock: invalid lock mode";
+            }
+        }
+
+        bool try_convert_read_lock_to_write_lock() const {
+            if (MADATOMIC_INT_DEC_AND_TEST(&writeflag) && MADATOMIC_INT_GET(&nreader) == 1) {
+                MADATOMIC_INT_DEC(&nreader);
+                return true;
+            }
+            else {
+                MADATOMIC_INT_INC(&writeflag);
+                return false;
+            }
+        }
+
+        void read_lock() const {
+            MutexWaiter waiter;
+            while (!try_read_lock()) waiter.wait();
+        }
+
+        void write_lock() const {
+            MutexWaiter waiter;
+            while (!try_write_lock()) waiter.wait();
+        }
+
+        void lock(int lockmode) const {
+            MutexWaiter waiter;
+            while (!try_lock(lockmode)) waiter.wait();
+        }
+
+        void read_unlock() const {
+            MADATOMIC_INT_DEC(&nreader);
+        }
+
+        void write_unlock() const {
+            MADATOMIC_INT_INC(&writeflag);
+        }
+
+        void unlock(int lockmode) const {
+            if (lockmode == READLOCK) read_unlock();
+            else if (lockmode == WRITELOCK) write_unlock();
+            else if (lockmode != NOLOCK) throw "MutexReaderWriter: try_lock: invalid lock mode";            
+        }
+
+        void convert_read_lock_to_write_lock() const {
+            MutexWaiter waiter;
+            while (!try_convert_read_lock_to_write_lock()) waiter.wait();
+        }
+
+        void convert_write_lock_to_read_lock() const {
+            MADATOMIC_INT_INC(&nreader);
+            MADATOMIC_INT_INC(&writeflag);
+        }
+
+        virtual ~MutexReaderWriter(){};
+    };
+    

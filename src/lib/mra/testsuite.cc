@@ -1116,28 +1116,28 @@ int main(int argc, char**argv) {
         test_math<double_complex,1>(world);
         test_diff<double_complex,1>(world);
         test_op<double_complex,1>(world);
-        test_plot<double_complex,1>(world);
-        test_io<double_complex,1>(world);
+        //test_plot<double_complex,1>(world);
+        //test_io<double_complex,1>(world);
 
-//         //TaskInterface::debug = true;
-//         test_basic<double,2>(world);
-//         test_conv<double,2>(world);
-//         test_math<double,2>(world);
-//         test_diff<double,2>(world);
-//         test_op<double,2>(world);
-//         test_plot<double,2>(world);
-//         test_io<double,2>(world);
+        //TaskInterface::debug = true;
+        test_basic<double,2>(world);
+        test_conv<double,2>(world);
+        test_math<double,2>(world);
+        test_diff<double,2>(world);
+        test_op<double,2>(world);
+        //test_plot<double,2>(world);
+        //test_io<double,2>(world);
 
-//         test_basic<double,3>(world);
-//         test_conv<double,3>(world);
-//         test_math<double,3>(world);
-//         test_diff<double,3>(world);
-//         test_op<double,3>(world);
-//         test_coulomb(world);
-//         test_plot<double,3>(world);
-//         test_io<double,3>(world);
+        test_basic<double,3>(world);
+        test_conv<double,3>(world);
+        test_math<double,3>(world);
+        test_diff<double,3>(world);
+        test_op<double,3>(world);
+        test_coulomb(world);
+        //test_plot<double,3>(world);
+        //test_io<double,3>(world);
 
-//         test_plot<double,4>(world); // slow unless reduce npt in test_plot
+        //test_plot<double,4>(world); // slow unless reduce npt in test_plot
 
 
         if (world.rank() == 0) print("entering final fence");

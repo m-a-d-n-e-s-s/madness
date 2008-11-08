@@ -1,4 +1,4 @@
-*
+/*
   This file is part of MADNESS.
   
   Copyright (C) <2007> <Oak Ridge National Laboratory>
@@ -1383,6 +1383,7 @@ int main(int argc, char** argv) {
         calc.solve(world);
 
         world.gop.fence();
+        ThreadPool::end();
         print_stats(world);
 
     } catch (const MPI::Exception& e) {

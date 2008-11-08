@@ -19,7 +19,7 @@
 
 namespace madness {
     
-#define WORLD_MUTEX_ATOMIC
+    //#define WORLD_MUTEX_ATOMIC
     
     class MutexWaiter {
     private:
@@ -80,9 +80,7 @@ namespace madness {
 #ifdef WORLD_MUTEX_ATOMIC
     /// Mutex using spin locks and atomic operations
     
-    /// Should be much faster than pthread operations for infrequent
-    /// busy waiting ... however, expect pathalogical slowdown for
-    /// busy waiting if you oversubscribe the processors.  Also cannot
+    /// Possibly much *slower* than pthread operations.  Also cannot
     /// use these Mutexes with pthread condition variables.
     class Mutex : NO_DEFAULTS {
     private:
@@ -116,116 +114,16 @@ namespace madness {
         virtual ~Mutex() {};
     };
 
-
-    class MutexReaderWriter : NO_DEFAULTS {
-        mutable MADATOMIC_INT nreader;
-        mutable MADATOMIC_INT writeflag;
-    public:
-        static const int NOLOCK=0;
-        static const int READLOCK=1;
-        static const int WRITELOCK=2;
-
-        MutexReaderWriter() {
-            MADATOMIC_INT_SET(&nreader,0);
-            MADATOMIC_INT_SET(&writeflag,1L);
-        }
-
-        bool try_read_lock() const {
-            MADATOMIC_INT_INC(&nreader);
-            if (MADATOMIC_INT_GET(&writeflag) == 0) {
-                return true;
-            }
-            else {
-                MADATOMIC_INT_DEC(&nreader);
-                return false;
-            }
-        }
-        
-        bool try_write_lock() const {
-            if (MADATOMIC_INT_DEC_AND_TEST(&writeflag) && MADATOMIC_INT_GET(&nreader) == 0) {
-                return true;
-            }
-            else {
-                MADATOMIC_INT_INC(&writeflag);
-                return false;
-            }
-        }
-
-        bool try_lock(int lockmode) const {
-            if (lockmode == READLOCK) {
-                return try_read_lock();
-            }
-            else if (lockmode == WRITELOCK) {
-                return try_write_lock();
-            }
-            else if (lockmode == NOLOCK) {
-                return true;
-            }
-            else {
-                throw "MutexReaderWriter: try_lock: invalid lock mode";
-            }
-        }
-
-        bool try_convert_read_lock_to_write_lock() const {
-            if (MADATOMIC_INT_DEC_AND_TEST(&writeflag) && MADATOMIC_INT_GET(&nreader) == 1) {
-                MADATOMIC_INT_DEC(&nreader);
-                return true;
-            }
-            else {
-                MADATOMIC_INT_INC(&writeflag);
-                return false;
-            }
-        }
-
-        void read_lock() const {
-            MutexWaiter waiter;
-            while (!try_read_lock()) waiter.wait();
-        }
-
-        void write_lock() const {
-            MutexWaiter waiter;
-            while (!try_write_lock()) waiter.wait();
-        }
-
-        void lock(int lockmode) const {
-            MutexWaiter waiter;
-            while (!try_lock(lockmode)) waiter.wait();
-        }
-
-        void read_unlock() const {
-            MADATOMIC_INT_DEC(&nreader);
-        }
-
-        void write_unlock() const {
-            MADATOMIC_INT_INC(&writeflag);
-        }
-
-        void unlock(int lockmode) const {
-            if (lockmode == READLOCK) read_unlock();
-            else if (lockmode == WRITELOCK) write_unlock();
-            else if (lockmode != NOLOCK) throw "MutexReaderWriter: try_lock: invalid lock mode";            
-        }
-
-        void convert_read_lock_to_write_lock() const {
-            MutexWaiter waiter;
-            while (!try_convert_read_lock_to_write_lock()) waiter.wait();
-        }
-
-        void convert_write_lock_to_read_lock() const {
-            MADATOMIC_INT_INC(&nreader);
-            MADATOMIC_INT_INC(&writeflag);
-        }
-
-        virtual ~MutexReaderWriter(){};
-    };
-    
 #else
     
-    /// Mutex using pthread operations
+    /// Mutex using pthread mutex operations
     class Mutex {
     private:
+#ifdef USE_PTHREAD_MUTEX
         mutable pthread_mutex_t mutex;
-        
+#else
+        mutable pthread_spinlock_t mutex;
+#endif
         /// Copy constructor is forbidden
         Mutex(const Mutex& m) {}
         
@@ -234,28 +132,60 @@ namespace madness {
         
     public:
         /// Make and initialize a mutex ... initial state is unlocked
-        Mutex() {pthread_mutex_init(&mutex, 0);}
+        Mutex() {
+#ifdef USE_PTHREAD_MUTEX
+            pthread_mutex_init(&mutex, 0);
+#else
+            pthread_spin_init(&mutex, PTHREAD_PROCESS_PRIVATE);
+#endif
+        }
 
         /// Try to acquire the mutex ... return true on success, false on failure
         bool try_lock() const {
+#ifdef USE_PTHREAD_MUTEX
             return pthread_mutex_trylock(&mutex)==0;
+#else
+            return pthread_spin_trylock(&mutex)==0;
+#endif
         }
         
         /// Acquire the mutex waiting if necessary
         void lock() const {
+#ifdef USE_PTHREAD_MUTEX
             if (pthread_mutex_lock(&mutex)) throw "failed acquiring mutex";
+#else
+            if (pthread_spin_lock(&mutex)) throw "failed acquiring mutex";
+#endif
         }
         
         /// Free a mutex owned by this thread
         void unlock() const {
+#ifdef USE_PTHREAD_MUTEX
             if (pthread_mutex_unlock(&mutex)) throw "failed releasing mutex";
+#else
+            if (pthread_spin_unlock(&mutex)) throw "failed releasing mutex";
+#endif
         }
         
         /// Return a pointer to the pthread mutex for use by a condition variable
-        pthread_mutex_t* ptr() const {return &mutex;}
+        pthread_mutex_t* ptr() const {
+#ifdef USE_PTHREAD_MUTEX
+            return &mutex;
+#else
+            throw "using spinlocks not mutexes";
+#endif
+        }
 
-        virtual ~Mutex() {pthread_mutex_destroy(&mutex);};
+        virtual ~Mutex() {
+#ifdef USE_PTHREAD_MUTEX
+            pthread_mutex_destroy(&mutex);
+#else
+            pthread_spin_destroy(&mutex);
+#endif
+        };
     };
+ 
+#endif
 
     class MutexReaderWriter : private Mutex, NO_DEFAULTS {
         volatile mutable int nreader;
@@ -363,8 +293,6 @@ namespace madness {
 
         virtual ~MutexReaderWriter(){};
     };
-  
-#endif
 
     /// Scalable and fair condition variable (spins on local value)
     class ConditionVariable : Mutex {
@@ -378,7 +306,8 @@ namespace madness {
     private:
         void wakeup() {
             // ASSUME we have the lock already when in here
-            if (nsig && front != back) {
+            while (nsig && front != back) {
+                nsig--;
                 int f = front;
                 *q[f] = true;
                 q[f] = 0; // To better detect stupidities
@@ -401,27 +330,28 @@ namespace madness {
 
         /// You should acquire the mutex before waiting
         void wait() {
-            if (nsig == 0) {
-                do {
-                    // We put a pointer to a thread-local variable at the
-                    // end of the queue and wait for that value to be set,
-                    // thus generate no memory traffic while waiting.
-                    volatile bool myturn = false;
-                    int b = back;
-                    q[b] = &myturn;
-                    b++;
-                    if (b >= MAX_NTHREAD) back = 0;
-                    else back = b;
-                    
-                    unlock(); // Release lock before blocking
-                    while (!myturn);
-                    lock();
-                } while (nsig == 0);
+            if (nsig) {
+                nsig--;
+            }
+            else if (nsig == 0) {
+                // We put a pointer to a thread-local variable at the
+                // end of the queue and wait for that value to be set,
+                // thus generate no memory traffic while waiting.
+                volatile bool myturn = false;
+                int b = back;
+                q[b] = &myturn;
+                b++;
+                if (b >= MAX_NTHREAD) back = 0;
+                else back = b;
+                
+                unlock(); // Release lock before blocking
+                MutexWaiter waiter;
+                while (!myturn) waiter.wait();
+                lock();
             }
             else if (nsig < 0) {
                 throw "ConditionVariable: wait: invalid state";
             }
-            nsig--;
             wakeup();
         }
         
@@ -680,7 +610,7 @@ namespace madness {
         void push_front(const T& value) {
             madness::ScopedMutex<ConditionVariable> obolus(this);
             stats.npush_front++;
-            sanity_check();
+            //sanity_check();
             if (n == sz) grow();
             _front--;
             if (_front < 0) _front = sz-1;
@@ -694,7 +624,7 @@ namespace madness {
         void push_back(const T& value) {
             madness::ScopedMutex<ConditionVariable> obolus(this);
             stats.npush_back++;
-            sanity_check();
+            //sanity_check();
             if (n == sz) grow();
             _back++;
             if (_back >= int(sz)) _back = 0;
@@ -712,7 +642,7 @@ namespace madness {
             bool status=true; 
             T result = T();
             if (n) {
-                sanity_check();
+                //sanity_check();
                 n--;
                 result = buf[_front];
                 _front++;
@@ -851,6 +781,7 @@ namespace madness {
         }
 
         static void set_affinity(int logical_id, int ind=-1) {
+            //return;
             if (logical_id < 0 || logical_id > 2) {
                 std::cout << "ThreadBase: set_affinity: logical_id bad?" << std::endl;
                 return;
