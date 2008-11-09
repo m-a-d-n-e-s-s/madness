@@ -22,7 +22,6 @@ namespace madness {
     // On the XT the pthread spinlocks seem to have issues ... or perhaps
     // that is me?
 
-#define USE_PTHREAD_MUTEX
     //#define WORLD_MUTEX_ATOMIC
     
     class MutexWaiter {
@@ -123,11 +122,8 @@ namespace madness {
     /// Mutex using pthread mutex operations
     class Mutex {
     private:
-#ifdef USE_PTHREAD_MUTEX
         mutable pthread_mutex_t mutex;
-#else
-        mutable pthread_spinlock_t mutex;
-#endif
+
         /// Copy constructor is forbidden
         Mutex(const Mutex& m) {}
         
@@ -137,61 +133,36 @@ namespace madness {
     public:
         /// Make and initialize a mutex ... initial state is unlocked
         Mutex() {
-#ifdef USE_PTHREAD_MUTEX
             pthread_mutex_init(&mutex, 0);
-#else
-            pthread_spin_init(&mutex, PTHREAD_PROCESS_PRIVATE);
-#endif
         }
 
         /// Try to acquire the mutex ... return true on success, false on failure
         bool try_lock() const {
-#ifdef USE_PTHREAD_MUTEX
             return pthread_mutex_trylock(&mutex)==0;
-#else
-            return pthread_spin_trylock(&mutex)==0;
-#endif
         }
         
         /// Acquire the mutex waiting if necessary
         void lock() const {
-#ifdef USE_PTHREAD_MUTEX
             if (pthread_mutex_lock(&mutex)) throw "failed acquiring mutex";
-#else
-            if (pthread_spin_lock(&mutex)) throw "failed acquiring mutex";
-#endif
         }
         
         /// Free a mutex owned by this thread
         void unlock() const {
-#ifdef USE_PTHREAD_MUTEX
             if (pthread_mutex_unlock(&mutex)) throw "failed releasing mutex";
-#else
-            if (pthread_spin_unlock(&mutex)) throw "failed releasing mutex";
-#endif
         }
         
         /// Return a pointer to the pthread mutex for use by a condition variable
         pthread_mutex_t* ptr() const {
-#ifdef USE_PTHREAD_MUTEX
             return &mutex;
-#else
-            throw "using spinlocks not mutexes";
-#endif
         }
 
         virtual ~Mutex() {
-#ifdef USE_PTHREAD_MUTEX
             pthread_mutex_destroy(&mutex);
-#else
-            pthread_spin_destroy(&mutex);
-#endif
         };
     };
 
  
 #endif
-
 
     /// Mutex that is applied/released at start/end of a scope
 
@@ -204,12 +175,6 @@ namespace madness {
         ScopedMutex(const mutexT& m) : m(&m) {m.lock();}
         virtual ~ScopedMutex() {m->unlock();}
     };
-
-//     template <class mutexT>
-//     ScopedMutex<mutexT> scoped_mutex(const mutexT& mutex) {return ScopedMutex<mutexT>(mutex);}
-
-//     template <class mutexT>
-//     ScopedMutex<mutexT> scoped_mutex(const mutexT* mutex) {return ScopedMutex<mutexT>(mutex);}
 
     /// Spinlock using pthread spinlock operations
     class Spinlock {
@@ -351,19 +316,37 @@ namespace madness {
     };
 
     /// Scalable and fair condition variable (spins on local value)
-    class ConditionVariable : public Mutex {
+    class ConditionVariable : private NO_DEFAULTS {
     public:
         static const int MAX_NTHREAD = 64;
-        mutable volatile int nsig; // No. of outstanding signals
         mutable volatile int front;
         mutable volatile int back;
+        Mutex* m;
         mutable volatile bool* volatile q[MAX_NTHREAD]; // Circular buffer of flags
 
-    private:
-        void wakeup() {
-            // ASSUME we have the lock already when in here
-            while (nsig && front != back) {
-                nsig--;
+    public:
+        ConditionVariable(Mutex* m) : front(0), back(0), m(m) {}
+        
+        /// You should acquire the mutex before waiting
+        void wait() {
+            // We put a pointer to a thread-local variable at the
+            // end of the queue and wait for that value to be set,
+            // thus generate no memory traffic while waiting.
+            volatile bool myturn = false;
+            int b = back;
+            q[b] = &myturn;
+            b++;
+            if (b >= MAX_NTHREAD) back = 0;
+            else back = b;
+            
+            m->unlock();
+            while (!myturn);
+            m->lock();
+        }
+        
+        /// You should acquire the mutex before signalling
+        void signal() {
+            if(front != back) {
                 int f = front;
                 *q[f] = true;
                 q[f] = 0; // To better detect stupidities
@@ -373,39 +356,9 @@ namespace madness {
             }
         }
 
-    public:
-        ConditionVariable() : nsig(0), front(0), back(0) {}
-
-        /// You should acquire the mutex before waiting
-        void wait() {
-            if (nsig) {
-                nsig--;
-            }
-            else if (nsig == 0) {
-                // We put a pointer to a thread-local variable at the
-                // end of the queue and wait for that value to be set,
-                // thus generate no memory traffic while waiting.
-                volatile bool myturn = false;
-                int b = back;
-                q[b] = &myturn;
-                b++;
-                if (b >= MAX_NTHREAD) back = 0;
-                else back = b;
-                
-                unlock(); // Release lock before blocking
-                while (!myturn);
-                lock();
-            }
-            else if (nsig < 0) {
-                throw "ConditionVariable: wait: invalid state";
-            }
-            wakeup();
-        }
-        
-        /// You should acquire the mutex before signalling
-        void signal() {
-            nsig++;
-            wakeup();
+        /// You should acquire the mutex before broadcasting
+        void broadcast() {
+            while (front != back) signal();
         }
 
         virtual ~ConditionVariable() {}
@@ -416,89 +369,60 @@ namespace madness {
 
     /// Needs rewriting to use the CV above and do we really
     /// need this if using pthread_mutex .. why not pthread_cv?
-    class MutexFair : private Mutex {
+    class MutexFair : private Spinlock {
     private:
         static const int MAX_NTHREAD = 64;
-        mutable volatile bool* volatile q[MAX_NTHREAD]; 
-        mutable volatile int n;
+        mutable volatile bool locked;
         mutable volatile int front;
         mutable volatile int back;
+        mutable volatile bool* volatile q[MAX_NTHREAD]; 
 
     public:
-        MutexFair() : n(0), front(0), back(0) {};
+        MutexFair() : locked(false), front(0), back(0) {};
 
         void lock() const {
-            // The mutex controls access to the queue (a circular buffer)
-            // On entry, increment n and then ...
-            //
-            // If (n == 1) the lock is ours. 
-            //
-            // Otherwise, put oursleves on the back of the queue by
-            // appending a pointer to a bool on our own stack.  We
-            // then spin waiting for this to become true.  Hence we
-            // are not generating memory traffic while waiting.
-            //
-            // When releasing a lock we must check to see if someone
-            // else is waiting ... if they are then update front/back,
-            // release the lock and set their flag
-            volatile bool myturn = false;
-            Mutex::lock();
-            if (n < 0 || n >= MAX_NTHREAD) throw "MutexFair: lock: invalid state?";
-            n++;
-            if (n == 1) {
-                if (front != back) throw "MutexFair: lock: invalid state (2) ?";
-                myturn = true;
-            }
-            else {
-                back++;
-                if (back >= MAX_NTHREAD) back = 0;
-                q[back] = &myturn;
-            }
-            Mutex::unlock();
+            Spinlock::lock();
+            while (locked) {
+                volatile bool myturn = false;
+                int b = back + 1;
+                if (b >= MAX_NTHREAD) b = 0;
+                q[b] = &myturn;
+                back = b;
 
-            if (!myturn) {
-                //std::cout << "WAITING IN FAIR LOCK " << (void *) &myturn << std::endl;
-                MutexWaiter waiter;
-                while (!myturn) waiter.wait();
-                //std::cout << "WOKENUP AFTER WAITING IN FAIR LOCK " << (void *) &myturn << std::endl;
+                Spinlock::unlock();
+                while(!myturn);
+                Spinlock::lock();
             }
-
-            return;
+            locked = true;
+            Spinlock::unlock();
         }
 
         void unlock() const {
             volatile bool* p = 0;
-            Mutex::lock();
-            if (n < 1 || n > MAX_NTHREAD) throw "MutexFair: unlock: invalid state?";
-            n--;
-            if (n > 0) {
-                front++;
-                if (front >= MAX_NTHREAD) front = 0;
-                p = q[front];
-                //std::cout << "IN MUTEXFAIRUNLOCK " << n << " " << front << " " << back << " " << (void *) p << std::endl;
+            Spinlock::lock();
+            locked = false;
+            if (front != back) {
+                int f = front + 1;
+                if (f >= MAX_NTHREAD) f = 0;
+                p = q[f];
+                front = f;
             }
-            else {
-                if (front != back) throw "MutexFair: unlock: invalid state (2) ?";
-            }
-            Mutex::unlock();
-            if (p) {
-                //std::cout << "ABOUT TO UNLOCK " << (void *)(p) << std::endl;
-                *p = true;
-            }
+            Spinlock::unlock();
+            
+            if (p) *p = true;
         }
 
-        /// Makes little sense to spin outside a fair lock ... but if you wanna ...
         bool try_lock() const {
-            bool got_lock;
-
-            Mutex::lock();
-            got_lock = (n == 0);
-            if (got_lock) n++;
-            Mutex::unlock();
+            bool got_lock = false;
+            Spinlock::lock();
+            if (!locked) {
+                got_lock = true;
+                locked = true;
+            }
+            Spinlock::unlock();
 
             return got_lock;
         }
-                
     };
 
 
@@ -570,14 +494,19 @@ namespace madness {
     };
 
 
-    /// A thread safe, fast but simple doubled-ended queue.  You can push or pop at either end ... that's it.
+    /// A fast but simple doubled-ended queue.
 
     /// Since the point is speed, the implementation is a circular
     /// buffer rather than a linked list so as to avoid the new/del
     /// overhead.  It will grow as needed, but presently will not
     /// shrink.  Had to modify STL API to make things thread safe.
+    ///
+    /// It is thread-safe in the sense that the internal data is
+    /// appropriately volatile but the caller is responsible for
+    /// making calls single threaded (so that the caller can use a CV
+    /// for queuing).
     template <typename T>
-    class DQueue : private ConditionVariable {
+    class DQueue  {
         volatile size_t sz;              ///< Current capacity
         volatile T* volatile buf;        ///< Actual buffer
         volatile int _front;  ///< Index of element at front of buffer
@@ -586,7 +515,6 @@ namespace madness {
         DQStats stats;
 
         void grow() {
-            // ASSUME WE ALREADY HAVE THE MUTEX WHEN IN HERE
             stats.ngrow++;
             if (sz != n) throw "assertion failure in dqueue::grow";
             size_t oldsz = sz;
@@ -613,7 +541,6 @@ namespace madness {
         }
 
         void sanity_check() const {
-            // ASSUME WE ALREADY HAVE THE MUTEX WHEN IN HERE
             int num = _back - _front + 1;
             if (num < 0) num += sz;
             if (num==int(sz) && n==0) num=0;
@@ -635,73 +562,59 @@ namespace madness {
             delete buf;
         }
 
-        /// Insert value at front of queue
+        /// Insert value at front of queue ... mutex before calling
         void push_front(const T& value) {
-            madness::ScopedMutex<ConditionVariable> obolus(this);
             stats.npush_front++;
             //sanity_check();
             if (n == sz) grow();
-            _front--;
-            if (_front < 0) _front = sz-1;
-            buf[_front] = value;
+            int f = _front - 1;
+            if (f < 0) f = sz-1;
+            buf[f] = value;
+            _front = f;
             n++;
             if (n > stats.nmax) stats.nmax = n;
-            signal();
         }
 
-        /// Insert element at back of queue
+        /// Insert element at back of queue ... mutex before calling
         void push_back(const T& value) {
-            madness::ScopedMutex<ConditionVariable> obolus(this);
             stats.npush_back++;
             //sanity_check();
             if (n == sz) grow();
-            _back++;
-            if (_back >= int(sz)) _back = 0;
-            buf[_back] = value;
+            int b = _back + 1;
+            if (b >= int(sz)) b = 0;
+            buf[b] = value;
+            _back = b;
             n++;
             if (n > stats.nmax) stats.nmax = n;
-            signal();
         }
 
-        /// Pop value off the front of queue
-        std::pair<T,bool> pop_front(bool wait) {
-            madness::ScopedMutex<ConditionVariable> obolus(this);
+        /// Pop value off the front of queue ... mutex before calling
+        std::pair<T,bool> pop_front() {
             stats.npop_front++;
-            if (wait) ConditionVariable::wait();
-            bool status=true; 
-            T result = T();
-            if (n) {
-                //sanity_check();
-                n--;
-                result = buf[_front];
-                _front++;
-                if (_front >= long(sz)) _front = 0;
-            }
-            else {
-                status = false;
-            }
-            return std::pair<T,bool>(result,status);
+            if (n == 0) return std::pair<T,bool>(T(),false);
+            //sanity_check();
+            n--;
+            int f = _front;
+            T result = buf[f];
+            f++;
+            if (f >= long(sz)) f = 0;
+            _front = f;
+            return std::pair<T,bool>(result,true);
         }
 
 
         /// Pop value off the back of queue
-        std::pair<T,bool> pop_back(bool wait=true) {
-            madness::ScopedMutex<ConditionVariable> obolus(this);
+        std::pair<T,bool> pop_back() {
             stats.npop_back++;
-            if (wait) ConditionVariable::wait();
-            bool status=true; 
-            T result;
-            if (n) {
-                //sanity_check();
-                n--;
-                result = buf[_back];
-                _back--;
-                if (_back<0) _back = sz-1;
-            }
-            else {
-                status = false;
-            }
-            return std::pair<T,bool>(result,status);
+            if (n == 0) return std::pair<T,bool>(T(),false);
+            //sanity_check();
+            n--;
+            int b = _back;
+            T result = buf[b];
+            b--;
+            if (b < 0) b = sz-1;
+            _back = b;
+            return std::pair<T,bool>(result,true);
         }
 
         size_t size() const {
@@ -955,19 +868,20 @@ namespace madness {
     /// A singleton pool of threads for dynamic execution of tasks.
 
     /// YOU MUST INSTANTIATE THE POOL WHILE RUNNING WITH JUST ONE THREAD
-    class ThreadPool {
+    class ThreadPool : private Mutex {
     private:
         friend class WorldTaskQueue;
         Thread *threads;              ///< Array of threads
         DQueue<PoolTaskInterface*> queue; ///< Queue of tasks
         int nthreads;		  ///< No. of threads
         volatile bool finish;              ///< Set to true when time to stop
+        ConditionVariable cv;
         MADATOMIC_INT nfinished;
 
         static ThreadPool* instance_ptr;
 
         /// The constructor is private to enforce the singleton model
-        ThreadPool(int nthread=-1) : nthreads(nthread), finish(false) {
+        ThreadPool(int nthread=-1) : nthreads(nthread), finish(false), cv(this) {
             MADATOMIC_INT_SET(&nfinished,0);
             instance_ptr = this;
             if (nthreads < 0) nthreads = default_nthread();
@@ -975,7 +889,7 @@ namespace madness {
 
             try {
                 if (nthreads > 0) threads = new Thread[nthreads];
-            else threads = 0;
+                else threads = 0;
             }
             catch (...) {
                 throw "memory allocation failed";
@@ -1007,20 +921,21 @@ namespace madness {
             return nthread;
         }
 
-        /// Run next task ... returns true if one was run ... blocks if wait is true
-        bool run_task(bool wait) {
-            std::pair<PoolTaskInterface*,bool> t = queue.pop_front(wait);
-            if (t.second) {
-                t.first->run();          // What we are here to do
-                delete t.first;
-            }
-            return t.second;
-        }
-
         void thread_main(Thread* thread) {
             thread->set_affinity(2, thread->get_pool_thread_index());
-            while (!finish) 
-                run_task(true);
+            while (!finish) {
+
+                lock();
+                std::pair<PoolTaskInterface*,bool> t = queue.pop_front();
+                if (!t.second) cv.wait();
+                unlock();
+
+                if (t.second) {
+                    t.first->run();
+                    delete t.first;
+                }
+            }
+            
             MADATOMIC_INT_INC(&nfinished);
             std::cout << "THREADENDING\n";
         }
@@ -1038,35 +953,46 @@ namespace madness {
             return instance_ptr;
         }
 
-        class PoolTaskNull : public PoolTaskInterface {
-            void run() {
-                std::cout << "NULL RUNNING " << std::endl;
-            };
-        };
+        bool do_run_task() {
+            lock();
+            std::pair<PoolTaskInterface*,bool> t = queue.pop_front();
+            unlock();
+            if (t.second) {
+                t.first->run();
+                delete t.first;
+            }
+            return t.second;
+        }
+
+
 
     public:
         /// Please invoke while in single threaded environment
         static void begin(int nthread=-1) {instance(nthread);}
 
         static void end() {
-            instance()->finish = true;
+            ThreadPool* p = instance();
+            p->finish = true;
             std::cout << "ENDING THREADS" << std::endl;
-            for (int i=0; i<instance()->nthreads; i++) {
-                std::cout << "ADDING PTN\n";
-                add(new PoolTaskNull);
-            }
+            p->cv.broadcast();
             while (MADATOMIC_INT_GET(&instance()->nfinished) != instance()->nthreads);
             std::cout << "DONE ENDING THREADS" << std::endl;
+            //delete(p);
+            //instance_ptr = 0;
         }
 
         /// Add a new task to the pool
         static void add(PoolTaskInterface* task) {
+            ThreadPool* p = instance();
+            p->lock();
             if (task->is_high_priority()) {
-                instance()->queue.push_front(task);
+                p->queue.push_front(task);
             }
             else {
-                instance()->queue.push_back(task);
+                p->queue.push_back(task);
             }
+            p->cv.signal();
+            p->unlock();
         }
 
         /// Add a vector of tasks to the pool
@@ -1078,12 +1004,9 @@ namespace madness {
         }
 
 
-
-        /// An otherwise idle thread can all this to run a task
-
-        /// Returns true if one was run
+        /// An otherwise idle thread can call this to run a task
         static bool run_task() {
-            return instance()->run_task(false);
+            return instance()->do_run_task();
         }
 
 
