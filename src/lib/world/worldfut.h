@@ -84,7 +84,7 @@ namespace madness {
 
     /// Implements the functionality of Futures
     template <typename T>
-    class FutureImpl : private Mutex {
+    class FutureImpl : private Spinlock {
         friend class Future<T>;
         friend std::ostream& operator<< <T>(std::ostream& out, const Future<T>& f);
 
@@ -194,7 +194,7 @@ namespace madness {
         /// future is already assigned the callback is immediately
         /// invoked.
         inline void register_callback(CallbackInterface* callback) {
-            ScopedMutex<Mutex> fred(this);
+            ScopedMutex<Spinlock> fred(this);
             if (assigned) callback->notify();
             else const_cast<callbackT&>(callbacks).push(callback);
         };
@@ -202,7 +202,7 @@ namespace madness {
          
         /// Sets the value of the future (assignment)
         void set(const T& value) {
-            ScopedMutex<Mutex> fred(this);
+            ScopedMutex<Spinlock> fred(this);
             if (world) { 
                 if (remote_ref.owner() == world->rank()) {
                     remote_ref.get()->set(value); 
@@ -249,7 +249,7 @@ namespace madness {
 
         bool replace_with(FutureImpl<T>* f) {
             throw "IS THIS WORKING? maybe now we have the mutex";
-//            ScopedMutex<Mutex> fred(this);
+//            ScopedMutex<Spinlock> fred(this);
 //             MADNESS_ASSERT(!world); // was return false;
 //             MADNESS_ASSERT(!assigned || f->assigned);
 //             if (f->world) {
@@ -263,20 +263,20 @@ namespace madness {
         };
 
         virtual ~FutureImpl() {
-            ScopedMutex<Mutex> fred(this);
+            ScopedMutex<Spinlock> fred(this);
             //print("FUTDEL",(void*) this);
             if (!assigned && world) {
                 print("Future: unassigned remote future being destroyed?");
                 //remote_ref.dec();
-                abort();
+                //abort();
             }
             if (const_cast<callbackT&>(callbacks).size()) {
                 print("Future: uninvoked callbacks being destroyed?");
-                abort();
+                //abort();
             }
             if (const_cast<assignmentT&>(assignments).size()) {
                 print("Future: uninvoked assignment being destroyed?");
-                abort();
+                //abort();
             }
         };
     };

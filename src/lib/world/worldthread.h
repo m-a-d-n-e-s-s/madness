@@ -192,6 +192,25 @@ namespace madness {
  
 #endif
 
+
+    /// Mutex that is applied/released at start/end of a scope
+
+    /// The mutex must provide lock and unlock methods
+    template <class mutexT = Mutex>
+    class ScopedMutex {
+        const mutexT* m;
+    public:
+        ScopedMutex(const mutexT* m) : m(m) {m->lock();}
+        ScopedMutex(const mutexT& m) : m(&m) {m.lock();}
+        virtual ~ScopedMutex() {m->unlock();}
+    };
+
+//     template <class mutexT>
+//     ScopedMutex<mutexT> scoped_mutex(const mutexT& mutex) {return ScopedMutex<mutexT>(mutex);}
+
+//     template <class mutexT>
+//     ScopedMutex<mutexT> scoped_mutex(const mutexT* mutex) {return ScopedMutex<mutexT>(mutex);}
+
     /// Spinlock using pthread spinlock operations
     class Spinlock {
     private:
@@ -230,7 +249,7 @@ namespace madness {
     };
 
 
-    class MutexReaderWriter : private Mutex, NO_DEFAULTS {
+    class MutexReaderWriter : private Spinlock, NO_DEFAULTS {
         volatile mutable int nreader;
         volatile mutable bool writeflag;
     public:
@@ -242,18 +261,16 @@ namespace madness {
         {}
 
         bool try_read_lock() const {
-            Mutex::lock();
+            ScopedMutex<Spinlock> protect(this);
             bool gotit = !writeflag;
             if (gotit) nreader++;
-            Mutex::unlock();
             return gotit;
         }
         
         bool try_write_lock() const {
-            Mutex::lock();
+            ScopedMutex<Spinlock> protect(this);
             bool gotit = (!writeflag) && (nreader==0);
             if (gotit) writeflag = true;
-            Mutex::unlock();
             return gotit;
         }
 
@@ -273,13 +290,12 @@ namespace madness {
         }
 
         bool try_convert_read_lock_to_write_lock() const {
-            Mutex::lock();
+            ScopedMutex<Spinlock> protect(this);
             bool gotit = (!writeflag) && (nreader==1);
             if (gotit) {
                 nreader = 0;
                 writeflag = true;
             }
-            Mutex::unlock();
             return gotit;
         }
 
@@ -299,17 +315,15 @@ namespace madness {
         }
 
         void read_unlock() const {
-            Mutex::lock();
+            ScopedMutex<Spinlock> protect(this);
             nreader--;
-            Mutex::unlock();
         }
 
         void write_unlock() const {
             // Only a single thread should be setting writeflag but
-            // probably still need the mutex just to get memory fence
-            Mutex::lock();  
+            // probably still need the mutex just to get memory fence?
+            ScopedMutex<Spinlock> protect(this);
             writeflag = false;
-            Mutex::unlock();
         }
 
         void unlock(int lockmode) const {
@@ -328,17 +342,16 @@ namespace madness {
 
         /// Always succeeds immediately
         void convert_write_lock_to_read_lock() const {
-            Mutex::lock();  
+            ScopedMutex<Spinlock> protect(this);
             nreader++;
             writeflag=false;
-            Mutex::unlock();
         }
 
         virtual ~MutexReaderWriter(){};
     };
 
     /// Scalable and fair condition variable (spins on local value)
-    class ConditionVariable : public Spinlock {
+    class ConditionVariable : public Mutex {
     public:
         static const int MAX_NTHREAD = 64;
         mutable volatile int nsig; // No. of outstanding signals
@@ -380,8 +393,7 @@ namespace madness {
                 else back = b;
                 
                 unlock(); // Release lock before blocking
-                MutexWaiter waiter;
-                while (!myturn) waiter.wait();
+                while (!myturn);
                 lock();
             }
             else if (nsig < 0) {
@@ -488,25 +500,6 @@ namespace madness {
         }
                 
     };
-
-
-    /// Mutex that is applied/released at start/end of a scope
-
-    /// The mutex must provide lock and unlock methods
-    template <class mutexT = Mutex>
-    class ScopedMutex {
-        const mutexT* m;
-    public:
-        ScopedMutex(const mutexT* m) : m(m) {m->lock();}
-        ScopedMutex(const mutexT& m) : m(&m) {m.lock();}
-        virtual ~ScopedMutex() {m->unlock();}
-    };
-
-    template <class mutexT>
-    ScopedMutex<mutexT> scoped_mutex(const mutexT& mutex) {return ScopedMutex<mutexT>(mutex);}
-
-    template <class mutexT>
-    ScopedMutex<mutexT> scoped_mutex(const mutexT* mutex) {return ScopedMutex<mutexT>(mutex);}
 
 
     /// Attempt to acquire two locks without blocking while holding either one

@@ -45,7 +45,7 @@ namespace madness {
         };
 
         template <class keyT, class valueT> 
-        class bin : private madness::Mutex {
+        class bin : private madness::Spinlock {
         private:
             typedef entry<keyT,valueT> entryT;
             typedef std::pair<const keyT, valueT> datumT;
