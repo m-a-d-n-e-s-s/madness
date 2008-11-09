@@ -905,8 +905,8 @@ struct Calculation {
         END_TIMER("transform initial MO");
         truncate(world, amo);
         normalize(world, amo);
-        if (world.rank() == 0) print("Analysis of initial alpha MO vectors");
-        analyze_vectors(world, amo);
+        //if (world.rank() == 0) print("Analysis of initial alpha MO vectors");
+        //analyze_vectors(world, amo);
 
         aeps = e(Slice(0,param.nmo_alpha-1));
 
@@ -917,8 +917,8 @@ struct Calculation {
             bmo = transform(world, ao, c(_,Slice(0,param.nmo_beta-1)));
             truncate(world, bmo);
             normalize(world, bmo);
-            if (world.rank() == 0) print("Analysis of initial beta MO vectors");
-            analyze_vectors(world, bmo);
+            //if (world.rank() == 0) print("Analysis of initial beta MO vectors");
+            //analyze_vectors(world, bmo);
             beps = e(Slice(0,param.nmo_beta-1));
             bocc = tensorT(param.nmo_beta);
             for (int i=0; i<param.nbeta; i++) bocc[i] = 1.0;
@@ -1325,21 +1325,21 @@ struct Calculation {
             if (param.nbeta && !param.spin_restricted) update(world, bocc, beps, bmo, Vpsib);
 
         }
-        if (world.rank() == 0) print("Analysis of alpha MO vectors");
-        analyze_vectors(world, amo, aocc, aeps);
+        //if (world.rank() == 0) print("Analysis of alpha MO vectors");
+        //analyze_vectors(world, amo, aocc, aeps);
         if (param.nbeta && !param.spin_restricted) {
-            if (world.rank() == 0) print("Analysis of beta MO vectors");
-            analyze_vectors(world, bmo, bocc, beps);
+            //if (world.rank() == 0) print("Analysis of beta MO vectors");
+            //analyze_vectors(world, bmo, bocc, beps);
         }
 
-        tensorT U = localize_maxao(world, amo);
-        vecfuncT locmo = transform(world, amo, U);
-        if (world.rank() == 0) print("Localized by MAXAO analysis");
-        analyze_vectors(world, locmo);
-        U = localize_boys(world, amo);
-        locmo = transform(world, amo, U);
-        if (world.rank() == 0) print("Localized by BOYS analysis");
-        analyze_vectors(world, locmo);
+//         tensorT U = localize_maxao(world, amo);
+//         vecfuncT locmo = transform(world, amo, U);
+//         if (world.rank() == 0) print("Localized by MAXAO analysis");
+//         analyze_vectors(world, locmo);
+//         U = localize_boys(world, amo);
+//         locmo = transform(world, amo, U);
+//         if (world.rank() == 0) print("Localized by BOYS analysis");
+//         analyze_vectors(world, locmo);
     }
 
 };

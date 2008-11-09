@@ -19,6 +19,10 @@
 
 namespace madness {
     
+    // On the XT the pthread spinlocks seem to have issues ... or perhaps
+    // that is me?
+
+#define USE_PTHREAD_MUTEX
     //#define WORLD_MUTEX_ATOMIC
     
     class MutexWaiter {
@@ -184,8 +188,47 @@ namespace madness {
 #endif
         };
     };
+
  
 #endif
+
+    /// Spinlock using pthread spinlock operations
+    class Spinlock {
+    private:
+        mutable pthread_spinlock_t spinlock;
+
+        /// Copy constructor is forbidden
+        Spinlock(const Spinlock& m) {}
+        
+        /// Assignment is forbidden
+        void operator=(const Spinlock& m) {}
+        
+    public:
+        /// Make and initialize a spinlock ... initial state is unlocked
+        Spinlock() {
+            pthread_spin_init(&spinlock, PTHREAD_PROCESS_PRIVATE);
+        }
+
+        /// Try to acquire the spinlock ... return true on success, false on failure
+        bool try_lock() const {
+            return pthread_spin_trylock(&spinlock)==0;
+        }
+        
+        /// Acquire the spinlock waiting if necessary
+        void lock() const {
+            if (pthread_spin_lock(&spinlock)) throw "failed acquiring spinlock";
+        }
+        
+        /// Free a spinlock owned by this thread
+        void unlock() const {
+            if (pthread_spin_unlock(&spinlock)) throw "failed releasing spinlock";
+        }
+        
+        virtual ~Spinlock() {
+            pthread_spin_destroy(&spinlock);
+        };
+    };
+
 
     class MutexReaderWriter : private Mutex, NO_DEFAULTS {
         volatile mutable int nreader;
@@ -295,7 +338,7 @@ namespace madness {
     };
 
     /// Scalable and fair condition variable (spins on local value)
-    class ConditionVariable : Mutex {
+    class ConditionVariable : public Spinlock {
     public:
         static const int MAX_NTHREAD = 64;
         mutable volatile int nsig; // No. of outstanding signals
@@ -319,14 +362,6 @@ namespace madness {
 
     public:
         ConditionVariable() : nsig(0), front(0), back(0) {}
-
-        void unlock() const {
-            Mutex::unlock();
-        }
-
-        void lock() const {
-            Mutex::lock();
-        }
 
         /// You should acquire the mutex before waiting
         void wait() {
@@ -367,7 +402,8 @@ namespace madness {
 
     /// A scalable and fair mutex (not recursive)
 
-    /// Needs rewriting to use the CV above
+    /// Needs rewriting to use the CV above and do we really
+    /// need this if using pthread_mutex .. why not pthread_cv?
     class MutexFair : private Mutex {
     private:
         static const int MAX_NTHREAD = 64;
@@ -781,7 +817,7 @@ namespace madness {
         }
 
         static void set_affinity(int logical_id, int ind=-1) {
-            //return;
+            return;
             if (logical_id < 0 || logical_id > 2) {
                 std::cout << "ThreadBase: set_affinity: logical_id bad?" << std::endl;
                 return;
