@@ -152,7 +152,6 @@ namespace madness {
             qmsg q[MAXQ];
             int n_in_q = 0;
             
-            MutexWaiter waiter;
             while (1) {
 
                 if (debugging && n_in_q)
@@ -162,6 +161,7 @@ namespace madness {
                 // If MPI is not safe for simultaneous entry by multiple threads we
                 // cannot call Waitsome ... have to poll via Testsome
                 int narrived;
+                MutexWaiter waiter;
                 while (!(narrived = SafeMPI::Request::Testsome(NRECV, recv_req, ind, status))) {
                     if (finished) return;
                     waiter.wait();

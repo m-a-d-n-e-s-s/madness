@@ -244,7 +244,7 @@ namespace madness {
     }
 
     /// Implements AM interface
-    class WorldAmInterface : private Mutex {
+    class WorldAmInterface : private MutexFair {
         friend class WorldGopInterface;
     public:
         static const int MSG_LEN = RMI::MAX_MSG_LEN - sizeof(AmArg); ///< Max length of user payload in message
