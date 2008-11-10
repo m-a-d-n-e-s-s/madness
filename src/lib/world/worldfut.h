@@ -135,8 +135,13 @@ namespace madness {
 
         inline void add_to_assignments(const SharedPtr< FutureImpl<T> >& f) {
             // ASSUME lock is already acquired by Future<T>::set()
-            assignmentT& nvas = const_cast<assignmentT&>(assignments);
-            nvas.push(f);
+            if (assigned) {
+                f->set(const_cast<T&>(t));
+            }
+            else {
+                assignmentT& nvas = const_cast<assignmentT&>(assignments);
+                nvas.push(f);
+            }
         };
             
         
@@ -268,15 +273,15 @@ namespace madness {
             if (!assigned && world) {
                 print("Future: unassigned remote future being destroyed?");
                 //remote_ref.dec();
-                //abort();
+                abort();
             }
             if (const_cast<callbackT&>(callbacks).size()) {
-                print("Future: uninvoked callbacks being destroyed?");
-                //abort();
+                print("Future: uninvoked callbacks being destroyed?", assigned);
+                abort();
             }
             if (const_cast<assignmentT&>(assignments).size()) {
-                print("Future: uninvoked assignment being destroyed?");
-                //abort();
+                print("Future: uninvoked assignment being destroyed?", assigned);
+                abort();
             }
         };
     };
@@ -387,52 +392,51 @@ namespace madness {
         /// the same underlying copy of the data and indeed may even
         /// be in different processes).
         void set(const Future<T>& other) {
-            //
-            // THIS NEEDS THOROUGH CHECKING FOR RACE NASTIES
-            //
-
-            // In a correct program a future is only assigned once so
-            // it is safe-ish to assume that 'this' is single threaded
-            // ... however other may be having stuff done to it
-            // concurrently by other threads.
-
             if (this != &other) { 
                 MADNESS_ASSERT(!probe());
                 if (other.probe()) {
                     set(other.get());     // The easy case
                 }
                 else {
-                    other.f->lock();
-                    // Both are initialized but not assigned.  Used to
-                    // just put this on the assignment list of other,
-                    // but now first check to see if the internal
-                    // state of either can be harmlessly replaced.
-                    // This requires that one of this or other (but
-                    // not both) have a reference of one.  The main
-                    // optimization enabled by this is shortcircuiting
-                    // communication when forwarding futures that are
-                    // actually remote references.  However, it also
-                    // avoids most uses of the assignment list.
-                    //
-                    if (f == other.f) {
-                        print("future.set(future): you are setting this with this?");
-                    }
-                    else if (f.use_count()==1 && other.f.use_count()==1 && other.f->is_local()) {
-                        other.f->replace_with(f);
-                        f = other.f;
-                        //print("future.set(future): replaced other with this");
-                    }
-                    else if (f.use_count()==1 && other.f.use_count()==1 && f->is_local()) {
-                        f->replace_with(other.f);
-                        const_cast<Future<T>&>(other).f = f;
-                        //print("future.set(future): replaced this with other");
-                    }
-                    else {
-                        //print("future.set(future): adding to assignment list");
-                        other.f->add_to_assignments(f);
-                    }
-                    other.f->unlock();
-                    return;
+                    // Assignment is supposed to happen just once so
+                    // safe to assume that this is not being messed
+                    // with ... also other might invoke the assignment
+                    // callback since it could have been assigned
+                    // between the test above and now (and this does
+                    // happen)
+                    other.f->lock();     // BEGIN CRITICAL SECTION
+                    other.f->add_to_assignments(f); // Recheck of assigned is performed in here
+                    other.f->unlock(); // END CRITICAL SECTION
+//                     // Both are initialized but not assigned.  Used to
+//                     // just put this on the assignment list of other,
+//                     // but now first check to see if the internal
+//                     // state of either can be harmlessly replaced.
+//                     // This requires that one of this or other (but
+//                     // not both) have a reference of one.  The main
+//                     // optimization enabled by this is shortcircuiting
+//                     // communication when forwarding futures that are
+//                     // actually remote references.  However, it also
+//                     // avoids most uses of the assignment list.
+//                     //
+//                     if (f == other.f) {
+//                         print("future.set(future): you are setting this with this?");
+//                     }
+//                     else if (f.use_count()==1 && other.f.use_count()==1 && other.f->is_local()) {
+//                         other.f->replace_with(f);
+//                         f = other.f;
+//                         //print("future.set(future): replaced other with this");
+//                     }
+//                     else if (f.use_count()==1 && other.f.use_count()==1 && f->is_local()) {
+//                         f->replace_with(other.f);
+//                         const_cast<Future<T>&>(other).f = f;
+//                         //print("future.set(future): replaced this with other");
+//                     }
+//                     else {
+//                         //print("future.set(future): adding to assignment list");
+//                         other.f->add_to_assignments(f);
+//                     }
+//                     other.f->unlock();
+//                     return;
                 }
             }
         }

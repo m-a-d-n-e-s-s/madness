@@ -31,7 +31,6 @@ namespace madness {
         PAPI_stop_counters(values, NUMEVENTS);
         papi_mutex.lock();
         th++;
-        std::cout << "THREAD PAPI " << values[0] << std::endl;
         for (int i=0; i<NUMEVENTS; i++) total_values[i] += values[i];
         papi_mutex.unlock();
     }
@@ -41,7 +40,6 @@ namespace madness {
     }
 
     const long long* get_papi_measurement() {
-        std::cout << "PAPI THREAD COUNT = " << th <<std::endl;
         return const_cast<long long*>(total_values);
     }
 }

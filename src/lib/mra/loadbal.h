@@ -587,12 +587,12 @@ namespace madness {
 		  nd.cost+=new_cost;
 		  nd.subcost+=new_cost;
 		  lbnode.set_data(nd);
-		  impl.insert(key, lbnode);
+		  impl.replace(key, lbnode);
 		} else {
 		  nd.cost = new_cost;
 		  nd.subcost = nd.cost;
 		  LBNode<D> lbnode(nd,it->second.has_children());
-		  impl.insert(key, lbnode);
+		  impl.replace(key, lbnode);
 		}
             }
         }
