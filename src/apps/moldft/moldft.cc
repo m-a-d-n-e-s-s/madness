@@ -1104,6 +1104,11 @@ struct Calculation {
         END_TIMER("Apply BSH");
 
         ops.clear();            // free memory
+        world.gop.fence();
+
+        START_TIMER;
+        truncate(world, new_psi);
+        END_TIMER("Truncate new psi");
         
         vecfuncT r = sub(world, psi, new_psi); // residuals
         vector<double> rnorm = norm2(world, r);
@@ -1140,6 +1145,8 @@ struct Calculation {
 
         world.gop.fence();
         new_psi.clear(); // free memory
+        world.gop.fence();
+        world.gop.fence();
 
         truncate(world, psi);
 
@@ -1389,11 +1396,6 @@ int main(int argc, char** argv) {
         calc.solve(world);
 
         calc.set_protocol(world,1e-8);
-        calc.make_nuclear_potential(world);
-        calc.project(world);
-        calc.solve(world);
-
-        calc.set_protocol(world,1e-10);
         calc.make_nuclear_potential(world);
         calc.project(world);
         calc.solve(world);
