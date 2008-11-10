@@ -46,84 +46,92 @@ struct InputParameters {
     printf("       Simulation parameters\n");
     printf("       ---------------------\n");
     while(f >> tag) {
-      if (tag == "L") {
-        f >> L;
-        printf("             L = %.1f\n", L);
-      }
-      else if (tag == "Lsmall") {
-        f >> Lsmall;
-        printf("        Lsmall = %.1f\n", Lsmall);
-      }
-      else if (tag == "Llarge") {
-        f >> Llarge;
-        printf("        Llarge = %.1f\n", Llarge);
-      }
-      else if (tag == "F") {
-        f >> F;
-        printf("             F = %.6f\n", F);
-      }
-      else if (tag == "omega") {
-        f >> omega;
-        printf("         omega = %.6f\n", omega);
-      }
-      else if (tag == "ncycle") {
-        f >> ncycle;
-        printf("         ncycle = %.6f\n", ncycle);
-      }
-      else if (tag == "natom") {
-        f >> natom;
-        printf("         natom = %d\n", natom);
-        for (int i=0; i<natom; i++) {
-          f >> Z[i] >> R[i][0] >> R[i][1] >> R[i][2];
-          printf("           atom %2d   %.1f  %10.6f  %10.6f  %10.6f\n", i, Z[i], R[i][0], R[i][1], R[i][2]);
+        if (tag[0] == '#') {
+            char ch;
+            printf("    comment  %s ",tag.c_str());
+            while (f.get(ch)) {
+                printf("%c",ch);
+                if (ch == '\n') break;
+            }
         }
-      }
-      else if (tag == "k") {
-        f >> k;
-        printf("             k = %d\n", k);
-      }
-      else if (tag == "thresh") {
-        f >> thresh;
-        printf("        thresh = %.1e\n", thresh);
-      }
-      else if (tag == "safety") {
-        f >> safety;
-        printf("        safety = %.1e\n", safety);
-      }
-      else if (tag == "cut") {
-        f >> cut;
-        printf("           cut = %.2f\n", cut);
-      }
-      else if (tag == "prefix") {
-        f >> prefix;
-        printf("        prefix = %s\n", prefix.c_str());
-      }
-      else if (tag == "ndump") {
-        f >> ndump;
-        printf("         ndump = %d\n", ndump);
-      }
-      else if (tag == "nplot") {
-        f >> nplot;
-        printf("         nplot = %d\n", nplot);
-      }
-      else if (tag == "nio") {
-        f >> nio;
-        printf("           nio = %d\n", nio);
-      }
-      else if (tag == "target_time") {
-	f >> target_time;
-        printf("   target_time = %.3f\n", target_time);
-      }
-      else if (tag == "tScale") {
-        f >> tScale;
-        printf("           tScale = %.5f\n", tScale);
-      }
-      else {
-        MADNESS_EXCEPTION("unknown input option", 0);
-      }
+        else if (tag == "L") {
+            f >> L;
+            printf("             L = %.1f\n", L);
+        }
+        else if (tag == "Lsmall") {
+            f >> Lsmall;
+            printf("        Lsmall = %.1f\n", Lsmall);
+        }
+        else if (tag == "Llarge") {
+            f >> Llarge;
+            printf("        Llarge = %.1f\n", Llarge);
+        }
+        else if (tag == "F") {
+            f >> F;
+            printf("             F = %.6f\n", F);
+        }
+        else if (tag == "omega") {
+            f >> omega;
+            printf("         omega = %.6f\n", omega);
+        }
+        else if (tag == "ncycle") {
+            f >> ncycle;
+            printf("         ncycle = %.6f\n", ncycle);
+        }
+        else if (tag == "natom") {
+            f >> natom;
+            printf("         natom = %d\n", natom);
+            for (int i=0; i<natom; i++) {
+                f >> Z[i] >> R[i][0] >> R[i][1] >> R[i][2];
+                printf("           atom %2d   %.1f  %10.6f  %10.6f  %10.6f\n", i, Z[i], R[i][0], R[i][1], R[i][2]);
+            }
+        }
+        else if (tag == "k") {
+            f >> k;
+            printf("             k = %d\n", k);
+        }
+        else if (tag == "thresh") {
+            f >> thresh;
+            printf("        thresh = %.1e\n", thresh);
+        }
+        else if (tag == "safety") {
+            f >> safety;
+            printf("        safety = %.1e\n", safety);
+        }
+        else if (tag == "cut") {
+            f >> cut;
+            printf("           cut = %.2f\n", cut);
+        }
+        else if (tag == "prefix") {
+            f >> prefix;
+            printf("        prefix = %s\n", prefix.c_str());
+        }
+        else if (tag == "ndump") {
+            f >> ndump;
+            printf("         ndump = %d\n", ndump);
+        }
+        else if (tag == "nplot") {
+            f >> nplot;
+            printf("         nplot = %d\n", nplot);
+        }
+        else if (tag == "nio") {
+            f >> nio;
+            printf("           nio = %d\n", nio);
+        }
+        else if (tag == "target_time") {
+            f >> target_time;
+            printf("   target_time = %.3f\n", target_time);
+        }
+        else if (tag == "tScale") {
+            f >> tScale;
+            printf("           tScale = %.5f\n", tScale);
+        }
+        else {
+            MADNESS_EXCEPTION("unknown input option", 0);
+        }
     }
   }
-  
+    
   template <typename Archive>
   void serialize(Archive & ar) {
     ar & L & Lsmall & Llarge & F & omega & ncycle & natom & Z;
@@ -512,7 +520,7 @@ void doplot(World& world, int step, const complex_functionT& psi, double Lplot, 
     std::vector<long> npt(3, numpt);
     cell(_,0) = -Lplot;
     cell(_,1) =  Lplot;
-    plotdx(psi, fname, cell, npt);
+    //plotdx(psi, fname, cell, npt);
     if (world.rank() == 0) print("plotting used", wall_time()-start);
 }
 
