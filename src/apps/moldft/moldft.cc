@@ -795,15 +795,17 @@ struct Calculation {
         double nel = rho.trace();
         if (world.rank() == 0) print("guess dens trace", nel);
 
-//         if (world.size() > 1) {
-//             LoadBalImpl<3> lb(rho, lbcost<double,3>);
-//             lb.load_balance();
-//             FunctionDefaults<3>::set_pmap(lb.load_balance());
-//             world.gop.fence();
-//             rho = copy(rho, FunctionDefaults<3>::get_pmap(), false);
-//             vnuc = copy(vnuc, FunctionDefaults<3>::get_pmap(), false);
-//         }
-
+        if (world.size() > 1) {
+            LoadBalImpl<3> lb(vnuc, lbcost<double,3>);
+            lb.add_tree(rho,lbcost<double,3>);
+            lb.load_balance();
+            FunctionDefaults<3>::set_pmap(lb.load_balance());
+            world.gop.fence();
+            rho = copy(rho, FunctionDefaults<3>::get_pmap(), false);
+            vnuc = copy(vnuc, FunctionDefaults<3>::get_pmap(), false);
+            world.gop.fence();
+        }
+        
         functionT vlocal;
         if (param.nalpha+param.nbeta > 1) {
             START_TIMER;
@@ -832,6 +834,8 @@ struct Calculation {
 //             ao[i].print_info();
 //         }
 
+
+        // Doing this dramatically slowed down V*psi
 //         if (world.size() > 1) {
 //             LoadBalImpl<3> lb(ao[0], lbcost<double,3>);
 //             for (unsigned int i=1; i<ao.size(); i++) {
@@ -845,6 +849,7 @@ struct Calculation {
 //             for (unsigned int i=0; i<amo.size(); i++) {
 //                 ao[i] = copy(ao[i], FunctionDefaults<3>::get_pmap(), false);
 //             }
+//             world.gop.fence();
 //         }
 
         START_TIMER;
@@ -1194,14 +1199,14 @@ struct Calculation {
     void loadbal(World& world) {
 //         if (world.size() == 1) return;
 //         LoadBalImpl<3> lb(vnuc, lbcost<double,3>);
-//         for (unsigned int i=0; i<amo.size(); i++) {
-//             lb.add_tree(amo[i],lbcost<double,3>);
-//         }
-//         if (param.nbeta && !param.spin_restricted) {
-//             for (unsigned int i=0; i<bmo.size(); i++) {
-//                 lb.add_tree(bmo[i],lbcost<double,3>);
-//             }
-//         }
+// //         for (unsigned int i=0; i<amo.size(); i++) {
+// //             lb.add_tree(amo[i],lbcost<double,3>);
+// //         }
+// //         if (param.nbeta && !param.spin_restricted) {
+// //             for (unsigned int i=0; i<bmo.size(); i++) {
+// //                 lb.add_tree(bmo[i],lbcost<double,3>);
+// //             }
+// //         }
 //         lb.load_balance();
 //         FunctionDefaults<3>::set_pmap(lb.load_balance());
 //         world.gop.fence();
@@ -1218,19 +1223,20 @@ struct Calculation {
     }
 
     void solve(World& world) {
+
         functionT arho_old, brho_old;
         functionT adelrhosq, bdelrhosq; // placeholders for GGAs
 
         for (int iter=0; iter<param.maxiter; iter++) {
             if (world.rank()==0) print("\nIteration", iter,"\n");
             START_TIMER;
-            loadbal(world);
-            if (iter > 0) {
-                arho_old = copy(arho_old, FunctionDefaults<3>::get_pmap(), false);
-               if (param.nbeta && !param.spin_restricted) {
-                   brho_old = copy(brho_old, FunctionDefaults<3>::get_pmap(), false);
-               }
-            }
+//             if (iter > 0) {
+//                loadbal(world);
+//                arho_old = copy(arho_old, FunctionDefaults<3>::get_pmap(), false);
+//                if (param.nbeta && !param.spin_restricted) {
+//                    brho_old = copy(brho_old, FunctionDefaults<3>::get_pmap(), false);
+//                }
+//             }
             END_TIMER("Load balancing");
 
             START_TIMER;
@@ -1378,6 +1384,16 @@ int main(int argc, char** argv) {
         calc.solve(world);
 
         calc.set_protocol(world,1e-6);
+        calc.make_nuclear_potential(world);
+        calc.project(world);
+        calc.solve(world);
+
+        calc.set_protocol(world,1e-8);
+        calc.make_nuclear_potential(world);
+        calc.project(world);
+        calc.solve(world);
+
+        calc.set_protocol(world,1e-10);
         calc.make_nuclear_potential(world);
         calc.project(world);
         calc.solve(world);

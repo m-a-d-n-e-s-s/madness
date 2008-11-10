@@ -247,9 +247,11 @@ namespace madness {
                double tol,
                bool fence=true)
     {
-        reconstruct(world, v);
         a.reconstruct();
+        reconstruct(world, v);
+        world.gop.fence();
         a.norm_tree();
+        world.gop.fence();
         std::vector< Function<TENSOR_RESULT_TYPE(T,R),NDIM> > av(v.size());
         for (unsigned int i=0; i<v.size(); i++) {
             av[i] = mul_sparse<T,R,NDIM>(v[i], a, tol, false);

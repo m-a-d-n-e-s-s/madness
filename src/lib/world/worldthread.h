@@ -565,7 +565,10 @@ namespace madness {
 
             size_t nn = n;
             size_t ss = sz;
-            if (nn == ss) grow();
+            if (nn == ss) {
+                grow();
+                ss = sz;
+            }
             nn++;
             if (nn > stats.nmax) stats.nmax = nn;
             n = nn;
@@ -574,6 +577,7 @@ namespace madness {
             if (f < 0) f = ss - 1;
             buf[f] = value;
             _front = f;
+
             signal();
         }
 
@@ -585,7 +589,10 @@ namespace madness {
 
             size_t nn = n;
             size_t ss = sz;
-            if (nn == ss) grow();
+            if (nn == ss) {
+                grow();
+                ss = sz;
+            }
             nn++;
             if (nn > stats.nmax) stats.nmax = nn;
             n = nn;
@@ -610,6 +617,7 @@ namespace madness {
                 
                 int f = _front;
                 T result = buf[f];
+                buf[f] = T();   // For better stupidity detection
                 f++;
                 if (f >= int(sz)) f = 0;
                 _front = f;
@@ -996,6 +1004,7 @@ namespace madness {
 
         /// Add a new task to the pool
         static void add(PoolTaskInterface* task) {
+            if (!task) throw "ThreadPool: inserting a NULL task pointer";
             if (task->is_high_priority()) {
                 instance()->queue.push_front(task);
             }
