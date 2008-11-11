@@ -343,7 +343,6 @@ double myreal(const double_complex& t) {return real(t);}
 // Given psi and V evaluate the energy ... leaves psi compressed, potn reconstructed
 template <typename T>
 double energy(World& world, const Function<T,3>& psi, const functionT& potn) {
-    PROFILE_FUNC;
     // First do all work in the scaling function basis
     bool DOFENCE = false;
     psi.reconstruct();
@@ -372,7 +371,6 @@ double energy(World& world, const Function<T,3>& psi, const functionT& potn) {
 }
 
 void converge(World& world, functionT& potn, functionT& psi, double& eps) {
-    PROFILE_FUNC;
 
     for (int iter=0; iter<30; iter++) {
         if (world.rank() == 0) print("beginning iter", iter, wall_time());
@@ -401,18 +399,26 @@ complex_functionT chin_chen(const complex_functionT& expV_0,
                             const complex_functionT& expV_1,
                             const complex_operatorT& G,
                             const complex_functionT& psi0) {
-    PROFILE_FUNC;
-
     // psi(t) = exp(-i*V(t)*t/6) exp(-i*T*t/2) exp(-i*2*Vtilde(t/2)*t/3) exp(-i*T*t/2) exp(-i*V(0)*t/6)
     // .             expV_1            G               expV_tilde             G             expV_0
 
     complex_functionT psi1;
 
+    double t0 = wall_time();
     psi1 = expV_0*psi0;     psi1.truncate();
+    double t1 = wall_time();
     psi1 = apply(G,psi1);   psi1.truncate();
+    double t2 = wall_time();
     psi1 = expV_tilde*psi1; psi1.truncate();
+    double t3 = wall_time();
     psi1 = apply(G,psi1);   psi1.truncate();
+    double t4 = wall_time();
     psi1 = expV_1*psi1;     psi1.truncate(param.thresh);
+    double t5 = wall_time();
+
+    if (psi1.world().rank() == 0) {
+        print("chin-chen: ", t1-t0, t2-t1, t3-t2, t4-t3, t5-t4);
+    }
 
     return psi1;
 }
@@ -449,7 +455,6 @@ struct unaryexp {
 
 // Returns exp(-I*t*V)
 complex_functionT make_exp(double t, const functionT& v) {
-    PROFILE_FUNC;
     v.reconstruct();
     complex_functionT expV = double_complex(0.0,-t)*v;
     expV.unaryop(unaryexp<double_complex,3>());
@@ -467,7 +472,6 @@ void print_stats(World& world, int step, double t, const functionT& v,
                  const functionT& x, const functionT& y, const functionT& z,
                  const functionT& dV_dz,
                  const complex_functionT& psi0, const complex_functionT& psi) {
-    PROFILE_FUNC;
     double norm = psi.norm2();
     double current_energy = energy(world, psi, v);
     double xdip = real(inner(psi, x*psi))/(norm*norm);
@@ -535,7 +539,7 @@ void line_plot(World& world, int step, complex_functionT& psi) {
         double z = -param.Llarge + 2.0*i*param.Llarge/(npt-1);
         coordT r(0.0);
         r[2] = z;
-        v[i] = psi(r);
+        v[i] = psi.eval(r);
     }
     world.gop.fence();
     world.gop.sum(v, npt);
@@ -552,9 +556,40 @@ void line_plot(World& world, int step, complex_functionT& psi) {
     world.gop.fence();
 }
 
+template <typename T, int NDIM>
+Cost lbcost(const Key<NDIM>& key, const FunctionNode<T,NDIM>& node) {
+  return 1;
+}
+
+void loadbal(World& world, 
+             functionT& potn, functionT& vt,
+             functionT& dpotn_dx, functionT& dpotn_dy, functionT& dpotn_dz, 
+             functionT& dpotn_dx_sq, functionT& dpotn_dy_sq,
+             complex_functionT& psi, complex_functionT& psi0,
+             functionT& x, functionT& y, functionT& z) {
+    if (world.size() < 2) return;
+    LoadBalImpl<3> lb(potn, lbcost<double,3>);
+    //lb.add_tree(psi0,lbcost<double_complex,3>);
+    lb.load_balance();
+    FunctionDefaults<3>::set_pmap(lb.load_balance());
+    world.gop.fence();
+    potn = copy(potn, FunctionDefaults<3>::get_pmap(), false);
+    vt = copy(vt, FunctionDefaults<3>::get_pmap(), false);
+    dpotn_dx = copy(dpotn_dx, FunctionDefaults<3>::get_pmap(), false);
+    dpotn_dy = copy(dpotn_dy, FunctionDefaults<3>::get_pmap(), false);
+    dpotn_dz = copy(dpotn_dz, FunctionDefaults<3>::get_pmap(), false);
+    dpotn_dx_sq = copy(dpotn_dx_sq, FunctionDefaults<3>::get_pmap(), false);
+    dpotn_dy_sq = copy(dpotn_dy_sq, FunctionDefaults<3>::get_pmap(), false);
+    psi = copy(psi, FunctionDefaults<3>::get_pmap(), false);
+    psi0 = copy(psi0, FunctionDefaults<3>::get_pmap(), false);
+    x = copy(x, FunctionDefaults<3>::get_pmap(), false);
+    y = copy(y, FunctionDefaults<3>::get_pmap(), false);
+    z = copy(z, FunctionDefaults<3>::get_pmap(), false);
+    world.gop.fence();
+}
+
 // Evolve the wave function in real time starting from given time step on disk
 void propagate(World& world, int step0) {
-    PROFILE_FUNC;
     //double ctarget = 10.0/param.cut;                // From Fourier analysis of the potential
     double ctarget = 5.0/param.cut;
     //double c = 1.86*ctarget; // This for 10^5 steps
@@ -625,12 +660,18 @@ void propagate(World& world, int step0) {
         
         print_stats(world, step, t, vt, x, y, z, dV_dz, psi0, psi);
     }
+    world.gop.fence();
 
     psi.truncate();
 
+    loadbal(world, potn, vt, dpotn_dx, dpotn_dy, dpotn_dz, dpotn_dx_sq, dpotn_dy_sq, psi, psi0, x, y, z);
+
     bool use_trotter = false;
     while (step < nstep) {
+        double t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13;
+        t0 = wall_time();
         line_plot(world, step, psi);
+        t1 = wall_time();
 
         long depth = psi.max_depth(); long size=psi.size();
         if (world.rank() == 0) print(step, "depth", depth, "size", size);
@@ -643,28 +684,38 @@ void propagate(World& world, int step0) {
             psi = trotter(world, expV, G, psi);
         }
         else { // Chin-Chen
-            PROFILE_BLOCK(build_and_apply_chin_chen);
             // Make z-component of del V at time tstep/2
+
             functionT dV_dz = copy(dpotn_dz);
+            t2 = wall_time();
             dV_dz.add_scalar(laser(t+0.5*time_step));
 
             // Make Vtilde at time tstep/2
             functionT Vtilde = potn + laser(t+0.5*time_step)*z;
+            t3 = wall_time();
             functionT dvsq = dpotn_dx_sq + dpotn_dy_sq + dV_dz*dV_dz;
+            t4 = wall_time();
             Vtilde.gaxpy(1.0, dvsq, -time_step*time_step/48.0);
+            t5 = wall_time();
             
             // Exponentiate potentials
             complex_functionT expv_0     = make_exp(time_step/6.0, vt);
+            t6 = wall_time();
             complex_functionT expv_tilde = make_exp(2.0*time_step/3.0, Vtilde);
+            t7 = wall_time();
             complex_functionT expv_1     = make_exp(time_step/6.0, potn + laser(t+time_step)*z);
+            t8 = wall_time();
 
             // Free up some memory
             dV_dz.clear();
             Vtilde.clear();
             dvsq.clear();
+            world.gop.fence();
+            t9 = wall_time();
             
             // Apply Chin-Chen
             psi = chin_chen(expv_0, expv_tilde, expv_1, G, psi);
+            t10 = wall_time();
         }
 
         // Update counters, print info, dump/plot as necessary
@@ -676,9 +727,16 @@ void propagate(World& world, int step0) {
         {
             // Make gradient of potential at time t in z direction to compute HHG
             functionT dV_dz = copy(dpotn_dz);
+            t11 = wall_time();
             dV_dz.add_scalar(laser(t));
+            t12 = wall_time();
 
             print_stats(world, step, t, vt, x, y, z, dV_dz, psi0, psi);
+            t13 = wall_time();
+            if (world.rank() == 0) 
+                //              .7    .05     .1      .3    .05    .9    1.6     1.1    0.02   3.4      .2       .004     2.0
+                //             linpl  copy   Vtil    dvsq   gaxpy  exp1  exp2   exp3    clear   CC     copy      addscl   prnt
+                print("times", t1-t0, t2-t1, t3-t2, t4-t3, t5-t4, t6-t5, t7-t6, t8-t7, t9-t8, t10-t9, t11-t10, t12-t11, t13-t12);
         }
 
         if ((step%param.ndump) == 0 || step==nstep) {
