@@ -248,22 +248,32 @@ namespace madness {
         /// struct opT {
         ///     opT(); 
         ///     opT(const &opT);
-        ///     resultT operator()(const rangeT::iterator& it) const;
-        ///     resultT operator()(const resultT& left, const resultT& right); 
+        ///     bool operator()(const rangeT::iterator& it) const;
         ///     template <typename Archive> void serialize(const Archive& ar);
         /// }
         /// \endcode
         /// Note that the serialize method does not actually have to
         /// work unless you want to have the task be stealable.
+        ///
         /// Adjust the chunksize in the range to control granularity.
+        ///
+        /// Your operation should return true/false for success failure
+        /// and the logical and of all results is returned as the 
+        /// future result.
+        ///
+        /// You can ignore the result if you are interested
+        /// in neither synchronization nor result status.
         template <typename rangeT, typename opT> 
         Future<bool> for_each(const rangeT& range, const opT& op) {
             rangeT left = range;
             rangeT right(left,Split());
 
             if (right.empty()) {
-                for (typename rangeT::iterator it=left.begin(); it != left.end(); ++it) op(it);
-                return Future<bool>(true);
+                bool status = true;
+                for (typename rangeT::iterator it=left.begin(); it != left.end(); ++it) {
+                    status &= op(it);
+                }
+                return Future<bool>(status);
             }
             else {
                 Future<bool>  leftsum = add(*this, &WorldTaskQueue::for_each<rangeT,opT>, left,  op);

@@ -7,6 +7,7 @@
 #include <mra/qmprop.h>
 #include <mra/operator.h>
 #include <constants.h>
+#include <tensor/vmath.h>
 
 using namespace madness;
 
@@ -445,8 +446,19 @@ complex_functionT trotter(World& world,
 
 template<typename T, int NDIM>
 struct unaryexp {
-    void operator()(const Key<NDIM>& key, Tensor<T>& t) const {
-        UNARY_OPTIMIZED_ITERATOR(T, t, *_p0 = exp(*_p0););
+//     void operator()(const Key<NDIM>& key, Tensor<T>& t) const {
+//         UNARY_OPTIMIZED_ITERATOR(T, t, *_p0 = exp(*_p0););
+//     }
+//     template <typename Archive>
+//     void serialize(Archive& ar) {}
+};
+
+
+template<int NDIM>
+struct unaryexp<double_complex,NDIM> {
+    void operator()(const Key<NDIM>& key, Tensor<double_complex>& t) const {
+        //vzExp(t.size, t.ptr(), t.ptr());
+        UNARY_OPTIMIZED_ITERATOR(double_complex, t, *_p0 = exp(*_p0););
     }
     template <typename Archive>
     void serialize(Archive& ar) {}
@@ -759,7 +771,6 @@ void propagate(World& world, int step0) {
 
 void doit(World& world) {
     cout.precision(8);
-	cout << "in doIt" << std::endl;
 
     if (world.rank() == 0) param.read("input");
     world.gop.broadcast_serializable(param, 0);
@@ -774,7 +785,6 @@ void doit(World& world) {
     FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap(world)));
 
     functionT potn = factoryT(world).f(V);  potn.truncate();
-	cout << "in doIt:after FunctionDefaults" << std::endl;
 
     // Read restart information
     int step0;               // Initial time step ... filenames are <prefix>-<step0>
@@ -818,7 +828,6 @@ int main(int argc, char** argv) {
     World world(MPI::COMM_WORLD);
     
     startup(world,argc,argv);
-	cout << "in Main" << std::endl;
 
     try {
         doit(world);

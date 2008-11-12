@@ -39,7 +39,9 @@
 /// \file funcimpl.h
 /// \brief Provides FunctionCommonData, FunctionImpl and FunctionFactory
 
+#include <iostream>
 #include <world/world.h>
+#include <world/print.h>
 #include <misc/misc.h>
 #include <tensor/tensor.h>
 #include <mra/key.h>
@@ -1101,23 +1103,37 @@ namespace madness {
             
             throw "not working now";
         }
+
+        template <typename opT>
+        struct do_unary_op_value_inplace {
+            typedef Range<typename dcT::iterator> rangeT;
+            implT* impl;
+            opT op;
+            do_unary_op_value_inplace(implT* impl, const opT& op) : impl(impl), op(op) {}
+            bool operator()(typename rangeT::iterator& it) const {
+                const keyT& key = it->first;
+                nodeT& node = it->second;
+                if (node.has_coeff()) {
+                    tensorT& t= node.coeff();
+                    tensorT values = impl->fcube_for_mul(key, key, t);
+                    op(key, values);
+                    double scale = pow(0.5,0.5*NDIM*key.level())*sqrt(FunctionDefaults<NDIM>::get_cell_volume());
+                    t = transform(values,impl->cdata.quad_phiw).scale(scale);
+                }
+                return true;
+            }
+            template <typename Archive> void serialize(const Archive& ar) {};
+        };            
+            
         
         /// Unary operation applied inplace to the values with optional refinement and fence
         template <typename opT>
         void unary_op_value_inplace(const opT& op, bool fence)
         {
-            for (typename dcT::iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
-                const keyT& key = it->first;
-                nodeT& node = it->second;
-                if (node.has_coeff()) {
-                    tensorT& t= node.coeff();
-
-                    tensorT values = fcube_for_mul(key, key, t);
-                    op(key, values);
-                    double scale = pow(0.5,0.5*NDIM*key.level())*sqrt(FunctionDefaults<NDIM>::get_cell_volume());
-                    t = transform(values,cdata.quad_phiw).scale(scale);
-                }
-            }
+            std::cout << "supposedly running in parallel" << std::endl;
+            typedef Range<typename dcT::iterator> rangeT;
+            typedef do_unary_op_value_inplace<opT> xopT;
+            world.taskq.for_each<rangeT,xopT>(rangeT(coeffs.begin(), coeffs.end()), xopT(this,op));
             if (fence) world.gop.fence();
         }
         

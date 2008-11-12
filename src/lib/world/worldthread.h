@@ -1105,6 +1105,24 @@ namespace madness {
 
         const iterator& end() const {return finish;}
     };
+
+
+//         std::vector<iterator> iterators() {
+//             size_t n = size();
+//             std::vector<iterator> r(n);
+//             unsigned int i=0;
+//             for (iterator it=begin(); it!=end(); ++it) r[i++] = it;
+//             if (i != n) throw "ConcurrentHashMap: count wrong in iterators";
+//             return r;
+//         }
+
+
+//     template <typename T>
+//     class Range<std::vector<T>::iterator> {
+
+
+
+//     }
 }
     
 

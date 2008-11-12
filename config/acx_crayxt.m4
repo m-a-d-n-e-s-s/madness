@@ -19,6 +19,7 @@ AC_DEFUN([ACX_CRAYXT], [
                 if test $? = 0; then
                         echo "AMD ACML library detected"
                         LIBS="$LIBS -lacml"
+                        AC_DEFINE(HAVE_ACML,[1],[Define if AMD math library available - ACML])
                 fi
         fi
 ])

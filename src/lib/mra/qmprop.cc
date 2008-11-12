@@ -73,6 +73,7 @@ namespace madness {
         static void test() {
             std::complex<double> maple(1.13851441120840,-.986104972277800);
             BandlimitedPropagator bp(31.4, 0.07, 1.0);
+            std::cout << bp(0.1) << " " << maple << std::endl;
             if (std::abs(bp(0.1)-maple) > 1e-11) throw "BandlimitedPropagator: failed test";
             return;
         }
