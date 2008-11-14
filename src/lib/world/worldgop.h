@@ -49,7 +49,7 @@ namespace madness {
     struct WorldSumOp {
         inline T operator()(const T& a, const T& b) const {return a+b;};
     };
-    
+
     template <typename T>
     struct WorldMultOp {
         inline T operator()(const T& a, const T& b) const {return a*b;};
@@ -331,7 +331,49 @@ namespace madness {
         /// Global min of a scalar while still processing AM & tasks
         template <typename T>
             void min(T& a) {min(&a, 1);}
-        
+
+        /// Concatenate an STL vector of serializable stuff onto node 0
+        template <typename T>
+        std::vector<T> concat0(const std::vector<T>& v, size_t bufsz=1024*1024) {
+            SafeMPI::Request req0, req1;
+            ProcessID parent, child0, child1;
+            mpi.binary_tree_info(0, parent, child0, child1);
+            Tag gsum_tag = mpi.unique_tag();
+            
+            unsigned char* buf0 = new unsigned char[bufsz];
+            unsigned char* buf1 = new unsigned char[bufsz];
+            
+            if (child0 != -1) req0 = mpi.Irecv(buf0, bufsz, MPI::BYTE, child0, gsum_tag);
+            if (child1 != -1) req1 = mpi.Irecv(buf1, bufsz, MPI::BYTE, child1, gsum_tag);
+            
+            std::vector<T> left, right;
+            if (child0 != -1) {
+                World::await(req0);
+                BufferInputArchive ar(buf0, bufsz);
+                ar & left;
+            }
+            if (child1 != -1) {
+                World::await(req1);
+                BufferInputArchive ar(buf1, bufsz);
+                ar & right;
+                for (unsigned int i=0; i<right.size(); i++) left.push_back(right[i]);
+            }
+
+            for (unsigned int i=0; i<v.size(); i++) left.push_back(v[i]);
+
+            if (parent != -1) {
+                BufferOutputArchive ar(buf0, bufsz);
+                ar & left;
+                req0 = mpi.Isend(buf0, ar.size(), MPI::BYTE, parent, gsum_tag);
+                World::await(req0);
+            }
+            
+            delete [] buf0;
+            delete [] buf1;
+            
+            if (parent == -1) return left;
+            else return std::vector<T>();
+        }
     };        
 }
 
