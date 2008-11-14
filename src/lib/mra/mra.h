@@ -676,32 +676,31 @@ namespace madness {
 	    return result;
 	}
 
-        /// Inplace unary operation on function values with optional autorefining and fence
+        /// Inplace unary operation on function values
         template <typename opT>
         void unaryop(const opT& op, bool fence=true) {
             PROFILE_MEMBER_FUNC(Function);
             verify();
-            if (autorefine()) {
-                impl->unary_op_value_inplace(&implT::autorefine_square_test, op, fence);
-            }
-            else {
-                impl->unary_op_value_inplace(op, fence);
-            }
+            impl->unary_op_value_inplace(op, fence);
         }
 
 
-        /// Unary operation applied inplace to the coefficients with optional autorefining and fence
+        /// Unary operation applied inplace to the coefficients
         template <typename opT>
         void unaryop_coeff(const opT& op,
                            bool fence = true) {
             PROFILE_MEMBER_FUNC(Function);
             verify();
-            if (autorefine()) {
-                impl->unary_op_coeff_inplace(&implT::autorefine_square_test, op, fence);
-            }
-            else {
-                impl->unary_op_coeff_inplace(op, fence);
-            }
+            impl->unary_op_coeff_inplace(op, fence);
+        }
+
+
+        /// Unary operation applied inplace to the nodes
+        template <typename opT>
+        void unaryop_node(const opT& op,
+                          bool fence = true) {
+            verify();
+            impl->unary_op_node_inplace(op, fence);
         }
 
 

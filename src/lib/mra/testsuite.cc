@@ -44,9 +44,18 @@
 
 #include <misc/ran.h>
 
+#include <mra/rjhbal.h>
+
 const double PI = 3.1415926535897932384;
 
 using namespace madness;
+
+template <typename T, int NDIM>
+struct lbcost {
+    double operator()(const Key<NDIM>& key, const FunctionNode<T,NDIM>& node) const {
+        return 1.0;
+    }
+};
 
 template <typename T>
 T complexify(T c) {return c;}
@@ -194,7 +203,7 @@ void test_basic(World& world) {
     FunctionDefaults<NDIM>::set_thresh(1e-5);
     FunctionDefaults<NDIM>::set_refine(true);
     FunctionDefaults<NDIM>::set_initial_level(2);
-    
+
     const coordT origin(0.0);
     coordT point;
     const double expnt = 1.0;
@@ -205,6 +214,7 @@ void test_basic(World& world) {
     for (int i=0; i<NDIM; i++) point[i] = 0.1*i;
 
     Function<T,NDIM> f = FunctionFactory<T,NDIM>(world).functor(functor);
+
     double norm = f.norm2();
     double err = f.err(*functor);
     T val = f(point);

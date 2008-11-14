@@ -2,15 +2,55 @@
 #define WORLD_LOADBAL_DEUX
 
 #include <mra/mra.h>
+#include <madness_config.h>
+#include <map>
 
 namespace madness {
 
+
+    template <int NDIM>
+    class LBDeuxPmap : public WorldDCPmapInterface< Key<NDIM> > {
+        typedef Key<NDIM> keyT;
+        typedef std::pair<keyT,ProcessID> pairT;
+        typedef std::map<keyT,ProcessID> mapT;
+        mapT map;
+        typedef typename mapT::const_iterator iteratorT;
+        
+    public:
+        LBDeuxPmap(const std::vector<pairT>& v) {
+            for (unsigned int i=0; i<v.size(); i++) {
+                map.insert(v[i]);
+            }
+        }
+
+        ProcessID owner(const keyT& key) const {
+            while (key.level() >= 0) {
+                iteratorT it = map.find(key);
+                if (it == map.end()) {
+                    return owner(key.parent());
+                }
+                else {
+                    return it->second;
+                }
+            }
+            madness::print("Mon Dieux!", key);
+            throw "LBDeuxPmap: lookup failed";
+        }
+
+        void print() const {
+            madness::print("LBDeuxPmap");
+        }
+    };
+    
+
+
     template <int NDIM>
     class LBNodeDeux {
+        static const int nchild = (1<<NDIM);
         typedef Key<NDIM> keyT;
         typedef LBNodeDeux<NDIM> nodeT;
         typedef WorldContainer<keyT,nodeT> treeT;
-        volatile double child_cost[1<<NDIM];
+        volatile double child_cost[nchild];
         volatile double my_cost;
         volatile double total_cost;
         volatile bool gotkids;
@@ -26,7 +66,7 @@ namespace madness {
     public:
         LBNodeDeux() 
             : my_cost(0.0), total_cost(0.0), gotkids(false), nsummed(0) {
-            for (int i=0; i<(1<<NDIM); i++) child_cost[i] = 0.0;
+            for (int i=0; i<nchild; i++) child_cost[i] = 0.0;
         }
 
         bool has_children() const {return gotkids;}
@@ -43,8 +83,8 @@ namespace madness {
         Void sum(treeT* tree, const keyT& child, double value) {
             child_cost[index(child)] = value;
             nsummed++;
-            if (nsummed == (1<<NDIM)) {
-                for (int i=0; i<(1<<NDIM); i++) total_cost += child_cost[i];
+            if (nsummed == nchild) {
+                for (int i=0; i<nchild; i++) total_cost += child_cost[i];
                 if (child.level() > 1) {
                     keyT key = child.parent();
                     keyT parent = key.parent();
@@ -73,16 +113,16 @@ namespace madness {
         Void partition(treeT* tree, const keyT& key, double avg) {
             if (has_children()) {
                 // Sort children in descending cost order
-                keyT keys[1<<NDIM];
-                double vals[1<<NDIM];
+                keyT keys[nchild];
+                double vals[nchild];
                 for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
                     const keyT child = kit.key();
                     int ind = index(child);
                     keys[ind] = child;
                     vals[ind] = child_cost[ind];
                 }
-                for (int i=0; i<(1<<NDIM); i++) {
-                    for (int j=i+1; j<(1<<NDIM); j++) {
+                for (int i=0; i<nchild; i++) {
+                    for (int j=i+1; j<nchild; j++) {
                         if (vals[i] < vals[j]) {
                             std::swap(vals[i],vals[j]);
                             std::swap(keys[i],keys[j]);
@@ -91,7 +131,7 @@ namespace madness {
                 }
                 
                 // Split off subtrees in decreasing cost order
-                for (int i=0; i<(1<<NDIM); i++) {
+                for (int i=0; i<nchild; i++) {
                     if (total_cost <= avg) {
                         tree->send(keys[i], &nodeT::deleter, tree, keys[i]);
                     }
@@ -116,7 +156,7 @@ namespace madness {
 
         template <typename Archive>
         void serialize(Archive& ar) {
-            ar & archive::wrap_opaque(this,sizeof(nodeT));
+            ar & archive::wrap_opaque(this,1);
         }
     };
         
@@ -163,12 +203,9 @@ namespace madness {
             return total;
         }
 
-        void doprint() {
-            keyT key0(0);
-            if (world.rank() == tree.owner(key0)) {
-                tree.send(key0, &nodeT::print, &tree, key0);
-            }
-            world.gop.fence();
+        /// Used to sort results into descending order
+        static bool compare(const std::pair<keyT,double>& a, const std::pair<keyT,double>& b) {
+            return a.second < b.second;
         }
 
 
@@ -184,30 +221,92 @@ namespace madness {
             const_cast<Function<T,NDIM>&>(f).unaryop_node(add_op<T,costT>(this,costfn), fence);
         }
 
-        /// Performs the partitioning of the tree
-        void partition() {
+        /// Printing for the curious
+        void print_tree(const keyT& key = keyT(0)) {
+            Future<iteratorT> futit = tree.find(key);
+            iteratorT it = futit.get();
+            if (it != tree.end()) {
+                for(int i=0; i<key.level(); i++) std::cout << "  ";
+                print(key, it->second.get_total_cost());
+                
+                if (it->second.has_children()) {
+                    for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
+                        print_tree(kit.key());
+                    }
+                }
+            }
+        }
+
+        /// Actually does the partitioning of the tree
+        SharedPtr< WorldDCPmapInterface<keyT> > partition() {
+            // Compute full tree of costs
             double avg = sum()/world.size();
             avg = avg/4.0;
-            print("The average cost is", avg);
+            if (world.rank() == 0) print_tree();
+            world.gop.fence();
             
+            // Create partitioning
             keyT key0(0);
             if (world.rank() == tree.owner(key0)) {
                 tree.send(key0, &nodeT::partition, &tree, key0, avg*1.1);
             }
             world.gop.fence();
 
-            // Delete dead nodes
-            for (iteratorT it=tree.begin(); it!=tree.end();) {
-                const keyT key = it->first;
-                const nodeT& node = it->second;
-                ++it;
-                if (node.get_total_cost() < 0) tree.erase(key);
+            // Collect entire vector onto node0
+            vector< std::pair<keyT,double> > results;
+            for (iteratorT it=tree.begin(); it!=tree.end(); ++it) {
+                if (it->second.get_total_cost() > 0) {
+                    results.push_back(std::make_pair(it->first,it->second.get_total_cost()));
+                }
             }
-            world.gop.fence();
-            doprint();
+            results = world.gop.concat0(results);
+
+            vector< std::pair<keyT,ProcessID> > map;
+
+            if (world.rank() == 0) {
+
+                std::sort(results.begin(), results.end(), compare);
+                
+                // Now we stupidly just map the sorted keys to processors.
+                // Lots of room for more intelligence here.
+
+                map.reserve(results.size());
+
+                vector<double> costs(world.size(), 0.0);
+                ProcessID p=0;
+                int inc=1;
+                while (results.size()) {
+                    const std::pair<keyT,double>& f = results.back();
+                    ProcessID proc;
+                    if (f.first.level() == 0) {
+                        proc = 0;
+                    }
+                    else {
+                        proc = p;
+                        p += inc;
+                        if (p < 0) {
+                            p++; inc=1;
+                        }
+                        else if (p >= world.size()) {
+                            p--; inc=-1;
+                        }
+                    }
+                    costs[proc] += f.second;
+                    map.push_back(std::make_pair(f.first,proc));
+                    results.pop_back();
+                }
+                print("THIS IS THE MAP");
+                print(map);
+                print("THIS IS THE COSTS");
+                print(costs);
+            }
+
+            world.gop.broadcast_serializable(map, 0);
+            
+            // Return the Procmap
+
+            return SharedPtr< WorldDCPmapInterface<keyT> >(new LBDeuxPmap<NDIM>(map));
         }
-        
-        
     };
 }
 

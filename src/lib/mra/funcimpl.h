@@ -1096,6 +1096,19 @@ namespace madness {
         }
         
         
+        /// Unary operation applied inplace to the coefficients WITHOUT refinement, optional fence
+        template <typename opT>
+        void unary_op_node_inplace(const opT& op, bool fence)
+        {
+            for (typename dcT::iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
+                const keyT& parent = it->first;
+                nodeT& node = it->second;
+                op(parent, node);
+            }
+            if (fence) world.gop.fence();
+        }
+        
+        
         template <typename opT>
         void unary_op_value_inplace(bool (implT::*refineop)(const keyT&, const tensorT&) const,
                                     const opT& op,
