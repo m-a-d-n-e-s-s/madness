@@ -44,8 +44,6 @@
 
 #include <misc/ran.h>
 
-#include <mra/rjhbal.h>
-
 const double PI = 3.1415926535897932384;
 
 using namespace madness;
