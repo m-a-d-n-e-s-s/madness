@@ -1143,7 +1143,6 @@ namespace madness {
         template <typename opT>
         void unary_op_value_inplace(const opT& op, bool fence)
         {
-            std::cout << "supposedly running in parallel" << std::endl;
             typedef Range<typename dcT::iterator> rangeT;
             typedef do_unary_op_value_inplace<opT> xopT;
             world.taskq.for_each<rangeT,xopT>(rangeT(coeffs.begin(), coeffs.end()), xopT(this,op));
