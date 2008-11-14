@@ -1063,8 +1063,8 @@ namespace madness {
         ///
         /// Default chunksize is to make 10 tasks per thread to
         /// facilitate dynamic load balancing.  
-        Range(const iterator& start, const iterator& finish, int chunksize=-1) 
-            : n(0), start(start), finish(finish), chunksize(chunksize)
+        Range(const iterator& start, const iterator& finish, int chunk=-1) 
+            : n(0), start(start), finish(finish), chunksize(chunk)
         {
             for (iterator it=start; it!=finish; ++it) n++;
             if (chunksize == -1) chunksize = n / (10*ThreadPool::size());
@@ -1081,18 +1081,21 @@ namespace madness {
         /// Presently only bisection down to given chunksize and
         /// executes iterator circa Nlog(N) times so it had better be cheap
         /// compared to the operation being performed.
-        Range(Range& r, const Split& split) 
-            : n(0), start(r.start), finish(), chunksize(r.chunksize)
+        Range(Range& left, const Split& split) 
+            : n(0), start(left.finish), finish(left.finish), chunksize(left.chunksize)
         {
-            if (r.n > chunksize) {
-                long nhalf = n/2;
+            //print("SPLITTING: input", left.n, left.chunksize);
+            if (left.n > chunksize) {
+                start = left.start;
+                long nhalf = left.n/2;
+                left.n -= nhalf;
+                n = nhalf;
                 while (nhalf--) {
-                    n++;
-                    r.n--;
-                    ++r.start;
+                    ++start;
                 }
+                left.finish = start;
             }
-            finish = r.start;
+            //print("SPLITTING: output: left", left.n, "right", n);
         }
         
         /// Returns number of items in the range (cost is O(1))
@@ -1104,6 +1107,8 @@ namespace madness {
         const iterator& begin() const {return start;}
 
         const iterator& end() const {return finish;}
+
+        unsigned int get_chunksize() const {return chunksize;}
     };
 
 

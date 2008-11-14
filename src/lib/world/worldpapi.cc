@@ -31,6 +31,7 @@ namespace madness {
         PAPI_stop_counters(values, NUMEVENTS);
         papi_mutex.lock();
         th++;
+        //std::cout << "PAPITHREAD " << values[0] << std::endl;
         for (int i=0; i<NUMEVENTS; i++) total_values[i] += values[i];
         papi_mutex.unlock();
     }

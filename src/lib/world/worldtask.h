@@ -154,6 +154,7 @@ namespace madness {
         // Used in reduce kernel 
         template <typename resultT, typename opT>
         static resultT sum(const resultT& left, const resultT& right, const opT& op) {
+            //std::cout << " REDUCE SUM " << left << " " << right << std::endl;
             return op(left,right);
         }
 
@@ -223,13 +224,10 @@ namespace madness {
             rangeT left = range;
             rangeT right(left,Split());
             
-            if (right.empty()) {
+            if (right.size() < range.get_chunksize()) {
                 resultT sum = resultT();
-                for (typename rangeT::iterator it=left.begin(); 
-                     it != left.end();
-                     ++it) {
-                    sum = op(sum,op(it));
-                }
+                for (typename rangeT::iterator it=left.begin(); it != left.end(); ++it) sum = op(sum,op(it));
+                for (typename rangeT::iterator it=right.begin(); it != right.end(); ++it) sum = op(sum,op(it));
                 return Future<resultT>(sum);
             }
             else {

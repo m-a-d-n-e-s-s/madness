@@ -90,6 +90,7 @@ namespace madness {
         static const size_t ALIGNMENT = 64;
         static const size_t HEADER_LEN = ALIGNMENT;
         static const size_t MAX_MSG_LEN = 256*1024;
+        //static const size_t MAX_MSG_LEN = 1024*1024;
 
         static const unsigned int ATTR_UNORDERED=0x0;
         static const unsigned int ATTR_ORDERED=0x1;
@@ -98,7 +99,7 @@ namespace madness {
 
     private:
 #ifdef HAVE_CRAYXT
-        static const int NRECV=512;
+        static const int NRECV=1024;
         static const int MAXQ=4*NRECV;
 #else
         static const int NRECV=32;
