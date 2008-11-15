@@ -37,6 +37,7 @@
 
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES  
 #include <mra/mra.h>
+#include <mra/lbdeux.h>
 #include <misc/ran.h>
 #include <ctime>
 using namespace madness;
@@ -209,11 +210,25 @@ tensorT energy_weighted_orthog(const tensorT& s, const tensorT eps) {
     return c;
 }
 
-
 template <typename T, int NDIM>
-Cost lbcost(const Key<NDIM>& key, const FunctionNode<T,NDIM>& node) {
-  return 1;
-}
+struct lbcost {
+    double leaf_value;
+    double parent_value;
+    lbcost(double leaf_value=1.0, double parent_value=1.0) : leaf_value(leaf_value), parent_value(parent_value) {}
+    double operator()(const Key<NDIM>& key, const FunctionNode<T,NDIM>& node) const {
+        if (node.is_leaf()) {
+            return leaf_value;
+        }
+        else {
+            return parent_value;
+        }
+    }
+};
+
+// template <typename T, int NDIM>
+// Cost lbcost(const Key<NDIM>& key, const FunctionNode<T,NDIM>& node) {
+//   return 1;
+// }
 
 struct CalculationParameters {
     // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -412,17 +427,21 @@ struct Calculation {
     }
 
     void set_protocol(World& world, double thresh) {
-        FunctionDefaults<3>::set_thresh(thresh);
-        if (thresh >= 1e-2) FunctionDefaults<3>::set_k(4);
-        else if (thresh >= 1e-4) FunctionDefaults<3>::set_k(6);
-        else if (thresh >= 1e-6) FunctionDefaults<3>::set_k(8);
-        else if (thresh >= 1e-8) FunctionDefaults<3>::set_k(10);
-        else FunctionDefaults<3>::set_k(12);
+        int k;
+        if (thresh >= 1e-2) k=4;
+        else if (thresh >= 1e-4) k=6;
+        else if (thresh >= 1e-6) k=8;
+        else if (thresh >= 1e-8) k=10;
+        else k=12;
 
+        FunctionDefaults<3>::set_k(k);
+        FunctionDefaults<3>::set_thresh(thresh);
         FunctionDefaults<3>::set_refine(true);
         FunctionDefaults<3>::set_initial_level(2);
         FunctionDefaults<3>::set_truncate_mode(1);  
         FunctionDefaults<3>::set_autorefine(false);  
+        FunctionDefaults<3>::set_apply_randomize(k>=8);
+        FunctionDefaults<3>::set_project_randomize(k>=8);
 
         double safety = 0.1;
         vtol = FunctionDefaults<3>::get_thresh()*safety;
@@ -476,7 +495,6 @@ struct Calculation {
             ao[i] = factoryT(world).functor(aofunc).initial_level(initial_level).truncate_on_project().nofence();
         }
         world.gop.fence();
-        //truncate(world, ao);
 
         vector<double> norms;
 
@@ -496,6 +514,8 @@ struct Calculation {
             world.gop.fence();
             if (nredone == 0) break;
         }
+
+        truncate(world, ao);
 
         for (int i=0; i<aobasis.nbf(molecule); i++) {
             if (world.rank() == 0 && fabs(norms[i]-1.0)>1e-3) print(i," bad ao norm?", norms[i]);
@@ -786,31 +806,45 @@ struct Calculation {
         // We use the density to help with load balance and also
         // for computing the initial coulomb potential.
         START_TIMER;
-        functionT rho = factoryT(world).functor(functorT(new GuessDensity(molecule, aobasis)));
+        functionT rho = factoryT(world).functor(functorT(new GuessDensity(molecule, aobasis))).truncate_on_project();
         END_TIMER("guess density");
-        if (world.rank() == 0) print("\ndistribution of rho");
-        rho.print_info();
-        if (world.rank() == 0) print("\ndistribution of vnuc");
-        vnuc.print_info();
+//         if (world.rank() == 0) print("\ndistribution of rho");
+//         rho.print_info();
+//         if (world.rank() == 0) print("\ndistribution of vnuc");
+//         vnuc.print_info();
         double nel = rho.trace();
         if (world.rank() == 0) print("guess dens trace", nel);
 
         if (world.size() > 1) {
-            LoadBalImpl<3> lb(vnuc, lbcost<double,3>);
-            lb.add_tree(rho,lbcost<double,3>);
-            lb.load_balance();
-            FunctionDefaults<3>::set_pmap(lb.load_balance());
+            if (world.rank() == 0) print("starting loadbal new");
+            START_TIMER;
             world.gop.fence();
+
+//             LoadBalImpl<3> lb(vnuc, lbcost<double,3>);
+//             lb.add_tree(rho,lbcost<double,3>);
+//             world.gop.fence();
+//             FunctionDefaults<3>::set_pmap(lb.load_balance());
+
+            LoadBalanceDeux<3> lb(world);
+            lb.add_tree(vnuc, lbcost<double,3>(), false);
+            lb.add_tree(rho,lbcost<double,3>(),false);
+            FunctionDefaults<3>::set_pmap(lb.load_balance(2.0));
+            world.gop.fence();
+            if (world.rank() == 0) print("starting loadbal copy");
             rho = copy(rho, FunctionDefaults<3>::get_pmap(), false);
             vnuc = copy(vnuc, FunctionDefaults<3>::get_pmap(), false);
             world.gop.fence();
+            if (world.rank() == 0) print("finished loadbal");
+            END_TIMER("guess loadbal");
         }
         
         functionT vlocal;
         if (param.nalpha+param.nbeta > 1) {
+            if (world.rank() == 0) print("starting coulomb");
             START_TIMER;
             vlocal = vnuc + apply(*coulop, rho); //.scale(1.0-1.0/nel); // Reduce coulomb to increase binding
             END_TIMER("guess Coulomb potn");
+            if (world.rank() == 0) print("finished coulomb");
 
             // Shove the closed-shell LDA potential on there also
             bool save = param.spin_restricted;
@@ -837,13 +871,12 @@ struct Calculation {
 
         // Doing this dramatically slowed down V*psi
 //         if (world.size() > 1) {
-//             LoadBalImpl<3> lb(ao[0], lbcost<double,3>);
-//             for (unsigned int i=1; i<ao.size(); i++) {
-//                 lb.add_tree(ao[i],lbcost<double,3>);
+//             LoadBalanceDeux<3> lb(world);
+//             lb.add_tree(vnuc, lbcost<double,3>(1.0), false);
+//             for (unsigned int i=0; i<ao.size(); i++) {
+//                 lb.add_tree(ao[i],lbcost<double,3>(), false);
 //             }
-//             lb.load_balance();
-//             FunctionDefaults<3>::set_pmap(lb.load_balance());
-//             world.gop.fence();
+//             FunctionDefaults<3>::set_pmap(lb.load_balance(2.0));
 //             vnuc = copy(vnuc, FunctionDefaults<3>::get_pmap(), false);
 //             vlocal = copy(vlocal, FunctionDefaults<3>::get_pmap(), false);
 //             for (unsigned int i=0; i<amo.size(); i++) {
@@ -928,6 +961,17 @@ struct Calculation {
             bocc = tensorT(param.nmo_beta);
             for (int i=0; i<param.nbeta; i++) bocc[i] = 1.0;
         }
+    }
+
+    void initial_load_bal(World& world) {
+        LoadBalanceDeux<3> lb(world);
+        lb.add_tree(vnuc, lbcost<double,3>());
+        FunctionDefaults<3>::set_pmap(lb.load_balance(2.0));
+        world.gop.fence();
+//         LoadBalImpl<3> lb(vnuc, lbcost<double,3>);
+//         world.gop.fence();
+//         FunctionDefaults<3>::set_pmap(lb.load_balance());
+//         world.gop.fence();
     }
 
     functionT make_density(World& world, const tensorT& occ, const vecfuncT& v) {
@@ -1203,30 +1247,32 @@ struct Calculation {
         normalize(world, psi);
     }
 
-    void loadbal(World& world) {
-//         if (world.size() == 1) return;
-//         LoadBalImpl<3> lb(vnuc, lbcost<double,3>);
-// //         for (unsigned int i=0; i<amo.size(); i++) {
-// //             lb.add_tree(amo[i],lbcost<double,3>);
-// //         }
-// //         if (param.nbeta && !param.spin_restricted) {
-// //             for (unsigned int i=0; i<bmo.size(); i++) {
-// //                 lb.add_tree(bmo[i],lbcost<double,3>);
-// //             }
-// //         }
-//         lb.load_balance();
-//         FunctionDefaults<3>::set_pmap(lb.load_balance());
-//         world.gop.fence();
-//         vnuc = copy(vnuc, FunctionDefaults<3>::get_pmap(), false);
-//         for (unsigned int i=0; i<amo.size(); i++) {
-//             amo[i] = copy(amo[i], FunctionDefaults<3>::get_pmap(), false);
-//         }
-//         if (param.nbeta && !param.spin_restricted) {
-//             for (unsigned int i=0; i<bmo.size(); i++) {
-//                 bmo[i] = copy(bmo[i], FunctionDefaults<3>::get_pmap(), false);
-//             }
-//         }
-//         world.gop.fence();
+    void loadbal(World& world, functionT& arho, functionT& brho, functionT& arho_old, functionT& brho_old) {
+        if (world.size() == 1) return;
+        LoadBalanceDeux<3> lb(world);
+        lb.add_tree(vnuc,lbcost<double,3>(1.0,0.0),false);        
+        lb.add_tree(arho,lbcost<double,3>(10.0,0.0),false);        
+        if (param.nbeta && !param.spin_restricted) {
+            lb.add_tree(brho,lbcost<double,3>(),false);        
+        }
+        FunctionDefaults<3>::set_pmap(lb.load_balance(2.0));
+        vnuc = copy(vnuc, FunctionDefaults<3>::get_pmap(), false);
+        arho = copy(arho, FunctionDefaults<3>::get_pmap(), false);
+        arho_old = copy(arho_old, FunctionDefaults<3>::get_pmap(), false);
+        if (world.rank() == 0) print("copying amos");
+        for (unsigned int i=0; i<amo.size(); i++) {
+            amo[i] = copy(amo[i], FunctionDefaults<3>::get_pmap(), false);
+            //if ((i%5) == 0) world.gop.fence(); // Attempt to throttle comms
+        }
+        if (param.nbeta && !param.spin_restricted) {
+            brho = copy(brho, FunctionDefaults<3>::get_pmap(), false);
+            brho_old = copy(brho_old, FunctionDefaults<3>::get_pmap(), false);
+            for (unsigned int i=0; i<bmo.size(); i++) {
+                bmo[i] = copy(bmo[i], FunctionDefaults<3>::get_pmap(), false);
+                //if ((i%5) == 0) world.gop.fence(); // Attempt to throttle comms
+            }
+        }
+        world.gop.fence();
     }
 
     void solve(World& world) {
@@ -1235,16 +1281,10 @@ struct Calculation {
         functionT adelrhosq, bdelrhosq; // placeholders for GGAs
 
         for (int iter=0; iter<param.maxiter; iter++) {
-            if (world.rank()==0) print("\nIteration", iter,"\n");
-            START_TIMER;
-//             if (iter > 0) {
-//                loadbal(world);
-//                arho_old = copy(arho_old, FunctionDefaults<3>::get_pmap(), false);
-//                if (param.nbeta && !param.spin_restricted) {
-//                    brho_old = copy(brho_old, FunctionDefaults<3>::get_pmap(), false);
-//                }
-//             }
-            END_TIMER("Load balancing");
+            streamsize oldprec = cout.precision();
+            cout.precision(1);
+            if (world.rank()==0) print("\nIteration", iter,"at time",wall_time(),"\n");
+            cout.precision(oldprec);
 
             START_TIMER;
             functionT arho = make_density(world, aocc, amo);
@@ -1254,6 +1294,12 @@ struct Calculation {
                 else brho = make_density(world, bocc, bmo);
             }
             END_TIMER("Make densities");
+
+            if (iter == 1) {
+                START_TIMER;
+                loadbal(world, arho, brho, arho_old, brho_old);
+                END_TIMER("Load balancing");
+            }
 
             double da, db;
             if (iter > 0) {
@@ -1368,7 +1414,6 @@ int main(int argc, char** argv) {
         // Load info for MADNESS numerical routines
         startup(world,argc,argv);
         FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap(world)));
-    
         
         // Process 0 reads input information and broadcasts
         Calculation calc(world, "input");
@@ -1383,6 +1428,11 @@ int main(int argc, char** argv) {
             print("\n");
             calc.param.print(world);
         }
+
+//         // Come up with an initial OK data map
+//         calc.set_protocol(world,1e-4);
+//         calc.make_nuclear_potential(world);
+//         calc.initial_load_bal(world);
 
         // Make the nuclear potential, initial orbitals, etc.
         calc.set_protocol(world,1e-4);

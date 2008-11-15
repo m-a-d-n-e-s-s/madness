@@ -6,13 +6,15 @@ omega 0.06
 natom 1
    1.0    0.0 0.0 0.0
 k 12
-thresh 1e-3
-safety 1e-1
-cut 0.6
+thresh 1e-4
+safety 1e-2
+cut 0.5
 prefix data
 nplot 999
+nprint 5
+nloadbal 20
 nio 5
-ndump 20
+ndump 1000
 ncycle 2
 #target_time 209.44
 target_time 0.5

@@ -9,6 +9,8 @@
 #include <constants.h>
 #include <tensor/vmath.h>
 
+#include <mra/lbdeux.h>
+
 using namespace madness;
 
 struct InputParameters {
@@ -35,7 +37,10 @@ struct InputParameters {
   string prefix;      // Prefix for filenames
   int ndump;          // dump wave function to disk every ndump steps
   int nplot;          // dump opendx plot to disk every nplot steps
+  int nprint;         // print stats every nprint steps
+  int nloadbal;       // load balance every nloadbal steps
   int nio;            // Number of IO nodes 
+    
   double tScale;      // Scaling parameter for optimization
 
   double target_time;// Target end-time for the simulation
@@ -115,6 +120,14 @@ struct InputParameters {
             f >> nplot;
             printf("         nplot = %d\n", nplot);
         }
+        else if (tag == "nprint") {
+            f >> nprint;
+            printf("         nprint = %d\n", nprint);
+        }
+        else if (tag == "nloadbal") {
+            f >> nloadbal;
+            printf("         nloadbal = %d\n", nloadbal);
+        }
         else if (tag == "nio") {
             f >> nio;
             printf("           nio = %d\n", nio);
@@ -137,16 +150,16 @@ struct InputParameters {
   void serialize(Archive & ar) {
     ar & L & Lsmall & Llarge & F & omega & ncycle & natom & Z;
     ar & archive::wrap(&(R[0][0]), 3*MAXNATOM);
-    ar & k & thresh & safety & cut & prefix & ndump & nplot & nio & target_time &
+    ar & k & thresh & safety & cut & prefix & ndump & nplot & nprint & nloadbal & nio & target_time &
 		tScale;
   }
 };
 
 ostream& operator<<(ostream& s, const InputParameters& p) {
     s << p.L<< " " << p.Lsmall<< " " << p.Llarge<< " " << p.F<< " " << p.omega<<
-			 " " << p.ncycle << " " << p.Z<< " " << p.R[0]<< " " << p.k<< " " <<
-			 p.thresh<< " " << p.cut<< " " << p.prefix<< " " << p.ndump<< " " <<
-			 p.nplot<< " " << p.nio << p.tScale << std::endl;
+        " " << p.ncycle << " " << p.Z<< " " << p.R[0]<< " " << p.k<< " " <<
+        p.thresh<< " " << p.cut<< " " << p.prefix<< " " << p.ndump<< " " <<
+        p.nplot << " " << p.nprint << " "  << p.nloadbal << " " << p.nio << p.tScale << std::endl;
 return s;
 }
 
@@ -418,7 +431,7 @@ complex_functionT chin_chen(const complex_functionT& expV_0,
     double t5 = wall_time();
 
     if (psi1.world().rank() == 0) {
-        print("chin-chen: ", t1-t0, t2-t1, t3-t2, t4-t3, t5-t4);
+        printf("chin-chen: %.2f %.2f %.2f %.2f %.2f\n", t1-t0, t2-t1, t3-t2, t4-t3, t5-t4);
     }
 
     return psi1;
@@ -569,9 +582,19 @@ void line_plot(World& world, int step, complex_functionT& psi) {
 }
 
 template <typename T, int NDIM>
-Cost lbcost(const Key<NDIM>& key, const FunctionNode<T,NDIM>& node) {
-  return 1;
-}
+struct lbcost {
+    double leaf_value;
+    double parent_value;
+    lbcost(double leaf_value=1.0, double parent_value=1.0) : leaf_value(leaf_value), parent_value(parent_value) {}
+    double operator()(const Key<NDIM>& key, const FunctionNode<T,NDIM>& node) const {
+        if (node.is_leaf()) {
+            return leaf_value;
+        }
+        else {
+            return parent_value;
+        }
+    }
+};
 
 void loadbal(World& world, 
              functionT& potn, functionT& vt,
@@ -580,9 +603,9 @@ void loadbal(World& world,
              complex_functionT& psi, complex_functionT& psi0,
              functionT& x, functionT& y, functionT& z) {
     if (world.size() < 2) return;
-    LoadBalImpl<3> lb(potn, lbcost<double,3>);
-    //lb.add_tree(psi0,lbcost<double_complex,3>);
-    lb.load_balance();
+    LoadBalanceDeux<3> lb(world);
+    lb.add_tree(potn, lbcost<double,3>());
+    lb.add_tree(psi, lbcost<double_complex,3>());
     FunctionDefaults<3>::set_pmap(lb.load_balance());
     world.gop.fence();
     potn = copy(potn, FunctionDefaults<3>::get_pmap(), false);
@@ -671,22 +694,21 @@ void propagate(World& world, int step0) {
         dV_dz.add_scalar(laser(t));
         
         print_stats(world, step, t, vt, x, y, z, dV_dz, psi0, psi);
+        line_plot(world, step, psi);
     }
     world.gop.fence();
 
     psi.truncate();
 
-    loadbal(world, potn, vt, dpotn_dx, dpotn_dy, dpotn_dz, dpotn_dx_sq, dpotn_dy_sq, psi, psi0, x, y, z);
-
     bool use_trotter = false;
     while (step < nstep) {
         double t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13;
         t0 = wall_time();
-        line_plot(world, step, psi);
+        if (step < 2 || (step%param.nloadbal) == 0)
+            loadbal(world, potn, vt, dpotn_dx, dpotn_dy, dpotn_dz, dpotn_dx_sq, dpotn_dy_sq, psi, psi0, x, y, z);
         t1 = wall_time();
 
         long depth = psi.max_depth(); long size=psi.size();
-        if (world.rank() == 0) print(step, "depth", depth, "size", size);
         if (use_trotter) {
             // Make the potential at time t + step/2 
             functionT vhalf = potn + laser(t+0.5*time_step)*z;
@@ -742,13 +764,17 @@ void propagate(World& world, int step0) {
             t11 = wall_time();
             dV_dz.add_scalar(laser(t));
             t12 = wall_time();
+            
+            if ((step%param.nprint) == 0 || step==nstep) {
+                print_stats(world, step, t, vt, x, y, z, dV_dz, psi0, psi);
+                line_plot(world, step, psi);
+                if (world.rank() == 0) print(step, "depth", depth, "size", size);
+            }
 
-            print_stats(world, step, t, vt, x, y, z, dV_dz, psi0, psi);
             t13 = wall_time();
             if (world.rank() == 0) 
-                //              .7    .05     .1      .3    .05    .9    1.6     1.1    0.02   3.4      .2       .004     2.0
-                //             linpl  copy   Vtil    dvsq   gaxpy  exp1  exp2   exp3    clear   CC     copy      addscl   prnt
-                print("times", t1-t0, t2-t1, t3-t2, t4-t3, t5-t4, t6-t5, t7-t6, t8-t7, t9-t8, t10-t9, t11-t10, t12-t11, t13-t12);
+                printf("loadbal=%.2f copy=%.2f Vtil=%.2f dvsq =%.2f gaxpy=%.2f exp1=%.2f exp2=%.2f exp3=%.2f clear=%.2f CC=%.2f copy=%.2f addscl=%.2f prnt=%.2f\n", 
+                       t1-t0, t2-t1, t3-t2, t4-t3, t5-t4, t6-t5, t7-t6, t8-t7, t9-t8, t10-t9, t11-t10, t12-t11, t13-t12);
         }
 
         if ((step%param.ndump) == 0 || step==nstep) {
@@ -779,12 +805,21 @@ void doit(World& world) {
     FunctionDefaults<3>::set_thresh(param.thresh*param.safety);       // Accuracy
     FunctionDefaults<3>::set_initial_level(4);
     FunctionDefaults<3>::set_cubic_cell(-param.L,param.L);
-    FunctionDefaults<3>::set_apply_randomize(false);
+    FunctionDefaults<3>::set_apply_randomize(true);
     FunctionDefaults<3>::set_autorefine(false);
     FunctionDefaults<3>::set_truncate_mode(2);
     FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap(world)));
 
+    // Make the potential
     functionT potn = factoryT(world).f(V);  potn.truncate();
+
+    // Before doing anything else use the potential to guide future
+    // data distribution
+    LoadBalanceDeux<3> lb(world);
+    lb.add_tree(potn, lbcost<double,3>());
+    FunctionDefaults<3>::set_pmap(lb.load_balance());
+    world.gop.fence();
+    potn = copy(potn, FunctionDefaults<3>::get_pmap());
 
     // Read restart information
     int step0;               // Initial time step ... filenames are <prefix>-<step0>
@@ -804,7 +839,7 @@ void doit(World& world) {
             
             double eps = energy(world, psi, potn);
             if (world.rank() == 0) print("guess energy", eps, wall_time()); 
-           converge(world, potn, psi, eps);
+            converge(world, potn, psi, eps);
 
             psi.truncate(param.thresh);
 
@@ -858,6 +893,8 @@ int main(int argc, char** argv) {
 
 
     world.gop.fence();
+    
+    ThreadPool::end();
     print_stats(world);
     finalize();
     return 0;
