@@ -1676,6 +1676,31 @@ namespace madness {
             if (fence) world.gop.fence();
         }
 
+        struct do_op_args {
+            keyT key, d, dest;
+            double tol, fac, cnorm;
+            do_op_args() {}
+            do_op_args(const keyT& key, const keyT& d, const keyT& dest, double tol, double fac, double cnorm)
+                : key(key), d(d), dest(dest), tol(tol), fac(fac), cnorm(cnorm) {}
+            template <class Archive>
+            void serialize(Archive& ar) {ar & archive::wrap_opaque(this,1);}
+        };
+
+        template <typename opT, typename R>
+        Void do_apply_kernel(const opT* op, const Tensor<R>& c, const do_op_args& args) {
+            tensorT result = op->apply(args.key, args.d, c, args.tol/args.fac/args.cnorm);
+            
+            //print("APPLY", key, d, opnorm, cnorm, result.normf());
+
+            // Screen here to reduce communication cost of negligible data
+            // and also to ensure we don't needlessly widen the tree when
+            // applying the operator
+            if (result.normf() > 0.3*args.tol/args.fac) {
+                coeffs.send(args.dest, &nodeT::accumulate, result, coeffs, args.dest);
+            }
+            return None;
+        }
+
         template <typename opT, typename R>
         Void do_apply(const opT* op, const FunctionImpl<R,NDIM>* f, const keyT& key, const Tensor<R>& c) {
             PROFILE_MEMBER_FUNC(FunctionImpl);
@@ -1711,22 +1736,8 @@ namespace madness {
                     double tol = truncate_tol(thresh, key);
 
                     if (cnorm*opnorm > tol/fac) {
-                        tensorT result = op->apply(key, d, c, tol/fac/cnorm);
-
-                        //print("APPLY", key, d, opnorm, cnorm, result.normf());
-
-                        // Screen here to reduce communication cost of negligible data
-                        // and also to ensure we don't needlessly widen the tree when
-                        // applying the operator
-                        if (result.normf() > 0.3*tol/fac) {
-                            coeffs.send(dest, &nodeT::accumulate, result, coeffs, dest);
-                        }
-                        else if (d.distsq() == 0) {
-                            // If there is not a diagonal contribution there
-                            // won't be off-diagonal stuff ... REALLY?????
-                            break;
-                        }
-
+                        do_op_args args(key, d, dest, tol, fac, cnorm);
+                        task(world.rank(), &implT:: template do_apply_kernel<opT,R>, op, c, args);
                     }
                     else if (d.distsq() >= 1) { // Assumes monotonic decay beyond nearest neighbor
                         break;

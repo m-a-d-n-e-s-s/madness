@@ -7,7 +7,6 @@
 
 namespace madness {
 
-
     template <int NDIM>
     class LBDeuxPmap : public WorldDCPmapInterface< Key<NDIM> > {
         typedef Key<NDIM> keyT;
@@ -23,6 +22,8 @@ namespace madness {
             }
         }
 
+        // If level 0 is not entered as a node this will
+        // be an infinite loop.
         ProcessID owner(const keyT& key) const {
             while (key.level() >= 0) {
                 iteratorT it = map.find(key);
@@ -77,10 +78,11 @@ namespace madness {
         Void add(double cost, bool got_kids) {
             total_cost = (my_cost += cost);
             gotkids = gotkids || got_kids;
+            return None;
         }
 
         /// Accumulates cost up the tree from children
-        Void sum(treeT* tree, const keyT& child, double value) {
+        Void sum(const treeT& tree, const keyT& child, double value) {
             child_cost[index(child)] = value;
             nsummed++;
             if (nsummed == nchild) {
@@ -88,9 +90,10 @@ namespace madness {
                 if (child.level() > 1) {
                     keyT key = child.parent();
                     keyT parent = key.parent();
-                    tree->send(parent, &nodeT::sum, tree, key, double(total_cost));
+                    const_cast<treeT&>(tree).task(parent, &nodeT::sum, tree, key, double(total_cost));
                 }
             }
+            return None;
         }
 
 
@@ -98,19 +101,19 @@ namespace madness {
 
         /// Cannot actually erase this node from the container since the send() handler
         /// is holding an accessor to it.
-        Void deleter(treeT* tree, const keyT& key) {
+        Void deleter(const treeT& tree, const keyT& key) {
             total_cost = my_cost = -1.0;
             if (has_children()) {
                 for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
                     const keyT child = kit.key();
-                    tree->send(child, &nodeT::deleter, tree, child);
+                     const_cast<treeT&>(tree).task(child, &nodeT::deleter, tree, child);
                 }
             }
+            return None;
         }
         
-
         /// Descends tree deleting all except internal nodes and sub-tree parents
-        Void partition(treeT* tree, const keyT& key, double avg) {
+        Void partition(const treeT& tree, const keyT& key, double avg) {
             if (has_children()) {
                 // Sort children in descending cost order
                 keyT keys[nchild];
@@ -133,25 +136,15 @@ namespace madness {
                 // Split off subtrees in decreasing cost order
                 for (int i=0; i<nchild; i++) {
                     if (total_cost <= avg) {
-                        tree->send(keys[i], &nodeT::deleter, tree, keys[i]);
+                         const_cast<treeT&>(tree).task(keys[i], &nodeT::deleter, tree, keys[i]);
                     }
                     else {
                         total_cost -= vals[i];
-                        tree->send(keys[i], &nodeT::partition, tree, keys[i], avg);
+                         const_cast<treeT&>(tree).task(keys[i], &nodeT::partition, tree, keys[i], avg);
                     }
                 }
             }
-        }
-
-        /// Printing for the curious
-        Void print(treeT* tree, const keyT& key) const {
-            for(int i=0; i<key.level(); i++) std::cout << "  ";
-            madness::print(key, my_cost, total_cost);
-            if (gotkids) {
-                for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
-                    tree->send(kit.key(), &nodeT::print, tree, kit.key());
-                }
-            }
+            return None;
         }
 
         template <typename Archive>
@@ -188,7 +181,7 @@ namespace madness {
                 const keyT& key = it->first;
                 const nodeT& node = it->second;
                 if (!node.has_children() && key.level() > 0) {
-                    tree.send(key.parent(), &nodeT::sum, &tree, key, node.get_total_cost());
+                    tree.task(key.parent(), &nodeT::sum, tree, key, node.get_total_cost());
                 }
             }
             world.gop.fence();
@@ -213,11 +206,13 @@ namespace madness {
         LoadBalanceDeux(World& world) 
             : world(world)
             , tree(world, FunctionDefaults<NDIM>::get_pmap())
-        {};
+        {
+            world.gop.fence();
+        };
 
         /// Accumulates cost from a function
         template <typename T, typename costT>
-        void add(const Function<T,NDIM>& f, const costT& costfn, bool fence=true) {
+        void add_tree(const Function<T,NDIM>& f, const costT& costfn, bool fence=true) {
             const_cast<Function<T,NDIM>&>(f).unaryop_node(add_op<T,costT>(this,costfn), fence);
         }
 
@@ -238,24 +233,24 @@ namespace madness {
         }
 
         /// Actually does the partitioning of the tree
-        SharedPtr< WorldDCPmapInterface<keyT> > partition() {
+        SharedPtr< WorldDCPmapInterface<keyT> > load_balance(double fac = 1.0, bool printstuff=false) {
+            world.gop.fence();
             // Compute full tree of costs
-            double avg = sum()/world.size();
-            avg = avg/4.0;
-            if (world.rank() == 0) print_tree();
+            double avg = sum()/(world.size()*fac);
+            //if (world.rank() == 0) print_tree();
             world.gop.fence();
             
             // Create partitioning
             keyT key0(0);
             if (world.rank() == tree.owner(key0)) {
-                tree.send(key0, &nodeT::partition, &tree, key0, avg*1.1);
+                tree.send(key0, &nodeT::partition, tree, key0, avg*1.1);
             }
             world.gop.fence();
 
             // Collect entire vector onto node0
             vector< std::pair<keyT,double> > results;
             for (iteratorT it=tree.begin(); it!=tree.end(); ++it) {
-                if (it->second.get_total_cost() > 0) {
+                if (it->second.get_total_cost() >= 0) {
                     results.push_back(std::make_pair(it->first,it->second.get_total_cost()));
                 }
             }
@@ -295,10 +290,12 @@ namespace madness {
                     map.push_back(std::make_pair(f.first,proc));
                     results.pop_back();
                 }
-                print("THIS IS THE MAP");
-                print(map);
-                print("THIS IS THE COSTS");
-                print(costs);
+                if (printstuff) {
+                    print("THIS IS THE MAP");
+                    print(map);
+                    print("THIS IS THE COSTS");
+                    print(costs);
+                }
             }
 
             world.gop.broadcast_serializable(map, 0);
