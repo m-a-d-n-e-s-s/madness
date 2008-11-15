@@ -459,11 +459,11 @@ void test9(World& world) {
 
 class Mary {
 private:
-    uint64_t val;
+    mutable uint64_t val;
 public:
     Mary() : val(0) {}
 
-    Void inc() {
+    Void inc() const {
         val++;
         return None;
     };
@@ -516,9 +516,9 @@ public:
     }
 };
 
-Void pounder(WorldContainer<int,Mary>* m, int ind) {
+Void pounder(const WorldContainer<int,Mary>& m, int ind) {
     for (int i=0; i<1000; i++)
-        m->send(ind, &Mary::inc);
+        m.send(ind, &Mary::inc);
     return None;
 }
 
@@ -567,13 +567,13 @@ void test10(World& world) {
     const int ind = 9999999;
     if (world.rank() == 0) m.replace(std::pair<int,Mary>(ind,Mary()));
     world.gop.fence();
-    world.taskq.add(pounder, &m, ind);
-    world.taskq.add(pounder, &m, ind);
-    world.taskq.add(pounder, &m, ind);
-    world.taskq.add(pounder, &m, ind);
-    world.taskq.add(pounder, &m, ind);
-    world.taskq.add(pounder, &m, ind);
-    world.taskq.add(pounder, &m, ind);
+    world.taskq.add(pounder, m, ind);
+    world.taskq.add(pounder, m, ind);
+    world.taskq.add(pounder, m, ind);
+    world.taskq.add(pounder, m, ind);
+    world.taskq.add(pounder, m, ind);
+    world.taskq.add(pounder, m, ind);
+    world.taskq.add(pounder, m, ind);
     world.gop.fence();
     if (world.rank() == 0) 
         MADNESS_ASSERT(long(m.find(ind).get()->second.get()) == nproc * 1000 * 7);

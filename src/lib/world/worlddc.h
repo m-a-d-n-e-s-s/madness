@@ -1119,21 +1119,6 @@ namespace madness {
     };
 
     namespace archive {
-        template <class keyT, class valueT>
-        struct ArchiveStoreImpl< BufferOutputArchive, WorldContainer<keyT,valueT>* > {
-            static void store(const BufferOutputArchive& ar, WorldContainer<keyT,valueT>* const & t) {
-                ar & *t;
-            }
-        };
-
-        template <class keyT, class valueT>
-        struct ArchiveLoadImpl< BufferInputArchive, WorldContainer<keyT,valueT>* > {
-            static void load(const BufferInputArchive& ar, WorldContainer<keyT,valueT>*& t) {
-                ar & *t;
-            }
-        };
-
-
         /// Write container to parallel archive with optional fence
 
         /// Each node (process) is served by a designated IO node.
