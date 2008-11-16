@@ -1426,7 +1426,6 @@ namespace madness {
                     rss = right->unfilter(rd);
                 }
 
-
                 for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
                     const keyT& child = kit.key();
                     Tensor<L> ll;
@@ -1445,6 +1444,8 @@ namespace madness {
         void mulXX(const FunctionImpl<L,NDIM>* left, const FunctionImpl<R,NDIM>* right, bool fence) {
             mulXXa(cdata.key0, left, Tensor<L>(), right, Tensor<R>());
             if (fence) world.gop.fence();
+
+            verify_tree();
         }
 
         template <typename L, typename R>
