@@ -52,7 +52,7 @@ namespace SafeMPI {
             return MPI::Request::Testsome(n, request, ind, status);
         }
 
-        void Wait() {MPI::Request::Wait();}
+        //void Wait() {MPI::Request::Wait();}
     };
 
     class Intracomm {
