@@ -391,6 +391,10 @@ void test_math(World& world) {
     errsq = fsq.err(*functsq);
     CHECK(errsq, 1e-8, "err in fsq by multiplication");
 
+    fsq = mulXX(f,f,true);
+    errsq = fsq.err(*functsq);
+    CHECK(errsq, 1e-8, "err in fsq by mulXX");
+
     // Test norm tree operation
     f.reconstruct();
     f.norm_tree();
@@ -426,14 +430,17 @@ void test_math(World& world) {
         //print("NORMS", a.norm2(), b.norm2());
         //std::cout.flush();
         Function<T,NDIM> c = a*b;
+        Function<T,NDIM> cXX = mulXX(a,b);
         c.verify_tree();
         double err1 = a.err(*f1);
         double err2 = b.err(*f2);
         double err3 = c.err(*f3);
+        double err4 = cXX.err(*f3);
         if (world.rank() == 0) print("  test ",i);
         CHECK(err1,1e-8,"err1");
         CHECK(err2,1e-8,"err2");
         CHECK(err3,1e-8,"err3");
+        CHECK(err4,1e-8,"err4");
 
         
 //         double bnorm = b.norm2();
@@ -446,6 +453,29 @@ void test_math(World& world) {
 //         if (world.rank() == 0) print("cs - c", (cs-c).norm2());
         
     }      
+
+    if (world.rank() == 0) print("\nTest multiplying a vector of random functions");
+    {
+        functorT f1(RandomGaussian<T,NDIM>(FunctionDefaults<NDIM>::get_cell(),1000.0));
+        Function<T,NDIM> left = FunctionFactory<T,NDIM>(world).functor(f1);
+        
+        const int nvfunc = 10;
+        std::vector< Function<T,NDIM> > vin(nvfunc);
+        std::vector<functorT> funcres(nvfunc);
+        for (int i=0; i<nvfunc; i++) {
+            functorT f2(RandomGaussian<T,NDIM>(FunctionDefaults<NDIM>::get_cell(),1000.0));
+            T (*p)(T,T) = &product<T,T,T>;
+            funcres[i] = functorT(new BinaryOp<T,T,T,T(*)(T,T),NDIM>(f1,f2,p));
+            vin[i] = FunctionFactory<T,NDIM>(world).functor(f2);
+        }
+        std::vector< Function<T,NDIM> > vres = vmulXX(left, vin);
+        for (int i=0; i<nvfunc; i++) {
+            double err = vres[i].err(*funcres[i]);
+            CHECK(err, 1e-8, "err");
+        }
+    }
+        
+
 
     if (world.rank() == 0) print("\nTest adding random functions out of place");
     for (int i=0; i<10; i++) {

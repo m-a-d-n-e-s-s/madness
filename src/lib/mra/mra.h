@@ -76,6 +76,14 @@ namespace madness {
     Function<TENSOR_RESULT_TYPE(L,R),D>
     mul(const Function<L,D>& left, const Function<R,D>& right, bool fence=true);
 
+    template <typename L, typename R, int D>
+    Function<TENSOR_RESULT_TYPE(L,R),D>
+    mulXX(const Function<L,D>& left, const Function<R,D>& right, bool fence=true);
+
+    template <typename L, typename R, int D>
+    std::vector< Function<TENSOR_RESULT_TYPE(L,R),D> >
+    vmulXX(const Function<L,D>& left, const std::vector< Function<R,D> >& vright, bool fence=true);
+
     template <typename Q, typename R, int D>
     Function<TENSOR_RESULT_TYPE(Q,R),D>
     mul(const Q alpha, const Function<R,D>& f, bool fence=true);
@@ -136,6 +144,17 @@ namespace madness {
         friend
         Function<TENSOR_RESULT_TYPE(L,R),D>
         madness::mul(const Function<L,D>& left, const Function<R,D>& right, bool fence=true);
+
+        template <typename L, typename R, int D>
+        friend
+        Function<TENSOR_RESULT_TYPE(L,R),D>
+        madness::mulXX(const Function<L,D>& left, const Function<R,D>& right, bool fence=true);
+
+        template <typename L, typename R, int D>
+        friend
+        std::vector< Function<TENSOR_RESULT_TYPE(L,R),D> >
+        vmulXX(const Function<L,D>& left, const std::vector< Function<R,D> >& vright, bool fence=true);
+
 
         template <typename Q, typename R, int D>
         friend
@@ -955,6 +974,45 @@ namespace madness {
             return *this;
         }
 
+        /// This is replaced with left*right ...  private
+        template <typename L, typename R>
+        Function<T,NDIM>& mulXX(const Function<L,NDIM>& left, const Function<R,NDIM>& right, bool fence) {
+            PROFILE_MEMBER_FUNC(Function);
+            left.verify();
+            right.verify();
+            MADNESS_ASSERT(!(left.is_compressed() || right.is_compressed()));
+            if (VERIFY_TREE) left.verify_tree();
+            if (VERIFY_TREE) right.verify_tree();
+            impl = SharedPtr<implT>(new implT(*left.impl, left.get_pmap(), false));
+            impl->mulXX(left.impl.get(), right.impl.get(), fence);
+            return *this;
+        }
+
+        /// Multiplication of function * vector of functions using recursive algorithm of mulxx
+        template <typename L, typename R>
+        void vmulXX(const Function<L,NDIM>& left, 
+                    const std::vector< Function<R,NDIM> >& right, 
+                    std::vector< Function<T,NDIM> >& result, 
+                    bool fence) {
+            
+            std::vector<FunctionImpl<T,NDIM>*> vresult(right.size());
+            std::vector<const FunctionImpl<R,NDIM>*> vright(right.size());
+            for (unsigned int i=0; i<right.size(); i++) {
+                result[i].impl = SharedPtr<implT>(new implT(*left.impl, left.get_pmap(), false));
+                vresult[i] = result[i].impl.get();
+                vright[i] = right[i].impl.get();
+            }
+
+
+//             void mulXXvec(const FunctionImpl<L,NDIM>* left, 
+//                           const std::vector<const FunctionImpl<R,NDIM>*>& vright, 
+//                           const std::vector<FunctionImpl<T,NDIM>*>& vresult,
+//                           bool fence) {
+
+
+            vresult[0]->mulXXvec(left.impl.get(), vright, vresult, fence);
+        }
+
         /// This is replaced with left*right using sparsity ...  private
         template <typename L, typename R>
         Function<T,NDIM>& mul_sparse(const Function<L,NDIM>& left, const Function<R,NDIM>& right, double tol, bool fence) {
@@ -1073,6 +1131,23 @@ namespace madness {
     mul(const Function<L,NDIM>& left, const Function<R,NDIM>& right, bool fence) {
         Function<TENSOR_RESULT_TYPE(L,R),NDIM> result;
         return result.mul(left,right,fence);
+    }
+
+    /// Same as \c operator* but with optional fence and no automatic reconstruction
+    template <typename L, typename R,int NDIM>
+    Function<TENSOR_RESULT_TYPE(L,R),NDIM>
+    mulXX(const Function<L,NDIM>& left, const Function<R,NDIM>& right, bool fence) {
+        Function<TENSOR_RESULT_TYPE(L,R),NDIM> result;
+        return result.mulXX(left,right,fence);
+    }
+
+    template <typename L, typename R, int D>
+    std::vector< Function<TENSOR_RESULT_TYPE(L,R),D> >
+    vmulXX(const Function<L,D>& left, const std::vector< Function<R,D> >& vright, bool fence) {
+        if (vright.size() == 0) return std::vector< Function<TENSOR_RESULT_TYPE(L,R),D> >();
+        std::vector< Function<TENSOR_RESULT_TYPE(L,R),D> > vresult(vright.size());
+        vresult[0].vmulXX(left, vright, vresult, fence);
+        return vresult;
     }
 
 

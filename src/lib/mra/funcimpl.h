@@ -1298,15 +1298,172 @@ namespace madness {
         }
 
 
+
+        // Multiplication assuming same distribution and recursive descent
+        template <typename L, typename R>
+        Void mulXXveca(const keyT& key, 
+                       const FunctionImpl<L,NDIM>* left, const Tensor<L>& lcin, 
+                       const std::vector<const FunctionImpl<R,NDIM>*> vrightin,
+                       const std::vector< Tensor<R> >& vrcin,
+                       const std::vector<FunctionImpl<T,NDIM>*> vresultin) 
+        {
+            typedef typename FunctionImpl<L,NDIM>::dcT::const_iterator literT;
+            typedef typename FunctionImpl<R,NDIM>::dcT::const_iterator riterT;
+            
+            Tensor<L> lc = lcin;
+            if (lc.size == 0) {
+                literT it = left->coeffs.find(key).get();
+                MADNESS_ASSERT(it != left->coeffs.end());
+                if (it->second.has_coeff()) lc = it->second.coeff();
+            }
+            
+            // Loop thru RHS functions seeing if anything can be multiplied
+            std::vector<FunctionImpl<T,NDIM>*> vresult;
+            std::vector<const FunctionImpl<R,NDIM>*> vright;
+            std::vector< Tensor<R> > vrc;
+            vresult.reserve(vrightin.size());
+            vright.reserve(vrightin.size());
+            vrc.reserve(vrightin.size());
+            
+            for (unsigned int i=0; i<vrightin.size(); i++) {
+                FunctionImpl<T,NDIM>* result = vresultin[i];
+                const FunctionImpl<R,NDIM>* right = vrightin[i];
+                Tensor<R> rc = vrcin[i];
+                if (rc.size == 0) {
+                    riterT it = right->coeffs.find(key).get();
+                    MADNESS_ASSERT(it != right->coeffs.end());
+                    if (it->second.has_coeff()) rc = it->second.coeff();
+                }
+                
+                if (rc.size && lc.size) { // Yipee!
+                    result->task(world.rank(), &implT:: template do_mul<L,R>, key, lc, std::make_pair(key,rc));
+                }
+                else {
+                    vresult.push_back(result);
+                    vright.push_back(right);
+                    vrc.push_back(rc);
+                }
+            }
+                    
+            if (vresult.size()) {
+                Tensor<L> lss;
+                if (lc.size) {
+                    Tensor<L> ld(cdata.v2k);
+                    ld(cdata.s0) = lc(___);
+                    lss = left->unfilter(ld);
+                }
+
+                std::vector< Tensor<R> > vrss(vresult.size());
+                for (unsigned int i=0; i<vresult.size(); i++) {
+                    if (vrc[i].size) {
+                        Tensor<R> rd(cdata.v2k);
+                        rd(cdata.s0) = vrc[i](___);
+                        vrss[i] = vright[i]->unfilter(rd);
+                    }
+                }
+
+                for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
+                    const keyT& child = kit.key();
+                    Tensor<L> ll;
+
+                    std::vector<Slice> cp = child_patch(child);
+                    
+                    if (lc.size) ll = copy(lss(cp));
+
+                    std::vector< Tensor<R> > vv(vresult.size());
+                    for (unsigned int i=0; i<vresult.size(); i++) {
+                        if (vrc[i].size) vv[i] = copy(vrss[i](cp));
+                    }
+                    
+                    task(coeffs.owner(child), &implT:: template mulXXveca<L,R>, child, left, ll, vright, vv, vresult);
+                }
+            }
+            return None;
+        }
+
+
+
+
+        // Multiplication assuming same distribution and recursive descent
+        template <typename L, typename R>
+        Void mulXXa(const keyT& key, 
+                    const FunctionImpl<L,NDIM>* left, const Tensor<L>& lcin, 
+                    const FunctionImpl<R,NDIM>* right,const Tensor<R>& rcin) {
+            typedef typename FunctionImpl<L,NDIM>::dcT::const_iterator literT;
+            typedef typename FunctionImpl<R,NDIM>::dcT::const_iterator riterT;
+
+            Tensor<L> lc = lcin;
+            if (lc.size == 0) {
+                literT it = left->coeffs.find(key).get();
+                MADNESS_ASSERT(it != left->coeffs.end());
+                if (it->second.has_coeff()) lc = it->second.coeff();
+            }
+                    
+            Tensor<R> rc = rcin;
+            if (rc.size == 0) {
+                riterT it = right->coeffs.find(key).get();
+                MADNESS_ASSERT(it != right->coeffs.end());
+                if (it->second.has_coeff()) rc = it->second.coeff();
+            }
+                
+            if (rc.size && lc.size) { // Yipee!
+                do_mul<L,R>(key, lc, std::make_pair(key,rc));
+            }
+            else {                // Recur down
+                Tensor<L> lss;
+                if (lc.size) {
+                    Tensor<L> ld(cdata.v2k);
+                    ld(cdata.s0) = lc(___);
+                    lss = left->unfilter(ld);
+                }
+
+                Tensor<R> rss;
+                if (rc.size) {
+                    Tensor<R> rd(cdata.v2k);
+                    rd(cdata.s0) = rc(___);
+                    rss = right->unfilter(rd);
+                }
+
+
+                for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
+                    const keyT& child = kit.key();
+                    Tensor<L> ll;
+                    Tensor<R> rr;
+                    if (lc.size) ll = copy(lss(child_patch(child)));
+                    if (rc.size) rr = copy(rss(child_patch(child)));
+
+                    task(coeffs.owner(child), &implT:: template mulXXa<L,R>, child, left, ll, right, rr);
+                }
+            }
+            return None;
+        }
+
+
+        template <typename L, typename R>
+        void mulXX(const FunctionImpl<L,NDIM>* left, const FunctionImpl<R,NDIM>* right, bool fence) {
+            mulXXa(cdata.key0, left, Tensor<L>(), right, Tensor<R>());
+            if (fence) world.gop.fence();
+        }
+
+        template <typename L, typename R>
+        void mulXXvec(const FunctionImpl<L,NDIM>* left, 
+                      const std::vector<const FunctionImpl<R,NDIM>*>& vright, 
+                      const std::vector<FunctionImpl<T,NDIM>*>& vresult,
+                      bool fence) {
+            std::vector< Tensor<R> > vr(vright.size());
+            mulXXveca(cdata.key0, left, Tensor<L>(), vright, vr, vresult);
+            if (fence) world.gop.fence();
+        }
+
+
         Future<double> get_norm_tree_recursive(const keyT& key) const;
-
-
 
         mutable long box_leaf[10000];
         mutable long box_interior[10000];
 
         // horrifically non-scalable
         Void put_in_box(ProcessID from, long nl, long ni) const {
+            throw "NO!";
             box_leaf[from] = nl;
             box_interior[from] = ni;
             return None;
@@ -2003,7 +2160,7 @@ namespace madness {
 
 
     private:
-        /// Assignment is not allowed ... not even possibloe now that we have reference members
+        /// Assignment is not allowed ... not even possible now that we have reference members
         //FunctionImpl<T>& operator=(const FunctionImpl<T>& other);
     };
 
@@ -2023,6 +2180,25 @@ namespace madness {
         template <class Archive, class T, int NDIM>
         struct ArchiveStoreImpl<Archive,const FunctionImpl<T,NDIM>*> {
             static void store(const Archive& ar, const FunctionImpl<T,NDIM>*const& ptr) {
+                ar & ptr->id();
+            }
+        };
+
+        template <class Archive, class T, int NDIM>
+        struct ArchiveLoadImpl<Archive, FunctionImpl<T,NDIM>*> {
+            static void load(const Archive& ar, FunctionImpl<T,NDIM>*& ptr) {
+                uniqueidT id;
+                ar & id;
+                World* world = World::world_from_id(id.get_world_id());
+                MADNESS_ASSERT(world);
+                ptr = static_cast< FunctionImpl<T,NDIM>* >(world->ptr_from_id< WorldObject< FunctionImpl<T,NDIM> > >(id));
+                if (!ptr) MADNESS_EXCEPTION("FunctionImpl: remote operation attempting to use a locally uninitialized object",0);
+            }
+        };
+
+        template <class Archive, class T, int NDIM>
+        struct ArchiveStoreImpl<Archive, FunctionImpl<T,NDIM>*> {
+            static void store(const Archive& ar, FunctionImpl<T,NDIM>*const& ptr) {
                 ar & ptr->id();
             }
         };
