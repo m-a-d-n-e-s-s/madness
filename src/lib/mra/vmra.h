@@ -238,6 +238,21 @@ namespace madness {
         return av;
     }
 
+
+    /// XX Multiplies a function against a vector of functions --- q[i] = a * v[i]
+    template <typename T, typename R, int NDIM>
+    std::vector< Function<TENSOR_RESULT_TYPE(T,R), NDIM> >
+    mulXX(World& world,
+          const Function<T,NDIM>& a,
+          const std::vector< Function<R,NDIM> >& v,
+          bool fence=true)
+    {
+        a.reconstruct();
+        reconstruct(world, v, false);
+        world.gop.fence();
+        return vmulXX(a, v, true);
+    }
+
     /// Multiplies a function against a vector of functions using sparsity of v[i] --- q[i] = a * v[i]
     template <typename T, typename R, int NDIM>
     std::vector< Function<TENSOR_RESULT_TYPE(T,R), NDIM> >

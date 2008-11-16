@@ -254,7 +254,8 @@ namespace madness {
                     results.push_back(std::make_pair(it->first,it->second.get_total_cost()));
                 }
             }
-            results = world.gop.concat0(results);
+            results = world.gop.concat0(results, 128*1024*1024);
+            world.gop.fence();
 
             vector< std::pair<keyT,ProcessID> > map;
 
@@ -298,7 +299,9 @@ namespace madness {
                 }
             }
 
+            world.gop.fence();
             world.gop.broadcast_serializable(map, 0);
+            world.gop.fence();
             
             // Return the Procmap
 

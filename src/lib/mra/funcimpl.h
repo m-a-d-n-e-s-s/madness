@@ -1339,6 +1339,7 @@ namespace madness {
                     result->task(world.rank(), &implT:: template do_mul<L,R>, key, lc, std::make_pair(key,rc));
                 }
                 else {
+                    result->coeffs.replace(key, nodeT(tensorT(),true)); // Interior node
                     vresult.push_back(result);
                     vright.push_back(right);
                     vrc.push_back(rc);
@@ -1410,6 +1411,7 @@ namespace madness {
                 do_mul<L,R>(key, lc, std::make_pair(key,rc));
             }
             else {                // Recur down
+                coeffs.replace(key, nodeT(tensorT(),true)); // Interior node
                 Tensor<L> lss;
                 if (lc.size) {
                     Tensor<L> ld(cdata.v2k);
@@ -1895,6 +1897,8 @@ namespace madness {
                     if (cnorm*opnorm > tol/fac) {
                         do_op_args args(key, d, dest, tol, fac, cnorm);
                         task(world.rank(), &implT:: template do_apply_kernel<opT,R>, op, c, args);
+                        //task(coeffs.owner(dest), &implT:: template do_apply_kernel<opT,R>, op, c, args);
+                        //task(world.random_proc(), &implT:: template do_apply_kernel<opT,R>, op, c, args);
                     }
                     else if (d.distsq() >= 1) { // Assumes monotonic decay beyond nearest neighbor
                         break;

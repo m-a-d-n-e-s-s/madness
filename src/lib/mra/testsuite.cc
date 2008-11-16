@@ -430,17 +430,17 @@ void test_math(World& world) {
         //print("NORMS", a.norm2(), b.norm2());
         //std::cout.flush();
         Function<T,NDIM> c = a*b;
-        Function<T,NDIM> cXX = mulXX(a,b);
+        //        Function<T,NDIM> cXX = mulXX(a,b);
         c.verify_tree();
         double err1 = a.err(*f1);
         double err2 = b.err(*f2);
         double err3 = c.err(*f3);
-        double err4 = cXX.err(*f3);
+//         double err4 = cXX.err(*f3);
         if (world.rank() == 0) print("  test ",i);
         CHECK(err1,1e-8,"err1");
         CHECK(err2,1e-8,"err2");
         CHECK(err3,1e-8,"err3");
-        CHECK(err4,1e-8,"err4");
+//         CHECK(err4,1e-8,"err4");
 
         
 //         double bnorm = b.norm2();
