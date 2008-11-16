@@ -234,7 +234,14 @@ namespace madness {
         /// ... you are free to add intelligence.
         template <typename objT>
         void broadcast_serializable(objT& obj, ProcessID root) {
-            const std::size_t BUFLEN = 1024*1024;
+            size_t BUFLEN;
+            if (world.rank() == root) {
+                BufferOutputArchive count;
+                count & obj;
+                BUFLEN = count.size();
+            }
+            broadcast(BUFLEN, root);
+
             unsigned char* buf = new unsigned char[BUFLEN];
             if (world.rank() == root) {
                 BufferOutputArchive ar(buf,BUFLEN);
