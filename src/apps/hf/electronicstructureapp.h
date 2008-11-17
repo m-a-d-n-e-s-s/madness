@@ -8,7 +8,12 @@
 #ifndef ELECTRONICSTRUCTUREAPP_H_
 #define ELECTRONICSTRUCTUREAPP_H_
 
+#include <mra/mra.h>
+#include <misc/ran.h>
 #include "molecularbasis.h"
+#include "mentity.h"
+#include "poperator.h"
+#include "lda.h"
 
 typedef SharedPtr< WorldDCPmapInterface< Key<3> > > pmapT;
 typedef Vector<double,3> coordT;
@@ -20,12 +25,32 @@ typedef FunctionFactory<double,3> factoryT;
 typedef SeparatedConvolution<double,3> operatorT;
 typedef SharedPtr<operatorT> poperatorT;
 
+class LevelPmap : public WorldDCPmapInterface< Key<3> > {
+private:
+    const int nproc;
+public:
+    LevelPmap() : nproc(0) {};
+
+    LevelPmap(World& world) : nproc(world.nproc()) {}
+
+    /// Find the owner of a given key
+    ProcessID owner(const Key<3>& key) const {
+        Level n = key.level();
+        if (n == 0) return 0;
+        hashT hash;
+        if (n <= 3 || (n&0x1)) hash = key.hash();
+        else hash = key.parent().hash();
+        //hashT hash = key.hash();
+        return hash%nproc;
+    }
+};
+
 class MolecularPotentialFunctor : public FunctionFunctorInterface<double,3> {
 private:
     const MolecularEntity& _mentity;
 public:
-    MolecularPotentialFunctor(const Molecule& molecule)
-        : _mentity(molecule)
+    MolecularPotentialFunctor(const MolecularEntity& mentity)
+        : _mentity(mentity)
     {}
 
     double operator()(const coordT& x) const {
@@ -37,8 +62,8 @@ class MolecularNuclearChargeDensityFunctor : public FunctionFunctorInterface<dou
 private:
     const MolecularEntity& _mentity;
 public:
-    MolecularNuclearChargeDensityFunctor(const Molecule& molecule)
-        : _mentity(molecule)
+    MolecularNuclearChargeDensityFunctor(const MolecularEntity& mentity)
+        : _mentity(mentity)
     {}
 
     double operator()(const coordT& x) const {
@@ -56,7 +81,7 @@ public:
     {}
 
     double operator()(const coordT& x) const {
-        return _aobasis.eval_guess_density(mentity, x[0], x[1], x[2]);
+        return _aobasis.eval_guess_density(_mentity, x[0], x[1], x[2]);
     }
 };
 
@@ -148,7 +173,7 @@ struct ElectronicStructureParams
   // Size of the cubic box (this needs to change)
   double L;
   // Amount of electronic charge
-  double ncharge;
+  int ncharge;
   // 1 - LDA; 2 - Hartree-Fock
   int functional;
   // Low value in the BSH / Coulomb fit
@@ -161,96 +186,399 @@ struct ElectronicStructureParams
   int maxits;
   // Thresh
   double thresh;
+  // Order of wavelets
+  int waveorder;
   // Number of empty states
   int nempty;
   // Smearing parameter
   double smear;
+  // Total number of bands
+  int nbands;
+  // Size of k-mesh (hardcoded for 3-d)
+  int ngridk0, ngridk1, ngridk2;
+  // Maximum occupation
+  double maxocc;
 
   ElectronicStructureParams()
   {
     L = 10.0;
-    ncharge = 1.0;
+    ncharge = 1;
     functional = 1;
     lo = 1e-4;
+    smear = 0.001;
     spinpol = false;
     periodic = false;
     maxits = 100;
     thresh = 1e-6;
-    nempty = 5;
+    waveorder = 8;
+    nempty = 2;
+    nbands = ncharge + nempty;
+    ngridk0 = 1; ngridk1 = 1; ngridk2 = 1;
+    maxocc = 2.0;
   }
 
-  void read_file(const std::string& filename) {
-      std::ifstream f(filename.c_str());
-      position_stream(f, "dft");
-      string s;
-      while (f >> s) {
-          if (s == "end") {
-              break;
-          } else if (s == "L") {
-              f >> L;
-          } else if (s == "functional") {
-              f >> functional;
-          } else if (s == "lo") {
-              f >> smear;
-          } else if (s == "maxits") {
-              f >> maxits;
-          } else if (s == "thresh") {
-              f >> thresh;
-          } else if (s == "nempty") {
-              f >> nempty;
-          } else {
-              std::cout << "moldft: unrecognized input keyword " << s << std::endl;
-              MADNESS_EXCEPTION("input error",0);
-          }
+  template <typename Archive>
+  void serialize(Archive& ar) {
+      ar & L & ncharge & functional & lo & smear & spinpol & periodic &
+      maxits & thresh & waveorder & nempty & nbands &
+      ngridk0 & ngridk1 & ngridk2 & maxocc;
+  }
+
+  void read_file(const std::string& filename)
+  {
+    std::ifstream f(filename.c_str());
+    position_stream(f, "dft");
+    string s;
+    while (f >> s)
+    {
+      if (s == "end")
+      {
+        break;
       }
+      else if (s == "L")
+      {
+        f >> L;
+      }
+      else if (s == "functional")
+      {
+        f >> functional;
+      }
+      else if (s == "lo")
+      {
+        f >> lo;
+      }
+      else if (s == "smear")
+      {
+        f >> smear;
+      }
+      else if (s == "spinpol")
+      {
+        std::string tempstr;
+        f >> tempstr;
+        if (tempstr == "true")
+        {
+          spinpol = true;
+        }
+        else if (tempstr == "false")
+        {
+          spinpol = false;
+        }
+        else
+        {
+          MADNESS_EXCEPTION("input error -- spinpol", 0);
+        }
+      }
+      else if (s == "periodic")
+      {
+        std::string tempstr;
+        f >> tempstr;
+        if (tempstr == "true")
+        {
+          periodic = true;
+        }
+        else if (tempstr == "false")
+        {
+          periodic = false;
+        }
+        else
+        {
+          MADNESS_EXCEPTION("input error -- periodic", 0);
+        }
+      }
+      else if (s == "maxits")
+      {
+        f >> maxits;
+      }
+      else if (s == "thresh")
+      {
+        f >> thresh;
+      }
+      else if (s == "waveorder")
+      {
+        f >> waveorder;
+      }
+      else if (s == "nempty")
+      {
+        f >> nempty;
+      }
+      else if (s == "ngridk")
+      {
+        f >> ngridk0; f >> ngridk1; f >> ngridk2;
+      }
+      else
+      {
+        std::cout << "moldft: unrecognized input keyword " << s << std::endl;
+        MADNESS_EXCEPTION("input error", 0);
+      }
+    }
+    // compute total number of bands
+    nbands = ncharge + nempty;
+    // maximum occupation
+    maxocc = (spinpol) ? 1.0 : 2.0;
   }
 
-
+  void set_molecular_info(const MolecularEntity& mentity, const AtomicBasisSet& aobasis) {
+      lo = mentity.smallest_length_scale();
+  }
 };
 
 class ElectronicStructureApp
 {
 public:
-  ElectronicStructureApp(const std::string& filename)
+  ElectronicStructureApp(World& world, const std::string& filename)
+   : _world(world)
   {
     init(filename);
   }
 
-  ~ElectronicStructureApp()
-  {
-    if (_mentity) delete _mentity;
-  }
-
   void init(const std::string& filename)
   {
-    read_params(filename);
-    read_positions(filename);
-    aobasis.read_file("sto-3g");
-    mentity->center();
+    if (_world.rank() == 0)
+    {
+      _params.read_file(filename);
+      _aobasis.read_file("sto-3g");
+      _mentity.read_file(filename);
+      _mentity.center();
+    }
+    _world.gop.broadcast_serializable(_mentity, 0);
+    _world.gop.broadcast_serializable(_params, 0);
+    _world.gop.broadcast_serializable(_aobasis, 0);
+
+    FunctionDefaults<3>::set_cubic_cell(-_params.L,_params.L);
+    FunctionDefaults<3>::set_thresh(_params.thresh);
+    FunctionDefaults<3>::set_k(_params.waveorder);
   }
 
-  void read_params(const std::string& filename)
+  void make_nuclear_potential()
   {
-    _params.read_file(filename);
-  }
+    if (_world.rank() == 0) print("Making nuclear potential ..\n\n");
+//    _vnuc = factoryT(_world).functor(functorT(new MolecularPotentialFunctor(_mentity))).thresh(_params.thresh).truncate_on_project();
+//    _vnuc.reconstruct();
+//    _rhon = factoryT(_world).functor(
+//        functorT(new MolecularNuclearChargeDensityFunctor(_mentity))).
+//        thresh(_params.thresh).truncate_on_project();
 
-  void read_positions(const std::string& filename)
-  {
-    _mentity = new MolecularEntity(filename);
-  }
-
-  void make_nuclear_potential(World& world)
-  {
-      Function<double, 3> rhon = factoryT(world).functor(
+      _rhon = factoryT(_world).functor(
           functorT(new MolecularNuclearChargeDensityFunctor(_mentity))).
-          thresh(_params.thresh).truncate_on_project();
+          thresh(_params.thresh).initial_level(4).truncate_on_project();
+      if (_world.rank() == 0) print("calculating trace of rhon ..\n\n");
+      double rtrace = _rhon.trace();
+      if (_world.rank() == 0) print("rhon trace = ", rtrace);
+      SeparatedConvolution<double,3>* op = 0;
+      if (_params.periodic)
+      {
+        Tensor<double> cellsize = FunctionDefaults<3>::get_cell_width();
+        op = PeriodicCoulombOpPtr<double,3>(_world, _params.waveorder,_params.lo, _params.thresh, cellsize);
+      }
+      else
+      {
+        op = CoulombOperatorPtr<double,3>(_world, _params.waveorder,_params.lo, _params.thresh);
+      }
+      _vnuc = apply(*op, _rhon);
+      delete op;
+  }
+
+  struct GuessDensity : public FunctionFunctorInterface<double,3> {
+      const MolecularEntity& mentity;
+      const AtomicBasisSet& aobasis;
+      double operator()(const coordT& x) const {
+          return aobasis.eval_guess_density(mentity, x[0], x[1], x[2]);
+      }
+      GuessDensity(const MolecularEntity& mentity, const AtomicBasisSet& aobasis)
+          : mentity(mentity), aobasis(aobasis) {}
+  };
+
+  functionT make_lda_potential(const functionT& rho)
+  {
+    functionT V_rho = 0.5 * copy(rho);
+    V_rho.reconstruct();
+    V_rho.unaryop(&dft_xc_lda_V<3>);
+    return V_rho;
+  }
+
+  vecfuncT project_ao_basis(World& world) {
+      vecfuncT ao(_aobasis.nbf(_mentity));
+
+      Level initial_level = 3;
+      for (int i=0; i < _aobasis.nbf(_mentity); i++) {
+          functorT aofunc(new AtomicBasisFunctor(_aobasis.get_atomic_basis_function(_mentity,i)));
+//             if (world.rank() == 0) {
+//                 aobasis.get_atomic_basis_function(molecule,i).print_me(cout);
+//             }
+          ao[i] = factoryT(world).functor(aofunc).initial_level(initial_level).truncate_on_project().nofence();
+      }
+      world.gop.fence();
+      //truncate(world, ao);
+
+      vector<double> norms;
+
+      while (1) {
+          norms = norm2(world, ao);
+          initial_level += 2;
+          if (initial_level >= 11) throw "project_ao_basis: projection failed?";
+          int nredone = 0;
+          for (int i=0; i<_aobasis.nbf(_mentity); i++) {
+              if (norms[i] < 0.99) {
+                  nredone++;
+                  //if (world.rank() == 0) print("re-projecting ao basis function", i,"at level",initial_level);
+                  functorT aofunc(new AtomicBasisFunctor(_aobasis.get_atomic_basis_function(_mentity,i)));
+                  ao[i] = factoryT(world).functor(aofunc).initial_level(6).truncate_on_project().nofence();
+              }
+          }
+          world.gop.fence();
+          if (nredone == 0) break;
+      }
+
+      for (int i=0; i<_aobasis.nbf(_mentity); i++) {
+          if (world.rank() == 0 && fabs(norms[i]-1.0)>1e-3) print(i," bad ao norm?", norms[i]);
+          norms[i] = 1.0/norms[i];
+      }
+
+      scale(world, ao, norms);
+
+      return ao;
+  }
+
+  tensorT kinetic_energy_matrix(World& world, const vecfuncT& v) {
+      reconstruct(world, v);
+      int n = v.size();
+      tensorT r(n,n);
+      for (int axis=0; axis<3; axis++) {
+          vecfuncT dv = diff(world,v,axis);
+          r += matrix_inner(world, dv, dv, true);
+          dv.clear(); world.gop.fence(); // Allow function memory to be freed
+      }
+
+      return r.scale(0.5);
+  }
+
+
+  /// Initializes alpha and beta mos, occupation numbers, eigenvalues
+  void initial_guess()
+  {
+    if (_world.rank() == 0) print("Guessing rho ...\n\n");
+    functionT rho = factoryT(_world).functor(functorT(
+        new GuessDensity(_mentity, _aobasis)));
+    double nel = rho.trace();
+    functionT vlocal;
+    if (_params.ncharge > 1)
+    {
+      if (_world.rank() == 0) print("Creating Coulomb op ...\n\n");
+      SeparatedConvolution<double, 3>* op = 0;
+      if (_params.periodic)
+      {
+        Tensor<double> cellsize = FunctionDefaults<3>::get_cell_width();
+        op = PeriodicCoulombOpPtr<double, 3> (_world, _params.waveorder,
+            _params.lo, _params.thresh, cellsize);
+      }
+      else
+      {
+        op = CoulombOperatorPtr<double, 3> (_world, _params.waveorder,
+            _params.lo, _params.thresh);
+      }
+      if (_world.rank() == 0) print("Building effective potential ...\n\n");
+      vlocal = _vnuc + apply(*op, rho); //.scale(1.0-1.0/nel); // Reduce coulomb to increase binding
+      vlocal = vlocal + make_lda_potential(rho);
+      delete op;
+    }
+    else
+    {
+      vlocal = _vnuc;
+    }
+    rho.clear();
+    vlocal.reconstruct();
+
+    if (_world.rank() == 0) print("Projecting atomic orbitals ...\n\n");
+    vecfuncT ao = project_ao_basis(_world);
+    if (_world.rank() == 0) print("Building overlap matrix ...\n\n");
+    tensorT overlap = matrix_inner(_world, ao, ao, true);
+    if (_world.rank() == 0) print("Building kinetic energy matrix ...\n\n");
+    tensorT kinetic = kinetic_energy_matrix(_world, ao);
+
+    reconstruct(_world, ao);
+    //      vecfuncT vpsi = mul(world, vlocal, ao);
+    if (_world.rank() == 0) print("Building potential energy matrix ...\n\n");
+    vecfuncT vpsi = mul_sparse(_world, vlocal, ao, _params.thresh);
+    _world.gop.fence();
+    _world.gop.fence();
+    compress(_world, vpsi);
+    truncate(_world, vpsi);
+    compress(_world, ao);
+
+    tensorT potential = matrix_inner(_world, vpsi, ao, true);
+    _world.gop.fence();
+    vpsi.clear();
+    _world.gop.fence();
+
+    if (_world.rank() == 0) print("Constructing Fock matrix ...\n\n");
+    tensorT fock = kinetic + potential;
+    fock = 0.5 * (fock + transpose(fock));
+
+    tensorT c, e;
+    if (_world.rank() == 0) print("Diagonlizing Fock matrix ...\n\n");
+    sygv(fock, overlap, 1, &c, &e);
+
+    if (_world.rank() == 0)
+    {
+      //             print("THIS iS THE OVERLAP MATRIX");
+      //             print(overlap);
+      //             print("THIS iS THE KINETIC MATRIX");
+      //             print(kinetic);
+      //             print("THIS iS THE POTENTIAL MATRIX");
+      //             print(potential);
+      //             print("THESE ARE THE EIGENVECTORS");
+      //             print(c);
+      print("initial eigenvalues");
+      print(e);
+    }
+
+    compress(_world, ao);
+    _world.gop.fence();
+    _orbitals = transform(_world, ao, c(_, Slice(0, _params.nbands - 1)));
+    _world.gop.fence();
+    truncate(_world, _orbitals);
+    normalize(_world, _orbitals);
+    if (_world.rank() == 0)
+      print("Analysis of initial alpha MO vectors");
+    //      analyze_vectors(world, amo);
+
+    _eigs = e(Slice(0, _params.nbands - 1));
+
+    _occs = tensorT(_params.nbands);
+    for (int i = 0; i < _params.ncharge; i++)
+      _occs[i] = _params.maxocc;
+  }
+
+  vecfuncT orbitals()
+  {
+    return _orbitals;
+  }
+
+  tensorT eigs()
+  {
+    return _eigs;
+  }
+
+  ElectronicStructureParams params()
+  {
+    return _params;
+  }
+
+  MolecularEntity entity()
+  {
+    return _mentity;
   }
 
 private:
-  MolecularEntity* _mentity = 0;
-  AtomicBasisSet aobasis;
+  World& _world;
+  MolecularEntity _mentity;
+  AtomicBasisSet _aobasis;
   ElectronicStructureParams _params;
-  Function<double,3> _vnuc;
+  functionT _vnuc;
+  functionT _rhon;
+  vecfuncT _orbitals;
+  tensorT _eigs;
+  tensorT _occs;
 };
 
 #endif /* ELECTRONICSTRUCTUREAPP_H_ */

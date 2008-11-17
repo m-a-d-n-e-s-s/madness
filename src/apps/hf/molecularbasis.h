@@ -3,7 +3,6 @@
 
 #include <madness_config.h>
 #include <constants.h>
-#include <moldft/molecule.h>
 #include <tinyxml/tinyxml.h>
 #include <tensor/tensor.h>
 using namespace madness;
@@ -14,6 +13,8 @@ using namespace madness;
 #include <sstream>
 #include <iomanip>
 #include <cstdio>
+
+#include "mentity.h"
 
 /// Represents a single shell of contracted, Cartesian, Gaussian primitives
 class ContractedGaussianShell {
@@ -33,10 +34,10 @@ class ContractedGaussianShell {
         int l_lim = 2*type - 1;
         double f = 1.0e00;
         for (int n=l_lim; n>1; n-=2) f *= n;
-        
+
         for (int n=0; n<np; n++)
             coeff[n] *= pow(2.e0*expnt[n]/madness::constants::pi,0.75e0)*pow(4.e0*expnt[n],0.5E0*type)/sqrt(f);
-                
+
         double sum = 0.0;
         for (int n1=0; n1<np; n1++) {
             for (int n2=0; n2<np; n2++) {
@@ -49,21 +50,21 @@ class ContractedGaussianShell {
         f = 1e0/sqrt(sum);
         for (int n=0; n<np; n++) coeff[n] *= f;
     }
-    
+
 public:
-    ContractedGaussianShell() 
+    ContractedGaussianShell()
         : type(-1), coeff(), expnt(), rsqmax(0.0), numbf(0)
     {};
 
-    ContractedGaussianShell(int type, 
-                            const std::vector<double>& coeff, 
-                            const std::vector<double>& expnt, 
+    ContractedGaussianShell(int type,
+                            const std::vector<double>& coeff,
+                            const std::vector<double>& expnt,
                             bool donorm=true)
         : type(type), coeff(coeff), expnt(expnt), numbf((type+1)*(type+2)/2)
     {
         if (donorm) normalize();
         double minexpnt = expnt[0];
-        for (unsigned int i=1; i<expnt.size(); i++) 
+        for (unsigned int i=1; i<expnt.size(); i++)
             minexpnt = std::min(minexpnt,expnt[i]);
         rsqmax = 18.4/minexpnt;  // 18.4 = 8*ln(10)
     }
@@ -91,7 +92,7 @@ public:
         if (R < 1e-8) {
             for (int i=0; i<numbf; i++) bf[i] = 0.0;
 
-        } 
+        }
         else {
             switch (type) {
             case 0:
@@ -172,7 +173,7 @@ std::ostream& operator<<(std::ostream& s, const ContractedGaussianShell& c) {
     p += sprintf(p,"%s [",tag[c.angular_momentum()]);
     for (int i=0; i<c.nprim(); i++){
         p += sprintf(p, "%.6f(%.6f)",coeff[i],expnt[i]);
-        if (i != (c.nprim()-1)) p += sprintf(p, ", "); 
+        if (i != (c.nprim()-1)) p += sprintf(p, ", ");
     }
     p += sprintf(p, "]");
     s << buf;
@@ -190,10 +191,10 @@ class AtomicBasis {
 public:
     AtomicBasis() : g(), rmaxsq(0.0), numbf(0) {};
 
-    AtomicBasis(const std::vector<ContractedGaussianShell>& g) 
-        : g(g) 
+    AtomicBasis(const std::vector<ContractedGaussianShell>& g)
+        : g(g)
     {
-        rmaxsq = 0.0; 
+        rmaxsq = 0.0;
         numbf = 0;
         for (unsigned int i=0; i<g.size(); i++) {
             rmaxsq = std::max(rmaxsq, g[i].rangesq());
@@ -201,13 +202,13 @@ public:
         }
     }
 
-    void set_guess_info(const Tensor<double>& dmat, 
+    void set_guess_info(const Tensor<double>& dmat,
                         const Tensor<double>& avec, const Tensor<double>& bvec) {
         this->dmat = copy(dmat);
         this->avec = copy(avec);
         this->bvec = copy(bvec);
     }
-    
+
     /// Returns the number of basis functions on the center
     int nbf() const {return numbf;}
 
@@ -250,7 +251,7 @@ public:
         double sum = 0.0;
         for (int i=0; i<numbf; i++, p+=numbf) {
             double sumj = 0.0;
-            for (int j=0; j<numbf; ++j) 
+            for (int j=0; j<numbf; ++j)
                 sumj += p[j]*bf[j];
             sum += bf[i]*sumj;
         }
@@ -295,7 +296,7 @@ std::ostream& operator<<(std::ostream& s, const AtomicBasis& c) {
         s << "     " << "Guess density matrix" << std::endl;
         s << c.get_dmat();
     }
-            
+
     return s;
 }
 
@@ -306,9 +307,9 @@ private:
     const ContractedGaussianShell& shell; // Reference to the underlying atomic shell
     const int ibf; // Index of basis function in the shell (0, 1, ...)
     const int nbf; // Number of functions in the shell
-    
+
 public:
-    AtomicBasisFunction(double x, double y, double z, 
+    AtomicBasisFunction(double x, double y, double z,
                         const ContractedGaussianShell& shell, int ibf)
         : xx(x), yy(y), zz(z), shell(shell), ibf(ibf), nbf(shell.nbf())
     {}
@@ -353,7 +354,7 @@ std::ostream& operator<<(std::ostream& s, const AtomicBasisFunction& a) {
     return s;
 };
 
-/// Contracted Gaussian basis 
+/// Contracted Gaussian basis
 class AtomicBasisSet {
     std::string name;
     std::vector<AtomicBasis> ag;  // Basis associated by atomic number = 1, 2, ...; 0=Bq.
@@ -396,9 +397,9 @@ public:
         static const bool debug = false;
         TiXmlDocument doc(filename);
         if (!doc.LoadFile()) {
-            std::cout << "AtomicBasisSet: Failed loading from file " << filename 
-                      << " : ErrorDesc  " << doc.ErrorDesc() 
-                      << " : Row " << doc.ErrorRow() 
+            std::cout << "AtomicBasisSet: Failed loading from file " << filename
+                      << " : ErrorDesc  " << doc.ErrorDesc()
+                      << " : Row " << doc.ErrorRow()
                       << " : Col " << doc.ErrorCol() << std::endl;
             MADNESS_EXCEPTION("AtomicBasisSet: Failed loading basis set",0);
         }
@@ -456,12 +457,12 @@ public:
     }
 
     /// Returns the number of the atom the ibf'th basis function is on
-    int basisfn_to_atom(const Molecule& molecule, int ibf) const {
+    int basisfn_to_atom(const MolecularEntity& mentity, int ibf) const {
         MADNESS_ASSERT(ibf >= 0);
         int n = 0;
-        for (int i=0; i<molecule.natom(); i++) {
+        for (int i=0; i<mentity.natom(); i++) {
             // Is the desired function on this atom?
-            const Atom& atom = molecule.get_atom(i);
+            const Atom& atom = mentity.get_atom(i);
             const int atn = atom.atomic_number;
             MADNESS_ASSERT(is_supported(atn));
             const int nbf_on_atom = ag[atn].nbf();
@@ -476,21 +477,21 @@ public:
     }
 
     /// Returns the ibf'th atomic basis function
-    AtomicBasisFunction get_atomic_basis_function(const Molecule& molecule, int ibf) const {
+    AtomicBasisFunction get_atomic_basis_function(const MolecularEntity& mentity, int ibf) const {
         MADNESS_ASSERT(ibf >= 0);
         int n = 0;
-        for (int i=0; i<molecule.natom(); i++) {
+        for (int i=0; i<mentity.natom(); i++) {
             // Is the desired function on this atom?
-            const Atom& atom = molecule.get_atom(i);
+            const Atom& atom = mentity.get_atom(i);
             const int atn = atom.atomic_number;
             MADNESS_ASSERT(is_supported(atn));
             const int nbf_on_atom = ag[atn].nbf();
             if (ibf >= n  && (n+nbf_on_atom) > ibf) {
                 int index;
-                const ContractedGaussianShell& shell = 
+                const ContractedGaussianShell& shell =
                     ag[atn].get_shell_from_basis_function(ibf-n, index);
                 return AtomicBasisFunction(atom.x, atom.y, atom.z, shell, index);
-            } 
+            }
             else {
                 n += nbf_on_atom;
             }
@@ -500,10 +501,10 @@ public:
 
 
     /// Given a molecule count the number of basis functions
-    int nbf(const Molecule& molecule) const {
+    int nbf(const MolecularEntity& mentity) const {
         int n = 0;
-        for (int i=0; i<molecule.natom(); i++) {
-            const Atom& atom = molecule.get_atom(i);
+        for (int i=0; i<mentity.natom(); i++) {
+            const Atom& atom = mentity.get_atom(i);
             const int atn = atom.atomic_number;
             MADNESS_ASSERT(is_supported(atn));
             n += ag[atn].nbf();
@@ -512,9 +513,9 @@ public:
     }
 
     /// Evaluates the basis functions
-    void eval(const Molecule& molecule, double x, double y, double z, double *bf) const {
-        for (int i=0; i<molecule.natom(); i++) {
-            const Atom& atom = molecule.get_atom(i);
+    void eval(const MolecularEntity& mentity, double x, double y, double z, double *bf) const {
+        for (int i=0; i<mentity.natom(); i++) {
+            const Atom& atom = mentity.get_atom(i);
             const int atn = atom.atomic_number;
             bf = ag[atn].eval(x-atom.x, y-atom.y, z-atom.z, bf);
         }
@@ -522,10 +523,10 @@ public:
 
 
     /// Evaluates the guess density
-    double eval_guess_density(const Molecule& molecule, double x, double y, double z) const {
+    double eval_guess_density(const MolecularEntity& mentity, double x, double y, double z) const {
         double sum = 0.0;
-        for (int i=0; i<molecule.natom(); i++) {
-            const Atom& atom = molecule.get_atom(i);
+        for (int i=0; i<mentity.natom(); i++) {
+            const Atom& atom = mentity.get_atom(i);
             const int atn = atom.atomic_number;
             sum += ag[atn].eval_guess_density(x-atom.x, y-atom.y, z-atom.z);
         }
@@ -537,13 +538,13 @@ public:
     }
 
     /// Print basis info for atoms in the molecule (once for each unique atom type)
-    void print(const Molecule& molecule) const {
+    void print(const MolecularEntity& mentity) const {
         std::cout << "\n " << name << " atomic basis set" << std::endl;
-        for (int i=0; i<molecule.natom(); i++) {
-            const Atom& atom = molecule.get_atom(i);
+        for (int i=0; i<mentity.natom(); i++) {
+            const Atom& atom = mentity.get_atom(i);
             const unsigned int atn = atom.atomic_number;
             for (int j=0; j<i; j++) {
-                if (molecule.get_atom(j).atomic_number == atn) 
+                if (mentity.get_atom(j).atomic_number == atn)
                     goto doneitalready;
             }
             std::cout << std::endl;
@@ -564,7 +565,7 @@ public:
         }
     };
 
-    /// Given a vector of AO coefficients prints an analysis 
+    /// Given a vector of AO coefficients prints an analysis
 
     /// For each significant coeff it prints
     /// - atomic symbol
@@ -572,8 +573,8 @@ public:
     /// - basis function type (e.g., dxy)
     /// - basis function number
     /// - MO coeff
-    template <typename T> 
-    void print_anal(const Molecule& molecule, const Tensor<T>& v) {
+    template <typename T>
+    void print_anal(const MolecularEntity& mentity, const Tensor<T>& v) {
         const double thresh = 0.2*v.normf();
         if (thresh == 0.0) {
             printf("    zero vector\n");
@@ -590,13 +591,13 @@ public:
         std::sort(list,list+ngot,AnalysisSorter<T>(v));
 
         const char* format;
-        if (molecule.natom() < 10) {
+        if (mentity.natom() < 10) {
             format = "  %2s(%1d)%4s(%2ld)%6.3f  ";
         }
-        else if (molecule.natom() < 100) {
+        else if (mentity.natom() < 100) {
             format = "  %2s(%2d)%4s(%3ld)%6.3f  ";
         }
-        else if (molecule.natom() < 1000) {
+        else if (mentity.natom() < 1000) {
             format = "  %2s(%3d)%4s(%4ld)%6.3f  ";
         }
         else {
@@ -605,9 +606,9 @@ public:
         for (long ii=0; ii<ngot; ii++) {
             long ibf = list[ii];
 
-            const int iat = basisfn_to_atom(molecule, ibf);
-            const Atom& atom = molecule.get_atom(iat);
-            const AtomicBasisFunction ao = get_atomic_basis_function(molecule, ibf);
+            const int iat = basisfn_to_atom(mentity, ibf);
+            const Atom& atom = mentity.get_atom(iat);
+            const AtomicBasisFunction ao = get_atomic_basis_function(mentity, ibf);
             const char* desc = ao.get_desc();
             const char* element = get_atomic_data(atom.atomic_number).symbol;
 
@@ -616,7 +617,7 @@ public:
         }
         printf("\n");
     }
-        
+
     /// Print basis info for all supported atoms
     void print_all() const {
         std::cout << "\n " << name << " atomic basis set" << std::endl;

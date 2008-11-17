@@ -180,7 +180,8 @@ unsigned int symbol_to_atomic_number(const std::string& symbol) {
     for (unsigned int i=0; i<NUMBER_OF_ATOMS_IN_TABLE; i++) {
         if (tlow.compare(atomic_data[i].symbol_lowercase) == 0) return i;
     }
-    throw "unknown atom";
+    std::string msg = "unknown atom -- " + symbol;
+    throw msg;
 }
 
 
@@ -250,7 +251,8 @@ static double dsmoothed_potential(double r)
 static double smoothed_density(double r)
 {
     const double RPITO1P5 = 0.1795871221251665617; // 1.0/Pi^1.5
-    return ((-3.0/2.0+(1.0/3.0)*r^2)*exp(-r^2)+(-32.0+(256.0/3.0)*r^2)*exp(-4.0*r^2))*RPITO1P5;
+    double rsquared = r*r;
+    return ((-3.0/2.0+(1.0/3.0)*rsquared)*exp(-rsquared)+(-32.0+(256.0/3.0)*rsquared)*exp(-4.0*rsquared))*RPITO1P5;
 }
 
 std::ostream& operator<<(std::ostream& s, const Atom& atom) {
@@ -436,13 +438,23 @@ double MolecularEntity::nuclear_attraction_potential(double x, double y, double 
 }
 
 double MolecularEntity::nuclear_charge_density(double x, double y, double z) const {
+//  double sum = 0.0;
+//  for (unsigned int i=0; i<atoms.size(); i++)
+//  {
+//    double r = distance(atoms[i].x, atoms[i].y, atoms[i].z, x, y, z);
+//    sum -= atoms[i].atomic_number * smoothed_density(r*rcut[i])*rcut[i]*rcut[i]*rcut[i];
+//  }
+//  return sum;
+
   double sum = 0.0;
-  for (unsigned int i=0; i<atoms.size(); i++) {
-    double r = distance(atoms[i].x, atoms[i].y, atoms[i].z, x, y, z) * rcut;
-    //sum -= atoms[i].q/(r+1e-8);
-    sum -= atoms[i].q * smoothed_charge_density(r*rcut[i])*rcut[i]*rcut[i]*rcut[i];
+  for (unsigned int i = 0; i < atoms.size(); i++)
+  {
+    double r = distance(atoms[i].x, atoms[i].y, atoms[i].z, x, y, z);
+    double e1 = 50.0;
+    double coeff = pow(e1/PI, 1.5);
+    sum -= atoms[i].atomic_number * coeff * exp(-e1 * r * r);
   }
-return sum;
+  return sum;
 }
 
 

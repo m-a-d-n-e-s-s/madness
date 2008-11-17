@@ -98,6 +98,8 @@ public:
 
     double nuclear_attraction_potential(double x, double y, double z) const;
 
+    double nuclear_charge_density(double x, double y, double z) const;
+
     template <typename Archive>
     void serialize(Archive& ar) {ar & atoms & rcut;}
 };
