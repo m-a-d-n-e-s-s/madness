@@ -1442,10 +1442,11 @@ namespace madness {
 
         template <typename L, typename R>
         void mulXX(const FunctionImpl<L,NDIM>* left, const FunctionImpl<R,NDIM>* right, bool fence) {
-            mulXXa(cdata.key0, left, Tensor<L>(), right, Tensor<R>());
+            if (world.rank() == coeffs.owner(cdata.key0)) 
+                mulXXa(cdata.key0, left, Tensor<L>(), right, Tensor<R>());
             if (fence) world.gop.fence();
 
-            verify_tree();
+            //verify_tree();
         }
 
         template <typename L, typename R>
@@ -1454,7 +1455,8 @@ namespace madness {
                       const std::vector<FunctionImpl<T,NDIM>*>& vresult,
                       bool fence) {
             std::vector< Tensor<R> > vr(vright.size());
-            mulXXveca(cdata.key0, left, Tensor<L>(), vright, vr, vresult);
+            if (world.rank() == coeffs.owner(cdata.key0)) 
+                mulXXveca(cdata.key0, left, Tensor<L>(), vright, vr, vresult);
             if (fence) world.gop.fence();
         }
 

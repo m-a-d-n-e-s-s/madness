@@ -140,7 +140,7 @@ RandomGaussian(const Tensor<double> cell, double expntmax=1e5) {
     double hi = log(expntmax);
     double expnt = exp(RandomValue<double>()*(hi-lo) + lo);
     T coeff = pow(2.0*expnt/PI,0.25*NDIM);            
-    print("RandomGaussian: origin", origin, "expnt", expnt, "coeff", coeff);
+    //print("RandomGaussian: origin", origin, "expnt", expnt, "coeff", coeff);
     return new Gaussian<T,NDIM>(origin,expnt,coeff);
 }
 
@@ -432,7 +432,7 @@ void test_math(World& world) {
         //std::cout.flush();
         Function<T,NDIM> c = a*b;
         Function<T,NDIM> cXX = mulXX(a,b);
-        c.verify_tree();
+        cXX.verify_tree();
         double err1 = a.err(*f1);
         double err2 = b.err(*f2);
         double err3 = c.err(*f3);

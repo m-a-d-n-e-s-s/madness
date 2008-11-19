@@ -14,7 +14,7 @@
 using namespace madness;
 
 struct InputParameters {
-  static const int MAXNATOM=3;
+  static const int MAXNATOM=99;
 
     // IF YOU ADD A NEW PARAMETER DON'T FORGET TO INCLUDE IT IN
     // a) read()
@@ -587,12 +587,14 @@ struct lbcost {
     double parent_value;
     lbcost(double leaf_value=1.0, double parent_value=1.0) : leaf_value(leaf_value), parent_value(parent_value) {}
     double operator()(const Key<NDIM>& key, const FunctionNode<T,NDIM>& node) const {
-        if (node.is_leaf()) {
+        if (key.level() <= 1) return 1000.0;
+        else if (node.is_leaf()) {
             return leaf_value;
         }
         else {
             return parent_value;
         }
+        //return key.level()+1.0;
     }
 };
 
@@ -603,23 +605,28 @@ void loadbal(World& world,
              complex_functionT& psi, complex_functionT& psi0,
              functionT& x, functionT& y, functionT& z) {
     if (world.size() < 2) return;
+    if (world.rank() == 0) print("starting LB");
     LoadBalanceDeux<3> lb(world);
-    lb.add_tree(potn, lbcost<double,3>());
-    lb.add_tree(psi, lbcost<double_complex,3>());
+    lb.add_tree(potn, lbcost<double,3>(1.0,1.0));
+    lb.add_tree(psi, lbcost<double_complex,3>(10.0,10.0));
     FunctionDefaults<3>::set_pmap(lb.load_balance());
     world.gop.fence();
-    potn = copy(potn, FunctionDefaults<3>::get_pmap(), false);
-    vt = copy(vt, FunctionDefaults<3>::get_pmap(), false);
-    dpotn_dx = copy(dpotn_dx, FunctionDefaults<3>::get_pmap(), false);
-    dpotn_dy = copy(dpotn_dy, FunctionDefaults<3>::get_pmap(), false);
-    dpotn_dz = copy(dpotn_dz, FunctionDefaults<3>::get_pmap(), false);
-    dpotn_dx_sq = copy(dpotn_dx_sq, FunctionDefaults<3>::get_pmap(), false);
-    dpotn_dy_sq = copy(dpotn_dy_sq, FunctionDefaults<3>::get_pmap(), false);
-    psi = copy(psi, FunctionDefaults<3>::get_pmap(), false);
-    psi0 = copy(psi0, FunctionDefaults<3>::get_pmap(), false);
-    x = copy(x, FunctionDefaults<3>::get_pmap(), false);
-    y = copy(y, FunctionDefaults<3>::get_pmap(), false);
-    z = copy(z, FunctionDefaults<3>::get_pmap(), false);
+    if (world.rank() == 0) print("starting LB copies");
+    world.gop.fence();
+    potn = copy(potn, FunctionDefaults<3>::get_pmap(), true);
+    vt = copy(vt, FunctionDefaults<3>::get_pmap(), true);
+    dpotn_dx = copy(dpotn_dx, FunctionDefaults<3>::get_pmap(), true);
+    dpotn_dy = copy(dpotn_dy, FunctionDefaults<3>::get_pmap(), true);
+    dpotn_dz = copy(dpotn_dz, FunctionDefaults<3>::get_pmap(), true);
+    dpotn_dx_sq = copy(dpotn_dx_sq, FunctionDefaults<3>::get_pmap(), true);
+    dpotn_dy_sq = copy(dpotn_dy_sq, FunctionDefaults<3>::get_pmap(), true);
+    psi = copy(psi, FunctionDefaults<3>::get_pmap(), true);
+    psi0 = copy(psi0, FunctionDefaults<3>::get_pmap(), true);
+    x = copy(x, FunctionDefaults<3>::get_pmap(), true);
+    y = copy(y, FunctionDefaults<3>::get_pmap(), true);
+    z = copy(z, FunctionDefaults<3>::get_pmap(), true);
+    world.gop.fence();
+    if (world.rank() == 0) print("done with LB");
     world.gop.fence();
 }
 
@@ -727,7 +734,17 @@ void propagate(World& world, int step0) {
             // Make Vtilde at time tstep/2
             functionT Vtilde = potn + laser(t+0.5*time_step)*z;
             t3 = wall_time();
-            functionT dvsq = dpotn_dx_sq + dpotn_dy_sq + dV_dz*dV_dz;
+
+            //functionT dvsq = dpotn_dx_sq + dpotn_dy_sq + dV_dz*dV_dz;
+            world.gop.fence();
+            functionT dV_dz_sq = dV_dz*dV_dz;
+            world.gop.fence();
+            dV_dz_sq.compress();
+            world.gop.fence();
+            functionT dvsq = dpotn_dx_sq + dpotn_dy_sq + dV_dz_sq;
+            world.gop.fence();
+            dV_dz_sq.clear();
+
             t4 = wall_time();
             Vtilde.gaxpy(1.0, dvsq, -time_step*time_step/48.0);
             t5 = wall_time();

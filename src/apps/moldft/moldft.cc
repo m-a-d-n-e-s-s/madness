@@ -1,4 +1,4 @@
-/*
+/* 
   This file is part of MADNESS.
   
   Copyright (C) <2007> <Oak Ridge National Laboratory>
@@ -214,7 +214,7 @@ template <typename T, int NDIM>
 struct lbcost {
     double leaf_value;
     double parent_value;
-    lbcost(double leaf_value=1.0, double parent_value=1.0) : leaf_value(leaf_value), parent_value(parent_value) {}
+    lbcost(double leaf_value=1.0, double parent_value=0.0) : leaf_value(leaf_value), parent_value(parent_value) {}
     double operator()(const Key<NDIM>& key, const FunctionNode<T,NDIM>& node) const {
         if (node.is_leaf()) {
             return leaf_value;
@@ -442,6 +442,8 @@ struct Calculation {
         FunctionDefaults<3>::set_autorefine(false);  
         FunctionDefaults<3>::set_apply_randomize(k>=8);
         FunctionDefaults<3>::set_project_randomize(k>=8);
+        //FunctionDefaults<3>::set_apply_randomize(false);
+        //FunctionDefaults<3>::set_project_randomize(true);
 
         double safety = 0.1;
         vtol = FunctionDefaults<3>::get_thresh()*safety;
@@ -633,10 +635,10 @@ struct Calculation {
         tensorT rsq, dip(3,nmo);
         {
             functionT frsq = factoryT(world).f(rsquared).initial_level(4);
-            rsq = inner(world, mo, mul(world, frsq, mo));
+            rsq = inner(world, mo, mulXX(world, frsq, mo));
             for (int axis=0; axis<3; axis++) {
                 functionT fdip = factoryT(world).functor(functorT(new DipoleFunctor(axis))).initial_level(4);
-                dip(axis,_) = inner(world, mo, mul(world, fdip, mo));
+                dip(axis,_) = inner(world, mo, mulXX(world, fdip, mo));
                 for (int i=0; i<nmo; i++) rsq(i) -= dip(axis,i)*dip(axis,i);
             }
         }
@@ -675,7 +677,7 @@ struct Calculation {
         
         for (int axis=0; axis<3; axis++) {
             functionT fdip = factoryT(world).functor(functorT(new DipoleFunctor(axis))).initial_level(4);
-            dip(axis,_,_) = matrix_inner(world, mo, mul(world, fdip, mo), true);
+            dip(axis,_,_) = matrix_inner(world, mo, mulXX(world, fdip, mo), true);
         }
         
         tensorT U(nmo,nmo);
@@ -826,8 +828,8 @@ struct Calculation {
 //             FunctionDefaults<3>::set_pmap(lb.load_balance());
 
             LoadBalanceDeux<3> lb(world);
-            lb.add_tree(vnuc, lbcost<double,3>(), false);
-            lb.add_tree(rho,lbcost<double,3>(),false);
+            lb.add_tree(vnuc, lbcost<double,3>(), true);
+            //lb.add_tree(rho,lbcost<double,3>(3.0,0.0),false);
             FunctionDefaults<3>::set_pmap(lb.load_balance(2.0));
             world.gop.fence();
             if (world.rank() == 0) print("starting loadbal copy");
@@ -895,7 +897,8 @@ struct Calculation {
         reconstruct(world, ao);
         START_TIMER;
         //vecfuncT vpsi = mul(world, vlocal, ao);
-        vecfuncT vpsi = mul_sparse(world, vlocal, ao, vtol);
+        //vecfuncT vpsi = mul_sparse(world, vlocal, ao, vtol);
+        vecfuncT vpsi = mulXX(world, vlocal, ao);
         world.gop.fence();
         END_TIMER("make V*psi");
         world.gop.fence();
@@ -1104,13 +1107,20 @@ struct Calculation {
                     double& exc) 
     {
 
+        if (world.rank() == 0) print("starting make exc and vloc at", wall_time());
         functionT vloc = vlocal;
         if (param.lda) {
             exc = make_lda_energy(world, arho, brho, adelrhosq, bdelrhosq);
             vloc = vloc + make_lda_potential(world, arho, brho, adelrhosq, bdelrhosq);
         }
 
-        vecfuncT Vpsi = mul_sparse(world, vloc, amo, vtol);
+        world.gop.fence();
+        if (world.rank() == 0) print("starting mulXX at", wall_time());
+        //vecfuncT Vpsi = mul_sparse(world, vloc, amo, vtol);
+        vecfuncT Vpsi = mulXX(world, vloc, amo);
+        //vecfuncT Vpsi = mul(world, vloc, amo);
+        world.gop.fence();
+        if (world.rank() == 0) print("finished mulXX at", wall_time());
 
         if (!param.lda) {
             vecfuncT Kamo = apply_hf_exchange(world, occ, amo, amo);
@@ -1124,6 +1134,8 @@ struct Calculation {
         }
 
         truncate(world,Vpsi);
+        if (world.rank() == 0) print("finished trunc at", wall_time());
+
         world.gop.fence(); // ensure memory is cleared
         return Vpsi;
     }
@@ -1251,9 +1263,9 @@ struct Calculation {
         if (world.size() == 1) return;
         LoadBalanceDeux<3> lb(world);
         lb.add_tree(vnuc,lbcost<double,3>(1.0,0.0),false);        
-        lb.add_tree(arho,lbcost<double,3>(10.0,0.0),false);        
+        lb.add_tree(arho,lbcost<double,3>(1.0,1.0),false);        
         if (param.nbeta && !param.spin_restricted) {
-            lb.add_tree(brho,lbcost<double,3>(),false);        
+            lb.add_tree(brho,lbcost<double,3>(1.0,1.0),false);        
         }
         FunctionDefaults<3>::set_pmap(lb.load_balance(2.0));
         vnuc = copy(vnuc, FunctionDefaults<3>::get_pmap(), false);
@@ -1429,10 +1441,10 @@ int main(int argc, char** argv) {
             calc.param.print(world);
         }
 
-//         // Come up with an initial OK data map
-//         calc.set_protocol(world,1e-4);
-//         calc.make_nuclear_potential(world);
-//         calc.initial_load_bal(world);
+        // Come up with an initial OK data map
+        calc.set_protocol(world,1e-4);
+        calc.make_nuclear_potential(world);
+        calc.initial_load_bal(world);
 
         // Make the nuclear potential, initial orbitals, etc.
         calc.set_protocol(world,1e-4);
