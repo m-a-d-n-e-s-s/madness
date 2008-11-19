@@ -172,9 +172,10 @@ namespace madness {
         }
     }
 
-#define WORLD_PROFILE_ENABLE
-    WorldProfileObj* WorldProfileObj::call_stack = 0;
-    std::vector<WorldProfileEntry> WorldProfile::items;
+
+    __thread WorldProfileObj* WorldProfileObj::call_stack = 0;
+    Spinlock WorldProfile::mutex;
+    volatile std::vector<WorldProfileEntry> WorldProfile::items;
     double WorldProfile::cpu_start = madness::cpu_time();
     double WorldProfile::wall_start = madness::wall_time();
 
@@ -229,9 +230,11 @@ namespace madness {
 #ifdef WORLD_PROFILE_ENABLE
         for (int i=0; i<100; i++) est_profile_overhead();
 
+        std::vector<WorldProfileEntry>& nv = const_cast<std::vector<WorldProfileEntry>&>(items);
+
         ProcessID me = world.rank();
-        for (unsigned int i=0; i<items.size(); i++) {
-            items[i].init_par_stats(me);
+        for (unsigned int i=0; i<nv.size(); i++) {
+            nv[i].init_par_stats(me);
         }
         
         recv_stats(world, 2*me+1);
@@ -239,7 +242,7 @@ namespace madness {
 
         if (me) {
             MPIOutputArchive ar(world, (me-1)/2);
-            ar & items;
+            ar & nv;
         }
         else {
             double overhead = 0.0;
@@ -280,7 +283,7 @@ namespace madness {
             std::printf(" calls-eff - calls efficiency = avg/max\n");
             std::printf("\n");
 
-            std::vector<WorldProfileEntry> v(items);
+            std::vector<WorldProfileEntry> v(nv);
             std::sort(v.begin(), v.end(), &WorldProfileEntry::exclusivecmp);
             std::printf("  ** sorted by exclusive cpu time **\n");
             profile_do_print(world, v);
@@ -455,6 +458,10 @@ namespace madness {
             printf("         Total  cpu time    %.1fs\n", total_cpu_time);
             printf("\n");
         }
+        world.gop.fence();
+#ifdef WORLD_PROFILE_ENABLE
+        WorldProfile::print(world);
+#endif
         world.gop.fence();
     }
 }

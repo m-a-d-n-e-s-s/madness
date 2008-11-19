@@ -1385,7 +1385,7 @@ namespace madness {
 
 
 
-        // Multiplication assuming same distribution and recursive descent
+        // Multiplication using recursive descent and assuming same distribution 
         template <typename L, typename R>
         Void mulXXa(const keyT& key, 
                     const FunctionImpl<L,NDIM>* left, const Tensor<L>& lcin, 
@@ -1457,7 +1457,6 @@ namespace madness {
             mulXXveca(cdata.key0, left, Tensor<L>(), vright, vr, vresult);
             if (fence) world.gop.fence();
         }
-
 
         Future<double> get_norm_tree_recursive(const keyT& key) const;
 

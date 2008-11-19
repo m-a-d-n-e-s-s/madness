@@ -24,6 +24,6 @@ libMADworld_a_SOURCES = worldstuff.cc redirectio.cc archive_type_names.cc debug.
                      binfsar.h  mpiar.h       textfsar.h   worlddc.h       world.h      worldprofile.h  worldtime.h \
                      bufar.h    nodefaults.h  typestuff.h  worlddep.h      worldhash.h  worldref.h      worldtypes.h \
                      dqueue.h   parar.h       vecar.h      worldexc.h      worldmem.h   worldser.h \
-                     worldthread.h madatomic.h worldrmi.h safempi.h worldpapi.h
+                     worldthread.h madatomic.h worldrmi.h safempi.h worldpapi.h worldmutex.h
 
 
