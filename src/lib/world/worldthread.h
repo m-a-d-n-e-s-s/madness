@@ -602,7 +602,7 @@ namespace madness {
             : n(0), start(start), finish(finish), chunksize(chunk)
         {
             for (iterator it=start; it!=finish; ++it) n++;
-            if (chunksize == -1) chunksize = n / (10*ThreadPool::size());
+            if (chunksize == -1) chunksize = n / (10*(ThreadPool::size()+1));
             if (chunksize < 1) chunksize = 1;
         }
         
