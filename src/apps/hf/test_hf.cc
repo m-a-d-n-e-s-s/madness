@@ -266,9 +266,9 @@ void test_hf_he(World& world)
 
   // Create DFT object
   if (world.rank() == 0) cout << "Creating DFT object ..." << endl;
-  DFT<double,3> dftcalc(world, rhon, phis, eigs, thresh, false);
-  if (world.rank() == 0) cout << "Running DFT calculation ..." << endl;
-  dftcalc.solve(35);
+//  DFT<double,3> dftcalc(world, rhon, phis, eigs, thresh, false);
+//  if (world.rank() == 0) cout << "Running DFT calculation ..." << endl;
+//  dftcalc.solve(35);
 //  HartreeFock hf(world, Vnuc, phis, eigs, true, true, thresh);
 //  hf.hartree_fock(10);
 
@@ -334,9 +334,9 @@ void test_hf_be(World& world)
   Vector<double,3> gammapt;
   gammapt[0] = 0.0; gammapt[1] = 0.0; gammapt[2] = 0.0;
   kpoints[0] = gammapt;
-  DFT<double,3> dftcalc(world, Vnuc, phis, eigs, thresh, true);
-  if (world.rank() == 0) madness::print("Running DFT object...");
-  dftcalc.solve(51);
+//  DFT<double,3> dftcalc(world, Vnuc, phis, eigs, thresh, true);
+//  if (world.rank() == 0) madness::print("Running DFT object...");
+//  dftcalc.solve(51);
   //hf.hartree_fock(20);
 //  double ke = 2.0 * hf.calculate_tot_ke_sp();
 //  double pe = 2.0 * hf.calculate_tot_pe_sp();

@@ -13,8 +13,8 @@ struct ElectronicStructureParams
 {
   // Size of the cubic box (this needs to change)
   double L;
-  // Amount of electronic charge
-  int ncharge;
+  // Number of electrons
+  int nelec;
   // 1 - LDA; 2 - Hartree-Fock
   int functional;
   // Low value in the BSH / Coulomb fit
@@ -43,9 +43,9 @@ struct ElectronicStructureParams
   ElectronicStructureParams()
   {
     L = 10.0;
-    ncharge = 1;
+    nelec = 1;
     functional = 1;
-    lo = 1e-4;
+    lo = 1e-8;
     smear = 0.001;
     spinpol = false;
     periodic = false;
@@ -53,14 +53,14 @@ struct ElectronicStructureParams
     thresh = 1e-6;
     waveorder = 8;
     nempty = 2;
-    nbands = ncharge + nempty;
     ngridk0 = 1; ngridk1 = 1; ngridk2 = 1;
     maxocc = 2.0;
+    nbands = nelec/maxocc + nempty;
   }
 
   template <typename Archive>
   void serialize(Archive& ar) {
-      ar & L & ncharge & functional & lo & smear & spinpol & periodic &
+      ar & L & nelec & functional & lo & smear & spinpol & periodic &
       maxits & thresh & waveorder & nempty & nbands &
       ngridk0 & ngridk1 & ngridk2 & maxocc;
   }
@@ -70,11 +70,17 @@ struct ElectronicStructureParams
     std::ifstream f(filename.c_str());
     position_stream(f, "dft");
     string s;
+    bool bnelec = false;
     while (f >> s)
     {
       if (s == "end")
       {
         break;
+      }
+      else if (s == "nelec")
+      {
+        f >> nelec;
+        bnelec = true;
       }
       else if (s == "L")
       {
@@ -148,14 +154,18 @@ struct ElectronicStructureParams
       }
       else
       {
-        std::cout << "moldft: unrecognized input keyword " << s << std::endl;
+        std::cout << "esolver: unrecognized input keyword " << s << std::endl;
         MADNESS_EXCEPTION("input error", 0);
       }
     }
-    // compute total number of bands
-    nbands = ncharge + nempty;
+    // No spin polarization
+    //if (spinpol = true) MADNESS_EXCEPTION("spinpol not implemented", 0);
+    // nelec is required
+    if (!bnelec) MADNESS_EXCEPTION("nelec required", 0);
     // maximum occupation
     maxocc = (spinpol) ? 1.0 : 2.0;
+    // compute total number of bands
+    nbands = nelec/maxocc + nempty;
   }
 
   void set_molecular_info(const MolecularEntity& mentity, const AtomicBasisSet& aobasis) {

@@ -1,6 +1,7 @@
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
 
 #include "electronicstructureapp.h"
+#include "dft.h"
 
 using namespace madness;
 
@@ -32,9 +33,16 @@ int main(int argc, char** argv)
 
         app.make_nuclear_potential();
         app.initial_guess();
+        ElectronicStructureParams params = app.params();
+        Function<double,3> rhon = app.rhon();
+        std::vector<Function<double,3> > phis = app.orbitals();
+        std::vector<double> eigs;
+        Tensor<double> tmpe = app.eigs();
+        for (unsigned int i = 0; i < params.nelec; i++)
+          eigs.push_back(tmpe[i]);
 
-
-
+        DFT<double,3> dftcalc(world, rhon, phis, eigs, params);
+        dftcalc.solve(params.maxits);
         world.gop.fence();
 
     } catch (const MPI::Exception& e) {

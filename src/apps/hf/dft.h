@@ -6,6 +6,9 @@
 #include <vector>
 
 #include "eigsolver.h"
+#include "electronicstructureparams.h"
+
+class ElectronicStructureAppParams;
 
 namespace madness
 {
@@ -230,27 +233,15 @@ void xc_rks_generic_lda(Tensor<double> rho_alpha,           ///< Alpha-spin dens
   public:
 //    //*************************************************************************
 //    // Constructor
-//    DFT(World& world, funcT V, std::vector<funcT> phis,
+//    DFT(World& world, funcT rhon, std::vector<funcT> phis,
 //      std::vector<double> eigs, double thresh, bool periodic = false);
 //    //*************************************************************************
-
+//
     //*************************************************************************
     // Constructor
     DFT(World& world, funcT rhon, std::vector<funcT> phis,
-      std::vector<double> eigs, double thresh, bool periodic = false);
+      std::vector<double> eigs, ElectronicStructureParams params);
     //*************************************************************************
-
-//    //*************************************************************************
-//    // Constructor
-//    DFT(World& world, funcT V, std::vector<funcT> phis,
-//      std::vector<double> eigs, std::vector<kvecT> kpoints, double thresh);
-//    //*************************************************************************
-
-//    //*************************************************************************
-//    // Constructor for ground state only
-//    DFT(World& world, Function<double,NDIM> V, Function<double,NDIM> rho,
-//        double eig, double thresh);
-//    //*************************************************************************
 
   	//*************************************************************************
     DFT();
@@ -348,16 +339,8 @@ void xc_rks_generic_lda(Tensor<double> rho_alpha,           ///< Alpha-spin dens
       World& _world;
       //*************************************************************************
 
-//      //*************************************************************************
-//      Function<double,NDIM> _V;
-//      //*************************************************************************
-
       //*************************************************************************
       Function<double,NDIM> _rhon;
-      //*************************************************************************
-
-      //*************************************************************************
-      double _thresh;
       //*************************************************************************
 
       //*************************************************************************
@@ -367,11 +350,11 @@ void xc_rks_generic_lda(Tensor<double> rho_alpha,           ///< Alpha-spin dens
       //*************************************************************************
 
       //*************************************************************************
-      World& world() {return _world;}
+      ElectronicStructureParams _params;
       //*************************************************************************
 
       //*************************************************************************
-      double thresh() {return _thresh;}
+      World& world() {return _world;}
       //*************************************************************************
 
   };

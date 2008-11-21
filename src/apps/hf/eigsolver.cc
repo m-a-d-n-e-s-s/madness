@@ -22,12 +22,10 @@ namespace madness
   template <typename T, int NDIM>
   EigSolver<T,NDIM>::EigSolver(World& world, funcT rhon, std::vector<funcT> phis,
       std::vector<double> eigs, std::vector< EigSolverOp<T,NDIM>* > ops,
-      std::vector<kvecT> kpoints, double ncharge)
+      std::vector<kvecT> kpoints, ElectronicStructureParams params)
   : _phis(phis), _eigs(eigs), _ops(ops), _kpoints(kpoints), _rhon(rhon),
-    _world(world)
+    _world(world), _params(params)
   {
-    _periodic = true;
-    _ncharge = ncharge;
     // fill the occupation numbers
     int size = eigs.size();
     for (int i = 0; i < size; i++) _occs.push_back(2.0);
@@ -39,37 +37,16 @@ namespace madness
   template <typename T, int NDIM>
   EigSolver<T,NDIM>::EigSolver(World& world, funcT rhon, std::vector<funcT> phis,
       std::vector<double> eigs, std::vector< EigSolverOp<T,NDIM>* > ops,
-      double ncharge, bool periodic)
-  : _phis(phis), _eigs(eigs), _ops(ops), _rhon(rhon), _world(world)
+      ElectronicStructureParams params)
+  : _phis(phis), _eigs(eigs), _ops(ops), _rhon(rhon), _world(world), _params(params)
   {
-    if (periodic)
+    if (params.periodic)
     {
-      //kvecT gammap(0.0, 0.0, 0.0, 1.0);
-      kvecT gammap(0.0);
-      _kpoints.push_back(gammap);
+      kvecT gammap(0.0); _kpoints.push_back(gammap);
     }
-    _periodic = periodic;
-    _ncharge = ncharge;
     // fill the occupation numbers
     int size = eigs.size();
     for (int i = 0; i < size; i++)  _occs.push_back(2.0);
-    _rho = EigSolver::compute_rho(phis, _occs, world);
-  }
-  //***************************************************************************
-
-  //***************************************************************************
-  template <typename T, int NDIM>
-  EigSolver<T,NDIM>::EigSolver(World& world, std::vector<funcT> phis,
-      std::vector<double> eigs, std::vector< EigSolverOp<T,NDIM>* > ops,
-      double ncharge)
-  : _phis(phis), _eigs(eigs), _ops(ops), _world(world)
-  {
-    _rhon = FunctionFactory<double,NDIM>(const_cast<World&>(world));
-    _periodic = false;
-    _ncharge = ncharge;
-    // fill the occupation numbers
-    int size = eigs.size();
-    for (int i = 0; i < size; i++) _occs.push_back(2.0);
     _rho = EigSolver::compute_rho(phis, _occs, world);
   }
   //***************************************************************************
@@ -158,45 +135,45 @@ namespace madness
   template <typename T, int NDIM>
   void EigSolver<T,NDIM>::update_occupation()
   {
-    // Find max/min eigenvalues
-    double emax = -1.0e12;
-    double emin = 1.0e12;
-    for (int i = 0; i < _eigs.size(); i++)
-    {
-      emax = (_eigs[i] > emax) ? _eigs[i] : emax;
-      emin = (_eigs[i] < emin) ? _eigs[i] : emin;
-    }
-
-    int maxits = 100;
-    // This is hardcoded to 2.0 (non-spinpolarized case) for now.
-    double occmax = 2.0;
-    // Fermi energy
-    double efermi = 0.0;
-    // Use bisection method to find the fermi energy and update occupation numbers
-    bool bstop = false;
-    for (int it = 0; (it < maxits)&&(!bstop); it++)
-    {
-      // Proposed fermi energy
-      double efermi = 0.5 * (emax + emin);
-      // Accumulated charge
-      double charge = 0.0;
-      // Some smoothing parameter
-      double t1 = 0.1;
-      // Loop over all orbitals and count the charge
-      for (int i = 0; i < _phis.size(); i++)
-      {
-        double x = (efermi-_eigs[i]) * t1;
-        // need to add some smearing function here
-        _occs[i] = occmax;
-        //charge += _kpoints[i].weight() * _occs[i];
-      }
-      if (fabs(emax-emin) < 1e-5)
-        bstop = true;
-      else if (charge < _ncharge)
-        emin = efermi;
-      else
-        emax = efermi;
-    }
+//    // Find max/min eigenvalues
+//    double emax = -1.0e12;
+//    double emin = 1.0e12;
+//    for (int i = 0; i < _eigs.size(); i++)
+//    {
+//      emax = (_eigs[i] > emax) ? _eigs[i] : emax;
+//      emin = (_eigs[i] < emin) ? _eigs[i] : emin;
+//    }
+//
+//    int maxits = 100;
+//    // This is hardcoded to 2.0 (non-spinpolarized case) for now.
+//    double occmax = 2.0;
+//    // Fermi energy
+//    double efermi = 0.0;
+//    // Use bisection method to find the fermi energy and update occupation numbers
+//    bool bstop = false;
+//    for (int it = 0; (it < maxits)&&(!bstop); it++)
+//    {
+//      // Proposed fermi energy
+//      double efermi = 0.5 * (emax + emin);
+//      // Accumulated charge
+//      double charge = 0.0;
+//      // Some smoothing parameter
+//      double t1 = 0.1;
+//      // Loop over all orbitals and count the charge
+//      for (int i = 0; i < _phis.size(); i++)
+//      {
+//        double x = (efermi-_eigs[i]) * t1;
+//        // need to add some smearing function here
+//        _occs[i] = occmax;
+//        //charge += _kpoints[i].weight() * _occs[i];
+//      }
+//      if (fabs(emax-emin) < 1e-5)
+//        bstop = true;
+//      else if (charge < _ncharge)
+//        emin = efermi;
+//      else
+//        emax = efermi;
+//    }
   }
   //***************************************************************************
 
@@ -299,7 +276,7 @@ namespace madness
         if (_world.rank() == 0) DEBUG_STREAM << "Creating BSH operator ..."
           << endl << endl;
         SeparatedConvolution<T,NDIM>* op = 0;
-        if (_periodic)
+        if (_params.periodic)
         {
           // Subtract the k dot nabla part
           kvecT k = _kpoints[pi];
@@ -394,7 +371,7 @@ namespace madness
       for (typename std::vector<IEigSolverObserver<T,NDIM>*>::iterator itr = _obs.begin(); itr
         != _obs.end(); ++itr)
       {
-        (*itr)->iterateOutput(_phis, _eigs, _rho, it, _periodic);
+        (*itr)->iterateOutput(_phis, _eigs, _rho, it, _params.periodic);
       }
     }
   }
@@ -511,7 +488,7 @@ namespace madness
       for (typename std::vector<IEigSolverObserver<T,NDIM>*>::iterator itr = _obs.begin(); itr
         != _obs.end(); ++itr)
       {
-        (*itr)->iterateOutput(_phis, _eigs, _rho, it, _periodic);
+        (*itr)->iterateOutput(_phis, _eigs, _rho, it, _params.periodic);
       }
     }
   }

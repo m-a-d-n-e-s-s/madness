@@ -5,8 +5,6 @@
 #include <constants.h>
 #include <tinyxml/tinyxml.h>
 #include <tensor/tensor.h>
-using namespace madness;
-
 #include <vector>
 #include <algorithm>
 #include <iostream>
@@ -15,6 +13,8 @@ using namespace madness;
 #include <cstdio>
 
 #include "mentity.h"
+
+using namespace madness;
 
 /// Represents a single shell of contracted, Cartesian, Gaussian primitives
 class ContractedGaussianShell {
@@ -163,7 +163,7 @@ public:
 };
 
 
-std::ostream& operator<<(std::ostream& s, const ContractedGaussianShell& c) {
+inline std::ostream& operator<<(std::ostream& s, const ContractedGaussianShell& c) {
     static const char* tag[] = {"s","p","d","f","g"};
     char buf[32768];
     char* p = buf;
@@ -287,7 +287,7 @@ public:
 
 };
 
-std::ostream& operator<<(std::ostream& s, const AtomicBasis& c) {
+inline std::ostream& operator<<(std::ostream& s, const AtomicBasis& c) {
     const std::vector<ContractedGaussianShell>& shells = c.get_shells();
     for (int i=0; i<c.nshell(); i++) {
         s << "     " << shells[i] << std::endl;
@@ -349,7 +349,7 @@ public:
     }
 };
 
-std::ostream& operator<<(std::ostream& s, const AtomicBasisFunction& a) {
+inline std::ostream& operator<<(std::ostream& s, const AtomicBasisFunction& a) {
     a.print_me(s);
     return s;
 };

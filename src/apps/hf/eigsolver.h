@@ -3,6 +3,7 @@
 #include <mra/mra.h>
 #include <world/world.h>
 #include <vector>
+#include "electronicstructureparams.h"
 
 namespace madness
 {
@@ -206,20 +207,13 @@ public:
   /// Constructor for periodic system
   EigSolver(World& world, funcT rhon, std::vector<funcT> phis, std::vector<double> eigs,
       std::vector<EigSolverOp<T,NDIM>*> ops, std::vector<kvecT> kpoints,
-      double ncharge);
+      ElectronicStructureParams params);
   //*************************************************************************
 
   //*************************************************************************
   /// Constructor for non-periodic system
   EigSolver(World& world, funcT rhon, std::vector<funcT> phis, std::vector<double> eigs,
-      std::vector<EigSolverOp<T,NDIM>*> ops, double ncharge,
-      bool periodic = false);
-  //*************************************************************************
-
-  //*************************************************************************
-  /// Constructor for non-periodic system
-  EigSolver(World& world, std::vector<funcT> phis, std::vector<double> eigs,
-      std::vector<EigSolverOp<T,NDIM>*> ops, double ncharge);
+      std::vector<EigSolverOp<T,NDIM>*> ops, ElectronicStructureParams params);
   //*************************************************************************
 
   //*************************************************************************
@@ -335,10 +329,6 @@ private:
   //*************************************************************************
 
   //*************************************************************************
-  double _thresh;
-  //*************************************************************************
-
-  //*************************************************************************
   // List of the obs
   std::vector<IEigSolverObserver<T,NDIM>*> _obs;
   //*************************************************************************
@@ -349,14 +339,6 @@ private:
   //*************************************************************************
 
   //*************************************************************************
-  bool _periodic;
-  //*************************************************************************
-
-  //*************************************************************************
-  double _ncharge;
-  //*************************************************************************
-
-  //*************************************************************************
   // List of the ops
   std::vector<poperatorT> _bops;
   //*************************************************************************
@@ -364,6 +346,10 @@ private:
   //*************************************************************************
   // List of the occupation numbers
   std::vector<double> _occs;
+  //*************************************************************************
+
+  //*************************************************************************
+  ElectronicStructureParams _params;
   //*************************************************************************
 
 };

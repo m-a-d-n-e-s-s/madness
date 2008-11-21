@@ -2,7 +2,6 @@
 #include <iostream>
 
 #include "dft.h"
-#include "hartreefock.h"
 #include "poperator.h"
 #include "util.h"
 
@@ -212,7 +211,9 @@ void test_hf_he(World& world)
 
   // Create DFT object
   if (world.rank() == 0) cout << "Creating DFT object ..." << endl;
-  DFT<double,3> dftcalc(world, rhon, phis, eigs, thresh, false);
+  ElectronicStructureParams params;
+  params.periodic = false;
+  DFT<double,3> dftcalc(world, rhon, phis, eigs, params);
   if (world.rank() == 0) cout << "Running DFT calculation ..." << endl;
 //  dftcalc.print_matrix_elements(psi, psi);
   dftcalc.solve(35);
@@ -320,7 +321,7 @@ void test_he_potential(World& world)
 //*****************************************************************************
 int main(int argc, char** argv)
 {
-  MPI::Init(argc, argv);
+  initialize(argc, argv);
   World world(MPI::COMM_WORLD);
   if (world.rank() == 0)
   {
@@ -408,8 +409,8 @@ int main(int argc, char** argv)
     print("done with final fence");
   if (world.rank() == 0)
     print("Final tensor instance count", BaseTensor::get_instance_count());
-  MPI::Finalize();
 
+  finalize();
   return 0;
 }
 //*****************************************************************************

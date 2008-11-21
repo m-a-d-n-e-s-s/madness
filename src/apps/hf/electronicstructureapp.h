@@ -11,8 +11,6 @@
 #include <mra/mra.h>
 #include <misc/ran.h>
 #include "electronicstructureparams.h"
-#include "molecularbasis.h"
-#include "mentity.h"
 #include "poperator.h"
 #include "lda.h"
 
@@ -235,14 +233,44 @@ public:
           : mentity(mentity), aobasis(aobasis) {}
   };
 
-  functionT make_lda_potential(const functionT& rho)
-  {
-    functionT V_rho = 0.5 * copy(rho);
-    V_rho.reconstruct();
-    V_rho.unaryop(&dft_xc_lda_V<3>);
-    return V_rho;
+  static double munge(double r) {
+      if (r < 1e-12) r = 1e-12;
+      return r;
   }
 
+  static void ldaop(const Key<3>& key, tensorT& t) {
+      UNARY_OPTIMIZED_ITERATOR(double, t, double r=munge(2.0* *_p0); double q; double dq1; double dq2;x_rks_s__(&r, &q, &dq1);c_rks_vwn5__(&r, &q, &dq2); *_p0 = dq1+dq2);
+  }
+
+  static void ldaeop(const Key<3>& key, tensorT& t) {
+      UNARY_OPTIMIZED_ITERATOR(double, t, double r=munge(2.0* *_p0); double q1; double q2; double dq;x_rks_s__(&r, &q1, &dq);c_rks_vwn5__(&r, &q2, &dq); *_p0 = q1+q2);
+  }
+
+
+  functionT
+  make_lda_potential(World& world,
+                     const functionT& arho,
+                     const functionT& brho,
+                     const functionT& adelrhosq,
+                     const functionT& bdelrhosq)
+  {
+      MADNESS_ASSERT(!_params.spinpol);
+      functionT vlda = copy(arho);
+      vlda.scale(0.5);
+      vlda.reconstruct();
+      vlda.unaryop(&ldaop);
+      return vlda;
+  }
+
+
+//  functionT make_lda_potential(const functionT& rho)
+//  {
+//    functionT V_rho = 0.5 * copy(rho);
+//    V_rho.reconstruct();
+//    V_rho.unaryop(&dft_xc_lda_V<3>);
+//    return V_rho;
+//  }
+//
   vecfuncT project_ao_basis(World& world) {
       vecfuncT ao(_aobasis.nbf(_mentity));
 
@@ -306,9 +334,23 @@ public:
     if (_world.rank() == 0) print("Guessing rho ...\n\n");
     functionT rho = factoryT(_world).functor(functorT(
         new GuessDensity(_mentity, _aobasis)));
+
+    {
+      rho.reconstruct();
+      if (_world.rank() == 0)  printf("\n");
+      double L = _params.L;
+      double bstep = L / 100.0;
+      for (int i = 0; i < 101; i++)
+      {
+        coordT p(-L / 2 + i * bstep);
+        if (_world.rank() == 0)
+          printf("%.2f\t\t%.8f\n", p[0], rho(p));
+      }
+    }
+
     double nel = rho.trace();
     functionT vlocal;
-    if (_params.ncharge > 1)
+    if (_params.nelec > 1)
     {
       if (_world.rank() == 0) print("Creating Coulomb op ...\n\n");
       SeparatedConvolution<double, 3>* op = 0;
@@ -325,13 +367,30 @@ public:
       }
       if (_world.rank() == 0) print("Building effective potential ...\n\n");
       vlocal = _vnuc + apply(*op, rho); //.scale(1.0-1.0/nel); // Reduce coulomb to increase binding
-      vlocal = vlocal + make_lda_potential(rho);
+//      vlocal = vlocal + make_lda_potential(_world, rho, rho, functionT(), functionT());
       delete op;
     }
     else
     {
       vlocal = _vnuc;
     }
+
+    {
+      functionT Vxc = make_lda_potential(_world, rho, rho, functionT(), functionT());
+      if (_world.rank() == 0)  printf("\n");
+      double L = _params.L;
+      double bstep = L / 100.0;
+      rho.reconstruct();
+      Vxc.reconstruct();
+      for (int i = 0; i < 101; i++)
+      {
+        coordT p(-L / 2 + i * bstep);
+        if (_world.rank() == 0)
+          printf("%.2f\t\t%.8f\t%.8f\n", p[0], rho(p), Vxc(p));
+      }
+      if (_world.rank() == 0) printf("\n");
+    }
+
     rho.clear();
     vlocal.reconstruct();
 
@@ -392,7 +451,7 @@ public:
     _eigs = e(Slice(0, _params.nbands - 1));
 
     _occs = tensorT(_params.nbands);
-    for (int i = 0; i < _params.ncharge; i++)
+    for (int i = 0; i < _params.nbands; i++)
       _occs[i] = _params.maxocc;
   }
 
@@ -414,6 +473,11 @@ public:
   MolecularEntity entity()
   {
     return _mentity;
+  }
+
+  functionT rhon()
+  {
+    return _rhon;
   }
 
 private:
