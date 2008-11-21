@@ -42,12 +42,14 @@
 // This is the only file the application need include for
 // all tensor functionality.
 
+#include <madness_config.h>
+#include <misc/ran.h>
+
 #include <complex>
 #include <vector>
 #include <cmath>
 #include <cstdlib>
 
-#include <madness_config.h>
 namespace madness {
     class World;
 }

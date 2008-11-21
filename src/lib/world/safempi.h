@@ -6,6 +6,7 @@
 
 #include <mpi.h>
 #include <world/typestuff.h>
+#include <world/worldmutex.h>
 #include <world/worldthread.h>
 
 namespace SafeMPI {

@@ -4,10 +4,15 @@
 /// \file worldthread.h
 /// \brief Implements Dqueue, Thread, ThreadBase and ThreadPool
 
+#include <world/safempi.h>
+#include <world/worldexc.h>
+#include <world/print.h>
 #include <world/worldmutex.h>
 #include <world/worldpapi.h>
 
 namespace madness {
+
+    void error(const char *msg);
     
     struct DQStats { // Dilly bar, blizzard, ...
         uint64_t nmax;          //< Lifetime max. entries in the queue
@@ -222,7 +227,29 @@ namespace madness {
             begin_papi_measurement();
 #endif
 
-            ((ThreadBase*)(self))->run(); 
+            try {
+                ((ThreadBase*)(self))->run(); 
+            } catch (const MPI::Exception& e) {
+                //        print(e);
+                error("caught an MPI exception");
+            } catch (const madness::MadnessException& e) {
+                print(e);
+                error("caught a MADNESS exception");
+            } catch (const char* s) {
+                print(s);
+                error("caught a string exception");
+            } catch (char* s) {
+                print(s);
+                error("caught a string exception");
+            } catch (const std::string& s) {
+                print(s);
+                error("caught a string (class) exception");
+            } catch (const std::exception& e) {
+                print(e.what());
+                error("caught an STL exception");
+            } catch (...) {
+                error("caught unhandled exception");
+            }
 
 #ifdef HAVE_PAPI
             end_papi_measurement();

@@ -50,6 +50,12 @@
 #  define STATIC
 #endif
 
+#include <madness_config.h>
+#include <misc/ran.h>
+#include <tensor/tensor.h>
+#include <tensor/mtxmq.h>
+#include <tensor/aligned.h>
+
 #include <stdlib.h>
 #include <algorithm>
 #include <complex>
@@ -57,11 +63,6 @@
 #include <cstring>
 #include <iostream>
 
-#include <madness_config.h>
-#include <tensor/tensor.h>
-#include <misc/ran.h>
-#include <tensor/mtxmq.h>
-#include <tensor/aligned.h>
 
 
 #if ON_A_MAC

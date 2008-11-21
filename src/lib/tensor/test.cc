@@ -33,6 +33,8 @@
 */
 
   
+#include <tensor/tensor.h>
+
 #include <iostream>
 #include <cstdio>
 #include <complex>
@@ -40,7 +42,6 @@
 #include <cstdlib>
 #include <ctime>
 
-#include <tensor/tensor.h>
 
 /// \file tensor/test.cc
 /// \brief Test code for Tensor, TensorIterator, SliceTensor, etc.

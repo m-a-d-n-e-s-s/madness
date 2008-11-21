@@ -161,10 +161,7 @@ namespace madness {
         virtual ~DeferredCleanupInterface(){};
     };
 
-    static void error(const char *msg) {
-        std::cerr << "MADNESS: fatal error: " << msg << std::endl;
-        MPI_Abort(MPI_COMM_WORLD,1);
-    }
+    void error(const char *msg);
     
     template <typename T>
     static void error(const char *msg, const T& data) {

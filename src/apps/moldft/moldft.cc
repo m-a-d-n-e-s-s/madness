@@ -440,8 +440,8 @@ struct Calculation {
         FunctionDefaults<3>::set_initial_level(2);
         FunctionDefaults<3>::set_truncate_mode(1);  
         FunctionDefaults<3>::set_autorefine(false);  
-        FunctionDefaults<3>::set_apply_randomize(k>=8);
-        FunctionDefaults<3>::set_project_randomize(k>=8);
+        FunctionDefaults<3>::set_apply_randomize(true); //k>=8);
+        FunctionDefaults<3>::set_project_randomize(true);
         //FunctionDefaults<3>::set_apply_randomize(false);
         //FunctionDefaults<3>::set_project_randomize(true);
 
@@ -828,8 +828,8 @@ struct Calculation {
 //             FunctionDefaults<3>::set_pmap(lb.load_balance());
 
             LoadBalanceDeux<3> lb(world);
-            lb.add_tree(vnuc, lbcost<double,3>(), true);
-            //lb.add_tree(rho,lbcost<double,3>(3.0,0.0),false);
+            lb.add_tree(vnuc, lbcost<double,3>(1.0,0.0), true);
+            lb.add_tree(rho,lbcost<double,3>(3.0,1.0),false);
             FunctionDefaults<3>::set_pmap(lb.load_balance(2.0));
             world.gop.fence();
             if (world.rank() == 0) print("starting loadbal copy");
@@ -968,7 +968,7 @@ struct Calculation {
 
     void initial_load_bal(World& world) {
         LoadBalanceDeux<3> lb(world);
-        lb.add_tree(vnuc, lbcost<double,3>());
+        lb.add_tree(vnuc, lbcost<double,3>(1.0,0.0));
         FunctionDefaults<3>::set_pmap(lb.load_balance(2.0));
         world.gop.fence();
 //         LoadBalImpl<3> lb(vnuc, lbcost<double,3>);
@@ -1078,8 +1078,6 @@ struct Calculation {
         functionT vlda = copy(arho);
         vlda.reconstruct();
         vlda.unaryop(&ldaop);
-        double nn = vlda.norm2();
-        if (world.rank() == 0) print("VLDA", nn);
         return vlda;
     }
 
@@ -1094,8 +1092,6 @@ struct Calculation {
         functionT vlda = copy(arho);
         vlda.reconstruct();
         vlda.unaryop(&ldaeop);
-        double nn = vlda.norm2();
-        if (world.rank() == 0) print("ELDA", nn);
         return vlda.trace();
     }
 
@@ -1238,9 +1234,13 @@ struct Calculation {
                           double& ekinetic)
     {
         // This is unsatisfactory for large molecules, but for now will have to suffice.
+        if (world.rank() == 0) printf("starting matrices at %.2fs\n", wall_time()); 
         tensorT overlap = matrix_inner(world, psi, psi, true);
-        tensorT ke = kinetic_energy_matrix(world, psi);
+        if (world.rank() == 0) printf("finished overlap at %.2fs\n", wall_time());
         tensorT pe = matrix_inner(world, Vpsi, psi, true);
+        if (world.rank() == 0) printf("finished pe at %.2fs\n", wall_time());
+        tensorT ke = kinetic_energy_matrix(world, psi);
+        if (world.rank() == 0) printf("finished ke at %.2fs\n", wall_time());
 
         int nocc = occ.size;
         ekinetic = 0.0;
@@ -1256,20 +1256,24 @@ struct Calculation {
         tensorT c;
         sygv(fock, overlap, 1, &c, &evals);
 
-        Vpsi = transform(world, Vpsi, c);
+        if (world.rank() == 0) printf("diagonalized at %.2fs\n", wall_time());
+        Vpsi = transform(world, Vpsi, c, false);
         psi = transform(world, psi, c);
+        if (world.rank() == 0) printf("transformed psi and Vpsi at %.2fs\n", wall_time());
 
         truncate(world, psi);
+        if (world.rank() == 0) printf("truncated psi at %.2fs\n", wall_time());
         normalize(world, psi);
+        if (world.rank() == 0) printf("normalized psi at %.2fs\n", wall_time());
     }
 
     void loadbal(World& world, functionT& arho, functionT& brho, functionT& arho_old, functionT& brho_old) {
         if (world.size() == 1) return;
         LoadBalanceDeux<3> lb(world);
         lb.add_tree(vnuc,lbcost<double,3>(1.0,0.0),false);        
-        lb.add_tree(arho,lbcost<double,3>(1.0,1.0),false);        
+        lb.add_tree(arho,lbcost<double,3>(3.0,1.0),false);        
         if (param.nbeta && !param.spin_restricted) {
-            lb.add_tree(brho,lbcost<double,3>(1.0,1.0),false);        
+            lb.add_tree(brho,lbcost<double,3>(3.0,1.0),false);        
         }
         FunctionDefaults<3>::set_pmap(lb.load_balance(2.0));
         vnuc = copy(vnuc, FunctionDefaults<3>::get_pmap(), false);

@@ -1,3 +1,4 @@
+#include <misc/ran.h>
 #include <iostream>
 #include <algorithm>
 #include <cstdio>
@@ -5,7 +6,6 @@
 using std::fopen;
 using std::fwrite;
 
-#include <misc/ran.h>
 
 namespace madness {   
     

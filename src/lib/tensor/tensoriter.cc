@@ -33,6 +33,8 @@
 */
 
   
+#include <tensor/tensor.h>
+
 #include <iostream>
 #include <algorithm>
 #include <complex>
@@ -47,7 +49,6 @@
 typedef std::complex<float> float_complex;
 typedef std::complex<double> double_complex;
 
-#include "tensor.h"
 
 namespace madness {
 

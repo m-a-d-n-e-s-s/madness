@@ -1,12 +1,13 @@
 #ifndef WORLD_RAN_H
 #define WORLD_RAN_H
 
+#include <madness_config.h>
+#include <world/worldthread.h>
+
 #include <complex>
 typedef std::complex<float> float_complex;
 typedef std::complex<double> double_complex;
 
-#include <madness_config.h>
-#include <world/worldthread.h>
 
 namespace madness {
     

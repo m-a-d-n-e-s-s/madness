@@ -1,9 +1,9 @@
+#include <world/worldthread.h>
 #include <iostream>
 #include <pthread.h>
 #include <unistd.h>
 #include <stdlib.h>
 
-#include <world/worldthread.h>
 
 using namespace std;
 using namespace madness;

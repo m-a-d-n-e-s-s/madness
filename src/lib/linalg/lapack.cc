@@ -33,6 +33,8 @@
 */
 
   
+#include <tensor/tensor.h>
+
 #include <iostream>
 using std::cout;
 using std::endl;
@@ -47,7 +49,6 @@ using std::max;
 // Leave the test routines in this file ... they will force instantiation
 // of the necessary templates.
 
-#include <tensor/tensor.h>
 using madness::Tensor;
 
 #include <linalg/tensor_lapack.h>

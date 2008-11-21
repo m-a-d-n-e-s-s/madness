@@ -46,6 +46,11 @@ namespace madness {
     static double start_cpu_time;
     static double start_wall_time;
 
+    void error(const char *msg) {
+        std::cerr << "MADNESS: fatal error: " << msg << std::endl;
+        MPI_Abort(MPI_COMM_WORLD,1);
+    }
+
     void initialize(int argc, char** argv) {
         start_cpu_time = cpu_time();
         start_wall_time = wall_time();
@@ -254,8 +259,8 @@ namespace madness {
             std::printf("\n    MADNESS global parallel profile\n");
             std::printf("    -------------------------------\n\n");
             std::printf("    o  estimated profiling overhead %.1e seconds per call\n", overhead);
-            std::printf("    o  total  cpu time on process zero %.1e seconds\n", madness::cpu_time()-WorldProfile::cpu_start);
-            std::printf("    o  total wall time on process zero %.1e seconds\n", madness::wall_time()-WorldProfile::wall_start);
+            std::printf("    o  total  cpu time on process zero %.1f seconds\n", madness::cpu_time()-WorldProfile::cpu_start);
+            std::printf("    o  total wall time on process zero %.1f seconds\n", madness::wall_time()-WorldProfile::wall_start);
             std::printf("    o  exclusive cpu time excludes called profiled routines\n");
             std::printf("    o  inclusive cpu time includes called profiled routines and\n");
             std::printf("       does not double count recursive calls\n");
@@ -424,8 +429,8 @@ namespace madness {
                    min_nmsg_recv, nmsg_recv/world.size(), max_nmsg_recv);
             printf("    #bytes recv per node    %.2e / %.2e / %.2e\n",
                    min_nbyte_recv, nbyte_recv/world.size(), max_nbyte_recv);
-            printf("       #bytes systemwide    %.2e\n", nbyte_sent);
             printf("        #msgs systemwide    %.2e\n", nmsg_sent);
+            printf("       #bytes systemwide    %.2e\n", nbyte_sent);
             printf("\n");
             printf("  Thread pool statistics (min / avg / max)\n");
             printf("  ----------------------\n");

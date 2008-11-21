@@ -12,11 +12,11 @@
 // This is a basic, functional-enough, fast-enough hash map with
 // vague compatibility with the TBB API.
 
-#include <new>
-#include <iostream>
 #include <world/worldthread.h>
 #include <world/madatomic.h>
 #include <world/worldhash.h>
+#include <new>
+#include <iostream>
 
 namespace madness {
 

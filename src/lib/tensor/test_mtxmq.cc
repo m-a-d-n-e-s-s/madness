@@ -1,9 +1,10 @@
+#include <tensor/tensor.h>
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
 #include <xmmintrin.h>
 
-#include <tensor/tensor.h>
 #include <tensor/mtxmq.h>
 
 using namespace madness;

@@ -1465,12 +1465,12 @@ namespace madness {
 
         Future<double> get_norm_tree_recursive(const keyT& key) const;
 
-        mutable long box_leaf[10000];
-        mutable long box_interior[10000];
+        mutable long box_leaf[1];
+        mutable long box_interior[1];
 
         // horrifically non-scalable
         Void put_in_box(ProcessID from, long nl, long ni) const {
-            throw "NO!";
+            throw "NO!"; // NOTE DIM OF BOX_LEAF ABOVE NEEDS FIXING TO USE THIS ROUTINE
             box_leaf[from] = nl;
             box_interior[from] = ni;
             return None;
@@ -2181,7 +2181,13 @@ namespace madness {
                 ar & id;
                 World* world = World::world_from_id(id.get_world_id());
                 MADNESS_ASSERT(world);
-                ptr = static_cast< const FunctionImpl<T,NDIM>* >(world->ptr_from_id< WorldObject< FunctionImpl<T,NDIM> > >(id));
+                // The object may not yet be made but probably will be soon ... try waiting for a short while
+                int nloop = 10;
+                while (nloop--) {
+                    ptr = static_cast< const FunctionImpl<T,NDIM>* >(world->ptr_from_id< WorldObject< FunctionImpl<T,NDIM> > >(id));
+                    if (ptr) break;
+                    usleep(100);
+                }
                 if (!ptr) MADNESS_EXCEPTION("FunctionImpl: remote operation attempting to use a locally uninitialized object",0);
             }
         };
@@ -2200,7 +2206,13 @@ namespace madness {
                 ar & id;
                 World* world = World::world_from_id(id.get_world_id());
                 MADNESS_ASSERT(world);
-                ptr = static_cast< FunctionImpl<T,NDIM>* >(world->ptr_from_id< WorldObject< FunctionImpl<T,NDIM> > >(id));
+                int nloop = 10;
+                // The object may not yet be made but probably will be soon ... try waiting for a short while
+                while (nloop--) {
+                    ptr = static_cast< FunctionImpl<T,NDIM>* >(world->ptr_from_id< WorldObject< FunctionImpl<T,NDIM> > >(id));
+                    if (ptr) break;
+                    usleep(100);
+                }
                 if (!ptr) MADNESS_EXCEPTION("FunctionImpl: remote operation attempting to use a locally uninitialized object",0);
             }
         };
