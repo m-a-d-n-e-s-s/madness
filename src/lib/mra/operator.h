@@ -15,6 +15,15 @@ namespace madness {
     void aligned_add(long n, double_complex* restrict a, const double_complex* restrict b);
     void aligned_sub(long n, double_complex* restrict a, const double_complex* restrict b);
 
+    template <typename T>
+    static void copy_2d_patch(T* restrict out, long ldout, const T* restrict in, long ldin, long n, long m) {
+        for (long i=0; i<n; i++, out+=ldout, in+=ldin) {
+            for (long j=0; j<m; j++) {
+                out[j] = in[j];
+            }
+        }
+    }
+
     /// a(n,m) --> b(m,n) ... optimized for smallish matrices
     template <typename T>
     static void fast_transpose(long n, long m, const T* restrict a, T* restrict b) {
@@ -256,6 +265,8 @@ namespace madness {
             const Tensor<Q>* p=rnlij_cache.getptr(n,lx);
             if (p) return *p;
 
+            PROFILE_MEMBER_FUNC(Convolution1D);
+
             long twok = 2*k;
             Tensor<Q>  R(2*twok);
             R(Slice(0,twok-1)) = get_rnlp(n,lx-1);
@@ -278,7 +289,7 @@ namespace madness {
             const ConvolutionData1D<Q>* p = ns_cache.getptr(n,lx);
             if (p) return p;
             
-            PROFILE_MEMBER_FUNC(ConvolutionData1D);
+            PROFILE_MEMBER_FUNC(Convolution1D);
 
             Tensor<Q> R(2*k,2*k), T;
             if (issmall(n, lx)) {
@@ -288,19 +299,39 @@ namespace madness {
                 Translation lx2 = lx*2;
                 Slice s0(0,k-1), s1(k,2*k-1);
 
-                R(s0,s0) = R(s1,s1) = rnlij(n+1,lx2);
-                R(s1,s0) = rnlij(n+1,lx2+1);
-                R(s0,s1) = rnlij(n+1,lx2-1);
+                const Tensor<Q> r0 = rnlij(n+1,lx2);
+                const Tensor<Q> rp = rnlij(n+1,lx2+1);
+                const Tensor<Q> rm = rnlij(n+1,lx2-1);
 
-                R = transform(R,hgT);
+//                 R(s0,s0) = r0;
+//                 R(s1,s1) = r0;
+//                 R(s1,s0) = rp;
+//                 R(s0,s1) = rm;
+                
+                copy_2d_patch(R.ptr(),           2*k, r0.ptr(), k, k, k);
+                copy_2d_patch(R.ptr()+2*k*k + k, 2*k, r0.ptr(), k, k, k);
+                copy_2d_patch(R.ptr()+2*k*k,     2*k, rp.ptr(), k, k, k);
+                copy_2d_patch(R.ptr()       + k, 2*k, rm.ptr(), k, k, k);
+
+                {
+                    PROFILE_BLOCK(Convolution1D_nstran);
+                    R = transform(R,hgT);
+                }
                 // Enforce symmetry because it seems important ... what about complex?????????
 //                 if (lx == 0)
 //                     for (int i=0; i<2*k; i++)
 //                         for (int j=0; j<i; j++)
 //                             R(i,j) = R(j,i) = ((i+j)&1) ? 0.0 : 0.5*(R(i,j)+R(j,i));
 
-                R = transpose(R);
-                T = copy(R(s0,s0));
+                //R = transpose(R);
+
+                Tensor<Q> RT(2*k,2*k);
+                fast_transpose(2*k, 2*k, R.ptr(), RT.ptr());
+                R = RT;
+
+                //T = copy(R(s0,s0));
+                T = Tensor<Q>(k,k);
+                copy_2d_patch(T.ptr(), k, R.ptr(), 2*k, k, k);
             }
 
             ns_cache.set(n,lx,ConvolutionData1D<Q>(R,T));
@@ -312,6 +343,8 @@ namespace madness {
         {
             const Tensor<Q>* p=rnlp_cache.getptr(n,lx);
             if (p) return *p;
+
+            PROFILE_MEMBER_FUNC(Convolution1D);
 
             long twok = 2*k;
             Tensor<Q> r;
@@ -328,6 +361,7 @@ namespace madness {
                 r = copy(R(Slice(0,twok-1)));
             }
             else {
+                PROFILE_BLOCK(Convolution1Drnlp);
                 r = rnlp(n, lx);
             }
 
