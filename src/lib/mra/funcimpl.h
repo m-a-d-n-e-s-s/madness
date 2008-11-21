@@ -1128,10 +1128,13 @@ namespace madness {
                 nodeT& node = it->second;
                 if (node.has_coeff()) {
                     tensorT& t= node.coeff();
+                    //double before = t.normf();
                     tensorT values = impl->fcube_for_mul(key, key, t);
                     op(key, values);
                     double scale = pow(0.5,0.5*NDIM*key.level())*sqrt(FunctionDefaults<NDIM>::get_cell_volume());
                     t = transform(values,impl->cdata.quad_phiw).scale(scale);
+                    //double after = t.normf();
+                    //madness::print("XOP:", key, before, after);
                 }
                 return true;
             }

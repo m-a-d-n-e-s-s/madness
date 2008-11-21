@@ -1078,6 +1078,8 @@ struct Calculation {
         functionT vlda = copy(arho);
         vlda.reconstruct();
         vlda.unaryop(&ldaop);
+        double nn = vlda.norm2();
+        if (world.rank() == 0) print("VLDA", nn);
         return vlda;
     }
 
@@ -1092,6 +1094,8 @@ struct Calculation {
         functionT vlda = copy(arho);
         vlda.reconstruct();
         vlda.unaryop(&ldaeop);
+        double nn = vlda.norm2();
+        if (world.rank() == 0) print("ELDA", nn);
         return vlda.trace();
     }
 
@@ -1107,7 +1111,7 @@ struct Calculation {
                     double& exc) 
     {
 
-        if (world.rank() == 0) print("starting make exc and vloc at", wall_time());
+        if (world.rank() == 0) printf("starting make exc and vloc at %.2fs\n", wall_time());
         functionT vloc = vlocal;
         if (param.lda) {
             exc = make_lda_energy(world, arho, brho, adelrhosq, bdelrhosq);
@@ -1115,12 +1119,12 @@ struct Calculation {
         }
 
         world.gop.fence();
-        if (world.rank() == 0) print("starting mulXX at", wall_time());
+        if (world.rank() == 0) printf("starting mulXX at %.2fs\n", wall_time());
         //vecfuncT Vpsi = mul_sparse(world, vloc, amo, vtol);
         vecfuncT Vpsi = mulXX(world, vloc, amo);
         //vecfuncT Vpsi = mul(world, vloc, amo);
         world.gop.fence();
-        if (world.rank() == 0) print("finished mulXX at", wall_time());
+        if (world.rank() == 0) printf("finished mulXX at %.2fs\n", wall_time());
 
         if (!param.lda) {
             vecfuncT Kamo = apply_hf_exchange(world, occ, amo, amo);
@@ -1134,7 +1138,7 @@ struct Calculation {
         }
 
         truncate(world,Vpsi);
-        if (world.rank() == 0) print("finished trunc at", wall_time());
+        if (world.rank() == 0) printf("finished trunc at %.2fs\n", wall_time());
 
         world.gop.fence(); // ensure memory is cleared
         return Vpsi;
@@ -1295,7 +1299,7 @@ struct Calculation {
         for (int iter=0; iter<param.maxiter; iter++) {
             streamsize oldprec = cout.precision();
             cout.precision(1);
-            if (world.rank()==0) print("\nIteration", iter,"at time",wall_time(),"\n");
+            if (world.rank()==0) printf("\nIteration %d at time %.1fs\n\n", iter, wall_time());
             cout.precision(oldprec);
 
             START_TIMER;

@@ -50,6 +50,7 @@
 #include <world/worlddep.h>
 #include <world/worldfut.h>
 #include <world/worldthread.h>
+#include <world/worldrange.h>
 
 namespace madness {
 
@@ -265,12 +266,12 @@ namespace madness {
         Future<bool> for_each(const rangeT& range, const opT& op) {
             rangeT left = range;
             rangeT right(left,Split());
+            //rangeT right(left.begin(), left.begin()); // Use this to disable concurrency
 
-            if (right.empty()) {
+            if (right.size() < range.get_chunksize()) {
                 bool status = true;
-                for (typename rangeT::iterator it=left.begin(); it != left.end(); ++it) {
-                    status &= op(it);
-                }
+                for (typename rangeT::iterator it=left.begin();  it != left.end();  ++it) status &= op(it);
+                for (typename rangeT::iterator it=right.begin(); it != right.end(); ++it) status &= op(it);
                 return Future<bool>(status);
             }
             else {

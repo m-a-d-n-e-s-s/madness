@@ -70,7 +70,7 @@ static double c_b14 = 1.333333333333333333333333333333;
 	double *dfdra, double *dfdrb)
 {
     /* Local variables */
-    static double ra13, rb13;
+    double ra13, rb13;
 
 
 /*     This subroutine evaluates the spin polarised exchange functional */
@@ -111,8 +111,8 @@ static double c_b14 = 1.333333333333333333333333333333;
 	dfdra)
 {
     /* Local variables */
-    static double a2, b2, c2, d2, i1, i2, i3, p1, p2, p3, p4, t4, t5, t6, 
-	    t7, iv, alpha_rho13__, iv2, pp1, pp2, inv, srho, srho13;
+    double a2, b2, c2, d2, i1, i2, i3, p1, p2, p3, p4, t4, t5, t6, 
+        t7, iv, alpha_rho13__, iv2, pp1, pp2, inv, srho, srho13;
 
 
 /*     This subroutine evaluates the Vosko, Wilk and Nusair correlation */
@@ -194,11 +194,11 @@ static double c_b14 = 1.333333333333333333333333333333;
     double d__1, d__2;
 
     /* Local variables */
-    static double v, beta_rho13__, a1, b1, c1, d1, a2, b2, c2, d2, a3, b3,
-	     c3, d3, f1, f2, f3, p1, p2, p3, s1, t1, t2, s2, t4, t5, t6, t7, 
-	    s3, s4, p4, f4, i1, i2, i3, iv, alpha_rho13__, ff1, ff2, iv2, pp1,
-	     pp2, ss1, ss2, tau, inv, vwn1, vwn2, dtau, zeta, srho, zeta3, 
-	    zeta4, srho13, inter1, inter2;
+    double v, beta_rho13__, a1, b1, c1, d1, a2, b2, c2, d2, a3, b3,
+        c3, d3, f1, f2, f3, p1, p2, p3, s1, t1, t2, s2, t4, t5, t6, t7, 
+        s3, s4, p4, f4, i1, i2, i3, iv, alpha_rho13__, ff1, ff2, iv2, pp1,
+        pp2, ss1, ss2, tau, inv, vwn1, vwn2, dtau, zeta, srho, zeta3, 
+        zeta4, srho13, inter1, inter2;
 
 
 /*     This subroutine evaluates the Vosko, Wilk and Nusair correlation */
