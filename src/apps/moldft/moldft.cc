@@ -1035,16 +1035,16 @@ struct Calculation {
         reconstruct(world,psi);
         for (int i=0; i<nocc; i++) {
             if (occ[i] > 0.0) {
-                //vecfuncT psif = mul(world, psi[i], f);
-                vecfuncT psif = mul_sparse(world, psi[i], f, vtol);
+                vecfuncT psif = mulXX(world, psi[i], f);
+                //vecfuncT psif = mul_sparse(world, psi[i], f, vtol);
                 set_thresh(world, psif, vtol);  //<<<<<<<<<<<<<<<<<<<<<<<<< since cannot yet put in apply
 
                 truncate(world,psif);
                 psif = apply(world, *coulop, psif);
                 truncate(world, psif);
 
-                //psif = mul(world, psi[i], psif);
-                psif = mul_sparse(world, psi[i], psif, vtol);
+                psif = mulXX(world, psi[i], psif);
+                //psif = mul_sparse(world, psi[i], psif, vtol);
 
                 gaxpy(world, 1.0, Kf, occ[i], psif);
             }

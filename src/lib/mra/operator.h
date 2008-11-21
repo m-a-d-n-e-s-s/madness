@@ -308,10 +308,13 @@ namespace madness {
 //                 R(s1,s0) = rp;
 //                 R(s0,s1) = rm;
                 
-                copy_2d_patch(R.ptr(),           2*k, r0.ptr(), k, k, k);
-                copy_2d_patch(R.ptr()+2*k*k + k, 2*k, r0.ptr(), k, k, k);
-                copy_2d_patch(R.ptr()+2*k*k,     2*k, rp.ptr(), k, k, k);
-                copy_2d_patch(R.ptr()       + k, 2*k, rm.ptr(), k, k, k);
+                {
+                    PROFILE_BLOCK(Convolution1D_nscopy);
+                    copy_2d_patch(R.ptr(),           2*k, r0.ptr(), k, k, k);
+                    copy_2d_patch(R.ptr()+2*k*k + k, 2*k, r0.ptr(), k, k, k);
+                    copy_2d_patch(R.ptr()+2*k*k,     2*k, rp.ptr(), k, k, k);
+                    copy_2d_patch(R.ptr()       + k, 2*k, rm.ptr(), k, k, k);
+                }
 
                 {
                     PROFILE_BLOCK(Convolution1D_nstran);
@@ -324,14 +327,17 @@ namespace madness {
 //                             R(i,j) = R(j,i) = ((i+j)&1) ? 0.0 : 0.5*(R(i,j)+R(j,i));
 
                 //R = transpose(R);
-
-                Tensor<Q> RT(2*k,2*k);
-                fast_transpose(2*k, 2*k, R.ptr(), RT.ptr());
-                R = RT;
-
-                //T = copy(R(s0,s0));
-                T = Tensor<Q>(k,k);
-                copy_2d_patch(T.ptr(), k, R.ptr(), 2*k, k, k);
+                {
+                    PROFILE_BLOCK(Convolution1D_trans);
+                    
+                    Tensor<Q> RT(2*k,2*k);
+                    fast_transpose(2*k, 2*k, R.ptr(), RT.ptr());
+                    R = RT;
+                    
+                    //T = copy(R(s0,s0));
+                    T = Tensor<Q>(k,k);
+                    copy_2d_patch(T.ptr(), k, R.ptr(), 2*k, k, k);
+                }
             }
 
             ns_cache.set(n,lx,ConvolutionData1D<Q>(R,T));
