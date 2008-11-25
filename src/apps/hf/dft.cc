@@ -165,12 +165,12 @@ namespace madness
   template <typename T, int NDIM>
   Function<T,NDIM> XCFunctionalLDA<T,NDIM>::op_r(const funcT& rho, const funcT& psi)
   {
-    funcT V_rho = 0.5 * copy(rho);
-    V_rho.reconstruct();
-    V_rho.unaryop(&::dft_xc_lda_V<NDIM>);
-//    funcT V_rho = copy(rho);
-//    V_rho.scale(0.5);
-//    V_rho.unaryop(&::ldaop);
+//    funcT V_rho = 0.5 * copy(rho);
+//    V_rho.reconstruct();
+//    V_rho.unaryop(&::xc_lda_V<NDIM>);
+    funcT V_rho = copy(rho);
+    V_rho.scale(0.5);
+    V_rho.unaryop(&::ldaop);
     funcT rfunc = V_rho * psi;
 
       if (this->_world.rank() == 0)  printf("\n");
@@ -359,10 +359,11 @@ namespace madness
   template <typename T, int NDIM>
   double DFT<T,NDIM>::calculate_tot_xc_energy(const Function<double, NDIM>& rho)
   {
-    funcT enefunc = 0.5 * copy(rho);
-    enefunc.reconstruct();
-    enefunc.unaryop(&dft_xc_lda_ene<NDIM>);
-    return enefunc.trace();
+//    funcT enefunc = 0.5 * copy(rho);
+//    enefunc.reconstruct();
+//    enefunc.unaryop(&xc_lda_ene<NDIM>);
+//    return enefunc.trace();
+    return -1.0;
   }
   //***************************************************************************
 

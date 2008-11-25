@@ -12,7 +12,7 @@
 #include <misc/ran.h>
 #include "electronicstructureparams.h"
 #include "poperator.h"
-#include "lda.h"
+#include "libxc.h"
 
 typedef SharedPtr< WorldDCPmapInterface< Key<3> > > pmapT;
 typedef Vector<double,3> coordT;
@@ -238,13 +238,13 @@ public:
       return r;
   }
 
-  static void ldaop(const Key<3>& key, tensorT& t) {
-      UNARY_OPTIMIZED_ITERATOR(double, t, double r=munge(2.0* *_p0); double q; double dq1; double dq2;x_rks_s__(&r, &q, &dq1);c_rks_vwn5__(&r, &q, &dq2); *_p0 = dq1+dq2);
-  }
-
-  static void ldaeop(const Key<3>& key, tensorT& t) {
-      UNARY_OPTIMIZED_ITERATOR(double, t, double r=munge(2.0* *_p0); double q1; double q2; double dq;x_rks_s__(&r, &q1, &dq);c_rks_vwn5__(&r, &q2, &dq); *_p0 = q1+q2);
-  }
+//  static void ldaop(const Key<3>& key, tensorT& t) {
+//      UNARY_OPTIMIZED_ITERATOR(double, t, double r=munge(2.0* *_p0); double q; double dq1; double dq2;x_rks_s__(&r, &q, &dq1);c_rks_vwn5__(&r, &q, &dq2); *_p0 = dq1+dq2);
+//  }
+//
+//  static void ldaeop(const Key<3>& key, tensorT& t) {
+//      UNARY_OPTIMIZED_ITERATOR(double, t, double r=munge(2.0* *_p0); double q1; double q2; double dq;x_rks_s__(&r, &q1, &dq);c_rks_vwn5__(&r, &q2, &dq); *_p0 = q1+q2);
+//  }
 
 
   functionT
@@ -256,9 +256,9 @@ public:
   {
       MADNESS_ASSERT(!_params.spinpol);
       functionT vlda = copy(arho);
-      vlda.scale(0.5);
       vlda.reconstruct();
-      vlda.unaryop(&ldaop);
+      //vlda.unaryop(&ldaop);
+      vlda.unaryop(&::xc_lda_V<3>);
       return vlda;
   }
 
@@ -367,7 +367,8 @@ public:
       }
       if (_world.rank() == 0) print("Building effective potential ...\n\n");
       vlocal = _vnuc + apply(*op, rho); //.scale(1.0-1.0/nel); // Reduce coulomb to increase binding
-//      vlocal = vlocal + make_lda_potential(_world, rho, rho, functionT(), functionT());
+      rho.scale(0.5);
+      vlocal = vlocal + make_lda_potential(_world, rho, rho, functionT(), functionT());
       delete op;
     }
     else

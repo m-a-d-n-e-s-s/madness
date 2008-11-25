@@ -13,11 +13,11 @@ class ElectronicStructureAppParams;
 namespace madness
 {
 
-//*****************************************************************************
-void xc_rks_generic_lda(Tensor<double> rho_alpha,           ///< Alpha-spin density at each grid point
-                        Tensor<double> f,                   ///< Value of functional at each grid point
-                        Tensor<double> df_drho);            ///< Derivative of functional w.r.t. rho_alpha
-//*****************************************************************************
+////*****************************************************************************
+//void xc_rks_generic_lda(Tensor<double> rho_alpha,           ///< Alpha-spin density at each grid point
+//                        Tensor<double> f,                   ///< Value of functional at each grid point
+//                        Tensor<double> df_drho);            ///< Derivative of functional w.r.t. rho_alpha
+////*****************************************************************************
 
   //***************************************************************************
   template <typename T, int NDIM>

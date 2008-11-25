@@ -5,6 +5,8 @@
 #include "poperator.h"
 #include "util.h"
 
+#include "libxc.h"
+
 using std::cout;
 using std::endl;
 
@@ -143,6 +145,23 @@ public:
         return 2.0 * ((-3.0/2.0+(1.0/3.0)*r*r)*exp(-r*r)+(-32.0+(256.0/3.0)*r*r)*exp(-4.0*r*r))*RPITO1P5/c/c/c;
     };
 };
+//*****************************************************************************
+
+//*****************************************************************************
+void test_xc(World& world)
+{
+  Tensor<double> rho(5);
+  Tensor<double> vxc(5);
+  Tensor<double> exc(5);
+  rho[0] = 3.4; rho[1] = 3.0; rho[2] = 1.76; rho[3] = 3600.0; rho[4] = 3200.0;
+  xc_generic_lda(rho, exc, vxc, false);
+
+  for (int i = 1; i < 5; i++)
+  {
+    //if (world.rank() == 0) printf("rho[%d] = %.4f  vxc[%d] = %.5f  exc[%d] = %.5f\n", i rho[i], i, vxc[i], i, exc[i]);
+    if (world.rank() == 0) printf("rho[%d] = %.4e  vxc[%d] = %.4e\n", i, rho[i], i, vxc[i]);
+  }
+}
 //*****************************************************************************
 
 //*****************************************************************************
@@ -365,6 +384,7 @@ int main(int argc, char** argv)
 
     startup(world,argc,argv);
     if (world.rank() == 0) print("Initial tensor instance count", BaseTensor::get_instance_count());
+    test_xc(world);
     test_hf_he(world);
   }
   catch (const MPI::Exception& e)
