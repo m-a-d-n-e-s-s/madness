@@ -429,8 +429,8 @@ namespace madness {
 
 
         /// Wait for MPI request to complete 
-        static void inline await(SafeMPI::Request& request) {
-            await(MpiRequestTester(request));
+        static void inline await(SafeMPI::Request& request, bool dowork = true) {
+            await(MpiRequestTester(request), dowork);
         };
 
 
@@ -438,11 +438,12 @@ namespace madness {
 
         /// Probe should be an object that when called returns the status.
         template <typename Probe>
-        static void inline await(const Probe& probe) {
+        static void inline await(const Probe& probe, bool dowork = true) {
             // NEED TO RESTORE THE WATCHDOG STUFF
             MutexWaiter waiter;
             while (!probe()) {
-                bool working = ThreadPool::run_task();
+                bool working = false;
+                if (dowork) working = ThreadPool::run_task();
                 if (working) waiter.reset();
                 else waiter.wait();
             }

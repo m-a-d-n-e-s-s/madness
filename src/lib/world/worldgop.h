@@ -138,6 +138,7 @@ namespace madness {
                 uint64_t sum0[2]={0,0}, sum1[2]={0,0}, sum[2];
                 if (child0 != -1) req0 = mpi.Irecv((void*) &sum0, sizeof(sum0), MPI::BYTE, child0, gfence_tag);
                 if (child1 != -1) req1 = mpi.Irecv((void*) &sum1, sizeof(sum1), MPI::BYTE, child1, gfence_tag);
+                world.taskq.fence();
                 if (child0 != -1) World::await(req0);
                 if (child1 != -1) World::await(req1);
                 
@@ -169,9 +170,10 @@ namespace madness {
                     World::await(req0);
                 }
                 
-                broadcast(sum);
-                
+                bool dowork = (npass==0) || (ThreadPool::size()==0);
+                broadcast(&sum, sizeof(sum), 0, dowork);
                 npass++;
+
                 //madness::print("GOPFENCE", npass, sum[0], nsent_prev, sum[1], nrecv_prev);
 
                 if (sum[0]==sum[1] && sum[0]==nsent_prev && sum[1]==nrecv_prev) break;
@@ -187,7 +189,7 @@ namespace madness {
         /// Broadcasts bytes from process root while still processing AM & tasks
         
         /// Optimizations can be added for long messages
-        void broadcast(void* buf, size_t nbyte, ProcessID root) {
+        void broadcast(void* buf, size_t nbyte, ProcessID root, bool dowork = true) {
             SafeMPI::Request req0, req1;
             ProcessID parent, child0, child1;
             mpi.binary_tree_info(root, parent, child0, child1);
@@ -197,14 +199,14 @@ namespace madness {
             
             if (parent != -1) {
                 req0 = mpi.Irecv(buf, nbyte, MPI::BYTE, parent, bcast_tag);
-                World::await(req0);
+                World::await(req0, dowork);
             }
             
             if (child0 != -1) req0 = mpi.Isend(buf, nbyte, MPI::BYTE, child0, bcast_tag);
             if (child1 != -1) req1 = mpi.Isend(buf, nbyte, MPI::BYTE, child1, bcast_tag);
             
-            if (child0 != -1) World::await(req0);
-            if (child1 != -1) World::await(req1);
+            if (child0 != -1) World::await(req0, dowork);
+            if (child1 != -1) World::await(req1, dowork);
         };
 
 

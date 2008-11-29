@@ -28,7 +28,7 @@ namespace madness {
     namespace Hash_private {
 
         // A hashtable is an array of nbin bins.  
-        // Each bin is a linked list of entries.
+        // Each bin is a linked list of entries protected by a spinlock.
         // Each entry holds a key+value pair, a read-write mutex, and a link to the next entry.
 
         template <typename keyT, typename valueT> 

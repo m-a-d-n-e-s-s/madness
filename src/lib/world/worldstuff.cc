@@ -59,7 +59,7 @@ namespace madness {
 #endif
 
         bool bind[3] = {true, true, true};
-        int cpulo[3] = {0, 1, 2};
+        int cpulo[3] = {1, 0, 2};
         ThreadBase::set_affinity_pattern(bind, cpulo); // Decide how to locate threads before doing anything
         ThreadBase::set_affinity(0);         // The main thread is logical thread 0
         
@@ -69,12 +69,15 @@ namespace madness {
         int required = MPI::THREAD_MULTIPLE;
 #endif
         int provided = MPI::Init_thread(argc, argv, required);
-        if (provided < required && MPI::COMM_WORLD.Get_rank() == 0) {
-            std::cout << "!! Warning: MPI::Init_thread did not provide requested functionality" << std::endl;
+        int me = MPI::COMM_WORLD.Get_rank();
+        if (provided < required && me == 0) {
+            std::cout << "!! Warning: MPI::Init_thread did not provide requested functionality " << required << " " << provided << std::endl;
         }
         
         ThreadPool::begin();        // Must have thread pool before any AM arrives
+        if (me == 0) std::cout << "THREAD POOL STARTED\n";
         RMI::begin();               // Must have RMI while still running single threaded
+        if (me == 0) std::cout << "RMI STARTED\n";
 
 #ifdef HAVE_PAPI
         begin_papi_measurement();

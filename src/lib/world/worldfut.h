@@ -106,7 +106,7 @@ namespace madness {
             arg & ref & t;
             FutureImpl<T>* f = ref.get();
             f->set(t);
-            ref.dec();                    // Releases reference
+            // ref.dec();                    // Releases reference ... already done in set method???
         };
         
 
@@ -211,18 +211,20 @@ namespace madness {
             if (world) { 
                 if (remote_ref.owner() == world->rank()) {
                     remote_ref.get()->set(value); 
+                    set_assigned();
                     remote_ref.dec(); // Releases reference
                 }
                 else {
                     world->am.send(remote_ref.owner(), 
                                    FutureImpl<T>::set_handler, 
                                    new_am_arg(remote_ref, value));
+                    set_assigned();
                 }
             }
             else {
                 const_cast<T&>(t) = value;
+                set_assigned();
             }
-            set_assigned();
         };
         
 

@@ -142,7 +142,7 @@ namespace madness {
         // The order here matters in a multi-threaded world
         volatile bool ready;                       ///< True if ready to rock 'n roll
         ProcessID me;                              ///< Rank of self
-        static Mutex pending_mutex;
+        static Spinlock pending_mutex;
         static volatile pendingT pending;          ///< Buffers pending messages
         uniqueidT objid;                           ///< Sense of self
     
@@ -936,7 +936,7 @@ namespace madness {
 template <typename Derived> 
 volatile std::list<madness::detail::PendingMsg> madness::WorldObject<Derived>::pending;
 
-template <typename Derived>  madness::Mutex madness::WorldObject<Derived>::pending_mutex;
+template <typename Derived>  madness::Spinlock madness::WorldObject<Derived>::pending_mutex;
 
 #endif
 
