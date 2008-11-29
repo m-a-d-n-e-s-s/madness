@@ -247,7 +247,7 @@ namespace madness {
           const std::vector< Function<R,NDIM> >& v,
           bool fence=true)
     {
-        a.reconstruct();
+        a.reconstruct(false);
         reconstruct(world, v, false);
         world.gop.fence();
         return vmulXX(a, v, true);

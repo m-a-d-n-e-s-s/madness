@@ -2207,13 +2207,7 @@ namespace madness {
                 ar & id;
                 World* world = World::world_from_id(id.get_world_id());
                 MADNESS_ASSERT(world);
-                // The object may not yet be made but probably will be soon ... try waiting for a short while
-                int nloop = 10;
-                while (nloop--) {
-                    ptr = static_cast< const FunctionImpl<T,NDIM>* >(world->ptr_from_id< WorldObject< FunctionImpl<T,NDIM> > >(id));
-                    if (ptr) break;
-                    usleep(100);
-                }
+                ptr = static_cast< const FunctionImpl<T,NDIM>* >(world->ptr_from_id< WorldObject< FunctionImpl<T,NDIM> > >(id));
                 if (!ptr) MADNESS_EXCEPTION("FunctionImpl: remote operation attempting to use a locally uninitialized object",0);
             }
         };
@@ -2232,13 +2226,7 @@ namespace madness {
                 ar & id;
                 World* world = World::world_from_id(id.get_world_id());
                 MADNESS_ASSERT(world);
-                int nloop = 10;
-                // The object may not yet be made but probably will be soon ... try waiting for a short while
-                while (nloop--) {
-                    ptr = static_cast< FunctionImpl<T,NDIM>* >(world->ptr_from_id< WorldObject< FunctionImpl<T,NDIM> > >(id));
-                    if (ptr) break;
-                    usleep(100);
-                }
+                ptr = static_cast< FunctionImpl<T,NDIM>* >(world->ptr_from_id< WorldObject< FunctionImpl<T,NDIM> > >(id));
                 if (!ptr) MADNESS_EXCEPTION("FunctionImpl: remote operation attempting to use a locally uninitialized object",0);
             }
         };

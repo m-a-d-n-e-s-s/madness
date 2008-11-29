@@ -157,6 +157,7 @@ namespace madness {
     };
 
 
+    /// !!! Note that if Rnormf is zero that ***ALL*** of the tensors are empty
     template <typename Q>
     struct ConvolutionData1D {
         Tensor<Q> R, T;  ///< R=ns, T=T part of ns
@@ -165,16 +166,23 @@ namespace madness {
         double Rnorm, Tnorm, Rnormf, Tnormf, NSnormf;
 
         ConvolutionData1D(const Tensor<Q>& R, const Tensor<Q>& T) : R(R), T(T) {
-            make_approx(R, RU, Rs, RVT, Rnorm);
-            make_approx(T, TU, Ts, TVT, Tnorm);
             Rnormf = R.normf();
-            Tnormf = T.normf();
-            int k = T.dim[0];
-            Tensor<Q> NS = copy(R);
-            for (int i=0; i<k; i++)
-                for (int j=0; j<k; j++)
-                    NS(i,j) = 0.0;
-            NSnormf = NS.normf();
+            // Making the approximations is expensive ... only do it for
+            // significant components
+            if (Rnormf > 1e-20) {
+                Tnormf = T.normf();
+                make_approx(T, TU, Ts, TVT, Tnorm);
+                make_approx(R, RU, Rs, RVT, Rnorm);
+                int k = T.dim[0];
+                Tensor<Q> NS = copy(R);
+                for (int i=0; i<k; i++)
+                    for (int j=0; j<k; j++)
+                        NS(i,j) = 0.0;
+                NSnormf = NS.normf();
+            }
+            else {
+                Rnorm = Tnorm = Rnormf = Tnormf = NSnormf = 0.0;
+            }
         }
 
         void make_approx(const Tensor<Q>& R,
@@ -291,17 +299,16 @@ namespace madness {
             
             PROFILE_MEMBER_FUNC(Convolution1D);
 
-            Tensor<Q> R(2*k,2*k), T;
-            if (issmall(n, lx)) {
-                T = Tensor<Q>(k,k);
-            }
-            else {
+            Tensor<Q> R, T;
+            if (!issmall(n, lx)) {
                 Translation lx2 = lx*2;
                 Slice s0(0,k-1), s1(k,2*k-1);
 
                 const Tensor<Q> r0 = rnlij(n+1,lx2);
                 const Tensor<Q> rp = rnlij(n+1,lx2+1);
                 const Tensor<Q> rm = rnlij(n+1,lx2-1);
+
+                R = Tensor<Q>(2*k,2*k);
 
 //                 R(s0,s0) = r0;
 //                 R(s1,s1) = r0;
@@ -375,7 +382,6 @@ namespace madness {
             return *rnlp_cache.getptr(n,lx);
         }
     };
-
 
     // To test generic convolution by comparing with GaussianConvolution1D
     template <typename Q>
@@ -932,14 +938,14 @@ namespace madness {
             PROFILE_MEMBER_FUNC(SeparatedConvolution);
             Transformation trans[NDIM];
 
-            const long twok = 2*k;
-
             double Rnorm = 1.0;
             for (int d=0; d<NDIM; d++) Rnorm *= ops[d]->Rnorm;
+            if (Rnorm == 0.0) return;
 
             tol = tol/(Rnorm*NDIM);  // Errors are relative within here
 
             // Determine rank of SVD to use or if to use the full matrix
+            const long twok = 2*k;
             long break_even;
             if (NDIM==1) break_even = long(0.5*twok);
             else if (NDIM==2) break_even = long(0.6*twok);
@@ -1002,6 +1008,11 @@ namespace madness {
                     const double tol,
                     const double musign) const {
             PROFILE_MEMBER_FUNC(SeparatedConvolution);
+
+            double Rnorm = 1.0;
+            for (int d=0; d<NDIM; d++) Rnorm *= ops[d]->Rnorm;
+            if (Rnorm == 0.0) return;
+
             // Temporaries can be optimized away
             Tensor<TENSOR_RESULT_TYPE(T,Q)> tmp = inner(f,ops[0]->R,0,0);
             for (int d=1; d<NDIM; d++) {
@@ -1031,6 +1042,11 @@ namespace madness {
                      const double tol,
                      const double musign) const {
             PROFILE_MEMBER_FUNC(SeparatedConvolution);
+
+            double Rnorm = 1.0;
+            for (int d=0; d<NDIM; d++) Rnorm *= ops[d]->Rnorm;
+            if (Rnorm == 0.0) return;
+
             // Temporaries can be optimized away
             Tensor<TENSOR_RESULT_TYPE(T,Q)> tmp = inner(f,ops[0]->R,0,1);
             for (int d=1; d<NDIM; d++) {

@@ -1009,7 +1009,7 @@ namespace madness {
 //                           const std::vector<FunctionImpl<T,NDIM>*>& vresult,
 //                           bool fence) {
 
-
+           left.world().gop.fence();
             vresult[0]->mulXXvec(left.impl.get(), vright, vresult, fence);
         }
 
