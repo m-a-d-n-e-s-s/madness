@@ -102,12 +102,12 @@ namespace madness {
             try {
 
 #define TENSOR_ALIGNMENT 16
-#ifdef HAVE_POSIX_MEMALIGN
+#ifdef WORLD_GATHER_MEM_STATS
+                p = SharedPtr<T>(new T[size]);
+#elif defined(HAVE_POSIX_MEMALIGN)
                 T* q;
                 if (posix_memalign((void **) &q, TENSOR_ALIGNMENT, sizeof(T)*size)) throw 1;
                 p = SharedPtr<T>(q, ::madness::detail::del_free);
-#elif defined(WORLD_GATHER_MEM_STATS)
-                p = SharedPtr<T>(new T[size]);
 #else
 #  error Need a mechanism to allocated aligned memory
 #endif
