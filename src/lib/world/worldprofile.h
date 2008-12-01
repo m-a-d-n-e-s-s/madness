@@ -134,6 +134,9 @@ namespace madness {
         static int find(const std::string& name) {
             // ASSUME WE HAVE THE MUTEX ALREADY
             std::vector<WorldProfileEntry>& nv = nvitems();            
+            size_t sz = nv.size();
+            if (sz == 0) nv.reserve(1000); // Avoid resizing during execution ... stupid code somewhere below not thread safe?
+            if (sz >=1000) throw "WorldProfile: did not reserve enough space!";
             for (unsigned int i=0; i<nv.size(); i++) {
                 if (name == nv[i].name) return i;
             }
@@ -237,6 +240,9 @@ namespace madness {
     };
 }
 
+// #ifdef WORLD_PROFILE_ENABLE
+// #undef WORLD_PROFILE_ENABLE
+// #endif
 #define WORLD_PROFILE_ENABLE
 
 #ifdef WORLD_PROFILE_ENABLE

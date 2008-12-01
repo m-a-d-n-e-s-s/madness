@@ -99,16 +99,17 @@ namespace madness {
 
     private:
 #ifdef HAVE_CRAYXT
-        static const int NRECV=1024;
+        static const int NRECV=256;
         static const int MAXQ=4*NRECV;
 #else
         static const int NRECV=32;
         static const int MAXQ=4*NRECV;
 #endif        
 
+        std::list< std::pair<int,size_t> > hugeq; // q for incoming huge messages
+
         RMIStats stats;
         SafeMPI::Intracomm comm;
-        const Tag tag;              // The MPI message type 
         const int nproc;            // No. of processes in comm world
         const ProcessID rank;       // Rank of this process
         volatile bool debugging;    // True if debugging
@@ -116,8 +117,8 @@ namespace madness {
 
         volatile unsigned char* send_counters;
         unsigned char* recv_counters;
-        unsigned char* recv_buf[NRECV]; // Will be at least ALIGNMENT aligned
-        SafeMPI::Request recv_req[NRECV];
+        unsigned char* recv_buf[NRECV+1]; // Will be at least ALIGNMENT aligned ... +1 for huge messages
+        SafeMPI::Request recv_req[NRECV+1];
     
         static RMI* instance_ptr;    // Pointer to the singleton instance
 
@@ -135,8 +136,8 @@ namespace madness {
             if (debugging)
                 std::cerr << rank << ":RMI: server thread is running" << std::endl;
             // The RMI server thread spends its life in here
-            MPI::Status status[NRECV];
-            int ind[NRECV];
+            MPI::Status status[NRECV+1];
+            int ind[NRECV+1];
             struct qmsg {
                 size_t len;
                 rmi_handlerT func;
@@ -163,7 +164,7 @@ namespace madness {
                 // cannot call Waitsome ... have to poll via Testsome
                 int narrived;
                 MutexWaiter waiter;
-                while (!(narrived = SafeMPI::Request::Testsome(NRECV, recv_req, ind, status))) {
+                while (!(narrived = SafeMPI::Request::Testsome(NRECV+1, recv_req, ind, status))) {
                     if (finished) return;
                     waiter.wait();
                 }
@@ -251,11 +252,37 @@ namespace madness {
                         }
                     }
                 } while (ndone);
+
+                post_pending_huge_msg();
+            }
+        }
+
+        void post_pending_huge_msg() {
+            if (recv_buf[NRECV]) return;      // Message already pending
+            if (!hugeq.empty()) {
+                int src = hugeq.front().first;
+                size_t nbyte = hugeq.front().second;
+                hugeq.pop_front();
+                if (posix_memalign((void **)(recv_buf+NRECV), ALIGNMENT, nbyte)) 
+                    throw "RMI: failed allocating huge message";
+                recv_req[NRECV] = comm.Irecv(recv_buf[NRECV], nbyte, MPI::BYTE, src, SafeMPI::RMI_HUGE_DAT_TAG);
+                int nada;
+                comm.Send(&nada, sizeof(nada), MPI::BYTE, src, SafeMPI::RMI_HUGE_ACK_TAG);
             }
         }
 
         void post_recv_buf(int i) {
-            recv_req[i] = comm.Irecv(recv_buf[i], MAX_MSG_LEN, MPI::BYTE, MPI::ANY_SOURCE, tag);
+            if (i < NRECV) {
+                recv_req[i] = comm.Irecv(recv_buf[i], MAX_MSG_LEN, MPI::BYTE, MPI::ANY_SOURCE, SafeMPI::RMI_TAG);
+            }
+            else if (i == NRECV) {
+                free(recv_buf[i]);
+                recv_buf[i] = 0;
+                post_pending_huge_msg();
+            }
+            else {
+                throw "RMI::post_recv_buf: confusion";
+            }
         }
 
         ~RMI() {
@@ -272,7 +299,6 @@ namespace madness {
 
         RMI() 
             : comm(MPI::COMM_WORLD)
-            , tag(SafeMPI::RMI_TAG)
             , nproc(comm.Get_size())
             , rank(comm.Get_rank())
             , debugging(false)
@@ -287,6 +313,7 @@ namespace madness {
                     throw "RMI:initialize:failed allocating aligned recv buffer";
                 post_recv_buf(i);
             }
+            recv_buf[NRECV] = 0;
             start();
         }
 
@@ -296,8 +323,43 @@ namespace madness {
             }
             return instance_ptr;
         }
-    
+
+        static void huge_msg_handler(void *buf, size_t nbytein) {
+            const size_t* info = (size_t *)(buf);
+            int nword = HEADER_LEN/sizeof(size_t);
+            int src = info[nword];
+            size_t nbyte = info[nword+1];
+            
+            instance()->hugeq.push_back(std::make_pair(src,nbyte));
+            instance()->post_pending_huge_msg();
+        }
+
         Request private_isend(const void* buf, size_t nbyte, ProcessID dest, rmi_handlerT func, unsigned int attr) {
+            int tag = SafeMPI::RMI_TAG;
+
+            if (nbyte > MAX_MSG_LEN) {
+                // Huge message protocol ... send message to dest indicating size and origin of huge message.  
+                // Remote end posts a buffer then acks the request.  This end can then send.
+                int nword = HEADER_LEN/sizeof(size_t);
+                size_t info[nword+2];
+                info[nword  ] = rank;
+                info[nword+1] = nbyte;
+
+                int ack;
+                Request req_ack = comm.Irecv(&ack, sizeof(ack), MPI::BYTE, dest, SafeMPI::RMI_HUGE_ACK_TAG);
+                Request req_send = private_isend(info, sizeof(info), dest, RMI::huge_msg_handler, ATTR_UNORDERED);
+
+                MutexWaiter waiter;
+                while (!req_send.Test()) waiter.wait();
+                waiter.reset();
+                while (!req_ack.Test()) waiter.wait();
+
+                tag = SafeMPI::RMI_HUGE_DAT_TAG;
+            }
+            else if (nbyte < HEADER_LEN) {
+                throw "RMI::isend --- your buffer is too small to hold the header";
+            }
+
             if (debugging) 
                 std::cerr << instance_ptr->rank 
                           << ":RMI: sending buf=" << buf 
@@ -307,9 +369,6 @@ namespace madness {
                           << " ordered=" << is_ordered(attr)
                           << " count=" << int(send_counters[dest])
                           << std::endl;
-
-            if (nbyte < HEADER_LEN) 
-                throw "RMI::isend --- your buffer is too small to hold the header";
 
             // Since most uses are ordered and we need the mutex to accumulate stats
             // we presently always get the lock

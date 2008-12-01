@@ -34,6 +34,7 @@
 
   
 #include <world/world.h>
+#include <world/worldmem.h>
 
 /// \file worldstuff.cc
 /// \brief Static variables/functions that must be linked in
@@ -460,6 +461,9 @@ namespace madness {
                 }
             }
             printf("\n");
+#endif
+#ifdef WORLD_GATHER_MEM_STATS
+            world_mem_info()->print();
 #endif
 
             printf("         Total wall time    %.1fs\n", total_wall_time);
