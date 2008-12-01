@@ -440,7 +440,7 @@ struct Calculation {
         FunctionDefaults<3>::set_initial_level(2);
         FunctionDefaults<3>::set_truncate_mode(1);  
         FunctionDefaults<3>::set_autorefine(false);  
-        FunctionDefaults<3>::set_apply_randomize(true); //k>=8);
+        FunctionDefaults<3>::set_apply_randomize(false);// //k>=8);
         FunctionDefaults<3>::set_project_randomize(true);
         //FunctionDefaults<3>::set_apply_randomize(false);
         //FunctionDefaults<3>::set_project_randomize(true);
@@ -1470,10 +1470,6 @@ int main(int argc, char** argv) {
         calc.project(world);
         calc.solve(world);
 
-        world.gop.fence();
-        ThreadPool::end();
-        print_stats(world);
-
     } catch (const MPI::Exception& e) {
         //        print(e);
         error("caught an MPI exception");
@@ -1498,6 +1494,12 @@ int main(int argc, char** argv) {
     } catch (...) {
         error("caught unhandled exception");
     }
+
+    // Nearly all memory will be freed at this point
+    world.gop.fence();
+    world.gop.fence();
+    ThreadPool::end();
+    print_stats(world);
 
     finalize();
     
