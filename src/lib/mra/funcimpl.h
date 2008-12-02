@@ -470,7 +470,7 @@ namespace madness {
             if (has_coeff()) {
                 coeff() += t;
             }
-            else {  
+            else {
                 // No coeff and no children means the node is newly
                 // created for this operation and therefore we must
                 // tell its parent that it exists.
@@ -669,7 +669,7 @@ namespace madness {
             else if (functor) { // Project function and optionally refine
                 insert_zero_down_to_initial_level(cdata.key0);
                 for (typename dcT::iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
-                    if (it->second.is_leaf()) 
+                    if (it->second.is_leaf())
                         task(coeffs.owner(it->first), &implT::project_refine_op, it->first, do_refine);
                 }
             }
@@ -752,7 +752,7 @@ namespace madness {
             template <typename Archive>
             void serialize(Archive& ar) {};
         };
-                
+
 
         /// Inplace general bilinear operation
         template <typename Q, typename R>
@@ -1097,16 +1097,16 @@ namespace madness {
 	    }
             if (fence) world.gop.fence();
         }
-        
-        
+
+
         template <typename opT>
         void unary_op_coeff_inplace(bool (implT::*refineop)(const keyT&, const tensorT&) const,
                                     const opT& op,
                                     bool fence) {
             throw "not working now";
         }
-        
-        
+
+
         /// Unary operation applied inplace to the coefficients WITHOUT refinement, optional fence
         template <typename opT>
         void unary_op_coeff_inplace(const opT& op, bool fence)
@@ -1120,8 +1120,8 @@ namespace madness {
             }
             if (fence) world.gop.fence();
         }
-        
-        
+
+
         /// Unary operation applied inplace to the coefficients WITHOUT refinement, optional fence
         template <typename opT>
         void unary_op_node_inplace(const opT& op, bool fence)
@@ -1133,13 +1133,13 @@ namespace madness {
             }
             if (fence) world.gop.fence();
         }
-        
-        
+
+
         template <typename opT>
         void unary_op_value_inplace(bool (implT::*refineop)(const keyT&, const tensorT&) const,
                                     const opT& op,
                                     bool fence) {
-            
+
             throw "not working now";
         }
 
@@ -1165,9 +1165,9 @@ namespace madness {
                 return true;
             }
             template <typename Archive> void serialize(const Archive& ar) {};
-        };            
-            
-        
+        };
+
+
         /// Unary operation applied inplace to the values with optional refinement and fence
         template <typename opT>
         void unary_op_value_inplace(const opT& op, bool fence)
@@ -1177,10 +1177,10 @@ namespace madness {
             world.taskq.for_each<rangeT,xopT>(rangeT(coeffs.begin(), coeffs.end()), xopT(this,op));
             if (fence) world.gop.fence();
         }
-        
-        
+
+
         /// Invoked by result to compute the pointwise product result=left*right
-        
+
         /// This version requires all three functions have the same distribution.
         /// Should be straightforward to do an efficient version that does not
         /// require this but I have not thought about that yet.
@@ -1330,22 +1330,22 @@ namespace madness {
 
         // Multiplication assuming same distribution and recursive descent
         template <typename L, typename R>
-        Void mulXXveca(const keyT& key, 
-                       const FunctionImpl<L,NDIM>* left, const Tensor<L>& lcin, 
+        Void mulXXveca(const keyT& key,
+                       const FunctionImpl<L,NDIM>* left, const Tensor<L>& lcin,
                        const std::vector<const FunctionImpl<R,NDIM>*> vrightin,
                        const std::vector< Tensor<R> >& vrcin,
-                       const std::vector<FunctionImpl<T,NDIM>*> vresultin) 
+                       const std::vector<FunctionImpl<T,NDIM>*> vresultin)
         {
             typedef typename FunctionImpl<L,NDIM>::dcT::const_iterator literT;
             typedef typename FunctionImpl<R,NDIM>::dcT::const_iterator riterT;
-            
+
             Tensor<L> lc = lcin;
             if (lc.size == 0) {
                 literT it = left->coeffs.find(key).get();
                 MADNESS_ASSERT(it != left->coeffs.end());
                 if (it->second.has_coeff()) lc = it->second.coeff();
             }
-            
+
             // Loop thru RHS functions seeing if anything can be multiplied
             std::vector<FunctionImpl<T,NDIM>*> vresult;
             std::vector<const FunctionImpl<R,NDIM>*> vright;
@@ -1353,7 +1353,7 @@ namespace madness {
             vresult.reserve(vrightin.size());
             vright.reserve(vrightin.size());
             vrc.reserve(vrightin.size());
-            
+
             for (unsigned int i=0; i<vrightin.size(); i++) {
                 FunctionImpl<T,NDIM>* result = vresultin[i];
                 const FunctionImpl<R,NDIM>* right = vrightin[i];
@@ -1363,7 +1363,7 @@ namespace madness {
                     MADNESS_ASSERT(it != right->coeffs.end());
                     if (it->second.has_coeff()) rc = it->second.coeff();
                 }
-                
+
                 if (rc.size && lc.size) { // Yipee!
                     result->task(world.rank(), &implT:: template do_mul<L,R>, key, lc, std::make_pair(key,rc));
                 }
@@ -1374,7 +1374,7 @@ namespace madness {
                     vrc.push_back(rc);
                 }
             }
-                    
+
             if (vresult.size()) {
                 Tensor<L> lss;
                 if (lc.size) {
@@ -1397,14 +1397,14 @@ namespace madness {
                     Tensor<L> ll;
 
                     std::vector<Slice> cp = child_patch(child);
-                    
+
                     if (lc.size) ll = copy(lss(cp));
 
                     std::vector< Tensor<R> > vv(vresult.size());
                     for (unsigned int i=0; i<vresult.size(); i++) {
                         if (vrc[i].size) vv[i] = copy(vrss[i](cp));
                     }
-                    
+
                     task(coeffs.owner(child), &implT:: template mulXXveca<L,R>, child, left, ll, vright, vv, vresult);
                 }
             }
@@ -1414,10 +1414,10 @@ namespace madness {
 
 
 
-        // Multiplication using recursive descent and assuming same distribution 
+        // Multiplication using recursive descent and assuming same distribution
         template <typename L, typename R>
-        Void mulXXa(const keyT& key, 
-                    const FunctionImpl<L,NDIM>* left, const Tensor<L>& lcin, 
+        Void mulXXa(const keyT& key,
+                    const FunctionImpl<L,NDIM>* left, const Tensor<L>& lcin,
                     const FunctionImpl<R,NDIM>* right,const Tensor<R>& rcin) {
             typedef typename FunctionImpl<L,NDIM>::dcT::const_iterator literT;
             typedef typename FunctionImpl<R,NDIM>::dcT::const_iterator riterT;
@@ -1428,14 +1428,14 @@ namespace madness {
                 MADNESS_ASSERT(it != left->coeffs.end());
                 if (it->second.has_coeff()) lc = it->second.coeff();
             }
-                    
+
             Tensor<R> rc = rcin;
             if (rc.size == 0) {
                 riterT it = right->coeffs.find(key).get();
                 MADNESS_ASSERT(it != right->coeffs.end());
                 if (it->second.has_coeff()) rc = it->second.coeff();
             }
-                
+
             if (rc.size && lc.size) { // Yipee!
                 do_mul<L,R>(key, lc, std::make_pair(key,rc));
             }
@@ -1471,7 +1471,7 @@ namespace madness {
 
         template <typename L, typename R>
         void mulXX(const FunctionImpl<L,NDIM>* left, const FunctionImpl<R,NDIM>* right, bool fence) {
-            if (world.rank() == coeffs.owner(cdata.key0)) 
+            if (world.rank() == coeffs.owner(cdata.key0))
                 mulXXa(cdata.key0, left, Tensor<L>(), right, Tensor<R>());
             if (fence) world.gop.fence();
 
@@ -1479,12 +1479,12 @@ namespace madness {
         }
 
         template <typename L, typename R>
-        void mulXXvec(const FunctionImpl<L,NDIM>* left, 
-                      const std::vector<const FunctionImpl<R,NDIM>*>& vright, 
+        void mulXXvec(const FunctionImpl<L,NDIM>* left,
+                      const std::vector<const FunctionImpl<R,NDIM>*>& vright,
                       const std::vector<FunctionImpl<T,NDIM>*>& vresult,
                       bool fence) {
             std::vector< Tensor<R> > vr(vright.size());
-            if (world.rank() == coeffs.owner(cdata.key0)) 
+            if (world.rank() == coeffs.owner(cdata.key0))
                 mulXXveca(cdata.key0, left, Tensor<L>(), vright, vr, vresult);
             if (fence) world.gop.fence();
         }
@@ -1771,7 +1771,7 @@ namespace madness {
 
         // This needed extending to accomodate a user-defined criterion
         void refine(bool fence) {
-            if (world.rank() == coeffs.owner(cdata.key0)) 
+            if (world.rank() == coeffs.owner(cdata.key0))
                 task(coeffs.owner(cdata.key0), &implT::refine_spawn, cdata.key0, TaskAttributes::hipri());
             if (fence) world.gop.fence();
         }
@@ -1780,7 +1780,7 @@ namespace madness {
         void reconstruct(bool fence) {
             // Must set true here so that successive calls without fence do the right thing
             nonstandard = compressed = false;
-            if (world.rank() == coeffs.owner(cdata.key0)) 
+            if (world.rank() == coeffs.owner(cdata.key0))
                 task(world.rank(), &implT::reconstruct_op, cdata.key0,tensorT());
             if (fence) world.gop.fence();
         }
@@ -1856,9 +1856,11 @@ namespace madness {
                 nodeT& node = it->second;
                 if (key.level() > 0 && node.has_coeff()) {
                     if (node.has_children()) {
+                        // Zero out scaling coeffs
                         node.coeff()(cdata.s0) = 0.0;
                     }
                     else {
+                        // Deleting both scaling and wavelet coeffs
                         node.clear_coeff();
                     }
                 }
@@ -1879,7 +1881,7 @@ namespace madness {
         template <typename opT, typename R>
         Void do_apply_kernel(const opT* op, const Tensor<R>& c, const do_op_args& args) {
             tensorT result = op->apply(args.key, args.d, c, args.tol/args.fac/args.cnorm);
-            
+
             //print("APPLY", key, d, opnorm, cnorm, result.normf());
 
             // Screen here to reduce communication cost of negligible data
@@ -2026,8 +2028,8 @@ namespace madness {
             Tensor<double> quad_phiw;
         public:
             do_err_box() {}
-            
-            do_err_box(const implT* impl, const opT* func, int npt, const Tensor<double>& qx, 
+
+            do_err_box(const implT* impl, const opT* func, int npt, const Tensor<double>& qx,
                        const Tensor<double>& quad_phit, const Tensor<double>& quad_phiw)
                 : impl(impl), func(func), npt(npt), qx(qx), quad_phit(quad_phit), quad_phiw(quad_phiw)
             {}
@@ -2042,7 +2044,7 @@ namespace madness {
                 if (node.has_coeff()) return impl->err_box(key, node, *func, npt, qx, quad_phit, quad_phiw);
                 else return 0.0;
             }
-            
+
             double operator()(double a, double b) const {return a+b;}
 
             template <typename Archive>
@@ -2060,7 +2062,7 @@ namespace madness {
             const int npt = cdata.npt + 1;
             Tensor<double> qx, qw, quad_phi, quad_phiw, quad_phit;
             FunctionCommonData<T,NDIM>::_init_quadrature(k+1, npt, qx, qw, quad_phi, quad_phiw, quad_phit);
-            
+
             typedef Range<typename dcT::const_iterator> rangeT;
             rangeT range(coeffs.begin(), coeffs.end());
             return world.taskq.reduce< double,rangeT,do_err_box<opT> >(range,
@@ -2094,7 +2096,7 @@ namespace madness {
         double norm2sq_local() const {
             PROFILE_MEMBER_FUNC(FunctionImpl);
             typedef Range<typename dcT::const_iterator> rangeT;
-            return world.taskq.reduce<double,rangeT,do_norm2sq_local>(rangeT(coeffs.begin(),coeffs.end()), 
+            return world.taskq.reduce<double,rangeT,do_norm2sq_local>(rangeT(coeffs.begin(),coeffs.end()),
                                                                       do_norm2sq_local());
         }
 

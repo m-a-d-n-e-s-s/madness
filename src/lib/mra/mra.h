@@ -700,6 +700,7 @@ namespace madness {
         void unaryop(const opT& op, bool fence=true) {
             PROFILE_MEMBER_FUNC(Function);
             verify();
+            reconstruct();
             impl->unary_op_value_inplace(op, fence);
         }
 
@@ -990,11 +991,11 @@ namespace madness {
 
         /// Multiplication of function * vector of functions using recursive algorithm of mulxx
         template <typename L, typename R>
-        void vmulXX(const Function<L,NDIM>& left, 
-                    const std::vector< Function<R,NDIM> >& right, 
-                    std::vector< Function<T,NDIM> >& result, 
+        void vmulXX(const Function<L,NDIM>& left,
+                    const std::vector< Function<R,NDIM> >& right,
+                    std::vector< Function<T,NDIM> >& result,
                     bool fence) {
-            
+
             std::vector<FunctionImpl<T,NDIM>*> vresult(right.size());
             std::vector<const FunctionImpl<R,NDIM>*> vright(right.size());
             for (unsigned int i=0; i<right.size(); i++) {
@@ -1004,8 +1005,8 @@ namespace madness {
             }
 
 
-//             void mulXXvec(const FunctionImpl<L,NDIM>* left, 
-//                           const std::vector<const FunctionImpl<R,NDIM>*>& vright, 
+//             void mulXXvec(const FunctionImpl<L,NDIM>* left,
+//                           const std::vector<const FunctionImpl<R,NDIM>*>& vright,
 //                           const std::vector<FunctionImpl<T,NDIM>*>& vresult,
 //                           bool fence) {
 
