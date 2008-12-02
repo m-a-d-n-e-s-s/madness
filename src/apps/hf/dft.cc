@@ -113,18 +113,6 @@ namespace madness
   void DFTCoulombPeriodicOp<T,NDIM>::prepare_op(Function<double,NDIM> rho)
   {
     _Vc = apply(*_cop, rho + _rhon);
-////    _Vc.reconstruct();
-////    rho.reconstruct();
-////    _rhon.reconstruct();
-//    Tensor<double> L = FunctionDefaults<NDIM>::get_cell_width();
-//    printf("\n");
-//    double bstep = L[0] / 100;
-//    for (int i=0; i<101; i++)
-//    {
-//      coordT p(-L[0]/2 + i*bstep);
-//      printf("%.2f\t\t%.8f\t%.8f\t%.8f\n", p[0], _rhon(p), rho(p), _Vc(p));
-//    }
-//    printf("\n");
   }
   //***************************************************************************
 
@@ -151,22 +139,6 @@ namespace madness
   Function<T,NDIM> DFTCoulombOp<T,NDIM>::op_r(const funcT& rho, const funcT& psi)
   {
     if (this->_world.rank() == 0) printf("Applying Coulomb operator ...\n\n");
-    //printf("Applying Coulomb operator ...\n\n");
-
-//    if (this->_world.rank() == 0)  printf("\n");
-//    Tensor<double> TL = FunctionDefaults<NDIM>::get_cell_width();
-//    double L = TL[0];
-//    double bstep = L / 100.0;
-    rho.reconstruct();
-    _Vc.reconstruct();
-//    for (int i = 0; i < 101; i++)
-//    {
-//     coordT p(-L / 2 + i * bstep);
-//     if (this->_world.rank() == 0)
-//       printf("%.2f\t\t%.8f\t%.8f\n", p[0], rho(p), _Vc(p));
-//    }
-//    if (this->_world.rank() == 0) printf("\n");
-
     funcT rfunc = _Vc * psi;
     return  rfunc;
   }
@@ -177,7 +149,6 @@ namespace madness
   Function<T,NDIM> DFTCoulombPeriodicOp<T,NDIM>::op_r(const funcT& rho, const funcT& psi)
   {
 //    if (_world.rank() == 0) printf("Applying Periodic Coulomb operator ...\n\n");
-
     funcT rfunc = _Vc * psi;
     return  rfunc;
   }
@@ -201,22 +172,6 @@ namespace madness
     V_rho.scale(0.5);
     V_rho.unaryop(&::libxc_ldaop);
     funcT rfunc = V_rho * psi;
-
-//    if (this->_world.rank() == 0)  printf("\n");
-//    if (this->_world.rank() == 0)  printf("XCFunctionalLDA::op_r()\n");
-//    Tensor<double> TL = FunctionDefaults<NDIM>::get_cell_width();
-//    double L = TL[0];
-//    double bstep = L / 100.0;
-//    rho.reconstruct();
-//    V_rho.reconstruct();
-//    for (int i = 0; i < 101; i++)
-//    {
-//      coordT p(-L / 2 + i * bstep);
-//      if (this->_world.rank() == 0)
-//        printf("%.2f\t\t%.8f\t%.8f\n", p[0], rho(p), V_rho(p));
-//    }
-//    if (this->_world.rank() == 0) printf("\n");
-
     return rfunc;
   }
   //***************************************************************************
