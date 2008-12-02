@@ -5,7 +5,7 @@
 #include "poperator.h"
 #include "util.h"
 
-#include "libxc.h"
+#include "xc.h"
 
 using std::cout;
 using std::endl;
@@ -15,6 +15,8 @@ using namespace madness;
 const double PI = 3.1415926535897932384;
 
 typedef Vector<double,3> coordT;
+
+//static void libxc_ldaop(const Key<3>& key, Tensor<double>& t);
 
 /// Returns radius for smoothing nuclear potential with energy precision eprec
 //*****************************************************************************
@@ -150,19 +152,37 @@ public:
 //*****************************************************************************
 void test_xc(World& world)
 {
-  Tensor<double> rho(5);
-  Tensor<double> vxc(5);
-  Tensor<double> exc(5);
-  rho[0] = 3.4; rho[1] = 3.0; rho[2] = 1.76; rho[3] = 3600.0; rho[4] = 3200.0;
-  xc_generic_lda(rho, exc, vxc, false);
-
-  for (int i = 1; i < 5; i++)
-  {
-    //if (world.rank() == 0) printf("rho[%d] = %.4f  vxc[%d] = %.5f  exc[%d] = %.5f\n", i rho[i], i, vxc[i], i, exc[i]);
-    if (world.rank() == 0) printf("rho[%d] = %.4e  vxc[%d] = %.4e\n", i, rho[i], i, vxc[i]);
-  }
+//  Tensor<double> rho(5);
+//  Tensor<double> vxc(5);
+//  Tensor<double> exc(5);
+//  rho[0] = 3.4; rho[1] = 3.0; rho[2] = 1.76; rho[3] = 3600.0; rho[4] = 3200.0;
+//  xc_generic_lda(rho, exc, vxc, false);
+//
+//  for (int i = 1; i < 5; i++)
+//  {
+//    //if (world.rank() == 0) printf("rho[%d] = %.4f  vxc[%d] = %.5f  exc[%d] = %.5f\n", i rho[i], i, vxc[i], i, exc[i]);
+//    if (world.rank() == 0) printf("rho[%d] = %.4e  vxc[%d] = %.4e\n", i, rho[i], i, vxc[i]);
+//  }
 }
 //*****************************************************************************
+
+//***************************************************************************
+double he_munge(double r) {
+  if (r < 1e-12) r = 1e-12;
+  return r;
+}
+//***************************************************************************
+
+//***************************************************************************
+static void he_ldaop(const Key<3>& key, Tensor<double>& t) {
+  XC(lda_type) xc_c_func;
+  XC(lda_type) xc_x_func;
+  xc_lda_init(&xc_c_func, XC_LDA_C_VWN,XC_UNPOLARIZED);
+  xc_lda_x_init(&xc_x_func, XC_UNPOLARIZED, 3, 0);
+  UNARY_OPTIMIZED_ITERATOR(double, t, double r=he_munge(2.0* *_p0); double q; double dq1; double dq2;xc_lda_vxc(&xc_x_func, &r, &q, &dq1);xc_lda_vxc(&xc_c_func, &r, &q, &dq2); *_p0 = dq1+dq2);
+}
+//***************************************************************************
+
 
 //*****************************************************************************
 void test_hf_he(World& world)
@@ -221,6 +241,39 @@ void test_hf_he(World& world)
   Function<double,3> psi =
     FunctionFactory<double,3>(world).functor(functorT(new HeElectronicChargeDensityIGuess<double,3>(origin)));
   psi.scale(1.0/psi.norm2());
+
+//  Function<double,3> tmprho = square(psi);
+//  if (world.rank() == 0)  printf("\n");
+//   double L = 2.0 * bsize;
+//   double bstep = L / 100.0;
+//   tmprho.reconstruct();
+//   for (int i = 0; i < 101; i++)
+//   {
+//     coordT p(-L / 2 + i * bstep);
+//     if (world.rank() == 0)
+//       printf("%.2f\t\t%.8f\n", p[0], tmprho(p));
+//   }
+//   if (world.rank() == 0) printf("\n");
+
+  Function<double,3> tmprho = square(psi);
+  double rtrace = tmprho.trace();
+  if (world.rank() == 0) printf("tmprho trace = %f\n\n", rtrace);
+  Function<double,3> vxc = copy(tmprho);
+  vxc.unaryop(&he_ldaop);
+
+  if (world.rank() == 0) printf("\n");
+  if (world.rank() == 0) printf("p\t\trho\tvxc\n");
+  double L = 2.0 * bsize;
+  double bstep = L / 100.0;
+  vxc.reconstruct();
+  tmprho.reconstruct();
+  for (int i=0; i<101; i++)
+  {
+    coordT p(-L/2 + i*bstep);
+    if (world.rank() == 0) printf("%.2f\t\t%.8f\t%.8f\n", p[0], tmprho(p), vxc(p));
+  }
+  if (world.rank() == 0) printf("\n");
+
 
   // Create lists
   std::vector<Function<double,3> > phis;

@@ -51,6 +51,7 @@ inline void xc_generic_lda(Tensor<double> rho_alpha,           ///< Alpha-spin d
     df_drho = df_drho.flat();
 
     XC(lda_type) xc_c_func;
+    XC(lda_type) xc_x_func;
 
     int npt = rho_alpha.dim[0];
 
@@ -79,10 +80,10 @@ inline void xc_generic_lda(Tensor<double> rho_alpha,           ///< Alpha-spin d
     tf.fill(0.0);
     tdf_drho.fill(0.0);
 
-    xc_lda_x_init(&xc_c_func, XC_UNPOLARIZED, 3, 0);
+    xc_lda_x_init(&xc_x_func, XC_UNPOLARIZED, 3, 0);
     for (int i = 0; i < npt; i++)
     {
-      xc_lda_vxc(&xc_c_func, &rhoptr[i], &tfptr[i], &tdf_drhoptr[i]);
+      xc_lda_vxc(&xc_x_func, &rhoptr[i], &tfptr[i], &tdf_drhoptr[i]);
     }
 
     f.gaxpy(1.0, tf, 1.0);

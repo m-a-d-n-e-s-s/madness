@@ -158,7 +158,9 @@ void test_hf_be(World& world)
   // Create DFT object
   if (world.rank() == 0) madness::print("Creating DFT object...");
   //HartreeFock hf(world, Vnuc, phis, eigs, true, true, thresh);
-  DFT<double,3> dftcalc(world, rhon, phis, eigs, thresh, false);
+  ElectronicStructureParams params;
+  params.periodic = false;
+  DFT<double,3> dftcalc(world, rhon, phis, eigs, params);
   if (world.rank() == 0) madness::print("Running DFT object...");
   dftcalc.solve(51);
 

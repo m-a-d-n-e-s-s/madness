@@ -1,14 +1,14 @@
 include $(top_srcdir)/config/MakeGlobal.am
 
 #bin_PROGRAMS = test_hf test_lattice test_coulomb test_hydro test_he test_be test_comm testconv esolver
-bin_PROGRAMS = test_he esolver
-lib_LIBRARIES = libHartreeFock.a
+#bin_PROGRAMS = test_he test_be esolver test_xc
+#lib_LIBRARIES = libHartreeFock.a
 
-libHartreeFock_a_SOURCES = eigsolver.cc dft.cc dft.h eigsolver.h poperator.h util.h lda.h electronicstructureparams.h
+#libHartreeFock_a_SOURCES = eigsolver.cc dft.cc dft.h eigsolver.h poperator.h util.h lda.h electronicstructureparams.h
 
 #test_hf_SOURCES = test_hf.cc
 
-test_he_SOURCES = test_he.cc
+#test_he_SOURCES = test_he.cc
 
 #test_be_SOURCES = test_be.cc
 
@@ -22,7 +22,9 @@ test_he_SOURCES = test_he.cc
 
 #testconv_SOURCES = testconv.cc
 
-esolver_SOURCES = solver_driver.cc mentity.cc mentity.h electronicstructureapp.h
+#test_xc_SOURCES = test_xc.cc
 
-LDADD = libHartreeFock.a libxc.a $(MRALIBS)
+#esolver_SOURCES = solver_driver.cc mentity.cc mentity.h electronicstructureapp.h
+
+#LDADD = libHartreeFock.a libxc.a $(MRALIBS)
 

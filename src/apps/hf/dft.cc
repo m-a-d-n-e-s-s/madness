@@ -4,9 +4,26 @@
 #include <moldft/xc/f2c.h>
 #include <vector>
 #include "poperator.h"
-#include "lda.h"
+#include "xc.h"
 
 typedef madness::Vector<double,3> coordT;
+
+//***************************************************************************
+static double munge(double r) {
+  if (r < 1e-12) r = 1e-12;
+  return r;
+}
+//***************************************************************************
+
+//***************************************************************************
+static void libxc_ldaop(const Key<3>& key, Tensor<double>& t) {
+  XC(lda_type) xc_c_func;
+  XC(lda_type) xc_x_func;
+  xc_lda_init(&xc_c_func, XC_LDA_C_VWN,XC_UNPOLARIZED);
+  xc_lda_x_init(&xc_x_func, XC_UNPOLARIZED, 3, 0);
+  UNARY_OPTIMIZED_ITERATOR(double, t, double r=munge(2.0* *_p0); double q; double dq1; double dq2;xc_lda_vxc(&xc_x_func, &r, &q, &dq1);xc_lda_vxc(&xc_c_func, &r, &q, &dq2); *_p0 = dq1+dq2);
+}
+//***************************************************************************
 
 namespace madness
 {
@@ -133,8 +150,23 @@ namespace madness
   template <typename T, int NDIM>
   Function<T,NDIM> DFTCoulombOp<T,NDIM>::op_r(const funcT& rho, const funcT& psi)
   {
-//    if (_world.rank() == 0) printf("Applying Coulomb operator ...\n\n");
+    if (this->_world.rank() == 0) printf("Applying Coulomb operator ...\n\n");
     //printf("Applying Coulomb operator ...\n\n");
+
+//    if (this->_world.rank() == 0)  printf("\n");
+//    Tensor<double> TL = FunctionDefaults<NDIM>::get_cell_width();
+//    double L = TL[0];
+//    double bstep = L / 100.0;
+    rho.reconstruct();
+    _Vc.reconstruct();
+//    for (int i = 0; i < 101; i++)
+//    {
+//     coordT p(-L / 2 + i * bstep);
+//     if (this->_world.rank() == 0)
+//       printf("%.2f\t\t%.8f\t%.8f\n", p[0], rho(p), _Vc(p));
+//    }
+//    if (this->_world.rank() == 0) printf("\n");
+
     funcT rfunc = _Vc * psi;
     return  rfunc;
   }
@@ -144,8 +176,8 @@ namespace madness
   template <typename T, int NDIM>
   Function<T,NDIM> DFTCoulombPeriodicOp<T,NDIM>::op_r(const funcT& rho, const funcT& psi)
   {
-//    if (_world.rank() == 0) printf("Applying Coulomb operator ...\n\n");
-    //printf("Applying Coulomb operator ...\n\n");
+//    if (_world.rank() == 0) printf("Applying Periodic Coulomb operator ...\n\n");
+
     funcT rfunc = _Vc * psi;
     return  rfunc;
   }
@@ -165,26 +197,25 @@ namespace madness
   template <typename T, int NDIM>
   Function<T,NDIM> XCFunctionalLDA<T,NDIM>::op_r(const funcT& rho, const funcT& psi)
   {
-//    funcT V_rho = 0.5 * copy(rho);
-//    V_rho.reconstruct();
-//    V_rho.unaryop(&::xc_lda_V<NDIM>);
-    funcT V_rho = copy(rho);
+    Function<T,NDIM> V_rho = copy(rho);
     V_rho.scale(0.5);
-    V_rho.unaryop(&::ldaop);
+    V_rho.unaryop(&::libxc_ldaop);
     funcT rfunc = V_rho * psi;
 
-      if (this->_world.rank() == 0)  printf("\n");
-      double L = 30.0;
-      double bstep = L / 100.0;
-      rho.reconstruct();
-      V_rho.reconstruct();
-      for (int i = 0; i < 101; i++)
-      {
-        coordT p(-L / 2 + i * bstep);
-        if (this->_world.rank() == 0)
-          printf("%.2f\t\t%.8f\t%.8f\n", p[0], rho(p), V_rho(p));
-      }
-      if (this->_world.rank() == 0) printf("\n");
+//    if (this->_world.rank() == 0)  printf("\n");
+//    if (this->_world.rank() == 0)  printf("XCFunctionalLDA::op_r()\n");
+//    Tensor<double> TL = FunctionDefaults<NDIM>::get_cell_width();
+//    double L = TL[0];
+//    double bstep = L / 100.0;
+//    rho.reconstruct();
+//    V_rho.reconstruct();
+//    for (int i = 0; i < 101; i++)
+//    {
+//      coordT p(-L / 2 + i * bstep);
+//      if (this->_world.rank() == 0)
+//        printf("%.2f\t\t%.8f\t%.8f\n", p[0], rho(p), V_rho(p));
+//    }
+//    if (this->_world.rank() == 0) printf("\n");
 
     return rfunc;
   }
