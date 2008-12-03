@@ -8,659 +8,15 @@
 #include <tensor/aligned.h>
 #include <linalg/tensor_lapack.h>
 
+#include <mra/simplecache.h>
+#include <mra/convolution1d.h>
+#include <mra/displacements.h>
+
 namespace madness {
 
-    void aligned_add(long n, double* restrict a, const double* restrict b);
-    void aligned_sub(long n, double* restrict a, const double* restrict b);
-    void aligned_add(long n, double_complex* restrict a, const double_complex* restrict b);
-    void aligned_sub(long n, double_complex* restrict a, const double_complex* restrict b);
-
-    template <typename T>
-    static void copy_2d_patch(T* restrict out, long ldout, const T* restrict in, long ldin, long n, long m) {
-        for (long i=0; i<n; i++, out+=ldout, in+=ldin) {
-            for (long j=0; j<m; j++) {
-                out[j] = in[j];
-            }
-        }
-    }
-
-    /// a(n,m) --> b(m,n) ... optimized for smallish matrices
-    template <typename T>
-    static void fast_transpose(long n, long m, const T* restrict a, T* restrict b) {
-        // n will always be k or 2k (k=wavelet order) and m will be anywhere
-        // from 2^(NDIM-1) to (2k)^(NDIM-1).
-
-//         for (long i=0; i<n; i++)
-//             for (long j=0; j<m; j++)
-//                 b[j*n+i] = a[i*m+j];
-
-        if (n==1 || m==1) {
-            long nm=n*m;
-            for (long i=0; i<nm; i++) b[i] = a[i];
-            return;
-        }
-
-        long n4 = (n>>2)<<2;
-        long m4 = m<<2;
-        const T* restrict a0 = a;
-        for (long i=0; i<n4; i+=4, a0+=m4) {
-            const T* restrict a1 = a0+m;
-            const T* restrict a2 = a1+m;
-            const T* restrict a3 = a2+m;
-            T* restrict bi = b+i;
-            for (long j=0; j<m; j++, bi+=n) {
-                T tmp0 = a0[j];
-                T tmp1 = a1[j];
-                T tmp2 = a2[j];
-                T tmp3 = a3[j];
-
-                bi[0] = tmp0;
-                bi[1] = tmp1;
-                bi[2] = tmp2;
-                bi[3] = tmp3;
-            }
-        }
-
-        for (long i=n4; i<n; i++)
-            for (long j=0; j<m; j++)
-                b[j*n+i] = a[i*m+j];
-
-    }
-
-    /// a(i,j) --> b(i,j) for i=0..n-1 and j=0..r-1 noting dimensions are a(n,m) and b(n,r).
-
-    /// returns b
-    template <typename T>
-    static T* shrink(long n, long m, long r, const T* a, T* restrict b) {
-        T* result = b;
-        for (long i=0; i<n; i++, a+=m, b+=r) {
-            for (long j=0; j<r; j++) {
-                b[j] = a[j];
-            }
-        }
-        return result;
-    }
 
     extern void bsh_fit(double mu, double lo, double hi, double eps,
                         Tensor<double> *pcoeff, Tensor<double> *pexpnt, bool prnt=false);
-
-//     extern void bsh_fit_mod(double mu, double lo, double hi, double eps,
-//                             Tensor<double> *pcoeff, Tensor<double> *pexpnt, bool prnt=false);
-
-
-    /// Simplified interface around hash_map to cache stuff for 1D
-
-    /// Since insertions into STL containers have the nasty habit of
-    /// invalidating iterators we actually store shared pointers
-    /// [Now that we are using the thread-safe container this is
-    /// not an issue any more].
-    template <typename Q, int NDIM>
-    class SimpleCache {
-    private:
-        typedef ConcurrentHashMap< Key<NDIM>, SharedPtr<Q> , KeyHash<NDIM> > mapT;
-        typedef std::pair< Key<NDIM>, SharedPtr<Q> > pairT;
-        mapT cache;
-
-    public:
-        SimpleCache() : cache() {};
-
-        SimpleCache(const SimpleCache& c) : cache(c.cache) {};
-
-        SimpleCache& operator=(const SimpleCache& c) {
-            if (this != &c) {
-                cache.clear();
-                cache = c.cache;
-            }
-            return *this;
-        }
-
-        /// If key is present return pointer to cached value, otherwise return NULL
-        inline const Q* getptr(const Key<NDIM>& key) const {
-            typename mapT::const_iterator test = cache.find(key);
-            if (test == cache.end()) return 0;
-            return test->second.get();
-        }
-
-
-        /// If key=(n,l) is present return pointer to cached value, otherwise return NULL
-
-        /// This for the convenience (backward compatibility) of 1D routines
-        inline const Q* getptr(Level n, Translation l) const {
-            Key<NDIM> key(n,Vector<Translation,NDIM>(l));
-            return getptr(key);
-        }
-
-
-        /// If key=(n,l) is present return pointer to cached value, otherwise return NULL
-
-        /// This for the convenience (backward compatibility) of 1D routines
-        inline const Q* getptr(Level n, const Key<NDIM>& disp) const {
-            Key<NDIM> key(n,disp.translation());
-            return getptr(key);
-        }
-
-
-        /// Set value associated with key ... gives ownership of a new copy to the container
-        inline void set(const Key<NDIM>& key, const Q& val) {
-            cache.insert(pairT(key,SharedPtr<Q>(new Q(val))));
-        }
-
-        inline void set(Level n, Translation l, const Q& val) {
-            Key<NDIM> key(n,Vector<Translation,NDIM>(l));
-            set(key, val);
-        }
-
-        inline void set(Level n, const Key<NDIM>& disp, const Q& val) {
-            Key<NDIM> key(n,disp.translation());
-            set(key, val);
-        }
-    };
-
-
-    /// !!! Note that if Rnormf is zero that ***ALL*** of the tensors are empty
-    template <typename Q>
-    struct ConvolutionData1D {
-        Tensor<Q> R, T;  ///< R=ns, T=T part of ns
-        Tensor<Q> RU, RVT, TU, TVT; ///< SVD approximations to R and T
-        Tensor<typename Tensor<Q>::scalar_type> Rs, Ts;
-        double Rnorm, Tnorm, Rnormf, Tnormf, NSnormf;
-
-        ConvolutionData1D(const Tensor<Q>& R, const Tensor<Q>& T) : R(R), T(T) {
-            Rnormf = R.normf();
-            // Making the approximations is expensive ... only do it for
-            // significant components
-            if (Rnormf > 1e-20) {
-                Tnormf = T.normf();
-                make_approx(T, TU, Ts, TVT, Tnorm);
-                make_approx(R, RU, Rs, RVT, Rnorm);
-                int k = T.dim[0];
-                Tensor<Q> NS = copy(R);
-                for (int i=0; i<k; i++)
-                    for (int j=0; j<k; j++)
-                        NS(i,j) = 0.0;
-                NSnormf = NS.normf();
-            }
-            else {
-                Rnorm = Tnorm = Rnormf = Tnormf = NSnormf = 0.0;
-            }
-        }
-
-        void make_approx(const Tensor<Q>& R,
-                         Tensor<Q>& RU, Tensor<typename Tensor<Q>::scalar_type>& Rs, Tensor<Q>& RVT, double& norm) {
-            int n = R.dim[0];
-            svd(R, &RU, &Rs, &RVT);
-            for (int i=0; i<n; i++) {
-                for (int j=0; j<n; j++) {
-                    RVT(i,j) *= Rs[i];
-                }
-            }
-            for (int i=n-1; i>1; i--) { // Form cumulative sum of norms
-                Rs[i-1] += Rs[i];
-            }
-
-            norm = Rs[0];
-            if (Rs[0]>0.0) { // Turn into relative errors
-                double rnorm = 1.0/norm;
-                for (int i=0; i<n; i++) {
-                    Rs[i] *= rnorm;
-                }
-            }
-        }
-    };
-
-    /// Provides the common functionality/interface of all 1D convolutions
-
-    /// Derived classes must implement rnlp, issmall, natural_level
-    template <typename Q>
-    class Convolution1D {
-    public:
-        int k;
-        int npt;
-        double sign;
-        Tensor<double> quad_x;
-        Tensor<double> quad_w;
-        Tensor<double> c;
-        Tensor<double> hgT;
-        Tensor<double> hgT2k;
-
-        mutable SimpleCache<Tensor<Q>, 1> rnlp_cache;
-        mutable SimpleCache<Tensor<Q>, 1> rnlij_cache;
-        mutable SimpleCache<ConvolutionData1D<Q>, 1> ns_cache;
-
-//         Convolution1D() : k(-1), npt(0), sign(1.0) {};
-
-        virtual ~Convolution1D() {};
-
-        Convolution1D(int k, int npt, double sign=1.0)
-            : k(k)
-            , npt(npt)
-            , sign(sign)
-            , quad_x(npt)
-            , quad_w(npt)
-        {
-            MADNESS_ASSERT(autoc(k,&c));
-
-            gauss_legendre(npt,0.0,1.0,quad_x.ptr(),quad_w.ptr());
-            MADNESS_ASSERT(two_scale_hg(k,&hgT));
-            hgT = transpose(hgT);
-            MADNESS_ASSERT(two_scale_hg(2*k,&hgT2k));
-            hgT2k = transpose(hgT2k);
-
-            // Cannot construct the coefficients here since the
-            // derived class is not yet constructed so cannot call
-            // (even indirectly) a virtual method
-        }
-
-        /// Compute the projection of the operator onto the double order polynomials
-        virtual Tensor<Q> rnlp(Level n, Translation lx) const = 0;
-
-        /// Returns true if the block is expected to be small
-        virtual bool issmall(Level n, Translation lx) const = 0;
-
-        /// Returns the level for projection
-        virtual Level natural_level() const {return 13;}
-
-        /// Computes the transition matrix elements for the convolution for n,l
-
-        /// Returns the tensor
-        /// \code
-        ///   r(i,j) = int(K(x-y) phi[n0](x) phi[nl](y), x=0..1, y=0..1)
-        /// \endcode
-        /// This is computed from the matrix elements over the correlation
-        /// function which in turn are computed from the matrix elements
-        /// over the double order legendre polynomials.
-        const Tensor<Q>& rnlij(Level n, Translation lx) const {
-            const Tensor<Q>* p=rnlij_cache.getptr(n,lx);
-            if (p) return *p;
-
-            PROFILE_MEMBER_FUNC(Convolution1D);
-
-            long twok = 2*k;
-            Tensor<Q>  R(2*twok);
-            R(Slice(0,twok-1)) = get_rnlp(n,lx-1);
-            R(Slice(twok,2*twok-1)) = get_rnlp(n,lx);
-            R.scale(pow(0.5,0.5*n));
-            R = inner(c,R);
-            // Enforce symmetry because it seems important ... is it?
-            // What about a complex exponents?
-//             if (lx == 0)
-//                 for (int i=0; i<k; i++)
-//                     for (int j=0; j<i; j++)
-//                         R(i,j) = R(j,i) = ((i+j)&1) ? 0.0 : 0.5*(R(i,j)+R(j,i));
-
-            rnlij_cache.set(n,lx,R);
-            return *rnlij_cache.getptr(n,lx);
-        };
-
-        /// Returns a pointer to the cached nonstandard form of the operator
-        const ConvolutionData1D<Q>* nonstandard(Level n, Translation lx) const {
-            const ConvolutionData1D<Q>* p = ns_cache.getptr(n,lx);
-            if (p) return p;
-            
-            PROFILE_MEMBER_FUNC(Convolution1D);
-
-            Tensor<Q> R, T;
-            if (!issmall(n, lx)) {
-                Translation lx2 = lx*2;
-                Slice s0(0,k-1), s1(k,2*k-1);
-
-                const Tensor<Q> r0 = rnlij(n+1,lx2);
-                const Tensor<Q> rp = rnlij(n+1,lx2+1);
-                const Tensor<Q> rm = rnlij(n+1,lx2-1);
-
-                R = Tensor<Q>(2*k,2*k);
-
-//                 R(s0,s0) = r0;
-//                 R(s1,s1) = r0;
-//                 R(s1,s0) = rp;
-//                 R(s0,s1) = rm;
-                
-                {
-                    PROFILE_BLOCK(Convolution1D_nscopy);
-                    copy_2d_patch(R.ptr(),           2*k, r0.ptr(), k, k, k);
-                    copy_2d_patch(R.ptr()+2*k*k + k, 2*k, r0.ptr(), k, k, k);
-                    copy_2d_patch(R.ptr()+2*k*k,     2*k, rp.ptr(), k, k, k);
-                    copy_2d_patch(R.ptr()       + k, 2*k, rm.ptr(), k, k, k);
-                }
-
-                {
-                    PROFILE_BLOCK(Convolution1D_nstran);
-                    R = transform(R,hgT);
-                }
-                // Enforce symmetry because it seems important ... what about complex?????????
-//                 if (lx == 0)
-//                     for (int i=0; i<2*k; i++)
-//                         for (int j=0; j<i; j++)
-//                             R(i,j) = R(j,i) = ((i+j)&1) ? 0.0 : 0.5*(R(i,j)+R(j,i));
-
-                //R = transpose(R);
-                {
-                    PROFILE_BLOCK(Convolution1D_trans);
-                    
-                    Tensor<Q> RT(2*k,2*k);
-                    fast_transpose(2*k, 2*k, R.ptr(), RT.ptr());
-                    R = RT;
-                    
-                    //T = copy(R(s0,s0));
-                    T = Tensor<Q>(k,k);
-                    copy_2d_patch(T.ptr(), k, R.ptr(), 2*k, k, k);
-                }
-            }
-
-            ns_cache.set(n,lx,ConvolutionData1D<Q>(R,T));
-
-            return ns_cache.getptr(n,lx);
-        };
-
-        const Tensor<Q>& get_rnlp(Level n, Translation lx) const
-        {
-            const Tensor<Q>* p=rnlp_cache.getptr(n,lx);
-            if (p) return *p;
-
-            PROFILE_MEMBER_FUNC(Convolution1D);
-
-            long twok = 2*k;
-            Tensor<Q> r;
-
-            if (issmall(n, lx)) {
-                r = Tensor<Q>(twok);
-            }
-            else if (n < natural_level()) {
-                Tensor<Q>  R(2*twok);
-                R(Slice(0,twok-1)) = get_rnlp(n+1,2*lx);
-                R(Slice(twok,2*twok-1)) = get_rnlp(n+1,2*lx+1);
-
-                R = transform(R, hgT2k);
-                r = copy(R(Slice(0,twok-1)));
-            }
-            else {
-                PROFILE_BLOCK(Convolution1Drnlp);
-                r = rnlp(n, lx);
-            }
-
-            rnlp_cache.set(n, lx, r);
-            return *rnlp_cache.getptr(n,lx);
-        }
-    };
-
-    // To test generic convolution by comparing with GaussianConvolution1D
-    template <typename Q>
-    class GaussianGenericFunctor {
-    private:
-        Q coeff;
-        double exponent;
-    public:
-        GaussianGenericFunctor(Q coeff, double exponent)
-            : coeff(coeff), exponent(exponent) {}
-
-        Q operator()(double x) const {
-            return coeff*exp(-exponent*x*x);
-        }
-    };
-
-
-    /// Generic 1D convolution using brute force (i.e., slow) adaptive quadrature for rnlp
-
-    /// Calls op(x) with x in *simulation coordinates* to evaluate the function.
-    template <typename Q, typename opT>
-    class GenericConvolution1D : public Convolution1D<Q> {
-    private:
-        opT op;
-        long maxl;    //< At natural level is l beyond which operator is zero
-    public:
-
-        GenericConvolution1D() {}
-
-        GenericConvolution1D(int k, const opT& op)
-            : Convolution1D<Q>(k, 20), op(op), maxl(LONG_MAX-1)
-        {
-            PROFILE_MEMBER_FUNC(GenericConvolution1D);
-
-            // For efficiency carefully compute outwards at the "natural" level
-            // until several successive boxes are determined to be zero.  This
-            // then defines the future range of the operator and also serves
-            // to precompute the values used in the rnlp cache.
-
-            Level natl = this->natural_level();
-            int nzero = 0;
-            for (Translation lx=0; lx<(1L<<natl); lx++) {
-                const Tensor<Q>& rp = this->get_rnlp(natl, lx);
-                const Tensor<Q>& rm = this->get_rnlp(natl,-lx);
-                if (rp.normf()<1e-12 && rm.normf()<1e-12) nzero++;
-                if (nzero == 3) {
-                    maxl = lx-2;
-                    break;
-                }
-            }
-        }
-
-        struct Shmoo {
-            typedef Tensor<Q> returnT;
-            Level n;
-            Translation lx;
-            const GenericConvolution1D<Q,opT>& q;
-
-            Shmoo(Level n, Translation lx, const GenericConvolution1D<Q,opT>* q)
-                : n(n), lx(lx), q(*q) {}
-
-            returnT operator()(double x) const {
-                int twok = q.k*2;
-                double fac = std::pow(0.5,n);
-                double phix[twok];
-                legendre_scaling_functions(x-lx,twok,phix);
-                Q f = q.op(fac*x)*sqrt(fac);
-                returnT v(twok);
-                for (long p=0; p<twok; p++) v(p) += f*phix[p];
-                return v;
-            }
-        };
-
-        Tensor<Q> rnlp(Level n, Translation lx) const {
-            return adq1(lx, lx+1, Shmoo(n, lx, this), 1e-12,
-                        this->npt, this->quad_x.ptr(), this->quad_w.ptr(), 0);
-        }
-
-        bool issmall(Level n, Translation lx) const {
-            if (lx < 0) lx = 1 - lx;
-            // Always compute contributions to nearest neighbor coupling
-            // ... we are two levels below so 0,1 --> 0,1,2,3 --> 0,...,7
-            if (lx <= 7) return false;
-
-            n = this->natural_level()-n;
-            if (n >= 0) lx = lx << n;
-            else lx = lx >> n;
-
-            return lx >= maxl;
-        }
-    };
-
-
-    // For complex types return +1 as the sign and leave coeff unchanged
-    template <typename Q, bool iscomplex>
-    struct munge_sign_struct {
-        static double op(Q& coeff) {
-            return 1.0;
-        }
-    };
-
-    // For real types return actual sign and make coeff positive
-    template <typename Q>
-    struct munge_sign_struct<Q,false> {
-        static typename Tensor<Q>::scalar_type op(Q& coeff) {
-            if (coeff < 0.0) {
-                coeff = -coeff;
-                return -1.0;
-            }
-            else {
-                return 1.0;
-            }
-        }
-    };
-
-    template <typename Q>
-    typename Tensor<Q>::scalar_type munge_sign(Q& coeff) {
-        return munge_sign_struct<Q, TensorTypeData<Q>::iscomplex>::op(coeff);
-    }
-
-
-    /// 1D Gaussian convolution with coeff and expnt given in *simulation* coordinates [0,1]
-    template <typename Q>
-    class GaussianConvolution1D : public Convolution1D<Q> {
-    public:
-        const Q coeff;
-        const double expnt;
-        const Level natlev;
-
-        GaussianConvolution1D(int k, Q coeff, double expnt, double sign=1.0)
-            : Convolution1D<Q>(k,k+11,sign), coeff(coeff), expnt(expnt), natlev(0.5*log(expnt)/log(2)+1)
-        {}
-
-        virtual ~GaussianConvolution1D(){}
-
-        Level natural_level() const {return natlev;}
-
-        /// Compute the projection of the operator onto the double order polynomials
-
-        /// The returned reference is to a cached tensor ... if you want to
-        /// modify it, take a copy first.
-        ///
-        /// Return in \c v[p] \c p=0..2*k-1
-        /// \code
-        /// r(n,l,p) = 2^(-n) * int(K(2^(-n)*(z+l)) * phi(p,z), z=0..1)
-        /// \endcode
-        /// The kernel is coeff*exp(-expnt*z^2).  This is equivalent to
-        /// \code
-        /// r(n,l,p) = 2^(-n)*coeff * int( exp(-beta*z^2) * phi(p,z-l), z=l..l+1)
-        /// \endcode
-        /// where
-        /// \code
-        /// beta = alpha * 2^(-2*n)
-        /// \endcode
-        Tensor<Q> rnlp(Level n, Translation lx) const {
-            PROFILE_MEMBER_FUNC(GaussianConvolution1D);
-            int twok = 2*this->k;
-            Tensor<Q> v(twok);       // Can optimize this away by passing in
-
-            Translation lkeep = lx;
-            if (lx<0) lx = -lx-1;
-
-            /* Apply high-order Gauss Legendre onto subintervals
-
-               coeff*int(exp(-beta(x+l)**2) * phi[p](x),x=0..1);
-
-               The translations internally considered are all +ve, so
-               signficant pieces will be on the left.  Finish after things
-               become insignificant.
-
-               The resulting coefficients are accurate to about 1e-20.
-            */
-
-            // Rescale expnt & coeff onto level n so integration range
-            // is [l,l+1]
-            Q scaledcoeff = coeff*pow(sqrt(0.5),double(n));
-
-            // Subdivide interval into nbox boxes of length h
-            // ... estimate appropriate size from the exponent.  A
-            // Gaussian with real-part of the exponent beta falls in
-            // magnitude by a factor of 1/e at x=1/sqrt(beta), and by
-            // a factor of e^-49 ~ 5e-22 at x=7/sqrt(beta).  So, if we
-            // use a box of size 1/sqrt(beta) we will need at most 7
-            // boxes.  Incorporate the coefficient into the screening
-            // since it may be large.  We can represent exp(-x^2) over
-            // [l,l+1] with a polynomial of order 21 over [l,l+1] to a
-            // relative precision of better than machine precision for
-            // l=0,1,2,3 and for l>3 the absolute error is less than
-            // 1e-23.  We want to compute matrix elements with
-            // polynomials of order 2*k-1, so the total order is
-            // 2*k+20, which can be integrated with a quadrature rule
-            // of npt=k+11.  npt is set in the constructor.
-
-            double beta = expnt * pow(0.25,double(n));
-            double h = 1.0/sqrt(beta);  // 2.0*sqrt(0.5/beta);
-            long nbox = long(1.0/h);
-            if (nbox < 1) nbox = 1;
-            h = 1.0/nbox;
-
-            // Find argmax such that h*scaledcoeff*exp(-argmax)=1e-22 ... if
-            // beta*xlo*xlo is already greater than argmax we can neglect this
-            // and subsequent boxes
-            double argmax = std::abs(log(1e-22/std::abs(scaledcoeff*h)));
-
-            for (long box=0; box<nbox; box++) {
-                double xlo = box*h + lx;
-                if (beta*xlo*xlo > argmax) break;
-                for (long i=0; i<this->npt; i++) {
-#ifdef IBMXLC
-                    double phix[70];
-#else
-                    double phix[twok];
-#endif
-                    double xx = xlo + h*this->quad_x(i);
-                    Q ee = scaledcoeff*exp(-beta*xx*xx)*this->quad_w(i)*h;
-                    legendre_scaling_functions(xx-lx,twok,phix);
-                    for (long p=0; p<twok; p++) v(p) += ee*phix[p];
-                }
-            }
-
-            if (lkeep < 0) {
-                /* phi[p](1-z) = (-1)^p phi[p](z) */
-                for (long p=1; p<twok; p+=2) v(p) = -v(p);
-            }
-
-            return v;
-        };
-
-        /// Returns true if the block is expected to be small
-        bool issmall(Level n, Translation lx) const {
-            double beta = expnt * pow(0.25,double(n));
-            Translation ll;
-            if (lx > 0)
-                ll = lx - 1;
-            else if (lx < 0)
-                ll = -1 - lx;
-            else
-                ll = 0;
-
-            return (beta*ll*ll > 49.0);      // 49 -> 5e-22     69 -> 1e-30
-        };
-    };
-
-    /// 1D Gaussian convolution summed over periodic translations
-
-    /// r_periodic(n,l) = sum(R=-maxR,+maxR)[r_nonperiodic(n,l+R*2^n)]
-    template <typename Q>
-    class PeriodicGaussianConvolution1D : public Convolution1D<Q> {
-    public:
-
-        const int k;
-        const int maxR;
-        GaussianConvolution1D<Q> g;
-
-        PeriodicGaussianConvolution1D(int k, int maxR, Q coeff, double expnt, double sign=1.0)
-            : Convolution1D<Q>(k,k,1.0), k(k), maxR(maxR), g(k,coeff,expnt,sign)
-        {}
-
-        virtual ~PeriodicGaussianConvolution1D(){}
-
-        Level natural_level() const {return g.natural_level();}
-
-        Tensor<Q> rnlp(Level n, Translation lx) const {
-            Translation twon = Translation(1)<<n;
-            Tensor<Q> r(2*k);
-            for (int R=-maxR; R<=maxR; R++) {
-                r.gaxpy(1.0, g.get_rnlp(n,R*twon+lx), 1.0);
-            }
-            return r;
-        }
-
-        bool issmall(Level n, Translation lx) const {
-            Translation twon = Translation(1)<<n;
-            for (int R=-maxR; R<=maxR; R++) {
-                if (!g.issmall(n, R*twon+lx)) return false;
-            }
-            return true;
-        }
-    };
 
     template <typename Q, int NDIM>
     struct SeparatedConvolutionInternal {
@@ -681,153 +37,6 @@ namespace madness {
     };
 
 
-    /// Holds displacements for applying operators to avoid replicating for all operators
-    template <int NDIM>
-    class Displacements {
-
-        static std::vector< Key<NDIM> > disp;
-        static std::vector< Key<NDIM> > disp_periodicsum[64];
-
-        static int bmax_default() {
-            int bmax;
-            if (NDIM == 1) bmax = 7;
-
-            else if (NDIM == 3) bmax = 3;
-            else bmax = 2;
-            return bmax;
-        }
-
-        static bool cmp_keys(const Key<NDIM>& a, const Key<NDIM>& b) {
-            return a.distsq() < b.distsq();
-        }
-
-        static bool cmp_keys_periodicsum(const Key<NDIM>& a, const Key<NDIM>& b) {
-            Translation twonm1 = (Translation(1)<<a.level())>>1;
-
-            uint64_t suma=0, sumb=0;
-            for (int d=0; d<NDIM; d++) {
-                Translation la = a.translation()[d];
-                if (la > twonm1) la -= twonm1*2;
-                if (la <-twonm1) la += twonm1*2;
-                suma += la*la;
-
-                Translation lb = b.translation()[d];
-                if (lb > twonm1) lb -= twonm1*2;
-                if (lb <-twonm1) lb += twonm1*2;
-                sumb += lb*lb;
-            }
-            return suma < sumb;
-        }
-
-        static void make_disp(int bmax) {
-            // Note newer loop structure in make_disp_periodic_sum
-            Vector<Translation,NDIM> d;
-
-            int num = 1;
-            for (int i=0; i<NDIM; i++) num *= (2*bmax + 1);
-            disp = std::vector< Key<NDIM> >(num);
-
-            num = 0;
-            if (NDIM == 1) {
-                for (d[0]=-bmax; d[0]<=bmax; d[0]++)
-                    disp[num++] = Key<NDIM>(0,d);
-            }
-            else if (NDIM == 2) {
-                for (d[0]=-bmax; d[0]<=bmax; d[0]++)
-                    for (d[1]=-bmax; d[1]<=bmax; d[1]++)
-                        disp[num++] = Key<NDIM>(0,d);
-            }
-            else if (NDIM == 3) {
-                for (d[0]=-bmax; d[0]<=bmax; d[0]++)
-                    for (d[1]=-bmax; d[1]<=bmax; d[1]++)
-                        for (d[2]=-bmax; d[2]<=bmax; d[2]++)
-                            disp[num++] = Key<NDIM>(0,d);
-            }
-            else if (NDIM == 4) {
-                for (d[0]=-bmax; d[0]<=bmax; d[0]++)
-                    for (d[1]=-bmax; d[1]<=bmax; d[1]++)
-                        for (d[2]=-bmax; d[2]<=bmax; d[2]++)
-                            for (d[3]=-bmax; d[3]<=bmax; d[3]++)
-                                disp[num++] = Key<NDIM>(0,d);
-            }
-            else if (NDIM == 5) {
-                for (d[0]=-bmax; d[0]<=bmax; d[0]++)
-                    for (d[1]=-bmax; d[1]<=bmax; d[1]++)
-                        for (d[2]=-bmax; d[2]<=bmax; d[2]++)
-                            for (d[3]=-bmax; d[3]<=bmax; d[3]++)
-                                for (d[4]=-bmax; d[4]<=bmax; d[4]++)
-
-                                    disp[num++] = Key<NDIM>(0,d);
-            }
-            else if (NDIM == 6) {
-                for (d[0]=-bmax; d[0]<=bmax; d[0]++)
-                    for (d[1]=-bmax; d[1]<=bmax; d[1]++)
-                        for (d[2]=-bmax; d[2]<=bmax; d[2]++)
-                            for (d[3]=-bmax; d[3]<=bmax; d[3]++)
-                                for (d[4]=-bmax; d[4]<=bmax; d[4]++)
-                                    for (d[5]=-bmax; d[5]<=bmax; d[5]++)
-                                        disp[num++] = Key<NDIM>(0,d);
-            }
-            else {
-                MADNESS_EXCEPTION("_make_disp: hard dimension loop",NDIM);
-            }
-
-            std::sort(disp.begin(), disp.end(), cmp_keys);
-        }
-
-        static void make_disp_periodicsum(int bmax, Level n) {
-            Translation twon = Translation(1)<<n;
-
-            if (bmax > (twon-1)) bmax=twon-1;
-
-            // Make permissible 1D translations
-            Translation b[4*bmax+1];
-            int i=0;
-            for (Translation lx=-bmax; lx<=bmax; lx++) {
-                b[i++] = lx;
-                if ((lx < 0) && (lx+twon > bmax)) b[i++] = lx + twon;
-                if ((lx > 0) && (lx-twon <-bmax)) b[i++] = lx - twon;
-            }
-            MADNESS_ASSERT(i <= 4*bmax+1);
-            int numb = i;
-
-            disp_periodicsum[n] = std::vector< Key<NDIM> >();
-            Vector<long,NDIM> lim(numb);
-            for (IndexIterator index(lim); index; ++index) {
-                Vector<Translation,NDIM> d;
-                for (int i=0; i<NDIM; i++) {
-                    d[i] = b[index[i]];
-                }
-                disp_periodicsum[n].push_back(Key<NDIM>(n,d));
-            }
-
-            std::sort(disp_periodicsum[n].begin(), disp_periodicsum[n].end(), cmp_keys_periodicsum);
-//             print("KEYS AT LEVEL", n);
-//             print(disp_periodicsum[n]);
-        }
-
-
-    public:
-        Displacements() {
-            if (disp.size() == 0) {
-                make_disp(bmax_default());
-
-                Level nmax = 8*sizeof(Translation) - 2;
-                for (Level n=0; n<nmax; n++) make_disp_periodicsum(bmax_default(), n);
-            }
-        }
-
-        const std::vector< Key<NDIM> >& get_disp(Level n, bool isperiodicsum) {
-            if (isperiodicsum) {
-                return disp_periodicsum[n];
-            }
-            else {
-                return disp;
-            }
-        }
-
-    };
-
     /// Convolutions in separated form (including Gaussian)
     template <typename Q, int NDIM>
     class SeparatedConvolution : public WorldObject< SeparatedConvolution<Q,NDIM> > {
@@ -835,8 +44,6 @@ namespace madness {
         typedef Q opT;  ///< The apply function uses this to infer resultT=opT*inputT
         bool doleaves;  ///< If should be applied to leaf coefficients ... false by default
         bool isperiodicsum;///< If true the operator 1D kernels have been summed over lattice translations and may be non-zero at both ends of the unit cell
-        bool dowiden0;  ///< If true widen operator if diagonal term significant ... false by default
-        bool dowiden1;  ///< If true widen operator if make off-diaginal contrib ... false by default
     private:
         const int k;
         const int rank;
@@ -847,11 +54,9 @@ namespace madness {
 
         mutable SimpleCache< SeparatedConvolutionData<Q,NDIM>, NDIM > data;
 
-        mutable double nflop[64];
-
         struct Transformation {
-            long r;     // Effective rank of transformation
-            const Q* U; // Ptr to matrix
+            long r;             // Effective rank of transformation
+            const Q* U;         // Ptr to matrix
             const Q* VT;
         };
 
@@ -880,14 +85,12 @@ namespace madness {
             mTxmq(dimi, trans[0].r, dimk, w1, f.ptr(), U);
             size = trans[0].r * size / dimk;
             dimi = size/dimk;
-            nflop[n] += dimi*trans[0].r*dimk*2.0;
             for (int d=1; d<NDIM; d++) {
                 U = (trans[d].r == dimk) ? trans[d].U : shrink(dimk,dimk,trans[d].r,trans[d].U,w3);
                 mTxmq(dimi, trans[d].r, dimk, w2, w1, U);
                 size = trans[d].r * size / dimk;
                 dimi = size/dimk;
                 std::swap(w1,w2);
-                nflop[n] += dimi*trans[d].r*dimk*2.0;
             }
 
             // If all blocks are full rank we can skip the transposes
@@ -899,7 +102,6 @@ namespace madness {
                     if (trans[d].VT) {
                         dimi = size/trans[d].r;
                         mTxmq(dimi, dimk, trans[d].r, w2, w1, trans[d].VT);
-                        nflop[n] += dimi*trans[d].r*dimk*2.0;
                         size = dimk*size/trans[d].r;
                     }
                     else {
@@ -1192,8 +394,6 @@ namespace madness {
             : WorldObject< SeparatedConvolution<Q,NDIM> >(world)
             , doleaves(doleaves)
             , isperiodicsum(isperiodicsum)
-            , dowiden0(false)
-            , dowiden1(false)
             , k(k)
             , rank(ops.size())
             , vk(NDIM,k)
@@ -1203,8 +403,6 @@ namespace madness {
         {
 
             check_cubic();
-
-            for (int i=0; i<64; i++) nflop[i] = 0.0;
 
             this->process_pending();
         }
@@ -1217,8 +415,6 @@ namespace madness {
             : WorldObject< SeparatedConvolution<Q,NDIM> >(world)
             , doleaves(doleaves)
             , isperiodicsum(false)
-            , dowiden0(false)
-            , dowiden1(false)
             , k(k)
             , rank(coeff.dim[0])
             , vk(NDIM,k)
@@ -1228,7 +424,6 @@ namespace madness {
         {
             check_cubic();
             double width = FunctionDefaults<NDIM>::get_cell_width()(0L);
-            for (int i=0; i<64; i++) nflop[i] = 0.0;
 
             for (int i=0; i<rank; i++) {
                 Q c = coeff(i);
@@ -1243,10 +438,6 @@ namespace madness {
 
         const std::vector< Key<NDIM> > get_disp(Level n) const {
             return Displacements<NDIM>().get_disp(n, isperiodicsum);
-        }
-
-        const double* get_nflop() const {
-            return nflop;
         }
 
         double norm(Level n, const Key<NDIM>& d) const {

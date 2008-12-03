@@ -84,8 +84,8 @@ namespace madness {
         long npt = long((shi-slo)/h);
         h = (shi-slo)/(npt+1.0);
         
-        if (prnt) 
-            cout << "slo " << slo << "shi " << shi << "npt " << npt << endl;
+        //if (prnt) 
+        //cout << "slo " << slo << " shi " << shi << " npt " << npt << " h " << h << endl;
         
         Tensor<double> coeff(npt), expnt(npt);
         
@@ -171,15 +171,27 @@ namespace madness {
         else {
             slo = log(eps/hi) - 1.0;
         }
-        
         shi = 0.5*log(T/(lo*lo));
-        double h = 1.0/(.2-.50*log10(eps)); // was 0.47
         
-        long npt = long((shi-slo)/h);
-        h = (shi-slo)/(npt+1.0);
+        // Resolution required for quadrature over s
+        double h = 1.0/(0.2-.50*log10(eps)); // was 0.5 was 0.47
+
+        // Truncate the number of binary digits in h's mantissa
+        // so that rounding does not occur when performing 
+        // manipulations to determine the quadrature points and
+        // to limit the number of distinct values in case of
+        // multiple precisions being used at the same time.
+        h = floor(64.0*h)/64.0;
+
+
+        // Round shi/lo up/down to an integral multiple of quadrature points
+        shi = ceil(shi/h)*h;
+        slo = floor(slo/h)*h;
         
-        if (prnt) 
-            cout << "slo " << slo << "shi " << shi << "npt " << npt << endl;
+        long npt = long((shi-slo)/h+0.5);
+        
+        //if (prnt) 
+        //cout << "slo " << slo << " shi " << shi << " npt " << npt << " h " << h << endl;
         
         Tensor<double> coeff(npt), expnt(npt);
         
