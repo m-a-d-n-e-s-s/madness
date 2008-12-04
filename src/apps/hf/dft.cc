@@ -4,36 +4,9 @@
 #include <moldft/xc/f2c.h>
 #include <vector>
 #include "poperator.h"
-#include "xc.h"
+#include "libxc.h"
 
 typedef madness::Vector<double,3> coordT;
-
-//***************************************************************************
-static double munge(double r) {
-  if (r < 1e-12) r = 1e-12;
-  return r;
-}
-//***************************************************************************
-
-//***************************************************************************
-static void libxc_ldaop(const Key<3>& key, Tensor<double>& t) {
-  XC(lda_type) xc_c_func;
-  XC(lda_type) xc_x_func;
-  xc_lda_init(&xc_c_func, XC_LDA_C_VWN,XC_UNPOLARIZED);
-  xc_lda_x_init(&xc_x_func, XC_UNPOLARIZED, 3, 0);
-  UNARY_OPTIMIZED_ITERATOR(double, t, double r=munge(2.0* *_p0); double q; double dq1; double dq2; xc_lda_vxc(&xc_x_func, &r, &q, &dq1); xc_lda_vxc(&xc_c_func, &r, &q, &dq2); *_p0 = dq1+dq2);
-}
-//***************************************************************************
-
-//***************************************************************************
-static void libxc_ldaeop(const Key<3>& key, Tensor<double>& t) {
-  XC(lda_type) xc_c_func;
-  XC(lda_type) xc_x_func;
-  xc_lda_init(&xc_c_func, XC_LDA_C_VWN,XC_UNPOLARIZED);
-  xc_lda_x_init(&xc_x_func, XC_UNPOLARIZED, 3, 0);
-  UNARY_OPTIMIZED_ITERATOR(double, t, double r=munge(2.0* *_p0); double q1; double q2; double dq; xc_lda_vxc(&xc_x_func, &r, &q1, &dq); xc_lda_vxc(&xc_c_func, &r, &q1, &dq); *_p0 = q1+q2);
-}
-//***************************************************************************
 
 namespace madness
 {
@@ -243,7 +216,7 @@ namespace madness
   template <typename T, int NDIM>
   void DFT<T,NDIM>::solve(int maxits)
   {
-    _solver->solve(maxits);
+    _solver->multi_solve(maxits);
   }
   //***************************************************************************
 

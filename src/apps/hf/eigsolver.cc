@@ -474,6 +474,7 @@ namespace madness
         }
         // Set new eigenvalue
         _eigs[ei] = eps_new;
+        if (_world.rank() == 0) printf("ei = %d\teps = %.5f\n\n", ei, eps_new);
       }
       // Update the eigenvalue estimates and wavefunctions.
       truncate(_world, tmp);

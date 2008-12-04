@@ -256,9 +256,7 @@ public:
   {
       MADNESS_ASSERT(!_params.spinpol);
       functionT vlda = copy(arho);
-      vlda.reconstruct();
-      //vlda.unaryop(&ldaop);
-      vlda.unaryop(&::xc_lda_V<3>);
+      vlda.unaryop(&::libxc_ldaop);
       return vlda;
   }
 
@@ -382,12 +380,12 @@ public:
       double L = _params.L;
       double bstep = L / 100.0;
       rho.reconstruct();
-      Vxc.reconstruct();
+      vlocal.reconstruct();
       for (int i = 0; i < 101; i++)
       {
         coordT p(-L / 2 + i * bstep);
         if (_world.rank() == 0)
-          printf("%.2f\t\t%.8f\t%.8f\n", p[0], rho(p), Vxc(p));
+          printf("%.2f\t\t%.8f\t%.8f\n", p[0], rho(p), vlocal(p));
       }
       if (_world.rank() == 0) printf("\n");
     }
@@ -420,6 +418,15 @@ public:
     if (_world.rank() == 0) print("Constructing Fock matrix ...\n\n");
     tensorT fock = kinetic + potential;
     fock = 0.5 * (fock + transpose(fock));
+
+    for (int fi = 0; fi < fock.dim[0]; fi++)
+    {
+      for (int fj = 0; fj < fock.dim[1]; fj++)
+      {
+        printf("%10.5f", fock(fi,fj));
+      }
+      printf("\n");
+    }
 
     tensorT c, e;
     if (_world.rank() == 0) print("Diagonlizing Fock matrix ...\n\n");
