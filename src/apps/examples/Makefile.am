@@ -1,8 +1,12 @@
 include $(top_srcdir)/config/MakeGlobal.am
 
-bin_PROGRAMS = hello hatom_energy h2 he tdse bigboy2 fast
+bin_PROGRAMS = hello hatom_energy h2 he tdse bigboy2 fast heat heat2
 
 bigboy2_SOURCES = bigboy2.cc
+
+heat_SOURCES = heat.cc
+
+heat2_SOURCES = heat2.cc
 
 fast_SOURCES = fast.cc
 
