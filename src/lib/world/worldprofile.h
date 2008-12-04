@@ -6,6 +6,8 @@
 #include <world/worldthread.h>
 #include <world/worldhashmap.h>
 
+// NEED TO ADD ATTRIBUTION TO SHINY ON SOURCE FORGE
+
 namespace madness {
 
     /// Simple container for parallel profile statistic

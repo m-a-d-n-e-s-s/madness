@@ -451,7 +451,7 @@ struct Calculation {
         coulop = poperatorT(CoulombOperatorPtr<double, 3>(world,
                                                           FunctionDefaults<3>::get_k(),
                                                           param.lo,
-                                                          vtol/safety)); // No need for safety here!
+                                                          thresh)); // No need for safety here!
         if (world.rank() == 0) {
             print("\nSolving with thresh", thresh, "    k", FunctionDefaults<3>::get_k(),
                   "   conv", max(thresh, param.dconv), "\n");

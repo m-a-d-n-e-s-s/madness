@@ -35,6 +35,8 @@
 
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <mra/mra.h>
+#include <world/worldhashmap.h>
+
 
 extern "C" double round(double x);
 
@@ -1322,6 +1324,12 @@ namespace madness {
     template void plotdx<double_complex,6>(const Function<double_complex,6>&, const char*, const Tensor<double>&,
                                    const std::vector<long>&, bool binary);
 #endif
+
+    template <>
+    ConcurrentHashMap< double, SharedPtr< GaussianConvolution1D<double> > >  GaussianConvolution1DCache<double>::map = ConcurrentHashMap< double, SharedPtr< GaussianConvolution1D<double> > >();
+
+    template <>
+    ConcurrentHashMap< double, SharedPtr< GaussianConvolution1D<double_complex> > > GaussianConvolution1DCache<double_complex>::map = ConcurrentHashMap< double, SharedPtr< GaussianConvolution1D<double_complex> > >();
 }
 
 /// Quietly used as a global lock when looking for bugs with multiple threads

@@ -2016,3 +2016,112 @@ runvalg2:
             return None;
         }
 
+
+
+
+
+
+
+        /// Apply one of the separated terms, accumulating into the result
+
+        /// !!! Keep this routine exactly consistent with muopxvT so that
+        /// munorm converges correctly
+        template <typename T>
+        void muopxv(Level n,
+                    const ConvolutionData1D<Q>* const ops[NDIM],
+                    const Tensor<T>& f, const Tensor<T>& f0,
+                    Tensor<TENSOR_RESULT_TYPE(T,Q)>& result,
+                    const double tol,
+                    const double musign) const {
+            PROFILE_MEMBER_FUNC(SeparatedConvolution);
+
+            double Rnorm = 1.0;
+            for (int d=0; d<NDIM; d++) Rnorm *= ops[d]->Rnorm;
+            if (Rnorm == 0.0) return;
+
+            // Temporaries can be optimized away
+            Tensor<TENSOR_RESULT_TYPE(T,Q)> tmp = inner(f,ops[0]->R,0,0);
+            for (int d=1; d<NDIM; d++) {
+                tmp = inner(tmp,ops[d]->R,0,0);
+            }
+            result.gaxpy(1.0,tmp,musign);
+
+            if (n > 0) {
+                tmp = inner(f0,ops[0]->T,0,0);
+                for (int d=1; d<NDIM; d++) {
+                    tmp = inner(tmp,ops[d]->T,0,0);
+                }
+                result(s0).gaxpy(1.0,tmp,-musign);
+            }
+        }
+
+        /// Apply transpose of one of the separated terms, accumulating into the result
+
+        /// This is only used when computing the actual 2-norm by the power method
+        /// !!! Keep this routine exactly consistent with muopxv so that
+        /// munorm converges correctly
+        template <typename T>
+        void muopxvT(Level n,
+                     const ConvolutionData1D<Q>* ops[],
+                     const Tensor<T>& f, const Tensor<T>& f0,
+                     Tensor<TENSOR_RESULT_TYPE(T,Q)>& result,
+                     const double tol,
+                     const double musign) const {
+            PROFILE_MEMBER_FUNC(SeparatedConvolution);
+
+            double Rnorm = 1.0;
+            for (int d=0; d<NDIM; d++) Rnorm *= ops[d]->Rnorm;
+            if (Rnorm == 0.0) return;
+
+            // Temporaries can be optimized away
+            Tensor<TENSOR_RESULT_TYPE(T,Q)> tmp = inner(f,ops[0]->R,0,1);
+            for (int d=1; d<NDIM; d++) {
+                tmp = inner(tmp,ops[d]->R,0,1);
+            }
+            result.gaxpy(1.0,tmp,musign);
+
+            if (n > 0) {
+                tmp = inner(f0,ops[0]->T,0,1); // Slice+copy can be optimized away
+                for (int d=1; d<NDIM; d++) {
+                    tmp = inner(tmp,ops[d]->T,0,1);
+                }
+                result(s0).gaxpy(1.0,tmp,-musign);
+            }
+        }
+
+
+        /// Computes the 2-norm of one of the separated terms
+        double munorm(Level n, const ConvolutionData1D<Q>* ops[]) const {
+            PROFILE_MEMBER_FUNC(SeparatedConvolution);
+            Tensor<Q> f(v2k), f0, ff(v2k);
+
+            double tol = 1e-20;
+
+            f.fillrandom();
+            f.scale(1.0/f.normf());
+            double evalp = 1.0, eval, ratio=99.0;
+            for (int iter=0; iter<100; iter++) {
+                ff.fill(0.0);
+                f0 = copy(f(s0));
+                muopxv(n,ops,f,f0,ff,tol,1.0);
+                f.fill(0.0);
+                f0 = copy(ff(s0));
+                muopxvT(n,ops,ff,f0,f,tol,1.0);
+
+                eval = f.normf();
+                if (eval == 0.0) break;
+                f.scale(1.0/eval);
+                eval = sqrt(eval);
+                ratio = eval/evalp;
+                //std::printf("munorm: %d %10.2e %10.2e %10.2e \n", iter, eval, evalp, ratio);
+                if (iter>0 && ratio<1.2 && ratio>0.9999) break; // 1.2 was 1.02;  >0.9999 was >=1.0
+                if (iter>10 && eval<tol) break;
+                evalp = eval;
+                if (iter == 99) throw "munorm failed";
+            }
+            return eval*ratio;
+        }
+
+
+
+

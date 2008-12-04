@@ -399,34 +399,6 @@ namespace madness {
     };
 
 
-    // For complex types return +1 as the sign and leave coeff unchanged
-    template <typename Q, bool iscomplex>
-    struct munge_sign_struct {
-        static double op(Q& coeff) {
-            return 1.0;
-        }
-    };
-
-    // For real types return actual sign and make coeff positive
-    template <typename Q>
-    struct munge_sign_struct<Q,false> {
-        static typename Tensor<Q>::scalar_type op(Q& coeff) {
-            if (coeff < 0.0) {
-                coeff = -coeff;
-                return -1.0;
-            }
-            else {
-                return 1.0;
-            }
-        }
-    };
-
-    template <typename Q>
-    typename Tensor<Q>::scalar_type munge_sign(Q& coeff) {
-        return munge_sign_struct<Q, TensorTypeData<Q>::iscomplex>::op(coeff);
-    }
-
-
     /// 1D Gaussian convolution with coeff and expnt given in *simulation* coordinates [0,1]
     template <typename Q>
     class GaussianConvolution1D : public Convolution1D<Q> {
@@ -548,6 +520,31 @@ namespace madness {
             return (beta*ll*ll > 49.0);      // 49 -> 5e-22     69 -> 1e-30
         };
     };
+
+
+    template <typename Q>
+    struct GaussianConvolution1DCache {
+        static ConcurrentHashMap< double, SharedPtr< GaussianConvolution1D<Q> > > map;
+        typedef typename ConcurrentHashMap< double, SharedPtr< GaussianConvolution1D<Q> > >::iterator iterator;
+        typedef typename ConcurrentHashMap< double, SharedPtr< GaussianConvolution1D<Q> > >::datumT datumT;
+
+        static SharedPtr< GaussianConvolution1D<Q> > get(int k, double expnt) {
+            iterator it = map.find(expnt+k);
+            if (it == map.end()) {
+                const double pi = 3.14159265358979323846264338328;
+                map.insert(datumT(expnt+k, SharedPtr< GaussianConvolution1D<Q> >(new GaussianConvolution1D<Q>(k, 
+                                                                                                       sqrt(expnt/pi),
+                                                                                                              expnt))));
+                it = map.find(expnt+k);
+                //printf("conv1d: making  %d %.8e\n",k,expnt);
+            }
+            else {
+                //printf("conv1d: reusing %d %.8e\n",k,expnt);
+            }
+            return it->second;
+        }
+    };
+
 
     /// 1D Gaussian convolution summed over periodic translations
 

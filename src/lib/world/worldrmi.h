@@ -36,7 +36,7 @@
   There are few user accessible routines.
 
   RMI::Request RMI::isend(const void* buf, size_t nbyte, int dest, 
-  rmi_handlerT func, unsigned int attr=0)
+                          rmi_handlerT func, unsigned int attr=0)
   - to send an asynchronous message 
   - RMI::Request has the same interface as MPI::Request 
   (right now it is an MPI::Request but this is not guaranteed)

@@ -191,7 +191,7 @@ namespace madness {
         long npt = long((shi-slo)/h+0.5);
         
         //if (prnt) 
-        //cout << "slo " << slo << " shi " << shi << " npt " << npt << " h " << h << endl;
+        //cout << "slo " << slo << " shi " << shi << " npt " << npt << " h " << h << " " << eps << endl;
         
         Tensor<double> coeff(npt), expnt(npt);
         
@@ -219,7 +219,9 @@ namespace madness {
                     cnew*exp(-expnt[i-1]*lo*lo);
                 double errhi = coeff[i]*exp(-expnt[i]*hi*hi) - 
                     cnew*exp(-expnt[i-1]*hi*hi);
-                if (max(abs(errlo),abs(errhi)) > 0.03*eps) break;
+                // Was 0.03 but since we eliminated scaling eps/4pi in the
+                // call must fix things here
+                if (max(abs(errlo),abs(errhi)) > 0.03*eps) break; 
                 npt--;
                 coeff[i-1] = coeff[i-1] + cnew;
             }

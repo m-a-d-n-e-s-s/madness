@@ -51,6 +51,8 @@ namespace madness {
         const std::vector<long> v2k;
         const std::vector<Slice> s0;
         mutable std::vector< SharedPtr< Convolution1D<Q> > > ops;
+        std::vector<Q> factors;
+        std::vector<double> facnorms;
 
         mutable SimpleCache< SeparatedConvolutionData<Q,NDIM>, NDIM > data;
 
@@ -67,7 +69,7 @@ namespace madness {
                                   Tensor<R>& work1,
                                   Tensor<R>& work2,
                                   Tensor<Q>& work3,
-                                  const double musign,
+                                  const Q musign,
                                   Tensor<R>& result) const {
 
             PROFILE_MEMBER_FUNC(SeparatedConvolution);
@@ -114,14 +116,15 @@ namespace madness {
             // Assuming here that result is contiguous
             MADNESS_ASSERT(size == result.size);
             R* restrict p = result.ptr();
-            if (musign > 0) {
-                //for (long i=0; i<size; i++) p[i] += w1[i];
-                aligned_add(size, p, w1);
-            }
-            else {
-                //for (long i=0; i<size; i++) p[i] -= w1[i];
-                aligned_sub(size, p, w1);
-            }
+            for (long i=0; i<size; i++) p[i] += musign*w1[i];
+//             if (musign > 0) {
+//                 //for (long i=0; i<size; i++) p[i] += w1[i];
+//                 aligned_add(size, p, w1);
+//             }
+//             else {
+//                 //for (long i=0; i<size; i++) p[i] -= w1[i];
+//                 aligned_sub(size, p, w1);
+//             }
         }
 
         /// Apply one of the separated terms, accumulating into the result
@@ -132,7 +135,7 @@ namespace madness {
                          Tensor<TENSOR_RESULT_TYPE(T,Q)>& result,
                          Tensor<TENSOR_RESULT_TYPE(T,Q)>& result0,
                          double tol,
-                         const double musign,
+                         const Q musign,
                          Tensor<TENSOR_RESULT_TYPE(T,Q)>& work1,
                          Tensor<TENSOR_RESULT_TYPE(T,Q)>& work2,
                          Tensor<Q>& work5) const {
@@ -198,107 +201,8 @@ namespace madness {
             }
         }
 
-        /// Apply one of the separated terms, accumulating into the result
 
-        /// !!! Keep this routine exactly consistent with muopxvT so that
-        /// munorm converges correctly
-        template <typename T>
-        void muopxv(Level n,
-                    const ConvolutionData1D<Q>* const ops[NDIM],
-                    const Tensor<T>& f, const Tensor<T>& f0,
-                    Tensor<TENSOR_RESULT_TYPE(T,Q)>& result,
-                    const double tol,
-                    const double musign) const {
-            PROFILE_MEMBER_FUNC(SeparatedConvolution);
-
-            double Rnorm = 1.0;
-            for (int d=0; d<NDIM; d++) Rnorm *= ops[d]->Rnorm;
-            if (Rnorm == 0.0) return;
-
-            // Temporaries can be optimized away
-            Tensor<TENSOR_RESULT_TYPE(T,Q)> tmp = inner(f,ops[0]->R,0,0);
-            for (int d=1; d<NDIM; d++) {
-                tmp = inner(tmp,ops[d]->R,0,0);
-            }
-            result.gaxpy(1.0,tmp,musign);
-
-            if (n > 0) {
-                tmp = inner(f0,ops[0]->T,0,0);
-                for (int d=1; d<NDIM; d++) {
-                    tmp = inner(tmp,ops[d]->T,0,0);
-                }
-                result(s0).gaxpy(1.0,tmp,-musign);
-            }
-        }
-
-        /// Apply transpose of one of the separated terms, accumulating into the result
-
-        /// This is only used when computing the actual 2-norm by the power method
-        /// !!! Keep this routine exactly consistent with muopxv so that
-        /// munorm converges correctly
-        template <typename T>
-        void muopxvT(Level n,
-                     const ConvolutionData1D<Q>* ops[],
-                     const Tensor<T>& f, const Tensor<T>& f0,
-                     Tensor<TENSOR_RESULT_TYPE(T,Q)>& result,
-                     const double tol,
-                     const double musign) const {
-            PROFILE_MEMBER_FUNC(SeparatedConvolution);
-
-            double Rnorm = 1.0;
-            for (int d=0; d<NDIM; d++) Rnorm *= ops[d]->Rnorm;
-            if (Rnorm == 0.0) return;
-
-            // Temporaries can be optimized away
-            Tensor<TENSOR_RESULT_TYPE(T,Q)> tmp = inner(f,ops[0]->R,0,1);
-            for (int d=1; d<NDIM; d++) {
-                tmp = inner(tmp,ops[d]->R,0,1);
-            }
-            result.gaxpy(1.0,tmp,musign);
-
-            if (n > 0) {
-                tmp = inner(f0,ops[0]->T,0,1); // Slice+copy can be optimized away
-                for (int d=1; d<NDIM; d++) {
-                    tmp = inner(tmp,ops[d]->T,0,1);
-                }
-                result(s0).gaxpy(1.0,tmp,-musign);
-            }
-        }
-
-
-        /// Computes the 2-norm of one of the separated terms
-        double munorm(Level n, const ConvolutionData1D<Q>* ops[]) const {
-            PROFILE_MEMBER_FUNC(SeparatedConvolution);
-            Tensor<Q> f(v2k), f0, ff(v2k);
-
-            double tol = 1e-20;
-
-            f.fillrandom();
-            f.scale(1.0/f.normf());
-            double evalp = 1.0, eval, ratio=99.0;
-            for (int iter=0; iter<100; iter++) {
-                ff.fill(0.0);
-                f0 = copy(f(s0));
-                muopxv(n,ops,f,f0,ff,tol,1.0);
-                f.fill(0.0);
-                f0 = copy(ff(s0));
-                muopxvT(n,ops,ff,f0,f,tol,1.0);
-
-                eval = f.normf();
-                if (eval == 0.0) break;
-                f.scale(1.0/eval);
-                eval = sqrt(eval);
-                ratio = eval/evalp;
-                //std::printf("munorm: %d %10.2e %10.2e %10.2e \n", iter, eval, evalp, ratio);
-                if (iter>0 && ratio<1.2 && ratio>0.9999) break; // 1.2 was 1.02;  >0.9999 was >=1.0
-                if (iter>10 && eval<tol) break;
-                evalp = eval;
-                if (iter == 99) throw "munorm failed";
-            }
-            return eval*ratio;
-        }
-
-        /// Computes the Frobenius norm of one of the separated terms
+        /// Computes the Frobenius norm of one of the separated terms ... WITHOUT FACTOR INCLUDED
         double munorm2(Level n, const ConvolutionData1D<Q>* ops[]) const {
             PROFILE_MEMBER_FUNC(SeparatedConvolution);
             double prodR=1.0, prodT=1.0;
@@ -334,8 +238,8 @@ namespace madness {
                 op.ops[d] = ops[mu]->nonstandard(n, disp.translation()[d]);
             }
 
-            op.norm = munorm2(n, op.ops);
-            //op.norm = munorm(n, op.ops);
+            op.norm = munorm2(n, op.ops)*facnorms[mu];
+            //op.norm = munorm(n, op.ops)*facnorms[mu];
 
 //             double newnorm = munorm2(n, op.ops);
 //             // This rescaling empirically based upon BSH separated expansion
@@ -400,6 +304,8 @@ namespace madness {
             , v2k(NDIM,2*k)
             , s0(std::max(2,NDIM),Slice(0,k-1))
             , ops(ops)
+            , factors(ops.size(),1.0)
+            , facnorms(ops.size(),1.0)
         {
 
             check_cubic();
@@ -421,18 +327,25 @@ namespace madness {
             , v2k(NDIM,2*k)
             , s0(std::max(2,NDIM),Slice(0,k-1))
             , ops(coeff.dim[0])
+            , factors(ops.size(),1.0)
+            , facnorms(ops.size(),1.0)
         {
             check_cubic();
             double width = FunctionDefaults<NDIM>::get_cell_width()(0L);
+            const double pi = 3.14159265358979323846264338328;
 
             for (int i=0; i<rank; i++) {
-                Q c = coeff(i);
-                double sign = munge_sign(c);
-                c = std::pow(c, 1.0/NDIM);
-                ops[i] = SharedPtr< Convolution1D<Q> >(new GaussianConvolution1D<Q>(k,
-                                                                                    c*width,
-                                                                                    expnt(i)*width*width,
-                                                                                    sign));
+                Q c = sqrt(expnt(i)/pi); // Normalize the Gaussian in 1D
+
+                factors[i] = coeff(i)/std::pow(c,NDIM);
+                facnorms[i] = std::abs(factors[i]);
+                //print("FACTORS", i, "coeff", coeff(i), "expnt", expnt(i), "coeff", coeff(i), "c", c, "facn", facnorms[i]);
+
+//                 ops[i] = SharedPtr< Convolution1D<Q> >(new GaussianConvolution1D<Q>(k,
+//                                                                                     c*width,
+//                                                                                     expnt(i)*width*width));
+                ops[i] = GaussianConvolution1DCache<Q>::get(k, expnt(i)*width*width);
+
             }
         }
 
@@ -483,7 +396,7 @@ namespace madness {
                 const SeparatedConvolutionInternal<Q,NDIM>& muop =  op->muops[mu];
                 //print(source, shift, mu, muop.norm);
                 if (muop.norm > tol) {
-                    muopxv_fast(source.level(), muop.ops, *input, f0, r, r0, tol, ops[mu]->sign,
+                    muopxv_fast(source.level(), muop.ops, *input, f0, r, r0, tol/facnorms[mu], factors[mu]*ops[mu]->sign,
                                 work1, work2, work5);
                     //muopxv(source.level(), muop.ops, *input, f0, r, tol, ops[mu]->sign);
                 }
@@ -508,7 +421,7 @@ namespace madness {
         // bsh_fit generates representation for 1/4Pir but we want 1/r
         // so have to scale eps by 1/4Pi
         Tensor<double> coeff, expnt;
-        bsh_fit(0.0, lo, hi, eps/(4.0*pi), &coeff, &expnt, false);
+        bsh_fit(0.0, lo, hi, eps, &coeff, &expnt, false); // was eps/4pi ... but eps is relative error
         coeff.scale(4.0*pi);
         return SeparatedConvolution<Q,NDIM>(world, k, coeff, expnt);
     }
@@ -526,7 +439,7 @@ namespace madness {
         // bsh_fit generates representation for 1/4Pir but we want 1/r
         // so have to scale eps by 1/4Pi
         Tensor<double> coeff, expnt;
-        bsh_fit(0.0, lo, hi, eps/(4.0*pi), &coeff, &expnt, false);
+        bsh_fit(0.0, lo, hi, eps, &coeff, &expnt, false); // Was eps/4pi ... but eps is relative error
         coeff.scale(4.0*pi);
         return new SeparatedConvolution<Q,NDIM>(world, k, coeff, expnt);
     }
