@@ -45,7 +45,7 @@ struct ElectronicStructureParams
     L = 10.0;
     nelec = 1;
     functional = 1;
-    lo = 1e-8;
+    lo = 1e-10;
     smear = 0.001;
     spinpol = false;
     periodic = false;

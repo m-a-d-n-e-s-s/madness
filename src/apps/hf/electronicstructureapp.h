@@ -205,7 +205,7 @@ public:
 
       _rhon = factoryT(_world).functor(
           functorT(new MolecularNuclearChargeDensityFunctor(_mentity))).
-          thresh(_params.thresh).initial_level(4).truncate_on_project();
+          thresh(_params.thresh * 0.1).initial_level(6).truncate_on_project();
       if (_world.rank() == 0) print("calculating trace of rhon ..\n\n");
       double rtrace = _rhon.trace();
       if (_world.rank() == 0) print("rhon trace = ", rtrace);
@@ -375,17 +375,17 @@ public:
     }
 
     {
-      functionT Vxc = make_lda_potential(_world, rho, rho, functionT(), functionT());
+      //functionT Vxc = make_lda_potential(_world, rho, rho, functionT(), functionT());
       if (_world.rank() == 0)  printf("\n");
       double L = _params.L;
       double bstep = L / 100.0;
       rho.reconstruct();
-      vlocal.reconstruct();
+      _vnuc.reconstruct();
       for (int i = 0; i < 101; i++)
       {
         coordT p(-L / 2 + i * bstep);
         if (_world.rank() == 0)
-          printf("%.2f\t\t%.8f\t%.8f\n", p[0], rho(p), vlocal(p));
+          printf("%.2f\t\t%.8f\t%.8f\n", p[0], rho(p), _vnuc(p));
       }
       if (_world.rank() == 0) printf("\n");
     }

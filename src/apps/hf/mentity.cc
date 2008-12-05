@@ -328,6 +328,7 @@ void MolecularEntity::add_atom(double x, double y, double z, int atomic_number, 
     atoms.push_back(Atom(x,y,z,atomic_number,q));
     double c = smoothing_parameter(q, 1e-5); // This is error per atom
     rcut.push_back(1.0/c);
+    printf("c = %.5f\n\n", c);
 }
 
 void MolecularEntity::set_atom_coords(unsigned int i, double x, double y, double z) {
@@ -438,23 +439,23 @@ double MolecularEntity::nuclear_attraction_potential(double x, double y, double 
 }
 
 double MolecularEntity::nuclear_charge_density(double x, double y, double z) const {
-//  double sum = 0.0;
-//  for (unsigned int i=0; i<atoms.size(); i++)
-//  {
-//    double r = distance(atoms[i].x, atoms[i].y, atoms[i].z, x, y, z);
-//    sum -= atoms[i].atomic_number * smoothed_density(r*rcut[i])*rcut[i]*rcut[i]*rcut[i];
-//  }
-//  return sum;
-
   double sum = 0.0;
-  for (unsigned int i = 0; i < atoms.size(); i++)
+  for (unsigned int i=0; i<atoms.size(); i++)
   {
     double r = distance(atoms[i].x, atoms[i].y, atoms[i].z, x, y, z);
-    double e1 = 50.0;
-    double coeff = pow(e1/PI, 1.5);
-    sum -= atoms[i].atomic_number * coeff * exp(-e1 * r * r);
+    sum += atoms[i].atomic_number * smoothed_density(r*rcut[i])*rcut[i]*rcut[i]*rcut[i];
   }
   return sum;
+
+//  double sum = 0.0;
+//  for (unsigned int i = 0; i < atoms.size(); i++)
+//  {
+//    double r = distance(atoms[i].x, atoms[i].y, atoms[i].z, x, y, z);
+//    double e1 = 50.0;
+//    double coeff = pow(e1/PI, 1.5);
+//    sum -= atoms[i].atomic_number * coeff * exp(-e1 * r * r);
+//  }
+//  return sum;
 }
 
 

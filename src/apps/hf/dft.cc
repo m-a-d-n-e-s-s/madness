@@ -23,13 +23,13 @@ namespace madness
     {
       Tensor<double> L = FunctionDefaults<NDIM>::get_cell_width();
       cop = PeriodicCoulombOpPtr<T,NDIM>(world, FunctionDefaults<NDIM>::get_k(),
-          1e-4, thresh, L);
+          1e-8, thresh * 0.1, L);
     }
     else
     {
       cop =
         CoulombOperatorPtr<T,NDIM>(world,
-            FunctionDefaults<NDIM>::get_k(), 1e-8, thresh);
+            FunctionDefaults<NDIM>::get_k(), 1e-8, thresh * 0.1);
     }
     // Apply operator to get potential
     _Vnuc = apply(*cop, rhon);
@@ -79,7 +79,7 @@ namespace madness
     // Create Coulomb operator
     Tensor<double> L = FunctionDefaults<NDIM>::get_cell_width();
     _cop = PeriodicCoulombOpPtr<T,NDIM>(world, FunctionDefaults<NDIM>::get_k(),
-        1e-4, thresh, L);
+        1e-8, thresh * 0.1, L);
   }
   //*************************************************************************
 
@@ -216,7 +216,7 @@ namespace madness
   template <typename T, int NDIM>
   void DFT<T,NDIM>::solve(int maxits)
   {
-    _solver->multi_solve(maxits);
+    _solver->solve(maxits);
   }
   //***************************************************************************
 

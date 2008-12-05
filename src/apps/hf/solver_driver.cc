@@ -38,7 +38,7 @@ int main(int argc, char** argv)
         std::vector<Function<double,3> > phis = app.orbitals();
         std::vector<double> eigs;
         Tensor<double> tmpe = app.eigs();
-        for (unsigned int i = 0; i < params.nelec; i++)
+        for (int i = 0; i < params.nelec; i++)
           eigs.push_back(tmpe[i]);
 
         DFT<double,3> dftcalc(world, rhon, phis, eigs, params);
