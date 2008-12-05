@@ -437,6 +437,7 @@ namespace madness {
         world.gop.fence();
 
         standard(world, ncf, false);  // restores promise of logical constness
+        world.gop.fence();
 	reconstruct(world, result);
 
         return result;
