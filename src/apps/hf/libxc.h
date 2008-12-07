@@ -12,6 +12,7 @@
 #include <mra/mra.h>
 #include <world/world.h>
 #include "xc.h"
+#include "lda.h"
 
 using namespace madness;
 
@@ -19,6 +20,18 @@ using namespace madness;
 static double munge(double r) {
   if (r < 1e-12) r = 1e-12;
   return r;
+}
+//***************************************************************************
+
+//***************************************************************************
+inline static void ldaop(const Key<3>& key, Tensor<double>& t) {
+    UNARY_OPTIMIZED_ITERATOR(double, t, double r=munge(2.0* *_p0); double q; double dq1; double dq2;x_rks_s__(&r, &q, &dq1);c_rks_vwn5__(&r, &q, &dq2); *_p0 = dq1+dq2);
+}
+//***************************************************************************
+
+//***************************************************************************
+inline static void ldaeop(const Key<3>& key, Tensor<double>& t) {
+    UNARY_OPTIMIZED_ITERATOR(double, t, double r=munge(2.0* *_p0); double q1; double q2; double dq;x_rks_s__(&r, &q1, &dq);c_rks_vwn5__(&r, &q2, &dq); *_p0 = q1+q2);
 }
 //***************************************************************************
 

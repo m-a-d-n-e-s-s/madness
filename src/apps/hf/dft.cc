@@ -264,35 +264,19 @@ namespace madness
     {
       Tensor<double> L = FunctionDefaults<NDIM>::get_cell_width();
       op = CoulombOperatorPtr<T,NDIM>(const_cast<World&>(world),
-          FunctionDefaults<NDIM>::get_k(), 1e-4, thresh);
+          FunctionDefaults<NDIM>::get_k(), 1e-8, thresh * 0.1);
     }
     else
     {
       op = CoulombOperatorPtr<T,NDIM>(const_cast<World&>(world),
-          FunctionDefaults<NDIM>::get_k(), 1e-4, thresh);
+          FunctionDefaults<NDIM>::get_k(), 1e-8, thresh * 0.1);
     }
     // Apply Coulomb operator and trace with the density
-    funcT tmp = rhon + rho;
+    funcT tmp = rhon;
     funcT Vnuc = apply(*op, tmp);
-
-//    // DEBUG ******************************************************************
-//    if (world.rank() == 0) cout << "Printing out the electronic charge density and potential ..." << endl;
-//    if (world.rank() == 0) printf("\n");
-//    //Tensor<double> L = FunctionDefaults<NDIM>::get_cell_width();
-//    double LLL = L[0];
-//    double bstep = LLL / 100.0;
-//    Vnuc.reconstruct();
-//    Vnuc2.reconstruct();
-//    for (int i=0; i<101; i++)
-//    {
-//      coordT p(-LLL/2 + i*bstep);
-//      if (world.rank() == 0) printf("%.2f\t\t%.8f\t%.8f\n", p[0], Vnuc(p), Vnuc2(p));
-//    }
-//    if (world.rank() == 0) printf("\n");
-//    // DEBUG ******************************************************************
+    delete op;
 
     double tot_pe = inner(Vnuc, rho);
-    delete op;
     return tot_pe;
   }
   //***************************************************************************
@@ -318,7 +302,7 @@ namespace madness
     // Apply Coulomb operator and trace with the density
     funcT Vc = apply(*op, rho);
 
-    double tot_ce = 2*Vc.inner(rho);
+    double tot_ce = 0.5 * Vc.inner(rho);
     delete op;
     return tot_ce;
   }
@@ -330,7 +314,7 @@ namespace madness
   {
     funcT enefunc = copy(rho);
     enefunc.scale(0.5);
-    enefunc.unaryop(&::libxc_ldaeop);
+    enefunc.unaryop(&::ldaeop);
     return enefunc.trace();
   }
   //***************************************************************************
@@ -346,19 +330,19 @@ namespace madness
       if (world().rank() == 0) printf("Calculating energies ...\n");
       if (world().rank() == 0) printf("Calculating KE ...\n");
       double ke = DFT::calculate_tot_ke_sp(phis, false, periodic);
-      if (world().rank() == 0) printf("Calculating PE and CE...\n");
-      double pece = DFT::calculate_tot_pe_sp(_world, rho, _rhon, false, _params.thresh, periodic);
-//      if (world().rank() == 0) printf("Calculating CE ...\n");
-//      double ce = DFT::calculate_tot_coulomb_energy(_world, rho, false, _thresh, periodic);
+//      if (world().rank() == 0) printf("Calculating PE and CE...\n");
+      double pe = DFT::calculate_tot_pe_sp(_world, rho, _rhon, false, _params.thresh, periodic);
+      if (world().rank() == 0) printf("Calculating CE ...\n");
+      double ce = DFT::calculate_tot_coulomb_energy(_world, rho, false, _params.thresh, periodic);
       if (world().rank() == 0) printf("Calculating EE ...\n");
       double xce = DFT::calculate_tot_xc_energy(rho);
       if (world().rank() == 0) printf("Calculating NE ...\n");
       double ne = 0.0;
       if (world().rank() == 0) printf("Kinetic energy:\t\t\t\t %.8f\n", ke);
-      if (world().rank() == 0) printf("Potential and Coulomb energy:\t\t %.8f\n", pece);
-//      if (world().rank() == 0) printf("Coulomb energy:\t\t\t %.8f\n", ce);
+      if (world().rank() == 0) printf("Potential energy:\t\t\t %.8f\n", pe);
+      if (world().rank() == 0) printf("Coulomb energy:\t\t\t\t %.8f\n", ce);
       if (world().rank() == 0) printf("XC energy:\t\t\t\t %.8f\n", xce);
-      if (world().rank() == 0) printf("Total energy:\t\t\t\t %.8f\n", ke + pece + xce + ne);
+      if (world().rank() == 0) printf("Total energy:\t\t\t\t %.8f\n", ke + pe + ce + xce + ne);
       if (world().rank() == 0) printf("gs ene\t\t\t\t\t%.4f\n", eigs[0]);
       if (world().rank() == 0) printf("1st es ene\t\t\t\t%.4f\n", eigs[1]);
       T mtxe = matrix_element(phis[0], phis[0]);
