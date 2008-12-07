@@ -115,6 +115,9 @@ namespace madness {
 
 
     /// Transforms a vector of functions according to new[i] = sum[j] old[j]*c[j,i]
+
+    /// Uses sparsity in the transformation matrix --- set small elements to 
+    /// zero to take advantage of this.
     template <typename T, typename R, int NDIM>
     std::vector< Function<TENSOR_RESULT_TYPE(T,R),NDIM> >
     transform(World& world,
@@ -133,7 +136,7 @@ namespace madness {
 
         for (int i=0; i<m; i++) {
             for (int j=0; j<n; j++) {
-                vc[i].gaxpy(1.0,v[j],c(j,i),false);
+                if (c(j,i) != R(0.0)) vc[i].gaxpy(1.0,v[j],c(j,i),false);
             }
         }
         if (fence) world.gop.fence();
@@ -224,25 +227,6 @@ namespace madness {
     template <typename T, typename R, int NDIM>
     std::vector< Function<TENSOR_RESULT_TYPE(T,R), NDIM> >
     mul(World& world,
-        const Function<T,NDIM>& a,
-        const std::vector< Function<R,NDIM> >& v,
-        bool fence=true)
-    {
-        reconstruct(world, v);
-        a.reconstruct();
-        std::vector< Function<TENSOR_RESULT_TYPE(T,R),NDIM> > av(v.size());
-        for (unsigned int i=0; i<v.size(); i++) {
-            av[i] = mul(a, v[i], false);
-        }
-        if (fence) world.gop.fence();
-        return av;
-    }
-
-
-    /// XX Multiplies a function against a vector of functions --- q[i] = a * v[i]
-    template <typename T, typename R, int NDIM>
-    std::vector< Function<TENSOR_RESULT_TYPE(T,R), NDIM> >
-    mulXX(World& world,
           const Function<T,NDIM>& a,
           const std::vector< Function<R,NDIM> >& v,
           bool fence=true)
@@ -250,10 +234,10 @@ namespace madness {
         a.reconstruct(false);
         reconstruct(world, v, false);
         world.gop.fence();
-        return vmulXX(a, v, true);
+        return vmulXX(a, v, 0.0, fence);
     }
 
-    /// Multiplies a function against a vector of functions using sparsity of v[i] --- q[i] = a * v[i]
+    /// Multiplies a function against a vector of functions using sparsity of a and v[i] --- q[i] = a * v[i]
     template <typename T, typename R, int NDIM>
     std::vector< Function<TENSOR_RESULT_TYPE(T,R), NDIM> >
     mul_sparse(World& world,
@@ -262,17 +246,12 @@ namespace madness {
                double tol,
                bool fence=true)
     {
-        a.reconstruct();
-        reconstruct(world, v);
+        a.reconstruct(false);
+        reconstruct(world, v, false);
         world.gop.fence();
+        for (unsigned int i=0; i<v.size(); i++) v[i].norm_tree(false);
         a.norm_tree();
-        world.gop.fence();
-        std::vector< Function<TENSOR_RESULT_TYPE(T,R),NDIM> > av(v.size());
-        for (unsigned int i=0; i<v.size(); i++) {
-            av[i] = mul_sparse<T,R,NDIM>(v[i], a, tol, false);
-        }
-        if (fence) world.gop.fence();
-        return av;
+        return vmulXX(a, v, tol, fence);
     }
 
     /// Multiplies two vectors of functions q[i] = a[i] * b[i]

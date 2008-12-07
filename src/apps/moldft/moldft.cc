@@ -445,6 +445,8 @@ struct Calculation {
         //FunctionDefaults<3>::set_apply_randomize(false);
         //FunctionDefaults<3>::set_project_randomize(true);
 
+        GaussianConvolution1DCache<double>::map.clear(); // Free memoryfrom operators
+
         double safety = 0.1;
         vtol = FunctionDefaults<3>::get_thresh()*safety;
 
@@ -635,10 +637,10 @@ struct Calculation {
         tensorT rsq, dip(3,nmo);
         {
             functionT frsq = factoryT(world).f(rsquared).initial_level(4);
-            rsq = inner(world, mo, mulXX(world, frsq, mo));
+            rsq = inner(world, mo, mul(world, frsq, mo));
             for (int axis=0; axis<3; axis++) {
                 functionT fdip = factoryT(world).functor(functorT(new DipoleFunctor(axis))).initial_level(4);
-                dip(axis,_) = inner(world, mo, mulXX(world, fdip, mo));
+                dip(axis,_) = inner(world, mo, mul(world, fdip, mo));
                 for (int i=0; i<nmo; i++) rsq(i) -= dip(axis,i)*dip(axis,i);
             }
         }
@@ -677,7 +679,7 @@ struct Calculation {
 
         for (int axis=0; axis<3; axis++) {
             functionT fdip = factoryT(world).functor(functorT(new DipoleFunctor(axis))).initial_level(4);
-            dip(axis,_,_) = matrix_inner(world, mo, mulXX(world, fdip, mo), true);
+            dip(axis,_,_) = matrix_inner(world, mo, mul(world, fdip, mo), true);
         }
 
         tensorT U(nmo,nmo);
@@ -897,8 +899,7 @@ struct Calculation {
         reconstruct(world, ao);
         START_TIMER;
         //vecfuncT vpsi = mul(world, vlocal, ao);
-        //vecfuncT vpsi = mul_sparse(world, vlocal, ao, vtol);
-        vecfuncT vpsi = mulXX(world, vlocal, ao);
+        vecfuncT vpsi = mul_sparse(world, vlocal, ao, vtol);
         world.gop.fence();
         END_TIMER("make V*psi");
         world.gop.fence();
@@ -1035,16 +1036,16 @@ struct Calculation {
         reconstruct(world,psi);
         for (int i=0; i<nocc; i++) {
             if (occ[i] > 0.0) {
-                vecfuncT psif = mulXX(world, psi[i], f);
-                //vecfuncT psif = mul_sparse(world, psi[i], f, vtol);
+                //vecfuncT psif = mul(world, psi[i], f);
+                vecfuncT psif = mul_sparse(world, psi[i], f, vtol);
                 set_thresh(world, psif, vtol);  //<<<<<<<<<<<<<<<<<<<<<<<<< since cannot yet put in apply
 
                 truncate(world,psif);
                 psif = apply(world, *coulop, psif);
                 truncate(world, psif);
 
-                psif = mulXX(world, psi[i], psif);
-                //psif = mul_sparse(world, psi[i], psif, vtol);
+                //psif = mul(world, psi[i], psif);
+                psif = mul_sparse(world, psi[i], psif, vtol);
 
                 gaxpy(world, 1.0, Kf, occ[i], psif);
             }
@@ -1115,12 +1116,11 @@ struct Calculation {
         }
 
         world.gop.fence();
-        if (world.rank() == 0) printf("starting mulXX at %.2fs\n", wall_time());
-        //vecfuncT Vpsi = mul_sparse(world, vloc, amo, vtol);
-        vecfuncT Vpsi = mulXX(world, vloc, amo);
+        if (world.rank() == 0) printf("starting mul at %.2fs\n", wall_time());
+        vecfuncT Vpsi = mul_sparse(world, vloc, amo, vtol);
         //vecfuncT Vpsi = mul(world, vloc, amo);
         world.gop.fence();
-        if (world.rank() == 0) printf("finished mulXX at %.2fs\n", wall_time());
+        if (world.rank() == 0) printf("finished mul at %.2fs\n", wall_time());
 
         if (!param.lda) {
             vecfuncT Kamo = apply_hf_exchange(world, occ, amo, amo);
@@ -1257,6 +1257,12 @@ struct Calculation {
         sygv(fock, overlap, 1, &c, &evals);
 
         if (world.rank() == 0) printf("diagonalized at %.2fs\n", wall_time());
+
+        //if (world.rank() == 0) print("transformation matrix\n",c);
+        double tolscreen = max(FunctionDefaults<3>::get_thresh(), param.dconv / min(30.0,double(psi.size())));
+        c.screen(tolscreen);
+        //if (world.rank() == 0) print("transformation matrix screened\n",c);
+
         Vpsi = transform(world, Vpsi, c, false);
         psi = transform(world, psi, c);
         if (world.rank() == 0) printf("transformed psi and Vpsi at %.2fs\n", wall_time());
@@ -1315,7 +1321,7 @@ struct Calculation {
             }
             END_TIMER("Make densities");
 
-            if (iter == 1) {
+            if (iter > 0) {
                 START_TIMER;
                 loadbal(world, arho, brho, arho_old, brho_old);
                 END_TIMER("Load balancing");

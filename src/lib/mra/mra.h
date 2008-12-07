@@ -63,7 +63,7 @@ namespace madness {
 
 namespace madness {
 
-    // Forward declarations of friends demanded by PGI
+    // Forward declarations of friends
 
     template <typename T, int NDIM>
     Function<T,NDIM> square(const Function<T,NDIM>& f, bool fence = true);
@@ -77,12 +77,8 @@ namespace madness {
     mul(const Function<L,D>& left, const Function<R,D>& right, bool fence=true);
 
     template <typename L, typename R, int D>
-    Function<TENSOR_RESULT_TYPE(L,R),D>
-    mulXX(const Function<L,D>& left, const Function<R,D>& right, bool fence=true);
-
-    template <typename L, typename R, int D>
     std::vector< Function<TENSOR_RESULT_TYPE(L,R),D> >
-    vmulXX(const Function<L,D>& left, const std::vector< Function<R,D> >& vright, bool fence=true);
+    vmulXX(const Function<L,D>& left, const std::vector< Function<R,D> >& vright, double tol, bool fence=true);
 
     template <typename Q, typename R, int D>
     Function<TENSOR_RESULT_TYPE(Q,R),D>
@@ -91,10 +87,6 @@ namespace madness {
     template <typename L, typename R, int D>
     Function<TENSOR_RESULT_TYPE(L,R),D>
     mul_sparse(const Function<L,D>& left, const Function<R,D>& right, double tol, bool fence=true);
-
-    template <typename Q, typename R, int D>
-    Function<TENSOR_RESULT_TYPE(Q,R),D>
-    mul_sparse(const Q alpha, const Function<R,D>& f, double tol, bool fence=true);
 
     template <typename L, typename R, int D>
     Function<TENSOR_RESULT_TYPE(L,R),D>
@@ -147,14 +139,8 @@ namespace madness {
 
         template <typename L, typename R, int D>
         friend
-        Function<TENSOR_RESULT_TYPE(L,R),D>
-        madness::mulXX(const Function<L,D>& left, const Function<R,D>& right, bool fence=true);
-
-        template <typename L, typename R, int D>
-        friend
         std::vector< Function<TENSOR_RESULT_TYPE(L,R),D> >
-        vmulXX(const Function<L,D>& left, const std::vector< Function<R,D> >& vright, bool fence=true);
-
+        vmulXX(const Function<L,D>& left, const std::vector< Function<R,D> >& vright, double tol, bool fence=true);
 
         template <typename Q, typename R, int D>
         friend
@@ -165,11 +151,6 @@ namespace madness {
         friend
         Function<TENSOR_RESULT_TYPE(L,R),D>
         madness::mul_sparse(const Function<L,D>& left, const Function<R,D>& right, double tol, bool fence=true);
-
-        template <typename Q, typename R, int D>
-        friend
-        Function<TENSOR_RESULT_TYPE(Q,R),D>
-        madness::mul_sparse(const Q alpha, const Function<R,D>& f, double tol, bool fence=true);
 
         template <typename Q, typename R, int D>
         friend
@@ -961,23 +942,10 @@ namespace madness {
             return *this;
         }
 
-        /// This is replaced with left*right ...  private
-        template <typename L, typename R>
-        Function<T,NDIM>& mul(const Function<L,NDIM>& left, const Function<R,NDIM>& right, bool fence) {
-            PROFILE_MEMBER_FUNC(Function);
-            left.verify();
-            right.verify();
-            MADNESS_ASSERT(!(left.is_compressed() || right.is_compressed()));
-            if (VERIFY_TREE) left.verify_tree();
-            if (VERIFY_TREE) right.verify_tree();
-            impl = SharedPtr<implT>(new implT(*left.impl, left.get_pmap(), false));
-            impl->mul(*left.impl,*right.impl,fence);
-            return *this;
-        }
 
         /// This is replaced with left*right ...  private
         template <typename L, typename R>
-        Function<T,NDIM>& mulXX(const Function<L,NDIM>& left, const Function<R,NDIM>& right, bool fence) {
+        Function<T,NDIM>& mul(const Function<L,NDIM>& left, const Function<R,NDIM>& right, double tol, bool fence) {
             PROFILE_MEMBER_FUNC(Function);
             left.verify();
             right.verify();
@@ -985,7 +953,7 @@ namespace madness {
             if (VERIFY_TREE) left.verify_tree();
             if (VERIFY_TREE) right.verify_tree();
             impl = SharedPtr<implT>(new implT(*left.impl, left.get_pmap(), false));
-            impl->mulXX(left.impl.get(), right.impl.get(), fence);
+            impl->mulXX(left.impl.get(), right.impl.get(), tol, fence);
             return *this;
         }
 
@@ -994,6 +962,7 @@ namespace madness {
         void vmulXX(const Function<L,NDIM>& left,
                     const std::vector< Function<R,NDIM> >& right,
                     std::vector< Function<T,NDIM> >& result,
+                    double tol,
                     bool fence) {
 
             std::vector<FunctionImpl<T,NDIM>*> vresult(right.size());
@@ -1004,28 +973,8 @@ namespace madness {
                 vright[i] = right[i].impl.get();
             }
 
-
-//             void mulXXvec(const FunctionImpl<L,NDIM>* left,
-//                           const std::vector<const FunctionImpl<R,NDIM>*>& vright,
-//                           const std::vector<FunctionImpl<T,NDIM>*>& vresult,
-//                           bool fence) {
-
            left.world().gop.fence();
-            vresult[0]->mulXXvec(left.impl.get(), vright, vresult, fence);
-        }
-
-        /// This is replaced with left*right using sparsity ...  private
-        template <typename L, typename R>
-        Function<T,NDIM>& mul_sparse(const Function<L,NDIM>& left, const Function<R,NDIM>& right, double tol, bool fence) {
-            PROFILE_MEMBER_FUNC(Function);
-            left.verify();
-            right.verify();
-            MADNESS_ASSERT(!(left.is_compressed() || right.is_compressed()));
-            if (VERIFY_TREE) left.verify_tree();
-            if (VERIFY_TREE) right.verify_tree();
-            impl = SharedPtr<implT>(new implT(*left.impl, left.get_pmap(), false));
-            impl->mul_sparse(*left.impl,*right.impl,tol,fence);
-            return *this;
+            vresult[0]->mulXXvec(left.impl.get(), vright, vresult, tol, fence);
         }
 
         /// This is replaced with alpha*left + beta*right ...  private
@@ -1125,40 +1074,36 @@ namespace madness {
         return mul(alpha, f, true);
     }
 
-
     /// Same as \c operator* but with optional fence and no automatic reconstruction
     template <typename L, typename R,int NDIM>
     Function<TENSOR_RESULT_TYPE(L,R),NDIM>
     mul(const Function<L,NDIM>& left, const Function<R,NDIM>& right, bool fence) {
         Function<TENSOR_RESULT_TYPE(L,R),NDIM> result;
-        return result.mul(left,right,fence);
+        return result.mul(left,right,0.0,fence);
     }
 
-    /// Same as \c operator* but with optional fence and no automatic reconstruction
-    template <typename L, typename R,int NDIM>
-    Function<TENSOR_RESULT_TYPE(L,R),NDIM>
-    mulXX(const Function<L,NDIM>& left, const Function<R,NDIM>& right, bool fence) {
-        Function<TENSOR_RESULT_TYPE(L,R),NDIM> result;
-        return result.mulXX(left,right,fence);
-    }
+    /// Use the vmra/mul(...) interface instead
 
+    /// This so that we don't have to have friend functions in a different header.
+    ///
+    /// If using sparsity (tol != 0) you must have created the tree of norms
+    /// already for both left and right.
     template <typename L, typename R, int D>
     std::vector< Function<TENSOR_RESULT_TYPE(L,R),D> >
-    vmulXX(const Function<L,D>& left, const std::vector< Function<R,D> >& vright, bool fence) {
+    vmulXX(const Function<L,D>& left, const std::vector< Function<R,D> >& vright, double tol, bool fence) {
         if (vright.size() == 0) return std::vector< Function<TENSOR_RESULT_TYPE(L,R),D> >();
         std::vector< Function<TENSOR_RESULT_TYPE(L,R),D> > vresult(vright.size());
-        vresult[0].vmulXX(left, vright, vresult, fence);
+        vresult[0].vmulXX(left, vright, vresult, tol, fence);
         return vresult;
     }
 
 
-    /// Sparse multiplication --- right *must* have tree of norms already created
+    /// Sparse multiplication --- left and right *must* have tree of norms already created
     template <typename L, typename R,int NDIM>
     Function<TENSOR_RESULT_TYPE(L,R),NDIM>
     mul_sparse(const Function<L,NDIM>& left, const Function<R,NDIM>& right, double tol, bool fence) {
-        PROFILE_FUNC;
         Function<TENSOR_RESULT_TYPE(L,R),NDIM> result;
-        return result.mul_sparse(left,right,tol,fence);
+        return result.mul(left,right,tol,fence);
     }
 
 

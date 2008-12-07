@@ -622,6 +622,19 @@ namespace madness {
             return result;
         }
 
+        /// Invoke "resultT (obj.*memfun)(arg1T,arg2T,arg3,arg4,arg5,arg,arg76)" as a local task
+        template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T, typename arg5T, typename arg6T, typename arg7T>
+        Future<REMFUTURE(MEMFUN_RETURNT(memfunT))> 
+        add(MEMFUN_OBJT(memfunT)& obj, 
+            memfunT memfun,
+            const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, const arg4T& arg4, const arg5T& arg5, const arg6T& arg6, const arg7T& arg7,
+            const TaskAttributes& attr=TaskAttributes())
+        {
+            Future<REMFUTURE(MEMFUN_RETURNT(memfunT))> result;
+            add(new TaskMemfun<memfunT>(result,obj,memfun,arg1,arg2,arg3,arg4,arg5,arg6,arg7,attr));
+            return result;
+        }
+
         struct ProbeAllDone {
             WorldTaskQueue* tq;
             ProbeAllDone(WorldTaskQueue* tq) : tq(tq) {}
@@ -1228,7 +1241,7 @@ namespace madness {
 
         template <typename a1T, typename a2T, typename a3T, typename a4T, typename a5T>
             TaskMemfun(const futureT& result, objT& obj, memfunT memfun, 
-                       const a1T& a1, const a2T& a2, const a3T& a3, const a4T& a4, a5T& a5, const TaskAttributes& attr) 
+                       const a1T& a1, const a2T& a2, const a3T& a3, const a4T& a4, const a5T& a5, const TaskAttributes& attr) 
             : TaskFunctionBase(attr), result(result), obj(obj), memfun(memfun), arg1(a1), arg2(a2), arg3(a3), arg4(a4), arg5(a5) {
             check_dependency(arg1);
             check_dependency(arg2);
@@ -1267,7 +1280,7 @@ namespace madness {
 
         template <typename a1T, typename a2T, typename a3T, typename a4T, typename a5T, typename a6T>
             TaskMemfun(const futureT& result, objT& obj, memfunT memfun, 
-                       const a1T& a1, const a2T& a2, const a3T& a3, const a4T& a4, a5T& a5, a6T& a6, const TaskAttributes& attr) 
+                       const a1T& a1, const a2T& a2, const a3T& a3, const a4T& a4, const a5T& a5, const a6T& a6, const TaskAttributes& attr) 
             : TaskFunctionBase(attr), result(result), obj(obj), memfun(memfun), arg1(a1), arg2(a2), arg3(a3), arg4(a4), arg5(a5), arg6(a6) {
             check_dependency(arg1);
             check_dependency(arg2);
@@ -1279,6 +1292,49 @@ namespace madness {
 
         void run(World& world) {
             result.set((obj.*memfun)(arg1,arg2,arg3,arg4,arg5,arg6));
+        };
+    };
+
+    // Task wrapping "resultT (obj.*function)(arg1,arg2,arg3,arg4,arg5,arg6,arg7)"
+    template <typename resultT, typename objT, typename arg1_type, typename arg2_type, typename arg3_type, typename arg4_type, 
+              typename arg5_type, typename arg6_type, typename arg7_type>
+    struct TaskMemfun<resultT (objT::*)(arg1_type,arg2_type,arg3_type,arg4_type,arg5_type,arg6_type,arg7_type)> : public TaskFunctionBase {
+        typedef resultT (objT::*memfunT)(arg1_type,arg2_type,arg3_type,arg4_type,arg5_type,arg6_type,arg7_type);
+        typedef REMFUTURE(REMCONST(REMREF(arg1_type))) arg1T;
+        typedef REMFUTURE(REMCONST(REMREF(arg2_type))) arg2T;
+        typedef REMFUTURE(REMCONST(REMREF(arg3_type))) arg3T;
+        typedef REMFUTURE(REMCONST(REMREF(arg4_type))) arg4T;
+        typedef REMFUTURE(REMCONST(REMREF(arg5_type))) arg5T;
+        typedef REMFUTURE(REMCONST(REMREF(arg6_type))) arg6T;
+        typedef REMFUTURE(REMCONST(REMREF(arg7_type))) arg7T;
+        typedef Future<REMFUTURE(resultT)> futureT;
+
+        futureT result;
+        objT& obj;
+        const memfunT memfun;
+        Future<arg1T> arg1;
+        Future<arg2T> arg2;
+        Future<arg3T> arg3;
+        Future<arg4T> arg4;
+        Future<arg5T> arg5;
+        Future<arg6T> arg6;
+        Future<arg7T> arg7;
+
+        template <typename a1T, typename a2T, typename a3T, typename a4T, typename a5T, typename a6T, typename a7T>
+            TaskMemfun(const futureT& result, objT& obj, memfunT memfun, 
+                       const a1T& a1, const a2T& a2, const a3T& a3, const a4T& a4, const a5T& a5, const a6T& a6, const a7T& a7, const TaskAttributes& attr) 
+            : TaskFunctionBase(attr), result(result), obj(obj), memfun(memfun), arg1(a1), arg2(a2), arg3(a3), arg4(a4), arg5(a5), arg6(a6), arg7(a7) {
+            check_dependency(arg1);
+            check_dependency(arg2);
+            check_dependency(arg3);
+            check_dependency(arg4);
+            check_dependency(arg5);
+            check_dependency(arg6);
+            check_dependency(arg7);
+        }
+
+        void run(World& world) {
+            result.set((obj.*memfun)(arg1,arg2,arg3,arg4,arg5,arg6,arg7));
         };
     };
 

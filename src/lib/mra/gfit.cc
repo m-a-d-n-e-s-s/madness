@@ -219,9 +219,7 @@ namespace madness {
                     cnew*exp(-expnt[i-1]*lo*lo);
                 double errhi = coeff[i]*exp(-expnt[i]*hi*hi) - 
                     cnew*exp(-expnt[i-1]*hi*hi);
-                // Was 0.03 but since we eliminated scaling eps/4pi in the
-                // call must fix things here
-                if (max(abs(errlo),abs(errhi)) > 0.002*eps) break; 
+                if (max(abs(errlo),abs(errhi)) > 0.03*eps) break; 
                 npt--;
                 coeff[i-1] = coeff[i-1] + cnew;
             }

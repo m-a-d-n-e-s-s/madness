@@ -71,9 +71,10 @@ RandomGaussian(const Tensor<double> cell, double expntmax=1e5) {
     for (int i=0; i<NDIM; i++) {
         origin[i] = RandomValue<double>()*(cell(i,1)-cell(i,0)) + cell(i,0);
     }
-    double lo = log(0.1);
-    double hi = log(expntmax);
-    double expnt = exp(RandomValue<double>()*(hi-lo) + lo);
+//     double lo = log(0.1);
+//     double hi = log(expntmax);
+//     double expnt = exp(RandomValue<double>()*(hi-lo) + lo);
+    double expnt = 30.0;
     T coeff = pow(2.0*expnt/PI,0.25*NDIM);            
     return new Gaussian<T,NDIM>(origin,expnt,coeff);
 }
@@ -97,27 +98,27 @@ int main(int argc, char** argv) {
         
         Tensor<double> cell(3,2);
         for (int i=0; i<3; i++) {
-            cell(i,0) = -10;
-            cell(i,1) =  10;
+            cell(i,0) = -30;
+            cell(i,1) =  30;
         }
         FunctionDefaults<3>::set_cell(cell);
-        FunctionDefaults<3>::set_k(12);
+        FunctionDefaults<3>::set_k(14);
         FunctionDefaults<3>::set_thresh(1e-10);
         FunctionDefaults<3>::set_refine(true);
         FunctionDefaults<3>::set_autorefine(false);
         FunctionDefaults<3>::set_initial_level(5);
-        FunctionDefaults<3>::set_apply_randomize(true);
+        FunctionDefaults<3>::set_apply_randomize(false);
         FunctionDefaults<3>::set_project_randomize(true);
 
         default_random_generator.setstate(314159);  // Ensure all processes have the same sequence (for exponents)
     
-        int nfunc = 5000;
+        int nfunc = 1000;
         if (world.rank() == 0) print("FIRST WITHOUT LOAD BAL", nfunc);
         std::vector< Function<double,3> > v(nfunc);
         world.gop.fence();
         START_TIMER;
         for (int i=0; i<nfunc; i++) {
-            v[i] = functionT(factoryT(world).functor(functorT(RandomGaussian<double,3>(cell,1000.0))).fence(false));
+            v[i] = functionT(factoryT(world).functor(functorT(RandomGaussian<double,3>(cell,100.0))).fence(false));
         }
         world.gop.fence();
         END_TIMER("project");
@@ -157,7 +158,7 @@ int main(int argc, char** argv) {
         reconstruct(world,v);
         END_TIMER("reconstruct");
 
-        SeparatedConvolution<double,3> op = CoulombOperator<double,3>(world, 12, 1e-3, 1e-10);
+        SeparatedConvolution<double,3> op = CoulombOperator<double,3>(world, 14, 1e-3, 1e-10);
 
         world.gop.fence();
         START_TIMER;

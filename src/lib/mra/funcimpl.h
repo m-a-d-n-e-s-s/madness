@@ -1179,170 +1179,24 @@ namespace madness {
         }
 
 
-        /// Invoked by result to compute the pointwise product result=left*right
-
-        /// This version requires all three functions have the same distribution.
-        /// Should be straightforward to do an efficient version that does not
-        /// require this but I have not thought about that yet.
-        ///
-        /// Possible non-blocking communication and optional fence.
-        template <typename L, typename R>
-        void mul(const FunctionImpl<L,NDIM>& left, const FunctionImpl<R,NDIM>& right, bool fence) {
-            PROFILE_MEMBER_FUNC(FunctionImpl);
-            typedef std::pair< keyT,Tensor<R> > rpairT;
-            typedef std::pair< keyT,Tensor<L> > lpairT;
-            MADNESS_ASSERT(coeffs.get_pmap() == left.coeffs.get_pmap() && \
-                           coeffs.get_pmap() == right.coeffs.get_pmap());
-            // The three possibilities for the relative position of
-            // the left and right coefficients in the tree are:
-            //
-            // 1.  left==right
-            // 2.  left>right
-            // 3.  left<right
-            //
-            // First loop thru local coeff in left.  Handle right at the same level or above.
-	    for (typename FunctionImpl<L,NDIM>::dcT::const_iterator it=left.coeffs.begin();
-                it != left.coeffs.end();
-                ++it) {
-                const keyT& key = it->first;
-                const FunctionNode<L,NDIM>& left_node = it->second;
-
-                if (left_node.has_coeff()) {
-                    if (right.coeffs.probe(key)) {
-                        const FunctionNode<R,NDIM>& right_node = right.coeffs.find(key).get()->second;
-                        if (right_node.has_coeff()) {
-                            task(world.rank(), &implT:: template do_mul<L,R>, key, left_node.coeff(),
-                                 rpairT(key,right_node.coeff()));  // Case 1.
-                        }
-                    }
-                    else { // If right node does not exist then it must be further up the tree
-                        const keyT parent = key.parent();
-                        Future<rpairT> arg;
-                        right.task(coeffs.owner(parent), &FunctionImpl<R,NDIM>::sock_it_to_me,
-                                   parent, arg.remote_ref(world), TaskAttributes::hipri());
-                        task(world.rank(), &implT:: template do_mul<L,R>, key, left_node.coeff(), arg); // Case 2.
-                    }
-                }
-                else if (!coeffs.probe(key)) {
-                    // Interior node
-                    coeffs.replace(key,nodeT(tensorT(),true));
-                }
-
-            }
-
-            // Now loop thru local coeff in right and do case 3.
-	    for (typename FunctionImpl<R,NDIM>::dcT::const_iterator it=right.coeffs.begin();
-                it != right.coeffs.end();
-                ++it) {
-                const keyT& key = it->first;
-                const FunctionNode<R,NDIM>& right_node = it->second;
-                if (right_node.has_coeff()) {
-                    if (!left.coeffs.probe(key)) {
-                        Future<lpairT> arg;
-                        const keyT& parent = key.parent();
-                        left.task(coeffs.owner(parent), &FunctionImpl<L,NDIM>::sock_it_to_me,
-                                  parent, arg.remote_ref(world), TaskAttributes::hipri());
-                        task(world.rank(), &implT:: template do_mul<R,L>, key, right_node.coeff(), arg); // Case 3.
-                    }
-                }
-                else if (!coeffs.probe(key)) {
-                    // Interior node
-                    coeffs.replace(key,nodeT(tensorT(),true));
-                }
-
-            }
-            if (fence) world.gop.fence();
-        }
-
-        template <typename L, typename R>
-        Void do_mul_sparse2(const keyT& key,
-                            const std::pair< keyT,Tensor<L> >& larg,
-                            const std::pair< keyT,Tensor<R> >& rarg,
-                            const FunctionImpl<R,NDIM>* right) {
-            PROFILE_MEMBER_FUNC(FunctionImpl);
-
-            if (rarg.second.size > 0) {
-                if (larg.first == key) {
-                    //madness::print("L*R",key,larg.first,larg.second.size,rarg.first,rarg.second.size);
-                    do_mul(key, larg.second, rarg);
-                }
-                else {
-                    //madness::print("R*L",key,larg.first,larg.second.size,rarg.first,rarg.second.size);
-                    do_mul(key, rarg.second, larg);
-                }
-            }
-            else {
-                coeffs.replace(key, nodeT(tensorT(), true));  // Insert interior node
-                for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
-                    typedef std::pair< keyT,Tensor<R> > rpairT;
-                    Future<rpairT> rarg;
-                    right->task(coeffs.owner(kit.key()), &FunctionImpl<R,NDIM>::sock_it_to_me,
-                                kit.key(), rarg.remote_ref(world), TaskAttributes::hipri());
-
-
-                    task(world.rank(), &implT:: template do_mul_sparse2<L,R>,
-                         kit.key(),larg, rarg, right);
-                }
-            }
-            return None;
-        }
-
-        template <typename L, typename R>
-        Void do_mul_sparse(const Tensor<L>& left_coeff, const FunctionImpl<R,NDIM>* right, double tol,
-                           const keyT& key, double right_norm) {
-            PROFILE_MEMBER_FUNC(FunctionImpl);
-            if (left_coeff.normf()*right_norm > truncate_tol(tol,key)) {
-                typedef std::pair< keyT,Tensor<R> > rpairT;
-                typedef std::pair< keyT,Tensor<L> > lpairT;
-                Future<rpairT> rarg;
-                right->task(coeffs.owner(key), &FunctionImpl<R,NDIM>::sock_it_to_me,
-                            key, rarg.remote_ref(world), TaskAttributes::hipri());
-                task(world.rank(), &implT:: template do_mul_sparse2<L,R>,
-                     key ,lpairT(key,left_coeff), rarg, right);
-            }
-            else {
-                coeffs.replace(key, nodeT(tensorT(cdata.vk), false));  // Result is zero
-            }
-            return None;
-        }
-
-        template <typename L, typename R>
-        void mul_sparse(const FunctionImpl<L,NDIM>& left, const FunctionImpl<R,NDIM>& right, double tol, bool fence) {
-            // Loop thru leaf nodes in left
-	    for (typename FunctionImpl<L,NDIM>::dcT::const_iterator it=left.coeffs.begin();
-                it != left.coeffs.end();
-                ++it) {
-                const keyT& key = it->first;
-                const FunctionNode<L,NDIM>& left_node = it->second;
-
-                if (left_node.is_leaf()) {
-                    Future<double> rarg = right.task(right.coeffs.owner(key), &implT::get_norm_tree_recursive, key, TaskAttributes::hipri());
-                    task(world.rank(), &implT:: template do_mul_sparse<L,R>, left_node.coeff(), &right, tol, key, rarg);
-                }
-                else {
-                    coeffs.replace(key, nodeT(tensorT(), true));  // Insert interior node
-                }
-            }
-            if (fence) world.gop.fence();
-        }
-
-
-
         // Multiplication assuming same distribution and recursive descent
         template <typename L, typename R>
         Void mulXXveca(const keyT& key,
                        const FunctionImpl<L,NDIM>* left, const Tensor<L>& lcin,
                        const std::vector<const FunctionImpl<R,NDIM>*> vrightin,
                        const std::vector< Tensor<R> >& vrcin,
-                       const std::vector<FunctionImpl<T,NDIM>*> vresultin)
+                       const std::vector<FunctionImpl<T,NDIM>*> vresultin,
+                       double tol)
         {
             typedef typename FunctionImpl<L,NDIM>::dcT::const_iterator literT;
             typedef typename FunctionImpl<R,NDIM>::dcT::const_iterator riterT;
 
+            double lnorm = 1e99;
             Tensor<L> lc = lcin;
             if (lc.size == 0) {
                 literT it = left->coeffs.find(key).get();
                 MADNESS_ASSERT(it != left->coeffs.end());
+                lnorm = it->second.get_norm_tree();
                 if (it->second.has_coeff()) lc = it->second.coeff();
             }
 
@@ -1358,14 +1212,22 @@ namespace madness {
                 FunctionImpl<T,NDIM>* result = vresultin[i];
                 const FunctionImpl<R,NDIM>* right = vrightin[i];
                 Tensor<R> rc = vrcin[i];
+                double rnorm;
                 if (rc.size == 0) {
                     riterT it = right->coeffs.find(key).get();
                     MADNESS_ASSERT(it != right->coeffs.end());
+                    rnorm = it->second.get_norm_tree();
                     if (it->second.has_coeff()) rc = it->second.coeff();
+                }
+                else {
+                    rnorm = rc.normf();
                 }
 
                 if (rc.size && lc.size) { // Yipee!
                     result->task(world.rank(), &implT:: template do_mul<L,R>, key, lc, std::make_pair(key,rc));
+                }
+                else if (tol && lnorm*rnorm < truncate_tol(tol, key)) {
+                    result->coeffs.replace(key, nodeT(tensorT(cdata.vk),false)); // Zero leaf
                 }
                 else {
                     result->coeffs.replace(key, nodeT(tensorT(),true)); // Interior node
@@ -1405,27 +1267,30 @@ namespace madness {
                         if (vrc[i].size) vv[i] = copy(vrss[i](cp));
                     }
 
-                    task(coeffs.owner(child), &implT:: template mulXXveca<L,R>, child, left, ll, vright, vv, vresult);
+                    task(coeffs.owner(child), &implT:: template mulXXveca<L,R>, child, left, ll, vright, vv, vresult, tol);
                 }
             }
             return None;
         }
 
 
-
-
         // Multiplication using recursive descent and assuming same distribution
         template <typename L, typename R>
         Void mulXXa(const keyT& key,
                     const FunctionImpl<L,NDIM>* left, const Tensor<L>& lcin,
-                    const FunctionImpl<R,NDIM>* right,const Tensor<R>& rcin) {
+                    const FunctionImpl<R,NDIM>* right,const Tensor<R>& rcin, 
+                    double tol)  
+        {
             typedef typename FunctionImpl<L,NDIM>::dcT::const_iterator literT;
             typedef typename FunctionImpl<R,NDIM>::dcT::const_iterator riterT;
+
+            double lnorm=1e99, rnorm=1e99;
 
             Tensor<L> lc = lcin;
             if (lc.size == 0) {
                 literT it = left->coeffs.find(key).get();
                 MADNESS_ASSERT(it != left->coeffs.end());
+                lnorm = it->second.get_norm_tree();
                 if (it->second.has_coeff()) lc = it->second.coeff();
             }
 
@@ -1433,59 +1298,73 @@ namespace madness {
             if (rc.size == 0) {
                 riterT it = right->coeffs.find(key).get();
                 MADNESS_ASSERT(it != right->coeffs.end());
+                rnorm = it->second.get_norm_tree();
                 if (it->second.has_coeff()) rc = it->second.coeff();
             }
 
             if (rc.size && lc.size) { // Yipee!
                 do_mul<L,R>(key, lc, std::make_pair(key,rc));
+                return None;
             }
-            else {                // Recur down
-                coeffs.replace(key, nodeT(tensorT(),true)); // Interior node
-                Tensor<L> lss;
-                if (lc.size) {
-                    Tensor<L> ld(cdata.v2k);
-                    ld(cdata.s0) = lc(___);
-                    lss = left->unfilter(ld);
-                }
 
-                Tensor<R> rss;
-                if (rc.size) {
-                    Tensor<R> rd(cdata.v2k);
-                    rd(cdata.s0) = rc(___);
-                    rss = right->unfilter(rd);
-                }
-
-                for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
-                    const keyT& child = kit.key();
-                    Tensor<L> ll;
-                    Tensor<R> rr;
-                    if (lc.size) ll = copy(lss(child_patch(child)));
-                    if (rc.size) rr = copy(rss(child_patch(child)));
-
-                    task(coeffs.owner(child), &implT:: template mulXXa<L,R>, child, left, ll, right, rr);
+            if (tol) {
+                if (lc.size) lnorm = lc.normf(); // Otherwise got from norm tree above
+                if (rc.size) rnorm = rc.normf();
+                if (lnorm*rnorm < truncate_tol(tol, key)) {
+                    coeffs.replace(key, nodeT(tensorT(cdata.vk),false)); // Zero leaf node
+                    return None;
                 }
             }
+                    
+            // Recur down
+            coeffs.replace(key, nodeT(tensorT(),true)); // Interior node
+
+            Tensor<L> lss;
+            if (lc.size) {
+                Tensor<L> ld(cdata.v2k);
+                ld(cdata.s0) = lc(___);
+                lss = left->unfilter(ld);
+            }
+            
+            Tensor<R> rss;
+            if (rc.size) {
+                Tensor<R> rd(cdata.v2k);
+                rd(cdata.s0) = rc(___);
+                rss = right->unfilter(rd);
+            }
+            
+            for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
+                const keyT& child = kit.key();
+                Tensor<L> ll;
+                Tensor<R> rr;
+                if (lc.size) ll = copy(lss(child_patch(child)));
+                if (rc.size) rr = copy(rss(child_patch(child)));
+                
+                task(coeffs.owner(child), &implT:: template mulXXa<L,R>, child, left, ll, right, rr, tol);
+            }
+
             return None;
         }
 
 
         template <typename L, typename R>
-        void mulXX(const FunctionImpl<L,NDIM>* left, const FunctionImpl<R,NDIM>* right, bool fence) {
+        void mulXX(const FunctionImpl<L,NDIM>* left, const FunctionImpl<R,NDIM>* right, double tol, bool fence) {
             if (world.rank() == coeffs.owner(cdata.key0))
-                mulXXa(cdata.key0, left, Tensor<L>(), right, Tensor<R>());
+                mulXXa(cdata.key0, left, Tensor<L>(), right, Tensor<R>(), tol);
             if (fence) world.gop.fence();
 
-            //verify_tree();
+            verify_tree();
         }
 
         template <typename L, typename R>
         void mulXXvec(const FunctionImpl<L,NDIM>* left,
                       const std::vector<const FunctionImpl<R,NDIM>*>& vright,
                       const std::vector<FunctionImpl<T,NDIM>*>& vresult,
+                      double tol,
                       bool fence) {
             std::vector< Tensor<R> > vr(vright.size());
             if (world.rank() == coeffs.owner(cdata.key0))
-                mulXXveca(cdata.key0, left, Tensor<L>(), vright, vr, vresult);
+                mulXXveca(cdata.key0, left, Tensor<L>(), vright, vr, vresult, tol);
             if (fence) world.gop.fence();
         }
 

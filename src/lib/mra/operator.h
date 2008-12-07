@@ -421,7 +421,7 @@ namespace madness {
         // bsh_fit generates representation for 1/4Pir but we want 1/r
         // so have to scale eps by 1/4Pi
         Tensor<double> coeff, expnt;
-        bsh_fit(0.0, lo, hi, eps, &coeff, &expnt, false); // was eps/4pi ... but eps is relative error
+        bsh_fit(0.0, lo, hi, eps/(4.0*pi), &coeff, &expnt, false);
         coeff.scale(4.0*pi);
         return SeparatedConvolution<Q,NDIM>(world, k, coeff, expnt);
     }
@@ -439,7 +439,7 @@ namespace madness {
         // bsh_fit generates representation for 1/4Pir but we want 1/r
         // so have to scale eps by 1/4Pi
         Tensor<double> coeff, expnt;
-        bsh_fit(0.0, lo, hi, eps, &coeff, &expnt, false); // Was eps/4pi ... but eps is relative error
+        bsh_fit(0.0, lo, hi, eps/(4.0*pi), &coeff, &expnt, false);
         coeff.scale(4.0*pi);
         return new SeparatedConvolution<Q,NDIM>(world, k, coeff, expnt);
     }
