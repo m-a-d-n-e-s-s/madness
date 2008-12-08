@@ -205,14 +205,14 @@ public:
 
   //*************************************************************************
   /// Constructor for periodic system
-  EigSolver(World& world, funcT rhon, std::vector<funcT> phis, std::vector<double> eigs,
+  EigSolver(World& world, std::vector<funcT> phis, std::vector<double> eigs,
       std::vector<EigSolverOp<T,NDIM>*> ops, std::vector<kvecT> kpoints,
       ElectronicStructureParams params);
   //*************************************************************************
 
   //*************************************************************************
   /// Constructor for non-periodic system
-  EigSolver(World& world, funcT rhon, std::vector<funcT> phis, std::vector<double> eigs,
+  EigSolver(World& world, std::vector<funcT> phis, std::vector<double> eigs,
       std::vector<EigSolverOp<T,NDIM>*> ops, ElectronicStructureParams params);
   //*************************************************************************
 
@@ -317,11 +317,6 @@ private:
   //*************************************************************************
   /// List of the ops
   std::vector<kvecT> _kpoints;
-  //*************************************************************************
-
-  // Nuclear charge density
-  //*************************************************************************
-  funcT _rhon;
   //*************************************************************************
 
   //*************************************************************************

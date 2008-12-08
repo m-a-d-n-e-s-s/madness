@@ -2,6 +2,7 @@ dft
   nelec 4
   nempty 0
   L 30.0
+  ispotential true
 end
 
 # oxygen

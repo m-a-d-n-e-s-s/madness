@@ -20,10 +20,10 @@ namespace madness
 {
   //***************************************************************************
   template <typename T, int NDIM>
-  EigSolver<T,NDIM>::EigSolver(World& world, funcT rhon, std::vector<funcT> phis,
+  EigSolver<T,NDIM>::EigSolver(World& world, std::vector<funcT> phis,
       std::vector<double> eigs, std::vector< EigSolverOp<T,NDIM>* > ops,
       std::vector<kvecT> kpoints, ElectronicStructureParams params)
-  : _phis(phis), _eigs(eigs), _ops(ops), _kpoints(kpoints), _rhon(rhon),
+  : _phis(phis), _eigs(eigs), _ops(ops), _kpoints(kpoints),
     _world(world), _params(params)
   {
     // fill the occupation numbers
@@ -35,10 +35,10 @@ namespace madness
 
   //***************************************************************************
   template <typename T, int NDIM>
-  EigSolver<T,NDIM>::EigSolver(World& world, funcT rhon, std::vector<funcT> phis,
+  EigSolver<T,NDIM>::EigSolver(World& world, std::vector<funcT> phis,
       std::vector<double> eigs, std::vector< EigSolverOp<T,NDIM>* > ops,
       ElectronicStructureParams params)
-  : _phis(phis), _eigs(eigs), _ops(ops), _rhon(rhon), _world(world), _params(params)
+  : _phis(phis), _eigs(eigs), _ops(ops), _world(world), _params(params)
   {
     if (params.periodic)
     {
@@ -366,7 +366,6 @@ namespace madness
       _rho = EigSolver::compute_rho(_phis, _occs, _world);
       // Trace of rho
       double rhotrace = _rho.trace();
-      printf("The trace of rho is %.8f\n\n", rhotrace);
       // Output to observables
       for (typename std::vector<IEigSolverObserver<T,NDIM>*>::iterator itr = _obs.begin(); itr
         != _obs.end(); ++itr)

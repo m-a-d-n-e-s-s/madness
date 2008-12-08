@@ -44,7 +44,7 @@ namespace madness
   {
     // Message for the matrix element output
     this->messageME("NuclearPotentialOp");
-    _V = V;
+    _V = copy(V);
   }
   //***************************************************************************
 
@@ -121,7 +121,6 @@ namespace madness
   template <typename T, int NDIM>
   Function<T,NDIM> DFTCoulombOp<T,NDIM>::op_r(const funcT& rho, const funcT& psi)
   {
-    if (this->_world.rank() == 0) printf("Applying Coulomb operator ...\n\n");
     funcT rfunc = _Vc * psi;
     return  rfunc;
   }
@@ -131,7 +130,6 @@ namespace madness
   template <typename T, int NDIM>
   Function<T,NDIM> DFTCoulombPeriodicOp<T,NDIM>::op_r(const funcT& rho, const funcT& psi)
   {
-//    if (_world.rank() == 0) printf("Applying Periodic Coulomb operator ...\n\n");
     funcT rfunc = _Vc * psi;
     return  rfunc;
   }
@@ -164,9 +162,9 @@ namespace madness
 {
   //***************************************************************************
   template <typename T, int NDIM>
-  DFT<T,NDIM>::DFT(World& world, funcT rhon, std::vector<funcT> phis,
+  DFT<T,NDIM>::DFT(World& world, funcT vnucrhon, std::vector<funcT> phis,
       std::vector<double> eigs, ElectronicStructureParams params)
-  : _world(world), _rhon(rhon), _params(params)
+  : _world(world), _vnucrhon(vnucrhon), _params(params)
   {
 
     if (world.rank() == 0 && !params.periodic) printf("DFT constructor (non-peridic) ...\n\n");
@@ -178,11 +176,18 @@ namespace madness
 //    ops.push_back(new DFTNuclearPotentialOp<T,NDIM>(world, V, 1.0, thresh));
     if (params.periodic)
     {
-      ops.push_back(new DFTCoulombPeriodicOp<T,NDIM>(world, rhon, 1.0, params.thresh));
+      ops.push_back(new DFTCoulombPeriodicOp<T,NDIM>(world, vnucrhon, 1.0, params.thresh));
     }
     else
     {
-      ops.push_back(new DFTNuclearChargeDensityOp<T,NDIM>(world, rhon, 1.0, params.thresh, false));
+      if (params.ispotential)
+      {
+        ops.push_back(new DFTNuclearPotentialOp<T,NDIM>(world, vnucrhon, 1.0, params.thresh));
+      }
+      else
+      {
+        ops.push_back(new DFTNuclearChargeDensityOp<T,NDIM>(world, vnucrhon, 1.0, params.thresh, false));
+      }
       ops.push_back(new DFTCoulombOp<T,NDIM>(world, 1.0, params.thresh));
     }
     _xcfunc = new XCFunctionalLDA<T,NDIM>(world, 1.0, params.thresh);
@@ -194,11 +199,11 @@ namespace madness
       std::vector<kvecT> kpoints;
       kvecT gammap(0.0);
       kpoints.push_back(gammap);
-      _solver = new EigSolver<T,NDIM>(world, rhon, phis, eigs, ops, kpoints, params);
+      _solver = new EigSolver<T,NDIM>(world, phis, eigs, ops, kpoints, params);
     }
     else
     {
-      _solver = new EigSolver<T,NDIM>(world, rhon, phis, eigs, ops, params);
+      _solver = new EigSolver<T,NDIM>(world, phis, eigs, ops, params);
     }
     _solver->addObserver(this);
   }
@@ -216,7 +221,7 @@ namespace madness
   template <typename T, int NDIM>
   void DFT<T,NDIM>::solve(int maxits)
   {
-    _solver->solve(maxits);
+    _solver->multi_solve(maxits);
   }
   //***************************************************************************
 
@@ -256,27 +261,30 @@ namespace madness
   //***************************************************************************
   template <typename T, int NDIM>
   double DFT<T,NDIM>::calculate_tot_pe_sp(const World& world, const Function<double,NDIM>& rho,
-      const Function<double,NDIM>& rhon, bool spinpol, const double thresh, bool periodic)
+      const Function<double,NDIM>& vnucrhon, bool spinpol, const double thresh, bool periodic,
+      bool ispotential)
   {
-    // Create Coulomb operator
-    SeparatedConvolution<T,NDIM>* op = 0;
-    if (periodic)
+    funcT vnuc = copy(vnucrhon);
+    if (!ispotential)
     {
-      Tensor<double> L = FunctionDefaults<NDIM>::get_cell_width();
-      op = CoulombOperatorPtr<T,NDIM>(const_cast<World&>(world),
-          FunctionDefaults<NDIM>::get_k(), 1e-8, thresh * 0.1);
+      // Create Coulomb operator
+      SeparatedConvolution<T,NDIM>* op = 0;
+      if (periodic)
+      {
+        Tensor<double> L = FunctionDefaults<NDIM>::get_cell_width();
+        op = CoulombOperatorPtr<T,NDIM>(const_cast<World&>(world),
+            FunctionDefaults<NDIM>::get_k(), 1e-8, thresh * 0.1);
+      }
+      else
+      {
+        op = CoulombOperatorPtr<T,NDIM>(const_cast<World&>(world),
+            FunctionDefaults<NDIM>::get_k(), 1e-8, thresh * 0.1);
+      }
+      // Apply Coulomb operator and trace with the density
+      vnuc = apply(*op, vnucrhon);
+      delete op;
     }
-    else
-    {
-      op = CoulombOperatorPtr<T,NDIM>(const_cast<World&>(world),
-          FunctionDefaults<NDIM>::get_k(), 1e-8, thresh * 0.1);
-    }
-    // Apply Coulomb operator and trace with the density
-    funcT tmp = rhon;
-    funcT Vnuc = apply(*op, tmp);
-    delete op;
-
-    double tot_pe = inner(Vnuc, rho);
+    double tot_pe = inner(vnuc, rho);
     return tot_pe;
   }
   //***************************************************************************
@@ -331,9 +339,9 @@ namespace madness
       if (world().rank() == 0) printf("Calculating KE ...\n");
       double ke = DFT::calculate_tot_ke_sp(phis, false, periodic);
 //      if (world().rank() == 0) printf("Calculating PE and CE...\n");
-      double pe = DFT::calculate_tot_pe_sp(_world, rho, _rhon, false, _params.thresh, periodic);
+      double pe = DFT::calculate_tot_pe_sp(_world, rho, _vnucrhon, _params.spinpol, _params.thresh, _params.periodic, _params.ispotential);
       if (world().rank() == 0) printf("Calculating CE ...\n");
-      double ce = DFT::calculate_tot_coulomb_energy(_world, rho, false, _params.thresh, periodic);
+      double ce = DFT::calculate_tot_coulomb_energy(_world, rho, _params.spinpol, _params.thresh, _params.periodic);
       if (world().rank() == 0) printf("Calculating EE ...\n");
       double xce = DFT::calculate_tot_xc_energy(rho);
       if (world().rank() == 0) printf("Calculating NE ...\n");

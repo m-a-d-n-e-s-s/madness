@@ -197,17 +197,19 @@ public:
   void make_nuclear_potential()
   {
     if (_world.rank() == 0) print("Making nuclear potential ..\n\n");
-//    _vnuc = factoryT(_world).functor(functorT(new MolecularPotentialFunctor(_mentity))).thresh(_params.thresh).truncate_on_project();
-//    _vnuc.reconstruct();
-//    _rhon = factoryT(_world).functor(
-//        functorT(new MolecularNuclearChargeDensityFunctor(_mentity))).
-//        thresh(_params.thresh).truncate_on_project();
-
-      _rhon = factoryT(_world).functor(
+    if (_params.ispotential)
+    {
+      _vnucrhon = factoryT(_world).functor(functorT(new MolecularPotentialFunctor(_mentity))).thresh(_params.thresh * 0.1).truncate_on_project();
+      _vnuc = copy(_vnucrhon);
+      _vnuc.reconstruct();
+    }
+    else
+    {
+      _vnucrhon = factoryT(_world).functor(
           functorT(new MolecularNuclearChargeDensityFunctor(_mentity))).
           thresh(_params.thresh * 0.1).initial_level(6).truncate_on_project();
       if (_world.rank() == 0) print("calculating trace of rhon ..\n\n");
-      double rtrace = _rhon.trace();
+      double rtrace = _vnucrhon.trace();
       if (_world.rank() == 0) print("rhon trace = ", rtrace);
       SeparatedConvolution<double,3>* op = 0;
       if (_params.periodic)
@@ -219,8 +221,9 @@ public:
       {
         op = CoulombOperatorPtr<double,3>(_world, _params.waveorder,_params.lo, _params.thresh);
       }
-      _vnuc = apply(*op, _rhon);
+      _vnuc = apply(*op, _vnucrhon);
       delete op;
+    }
   }
 
   struct GuessDensity : public FunctionFunctorInterface<double,3> {
@@ -483,9 +486,9 @@ public:
     return _mentity;
   }
 
-  functionT rhon()
+  functionT vnucrhon()
   {
-    return _rhon;
+    return _vnucrhon;
   }
 
 private:
@@ -494,7 +497,7 @@ private:
   AtomicBasisSet _aobasis;
   ElectronicStructureParams _params;
   functionT _vnuc;
-  functionT _rhon;
+  functionT _vnucrhon;
   vecfuncT _orbitals;
   tensorT _eigs;
   tensorT _occs;

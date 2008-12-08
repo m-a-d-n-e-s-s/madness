@@ -25,6 +25,8 @@ struct ElectronicStructureParams
   bool periodic;
   // Maximum number of interations
   int maxits;
+  // Is source function a nuclear potential or a nuclear charge density?
+  bool ispotential;
   // Thresh
   double thresh;
   // Order of wavelets
@@ -49,6 +51,7 @@ struct ElectronicStructureParams
     smear = 0.001;
     spinpol = false;
     periodic = false;
+    ispotential = false;
     maxits = 100;
     thresh = 1e-6;
     waveorder = 8;
@@ -130,6 +133,23 @@ struct ElectronicStructureParams
         else
         {
           MADNESS_EXCEPTION("input error -- periodic", 0);
+        }
+      }
+      else if (s == "ispotential")
+      {
+        std::string tempstr;
+        f >> tempstr;
+        if (tempstr == "true")
+        {
+          ispotential = true;
+        }
+        else if (tempstr == "false")
+        {
+          ispotential = false;
+        }
+        else
+        {
+          MADNESS_EXCEPTION("input error -- ispotential", 0);
         }
       }
       else if (s == "maxits")

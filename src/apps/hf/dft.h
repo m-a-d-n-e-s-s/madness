@@ -231,15 +231,9 @@ namespace madness
     typedef Function<T,NDIM> funcT;
     typedef Vector<double,NDIM> kvecT;
   public:
-//    //*************************************************************************
-//    // Constructor
-//    DFT(World& world, funcT rhon, std::vector<funcT> phis,
-//      std::vector<double> eigs, double thresh, bool periodic = false);
-//    //*************************************************************************
-//
     //*************************************************************************
     // Constructor
-    DFT(World& world, funcT rhon, std::vector<funcT> phis,
+    DFT(World& world, funcT vnucrhon, std::vector<funcT> phis,
       std::vector<double> eigs, ElectronicStructureParams params);
     //*************************************************************************
 
@@ -266,8 +260,8 @@ namespace madness
 
      //***************************************************************************
      static double calculate_tot_pe_sp(const World& world,
-         const Function<double,NDIM>& rho, const Function<double,NDIM>& rhon, bool spinpol,
-         const double thresh, bool periodic);
+         const Function<double,NDIM>& rho, const Function<double,NDIM>& vnucrhon,
+         bool spinpol, const double thresh, bool periodic, bool ispotential);
      //***************************************************************************
 
      //***************************************************************************
@@ -340,7 +334,10 @@ namespace madness
       //*************************************************************************
 
       //*************************************************************************
-      Function<double,NDIM> _rhon;
+      // This variable could either be a nuclear potiential or a nuclear charge
+      // density depending on the "ispotential" variable in the
+      // ElectronicStructureParams class.
+      Function<double,NDIM> _vnucrhon;
       //*************************************************************************
 
       //*************************************************************************

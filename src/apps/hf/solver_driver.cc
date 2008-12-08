@@ -34,14 +34,15 @@ int main(int argc, char** argv)
         app.make_nuclear_potential();
         app.initial_guess();
         ElectronicStructureParams params = app.params();
-        Function<double,3> rhon = app.rhon();
+        Function<double,3> vnucrhon = app.vnucrhon();
         std::vector<Function<double,3> > phis = app.orbitals();
         std::vector<double> eigs;
         Tensor<double> tmpe = app.eigs();
-        for (int i = 0; i < params.nelec; i++)
+        int neps = params.nelec / 2;
+        for (int i = 0; i < neps; i++)
           eigs.push_back(tmpe[i]);
 
-        DFT<double,3> dftcalc(world, rhon, phis, eigs, params);
+        DFT<double,3> dftcalc(world, vnucrhon, phis, eigs, params);
         dftcalc.solve(params.maxits);
         world.gop.fence();
 
