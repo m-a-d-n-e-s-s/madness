@@ -6,8 +6,9 @@ using namespace madness;
 class Foo : public WorldObject<Foo> {
     const int bar;
 public:
-    Foo(World& world, int bar) 
-        : WorldObject<Foo>(world), bar(bar) {process_pending();};
+    Foo(World& world, int bar) : WorldObject<Foo>(world), bar(bar) {
+    	process_pending();
+    };
 
     int get() const {return bar;};
 };

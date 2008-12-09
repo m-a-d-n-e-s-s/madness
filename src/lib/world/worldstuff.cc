@@ -52,7 +52,7 @@ namespace madness {
         MPI_Abort(MPI_COMM_WORLD,1);
     }
 
-    void initialize(int argc, char** argv) {
+     void initialize(int argc, char** argv) {
         start_cpu_time = cpu_time();
         start_wall_time = wall_time();
 #ifdef HAVE_PAPI
@@ -87,6 +87,7 @@ namespace madness {
 
     void finalize() {
         RMI::end();
+        ThreadPool::end(); // 8/Dec/08 : II added this line as trial
         MPI::Finalize();
     }
     

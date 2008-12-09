@@ -557,6 +557,7 @@ namespace madness {
         static void begin(int nthread=-1) {instance(nthread);}
 
         static void end() {
+		    if (!instance_ptr) return;
             instance()->finish = true;
             for (int i=0; i<instance()->nthreads; i++) {
                 add(new PoolTaskNull);
