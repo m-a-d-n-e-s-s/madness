@@ -214,6 +214,9 @@ namespace madness {
             MADNESS_ASSERT(impl);
         }
 
+        /// Returns true if the function is initialized
+        bool is_initialized() const {return impl.get();}
+
         typedef FunctionImpl<T,NDIM> implT;
         typedef FunctionFactory<T,NDIM> factoryT;
         typedef typename implT::coordT coordT; ///< Type of vector holding coordinates

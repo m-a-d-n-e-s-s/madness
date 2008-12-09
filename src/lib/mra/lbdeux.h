@@ -4,6 +4,7 @@
 #include <mra/mra.h>
 #include <madness_config.h>
 #include <map>
+#include <queue>
 
 namespace madness {
 
@@ -232,6 +233,16 @@ namespace madness {
             }
         }
 
+        struct CostPerProc {
+            double cost;
+            int proc;
+            CostPerProc() : cost(0.0), proc(0) {}
+            CostPerProc(double cost, int proc) : cost(cost), proc(proc) {}
+            bool operator<(const CostPerProc& other) const {
+                return cost > other.cost;  // Want ascending order
+            }
+        };
+
         /// Actually does the partitioning of the tree
         SharedPtr< WorldDCPmapInterface<keyT> > load_balance(double fac = 1.0, bool printstuff=false) {
             world.gop.fence();
@@ -262,40 +273,42 @@ namespace madness {
             if (world.rank() == 0) {
 
                 std::sort(results.begin(), results.end(), compare);
+                if (printstuff) {
+                    print("THESE ARE THE INITIAL SUBTREES");
+                    for (unsigned int i=0; i<results.size(); i++) print(i,results[i]);
+                }
                 
-                // Now we stupidly just map the sorted keys to processors.
-                // Lots of room for more intelligence here.
-
+                // Now use bin packing to cram the results together
                 map.reserve(results.size());
 
-                vector<double> costs(world.size(), 0.0);
-                ProcessID p=0;
-                int inc=1;
-                while (results.size()) {
+                // Shove the first nproc entries directly into the queue
+                unsigned int nproc = world.size();
+                std::priority_queue<CostPerProc> costs;
+                for (unsigned int p=0; p<nproc && !results.empty(); p++) {
                     const std::pair<keyT,double>& f = results.back();
-                    ProcessID proc;
-                    if (f.first.level() == 0) {
-                        proc = 0;
-                    }
-                    else {
-                        proc = p;
-                        p += inc;
-                        if (p < 0) {
-                            p++; inc=1;
-                        }
-                        else if (p >= world.size()) {
-                            p--; inc=-1;
-                        }
-                    }
-                    costs[proc] += f.second;
-                    map.push_back(std::make_pair(f.first,proc));
+                    costs.push(CostPerProc(f.second,p));
+                    map.push_back(std::make_pair(f.first,p));
+                    results.pop_back();
+                }
+
+                // Process the remainder using the sorting maintained by the priority queue
+                while (!results.empty()) {
+                    const std::pair<keyT,double>& f = results.back();
+                    CostPerProc top = costs.top();
+                    costs.pop();
+                    top.cost += f.second;
+                    costs.push(top);
+                    map.push_back(std::make_pair(f.first,top.proc));
                     results.pop_back();
                 }
                 if (printstuff) {
                     print("THIS IS THE MAP");
                     print(map);
-                    print("THIS IS THE COSTS");
-                    print(costs);
+                    print("THESE ARE THE COSTS PER PROCESSOR");
+                    while (!costs.empty()) {
+                        print(costs.top().proc,costs.top().cost);
+                        costs.pop();
+                    }
                 }
             }
 

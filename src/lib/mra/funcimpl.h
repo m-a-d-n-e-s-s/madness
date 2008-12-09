@@ -1353,7 +1353,7 @@ namespace madness {
                 mulXXa(cdata.key0, left, Tensor<L>(), right, Tensor<R>(), tol);
             if (fence) world.gop.fence();
 
-            verify_tree();
+            //verify_tree();
         }
 
         template <typename L, typename R>
@@ -1370,12 +1370,12 @@ namespace madness {
 
         Future<double> get_norm_tree_recursive(const keyT& key) const;
 
-        mutable long box_leaf[1];
-        mutable long box_interior[1];
+        mutable long box_leaf[1000];
+        mutable long box_interior[1000];
 
         // horrifically non-scalable
         Void put_in_box(ProcessID from, long nl, long ni) const {
-            throw "NO!"; // NOTE DIM OF BOX_LEAF ABOVE NEEDS FIXING TO USE THIS ROUTINE
+            if (world.size() > 1000) throw "NO!";
             box_leaf[from] = nl;
             box_interior[from] = ni;
             return None;
