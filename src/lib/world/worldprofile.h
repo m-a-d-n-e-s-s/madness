@@ -115,6 +115,8 @@ namespace madness {
             ar & name & depth & count & xcpu & icpu;
         }
     };
+
+    class World;
     
 
     /// Singleton-like class for holding profiling data and functionality
@@ -217,6 +219,7 @@ namespace madness {
 
         /// Pause profiling while we are not executing ... accumulate time in self
         void pause(double now) {
+	    ScopedMutex<Spinlock> martha(WorldProfile::get_entry(id));
             WorldProfile::get_entry(id).xcpu.value += (now - cpu_start);
         }
 

@@ -9,6 +9,7 @@
 #include <world/print.h>
 #include <world/worldmutex.h>
 #include <world/worldpapi.h>
+#include <world/worldprofile.h>
 
 namespace madness {
 
@@ -520,8 +521,10 @@ namespace madness {
 
         /// Run next task ... returns true if one was run ... blocks if wait is true
         bool run_task(bool wait) {
+	    PROFILE_MEMBER_FUNC(ThreadPool);
             std::pair<PoolTaskInterface*,bool> t = queue.pop_front(wait);
             if (t.second) {
+			    PROFILE_BLOCK(working);
                 t.first->run();          // What we are here to do
                 delete t.first;
             }
