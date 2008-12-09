@@ -1,8 +1,15 @@
 dft
   nopen 0
-  maxrotn 0.15
+  maxrotn 0.25
   nvalpha 0
   nvbeta 0
+end
+
+# water*1
+geometry
+  O  0.0    0.0 0.0
+  H  1.4375 0.0 1.15
+  H -1.4375 0.0 1.15
 end
 
 geometry
@@ -13,13 +20,6 @@ geometry
   units angstrom
   H 0 0 0
   H 0 0 1
-end
-
-# water*1
-geometry
-  O  0.0    0.0 0.0
-  H  1.4375 0.0 1.15
-  H -1.4375 0.0 1.15
 end
 
 

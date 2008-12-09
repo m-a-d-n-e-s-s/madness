@@ -1259,7 +1259,7 @@ struct Calculation {
         if (world.rank() == 0) printf("diagonalized at %.2fs\n", wall_time());
 
         //if (world.rank() == 0) print("transformation matrix\n",c);
-        double tolscreen = max(FunctionDefaults<3>::get_thresh(), param.dconv / min(30.0,double(psi.size())));
+        double tolscreen = max(FunctionDefaults<3>::get_thresh(), param.dconv) / min(30.0,double(psi.size()));
         c.screen(tolscreen);
         //if (world.rank() == 0) print("transformation matrix screened\n",c);
 
