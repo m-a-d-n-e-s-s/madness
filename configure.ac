@@ -20,6 +20,35 @@ ACX_MAC
 # All source will be built with the MPI C++ and C compilers
 ACX_MPI
 
+# This sets host, host_cpu, host_vendor, host_os
+AC_CANONICAL_HOST
+echo "HOST INFORMATION:   $host    $host_cpu    $host_vendor    $host_os"
+AC_DEFINE_UNQUOTED([HOST_CPU], ["$host_cpu"], [Defines the host cpu (x86, x86_64, ...).])
+AC_DEFINE_UNQUOTED([HOST_SYSTEM], ["$host_os"], [Defines the host os (linux-gnu, ...).])
+
+if test $ON_A_MAC = 1; then
+   echo "Disabling X86 assembler because you are on a mac ... "
+   host_cpu="mac$host_cpu"
+fi
+
+# Pick out CPUs for which we have special source files (assembler)
+use_x86_64_asm=no
+use_x86_32_asm=no
+case $host_cpu in
+     x86_64)   
+         AC_DEFINE([X86_64], [1], [If set indicates we are using a 64-bit Intel/AMD cpu.]) 
+         use_x86_64_asm=yes
+         ;;
+     i?86*) 
+         AC_DEFINE([X86_32], [1], [If set indicates we are using a 32-bit Intel/AMD cpu.]) 
+         use_x86_32_asm=yes
+         ;;
+esac
+
+# Define AM conditional for use of aforementioned assembler
+AM_CONDITIONAL([USE_X86_64_ASM], [test $use_x86_64_asm = yes])
+AM_CONDITIONAL([USE_X86_32_ASM], [test $use_x86_32_asm = yes])
+
 # If the user did not specify compiler flags attempt to select optimal ones here.
 # Do this now so subsequent checks use/modify these flags.
 if test "x$initial_CXXFLAGS" = "x"; then
@@ -101,35 +130,6 @@ ACX_FORTRAN_SYMBOLS
 # Compiler quirks
 ACX_UNQUALIFIED_STATIC_DECL
 ACX_STD_ABS
-
-# This sets host, host_cpu, host_vendor, host_os
-AC_CANONICAL_HOST
-echo "HOST INFORMATION:   $host    $host_cpu    $host_vendor    $host_os"
-AC_DEFINE_UNQUOTED([HOST_CPU], ["$host_cpu"], [Defines the host cpu (x86, x86_64, ...).])
-AC_DEFINE_UNQUOTED([HOST_SYSTEM], ["$host_os"], [Defines the host os (linux-gnu, ...).])
-
-if test $ON_A_MAC = 1; then
-   echo "Disabling X86 assembler because you are on a mac ... "
-   host_cpu="mac$host_cpu"
-fi
-
-# Pick out CPUs for which we have special source files (assembler)
-use_x86_64_asm=no
-use_x86_32_asm=no
-case $host_cpu in
-     x86_64)   
-         AC_DEFINE([X86_64], [1], [If set indicates we are using a 64-bit Intel/AMD cpu.]) 
-         use_x86_64_asm=yes
-         ;;
-     i?86*) 
-         AC_DEFINE([X86_32], [1], [If set indicates we are using a 32-bit Intel/AMD cpu.]) 
-         use_x86_32_asm=yes
-         ;;
-esac
-
-# Define AM conditional for use of aforementioned assembler
-AM_CONDITIONAL([USE_X86_64_ASM], [test $use_x86_64_asm = yes])
-AM_CONDITIONAL([USE_X86_32_ASM], [test $use_x86_32_asm = yes])
 
 # Check for xterm
 AC_CHECK_PROG(XTERM,xterm,xterm,no)
