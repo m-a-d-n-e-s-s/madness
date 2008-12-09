@@ -3,7 +3,7 @@ AC_DEFUN([AC_DETECT_CXX], [
     # [GNU,Intel,Portland,Pathscale,unknown]
     CXXVENDOR=unknown
     if test $CXXVENDOR = unknown; then
-        $CXX --version 2>&1 | egrep -q "GCC|GNU|gcc|gnu|g\+\+"
+        $CXX --version 2>&1 | egrep -q "GCC|GNU|gcc|gnu|g\+\+|Free S"
         if test $? = 0; then
            echo GNU C++ compiler detected by MADNESS
            CXXVENDOR=GNU

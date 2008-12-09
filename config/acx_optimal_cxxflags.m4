@@ -26,7 +26,12 @@ AC_DEFUN([ACX_OPTIMAL_CXXFLAGS], [
                   CXXFLAGS="$CXXFLAGS -march=$TARGET_ARCH"
                fi
             fi
-            ;;
+            case $host_cpu in
+                i?86*)
+                   CXXFLAGS="$CXXFLAGS -msse"
+                   ;;
+            esac
+         ;;
 
          Pathscale)
             CXXFLAGS="-Wall -Ofast"
@@ -51,6 +56,7 @@ AC_DEFUN([ACX_OPTIMAL_CXXFLAGS], [
             ;;
 
          unknown)
+            echo "UNKNOWN COMPILER?"
             ;;
 
          *)
