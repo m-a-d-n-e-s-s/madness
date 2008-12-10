@@ -523,6 +523,7 @@ struct Calculation {
     void make_nuclear_potential(World& world) {
         START_TIMER;
         vnuc = factoryT(world).functor(functorT(new MolecularPotentialFunctor(molecule))).thresh(vtol).truncate_on_project();
+        vnuc.set_thresh(FunctionDefaults<3>::get_thresh());
         //vnuc.truncate();
         vnuc.reconstruct();
         END_TIMER("Project vnuclear");
@@ -670,7 +671,7 @@ struct Calculation {
         tensorT Saomo = matrix_inner(world, ao, mo);
         tensorT Saoao = matrix_inner(world, ao, ao, true);
 
-        ao.clear(); world.gop.fence(); // free memory
+        ao.clear(); // free memory
 
         // Compute <r> and <(r-<r>)^2> = <r^2> - <r>^2
 
@@ -678,10 +679,10 @@ struct Calculation {
         tensorT rsq, dip(3,nmo);
         {
             functionT frsq = factoryT(world).f(rsquared).initial_level(4);
-            rsq = inner(world, mo, mul_sparse(world, frsq, mo));
+            rsq = inner(world, mo, mul_sparse(world, frsq, mo, vtol));
             for (int axis=0; axis<3; axis++) {
                 functionT fdip = factoryT(world).functor(functorT(new DipoleFunctor(axis))).initial_level(4);
-                dip(axis,_) = inner(world, mo, mul_sparse(world, fdip, mo));
+                dip(axis,_) = inner(world, mo, mul_sparse(world, fdip, mo, vtol));
                 for (int i=0; i<nmo; i++) rsq(i) -= dip(axis,i)*dip(axis,i);
             }
         }
@@ -720,7 +721,7 @@ struct Calculation {
 
         for (int axis=0; axis<3; axis++) {
             functionT fdip = factoryT(world).functor(functorT(new DipoleFunctor(axis))).initial_level(4);
-            dip(axis,_,_) = matrix_inner(world, mo, mul_sparse(world, fdip, mo), true);
+            dip(axis,_,_) = matrix_inner(world, mo, mul_sparse(world, fdip, mo, vtol), true);
         }
 
         tensorT U(nmo,nmo);
@@ -828,7 +829,7 @@ struct Calculation {
         for (int axis=0; axis<3; axis++) {
             vecfuncT dv = diff(world,v,axis);
             r += matrix_inner(world, dv, dv, true);
-            dv.clear(); world.gop.fence(); // Allow function memory to be freed
+            dv.clear(); // Allow function memory to be freed
         }
 
         return r.scale(0.5);
@@ -857,29 +858,23 @@ struct Calculation {
         if (world.rank() == 0) print("guess dens trace", nel);
 
         if (world.size() > 1) {
-            if (world.rank() == 0) print("starting loadbal new");
             START_TIMER;
-            world.gop.fence();
             LoadBalanceDeux<3> lb(world);
             lb.add_tree(vnuc, lbcost<double,3>(1.0,0.0), true);
             lb.add_tree(rho,lbcost<double,3>(1.0,1.0),false); /// was 3.0
-            FunctionDefaults<3>::set_pmap(lb.load_balance(2.0));
-            world.gop.fence();
+            FunctionDefaults<3>::set_pmap(lb.load_balance(6.0));
             if (world.rank() == 0) print("starting loadbal copy");
             rho = copy(rho, FunctionDefaults<3>::get_pmap(), false);
             vnuc = copy(vnuc, FunctionDefaults<3>::get_pmap(), false);
             world.gop.fence();
-            if (world.rank() == 0) print("finished loadbal");
             END_TIMER("guess loadbal");
         }
 
         functionT vlocal;
         if (param.nalpha+param.nbeta > 1) {
-            if (world.rank() == 0) print("starting coulomb");
             START_TIMER;
             vlocal = vnuc + apply(*coulop, rho); //.scale(1.0-1.0/nel); // Reduce coulomb to increase binding
             END_TIMER("guess Coulomb potn");
-            if (world.rank() == 0) print("finished coulomb");
 
             // Shove the closed-shell LDA potential on there also
             bool save = param.spin_restricted;
@@ -888,6 +883,7 @@ struct Calculation {
             vlocal = vlocal + make_lda_potential(world, rho, rho, functionT(), functionT());
             vlocal.truncate();
             param.spin_restricted = save;
+
         }
         else {
             vlocal = vnuc;
@@ -905,10 +901,10 @@ struct Calculation {
             for (unsigned int i=0; i<ao.size(); i++) {
                 lb.add_tree(ao[i],lbcost<double,3>(1.0, 1.0), false);
             }
-            FunctionDefaults<3>::set_pmap(lb.load_balance(2.0));
+            FunctionDefaults<3>::set_pmap(lb.load_balance(6.0));
             vnuc = copy(vnuc, FunctionDefaults<3>::get_pmap(), false);
             vlocal = copy(vlocal, FunctionDefaults<3>::get_pmap(), false);
-            for (unsigned int i=0; i<amo.size(); i++) {
+            for (unsigned int i=0; i<ao.size(); i++) {
                 ao[i] = copy(ao[i], FunctionDefaults<3>::get_pmap(), false);
             }
             world.gop.fence();
@@ -922,12 +918,10 @@ struct Calculation {
         END_TIMER("make KE matrix");
 
         reconstruct(world, ao);
+        vlocal.reconstruct();
         START_TIMER;
-        //vecfuncT vpsi = mul(world, vlocal, ao);
         vecfuncT vpsi = mul_sparse(world, vlocal, ao, vtol);
-        world.gop.fence();
         END_TIMER("make V*psi");
-        world.gop.fence();
         START_TIMER;
         compress(world,vpsi);
         END_TIMER("Compressing Vpsi");
@@ -940,10 +934,8 @@ struct Calculation {
 
         START_TIMER;
         tensorT potential = matrix_inner(world, vpsi, ao, true);
-        world.gop.fence();
         END_TIMER("make PE matrix");
         vpsi.clear();
-        world.gop.fence();
 
         tensorT fock = kinetic + potential;
         fock = 0.5*(fock + transpose(fock));
@@ -961,14 +953,12 @@ struct Calculation {
 //             print("THESE ARE THE EIGENVECTORS");
 //             print(c);
             print("initial eigenvalues");
-             print(e);
+            print(e);
          }
 
         compress(world,ao);
-        world.gop.fence();
         START_TIMER;
         amo = transform(world, ao, c(_,Slice(0,param.nmo_alpha-1)));
-        world.gop.fence();
         END_TIMER("transform initial MO");
         truncate(world, amo);
         normalize(world, amo);
@@ -995,21 +985,20 @@ struct Calculation {
     void initial_load_bal(World& world) {
         LoadBalanceDeux<3> lb(world);
         lb.add_tree(vnuc, lbcost<double,3>(1.0,0.0));
-        FunctionDefaults<3>::set_pmap(lb.load_balance(2.0));
+        FunctionDefaults<3>::set_pmap(lb.load_balance(6.0));
         world.gop.fence();
     }
 
     functionT make_density(World& world, const tensorT& occ, const vecfuncT& v) {
         vecfuncT vsq = square(world, v);
         compress(world,vsq);
-        functionT rho = factoryT(world).thresh(vtol);
+        functionT rho = factoryT(world); // .thresh(vtol);
         rho.compress();
         for (unsigned int i=0; i<vsq.size(); i++) {
             if (occ[i]) rho.gaxpy(1.0,vsq[i],occ[i],false);
         }
         world.gop.fence();
         vsq.clear();
-        world.gop.fence();
 
         double dtrace = rho.trace();
         if (world.rank() == 0) print("err in trace of density", dtrace-occ.sum());
@@ -1059,7 +1048,7 @@ struct Calculation {
             if (occ[i] > 0.0) {
                 //vecfuncT psif = mul(world, psi[i], f);
                 vecfuncT psif = mul_sparse(world, psi[i], f, vtol);
-                set_thresh(world, psif, vtol);  //<<<<<<<<<<<<<<<<<<<<<<<<< since cannot yet put in apply
+                //set_thresh(world, psif, vtol);  //<<<<<<<<<<<<<<<<<<<<<<<<< since cannot yet put in apply
 
                 truncate(world,psif);
                 psif = apply(world, *coulop, psif);
@@ -1140,7 +1129,6 @@ struct Calculation {
         if (world.rank() == 0) printf("starting mul at %.2fs\n", wall_time());
         vecfuncT Vpsi = mul_sparse(world, vloc, amo, vtol);
         //vecfuncT Vpsi = mul(world, vloc, amo);
-        world.gop.fence();
         if (world.rank() == 0) printf("finished mul at %.2fs\n", wall_time());
 
         if (!param.lda) {
@@ -1188,7 +1176,7 @@ struct Calculation {
         END_TIMER("Truncate new psi");
 
         START_TIMER;
-        new_psi = mul_sparse(world, mask, new_psi);
+        new_psi = mul_sparse(world, mask, new_psi, vtol);
         END_TIMER("Mask");
 
         vecfuncT r = sub(world, psi, new_psi); // residuals
@@ -1226,7 +1214,6 @@ struct Calculation {
 
         world.gop.fence();
         new_psi.clear(); // free memory
-        world.gop.fence();
         world.gop.fence();
 
         truncate(world, psi);
@@ -1313,7 +1300,7 @@ struct Calculation {
             }
         }
 
-        FunctionDefaults<3>::set_pmap(lb.load_balance(2.0));
+        FunctionDefaults<3>::set_pmap(lb.load_balance(6.0));
 
         vnuc = copy(vnuc, FunctionDefaults<3>::get_pmap(), false);
         arho = copy(arho, FunctionDefaults<3>::get_pmap(), false);
