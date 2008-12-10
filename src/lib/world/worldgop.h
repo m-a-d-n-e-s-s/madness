@@ -127,6 +127,7 @@ namespace madness {
         /// that all tasks and AM are processed and there no AM in
         /// flight.
         void fence() {
+            PROFILE_MEMBER_FUNC(WorldGopInterface);
             unsigned long nsent_prev=0, nrecv_prev=1; // invalid initial condition
             SafeMPI::Request req0, req1;
             ProcessID parent, child0, child1;
