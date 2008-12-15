@@ -1,9 +1,12 @@
-/*
- * solver.h
- *
- *  Created on: Dec 14, 2008
- *      Author: wsttiger
- */
+#include <mra/mra.h>
+#include <world/world.h>
+#include <vector>
+#include <moldft/xc/f2c.h>
+#include <vector>
+
+#include "poperator.h"
+#include "libxc.h"
+#include "electronicstructureparams.h"
 
 #ifndef SOLVER_H_
 
@@ -16,10 +19,6 @@ namespace madness
     // Typedef's
     typedef Function<T,NDIM> funcT;
     typedef Vector<double,NDIM> kvecT;
-
-    //*************************************************************************
-    World& world() {return _world;}
-    //*************************************************************************
 
     //*************************************************************************
     World _world;
@@ -106,7 +105,7 @@ namespace madness
     //*************************************************************************
 
     //***************************************************************************
-    funcT compute_rho(std::vector<phis> phis)
+    funcT compute_rho(std::vector<funcT> phis)
     {
       // Electron density
       funcT rho = FunctionFactory<double,NDIM>(_world);
@@ -117,7 +116,8 @@ namespace madness
         const funcT& phij = phis[j];
         // Compute the j-th density
         funcT prod = square(phij);
-        rho += occs[j]*prod;
+        //rho += occs[j]*prod;
+        rho += prod;
       }
       rho.truncate();
       return rho;
@@ -125,7 +125,7 @@ namespace madness
     //***************************************************************************
 
     //***************************************************************************
-    std::vector< SeparatedConvolution<T,NDIM> > make_bsh_operators(std::vectors<double> eigs)
+    std::vector< SeparatedConvolution<T,NDIM> > make_bsh_operators(std::vector<double> eigs)
     {
       // Make BSH vector
       std::vector< SeparatedConvolution<T,NDIM> > bops;
@@ -134,25 +134,25 @@ namespace madness
       double tol = FunctionDefaults<NDIM>::get_thresh();
       // Loop through eigenvalues, adding a BSH operator to bops
       // for each eigenvalue
-      int sz = _phis.size();
+      int sz = eigs.size();
       for (int i = 0; i < sz; i++)
       {
-          double eps = _eigs[i];
+          double eps = eigs[i];
           if (eps > 0)
           {
               if (_world.rank() == 0)
               {
-                  DEBUG_STREAM << "bsh: warning: positive eigenvalue" << i << eps << endl;
+                  std::cout << "bsh: warning: positive eigenvalue" << i << eps << std::endl;
               }
               eps = -0.1;
           }
-          _bops.push_back(BSHOperator<double,NDIM>(_world, sqrt(-2.0*eps), k, 1e-4, tol));
+          bops.push_back(BSHOperator<double,NDIM>(_world, sqrt(-2.0*eps), k, 1e-4, tol));
       }
     }
     //*************************************************************************
 
     //*************************************************************************
-    std::vector<funcT> apply_potential(std::vector<funcT> pfuncsa,
+    void apply_potential(std::vector<funcT> pfuncsa,
         std::vector<funcT> pfuncsb, std::vector<funcT> phisa,
         std::vector<funcT> phisb, funcT rhoa, funcT rhob, funcT rho)
     {
@@ -164,20 +164,14 @@ namespace madness
         // LDA, is calculation spin-polarized?
         if (_params.spinpol)
         {
-//          funcT vxca = copy(rhoa);
-//          funcT vxca = copy(rhob);
-//          vxc.unaryop(&::libxc_ldaop);
-//          std::vector<funcT> pfuncsa = mul_sparse(_world, vlocal + vxc, phis, _params.thresh * 0.1);
         }
         else
         {
           funcT vxc = copy(rhoa);
           vxc.unaryop(&::libxc_ldaop);
-          std::vector<funcT> pfuncsa = mul_sparse(_world, vlocal + vxc, phis, _params.thresh * 0.1);
+          std::vector<funcT> pfuncsa = mul_sparse(_world, vlocal + vxc, phisa, _params.thresh * 0.1);
         }
       }
-
-      return pfuncs;
     }
     //*************************************************************************
 
@@ -192,20 +186,26 @@ namespace madness
       {
         // Compute density
         _rhoa = compute_rho(_phisa);
-        _rhob = (params.spinpol) ? compute_rho(_phisb) : rhoa;
+        _rhob = (_params.spinpol) ? compute_rho(_phisb) : _rhoa;
         _rho = _rhoa + _rhob;
 
+        vector<funcT> pfuncsa(_phisa.size()), pfuncsb(_phisb.size());
+        for (unsigned int pi = 0; pi < _phisa.size(); pi++)
+          pfuncsa[pi] = FunctionFactory<T, NDIM>(_world);
+        for (unsigned int pi = 0; pi < _phisb.size(); pi++)
+          pfuncsb[pi] = FunctionFactory<T, NDIM>(_world);
+
         // Apply the potentials to the orbitals
-        pfa = apply_potential(phisa, phisb, rhoa, rhob, rho);
+        apply_potential(pfuncsa, pfuncsb, _phisa, _phisb, _rhoa, _rhob, _rho);
 
         // Make BSH Green's function
-        std::vector< SeparatedConvolution<T,DIM> > bopsa = make_bsh_operators(_eigsa);
-        vector<double> sfactor(pfuncs.size());
+        std::vector< SeparatedConvolution<T,NDIM> > bopsa = make_bsh_operators(_eigsa);
+        vector<double> sfactor(pfuncsa.size());
         for (unsigned int si = 0; si < sfactor.size(); si++) sfactor[si] = -2.0;
         scale(_world, pfuncsa, sfactor);
 
         // Apply Green's function to orbitals
-        vector<funcT> tmpa = apply(_world, _bops, pfuncs);
+        vector<funcT> tmpa = apply(_world, bopsa, pfuncsa);
 
         // Gram-Schmidt
         gram_schmidt(tmpa, _phisa);
@@ -218,14 +218,14 @@ namespace madness
         }
 
         // Update eigenvalues
-        update_eigenvalues(tmpa, pfuncsa, phisa, eigsa);
+        update_eigenvalues(tmpa, pfuncsa, _phisa, _eigsa);
 
         // Do other spin
         if (_params.spinpol)
         {
-          std::vector< SeparatedConvolution<T,DIM> > bopsb = make_bsh_operators(_eigsb);
+          std::vector< SeparatedConvolution<T,NDIM> > bopsb = make_bsh_operators(_eigsb);
           scale(_world, pfuncsb, sfactor);
-          vector<funcT> tmpa = apply(_world, _bops, pfuncs);
+          vector<funcT> tmpb = apply(_world, bopsb, pfuncsb);
           gram_schmidt(tmpb, _phisb);
           // Update orbitals
           truncate(_world, tmpb);
@@ -233,7 +233,7 @@ namespace madness
           {
             _phisb[ti] = tmpb[ti].scale(1.0/tmpb[ti].norm2());
           }
-          update_eigenvalues(tmpb, pfuncsb, phisb, eigsb);
+          update_eigenvalues(tmpb, pfuncsb, _phisb, _eigsb);
         }
       }
     }
@@ -250,7 +250,7 @@ namespace madness
         for (unsigned int bj = 0; bj < ai; ++bj)
         {
           double overlap = inner(a[ai], b[bj]);
-          a[ti] -= overlap*b[bj];
+          a[ai] -= overlap*b[bj];
         }
       }
     }
@@ -263,14 +263,14 @@ namespace madness
     {
       // Update e
       if (_world.rank() == 0) printf("Updating e ...\n\n");
-      for (unsigned int ei = 0; ei < _eigs.size(); ei++)
+      for (unsigned int ei = 0; ei < eigs.size(); ei++)
       {
-        funcT r = tmp[ei] - _phis[ei];
+        funcT r = tmp[ei] - phis[ei];
         double tnorm = tmp[ei].norm2();
         double rnorm = r.norm2();
         // Compute correction to the eigenvalues
         double ecorrection = -0.5*inner(pfuncs[ei], r) / (tnorm*tnorm);
-        double eps_old = _eigs[ei];
+        double eps_old = eigs[ei];
         double eps_new = eps_old + ecorrection;
         // Sometimes eps_new can go positive, THIS WILL CAUSE THE ALGORITHM TO CRASH. So,
         // I bounce the new eigenvalue back into the negative side of the real axis. I
@@ -290,59 +290,38 @@ namespace madness
           _exit(0);
         }
         // Set new eigenvalue
-        _eigs[ei] = eps_new;
+        eigs[ei] = eps_new;
       }
     }
     //*************************************************************************
 
-    //*************************************************************************
-    double get_eig(int indx)
-    {
-      return _solver->get_eig(indx);
-    }
-    //*************************************************************************
-
-    //*************************************************************************
-    funcT get_phi(int indx)
-    {
-      return _solver->get_phi(indx);
-    }
-    //*************************************************************************
-
-    //*************************************************************************
-    const std::vector<double>& eigs()
-    {
-      return _solver->eigs();
-    }
-    //*************************************************************************
-
-    //*************************************************************************
-    const std::vector<funcT>& phis()
-    {
-      return _solver->phis();
-    }
-    //*************************************************************************
-
-  private:
-
-    //*************************************************************************
-    World& _world;
-    //*************************************************************************
-
-    //*************************************************************************
-    // This variable could either be a nuclear potiential or a nuclear charge
-    // density depending on the "ispotential" variable in the
-    // ElectronicStructureParams class.
-    Function<double,NDIM> _vnucrhon;
-    //*************************************************************************
-
-    //*************************************************************************
-    ElectronicStructureParams _params;
-    //*************************************************************************
-
-    //*************************************************************************
-    World& world() {return _world;}
-    //*************************************************************************
+//    //*************************************************************************
+//    double get_eig(int indx)
+//    {
+//      return _solver->get_eig(indx);
+//    }
+//    //*************************************************************************
+//
+//    //*************************************************************************
+//    funcT get_phi(int indx)
+//    {
+//      return _solver->get_phi(indx);
+//    }
+//    //*************************************************************************
+//
+//    //*************************************************************************
+//    const std::vector<double>& eigs()
+//    {
+//      return _solver->eigs();
+//    }
+//    //*************************************************************************
+//
+//    //*************************************************************************
+//    const std::vector<funcT>& phis()
+//    {
+//      return _solver->phis();
+//    }
+//    //*************************************************************************
 
   };
   //***************************************************************************
