@@ -401,12 +401,6 @@ namespace madness
         // Operate with orbital-dependent operator
         if (op->is_od()) gaxpy(_world, 1.0, pfuncs, op->coeff(), op->multi_op_o(_phis));
       }
-//      // WSTHORNTON DEBUG
-//      for (unsigned int pfi = 0; pfi < pfuncs.size(); pfi++)
-//      {
-//        double pnorm = pfuncs[pfi].norm2();
-//        if (_world.rank() == 0) printf("pfi = %d\tpnorm = %.5f\n\n", pfi, pnorm);
-//      }
       // Make BSH operators
       if (_world.rank() == 0) printf("Creating BSH operator ...\n\n");
       make_bsh_operators();
