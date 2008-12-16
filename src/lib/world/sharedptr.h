@@ -284,6 +284,12 @@ namespace madness {
             return r;
         }
 
+        /// This just to permit use as task arguments ... throws if actually invoked
+        template <typename Archive>
+        void serialize(Archive& ar) {
+            throw "SharedPtr not serializable";
+        }
+
     };
     
     /// A SharedArray is just like a SharedPtr except that delete [] is used to free it

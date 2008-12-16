@@ -347,6 +347,7 @@ namespace madness {
             return std::pair<iterator,bool>(iterator(this,bin,result.first),result.second);
         }
 
+        /// Returns true if new pair was inserted; false if key is already in the map
         bool insert(accessor& result, const keyT& key) {
             result.release();
             int bin = hash_to_bin(key);
@@ -355,6 +356,7 @@ namespace madness {
             return r.second;
         }
 
+        /// Returns true if new pair was inserted; false if key is already in the map
         bool insert(const_accessor& result, const keyT& key) {
             result.release();
             int bin = hash_to_bin(key);
