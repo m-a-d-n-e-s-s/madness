@@ -1,8 +1,6 @@
 #include <mra/mra.h>
 #include <world/world.h>
 #include <vector>
-#include <moldft/xc/f2c.h>
-#include <vector>
 
 #include "poperator.h"
 #include "libxc.h"
@@ -19,6 +17,8 @@ namespace madness
     // Typedef's
     typedef Function<T,NDIM> funcT;
     typedef Vector<double,NDIM> kvecT;
+    typedef SeparatedConvolution<double,3> operatorT;
+    typedef SharedPtr<operatorT> poperatorT;
 
     //*************************************************************************
     World _world;
@@ -40,11 +40,11 @@ namespace madness
     //*************************************************************************
 
     //*************************************************************************
-    std::vector<funcT> _eigsa;
+    std::vector<double> _eigsa;
     //*************************************************************************
 
     //*************************************************************************
-    std::vector<funcT> _eigsb;
+    std::vector<double> _eigsb;
     //*************************************************************************
 
     //*************************************************************************
@@ -78,13 +78,13 @@ namespace madness
     Solver(World& world, funcT vnucrhon, std::vector<funcT> phisa,
       std::vector<funcT> phisb, std::vector<double> eigsa, std::vector<double> eigsb,
       ElectronicStructureParams params)
-       : _world(world), _phisa(phisa), _phisb(phisb), _eigsa(eigsa), _eigsb(eigsb),
-       _params(params)
+       : _world(world), _vnucrhon(vnucrhon), _phisa(phisa), _phisb(phisb),
+       _eigsa(eigsa), _eigsb(eigsb), _params(params)
     {
       if (params.periodic)
       {
         Tensor<double> box = FunctionDefaults<NDIM>::get_cell_width();
-        _cop = CoulombOperatorPtr<T,NDIM>(const_cast<World&>(world),
+        _cop = PeriodicCoulombOpPtr<T,NDIM>(const_cast<World&>(world),
             FunctionDefaults<NDIM>::get_k(), params.lo, params.thresh * 0.1, box);
       }
       else
@@ -99,7 +99,7 @@ namespace madness
       }
       else
       {
-        _vnuc = apply(_cop, _vnucrhon);
+        _vnuc = apply(*_cop, _vnucrhon);
       }
     }
     //*************************************************************************
@@ -110,7 +110,7 @@ namespace madness
       // Electron density
       funcT rho = FunctionFactory<double,NDIM>(_world);
       // Loop over all wavefunctions to compute density
-      for (int j = 0; j < phis.size(); j++)
+      for (unsigned int j = 0; j < phis.size(); j++)
       {
         // Get phi(j) from iterator
         const funcT& phij = phis[j];
@@ -125,10 +125,10 @@ namespace madness
     //***************************************************************************
 
     //***************************************************************************
-    std::vector< SeparatedConvolution<T,NDIM> > make_bsh_operators(std::vector<double> eigs)
+    std::vector<poperatorT> make_bsh_operators(const std::vector<double>& eigs)
     {
       // Make BSH vector
-      std::vector< SeparatedConvolution<T,NDIM> > bops;
+      std::vector<poperatorT> bops;
       // Get defaults
       int k = FunctionDefaults<NDIM>::get_k();
       double tol = FunctionDefaults<NDIM>::get_thresh();
@@ -146,18 +146,20 @@ namespace madness
               }
               eps = -0.1;
           }
-          bops.push_back(BSHOperator<double,NDIM>(_world, sqrt(-2.0*eps), k, 1e-4, tol));
+          bops.push_back(poperatorT(BSHOperatorPtr<double,NDIM>(_world, sqrt(-2.0*eps), k, _params.lo, tol * 0.1)));
       }
+      return bops;
     }
     //*************************************************************************
 
     //*************************************************************************
-    void apply_potential(std::vector<funcT> pfuncsa,
-        std::vector<funcT> pfuncsb, std::vector<funcT> phisa,
-        std::vector<funcT> phisb, funcT rhoa, funcT rhob, funcT rho)
+    void apply_potential(std::vector<funcT>& pfuncsa,
+        std::vector<funcT>& pfuncsb, const std::vector<funcT>& phisa,
+        const std::vector<funcT>& phisb, const funcT& rhoa, const funcT& rhob,
+        const funcT& rho)
     {
       // Nuclear and coulomb potentials
-      funcT vlocal = _vnuc + apply(_cop, rho);
+      funcT vlocal = _vnuc + apply(*_cop, rho);
       // Exchange
       if (_params.functional == 1)
       {
@@ -169,14 +171,14 @@ namespace madness
         {
           funcT vxc = copy(rhoa);
           vxc.unaryop(&::libxc_ldaop);
-          std::vector<funcT> pfuncsa = mul_sparse(_world, vlocal + vxc, phisa, _params.thresh * 0.1);
+          pfuncsa = mul_sparse(_world, vlocal + vxc, phisa, _params.thresh * 0.1);
         }
       }
     }
     //*************************************************************************
 
     //*************************************************************************
-    virtual ~Solver();
+    virtual ~Solver() {}
     //*************************************************************************
 
     //*************************************************************************
@@ -199,7 +201,7 @@ namespace madness
         apply_potential(pfuncsa, pfuncsb, _phisa, _phisb, _rhoa, _rhob, _rho);
 
         // Make BSH Green's function
-        std::vector< SeparatedConvolution<T,NDIM> > bopsa = make_bsh_operators(_eigsa);
+        std::vector<poperatorT> bopsa = make_bsh_operators(_eigsa);
         vector<double> sfactor(pfuncsa.size());
         for (unsigned int si = 0; si < sfactor.size(); si++) sfactor[si] = -2.0;
         scale(_world, pfuncsa, sfactor);
@@ -207,8 +209,28 @@ namespace madness
         // Apply Green's function to orbitals
         vector<funcT> tmpa = apply(_world, bopsa, pfuncsa);
 
+//        {
+//          if (_world.rank() == 0) printf("\n");
+//          Tensor<double> boxsize = FunctionDefaults<NDIM>::get_cell_width();
+//          double L = boxsize[0];
+//          double bstep = L / 100.0;
+//          _phisa[0].reconstruct();
+//          pfuncsa[0].reconstruct();
+//          tmpa[0].reconstruct();
+//          for (int i = 0; i < 101; i++)
+//          {
+//           Vector<T,NDIM> p(-L / 2 + i * bstep);
+//           if (_world.rank() == 0)
+//             printf("%.2f\t\t%.8f\t%.8f\t%.8f\n", p[0], _phisa[0](p), pfuncsa[0](p), tmpa[0](p));
+//          }
+//          if (_world.rank() == 0) printf("\n");
+//        }
+
         // Gram-Schmidt
         gram_schmidt(tmpa, _phisa);
+
+        // Update eigenvalues
+        update_eigenvalues(tmpa, pfuncsa, _phisa, _eigsa);
 
         // Update orbitals
         truncate(_world, tmpa);
@@ -217,23 +239,25 @@ namespace madness
           _phisa[ti] = tmpa[ti].scale(1.0/tmpa[ti].norm2());
         }
 
-        // Update eigenvalues
-        update_eigenvalues(tmpa, pfuncsa, _phisa, _eigsa);
-
         // Do other spin
         if (_params.spinpol)
         {
-          std::vector< SeparatedConvolution<T,NDIM> > bopsb = make_bsh_operators(_eigsb);
+          std::vector<poperatorT> bopsb = make_bsh_operators(_eigsb);
           scale(_world, pfuncsb, sfactor);
           vector<funcT> tmpb = apply(_world, bopsb, pfuncsb);
           gram_schmidt(tmpb, _phisb);
           // Update orbitals
           truncate(_world, tmpb);
+          update_eigenvalues(tmpb, pfuncsb, _phisb, _eigsb);
           for (unsigned int ti = 0; ti < tmpb.size(); ti++)
           {
             _phisb[ti] = tmpb[ti].scale(1.0/tmpb[ti].norm2());
           }
-          update_eigenvalues(tmpb, pfuncsb, _phisb, _eigsb);
+        }
+
+        if (_world.rank() == 0)
+        {
+          print("it: ", it, " eps = ", _eigsa[0], "\n\n");
         }
       }
     }
@@ -259,7 +283,7 @@ namespace madness
     //*************************************************************************
     void update_eigenvalues(const std::vector<funcT>& tmp,
         const std::vector<funcT>& pfuncs, const std::vector<funcT>& phis,
-        std::vector<double> eigs)
+        std::vector<double>& eigs)
     {
       // Update e
       if (_world.rank() == 0) printf("Updating e ...\n\n");
@@ -267,11 +291,12 @@ namespace madness
       {
         funcT r = tmp[ei] - phis[ei];
         double tnorm = tmp[ei].norm2();
-        double rnorm = r.norm2();
         // Compute correction to the eigenvalues
         double ecorrection = -0.5*inner(pfuncs[ei], r) / (tnorm*tnorm);
         double eps_old = eigs[ei];
         double eps_new = eps_old + ecorrection;
+//        if (_world.rank() == 0) printf("ecorrection = %.8f\n\n", ecorrection);
+//        if (_world.rank() == 0) printf("eps_old = %.8f eps_new = %.8f\n\n", eps_old, eps_new);
         // Sometimes eps_new can go positive, THIS WILL CAUSE THE ALGORITHM TO CRASH. So,
         // I bounce the new eigenvalue back into the negative side of the real axis. I
         // keep doing this until it's good or I've already done it 10 times.
@@ -280,7 +305,7 @@ namespace madness
         {
           // Split the difference between the new and old estimates of the
           // pi-th eigenvalue.
-          eps_new = eps_old + 0.33 * (eps_new - eps_old);
+          eps_new = eps_old + 0.5 * (eps_new - eps_old);
           counter++;
         }
         // Still no go, forget about it. (1$ to Donnie Brasco)

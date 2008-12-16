@@ -197,8 +197,9 @@ public:
         rmaxsq = 0.0;
         numbf = 0;
         for (unsigned int i=0; i<g.size(); i++) {
-            rmaxsq = std::max(rmaxsq, g[i].rangesq());
-            numbf += g[i].nbf();
+//            rmaxsq = std::max(rmaxsq, g[i].rangesq());
+          rmaxsq = (rmaxsq > g[i].rangesq()) ? rmaxsq : g[i].rangesq();
+          numbf += g[i].nbf();
         }
     }
 

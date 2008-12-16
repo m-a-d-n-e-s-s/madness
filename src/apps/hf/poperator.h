@@ -1,3 +1,6 @@
+#ifndef POPERATOR_H_
+#define POPERATOR_H_
+
 #include <constants.h>
 #include "mra/operator.h"
 
@@ -105,3 +108,5 @@ namespace madness
   //***************************************************************************
 
 };
+
+#endif
