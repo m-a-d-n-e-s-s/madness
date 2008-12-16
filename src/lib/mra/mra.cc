@@ -283,8 +283,9 @@ namespace madness {
             node.set_coeff(tensorT(cdata.v2k));
         }
 
-        if (node.has_coeff()) {
+        if (node.has_children() || node.has_coeff()) { // Must allow for inconsistent state from transform, etc.
             tensorT d = node.coeff();
+            if (d.size == 0) d = tensorT(cdata.v2k);
             if (key.level() > 0) d(cdata.s0) += s; // -- note accumulate for NS summation
             d = unfilter(d);
             node.clear_coeff();
@@ -511,7 +512,15 @@ namespace madness {
     template <typename T, int NDIM>
     Future<bool> FunctionImpl<T,NDIM>::truncate_spawn(const keyT& key, double tol) {
         PROFILE_MEMBER_FUNC(FunctionImpl);
-        const nodeT& node = coeffs.find(key).get()->second;   // Ugh!
+        typename dcT::iterator it = coeffs.find(key).get();
+        if (it == coeffs.end()) {
+            // In a standard tree all children would exist but some ops (transform) 
+            // can leave the tree in a messy state.  Just make the missing node as an
+            // empty leaf.
+            coeffs.replace(key,nodeT());
+            it = coeffs.find(key).get();
+        }
+        nodeT& node = it->second;
         if (node.has_children()) {
             std::vector< Future<bool> > v = future_vector_factory<bool>(1<<NDIM);
             int i=0;
@@ -521,8 +530,17 @@ namespace madness {
             return task(world.rank(),&implT::truncate_op, key, tol, v);
         }
         else {
-            MADNESS_ASSERT(!node.has_coeff());  // In compressed form leaves should not have coeffs
-            return Future<bool>(false);
+            // In compressed form leaves should not have coeffs ... however the
+            // transform op could leave the tree with leaves that do have coeffs
+            // in which case we want something sensible to happen
+            //MADNESS_ASSERT(!node.has_coeff());
+            if (node.has_coeff() && key.level()>1) {
+                double dnorm = node.coeff().normf();
+                if (dnorm < truncate_tol(tol,key)) {
+                    node.clear_coeff();
+                }
+            }
+            return Future<bool>(node.has_coeff());
         }
     }
 
@@ -533,13 +551,21 @@ namespace madness {
         // If any child has coefficients, a parent cannot truncate
         for (int i=0; i<(1<<NDIM); i++) if (v[i].get()) return true;
         nodeT& node = coeffs.find(key).get()->second;
+
+        // Interior nodes should always have coeffs but transform might
+        // leave empty interior nodes ... hence just force no coeffs to 
+        // be zero coeff unless it is a leaf.
+        if (node.has_children() && !node.has_coeff()) node.set_coeff(tensorT(cdata.v2k));
+
         if (key.level() > 1) { // >1 rather >0 otherwise reconstruct might get confused
             double dnorm = node.coeff().normf();
             if (dnorm < truncate_tol(tol,key)) {
                 node.clear_coeff();
-                node.set_has_children(false);
-                for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
-                    coeffs.erase(kit.key());
+                if (node.has_children()) {
+                    node.set_has_children(false);
+                    for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
+                        coeffs.erase(kit.key());
+                    }
                 }
             }
         }

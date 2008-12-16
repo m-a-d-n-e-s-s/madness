@@ -80,6 +80,10 @@ namespace madness {
     std::vector< Function<TENSOR_RESULT_TYPE(L,R),D> >
     vmulXX(const Function<L,D>& left, const std::vector< Function<R,D> >& vright, double tol, bool fence=true);
 
+    template <typename L, typename R, int NDIM>
+    std::vector< Function<TENSOR_RESULT_TYPE(L,R),NDIM> >
+    transform(World& world,  const std::vector< Function<L,NDIM> >& v, const Tensor<R>& c, double tol, bool fence=true);
+
     template <typename Q, typename R, int D>
     Function<TENSOR_RESULT_TYPE(Q,R),D>
     mul(const Q alpha, const Function<R,D>& f, bool fence=true);
@@ -141,6 +145,10 @@ namespace madness {
         friend
         std::vector< Function<TENSOR_RESULT_TYPE(L,R),D> >
         vmulXX(const Function<L,D>& left, const std::vector< Function<R,D> >& vright, double tol, bool fence=true);
+
+        template <typename L, typename R, int D>
+        std::vector< Function<TENSOR_RESULT_TYPE(L,R),D> >
+        transform(World& world,  const std::vector< Function<L,D> >& v, const Tensor<R>& c, double tol, bool fence=true);
 
         template <typename Q, typename R, int D>
         friend
@@ -960,6 +968,16 @@ namespace madness {
             return *this;
         }
 
+
+        /// Returns vector of FunctionImpl pointers corresponding to vector of functions
+        template <typename Q, int D>
+        static std::vector< SharedPtr< FunctionImpl<Q,D> > > vimpl(const std::vector< Function<Q,D> >& v) {
+            std::vector< SharedPtr< FunctionImpl<Q,D> > > r(v.size());
+            for (unsigned int i=0; i<v.size(); i++) r[i] = v[i].impl;
+            return r;
+        }
+
+
         /// Multiplication of function * vector of functions using recursive algorithm of mulxx
         template <typename L, typename R>
         void vmulXX(const Function<L,NDIM>& left,
@@ -976,8 +994,20 @@ namespace madness {
                 vright[i] = right[i].impl.get();
             }
 
-           left.world().gop.fence();
+            left.world().gop.fence(); // Is this still essential?  Yes.
             vresult[0]->mulXXvec(left.impl.get(), vright, vresult, tol, fence);
+        }
+
+public:
+        /// sparse transformation of a vector of functions ... private
+        template <typename R, typename Q> 
+        void vtransform(const std::vector< Function<R,NDIM> >& v,
+                        const Tensor<Q>& c,
+                        std::vector< Function<T,NDIM> >& vresult,
+                        double tol,
+                        bool fence=true) 
+        {
+            vresult[0].impl->vtransform(vimpl(v), c, vimpl(vresult), tol, fence);
         }
 
         /// This is replaced with alpha*left + beta*right ...  private

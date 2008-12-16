@@ -406,8 +406,9 @@ namespace madness {
 
         /// Sets \c has_children attribute to true recurring up to ensure connected
         Void set_has_children_recursive(const typename FunctionNode<T,NDIM>::dcT& c, const Key<NDIM>& key) {
+            //madness::print("   set_chi_recu: ", key, *this);
             PROFILE_MEMBER_FUNC(FunctionNode);
-            if (!(_has_children || has_coeff() || key.level()==0)) {
+            if (!(has_children() || has_coeff() || key.level()==0)) {
                 // If node already knows it has children or it has
                 // coefficients then it must already be connected to
                 // its parent.  If not, the node was probably just
@@ -415,6 +416,7 @@ namespace madness {
                 // its parent.
                 Key<NDIM> parent = key.parent();
                 const_cast<dcT&>(c).task(parent, &FunctionNode<T,NDIM>::set_has_children_recursive, c, parent, TaskAttributes::hipri());
+                //madness::print("   set_chi_recu: forwarding",key,parent);
             }
             _has_children = true;
             return None;
@@ -491,7 +493,7 @@ namespace madness {
 
     template <typename T, int NDIM>
     std::ostream& operator<<(std::ostream& s, const FunctionNode<T,NDIM>& node) {
-        s << "(" << node.has_coeff() << ", " << node.has_children() << ", ";
+        s << "(has_coeff=" << node.has_coeff() << ", has_children=" << node.has_children() << ", norm=";
         double norm = node.has_coeff() ? node.coeff().normf() : 0.0;
         if (norm < 1e-12) norm = 0.0;
         s << norm << ")";
@@ -1166,6 +1168,51 @@ namespace madness {
             }
             template <typename Archive> void serialize(const Archive& ar) {};
         };
+
+
+        template <typename Q, typename R> 
+        Void vtransform_doit(const SharedPtr< FunctionImpl<R,NDIM> >& right,
+                             const Tensor<Q>& c,
+                             const std::vector< SharedPtr< FunctionImpl<T,NDIM> > >& vleft,
+                             double tol) {
+            for (typename FunctionImpl<R,NDIM>::dcT::iterator it=right->coeffs.begin(); it != right->coeffs.end(); ++it) {
+                if (it->second.has_coeff()) {
+                    const Key<NDIM>& key = it->first;
+                    const Tensor<R>& r = it->second.coeff();
+                    double norm = r.normf();
+                    for (unsigned int i=0; i<vleft.size(); i++) {
+                        if (std::abs(norm*c(i)) > truncate_tol(tol,key)) {
+                            implT* left = vleft[i];
+                            typename dcT::accessor acc;
+                            bool newnode = left->coeffs.insert(acc,key);
+                            if (newnode && key.level()>0) {
+                                Key<NDIM> parent = key.parent();
+                                left->coeffs.send(parent, &nodeT::set_has_children_recursive, left->coeffs, parent);
+                            }
+                            nodeT& node = acc->second;
+                            if (!node.has_coeff()) node.set_coeff(tensorT(cdata.v2k));
+                            tensorT& t = node.coeff();
+                            t.gaxpy(1.0, r, c(i));
+                        }
+                    }
+                }
+            }
+            return None;
+        }
+
+        /// Transforms a vector of functions left[i] = sum[j] right[j]*c[j,i] using sparsity
+        template <typename Q, typename R> 
+        void vtransform(const std::vector< SharedPtr< FunctionImpl<R,NDIM> > >& vright,
+                        const Tensor<Q>& c,
+                        const std::vector< SharedPtr< FunctionImpl<T,NDIM> > >& vleft,
+                        double tol,
+                        bool fence) 
+        {
+            for (unsigned int j=0; j<vright.size(); j++) {
+                task(world.rank(), &implT:: template vtransform_doit<Q,R>, vright[j], copy(c(j,_)), vleft, tol);
+            }
+            if (fence) world.gop.fence();
+        }
 
 
         /// Unary operation applied inplace to the values with optional refinement and fence
@@ -1967,7 +2014,7 @@ namespace madness {
 
             double operator()(double a, double b) const {return a+b;}
 
-            template <typename Archive> void serialize(const Archive& ar){};
+            template <typename Archive> void serialize(const Archive& ar){throw "NOT IMPLEMENTED";};
         };
 
 

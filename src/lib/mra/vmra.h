@@ -144,6 +144,23 @@ namespace madness {
     }
 
 
+    template <typename L, typename R, int NDIM>
+    std::vector< Function<TENSOR_RESULT_TYPE(L,R),NDIM> >
+    transform(World& world,  const std::vector< Function<L,NDIM> >& v, const Tensor<R>& c, double tol, bool fence=true) {
+        MADNESS_ASSERT(v.size() == (unsigned int)(c.dim[0]));
+        std::vector< Function<TENSOR_RESULT_TYPE(L,R),NDIM> > vresult(c.dim[1]);
+        world.gop.fence();
+        for (unsigned int i=0; i<c.dim[1]; i++) {
+            vresult[i] = Function<TENSOR_RESULT_TYPE(L,R),NDIM>(FunctionFactory<TENSOR_RESULT_TYPE(L,R),NDIM>(world));
+        }
+        compress(world, v, false);
+        compress(world, vresult, false);
+        world.gop.fence();
+        vresult[0].vtransform(v, c, vresult, tol, fence);
+        return vresult;
+    }
+
+
     /// Scales inplace a vector of functions by distinct values
     template <typename T, int NDIM>
     void scale(World& world,
