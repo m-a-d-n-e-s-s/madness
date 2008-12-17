@@ -1226,6 +1226,17 @@ namespace madness {
         }
 
 
+        /// Binary operation applied inplace to the values with optional refinement and fence
+        template <typename opT>
+        void binary_op_value_inplace(FunctionImpl<T,NDIM>& fimpl, const opT& op, bool fence)
+        {
+//            typedef Range<typename dcT::iterator> rangeT;
+//            typedef do_binary_op_value_inplace<opT> xopT;
+//            world.taskq.for_each<rangeT,xopT>(rangeT(coeffs.begin(), coeffs.end()), xopT(this,op));
+//            if (fence) world.gop.fence();
+        }
+
+
         // Multiplication assuming same distribution and recursive descent
         template <typename L, typename R>
         Void mulXXveca(const keyT& key,
@@ -1325,8 +1336,8 @@ namespace madness {
         template <typename L, typename R>
         Void mulXXa(const keyT& key,
                     const FunctionImpl<L,NDIM>* left, const Tensor<L>& lcin,
-                    const FunctionImpl<R,NDIM>* right,const Tensor<R>& rcin, 
-                    double tol)  
+                    const FunctionImpl<R,NDIM>* right,const Tensor<R>& rcin,
+                    double tol)
         {
             typedef typename FunctionImpl<L,NDIM>::dcT::const_iterator literT;
             typedef typename FunctionImpl<R,NDIM>::dcT::const_iterator riterT;
@@ -1362,7 +1373,7 @@ namespace madness {
                     return None;
                 }
             }
-                    
+
             // Recur down
             coeffs.replace(key, nodeT(tensorT(),true)); // Interior node
 
@@ -1372,21 +1383,21 @@ namespace madness {
                 ld(cdata.s0) = lc(___);
                 lss = left->unfilter(ld);
             }
-            
+
             Tensor<R> rss;
             if (rc.size) {
                 Tensor<R> rd(cdata.v2k);
                 rd(cdata.s0) = rc(___);
                 rss = right->unfilter(rd);
             }
-            
+
             for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
                 const keyT& child = kit.key();
                 Tensor<L> ll;
                 Tensor<R> rr;
                 if (lc.size) ll = copy(lss(child_patch(child)));
                 if (rc.size) rr = copy(rss(child_patch(child)));
-                
+
                 task(coeffs.owner(child), &implT:: template mulXXa<L,R>, child, left, ll, right, rr, tol);
             }
 

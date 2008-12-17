@@ -697,6 +697,17 @@ namespace madness {
         }
 
 
+        /// Binary operation on function values
+        template <typename opT>
+        void binaryop(Function<T,NDIM>& func, const opT& op, bool fence=true) {
+            PROFILE_MEMBER_FUNC(Function);
+            verify();
+            reconstruct();
+            func.reconstruct();
+            impl->binary_op_value_inplace(func.impl, op, fence);
+        }
+
+
         /// Unary operation applied inplace to the coefficients
         template <typename opT>
         void unaryop_coeff(const opT& op,
