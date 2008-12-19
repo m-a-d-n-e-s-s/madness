@@ -286,70 +286,52 @@ namespace madness {
     };
 
     /// Scalable and fair condition variable (spins on local value)
-
-    /// This needs cleaning up to become an actual CV taking a mutex
-    /// as an argument. Right now it is an ugly hybrid of a sempahore
-    /// and aCV.  However, the last two attempts to rewrite it
-    /// lead to huge slowdowns on the XT.
-    ///
-    /// You'd think a spinlock would be fine here but it is a 
-    /// really big slow down perhaps due to how the threads are
-    /// being woken up essentially with a broadcast.
     class ConditionVariable : public Mutex {
     public:
         static const int MAX_NTHREAD = 64;
-        mutable volatile int nsig; // No. of outstanding signals
         mutable volatile int front;
         mutable volatile int back;
         mutable volatile bool* volatile q[MAX_NTHREAD]; // Circular buffer of flags
 
-    private:
-        void wakeup() {
-            // ASSUME we have the lock already when in here
-            while (nsig && front != back) {
-                nsig--;
-                int f = front;
-                *q[f] = true;
-                q[f] = 0; // To better detect stupidities
-                f++;
-                if (f >= MAX_NTHREAD) front = 0;
-                else front = f;
-            }
-        }
-
     public:
-        ConditionVariable() : nsig(0), front(0), back(0) {}
+        ConditionVariable() : front(0), back(0) {}
 
         /// You should acquire the mutex before waiting
-        void wait() {
-            if (nsig) {
-                nsig--;
-            }
-            else if (nsig == 0) {
-                // We put a pointer to a thread-local variable at the
-                // end of the queue and wait for that value to be set,
-                // thus generate no memory traffic while waiting.
-                volatile bool myturn = false;
-                int b = back;
-                q[b] = &myturn;
-                b++;
-                if (b >= MAX_NTHREAD) back = 0;
-                else back = b;
-                
-                unlock(); // Release lock before blocking
-                while (!myturn) cpu_relax();
-                lock();
-            }
-            else if (nsig < 0) {
-                throw "ConditionVariable: wait: invalid state";
-            }
-            wakeup();
+        void wait() const {
+            // We put a pointer to a thread-local variable at the
+            // end of the queue and wait for that value to be set,
+            // thus generate no memory traffic while waiting.
+            volatile bool myturn = false;
+            int b = back;
+            q[b] = &myturn;
+            b++;
+            if (b >= MAX_NTHREAD) back = 0;
+            else back = b;
+            
+            unlock(); // Release lock before blocking
+            while (!myturn) cpu_relax();
+            lock();
         }
         
         /// You should acquire the mutex before signalling
-        void signal() {
-            nsig++;
-            wakeup();
+        void signal() const {
+            if (front != back) {
+                int f = front;
+                int ff = f + 1;
+                if (ff >= MAX_NTHREAD) 
+                    front = 0;
+                else 
+                    front = ff;
+
+                *q[f] = true;
+            }
+        }
+
+
+        /// You should acquire the mutex before broadcasting
+        void broadcast() const {
+            while (front != back) 
+                signal();
         }
 
         virtual ~ConditionVariable() {}
@@ -435,8 +417,8 @@ namespace madness {
     /// Scheduling granularity is at the level of kernel ticks.
     class PthreadConditionVariable : NO_DEFAULTS {
     private:
-        pthread_cond_t cv;
-        pthread_mutex_t mutex;
+        mutable pthread_cond_t cv;
+        mutable pthread_mutex_t mutex;
 
     public:
         PthreadConditionVariable() {
@@ -446,28 +428,31 @@ namespace madness {
 
         pthread_mutex_t& get_pthread_mutex() {return mutex;}
 
-        void lock() {
+        void lock() const {
             if (pthread_mutex_lock(&mutex)) throw "ConditionVariable: acquiring mutex";
         }
 
-        void unlock() {
+        void unlock() const {
             if (pthread_mutex_unlock(&mutex)) throw "ConditionVariable: releasing mutex";
         }
 
         /// You should have acquired the mutex before entering here
-        void wait() {
+        void wait() const {
             pthread_cond_wait(&cv,&mutex);
         }
 
-        void signal() {
+        void signal() const {
             if (pthread_cond_signal(&cv)) throw "ConditionalVariable: signalling failed";
+        }
+
+        void broadcast() const {
+            if (pthread_cond_broadcast(&cv)) throw "ConditionalVariable: signalling failed";
         }
 
         virtual ~PthreadConditionVariable() {
             pthread_mutex_destroy(&mutex);
             pthread_cond_destroy(&cv);
         }
-
     };
 
 }

@@ -368,39 +368,33 @@ namespace madness {
 
         double npush_back = q.npush_back; 
         double npush_front = q.npush_front;
-        double npop_back = q.npop_back;  
         double npop_front = q.npop_front; 
         double ntask = q.npush_back + q.npush_front;
         double nmax = q.nmax;
         world.gop.sum(npush_back);
         world.gop.sum(npush_front);
-        world.gop.sum(npop_back);
         world.gop.sum(npop_front);
         world.gop.sum(ntask);
         world.gop.sum(nmax);
 
         double max_npush_back = q.npush_back; 
         double max_npush_front = q.npush_front;
-        double max_npop_back = q.npop_back;  
         double max_npop_front = q.npop_front; 
         double max_ntask = q.npush_back + q.npush_front;
         double max_nmax = q.nmax;
         world.gop.max(max_npush_back);
         world.gop.max(max_npush_front);
-        world.gop.max(max_npop_back);
         world.gop.max(max_npop_front);
         world.gop.max(max_ntask);
         world.gop.max(max_nmax);
 
         double min_npush_back = q.npush_back; 
         double min_npush_front = q.npush_front;
-        double min_npop_back = q.npop_back;  
         double min_npop_front = q.npop_front; 
         double min_ntask = q.npush_back + q.npush_front;
         double min_nmax = q.nmax;
         world.gop.min(min_npush_back);
         world.gop.min(min_npush_front);
-        world.gop.min(min_npop_back);
         world.gop.min(min_npop_front);
         world.gop.min(min_ntask);
         world.gop.min(min_nmax);
