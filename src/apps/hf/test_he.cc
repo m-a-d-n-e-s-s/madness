@@ -1,7 +1,7 @@
 #include <mra/mra.h>
 #include <iostream>
 
-#include "dft.h"
+#include "solver.h"
 #include "poperator.h"
 #include "util.h"
 
@@ -63,6 +63,15 @@ static double smoothed_potential(double r) {
     return pot;
 }
 //*****************************************************************************
+
+void multiply_op(const Key<3>& key, Tensor<double> tcube,
+                 const Tensor<double> lcube,
+                 const Tensor<double> rcube)
+{
+  Tensor<double> tt, ll, rr;
+  TERNARY_OPTIMIZED_ITERATOR(double, tt, double, ll, double, rr, *_p0 = *_p1 * *_p2;);
+//  TERNARY_OPTIMIZED_ITERATOR(double, tcube, double, left, double, right, *_p0 = *_p1 * *_p2;);
+}
 
 //*****************************************************************************
 static double psi_func_he(const coordT& r)
@@ -285,22 +294,9 @@ void test_hf_he(World& world)
   if (world.rank() == 0) cout << "Creating DFT object ..." << endl;
   ElectronicStructureParams params;
   params.periodic = false;
-  DFT<double,3> dftcalc(world, rhon, phis, eigs, params);
+  Solver<double,3> dftcalc(world, rhon, phis, phis, eigs, eigs, params);
   if (world.rank() == 0) cout << "Running DFT calculation ..." << endl;
-//  dftcalc.print_matrix_elements(psi, psi);
-  dftcalc.solve(35);
-//  printfunc(world, dftcalc.get_phi(0), 100);
-//  HartreeFock hf(world, Vnuc, phis, eigs, true, true, thresh);
-//  hf.hartree_fock(10);
-
-//  double ke = 2.0 * hf.calculate_tot_ke_sp();
-//  double pe = 2.0 * hf.calculate_tot_pe_sp();
-//  double ce = hf.calculate_tot_coulomb_energy();
-//  double ee = hf.calculate_tot_exchange_energy();
-//  printf("Kinetic energy:\t\t\t %.8f\n", ke);
-//  printf("Potential energy:\t\t %.8f\n", pe);
-//  printf("Two-electron energy:\t\t %.8f\n", 2.0*ce - ee);
-//  printf("Total energy:\t\t\t %.8f\n", ke + pe + 2.0*ce - ee);
+  dftcalc.solve();
 }
 //*****************************************************************************
 

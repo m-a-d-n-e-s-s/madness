@@ -349,7 +349,6 @@ public:
       }
     }
 
-    double nel = rho.trace();
     functionT vlocal;
     if (_params.nelec > 1)
     {

@@ -104,6 +104,36 @@ namespace madness
     }
     //*************************************************************************
 
+      //*************************************************************************
+      // Constructor
+      Solver(World& world, funcT vnucrhon, std::vector<funcT> phis,
+          std::vector<double> eigs, ElectronicStructureParams params)
+         : _world(world), _vnucrhon(vnucrhon), _phisa(phis), _phisb(phis),
+         _eigsa(eigs), _eigsb(eigs), _params(params)
+      {
+        if (params.periodic)
+        {
+          Tensor<double> box = FunctionDefaults<NDIM>::get_cell_width();
+          _cop = PeriodicCoulombOpPtr<T,NDIM>(const_cast<World&>(world),
+              FunctionDefaults<NDIM>::get_k(), params.lo, params.thresh * 0.1, box);
+        }
+        else
+        {
+          _cop = CoulombOperatorPtr<T,NDIM>(const_cast<World&>(world),
+              FunctionDefaults<NDIM>::get_k(), params.lo, params.thresh * 0.1);
+        }
+
+        if (params.ispotential)
+        {
+          _vnuc = copy(_vnucrhon);
+        }
+        else
+        {
+          _vnuc = apply(*_cop, _vnucrhon);
+        }
+      }
+      //*************************************************************************
+
     //***************************************************************************
     funcT compute_rho(std::vector<funcT> phis)
     {
@@ -153,13 +183,53 @@ namespace madness
     //*************************************************************************
 
     //*************************************************************************
+    double calculate_kinetic_energy()
+    {
+      double ke = 0.0;
+      if (!_params.periodic)
+      {
+        for (unsigned int i = 0; i < _phisa.size(); i++)
+        {
+          for (int axis = 0; axis < 3; axis++)
+          {
+            funcT dpsi = diff(_phisa[i], axis);
+            ke += 0.5 * inner(dpsi, dpsi);
+          }
+        }
+        if (_params.spinpol)
+        {
+          for (unsigned int i = 0; i < _phisb.size(); i++)
+          {
+            for (int axis = 0; axis < 3; axis++)
+            {
+              funcT dpsi = diff(_phisb[i], axis);
+              ke += 0.5 * inner(dpsi, dpsi);
+            }
+          }
+        }
+        else
+        {
+          ke *= 2.0;
+        }
+      }
+      return ke;
+    }
+    //*************************************************************************
+
+    //*************************************************************************
     void apply_potential(std::vector<funcT>& pfuncsa,
         std::vector<funcT>& pfuncsb, const std::vector<funcT>& phisa,
         const std::vector<funcT>& phisb, const funcT& rhoa, const funcT& rhob,
         const funcT& rho)
     {
       // Nuclear and coulomb potentials
-      funcT vlocal = _vnuc + apply(*_cop, rho);
+      funcT vc = apply(*_cop, rho);
+      funcT vlocal = _vnuc + vc;
+      // Calculate energies for Coulomb and nuclear
+      double ce = 0.5*inner(vc,rho);
+      double pe = inner(_vnuc,rho);
+      double xc = 0.0;
+      double ke = calculate_kinetic_energy();
       // Exchange
       if (_params.functional == 1)
       {
@@ -169,11 +239,23 @@ namespace madness
         }
         else
         {
+          // potential
           funcT vxc = copy(rhoa);
           vxc.unaryop(&::libxc_ldaop);
           pfuncsa = mul_sparse(_world, vlocal + vxc, phisa, _params.thresh * 0.1);
+          // energy
+          funcT fc = copy(rhoa);
+          fc.unaryop(&::ldaeop);
+          xc = fc.trace();
         }
       }
+      std::cout.precision(8);
+      print("Energies:");
+      print("Kinetic energy:\t\t ", ke);
+      print("Potential energy:\t ", pe);
+      print("Coulomb energy:\t\t ", ce);
+      print("Exchage energy:\t\t ", xc, "\n");
+      print("Total energy:\t\t ", ke + pe + ce + xc, "\n\n");
     }
     //*************************************************************************
 
@@ -255,9 +337,27 @@ namespace madness
           }
         }
 
+        std::cout.precision(8);
         if (_world.rank() == 0)
         {
-          print("it: ", it, " eps = ", _eigsa[0], "\n\n");
+          print("Iteration: ", it, "\nEigenvalues for alpha spin: \n");
+          for (unsigned int i = 0; i < _eigsa.size(); i++)
+          {
+            print(_eigsa[i]);
+          }
+          print("\n\n");
+        }
+        if (_params.spinpol)
+        {
+          if (_world.rank() == 0)
+          {
+            print("Eigenvalues for beta spin: \n");
+            for (unsigned int i = 0; i < _eigsb.size(); i++)
+            {
+              print(_eigsb[i]);
+            }
+            print("\n\n");
+          }
         }
       }
     }

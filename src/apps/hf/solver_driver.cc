@@ -1,7 +1,7 @@
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
 
 #include "electronicstructureapp.h"
-#include "dft.h"
+#include "solver.h"
 
 using namespace madness;
 
@@ -42,8 +42,8 @@ int main(int argc, char** argv)
         for (int i = 0; i < neps; i++)
           eigs.push_back(tmpe[i]);
 
-        DFT<double,3> dftcalc(world, vnucrhon, phis, eigs, params);
-        dftcalc.solve(params.maxits);
+        Solver<double,3> dftcalc(world, vnucrhon, phis, eigs, params);
+        dftcalc.solve();
         world.gop.fence();
 
     } catch (const MPI::Exception& e) {
