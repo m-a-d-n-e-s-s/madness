@@ -219,11 +219,16 @@ namespace madness {
     public:
         /// Asserts that the function is initialized
         inline void verify() const {
+            PROFILE_MEMBER_FUNC(Function);
             MADNESS_ASSERT(impl);
         }
 
         /// Returns true if the function is initialized
-        bool is_initialized() const {return impl.get();}
+        bool is_initialized() const {
+            PROFILE_MEMBER_FUNC(Function);
+			return impl.get();
+		}
+
 
         typedef FunctionImpl<T,NDIM> implT;
         typedef FunctionFactory<T,NDIM> factoryT;
@@ -234,7 +239,9 @@ namespace madness {
         /// An unitialized function can only be assigned to.  Any other operation will throw.
         Function()
             : impl(0)
-        {}
+        {
+            PROFILE_MEMBER_FUNC(Function);
+		}
 
 
         /// Constructor from FunctionFactory provides named parameter idiom.  Possible non-blocking communication.
@@ -248,11 +255,14 @@ namespace madness {
         /// Copy constructor is \em shallow.  No communication, works in either basis.
         Function(const Function<T,NDIM>& f)
             : impl(f.impl)
-        {}
+        {
+            PROFILE_MEMBER_FUNC(Function);
+		}
 
 
         /// Assignment is \em shallow.  No communication, works in either basis.
         Function<T,NDIM>& operator=(const Function<T,NDIM>& f) {
+            PROFILE_MEMBER_FUNC(Function);
             if (this != &f) impl = f.impl;
             return *this;
         }
@@ -267,6 +277,7 @@ namespace madness {
         ///
         /// Throws if function is not initialized.
         Future<T> eval(const coordT& xuser) const {
+            PROFILE_MEMBER_FUNC(Function);
             const double eps=1e-15;
             verify();
             MADNESS_ASSERT(!is_compressed());
@@ -396,6 +407,7 @@ namespace madness {
 
         /// If the function is not initialized, returns false.
         bool is_compressed() const {
+            PROFILE_MEMBER_FUNC(Function);
             if (impl)
                 return impl->is_compressed();
             else
@@ -444,6 +456,7 @@ namespace madness {
 
         /// Returns value of autorefine flag.  No communication.
         bool autorefine() const {
+            PROFILE_MEMBER_FUNC(Function);
             if (!impl) return true;
             return impl->autorefine;
         }
@@ -453,6 +466,7 @@ namespace madness {
 
         /// A fence is required to ensure consistent global state.
         void set_autorefine(bool value, bool fence = true) {
+            PROFILE_MEMBER_FUNC(Function);
             verify();
             impl->autorefine = value;
             if (fence) impl->world.gop.fence();
@@ -461,6 +475,7 @@ namespace madness {
 
         /// Returns value of truncation threshold.  No communication.
         double thresh() const {
+            PROFILE_MEMBER_FUNC(Function);
             if (!impl) return 0.0;
             return impl->thresh;
         }
@@ -470,6 +485,7 @@ namespace madness {
 
         /// A fence is required to ensure consistent global state.
         void set_thresh(double value, bool fence = true) {
+            PROFILE_MEMBER_FUNC(Function);
             verify();
             impl->thresh = value;
             if (fence) impl->world.gop.fence();
@@ -478,6 +494,7 @@ namespace madness {
 
         /// Returns the number of multiwavelets (k).  No communication.
         int k() const {
+            PROFILE_MEMBER_FUNC(Function);
             verify();
             return impl->k;
         }
@@ -504,12 +521,14 @@ namespace madness {
 
 	/// Returns a shared-pointer to the implementation
 	const SharedPtr< FunctionImpl<T,NDIM> >& get_impl() const {
+            PROFILE_MEMBER_FUNC(Function);
 	    verify();
 	    return impl;
 	}
 
 	/// Returns the world
 	World& world() const {
+            PROFILE_MEMBER_FUNC(Function);
 	  verify();
 	  return  impl->world;
 	}
@@ -517,6 +536,7 @@ namespace madness {
 
         /// Returns a shared pointer to the process map
         const SharedPtr< WorldDCPmapInterface< Key<NDIM> > >& get_pmap() const {
+            PROFILE_MEMBER_FUNC(Function);
             verify();
             return impl->get_pmap();
         }
@@ -636,13 +656,17 @@ namespace madness {
 
 	/// Get the scaling function coeffs at level n starting from NS form
 	Tensor<T> coeffs_for_jun(Level n, long mode=0) {
+            PROFILE_MEMBER_FUNC(Function);
 	    nonstandard(true,true);
 	    return impl->coeffs_for_jun(n,mode);
 	    //return impl->coeffs_for_jun(n);
 	}
 
 	  ///Change bv on the fly. Temporary workaround until better bc handling is introduced.
-		Function<T,NDIM>& set_bc(const Tensor<int>& value) { impl->set_bc(value); return *this;}
+		Function<T,NDIM>& set_bc(const Tensor<int>& value) {
+            PROFILE_MEMBER_FUNC(Function);
+			impl->set_bc(value); return *this;
+		}
 
 	/// Clears the function as if constructed uninitialized.  Optional fence.
 
@@ -658,6 +682,7 @@ namespace madness {
 
         /// Process 0 prints a summary of all nodes in the tree (collective)
         void print_tree() const {
+            PROFILE_MEMBER_FUNC(Function);
             if (impl) impl->print_tree();
         }
 
@@ -665,6 +690,7 @@ namespace madness {
 
         /// This is serial and VERY expensive
         void print_info() const {
+            PROFILE_MEMBER_FUNC(Function);
             if (impl) impl->print_info();
         }
 
@@ -722,6 +748,7 @@ namespace madness {
         template <typename opT>
         void unaryop_node(const opT& op,
                           bool fence = true) {
+            PROFILE_MEMBER_FUNC(Function);
             verify();
             impl->unary_op_node_inplace(op, fence);
         }
@@ -729,6 +756,7 @@ namespace madness {
 
     private:
         static void doconj(const Key<NDIM>, Tensor<T>& t) {
+            PROFILE_MEMBER_FUNC(Function);
             t.conj();
         }
     public:
@@ -952,7 +980,8 @@ namespace madness {
 
 
       void set_apply_time_ptr(SharedPtr<ApplyTime<NDIM> > ptr) {
-	impl->set_apply_time_ptr(ptr);
+            PROFILE_MEMBER_FUNC(Function);
+			impl->set_apply_time_ptr(ptr);
       }
 
     private:
@@ -983,6 +1012,7 @@ namespace madness {
         /// Returns vector of FunctionImpl pointers corresponding to vector of functions
         template <typename Q, int D>
         static std::vector< SharedPtr< FunctionImpl<Q,D> > > vimpl(const std::vector< Function<Q,D> >& v) {
+            PROFILE_MEMBER_FUNC(Function);
             std::vector< SharedPtr< FunctionImpl<Q,D> > > r(v.size());
             for (unsigned int i=0; i<v.size(); i++) r[i] = v[i].impl;
             return r;
@@ -996,6 +1026,7 @@ namespace madness {
                     std::vector< Function<T,NDIM> >& result,
                     double tol,
                     bool fence) {
+            PROFILE_MEMBER_FUNC(Function);
 
             std::vector<FunctionImpl<T,NDIM>*> vresult(right.size());
             std::vector<const FunctionImpl<R,NDIM>*> vright(right.size());
@@ -1018,6 +1049,7 @@ public:
                         double tol,
                         bool fence=true) 
         {
+            PROFILE_MEMBER_FUNC(Function);
             vresult[0].impl->vtransform(vimpl(v), c, vimpl(vresult), tol, fence);
         }
 
