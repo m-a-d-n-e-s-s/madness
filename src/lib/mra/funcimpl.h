@@ -1071,6 +1071,28 @@ namespace madness {
         }
 
 
+        /// Invoked as a task by mul with the actual coefficients
+        template <typename L, typename R, typename opT>
+        Void do_binary_op(const keyT& key, const Tensor<L>& left, const std::pair< keyT, Tensor<R> >& arg,
+                          const opT& op)
+        {
+            PROFILE_MEMBER_FUNC(FunctionImpl);
+            const keyT& rkey = arg.first;
+            const Tensor<R>& rcoeff = arg.second;
+            //madness::print("do_mul: r", rkey, rcoeff.size);
+            Tensor<R> rcube = fcube_for_mul(key, rkey, rcoeff);
+            //madness::print("do_mul: l", key, left.size);
+            Tensor<L> lcube = fcube_for_mul(key,  key, left);
+
+            Tensor<T> tcube(cdata.vk,false);
+            op(key, tcube, lcube, rcube);
+            double scale = pow(0.5,0.5*NDIM*key.level())*sqrt(FunctionDefaults<NDIM>::get_cell_volume());
+            tcube = transform(tcube,cdata.quad_phiw).scale(scale);
+            coeffs.replace(key, nodeT(tcube,false));
+            return None;
+        }
+
+
         /// Invoked by result to perform result += alpha*left+beta*right in wavelet basis
 
         /// Does not assume that any of result, left, right have the same distribution.
@@ -1170,7 +1192,7 @@ namespace madness {
         };
 
 
-        template <typename Q, typename R> 
+        template <typename Q, typename R>
         Void vtransform_doit(const SharedPtr< FunctionImpl<R,NDIM> >& right,
                              const Tensor<Q>& c,
                              const std::vector< SharedPtr< FunctionImpl<T,NDIM> > >& vleft,
@@ -1201,12 +1223,12 @@ namespace madness {
         }
 
         /// Transforms a vector of functions left[i] = sum[j] right[j]*c[j,i] using sparsity
-        template <typename Q, typename R> 
+        template <typename Q, typename R>
         void vtransform(const std::vector< SharedPtr< FunctionImpl<R,NDIM> > >& vright,
                         const Tensor<Q>& c,
                         const std::vector< SharedPtr< FunctionImpl<T,NDIM> > >& vleft,
                         double tol,
-                        bool fence) 
+                        bool fence)
         {
             for (unsigned int j=0; j<vright.size(); j++) {
                 task(world.rank(), &implT:: template vtransform_doit<Q,R>, vright[j], copy(c(j,_)), vleft, tol);
@@ -1223,17 +1245,6 @@ namespace madness {
             typedef do_unary_op_value_inplace<opT> xopT;
             world.taskq.for_each<rangeT,xopT>(rangeT(coeffs.begin(), coeffs.end()), xopT(this,op));
             if (fence) world.gop.fence();
-        }
-
-
-        /// Binary operation applied inplace to the values with optional refinement and fence
-        template <typename opT>
-        void binary_op_value_inplace(FunctionImpl<T,NDIM>& fimpl, const opT& op, bool fence)
-        {
-//            typedef Range<typename dcT::iterator> rangeT;
-//            typedef do_binary_op_value_inplace<opT> xopT;
-//            world.taskq.for_each<rangeT,xopT>(rangeT(coeffs.begin(), coeffs.end()), xopT(this,op));
-//            if (fence) world.gop.fence();
         }
 
 
@@ -1405,10 +1416,95 @@ namespace madness {
         }
 
 
+        // Multiplication using recursive descent and assuming same distribution
+        template <typename L, typename R, typename opT>
+        Void binaryXXa(const keyT& key,
+                    const FunctionImpl<L,NDIM>* left, const Tensor<L>& lcin,
+                    const FunctionImpl<R,NDIM>* right,const Tensor<R>& rcin,
+                    const opT& op,
+                    double tol)
+        {
+            typedef typename FunctionImpl<L,NDIM>::dcT::const_iterator literT;
+            typedef typename FunctionImpl<R,NDIM>::dcT::const_iterator riterT;
+
+            double lnorm=1e99, rnorm=1e99;
+
+            Tensor<L> lc = lcin;
+            if (lc.size == 0) {
+                literT it = left->coeffs.find(key).get();
+                MADNESS_ASSERT(it != left->coeffs.end());
+                lnorm = it->second.get_norm_tree();
+                if (it->second.has_coeff()) lc = it->second.coeff();
+            }
+
+            Tensor<R> rc = rcin;
+            if (rc.size == 0) {
+                riterT it = right->coeffs.find(key).get();
+                MADNESS_ASSERT(it != right->coeffs.end());
+                rnorm = it->second.get_norm_tree();
+                if (it->second.has_coeff()) rc = it->second.coeff();
+            }
+
+            if (rc.size && lc.size) { // Yipee!
+                do_binary_op<L,R>(key, lc, std::make_pair(key,rc), op);
+                return None;
+            }
+
+            if (tol) {
+                if (lc.size) lnorm = lc.normf(); // Otherwise got from norm tree above
+                if (rc.size) rnorm = rc.normf();
+                if (lnorm*rnorm < truncate_tol(tol, key)) {
+                    coeffs.replace(key, nodeT(tensorT(cdata.vk),false)); // Zero leaf node
+                    return None;
+                }
+            }
+
+            // Recur down
+            coeffs.replace(key, nodeT(tensorT(),true)); // Interior node
+
+            Tensor<L> lss;
+            if (lc.size) {
+                Tensor<L> ld(cdata.v2k);
+                ld(cdata.s0) = lc(___);
+                lss = left->unfilter(ld);
+            }
+
+            Tensor<R> rss;
+            if (rc.size) {
+                Tensor<R> rd(cdata.v2k);
+                rd(cdata.s0) = rc(___);
+                rss = right->unfilter(rd);
+            }
+
+            for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
+                const keyT& child = kit.key();
+                Tensor<L> ll;
+                Tensor<R> rr;
+                if (lc.size) ll = copy(lss(child_patch(child)));
+                if (rc.size) rr = copy(rss(child_patch(child)));
+
+                task(coeffs.owner(child), &implT:: template mulXXa<L,R>, child, left, ll, right, rr, tol);
+            }
+
+            return None;
+        }
+
+
         template <typename L, typename R>
         void mulXX(const FunctionImpl<L,NDIM>* left, const FunctionImpl<R,NDIM>* right, double tol, bool fence) {
             if (world.rank() == coeffs.owner(cdata.key0))
                 mulXXa(cdata.key0, left, Tensor<L>(), right, Tensor<R>(), tol);
+            if (fence) world.gop.fence();
+
+            //verify_tree();
+        }
+
+        template <typename L, typename R, typename opT>
+        void binaryXX(const FunctionImpl<L,NDIM>* left, const FunctionImpl<R,NDIM>* right,
+                      const opT& op, double tol, bool fence)
+        {
+            if (world.rank() == coeffs.owner(cdata.key0))
+                binaryXXa(cdata.key0, left, Tensor<L>(), right, Tensor<R>(), op, tol);
             if (fence) world.gop.fence();
 
             //verify_tree();

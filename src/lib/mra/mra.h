@@ -76,6 +76,10 @@ namespace madness {
     Function<TENSOR_RESULT_TYPE(L,R),D>
     mul(const Function<L,D>& left, const Function<R,D>& right, bool fence=true);
 
+    template <typename L, typename R, typename opT, int D>
+    Function<TENSOR_RESULT_TYPE(L,R),D>
+    binary_op(const Function<L,D>& left, const Function<R,D>& right, const opT& op, bool fence=true);
+
     template <typename L, typename R, int D>
     std::vector< Function<TENSOR_RESULT_TYPE(L,R),D> >
     vmulXX(const Function<L,D>& left, const std::vector< Function<R,D> >& vright, double tol, bool fence=true);
@@ -723,17 +727,6 @@ namespace madness {
         }
 
 
-        /// Binary operation on function values
-        template <typename opT>
-        void binaryop(Function<T,NDIM>& func, const opT& op, bool fence=true) {
-            PROFILE_MEMBER_FUNC(Function);
-            verify();
-            reconstruct();
-            func.reconstruct();
-            impl->binary_op_value_inplace(func.impl, op, fence);
-        }
-
-
         /// Unary operation applied inplace to the coefficients
         template <typename opT>
         void unaryop_coeff(const opT& op,
@@ -1009,6 +1002,26 @@ namespace madness {
         }
 
 
+public:
+        /// This is replaced with left*right ...  private
+        template <typename L, typename R, typename opT>
+        Function<T,NDIM>& binary_op(const Function<L,NDIM>& left,
+                                    const Function<R,NDIM>& right,
+                                    const opT& op,
+                                    double tol, bool fence)
+        {
+            PROFILE_MEMBER_FUNC(Function);
+            left.verify();
+            right.verify();
+            MADNESS_ASSERT(!(left.is_compressed() || right.is_compressed()));
+            if (VERIFY_TREE) left.verify_tree();
+            if (VERIFY_TREE) right.verify_tree();
+            impl = SharedPtr<implT>(new implT(*left.impl, left.get_pmap(), false));
+            impl->binaryXX(left.impl.get(), right.impl.get(), op, tol, fence);
+            return *this;
+        }
+
+private:
         /// Returns vector of FunctionImpl pointers corresponding to vector of functions
         template <typename Q, int D>
         static std::vector< SharedPtr< FunctionImpl<Q,D> > > vimpl(const std::vector< Function<Q,D> >& v) {
@@ -1042,12 +1055,12 @@ namespace madness {
 
 public:
         /// sparse transformation of a vector of functions ... private
-        template <typename R, typename Q> 
+        template <typename R, typename Q>
         void vtransform(const std::vector< Function<R,NDIM> >& v,
                         const Tensor<Q>& c,
                         std::vector< Function<T,NDIM> >& vresult,
                         double tol,
-                        bool fence=true) 
+                        bool fence=true)
         {
             PROFILE_MEMBER_FUNC(Function);
             vresult[0].impl->vtransform(vimpl(v), c, vimpl(vresult), tol, fence);
@@ -1156,6 +1169,16 @@ public:
     mul(const Function<L,NDIM>& left, const Function<R,NDIM>& right, bool fence) {
         Function<TENSOR_RESULT_TYPE(L,R),NDIM> result;
         return result.mul(left,right,0.0,fence);
+    }
+
+    /// Same as \c operator* but with optional fence and no automatic reconstruction
+    template <typename L, typename R, typename opT, int NDIM>
+    Function<TENSOR_RESULT_TYPE(L,R),NDIM>
+    binary_op(const Function<L,NDIM>& left, const Function<R,NDIM>& right, const opT& op, bool fence) {
+      if (left.is_compressed()) left.reconstruct();
+      if (right.is_compressed()) right.reconstruct();
+      Function<TENSOR_RESULT_TYPE(L,R),NDIM> result;
+      return result.binary_op(left,right,op,0.0,fence);
     }
 
     /// Use the vmra/mul(...) interface instead
