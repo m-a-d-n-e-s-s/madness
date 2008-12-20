@@ -286,7 +286,7 @@ namespace madness {
     };
 
     /// Scalable and fair condition variable (spins on local value)
-    class ConditionVariable : public Mutex {
+    class ConditionVariable : public Spinlock {
     public:
         static const int MAX_NTHREAD = 64;
         mutable volatile int front;
