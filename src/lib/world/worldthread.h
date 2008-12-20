@@ -34,12 +34,8 @@ namespace madness {
     /// buffer rather than a linked list so as to avoid the new/del
     /// overhead.  It will grow as needed, but presently will not
     /// shrink.  Had to modify STL API to make things thread safe.
-    ///
-    /// This queue is part of the horror show ... again previous
-    /// attempts to disentangle from the "CV" and the thread pool have
-    /// lead to a big slow down on the XT.
     template <typename T>
-    class DQueue : private PthreadConditionVariable {
+    class DQueue : private ConditionVariable {
         volatile size_t sz;              ///< Current capacity
         volatile T* volatile buf;        ///< Actual buffer
         volatile int _front;  ///< Index of element at front of buffer
@@ -85,7 +81,7 @@ namespace madness {
         }
 
     public:
-        DQueue(size_t hint=32768) 
+        DQueue(size_t hint=200000) // was 32768
             : sz(hint>2 ? hint : 2)
             , buf(new T[sz])
             , _front(sz/2)
@@ -99,7 +95,7 @@ namespace madness {
 
         /// Insert value at front of queue
         void push_front(const T& value) {
-            madness::ScopedMutex<PthreadConditionVariable> obolus(this);
+            madness::ScopedMutex<ConditionVariable> obolus(this);
             stats.npush_front++;
             //sanity_check();
 
@@ -123,7 +119,7 @@ namespace madness {
 
         /// Insert element at back of queue
         void push_back(const T& value) {
-            madness::ScopedMutex<PthreadConditionVariable> obolus(this);
+            madness::ScopedMutex<ConditionVariable> obolus(this);
             stats.npush_back++;
             //sanity_check();
 
@@ -147,14 +143,14 @@ namespace madness {
 
         /// Pop value off the front of queue
         std::pair<T,bool> pop_front(bool wait) {
-            madness::ScopedMutex<PthreadConditionVariable> obolus(this);
+            madness::ScopedMutex<ConditionVariable> obolus(this);
             stats.npop_front++;
 
             size_t nn = n;
 
             if (nn==0 && wait) {
                 while (n == 0) // !!! Must be n (memory) not nn (local copy)
-                    PthreadConditionVariable::wait();
+                    ConditionVariable::wait();
 
                 nn = n;
             }
@@ -165,7 +161,6 @@ namespace madness {
                 
                 int f = _front;
                 T result = buf[f];
-                buf[f] = T();   // For better stupidity detection
                 f++;
                 if (f >= int(sz)) f = 0;
                 _front = f;
@@ -304,7 +299,6 @@ namespace madness {
         }
 
         static void set_affinity(int logical_id, int ind=-1) {
-            return;
             if (logical_id < 0 || logical_id > 2) {
                 std::cout << "ThreadBase: set_affinity: logical_id bad?" << std::endl;
                 return;
