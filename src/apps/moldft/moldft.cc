@@ -958,7 +958,7 @@ struct Calculation {
 
         compress(world,ao);
         START_TIMER;
-        amo = transform(world, ao, c(_,Slice(0,param.nmo_alpha-1)));
+        amo = transform(world, ao, c(_,Slice(0,param.nmo_alpha-1)), 0.0, true);
         END_TIMER("transform initial MO");
         truncate(world, amo);
         normalize(world, amo);
@@ -971,7 +971,7 @@ struct Calculation {
         for (int i=0; i<param.nalpha; i++) aocc[i] = 1.0;
 
         if (param.nbeta && !param.spin_restricted) {
-            bmo = transform(world, ao, c(_,Slice(0,param.nmo_beta-1)));
+            bmo = transform(world, ao, c(_,Slice(0,param.nmo_beta-1)), 0.0, true);
             truncate(world, bmo);
             normalize(world, bmo);
             //if (world.rank() == 0) print("Analysis of initial beta MO vectors");
@@ -1271,12 +1271,12 @@ struct Calculation {
         if (world.rank() == 0) printf("diagonalized at %.2fs\n", wall_time());
 
         //if (world.rank() == 0) print("transformation matrix\n",c);
-        double tolscreen = max(FunctionDefaults<3>::get_thresh(), param.dconv) / min(30.0,double(psi.size()));
-        c.screen(tolscreen);
+        //double tolscreen = max(FunctionDefaults<3>::get_thresh(), param.dconv) / min(30.0,double(psi.size()));
+        //c.screen(tolscreen);
         //if (world.rank() == 0) print("transformation matrix screened\n",c);
 
-        Vpsi = transform(world, Vpsi, c, false);
-        psi = transform(world, psi, c);
+        Vpsi = transform(world, Vpsi, c, vtol/min(30.0,double(psi.size())), false);
+        psi = transform(world, psi, c, FunctionDefaults<3>::get_thresh()/min(30.0,double(psi.size())), true);
         if (world.rank() == 0) printf("transformed psi and Vpsi at %.2fs\n", wall_time());
 
         truncate(world, psi);
@@ -1345,7 +1345,7 @@ struct Calculation {
             loadbal(world, arho, brho, arho_old, brho_old);
             END_TIMER("Load balancing");
 
-            double da, db;
+            double da=0.0, db=0.0;
             if (iter > 0) {
                 da = (arho - arho_old).norm2();
                 db = 0.0;
@@ -1474,13 +1474,16 @@ int main(int argc, char** argv) {
         }
 
         // Come up with an initial OK data map
-        calc.set_protocol(world,1e-4);
-        calc.make_nuclear_potential(world);
-        calc.initial_load_bal(world);
+        if (world.size() > 1) {
+            calc.set_protocol(world,1e-4);
+            calc.make_nuclear_potential(world);
+            calc.initial_load_bal(world);
+        }
 
         // Make the nuclear potential, initial orbitals, etc.
         calc.set_protocol(world,1e-4);
         calc.make_nuclear_potential(world);
+        calc.project(world);
         calc.initial_guess(world);
         calc.solve(world);
 
