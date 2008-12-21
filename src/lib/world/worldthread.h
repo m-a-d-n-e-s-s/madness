@@ -11,6 +11,7 @@
 #include <world/worldpapi.h>
 #include <world/worldprofile.h>
 
+
 namespace madness {
 
     void error(const char *msg);
@@ -35,7 +36,7 @@ namespace madness {
     /// overhead.  It will grow as needed, but presently will not
     /// shrink.  Had to modify STL API to make things thread safe.
     template <typename T>
-    class DQueue : private ConditionVariable {
+    class DQueue : private CONDITION_VARIABLE_TYPE {
         volatile size_t sz;              ///< Current capacity
         volatile T* volatile buf;        ///< Actual buffer
         volatile int _front;  ///< Index of element at front of buffer
@@ -95,7 +96,7 @@ namespace madness {
 
         /// Insert value at front of queue
         void push_front(const T& value) {
-            madness::ScopedMutex<ConditionVariable> obolus(this);
+            madness::ScopedMutex<CONDITION_VARIABLE_TYPE> obolus(this);
             stats.npush_front++;
             //sanity_check();
 
@@ -119,7 +120,7 @@ namespace madness {
 
         /// Insert element at back of queue
         void push_back(const T& value) {
-            madness::ScopedMutex<ConditionVariable> obolus(this);
+            madness::ScopedMutex<CONDITION_VARIABLE_TYPE> obolus(this);
             stats.npush_back++;
             //sanity_check();
 
@@ -143,14 +144,14 @@ namespace madness {
 
         /// Pop value off the front of queue
         std::pair<T,bool> pop_front(bool wait) {
-            madness::ScopedMutex<ConditionVariable> obolus(this);
+            madness::ScopedMutex<CONDITION_VARIABLE_TYPE> obolus(this);
             stats.npop_front++;
 
             size_t nn = n;
 
             if (nn==0 && wait) {
                 while (n == 0) // !!! Must be n (memory) not nn (local copy)
-                    ConditionVariable::wait();
+                    CONDITION_VARIABLE_TYPE::wait();
 
                 nn = n;
             }
@@ -481,7 +482,8 @@ namespace madness {
         /// Get number of threads from the environment
         int default_nthread() {
             int nthread;
-            char *cnthread = getenv("POOL_NTHREAD");
+            char *cnthread = getenv("MAD_NTHREAD");
+            if (cnthread == 0) cnthread = getenv("POOL_NTHREAD");
 
             if (cnthread) {
                 if (sscanf(cnthread, "%d", &nthread) != 1) 
@@ -586,6 +588,5 @@ namespace madness {
     };
 
 }
-    
 
 #endif

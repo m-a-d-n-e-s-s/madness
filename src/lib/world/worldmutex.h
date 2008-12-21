@@ -27,11 +27,10 @@ namespace madness {
     private:
         unsigned int count;
 
-        /// Yield for specified number of microseconds
+        /// Yield for specified number of microseconds unless dedicated CPU
         void yield(int us) {
 #ifdef HAVE_CRAYXT
-            for (int i=0; i<100; i++) count++;
-            count -= 100;
+            cpu_relax();
 #else
             usleep(us);
 #endif
@@ -43,8 +42,11 @@ namespace madness {
         void reset() {count = 0;}
 
         void wait() {
-            const unsigned int nspin = 1000;
-            if (count++ > nspin) yield(1);
+            const unsigned int nspin  = 1000;    // Spin for 1,000 calls
+            const unsigned int nsleep = 100000;  // Sleep 10us for 100,000 calls = 1s
+            if (count++ < nspin) return;
+            else if (count < nsleep) yield(10);
+            else yield(10000);
         }
     };
 
@@ -454,6 +456,16 @@ namespace madness {
             pthread_cond_destroy(&cv);
         }
     };
+
+#ifdef USE_SPINLOCKS
+    typedef ConditionVariable CONDITION_VARIABLE_TYPE ;
+    typedef Spinlock SPINLOCK_TYPE;
+    typedef MutexFair SCALABLE_MUTEX_TYPE;
+#else
+    typedef PthreadConditionVariable CONDITION_VARIABLE_TYPE;
+    typedef Mutex SPINLOCK_TYPE;
+    typedef Mutex SCALABLE_MUTEX_TYPE;
+#endif
 
 }
 

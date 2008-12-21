@@ -1,6 +1,7 @@
 #ifndef WORLD_PROFILE_H
 #define WORLD_PROFILE_H
 
+#include <madness_config.h>
 #include <world/worldtypes.h>
 #include <world/worldtime.h>
 #include <world/worldthread.h>
@@ -244,11 +245,6 @@ namespace madness {
         }
     };
 }
-
-// #ifdef WORLD_PROFILE_ENABLE
-// #undef WORLD_PROFILE_ENABLE
-// #endif
-#define WORLD_PROFILE_ENABLE
 
 #ifdef WORLD_PROFILE_ENABLE
 #  define PROFILE_STRINGIFY(s) #s

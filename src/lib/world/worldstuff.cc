@@ -33,8 +33,11 @@
 */
 
   
+#include <madness_config.h>
 #include <world/world.h>
 #include <world/worldmem.h>
+#include <cstdlib>
+#include <sstream>
 
 /// \file worldstuff.cc
 /// \brief Static variables/functions that must be linked in
@@ -52,15 +55,32 @@ namespace madness {
         MPI_Abort(MPI_COMM_WORLD,1);
     }
 
-     void initialize(int argc, char** argv) {
+    void initialize(int argc, char** argv) {
         start_cpu_time = cpu_time();
         start_wall_time = wall_time();
 #ifdef HAVE_PAPI
         initialize_papi();
 #endif
 
-        bool bind[3] = {true, true, true};
-        int cpulo[3] = {1, 0, 2};
+        bool bind[3];
+        int cpulo[3];
+
+        const char* sbind = getenv("MAD_BIND");
+        if (!sbind) sbind = MAD_BIND_DEFAULT;
+        std::istringstream s(sbind);
+        for (int i=0; i<3; i++) {
+            int t;
+            s >> t;
+            if (t < 0) {
+                bind[i] = false;
+                cpulo[i] = 0;
+            }
+            else {
+                bind[i] = true;
+                cpulo[i] = t;
+            }
+        }
+
         ThreadBase::set_affinity_pattern(bind, cpulo); // Decide how to locate threads before doing anything
         ThreadBase::set_affinity(0);         // The main thread is logical thread 0
         
@@ -76,9 +96,8 @@ namespace madness {
         }
         
         ThreadPool::begin();        // Must have thread pool before any AM arrives
-        if (me == 0) std::cout << "THREAD POOL STARTED\n";
         RMI::begin();               // Must have RMI while still running single threaded
-        if (me == 0) std::cout << "RMI STARTED\n";
+        if (me == 0) std::cout << "Runtime initialized with thread affinity " << sbind << "\n";
 
 #ifdef HAVE_PAPI
         begin_papi_measurement();
@@ -190,6 +209,7 @@ namespace madness {
     double WorldProfile::wall_start = madness::wall_time();
 
 
+#ifdef WORLD_PROFILE_ENABLE
     static void profile_do_print(World& world, const std::vector<WorldProfileEntry>& v) {
         double cpu_total = 0.0;
         for (unsigned int i=0; i<v.size(); i++) 
@@ -231,6 +251,7 @@ namespace madness {
                    v[i].count.pmin, v[i].count.pmax);
         }
     }
+#endif
 
     static void est_profile_overhead() {
         PROFILE_MEMBER_FUNC(WorldProfile);

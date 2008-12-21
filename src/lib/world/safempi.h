@@ -14,8 +14,8 @@ namespace SafeMPI {
 #define SERIALIZE_MPI
 
 #ifdef SERIALIZE_MPI
-    extern madness::MutexFair charon;      // Inside safempi.cc
-#define GLOBAL_MUTEX madness::ScopedMutex<madness::MutexFair> obolus(charon)
+    extern madness::SCALABLE_MUTEX_TYPE charon;      // Inside safempi.cc
+#define GLOBAL_MUTEX madness::ScopedMutex<madness::SCALABLE_MUTEX_TYPE> obolus(charon)
 #else
 #define GLOBAL_MUTEX
 #endif

@@ -1,3 +1,3 @@
 #include <world/safempi.h>
 
-madness::MutexFair SafeMPI::charon;
+madness::SCALABLE_MUTEX_TYPE SafeMPI::charon;
