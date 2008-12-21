@@ -17,6 +17,10 @@ ACX_CRAYXT
 ACX_MAC
 #AC_AIX
 
+# Set default thread processor-affinity
+BIND=${BIND-"-1 -1 -1"}
+AC_DEFINE_UNQUOTED([MAD_BIND_DEFAULT], ["$BIND"], [The default binding for threads])
+
 # All source will be built with the MPI C++ and C compilers
 ACX_MPI
 
@@ -177,8 +181,22 @@ if test "$memstats" = "yes"; then
   AC_DEFINE([WORLD_GATHER_MEM_STATS], [1], [Set if MADNESS gathers memory statistics])
 fi
 
-# PAPI
-AC_ARG_WITH([papi], [Enables use of PAPI], [echo "Enabling use of PAPI"; AC_DEFINE(HAVE_PAPI,[1], [Define if have PAPI])], [])
+AC_ARG_WITH([profile], 
+            [--with-profile  Enables profiling], 
+            [echo "Enabling profiling"; AC_DEFINE(WORLD_PROFILE_ENABLE, [1], [Define if should enable profiling])], 
+            [])
+
+
+AC_ARG_WITH([spinlocks], 
+            [--with-spinlocks  Enables use of spinlocks instead of mutexs (faster unless over subscribing processors)], 
+            [echo "Enabling use of spinlocks"; AC_DEFINE(USE_SPINLOCKS, [1], [Define if should use spinlocks])], 
+            [])
+
+AC_ARG_WITH([papi], 
+            [--with-papi  Enables use of PAPI], 
+            [echo "Enabling use of PAPI"; AC_DEFINE(HAVE_PAPI,[1], [Define if have PAPI])], 
+            [])
+
 
 # Capture configuration info for user by compiled code
 AC_DEFINE_UNQUOTED([MADNESS_CONFIGURATION_USER],["$USER"],[User that configured the code])

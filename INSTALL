@@ -13,6 +13,33 @@ Prequisites:
   o  If you are building from the respository you will also need
      autoconf and automake.
 
+Optional:
+
+  o  TCMalloc from google perftools ... its really fast.
+
+Configure options:
+
+  o  --with-papi ... enables use of PAPI for performance profiling (only tested on Cray-XT)
+
+  o  --with-spinlocks ... enables spinlocks in some locations instead of pthread_mutex
+     (automatically enabled on Cray-XT where it is faster.  On single socket Intel
+      chips it seems slightly slower)
+
+  o  --with-profile ... enables gathering of performances statistics
+
+Configure environment variables:
+
+  o  BIND ... specifies the default binding of threads to processors.
+     It is a string containing three whitespace separated integers
+     that indicate, in order, the processor for main thread, the
+     message server thread, and the first processor for pool threads.
+     Negative values imply no binding.  The usual default value is 
+     "-1 -1 -1" which means no affinity.  On the Cray-XT the default
+     value is "1 0 2" which places the main thread on core 1, the
+     server thread on core 0 (least hypertransport hops from the NIC), 
+     and pool threads on cores 2, 3, ....  
+
+
 How to build:
 
 If you checked the source out of subversion you will need to build the
@@ -92,6 +119,7 @@ to link against those libraries).  Some examples follow.
      with version gcc, g++, gfortran 4.2.3.  This install script was tested with openmpi-1.2.6.
 
      ./configure CXXFLAGS="-DON_A_MAC -Wall -Wno-strict-aliasing -Wno-deprecated -ansi -O3 -fomit-frame-pointer -msse -msse2" LIBS="-llapack -lblas -lgfortran"
+
 
 
 
