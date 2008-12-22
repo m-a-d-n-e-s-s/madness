@@ -21,19 +21,13 @@ namespace madness {
 
     inline void cpu_relax(){asm volatile ( "rep;nop" : : : "memory" );}
 
-    //#define WORLD_MUTEX_ATOMIC
-    
     class MutexWaiter {
     private:
         unsigned int count;
 
         /// Yield for specified number of microseconds unless dedicated CPU
         void yield(int us) {
-#ifdef HAVE_CRAYXT
-            cpu_relax();
-#else
             usleep(us);
-#endif
         }
         
     public:
@@ -42,11 +36,25 @@ namespace madness {
         void reset() {count = 0;}
 
         void wait() {
+#ifdef HAVE_CRAYXT
+            // The value of 300 below is purely empirical but apparently a substantial
+            // backoff (or something that is a by-product of waiting) is necessary
+            // to avoid clobbering the memory subsystem while spinning on the taskq.
+            // The time is  "Time to  run 100000 chain of tasks" from running world.
+            // 1000--> 2+us
+            // 400 --> 1.7us
+            // 300 --> 1.7us
+            // 250 --> 2us
+            // 200 --> 3.6us
+            // 100 --> 40+us (ouch!)
+            for (int i=0; i<300; i++)  cpu_relax();
+#else
             const unsigned int nspin  = 1000;    // Spin for 1,000 calls
             const unsigned int nsleep = 100000;  // Sleep 10us for 100,000 calls = 1s
             if (count++ < nspin) return;
             else if (count < nsleep) yield(10);
             else yield(10000);
+#endif
         }
     };
 

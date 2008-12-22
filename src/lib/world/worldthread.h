@@ -502,7 +502,7 @@ namespace madness {
 	    PROFILE_MEMBER_FUNC(ThreadPool);
             std::pair<PoolTaskInterface*,bool> t = queue.pop_front(wait);
             if (t.second) {
-			    PROFILE_BLOCK(working);
+		PROFILE_BLOCK(working);
                 t.first->run();          // What we are here to do
                 delete t.first;
             }
