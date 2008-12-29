@@ -218,7 +218,7 @@ namespace madness {
         return r;
     }
 
-    /// Computes the inner product of two function vectors - q(i) = inner(f[i],g[i])
+    /// Computes the element-wise inner product of two function vectors - q(i) = inner(f[i],g[i])
     template <typename T, typename R, int NDIM>
     Tensor< TENSOR_RESULT_TYPE(T,R) > inner(World& world,
                                             const std::vector< Function<T,NDIM> >& f,
@@ -232,6 +232,27 @@ namespace madness {
 
         for (long i=0; i<n; i++) {
             r(i) = f[i].inner_local(g[i]);
+        }
+
+        world.gop.sum(r.ptr(),n);
+        world.gop.fence();
+        return r;
+    }
+
+
+    /// Computes the inner product of a function with a function vector - q(i) = inner(f,g[i])
+    template <typename T, typename R, int NDIM>
+    Tensor< TENSOR_RESULT_TYPE(T,R) > inner(World& world,
+                                            const Function<T,NDIM>& f,
+                                            const std::vector< Function<R,NDIM> >& g) {
+        long n=g.size();
+        Tensor< TENSOR_RESULT_TYPE(T,R) > r(n);
+
+        f.compress();
+        compress(world, g);
+
+        for (long i=0; i<n; i++) {
+            r(i) = f.inner_local(g[i]);
         }
 
         world.gop.sum(r.ptr(),n);
