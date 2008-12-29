@@ -183,6 +183,21 @@ public:
     }
 };
 
+class MolecularDerivativeFunctor : public FunctionFunctorInterface<double,3> {
+private:
+    const Molecule& molecule;
+    const int atom;
+    const int axis;
+public:
+    MolecularDerivativeFunctor(const Molecule& molecule, int atom, int axis)
+        : molecule(molecule), atom(atom), axis(axis)
+    {}
+
+    double operator()(const coordT& x) const {
+        return molecule.nuclear_attraction_potential_derivative(atom, axis, x[0], x[1], x[2]);
+    }
+};
+
 /// A MADNESS functor to compute either x, y, or z
 class DipoleFunctor : public FunctionFunctorInterface<double,3> {
 private:
@@ -1149,6 +1164,26 @@ struct Calculation {
         return Vpsi;
     }
 
+    Tensor<double> derivatives(World& world, const functionT& rho) {
+        vecfuncT dv(molecule.natom()*3);
+        for (int atom=0; atom<molecule.natom(); atom++) {
+            for (int axis=0; axis<3; axis++) {
+                functorT func(new MolecularDerivativeFunctor(molecule, atom, axis));
+                dv[atom*3 + axis] = functionT(factoryT(world).functor(func).nofence().truncate_on_project());
+            }
+        }
+        world.gop.fence();
+        Tensor<double> r = inner(world, rho, dv);
+        dv.clear();
+        world.gop.fence(); // free memory
+        for (int atom=0; atom<molecule.natom(); atom++) {
+            for (int axis=0; axis<3; axis++) {
+                r[atom*3 + axis] += molecule.nuclear_repulsion_derivative(atom,axis);
+            }
+        }
+        return r;
+    }
+
 
     /// Updates the orbitals and eigenvalues of one spin
     void update(World& world,
@@ -1434,6 +1469,20 @@ struct Calculation {
             //if (world.rank() == 0) print("Analysis of beta MO vectors");
             //analyze_vectors(world, bmo, bocc, beps);
         }
+
+        functionT arho = make_density(world, aocc, amo), brho;
+        if (param.spin_restricted) brho = arho;
+        else brho = make_density(world, bocc, bmo);
+        arho.gaxpy(1.0, brho, 1.0);
+        Tensor<double> dv = derivatives(world, arho);
+        if (world.rank() == 0) {
+            print("\n Derivatives\n -----------");
+            for (int i=0; i<molecule.natom(); i++) {
+                cout.precision(6);
+                print(i, dv[i*3+0], dv[i*3+1], dv[i*3+2]);
+            }
+        }
+
 
 //         tensorT U = localize_maxao(world, amo);
 //         vecfuncT locmo = transform(world, amo, U);

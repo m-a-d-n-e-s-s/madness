@@ -218,29 +218,21 @@ static double smoothed_potential(double r) {
 /// dV/dx = (x/r) * du(r/c)/(c*c) 
 static double dsmoothed_potential(double r)
 {
-    const double THREE_SQRTPI = 5.31736155271654808184;
-    const double SQRTPI = 1.77245385090551602728;
-    double value;
-    double r2 = r*r;
-    
-    if (r > 6.5) 
-        value = -1.0/r2;
-    else {
-        if (r > 1e-8){
-            value =  (-2.0*r*exp(-r2)-128.0*r*exp(-4.0*r2))/(THREE_SQRTPI);
-            value += 2.0*exp(-r2)/(r*SQRTPI) - erf(r)/r2;
-        }else if (r > 0.1) {
-            value =  (-2.0*exp(-r2)-128.0*exp(-4.0*r2))/(THREE_SQRTPI);
-            value += (-4./3.+(4./5.+(-2./7.+(2./27.-1./66.*r2)*r2)*r2)*r2)/SQRTPI;
-            value *= r;
-        }else if (r != 0.0){
-            value =  (-2.0*exp(-r2)-128.0*exp(-4.0*r2))/(THREE_SQRTPI);
-            value += (-4./3.+(4./5.+(-2./7.+(2./27.-1./66.*r2)*r2)*r2)*r2)/SQRTPI;
-            value *= r;
-        }else
-            value = 0.0;
+    if (r < 1e-3) {
+        const double t1 = sqrt(0.31415926535897932385e1);
+        const double t2 = 0.1e1 / t1;
+        const double t5 = r * r;
+        return -0.134e3 / 0.3e1 * r * t2 + 0.2582e4 / 0.15e2 * t5 * r * t2;
     }
-    return value;
+    else {
+        const double t1 = r * r;
+        const double t2 = exp(-t1);
+        const double t5 = erf(r);
+        const double t6 = sqrt(PI);
+        const double t9 = t1 * r;
+        const double t13 = exp(-0.4e1 * t1);
+        return -(-0.6e1 * r * t2 + 0.3e1 * t5 * t6 + 0.2e1 * t9 * t2 + 0.128e3 * t9 * t13) / t6 / t1 / 0.3e1;
+    }
 }
 
 // /// Charge density corresponding to smoothed 1/r potential
@@ -325,6 +317,7 @@ void Molecule::read_file(const std::string& filename) {
 void Molecule::add_atom(double x, double y, double z, int atomic_number, double q) {
     atoms.push_back(Atom(x,y,z,atomic_number,q));
     double c = smoothing_parameter(q, 1e-5); // This is error per atom
+    printf("smoothing param %.6f\n", c);
     rcut.push_back(1.0/c);
 }
 
@@ -364,6 +357,21 @@ double Molecule::nuclear_repulsion_energy() const {
     for (unsigned int i=0; i<atoms.size(); i++) {
         for (unsigned int j=i+1; j<atoms.size(); j++) {
             sum += atoms[i].atomic_number * atoms[j].atomic_number / inter_atomic_distance(i,j);
+        }
+    }
+    return sum;
+}
+
+double Molecule::nuclear_repulsion_derivative(int i, int axis) const {
+    double sum = 0.0;
+    for (unsigned int j=0; j<atoms.size(); j++) {
+        if (j != i){
+            double r = inter_atomic_distance(i,j);
+            double xx;
+            if (axis == 0) xx = atoms[i].x - atoms[j].x;
+            else if (axis == 1) xx = atoms[i].y - atoms[j].y;
+            else xx = atoms[i].z - atoms[j].z;
+            sum -= xx * atoms[i].atomic_number * atoms[j].atomic_number / (r * r * r);
         }
     }
     return sum;
@@ -434,6 +442,17 @@ double Molecule::nuclear_attraction_potential(double x, double y, double z) cons
     }
     return sum;
 }
+
+double Molecule::nuclear_attraction_potential_derivative(int atom, int axis, double x, double y, double z) const {
+    double r = distance(atoms[atom].x, atoms[atom].y, atoms[atom].z, x, y, z);
+    double rc = rcut[atom];
+    double coord;
+    if (axis == 0) coord = x-atoms[atom].x;
+    else if (axis == 1) coord = y-atoms[atom].y;
+    else coord = z-atoms[atom].z;
+    return atoms[atom].q * (coord / r) * dsmoothed_potential(r * rc) * (rc * rc);
+}
+
 
 // double Molecule::nuclear_charge_density(double x, double y, double z) const {
 //     if > 6 return 0.0
