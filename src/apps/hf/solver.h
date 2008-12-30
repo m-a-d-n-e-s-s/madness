@@ -8,6 +8,13 @@
 
 #ifndef SOLVER_H_
 
+void mulop(const Key<3>& key, Tensor<double> tcube,
+                 Tensor<double> lcube,
+                 Tensor<double> rcube)
+{
+  TERNARY_OPTIMIZED_ITERATOR(double, tcube, double, lcube, double, rcube, *_p0 = *_p1 * *_p2;);
+}
+
 namespace madness
 {
   //***************************************************************************
@@ -236,6 +243,10 @@ namespace madness
         // LDA, is calculation spin-polarized?
         if (_params.spinpol)
         {
+          funcT vxca = binary_op(rhoa, rhob, ::libxc_ldaop_sp);
+          funcT vxcb = binary_op(rhob, rhoa, ::libxc_ldaop_sp);
+          pfuncsa = mul_sparse(_world, vlocal + vxca, phisa, _params.thresh * 0.1);
+          pfuncsb = mul_sparse(_world, vlocal + vxcb, phisb, _params.thresh * 0.1);
         }
         else
         {
@@ -243,6 +254,8 @@ namespace madness
           funcT vxc = copy(rhoa);
           vxc.unaryop(&::libxc_ldaop);
           pfuncsa = mul_sparse(_world, vlocal + vxc, phisa, _params.thresh * 0.1);
+//          funcT vxc = binary_op(rhoa, rhoa, ::libxc_ldaop_sp);
+//          pfuncsa = mul_sparse(_world, vlocal + vxc, phisa, _params.thresh * 0.1);
           // energy
           funcT fc = copy(rhoa);
           fc.unaryop(&::ldaeop);

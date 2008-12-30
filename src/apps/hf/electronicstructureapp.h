@@ -257,7 +257,7 @@ public:
                      const functionT& adelrhosq,
                      const functionT& bdelrhosq)
   {
-      MADNESS_ASSERT(!_params.spinpol);
+//      MADNESS_ASSERT(!_params.spinpol);
       functionT vlda = copy(arho);
       vlda.unaryop(&::libxc_ldaop);
       return vlda;

@@ -182,8 +182,8 @@ struct ElectronicStructureParams
     //if (spinpol = true) MADNESS_EXCEPTION("spinpol not implemented", 0);
     // nelec is required
     if (!bnelec) MADNESS_EXCEPTION("nelec required", 0);
-    // maximum occupation
-    maxocc = (spinpol) ? 1.0 : 2.0;
+//    // maximum occupation
+//    maxocc = (spinpol) ? 1.0 : 2.0;
     // compute total number of bands
     nbands = nelec/maxocc + nempty;
   }

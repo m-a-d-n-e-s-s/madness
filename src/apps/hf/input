@@ -1,14 +1,16 @@
 dft
-  nelec 2
+  nelec 4
   nempty 0
-  L 20.0
-  ispotential false
-  periodic true
+  L 30.0
+  ispotential true
+  periodic false
+  spinpol false
+  maxits 50
 end
 
 # oxygen
 geometry
-  He  0.0 0.0 0.0
+  Be  0.0 0.0 0.0
 end
 
 # water*1

@@ -65,12 +65,10 @@ static double smoothed_potential(double r) {
 //*****************************************************************************
 
 void multiply_op(const Key<3>& key, Tensor<double> tcube,
-                 const Tensor<double> lcube,
-                 const Tensor<double> rcube)
+                 Tensor<double> lcube,
+                 Tensor<double> rcube)
 {
-  Tensor<double> tt, ll, rr;
-  TERNARY_OPTIMIZED_ITERATOR(double, tt, double, ll, double, rr, *_p0 = *_p1 * *_p2;);
-//  TERNARY_OPTIMIZED_ITERATOR(double, tcube, double, left, double, right, *_p0 = *_p1 * *_p2;);
+  TERNARY_OPTIMIZED_ITERATOR(double, tcube, double, lcube, double, rcube, *_p0 = *_p1 * *_p2;);
 }
 
 //*****************************************************************************
@@ -251,37 +249,38 @@ void test_hf_he(World& world)
     FunctionFactory<double,3>(world).functor(functorT(new HeElectronicChargeDensityIGuess<double,3>(origin)));
   psi.scale(1.0/psi.norm2());
 
+  Function<double,3> prod = binary_op(vnuc, psi, &::multiply_op);
+  if (world.rank() == 0)  printf("\n");
+   double L = 2.0 * bsize;
+   double bstep = L / 100.0;
+   prod.reconstruct();
+   for (int i = 0; i < 101; i++)
+   {
+     coordT p(-L / 2 + i * bstep);
+     if (world.rank() == 0)
+       printf("%.2f\t\t%.8f\t%.8f\n", p[0], vnuc(p)*psi(p), prod(p));
+   }
+   if (world.rank() == 0) printf("\n");
+
+
 //  Function<double,3> tmprho = square(psi);
-//  if (world.rank() == 0)  printf("\n");
-//   double L = 2.0 * bsize;
-//   double bstep = L / 100.0;
-//   tmprho.reconstruct();
-//   for (int i = 0; i < 101; i++)
-//   {
-//     coordT p(-L / 2 + i * bstep);
-//     if (world.rank() == 0)
-//       printf("%.2f\t\t%.8f\n", p[0], tmprho(p));
-//   }
-//   if (world.rank() == 0) printf("\n");
-
-  Function<double,3> tmprho = square(psi);
-  double rtrace = tmprho.trace();
-  if (world.rank() == 0) printf("tmprho trace = %f\n\n", rtrace);
-  Function<double,3> vxc = copy(tmprho);
-  vxc.unaryop(&he_ldaop);
-
-  if (world.rank() == 0) printf("\n");
-  if (world.rank() == 0) printf("p\t\trho\tvxc\n");
-  double L = 2.0 * bsize;
-  double bstep = L / 100.0;
-  vxc.reconstruct();
-  tmprho.reconstruct();
-  for (int i=0; i<101; i++)
-  {
-    coordT p(-L/2 + i*bstep);
-    if (world.rank() == 0) printf("%.2f\t\t%.8f\t%.8f\n", p[0], tmprho(p), vxc(p));
-  }
-  if (world.rank() == 0) printf("\n");
+//  double rtrace = tmprho.trace();
+//  if (world.rank() == 0) printf("tmprho trace = %f\n\n", rtrace);
+//  Function<double,3> vxc = copy(tmprho);
+//  vxc.unaryop(&he_ldaop);
+//
+//  if (world.rank() == 0) printf("\n");
+//  if (world.rank() == 0) printf("p\t\trho\tvxc\n");
+//  double L = 2.0 * bsize;
+//  double bstep = L / 100.0;
+//  vxc.reconstruct();
+//  tmprho.reconstruct();
+//  for (int i=0; i<101; i++)
+//  {
+//    coordT p(-L/2 + i*bstep);
+//    if (world.rank() == 0) printf("%.2f\t\t%.8f\t%.8f\n", p[0], tmprho(p), vxc(p));
+//  }
+//  if (world.rank() == 0) printf("\n");
 
 
   // Create lists

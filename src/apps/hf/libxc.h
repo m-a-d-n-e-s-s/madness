@@ -41,19 +41,90 @@ inline static void libxc_ldaop(const Key<3>& key, Tensor<double>& t) {
   XC(lda_type) xc_x_func;
   xc_lda_init(&xc_c_func, XC_LDA_C_VWN,XC_UNPOLARIZED);
   xc_lda_x_init(&xc_x_func, XC_UNPOLARIZED, 3, 0);
-  UNARY_OPTIMIZED_ITERATOR(double, t, double r=munge(2.0* *_p0); double q; double dq1; double dq2; xc_lda_vxc(&xc_x_func, &r, &q, &dq1); xc_lda_vxc(&xc_c_func, &r, &q, &dq2); *_p0 = dq1+dq2);
+  UNARY_OPTIMIZED_ITERATOR(double, t, double r=munge(2.0* *_p0); double q; double dq1; double dq2;
+                           xc_lda_vxc(&xc_x_func, &r, &q, &dq1); xc_lda_vxc(&xc_c_func, &r, &q, &dq2);
+                           *_p0 = dq1+dq2);
 }
 //***************************************************************************
 
 //***************************************************************************
-inline static void libxc_ldaeop(const Key<3>& key, Tensor<double>& t) {
-  XC(lda_type) xc_c_func;
-  XC(lda_type) xc_x_func;
-  xc_lda_init(&xc_c_func, XC_LDA_C_VWN,XC_UNPOLARIZED);
-  xc_lda_x_init(&xc_x_func, XC_UNPOLARIZED, 3, 0);
-  UNARY_OPTIMIZED_ITERATOR(double, t, double r=munge(2.0* *_p0); double q1; double q2; double dq; xc_lda_vxc(&xc_x_func, &r, &q1, &dq); xc_lda_vxc(&xc_c_func, &r, &q2, &dq); *_p0 = q1+q2);
-}
+inline static void libxc_ldaop_sp(const Key<3>& key, Tensor<double>& t, Tensor<double>& a, Tensor<double>& b)
+{
+//  XC(lda_type) xc_c_func;
+//  XC(lda_type) xc_x_func;
+//  xc_lda_init(&xc_c_func, XC_LDA_C_VWN,XC_POLARIZED);
+//  xc_lda_x_init(&xc_x_func, XC_POLARIZED, 3, 0);
+//  TERNARY_OPTIMIZED_ITERATOR(double, t, double, a, double, b, double r[2]; r[0] = munge(*_p1);
+//                             r[1] = munge(*_p2); double q[2]; double dq1[2]; double dq2[2];
+//                             xc_lda_vxc(&xc_x_func, &r[0], &q[0], &dq1[0]); xc_lda_vxc(&xc_c_func, &r[0], &q[0], &dq2[0]);
+//                             *_p0 = dq1[0]+dq2[0]);
+
+    xc_lda_type xc_c_func;
+    xc_lda_type xc_x_func;
+    xc_lda_init(&xc_c_func, 7, 2);
+    xc_lda_x_init(&xc_x_func, 2, 3, 0);
+    do
+    {
+      if (t.iscontiguous() && a.iscontiguous() && b.iscontiguous() && t.size
+          == a.size && t.size == b.size)
+      {
+        print("is contiguous\n\n");
+        double* __restrict _p0 = t.ptr();
+        double* __restrict _p1 = a.ptr();
+        double* __restrict _p2 = b.ptr();
+        for (long _j = 0; _j < t.size; _j++, _p0++, _p1++, _p2++)
+        {
+          double r[2];
+          r[0] = munge(*_p1);
+          r[1] = munge(*_p2);
+          double q[2];
+          double dq1[2];
+          double dq2[2];
+          xc_lda_vxc(&xc_x_func, &r[0], &q[0], &dq1[0]);
+          xc_lda_vxc(&xc_c_func, &r[0], &q[0], &dq2[0]);
+          *_p0 = dq1[0] + dq2[0];
+        }
+      }
+      else
+      {
+        for (TensorIterator<double, double, double> iter = t.ternary_iterator(
+            a, b, 1); iter._p0; ++iter)
+        {
+          long _dimj = iter.dimj;
+          double* _p0 = iter._p0;
+          double* _p1 = iter._p1;
+          double* _p2 = iter._p2;
+          long _s0 = iter._s0;
+          long _s1 = iter._s1;
+          long _s2 = iter._s2;
+          for (long _j = 0; _j < _dimj; _j++, _p0 += _s0, _p1 += _s1, _p2
+              += _s2)
+          {
+            double r[2];
+            r[0] = munge(*_p1);
+            r[1] = munge(*_p2);
+            double q[2];
+            double dq1[2];
+            double dq2[2];
+            xc_lda_vxc(&xc_x_func, &r[0], &q[0], &dq1[0]);
+            xc_lda_vxc(&xc_c_func, &r[0], &q[0], &dq2[0]);
+            *_p0 = dq1[0] + dq2[0];
+          }
+        }
+      }
+    } while (0);
+  }
 //***************************************************************************
+
+////***************************************************************************
+//inline static void libxc_ldaeop_sp(const Key<3>& key, Tensor<double>& t) {
+//  XC(lda_type) xc_c_func;
+//  XC(lda_type) xc_x_func;
+//  xc_lda_init(&xc_c_func, XC_LDA_C_VWN,XC_UNPOLARIZED);
+//  xc_lda_x_init(&xc_x_func, XC_UNPOLARIZED, 3, 0);
+//  UNARY_OPTIMIZED_ITERATOR(double, t, double r=munge(2.0* *_p0); double q1; double q2; double dq; xc_lda_vxc(&xc_x_func, &r, &q1, &dq); xc_lda_vxc(&xc_c_func, &r, &q2, &dq); *_p0 = q1+q2);
+//}
+////***************************************************************************
 
 //const double THRESH_RHO = 1e-8;
 //const double THRESH_GRHO = 1e-20;
