@@ -1483,7 +1483,7 @@ namespace madness {
                 if (lc.size) ll = copy(lss(child_patch(child)));
                 if (rc.size) rr = copy(rss(child_patch(child)));
 
-                task(coeffs.owner(child), &implT:: template mulXXa<L,R>, child, left, ll, right, rr, tol);
+                task(coeffs.owner(child), &implT:: template binaryXXa<L,R,opT>, child, left, ll, right, rr, op, tol);
             }
 
             return None;
@@ -1961,7 +1961,7 @@ namespace madness {
                     double tol = truncate_tol(thresh, key);
 
                     if (cnorm*opnorm > tol/fac) {
-                        // This introduces finer grain parallelism 
+                        // This introduces finer grain parallelism
 //                         do_op_args args(key, d, dest, tol, fac, cnorm);
 //                         task(world.rank(), &implT:: template do_apply_kernel<opT,R>, op, c, args);
 
