@@ -355,10 +355,18 @@ typedef Vector<double,3> coordT;
 //} /* c_uks_vwn5__ */
 
 //*****************************************************************************
-static double gauss_func(const coordT& r)
+static double gauss_func3(const coordT& r)
 {
   const double x=r[0], y=r[1], z=r[2];
   return exp(-3.0*(x*x + y*y + z*z));
+}
+//*****************************************************************************
+
+//*****************************************************************************
+static double gauss_func1(const coordT& r)
+{
+  const double x=r[0], y=r[1], z=r[2];
+  return exp(-1.0*(x*x + y*y + z*z));
 }
 //*****************************************************************************
 
@@ -420,6 +428,24 @@ static void da_ldaop(const Key<3>& key, Tensor<double>& t) {
 ////***************************************************************************
 
 //*****************************************************************************
+void multiply_op(const Key<3>& key, Tensor<double> tcube,
+                 Tensor<double> lcube,
+                 Tensor<double> rcube)
+{
+  TERNARY_OPTIMIZED_ITERATOR(double, tcube, double, lcube, double, rcube, *_p0 = *_p1 * *_p2;);
+}
+//*****************************************************************************
+
+//*****************************************************************************
+void add_op(const Key<3>& key, Tensor<double> tcube,
+                 Tensor<double> lcube,
+                 Tensor<double> rcube)
+{
+  TERNARY_OPTIMIZED_ITERATOR(double, tcube, double, lcube, double, rcube, *_p0 = *_p1 + *_p2;);
+}
+//*****************************************************************************
+
+//*****************************************************************************
 void test_xc2(World& world)
 {
   // Function defaults
@@ -430,13 +456,16 @@ void test_xc2(World& world)
   FunctionDefaults<3>::set_thresh(thresh);
   FunctionDefaults<3>::set_cubic_cell(-L/2, L/2);
 
-  Function<double,3> f = FunctionFactory<double,3>(world).f(gauss_func);
+  Function<double,3> f = FunctionFactory<double,3>(world).f(gauss_func3);
+  Function<double,3> f2 = FunctionFactory<double,3>(world).f(gauss_func1);
   Function<double,3> fda = copy(f);
   Function<double,3> flibxc = copy(f);
   fda.unaryop(&da_ldaop);
   flibxc.unaryop(&libxc_ldaop);
   f.scale(0.5);
   Function<double,3> flibxc_sp = binary_op(f, f, &::libxc_ldaop_sp);
+  Function<double,3> prod = binary_op(f, f2, &::multiply_op);
+  Function<double,3> sum = binary_op(f, f2, &::add_op);
 
   if (world.rank() == 0) printf("\n");
   double bstep = L / 100.0;
@@ -445,7 +474,9 @@ void test_xc2(World& world)
   for (int i=0; i<101; i++)
   {
     coordT p(-L/2 + i*bstep);
-    if (world.rank() == 0) printf("%.2f\t\t%.8f\t%.8f\t%.8f\n", p[0], fda(p), flibxc(p), flibxc_sp(p));
+    if (world.rank() == 0) printf("%5.2f%18.8e%15.8f%15.8f%15.8f\n", p[0], f(p), fda(p), flibxc(p), flibxc_sp(p));
+//    if (world.rank() == 0) printf("%.2f\t\t%.8e\t%.8f\t%.8f\t%.8f\n", p[0], f(p), fda(p), flibxc(p), flibxc_sp(p));
+//    if (world.rank() == 0) printf("%.2f\t\t%.8f\t%.8f\n", p[0], f(p)+f2(p), sum(p));
   }
   if (world.rank() == 0) printf("\n");
 
