@@ -368,6 +368,7 @@ struct CalculationParameters {
                 f >> nvbeta;
             } else if (s == "nopen") {
                 f >> nopen;
+                spin_restricted = false;
             } else if (s == "unrestricted") {
                 spin_restricted = false;
             } else if (s == "restricted") {
@@ -1374,6 +1375,9 @@ struct Calculation {
                 if (param.spin_restricted) brho = arho;
                 else brho = make_density(world, bocc, bmo);
             }
+            else {
+                brho = functionT(world); // zero
+            }
             END_TIMER("Make densities");
 
             START_TIMER;
@@ -1470,6 +1474,7 @@ struct Calculation {
             //analyze_vectors(world, bmo, bocc, beps);
         }
 
+
         functionT arho = make_density(world, aocc, amo), brho;
         if (param.spin_restricted) brho = arho;
         else brho = make_density(world, bocc, bmo);
@@ -1541,10 +1546,10 @@ int main(int argc, char** argv) {
         calc.project(world);
         calc.solve(world);
 
-//         calc.set_protocol(world,1e-8);
-//         calc.make_nuclear_potential(world);
-//         calc.project(world);
-//         calc.solve(world);
+        calc.set_protocol(world,1e-8);
+        calc.make_nuclear_potential(world);
+        calc.project(world);
+        calc.solve(world);
 
     } catch (const MPI::Exception& e) {
         //        print(e);

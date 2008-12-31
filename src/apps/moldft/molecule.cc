@@ -187,62 +187,99 @@ unsigned int symbol_to_atomic_number(const std::string& symbol) {
 /// Returns radius for smoothing nuclear potential with energy precision eprec
 static double smoothing_parameter(double Z, double eprec) {
     // The min is since asymptotic form not so good at low acc.
-    // The 2 is from two electrons in 1s closed shell.
+    // The /2 is from two electrons in 1s closed shell.
     if (Z == 0.0) return 1.0;
+    eprec = std::min(1e-3,eprec/2.0);
     double Z5 = Z*Z*Z*Z*Z;
-    double c = pow(std::min(1e-3,eprec)/2.0/0.00435/Z5,1.0/3.0);
+    double c = pow(eprec/(0.65*Z5),1.0/3.0);
     return c;
 }
 
 
-/// Regularized 1/r potential.
+/// Smoothed 1/r potential
 
 /// Invoke as \c u(r/c)/c where \c c is the radius of the
 /// smoothed volume.
 static double smoothed_potential(double r) {
-    const double THREE_SQRTPI = 5.31736155271654808184;
-    double r2 = r*r, pot;
-    if (r > 6.5){
-        pot = 1.0/r;
-    } else if (r > 1e-8){
-        pot = erf(r)/r + (exp(-r2) + 16.0*exp(-4.0*r2))/(THREE_SQRTPI);
-    } else{
-        pot = (2.0 + 17.0/3.0)/sqrt(PI);
+    double rsq = r*r;
+    if (r < 1e-2) {
+        return 1.6925687506432689+(-.94031597257959385+(.39493270848342941-.12089776790309064*rsq)*rsq)*rsq;
     }
-    
-    return pot;
+    else {
+        return erf(r)/r + exp(-rsq)/sqrt(madness::constants::pi);
+    }
 }
+
 
 /// Derivative of the regularized 1/r potential
 
 /// dV/dx = (x/r) * du(r/c)/(c*c) 
 static double dsmoothed_potential(double r)
 {
-    if (r < 1e-3) {
-        const double t1 = sqrt(0.31415926535897932385e1);
-        const double t2 = 0.1e1 / t1;
-        const double t5 = r * r;
-        return -0.134e3 / 0.3e1 * r * t2 + 0.2582e4 / 0.15e2 * t5 * r * t2;
+    double rsq = r*r;
+    if (r < 1e-2) {
+        return (-1.8806319451591876+(1.5797308339337176-.72538660741854381*rsq)*rsq)*r;
     }
     else {
-        const double t1 = r * r;
-        const double t2 = exp(-t1);
-        const double t5 = erf(r);
-        const double t6 = sqrt(PI);
-        const double t9 = t1 * r;
-        const double t13 = exp(-0.4e1 * t1);
-        return -(-0.6e1 * r * t2 + 0.3e1 * t5 * t6 + 0.2e1 * t9 * t2 + 0.128e3 * t9 * t13) / t6 / t1 / 0.3e1;
+        return -erf(r)/rsq + exp(-rsq)*(2/r - 2*r)/sqrt(madness::constants::pi);
     }
 }
+
+// static double smoothing_parameter_original(double Z, double eprec) {
+//     // The min is since asymptotic form not so good at low acc.
+//     // The 2 is from two electrons in 1s closed shell.
+//     if (Z == 0.0) return 1.0;
+//     double Z5 = Z*Z*Z*Z*Z;
+//     double c = pow(std::min(1e-3,eprec)/2.0/0.00435/Z5,1.0/3.0);
+//     return c;
+// }
+
+
+// static double smoothed_potential_original(double r) {
+//     // This eliminated the first 3 moments ... not such
+//     // a good idea ... 1 moment is good enough.
+//     const double THREE_SQRTPI = 5.31736155271654808184;
+//     double r2 = r*r, pot;
+//     if (r > 6.5){
+//         pot = 1.0/r;
+//     } else if (r > 1e-8){
+//         pot = erf(r)/r + (exp(-r2) + 16.0*exp(-4.0*r2))/(THREE_SQRTPI);
+//     } else{
+//         pot = (2.0 + 17.0/3.0)/sqrt(PI);
+//     }
+    
+//     return pot;
+// }
+
+// static double dsmoothed_potential_original(double r)
+// {
+//     if (r < 1e-3) {
+//         const double t1 = sqrt(0.31415926535897932385e1);
+//         const double t2 = 0.1e1 / t1;
+//         const double t5 = r * r;
+//         return -0.134e3 / 0.3e1 * r * t2 + 0.2582e4 / 0.15e2 * t5 * r * t2;
+//     }
+//     else {
+//         const double t1 = r * r;
+//         const double t2 = exp(-t1);
+//         const double t5 = erf(r);
+//         const double t6 = sqrt(PI);
+//         const double t9 = t1 * r;
+//         const double t13 = exp(-0.4e1 * t1);
+//         return -(-0.6e1 * r * t2 + 0.3e1 * t5 * t6 + 0.2e1 * t9 * t2 + 0.128e3 * t9 * t13) / t6 / t1 / 0.3e1;
+//     }
+// }
+
 
 // /// Charge density corresponding to smoothed 1/r potential
 
 // /// Invoke as \c rho(r/c)/c^3 where \c c is the radius of the
 // /// smoothed volume.
-// static double smoothed_density(double r) {
+// static double smoothed_density_original(double r) {
 //     const double RPITO1P5 = 0.1795871221251665617; // 1.0/Pi^1.5
 //     return ((-3.0/2.0+(1.0/3.0)*r^2)*exp(-r^2)+(-32.0+(256.0/3.0)*r^2)*exp(-4.0*r^2))*RPITO1P5;
 // }
+
 
 
 std::ostream& operator<<(std::ostream& s, const Atom& atom) {
@@ -316,7 +353,7 @@ void Molecule::read_file(const std::string& filename) {
     
 void Molecule::add_atom(double x, double y, double z, int atomic_number, double q) {
     atoms.push_back(Atom(x,y,z,atomic_number,q));
-    double c = smoothing_parameter(q, 1e-5); // This is error per atom
+    double c = smoothing_parameter(q, 1e-4); // This is error per atom
     printf("smoothing param %.6f\n", c);
     rcut.push_back(1.0/c);
 }
@@ -365,7 +402,7 @@ double Molecule::nuclear_repulsion_energy() const {
 double Molecule::nuclear_repulsion_derivative(int i, int axis) const {
     double sum = 0.0;
     for (unsigned int j=0; j<atoms.size(); j++) {
-        if (j != i){
+        if (j != (unsigned int)(i)){
             double r = inter_atomic_distance(i,j);
             double xx;
             if (axis == 0) xx = atoms[i].x - atoms[j].x;
