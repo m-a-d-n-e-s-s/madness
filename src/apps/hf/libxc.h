@@ -68,15 +68,14 @@ inline static void libxc_ldaop_sp(const Key<3>& key, Tensor<double>& t, Tensor<d
       if (t.iscontiguous() && a.iscontiguous() && b.iscontiguous() && t.size
           == a.size && t.size == b.size)
       {
-        print("is contiguous\n\n");
         double* __restrict _p0 = t.ptr();
         double* __restrict _p1 = a.ptr();
         double* __restrict _p2 = b.ptr();
         for (long _j = 0; _j < t.size; _j++, _p0++, _p1++, _p2++)
         {
           double r[2];
-          r[0] = munge(2.0 * *_p1);
-          r[1] = munge(2.0 * *_p2);
+          r[0] = munge(*_p1);
+          r[1] = munge(*_p2);
           double q[2];
           double dq1[2];
           double dq2[2];
@@ -101,8 +100,8 @@ inline static void libxc_ldaop_sp(const Key<3>& key, Tensor<double>& t, Tensor<d
               += _s2)
           {
             double r[2];
-            r[0] = munge(2.0 * *_p1);
-            r[1] = munge(2.0 * *_p2);
+            r[0] = munge(*_p1);
+            r[1] = munge(*_p2);
             double q[2];
             double dq1[2];
             double dq2[2];

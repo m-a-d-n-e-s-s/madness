@@ -243,8 +243,8 @@ namespace madness
         // LDA, is calculation spin-polarized?
         if (_params.spinpol)
         {
-          funcT vxca = binary_op(rhoa, rhob, ::libxc_ldaop_sp);
-          funcT vxcb = binary_op(rhob, rhoa, ::libxc_ldaop_sp);
+          funcT vxca = binary_op(rhoa, rhob, &::libxc_ldaop_sp);
+          funcT vxcb = binary_op(rhob, rhoa, &::libxc_ldaop_sp);
           pfuncsa = mul_sparse(_world, vlocal + vxca, phisa, _params.thresh * 0.1);
           pfuncsb = mul_sparse(_world, vlocal + vxcb, phisb, _params.thresh * 0.1);
         }
@@ -254,8 +254,23 @@ namespace madness
           funcT vxc = copy(rhoa);
           vxc.unaryop(&::libxc_ldaop);
           pfuncsa = mul_sparse(_world, vlocal + vxc, phisa, _params.thresh * 0.1);
-//          funcT vxc = binary_op(rhoa, rhoa, ::libxc_ldaop_sp);
+          funcT vxc2 = binary_op(rhoa, rhoa, &::libxc_ldaop_sp);
 //          pfuncsa = mul_sparse(_world, vlocal + vxc, phisa, _params.thresh * 0.1);
+
+          {
+            if (_world.rank() == 0) printf("\n");
+            double L = _params.L;
+            double bstep = L / 100.0;
+            vxc.reconstruct();
+            vxc2.reconstruct();
+            for (int i=0; i<101; i++)
+            {
+              coordT p(-L/2 + i*bstep);
+              if (_world.rank() == 0) printf("%5.2f%15.8f%15.8f\n", p[0], vxc(p), vxc2(p));
+            }
+            if (_world.rank() == 0) printf("\n");
+          }
+
           // energy
           funcT fc = copy(rhoa);
           fc.unaryop(&::ldaeop);
