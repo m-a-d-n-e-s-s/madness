@@ -1,22 +1,22 @@
 /*
   This file is part of MADNESS.
-  
+
   Copyright (C) <2007> <Oak Ridge National Laboratory>
-  
+
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation; either version 2 of the License, or
   (at your option) any later version.
-  
+
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
   GNU General Public License for more details.
-  
+
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
-  
+
   For more information please contact:
 
   Robert J. Harrison
@@ -24,18 +24,18 @@
   One Bethel Valley Road
   P.O. Box 2008, MS-6367
 
-  email: harrisonrj@ornl.gov 
+  email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
 
-  
+
   $Id: test.cc 257 2007-06-25 19:09:38Z HartmanBaker $
 */
 
 /// \file testsuite.cc
 /// \brief The QA/test suite for Function
 
-#define WORLD_INSTANTIATE_STATIC_TEMPLATES  
+#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <mra/mra.h>
 #include <unistd.h>
 #include <cstdio>
@@ -74,8 +74,8 @@ public:
     const coordT center;
     const double exponent;
     const T coefficient;
-    
-    Gaussian(const coordT& center, double exponent, T coefficient) 
+
+    Gaussian(const coordT& center, double exponent, T coefficient)
         : center(center), exponent(exponent), coefficient(complexify(coefficient)) {};
 
     T operator()(const coordT& x) const {
@@ -96,12 +96,12 @@ public:
     const double exponent;
     const T coefficient;
     const int axis;
-    
-    DerivativeGaussian(const coordT& center, double exponent, T coefficient, int axis) 
-        : center(center), exponent(exponent), coefficient(complexify(coefficient)), axis(axis) 
+
+    DerivativeGaussian(const coordT& center, double exponent, T coefficient, int axis)
+        : center(center), exponent(exponent), coefficient(complexify(coefficient)), axis(axis)
     {};
 
-    DerivativeGaussian(const Gaussian<T,NDIM>& g, int axis) 
+    DerivativeGaussian(const Gaussian<T,NDIM>& g, int axis)
         : center(g.center), exponent(g.exponent), coefficient(g.coefficient), axis(axis)
     {};
 
@@ -139,7 +139,7 @@ RandomGaussian(const Tensor<double> cell, double expntmax=1e5) {
     double lo = log(0.1);
     double hi = log(expntmax);
     double expnt = exp(RandomValue<double>()*(hi-lo) + lo);
-    T coeff = pow(2.0*expnt/PI,0.25*NDIM);            
+    T coeff = pow(2.0*expnt/PI,0.25*NDIM);
     //print("RandomGaussian: origin", origin, "expnt", expnt, "coeff", coeff);
     return new Gaussian<T,NDIM>(origin,expnt,coeff);
 }
@@ -156,7 +156,7 @@ class BinaryOp : public FunctionFunctorInterface<resultT,NDIM> {
     opT op;
 
 public:
-    BinaryOp(functorL& left, functorR& right, opT& op) 
+    BinaryOp(functorL& left, functorR& right, opT& op)
         : left(left), right(right), op(op)
     {};
 
@@ -175,7 +175,7 @@ public:
                             __FUNCTION__,__LINE__,message,abs(value),threshold, msgs[status]); \
                 if (!status) ok = false; \
              } \
-        } while (0) 
+        } while (0)
 
 double ttt, sss;
 #define START_TIMER world.gop.fence(); ttt=wall_time(); sss=cpu_time()
@@ -188,7 +188,7 @@ void test_basic(World& world) {
     typedef Vector<double,NDIM> coordT;
     typedef SharedPtr< FunctionFunctorInterface<T,NDIM> > functorT;
 
-    if (world.rank() == 0) 
+    if (world.rank() == 0)
         print("Test compression of a normalized gaussian at origin, type =",
               archive::get_type_name<T>(),", ndim =",NDIM);
 
@@ -224,13 +224,13 @@ void test_basic(World& world) {
     f.compress();
     double new_norm = f.norm2();
     CHECK(new_norm-norm, 1e-14, "new_norm");
-    
+
     f.reconstruct();
     new_norm = f.norm2();
     double new_err = f.err(*functor);
     CHECK(new_norm-norm, 1e-14, "new_norm");
     CHECK(new_err-err, 1e-14, "new_err");
-    
+
     f.compress();
     new_norm = f.norm2();
     CHECK(new_norm-norm, 1e-14, "new_norm");
@@ -242,7 +242,7 @@ void test_basic(World& world) {
     CHECK(new_err, 3e-5, "new_err");
 
     //MADNESS_ASSERT(ok);
-    
+
     world.gop.fence();
     if (world.rank() == 0) print("projection, compression, reconstruction, truncation OK\n\n");
 }
@@ -271,8 +271,8 @@ void test_conv(World& world) {
 	    Function<T,NDIM> f = FunctionFactory<T,NDIM>(world).functor(functor).norefine().initial_level(n).k(k);
 	    double err2 = f.err(*functor);
             std::size_t size = f.size();
-            if (world.rank() == 0) 
-                printf("   n=%d err=%.2e #coeff=%.2e log(err)/(n*k)=%.2e\n", 
+            if (world.rank() == 0)
+                printf("   n=%d err=%.2e #coeff=%.2e log(err)/(n*k)=%.2e\n",
                        n, err2, double(size), abs(log(err2)/n/k));
 	}
     }
@@ -280,6 +280,18 @@ void test_conv(World& world) {
     world.gop.fence();
     if (world.rank() == 0) print("test conv OK\n\n");
 }
+
+template <typename T, int NDIM>
+struct myunaryop
+{
+  typedef T resultT;
+  Tensor<T> operator()(const Key<NDIM>& key, const Tensor<T>& t) const
+  {
+    return -t;
+  }
+  template <typename Archive>
+  void serialize(Archive& ar) {}
+};
 
 template <typename T, int NDIM>
 void test_math(World& world) {
@@ -306,7 +318,7 @@ void test_math(World& world) {
     T (*p)(T,T) = &product<T,T,T>;
     functorT functsq(new BinaryOp<T,T,T,T(*)(T,T),NDIM>(functor,functor,p));
     //functorT functsq(new Gaussian<T,NDIM>(origin, 2.0*expnt, coeff*coeff)); // only correct if real
-    
+
     // First make sure out of place squaring works
     Function<T,NDIM> f = FunctionFactory<T,NDIM>(world).functor(functor);
 
@@ -320,6 +332,13 @@ void test_math(World& world) {
     CHECK(new_err-err,1e-14*err,"err in f after squaring");
     double errsq = fsq.err(*functsq);
     CHECK(errsq, 1e-10, "err in fsq");
+
+    // Test same with autorefine
+    fsq = unary_op(f, myunaryop<T,NDIM>());
+    errsq = (f + fsq).norm2();
+    CHECK(errsq, 1e-10, "err in unaryp_op negate");
+    fsq.clear();
+    f.reconstruct();
 
 //     // Test same with autorefine
 //     f.set_autorefine(true); world.gop.fence();
@@ -412,7 +431,7 @@ void test_math(World& world) {
     default_random_generator.setstate(314159);  // Ensure all processes have the same sequence (for exponents)
 
     FunctionDefaults<NDIM>::set_autorefine(false);
-    
+
     int nfunc = 100;
     if (NDIM >= 3) nfunc = 20;
     for (int i=0; i<nfunc; i++) {
@@ -434,7 +453,7 @@ void test_math(World& world) {
         CHECK(err1,1e-8,"err1");
         CHECK(err2,1e-8,"err2");
         CHECK(err3,1e-8,"err3");
-        
+
 //         double bnorm = b.norm2();
 //         if (world.rank() == 0) print("bnorm", bnorm);
 //         b.norm_tree();
@@ -443,14 +462,14 @@ void test_math(World& world) {
 //         print("----------------------------");
 //         cs.verify_tree();
 //         if (world.rank() == 0) print("cs - c", (cs-c).norm2());
-        
-    }      
+
+    }
 
     if (world.rank() == 0) print("\nTest multiplying a vector of random functions");
     {
         functorT f1(RandomGaussian<T,NDIM>(FunctionDefaults<NDIM>::get_cell(),1000.0));
         Function<T,NDIM> left = FunctionFactory<T,NDIM>(world).functor(f1);
-        
+
         const int nvfunc = 10;
         std::vector< Function<T,NDIM> > vin(nvfunc);
         std::vector<functorT> funcres(nvfunc);
@@ -467,7 +486,7 @@ void test_math(World& world) {
             vres[i].verify_tree();
         }
     }
-        
+
 
 
     if (world.rank() == 0) print("\nTest adding random functions out of place");
@@ -489,7 +508,7 @@ void test_math(World& world) {
         CHECK(err1,1e-8,"err1");
         CHECK(err2,1e-8,"err2");
         CHECK(err3,1e-8,"err3");
-    }      
+    }
 
     if (world.rank() == 0) print("\nTest adding random functions in place");
     for (int i=0; i<10; i++) {
@@ -507,7 +526,7 @@ void test_math(World& world) {
         if (world.rank() == 0) print("  test ",i);
         CHECK(err1,1e-8,"err1");
         CHECK(err2,1e-8,"err2");
-    }      
+    }
 
     //MADNESS_ASSERT(ok);
 
@@ -535,8 +554,8 @@ void test_diff(World& world) {
     FunctionDefaults<NDIM>::set_initial_level(2);
     FunctionDefaults<NDIM>::set_truncate_mode(1);
     FunctionDefaults<NDIM>::set_cubic_cell(-10,10);
-    
-    START_TIMER; 
+
+    START_TIMER;
     Function<T,NDIM> f = FunctionFactory<T,NDIM>(world).functor(functor);
     END_TIMER("project");
 
@@ -570,7 +589,7 @@ void test_diff(World& world) {
 //             }
 //         }
 //         world.gop.fence();
- 
+
         START_TIMER;
         double err = dfdx.err(df);
         END_TIMER("err");
@@ -608,8 +627,8 @@ void test_op(World& world) {
     FunctionDefaults<NDIM>::set_initial_level(2);
     FunctionDefaults<NDIM>::set_truncate_mode(1);
     FunctionDefaults<NDIM>::set_cubic_cell(-10,10);
-    
-    START_TIMER; 
+
+    START_TIMER;
     Function<T,NDIM> f = FunctionFactory<T,NDIM>(world).functor(functor);
     END_TIMER("project");
 
@@ -632,7 +651,7 @@ void test_op(World& world) {
 //     f.compress();
 //     double ecr = (fff-f).norm2();
 //     if (world.rank() == 0) print("error after 10 compress-reconstruct",ecr);
-    
+
 //     fff.reconstruct();
 //     for (int i=0; i<10; i++) {
 //         fff.nonstandard(false,true);
@@ -642,7 +661,7 @@ void test_op(World& world) {
 //     fff.compress();
 //     ecr = (fff-f).norm2();
 //     if (world.rank() == 0) print("error after 10 non-standard compress-reconstruct",ecr);
-    
+
 
     // Convolution exp(-a*x^2) with exp(-b*x^2) is
     // exp(-x^2*a*b/(a+b))* (Pi/(a+b))^(NDIM/2)
@@ -685,11 +704,11 @@ public:
     const double exponent;
     const double coefficient;
 
-    GaussianPotential(const coordT& center, double expnt, double coefficient) 
+    GaussianPotential(const coordT& center, double expnt, double coefficient)
         : center(center)
         , exponent(sqrt(expnt))
         , coefficient(coefficient*pow(PI/exponent,1.5)*pow(expnt,-0.75)) {}
-        
+
     double operator()(const coordT& x) const {
         double sum = 00;
         for (int i=0; i<3; i++) {
@@ -725,8 +744,8 @@ void test_coulomb(World& world) {
     FunctionDefaults<3>::set_initial_level(2);
     FunctionDefaults<3>::set_truncate_mode(0);
     FunctionDefaults<3>::set_cubic_cell(-10,10);
-    
-    START_TIMER; 
+
+    START_TIMER;
     Function<double,3> f = FunctionFactory<double,3>(world).functor(functor).thresh(thresh*0.1).initial_level(4);
     END_TIMER("project");
 
@@ -810,7 +829,7 @@ public:
         return pow(2.0*a/PI,0.25)*sqrt(1.0/denom)*exp(-arg/denom);
     }
 
-    QMtest(double a, double v, double t) 
+    QMtest(double a, double v, double t)
         : a(a), v(v), t(t) {}
 };
 
@@ -822,7 +841,7 @@ void test_qm(World& world) {
       g(x,t) = exp(I*x^2/(2*t))/sqrt((2*Pi*I)*t)
 
       This is a square normalized Gaussian (in 1D) with velocity v.
-      
+
       f(x,a,v) = (2*a/Pi)^(1/4)*exp(-a*x^2+I*x*v)
 
       This is f(x,a,v) evolved to time t
@@ -848,13 +867,13 @@ void test_qm(World& world) {
 
       The critical time step is 2*pi/c^2= 0.0157 and we shall attempt to propagate at
       10x this which is 0.157.
-      
-      The final wave packet is horrible, oscillating thru all space due to the 
+
+      The final wave packet is horrible, oscillating thru all space due to the
       complex phase ... this could be reduced with a contact (?) transformation but
       since the point here is test MADNESS to some extent it is better to make things hard.
 
     */
-    
+
 //     QMtest f(1,1,0.1);
 
 //     for (int i=0; i<10; i++) {
@@ -869,7 +888,7 @@ void test_qm(World& world) {
 
     //int k = 16;
     //double thresh = 1e-12;
-    // k=16, thresh=1e-12, gives 3e-10 forever with tstep=5x! BUT only 
+    // k=16, thresh=1e-12, gives 3e-10 forever with tstep=5x! BUT only
     // if applying also on the leaf nodes (which is not on by default)
 
     int k = 12;
@@ -950,7 +969,7 @@ void test_qm(World& world) {
 //         if (world.rank() == 0) plot << x << " " << numeric.real() << " " << numeric.imag() << " " << abs(numeric) << " " << abs(numeric-exact) << endl;
 //     }
 //     if (world.rank() == 0) plot.close();
-    
+
     return;
 }
 
@@ -1010,7 +1029,7 @@ void test_io(World& world) {
     if (world.rank() == 0) {
         print("\nTest IO - type =", archive::get_type_name<T>(),", ndim =",NDIM,"\n");
     }
- 
+
     typedef Vector<double,NDIM> coordT;
     typedef SharedPtr< FunctionFunctorInterface<T,NDIM> > functorT;
 
@@ -1089,14 +1108,14 @@ int main(int argc, char**argv) {
 #endif
             //         print(" ");
             //         IndexIterator::test();
-        }        
-        
+        }
+
         startup(world,argc,argv);
         if (world.rank() == 0) print("Initial tensor instance count", BaseTensor::get_instance_count());
         PROFILE_BLOCK(testsuite);
-        
+
         cout.precision(8);
-        
+
         test_basic<double,1>(world);
         test_conv<double,1>(world);
         test_math<double,1>(world);

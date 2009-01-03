@@ -1489,6 +1489,55 @@ namespace madness {
             return None;
         }
 
+        template <typename Q, typename opT>
+        struct coeff_value_adaptor {
+            typedef typename opT::resultT resultT;
+            const FunctionImpl<Q,NDIM>* impl_func;
+            opT op;
+
+            coeff_value_adaptor(){};
+            coeff_value_adaptor(const FunctionImpl<Q,NDIM>* impl_func,
+                                const opT& op)
+            : op(op), impl_func(impl_func)
+            {}
+
+            Tensor<resultT> operator()(const Key<NDIM>& key, const Tensor<Q>& t) {
+                Tensor<Q> invalues = impl_func->fcube_for_mul(key, key, t);
+
+                Tensor<resultT> outvalues = op(key, invalues);
+
+                double scale = pow(0.5,0.5*NDIM*key.level())*sqrt(FunctionDefaults<NDIM>::get_cell_volume());
+                return transform(outvalues,impl_func->cdata.quad_phiw).scale(scale);
+            }
+
+            template <typename Archive>
+            void serialize(Archive& ar) {
+                ar & impl_func & op;
+            }
+        };
+
+        // Multiplication using recursive descent and assuming same distribution
+        template <typename Q, typename opT>
+        Void unaryXXa(const keyT& key,
+                    const FunctionImpl<Q,NDIM>* func, const opT& op)
+        {
+
+            const Tensor<Q>& fc = func->coeffs.find(key).get()->second.coeff();
+
+            if (fc.size == 0) {
+              // Recur down
+              coeffs.replace(key, nodeT(tensorT(),true)); // Interior node
+              for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
+                  const keyT& child = kit.key();
+                  task(coeffs.owner(child), &implT:: template unaryXXa<Q,opT>, child, func, op);
+              }
+            }
+            else {
+              coeffs.replace(key, nodeT(op(key, fc),false)); // Leaf node
+            }
+
+            return None;
+        }
 
         template <typename L, typename R>
         void mulXX(const FunctionImpl<L,NDIM>* left, const FunctionImpl<R,NDIM>* right, double tol, bool fence) {
@@ -1505,6 +1554,16 @@ namespace madness {
         {
             if (world.rank() == coeffs.owner(cdata.key0))
                 binaryXXa(cdata.key0, left, Tensor<L>(), right, Tensor<R>(), op, tol);
+            if (fence) world.gop.fence();
+
+            //verify_tree();
+        }
+
+        template <typename Q, typename opT>
+        void unaryXX(const FunctionImpl<Q,NDIM>* func, const opT& op, bool fence)
+        {
+            if (world.rank() == coeffs.owner(cdata.key0))
+                unaryXXa(cdata.key0, func, op);
             if (fence) world.gop.fence();
 
             //verify_tree();
