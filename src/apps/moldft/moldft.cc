@@ -970,7 +970,7 @@ struct Calculation {
 //             print(c);
             print("initial eigenvalues");
             print(e);
-         }
+        }
 
         compress(world,ao);
         START_TIMER;
@@ -1546,10 +1546,10 @@ int main(int argc, char** argv) {
         calc.project(world);
         calc.solve(world);
 
-        calc.set_protocol(world,1e-8);
-        calc.make_nuclear_potential(world);
-        calc.project(world);
-        calc.solve(world);
+//         calc.set_protocol(world,1e-8);
+//         calc.make_nuclear_potential(world);
+//         calc.project(world);
+//         calc.solve(world);
 
     } catch (const MPI::Exception& e) {
         //        print(e);
