@@ -1024,7 +1024,19 @@ namespace madness {
             return r0;
         }
 
+        template <typename Q>
+        Tensor<Q> coeffs2values(const keyT& key, const Tensor<Q>& coeff) const {
+          PROFILE_MEMBER_FUNC(FunctionImpl);
+          double scale = pow(2.0,0.5*NDIM*key.level())/sqrt(FunctionDefaults<NDIM>::get_cell_volume());
+          return transform(coeff,cdata.quad_phit).scale(scale);
+        }
 
+        template <typename Q>
+        Tensor<Q> values2coeffs(const keyT& key, const Tensor<Q>& values) const {
+          PROFILE_MEMBER_FUNC(FunctionImpl);
+          double scale = pow(0.5,0.5*NDIM*key.level())*sqrt(FunctionDefaults<NDIM>::get_cell_volume());
+          return transform(values,cdata.quad_phiw).scale(scale);
+        }
 
         /// Compute the function values for multiplication
 
@@ -1034,8 +1046,7 @@ namespace madness {
         Tensor<Q> fcube_for_mul(const keyT& child, const keyT& parent, const Tensor<Q>& coeff) const {
             PROFILE_MEMBER_FUNC(FunctionImpl);
             if (child.level() == parent.level()) {
-                double scale = pow(2.0,0.5*NDIM*parent.level())/sqrt(FunctionDefaults<NDIM>::get_cell_volume());
-                return transform(coeff,cdata.quad_phit).scale(scale);
+              return coeffs2values(parent, coeff);
             }
             else if (child.level() < parent.level()) {
                 MADNESS_EXCEPTION("FunctionImpl: fcube_for_mul: child-parent relationship bad?",0);
@@ -1498,16 +1509,16 @@ namespace madness {
             coeff_value_adaptor(){};
             coeff_value_adaptor(const FunctionImpl<Q,NDIM>* impl_func,
                                 const opT& op)
-            : op(op), impl_func(impl_func)
+            : impl_func(impl_func), op(op)
             {}
 
-            Tensor<resultT> operator()(const Key<NDIM>& key, const Tensor<Q>& t) {
-                Tensor<Q> invalues = impl_func->fcube_for_mul(key, key, t);
+            Tensor<resultT> operator()(const Key<NDIM>& key, const Tensor<Q>& t) const
+            {
+                Tensor<Q> invalues = impl_func->coeffs2values(key, t);
 
                 Tensor<resultT> outvalues = op(key, invalues);
 
-                double scale = pow(0.5,0.5*NDIM*key.level())*sqrt(FunctionDefaults<NDIM>::get_cell_volume());
-                return transform(outvalues,impl_func->cdata.quad_phiw).scale(scale);
+                return impl_func->values2coeffs(key, outvalues);
             }
 
             template <typename Archive>
@@ -1564,6 +1575,16 @@ namespace madness {
         {
             if (world.rank() == coeffs.owner(cdata.key0))
                 unaryXXa(cdata.key0, func, op);
+            if (fence) world.gop.fence();
+
+            //verify_tree();
+        }
+
+        template <typename Q, typename opT>
+        void unaryXXvalues(const FunctionImpl<Q,NDIM>* func, const opT& op, bool fence)
+        {
+            if (world.rank() == coeffs.owner(cdata.key0))
+                unaryXXa(cdata.key0, func, coeff_value_adaptor<Q,opT>(func,op));
             if (fence) world.gop.fence();
 
             //verify_tree();

@@ -84,6 +84,10 @@ namespace madness {
     Function<typename opT::resultT,D>
     unary_op(const Function<Q,D>& func, const opT& op, bool fence=true);
 
+    template <typename Q, typename opT, int D>
+    Function<typename opT::resultT,D>
+    unary_op_coeffs(const Function<Q,D>& func, const opT& op, bool fence=true);
+
     template <typename L, typename R, int D>
     std::vector< Function<TENSOR_RESULT_TYPE(L,R),D> >
     vmulXX(const Function<L,D>& left, const std::vector< Function<R,D> >& vright, double tol, bool fence=true);
@@ -223,6 +227,11 @@ namespace madness {
         friend
         Function<typename opT::resultT,D>
         unary_op(const Function<Q,D>& func, const opT& op, bool fence=true);
+
+        template <typename Q, typename opT, int D>
+        friend
+        Function<typename opT::resultT,D>
+        unary_op_coeffs(const Function<Q,D>& func, const opT& op, bool fence=true);
 
         friend Function<T,NDIM> square<T,NDIM>(const Function<T,NDIM>&, bool);
 
@@ -1043,6 +1052,20 @@ namespace madness {
             MADNESS_ASSERT(!(func.is_compressed()));
             if (VERIFY_TREE) func.verify_tree();
             impl = SharedPtr<implT>(new implT(*func.impl, func.get_pmap(), false));
+            impl->unaryXXvalues(func.impl.get(), op, fence);
+            return *this;
+        }
+
+        /// This is replaced with left*right ...  private
+        template <typename Q, typename opT>
+        Function<typename opT::resultT,NDIM>& unary_op_coeffs(const Function<Q,NDIM>& func,
+                                    const opT& op, bool fence)
+        {
+            PROFILE_MEMBER_FUNC(Function);
+            func.verify();
+            MADNESS_ASSERT(!(func.is_compressed()));
+            if (VERIFY_TREE) func.verify_tree();
+            impl = SharedPtr<implT>(new implT(*func.impl, func.get_pmap(), false));
             impl->unaryXX(func.impl.get(), op, fence);
             return *this;
         }
@@ -1213,6 +1236,15 @@ public:
       if (func.is_compressed()) func.reconstruct();
       Function<typename opT::resultT, NDIM> result;
       return result.unary_op(func,op,fence);
+    }
+
+    /// Same as \c operator* but with optional fence and no automatic reconstruction
+    template <typename Q, typename opT, int NDIM>
+    Function<typename opT::resultT, NDIM>
+    unary_op_coeffs(const Function<Q,NDIM>& func, const opT& op, bool fence) {
+      if (func.is_compressed()) func.reconstruct();
+      Function<typename opT::resultT, NDIM> result;
+      return result.unary_op_coeffs(func,op,fence);
     }
 
     /// Use the vmra/mul(...) interface instead
