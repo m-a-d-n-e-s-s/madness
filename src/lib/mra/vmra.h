@@ -212,7 +212,7 @@ namespace madness {
                 if (sym) r(j,i) = conj(r(i,j));
             }
         }
-
+        world.taskq.fence();
         world.gop.sum(r.ptr(),n*m);
         world.gop.fence();
         return r;
@@ -234,6 +234,7 @@ namespace madness {
             r(i) = f[i].inner_local(g[i]);
         }
 
+        world.taskq.fence();
         world.gop.sum(r.ptr(),n);
         world.gop.fence();
         return r;
@@ -255,6 +256,7 @@ namespace madness {
             r(i) = f.inner_local(g[i]);
         }
 
+        world.taskq.fence();
         world.gop.sum(r.ptr(),n);
         world.gop.fence();
         return r;

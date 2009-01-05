@@ -177,8 +177,9 @@ public:
     double value() const {return f;}
 };
 
-class BFGS : public OptimizerInterface {
+class QuasiNewton : public OptimizerInterface {
 private:
+    string update;              // One of BFGS or SR1
     SharedPtr<OptimizationTargetInterface> target;
     const double tol;
     const double value_precision;  // Numerical precision of value
@@ -195,7 +196,7 @@ private:
         const char* lsmode = "";
         
         if (dxgrad*a1 > 0.0) {
-            print(" Warning ... line search gradient +ve ", a1, dxgrad);
+            print("    line search gradient +ve ", a1, dxgrad);
             a1 = -a1;
         }
         
@@ -233,17 +234,26 @@ private:
         }
     
         f2p = f0 + dxgrad*a2 + 0.5*hess*a2*a2;
-        printf("step=%.3f value=%.6f grad=%.2e hess=%.2e mode=%s newstep=%.3f predicted=%.6f\n",a1, f1, dxgrad, hess, lsmode, a2, f2p);
+        printf("   line search grad=%.2e hess=%.2e mode=%s newstep=%.3f\n", dxgrad, hess, lsmode, a2);
+        printf("                      predicted %.12f\n", f2p);
 
         return a2;
     }
 
+    void hessian_update_sr1(const Tensor<double>& s, const Tensor<double>& y) {
+        Tensor<double> q = y - inner(h,s);
+        double qds = q.trace(s);
+        if (abs(qds) > 1e-8 * s.normf() * q.normf()) {
+            h += outer(q,q).scale(1.0/qds);
+        }
+        else {
+            printf("   SR1 not updating\n");
+        }
+    }
+          
 
-
-    
     void hessian_update_bfgs(const Tensor<double>& dx, 
-                             const Tensor<double>& g, 
-                             const Tensor<double>& gp)
+                             const Tensor<double>& dg)
     {
         /*
           Apply the BFGS update to the approximate Hessian h[][]. 
@@ -251,14 +261,10 @@ private:
           h[][] = Hessian matrix from previous iteration 
           dx[]  = Step from previous iteration 
           .       (dx[] = x[] - xp[] where xp[] is the previous point) 
-          g[]   = gradient at current point 
-          gp[]  = gradient at previous point 
-          
-          Returns the updated hessian 
+          dg[]  = gradient difference (dg = g - gp)
         */
         
         Tensor<double> hdx  = inner(h,dx);
-        Tensor<double> dg = g - gp;
         
         double dxhdx = dx.trace(hdx);
         double dxdx  = dx.trace(dx);
@@ -273,7 +279,7 @@ private:
             }
         }
         else {
-            printf(" BFGS not updating dxdg (%e), dgdg (%e), dxhdx (%f), dxdx(%e)\n" , dxdg, dgdg, dxhdx, dxdx);
+            printf("   BFGS not updating dxdg (%e), dgdg (%e), dxhdx (%f), dxdx(%e)\n" , dxdg, dgdg, dxhdx, dxdx);
         }
     }
 
@@ -290,14 +296,21 @@ private:
 
         // Take step applying restriction
         for (int i=0; i<n; i++) {
-            if (e[i] < -tol) 
+            if (e[i] < -tol) {
+                printf("   forcing negative eigenvalue to be positive %d %.1e\n", i, e[i]);
                 e[i] = -2.0*e[i]; // Enforce positive search direction
-            else if (e[i] < -tol) 
+            }
+            else if (e[i] < -tol) {
+                printf("   forcing small eigenvalue to be positive %d %.1e\n", i, e[i]);
                 e[i] = tol;
+            }
            
             gv[i] = -gv[i] / e[i];
-            if (abs(gv[i]) > trust) // Step restriction
-                gv[i] = trust/gv[i];
+            if (abs(gv[i]) > trust) { // Step restriction
+                double gvnew = trust*abs(gv(i))/gv[i];
+                printf("   restricting step in spectral direction %d %.1e --> %.1e\n", i, gv[i], gvnew);
+                gv[i] = gvnew;
+            }
         }
         
         // Transform back from spectral basis
@@ -305,38 +318,62 @@ private:
     }
 
 public:
-    BFGS(const SharedPtr<OptimizationTargetInterface>& target,
+    QuasiNewton(const SharedPtr<OptimizationTargetInterface>& target,
          double tol = 1e-6,
          double value_precision = 1e-12,
-         double gradient_precision = 1e-12)
-        : target(target)
+         double gradient_precision = 1e-12) 
+        : update("BFGS")
+        , target(target)
         , tol(tol)
         , value_precision(value_precision)
         , gradient_precision(gradient_precision)
         , gnorm(tol*1e16)
         , n(0)
     {
-        if (!target->provides_gradient()) throw "BFGS requires the gradient";
+        if (!target->provides_gradient()) throw "QuasiNewton requires the gradient";
     }
+
+    void set_update(const string& method) {
+        if (method == "BFGS" || method == "SR1") update=method;
+        else throw "QuasiNewton: unknown update mthod";
+    }
+
+    bool test_gradient(Tensor<double>& x) {
+        const double eps = pow(value_precision,0.3333);
+        printf("\n");
+        printf("Testing gradient eps=%.1e\n----------------\n", eps);
+        printf("  i            f-                 f+               ganalytic           gnumeric         err\n");
+        printf(" ----  ------------------  ------------------  ------------------  ------------------  -------\n");
+        Tensor<double> tt = target->gradient(x);
+        double maxerr = 0.0;
+        for (int i=0; i<n; i++) {
+            x[i] += eps;
+            double fp = target->value(x);
+            x[i] -= 2.0*eps;
+            double fm = target->value(x);
+            x[i] += eps;
+            
+            double gg = 0.5*(fp-fm)/eps;
+            printf("% 5d%20.12e%20.12e%20.12e%20.12e  %.1e\n", i, fm, fp, tt(i), gg, abs(tt(i)-gg));
+            maxerr = max(abs(gg-tt(i)),maxerr);
+        }
+        printf("\n");
+    }
+    
     
     bool optimize(Tensor<double>& x) {
         if (n != x.dim[0]) {
             n = x.dim[0];
+            h = Tensor<double>();
+        }
+
+        test_gradient(x);
+
+        bool h_is_identity = (h.size == 0);
+        if (h_is_identity) {
             h = Tensor<double>(n,n);
             for (int i=0; i<n; i++) h(i,i) = 1.0;
         }
-
-        Tensor<double> tt = target->gradient(x);
-        for (int i=0; i<n; i++) {
-            x[i] += 0.01;
-            double fp = target->value(x);
-            x[i] -= 0.02;
-            double fm = target->value(x);
-            x[i] += 0.01;
-            double gtest = 0.5*(fp-fm)/0.01;
-            print("gtest", i, gtest, tt[i]);
-        }
-
 
         Tensor<double> gp, dx;
         double fp;
@@ -344,12 +381,18 @@ public:
             Tensor<double> g;
             target->value_and_gradient(x, f, g);
             gnorm = g.normf();
-            print("iteration",iter,"value",f,"gradient",gnorm);
-            print(x);
+            printf(" QuasiNewton iteration %2d value %.12f gradient %.2e\n",iter,f,gnorm);
             if (converged()) break;
             
+            if (iter == 1 && h_is_identity) {
+                // Default initial Hessian is scaled identity but
+                // prefer to reuse any existing approximation.
+                h.scale(g.trace(gp)/gp.trace(dx));
+            }
+            
             if (iter > 0) {
-                hessian_update_bfgs(dx, g, gp);
+                if (update == "BFGS") hessian_update_bfgs(dx, g-gp);
+                else hessian_update_sr1(dx, g-gp);
             }
 
             dx = new_search_direction(g);
@@ -362,6 +405,8 @@ public:
             fp = f; 
 
         }
+        print("final hessian");
+        print(h);
         return converged();
     }
 
@@ -428,7 +473,8 @@ int main() {
 
     Tensor<double> x(5);
     x.fillrandom();
-    BFGS solver(SharedPtr<OptimizationTargetInterface>(new Test2));
+    QuasiNewton solver(SharedPtr<OptimizationTargetInterface>(new Test2));
+    solver.set_update("SR1");
     solver.optimize(x);
     return 0;
 

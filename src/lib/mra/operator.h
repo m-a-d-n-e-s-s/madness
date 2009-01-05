@@ -113,18 +113,8 @@ namespace madness {
                 }
             }
 
-            // Assuming here that result is contiguous
-            MADNESS_ASSERT(size == result.size);
-            R* restrict p = result.ptr();
-            for (long i=0; i<size; i++) p[i] += musign*w1[i];
-//             if (musign > 0) {
-//                 //for (long i=0; i<size; i++) p[i] += w1[i];
-//                 aligned_add(size, p, w1);
-//             }
-//             else {
-//                 //for (long i=0; i<size; i++) p[i] -= w1[i];
-//                 aligned_sub(size, p, w1);
-//             }
+            // Assuming here that result is contiguous and aligned
+            aligned_axpy(size, result.ptr(), w1, musign);
         }
 
         /// Apply one of the separated terms, accumulating into the result

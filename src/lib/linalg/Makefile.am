@@ -1,6 +1,6 @@
 include $(top_srcdir)/config/MakeGlobal.am
 
-bin_PROGRAMS = test
+bin_PROGRAMS = test kain
 lib_LIBRARIES = libMADlinalg.a
 
 libMADlinalg_a_SOURCES = lapack.cc cblas.cc \
@@ -9,3 +9,7 @@ libMADlinalg_a_SOURCES = lapack.cc cblas.cc \
 
 test_SOURCES = test.cc
 test_LDADD = libMADlinalg.a $(LIBTENSOR) $(LIBMISC) $(LIBWORLD)
+
+kain_SOURCES = kain.cc
+kain_LDADD = libMADlinalg.a $(LIBTENSOR) $(LIBMISC) $(LIBWORLD)
+
