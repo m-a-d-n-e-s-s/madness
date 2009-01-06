@@ -21,17 +21,17 @@
 namespace madness {
 
     template <class keyT, class valueT, class hashT> class ConcurrentHashMap;
-    
-    template <class keyT, class valueT, class hashfunT> 
+
+    template <class keyT, class valueT, class hashfunT>
     class ConcurrentHashMap;
 
     namespace Hash_private {
 
-        // A hashtable is an array of nbin bins.  
+        // A hashtable is an array of nbin bins.
         // Each bin is a linked list of entries protected by a spinlock.
         // Each entry holds a key+value pair, a read-write mutex, and a link to the next entry.
 
-        template <typename keyT, typename valueT> 
+        template <typename keyT, typename valueT>
         class entry : public madness::MutexReaderWriter {
         public:
             typedef std::pair<const keyT, valueT> datumT;
@@ -39,12 +39,12 @@ namespace madness {
 
             class entry<keyT,valueT> *next;
 
-            entry(const datumT& datum, entry<keyT,valueT>* next) 
-                : datum(datum), next(next) 
+            entry(const datumT& datum, entry<keyT,valueT>* next)
+                : datum(datum), next(next)
             {}
         };
 
-        template <class keyT, class valueT> 
+        template <class keyT, class valueT>
         class bin : private madness::Spinlock {
         private:
             typedef entry<keyT,valueT> entryT;
@@ -54,7 +54,7 @@ namespace madness {
         public:
 
             entryT* volatile p;
-        
+
             bin() : p(0) {}
 
             ~bin() {clear();}
@@ -62,8 +62,8 @@ namespace madness {
             void clear() {
                 lock();             // BEGIN CRITICAL SECTION
                 while (p) {
-                    entryT* n=p->next; 
-                    delete p; 
+                    entryT* n=p->next;
+                    delete p;
                     p=n;
                 }
                 unlock();           // END CRITICAL SECTION
@@ -85,7 +85,7 @@ namespace madness {
                     unlock();           // END CRITICAL SECTION
                     if (!gotlock) waiter.wait();
                 } while (!gotlock);
-                
+
                 return result;
             }
 
@@ -103,7 +103,7 @@ namespace madness {
                     unlock();           // END CRITICAL SECTION
                     if (!gotlock) waiter.wait();
                 } while (!gotlock);
-                
+
                 return std::pair<entryT*,bool>(result,notfound);
             }
 
@@ -145,7 +145,7 @@ namespace madness {
             }
 
         };
-  
+
         template <typename T>
         class defhashT {
         public:
@@ -177,15 +177,15 @@ namespace madness {
             HashIterator() : h(0), bin(-1), entry(0) {}
 
             /// Makes begin/end iterator
-            HashIterator(hashT* h, bool begin) 
-                : h(h), bin(-1), entry(0) 
+            HashIterator(hashT* h, bool begin)
+                : h(h), bin(-1), entry(0)
             {
                 if (begin) next_non_null_entry();
             }
 
             /// Makes iterator to specific entry
-            HashIterator(hashT* h, int bin, entryT* entry) 
-                : h(h), bin(bin), entry(entry) 
+            HashIterator(hashT* h, int bin, entryT* entry)
+                : h(h), bin(bin), entry(entry)
             {}
 
             HashIterator& operator++() {
@@ -200,8 +200,8 @@ namespace madness {
                 ++(*this);
                 return old;
             }
-            
-        
+
+
             bool operator==(const HashIterator& a) const {
                 return entry==a.entry;
             }
@@ -227,7 +227,7 @@ namespace madness {
         private:
             entryT* entry;
             bool gotlock;
-        
+
             /// Used by Hash to set entry (assumed that it has the lock already)
             void set(entryT* entry) {
                 release();
@@ -244,23 +244,23 @@ namespace madness {
             void convert_read_lock_to_write_lock() {
                 if (entry) entry->convert_read_lock_to_write_lock();
             }
-                
+
 
         public:
             HashAccessor() : entry(0), gotlock(false) {}
-        
+
             HashAccessor(entryT* entry) : entry(entry), gotlock(true) {}
-        
+
             datumT& operator*() const {
                 if (!entry) throw "Hash accessor: operator*: no value";
                 return entry->datum;
             }
-        
+
             datumT* operator->() const {
                 if (!entry) throw "Hash accessor: operator->: no value";
                 return &entry->datum;
             }
-        
+
             void release() {
                 if (gotlock) {
                     entry->unlock(lockmode);
@@ -268,13 +268,13 @@ namespace madness {
                     gotlock = false;
                 }
             }
-        
+
             ~HashAccessor(){release();}
         };
 
     } // End of namespace Hash_private
 
-    template < class keyT, class valueT, class hashfunT = Hash_private::defhashT<keyT> > 
+    template < class keyT, class valueT, class hashfunT = Hash_private::defhashT<keyT> >
     class ConcurrentHashMap {
     public:
         typedef ConcurrentHashMap<keyT,valueT,hashfunT> hashT;
@@ -285,7 +285,7 @@ namespace madness {
         typedef Hash_private::HashIterator<const hashT,const entryT,const datumT> const_iterator;
         typedef Hash_private::HashAccessor<hashT,entryT,datumT,entryT::WRITELOCK> accessor;
         typedef Hash_private::HashAccessor<const hashT,const entryT,const datumT,entryT::READLOCK> const_accessor;
-    
+
         friend class Hash_private::HashIterator<hashT,entryT,datumT>;
         friend class Hash_private::HashIterator<const hashT,const entryT,const datumT>;
 
@@ -305,7 +305,7 @@ namespace madness {
             static const int nprimes = sizeof(primes)/sizeof(int);
             // n is a user provided estimate of the no. of elements to be put
             // in the table.  Want to make the number of bins a prime number
-            // larger than this.  
+            // larger than this.
             for (int i=0; i<nprimes; i++) if (n<=primes[i]) return primes[i];
             return primes[nprimes-1];
         }
@@ -313,18 +313,18 @@ namespace madness {
         unsigned int hash_to_bin(const keyT& key) const {return hashfun(key)%nbins;}
 
     public:
-        ConcurrentHashMap(int n=1021) 
+        ConcurrentHashMap(int n=1021)
             : nbins(hashT::nbins_prime(n))
             , bins(new binT[nbins])
             , _end(this,false)
-            , _const_end(this,false) 
+            , _const_end(this,false)
         {}
 
-        ConcurrentHashMap(const  hashT& h) 
+        ConcurrentHashMap(const  hashT& h)
             : nbins(h.nbins)
             , bins(new binT[nbins])
             , _end(this,false)
-            , _const_end(this,false) 
+            , _const_end(this,false)
         {
             *this = h;
         }
@@ -337,8 +337,8 @@ namespace madness {
                 for (const_iterator p=h.begin(); p!=h.end(); ++p) {
                     insert(*p);
                 }
-                return *this;
             }
+            return *this;
         }
 
         std::pair<iterator,bool> insert(const datumT& datum) {
@@ -440,7 +440,7 @@ namespace madness {
         iterator end() {return _end;}
 
         const_iterator end() const {return _const_end;}
-    
+
     };
 }
 
