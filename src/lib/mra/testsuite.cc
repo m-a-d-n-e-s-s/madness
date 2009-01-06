@@ -294,6 +294,24 @@ struct myunaryop
 };
 
 template <typename T, int NDIM>
+struct myunaryop_square
+{
+  typedef T resultT;
+  Tensor<T> operator()(const Key<NDIM>& key, const Tensor<T>& t) const
+  {
+    Tensor<T> result = copy(t);
+    T* r = result.ptr();
+    for (int i = 0; i < result.size; i++)
+    {
+      r[i] = r[i]*r[i];
+    }
+    return result;
+  }
+  template <typename Archive>
+  void serialize(Archive& ar) {}
+};
+
+template <typename T, int NDIM>
 void test_math(World& world) {
     bool ok = true;
     typedef Vector<double,NDIM> coordT;
@@ -337,6 +355,13 @@ void test_math(World& world) {
     fsq = unary_op(f, myunaryop<T,NDIM>());
     errsq = (f + fsq).norm2();
     CHECK(errsq, 1e-10, "err in unaryp_op negate");
+    fsq.clear();
+    f.reconstruct();
+
+    // Test same with autorefine
+    fsq = unary_op(f, myunaryop_square<T,NDIM>());
+    errsq = (fsq - square(f)).norm2();
+    CHECK(errsq, 1e-10, "err in unaryp_op square");
     fsq.clear();
     f.reconstruct();
 
