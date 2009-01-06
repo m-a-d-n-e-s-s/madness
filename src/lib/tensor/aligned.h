@@ -9,7 +9,7 @@ namespace madness {
     void aligned_zero(long n, T* a) {
         long n4 = (n>>2)<<2;
         long rem = n-n4;
-        for (long i=0; i<n4; i+=4,a+=4) { 
+        for (long i=0; i<n4; i+=4,a+=4) {
             a[0] = 0;
             a[1] = 0;
             a[2] = 0;
@@ -22,7 +22,7 @@ namespace madness {
     void aligned_axpy(long n, T* restrict a, const T* restrict b, T s) {
         long n4 = (n>>2)<<2;
         long rem = n-n4;
-        for (long i=0; i<n4; i+=4,a+=4,b+=4) { 
+        for (long i=0; i<n4; i+=4,a+=4,b+=4) {
             a[0] += s*b[0];
             a[1] += s*b[1];
             a[2] += s*b[2];
@@ -34,14 +34,14 @@ namespace madness {
 
 
 #if (defined(X86_32) || defined(X86_64))
-  template <> 
+  template <>
   void aligned_zero<double>(long n, double* a);
-  
-  template <> 
-  void aligned_zero<double_complex>(long n, double_complex* a);
 
   template <>
-  void aligned_axpy(long n, double* restrict a, const double* restrict b, double s);
+  void aligned_zero<double_complex>(long n, double_complex* a);
+
+//  template <>
+//  void aligned_axpy(long n, double* restrict a, const double* restrict b, double s);
 #endif
 
   void aligned_add(long n, double* restrict a, const double* restrict b);
