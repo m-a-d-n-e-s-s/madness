@@ -190,6 +190,26 @@ static void he_ldaop(const Key<3>& key, Tensor<double>& t) {
 }
 //***************************************************************************
 
+//***************************************************************************
+template <typename T, int NDIM>
+struct myunaryop_square
+{
+  typedef T resultT;
+  Tensor<T> operator()(const Key<NDIM>& key, const Tensor<T>& t) const
+  {
+    Tensor<T> result = copy(t);
+    T* r = result.ptr();
+    for (int i = 0; i < result.size; i++)
+    {
+      r[i] = r[i]*r[i];
+      //printf("%10.7e%15.7e\n", t[i], result[i]);
+    }
+    return result;
+  }
+  template <typename Archive>
+  void serialize(Archive& ar) {}
+};
+//***************************************************************************
 
 //*****************************************************************************
 void test_hf_he(World& world)
@@ -249,7 +269,8 @@ void test_hf_he(World& world)
     FunctionFactory<double,3>(world).functor(functorT(new HeElectronicChargeDensityIGuess<double,3>(origin)));
   psi.scale(1.0/psi.norm2());
 
-  Function<double,3> prod = binary_op(vnuc, psi, &::multiply_op);
+  //Function<double,3> prod = binary_op(vnuc, psi, &::multiply_op);
+  Function<double,3> prod = unary_op(psi, myunaryop_square<double,3>());
   if (world.rank() == 0)  printf("\n");
    double L = 2.0 * bsize;
    double bstep = L / 100.0;
@@ -258,7 +279,7 @@ void test_hf_he(World& world)
    {
      coordT p(-L / 2 + i * bstep);
      if (world.rank() == 0)
-       printf("%.2f\t\t%.8f\t%.8f\n", p[0], vnuc(p)*psi(p), prod(p));
+       printf("%.2f\t\t%.8f\t%.8f\t%.8f\n", p[0], psi(p), psi(p)*psi(p), prod(p));
    }
    if (world.rank() == 0) printf("\n");
 

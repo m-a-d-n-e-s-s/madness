@@ -15,6 +15,40 @@ void mulop(const Key<3>& key, Tensor<double> tcube,
   TERNARY_OPTIMIZED_ITERATOR(double, tcube, double, lcube, double, rcube, *_p0 = *_p1 * *_p2;);
 }
 
+//***************************************************************************
+template <typename Q, int NDIM>
+struct complex_func_abs
+{
+  typedef Q resultT;
+  Tensor<Q> operator()(const Key<NDIM>& key, const Tensor< std::complex<Q> >& t) const
+  {
+    Tensor<Q> result(t.ndim, t.dim);
+    BINARY_OPTIMIZED_ITERATOR(std::complex<Q>, t, Q, result, *_p1 = abs(*_p0););
+    return result;
+  }
+  template <typename Archive>
+  void serialize(Archive& ar) {}
+};
+//***************************************************************************
+
+//***************************************************************************
+template <typename Q, int NDIM>
+struct complex_func_abs_square
+{
+  typedef Q resultT;
+  Tensor<Q> operator()(const Key<NDIM>& key, const Tensor< std::complex<Q> >& t) const
+  {
+    Tensor<Q> result(t.ndim, t.dim);
+    BINARY_OPTIMIZED_ITERATOR(std::complex<Q>, t, Q, result, double d = abs(*_p0); *_p1 = d*d);
+    return result;
+  }
+  template <typename Archive>
+  void serialize(Archive& ar) {}
+};
+//***************************************************************************
+
+
+
 namespace madness
 {
   //***************************************************************************
