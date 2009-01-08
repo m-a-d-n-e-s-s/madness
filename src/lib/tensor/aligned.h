@@ -18,8 +18,8 @@ namespace madness {
         for (long i=0; i<rem; i++) *a++ = 0;
     }
 
-    template <typename T>
-    void aligned_axpy(long n, T* restrict a, const T* restrict b, T s) {
+    template <typename T, typename Q>
+    void aligned_axpy(long n, T* restrict a, const T* restrict b, Q s) {
         long n4 = (n>>2)<<2;
         long rem = n-n4;
         for (long i=0; i<n4; i+=4,a+=4,b+=4) {
