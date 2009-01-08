@@ -113,7 +113,7 @@ namespace madness
   public:
     //*************************************************************************
     // Constructor
-    Solver(World& world, funcT vnucrhon, std::vector<funcT> phisa,
+    Solver(World& world, real_funcT vnucrhon, std::vector<funcT> phisa,
       std::vector<funcT> phisb, std::vector<T> eigsa, std::vector<T> eigsb,
       ElectronicStructureParams params)
        : _world(world), _vnucrhon(vnucrhon), _phisa(phisa), _phisb(phisb),
@@ -144,7 +144,7 @@ namespace madness
 
       //*************************************************************************
       // Constructor
-      Solver(World& world, funcT vnucrhon, std::vector<funcT> phis,
+      Solver(World& world, real_funcT vnucrhon, std::vector<funcT> phis,
           std::vector<T> eigs, ElectronicStructureParams params)
          : _world(world), _vnucrhon(vnucrhon), _phisa(phis), _phisb(phis),
          _eigsa(eigs), _eigsb(eigs), _params(params)

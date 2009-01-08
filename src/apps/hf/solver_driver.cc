@@ -40,7 +40,7 @@ int main(int argc, char** argv)
         std::complex<double> alpha(1.0, 0.0);
         for (unsigned int i = 0; i < phis_real.size(); i++)
         {
-          phis.push_back(alpha * phis[i]);
+          phis.push_back(alpha * phis_real[i]);
         }
         std::vector<double> eigs;
         Tensor<double> tmpe = app.eigs();
