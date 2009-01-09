@@ -90,6 +90,10 @@ namespace madness
     //*************************************************************************
 
     //*************************************************************************
+    std::vector<kvecT> _kpoints;
+    //*************************************************************************
+
+    //*************************************************************************
     real_funcT _rhoa;
     //*************************************************************************
 
@@ -142,35 +146,65 @@ namespace madness
     }
     //*************************************************************************
 
-      //*************************************************************************
-      // Constructor
-      Solver(World& world, real_funcT vnucrhon, std::vector<funcT> phis,
-          std::vector<T> eigs, ElectronicStructureParams params)
-         : _world(world), _vnucrhon(vnucrhon), _phisa(phis), _phisb(phis),
-         _eigsa(eigs), _eigsb(eigs), _params(params)
+    //*************************************************************************
+    // Constructor
+    Solver(World& world, real_funcT vnucrhon, std::vector<funcT> phis,
+        std::vector<T> eigs, ElectronicStructureParams params)
+       : _world(world), _vnucrhon(vnucrhon), _phisa(phis), _phisb(phis),
+       _eigsa(eigs), _eigsb(eigs), _params(params)
+    {
+      if (params.periodic)
       {
-        if (params.periodic)
-        {
-          Tensor<double> box = FunctionDefaults<NDIM>::get_cell_width();
-          _cop = PeriodicCoulombOpPtr<T,NDIM>(const_cast<World&>(world),
-              FunctionDefaults<NDIM>::get_k(), params.lo, params.thresh * 0.1, box);
-        }
-        else
-        {
-          _cop = CoulombOperatorPtr<T,NDIM>(const_cast<World&>(world),
-              FunctionDefaults<NDIM>::get_k(), params.lo, params.thresh * 0.1);
-        }
-
-        if (params.ispotential)
-        {
-          _vnuc = copy(_vnucrhon);
-        }
-        else
-        {
-          _vnuc = apply(*_cop, _vnucrhon);
-        }
+        Tensor<double> box = FunctionDefaults<NDIM>::get_cell_width();
+        _cop = PeriodicCoulombOpPtr<T,NDIM>(const_cast<World&>(world),
+            FunctionDefaults<NDIM>::get_k(), params.lo, params.thresh * 0.1, box);
       }
-      //*************************************************************************
+      else
+      {
+        _cop = CoulombOperatorPtr<T,NDIM>(const_cast<World&>(world),
+            FunctionDefaults<NDIM>::get_k(), params.lo, params.thresh * 0.1);
+      }
+
+      if (params.ispotential)
+      {
+        _vnuc = copy(_vnucrhon);
+      }
+      else
+      {
+        _vnuc = apply(*_cop, _vnucrhon);
+      }
+    }
+    //*************************************************************************
+
+    //*************************************************************************
+    // Constructor
+    Solver(World& world, real_funcT vnucrhon, std::vector<funcT> phis,
+        std::vector<T> eigs, std::vector<kvecT> kpoints, ElectronicStructureParams params)
+       : _world(world), _vnucrhon(vnucrhon), _phisa(phis), _phisb(phis),
+       _eigsa(eigs), _eigsb(eigs), _params(params), _kpoints(kpoints)
+    {
+      if (params.periodic)
+      {
+        Tensor<double> box = FunctionDefaults<NDIM>::get_cell_width();
+        _cop = PeriodicCoulombOpPtr<T,NDIM>(const_cast<World&>(world),
+            FunctionDefaults<NDIM>::get_k(), params.lo, params.thresh * 0.1, box);
+      }
+      else
+      {
+        _cop = CoulombOperatorPtr<T,NDIM>(const_cast<World&>(world),
+            FunctionDefaults<NDIM>::get_k(), params.lo, params.thresh * 0.1);
+      }
+
+      if (params.ispotential)
+      {
+        _vnuc = copy(_vnucrhon);
+      }
+      else
+      {
+        _vnuc = apply(*_cop, _vnucrhon);
+      }
+    }
+    //*************************************************************************
 
     //***************************************************************************
     real_funcT compute_rho(std::vector<funcT> phis)

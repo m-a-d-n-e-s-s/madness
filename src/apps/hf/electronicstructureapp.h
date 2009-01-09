@@ -14,6 +14,7 @@
 #include "poperator.h"
 #include "libxc.h"
 
+typedef double valueT;
 typedef SharedPtr< WorldDCPmapInterface< Key<3> > > pmapT;
 typedef Vector<double,3> coordT;
 typedef SharedPtr< FunctionFunctorInterface<double,3> > functorT;
@@ -336,18 +337,18 @@ public:
     functionT rho = factoryT(_world).functor(functorT(
         new GuessDensity(_mentity, _aobasis)));
 
-    {
-      rho.reconstruct();
-      if (_world.rank() == 0)  printf("\n");
-      double L = _params.L;
-      double bstep = L / 100.0;
-      for (int i = 0; i < 101; i++)
-      {
-        coordT p(-L / 2 + i * bstep);
-        if (_world.rank() == 0)
-          printf("%.2f\t\t%.8f\n", p[0], rho(p));
-      }
-    }
+//    {
+//      rho.reconstruct();
+//      if (_world.rank() == 0)  printf("\n");
+//      double L = _params.L;
+//      double bstep = L / 100.0;
+//      for (int i = 0; i < 101; i++)
+//      {
+//        coordT p(-L / 2 + i * bstep);
+//        if (_world.rank() == 0)
+//          printf("%.2f\t\t%.8f\n", p[0], rho(p));
+//      }
+//    }
 
     functionT vlocal;
     if (_params.nelec > 1)
@@ -376,21 +377,21 @@ public:
       vlocal = _vnuc;
     }
 
-    {
-      //functionT Vxc = make_lda_potential(_world, rho, rho, functionT(), functionT());
-      if (_world.rank() == 0)  printf("\n");
-      double L = _params.L;
-      double bstep = L / 100.0;
-      rho.reconstruct();
-      _vnuc.reconstruct();
-      for (int i = 0; i < 101; i++)
-      {
-        coordT p(-L / 2 + i * bstep);
-        if (_world.rank() == 0)
-          printf("%.2f\t\t%.8f\t%.8f\n", p[0], rho(p), _vnuc(p));
-      }
-      if (_world.rank() == 0) printf("\n");
-    }
+//    {
+//      //functionT Vxc = make_lda_potential(_world, rho, rho, functionT(), functionT());
+//      if (_world.rank() == 0)  printf("\n");
+//      double L = _params.L;
+//      double bstep = L / 100.0;
+//      rho.reconstruct();
+//      _vnuc.reconstruct();
+//      for (int i = 0; i < 101; i++)
+//      {
+//        coordT p(-L / 2 + i * bstep);
+//        if (_world.rank() == 0)
+//          printf("%.2f\t\t%.8f\t%.8f\n", p[0], rho(p), _vnuc(p));
+//      }
+//      if (_world.rank() == 0) printf("\n");
+//    }
 
     rho.clear();
     vlocal.reconstruct();
