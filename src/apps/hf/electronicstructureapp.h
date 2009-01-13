@@ -88,14 +88,38 @@ public:
 
 class AtomicBasisFunctor : public FunctionFunctorInterface<double,3> {
 private:
-    const AtomicBasisFunction aofunc;
+  const AtomicBasisFunction aofunc;
+  const double R;
+  const bool periodic;
 public:
-    AtomicBasisFunctor(const AtomicBasisFunction& aofunc) : aofunc(aofunc)
-    {}
+  AtomicBasisFunctor(const AtomicBasisFunction& aofunc, double R, bool periodic) : aofunc(aofunc),
+    R(R), periodic(periodic)
+  {}
 
-    double operator()(const coordT& x) const {
-        return aofunc(x[0], x[1], x[2]);
+  double operator()(const coordT& x) const
+  {
+    double value = 0.0;
+    if (periodic)
+    {
+      for (int xr = -R; xr <= R; xr += R)
+      {
+        for (int yr = -R; yr <= R; yr += R)
+        {
+          for (int zr = -R; zr <= R; zr += R)
+          {
+            value += aofunc(x[0]+xr, x[1]+yr, x[2]+zr);
+//            double diff = fabs(aofunc(x[0], x[1], x[2])-aofunc(x[0]+xr, x[1]+yr, x[2]+zr));
+//            if (diff > 1e-3) printf("%10.8e%16.8e%16.8e\n", diff, aofunc(x[0], x[1], x[2]), aofunc(x[0]+xr, x[1]+yr, x[2]+zr));
+          }
+        }
+      }
     }
+    else
+    {
+      value = aofunc(x[0], x[1], x[2]);
+    }
+    return value;
+  }
 };
 
 /// A MADNESS functor to compute either x, y, or z
@@ -278,7 +302,8 @@ public:
 
       Level initial_level = 3;
       for (int i=0; i < _aobasis.nbf(_mentity); i++) {
-          functorT aofunc(new AtomicBasisFunctor(_aobasis.get_atomic_basis_function(_mentity,i)));
+          functorT aofunc(new AtomicBasisFunctor(_aobasis.get_atomic_basis_function(_mentity,i),
+              _params.L, _params.periodic));
 //             if (world.rank() == 0) {
 //                 aobasis.get_atomic_basis_function(molecule,i).print_me(cout);
 //             }
@@ -297,8 +322,9 @@ public:
           for (int i=0; i<_aobasis.nbf(_mentity); i++) {
               if (norms[i] < 0.99) {
                   nredone++;
-                  //if (world.rank() == 0) print("re-projecting ao basis function", i,"at level",initial_level);
-                  functorT aofunc(new AtomicBasisFunctor(_aobasis.get_atomic_basis_function(_mentity,i)));
+                  if (world.rank() == 0) print("re-projecting ao basis function", i,"at level",initial_level);
+                  functorT aofunc(new AtomicBasisFunctor(_aobasis.get_atomic_basis_function(_mentity,i),
+                      _params.L, _params.periodic));
                   ao[i] = factoryT(world).functor(aofunc).initial_level(6).truncate_on_project().nofence();
               }
           }
@@ -306,6 +332,14 @@ public:
           if (nredone == 0) break;
       }
 
+      norms = norm2(world, ao);
+
+      for (int i=0; i<_aobasis.nbf(_mentity); i++) {
+          if (world.rank() == 0 && fabs(norms[i]-1.0)>1e-3) print(i," bad ao norm?", norms[i]);
+          norms[i] = 1.0/norms[i];
+      }
+
+      if (world.rank() == 0) printf("\n");
       for (int i=0; i<_aobasis.nbf(_mentity); i++) {
           if (world.rank() == 0 && fabs(norms[i]-1.0)>1e-3) print(i," bad ao norm?", norms[i]);
           norms[i] = 1.0/norms[i];
@@ -398,72 +432,71 @@ public:
 
     if (_world.rank() == 0) print("Projecting atomic orbitals ...\n\n");
     vecfuncT ao = project_ao_basis(_world);
-    if (_world.rank() == 0) print("Building overlap matrix ...\n\n");
-    tensorT overlap = matrix_inner(_world, ao, ao, true);
-    if (_world.rank() == 0) print("Building kinetic energy matrix ...\n\n");
-    tensorT kinetic = kinetic_energy_matrix(_world, ao);
+//    if (_params.periodic)
+//    {
+//
+//    }
+//    else
+//    {
+      if (_world.rank() == 0) print("Building overlap matrix ...\n\n");
+      tensorT overlap = matrix_inner(_world, ao, ao, true);
+      if (_world.rank() == 0) print("Building kinetic energy matrix ...\n\n");
+      tensorT kinetic = kinetic_energy_matrix(_world, ao);
 
-    reconstruct(_world, ao);
-    //      vecfuncT vpsi = mul(world, vlocal, ao);
-    if (_world.rank() == 0) print("Building potential energy matrix ...\n\n");
-    vecfuncT vpsi = mul_sparse(_world, vlocal, ao, _params.thresh);
-    _world.gop.fence();
-    _world.gop.fence();
-    compress(_world, vpsi);
-    truncate(_world, vpsi);
-    compress(_world, ao);
+      reconstruct(_world, ao);
+      //      vecfuncT vpsi = mul(world, vlocal, ao);
+      if (_world.rank() == 0) print("Building potential energy matrix ...\n\n");
+      vecfuncT vpsi = mul_sparse(_world, vlocal, ao, _params.thresh);
+      _world.gop.fence();
+      _world.gop.fence();
+      compress(_world, vpsi);
+      truncate(_world, vpsi);
+      compress(_world, ao);
 
-    tensorT potential = matrix_inner(_world, vpsi, ao, true);
-    _world.gop.fence();
-    vpsi.clear();
-    _world.gop.fence();
+      tensorT potential = matrix_inner(_world, vpsi, ao, true);
+      _world.gop.fence();
+      vpsi.clear();
+      _world.gop.fence();
 
-    if (_world.rank() == 0) print("Constructing Fock matrix ...\n\n");
-    tensorT fock = kinetic + potential;
-    fock = 0.5 * (fock + transpose(fock));
+      if (_world.rank() == 0) print("Constructing Fock matrix ...\n\n");
+      tensorT fock = kinetic + potential;
+      fock = 0.5 * (fock + transpose(fock));
 
-    for (int fi = 0; fi < fock.dim[0]; fi++)
-    {
-      for (int fj = 0; fj < fock.dim[1]; fj++)
+      for (int fi = 0; fi < fock.dim[0]; fi++)
       {
-        printf("%10.5f", fock(fi,fj));
+        for (int fj = 0; fj < fock.dim[1]; fj++)
+        {
+          printf("%10.5f", fock(fi,fj));
+        }
+        printf("\n");
       }
-      printf("\n");
-    }
 
-    tensorT c, e;
-    if (_world.rank() == 0) print("Diagonlizing Fock matrix ...\n\n");
-    sygv(fock, overlap, 1, &c, &e);
+      tensorT c, e;
+      if (_world.rank() == 0) print("Diagonlizing Fock matrix ...\n\n");
+      sygv(fock, overlap, 1, &c, &e);
 
-    if (_world.rank() == 0)
-    {
-      //             print("THIS iS THE OVERLAP MATRIX");
-      //             print(overlap);
-      //             print("THIS iS THE KINETIC MATRIX");
-      //             print(kinetic);
-      //             print("THIS iS THE POTENTIAL MATRIX");
-      //             print(potential);
-      //             print("THESE ARE THE EIGENVECTORS");
-      //             print(c);
-      print("initial eigenvalues");
-      print(e);
-    }
+      if (_world.rank() == 0)
+      {
+        print("initial eigenvalues");
+        print(e);
+      }
 
-    compress(_world, ao);
-    _world.gop.fence();
-    _orbitals = transform(_world, ao, c(_, Slice(0, _params.nbands - 1)));
-    _world.gop.fence();
-    truncate(_world, _orbitals);
-    normalize(_world, _orbitals);
-    if (_world.rank() == 0)
-      print("Analysis of initial alpha MO vectors");
-    //      analyze_vectors(world, amo);
+      compress(_world, ao);
+      _world.gop.fence();
+      _orbitals = transform(_world, ao, c(_, Slice(0, _params.nbands - 1)));
+      _world.gop.fence();
+      truncate(_world, _orbitals);
+      normalize(_world, _orbitals);
+      if (_world.rank() == 0)
+        print("Analysis of initial alpha MO vectors");
+      //      analyze_vectors(world, amo);
 
-    _eigs = e(Slice(0, _params.nbands - 1));
+      _eigs = e(Slice(0, _params.nbands - 1));
 
-    _occs = tensorT(_params.nbands);
-    for (int i = 0; i < _params.nbands; i++)
-      _occs[i] = _params.maxocc;
+      _occs = tensorT(_params.nbands);
+      for (int i = 0; i < _params.nbands; i++)
+        _occs[i] = _params.maxocc;
+//    }
   }
 
   vecfuncT orbitals()

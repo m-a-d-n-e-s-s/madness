@@ -48,7 +48,7 @@ int main(int argc, char** argv)
         for (int i = 0; i < neps; i++)
           eigs.push_back(tmpe[i]);
 
-        Solver<double,std::complex<double>,3> dftcalc(world, vnucrhon, phis, eigs, params);
+        Solver<double,double,3> dftcalc(world, vnucrhon, phis_real, eigs, params);
         dftcalc.solve();
         world.gop.fence();
 

@@ -2,8 +2,8 @@ dft
   nelec 4
   nempty 0
   L 30.0
-  ispotential true
-  periodic false
+  ispotential false
+  periodic true
   spinpol false
   maxits 50
 end
