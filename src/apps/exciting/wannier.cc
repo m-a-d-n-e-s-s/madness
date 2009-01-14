@@ -49,7 +49,8 @@ public:
           vkl[1] = 1.0 * j2 / _nk[1];
           vkl[2] = 1.0 * j3 / _nk[2];
           //get value of u_{nk}(r)
-          wann_unk_(&_n, vkl, vr, val0);
+          int tmp = _n;
+          wann_unk_(&tmp, vkl, vr, val0);
           val[0] += val0[0];
           val[1] += val0[1];
         }
@@ -74,8 +75,21 @@ void test_wannier(World& world)
     readinput_();
     wann_init1_();
 
+    // Function defaults
+    int funck = 5;
+    double thresh = 1e-3;
+    double bsize = 4.0;
+    FunctionDefaults<3>::set_k(funck);
+    FunctionDefaults<3>::set_thresh(thresh);
+    FunctionDefaults<3>::set_cubic_cell(-bsize, bsize);
+
     functorT functor(new Wannier<double,3>(n, center, nk));
     functionT w = factoryT(world).functor(functor);
+
+    // Plot to OpenDX
+    vector<long> npt(3,101);
+    plotdx(w, "wannier.dx", FunctionDefaults<3>::get_cell(), npt);
+
 }
 
 #define TO_STRING(s) TO_STRING2(s)
