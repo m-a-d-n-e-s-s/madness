@@ -38,7 +38,9 @@ double func(int n, const Vector<int,3>& nk, double xx, double yy, double zz)
         vkl[1] = 1.0 * j2 / nk[1];
         vkl[2] = 1.0 * j3 / nk[2];
         //get value of u_{nk}(r)
-        wann_unk_(&n, vkl, vr, val0);
+//        printf("%10.2f%10.2f%10.2f%15.7d\n", vr[0], vr[1], vr[2], n);
+//        printf("%10.2f%10.2f%10.2f%15.7d\n", xx, yy, zz, n);
+        wann_unk_(&n, &vkl[0], &vr[0], &val0[0]);
         val[0] += val0[0];
         val[1] += val0[1];
       }
@@ -89,10 +91,11 @@ void test_wannier(World& world)
     FunctionDefaults<3>::set_cubic_cell(-bsize, bsize);
 
     functorT functor(new Wannier<double,3>(n, center, nk));
-    functionT w = factoryT(world).functor(functor);
+//    functionT w = factoryT(world).functor(functor);
+    functionT w = factoryT(world).functor(functorT(new Wannier<double,3>(n, center, nk)));
 
     {
-      w.reconstruct();
+//      w.reconstruct();
       if (world.rank() == 0)  printf("\n");
       double L = bsize / 2;
       double bstep = L / 100.0;
@@ -100,15 +103,72 @@ void test_wannier(World& world)
       {
         coordT p(-L / 2 + i * bstep);
         double fval = func(n, nk, p[0], p[1], p[2]);
-        double fdiff = w(p) - fval;
-        if (world.rank() == 0)
-          printf("%10.2f%15.8f%15.8f%15.8f\n", p[0], w(p), fval, fdiff);
+//        double fdiff = w(p) - fval;
+//        if (world.rank() == 0)
+//          printf("%10.2f%15.8f%15.8f%15.8f\n", p[0], w(p), fval, fdiff);
+//          printf("%10.2f%15.8f\n", p[0], fval);
       }
     }
 
     // Plot to OpenDX
     vector<long> npt(3,101);
-    plotdx(w, "wannier.dx", FunctionDefaults<3>::get_cell(), npt);
+//    plotdx(w, "wannier.dx", FunctionDefaults<3>::get_cell(), npt);
+
+}
+
+void test_wannier2(World& world)
+{
+    //k-mesh division
+    Vector<int,3> nk(4);
+    //cener point of the box
+    Vector<double,3> center(0.0);
+    //index of Wannier function
+    int n=3;
+
+    readinput_();
+    wann_init1_();
+
+    // Function defaults
+    int funck = 6;
+    double thresh = 1e-4;
+    double bsize = 6.0;
+    FunctionDefaults<3>::set_k(funck);
+    FunctionDefaults<3>::set_thresh(thresh);
+    FunctionDefaults<3>::set_cubic_cell(-bsize, bsize);
+
+    functorT functor(new Wannier<double,3>(n, center, nk));
+    functionT w = factoryT(world).functor(functor);
+//    functionT w = factoryT(world).functor(functorT(new Wannier<double,3>(n, center, nk)));
+
+    {
+      w.reconstruct();
+      if (world.rank() == 0)  printf("\n");
+      double L = bsize / 2;
+      int npts = 5;
+
+      for (int i = 0; i < npts; i++)
+      {
+        for (int j = 0; j < npts; j++)
+        {
+          for (int k = 0; k < npts; k++)
+          {
+            double x = (i+0.5) * (2.0*bsize/npts) - bsize;
+            double y = (j+0.5) * (2.0*bsize/npts) - bsize;
+            double z = (k+0.5) * (2.0*bsize/npts) - bsize;
+            coordT p(0.0);
+            p[0] = x; p[1] = y; p[2] = z;
+            double fval = func(n, nk, p[0], p[1], p[2]);
+            double fdiff = w(p) - fval;
+            if (world.rank() == 0)
+              printf("%10.2f%10.2f%10.2f%15.8f%15.8f%15.8f\n", x, y, z, w(p), fval, fdiff);
+          }
+        }
+      }
+    }
+
+    // Plot to OpenDX
+    vector<long> npt(3,101);
+    plotdx(w, "wannier3.dx", FunctionDefaults<3>::get_cell(), npt);
 
 }
 
@@ -162,7 +222,7 @@ int main(int argc, char** argv)
 
     startup(world,argc,argv);
     if (world.rank() == 0) print("Initial tensor instance count", BaseTensor::get_instance_count());
-    test_wannier(world);
+    test_wannier2(world);
   }
   catch (const MPI::Exception& e)
   {
