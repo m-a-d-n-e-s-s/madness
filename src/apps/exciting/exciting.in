@@ -26,9 +26,22 @@ ngridk
 
 nosym
  .true.
+
 maxscl
   1
 
+lmaxapw
+  10
+
+lmaxvr
+  10
+
+fracinr
+  0.0 
+
+lmaxinr
+  10 
+ 
 wannier
  .true.   ! turn on Wannier functions generation
    2 1    ! number of atoms, number of spins

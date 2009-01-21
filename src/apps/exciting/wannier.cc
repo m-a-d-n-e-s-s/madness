@@ -123,22 +123,22 @@ void test_wannier2(World& world)
     //cener point of the box
     Vector<double,3> center(0.0);
     //index of Wannier function
-    int n=3;
+    int n=2;
 
     readinput_();
     wann_init1_();
 
     // Function defaults
-    int funck = 6;
-    double thresh = 1e-4;
+    int funck = 5;
+    double thresh = 1e-3;
     double bsize = 6.0;
     FunctionDefaults<3>::set_k(funck);
     FunctionDefaults<3>::set_thresh(thresh);
     FunctionDefaults<3>::set_cubic_cell(-bsize, bsize);
 
-    functorT functor(new Wannier<double,3>(n, center, nk));
-    functionT w = factoryT(world).functor(functor);
-//    functionT w = factoryT(world).functor(functorT(new Wannier<double,3>(n, center, nk)));
+//    functorT functor(new Wannier<double,3>(n, center, nk));
+//    functionT w = factoryT(world).functor(functor);
+    functionT w = factoryT(world).functor(functorT(new Wannier<double,3>(n, center, nk)));
 
     {
       w.reconstruct();
@@ -168,8 +168,33 @@ void test_wannier2(World& world)
 
     // Plot to OpenDX
     vector<long> npt(3,101);
-    plotdx(w, "wannier3.dx", FunctionDefaults<3>::get_cell(), npt);
+    plotdx(w, "wannier2.dx", FunctionDefaults<3>::get_cell(), npt);
 
+}
+
+void test_wannier3(World& world)
+{
+    //k-mesh division
+    Vector<int,3> nk(4);
+    //cener point of the box
+    Vector<double,3> center(0.0);
+    //index of Wannier function
+    int n=3;
+
+    readinput_();
+    wann_init1_();
+
+    if (world.rank() == 0)  printf("\n");
+    double bsize = 6.0;
+    int npts = 30000;
+
+    for (int k = 0; k < npts; k++)
+    {
+      double z = (k+0.5) * (2.0*bsize/npts) - bsize;
+      double fval = func(n, nk, 0.0, 0.0, z);
+      if (world.rank() == 0)
+        printf("%20.12f%20.12f\n", z, fval);
+    }
 }
 
 #define TO_STRING(s) TO_STRING2(s)
@@ -222,7 +247,7 @@ int main(int argc, char** argv)
 
     startup(world,argc,argv);
     if (world.rank() == 0) print("Initial tensor instance count", BaseTensor::get_instance_count());
-    test_wannier2(world);
+    test_wannier3(world);
   }
   catch (const MPI::Exception& e)
   {
