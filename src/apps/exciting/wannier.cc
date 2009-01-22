@@ -70,53 +70,7 @@ public:
   }
 };
 
-//void test_wannier(World& world)
-//{
-//    //k-mesh division
-//    Vector<int,3> nk(4);
-//    //cener point of the box
-//    Vector<double,3> center(0.0);
-//    //index of Wannier function
-//    int n=3;
-//
-//    readinput_();
-//    wann_init1_();
-//
-//    // Function defaults
-//    int funck = 5;
-//    double thresh = 1e-3;
-//    double bsize = 4.0;
-//    FunctionDefaults<3>::set_k(funck);
-//    FunctionDefaults<3>::set_thresh(thresh);
-//    FunctionDefaults<3>::set_cubic_cell(-bsize, bsize);
-//
-//    functorT functor(new Wannier<double,3>(n, center, nk));
-////    functionT w = factoryT(world).functor(functor);
-//    functionT w = factoryT(world).functor(functorT(new Wannier<double,3>(n, center, nk)));
-//
-//    {
-////      w.reconstruct();
-//      if (world.rank() == 0)  printf("\n");
-//      double L = bsize / 2;
-//      double bstep = L / 100.0;
-//      for (int i = 0; i < 101; i++)
-//      {
-//        coordT p(-L / 2 + i * bstep);
-//        double fval = func(n, nk, p[0], p[1], p[2]);
-////        double fdiff = w(p) - fval;
-////        if (world.rank() == 0)
-////          printf("%10.2f%15.8f%15.8f%15.8f\n", p[0], w(p), fval, fdiff);
-////          printf("%10.2f%15.8f\n", p[0], fval);
-//      }
-//    }
-//
-//    // Plot to OpenDX
-//    vector<long> npt(3,101);
-////    plotdx(w, "wannier.dx", FunctionDefaults<3>::get_cell(), npt);
-//
-//}
-
-void test_wannier2(World& world)
+void test_wannier(World& world)
 {
     //k-mesh division
     Vector<int,3> nk(4);
@@ -174,30 +128,70 @@ void test_wannier2(World& world)
 
 }
 
-//void test_wannier3(World& world)
-//{
-//    //k-mesh division
-//    Vector<int,3> nk(4);
-//    //cener point of the box
-//    Vector<double,3> center(0.0);
-//    //index of Wannier function
-//    int n=3;
-//
-//    readinput_();
-//    wann_init1_();
-//
-//    if (world.rank() == 0)  printf("\n");
-//    double bsize = 6.0;
-//    int npts = 30000;
-//
-//    for (int k = 0; k < npts; k++)
-//    {
-//      double z = (k+0.5) * (2.0*bsize/npts) - bsize;
-//      double fval = func(n, nk, 0.0, 0.0, z);
-//      if (world.rank() == 0)
-//        printf("%20.12f%20.12f\n", z, fval);
-//    }
-//}
+void test_wannier3(World& world)
+{
+    //k-mesh division
+    Vector<int,3> nk(4);
+    //cener point of the box
+    Vector<double,3> center(0.0);
+
+    readinput_();
+    wann_init1_();
+
+    // Function defaults
+    int funck = 6;
+    double thresh = 1e-4;
+    double bsize = 6.0;
+    FunctionDefaults<3>::set_k(funck);
+    FunctionDefaults<3>::set_thresh(thresh);
+    FunctionDefaults<3>::set_cubic_cell(-bsize, bsize);
+
+    std::vector<functionT> w = zero_functions<std::complex<double>,3>(world,5);
+
+    for (int n = 1; n <= 5; n++)
+    {
+      w[n-1] = factoryT(world).functor(functorT(new Wannier<std::complex<double>,3>(n, center, nk)));
+      double wnorm = w[n-1].norm2();
+      if (world.rank() == 0)
+        printf("Normalization of wannier function #%d is: %14.8f\n", n, wnorm);
+    }
+    if (world.rank() == 0) printf("\n\n");
+
+    for (int i = 1; i <= 5; i++)
+    {
+      for (int j = 1; j < i; j++)
+      {
+        double tmp = real(inner(w[i],w[j]));
+        if (world.rank() == 0)
+          printf("Inner product (%d,%d) = %15.8f\n", i, j, tmp);
+      }
+    }
+}
+
+void test_wannier2(World& world)
+{
+    //k-mesh division
+    Vector<int,3> nk(4);
+    //cener point of the box
+    Vector<double,3> center(0.0);
+    //index of Wannier function
+    int n=3;
+
+    readinput_();
+    wann_init1_();
+
+    if (world.rank() == 0)  printf("\n");
+    double bsize = 6.0;
+    int npts = 30000;
+
+    for (int k = 0; k < npts; k++)
+    {
+      double z = (k+0.5) * (2.0*bsize/npts) - bsize;
+      double fval = abs(func(n, nk, 0.0, 0.0, z));
+      if (world.rank() == 0)
+        printf("%20.12f%20.12f\n", z, fval);
+    }
+}
 
 #define TO_STRING(s) TO_STRING2(s)
 #define TO_STRING2(s) #s
@@ -249,7 +243,7 @@ int main(int argc, char** argv)
 
     startup(world,argc,argv);
     if (world.rank() == 0) print("Initial tensor instance count", BaseTensor::get_instance_count());
-    test_wannier2(world);
+    test_wannier3(world);
   }
   catch (const MPI::Exception& e)
   {
