@@ -320,7 +320,7 @@ public:
           if (initial_level >= 11) throw "project_ao_basis: projection failed?";
           int nredone = 0;
           for (int i=0; i<_aobasis.nbf(_mentity); i++) {
-              if (norms[i] < 0.99) {
+              if (norms[i] < 0.5) {
                   nredone++;
                   if (world.rank() == 0) print("re-projecting ao basis function", i,"at level",initial_level);
                   functorT aofunc(new AtomicBasisFunctor(_aobasis.get_atomic_basis_function(_mentity,i),
@@ -339,12 +339,6 @@ public:
           norms[i] = 1.0/norms[i];
       }
 
-      if (world.rank() == 0) printf("\n");
-      for (int i=0; i<_aobasis.nbf(_mentity); i++) {
-          if (world.rank() == 0 && fabs(norms[i]-1.0)>1e-3) print(i," bad ao norm?", norms[i]);
-          norms[i] = 1.0/norms[i];
-      }
-
       scale(world, ao, norms);
 
       return ao;
@@ -354,10 +348,12 @@ public:
       reconstruct(world, v);
       int n = v.size();
       tensorT r(n,n);
-      for (int axis=0; axis<3; axis++) {
-          vecfuncT dv = diff(world,v,axis);
-          r += matrix_inner(world, dv, dv, true);
-          dv.clear(); world.gop.fence(); // Allow function memory to be freed
+      for (int axis=0; axis<3; axis++)
+      {
+//        vecfuncT dv = wst_diff(world,v,axis,_params.periodic);
+        vecfuncT dv = diff(world,v,axis);
+        r += matrix_inner(world, dv, dv, true);
+        dv.clear(); world.gop.fence(); // Allow function memory to be freed
       }
 
       return r.scale(0.5);

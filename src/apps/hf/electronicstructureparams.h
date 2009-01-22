@@ -2,12 +2,69 @@
 #define ELECTRONICSTRUCTUREPARAMS_H_
 
 #include <mra/mra.h>
+#include <mra/vmra.h>
 #include <misc/ran.h>
 #include <misc/misc.h>
 #include "mentity.h"
 #include "molecularbasis.h"
 
 namespace madness {
+
+//*****************************************************************************
+template <typename Q, int NDIM>
+Function<Q,NDIM> wst_diff(const Function<Q,NDIM>& f, int axis, bool periodic, bool fence=true)
+{
+  // Check for periodic boundary conditions
+  Tensor<int> oldbc = FunctionDefaults<NDIM>::get_bc();
+  if (periodic)
+  {
+    Tensor<int> bc(NDIM,2);
+    bc(___) = 1;
+    FunctionDefaults<NDIM>::set_bc(bc);
+  }
+  else
+  {
+    Tensor<int> bc(NDIM,2);
+    bc(___) = 0;
+    FunctionDefaults<NDIM>::set_bc(bc);
+  }
+  // Do calculation
+  Function<Q,NDIM> result = diff(f,axis,fence);
+
+  // Restore previous boundary conditions
+  FunctionDefaults<NDIM>::set_bc(oldbc);
+  return result;
+};
+//*****************************************************************************
+
+//*****************************************************************************
+template <typename Q, int NDIM>
+std::vector< Function<Q,NDIM> > wst_diff(const World& world,
+    const std::vector< Function<Q,NDIM> >& v, int axis, bool periodic,
+    bool fence=true)
+{
+  // Check for periodic boundary conditions
+  Tensor<int> oldbc = FunctionDefaults<NDIM>::get_bc();
+  if (periodic)
+  {
+    Tensor<int> bc(NDIM,2);
+    bc(___) = 1;
+    FunctionDefaults<NDIM>::set_bc(bc);
+  }
+  else
+  {
+    Tensor<int> bc(NDIM,2);
+    bc(___) = 0;
+    FunctionDefaults<NDIM>::set_bc(bc);
+  }
+  // Do calculation
+  std::vector< Function<Q,NDIM> > results = diff(world,v,axis);
+
+  // Restore previous boundary conditions
+  FunctionDefaults<NDIM>::set_bc(oldbc);
+  return results;
+};
+//*****************************************************************************
 
 struct ElectronicStructureParams
 {
