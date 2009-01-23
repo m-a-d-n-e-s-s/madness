@@ -91,6 +91,7 @@ void test_wannier(World& world)
     FunctionDefaults<3>::set_cubic_cell(-bsize, bsize);
 
     functionT w = factoryT(world).functor(functorT(new Wannier<std::complex<double>,3>(n, center, nk)));
+//    functionT w = factoryT(world);
 
     {
       w.reconstruct();
