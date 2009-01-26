@@ -1,6 +1,9 @@
+#define WORLD_INSTANTIATE_STATIC_TEMPLATES
+
 #include <mra/mra.h>
 #include <iostream>
 #include <cmath>
+#include <complex>
 
 extern "C" void readinput_();
 extern "C" void wann_init1_();
@@ -8,10 +11,45 @@ extern "C" void wann_unk_(int* n,double* vpl,double* vrc,double* val);
 
 using namespace madness;
 
-typedef SharedPtr< FunctionFunctorInterface< std::complex<double> ,3> > functorT;
-typedef FunctionFactory<std::complex<double>,3> factoryT;
-typedef Function<std::complex<double>,3> functionT;
+typedef SharedPtr< FunctionFunctorInterface< std::complex<double> ,3> > cfunctorT;
+typedef FunctionFactory<std::complex<double>,3> cfactoryT;
+typedef Function<std::complex<double>,3> cfunctionT;
+typedef SharedPtr< FunctionFunctorInterface<double,3> > functorT;
+typedef FunctionFactory<double,3> factoryT;
+typedef Function<double,3> functionT;
 typedef Vector<double,3> coordT;
+
+//***************************************************************************
+double abs(double x) {return x;}
+//***************************************************************************
+
+//***************************************************************************
+double real(double x) {return x;}
+//***************************************************************************
+
+//***************************************************************************
+template <typename Q, int NDIM>
+struct abs_square_op
+{
+  typedef typename TensorTypeData<Q>::scalar_type resultT;
+  Tensor<resultT> operator()(const Key<NDIM>& key, const Tensor<Q>& t) const
+  {
+    Tensor<resultT> result(t.ndim, t.dim);
+    BINARY_OPTIMIZED_ITERATOR(Q, t, resultT, result, resultT d = abs(*_p0); *_p1 = d*d);
+    return result;
+  }
+  template <typename Archive>
+  void serialize(Archive& ar) {}
+};
+//***************************************************************************
+
+//***************************************************************************
+template<typename Q, int NDIM>
+Function<typename TensorTypeData<Q>::scalar_type,NDIM> abs_square(const Function<Q,NDIM>& func)
+{
+  return unary_op(func, abs_square_op<Q,NDIM>());
+}
+//***************************************************************************
 
 std::complex<double> func(int n, const Vector<int,3>& nk, double xx, double yy, double zz)
 {
@@ -90,8 +128,8 @@ void test_wannier(World& world)
     FunctionDefaults<3>::set_thresh(thresh);
     FunctionDefaults<3>::set_cubic_cell(-bsize, bsize);
 
-    functionT w = factoryT(world).functor(functorT(new Wannier<std::complex<double>,3>(n, center, nk)));
-//    functionT w = factoryT(world);
+    cfunctionT w = cfactoryT(world).functor(cfunctorT(new Wannier<std::complex<double>,3>(n, center, nk)));
+//    cfunctionT w = cfactoryT(world);
 
     {
       w.reconstruct();
@@ -147,11 +185,11 @@ void test_wannier3(World& world)
     FunctionDefaults<3>::set_thresh(thresh);
     FunctionDefaults<3>::set_cubic_cell(-bsize, bsize);
 
-    std::vector<functionT> w = zero_functions<std::complex<double>,3>(world,5);
+    std::vector<cfunctionT> w = zero_functions<std::complex<double>,3>(world,5);
 
     for (int n = 1; n <= 5; n++)
     {
-      w[n-1] = factoryT(world).functor(functorT(new Wannier<std::complex<double>,3>(n, center, nk)));
+      w[n-1] = cfactoryT(world).functor(cfunctorT(new Wannier<std::complex<double>,3>(n, center, nk)));
       double wnorm = w[n-1].norm2();
       if (world.rank() == 0)
         printf("Normalization of wannier function #%d is: %14.8f\n", n, wnorm);
@@ -167,6 +205,44 @@ void test_wannier3(World& world)
           printf("Inner product (%d,%d) = %15.8f\n", i, j, tmp);
       }
     }
+}
+
+void test_wannier4(World& world)
+{
+    //k-mesh division
+    Vector<int,3> nk(4);
+    //cener point of the box
+    Vector<double,3> center(0.0);
+
+    readinput_();
+    wann_init1_();
+
+    // Function defaults
+    int funck = 6;
+    double thresh = 1e-4;
+    double bsize = 6.0;
+    FunctionDefaults<3>::set_k(funck);
+    FunctionDefaults<3>::set_thresh(thresh);
+    FunctionDefaults<3>::set_cubic_cell(-bsize, bsize);
+
+    SeparatedConvolution<double,3> cop = CoulombOperator<double,3>(world,
+        FunctionDefaults<3>::get_k(), 1e-8, thresh * 0.1);
+
+    for (int n = 1; n <= 5; n++)
+    {
+      cfunctionT w = cfactoryT(world).functor(cfunctorT(new Wannier<std::complex<double>,3>(n, center, nk)));
+//      double wnorm = w.norm2();
+//      if (world.rank() == 0)
+//        printf("Normalization of wannier function #%d is: %14.8f\n", n, wnorm);
+      functionT tmp = abs_square(w);
+      tmp.truncate();
+      functionT tmp2 = apply(cop,tmp);
+      tmp2.truncate();
+      double U = inner(tmp,tmp2);
+      if (world.rank() == 0) printf("U(%d,%d) = %.8f\n", n, n, U);
+    }
+    if (world.rank() == 0) printf("\n\n");
+
 }
 
 void test_wannier2(World& world)
@@ -244,7 +320,7 @@ int main(int argc, char** argv)
 
     startup(world,argc,argv);
     if (world.rank() == 0) print("Initial tensor instance count", BaseTensor::get_instance_count());
-    test_wannier3(world);
+    test_wannier4(world);
   }
   catch (const MPI::Exception& e)
   {
