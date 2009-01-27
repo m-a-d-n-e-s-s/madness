@@ -303,7 +303,7 @@ public:
       Level initial_level = 3;
       for (int i=0; i < _aobasis.nbf(_mentity); i++) {
           functorT aofunc(new AtomicBasisFunctor(_aobasis.get_atomic_basis_function(_mentity,i),
-              _params.L, _params.periodic));
+              _params.L, false));
 //             if (world.rank() == 0) {
 //                 aobasis.get_atomic_basis_function(molecule,i).print_me(cout);
 //             }
@@ -324,7 +324,7 @@ public:
                   nredone++;
                   if (world.rank() == 0) print("re-projecting ao basis function", i,"at level",initial_level);
                   functorT aofunc(new AtomicBasisFunctor(_aobasis.get_atomic_basis_function(_mentity,i),
-                      _params.L, _params.periodic));
+                      _params.L, false));
                   ao[i] = factoryT(world).functor(aofunc).initial_level(6).truncate_on_project().nofence();
               }
           }
@@ -428,12 +428,12 @@ public:
 
     if (_world.rank() == 0) print("Projecting atomic orbitals ...\n\n");
     vecfuncT ao = project_ao_basis(_world);
-//    if (_params.periodic)
-//    {
-//
-//    }
-//    else
-//    {
+    if (_params.periodic)
+    {
+
+    }
+    else
+    {
       if (_world.rank() == 0) print("Building overlap matrix ...\n\n");
       tensorT overlap = matrix_inner(_world, ao, ao, true);
       if (_world.rank() == 0) print("Building kinetic energy matrix ...\n\n");
@@ -492,7 +492,7 @@ public:
       _occs = tensorT(_params.nbands);
       for (int i = 0; i < _params.nbands; i++)
         _occs[i] = _params.maxocc;
-//    }
+    }
   }
 
   vecfuncT orbitals()
@@ -530,6 +530,7 @@ private:
   vecfuncT _orbitals;
   tensorT _eigs;
   tensorT _occs;
+  std::vector<coordT> _kpoints;
 };
 
 #endif /* ELECTRONICSTRUCTUREAPP_H_ */

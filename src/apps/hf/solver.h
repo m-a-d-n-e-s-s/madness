@@ -50,9 +50,9 @@ namespace madness
   class Solver
   {
     // Typedef's
-    typedef Function<T,NDIM> real_funcT;
-    typedef FunctionFactory<T,NDIM> real_factoryT;
-    typedef Function<valueT,NDIM> funcT;
+    typedef Function<T,NDIM> rfuntionT;
+    typedef FunctionFactory<T,NDIM> rfactoryT;
+    typedef Function<valueT,NDIM> functionT;
     typedef FunctionFactory<valueT,NDIM> factoryT;
     typedef Vector<double,NDIM> kvecT;
     typedef SeparatedConvolution<T,3> operatorT;
@@ -66,15 +66,15 @@ namespace madness
     // This variable could either be a nuclear potiential or a nuclear charge
     // density depending on the "ispotential" variable in the
     // ElectronicStructureParams class.
-    real_funcT _vnucrhon;
+    rfuntionT _vnucrhon;
     //*************************************************************************
 
     //*************************************************************************
-    std::vector<funcT> _phisa;
+    std::vector<functionT> _phisa;
     //*************************************************************************
 
     //*************************************************************************
-    std::vector<funcT> _phisb;
+    std::vector<functionT> _phisb;
     //*************************************************************************
 
     //*************************************************************************
@@ -94,19 +94,19 @@ namespace madness
     //*************************************************************************
 
     //*************************************************************************
-    real_funcT _rhoa;
+    rfuntionT _rhoa;
     //*************************************************************************
 
     //*************************************************************************
-    real_funcT _rhob;
+    rfuntionT _rhob;
     //*************************************************************************
 
     //*************************************************************************
-    real_funcT _rho;
+    rfuntionT _rho;
     //*************************************************************************
 
     //*************************************************************************
-    real_funcT _vnuc;
+    rfuntionT _vnuc;
     //*************************************************************************
 
     //*************************************************************************
@@ -117,8 +117,8 @@ namespace madness
   public:
     //*************************************************************************
     // Constructor
-    Solver(World& world, real_funcT vnucrhon, std::vector<funcT> phisa,
-      std::vector<funcT> phisb, std::vector<T> eigsa, std::vector<T> eigsb,
+    Solver(World& world, rfuntionT vnucrhon, std::vector<functionT> phisa,
+      std::vector<functionT> phisb, std::vector<T> eigsa, std::vector<T> eigsb,
       ElectronicStructureParams params)
        : _world(world), _vnucrhon(vnucrhon), _phisa(phisa), _phisb(phisb),
        _eigsa(eigsa), _eigsb(eigsb), _params(params)
@@ -148,7 +148,7 @@ namespace madness
 
     //*************************************************************************
     // Constructor
-    Solver(World& world, real_funcT vnucrhon, std::vector<funcT> phis,
+    Solver(World& world, rfuntionT vnucrhon, std::vector<functionT> phis,
         std::vector<T> eigs, ElectronicStructureParams params)
        : _world(world), _vnucrhon(vnucrhon), _phisa(phis), _phisb(phis),
        _eigsa(eigs), _eigsb(eigs), _params(params)
@@ -178,7 +178,7 @@ namespace madness
 
     //*************************************************************************
     // Constructor
-    Solver(World& world, real_funcT vnucrhon, std::vector<funcT> phis,
+    Solver(World& world, rfuntionT vnucrhon, std::vector<functionT> phis,
         std::vector<T> eigs, std::vector<kvecT> kpoints, ElectronicStructureParams params)
        : _world(world), _vnucrhon(vnucrhon), _phisa(phis), _phisb(phis),
        _eigsa(eigs), _eigsb(eigs), _params(params), _kpoints(kpoints)
@@ -207,20 +207,20 @@ namespace madness
     //*************************************************************************
 
     //***************************************************************************
-    real_funcT compute_rho(std::vector<funcT> phis)
+    rfuntionT compute_rho(std::vector<functionT> phis)
     {
       // Square op
 
       // Electron density
-      real_funcT rho = real_factoryT(_world);
+      rfuntionT rho = rfactoryT(_world);
       // Loop over all wavefunctions to compute density
       for (unsigned int j = 0; j < phis.size(); j++)
       {
         // Get phi(j) from iterator
-        const funcT& phij = phis[j];
+        const functionT& phij = phis[j];
         // Compute the j-th density
-        //funcT prod = square(phij);
-        real_funcT prod = abs_square(phij);
+        //functionT prod = square(phij);
+        rfuntionT prod = abs_square(phij);
         //rho += occs[j]*prod;
         rho += prod;
       }
@@ -267,7 +267,7 @@ namespace madness
         {
           for (int axis = 0; axis < 3; axis++)
           {
-            funcT dpsi = diff(_phisa[i], axis);
+            functionT dpsi = diff(_phisa[i], axis);
             ke += 0.5 * real(inner(dpsi, dpsi));
           }
         }
@@ -277,7 +277,7 @@ namespace madness
           {
             for (int axis = 0; axis < 3; axis++)
             {
-              funcT dpsi = diff(_phisb[i], axis);
+              functionT dpsi = diff(_phisb[i], axis);
               ke += 0.5 * real(inner(dpsi, dpsi));
             }
           }
@@ -292,14 +292,14 @@ namespace madness
     //*************************************************************************
 
     //*************************************************************************
-    void apply_potential(std::vector<funcT>& pfuncsa,
-        std::vector<funcT>& pfuncsb, const std::vector<funcT>& phisa,
-        const std::vector<funcT>& phisb, const real_funcT& rhoa, const real_funcT& rhob,
-        const real_funcT& rho)
+    void apply_potential(std::vector<functionT>& pfuncsa,
+        std::vector<functionT>& pfuncsb, const std::vector<functionT>& phisa,
+        const std::vector<functionT>& phisb, const rfuntionT& rhoa, const rfuntionT& rhob,
+        const rfuntionT& rho)
     {
       // Nuclear and coulomb potentials
-      real_funcT vc = apply(*_cop, rho);
-      real_funcT vlocal = _vnuc + vc;
+      rfuntionT vc = apply(*_cop, rho);
+      rfuntionT vlocal = _vnuc + vc;
       // Calculate energies for Coulomb and nuclear
       double ce = 0.5*inner(vc,rho);
       double pe = inner(_vnuc,rho);
@@ -312,24 +312,24 @@ namespace madness
         if (_params.spinpol)
         {
           // potential
-          real_funcT vxca = binary_op(rhoa, rhob, &::libxc_ldaop_sp);
-          real_funcT vxcb = binary_op(rhob, rhoa, &::libxc_ldaop_sp);
+          rfuntionT vxca = binary_op(rhoa, rhob, &::libxc_ldaop_sp);
+          rfuntionT vxcb = binary_op(rhob, rhoa, &::libxc_ldaop_sp);
           pfuncsa = mul_sparse(_world, vlocal + vxca, phisa, _params.thresh * 0.1);
           pfuncsb = mul_sparse(_world, vlocal + vxcb, phisb, _params.thresh * 0.1);
           // energy
-          real_funcT fca = binary_op(rhoa, rhob, &::libxc_ldaeop_sp);
-          real_funcT fcb = binary_op(rhob, rhoa, &::libxc_ldaeop_sp);
+          rfuntionT fca = binary_op(rhoa, rhob, &::libxc_ldaeop_sp);
+          rfuntionT fcb = binary_op(rhob, rhoa, &::libxc_ldaeop_sp);
           xc = fca.trace() + fcb.trace();
         }
         else
         {
           // potential
-          real_funcT vxc = copy(rhoa);
+          rfuntionT vxc = copy(rhoa);
           vxc.unaryop(&::libxc_ldaop);
-          real_funcT vxc2 = binary_op(rhoa, rhoa, &::libxc_ldaop_sp);
+          rfuntionT vxc2 = binary_op(rhoa, rhoa, &::libxc_ldaop_sp);
           pfuncsa = mul_sparse(_world, vlocal + vxc2, phisa, _params.thresh * 0.1);
           // energy
-          real_funcT fc = copy(rhoa);
+          rfuntionT fc = copy(rhoa);
           fc.unaryop(&::ldaeop);
           xc = fc.trace();
         }
@@ -358,7 +358,7 @@ namespace madness
         _rhob = (_params.spinpol) ? compute_rho(_phisb) : _rhoa;
         _rho = _rhoa + _rhob;
 
-        vector<funcT> pfuncsa(_phisa.size()), pfuncsb(_phisb.size());
+        vector<functionT> pfuncsa(_phisa.size()), pfuncsb(_phisb.size());
         for (unsigned int pi = 0; pi < _phisa.size(); pi++)
           pfuncsa[pi] = factoryT(_world);
         for (unsigned int pi = 0; pi < _phisb.size(); pi++)
@@ -374,7 +374,7 @@ namespace madness
         scale(_world, pfuncsa, sfactor);
 
         // Apply Green's function to orbitals
-        vector<funcT> tmpa = apply(_world, bopsa, pfuncsa);
+        vector<functionT> tmpa = apply(_world, bopsa, pfuncsa);
 
 //        {
 //          if (_world.rank() == 0) printf("\n");
@@ -411,7 +411,7 @@ namespace madness
         {
           std::vector<poperatorT> bopsb = make_bsh_operators(_eigsb);
           scale(_world, pfuncsb, sfactor);
-          vector<funcT> tmpb = apply(_world, bopsb, pfuncsb);
+          vector<functionT> tmpb = apply(_world, bopsb, pfuncsb);
           gram_schmidt(tmpb, _phisb);
           // Update orbitals
           truncate(_world, tmpb);
@@ -449,7 +449,7 @@ namespace madness
     //*************************************************************************
 
     //*************************************************************************
-    void gram_schmidt(std::vector<funcT>& a, const std::vector<funcT>& b)
+    void gram_schmidt(std::vector<functionT>& a, const std::vector<functionT>& b)
     {
       // Do Gram-Schmidt
       if (_world.rank() == 0) printf("Gram-Schmidt ...\n\n");
@@ -466,15 +466,15 @@ namespace madness
     //*************************************************************************
 
     //*************************************************************************
-    void update_eigenvalues(const std::vector<funcT>& tmp,
-        const std::vector<funcT>& pfuncs, const std::vector<funcT>& phis,
+    void update_eigenvalues(const std::vector<functionT>& tmp,
+        const std::vector<functionT>& pfuncs, const std::vector<functionT>& phis,
         std::vector<T>& eigs)
     {
       // Update e
       if (_world.rank() == 0) printf("Updating e ...\n\n");
       for (unsigned int ei = 0; ei < eigs.size(); ei++)
       {
-        funcT r = tmp[ei] - phis[ei];
+        functionT r = tmp[ei] - phis[ei];
         double tnorm = tmp[ei].norm2();
         // Compute correction to the eigenvalues
         T ecorrection = -0.5*real(inner(pfuncs[ei], r)) / (tnorm*tnorm);
@@ -513,7 +513,7 @@ namespace madness
 //    //*************************************************************************
 //
 //    //*************************************************************************
-//    funcT get_phi(int indx)
+//    functionT get_phi(int indx)
 //    {
 //      return _solver->get_phi(indx);
 //    }
@@ -527,7 +527,7 @@ namespace madness
 //    //*************************************************************************
 //
 //    //*************************************************************************
-//    const std::vector<funcT>& phis()
+//    const std::vector<functionT>& phis()
 //    {
 //      return _solver->phis();
 //    }
