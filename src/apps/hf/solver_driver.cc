@@ -35,22 +35,22 @@ int main(int argc, char** argv)
         app.initial_guess();
         ElectronicStructureParams params = app.params();
         Function<double,3> vnucrhon = app.vnucrhon();
-        std::vector<Function<double,3> > phis_real = app.orbitals();
-        std::vector< Function< std::complex<double>,3> > phis;
-        std::complex<double> alpha(1.0, 0.0);
-        for (unsigned int i = 0; i < phis_real.size(); i++)
-        {
-          phis.push_back(alpha * phis_real[i]);
-        }
+        vecfuncT phis = app.orbitals();
+//        std::vector< Function< std::complex<double>,3> > phis;
+//        std::complex<double> alpha(1.0, 0.0);
+//        for (unsigned int i = 0; i < phis_real.size(); i++)
+//        {
+//          phis.push_back(alpha * phis_real[i]);
+//        }
         std::vector<double> eigs;
         Tensor<double> tmpe = app.eigs();
         int neps = params.nelec / 2;
         for (int i = 0; i < neps; i++)
           eigs.push_back(tmpe[i]);
-
-        Solver<double,double,3> dftcalc(world, vnucrhon, phis_real, eigs, params);
-        dftcalc.solve();
-        world.gop.fence();
+//
+        Solver<double,std::complex<double>,3> dftcalc(world, vnucrhon, phis, eigs, params);
+//        dftcalc.solve();
+//        world.gop.fence();
 
     } catch (const MPI::Exception& e) {
         //        print(e);

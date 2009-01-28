@@ -13,20 +13,24 @@
 #include "electronicstructureparams.h"
 #include "poperator.h"
 #include "libxc.h"
+#include "complexfun.h"
 
 struct KOrbital;
 
-typedef double valueT;
 typedef SharedPtr< WorldDCPmapInterface< Key<3> > > pmapT;
 typedef Vector<double,3> coordT;
-typedef SharedPtr< FunctionFunctorInterface<valueT,3> > functorT;
-typedef Function<valueT,3> functionT;
-typedef Function<valueT,3> rfunctionT;
+typedef SharedPtr< FunctionFunctorInterface<std::complex<double>,3> > functorT;
+typedef SharedPtr< FunctionFunctorInterface<double,3> > rfunctorT;
+typedef Function<std::complex<double>,3> functionT;
+typedef Function<double,3> rfunctionT;
 typedef vector<functionT> vecfuncT;
+typedef vector<rfunctionT> rvecfuncT;
 typedef vector<KOrbital> kvecfuncT;
-typedef Tensor<valueT> tensorT;
-typedef FunctionFactory<valueT,3> factoryT;
-typedef SeparatedConvolution<valueT,3> operatorT;
+typedef Tensor< std::complex<double> > tensorT;
+typedef Tensor<double> rtensorT;
+typedef FunctionFactory<std::complex<double>,3> factoryT;
+typedef FunctionFactory<double,3> rfactoryT;
+typedef SeparatedConvolution<double,3> operatorT;
 typedef SharedPtr<operatorT> poperatorT;
 
 class LevelPmap : public WorldDCPmapInterface< Key<3> > {
@@ -75,21 +79,6 @@ public:
     }
 };
 
-class MolecularGuessDensityFunctor : public FunctionFunctorInterface<double,3> {
-private:
-    const MolecularEntity& _mentity;
-    const AtomicBasisSet& _aobasis;
-public:
-    MolecularGuessDensityFunctor(const MolecularEntity& mentity, const AtomicBasisSet& aobasis)
-        : _mentity(mentity), _aobasis(aobasis)
-    {}
-
-    double operator()(const coordT& x) const {
-        return _aobasis.eval_guess_density(_mentity, x[0], x[1], x[2]);
-    }
-};
-
-
 class AtomicBasisFunctor : public FunctionFunctorInterface<double,3> {
 private:
   const AtomicBasisFunction aofunc;
@@ -136,74 +125,8 @@ struct KOrbital
    : k(k), weight(weight), orbital(orbital) {}
 };
 
-/// A MADNESS functor to compute either x, y, or z
-class DipoleFunctor : public FunctionFunctorInterface<double,3> {
-private:
-    const int axis;
-public:
-    DipoleFunctor(int axis) : axis(axis) {}
-    double operator()(const coordT& x) const {
-        return x[axis];
-    }
-};
-
 double rsquared(const coordT& r) {
     return r[0]*r[0] + r[1]*r[1] + r[2]*r[2];
-}
-
-/// A MADNESS functor to compute the cartesian moment x^i * y^j * z^k (i, j, k integer and >= 0)
-class MomentFunctor : public FunctionFunctorInterface<double,3> {
-private:
-    const int i, j, k;
-public:
-    MomentFunctor(int i, int j, int k) : i(i), j(j), k(k) {}
-    double operator()(const coordT& r) const {
-        double xi=1.0, yj=1.0, zk=1.0;
-        for (int p=0; p<i; p++) xi *= r[0];
-        for (int p=0; p<j; p++) yj *= r[1];
-        for (int p=0; p<k; p++) zk *= r[2];
-        return xi*yj*zk;
-    }
-};
-
-tensorT sqrt(const tensorT& s, double tol=1e-8) {
-    int n=s.dim[0], m=s.dim[1];
-    MADNESS_ASSERT(n==m);
-    tensorT c, e;
-    //s.gaxpy(0.5,transpose(s),0.5); // Ensure exact symmetry
-    syev(s, &c, &e);
-    for (int i=0; i<n; i++) {
-        if (e(i) < -tol) {
-            MADNESS_EXCEPTION("Matrix square root: negative eigenvalue",i);
-        }
-        else if (e(i) < tol) { // Ugh ..
-            print("Matrix square root: Warning: small eigenvalue ", i, e(i));
-            e(i) = tol;
-        }
-        e(i) = 1.0/sqrt(e(i));
-    }
-    for (int j=0; j<n; j++) {
-        for (int i=0; i<n; i++) {
-            c(j,i) *= e(i);
-        }
-    }
-    return c;
-}
-
-tensorT energy_weighted_orthog(const tensorT& s, const tensorT eps) {
-    int n=s.dim[0], m=s.dim[1];
-    MADNESS_ASSERT(n==m);
-    tensorT d(n,n);
-    for (int i=0; i<n; i++) d(i,i) = eps(i);
-    tensorT c, e;
-    sygv(d, s, 1, &c, &e);
-    return c;
-}
-
-
-template <typename T, int NDIM>
-Cost lbcost(const Key<NDIM>& key, const FunctionNode<T,NDIM>& node) {
-  return 1;
 }
 
 class ElectronicStructureApp
@@ -236,27 +159,27 @@ public:
   void make_nuclear_potential()
   {
     if (_world.rank() == 0) print("Making nuclear potential ..\n\n");
-    if (_params.ispotential)
+    if (_params.ispotential) // potential
     {
-      _vnucrhon = factoryT(_world).functor(functorT(new MolecularPotentialFunctor(_mentity))).thresh(_params.thresh * 0.1).truncate_on_project();
+      _vnucrhon = rfactoryT(_world).functor(rfunctorT(new MolecularPotentialFunctor(_mentity))).thresh(_params.thresh * 0.1).truncate_on_project();
       _vnuc = copy(_vnucrhon);
       _vnuc.reconstruct();
     }
-    else
+    else // charge density
     {
-      _vnucrhon = factoryT(_world).functor(
-          functorT(new MolecularNuclearChargeDensityFunctor(_mentity))).
+      _vnucrhon = rfactoryT(_world).functor(
+          rfunctorT(new MolecularNuclearChargeDensityFunctor(_mentity))).
           thresh(_params.thresh * 0.1).initial_level(6).truncate_on_project();
       if (_world.rank() == 0) print("calculating trace of rhon ..\n\n");
       double rtrace = _vnucrhon.trace();
       if (_world.rank() == 0) print("rhon trace = ", rtrace);
       SeparatedConvolution<double,3>* op = 0;
-      if (_params.periodic)
+      if (_params.periodic) // periodic
       {
         Tensor<double> cellsize = FunctionDefaults<3>::get_cell_width();
         op = PeriodicCoulombOpPtr<double,3>(_world, _params.waveorder,_params.lo, _params.thresh, cellsize);
       }
-      else
+      else // not periodic
       {
         op = CoulombOperatorPtr<double,3>(_world, _params.waveorder,_params.lo, _params.thresh);
       }
@@ -280,15 +203,6 @@ public:
       return r;
   }
 
-//  static void ldaop(const Key<3>& key, tensorT& t) {
-//      UNARY_OPTIMIZED_ITERATOR(double, t, double r=munge(2.0* *_p0); double q; double dq1; double dq2;x_rks_s__(&r, &q, &dq1);c_rks_vwn5__(&r, &q, &dq2); *_p0 = dq1+dq2);
-//  }
-//
-//  static void ldaeop(const Key<3>& key, tensorT& t) {
-//      UNARY_OPTIMIZED_ITERATOR(double, t, double r=munge(2.0* *_p0); double q1; double q2; double dq;x_rks_s__(&r, &q1, &dq);c_rks_vwn5__(&r, &q2, &dq); *_p0 = q1+q2);
-//  }
-
-
   rfunctionT
   make_lda_potential(World& world,
                      const rfunctionT& arho,
@@ -302,26 +216,17 @@ public:
       return vlda;
   }
 
-
-//  functionT make_lda_potential(const functionT& rho)
-//  {
-//    functionT V_rho = 0.5 * copy(rho);
-//    V_rho.reconstruct();
-//    V_rho.unaryop(&dft_xc_lda_V<3>);
-//    return V_rho;
-//  }
-//
-  vecfuncT project_ao_basis(World& world) {
-      vecfuncT ao(_aobasis.nbf(_mentity));
+  rvecfuncT project_ao_basis(World& world) {
+      rvecfuncT ao(_aobasis.nbf(_mentity));
 
       Level initial_level = 3;
       for (int i=0; i < _aobasis.nbf(_mentity); i++) {
-          functorT aofunc(new AtomicBasisFunctor(_aobasis.get_atomic_basis_function(_mentity,i),
+          rfunctorT aofunc(new AtomicBasisFunctor(_aobasis.get_atomic_basis_function(_mentity,i),
               _params.L, false));
 //             if (world.rank() == 0) {
 //                 aobasis.get_atomic_basis_function(molecule,i).print_me(cout);
 //             }
-          ao[i] = factoryT(world).functor(aofunc).initial_level(initial_level).truncate_on_project().nofence();
+          ao[i] = rfactoryT(world).functor(aofunc).initial_level(initial_level).truncate_on_project().nofence();
       }
       world.gop.fence();
       //truncate(world, ao);
@@ -337,9 +242,9 @@ public:
               if (norms[i] < 0.5) {
                   nredone++;
                   if (world.rank() == 0) print("re-projecting ao basis function", i,"at level",initial_level);
-                  functorT aofunc(new AtomicBasisFunctor(_aobasis.get_atomic_basis_function(_mentity,i),
+                  rfunctorT aofunc(new AtomicBasisFunctor(_aobasis.get_atomic_basis_function(_mentity,i),
                       _params.L, false));
-                  ao[i] = factoryT(world).functor(aofunc).initial_level(6).truncate_on_project().nofence();
+                  ao[i] = rfactoryT(world).functor(aofunc).initial_level(6).truncate_on_project().nofence();
               }
           }
           world.gop.fence();
@@ -358,19 +263,21 @@ public:
       return ao;
   }
 
-  tensorT kinetic_energy_matrix(World& world, const vecfuncT& v) {
+  tensorT kinetic_energy_matrix(World& world, const rvecfuncT& v, const coordT k = coordT(0.0))
+  {
       reconstruct(world, v);
       int n = v.size();
-      tensorT r(n,n);
+      rtensorT r(n,n);
       for (int axis=0; axis<3; axis++)
       {
-//        vecfuncT dv = wst_diff(world,v,axis,_params.periodic);
-        vecfuncT dv = diff(world,v,axis);
+//        rvecfuncT dv = wst_diff(world,v,axis,_params.periodic);
+        rvecfuncT dv = diff(world,v,axis);
         r += matrix_inner(world, dv, dv, true);
         dv.clear(); world.gop.fence(); // Allow function memory to be freed
       }
-
-      return r.scale(0.5);
+      tensorT c(n,n);
+      tensor_real2complex<double>(r.scale(0.5),c);
+      return c;
   }
 
 
@@ -378,7 +285,7 @@ public:
   void initial_guess()
   {
     if (_world.rank() == 0) print("Guessing rho ...\n\n");
-    rfunctionT rho = factoryT(_world).functor(functorT(
+    rfunctionT rho = rfactoryT(_world).functor(rfunctorT(
         new GuessDensity(_mentity, _aobasis)));
 
 //    {
@@ -441,7 +348,7 @@ public:
     vlocal.reconstruct();
 
     if (_world.rank() == 0) print("Projecting atomic orbitals ...\n\n");
-    vecfuncT ao = project_ao_basis(_world);
+    rvecfuncT ao = project_ao_basis(_world);
     if (_params.periodic)
     {
 
@@ -449,21 +356,25 @@ public:
     else
     {
       if (_world.rank() == 0) print("Building overlap matrix ...\n\n");
-      tensorT overlap = matrix_inner(_world, ao, ao, true);
+      rtensorT roverlap = matrix_inner(_world, ao, ao, true);
+      tensorT overlap(roverlap.dim[0], roverlap.dim[1]);
+      tensor_real2complex<double>(roverlap,overlap);
+
       if (_world.rank() == 0) print("Building kinetic energy matrix ...\n\n");
       tensorT kinetic = kinetic_energy_matrix(_world, ao);
 
       reconstruct(_world, ao);
-      //      vecfuncT vpsi = mul(world, vlocal, ao);
       if (_world.rank() == 0) print("Building potential energy matrix ...\n\n");
-      vecfuncT vpsi = mul_sparse(_world, vlocal, ao, _params.thresh);
+      rvecfuncT vpsi = mul_sparse(_world, vlocal, ao, _params.thresh);
       _world.gop.fence();
       _world.gop.fence();
       compress(_world, vpsi);
       truncate(_world, vpsi);
       compress(_world, ao);
 
-      tensorT potential = matrix_inner(_world, vpsi, ao, true);
+      rtensorT rpotential = matrix_inner(_world, vpsi, ao, true);
+      tensorT potential(rpotential.dim[0], rpotential.dim[1]);
+      tensor_real2complex<double>(rpotential,potential);
       _world.gop.fence();
       vpsi.clear();
       _world.gop.fence();
@@ -476,14 +387,14 @@ public:
       {
         for (int fj = 0; fj < fock.dim[1]; fj++)
         {
-          printf("%10.5f", fock(fi,fj));
+          printf("%10.5f", abs(fock(fi,fj)));
         }
         printf("\n");
       }
 
       tensorT c, e;
       if (_world.rank() == 0) print("Diagonlizing Fock matrix ...\n\n");
-      sygv(fock, overlap, 1, &c, &e);
+//      sygv(fock, overlap, 1, &c, &e);
 
       if (_world.rank() == 0)
       {
@@ -501,9 +412,9 @@ public:
         print("Analysis of initial alpha MO vectors");
       //      analyze_vectors(world, amo);
 
-      _eigs = e(Slice(0, _params.nbands - 1));
+      _eigs = tensor_real(e(Slice(0, _params.nbands - 1)));
 
-      _occs = tensorT(_params.nbands);
+      _occs = rtensorT(_params.nbands);
       for (int i = 0; i < _params.nbands; i++)
         _occs[i] = _params.maxocc;
     }
@@ -514,7 +425,7 @@ public:
     return _orbitals;
   }
 
-  tensorT eigs()
+  rtensorT eigs()
   {
     return _eigs;
   }
@@ -542,8 +453,8 @@ private:
   rfunctionT _vnuc;
   rfunctionT _vnucrhon;
   vecfuncT _orbitals;
-  tensorT _eigs;
-  tensorT _occs;
+  rtensorT _eigs;
+  rtensorT _occs;
   std::vector<coordT> _kpoints;
 };
 
