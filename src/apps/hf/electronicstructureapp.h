@@ -14,15 +14,19 @@
 #include "poperator.h"
 #include "libxc.h"
 
+struct KOrbital;
+
 typedef double valueT;
 typedef SharedPtr< WorldDCPmapInterface< Key<3> > > pmapT;
 typedef Vector<double,3> coordT;
-typedef SharedPtr< FunctionFunctorInterface<double,3> > functorT;
-typedef Function<double,3> functionT;
+typedef SharedPtr< FunctionFunctorInterface<valueT,3> > functorT;
+typedef Function<valueT,3> functionT;
+typedef Function<valueT,3> rfunctionT;
 typedef vector<functionT> vecfuncT;
-typedef Tensor<double> tensorT;
-typedef FunctionFactory<double,3> factoryT;
-typedef SeparatedConvolution<double,3> operatorT;
+typedef vector<KOrbital> kvecfuncT;
+typedef Tensor<valueT> tensorT;
+typedef FunctionFactory<valueT,3> factoryT;
+typedef SeparatedConvolution<valueT,3> operatorT;
 typedef SharedPtr<operatorT> poperatorT;
 
 class LevelPmap : public WorldDCPmapInterface< Key<3> > {
@@ -120,6 +124,16 @@ public:
     }
     return value;
   }
+};
+
+struct KOrbital
+{
+  coordT k;
+  double weight;
+  functionT orbital;
+
+  KOrbital(const coordT& k, const double& weight, const functionT& orbital)
+   : k(k), weight(weight), orbital(orbital) {}
 };
 
 /// A MADNESS functor to compute either x, y, or z
@@ -275,15 +289,15 @@ public:
 //  }
 
 
-  functionT
+  rfunctionT
   make_lda_potential(World& world,
-                     const functionT& arho,
-                     const functionT& brho,
-                     const functionT& adelrhosq,
-                     const functionT& bdelrhosq)
+                     const rfunctionT& arho,
+                     const rfunctionT& brho,
+                     const rfunctionT& adelrhosq,
+                     const rfunctionT& bdelrhosq)
   {
 //      MADNESS_ASSERT(!_params.spinpol);
-      functionT vlda = copy(arho);
+      rfunctionT vlda = copy(arho);
       vlda.unaryop(&::libxc_ldaop);
       return vlda;
   }
@@ -364,7 +378,7 @@ public:
   void initial_guess()
   {
     if (_world.rank() == 0) print("Guessing rho ...\n\n");
-    functionT rho = factoryT(_world).functor(functorT(
+    rfunctionT rho = factoryT(_world).functor(functorT(
         new GuessDensity(_mentity, _aobasis)));
 
 //    {
@@ -380,7 +394,7 @@ public:
 //      }
 //    }
 
-    functionT vlocal;
+    rfunctionT vlocal;
     if (_params.nelec > 1)
     {
       if (_world.rank() == 0) print("Creating Coulomb op ...\n\n");
@@ -399,7 +413,7 @@ public:
       if (_world.rank() == 0) print("Building effective potential ...\n\n");
       vlocal = _vnuc + apply(*op, rho); //.scale(1.0-1.0/nel); // Reduce coulomb to increase binding
       rho.scale(0.5);
-      vlocal = vlocal + make_lda_potential(_world, rho, rho, functionT(), functionT());
+      vlocal = vlocal + make_lda_potential(_world, rho, rho, rfunctionT(), rfunctionT());
       delete op;
     }
     else
@@ -515,7 +529,7 @@ public:
     return _mentity;
   }
 
-  functionT vnucrhon()
+  rfunctionT vnucrhon()
   {
     return _vnucrhon;
   }
@@ -525,8 +539,8 @@ private:
   MolecularEntity _mentity;
   AtomicBasisSet _aobasis;
   ElectronicStructureParams _params;
-  functionT _vnuc;
-  functionT _vnucrhon;
+  rfunctionT _vnuc;
+  rfunctionT _vnucrhon;
   vecfuncT _orbitals;
   tensorT _eigs;
   tensorT _occs;
