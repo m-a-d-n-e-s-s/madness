@@ -32,7 +32,7 @@ namespace madness {
         long n4 = (n>>2)<<2;
         long rem = n-n4;
         if (n4) {
-#if (defined(X86_32) || defined(X86_64))
+#if ( (!defined(ON_A_MAC)) && (defined(X86_32) || defined(X86_64)) )
             // On core-2 this will give 2 cycles/element - optimal is 1.5
             __asm__ __volatile__ (
                                   ".UGHLOOPXX_99:\n"
@@ -88,7 +88,7 @@ namespace madness {
         long n4 = (n>>2)<<2;
         long rem = n-n4;
         if (n4) {
-#if (defined(X86_32) || defined(X86_64))
+#if ( (!defined(ON_A_MAC)) && (defined(X86_32) || defined(X86_64)) )
             // On core-2 this will give 2 cycles/element - optimal is 1.5
             __asm__ __volatile__ (
                                   ".UGHLOOPXXX_98:\n"

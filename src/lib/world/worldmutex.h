@@ -1,6 +1,18 @@
 #ifndef WORLD_MUTEX_H
 #define WORLD_MUTEX_H
 
+#include <madness_config.h>
+#ifdef ON_A_MAC 
+#include <libkern/OSAtomic.h>
+typedef OSSpinLock pthread_spinlock_t;
+
+inline void pthread_spin_init(pthread_spinlock_t* p, int mode) {*p=0;}
+inline int pthread_spin_trylock(pthread_spinlock_t* p) {return !OSSpinLockTry(p);}
+inline int pthread_spin_lock(pthread_spinlock_t* p) {OSSpinLockLock(p); return 0;}
+inline int pthread_spin_unlock(pthread_spinlock_t* p) {OSSpinLockUnlock(p); return 0;}
+inline void pthread_spin_destroy(pthread_spinlock_t* p) {}
+#endif
+
 #include <cstdlib>
 #include <iostream>
 #include <pthread.h>
@@ -9,7 +21,6 @@
 #include <unistd.h>
 #include <utility>
 #include <vector>
-#include <madness_config.h>
 #include <world/madatomic.h>
 #include <world/nodefaults.h>
 

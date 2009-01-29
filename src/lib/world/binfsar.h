@@ -70,7 +70,9 @@ namespace madness {
                       std::ios_base::out |  std::ios_base::trunc) {
                 iobuf = SharedArray<char>(new char[IOBUFSIZE]);
                 os.open(filename, mode);
+#ifndef ON_A_MAC
                 os.rdbuf()->pubsetbuf(iobuf, IOBUFSIZE);
+#endif
 
                 store(ARCHIVE_COOKIE, strlen(ARCHIVE_COOKIE)+1);
             };

@@ -1,3 +1,4 @@
+#include <madness_config.h>
 /*
         void mTxm<ni>(dimi, long nj, long nk, double* c, const double* a, const double* b)
 
@@ -159,10 +160,15 @@ name: \
 #  define C03 %xmm6
 #  define C04 %xmm7
 
+#ifdef ON_A_MAC
+#define NAME(name) _##name
+#else
+#define NAME(name) name
+#endif
+	
 #define MTXM_ENTRY(name) \
-.globl name; \
-        .align 128; \
-name: \
+.globl NAME(name); \
+NAME(name): \
         pushl   %ebp;            \
         mov     %esp,  %ebp;     \
         pushl   %ebx            ;\

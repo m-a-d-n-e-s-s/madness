@@ -11,7 +11,6 @@
 #include <world/worldpapi.h>
 #include <world/worldprofile.h>
 
-
 namespace madness {
 
     void error(const char *msg);
@@ -336,14 +335,16 @@ namespace madness {
 
             //std::cout << "BINDING THREAD: id " << logical_id << " ind " << ind << " lo " << lo << " hi " << hi << " ncpu " << ncpu << std::endl;
             
+#ifdef ON_A_MAC
+#else	    
             cpu_set_t mask;
             CPU_ZERO(&mask);
             for (int i=lo; i<=hi; i++) CPU_SET(i,&mask);
             if(sched_setaffinity( 0, sizeof(mask), &mask ) == -1 ) {
                 perror("system error message");
                 std::cout << "ThreadBase: set_affinity: Could not set cpu Affinity" << std::endl;
-
             }
+#endif
         }
     };
     

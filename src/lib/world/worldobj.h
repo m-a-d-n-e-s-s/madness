@@ -150,7 +150,7 @@ namespace madness {
         template <typename memfunT>
         static void handler(const AmArg& arg) {
             const uniqueidT& id = detail::peek(arg);
-            Derived* obj = arg.get_world()->ptr_from_id<Derived>(id);
+            Derived* obj = arg.get_world()-> template ptr_from_id<Derived>(id);
             am_handlerT ptr = handler<memfunT>;
             if (is_ready(id,obj,arg,ptr)) {
                 detail::info<memfunT> info;
@@ -164,7 +164,7 @@ namespace madness {
         template <typename memfunT, typename arg1T>
         static void handler(const AmArg& arg) {
             const uniqueidT& id = detail::peek(arg);
-            Derived* obj = arg.get_world()->ptr_from_id<Derived>(id);
+            Derived* obj = arg.get_world()-> template ptr_from_id<Derived>(id);
             am_handlerT ptr = handler<memfunT,arg1T>;
             if (is_ready(id,obj,arg,ptr)) {
                 detail::info<memfunT> info;
@@ -179,7 +179,7 @@ namespace madness {
         template <typename memfunT, typename arg1T, typename arg2T>
         static void handler(const AmArg& arg) {
             const uniqueidT& id = detail::peek(arg);
-            Derived* obj = arg.get_world()->ptr_from_id<Derived>(id);
+            Derived* obj = arg.get_world()-> template ptr_from_id<Derived>(id);
             am_handlerT ptr = handler<memfunT,arg1T,arg2T>;
             if (is_ready(id,obj,arg,ptr)) {
                 detail::info<memfunT> info;
@@ -195,7 +195,7 @@ namespace madness {
         template <typename memfunT, typename arg1T, typename arg2T, typename arg3T>
         static void handler(const AmArg& arg) {
             const uniqueidT& id = detail::peek(arg);
-            Derived* obj = arg.get_world()->ptr_from_id<Derived>(id);
+            Derived* obj = arg.get_world()-> template ptr_from_id<Derived>(id);
             am_handlerT ptr = handler<memfunT,arg1T,arg2T,arg3T>;
             if (is_ready(id,obj,arg,ptr)) {
                 detail::info<memfunT> info;
@@ -212,7 +212,7 @@ namespace madness {
         template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T>
         static void handler(const AmArg& arg) {
             const uniqueidT& id = detail::peek(arg);
-            Derived* obj = arg.get_world()->ptr_from_id<Derived>(id);
+            Derived* obj = arg.get_world()-> template ptr_from_id<Derived>(id);
             am_handlerT ptr = handler<memfunT,arg1T,arg2T,arg3T,arg4T>;
             if (is_ready(id,obj,arg,ptr)) {
                 detail::info<memfunT> info;
@@ -231,7 +231,7 @@ namespace madness {
                   typename arg5T>
         static void handler(const AmArg& arg) {
             const uniqueidT& id = detail::peek(arg);
-            Derived* obj = arg.get_world()->ptr_from_id<Derived>(id);
+            Derived* obj = arg.get_world()-> template ptr_from_id<Derived>(id);
             am_handlerT ptr = handler<memfunT,arg1T,arg2T,arg3T,arg4T,arg5T>;
             if (is_ready(id,obj,arg,ptr)) {
                 detail::info<memfunT> info;
@@ -251,7 +251,7 @@ namespace madness {
                   typename arg5T, typename arg6T>
         static void handler(const AmArg& arg) {
             const uniqueidT& id = detail::peek(arg);
-            Derived* obj = arg.get_world()->ptr_from_id<Derived>(id);
+            Derived* obj = arg.get_world()-> template ptr_from_id<Derived>(id);
             am_handlerT ptr = handler<memfunT,arg1T,arg2T,arg3T,arg4T,arg5T,arg6T>;
             if (is_ready(id,obj,arg,ptr)) {
                 detail::info<memfunT> info;
@@ -272,7 +272,7 @@ namespace madness {
                   typename arg5T, typename arg6T, typename arg7T>
         static void handler(const AmArg& arg) {
             const uniqueidT& id = detail::peek(arg);
-            Derived* obj = arg.get_world()->ptr_from_id<Derived>(id);
+            Derived* obj = arg.get_world()-> template ptr_from_id<Derived>(id);
             am_handlerT ptr = handler<memfunT,arg1T,arg2T,arg3T,arg4T,arg5T,arg6T,arg7T>;
             if (is_ready(id,obj,arg,ptr)) {
                 detail::info<memfunT> info;
@@ -293,7 +293,7 @@ namespace madness {
         template <typename memfunT>
         static void handler_task(const AmArg& arg) {
             const uniqueidT& id = detail::peek(arg);
-            Derived* obj = arg.get_world()->ptr_from_id<Derived>(id);
+            Derived* obj = arg.get_world()-> template ptr_from_id<Derived>(id);
             am_handlerT ptr = handler_task<memfunT>;
             if (is_ready(id,obj,arg,ptr)) {
                 detail::info<memfunT> info;
@@ -307,7 +307,7 @@ namespace madness {
         template <typename memfunT, typename arg1T>
         static void handler_task(const AmArg& arg) {
             const uniqueidT& id = detail::peek(arg);
-            Derived* obj = arg.get_world()->ptr_from_id<Derived>(id);
+            Derived* obj = arg.get_world()-> template ptr_from_id<Derived>(id);
             am_handlerT ptr = handler_task<memfunT,arg1T>;
             if (is_ready(id,obj,arg,ptr)) {
                 detail::info<memfunT> info;
@@ -322,7 +322,7 @@ namespace madness {
         template <typename memfunT, typename arg1T, typename arg2T>
         static void handler_task(const AmArg& arg) {
             const uniqueidT& id = detail::peek(arg);
-            Derived* obj = arg.get_world()->ptr_from_id<Derived>(id);
+            Derived* obj = arg.get_world()-> template ptr_from_id<Derived>(id);
             am_handlerT ptr = handler_task<memfunT,arg1T,arg2T>;
             if (is_ready(id,obj,arg,ptr)) {
                 detail::info<memfunT> info;
@@ -338,7 +338,7 @@ namespace madness {
         template <typename memfunT, typename arg1T, typename arg2T, typename arg3T>
         static void handler_task(const AmArg& arg) {
             const uniqueidT& id = detail::peek(arg);
-            Derived* obj = arg.get_world()->ptr_from_id<Derived>(id);
+            Derived* obj = arg.get_world()-> template ptr_from_id<Derived>(id);
             am_handlerT ptr = handler_task<memfunT,arg1T,arg2T,arg3T>;
             if (is_ready(id,obj,arg,ptr)) {
                 detail::info<memfunT> info;
@@ -355,7 +355,7 @@ namespace madness {
         template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T>
         static void handler_task(const AmArg& arg) {
             const uniqueidT& id = detail::peek(arg);
-            Derived* obj = arg.get_world()->ptr_from_id<Derived>(id);
+            Derived* obj = arg.get_world()-> template ptr_from_id<Derived>(id);
             am_handlerT ptr = handler_task<memfunT,arg1T,arg2T,arg3T,arg4T>;
             if (is_ready(id,obj,arg,ptr)) {
                 detail::info<memfunT> info;
@@ -374,7 +374,7 @@ namespace madness {
                   typename arg5T>
         static void handler_task(const AmArg& arg) {
             const uniqueidT& id = detail::peek(arg);
-            Derived* obj = arg.get_world()->ptr_from_id<Derived>(id);
+            Derived* obj = arg.get_world()-> template ptr_from_id<Derived>(id);
             am_handlerT ptr = handler_task<memfunT,arg1T,arg2T,arg3T,arg4T,arg5T>;
             if (is_ready(id,obj,arg,ptr)) {
                 detail::info<memfunT> info;
@@ -394,7 +394,7 @@ namespace madness {
                   typename arg5T, typename arg6T>
         static void handler_task(const AmArg& arg) {
             const uniqueidT& id = detail::peek(arg);
-            Derived* obj = arg.get_world()->ptr_from_id<Derived>(id);
+            Derived* obj = arg.get_world()-> template ptr_from_id<Derived>(id);
             am_handlerT ptr = handler_task<memfunT,arg1T,arg2T,arg3T,arg4T,arg5T,arg6T>;
             if (is_ready(id,obj,arg,ptr)) {
                 detail::info<memfunT> info;
@@ -415,7 +415,7 @@ namespace madness {
                   typename arg5T, typename arg6T, typename arg7T>
         static void handler_task(const AmArg& arg) {
             const uniqueidT& id = detail::peek(arg);
-            Derived* obj = arg.get_world()->ptr_from_id<Derived>(id);
+            Derived* obj = arg.get_world()-> template ptr_from_id<Derived>(id);
             am_handlerT ptr = handler_task<memfunT,arg1T,arg2T,arg3T,arg4T,arg5T,arg6T,arg7T>;
             if (is_ready(id,obj,arg,ptr)) {
                 detail::info<memfunT> info;

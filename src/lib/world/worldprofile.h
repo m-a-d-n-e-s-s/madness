@@ -9,6 +9,10 @@
 
 // NEED TO ADD ATTRIBUTION TO SHINY ON SOURCE FORGE
 
+#ifdef ON_A_MAC
+#define __thread
+#endif
+
 namespace madness {
 
     /// Simple container for parallel profile statistic
