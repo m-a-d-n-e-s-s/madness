@@ -70,6 +70,12 @@ to link against those libraries).  Some examples follow.
     
        ./configure LIBS="-llapack -lblas -lgfortran"
 
+     - 64-bit with MKL, google's super-fast malloc and google's profiler library
+
+      ./configure LIBS="-L/opt/intel/mkl/10.0.1.014/lib/em64t -L/usr/local/gperftools/lib -lmkl -lguide -lpthread -lm -ltcmalloc -lprofiler -lstdc++"
+
+
+
 
   o  Cray-XT (e.g., jaguar@ornl) 
      [Module commands assume you start from the default which is PGI and scilib]
