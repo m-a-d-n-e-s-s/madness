@@ -267,17 +267,22 @@ public:
   {
       reconstruct(world, v);
       int n = v.size();
-      rtensorT r(n,n);
-      for (int axis=0; axis<3; axis++)
-      {
-//        rvecfuncT dv = wst_diff(world,v,axis,_params.periodic);
-        rvecfuncT dv = diff(world,v,axis);
-        r += matrix_inner(world, dv, dv, true);
-        dv.clear(); world.gop.fence(); // Allow function memory to be freed
-      }
       tensorT c(n,n);
-      tensor_real2complex<double>(r.scale(0.5),c);
-      return c;
+      const std::complex<double> I = std::complex<double>(0.0,1.0);
+      for (int i = 0; i < n; i++)
+      {
+        functionT dv_i_0 = function_real2complex(diff(v[i],0)) + I*k[0]*v[i];
+        functionT dv_i_1 = function_real2complex(diff(v[i],1)) + I*k[1]*v[i];
+        functionT dv_i_2 = function_real2complex(diff(v[i],2)) + I*k[2]*v[i];
+        for (int j = 0; j < n; j++)
+        {
+          functionT dv_j_0 = function_real2complex(diff(v[j],0)) + I*k[0]*v[j];
+          functionT dv_j_1 = function_real2complex(diff(v[j],1)) + I*k[1]*v[j];
+          functionT dv_j_2 = function_real2complex(diff(v[j],2)) + I*k[2]*v[j];
+          c(i,j) = inner(dv_i_0,dv_j_0) + inner(dv_i_1,dv_j_1) + inner(dv_i_2,dv_j_2);
+        }
+      }
+      return c.scale(-0.5);
   }
 
 
@@ -392,9 +397,9 @@ public:
         printf("\n");
       }
 
-      tensorT c, e;
+      tensorT c; rtensorT e;
       if (_world.rank() == 0) print("Diagonlizing Fock matrix ...\n\n");
-//      sygv(fock, overlap, 1, &c, &e);
+      sygv(fock, overlap, 1, &c, &e);
 
       if (_world.rank() == 0)
       {
@@ -412,7 +417,7 @@ public:
         print("Analysis of initial alpha MO vectors");
       //      analyze_vectors(world, amo);
 
-      _eigs = tensor_real(e(Slice(0, _params.nbands - 1)));
+      _eigs = e(Slice(0, _params.nbands - 1));
 
       _occs = rtensorT(_params.nbands);
       for (int i = 0; i < _params.nbands; i++)
