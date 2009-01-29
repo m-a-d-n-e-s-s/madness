@@ -1,5 +1,6 @@
 AC_DEFUN([ACX_OPTIMAL_CXXFLAGS], [
     AC_DETECT_CXX
+    AC_LANG_PUSH([C++])
 
     save_CXXFLAGS="$CXXFLAGS"
     case $CXXVENDOR in
@@ -18,8 +19,9 @@ AC_DEFUN([ACX_OPTIMAL_CXXFLAGS], [
                 CXXFLAGS="$CXXFLAGS -march=barcelona"
             else
                 CXXFLAGS_SAVE="$CXXFLAGS"
+                echo "TESTING NATIVE"
                 CXXFLAGS="$CXXFLAGS -march=native"
-                AC_TRY_COMPILE("", "", [], [CXXFLAGS="$CXXFLAGS_SAVE"])
+                AC_TRY_COMPILE( ,  , [], [CXXFLAGS="$CXXFLAGS_SAVE"])
             fi
 
             case $host_cpu in
@@ -61,4 +63,6 @@ AC_DEFUN([ACX_OPTIMAL_CXXFLAGS], [
     CXXFLAGS="$CXXFLAGS -D_REENTRANT "
     echo "Changing CXXFLAGS from '$save_CXXFLAGS'"
     echo "to '$CXXFLAGS'"
+
+    AC_LANG_POP([C++])
 ])
