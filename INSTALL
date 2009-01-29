@@ -115,10 +115,10 @@ to link against those libraries).  Some examples follow.
      setenv LD_LIBRARY_PATH /ccs/home/harrison/smokyinstall/gfortran64_int64/lib:$LD_LIBRARY_PATH
      ./configure LIBS="-L/ccs/home/harrison/smokyinstall/gfortran64_int64/lib  -lacml  -lacml_mv -lgfortran"
 
-  o  MACOSX Leopard, the Intel Mac with Xcode 3.1 for v10.5.  Also fink
-     with version gcc, g++, gfortran 4.2.3.  This install script was tested with openmpi-1.2.6.
+  o  Macintosh Darwin --- tested with gcc 4.3.2, reference versions of BLAS and LAPACK, MPICH
+     
+     ./configure LIBS="-L/Users/harrison/install/lib -lLAPACK -lBLAS -lgfortran CPPFLAGS=-I/Users/harrison/install/include"
 
-     ./configure CXXFLAGS="-DON_A_MAC -Wall -Wno-strict-aliasing -Wno-deprecated -ansi -O3 -fomit-frame-pointer -msse -msse2" LIBS="-llapack -lblas -lgfortran"
 
 
 
