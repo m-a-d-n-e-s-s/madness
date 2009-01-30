@@ -216,6 +216,10 @@ void test_wannier4(World& world)
 
     readinput_();
     wann_init1_();
+    int nn = 1; double vpl[3]; double vrc[3]; double val[2];
+    vpl[0] = 0.0; vpl[1] = 0.0; vpl[2] = 0.0;
+    vrc[0] = 0.1; vrc[1] = 0.1; vrc[2] = 0.1;
+    wann_unk_(&nn,&vpl[0],&vrc[0],&val[0]);
 
     // Function defaults
     int funck = 6;
