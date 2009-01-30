@@ -271,9 +271,9 @@ public:
       const std::complex<double> I = std::complex<double>(0.0,1.0);
       for (int i = 0; i < n; i++)
       {
-        functionT dv_i_0 = function_real2complex(diff(v[i],0)) + I*k[0]*v[i];
-        functionT dv_i_1 = function_real2complex(diff(v[i],1)) + I*k[1]*v[i];
-        functionT dv_i_2 = function_real2complex(diff(v[i],2)) + I*k[2]*v[i];
+        functionT dv_i_0 = function_real2complex(diff(v[i],0)) - I*k[0]*v[i];
+        functionT dv_i_1 = function_real2complex(diff(v[i],1)) - I*k[1]*v[i];
+        functionT dv_i_2 = function_real2complex(diff(v[i],2)) - I*k[2]*v[i];
         for (int j = 0; j < n; j++)
         {
           functionT dv_j_0 = function_real2complex(diff(v[j],0)) + I*k[0]*v[j];
