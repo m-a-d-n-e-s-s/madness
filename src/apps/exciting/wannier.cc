@@ -207,7 +207,7 @@ void test_wannier3(World& world)
     }
 }
 
-void test_wannier4(World& world)
+void compute_U(World& world)
 {
     //k-mesh division
     Vector<int,3> nk(4);
@@ -216,14 +216,10 @@ void test_wannier4(World& world)
 
     readinput_();
     wann_init1_();
-    int nn = 1; double vpl[3]; double vrc[3]; double val[2];
-    vpl[0] = 0.0; vpl[1] = 0.0; vpl[2] = 0.0;
-    vrc[0] = 0.1; vrc[1] = 0.1; vrc[2] = 0.1;
-    wann_unk_(&nn,&vpl[0],&vrc[0],&val[0]);
 
     // Function defaults
-    int funck = 6;
-    double thresh = 1e-4;
+    int funck = 7;
+    double thresh = 1e-5;
     double bsize = 6.0;
     FunctionDefaults<3>::set_k(funck);
     FunctionDefaults<3>::set_thresh(thresh);
@@ -232,18 +228,32 @@ void test_wannier4(World& world)
     SeparatedConvolution<double,3> cop = CoulombOperator<double,3>(world,
         FunctionDefaults<3>::get_k(), 1e-8, thresh * 0.1);
 
+    // Vector of cfunctionT's
+    std::vector<cfunctionT> w;
+    // Compress wannier functions and add to vector
     for (int n = 1; n <= 5; n++)
     {
-      cfunctionT w = cfactoryT(world).functor(cfunctorT(new Wannier<std::complex<double>,3>(n, center, nk)));
-//      double wnorm = w.norm2();
-//      if (world.rank() == 0)
-//        printf("Normalization of wannier function #%d is: %14.8f\n", n, wnorm);
-      functionT tmp = abs_square(w);
-      tmp.truncate();
-      functionT tmp2 = apply(cop,tmp);
-      tmp2.truncate();
-      double U = inner(tmp,tmp2);
-      if (world.rank() == 0) printf("U(%d,%d) = %.8f\n", n, n, U);
+      cfunctionT w_ = cfactoryT(world).functor(cfunctorT(new Wannier<std::complex<double>,3>(n, center, nk)));
+      w_.truncate();
+      w.push_back(w_);
+    }
+
+    for (int n = 1; n <= 5; n++)
+    {
+      functionT tmp_n = abs_square(w[n-1]);
+      tmp_n.truncate();
+      functionT tmp_n_apply = apply(cop, tmp_n);
+      tmp_n_apply.truncate();
+      for (int p = 1; p <= n; p++)
+      {
+        functionT tmp_p = abs_square(w[p-1]);
+        tmp_p.truncate();
+        // Compute inner product
+        double ip = abs(inner(w[n-1],w[p-1]));
+        // Compute U
+        double U = inner(tmp_p, tmp_n_apply);
+        if (world.rank() == 0) printf("%4.1d%4.1d%15.8f%15.8f\n", n, p, ip, U);
+      }
     }
     if (world.rank() == 0) printf("\n\n");
 
@@ -324,7 +334,7 @@ int main(int argc, char** argv)
 
     startup(world,argc,argv);
     if (world.rank() == 0) print("Initial tensor instance count", BaseTensor::get_instance_count());
-    test_wannier4(world);
+    compute_U(world);
   }
   catch (const MPI::Exception& e)
   {
