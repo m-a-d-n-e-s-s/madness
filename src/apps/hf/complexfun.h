@@ -30,9 +30,11 @@ double imag(double x) {return 0.0;}
 
 //***************************************************************************
 template <typename Q>
-void tensor_real2complex(const Tensor<Q>& r, Tensor< std::complex<Q> >& c)
+Tensor< std::complex<Q> > tensor_real2complex(const Tensor<Q>& r)
 {
-  BINARY_OPTIMIZED_ITERATOR(Q, r, std::complex<Q>, c, *_p1 = std::complex<Q>(0.0,*_p0););
+  Tensor< std::complex<Q> > c(r.ndim, r.dim);
+  BINARY_OPTIMIZED_ITERATOR(Q, r, std::complex<Q>, c, *_p1 = std::complex<Q>(*_p0,0.0););
+  return c;
 }
 //***************************************************************************
 

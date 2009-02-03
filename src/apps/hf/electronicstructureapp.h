@@ -282,7 +282,34 @@ public:
           c(i,j) = inner(dv_i_0,dv_j_0) + inner(dv_i_1,dv_j_1) + inner(dv_i_2,dv_j_2);
         }
       }
-      return c.scale(-0.5);
+
+//      // DEBUG
+//      rtensorT r(n,n);
+//      for (int axis=0; axis<3; axis++) {
+//          rvecfuncT dv = diff(world,v,axis);
+//          r += matrix_inner(world, dv, dv, true);
+//          dv.clear(); // Allow function memory to be freed
+//      }
+//
+//      for (int i = 0; i < c.dim[0]; i++)
+//      {
+//        for (int j = 0; j < c.dim[1]; j++)
+//        {
+//          printf("%10.5f", imag(c(i,j)));
+//        }
+//        printf("\n");
+//      }
+//      printf("\n");
+//      printf("\n");
+//      for (int i = 0; i < r.dim[0]; i++)
+//      {
+//        for (int j = 0; j < r.dim[1]; j++)
+//        {
+//          printf("%10.5f", r(i,j));
+//        }
+//        printf("\n");
+//      }
+      return c.scale(0.5);
   }
 
 
@@ -362,8 +389,7 @@ public:
     {
       if (_world.rank() == 0) print("Building overlap matrix ...\n\n");
       rtensorT roverlap = matrix_inner(_world, ao, ao, true);
-      tensorT overlap(roverlap.dim[0], roverlap.dim[1]);
-      tensor_real2complex<double>(roverlap,overlap);
+      tensorT overlap = tensor_real2complex<double>(roverlap);
 
       if (_world.rank() == 0) print("Building kinetic energy matrix ...\n\n");
       tensorT kinetic = kinetic_energy_matrix(_world, ao);
@@ -378,11 +404,78 @@ public:
       compress(_world, ao);
 
       rtensorT rpotential = matrix_inner(_world, vpsi, ao, true);
-      tensorT potential(rpotential.dim[0], rpotential.dim[1]);
-      tensor_real2complex<double>(rpotential,potential);
+      tensorT potential = tensor_real2complex<double>(rpotential);
       _world.gop.fence();
       vpsi.clear();
       _world.gop.fence();
+
+      // DEBUG
+      print("OVERLAP");
+      for (int i = 0; i < overlap.dim[0]; i++)
+      {
+        for (int j = 0; j < overlap.dim[1]; j++)
+        {
+          printf("%10.5f", real(overlap(i,j)));
+        }
+        printf("\n");
+      }
+      printf("\n");
+      printf("\n");
+      for (int i = 0; i < overlap.dim[0]; i++)
+      {
+        for (int j = 0; j < overlap.dim[1]; j++)
+        {
+          printf("%10.5f", imag(overlap(i,j)));
+        }
+        printf("\n");
+      }
+      printf("\n");
+      printf("\n");
+
+      print("KINETIC");
+      for (int i = 0; i < kinetic.dim[0]; i++)
+      {
+        for (int j = 0; j < kinetic.dim[1]; j++)
+        {
+          printf("%10.5f", real(kinetic(i,j)));
+        }
+        printf("\n");
+      }
+      printf("\n");
+      printf("\n");
+      // DEBUG
+      for (int i = 0; i < kinetic.dim[0]; i++)
+      {
+        for (int j = 0; j < kinetic.dim[1]; j++)
+        {
+          printf("%10.5f", imag(kinetic(i,j)));
+        }
+        printf("\n");
+      }
+      printf("\n");
+      printf("\n");
+
+      print("POTENTIAL");
+      for (int i = 0; i < potential.dim[0]; i++)
+      {
+        for (int j = 0; j < potential.dim[1]; j++)
+        {
+          printf("%10.5f", real(potential(i,j)));
+        }
+        printf("\n");
+      }
+      printf("\n");
+      printf("\n");
+      for (int i = 0; i < potential.dim[0]; i++)
+      {
+        for (int j = 0; j < potential.dim[1]; j++)
+        {
+          printf("%10.5f", imag(potential(i,j)));
+        }
+        printf("\n");
+      }
+      printf("\n");
+      printf("\n");
 
       if (_world.rank() == 0) print("Constructing Fock matrix ...\n\n");
       tensorT fock = kinetic + potential;
@@ -392,7 +485,7 @@ public:
       {
         for (int fj = 0; fj < fock.dim[1]; fj++)
         {
-          printf("%10.5f", abs(fock(fi,fj)));
+          printf("%10.5f", real(fock(fi,fj)));
         }
         printf("\n");
       }
