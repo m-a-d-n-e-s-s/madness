@@ -115,6 +115,36 @@ public:
   }
 };
 
+struct KPoint
+{
+  coordT k;
+  double weight;
+
+  KPoint()
+  {
+    k[0] = 0.0; k[1] = 0.0; k[2] = 0.0;
+    weight = 0.0;
+  }
+
+  KPoint(const coordT& k, const double& weight)
+   : k(k), weight(weight) {}
+
+  template <typename Archive>
+  void serialize(Archive& ar) {
+      ar & k & weight;
+  }
+
+
+};
+
+std::istream& operator >> (std::istream& is, KPoint& kpt)
+{
+  for (int i = 0; i < kpt.k.size(); i++)
+    is >> kpt.k[i];
+  is >> kpt.weight;
+  return is;
+}
+
 struct KOrbital
 {
   coordT k;
@@ -138,6 +168,35 @@ public:
     init(filename);
   }
 
+  std::vector<KPoint> read_kpoints(const std::string& filename)
+  {
+    ifstream indata;
+    indata.open(filename.c_str());
+    if(!indata)
+    {
+      // file couldn't be opened
+      MADNESS_EXCEPTION("Error: file could not be opened", 0);
+    }
+
+    std::vector<KPoint> kpoints;
+    char tmpstr[120];
+    indata.getline(tmpstr, 120, '\n');
+    while(!indata.eof())
+    {
+      int num;
+      KPoint kpt;
+      int junk;
+      indata >> num;
+      indata >> kpt;
+      indata >> junk;
+      kpoints.push_back(kpt);
+    }
+    // Delete last entry (duplicate)
+    kpoints.pop_back();
+
+    return kpoints;
+  }
+
   void init(const std::string& filename)
   {
     if (_world.rank() == 0)
@@ -150,6 +209,15 @@ public:
     _world.gop.broadcast_serializable(_mentity, 0);
     _world.gop.broadcast_serializable(_params, 0);
     _world.gop.broadcast_serializable(_aobasis, 0);
+
+    if (_params.periodic)
+    {
+      if (_world.rank() == 0)
+      {
+        _kpoints = read_kpoints("KPOINTS.OUT");
+      }
+      _world.gop.broadcast_serializable(_kpoints, 0);
+    }
 
     FunctionDefaults<3>::set_cubic_cell(-_params.L,_params.L);
     FunctionDefaults<3>::set_thresh(_params.thresh);
@@ -263,7 +331,7 @@ public:
       return ao;
   }
 
-  tensorT kinetic_energy_matrix(World& world, const rvecfuncT& v, const coordT k = coordT(0.0))
+  tensorT kinetic_energy_matrix(World& world, const rvecfuncT& v, const KPoint k = KPoint(coordT(0.0),0.0))
   {
       reconstruct(world, v);
       int n = v.size();
@@ -381,140 +449,55 @@ public:
 
     if (_world.rank() == 0) print("Projecting atomic orbitals ...\n\n");
     rvecfuncT ao = project_ao_basis(_world);
-    if (_params.periodic)
+
+    if (_world.rank() == 0) print("Building overlap matrix ...\n\n");
+    rtensorT roverlap = matrix_inner(_world, ao, ao, true);
+    tensorT overlap = tensor_real2complex<double>(roverlap);
+
+    reconstruct(_world, ao);
+    if (_world.rank() == 0) print("Building potential energy matrix ...\n\n");
+    rvecfuncT vpsi = mul_sparse(_world, vlocal, ao, _params.thresh);
+    _world.gop.fence();
+    _world.gop.fence();
+    compress(_world, vpsi);
+    truncate(_world, vpsi);
+    compress(_world, ao);
+
+    rtensorT rpotential = matrix_inner(_world, vpsi, ao, true);
+    tensorT potential = tensor_real2complex<double>(rpotential);
+    _world.gop.fence();
+    vpsi.clear();
+    _world.gop.fence();
+
+    for (int ki = 0; ki < _kpoints.size(); ki++)
     {
+      // Get k-point from list
+      KPoint kpt = _kpoints[ki];
 
-    }
-    else
-    {
-      if (_world.rank() == 0) print("Building overlap matrix ...\n\n");
-      rtensorT roverlap = matrix_inner(_world, ao, ao, true);
-      tensorT overlap = tensor_real2complex<double>(roverlap);
+//        if (_world.rank() == 0) print("Building kinetic energy matrix ...\n\n");
+      tensorT kinetic = kinetic_energy_matrix(_world, ao, kpt);
 
-      if (_world.rank() == 0) print("Building kinetic energy matrix ...\n\n");
-      tensorT kinetic = kinetic_energy_matrix(_world, ao);
-
-      reconstruct(_world, ao);
-      if (_world.rank() == 0) print("Building potential energy matrix ...\n\n");
-      rvecfuncT vpsi = mul_sparse(_world, vlocal, ao, _params.thresh);
-      _world.gop.fence();
-      _world.gop.fence();
-      compress(_world, vpsi);
-      truncate(_world, vpsi);
-      compress(_world, ao);
-
-      rtensorT rpotential = matrix_inner(_world, vpsi, ao, true);
-      tensorT potential = tensor_real2complex<double>(rpotential);
-      _world.gop.fence();
-      vpsi.clear();
-      _world.gop.fence();
-
-      // DEBUG
-      print("OVERLAP");
-      for (int i = 0; i < overlap.dim[0]; i++)
-      {
-        for (int j = 0; j < overlap.dim[1]; j++)
-        {
-          printf("%10.5f", real(overlap(i,j)));
-        }
-        printf("\n");
-      }
-      printf("\n");
-      printf("\n");
-      for (int i = 0; i < overlap.dim[0]; i++)
-      {
-        for (int j = 0; j < overlap.dim[1]; j++)
-        {
-          printf("%10.5f", imag(overlap(i,j)));
-        }
-        printf("\n");
-      }
-      printf("\n");
-      printf("\n");
-
-      print("KINETIC");
-      for (int i = 0; i < kinetic.dim[0]; i++)
-      {
-        for (int j = 0; j < kinetic.dim[1]; j++)
-        {
-          printf("%10.5f", real(kinetic(i,j)));
-        }
-        printf("\n");
-      }
-      printf("\n");
-      printf("\n");
-      // DEBUG
-      for (int i = 0; i < kinetic.dim[0]; i++)
-      {
-        for (int j = 0; j < kinetic.dim[1]; j++)
-        {
-          printf("%10.5f", imag(kinetic(i,j)));
-        }
-        printf("\n");
-      }
-      printf("\n");
-      printf("\n");
-
-      print("POTENTIAL");
-      for (int i = 0; i < potential.dim[0]; i++)
-      {
-        for (int j = 0; j < potential.dim[1]; j++)
-        {
-          printf("%10.5f", real(potential(i,j)));
-        }
-        printf("\n");
-      }
-      printf("\n");
-      printf("\n");
-      for (int i = 0; i < potential.dim[0]; i++)
-      {
-        for (int j = 0; j < potential.dim[1]; j++)
-        {
-          printf("%10.5f", imag(potential(i,j)));
-        }
-        printf("\n");
-      }
-      printf("\n");
-      printf("\n");
-
-      if (_world.rank() == 0) print("Constructing Fock matrix ...\n\n");
+//        if (_world.rank() == 0) print("Constructing Fock matrix ...\n\n");
       tensorT fock = kinetic + potential;
       fock = 0.5 * (fock + transpose(fock));
 
-      for (int fi = 0; fi < fock.dim[0]; fi++)
-      {
-        for (int fj = 0; fj < fock.dim[1]; fj++)
-        {
-          printf("%10.5f", real(fock(fi,fj)));
-        }
-        printf("\n");
-      }
-
       tensorT c; rtensorT e;
-      if (_world.rank() == 0) print("Diagonlizing Fock matrix ...\n\n");
+//        if (_world.rank() == 0) print("Diagonlizing Fock matrix ...\n\n");
       sygv(fock, overlap, 1, &c, &e);
-
-      if (_world.rank() == 0)
-      {
-        print("initial eigenvalues");
-        print(e);
-      }
 
       compress(_world, ao);
       _world.gop.fence();
-      _orbitals = transform(_world, ao, c(_, Slice(0, _params.nbands - 1)));
+      vecfuncT orbitals = transform(_world, ao, c(_, Slice(0, _params.nbands - 1)));
       _world.gop.fence();
-      truncate(_world, _orbitals);
-      normalize(_world, _orbitals);
-      if (_world.rank() == 0)
-        print("Analysis of initial alpha MO vectors");
-      //      analyze_vectors(world, amo);
+      truncate(_world, orbitals);
+      normalize(_world, orbitals);
 
-      _eigs = e(Slice(0, _params.nbands - 1));
+      tensorT eigs = e(Slice(0, _params.nbands - 1));
 
-      _occs = rtensorT(_params.nbands);
-      for (int i = 0; i < _params.nbands; i++)
-        _occs[i] = _params.maxocc;
+
+//      _occs = rtensorT(_params.nbands);
+//      for (int i = 0; i < _params.nbands; i++)
+//        _occs[i] = _params.maxocc;
     }
   }
 
@@ -553,7 +536,7 @@ private:
   vecfuncT _orbitals;
   rtensorT _eigs;
   rtensorT _occs;
-  std::vector<coordT> _kpoints;
+  std::vector<KPoint> _kpoints;
 };
 
 #endif /* ELECTRONICSTRUCTUREAPP_H_ */
