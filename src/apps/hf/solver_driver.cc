@@ -48,13 +48,12 @@ int main(int argc, char** argv)
         int neps = params.nelec / 2;
         for (int i = 0; i < neps; i++)
         {
-          //printf("%15f\n", tmpe[i]);
           eigs.push_back(tmpe[i]);
         }
-//
+
         Solver<double,std::complex<double>,3> dftcalc(world, vnucrhon, phis, eigs, params);
-//        dftcalc.solve();
-//        world.gop.fence();
+        dftcalc.solve();
+        world.gop.fence();
 
     } catch (const MPI::Exception& e) {
         //        print(e);

@@ -479,8 +479,9 @@ public:
     _world.gop.fence();
 
     int kp = 0;
+    if (_world.rank() == 0) print("Building kinetic energy matrix ...\n\n");
     // Need to do kinetic piece for every k-point
-    for (int ki = 0; ki < _kpoints.size(); ki++, kp += nao)
+    for (int ki = 0; ki < nkpts; ki++)
     {
       // Get k-point from list
       KPoint kpt = _kpoints[ki];
@@ -513,24 +514,26 @@ public:
       for (int oi = kp, ti = 0; oi < kend; oi++, ti++)
       {
 
-        {
-          if (_world.rank() == 0)  printf("\n");
-          double L = _params.L;
-          double bstep = L / 100.0;
-          print("ti = ", ti);
-          tmp_orbitals[ti].reconstruct();
-          for (int i = 0; i < 101; i++)
-          {
-            coordT p(-L / 2 + i * bstep);
-            if (_world.rank() == 0)
-              printf("%5.2f%15.8f\n", p[0], (tmp_orbitals[ti])(p));
-          }
-          if (_world.rank() == 0) printf("\n");
-        }
+//        {
+//          if (_world.rank() == 0)  printf("\n");
+//          double L = _params.L;
+//          double bstep = L / 100.0;
+//          print("ti = ", ti);
+//          tmp_orbitals[ti].reconstruct();
+//          for (int i = 0; i < 101; i++)
+//          {
+//            coordT p(-L / 2 + i * bstep);
+//            if (_world.rank() == 0)
+//              printf("%5.2f%15.8f\n", p[0], (tmp_orbitals[ti])(p));
+//          }
+//          if (_world.rank() == 0) printf("\n");
+//        }
 
         _orbitals[oi] = tmp_orbitals[ti];
         _eigs[oi] = tmp_eigs[ti];
       }
+
+      kp += nao;
     }
   }
 
