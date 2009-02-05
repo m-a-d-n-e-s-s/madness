@@ -678,7 +678,7 @@ namespace madness {
 	World& world;
 
 	template<typename T, typename costfunT>
-        void construct_skel(SharedPtr<FunctionImpl<T,D> > f, const costfunT& costfun) {
+        void construct_skel(const SharedPtr<FunctionImpl<T,D> >& f, const costfunT& costfun) {
             skeltree = SharedPtr<LBTree<D> >(new LBTree<D>(f->world,
                        f->coeffs.get_pmap()));
 //            madness::print("about to initialize tree");
@@ -701,7 +701,7 @@ namespace madness {
 	    , world(f.get_impl()->world)
 	    , pi(PartitionInfo<D>(facter)) 
 	  {
-            construct_skel(f.get_impl(), costfun);
+	    construct_skel(f.get_impl(), costfun);
 	    pi.partition_number = f.get_impl()->world.mpi.nproc()-1;
 	  }
 

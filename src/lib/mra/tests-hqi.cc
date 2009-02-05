@@ -43,6 +43,22 @@ const double PI = 3.1415926535897932384;
 using namespace madness;
 
 template <typename T, int NDIM>
+struct lbcost {
+  double leaf_value;
+  double parent_value;
+  lbcost(double leaf_value=1.0, double parent_value=1.0) : leaf_value(leaf_value), parent_value(parent_value) {}
+								      
+  double operator()(const Key<NDIM>& key, const FunctionNode<T,NDIM>& node) const {
+    if (key.level() <=1) return 1000.0;
+    else if (node.is_leaf()) {
+      return leaf_value;
+    } else {
+      return parent_value;
+    }
+  }
+};
+
+template <typename T, int NDIM>
 class GaussianFunctor : public FunctionFunctorInterface<T,NDIM> {
 private:
     typedef Vector<double,NDIM> coordT;
@@ -96,10 +112,12 @@ void test_loadbal(World& world) {
 
     if (world.rank() == 0) print("at beginning of test_loadbal");
 
-    for (int i=0; i<NDIM; i++) {
-        FunctionDefaults<NDIM>::cell(i,0) = -10.0;
-        FunctionDefaults<NDIM>::cell(i,1) =  10.0;
-    }
+    //    for (int i=0; i<NDIM; i++) {
+    //        FunctionDefaults<NDIM>::cell(i,0) = -10.0;
+    //        FunctionDefaults<NDIM>::cell(i,1) =  10.0;
+    //    }
+
+    FunctionDefaults<NDIM>::set_cubic_cell(-10.0, 10.0);
 
     int nspikes = 2;
     //int nspikes = 10;
@@ -109,8 +127,10 @@ void test_loadbal(World& world) {
     std::vector<double> vexpnt(nspikes);
     Vector<double, NDIM> dcell, avgcell;
     for (int i = 0; i < NDIM; i++) {
-      dcell[i] = FunctionDefaults<NDIM>::cell(i,1) - FunctionDefaults<NDIM>::cell(i,0);
-      avgcell[i] = (FunctionDefaults<NDIM>::cell(i,0) + FunctionDefaults<NDIM>::cell(i,1))/2;
+      double cell0 = FunctionDefaults<NDIM>::get_cell()(i,0);
+      double cell1 = FunctionDefaults<NDIM>::get_cell()(i,1);
+      dcell[i] = cell0 - cell1;
+      avgcell[i] = (cell0 + cell1)/2;
     }
     for (int i = 0; i < nspikes; i++) {
         Vector<double, NDIM> v(0);
@@ -137,7 +157,7 @@ void test_loadbal(World& world) {
 
     for (int k=9; k >=9; k-=2) {
       //MyPmap<NDIM> temppmap(world);
-	FunctionDefaults<NDIM>::pmap = SharedPtr<MyPmap<NDIM> >(new MyPmap<NDIM>(world));
+	FunctionDefaults<NDIM>::set_pmap(SharedPtr<MyPmap<NDIM> >(new MyPmap<NDIM>(world)));
 	/*
 	if (world.rank() == 0) {
 	    FunctionDefaults<NDIM>::pmap->print();
@@ -146,13 +166,17 @@ void test_loadbal(World& world) {
         int n = 2;
         //int n = 7;
 	//double thresh = 1e-12;
-	double thresh = 5e-4;
+	//double thresh = 5e-4;
+	double thresh = 1e-3;
 	if (world.rank() == 0) { 
 	  printf("k=%d:\n", k);
 	}
         double t0 = MPI::Wtime();
 	//Function<T,NDIM> f = FunctionFactory<T,NDIM>(world).functor(functor).norefine().initial_level(n).k(k);
 	Function<T,NDIM> f = FunctionFactory<T,NDIM>(world).functor(functor).thresh(thresh).initial_level(n).k(k);
+	if (world.rank() == 0) {
+	  print("just made function f");
+	}
         double t1 = MPI::Wtime();
 	double err2 = f.err(*functor);
 	std::size_t size = f.size();
@@ -181,12 +205,15 @@ void test_loadbal(World& world) {
 	world.gop.fence();
 	double t6 = MPI::Wtime();
 	if (world.rank() == 0) print("ABOUT TO CREATE LOADBAL");
-	LoadBalImpl<T,NDIM> lb(g);
+	//	typedef Cost (*my_default_fun<3,double>) (const Key<3>&, const FunctionNode<double,3>&);
+       	LoadBalImpl<NDIM> lb(g, lbcost<T,NDIM>(1.0, 1.0));
+	//       	LoadBalImpl<NDIM> lb(g, &my_default_fun<T,NDIM>(Key<NDIM>, FunctionNode<T,NDIM>));
+	//	LoadBalImpl<NDIM> lb(g, &f_ptr);
 	if (world.rank() == 0) print("ABOUT TO FENCE");
 	world.gop.fence();
 	double t7 = MPI::Wtime();
 	if (world.rank() == 0) print("ABOUT TO DO LOADBAL");
-	FunctionDefaults<NDIM>::pmap = lb.load_balance();
+	FunctionDefaults<NDIM>::set_pmap(lb.load_balance());
 	/*
 	if (world.rank() == 0) {
 	    FunctionDefaults<NDIM>::pmap->print();
@@ -196,7 +223,7 @@ void test_loadbal(World& world) {
 	world.gop.fence();
 	Function<T,NDIM> h = FunctionFactory<T,NDIM>(world).functor(functor).thresh(thresh).initial_level(n).k(k);
 	double t8 = MPI::Wtime();
-	f = copy(g,FunctionDefaults<NDIM>::pmap);
+	f = copy(g,FunctionDefaults<NDIM>::get_pmap());
         double t9 = MPI::Wtime();
 	double err21 = h.err(*functor);
 	std::size_t size1 = h.size();
@@ -253,7 +280,7 @@ int main(int argc, char**argv) {
         if (world.rank() == 0) print("before startup");
         startup(world,argc,argv);
         if (world.rank() == 0) print("before test_loadbal");
-        test_loadbal<double,3>(world);
+        test_loadbal<double, 3>(world);
     } catch (const MPI::Exception& e) {
         print(e);
         error("caught an MPI exception");
