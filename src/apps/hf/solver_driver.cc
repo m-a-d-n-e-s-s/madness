@@ -44,9 +44,13 @@ int main(int argc, char** argv)
 //        }
         std::vector<double> eigs;
         Tensor<double> tmpe = app.eigs();
+        print(tmpe);
         int neps = params.nelec / 2;
         for (int i = 0; i < neps; i++)
+        {
+          //printf("%15f\n", tmpe[i]);
           eigs.push_back(tmpe[i]);
+        }
 //
         Solver<double,std::complex<double>,3> dftcalc(world, vnucrhon, phis, eigs, params);
 //        dftcalc.solve();

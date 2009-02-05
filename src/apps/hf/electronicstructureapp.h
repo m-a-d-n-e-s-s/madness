@@ -337,16 +337,17 @@ public:
       int n = v.size();
       tensorT c(n,n);
       const std::complex<double> I = std::complex<double>(0.0,1.0);
+      double k0 = k.k[0]; double k1 = k.k[1]; double k2 = k.k[2];
       for (int i = 0; i < n; i++)
       {
-        functionT dv_i_0 = function_real2complex(diff(v[i],0)) - I*k[0]*v[i];
-        functionT dv_i_1 = function_real2complex(diff(v[i],1)) - I*k[1]*v[i];
-        functionT dv_i_2 = function_real2complex(diff(v[i],2)) - I*k[2]*v[i];
+        functionT dv_i_0 = function_real2complex(diff(v[i],0)) - I*k0*v[i];
+        functionT dv_i_1 = function_real2complex(diff(v[i],1)) - I*k1*v[i];
+        functionT dv_i_2 = function_real2complex(diff(v[i],2)) - I*k2*v[i];
         for (int j = 0; j < n; j++)
         {
-          functionT dv_j_0 = function_real2complex(diff(v[j],0)) + I*k[0]*v[j];
-          functionT dv_j_1 = function_real2complex(diff(v[j],1)) + I*k[1]*v[j];
-          functionT dv_j_2 = function_real2complex(diff(v[j],2)) + I*k[2]*v[j];
+          functionT dv_j_0 = function_real2complex(diff(v[j],0)) + I*k0*v[j];
+          functionT dv_j_1 = function_real2complex(diff(v[j],1)) + I*k1*v[j];
+          functionT dv_j_2 = function_real2complex(diff(v[j],2)) + I*k2*v[j];
           c(i,j) = inner(dv_i_0,dv_j_0) + inner(dv_i_1,dv_j_1) + inner(dv_i_2,dv_j_2);
         }
       }
@@ -384,42 +385,33 @@ public:
   /// Initializes alpha and beta mos, occupation numbers, eigenvalues
   void initial_guess()
   {
+    // Get initial guess for the electronic density
     if (_world.rank() == 0) print("Guessing rho ...\n\n");
     rfunctionT rho = rfactoryT(_world).functor(rfunctorT(
         new GuessDensity(_mentity, _aobasis)));
 
-//    {
-//      rho.reconstruct();
-//      if (_world.rank() == 0)  printf("\n");
-//      double L = _params.L;
-//      double bstep = L / 100.0;
-//      for (int i = 0; i < 101; i++)
-//      {
-//        coordT p(-L / 2 + i * bstep);
-//        if (_world.rank() == 0)
-//          printf("%.2f\t\t%.8f\n", p[0], rho(p));
-//      }
-//    }
-
     rfunctionT vlocal;
+    // Is this a many-body system?
     if (_params.nelec > 1)
     {
       if (_world.rank() == 0) print("Creating Coulomb op ...\n\n");
       SeparatedConvolution<double, 3>* op = 0;
+      // Is this system periodic?
       if (_params.periodic)
       {
         Tensor<double> cellsize = FunctionDefaults<3>::get_cell_width();
         op = PeriodicCoulombOpPtr<double, 3> (_world, _params.waveorder,
-            _params.lo, _params.thresh, cellsize);
+            _params.lo, _params.thresh * 0.1, cellsize);
       }
       else
       {
         op = CoulombOperatorPtr<double, 3> (_world, _params.waveorder,
-            _params.lo, _params.thresh);
+            _params.lo, _params.thresh * 0.1);
       }
       if (_world.rank() == 0) print("Building effective potential ...\n\n");
       vlocal = _vnuc + apply(*op, rho); //.scale(1.0-1.0/nel); // Reduce coulomb to increase binding
       rho.scale(0.5);
+      // Do the LDA
       vlocal = vlocal + make_lda_potential(_world, rho, rho, rfunctionT(), rfunctionT());
       delete op;
     }
@@ -444,16 +436,32 @@ public:
 //      if (_world.rank() == 0) printf("\n");
 //    }
 
+    // Clear these functions
     rho.clear();
     vlocal.reconstruct();
 
+    // These are our initial basis functions
     if (_world.rank() == 0) print("Projecting atomic orbitals ...\n\n");
     rvecfuncT ao = project_ao_basis(_world);
 
+    // Get size information from k-points and ao_basis so that we can correctly size
+    // the _orbitals data structure and the eigs tensor
+    int nao = ao.size();
+    int nkpts = _kpoints.size();
+    int norbs = nao * nkpts;
+    _orbitals = std::vector<functionT>(norbs, factoryT(_world));
+    _eigs = rtensorT(norbs);
+    _occs = rtensorT(norbs);
+    for (int i = 0; i < norbs; i++) _occs[i] = _params.maxocc;
+    print("norbs = ", norbs);
+
+    // Build the overlap matrix
     if (_world.rank() == 0) print("Building overlap matrix ...\n\n");
     rtensorT roverlap = matrix_inner(_world, ao, ao, true);
+    // Convert to a complex tensor
     tensorT overlap = tensor_real2complex<double>(roverlap);
 
+    // Build the potential matrix
     reconstruct(_world, ao);
     if (_world.rank() == 0) print("Building potential energy matrix ...\n\n");
     rvecfuncT vpsi = mul_sparse(_world, vlocal, ao, _params.thresh);
@@ -464,12 +472,15 @@ public:
     compress(_world, ao);
 
     rtensorT rpotential = matrix_inner(_world, vpsi, ao, true);
+    // Convert to a complex tensor
     tensorT potential = tensor_real2complex<double>(rpotential);
     _world.gop.fence();
     vpsi.clear();
     _world.gop.fence();
 
-    for (int ki = 0; ki < _kpoints.size(); ki++)
+    int kp = 0;
+    // Need to do kinetic piece for every k-point
+    for (int ki = 0; ki < _kpoints.size(); ki++, kp += nao)
     {
       // Get k-point from list
       KPoint kpt = _kpoints[ki];
@@ -487,17 +498,39 @@ public:
 
       compress(_world, ao);
       _world.gop.fence();
-      vecfuncT orbitals = transform(_world, ao, c(_, Slice(0, _params.nbands - 1)));
+      vecfuncT tmp_orbitals = transform(_world, ao, c(_, Slice(0, nao - 1)));
       _world.gop.fence();
-      truncate(_world, orbitals);
-      normalize(_world, orbitals);
+      truncate(_world, tmp_orbitals);
+      normalize(_world, tmp_orbitals);
+      rtensorT tmp_eigs = e(Slice(0, nao - 1));
 
-      tensorT eigs = e(Slice(0, _params.nbands - 1));
+      printf("(%8.4f,%8.4f,%8.4f)\n",kpt.k[0], kpt.k[1], kpt.k[2]);
+      print(tmp_eigs);
+      print("\n");
 
+      // Fill in orbitals and eigenvalues
+      int kend = kp + nao;
+      for (int oi = kp, ti = 0; oi < kend; oi++, ti++)
+      {
 
-//      _occs = rtensorT(_params.nbands);
-//      for (int i = 0; i < _params.nbands; i++)
-//        _occs[i] = _params.maxocc;
+        {
+          if (_world.rank() == 0)  printf("\n");
+          double L = _params.L;
+          double bstep = L / 100.0;
+          print("ti = ", ti);
+          tmp_orbitals[ti].reconstruct();
+          for (int i = 0; i < 101; i++)
+          {
+            coordT p(-L / 2 + i * bstep);
+            if (_world.rank() == 0)
+              printf("%5.2f%15.8f\n", p[0], (tmp_orbitals[ti])(p));
+          }
+          if (_world.rank() == 0) printf("\n");
+        }
+
+        _orbitals[oi] = tmp_orbitals[ti];
+        _eigs[oi] = tmp_eigs[ti];
+      }
     }
   }
 
