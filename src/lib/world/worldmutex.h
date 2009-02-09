@@ -167,6 +167,9 @@ namespace madness {
         virtual ~ScopedMutex() {m->unlock();}
     };
 
+#ifdef NEVER_SPIN
+    typedef Mutex Spinlock;
+#else
     /// Spinlock using pthread spinlock operations
     class Spinlock {
     private:
@@ -203,6 +206,7 @@ namespace madness {
             pthread_spin_destroy(&spinlock);
         };
     };
+#endif
 
 
     class MutexReaderWriter : private Spinlock, NO_DEFAULTS {
