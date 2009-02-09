@@ -37,17 +37,17 @@ int main(int argc, char** argv)
         Function<double,3> vnucrhon = app.vnucrhon();
         vecfuncT orbs = app.orbitals();
         std::vector<double> eigs;
-        std::vector< Function< std::complex<double>,3> > phis;
+        std::vector< Function<double,3> > phis;
         Tensor<double> tmpe = app.eigs();
         print(tmpe);
         int neps = params.nelec / 2;
         for (int i = 0; i < neps; i++)
         {
-          phis.push_back(orbs[i]);
+          phis.push_back(real(orbs[i]));
           eigs.push_back(tmpe[i]);
         }
 
-        Solver<double,std::complex<double>,3> dftcalc(world, vnucrhon, phis, eigs, params);
+        Solver<double,double,3> dftcalc(world, vnucrhon, phis, eigs, params);
         dftcalc.solve();
         world.gop.fence();
 

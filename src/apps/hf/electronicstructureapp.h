@@ -159,6 +159,21 @@ double rsquared(const coordT& r) {
     return r[0]*r[0] + r[1]*r[1] + r[2]*r[2];
 }
 
+template <typename Q, int NDIM>
+Function<Q,NDIM> pdiff(const Function<Q,NDIM>& f, int axis, bool fence = true)
+{
+  // Check for periodic boundary conditions
+  Tensor<int> oldbc = FunctionDefaults<NDIM>::get_bc();
+  Tensor<int> bc(NDIM,2);
+  bc(___) = 1;
+  FunctionDefaults<NDIM>::set_bc(bc);
+  // Do calculation
+  Q rf = diff(f,axis,fence);
+  // Restore previous boundary conditions
+  FunctionDefaults<NDIM>::set_bc(oldbc);
+  return rf;
+}
+
 class ElectronicStructureApp
 {
 public:
@@ -212,7 +227,7 @@ public:
 
       if (_world.rank() == 0)
       {
-        if (_params.periodic)
+        if (_params.periodic && _params.kpoints)
         {
           _kpoints = read_kpoints("KPOINTS.OUT");
         }
@@ -342,18 +357,32 @@ public:
       tensorT c(n,n);
       const std::complex<double> I = std::complex<double>(0.0,1.0);
       double k0 = k.k[0]; double k1 = k.k[1]; double k2 = k.k[2];
-      for (int i = 0; i < n; i++)
+      if (_params.periodic)
       {
-        functionT dv_i_0 = function_real2complex(diff(v[i],0)) - I*k0*v[i];
-        functionT dv_i_1 = function_real2complex(diff(v[i],1)) - I*k1*v[i];
-        functionT dv_i_2 = function_real2complex(diff(v[i],2)) - I*k2*v[i];
-        for (int j = 0; j < n; j++)
+        for (int i = 0; i < n; i++)
         {
-          functionT dv_j_0 = function_real2complex(diff(v[j],0)) + I*k0*v[j];
-          functionT dv_j_1 = function_real2complex(diff(v[j],1)) + I*k1*v[j];
-          functionT dv_j_2 = function_real2complex(diff(v[j],2)) + I*k2*v[j];
-          c(i,j) = inner(dv_i_0,dv_j_0) + inner(dv_i_1,dv_j_1) + inner(dv_i_2,dv_j_2);
+          functionT dv_i_0 = function_real2complex(diff(v[i],0)) - I*k0*v[i];
+          functionT dv_i_1 = function_real2complex(diff(v[i],1)) - I*k1*v[i];
+          functionT dv_i_2 = function_real2complex(diff(v[i],2)) - I*k2*v[i];
+          for (int j = 0; j < n; j++)
+          {
+            functionT dv_j_0 = function_real2complex(diff(v[j],0)) + I*k0*v[j];
+            functionT dv_j_1 = function_real2complex(diff(v[j],1)) + I*k1*v[j];
+            functionT dv_j_2 = function_real2complex(diff(v[j],2)) + I*k2*v[j];
+            c(i,j) = inner(dv_i_0,dv_j_0) + inner(dv_i_1,dv_j_1) + inner(dv_i_2,dv_j_2);
+          }
         }
+      }
+      else
+      {
+        rtensorT r(n,n);
+        for (int axis=0; axis<3; axis++)
+        {
+            rvecfuncT dv = diff(world,v,axis);
+            r += matrix_inner(world, dv, dv, true);
+            dv.clear(); // Allow function memory to be freed
+        }
+        c = tensor_real2complex(r);
       }
 
 //      // DEBUG

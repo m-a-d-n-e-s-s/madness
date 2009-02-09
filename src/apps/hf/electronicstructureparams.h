@@ -10,62 +10,6 @@
 
 namespace madness {
 
-//*****************************************************************************
-template <typename Q, int NDIM>
-Function<Q,NDIM> wst_diff(const Function<Q,NDIM>& f, int axis, bool periodic, bool fence=true)
-{
-  // Check for periodic boundary conditions
-  Tensor<int> oldbc = FunctionDefaults<NDIM>::get_bc();
-  if (periodic)
-  {
-    Tensor<int> bc(NDIM,2);
-    bc(___) = 1;
-    FunctionDefaults<NDIM>::set_bc(bc);
-  }
-  else
-  {
-    Tensor<int> bc(NDIM,2);
-    bc(___) = 0;
-    FunctionDefaults<NDIM>::set_bc(bc);
-  }
-  // Do calculation
-  Function<Q,NDIM> result = diff(f,axis,fence);
-
-  // Restore previous boundary conditions
-  FunctionDefaults<NDIM>::set_bc(oldbc);
-  return result;
-};
-//*****************************************************************************
-
-//*****************************************************************************
-template <typename Q, int NDIM>
-std::vector< Function<Q,NDIM> > wst_diff(const World& world,
-    const std::vector< Function<Q,NDIM> >& v, int axis, bool periodic,
-    bool fence=true)
-{
-  // Check for periodic boundary conditions
-  Tensor<int> oldbc = FunctionDefaults<NDIM>::get_bc();
-  if (periodic)
-  {
-    Tensor<int> bc(NDIM,2);
-    bc(___) = 1;
-    FunctionDefaults<NDIM>::set_bc(bc);
-  }
-  else
-  {
-    Tensor<int> bc(NDIM,2);
-    bc(___) = 0;
-    FunctionDefaults<NDIM>::set_bc(bc);
-  }
-  // Do calculation
-  std::vector< Function<Q,NDIM> > results = diff(world,v,axis);
-
-  // Restore previous boundary conditions
-  FunctionDefaults<NDIM>::set_bc(oldbc);
-  return results;
-};
-//*****************************************************************************
-
 struct ElectronicStructureParams
 {
   // Size of the cubic box (this needs to change)
@@ -98,6 +42,8 @@ struct ElectronicStructureParams
   int ngridk0, ngridk1, ngridk2;
   // Maximum occupation
   double maxocc;
+  // Read k-points?
+  bool kpoints;
 
   ElectronicStructureParams()
   {
@@ -116,13 +62,14 @@ struct ElectronicStructureParams
     ngridk0 = 1; ngridk1 = 1; ngridk2 = 1;
     maxocc = 2.0;
     nbands = nelec/maxocc + nempty;
+    kpoints = false;
   }
 
   template <typename Archive>
   void serialize(Archive& ar) {
       ar & L & nelec & functional & lo & smear & spinpol & periodic &
       maxits & thresh & waveorder & nempty & nbands &
-      ngridk0 & ngridk1 & ngridk2 & maxocc;
+      ngridk0 & ngridk1 & ngridk2 & maxocc & kpoints;
   }
 
   void read_file(const std::string& filename)
@@ -225,6 +172,23 @@ struct ElectronicStructureParams
       {
         f >> nempty;
       }
+      else if (s == "kpoints")
+      {
+        std::string tempstr;
+        f >> tempstr;
+        if (tempstr == "true")
+        {
+          kpoints = true;
+        }
+        else if (tempstr == "false")
+        {
+          kpoints = false;
+        }
+        else
+        {
+          MADNESS_EXCEPTION("input error -- kpoints", 0);
+        }
+      }
       else if (s == "ngridk")
       {
         f >> ngridk0; f >> ngridk1; f >> ngridk2;
@@ -243,6 +207,9 @@ struct ElectronicStructureParams
 //    maxocc = (spinpol) ? 1.0 : 2.0;
     // compute total number of bands
     nbands = nelec/maxocc + nempty;
+    // kpoints only for periodic
+    if (kpoints && !periodic)
+      MADNESS_EXCEPTION("input error -- k-points only valid with periodic calculation", 0);
   }
 
   void set_molecular_info(const MolecularEntity& mentity, const AtomicBasisSet& aobasis) {

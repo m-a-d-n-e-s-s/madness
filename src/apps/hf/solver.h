@@ -89,7 +89,11 @@ namespace madness
     //*************************************************************************
 
     //*************************************************************************
-    double _shift;
+    vector<T> _alpha;
+    //*************************************************************************
+
+    //*************************************************************************
+    bool newscheme() {return true;}
     //*************************************************************************
 
   public:
@@ -329,15 +333,15 @@ namespace madness
     //*************************************************************************
     void solve()
     {
-      _shift = 10.0;
-      Function<double,3> shifted = FunctionFactory<double,3>(_world).f(onesfunc);
-      shifted.scale(_shift);
-      _vnuc -= shifted;
-      for (int i = 0; i < _eigsa.size(); i++)
-      {
-        _eigsa[i] -= _shift;
-        _eigsb[i] -= _shift;
-      }
+//      _shift = 1.0;
+//      Function<double,3> shifted = FunctionFactory<double,3>(_world).f(onesfunc);
+//      shifted.scale(_shift);
+//      _vnuc -= shifted;
+//      for (unsigned int i = 0; i < _eigsa.size(); i++)
+//      {
+//        _eigsa[i] -= _shift;
+//        _eigsb[i] -= _shift;
+//      }
 
       for (int it = 0; it < _params.maxits; it++)
       {
