@@ -100,7 +100,7 @@ struct real_op
   Tensor<resultT> operator()(const Key<NDIM>& key, const Tensor<Q>& t) const
   {
     Tensor<resultT> result(t.ndim, t.dim);
-    BINARY_OPTIMIZED_ITERATOR(Q, t, resultT, result, resultT *_p1 = real(*_p0););
+    BINARY_OPTIMIZED_ITERATOR(Q, t, resultT, result, *_p1 = real(*_p0););
     return result;
   }
   template <typename Archive>
@@ -124,7 +124,7 @@ struct imag_op
   Tensor<resultT> operator()(const Key<NDIM>& key, const Tensor<Q>& t) const
   {
     Tensor<resultT> result(t.ndim, t.dim);
-    BINARY_OPTIMIZED_ITERATOR(Q, t, resultT, result, resultT *_p1 = imag(*_p0););
+    BINARY_OPTIMIZED_ITERATOR(Q, t, resultT, result, *_p1 = imag(*_p0););
     return result;
   }
   template <typename Archive>
@@ -142,13 +142,37 @@ Function<typename TensorTypeData<Q>::scalar_type,NDIM> imag(const Function<Q,NDI
 
 //***************************************************************************
 template <typename Q, int NDIM>
+struct abs_op
+{
+  typedef typename TensorTypeData<Q>::scalar_type resultT;
+  Tensor<resultT> operator()(const Key<NDIM>& key, const Tensor<Q>& t) const
+  {
+    Tensor<resultT> result(t.ndim, t.dim);
+    BINARY_OPTIMIZED_ITERATOR(Q, t, resultT, result, *_p1 = abs(*_p0););
+    return result;
+  }
+  template <typename Archive>
+  void serialize(Archive& ar) {}
+};
+//***************************************************************************
+
+//***************************************************************************
+template<typename Q, int NDIM>
+Function<typename TensorTypeData<Q>::scalar_type,NDIM> abs(const Function<Q,NDIM>& func)
+{
+  return unary_op_coeffs(func, abs_op<Q,NDIM>());
+}
+//***************************************************************************
+
+//***************************************************************************
+template <typename Q, int NDIM>
 struct conj_op
 {
   typedef Q resultT;
   Tensor<resultT> operator()(const Key<NDIM>& key, const Tensor<Q>& t) const
   {
     Tensor<resultT> result(t.ndim, t.dim);
-    BINARY_OPTIMIZED_ITERATOR(Q, t, resultT, result, resultT *_p1 = conj(*_p0););
+    BINARY_OPTIMIZED_ITERATOR(Q, t, resultT, result, *_p1 = conj(*_p0););
     return result;
   }
   template <typename Archive>
