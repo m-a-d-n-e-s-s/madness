@@ -210,14 +210,18 @@ public:
     _world.gop.broadcast_serializable(_params, 0);
     _world.gop.broadcast_serializable(_aobasis, 0);
 
-    if (_params.periodic)
-    {
       if (_world.rank() == 0)
       {
-        _kpoints = read_kpoints("KPOINTS.OUT");
+        if (_params.periodic)
+        {
+          _kpoints = read_kpoints("KPOINTS.OUT");
+        }
+        else
+        {
+          _kpoints.push_back(KPoint(coordT(0.0), 1.0));
+        }
       }
       _world.gop.broadcast_serializable(_kpoints, 0);
-    }
 
     FunctionDefaults<3>::set_cubic_cell(-_params.L,_params.L);
     FunctionDefaults<3>::set_thresh(_params.thresh);
@@ -508,6 +512,18 @@ public:
       printf("(%8.4f,%8.4f,%8.4f)\n",kpt.k[0], kpt.k[1], kpt.k[2]);
       print(tmp_eigs);
       print("\n");
+
+      // DEBUG
+      for (int i = 0; i < fock.dim[0]; i++)
+      {
+        for (int j = 0; j < fock.dim[1]; j++)
+        {
+          printf("%10.5f", real(fock(i,j)));
+        }
+        printf("\n");
+      }
+      printf("\n");
+      printf("\n");
 
       // Fill in orbitals and eigenvalues
       int kend = kp + nao;

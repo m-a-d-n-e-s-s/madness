@@ -35,19 +35,15 @@ int main(int argc, char** argv)
         app.initial_guess();
         ElectronicStructureParams params = app.params();
         Function<double,3> vnucrhon = app.vnucrhon();
-        vecfuncT phis = app.orbitals();
-//        std::vector< Function< std::complex<double>,3> > phis;
-//        std::complex<double> alpha(1.0, 0.0);
-//        for (unsigned int i = 0; i < phis_real.size(); i++)
-//        {
-//          phis.push_back(alpha * phis_real[i]);
-//        }
+        vecfuncT orbs = app.orbitals();
         std::vector<double> eigs;
+        std::vector< Function< std::complex<double>,3> > phis;
         Tensor<double> tmpe = app.eigs();
         print(tmpe);
         int neps = params.nelec / 2;
         for (int i = 0; i < neps; i++)
         {
+          phis.push_back(orbs[i]);
           eigs.push_back(tmpe[i]);
         }
 

@@ -11,6 +11,13 @@
 
 #ifndef SOLVER_H_
 
+//*****************************************************************************
+static double onesfunc(const coordT& x)
+{
+  return 1.0;
+}
+//*****************************************************************************
+
 namespace madness
 {
   //***************************************************************************
@@ -81,6 +88,9 @@ namespace madness
     SeparatedConvolution<T,NDIM>* _cop;
     //*************************************************************************
 
+    //*************************************************************************
+    double _shift;
+    //*************************************************************************
 
   public:
     //*************************************************************************
@@ -319,8 +329,19 @@ namespace madness
     //*************************************************************************
     void solve()
     {
+      _shift = 10.0;
+      Function<double,3> shifted = FunctionFactory<double,3>(_world).f(onesfunc);
+      shifted.scale(_shift);
+      _vnuc -= shifted;
+      for (int i = 0; i < _eigsa.size(); i++)
+      {
+        _eigsa[i] -= _shift;
+        _eigsb[i] -= _shift;
+      }
+
       for (int it = 0; it < _params.maxits; it++)
       {
+        print("it = ", it);
         // Compute density
         _rhoa = compute_rho(_phisa);
         _rhob = (_params.spinpol) ? compute_rho(_phisb) : _rhoa;
@@ -333,6 +354,7 @@ namespace madness
           pfuncsb[pi] = factoryT(_world);
 
         // Apply the potentials to the orbitals
+        print("applying potential ...\n");
         apply_potential(pfuncsa, pfuncsb, _phisa, _phisb, _rhoa, _rhob, _rho);
 
         // Make BSH Green's function
@@ -342,6 +364,8 @@ namespace madness
         scale(_world, pfuncsa, sfactor);
 
         // Apply Green's function to orbitals
+        print("applying BSH operator ...\n");
+        truncate<valueT,NDIM>(_world, pfuncsa);
         vector<functionT> tmpa = apply(_world, bopsa, pfuncsa);
 
 //        {
@@ -362,13 +386,15 @@ namespace madness
 //        }
 
         // Gram-Schmidt
+        print("gram-schmidt ...\n");
         gram_schmidt(tmpa, _phisa);
 
         // Update eigenvalues
+        print("updating eigenvalues ...\n");
         update_eigenvalues(tmpa, pfuncsa, _phisa, _eigsa);
 
         // Update orbitals
-        truncate(_world, tmpa);
+        truncate<valueT,NDIM>(_world, tmpa);
         for (unsigned int ti = 0; ti < tmpa.size(); ti++)
         {
           _phisa[ti] = tmpa[ti].scale(1.0/tmpa[ti].norm2());
@@ -379,10 +405,11 @@ namespace madness
         {
           std::vector<poperatorT> bopsb = make_bsh_operators(_eigsb);
           scale(_world, pfuncsb, sfactor);
+          truncate<valueT,NDIM>(_world, pfuncsb);
           vector<functionT> tmpb = apply(_world, bopsb, pfuncsb);
           gram_schmidt(tmpb, _phisb);
           // Update orbitals
-          truncate(_world, tmpb);
+          truncate<valueT,NDIM>(_world, tmpb);
           update_eigenvalues(tmpb, pfuncsb, _phisb, _eigsb);
           for (unsigned int ti = 0; ti < tmpb.size(); ti++)
           {
