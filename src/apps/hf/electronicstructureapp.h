@@ -87,20 +87,20 @@ private:
 public:
   AtomicBasisFunctor(const AtomicBasisFunction& aofunc, double R, bool periodic) : aofunc(aofunc),
     R(R), periodic(periodic)
-  {}
+  {print("R = ", R);}
 
   double operator()(const coordT& x) const
   {
     double value = 0.0;
     if (periodic)
     {
-      for (int xr = -R; xr <= R; xr += R)
+      for (int xr = -1; xr <= 1; xr += 1)
       {
-        for (int yr = -R; yr <= R; yr += R)
+        for (int yr = -1; yr <= 1; yr += 1)
         {
-          for (int zr = -R; zr <= R; zr += R)
+          for (int zr = -1; zr <= 1; zr += 1)
           {
-            value += aofunc(x[0]+xr, x[1]+yr, x[2]+zr);
+            value += aofunc(x[0]+xr*R, x[1]+yr*R, x[2]+zr*R);
 //            double diff = fabs(aofunc(x[0], x[1], x[2])-aofunc(x[0]+xr, x[1]+yr, x[2]+zr));
 //            if (diff > 1e-3) printf("%10.8e%16.8e%16.8e\n", diff, aofunc(x[0], x[1], x[2]), aofunc(x[0]+xr, x[1]+yr, x[2]+zr));
           }
@@ -168,7 +168,7 @@ Function<Q,NDIM> pdiff(const Function<Q,NDIM>& f, int axis, bool fence = true)
   bc(___) = 1;
   FunctionDefaults<NDIM>::set_bc(bc);
   // Do calculation
-  Q rf = diff(f,axis,fence);
+  Function<Q,NDIM> rf = diff(f,axis,fence);
   // Restore previous boundary conditions
   FunctionDefaults<NDIM>::set_bc(oldbc);
   return rf;
@@ -305,38 +305,67 @@ public:
 
   rvecfuncT project_ao_basis(World& world) {
       rvecfuncT ao(_aobasis.nbf(_mentity));
+      rvecfuncT aop(_aobasis.nbf(_mentity));
 
       Level initial_level = 3;
       for (int i=0; i < _aobasis.nbf(_mentity); i++) {
           rfunctorT aofunc(new AtomicBasisFunctor(_aobasis.get_atomic_basis_function(_mentity,i),
               _params.L, false));
-//             if (world.rank() == 0) {
-//                 aobasis.get_atomic_basis_function(molecule,i).print_me(cout);
-//             }
           ao[i] = rfactoryT(world).functor(aofunc).initial_level(initial_level).truncate_on_project().nofence();
       }
       world.gop.fence();
+
+      for (int i=0; i < _aobasis.nbf(_mentity); i++) {
+          rfunctorT aofunc(new AtomicBasisFunctor(_aobasis.get_atomic_basis_function(_mentity,i),
+              _params.L, true));
+          aop[i] = rfactoryT(world).functor(aofunc).initial_level(initial_level).truncate_on_project().nofence();
+      }
+      world.gop.fence();
+
+      rfunctionT aod = ao[0] - aop[0];
+
+      vector<long> npt(3,101);
+      plotdx(aod, "aod0.dx", FunctionDefaults<3>::get_cell(), npt);
+
+//      double aon = ao[0].norm2();
+//      double aopn = aop[0].norm2();
+//      double aodn = aod.norm2();
+//      print(aon, aopn, aodn);
+
+//      coordT begin(0.0); coordT end(0.0);
+//      begin[0] = -_params.L/2; end[0] = _params.L/2;
+//      plot_line("freddiff", 1000, begin, end, aod);
+      print("KILL ME!\n");
       //truncate(world, ao);
 
       vector<double> norms;
 
-      while (1) {
-          norms = norm2(world, ao);
-          initial_level += 2;
-          if (initial_level >= 11) throw "project_ao_basis: projection failed?";
-          int nredone = 0;
-          for (int i=0; i<_aobasis.nbf(_mentity); i++) {
-              if (norms[i] < 0.5) {
-                  nredone++;
-                  if (world.rank() == 0) print("re-projecting ao basis function", i,"at level",initial_level);
-                  rfunctorT aofunc(new AtomicBasisFunctor(_aobasis.get_atomic_basis_function(_mentity,i),
-                      _params.L, false));
-                  ao[i] = rfactoryT(world).functor(aofunc).initial_level(6).truncate_on_project().nofence();
-              }
-          }
-          world.gop.fence();
-          if (nredone == 0) break;
+//      while (1) {
+//          norms = norm2(world, ao);
+//          initial_level += 2;
+//          if (initial_level >= 11) throw "project_ao_basis: projection failed?";
+//          int nredone = 0;
+//          for (int i=0; i<_aobasis.nbf(_mentity); i++) {
+//              if (norms[i] < 0.5) {
+//                  nredone++;
+//                  if (world.rank() == 0) print("re-projecting ao basis function", i,"at level",initial_level);
+//                  rfunctorT aofunc(new AtomicBasisFunctor(_aobasis.get_atomic_basis_function(_mentity,i),
+//                      _params.L, _params.periodic));
+//                  ao[i] = rfactoryT(world).functor(aofunc).initial_level(6).truncate_on_project().nofence();
+//              }
+//          }
+//          world.gop.fence();
+//          if (nredone == 0) break;
+//      }
+
+      norms = norm2(world, ao);
+
+      for (int i=0; i<_aobasis.nbf(_mentity); i++) {
+          if (world.rank() == 0 && fabs(norms[i]-1.0)>1e-3) print(i," bad ao norm?", norms[i]);
+          norms[i] = 1.0/norms[i];
       }
+
+      scale(world, ao, norms);
 
       norms = norm2(world, ao);
 
@@ -361,14 +390,14 @@ public:
       {
         for (int i = 0; i < n; i++)
         {
-          functionT dv_i_0 = function_real2complex(diff(v[i],0)) - I*k0*v[i];
-          functionT dv_i_1 = function_real2complex(diff(v[i],1)) - I*k1*v[i];
-          functionT dv_i_2 = function_real2complex(diff(v[i],2)) - I*k2*v[i];
+          functionT dv_i_0 = function_real2complex(pdiff(v[i],0)) - I*k0*v[i];
+          functionT dv_i_1 = function_real2complex(pdiff(v[i],1)) - I*k1*v[i];
+          functionT dv_i_2 = function_real2complex(pdiff(v[i],2)) - I*k2*v[i];
           for (int j = 0; j < n; j++)
           {
-            functionT dv_j_0 = function_real2complex(diff(v[j],0)) + I*k0*v[j];
-            functionT dv_j_1 = function_real2complex(diff(v[j],1)) + I*k1*v[j];
-            functionT dv_j_2 = function_real2complex(diff(v[j],2)) + I*k2*v[j];
+            functionT dv_j_0 = function_real2complex(pdiff(v[j],0)) + I*k0*v[j];
+            functionT dv_j_1 = function_real2complex(pdiff(v[j],1)) + I*k1*v[j];
+            functionT dv_j_2 = function_real2complex(pdiff(v[j],2)) + I*k2*v[j];
             c(i,j) = inner(dv_i_0,dv_j_0) + inner(dv_i_1,dv_j_1) + inner(dv_i_2,dv_j_2);
           }
         }
@@ -543,6 +572,28 @@ public:
       print("\n");
 
       // DEBUG
+      for (int i = 0; i < kinetic.dim[0]; i++)
+      {
+        for (int j = 0; j < kinetic.dim[1]; j++)
+        {
+          printf("%10.5f", real(kinetic(i,j)));
+        }
+        printf("\n");
+      }
+      printf("\n");
+      printf("\n");
+
+      for (int i = 0; i < potential.dim[0]; i++)
+      {
+        for (int j = 0; j < potential.dim[1]; j++)
+        {
+          printf("%10.5f", real(potential(i,j)));
+        }
+        printf("\n");
+      }
+      printf("\n");
+      printf("\n");
+
       for (int i = 0; i < fock.dim[0]; i++)
       {
         for (int j = 0; j < fock.dim[1]; j++)
