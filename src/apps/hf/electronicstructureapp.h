@@ -86,8 +86,7 @@ private:
   const bool periodic;
 public:
   AtomicBasisFunctor(const AtomicBasisFunction& aofunc, double R, bool periodic) : aofunc(aofunc),
-    R(R), periodic(periodic)
-  {print("R = ", R);}
+    R(R), periodic(periodic) {}
 
   double operator()(const coordT& x) const
   {
@@ -238,7 +237,7 @@ public:
       }
       _world.gop.broadcast_serializable(_kpoints, 0);
 
-    FunctionDefaults<3>::set_cubic_cell(-_params.L,_params.L);
+    FunctionDefaults<3>::set_cubic_cell(-_params.L/2,_params.L/2);
     FunctionDefaults<3>::set_thresh(_params.thresh);
     FunctionDefaults<3>::set_k(_params.waveorder);
   }
@@ -305,58 +304,34 @@ public:
 
   rvecfuncT project_ao_basis(World& world) {
       rvecfuncT ao(_aobasis.nbf(_mentity));
-      rvecfuncT aop(_aobasis.nbf(_mentity));
 
       Level initial_level = 3;
       for (int i=0; i < _aobasis.nbf(_mentity); i++) {
           rfunctorT aofunc(new AtomicBasisFunctor(_aobasis.get_atomic_basis_function(_mentity,i),
-              _params.L, false));
+              _params.L, _params.periodic));
           ao[i] = rfactoryT(world).functor(aofunc).initial_level(initial_level).truncate_on_project().nofence();
       }
       world.gop.fence();
 
-      for (int i=0; i < _aobasis.nbf(_mentity); i++) {
-          rfunctorT aofunc(new AtomicBasisFunctor(_aobasis.get_atomic_basis_function(_mentity,i),
-              _params.L, true));
-          aop[i] = rfactoryT(world).functor(aofunc).initial_level(initial_level).truncate_on_project().nofence();
-      }
-      world.gop.fence();
-
-      rfunctionT aod = ao[0] - aop[0];
-
-      vector<long> npt(3,101);
-      plotdx(aod, "aod0.dx", FunctionDefaults<3>::get_cell(), npt);
-
-//      double aon = ao[0].norm2();
-//      double aopn = aop[0].norm2();
-//      double aodn = aod.norm2();
-//      print(aon, aopn, aodn);
-
-//      coordT begin(0.0); coordT end(0.0);
-//      begin[0] = -_params.L/2; end[0] = _params.L/2;
-//      plot_line("freddiff", 1000, begin, end, aod);
-      print("KILL ME!\n");
-      //truncate(world, ao);
-
       vector<double> norms;
 
-//      while (1) {
-//          norms = norm2(world, ao);
-//          initial_level += 2;
-//          if (initial_level >= 11) throw "project_ao_basis: projection failed?";
-//          int nredone = 0;
-//          for (int i=0; i<_aobasis.nbf(_mentity); i++) {
-//              if (norms[i] < 0.5) {
-//                  nredone++;
-//                  if (world.rank() == 0) print("re-projecting ao basis function", i,"at level",initial_level);
-//                  rfunctorT aofunc(new AtomicBasisFunctor(_aobasis.get_atomic_basis_function(_mentity,i),
-//                      _params.L, _params.periodic));
-//                  ao[i] = rfactoryT(world).functor(aofunc).initial_level(6).truncate_on_project().nofence();
-//              }
-//          }
-//          world.gop.fence();
-//          if (nredone == 0) break;
-//      }
+      while (1) {
+          norms = norm2(world, ao);
+          initial_level += 2;
+          if (initial_level >= 11) throw "project_ao_basis: projection failed?";
+          int nredone = 0;
+          for (int i=0; i<_aobasis.nbf(_mentity); i++) {
+              if (norms[i] < 0.5) {
+                  nredone++;
+                  if (world.rank() == 0) print("re-projecting ao basis function", i,"at level",initial_level);
+                  rfunctorT aofunc(new AtomicBasisFunctor(_aobasis.get_atomic_basis_function(_mentity,i),
+                      _params.L, _params.periodic));
+                  ao[i] = rfactoryT(world).functor(aofunc).initial_level(6).truncate_on_project().nofence();
+              }
+          }
+          world.gop.fence();
+          if (nredone == 0) break;
+      }
 
       norms = norm2(world, ao);
 

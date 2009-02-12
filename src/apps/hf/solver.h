@@ -371,6 +371,7 @@ namespace madness
         print("applying BSH operator ...\n");
         truncate<valueT,NDIM>(_world, pfuncsa);
         vector<functionT> tmpa = apply(_world, bopsa, pfuncsa);
+        bopsa.clear();
 
 //        {
 //          if (_world.rank() == 0) printf("\n");
@@ -411,6 +412,7 @@ namespace madness
           scale(_world, pfuncsb, sfactor);
           truncate<valueT,NDIM>(_world, pfuncsb);
           vector<functionT> tmpb = apply(_world, bopsb, pfuncsb);
+          bopsb.clear();
           gram_schmidt(tmpb, _phisb);
           // Update orbitals
           truncate<valueT,NDIM>(_world, tmpb);
