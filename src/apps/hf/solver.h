@@ -233,7 +233,16 @@ namespace madness
               }
               eps = -0.1;
           }
-          bops.push_back(poperatorT(BSHOperatorPtr<T,NDIM>(_world, sqrt(-2.0*eps), k, _params.lo, tol * 0.1)));
+          if (_params.periodic)
+          {
+            Tensor<double> cellsize = FunctionDefaults<3>::get_cell_width();
+            bops.push_back(poperatorT(PeriodicBSHOpPtr<T,NDIM>(_world, sqrt(-2.0*eps), k, _params.lo, tol * 0.1,
+                cellsize)));
+          }
+          else
+          {
+            bops.push_back(poperatorT(BSHOperatorPtr<T,NDIM>(_world, sqrt(-2.0*eps), k, _params.lo, tol * 0.1)));
+          }
       }
       return bops;
     }
