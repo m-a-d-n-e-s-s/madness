@@ -55,11 +55,10 @@ class WaveFunction : public FunctionFunctorInterface<complexd,NDIM>
 {
  public:
   typedef Vector<double,NDIM> vector3D;
-  WaveFunction(double M, double Z);
+  WaveFunction(double Z);
   virtual complexd operator()(const vector3D& x) const=0; 
  protected:
-  double _M;
-  double _Z;
+  double Z;
 };
 
 
@@ -70,7 +69,7 @@ class ScatteringWF : public WaveFunction
 { 
  public:
   typedef Vector<double,NDIM> vector3D;
-  ScatteringWF(double M, double Z, const vector3D& kVec );
+    ScatteringWF( double Z, const vector3D& kVec );
   virtual complexd operator()(const vector3D& x) const;
  private:
   vector3D kVec;
@@ -85,7 +84,7 @@ class BoundWF : public WaveFunction
 {
  public:
   typedef Vector<double,NDIM> vector3D;
-  BoundWF(double M, double Z, int nn, int ll, int mm );
+  BoundWF(double Z, int nn, int ll, int mm );
   virtual complexd operator()(const vector3D& x) const;
  private:
   int n;

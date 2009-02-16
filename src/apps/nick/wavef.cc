@@ -1,8 +1,7 @@
 /***********************************************************************
- * Here are some useful hydrogenic wave functions represented as madness 
- * functors. The bound states come from the Gnu Scientific Library. The
- * scattering states are generated with the confluent hypergeometric 
- * function. 
+ * Here is a madness representation of the hydrogenic wave functions.
+ * The bound states come from the Gnu Scientific Library. The unbound
+ * states are generated with the confluent hypergeometric function. 
  * 
  * Using: Gnu Scientific Library
  *        http://www.netlib.org/toms/707
@@ -14,27 +13,26 @@
 #include <gsl/gsl_sf_coulomb.h>
 #include <gsl/gsl_sf_gamma.h>
 #include <gsl/gsl_sf_legendre.h>
+#include "gsl/gsl_errno.h"
 
-//MPI printing macros
 double tt;
+//MPI printing macros
 #define PRINTLINE(str) if(world.rank()==0) cout << str << endl;
 #define START_TIMER world.gop.fence(); tt=wall_time()
 #define END_TIMER(msg) tt=wall_time()-tt;  if (world.rank()==0) printf("timer: %24.24s    took%8.2f seconds\n", msg, tt)
 #define PRINT_COMPLEX(msg,re,im) if(world.rank()==0) printf("%34.34s %9.6f + %9.6fI\n", msg, re, im)
+
 
 /***********************************************************************
  * The Scattering Wave Function
  * See Landau and Lifshitz Quantum Mechanics Volume 3
  * Third Edition Formula (136.9)
  **********************************************************************/
-ScatteringWF::ScatteringWF(double M, double Z, const vector3D& kVec) : 
-    WaveFunction(M,Z), kVec(kVec) 
+ScatteringWF::ScatteringWF(double Z, const vector3D& kVec) : WaveFunction(Z), kVec(kVec) 
 {
     double sum = 0.0;
     for(int i=0; i<NDIM; i++) { sum += kVec[i]*kVec[i]; }
     k = sqrt(sum);
-    //z = r*cos(th)
-    //cos(th) = z/r
     costhK = kVec[2]/k;
 }
 
@@ -55,7 +53,7 @@ complexd ScatteringWF::operator()(const vector3D& rVec) const
 /******************************************
  * BoundWF
  ******************************************/
-BoundWF::BoundWF(double M, double Z, int nn, int ll, int mm ) : WaveFunction(M,Z)
+BoundWF::BoundWF(double Z, int nn, int ll, int mm ) : WaveFunction(Z)
 {
     if(nn < 1) {
 	cerr << "Thou shalt not have negative n!" << endl;
@@ -76,34 +74,40 @@ BoundWF::BoundWF(double M, double Z, int nn, int ll, int mm ) : WaveFunction(M,Z
     m=mm;
 }
 
-complexd BoundWF::operator()(const vector3D& rVec) const
-{
+complexd BoundWF::operator()(const vector3D& rVec) const {
     double sum = 0.0;
     for(int i=0; i<NDIM; i++) { sum += rVec[i]*rVec[i]; }
     double r = sqrt(sum);
     double costh = rVec[2]/r;
+<<<<<<< .mine
+    gsl_sf_result Rnl;
+    gsl_set_error_handler_off();
+    int status = gsl_sf_hydrogenicR_e(n, l, Z, r, &Rnl);
+    gsl_set_error_handler(NULL);     //Turns on the default error handler
+    if(status == GSL_EUNDRFLW) return complexd(0,0);
+    if(status != 0)            exit(status);
+    if(m==0) {        
+	return complexd(Rnl.val * gsl_sf_legendre_sphPlm(l, m, costh), 0.0);
+=======
     if(m==0) {
 	return complexd(gsl_sf_hydrogenicR(n, l, _Z, r) 
                   * gsl_sf_legendre_sphPlm(l, m, costh), 0.0);
+>>>>>>> .r1027
     }
     else {
 	gsl_sf_result rPhi;
 	gsl_sf_result phi ; 
 	gsl_sf_rect_to_polar(rVec[0], rVec[1], &rPhi, &phi);
-	return gsl_sf_hydrogenicR(n, l, _Z, r)
-	    * gsl_sf_legendre_sphPlm(l, m, costh)
-	    * exp(complexd(0.0, m*phi.val));
+	return Rnl.val
+             * gsl_sf_legendre_sphPlm(l, abs(m), costh)
+             * exp(complexd(0.0, m*phi.val));
     }
 }
 
 /*************************
  *WaveFuction Constructor
  *************************/
-WaveFunction::WaveFunction(double M, double Z) 
-{
-    _M = abs(M);
-    _Z = Z;
-}
+WaveFunction::WaveFunction(double Z) : Z(Z) {}
 
 
 /*****************************************
@@ -114,8 +118,6 @@ Expikr::Expikr( const vector3D& kVec) : kVec(kVec)
     double sum = 0.0;
     for(int i=0; i<NDIM; i++) { sum += kVec[i]*kVec[i]; }
     k = sqrt(sum);
-    //z = r*cos(th)
-    //cos(th) = z/r
     costhK = kVec[2]/k;
 }
 
@@ -323,11 +325,15 @@ void f11Tester(World& world)
     //  Bound States
     START_TIMER;
     Function<complexd,NDIM> psi_100 = FunctionFactory<complexd,NDIM>(world).functor( 
+<<<<<<< .mine
+	functorT(new BoundWF(1.0, 1, 0, 0)));  
+=======
                                                                                     functorT(new BoundWF(1.0, 1.0, 1, 0, 0)));  
+>>>>>>> .r1027
     END_TIMER("Projecting |100>            ");
     // A second way to declare a functor
     START_TIMER;
-    functorT psiA(new BoundWF(1.0, 1.0, 2, 1, 1));  
+    functorT psiA(new BoundWF(1.0, 2, 1, 1));  
     Function<complexd,NDIM> psi_211 = FunctionFactory<complexd,NDIM>(world).functor( psiA );
     END_TIMER("Projecting |211>    ");  
     
@@ -378,8 +384,13 @@ void f11Tester(World& world)
     //  Scattering States
     START_TIMER;
     Function<complexd,NDIM> psi_k1 = FunctionFactory<complexd,NDIM>(world).functor( 
+<<<<<<< .mine
+			functorT( new ScatteringWF(1.0, k1Vec)));
+	END_TIMER("Projecting |psi_k1>                 ");
+=======
                                                                                    functorT( new ScatteringWF(1.0, 1.0, k1Vec)));
     END_TIMER("Projecting |psi_k1>                 ");
+>>>>>>> .r1027
 
     //  Checking orthogonality
     START_TIMER;
@@ -410,10 +421,19 @@ void f11Tester(World& world)
     //  Off-Axis Positive Energy State
     START_TIMER;
     Function<complexd,NDIM> psi_k1_45 = FunctionFactory<complexd,NDIM>(world).functor( 
+<<<<<<< .mine
+                                        functorT( new ScatteringWF(1.0, k1_45Vec) ));
+	END_TIMER("Projecting |psi_k1_45>               ");
+	START_TIMER;
+	printMe =  psi_k1_45.inner(laserOp*psi_100);
+	END_TIMER("<psi_k1_45|Exp[ik.r]|100> =             ");
+	PRINT_COMPLEX("<psi_k1_45|Exp[ik.r]|100> =           ",real(printMe),imag(printMe)); 
+=======
                                                                                       functorT( new ScatteringWF(1.0, 1.0, k1_45Vec) ));
     END_TIMER("Projecting |psi_k1_45>               ");
     START_TIMER;
     printMe =  psi_k1_45.inner(laserOp*psi_100);
     END_TIMER("<psi_k1_45|Exp[ik.r]|100> =             ");
     PRINT_COMPLEX("<psi_k1_45|Exp[ik.r]|100> =           ",real(printMe),imag(printMe)); 
+>>>>>>> .r1027
 }
