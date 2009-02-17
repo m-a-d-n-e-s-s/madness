@@ -33,13 +33,12 @@
 */
 
 #include <madness_config.h>
-
+#include <mpi.h>
   
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <iostream>
-#include <mpi.h>
 
 using namespace std;
 namespace madness {
