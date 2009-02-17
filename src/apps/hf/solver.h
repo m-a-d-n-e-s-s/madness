@@ -135,6 +135,8 @@ namespace madness
        : _world(world), _vnucrhon(vnucrhon), _phisa(phis), _phisb(phis),
        _eigsa(eigs), _eigsb(eigs), _params(params)
     {
+      print(_phisa.size(), phis.size());
+      compute_rho(_phisa);
       if (params.periodic)
       {
         Tensor<double> box = FunctionDefaults<NDIM>::get_cell_width();
@@ -191,10 +193,24 @@ namespace madness
     //***************************************************************************
     rfuntionT compute_rho(std::vector<functionT> phis)
     {
+      print("phis.size()", phis.size());
+      Function<double,3> fred = FunctionFactory<double,3>(_world);
+      print("fred is made");
+
+      _world.gop.fence();
+
+        fred.compress();
+
+        print("fred is compressed");
+
+       fred += phis[0]*phis[0];
+       print("fred is alive");
+
       // Square op
 
       // Electron density
       rfuntionT rho = rfactoryT(_world);
+      _world.gop.fence();
       // Loop over all wavefunctions to compute density
       for (unsigned int j = 0; j < phis.size(); j++)
       {

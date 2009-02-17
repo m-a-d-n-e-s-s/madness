@@ -50,14 +50,14 @@ struct ElectronicStructureParams
     L = 10.0;
     nelec = 1;
     functional = 1;
-    lo = 1e-10;
+    lo = 1e-4;
     smear = 0.001;
     spinpol = false;
     periodic = false;
     ispotential = false;
     maxits = 100;
-    thresh = 1e-6;
-    waveorder = 8;
+    thresh = 1e-4;
+    waveorder = 6;
     nempty = 2;
     ngridk0 = 1; ngridk1 = 1; ngridk2 = 1;
     maxocc = 2.0;
