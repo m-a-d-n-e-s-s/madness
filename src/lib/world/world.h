@@ -1,22 +1,22 @@
 /*
   This file is part of MADNESS.
-  
+
   Copyright (C) <2007> <Oak Ridge National Laboratory>
-  
+
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation; either version 2 of the License, or
   (at your option) any later version.
-  
+
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
   GNU General Public License for more details.
-  
+
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
-  
+
   For more information please contact:
 
   Robert J. Harrison
@@ -24,15 +24,15 @@
   One Bethel Valley Road
   P.O. Box 2008, MS-6367
 
-  email: harrisonrj@ornl.gov 
+  email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
 
-  
+
   $Id$
 */
 
-  
+
 #ifndef WORLD_H
 #define WORLD_H
 
@@ -102,20 +102,20 @@ namespace madness {
         unsigned long worldid;
         unsigned long objid;
 
-        uniqueidT(unsigned long worldid, unsigned long objid) 
+        uniqueidT(unsigned long worldid, unsigned long objid)
             : worldid(worldid), objid(objid)
         {};
-        
+
     public:
-        uniqueidT() 
+        uniqueidT()
         : worldid(0), objid(0)
         {};
-        
+
         bool operator==(const uniqueidT& other) const {
             return  objid==other.objid && worldid==other.worldid;
         };
 
-        std::size_t operator()(const uniqueidT& id) const { // for GNU hash 
+        std::size_t operator()(const uniqueidT& id) const { // for GNU hash
             return id.objid;
         };
 
@@ -145,8 +145,8 @@ namespace madness {
     class WorldTaskQueue;
     class WorldAmInterface;
     class WorldGopInterface;
-    class World; 
-   
+    class World;
+
     static WorldAmInterface* world_am_interface_factory(World* world);
     static void world_am_interface_unfactory(WorldAmInterface* am);
     static WorldGopInterface* world_gop_interface_factory(World* world);
@@ -154,7 +154,7 @@ namespace madness {
     static WorldTaskQueue* world_taskq_factory(World* world);
     static void world_taskq_unfactory(WorldTaskQueue* taskq);
     static void world_assign_id(World* world);
-    
+
 
     /// For purpose of deferring cleanup to synchronization points
     struct DeferredCleanupInterface {
@@ -162,7 +162,7 @@ namespace madness {
     };
 
     void error(const char *msg);
-    
+
     template <typename T>
     static void error(const char *msg, const T& data) {
         std::cerr << "MADNESS: fatal error: " << msg << " " << data << std::endl;
@@ -172,7 +172,7 @@ namespace madness {
     /// A parallel world with full functionality wrapping an MPI communicator
 
     /// Multiple worlds with different communicators can co-exist.
-    class World {
+    class World : private NO_DEFAULTS {
     private:
         friend class WorldAmInterface;
         friend class WorldGopInterface;
@@ -180,7 +180,7 @@ namespace madness {
 
         static unsigned long idbase;        ///< Base for unique world ID range for this process
         static std::list<World*> worlds;    ///< Maintains list of active worlds
-        
+
         struct hashvoidp {
             inline std::size_t operator()(const void* p) const {
                 return std::size_t(p);    // The ptr's are guaranteed to be unique
@@ -213,7 +213,7 @@ namespace madness {
             // algorithm here since the standard is borked. Concrete
             // example of this "feature" here is gcc4.2.
             // //std::remove_if(deferred.begin(),deferred.end(),refcnt_is_one());
-            for (std::list< SharedPtr<DeferredCleanupInterface> >::iterator it = deferred.begin(); 
+            for (std::list< SharedPtr<DeferredCleanupInterface> >::iterator it = deferred.begin();
                 it != deferred.end();) {
 	        //print("refcnt:",(void*) it->get(), it->use_count());
                 if (it->use_count() == 1) it = deferred.erase(it);
@@ -232,7 +232,7 @@ namespace madness {
         // The downside is we cannot do much of anything here without
         // using wrapper functions to foward the calls to the hidden
         // class methods.
-        
+
         // !!! Order of declaration is important for correct order of initialization !!!
         WorldMpiInterface& mpi;  ///< MPI interface
         WorldAmInterface& am;    ///< AM interface
@@ -246,26 +246,26 @@ namespace madness {
 
     public:
         /// Give me a communicator and I will give you the world
-        World(MPI::Intracomm& comm) 
+        World(MPI::Intracomm& comm)
             : obj_id(1)          ///< start from 1 so that 0 is an invalid id
             , user_state(0)
             , deferred()
             , mpi(*(new WorldMpiInterface(comm)))
-            , am(*world_am_interface_factory(this)) 
+            , am(*world_am_interface_factory(this))
             , taskq(*world_taskq_factory(this))
             , gop(*world_gop_interface_factory(this))
             , me(mpi.rank())
             , nprocess(mpi.nproc())
             , myrand_next(0)
         {
-            worlds.push_back(this); 
+            worlds.push_back(this);
             srand();  // Initialize random number generator
             cpu_frequency();
 
             // Assign a globally (within COMM_WORLD) unique ID to this
             // world by assigning to each processor a unique range of indices
             // and broadcasting from node 0 of the current communicator.
-            world_assign_id(this);  // Also acts as barrier 
+            world_assign_id(this);  // Also acts as barrier
         };
 
 
@@ -328,7 +328,7 @@ namespace madness {
         ///
         /// Currently relies on this being called in the same order on
         /// every process within the current world in order to avoid
-        /// synchronization.  
+        /// synchronization.
         ///
         /// The value objid=0 is guaranteed to be invalid.
         uniqueidT unique_obj_id() {
@@ -384,7 +384,7 @@ namespace madness {
         template <typename T>
         T* ptr_from_id(uniqueidT id) const {
             map_id_to_ptrT::const_iterator it = map_id_to_ptr.find(id);
-            if (it == map_id_to_ptr.end()) 
+            if (it == map_id_to_ptr.end())
                 return 0;
             else
                 return (T*) (it->second);
@@ -398,7 +398,7 @@ namespace madness {
         const uniqueidT& id_from_ptr(T* ptr) const {
             static uniqueidT invalidid(0,0);
             map_ptr_to_idT::const_iterator it = map_ptr_to_id.find(ptr);
-            if (it == map_ptr_to_id.end()) 
+            if (it == map_ptr_to_id.end())
                 return invalidid;
             else
                 return it->second;
@@ -428,7 +428,7 @@ namespace madness {
         };
 
 
-        /// Wait for MPI request to complete 
+        /// Wait for MPI request to complete
         static void inline await(SafeMPI::Request& request, bool dowork = true) {
             await(MpiRequestTester(request), dowork);
         };
@@ -463,7 +463,7 @@ namespace madness {
 
             // !! This algorithm is quadratic.  More efficient would be to
             // !! use a sorted-list/heap/tree/map.
-            
+
             SharedPtr<DeferredCleanupInterface> p(item);
             // Avoid duplicates since the reference counting will prevent cleaning
             if (std::find(deferred.begin(),deferred.end(),p) == deferred.end()) {
@@ -515,7 +515,7 @@ namespace madness {
 
         /// Returns a random process number [0,world.size()) != current process
 
-        /// Makes no sense to call this with just one process, but just in case you 
+        /// Makes no sense to call this with just one process, but just in case you
         /// do it returns -1 in the hope that you won't actually use the result.
         ProcessID random_proc_not_me() {
             if (size() == 1) return -1;
@@ -612,7 +612,7 @@ namespace madness {
                 MADNESS_ASSERT(wptr);
             };
         };
-        
+
         template <class Archive>
         struct ArchiveStoreImpl<Archive,World*> {
             static inline void store(const Archive& ar, World* const & wptr) {
