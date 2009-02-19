@@ -34,7 +34,7 @@ namespace madness
     typedef SharedPtr<operatorT> poperatorT;
 
     //*************************************************************************
-    World _world;
+    World& _world;
     //*************************************************************************
 
     //*************************************************************************
@@ -135,8 +135,6 @@ namespace madness
        : _world(world), _vnucrhon(vnucrhon), _phisa(phis), _phisb(phis),
        _eigsa(eigs), _eigsb(eigs), _params(params)
     {
-      print(_phisa.size(), phis.size());
-      compute_rho(_phisa);
       if (params.periodic)
       {
         Tensor<double> box = FunctionDefaults<NDIM>::get_cell_width();
@@ -193,21 +191,6 @@ namespace madness
     //***************************************************************************
     rfuntionT compute_rho(std::vector<functionT> phis)
     {
-      print("phis.size()", phis.size());
-      Function<double,3> fred = FunctionFactory<double,3>(_world);
-      print("fred is made");
-
-      _world.gop.fence();
-
-        fred.compress();
-
-        print("fred is compressed");
-
-       fred += phis[0]*phis[0];
-       print("fred is alive");
-
-      // Square op
-
       // Electron density
       rfuntionT rho = rfactoryT(_world);
       _world.gop.fence();
@@ -342,12 +325,15 @@ namespace madness
         }
       }
       std::cout.precision(8);
-      print("Energies:");
-      print("Kinetic energy:\t\t ", ke);
-      print("Potential energy:\t ", pe);
-      print("Coulomb energy:\t\t ", ce);
-      print("Exchage energy:\t\t ", xc, "\n");
-      print("Total energy:\t\t ", ke + pe + ce + xc, "\n\n");
+      if (_world.rank() == 0)
+      {
+        print("Energies:");
+        print("Kinetic energy:\t\t ", ke);
+        print("Potential energy:\t ", pe);
+        print("Coulomb energy:\t\t ", ce);
+        print("Exchage energy:\t\t ", xc, "\n");
+        print("Total energy:\t\t ", ke + pe + ce + xc, "\n\n");
+      }
     }
     //*************************************************************************
 
@@ -370,7 +356,7 @@ namespace madness
 
       for (int it = 0; it < _params.maxits; it++)
       {
-        print("it = ", it);
+        if (_world.rank() == 0) print("it = ", it);
         // Compute density
         _rhoa = compute_rho(_phisa);
         _rhob = (_params.spinpol) ? compute_rho(_phisb) : _rhoa;
@@ -383,7 +369,7 @@ namespace madness
           pfuncsb[pi] = factoryT(_world);
 
         // Apply the potentials to the orbitals
-        print("applying potential ...\n");
+        if (_world.rank() == 0) print("applying potential ...\n");
         apply_potential(pfuncsa, pfuncsb, _phisa, _phisb, _rhoa, _rhob, _rho);
 
         // Make BSH Green's function
@@ -393,7 +379,7 @@ namespace madness
         scale(_world, pfuncsa, sfactor);
 
         // Apply Green's function to orbitals
-        print("applying BSH operator ...\n");
+        if (_world.rank() == 0) print("applying BSH operator ...\n");
         truncate<valueT,NDIM>(_world, pfuncsa);
         vector<functionT> tmpa = apply(_world, bopsa, pfuncsa);
         bopsa.clear();
@@ -416,11 +402,11 @@ namespace madness
 //        }
 
         // Gram-Schmidt
-        print("gram-schmidt ...\n");
+        if (_world.rank() == 0) print("gram-schmidt ...\n");
         gram_schmidt(tmpa, _phisa);
 
         // Update eigenvalues
-        print("updating eigenvalues ...\n");
+        if (_world.rank() == 0) print("updating eigenvalues ...\n");
         update_eigenvalues(tmpa, pfuncsa, _phisa, _eigsa);
 
         // Update orbitals
@@ -477,8 +463,6 @@ namespace madness
     //*************************************************************************
     void gram_schmidt(std::vector<functionT>& a, const std::vector<functionT>& b)
     {
-      // Do Gram-Schmidt
-      if (_world.rank() == 0) printf("Gram-Schmidt ...\n\n");
       for (unsigned int ai = 0; ai < a.size(); ++ai)
       {
         // Project out the lower states

@@ -45,6 +45,14 @@ struct ElectronicStructureParams
   // Read k-points?
   bool kpoints;
 
+  template <typename Archive>
+  void serialize(Archive& ar) {
+      ar & L & nelec & functional & lo & spinpol &
+        periodic & maxits & ispotential & thresh &
+        waveorder & nempty & smear & nbands &
+        ngridk0 & ngridk1 & ngridk2 & maxocc & kpoints;
+  }
+
   ElectronicStructureParams()
   {
     L = 10.0;
@@ -63,13 +71,6 @@ struct ElectronicStructureParams
     maxocc = 2.0;
     nbands = nelec/maxocc + nempty;
     kpoints = false;
-  }
-
-  template <typename Archive>
-  void serialize(Archive& ar) {
-      ar & L & nelec & functional & lo & smear & spinpol & periodic &
-      maxits & thresh & waveorder & nempty & nbands &
-      ngridk0 & ngridk1 & ngridk2 & maxocc & kpoints;
   }
 
   void read_file(const std::string& filename)

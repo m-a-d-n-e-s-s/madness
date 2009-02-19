@@ -270,6 +270,7 @@ public:
         op = CoulombOperatorPtr<double,3>(_world, _params.waveorder,_params.lo, _params.thresh);
       }
       _vnuc = apply(*op, _vnucrhon);
+      if (_world.rank() == 0) print("Done creating nuclear potential ..\n");
       delete op;
     }
   }
@@ -486,7 +487,7 @@ public:
     int nao = ao.size();
     int nkpts = _kpoints.size();
     int norbs = nao * nkpts;
-    _orbitals = std::vector<functionT>(norbs, factoryT(_world));
+    //_orbitals = std::vector<functionT>(norbs, factoryT(_world));
     _eigs = rtensorT(norbs);
     _occs = rtensorT(norbs);
     for (int i = 0; i < norbs; i++) _occs[i] = _params.maxocc;
@@ -542,43 +543,43 @@ public:
       normalize(_world, tmp_orbitals);
       rtensorT tmp_eigs = e(Slice(0, nao - 1));
 
-      printf("(%8.4f,%8.4f,%8.4f)\n",kpt.k[0], kpt.k[1], kpt.k[2]);
-      print(tmp_eigs);
-      print("\n");
+      if (_world.rank() == 0) printf("(%8.4f,%8.4f,%8.4f)\n",kpt.k[0], kpt.k[1], kpt.k[2]);
+      if (_world.rank() == 0) print(tmp_eigs);
+      if (_world.rank() == 0) print("\n");
 
       // DEBUG
       for (int i = 0; i < kinetic.dim[0]; i++)
       {
         for (int j = 0; j < kinetic.dim[1]; j++)
         {
-          printf("%10.5f", real(kinetic(i,j)));
+          if (_world.rank() == 0) printf("%10.5f", real(kinetic(i,j)));
         }
-        printf("\n");
+        if (_world.rank() == 0) printf("\n");
       }
-      printf("\n");
-      printf("\n");
+      if (_world.rank() == 0) printf("\n");
+      if (_world.rank() == 0) printf("\n");
 
       for (int i = 0; i < potential.dim[0]; i++)
       {
         for (int j = 0; j < potential.dim[1]; j++)
         {
-          printf("%10.5f", real(potential(i,j)));
+          if (_world.rank() == 0) printf("%10.5f", real(potential(i,j)));
         }
-        printf("\n");
+        if (_world.rank() == 0) printf("\n");
       }
-      printf("\n");
-      printf("\n");
+      if (_world.rank() == 0) printf("\n");
+      if (_world.rank() == 0) printf("\n");
 
       for (int i = 0; i < fock.dim[0]; i++)
       {
         for (int j = 0; j < fock.dim[1]; j++)
         {
-          printf("%10.5f", real(fock(i,j)));
+          if (_world.rank() == 0) printf("%10.5f", real(fock(i,j)));
         }
-        printf("\n");
+        if (_world.rank() == 0) printf("\n");
       }
-      printf("\n");
-      printf("\n");
+      if (_world.rank() == 0) printf("\n");
+      if (_world.rank() == 0) printf("\n");
 
       // Fill in orbitals and eigenvalues
       int kend = kp + nao;
@@ -600,7 +601,10 @@ public:
 //          if (_world.rank() == 0) printf("\n");
 //        }
 
-        _orbitals[oi] = tmp_orbitals[ti];
+//        _orbitals[oi] = tmp_orbitals[ti];
+//        _eigs[oi] = tmp_eigs[ti];
+        if (_world.rank() == 0) print(oi, ti, kp, kend);
+        _orbitals.push_back(tmp_orbitals[ti]);
         _eigs[oi] = tmp_eigs[ti];
       }
 
