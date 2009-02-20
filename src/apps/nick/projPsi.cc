@@ -114,7 +114,8 @@ void loadBasis(World& world, std::vector<WF>& stateList) {
                 bound >> m;
                 nlm << n << l << m;
                 PRINTLINE(nlm.str());
-                stateList.push_back(WF(nlm.str(),FunctionFactory<complexd,NDIM>(world).
+                stateList.push_back(WF(nlm.str(),
+                                       FunctionFactory<complexd,NDIM>(world).
                                        functor(functorT(new BoundWF(Z,n,l,m)))));
                 nlm.str("");
             }
@@ -128,9 +129,12 @@ void loadBasis(World& world, std::vector<WF>& stateList) {
                 unbound >> ky;
                 unbound >> kz;
                 kxyz << kx << " " << ky << " " << kz;
+                PRINT(kxyz.str());
                 const double kvec[] = {kx, ky, kz};
-                stateList.push_back(WF(kxyz.str(),FunctionFactory<complexd,NDIM>(world).
+                stateList.push_back(WF(kxyz.str(),
+                                       FunctionFactory<complexd,NDIM>(world).
                                        functor(functorT(new ScatteringWF(Z,kvec)))));
+                PRINT(kxyz.str());
                 kxyz.str("");
             }
             unbound.close();
