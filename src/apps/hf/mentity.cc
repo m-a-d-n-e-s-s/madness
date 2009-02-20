@@ -36,10 +36,12 @@
 /// \file mentity.cc
 /// \brief Simple management of molecular information and potential
 
+#include <mra/mra.h>
 #include <constants.h>
 #include "mentity.h"
 #include <misc/misc.h>
-#include <tensor/tensor.h>
+
+using namespace madness;
 
 static const double PI = 3.1415926535897932384;
 
@@ -324,12 +326,12 @@ void MolecularEntity::read_file(const std::string& filename, bool fractional = f
             if (fractional)
             {
               // If using fractional coordinates, the restrict x, y, and z to be between 0.0 and 1.0
-              MADNESS_ASSERT(x[0] <= 1.0);
-              MADNESS_ASSERT(x[1] <= 1.0);
-              MADNESS_ASSERT(x[2] <= 1.0);
-              MADNESS_ASSERT(x[0] >= 0.0);
-              MADNESS_ASSERT(x[1] >= 0.0);
-              MADNESS_ASSERT(x[2] >= 0.0);
+              MADNESS_ASSERT(xx <= 1.0);
+              MADNESS_ASSERT(yy <= 1.0);
+              MADNESS_ASSERT(zz <= 1.0);
+              MADNESS_ASSERT(xx >= 0.0);
+              MADNESS_ASSERT(yy >= 0.0);
+              MADNESS_ASSERT(zz >= 0.0);
               xx *= factor[0]; yy *= factor[1]; zz *= factor[2];
             }
             else
@@ -351,7 +353,6 @@ void MolecularEntity::add_atom(double x, double y, double z, int atomic_number, 
     atoms.push_back(Atom(x,y,z,atomic_number,q));
     double c = smoothing_parameter(q, 1e-5); // This is error per atom
     rcut.push_back(1.0/c);
-    printf("c = %.5f\n\n", c);
 }
 
 void MolecularEntity::set_atom_coords(unsigned int i, double x, double y, double z) {

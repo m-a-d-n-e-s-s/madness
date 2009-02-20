@@ -102,8 +102,6 @@ public:
           for (int zr = -1; zr <= 1; zr += 1)
           {
             value += aofunc(x[0]+xr*R, x[1]+yr*R, x[2]+zr*R);
-//            double diff = fabs(aofunc(x[0], x[1], x[2])-aofunc(x[0]+xr, x[1]+yr, x[2]+zr));
-//            if (diff > 1e-3) printf("%10.8e%16.8e%16.8e\n", diff, aofunc(x[0], x[1], x[2]), aofunc(x[0]+xr, x[1]+yr, x[2]+zr));
           }
         }
       }
@@ -215,40 +213,34 @@ public:
 
   void init(const std::string& filename)
   {
+    // params
     if (_world.rank() == 0)
     {
       _params.read_file(filename);
+    }
+    _world.gop.broadcast_serializable(_params, 0);
+    if (_params.fractional)
+      FunctionDefaults<3>::set_cubic_cell(0,_params.L);
+    else
+      FunctionDefaults<3>::set_cubic_cell(-_params.L/2,_params.L/2);
+    FunctionDefaults<3>::set_thresh(_params.thresh);
+    FunctionDefaults<3>::set_k(_params.waveorder);
+
+    // mentity and aobasis
+    if (_world.rank() == 0)
+    {
       _aobasis.read_file("sto-3g");
       _mentity.read_file(filename, _params.fractional);
       _mentity.center();
+      if (_params.periodic && _params.kpoints)
+        _kpoints = read_kpoints("KPOINTS.OUT");
+      else
+        _kpoints.push_back(KPoint(coordT(0.0), 1.0));
     }
     _world.gop.broadcast_serializable(_mentity, 0);
-    _world.gop.broadcast_serializable(_params, 0);
     _world.gop.broadcast_serializable(_aobasis, 0);
+    _world.gop.broadcast_serializable(_kpoints, 0);
 
-      if (_world.rank() == 0)
-      {
-        if (_params.periodic && _params.kpoints)
-        {
-          _kpoints = read_kpoints("KPOINTS.OUT");
-        }
-        else
-        {
-          _kpoints.push_back(KPoint(coordT(0.0), 1.0));
-        }
-      }
-      _world.gop.broadcast_serializable(_kpoints, 0);
-
-    if (_params.fractional)
-    {
-      FunctionDefaults<3>::set_cubic_cell(0,_params.L);
-    }
-    else
-    {
-      FunctionDefaults<3>::set_cubic_cell(-_params.L/2,_params.L/2);
-    }
-    FunctionDefaults<3>::set_thresh(_params.thresh);
-    FunctionDefaults<3>::set_k(_params.waveorder);
   }
 
   void make_nuclear_potential()
