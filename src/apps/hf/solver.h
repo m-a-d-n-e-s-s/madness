@@ -130,8 +130,8 @@ namespace madness
 
     //*************************************************************************
     // Constructor
-    Solver(World& world, rfuntionT vnucrhon, std::vector<functionT> phis,
-        std::vector<T> eigs, ElectronicStructureParams params)
+    Solver(World& world, const rfuntionT& vnucrhon, const std::vector<functionT>& phis,
+        const std::vector<T>& eigs, const ElectronicStructureParams& params)
        : _world(world), _vnucrhon(vnucrhon), _phisa(phis), _phisb(phis),
        _eigsa(eigs), _eigsb(eigs), _params(params)
     {
@@ -189,7 +189,7 @@ namespace madness
     //*************************************************************************
 
     //***************************************************************************
-    rfuntionT compute_rho(std::vector<functionT> phis)
+    rfuntionT compute_rho(const std::vector<functionT>& phis)
     {
       // Electron density
       rfuntionT rho = rfactoryT(_world);
