@@ -50,17 +50,17 @@ complex_functionT wave_function_load(World& world, int step) {
 void doWork(World& world) {
   PRINTLINE("Creating three basis functions");
   Function<complexd,NDIM> psi100 = FunctionFactory<complexd,NDIM>(world).
-    functor(functorT( new BoundWF(1.0, 1.0, 1,0,0)));
+    functor(functorT( new BoundWF(1.0, 1,0,0)));
   Function<complexd,NDIM> psi200 = FunctionFactory<complexd,NDIM>(world).
-    functor(functorT( new BoundWF(1.0, 1.0, 2,0,0)));
+    functor(functorT( new BoundWF(1.0, 2,0,0)));
   Function<complexd,NDIM> psi210 = FunctionFactory<complexd,NDIM>(world).
-    functor(functorT( new BoundWF(1.0, 1.0, 2,1,0)));
+    functor(functorT( new BoundWF(1.0, 2,1,0)));
 
   int step = 0;
   PRINTLINE("Testing our capacity to load a wave function from disk");
   if(wave_function_exists(world,step)) {
     PRINTLINE("wave_function_exists = true");
-   Function<complexd, NDIM> loadedFunc = wave_function_load(world, step);
+    Function<complexd, NDIM> loadedFunc = wave_function_load(world, step);
     PRINT("<data|100> =  ") << loadedFunc.inner(psi100) << endl;
     PRINT("<data|200> =  ") << loadedFunc.inner(psi200) << endl;
     PRINT("<data|210> =  ") << loadedFunc.inner(psi210) << endl;
@@ -76,7 +76,7 @@ int main(int argc, char**argv) {
   startup(world,argc,argv);
   // Setup defaults for numerical functions
   FunctionDefaults<NDIM>::set_k(8);             // Wavelet order
-  FunctionDefaults<NDIM>::set_thresh(1e-6);       // Accuracy
+  FunctionDefaults<NDIM>::set_thresh(1e-3);       // Accuracy
   FunctionDefaults<NDIM>::set_cubic_cell(-20.0, 20.0);
 
   try {

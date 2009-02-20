@@ -39,14 +39,25 @@ ScatteringWF::ScatteringWF(double Z, const vector3D& kVec) : WaveFunction(Z), kV
 complexd ScatteringWF::operator()(const vector3D& rVec) const
 {
     double sum = 0.0;
-    for(int i=0; i<NDIM; i++) { sum += rVec[i]*rVec[i]; }
-    double r = sqrt(sum);
     double kDOTr = 0.0;
     for(int i=0; i<NDIM; i++) { kDOTr += rVec[i]*kVec[i]; }
+    for(int i=0; i<NDIM; i++) { sum += rVec[i]*rVec[i]; }
+    double r = sqrt(sum);
     return exp(PI/(2*k))
         * gamma(1.0+I/k)
         * exp(I*kDOTr)
-        * f11(-1.0*I/k, 1.0, -1.0*I*(k*r + kDOTr) );
+        * f11(-1.0*I/k, 1.0, -1.0*I*(k*r + kDOTr))
+        ;
+
+//     complexd confHyper = f11(-1.0*I/k, 1.0, -1.0*I*(k*r + kDOTr));
+//     complexd output = exp(PI/(2*k))
+//         * gamma(1.0+I/k)
+//         * exp(I*kDOTr)
+//         * confHyper
+//         ;
+// //     cout << "f11(" << r << ")                     = " << confHyper << endl;
+// //     cout << "f11(" << rVec << ") = " << confHyper << endl;
+//     return output;
 }
 
 
@@ -92,9 +103,10 @@ complexd BoundWF::operator()(const vector3D& rVec) const {
 	gsl_sf_result rPhi;
 	gsl_sf_result phi ; 
 	gsl_sf_rect_to_polar(rVec[0], rVec[1], &rPhi, &phi);
-	return Rnl.val
-             * gsl_sf_legendre_sphPlm(l, abs(m), costh)
-             * exp(complexd(0.0, m*phi.val));
+	return complexd(   gsl_sf_hydrogenicR(n, l, Z, r) 
+                         * gsl_sf_legendre_sphPlm(l, abs(m), costh)
+                         * exp(complexd(0,m*phi.val))
+                       );
     }
 }
 
@@ -126,8 +138,11 @@ complexd Expikr::operator()(const vector3D& rVec) const
 
 
 
-
-    
+void debug1F1(World& world) {
+      test1F1(world, aForm  ,"     aForm");
+      test1F1(world, conHyp ,"    conHyp");
+      test1F1(world, hypergf,"   hypergf");
+}
 /*******************************************************
  * Here is where I splice together my two representations of the hypergeometric
  * function. See personal journal C page 31 for a derivation of the cut off
@@ -137,6 +152,7 @@ complexd f11(complexd AA, complexd BB, complexd ZZ)
     double k = 1.0/abs(imag(AA));
     if(abs(imag(ZZ)) <= 11.0 + 1.0/k + 0.5/(k*k) ) return conHyp(AA,BB,ZZ);
     else return aForm(AA,BB,ZZ);
+//    return conHyp(AA,BB,ZZ);
 }
 
 /*********************************************************
@@ -196,7 +212,7 @@ complexd aForm(complexd AA, complexd BB, complexd ZZ)
 void test1F1(World&, complexd (*func1F1)(complexd,complexd,complexd), const char* fileChar)
 {
     cout << "Testing 1F1:==================================================" << endl;
-    double r[] = { 1.0, 10.0, 100.0, 1000.0, 10000.0 };
+    double r[] = { 1.0, 10.0, 100.0, 1000.0 };
     double k[] = { 1.0, 0.1, 0.01, 0.001};
     double theta = 0.0;
     double thetaK = PI-0.1;
@@ -303,7 +319,7 @@ complexd V(const vector3D& r)
     return -1.0/sqrt(r[0]*r[0] + r[1]*r[1] + r[2]*r[2] + 1e-8);
 }
 
-void f11Tester(World& world) 
+void testWF(World& world) 
 {
     if(world.rank() == 0)
 	{
@@ -313,17 +329,13 @@ void f11Tester(World& world)
             cout.precision(12);
             test1F1(world, f11   ,"   f11");
             if(world.rank() == 0) cout << 
-                                      "Testing the wave functions:===================================" << endl;
+            "Testing the wave functions:===================================" << endl;
 	}
 
     //  Bound States
     START_TIMER;
     Function<complexd,NDIM> psi_100 = FunctionFactory<complexd,NDIM>(world).functor( 
-<<<<<<< .mine
 	functorT(new BoundWF(1.0, 1, 0, 0)));  
-=======
-                                                                                    functorT(new BoundWF(1.0, 1.0, 1, 0, 0)));  
->>>>>>> .r1027
     END_TIMER("Projecting |100>            ");
     // A second way to declare a functor
     START_TIMER;
@@ -378,13 +390,8 @@ void f11Tester(World& world)
     //  Scattering States
     START_TIMER;
     Function<complexd,NDIM> psi_k1 = FunctionFactory<complexd,NDIM>(world).functor( 
-<<<<<<< .mine
-			functorT( new ScatteringWF(1.0, k1Vec)));
-	END_TIMER("Projecting |psi_k1>                 ");
-=======
-                                                                                   functorT( new ScatteringWF(1.0, 1.0, k1Vec)));
+                                     functorT( new ScatteringWF(1.0, k1Vec)));
     END_TIMER("Projecting |psi_k1>                 ");
->>>>>>> .r1027
 
     //  Checking orthogonality
     START_TIMER;
@@ -415,19 +422,10 @@ void f11Tester(World& world)
     //  Off-Axis Positive Energy State
     START_TIMER;
     Function<complexd,NDIM> psi_k1_45 = FunctionFactory<complexd,NDIM>(world).functor( 
-<<<<<<< .mine
                                         functorT( new ScatteringWF(1.0, k1_45Vec) ));
-	END_TIMER("Projecting |psi_k1_45>               ");
-	START_TIMER;
-	printMe =  psi_k1_45.inner(laserOp*psi_100);
-	END_TIMER("<psi_k1_45|Exp[ik.r]|100> =             ");
-	PRINT_COMPLEX("<psi_k1_45|Exp[ik.r]|100> =           ",real(printMe),imag(printMe)); 
-=======
-                                                                                      functorT( new ScatteringWF(1.0, 1.0, k1_45Vec) ));
     END_TIMER("Projecting |psi_k1_45>               ");
     START_TIMER;
     printMe =  psi_k1_45.inner(laserOp*psi_100);
     END_TIMER("<psi_k1_45|Exp[ik.r]|100> =             ");
     PRINT_COMPLEX("<psi_k1_45|Exp[ik.r]|100> =           ",real(printMe),imag(printMe)); 
->>>>>>> .r1027
 }

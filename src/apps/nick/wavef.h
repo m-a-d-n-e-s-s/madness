@@ -30,7 +30,7 @@ complexd hypergf(complexd AA, complexd BB, complexd ZZ);
 complexd conHyp(complexd AA, complexd BB, complexd ZZ);
 complexd aForm(complexd AA, complexd BB, complexd ZZ);
 complexd f11(complexd AA, complexd BB, complexd ZZ);
-void     test1F1(World&, complexd (*func1F1)(complexd,complexd,complexd), char* fName);
+void     test1F1(World&, complexd (*func1F1)(complexd,complexd,complexd), const char* fName);
 int      fact(int);
 void     testFact(World&);
 complexd gamma(complexd AA);
@@ -38,8 +38,8 @@ complexd gamma(double re, double im);
 void     testGamma(World&);
 complexd pochhammer(complexd AA,int n);
 void     testPochhammer(World&);
-void f11Tester(World&);
-
+void     testWF(World&);
+void     debug1F1(World&);
 //Fortran functions
 extern "C" complexd hypergf_(complexd* AA, complexd* BB, complexd* X, 
 			     double* EPS, int* LIMIT, int* KIN, double* ERR, 
