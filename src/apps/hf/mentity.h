@@ -70,9 +70,9 @@ public:
     /// Makes a MolecularEntity with zero atoms
     MolecularEntity() : atoms() {};
 
-    MolecularEntity(const std::string& filename);
+    MolecularEntity(const std::string& filename, bool fractional);
 
-    void read_file(const std::string& filename);
+    void read_file(const std::string& filename, bool fractional);
 
     void add_atom(double x, double y, double z, int atn, double q);
 

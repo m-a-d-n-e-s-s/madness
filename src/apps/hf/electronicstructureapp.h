@@ -56,83 +56,28 @@ public:
 class MolecularPotentialFunctor : public FunctionFunctorInterface<double,3> {
 private:
     const MolecularEntity& _mentity;
-    bool _fractional;
-    // This is really the cellsize
-    Tensor<double> factor;
-
 public:
-    MolecularPotentialFunctor(const MolecularEntity& mentity, bool fractional = false)
-        : _mentity(mentity), _fractional(fractional)
-    {
-      // Are we using fractional coordinates?
-      if (fractional)
-      {
-        factor = FunctionDefaults<3>::get_cell_width();
-      }
-      else
-      {
-        // If not using fractional coordinates, make the factor 1.0;
-        factor[0] = 1.0; factor[1] = 1.0; factor[2] = 1.0;
-      }
-    }
+    MolecularPotentialFunctor(const MolecularEntity& mentity)
+        : _mentity(mentity)
+    {}
 
     double operator()(const coordT& x) const
     {
-      if (_fractional)
-      {
-        // If using fractional coordinates, the restrict x, y, and z to be between 0.0 and 1.0
-        MADNESS_ASSERT(x[0] <= 1.0);
-        MADNESS_ASSERT(x[1] <= 1.0);
-        MADNESS_ASSERT(x[2] <= 1.0);
-        MADNESS_ASSERT(x[0] >= 0.0);
-        MADNESS_ASSERT(x[1] >= 0.0);
-        MADNESS_ASSERT(x[2] >= 0.0);
-        return _mentity.nuclear_attraction_potential(x[0]*factor[0], x[1]*factor[1], x[2]*factor[2]);
-      }
-      else
-        return _mentity.nuclear_attraction_potential(x[0], x[1], x[2]);
+      return _mentity.nuclear_attraction_potential(x[0], x[1], x[2]);
     }
 };
 
 class MolecularNuclearChargeDensityFunctor : public FunctionFunctorInterface<double,3> {
 private:
     const MolecularEntity& _mentity;
-    bool _fractional;
-    // This is really the cellsize
-    Tensor<double> factor;
 public:
-    MolecularNuclearChargeDensityFunctor(const MolecularEntity& mentity, bool fractional = false)
-        : _mentity(mentity), _fractional(fractional)
-    {
-      // Are we useing fractional coordinates?
-      if (fractional)
-      {
-        factor = FunctionDefaults<3>::get_cell_width();
-      }
-      else
-      {
-        // If not using fractional coordinates, make the factor 1.0;
-        factor[0] = 1.0; factor[1] = 1.0; factor[2] = 1.0;
-      }
-    }
+    MolecularNuclearChargeDensityFunctor(const MolecularEntity& mentity)
+        : _mentity(mentity)
+    {}
 
     double operator()(const coordT& x) const
     {
-      if (_fractional)
-      {
-        // If using fractional coordinates, the restrict x, y, and z to be between 0.0 and 1.0
-        MADNESS_ASSERT(x[0] <= 1.0);
-        MADNESS_ASSERT(x[1] <= 1.0);
-        MADNESS_ASSERT(x[2] <= 1.0);
-        MADNESS_ASSERT(x[0] >= 0.0);
-        MADNESS_ASSERT(x[1] >= 0.0);
-        MADNESS_ASSERT(x[2] >= 0.0);
-        return _mentity.nuclear_charge_density(x[0]*factor[0], x[1]*factor[1], x[2]*factor[2]);
-      }
-      else
-      {
-        return _mentity.nuclear_charge_density(x[0], x[1], x[2]);
-      }
+      return _mentity.nuclear_charge_density(x[0], x[1], x[2]);
     }
 };
 
@@ -274,7 +219,7 @@ public:
     {
       _params.read_file(filename);
       _aobasis.read_file("sto-3g");
-      _mentity.read_file(filename);
+      _mentity.read_file(filename, _params.fractional);
       _mentity.center();
     }
     _world.gop.broadcast_serializable(_mentity, 0);

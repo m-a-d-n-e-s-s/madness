@@ -39,6 +39,7 @@
 #include <constants.h>
 #include "mentity.h"
 #include <misc/misc.h>
+#include <tensor/tensor.h>
 
 static const double PI = 3.1415926535897932384;
 
@@ -276,43 +277,65 @@ std::ostream& operator<<(std::ostream& s, const Atom& atom) {
 /// on the line.
 ///
 /// This code is just for the examples ... don't trust it!
-MolecularEntity::MolecularEntity(const std::string& filename) {
-    read_file(filename);
+MolecularEntity::MolecularEntity(const std::string& filename, bool fractional = false) {
+    read_file(filename, fractional);
 }
 
-void MolecularEntity::read_file(const std::string& filename) {
+void MolecularEntity::read_file(const std::string& filename, bool fractional = false) {
     atoms.clear(); rcut.clear();
     std::ifstream f(filename.c_str());
     madness::position_stream(f, "geometry");
     double scale = 1.0;
 
     std::string s;
-    while (std::getline(f,s)) {
+    while (std::getline(f,s))
+    {
         std::istringstream ss(s);
         std::string tag;
         ss >> tag;
-        if (tag == "end") {
+        if (tag == "end")
+        {
             goto finished;
         }
-        else if (tag == "units") {
+        else if (tag == "units")
+        {
             if (natom()) throw "MolecularEntity: read_file: presently units must be the first line of the geometry block";
             ss >> tag;
-            if (tag == "a.u." || tag == "au" || tag == "atomic") {
+            if (tag == "a.u." || tag == "au" || tag == "atomic")
+            {
                 std::cout << "\nAtomic units being used " << scale << "\n\n";
                 scale = 1.0;
             }
-            else if (tag == "angstrom" || tag == "angs") {
+            else if (tag == "angstrom" || tag == "angs")
+            {
                 scale = 1e-10 / madness::constants::atomic_unit_of_length;
                 std::cout << "\nAngstrom being used " << scale << "\n\n";
             }
-            else {
+            else
+            {
                 throw "MolecularEntity: read_file: unknown units requested";
             }
         }
-        else {
+        else
+        {
+            Tensor<double> factor = FunctionDefaults<3>::get_cell_width();
             double xx, yy, zz;
             ss >> xx >> yy >> zz;
-            xx *= scale; yy *= scale; zz *= scale;
+            if (fractional)
+            {
+              // If using fractional coordinates, the restrict x, y, and z to be between 0.0 and 1.0
+              MADNESS_ASSERT(x[0] <= 1.0);
+              MADNESS_ASSERT(x[1] <= 1.0);
+              MADNESS_ASSERT(x[2] <= 1.0);
+              MADNESS_ASSERT(x[0] >= 0.0);
+              MADNESS_ASSERT(x[1] >= 0.0);
+              MADNESS_ASSERT(x[2] >= 0.0);
+              xx *= factor[0]; yy *= factor[1]; zz *= factor[2];
+            }
+            else
+            {
+              xx *= scale; yy *= scale; zz *= scale;
+            }
             int atn = symbol_to_atomic_number(tag); // Charge of ghost atom
             double qq = atn;
             if (atn == 0) ss >> qq;
