@@ -44,13 +44,16 @@ struct ElectronicStructureParams
   double maxocc;
   // Read k-points?
   bool kpoints;
+  // Fractional coordinates?
+  bool fractional;
 
   template <typename Archive>
   void serialize(Archive& ar) {
       ar & L & nelec & functional & lo & spinpol &
         periodic & maxits & ispotential & thresh &
         waveorder & nempty & smear & nbands &
-        ngridk0 & ngridk1 & ngridk2 & maxocc & kpoints;
+        ngridk0 & ngridk1 & ngridk2 & maxocc & kpoints &
+        fractional;
   }
 
   ElectronicStructureParams()
@@ -71,6 +74,7 @@ struct ElectronicStructureParams
     maxocc = 2.0;
     nbands = nelec/maxocc + nempty;
     kpoints = false;
+    fractional = false;
   }
 
   void read_file(const std::string& filename)
@@ -188,6 +192,23 @@ struct ElectronicStructureParams
         else
         {
           MADNESS_EXCEPTION("input error -- kpoints", 0);
+        }
+      }
+      else if (s == "fractional")
+      {
+        std::string tempstr;
+        f >> tempstr;
+        if (tempstr == "true")
+        {
+          fractional = true;
+        }
+        else if (tempstr == "false")
+        {
+          fractional = false;
+        }
+        else
+        {
+          MADNESS_EXCEPTION("input error -- fractional", 0);
         }
       }
       else if (s == "ngridk")

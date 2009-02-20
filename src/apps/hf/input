@@ -1,16 +1,43 @@
 dft
-  nelec 4
+  nelec 2
   nempty 0
   L 30.0
   ispotential false
-  periodic true
+  periodic false
   spinpol false
-  maxits 50
+  maxits 100
+  lo 1e-2
+  waveorder 6
+  thresh 1e-4
 end
 
-# oxygen
+#beryllium
 geometry
-  Be  0.0 0.0 0.0
+  he   0.0  0.0  0.0
+end
+
+# helium with L = 8.0 in fractional coordinates 
+geometry
+  he   0.25  0.25  0.25
+  he   0.25  0.25  0.75
+  he   0.25  0.75  0.25
+  he   0.75  0.25  0.25
+  he   0.75  0.75  0.25
+  he   0.25  0.75  0.75
+  he   0.75  0.25  0.75
+  he   0.75  0.75  0.75
+end
+
+# helium with L = 8.0 
+geometry
+  he   2.0  2.0  2.0
+  he   2.0  2.0 -2.0
+  he   2.0 -2.0  2.0
+  he  -2.0  2.0  2.0
+  he  -2.0 -2.0  2.0
+  he   2.0 -2.0 -2.0
+  he  -2.0  2.0 -2.0
+  he  -2.0 -2.0 -2.0
 end
 
 # water*1
