@@ -530,6 +530,50 @@ namespace madness {
         return err;
     }
 
+    /// Compute the Cholesky factorization of the symmetric positive definite matrix A
+
+    /// For memory efficiency A is modified inplace.  Its upper
+    /// triangle will hold the result and the lower trianlge will be
+    /// zeroed such that input = inner(transpose(output),output).
+    template <typename T>
+    void cholesky(Tensor<T>& A) {
+        integer n = A.dim[0];
+        integer info;
+        
+        dpotrf_("L", &n, A.ptr(), &n, &info, 1);
+        mask_info(info);
+        TENSOR_ASSERT(info == 0, "cholesky: Lapack failed", info, &A);
+
+        for (int i=0; i<n; i++)
+            for (int j=0; j<i; j++)
+                A(i,j) = 0.0;
+    }
+
+    template <typename T>
+    void triangular_solve(const Tensor<T>& L, Tensor<T>& B, const char* side, const char* transa) {
+        integer n = L.dim[0];  // ????
+        integer m = L.dim[1];
+        double one = 1.0;
+        integer lda = n; // ???
+        integer ldb = m; //???
+
+        dtrsm_(side, "L", transa, "N", m, n, one, L.ptr(), lda, B.ptr, ldb, 1, 1, 1, 1);
+    }
+
+
+    template <typename T>
+    double test_cholesky(int n) {
+        Tensor<T> a(n,n);
+        a.fillrandom();
+        a += madness::my_conj_transpose(a);
+        for (int i=0; i<n; i++) a(i,i) += n;
+
+        Tensor<T> aa = copy(a);
+        cholesky(a);
+        Tensor<T> LLT = inner(my_conj_transpose(a),a);
+        return (LLT - aa).normf()/n;
+    }
+
 
     /// Test the Tensor-LAPACK interface ... currently always returns true!
     bool test_tensor_lapack() {
@@ -558,6 +602,8 @@ namespace madness {
             cout << "error in double sygv " << test_sygv<double>(22) << endl;
             cout << "error in float_complex sygv " << test_sygv<float_complex>(23) << endl;
             cout << "error in double_complex sygv " << test_sygv<double_complex>(24) << endl;
+            cout << endl;
+            cout << "error in double cholesky " << test_cholesky<double>(22) << endl;
         }
         catch (TensorException e) {
             cout << "Caught a tensor exception in test_tensor_lapack\n";

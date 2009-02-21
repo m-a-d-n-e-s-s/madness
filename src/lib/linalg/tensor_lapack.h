@@ -61,8 +61,14 @@ namespace madness {
     void sygv(const Tensor<T>& A, const Tensor<T>& B, int itype,
               Tensor<T>* V, Tensor< typename Tensor<T>::scalar_type >* e);
 
-    bool test_tensor_lapack();
+    template <typename T>
+    void cholesky(const Tensor<T>& A, Tensor<T>* L);
 
+    template <typename T>
+    void triangular_solve(const Tensor<T>& L, Tensor<T>& B, 
+                          const char* side, const char* uplo, const char* transa);
+
+    bool test_tensor_lapack();
 }
 
 #endif

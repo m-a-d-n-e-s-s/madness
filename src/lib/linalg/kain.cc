@@ -73,6 +73,7 @@ Tensor<T> KAIN(const Tensor<T>& Q) {
 }
 
 
+/// The interface to be provided by 
 struct SolverTargetInterface {
     virtual bool provides_jacobian() const = 0;
     virtual Tensor<double> residual(const Tensor<double>& x) = 0;
@@ -88,30 +89,68 @@ struct SolverTargetInterface {
 };
 
 
+/// The interface to be provided by functions to be optimized
 struct OptimizationTargetInterface {
+
+    /// Should return true if the gradient is implemented
     virtual bool provides_gradient() const = 0;
 
+    /// Should return the value of the objective function
     virtual double value(const Tensor<double>& x) = 0;
 
+    /// Should return the derivative of the function
     virtual Tensor<double> gradient(const Tensor<double>& x) {
         throw "not implemented";
     }
 
+    /// Reimplement if more efficient to evaluate both value and gradient in one call
     virtual void value_and_gradient(const Tensor<double>& x,
                                     double& value, 
                                     Tensor<double>& gradient) {
         value = this->value(x);
         gradient = this->gradient(x);
     }
+
+
+    /// Numerical test of the derivative ... optionally prints to stdout, returns max abs error
+    double test_gradient(Tensor<double>& x, double value_precision, bool doprint=true) {
+        const double eps = pow(value_precision,0.3333);
+        if (doprint) {
+            printf("\n");
+            printf("Testing gradient eps=%.1e\n----------------\n", eps);
+            printf("  i            f-                 f+               ganalytic           gnumeric         err\n");
+            printf(" ----  ------------------  ------------------  ------------------  ------------------  -------\n");
+        }
+        Tensor<double> tt = gradient(x);
+        int n = int(tt.dim[0]);
+        double maxerr = 0.0;
+        for (int i=0; i<n; i++) {
+            x[i] += eps;
+            double fp = value(x);
+            x[i] -= 2.0*eps;
+            double fm = value(x);
+            x[i] += eps;
+            
+            double gg = 0.5*(fp-fm)/eps;
+            if (doprint) 
+                printf("% 5d%20.12e%20.12e%20.12e%20.12e  %.1e\n", i, fm, fp, tt(i), gg, abs(tt(i)-gg));
+            maxerr = max(abs(gg-tt(i)),maxerr);
+        }
+        if (doprint) printf("\n");
+
+        return maxerr;
+    }
 };
 
 
+/// The interface to be provided by solvers
 struct SolverInterface {
     virtual bool solve(Tensor<double>& x) = 0;
     virtual bool converged() const = 0;
     virtual double residual_norm() const = 0;
 };
 
+/// The interface to be provided by optimizers
 struct OptimizerInterface {
     virtual bool optimize(Tensor<double>& x) = 0;
     virtual bool converged() const = 0;
@@ -120,6 +159,7 @@ struct OptimizerInterface {
 };
 
 
+/// Optimization via steepest descent
 class SteepestDescent : public OptimizerInterface {
     SharedPtr<OptimizationTargetInterface> target;
     const double tol;
@@ -177,6 +217,8 @@ public:
     double value() const {return f;}
 };
 
+
+/// Optimization via quasi-Newton (BFGS or SR1 update)
 class QuasiNewton : public OptimizerInterface {
 private:
     string update;              // One of BFGS or SR1
@@ -338,36 +380,13 @@ public:
         else throw "QuasiNewton: unknown update mthod";
     }
 
-    bool test_gradient(Tensor<double>& x) {
-        const double eps = pow(value_precision,0.3333);
-        printf("\n");
-        printf("Testing gradient eps=%.1e\n----------------\n", eps);
-        printf("  i            f-                 f+               ganalytic           gnumeric         err\n");
-        printf(" ----  ------------------  ------------------  ------------------  ------------------  -------\n");
-        Tensor<double> tt = target->gradient(x);
-        double maxerr = 0.0;
-        for (int i=0; i<n; i++) {
-            x[i] += eps;
-            double fp = target->value(x);
-            x[i] -= 2.0*eps;
-            double fm = target->value(x);
-            x[i] += eps;
-            
-            double gg = 0.5*(fp-fm)/eps;
-            printf("% 5d%20.12e%20.12e%20.12e%20.12e  %.1e\n", i, fm, fp, tt(i), gg, abs(tt(i)-gg));
-            maxerr = max(abs(gg-tt(i)),maxerr);
-        }
-        printf("\n");
-    }
-    
-    
     bool optimize(Tensor<double>& x) {
         if (n != x.dim[0]) {
             n = x.dim[0];
             h = Tensor<double>();
         }
 
-        test_gradient(x);
+        target->test_gradient(x, value_precision);
 
         bool h_is_identity = (h.size == 0);
         if (h_is_identity) {

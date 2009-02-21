@@ -157,4 +157,13 @@ extern "C"
                 real8 *w,  complex_real8 *work,  integer *lwork, real8 *rwork,
                 integer *info, char_len jobzlen, char_len uplo_len );
 
+extern "C"
+void dpotrf_(const char *uplo, const integer* n, real8 *a, const integer *lda, integer *info, char_len uplo_len);
+
+extern "C"
+void dtrsm_(const char* side, const char* uplo, const char* transa, const char* diag,
+            const integer* m, const integer* n, const real8* alpha, 
+            const real8* a, const integer* lda, real8* b, const integer* ldb, 
+            char_len sidelen, char_len uplolen, char_len transalen, char_len diaglen);
+
 #endif
