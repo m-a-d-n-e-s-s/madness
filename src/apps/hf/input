@@ -9,7 +9,19 @@ dft
   lo 1e-2
   waveorder 6
   thresh 1e-4
-  fractional true
+  fractional false 
+end
+
+# helium with L = 8.0 
+geometry
+  he   2.0  2.0  2.0
+  he   2.0  2.0 -2.0
+  he   2.0 -2.0  2.0
+  he  -2.0  2.0  2.0
+  he  -2.0 -2.0  2.0
+  he   2.0 -2.0 -2.0
+  he  -2.0  2.0 -2.0
+  he  -2.0 -2.0 -2.0
 end
 
 # helium with L = 8.0 in fractional coordinates 
@@ -26,19 +38,7 @@ end
 
 #beryllium
 geometry
-  he   0.0  0.0  0.0
-end
-
-# helium with L = 8.0 
-geometry
-  he   2.0  2.0  2.0
-  he   2.0  2.0 -2.0
-  he   2.0 -2.0  2.0
-  he  -2.0  2.0  2.0
-  he  -2.0 -2.0  2.0
-  he   2.0 -2.0 -2.0
-  he  -2.0  2.0 -2.0
-  he  -2.0 -2.0 -2.0
+  be   0.0  0.0  0.0
 end
 
 # water*1
