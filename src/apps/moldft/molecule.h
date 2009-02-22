@@ -69,10 +69,11 @@ private:
     // If you add more fields don't forget to serialize them
     std::vector<Atom> atoms;
     std::vector<double> rcut;  // Reciprocal of the smoothing radius
+    double eprec;              // Error in energy/atom due to smoothing
     
 public:    
     /// Makes a molecule with zero atoms
-    Molecule() : atoms() {};
+    Molecule() : atoms(), rcut(), eprec(1e-4) {};
     
     Molecule(const std::string& filename);
 
@@ -83,6 +84,10 @@ public:
     int natom() const {return atoms.size();};
     
     void set_atom_coords(unsigned int i, double x, double y, double z);
+
+    void set_eprec(double value) {eprec = value;}
+
+    double get_eprec() const {return eprec;}
 
     double bounding_cube() const;
     
@@ -107,7 +112,7 @@ public:
     double nuclear_attraction_potential_derivative(int atom, int axis, double x, double y, double z) const;
     
     template <typename Archive>
-    void serialize(Archive& ar) {ar & atoms & rcut;}
+    void serialize(Archive& ar) {ar & atoms & rcut & eprec;}
 };
 
 

@@ -39,6 +39,7 @@
 #include <constants.h>
 #include <moldft/molecule.h>
 #include <misc/misc.h>
+#include <iomanip>
 
 static const double PI = 3.1415926535897932384;
 
@@ -504,7 +505,7 @@ void Molecule::read_file(const std::string& filename) {
     atoms.clear(); rcut.clear();
     std::ifstream f(filename.c_str());
     madness::position_stream(f, "geometry");
-    double scale = 1.0;
+    double scale = 1.0; // Default is atomic units
 
     std::string s;
     while (std::getline(f,s)) {
@@ -518,16 +519,19 @@ void Molecule::read_file(const std::string& filename) {
             if (natom()) throw "Molecule: read_file: presently units must be the first line of the geometry block";
             ss >> tag;
             if (tag == "a.u." || tag == "au" || tag == "atomic") {
-                std::cout << "\nAtomic units being used " << scale << "\n\n";
+                std::cout << "\nAtomic units being used to read input coordinates\n\n";
                 scale = 1.0;
             }
             else if (tag == "angstrom" || tag == "angs") {
                 scale = 1e-10 / madness::constants::atomic_unit_of_length;
-                std::cout << "\nAngstrom being used " << scale << "\n\n";
+                printf("\nAngstrom being used to read input coordinates (1 Bohr = %.8f Angstrom)\n\n", scale);
             }
             else {
                 throw "Molecule: read_file: unknown units requested";
             }
+        }
+        else if (tag == "eprec") {
+            ss >> eprec;
         }
         else {
             double xx, yy, zz;
@@ -546,7 +550,7 @@ void Molecule::read_file(const std::string& filename) {
     
 void Molecule::add_atom(double x, double y, double z, int atomic_number, double q) {
     atoms.push_back(Atom(x,y,z,atomic_number,q));
-    double c = smoothing_parameter(q, 1e-4); // This is error per atom
+    double c = smoothing_parameter(q, eprec); // eprec is error per atom
     printf("smoothing param %.6f\n", c);
     rcut.push_back(1.0/c);
 }

@@ -228,6 +228,15 @@ public:
     }
 };
 
+
+/// Given overlap matrix, return 2nd-order accurate rotation to orthonormalize the vectors
+tensorT Q3(const tensorT& s) {
+    tensorT Q = inner(s,s);
+    Q.gaxpy(0.2,s,-2.0/3.0);
+    for (int i=0; i<s.dim[0]; i++) Q(i,i) += 1.0;
+    return Q.scale(15.0/8.0);
+}
+
 tensorT sqrt(const tensorT& s, double tol=1e-8) {
     int n=s.dim[0], m=s.dim[1];
     MADNESS_ASSERT(n==m);
@@ -251,6 +260,13 @@ tensorT sqrt(const tensorT& s, double tol=1e-8) {
     }
     return c;
 }
+
+// /// Given the overlap matrix return the transformation to an orthonormal basis using Cholesky
+// tensorT cholesky_orthog(const tensorT& s) {
+
+    
+
+// }
 
 tensorT energy_weighted_orthog(const tensorT& s, const tensorT eps) {
     int n=s.dim[0], m=s.dim[1];
@@ -368,7 +384,6 @@ struct CalculationParameters {
                 f >> nvbeta;
             } else if (s == "nopen") {
                 f >> nopen;
-                spin_restricted = false;
             } else if (s == "unrestricted") {
                 spin_restricted = false;
             } else if (s == "restricted") {
@@ -726,7 +741,11 @@ struct Calculation {
     /// All processes participate in compute the dipole integrals but
     /// only process 0 computes the transformation which is broadcast
     /// to all others to be sure of consistency.
-    tensorT localize_boys(World& world, const vecfuncT& mo) {
+    tensorT localize_boys(World& world, 
+                          const vecfuncT& mo, 
+                          const double thresh=1e-9, 
+                          const double thetamax=0.5,
+                          const bool randomize=true) {
         START_TIMER;
         const bool doprint=false;
 #define DIP(i,j,k,l) (dip(0,i,j)*dip(0,k,l)+dip(1,i,j)*dip(1,k,l)+dip(2,i,j)*dip(2,k,l))
@@ -745,63 +764,56 @@ struct Calculation {
 
             for (long i=0; i<nmo; i++) U(i,i) = 1.0;
 
-            const double thresh = 1e-9; // Final convergence test
-            double tol = 0.1;           // Current test
+            double tol = thetamax;      // Current test
             long ndone=0;               // Total no. of rotations performed
 
             bool converged = false;
-            for (long iter=0; iter<100; iter++) {
+            for (long iter=0; iter<300; iter++) {
                 // Compute the objective function to track convergence
                 double sum = 0.0;
                 for (long i=0; i<nmo; i++) {
                     sum += DIP(i,i,i,i);
                 }
 
-                tol *= 0.5;
-                if (tol < thresh) tol = thresh;
                 long ndone_iter=0; // No. of rotations done this iteration
-                double screen = tol*sum;
+                double maxtheta = 0.0;
 
-                if (doprint) print("iteration", iter, sum, ndone);
+                if (doprint) 
+                    printf("iteration %ld sum=%.4f ndone=%ld tol=%.2e\n", iter, sum, ndone, tol);
                 for (long i=0; i<nmo; i++) {
                     for (long j=0; j<i; j++) {
-                        double g = 0.0;
-                        double h = 0.0;
-                        double sij = 0.0; // Estimate of the overlap of |i> and |j>
-                        g += DIP(i,j,j,j) - DIP(i,j,i,i);
-                        h += 4.0*DIP(i,j,i,j) + 2.0*DIP(i,i,j,j) - DIP(i,i,i,i) - DIP(j,j,j,j);
-                        sij += DIP(i,j,i,j);
+                        double g = DIP(i,j,j,j) - DIP(i,j,i,i);
+                        double h = 4.0*DIP(i,j,i,j) + 2.0*DIP(i,i,j,j) - DIP(i,i,i,i) - DIP(j,j,j,j);
+                        double sij = DIP(i,j,i,j);
 
-                        double thetamax = 0.5;  // circa 30 degrees
-                        if (h == 0.0) {
-                            if (doprint) print("     exactly zero h", i, j, h);
+                        bool doit = false;
+                        if (h >= 0.0) {
+                            doit = true;
+                            if (doprint) print("             forcing negative h", i, j, h);
                             h = -1.0;
-                            thetamax *= 0.5;
-                        }
-                        else if (h > 0.0) {
-                            if (doprint) print("     forcing negative h", i, j, h);
-                            h = -1.0;
-                            thetamax *= 0.5;
                         }
 
                         double theta = -g/h;
+                        
+                        maxtheta = max(abs(theta),maxtheta);
 
                         if (fabs(theta) > thetamax) {
-                            if (doprint) print("  restricting", i, j);
+                            doit = true;
+                            if (doprint) print("             restricting", i, j);
                             if (g < 0) theta = -thetamax;
                             else       theta =  thetamax*0.8; // Breaking symmetry is good
                         }
 
                         bool randomized=false;
-                        if (iter == 0 && sij > 0.01 && fabs(theta) < 0.01) { //
+                        if (randomize && iter == 0 && sij > 0.01 && fabs(theta) < 0.01) { //
                             randomized=true;
-                            if (doprint) print("   randomizing", i, j, h, g, sij, theta);
+                            if (doprint) print("             randomizing", i, j);
                             theta += (RandomValue<double>() - 0.5);
                         }
 
-                        if (fabs(theta) > screen || randomized) {
+                        if (fabs(theta) >= tol || randomized || doit) {
                             ndone_iter++;
-                            if (doprint) print("    ", i, j, g, h, theta);
+                            if (doprint) print("     rotating", i, j, theta);
 
                             double c = cos(theta);
                             double s = sin(theta);
@@ -816,15 +828,20 @@ struct Calculation {
                         }
                     }
                 }
+
+
                 ndone += ndone_iter;
                 if (ndone_iter==0 && tol==thresh) {
                     if (doprint) print("Converged!", ndone);
                     converged = true;
                     break;
                 }
+
+                tol = max(0.1*maxtheta,thresh);
+
             }
             if (!converged) {
-                print("warning: boys localization did not fully converge");
+                print("warning: boys localization did not fully converge: ndone", ndone, "maxtheta", maxtheta, "tol", tol);
             }
 
             U = transpose(U);
@@ -1186,14 +1203,29 @@ struct Calculation {
     }
 
 
-    /// Updates the orbitals and eigenvalues of one spin
+    /// Updates the orbitals of one spin ... destroys Vpsi
     void update(World& world,
                 tensorT& occ,
-                tensorT& eps,
+                tensorT& fock,
                 vecfuncT& psi,
                 vecfuncT& Vpsi)
     {
         int nmo = psi.size();
+
+        // Compute energy shifts
+        tensorT eps(nmo);
+        for (int i=0; i<nmo; i++) {
+            eps(i) = min(-0.05, fock(i,i));
+            print("shifts", i, eps(i));
+            fock(i,i) -= eps(i);
+        }
+
+        // Form RHS = V*psi - fock*psi
+        double trantol = vtol/min(30.0,double(psi.size()));
+        vecfuncT fpsi = transform(world, psi, fock, trantol);
+        gaxpy(world, 1.0, Vpsi, -1.0, fpsi);
+        fpsi.clear();
+
         vector<double> fac(nmo,-2.0);
         scale(world, Vpsi, fac);
 
@@ -1205,6 +1237,7 @@ struct Calculation {
         END_TIMER("Apply BSH");
 
         ops.clear();            // free memory
+        Vpsi.clear();
         world.gop.fence();
 
         START_TIMER;
@@ -1216,16 +1249,10 @@ struct Calculation {
         END_TIMER("Mask");
 
         vecfuncT r = sub(world, psi, new_psi); // residuals
+
         vector<double> rnorm = norm2(world, r);
-        vector<double> new_norm = norm2(world, new_psi);
-        tensorT Vpr = inner(world, Vpsi, r); // Numerator of delta_epsilon
-        tensorT deps(nmo);
-        for (int i=0; i<nmo; i++) deps(i) = 0.5*Vpr(i)/(new_norm[i]*new_norm[i]);
 
-        Vpsi.clear();
         normalize(world, new_psi);
-
-        tensorT new_eps(nmo);
 
         for (int i=0; i<nmo; i++) {
             double step = (rnorm[i] < param.maxrotn) ? 1.0 : param.maxrotn;
@@ -1233,58 +1260,35 @@ struct Calculation {
                 print("  restricting step for orbital ", i, step);
             }
             psi[i].gaxpy(1.0-step, new_psi[i], step, false);
-            double dd = deps[i]*step;
-            if (abs(dd) > abs(0.1*eps[i])) dd = (dd/abs(dd))*0.1*abs(eps[i]);
-            new_eps[i] = eps[i] + dd;
-            if (new_eps[i] > -0.05) new_eps = -0.05;
         }
         world.gop.fence();
+        new_psi.clear(); // free memory
 
-
+        
         if (world.rank() == 0) {
             print("residual norms");
             print(rnorm);
         }
 
-        eps = new_eps;
-
-        world.gop.fence();
-        new_psi.clear(); // free memory
-        world.gop.fence();
-
+        // Orthogonalize
+        normalize(world, psi);
+        psi = transform(world, psi, Q3(matrix_inner(world, psi, psi)), trantol);
         truncate(world, psi);
-
-//         START_TIMER;
-//         // Orthog the new orbitals using sqrt(overlap).
-//         // Try instead an energy weighted orthogonalization
-//         tensorT c = energy_weighted_orthog(matrix_inner(world, psi, psi, true), eps);
-//         psi = transform(world, psi, c);
-//         truncate(world, psi);
-//         normalize(world, psi);
-//         END_TIMER("Eweight orthog");
+        normalize(world, psi);
 
         return;
     }
 
-    /// Diagonalizes the fock matrix and also returns energy contribution from this spin
 
-    /// Also computes energy contributions for this spin (consistent with the input
-    /// orbitals not the output)
-    void diag_fock_matrix(World& world,
-                          vecfuncT& psi,
-                          vecfuncT& Vpsi,
-                          tensorT& occ,
-                          tensorT& evals,
-                          const functionT& arho,
-                          const functionT& brho,
-                          const functionT& adelrhosq,
-                          const functionT& bdelrhosq,
-                          double& ekinetic)
+    /// Make the fock matrix and also returns kinetic energy contribution from this spin
+    Tensor<double> make_fock_matrix(World& world,
+                                    const vecfuncT& psi,
+                                    const vecfuncT& Vpsi,
+                                    const tensorT& occ,
+                                    double& ekinetic)
     {
         // This is unsatisfactory for large molecules, but for now will have to suffice.
-        if (world.rank() == 0) printf("starting matrices at %.2fs\n", wall_time());
-        tensorT overlap = matrix_inner(world, psi, psi, true);
-        if (world.rank() == 0) printf("finished overlap at %.2fs\n", wall_time());
+
         tensorT pe = matrix_inner(world, Vpsi, psi, true);
         if (world.rank() == 0) printf("finished pe at %.2fs\n", wall_time());
         tensorT ke = kinetic_energy_matrix(world, psi);
@@ -1296,10 +1300,31 @@ struct Calculation {
             ekinetic += occ[i]*ke(i,i);
         }
 
-        tensorT fock = ke + pe;
-        pe = tensorT();
+        ke += pe;
+        pe = Tensor<double>();
 
-        fock.gaxpy(0.5,transpose(fock),0.5);
+        ke.gaxpy(0.5,transpose(ke),0.5);
+        return ke;
+    }
+
+
+    /// Diagonalizes the fock matrix and also returns energy contribution from this spin
+
+    /// Also computes energy contributions for this spin (consistent with the input
+    /// orbitals not the output)
+    void diag_fock_matrix(World& world,
+                          vecfuncT& psi,
+                          vecfuncT& Vpsi,
+                          tensorT& occ,
+                          tensorT& evals,
+                          double& ekinetic)
+    {
+        // This is unsatisfactory for large molecules, but for now will have to suffice.
+        if (world.rank() == 0) printf("starting matrices at %.2fs\n", wall_time());
+        tensorT fock = make_fock_matrix(world, psi, Vpsi, occ, ekinetic);
+
+        tensorT overlap = matrix_inner(world, psi, psi, true);
+        if (world.rank() == 0) printf("finished overlap at %.2fs\n", wall_time());
 
         tensorT c;
         sygv(fock, overlap, 1, &c, &evals);
@@ -1362,22 +1387,31 @@ struct Calculation {
         functionT arho_old, brho_old;
         functionT adelrhosq, bdelrhosq; // placeholders for GGAs
 
+        bool localize = true;
+        double trantol = vtol/min(30.0,double(amo.size()));
+        double tolloc = 1e-3; ///max(param.nalpha,param.nbeta);
+
         for (int iter=0; iter<param.maxiter; iter++) {
-            streamsize oldprec = cout.precision();
-            cout.precision(1);
             if (world.rank()==0) printf("\nIteration %d at time %.1fs\n\n", iter, wall_time());
-            cout.precision(oldprec);
+
+            if (localize) {
+                tensorT U = localize_boys(world, amo, tolloc, 0.25, iter==0);
+                amo = transform(world, amo, U, trantol);
+                truncate(world, amo);
+                if (!param.spin_restricted && param.nbeta) {
+                    U = localize_boys(world, bmo);
+                    bmo = transform(world, bmo, U, trantol);
+                    truncate(world, bmo);
+                }
+            }
 
             START_TIMER;
             functionT arho = make_density(world, aocc, amo);
             functionT brho;
-            if (param.nbeta) {
-                if (param.spin_restricted) brho = arho;
-                else brho = make_density(world, bocc, bmo);
-            }
-            else {
-                brho = functionT(world); // zero
-            }
+            if (!param.spin_restricted && param.nbeta) 
+                brho = make_density(world, bocc, bmo);
+            else
+                brho = arho;
             END_TIMER("Make densities");
 
             START_TIMER;
@@ -1387,14 +1421,13 @@ struct Calculation {
             double da=0.0, db=0.0;
             if (iter > 0) {
                 da = (arho - arho_old).norm2();
-                db = 0.0;
-                if (param.nbeta && !param.spin_restricted) db = (brho - brho_old).norm2();
+                db = (brho - brho_old).norm2();
                 if (world.rank()==0) print("delta rho", da, db);
             }
             arho_old = arho;
             brho_old = brho;
 
-            functionT rho = arho+brho;
+            functionT rho = arho + brho;
             rho.truncate();
 
             double enuclear = inner(rho, vnuc);
@@ -1422,16 +1455,36 @@ struct Calculation {
             }
             END_TIMER("Apply potential");
 
-            double ekina=0.0, ekinb=0.0;;
-            START_TIMER;
-            diag_fock_matrix(world, amo, Vpsia, aocc, aeps, arho, brho, adelrhosq, bdelrhosq, ekina);
-            if (param.spin_restricted) {
+
+            /*
+              Iterating in a local, orthonormal basis
+
+              Start with localized orthonormal vectors.
+
+              a) Make density and Fock matrices
+              b) Optionally diagonalize for FON, help convergence, then apply
+                 only the parts of the rotation that mixes either within FON or
+                 between different spaces, and then relocalize.
+              c) Update using the full matrix of multipliers (unless canonical), 
+                 using sparsity to get linear scaling if localized and in case we are
+                 solving for the canonical orbitals
+              d) We should be orthogonal to first order but need exact for
+                 for best stability. Use the Choleski factorization of the overlap
+                 matrix.  V. quick and stable to compute.  Symmetric would also work.
+                 Fix phases.
+              e) Localize unit occupation space (with stable algorithm).  Fix phases.
+
+             */
+
+            double ekina=0.0, ekinb=0.0;
+            tensorT focka = make_fock_matrix(world, amo, Vpsia, aocc, ekina);
+            tensorT fockb = focka;
+            if (param.spin_restricted) 
                 ekinb = ekina;
-            }
-            else if (param.nbeta) {
-                diag_fock_matrix(world, bmo, Vpsib, bocc, beps, brho, arho, bdelrhosq, adelrhosq, ekinb);
-            }
-            END_TIMER("Diag and transform");
+            else
+                fockb = make_fock_matrix(world, bmo, Vpsib, bocc, ekinb);
+
+            print("Fock matrix\n", focka);
 
             if (world.rank() == 0) {
                 double enrep = molecule.nuclear_repulsion_energy();
@@ -1445,6 +1498,9 @@ struct Calculation {
                 printf("    nuclear-repulsion %16.8f\n", enrep);
                 printf("                total %16.8f\n\n", etot);
             }
+
+            update(world, aocc, focka, amo, Vpsia);
+            if (param.nbeta && !param.spin_restricted) update(world, bocc, fockb, bmo, Vpsib);
 
             if (iter > 0) {
                 double dconv = max(FunctionDefaults<3>::get_thresh(), param.dconv);
@@ -1462,22 +1518,20 @@ struct Calculation {
                     break; // <<<<<<<<<<<<< Successful termination of iteration
                 }
             }
-
-            update(world, aocc, aeps, amo, Vpsia);
-            if (param.nbeta && !param.spin_restricted) update(world, bocc, beps, bmo, Vpsib);
-
         }
-        //if (world.rank() == 0) print("Analysis of alpha MO vectors");
-        //analyze_vectors(world, amo, aocc, aeps);
+        if (world.rank() == 0) print("Analysis of alpha MO vectors");
+        analyze_vectors(world, amo, aocc, aeps);
         if (param.nbeta && !param.spin_restricted) {
-            //if (world.rank() == 0) print("Analysis of beta MO vectors");
-            //analyze_vectors(world, bmo, bocc, beps);
+            if (world.rank() == 0) print("Analysis of beta MO vectors");
+            analyze_vectors(world, bmo, bocc, beps);
         }
 
 
-        functionT arho = make_density(world, aocc, amo), brho;
-        if (param.spin_restricted) brho = arho;
-        else brho = make_density(world, bocc, bmo);
+        // Compute the derivatives 
+        functionT arho = make_density(world, aocc, amo);
+        functionT brho = arho;
+        if (!param.spin_restricted) brho = make_density(world, bocc, bmo);
+
         arho.gaxpy(1.0, brho, 1.0);
         Tensor<double> dv = derivatives(world, arho);
         if (world.rank() == 0) {
