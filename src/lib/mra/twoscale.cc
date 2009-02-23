@@ -197,7 +197,7 @@ namespace madness {
 
     // BELOW HERE THE AUTOCORRELATION ROUTINES
 
-    static const int kmax_autoc = 27;
+    static const int kmax_autoc = 30;
     static int kread = -1;  // value of k for data read from disk into _cread
     static Tensor<double> _cread;
 
