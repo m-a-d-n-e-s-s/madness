@@ -1,10 +1,10 @@
 #ifndef MAD_SOLVERS_H
 #define MAD_SOLVERS_H
 
-#include <iostream>
 #include <tensor/tensor.h>
-#include <linalg/tensor_lapack.h>
 #include <world/print.h>
+#include <iostream>
+#include <linalg/tensor_lapack.h>
 
 /// \file solvers.h
 /// \brief Defines interfaces for optimization and non-linear equation solvers
