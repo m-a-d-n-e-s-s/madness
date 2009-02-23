@@ -2041,19 +2041,20 @@ namespace madness {
                     double tol = truncate_tol(thresh, key);
 
                     if (cnorm*opnorm > tol/fac) {
+#define FINER_GRAIN
+#ifdef  FINER_GRAIN
                         // This introduces finer grain parallelism
-//                         do_op_args args(key, d, dest, tol, fac, cnorm);
-//                         task(world.rank(), &implT:: template do_apply_kernel<opT,R>, op, c, args);
-
-                        //task(coeffs.owner(dest), &implT:: template do_apply_kernel<opT,R>, op, c, args);
-                        //task(world.random_proc(), &implT:: template do_apply_kernel<opT,R>, op, c, args);
-
-                        // Equivalent to above task
-                         tensorT result = op->apply(key, d, c, tol/fac/cnorm);
-                         if (result.normf() > 0.3*tol/fac) {
-                             coeffs.send(dest, &nodeT::accumulate, result, coeffs, dest);
-                         }
-
+                        // ProcessID where = world.rank();
+                        //ProcessID where = coeffs.owner(dest);
+                        ProcessID where = world.random_proc();
+                        do_op_args args(key, d, dest, tol, fac, cnorm);
+                        task(where, &implT:: template do_apply_kernel<opT,R>, op, c, args);
+#else
+                        tensorT result = op->apply(key, d, c, tol/fac/cnorm);
+                        if (result.normf() > 0.3*tol/fac) {
+                            coeffs.send(dest, &nodeT::accumulate, result, coeffs, dest);
+                        }
+#endif
                     }
                     else if (d.distsq() >= 1) { // Assumes monotonic decay beyond nearest neighbor
                         break;
