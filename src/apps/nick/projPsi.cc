@@ -141,26 +141,26 @@ void loadBasis(World& world, std::vector<WF>& stateList) {
         } else PRINTLINE("unbound.num not found");
     }
 }
-/*
-void projectOp(World& world, vector<WF>& aVec, , vector<WF>& bVec) {
-void testBasis(World& world, vector<WF>& basisF) {
-    PRINTLINE("Testing basis function orthonormality");
-    vector<WF>::iterator psiA, psiB;
-    complexd output;
-    for(psiA=basisF.begin(); psiA!=basisF.end(); psiA++) {
-            PRINT("\t|" << psiA->str << ">\t\t");
-    }
-    PRINT("\n");
-    for(psiA=basisF.begin(); psiA!=basisF.end(); psiA++) {
-        PRINT("<" << basisI->str << "|\t");
-        for(psiB=basisF.begin(); psiB <= psiA; psiB++) {
-            output = psiA->func.inner(psiB.func);
-            PRINT("\n");
-            void display(
-                         */
-complexd zdipole( const vector3D& r) {
-    return complexd(r[2],0.0);
-}
+
+// void projectOp(World& world, vector<WF>& aVec, , vector<WF>& bVec) {
+// void testBasis(World& world, vector<WF>& basisF) {
+//     PRINTLINE("Testing basis function orthonormality");
+//     vector<WF>::iterator psiA, psiB;
+//     complexd output;
+//     for(psiA=basisF.begin(); psiA!=basisF.end(); psiA++) {
+//             PRINT("\t|" << psiA->str << ">\t\t");
+//     }
+//     PRINT("\n");
+//     for(psiA=basisF.begin(); psiA!=basisF.end(); psiA++) {
+//         PRINT("<" << basisI->str << "|\t");
+//         for(psiB=basisF.begin(); psiB <= psiA; psiB++) {
+//             output = psiA->func.inner(psiB.func);
+//             PRINT("\n");
+//             void display(
+                         
+// complexd zdipole( const vector3D& r) {
+//     return complexd(r[2],0.0);
+// }
 
 void doWork(World& world) {
     std::vector<WF> stateList;    
@@ -187,6 +187,7 @@ void doWork(World& world) {
         std::vector<WF>::iterator psiPlusI;
         //DISPLAY <basis| (x) |psi+> 
         for(psiPlusI=psiList.begin(); psiPlusI != psiList.end(); psiPlusI++) {
+        //DISPLAY <basis| (x) |basis> 
 //        for(psiPlusI=stateList.begin(); psiPlusI != stateList.end(); psiPlusI++) {
             PRINT("\t|" << psiPlusI->str << ">\t\t");
         }
