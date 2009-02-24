@@ -231,7 +231,7 @@ public:
     {
       _aobasis.read_file("sto-3g");
       _mentity.read_file(filename, _params.fractional);
-      _mentity.center();
+      //_mentity.center();
       if (_params.periodic && _params.kpoints)
         _kpoints = read_kpoints("KPOINTS.OUT");
       else
@@ -246,6 +246,13 @@ public:
   void make_nuclear_potential()
   {
     if (_world.rank() == 0) print("Making nuclear potential ..\n\n");
+    Tensor<double> csize = FunctionDefaults<3>::get_cell();
+    if (_world.rank() == 0)
+    {
+      print("cell(x) is ",csize(0,0), csize(0,1));
+      print("cell(y) is ",csize(1,0), csize(1,1));
+      print("cell(z) is ",csize(2,0), csize(2,1));
+    }
     if (_params.ispotential) // potential
     {
       _vnucrhon = rfactoryT(_world).functor(rfunctorT(new MolecularPotentialFunctor(_mentity))).thresh(_params.thresh * 0.1).truncate_on_project();
@@ -274,6 +281,8 @@ public:
       if (_world.rank() == 0) print("Done creating nuclear potential ..\n");
       delete op;
     }
+    vector<long> npt(3,101);
+    plotdx(_vnuc, "vnuc.dx", FunctionDefaults<3>::get_cell(), npt);
   }
 
   struct GuessDensity : public FunctionFunctorInterface<double,3> {
@@ -429,6 +438,9 @@ public:
     rfunctionT rho = rfactoryT(_world).functor(rfunctorT(
         new GuessDensity(_mentity, _aobasis)));
 
+    vector<long> npt(3,101);
+    plotdx(rho, "rho_initial.dx", FunctionDefaults<3>::get_cell(), npt);
+
     rfunctionT vlocal;
     // Is this a many-body system?
     if (_params.nelec > 1)
@@ -483,6 +495,15 @@ public:
     if (_world.rank() == 0) print("Projecting atomic orbitals ...\n\n");
     rvecfuncT ao = project_ao_basis(_world);
 
+    for (unsigned int ai = 0; ai < ao.size(); ai++)
+    {
+      std::ostringstream strm;
+      strm << "aod" << ai << ".dx" << std::endl;
+      std::string fname = strm.str();
+      vector<long> npt(3,101);
+      print(fname);
+      plotdx(ao[ai], fname.c_str(), FunctionDefaults<3>::get_cell(), npt);
+    }
     // Get size information from k-points and ao_basis so that we can correctly size
     // the _orbitals data structure and the eigs tensor
     int nao = ao.size();
