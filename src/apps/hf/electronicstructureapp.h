@@ -33,6 +33,82 @@ typedef FunctionFactory<double,3> rfactoryT;
 typedef SeparatedConvolution<double,3> operatorT;
 typedef SharedPtr<operatorT> poperatorT;
 
+void print_cube(World& world, const Function<double,3>& f, int npts)
+{
+  f.reconstruct();
+  if (world.rank() == 0)  printf("\n");
+  Tensor<double> csize = FunctionDefaults<3>::get_cell_width();
+
+  for (int i = 0; i < npts; i++)
+  {
+    for (int j = 0; j < npts; j++)
+    {
+      for (int k = 0; k < npts; k++)
+      {
+        double x = (i+0.5) * (csize[0]/npts) - csize[0]/2;
+        double y = (j+0.5) * (csize[1]/npts) - csize[1]/2;
+        double z = (k+0.5) * (csize[2]/npts) - csize[2]/2;
+        coordT p(0.0);
+        p[0] = x; p[1] = y; p[2] = z;
+        if (world.rank() == 0)
+          printf("%10.2f%10.2f%10.2f%15.8f\n", x, y, z, f(p));
+      }
+    }
+  }
+}
+
+void print_cube(World& world, const Function<double,3>& f1, const Function<double,3>& f2, int npts)
+{
+  f1.reconstruct();
+  f2.reconstruct();
+  if (world.rank() == 0)  printf("\n");
+  Tensor<double> csize = FunctionDefaults<3>::get_cell_width();
+
+  for (int i = 0; i < npts; i++)
+  {
+    for (int j = 0; j < npts; j++)
+    {
+      for (int k = 0; k < npts; k++)
+      {
+        double x = (i+0.5) * (csize[0]/npts) - csize[0]/2;
+        double y = (j+0.5) * (csize[1]/npts) - csize[1]/2;
+        double z = (k+0.5) * (csize[2]/npts) - csize[2]/2;
+        coordT p(0.0);
+        p[0] = x; p[1] = y; p[2] = z;
+        if (world.rank() == 0)
+          printf("%10.2f%10.2f%10.2f%15.8f%15.8f\n", x, y, z, f1(p), f2(p));
+      }
+    }
+  }
+}
+
+void print_cube(World& world, const Function<double,3>& f1, const Function<double,3>& f2,
+    const Function<double,3>& f3, int npts)
+{
+  f1.reconstruct();
+  f2.reconstruct();
+  f3.reconstruct();
+  if (world.rank() == 0)  printf("\n");
+  Tensor<double> csize = FunctionDefaults<3>::get_cell_width();
+
+  for (int i = 0; i < npts; i++)
+  {
+    for (int j = 0; j < npts; j++)
+    {
+      for (int k = 0; k < npts; k++)
+      {
+        double x = (i+0.5) * (csize[0]/npts) - csize[0]/2;
+        double y = (j+0.5) * (csize[1]/npts) - csize[1]/2;
+        double z = (k+0.5) * (csize[2]/npts) - csize[2]/2;
+        coordT p(0.0);
+        p[0] = x; p[1] = y; p[2] = z;
+        if (world.rank() == 0)
+          printf("%10.2f%10.2f%10.2f%15.8f%15.8f%15.8f\n", x, y, z, f1(p), f2(p), f3(p));
+      }
+    }
+  }
+}
+
 class LevelPmap : public WorldDCPmapInterface< Key<3> > {
 private:
     const int nproc;
@@ -460,11 +536,18 @@ public:
             _params.lo, _params.thresh * 0.1);
       }
       if (_world.rank() == 0) print("Building effective potential ...\n\n");
-      vlocal = _vnuc + apply(*op, rho); //.scale(1.0-1.0/nel); // Reduce coulomb to increase binding
+      rfunctionT vc = apply(*op, rho);
+      //      vlocal = _vnuc + apply(*op, rho); //.scale(1.0-1.0/nel); // Reduce coulomb to increase binding
+      vlocal = _vnuc + vc; //.scale(1.0-1.0/nel); // Reduce coulomb to increase binding
       rho.scale(0.5);
       // Do the LDA
-      vlocal = vlocal + make_lda_potential(_world, rho, rho, rfunctionT(), rfunctionT());
+      rfunctionT vlda = make_lda_potential(_world, rho, rho, rfunctionT(), rfunctionT());
+      //vlocal = vlocal + make_lda_potential(_world, rho, rho, rfunctionT(), rfunctionT());
+      vlocal = vlocal + vlda;
       delete op;
+      vector<long> npt(3,101);
+      plotdx(vc, "vc.dx", FunctionDefaults<3>::get_cell(), npt);
+      print_cube(_world, rho, vc, vlda, 5);
     }
     else
     {
@@ -497,13 +580,22 @@ public:
 
     for (unsigned int ai = 0; ai < ao.size(); ai++)
     {
-      std::ostringstream strm;
-      strm << "aod" << ai << ".dx" << std::endl;
-      std::string fname = strm.str();
       vector<long> npt(3,101);
-      print(fname);
+      std::string fname = std::string("ao_");
+      fname += ai; fname += string(".dx");
       plotdx(ao[ai], fname.c_str(), FunctionDefaults<3>::get_cell(), npt);
     }
+
+//    for (unsigned int ai = 0; ai < ao.size(); ai++)
+//    {
+//      std::ostringstream strm;
+//      strm << "aod" << ai << ".dx" << std::endl;
+//      std::string fname = strm.str();
+//      vector<long> npt(3,101);
+//      print(fname);
+//      plotdx(ao[ai], fname.c_str(), FunctionDefaults<3>::get_cell(), npt);
+//    }
+
     // Get size information from k-points and ao_basis so that we can correctly size
     // the _orbitals data structure and the eigs tensor
     int nao = ao.size();
