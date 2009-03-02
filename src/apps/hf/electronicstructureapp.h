@@ -293,6 +293,7 @@ public:
     if (_world.rank() == 0)
     {
       _params.read_file(filename);
+      _params.fractional = false;
     }
     _world.gop.broadcast_serializable(_params, 0);
     if (_params.fractional)
@@ -364,11 +365,36 @@ public:
   struct GuessDensity : public FunctionFunctorInterface<double,3> {
       const MolecularEntity& mentity;
       const AtomicBasisSet& aobasis;
-      double operator()(const coordT& x) const {
-          return aobasis.eval_guess_density(mentity, x[0], x[1], x[2]);
+      double R;
+      const bool periodic;
+
+      double operator()(const coordT& x) const
+      {
+        double value = 0.0;
+        if (periodic)
+        {
+          for (int xr = -1; xr <= 1; xr += 1)
+          {
+            for (int yr = -1; yr <= 1; yr += 1)
+            {
+              for (int zr = -1; zr <= 1; zr += 1)
+              {
+                value += aobasis.eval_guess_density(mentity,
+                    x[0]+xr*R, x[1]+yr*R, x[2]+zr*R);
+              }
+            }
+          }
+        }
+        else
+        {
+          value = aobasis.eval_guess_density(mentity, x[0], x[1], x[2]);
+        }
+        return value;
       }
-      GuessDensity(const MolecularEntity& mentity, const AtomicBasisSet& aobasis)
-          : mentity(mentity), aobasis(aobasis) {}
+
+      GuessDensity(const MolecularEntity& mentity, const AtomicBasisSet& aobasis,
+          const double& R, const bool& periodic)
+      : mentity(mentity), aobasis(aobasis), R(R), periodic(periodic) {}
   };
 
   static double munge(double r) {
@@ -512,7 +538,10 @@ public:
     // Get initial guess for the electronic density
     if (_world.rank() == 0) print("Guessing rho ...\n\n");
     rfunctionT rho = rfactoryT(_world).functor(rfunctorT(
-        new GuessDensity(_mentity, _aobasis)));
+        new GuessDensity(_mentity, _aobasis, _params.L, _params.periodic)));
+    rho.scale(_params.nelec/rho.trace());
+
+    print(rho.trace());
 
     vector<long> npt(3,101);
     plotdx(rho, "rho_initial.dx", FunctionDefaults<3>::get_cell(), npt);
@@ -547,28 +576,12 @@ public:
       delete op;
       vector<long> npt(3,101);
       plotdx(vc, "vc.dx", FunctionDefaults<3>::get_cell(), npt);
-      print_cube(_world, rho, vc, vlda, 5);
+//      print_cube(_world, rho, vc, vlda, 5);
     }
     else
     {
       vlocal = _vnuc;
     }
-
-//    {
-//      //functionT Vxc = make_lda_potential(_world, rho, rho, functionT(), functionT());
-//      if (_world.rank() == 0)  printf("\n");
-//      double L = _params.L;
-//      double bstep = L / 100.0;
-//      rho.reconstruct();
-//      _vnuc.reconstruct();
-//      for (int i = 0; i < 101; i++)
-//      {
-//        coordT p(-L / 2 + i * bstep);
-//        if (_world.rank() == 0)
-//          printf("%.2f\t\t%.8f\t%.8f\n", p[0], rho(p), _vnuc(p));
-//      }
-//      if (_world.rank() == 0) printf("\n");
-//    }
 
     // Clear these functions
     rho.clear();
@@ -580,21 +593,28 @@ public:
 
     for (unsigned int ai = 0; ai < ao.size(); ai++)
     {
+      std::ostringstream strm;
+      strm << "aod" << ai << ".dx";
+      std::string fname = strm.str();
       vector<long> npt(3,101);
-      std::string fname = std::string("ao_");
-      fname += ai; fname += string(".dx");
+      print(fname);
       plotdx(ao[ai], fname.c_str(), FunctionDefaults<3>::get_cell(), npt);
     }
 
-//    for (unsigned int ai = 0; ai < ao.size(); ai++)
-//    {
-//      std::ostringstream strm;
-//      strm << "aod" << ai << ".dx" << std::endl;
-//      std::string fname = strm.str();
-//      vector<long> npt(3,101);
-//      print(fname);
-//      plotdx(ao[ai], fname.c_str(), FunctionDefaults<3>::get_cell(), npt);
-//    }
+    {
+      if (_world.rank() == 0)  printf("\n");
+      double L = _params.L;
+      double bstep = L / 100.0;
+      rho.reconstruct();
+      _vnuc.reconstruct();
+      for (int i = 0; i < 101; i++)
+      {
+        coordT p(-L / 2 + i * bstep);
+        if (_world.rank() == 0)
+          printf("%.2f\t\t%.8f\n", p[0], ao[0](p));
+      }
+      if (_world.rank() == 0) printf("\n");
+    }
 
     // Get size information from k-points and ao_basis so that we can correctly size
     // the _orbitals data structure and the eigs tensor
@@ -638,15 +658,15 @@ public:
       // Get k-point from list
       KPoint kpt = _kpoints[ki];
 
-//        if (_world.rank() == 0) print("Building kinetic energy matrix ...\n\n");
+        if (_world.rank() == 0) print("Building kinetic energy matrix ...\n\n");
       tensorT kinetic = kinetic_energy_matrix(_world, ao, kpt);
 
-//        if (_world.rank() == 0) print("Constructing Fock matrix ...\n\n");
+        if (_world.rank() == 0) print("Constructing Fock matrix ...\n\n");
       tensorT fock = kinetic + potential;
       fock = 0.5 * (fock + transpose(fock));
 
       tensorT c; rtensorT e;
-//        if (_world.rank() == 0) print("Diagonlizing Fock matrix ...\n\n");
+        if (_world.rank() == 0) print("Diagonlizing Fock matrix ...\n\n");
       sygv(fock, overlap, 1, &c, &e);
 
       compress(_world, ao);
