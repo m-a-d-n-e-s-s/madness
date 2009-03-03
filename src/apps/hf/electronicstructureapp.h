@@ -146,14 +146,33 @@ public:
 class MolecularNuclearChargeDensityFunctor : public FunctionFunctorInterface<double,3> {
 private:
     const MolecularEntity& _mentity;
+    const double R;
+    const bool periodic;
 public:
-    MolecularNuclearChargeDensityFunctor(const MolecularEntity& mentity)
-        : _mentity(mentity)
-    {}
+    MolecularNuclearChargeDensityFunctor(const MolecularEntity& mentity, const double& R,
+        const bool& periodic) : _mentity(mentity), R(R), periodic(periodic) {}
 
     double operator()(const coordT& x) const
     {
-      return _mentity.nuclear_charge_density(x[0], x[1], x[2]);
+      double value = 0.0;
+      if (periodic)
+      {
+        for (int xr = -1; xr <= 1; xr += 1)
+        {
+          for (int yr = -1; yr <= 1; yr += 1)
+          {
+            for (int zr = -1; zr <= 1; zr += 1)
+            {
+              value += _mentity.nuclear_charge_density(x[0]+xr*R, x[1]+yr*R, x[2]+zr*R);
+            }
+          }
+        }
+      }
+      else
+      {
+        value = _mentity.nuclear_charge_density(x[0], x[1], x[2]);;
+      }
+      return value;
     }
 };
 
@@ -340,7 +359,7 @@ public:
     else // charge density
     {
       _vnucrhon = rfactoryT(_world).functor(
-          rfunctorT(new MolecularNuclearChargeDensityFunctor(_mentity))).
+          rfunctorT(new MolecularNuclearChargeDensityFunctor(_mentity, _params.L, _params.periodic))).
           thresh(_params.thresh * 0.1).initial_level(6).truncate_on_project();
       if (_world.rank() == 0) print("calculating trace of rhon ..\n\n");
       double rtrace = _vnucrhon.trace();
