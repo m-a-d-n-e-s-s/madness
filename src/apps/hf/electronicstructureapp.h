@@ -237,15 +237,16 @@ double rsquared(const coordT& r) {
 template <typename Q, int NDIM>
 Function<Q,NDIM> pdiff(const Function<Q,NDIM>& f, int axis, bool fence = true)
 {
+  Function<Q,NDIM>& g = const_cast< Function<Q,NDIM>& >(f);
   // Check for periodic boundary conditions
-  Tensor<int> oldbc = FunctionDefaults<NDIM>::get_bc();
+  Tensor<int> oldbc = g.get_bc();
   Tensor<int> bc(NDIM,2);
   bc(___) = 1;
-  FunctionDefaults<NDIM>::set_bc(bc);
+  g.set_bc(bc);
   // Do calculation
-  Function<Q,NDIM> rf = diff(f,axis,fence);
+  Function<Q,NDIM> rf = diff(g,axis,fence);
   // Restore previous boundary conditions
-  FunctionDefaults<NDIM>::set_bc(oldbc);
+  g.set_bc(oldbc);
   return rf;
 }
 
@@ -597,21 +598,27 @@ public:
       strm << "aod" << ai << ".dx";
       std::string fname = strm.str();
       vector<long> npt(3,101);
-      print(fname);
       plotdx(ao[ai], fname.c_str(), FunctionDefaults<3>::get_cell(), npt);
     }
 
     {
+      rfunctionT dao0 = pdiff(ao[0], 0);
+      rfunctionT dao1 = pdiff(ao[0], 1);
+      rfunctionT dao2 = pdiff(ao[0], 2);
       if (_world.rank() == 0)  printf("\n");
       double L = _params.L;
       double bstep = L / 100.0;
-      rho.reconstruct();
-      _vnuc.reconstruct();
+      dao0.reconstruct();
+      dao1.reconstruct();
+      dao2.reconstruct();
+      ao[0].reconstruct();
       for (int i = 0; i < 101; i++)
       {
         coordT p(-L / 2 + i * bstep);
         if (_world.rank() == 0)
-          printf("%.2f\t\t%.8f\n", p[0], ao[0](p));
+          printf("%.2f\t\t%.8f\t%.8f\t%.8f\n", p[0], dao0(p), dao1(p), dao2(p));
+//        if (_world.rank() == 0)
+//          printf("%.2f\t\t%.8f\n", p[0], ao[0](p));
       }
       if (_world.rank() == 0) printf("\n");
     }
