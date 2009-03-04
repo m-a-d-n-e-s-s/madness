@@ -1,4 +1,4 @@
-/***********************************************************************
+/**********************************************************************
  * Here is a madness representation of the hydrogenic wave functions.
  * The bound states come from the Gnu Scientific Library. The unbound
  * states are generated with the confluent hypergeometric function. 
