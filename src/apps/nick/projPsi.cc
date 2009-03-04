@@ -21,6 +21,7 @@
 #include <fstream>
 using std::ofstream;
 #include "wavef.h"
+#include <stdlib.h>
 #define PRINT(str) if(world.rank()==0) cout << str 
 #define PRINTLINE(str) if(world.rank()==0) cout << str << endl
 
@@ -80,7 +81,7 @@ void loadDefaultBasis(World& world, std::vector<WF>& stateList) {
     const int NBSt = 3;    //Number of Bound States
     const int bSt[][3] = { {1,0,0},
                            {2,0,0},
-                           {2,1,0}};
+                           {2,1,0} };
     const int NkSt = 3;    //Number of k States
     const double kSt[][3]  = { {0.52, 0.0, 0.0}
                              };
@@ -120,7 +121,7 @@ void loadBasis(World& world, std::vector<WF>& stateList) {
                 nlm.str("");
             }
             bound.close();
-        } else PRINT("bound.num not found");
+        } else PRINTLINE("bound.num not found");
         if(unbound.is_open()) {
             PRINTLINE("Loading unbound quantum states");
             double kx, ky, kz;
@@ -129,12 +130,11 @@ void loadBasis(World& world, std::vector<WF>& stateList) {
                 unbound >> ky;
                 unbound >> kz;
                 kxyz << kx << " " << ky << " " << kz;
-                PRINT(kxyz.str());
+                PRINTLINE(kxyz.str());
                 const double kvec[] = {kx, ky, kz};
                 stateList.push_back(WF(kxyz.str(),
                                        FunctionFactory<complexd,NDIM>(world).
                                        functor(functorT(new ScatteringWF(Z,kvec)))));
-                PRINT(kxyz.str());
                 kxyz.str("");
             }
             unbound.close();
@@ -161,6 +161,7 @@ void loadBasis(World& world, std::vector<WF>& stateList) {
 // complexd zdipole( const vector3D& r) {
 //     return complexd(r[2],0.0);
 // }
+
 
 void doWork(World& world) {
     std::vector<WF> stateList;    
@@ -196,7 +197,7 @@ void doWork(World& world) {
             PRINT("<" << basisI->str << "|" );
             for(psiPlusI = psiList.begin(); psiPlusI != psiList.end(); psiPlusI++) {
 //            for(psiPlusI = stateList.begin(); psiPlusI != stateList.end(); psiPlusI++) {
-                output = psiPlusI->func.inner(basisI->func);
+                output = psiPlusI->func.inner(basisI->func); 
                 PRINT("\t" << output*conj(output));
             }
             PRINT("\n");
@@ -208,6 +209,22 @@ void doWork(World& world) {
     PRINTLINE("End of Job");
 }
 
+void f11toFile(World& world) {
+    ofstream f("f11.out");
+    double k = 1.0;
+    complexd AA(0,-k);
+    complexd BB(1,0);
+    double rMAX = 10.0;
+    double r = 0.0;
+    double dr = 1.0;
+    double cosTH = 1.0;
+    while(r < rMAX) {
+        r += dr;
+        complexd XX(0,-k*r*(1+cosTH));
+        f << r << "\t" << f11(AA,BB,XX) << endl;
+    }
+    system("sed -i '' -e's/\\+/ /' -e's/j//' f11.out");
+}
 
 int main(int argc, char**argv) {
     // Initialize the parallel programming environment
@@ -217,15 +234,16 @@ int main(int argc, char**argv) {
     startup(world,argc,argv);
     // Setup defaults for numerical functions
     FunctionDefaults<NDIM>::set_k(12);              // Wavelet order
-    FunctionDefaults<NDIM>::set_thresh(1e-5);       // Accuracy
-    FunctionDefaults<NDIM>::set_cubic_cell(-1000.0, 1000.0);
-    FunctionDefaults<NDIM>::set_initial_level(4);
-    FunctionDefaults<NDIM>::set_cubic_cell(-1000,1000);
+    FunctionDefaults<NDIM>::set_thresh(1e-1);       // Accuracy
+    FunctionDefaults<NDIM>::set_cubic_cell(-20.0, 20.0);
+    FunctionDefaults<NDIM>::set_initial_level(2);
     FunctionDefaults<NDIM>::set_apply_randomize(false);
     FunctionDefaults<NDIM>::set_autorefine(false);
+    FunctionDefaults<NDIM>::set_refine(false);
     FunctionDefaults<NDIM>::set_truncate_mode(1);
     try {
         doWork(world);
+        //f11toFile(world);
     } catch (const MPI::Exception& e) {
         //print(e);
         error("caught an MPI exception");
