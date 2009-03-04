@@ -690,10 +690,15 @@ namespace madness {
 	}
 
 	  ///Change bv on the fly. Temporary workaround until better bc handling is introduced.
-		Function<T,NDIM>& set_bc(const Tensor<int>& value) {
-            PROFILE_MEMBER_FUNC(Function);
-			impl->set_bc(value); return *this;
-		}
+  Function<T,NDIM>& set_bc(const Tensor<int>& value) {
+          PROFILE_MEMBER_FUNC(Function);
+    impl->set_bc(value); return *this;
+  }
+
+  const Tensor<int>& get_bc() const {
+          PROFILE_MEMBER_FUNC(Function);
+    return impl->get_bc();
+  }
 
 	/// Clears the function as if constructed uninitialized.  Optional fence.
 

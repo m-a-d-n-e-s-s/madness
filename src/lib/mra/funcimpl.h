@@ -908,6 +908,8 @@ namespace madness {
         ///Change bv on the fly. Temporary workaround until better bc handling is introduced.
         void set_bc(const Tensor<int>& value) {bc=copy(value); MADNESS_ASSERT(bc.dim[0]==NDIM && bc.dim[1]==2 && bc.ndim==2);}
 
+        const Tensor<int>& get_bc() const {return bc;}
+
         /// Get the scaling function coeffs at level n starting from NS form
 	// N=2^n, M=N/q, q must be power of 2
 	// q=0 return coeffs [N,k] for direct sum
