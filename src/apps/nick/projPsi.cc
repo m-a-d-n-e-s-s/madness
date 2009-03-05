@@ -115,7 +115,7 @@ void loadBasis(World& world, std::vector<WF>& stateList) {
                 bound >> m;
                 nlm << n << l << m;
                 PRINTLINE(nlm.str());
-                stateList.push_back(WF(nlm.str(),
+                stateList.push_back(WF(nlm.str()+"\t",
                                        FunctionFactory<complexd,NDIM>(world).
                                        functor(functorT(new BoundWF(Z,n,l,m)))));
                 nlm.str("");
@@ -141,29 +141,36 @@ void loadBasis(World& world, std::vector<WF>& stateList) {
         } else PRINTLINE("unbound.num not found");
     }
 }
+                        
+complexd zdipole( const vector3D& r) {
+    return complexd(r[2],0.0);
+}
 
-// void projectOp(World& world, vector<WF>& aVec, , vector<WF>& bVec) {
-// void testBasis(World& world, vector<WF>& basisF) {
-//     PRINTLINE("Testing basis function orthonormality");
-//     vector<WF>::iterator psiA, psiB;
-//     complexd output;
-//     for(psiA=basisF.begin(); psiA!=basisF.end(); psiA++) {
-//             PRINT("\t|" << psiA->str << ">\t\t");
-//     }
-//     PRINT("\n");
-//     for(psiA=basisF.begin(); psiA!=basisF.end(); psiA++) {
-//         PRINT("<" << basisI->str << "|\t");
-//         for(psiB=basisF.begin(); psiB <= psiA; psiB++) {
-//             output = psiA->func.inner(psiB.func);
-//             PRINT("\n");
-//             void display(
-                         
-// complexd zdipole( const vector3D& r) {
-//     return complexd(r[2],0.0);
-// }
+void projectZdip(World& world) {
+    std::vector<WF> stateList;    
+    loadBasis(world, stateList);
+    complex_functionT z = complex_factoryT(world).f(zdipole);
+    complexd output;
+    //    PRINT(matrix_inner_op(world, stateList, z, psiList) << endl);
+    PRINT("\t\t");
+    std::vector<WF>::iterator basisI;
+    std::vector<WF>::iterator basisII;
+    for(basisII=stateList.begin(); basisII != stateList.end(); basisII++) {
+        PRINT("|" << basisII->str << ">\t\t");
+    }
+    PRINT("\n");
+    for(basisI = stateList.begin(); basisI !=stateList.end(); basisI++ ) {
+        PRINT("<" << basisI->str << "|" );
+        for(basisII = stateList.begin(); basisII != stateList.end(); basisII++) {
+            output = inner(basisII->func,z*basisI->func); 
+            PRINT("\t" << output*conj(output));
+        }
+        PRINT("\n");
+    }
+    PRINTLINE("End of Job");
+}
 
-
-void doWork(World& world) {
+void projectPsi(World& world) {
     std::vector<WF> stateList;    
     std::vector<WF> psiList;
     loadBasis(world, stateList);
@@ -179,24 +186,25 @@ void doWork(World& world) {
             }
             f.close();
         }
-//         PRINTLINE("testing matrix_inner_op()");
-//         complex_functionT z = complex_factoryT(world).f(zdipole);
-//         PRINT(matrix_inner_op(world, stateList, z, psiList) << endl);
+        PRINTLINE("testing matrix_inner_op()");
+        complex_functionT z = complex_factoryT(world).f(zdipole);
+        //        PRINT(matrix_inner_op(world, stateList, z, psiList) << endl);
         PRINTLINE("The Psi(+) are loaded");
         complexd output;
         std::vector<WF>::iterator basisI;
         std::vector<WF>::iterator psiPlusI;
-        //DISPLAY <basis| (x) |psi+> 
-        for(psiPlusI=psiList.begin(); psiPlusI != psiList.end(); psiPlusI++) {
+        //DISPLAY <basis| (x) |psi+> /
+//        for(psiPlusI=psiList.begin(); psiPlusI != psiList.end(); psiPlusI++) {
         //DISPLAY <basis| (x) |basis> 
-//        for(psiPlusI=stateList.begin(); psiPlusI != stateList.end(); psiPlusI++) {
-            PRINT("\t|" << psiPlusI->str << ">\t\t");
+        PRINT("\t\t");
+        for(psiPlusI=stateList.begin(); psiPlusI != stateList.end(); psiPlusI++) {
+            PRINT("|" << psiPlusI->str << ">\t\t");
         }
         PRINT("\n");
         for(basisI = stateList.begin(); basisI !=stateList.end(); basisI++ ) {
             PRINT("<" << basisI->str << "|" );
-            for(psiPlusI = psiList.begin(); psiPlusI != psiList.end(); psiPlusI++) {
-//            for(psiPlusI = stateList.begin(); psiPlusI != stateList.end(); psiPlusI++) {
+//            for(psiPlusI = psiList.begin(); psiPlusI != psiList.end(); psiPlusI++) {
+            for(psiPlusI = stateList.begin(); psiPlusI != stateList.end(); psiPlusI++) {
                 output = psiPlusI->func.inner(basisI->func); 
                 PRINT("\t" << output*conj(output));
             }
@@ -223,7 +231,7 @@ void f11toFile(World& world) {
         complexd XX(0,-k*r*(1+cosTH));
         f << r << "\t" << f11(AA,BB,XX) << endl;
     }
-    system("sed -i '' -e's/\\+/ /' -e's/j//' f11.out");
+    system("sed -i '' -e's/\\+/, /' -e's/j//' f11.out");
 }
 
 int main(int argc, char**argv) {
@@ -242,7 +250,7 @@ int main(int argc, char**argv) {
     FunctionDefaults<NDIM>::set_refine(false);
     FunctionDefaults<NDIM>::set_truncate_mode(1);
     try {
-        doWork(world);
+        projectZdip(world);
         //f11toFile(world);
     } catch (const MPI::Exception& e) {
         //print(e);
