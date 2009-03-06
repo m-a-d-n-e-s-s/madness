@@ -55,13 +55,14 @@ namespace madness {
         for (long i=0; i<rem; i++) *a++ += *b++;
     }
 
-
 //#if (defined(X86_32) || defined(X86_64))
 //    template <>
 //    void aligned_axpy(long n, double* restrict a, const double* restrict b, double s) {
 //        // In practice this is not all that much faster than the code generated
 //        // by g++ 4.4.0 from the 4-way unrolled source code ... have not timed
 //        // things to see if this is g++ doing well or me doing badly.
+//        // Comparison with Intel MKL daxpy shows we are only a few% slower so
+//        // its g++ doing well.
 //        long n16 = (n>>4)<<4;
 //        long rem = n-n16;
 //        if (n16) {

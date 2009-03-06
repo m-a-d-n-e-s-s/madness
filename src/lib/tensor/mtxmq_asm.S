@@ -110,7 +110,8 @@
 
 #define MTXM_ENTRY(name) \
 .globl name; \
-        .align 128; \
+  .type name,@function ; \
+  .align 128; \
 name: \
         mov     %edx,   NK; \
         shl     $3,     DIMI8; \
@@ -168,6 +169,7 @@ name: \
 	
 #define MTXM_ENTRY(name) \
 .globl NAME(name); \
+  .type name,@function ; \
 NAME(name): \
         pushl   %ebp;            \
         mov     %esp,  %ebp;     \
