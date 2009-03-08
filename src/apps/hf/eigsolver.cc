@@ -200,7 +200,7 @@ namespace madness
             }
             eps = -0.1;
         }
-        _bops.push_back(poperatorT(BSHOperatorPtr<double,NDIM>(_world, sqrt(-2.0*eps), k, 1e-4, tol)));
+        _bops.push_back(poperatorT(BSHOperatorPtr3D<double,NDIM>(_world, sqrt(-2.0*eps), k, 1e-4, tol)));
     }
   }
   //***************************************************************************
@@ -291,8 +291,8 @@ namespace madness
         else
         {
           pfunc.scale(-2.0).truncate();
-          op = BSHOperatorPtr<T,NDIM>(_world, sqrt(-2.0*_eigs[pi]),
-              FunctionDefaults<NDIM>::get_k(), 1e-4, thresh);
+          op = BSHOperatorPtr3D<T>(_world, sqrt(-2.0*_eigs[pi]),
+                                   FunctionDefaults<NDIM>::get_k(), 1e-4, thresh);
         }
         // Apply the Green's function operator (stubbed)
         if (_world.rank() == 0) DEBUG_STREAM << "Applying BSH operator ..."

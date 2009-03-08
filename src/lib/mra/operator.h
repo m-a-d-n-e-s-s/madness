@@ -1,6 +1,8 @@
 #ifndef MAD_OPERATOR_H
 #define MAD_OPERATOR_H
 
+//extern "C" void daxpy_(const long*, const double*, const double*, const long*, double*, const long*);
+
 #include <mra/mra.h>
 #include <limits.h>
 #include <mra/adquad.h>
@@ -17,6 +19,9 @@ namespace madness {
 
     extern void bsh_fit(double mu, double lo, double hi, double eps,
                         Tensor<double> *pcoeff, Tensor<double> *pexpnt, bool prnt=false);
+
+    extern void bsh_fit_ndim(int ndim, double mu, double lo, double hi, double eps,
+                             Tensor<double> *pcoeff, Tensor<double> *pexpnt, bool prnt=false);
 
     template <typename Q, int NDIM>
     struct SeparatedConvolutionInternal {
@@ -112,9 +117,10 @@ namespace madness {
                     std::swap(w1,w2);
                 }
             }
-
             // Assuming here that result is contiguous and aligned
             aligned_axpy(size, result.ptr(), w1, musign);
+            //    long one = 1;
+            //daxpy_(&size, &musign, w1, &one, result.ptr(), &one);
         }
 
         /// Apply one of the separated terms, accumulating into the result
@@ -398,13 +404,13 @@ namespace madness {
     };
 
 
-    /// Factory function generating separated kernel for convolution with 1/r.
-    template <typename Q, int NDIM>
-    SeparatedConvolution<Q,NDIM> CoulombOperator(World& world,
-                                                 long k,
-                                                 double lo,
-                                                 double eps) {
-        const Tensor<double>& cell_width = FunctionDefaults<NDIM>::get_cell_width();
+    /// Factory function generating separated kernel for convolution with 1/r in 3D.
+    template <typename Q>
+    SeparatedConvolution<Q,3> CoulombOperator(World& world,
+                                              long k,
+                                              double lo,
+                                              double eps) {
+        const Tensor<double>& cell_width = FunctionDefaults<3>::get_cell_width();
         double hi = cell_width.normf(); // Diagonal width of cell
         const double pi = 3.14159265358979323846264338328;
 
@@ -413,16 +419,17 @@ namespace madness {
         Tensor<double> coeff, expnt;
         bsh_fit(0.0, lo, hi, eps/(4.0*pi), &coeff, &expnt, false);
         coeff.scale(4.0*pi);
-        return SeparatedConvolution<Q,NDIM>(world, k, coeff, expnt);
+        return SeparatedConvolution<Q,3>(world, k, coeff, expnt);
     }
 
-    /// Factory function generating separated kernel for convolution with 1/r.
-    template <typename Q, int NDIM>
-    SeparatedConvolution<Q,NDIM>* CoulombOperatorPtr(World& world,
+
+    /// Factory function generating separated kernel for convolution with 1/r in 3D.
+    template <typename Q>
+    SeparatedConvolution<Q,3>* CoulombOperatorPtr(World& world,
                                                      long k,
                                                      double lo,
                                                      double eps) {
-        const Tensor<double>& cell_width = FunctionDefaults<NDIM>::get_cell_width();
+        const Tensor<double>& cell_width = FunctionDefaults<3>::get_cell_width();
         double hi = cell_width.normf(); // Diagonal width of cell
         const double pi = 3.14159265358979323846264338328;
 
@@ -431,10 +438,11 @@ namespace madness {
         Tensor<double> coeff, expnt;
         bsh_fit(0.0, lo, hi, eps/(4.0*pi), &coeff, &expnt, false);
         coeff.scale(4.0*pi);
-        return new SeparatedConvolution<Q,NDIM>(world, k, coeff, expnt);
+        return new SeparatedConvolution<Q,3>(world, k, coeff, expnt);
     }
 
-    /// Factory function generating separated kernel for convolution with exp(-mu*r)/(4*pi*r)
+
+    /// Factory function generating separated kernel for convolution with BSH kernel in general NDIM
     template <typename Q, int NDIM>
     SeparatedConvolution<Q,NDIM> BSHOperator(World& world,
                                              double mu,
@@ -444,22 +452,37 @@ namespace madness {
         const Tensor<double>& cell_width = FunctionDefaults<NDIM>::get_cell_width();
         double hi = cell_width.normf(); // Diagonal width of cell
         Tensor<double> coeff, expnt;
-        bsh_fit(mu, lo, hi, eps, &coeff, &expnt, false);
+        bsh_fit_ndim(NDIM, mu, lo, hi, eps, &coeff, &expnt, true);
         return SeparatedConvolution<Q,NDIM>(world, k, coeff, expnt);
     }
 
-    /// Factory function generating separated kernel for convolution with exp(-mu*r)/(4*pi*r)
-    template <typename Q, int NDIM>
-    SeparatedConvolution<Q,NDIM>* BSHOperatorPtr(World& world,
-                                                 double mu,
-                                                 long k,
-                                                 double lo,
-                                                 double eps) {
-        const Tensor<double>& cell_width = FunctionDefaults<NDIM>::get_cell_width();
+
+    /// Factory function generating separated kernel for convolution with exp(-mu*r)/(4*pi*r) in 3D
+    template <typename Q>
+    SeparatedConvolution<Q,3> BSHOperator3D(World& world,
+                                            double mu,
+                                            long k,
+                                            double lo,
+                                            double eps) {
+        const Tensor<double>& cell_width = FunctionDefaults<3>::get_cell_width();
         double hi = cell_width.normf(); // Diagonal width of cell
         Tensor<double> coeff, expnt;
         bsh_fit(mu, lo, hi, eps, &coeff, &expnt, false);
-        return new SeparatedConvolution<Q,NDIM>(world, k, coeff, expnt);
+        return SeparatedConvolution<Q,3>(world, k, coeff, expnt);
+    }
+
+    /// Factory function generating separated kernel for convolution with exp(-mu*r)/(4*pi*r) in 3D
+    template <typename Q>
+    SeparatedConvolution<Q,3>* BSHOperatorPtr3D(World& world,
+                                                double mu,
+                                                long k,
+                                                double lo,
+                                                double eps) {
+        const Tensor<double>& cell_width = FunctionDefaults<3>::get_cell_width();
+        double hi = cell_width.normf(); // Diagonal width of cell
+        Tensor<double> coeff, expnt;
+        bsh_fit(mu, lo, hi, eps, &coeff, &expnt, false);
+        return new SeparatedConvolution<Q,3>(world, k, coeff, expnt);
     }
 
     namespace archive {

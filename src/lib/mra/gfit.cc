@@ -309,4 +309,113 @@ namespace madness {
         *pcoeff = coeff;
         *pexpnt = expnt;
     }
+
+    void bsh_fit_ndim(int ndim, double mu, double lo, double hi, double eps, 
+                      Tensor<double> *pcoeff, Tensor<double> *pexpnt, bool prnt) {
+        
+        if (mu > 0) {
+            // Restrict hi according to the exponential decay
+            double r = -log(4*pi*0.01*eps);
+            r = -log(r * 4*pi*0.01*eps);
+            if (hi > r) hi = r;
+        }
+        
+
+        // Determine range of quadrature by estimating when 
+        // kernel drops to exp(-100)
+
+        double slo, shi;
+        if (mu > 0) {
+            slo = -0.5*log(4.0*100.0/(mu*mu));
+            slo = -0.5*log(4.0*(slo*ndim - 2.0*slo + 100.0)/(mu*mu));
+        }
+        else {
+            slo = log(eps/hi) - 1.0;
+        }
+        shi = 0.5*log(100.0/(lo*lo));
+        
+        // Resolution required for quadrature over s
+        double h = 1.0/(0.2-.50*log10(eps)); // was 0.5 was 0.47
+
+        // Truncate the number of binary digits in h's mantissa
+        // so that rounding does not occur when performing 
+        // manipulations to determine the quadrature points and
+        // to limit the number of distinct values in case of
+        // multiple precisions being used at the same time.
+        h = floor(64.0*h)/64.0;
+
+
+        // Round shi/lo up/down to an integral multiple of quadrature points
+        shi = ceil(shi/h)*h;
+        slo = floor(slo/h)*h;
+        
+        long npt = long((shi-slo)/h+0.5);
+        
+        //if (prnt) 
+        //cout << "slo " << slo << " shi " << shi << " npt " << npt << " h " << h << " " << eps << endl;
+        
+
+        // Compute expansion pruning small coeffs and large exponents
+        Tensor<double> coeff(npt), expnt(npt);
+        int nnpt=0;
+        for (int i=0; i<npt; i++) {
+            double s = slo + h*(npt-i);	// i+1
+            double c = exp(-0.25*mu*mu*exp(-2.0*s)+(ndim-2)*s)*0.5/pow(pi,0.5*ndim);
+            double p = exp(2.0*s);
+            if (c*exp(-p*lo*lo) > eps) {
+                coeff(nnpt) = c;
+                expnt(nnpt) = p;
+                nnpt++;
+            }
+        }
+        npt = nnpt;
+
+        
+        // Prune small exponents from Coulomb fit.  Evaluate a gaussian at
+        // the range midpoint, and replace it there with the next most
+        // diffuse gaussian.  Then examine the resulting error at the two
+        // end points ... if this error is less than the desired
+        // precision, can discard the diffuse gaussian.
+        
+        if (mu == 0.0) {
+            double mid = lo + (hi-lo)*0.5;
+            long i;
+            for (i=npt-1; i>0; i--) {
+                double cnew = coeff[i]*exp(-(expnt[i]-expnt[i-1])*mid*mid);
+                double errlo = coeff[i]*exp(-expnt[i]*lo*lo) - 
+                    cnew*exp(-expnt[i-1]*lo*lo);
+                double errhi = coeff[i]*exp(-expnt[i]*hi*hi) - 
+                    cnew*exp(-expnt[i-1]*hi*hi);
+                if (max(abs(errlo),abs(errhi)) > 0.03*eps) break; 
+                npt--;
+                coeff[i-1] = coeff[i-1] + cnew;
+            }
+        }
+
+        // Shrink array to correct size
+        coeff = coeff(Slice(0,npt-1));
+        expnt = expnt(Slice(0,npt-1));
+
+        
+        if (prnt) {
+            for (int i=0; i<npt; i++) 
+                cout << i << " " << coeff[i] << " " << expnt[i] << endl;
+
+            long npt = 300;
+            cout << "       x         value" << endl;
+            cout << "  ------------  ---------------------" << endl;
+            double step = exp(log(hi/lo)/(npt+1));
+            for (int i=0; i<=npt; i++) {
+                double r = lo*(pow(step,i+0.5));
+                double test = 0.0;
+                for (int j=0; j<coeff.dim[0]; j++) 
+                    test += coeff[j]*exp(-r*r*expnt[j]);
+                printf("  %.6e %20.10e\n",r, test);
+            }
+        }
+
+        *pcoeff = coeff;
+        *pexpnt = expnt;
+    }
+
 }    

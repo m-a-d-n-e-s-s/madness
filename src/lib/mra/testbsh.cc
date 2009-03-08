@@ -111,9 +111,6 @@ void test_bsh(World& world) {
     typedef Vector<double,3> coordT;
     typedef SharedPtr< FunctionFunctorInterface<T,3> > functorT;
 
-    int nn = 1001;
-    double lo = 0.0, hi=4.0, range=hi-lo;
-
     if (world.rank() == 0) 
         print("Test BSH operation, type =",
               archive::get_type_name<T>(),", ndim =",3);
@@ -260,7 +257,7 @@ int main(int argc, char**argv) {
     }
 
     world.gop.fence();
-    MPI::Finalize();
+    finalize();
 
     return 0;
 }

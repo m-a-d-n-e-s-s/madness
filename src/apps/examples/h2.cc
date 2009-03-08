@@ -33,7 +33,7 @@ static double V(const coordT& r) {
 }
 
 void iterate(World& world, functionT& V, functionT& psi, double& eps) {
-    operatorT op = BSHOperator<double,3>(world, sqrt(-2*eps), k, 0.001, 1e-6);
+    operatorT op = BSHOperator3D<double>(world, sqrt(-2*eps), k, 0.001, 1e-6);
     functionT Vpsi = (V*psi);
     Vpsi.scale(-2.0).truncate(thresh1);
     functionT tmp = apply(op,Vpsi).truncate(thresh1);
@@ -74,7 +74,7 @@ int main(int argc, char** argv) {
     psi.truncate(thresh1);
     psi.scale(1.0/psi.norm2());
 
-    operatorT op = CoulombOperator<double,3>(world, k, 0.001, 1e-6);
+    operatorT op = CoulombOperator<double>(world, k, 0.001, 1e-6);
 
     double eps = -0.6;
     for (int iter=0; iter<10; iter++) {

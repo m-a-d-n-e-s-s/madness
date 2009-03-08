@@ -158,7 +158,7 @@ int main(int argc, char** argv) {
         reconstruct(world,v);
         END_TIMER("reconstruct");
 
-        SeparatedConvolution<double,3> op = CoulombOperator<double,3>(world, 14, 1e-3, 1e-10);
+        SeparatedConvolution<double,3> op = CoulombOperator<double>(world, 14, 1e-3, 1e-10);
 
         world.gop.fence();
         START_TIMER;

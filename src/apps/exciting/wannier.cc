@@ -225,7 +225,7 @@ void compute_U(World& world)
     FunctionDefaults<3>::set_thresh(thresh);
     FunctionDefaults<3>::set_cubic_cell(-bsize, bsize);
 
-    SeparatedConvolution<double,3> cop = CoulombOperator<double,3>(world,
+    SeparatedConvolution<double,3> cop = CoulombOperator<double>(world,
         FunctionDefaults<3>::get_k(), 1e-8, thresh * 0.1);
 
     // Vector of cfunctionT's

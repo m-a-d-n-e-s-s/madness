@@ -237,7 +237,7 @@ void test_hf_he(World& world)
   rhon.truncate();
   vnuc.truncate();
   cout << "Operating on nuclear charge density ..." << endl;
-  SeparatedConvolution<double,3> op = CoulombOperator<double,3>(world, FunctionDefaults<3>::get_k(),
+  SeparatedConvolution<double,3> op = CoulombOperator<double>(world, FunctionDefaults<3>::get_k(),
       1e-8, thresh);
   Function<double,3> V_from_rho_nuc = apply(op, rhon);
   printf("\n");

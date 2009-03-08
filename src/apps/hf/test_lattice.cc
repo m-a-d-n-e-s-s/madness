@@ -520,7 +520,7 @@ void testNonPeriodicCoulomb3d(int argc, char**argv)
   Function<double,3> rho = FunctionFactory<double,3>(world).f(rho_gaussian_func3d);
 
   // Create operator and apply
-  SeparatedConvolution<double,3> op = CoulombOperator<double,3>(world, k, 1e-6, eps);
+  SeparatedConvolution<double,3> op = CoulombOperator<double>(world, k, 1e-6, eps);
   printf("applying operator ...\n\n");
   Function<double,3> phi_test = apply(op, rho);
 
@@ -635,7 +635,7 @@ void testPeriodicCoulomb3d_gauss(int argc, char**argv)
   SeparatedConvolution<double,3> pop = PeriodicCoulombOp<double,3>(world, k,1e-10, eps, cellsize);
   printf("applying periodic operator ...\n\n");
   Function<double,3> phi_periodic = apply(pop, rho);
-  SeparatedConvolution<double,3> op = CoulombOperator<double,3>(world, FunctionDefaults<3>::get_k(),
+  SeparatedConvolution<double,3> op = CoulombOperator<double>(world, FunctionDefaults<3>::get_k(),
       1e-10, eps);
   printf("applying non-periodic operator ...\n\n");
   Function<double,3> phi_nonperiodic = apply(op, rho);
@@ -706,7 +706,7 @@ void testPeriodicBSH3d_gauss(int argc, char**argv)
   SeparatedConvolution<double,3> pop = PeriodicBSHOp<double,3>(world, -3.0, k,1e-6, eps, cellsize);
   printf("applying periodic operator ...\n\n");
   Function<double,3> phi_periodic = apply(pop, rho);
-  SeparatedConvolution<double,3> op = BSHOperator<double,3>(world, -3.0, FunctionDefaults<3>::get_k(),
+  SeparatedConvolution<double,3> op = BSHOperator3D<double>(world, -3.0, FunctionDefaults<3>::get_k(),
       1e-6, thresh);
   printf("applying non-periodic operator ...\n\n");
   Function<double,3> phi_nonperiodic = apply(op, rho);

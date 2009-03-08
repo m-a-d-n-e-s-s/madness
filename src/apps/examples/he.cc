@@ -34,7 +34,7 @@ void iterate(World& world, functionT& V, functionT& psi, double& eps) {
     functionT Vpsi = (V*psi);
     Vpsi.scale(-2.0).truncate(thresh1);
     print("Applying BSH operator");
-    operatorT op = BSHOperator<double,3>(world, sqrt(-2*eps), k, 0.001, 1e-6);
+    operatorT op = BSHOperator3D<double>(world, sqrt(-2*eps), k, 0.001, 1e-6);
     functionT tmp = apply(op,Vpsi).truncate(thresh1);
     double norm = tmp.norm2();
     functionT r = tmp-psi;
@@ -67,7 +67,7 @@ int main(int argc, char** argv) {
     print("Projecting psi");
     functionT psi  = factoryT(world).f(guess);
     psi.scale(1.0/psi.norm2());
-    operatorT op = CoulombOperator<double,3>(world, k, 0.001, 1e-6);
+    operatorT op = CoulombOperator<double>(world, k, 0.001, 1e-6);
 
     double eps = -1.0; 
     for (int iter=0; iter<20; iter++) {

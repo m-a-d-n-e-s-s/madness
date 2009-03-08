@@ -40,7 +40,7 @@ namespace madness {
             , t(t)
             , width(width)
             , ctop(3.0*c)
-            , L(1.2 * 0.5435*(3.0*pow(c,5.0/3.0)*pow(t,0.75)+400.0)/c) 
+            , L(sqrt(6.1*c*c*t*t + 82000.0/c/c)) 
             , h(3.14/ctop)
             , n(2.0*L/h+1)
             , dc(2*ctop/(n-1))

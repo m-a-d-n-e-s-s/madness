@@ -1007,7 +1007,7 @@ struct Calculation {
                 }
                 eps = -0.1;
             }
-            ops[i] = poperatorT(BSHOperatorPtr<double,3>(world, sqrt(-2.0*eps), k, param.lo, tol));
+            ops[i] = poperatorT(BSHOperatorPtr3D<double>(world, sqrt(-2.0*eps), k, param.lo, tol));
         }
         return ops;
     }

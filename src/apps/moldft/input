@@ -6,6 +6,18 @@ dft
   hf
 end
 
+geometry
+  units atomic
+  he 0 0 0
+  he 4 0 0
+  he 0 4 0
+  he 0 0 4
+  he 4 4 0
+  he 4 0 4
+  he 0 4 4
+  he 4 4 4
+end
+
 # water*1
 geometry
   O  0.0    0.0 0.0
@@ -111,17 +123,6 @@ end
 
 
 
-geometry
-  units atomic
-  he 0 0 0
-  he 4 0 0
-  he 0 4 0
-  he 0 0 4
-  he 4 4 0
-  he 4 0 4
-  he 0 4 4
-  he 4 4 4
-end
 
 
 geometry

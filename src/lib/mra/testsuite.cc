@@ -808,7 +808,7 @@ void test_coulomb(World& world) {
         print("");
     }
     f.set_thresh(thresh);
-    SeparatedConvolution<double,3> op = CoulombOperator<double,3>(world, k, 1e-5, thresh);
+    SeparatedConvolution<double,3> op = CoulombOperator<double>(world, k, 1e-5, thresh);
 
     FunctionDefaults<3>::set_apply_randomize(true);
 

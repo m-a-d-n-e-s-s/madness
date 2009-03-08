@@ -245,7 +245,7 @@ void test_hf_he(World& world)
   vnuc.truncate();
 
   //  if (world.rank() == 0) cout << "Operating on nuclear charge density ..." << endl;
-//  SeparatedConvolution<double,3> op = CoulombOperator<double,3>(world, FunctionDefaults<3>::get_k(),
+//  SeparatedConvolution<double,3> op = CoulombOperator<double>(world, FunctionDefaults<3>::get_k(),
 //      1e-8, thresh);
 //  Function<double,3> V_from_rho_nuc = apply(op, rhon);
 //  if (world.rank() == 0) printf("\n");
@@ -363,7 +363,7 @@ void test_he_potential(World& world)
   cout << "Creating nuclear and electronic ops ..." << endl << endl;
   Tensor<double> cellsize = FunctionDefaults<3>::get_cell_width();
   SeparatedConvolution<double,3>* cop = PeriodicCoulombOpPtr<double,3>(world, funck,1e-10, thresh, cellsize);
-  SeparatedConvolution<double,3> op = CoulombOperator<double,3>(world, funck,1e-10, thresh);
+  SeparatedConvolution<double,3> op = CoulombOperator<double>(world, funck,1e-10, thresh);
 
   cout << "Building potentials ..." << endl << endl;
   Function<double,3> vnuc = apply(op, rhon);

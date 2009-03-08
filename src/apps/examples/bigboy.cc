@@ -102,7 +102,7 @@ void bigboy(World& world, const Molecule& molecule) {
 
     if (world.rank() == 0) print("rho norm", rho_norm);
 
-    SeparatedConvolution<double,3> op = CoulombOperator<double,3>(world, 
+    SeparatedConvolution<double,3> op = CoulombOperator<double>(world, 
                                                                   FunctionDefaults<3>::k, 
                                                                   1e-3, 
                                                                   FunctionDefaults<3>::thresh);

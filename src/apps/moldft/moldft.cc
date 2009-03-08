@@ -40,6 +40,7 @@
 #include <mra/lbdeux.h>
 #include <misc/ran.h>
 #include <ctime>
+#include <list>
 using namespace madness;
 
 extern int x_rks_s__(const double *rho, double *f, double *dfdra);
@@ -96,6 +97,7 @@ typedef Vector<double,3> coordT;
 typedef SharedPtr< FunctionFunctorInterface<double,3> > functorT;
 typedef Function<double,3> functionT;
 typedef vector<functionT> vecfuncT;
+// typedef vector< pair<vecfuncT,vecfuncT> > subspaceT;
 typedef Tensor<double> tensorT;
 typedef FunctionFactory<double,3> factoryT;
 typedef SeparatedConvolution<double,3> operatorT;
@@ -519,10 +521,10 @@ struct Calculation {
         double safety = 0.1;
         vtol = FunctionDefaults<3>::get_thresh()*safety;
 
-        coulop = poperatorT(CoulombOperatorPtr<double, 3>(world,
-                                                          FunctionDefaults<3>::get_k(),
-                                                          param.lo,
-                                                          thresh)); // No need for safety here!
+        coulop = poperatorT(CoulombOperatorPtr<double>(world,
+                                                       FunctionDefaults<3>::get_k(),
+                                                       param.lo,
+                                                       thresh)); // No need for safety here!
 
         mask = functionT(factoryT(world).f(mask3).initial_level(4).norefine());
 
@@ -841,7 +843,7 @@ struct Calculation {
 
             }
             if (!converged) {
-                print("warning: boys localization did not fully converge: ndone", ndone, "maxtheta", maxtheta, "tol", tol);
+                print("warning: boys localization did not fully converge: ", ndone);
             }
 
             U = transpose(U);
@@ -1051,7 +1053,7 @@ struct Calculation {
                 }
                 eps = -0.1;
             }
-            ops[i] = poperatorT(BSHOperatorPtr<double,3>(world, sqrt(-2.0*eps), k, param.lo, tol));
+            ops[i] = poperatorT(BSHOperatorPtr3D<double>(world, sqrt(-2.0*eps), k, param.lo, tol));
         }
         return ops;
     }
@@ -1209,8 +1211,12 @@ struct Calculation {
                 tensorT& fock,
                 vecfuncT& psi,
                 vecfuncT& Vpsi)
+
     {
         int nmo = psi.size();
+
+//         static subspaceT subspace;
+//         tensorT Q(10,10);
 
         // Compute energy shifts
         tensorT eps(nmo);
@@ -1249,8 +1255,19 @@ struct Calculation {
         END_TIMER("Mask");
 
         vecfuncT r = sub(world, psi, new_psi); // residuals
-
         vector<double> rnorm = norm2(world, r);
+
+//         subspace.push_back(make_pair(psi, r));
+//         int nsub = subspace.size();
+//         for (int j=0; j<nsub; j++) {
+//             const vecfuncT& psij = subspace[j].first;
+//             const vecfuncT&   rj = subspace[j].second;
+//             Q(nsub-1,j) = inner(world, psi , rj).sum();
+//             Q(j,nsub-1) = inner(world, psij, r ).sum();
+//         }
+//         print("Q\n",Q(Slice(0,nsub-1),Slice(0,nsub-1)));
+//         tensorT c = KAIN(Q(Slice(0,nsub-1),Slice(0,nsub-1)));
+//         print("c",c);
 
         normalize(world, new_psi);
 

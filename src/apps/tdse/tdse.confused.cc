@@ -388,7 +388,7 @@ void converge(World& world, functionT& potn, functionT& psi, double& eps) {
 
     for (int iter=0; iter<30; iter++) {
         if (world.rank() == 0) print("beginning iter", iter, wall_time());
-        operatorT op = BSHOperator<double,3>(world, sqrt(-2*eps), param.k, param.cut, param.thresh);
+        operatorT op = BSHOperator3D<double>(world, sqrt(-2*eps), param.k, param.cut, param.thresh);
         functionT Vpsi = (potn*psi);
         if (world.rank() == 0) print("made V*psi", wall_time());
         Vpsi.scale(-2.0).truncate();
