@@ -10,10 +10,11 @@ data_DATA = autocorr coeffs gaussleg
 
 LDADD = libMADmra.a $(LIBLINALG) $(LIBTENSOR) $(LIBMISC) $(LIBWORLD)
 
-libMADmra_a_SOURCES = mra.cc loadbal.cc startup.cc legendre.cc twoscale.cc test_sepop.cc gfit.cc qmprop.cc \
+libMADmra_a_SOURCES = mra1.cc mra2.cc mra3.cc mra4.cc mra5.cc mra6.cc \
+                      loadbal.cc startup.cc legendre.cc twoscale.cc test_sepop.cc gfit.cc qmprop.cc \
                       \
                       adquad.h  funcimpl.h  indexit.h  legendre.h  loadbal.h  operator.h  vmra.h \
-                      funcdefaults.h  key.h mra.h      power.h     qmprop.h  twoscale.h lbdeux.h
+                      funcdefaults.h  key.h mra.h      power.h     qmprop.h  twoscale.h lbdeux.h mraimpl.h
 
 testsuite_SOURCES = testsuite.cc
 testperiodic_SOURCES = testperiodic.cc

@@ -1222,17 +1222,33 @@ namespace madness {
             //pmap = SharedPtr< WorldDCPmapInterface< Key<NDIM> > >(new WorldDCDefaultPmap< Key<NDIM> >(world));
             pmap = SharedPtr< WorldDCPmapInterface< Key<NDIM> > >(new MyPmap<NDIM>(world));
             //pmap = SharedPtr< WorldDCPmapInterface< Key<NDIM> > >(new SimpleMap< Key<NDIM> >(world));
-        }
+    }
 
+    template <typename T, int NDIM>
+    FunctionCommonData<T,NDIM> FunctionCommonData<T,NDIM>::data[MAXK+1];
 
+    template <int NDIM> int FunctionDefaults<NDIM>::k;
+    template <int NDIM> double FunctionDefaults<NDIM>::thresh;
+    template <int NDIM> int FunctionDefaults<NDIM>::initial_level;
+    template <int NDIM> int FunctionDefaults<NDIM>::max_refine_level;
+    template <int NDIM> int FunctionDefaults<NDIM>::truncate_mode;
+    template <int NDIM> bool FunctionDefaults<NDIM>::refine;
+    template <int NDIM> bool FunctionDefaults<NDIM>::autorefine;
+    template <int NDIM> bool FunctionDefaults<NDIM>::debug;
+    template <int NDIM> bool FunctionDefaults<NDIM>::truncate_on_project;
+    template <int NDIM> bool FunctionDefaults<NDIM>::apply_randomize;
+    template <int NDIM> bool FunctionDefaults<NDIM>::project_randomize;
+    template <int NDIM> Tensor<int> FunctionDefaults<NDIM>::bc;
+    template <int NDIM> Tensor<double> FunctionDefaults<NDIM>::cell;
+    template <int NDIM> Tensor<double> FunctionDefaults<NDIM>::cell_width;
+    template <int NDIM> Tensor<double> FunctionDefaults<NDIM>::rcell_width;
+    template <int NDIM> double FunctionDefaults<NDIM>::cell_volume;
+    template <int NDIM> double FunctionDefaults<NDIM>::cell_min_width;
+    template <int NDIM> SharedPtr< WorldDCPmapInterface< Key<NDIM> > > FunctionDefaults<NDIM>::pmap;
 
-    template <>
-    ConcurrentHashMap< double, SharedPtr< GaussianConvolution1D<double> > >  GaussianConvolution1DCache<double>::map = ConcurrentHashMap< double, SharedPtr< GaussianConvolution1D<double> > >();
+    template <int NDIM> std::vector< Key<NDIM> > Displacements<NDIM>::disp;
+    template <int NDIM> std::vector< Key<NDIM> > Displacements<NDIM>::disp_periodicsum[64];
 
-    template <>
-    ConcurrentHashMap< double, SharedPtr< GaussianConvolution1D<double_complex> > > GaussianConvolution1DCache<double_complex>::map = ConcurrentHashMap< double, SharedPtr< GaussianConvolution1D<double_complex> > >();
 }
 
-/// Quietly used as a global lock when looking for bugs with multiple threads
-madness::Mutex THELOCK;
 

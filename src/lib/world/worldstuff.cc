@@ -435,8 +435,14 @@ namespace madness {
             printf("    Parallel environment\n");
             printf("    --------------------\n");
             printf("                  #nodes    %d\n", world.size());
-            printf("       #threads per node    %d+main+server = %d\n", int(ThreadPool::size()), int(ThreadPool::size()+2));
-            printf("          #total threads    %d\n", int(ThreadPool::size()+2)*world.size());
+            if (world.size() == 1) {
+                printf("       #threads per node    %d+main = %d\n", int(ThreadPool::size()), int(ThreadPool::size()+1));
+                printf("          #total threads    %d\n", int(ThreadPool::size()+1));
+            }
+            else {
+                printf("       #threads per node    %d+main+server = %d\n", int(ThreadPool::size()), int(ThreadPool::size()+2));
+                printf("          #total threads    %d\n", int(ThreadPool::size()+2)*world.size());
+            }
             printf("\n");
 
             printf("  RMI message statistics (min / avg / max)\n");

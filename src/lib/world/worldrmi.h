@@ -308,13 +308,15 @@ namespace madness {
         {
             for (int i=0; i<nproc; i++) send_counters[i] = 0;
             for (int i=0; i<nproc; i++) recv_counters[i] = 0;
-            for (int i=0; i<NRECV; i++) {
-                if (posix_memalign((void**)(recv_buf+i), ALIGNMENT, MAX_MSG_LEN)) 
-                    throw "RMI:initialize:failed allocating aligned recv buffer";
-                post_recv_buf(i);
+            if (nproc > 1) {
+                for (int i=0; i<NRECV; i++) {
+                    if (posix_memalign((void**)(recv_buf+i), ALIGNMENT, MAX_MSG_LEN)) 
+                        throw "RMI:initialize:failed allocating aligned recv buffer";
+                    post_recv_buf(i);
+                }
+                recv_buf[NRECV] = 0;
+                start();
             }
-            recv_buf[NRECV] = 0;
-            start();
         }
 
         static RMI* instance() {
