@@ -83,7 +83,7 @@ namespace madness {
                         gotlock = true;
                     }
                     unlock();           // END CRITICAL SECTION
-                    if (!gotlock) waiter.wait();
+                    if (!gotlock) cpu_relax(); //waiter.wait();
                 } while (!gotlock);
 
                 return result;
@@ -101,7 +101,7 @@ namespace madness {
                     if (notfound) result = p = new entryT(datum,p);
                     gotlock = result->try_lock(lockmode);
                     unlock();           // END CRITICAL SECTION
-                    if (!gotlock) waiter.wait();
+                    if (!gotlock) cpu_relax(); //waiter.wait();
                 } while (!gotlock);
 
                 return std::pair<entryT*,bool>(result,notfound);

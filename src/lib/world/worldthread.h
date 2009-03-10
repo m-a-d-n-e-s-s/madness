@@ -16,14 +16,14 @@ namespace madness {
     void error(const char *msg);
     
     struct DQStats { // Dilly bar, blizzard, ...
-        uint64_t nmax;          //< Lifetime max. entries in the queue
         uint64_t npush_back;    //< #calls to push_back
         uint64_t npush_front;   //< #calls to push_front
         uint64_t npop_front;    //< #calls to pop_front
         uint64_t ngrow;         //< #calls to grow
+        uint64_t nmax;          //< Lifetime max. entries in the queue
 
         DQStats() 
-            : nmax(0), npush_back(0), npush_front(0), npop_front(0), ngrow(0)
+            : npush_back(0), npush_front(0), npop_front(0), ngrow(0), nmax(0)
         {}
     };
 
@@ -36,11 +36,12 @@ namespace madness {
     /// shrink.  Had to modify STL API to make things thread safe.
     template <typename T>
     class DQueue : private CONDITION_VARIABLE_TYPE {
+        char pad[64];
+        volatile size_t n __attribute__ ((aligned (64)));      ///< Number of elements in the buffer
         volatile size_t sz;              ///< Current capacity
         volatile T* volatile buf;        ///< Actual buffer
         volatile int _front;  ///< Index of element at front of buffer
         volatile int _back;    ///< Index of element at back of buffer
-        volatile size_t n;      ///< Number of elements in the buffer
         DQStats stats;
 
         void grow() {
@@ -82,11 +83,11 @@ namespace madness {
 
     public:
         DQueue(size_t hint=200000) // was 32768
-            : sz(hint>2 ? hint : 2)
+            : n(0)
+            , sz(hint>2 ? hint : 2)
             , buf(new T[sz])
             , _front(sz/2)
             , _back(_front-1)
-            , n(0)
         {}
 
         virtual ~DQueue() {
@@ -96,7 +97,6 @@ namespace madness {
         /// Insert value at front of queue
         void push_front(const T& value) {
             madness::ScopedMutex<CONDITION_VARIABLE_TYPE> obolus(this);
-            stats.npush_front++;
             //sanity_check();
 
             size_t nn = n;
@@ -113,6 +113,7 @@ namespace madness {
             if (f < 0) f = ss - 1;
             buf[f] = value;
             _front = f;
+            stats.npush_front++;
 
             signal();
         }
@@ -120,7 +121,6 @@ namespace madness {
         /// Insert element at back of queue
         void push_back(const T& value) {
             madness::ScopedMutex<CONDITION_VARIABLE_TYPE> obolus(this);
-            stats.npush_back++;
             //sanity_check();
 
             size_t nn = n;
@@ -137,6 +137,7 @@ namespace madness {
             if (b >= int(ss)) b = 0;
             buf[b] = value;
             _back = b;
+            stats.npush_back++;
 
             signal();
         }
@@ -144,7 +145,6 @@ namespace madness {
         /// Pop value off the front of queue
         std::pair<T,bool> pop_front(bool wait) {
             madness::ScopedMutex<CONDITION_VARIABLE_TYPE> obolus(this);
-            stats.npop_front++;
 
             size_t nn = n;
 
@@ -164,9 +164,11 @@ namespace madness {
                 f++;
                 if (f >= int(sz)) f = 0;
                 _front = f;
+                stats.npop_front++;
                 return std::pair<T,bool>(result,true);
             }
             else {
+                stats.npop_front++;
                 return std::pair<T,bool>(T(),false);
             }
         }
@@ -501,6 +503,7 @@ namespace madness {
         /// Run next task ... returns true if one was run ... blocks if wait is true
         bool run_task(bool wait) {
 	    PROFILE_MEMBER_FUNC(ThreadPool);
+            if (!wait && queue.empty()) return false;
             std::pair<PoolTaskInterface*,bool> t = queue.pop_front(wait);
             if (t.second) {
 		PROFILE_BLOCK(working);

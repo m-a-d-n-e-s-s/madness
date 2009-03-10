@@ -47,7 +47,8 @@ namespace madness {
         void reset() {count = 0;}
 
         void wait() {
-#ifdef HAVE_CRAYXT
+            //#ifdef HAVE_CRAYXT
+#ifdef USE_SPINLOCKS
             // The value of 300 below is purely empirical but apparently a substantial
             // backoff (or something that is a by-product of waiting) is necessary
             // to avoid clobbering the memory subsystem while spinning on the taskq.
@@ -58,7 +59,7 @@ namespace madness {
             // 250 --> 2us
             // 200 --> 3.6us
             // 100 --> 40+us (ouch!)
-            for (int i=0; i<300; i++)  cpu_relax();
+            for (int i=0; i<100; i++)  cpu_relax();
 #else
             const unsigned int nspin  = 1000;    // Spin for 1,000 calls
             const unsigned int nsleep = 100000;  // Sleep 10us for 100,000 calls = 1s
@@ -69,51 +70,12 @@ namespace madness {
         }
     };
 
-
-#ifdef WORLD_MUTEX_ATOMIC
-    /// Mutex using spin locks and atomic operations
-    
-    /// Possibly much *slower* than pthread operations.  Also cannot
-    /// use these Mutexes with pthread condition variables.
-    class Mutex : NO_DEFAULTS {
-    private:
-        mutable MADATOMIC_INT flag;
-    public:
-        /// Make and initialize a mutex ... initial state is unlocked
-        Mutex() {
-            MADATOMIC_INT_SET(&flag,1L);
-        }
-        
-        /// Try to acquire the mutex ... return true on success, false on failure
-        bool try_lock() const {
-            if (MADATOMIC_INT_DEC_AND_TEST(&flag)) return true;
-            MADATOMIC_INT_INC(&flag);
-            return false;
-        }
-            
-        /// Acquire the mutex waiting if necessary
-        void lock() const {
-            MutexWaiter waiter;
-            while (!try_lock()) waiter.wait();
-        }
-        
-        /// Free a mutex owned by this thread
-        void unlock() const {
-            MADATOMIC_INT_INC(&flag);
-        }
-
-        //pthread_mutex_t* ptr() const {throw "there is no pthread_mutex";}
-        
-        virtual ~Mutex() {};
-    };
-
-#else
     
     /// Mutex using pthread mutex operations
     class Mutex {
     private:
         mutable pthread_mutex_t mutex;
-
+        
         /// Copy constructor is forbidden
         Mutex(const Mutex& m) {}
         
@@ -125,7 +87,7 @@ namespace madness {
         Mutex() {
             pthread_mutex_init(&mutex, 0);
         }
-
+        
         /// Try to acquire the mutex ... return true on success, false on failure
         bool try_lock() const {
             return pthread_mutex_trylock(&mutex)==0;
@@ -145,15 +107,11 @@ namespace madness {
         pthread_mutex_t* ptr() const {
             return &mutex;
         }
-
+        
         virtual ~Mutex() {
             pthread_mutex_destroy(&mutex);
         };
     };
-
- 
-#endif
-
 
     /// Mutex that is applied/released at start/end of a scope
 
@@ -173,7 +131,8 @@ namespace madness {
     /// Spinlock using pthread spinlock operations
     class Spinlock {
     private:
-        mutable pthread_spinlock_t spinlock;
+        mutable pthread_spinlock_t spinlock  __attribute__ ((aligned (64)));
+        //mutable pthread_spinlock_t spinlock;
 
         /// Copy constructor is forbidden
         Spinlock(const Spinlock& m) {}
@@ -260,18 +219,15 @@ namespace madness {
         }
 
         void read_lock() const {
-            //MutexWaiter waiter;
-            while (!try_read_lock()) cpu_relax(); //waiter.wait();
+            while (!try_read_lock()) cpu_relax();
         }
 
         void write_lock() const {
-            //MutexWaiter waiter;
-            while (!try_write_lock()) cpu_relax(); //waiter.wait();
+            while (!try_write_lock()) cpu_relax();
         }
 
         void lock(int lockmode) const {
-            //MutexWaiter waiter;
-            while (!try_lock(lockmode)) cpu_relax(); //waiter.wait();
+            while (!try_lock(lockmode)) cpu_relax();
         }
 
         void read_unlock() const {
@@ -296,8 +252,7 @@ namespace madness {
 
         /// Note that deadlock is guaranteed if two+ threads wait to convert at the same time.
         void convert_read_lock_to_write_lock() const {
-            //MutexWaiter waiter;
-            while (!try_convert_read_lock_to_write_lock()) cpu_relax(); //waiter.wait();
+            while (!try_convert_read_lock_to_write_lock()) cpu_relax();
         }
 
         /// Always succeeds immediately
@@ -314,12 +269,12 @@ namespace madness {
     class ConditionVariable : public Spinlock {
     public:
         static const int MAX_NTHREAD = 64;
-        mutable volatile int front;
         mutable volatile int back;
+        mutable volatile int front;
         mutable volatile bool* volatile q[MAX_NTHREAD]; // Circular buffer of flags
 
     public:
-        ConditionVariable() : front(0), back(0) {}
+        ConditionVariable() : back(0), front(0) {}
 
         /// You should acquire the mutex before waiting
         void wait() const {
