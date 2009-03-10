@@ -36,7 +36,7 @@ namespace madness {
     /// shrink.  Had to modify STL API to make things thread safe.
     template <typename T>
     class DQueue : private CONDITION_VARIABLE_TYPE {
-        char pad[64];
+        char pad[64]; // To put the lock and the data in separate cache lines 
         volatile size_t n __attribute__ ((aligned (64)));      ///< Number of elements in the buffer
         volatile size_t sz;              ///< Current capacity
         volatile T* volatile buf;        ///< Actual buffer

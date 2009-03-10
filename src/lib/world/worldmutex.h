@@ -131,8 +131,8 @@ namespace madness {
     /// Spinlock using pthread spinlock operations
     class Spinlock {
     private:
-        mutable pthread_spinlock_t spinlock  __attribute__ ((aligned (64)));
-        //mutable pthread_spinlock_t spinlock;
+        //mutable pthread_spinlock_t spinlock  __attribute__ ((aligned (64)));
+        mutable pthread_spinlock_t spinlock;
 
         /// Copy constructor is forbidden
         Spinlock(const Spinlock& m) {}
