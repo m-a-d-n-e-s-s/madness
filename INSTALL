@@ -77,11 +77,12 @@ to link against those libraries).  Some examples follow.
   o  madness.csm.ornl.gov
 
      - dream software development machine with 8 quad-core Barcelona (32 cores), 128 GB memory, 
-       1 TB SSD for home, root, swap, 2 TB scratch)
+       1 TB SSD for home, root, swap, and 2 TB HDD for scratch)
 
-       export PATH=$HOME/bin:/usr/local/gcc-4.4.0/bin:/usr/local/mpich2-1.0.8/bin:$PATH
-       export LD_LIBRARY_PATH=/usr/local/gcc-4.4.0/lib64:/usr/local/lib:/usr/local/acml4.2.0/gfortran64_int64/lib:/usr/local/gperftools/lib:/usr/local/mpich2-1.0.8/lib:$LD_LIBRARY_PATH
-      ./configure LIBS="-L/usr/local/acml4.2.0/gfortran64_int64/lib -L/usr/local/gperftools/lib -L/usr/local/lib -lacml  -lacml_mv -lprofiler -ltcmalloc -lunwind-x86_64 -lgfortran -lstdc++"
+       export PATH=$HOME/bin:/usr/local/gcc-4.4.0-20090306/bin:/usr/local/mpich2-1.0.8-20090306/bin:$PATH
+       export LD_LIBRARY_PATH=/usr/local/gcc-4.4.0-20090306/lib64:/usr/local/lib:/usr/local/acml4.2.0/gfortran64_int64/lib:/usr/local/gperftools/lib:/usr/local/mpich2-1.0.8-20090306/lib:/usr/local/libunwind-20090306/lib:$LD_LIBRARY_PATH
+       ./configure LIBS="-L/usr/local/acml4.2.0/gfortran64_int64/lib -L/usr/local/gperftools-20090306/lib -L/usr/local/libunwind-20090306 -lacml  -lacml_mv -lprofiler -ltcmalloc -lunwind-x86_64 -lgfortran -lstdc++"
+
 
 
   o  Cray-XT (e.g., jaguar@ornl) 
