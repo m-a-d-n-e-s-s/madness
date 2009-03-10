@@ -351,8 +351,8 @@ namespace madness {
         
         long npt = long((shi-slo)/h+0.5);
         
-        //if (prnt) 
-        //cout << "slo " << slo << " shi " << shi << " npt " << npt << " h " << h << " " << eps << endl;
+        if (prnt) 
+            cout << "bsh: mu " << mu << " lo " << lo << " hi " << hi << " eps " << eps << " slo " << slo << " shi " << shi << " npt " << npt << " h " << h << endl;
         
 
         // Compute expansion pruning small coeffs and large exponents
@@ -362,6 +362,7 @@ namespace madness {
             double s = slo + h*(npt-i);	// i+1
             double c = exp(-0.25*mu*mu*exp(-2.0*s)+(ndim-2)*s)*0.5/pow(pi,0.5*ndim);
             double p = exp(2.0*s);
+            c = c*h;
             if (c*exp(-p*lo*lo) > eps) {
                 coeff(nnpt) = c;
                 expnt(nnpt) = p;

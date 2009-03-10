@@ -452,7 +452,7 @@ namespace madness {
         const Tensor<double>& cell_width = FunctionDefaults<NDIM>::get_cell_width();
         double hi = cell_width.normf(); // Diagonal width of cell
         Tensor<double> coeff, expnt;
-        bsh_fit_ndim(NDIM, mu, lo, hi, eps, &coeff, &expnt, true);
+        bsh_fit_ndim(NDIM, mu, lo, hi, eps, &coeff, &expnt, false);
         return SeparatedConvolution<Q,NDIM>(world, k, coeff, expnt);
     }
 
