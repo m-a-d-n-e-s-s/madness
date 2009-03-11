@@ -83,7 +83,7 @@ void loadDefaultBasis(World& world, std::vector<WF>& stateList) {
                            {2,0,0},
                            {2,1,0} };
     const int NkSt = 3;    //Number of k States
-    const double kSt[][3]  = { {0.52, 0.0, 0.0}
+    const double kSt[][3]  = { {0.0, 0.0, 0.52}
                              };
     double Z = 1.0;
     for( int i=0; i<NBSt; i++ ) {
@@ -162,6 +162,7 @@ void projectZdip(World& world) {
     for(basisI = stateList.begin(); basisI !=stateList.end(); basisI++ ) {
         PRINT("<" << basisI->str << "|" );
         for(basisII = stateList.begin(); basisII != stateList.end(); basisII++) {
+            //output = inner(basisII->func,basisI->func); 
             output = inner(basisII->func,z*basisI->func); 
             PRINT("\t" << output*conj(output));
         }
@@ -217,21 +218,39 @@ void projectPsi(World& world) {
     PRINTLINE("End of Job");
 }
 
-void f11toFile(World& world) {
-    ofstream f("f11.out");
-    double k = 1.0;
-    complexd AA(0,-k);
-    complexd BB(1,0);
-    double rMAX = 10.0;
-    double r = 0.0;
-    double dr = 1.0;
-    double cosTH = 1.0;
-    while(r < rMAX) {
-        r += dr;
-        complexd XX(0,-k*r*(1+cosTH));
-        f << r << "\t" << f11(AA,BB,XX) << endl;
+void basisToFile(World& world) {
+    std::vector<WF> stateList;    
+    std::vector<WF>::iterator basisI;
+    loadBasis(world, stateList);
+    complexd output;
+    PRINT("\t");
+    for(basisI=stateList.begin(); basisI != stateList.end(); basisI++) {
+        PRINT("|" << basisI->str << ">\t");
     }
-    system("sed -i '' -e's/\\+/, /' -e's/j//' f11.out");
+    PRINT("\n");
+    double TH = 0.0; 
+    double cosTH = std::cos(TH);
+    double sinTH = std::sin(TH);
+    double r = 0;
+    double dr = 1.0;
+    const double rMAX = 10;
+    //make functions
+    BoundWF f1s(1.0, 1, 0, 0);
+    BoundWF f2p(1.0, 2, 1, 0);
+    cout << fixed;
+    while(r < rMAX) {
+        cout << fixed;
+        PRINT(r<<"\t"<< scientific);
+        double dARR[3] = {r*cosTH, r*sinTH, r*sinTH};
+        vector3D rVec(dARR);
+        output = f1s(rVec);
+        PRINT(real(conj(output)*output) << "\t");
+        output = f2p(rVec);
+        PRINT(real(conj(output)*output));
+        r += dr;
+        PRINT("\n");
+    }
+    //    system("sed -i '' -e's/\\+/, /' -e's/j//' f11.out");
 }
 
 int main(int argc, char**argv) {
@@ -242,16 +261,16 @@ int main(int argc, char**argv) {
     startup(world,argc,argv);
     // Setup defaults for numerical functions
     FunctionDefaults<NDIM>::set_k(12);              // Wavelet order
-    FunctionDefaults<NDIM>::set_thresh(1e-1);       // Accuracy
+    FunctionDefaults<NDIM>::set_thresh(1e-5);       // Accuracy
     FunctionDefaults<NDIM>::set_cubic_cell(-20.0, 20.0);
-    FunctionDefaults<NDIM>::set_initial_level(2);
+    FunctionDefaults<NDIM>::set_initial_level(3);
     FunctionDefaults<NDIM>::set_apply_randomize(false);
-    FunctionDefaults<NDIM>::set_autorefine(false);
+    FunctionDefaults<NDIM>::set_autorefine(true);
     FunctionDefaults<NDIM>::set_refine(false);
     FunctionDefaults<NDIM>::set_truncate_mode(1);
     try {
-        projectZdip(world);
-        //f11toFile(world);
+        //projectZdip(world);
+        basisToFile(world);
     } catch (const MPI::Exception& e) {
         //print(e);
         error("caught an MPI exception");
