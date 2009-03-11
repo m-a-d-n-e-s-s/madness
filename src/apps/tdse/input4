@@ -1,8 +1,8 @@
-L 40.0
+L 60.0
 F 0.176
 omega 0.06
 k 8
-thresh 1e-3
+thresh 1e-4
 safety 1e-1
 cut 0.6
 prefix data4
