@@ -43,11 +43,16 @@ complexd ScatteringWF::operator()(const vector3D& rVec) const
     for(int i=0; i<NDIM; i++) { kDOTr += rVec[i]*kVec[i]; }
     for(int i=0; i<NDIM; i++) { sum += rVec[i]*rVec[i]; }
     double r = sqrt(sum);
+//     cout << endl;
+//     cout << "exp(PI/(2*k)) = " << exp(PI/(2*k)) << endl;
+//     cout << "gamma(1.0+I/k)= " << gamma(1.0+I/k) << endl;
+//     cout << "exp(I*kDOTr)  = " << exp(I*kDOTr)  << endl;
+//     cout << " f11(-1.0*I/k, 1.0, -1.0*I*(k*r + kDOTr)) = "
+//          << f11(-1.0*I/k, 1.0, -1.0*I*(k*r + kDOTr)) << endl;
     return exp(PI/(2*k))
         * gamma(1.0+I/k)
         * exp(I*kDOTr)
-        * f11(-1.0*I/k, 1.0, -1.0*I*(k*r + kDOTr))
-        ;
+        * f11(-1.0*I/k, 1.0, -1.0*I*(k*r + kDOTr));
 
 //     complexd confHyper = f11(-1.0*I/k, 1.0, -1.0*I*(k*r + kDOTr));
 //     complexd output = exp(PI/(2*k))
@@ -89,7 +94,11 @@ complexd BoundWF::operator()(const vector3D& rVec) const {
     double sum = 0.0;
     for(int i=0; i<NDIM; i++) { sum += rVec[i]*rVec[i]; }
     double r = sqrt(sum);
-    double costh = rVec[2]/r;
+    double cosTH;
+    if(r==0.0) 
+        cosTH = 1.0;
+    else
+        cosTH = rVec[2]/r;
     gsl_sf_result Rnl;
     gsl_set_error_handler_off();
     int status = gsl_sf_hydrogenicR_e(n, l, Z, r, &Rnl);
@@ -97,14 +106,14 @@ complexd BoundWF::operator()(const vector3D& rVec) const {
     if(status == GSL_EUNDRFLW) return complexd(0,0);
     if(status != 0)            exit(status);
     if(m==0) {        
-	return complexd(Rnl.val * gsl_sf_legendre_sphPlm(l, m, costh), 0.0);
+	return complexd(Rnl.val * gsl_sf_legendre_sphPlm(l, m, cosTH), 0.0);
     }
     else {
 	gsl_sf_result rPhi;
 	gsl_sf_result phi ; 
 	gsl_sf_rect_to_polar(rVec[0], rVec[1], &rPhi, &phi);
-	return complexd(   gsl_sf_hydrogenicR(n, l, Z, r) 
-                         * gsl_sf_legendre_sphPlm(l, abs(m), costh)
+	return complexd(   Rnl.val 
+                         * gsl_sf_legendre_sphPlm(l, abs(m), cosTH)
                          * exp(complexd(0,m*phi.val))
                        );
     }

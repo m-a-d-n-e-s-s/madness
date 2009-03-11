@@ -4,17 +4,16 @@
  * By: Nick Vence
  * This code must handled with care for the following reasons:
  * 1) It uses the Gnu Scientific Library      http://www.gnu.org/software/gsl/
- * MADNESS should be reconfigured to include these libraries
- *  ./configure LIBS="-lgsl -lgslblas"
- * 2) A list of wave functions from tdse is expected in this directory
- *    List the number from the above wave functions in wf.num
- * 3) It is reading files from the disk
- *    wf.num                  Integer of the WF to be loaded
- *    bound.num               Integer triplets of quantum numbers   2    1  0 
- *    unbound.num             Double triplets momentum kx ky kz     0.5  0  0
- * 4) k (The wavelet order) must be the same as the projected functions: see main()
+ *    MADNESS should be reconfigured to include these libraries
+ *    ./configure LIBS="-lgsl -lgslblas"
+ * 2) Consult the note above each funciton for specific information:
+ *    projectPsi: Loads wave functions from disk, projects them onto an arbitrary basis
+ *    projectZdip:For perturbation calculations
+ *    printBasis: For debugging purposes
+ *    belkic:     Reproduces an analytic integral
+ * 3) k (The wavelet order) must be the same as the projected functions: see main()
  *    12 has been the default
- *****************************************/
+ ***************************************************************************************/
 #include <mra/mra.h>
 #include <complex>
 #include <string>
@@ -73,11 +72,6 @@ string toString( const T& a ) {
 }
 
 void loadDefaultBasis(World& world, std::vector<WF>& stateList) {
-    /******
-     * For now I'm going to use a 3xN array to house my coordinates so they 
-     * are easy to see, and a vector because it easy to manipulate generally.
-     * NEXT: load from a file
-     ******/
     const int NBSt = 3;    //Number of Bound States
     const int bSt[][3] = { {1,0,0},
                            {2,0,0},
@@ -141,17 +135,18 @@ void loadBasis(World& world, std::vector<WF>& stateList) {
         } else PRINTLINE("unbound.num not found");
     }
 }
-                        
 complexd zdipole( const vector3D& r) {
     return complexd(r[2],0.0);
 }
 
+/*****************************************************************
+ * Dipole matrix elements available for perturbation calculations
+ *****************************************************************/
 void projectZdip(World& world) {
     std::vector<WF> stateList;    
     loadBasis(world, stateList);
     complex_functionT z = complex_factoryT(world).f(zdipole);
     complexd output;
-    //    PRINT(matrix_inner_op(world, stateList, z, psiList) << endl);
     PRINT("\t\t");
     std::vector<WF>::iterator basisI;
     std::vector<WF>::iterator basisII;
@@ -162,7 +157,6 @@ void projectZdip(World& world) {
     for(basisI = stateList.begin(); basisI !=stateList.end(); basisI++ ) {
         PRINT("<" << basisI->str << "|" );
         for(basisII = stateList.begin(); basisII != stateList.end(); basisII++) {
-            //output = inner(basisII->func,basisI->func); 
             output = inner(basisII->func,z*basisI->func); 
             PRINT("\t" << output*conj(output));
         }
@@ -170,7 +164,12 @@ void projectZdip(World& world) {
     }
     PRINTLINE("End of Job");
 }
-
+/****************************************************************************
+ * The correlation amplitude <Psi(+)|basis>   
+ * wf.num                  Integer time step of the Psi(+) to be loaded
+ * bound.num               Integer triplets of quantum numbers   2  1  0 
+ * unbound.num             Double triplets of momentum kx ky kz  0  0  0.5
+ ****************************************************************************/
 void projectPsi(World& world) {
     std::vector<WF> stateList;    
     std::vector<WF> psiList;
@@ -189,14 +188,10 @@ void projectPsi(World& world) {
         }
         PRINTLINE("testing matrix_inner_op()");
         complex_functionT z = complex_factoryT(world).f(zdipole);
-        //        PRINT(matrix_inner_op(world, stateList, z, psiList) << endl);
         PRINTLINE("The Psi(+) are loaded");
         complexd output;
         std::vector<WF>::iterator basisI;
         std::vector<WF>::iterator psiPlusI;
-        //DISPLAY <basis| (x) |psi+> /
-//        for(psiPlusI=psiList.begin(); psiPlusI != psiList.end(); psiPlusI++) {
-        //DISPLAY <basis| (x) |basis> 
         PRINT("\t\t");
         for(psiPlusI=stateList.begin(); psiPlusI != stateList.end(); psiPlusI++) {
             PRINT("|" << psiPlusI->str << ">\t\t");
@@ -204,53 +199,77 @@ void projectPsi(World& world) {
         PRINT("\n");
         for(basisI = stateList.begin(); basisI !=stateList.end(); basisI++ ) {
             PRINT("<" << basisI->str << "|" );
-//            for(psiPlusI = psiList.begin(); psiPlusI != psiList.end(); psiPlusI++) {
             for(psiPlusI = stateList.begin(); psiPlusI != stateList.end(); psiPlusI++) {
                 output = psiPlusI->func.inner(basisI->func); 
                 PRINT("\t" << output*conj(output));
             }
             PRINT("\n");
         }
-     } else {
+    } else {
         PRINTLINE("File: wf.num expected to contain a " 
-               << "list of integers of loadable wave functions");
+                  << "list of integers of loadable wave functions");
     }
-    PRINTLINE("End of Job");
 }
-
-void basisToFile(World& world) {
-    std::vector<WF> stateList;    
-    std::vector<WF>::iterator basisI;
-    loadBasis(world, stateList);
+/*************************************************
+ * If you're curious about a wave function's value
+ *************************************************/
+void printBasis(World& world) {
     complexd output;
-    PRINT("\t");
-    for(basisI=stateList.begin(); basisI != stateList.end(); basisI++) {
-        PRINT("|" << basisI->str << ">\t");
-    }
-    PRINT("\n");
-    double TH = 0.0; 
-    double cosTH = std::cos(TH);
-    double sinTH = std::sin(TH);
-    double r = 0;
-    double dr = 1.0;
-    const double rMAX = 10;
+    double sinTH, cosTH, sinPHI, cosPHI;
     //make functions
-    BoundWF f1s(1.0, 1, 0, 0);
-    BoundWF f2p(1.0, 2, 1, 0);
-    cout << fixed;
-    while(r < rMAX) {
+    BoundWF b1s(1.0, 1, 0, 0);
+    BoundWF b2p(1.0, 2, 1, 0);
+    double dARR[3] = {0, 0, 0.5};
+    vector3D kVec(dARR);
+    ScatteringWF unb(1.0, kVec);
+    double PHI = 0.1;
+    double r = 1;
+    PRINTLINE(fixed << "\nrVec \t\t\t|1s> \t\t|2p> \t\t|0 0 0.5>");
+    //    for(double r=0; r<rMAX; r+=1.0 ) {
+    for(double TH=0; TH<3.14; TH+=0.3 ) {
+        cosTH = std::cos(TH);
+        sinTH = std::sin(TH);
+        cosPHI = std::cos(PHI);
+        sinPHI = std::sin(PHI);
         cout << fixed;
-        PRINT(r<<"\t"<< scientific);
-        double dARR[3] = {r*cosTH, r*sinTH, r*sinTH};
+        double dARR[3] = {r*sinTH*cosPHI, r*sinTH*sinPHI, r*cosTH};
+        PRINT(dARR<<"\t"<< scientific);
         vector3D rVec(dARR);
-        output = f1s(rVec);
-        PRINT(real(conj(output)*output) << "\t");
-        output = f2p(rVec);
-        PRINT(real(conj(output)*output));
-        r += dr;
+        output = b1s(rVec);
+        PRINT(real(output) << "\t");
+        output = b2p(rVec);
+        PRINT(real(output) << "\t");
+        output = unb(rVec);
+        PRINT(output);
         PRINT("\n");
     }
     //    system("sed -i '' -e's/\\+/, /' -e's/j//' f11.out");
+}
+/****************************************************************************
+ * Reproduces atomic form integrals given by Dz Belkic's analytic expression
+ ****************************************************************************/
+void belkic(World& world) {
+    /************************************************************************
+     * qVec is the momentum transfered from the laser field
+     * kVec is the momentum of the ejected electron
+     * I will take these to be colinear
+     ************************************************************************/
+    PRINTLINE("1 0 0");
+    complex_functionT b1s = complex_factoryT(world).functor(functorT( 
+                                                      new BoundWF(1.0, 1, 0, 0) ));
+    double dARR[3] = {0, 0, 0.5};
+    const vector3D kVec(dARR);
+    PRINTLINE("|" << kVec << ">");
+    complex_functionT unb = complex_factoryT(world).functor(functorT(
+                                                      new ScatteringWF(1.0, kVec) ));
+    dARR[2] =  1.5;
+    const vector3D qVec(dARR);
+    PRINTLINE("Exp[I" << qVec << ".r>");
+    complex_functionT expikDOTr = complex_factoryT(world).functor(functorT(
+                                                      new Expikr(qVec) ));
+    PRINTLINE("<k=0.5| Exp[iqVec.r] |100>");
+    complexd output = inner(unb, expikDOTr*b1s);
+    PRINTLINE(output);
 }
 
 int main(int argc, char**argv) {
@@ -261,7 +280,7 @@ int main(int argc, char**argv) {
     startup(world,argc,argv);
     // Setup defaults for numerical functions
     FunctionDefaults<NDIM>::set_k(12);              // Wavelet order
-    FunctionDefaults<NDIM>::set_thresh(1e-5);       // Accuracy
+    FunctionDefaults<NDIM>::set_thresh(1e-4);       // Accuracy
     FunctionDefaults<NDIM>::set_cubic_cell(-20.0, 20.0);
     FunctionDefaults<NDIM>::set_initial_level(3);
     FunctionDefaults<NDIM>::set_apply_randomize(false);
@@ -269,8 +288,10 @@ int main(int argc, char**argv) {
     FunctionDefaults<NDIM>::set_refine(false);
     FunctionDefaults<NDIM>::set_truncate_mode(1);
     try {
+        //printBasis(world);
+        belkic(world);
         //projectZdip(world);
-        basisToFile(world);
+        //projectPsi(world);
     } catch (const MPI::Exception& e) {
         //print(e);
         error("caught an MPI exception");
