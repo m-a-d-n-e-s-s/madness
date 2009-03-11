@@ -173,6 +173,46 @@ namespace madness {
             }
         }
 
+        /// Pop multiple values off the front of queue ... returns number popped ... might be zero
+
+        /// r must refer to an array of dimension at least nmax ... you are presently
+        /// given no more than max(size()/128,1) values ... arbitrary choice
+        int pop_front(int nmax, T* r, bool wait) {
+            madness::ScopedMutex<CONDITION_VARIABLE_TYPE> obolus(this);
+
+            size_t nn = n;
+
+            if (nn==0 && wait) {
+                while (n == 0) // !!! Must be n (memory) not nn (local copy)
+                    CONDITION_VARIABLE_TYPE::wait();
+
+                nn = n;
+            }
+
+            stats.npop_front++;
+            if (nn) {
+                sanity_check();
+
+                nmax = std::min(nmax,std::max(int(nn>>7),1));
+                n = nn - nmax;
+                int rval = nmax;
+
+                int f = _front;
+                while (nmax--) {
+                    *r++ = buf[f++];
+                    if (f >= int(sz)) f = 0;
+                }
+                
+                _front = f;
+
+                sanity_check();
+                return rval;
+            }
+            else {
+                return 0;
+            }
+        }
+
         size_t size() const {
             return n;
         }
@@ -515,8 +555,17 @@ namespace madness {
 
         void thread_main(Thread* thread) {
             thread->set_affinity(2, thread->get_pool_thread_index());
-            while (!finish) 
-                run_task(true);
+
+            static const int nmax=10;
+            PoolTaskInterface* taskbuf[nmax];
+            while (!finish) {
+                int ntask = queue.pop_front(nmax, taskbuf, true);
+                for (int i=0; i<ntask; i++) {
+                    PROFILE_BLOCK(working);
+                    taskbuf[i]->run();
+                    delete taskbuf[i];
+                }
+            }
             MADATOMIC_INT_INC(&nfinished);
         }
 
