@@ -176,7 +176,7 @@ namespace madness {
         /// Pop multiple values off the front of queue ... returns number popped ... might be zero
 
         /// r must refer to an array of dimension at least nmax ... you are presently
-        /// given no more than max(size()/128,1) values ... arbitrary choice
+        /// given no more than max(size()/64,1) values ... arbitrary choice
         int pop_front(int nmax, T* r, bool wait) {
             madness::ScopedMutex<CONDITION_VARIABLE_TYPE> obolus(this);
 
@@ -191,9 +191,9 @@ namespace madness {
 
             stats.npop_front++;
             if (nn) {
-                sanity_check();
+                //sanity_check();
 
-                nmax = std::min(nmax,std::max(int(nn>>7),1));
+                nmax = std::min(nmax,std::max(int(nn>>6),1));
                 n = nn - nmax;
                 int rval = nmax;
 
@@ -205,7 +205,7 @@ namespace madness {
                 
                 _front = f;
 
-                sanity_check();
+                //sanity_check();
                 return rval;
             }
             else {
@@ -556,6 +556,8 @@ namespace madness {
         void thread_main(Thread* thread) {
             thread->set_affinity(2, thread->get_pool_thread_index());
 
+#define MULTITASK
+#ifdef  MULTITASK
             static const int nmax=10;
             PoolTaskInterface* taskbuf[nmax];
             while (!finish) {
@@ -566,6 +568,12 @@ namespace madness {
                     delete taskbuf[i];
                 }
             }
+#else
+            while (!finish) {
+                run_task(true);
+            }
+#endif
+
             MADATOMIC_INT_INC(&nfinished);
         }
 
