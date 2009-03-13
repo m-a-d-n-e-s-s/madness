@@ -228,7 +228,6 @@ struct KPoint
       ar & k & weight;
   }
 
-
 };
 
 std::istream& operator >> (std::istream& is, KPoint& kpt)
@@ -358,9 +357,20 @@ public:
     }
     else // charge density
     {
+      std::vector<coordT> specialpts;
+      for (int i = 0; i < _mentity.natom(); i++)
+      {
+        coordT pt(0.0);
+        Atom atom = _mentity.get_atom(i);
+        pt[0] = atom.x; pt[1] = atom.y; pt[2] = atom.z;
+        specialpts.push_back(pt);
+        print("Special point: ", pt);
+      }
+      double now = wall_time();
       _vnucrhon = rfactoryT(_world).functor(
           rfunctorT(new MolecularNuclearChargeDensityFunctor(_mentity, _params.L, _params.periodic))).
-          thresh(_params.thresh * 0.1).initial_level(6).truncate_on_project();
+          thresh(_params.thresh * 0.1).initial_level(6).truncate_on_project().specialpts(specialpts);
+      if (_world.rank() == 0) printf("%f\n", wall_time() - now);
       if (_world.rank() == 0) print("calculating trace of rhon ..\n\n");
       double rtrace = _vnucrhon.trace();
       if (_world.rank() == 0) print("rhon trace = ", rtrace);
@@ -372,9 +382,11 @@ public:
       }
       else // not periodic
       {
-        op = CoulombOperatorPtr<double,3>(_world, _params.waveorder,_params.lo, _params.thresh);
+        op = CoulombOperatorPtr<double>(_world, _params.waveorder,_params.lo, _params.thresh);
       }
+      now = wall_time();
       _vnuc = apply(*op, _vnucrhon);
+      if (_world.rank() == 0) printf("%f\n", wall_time() - now);
       if (_world.rank() == 0) print("Done creating nuclear potential ..\n");
       delete op;
     }
@@ -581,7 +593,7 @@ public:
       }
       else
       {
-        op = CoulombOperatorPtr<double, 3> (_world, _params.waveorder,
+        op = CoulombOperatorPtr<double> (_world, _params.waveorder,
             _params.lo, _params.thresh * 0.1);
       }
       if (_world.rank() == 0) print("Building effective potential ...\n\n");

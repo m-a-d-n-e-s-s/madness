@@ -255,7 +255,10 @@ static double smoothed_density(double r)
 {
     const double RPITO1P5 = 0.1795871221251665617; // 1.0/Pi^1.5
     double rsquared = r*r;
-    return ((-3.0/2.0+(1.0/3.0)*rsquared)*exp(-rsquared)+(-32.0+(256.0/3.0)*rsquared)*exp(-4.0*rsquared))*RPITO1P5;
+    double tmp1 = exp(-rsquared);
+    double tmp2 = tmp1*tmp1;
+    double tmp4 = tmp2*tmp2;
+    return ((-3.0/2.0+(1.0/3.0)*rsquared)*tmp1+(-32.0+(256.0/3.0)*rsquared)*tmp4)*RPITO1P5;
 }
 
 std::ostream& operator<<(std::ostream& s, const Atom& atom) {
@@ -467,7 +470,8 @@ double MolecularEntity::nuclear_charge_density(double x, double y, double z) con
   for (unsigned int i=0; i<atoms.size(); i++)
   {
     double r = distance(atoms[i].x, atoms[i].y, atoms[i].z, x, y, z);
-    sum += atoms[i].atomic_number * smoothed_density(r*rcut[i])*rcut[i]*rcut[i]*rcut[i];
+    if (r*rcut[i] <= 6.0)
+      sum += atoms[i].atomic_number * smoothed_density(r*rcut[i])*rcut[i]*rcut[i]*rcut[i];
   }
   return sum;
 

@@ -143,7 +143,7 @@ namespace madness
       }
       else
       {
-        _cop = CoulombOperatorPtr<T,NDIM>(const_cast<World&>(world),
+        _cop = CoulombOperatorPtr<T>(const_cast<World&>(world),
             FunctionDefaults<NDIM>::get_k(), params.lo, params.thresh * 0.1);
       }
 
@@ -240,7 +240,7 @@ namespace madness
           }
           else
           {
-            bops.push_back(poperatorT(BSHOperatorPtr<T,NDIM>(_world, sqrt(-2.0*eps), k, _params.lo, tol * 0.1)));
+            bops.push_back(poperatorT(BSHOperatorPtr3D<T>(_world, sqrt(-2.0*eps), k, _params.lo, tol * 0.1)));
           }
       }
       return bops;
