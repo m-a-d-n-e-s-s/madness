@@ -13,6 +13,23 @@
 
 using namespace madness;
 
+template <typename T, int NDIM>
+struct lbcost {
+    double leaf_value;
+    double parent_value;
+    lbcost(double leaf_value=1.0, double parent_value=1.0) : leaf_value(leaf_value), parent_value(parent_value) {}
+    double operator()(const Key<NDIM>& key, const FunctionNode<T,NDIM>& node) const {
+        if (node.is_leaf()) {
+            return leaf_value;
+        }
+        else {
+            return parent_value;
+        }
+        //return key.level()+1.0;
+    }
+};
+
+
 // typedefs to make life less verbose
 typedef Vector<double,4> coordT;
 typedef SharedPtr< FunctionFunctorInterface<double,4> > functorT;
@@ -422,9 +439,19 @@ complex_functionT trotter(World& world,
     psi1 = apply(G,psi0);  psi1.truncate();  size = psi1.size();
     if (world.rank() == 0) print("APPLYING expV", size);
     psi1 = expV*psi1;      psi1.truncate();  size = psi1.size();
+
+    pmapT oldpmap = FunctionDefaults<4>::get_pmap();
+    LoadBalanceDeux<4> lb(world);
+    lb.add_tree(psi1, lbcost<double_complex,4>(1.0,1.0));
+    FunctionDefaults<4>::set_pmap(lb.load_balance());
+    psi1 = copy(psi1, FunctionDefaults<4>::get_pmap(), true);
+
     if (world.rank() == 0) print("APPLYING G again", size);
     psi1 = apply(G,psi1);  psi1.truncate(param.thresh);  size = psi1.size();
     if (world.rank() == 0) print("DONE", size);
+
+    FunctionDefaults<4>::set_pmap(oldpmap);
+    psi1 = copy(psi1, oldpmap, true);
     
     return psi1;
 }
@@ -508,6 +535,36 @@ bool wave_function_exists(World& world, int step) {
     return ParallelInputArchive::exists(world, wave_function_filename(step));
 }
 
+
+void loadbal(World& world, 
+             functionT& pote, functionT& potn, functionT& pot, functionT& vt,
+             complex_functionT& psi, complex_functionT& psi0,
+             functionT& x, functionT& y, functionT& z, functionT& R) {
+    if (world.size() < 2) return;
+    if (world.rank() == 0) print("starting LB");
+    LoadBalanceDeux<4> lb(world);
+    lb.add_tree(vt, lbcost<double,4>(1.0,1.0));
+    lb.add_tree(psi, lbcost<double_complex,4>(10.0,10.0));
+    FunctionDefaults<4>::set_pmap(lb.load_balance());
+    world.gop.fence();
+    if (world.rank() == 0) print("starting LB copies");
+    world.gop.fence();
+    pote = copy(pote, FunctionDefaults<4>::get_pmap(), true);
+    potn = copy(potn, FunctionDefaults<4>::get_pmap(), true);
+    pot = copy(pot, FunctionDefaults<4>::get_pmap(), true);
+    vt = copy(vt, FunctionDefaults<4>::get_pmap(), true);
+    psi = copy(psi, FunctionDefaults<4>::get_pmap(), true);
+    psi0 = copy(psi0, FunctionDefaults<4>::get_pmap(), true);
+    x = copy(x, FunctionDefaults<4>::get_pmap(), true);
+    y = copy(y, FunctionDefaults<4>::get_pmap(), true);
+    z = copy(z, FunctionDefaults<4>::get_pmap(), true);
+    R = copy(R, FunctionDefaults<4>::get_pmap(), true);
+    world.gop.fence();
+    if (world.rank() == 0) print("done with LB");
+    world.gop.fence();
+}
+
+
 // Evolve the wave function in real time starting from given time step on disk
 void propagate(World& world, functionT& pote, functionT& potn, functionT& pot, int step0) {
     double ctarget = 5.0/param.cut;
@@ -540,7 +597,7 @@ void propagate(World& world, functionT& pote, functionT& potn, functionT& pot, i
     int step = step0;  // The current step
     double t = step0 * time_step - zero_field_time;        // The current time
     complex_functionT psi = wave_function_load(world, step); // The wave function at time t
-    functionT vt = pot+laser(t)*z; // The total potential at time t
+    functionT vt = pot+laser(t)*x; // The total potential at time t
 
     if (world.rank() == 0) {
         printf("\n");
@@ -560,17 +617,20 @@ void propagate(World& world, functionT& pote, functionT& potn, functionT& pot, i
     }
 
     print_stats_header(world);
-    print_stats(world, step, t, pote, potn, laser(t)*z, x, y, z, R, psi0, psi0); 
+    print_stats(world, step, t, pote, potn, laser(t)*x, x, y, z, R, psi0, psi0); 
     world.gop.fence();
 
     psi.truncate();
 
     while (step < nstep) {
+        if (step < 2 || (step%param.nloadbal) == 0)
+            loadbal(world, pote, potn, pot, vt, psi, psi0, x, y, z, R);
+
         long depth = psi.max_depth(); long size=psi.size();
-        print("depth size", depth, size);
+        if (world.rank() == 0) print("depth size", depth, size);
 
         // Make the potential at time t + step/2 
-        functionT vhalf = pot + laser(t+0.5*time_step)*z;
+        functionT vhalf = pot + laser(t+0.5*time_step)*x;
 
         // Apply Trotter to advance from time t to time t+step
         complex_functionT expV = make_exp(time_step, vhalf);
@@ -579,9 +639,9 @@ void propagate(World& world, functionT& pote, functionT& potn, functionT& pot, i
         // Update counters, print info, dump/plot as necessary
         step++;
         t += time_step;
-        vt = pot+laser(t)*z;
+        vt = pot+laser(t)*x;
 
-        print_stats(world, step, t, pote, potn, laser(t)*z, x, y, z, R, psi0, psi); 
+        print_stats(world, step, t, pote, potn, laser(t)*x, x, y, z, R, psi0, psi); 
 
         if ((step%param.ndump) == 0 || step==nstep) {
             double start = wall_time();
@@ -638,10 +698,18 @@ void doit(World& world) {
     // Make the potential
     if (world.rank() == 0) print("COMPRESSING Vn",wall_time());
     functionT potn = factoryT(world).f(Vn);  potn.truncate();
-    print("NORM OF VN", potn.norm2());
     if (world.rank() == 0) print("COMPRESSING Ve",wall_time());
     functionT pote = factoryT(world).f(Ve);  pote.truncate();
     functionT pot = potn + pote;
+
+    LoadBalanceDeux<4> lb(world);
+    lb.add_tree(pot, lbcost<double,4>());
+    FunctionDefaults<4>::set_pmap(lb.load_balance());
+    world.gop.fence();
+    pote = copy(pote, FunctionDefaults<4>::get_pmap());
+    potn = copy(potn, FunctionDefaults<4>::get_pmap());
+    pot = copy(pot, FunctionDefaults<4>::get_pmap());
+
 
     if (!exists) {
         if (step0 == 0) {
