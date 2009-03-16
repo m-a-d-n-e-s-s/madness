@@ -275,7 +275,7 @@ static double guess(const coordT& r) {
     double psib = face*exp(-Z*rr);
 
     //static const double expnt = 0.01 / 2.0; // should be omega/2 in atomic units
-    static const double expnt = 0.02;
+    static const double expnt = 0.01;
 
     double psinuc = facn*exp(-expnt*s*s);
 
