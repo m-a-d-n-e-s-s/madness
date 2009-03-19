@@ -46,7 +46,7 @@ double real(double a) {return a;}
 
 static const double reduced_mass = 0.5*constants::proton_electron_mass_ratio;
 static const double sqrtmu = sqrt(reduced_mass);
-static const double R0 = 2.0;
+static const double R0 = 2.04; // Effective center of nuclear wave function
 static const double s0 = sqrtmu*R0;
 static const double Z=1.0;
 
@@ -261,23 +261,31 @@ static double Ve(const coordT& r) {
 
 // Initial guess wave function using symmetric superposition of 1s orbital on atoms and harmonic oscillator
 static double guess(const coordT& r) {
-    static const double facn = std::pow(0.01/3.14,0.25);
-    static const double face = sqrt(3.14*Z*Z*Z);
     const double x=r[0], y=r[1], z=r[2], s=r[3];
+    const double R = R0 + s/sqrtmu;
 
-    // Note in electronic part we are using R0 not R
+    // These from fitting to Predrag's exact function form for psinuc in BO approx
+    const double a = 4.42162;
+    const double alpha = 1.28164;
+    const double beta = -1.06379;
+    const double Rp = 2.12902;
+    const double Rmax = Rp + sqrt(23.0/a);
+    
+    // Screen on size of nuclear wave function
+    if (R > Rmax) return 0.0;
+
+    // Note in electronic part we are using R0 not R ... OR SHOULD THIS BE R? TRY BOTH!
+    static const double face = sqrt(3.14*Z*Z*Z);
     double zz = z-R0*0.5;
     double rr = sqrt(x*x+y*y+zz*zz);
     double psia = face*exp(-Z*rr);
-
     zz = z+R0*0.5;
     rr = sqrt(x*x+y*y+zz*zz);
     double psib = face*exp(-Z*rr);
 
-    //static const double expnt = 0.01 / 2.0; // should be omega/2 in atomic units
-    static const double expnt = 0.01;
-
-    double psinuc = facn*exp(-expnt*s*s);
+    // Nuclear part
+    double R2 = (R-Rp)*(R-Rp);
+    double psinuc = alpha*exp(-alpha*R2) + beta*(R-Rp)*exp(-1.5*alpha*R2);
 
     return (psia + psib)*psinuc;
 }
