@@ -189,9 +189,33 @@ namespace madness {
     inline double conj(float x) {return x;}
 
 
+    template <typename T, typename R, int NDIM>
+    struct MatrixInnerTask : public TaskInterface {
+        Tensor<TENSOR_RESULT_TYPE(T,R)> result; // Must be a copy
+        const Function<T,NDIM>& f;
+        const std::vector< Function<R,NDIM> >& g;
+        long jtop;
+
+        MatrixInnerTask(const Tensor<TENSOR_RESULT_TYPE(T,R)>& result,
+                        const Function<T,NDIM>& f,
+                        const std::vector< Function<R,NDIM> >& g,
+                        long jtop)
+            : result(result), f(f), g(g), jtop(jtop)
+        {}
+
+        void run(World& world) {
+            for (long j=0; j<jtop; j++) {
+                result(j) = f.inner_local(g[j]);
+            }
+        }
+    };
+
+
     /// Computes the matrix inner product of two function vectors - q(i,j) = inner(f[i],g[j])
 
     /// For complex types symmetric is interpreted as Hermitian.
+    ///
+    /// The current parallel loop is non-optimal but functional.
     template <typename T, typename R, int NDIM>
     Tensor< TENSOR_RESULT_TYPE(T,R) > matrix_inner(World& world,
                                                    const std::vector< Function<T,NDIM> >& f,
@@ -204,17 +228,33 @@ namespace madness {
         compress(world, f);
         compress(world, g);
 
-        for (long i=0; i<n; i++) {
+//         for (long i=0; i<n; i++) {
+//             long jtop = m;
+//             if (sym) jtop = i+1;
+//             for (long j=0; j<jtop; j++) {
+//                 r(i,j) = f[i].inner_local(g[j]);
+//                 if (sym) r(j,i) = conj(r(i,j));
+//             }
+//         }
+
+        for (long i=n-1; i>=0; i--) {
             long jtop = m;
             if (sym) jtop = i+1;
-            for (long j=0; j<jtop; j++) {
-                r(i,j) = f[i].inner_local(g[j]);
-                if (sym) r(j,i) = conj(r(i,j));
-            }
+            Tensor< TENSOR_RESULT_TYPE(T,R) > result = r(i,_);
+            const Function<T,NDIM>& fi = f[i];
+            world.taskq.add(new MatrixInnerTask<T,R,NDIM>(result, fi, g, jtop));
         }
         world.taskq.fence();
         world.gop.sum(r.ptr(),n*m);
         world.gop.fence();
+
+        if (sym) {
+            for (int i=0; i<n; i++) {
+                for (int j=0; j<i; j++) {
+                    r(j,i) = r(i,j);
+                }
+            }
+        }
         return r;
     }
 
