@@ -240,9 +240,7 @@ namespace madness {
         for (long i=n-1; i>=0; i--) {
             long jtop = m;
             if (sym) jtop = i+1;
-            Tensor< TENSOR_RESULT_TYPE(T,R) > result = r(i,_);
-            const Function<T,NDIM>& fi = f[i];
-            world.taskq.add(new MatrixInnerTask<T,R,NDIM>(result, fi, g, jtop));
+            world.taskq.add(new MatrixInnerTask<T,R,NDIM>(r(i,_), f[i], g, jtop));
         }
         world.taskq.fence();
         world.gop.sum(r.ptr(),n*m);

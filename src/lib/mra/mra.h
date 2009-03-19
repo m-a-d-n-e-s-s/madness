@@ -246,15 +246,13 @@ namespace madness {
     public:
         /// Asserts that the function is initialized
         inline void verify() const {
-            PROFILE_MEMBER_FUNC(Function);
             MADNESS_ASSERT(impl);
         }
 
         /// Returns true if the function is initialized
         bool is_initialized() const {
-            PROFILE_MEMBER_FUNC(Function);
-			return impl.get();
-		}
+            return impl.get();
+        }
 
 
         typedef FunctionImpl<T,NDIM> implT;
@@ -267,8 +265,7 @@ namespace madness {
         Function()
             : impl(0)
         {
-            PROFILE_MEMBER_FUNC(Function);
-		}
+        }
 
 
         /// Constructor from FunctionFactory provides named parameter idiom.  Possible non-blocking communication.
@@ -283,8 +280,7 @@ namespace madness {
         Function(const Function<T,NDIM>& f)
             : impl(f.impl)
         {
-            PROFILE_MEMBER_FUNC(Function);
-		}
+        }
 
 
         /// Assignment is \em shallow.  No communication, works in either basis.
