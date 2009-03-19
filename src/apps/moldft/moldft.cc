@@ -97,7 +97,8 @@ typedef Vector<double,3> coordT;
 typedef SharedPtr< FunctionFunctorInterface<double,3> > functorT;
 typedef Function<double,3> functionT;
 typedef vector<functionT> vecfuncT;
-// typedef vector< pair<vecfuncT,vecfuncT> > subspaceT;
+typedef pair<vecfuncT,vecfuncT> pairvecfuncT;
+typedef vector<pairvecfuncT> subspaceT;
 typedef Tensor<double> tensorT;
 typedef FunctionFactory<double,3> factoryT;
 typedef SeparatedConvolution<double,3> operatorT;
@@ -231,7 +232,7 @@ public:
 };
 
 
-/// Given overlap matrix, return 2nd-order accurate rotation to orthonormalize the vectors
+/// Given overlap matrix, return rotation with 3rd order error to orthonormalize the vectors
 tensorT Q3(const tensorT& s) {
     tensorT Q = inner(s,s);
     Q.gaxpy(0.2,s,-2.0/3.0);
@@ -239,6 +240,7 @@ tensorT Q3(const tensorT& s) {
     return Q.scale(15.0/8.0);
 }
 
+/// Computes matrix square root (not used any more?)
 tensorT sqrt(const tensorT& s, double tol=1e-8) {
     int n=s.dim[0], m=s.dim[1];
     MADNESS_ASSERT(n==m);
@@ -260,23 +262,6 @@ tensorT sqrt(const tensorT& s, double tol=1e-8) {
             c(j,i) *= e(i);
         }
     }
-    return c;
-}
-
-// /// Given the overlap matrix return the transformation to an orthonormal basis using Cholesky
-// tensorT cholesky_orthog(const tensorT& s) {
-
-    
-
-// }
-
-tensorT energy_weighted_orthog(const tensorT& s, const tensorT eps) {
-    int n=s.dim[0], m=s.dim[1];
-    MADNESS_ASSERT(n==m);
-    tensorT d(n,n);
-    for (int i=0; i<n; i++) d(i,i) = eps(i);
-    tensorT c, e;
-    sygv(d, s, 1, &c, &e);
     return c;
 }
 
@@ -1215,9 +1200,6 @@ struct Calculation {
     {
         int nmo = psi.size();
 
-//         static subspaceT subspace;
-//         tensorT Q(10,10);
-
         // Compute energy shifts
         tensorT eps(nmo);
         for (int i=0; i<nmo; i++) {
@@ -1256,18 +1238,6 @@ struct Calculation {
 
         vecfuncT r = sub(world, psi, new_psi); // residuals
         vector<double> rnorm = norm2(world, r);
-
-//         subspace.push_back(make_pair(psi, r));
-//         int nsub = subspace.size();
-//         for (int j=0; j<nsub; j++) {
-//             const vecfuncT& psij = subspace[j].first;
-//             const vecfuncT&   rj = subspace[j].second;
-//             Q(nsub-1,j) = inner(world, psi , rj).sum();
-//             Q(j,nsub-1) = inner(world, psij, r ).sum();
-//         }
-//         print("Q\n",Q(Slice(0,nsub-1),Slice(0,nsub-1)));
-//         tensorT c = KAIN(Q(Slice(0,nsub-1),Slice(0,nsub-1)));
-//         print("c",c);
 
         normalize(world, new_psi);
 
@@ -1399,6 +1369,50 @@ struct Calculation {
         world.gop.fence();
     }
 
+    /// Append a new vector to the subspace updating the overlap matrix
+
+    /// It is assumed that ownership of mo is being passed to the subspace.
+    /// I.e., only a shallow copy is taken to save memory ... if you subsequently
+    /// modify functions in mo you will mess up the subspace.
+    void add_to_subspace(World& world, const vecfuncT& amo, const vecfuncT& bmo, 
+                         size_t maxsub, subspaceT& subspace, tensorT& O) {
+        compress(world, amo);
+        compress(world, bmo);
+        subspace.push_back(pairvecfuncT(amo,bmo));
+
+        int m = subspace.size();
+
+        tensorT tmp(m);
+        for (int s=0; s<m; s++) {
+            const vecfuncT& as = subspace[s].first;
+            const vecfuncT& bs = subspace[s].second;
+
+            for (unsigned int i=0; i<amo.size(); i++) 
+                tmp[s] += as[i].inner_local(amo[i]);
+
+            for (unsigned int i=0; i<bmo.size(); i++) 
+                tmp[s] += bs[i].inner_local(bmo[i]);
+        }
+        world.gop.fence();
+        world.gop.sum(tmp.ptr(),m);
+
+        print("tmp before", tmp);
+        for (int s=0; s<m; s++) tmp[s] -= 1.0*(amo.size()+bmo.size());
+        print("tmp after", tmp);
+
+        tensorT newO(m,m);
+        if (m > 1) newO(Slice(0,-2),Slice(0,-2)) = O;
+        newO(m-1,_) = tmp;
+        newO(_,m-1) = tmp;
+
+        if (m > 1) print("INPUT O\n",O);
+
+        print("NEW O\n", newO);
+
+        O = newO;
+    }
+
+
     void solve(World& world) {
 
         functionT arho_old, brho_old;
@@ -1408,19 +1422,28 @@ struct Calculation {
         double trantol = vtol/min(30.0,double(amo.size()));
         double tolloc = 1e-3; ///max(param.nalpha,param.nbeta);
 
+        subspaceT subspace;
+        tensorT O;
+
         for (int iter=0; iter<param.maxiter; iter++) {
             if (world.rank()==0) printf("\nIteration %d at time %.1fs\n\n", iter, wall_time());
 
-            if (localize) {
+            bool do_this_iter = ((iter%5)==0);
+            if (localize && do_this_iter) {
                 tensorT U = localize_boys(world, amo, tolloc, 0.25, iter==0);
                 amo = transform(world, amo, U, trantol);
                 truncate(world, amo);
+                normalize(world,amo);
                 if (!param.spin_restricted && param.nbeta) {
                     U = localize_boys(world, bmo);
                     bmo = transform(world, bmo, U, trantol);
                     truncate(world, bmo);
+                    normalize(world,bmo);
                 }
             }
+            
+            if (iter == 0) 
+                add_to_subspace(world, amo, bmo, 10, subspace, O);
 
             START_TIMER;
             functionT arho = make_density(world, aocc, amo);
@@ -1472,27 +1495,6 @@ struct Calculation {
             }
             END_TIMER("Apply potential");
 
-
-            /*
-              Iterating in a local, orthonormal basis
-
-              Start with localized orthonormal vectors.
-
-              a) Make density and Fock matrices
-              b) Optionally diagonalize for FON, help convergence, then apply
-                 only the parts of the rotation that mixes either within FON or
-                 between different spaces, and then relocalize.
-              c) Update using the full matrix of multipliers (unless canonical), 
-                 using sparsity to get linear scaling if localized and in case we are
-                 solving for the canonical orbitals
-              d) We should be orthogonal to first order but need exact for
-                 for best stability. Use the Choleski factorization of the overlap
-                 matrix.  V. quick and stable to compute.  Symmetric would also work.
-                 Fix phases.
-              e) Localize unit occupation space (with stable algorithm).  Fix phases.
-
-             */
-
             double ekina=0.0, ekinb=0.0;
             tensorT focka = make_fock_matrix(world, amo, Vpsia, aocc, ekina);
             tensorT fockb = focka;
@@ -1535,6 +1537,15 @@ struct Calculation {
                     break; // <<<<<<<<<<<<< Successful termination of iteration
                 }
             }
+
+            add_to_subspace(world, amo, bmo, 10, subspace, O);
+
+            // Apply KAIN update (pretty much same as DIIS for fixed point)
+            
+            
+            
+            
+
         }
         if (world.rank() == 0) print("Analysis of alpha MO vectors");
         analyze_vectors(world, amo, aocc, aeps);
@@ -1558,18 +1569,7 @@ struct Calculation {
                 print(i, dv[i*3+0], dv[i*3+1], dv[i*3+2]);
             }
         }
-
-
-//         tensorT U = localize_maxao(world, amo);
-//         vecfuncT locmo = transform(world, amo, U);
-//         if (world.rank() == 0) print("Localized by MAXAO analysis");
-//         analyze_vectors(world, locmo);
-//         U = localize_boys(world, amo);
-//         locmo = transform(world, amo, U);
-//         if (world.rank() == 0) print("Localized by BOYS analysis");
-//         analyze_vectors(world, locmo);
     }
-
 };
 
 //#include <sched.h>
