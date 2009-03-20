@@ -14,12 +14,21 @@ namespace madness {
     /// Solves the KAIN equations for coefficients to compute the next vector
 
     /// \verbatim
+    ///   Wish to solve f(x)=0 with x and f(x) vectors 1..n
+    ///
+    ///   Define (with i,j referring to the Krylov subspace and m the current iteration):
+    ///
     ///   Q(i,j) = <xi|fj>
     ///   A(i,j) = <xi-xm | fj-fm> = Q(i,j) - Q(m,j) - Q(i,m) + Q(m,m)
-    ///   b(i,j) =-<xi-xm | fm> = -Q(i,m) + Q(m,m)
+    ///     b(i) =-<xi-xm | fm> = -Q(i,m) + Q(m,m)
+    ///
+    ///   We solve the equation
+    ///
     ///   A c = b
     ///
-    ///   . Correction to vector m
+    ///   and the correction to vector m
+    ///
+    ///   . C
     ///   .   interior = sum(i<m)[ c(i)*(x(i)-x(m)) ] = sum(i<m)[c(i)*x(i)] - x[m]*sum(i<m)[c(i)]
     ///   .   exterior = -f(m) - sum(i<m)[ c(i)*(f(i)-f(m)) ] = -f(m) - sum(i<m)[c(i)*f(i)] + f(m)*sum(i<m)[c(i)]
     ///   . New vector
