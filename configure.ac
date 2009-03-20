@@ -204,7 +204,7 @@ AC_DEFINE_UNQUOTED([MADNESS_CONFIGURATION_HOST], ["$HOSTNAME"],[Configured on th
 AC_DEFINE([WORLD_WATCHDOG],[1],[Enables timeout for dead lock detection])
 AC_DEFINE([WATCHDOG_BARK_INTERVAL],[300],[Interval for warning about possible deadlock])
 AC_DEFINE([WATCHDOG_TIMEOUT],[1200],[Abort if idle for this long])
-AC_DEFINE([TENSOR_INSTANCE_COUNT],[1],[Enable counting of allocated tensors ... useful for memory leak detection])
+#AC_DEFINE([TENSOR_INSTANCE_COUNT],[1],[Enable counting of allocated tensors ... useful for memory leak detection])
 #AC_DEFINE([BOUNDS_CHECKING],[1],[Enable checking of bounds in tensors ... slow but useful for debugging])
 AC_DEFINE(MADNESS_FORINT,[long],[Equivalent C type for Fortran integers ... should always be long?])
 
