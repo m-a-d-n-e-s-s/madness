@@ -542,7 +542,6 @@ namespace madness {
 
         /// Run next task ... returns true if one was run ... blocks if wait is true
         bool run_task(bool wait) {
-	    PROFILE_MEMBER_FUNC(ThreadPool);
             if (!wait && queue.empty()) return false;
             std::pair<PoolTaskInterface*,bool> t = queue.pop_front(wait);
             if (t.second) {
@@ -554,6 +553,7 @@ namespace madness {
         }
 
         void thread_main(Thread* thread) {
+	    PROFILE_MEMBER_FUNC(ThreadPool);
             thread->set_affinity(2, thread->get_pool_thread_index());
 
 #define MULTITASK
