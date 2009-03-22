@@ -225,6 +225,7 @@ namespace madness {
         Tensor< TENSOR_RESULT_TYPE(T,R) > r(n,m);
         if (sym) MADNESS_ASSERT(n==m);
 
+        world.gop.fence();   //// ?????????????????????? WHY ?  compress_spawn intermittent failure
         compress(world, f);
         compress(world, g);
 
