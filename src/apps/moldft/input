@@ -3,7 +3,6 @@ dft
   nvalpha 0
   nvbeta 0
   dconv 1e-5
-  hf
 end
 
 geometry

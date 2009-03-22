@@ -72,6 +72,45 @@ void drot(long n, double* restrict a, double* restrict b, double s, double c, lo
     }
 }
 
+
+void drot3(long n, double* restrict a, double* restrict b, double s, double c, long inc) {
+    if (inc == 1) {
+        n*=3;
+        for (long i=0; i<n; i+=3) {
+            double aa0 = a[i  ]*c - b[i  ]*s;
+            double bb0 = b[i  ]*c + a[i  ]*s;
+            double aa1 = a[i+1]*c - b[i+1]*s;
+            double bb1 = b[i+1]*c + a[i+1]*s;
+            double aa2 = a[i+2]*c - b[i+2]*s;
+            double bb2 = b[i+2]*c + a[i+2]*s;
+            a[i  ] = aa0;
+            b[i  ] = bb0;
+            a[i+1] = aa1;
+            b[i+1] = bb1;
+            a[i+2] = aa2;
+            b[i+2] = bb2;
+        }
+    }
+    else {
+        inc*=3;
+        n*=inc;
+        for (long i=0; i<n; i+=inc) {
+            double aa0 = a[i  ]*c - b[i  ]*s;
+            double bb0 = b[i  ]*c + a[i  ]*s;
+            double aa1 = a[i+1]*c - b[i+1]*s;
+            double bb1 = b[i+1]*c + a[i+1]*s;
+            double aa2 = a[i+2]*c - b[i+2]*s;
+            double bb2 = b[i+2]*c + a[i+2]*s;
+            a[i  ] = aa0;
+            b[i  ] = bb0;
+            a[i+1] = aa1;
+            b[i+1] = bb1;
+            a[i+2] = aa2;
+            b[i+2] = bb2;
+        }
+    }
+}
+
 class LevelPmap : public WorldDCPmapInterface< Key<3> > {
 private:
     const int nproc;
@@ -735,15 +774,15 @@ struct Calculation {
                           const bool randomize=true) {
         START_TIMER;
         const bool doprint=false;
-#define DIP(i,j,k,l) (dip(0,i,j)*dip(0,k,l)+dip(1,i,j)*dip(1,k,l)+dip(2,i,j)*dip(2,k,l))
+#define DIP(i,j,k,l) (dip(i,j,0)*dip(k,l,0)+dip(i,j,1)*dip(k,l,1)+dip(i,j,2)*dip(k,l,2))
         // Form the dipole moment matrices
 
         long nmo = mo.size();
-        tensorT dip(3, nmo, nmo);
+        tensorT dip(nmo, nmo, 3);
 
         for (int axis=0; axis<3; axis++) {
             functionT fdip = factoryT(world).functor(functorT(new DipoleFunctor(axis))).initial_level(4);
-            dip(axis,_,_) = matrix_inner(world, mo, mul_sparse(world, fdip, mo, vtol), true);
+            dip(_,_,axis) = matrix_inner(world, mo, mul_sparse(world, fdip, mo, vtol), true);
         }
 
         tensorT U(nmo,nmo);
@@ -804,13 +843,8 @@ struct Calculation {
 
                             double c = cos(theta);
                             double s = sin(theta);
-                            for (int axis=0; axis<3; axis++) {
-                                drot(nmo, &dip(axis,i,0), &dip(axis,j,0), s, c, 1);
-                                // This next line is the expensive one due to the non-unit stride.
-                                // It can be eliminated at the expense of adding more unit
-                                // stride work when computing the integrals above (inside DIP).
-                                drot(nmo, &dip(axis,0,i), &dip(axis,0,j), s, c, nmo);
-                            }
+                            drot3(nmo, &dip(i,0,0), &dip(j,0,0), s, c, 1);
+                            drot3(nmo, &dip(0,i,0), &dip(0,j,0), s, c, nmo);
                             drot(nmo, &U(i,0), &U(j,0), s, c, 1);
                         }
                     }
@@ -1442,8 +1476,8 @@ struct Calculation {
                 }
             }
             
-            if (iter == 0) 
-                add_to_subspace(world, amo, bmo, 10, subspace, O);
+//             if (iter == 0) 
+//                 add_to_subspace(world, amo, bmo, 10, subspace, O);
 
             START_TIMER;
             functionT arho = make_density(world, aocc, amo);
@@ -1538,7 +1572,7 @@ struct Calculation {
                 }
             }
 
-            add_to_subspace(world, amo, bmo, 10, subspace, O);
+//             add_to_subspace(world, amo, bmo, 10, subspace, O);
 
             // Apply KAIN update (pretty much same as DIIS for fixed point)
             
