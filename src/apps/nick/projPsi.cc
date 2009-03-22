@@ -142,9 +142,7 @@ complexd zdipole( const vector3D& r) {
 /*****************************************************************
  * Dipole matrix elements available for perturbation calculations
  *****************************************************************/
-void projectZdip(World& world) {
-    std::vector<WF> stateList;    
-    loadBasis(world, stateList);
+void projectZdip(World& world, std::vector<WF> stateList) {
     complex_functionT z = complex_factoryT(world).f(zdipole);
     complexd output;
     PRINT("\t\t");
@@ -163,22 +161,28 @@ void projectZdip(World& world) {
         PRINT("\n");
     }
     PRINTLINE("End of Job");
+    world.gop.fence();
+    if (world.rank() == 0) {
+        world.am.print_stats();
+        world.taskq.print_stats();
+        world_mem_info()->print();
+    }
+    WorldProfile::print(world);
 }
+
 /****************************************************************************
- * The correlation amplitude <Psi(+)|basis>   
+ * The correlation amplitude |<Psi(+)|basis>|^2
  * wf.num                  Integer time step of the Psi(+) to be loaded
  * bound.num               Integer triplets of quantum numbers   2  1  0 
  * unbound.num             Double triplets of momentum kx ky kz  0  0  0.5
  ****************************************************************************/
-void projectPsi(World& world) {
-    std::vector<WF> stateList;    
+void projectPsi(World& world, std::vector<WF> basisList) {
     std::vector<WF> psiList;
-    loadBasis(world, stateList);
     ifstream f("wf.num");
     if(f.is_open()) {
         string tag;
+        //LOAD Psi(+)
         while(f >> tag) {
-            //LOAD Psi(+)
             if(wave_function_exists(world, atoi(tag.c_str())) ) {
                 psiList.push_back(WF(tag, wave_function_load(world, atoi(tag.c_str()))));
             } else {
@@ -192,16 +196,18 @@ void projectPsi(World& world) {
         complexd output;
         std::vector<WF>::iterator basisI;
         std::vector<WF>::iterator psiPlusI;
+        //Display table header
         PRINT("\t\t");
-        for(psiPlusI=stateList.begin(); psiPlusI != stateList.end(); psiPlusI++) {
+        for(psiPlusI=psiList.begin(); psiPlusI != psiList.end(); psiPlusI++) {
             PRINT("|" << psiPlusI->str << ">\t\t");
         }
+        //Display table row
         PRINT("\n");
-        for(basisI = stateList.begin(); basisI !=stateList.end(); basisI++ ) {
+        for(basisI = basisList.begin(); basisI !=basisList.end(); basisI++ ) {
             PRINT("<" << basisI->str << "|" );
-            for(psiPlusI = stateList.begin(); psiPlusI != stateList.end(); psiPlusI++) {
+            for(psiPlusI = psiList.begin(); psiPlusI != psiList.end(); psiPlusI++) {
                 output = psiPlusI->func.inner(basisI->func); 
-                PRINT("\t" << output*conj(output));
+                PRINT("\t" << real(output*conj(output)));
             }
             PRINT("\n");
         }
@@ -209,7 +215,15 @@ void projectPsi(World& world) {
         PRINTLINE("File: wf.num expected to contain a " 
                   << "list of integers of loadable wave functions");
     }
+    world.gop.fence();
+    if (world.rank() == 0) {
+        world.am.print_stats();
+        world.taskq.print_stats();
+        world_mem_info()->print();
+    }
+    WorldProfile::print(world);
 }
+
 /*************************************************
  * If you're curious about a wave function's value
  *************************************************/
@@ -223,17 +237,16 @@ void printBasis(World& world) {
     vector3D kVec(dARR);
     ScatteringWF unb(1.0, kVec);
     double PHI = 0.1;
-    double r = 1;
     PRINTLINE(fixed << "\nrVec \t\t\t|1s> \t\t|2p> \t\t|0 0 0.5>");
-    //    for(double r=0; r<rMAX; r+=1.0 ) {
+    double r = 1;
     for(double TH=0; TH<3.14; TH+=0.3 ) {
+    //    for(double r=0; r<rMAX; r+=1.0 ) {
         cosTH = std::cos(TH);
         sinTH = std::sin(TH);
         cosPHI = std::cos(PHI);
         sinPHI = std::sin(PHI);
-        cout << fixed;
         double dARR[3] = {r*sinTH*cosPHI, r*sinTH*sinPHI, r*cosTH};
-        PRINT(dARR<<"\t"<< scientific);
+        PRINT(dARR<<"\t");
         vector3D rVec(dARR);
         output = b1s(rVec);
         PRINT(real(output) << "\t");
@@ -245,6 +258,7 @@ void printBasis(World& world) {
     }
     //    system("sed -i '' -e's/\\+/, /' -e's/j//' f11.out");
 }
+
 /****************************************************************************
  * Reproduces atomic form integrals given by Dz Belkic's analytic expression
  ****************************************************************************/
@@ -288,10 +302,13 @@ int main(int argc, char**argv) {
     FunctionDefaults<NDIM>::set_refine(false);
     FunctionDefaults<NDIM>::set_truncate_mode(1);
     try {
+        std::vector<WF> basisList;    
+        loadBasis(world,basisList);
         //printBasis(world);
-        belkic(world);
-        //projectZdip(world);
-        //projectPsi(world);
+        //belkic(world);
+        projectZdip(world, basisList);
+        PRINT("\n");
+        projectPsi(world, basisList);
     } catch (const MPI::Exception& e) {
         //print(e);
         error("caught an MPI exception");
