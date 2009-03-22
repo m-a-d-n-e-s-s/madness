@@ -108,10 +108,14 @@ void loadBasis(World& world, std::vector<WF>& stateList) {
                 bound >> l;
                 bound >> m;
                 nlm << n << l << m;
-                PRINTLINE(nlm.str());
+                double start = wall_time();
+                PRINT(nlm.str());
+                
                 stateList.push_back(WF(nlm.str()+"\t",
                                        FunctionFactory<complexd,NDIM>(world).
                                        functor(functorT(new BoundWF(Z,n,l,m)))));
+                double used = wall_time() - start;
+                PRINTLINE("\t" << used - start << " sec");
                 nlm.str("");
             }
             bound.close();
@@ -160,14 +164,6 @@ void projectZdip(World& world, std::vector<WF> stateList) {
         }
         PRINT("\n");
     }
-    PRINTLINE("End of Job");
-    world.gop.fence();
-    if (world.rank() == 0) {
-        world.am.print_stats();
-        world.taskq.print_stats();
-        world_mem_info()->print();
-    }
-    WorldProfile::print(world);
 }
 
 /****************************************************************************
@@ -215,13 +211,6 @@ void projectPsi(World& world, std::vector<WF> basisList) {
         PRINTLINE("File: wf.num expected to contain a " 
                   << "list of integers of loadable wave functions");
     }
-    world.gop.fence();
-    if (world.rank() == 0) {
-        world.am.print_stats();
-        world.taskq.print_stats();
-        world_mem_info()->print();
-    }
-    WorldProfile::print(world);
 }
 
 /*************************************************
@@ -309,6 +298,13 @@ int main(int argc, char**argv) {
         projectZdip(world, basisList);
         PRINT("\n");
         projectPsi(world, basisList);
+        world.gop.fence();
+        if (world.rank() == 0) {
+            world.am.print_stats();
+            world.taskq.print_stats();
+            world_mem_info()->print();
+        }
+        WorldProfile::print(world);
     } catch (const MPI::Exception& e) {
         //print(e);
         error("caught an MPI exception");
