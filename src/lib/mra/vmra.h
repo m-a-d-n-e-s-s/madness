@@ -15,6 +15,7 @@ namespace madness {
     void compress(World& world,
                   const std::vector< Function<T,NDIM> >& v,
                   bool fence=true) {
+        PROFILE_BLOCK(Vcompress);
         bool must_fence = false;
         for (unsigned int i=0; i<v.size(); i++) {
             if (!v[i].is_compressed()) {
@@ -32,6 +33,7 @@ namespace madness {
     void reconstruct(World& world,
                      const std::vector< Function<T,NDIM> >& v,
                      bool fence=true) {
+        PROFILE_BLOCK(Vreconstruct);
         bool must_fence = false;
         for (unsigned int i=0; i<v.size(); i++) {
             if (v[i].is_compressed()) {
@@ -49,6 +51,7 @@ namespace madness {
     void nonstandard(World& world,
                      std::vector< Function<T,NDIM> >& v,
                      bool fence=true) {
+        PROFILE_BLOCK(Vnonstandard);
         reconstruct(world, v);
         for (unsigned int i=0; i<v.size(); i++) {
             v[i].nonstandard(false,false);
@@ -62,6 +65,7 @@ namespace madness {
     void standard(World& world,
                      std::vector< Function<T,NDIM> >& v,
                      bool fence=true) {
+        PROFILE_BLOCK(Vstandard);
         for (unsigned int i=0; i<v.size(); i++) {
             v[i].standard(false);
         }
@@ -75,6 +79,7 @@ namespace madness {
                   std::vector< Function<T,NDIM> >& v,
                   double tol=0.0,
                   bool fence=true) {
+        PROFILE_BLOCK(Vtruncate);
 
         compress(world, v);
 
@@ -92,6 +97,7 @@ namespace madness {
                                          const std::vector< Function<T,NDIM> >& v,
                                          int axis,
                                          bool fence=true) {
+        PROFILE_BLOCK(Vdiff);
         reconstruct(world, v);
 
         std::vector< Function<T,NDIM> > df(v.size());
@@ -106,6 +112,7 @@ namespace madness {
     template <typename T, int NDIM>
     std::vector< Function<T,NDIM> >
     zero_functions(World& world, int n) {
+        PROFILE_BLOCK(Vzero_functions);
         std::vector< Function<T,NDIM> > r(n);
         for (int i=0; i<n; i++)
             r[i] = Function<T,NDIM>(FunctionFactory<T,NDIM>(world));
@@ -125,6 +132,7 @@ namespace madness {
               const Tensor<R>& c,
               bool fence=true) {
 
+        PROFILE_BLOCK(Vtransformsp);
         typedef TENSOR_RESULT_TYPE(T,R) resultT;
         int n = v.size();  // n is the old dimension
         int m = c.dim[1];  // m is the new dimension
@@ -147,6 +155,7 @@ namespace madness {
     template <typename L, typename R, int NDIM>
     std::vector< Function<TENSOR_RESULT_TYPE(L,R),NDIM> >
     transform(World& world,  const std::vector< Function<L,NDIM> >& v, const Tensor<R>& c, double tol, bool fence=true) {
+        PROFILE_BLOCK(Vtransform);
         MADNESS_ASSERT(v.size() == (unsigned int)(c.dim[0]));
         std::vector< Function<TENSOR_RESULT_TYPE(L,R),NDIM> > vresult(c.dim[1]);
         world.gop.fence();
@@ -167,6 +176,7 @@ namespace madness {
                std::vector< Function<T,NDIM> >& v,
                const std::vector<double>& factors,
                bool fence=true) {
+        PROFILE_BLOCK(Vscale);
         for (unsigned int i=0; i<v.size(); i++) v[i].scale(factors[i],false);
         if (fence) world.gop.fence();
     }
@@ -176,6 +186,7 @@ namespace madness {
     template <typename T, int NDIM>
     std::vector<double> norm2(World& world,
                               const std::vector< Function<T,NDIM> >& v) {
+        PROFILE_BLOCK(Vnorm2);
         std::vector<double> norms(v.size());
         for (unsigned int i=0; i<v.size(); i++) norms[i] = v[i].norm2sq_local();
         world.gop.sum(&norms[0], norms.size());
@@ -221,6 +232,7 @@ namespace madness {
                                                    const std::vector< Function<T,NDIM> >& f,
                                                    const std::vector< Function<R,NDIM> >& g,
                                                    bool sym=false) {
+        PROFILE_BLOCK(Vmatrix_inner);
         long n=f.size(), m=g.size();
         Tensor< TENSOR_RESULT_TYPE(T,R) > r(n,m);
         if (sym) MADNESS_ASSERT(n==m);
@@ -228,6 +240,7 @@ namespace madness {
         world.gop.fence();   //// ?????????????????????? WHY ?  compress_spawn intermittent failure
         compress(world, f);
         compress(world, g);
+        world.gop.fence();
 
 //         for (long i=0; i<n; i++) {
 //             long jtop = m;
@@ -262,6 +275,7 @@ namespace madness {
     Tensor< TENSOR_RESULT_TYPE(T,R) > inner(World& world,
                                             const std::vector< Function<T,NDIM> >& f,
                                             const std::vector< Function<R,NDIM> >& g) {
+        PROFILE_BLOCK(Vinnervv);
         long n=f.size(), m=g.size();
         MADNESS_ASSERT(n==m);
         Tensor< TENSOR_RESULT_TYPE(T,R) > r(n);
@@ -285,6 +299,7 @@ namespace madness {
     Tensor< TENSOR_RESULT_TYPE(T,R) > inner(World& world,
                                             const Function<T,NDIM>& f,
                                             const std::vector< Function<R,NDIM> >& g) {
+        PROFILE_BLOCK(Vinner);
         long n=g.size();
         Tensor< TENSOR_RESULT_TYPE(T,R) > r(n);
 
@@ -310,6 +325,7 @@ namespace madness {
           const std::vector< Function<R,NDIM> >& v,
           bool fence=true)
     {
+        PROFILE_BLOCK(Vmul);
         a.reconstruct(false);
         reconstruct(world, v, false);
         world.gop.fence();
@@ -325,6 +341,7 @@ namespace madness {
                double tol,
                bool fence=true)
     {
+        PROFILE_BLOCK(Vmulsp);
         a.reconstruct(false);
         reconstruct(world, v, false);
         world.gop.fence();
@@ -341,6 +358,7 @@ namespace madness {
         const std::vector< Function<R,NDIM> >& b,
         bool fence=true)
     {
+        PROFILE_BLOCK(Vmulvv);
         reconstruct(world, a, false);
         if (&a != &b) reconstruct(world, b, false);
         world.gop.fence();
@@ -387,6 +405,7 @@ namespace madness {
          const std::vector< Function<T,NDIM> >& v,
          bool fence=true)
     {
+        PROFILE_BLOCK(Vconj);
         std::vector< Function<T,NDIM> > r = copy(world, v); // Currently don't have oop conj
         for (unsigned int i=0; i<v.size(); i++) {
             r[i].conj(false);
@@ -403,6 +422,7 @@ namespace madness {
          const std::vector< Function<T,NDIM> >& v,
          bool fence=true)
     {
+        PROFILE_BLOCK(Vcopy);
         std::vector< Function<T,NDIM> > r(v.size());
         for (unsigned int i=0; i<v.size(); i++) {
             r[i] = copy(v[i], false);
@@ -419,6 +439,7 @@ namespace madness {
         const std::vector< Function<R,NDIM> >& b,
         bool fence=true)
     {
+        PROFILE_BLOCK(Vadd);
         MADNESS_ASSERT(a.size() == b.size());
         compress(world, a);
         compress(world, b);
@@ -440,6 +461,7 @@ namespace madness {
         const std::vector< Function<R,NDIM> >& b,
         bool fence=true)
     {
+        PROFILE_BLOCK(Vsub);
         MADNESS_ASSERT(a.size() == b.size());
         compress(world, a);
         compress(world, b);
@@ -462,6 +484,7 @@ namespace madness {
                const std::vector< Function<R,NDIM> >& b,
                bool fence=true)
     {
+        PROFILE_BLOCK(Vgaxpy);
         MADNESS_ASSERT(a.size() == b.size());
         compress(world, a);
         compress(world, b);
@@ -480,6 +503,7 @@ namespace madness {
           const std::vector< SharedPtr<opT> >& op,
           const std::vector< Function<R,NDIM> > f) {
 
+        PROFILE_BLOCK(Vapplyv);
         MADNESS_ASSERT(f.size()==op.size());
 
         std::vector< Function<R,NDIM> >& ncf = *const_cast< std::vector< Function<R,NDIM> >* >(&f);
@@ -508,6 +532,7 @@ namespace madness {
     apply(World& world,
           opT& op,
           const std::vector< Function<R,NDIM> > f) {
+        PROFILE_BLOCK(Vapply);
 
         std::vector< Function<R,NDIM> >& ncf = *const_cast< std::vector< Function<R,NDIM> >* >(&f);
 
@@ -530,6 +555,7 @@ namespace madness {
     /// Normalizes a vector of functions --- v[i] = v[i].scale(1.0/v[i].norm2())
     template <typename T, int NDIM>
     void normalize(World& world, vector< Function<T,NDIM> >& v, bool fence=true) {
+        PROFILE_BLOCK(Vnormalize);
         vector<double> nn = norm2(world, v);
         for (unsigned int i=0; i<v.size(); i++) v[i].scale(1.0/nn[i],false);
         if (fence) world.gop.fence();

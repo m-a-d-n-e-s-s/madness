@@ -552,28 +552,32 @@ namespace madness {
             return t.second;
         }
 
+        bool run_tasks(bool wait) {
+            static const int nmax=100;
+            PoolTaskInterface* taskbuf[nmax];
+            int ntask = queue.pop_front(nmax, taskbuf, wait);
+            for (int i=0; i<ntask; i++) {
+                PROFILE_BLOCK(working);
+                taskbuf[i]->run();
+                delete taskbuf[i];
+            }
+            return (ntask>0);
+        }
+
         void thread_main(Thread* thread) {
 	    PROFILE_MEMBER_FUNC(ThreadPool);
             thread->set_affinity(2, thread->get_pool_thread_index());
 
 #define MULTITASK
 #ifdef  MULTITASK
-            static const int nmax=10;
-            PoolTaskInterface* taskbuf[nmax];
             while (!finish) {
-                int ntask = queue.pop_front(nmax, taskbuf, true);
-                for (int i=0; i<ntask; i++) {
-                    PROFILE_BLOCK(working);
-                    taskbuf[i]->run();
-                    delete taskbuf[i];
-                }
+                run_tasks(true);
             }
 #else
             while (!finish) {
                 run_task(true);
             }
 #endif
-
             MADATOMIC_INT_INC(&nfinished);
         }
 
@@ -632,7 +636,7 @@ namespace madness {
 
         /// Returns true if one was run
         static bool run_task() {
-            return instance()->run_task(false);
+            return instance()->run_tasks(false);
         }
 
         /// Returns number of threads in the pool
