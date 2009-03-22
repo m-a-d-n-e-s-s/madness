@@ -15,9 +15,9 @@ namespace SafeMPI {
 
 #ifdef SERIALIZE_MPI
     extern madness::SCALABLE_MUTEX_TYPE charon;      // Inside safempi.cc
-#define GLOBAL_MUTEX madness::ScopedMutex<madness::SCALABLE_MUTEX_TYPE> obolus(charon)
+#define SAFE_MPI_GLOBAL_MUTEX madness::ScopedMutex<madness::SCALABLE_MUTEX_TYPE> obolus(SafeMPI::charon)
 #else
-#define GLOBAL_MUTEX
+#define SAFE_MPI_GLOBAL_MUTEX
 #endif
 
     /// tags in [1,999] ... allocated once by unique_reserved_tag
@@ -41,17 +41,21 @@ namespace SafeMPI {
         Request(const MPI::Request& request) : MPI::Request(request) {}
 
         bool Test() {
-            GLOBAL_MUTEX;
+            SAFE_MPI_GLOBAL_MUTEX;
+            return MPI::Request::Test();
+        }
+
+        bool Test_got_lock_already() {
             return MPI::Request::Test();
         }
 
         static int Testsome(int n, SafeMPI::Request* request, int* ind, MPI::Status* status) {
-            GLOBAL_MUTEX;
+            SAFE_MPI_GLOBAL_MUTEX;
             return MPI::Request::Testsome(n, static_cast<MPI::Request*>(request), ind, status);
         }
 
         static int Testsome(int n, MPI::Request* request, int* ind, MPI::Status* status) {
-            GLOBAL_MUTEX;
+            SAFE_MPI_GLOBAL_MUTEX;
             return MPI::Request::Testsome(n, request, ind, status);
         }
 
@@ -66,7 +70,7 @@ namespace SafeMPI {
     public:
         Intracomm(MPI::Intracomm& comm) : comm(comm)
         {
-            GLOBAL_MUTEX;
+            SAFE_MPI_GLOBAL_MUTEX;
             me = comm.Get_rank();
             numproc = comm.Get_size();
         }
@@ -84,46 +88,46 @@ namespace SafeMPI {
         }
 
         ::SafeMPI::Request Isend(const void* buf, size_t count, const MPI::Datatype& datatype, int dest, int tag) const {
-            GLOBAL_MUTEX;
+            SAFE_MPI_GLOBAL_MUTEX;
             return comm.Isend(buf,count,datatype,dest,tag);
         }
 
         ::SafeMPI::Request Irecv(void* buf, size_t count, const MPI::Datatype& datatype, int src, int tag) const {
-            GLOBAL_MUTEX;
+            SAFE_MPI_GLOBAL_MUTEX;
             return comm.Irecv(buf, count, datatype, src, tag);
         }
 
         void Send(const void* buf, size_t count, const MPI::Datatype& datatype, int dest, int tag) const {
-            GLOBAL_MUTEX;
+            SAFE_MPI_GLOBAL_MUTEX;
             comm.Send(buf,count,datatype,dest,tag);
         }
 
         void Recv(void* buf, int count, const MPI::Datatype& datatype, int source, int tag, MPI::Status& status) const {
-            GLOBAL_MUTEX;
+            SAFE_MPI_GLOBAL_MUTEX;
             comm.Recv(buf,count,datatype,source,tag,status);
         }
 
         void Recv(void* buf, int count, const MPI::Datatype& datatype, int source, int tag) const {
-            GLOBAL_MUTEX;
+            SAFE_MPI_GLOBAL_MUTEX;
             comm.Recv(buf,count,datatype,source,tag);
         }
 
         void Bcast(void* buf, size_t count, const MPI::Datatype& datatype, int root) const {
-            GLOBAL_MUTEX;
+            SAFE_MPI_GLOBAL_MUTEX;
             return comm.Bcast(buf, count, datatype, root);
         }
 
         void Reduce(void* sendbuf, void* recvbuf, int count, const MPI::Datatype& datatype, const MPI::Op& op, int root) const {
-            GLOBAL_MUTEX;
+            SAFE_MPI_GLOBAL_MUTEX;
             comm.Reduce(sendbuf, recvbuf, count, datatype, op, root);
         };
 
         void Allreduce(void* sendbuf, void* recvbuf, int count, const MPI::Datatype& datatype, const MPI::Op& op) const {
-            GLOBAL_MUTEX;
+            SAFE_MPI_GLOBAL_MUTEX;
             comm.Allreduce(sendbuf, recvbuf, count, datatype, op);
         };
         void Get_attr(int key, void* value) const {
-            GLOBAL_MUTEX;
+            SAFE_MPI_GLOBAL_MUTEX;
             comm.Get_attr(key, value);
         }
 
@@ -132,7 +136,7 @@ namespace SafeMPI {
         }
 
         void Barrier() const {
-            GLOBAL_MUTEX;
+            SAFE_MPI_GLOBAL_MUTEX;
             comm.Barrier();
         }
 
@@ -146,7 +150,7 @@ namespace SafeMPI {
         /// So that send and receiver agree on the tag all processes
         /// need to call this routine in the same sequence.
         static int unique_tag() {
-            GLOBAL_MUTEX;
+            SAFE_MPI_GLOBAL_MUTEX;
             static volatile int tag = 1024;
             int result = tag++;
             if (tag >= 4095) tag = 1024;
@@ -159,7 +163,7 @@ namespace SafeMPI {
         ///
         /// Tags in [1000,1023] are statically assigned.
         static int unique_reserved_tag() {
-            GLOBAL_MUTEX;
+            SAFE_MPI_GLOBAL_MUTEX;
             static volatile int tag = 1;
             int result = tag++;
             if (result >= 1000) throw "too many reserved tags in use";
@@ -283,7 +287,6 @@ namespace SafeMPI {
         }
 
     };
-#undef GLOBAL_MUTEX
 }
 
 #endif

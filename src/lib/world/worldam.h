@@ -279,10 +279,32 @@ namespace madness {
         int get_free_send_request() {
             // WE ASSUME WE ARE INSIDE A CRITICAL SECTION WHEN IN HERE
             static volatile int cur_msg = 0;
-            while (!send_req[cur_msg].Test()) {
-                cur_msg++;
-                if (cur_msg >= NSEND) cur_msg = 0;
+
+            // Separate from the RMI lock is the SafeMPI lock ... 
+            // get it once rather than every time we call Test()
+            // But note that if there is no free send buffer we
+            // have to release and then reacquire the lock in order
+            // for progress to be made (with some MPI engines?).
+            // Probably relying upon a fair mutex.
+            
+            {
+                bool foundone = false;
+                while (!foundone) {
+                    SAFE_MPI_GLOBAL_MUTEX;
+                    for (int i=0; i<NSEND; i++) {
+                        foundone = send_req[cur_msg].Test_got_lock_already();
+                        if (foundone) break;
+                        cur_msg++;
+                        if (cur_msg >= NSEND) cur_msg = 0;
+                    }
+                }
             }
+
+//             while (!send_req[cur_msg].Test()) {
+//                 cur_msg++;
+//                 if (cur_msg >= NSEND) cur_msg = 0;
+//             }
+
             free_managed_send_buf(cur_msg);
             return cur_msg;
         }
