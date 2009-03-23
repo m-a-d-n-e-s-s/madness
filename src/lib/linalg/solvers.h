@@ -68,18 +68,18 @@ namespace madness {
         Tensor<double> s;
         long rank;
         gelss(A, b, rcond, &x, &s, &rank);
-        print("singular values", s);
-        print("rank", rank);
-        print("solution", x);
+//         print("singular values", s);
+//         print("rank", rank);
+//         print("solution", x);
 
         Tensor<T> c(nvec);
         T sumC = 0.0;
         for (long i=0; i<m; i++) sumC += x(i);
         c(Slice(0,m-1)) = x;
-        print("SUMC", nvec, m, sumC);
+//         print("SUMC", nvec, m, sumC);
         c(m) = 1.0 - sumC;
 
-        print("returned C", c);
+//         print("returned C", c);
 
         return c;
     }
