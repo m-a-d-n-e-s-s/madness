@@ -551,7 +551,7 @@ void Molecule::read_file(const std::string& filename) {
 void Molecule::add_atom(double x, double y, double z, int atomic_number, double q) {
     atoms.push_back(Atom(x,y,z,atomic_number,q));
     double c = smoothing_parameter(q, eprec); // eprec is error per atom
-    printf("smoothing param %.6f\n", c);
+    //printf("smoothing param %.6f\n", c);
     rcut.push_back(1.0/c);
 }
 
