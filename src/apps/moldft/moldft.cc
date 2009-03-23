@@ -1603,7 +1603,7 @@ struct Calculation {
             update_subspace(world, Vpsia, Vpsib, focka, fockb, subspace, Q);
 
             if (iter > 0) {
-                double dconv = max(5.0*FunctionDefaults<3>::get_thresh(), param.dconv);
+                double dconv = max(FunctionDefaults<3>::get_thresh(), param.dconv);
                 if (da<dconv && db<dconv) {
                     if (world.rank()==0) {
                         print("\nConverged!\n");
@@ -1636,10 +1636,14 @@ struct Calculation {
         arho.gaxpy(1.0, brho, 1.0);
         tensorT dv = derivatives(world, arho);
         if (world.rank() == 0) {
-            print("\n Derivatives\n -----------");
+            print("\n Derivatives (a.u.)\n -----------\n");
+            print("  atom        x            y            z          dE/dx        dE/dy        dE/dz");
+            print(" ------ ------------ ------------ ------------ ------------ ------------ ------------");
             for (int i=0; i<molecule.natom(); i++) {
-                cout.precision(6);
-                print(i, dv[i*3+0], dv[i*3+1], dv[i*3+2]);
+                const Atom& atom = molecule.get_atom(i);
+                printf(" %5d %12.6f %12.6f %12.6f %12.6f %12.6f %12.6f\n",
+                       i, atom.x, atom.y, atom.z,
+                       dv[i*3+0], dv[i*3+1], dv[i*3+2]);
             }
         }
     }
