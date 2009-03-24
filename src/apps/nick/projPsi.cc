@@ -109,13 +109,12 @@ void loadBasis(World& world, std::vector<WF>& stateList) {
                 bound >> m;
                 nlm << n << l << m;
                 double start = wall_time();
-                PRINT(nlm.str());
-                
+                PRINT(nlm.str());                
                 stateList.push_back(WF(nlm.str()+"\t",
                                        FunctionFactory<complexd,NDIM>(world).
                                        functor(functorT(new BoundWF(Z,n,l,m)))));
                 double used = wall_time() - start;
-                PRINTLINE("\t" << used - start << " sec");
+                PRINTLINE("\t" << used << " sec");
                 nlm.str("");
             }
             bound.close();
@@ -128,11 +127,14 @@ void loadBasis(World& world, std::vector<WF>& stateList) {
                 unbound >> ky;
                 unbound >> kz;
                 kxyz << kx << " " << ky << " " << kz;
-                PRINTLINE(kxyz.str());
+                PRINT(kxyz.str());
+                double start = wall_time();
                 const double kvec[] = {kx, ky, kz};
                 stateList.push_back(WF(kxyz.str(),
                                        FunctionFactory<complexd,NDIM>(world).
                                        functor(functorT(new ScatteringWF(Z,kvec)))));
+                double used = wall_time() - start;
+                PRINTLINE("\t" << used << " sec");
                 kxyz.str("");
             }
             unbound.close();
@@ -153,14 +155,14 @@ void projectZdip(World& world, std::vector<WF> stateList) {
     std::vector<WF>::iterator basisI;
     std::vector<WF>::iterator basisII;
     for(basisII=stateList.begin(); basisII != stateList.end(); basisII++) {
-        PRINT("|" << basisII->str << ">\t\t");
+        PRINT("|" << basisII->str << ">\t");
     }
     PRINT("\n");
     for(basisI = stateList.begin(); basisI !=stateList.end(); basisI++ ) {
         PRINT("<" << basisI->str << "|" );
         for(basisII = stateList.begin(); basisII != stateList.end(); basisII++) {
             output = inner(basisII->func,z*basisI->func); 
-            PRINT("\t" << output*conj(output));
+            PRINT("\t" << real(output*conj(output)));
         }
         PRINT("\n");
     }
@@ -186,7 +188,6 @@ void projectPsi(World& world, std::vector<WF> basisList) {
             }
             f.close();
         }
-        PRINTLINE("testing matrix_inner_op()");
         complex_functionT z = complex_factoryT(world).f(zdipole);
         PRINTLINE("The Psi(+) are loaded");
         complexd output;
