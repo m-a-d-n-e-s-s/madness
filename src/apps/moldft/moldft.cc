@@ -1537,7 +1537,7 @@ struct Calculation {
         for (int iter=0; iter<param.maxiter; iter++) {
             if (world.rank()==0) printf("\nIteration %d at time %.1fs\n\n", iter, wall_time());
 
-            bool do_this_iter = true; //iter==0; //((iter%5)==0);
+            bool do_this_iter = iter==0; //((iter%5)==0);
             if (localize && do_this_iter) {
                 //tensorT Uao = localize_maxao(world, amo);
                 //print("UAO"); print(Uao);
@@ -1549,9 +1549,9 @@ struct Calculation {
                 amo = transform(world, amo, U, trantol);
                 truncate(world, amo);
                 normalize(world,amo);
-                print("Uboys"); print(U);
-                print("INiTiAL BOYS ORBITALS");
-                analyze_vectors(world, amo, aocc, aeps);
+                //print("Uboys"); print(U);
+                //print("INiTiAL BOYS ORBITALS");
+                //analyze_vectors(world, amo, aocc, aeps);
 
                 if (!param.spin_restricted && param.nbeta) {
                     U = localize_boys(world, bmo);
