@@ -348,6 +348,7 @@ struct CalculationParameters {
     int plotlo,plothi;          ///< Range of MOs to print (for both spins if polarized)
     bool plotdens;              ///< If true print the density at convergence
     bool plotcoul;              ///< If true plot the total coulomb potential at convergence
+    unsigned int maxsub;        ///< Size of iterative subspace ... set to 0 or 1 to disable
     // Next list inferred parameters
     int nalpha;                 ///< Number of alpha spin electrons
     int nbeta;                  ///< Number of beta  spin electrons
@@ -358,7 +359,7 @@ struct CalculationParameters {
     template <typename Archive>
     void serialize(Archive& ar) {
         ar & charge & smear & econv & dconv & L & maxrotn & nvalpha & nvbeta & nopen & maxiter & spin_restricted & lda;
-        ar & plotlo & plothi & plotdens & plotcoul;
+        ar & plotlo & plothi & plotdens & plotcoul & maxsub;
         ar & nalpha & nbeta & nmo_alpha & nmo_beta & lo;
     }
 
@@ -379,6 +380,7 @@ struct CalculationParameters {
         , plothi(-1)
         , plotdens(false)
         , plotcoul(false)
+        , maxsub(5)
         , nalpha(0)
         , nbeta(0)
         , nmo_alpha(0)
@@ -427,6 +429,10 @@ struct CalculationParameters {
                 plotdens = true;
             } else if (s == "plotcoul") {
                 plotcoul = true;
+            } else if (s == "maxsub") {
+                f >> maxsub;
+                if (maxsub <= 0) maxsub = 1;
+                if (maxsub > 20) maxsub = 20;
             } else {
                 std::cout << "moldft: unrecognized input keyword " << s << std::endl;
                 MADNESS_EXCEPTION("input error",0);
@@ -486,6 +492,7 @@ struct CalculationParameters {
         madness::print("  energy convergence ", econv);
         madness::print(" density convergence ", dconv);
         madness::print("    maximum rotation ", maxrotn);
+        madness::print(" max krylov subspace ", maxsub);
         madness::print("    calculation type ", calctype[int(lda)]);
     }
 
@@ -636,6 +643,7 @@ struct Calculation {
     /// psi_local[i] = sum(mu) psi[j] * U[j,i]
     tensorT localize_maxao(World& world, const vecfuncT& mo) {
         // Form the ao-mo overlap matrix
+        bool doprint = true;
         vecfuncT ao = project_ao_basis(world);
         tensorT S = matrix_inner(world, mo, ao);
         long nmo = mo.size();
@@ -643,12 +651,17 @@ struct Calculation {
 
         tensorT U(nmo,nmo);
 
+        bool randomize = true;
+        double thetamax = 0.25;
+
         if (world.rank() == 0) {
             for (long i=0; i<nmo; i++) U(i,i) = 1.0;
-
-            const double thresh = 1e-9; // Final convergence test
+            
+            const double thresh = 1e-6; // Final convergence test
             double tol = 0.1;           // Current test
             long ndone=0;               // Total no. of rotations performed
+            
+            bool converged = false;
             for (long iter=0; iter<100; iter++) {
                 // Compute the objective function to track convergence
                 double sum = 0.0;
@@ -658,12 +671,12 @@ struct Calculation {
                         sum += si*si*si*si;
                     }
                 }
-
-                tol *= 0.5;
-                if (tol < thresh) tol = thresh;
+                
                 long ndone_iter=0; // No. of rotations done this iteration
-                double screen = tol*sum;
-
+                double maxtheta = 0.0;
+                
+                if (doprint) 
+                    printf("iteration %ld sum=%.4f ndone=%ld tol=%.2e\n", iter, sum, ndone, tol);
                 for (long i=0; i<nmo; i++) {
                     for (long j=0; j<i; j++) {
                         double g = 0.0;
@@ -676,31 +689,38 @@ struct Calculation {
                             h += 6*si*si*sj*sj - si*si*si*si - sj*sj*sj*sj;
                             sij += si*si*sj*sj;
                         }
-
-                        double thetamax = 0.5;  // circa 30 degrees
-                        if (h == 0.0) {
-                            h = -1e-20;
-                            thetamax *= 0.5;
+                        
+                        bool doit = false;
+                        if (h >= 0.0) {
+                            doit = true;
+                            if (doprint) print("             forcing negative h", i, j, h);
+                            h = -1.0;
                         }
-                        else if (h > 0.0) {
-                            h = -h;
-                            thetamax *= 0.5;
-                        }
-
+                        
                         double theta = -g/h;
-
+                        
+                        maxtheta = max(abs(theta),maxtheta);
+                        
                         if (fabs(theta) > thetamax) {
+                            doit = true;
+                            if (doprint) print("             restricting", i, j);
                             if (g < 0) theta = -thetamax;
                             else       theta =  thetamax*0.8; // Breaking symmetry is good
                         }
-
-                        if (iter == 0 && sij > 0.01 && theta < 0.01) {
+                        
+                        bool randomized=false;
+                        if (randomize && iter == 0 && sij > thresh && fabs(theta) < tol) { //
+                            randomized=true;
+                            if (doprint) print("             randomizing", i, j);
                             theta += (RandomValue<double>() - 0.5);
                         }
 
-                        if (fabs(theta) > screen) {
+                        print("     i j g h sij theta", i, j, g, h, sij, theta);
+                        
+                        if (fabs(theta) >= tol || randomized || doit) {
                             ndone_iter++;
-
+                            if (doprint) print("     rotating", i, j, theta);
+                            
                             double c = cos(theta);
                             double s = sin(theta);
                             drot(nao, &S(i,0), &S(j,0), s, c, 1);
@@ -710,9 +730,11 @@ struct Calculation {
                 }
                 ndone += ndone_iter;
                 if (ndone_iter==0 && tol==thresh) {
-                    if (world.rank() == 0) print("Converged!", ndone);
+                    if (doprint) print("Converged!", ndone);
+                    converged = true;
                     break;
                 }
+                tol = max(0.1*maxtheta,thresh);
             }
             U = transpose(U);
         }
@@ -1386,9 +1408,8 @@ struct Calculation {
                          subspaceT& subspace, 
                          tensorT& Q) {
 
-        const size_t maxsub = 5;
-        if (subspace.size() == maxsub) {
-            if (world.rank() == 0) print("Truncating subspace to", maxsub-1);
+        if (subspace.size() == param.maxsub) {
+            if (world.rank() == 0) print("Truncating subspace to", param.maxsub-1);
             subspace.erase(subspace.begin());
             Q = Q(Slice(1,-1),Slice(1,-1));
         }
@@ -1454,6 +1475,9 @@ struct Calculation {
         }
         world.gop.fence();
 
+        // Clear subspace if it is not being used
+        if (param.maxsub <= 1) subspace.clear();
+
         // Form step sizes
         vector<double> anorm = norm2(world, sub(world, amo, amo_new));
         vector<double> bnorm = norm2(world, sub(world, bmo, bmo_new));
@@ -1486,7 +1510,7 @@ struct Calculation {
         normalize(world, amo_new);
         amo_new = transform(world, amo_new, Q3(matrix_inner(world, amo_new, amo_new)), trantol);
         truncate(world, amo_new);
-        normalize(world, bmo_new);
+        normalize(world, amo_new);
         if (param.nbeta && !param.spin_restricted) {
             normalize(world, bmo_new);
             bmo_new = transform(world, bmo_new, Q3(matrix_inner(world, bmo_new, bmo_new)), trantol);
@@ -1505,7 +1529,7 @@ struct Calculation {
 
         bool localize = true;
         double trantol = vtol/min(30.0,double(amo.size()));
-        double tolloc = 1e-3; ///max(param.nalpha,param.nbeta);
+        double tolloc = 1e-5; ///max(param.nalpha,param.nbeta);
 
         subspaceT subspace;
         tensorT Q;
@@ -1513,12 +1537,22 @@ struct Calculation {
         for (int iter=0; iter<param.maxiter; iter++) {
             if (world.rank()==0) printf("\nIteration %d at time %.1fs\n\n", iter, wall_time());
 
-            bool do_this_iter = iter==0; //((iter%5)==0);
+            bool do_this_iter = true; //iter==0; //((iter%5)==0);
             if (localize && do_this_iter) {
+                //tensorT Uao = localize_maxao(world, amo);
+                //print("UAO"); print(Uao);
+                //vecfuncT fred = transform(world, amo, Uao, trantol);
+                //print("INiTiAL MAXAO ORBITALS");
+                //analyze_vectors(world, fred, aocc, aeps);
+
                 tensorT U = localize_boys(world, amo, tolloc, 0.25, iter==0);
                 amo = transform(world, amo, U, trantol);
                 truncate(world, amo);
                 normalize(world,amo);
+                print("Uboys"); print(U);
+                print("INiTiAL BOYS ORBITALS");
+                analyze_vectors(world, amo, aocc, aeps);
+
                 if (!param.spin_restricted && param.nbeta) {
                     U = localize_boys(world, bmo);
                     bmo = transform(world, bmo, U, trantol);
@@ -1598,10 +1632,6 @@ struct Calculation {
                 printf("                total %16.8f\n\n", etot);
             }
 
-            // Make the residuals ... r[i] = psi_old[i] - psi_new[i] (sign is important!)
-            // and update the subspace matrix Q[i,j] = <v[i]|r[j]>
-            update_subspace(world, Vpsia, Vpsib, focka, fockb, subspace, Q);
-
             if (iter > 0) {
                 double dconv = max(FunctionDefaults<3>::get_thresh(), param.dconv);
                 if (da<dconv && db<dconv) {
@@ -1618,6 +1648,8 @@ struct Calculation {
                     break; // <<<<<<<<<<<<< Successful termination of iteration
                 }
             }
+
+            update_subspace(world, Vpsia, Vpsib, focka, fockb, subspace, Q);
 
         }
         if (world.rank() == 0) print("Analysis of alpha MO vectors");
