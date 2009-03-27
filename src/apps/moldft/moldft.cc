@@ -1026,6 +1026,9 @@ struct Calculation {
 
         tensorT c,e;
         sygv(fock, overlap, 1, &c, &e);
+        // Ensure everyone has exactly the same eigenvectors
+        world.gop.broadcast(c.ptr(), c.size, 0);
+        world.gop.broadcast(e.ptr(), e.size, 0);
 
         if (world.rank() == 0) {
 //             print("THIS iS THE OVERLAP MATRIX");
@@ -1056,11 +1059,11 @@ struct Calculation {
         // Assign orbitals to core, valence etc. by looking for gaps 
         aset = vector<int>(param.nmo_alpha);
         aset[0] = 0;
-        print("aset ", 0, aset[0]);
+        if (world.rank() == 0) print("aset ", 0, aset[0]);
         for (int i=1; i<param.nmo_alpha; i++) {
             aset[i] = aset[i-1];
             if (aeps[i]-aeps[i-1] > 1.5 || aocc[i]!=1.0) aset[i]++;
-            print("aset ", i, aset[i]);
+            if (world.rank() == 0) print("aset ", i, aset[i]);
         }                
 
         if (param.nbeta && !param.spin_restricted) {
@@ -1300,10 +1303,10 @@ struct Calculation {
         vector<poperatorT> ops = make_bsh_operators(world, eps);
         set_thresh(world, Vpsi, FunctionDefaults<3>::get_thresh());  // <<<<< Since cannot set in apply
 
+        if (world.rank() == 0) cout << "entering apply\n";
         START_TIMER;
         vecfuncT new_psi = apply(world, ops, Vpsi);
         END_TIMER("Apply BSH");
-
         ops.clear();            // free memory
         Vpsi.clear();
         world.gop.fence();
@@ -1317,7 +1320,9 @@ struct Calculation {
         END_TIMER("Mask");
 
         vecfuncT r = sub(world, psi, new_psi); // residuals
+
         vector<double> rnorm = norm2(world, r);
+        if (world.rank() == 0) print("BSH residuals", rnorm);
 
         return r;
     }
@@ -1436,12 +1441,6 @@ struct Calculation {
                          subspaceT& subspace, 
                          tensorT& Q) {
 
-        if (subspace.size() == param.maxsub) {
-            if (world.rank() == 0) print("Truncating subspace to", param.maxsub-1);
-            subspace.erase(subspace.begin());
-            Q = Q(Slice(1,-1),Slice(1,-1));
-        }
-
         // Compute residuals
         vecfuncT vm = amo;
         vecfuncT rm = compute_residual(world, aocc, focka, amo, Vpsia);
@@ -1465,6 +1464,16 @@ struct Calculation {
             const vecfuncT& rs = subspace[s].second;
 
             for (unsigned int i=0; i<vm.size(); i++) {
+
+                double vmnorm=vm[i].norm2();
+                double vsnorm=vs[i].norm2();
+                double rsnorm=rs[i].norm2();
+                double rmnorm=rs[i].norm2();
+                double vmrs = vm[i].inner(rs[i]);
+                double vsrm = vs[i].inner(rm[i]);
+                if (world.rank() == 0)
+                    print(" gack ", s, i, vmnorm, vsnorm, rsnorm, rmnorm, vmrs, vsrm);
+                
                 ms[s] += vm[i].inner_local(rs[i]);
                 sm[s] += vs[i].inner_local(rm[i]);
             }
@@ -1472,6 +1481,10 @@ struct Calculation {
         world.gop.fence();
         world.gop.sum(ms.ptr(),m);
         world.gop.sum(sm.ptr(),m);
+
+        if (world.rank() == 0) {
+            print("ms sm", ms, sm);
+        }
 
         tensorT newQ(m,m);
         if (m > 1) newQ(Slice(0,-2),Slice(0,-2)) = Q;
@@ -1483,11 +1496,18 @@ struct Calculation {
         // Solve the subspace equations
         tensorT c = KAIN(Q);
         world.gop.broadcast_serializable(c, 0);
-        if (world.rank() == 0) print("Subspace solution", c);
+        if (world.rank() == 0) {
+            print("Subspace matrix");
+            print(Q);
+            print("Subspace solution", c);
+        }
 
         // Form linear combination for new solution
         vecfuncT amo_new = zero_functions<double,3>(world, amo.size());
         vecfuncT bmo_new = zero_functions<double,3>(world, bmo.size());
+        compress(world, amo_new, false);
+        compress(world, bmo_new, false);
+        world.gop.fence();
         for (unsigned int m=0; m<subspace.size(); m++) {
             const vecfuncT& vm = subspace[m].first;
             const vecfuncT& rm = subspace[m].second;
@@ -1503,8 +1523,16 @@ struct Calculation {
         }
         world.gop.fence();
 
-        // Clear subspace if it is not being used
-        if (param.maxsub <= 1) subspace.clear();
+        if (param.maxsub <= 1) {
+            // Clear subspace if it is not being used
+            subspace.clear();
+        }
+        else if (subspace.size() == param.maxsub) {
+            // Truncate subspace in preparation for next iteration
+            if (world.rank() == 0) print("Truncating subspace to", param.maxsub-1);
+            subspace.erase(subspace.begin());
+            Q = Q(Slice(1,-1),Slice(1,-1));
+        }
 
         // Form step sizes
         vector<double> anorm = norm2(world, sub(world, amo, amo_new));
@@ -1545,6 +1573,7 @@ struct Calculation {
             truncate(world, bmo_new);
             normalize(world, bmo_new);
         }
+
         amo = amo_new;
         bmo = bmo_new;
     }
@@ -1712,6 +1741,8 @@ int main(int argc, char** argv) {
         // Load info for MADNESS numerical routines
         startup(world,argc,argv);
         FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap(world)));
+
+    cout.precision(6);
 
         // Process 0 reads input information and broadcasts
         Calculation calc(world, "input");
