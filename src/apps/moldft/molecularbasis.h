@@ -356,7 +356,7 @@ std::ostream& operator<<(std::ostream& s, const AtomicBasisFunction& a) {
 /// Contracted Gaussian basis 
 class AtomicBasisSet {
     std::string name;
-    std::vector<AtomicBasis> ag;  // Basis associated by atomic number = 1, 2, ...; 0=Bq.
+    std::vector<AtomicBasis> ag;  //< Basis associated by atomic number = 1, 2, ...; 0=Bq.
 
     template <typename T>
     std::vector<T> load_tixml_vector(TiXmlElement* node, int n, const char* name) {
@@ -385,7 +385,7 @@ class AtomicBasisSet {
     }
 
 public:
-    AtomicBasisSet() : name("unknown"), ag(110) {}
+    AtomicBasisSet() : name("unknown"), ag(110){}
 
 
     AtomicBasisSet(std::string filename) : name(""), ag(110) {
@@ -453,7 +453,26 @@ public:
                 MADNESS_EXCEPTION("Loading atomic basis set: unexpected XML element", 0);
             }
         }
+        
     }
+
+
+    /// Makes map from atoms to first basis function on atom and number of basis functions on atom
+    void atoms_to_bfn(const Molecule& molecule, std::vector<int>& at_to_bf, std::vector<int>& at_nbf) {
+        at_to_bf = std::vector<int>(molecule.natom());
+        at_nbf   = std::vector<int>(molecule.natom());
+        
+        int n = 0;
+        for (int i=0; i<molecule.natom(); i++) {
+            const Atom& atom = molecule.get_atom(i);
+            const int atn = atom.atomic_number;
+            MADNESS_ASSERT(is_supported(atn));
+            at_to_bf[i] = n;
+            at_nbf[i] = ag[atn].nbf();
+            n += at_nbf[i];
+        }
+    }
+
 
     /// Returns the number of the atom the ibf'th basis function is on
     int basisfn_to_atom(const Molecule& molecule, int ibf) const {

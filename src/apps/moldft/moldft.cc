@@ -505,6 +505,8 @@ struct Calculation {
     functionT vnuc;               ///< The effective nuclear potential
     functionT mask;               ///< Mask to force zero value and derivative at boundary
     vecfuncT amo, bmo;            ///< alpha and beta molecular orbitals
+    vector<int> aset,bset;        ///< identifies orbitals to avoid mixing between spaces
+    vecfuncT ao;                  ///< AO basis functions
     tensorT aocc, bocc;           ///< alpha and beta occupation numbers
     tensorT aeps, beps;           ///< alpha and beta energy shifts (eigenvalues if canonical)
     poperatorT coulop;            ///< Coulomb Green function
@@ -594,15 +596,13 @@ struct Calculation {
         END_TIMER("Project vnuclear");
     }
 
-    vecfuncT project_ao_basis(World& world) {
-        vecfuncT ao(aobasis.nbf(molecule));
+    void project_ao_basis(World& world) {
+        START_TIMER;
+        ao = vecfuncT(aobasis.nbf(molecule));
 
         Level initial_level = 3;
         for (int i=0; i<aobasis.nbf(molecule); i++) {
             functorT aofunc(new AtomicBasisFunctor(aobasis.get_atomic_basis_function(molecule,i)));
-//             if (world.rank() == 0) {
-//                 aobasis.get_atomic_basis_function(molecule,i).print_me(cout);
-//             }
             ao[i] = factoryT(world).functor(aofunc).initial_level(initial_level).truncate_on_project().nofence();
         }
         world.gop.fence();
@@ -632,32 +632,53 @@ struct Calculation {
             if (world.rank() == 0 && fabs(norms[i]-1.0)>1e-3) print(i," bad ao norm?", norms[i]);
             norms[i] = 1.0/norms[i];
         }
-
+        
         scale(world, ao, norms);
 
-        return ao;
+        END_TIMER("project ao basis");
     }
 
-    /// Returns the unitary rotation matrix that localizes obitals using max-overlap with minimal AO set
+    /// Computes sum(mu,nu) C(i,mu)*S(mu,nu)*C(j,nu) for mu,nu AO bfn on atom a
+    double PM_q(const tensorT& S, const tensorT& C, int i, int j, int a, 
+              const vector<int>& at_to_bf, const vector<int>& at_nbf) {
+        const int lo = at_to_bf[a];
+        const int hi = lo + at_nbf[a];
+        double qij = 0.0;
+        for (int mu=lo; mu<hi; mu++) {
+            double Smuj = 0.0;
+            for (int nu=lo; nu<hi; nu++) {
+                Smuj += S(mu,nu)*C(j,nu);
+            }
+            qij += C(i,mu)*Smuj;
+        }
+        return qij;
+    }
+
+    /// Returns the unitary rotation matrix that localizes obitals using PM
 
     /// psi_local[i] = sum(mu) psi[j] * U[j,i]
-    tensorT localize_maxao(World& world, const vecfuncT& mo) {
+    tensorT localize_PM(World& world, 
+                        const vecfuncT& mo,
+                        const vector<int>& set,
+                        const double thresh=1e-9,
+                        const double thetamax=0.5,
+                        const bool randomize=true,
+                        const bool doprint=true) {
         // Form the ao-mo overlap matrix
-        bool doprint = true;
-        vecfuncT ao = project_ao_basis(world);
-        tensorT S = matrix_inner(world, mo, ao);
+        tensorT C = matrix_inner(world, mo, ao); // c(i,mu) = <i|mu>
+        tensorT S = matrix_inner(world, ao, ao); // s(mu,nu) = <mu|nu> ... can be optimized away
         long nmo = mo.size();
         long nao = ao.size();
+        long natom = molecule.natom();
+
+        vector<int> at_to_bf, at_nbf;
+        aobasis.atoms_to_bfn(molecule, at_to_bf, at_nbf);
 
         tensorT U(nmo,nmo);
-
-        bool randomize = true;
-        double thetamax = 0.25;
 
         if (world.rank() == 0) {
             for (long i=0; i<nmo; i++) U(i,i) = 1.0;
             
-            const double thresh = 1e-6; // Final convergence test
             double tol = 0.1;           // Current test
             long ndone=0;               // Total no. of rotations performed
             
@@ -666,9 +687,9 @@ struct Calculation {
                 // Compute the objective function to track convergence
                 double sum = 0.0;
                 for (long i=0; i<nmo; i++) {
-                    for (long mu=0; mu<nao; mu++) {
-                        double si = S(i,mu);
-                        sum += si*si*si*si;
+                    for (long a=0; a<natom; a++) {
+                        double qiia = PM_q(S, C, i, i, a, at_to_bf, at_nbf);
+                        sum += qiia*qiia;
                     }
                 }
                 
@@ -679,52 +700,43 @@ struct Calculation {
                     printf("iteration %ld sum=%.4f ndone=%ld tol=%.2e\n", iter, sum, ndone, tol);
                 for (long i=0; i<nmo; i++) {
                     for (long j=0; j<i; j++) {
-                        double g = 0.0;
-                        double h = 0.0;
-                        double sij = 0.0; // Estimate of the overlap of |i> and |j>
-                        for (long mu=0; mu<nao; mu++) {
-                            double si = S(i,mu);
-                            double sj = S(j,mu);
-                            g += si*sj*sj*sj - si*si*si*sj;
-                            h += 6*si*si*sj*sj - si*si*si*si - sj*sj*sj*sj;
-                            sij += si*si*sj*sj;
-                        }
-                        
-                        bool doit = false;
-                        if (h >= 0.0) {
-                            doit = true;
-                            if (doprint) print("             forcing negative h", i, j, h);
-                            h = -1.0;
-                        }
-                        
-                        double theta = -g/h;
-                        
-                        maxtheta = max(abs(theta),maxtheta);
-                        
-                        if (fabs(theta) > thetamax) {
-                            doit = true;
-                            if (doprint) print("             restricting", i, j);
-                            if (g < 0) theta = -thetamax;
-                            else       theta =  thetamax*0.8; // Breaking symmetry is good
-                        }
-                        
-                        bool randomized=false;
-                        if (randomize && iter == 0 && sij > thresh && fabs(theta) < tol) { //
-                            randomized=true;
-                            if (doprint) print("             randomizing", i, j);
-                            theta += (RandomValue<double>() - 0.5);
-                        }
+                        if (set[i] == set[j]) {
+                            double aij = 0.0;
+                            double bij = 0.0;
+                            double sij = 0.0;
 
-                        print("     i j g h sij theta", i, j, g, h, sij, theta);
-                        
-                        if (fabs(theta) >= tol || randomized || doit) {
-                            ndone_iter++;
-                            if (doprint) print("     rotating", i, j, theta);
-                            
-                            double c = cos(theta);
-                            double s = sin(theta);
-                            drot(nao, &S(i,0), &S(j,0), s, c, 1);
-                            drot(nmo, &U(i,0), &U(j,0), s, c, 1);
+                            // Can reduce quadratic cost here to linear by
+                            // precomputing which atoms i and j have
+                            // significant components on atom a
+                            for (long a=0; a<natom; a++) {
+                                double qiia = PM_q(S, C, i, i, a, at_to_bf, at_nbf); 
+                                double qija = PM_q(S, C, i, j, a, at_to_bf, at_nbf);
+                                double qjja = PM_q(S, C, j, j, a, at_to_bf, at_nbf);
+
+                                double d = qiia - qjja;
+                                aij += qija*qija - 0.25*d*d;
+                                bij += qija*d;
+                                sij += qiia*qjja;
+                            }
+
+                            double theta = 0.25*acos(-aij/sqrt(aij*aij + bij*bij));
+                            if (bij > 0.0) theta = -theta;
+                            //print("    aij bij sij theta ", aij, bij, sij, theta);
+
+                            if (fabs(theta) > thetamax) 
+                                theta = (theta>0)?thetamax:-thetamax;
+
+                            maxtheta = max(abs(theta), maxtheta);
+
+                            if (fabs(theta) >= tol) {// || randomized || doit) {
+                                ndone_iter++;
+                                if (doprint) print("     rotating", i, j, theta);
+
+                                double c = cos(theta);
+                                double s = sin(theta);
+                                drot(nao, &C(i,0), &C(j,0), s, c, 1);
+                                drot(nmo, &U(i,0), &U(j,0), s, c, 1);
+                            }
                         }
                     }
                 }
@@ -734,7 +746,7 @@ struct Calculation {
                     converged = true;
                     break;
                 }
-                tol = max(0.1*maxtheta,thresh);
+                tol = max(0.1*min(maxtheta,tol), thresh);
             }
             U = transpose(U);
         }
@@ -746,12 +758,10 @@ struct Calculation {
     /// Prints an analysis of the MO vectors by projection onto the minimal AO set
 
     /// If occ or energy are empty tensors they will not be printed
-    void analyze_vectors(World& world, const vecfuncT& mo, const tensorT& occ=tensorT(), const tensorT& energy=tensorT()) {
-        vecfuncT ao = project_ao_basis(world);
+    void analyze_vectors(World& world, const vecfuncT& mo, const tensorT& occ=tensorT(), const tensorT& energy=tensorT(),
+                         const vector<int>& set=vector<int>()) {
         tensorT Saomo = matrix_inner(world, ao, mo);
         tensorT Saoao = matrix_inner(world, ao, ao, true);
-
-        ao.clear(); // free memory
 
         // Compute <r> and <(r-<r>)^2> = <r^2> - <r>^2
 
@@ -775,6 +785,7 @@ struct Calculation {
             long nmo = mo.size();
             for (long i=0; i<nmo; i++) {
                 printf("  MO%4ld : ", i);
+                if (set.size()) printf("set=%d : ", set[i]);
                 if (occ.size) printf("occ=%.2f : ", occ(i));
                 if (energy.size) printf("energy=%11.6f : ", energy(i));
                 printf("center=(%.2f,%.2f,%.2f) : radius=%.2f\n", dip(0,i), dip(1,i), dip(2,i), sqrt(rsq(i)));
@@ -924,7 +935,7 @@ struct Calculation {
     };
 
 
-    /// Initializes alpha and beta mos, occupation numbers, eigenvalues
+    /// Initializes alpha and beta mos, occupation numbers, eigenvalues, assigns orbitals to sets
     void initial_guess(World& world) {
         // We use the density to help with load balance and also
         // for computing the initial coulomb potential.
@@ -967,10 +978,6 @@ struct Calculation {
         }
         rho.clear();
         vlocal.reconstruct();
-
-        START_TIMER;
-        vecfuncT ao   = project_ao_basis(world);
-        END_TIMER("project ao basis");
 
         if (world.size() > 1) {
             LoadBalanceDeux<3> lb(world);
@@ -1043,9 +1050,18 @@ struct Calculation {
         //analyze_vectors(world, amo);
 
         aeps = e(Slice(0,param.nmo_alpha-1));
-
         aocc = tensorT(param.nmo_alpha);
         for (int i=0; i<param.nalpha; i++) aocc[i] = 1.0;
+
+        // Assign orbitals to core, valence etc. by looking for gaps 
+        aset = vector<int>(param.nmo_alpha);
+        aset[0] = 0;
+        print("aset ", 0, aset[0]);
+        for (int i=1; i<param.nmo_alpha; i++) {
+            aset[i] = aset[i-1];
+            if (aeps[i]-aeps[i-1] > 1.5 || aocc[i]!=1.0) aset[i]++;
+            print("aset ", i, aset[i]);
+        }                
 
         if (param.nbeta && !param.spin_restricted) {
             bmo = transform(world, ao, c(_,Slice(0,param.nmo_beta-1)), 0.0, true);
@@ -1056,6 +1072,13 @@ struct Calculation {
             beps = e(Slice(0,param.nmo_beta-1));
             bocc = tensorT(param.nmo_beta);
             for (int i=0; i<param.nbeta; i++) bocc[i] = 1.0;
+
+            bset = vector<int>(param.nmo_beta);
+            bset[0] = 0;
+            for (int i=1; i<param.nmo_beta; i++) {
+                bset[i] = bset[i-1];
+                if (beps[i]-beps[i-1] > 1.5 || bocc[i]!=1.0) bset[i]++;
+            }                
         }
     }
 
@@ -1374,6 +1397,7 @@ struct Calculation {
         for (unsigned int i=0; i<amo.size(); i++) {
             lb.add_tree(amo[i],lbcost<double,3>(1.0,1.0), false);
         }
+
         if (param.nbeta && !param.spin_restricted) {
             lb.add_tree(brho,lbcost<double,3>(1.0,1.0),false);
             for (unsigned int i=0; i<bmo.size(); i++) {
@@ -1388,6 +1412,10 @@ struct Calculation {
         if (arho_old.is_initialized()) 
             arho_old = copy(arho_old, FunctionDefaults<3>::get_pmap(), false);
         if (world.rank() == 0) print("copying amos");
+
+        for (unsigned int i=0; i<ao.size(); i++) {
+            ao[i] = copy(ao[i], FunctionDefaults<3>::get_pmap(), false);
+        }
         for (unsigned int i=0; i<amo.size(); i++) {
             amo[i] = copy(amo[i], FunctionDefaults<3>::get_pmap(), false);
         }
@@ -1527,9 +1555,10 @@ struct Calculation {
         functionT arho_old, brho_old;
         functionT adelrhosq, bdelrhosq; // placeholders for GGAs
 
-        bool localize = true;
-        double trantol = vtol/min(30.0,double(amo.size()));
-        double tolloc = 1e-5; ///max(param.nalpha,param.nbeta);
+        const bool localize = true;
+        const double dconv = max(FunctionDefaults<3>::get_thresh(), param.dconv);
+        const double trantol = vtol/min(30.0,double(amo.size()));
+        const double tolloc = dconv;
 
         subspaceT subspace;
         tensorT Q;
@@ -1539,22 +1568,16 @@ struct Calculation {
 
             bool do_this_iter = iter==0; //((iter%5)==0);
             if (localize && do_this_iter) {
-                //tensorT Uao = localize_maxao(world, amo);
-                //print("UAO"); print(Uao);
-                //vecfuncT fred = transform(world, amo, Uao, trantol);
-                //print("INiTiAL MAXAO ORBITALS");
-                //analyze_vectors(world, fred, aocc, aeps);
-
-                tensorT U = localize_boys(world, amo, tolloc, 0.25, iter==0);
+                tensorT U = localize_PM(world, amo, aset, tolloc, 0.25, iter==0);
                 amo = transform(world, amo, U, trantol);
                 truncate(world, amo);
                 normalize(world,amo);
-                //print("Uboys"); print(U);
-                //print("INiTiAL BOYS ORBITALS");
+                //print("UPM"); print(U);
+                //print("INITiAL PM ORBITALS");
                 //analyze_vectors(world, amo, aocc, aeps);
 
                 if (!param.spin_restricted && param.nbeta) {
-                    U = localize_boys(world, bmo);
+                    U = localize_PM(world, bmo, bset, tolloc, 0.25, iter==0);
                     bmo = transform(world, bmo, U, trantol);
                     truncate(world, bmo);
                     normalize(world,bmo);
@@ -1633,7 +1656,6 @@ struct Calculation {
             }
 
             if (iter > 0) {
-                double dconv = max(FunctionDefaults<3>::get_thresh(), param.dconv);
                 if (da<dconv && db<dconv) {
                     if (world.rank()==0) {
                         print("\nConverged!\n");
@@ -1715,12 +1737,14 @@ int main(int argc, char** argv) {
         // Make the nuclear potential, initial orbitals, etc.
         calc.set_protocol(world,1e-4);
         calc.make_nuclear_potential(world);
-        calc.project(world);
+        calc.project_ao_basis(world);
+        //calc.project(world);
         calc.initial_guess(world);
         calc.solve(world);
 
         calc.set_protocol(world,1e-6);
         calc.make_nuclear_potential(world);
+        calc.project_ao_basis(world);
         calc.project(world);
         calc.solve(world);
 
