@@ -1,22 +1,22 @@
 /*
   This file is part of MADNESS.
-  
+
   Copyright (C) <2007> <Oak Ridge National Laboratory>
-  
+
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation; either version 2 of the License, or
   (at your option) any later version.
-  
+
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
   GNU General Public License for more details.
-  
+
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
-  
+
   For more information please contact:
 
   Robert J. Harrison
@@ -24,15 +24,15 @@
   One Bethel Valley Road
   P.O. Box 2008, MS-6367
 
-  email: harrisonrj@ornl.gov 
+  email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
 
-  
+
   $Id$
 */
 
-  
+
 #ifndef WORLD_DEP_H
 #define WORLD_DEP_H
 
@@ -50,15 +50,15 @@ namespace madness {
     public:
         virtual void notify() = 0;
 
-	virtual ~CallbackInterface(){};
+        virtual ~CallbackInterface() {};
     };
-        
+
 
     /// Provides interface for tracking dependencies
     class DependencyInterface : public CallbackInterface, private Spinlock {
     private:
         volatile int ndepend;   ///< Counts dependencies
-        
+
         static const int MAXCALLBACKS = 8;
         typedef Stack<CallbackInterface*,MAXCALLBACKS> callbackT;
         mutable volatile callbackT callbacks; ///< Called ONCE by dec() when ndepend==0
@@ -75,18 +75,24 @@ namespace madness {
         };
 
     public:
-        DependencyInterface(int ndep = 0) : ndepend(ndep) {}; 
+        DependencyInterface(int ndep = 0) : ndepend(ndep) {};
 
 
         /// Returns the number of unsatisfied dependencies
-        int ndep() const {return ndepend;}
+        int ndep() const {
+            return ndepend;
+        }
 
         /// Returns true if ndepend == 0
-        bool probe() const {return ndep() == 0;};
+        bool probe() const {
+            return ndep() == 0;
+        };
 
 
         /// Invoked by callbacks to notifiy of dependencies being satisfied
-        void notify() {dec();};
+        void notify() {
+            dec();
+        };
 
 
         /// Registers a callback for when ndepend=0
@@ -97,7 +103,7 @@ namespace madness {
             const_cast<callbackT&>(this->callbacks).push(callback);
             if (ndepend == 0) do_callbacks();
         };
-        
+
 
         /// Increment the number of dependencies
         void inc() {
@@ -105,7 +111,7 @@ namespace madness {
             MADNESS_ASSERT(ndepend>=0);
             ndepend++;
         };
-        
+
 
         /// Decrement the number of dependencies and invoke callback if ndepend=0
         void dec() {
@@ -115,7 +121,7 @@ namespace madness {
 
 
         virtual ~DependencyInterface() {
-            ScopedMutex<Spinlock> hold(this); 
+            ScopedMutex<Spinlock> hold(this);
             if (ndepend) {
                 print("DependencyInterface: destructor with ndepend =",ndepend,"?");
             }

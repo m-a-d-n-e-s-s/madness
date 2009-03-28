@@ -7,14 +7,18 @@
 namespace madness {
     /// Sequentially ordered printing of (serializable) data from every process ... collective no fence
     template <typename A, typename B, typename C>
-        void print_seq(World& world, const A& a, const B& b, const C& c) {
+    void print_seq(World& world, const A& a, const B& b, const C& c) {
         if (world.rank() == 0) {
-            printf("%6d : ",0); print(a, b, c);
+            printf("%6d : ",0);
+            print(a, b, c);
             for (int p=1; p<world.size(); p++) {
-                A aa; B bb; C cc;
+                A aa;
+                B bb;
+                C cc;
                 MPIOutputArchive(world,p) & 1;
                 MPIInputArchive(world, p) & aa & bb & cc;
-                printf("%6d : ",p); print(aa, bb, cc);
+                printf("%6d : ",p);
+                print(aa, bb, cc);
             }
         }
         else {
@@ -26,14 +30,17 @@ namespace madness {
 
     /// Sequentially ordered printing of (serializable) data from every process ... collective no fence
     template <typename A, typename B>
-        void print_seq(World& world, const A& a, const B& b) {
+    void print_seq(World& world, const A& a, const B& b) {
         if (world.rank() == 0) {
-            printf("%6d : ",0); print(a, b);
+            printf("%6d : ",0);
+            print(a, b);
             for (int p=1; p<world.size(); p++) {
-                A aa; B bb;
+                A aa;
+                B bb;
                 MPIOutputArchive(world,p) & 1;
                 MPIInputArchive(world, p) & aa & bb;
-                printf("%6d : ",p); print(aa, bb);
+                printf("%6d : ",p);
+                print(aa, bb);
             }
         }
         else {
@@ -45,14 +52,16 @@ namespace madness {
 
     /// Sequentially ordered printing of (serializable) data from every process ... collective no fence
     template <typename A>
-        void print_seq(World& world, const A& a) {
+    void print_seq(World& world, const A& a) {
         if (world.rank() == 0) {
-            printf("%6d : ",0); print(a);
+            printf("%6d : ",0);
+            print(a);
             for (int p=1; p<world.size(); p++) {
                 A aa;
                 MPIOutputArchive(world,p) & 1;
                 MPIInputArchive(world, p) & aa;
-                printf("%6d : ",p); print(aa);
+                printf("%6d : ",p);
+                print(aa);
             }
         }
         else {

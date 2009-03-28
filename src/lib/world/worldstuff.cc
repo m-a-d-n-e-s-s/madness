@@ -1,22 +1,22 @@
 /*
   This file is part of MADNESS.
-  
+
   Copyright (C) <2007> <Oak Ridge National Laboratory>
-  
+
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation; either version 2 of the License, or
   (at your option) any later version.
-  
+
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
   GNU General Public License for more details.
-  
+
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
-  
+
   For more information please contact:
 
   Robert J. Harrison
@@ -24,15 +24,15 @@
   One Bethel Valley Road
   P.O. Box 2008, MS-6367
 
-  email: harrisonrj@ornl.gov 
+  email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
 
-  
+
   $Id$
 */
 
-  
+
 #include <madness_config.h>
 #include <world/world.h>
 #include <world/worldmem.h>
@@ -83,8 +83,8 @@ namespace madness {
 
         ThreadBase::set_affinity_pattern(bind, cpulo); // Decide how to locate threads before doing anything
         ThreadBase::set_affinity(0);         // The main thread is logical thread 0
-        
-#ifdef SERIALIZE_MPI    
+
+#ifdef SERIALIZE_MPI
         int required = MPI::THREAD_SERIALIZED;
 #else
         int required = MPI::THREAD_MULTIPLE;
@@ -94,14 +94,14 @@ namespace madness {
         if (provided < required && me == 0) {
             std::cout << "!! Warning: MPI::Init_thread did not provide requested functionality " << required << " " << provided << std::endl;
         }
-        
+
         ThreadPool::begin();        // Must have thread pool before any AM arrives
         RMI::begin();               // Must have RMI while still running single threaded
         if (me == 0) std::cout << "Runtime initialized with thread affinity " << sbind << "\n";
 
 #ifdef HAVE_PAPI
         begin_papi_measurement();
-#endif    
+#endif
     }
 
     void finalize() {
@@ -109,7 +109,7 @@ namespace madness {
         ThreadPool::end(); // 8/Dec/08 : II added this line as trial
         MPI::Finalize();
     }
-    
+
     std::list<World*> World::worlds;
     unsigned long World::idbase = 0;
     bool TaskInterface::debug = false;
@@ -117,7 +117,7 @@ namespace madness {
     // Enables easy printing of MadnessExceptions
     std::ostream& operator<<(std::ostream& out, const MadnessException& e) {
         out << "MadnessException : ";
-        if (e.msg) out << "msg=" << e.msg << " : "; 
+        if (e.msg) out << "msg=" << e.msg << " : ";
         if (e.assertion) out << "assertion=" << e.assertion << " : ";
         out << "value=" << e.value << " : ";
         if (e.line) out << "line=" << e.line << " : ";
@@ -126,15 +126,15 @@ namespace madness {
         out << std::endl;
         return out;
     }
-    
+
 
     std::ostream& operator<<(std::ostream& s, const uniqueidT& id) {
         s << "{" << id.get_world_id() << "," << id.get_obj_id() << "}";
         return s;
     }
 
-    
-    
+
+
     double wall_time() {
 #ifdef __CYGWIN__
         static bool initialized = false;
@@ -165,7 +165,7 @@ namespace madness {
         return now - start_time;
 #endif
     }
-    
+
     double cpu_frequency() {
         static double freq = -1.0;
         if (freq == -1.0) {
@@ -212,32 +212,32 @@ namespace madness {
 #ifdef WORLD_PROFILE_ENABLE
     static void profile_do_print(World& world, const std::vector<WorldProfileEntry>& v) {
         double cpu_total = 0.0;
-        for (unsigned int i=0; i<v.size(); i++) 
+        for (unsigned int i=0; i<v.size(); i++)
             cpu_total += v[i].xcpu.sum;
-        
+
         double cpu_sum = 0.0;
         std::printf(" cum%% cpu%%   cpu/s   cpu-min  cpu-avg  cpu-max  cpu-eff   inc/s   inc-min  inc-avg  inc-max  inc-eff   calls  call-min call-avg call-max call-eff name\n");
         std::printf(" ---- ---- -------- -------- -------- -------- -------- -------- -------- -------- -------- --------  ------- -------- -------- -------- -------- --------------------\n");
-        
-        // 
+
+        //
         for (unsigned int i=0; i<v.size(); i++) {
             double cpu = v[i].xcpu.sum;
             double inc = v[i].icpu.sum;
             double count = v[i].count.sum;
-            
+
             cpu_sum += cpu;
-            
+
             double cum_cpu_percent = cpu_total ? 100.0*cpu_sum/cpu_total : 0.0;
             double cpu_percent = cpu_total ? 100.0*cpu/cpu_total : 0.0;
-            
+
             double cpu_mean = cpu/world.size();
             double count_mean = count/world.size();
             double count_eff = v[i].count.max ? count_mean/v[i].count.max : 1.0;
             double cpu_eff = v[i].xcpu.max ? cpu_mean/v[i].xcpu.max : 1.0;
-            
+
             double inc_mean = inc/world.size();
             double inc_eff = v[i].icpu.max ? inc_mean/v[i].icpu.max : 1.0;
-            
+
             printf("%5.1f%5.1f%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e %s\n",
                    cum_cpu_percent,
                    cpu_percent,
@@ -267,7 +267,7 @@ namespace madness {
         for (unsigned int i=0; i<nv.size(); i++) {
             nv[i].init_par_stats(me);
         }
-        
+
         recv_stats(world, 2*me+1);
         recv_stats(world, 2*me+2);
 
@@ -322,13 +322,13 @@ namespace madness {
             std::sort(v.begin(), v.end(), &WorldProfileEntry::inclusivecmp);
             std::printf("  ** sorted by inclusive cpu time **\n");
             profile_do_print(world, v);
-            
+
         }
         world.gop.fence();
-        
+
 #endif
     }
-    
+
     void WorldProfile::recv_stats(World& world, ProcessID p) {
         if (p >= world.size()) return;
         MPIInputArchive ar(world, p);
@@ -346,7 +346,7 @@ namespace madness {
                 d = v[i];
             }
         }
-    }      
+    }
 
     void print_stats(World& world) {
         double total_wall_time = wall_time()-start_wall_time;
@@ -354,7 +354,7 @@ namespace madness {
         RMIStats rmi = RMI::get_stats();
         DQStats q = ThreadPool::get_stats();
 #ifdef HAVE_PAPI
-        // For papi ... this only make sense if done once after all 
+        // For papi ... this only make sense if done once after all
         // other worker threads have exited
         end_papi_measurement();
         const long long* values = get_papi_measurement();
@@ -387,9 +387,9 @@ namespace madness {
         world.gop.min(min_nbyte_sent);
         world.gop.min(min_nbyte_recv);
 
-        double npush_back = q.npush_back; 
+        double npush_back = q.npush_back;
         double npush_front = q.npush_front;
-        double npop_front = q.npop_front; 
+        double npop_front = q.npop_front;
         double ntask = q.npush_back + q.npush_front;
         double nmax = q.nmax;
         world.gop.sum(npush_back);
@@ -398,9 +398,9 @@ namespace madness {
         world.gop.sum(ntask);
         world.gop.sum(nmax);
 
-        double max_npush_back = q.npush_back; 
+        double max_npush_back = q.npush_back;
         double max_npush_front = q.npush_front;
-        double max_npop_front = q.npop_front; 
+        double max_npop_front = q.npop_front;
         double max_ntask = q.npush_back + q.npush_front;
         double max_nmax = q.nmax;
         world.gop.max(max_npush_back);
@@ -409,9 +409,9 @@ namespace madness {
         world.gop.max(max_ntask);
         world.gop.max(max_nmax);
 
-        double min_npush_back = q.npush_back; 
+        double min_npush_back = q.npush_back;
         double min_npush_front = q.npush_front;
-        double min_npop_front = q.npop_front; 
+        double min_npop_front = q.npop_front;
         double min_ntask = q.npush_back + q.npush_front;
         double min_nmax = q.nmax;
         world.gop.min(min_npush_back);
@@ -447,11 +447,11 @@ namespace madness {
 
             printf("  RMI message statistics (min / avg / max)\n");
             printf("  ----------------------\n");
-            printf(" #messages sent per node    %.2e / %.2e / %.2e\n", 
+            printf(" #messages sent per node    %.2e / %.2e / %.2e\n",
                    min_nmsg_sent, nmsg_sent/world.size(), max_nmsg_sent);
             printf("    #bytes sent per node    %.2e / %.2e / %.2e\n",
                    min_nbyte_sent, nbyte_sent/world.size(), max_nbyte_sent);
-            printf(" #messages recv per node    %.2e / %.2e / %.2e\n", 
+            printf(" #messages recv per node    %.2e / %.2e / %.2e\n",
                    min_nmsg_recv, nmsg_recv/world.size(), max_nmsg_recv);
             printf("    #bytes recv per node    %.2e / %.2e / %.2e\n",
                    min_nbyte_recv, nbyte_recv/world.size(), max_nbyte_recv);

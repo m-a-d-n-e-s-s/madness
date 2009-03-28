@@ -103,13 +103,11 @@ namespace madness {
         unsigned long objid;
 
         uniqueidT(unsigned long worldid, unsigned long objid)
-            : worldid(worldid), objid(objid)
-        {};
+                : worldid(worldid), objid(objid) {};
 
     public:
         uniqueidT()
-        : worldid(0), objid(0)
-        {};
+                : worldid(0), objid(0) {};
 
         bool operator==(const uniqueidT& other) const {
             return  objid==other.objid && worldid==other.worldid;
@@ -158,7 +156,7 @@ namespace madness {
 
     /// For purpose of deferring cleanup to synchronization points
     struct DeferredCleanupInterface {
-        virtual ~DeferredCleanupInterface(){};
+        virtual ~DeferredCleanupInterface() {};
     };
 
     void error(const char *msg);
@@ -214,8 +212,8 @@ namespace madness {
             // example of this "feature" here is gcc4.2.
             // //std::remove_if(deferred.begin(),deferred.end(),refcnt_is_one());
             for (std::list< SharedPtr<DeferredCleanupInterface> >::iterator it = deferred.begin();
-                it != deferred.end();) {
-	        //print("refcnt:",(void*) it->get(), it->use_count());
+                    it != deferred.end();) {
+                //print("refcnt:",(void*) it->get(), it->use_count());
                 if (it->use_count() == 1) it = deferred.erase(it);
                 else ++it;
             }
@@ -247,17 +245,16 @@ namespace madness {
     public:
         /// Give me a communicator and I will give you the world
         World(MPI::Intracomm& comm)
-            : obj_id(1)          ///< start from 1 so that 0 is an invalid id
-            , user_state(0)
-            , deferred()
-            , mpi(*(new WorldMpiInterface(comm)))
-            , am(*world_am_interface_factory(this))
-            , taskq(*world_taskq_factory(this))
-            , gop(*world_gop_interface_factory(this))
-            , me(mpi.rank())
-            , nprocess(mpi.nproc())
-            , myrand_next(0)
-        {
+                : obj_id(1)          ///< start from 1 so that 0 is an invalid id
+                , user_state(0)
+                , deferred()
+                , mpi(*(new WorldMpiInterface(comm)))
+                , am(*world_am_interface_factory(this))
+                , taskq(*world_taskq_factory(this))
+                , gop(*world_gop_interface_factory(this))
+                , me(mpi.rank())
+                , nprocess(mpi.nproc())
+                , myrand_next(0) {
             worlds.push_back(this);
             srand();  // Initialize random number generator
             cpu_frequency();
@@ -311,14 +308,20 @@ namespace madness {
 
 
         /// Returns the process rank in this world (same as MPI::Get_rank()))
-        ProcessID rank() const {return me;};
+        ProcessID rank() const {
+            return me;
+        };
 
 
         /// Returns the number of processes in this world (same as MPI::Get_size())
-        ProcessID nproc() const {return nprocess;};
+        ProcessID nproc() const {
+            return nprocess;
+        };
 
         /// Returns the number of processes in this world (same as MPI::Get_size())
-        ProcessID size() const {return nprocess;};
+        ProcessID size() const {
+            return nprocess;
+        };
 
 
         /// Returns new universe-wide unique ID for objects created in this world.  No comms.
@@ -387,7 +390,7 @@ namespace madness {
             if (it == map_id_to_ptr.end())
                 return 0;
             else
-                return (T*) (it->second);
+                return (T*)(it->second);
         }
 
 
@@ -424,7 +427,9 @@ namespace madness {
         struct MpiRequestTester {
             mutable SafeMPI::Request* r;
             MpiRequestTester(SafeMPI::Request& r) : r(&r) {};
-            bool operator()() const {return r->Test();};
+            bool operator()() const {
+                return r->Test();
+            };
         };
 
 
@@ -439,7 +444,7 @@ namespace madness {
         /// Probe should be an object that when called returns the status.
         template <typename Probe>
         static void inline await(const Probe& probe, bool dowork = true) {
-	    PROFILE_MEMBER_FUNC(World);
+            PROFILE_MEMBER_FUNC(World);
             // NEED TO RESTORE THE WATCHDOG STUFF
             MutexWaiter waiter;
             while (!probe()) {
@@ -467,7 +472,7 @@ namespace madness {
             SharedPtr<DeferredCleanupInterface> p(item);
             // Avoid duplicates since the reference counting will prevent cleaning
             if (std::find(deferred.begin(),deferred.end(),p) == deferred.end()) {
-	        //print("deferred adding",(void*)p.get());
+                //print("deferred adding",(void*)p.get());
                 deferred.push_back(p);
             }
         }
@@ -520,7 +525,10 @@ namespace madness {
         ProcessID random_proc_not_me() {
             if (size() == 1) return -1;
             ProcessID p;
-            do {p = rand()%size();} while (p == rank());
+            do {
+                p = rand()%size();
+            }
+            while (p == rank());
             return p;
         };
 

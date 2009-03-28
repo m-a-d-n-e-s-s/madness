@@ -2,23 +2,23 @@
 using namespace madness;
 
 class A {
-    public:
-	void member() {
-	    PROFILE_MEMBER_FUNC(A);
+public:
+    void member() {
+        PROFILE_MEMBER_FUNC(A);
     }
 };
 
 void b() {
     PROFILE_FUNC;
 
-	A a;
-	a.member();
+    A a;
+    a.member();
 }
 
 void a() {
     PROFILE_FUNC;
 
-	b();
+    b();
 }
 
 int main(int argc, char** argv) {
@@ -28,9 +28,9 @@ int main(int argc, char** argv) {
     world.args(argc,argv);
 
     {
-       PROFILE_BLOCK(main);
-	   a();
-	}
+        PROFILE_BLOCK(main);
+        a();
+    }
 
     ThreadPool::end();
     print_stats(world);

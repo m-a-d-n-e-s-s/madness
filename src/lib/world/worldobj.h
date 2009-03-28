@@ -1,22 +1,22 @@
 /*
   This file is part of MADNESS.
-  
+
   Copyright (C) <2007> <Oak Ridge National Laboratory>
-  
+
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation; either version 2 of the License, or
   (at your option) any later version.
-  
+
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
   GNU General Public License for more details.
-  
+
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
-  
+
   For more information please contact:
 
   Robert J. Harrison
@@ -24,15 +24,15 @@
   One Bethel Valley Road
   P.O. Box 2008, MS-6367
 
-  email: harrisonrj@ornl.gov 
+  email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
 
-  
+
   $Id$
 */
 
-  
+
 #ifndef WORLD_OBJ_H
 #define WORLD_OBJ_H
 
@@ -43,18 +43,17 @@ namespace madness {
     namespace detail {
 
         // Common base class for pending messages to ensure in-order processing
-        
+
         // To eliminate synchronization when a distributed object is first
         // constructed, we buffer pending messages for containers that
         // don't have their id yet registered.
-        struct PendingMsg{
+        struct PendingMsg {
             uniqueidT id;
             am_handlerT handler;
             AmArg* arg;
 
             PendingMsg(uniqueidT id, am_handlerT handler, const AmArg& arg)
-                : id(id), handler(handler), arg(copy_am_arg(arg))
-            {}
+                    : id(id), handler(handler), arg(copy_am_arg(arg)) {}
 
             void invokehandler() {
                 handler(*arg);
@@ -64,7 +63,7 @@ namespace madness {
 
         // It is annoying that we must replicate the task forwarding stuff here but we must
         // so that pending messages creating tasks are correctly handled.  Cannot merge
-        // easily with send handlers since task layer is more restrictive on the 
+        // easily with send handlers since task layer is more restrictive on the
         // copy capability of arguments.
 
         /// Info stored for AM method forwarding
@@ -75,7 +74,7 @@ namespace madness {
             uniqueidT id; // Must be at front ... see peek.
             ProcessID requestor;
             memfunT memfun;
-            refT ref; 
+            refT ref;
             TaskAttributes attr;
 
             info() {};
@@ -84,14 +83,13 @@ namespace madness {
                 arg & *this;
             }
 
-            info(const uniqueidT& id, ProcessID requestor,  memfunT memfun, const refT& ref, 
+            info(const uniqueidT& id, ProcessID requestor,  memfunT memfun, const refT& ref,
                  const TaskAttributes& attr=TaskAttributes())
-                : id(id)
-                , requestor(requestor)
-                , memfun(memfun)
-                , ref(ref)
-                , attr(attr)
-            {};
+                    : id(id)
+                    , requestor(requestor)
+                    , memfun(memfun)
+                    , ref(ref)
+                    , attr(attr) {};
 
             template <typename Archive>
             void serialize(const Archive& ar) {
@@ -110,10 +108,10 @@ namespace madness {
         /// (which seems preferable to hidden race condition).  Hence,
         /// we use this routine to extract the unique ID from the very
         /// front of the info structure.  For efficiency we here rely
-        /// upon the serialization of info being opaque and the 
+        /// upon the serialization of info being opaque and the
         /// id being at the front of info.
         static inline const uniqueidT& peek(const AmArg& arg) {
-            return *((uniqueidT*) (arg.buf()));
+            return *((uniqueidT*)(arg.buf()));
         }
     }
 
@@ -121,7 +119,7 @@ namespace madness {
     /// Implements most parts of a globally addressable object (via unique ID)
 
     /// 1) Derived class has WorldObject<Derived> as a public base class
-    /// 2) Derived constructor 
+    /// 2) Derived constructor
     ///    a) invokes WorldObject<Derived>(world) constructor
     ///    b) invokes process_pending()
     /// 3) Derived destructor must either be deferred or preceeded by gop.fence()
@@ -145,7 +143,7 @@ namespace madness {
         static Spinlock pending_mutex;
         static volatile pendingT pending;          ///< Buffers pending messages
         uniqueidT objid;                           ///< Sense of self
-    
+
         // Handler for incoming AM with 0 arguments
         template <typename memfunT>
         static void handler(const AmArg& arg) {
@@ -227,8 +225,8 @@ namespace madness {
         }
 
         // Handler for incoming AM with 5 arguments
-        template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T, 
-                  typename arg5T>
+        template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T,
+        typename arg5T>
         static void handler(const AmArg& arg) {
             const uniqueidT& id = detail::peek(arg);
             Derived* obj = arg.get_world()-> template ptr_from_id<Derived>(id);
@@ -247,8 +245,8 @@ namespace madness {
         }
 
         // Handler for incoming AM with 6 arguments
-        template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T, 
-                  typename arg5T, typename arg6T>
+        template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T,
+        typename arg5T, typename arg6T>
         static void handler(const AmArg& arg) {
             const uniqueidT& id = detail::peek(arg);
             Derived* obj = arg.get_world()-> template ptr_from_id<Derived>(id);
@@ -268,8 +266,8 @@ namespace madness {
         }
 
         // Handler for incoming AM with 7 arguments
-        template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T, 
-                  typename arg5T, typename arg6T, typename arg7T>
+        template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T,
+        typename arg5T, typename arg6T, typename arg7T>
         static void handler(const AmArg& arg) {
             const uniqueidT& id = detail::peek(arg);
             Derived* obj = arg.get_world()-> template ptr_from_id<Derived>(id);
@@ -288,7 +286,7 @@ namespace madness {
                 result.set((obj->*info.memfun)(arg1,arg2,arg3,arg4,arg5,arg6,arg7));
             }
         }
-    
+
         // Handler for incoming task with 0 arguments
         template <typename memfunT>
         static void handler_task(const AmArg& arg) {
@@ -370,8 +368,8 @@ namespace madness {
         }
 
         // Handler for incoming task with 5 arguments
-        template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T, 
-                  typename arg5T>
+        template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T,
+        typename arg5T>
         static void handler_task(const AmArg& arg) {
             const uniqueidT& id = detail::peek(arg);
             Derived* obj = arg.get_world()-> template ptr_from_id<Derived>(id);
@@ -390,8 +388,8 @@ namespace madness {
         }
 
         // Handler for incoming task with 6 arguments
-        template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T, 
-                  typename arg5T, typename arg6T>
+        template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T,
+        typename arg5T, typename arg6T>
         static void handler_task(const AmArg& arg) {
             const uniqueidT& id = detail::peek(arg);
             Derived* obj = arg.get_world()-> template ptr_from_id<Derived>(id);
@@ -411,8 +409,8 @@ namespace madness {
         }
 
         // Handler for incoming task with 6 arguments
-        template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T, 
-                  typename arg5T, typename arg6T, typename arg7T>
+        template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T,
+        typename arg5T, typename arg6T, typename arg7T>
         static void handler_task(const AmArg& arg) {
             const uniqueidT& id = detail::peek(arg);
             Derived* obj = arg.get_world()-> template ptr_from_id<Derived>(id);
@@ -433,7 +431,7 @@ namespace madness {
         }
 
         // This slightly convoluted logic is to ensure ordering when
-        // processing pending messages.  If a new message arrives 
+        // processing pending messages.  If a new message arrives
         // while processing incoming messages it must be queued.
         //
         // If the object does not exist ---> not ready
@@ -447,7 +445,7 @@ namespace madness {
                 p = static_cast<WorldObject*>(obj);
                 if (p->ready || arg.is_pending()) return true;
             }
-            
+
             pending_mutex.lock(); // BEGIN CRITICAL SECTION
             if (obj && p->ready) {
                 pending_mutex.unlock();  // ... LEAVE CRITICAL SECTION
@@ -458,7 +456,7 @@ namespace madness {
             const_cast<pendingT&>(pending).push_back(detail::PendingMsg(id, ptr, arg));
             MADNESS_ASSERT(const_cast<pendingT&>(pending).back().arg->is_pending());
             pending_mutex.unlock(); // END CRITICAL SECTION
-            
+
             return false;
         };
 
@@ -481,7 +479,7 @@ namespace madness {
 
                 pending_mutex.lock(); // BEGIN CRITICAL SECTION
                 pendingT& nv = const_cast<pendingT&>(pending);
-                for (pendingT::iterator it=nv.begin(); it!=nv.end(); ) {
+                for (pendingT::iterator it=nv.begin(); it!=nv.end();) {
                     detail::PendingMsg& p = *it;
                     if (p.id == objid) {
                         tmp.push_back(p);
@@ -505,17 +503,16 @@ namespace madness {
     public:
         /// Associates object with globally unique ID
 
-        /// !! The derived class MUST call process_pending both to 
+        /// !! The derived class MUST call process_pending both to
         /// process any messages that arrived prior to construction
         /// and to enable processing of future messages.
-        WorldObject(World& world) 
-            : world(world)
-            , ready(false)
-            , me(world.rank())
-            , objid(world.register_ptr(static_cast<Derived*>(this)))
-        {};
-        
-        
+        WorldObject(World& world)
+                : world(world)
+                , ready(false)
+                , me(world.rank())
+                , objid(world.register_ptr(static_cast<Derived*>(this))) {};
+
+
         /// Returns the globally unique object ID
         const uniqueidT& id() const {
             return objid;
@@ -529,16 +526,16 @@ namespace madness {
 
         /// Sends active message to derived class method "returnT (this->*memfun)()"
         template <typename memfunT>
-        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > 
+        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) >
         send(ProcessID dest, memfunT memfun) {
             Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > result;
-            Derived* obj = static_cast<Derived*>(this);            
+            Derived* obj = static_cast<Derived*>(this);
             if (dest == me) {
                 result.set((obj->*memfun)());
             }
             else {
                 detail::info<memfunT> info(objid, me, memfun, result.remote_ref(world));
-                world.am.send(dest,handler<memfunT>, 
+                world.am.send(dest,handler<memfunT>,
                               new_am_arg(info));
             }
             return result;
@@ -546,16 +543,16 @@ namespace madness {
 
         /// Sends active message to derived class method "returnT (this->*memfun)(arg1)"
         template <typename memfunT, typename arg1T>
-        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > 
+        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) >
         send(ProcessID dest, memfunT memfun, const arg1T& arg1) {
             Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > result;
-            Derived* obj = static_cast<Derived*>(this);            
+            Derived* obj = static_cast<Derived*>(this);
             if (dest == me) {
                 result.set((obj->*memfun)(arg1));
             }
             else {
                 detail::info<memfunT> info(objid, me, memfun, result.remote_ref(world));
-                world.am.send(dest,handler<memfunT,arg1T>, 
+                world.am.send(dest,handler<memfunT,arg1T>,
                               new_am_arg(info,arg1));
             }
             return result;
@@ -564,16 +561,16 @@ namespace madness {
 
         /// Sends active message to derived class method "returnT (this->*memfun)(arg1,arg2)"
         template <typename memfunT, typename arg1T, typename arg2T>
-        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > 
+        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) >
         send(ProcessID dest, memfunT memfun, const arg1T& arg1, const arg2T& arg2) {
             Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > result;
-            Derived* obj = static_cast<Derived*>(this);            
+            Derived* obj = static_cast<Derived*>(this);
             if (dest == me) {
                 result.set((obj->*memfun)(arg1,arg2));
             }
             else {
                 detail::info<memfunT> info(objid, me, memfun, result.remote_ref(world));
-                world.am.send(dest, handler<memfunT,arg1T,arg2T>, 
+                world.am.send(dest, handler<memfunT,arg1T,arg2T>,
                               new_am_arg(info,arg1,arg2));
             }
             return result;
@@ -582,16 +579,16 @@ namespace madness {
 
         /// Sends active message to derived class method "returnT (this->*memfun)(arg1,arg2,arg3)"
         template <typename memfunT, typename arg1T, typename arg2T, typename arg3T>
-        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > 
+        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) >
         send(ProcessID dest, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3) {
             Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > result;
-            Derived* obj = static_cast<Derived*>(this);            
+            Derived* obj = static_cast<Derived*>(this);
             if (dest == me) {
                 result.set((obj->*memfun)(arg1,arg2,arg3));
             }
             else {
                 detail::info<memfunT> info(objid, me, memfun, result.remote_ref(world));
-                world.am.send(dest, handler<memfunT,arg1T,arg2T,arg3T>, 
+                world.am.send(dest, handler<memfunT,arg1T,arg2T,arg3T>,
                               new_am_arg(info,arg1,arg2,arg3));
             }
             return result;
@@ -600,10 +597,10 @@ namespace madness {
 
         /// Sends active message to derived class method "returnT (this->*memfun)(arg1,arg2,arg3,arg4)"
         template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T>
-        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > 
+        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) >
         send(ProcessID dest, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, const arg4T& arg4) {
             Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > result;
-            Derived* obj = static_cast<Derived*>(this);            
+            Derived* obj = static_cast<Derived*>(this);
             if (dest == me) {
                 result.set((obj->*memfun)(arg1,arg2,arg3,arg4));
             }
@@ -617,11 +614,11 @@ namespace madness {
 
         /// Sends active message to derived class method "returnT (this->*memfun)(arg1,arg2,arg3,arg4,arg5)"
         template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T, typename arg5T>
-        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > 
-        send(ProcessID dest, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, const arg4T& arg4, 
+        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) >
+        send(ProcessID dest, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, const arg4T& arg4,
              const arg5T& arg5) {
             Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > result;
-            Derived* obj = static_cast<Derived*>(this);            
+            Derived* obj = static_cast<Derived*>(this);
             if (dest == me) {
                 result.set((obj->*memfun)(arg1,arg2,arg3,arg4,arg5));
             }
@@ -635,13 +632,13 @@ namespace madness {
 
 
         /// Sends active message to derived class method "returnT (this->*memfun)(arg1,arg2,arg3,arg4,arg5,arg6)"
-        template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T, 
-                  typename arg5T, typename arg6T>
-        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > 
-        send(ProcessID dest, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, const arg4T& arg4, 
+        template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T,
+        typename arg5T, typename arg6T>
+        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) >
+        send(ProcessID dest, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, const arg4T& arg4,
              const arg5T& arg5, const arg6T& arg6) {
             Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > result;
-            Derived* obj = static_cast<Derived*>(this);            
+            Derived* obj = static_cast<Derived*>(this);
             if (dest == me) {
                 result.set((obj->*memfun)(arg1,arg2,arg3,arg4,arg5,arg6));
             }
@@ -655,13 +652,13 @@ namespace madness {
 
 
         /// Sends active message to derived class method "returnT (this->*memfun)(arg1,arg2,arg3,arg4,arg5,arg6,arg7)"
-        template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T, 
-                  typename arg5T, typename arg6T, typename arg7T>
-        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > 
-        send(ProcessID dest, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, const arg4T& arg4, 
+        template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T,
+        typename arg5T, typename arg6T, typename arg7T>
+        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) >
+        send(ProcessID dest, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, const arg4T& arg4,
              const arg5T& arg5, const arg6T& arg6, const arg7T& arg7) {
             Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > result;
-            Derived* obj = static_cast<Derived*>(this);            
+            Derived* obj = static_cast<Derived*>(this);
             if (dest == me) {
                 result.set((obj->*memfun)(arg1,arg2,arg3,arg4,arg5,arg6,arg7));
             }
@@ -676,43 +673,43 @@ namespace madness {
 
         /// Sends active message to derived class method "returnT (this->*memfun)() const"
         template <typename memfunT, typename arg1T>
-        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > 
+        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) >
         send(ProcessID dest, memfunT memfun) const {
             return const_cast<objT*>(this)->send(dest,memfun);
         }
 
         /// Sends active message to derived class method "returnT (this->*memfun)(arg1) const"
         template <typename memfunT, typename arg1T>
-        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > 
+        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) >
         send(ProcessID dest, memfunT memfun, const arg1T& arg1) const {
             return const_cast<objT*>(this)->send(dest,memfun,arg1);
         }
 
         /// Sends active message to derived class method "returnT (this->*memfun)(arg1,arg2) const"
         template <typename memfunT, typename arg1T, typename arg2T>
-        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > 
+        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) >
         send(ProcessID dest, memfunT memfun, const arg1T& arg1, const arg2T& arg2) const {
             return const_cast<objT*>(this)->send(dest,memfun,arg1,arg2);
         }
 
         /// Sends active message to derived class method "returnT (this->*memfun)(arg1,arg2,arg3) const"
         template <typename memfunT, typename arg1T, typename arg2T, typename arg3T>
-        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > 
+        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) >
         send(ProcessID dest, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3) const {
             return const_cast<objT*>(this)->send(dest,memfun,arg1,arg2,arg3);
         }
 
         /// Sends active message to derived class method "returnT (this->*memfun)(arg1,arg2,arg3,arg4) const"
         template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T>
-        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > 
+        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) >
         send(ProcessID dest, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, const arg4T& arg4) const {
             return const_cast<objT*>(this)->send(dest,memfun,arg1,arg2,arg3,arg4);
         }
 
         /// Sends active message to derived class method "returnT (this->*memfun)(arg1,arg2,arg3,arg4,arg5) const"
         template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T, typename arg5T>
-        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > 
-        send(ProcessID dest, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, const arg4T& arg4, 
+        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) >
+        send(ProcessID dest, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, const arg4T& arg4,
              const arg5T& arg5) const {
             return const_cast<objT*>(this)->send(dest,memfun,arg1,arg2,arg3,arg4,arg5);
         }
@@ -720,18 +717,18 @@ namespace madness {
 
         /// Sends active message to derived class method "returnT (this->*memfun)(arg1,arg2,arg3,arg4,arg5, arg6) const"
         template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T, typename arg5T, typename arg6T>
-        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > 
-        send(ProcessID dest, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, const arg4T& arg4, 
+        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) >
+        send(ProcessID dest, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, const arg4T& arg4,
              const arg5T& arg5, const arg6T& arg6) const {
             return const_cast<objT*>(this)->send(dest,memfun,arg1,arg2,arg3,arg4,arg5,arg6);
         }
 
 
         /// Sends active message to derived class method "returnT (this->*memfun)(arg1,arg2,arg3,arg4,arg5, arg6, arg7) const"
-        template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T, 
-                  typename arg5T, typename arg6T, typename arg7T>
-        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > 
-        send(ProcessID dest, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, const arg4T& arg4, 
+        template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T,
+        typename arg5T, typename arg6T, typename arg7T>
+        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) >
+        send(ProcessID dest, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, const arg4T& arg4,
              const arg5T& arg5, const arg6T& arg6, const arg7T& arg7) const {
             return const_cast<objT*>(this)->send(dest,memfun,arg1,arg2,arg3,arg4,arg5,arg6,arg7);
         }
@@ -739,7 +736,7 @@ namespace madness {
 
         /// Sends task to derived class method "returnT (this->*memfun)()"
         template <typename memfunT>
-        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > 
+        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) >
         task(ProcessID dest, memfunT memfun, const TaskAttributes& attr = TaskAttributes()) {
             if (dest == me) {
                 return world.taskq.add(*static_cast<Derived*>(this), memfun, attr);
@@ -751,10 +748,10 @@ namespace madness {
                 return result;
             }
         }
-        
+
         /// Sends task to derived class method "returnT (this->*memfun)(arg1)"
         template <typename memfunT, typename arg1T>
-        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > 
+        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) >
         task(ProcessID dest, memfunT memfun, const arg1T& arg1, const TaskAttributes& attr = TaskAttributes()) {
             if (dest == me) {
                 return world.taskq.add(*static_cast<Derived*>(this), memfun, arg1, attr);
@@ -763,15 +760,15 @@ namespace madness {
                 Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > result;
                 detail::info<memfunT> info(objid, me, memfun, result.remote_ref(world), attr);
                 world.am.send(dest,handler_task<memfunT,arg1T>,
-                                           new_am_arg(info,arg1));
+                              new_am_arg(info,arg1));
                 return result;
             }
         }
 
         /// Sends task to derived class method "returnT (this->*memfun)(arg1,arg2)"
         template <typename memfunT, typename arg1T, typename arg2T>
-        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > 
-        task(ProcessID dest, memfunT memfun, const arg1T& arg1, const arg2T& arg2, 
+        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) >
+        task(ProcessID dest, memfunT memfun, const arg1T& arg1, const arg2T& arg2,
              const TaskAttributes& attr = TaskAttributes()) {
             if (dest == me) {
                 return world.taskq.add(*static_cast<Derived*>(this), memfun, arg1, arg2, attr);
@@ -780,15 +777,15 @@ namespace madness {
                 Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > result;
                 detail::info<memfunT> info(objid, me, memfun, result.remote_ref(world), attr);
                 world.am.send(dest,handler_task<memfunT,arg1T,arg2T>,
-                                           new_am_arg(info,arg1, arg2));
+                              new_am_arg(info,arg1, arg2));
                 return result;
             }
         }
 
         /// Sends task to derived class method "returnT (this->*memfun)(arg1,arg2,arg3)"
         template <typename memfunT, typename arg1T, typename arg2T, typename arg3T>
-        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > 
-        task(ProcessID dest, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, 
+        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) >
+        task(ProcessID dest, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3,
              const TaskAttributes& attr = TaskAttributes()) {
             if (dest == me) {
                 return world.taskq.add(*static_cast<Derived*>(this), memfun, arg1, arg2, arg3, attr);
@@ -797,15 +794,15 @@ namespace madness {
                 Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > result;
                 detail::info<memfunT> info(objid, me, memfun, result.remote_ref(world), attr);
                 world.am.send(dest,handler_task<memfunT,arg1T,arg2T,arg3T>,
-                                           new_am_arg(info,arg1, arg2, arg3));
+                              new_am_arg(info,arg1, arg2, arg3));
                 return result;
             }
         }
 
         /// Sends task to derived class method "returnT (this->*memfun)(arg1,arg2,arg3,arg4)"
         template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T>
-        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > 
-        task(ProcessID dest, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, 
+        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) >
+        task(ProcessID dest, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3,
              const arg4T& arg4, const TaskAttributes& attr = TaskAttributes()) {
             if (dest == me) {
                 return world.taskq.add(*static_cast<Derived*>(this), memfun, arg1, arg2, arg3, arg4, attr);
@@ -814,15 +811,15 @@ namespace madness {
                 Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > result;
                 detail::info<memfunT> info(objid, me, memfun, result.remote_ref(world), attr);
                 world.am.send(dest,handler_task<memfunT,arg1T,arg2T,arg3T,arg4T>,
-                                           new_am_arg(info,arg1, arg2, arg3, arg4));
+                              new_am_arg(info,arg1, arg2, arg3, arg4));
                 return result;
             }
         }
 
         /// Sends task to derived class method "returnT (this->*memfun)(arg1,arg2,arg3,arg4,arg5)"
         template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T, typename arg5T>
-        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > 
-        task(ProcessID dest, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, 
+        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) >
+        task(ProcessID dest, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3,
              const arg4T& arg4, const arg5T& arg5, const TaskAttributes& attr = TaskAttributes()) {
             if (dest == me) {
                 return world.taskq.add(*static_cast<Derived*>(this), memfun, arg1, arg2, arg3, arg4, arg5, attr);
@@ -831,15 +828,15 @@ namespace madness {
                 Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > result;
                 detail::info<memfunT> info(objid, me, memfun, result.remote_ref(world), attr);
                 world.am.send(dest,handler_task<memfunT,arg1T,arg2T,arg3T,arg4T,arg5T>,
-                                           new_am_arg(info,arg1, arg2, arg3, arg4, arg5));
+                              new_am_arg(info,arg1, arg2, arg3, arg4, arg5));
                 return result;
             }
         }
 
         /// Sends task to derived class method "returnT (this->*memfun)(arg1,arg2,arg3,arg4,arg5,arg6)"
         template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T, typename arg5T, typename arg6T>
-        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > 
-        task(ProcessID dest, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, 
+        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) >
+        task(ProcessID dest, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3,
              const arg4T& arg4, const arg5T& arg5, const arg6T& arg6, const TaskAttributes& attr = TaskAttributes()) {
             if (dest == me) {
                 return world.taskq.add(*static_cast<Derived*>(this), memfun, arg1, arg2, arg3, arg4, arg5, arg6, attr);
@@ -855,8 +852,8 @@ namespace madness {
 
         /// Sends task to derived class method "returnT (this->*memfun)(arg1,arg2,arg3,arg4,arg5,arg6,arg7)"
         template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T, typename arg5T, typename arg6T, typename arg7T>
-        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > 
-        task(ProcessID dest, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, 
+        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) >
+        task(ProcessID dest, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3,
              const arg4T& arg4, const arg5T& arg5, const arg6T& arg6, const arg7T& arg7, const TaskAttributes& attr = TaskAttributes()) {
             if (dest == me) {
                 return world.taskq.add(*static_cast<Derived*>(this), memfun, arg1, arg2, arg3, arg4, arg5, arg6, arg7, attr);
@@ -873,59 +870,59 @@ namespace madness {
 
         /// Sends task to derived class method "returnT (this->*memfun)() const"
         template <typename memfunT>
-        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > 
+        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) >
         task(ProcessID dest, memfunT memfun, const TaskAttributes& attr = TaskAttributes()) const {
             return const_cast<objT*>(this)->task(dest,memfun,attr);
         }
 
         /// Sends task to derived class method "returnT (this->*memfun)(arg1) const"
         template <typename memfunT, typename arg1T>
-        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > 
+        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) >
         task(ProcessID dest, memfunT memfun, const arg1T& arg1, const TaskAttributes& attr = TaskAttributes()) const {
             return const_cast<objT*>(this)->task(dest,memfun,arg1,attr);
         }
 
         /// Sends task to derived class method "returnT (this->*memfun)(arg1,arg2) const"
         template <typename memfunT, typename arg1T, typename arg2T>
-        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > 
-        task(ProcessID dest, memfunT memfun, const arg1T& arg1, const arg2T& arg2, 
+        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) >
+        task(ProcessID dest, memfunT memfun, const arg1T& arg1, const arg2T& arg2,
              const TaskAttributes& attr = TaskAttributes()) const {
             return const_cast<objT*>(this)->task(dest,memfun,arg1,arg2,attr);
         }
 
         /// Sends task to derived class method "returnT (this->*memfun)(arg1,arg2,arg3) const"
         template <typename memfunT, typename arg1T, typename arg2T, typename arg3T>
-        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > 
-        task(ProcessID dest, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, 
+        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) >
+        task(ProcessID dest, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3,
              const TaskAttributes& attr = TaskAttributes()) const {
             return const_cast<objT*>(this)->task(dest,memfun,arg1,arg2,arg3,attr);
         }
 
         /// Sends task to derived class method "returnT (this->*memfun)(arg1,arg2,arg3,arg4) const"
         template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T>
-        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > 
-        task(ProcessID dest, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, 
+        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) >
+        task(ProcessID dest, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3,
              const arg4T& arg4, const TaskAttributes& attr = TaskAttributes()) const {
             return const_cast<objT*>(this)->task(dest,memfun,arg1,arg2,arg3,arg4,attr);
         }
 
         /// Sends task to derived class method "returnT (this->*memfun)(arg1,arg2,arg3,arg4,arg5) const"
         template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T, typename arg5T>
-        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > 
-        task(ProcessID dest, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, 
+        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) >
+        task(ProcessID dest, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3,
              const arg4T& arg4, const arg5T& arg5, const TaskAttributes& attr = TaskAttributes()) const {
             return const_cast<objT*>(this)->task(dest,memfun,arg1,arg2,arg3,arg4,arg5,attr);
         }
 
         /// Sends task to derived class method "returnT (this->*memfun)(arg1,arg2,arg3,arg4,arg5,arg6) const"
         template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T, typename arg5T, typename arg6T>
-        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > 
-        task(ProcessID dest, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, 
+        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) >
+        task(ProcessID dest, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3,
              const arg4T& arg4, const arg5T& arg5, const arg6T& arg6, const TaskAttributes& attr = TaskAttributes()) const {
             return const_cast<objT*>(this)->task(dest,memfun,arg1,arg2,arg3,arg4,arg5,arg6,attr);
         }
 
-        virtual ~WorldObject(){
+        virtual ~WorldObject() {
             world.unregister_ptr(static_cast<Derived*>(this));
         }
     };
@@ -942,7 +939,7 @@ namespace madness {
                 if (!ptr) MADNESS_EXCEPTION("WorldObj: remote operation attempting to use a locally uninitialized object",0);
             }
         };
-        
+
         template <class Derived>
         struct ArchiveStoreImpl<BufferOutputArchive,WorldObject<Derived>*> {
             static inline void store(const BufferOutputArchive& ar, const WorldObject<Derived>*const& ptr) {
@@ -961,7 +958,7 @@ namespace madness {
                 if (!ptr) MADNESS_EXCEPTION("WorldObj: remote operation attempting to use a locally uninitialized object",0);
             }
         };
-        
+
         template <class Derived>
         struct ArchiveStoreImpl<BufferOutputArchive,const WorldObject<Derived>*> {
             static inline void store(const BufferOutputArchive& ar, const WorldObject<Derived>*const& ptr) {
@@ -972,7 +969,7 @@ namespace madness {
 }
 
 #ifdef WORLD_INSTANTIATE_STATIC_TEMPLATES
-template <typename Derived> 
+template <typename Derived>
 volatile std::list<madness::detail::PendingMsg> madness::WorldObject<Derived>::pending;
 
 template <typename Derived>  madness::Spinlock madness::WorldObject<Derived>::pending_mutex;

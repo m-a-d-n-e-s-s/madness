@@ -1,22 +1,22 @@
 /*
   This file is part of MADNESS.
-  
+
   Copyright (C) <2007> <Oak Ridge National Laboratory>
-  
+
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation; either version 2 of the License, or
   (at your option) any later version.
-  
+
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
   GNU General Public License for more details.
-  
+
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
-  
+
   For more information please contact:
 
   Robert J. Harrison
@@ -24,15 +24,15 @@
   One Bethel Valley Road
   P.O. Box 2008, MS-6367
 
-  email: harrisonrj@ornl.gov 
+  email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
 
-  
+
   $Id$
 */
 
-  
+
 #ifndef WORLD_HASH_H
 #define WORLD_HASH_H
 
@@ -66,7 +66,7 @@ namespace madness {
     extern "C" hashT hashword(const hashT *k, size_t length, hashT initval);
 
     static inline hashT hashulong(const unsigned long* k, size_t length, unsigned long initval) {
-        return hashword((const hashT*) k, length*sizeof(long)/sizeof(hashT), 
+        return hashword((const hashT*) k, length*sizeof(long)/sizeof(hashT),
                         (hashT)(initval));
     }
 
@@ -129,7 +129,7 @@ namespace madness {
     }
 
     /// Default \c Hash<T>::hash(t) invokes t.hash()
-    template <typename T> 
+    template <typename T>
     struct Hash {
         static hashT hash(const T& t) {
             return t.hash();
@@ -139,7 +139,7 @@ namespace madness {
     /// Specialization for fixed dim arrays invokes hash(t,n)
     template <class T, std::size_t n>
     struct Hash<T[n]> {
-        static hashT hash(const T (&t)[n], hashT initval=0) {
+        static hashT hash(const T(&t)[n], hashT initval=0) {
             return madness::hash(t, n, initval);
         };
     };

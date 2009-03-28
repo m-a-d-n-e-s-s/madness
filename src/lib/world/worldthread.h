@@ -14,7 +14,7 @@
 namespace madness {
 
     void error(const char *msg);
-    
+
     struct DQStats { // Dilly bar, blizzard, ...
         uint64_t npush_back;    //< #calls to push_back
         uint64_t npush_front;   //< #calls to push_front
@@ -22,9 +22,8 @@ namespace madness {
         uint64_t ngrow;         //< #calls to grow
         uint64_t nmax;          //< Lifetime max. entries in the queue
 
-        DQStats() 
-            : npush_back(0), npush_front(0), npop_front(0), ngrow(0), nmax(0)
-        {}
+        DQStats()
+                : npush_back(0), npush_front(0), npop_front(0), ngrow(0), nmax(0) {}
     };
 
 
@@ -36,8 +35,8 @@ namespace madness {
     /// shrink.  Had to modify STL API to make things thread safe.
     template <typename T>
     class DQueue : private CONDITION_VARIABLE_TYPE {
-        char pad[64]; // To put the lock and the data in separate cache lines 
-        volatile size_t n __attribute__ ((aligned (64)));      ///< Number of elements in the buffer
+        char pad[64]; // To put the lock and the data in separate cache lines
+        volatile size_t n __attribute__((aligned(64)));        ///< Number of elements in the buffer
         volatile size_t sz;              ///< Current capacity
         volatile T* volatile buf;        ///< Actual buffer
         volatile int _front;  ///< Index of element at front of buffer
@@ -49,11 +48,11 @@ namespace madness {
             stats.ngrow++;
             if (sz != n) throw "assertion failure in dqueue::grow";
             size_t oldsz = sz;
-            if (sz < 32768) 
+            if (sz < 32768)
                 sz = 65536;
-            else if (sz <= 1048576) 
+            else if (sz <= 1048576)
                 sz *= 2;
-            else 
+            else
                 sz += 1048576;
             volatile T* volatile nbuf = new T[sz];
             int lo = sz/2 - oldsz/2;
@@ -83,12 +82,11 @@ namespace madness {
 
     public:
         DQueue(size_t hint=200000) // was 32768
-            : n(0)
-            , sz(hint>2 ? hint : 2)
-            , buf(new T[sz])
-            , _front(sz/2)
-            , _back(_front-1)
-        {}
+                : n(0)
+                , sz(hint>2 ? hint : 2)
+                , buf(new T[sz])
+                , _front(sz/2)
+                , _back(_front-1) {}
 
         virtual ~DQueue() {
             delete buf;
@@ -158,7 +156,7 @@ namespace madness {
             if (nn) {
                 //sanity_check();
                 n = nn - 1;
-                
+
                 int f = _front;
                 T result = buf[f];
                 f++;
@@ -202,7 +200,7 @@ namespace madness {
                     *r++ = buf[f++];
                     if (f >= int(sz)) f = 0;
                 }
-                
+
                 _front = f;
 
                 //sanity_check();
@@ -216,7 +214,7 @@ namespace madness {
         size_t size() const {
             return n;
         }
-        
+
         bool empty() const {
             return n==0;
         }
@@ -248,26 +246,33 @@ namespace madness {
 #endif
 
             try {
-                ((ThreadBase*)(self))->run(); 
-            } catch (const MPI::Exception& e) {
+                ((ThreadBase*)(self))->run();
+            }
+            catch (const MPI::Exception& e) {
                 //        print(e);
                 error("caught an MPI exception");
-            } catch (const madness::MadnessException& e) {
+            }
+            catch (const madness::MadnessException& e) {
                 print(e);
                 error("caught a MADNESS exception");
-            } catch (const char* s) {
+            }
+            catch (const char* s) {
                 print(s);
                 error("caught a string exception");
-            } catch (char* s) {
+            }
+            catch (char* s) {
                 print(s);
                 error("caught a string exception");
-            } catch (const std::string& s) {
+            }
+            catch (const std::string& s) {
                 print(s);
                 error("caught a string (class) exception");
-            } catch (const std::exception& e) {
+            }
+            catch (const std::exception& e) {
                 print(e.what());
                 error("caught an STL exception");
-            } catch (...) {
+            }
+            catch (...) {
                 error("caught unhandled exception");
             }
 
@@ -278,47 +283,55 @@ namespace madness {
         }
 
         int pool_num; ///< Stores index of thread in pool or -1
-        pthread_t id; 
+        pthread_t id;
 
         void set_pool_thread_index(int i) {
             pool_num = i;
         }
 
     public:
-        
+
         /// Default constructor ... must invoke \c start() to actually begin the thread.
         ThreadBase() : pool_num(-1) {};
 
         virtual ~ThreadBase() {};
-        
+
         /// You implement this to do useful work
         virtual void run() = 0;
-        
+
         /// Start the thread running
         void start() {
             pthread_attr_t attr;
             // Want detached thread with kernel scheduling so can use multiple cpus
             // RJH ... why not checking success/failure????
-            pthread_attr_init(&attr);    
+            pthread_attr_init(&attr);
             pthread_attr_setdetachstate(&attr,PTHREAD_CREATE_DETACHED);
-            pthread_attr_setscope(&attr, PTHREAD_SCOPE_SYSTEM); 
+            pthread_attr_setscope(&attr, PTHREAD_SCOPE_SYSTEM);
             if (pthread_create(&id, &attr, &ThreadBase::main, (void *) this))
                 throw "failed creating thread";
-            
+
             pthread_attr_destroy(&attr);
         }
-        
+
         /// A thread can call this to terminate its execution
-        static void exit() {pthread_exit(0);}
-        
+        static void exit() {
+            pthread_exit(0);
+        }
+
         /// Get the pthread id of this thread (if running)
-        const pthread_t& get_id() const {return id;}
+        const pthread_t& get_id() const {
+            return id;
+        }
 
         /// Get index of thread in ThreadPool (0,...,nthread-1) or -1 if not in ThreadPool
-        int get_pool_thread_index() const {return pool_num;}
-        
+        int get_pool_thread_index() const {
+            return pool_num;
+        }
+
         /// Cancel this thread
-        int cancel() const {return pthread_cancel(get_id());}
+        int cancel() const {
+            return pthread_cancel(get_id());
+        }
 
         /// Specify the affinity pattern or how to bind threads to cpus
         static void set_affinity_pattern(const bool bind[3], const int cpu[3]) {
@@ -347,7 +360,7 @@ namespace madness {
             }
 
             if (!bind[logical_id]) return;
-                
+
             int ncpu = sysconf(_SC_NPROCESSORS_CONF);
             if (ncpu <= 0) {
                 std::cout << "ThreadBase: set_affinity_pattern: sysconf(_SC_NPROCESSORS_CONF)" << std::endl;
@@ -376,39 +389,40 @@ namespace madness {
             }
 
             //std::cout << "BINDING THREAD: id " << logical_id << " ind " << ind << " lo " << lo << " hi " << hi << " ncpu " << ncpu << std::endl;
-            
+
 #ifdef ON_A_MAC
-#else	    
+#else
             cpu_set_t mask;
             CPU_ZERO(&mask);
             for (int i=lo; i<=hi; i++) CPU_SET(i,&mask);
-            if(sched_setaffinity( 0, sizeof(mask), &mask ) == -1 ) {
+            if (sched_setaffinity(0, sizeof(mask), &mask) == -1) {
                 perror("system error message");
                 std::cout << "ThreadBase: set_affinity: Could not set cpu Affinity" << std::endl;
             }
 #endif
         }
     };
-    
-    
+
+
     /// Simplified thread wrapper to hide pthread complexity
     class Thread : public ThreadBase {
-        void* (*f)(void *); 
+        void* (*f)(void *);
         void* args;
-        
-        void run() {f(args);}
+
+        void run() {
+            f(args);
+        }
     public:
         /// Default constructor ... must invoke \c start() to actually begin the thread.
         Thread() : f(0), args(0) {};
-        
+
         /// Create a thread and start it running f(args)
-        Thread(void* (*f) (void *), void* args=0) 
-            : f(f), args(args) 
-        {
+        Thread(void* (*f)(void *), void* args=0)
+                : f(f), args(args) {
             ThreadBase::start();
         }
-        
-        void start(void* (*f) (void *), void* args=0) {
+
+        void start(void* (*f)(void *), void* args=0) {
             this->f = f;
             this->args = args;
             ThreadBase::start();
@@ -416,10 +430,10 @@ namespace madness {
 
         virtual ~Thread() {}
     };
-    
-    
+
+
     /// Contains attributes of a task
-    
+
     /// \c generator : Setting this hints that a task will produce
     /// additional tasks and is used by the scheduler to
     /// increase/throttle parallelism. The default is false.
@@ -439,23 +453,29 @@ namespace madness {
 
         TaskAttributes(unsigned long flags = 0) : flags(flags) {}
 
-        bool is_generator() const {return flags&GENERATOR;}
+        bool is_generator() const {
+            return flags&GENERATOR;
+        }
 
-        bool is_stealable() const {return flags&STEALABLE;}
+        bool is_stealable() const {
+            return flags&STEALABLE;
+        }
 
-        bool is_high_priority() const {return flags&HIGHPRIORITY;}
+        bool is_high_priority() const {
+            return flags&HIGHPRIORITY;
+        }
 
-        void set_generator (bool generator_hint) {
+        void set_generator(bool generator_hint) {
             if (generator_hint) flags |= GENERATOR;
             else flags &= ~GENERATOR;
         }
 
-        void set_stealable (bool stealable) {
+        void set_stealable(bool stealable) {
             if (stealable) flags |= STEALABLE;
             else flags &= ~STEALABLE;
         }
 
-        void set_highpriority (bool hipri) {
+        void set_highpriority(bool hipri) {
             if (hipri) flags |= HIGHPRIORITY;
             else flags &= ~HIGHPRIORITY;
         }
@@ -465,9 +485,13 @@ namespace madness {
             ar & flags;
         }
 
-        static TaskAttributes generator() {return TaskAttributes(GENERATOR);}
+        static TaskAttributes generator() {
+            return TaskAttributes(GENERATOR);
+        }
 
-        static TaskAttributes hipri() {return TaskAttributes(HIGHPRIORITY);}
+        static TaskAttributes hipri() {
+            return TaskAttributes(HIGHPRIORITY);
+        }
     };
 
 
@@ -476,7 +500,7 @@ namespace madness {
         PoolTaskInterface() {}
 
         explicit PoolTaskInterface(const TaskAttributes& attr)
-            : TaskAttributes(attr) {}
+                : TaskAttributes(attr) {}
 
         virtual void run() = 0;
 
@@ -507,7 +531,7 @@ namespace madness {
 
             try {
                 if (nthreads > 0) threads = new Thread[nthreads];
-            else threads = 0;
+                else threads = 0;
             }
             catch (...) {
                 throw "memory allocation failed";
@@ -515,7 +539,7 @@ namespace madness {
 
             for (int i=0; i<nthreads; i++) {
                 threads[i].set_pool_thread_index(i);
-                threads[i].start(pool_thread_main, (void *) (threads+i));
+                threads[i].start(pool_thread_main, (void *)(threads+i));
             }
         }
 
@@ -529,7 +553,7 @@ namespace madness {
             if (cnthread == 0) cnthread = getenv("POOL_NTHREAD");
 
             if (cnthread) {
-                if (sscanf(cnthread, "%d", &nthread) != 1) 
+                if (sscanf(cnthread, "%d", &nthread) != 1)
                     throw "POOL_NTHREAD is not an integer";
             }
             else {
@@ -545,7 +569,7 @@ namespace madness {
             if (!wait && queue.empty()) return false;
             std::pair<PoolTaskInterface*,bool> t = queue.pop_front(wait);
             if (t.second) {
-		PROFILE_BLOCK(working);
+                PROFILE_BLOCK(working);
                 t.first->run();          // What we are here to do
                 delete t.first;
             }
@@ -565,7 +589,7 @@ namespace madness {
         }
 
         void thread_main(Thread* thread) {
-	    PROFILE_MEMBER_FUNC(ThreadPool);
+            PROFILE_MEMBER_FUNC(ThreadPool);
             thread->set_affinity(2, thread->get_pool_thread_index());
 
 #define MULTITASK
@@ -600,10 +624,12 @@ namespace madness {
 
     public:
         /// Please invoke while in single threaded environment
-        static void begin(int nthread=-1) {instance(nthread);}
+        static void begin(int nthread=-1) {
+            instance(nthread);
+        }
 
         static void end() {
-		    if (!instance_ptr) return;
+            if (!instance_ptr) return;
             instance()->finish = true;
             for (int i=0; i<instance()->nthreads; i++) {
                 add(new PoolTaskNull);

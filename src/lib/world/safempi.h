@@ -27,14 +27,14 @@ namespace SafeMPI {
     /// tags in [1024,4095] ... allocated round-robin by unique_tag
     ///
     /// tags in [4096,MPI::TAG_UB] ... not used/managed by madness
-    
+
     static const int RMI_TAG = 1023;
     static const int RMI_HUGE_ACK_TAG = 1022;
     static const int RMI_HUGE_DAT_TAG = 1021;
     static const int MPIAR_TAG = 1001;
     static const int DEFAULT_SEND_RECV_TAG = 1000;
 
-    class Request : private MPI::Request{
+    class Request : private MPI::Request {
     public:
         Request() : MPI::Request() {}
 
@@ -68,13 +68,12 @@ namespace SafeMPI {
         int numproc;
 
     public:
-        Intracomm(MPI::Intracomm& comm) : comm(comm)
-        {
+        Intracomm(MPI::Intracomm& comm) : comm(comm) {
             SAFE_MPI_GLOBAL_MUTEX;
             me = comm.Get_rank();
             numproc = comm.Get_size();
         }
-        
+
         int Get_rank() const {
             return me;
         }
@@ -145,7 +144,7 @@ namespace SafeMPI {
         /// These tags are intended for one time use to avoid tag
         /// collisions with other messages around the same time period.
         /// It simply increments/wraps a counter and returns the next
-        /// legal value. 
+        /// legal value.
         ///
         /// So that send and receiver agree on the tag all processes
         /// need to call this routine in the same sequence.
@@ -191,48 +190,48 @@ namespace SafeMPI {
         Irecv(T* buf, int count, int source, int tag=DEFAULT_SEND_RECV_TAG) const {
             return Irecv(buf, count*sizeof(T), MPI::BYTE, source, tag);
         }
-        
-        
+
+
         /// Async receive datum from process dest with default tag=1
         template <class T>
         typename madness::enable_if_c< !madness::is_pointer<T>::value, SafeMPI::Request>::type
         Irecv(T& buf, int source, int tag=DEFAULT_SEND_RECV_TAG) const {
             return Irecv(&buf, sizeof(T), MPI::BYTE, source, tag);
         }
-        
 
-        /// Send array of lenbuf elements to process dest 
+
+        /// Send array of lenbuf elements to process dest
         template <class T>
         void Send(const T* buf, long lenbuf, int dest, int tag=DEFAULT_SEND_RECV_TAG) const {
-            Send((void* )buf, lenbuf*sizeof(T), MPI::BYTE, dest, tag);
+            Send((void*)buf, lenbuf*sizeof(T), MPI::BYTE, dest, tag);
         }
-     
+
 
         /// Send element to process dest with default tag=1001
-        
+
         /// Disabled for pointers to reduce accidental misuse.
         template <class T>
         typename madness::enable_if_c< !madness::is_pointer<T>::value, void>::type
         Send(const T& datum, int dest, int tag=DEFAULT_SEND_RECV_TAG) const {
-            Send((void* )&datum, sizeof(T), MPI::BYTE, dest, tag);
+            Send((void*)&datum, sizeof(T), MPI::BYTE, dest, tag);
         }
-     
+
 
         /// Receive data of up to lenbuf elements from process dest
         template <class T>
-            void
-            Recv(T* buf, long lenbuf, int src, int tag) const {
+        void
+        Recv(T* buf, long lenbuf, int src, int tag) const {
             Recv(buf, lenbuf*sizeof(T), MPI::BYTE, src, tag);
         }
-     
+
         /// Receive data of up to lenbuf elements from process dest with status
         template <class T>
-            void
-            Recv(T* buf, long lenbuf, int src, int tag, MPI::Status& status) const {
+        void
+        Recv(T* buf, long lenbuf, int src, int tag, MPI::Status& status) const {
             Recv(buf, lenbuf*sizeof(T), MPI::BYTE, src, tag, status);
         }
-     
-     
+
+
         /// Receive datum from process src
         template <class T>
         typename madness::enable_if_c< !madness::is_pointer<T>::value, void>::type
@@ -242,16 +241,16 @@ namespace SafeMPI {
 
 
         /// MPI broadcast an array of count elements
-        
+
         /// NB.  Read documentation about interaction of MPI collectives and AM/task handling.
         template <class T>
         void Bcast(T* buffer, int count, int root) const {
             Bcast(buffer,count*sizeof(T),MPI::BYTE,root);
         }
-        
-        
+
+
         /// MPI broadcast a datum
-        
+
         /// NB.  Read documentation about interaction of MPI collectives and AM/task handling.
         template <class T>
         typename madness::enable_if_c< !madness::is_pointer<T>::value, void>::type
@@ -259,15 +258,21 @@ namespace SafeMPI {
             Bcast(&buffer, sizeof(T), MPI::BYTE,root);
         }
 
-        int rank() const {return Get_rank();}
-        
-        int nproc() const {return Get_size();}
-        
-        int size() const {return Get_size();}
+        int rank() const {
+            return Get_rank();
+        }
+
+        int nproc() const {
+            return Get_size();
+        }
+
+        int size() const {
+            return Get_size();
+        }
 
 
         /// Construct info about a binary tree with given root
-        
+
         /// Constructs a binary tree spanning the communicator with
         /// process root as the root of the tree.  Returns the logical
         /// parent and children in the tree of the calling process.  If
@@ -280,7 +285,7 @@ namespace SafeMPI {
             child1 = (me<<1)+2+root;        // Right child
             if (child0 >= np && child0<(np+root)) child0 -= np;
             if (child1 >= np && child1<(np+root)) child1 -= np;
-            
+
             if (me == 0) parent = -1;
             if (child0 >= np) child0 = -1;
             if (child1 >= np) child1 = -1;

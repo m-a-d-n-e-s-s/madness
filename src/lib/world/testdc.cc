@@ -38,14 +38,16 @@ struct Node {
 
     Node(int k) : k(k) {}
 
-    int get() const {return k;}
+    int get() const {
+        return k;
+    }
 
     template <typename Archive>
     void serialize(const Archive& ar) {
         ar & k;
     }
 };
-    
+
 ostream& operator<<(ostream&s, const Node& node) {
     s << "Node(" << node.k << ")";
     return s;
@@ -62,10 +64,10 @@ void test0(World& world) {
 
     world.gop.fence();
 
-    for (int i=0; i<10000; i++) 
+    for (int i=0; i<10000; i++)
         MADNESS_ASSERT(c.find(key1).get()->second.get() == 1);
 
-    for (int i=3; i<100; i++) 
+    for (int i=3; i<100; i++)
         MADNESS_ASSERT(c.find(Key(i)).get() == c.end());
 
 
@@ -90,16 +92,20 @@ int main(int argc, char** argv) {
     xterm_debug("./testdc", 0);
 
     try {
-      test0(world);
-    } catch (MPI::Exception e) {
+        test0(world);
+    }
+    catch (MPI::Exception e) {
         error("caught an MPI exception");
-    } catch (madness::MadnessException e) {
+    }
+    catch (madness::MadnessException e) {
         print(e);
         error("caught a MADNESS exception");
-    } catch (const char* s) {
+    }
+    catch (const char* s) {
         print(s);
         error("caught a string exception");
-    } catch (...) {
+    }
+    catch (...) {
         error("caught unhandled exception");
     }
 

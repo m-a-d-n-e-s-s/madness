@@ -19,7 +19,7 @@ void* doit(void *args) {
         sched_yield();
     }
     MADATOMIC_INT_INC(&ndone);
-    
+
     return 0;
 }
 
@@ -32,11 +32,11 @@ void* doit_mutex(void *args) {
             p->unlock();
         }
     }
-    
+
     p->lock();
     ndone++;
     p->unlock();
-    
+
     return 0;
 }
 
@@ -66,13 +66,13 @@ int main() {
         for (int i=0; i<nthread; i++) threads[i].start(doit,0);
         while (MADATOMIC_INT_GET(&ndone) != nthread) sleep(1);
         cout << "SUM " << MADATOMIC_INT_GET(&sum) << endl;
-        
+
         Mutex p;
         sum = ndone = 0;
         for (int i=0; i<nthread; i++) threads[i].start(doit_mutex,&p);
         while (MADATOMIC_INT_GET(&ndone) != nthread) sleep(1);
         cout << "SUM " << MADATOMIC_INT_GET(&sum) << endl;
-        
+
         sum = ndone = 0;
         ThreadPool::add(new Greet());
         for (int i=0; i<100000000; i++) ThreadPool::add(new Adder());

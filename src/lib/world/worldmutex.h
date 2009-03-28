@@ -2,14 +2,24 @@
 #define WORLD_MUTEX_H
 
 #include <madness_config.h>
-#ifdef ON_A_MAC 
+#ifdef ON_A_MAC
 #include <libkern/OSAtomic.h>
 typedef OSSpinLock pthread_spinlock_t;
 
-inline void pthread_spin_init(pthread_spinlock_t* p, int mode) {*p=0;}
-inline int pthread_spin_trylock(pthread_spinlock_t* p) {return !OSSpinLockTry(p);}
-inline int pthread_spin_lock(pthread_spinlock_t* p) {OSSpinLockLock(p); return 0;}
-inline int pthread_spin_unlock(pthread_spinlock_t* p) {OSSpinLockUnlock(p); return 0;}
+inline void pthread_spin_init(pthread_spinlock_t* p, int mode) {
+    *p=0;
+}
+inline int pthread_spin_trylock(pthread_spinlock_t* p) {
+    return !OSSpinLockTry(p);
+}
+inline int pthread_spin_lock(pthread_spinlock_t* p) {
+    OSSpinLockLock(p);
+    return 0;
+}
+inline int pthread_spin_unlock(pthread_spinlock_t* p) {
+    OSSpinLockUnlock(p);
+    return 0;
+}
 inline void pthread_spin_destroy(pthread_spinlock_t* p) {}
 #endif
 
@@ -30,7 +40,9 @@ inline void pthread_spin_destroy(pthread_spinlock_t* p) {}
 
 namespace madness {
 
-    inline void cpu_relax(){asm volatile ( "rep;nop" : : : "memory" );}
+    inline void cpu_relax() {
+asm volatile("rep;nop" : : : "memory");
+    }
 
     class MutexWaiter {
     private:
@@ -40,11 +52,13 @@ namespace madness {
         void yield(int us) {
             usleep(us);
         }
-        
+
     public:
         MutexWaiter() : count(0) {}
 
-        void reset() {count = 0;}
+        void reset() {
+            count = 0;
+        }
 
         void wait() {
             //#ifdef HAVE_CRAYXT
@@ -70,44 +84,44 @@ namespace madness {
         }
     };
 
-    
+
     /// Mutex using pthread mutex operations
     class Mutex {
     private:
         mutable pthread_mutex_t mutex;
-        
+
         /// Copy constructor is forbidden
         Mutex(const Mutex& m) {}
-        
+
         /// Assignment is forbidden
         void operator=(const Mutex& m) {}
-        
+
     public:
         /// Make and initialize a mutex ... initial state is unlocked
         Mutex() {
             pthread_mutex_init(&mutex, 0);
         }
-        
+
         /// Try to acquire the mutex ... return true on success, false on failure
         bool try_lock() const {
             return pthread_mutex_trylock(&mutex)==0;
         }
-        
+
         /// Acquire the mutex waiting if necessary
         void lock() const {
             if (pthread_mutex_lock(&mutex)) throw "failed acquiring mutex";
         }
-        
+
         /// Free a mutex owned by this thread
         void unlock() const {
             if (pthread_mutex_unlock(&mutex)) throw "failed releasing mutex";
         }
-        
+
         /// Return a pointer to the pthread mutex for use by a condition variable
         pthread_mutex_t* ptr() const {
             return &mutex;
         }
-        
+
         virtual ~Mutex() {
             pthread_mutex_destroy(&mutex);
         };
@@ -120,9 +134,15 @@ namespace madness {
     class ScopedMutex {
         const mutexT* m;
     public:
-        ScopedMutex(const mutexT* m) : m(m) {m->lock();}
-        ScopedMutex(const mutexT& m) : m(&m) {m.lock();}
-        virtual ~ScopedMutex() {m->unlock();}
+        ScopedMutex(const mutexT* m) : m(m) {
+            m->lock();
+        }
+        ScopedMutex(const mutexT& m) : m(&m) {
+            m.lock();
+        }
+        virtual ~ScopedMutex() {
+            m->unlock();
+        }
     };
 
 #ifdef NEVER_SPIN
@@ -136,10 +156,10 @@ namespace madness {
 
         /// Copy constructor is forbidden
         Spinlock(const Spinlock& m) {}
-        
+
         /// Assignment is forbidden
         void operator=(const Spinlock& m) {}
-        
+
     public:
         /// Make and initialize a spinlock ... initial state is unlocked
         Spinlock() {
@@ -150,17 +170,17 @@ namespace madness {
         bool try_lock() const {
             return pthread_spin_trylock(&spinlock)==0;
         }
-        
+
         /// Acquire the spinlock waiting if necessary
         void lock() const {
             if (pthread_spin_lock(&spinlock)) throw "failed acquiring spinlock";
         }
-        
+
         /// Free a spinlock owned by this thread
         void unlock() const {
             if (pthread_spin_unlock(&spinlock)) throw "failed releasing spinlock";
         }
-        
+
         virtual ~Spinlock() {
             pthread_spin_destroy(&spinlock);
         };
@@ -176,8 +196,7 @@ namespace madness {
         static const int READLOCK=1;
         static const int WRITELOCK=2;
 
-        MutexReaderWriter() : nreader(0), writeflag(false) 
-        {}
+        MutexReaderWriter() : nreader(0), writeflag(false) {}
 
         bool try_read_lock() const {
             ScopedMutex<Spinlock> protect(this);
@@ -185,7 +204,7 @@ namespace madness {
             if (gotit) nreader++;
             return gotit;
         }
-        
+
         bool try_write_lock() const {
             ScopedMutex<Spinlock> protect(this);
             bool gotit = (!writeflag) && (nreader==0);
@@ -245,7 +264,7 @@ namespace madness {
         void unlock(int lockmode) const {
             if (lockmode == READLOCK) read_unlock();
             else if (lockmode == WRITELOCK) write_unlock();
-            else if (lockmode != NOLOCK) throw "MutexReaderWriter: try_lock: invalid lock mode";            
+            else if (lockmode != NOLOCK) throw "MutexReaderWriter: try_lock: invalid lock mode";
         }
 
         /// Converts read to write lock without releasing the read lock
@@ -262,7 +281,7 @@ namespace madness {
             writeflag=false;
         }
 
-        virtual ~MutexReaderWriter(){};
+        virtual ~MutexReaderWriter() {};
     };
 
     /// Scalable and fair condition variable (spins on local value)
@@ -287,20 +306,20 @@ namespace madness {
             b++;
             if (b >= MAX_NTHREAD) back = 0;
             else back = b;
-            
+
             unlock(); // Release lock before blocking
             while (!myturn) cpu_relax();
             lock();
         }
-        
+
         /// You should acquire the mutex before signalling
         void signal() const {
             if (front != back) {
                 int f = front;
                 int ff = f + 1;
-                if (ff >= MAX_NTHREAD) 
+                if (ff >= MAX_NTHREAD)
                     front = 0;
-                else 
+                else
                     front = ff;
 
                 *q[f] = true;
@@ -310,7 +329,7 @@ namespace madness {
 
         /// You should acquire the mutex before broadcasting
         void broadcast() const {
-            while (front != back) 
+            while (front != back)
                 signal();
         }
 
@@ -324,7 +343,7 @@ namespace madness {
     class MutexFair : private Spinlock {
     private:
         static const int MAX_NTHREAD = 64;
-        mutable volatile bool* volatile q[MAX_NTHREAD]; 
+        mutable volatile bool* volatile q[MAX_NTHREAD];
         mutable volatile int n;
         mutable volatile int front;
         mutable volatile int back;
@@ -375,14 +394,14 @@ namespace madness {
 
             return got_lock;
         }
-             
+
     };
 
 
     /// Attempt to acquire two locks without blocking holding either one
 
     /// The code will first attempt to acquire mutex m1 and if successful
-    /// will then attempt to acquire mutex m2.  
+    /// will then attempt to acquire mutex m2.
     inline bool try_two_locks(const Mutex& m1, const Mutex& m2) {
         if (!m1.try_lock()) return false;
         if (m2.try_lock()) return true;
@@ -404,9 +423,11 @@ namespace madness {
         PthreadConditionVariable() {
             pthread_cond_init(&cv, NULL);
             pthread_mutex_init(&mutex, 0);
-        }            
+        }
 
-        pthread_mutex_t& get_pthread_mutex() {return mutex;}
+        pthread_mutex_t& get_pthread_mutex() {
+            return mutex;
+        }
 
         void lock() const {
             if (pthread_mutex_lock(&mutex)) throw "ConditionVariable: acquiring mutex";

@@ -1,22 +1,22 @@
 /*
   This file is part of MADNESS.
-  
+
   Copyright (C) <2007> <Oak Ridge National Laboratory>
-  
+
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation; either version 2 of the License, or
   (at your option) any later version.
-  
+
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
   GNU General Public License for more details.
-  
+
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
-  
+
   For more information please contact:
 
   Robert J. Harrison
@@ -24,15 +24,15 @@
   One Bethel Valley Road
   P.O. Box 2008, MS-6367
 
-  email: harrisonrj@ornl.gov 
+  email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
 
-  
+
   $Id$
 */
 
-  
+
 #include <iostream>
 using std::cout;
 using std::endl;
@@ -82,15 +82,15 @@ public:
 };
 
 namespace madness {
-namespace archive {
+    namespace archive {
 
-template <class Archive>
-struct ArchiveSerializeImpl<Archive,B> {
-    static inline void serialize(const Archive& ar, B& b) {
-        ar & b.b;
-    };
-};
-}
+        template <class Archive>
+        struct ArchiveSerializeImpl<Archive,B> {
+            static inline void serialize(const Archive& ar, B& b) {
+                ar & b.b;
+            };
+        };
+    }
 }
 
 // C is a class with asymmetric load/store.
@@ -101,21 +101,21 @@ public:
 };
 
 namespace madness {
-namespace archive {
-template <class Archive>
-struct ArchiveLoadImpl<Archive,C> {
-    static inline void load(const Archive& ar, C& c) {
-        ar >> c.c;
-    };
-};
+    namespace archive {
+        template <class Archive>
+        struct ArchiveLoadImpl<Archive,C> {
+            static inline void load(const Archive& ar, C& c) {
+                ar >> c.c;
+            };
+        };
 
-template <class Archive>
-struct ArchiveStoreImpl<Archive,C> {
-    static inline void store(const Archive& ar, const C& c) {
-        ar << c.c;
-    };
-};
-}
+        template <class Archive>
+        struct ArchiveStoreImpl<Archive,C> {
+            static inline void store(const Archive& ar, const C& c) {
+                ar << c.c;
+            };
+        };
+    }
 }
 
 
@@ -147,49 +147,50 @@ public:
         if (next) {
             cout << value << " --> ";
             next->print();
-        } else cout << value << endl;
-    };
-};
-
-namespace madness {
-namespace archive {
-template <class Archive>
-struct ArchiveStoreImpl<Archive,linked_list> {
-    static void store(const Archive& ar, const linked_list& c) {
-        ar & c.get_value() & bool(c.get_next());
-        if (c.get_next()) ar & *c.get_next();
-    };
-};
-
-template <class Archive>
-struct ArchiveLoadImpl<Archive,linked_list> {
-    static void load(const Archive& ar, linked_list& c) {
-        int value;
-        bool flag;
-        ar & value & flag;
-        c.set_value(value);
-        if (flag) {
-            c.append(0);
-            ar & *c.get_next();
         }
+        else cout << value << endl;
     };
 };
-}
+
+namespace madness {
+    namespace archive {
+        template <class Archive>
+        struct ArchiveStoreImpl<Archive,linked_list> {
+            static void store(const Archive& ar, const linked_list& c) {
+                ar & c.get_value() & bool(c.get_next());
+                if (c.get_next()) ar & *c.get_next();
+            };
+        };
+
+        template <class Archive>
+        struct ArchiveLoadImpl<Archive,linked_list> {
+            static void load(const Archive& ar, linked_list& c) {
+                int value;
+                bool flag;
+                ar & value & flag;
+                c.set_value(value);
+                if (flag) {
+                    c.append(0);
+                    ar & *c.get_next();
+                }
+            };
+        };
+    }
 }
 
 namespace madness {
-namespace archive {
-typedef std::map< short,std::complex<double> > map_short_complex_double;
-typedef std::pair< short,std::complex<double> > pair_short_complex_double;
-typedef std::pair<int,double> pair_int_double;
-ARCHIVE_REGISTER_TYPE_AND_PTR(A,128);
-ARCHIVE_REGISTER_TYPE_AND_PTR(B,129);
-ARCHIVE_REGISTER_TYPE_AND_PTR(C,130);
-ARCHIVE_REGISTER_TYPE_AND_PTR(linked_list,131);
-ARCHIVE_REGISTER_TYPE_AND_PTR(pair_int_double,132);
-ARCHIVE_REGISTER_TYPE_AND_PTR(map_short_complex_double,133);
-ARCHIVE_REGISTER_TYPE_AND_PTR(pair_short_complex_double, 134);
-}
+    namespace archive {
+        typedef std::map< short,std::complex<double> > map_short_complex_double;
+        typedef std::pair< short,std::complex<double> > pair_short_complex_double;
+        typedef std::pair<int,double> pair_int_double;
+        ARCHIVE_REGISTER_TYPE_AND_PTR(A,128);
+        ARCHIVE_REGISTER_TYPE_AND_PTR(B,129);
+        ARCHIVE_REGISTER_TYPE_AND_PTR(C,130);
+        ARCHIVE_REGISTER_TYPE_AND_PTR(linked_list,131);
+        ARCHIVE_REGISTER_TYPE_AND_PTR(pair_int_double,132);
+        ARCHIVE_REGISTER_TYPE_AND_PTR(map_short_complex_double,133);
+        ARCHIVE_REGISTER_TYPE_AND_PTR(pair_short_complex_double, 134);
+    }
 }
 
 using namespace std;

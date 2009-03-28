@@ -1,22 +1,22 @@
 /*
   This file is part of MADNESS.
-  
+
   Copyright (C) <2007> <Oak Ridge National Laboratory>
-  
+
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation; either version 2 of the License, or
   (at your option) any later version.
-  
+
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
   GNU General Public License for more details.
-  
+
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
-  
+
   For more information please contact:
 
   Robert J. Harrison
@@ -24,15 +24,15 @@
   One Bethel Valley Road
   P.O. Box 2008, MS-6367
 
-  email: harrisonrj@ornl.gov 
+  email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
 
-  
+
   $Id$
 */
 
-  
+
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <world/world.h>
 
@@ -62,11 +62,11 @@ void test0(World& world) {
     BufferInputArchive arin(buf+1,n-2);
     char s[8];
     s[0] = s[7] = 66;
-    arin & i & a; 
+    arin & i & a;
     MADNESS_ASSERT(i==1 && a==99.9);
     arin.load(s+1,6);
     MADNESS_ASSERT(s[0]==66 && s[1]=='h' && s[5]=='o' && s[7]==66);
-    arin & i & a; 
+    arin & i & a;
     MADNESS_ASSERT(i==7 && a==77.7);
 
     if (world.rank() == 0) print("test0 (serialization to/from buf) seems to be working");
@@ -76,10 +76,19 @@ class B {
     long b;
 public:
     B(long b=0) : b(b) {};
-    Void set(long value) {b=value; return None;};
-    long get() const {return b;};
-    ~B(){print("B destructor");};
-    template <typename Archive> void serialize(Archive &ar) {ar&b;}
+    Void set(long value) {
+        b=value;
+        return None;
+    };
+    long get() const {
+        return b;
+    };
+    ~B() {
+        print("B destructor");
+    };
+    template <typename Archive> void serialize(Archive &ar) {
+        ar&b;
+    }
 };
 
 
@@ -87,8 +96,10 @@ public:
 typedef std::complex<double> double_complex;
 
 class TestTask : public TaskInterface {
- public:
-    void run(World& world) {print("Hi, I am running!");}
+public:
+    void run(World& world) {
+        print("Hi, I am running!");
+    }
 };
 
 class TTT {
@@ -97,15 +108,26 @@ private:
 public:
     TTT() : state(0) {};
 
-    static Void fred(){print("Oops-a-daisy!"); return None;};
+    static Void fred() {
+        print("Oops-a-daisy!");
+        return None;
+    };
 
-    static int mary() {return 99;};
+    static int mary() {
+        return 99;
+    };
 
-    static int carl() {return 88;};
+    static int carl() {
+        return 88;
+    };
 
-    static int dave(World* world) {return world->rank();};
+    static int dave(World* world) {
+        return world->rank();
+    };
 
-    static int bert(int input) {return input+1;};
+    static int bert(int input) {
+        return input+1;
+    };
 
     static double_complex sara(double a, const double_complex& b) {
         return a*b;
@@ -113,8 +135,8 @@ public:
 
     static string kate(World* world, const string& msg, double d) {
         ostringstream s;
-        s << "Process " << world->rank() << " says '" << msg << "' and " 
-          << d << " right back at you!";
+        s << "Process " << world->rank() << " says '" << msg << "' and "
+        << d << " right back at you!";
         return s.str();
     };
 
@@ -181,7 +203,7 @@ void test5(World& world) {
         print("assigning",i,futv[i]);
         futv[i].set(i);
     }
-    
+
     print("about to fence again");
     world.gop.fence();
     print("finished fence again");
@@ -207,7 +229,7 @@ void test5(World& world) {
     print("Kate says",kate.get());
     print("Cute says",cute.get());
     print("Jody says",jody.get());
-    
+
     if (me == 0) print("test5 (tasks and futures) OK");
 }
 
@@ -215,28 +237,53 @@ void test5(World& world) {
 class Foo : public WorldObject<Foo> {
     int a;
 public:
-    Foo(World& world, int a) 
-        : WorldObject<Foo>(world)
-        , a(a) 
-    {
+    Foo(World& world, int a)
+            : WorldObject<Foo>(world)
+            , a(a) {
         process_pending();
     };
 
-    int get0() {return a;};
-    int get1(int a1) {return a+a1;};
-    int get2(int a1, char a2) {return a+a1+a2;};
-    int get3(int a1, char a2, short a3) {return a+a1+a2+a3;};
-    int get4(int a1, char a2, short a3, long a4) {return a+a1+a2+a3+a4;};
-    int get5(int a1, char a2, short a3, long a4, short a5) {return a+a1+a2+a3+a4+a5;};
+    int get0() {
+        return a;
+    };
+    int get1(int a1) {
+        return a+a1;
+    };
+    int get2(int a1, char a2) {
+        return a+a1+a2;
+    };
+    int get3(int a1, char a2, short a3) {
+        return a+a1+a2+a3;
+    };
+    int get4(int a1, char a2, short a3, long a4) {
+        return a+a1+a2+a3+a4;
+    };
+    int get5(int a1, char a2, short a3, long a4, short a5) {
+        return a+a1+a2+a3+a4+a5;
+    };
 
-    int get0c() const {return a;};
-    int get1c(int a1) const {return a+a1;};
-    int get2c(int a1, char a2) const {return a+a1+a2;};
-    int get3c(int a1, char a2, short a3) const {return a+a1+a2+a3;};
-    int get4c(int a1, char a2, short a3, long a4) const {return a+a1+a2+a3+a4;};
-    int get5c(int a1, char a2, short a3, long a4, short a5) const {return a+a1+a2+a3+a4+a5;};
+    int get0c() const {
+        return a;
+    };
+    int get1c(int a1) const {
+        return a+a1;
+    };
+    int get2c(int a1, char a2) const {
+        return a+a1+a2;
+    };
+    int get3c(int a1, char a2, short a3) const {
+        return a+a1+a2+a3;
+    };
+    int get4c(int a1, char a2, short a3, long a4) const {
+        return a+a1+a2+a3+a4;
+    };
+    int get5c(int a1, char a2, short a3, long a4, short a5) const {
+        return a+a1+a2+a3+a4+a5;
+    };
 
-    Future<int> get0f() {return Future<int>(a);};
+    Future<int> get0f() {
+        return Future<int>(a);
+    };
 };
 
 void test6(World& world) {
@@ -250,24 +297,24 @@ void test6(World& world) {
         for (ProcessID p=0; p<nproc; p++) {
             MADNESS_ASSERT(a.send(p,&Foo::get0).get() == p*100);
             MADNESS_ASSERT(a.task(p,&Foo::get0).get() == p*100);
-            
+
             MADNESS_ASSERT(a.send(p,&Foo::get0f).get() == p*100);
             MADNESS_ASSERT(a.task(p,&Foo::get0f).get() == p*100);
-            
+
             MADNESS_ASSERT(a.send(p,&Foo::get1,1).get() == p*100+1);
             MADNESS_ASSERT(a.task(p,&Foo::get1,Future<int>(1)).get() == p*100+1);
-            
+
             MADNESS_ASSERT(a.send(p,&Foo::get2,1,2).get() == p*100+3);
             MADNESS_ASSERT(a.task(p,&Foo::get2,1,2).get() == p*100+3);
 
             MADNESS_ASSERT(a.send(p,&Foo::get3,1,2,3).get() == p*100+6);
-            MADNESS_ASSERT(a.task(p,&Foo::get3,1,2,3).get() == p*100+6);            
+            MADNESS_ASSERT(a.task(p,&Foo::get3,1,2,3).get() == p*100+6);
 
             MADNESS_ASSERT(a.send(p,&Foo::get4,1,2,3,4).get() == p*100+10);
-            MADNESS_ASSERT(a.task(p,&Foo::get4,1,2,3,4).get() == p*100+10);            
+            MADNESS_ASSERT(a.task(p,&Foo::get4,1,2,3,4).get() == p*100+10);
 
             MADNESS_ASSERT(a.send(p,&Foo::get5,1,2,3,4,5).get() == p*100+15);
-            MADNESS_ASSERT(a.task(p,&Foo::get5,1,2,3,4,5).get() == p*100+15);            
+            MADNESS_ASSERT(a.task(p,&Foo::get5,1,2,3,4,5).get() == p*100+15);
 
             MADNESS_ASSERT(a.send(p,&Foo::get0c).get() == p*100);
             MADNESS_ASSERT(a.task(p,&Foo::get0c).get() == p*100);
@@ -279,13 +326,13 @@ void test6(World& world) {
             MADNESS_ASSERT(a.task(p,&Foo::get2c,1,2).get() == p*100+3);
 
             MADNESS_ASSERT(a.send(p,&Foo::get3c,1,2,3).get() == p*100+6);
-            MADNESS_ASSERT(a.task(p,&Foo::get3c,1,2,3).get() == p*100+6);            
+            MADNESS_ASSERT(a.task(p,&Foo::get3c,1,2,3).get() == p*100+6);
 
             MADNESS_ASSERT(a.send(p,&Foo::get4c,1,2,3,4).get() == p*100+10);
-            MADNESS_ASSERT(a.task(p,&Foo::get4c,1,2,3,4).get() == p*100+10);            
+            MADNESS_ASSERT(a.task(p,&Foo::get4c,1,2,3,4).get() == p*100+10);
 
             MADNESS_ASSERT(a.send(p,&Foo::get5c,1,2,3,4,5).get() == p*100+15);
-            MADNESS_ASSERT(a.task(p,&Foo::get5c,1,2,3,4,5).get() == p*100+15);            
+            MADNESS_ASSERT(a.task(p,&Foo::get5c,1,2,3,4,5).get() == p*100+15);
         }
     }
     world.gop.fence();
@@ -296,9 +343,8 @@ void test6(World& world) {
 
 class TestFutureForwarding : public WorldObject<TestFutureForwarding> {
 public:
-    TestFutureForwarding(World& world) 
-        : WorldObject<TestFutureForwarding>(world)
-    {
+    TestFutureForwarding(World& world)
+            : WorldObject<TestFutureForwarding>(world) {
         this->process_pending();
     }
 
@@ -314,7 +360,7 @@ public:
 
 void test6a(World& world) {
     PROFILE_FUNC;
-    
+
     if (world.size() < 2) return;
 
     TestFutureForwarding t(world);
@@ -357,7 +403,7 @@ void test7(World& world) {
         MADNESS_ASSERT(j == i);
     }
     world.gop.fence();
-    
+
     // Check that unset keys return end correctly
     for (int i=10001; i<10020; i++) {
         MADNESS_ASSERT(c.find(i).get() == c.end());
@@ -399,9 +445,13 @@ void test8(World& world) {
     if (world.rank() == 0) print("test8 (serializing world pointer) OK");
 }
 
-Void null_func(){return None;}
+Void null_func() {
+    return None;
+}
 
-int val_func() {return 1;}
+int val_func() {
+    return 1;
+}
 
 int val1d_func(int input) {
     return input+1;
@@ -415,7 +465,7 @@ void test9(World& world) {
     for (int i=0; i<ntask; i++) world.taskq.add(null_func);
     used += cpu_time();
     print("Time to add",ntask,"null, local tasks",used,"time/task",used/ntask);
-    
+
     used = -cpu_time();
     world.taskq.fence();
     used += cpu_time();
@@ -426,30 +476,37 @@ void test9(World& world) {
     for (int i=0; i<ntask; i++) v[i] = world.taskq.add(val_func);
     used += cpu_time();
     print("Time to add",ntask,"value, local tasks",used,"time/task",used/ntask);
-    
+
     used = -cpu_time();
-    print("AAAAAAAAAAAAAAAA0"); std::cout.flush();
+    print("AAAAAAAAAAAAAAAA0");
+    std::cout.flush();
     world.taskq.fence();
-    print("AAAAAAAAAAAAAAAA1"); std::cout.flush();
+    print("AAAAAAAAAAAAAAAA1");
+    std::cout.flush();
     used += cpu_time();
     print("Time to run",ntask,"value, local tasks",used,"time/task",used/ntask);
     v.clear();
-    print("AAAAAAAAAAAAAAAA"); std::cout.flush();
+    print("AAAAAAAAAAAAAAAA");
+    std::cout.flush();
     Future<int> input;
     Future<int> result = input;
     used = -cpu_time();
-    print("AAAAAAAAAAAAAAAA2"); std::cout.flush();
+    print("AAAAAAAAAAAAAAAA2");
+    std::cout.flush();
     for (int i=0; i<ntask; i++) {
         result = world.taskq.add(val1d_func,result);
     }
     used += cpu_time();
-    print("AAAAAAAAAAAAAAAA3"); std::cout.flush();
+    print("AAAAAAAAAAAAAAAA3");
+    std::cout.flush();
     print("Time to make",ntask,"chain of tasks",used,"time/task",used/ntask);
     input.set(0);
     used = -cpu_time();
-    print("AAAAAAAAAAAAAAAA4"); std::cout.flush();
+    print("AAAAAAAAAAAAAAAA4");
+    std::cout.flush();
     world.taskq.fence();
-    print("AAAAAAAAAAAAAAAA5"); std::cout.flush();
+    print("AAAAAAAAAAAAAAAA5");
+    std::cout.flush();
     used += cpu_time();
     print("Time to  run",ntask,"chain of tasks",used,"time/task",used/ntask);
     MADNESS_ASSERT(result.get() == ntask);
@@ -502,9 +559,11 @@ public:
         print("Galahad",str,i,j,z,val);
         return val;
     };
-        
 
-    uint64_t get() const {return val;};
+
+    uint64_t get() const {
+        return val;
+    };
 
     bool get_me_twice(World* world, const WorldContainer<int,Mary>& d) {
         return true;
@@ -530,8 +589,8 @@ void test10(World& world) {
     WorldContainer<int,Mary> m(world);
     typedef WorldContainer<int,Mary>::iterator iterator;
     //world.gop.fence();
- 
-    for (int i=0; i<nproc; i++) 
+
+    for (int i=0; i<nproc; i++)
         m.send(i,&Mary::inc);
     world.gop.fence();
 
@@ -541,7 +600,7 @@ void test10(World& world) {
     }
     world.gop.fence();
 
-    for (int i=0; i<nproc; i++) 
+    for (int i=0; i<nproc; i++)
         m.send(i,&Mary::add,me);
     world.gop.fence();
 
@@ -551,7 +610,7 @@ void test10(World& world) {
     }
     world.gop.fence();
 
-    for (int i=0; i<nproc; i++) 
+    for (int i=0; i<nproc; i++)
         m.send(i,&Mary::fred,2,me);
     world.gop.fence();
 
@@ -561,7 +620,7 @@ void test10(World& world) {
     }
     world.gop.fence();
 
-    // Test that item methods are executed atomically by having 
+    // Test that item methods are executed atomically by having
     // everyone pound on one item
 
     const int ind = 9999999;
@@ -575,7 +634,7 @@ void test10(World& world) {
     world.taskq.add(pounder, m, ind);
     world.taskq.add(pounder, m, ind);
     world.gop.fence();
-    if (world.rank() == 0) 
+    if (world.rank() == 0)
         MADNESS_ASSERT(long(m.find(ind).get()->second.get()) == nproc * 1000 * 7);
 
     world.gop.fence();
@@ -619,13 +678,13 @@ struct Key {
     Key() {};  // Empty default constructor for speed - but is therefore junk
 
     Key(ulong n, ulong i, ulong j, ulong k)
-        : n(n), i(i), j(j), k(k), hashval(madness::hash(&this->n,4,0)) {};
+            : n(n), i(i), j(j), k(k), hashval(madness::hash(&this->n,4,0)) {};
 
     hashT hash() const {
         return hashval;
     }
 
-    template <typename opT> 
+    template <typename opT>
     void foreach_child(const opT& op) const {
         ulong n2 = n+1;
         ulong i2 = i<<1;
@@ -665,8 +724,8 @@ struct Node {
     struct do_random_insert {
         dcT& d;
         double value;
-        do_random_insert(dcT& d, double value) 
-            : d(d), value(value) {};
+        do_random_insert(dcT& d, double value)
+                : d(d), value(value) {};
         void operator()(const Key& key) const {
             d.task(key,&Node::random_insert,d, key, value);
         };
@@ -682,7 +741,7 @@ struct Node {
             isleaf = false;
             World& world = d.get_world();
             double ran = world.drand();
-            key.foreach_child(do_random_insert(d,value*ran)); 
+            key.foreach_child(do_random_insert(d,value*ran));
         }
         return None;
     };
@@ -692,64 +751,71 @@ struct Node {
         ar & key & value & isleaf;
     }
 
-    bool is_leaf() const {return isleaf;};
+    bool is_leaf() const {
+        return isleaf;
+    };
 
-    double get() const {return value;};
-  
-    Void set(double v) {value = v; return None;};
+    double get() const {
+        return value;
+    };
+
+    Void set(double v) {
+        value = v;
+        return None;
+    };
 };
 
 ostream& operator<<(ostream& s, const Node& node) {
-  s << "Node(" << node.get() << "," << node.is_leaf() << ")" << endl;
-  return s;
+    s << "Node(" << node.get() << "," << node.is_leaf() << ")" << endl;
+    return s;
 }
 
 
 void walker1(WorldContainer<Key,Node>& d, const Key& key);
 
 struct Walker1 {
-  WorldContainer<Key,Node>& d;
-  Walker1(WorldContainer<Key,Node>& d) : d(d) {};
-  void operator()(const Key& key) const {
-    walker1(d,key);
-  };
+    WorldContainer<Key,Node>& d;
+    Walker1(WorldContainer<Key,Node>& d) : d(d) {};
+    void operator()(const Key& key) const {
+        walker1(d,key);
+    };
 };
 
 
 void walker1(WorldContainer<Key,Node>& d, const Key& key) {
-  static double counter = 0;
-  WorldContainer<Key,Node>::iterator it = d.find(key).get();
-  if (it != d.end()) {
-    Node node = it->second;
-    node.set(++counter);
-    d.erase(key);
-    d.replace(key,node);
-    it = d.find(key).get();
-    MADNESS_ASSERT(it != d.end());
-    MADNESS_ASSERT(it->second.get() == counter);
-    if (!node.is_leaf()) {
-      key.foreach_child(Walker1(d));
+    static double counter = 0;
+    WorldContainer<Key,Node>::iterator it = d.find(key).get();
+    if (it != d.end()) {
+        Node node = it->second;
+        node.set(++counter);
+        d.erase(key);
+        d.replace(key,node);
+        it = d.find(key).get();
+        MADNESS_ASSERT(it != d.end());
+        MADNESS_ASSERT(it->second.get() == counter);
+        if (!node.is_leaf()) {
+            key.foreach_child(Walker1(d));
+        }
     }
-  }
 }
 
 void walker2(WorldContainer<Key,Node>& d, const Key& key) {
-  static double counter = 1;
-  WorldContainer<Key,Node>::iterator it = d.find(key).get();
-  if (it != d.end()) {
-    Node node = it->second;
-    node.set(++counter);
-    d.replace(key,node);
-    it = d.find(key).get();
-    MADNESS_ASSERT(it != d.end());
-    if (it->second.get() != counter) {
-      print("failing",it->second.get(),counter,key,d.owner(key));
+    static double counter = 1;
+    WorldContainer<Key,Node>::iterator it = d.find(key).get();
+    if (it != d.end()) {
+        Node node = it->second;
+        node.set(++counter);
+        d.replace(key,node);
+        it = d.find(key).get();
+        MADNESS_ASSERT(it != d.end());
+        if (it->second.get() != counter) {
+            print("failing",it->second.get(),counter,key,d.owner(key));
+        }
+        MADNESS_ASSERT(it->second.get() == counter);
+        if (!node.is_leaf()) {
+            key.foreach_child(Walker1(d));
+        }
     }
-    MADNESS_ASSERT(it->second.get() == counter);
-    if (!node.is_leaf()) {
-      key.foreach_child(Walker1(d));
-    }
-  }
 }
 
 void test11(World& world) {
@@ -782,7 +848,7 @@ void test11(World& world) {
     }
     world.gop.fence();
     print("size after rebuilding",d.size());
- 
+
     // Test get, erase, and re-insert of nodes with new value by node 0
     if (me == 0) {
         Key root = Key(0,0,0,0);
@@ -790,7 +856,7 @@ void test11(World& world) {
     }
     world.gop.fence();
     print("walker1 done");
-    
+
 
     // Test get and re-insert of nodes with new value by node 0
     if (me == 0) {
@@ -859,7 +925,7 @@ void test13(World& world) {
     print("This is what I read", v, s);
     world.gop.fence();
 
-    
+
     // Store and load an archive with multiple writers
 
     int nio = (world.size()-1)/2 + 1;
@@ -882,7 +948,7 @@ void test13(World& world) {
     fout.close();
 
     WorldContainer<int,double> c(world);
-    fin.open(world,"fred"); 
+    fin.open(world,"fred");
     fin & c;
 
     for (int i=0; i<100; i++) {
@@ -914,7 +980,7 @@ int main(int argc, char** argv) {
     try {
         PROFILE_BLOCK(main_program);
 
-      test0(world);
+        test0(world);
 //       if (world.nproc() > 1) {
 //         test1(world);
 //         test2(world);
@@ -922,25 +988,29 @@ int main(int argc, char** argv) {
 //       }
 //       test4(world);
 //       test4a(world);
-      test5(world);
-      test6(world);
-      test6a(world);
-      test7(world);
-      test8(world);
-      test9(world);
-      test10(world);
-      test11(world);
-      test12(world);
-      test13(world);
-    } catch (MPI::Exception e) {
+        test5(world);
+        test6(world);
+        test6a(world);
+        test7(world);
+        test8(world);
+        test9(world);
+        test10(world);
+        test11(world);
+        test12(world);
+        test13(world);
+    }
+    catch (MPI::Exception e) {
         error("caught an MPI exception");
-    } catch (madness::MadnessException e) {
+    }
+    catch (madness::MadnessException e) {
         print(e);
         error("caught a MADNESS exception");
-    } catch (const char* s) {
+    }
+    catch (const char* s) {
         print(s);
         error("caught a string exception");
-    } catch (...) {
+    }
+    catch (...) {
         error("caught unhandled exception");
     }
 

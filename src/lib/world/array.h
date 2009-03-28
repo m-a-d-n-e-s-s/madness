@@ -1,22 +1,22 @@
 /*
   This file is part of MADNESS.
-  
+
   Copyright (C) <2007> <Oak Ridge National Laboratory>
-  
+
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation; either version 2 of the License, or
   (at your option) any later version.
-  
+
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
   GNU General Public License for more details.
-  
+
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
-  
+
   For more information please contact:
 
   Robert J. Harrison
@@ -24,11 +24,11 @@
   One Bethel Valley Road
   P.O. Box 2008, MS-6367
 
-  email: harrisonrj@ornl.gov 
+  email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
 
-  
+
   $Id$
 */
 
@@ -41,7 +41,7 @@
 
 namespace madness {
 
-    /// A simple, fixed dimension Vector 
+    /// A simple, fixed dimension Vector
 
     /// Eliminates memory allocation cost, is just POD so can be
     /// copied easily and allocated on the stack, and the known
@@ -61,9 +61,9 @@ namespace madness {
         Vector(T t) {
             for (int i=0; i<N; i++) v[i] = t;
         }
-        
+
         /// Construct from a C++ array of the same dimension
-        Vector(const T (&t)[N])  {
+        Vector(const T(&t)[N])  {
             for (int i=0; i<N; i++) v[i] = t[i];
         }
 
@@ -73,7 +73,7 @@ namespace madness {
             MADNESS_ASSERT(t.size() >= N);
             for (int i=0; i<N; i++) v[i] = t[i];
         }
-        
+
         /// Copy constructor is deep (since a vector is POD)
         Vector(const Vector<T,N>& other) {
             for (int i=0; i<N; i++) v[i] = other.v[i];
@@ -99,7 +99,7 @@ namespace madness {
 
         /// Test for element-wise equality
         bool operator==(const Vector<T,N>& other) const {
-            for (int i=0; i<N; i++) 
+            for (int i=0; i<N; i++)
                 if (v[i] != other.v[i]) return false;
             return true;
         }
@@ -151,7 +151,7 @@ namespace madness {
         }
 
         /// Element-wise multiplcation by another vector
-        
+
         /// Returns a new vector
         template <typename Q>
         Vector<T,N> operator*(const Vector<Q,N>& q) const {
@@ -233,7 +233,7 @@ namespace madness {
         int size() const {
             return N;
         }
-        
+
         /// Support for MADNESS serialization
         template <typename Archive>
         void serialize(Archive& ar) {
@@ -258,22 +258,22 @@ namespace madness {
         return s;
     }
 
-    
+
     /// A simple, fixed-size, stack
     template <typename T,int N>
     class Stack {
     private:
         Vector<T,N> t;
         int n;
-        
+
     public:
         Stack() : t(), n(0) {};
-        
+
         void push(const T& value) {
             MADNESS_ASSERT(n < N);
             t[n++] = value;
         };
-        
+
         T& pop() {
             MADNESS_ASSERT(n > 0);
             return t[--n];
@@ -299,7 +299,7 @@ namespace madness {
         v[0] = v0;
         return v;
     }
-    
+
     /// Returns a Vector<T,2> initialized from the arguments
     template <typename T>
     inline Vector<T,2> VectorFactory(const T& v0, const T& v1) {
@@ -308,22 +308,22 @@ namespace madness {
         v[1] = v1;
         return v;
     }
-    
+
     /// Returns a Vector<T,3> initialized from the arguments
     template <typename T>
     inline Vector<T,3> VectorFactory(const T& v0, const T& v1,
-                                      const T& v2) {
+                                     const T& v2) {
         Vector<T,3> v;
         v[0] = v0;
         v[1] = v1;
         v[2] = v2;
         return v;
     }
-    
+
     /// Returns a Vector<T,4> initialized from the arguments
     template <typename T>
     inline Vector<T,4> VectorFactory(const T& v0, const T& v1,
-                                      const T& v2, const T& v3) {
+                                     const T& v2, const T& v3) {
         Vector<T,4> v;
         v[0] = v0;
         v[1] = v1;
@@ -335,8 +335,8 @@ namespace madness {
     /// Returns a Vector<T,5> initialized from the arguments
     template <typename T>
     inline Vector<T,5> VectorFactory(const T& v0, const T& v1,
-                                         const T& v2, const T& v3,
-                                         const T& v4) {
+                                     const T& v2, const T& v3,
+                                     const T& v4) {
         Vector<T,5> v;
         v[0] = v0;
         v[1] = v1;
@@ -349,8 +349,8 @@ namespace madness {
     /// Returns a Vector<T,6> initialized from the arguments
     template <typename T>
     inline Vector<T,6> VectorFactory(const T& v0, const T& v1,
-                                      const T& v2, const T& v3,
-                                      const T& v4, const T& v5) {
+                                     const T& v2, const T& v3,
+                                     const T& v4, const T& v5) {
         Vector<T,6> v;
         v[0] = v0;
         v[1] = v1;

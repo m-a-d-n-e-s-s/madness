@@ -17,11 +17,13 @@ namespace madness {
 namespace madness {
     const int NUMEVENTS = 0;
 
-    inline void initialize_papi(){};
-    inline void begin_papi_measurement(){};
-    inline void end_papi_measurement(){};
-    inline void reset_papi_measurement(){};
-    inline const long long* get_papi_measurement(){return 0;};
+    inline void initialize_papi() {};
+    inline void begin_papi_measurement() {};
+    inline void end_papi_measurement() {};
+    inline void reset_papi_measurement() {};
+    inline const long long* get_papi_measurement() {
+        return 0;
+    };
 }
 #endif
 

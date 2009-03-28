@@ -1,22 +1,22 @@
 /*
   This file is part of MADNESS.
-  
+
   Copyright (C) <2007> <Oak Ridge National Laboratory>
-  
+
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation; either version 2 of the License, or
   (at your option) any later version.
-  
+
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
   GNU General Public License for more details.
-  
+
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
-  
+
   For more information please contact:
 
   Robert J. Harrison
@@ -24,11 +24,11 @@
   One Bethel Valley Road
   P.O. Box 2008, MS-6367
 
-  email: harrisonrj@ornl.gov 
+  email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
 
-  
+
   $Id$
 */
 
@@ -72,7 +72,7 @@ namespace madness {
     template <class Derived> class WorldObject;
 
     class AmArg;
-    /// Type of AM handler functions 
+    /// Type of AM handler functions
     typedef void (*am_handlerT)(const AmArg&);
 
     /// World active message that extends an RMI message
@@ -92,34 +92,56 @@ namespace madness {
 
         // On 32 bit machine AmArg is HEADER_LEN+4+4+4+4+4=84 bytes
         // On 64 bit machine AmArg is HEADER_LEN+8+8+8+4+4=96 bytes
-        
+
         AmArg(const AmArg&) {}              // No copy constructor
-        AmArg& operator=(const AmArg& a) {return *this;} // No assignment
+        AmArg& operator=(const AmArg& a) {
+            return *this;    // No assignment
+        }
 
-        void set_src(ProcessID source) const {src = source;}
+        void set_src(ProcessID source) const {
+            src = source;
+        }
 
-        void set_world(World* world) const {worldid = world->id();}
+        void set_world(World* world) const {
+            worldid = world->id();
+        }
 
-        void set_func(am_handlerT handler) const {func = handler;}
+        void set_func(am_handlerT handler) const {
+            func = handler;
+        }
 
-        void set_size(size_t numbyte) {nbyte = numbyte;}
+        void set_size(size_t numbyte) {
+            nbyte = numbyte;
+        }
 
-        void set_pending() const {flags |= 0x1ul;}
+        void set_pending() const {
+            flags |= 0x1ul;
+        }
 
-        bool is_pending() const {return flags & 0x1ul;}
+        bool is_pending() const {
+            return flags & 0x1ul;
+        }
 
-        void clear_flags() const {flags = 0;}
+        void clear_flags() const {
+            flags = 0;
+        }
 
-        am_handlerT get_func() const {return func;}
+        am_handlerT get_func() const {
+            return func;
+        }
 
     public:
         AmArg() {}
 
         /// Returns a pointer to the user's payload (aligned in same way as AmArg)
-        unsigned char* buf() const {return (unsigned char*)(this) + sizeof(AmArg);}
+        unsigned char* buf() const {
+            return (unsigned char*)(this) + sizeof(AmArg);
+        }
 
         /// Returns the size of the user's payload
-        size_t size() const {return nbyte;}
+        size_t size() const {
+            return nbyte;
+        }
 
         /// Used to deserialize arguments from incoming message
         template <typename T>
@@ -133,10 +155,14 @@ namespace madness {
             return BufferOutputArchive(buf(),size()) & t;
         }
         /// For incoming AM gives the source process
-        ProcessID get_src() const {return src;}
+        ProcessID get_src() const {
+            return src;
+        }
 
         /// For incoming AM gives the associated world
-        World* get_world() const {return World::world_from_id(worldid);}
+        World* get_world() const {
+            return World::world_from_id(worldid);
+        }
     };
 
 
@@ -163,7 +189,7 @@ namespace madness {
 
     /// Convenience template for serializing arguments into a new AmArg
     template <typename A, typename B, typename C, typename D, typename E, typename F, typename G, typename H, typename I, typename J>
-    inline AmArg* new_am_arg(const A& a, const B& b, const C& c, const D& d, const E& e, const F& f, const G& g, const H& h, 
+    inline AmArg* new_am_arg(const A& a, const B& b, const C& c, const D& d, const E& e, const F& f, const G& g, const H& h,
                              const I& i, const J& j) {
         AmArg* arg = alloc_am_arg(bufar_size(a,b,c,d,e,f,g,h,i,j));
         *arg & a & b & c & d & e & f & g & h & i & j;
@@ -172,7 +198,7 @@ namespace madness {
 
     /// Convenience template for serializing arguments into a new AmArg
     template <typename A, typename B, typename C, typename D, typename E, typename F, typename G, typename H, typename I>
-    inline AmArg* new_am_arg(const A& a, const B& b, const C& c, const D& d, const E& e, const F& f, const G& g, const H& h, 
+    inline AmArg* new_am_arg(const A& a, const B& b, const C& c, const D& d, const E& e, const F& f, const G& g, const H& h,
                              const I& i) {
         AmArg* arg = alloc_am_arg(bufar_size(a,b,c,d,e,f,g,h,i));
         *arg & a & b & c & d & e & f & g & h & i;
@@ -260,7 +286,7 @@ namespace madness {
 
         AmArg* managed_send_buf[NSEND]; ///< Managed buffers
         RMI::Request send_req[NSEND];   ///< Tracks in-flight messages
-        
+
         World& world;            ///< The world which contains this instance of WorldAmInterface
         const ProcessID rank;
         const int nproc;
@@ -280,13 +306,13 @@ namespace madness {
             // WE ASSUME WE ARE INSIDE A CRITICAL SECTION WHEN IN HERE
             static volatile int cur_msg = 0;
 
-            // Separate from the RMI lock is the SafeMPI lock ... 
+            // Separate from the RMI lock is the SafeMPI lock ...
             // get it once rather than every time we call Test()
             // But note that if there is no free send buffer we
             // have to release and then reacquire the lock in order
             // for progress to be made (with some MPI engines?).
             // Probably relying upon a fair mutex.
-            
+
             {
                 bool foundone = false;
                 while (!foundone) {
@@ -309,7 +335,7 @@ namespace madness {
             return cur_msg;
         }
 
-        /// This handles all incoming RMI messages for all instances 
+        /// This handles all incoming RMI messages for all instances
         static void handler(void *buf, size_t nbyte) {
             // It will be singled threaded since only the RMI receiver
             // thread will invoke it ... however note that nrecv will
@@ -344,20 +370,19 @@ namespace madness {
         }
 
     public:
-        WorldAmInterface(World& world) 
-            : world(world)
-            , rank(world.mpi.rank())
-            , nproc(world.size())
-            , nsent(0)
-            , nrecv(0)
-        {
+        WorldAmInterface(World& world)
+                : world(world)
+                , rank(world.mpi.rank())
+                , nproc(world.size())
+                , nsent(0)
+                , nrecv(0) {
             lock();
             for (int i=0; i<NSEND; i++) managed_send_buf[i] = 0;
             unlock();
         }
 
         virtual ~WorldAmInterface() {}
-        
+
 
         /// Currently a noop
         void fence() {}

@@ -4,7 +4,7 @@
 #include <world/worldthread.h>
 #include <world/worldpapi.h>
 namespace madness {
-    
+
 
     static int events[NUMEVENTS] = {PAPI_FP_OPS};
     static Mutex papi_mutex;

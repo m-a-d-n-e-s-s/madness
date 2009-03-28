@@ -39,19 +39,19 @@ namespace madness {
             ProcessID io_node(ProcessID rank) const {
                 return rank%nio;
             }
-            
+
             /// Returns the process doing IO for this node
             ProcessID my_io_node() const {
                 MADNESS_ASSERT(world);
                 return io_node(world->rank());
             }
-            
+
             /// Returns the number of IO clients for this node including self (zero if not an IO node)
             int num_io_clients() const {
                 MADNESS_ASSERT(world);
                 return nclient;
             }
-            
+
             /// Returns true if this node is doing physical IO
             bool is_io_node() const {
                 MADNESS_ASSERT(world);
@@ -63,9 +63,9 @@ namespace madness {
                 MADNESS_ASSERT(world);
                 return world;
             }
-            
+
             /// Opens the parallel archive
-            
+
             /// When writing a new archive, the numer of writers
             /// specified is used.  When reading an existing archive,
             /// the number of ionodes is adjusted to to be the same as
@@ -95,7 +95,7 @@ namespace madness {
                     ar & nio; // read/write nio from/to the archive
                     MADNESS_ASSERT(nio <= world.size());
                 }
-                    
+
                 // Ensure all agree on value of nio that may also have changed if reading
                 world.gop.broadcast(nio, 0);
 
@@ -123,14 +123,14 @@ namespace madness {
                 MADNESS_ASSERT(strlen(filename)+7 <= sizeof(buf));
                 sprintf(buf, "%s.%5.5d", filename, world.rank());
                 bool status;
-                if (world.rank() == 0) 
+                if (world.rank() == 0)
                     status = (access(buf, F_OK|R_OK) == 0);
 
                 world.gop.broadcast(status);
 
                 return status;
             }
-                
+
             /// Closes the parallel archive
             void close() {
                 MADNESS_ASSERT(world);
@@ -151,7 +151,7 @@ namespace madness {
             }
 
             /// Deletes the files associated with the archive of the given name
-            
+
             /// Presently assumes a shared file system since process zero does the
             /// deleting
             static void remove(World& world, const char* filename) {
@@ -222,7 +222,7 @@ namespace madness {
         class ParallelInputArchive : public BaseParallelArchive<BinaryFstreamInputArchive>, public  BaseInputArchive {
         public:
             ParallelInputArchive() {}
-            
+
             /// Creates a parallel archive for input
             ParallelInputArchive(World& world, const char* filename, int nio=1) {
                 open(world, filename, nio);
@@ -236,7 +236,7 @@ namespace madness {
             static void preamble_store(const ParallelOutputArchive& ar) {};
             static inline void postamble_store(const ParallelOutputArchive& ar) {};
         };
-        
+
         /// Disable type info for parallel input archives
         template <class T>
         struct ArchivePrePostImpl<ParallelInputArchive,T> {
@@ -255,7 +255,7 @@ namespace madness {
                 ArchiveStoreImpl<ParallelOutputArchive,T>::store(ar,t);
                 return ar;
             }
-            
+
             /// Serial objects write only from process 0
             template <typename Q>
             static inline
@@ -278,7 +278,7 @@ namespace madness {
                 ArchiveLoadImpl<ParallelInputArchive,T>::load(ar,const_cast<T&>(t));
                 return ar;
             }
-            
+
             /// Serial objects read only from process 0 and broadcast results
             template <typename Q>
             static inline
@@ -315,7 +315,7 @@ namespace madness {
         /// Forward fixed size array to archive_array
         template <class T, std::size_t n>
         struct ArchiveImpl<ParallelOutputArchive, T[n]> {
-            static inline const ParallelOutputArchive& wrap_store(const ParallelOutputArchive& ar, const T (&t)[n]) {
+            static inline const ParallelOutputArchive& wrap_store(const ParallelOutputArchive& ar, const T(&t)[n]) {
                 ar << wrap(&t[0],n);
                 return ar;
             }
@@ -324,7 +324,7 @@ namespace madness {
         /// Forward fixed size array to archive_array
         template <class T, std::size_t n>
         struct ArchiveImpl<ParallelInputArchive, T[n]> {
-            static inline const ParallelInputArchive& wrap_load(const ParallelInputArchive& ar, const T (&t)[n]) {
+            static inline const ParallelInputArchive& wrap_load(const ParallelInputArchive& ar, const T(&t)[n]) {
                 ar >> wrap(&t[0],n);
                 return ar;
             }

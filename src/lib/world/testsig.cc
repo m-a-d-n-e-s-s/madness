@@ -40,11 +40,22 @@ void madness_signal_action(int signum, siginfo_t *info, void *context) {
     exit(1);
 }
 
-void e() {void (*f)()=0; f();}
-void d() {e();}
-void c() {d();}
-void b() {c();}
-void a() {b();}
+void e() {
+    void (*f)()=0;
+    f();
+}
+void d() {
+    e();
+}
+void c() {
+    d();
+}
+void b() {
+    c();
+}
+void a() {
+    b();
+}
 
 int main() {
     struct sigaction act, oldact;

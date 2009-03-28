@@ -32,12 +32,12 @@ int main() {
         throw "Could not init PAPI";
     if (PAPI_thread_init(pthread_self) != PAPI_OK)
         throw "Could not init PAPI thread API";
-    
+
     pthread_attr_t attr;
     pthread_attr_init(&attr);
     pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
     pthread_attr_setscope(&attr, PTHREAD_SCOPE_SYSTEM);
-    
+
     double sum1;
     pthread_t t1;
     pthread_create(&t1, &attr, f1, (void *)(&sum1));

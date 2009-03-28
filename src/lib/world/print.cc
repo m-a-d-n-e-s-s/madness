@@ -12,7 +12,7 @@ namespace madness {
         }
         FLUSH();
     }
-    
+
     void print_centered(const char* s, int column, bool underline) {
         print_justified(s, column-std::strlen(s)/2, underline);
     }

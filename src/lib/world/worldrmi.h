@@ -9,7 +9,7 @@
 
 /*
   There is just one server thread and it is the only one
-  messing with the recv buffers, so there is no need for 
+  messing with the recv buffers, so there is no need for
   mutex on recv related data.
 
   Multiple threads (including the server) may send hence
@@ -22,7 +22,7 @@
   to extend to other communicators but the point is to have
   only one server thread for all possible uses.  You just
   have to translate rank_in_comm into rank_in_world by
-  getting the groups from both communicators using 
+  getting the groups from both communicators using
   MPI_Comm_group and then creating a map from ranks in
   comm to ranks in world using MPI_Group_translate_ranks.
 
@@ -35,10 +35,10 @@
 
   There are few user accessible routines.
 
-  RMI::Request RMI::isend(const void* buf, size_t nbyte, int dest, 
+  RMI::Request RMI::isend(const void* buf, size_t nbyte, int dest,
                           rmi_handlerT func, unsigned int attr=0)
-  - to send an asynchronous message 
-  - RMI::Request has the same interface as MPI::Request 
+  - to send an asynchronous message
+  - RMI::Request has the same interface as MPI::Request
   (right now it is an MPI::Request but this is not guaranteed)
 
   void RMI::begin()
@@ -57,13 +57,13 @@
 
 #if ON_A_MAC
 #include <sys/errno.h>
-static inline int posix_memalign(void **memptr, std::size_t alignment, std::size_t size){
-  *memptr=malloc(size);
-  if (*memptr) return 0;
-  else return ENOMEM;
+static inline int posix_memalign(void **memptr, std::size_t alignment, std::size_t size) {
+    *memptr=malloc(size);
+    if (*memptr) return 0;
+    else return ENOMEM;
 }
 #elif MISSING_POSIX_MEMALIGN_PROTO
-  extern "C"  int posix_memalign(void **memptr, std::size_t alignment, std::size_t size);
+extern "C"  int posix_memalign(void **memptr, std::size_t alignment, std::size_t size);
 #endif
 
 namespace madness {
@@ -78,9 +78,8 @@ namespace madness {
         uint64_t nmsg_recv;
         uint64_t nbyte_recv;
 
-        RMIStats() 
-            : nmsg_sent(0), nbyte_sent(0), nmsg_recv(0), nbyte_recv(0)
-        {}
+        RMIStats()
+                : nmsg_sent(0), nbyte_sent(0), nmsg_recv(0), nbyte_recv(0) {}
     };
 
     class RMI : private madness::ThreadBase , madness::Mutex {
@@ -94,7 +93,7 @@ namespace madness {
 
         static const unsigned int ATTR_UNORDERED=0x0;
         static const unsigned int ATTR_ORDERED=0x1;
-        
+
         typedef SafeMPI::Request Request;
 
     private:
@@ -104,7 +103,7 @@ namespace madness {
 #else
         static const int NRECV=32;
         static const int MAXQ=4*NRECV;
-#endif        
+#endif
 
         std::list< std::pair<int,size_t> > hugeq; // q for incoming huge messages
 
@@ -119,7 +118,7 @@ namespace madness {
         unsigned char* recv_counters;
         unsigned char* recv_buf[NRECV+1]; // Will be at least ALIGNMENT aligned ... +1 for huge messages
         SafeMPI::Request recv_req[NRECV+1];
-    
+
         static RMI* instance_ptr;    // Pointer to the singleton instance
 
         static bool is_ordered(unsigned int attr) {
@@ -146,18 +145,18 @@ namespace madness {
                 unsigned int attr;
                 int count;
 
-                qmsg(size_t len, rmi_handlerT func, int i, int src, unsigned int attr, int count) 
-                    : len(len), func(func), i(i), src(src), attr(attr), count(count) {}
+                qmsg(size_t len, rmi_handlerT func, int i, int src, unsigned int attr, int count)
+                        : len(len), func(func), i(i), src(src), attr(attr), count(count) {}
 
                 qmsg() {}
             };
             qmsg q[MAXQ];
             int n_in_q = 0;
-            
+
             while (1) {
 
                 if (debugging && n_in_q)
-                    std::cerr << rank << ":RMI: about to call Waitsome with " 
+                    std::cerr << rank << ":RMI: about to call Waitsome with "
                               << n_in_q << " messages in the queue" << std::endl;
 
                 // If MPI is not safe for simultaneous entry by multiple threads we
@@ -171,7 +170,7 @@ namespace madness {
                 waiter.reset();
 
                 if (debugging)
-                    std::cerr << rank << ":RMI: " << narrived 
+                    std::cerr << rank << ":RMI: " << narrived
                               << " messages just arrived" << std::endl;
 
                 if (narrived) {
@@ -182,7 +181,7 @@ namespace madness {
 
                         stats.nmsg_recv++;
                         stats.nbyte_recv += len;
-                    
+
                         const header* h = (const header*)(recv_buf[i]);
                         rmi_handlerT func = h->func;
                         unsigned int attr = h->attr;
@@ -190,27 +189,27 @@ namespace madness {
 
                         if (!is_ordered(attr) || count==recv_counters[src]) {
                             // Unordered and in order messages should be digested as soon as possible.
-                            if (debugging) 
-                                std::cerr << rank 
-                                          << ":RMI: invoking from=" << src 
+                            if (debugging)
+                                std::cerr << rank
+                                          << ":RMI: invoking from=" << src
                                           << " nbyte=" << len
                                           << " func=" << (void*)(func)
-                                          << " ordered=" << is_ordered(attr) 
-                                          << " count=" << count 
+                                          << " ordered=" << is_ordered(attr)
+                                          << " count=" << count
                                           << std::endl;
-                        
+
                             if (is_ordered(attr)) recv_counters[src]++;
                             func(recv_buf[i], len);
                             post_recv_buf(i);
                         }
                         else {
-                            if (debugging) 
-                                std::cerr << rank 
-                                          << ":RMI: enqueing from=" << src 
+                            if (debugging)
+                                std::cerr << rank
+                                          << ":RMI: enqueing from=" << src
                                           << " nbyte=" << len
                                           << " func=" << (void*)(func)
-                                          << " ordered=" << is_ordered(attr) 
-                                          << " fromcount=" << count 
+                                          << " ordered=" << is_ordered(attr)
+                                          << " fromcount=" << count
                                           << " herecount=" << int(recv_counters[src])
                                           << std::endl;
                             // Shove it in the queue
@@ -229,20 +228,20 @@ namespace madness {
                     for (int m=0; m<n_in_q; m++) {
                         int src = q[m].src;
                         if (q[m].count == recv_counters[src]) {
-                            if (debugging)  
-                                std::cerr << rank 
-                                          << ":RMI: queue invoking from=" << src 
+                            if (debugging)
+                                std::cerr << rank
+                                          << ":RMI: queue invoking from=" << src
                                           << " nbyte=" << q[m].len
                                           << " func=" << (void*)(q[m].func)
-                                          << " ordered=" << is_ordered(q[m].attr) 
-                                          << " count=" << q[m].count 
+                                          << " ordered=" << is_ordered(q[m].attr)
+                                          << " count=" << q[m].count
                                           << std::endl;
 
                             recv_counters[src]++;
                             ndone++;
                             q[m].func(recv_buf[q[m].i], q[m].len);
                             post_recv_buf(q[m].i);
-                        
+
                             // Replace msg just processed with one at end (if there)
                             n_in_q--;
                             if (m != n_in_q) {
@@ -251,7 +250,8 @@ namespace madness {
                             }
                         }
                     }
-                } while (ndone);
+                }
+                while (ndone);
 
                 post_pending_huge_msg();
             }
@@ -263,7 +263,7 @@ namespace madness {
                 int src = hugeq.front().first;
                 size_t nbyte = hugeq.front().second;
                 hugeq.pop_front();
-                if (posix_memalign((void **)(recv_buf+NRECV), ALIGNMENT, nbyte)) 
+                if (posix_memalign((void **)(recv_buf+NRECV), ALIGNMENT, nbyte))
                     throw "RMI: failed allocating huge message";
                 recv_req[NRECV] = comm.Irecv(recv_buf[NRECV], nbyte, MPI::BYTE, src, SafeMPI::RMI_HUGE_DAT_TAG);
                 int nada;
@@ -290,27 +290,26 @@ namespace madness {
             //delete recv_counters;
             //         if (!MPI::Is_finalized()) {
             //             for (int i=0; i<NRECV; i++) {
-            //                 if (!recv_req[i].Test()) 
+            //                 if (!recv_req[i].Test())
             //                     recv_req[i].Cancel();
             //             }
             //         }
             //for (int i=0; i<NRECV; i++) free(recv_buf[i]);
         }
 
-        RMI() 
-            : comm(MPI::COMM_WORLD)
-            , nproc(comm.Get_size())
-            , rank(comm.Get_rank())
-            , debugging(false)
-            , finished(false)
-            , send_counters(new unsigned char[nproc])
-            , recv_counters(new unsigned char[nproc])
-        {
+        RMI()
+                : comm(MPI::COMM_WORLD)
+                , nproc(comm.Get_size())
+                , rank(comm.Get_rank())
+                , debugging(false)
+                , finished(false)
+                , send_counters(new unsigned char[nproc])
+                , recv_counters(new unsigned char[nproc]) {
             for (int i=0; i<nproc; i++) send_counters[i] = 0;
             for (int i=0; i<nproc; i++) recv_counters[i] = 0;
             if (nproc > 1) {
                 for (int i=0; i<NRECV; i++) {
-                    if (posix_memalign((void**)(recv_buf+i), ALIGNMENT, MAX_MSG_LEN)) 
+                    if (posix_memalign((void**)(recv_buf+i), ALIGNMENT, MAX_MSG_LEN))
                         throw "RMI:initialize:failed allocating aligned recv buffer";
                     post_recv_buf(i);
                 }
@@ -331,7 +330,7 @@ namespace madness {
             int nword = HEADER_LEN/sizeof(size_t);
             int src = info[nword];
             size_t nbyte = info[nword+1];
-            
+
             instance()->hugeq.push_back(std::make_pair(src,nbyte));
             instance()->post_pending_huge_msg();
         }
@@ -340,7 +339,7 @@ namespace madness {
             int tag = SafeMPI::RMI_TAG;
 
             if (nbyte > MAX_MSG_LEN) {
-                // Huge message protocol ... send message to dest indicating size and origin of huge message.  
+                // Huge message protocol ... send message to dest indicating size and origin of huge message.
                 // Remote end posts a buffer then acks the request.  This end can then send.
                 int nword = HEADER_LEN/sizeof(size_t);
                 size_t info[nword+2];
@@ -362,12 +361,12 @@ namespace madness {
                 throw "RMI::isend --- your buffer is too small to hold the header";
             }
 
-            if (debugging) 
-                std::cerr << instance_ptr->rank 
-                          << ":RMI: sending buf=" << buf 
-                          << " nbyte=" << nbyte 
-                          << " dest=" << dest 
-                          << " func=" << (void*)(func) 
+            if (debugging)
+                std::cerr << instance_ptr->rank
+                          << ":RMI: sending buf=" << buf
+                          << " nbyte=" << nbyte
+                          << " dest=" << dest
+                          << " func=" << (void*)(func)
                           << " ordered=" << is_ordered(attr)
                           << " count=" << int(send_counters[dest])
                           << std::endl;
@@ -375,7 +374,7 @@ namespace madness {
             // Since most uses are ordered and we need the mutex to accumulate stats
             // we presently always get the lock
             lock();
-        
+
             // If ordering need the mutex to enclose sending the message
             // otherwise there is a livelock scenario due to a starved thread
             // holding an early counter.
@@ -435,5 +434,5 @@ namespace madness {
         }
     };
 }
-        
+
 #endif

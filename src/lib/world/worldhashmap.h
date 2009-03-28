@@ -40,8 +40,7 @@ namespace madness {
             class entry<keyT,valueT> *next;
 
             entry(const datumT& datum, entry<keyT,valueT>* next)
-                : datum(datum), next(next)
-            {}
+                    : datum(datum), next(next) {}
         };
 
         template <class keyT, class valueT>
@@ -57,7 +56,9 @@ namespace madness {
 
             bin() : p(0) {}
 
-            ~bin() {clear();}
+            ~bin() {
+                clear();
+            }
 
             void clear() {
                 lock();             // BEGIN CRITICAL SECTION
@@ -84,7 +85,8 @@ namespace madness {
                     }
                     unlock();           // END CRITICAL SECTION
                     if (!gotlock) cpu_relax(); //waiter.wait();
-                } while (!gotlock);
+                }
+                while (!gotlock);
 
                 return result;
             }
@@ -102,7 +104,8 @@ namespace madness {
                     gotlock = result->try_lock(lockmode);
                     unlock();           // END CRITICAL SECTION
                     if (!gotlock) cpu_relax(); //waiter.wait();
-                } while (!gotlock);
+                }
+                while (!gotlock);
 
                 return std::pair<entryT*,bool>(result,notfound);
             }
@@ -149,7 +152,9 @@ namespace madness {
         template <typename T>
         class defhashT {
         public:
-            hashT operator()(const T& t) const {return hash(t);}
+            hashT operator()(const T& t) const {
+                return hash(t);
+            }
         };
 
         /// iterator for hash
@@ -178,15 +183,13 @@ namespace madness {
 
             /// Makes begin/end iterator
             HashIterator(hashT* h, bool begin)
-                : h(h), bin(-1), entry(0)
-            {
+                    : h(h), bin(-1), entry(0) {
                 if (begin) next_non_null_entry();
             }
 
             /// Makes iterator to specific entry
             HashIterator(hashT* h, int bin, entryT* entry)
-                : h(h), bin(bin), entry(entry)
-            {}
+                    : h(h), bin(bin), entry(entry) {}
 
             HashIterator& operator++() {
                 if (!entry) return *this;
@@ -269,7 +272,9 @@ namespace madness {
                 }
             }
 
-            ~HashAccessor(){release();}
+            ~HashAccessor() {
+                release();
+            }
         };
 
     } // End of namespace Hash_private
@@ -310,26 +315,28 @@ namespace madness {
             return primes[nprimes-1];
         }
 
-        unsigned int hash_to_bin(const keyT& key) const {return hashfun(key)%nbins;}
+        unsigned int hash_to_bin(const keyT& key) const {
+            return hashfun(key)%nbins;
+        }
 
     public:
         ConcurrentHashMap(int n=1021)
-            : nbins(hashT::nbins_prime(n))
-            , bins(new binT[nbins])
-            , _end(this,false)
-            , _const_end(this,false)
-        {}
+                : nbins(hashT::nbins_prime(n))
+                , bins(new binT[nbins])
+                , _end(this,false)
+                , _const_end(this,false) {}
 
         ConcurrentHashMap(const  hashT& h)
-            : nbins(h.nbins)
-            , bins(new binT[nbins])
-            , _end(this,false)
-            , _const_end(this,false)
-        {
+                : nbins(h.nbins)
+                , bins(new binT[nbins])
+                , _end(this,false)
+                , _const_end(this,false) {
             *this = h;
         }
 
-        virtual ~ConcurrentHashMap () {delete [] bins;}
+        virtual ~ConcurrentHashMap() {
+            delete [] bins;
+        }
 
         hashT& operator=(const  hashT& h) {
             if (this != &h) {
@@ -428,18 +435,26 @@ namespace madness {
             return sum;
         }
 
-        valueT& operator[] (const keyT& key) {
+        valueT& operator[](const keyT& key) {
             std::pair<iterator,bool> it = insert(datumT(key,valueT()));
             return it.first->second;
         }
 
-        iterator begin() {return iterator(this,true);}
+        iterator begin() {
+            return iterator(this,true);
+        }
 
-        const_iterator begin() const {return const_iterator(this,true);}
+        const_iterator begin() const {
+            return const_iterator(this,true);
+        }
 
-        iterator end() {return _end;}
+        iterator end() {
+            return _end;
+        }
 
-        const_iterator end() const {return _const_end;}
+        const_iterator end() const {
+            return _const_end;
+        }
 
     };
 }

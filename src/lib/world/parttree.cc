@@ -1,22 +1,22 @@
 /*
   This file is part of MADNESS.
-  
+
   Copyright (C) <2007> <Oak Ridge National Laboratory>
-  
+
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation; either version 2 of the License, or
   (at your option) any later version.
-  
+
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
   GNU General Public License for more details.
-  
+
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
-  
+
   For more information please contact:
 
   Robert J. Harrison
@@ -24,15 +24,15 @@
   One Bethel Valley Road
   P.O. Box 2008, MS-6367
 
-  email: harrisonrj@ornl.gov 
+  email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
 
-  
+
   $Id$
 */
 
-  
+
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <world/world.h>
 
@@ -48,7 +48,7 @@ struct Key {
     Key() {};  // Empty default constructor for speed - but is therefore junk
 
     Key(ulong n, ulong i, ulong j, ulong k)
-        : n(n), i(i), j(j), k(k), hashval(madness::hash(&this->n,4,0)) {};
+            : n(n), i(i), j(j), k(k), hashval(madness::hash(&this->n,4,0)) {};
 
     hashT hash() const {
         return hashval;
@@ -64,7 +64,7 @@ struct Key {
     }
 
     Key parent() const {
-	return Key(n-1, i>>1, j>>1, k>>1);
+        return Key(n-1, i>>1, j>>1, k>>1);
     }
 };
 
@@ -79,36 +79,37 @@ class KeyChildIterator {
     Key child;
     ulong i,j,k;
 public:
-    KeyChildIterator() {k=2;};
-    KeyChildIterator(const Key& parent) 
-	: parent(parent) 
-	, child(parent.n+1,2*parent.i,2*parent.j,2*parent.k)
-	, i(0)
-	, j(0)
-	, k(0) 
-	{};
+    KeyChildIterator() {
+        k=2;
+    };
+    KeyChildIterator(const Key& parent)
+            : parent(parent)
+            , child(parent.n+1,2*parent.i,2*parent.j,2*parent.k)
+            , i(0)
+            , j(0)
+            , k(0) {};
 
     KeyChildIterator& operator++() {
-	if (k == 2) return *this;  // k==2 indicates end
-	i++;
-	if (i == 2) {
-	    i = 0;
-	    j++;
-	    if (j == 2) {
-		j = 0;
-		k++;
-	    }
-	}
-	child = Key(parent.n+1, 2*parent.i+i, 2*parent.j+j, 2*parent.k+k);
-	return *this;
+        if (k == 2) return *this;  // k==2 indicates end
+        i++;
+        if (i == 2) {
+            i = 0;
+            j++;
+            if (j == 2) {
+                j = 0;
+                k++;
+            }
+        }
+        child = Key(parent.n+1, 2*parent.i+i, 2*parent.j+j, 2*parent.k+k);
+        return *this;
     };
 
     const Key& key() {
-	return child;
+        return child;
     };
 
     operator bool() const {
-	return k!=2;
+        return k!=2;
     };
 };
 
@@ -137,9 +138,9 @@ public:
             isleaf = false;
             World& world = d.world();
             double ran = world.drand();
-	    for (KeyChildIterator it(key); it; ++it) {
-		d.task(it.key(),&Node::random_insert, d, it.key(), value*ran);
-	    }		
+            for (KeyChildIterator it(key); it; ++it) {
+                d.task(it.key(),&Node::random_insert, d, it.key(), value*ran);
+            }
         }
         return None;
     };
@@ -149,24 +150,33 @@ public:
         ar & value & value_sum & isleaf;
     }
 
-    bool is_leaf() const {return isleaf;};
+    bool is_leaf() const {
+        return isleaf;
+    };
 
-    double get() const {return value;};
-  
-    double get_sum() const {return value_sum;};
-  
-    Void set(double v) {value = v; return None;};
+    double get() const {
+        return value;
+    };
+
+    double get_sum() const {
+        return value_sum;
+    };
+
+    Void set(double v) {
+        value = v;
+        return None;
+    };
 
     Void recursive_print(const dcT& d, const Key& key) const {
-	cout << d.world().rank() << ": RP: ";
+        cout << d.world().rank() << ": RP: ";
         for (unsigned int i=0; i<key.n; i++) cout << "   ";
         cout << key << " " << *this;
-	if (! is_leaf()) {
-	    for (KeyChildIterator it(key); it; ++it) {
-		d.send(it.key(),&Node::recursive_print, d, it.key());
-	    }	
-	}	
-	return None;
+        if (! is_leaf()) {
+            for (KeyChildIterator it(key); it; ++it) {
+                d.send(it.key(),&Node::recursive_print, d, it.key());
+            }
+        }
+        return None;
     };
 
     double recursive_partition(const dcT& d, const Key& key, const double avg_cost, double cur_cost) const {
@@ -178,7 +188,7 @@ public:
             if (!is_leaf()) {
                 for (KeyChildIterator it(key); it; ++it) {
                     const Key& child = it.key();
-                    cur_cost = d.send(child, &Node::recursive_partition, 
+                    cur_cost = d.send(child, &Node::recursive_partition,
                                       d, child, avg_cost, cur_cost).get();
                 }
             }
@@ -195,76 +205,76 @@ public:
     };
 
     void rp2_up(const dcT& d, const Key& key, const double avg_cost, double cur_cost) const {
-	if (key.n) {
-	    Key parent = key.parent();
-	    print(key,"sending continue to parent",parent);
-	    d.send(parent, &Node::recursive_partition2, d, parent, avg_cost, cur_cost, false);
-	}
-	else {
-	    print("cost of final partition",cur_cost);
-	}
+        if (key.n) {
+            Key parent = key.parent();
+            print(key,"sending continue to parent",parent);
+            d.send(parent, &Node::recursive_partition2, d, parent, avg_cost, cur_cost, false);
+        }
+        else {
+            print("cost of final partition",cur_cost);
+        }
     };
 
 
     Void recursive_partition2(const dcT& d, const Key& key, const double avg_cost, double cur_cost, bool goingdown) const {
-	print("PART2:",key,bool(rpit),goingdown);
+        print("PART2:",key,bool(rpit),goingdown);
         if (goingdown && (cur_cost+value_sum <= avg_cost)) {
-	    if (key.n == 0) print("Starting new partition",cur_cost);
+            if (key.n == 0) print("Starting new partition",cur_cost);
             cur_cost += value_sum;
             print("  ... adding entire sub-tree with root",key,cur_cost,value,value_sum);
-	    rp2_up(d,key,avg_cost,cur_cost);
-	    return None;
+            rp2_up(d,key,avg_cost,cur_cost);
+            return None;
         }
 
-	if (!is_leaf()) {
-	    if (goingdown) {
-		rpit = KeyChildIterator(key);
-	    }
-	    else {
-		++rpit;
-	    }
-	    if (rpit) {
-                    const Key& child = rpit.key();
-                    d.send(child, &Node::recursive_partition2, d, child, avg_cost, cur_cost, true);
-		    return None;
-	    }
-	}
+        if (!is_leaf()) {
+            if (goingdown) {
+                rpit = KeyChildIterator(key);
+            }
+            else {
+                ++rpit;
+            }
+            if (rpit) {
+                const Key& child = rpit.key();
+                d.send(child, &Node::recursive_partition2, d, child, avg_cost, cur_cost, true);
+                return None;
+            }
+        }
 
-	// Done all children or am a leaf
-	if (cur_cost + value > avg_cost) {
-	    print("Starting new partition",cur_cost);
-	    cur_cost = 0.0;
-	}
+        // Done all children or am a leaf
+        if (cur_cost + value > avg_cost) {
+            print("Starting new partition",cur_cost);
+            cur_cost = 0.0;
+        }
 
-	cur_cost += value;
-	print("  ... adding node",key,cur_cost,value,value_sum);
+        cur_cost += value;
+        print("  ... adding node",key,cur_cost,value,value_sum);
 
-	rp2_up(d,key,avg_cost,cur_cost);
+        rp2_up(d,key,avg_cost,cur_cost);
 
-	return None;
+        return None;
     };
 
 
     double do_sum(vector< Future<double> > v) {
         value_sum = value;
-	for (int i=0; i<8; i++) 
-	    value_sum += v[i].get();
-	return value_sum;
+        for (int i=0; i<8; i++)
+            value_sum += v[i].get();
+        return value_sum;
     };
 
     Future<double> do_sum_spawn(const dcT& d, const Key& key) {
-	if (is_leaf()) {
-	    return Future<double>(value);
-	}
-	else {
-	    vector< Future<double> > v = future_vector_factory<double>(8);
-	    int i=0;
-	    for (KeyChildIterator it(key); it; ++it, ++i) {
-		const Key& child = it.key();
-		v[i] = d.send(child, &Node::do_sum_spawn, d, child);
-	    }
-	    return d.task(key, &Node::do_sum, v);
-	}
+        if (is_leaf()) {
+            return Future<double>(value);
+        }
+        else {
+            vector< Future<double> > v = future_vector_factory<double>(8);
+            int i=0;
+            for (KeyChildIterator it(key); it; ++it, ++i) {
+                const Key& child = it.key();
+                v[i] = d.send(child, &Node::do_sum_spawn, d, child);
+            }
+            return d.task(key, &Node::do_sum, v);
+        }
     };
 };
 
@@ -277,7 +287,7 @@ void doit(World& world) {
     ProcessID me = world.rank();
     WorldContainer<Key,Node> d(world);
     Key root(0,0,0,0);
-    
+
     // First build an oct-tree with random depth
     if (me == 0) d.send(root,&Node::random_insert,d,root,1.0);
     world.gop.fence();
@@ -307,25 +317,29 @@ void doit(World& world) {
 int main(int argc, char** argv) {
     MPI::Init(argc, argv);
     try {
-    World world(MPI::COMM_WORLD);
-    redirectio(world);
+        World world(MPI::COMM_WORLD);
+        redirectio(world);
 
-    world.args(argc,argv);
-    
-	doit(world);
+        world.args(argc,argv);
 
-    world.gop.fence();
-    print("done with final fence");
+        doit(world);
 
-    } catch (MPI::Exception e) {
+        world.gop.fence();
+        print("done with final fence");
+
+    }
+    catch (MPI::Exception e) {
         error("caught an MPI exception");
-    } catch (madness::MadnessException e) {
+    }
+    catch (madness::MadnessException e) {
         print(e);
         error("caught a MADNESS exception");
-    } catch (const char* s) {
+    }
+    catch (const char* s) {
         print(s);
         error("caught a string exception");
-    } catch (...) {
+    }
+    catch (...) {
         error("caught unhandled exception");
     }
 

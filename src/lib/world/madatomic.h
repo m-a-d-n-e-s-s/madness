@@ -9,7 +9,7 @@
 
 /// \full
 /// These are defined as macros in case the inliner won't inline
-/// assembler.  
+/// assembler.
 ///
 /// You should only use atomic operations to operate on atomic variables.
 ///
@@ -17,7 +17,7 @@
 ///                     macros below (Cray X1 only for now)
 ///
 /// \c MADATOMIC_INT ... the type of an atomic integer (size is platform dependent).
-/// 
+///
 /// \c MADATOMIC_INT_GET(ptr) ... read an atomic integer
 ///
 /// \c MADATOMIC_INT_SET(ptr) ... write an atomic integer
@@ -36,7 +36,7 @@
 #if defined(SINGLE_THREADED)
 
 typedef int MADATOMIC_INT;
-#define MADATOMIC_FENCE 
+#define MADATOMIC_FENCE
 #define MADATOMIC_INITIALIZE(val) (val)
 #define MADATOMIC_INT_INC(ptr) (++(*(ptr)))
 #define MADATOMIC_INT_GET(ptr) (*(ptr))
@@ -52,7 +52,7 @@ error ... not tested in a long time
 
 typedef gint MADATOMIC_INT;
 
-#define MADATOMIC_FENCE 
+#define MADATOMIC_FENCE
 #define MADATOMIC_INITIALIZE(val) (val)
 #define MADATOMIC_INT_INC(ptr) g_atomic_int_inc(ptr)
 #define MADATOMIC_INT_GET(ptr) g_atomic_int_get(ptr)
@@ -72,7 +72,7 @@ error GCC older than 3.4.3 does not seem to have working atomic operations
 #include <ext/atomicity.h>
 typedef volatile int MADATOMIC_INT;
 
-#define MADATOMIC_FENCE 
+#define MADATOMIC_FENCE
 #define MADATOMIC_INITIALIZE(val) (val)
 #define MADATOMIC_INT_INC(ptr) (__gnu_cxx::__atomic_add(ptr, 1))
 #define MADATOMIC_INT_DEC(ptr) (__gnu_cxx::__atomic_add(ptr,-1))
@@ -84,7 +84,7 @@ typedef volatile int MADATOMIC_INT;
 
 #if defined(__i386)
 
-// This is just LINUX kernel source provided atomic asm operations 
+// This is just LINUX kernel source provided atomic asm operations
 // ... very generic
 #include <asm/atomic.h>
 typedef atomic_t MADATOMIC_INT;
@@ -105,7 +105,9 @@ error What are we compiling on?
 
 #elif defined(AIX)
 #include <sys/atomic_op.h>
-typedef struct { volatile int ctr; } MADATOMIC_INT;
+typedef struct {
+    volatile int ctr;
+} MADATOMIC_INT;
 #define MADATOMIC_FENCE
 #define MADATOMIC_INITIALIZE(val) (val)
 #define MADATOMIC_INT_GET(ptr) ((ptr)->ctr)
@@ -121,32 +123,32 @@ typedef volatile long MADATOMIC_INT;
 #define MADATOMIC_FENCE _gsync(0x1)
 #define MADATOMIC_INITIALIZE(val) (val)
 static inline void MADATOMIC_INT_INC(MADATOMIC_INT *ptr) {
-   MADATOMIC_FENCE; 
-   _amo_aadd(ptr,1L); 
-   MADATOMIC_FENCE;
+    MADATOMIC_FENCE;
+    _amo_aadd(ptr,1L);
+    MADATOMIC_FENCE;
 }
 static inline long MADATOMIC_INT_GET(MADATOMIC_INT *ptr) {
-  MADATOMIC_FENCE; 
-  return *ptr;
+    MADATOMIC_FENCE;
+    return *ptr;
 }
 static inline void MADATOMIC_INT_SET(MADATOMIC_INT *ptr,long val) {
-  MADATOMIC_FENCE; 
-  *ptr=val;
-  MADATOMIC_FENCE;
+    MADATOMIC_FENCE;
+    *ptr=val;
+    MADATOMIC_FENCE;
 }
 static inline bool MADATOMIC_INT_DEC_AND_TEST(MADATOMIC_INT *ptr) {
-  MADATOMIC_FENCE; 
-  bool val=(_amo_afadd(ptr,-1L) == 1);
-  MADATOMIC_FENCE;
-  return val;
+    MADATOMIC_FENCE;
+    bool val=(_amo_afadd(ptr,-1L) == 1);
+    MADATOMIC_FENCE;
+    return val;
 }
 static inline bool MADATOMIC_INT_COMPARE_AND_SWAP(MADATOMIC_INT *ptr, long cmpval, long swpval) {
-  MADATOMIC_FENCE;
-  bool val = _amo_acswap(ptr, cmpval, swpval);
-  MADATOMIC_FENCE;
-  return val;
+    MADATOMIC_FENCE;
+    bool val = _amo_acswap(ptr, cmpval, swpval);
+    MADATOMIC_FENCE;
+    return val;
 }
-  
+
 #else
 error need to define atomic operations or set SINGLE_THREADED
 
