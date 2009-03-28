@@ -552,6 +552,7 @@ namespace madness {
     using archive::MPIOutputArchive;
     using archive::ParallelSerializableObject;
 }
+#include <world/print_seq.h>
 #include <world/worldobj.h>
 #include <world/worlddc.h>
 
