@@ -9,7 +9,7 @@ using std::min;
 
 namespace madness {
     using std::abs;
-    
+
     static const double pi = 3.14159265358979323846264338328;
 
 
@@ -32,21 +32,21 @@ namespace madness {
         else  {
             q[0] = (exp(mu * R) - 0.1e1) / mu * exp(-mu * R) / pi / 0.4e1;
             q[1] = -(-exp(mu * R) + 0.1e1 + mu * R) * pow(mu, -0.2e1) / pi * exp(-mu * R) / 0.4e1;
-            q[2] = -(-0.2e1 * exp(mu * R) + 0.2e1 + 0.2e1 * mu * R + R*R * pow(mu, 0.2e1)) * 
-                pow(mu, -0.3e1) / pi * exp(-mu * R) / 0.4e1;
-            q[3] = -(-0.6e1 * exp(mu * R) + 0.6e1 + 0.6e1 * mu * R + 0.3e1 * R*R * pow(mu, 0.2e1) + 
+            q[2] = -(-0.2e1 * exp(mu * R) + 0.2e1 + 0.2e1 * mu * R + R*R * pow(mu, 0.2e1)) *
+                   pow(mu, -0.3e1) / pi * exp(-mu * R) / 0.4e1;
+            q[3] = -(-0.6e1 * exp(mu * R) + 0.6e1 + 0.6e1 * mu * R + 0.3e1 * R*R * pow(mu, 0.2e1) +
                      pow(R, 0.3e1) * pow(mu, 0.3e1)) * pow(mu, -0.4e1) / pi * exp(-mu * R) / 0.4e1;
         }
     }
-    
-    
+
+
     /// Form separated expansion for BSH (and Coulomb, mu=0) via trapezoidal quadrature.
-    
+
     /// For Coulomb, prune, assuming hi = 1.0 (was 2sqrt(3))
     /// See Harrison et al in LNCS for details
     ///
     /// exp(-mu*r) / (4*pi*r) = sum(k) c[k]*exp(-t[k]*r^2)  + O(eps) for lo<=r<=hi
-    void bsh_fit_old(double mu, double lo, double hi, double eps, 
+    void bsh_fit_old(double mu, double lo, double hi, double eps,
                      Tensor<double> *pcoeff, Tensor<double> *pexpnt, bool prnt) {
 
 
@@ -70,47 +70,47 @@ namespace madness {
         else if (eps >= 1e-10) T = 22;
         else if (eps >= 1e-12) T = 26;
         else T = 30;
-        
+
         if (mu > 0) {
             slo = -0.5*log(4.0*T/(mu*mu));
         }
         else {
             slo = log(eps/hi) - 1.0;
         }
-        
+
         shi = 0.5*log(T/(lo*lo));
         double h = 1.0/(.2-.50*log10(eps)); // was 0.47
-        
+
         long npt = long((shi-slo)/h);
         h = (shi-slo)/(npt+1.0);
-        
-        //if (prnt) 
+
+        //if (prnt)
         //cout << "slo " << slo << " shi " << shi << " npt " << npt << " h " << h << endl;
-        
+
         Tensor<double> coeff(npt), expnt(npt);
-        
+
         for (int i=0; i<npt; i++) {
             double s = slo + h*(npt-i);	// i+1
             coeff[i] = h*2.0/sqrt(pi)*exp(-mu*mu*exp(-2.0*s)/4.0)*exp(s);
             coeff[i] = coeff[i]/(4.0*pi);
             expnt[i] = exp(2.0*s);
         }
-        
+
         // Prune small exponents from Coulomb fit.  Evaluate a gaussian at
         // the range midpoint, and replace it there with the next most
         // diffuse gaussian.  Then examine the resulting error at the two
         // end points ... if this error is less than the desired
         // precision, can discard the diffuse gaussian.
-        
+
         if (mu == 0.0) {
             double mid = sqrt(0.5*(hi*hi + lo*lo));
             long i;
             for (i=npt-1; i>0; i--) {
                 double cnew = coeff[i]*exp(-(expnt[i]-expnt[i-1])*mid*mid);
-                double errlo = coeff[i]*exp(-expnt[i]*lo*lo) - 
-                    cnew*exp(-expnt[i-1]*lo*lo);
-                double errhi = coeff[i]*exp(-expnt[i]*hi*hi) - 
-                    cnew*exp(-expnt[i-1]*hi*hi);
+                double errlo = coeff[i]*exp(-expnt[i]*lo*lo) -
+                               cnew*exp(-expnt[i-1]*lo*lo);
+                double errhi = coeff[i]*exp(-expnt[i]*hi*hi) -
+                               cnew*exp(-expnt[i-1]*hi*hi);
                 if (max(abs(errlo),abs(errhi)) > 0.03*eps) break;
                 npt--;
                 coeff[i-1] = coeff[i-1] + cnew;
@@ -120,7 +120,7 @@ namespace madness {
         }
 
         if (prnt) {
-            for (int i=0; i<npt; i++) 
+            for (int i=0; i<npt; i++)
                 cout << i << " " << coeff[i] << " " << expnt[i] << endl;
 
             long npt = 300;
@@ -133,7 +133,7 @@ namespace madness {
                 double r = lo*(pow(step,i+0.5));
                 double exact = exp(-mu*r)/r/4.0/pi;
                 double test = 0.0;
-                for (int j=0; j<coeff.dim[0]; j++) 
+                for (int j=0; j<coeff.dim[0]; j++)
                     test += coeff[j]*exp(-r*r*expnt[j]);
                 double err = 0.0;
                 if (exact) err = (exact-test)/exact;
@@ -144,19 +144,19 @@ namespace madness {
         *pexpnt = expnt;
     }
 
-    void bsh_fit(double mu, double lo, double hi, double eps, 
+    void bsh_fit(double mu, double lo, double hi, double eps,
                  Tensor<double> *pcoeff, Tensor<double> *pexpnt, bool prnt) {
-        
+
         if (mu > 0) {
             // Restrict hi according to the exponential decay
             double r = -log(4*pi*0.01*eps);
             r = -log(r * 4*pi*0.01*eps);
             if (hi > r) hi = r;
         }
-        
+
         double T;
         double slo, shi;
-    
+
         if (eps >= 1e-2) T = 5;
         else if (eps >= 1e-4) T = 10;
         else if (eps >= 1e-6) T = 14;
@@ -164,7 +164,7 @@ namespace madness {
         else if (eps >= 1e-10) T = 22;
         else if (eps >= 1e-12) T = 26;
         else T = 30;
-        
+
         if (mu > 0) {
             slo = -0.5*log(4.0*T/(mu*mu));
         }
@@ -172,12 +172,12 @@ namespace madness {
             slo = log(eps/hi) - 1.0;
         }
         shi = 0.5*log(T/(lo*lo));
-        
+
         // Resolution required for quadrature over s
         double h = 1.0/(0.2-.50*log10(eps)); // was 0.5 was 0.47
 
         // Truncate the number of binary digits in h's mantissa
-        // so that rounding does not occur when performing 
+        // so that rounding does not occur when performing
         // manipulations to determine the quadrature points and
         // to limit the number of distinct values in case of
         // multiple precisions being used at the same time.
@@ -187,14 +187,14 @@ namespace madness {
         // Round shi/lo up/down to an integral multiple of quadrature points
         shi = ceil(shi/h)*h;
         slo = floor(slo/h)*h;
-        
+
         long npt = long((shi-slo)/h+0.5);
-        
-        //if (prnt) 
+
+        //if (prnt)
         //cout << "slo " << slo << " shi " << shi << " npt " << npt << " h " << h << " " << eps << endl;
-        
+
         Tensor<double> coeff(npt), expnt(npt);
-        
+
         for (int i=0; i<npt; i++) {
             double s = slo + h*(npt-i);	// i+1
             coeff[i] = h*2.0/sqrt(pi)*exp(-mu*mu*exp(-2.0*s)/4.0)*exp(s);
@@ -203,23 +203,23 @@ namespace madness {
         }
 
         // Prune large exponents from the fit ... never necessary due to construction
-        
+
         // Prune small exponents from Coulomb fit.  Evaluate a gaussian at
         // the range midpoint, and replace it there with the next most
         // diffuse gaussian.  Then examine the resulting error at the two
         // end points ... if this error is less than the desired
         // precision, can discard the diffuse gaussian.
-        
+
         if (mu == 0.0) {
             double mid = lo + (hi-lo)*0.5;
             long i;
             for (i=npt-1; i>0; i--) {
                 double cnew = coeff[i]*exp(-(expnt[i]-expnt[i-1])*mid*mid);
-                double errlo = coeff[i]*exp(-expnt[i]*lo*lo) - 
-                    cnew*exp(-expnt[i-1]*lo*lo);
-                double errhi = coeff[i]*exp(-expnt[i]*hi*hi) - 
-                    cnew*exp(-expnt[i-1]*hi*hi);
-                if (max(abs(errlo),abs(errhi)) > 0.03*eps) break; 
+                double errlo = coeff[i]*exp(-expnt[i]*lo*lo) -
+                               cnew*exp(-expnt[i-1]*lo*lo);
+                double errhi = coeff[i]*exp(-expnt[i]*hi*hi) -
+                               cnew*exp(-expnt[i-1]*hi*hi);
+                if (max(abs(errlo),abs(errhi)) > 0.03*eps) break;
                 npt--;
                 coeff[i-1] = coeff[i-1] + cnew;
             }
@@ -249,16 +249,16 @@ namespace madness {
             Tensor<double> q(4), qg(4);
             double range = sqrt(-log(1e-6)/expnt[nmom-1]);
             if (prnt) print("exponent(nmom-1)",expnt[nmom-1],"has range", range);
-            
+
             bsh_spherical_moments(mu, range, q);
             Tensor<double> M(nmom,nmom);
             for (int i=nmom; i<npt; i++) {
-                Tensor<double> qt(4);            
+                Tensor<double> qt(4);
                 gaussian_spherical_moments(expnt[i], range, qt);
                 qg += qt*coeff[i];
             }
             if (nmom != 4) {
-                q = q(Slice(1,nmom)); 
+                q = q(Slice(1,nmom));
                 qg = qg(Slice(1,nmom));
             }
             if (prnt) {
@@ -267,7 +267,7 @@ namespace madness {
             }
             q = copy(q - qg);
             for (int j=0; j<nmom; j++) {
-                Tensor<double> qt(4);            
+                Tensor<double> qt(4);
                 gaussian_spherical_moments(expnt[j], range, qt);
                 if (nmom != 4) qt = qt(Slice(1,nmom));
                 for (int i=0; i<nmom; i++) {
@@ -281,12 +281,12 @@ namespace madness {
                 print("old coeffs", coeff(Slice(0,nmom-1)));
                 print("new coeffs", ncoeff);
             }
-            
+
             coeff(Slice(0,nmom-1)) = ncoeff;
         }
-        
+
         if (prnt) {
-            for (int i=0; i<npt; i++) 
+            for (int i=0; i<npt; i++)
                 cout << i << " " << coeff[i] << " " << expnt[i] << endl;
 
             long npt = 300;
@@ -299,7 +299,7 @@ namespace madness {
                 double r = lo*(pow(step,i+0.5));
                 double exact = exp(-mu*r)/r/4.0/pi;
                 double test = 0.0;
-                for (int j=0; j<coeff.dim[0]; j++) 
+                for (int j=0; j<coeff.dim[0]; j++)
                     test += coeff[j]*exp(-r*r*expnt[j]);
                 double err = 0.0;
                 if (exact) err = (exact-test)/exact;
@@ -310,18 +310,18 @@ namespace madness {
         *pexpnt = expnt;
     }
 
-    void bsh_fit_ndim(int ndim, double mu, double lo, double hi, double eps, 
+    void bsh_fit_ndim(int ndim, double mu, double lo, double hi, double eps,
                       Tensor<double> *pcoeff, Tensor<double> *pexpnt, bool prnt) {
-        
+
         if (mu > 0) {
             // Restrict hi according to the exponential decay
             double r = -log(4*pi*0.01*eps);
             r = -log(r * 4*pi*0.01*eps);
             if (hi > r) hi = r;
         }
-        
 
-        // Determine range of quadrature by estimating when 
+
+        // Determine range of quadrature by estimating when
         // kernel drops to exp(-100)
 
         double slo, shi;
@@ -333,12 +333,12 @@ namespace madness {
             slo = log(eps/hi) - 1.0;
         }
         shi = 0.5*log(100.0/(lo*lo));
-        
+
         // Resolution required for quadrature over s
         double h = 1.0/(0.2-.50*log10(eps)); // was 0.5 was 0.47
 
         // Truncate the number of binary digits in h's mantissa
-        // so that rounding does not occur when performing 
+        // so that rounding does not occur when performing
         // manipulations to determine the quadrature points and
         // to limit the number of distinct values in case of
         // multiple precisions being used at the same time.
@@ -348,12 +348,12 @@ namespace madness {
         // Round shi/lo up/down to an integral multiple of quadrature points
         shi = ceil(shi/h)*h;
         slo = floor(slo/h)*h;
-        
+
         long npt = long((shi-slo)/h+0.5);
-        
-        if (prnt) 
+
+        if (prnt)
             cout << "bsh: mu " << mu << " lo " << lo << " hi " << hi << " eps " << eps << " slo " << slo << " shi " << shi << " npt " << npt << " h " << h << endl;
-        
+
 
         // Compute expansion pruning small coeffs and large exponents
         Tensor<double> coeff(npt), expnt(npt);
@@ -371,23 +371,23 @@ namespace madness {
         }
         npt = nnpt;
 
-        
+
         // Prune small exponents from Coulomb fit.  Evaluate a gaussian at
         // the range midpoint, and replace it there with the next most
         // diffuse gaussian.  Then examine the resulting error at the two
         // end points ... if this error is less than the desired
         // precision, can discard the diffuse gaussian.
-        
+
         if (mu == 0.0) {
             double mid = lo + (hi-lo)*0.5;
             long i;
             for (i=npt-1; i>0; i--) {
                 double cnew = coeff[i]*exp(-(expnt[i]-expnt[i-1])*mid*mid);
-                double errlo = coeff[i]*exp(-expnt[i]*lo*lo) - 
-                    cnew*exp(-expnt[i-1]*lo*lo);
-                double errhi = coeff[i]*exp(-expnt[i]*hi*hi) - 
-                    cnew*exp(-expnt[i-1]*hi*hi);
-                if (max(abs(errlo),abs(errhi)) > 0.03*eps) break; 
+                double errlo = coeff[i]*exp(-expnt[i]*lo*lo) -
+                               cnew*exp(-expnt[i-1]*lo*lo);
+                double errhi = coeff[i]*exp(-expnt[i]*hi*hi) -
+                               cnew*exp(-expnt[i-1]*hi*hi);
+                if (max(abs(errlo),abs(errhi)) > 0.03*eps) break;
                 npt--;
                 coeff[i-1] = coeff[i-1] + cnew;
             }
@@ -397,9 +397,9 @@ namespace madness {
         coeff = coeff(Slice(0,npt-1));
         expnt = expnt(Slice(0,npt-1));
 
-        
+
         if (prnt) {
-            for (int i=0; i<npt; i++) 
+            for (int i=0; i<npt; i++)
                 cout << i << " " << coeff[i] << " " << expnt[i] << endl;
 
             long npt = 300;
@@ -409,7 +409,7 @@ namespace madness {
             for (int i=0; i<=npt; i++) {
                 double r = lo*(pow(step,i+0.5));
                 double test = 0.0;
-                for (int j=0; j<coeff.dim[0]; j++) 
+                for (int j=0; j<coeff.dim[0]; j++)
                     test += coeff[j]*exp(-r*r*expnt[j]);
                 printf("  %.6e %20.10e\n",r, test);
             }
@@ -419,4 +419,4 @@ namespace madness {
         *pexpnt = expnt;
     }
 
-}    
+}

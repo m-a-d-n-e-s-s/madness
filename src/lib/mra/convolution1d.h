@@ -174,12 +174,11 @@ namespace madness {
         virtual ~Convolution1D() {};
 
         Convolution1D(int k, int npt, double sign=1.0)
-            : k(k)
-            , npt(npt)
-            , sign(sign)
-            , quad_x(npt)
-            , quad_w(npt)
-        {
+                : k(k)
+                , npt(npt)
+                , sign(sign)
+                , quad_x(npt)
+                , quad_w(npt) {
             MADNESS_ASSERT(autoc(k,&c));
 
             gauss_legendre(npt,0.0,1.0,quad_x.ptr(),quad_w.ptr());
@@ -200,7 +199,9 @@ namespace madness {
         virtual bool issmall(Level n, Translation lx) const = 0;
 
         /// Returns the level for projection
-        virtual Level natural_level() const {return 13;}
+        virtual Level natural_level() const {
+            return 13;
+        }
 
         /// Computes the transition matrix elements for the convolution for n,l
 
@@ -238,7 +239,7 @@ namespace madness {
         const ConvolutionData1D<Q>* nonstandard(Level n, Translation lx) const {
             const ConvolutionData1D<Q>* p = ns_cache.getptr(n,lx);
             if (p) return p;
-            
+
             PROFILE_MEMBER_FUNC(Convolution1D);
 
             Tensor<Q> R, T;
@@ -256,7 +257,7 @@ namespace madness {
 //                 R(s1,s1) = r0;
 //                 R(s1,s0) = rp;
 //                 R(s0,s1) = rm;
-                
+
                 {
                     PROFILE_BLOCK(Convolution1D_nscopy);
                     copy_2d_patch(R.ptr(),           2*k, r0.ptr(), k, k, k);
@@ -278,11 +279,11 @@ namespace madness {
                 //R = transpose(R);
                 {
                     PROFILE_BLOCK(Convolution1D_trans);
-                    
+
                     Tensor<Q> RT(2*k,2*k);
                     fast_transpose(2*k, 2*k, R.ptr(), RT.ptr());
                     R = RT;
-                    
+
                     //T = copy(R(s0,s0));
                     T = Tensor<Q>(k,k);
                     copy_2d_patch(T.ptr(), k, R.ptr(), 2*k, k, k);
@@ -294,8 +295,7 @@ namespace madness {
             return ns_cache.getptr(n,lx);
         };
 
-        const Tensor<Q>& get_rnlp(Level n, Translation lx) const
-        {
+        const Tensor<Q>& get_rnlp(Level n, Translation lx) const {
             const Tensor<Q>* p=rnlp_cache.getptr(n,lx);
             if (p) return *p;
 
@@ -333,7 +333,7 @@ namespace madness {
         double exponent;
     public:
         GaussianGenericFunctor(Q coeff, double exponent)
-            : coeff(coeff), exponent(exponent) {}
+                : coeff(coeff), exponent(exponent) {}
 
         Q operator()(double x) const {
             return coeff*exp(-exponent*x*x);
@@ -354,8 +354,7 @@ namespace madness {
         GenericConvolution1D() {}
 
         GenericConvolution1D(int k, const opT& op)
-            : Convolution1D<Q>(k, 20), op(op), maxl(LONG_MAX-1)
-        {
+                : Convolution1D<Q>(k, 20), op(op), maxl(LONG_MAX-1) {
             PROFILE_MEMBER_FUNC(GenericConvolution1D);
 
             // For efficiency carefully compute outwards at the "natural" level
@@ -383,7 +382,7 @@ namespace madness {
             const GenericConvolution1D<Q,opT>& q;
 
             Shmoo(Level n, Translation lx, const GenericConvolution1D<Q,opT>* q)
-                : n(n), lx(lx), q(*q) {}
+                    : n(n), lx(lx), q(*q) {}
 
             returnT operator()(double x) const {
                 int twok = q.k*2;
@@ -426,12 +425,13 @@ namespace madness {
         const Level natlev;
 
         GaussianConvolution1D(int k, Q coeff, double expnt, double sign=1.0)
-            : Convolution1D<Q>(k,k+11,sign), coeff(coeff), expnt(expnt), natlev(0.5*log(expnt)/log(2)+1)
-        {}
+                : Convolution1D<Q>(k,k+11,sign), coeff(coeff), expnt(expnt), natlev(0.5*log(expnt)/log(2)+1) {}
 
-        virtual ~GaussianConvolution1D(){}
+        virtual ~GaussianConvolution1D() {}
 
-        Level natural_level() const {return natlev;}
+        Level natural_level() const {
+            return natlev;
+        }
 
         /// Compute the projection of the operator onto the double order polynomials
 
@@ -550,9 +550,9 @@ namespace madness {
             iterator it = map.find(expnt+k);
             if (it == map.end()) {
                 const double pi = 3.14159265358979323846264338328;
-                map.insert(datumT(expnt+k, SharedPtr< GaussianConvolution1D<Q> >(new GaussianConvolution1D<Q>(k, 
-                                                                                                       sqrt(expnt/pi),
-                                                                                                              expnt))));
+                map.insert(datumT(expnt+k, SharedPtr< GaussianConvolution1D<Q> >(new GaussianConvolution1D<Q>(k,
+                                  sqrt(expnt/pi),
+                                  expnt))));
                 it = map.find(expnt+k);
                 //printf("conv1d: making  %d %.8e\n",k,expnt);
             }
@@ -576,12 +576,13 @@ namespace madness {
         GaussianConvolution1D<Q> g;
 
         PeriodicGaussianConvolution1D(int k, int maxR, Q coeff, double expnt, double sign=1.0)
-            : Convolution1D<Q>(k,k,1.0), k(k), maxR(maxR), g(k,coeff,expnt,sign)
-        {}
+                : Convolution1D<Q>(k,k,1.0), k(k), maxR(maxR), g(k,coeff,expnt,sign) {}
 
-        virtual ~PeriodicGaussianConvolution1D(){}
+        virtual ~PeriodicGaussianConvolution1D() {}
 
-        Level natural_level() const {return g.natural_level();}
+        Level natural_level() const {
+            return g.natural_level();
+        }
 
         Tensor<Q> rnlp(Level n, Translation lx) const {
             Translation twon = Translation(1)<<n;

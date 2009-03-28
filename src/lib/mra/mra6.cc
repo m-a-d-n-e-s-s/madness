@@ -15,7 +15,7 @@ namespace madness {
     template void plotdx<double,6>(const Function<double,6>&, const char*, const Tensor<double>&,
                                    const std::vector<long>&, bool binary);
     template void plotdx<double_complex,6>(const Function<double_complex,6>&, const char*, const Tensor<double>&,
-                                   const std::vector<long>&, bool binary);
+                                           const std::vector<long>&, bool binary);
 }
 #endif
 

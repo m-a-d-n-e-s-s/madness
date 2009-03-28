@@ -7,14 +7,18 @@ namespace madness {
 
     namespace detail {
         template <typename T>
-        double norm(const T& t) {return std::abs(t);}
+        double norm(const T& t) {
+            return std::abs(t);
+        }
 
         template <typename T>
-        double norm(const Tensor<T>& t) {return t.normf();}
+        double norm(const Tensor<T>& t) {
+            return t.normf();
+        }
     }
 
     template <typename funcT>
-    typename funcT::returnT do_adq(double lo, double hi, const funcT& func, 
+    typename funcT::returnT do_adq(double lo, double hi, const funcT& func,
                                    int n, const double* x, const double* w) {
         // x and w provide the Gauss-Legendre quadrature rule of order n on [0,1]
         double range = (hi-lo);
@@ -25,7 +29,7 @@ namespace madness {
 
 
     template <typename funcT>
-    typename funcT::returnT adq1(double lo, double hi, const funcT& func, double thresh, 
+    typename funcT::returnT adq1(double lo, double hi, const funcT& func, double thresh,
                                  int n, const double* x, const double* w, int level) {
         static int MAX_LEVEL=14;
         double d = (hi-lo)/2;
@@ -49,7 +53,7 @@ namespace madness {
                 return half;
             }
             else {
-                return adq1(lo, lo+d, func, thresh*0.5, n, x, w, level+1) + 
+                return adq1(lo, lo+d, func, thresh*0.5, n, x, w, level+1) +
                        adq1(lo+d, hi, func, thresh*0.5, n, x, w, level+1);
             }
         }
@@ -67,7 +71,7 @@ namespace madness {
     namespace detail {
         struct adqtest {
             typedef double returnT;
-            double operator() (double x) const {
+            double operator()(double x) const {
                 // int(exp(-x^2)*cos(a*x),x=-inf..inf) = sqrt(pi)*exp(-a^2/4)
                 return exp(-x*x)*cos(3*x);
             }

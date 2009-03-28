@@ -63,8 +63,8 @@ namespace madness {
     /// Generates standard form of a vector of functions
     template <typename T, int NDIM>
     void standard(World& world,
-                     std::vector< Function<T,NDIM> >& v,
-                     bool fence=true) {
+                  std::vector< Function<T,NDIM> >& v,
+                  bool fence=true) {
         PROFILE_BLOCK(Vstandard);
         for (unsigned int i=0; i<v.size(); i++) {
             v[i].standard(false);
@@ -123,7 +123,7 @@ namespace madness {
 
     /// Transforms a vector of functions according to new[i] = sum[j] old[j]*c[j,i]
 
-    /// Uses sparsity in the transformation matrix --- set small elements to 
+    /// Uses sparsity in the transformation matrix --- set small elements to
     /// zero to take advantage of this.
     template <typename T, typename R, int NDIM>
     std::vector< Function<TENSOR_RESULT_TYPE(T,R),NDIM> >
@@ -195,9 +195,13 @@ namespace madness {
         return norms;
     }
 
-    inline double conj(double x) {return x;}
+    inline double conj(double x) {
+        return x;
+    }
 
-    inline double conj(float x) {return x;}
+    inline double conj(float x) {
+        return x;
+    }
 
 
     template <typename T, typename R, int NDIM>
@@ -211,8 +215,7 @@ namespace madness {
                         const Function<T,NDIM>& f,
                         const std::vector< Function<R,NDIM> >& g,
                         long jtop)
-            : result(result), f(f), g(g), jtop(jtop)
-        {}
+                : result(result), f(f), g(g), jtop(jtop) {}
 
         void run(World& world) {
             for (long j=0; j<jtop; j++) {
@@ -229,9 +232,9 @@ namespace madness {
     /// The current parallel loop is non-optimal but functional.
     template <typename T, typename R, int NDIM>
     Tensor< TENSOR_RESULT_TYPE(T,R) > matrix_inner(World& world,
-                                                   const std::vector< Function<T,NDIM> >& f,
-                                                   const std::vector< Function<R,NDIM> >& g,
-                                                   bool sym=false) {
+            const std::vector< Function<T,NDIM> >& f,
+            const std::vector< Function<R,NDIM> >& g,
+            bool sym=false) {
         PROFILE_BLOCK(Vmatrix_inner);
         long n=f.size(), m=g.size();
         Tensor< TENSOR_RESULT_TYPE(T,R) > r(n,m);
@@ -321,10 +324,9 @@ namespace madness {
     template <typename T, typename R, int NDIM>
     std::vector< Function<TENSOR_RESULT_TYPE(T,R), NDIM> >
     mul(World& world,
-          const Function<T,NDIM>& a,
-          const std::vector< Function<R,NDIM> >& v,
-          bool fence=true)
-    {
+        const Function<T,NDIM>& a,
+        const std::vector< Function<R,NDIM> >& v,
+        bool fence=true) {
         PROFILE_BLOCK(Vmul);
         a.reconstruct(false);
         reconstruct(world, v, false);
@@ -339,8 +341,7 @@ namespace madness {
                const Function<T,NDIM>& a,
                const std::vector< Function<R,NDIM> >& v,
                double tol,
-               bool fence=true)
-    {
+               bool fence=true) {
         PROFILE_BLOCK(Vmulsp);
         a.reconstruct(false);
         reconstruct(world, v, false);
@@ -356,8 +357,7 @@ namespace madness {
     mul(World& world,
         const std::vector< Function<T,NDIM> >& a,
         const std::vector< Function<R,NDIM> >& b,
-        bool fence=true)
-    {
+        bool fence=true) {
         PROFILE_BLOCK(Vmulvv);
         reconstruct(world, a, false);
         if (&a != &b) reconstruct(world, b, false);
@@ -376,9 +376,8 @@ namespace madness {
     template <typename T, int NDIM>
     std::vector< Function<T,NDIM> >
     square(World& world,
-        const std::vector< Function<T,NDIM> >& v,
-        bool fence=true)
-    {
+           const std::vector< Function<T,NDIM> >& v,
+           bool fence=true) {
         return mul<T,T,NDIM>(world, v, v, fence);
 //         std::vector< Function<T,NDIM> > vsq(v.size());
 //         for (unsigned int i=0; i<v.size(); i++) {
@@ -403,8 +402,7 @@ namespace madness {
     std::vector< Function<T,NDIM> >
     conj(World& world,
          const std::vector< Function<T,NDIM> >& v,
-         bool fence=true)
-    {
+         bool fence=true) {
         PROFILE_BLOCK(Vconj);
         std::vector< Function<T,NDIM> > r = copy(world, v); // Currently don't have oop conj
         for (unsigned int i=0; i<v.size(); i++) {
@@ -420,8 +418,7 @@ namespace madness {
     std::vector< Function<T,NDIM> >
     copy(World& world,
          const std::vector< Function<T,NDIM> >& v,
-         bool fence=true)
-    {
+         bool fence=true) {
         PROFILE_BLOCK(Vcopy);
         std::vector< Function<T,NDIM> > r(v.size());
         for (unsigned int i=0; i<v.size(); i++) {
@@ -437,8 +434,7 @@ namespace madness {
     add(World& world,
         const std::vector< Function<T,NDIM> >& a,
         const std::vector< Function<R,NDIM> >& b,
-        bool fence=true)
-    {
+        bool fence=true) {
         PROFILE_BLOCK(Vadd);
         MADNESS_ASSERT(a.size() == b.size());
         compress(world, a);
@@ -459,8 +455,7 @@ namespace madness {
     sub(World& world,
         const std::vector< Function<T,NDIM> >& a,
         const std::vector< Function<R,NDIM> >& b,
-        bool fence=true)
-    {
+        bool fence=true) {
         PROFILE_BLOCK(Vsub);
         MADNESS_ASSERT(a.size() == b.size());
         compress(world, a);
@@ -482,8 +477,7 @@ namespace madness {
                std::vector< Function<T,NDIM> >& a,
                Q beta,
                const std::vector< Function<R,NDIM> >& b,
-               bool fence=true)
-    {
+               bool fence=true) {
         PROFILE_BLOCK(Vgaxpy);
         MADNESS_ASSERT(a.size() == b.size());
         compress(world, a);
@@ -520,7 +514,7 @@ namespace madness {
 
         standard(world, ncf, false);  // restores promise of logical constness
         world.gop.fence();
-	reconstruct(world, result);
+        reconstruct(world, result);
 
         return result;
     }
@@ -547,7 +541,7 @@ namespace madness {
         world.gop.fence();
 
         standard(world, ncf, false);  // restores promise of logical constness
-	reconstruct(world, result);
+        reconstruct(world, result);
 
         return result;
     }

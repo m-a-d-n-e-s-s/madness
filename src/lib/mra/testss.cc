@@ -1,22 +1,22 @@
 /*
   This file is part of MADNESS.
-  
+
   Copyright (C) <2007> <Oak Ridge National Laboratory>
-  
+
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation; either version 2 of the License, or
   (at your option) any later version.
-  
+
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
   GNU General Public License for more details.
-  
+
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
-  
+
   For more information please contact:
 
   Robert J. Harrison
@@ -24,15 +24,15 @@
   One Bethel Valley Road
   P.O. Box 2008, MS-6367
 
-  email: harrisonrj@ornl.gov 
+  email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
 
-  
+
   $Id$
 */
 
-  
+
 #include <mra/mra.h>
 //#include <mra/loadbal.h>
 
@@ -41,7 +41,7 @@ using namespace madness;
 double myfun(const double x[]) {
     double r2=0.0;
     for (int i=0; i < 3; i++)
-	r2 += x[i]*x[i];
+        r2 += x[i]*x[i];
     return r2;
 }
 
@@ -57,7 +57,7 @@ double myg(const Vector<double,3>& r) {
     return fac*exp(-myg_expnt*(x*x + y*y + z*z));
 };
 
-void vector_myg(long npt, const double *x, const double *y, 
+void vector_myg(long npt, const double *x, const double *y,
                 const double *z, double* restrict f) {
     const double fac = pow(2.0*myg_expnt/PI,0.75);
     for (int i=0; i<npt; i++) {
@@ -82,7 +82,7 @@ void vector_myg(long npt, const double *x, const double *y,
 //     /* Derivative of myg w.r.t. z */
 //     return -2.0*myg_expnt*(r[2]-0.5)*myg(r);
 // };
-    
+
 
 int main(int argc, char**argv) {
     MPI::Init(argc, argv);
@@ -94,7 +94,7 @@ int main(int argc, char**argv) {
 
         print("The tree after projection");
         f.print_tree();
-            
+
         Vector<double,3> x = VectorFactory(0.5,0.5,0.5);
         print("the result is",f.eval(x).get()-myg(x));
 
@@ -106,32 +106,39 @@ int main(int argc, char**argv) {
         world.gop.fence();
         print("The tree after compress");
         f.print_tree();
-        
+
         f.reconstruct(false);
         print("entering fence after reconstruct");
         world.gop.fence();
         print("The tree after reconstruct");
         f.print_tree();
-        
-    } catch (const MPI::Exception& e) {
+
+    }
+    catch (const MPI::Exception& e) {
         print(e);
         error("caught an MPI exception");
-    } catch (const madness::MadnessException& e) {
+    }
+    catch (const madness::MadnessException& e) {
         print(e);
         error("caught a MADNESS exception");
-    } catch (const madness::TensorException& e) {
+    }
+    catch (const madness::TensorException& e) {
         print(e);
         error("caught a Tensor exception");
-    } catch (const char* s) {
+    }
+    catch (const char* s) {
         print(s);
         error("caught a string exception");
-    } catch (const std::string& s) {
+    }
+    catch (const std::string& s) {
         print(s);
         error("caught a string (class) exception");
-    } catch (const std::exception& e) {
+    }
+    catch (const std::exception& e) {
         print(e.what());
         error("caught an STL exception");
-    } catch (...) {
+    }
+    catch (...) {
         error("caught unhandled exception");
     }
 

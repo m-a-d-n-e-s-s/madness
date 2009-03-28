@@ -1,22 +1,22 @@
 /*
   This file is part of MADNESS.
-  
+
   Copyright (C) <2007> <Oak Ridge National Laboratory>
-  
+
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation; either version 2 of the License, or
   (at your option) any later version.
-  
+
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
   GNU General Public License for more details.
-  
+
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
-  
+
   For more information please contact:
 
   Robert J. Harrison
@@ -24,18 +24,18 @@
   One Bethel Valley Road
   P.O. Box 2008, MS-6367
 
-  email: harrisonrj@ornl.gov 
+  email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
 
-  
+
   $Id$
 */
 
 /// \file testbsh.cc
 /// \brief test the bsh operator
 
-#define WORLD_INSTANTIATE_STATIC_TEMPLATES  
+#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <mra/mra.h>
 #include <mra/operator.h>
 #include <constants.h>
@@ -49,9 +49,9 @@ public:
     const coordT center;
     const double exponent;
     const T coefficient;
-    
-    Gaussian(const coordT& center, double exponent, T coefficient) 
-        : center(center), exponent(exponent), coefficient(coefficient) {};
+
+    Gaussian(const coordT& center, double exponent, T coefficient)
+            : center(center), exponent(exponent), coefficient(coefficient) {};
 
     T operator()(const coordT& x) const {
         double sum = 0.0;
@@ -66,21 +66,19 @@ public:
 
 double aa;
 
-double q (double r)
-{
+double q(double r) {
     double val;
-  if (r < 0.1e-4)
-      val = (0.2e1 * exp(0.1e1 / aa / 0.4e1) * exp(-0.1e1 / aa / 0.4e1) * sqrt(aa) / sqrt(constants::pi) + exp(0.1e1 / aa / 0.4e1) * erf(0.1e1 / sqrt(aa) / 0.2e1) - exp(0.1e1 / aa / 0.4e1) + (0.2e1 / 0.3e1 * exp(0.1e1 / aa / 0.4e1) * exp(-0.1e1 / aa / 0.4e1) * (0.1e1 / 0.2e1 - aa) * sqrt(aa) / sqrt(constants::pi) + exp(0.1e1 / aa / 0.4e1) * erf(0.1e1 / sqrt(aa) / 0.2e1) / 0.6e1 - exp(0.1e1 / aa / 0.4e1) / 0.6e1) * r * r);
-  else
-    val = ((-exp((0.1e1 + 0.4e1 * aa * r) / aa / 0.4e1) + exp(-(-0.1e1 + 0.4e1 * aa * r) / aa / 0.4e1) + exp((0.1e1 + 0.4e1 * aa * r) / aa / 0.4e1) * erf((0.2e1 * aa * r + 0.1e1) / sqrt(aa) / 0.2e1) + exp(-(-0.1e1 + 0.4e1 * aa * r) / aa / 0.4e1) * erf((-0.1e1 + 0.2e1 * aa * r) / sqrt(aa) / 0.2e1)) / r / 0.2e1);
+    if (r < 0.1e-4)
+        val = (0.2e1 * exp(0.1e1 / aa / 0.4e1) * exp(-0.1e1 / aa / 0.4e1) * sqrt(aa) / sqrt(constants::pi) + exp(0.1e1 / aa / 0.4e1) * erf(0.1e1 / sqrt(aa) / 0.2e1) - exp(0.1e1 / aa / 0.4e1) + (0.2e1 / 0.3e1 * exp(0.1e1 / aa / 0.4e1) * exp(-0.1e1 / aa / 0.4e1) * (0.1e1 / 0.2e1 - aa) * sqrt(aa) / sqrt(constants::pi) + exp(0.1e1 / aa / 0.4e1) * erf(0.1e1 / sqrt(aa) / 0.2e1) / 0.6e1 - exp(0.1e1 / aa / 0.4e1) / 0.6e1) * r * r);
+    else
+        val = ((-exp((0.1e1 + 0.4e1 * aa * r) / aa / 0.4e1) + exp(-(-0.1e1 + 0.4e1 * aa * r) / aa / 0.4e1) + exp((0.1e1 + 0.4e1 * aa * r) / aa / 0.4e1) * erf((0.2e1 * aa * r + 0.1e1) / sqrt(aa) / 0.2e1) + exp(-(-0.1e1 + 0.4e1 * aa * r) / aa / 0.4e1) * erf((-0.1e1 + 0.2e1 * aa * r) / sqrt(aa) / 0.2e1)) / r / 0.2e1);
 
-  return val / (4.0*constants::pi);
+    return val / (4.0*constants::pi);
 }
 
 
 
-double qfred (double r)
-{
+double qfred(double r) {
     const double pi = constants::pi;
     double fac = pow(2.0/pi,0.25*3)/(4.0*pi);
 
@@ -91,7 +89,7 @@ double qfred (double r)
         return fac*(2.854819526231167-1.618591848021335*r*r);
     }
     else {
-        return fac*pow(pi, 0.3e1 / 0.2e1) * (-exp((double) (2 * r)) + 0.1e1 + erf((double) r - 0.1e1 / 0.2e1) + erf((double) r + 0.1e1 / 0.2e1) * exp((double) (2 * r))) * exp(0.1e1 / 0.4e1 - (double) r) / (double) r / 0.2e1;
+        return fac*pow(pi, 0.3e1 / 0.2e1) * (-exp((double)(2 * r)) + 0.1e1 + erf((double) r - 0.1e1 / 0.2e1) + erf((double) r + 0.1e1 / 0.2e1) * exp((double)(2 * r))) * exp(0.1e1 / 0.4e1 - (double) r) / (double) r / 0.2e1;
 
     }
 
@@ -111,7 +109,7 @@ void test_bsh(World& world) {
     typedef Vector<double,3> coordT;
     typedef SharedPtr< FunctionFunctorInterface<T,3> > functorT;
 
-    if (world.rank() == 0) 
+    if (world.rank() == 0)
         print("Test BSH operation, type =",
               archive::get_type_name<T>(),", ndim =",3);
 
@@ -123,7 +121,7 @@ void test_bsh(World& world) {
     FunctionDefaults<3>::set_autorefine(true);
     FunctionDefaults<3>::set_truncate_mode(0);
     FunctionDefaults<3>::set_truncate_on_project(false);
-    
+
     const coordT origin(0.0);
     const double expnt = 100.0;
     aa = expnt;
@@ -140,17 +138,17 @@ void test_bsh(World& world) {
     // expnt=100 err=1e-9 use lo=2e-2 = .2/sqrt(expnt) and eps=5e-9
 
     // expnt=100 err=1e-7 use lo=2e-2 and eps=5e-7
-  
+
     // expnt=100 err=1e-5 use lo=2e-e and eps=5e-5
 
     // expnt=100 err=1e-3 use lo=2e-2 and eps=5e-3
 
 
-    SeparatedConvolution<T,3> op = BSHOperator<T,3>(world, 
-                                                    mu, 
-                                                    FunctionDefaults<3>::get_k(), 
-                                                    1e-4, 
-                                                    1e-8);
+    SeparatedConvolution<T,3> op = BSHOperator<T,3>(world,
+                                   mu,
+                                   FunctionDefaults<3>::get_k(),
+                                   1e-4,
+                                   1e-8);
     cout.precision(8);
 
     Function<T,3> ff = copy(f);
@@ -192,7 +190,7 @@ void test_bsh(World& world) {
     print("norm of (-del^2+mu^2)*G*f", opinvopf.norm2());
     Function<T,3> error = (f-opinvopf);
     print("error",error.norm2());
-    
+
 //     error.reconstruct();
 //     plotdx(error, "err.dx", FunctionDefaults<3>::get_cell(), npt);
 
@@ -207,7 +205,8 @@ void test_bsh(World& world) {
 // //         print(z, opinvopf(p), f(p), opinvopf(p)/f(p), error(p));
 // //     }
 
-    opf.clear(); opinvopf.clear();
+    opf.clear();
+    opinvopf.clear();
 
     Function<T,3> g = (mu*mu)*f;
     for (int axis=0; axis<3; axis++) {
@@ -225,34 +224,42 @@ void test_bsh(World& world) {
 int main(int argc, char**argv) {
     initialize(argc,argv);
     World world(MPI::COMM_WORLD);
-    
+
     try {
         startup(world,argc,argv);
-        
+
         test_bsh<double>(world);
 
-    } catch (const MPI::Exception& e) {
+    }
+    catch (const MPI::Exception& e) {
         //        print(e);
         error("caught an MPI exception");
-    } catch (const madness::MadnessException& e) {
+    }
+    catch (const madness::MadnessException& e) {
         print(e);
         error("caught a MADNESS exception");
-    } catch (const madness::TensorException& e) {
+    }
+    catch (const madness::TensorException& e) {
         print(e);
         error("caught a Tensor exception");
-    } catch (const char* s) {
+    }
+    catch (const char* s) {
         print(s);
         error("caught a c-string exception");
-    } catch (char* s) {
+    }
+    catch (char* s) {
         print(s);
         error("caught a c-string exception");
-    } catch (const std::string& s) {
+    }
+    catch (const std::string& s) {
         print(s);
         error("caught a string (class) exception");
-    } catch (const std::exception& e) {
+    }
+    catch (const std::exception& e) {
         print(e.what());
         error("caught an STL exception");
-    } catch (...) {
+    }
+    catch (...) {
         error("caught unhandled exception");
     }
 

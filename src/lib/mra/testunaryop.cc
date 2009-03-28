@@ -1,22 +1,22 @@
 /*
   This file is part of MADNESS.
-  
+
   Copyright (C) <2007> <Oak Ridge National Laboratory>
-  
+
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation; either version 2 of the License, or
   (at your option) any later version.
-  
+
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
   GNU General Public License for more details.
-  
+
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
-  
+
   For more information please contact:
 
   Robert J. Harrison
@@ -24,18 +24,18 @@
   One Bethel Valley Road
   P.O. Box 2008, MS-6367
 
-  email: harrisonrj@ornl.gov 
+  email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
 
-  
+
   $Id$
 */
 
 /// \file testunaryop.cc
 /// \brief test a unary op
 
-#define WORLD_INSTANTIATE_STATIC_TEMPLATES  
+#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <mra/mra.h>
 #include <constants.h>
 
@@ -48,9 +48,9 @@ public:
     const coordT center;
     const double exponent;
     const T coefficient;
-    
-    Gaussian(const coordT& center, double exponent, T coefficient) 
-        : center(center), exponent(exponent), coefficient(coefficient) {};
+
+    Gaussian(const coordT& center, double exponent, T coefficient)
+            : center(center), exponent(exponent), coefficient(coefficient) {};
 
     T operator()(const coordT& x) const {
         double sum = 0.0;
@@ -73,7 +73,7 @@ void test_unaryop(World& world) {
     typedef Vector<double,NDIM> coordT;
     typedef SharedPtr< FunctionFunctorInterface<T,NDIM> > functorT;
 
-    if (world.rank() == 0) 
+    if (world.rank() == 0)
         print("Test unary operation (pointwise function-of-a-function), type =",
               archive::get_type_name<T>(),", ndim =",NDIM);
 
@@ -81,7 +81,7 @@ void test_unaryop(World& world) {
     FunctionDefaults<NDIM>::set_k(7);
     FunctionDefaults<NDIM>::set_thresh(1e-5);
     FunctionDefaults<NDIM>::set_autorefine(false);
-    
+
     const coordT origin(0.0);
     const double expnt = 1.0;
     const double coeff = 1.0;// pow(2.0/constants::pi,0.25*NDIM);
@@ -94,13 +94,13 @@ void test_unaryop(World& world) {
     g.unaryop(&squareit<T,NDIM>);
     double gnorm = g.norm2();
     print("norm of the squared function", gnorm);
-    
+
     double err = (f*f - g).norm2();
     print("norm of the error", err);
 
     err = g.err(Gaussian<T,NDIM>(origin, expnt*2.0, coeff*coeff));
     print("norm of the error", err);
-    
+
     world.gop.fence();
 
 }
@@ -108,34 +108,42 @@ void test_unaryop(World& world) {
 int main(int argc, char**argv) {
     MPI::Init(argc, argv);
     World world(MPI::COMM_WORLD);
-    
+
     try {
         startup(world,argc,argv);
-        
+
         test_unaryop<double,1>(world);
 
-    } catch (const MPI::Exception& e) {
+    }
+    catch (const MPI::Exception& e) {
         //        print(e);
         error("caught an MPI exception");
-    } catch (const madness::MadnessException& e) {
+    }
+    catch (const madness::MadnessException& e) {
         print(e);
         error("caught a MADNESS exception");
-    } catch (const madness::TensorException& e) {
+    }
+    catch (const madness::TensorException& e) {
         print(e);
         error("caught a Tensor exception");
-    } catch (const char* s) {
+    }
+    catch (const char* s) {
         print(s);
         error("caught a c-string exception");
-    } catch (char* s) {
+    }
+    catch (char* s) {
         print(s);
         error("caught a c-string exception");
-    } catch (const std::string& s) {
+    }
+    catch (const std::string& s) {
         print(s);
         error("caught a string (class) exception");
-    } catch (const std::exception& e) {
+    }
+    catch (const std::exception& e) {
         print(e.what());
         error("caught an STL exception");
-    } catch (...) {
+    }
+    catch (...) {
         error("caught unhandled exception");
     }
 

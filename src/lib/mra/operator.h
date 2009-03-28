@@ -18,10 +18,10 @@ namespace madness {
 
 
     extern void bsh_fit(double mu, double lo, double hi, double eps,
-                        Tensor<double> *pcoeff, Tensor<double> *pexpnt, bool prnt=false);
+                            Tensor<double> *pcoeff, Tensor<double> *pexpnt, bool prnt=false);
 
     extern void bsh_fit_ndim(int ndim, double mu, double lo, double hi, double eps,
-                             Tensor<double> *pcoeff, Tensor<double> *pexpnt, bool prnt=false);
+                                 Tensor<double> *pcoeff, Tensor<double> *pexpnt, bool prnt=false);
 
     template <typename Q, int NDIM>
     struct SeparatedConvolutionInternal {
@@ -291,18 +291,17 @@ namespace madness {
                              std::vector< SharedPtr< Convolution1D<Q> > >& ops,
                              bool doleaves = false,
                              bool isperiodicsum = false)
-            : WorldObject< SeparatedConvolution<Q,NDIM> >(world)
-            , doleaves(doleaves)
-            , isperiodicsum(isperiodicsum)
-            , k(k)
-            , rank(ops.size())
-            , vk(NDIM,k)
-            , v2k(NDIM,2*k)
-            , s0(std::max(2,NDIM),Slice(0,k-1))
-            , ops(ops)
-            , factors(ops.size(),1.0)
-            , facnorms(ops.size(),1.0)
-        {
+                : WorldObject< SeparatedConvolution<Q,NDIM> >(world)
+                , doleaves(doleaves)
+                , isperiodicsum(isperiodicsum)
+                , k(k)
+                , rank(ops.size())
+                , vk(NDIM,k)
+                , v2k(NDIM,2*k)
+                , s0(std::max(2,NDIM),Slice(0,k-1))
+                , ops(ops)
+                , factors(ops.size(),1.0)
+                , facnorms(ops.size(),1.0) {
 
             check_cubic();
 
@@ -314,18 +313,17 @@ namespace madness {
                              int k,
                              const Tensor<Q>& coeff, const Tensor<double>& expnt,
                              bool doleaves = false)
-            : WorldObject< SeparatedConvolution<Q,NDIM> >(world)
-            , doleaves(doleaves)
-            , isperiodicsum(false)
-            , k(k)
-            , rank(coeff.dim[0])
-            , vk(NDIM,k)
-            , v2k(NDIM,2*k)
-            , s0(std::max(2,NDIM),Slice(0,k-1))
-            , ops(coeff.dim[0])
-            , factors(ops.size(),1.0)
-            , facnorms(ops.size(),1.0)
-        {
+                : WorldObject< SeparatedConvolution<Q,NDIM> >(world)
+                , doleaves(doleaves)
+                , isperiodicsum(false)
+                , k(k)
+                , rank(coeff.dim[0])
+                , vk(NDIM,k)
+                , v2k(NDIM,2*k)
+                , s0(std::max(2,NDIM),Slice(0,k-1))
+                , ops(coeff.dim[0])
+                , factors(ops.size(),1.0)
+                , facnorms(ops.size(),1.0) {
             check_cubic();
             double width = FunctionDefaults<NDIM>::get_cell_width()(0L);
             const double pi = 3.14159265358979323846264338328;
@@ -407,9 +405,9 @@ namespace madness {
     /// Factory function generating separated kernel for convolution with 1/r in 3D.
     template <typename Q>
     SeparatedConvolution<Q,3> CoulombOperator(World& world,
-                                              long k,
-                                              double lo,
-                                              double eps) {
+            long k,
+            double lo,
+            double eps) {
         const Tensor<double>& cell_width = FunctionDefaults<3>::get_cell_width();
         double hi = cell_width.normf(); // Diagonal width of cell
         const double pi = 3.14159265358979323846264338328;
@@ -426,9 +424,9 @@ namespace madness {
     /// Factory function generating separated kernel for convolution with 1/r in 3D.
     template <typename Q>
     SeparatedConvolution<Q,3>* CoulombOperatorPtr(World& world,
-                                                     long k,
-                                                     double lo,
-                                                     double eps) {
+            long k,
+            double lo,
+            double eps) {
         const Tensor<double>& cell_width = FunctionDefaults<3>::get_cell_width();
         double hi = cell_width.normf(); // Diagonal width of cell
         const double pi = 3.14159265358979323846264338328;
@@ -445,10 +443,10 @@ namespace madness {
     /// Factory function generating separated kernel for convolution with BSH kernel in general NDIM
     template <typename Q, int NDIM>
     SeparatedConvolution<Q,NDIM> BSHOperator(World& world,
-                                             double mu,
-                                             long k,
-                                             double lo,
-                                             double eps) {
+            double mu,
+            long k,
+            double lo,
+            double eps) {
         const Tensor<double>& cell_width = FunctionDefaults<NDIM>::get_cell_width();
         double hi = cell_width.normf(); // Diagonal width of cell
         Tensor<double> coeff, expnt;
@@ -474,10 +472,10 @@ namespace madness {
     /// Factory function generating separated kernel for convolution with exp(-mu*r)/(4*pi*r) in 3D
     template <typename Q>
     SeparatedConvolution<Q,3>* BSHOperatorPtr3D(World& world,
-                                                double mu,
-                                                long k,
-                                                double lo,
-                                                double eps) {
+            double mu,
+            long k,
+            double lo,
+            double eps) {
         const Tensor<double>& cell_width = FunctionDefaults<3>::get_cell_width();
         double hi = cell_width.normf(); // Diagonal width of cell
         Tensor<double> coeff, expnt;
@@ -498,7 +496,7 @@ namespace madness {
         template <class Archive, class T, int NDIM>
         struct ArchiveStoreImpl<Archive,const SeparatedConvolution<T,NDIM>*> {
             static inline void store(const Archive& ar, const SeparatedConvolution<T,NDIM>*const& ptr) {
-                ar & static_cast< const WorldObject< SeparatedConvolution<T,NDIM> >* > (ptr);
+                ar & static_cast< const WorldObject< SeparatedConvolution<T,NDIM> >* >(ptr);
             }
         };
     }

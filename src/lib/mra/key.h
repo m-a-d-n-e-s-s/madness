@@ -43,8 +43,7 @@
 #include <world/worldhash.h>
 #include <stdint.h>
 
-namespace madness
-{
+namespace madness {
 
     //     // this has problems when nproc is a large-ish power of 2 such as 256
     //     // and leads to bad data distribution.
@@ -57,7 +56,7 @@ namespace madness
     typedef int Level;
 
     template<int NDIM>
-        class KeyChildIterator;
+    class KeyChildIterator;
 
     /// Key is the index for a node of the 2^NDIM-tree
 
@@ -65,275 +64,238 @@ namespace madness
     /// and foreach_child(parent,op) for facile applicaiton of operators
     /// to child keys.
     template<int NDIM>
-        class Key
-        {
-            friend class KeyChildIterator<NDIM> ;
-        private:
-            Level n;
-            Vector<Translation, NDIM> l;
-            hashT hashval;
+    class Key {
+        friend class KeyChildIterator<NDIM> ;
+    private:
+        Level n;
+        Vector<Translation, NDIM> l;
+        hashT hashval;
 
-            // Recomputes hashval
-            void
-            rehash()
-            {
-                //hashval = sdbm(sizeof(n)+sizeof(l), (unsigned char*)(&n));
-                // default hash is still best
-                hashval = madness::hash(n, madness::hash(l));
-            }
-            ;
-
-            // Helper function for operator <
-            int
-            encode(int dig) const
-            {
-                int retval = 0;
-                for (int j = 0; j < NDIM; j++)
-                {
-                    // retval += ((l[j]/2^{n-1-dig}) mod 2) * 2^j
-                    retval += ((l[j] >> (n - 1 - dig)) % 2) << j;
-                }
-                return retval;
-            }
-            ;
-
-            // Helper function for (Level, Translation) constructor
-            Vector<Translation, NDIM>
-            decode(Level level, Translation k) const
-            {
-                Vector<Translation, NDIM> L(0);
-                int twotoD = power<NDIM> ();
-                int powr = 1, divisor = 2;
-                for (Level i = 0; i < level; i++)
-                {
-                    Translation r = k % twotoD;
-                    for (int j = 0; j < NDIM; j++)
-                    {
-                        L[NDIM - j - 1] += (r % divisor) * powr;
-                        r /= divisor;
-                    }
-                    k /= twotoD;
-                    powr *= 2;
-                }
-                return L;
-            }
-            ;
-        public:
-            /// Default constructor makes an \em uninitialized key
-            Key()
-            {
-            }
-            ;
-
-            /// Constructor with given n, l
-            Key(Level n, const Vector<Translation, NDIM>& l) :
-                n(n), l(l)
-            {
-                rehash();
-            }
-            ;
-
-            /// Constructor with given n and l=0
-            Key(int n) :
-                n(n), l(0)
-            {
-                rehash();
-            }
-            ;
-
-            /// Constructor from lexical index in depth first order
-            Key(Level n, Translation p) :
-                n(n)
-            {
-                l = decode(n, p);
-                rehash();
-            }
-            ;
-
-            /// Returns an invalid key
-            static Key<NDIM>
-            invalid()
-            {
-                return Key<NDIM> (-1);
-            }
-            ;
-
-            /// Checks if a key is invalid
-            bool
-            is_invalid() const
-            {
-                return n == -1;
-            }
-            ;
-
-            /// Checks if a key is valid
-            bool
-            is_valid() const
-            {
-                return n != -1;
-            }
-            ;
-
-            /// Equality test
-            bool
-            operator==(const Key& other) const
-            {
-                if (hashval != other.hashval)
-                    return false;
-                if (n != other.n)
-                    return false;
-                bool result = l == other.l;
-                if (result && hashval != other.hashval)
-                {
-                    print("!!  keys same but hash is different", hashval,
-                            other.hashval, *this, other);
-                    MADNESS_EXCEPTION("Tell HQI not RJ3!",0);
-                }
-                return result;
-            }
-
-            bool
-            operator!=(const Key& other) const
-             {
-                 return !(*this == other);
-             }
-
-            /// Comparison based upon depth first lexical order
-            bool
-            operator<(const Key& other) const
-            {
-                if (*this == other)
-                    return false; // I am not less than self
-                Level nmin;
-                bool retval = false;
-
-                if (this->n > other.n)
-                {
-                    nmin = other.n;
-                    retval = true;
-                }
-                else
-                {
-                    nmin = this->n;
-                }
-
-                for (Level i = 0; i < nmin; i++)
-                {
-                    int tthis = this->encode(i), tother = other.encode(i);
-                    if (tthis != tother)
-                    {
-                        return (tthis < tother);
-                    }
-                }
-                return retval;
-            }
-
-            inline hashT
-            hash() const
-            {
-                return hashval;
-            }
-            ;
-
-            template<typename Archive>
-                inline void
-                serialize(Archive& ar)
-                {
-                    ar & archive::wrap((unsigned char*) this, sizeof(*this));
-                }
-
-            Level
-            level() const
-            {
-                return n;
-            }
-            ;
-
-            const Vector<Translation, NDIM>&
-            translation() const
-            {
-                return l;
-            }
-            ;
-
-            uint64_t
-            distsq() const
-            {
-                uint64_t dist = 0;
-                for (int d = 0; d < NDIM; d++)
-                {
-                    dist += l[d] * l[d];
-                }
-                return dist;
-            }
-
-            /// Returns the key of the parent
-
-            /// Default is the immediate parent (generation=1).  To get
-            /// the grandparent use generation=2, and similarly for
-            /// great-grandparents.
-            ///
-            /// !! If there is no such parent it quietly returns the
-            /// closest match (which may be self if this is the top of the
-            /// tree).
-            Key
-            parent(int generation = 1) const
-            {
-                Vector<Translation, NDIM> pl;
-                if (generation > n)
-                    generation = n;
-                for (int i = 0; i < NDIM; i++)
-                    pl[i] = l[i] >> generation;
-                return Key(n - generation, pl);
-            }
-            ;
-
-            bool
-            is_child_of(const Key& key) const
-            {
-                if (this->n < key.n)
-                {
-                    return false; // I can't be child of something lower on the tree
-                }
-                else if (this->n == key.n)
-                {
-                    return (*this == key); // I am child of myself
-                }
-                else
-                {
-                    Level dn = this->n - key.n;
-                    Key mama = this->parent(dn);
-                    return (mama == key);
-                }
-            }
-            ;
-
-            bool
-            is_parent_of(const Key& key) const
-            {
-                return (key.is_child_of(*this));
-            }
-            ;
-
-        };
-
-    template<int NDIM>
-        struct KeyHash
-        {
-            std::size_t
-            operator()(const Key<NDIM>& t) const
-            {
-                return t.hash();
-            }
-        };
-
-    template<int NDIM>
-        std::ostream&
-        operator<<(std::ostream& s, const Key<NDIM>& key)
-        {
-            s << "(" << key.level() << "," << key.translation() << ")";
-            return s;
+        // Recomputes hashval
+        void
+        rehash() {
+            //hashval = sdbm(sizeof(n)+sizeof(l), (unsigned char*)(&n));
+            // default hash is still best
+            hashval = madness::hash(n, madness::hash(l));
         }
+        ;
+
+        // Helper function for operator <
+        int
+        encode(int dig) const {
+            int retval = 0;
+            for (int j = 0; j < NDIM; j++) {
+                // retval += ((l[j]/2^{n-1-dig}) mod 2) * 2^j
+                retval += ((l[j] >> (n - 1 - dig)) % 2) << j;
+            }
+            return retval;
+        }
+        ;
+
+        // Helper function for (Level, Translation) constructor
+        Vector<Translation, NDIM>
+        decode(Level level, Translation k) const {
+            Vector<Translation, NDIM> L(0);
+            int twotoD = power<NDIM> ();
+            int powr = 1, divisor = 2;
+            for (Level i = 0; i < level; i++) {
+                Translation r = k % twotoD;
+                for (int j = 0; j < NDIM; j++) {
+                    L[NDIM - j - 1] += (r % divisor) * powr;
+                    r /= divisor;
+                }
+                k /= twotoD;
+                powr *= 2;
+            }
+            return L;
+        }
+        ;
+    public:
+        /// Default constructor makes an \em uninitialized key
+        Key() {
+        }
+        ;
+
+        /// Constructor with given n, l
+        Key(Level n, const Vector<Translation, NDIM>& l) :
+                n(n), l(l) {
+            rehash();
+        }
+        ;
+
+        /// Constructor with given n and l=0
+        Key(int n) :
+                n(n), l(0) {
+            rehash();
+        }
+        ;
+
+        /// Constructor from lexical index in depth first order
+        Key(Level n, Translation p) :
+                n(n) {
+            l = decode(n, p);
+            rehash();
+        }
+        ;
+
+        /// Returns an invalid key
+        static Key<NDIM>
+        invalid() {
+            return Key<NDIM> (-1);
+        }
+        ;
+
+        /// Checks if a key is invalid
+        bool
+        is_invalid() const {
+            return n == -1;
+        }
+        ;
+
+        /// Checks if a key is valid
+        bool
+        is_valid() const {
+            return n != -1;
+        }
+        ;
+
+        /// Equality test
+        bool
+        operator==(const Key& other) const {
+            if (hashval != other.hashval)
+                return false;
+            if (n != other.n)
+                return false;
+            bool result = l == other.l;
+            if (result && hashval != other.hashval) {
+                print("!!  keys same but hash is different", hashval,
+                      other.hashval, *this, other);
+                MADNESS_EXCEPTION("Tell HQI not RJ3!",0);
+            }
+            return result;
+        }
+
+        bool
+        operator!=(const Key& other) const {
+            return !(*this == other);
+        }
+
+        /// Comparison based upon depth first lexical order
+        bool
+        operator<(const Key& other) const {
+            if (*this == other)
+                return false; // I am not less than self
+            Level nmin;
+            bool retval = false;
+
+            if (this->n > other.n) {
+                nmin = other.n;
+                retval = true;
+            }
+            else {
+                nmin = this->n;
+            }
+
+            for (Level i = 0; i < nmin; i++) {
+                int tthis = this->encode(i), tother = other.encode(i);
+                if (tthis != tother) {
+                    return (tthis < tother);
+                }
+            }
+            return retval;
+        }
+
+        inline hashT
+        hash() const {
+            return hashval;
+        }
+        ;
+
+        template<typename Archive>
+        inline void
+        serialize(Archive& ar) {
+            ar & archive::wrap((unsigned char*) this, sizeof(*this));
+        }
+
+        Level
+        level() const {
+            return n;
+        }
+        ;
+
+        const Vector<Translation, NDIM>&
+        translation() const {
+            return l;
+        }
+        ;
+
+        uint64_t
+        distsq() const {
+            uint64_t dist = 0;
+            for (int d = 0; d < NDIM; d++) {
+                dist += l[d] * l[d];
+            }
+            return dist;
+        }
+
+        /// Returns the key of the parent
+
+        /// Default is the immediate parent (generation=1).  To get
+        /// the grandparent use generation=2, and similarly for
+        /// great-grandparents.
+        ///
+        /// !! If there is no such parent it quietly returns the
+        /// closest match (which may be self if this is the top of the
+        /// tree).
+        Key
+        parent(int generation = 1) const {
+            Vector<Translation, NDIM> pl;
+            if (generation > n)
+                generation = n;
+            for (int i = 0; i < NDIM; i++)
+                pl[i] = l[i] >> generation;
+            return Key(n - generation, pl);
+        }
+        ;
+
+        bool
+        is_child_of(const Key& key) const {
+            if (this->n < key.n) {
+                return false; // I can't be child of something lower on the tree
+            }
+            else if (this->n == key.n) {
+                return (*this == key); // I am child of myself
+            }
+            else {
+                Level dn = this->n - key.n;
+                Key mama = this->parent(dn);
+                return (mama == key);
+            }
+        }
+        ;
+
+        bool
+        is_parent_of(const Key& key) const {
+            return (key.is_child_of(*this));
+        }
+        ;
+
+    };
+
+    template<int NDIM>
+    struct KeyHash {
+        std::size_t
+        operator()(const Key<NDIM>& t) const {
+            return t.hash();
+        }
+    };
+
+    template<int NDIM>
+    std::ostream&
+    operator<<(std::ostream& s, const Key<NDIM>& key) {
+        s << "(" << key.level() << "," << key.translation() << ")";
+        return s;
+    }
     ;
 
     /// Iterates in lexical order thru all children of a key
@@ -343,92 +305,80 @@ namespace madness
     ///    for (KeyChildIterator<NDIM> it(key); it; ++it) print(it.key());
     /// \endcode
     template<int NDIM>
-        class KeyChildIterator
-        {
-            Key<NDIM> parent;
-            Key<NDIM> child;
-            Vector<Translation, NDIM> p;
-            bool finished;
+    class KeyChildIterator {
+        Key<NDIM> parent;
+        Key<NDIM> child;
+        Vector<Translation, NDIM> p;
+        bool finished;
 
-        public:
-            KeyChildIterator() :
-                p(0), finished(true)
-            {
-            }
+    public:
+        KeyChildIterator() :
+                p(0), finished(true) {
+        }
 
-            KeyChildIterator(const Key<NDIM>& parent) :
+        KeyChildIterator(const Key<NDIM>& parent) :
                 parent(parent), child(parent.n + 1, parent.l * 2), p(0),
-                        finished(false)
-            {
-            }
+                finished(false) {
+        }
 
-            /// Pre-increment of an iterator (i.e., ++it)
-            KeyChildIterator&
-            operator++()
-            {
-                if (finished)
-                    return *this;
-                int i;
-                for (i = 0; i < NDIM; i++)
-                {
-                    if (p[i] == 0)
-                    {
-                        p[i]++;
-                        child.l[i]++;
-                        for (int j = 0; j < i; j++)
-                        {
-                            p[j]--;
-                            child.l[j]--;
-                        }
-                        break;
-                    }
-                }
-                finished = (i == NDIM);
-                child.rehash();
+        /// Pre-increment of an iterator (i.e., ++it)
+        KeyChildIterator&
+        operator++() {
+            if (finished)
                 return *this;
-            }
-
-            /// True if iterator is not at end
-            operator bool() const
-            {
-                return !finished;
-            }
-
-            template<typename Archive>
-                inline void
-                serialize(Archive& ar)
-                {
-                    ar & archive::wrap((unsigned char*) this, sizeof(*this));
+            int i;
+            for (i = 0; i < NDIM; i++) {
+                if (p[i] == 0) {
+                    p[i]++;
+                    child.l[i]++;
+                    for (int j = 0; j < i; j++) {
+                        p[j]--;
+                        child.l[j]--;
+                    }
+                    break;
                 }
-
-            /// Returns the key of the child
-            inline const Key<NDIM>&
-            key() const
-            {
-                return child;
             }
-        };
+            finished = (i == NDIM);
+            child.rehash();
+            return *this;
+        }
+
+        /// True if iterator is not at end
+        operator bool() const {
+            return !finished;
+        }
+
+        template<typename Archive>
+        inline void
+        serialize(Archive& ar) {
+            ar & archive::wrap((unsigned char*) this, sizeof(*this));
+        }
+
+        /// Returns the key of the child
+        inline const Key<NDIM>&
+        key() const {
+            return child;
+        }
+    };
 
     /// Applies op(key) to each child key of parent
     template<int NDIM, typename opT>
-        inline void
-        foreach_child(const Key<NDIM>& parent, opT& op)
-        {
-            for (KeyChildIterator<NDIM>
-            it(parent); it; ++it)
-                op(it.key());
-        }
+    inline void
+    foreach_child(const Key<NDIM>& parent, opT& op) {
+        for (KeyChildIterator<NDIM>
+                it(parent); it; ++it)
+            op(it.key());
+    }
 
     /// Applies member function of obj to each child key of parent
     template<int NDIM, typename objT>
-        inline void
-        foreach_child(const Key<NDIM>& parent, objT* obj, void
-        (objT::*memfun)(const Key<NDIM>&))
-        {
-            for (KeyChildIterator<NDIM>
-            it(parent); it; ++it)
-                (obj ->* memfun)(it.key());
-        }
+    inline void
+    foreach_child(const Key<NDIM>& parent, objT* obj, void
+                  (objT::*memfun)(const Key<NDIM>&)) {
+        for (KeyChildIterator<NDIM>
+                it(parent); it; ++it)
+            (obj ->* memfun)(it.key());
+    }
 
 }
 

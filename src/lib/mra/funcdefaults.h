@@ -20,7 +20,7 @@ namespace madness {
 
     /// FunctionDefaults holds default paramaters as static class members
 
-    /// Declared and initialized in mra.cc and/or funcimpl::initialize. 
+    /// Declared and initialized in mra.cc and/or funcimpl::initialize.
     ///
     /// Currently all functions of the same dimension share the same cell dimensions
     /// since they are stored inside FunctionDefaults ... if you change the
@@ -62,65 +62,139 @@ namespace madness {
     public:
 
         /// Used to set defaults to k=7, thresh=1-5, for a unit cube [0,1].
-        static void set_defaults (World& world);
+        static void set_defaults(World& world);
 
-        static int get_k() {return k;};
-        static void set_k(int value) {k=value; MADNESS_ASSERT(k>0 && k<=MAXK);}
+        static int get_k() {
+            return k;
+        };
+        static void set_k(int value) {
+            k=value;
+            MADNESS_ASSERT(k>0 && k<=MAXK);
+        }
 
-        static double get_thresh() {return thresh;}
-        static void set_thresh(double value) {thresh=value;}
+        static double get_thresh() {
+            return thresh;
+        }
+        static void set_thresh(double value) {
+            thresh=value;
+        }
 
-        static int get_initial_level() {return initial_level;}
-        static void set_initial_level(int value) {initial_level=value; MADNESS_ASSERT(value>0 && value<MAXLEVEL);}
-        
-        static int get_max_refine_level() {return max_refine_level;}
-        static void set_max_refine_level(int value) {max_refine_level=value; MADNESS_ASSERT(value>0 && value<MAXLEVEL);}
+        static int get_initial_level() {
+            return initial_level;
+        }
+        static void set_initial_level(int value) {
+            initial_level=value;
+            MADNESS_ASSERT(value>0 && value<MAXLEVEL);
+        }
 
-        static int get_truncate_mode() {return truncate_mode;}
-        static void set_truncate_mode(int value) {truncate_mode=value; MADNESS_ASSERT(value>=0 && value<3);}
+        static int get_max_refine_level() {
+            return max_refine_level;
+        }
+        static void set_max_refine_level(int value) {
+            max_refine_level=value;
+            MADNESS_ASSERT(value>0 && value<MAXLEVEL);
+        }
 
-        static bool get_refine() {return refine;}
-        static void set_refine(bool value) {refine=value;}
+        static int get_truncate_mode() {
+            return truncate_mode;
+        }
+        static void set_truncate_mode(int value) {
+            truncate_mode=value;
+            MADNESS_ASSERT(value>=0 && value<3);
+        }
 
-        static bool get_autorefine() {return autorefine;}
-        static void set_autorefine(bool value) {autorefine=value;}
+        static bool get_refine() {
+            return refine;
+        }
+        static void set_refine(bool value) {
+            refine=value;
+        }
 
-        static bool get_debug() {return debug;}
-        static void set_debug(bool value) {debug=value;}
+        static bool get_autorefine() {
+            return autorefine;
+        }
+        static void set_autorefine(bool value) {
+            autorefine=value;
+        }
 
-        static bool get_truncate_on_project() {return truncate_on_project;}
-        static void set_truncate_on_project(bool value) {truncate_on_project=value;}
+        static bool get_debug() {
+            return debug;
+        }
+        static void set_debug(bool value) {
+            debug=value;
+        }
 
-        static bool get_apply_randomize() {return apply_randomize;}
-        static void set_apply_randomize(bool value) {apply_randomize=value;}
+        static bool get_truncate_on_project() {
+            return truncate_on_project;
+        }
+        static void set_truncate_on_project(bool value) {
+            truncate_on_project=value;
+        }
 
-        static bool get_project_randomize() {return project_randomize;}
-        static void set_project_randomize(bool value) {project_randomize=value;}
+        static bool get_apply_randomize() {
+            return apply_randomize;
+        }
+        static void set_apply_randomize(bool value) {
+            apply_randomize=value;
+        }
 
-        static const Tensor<int>& get_bc() {return bc;}
-        static void set_bc(const Tensor<int>& value) {bc=copy(value); MADNESS_ASSERT(bc.dim[0]==NDIM && bc.dim[1]==2 && bc.ndim==2);}
+        static bool get_project_randomize() {
+            return project_randomize;
+        }
+        static void set_project_randomize(bool value) {
+            project_randomize=value;
+        }
 
-        static const Tensor<double>& get_cell() {return cell;}
-        static void set_cell(const Tensor<double>& value) {cell=copy(value); recompute_cell_info();}
-        static void set_cubic_cell(double lo, double hi) {cell(_,0)=lo; cell(_,1)=hi; recompute_cell_info();}
+        static const Tensor<int>& get_bc() {
+            return bc;
+        }
+        static void set_bc(const Tensor<int>& value) {
+            bc=copy(value);
+            MADNESS_ASSERT(bc.dim[0]==NDIM && bc.dim[1]==2 && bc.ndim==2);
+        }
 
-        static const Tensor<double>& get_cell_width() {return cell_width;}
+        static const Tensor<double>& get_cell() {
+            return cell;
+        }
+        static void set_cell(const Tensor<double>& value) {
+            cell=copy(value);
+            recompute_cell_info();
+        }
+        static void set_cubic_cell(double lo, double hi) {
+            cell(_,0)=lo;
+            cell(_,1)=hi;
+            recompute_cell_info();
+        }
 
-        static const Tensor<double>& get_rcell_width() {return rcell_width;}
+        static const Tensor<double>& get_cell_width() {
+            return cell_width;
+        }
 
-        static double get_cell_volume() {return cell_volume;}
+        static const Tensor<double>& get_rcell_width() {
+            return rcell_width;
+        }
 
-        static double get_cell_min_width() {return cell_min_width;}
+        static double get_cell_volume() {
+            return cell_volume;
+        }
 
-        static const SharedPtr< WorldDCPmapInterface< Key<NDIM> > >& get_pmap() {return pmap;}
-        static void set_pmap(const SharedPtr< WorldDCPmapInterface< Key<NDIM> > >& value) {pmap=value;}
+        static double get_cell_min_width() {
+            return cell_min_width;
+        }
+
+        static const SharedPtr< WorldDCPmapInterface< Key<NDIM> > >& get_pmap() {
+            return pmap;
+        }
+        static void set_pmap(const SharedPtr< WorldDCPmapInterface< Key<NDIM> > >& value) {
+            pmap=value;
+        }
     };
 
 
     /// Convert user coords (cell[][]) to simulation coords ([0,1]^ndim)
     template <int NDIM>
     static inline void user_to_sim(const Vector<double,NDIM>& xuser, Vector<double,NDIM>& xsim) {
-        for (int i=0; i<NDIM; i++) 
+        for (int i=0; i<NDIM; i++)
             xsim[i] = (xuser[i] - FunctionDefaults<NDIM>::get_cell()(i,0)) * FunctionDefaults<NDIM>::get_rcell_width()[i];
     }
 

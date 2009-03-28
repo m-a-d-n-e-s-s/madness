@@ -15,7 +15,7 @@ namespace madness {
         typedef std::map<keyT,ProcessID> mapT;
         mapT map;
         typedef typename mapT::const_iterator iteratorT;
-        
+
     public:
         LBDeuxPmap(const std::vector<pairT>& v) {
             for (unsigned int i=0; i<v.size(); i++) {
@@ -43,7 +43,7 @@ namespace madness {
             madness::print("LBDeuxPmap");
         }
     };
-    
+
 
 
     template <int NDIM>
@@ -57,7 +57,7 @@ namespace madness {
         volatile double total_cost;
         volatile bool gotkids;
         volatile int nsummed;
-        
+
         /// Computes index of child key in this node using last bit of translations
         int index(const keyT& key) {
             int ind = 0;
@@ -66,14 +66,18 @@ namespace madness {
         }
 
     public:
-        LBNodeDeux() 
-            : my_cost(0.0), total_cost(0.0), gotkids(false), nsummed(0) {
+        LBNodeDeux()
+                : my_cost(0.0), total_cost(0.0), gotkids(false), nsummed(0) {
             for (int i=0; i<nchild; i++) child_cost[i] = 0.0;
         }
 
-        bool has_children() const {return gotkids;}
+        bool has_children() const {
+            return gotkids;
+        }
 
-        double get_total_cost() const {return total_cost;}
+        double get_total_cost() const {
+            return total_cost;
+        }
 
         /// Accumulates cost into this node
         Void add(double cost, bool got_kids) {
@@ -107,12 +111,12 @@ namespace madness {
             if (has_children()) {
                 for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
                     const keyT child = kit.key();
-                     const_cast<treeT&>(tree).task(child, &nodeT::deleter, tree, child);
+                    const_cast<treeT&>(tree).task(child, &nodeT::deleter, tree, child);
                 }
             }
             return None;
         }
-        
+
         /// Descends tree deleting all except internal nodes and sub-tree parents
         Void partition(const treeT& tree, const keyT& key, double avg) {
             if (has_children()) {
@@ -133,15 +137,15 @@ namespace madness {
                         }
                     }
                 }
-                
+
                 // Split off subtrees in decreasing cost order
                 for (int i=0; i<nchild; i++) {
                     if (total_cost <= avg) {
-                         const_cast<treeT&>(tree).task(keys[i], &nodeT::deleter, tree, keys[i]);
+                        const_cast<treeT&>(tree).task(keys[i], &nodeT::deleter, tree, keys[i]);
                     }
                     else {
                         total_cost -= vals[i];
-                         const_cast<treeT&>(tree).task(keys[i], &nodeT::partition, tree, keys[i], avg);
+                        const_cast<treeT&>(tree).task(keys[i], &nodeT::partition, tree, keys[i], avg);
                     }
                 }
             }
@@ -153,7 +157,7 @@ namespace madness {
             ar & archive::wrap_opaque(this,1);
         }
     };
-        
+
 
     template <int NDIM>
     class LoadBalanceDeux {
@@ -163,7 +167,7 @@ namespace madness {
         typedef typename treeT::iterator iteratorT;
         World& world;
         treeT tree;
-        
+
 
         template <typename T, typename costT>
         struct add_op {
@@ -204,10 +208,9 @@ namespace madness {
 
 
     public:
-        LoadBalanceDeux(World& world) 
-            : world(world)
-            , tree(world, FunctionDefaults<NDIM>::get_pmap())
-        {
+        LoadBalanceDeux(World& world)
+                : world(world)
+                , tree(world, FunctionDefaults<NDIM>::get_pmap()) {
             world.gop.fence();
         };
 
@@ -222,9 +225,9 @@ namespace madness {
             Future<iteratorT> futit = tree.find(key);
             iteratorT it = futit.get();
             if (it != tree.end()) {
-                for(int i=0; i<key.level(); i++) std::cout << "  ";
+                for (int i=0; i<key.level(); i++) std::cout << "  ";
                 print(key, it->second.get_total_cost());
-                
+
                 if (it->second.has_children()) {
                     for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
                         print_tree(kit.key());
@@ -250,7 +253,7 @@ namespace madness {
             double avg = sum()/(world.size()*fac);
             //if (world.rank() == 0) print_tree();
             world.gop.fence();
-            
+
             // Create partitioning
             keyT key0(0);
             if (world.rank() == tree.owner(key0)) {
@@ -277,7 +280,7 @@ namespace madness {
                     print("THESE ARE THE INITIAL SUBTREES");
                     for (unsigned int i=0; i<results.size(); i++) print(i,results[i]);
                 }
-                
+
                 // Now use bin packing to cram the results together
                 map.reserve(results.size());
 
@@ -315,7 +318,7 @@ namespace madness {
             world.gop.fence();
             world.gop.broadcast_serializable(map, 0);
             world.gop.fence();
-            
+
             // Return the Procmap
 
             return SharedPtr< WorldDCPmapInterface<keyT> >(new LBDeuxPmap<NDIM>(map));

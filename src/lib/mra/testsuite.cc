@@ -56,7 +56,9 @@ struct lbcost {
 };
 
 template <typename T>
-T complexify(T c) {return c;}
+T complexify(T c) {
+    return c;
+}
 
 template <> double_complex complexify<double_complex>(double_complex c) {
     return c*double_complex(0.5,-sqrt(3.0)*0.5);
@@ -76,7 +78,7 @@ public:
     const T coefficient;
 
     Gaussian(const coordT& center, double exponent, T coefficient)
-        : center(center), exponent(exponent), coefficient(complexify(coefficient)) {};
+            : center(center), exponent(exponent), coefficient(complexify(coefficient)) {};
 
     T operator()(const coordT& x) const {
         double sum = 0.0;
@@ -98,12 +100,10 @@ public:
     const int axis;
 
     DerivativeGaussian(const coordT& center, double exponent, T coefficient, int axis)
-        : center(center), exponent(exponent), coefficient(complexify(coefficient)), axis(axis)
-    {};
+            : center(center), exponent(exponent), coefficient(complexify(coefficient)), axis(axis) {};
 
     DerivativeGaussian(const Gaussian<T,NDIM>& g, int axis)
-        : center(g.center), exponent(g.exponent), coefficient(g.coefficient), axis(axis)
-    {};
+            : center(g.center), exponent(g.exponent), coefficient(g.coefficient), axis(axis) {};
 
     T operator()(const coordT& x) const {
         double sum = 0.0;
@@ -157,8 +157,7 @@ class BinaryOp : public FunctionFunctorInterface<resultT,NDIM> {
 
 public:
     BinaryOp(functorL& left, functorR& right, opT& op)
-        : left(left), right(right), op(op)
-    {};
+            : left(left), right(right), op(op) {};
 
     resultT operator()(const coordT& x) const {
         return op((*left)(x),(*right)(x));
@@ -264,17 +263,17 @@ void test_conv(World& world) {
     FunctionDefaults<NDIM>::set_cubic_cell(-10,10);
 
     for (int k=2; k<=30; k+=2) {
-	if (world.rank() == 0) printf("k=%d\n", k);
-	int ntop = 5;
-	if (NDIM > 2 && k>5) ntop = 4;
-	for (int n=1; n<=ntop; n++) {
-	    Function<T,NDIM> f = FunctionFactory<T,NDIM>(world).functor(functor).norefine().initial_level(n).k(k);
-	    double err2 = f.err(*functor);
+        if (world.rank() == 0) printf("k=%d\n", k);
+        int ntop = 5;
+        if (NDIM > 2 && k>5) ntop = 4;
+        for (int n=1; n<=ntop; n++) {
+            Function<T,NDIM> f = FunctionFactory<T,NDIM>(world).functor(functor).norefine().initial_level(n).k(k);
+            double err2 = f.err(*functor);
             std::size_t size = f.size();
             if (world.rank() == 0)
                 printf("   n=%d err=%.2e #coeff=%.2e log(err)/(n*k)=%.2e\n",
                        n, err2, double(size), abs(log(err2)/n/k));
-	}
+        }
     }
 
     world.gop.fence();
@@ -282,33 +281,28 @@ void test_conv(World& world) {
 }
 
 template <typename T, int NDIM>
-struct myunaryop
-{
-  typedef T resultT;
-  Tensor<T> operator()(const Key<NDIM>& key, const Tensor<T>& t) const
-  {
-    return -t;
-  }
-  template <typename Archive>
-  void serialize(Archive& ar) {}
+struct myunaryop {
+    typedef T resultT;
+    Tensor<T> operator()(const Key<NDIM>& key, const Tensor<T>& t) const {
+        return -t;
+    }
+    template <typename Archive>
+    void serialize(Archive& ar) {}
 };
 
 template <typename T, int NDIM>
-struct myunaryop_square
-{
-  typedef T resultT;
-  Tensor<T> operator()(const Key<NDIM>& key, const Tensor<T>& t) const
-  {
-    Tensor<T> result = copy(t);
-    T* r = result.ptr();
-    for (int i = 0; i < result.size; i++)
-    {
-      r[i] = r[i]*r[i];
+struct myunaryop_square {
+    typedef T resultT;
+    Tensor<T> operator()(const Key<NDIM>& key, const Tensor<T>& t) const {
+        Tensor<T> result = copy(t);
+        T* r = result.ptr();
+        for (int i = 0; i < result.size; i++) {
+            r[i] = r[i]*r[i];
+        }
+        return result;
     }
-    return result;
-  }
-  template <typename Archive>
-  void serialize(Archive& ar) {}
+    template <typename Archive>
+    void serialize(Archive& ar) {}
 };
 
 template <typename T, int NDIM>
@@ -333,7 +327,7 @@ void test_math(World& world) {
     const double expnt = 1.0;
     const double coeff = pow(2.0/PI,0.25*NDIM);
     functorT functor(new Gaussian<T,NDIM>(origin, expnt, coeff));
-    T (*p)(T,T) = &product<T,T,T>;
+    T(*p)(T,T) = &product<T,T,T>;
     functorT functsq(new BinaryOp<T,T,T,T(*)(T,T),NDIM>(functor,functor,p));
     //functorT functsq(new Gaussian<T,NDIM>(origin, 2.0*expnt, coeff*coeff)); // only correct if real
 
@@ -341,7 +335,8 @@ void test_math(World& world) {
     Function<T,NDIM> f = FunctionFactory<T,NDIM>(world).functor(functor);
 
     // Out-of-place squaring without autoref
-    f.set_autorefine(false);  world.gop.fence();
+    f.set_autorefine(false);
+    world.gop.fence();
 
     double err = f.err(*functor);
     CHECK(err, 1e-10, "err in f before squaring");
@@ -462,7 +457,7 @@ void test_math(World& world) {
     for (int i=0; i<nfunc; i++) {
         functorT f1(RandomGaussian<T,NDIM>(FunctionDefaults<NDIM>::get_cell(),100.0));
         functorT f2(RandomGaussian<T,NDIM>(FunctionDefaults<NDIM>::get_cell(),100.0));
-        T (*p)(T,T) = &product<T,T,T>;
+        T(*p)(T,T) = &product<T,T,T>;
         functorT f3(new BinaryOp<T,T,T,T(*)(T,T),NDIM>(f1,f2,p));
         Function<T,NDIM> a = FunctionFactory<T,NDIM>(world).functor(f1);
         a.verify_tree();
@@ -500,7 +495,7 @@ void test_math(World& world) {
         std::vector<functorT> funcres(nvfunc);
         for (int i=0; i<nvfunc; i++) {
             functorT f2(RandomGaussian<T,NDIM>(FunctionDefaults<NDIM>::get_cell(),1000.0));
-            T (*p)(T,T) = &product<T,T,T>;
+            T(*p)(T,T) = &product<T,T,T>;
             funcres[i] = functorT(new BinaryOp<T,T,T,T(*)(T,T),NDIM>(f1,f2,p));
             vin[i] = FunctionFactory<T,NDIM>(world).functor(f2);
         }
@@ -518,7 +513,7 @@ void test_math(World& world) {
     for (int i=0; i<10; i++) {
         functorT f1(RandomGaussian<T,NDIM>(FunctionDefaults<NDIM>::get_cell(),100.0));
         functorT f2(RandomGaussian<T,NDIM>(FunctionDefaults<NDIM>::get_cell(),100.0));
-        T (*p)(T,T) = &sum<T,T,T>;
+        T(*p)(T,T) = &sum<T,T,T>;
         functorT f3(new BinaryOp<T,T,T,T(*)(T,T),NDIM>(f1,f2,p));
         Function<T,NDIM> a = FunctionFactory<T,NDIM>(world).functor(f1);
         Function<T,NDIM> b = FunctionFactory<T,NDIM>(world).functor(f2);
@@ -539,7 +534,7 @@ void test_math(World& world) {
     for (int i=0; i<10; i++) {
         functorT f1(RandomGaussian<T,NDIM>(FunctionDefaults<NDIM>::get_cell(),100.0));
         functorT f2(RandomGaussian<T,NDIM>(FunctionDefaults<NDIM>::get_cell(),100.0));
-        T (*p)(T,T) = &sum<T,T,T>;
+        T(*p)(T,T) = &sum<T,T,T>;
         functorT f3(new BinaryOp<T,T,T,T(*)(T,T),NDIM>(f1,f2,p));
         Function<T,NDIM> a = FunctionFactory<T,NDIM>(world).functor(f1);
         Function<T,NDIM> b = FunctionFactory<T,NDIM>(world).functor(f2);
@@ -730,9 +725,9 @@ public:
     const double coefficient;
 
     GaussianPotential(const coordT& center, double expnt, double coefficient)
-        : center(center)
-        , exponent(sqrt(expnt))
-        , coefficient(coefficient*pow(PI/exponent,1.5)*pow(expnt,-0.75)) {}
+            : center(center)
+            , exponent(sqrt(expnt))
+            , coefficient(coefficient*pow(PI/exponent,1.5)*pow(expnt,-0.75)) {}
 
     double operator()(const coordT& x) const {
         double sum = 00;
@@ -855,7 +850,7 @@ public:
     }
 
     QMtest(double a, double v, double t)
-        : a(a), v(v), t(t) {}
+            : a(a), v(v), t(t) {}
 };
 
 void test_qm(World& world) {
@@ -969,7 +964,7 @@ void test_qm(World& world) {
         psi.set_thresh(thresh*1e-2);
         FunctionDefaults<1>::set_thresh(thresh*1e-2);
         world.gop.fence();
-          psi = apply(G,psi);
+        psi = apply(G,psi);
         psi.set_thresh(thresh);
         FunctionDefaults<1>::set_thresh(thresh);
         world.gop.fence();
@@ -1022,9 +1017,9 @@ void test_plot(World& world) {
 
     //vector<long> npt(NDIM,21); // recommend this if testing in dimension > 3
     vector<long> npt(NDIM,101);
-        world.gop.fence();
+    world.gop.fence();
     Tensor<T> r = f.eval_cube(FunctionDefaults<NDIM>::get_cell(), npt);
-        world.gop.fence();
+    world.gop.fence();
     if (world.rank() == 0) {
         const double h = (2.0*L - 12e-13)/(npt[0]-1.0);
         for (int i=0; i<npt[0]; i++) {
@@ -1199,28 +1194,36 @@ int main(int argc, char**argv) {
         ThreadPool::end();
         print_stats(world);
 
-    } catch (const MPI::Exception& e) {
+    }
+    catch (const MPI::Exception& e) {
         //        print(e);
         error("caught an MPI exception");
-    } catch (const madness::MadnessException& e) {
+    }
+    catch (const madness::MadnessException& e) {
         print(e);
         error("caught a MADNESS exception");
-    } catch (const madness::TensorException& e) {
+    }
+    catch (const madness::TensorException& e) {
         print(e);
         error("caught a Tensor exception");
-    } catch (const char* s) {
+    }
+    catch (const char* s) {
         print(s);
         error("caught a c-string exception");
-    } catch (char* s) {
+    }
+    catch (char* s) {
         print(s);
         error("caught a c-string exception");
-    } catch (const std::string& s) {
+    }
+    catch (const std::string& s) {
         print(s);
         error("caught a string (class) exception");
-    } catch (const std::exception& e) {
+    }
+    catch (const std::exception& e) {
         print(e.what());
         error("caught an STL exception");
-    } catch (...) {
+    }
+    catch (...) {
         error("caught unhandled exception");
     }
 

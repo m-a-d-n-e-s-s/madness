@@ -1,22 +1,22 @@
 /*
   This file is part of MADNESS.
-  
+
   Copyright (C) <2007> <Oak Ridge National Laboratory>
-  
+
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation; either version 2 of the License, or
   (at your option) any later version.
-  
+
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
   GNU General Public License for more details.
-  
+
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
-  
+
   For more information please contact:
 
   Robert J. Harrison
@@ -24,18 +24,18 @@
   One Bethel Valley Road
   P.O. Box 2008, MS-6367
 
-  email: harrisonrj@ornl.gov 
+  email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
 
-  
+
   $Id$
 */
 
 /// \file loadbal.h
 /// \brief Declares and partially implements MyPmap, LoadBalImpl and associated load balancing classes.
 
-  
+
 #ifndef LOADBAL_H
 #define LOADBAL_H
 
@@ -53,7 +53,7 @@ namespace madness {
     typedef double CompCost;
 
     inline Cost default_cost_fun() {
-      return 1;
+        return 1;
     }
 
 
@@ -64,7 +64,8 @@ namespace madness {
             if (me%d == 0) {
                 k++;
                 me/=d;
-            } else {
+            }
+            else {
                 break;
             }
         }
@@ -81,8 +82,8 @@ namespace madness {
     /// Convenient typedef shortcuts
 
     /// Makes it easier to handle these unwieldy templated types
-  template <int D>
-  struct DClass {
+    template <int D>
+    struct DClass {
 //     typedef Key<D> KeyD;
 //     typedef const Key<D> KeyDConst;
 //     //typedef TreeCoords<D> TreeCoords;
@@ -90,36 +91,36 @@ namespace madness {
 //     typedef const LBNode<D> NodeDConst;
 //     typedef MyPmap<D> MyPmap;
 //     typedef LBTree<D> treeT;
-    typedef std::vector< std::vector< madness::TreeCoords<D> > > vvTreeCoords;
-  };
+        typedef std::vector< std::vector< madness::TreeCoords<D> > > vvTreeCoords;
+    };
 
-  
+
 
     template <int D>
     class PartitionInfo {
     public:
-	Cost maxcost;
-	Cost cost_left;
-	Cost skel_cost;
-	unsigned int partition_number;
-	unsigned int step_num;
-	double facter;
-	PartitionInfo(double f=1.1) :
-	    maxcost(0)
-	    , cost_left(0)
-	    , skel_cost(0)
-	    , partition_number(0)
-	    , step_num(0)
-	    , facter(f) { };
+        Cost maxcost;
+        Cost cost_left;
+        Cost skel_cost;
+        unsigned int partition_number;
+        unsigned int step_num;
+        double facter;
+        PartitionInfo(double f=1.1) :
+                maxcost(0)
+                , cost_left(0)
+                , skel_cost(0)
+                , partition_number(0)
+                , step_num(0)
+                , facter(f) { };
 
-	void reset(unsigned int p=1) {
-	  maxcost = 0;
-	  cost_left = skel_cost;
-	  partition_number = p;
-	  step_num++;
-	}
+        void reset(unsigned int p=1) {
+            maxcost = 0;
+            cost_left = skel_cost;
+            partition_number = p;
+            step_num++;
+        }
 
-	template <typename Archive>
+        template <typename Archive>
         void serialize(const Archive& ar) {
             ar & maxcost & cost_left & skel_cost & partition_number & step_num & facter;
         }
@@ -127,10 +128,10 @@ namespace madness {
 
     template <int D>
     std::ostream& operator<<(std::ostream& s, const PartitionInfo<D>& pi) {
-        s << "maxcost = " << pi.maxcost << ", cost_left = " << pi.cost_left << 
-	  ", skel_cost = " << pi.skel_cost << ", partition_number = " << 
-	  pi.partition_number << ", step_num = " << pi.step_num << 
-	  ", facter = " << pi.facter;
+        s << "maxcost = " << pi.maxcost << ", cost_left = " << pi.cost_left <<
+        ", skel_cost = " << pi.skel_cost << ", partition_number = " <<
+        pi.partition_number << ", step_num = " << pi.step_num <<
+        ", facter = " << pi.facter;
         return s;
     };
 
@@ -153,17 +154,17 @@ namespace madness {
         void print() {
             cout << "cost = " << cost << ", subcost = " << subcost << ", is_taken = " << is_taken << endl;
         }
-	template <typename functionT>
-	void set_data(functionT function) {
-	  functionT tmp = (*function);
-	  this->cost = (int) tmp;
-	}
+        template <typename functionT>
+        void set_data(functionT function) {
+            functionT tmp = (*function);
+            this->cost = (int) tmp;
+        }
 
-	template <typename functionT, typename arg1T>
-	void set_data(functionT function, const arg1T& arg1) {
-	  functionT tmp = (*function)(arg1);
-	  this->cost = (int) tmp;
-	}
+        template <typename functionT, typename arg1T>
+        void set_data(functionT function, const arg1T& arg1) {
+            functionT tmp = (*function)(arg1);
+            this->cost = (int) tmp;
+        }
     };
 
 
@@ -188,26 +189,26 @@ namespace madness {
         };
 
     public:
-	mutable KeyChildIterator<D> rpit;
+        mutable KeyChildIterator<D> rpit;
         static int dim; /// Number of children in standard tree (e.g. 2^D)
-	int nrecvd;
+        int nrecvd;
 
         LBNode() {
-	    rpit = KeyChildIterator<D>();
+            rpit = KeyChildIterator<D>();
             data = NodeData();
             all_children();
-	    nrecvd = 0;
+            nrecvd = 0;
         };
 
         LBNode(const NodeData& d, bool children=false, int n=0) : data(d), nrecvd(n) {
-	    rpit = KeyChildIterator<D>();
+            rpit = KeyChildIterator<D>();
             all_children(children);
         };
 
-	LBNode(const LBNode& node) : data(node.data), c(node.c), rpit(node.rpit), nrecvd(node.nrecvd) { };
+        LBNode(const LBNode& node) : data(node.data), c(node.c), rpit(node.rpit), nrecvd(node.nrecvd) { };
 
 
-	/// Determines whether node has any children at all
+        /// Determines whether node has any children at all
         bool has_children() const {
             for (int i = 0; i < dim; i++)
                 if (c[i]) return true;
@@ -222,35 +223,35 @@ namespace madness {
             return c[i];
         };
 
-	int get_num_children() const {
-	    int nkids = 0;
-	    for (int i=0; i < dim; i++) {
-		if (has_child(i)) nkids++;
-	    }
-	    return nkids;
-	}
+        int get_num_children() const {
+            int nkids = 0;
+            for (int i=0; i < dim; i++) {
+                if (has_child(i)) nkids++;
+            }
+            return nkids;
+        }
 
         void set_child(int i, bool setto = true) {
             c[i] = setto;
         };
 
-	void set_all_children(bool setto = true) {
-	  all_children(setto);
-	}
+        void set_all_children(bool setto = true) {
+            all_children(setto);
+        }
 
         void set_data(const NodeData& d) {
             data = d;
         };
 
-	template <typename functionT>
-	void set_cost(functionT function) {
-	  data.set_cost<functionT>(function);
-	}
+        template <typename functionT>
+        void set_cost(functionT function) {
+            data.set_cost<functionT>(function);
+        }
 
-	template <typename functionT, typename arg1T>
-	void set_cost(functionT function, const arg1T& arg1) {
-	  data.set_cost<functionT, arg1T>(function, arg1);
-	}
+        template <typename functionT, typename arg1T>
+        void set_cost(functionT function, const arg1T& arg1) {
+            data.set_cost<functionT, arg1T>(function, arg1);
+        }
 
         NodeData get_data() const {
             return data;
@@ -270,11 +271,12 @@ namespace madness {
     template <int D>
     std::ostream& operator<<(std::ostream& s, const LBNode<D>& node) {
         s << "data = " << node.get_data() << ", c = " << node.get_c();
-	if (node.rpit) {
-	  s  << ", key_iterator = " << node.rpit.key();
-	} else {
-	  s << ", key_iterator = <EMPTY>";
-	}
+        if (node.rpit) {
+            s  << ", key_iterator = " << node.rpit.key();
+        }
+        else {
+            s << ", key_iterator = <EMPTY>";
+        }
         return s;
     };
 
@@ -291,7 +293,7 @@ namespace madness {
 
 
     template <int D>
-	int LBNode<D>::dim = power<D>();
+    int LBNode<D>::dim = power<D>();
 
 
     /// Key + owner, struct used to determine mapping of tree nodes
@@ -328,64 +330,66 @@ namespace madness {
 
     template<int D>
     class ProcMapImpl {
-	public:
-/*
-#ifdef WORLDDC_USES_GNU_HASH_MAP
-        template <typename T>
-        struct PMLocalHash {
-            std::size_t operator()(const T& t) const {
-                return hash(t);
-            };
+    public:
+        /*
+        #ifdef WORLDDC_USES_GNU_HASH_MAP
+                template <typename T>
+                struct PMLocalHash {
+                    std::size_t operator()(const T& t) const {
+                        return hash(t);
+                    };
+                };
+                typedef HASH_MAP_NAMESPACE::hash_map< const Key<D>,ProcessID,PMLocalHash< const Key<D> > > Mapinfo;
+        #else
+        */
+        typedef std::map< const Key<D>,ProcessID> Mapinfo;
+        /*
+        #endif
+        */
+        typedef typename Mapinfo::iterator iterator;
+        typedef const iterator iterator_const;
+        typedef std::pair< const Key<D>, ProcessID > pairT;
+
+        ProcMapImpl() {};
+        ProcMapImpl(std::vector< TreeCoords<D> > v) {
+            int vlen = v.size();
+            for (int i = 0; i < vlen; i++) {
+                themap.insert(std::make_pair(v[i].key, v[i].owner));
+            }
         };
-        typedef HASH_MAP_NAMESPACE::hash_map< const Key<D>,ProcessID,PMLocalHash< const Key<D> > > Mapinfo;
-#else
-*/
-      typedef std::map< const Key<D>,ProcessID> Mapinfo;
-/*
-#endif
-*/
-	typedef typename Mapinfo::iterator iterator;
-	typedef const iterator iterator_const;
-      typedef std::pair< const Key<D>, ProcessID > pairT;
 
-	ProcMapImpl() {};
-	ProcMapImpl(std::vector< TreeCoords<D> > v) {
-	    int vlen = v.size();
-	    for (int i = 0; i < vlen; i++) {
-	    	themap.insert(std::make_pair(v[i].key, v[i].owner));
-	    }
-	};
-
-	ProcMapImpl(const TreeCoords<D>& t) {
-	    themap.insert(std::make_pair(t.key, t.owner));
-	};
-	void insert(const TreeCoords<D>& t) {
-	    themap.insert(std::make_pair(t.key, t.owner));
-	};
-	void erase(const TreeCoords<D>& t) {
-	    themap.erase(t.key);
-	};
+        ProcMapImpl(const TreeCoords<D>& t) {
+            themap.insert(std::make_pair(t.key, t.owner));
+        };
+        void insert(const TreeCoords<D>& t) {
+            themap.insert(std::make_pair(t.key, t.owner));
+        };
+        void erase(const TreeCoords<D>& t) {
+            themap.erase(t.key);
+        };
 
         ProcessID find_owner(const Key<D>& key) const {
-	  typename std::map< const Key<D>,ProcessID>::const_iterator it = themap.find(key);
-	    if (it != themap.end()) {
-		return it->second;
-	    } else if (key.level() == 0) {
-		madness::print("find_owner: owner of ", key, "not found but returning 0");
-		return 0;
-	    } else {
-		return this->find_owner(key.parent());
-	    }
-	};
+            typename std::map< const Key<D>,ProcessID>::const_iterator it = themap.find(key);
+            if (it != themap.end()) {
+                return it->second;
+            }
+            else if (key.level() == 0) {
+                madness::print("find_owner: owner of ", key, "not found but returning 0");
+                return 0;
+            }
+            else {
+                return this->find_owner(key.parent());
+            }
+        };
 
-	void print() {
-	    for (iterator it = themap.begin(); it != themap.end(); ++it) {
-		madness::print(it->first, "   ", it->second);
-	    }
-	}
+        void print() {
+            for (iterator it = themap.begin(); it != themap.end(); ++it) {
+                madness::print(it->first, "   ", it->second);
+            }
+        }
 
-	private:
-	Mapinfo themap;
+    private:
+        Mapinfo themap;
     };
 
 
@@ -396,21 +400,21 @@ namespace madness {
     private:
         Tensor<ProcessID> simple_key_map; // map of keys at level n
         bool simplemap;
-	const int nproc;
+        const int nproc;
         const ProcessID me;
-	const int n;
-	SharedPtr< ProcMapImpl<D> > tree_map;
+        const int n;
+        SharedPtr< ProcMapImpl<D> > tree_map;
         typedef Key<D> KeyD;
 
-	/// private method that builds the Tree underlying the procmap
-	void build_tree_map(std::vector< TreeCoords<D> > v) {
-	    tree_map = SharedPtr< ProcMapImpl<D> > (new ProcMapImpl<D>(v));
-	};
+        /// private method that builds the Tree underlying the procmap
+        void build_tree_map(std::vector< TreeCoords<D> > v) {
+            tree_map = SharedPtr< ProcMapImpl<D> > (new ProcMapImpl<D>(v));
+        };
 
-	ProcessID simple_hash(const KeyD& key) const {
+        ProcessID simple_hash(const KeyD& key) const {
             KeyD parent = (key.level() > n) ? key.parent(key.level()-n) : key;
             return simple_key_map((const long *) &(parent.translation()[0]));
-	};
+        };
 
     public:
         MyPmap() : simplemap(false) {};
@@ -419,12 +423,11 @@ namespace madness {
             return a.second > b.second;
         };
 
-	MyPmap(World& world) 
-            : simplemap(true)
-            , nproc(world.nproc())
-            , me(world.rank())
-            , n(int((std::log((double)world.size())/std::log(2.0)+3)/D) + 2)  // 16*nproc = 2^(nD)
-        {
+        MyPmap(World& world)
+                : simplemap(true)
+                , nproc(world.nproc())
+                , me(world.rank())
+                , n(int((std::log((double)world.size())/std::log(2.0)+3)/D) + 2) { // 16*nproc = 2^(nD)
             // We set n to have about 16 tasks per processor and we try to
             // give each process a mix of large, medium, and small
             // tasks.  Currently estimate cost as inversely
@@ -436,11 +439,11 @@ namespace madness {
             std::vector<long> vdim(D);
             for (int i=0; i<D; i++) vdim[i] = 1L<<n;
             simple_key_map = Tensor<ProcessID>(vdim);
-            
+
             std::list< std::pair<KeyD,double> > costmap;
             Vector<Translation,D> l;
             long cent = (1L<<n) / 2;
-            for (TensorIterator<ProcessID> iter=simple_key_map.unary_iterator(0,false,false); iter._p0; ++iter) { 
+            for (TensorIterator<ProcessID> iter=simple_key_map.unary_iterator(0,false,false); iter._p0; ++iter) {
                 double dist = 0.01;
                 for (int i=0; i<D; i++) {
                     l[i] = iter.ind[i];
@@ -479,27 +482,28 @@ namespace madness {
                 simple_key_map = other.simple_key_map; // shallow copy
                 simplemap = other.simplemap;
                 nproc = other.nproc;
-		me = other.me;
-		n = other.n;
+                me = other.me;
+                n = other.n;
                 tree_map = other.tree_map;
             }
             return *this;
         };
 
         void print() const {
-	    if (!simplemap) {
-		tree_map->print();
-	    } else {
-		madness::print("MyPmap: simple map with n =", n);
-	    }
+            if (!simplemap) {
+                tree_map->print();
+            }
+            else {
+                madness::print("MyPmap: simple map with n =", n);
+            }
         };
 
-	/// Find the owner of a given key
+        /// Find the owner of a given key
         ProcessID owner(const KeyD& key) const {
             if (simplemap)
                 return simple_hash(key);
             else {
-		return tree_map->find_owner(key);
+                return tree_map->find_owner(key);
             }
         };
     };
@@ -508,47 +512,47 @@ namespace madness {
     template <int D>
     class LBTree : public WorldObject< LBTree<D> > {
     public:
-	typedef WorldObject<LBTree<D> > woT;
-      typedef WorldContainer<Key<D>,LBNode<D> > dcT;
-	typedef typename dcT::iterator iterator;
+        typedef WorldObject<LBTree<D> > woT;
+        typedef WorldContainer<Key<D>,LBNode<D> > dcT;
+        typedef typename dcT::iterator iterator;
 
-	World& world;
+        World& world;
 
-      static const Key<D> root;
-      static typename DClass<D>::vvTreeCoords list_of_list;
-	static std::vector<Cost> cost_list;
+        static const Key<D> root;
+        static typename DClass<D>::vvTreeCoords list_of_list;
+        static std::vector<Cost> cost_list;
 
-	PartitionInfo<D> partition_info;
+        PartitionInfo<D> partition_info;
         //std::vector<typename TreeCoords<D> > temp_list;
         std::vector< TreeCoords<D> > temp_list;
-	Cost (*cost_fun)();
+        Cost(*cost_fun)();
 
     private:
         dcT impl;
 
     public:
-      LBTree(World& world, const SharedPtr< WorldDCPmapInterface< Key<D> > >& pmap, Cost (*cost_f)()=&default_cost_fun) : woT(world)
-	    , world(world)
-	  //, cost_fun(cost_fun)
-	    , impl(world,pmap) {
-	    impl.process_pending();
-	    this->process_pending();
-	    this->cost_fun=cost_f;
+        LBTree(World& world, const SharedPtr< WorldDCPmapInterface< Key<D> > >& pmap, Cost(*cost_f)()=&default_cost_fun) : woT(world)
+                , world(world)
+                //, cost_fun(cost_fun)
+                , impl(world,pmap) {
+            impl.process_pending();
+            this->process_pending();
+            this->cost_fun=cost_f;
         };
-	/// Initialize the LBTree by converting a FunctionImpl to a LBTree
+        /// Initialize the LBTree by converting a FunctionImpl to a LBTree
         template <typename T, typename costfunT>
         inline void init_tree(const SharedPtr< FunctionImpl<T,D> >& f, const costfunT& costfun) {
             for (typename FunctionImpl<T,D>::dcT::iterator it = f->coeffs.begin(); it != f->coeffs.end(); ++it) {
-            	// convert Node to LBNode
-            	NodeData nd;
-		const Key<D>& key = it->first;
-		const typename FunctionImpl<T,D>::nodeT&  node = it->second;
+                // convert Node to LBNode
+                NodeData nd;
+                const Key<D>& key = it->first;
+                const typename FunctionImpl<T,D>::nodeT&  node = it->second;
 
-		//		nd.cost = Cost(1e6*costfun(key, node));
-		nd.cost = Cost(costfun(key, node));
-		nd.subcost = nd.cost;
-		LBNode<D> lbnode(nd,node.has_children());
-		impl.replace(key, lbnode);
+                //		nd.cost = Cost(1e6*costfun(key, node));
+                nd.cost = Cost(costfun(key, node));
+                nd.subcost = nd.cost;
+                LBNode<D> lbnode(nd,node.has_children());
+                impl.replace(key, lbnode);
 
 //             	if (!(it->second.has_children())) {
 // 		  nd.cost = (*cost_fun)();
@@ -572,34 +576,35 @@ namespace madness {
         template <typename T, typename costfunT>
         inline void add_tree(const SharedPtr< FunctionImpl<T,D> >& f, const costfunT& costfun) {
             for (typename FunctionImpl<T,D>::dcT::iterator it = f->coeffs.begin(); it != f->coeffs.end(); ++it) {
-            	// convert Node to LBNode
-            	NodeData nd;
-		Key<D> key = it->first;
-		typename LBTree<D>::iterator tree_it = impl.find(key);
-		Cost new_cost = Cost(costfun(it->first,it->second));
-		//		Cost new_cost = Cost(1e6*costfun(it->first,it->second));
-		if (tree_it != impl.end()) {
-		  LBNode<D> lbnode = tree_it->second;
-		  if (it->second.has_children()) {
-		    lbnode.set_all_children(true);
-		  }
-		  NodeData nd=lbnode.get_data();
-		  nd.cost+=new_cost;
-		  nd.subcost+=new_cost;
-		  lbnode.set_data(nd);
-		  impl.replace(key, lbnode);
-		} else {
-		  nd.cost = new_cost;
-		  nd.subcost = nd.cost;
-		  LBNode<D> lbnode(nd,it->second.has_children());
-		  impl.replace(key, lbnode);
-		}
+                // convert Node to LBNode
+                NodeData nd;
+                Key<D> key = it->first;
+                typename LBTree<D>::iterator tree_it = impl.find(key);
+                Cost new_cost = Cost(costfun(it->first,it->second));
+                //		Cost new_cost = Cost(1e6*costfun(it->first,it->second));
+                if (tree_it != impl.end()) {
+                    LBNode<D> lbnode = tree_it->second;
+                    if (it->second.has_children()) {
+                        lbnode.set_all_children(true);
+                    }
+                    NodeData nd=lbnode.get_data();
+                    nd.cost+=new_cost;
+                    nd.subcost+=new_cost;
+                    lbnode.set_data(nd);
+                    impl.replace(key, lbnode);
+                }
+                else {
+                    nd.cost = new_cost;
+                    nd.subcost = nd.cost;
+                    LBNode<D> lbnode(nd,it->second.has_children());
+                    impl.replace(key, lbnode);
+                }
             }
         }
 
-	ProcessID owner(const Key<D>& key) {
-	    return impl.owner(key);
-	}
+        ProcessID owner(const Key<D>& key) {
+            return impl.owner(key);
+        }
 
         void print(const Key<D>& key) {
             typename LBTree<D>::iterator it = impl.find(key);
@@ -611,41 +616,41 @@ namespace madness {
             }
         };
 
-	void find_partitions(PartitionInfo<D>& pi);
-	bool verify_partition(std::vector<TreeCoords<D> >& part_list);
-	Void launch_make_partition(PartitionInfo<D> pi, bool first_time);
-	Void meld_all(bool first_time);
+        void find_partitions(PartitionInfo<D>& pi);
+        bool verify_partition(std::vector<TreeCoords<D> >& part_list);
+        Void launch_make_partition(PartitionInfo<D> pi, bool first_time);
+        Void meld_all(bool first_time);
 
         Cost fix_cost();
 
 
-	void init_fix_cost();
-	void fix_cost_spawn();
-	Void fix_cost_sum(const Key<D>& key, Cost c);
+        void init_fix_cost();
+        void fix_cost_spawn();
+        Void fix_cost_sum(const Key<D>& key, Cost c);
 
 
         void rollup();
 
-	void reset(bool taken);
+        void reset(bool taken);
 
         void meld(LBTree<D>::iterator it);
 
 
         Void make_partition(const Key<D>& key, Cost partition_size,
-			    Cost used_up, PartitionInfo<D> pi, bool downward = false);
-	Void totally_reset(PartitionInfo<D> pi);
-	Void add_to_partition(TreeCoords<D> p);
+                            Cost used_up, PartitionInfo<D> pi, bool downward = false);
+        Void totally_reset(PartitionInfo<D> pi);
+        Void add_to_partition(TreeCoords<D> p);
 
-	Key<D> first_child(const Key<D>& key, const LBNode<D>& node);
-	Key<D> next_sibling(const Key<D>& key);
+        Key<D> first_child(const Key<D>& key, const LBNode<D>& node);
+        Key<D> next_sibling(const Key<D>& key);
 
-	bool reset_partition(Cost& partition_size, Cost& used_up, PartitionInfo<D>& pi);
+        bool reset_partition(Cost& partition_size, Cost& used_up, PartitionInfo<D>& pi);
 
 
         MyPmap<D>& get_mypmap() {
             return *static_cast< MyPmap<D>* >(impl.get_pmap().get());
         };
-       
+
         template <typename Archive>
         void serialize(const Archive& ar) {
             ar & root & list_of_list & cost_list & impl;
@@ -655,13 +660,13 @@ namespace madness {
     };
 
     template <int D>
-	const Key<D> LBTree<D>::root(0);
+    const Key<D> LBTree<D>::root(0);
 
     template <int D>
     typename DClass<D>::vvTreeCoords LBTree<D>::list_of_list;
 
     template <int D>
-      typename std::vector<Cost> LBTree<D>::cost_list;
+    typename std::vector<Cost> LBTree<D>::cost_list;
 
     /// Implementation of load balancing
 
@@ -669,63 +674,62 @@ namespace madness {
     template <int D>
     class LoadBalImpl {
     private:
-	typedef MyPmap<D> Pmap;
-	int k;
-	double comm_bandw;
-	double comm_latency;
-	double flop_time;
+        typedef MyPmap<D> Pmap;
+        int k;
+        double comm_bandw;
+        double comm_latency;
+        double flop_time;
         SharedPtr<LBTree<D> > skeltree;
-	World& world;
+        World& world;
 
-	template<typename T, typename costfunT>
+        template<typename T, typename costfunT>
         void construct_skel(const SharedPtr<FunctionImpl<T,D> >& f, const costfunT& costfun) {
             skeltree = SharedPtr<LBTree<D> >(new LBTree<D>(f->world,
-                       f->coeffs.get_pmap()));
+                                             f->coeffs.get_pmap()));
 //            madness::print("about to initialize tree");
-	    skeltree->template init_tree<T>(f,costfun);
+            skeltree->template init_tree<T>(f,costfun);
 //            madness::print("just initialized tree");
-	    pi.skel_cost = skeltree->fix_cost();
-	    //	    madness::print("construct_skel: pi.skel_cost =", pi.skel_cost); 
-	    pi.cost_left = pi.skel_cost;
+            pi.skel_cost = skeltree->fix_cost();
+            //	    madness::print("construct_skel: pi.skel_cost =", pi.skel_cost);
+            pi.cost_left = pi.skel_cost;
         }
 
     public:
-	PartitionInfo<D> pi;
+        PartitionInfo<D> pi;
         //Constructors
-	template <typename T, typename costfunT>
-	LoadBalImpl(Function<T,D>& f, const costfunT& costfun,
-		    double a=1e-8, double b=1e-5, double c=5e-10, double facter=1.1) : k(f.get_impl()->k) 
-	    , comm_bandw(a)
-	    , comm_latency(b)
-	    , flop_time(c)
-	    , world(f.get_impl()->world)
-	    , pi(PartitionInfo<D>(facter)) 
-	  {
-	    construct_skel(f.get_impl(), costfun);
-	    pi.partition_number = f.get_impl()->world.mpi.nproc()-1;
-	  }
+        template <typename T, typename costfunT>
+        LoadBalImpl(Function<T,D>& f, const costfunT& costfun,
+                    double a=1e-8, double b=1e-5, double c=5e-10, double facter=1.1) : k(f.get_impl()->k)
+                , comm_bandw(a)
+                , comm_latency(b)
+                , flop_time(c)
+                , world(f.get_impl()->world)
+                , pi(PartitionInfo<D>(facter)) {
+            construct_skel(f.get_impl(), costfun);
+            pi.partition_number = f.get_impl()->world.mpi.nproc()-1;
+        }
 
         ~LoadBalImpl() {};
 
         //Methods
 
-	/// Returns a shared pointer to a new process map, which can then be used to redistribute the function
+        /// Returns a shared pointer to a new process map, which can then be used to redistribute the function
         SharedPtr< WorldDCPmapInterface< Key<D> > > load_balance() {
             return SharedPtr< WorldDCPmapInterface< Key<D> > >(new MyPmap<D>(world, find_best_partition()));
         };
 
-      std::vector< TreeCoords<D> > find_best_partition();
-      std::vector< std::vector< TreeCoords<D> > > find_all_partitions();
+        std::vector< TreeCoords<D> > find_best_partition();
+        std::vector< std::vector< TreeCoords<D> > > find_all_partitions();
 
-	CompCost compute_comp_cost(Cost c, int n);
+        CompCost compute_comp_cost(Cost c, int n);
 
-	template <typename T, typename costfunT>
-	  void add_tree(Function<T,D> f, const costfunT& costfun) {
-	  skeltree->add_tree(f.get_impl(), costfun);
-	    pi.skel_cost = skeltree->fix_cost();
-	    pi.cost_left = pi.skel_cost;
+        template <typename T, typename costfunT>
+        void add_tree(Function<T,D> f, const costfunT& costfun) {
+            skeltree->add_tree(f.get_impl(), costfun);
+            pi.skel_cost = skeltree->fix_cost();
+            pi.cost_left = pi.skel_cost;
 
-	}
+        }
 
     };
 
