@@ -67,13 +67,13 @@
 
 #if ON_A_MAC
 #include <sys/errno.h>
-static inline int posix_memalign(void **memptr, std::size_t alignment, std::size_t size){
-  *memptr=malloc(size);
-  if (*memptr) return 0;
-  else return ENOMEM;
+static inline int posix_memalign(void **memptr, std::size_t alignment, std::size_t size) {
+    *memptr=malloc(size);
+    if (*memptr) return 0;
+    else return ENOMEM;
 }
 #elif MISSING_POSIX_MEMALIGN_PROTO
-  extern "C"  int posix_memalign(void **memptr, std::size_t alignment, std::size_t size);
+extern "C"  int posix_memalign(void **memptr, std::size_t alignment, std::size_t size);
 #endif
 
 #define IS_ODD(n) ((n)&0x1)
@@ -112,7 +112,8 @@ namespace madness {
 #  error Need a mechanism to allocated aligned memory
 #endif
 
-            } catch (...) {
+            }
+            catch (...) {
                 std::printf("new failed nd=%ld type=%ld size=%ld\n", nd, id, size);
                 std::printf("  %ld %ld %ld %ld %ld %ld\n",
                             d[0], d[1], d[2], d[3], d[4], d[5]);
@@ -127,7 +128,8 @@ namespace madness {
                 // or
                 aligned_zero(size, pointer);
             }
-        } else {
+        }
+        else {
             pointer = 0;
         }
     }
@@ -166,7 +168,7 @@ namespace madness {
 
     /// Construct a 2d tensor initialized to zero
     template <class T>
-    Tensor<T>::Tensor(long d0, long d1) : p(0){
+    Tensor<T>::Tensor(long d0, long d1) : p(0) {
         dim[0] = d0;
         dim[1] = d1;
         init(2, dim);
@@ -586,13 +588,14 @@ namespace madness {
             for (long i=0; i<ndim; i++) ind[i]=0;
             long nd = ndim-1;
             UNARY_UNOPTIMIZED_ITERATOR(T,(*this),
-                                       if (result > *_p0) {
-                                       result = *_p0;
-                                       for (long i=0; i<nd; i++) ind[i]=iter.ind[i];
-                                           ind[nd] = _j;
-                                       }
+            if (result > *_p0) {
+            result = *_p0;
+            for (long i=0; i<nd; i++) ind[i]=iter.ind[i];
+                ind[nd] = _j;
+            }
                                       );
-        } else {
+        }
+        else {
             UNARY_OPTIMIZED_ITERATOR(T,(*this),result=std::min<T>(result,*_p0));
         }
         return result;
@@ -605,13 +608,14 @@ namespace madness {
             for (long i=0; i<ndim; i++) ind[i]=0;
             long nd = ndim-1;
             UNARY_UNOPTIMIZED_ITERATOR(T,(*this),
-                                       if (result < *_p0) {
-                                       result = *_p0;
-                                       for (long i=0; i<nd; i++) ind[i]=iter.ind[i];
-                                           ind[nd] = _j;
-                                       }
+            if (result < *_p0) {
+            result = *_p0;
+            for (long i=0; i<nd; i++) ind[i]=iter.ind[i];
+                ind[nd] = _j;
+            }
                                       );
-        } else {
+        }
+        else {
             UNARY_OPTIMIZED_ITERATOR(T,(*this),result=std::max<T>(result,*_p0));
         }
         return result;
@@ -632,13 +636,14 @@ namespace madness {
             long nd = ndim-1;
             UNARY_UNOPTIMIZED_ITERATOR(T,(*this),
                                        scalar_type absval = std::abs(*_p0);
-                                       if (result > absval) {
-                                       result = absval;
-                                       for (long i=0; i<nd; i++) ind[i]=iter.ind[i];
-                                           ind[nd] = _j;
-                                       }
+            if (result > absval) {
+            result = absval;
+            for (long i=0; i<nd; i++) ind[i]=iter.ind[i];
+                ind[nd] = _j;
+            }
                                       );
-        } else {
+        }
+        else {
             UNARY_OPTIMIZED_ITERATOR(T,(*this),result=std::min<scalar_type>(result,std::abs(*_p0)));
         }
         return result;
@@ -652,20 +657,21 @@ namespace madness {
             long nd = ndim-1;
             UNARY_UNOPTIMIZED_ITERATOR(T,(*this),
                                        scalar_type absval = std::abs(*_p0);
-                                       if (result < absval) {
-                                       result = absval;
-                                       for (long i=0; i<nd; i++) ind[i]=iter.ind[i];
-                                           ind[nd] = _j;
-                                       }
+            if (result < absval) {
+            result = absval;
+            for (long i=0; i<nd; i++) ind[i]=iter.ind[i];
+                ind[nd] = _j;
+            }
                                       );
-        } else {
+        }
+        else {
             UNARY_OPTIMIZED_ITERATOR(T,(*this),result=std::max<scalar_type>(result,std::abs(*_p0)));
         }
         return result;
     }
 
     template <class T>
-    Tensor<T>& Tensor<T>::unaryop(T (*op) (T)) {
+    Tensor<T>& Tensor<T>::unaryop(T(*op)(T)) {
         UNARY_OPTIMIZED_ITERATOR(T,(*this),*_p0=op(*_p0));
         return *this;
     }
@@ -842,7 +848,8 @@ namespace madness {
             out << "                 tensor=Tensor<";
             if (e.t->id>=0 && e.t->id<=TENSOR_MAX_TYPE_ID) {
                 out << tensor_type_names[e.t->id] << ">(";
-            } else {
+            }
+            else {
                 out << "invalid_type_id>(";
             }
             if (e.t->ndim>=0 && e.t->ndim<TENSOR_MAXDIM) {
@@ -851,10 +858,11 @@ namespace madness {
                     if (i != (e.t->ndim-1)) out << ",";
                 }
                 out << ")";
-            } else {
+            }
+            else {
                 out << "invalid_dimensions)";
             }
-            out << " at 0x" << (void *) (e.t) << "\n";
+            out << " at 0x" << (void *)(e.t) << "\n";
         }
 
         return out;
@@ -949,7 +957,7 @@ namespace madness {
     /// correspond to (\c k0=-1 and \c k1=0 ).
     template <class T, class Q>
     Tensor<TENSOR_RESULT_TYPE(T,Q)> inner(const Tensor<T>& left, const Tensor<Q>& right,
-                    long k0, long k1) {
+                                          long k0, long k1) {
         if (k0 < 0) k0 += left.ndim;
         if (k1 < 0) k1 += right.ndim;
         long nd = left.ndim + right.ndim - 2;
@@ -1009,21 +1017,24 @@ namespace madness {
                 long dimi = left.stride[0];
                 mTxm(dimi,dimj,dimk,ptr,left.ptr(),right.ptr());
                 return;
-            } else if (k0==(left.ndim-1) && k1==(right.ndim-1)) {
+            }
+            else if (k0==(left.ndim-1) && k1==(right.ndim-1)) {
                 // c[i,j] = a[i,k]*b[j,k] ... collapsing extra indices to i & j
                 long dimk = left.dim[k0];
                 long dimi = left.size/dimk;
                 long dimj = right.size/dimk;
                 mxmT(dimi,dimj,dimk,ptr,left.ptr(),right.ptr());
                 return;
-            } else if (k0==0 && k1==(right.ndim-1)) {
+            }
+            else if (k0==0 && k1==(right.ndim-1)) {
                 // c[i,j] = a[k,i]*b[j,k] ... collapsing extra indices to i & j
                 long dimk = left.dim[k0];
                 long dimi = left.stride[0];
                 long dimj = right.size/dimk;
                 mTxmT(dimi,dimj,dimk,ptr,left.ptr(),right.ptr());
                 return;
-            } else if (k0==(left.ndim-1) && k1==0) {
+            }
+            else if (k0==(left.ndim-1) && k1==0) {
                 // c[i,j] = a[i,k]*b[k,j] ... collapsing extra indices to i & j
                 long dimk = left.dim[k0];
                 long dimi = left.size/dimk;
@@ -1131,7 +1142,7 @@ namespace madness {
     /// The input dimensions of \c t must all be the same .
     template <class T, class Q>
     Tensor< TENSOR_RESULT_TYPE(T,Q) >& fast_transform(const Tensor<T>& t, const Tensor<Q>& c,  Tensor< TENSOR_RESULT_TYPE(T,Q) >& result,
-                              Tensor< TENSOR_RESULT_TYPE(T,Q) >& workspace) {
+            Tensor< TENSOR_RESULT_TYPE(T,Q) >& workspace) {
         typedef  TENSOR_RESULT_TYPE(T,Q) resultT;
         const Q *pc=c.ptr();
         resultT *t0=workspace.ptr(), *t1=result.ptr();
@@ -1147,7 +1158,7 @@ namespace madness {
 
 
         if (IS_ODD(dimi) || IS_ODD(dimj) ||
-            IS_UNALIGNED(pc) || IS_UNALIGNED(t0) || IS_UNALIGNED(t1)) {
+                IS_UNALIGNED(pc) || IS_UNALIGNED(t0) || IS_UNALIGNED(t1)) {
             for (long i=0; i<nij; i++) t0[i] = 0.0;
             mTxm(dimi, dimj, dimj, t0, t.ptr(), pc);
             for (int n=1; n<t.ndim; n++) {

@@ -1,22 +1,22 @@
 /*
   This file is part of MADNESS.
-  
+
   Copyright (C) <2007> <Oak Ridge National Laboratory>
-  
+
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation; either version 2 of the License, or
   (at your option) any later version.
-  
+
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
   GNU General Public License for more details.
-  
+
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
-  
+
   For more information please contact:
 
   Robert J. Harrison
@@ -24,15 +24,15 @@
   One Bethel Valley Road
   P.O. Box 2008, MS-6367
 
-  email: harrisonrj@ornl.gov 
+  email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
 
-  
+
   $Id$
 */
 
-  
+
 #ifndef TENSORH
 #define TENSORH
 
@@ -88,24 +88,24 @@ namespace madness {
 
 
     // For real types return value, for complex return conjugate
-    template <typename Q, bool iscomplex> 
+    template <typename Q, bool iscomplex>
     struct conditional_conj_struct {
         static Q op(const Q& coeff) {
             return coeff;
         }
     };
-        
+
     // For real types return value, for complex return conjugate
     template <typename Q>
     struct conditional_conj_struct<Q,true> {
         static Q op(const Q& coeff) {
-	  return conj(coeff);
-	}
+            return conj(coeff);
+        }
     };
 
     template <typename Q>
     Q conditional_conj(const Q& coeff) {
-      return conditional_conj_struct<Q,TensorTypeData<Q>::iscomplex>::op(coeff);
+        return conditional_conj_struct<Q,TensorTypeData<Q>::iscomplex>::op(coeff);
     }
 
 
@@ -366,14 +366,14 @@ namespace madness {
         /// Scale tensor by a scalar of other type (IBM XLC only).
         template <typename Q> Tensor< TENSOR_RESULT_TYPE(T,Q) > operator*(const Q& x) const {
             Tensor< TENSOR_RESULT_TYPE(T,Q) > result(ndim,dim,false);
-            BINARY_OPTIMIZED_ITERATOR( TENSOR_RESULT_TYPE(T,Q) , result, T, (*this), *_p0 = (*_p1 * x));
+            BINARY_OPTIMIZED_ITERATOR(TENSOR_RESULT_TYPE(T,Q) , result, T, (*this), *_p0 = (*_p1 * x));
             return result;
         }
 
         /// Divide tensor by a scalar of other type (IBM XLC only).
         template <typename Q> Tensor< TENSOR_RESULT_TYPE(T,Q) > operator/(const Q& x) const {
             Tensor< TENSOR_RESULT_TYPE(T,Q) > result(ndim,dim);
-            BINARY_OPTIMIZED_ITERATOR( TENSOR_RESULT_TYPE(T,Q) , result, T, (*this), *_p0 = (*_p1 / x));
+            BINARY_OPTIMIZED_ITERATOR(TENSOR_RESULT_TYPE(T,Q) , result, T, (*this), *_p0 = (*_p1 / x));
             return result;
         }
 
@@ -384,21 +384,21 @@ namespace madness {
         }
         /// Inplace scaling by scalar of supported type.
         template <typename Q> Tensor<T>& scale(Q x) {
-            UNARY_OPTIMIZED_ITERATOR(T, (*this), *_p0 = (T) (*_p0 * x));
+            UNARY_OPTIMIZED_ITERATOR(T, (*this), *_p0 = (T)(*_p0 * x));
             return *this;
         }
 #else
         /// Scale tensor by a scalar of a supported type (see type_data.h).
         template ISSUPPORTED(Q,Tensor< TENSOR_RESULT_TYPE(T,Q) >) operator*(const Q& x) const {
             Tensor< TENSOR_RESULT_TYPE(T,Q) > result(ndim,dim,false);
-            BINARY_OPTIMIZED_ITERATOR( TENSOR_RESULT_TYPE(T,Q) , result, T, (*this), *_p0 = (*_p1 * x));
+            BINARY_OPTIMIZED_ITERATOR(TENSOR_RESULT_TYPE(T,Q) , result, T, (*this), *_p0 = (*_p1 * x));
             return result;
         }
 
         /// Divide tensor by a scalar of a supported type (see type_data.h).
         template ISSUPPORTED(Q,Tensor< TENSOR_RESULT_TYPE(T,Q) >) operator/(const Q& x) const {
             Tensor< TENSOR_RESULT_TYPE(T,Q) > result(ndim,dim);
-            BINARY_OPTIMIZED_ITERATOR( TENSOR_RESULT_TYPE(T,Q) , result, T, (*this), *_p0 = (*_p1 / x));
+            BINARY_OPTIMIZED_ITERATOR(TENSOR_RESULT_TYPE(T,Q) , result, T, (*this), *_p0 = (*_p1 / x));
             return result;
         }
 
@@ -410,7 +410,7 @@ namespace madness {
 
         /// Inplace scaling by scalar of supported type.
         template ISSUPPORTED(Q,Tensor<T>&) scale(Q x) {
-            UNARY_OPTIMIZED_ITERATOR(T, (*this), *_p0 = (T) (*_p0 * x));
+            UNARY_OPTIMIZED_ITERATOR(T, (*this), *_p0 = (T)(*_p0 * x));
             return *this;
         }
 #endif
@@ -680,16 +680,16 @@ namespace madness {
         /// Return the trace of two tensors (no complex conjugate invoked)
         T trace(const Tensor<T>& t) const;
 
-    /// Return the trace of two tensors with complex conjugate of the leftmost (i.e., this)
-    template <class Q>
-      TENSOR_RESULT_TYPE(T,Q) trace_conj(const Tensor<Q>& t) const {
-      TENSOR_RESULT_TYPE(T,Q) result = 0;
-      BINARY_OPTIMIZED_ITERATOR(T,(*this),Q,t,result += conditional_conj(*_p0)*(*_p1));
-      return result;
-    }
+        /// Return the trace of two tensors with complex conjugate of the leftmost (i.e., this)
+        template <class Q>
+        TENSOR_RESULT_TYPE(T,Q) trace_conj(const Tensor<Q>& t) const {
+            TENSOR_RESULT_TYPE(T,Q) result = 0;
+            BINARY_OPTIMIZED_ITERATOR(T,(*this),Q,t,result += conditional_conj(*_p0)*(*_p1));
+            return result;
+        }
 
         /// Inplace apply a unary function to each element of the tensor
-        Tensor<T>& unaryop(T (*op) (T));
+        Tensor<T>& unaryop(T(*op)(T));
 
         /// Inplace multiply by corresponding elements of argument Tensor
         Tensor<T>& emul(const Tensor<T>& t);
@@ -775,15 +775,15 @@ namespace madness {
                 PROFILE_MEMBER_FUNC(Tensor);
                 if (t.iscontiguous()) {
                     s & t.size & t.id;
-	            if (t.size) s & t.ndim & t.dim & wrap(t.ptr(),t.size);
+                    if (t.size) s & t.ndim & t.dim & wrap(t.ptr(),t.size);
                 }
                 else {
                     s & copy(t);
                 }
             };
         };
-        
-        
+
+
         /// Deserialize a tensor ... existing tensor is replaced
         template <class Archive, typename T>
         struct ArchiveLoadImpl< Archive, Tensor<T> > {
@@ -803,7 +803,7 @@ namespace madness {
                 }
             };
         };
-        
+
 //         /// Serialize a Tensor thru a BaseTensor pointer
 //         template <class Archive>
 //         struct ArchiveStoreImpl< Archive, BaseTensor* > {
@@ -828,9 +828,9 @@ namespace madness {
 //                 }
 //             };
 //         };
-        
+
 //         /// Deserialize a Tensor thru a BaseTensor pointer
-        
+
 //         /// It allocates a NEW tensor ... the original point is stomped on
 //         /// and so should not be preallocated.
 //         template <class Archive>
@@ -928,12 +928,12 @@ namespace madness {
 
     template <class T, class Q>
     Tensor<TENSOR_RESULT_TYPE(T,Q)>& fast_transform(const Tensor<T>& t, const Tensor<Q>& c,
-                              Tensor< TENSOR_RESULT_TYPE(T,Q) >& result, 
-                              Tensor< TENSOR_RESULT_TYPE(T,Q) >& workspace);
+            Tensor< TENSOR_RESULT_TYPE(T,Q) >& result,
+            Tensor< TENSOR_RESULT_TYPE(T,Q) >& workspace);
 
     template <class T, class Q>
     Tensor<TENSOR_RESULT_TYPE(T,Q)> inner(const Tensor<T>& left, const Tensor<Q>& right,
-                    long k0=-1, long k1=0);
+                                          long k0=-1, long k1=0);
 
     template <class T, class Q>
     void inner_result(const Tensor<T>& left, const Tensor<Q>& right,
@@ -999,7 +999,7 @@ namespace madness {
     };
 
     /*
-    template <typename T> 
+    template <typename T>
     void mTxm(long dimi, long dimj, long dimk,
           T* restrict c, const T* restrict a, const T* restrict b);
 

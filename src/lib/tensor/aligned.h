@@ -34,20 +34,20 @@ namespace madness {
 
 
 #if (defined(X86_32) || defined(X86_64))
-  template <>
-  void aligned_zero<double>(long n, double* a);
+    template <>
+    void aligned_zero<double>(long n, double* a);
 
-  template <>
-  void aligned_zero<double_complex>(long n, double_complex* a);
+    template <>
+    void aligned_zero<double_complex>(long n, double_complex* a);
 
 //  template <>
 //  void aligned_axpy(long n, double* restrict a, const double* restrict b, double s);
 #endif
 
-  void aligned_add(long n, double* restrict a, const double* restrict b);
-  void aligned_sub(long n, double* restrict a, const double* restrict b);
-  void aligned_add(long n, double_complex* restrict a, const double_complex* restrict b);
-  void aligned_sub(long n, double_complex* restrict a, const double_complex* restrict b);
+    void aligned_add(long n, double* restrict a, const double* restrict b);
+    void aligned_sub(long n, double* restrict a, const double* restrict b);
+    void aligned_add(long n, double_complex* restrict a, const double_complex* restrict b);
+    void aligned_sub(long n, double_complex* restrict a, const double_complex* restrict b);
 
 }
 

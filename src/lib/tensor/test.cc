@@ -1,22 +1,22 @@
 /*
   This file is part of MADNESS.
-  
+
   Copyright (C) <2007> <Oak Ridge National Laboratory>
-  
+
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation; either version 2 of the License, or
   (at your option) any later version.
-  
+
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
   GNU General Public License for more details.
-  
+
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
-  
+
   For more information please contact:
 
   Robert J. Harrison
@@ -24,15 +24,15 @@
   One Bethel Valley Road
   P.O. Box 2008, MS-6367
 
-  email: harrisonrj@ornl.gov 
+  email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
 
-  
+
   $Id$
 */
 
-  
+
 #include <tensor/tensor.h>
 
 #include <iostream>
@@ -185,14 +185,15 @@ template <typename T, typename Q> void Test1() {
         t = Tensor<T>(q6);
         ITERATOR6(t,if (!check(t(IND6),q6(IND6))) error("test1: failed",6));
 
-    } catch (TensorException e) {
+    }
+    catch (TensorException e) {
         std::cout << "This exception is unexpected\n";
         std::cout << e;
         std::exit(1);
     }
 
     std::cout << "Test1<" << tensor_type_names[TensorTypeData<T>::id] << "," <<
-    tensor_type_names[TensorTypeData<Q>::id] << "> OK" << std::endl;
+              tensor_type_names[TensorTypeData<Q>::id] << "> OK" << std::endl;
 }
 
 template <typename T> void Test2() {
@@ -207,10 +208,12 @@ template <typename T> void Test2() {
     try {
         a.reshape(4);
         error("test2: expected exception",1);
-    } catch (TensorException e) {
+    }
+    catch (TensorException e) {
         std::cout << "This exception is expected\n";
         std::cout << e;
-    } catch (...)  {
+    }
+    catch (...)  {
         std::cout << "Expected a tensor exception but got something else";
     }
     std::cout << "here 4\n";
@@ -237,7 +240,7 @@ template <typename T> void Test2() {
     ITERATOR3(b,if (b(_i,_j,_k) != a(_i,_k,_j)) error("test2: failed",6));
 
     if (!a.iscontiguous()) error("test2: failed",7);
-    if ( b.iscontiguous()) error("test2: failed",8);
+    if (b.iscontiguous()) error("test2: failed",8);
 
     b = a.swapdim(0,2);
     ITERATOR3(b,if (b(_i,_j,_k) != a(_k,_j,_i)) error("test2: failed",9));
@@ -248,12 +251,14 @@ template <typename T> void Test2() {
     try {
         b.reshape(240);
         error("test2: expected exception",10);
-    } catch (TensorException e) {}
+    }
+    catch (TensorException e) {}
 
     try {
         b.flat();
         error("test2: expected exception",11);
-    } catch (TensorException e) {}
+    }
+    catch (TensorException e) {}
 
     b = a.cycledim(1,0,-1);
 
@@ -294,7 +299,7 @@ template <typename T> void Test3() {
     std::cout << std::endl << t ;
 
     std::cout << "Test3<" << tensor_type_names[TensorTypeData<T>::id] <<
-    "> ... verify elements are 10000*i + 100*j + k \n";
+              "> ... verify elements are 10000*i + 100*j + k \n";
 }
 
 template <typename T>  void Test4() {
@@ -305,7 +310,8 @@ template <typename T>  void Test4() {
     a.fillindex();
     try {
         ITERATOR3(a,if (a(_,_,_)(IND3)!=a(IND3)) error("test4: failed",1));
-    } catch (TensorException e) {
+    }
+    catch (TensorException e) {
         std::cout<<e;
         std::exit(1);
     }
@@ -360,7 +366,7 @@ template <typename T>  void Test4() {
     // interaction with reordering, etc
     b = a.swapdim(0,2)(_,-1,_);
     if (!a.iscontiguous()) error("test4: failed",110);
-    if ( b.iscontiguous()) error("test4: failed",111);
+    if (b.iscontiguous()) error("test4: failed",111);
 
     if (b.ndim != 2 || b.dim[0]!=a.dim[2] || b.dim[1]!=a.dim[0])
         error("test4: failed",12);
@@ -437,22 +443,22 @@ template <class T> void Test5() {
     }
 
     e = a*0.125;
-    ITERATOR5(e,if (e(IND5) != (T) (a(IND5)*0.125)) error("test5: failed",0));
+    ITERATOR5(e,if (e(IND5) != (T)(a(IND5)*0.125)) error("test5: failed",0));
 
     f = 0.125*a;
-    ITERATOR5(e,if (f(IND5) != (T) (0.125*a(IND5))) error("test5: failed",1));
+    ITERATOR5(e,if (f(IND5) != (T)(0.125*a(IND5))) error("test5: failed",1));
     ITERATOR5(e,if (e(IND5) != f(IND5)) {
-                  std::cout << e(IND5) <<" " << f(IND5) << std::endl;
-                  error("test5: failed",2);
-              }
+        std::cout << e(IND5) <<" " << f(IND5) << std::endl;
+        error("test5: failed",2);
+    }
              );
 
     e = a + b;
     std::cout.setf(std::ios::scientific);
     ITERATOR5(e,if (!check(e(IND5),(T)(a(IND5)+b(IND5)))) {
-                  std::cout << e(IND5) << " " << a(IND5)+b(IND5) << " " << e(IND5)-(a(IND5)+b(IND5)) << std::endl;
-                  error("test5: failed",200);
-              }
+        std::cout << e(IND5) << " " << a(IND5)+b(IND5) << " " << e(IND5)-(a(IND5)+b(IND5)) << std::endl;
+        error("test5: failed",200);
+    }
              );
 
     e = a - b;
@@ -463,16 +469,17 @@ template <class T> void Test5() {
 
     e = a*3.14159 + b;
     ITERATOR5(e,if (std::abs(e(IND5) - (T)(a(IND5)*3.14159 + b(IND5))) > 1e-7) { // 1e-7 for float
-                  std::cout << _i << " " << _j << " " << _k << " " << _l << " " << _m << " " << e(IND5) << " " << (a(IND5)*3.14159 + b(IND5));
-                  error("test5: failed",5);
-              }
+        std::cout << _i << " " << _j << " " << _k << " " << _l << " " << _m << " " << e(IND5) << " " << (a(IND5)*3.14159 + b(IND5));
+        error("test5: failed",5);
+    }
              );
 
     if (a.id == TensorTypeData<long>::id) {
         // Tensor expression does type conversion to integer for each
         // intermediate ... elementwise converts only at the end
         std::printf("skipping test6 for long\n");
-    } else {
+    }
+    else {
         e = (a*3.14159 + b/37.0 - 81.0*c + d*99.0)/2.0;
         ITERATOR5(e,if (std::abs(e(IND5) - (T)((a(IND5)*3.14159 + b(IND5)/37.0 - 81.0*c(IND5) + d(IND5)*99.0)/2.0)) > 1e-12)
                   error("test5: failed",6));
@@ -510,11 +517,11 @@ template <class T> void Test5() {
 
     f = copy(e);
     f.gaxpy((T) 3.14159, a, (T) 2.71828);
-    ITERATOR5(e,if(!check(f(IND5),(e(IND5)*((T) 3.14159) + a(IND5)*((T) 2.71828)))) {
-                  std::cout << "F\n" << f;
-                  std::cout << "X\n" << (e*((T)3.14159)+ a*((T) 2.71828)) << std::endl;
-                  error("test5: failed",13);
-              }
+    ITERATOR5(e,if (!check(f(IND5),(e(IND5)*((T) 3.14159) + a(IND5)*((T) 2.71828)))) {
+        std::cout << "F\n" << f;
+        std::cout << "X\n" << (e*((T)3.14159)+ a*((T) 2.71828)) << std::endl;
+        error("test5: failed",13);
+    }
              );
 
     std::cout << "Test5<" << tensor_type_names[TensorTypeData<T>::id] << "> OK\n";
@@ -636,10 +643,10 @@ template <class T> void Test7() {
     ITERATOR6(john,
               T sum = 0;
               for (int k=0; k<alfred.dim[0]; k++) sum += alfred(k,_i,_j,_k)*samantha(k,_l,_m,_n);
-              if (std::abs(sum-john(_i,_j,_k,_l,_m,_n))> std::abs(sum)*1e-6) {
-                  std::cout << sum << " " << john(_i,_j,_k,_l,_m,_n) << " " << sum - john(_i,_j,_k,_l,_m,_n) << std::endl;
-                      error("test7: failed",410);
-                  }
+    if (std::abs(sum-john(_i,_j,_k,_l,_m,_n))> std::abs(sum)*1e-6) {
+        std::cout << sum << " " << john(_i,_j,_k,_l,_m,_n) << " " << sum - john(_i,_j,_k,_l,_m,_n) << std::endl;
+            error("test7: failed",410);
+        }
              );
 
     john = inner(alfred,samantha,0,-1);
@@ -780,7 +787,7 @@ template <class T> void Test8() {
 int main() {
 
     std::cout << "bounds checking enabled = " << Tensor<double>::bounds_checking()
-    << std::endl;
+              << std::endl;
 
     Tensor<double> a(2);
     std::cout << "made A\n";
@@ -788,7 +795,8 @@ int main() {
         std::cout << "testing access\n";
         std::cout << a(2) << std::endl;
         if (a.bounds_checking()) error("bounds check failed to detect error",1);
-    } catch (TensorException e) {
+    }
+    catch (TensorException e) {
         std::cout << "If bounds checking, this exception was expected" << std::endl;
         std::cout << e;
         if (!a.bounds_checking())
@@ -797,7 +805,8 @@ int main() {
     try {
         std::cout << a(-1) << std::endl;
         if (a.bounds_checking()) error("bounds check failed to detect error",2);
-    } catch (TensorException e) {
+    }
+    catch (TensorException e) {
         std::cout << "If bounds checking, this exception was expected" << std::endl;
         std::cout << e;
         if (!a.bounds_checking())
@@ -815,7 +824,7 @@ int main() {
     //Test1<double,double_complex>(); // Correctly fails to compile
 
     std::cout << "\n after test1 count=" <<
-    Tensor<long>().get_instance_count() << std::endl;
+              Tensor<long>().get_instance_count() << std::endl;
 
     std::cout << std::endl;
     Test2<double>();
@@ -824,7 +833,7 @@ int main() {
     Test2<float_complex>();
     Test2<double_complex>();
     std::cout << "\n after test2 count=" <<
-    Tensor<long>().get_instance_count() << std::endl;
+              Tensor<long>().get_instance_count() << std::endl;
 
     std::cout << std::endl;
     Test3<double>();
@@ -834,7 +843,7 @@ int main() {
     Test3<double_complex>();
     std::cout << std::endl;
     std::cout << "\n after test3 count=" <<
-    Tensor<long>().get_instance_count() << std::endl;
+              Tensor<long>().get_instance_count() << std::endl;
 
     std::cout << std::endl;
     Test4<double>();
@@ -844,7 +853,7 @@ int main() {
     Test4<double_complex>();
     std::cout << std::endl;
     std::cout << "\n after test4 count=" <<
-    Tensor<long>().get_instance_count() << std::endl;
+              Tensor<long>().get_instance_count() << std::endl;
 
     std::cout << std::endl;
     Test5<double>();
@@ -855,7 +864,7 @@ int main() {
     Test5<double_complex>();
     std::cout << std::endl;
     std::cout << "\n after test5 count=" <<
-    Tensor<long>().get_instance_count() << std::endl;
+              Tensor<long>().get_instance_count() << std::endl;
 
     std::cout << std::endl;
     Test6<double>();
@@ -865,7 +874,7 @@ int main() {
     Test6<double_complex>();
     std::cout << std::endl;
     std::cout << "\n after test6 count=" <<
-    Tensor<long>().get_instance_count() << std::endl;
+              Tensor<long>().get_instance_count() << std::endl;
 
     std::cout << std::endl;
     Test7<double>();
@@ -875,7 +884,7 @@ int main() {
     std::cout << std::endl;
 
     std::cout << "\n after tests count=" <<
-    Tensor<long>().get_instance_count() << std::endl;
+              Tensor<long>().get_instance_count() << std::endl;
 
     Tensor<double_complex> f(1);
     Tensor<double> g = real(f);

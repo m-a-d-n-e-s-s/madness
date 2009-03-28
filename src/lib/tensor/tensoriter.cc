@@ -1,22 +1,22 @@
 /*
   This file is part of MADNESS.
-  
+
   Copyright (C) <2007> <Oak Ridge National Laboratory>
-  
+
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation; either version 2 of the License, or
   (at your option) any later version.
-  
+
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
   GNU General Public License for more details.
-  
+
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
-  
+
   For more information please contact:
 
   Robert J. Harrison
@@ -24,15 +24,15 @@
   One Bethel Valley Road
   P.O. Box 2008, MS-6367
 
-  email: harrisonrj@ornl.gov 
+  email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
 
-  
+
   $Id$
 */
 
-  
+
 #include <tensor/tensor.h>
 
 #include <iostream>
@@ -130,7 +130,8 @@ namespace madness {
                           0, t0);
             _p1_save = _p1 = t1->ptr();
             for (int i=0; i<ndim; i++) stride1[i] = t1->stride[i];
-        } else {
+        }
+        else {
             _p1_save = _p1 = 0;
         }
         if (t2) {
@@ -138,7 +139,8 @@ namespace madness {
                           0, t0);
             _p2_save = _p2 = t2->ptr();
             for (int i=0; i<ndim; i++) stride2[i] = t2->stride[i];
-        } else {
+        }
+        else {
             _p2_save = _p2 = 0;
         }
 
@@ -150,7 +152,8 @@ namespace madness {
             _s0 = 0;
             _s1 = 0;
             _s2 = 0;
-        } else if (iterlevel == 1) {
+        }
+        else if (iterlevel == 1) {
             // Apply -ve indexing convention for dimensions
             if (jdim < 0) jdim += ndim;
 
@@ -177,7 +180,8 @@ namespace madness {
             // Iterations will exclude dimension jdim, default is last one
             if (jdim == default_jdim) {
                 jdim = ndim-1;
-            } else {
+            }
+            else {
                 fusedim = false;
             }
             TENSOR_ASSERT(jdim>=0 && jdim < ndim, "invalid index for external iteration",
@@ -188,12 +192,14 @@ namespace madness {
             _s0 = stride0[jdim];
             if (t1) {
                 _s1 = stride1[jdim];
-            } else {
+            }
+            else {
                 _s1 = 0;
             }
             if (t2) {
                 _s2 = stride2[jdim];
-            } else {
+            }
+            else {
                 _s2 = 0;
             }
             dimj = dim[jdim];
@@ -218,26 +224,31 @@ namespace madness {
                                 _s2*dimj == stride2[i]) {
                             dimj *= dim[i];
                             ndim--;
-                        } else {
+                        }
+                        else {
                             break;
                         }
                     }
-                } else if (t1) {
+                }
+                else if (t1) {
                     for (int i=ndim-1; i>=0; i--) {
                         if (_s0*dimj == stride0[i] &&
                                 _s1*dimj == stride1[i]) {
                             dimj *= dim[i];
                             ndim--;
-                        } else {
+                        }
+                        else {
                             break;
                         }
                     }
-                } else {
+                }
+                else {
                     for (int i=ndim-1; i>=0; i--) {
                         if (_s0*dimj == stride0[i]) {
                             dimj *= dim[i];
                             ndim--;
-                        } else {
+                        }
+                        else {
                             break;
                         }
                     }

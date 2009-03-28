@@ -12,15 +12,15 @@ namespace madness {
         long rem = n-n4;
         if (n4) {
             //std::cout << "entering asm " << (void *) a << " " << n4 << std::endl;
-            __asm__ __volatile__ (
-                                  "pxor %%xmm0,%%xmm0;\n"
-                                  ".UGHLOOP_47:\n"
-                                  "movapd   %%xmm0,  (%0);\n"
-                                  "movapd   %%xmm0,16(%0);\n"
-                                  "add $32,%0; sub $4,%1; jnz .UGHLOOP_47;\n"
-                                  :
-                                  : "r"(a), "r"(n4)
-                                  : "0","1","xmm0", "memory");
+            __asm__ __volatile__(
+                "pxor %%xmm0,%%xmm0;\n"
+                ".UGHLOOP_47:\n"
+                "movapd   %%xmm0,  (%0);\n"
+                "movapd   %%xmm0,16(%0);\n"
+                "add $32,%0; sub $4,%1; jnz .UGHLOOP_47;\n"
+    :
+    : "r"(a), "r"(n4)
+                        : "0","1","xmm0", "memory");
             //std::cout << "leaving asm " << (void *) a << " " << n4 << std::endl;
             a+=n4;
         }
@@ -34,15 +34,16 @@ namespace madness {
         if (n4) {
 #if ( (!defined(ON_A_MAC)) && (defined(X86_32) || defined(X86_64)) )
             // On core-2 this will give 2 cycles/element - optimal is 1.5
-            __asm__ __volatile__ (
-                                  ".UGHLOOPXX_99:\n"
-                                  "movapd   (%0),%%xmm0; addpd   (%1),%%xmm0; movapd %%xmm0,  (%0);\n"
-                                  "movapd 16(%0),%%xmm0; addpd 16(%1),%%xmm0; movapd %%xmm0,16(%0);\n"
-                                  "add $32,%0; add $32,%1; sub $4,%2; jnz .UGHLOOPXX_99;\n"
-                                  :
-                                  : "r"(a), "r"(b), "r"(n4)
-                                  : "0","1","2", "memory");
-            a+=n4; b+=n4;
+            __asm__ __volatile__(
+                ".UGHLOOPXX_99:\n"
+                "movapd   (%0),%%xmm0; addpd   (%1),%%xmm0; movapd %%xmm0,  (%0);\n"
+                "movapd 16(%0),%%xmm0; addpd 16(%1),%%xmm0; movapd %%xmm0,16(%0);\n"
+                "add $32,%0; add $32,%1; sub $4,%2; jnz .UGHLOOPXX_99;\n"
+    :
+    : "r"(a), "r"(b), "r"(n4)
+                        : "0","1","2", "memory");
+            a+=n4;
+            b+=n4;
 #else
             for (long i=0; i<n4; i+=4,a+=4,b+=4) {
                 a[0] += b[0];
@@ -91,15 +92,16 @@ namespace madness {
         if (n4) {
 #if ( (!defined(ON_A_MAC)) && (defined(X86_32) || defined(X86_64)) )
             // On core-2 this will give 2 cycles/element - optimal is 1.5
-            __asm__ __volatile__ (
-                                  ".UGHLOOPXXX_98:\n"
-                                  "movapd   (%0),%%xmm0; subpd   (%1),%%xmm0; movapd %%xmm0,  (%0);\n"
-                                  "movapd 16(%0),%%xmm0; subpd 16(%1),%%xmm0; movapd %%xmm0,16(%0);\n"
-                                  "add $32,%0; add $32,%1; sub $4,%2; jnz .UGHLOOPXXX_98;\n"
-                                  :
-                                  : "r"(a), "r"(b), "r"(n4)
-                                  : "0","1","2","memory");
-            a+=n4; b+=n4;
+            __asm__ __volatile__(
+                ".UGHLOOPXXX_98:\n"
+                "movapd   (%0),%%xmm0; subpd   (%1),%%xmm0; movapd %%xmm0,  (%0);\n"
+                "movapd 16(%0),%%xmm0; subpd 16(%1),%%xmm0; movapd %%xmm0,16(%0);\n"
+                "add $32,%0; add $32,%1; sub $4,%2; jnz .UGHLOOPXXX_98;\n"
+    :
+    : "r"(a), "r"(b), "r"(n4)
+                        : "0","1","2","memory");
+            a+=n4;
+            b+=n4;
 #else
             for (long i=0; i<n4; i+=4,a+=4,b+=4) {
                 a[0] -= b[0];
