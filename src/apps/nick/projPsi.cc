@@ -16,6 +16,7 @@
  ***************************************************************************************/
 #include <mra/mra.h>
 #include <complex>
+#include <iostream>
 #include <string>
 #include <fstream>
 using std::ofstream;
@@ -110,7 +111,7 @@ void loadBasis(World& world, std::vector<WF>& stateList) {
                 nlm << n << l << m;
                 double start = wall_time();
                 PRINT(nlm.str());                
-                stateList.push_back(WF(nlm.str()+"\t",
+                stateList.push_back(WF(nlm.str()+"           ",
                                        FunctionFactory<complexd,NDIM>(world).
                                        functor(functorT(new BoundWF(Z,n,l,m)))));
                 double used = wall_time() - start;
@@ -126,6 +127,8 @@ void loadBasis(World& world, std::vector<WF>& stateList) {
             while(unbound >> kx) {
                 unbound >> ky;
                 unbound >> kz;
+                kxyz.precision( 2 );
+                kxyz << fixed;
                 kxyz << kx << " " << ky << " " << kz;
                 PRINT(kxyz.str());
                 double start = wall_time();
@@ -147,22 +150,23 @@ complexd zdipole( const vector3D& r) {
 
 /*****************************************************************
  * Dipole matrix elements available for perturbation calculations
+ * |<phi_A|z|phi_B>|^2
  *****************************************************************/
 void projectZdip(World& world, std::vector<WF> stateList) {
     complex_functionT z = complex_factoryT(world).f(zdipole);
     complexd output;
-    PRINT("\t\t");
     std::vector<WF>::iterator basisI;
     std::vector<WF>::iterator basisII;
+    PRINT(endl << "\t\t|<basis_m|z|basis_n>|^2 " << endl << "\t\t");
     for(basisII=stateList.begin(); basisII != stateList.end(); basisII++) {
-        PRINT("|" << basisII->str << ">\t");
+        PRINT("|" << basisII->str << ">");
     }
     PRINT("\n");
     for(basisI = stateList.begin(); basisI !=stateList.end(); basisI++ ) {
         PRINT("<" << basisI->str << "|" );
         for(basisII = stateList.begin(); basisII != stateList.end(); basisII++) {
             output = inner(basisII->func,z*basisI->func); 
-            PRINT("\t" << real(output*conj(output)));
+            PRINT(" " << real(output*conj(output)) <<"\t");
         }
         PRINT("\n");
     }
@@ -190,6 +194,7 @@ void projectPsi(World& world, std::vector<WF> basisList) {
         }
         complex_functionT z = complex_factoryT(world).f(zdipole);
         PRINTLINE("The Psi(+) are loaded");
+        PRINTLINE("\t\t|<Psi(+)|basis>|^2 ");
         complexd output;
         std::vector<WF>::iterator basisI;
         std::vector<WF>::iterator psiPlusI;
@@ -204,7 +209,7 @@ void projectPsi(World& world, std::vector<WF> basisList) {
             PRINT("<" << basisI->str << "|" );
             for(psiPlusI = psiList.begin(); psiPlusI != psiList.end(); psiPlusI++) {
                 output = psiPlusI->func.inner(basisI->func); 
-                PRINT("\t" << real(output*conj(output)));
+                PRINT(" " << real(output*conj(output)) << "\t");
             }
             PRINT("\n");
         }
@@ -301,11 +306,11 @@ int main(int argc, char**argv) {
         projectPsi(world, basisList);
         world.gop.fence();
         if (world.rank() == 0) {
-            world.am.print_stats();
-            world.taskq.print_stats();
-            world_mem_info()->print();
+//             world.am.print_stats();
+//             world.taskq.print_stats();
+//             world_mem_info()->print();
+//             WorldProfile::print(world);
         }
-        WorldProfile::print(world);
     } catch (const MPI::Exception& e) {
         //print(e);
         error("caught an MPI exception");
