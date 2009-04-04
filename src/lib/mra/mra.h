@@ -376,6 +376,8 @@ namespace madness {
         /// results.
         T operator()(const coordT& xuser) const {
             PROFILE_MEMBER_FUNC(Function);
+            verify();
+            if (is_compressed()) reconstruct();
             T result;
             if (impl->world.rank() == 0) result = eval(xuser).get();
             impl->world.gop.broadcast(result);
