@@ -6,6 +6,30 @@
 
 namespace madness {
     /// Sequentially ordered printing of (serializable) data from every process ... collective no fence
+    template <typename A, typename B, typename C, typename D>
+    void print_seq(World& world, const A& a, const B& b, const C& c, const D& d) {
+        if (world.rank() == 0) {
+            printf("%6d : ",0);
+            print(a, b, c, d);
+            for (int p=1; p<world.size(); p++) {
+                A aa;
+                B bb;
+                C cc;
+                D dd;
+                MPIOutputArchive(world,p) & 1;
+                MPIInputArchive(world, p) & aa & bb & cc & dd;
+                printf("%6d : ",p);
+                print(aa, bb, cc, dd);
+            }
+        }
+        else {
+            int i;
+            MPIInputArchive(world, 0) & i;
+            MPIOutputArchive(world, 0) & a & b & c & d;
+        }
+    }
+
+    /// Sequentially ordered printing of (serializable) data from every process ... collective no fence
     template <typename A, typename B, typename C>
     void print_seq(World& world, const A& a, const B& b, const C& c) {
         if (world.rank() == 0) {
