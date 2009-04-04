@@ -1,22 +1,22 @@
-/* 
+/*
   This file is part of MADNESS.
-  
+
   Copyright (C) <2007> <Oak Ridge National Laboratory>
-  
+
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation; either version 2 of the License, or
   (at your option) any later version.
-  
+
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
   GNU General Public License for more details.
-  
+
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
-  
+
   For more information please contact:
 
   Robert J. Harrison
@@ -24,18 +24,18 @@
   One Bethel Valley Road
   P.O. Box 2008, MS-6367
 
-  email: harrisonrj@ornl.gov 
+  email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
 
-  
+
   $Id$
 */
 
 /// \file moldft.cc
 /// \brief Molecular HF and DFT code
 
-#define WORLD_INSTANTIATE_STATIC_TEMPLATES  
+#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <mra/mra.h>
 #include <mra/lbdeux.h>
 #include <misc/ran.h>
@@ -76,9 +76,9 @@ private:
     const int nproc;
 public:
     LevelPmap() : nproc(0) {};
-    
+
     LevelPmap(World& world) : nproc(world.nproc()) {}
-    
+
     /// Find the owner of a given key
     ProcessID owner(const Key<3>& key) const {
         Level n = key.level();
@@ -110,9 +110,8 @@ class MolecularPotentialFunctor : public FunctionFunctorInterface<double,3> {
 private:
     const Molecule& molecule;
 public:
-    MolecularPotentialFunctor(const Molecule& molecule) 
-        : molecule(molecule)
-    {}
+    MolecularPotentialFunctor(const Molecule& molecule)
+            : molecule(molecule) {}
 
     double operator()(const coordT& x) const {
         return molecule.nuclear_attraction_potential(x[0], x[1], x[2]);
@@ -124,9 +123,8 @@ private:
     const Molecule& molecule;
     const AtomicBasisSet& aobasis;
 public:
-    MolecularGuessDensityFunctor(const Molecule& molecule, const AtomicBasisSet& aobasis) 
-        : molecule(molecule), aobasis(aobasis)
-    {}
+    MolecularGuessDensityFunctor(const Molecule& molecule, const AtomicBasisSet& aobasis)
+            : molecule(molecule), aobasis(aobasis) {}
 
     double operator()(const coordT& x) const {
         return aobasis.eval_guess_density(molecule, x[0], x[1], x[2]);
@@ -138,9 +136,8 @@ class AtomicBasisFunctor : public FunctionFunctorInterface<double,3> {
 private:
     const AtomicBasisFunction aofunc;
 public:
-    AtomicBasisFunctor(const AtomicBasisFunction& aofunc) : aofunc(aofunc)
-    {}
-    
+    AtomicBasisFunctor(const AtomicBasisFunction& aofunc) : aofunc(aofunc) {}
+
     double operator()(const coordT& x) const {
         return aofunc(x[0], x[1], x[2]);
     }
@@ -268,28 +265,27 @@ struct CalculationParameters {
     }
 
     CalculationParameters()
-        : charge(0.0)
-        , smear(0.0)
-        , econv(1e-5)
-        , dconv(1e-4)
-        , L(0.0)
-        , maxrotn(0.25)
-        , nvalpha(1)
-        , nvbeta(1)
-        , nopen(0)
-        , maxiter(20)
-        , spin_restricted(true)
-        , lda(true)
-        , plotlo(0)
-        , plothi(-1)
-        , plotdens(false)
-        , plotcoul(false)
-        , nalpha(0)
-        , nbeta(0)
-        , nmo_alpha(0)
-        , nmo_beta(0)
-        , lo(1e-10)
-    {}
+            : charge(0.0)
+            , smear(0.0)
+            , econv(1e-5)
+            , dconv(1e-4)
+            , L(0.0)
+            , maxrotn(0.25)
+            , nvalpha(1)
+            , nvbeta(1)
+            , nopen(0)
+            , maxiter(20)
+            , spin_restricted(true)
+            , lda(true)
+            , plotlo(0)
+            , plothi(-1)
+            , plotdens(false)
+            , plotcoul(false)
+            , nalpha(0)
+            , nbeta(0)
+            , nmo_alpha(0)
+            , nmo_beta(0)
+            , lo(1e-10) {}
 
     void read_file(const std::string& filename) {
         std::ifstream f(filename.c_str());
@@ -298,41 +294,59 @@ struct CalculationParameters {
         while (f >> s) {
             if (s == "end") {
                 break;
-            } else if (s == "charge") {
+            }
+            else if (s == "charge") {
                 f >> charge;
-            } else if (s == "smear") {
+            }
+            else if (s == "smear") {
                 f >> smear;
-            } else if (s == "econv") {
+            }
+            else if (s == "econv") {
                 f >> econv;
-            } else if (s == "dconv") {
+            }
+            else if (s == "dconv") {
                 f >> dconv;
-            } else if (s == "L") {
+            }
+            else if (s == "L") {
                 f >> L;
-            } else if (s == "maxrotn") {
+            }
+            else if (s == "maxrotn") {
                 f >> maxrotn;
-            } else if (s == "nvalpha") {
+            }
+            else if (s == "nvalpha") {
                 f >> nvalpha;
-            } else if (s == "nvbeta") {
+            }
+            else if (s == "nvbeta") {
                 f >> nvbeta;
-            } else if (s == "nopen") {
+            }
+            else if (s == "nopen") {
                 f >> nopen;
-            } else if (s == "unrestricted") {
+            }
+            else if (s == "unrestricted") {
                 spin_restricted = false;
-            } else if (s == "restricted") {
-                spin_restricted = true; 
-            } else if (s == "maxiter") {
+            }
+            else if (s == "restricted") {
+                spin_restricted = true;
+            }
+            else if (s == "maxiter") {
                 f >> maxiter;
-            } else if (s == "lda") {
+            }
+            else if (s == "lda") {
                 lda = true;
-            } else if (s == "hf") {
+            }
+            else if (s == "hf") {
                 lda = false;
-            } else if (s == "plotmos") {
+            }
+            else if (s == "plotmos") {
                 f >> plotlo >> plothi;
-            } else if (s == "plotdens") {
+            }
+            else if (s == "plotdens") {
                 plotdens = true;
-            } else if (s == "plotcoul") {
+            }
+            else if (s == "plotcoul") {
                 plotcoul = true;
-            } else {
+            }
+            else {
                 std::cout << "moldft: unrecognized input keyword " << s << std::endl;
                 MADNESS_EXCEPTION("input error",0);
             }
@@ -359,23 +373,23 @@ struct CalculationParameters {
         // number of states ... a minimal basis for a closed-shell atom
         // might not have any functions for virtuals.
         int nbf = aobasis.nbf(molecule);
-        nmo_alpha = min(nbf,nmo_alpha);  
-        nmo_beta = min(nbf,nmo_beta);  
+        nmo_alpha = min(nbf,nmo_alpha);
+        nmo_beta = min(nbf,nmo_beta);
         if (nalpha>nbf || nbeta>nbf) error("too few basis functions?", nbf);
         nvalpha = nmo_alpha - nalpha;
         nvbeta = nmo_beta - nbeta;
-        
+
         // Unless overridden by the user use a cell big enough to
         // have exp(-sqrt(2*I)*r) decay to 1e-6 with I=1ev=0.037Eh
         // --> need 50 a.u. either side of the molecule
-        
+
         if (L == 0.0) {
             L = molecule.bounding_cube() + 50.0;
         }
 
         lo = molecule.smallest_length_scale();
     }
-    
+
     void print(World& world) const {
         time_t t = time((time_t *) 0);
         char *tmp = ctime(&t);
@@ -393,7 +407,7 @@ struct CalculationParameters {
         madness::print("    maximum rotation ", maxrotn);
         madness::print("    calculation type ", calctype[int(lda)]);
     }
-    
+
 };
 
 struct Calculation {
@@ -415,13 +429,13 @@ struct Calculation {
             molecule.center();
             param.set_molecular_info(molecule,aobasis);
         }
-            
+
         world.gop.broadcast_serializable(molecule, 0);
         world.gop.broadcast_serializable(param, 0);
         world.gop.broadcast_serializable(aobasis, 0);
 
         FunctionDefaults<3>::set_cubic_cell(-param.L,param.L);
-        
+
         // Setup initial defaults for numerical functions
         set_protocol(world, 1e-4);
     }
@@ -438,8 +452,8 @@ struct Calculation {
         FunctionDefaults<3>::set_thresh(thresh);
         FunctionDefaults<3>::set_refine(true);
         FunctionDefaults<3>::set_initial_level(2);
-        FunctionDefaults<3>::set_truncate_mode(1);  
-        FunctionDefaults<3>::set_autorefine(false);  
+        FunctionDefaults<3>::set_truncate_mode(1);
+        FunctionDefaults<3>::set_autorefine(false);
         FunctionDefaults<3>::set_apply_randomize(k>=8);
         FunctionDefaults<3>::set_project_randomize(k>=8);
         //FunctionDefaults<3>::set_apply_randomize(false);
@@ -448,12 +462,12 @@ struct Calculation {
         double safety = 0.1;
         vtol = FunctionDefaults<3>::get_thresh()*safety;
 
-        coulop = poperatorT(CoulombOperatorPtr<double, 3>(world, 
-                                                          FunctionDefaults<3>::get_k(), 
-                                                          param.lo, 
-                                                          vtol/safety)); // No need for safety here!
+        coulop = poperatorT(CoulombOperatorPtr<double, 3>(world,
+                            FunctionDefaults<3>::get_k(),
+                            param.lo,
+                            vtol/safety)); // No need for safety here!
         if (world.rank() == 0) {
-            print("\nSolving with thresh", thresh, "    k", FunctionDefaults<3>::get_k(), 
+            print("\nSolving with thresh", thresh, "    k", FunctionDefaults<3>::get_k(),
                   "   conv", max(thresh, param.dconv), "\n");
         }
     }
@@ -476,10 +490,10 @@ struct Calculation {
             normalize(world,bmo);
         }
     }
-        
+
     void make_nuclear_potential(World& world) {
         START_TIMER;
-        vnuc = factoryT(world).functor(functorT(new MolecularPotentialFunctor(molecule))).thresh(vtol).truncate_on_project(); 
+        vnuc = factoryT(world).functor(functorT(new MolecularPotentialFunctor(molecule))).thresh(vtol).truncate_on_project();
         //vnuc.truncate();
         vnuc.reconstruct();
         END_TIMER("Project vnuclear");
@@ -525,7 +539,7 @@ struct Calculation {
         }
 
         scale(world, ao, norms);
-        
+
         return ao;
     }
 
@@ -543,7 +557,7 @@ struct Calculation {
 
         if (world.rank() == 0) {
             for (long i=0; i<nmo; i++) U(i,i) = 1.0;
-            
+
             const double thresh = 1e-9; // Final convergence test
             double tol = 0.1;           // Current test
             long ndone=0;               // Total no. of rotations performed
@@ -556,12 +570,12 @@ struct Calculation {
                         sum += si*si*si*si;
                     }
                 }
-                
+
                 tol *= 0.5;
                 if (tol < thresh) tol = thresh;
                 long ndone_iter=0; // No. of rotations done this iteration
                 double screen = tol*sum;
-                
+
                 for (long i=0; i<nmo; i++) {
                     for (long j=0; j<i; j++) {
                         double g = 0.0;
@@ -574,7 +588,7 @@ struct Calculation {
                             h += 6*si*si*sj*sj - si*si*si*si - sj*sj*sj*sj;
                             sij += si*si*sj*sj;
                         }
-                        
+
                         double thetamax = 0.5;  // circa 30 degrees
                         if (h == 0.0) {
                             h = -1e-20;
@@ -584,21 +598,21 @@ struct Calculation {
                             h = -h;
                             thetamax *= 0.5;
                         }
-                        
+
                         double theta = -g/h;
-                        
+
                         if (fabs(theta) > thetamax) {
                             if (g < 0) theta = -thetamax;
                             else       theta =  thetamax*0.8; // Breaking symmetry is good
                         }
-                        
+
                         if (iter == 0 && sij > 0.01 && theta < 0.01) {
                             theta += (RandomValue<double>() - 0.5);
                         }
-                        
+
                         if (fabs(theta) > screen) {
                             ndone_iter++;
-                            
+
                             double c = cos(theta);
                             double s = sin(theta);
                             drot(nao, &S(i,0), &S(j,0), s, c, 1);
@@ -627,7 +641,8 @@ struct Calculation {
         tensorT Saomo = matrix_inner(world, ao, mo);
         tensorT Saoao = matrix_inner(world, ao, ao, true);
 
-        ao.clear(); world.gop.fence(); // free memory
+        ao.clear();
+        world.gop.fence(); // free memory
 
         // Compute <r> and <(r-<r>)^2> = <r^2> - <r>^2
 
@@ -645,8 +660,8 @@ struct Calculation {
         if (world.rank() == 0) {
             tensorT C;
             gesv(Saoao, Saomo, &C);
-            C = transpose(C); 
-            
+            C = transpose(C);
+
             // psi_i(x) approx = sum (mu) C(i,mu)*chi_mu(x)
             long nmo = mo.size();
             for (long i=0; i<nmo; i++) {
@@ -658,9 +673,9 @@ struct Calculation {
             }
         }
     }
-    
+
     /// Returns the unitary rotation matrix that localizes obitals using the Boys criterion
-    
+
     /// psi_local[i] = sum(mu) psi[j] * U[j,i]
     ///
     /// All processes participate in compute the dipole integrals but
@@ -671,24 +686,24 @@ struct Calculation {
         const bool doprint=false;
 #define DIP(i,j,k,l) (dip(0,i,j)*dip(0,k,l)+dip(1,i,j)*dip(1,k,l)+dip(2,i,j)*dip(2,k,l))
         // Form the dipole moment matrices
-        
+
         long nmo = mo.size();
         tensorT dip(3, nmo, nmo);
-        
+
         for (int axis=0; axis<3; axis++) {
             functionT fdip = factoryT(world).functor(functorT(new DipoleFunctor(axis))).initial_level(4);
             dip(axis,_,_) = matrix_inner(world, mo, mul(world, fdip, mo), true);
         }
-        
+
         tensorT U(nmo,nmo);
         if (world.rank() == 0) {
-            
+
             for (long i=0; i<nmo; i++) U(i,i) = 1.0;
-            
+
             const double thresh = 1e-9; // Final convergence test
             double tol = 0.1;           // Current test
             long ndone=0;               // Total no. of rotations performed
-            
+
             bool converged = false;
             for (long iter=0; iter<100; iter++) {
                 // Compute the objective function to track convergence
@@ -696,12 +711,12 @@ struct Calculation {
                 for (long i=0; i<nmo; i++) {
                     sum += DIP(i,i,i,i);
                 }
-                
+
                 tol *= 0.5;
                 if (tol < thresh) tol = thresh;
                 long ndone_iter=0; // No. of rotations done this iteration
                 double screen = tol*sum;
-                
+
                 if (doprint) print("iteration", iter, sum, ndone);
                 for (long i=0; i<nmo; i++) {
                     for (long j=0; j<i; j++) {
@@ -711,7 +726,7 @@ struct Calculation {
                         g += DIP(i,j,j,j) - DIP(i,j,i,i);
                         h += 4.0*DIP(i,j,i,j) + 2.0*DIP(i,i,j,j) - DIP(i,i,i,i) - DIP(j,j,j,j);
                         sij += DIP(i,j,i,j);
-                        
+
                         double thetamax = 0.5;  // circa 30 degrees
                         if (h == 0.0) {
                             if (doprint) print("     exactly zero h", i, j, h);
@@ -723,26 +738,26 @@ struct Calculation {
                             h = -1.0;
                             thetamax *= 0.5;
                         }
-                        
+
                         double theta = -g/h;
-                        
+
                         if (fabs(theta) > thetamax) {
                             if (doprint) print("  restricting", i, j);
                             if (g < 0) theta = -thetamax;
                             else       theta =  thetamax*0.8; // Breaking symmetry is good
                         }
-                        
+
                         bool randomized=false;
                         if (iter == 0 && sij > 0.01 && fabs(theta) < 0.01) { //
                             randomized=true;
                             if (doprint) print("   randomizing", i, j, h, g, sij, theta);
                             theta += (RandomValue<double>() - 0.5);
                         }
-                        
+
                         if (fabs(theta) > screen || randomized) {
                             ndone_iter++;
                             if (doprint) print("    ", i, j, g, h, theta);
-                            
+
                             double c = cos(theta);
                             double s = sin(theta);
                             for (int axis=0; axis<3; axis++) {
@@ -766,14 +781,14 @@ struct Calculation {
             if (!converged) {
                 print("warning: boys localization did not fully converge");
             }
-            
+
             U = transpose(U);
         }
-        
+
         world.gop.broadcast(U.ptr(), U.size, 0);
-        
+
         END_TIMER("Boys localize");
-        
+
         return U;
 #undef DIP
     }
@@ -785,13 +800,14 @@ struct Calculation {
         for (int axis=0; axis<3; axis++) {
             vecfuncT dv = diff(world,v,axis);
             r += matrix_inner(world, dv, dv, true);
-            dv.clear(); world.gop.fence(); // Allow function memory to be freed
+            dv.clear();
+            world.gop.fence(); // Allow function memory to be freed
         }
-        
+
         return r.scale(0.5);
     }
 
-    
+
     struct GuessDensity : public FunctionFunctorInterface<double,3> {
         const Molecule& molecule;
         const AtomicBasisSet& aobasis;
@@ -799,7 +815,7 @@ struct Calculation {
             return aobasis.eval_guess_density(molecule, x[0], x[1], x[2]);
         }
         GuessDensity(const Molecule& molecule, const AtomicBasisSet& aobasis)
-            : molecule(molecule), aobasis(aobasis) {}
+                : molecule(molecule), aobasis(aobasis) {}
     };
 
 
@@ -839,7 +855,7 @@ struct Calculation {
             if (world.rank() == 0) print("finished loadbal");
             END_TIMER("guess loadbal");
         }
-        
+
         functionT vlocal;
         if (param.nalpha+param.nbeta > 1) {
             if (world.rank() == 0) print("starting coulomb");
@@ -913,10 +929,10 @@ struct Calculation {
         END_TIMER("Compressing AO");
 
         START_TIMER;
-        tensorT potential = matrix_inner(world, vpsi, ao, true); 
+        tensorT potential = matrix_inner(world, vpsi, ao, true);
         world.gop.fence();
         END_TIMER("make PE matrix");
-        vpsi.clear(); 
+        vpsi.clear();
         world.gop.fence();
 
         tensorT fock = kinetic + potential;
@@ -935,8 +951,8 @@ struct Calculation {
 //             print("THESE ARE THE EIGENVECTORS");
 //             print(c);
             print("initial eigenvalues");
-             print(e);
-         }
+            print(e);
+        }
 
         compress(world,ao);
         world.gop.fence();
@@ -1012,10 +1028,10 @@ struct Calculation {
         return ops;
     }
 
-    vecfuncT apply_hf_exchange(World& world, 
-                                        const tensorT& occ,
-                                        const vecfuncT& psi,
-                                        const vecfuncT& f) {
+    vecfuncT apply_hf_exchange(World& world,
+                               const tensorT& occ,
+                               const vecfuncT& psi,
+                               const vecfuncT& f) {
         int nocc = psi.size();
         int nf = f.size();
 
@@ -1024,7 +1040,7 @@ struct Calculation {
         // and target functions will have limited support and hence
         // simply parallelizing either the loop over f or over occupied
         // will not generate real concurrency ... need to parallelize
-        // them both.  
+        // them both.
         //
         // For now just parallelize one loop but will need more
         // intelligence soon.
@@ -1052,7 +1068,7 @@ struct Calculation {
         truncate(world, Kf, vtol);
         return Kf;
     }
-        
+
     static double munge(double r) {
         if (r < 1e-12) r = 1e-12;
         return r;
@@ -1068,12 +1084,11 @@ struct Calculation {
 
 
     functionT
-    make_lda_potential(World& world, 
+    make_lda_potential(World& world,
                        const functionT& arho,
                        const functionT& brho,
                        const functionT& adelrhosq,
-                       const functionT& bdelrhosq)
-    {
+                       const functionT& bdelrhosq) {
         MADNESS_ASSERT(param.spin_restricted);
         functionT vlda = copy(arho);
         vlda.reconstruct();
@@ -1082,12 +1097,11 @@ struct Calculation {
     }
 
     double
-    make_lda_energy(World& world, 
+    make_lda_energy(World& world,
                     const functionT& arho,
                     const functionT& brho,
                     const functionT& adelrhosq,
-                    const functionT& bdelrhosq)
-    {
+                    const functionT& bdelrhosq) {
         MADNESS_ASSERT(param.spin_restricted);
         functionT vlda = copy(arho);
         vlda.reconstruct();
@@ -1095,17 +1109,16 @@ struct Calculation {
         return vlda.trace();
     }
 
-    vecfuncT 
-    apply_potential(World& world, 
+    vecfuncT
+    apply_potential(World& world,
                     const tensorT& occ,
-                    const vecfuncT& amo, 
+                    const vecfuncT& amo,
                     const functionT& arho,
                     const functionT& brho,
                     const functionT& adelrhosq,
                     const functionT& bdelrhosq,
                     const functionT& vlocal,
-                    double& exc) 
-    {
+                    double& exc) {
 
         functionT vloc = vlocal;
         if (param.lda) {
@@ -1139,19 +1152,18 @@ struct Calculation {
 
 
     /// Updates the orbitals and eigenvalues of one spin
-    void update(World& world, 
-                tensorT& occ, 
+    void update(World& world,
+                tensorT& occ,
                 tensorT& eps,
                 vecfuncT& psi,
-                vecfuncT& Vpsi) 
-    {
+                vecfuncT& Vpsi) {
         int nmo = psi.size();
         vector<double> fac(nmo,-2.0);
         scale(world, Vpsi, fac);
-        
+
         vector<poperatorT> ops = make_bsh_operators(world, eps);
         set_thresh(world, Vpsi, FunctionDefaults<3>::get_thresh());  // <<<<< Since cannot set in apply
-        
+
         START_TIMER;
         vecfuncT new_psi = apply(world, ops, Vpsi);
         END_TIMER("Apply BSH");
@@ -1162,7 +1174,7 @@ struct Calculation {
         START_TIMER;
         truncate(world, new_psi);
         END_TIMER("Truncate new psi");
-        
+
         vecfuncT r = sub(world, psi, new_psi); // residuals
         vector<double> rnorm = norm2(world, r);
         vector<double> new_norm = norm2(world, new_psi);
@@ -1170,7 +1182,7 @@ struct Calculation {
         tensorT deps(nmo);
         for (int i=0; i<nmo; i++) deps(i) = 0.5*Vpr(i)/(new_norm[i]*new_norm[i]);
 
-        Vpsi.clear(); 
+        Vpsi.clear();
         normalize(world, new_psi);
 
         tensorT new_eps(nmo);
@@ -1217,19 +1229,18 @@ struct Calculation {
 
     /// Diagonalizes the fock matrix and also returns energy contribution from this spin
 
-    /// Also computes energy contributions for this spin (consistent with the input 
+    /// Also computes energy contributions for this spin (consistent with the input
     /// orbitals not the output)
-    void diag_fock_matrix(World& world, 
-                          vecfuncT& psi, 
+    void diag_fock_matrix(World& world,
+                          vecfuncT& psi,
                           vecfuncT& Vpsi,
                           tensorT& occ,
                           tensorT& evals,
-                          const functionT& arho, 
-                          const functionT& brho, 
-                          const functionT& adelrhosq, 
-                          const functionT& bdelrhosq, 
-                          double& ekinetic)
-    {
+                          const functionT& arho,
+                          const functionT& brho,
+                          const functionT& adelrhosq,
+                          const functionT& bdelrhosq,
+                          double& ekinetic) {
         // This is unsatisfactory for large molecules, but for now will have to suffice.
         tensorT overlap = matrix_inner(world, psi, psi, true);
         tensorT ke = kinetic_energy_matrix(world, psi);
@@ -1259,10 +1270,10 @@ struct Calculation {
     void loadbal(World& world, functionT& arho, functionT& brho, functionT& arho_old, functionT& brho_old) {
         if (world.size() == 1) return;
         LoadBalanceDeux<3> lb(world);
-        lb.add_tree(vnuc,lbcost<double,3>(1.0,0.0),false);        
-        lb.add_tree(arho,lbcost<double,3>(10.0,0.0),false);        
+        lb.add_tree(vnuc,lbcost<double,3>(1.0,0.0),false);
+        lb.add_tree(arho,lbcost<double,3>(10.0,0.0),false);
         if (param.nbeta && !param.spin_restricted) {
-            lb.add_tree(brho,lbcost<double,3>(),false);        
+            lb.add_tree(brho,lbcost<double,3>(),false);
         }
         FunctionDefaults<3>::set_pmap(lb.load_balance(2.0));
         vnuc = copy(vnuc, FunctionDefaults<3>::get_pmap(), false);
@@ -1334,7 +1345,7 @@ struct Calculation {
 
             functionT vlocal = vcoul + vnuc;
             vcoul.clear(false);
-            vlocal.truncate(); 
+            vlocal.truncate();
 
             START_TIMER;
             double exca=0.0, excb=0.0;
@@ -1389,7 +1400,7 @@ struct Calculation {
                 }
             }
 
-            update(world, aocc, aeps, amo, Vpsia); 
+            update(world, aocc, aeps, amo, Vpsia);
             if (param.nbeta && !param.spin_restricted) update(world, bocc, beps, bmo, Vpsib);
 
         }
@@ -1423,10 +1434,10 @@ int main(int argc, char** argv) {
         // Load info for MADNESS numerical routines
         startup(world,argc,argv);
         FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap(world)));
-        
+
         // Process 0 reads input information and broadcasts
         Calculation calc(world, "input");
-        
+
         // Warm and fuzzy for the user
         if (world.rank() == 0) {
             print("\n\n");
@@ -1465,33 +1476,41 @@ int main(int argc, char** argv) {
         ThreadPool::end();
         print_stats(world);
 
-    } catch (const MPI::Exception& e) {
+    }
+    catch (const MPI::Exception& e) {
         //        print(e);
         error("caught an MPI exception");
-    } catch (const madness::MadnessException& e) {
+    }
+    catch (const madness::MadnessException& e) {
         print(e);
         error("caught a MADNESS exception");
-    } catch (const madness::TensorException& e) {
+    }
+    catch (const madness::TensorException& e) {
         print(e);
         error("caught a Tensor exception");
-    } catch (const char* s) {
+    }
+    catch (const char* s) {
         print(s);
         error("caught a string exception");
-    } catch (char* s) {
+    }
+    catch (char* s) {
         print(s);
         error("caught a string exception");
-    } catch (const std::string& s) {
+    }
+    catch (const std::string& s) {
         print(s);
         error("caught a string (class) exception");
-    } catch (const std::exception& e) {
+    }
+    catch (const std::exception& e) {
         print(e.what());
         error("caught an STL exception");
-    } catch (...) {
+    }
+    catch (...) {
         error("caught unhandled exception");
     }
 
     finalize();
-    
+
     return 0;
 }
 

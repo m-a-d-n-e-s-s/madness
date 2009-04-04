@@ -1,22 +1,22 @@
 /*
   This file is part of MADNESS.
-  
+
   Copyright (C) <2007> <Oak Ridge National Laboratory>
-  
+
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation; either version 2 of the License, or
   (at your option) any later version.
-  
+
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
   GNU General Public License for more details.
-  
+
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
-  
+
   For more information please contact:
 
   Robert J. Harrison
@@ -24,11 +24,11 @@
   One Bethel Valley Road
   P.O. Box 2008, MS-6367
 
-  email: harrisonrj@ornl.gov 
+  email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
 
-  
+
   $Id: test.cc 257 2007-06-25 19:09:38Z HartmanBaker $
 */
 
@@ -168,14 +168,15 @@ static const AtomicData atomic_data[NUMBER_OF_ATOMS_IN_TABLE] = {
     {"Rf",  "rf",  106 , 263  ,  1.1198926979e-04  , 1.36565e-04   ,1.1960199758e+08, 1.40   },
     {"Bh",  "bh",  107 , 262  ,  1.1186082063e-04  , 1.36389e-04   ,1.1987683191e+08, 1.40   },
     {"Hn",  "hn",  108 , 265  ,  1.1224519460e-04  , 1.36914e-04   ,1.1905722195e+08, 1.40   },
-    {"Mt",  "mt",  109 , 266  ,  1.1237267433e-04  , 1.37088e-04   ,1.1878724932e+08, 1.40   } };
+    {"Mt",  "mt",  109 , 266  ,  1.1237267433e-04  , 1.37088e-04   ,1.1878724932e+08, 1.40   }
+};
 
 const AtomicData& get_atomic_data(unsigned int atomic_number) {
     if (atomic_number >= NUMBER_OF_ATOMS_IN_TABLE) throw "I am not an alchemist";
     return atomic_data[atomic_number];
 }
 
-    
+
 unsigned int symbol_to_atomic_number(const std::string& symbol) {
     std::string tlow = madness::lowercase(symbol);
     for (unsigned int i=0; i<NUMBER_OF_ATOMS_IN_TABLE; i++) {
@@ -204,7 +205,7 @@ static double smoothing_parameter(double Z, double eprec) {
 static double smoothed_potential(double r) {
     //     if (r > 7) {
     //         return 1.0/r;
-    //     }        
+    //     }
     //     else if (r > 1e-2) {
     //         double rsq = r*r;
     //         return erf(r)/r + exp(-rsq)/sqrt(madness::constants::pi);
@@ -213,7 +214,7 @@ static double smoothed_potential(double r) {
     //         double rsq = r*r;
     //         return 1.6925687506432689+(-.94031597257959385+(.39493270848342941-.12089776790309064*rsq)*rsq)*rsq;
     //     }
-    
+
     // Below code is about 3x faster than the above ... accurate to 3e-10
     static const double lo0=0., hi0=.75, m0=(hi0+lo0)*0.5;
     static const double q0[16] = {1.5678214965991468, -.62707838966047510, -.64081087092780663, .47615447123508785, .17661021898450753, -.19684394977153049, -0.28659921463622429e-1, 0.55915374519467232e-1, 0.14360220805627533e-2, -0.12055628477910659e-1, 0.64426691086411555e-3, 0.20868614450806855e-2, -0.23638877395492455e-3, -0.30013965988191071e-3, 0.45381875950933199e-4, 0.34681863672368034e-4};
@@ -309,9 +310,8 @@ static double smoothed_potential(double r) {
 
 /// Derivative of the regularized 1/r potential
 
-/// dV/dx = (x/r) * du(r/c)/(c*c) 
-static double dsmoothed_potential(double r)
-{
+/// dV/dx = (x/r) * du(r/c)/(c*c)
+static double dsmoothed_potential(double r) {
 //     double rsq = r*r;
 //     if (r > 7.0) {
 //         return -1.0/rsq;
@@ -327,28 +327,28 @@ static double dsmoothed_potential(double r)
     // computed by Maple, accurate to about 1e-14.  These are over 5x faster than
     // the above code.  Note the use of a tree algorithm to compute the polynomials
     // with lots of parallelism and use of FMA.
-    
+
     static const double lo0=0.0, hi0=0.65, m0=(hi0+lo0)*0.5;
     static const double q0[16] = {-.55952054067648194, -1.4186837724703172, 1.3079855069574490, .89801173653480100, -.92664998851771673, -.28801593449022579, .37975455626369975, 0.55119107345331705e-1, -.10877141173737492, -0.53157122124920191e-2, 0.23855987780906309e-1, -0.39335550662218725e-3, -0.42224803990545490e-2, 0.27757150363394877e-3, 0.59449662015255330e-3, -0.61851566882100875e-4};
-    
+
     static const double lo1=.65, hi1=1.3, m1=(hi1+lo1)*0.5;
     static const double q1[16] = {-.85319294453145976, .39871916999716314, .86161440627190766, -.91664151410845898, -0.47179381608173164e-1, .44169815463839599, -.13041276737306307, -.10308252655802193, 0.61601684937724164e-1, 0.11350111203259745e-1, -0.15588916300580124e-1, 0.58815593818761124e-3, 0.26813418239064462e-2, -0.50269597194697906e-3, -0.32324952206733884e-3, 0.10747689363541249e-3};
-    
+
     static const double lo2=1.3, hi2=2.05, m2=(hi2+lo2)*0.5;
     static const double q2[16] = {-.42361918942412451, .54752071970870675, -.31914917137271829, -0.83673298657446777e-1, .26525917360889740, -.14704606647385246, -0.15489414991976576e-1, 0.54789663251404254e-1, -0.19295808218984080e-1, -0.59946709656351250e-2, 0.62453013421289702e-2, -0.75889771423321585e-3, -0.90288108595876188e-3, 0.35950533255739200e-3, 0.53102646864226617e-4, -0.58410284838976865e-4};
-    
+
     static const double lo3=2.05, hi3=2.85, m3=(hi3+lo3)*0.5;
     static const double q3[16] = {-.17220555920881688, .16011983697724617, -.12825554624056501, 0.89384680084907880e-1, -0.40233745605529377e-1, -0.6582373116861300e-3, 0.16338415642492739e-1, -0.11773063688286990e-1, 0.28825867688662255e-2, 0.12891024069952489e-2, -0.12813889708133769e-2, 0.32788790594626357e-3, 0.95157444762995566e-4, -0.90416802462172157e-4, 0.14868602678620544e-4, 0.72371956855016211e-5};
-    
+
     static const double lo4=2.85, hi4=3.9, m4=(hi4+lo4)*0.5;
     static const double q4[16] = {-0.87830594664260867e-1, 0.52274501692140091e-1, -0.23878700103915117e-1, 0.10566809233968182e-1, -0.52605680459469043e-2, 0.29752045061396727e-2, -0.16104234494416077e-2, 0.66084450440893938e-3, -0.11555273542331601e-3, -0.79814006315265824e-4, 0.82495635391798472e-4, -0.36112562130960013e-4, 0.56745127440475224e-5, 0.30778452492334783e-5, -0.23005717864408269e-5, 0.53498531579838538e-6};
-    
+
     static const double lo5=3.9, hi5=5.0, m5=(hi5+lo5)*0.5;
     static const double q5[16] = {-0.50498686366854397e-1, 0.22696136873300272e-1, -0.76507833315391100e-2, 0.22934220273682421e-2, -0.64621983684159045e-3, 0.17717650067309256e-3, -0.49822348110737912e-4, 0.15950369754100344e-4, -0.64382111428954669e-5, 0.30935528834043852e-5, -0.14868198880550113e-5, 0.61815723812849196e-6, -0.19561205283581128e-6, 0.29092516398105484e-7, 0.18203712532317880e-7, -0.12991676945664683e-7};
-    
+
     static const double lo6=5.0, hi6=7.0, m6=(hi6+lo6)*0.5;
     static const double q6[16] = {-0.27777777777779237e-1, 0.92592592592770810e-2, -0.23148148149286158e-2, 0.51440329259377589e-3, -0.10716735349262763e-3, 0.21433472880730380e-4, -0.41676252668392218e-5, 0.79384016105355812e-6, -0.14884727258382283e-6, 0.27571110992976271e-7, -0.50751367707046113e-8, 0.93366213261041495e-9, -0.16069628589065609e-9, 0.29406617613306847e-10, -0.15659360054098260e-10, 0.58338713932903765e-11};
-    
+
     const double* a;
 
     if (r > hi3) {
@@ -441,7 +441,7 @@ static double dsmoothed_potential(double r)
 //     } else{
 //         pot = (2.0 + 17.0/3.0)/sqrt(PI);
 //     }
-    
+
 //     return pot;
 // }
 
@@ -502,7 +502,8 @@ Molecule::Molecule(const std::string& filename) {
 }
 
 void Molecule::read_file(const std::string& filename) {
-    atoms.clear(); rcut.clear();
+    atoms.clear();
+    rcut.clear();
     std::ifstream f(filename.c_str());
     madness::position_stream(f, "geometry");
     double scale = 1.0; // Default is atomic units
@@ -536,7 +537,9 @@ void Molecule::read_file(const std::string& filename) {
         else {
             double xx, yy, zz;
             ss >> xx >> yy >> zz;
-            xx *= scale; yy *= scale; zz *= scale;
+            xx *= scale;
+            yy *= scale;
+            zz *= scale;
             int atn = symbol_to_atomic_number(tag); // Charge of ghost atom
             double qq = atn;
             if (atn == 0) ss >> qq;
@@ -544,10 +547,10 @@ void Molecule::read_file(const std::string& filename) {
         }
     }
     throw "No end to the geometry in the input file";
- finished:
+finished:
     ;
 }
-    
+
 void Molecule::add_atom(double x, double y, double z, int atomic_number, double q) {
     atoms.push_back(Atom(x,y,z,atomic_number,q));
     double c = smoothing_parameter(q, eprec); // eprec is error per atom
@@ -561,17 +564,17 @@ void Molecule::set_atom_coords(unsigned int i, double x, double y, double z) {
     atoms[i].y = y;
     atoms[i].z = z;
 }
-    
+
 const Atom& Molecule::get_atom(unsigned int i) const {
     if (i>=atoms.size()) throw "trying to get coords of invalid atom";
     return atoms[i];
 }
-    
+
 void Molecule::print() const {
     std::cout.flush();
     printf(" geometry\n");
     for (int i=0; i<natom(); i++) {
-        printf("   %-2s  %20.8f %20.8f %20.8f", atomic_data[atoms[i].atomic_number].symbol, 
+        printf("   %-2s  %20.8f %20.8f %20.8f", atomic_data[atoms[i].atomic_number].symbol,
                atoms[i].x, atoms[i].y, atoms[i].z);
         if (atoms[i].atomic_number == 0) printf("     %20.8f", atoms[i].q);
         printf("\n");
@@ -599,7 +602,7 @@ double Molecule::nuclear_repulsion_energy() const {
 double Molecule::nuclear_repulsion_derivative(int i, int axis) const {
     double sum = 0.0;
     for (unsigned int j=0; j<atoms.size(); j++) {
-        if (j != (unsigned int)(i)){
+        if (j != (unsigned int)(i)) {
             double r = inter_atomic_distance(i,j);
             double xx;
             if (axis == 0) xx = atoms[i].x - atoms[j].x;
@@ -667,7 +670,7 @@ double Molecule::nuclear_attraction_potential(double x, double y, double z) cons
     // density ... its potential can be evaluated at the same
     // time as the electronic Coulomb potential so it will be
     // essentially free.
-    
+
     double sum = 0.0;
     for (unsigned int i=0; i<atoms.size(); i++) {
         double r = distance(atoms[i].x, atoms[i].y, atoms[i].z, x, y, z);

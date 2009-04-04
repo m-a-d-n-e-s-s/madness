@@ -33,10 +33,10 @@ class ContractedGaussianShell {
         int l_lim = 2*type - 1;
         double f = 1.0e00;
         for (int n=l_lim; n>1; n-=2) f *= n;
-        
+
         for (int n=0; n<np; n++)
             coeff[n] *= pow(2.e0*expnt[n]/madness::constants::pi,0.75e0)*pow(4.e0*expnt[n],0.5E0*type)/sqrt(f);
-                
+
         double sum = 0.0;
         for (int n1=0; n1<np; n1++) {
             for (int n2=0; n2<np; n2++) {
@@ -49,28 +49,28 @@ class ContractedGaussianShell {
         f = 1e0/sqrt(sum);
         for (int n=0; n<np; n++) coeff[n] *= f;
     }
-    
-public:
-    ContractedGaussianShell() 
-        : type(-1), coeff(), expnt(), rsqmax(0.0), numbf(0)
-    {};
 
-    ContractedGaussianShell(int type, 
-                            const std::vector<double>& coeff, 
-                            const std::vector<double>& expnt, 
+public:
+    ContractedGaussianShell()
+            : type(-1), coeff(), expnt(), rsqmax(0.0), numbf(0) {};
+
+    ContractedGaussianShell(int type,
+                            const std::vector<double>& coeff,
+                            const std::vector<double>& expnt,
                             bool donorm=true)
-        : type(type), coeff(coeff), expnt(expnt), numbf((type+1)*(type+2)/2)
-    {
+            : type(type), coeff(coeff), expnt(expnt), numbf((type+1)*(type+2)/2) {
         if (donorm) normalize();
         double minexpnt = expnt[0];
-        for (unsigned int i=1; i<expnt.size(); i++) 
+        for (unsigned int i=1; i<expnt.size(); i++)
             minexpnt = std::min(minexpnt,expnt[i]);
         rsqmax = 18.4/minexpnt;  // 18.4 = 8*ln(10)
     }
 
 
     /// Returns square of the distance beyond which function is less than 1e-8.
-    double rangesq() const {return rsqmax;}
+    double rangesq() const {
+        return rsqmax;
+    }
 
 
     /// Evaluates the radial part of the contracted function
@@ -91,7 +91,7 @@ public:
         if (R < 1e-8) {
             for (int i=0; i<numbf; i++) bf[i] = 0.0;
 
-        } 
+        }
         else {
             switch (type) {
             case 0:
@@ -132,19 +132,29 @@ public:
 
 
     /// Returns the shell angular momentum
-    int angular_momentum() const {return type;}
+    int angular_momentum() const {
+        return type;
+    }
 
     /// Returns the number of basis functions in the shell
-    int nbf() const {return numbf;}
+    int nbf() const {
+        return numbf;
+    }
 
     /// Returns the number of primitives in the contraction
-    int nprim() const {return coeff.size();}
+    int nprim() const {
+        return coeff.size();
+    }
 
     /// Returns a const reference to the coefficients
-    const std::vector<double>& get_coeff() const {return coeff;}
+    const std::vector<double>& get_coeff() const {
+        return coeff;
+    }
 
     /// Returns a const reference to the exponents
-    const std::vector<double>& get_expnt() const {return expnt;}
+    const std::vector<double>& get_expnt() const {
+        return expnt;
+    }
 
     /// Returns a string description of the basis function type
     const char* get_desc(int ibf) const {
@@ -152,13 +162,16 @@ public:
             {"s"   ,""    ,""    ,""    ,""    ,""    ,""    ,""    ,""    ,""    } ,
             {"px"  ,"py"  ,"pz"  ,""    ,""    ,""    ,""    ,""    ,""    ,""    } ,
             {"dxx" ,"dxy" ,"dxz" ,"dyy" ,"dyz" ,"dzz" ,""    ,""    ,""    ,""    } ,
-            {"fxxx","fxxy","fxxz","fxyy","fxyz","fxzz","fxzz","fyyy","fyzz","fzzz"}};
+            {"fxxx","fxxy","fxxz","fxyy","fxyz","fxzz","fxzz","fyyy","fyzz","fzzz"}
+        };
         MADNESS_ASSERT(ibf<numbf && ibf >= 0);
         return tags[type][ibf];
     }
 
     template <typename Archive>
-    void serialize(Archive& ar) {ar & type & coeff & expnt & rsqmax & numbf;}
+    void serialize(Archive& ar) {
+        ar & type & coeff & expnt & rsqmax & numbf;
+    }
 };
 
 
@@ -170,9 +183,9 @@ std::ostream& operator<<(std::ostream& s, const ContractedGaussianShell& c) {
     const std::vector<double>& expnt = c.get_expnt();
 
     p += sprintf(p,"%s [",tag[c.angular_momentum()]);
-    for (int i=0; i<c.nprim(); i++){
+    for (int i=0; i<c.nprim(); i++) {
         p += sprintf(p, "%.6f(%.6f)",coeff[i],expnt[i]);
-        if (i != (c.nprim()-1)) p += sprintf(p, ", "); 
+        if (i != (c.nprim()-1)) p += sprintf(p, ", ");
     }
     p += sprintf(p, "]");
     s << buf;
@@ -190,10 +203,9 @@ class AtomicBasis {
 public:
     AtomicBasis() : g(), rmaxsq(0.0), numbf(0) {};
 
-    AtomicBasis(const std::vector<ContractedGaussianShell>& g) 
-        : g(g) 
-    {
-        rmaxsq = 0.0; 
+    AtomicBasis(const std::vector<ContractedGaussianShell>& g)
+            : g(g) {
+        rmaxsq = 0.0;
         numbf = 0;
         for (unsigned int i=0; i<g.size(); i++) {
             rmaxsq = std::max(rmaxsq, g[i].rangesq());
@@ -201,21 +213,27 @@ public:
         }
     }
 
-    void set_guess_info(const Tensor<double>& dmat, 
+    void set_guess_info(const Tensor<double>& dmat,
                         const Tensor<double>& avec, const Tensor<double>& bvec) {
         this->dmat = copy(dmat);
         this->avec = copy(avec);
         this->bvec = copy(bvec);
     }
-    
+
     /// Returns the number of basis functions on the center
-    int nbf() const {return numbf;}
+    int nbf() const {
+        return numbf;
+    }
 
     /// Returns the number of shells on the center
-    int nshell() const {return g.size();}
+    int nshell() const {
+        return g.size();
+    }
 
     /// Returns a const reference to the shells
-    const std::vector<ContractedGaussianShell>& get_shells() const {return g;};
+    const std::vector<ContractedGaussianShell>& get_shells() const {
+        return g;
+    };
 
     /// Evaluates the basis functions at point x, y, z relative to atomic center
 
@@ -250,7 +268,7 @@ public:
         double sum = 0.0;
         for (int i=0; i<numbf; i++, p+=numbf) {
             double sumj = 0.0;
-            for (int j=0; j<numbf; ++j) 
+            for (int j=0; j<numbf; ++j)
                 sumj += p[j]*bf[j];
             sum += bf[i]*sumj;
         }
@@ -273,16 +291,26 @@ public:
         MADNESS_EXCEPTION("AtomicBasis: get_shell_from_basis_function", ibf*100000 + nbf());
     }
 
-    bool has_guess_info() const {return dmat.size>0;}
+    bool has_guess_info() const {
+        return dmat.size>0;
+    }
 
-    const Tensor<double>& get_dmat() const {return dmat;};
+    const Tensor<double>& get_dmat() const {
+        return dmat;
+    };
 
-    const Tensor<double>& get_avec() const {return avec;};
+    const Tensor<double>& get_avec() const {
+        return avec;
+    };
 
-    const Tensor<double>& get_bvec() const {return bvec;};
+    const Tensor<double>& get_bvec() const {
+        return bvec;
+    };
 
     template <typename Archive>
-    void serialize(Archive& ar) {ar & g & rmaxsq & numbf & dmat & avec & bvec;}
+    void serialize(Archive& ar) {
+        ar & g & rmaxsq & numbf & dmat & avec & bvec;
+    }
 
 };
 
@@ -295,7 +323,7 @@ std::ostream& operator<<(std::ostream& s, const AtomicBasis& c) {
         s << "     " << "Guess density matrix" << std::endl;
         s << c.get_dmat();
     }
-            
+
     return s;
 }
 
@@ -306,26 +334,26 @@ private:
     const ContractedGaussianShell& shell; // Reference to the underlying atomic shell
     const int ibf; // Index of basis function in the shell (0, 1, ...)
     const int nbf; // Number of functions in the shell
-    
+
 public:
-    AtomicBasisFunction(double x, double y, double z, 
+    AtomicBasisFunction(double x, double y, double z,
                         const ContractedGaussianShell& shell, int ibf)
-        : xx(x), yy(y), zz(z), shell(shell), ibf(ibf), nbf(shell.nbf())
-    {}
+            : xx(x), yy(y), zz(z), shell(shell), ibf(ibf), nbf(shell.nbf()) {}
 
 
     AtomicBasisFunction(const AtomicBasisFunction& aofunc)
-        : xx(aofunc.xx)
-        , yy(aofunc.yy)
-        , zz(aofunc.zz)
-        , shell(aofunc.shell)
-        , ibf(aofunc.ibf)
-        , nbf(aofunc.nbf)
-    {}
+            : xx(aofunc.xx)
+            , yy(aofunc.yy)
+            , zz(aofunc.zz)
+            , shell(aofunc.shell)
+            , ibf(aofunc.ibf)
+            , nbf(aofunc.nbf) {}
 
     double operator()(double x, double y, double z) const {
         double bf[nbf];
-        x-=xx; y-=yy; z-=zz;
+        x-=xx;
+        y-=yy;
+        z-=zz;
         double rsq = x*x + y*y + z*z;
         shell.eval(rsq, x, y, z, bf);
         return bf[ibf];
@@ -353,7 +381,7 @@ std::ostream& operator<<(std::ostream& s, const AtomicBasisFunction& a) {
     return s;
 };
 
-/// Contracted Gaussian basis 
+/// Contracted Gaussian basis
 class AtomicBasisSet {
     std::string name;
     std::vector<AtomicBasis> ag;  //< Basis associated by atomic number = 1, 2, ...; 0=Bq.
@@ -385,7 +413,7 @@ class AtomicBasisSet {
     }
 
 public:
-    AtomicBasisSet() : name("unknown"), ag(110){}
+    AtomicBasisSet() : name("unknown"), ag(110) {}
 
 
     AtomicBasisSet(std::string filename) : name(""), ag(110) {
@@ -396,9 +424,9 @@ public:
         static const bool debug = false;
         TiXmlDocument doc(filename);
         if (!doc.LoadFile()) {
-            std::cout << "AtomicBasisSet: Failed loading from file " << filename 
-                      << " : ErrorDesc  " << doc.ErrorDesc() 
-                      << " : Row " << doc.ErrorRow() 
+            std::cout << "AtomicBasisSet: Failed loading from file " << filename
+                      << " : ErrorDesc  " << doc.ErrorDesc()
+                      << " : Row " << doc.ErrorRow()
                       << " : Col " << doc.ErrorCol() << std::endl;
             MADNESS_EXCEPTION("AtomicBasisSet: Failed loading basis set",0);
         }
@@ -431,7 +459,7 @@ public:
                             if (strcmp(type,tag[i]) == 0) goto foundit;
                         }
                         MADNESS_EXCEPTION("Loading atomic basis set: bad shell type?",0);
-                    foundit:
+foundit:
                         std::vector<double> coeff = load_tixml_vector<double>(shell, nprim, "coefficients");
                         g.push_back(ContractedGaussianShell(i, coeff, expnt));
                     }
@@ -453,7 +481,7 @@ public:
                 MADNESS_EXCEPTION("Loading atomic basis set: unexpected XML element", 0);
             }
         }
-        
+
     }
 
 
@@ -461,7 +489,7 @@ public:
     void atoms_to_bfn(const Molecule& molecule, std::vector<int>& at_to_bf, std::vector<int>& at_nbf) {
         at_to_bf = std::vector<int>(molecule.natom());
         at_nbf   = std::vector<int>(molecule.natom());
-        
+
         int n = 0;
         for (int i=0; i<molecule.natom(); i++) {
             const Atom& atom = molecule.get_atom(i);
@@ -506,10 +534,10 @@ public:
             const int nbf_on_atom = ag[atn].nbf();
             if (ibf >= n  && (n+nbf_on_atom) > ibf) {
                 int index;
-                const ContractedGaussianShell& shell = 
+                const ContractedGaussianShell& shell =
                     ag[atn].get_shell_from_basis_function(ibf-n, index);
                 return AtomicBasisFunction(atom.x, atom.y, atom.z, shell, index);
-            } 
+            }
             else {
                 n += nbf_on_atom;
             }
@@ -562,13 +590,13 @@ public:
             const Atom& atom = molecule.get_atom(i);
             const unsigned int atn = atom.atomic_number;
             for (int j=0; j<i; j++) {
-                if (molecule.get_atom(j).atomic_number == atn) 
+                if (molecule.get_atom(j).atomic_number == atn)
                     goto doneitalready;
             }
             std::cout << std::endl;
             std::cout << "   " <<  get_atomic_data(i).symbol << std::endl;
             std::cout << ag[atn];
-        doneitalready:
+doneitalready:
             ;
         }
     }
@@ -583,7 +611,7 @@ public:
         }
     };
 
-    /// Given a vector of AO coefficients prints an analysis 
+    /// Given a vector of AO coefficients prints an analysis
 
     /// For each significant coeff it prints
     /// - atomic symbol
@@ -591,7 +619,7 @@ public:
     /// - basis function type (e.g., dxy)
     /// - basis function number
     /// - MO coeff
-    template <typename T> 
+    template <typename T>
     void print_anal(const Molecule& molecule, const Tensor<T>& v) {
         const double thresh = 0.2*v.normf();
         if (thresh == 0.0) {
@@ -635,7 +663,7 @@ public:
         }
         printf("\n");
     }
-        
+
     /// Print basis info for all supported atoms
     void print_all() const {
         std::cout << "\n " << name << " atomic basis set" << std::endl;
@@ -648,7 +676,9 @@ public:
     }
 
     template <typename Archive>
-    void serialize(Archive& ar) {ar & name & ag;}
+    void serialize(Archive& ar) {
+        ar & name & ag;
+    }
 };
 
 

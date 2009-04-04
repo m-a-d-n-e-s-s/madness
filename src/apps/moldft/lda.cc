@@ -25,35 +25,35 @@ static double c_b8 = .5;
 static double c_b14 = 1.333333333333333333333333333333;
 
 
-/* Subroutine */ int x_rks_s__(const double *r__, double *f, double *
-	dfdra)
-{
+/* Subroutine */
+int x_rks_s__(const double *r__, double *f, double *
+              dfdra) {
 
     /* Local variables */
     static double ra13;
 
 
-/*     This subroutine evaluates the spin polarised exchange functional */
-/*     in the Local Density Approximation [1], and the corresponding */
-/*     potential. Often this functional is referred to as the Dirac */
-/*     functional [2] or Slater functional. */
+    /*     This subroutine evaluates the spin polarised exchange functional */
+    /*     in the Local Density Approximation [1], and the corresponding */
+    /*     potential. Often this functional is referred to as the Dirac */
+    /*     functional [2] or Slater functional. */
 
-/*     [1] F. Bloch, Zeitschrift fuer Physik, Vol. 57 (1929) 545. */
+    /*     [1] F. Bloch, Zeitschrift fuer Physik, Vol. 57 (1929) 545. */
 
-/*     [2] P.A.M. Dirac, Proceedings of the Cambridge Philosophical */
-/*         Society, Vol. 26 (1930) 376. */
+    /*     [2] P.A.M. Dirac, Proceedings of the Cambridge Philosophical */
+    /*         Society, Vol. 26 (1930) 376. */
 
-/*     Parameters: */
+    /*     Parameters: */
 
-/*     r     the total electron density */
-/*     f     On return the functional value */
-/*     dfdra On return the derivative of f with respect to alpha electron */
-/*           density */
+    /*     r     the total electron density */
+    /*     f     On return the functional value */
+    /*     dfdra On return the derivative of f with respect to alpha electron */
+    /*           density */
 
 
-/*     Ax = -3/4*(6/pi)**(1/3) */
-/*     Bx = -(6/pi)**(1/3) */
-/*     C  = (1/2)**(1/3) */
+    /*     Ax = -3/4*(6/pi)**(1/3) */
+    /*     Bx = -(6/pi)**(1/3) */
+    /*     C  = (1/2)**(1/3) */
 
 
 
@@ -66,34 +66,34 @@ static double c_b14 = 1.333333333333333333333333333333;
 } /* x_rks_s__ */
 
 /* ----------------------------------------------------------------------- */
-/* Subroutine */ int x_uks_s__(double *ra, double *rb, double *f, 
-	double *dfdra, double *dfdrb)
-{
+/* Subroutine */
+int x_uks_s__(double *ra, double *rb, double *f,
+              double *dfdra, double *dfdrb) {
     /* Local variables */
     double ra13, rb13;
 
 
-/*     This subroutine evaluates the spin polarised exchange functional */
-/*     in the Local Density Approximation [1], and the corresponding */
-/*     potential. Often this functional is referred to as the Dirac */
-/*     functional [2] or Slater functional. */
+    /*     This subroutine evaluates the spin polarised exchange functional */
+    /*     in the Local Density Approximation [1], and the corresponding */
+    /*     potential. Often this functional is referred to as the Dirac */
+    /*     functional [2] or Slater functional. */
 
-/*     [1] F. Bloch, Zeitschrift fuer Physik, Vol. 57 (1929) 545. */
+    /*     [1] F. Bloch, Zeitschrift fuer Physik, Vol. 57 (1929) 545. */
 
-/*     [2] P.A.M. Dirac, Proceedings of the Cambridge Philosophical */
-/*         Society, Vol. 26 (1930) 376. */
+    /*     [2] P.A.M. Dirac, Proceedings of the Cambridge Philosophical */
+    /*         Society, Vol. 26 (1930) 376. */
 
-/*     Parameters: */
+    /*     Parameters: */
 
-/*     ra    the alpha electron density */
-/*     rb    the beta  electron density */
-/*     f     On return the functional value */
-/*     dfdra On return the derivative of f with respect to ra */
-/*     dfdrb On return the derivative of f with respect to rb */
+    /*     ra    the alpha electron density */
+    /*     rb    the beta  electron density */
+    /*     f     On return the functional value */
+    /*     dfdra On return the derivative of f with respect to ra */
+    /*     dfdrb On return the derivative of f with respect to rb */
 
 
-/*     Ax = -3/4*(6/pi)**(1/3) */
-/*     Bx = -(6/pi)**(1/3) */
+    /*     Ax = -3/4*(6/pi)**(1/3) */
+    /*     Bx = -(6/pi)**(1/3) */
 
 
 
@@ -107,75 +107,75 @@ static double c_b14 = 1.333333333333333333333333333333;
     return 0;
 } /* x_uks_s__ */
 
-/* Subroutine */ int c_rks_vwn5__(const double *r__, double *f, double *
-	dfdra)
-{
+/* Subroutine */
+int c_rks_vwn5__(const double *r__, double *f, double *
+                 dfdra) {
     /* Local variables */
-    double a2, b2, c2, d2, i1, i2, i3, p1, p2, p3, p4, t4, t5, t6, 
-        t7, iv, alpha_rho13__, iv2, pp1, pp2, inv, srho, srho13;
+    double a2, b2, c2, d2, i1, i2, i3, p1, p2, p3, p4, t4, t5, t6,
+    t7, iv, alpha_rho13__, iv2, pp1, pp2, inv, srho, srho13;
 
 
-/*     This subroutine evaluates the Vosko, Wilk and Nusair correlation */
-/*     functional number 5 [1] for the closed shell case, with the */
-/*     parametrisation as given in table 5. */
+    /*     This subroutine evaluates the Vosko, Wilk and Nusair correlation */
+    /*     functional number 5 [1] for the closed shell case, with the */
+    /*     parametrisation as given in table 5. */
 
-/*     The original code was obtained from Dr. Phillip Young, */
-/*     with corrections from Dr. Paul Sherwood. */
+    /*     The original code was obtained from Dr. Phillip Young, */
+    /*     with corrections from Dr. Paul Sherwood. */
 
-/*     [1] S.H. Vosko, L. Wilk, and M. Nusair */
-/*         "Accurate spin-dependent electron liquid correlation energies */
-/*          for local spin density calculations: a critical analysis", */
-/*         Can.J.Phys, Vol. 58 (1980) 1200-1211. */
+    /*     [1] S.H. Vosko, L. Wilk, and M. Nusair */
+    /*         "Accurate spin-dependent electron liquid correlation energies */
+    /*          for local spin density calculations: a critical analysis", */
+    /*         Can.J.Phys, Vol. 58 (1980) 1200-1211. */
 
-/*     Parameters: */
+    /*     Parameters: */
 
-/*     r      the total electron density */
-/*     f      On return the functional value */
-/*     dfdra  On return the derivative of f with respect to the alpha */
-/*            electron density */
-
-
+    /*     r      the total electron density */
+    /*     f      On return the functional value */
+    /*     dfdra  On return the derivative of f with respect to the alpha */
+    /*            electron density */
 
 
-/* VWN interpolation parameters */
 
-/* paramagnetic */
+
+    /* VWN interpolation parameters */
+
+    /* paramagnetic */
     a2 = .0621814;
     b2 = 3.72744;
     c2 = 12.9352;
     d2 = -.10498;
 
-/* t4 = (1/(4/3)*pi)**(1/3) */
+    /* t4 = (1/(4/3)*pi)**(1/3) */
     t4 = .620350490899399531;
 
-/* t5 = 0.5/(2**(1/3)-1) */
+    /* t5 = 0.5/(2**(1/3)-1) */
     t5 = 1.92366105093153617;
 
-/* t6 = 2/(3*(2**(1/3)-1)) */
+    /* t6 = 2/(3*(2**(1/3)-1)) */
     t6 = 2.56488140124204822;
 
-/* t7 = 2.25*(2**(1/3)-1) */
+    /* t7 = 2.25*(2**(1/3)-1) */
     t7 = .584822362263464735;
 
-/* Paramagnetic interpolation constants */
+    /* Paramagnetic interpolation constants */
 
     p1 = 6.1519908197590798;
     p2 = a2 * .5;
     p3 = 9.6902277115443745e-4;
     p4 = .038783294878113009;
 
-/* closed shell case */
+    /* closed shell case */
     srho = *r__;
     srho13 = pow(&srho, &c_b7);
     alpha_rho13__ = pow(&c_b8, &c_b7) * srho;
     iv2 = t4 / srho13;
     iv = sqrt(iv2);
 
-/* paramagnetic */
+    /* paramagnetic */
     inv = 1. / (iv2 + b2 * iv + c2);
     i1 = log(iv2 * inv);
     i2 = log((iv - d2) * (iv - d2) * inv);
-/* corrected b1->b2 ps Apr98 */
+    /* corrected b1->b2 ps Apr98 */
     i3 = atan(p1 / (iv * 2. + b2));
     pp1 = p2 * i1 + p3 * i2 + p4 * i3;
     pp2 = a2 * (1. / iv - iv * inv * (b2 / (iv - d2) + 1.));
@@ -187,109 +187,109 @@ static double c_b14 = 1.333333333333333333333333333333;
 } /* c_rks_vwn5__ */
 
 /* ----------------------------------------------------------------------- */
-/* Subroutine */ int c_uks_vwn5__(double *ra, double *rb, double *
-	f, double *dfdra, double *dfdrb)
-{
+/* Subroutine */
+int c_uks_vwn5__(double *ra, double *rb, double *
+                 f, double *dfdra, double *dfdrb) {
     /* System generated locals */
     double d__1, d__2;
 
     /* Local variables */
     double v, beta_rho13__, a1, b1, c1, d1, a2, b2, c2, d2, a3, b3,
-        c3, d3, f1, f2, f3, p1, p2, p3, s1, t1, t2, s2, t4, t5, t6, t7, 
-        s3, s4, p4, f4, i1, i2, i3, iv, alpha_rho13__, ff1, ff2, iv2, pp1,
-        pp2, ss1, ss2, tau, inv, vwn1, vwn2, dtau, zeta, srho, zeta3, 
-        zeta4, srho13, inter1, inter2;
+    c3, d3, f1, f2, f3, p1, p2, p3, s1, t1, t2, s2, t4, t5, t6, t7,
+    s3, s4, p4, f4, i1, i2, i3, iv, alpha_rho13__, ff1, ff2, iv2, pp1,
+    pp2, ss1, ss2, tau, inv, vwn1, vwn2, dtau, zeta, srho, zeta3,
+    zeta4, srho13, inter1, inter2;
 
 
-/*     This subroutine evaluates the Vosko, Wilk and Nusair correlation */
-/*     functional number 5 [1], with the parametrisation as given in */
-/*     table 5. */
+    /*     This subroutine evaluates the Vosko, Wilk and Nusair correlation */
+    /*     functional number 5 [1], with the parametrisation as given in */
+    /*     table 5. */
 
-/*     The original code was obtained from Dr. Phillip Young, */
-/*     with corrections from Dr. Paul Sherwood. */
+    /*     The original code was obtained from Dr. Phillip Young, */
+    /*     with corrections from Dr. Paul Sherwood. */
 
-/*     [1] S.H. Vosko, L. Wilk, and M. Nusair */
-/*         "Accurate spin-dependent electron liquid correlation energies */
-/*          for local spin density calculations: a critical analysis", */
-/*         Can.J.Phys, Vol. 58 (1980) 1200-1211. */
+    /*     [1] S.H. Vosko, L. Wilk, and M. Nusair */
+    /*         "Accurate spin-dependent electron liquid correlation energies */
+    /*          for local spin density calculations: a critical analysis", */
+    /*         Can.J.Phys, Vol. 58 (1980) 1200-1211. */
 
-/*     Parameters: */
+    /*     Parameters: */
 
-/*     ra     the alpha-electron density */
-/*     rb     the beta-electron density */
-/*     f      On return the functional value */
-/*     dfdra  On return the derivative of f with respect to ra */
-/*     dfdrb  On return the derivative of f with respect to rb */
+    /*     ra     the alpha-electron density */
+    /*     rb     the beta-electron density */
+    /*     f      On return the functional value */
+    /*     dfdra  On return the derivative of f with respect to ra */
+    /*     dfdrb  On return the derivative of f with respect to rb */
 
 
 
-/*     tn13 = 2**(1/3) */
-/*     tn43 = 2**(4/3) */
+    /*     tn13 = 2**(1/3) */
+    /*     tn43 = 2**(4/3) */
 
-/* VWN interpolation parameters */
+    /* VWN interpolation parameters */
 
-/* spin stiffness */
+    /* spin stiffness */
     a1 = -.0337737278807791058;
     b1 = 1.13107;
     c1 = 13.0045;
     d1 = -.0047584;
-/* paramagnetic */
+    /* paramagnetic */
     a2 = .0621814;
     b2 = 3.72744;
     c2 = 12.9352;
     d2 = -.10498;
-/* ferromagnetic */
-/* try cadpac/nwchem value (.5*a2) */
+    /* ferromagnetic */
+    /* try cadpac/nwchem value (.5*a2) */
     a3 = .0310907;
     b3 = 7.06042;
     c3 = 18.0578;
     d3 = -.325;
 
-/* t4 = (1/(4/3)*pi)**(1/3) */
+    /* t4 = (1/(4/3)*pi)**(1/3) */
     t4 = .620350490899399531;
 
-/* t5 = 0.5/(2**(1/3)-1) */
+    /* t5 = 0.5/(2**(1/3)-1) */
     t5 = 1.92366105093153617;
 
-/* t6 = 2/(3*(2**(1/3)-1)) */
+    /* t6 = 2/(3*(2**(1/3)-1)) */
     t6 = 2.56488140124204822;
 
-/* t7 = 2.25*(2**(1/3)-1) */
+    /* t7 = 2.25*(2**(1/3)-1) */
     t7 = .584822362263464735;
 
-/* Spin stiffness interpolation constants */
+    /* Spin stiffness interpolation constants */
 
     s1 = 7.12310891781811772;
     s2 = a1 * .5;
     s3 = -6.9917323507644313e-6;
     s4 = -.0053650918488835769;
 
-/* Paramagnetic interpolation constants */
+    /* Paramagnetic interpolation constants */
 
     p1 = 6.1519908197590798;
     p2 = a2 * .5;
     p3 = 9.6902277115443745e-4;
     p4 = .038783294878113009;
 
-/* Ferromagnetic interpolation constants */
+    /* Ferromagnetic interpolation constants */
 
     f1 = 4.73092690956011364;
     f2 = a3 * .5;
 
-/*      F3 = -0.244185082989490298d-02 *0.5d0 */
-/*      F4 = -0.570212323620622186d-01 *0.5d0 */
+    /*      F3 = -0.244185082989490298d-02 *0.5d0 */
+    /*      F4 = -0.570212323620622186d-01 *0.5d0 */
 
-/*  try nwchem values */
+    /*  try nwchem values */
 
     f3 = .00224786709554261133;
     f4 = .0524913931697809227;
 
-/* Interpolation intervals */
+    /* Interpolation intervals */
 
     inter1 = .99999999989999999;
     inter2 = -.99999999989999999;
 
-/* open shell case */
+    /* open shell case */
     alpha_rho13__ = pow(ra, &c_b7);
     beta_rho13__ = pow(rb, &c_b7);
     srho = *ra + *rb;
@@ -297,7 +297,7 @@ static double c_b14 = 1.333333333333333333333333333333;
     iv2 = t4 / srho13;
     iv = sqrt(iv2);
 
-/* spin-stiffness */
+    /* spin-stiffness */
     inv = 1. / (iv2 + b1 * iv + c1);
     i1 = log(iv2 * inv);
     i2 = log((iv - d1) * (iv - d1) * inv);
@@ -305,16 +305,16 @@ static double c_b14 = 1.333333333333333333333333333333;
     ss1 = s2 * i1 + s3 * i2 + s4 * i3;
     ss2 = a1 * (1. / iv - iv * inv * (b1 / (iv - d1) + 1.));
 
-/* paramagnetic */
+    /* paramagnetic */
     inv = 1. / (iv2 + b2 * iv + c2);
     i1 = log(iv2 * inv);
     i2 = log((iv - d2) * (iv - d2) * inv);
-/* corrected b1->b2 ps Apr98 */
+    /* corrected b1->b2 ps Apr98 */
     i3 = atan(p1 / (iv * 2. + b2));
     pp1 = p2 * i1 + p3 * i2 + p4 * i3;
     pp2 = a2 * (1. / iv - iv * inv * (b2 / (iv - d2) + 1.));
 
-/* ferromagnetic */
+    /* ferromagnetic */
     inv = 1. / (iv2 + b3 * iv + c3);
     i1 = log(iv2 * inv);
     i2 = log((iv - d3) * (iv - d3) * inv);
@@ -322,24 +322,26 @@ static double c_b14 = 1.333333333333333333333333333333;
     ff1 = f2 * i1 + f3 * i2 + f4 * i3;
     ff2 = a3 * (1. / iv - iv * inv * (b3 / (iv - d3) + 1.));
 
-/* polarisation function */
+    /* polarisation function */
 
     zeta = (*ra - *rb) / srho;
     zeta3 = zeta * zeta * zeta;
     zeta4 = zeta3 * zeta;
     if (zeta > inter1) {
-	vwn1 = t5 * .51984209978974638;
-	vwn2 = t6 * 1.25992104989487316476721060727823;
-    } else if (zeta < inter2) {
-	vwn1 = t5 * .51984209978974638;
-	vwn2 = t6 * -1.25992104989487316476721060727823;
-    } else {
-	d__1 = zeta + 1.;
-	d__2 = 1. - zeta;
-	vwn1 = (pow(&d__1, &c_b14) + pow(&d__2, &c_b14) - 2.) * t5;
-	d__1 = zeta + 1.;
-	d__2 = 1. - zeta;
-	vwn2 = (pow(&d__1, &c_b7) - pow(&d__2, &c_b7)) * t6;
+        vwn1 = t5 * .51984209978974638;
+        vwn2 = t6 * 1.25992104989487316476721060727823;
+    }
+    else if (zeta < inter2) {
+        vwn1 = t5 * .51984209978974638;
+        vwn2 = t6 * -1.25992104989487316476721060727823;
+    }
+    else {
+        d__1 = zeta + 1.;
+        d__2 = 1. - zeta;
+        vwn1 = (pow(&d__1, &c_b14) + pow(&d__2, &c_b14) - 2.) * t5;
+        d__1 = zeta + 1.;
+        d__2 = 1. - zeta;
+        vwn2 = (pow(&d__1, &c_b7) - pow(&d__2, &c_b7)) * t6;
     }
     ss1 *= t7;
     ss2 *= t7;
@@ -349,8 +351,8 @@ static double c_b14 = 1.333333333333333333333333333333;
     v = pp1 + vwn1 * (ss1 + tau * zeta4);
     *f = v * srho;
 
-    t1 = v - iv * .166666666666666666666666666667 * (pp2 + vwn1 * (ss2 + dtau 
-	    * zeta4));
+    t1 = v - iv * .166666666666666666666666666667 * (pp2 + vwn1 * (ss2 + dtau
+            * zeta4));
     t2 = vwn2 * (ss1 + tau * zeta4) + vwn1 * 4. * tau * zeta3;
     *dfdra = t1 + t2 * (1. - zeta);
     *dfdrb = t1 - t2 * (zeta + 1.);

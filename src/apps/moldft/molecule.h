@@ -16,7 +16,7 @@
 
 struct AtomicData {
     // !!! The order of declaration here must match the order in the initializer !!!
-    
+
     // Nuclear info from L. Visscher and K.G. Dyall, Dirac-Fock
     // atomic electronic structure calculations using different
     // nuclear charge distributions, Atom. Data Nucl. Data Tabl., 67,
@@ -36,7 +36,7 @@ struct AtomicData {
 };
 
 const AtomicData& get_atomic_data(unsigned int atn);
-    
+
 unsigned int symbol_to_atomic_number(const std::string& symbol);
 
 
@@ -46,20 +46,19 @@ public:
     unsigned int atomic_number; ///< Atomic number
 
     Atom(double x, double y, double z, double q, unsigned int atomic_number)
-        : x(x), y(y), z(z), q(q), atomic_number(atomic_number)
-    {}
+            : x(x), y(y), z(z), q(q), atomic_number(atomic_number) {}
 
-    Atom(const Atom& a) 
-        : x(a.x), y(a.y), z(a.z), q(a.q), atomic_number(a.atomic_number)
-    {}
+    Atom(const Atom& a)
+            : x(a.x), y(a.y), z(a.z), q(a.q), atomic_number(a.atomic_number) {}
 
     /// Default construct makes a zero charge ghost atom at origin
-    Atom() 
-        : x(0), y(0), z(0), q(0), atomic_number(0)
-    {}
+    Atom()
+            : x(0), y(0), z(0), q(0), atomic_number(0) {}
 
     template <typename Archive>
-    void serialize(Archive& ar) {ar & x & y & z & q & atomic_number;}
+    void serialize(Archive& ar) {
+        ar & x & y & z & q & atomic_number;
+    }
 };
 
 std::ostream& operator<<(std::ostream& s, const Atom& atom);
@@ -70,29 +69,35 @@ private:
     std::vector<Atom> atoms;
     std::vector<double> rcut;  // Reciprocal of the smoothing radius
     double eprec;              // Error in energy/atom due to smoothing
-    
-public:    
+
+public:
     /// Makes a molecule with zero atoms
     Molecule() : atoms(), rcut(), eprec(1e-4) {};
-    
+
     Molecule(const std::string& filename);
 
     void read_file(const std::string& filename);
-    
+
     void add_atom(double x, double y, double z, int atn, double q);
-    
-    int natom() const {return atoms.size();};
-    
+
+    int natom() const {
+        return atoms.size();
+    };
+
     void set_atom_coords(unsigned int i, double x, double y, double z);
 
-    void set_eprec(double value) {eprec = value;}
+    void set_eprec(double value) {
+        eprec = value;
+    }
 
-    double get_eprec() const {return eprec;}
+    double get_eprec() const {
+        return eprec;
+    }
 
     double bounding_cube() const;
-    
+
     const Atom& get_atom(unsigned int i) const;
-    
+
     void print() const;
 
     double inter_atomic_distance(unsigned int i,unsigned int j) const;
@@ -110,9 +115,11 @@ public:
     double nuclear_attraction_potential(double x, double y, double z) const;
 
     double nuclear_attraction_potential_derivative(int atom, int axis, double x, double y, double z) const;
-    
+
     template <typename Archive>
-    void serialize(Archive& ar) {ar & atoms & rcut & eprec;}
+    void serialize(Archive& ar) {
+        ar & atoms & rcut & eprec;
+    }
 };
 
 
