@@ -32,6 +32,11 @@
   $Id$
 */
 
+// about to run with coarser PM screening 
+// ... need to parallelize PM within SMP
+// ... need to use SSE drot within PM
+
+
 /// \file moldft.cc
 /// \brief Molecular HF and DFT code
 
@@ -72,7 +77,6 @@ void drot(long n, double* restrict a, double* restrict b, double s, double c, lo
         }
     }
 }
-
 
 void drot3(long n, double* restrict a, double* restrict b, double s, double c, long inc) {
     if (inc == 1) {
@@ -629,7 +633,7 @@ struct Calculation {
             if (initial_level >= 11) throw "project_ao_basis: projection failed?";
             int nredone = 0;
             for (int i=0; i<aobasis.nbf(molecule); i++) {
-                if (norms[i] < 0.99) {
+                if (norms[i] < 0.999) {
                     nredone++;
                     //if (world.rank() == 0) print("re-projecting ao basis function", i,"at level",initial_level);
                     functorT aofunc(new AtomicBasisFunctor(aobasis.get_atomic_basis_function(molecule,i)));
@@ -677,7 +681,8 @@ struct Calculation {
                         const double thresh=1e-9,
                         const double thetamax=0.5,
                         const bool randomize=true,
-                        const bool doprint=false) {
+                        const bool doprint=true) {
+        START_TIMER;
         // Form the ao-mo overlap matrix
         tensorT C = matrix_inner(world, mo, ao); // c(i,mu) = <i|mu>
         tensorT S = matrix_inner(world, ao, ao); // s(mu,nu) = <mu|nu> ... can be optimized away
@@ -744,7 +749,7 @@ struct Calculation {
 
                             if (fabs(theta) >= tol) {
                                 ndone_iter++;
-                                if (doprint) print("     rotating", i, j, theta);
+                                //if (doprint) print("     rotating", i, j, theta);
 
                                 double c = cos(theta);
                                 double s = sin(theta);
@@ -765,6 +770,8 @@ struct Calculation {
             U = transpose(U);
         }
         world.gop.broadcast(U.ptr(), U.size, 0);
+
+        END_TIMER("Pipek-Mezy localize");
 
         return U;
     }
@@ -965,7 +972,6 @@ struct Calculation {
             lb.add_tree(vnuc, lbcost<double,3>(1.0,0.0), true);
             lb.add_tree(rho,lbcost<double,3>(1.0,1.0),false); /// was 3.0
             FunctionDefaults<3>::set_pmap(lb.load_balance(6.0));
-            if (world.rank() == 0) print("starting loadbal copy");
             rho = copy(rho, FunctionDefaults<3>::get_pmap(), false);
             vnuc = copy(vnuc, FunctionDefaults<3>::get_pmap(), false);
             world.gop.fence();
@@ -1073,12 +1079,18 @@ struct Calculation {
         // Assign orbitals to core, valence etc. by looking for gaps
         aset = vector<int>(param.nmo_alpha);
         aset[0] = 0;
-        if (world.rank() == 0) print("aset ", 0, aset[0]);
+        if (world.rank() == 0) cout << "alpha set " << 0 << " " << 0 << "-" ; 
         for (int i=1; i<param.nmo_alpha; i++) {
             aset[i] = aset[i-1];
-            if (aeps[i]-aeps[i-1] > 1.5 || aocc[i]!=1.0) aset[i]++;
-            if (world.rank() == 0) print("aset ", i, aset[i]);
+            if (aeps[i]-aeps[i-1] > 1.5 || aocc[i]!=1.0) {
+                aset[i]++;
+                if (world.rank() == 0) {
+                    cout << i-1 << endl;
+                    cout << "alpha set " << aset[i] << " " << i << "-" ; 
+                }
+            }
         }
+        if (world.rank() == 0) cout << param.nmo_alpha-1 << endl;
 
         if (param.nbeta && !param.spin_restricted) {
             bmo = transform(world, ao, c(_,Slice(0,param.nmo_beta-1)), 0.0, true);
@@ -1092,10 +1104,18 @@ struct Calculation {
 
             bset = vector<int>(param.nmo_beta);
             bset[0] = 0;
+            if (world.rank() == 0) cout << " beta set " << 0 << " " << 0 << "-" ; 
             for (int i=1; i<param.nmo_beta; i++) {
                 bset[i] = bset[i-1];
-                if (beps[i]-beps[i-1] > 1.5 || bocc[i]!=1.0) bset[i]++;
+                if (beps[i]-beps[i-1] > 1.5 || bocc[i]!=1.0) {
+                    bset[i]++;
+                    if (world.rank() == 0) {
+                        cout << i-1 << endl;
+                        cout << " beta set " << bset[i] << " " << i << "-" ; 
+                    }
+                }
             }
+            if (world.rank() == 0) cout << param.nmo_beta-1 << endl;
         }
     }
 
@@ -1117,8 +1137,6 @@ struct Calculation {
         world.gop.fence();
         vsq.clear();
 
-        double dtrace = rho.trace();
-        if (world.rank() == 0) print("err in trace of density", dtrace-occ.sum());
         return rho;
     }
 
@@ -1232,20 +1250,20 @@ struct Calculation {
                     const functionT& vlocal,
                     double& exc) {
 
-        if (world.rank() == 0) printf("starting make exc and vloc at %.2fs\n", wall_time());
         functionT vloc = vlocal;
         if (param.lda) {
+            START_TIMER;
             exc = make_lda_energy(world, arho, brho, adelrhosq, bdelrhosq);
             vloc = vloc + make_lda_potential(world, arho, brho, adelrhosq, bdelrhosq);
+            END_TIMER("LDA potential");
         }
 
-        world.gop.fence();
-        if (world.rank() == 0) printf("starting mul at %.2fs\n", wall_time());
+        START_TIMER;
         vecfuncT Vpsi = mul_sparse(world, vloc, amo, vtol);
-        //vecfuncT Vpsi = mul(world, vloc, amo);
-        if (world.rank() == 0) printf("finished mul at %.2fs\n", wall_time());
+        END_TIMER("V*psi");
 
         if (!param.lda) {
+            START_TIMER;
             vecfuncT Kamo = apply_hf_exchange(world, occ, amo, amo);
             tensorT excv = inner(world, Kamo, amo);
             exc = 0.0;
@@ -1254,10 +1272,12 @@ struct Calculation {
             }
             gaxpy(world, 1.0, Vpsi, -1.0, Kamo);
             Kamo.clear();
+            END_TIMER("HF exchange");
         }
 
+        START_TIMER;
         truncate(world,Vpsi);
-        if (world.rank() == 0) printf("finished trunc at %.2fs\n", wall_time());
+        END_TIMER("Truncate Vpsi");
 
         world.gop.fence(); // ensure memory is cleared
         return Vpsi;
@@ -1283,14 +1303,24 @@ struct Calculation {
         return r;
     }
 
+    /// Computes RMS and maxabsvalue of a vector
+    void vector_stats(const vector<double>& v, double& rms, double& maxabsval) {
+        rms=0.0;
+        maxabsval=v[0];
+        for (unsigned int i=0; i<v.size(); i++) {
+            rms += v[i]*v[i];
+            maxabsval = max(maxabsval, abs(v[i]));
+        }
+        rms = sqrt(rms/v.size());
+    }
 
     /// Computes the residual for one spin ... destroys Vpsi
     vecfuncT compute_residual(World& world,
                               tensorT& occ,
                               tensorT& fock,
                               const vecfuncT& psi,
-                              vecfuncT& Vpsi)
-
+                              vecfuncT& Vpsi,
+                              double& err)
     {
         int nmo = psi.size();
 
@@ -1298,7 +1328,7 @@ struct Calculation {
         tensorT eps(nmo);
         for (int i=0; i<nmo; i++) {
             eps(i) = min(-0.05, fock(i,i));
-            if (world.rank() == 0) print("shifts", i, eps(i));
+            //if (world.rank() == 0) print("shifts", i, eps(i));
             fock(i,i) -= eps(i);
         }
 
@@ -1326,14 +1356,20 @@ struct Calculation {
         truncate(world, new_psi);
         END_TIMER("Truncate new psi");
 
-        START_TIMER;
-        new_psi = mul_sparse(world, mask, new_psi, vtol);
-        END_TIMER("Mask");
+//         START_TIMER;
+//         new_psi = mul_sparse(world, mask, new_psi, vtol);
+//         END_TIMER("Mask");
 
         vecfuncT r = sub(world, psi, new_psi); // residuals
 
         vector<double> rnorm = norm2(world, r);
-        if (world.rank() == 0) print("BSH residuals", rnorm);
+        if (world.rank() == 0) {
+            double rms, maxval;
+            vector_stats(rnorm, rms, maxval);
+            print("BSH residual: rms", rms, "   max", maxval);
+            err = maxval;
+        }
+        world.gop.broadcast(err, 0);
 
         return r;
     }
@@ -1347,10 +1383,13 @@ struct Calculation {
                              double& ekinetic) {
         // This is unsatisfactory for large molecules, but for now will have to suffice.
 
+        START_TIMER;
         tensorT pe = matrix_inner(world, Vpsi, psi, true);
-        if (world.rank() == 0) printf("finished pe at %.2fs\n", wall_time());
+        END_TIMER("PE matrix");
+
+        START_TIMER;
         tensorT ke = kinetic_energy_matrix(world, psi);
-        if (world.rank() == 0) printf("finished ke at %.2fs\n", wall_time());
+        END_TIMER("KE matrix");
 
         int nocc = occ.size;
         ekinetic = 0.0;
@@ -1377,16 +1416,15 @@ struct Calculation {
                           tensorT& evals,
                           double& ekinetic) {
         // This is unsatisfactory for large molecules, but for now will have to suffice.
-        if (world.rank() == 0) printf("starting matrices at %.2fs\n", wall_time());
         tensorT fock = make_fock_matrix(world, psi, Vpsi, occ, ekinetic);
 
         tensorT overlap = matrix_inner(world, psi, psi, true);
-        if (world.rank() == 0) printf("finished overlap at %.2fs\n", wall_time());
 
+        START_TIMER;
         tensorT c;
         sygv(fock, overlap, 1, &c, &evals);
+        END_TIMER("Diagonalization");
 
-        if (world.rank() == 0) printf("diagonalized at %.2fs\n", wall_time());
 
         //if (world.rank() == 0) print("transformation matrix\n",c);
         //double tolscreen = max(FunctionDefaults<3>::get_thresh(), param.dconv) / min(30.0,double(psi.size()));
@@ -1459,16 +1497,21 @@ struct Calculation {
                          vecfuncT& Vpsia, vecfuncT& Vpsib,
                          tensorT& focka, tensorT& fockb,
                          subspaceT& subspace,
-                         tensorT& Q) {
+                         tensorT& Q,
+                         double bsh_residual,
+                         double update_residual) {
 
         // Compute residuals
+        double aerr=0.0, berr=0.0;
         vecfuncT vm = amo;
-        vecfuncT rm = compute_residual(world, aocc, focka, amo, Vpsia);
+        vecfuncT rm = compute_residual(world, aocc, focka, amo, Vpsia, aerr);
         if (param.nbeta && !param.spin_restricted) {
-            vecfuncT br = compute_residual(world, bocc, fockb, bmo, Vpsib);
+            vecfuncT br = compute_residual(world, bocc, fockb, bmo, Vpsib, berr);
             vm.insert(vm.end(), bmo.begin(), bmo.end());
             rm.insert(rm.end(), br.begin(), br.end());
         }
+        bsh_residual = max(aerr, berr);
+        world.gop.broadcast(bsh_residual, 0);
 
         // Update subspace and matrix Q
         compress(world, vm, false);
@@ -1490,10 +1533,6 @@ struct Calculation {
         world.gop.sum(ms.ptr(),m);
         world.gop.sum(sm.ptr(),m);
 
-        if (world.rank() == 0) {
-            print("ms sm", ms, sm);
-        }
-
         tensorT newQ(m,m);
         if (m > 1) newQ(Slice(0,-2),Slice(0,-2)) = Q;
         newQ(m-1,_) = ms;
@@ -1505,12 +1544,13 @@ struct Calculation {
         tensorT c = KAIN(Q);
         world.gop.broadcast_serializable(c, 0);
         if (world.rank() == 0) {
-            print("Subspace matrix");
-            print(Q);
+            //print("Subspace matrix");
+            //print(Q);
             print("Subspace solution", c);
         }
 
         // Form linear combination for new solution
+        START_TIMER;
         vecfuncT amo_new = zero_functions<double,3>(world, amo.size());
         vecfuncT bmo_new = zero_functions<double,3>(world, bmo.size());
         compress(world, amo_new, false);
@@ -1530,6 +1570,7 @@ struct Calculation {
             gaxpy(world, 1.0, bmo_new,-c(m), rmb, false);
         }
         world.gop.fence();
+        END_TIMER("Subspace transform");
 
         if (param.maxsub <= 1) {
             // Clear subspace if it is not being used
@@ -1537,7 +1578,6 @@ struct Calculation {
         }
         else if (subspace.size() == param.maxsub) {
             // Truncate subspace in preparation for next iteration
-            if (world.rank() == 0) print("Truncating subspace to", param.maxsub-1);
             subspace.erase(subspace.begin());
             Q = Q(Slice(1,-1),Slice(1,-1));
         }
@@ -1564,12 +1604,20 @@ struct Calculation {
         world.gop.fence();
 
         if (world.rank() == 0) {
-            print("residual norms");
-            print(anorm);
-            print(bnorm);
+            double rms, maxval;
+            vector_stats(anorm, rms, maxval);
+            print("Norm of vector changes alpha: rms", rms, "   max", maxval);
+            update_residual = maxval;
+            if (bnorm.size()) {
+                vector_stats(bnorm, rms, maxval);
+                print("Norm of vector changes  beta: rms", rms, "   max", maxval);
+                update_residual = max(update_residual, maxval);
+            }
         }
+        world.gop.broadcast(update_residual, 0);
 
         // Orthogonalize
+        START_TIMER;
         double trantol = vtol/min(30.0,double(amo.size()));
         normalize(world, amo_new);
         amo_new = transform(world, amo_new, Q3(matrix_inner(world, amo_new, amo_new)), trantol);
@@ -1581,6 +1629,7 @@ struct Calculation {
             truncate(world, bmo_new);
             normalize(world, bmo_new);
         }
+        END_TIMER("Orthonormalize");
 
         amo = amo_new;
         bmo = bmo_new;
@@ -1595,7 +1644,9 @@ struct Calculation {
         const bool localize = true;
         const double dconv = max(FunctionDefaults<3>::get_thresh(), param.dconv);
         const double trantol = vtol/min(30.0,double(amo.size()));
-        const double tolloc = dconv;
+        const double tolloc = 1e-3; //dconv*0.1;
+        
+        double update_residual=0.0, bsh_residual=0.0;
 
         subspaceT subspace;
         tensorT Q;
@@ -1603,7 +1654,7 @@ struct Calculation {
         for (int iter=0; iter<param.maxiter; iter++) {
             if (world.rank()==0) printf("\nIteration %d at time %.1fs\n\n", iter, wall_time());
 
-            bool do_this_iter = iter==0; //((iter%5)==0);
+            bool do_this_iter = true;//iter==0; //((iter%5)==0);
             if (localize && do_this_iter) {
                 tensorT U = localize_PM(world, amo, aset, tolloc, 0.25, iter==0);
                 amo = transform(world, amo, U, trantol);
@@ -1630,9 +1681,11 @@ struct Calculation {
                 brho = arho;
             END_TIMER("Make densities");
 
-            START_TIMER;
-            loadbal(world, arho, brho, arho_old, brho_old, subspace);
-            END_TIMER("Load balancing");
+            if (iter < 2 || (iter%10)==0) {
+                START_TIMER;
+                loadbal(world, arho, brho, arho_old, brho_old, subspace);
+                END_TIMER("Load balancing");
+            }
 
             double da=0.0, db=0.0;
             if (iter > 0) {
@@ -1659,7 +1712,6 @@ struct Calculation {
             vcoul.clear(false);
             vlocal.truncate();
 
-            START_TIMER;
             double exca=0.0, excb=0.0;
             vecfuncT Vpsia = apply_potential(world, aocc, amo, arho, brho, adelrhosq, bdelrhosq, vlocal, exca);
             vecfuncT Vpsib;
@@ -1669,7 +1721,6 @@ struct Calculation {
             else if (param.nbeta) {
                 Vpsib = apply_potential(world, bocc, bmo, brho, arho, bdelrhosq, adelrhosq, vlocal, excb);
             }
-            END_TIMER("Apply potential");
 
             double ekina=0.0, ekinb=0.0;
             tensorT focka = make_fock_matrix(world, amo, Vpsia, aocc, ekina);
@@ -1708,7 +1759,7 @@ struct Calculation {
                 }
             }
 
-            update_subspace(world, Vpsia, Vpsib, focka, fockb, subspace, Q);
+            update_subspace(world, Vpsia, Vpsib, focka, fockb, subspace, Q, bsh_residual, update_residual);
 
         }
         if (world.rank() == 0) print("Analysis of alpha MO vectors");
