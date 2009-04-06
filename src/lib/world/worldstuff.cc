@@ -49,6 +49,7 @@
 namespace madness {
     static double start_cpu_time;
     static double start_wall_time;
+    const int WorldAmInterface::NSEND;
 
     void error(const char *msg) {
         std::cerr << "MADNESS: fatal error: " << msg << std::endl;
