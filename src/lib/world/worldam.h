@@ -313,11 +313,12 @@ namespace madness {
             // for progress to be made (with some MPI engines?).
             // Probably relying upon a fair mutex.
 
-            {
-                bool foundone = false;
-                while (!foundone) {
+            const int NTEST = std::min(8,NSEND); // No. of tests per mutex
+            bool foundone = false;
+            while (!foundone) {
+                {
                     SAFE_MPI_GLOBAL_MUTEX;
-                    for (int i=0; i<NSEND; i++) {
+                    for (int i=0; i<NTEST; i++) {
                         foundone = send_req[cur_msg].Test_got_lock_already();
                         if (foundone) break;
                         cur_msg++;

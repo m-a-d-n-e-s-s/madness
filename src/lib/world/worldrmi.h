@@ -98,7 +98,8 @@ namespace madness {
 
     private:
 #ifdef HAVE_CRAYXT
-        static const int NRECV=256;
+        //static const int NRECV=256;
+        static const int NRECV=1024;
         static const int MAXQ=4*NRECV;
 #else
         static const int NRECV=32;
