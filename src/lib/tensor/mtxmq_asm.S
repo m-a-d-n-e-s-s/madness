@@ -167,9 +167,9 @@ name: \
 #define NAME(name) name
 #endif
 	
+/*  .type name,@function ; */
 #define MTXM_ENTRY(name) \
 .globl NAME(name); \
-  .type name,@function ; \
 NAME(name): \
         pushl   %ebp;            \
         mov     %esp,  %ebp;     \
