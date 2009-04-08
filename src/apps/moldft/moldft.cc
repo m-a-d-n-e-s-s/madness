@@ -1363,13 +1363,10 @@ struct Calculation {
         vecfuncT r = sub(world, psi, new_psi); // residuals
 
         vector<double> rnorm = norm2(world, r);
-        if (world.rank() == 0) {
-            double rms, maxval;
-            vector_stats(rnorm, rms, maxval);
-            print("BSH residual: rms", rms, "   max", maxval);
-            err = maxval;
-        }
-        world.gop.broadcast(err, 0);
+        double rms, maxval;
+        vector_stats(rnorm, rms, maxval);
+        err = maxval;
+        if (world.rank() == 0) print("BSH residual: rms", rms, "   max", maxval);
 
         return r;
     }
@@ -1498,8 +1495,8 @@ struct Calculation {
                          tensorT& focka, tensorT& fockb,
                          subspaceT& subspace,
                          tensorT& Q,
-                         double bsh_residual,
-                         double update_residual) {
+                         double& bsh_residual,
+                         double& update_residual) {
 
         // Compute residuals
         double aerr=0.0, berr=0.0;
@@ -1587,34 +1584,42 @@ struct Calculation {
         vector<double> bnorm = norm2(world, sub(world, bmo, bmo_new));
 
         // Step restriction
+        int nres = 0;
         for (unsigned int i=0; i<amo.size(); i++) {
             if (anorm[i] > param.maxrotn) {
                 double s = param.maxrotn/anorm[i];
-                if (world.rank() == 0) print("  restricting step for alpha orbital ", i, s);
+                nres++;
+                if (world.rank() == 0) {
+                    if (nres == 1) printf("  restricting step for alpha orbitals:");
+                    printf(" %d", i);
+                }
                 amo_new[i].gaxpy(s, amo[i], 1.0-s, false);
             }
         }
+        if (nres>0 && world.rank() ==0) printf("\n");
+        nres = 0;
         for (unsigned int i=0; i<bmo.size(); i++) {
             if (bnorm[i] > param.maxrotn) {
                 double s = param.maxrotn/bnorm[i];
-                if (world.rank() == 0) print("  restricting step for beta orbital ", i, s);
+                nres++;
+                if (world.rank() == 0) {
+                    if (nres == 1) printf("  restricting step for  beta orbitals:");
+                    printf(" %d", i);
+                }
                 bmo_new[i].gaxpy(s, bmo[i], 1.0-s, false);
             }
         }
         world.gop.fence();
 
-        if (world.rank() == 0) {
-            double rms, maxval;
-            vector_stats(anorm, rms, maxval);
-            print("Norm of vector changes alpha: rms", rms, "   max", maxval);
-            update_residual = maxval;
-            if (bnorm.size()) {
-                vector_stats(bnorm, rms, maxval);
-                print("Norm of vector changes  beta: rms", rms, "   max", maxval);
-                update_residual = max(update_residual, maxval);
-            }
+        double rms, maxval;
+        vector_stats(anorm, rms, maxval);
+        if (world.rank() == 0) print("Norm of vector changes alpha: rms", rms, "   max", maxval);
+        update_residual = maxval;
+        if (bnorm.size()) {
+            vector_stats(bnorm, rms, maxval);
+            if (world.rank() == 0) print("Norm of vector changes  beta: rms", rms, "   max", maxval);
+            update_residual = max(update_residual, maxval);
         }
-        world.gop.broadcast(update_residual, 0);
 
         // Orthogonalize
         START_TIMER;
@@ -1654,7 +1659,7 @@ struct Calculation {
         for (int iter=0; iter<param.maxiter; iter++) {
             if (world.rank()==0) printf("\nIteration %d at time %.1fs\n\n", iter, wall_time());
 
-            bool do_this_iter = true;//iter==0; //((iter%5)==0);
+            bool do_this_iter = (iter==0) || (update_residual>0.1);
             if (localize && do_this_iter) {
                 tensorT U = localize_PM(world, amo, aset, tolloc, 0.25, iter==0);
                 amo = transform(world, amo, U, trantol);
@@ -1691,7 +1696,7 @@ struct Calculation {
             if (iter > 0) {
                 da = (arho - arho_old).norm2();
                 db = (brho - brho_old).norm2();
-                if (world.rank()==0) print("delta rho", da, db);
+                if (world.rank()==0) print("delta rho", da, db,"residuals",bsh_residual,update_residual);
             }
             arho_old = arho;
             brho_old = brho;
@@ -1744,7 +1749,9 @@ struct Calculation {
             }
 
             if (iter > 0) {
-                if (da<dconv && db<dconv) {
+                if (da<dconv*molecule.natom() && 
+                    db<dconv*molecule.natom() && 
+                    bsh_residual<dconv) {
                     if (world.rank()==0) {
                         print("\nConverged!\n");
                         print(" ");
