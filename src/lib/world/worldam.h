@@ -313,9 +313,10 @@ namespace madness {
             // for progress to be made (with some MPI engines?).
             // Probably relying upon a fair mutex.
 
-            const int NTEST = std::min(8,NSEND); // No. of tests per mutex
-            bool foundone = false;
-            while (!foundone) {
+            MutexWaiter waiter;
+            const int NTEST = std::min(32,NSEND);
+            while (1) {
+                bool foundone = false;
                 {
                     SAFE_MPI_GLOBAL_MUTEX;
                     for (int i=0; i<NTEST; i++) {
@@ -325,6 +326,8 @@ namespace madness {
                         if (cur_msg >= NSEND) cur_msg = 0;
                     }
                 }
+                if (foundone) break;
+                waiter.wait();
             }
 
 //             while (!send_req[cur_msg].Test()) {

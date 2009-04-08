@@ -649,3 +649,15 @@
         virtual ~MutexReaderWriter(){};
     };
     
+
+
+
+                {
+                    SAFE_MPI_GLOBAL_MUTEX;
+                    for (int i=0; i<NTEST; i++) {
+                        foundone = send_req[cur_msg].Test_got_lock_already();
+                        if (foundone) break;
+                        cur_msg++;
+                        if (cur_msg >= NSEND) cur_msg = 0;
+                    }
+                }

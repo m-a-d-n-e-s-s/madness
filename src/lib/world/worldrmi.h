@@ -4,6 +4,7 @@
 #include <world/safempi.h>
 #include <cstdlib>
 #include <iostream>
+#include <algorithm>
 #include <world/worldthread.h>
 #include <world/worldtypes.h>
 
@@ -71,6 +72,27 @@ namespace madness {
     // This is the generic low-level interface for a message handler
     typedef void (*rmi_handlerT)(void* buf, size_t nbyte);
 
+    struct qmsg {
+        typedef uint16_t counterT;
+        typedef uint32_t attrT;
+        size_t len;
+        rmi_handlerT func; 
+        int i;               // buffer index
+        ProcessID src;
+        attrT attr;
+        counterT count;
+        
+        qmsg(size_t len, rmi_handlerT func, int i, int src, attrT attr, counterT count)
+            : len(len), func(func), i(i), src(src), attr(attr), count(count) {}
+        
+        bool operator<(const qmsg& other) const {
+            return count < other.count;
+        }
+        
+        qmsg() {}
+    };
+
+
     // Holds message passing statistics
     struct RMIStats {
         uint64_t nmsg_sent;
@@ -83,6 +105,8 @@ namespace madness {
     };
 
     class RMI : private madness::ThreadBase , madness::Mutex {
+        typedef uint16_t counterT;
+        typedef uint32_t attrT;
     public:
         // Choose header length to hold at least sizeof(header) and
         // also to ensure good alignment of the user payload.
@@ -91,8 +115,8 @@ namespace madness {
         static const size_t MAX_MSG_LEN = 256*1024;
         //static const size_t MAX_MSG_LEN = 1024*1024;
 
-        static const unsigned int ATTR_UNORDERED=0x0;
-        static const unsigned int ATTR_ORDERED=0x1;
+        static const attrT ATTR_UNORDERED=0x0;
+        static const attrT ATTR_ORDERED=0x1;
 
         typedef SafeMPI::Request Request;
 
@@ -115,20 +139,20 @@ namespace madness {
         volatile bool debugging;    // True if debugging
         volatile bool finished;     // True if finished
 
-        volatile unsigned char* send_counters;
-        unsigned char* recv_counters;
+        volatile counterT* send_counters;
+        counterT* recv_counters;
         unsigned char* recv_buf[NRECV+1]; // Will be at least ALIGNMENT aligned ... +1 for huge messages
         SafeMPI::Request recv_req[NRECV+1];
 
         static RMI* instance_ptr;    // Pointer to the singleton instance
 
-        static bool is_ordered(unsigned int attr) {
+        static bool is_ordered(attrT attr) {
             return attr & ATTR_ORDERED;
         }
 
         struct header {
             rmi_handlerT func;
-            unsigned int attr;
+            attrT attr;
         };
 
         void run() {
@@ -138,19 +162,6 @@ namespace madness {
             // The RMI server thread spends its life in here
             MPI::Status status[NRECV+1];
             int ind[NRECV+1];
-            struct qmsg {
-                size_t len;
-                rmi_handlerT func;
-                int i;
-                ProcessID src;
-                unsigned int attr;
-                int count;
-
-                qmsg(size_t len, rmi_handlerT func, int i, int src, unsigned int attr, int count)
-                        : len(len), func(func), i(i), src(src), attr(attr), count(count) {}
-
-                qmsg() {}
-            };
             qmsg q[MAXQ];
             int n_in_q = 0;
 
@@ -178,15 +189,15 @@ namespace madness {
                     for (int m=0; m<narrived; m++) {
                         int src = status[m].Get_source();
                         size_t len = status[m].Get_count(MPI::BYTE);
-                        int i = ind[m];
+                        int i = ind[m]; 
 
                         stats.nmsg_recv++;
                         stats.nbyte_recv += len;
 
                         const header* h = (const header*)(recv_buf[i]);
                         rmi_handlerT func = h->func;
-                        unsigned int attr = h->attr;
-                        int count = (attr>>16); //&&0xff;
+                        attrT attr = h->attr;
+                        counterT count = (attr>>16); //&&0xffff;
 
                         if (!is_ordered(attr) || count==recv_counters[src]) {
                             // Unordered and in order messages should be digested as soon as possible.
@@ -222,37 +233,44 @@ namespace madness {
                 }
 
                 // Only ordered messages can end up in the queue due to
-                // out-of-order receipt or recv buffer processing.
-                int ndone;
-                do {
-                    ndone = 0;
-                    for (int m=0; m<n_in_q; m++) {
-                        int src = q[m].src;
-                        if (q[m].count == recv_counters[src]) {
-                            if (debugging)
-                                std::cerr << rank
-                                          << ":RMI: queue invoking from=" << src
-                                          << " nbyte=" << q[m].len
-                                          << " func=" << (void*)(q[m].func)
-                                          << " ordered=" << is_ordered(q[m].attr)
-                                          << " count=" << q[m].count
-                                          << std::endl;
+                // out-of-order receipt or order of recv buffer processing.
 
-                            recv_counters[src]++;
-                            ndone++;
-                            q[m].func(recv_buf[q[m].i], q[m].len);
-                            post_recv_buf(q[m].i);
+                // Sort queued messages by ascending recv count
+                std::sort(&q[0],&q[0]+n_in_q);
 
-                            // Replace msg just processed with one at end (if there)
-                            n_in_q--;
-                            if (m != n_in_q) {
-                                q[m] = q[n_in_q];
-                                m--; // Since for loop will increment it
-                            }
-                        }
+                // Loop thru messages ... since we have sorted only one pass
+                // is necessary and if we cannot process a message we
+                // save it at the beginning of the queue
+                int nleftover = 0;
+                for (int m=0; m<n_in_q; m++) {
+                    int src = q[m].src;
+                    if (q[m].count == recv_counters[src]) {
+                        if (debugging)
+                            std::cerr << rank
+                                      << ":RMI: queue invoking from=" << src
+                                      << " nbyte=" << q[m].len
+                                      << " func=" << (void*)(q[m].func)
+                                      << " ordered=" << is_ordered(q[m].attr)
+                                      << " count=" << q[m].count
+                                      << std::endl;
+                        
+                        recv_counters[src]++;
+                        q[m].func(recv_buf[q[m].i], q[m].len);
+                        post_recv_buf(q[m].i);
+                    }
+                    else {
+                        q[nleftover++] = q[m];
+                        if (debugging)
+                            std::cerr << rank
+                                      << ":RMI: queue pending out of order from=" << src
+                                      << " nbyte=" << q[m].len
+                                      << " func=" << (void*)(q[m].func)
+                                      << " ordered=" << is_ordered(q[m].attr)
+                                      << " count=" << q[m].count
+                                      << std::endl;
                     }
                 }
-                while (ndone);
+                n_in_q = nleftover;
 
                 post_pending_huge_msg();
             }
@@ -304,8 +322,8 @@ namespace madness {
                 , rank(comm.Get_rank())
                 , debugging(false)
                 , finished(false)
-                , send_counters(new unsigned char[nproc])
-                , recv_counters(new unsigned char[nproc]) {
+                , send_counters(new unsigned short[nproc])
+                , recv_counters(new unsigned short[nproc]) {
             for (int i=0; i<nproc; i++) send_counters[i] = 0;
             for (int i=0; i<nproc; i++) recv_counters[i] = 0;
             if (nproc > 1) {
@@ -336,7 +354,7 @@ namespace madness {
             instance()->post_pending_huge_msg();
         }
 
-        Request private_isend(const void* buf, size_t nbyte, ProcessID dest, rmi_handlerT func, unsigned int attr) {
+        Request private_isend(const void* buf, size_t nbyte, ProcessID dest, rmi_handlerT func, attrT attr) {
             int tag = SafeMPI::RMI_TAG;
 
             if (nbyte > MAX_MSG_LEN) {
