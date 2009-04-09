@@ -404,35 +404,45 @@ namespace madness {
     }
 
     template <typename T, int NDIM>
-    Void FunctionImpl<T,NDIM>::project_refine_op(const keyT& key, bool do_refine) {
+    Void FunctionImpl<T,NDIM>::project_refine_op(const keyT& key,
+                                                 bool do_refine,
+                                                 const std::vector<Vector<double,NDIM> >& specialpts) {
         PROFILE_MEMBER_FUNC(FunctionImpl);
-        if (do_refine) {
-            // Make in r child scaling function coeffs at level n+1
-            tensorT r(cdata.v2k);
-            for (KeyChildIterator<NDIM> it(key); it; ++it) {
-                const keyT& child = it.key();
-                r(child_patch(child)) = project(child);
-            }
-            // Filter then test difference coeffs at level n
-            tensorT d = filter(r);
-            tensorT s0;
-            if (truncate_on_project) s0 = copy(d(cdata.s0));
-            d(cdata.s0) = T(0);
-
-            if (d.normf()<truncate_tol(thresh,key.level()) || key.level()>=max_refine_level) {
-                if (key.level()>=max_refine_level) print("MAX REFINE LEVEL",key);
-                if (truncate_on_project) {
-                    coeffs.replace(key,nodeT(s0,false));
-                }
-                else {
-                    coeffs.replace(key,nodeT(tensorT(),true)); // Insert empty node for parent
-                    for (KeyChildIterator<NDIM> it(key); it; ++it) {
-                        const keyT& child = it.key();
-                        coeffs.replace(child,nodeT(copy(r(child_patch(child))),false));
+        if (do_refine && key.level() < max_refine_level) {
+            // Restrict special points to this box
+            std::vector<Vector<double,NDIM> > newspecialpts;
+            if (key.level() < 6) {
+                for (unsigned int i = 0; i < specialpts.size(); i++) {
+                    coordT simpt;
+                    user_to_sim(specialpts[i], simpt);
+                    Key<NDIM> specialkey = simpt2key(simpt, key.level());
+                    if (specialkey == key) {
+                        newspecialpts.push_back(specialpts[i]);
                     }
                 }
             }
-            else {
+
+            // If refining compute scaling function coefficients and
+            // norm of difference coefficients
+            tensorT r, s0;
+            double dnorm = 0.0;
+            if (newspecialpts.size() == 0) {
+                // Make in r child scaling function coeffs at level n+1
+                r = tensorT(cdata.v2k);
+                for (KeyChildIterator<NDIM> it(key); it; ++it) {
+                    const keyT& child = it.key();
+                    r(child_patch(child)) = project(child);
+                }
+                // Filter then test difference coeffs at level n
+                tensorT d = filter(r);
+                if (truncate_on_project) s0 = copy(d(cdata.s0));
+                d(cdata.s0) = T(0);
+                dnorm = d.normf();
+            }
+
+            // If have special points always refine.  If don't have special points
+            // refine if difference norm is big
+            if (newspecialpts.size() > 0 || dnorm >=truncate_tol(thresh,key.level())) {
                 coeffs.replace(key,nodeT(tensorT(),true)); // Insert empty node for parent
                 for (KeyChildIterator<NDIM> it(key); it; ++it) {
                     const keyT& child = it.key();
@@ -444,7 +454,19 @@ namespace madness {
                         p = coeffs.owner(child);
                     }
                     PROFILE_BLOCK(proj_refine_send);
-                    task(p, &implT::project_refine_op, child, do_refine); // ugh
+                    task(p, &implT::project_refine_op, child, do_refine, newspecialpts);
+                }
+            }
+            else {
+                if (truncate_on_project) {
+                    coeffs.replace(key,nodeT(s0,false));
+                }
+                else {
+                    coeffs.replace(key,nodeT(tensorT(),true)); // Insert empty node for parent
+                    for (KeyChildIterator<NDIM> it(key); it; ++it) {
+                        const keyT& child = it.key();
+                        coeffs.replace(child,nodeT(copy(r(child_patch(child))),false));
+                    }
                 }
             }
         }

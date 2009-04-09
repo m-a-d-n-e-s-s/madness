@@ -375,9 +375,6 @@ namespace madness {
         }
     };
 
-    template <typename T, int NDIM>
-    void forward_project_refine_op(const Key<NDIM>& key, bool do_refine, const FunctionImpl<T,NDIM>* f);
-
 
 /// FunctionNode holds the coefficients, etc., at each node of the 2^NDIM-tree
     template<typename T, int NDIM>
@@ -432,18 +429,6 @@ namespace madness {
             return FunctionNode<Q, NDIM> (copy(coeff()), _has_children);
         }
 
-        /// Recurs up and across the tree for projection with special points
-        Void
-        project_refine_op_specialpt(const Key<NDIM>& key, bool do_refine, const FunctionImpl<T,NDIM>* f) {
-            // We will arrive in here via an exclusive write accessor and if
-            // the node did not exist it will be created with the default constructor
-            // that sets _norm_tree=0.0.  We set _norm_tree to -1.0 to indicate
-            // that this node has already been processed.
-            if (_norm_tree != -1.0) {
-                forward_project_refine_op(key, do_refine, f);
-            }
-            return None;
-        }
         /// Returns true if there are coefficients in this node
         bool
         has_coeff() const {
@@ -695,10 +680,6 @@ namespace madness {
         template <typename Q, int D> friend class FunctionImpl;
         friend class LoadBalImpl<NDIM>;
         friend class LBTree<NDIM>;
-        friend void forward_project_refine_op<T,NDIM>(const Key<NDIM>& key,
-                bool do_refine,
-                const FunctionImpl<T,NDIM>* f);
-
 
         typedef FunctionImpl<T,NDIM> implT; ///< Type of this class (implementation)
         typedef Tensor<T> tensorT; ///< Type of tensor used to hold coeffs
@@ -769,21 +750,11 @@ namespace madness {
 
             if (empty) { // Do not set any coefficients at all
             } else if (functor) { // Project function and optionally refine
-                // Are there any special points?
-                if (factory._specialpts.size() == 0) {
-                    insert_zero_down_to_initial_level(cdata.key0);
-                    for (typename dcT::iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
-                        if (it->second.is_leaf())
-                            task(coeffs.owner(it->first), &implT::project_refine_op, it->first, do_refine);
-                    }
-                }
-                else {
-                    for (unsigned int i = 0; i < factory._specialpts.size(); i++) {
-                        coordT simpt;
-                        user_to_sim(factory._specialpts[i], simpt);
-                        Key<NDIM> key = simpt2key(simpt, 6);
-                        coeffs.task(key, &nodeT::project_refine_op_specialpt, key, do_refine, this);
-                    }
+                insert_zero_down_to_initial_level(cdata.key0);
+                for (typename dcT::iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
+                    if (it->second.is_leaf())
+                        task(coeffs.owner(it->first), &implT::project_refine_op, it->first, do_refine,
+                                factory._specialpts);
                 }
             }
             else { // Set as if a zero function
@@ -998,10 +969,8 @@ namespace madness {
         }
 
         /// Projection with optional refinement
-        Void project_refine_op(const keyT& key, bool do_refine);
-
-        /// Projection with optional refinement with special points
-        Void project_refine_op_specialpt(const keyT& key, bool do_refine);
+        Void project_refine_op(const keyT& key, bool do_refine,
+                const std::vector<Vector<double,NDIM> >& specialpts);
 
         /// Compute the Legendre scaling functions for multiplication
 
@@ -2465,33 +2434,6 @@ namespace madness {
         /// Assignment is not allowed ... not even possible now that we have reference members
         //FunctionImpl<T>& operator=(const FunctionImpl<T>& other);
     };
-
-    template <typename T, int NDIM>
-    void forward_project_refine_op(const Key<NDIM>& key, bool do_refine, const FunctionImpl<T,NDIM>* f) {
-        // Because FunctionNode has to be defined before FunctionImpl we must
-        // use little wrappers to foward calls to FunctionImpl methods from node to impl
-        typedef FunctionImpl<T,NDIM> implT;
-        typedef FunctionNode<T,NDIM> nodeT;
-        typedef Key<NDIM> keyT;
-        f->task(f->coeffs.owner(key), &implT::project_refine_op, key, do_refine);
-        if (key.level() > 0) {
-            keyT parent = key.parent();
-            f->coeffs.send(parent, &nodeT::set_has_children_recursive, f->coeffs, parent);
-            if (parent.level() > 0) {
-                for (IndexIterator it(NDIM,3); it; ++it) {
-                    Translation l[NDIM];
-                    for (int d=0; d<NDIM; d++)
-                        l[d] = it[d]-2;
-                    keyT disp(parent.level(),l);
-                    keyT neigh = f->neighbor(parent,disp);
-                    if (neigh.is_valid() && neigh!=parent) {
-                        f->coeffs.task(neigh, &nodeT::project_refine_op_specialpt, neigh, do_refine, f);
-                    }
-                }
-            }
-        }
-    }
-
 
     namespace archive {
         template <class Archive, class T, int NDIM>
