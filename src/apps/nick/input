@@ -5,7 +5,7 @@ F 0.176
 omega 0.06
 natom 1
    1.0    0.0 0.0 0.0
-k 8
+k 12
 thresh 1e-3
 cut 0.3
 prefix data

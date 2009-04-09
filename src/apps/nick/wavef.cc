@@ -53,7 +53,6 @@ complexd ScatteringWF::operator()(const vector3D& rVec) const
         * gamma(1.0+I/k)
         * exp(I*kDOTr)
         * f11(-1.0*I/k, 1.0, -1.0*I*(k*r + kDOTr));
-
 //     complexd confHyper = f11(-1.0*I/k, 1.0, -1.0*I*(k*r + kDOTr));
 //     complexd output = exp(PI/(2*k))
 //         * gamma(1.0+I/k)
@@ -102,11 +101,11 @@ complexd BoundWF::operator()(const vector3D& rVec) const {
     gsl_sf_result Rnl;
     gsl_set_error_handler_off();
     int status = gsl_sf_hydrogenicR_e(n, l, Z, r, &Rnl);
-    gsl_set_error_handler(NULL);     //Turns on the default error handler
-    if(status == GSL_EUNDRFLW) return complexd(0,0);
-    if(status != 0)            exit(status);
+    //    gsl_set_error_handler(NULL);     //Turns on the default error handler
+    if(status == GSL_EUNDRFLW) { return complexd(0,0); }
+    else if(status != 0)            MADNESS_EXCEPTION("gsl_ERROR: ",status);
     if(m==0) {        
-	return complexd(Rnl.val * gsl_sf_legendre_sphPlm(l, m, cosTH), 0.0);
+        return complexd(Rnl.val * gsl_sf_legendre_sphPlm(l, m, cosTH), 0.0);
     }
     else {
 	gsl_sf_result rPhi;

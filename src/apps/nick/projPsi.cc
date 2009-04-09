@@ -102,7 +102,7 @@ void loadBasis(World& world, std::vector<WF>& stateList) {
     } else {
         double Z = 1.0;
         if(bound.is_open()) {
-            PRINTLINE("Loading bound quantum states");
+            PRINTLINE("Calculating bound quantum states");
             int n,l,m;
             std::ostringstream nlm;
             while(bound >> n) {
@@ -121,7 +121,7 @@ void loadBasis(World& world, std::vector<WF>& stateList) {
             bound.close();
         } else PRINTLINE("bound.num not found");
         if(unbound.is_open()) {
-            PRINTLINE("Loading unbound quantum states");
+            PRINTLINE("Calculating unbound quantum states");
             double kx, ky, kz;
             std::ostringstream kxyz;
             while(unbound >> kx) {
@@ -282,19 +282,43 @@ void belkic(World& world) {
 }
 
 int main(int argc, char**argv) {
-    // Initialize the parallel programming environment
-    MPI::Init(argc, argv);
+    int k = 12;
+    double L = 1000.0;
+    string tag;
+    ifstream f("input");
+    if( f.is_open() ) {
+        while(f >> tag) {
+            if (tag[0] == '#') {
+                char ch;
+                printf("    comment  %s ",tag.c_str());
+                while (f.get(ch)) {
+                    printf("%c",ch);
+                    if (ch == '\n') break;
+                }
+            }
+            else if (tag == "L") {
+                f >> L;
+                printf("L = %.1f\n", L);
+            }
+            else if (tag == "k") {
+                f >> k;
+                printf("k = %.1i\n",k);
+            }
+        }
+    }
+    // INITIALIZE the parallel programming environment
+    initialize(argc, argv);
     World world(MPI::COMM_WORLD);
     // Load info for MADNESS numerical routines
     startup(world,argc,argv);
     // Setup defaults for numerical functions
-    FunctionDefaults<NDIM>::set_k(12);              // Wavelet order
+    FunctionDefaults<NDIM>::set_k(k);              // Wavelet order
     FunctionDefaults<NDIM>::set_thresh(1e-4);       // Accuracy
-    FunctionDefaults<NDIM>::set_cubic_cell(-20.0, 20.0);
+    FunctionDefaults<NDIM>::set_cubic_cell(-L, L);
     FunctionDefaults<NDIM>::set_initial_level(3);
     FunctionDefaults<NDIM>::set_apply_randomize(false);
-    FunctionDefaults<NDIM>::set_autorefine(true);
-    FunctionDefaults<NDIM>::set_refine(false);
+    FunctionDefaults<NDIM>::set_autorefine(false);
+    FunctionDefaults<NDIM>::set_refine(true);
     FunctionDefaults<NDIM>::set_truncate_mode(1);
     try {
         std::vector<WF> basisList;    
@@ -335,7 +359,8 @@ int main(int argc, char**argv) {
     } catch (...) {
         error("caught unhandled exception");
     }
-
-    MPI::Finalize();				//FLAG
+    world.gop.fence();
+    ThreadPool::end();
+    finalize();				//FLAG
     return 0;
 }
