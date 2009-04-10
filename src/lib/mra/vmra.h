@@ -266,7 +266,7 @@ namespace madness {
         if (sym) {
             for (int i=0; i<n; i++) {
                 for (int j=0; j<i; j++) {
-                    r(j,i) = r(i,j);
+                    r(j,i) = conj(r(i,j));
                 }
             }
         }
