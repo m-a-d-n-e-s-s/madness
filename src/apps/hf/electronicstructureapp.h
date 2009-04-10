@@ -150,29 +150,44 @@ private:
     const bool periodic;
 public:
     MolecularNuclearChargeDensityFunctor(const MolecularEntity& mentity, const double& R,
-        const bool& periodic) : _mentity(mentity), R(R), periodic(periodic) {}
+        const bool& periodic) : _mentity(mentity), R(R), periodic(periodic) {
+    }
 
     double operator()(const coordT& x) const
     {
-      double value = 0.0;
-      if (periodic)
-      {
-        for (int xr = -1; xr <= 1; xr += 1)
+        double big = 0.5*R + 6.0*_mentity.smallest_length_scale();
+        // Only one contribution at any point due to the short
+        // range of the nuclear charge density
+        if (periodic)
         {
-          for (int yr = -1; yr <= 1; yr += 1)
-          {
-            for (int zr = -1; zr <= 1; zr += 1)
+            for (int xr = -1; xr <= 1; xr += 1)
             {
-              value += _mentity.nuclear_charge_density(x[0]+xr*R, x[1]+yr*R, x[2]+zr*R);
+                double xx = x[0] + xr*R;
+                if (xx < big && xx > -big)
+                {
+                    for (int yr = -1; yr <= 1; yr += 1)
+                    {
+                        double yy = x[1] + yr*R;
+                        if (yy < big && yy > -big)
+                        {
+                            for (int zr = -1; zr <= 1; zr += 1)
+                            {
+                                double zz = x[2] + zr*R;
+                                if (zz < big && zz > -big)
+                                {
+                                    return _mentity.nuclear_charge_density(xx, yy, zz);
+                                }
+                            }
+                        }
+                    }
+                }
             }
-          }
         }
-      }
-      else
-      {
-        value = _mentity.nuclear_charge_density(x[0], x[1], x[2]);;
-      }
-      return value;
+        else
+        {
+            return _mentity.nuclear_charge_density(x[0], x[1], x[2]);
+        }
+        return 0.0;
     }
 };
 
@@ -369,7 +384,8 @@ public:
       double now = wall_time();
       _vnucrhon = rfactoryT(_world).functor(
           rfunctorT(new MolecularNuclearChargeDensityFunctor(_mentity, _params.L, _params.periodic))).
-          thresh(_params.thresh * 0.1).initial_level(6).truncate_on_project().specialpts(specialpts);
+          thresh(_params.thresh).initial_level(6).truncate_on_project().specialpts(specialpts);
+      
       if (_world.rank() == 0) printf("%f\n", wall_time() - now);
       if (_world.rank() == 0) print("calculating trace of rhon ..\n\n");
       double rtrace = _vnucrhon.trace();
@@ -385,11 +401,15 @@ public:
         op = CoulombOperatorPtr<double>(_world, _params.waveorder,_params.lo, _params.thresh);
       }
       now = wall_time();
+      _vnucrhon.truncate();
       _vnuc = apply(*op, _vnucrhon);
       if (_world.rank() == 0) printf("%f\n", wall_time() - now);
       if (_world.rank() == 0) print("Done creating nuclear potential ..\n");
       delete op;
     }
+      finalize();
+      exit(0);
+
     vector<long> npt(3,101);
     plotdx(_vnuc, "vnuc.dx", FunctionDefaults<3>::get_cell(), npt);
   }

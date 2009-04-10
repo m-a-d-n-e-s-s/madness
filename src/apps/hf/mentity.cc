@@ -287,7 +287,7 @@ MolecularEntity::MolecularEntity(const std::string& filename, bool fractional = 
 }
 
 void MolecularEntity::read_file(const std::string& filename, bool fractional = false) {
-    atoms.clear(); rcut.clear();
+    atoms.clear(); rcut.clear(); rsqasymptotic.clear();
     std::ifstream f(filename.c_str());
     madness::position_stream(f, "geometry");
     double scale = 1.0;
@@ -355,6 +355,7 @@ void MolecularEntity::read_file(const std::string& filename, bool fractional = f
 void MolecularEntity::add_atom(double x, double y, double z, int atomic_number, double q) {
     atoms.push_back(Atom(x,y,z,atomic_number,q));
     double c = smoothing_parameter(q, 1e-5); // This is error per atom
+    rsqasymptotic.push_back(36.0*c*c);
     rcut.push_back(1.0/c);
 }
 
@@ -466,14 +467,26 @@ double MolecularEntity::nuclear_attraction_potential(double x, double y, double 
 }
 
 double MolecularEntity::nuclear_charge_density(double x, double y, double z) const {
-  double sum = 0.0;
-  for (unsigned int i=0; i<atoms.size(); i++)
-  {
-    double r = distance(atoms[i].x, atoms[i].y, atoms[i].z, x, y, z);
-    if (r*rcut[i] <= 6.0)
-      sum += atoms[i].atomic_number * smoothed_density(r*rcut[i])*rcut[i]*rcut[i]*rcut[i];
+  // Only one atom will contribute due to the short range of the nuclear
+  // charge density
+  for (unsigned int i=0; i<atoms.size(); i++) {
+      double big = rsqasymptotic[i];
+      double xx = atoms[i].x - x;
+      double rsq = xx*xx;
+      if (rsq <  big) {
+          double yy = atoms[i].y - y;
+          rsq += yy*yy;
+          if (rsq < big) {
+              double zz = atoms[i].z - z;
+              rsq += zz*zz;
+              if (rsq < big) {
+                  double r = sqrt(rsq);
+                  return atoms[i].atomic_number * smoothed_density(r*rcut[i])*rcut[i]*rcut[i]*rcut[i];
+              }
+          }
+      }
   }
-  return sum;
+  return 0.0;
 
 //  double sum = 0.0;
 //  for (unsigned int i = 0; i < atoms.size(); i++)

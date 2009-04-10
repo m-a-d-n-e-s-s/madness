@@ -65,6 +65,7 @@ private:
     // If you add more fields don't forget to serialize them
     std::vector<Atom> atoms;
     std::vector<double> rcut;  // Reciprocal of the smoothing radius
+    std::vector<double> rsqasymptotic;   // Value of r*r beyond which the potential is asymptotic 1/r
 
 public:
     /// Makes a MolecularEntity with zero atoms
@@ -101,7 +102,7 @@ public:
     double nuclear_charge_density(double x, double y, double z) const;
 
     template <typename Archive>
-    void serialize(Archive& ar) {ar & atoms & rcut;}
+    void serialize(Archive& ar) {ar & atoms & rcut & rsqasymptotic;}
 };
 
 #define MENTITY_H_
