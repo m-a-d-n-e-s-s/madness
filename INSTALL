@@ -130,11 +130,14 @@ to link against those libraries).  Some examples follow.
      ./configure LIBS="-L/ccs/home/harrison/smokyinstall/gfortran64_int64/lib  -lacml  -lacml_mv -lgfortran"
 
   o  Macintosh Darwin --- tested with gcc 4.3.2, reference versions of BLAS and LAPACK, MPICH
-     
+
+     - with reference LAPACK and BLAS
+
      ./configure LIBS="-L/Users/harrison/install/lib -lLAPACK -lBLAS -lgfortran" CPPFLAGS="-I/Users/harrison/install/include"
 
+     - using vecLib (comes standard on OS X)
 
-
+     ./configure LIBS="/System/Library/Frameworks/vecLib.framework/vecLib" CPPFLAGS='-I/System/Library/Frameworks/vecLib.framework/Headers'
 
 
 
