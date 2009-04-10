@@ -314,29 +314,41 @@ namespace madness {
             // Probably relying upon a fair mutex.
 
             MutexWaiter waiter;
-            const int NTEST = std::min(32,NSEND);
-            while (1) {
-                bool foundone = false;
-                {
-                    SAFE_MPI_GLOBAL_MUTEX;
-                    for (int i=0; i<NTEST; i++) {
-                        foundone = send_req[cur_msg].Test_got_lock_already();
-                        if (foundone) break;
-                        cur_msg++;
-                        if (cur_msg >= NSEND) cur_msg = 0;
-                    }
-                }
-                if (foundone) break;
-                waiter.wait();
+//             const int NTEST = std::min(32,NSEND);
+//             while (1) {
+//                 bool foundone = false;
+//                 {
+//                     SAFE_MPI_GLOBAL_MUTEX;
+//                     for (int i=0; i<NTEST; i++) {
+//                         foundone = send_req[cur_msg].Test_got_lock_already();
+//                         if (foundone) break;
+//                         cur_msg++;
+//                         if (cur_msg >= NSEND) cur_msg = 0;
+//                     }
+//                 }
+//                 if (foundone) break;
+//                 waiter.wait();
+//             }
+//             free_managed_send_buf(cur_msg);
+//             return cur_msg;
+
+            if (cur_msg >= NSEND) cur_msg = 0;
+            while (!send_req[cur_msg].Test()) {
+#ifdef HAVE_CRAYXT
+                for (int i=0; i<100; i++) 
+#endif
+                    waiter.wait();
             }
+            free_managed_send_buf(cur_msg);
+            return cur_msg++;
 
 //             while (!send_req[cur_msg].Test()) {
+//                waiter.wait();
 //                 cur_msg++;
 //                 if (cur_msg >= NSEND) cur_msg = 0;
 //             }
-
-            free_managed_send_buf(cur_msg);
-            return cur_msg;
+//             free_managed_send_buf(cur_msg);
+//             return cur_msg;
         }
 
         /// This handles all incoming RMI messages for all instances
@@ -364,12 +376,12 @@ namespace madness {
             MADNESS_ASSERT(arg->get_world());
             MADNESS_ASSERT(arg->get_func());
 
-            lock();
+            lock();    // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
             nsent++;
             int i = get_free_send_request();
             send_req[i] = RMI::isend(arg, arg->size()+sizeof(AmArg), dest, handler, attr);
             if (managed) managed_send_buf[i] = (AmArg*)(arg);
-            unlock();
+            unlock();  // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
             return send_req[i];
         }
 
