@@ -215,7 +215,7 @@ static double smoothed_potential(double r) {
     //         return 1.6925687506432689+(-.94031597257959385+(.39493270848342941-.12089776790309064*rsq)*rsq)*rsq;
     //     }
 
-    // Below code is about 3x faster than the above ... accurate to 3e-10
+    // Below code is about 3x faster than the above ... accurate to at least 1e-12
     static const double lo0=0., hi0=.75, m0=(hi0+lo0)*0.5;
     static const double q0[16] = {1.5678214965991468, -.62707838966047510, -.64081087092780663, .47615447123508785, .17661021898450753, -.19684394977153049, -0.28659921463622429e-1, 0.55915374519467232e-1, 0.14360220805627533e-2, -0.12055628477910659e-1, 0.64426691086411555e-3, 0.20868614450806855e-2, -0.23638877395492455e-3, -0.30013965988191071e-3, 0.45381875950933199e-4, 0.34681863672368034e-4};
 
@@ -237,51 +237,48 @@ static double smoothed_potential(double r) {
     static const double lo6=5.6, hi6=7.0, m6=(hi6+lo6)*0.5;
     static const double q6[16] = {.15873015873015873, -0.25195263290501128e-1, 0.39992481413494903e-2, -0.63480129229574217e-3, 0.10076210989447071e-3, -0.15993985425859338e-4, 0.25387278290368119e-5, -0.40297464132256025e-6, 0.63964378952634106e-7, -0.10146488064153093e-7, 0.16103633738263416e-8, -0.26645848419611212e-9, 0.42505693478320828e-10, 0.0, 0.0, 0.0};
 
+
+//     double rsq = r*r;
+//     double formula = erf(r)/r + exp(-rsq)/sqrt(madness::constants::pi);
+
     const double* a;
 
-    if (r > hi3) {
+    if (r > hi6) {              // Most common case
+        return 1.0/r;
+    }
+    else if (r > hi3) {
         if (r > hi5) {
-            if (r > hi6) {
-                return 1.0/r;
-            }
-            else {
-                r -= m6;
-                a = q6;
-            }
+            r -= m6;
+            a = q6;
+        }
+        else if (r > hi4) {
+            r -= m5;
+            a = q5;
         }
         else {
-            if (r > hi4) {
-                r -= m5;
-                a = q5;
-            }
-            else {
-                r -= m4;
-                a = q4;
-            }
+            r -= m4;
+            a = q4;
         }
+    }
+    else if (r > hi1) {
+        if (r > hi2) {
+            r -= m3;
+            a = q3;
+        }
+        else {
+            r -= m2;
+            a = q2;
+        }
+    }
+    else if (r > hi0) {
+        r -= m1;
+        a = q1;
     }
     else {
-        if (r > 1.25) {
-            if (r > 2.05) {
-                r -= m3;
-                a = q3;
-            }
-            else {
-                r -= m2;
-                a = q2;
-            }
-        }
-        else {
-            if (r > 0.6) {
-                r -= m1;
-                a = q1;
-            }
-            else {
-                r -= m0;
-                a = q0;
-            }
-        }
+        r -= m0;                // Least common case
+        a = q0;
     }
+
 
     double b0 = a[ 0] + r*a[ 1];
     double b1 = a[ 2] + r*a[ 3];
@@ -303,8 +300,15 @@ static double smoothed_potential(double r) {
     double d1 = c2 + r4*c3;
 
     double r8 = r4*r4;
-    return d0 + r8*d1;
+    double result = d0 + r8*d1;
 
+//     if (abs(result-formula) > 1e-12) {
+//         printf("ERROR in potn: r=%.10f formula=%.10f result=%.10f err=%.1e\n",
+//                r, formula, result, formula-result);
+//         throw "bad";
+//     }
+
+    return result;
 }
 
 
@@ -312,16 +316,16 @@ static double smoothed_potential(double r) {
 
 /// dV/dx = (x/r) * du(r/c)/(c*c)
 static double dsmoothed_potential(double r) {
-//     double rsq = r*r;
-//     if (r > 7.0) {
-//         return -1.0/rsq;
-//     }
-//     else if (r > 1e-2) {
-//         return -erf(r)/rsq + exp(-rsq)*(2/r - 2*r)/sqrt(madness::constants::pi);
-//     }
-//     else {
-//         return (-1.8806319451591876+(1.5797308339337176-.72538660741854381*rsq)*rsq)*r;
-//     }
+//      double rsq = r*r;
+//      if (r > 7.0) {
+//          return -1.0/rsq;
+//      }
+//      else if (r > 1e-2) {
+//          return -erf(r)/rsq + exp(-rsq)*(2/r - 2*r)/sqrt(madness::constants::pi);
+//      }
+//      else {
+//          return (-1.8806319451591876+(1.5797308339337176-.72538660741854381*rsq)*rsq)*r;
+//      }
 
     // Below we have 16-term polynomial approximations generated from Chebyshev expansions
     // computed by Maple, accurate to about 1e-14.  These are over 5x faster than
@@ -349,50 +353,45 @@ static double dsmoothed_potential(double r) {
     static const double lo6=5.0, hi6=7.0, m6=(hi6+lo6)*0.5;
     static const double q6[16] = {-0.27777777777779237e-1, 0.92592592592770810e-2, -0.23148148149286158e-2, 0.51440329259377589e-3, -0.10716735349262763e-3, 0.21433472880730380e-4, -0.41676252668392218e-5, 0.79384016105355812e-6, -0.14884727258382283e-6, 0.27571110992976271e-7, -0.50751367707046113e-8, 0.93366213261041495e-9, -0.16069628589065609e-9, 0.29406617613306847e-10, -0.15659360054098260e-10, 0.58338713932903765e-11};
 
+//     double rsq = r*r;
+//     double formula= -erf(r)/rsq + exp(-rsq)*(2/r - 2*r)/sqrt(madness::constants::pi);
+
     const double* a;
 
-    if (r > hi3) {
+    if (r > hi6) {              // Most common case
+        return -1.0/(r*r);
+    }
+    else if (r > hi3) {
         if (r > hi5) {
-            if (r > hi6) {
-                return -1.0/(r*r);
-            }
-            else {
-                r -= m6;
-                a = q6;
-            }
+            r -= m6;
+            a = q6;
+        }
+        else if (r > hi4) {
+            r -= m5;
+            a = q5;
         }
         else {
-            if (r > hi4) {
-                r -= m5;
-                a = q5;
-            }
-            else {
-                r -= m4;
-                a = q4;
-            }
+            r -= m4;
+            a = q4;
         }
     }
-    else {
-        if (r > 1.25) {
-            if (r > 2.05) {
-                r -= m3;
-                a = q3;
-            }
-            else {
-                r -= m2;
-                a = q2;
-            }
+    else if (r > hi1) {
+        if (r > hi2) {
+            r -= m3;
+            a = q3;
         }
         else {
-            if (r > 0.6) {
-                r -= m1;
-                a = q1;
-            }
-            else {
-                r -= m0;
-                a = q0;
-            }
+            r -= m2;
+            a = q2;
         }
+    }
+    else if (r > hi0) {
+        r -= m1;
+        a = q1;
+    }
+    else {
+        r -= m0;                // Least common case
+        a = q0;
     }
 
     double b0 = a[ 0] + r*a[ 1];
@@ -415,9 +414,109 @@ static double dsmoothed_potential(double r) {
     double d1 = c2 + r4*c3;
 
     double r8 = r4*r4;
-    return d0 + r8*d1;
+    double result = d0 + r8*d1;
 
+//     if (abs(result-formula) > 1e-12) {
+//         printf("ERROR in dpotn: r=%.10f formula=%.10f result=%.10f err=%.1e\n",
+//                r, formula, result, formula-result);
+//         throw "bad";
+//     }
+
+    return result;
 }
+
+/// Charge density corresponding to smoothed 1/r potential
+
+/// Invoke as \c rho(r/c)/c^3 where \c c is the radius of the
+/// smoothed volume.
+static double smoothed_density(double r) {
+    static const double rpithreehalf = std::pow(madness::constants::pi, -1.5);
+
+    static const double lo0=0., hi0=.7, m0=(hi0+lo0)*0.5;
+    static const double q0[16] = {1.58309058053604863059133738484, -.594156477305282120814213732527, -.675829590465869674736627360160, .457272894311440179667487251513, .200916501350638587647294002606, -.191812923526005716061305701429, -0.384041152136037061883753468244e-1, 0.553559824361751119441180858041e-1, 0.416123633836016886728249057132e-2, -0.121442559912920506276450908712e-1, 0.619864499566597369001697605166e-4, 0.214316226090168557729327702623e-2, -0.136499090769466029387949587273e-3, -0.315102015960707380724185038521e-3, 0.323392313350243554670525536881e-4, 0.375554156863556304879505033887e-4};
+
+    static const double lo1=.7, hi1=1.4, m1=(hi1+lo1)*0.5;;
+    static const double q1[16] = {1.00870119857103021278936668443, -.818829603024078336690793023834, .256240644799596808556033571998, .218524818389497833254294382964, -.226788997457066163292190418435, 0.212142047286727561480047293787e-1, 0.620545216666859771919294222543e-1, -0.249327259366614559449077073609e-1, -0.807516656889324012436282101680e-2, 0.726637772256175006831968472811e-2, 0.772697795338246481042640520950e-5, -0.128785816954128381928860848125e-2, 0.227193683865844050896780298101e-3, 0.151408292847583742555940505813e-3, -0.518521107704433047074669029729e-4};
+
+    static const double lo2=1.4, hi2=2.3, m2=(hi2+lo2)*0.5;;
+    static const double q2[16] = {.554145624556689096969081608351, -.337800981370955394823529061626, .216561450775907488649068668835, -.107420819520666175327418688304, 0.142313349637690714545727300690e-1, 0.276802058134241010165904483610e-1, -0.223879761371850282204249330666e-1, 0.479068379705338050761375775387e-2, 0.310612892699948041976705222365e-2, -0.234914059614802442029161487751e-2, 0.284116821692061287772035165040e-3, 0.321070228800866705198704374752e-3, -0.146927412985136977051042249536e-3, -0.629779203599508368023394743431e-5, 0.210589330945039832616255772431e-4, -0.404559639512031604119644684976e-5};
+
+    static const double lo3=2.3, hi3=3.1, m3=(hi3+lo3)*0.5;;
+    static const double q3[16] = {.370705579883653306467993194525, -.138949423793780329204188508979, 0.551506891529566532900849023748e-1, -0.252233066950108496933304655741e-1, 0.131028169171451245538732414063e-1, -0.625788951290836296262151055160e-2, 0.187976392517581893968877790649e-2, 0.225946811311225059557574840910e-3, -0.630974538468232444420875199812e-3, 0.345426032198648093763391631585e-3, -0.674678469250761057789458386107e-4, -0.285658551546378541493603134451e-4, 0.242995277949732691544109101197e-4, -0.522910733157309943317141603282e-5, -0.127893995978003179971380279321e-5};
+
+    static const double lo4=3.1, hi4=4.3, m4=(hi4+lo4)*0.5;;
+    static const double q4[16] = {.270270864731350814552827207198, -0.730503943466053902180725380471e-1, 0.197576649004575342445788829295e-1, -0.537077476655927805722867255717e-2, 0.149869180356955452570130911040e-2, -0.458765078426018171923424187668e-3, 0.170691444844222756414519149885e-3, -0.769520517522223727958994248522e-4, 0.354635163045523900585291395454e-4, -0.136186497265540026519720456365e-4, 0.324014537655501597405600020680e-5, 0.303169299533116988042651450591e-6, -0.766060360767198753225488372965e-6, 0.400445537377412120821140534607e-6, -0.845345860699726519590090268851e-7, -0.901985545162593824927227308468e-8};
+
+    static const double lo5=4.3, hi5=6.0, m5=(hi5+lo5)*0.5;;
+    static const double q5[16] = {.194174757283199449635533806186, -0.377038363822809854533904553548e-1, 0.732113336025487404677631262998e-2, -0.142157955818121977656787779445e-2, 0.276035491577857853206947989669e-3, -0.536002798939302119922940621252e-4, 0.104095545759619899370994180918e-4, -0.202342699022285881220852553495e-5, 0.395148591040236277570987404111e-6, -0.787827633774820556895499032076e-7, 0.169720741458720884543048912858e-7, -0.438693569448717273299105660721e-8, 0.137973675089051423676674830951e-8, -0.588399255663432376876450088919e-9, 0.349125002345335342767874275642e-9, -0.117798500933314757378027836748e-9};
+
+    double rsq = r*r;
+    double formula = exp(-rsq)*(2.5 - rsq) * rpithreehalf;
+
+    const double* a;
+
+    if (r > hi5) {              // Most common case
+        return 0.0;
+    }
+    else if (r > hi3) {
+        if (r > hi4) {
+            r -= m5;
+            a = q5;
+        }
+        else {
+            r -= m4;
+            a = q4;
+        }
+    }
+    else if (r > hi1) {
+        if (r > hi2) {
+            r -= m3;
+            a = q3;
+        }
+        else {
+            r -= m2;
+            a = q2;
+        }
+    }
+    else if (r > hi0) {
+        r -= m1;
+        a = q1;
+    }
+    else {
+        r -= m0;                // Least common case
+        a = q0;
+    }
+
+    double b0 = a[ 0] + r*a[ 1];
+    double b1 = a[ 2] + r*a[ 3];
+    double b2 = a[ 4] + r*a[ 5];
+    double b3 = a[ 6] + r*a[ 7];
+    double b4 = a[ 8] + r*a[ 9];
+    double b5 = a[10] + r*a[11];
+    double b6 = a[12] + r*a[13];
+    double b7 = a[14] + r*a[15];
+
+    double r2 = r*r;
+    double c0 = b0 + r2*b1;
+    double c1 = b2 + r2*b3;
+    double c2 = b4 + r2*b5;
+    double c3 = b6 + r2*b7;
+
+    double r4 = r2*r2;
+    double d0 = c0 + r4*c1;
+    double d1 = c2 + r4*c3;
+
+    double r8 = r4*r4;
+
+    double result = d0 + r8*d1;
+
+    if (abs(result-formula) > 1e-12) {
+        printf("ERROR in rho: r=%.10f formula=%.10f result=%.10f err=%.1e\n",
+               r, formula, result, formula-result);
+        throw "bad";
+    }
+}
+
 
 // static double smoothing_parameter_original(double Z, double eprec) {
 //     // The min is since asymptotic form not so good at low acc.
@@ -469,6 +568,7 @@ static double dsmoothed_potential(double r) {
 
 // /// Invoke as \c rho(r/c)/c^3 where \c c is the radius of the
 // /// smoothed volume.
+
 // static double smoothed_density_original(double r) {
 //     const double RPITO1P5 = 0.1795871221251665617; // 1.0/Pi^1.5
 //     return ((-3.0/2.0+(1.0/3.0)*r^2)*exp(-r^2)+(-32.0+(256.0/3.0)*r^2)*exp(-4.0*r^2))*RPITO1P5;

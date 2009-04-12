@@ -380,7 +380,7 @@ struct CalculationParameters {
             , plothi(-1)
             , plotdens(false)
             , plotcoul(false)
-            , maxsub(5)
+            , maxsub(8)
             , nalpha(0)
             , nbeta(0)
             , nmo_alpha(0)
@@ -1295,6 +1295,8 @@ struct Calculation {
         tensorT r = inner(world, rho, dv);
         dv.clear();
         world.gop.fence(); // free memory
+//         print("electronic derivative piece");
+//         print(r);
         for (int atom=0; atom<molecule.natom(); atom++) {
             for (int axis=0; axis<3; axis++) {
                 r[atom*3 + axis] += molecule.nuclear_repulsion_derivative(atom,axis);

@@ -3,46 +3,7 @@ dft
   nvalpha 0
   nvbeta 0
   dconv 1e-5
-end
-
-# water*1
-geometry
-  O  0.0    0.0 0.0
-  H  1.4375 0.0 1.15
-  H -1.4375 0.0 1.15
-end
-
-geometry
-  units angstrom
-  h 0 0 0
-  h 1 0 0
-end
-
-
-
-
-
-# water dimer
-geometry
-  units angstrom
-  O -0.04537298   1.27083455    0.00000000
-  H  0.11541692   1.82777013    0.77758805
-  H  0.11541692   1.82777013   -0.77758805
-  O -0.10561006  -0.47346262    0.00000000
-  H -0.09896558  -1.45781563    0.00000000
-  H  0.84226145  -1.68923759    0.00000000
-end
-
-geometry
-  units atomic
-  he 0 0 0
-  he 4 0 0
-  he 0 4 0
-  he 0 0 4
-  he 4 4 0
-  he 4 0 4
-  he 0 4 4
-  he 4 4 4
+  maxsub 8
 end
 
 # D6h benzene at 6-31g* SCF =m
@@ -61,6 +22,48 @@ geometry
   H -4.02886772   -2.32598919     0.00000000
 end
 
+
+# water dimer
+geometry
+  units angstrom
+  O -0.04537298   1.27083455    0.00000000
+  H  0.11541692   1.82777013    0.77758805
+  H  0.11541692   1.82777013   -0.77758805
+  O -0.10561006  -0.47346262    0.00000000
+  H -0.09896558  -1.45781563    0.00000000
+  H  0.84226145  -1.68923759    0.00000000
+end
+
+
+# water*1
+geometry
+  O  0.0    0.0 0.0
+  H  1.4375 0.0 1.15
+  H -1.4375 0.0 1.15
+end
+
+geometry
+  units angstrom
+  h 0 0 0
+  h 1 0 0
+end
+
+
+
+
+
+
+geometry
+  units atomic
+  he 0 0 0
+  he 4 0 0
+  he 0 4 0
+  he 0 0 4
+  he 4 4 0
+  he 4 0 4
+  he 0 4 4
+  he 4 4 4
+end
 
 
 # water*5
