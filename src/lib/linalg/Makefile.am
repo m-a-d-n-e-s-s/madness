@@ -3,6 +3,10 @@ include $(top_srcdir)/config/MakeGlobal.am
 bin_PROGRAMS = test  test_solvers
 lib_LIBRARIES = libMADlinalg.a
 
+thisincludedir = $(includedir)/linalg
+thisinclude_HEADERS = tensor_lapack.h cblas.h  clapack.h  lapack_functions.h \
+                         solvers.cc solvers.h
+
 libMADlinalg_a_SOURCES = lapack.cc cblas.cc \
                          \
                          tensor_lapack.h cblas.h  clapack.h  lapack_functions.h \

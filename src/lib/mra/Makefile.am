@@ -8,6 +8,11 @@ lib_LIBRARIES = libMADmra.a
 
 data_DATA = autocorr coeffs gaussleg
 
+thisincludedir = $(includedir)/mra
+thisinclude_HEADERS = adquad.h  funcimpl.h  indexit.h  legendre.h  loadbal.h  operator.h  vmra.h \
+                      funcdefaults.h  key.h mra.h      power.h     qmprop.h  twoscale.h lbdeux.h mraimpl.h
+
+
 LDADD = libMADmra.a $(LIBLINALG) $(LIBTENSOR) $(LIBMISC) $(LIBWORLD)
 
 libMADmra_a_SOURCES = mra1.cc mra2.cc mra3.cc mra4.cc mra5.cc mra6.cc \

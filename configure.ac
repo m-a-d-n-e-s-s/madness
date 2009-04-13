@@ -218,6 +218,7 @@ AC_DEFINE(MADNESS_FORINT,[long],[Equivalent C type for Fortran integers ... shou
 # please maintain the directory tree file order and indenting.
 AC_CONFIG_FILES([
  Makefile
+    include/Makefile
     src/Makefile
     src/lib/Makefile
        src/lib/world/Makefile

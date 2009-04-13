@@ -3,6 +3,15 @@ include $(top_srcdir)/config/MakeGlobal.am
 bin_PROGRAMS = world testatom testhashthreaded testdc objexample objexample2 testprof
 lib_LIBRARIES = libMADworld.a
 
+thisincludedir = $(includedir)/world
+thisinclude_HEADERS = archive.h print.h      worldam.h       worldfut.h   worldmpi.h        worldtask.h \
+                     array.h    sharedptr.h  worldgop.h   worldobj.h \
+                     binfsar.h  mpiar.h       textfsar.h   worlddc.h       world.h      worldprofile.h  worldtime.h \
+                     bufar.h    nodefaults.h  typestuff.h  worlddep.h      worldhash.h  worldref.h      worldtypes.h \
+                     dqueue.h   parar.h       vecar.h      worldexc.h      worldmem.h   worldser.h \
+                     worldthread.h madatomic.h worldrmi.h safempi.h worldpapi.h worldmutex.h print_seq.h \
+                     worldhashmap.h          worldrange.h
+
 testprof_SOURCES = testprof.cc
 testprof_LDADD = libMADworld.a
 
