@@ -37,7 +37,7 @@ namespace madness {
     ///   .   xnew = sum(i<=m) [ c(i)*(x(i) - f(i)) ]
     /// \endverbatim
     template <typename T>
-    Tensor<T> KAIN(const Tensor<T>& Q) {
+    Tensor<T> KAIN(const Tensor<T>& Q, double rcond=1e-12) {
         const int nvec = Q.dim[0];
         const int m = nvec-1;
 
@@ -63,7 +63,6 @@ namespace madness {
     //     print("b");
     //     print(b);
 
-        double rcond = 1e-12;
         Tensor<T> x;
         Tensor<double> s;
         long rank;
