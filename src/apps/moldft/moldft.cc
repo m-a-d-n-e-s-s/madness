@@ -1164,6 +1164,7 @@ struct Calculation {
                                const vecfuncT& f) {
         int nocc = psi.size();
         int nf = f.size();
+        double tol = FunctionDefaults<3>::get_thresh();
 
         // Problem here is balancing memory usage vs. parallel efficiency.
         // Once we start using localized orbitals both the occupied
@@ -1182,8 +1183,7 @@ struct Calculation {
         for (int i=0; i<nocc; i++) {
             if (occ[i] > 0.0) {
                 //vecfuncT psif = mul(world, psi[i], f);
-                vecfuncT psif = mul_sparse(world, psi[i], f, vtol);
-                //set_thresh(world, psif, vtol);  //<<<<<<<<<<<<<<<<<<<<<<<<< since cannot yet put in apply
+                vecfuncT psif = mul_sparse(world, psi[i], f, vtol); 
 
                 truncate(world,psif);
                 psif = apply(world, *coulop, psif);
@@ -1540,13 +1540,36 @@ struct Calculation {
         Q = newQ;
 
         // Solve the subspace equations
-        tensorT c = KAIN(Q);
+        tensorT c;
+        if (world.rank() == 0) {
+            double rcond = 1e-12;
+            while (1) {
+                c = KAIN(Q,rcond);
+                if (abs(c[m-1]) < 3.0) {
+                    break;
+                }
+                else if (rcond < 0.01) {
+                    print("Increasing subspace singular value threshold ", c[m-1], rcond);
+                    rcond *= 100;
+                }
+                else {
+                    print("Forcing full step due to subspace malfunction");
+                    c = 0.0;
+                    c[m-1] = 1.0;
+                    break;
+                }
+            }
+        }
+
+
         world.gop.broadcast_serializable(c, 0);
         if (world.rank() == 0) {
             //print("Subspace matrix");
             //print(Q);
             print("Subspace solution", c);
         }
+
+
 
         // Form linear combination for new solution
         START_TIMER;
