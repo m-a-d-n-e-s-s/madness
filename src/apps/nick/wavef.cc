@@ -158,7 +158,7 @@ void debug1F1(World& world) {
 complexd f11(complexd AA, complexd BB, complexd ZZ)
 {
     double k = 1.0/abs(imag(AA));
-    if(abs(imag(ZZ)) <= 11.0 + 1.0/k + 0.5/(k*k) ) return conHyp(AA,BB,ZZ);
+    if(abs(imag(ZZ)) <= 11.0 + 1.0/k + 0.5/(k*k) ) return hypergf(AA,BB,ZZ);
     else return aForm(AA,BB,ZZ);
 //    return conHyp(AA,BB,ZZ);
 }

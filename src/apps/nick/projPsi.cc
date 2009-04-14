@@ -93,6 +93,7 @@ void loadDefaultBasis(World& world, std::vector<WF>& stateList) {
     }
     PRINTLINE("Done loading the standard basis");
 }
+
 void loadBasis(World& world, std::vector<WF>& stateList) {
     ifstream bound("bound.num");
     ifstream unbound("unbound.num");
@@ -281,16 +282,14 @@ void belkic(World& world) {
     PRINTLINE(output);
 }
 
-int main(int argc, char**argv) {
-    int k = 12;
-    double L = 1000.0;
+void loadParameters(World& world, int& k, double& L) {
     string tag;
     ifstream f("input");
     if( f.is_open() ) {
         while(f >> tag) {
             if (tag[0] == '#') {
                 char ch;
-                printf("    comment  %s ",tag.c_str());
+                if(world.rank() ==0) printf("    comment  %s ",tag.c_str());
                 while (f.get(ch)) {
                     printf("%c",ch);
                     if (ch == '\n') break;
@@ -298,22 +297,28 @@ int main(int argc, char**argv) {
             }
             else if (tag == "L") {
                 f >> L;
-                printf("L = %.1f\n", L);
+                if(world.rank() == 0) printf("L = %.1f\n", L);
             }
             else if (tag == "k") {
                 f >> k;
-                printf("k = %.1i\n",k);
+                if(world.rank() == 0) printf("k = %.1i\n",k);
             }
         }
     }
+}
+
+int main(int argc, char**argv) {
     // INITIALIZE the parallel programming environment
     initialize(argc, argv);
     World world(MPI::COMM_WORLD);
     // Load info for MADNESS numerical routines
     startup(world,argc,argv);
     // Setup defaults for numerical functions
+    int k = 12;
+    double L = 1000.0;
+    loadParameters(world, k, L);
     FunctionDefaults<NDIM>::set_k(k);              // Wavelet order
-    FunctionDefaults<NDIM>::set_thresh(1e-4);       // Accuracy
+    FunctionDefaults<NDIM>::set_thresh(1e-3);       // Accuracy
     FunctionDefaults<NDIM>::set_cubic_cell(-L, L);
     FunctionDefaults<NDIM>::set_initial_level(3);
     FunctionDefaults<NDIM>::set_apply_randomize(false);
@@ -321,7 +326,14 @@ int main(int argc, char**argv) {
     FunctionDefaults<NDIM>::set_refine(true);
     FunctionDefaults<NDIM>::set_truncate_mode(1);
     try {
-        std::vector<WF> basisList;    
+        std::vector<WF> basisList;
+        double start = wall_time();
+        const double kvec[] = {0, 0, 1};
+        basisList.push_back(WF("Expik.r    ",
+                               FunctionFactory<complexd,NDIM>(world).
+                               functor(functorT(new Expikr(kvec)))));
+        double used = wall_time() - start;
+        PRINTLINE("Expikr\t" << used << " sec");
         loadBasis(world,basisList);
         //printBasis(world);
         //belkic(world);
