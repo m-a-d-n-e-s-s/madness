@@ -73,7 +73,8 @@ asm volatile("rep;nop" : : : "memory");
             // 250 --> 2us
             // 200 --> 3.6us
             // 100 --> 40+us (ouch!)
-            for (int i=0; i<100; i++)  cpu_relax();
+
+            for (int i=0; i<300; i++)  cpu_relax();
 #else
             const unsigned int nspin  = 1000;    // Spin for 1,000 calls
             const unsigned int nsleep = 100000;  // Sleep 10us for 100,000 calls = 1s

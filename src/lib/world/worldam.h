@@ -301,6 +301,14 @@ namespace madness {
             }
         }
 
+        void myusleep(int us) {
+            double secs = us*1e-6;
+            double start = cpu_time();
+            while (cpu_time()-start < secs) {
+                for (int i=0; i<100; i++) cpu_relax();
+            }
+        }
+
         /// Private: Finds/waits for a free send request
         int get_free_send_request() {
             // WE ASSUME WE ARE INSIDE A CRITICAL SECTION WHEN IN HERE
@@ -335,9 +343,9 @@ namespace madness {
             if (cur_msg >= NSEND) cur_msg = 0;
             while (!send_req[cur_msg].Test()) {
 #ifdef HAVE_CRAYXT
-                for (int i=0; i<100; i++) 
+                myusleep(20);
 #endif
-                    waiter.wait();
+                         //                    waiter.wait();
             }
             free_managed_send_buf(cur_msg);
             return cur_msg++;
