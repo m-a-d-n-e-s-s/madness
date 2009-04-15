@@ -45,8 +45,6 @@ extern "C" complexd hypergf_(complexd* AA, complexd* BB, complexd* X,
 			     double* EPS, int* LIMIT, int* KIN, double* ERR, 
 			     int* NITS, double* FPMAX, double* ACC8,
 			     double* ACC16);
-extern "C" complexd conhyp_(complexd* AA, complexd* BB, complexd* ZZ, 
-			    int* LNCHF, int* IP);
 
 /******************************************
  * Virtual class for all wave functions 

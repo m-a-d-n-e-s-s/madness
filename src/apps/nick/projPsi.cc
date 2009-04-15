@@ -317,7 +317,7 @@ int main(int argc, char**argv) {
     int k = 12;
     double L = 1000.0;
     loadParameters(world, k, L);
-    FunctionDefaults<NDIM>::set_k(k);              // Wavelet order
+    FunctionDefaults<NDIM>::set_k(k);               // Wavelet order
     FunctionDefaults<NDIM>::set_thresh(1e-3);       // Accuracy
     FunctionDefaults<NDIM>::set_cubic_cell(-L, L);
     FunctionDefaults<NDIM>::set_initial_level(3);
@@ -327,13 +327,13 @@ int main(int argc, char**argv) {
     FunctionDefaults<NDIM>::set_truncate_mode(1);
     try {
         std::vector<WF> basisList;
-        double start = wall_time();
-        const double kvec[] = {0, 0, 1};
-        basisList.push_back(WF("Expik.r    ",
-                               FunctionFactory<complexd,NDIM>(world).
-                               functor(functorT(new Expikr(kvec)))));
-        double used = wall_time() - start;
-        PRINTLINE("Expikr\t" << used << " sec");
+//         double start = wall_time();
+//         const double kvec[] = {0, 0, 1};
+//         basisList.push_back(WF("Expik.r       ",
+//                                FunctionFactory<complexd,NDIM>(world).
+//                                functor(functorT(new Expikr(kvec)))));
+//         double used = wall_time() - start;
+//         PRINTLINE("Expikr\t" << used << " sec");
         loadBasis(world,basisList);
         //printBasis(world);
         //belkic(world);

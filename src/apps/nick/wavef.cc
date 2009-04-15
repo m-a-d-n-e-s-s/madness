@@ -148,7 +148,6 @@ complexd Expikr::operator()(const vector3D& rVec) const
 
 void debug1F1(World& world) {
       test1F1(world, aForm  ,"     aForm");
-      test1F1(world, conHyp ,"    conHyp");
       test1F1(world, hypergf,"   hypergf");
 }
 /*******************************************************
@@ -160,7 +159,6 @@ complexd f11(complexd AA, complexd BB, complexd ZZ)
     double k = 1.0/abs(imag(AA));
     if(abs(imag(ZZ)) <= 11.0 + 1.0/k + 0.5/(k*k) ) return hypergf(AA,BB,ZZ);
     else return aForm(AA,BB,ZZ);
-//    return conHyp(AA,BB,ZZ);
 }
 
 /*********************************************************
@@ -181,17 +179,6 @@ complexd hypergf(complexd AA, complexd BB, complexd XX)
     return   hypergf_(&AA, &BB, &XX, &EPS, &LIMIT, &KIND,
 		      &ERR, &NITS, &FPMAX, &ACC8, &ACC16);
 }
-
-/*********************************************************
- *Tom707 Confluent Hypergeometric function
- ********************************************************/
-complexd conHyp(complexd AA, complexd BB, complexd XX)
-{
-    int IP = 0;
-    int LNCHF = 0;
-    return conhyp_(&AA, &BB, &XX, &LNCHF, &IP);
-}
-
 
 /****************************************************************
  * The asymptotic form of the hypergeometric function given by
