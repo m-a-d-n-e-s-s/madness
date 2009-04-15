@@ -327,7 +327,7 @@ public:
     if (_world.rank() == 0)
     {
       _params.read_file(filename);
-      _params.fractional = false;
+      //_params.fractional = false;
     }
     _world.gop.broadcast_serializable(_params, 0);
     if (_params.fractional)
@@ -342,7 +342,7 @@ public:
     {
       _aobasis.read_file("sto-3g");
       _mentity.read_file(filename, _params.fractional);
-      //_mentity.center();
+      _mentity.center();
       if (_params.periodic && _params.kpoints)
         _kpoints = read_kpoints("KPOINTS.OUT");
       else
@@ -407,9 +407,7 @@ public:
       if (_world.rank() == 0) print("Done creating nuclear potential ..\n");
       delete op;
     }
-      finalize();
-      exit(0);
-
+    
     vector<long> npt(3,101);
     plotdx(_vnuc, "vnuc.dx", FunctionDefaults<3>::get_cell(), npt);
   }
@@ -652,27 +650,27 @@ public:
       plotdx(ao[ai], fname.c_str(), FunctionDefaults<3>::get_cell(), npt);
     }
 
-    {
-      rfunctionT dao0 = pdiff(ao[0], 0);
-      rfunctionT dao1 = pdiff(ao[0], 1);
-      rfunctionT dao2 = pdiff(ao[0], 2);
-      if (_world.rank() == 0)  printf("\n");
-      double L = _params.L;
-      double bstep = L / 100.0;
-      dao0.reconstruct();
-      dao1.reconstruct();
-      dao2.reconstruct();
-      ao[0].reconstruct();
-      for (int i = 0; i < 101; i++)
-      {
-        coordT p(-L / 2 + i * bstep);
-        if (_world.rank() == 0)
-          printf("%.2f\t\t%.8f\t%.8f\t%.8f\n", p[0], dao0(p), dao1(p), dao2(p));
+//    {
+//      rfunctionT dao0 = pdiff(ao[0], 0);
+//      rfunctionT dao1 = pdiff(ao[0], 1);
+//      rfunctionT dao2 = pdiff(ao[0], 2);
+//      if (_world.rank() == 0)  printf("\n");
+//      double L = _params.L;
+//      double bstep = L / 100.0;
+//      dao0.reconstruct();
+//      dao1.reconstruct();
+//      dao2.reconstruct();
+//      ao[0].reconstruct();
+//      for (int i = 0; i < 101; i++)
+//      {
+//        coordT p(-L / 2 + i * bstep);
 //        if (_world.rank() == 0)
-//          printf("%.2f\t\t%.8f\n", p[0], ao[0](p));
-      }
-      if (_world.rank() == 0) printf("\n");
-    }
+//          printf("%.2f\t\t%.8f\t%.8f\t%.8f\n", p[0], dao0(p), dao1(p), dao2(p));
+////        if (_world.rank() == 0)
+////          printf("%.2f\t\t%.8f\n", p[0], ao[0](p));
+//      }
+//      if (_world.rank() == 0) printf("\n");
+//    }
 
     // Get size information from k-points and ao_basis so that we can correctly size
     // the _orbitals data structure and the eigs tensor

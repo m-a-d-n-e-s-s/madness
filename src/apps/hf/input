@@ -7,9 +7,9 @@ dft
   spinpol false
   maxits 100
   lo 1e-2
-  waveorder 6
-  thresh 1e-4
-  fractional false 
+  waveorder 8
+  thresh 1e-6
+  fractional false
 end
 
 # helium with L = 8.0 
@@ -34,6 +34,18 @@ geometry
   he   0.25  0.75  0.75
   he   0.75  0.25  0.75
   he   0.75  0.75  0.75
+end
+
+# helium with L = 8.0
+geometry 
+  he  -3.0 -3.0 -3.0
+  he  -3.0 -3.0  1.0
+  he  -3.0  1.0 -3.0
+  he  -3.0  1.0  1.0
+  he   1.0 -3.0 -3.0
+  he   1.0 -3.0  1.0
+  he   1.0  1.0 -3.0
+  he   1.0  1.0  1.0
 end
 
 #beryllium
