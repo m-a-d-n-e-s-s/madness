@@ -8,6 +8,7 @@
 #include "libxc.h"
 #include "electronicstructureparams.h"
 #include "complexfun.h"
+#include "esolver.h"
 
 #ifndef SOLVER_H_
 
@@ -20,7 +21,7 @@ static double onesfunc(const coordT& x)
 
 namespace madness
 {
-  //***************************************************************************
+//***************************************************************************
   template <typename T, typename valueT, int NDIM>
   class Solver
   {
@@ -32,6 +33,8 @@ namespace madness
     typedef Vector<double,NDIM> kvecT;
     typedef SeparatedConvolution<T,3> operatorT;
     typedef SharedPtr<operatorT> poperatorT;
+    typedef Tensor<double> rtensorT;
+    typedef Tensor<std::complex<double> > ctensorT;
 
     //*************************************************************************
     World& _world;
@@ -372,6 +375,18 @@ namespace madness
         if (_world.rank() == 0) print("applying potential ...\n");
         apply_potential(pfuncsa, pfuncsb, _phisa, _phisb, _rhoa, _rhob, _rho);
 
+        // Build fock matrix
+        ctensorT overlap = matrix_inner(_world, _phisa, _phisa, true);
+        ctensorT fock = build_fock_matrix(_phisa, pfuncsa, false);
+        ctensorT c; rtensorT e;
+        if (_world.rank() == 0) print("Diagonlizing Fock matrix ...\n\n");
+        sygv(fock, overlap, 1, &c, &e);
+
+        for (unsigned int ei = 0; ei < _eigsa.size(); ei++)
+        {
+          _eigsa[ei] = e(ei,ei);
+        }
+
         // Make BSH Green's function
         std::vector<poperatorT> bopsa = make_bsh_operators(_eigsa);
         vector<T> sfactor(pfuncsa.size());
@@ -407,14 +422,10 @@ namespace madness
 
         // Update eigenvalues
         if (_world.rank() == 0) print("updating eigenvalues ...\n");
-        update_eigenvalues(tmpa, pfuncsa, _phisa, _eigsa);
+        //update_eigenvalues(tmpa, pfuncsa, _phisa, _eigsa);
 
         // Update orbitals
-        truncate<valueT,NDIM>(_world, tmpa);
-        for (unsigned int ti = 0; ti < tmpa.size(); ti++)
-        {
-          _phisa[ti] = tmpa[ti].scale(1.0/tmpa[ti].norm2());
-        }
+        update_orbitals(_phisa, tmpa);
 
         // Do other spin
         if (_params.spinpol)
@@ -426,12 +437,8 @@ namespace madness
           bopsb.clear();
           gram_schmidt(tmpb, _phisb);
           // Update orbitals
-          truncate<valueT,NDIM>(_world, tmpb);
-          update_eigenvalues(tmpb, pfuncsb, _phisb, _eigsb);
-          for (unsigned int ti = 0; ti < tmpb.size(); ti++)
-          {
-            _phisb[ti] = tmpb[ti].scale(1.0/tmpb[ti].norm2());
-          }
+          //update_eigenvalues(tmpb, pfuncsb, _phisb, _eigsb);
+          update_orbitals(_phisb, tmpb);
         }
 
         std::cout.precision(8);
@@ -461,6 +468,29 @@ namespace madness
     //*************************************************************************
 
     //*************************************************************************
+    ctensorT build_fock_matrix(std::vector<functionT>& psi,
+                              std::vector<functionT>& vpsi, bool update)
+    {
+      // Build the potential matrix
+      rtensorT rpotential = matrix_inner(_world, vpsi, psi, true);
+      // Convert to a complex tensor
+      ctensorT potential = tensor_real2complex<double>(rpotential);
+      _world.gop.fence();
+
+      if (_world.rank() == 0) print("Building kinetic energy matrix ...\n\n");
+      ctensorT kinetic = ::kinetic_energy_matrix(_world, psi, _params.periodic);
+
+      if (_world.rank() == 0) print("Constructing Fock matrix ...\n\n");
+      ctensorT fock = kinetic + potential;
+      fock = 0.5 * (fock + transpose(fock));
+
+      _world.gop.fence();
+
+      return fock;
+    }
+    //*************************************************************************
+
+    //*************************************************************************
     void gram_schmidt(std::vector<functionT>& a, const std::vector<functionT>& b)
     {
       for (unsigned int ai = 0; ai < a.size(); ++ai)
@@ -476,7 +506,19 @@ namespace madness
     //*************************************************************************
 
     //*************************************************************************
-    void update_eigenvalues(const std::vector<functionT>& tmp,
+    void update_orbitals(std::vector<functionT>& owfs,
+                         std::vector<functionT>& nwfs)
+    {
+      truncate<valueT,NDIM> (_world, nwfs);
+      for (unsigned int wi = 0; wi < nwfs.size(); wi++)
+      {
+        owfs[wi] = nwfs[wi].scale(1.0 / nwfs[wi].norm2());
+      }
+    }
+    //*************************************************************************
+
+    //*************************************************************************
+    void update_eigenvalues(const std::vector<functionT>& wavefs,
         const std::vector<functionT>& pfuncs, const std::vector<functionT>& phis,
         std::vector<T>& eigs)
     {
@@ -484,8 +526,8 @@ namespace madness
       if (_world.rank() == 0) printf("Updating e ...\n\n");
       for (unsigned int ei = 0; ei < eigs.size(); ei++)
       {
-        functionT r = tmp[ei] - phis[ei];
-        double tnorm = tmp[ei].norm2();
+        functionT r = wavefs[ei] - phis[ei];
+        double tnorm = wavefs[ei].norm2();
         // Compute correction to the eigenvalues
         T ecorrection = -0.5*real(inner(pfuncs[ei], r)) / (tnorm*tnorm);
         T eps_old = eigs[ei];
@@ -495,7 +537,7 @@ namespace madness
         // Sometimes eps_new can go positive, THIS WILL CAUSE THE ALGORITHM TO CRASH. So,
         // I bounce the new eigenvalue back into the negative side of the real axis. I
         // keep doing this until it's good or I've already done it 10 times.
-        int counter = 10;
+        int counter = 50;
         while (eps_new >= 0.0 && counter < 20)
         {
           // Split the difference between the new and old estimates of the

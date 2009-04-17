@@ -14,100 +14,7 @@
 #include "poperator.h"
 #include "libxc.h"
 #include "complexfun.h"
-
-struct KOrbital;
-
-typedef SharedPtr< WorldDCPmapInterface< Key<3> > > pmapT;
-typedef Vector<double,3> coordT;
-typedef SharedPtr< FunctionFunctorInterface<std::complex<double>,3> > functorT;
-typedef SharedPtr< FunctionFunctorInterface<double,3> > rfunctorT;
-typedef Function<std::complex<double>,3> functionT;
-typedef Function<double,3> rfunctionT;
-typedef vector<functionT> vecfuncT;
-typedef vector<rfunctionT> rvecfuncT;
-typedef vector<KOrbital> kvecfuncT;
-typedef Tensor< std::complex<double> > tensorT;
-typedef Tensor<double> rtensorT;
-typedef FunctionFactory<std::complex<double>,3> factoryT;
-typedef FunctionFactory<double,3> rfactoryT;
-typedef SeparatedConvolution<double,3> operatorT;
-typedef SharedPtr<operatorT> poperatorT;
-
-void print_cube(World& world, const Function<double,3>& f, int npts)
-{
-  f.reconstruct();
-  if (world.rank() == 0)  printf("\n");
-  Tensor<double> csize = FunctionDefaults<3>::get_cell_width();
-
-  for (int i = 0; i < npts; i++)
-  {
-    for (int j = 0; j < npts; j++)
-    {
-      for (int k = 0; k < npts; k++)
-      {
-        double x = (i+0.5) * (csize[0]/npts) - csize[0]/2;
-        double y = (j+0.5) * (csize[1]/npts) - csize[1]/2;
-        double z = (k+0.5) * (csize[2]/npts) - csize[2]/2;
-        coordT p(0.0);
-        p[0] = x; p[1] = y; p[2] = z;
-        if (world.rank() == 0)
-          printf("%10.2f%10.2f%10.2f%15.8f\n", x, y, z, f(p));
-      }
-    }
-  }
-}
-
-void print_cube(World& world, const Function<double,3>& f1, const Function<double,3>& f2, int npts)
-{
-  f1.reconstruct();
-  f2.reconstruct();
-  if (world.rank() == 0)  printf("\n");
-  Tensor<double> csize = FunctionDefaults<3>::get_cell_width();
-
-  for (int i = 0; i < npts; i++)
-  {
-    for (int j = 0; j < npts; j++)
-    {
-      for (int k = 0; k < npts; k++)
-      {
-        double x = (i+0.5) * (csize[0]/npts) - csize[0]/2;
-        double y = (j+0.5) * (csize[1]/npts) - csize[1]/2;
-        double z = (k+0.5) * (csize[2]/npts) - csize[2]/2;
-        coordT p(0.0);
-        p[0] = x; p[1] = y; p[2] = z;
-        if (world.rank() == 0)
-          printf("%10.2f%10.2f%10.2f%15.8f%15.8f\n", x, y, z, f1(p), f2(p));
-      }
-    }
-  }
-}
-
-void print_cube(World& world, const Function<double,3>& f1, const Function<double,3>& f2,
-    const Function<double,3>& f3, int npts)
-{
-  f1.reconstruct();
-  f2.reconstruct();
-  f3.reconstruct();
-  if (world.rank() == 0)  printf("\n");
-  Tensor<double> csize = FunctionDefaults<3>::get_cell_width();
-
-  for (int i = 0; i < npts; i++)
-  {
-    for (int j = 0; j < npts; j++)
-    {
-      for (int k = 0; k < npts; k++)
-      {
-        double x = (i+0.5) * (csize[0]/npts) - csize[0]/2;
-        double y = (j+0.5) * (csize[1]/npts) - csize[1]/2;
-        double z = (k+0.5) * (csize[2]/npts) - csize[2]/2;
-        coordT p(0.0);
-        p[0] = x; p[1] = y; p[2] = z;
-        if (world.rank() == 0)
-          printf("%10.2f%10.2f%10.2f%15.8f%15.8f%15.8f\n", x, y, z, f1(p), f2(p), f3(p));
-      }
-    }
-  }
-}
+#include "esolver.h"
 
 class LevelPmap : public WorldDCPmapInterface< Key<3> > {
 private:
@@ -224,63 +131,8 @@ public:
   }
 };
 
-struct KPoint
-{
-  coordT k;
-  double weight;
-
-  KPoint()
-  {
-    k[0] = 0.0; k[1] = 0.0; k[2] = 0.0;
-    weight = 0.0;
-  }
-
-  KPoint(const coordT& k, const double& weight)
-   : k(k), weight(weight) {}
-
-  template <typename Archive>
-  void serialize(Archive& ar) {
-      ar & k & weight;
-  }
-
-};
-
-std::istream& operator >> (std::istream& is, KPoint& kpt)
-{
-  for (int i = 0; i < kpt.k.size(); i++)
-    is >> kpt.k[i];
-  is >> kpt.weight;
-  return is;
-}
-
-struct KOrbital
-{
-  coordT k;
-  double weight;
-  functionT orbital;
-
-  KOrbital(const coordT& k, const double& weight, const functionT& orbital)
-   : k(k), weight(weight), orbital(orbital) {}
-};
-
 double rsquared(const coordT& r) {
     return r[0]*r[0] + r[1]*r[1] + r[2]*r[2];
-}
-
-template <typename Q, int NDIM>
-Function<Q,NDIM> pdiff(const Function<Q,NDIM>& f, int axis, bool fence = true)
-{
-  Function<Q,NDIM>& g = const_cast< Function<Q,NDIM>& >(f);
-  // Check for periodic boundary conditions
-  Tensor<int> oldbc = g.get_bc();
-  Tensor<int> bc(NDIM,2);
-  bc(___) = 1;
-  g.set_bc(bc);
-  // Do calculation
-  Function<Q,NDIM> rf = diff(g,axis,fence);
-  // Restore previous boundary conditions
-  g.set_bc(oldbc);
-  return rf;
 }
 
 class ElectronicStructureApp
@@ -517,71 +369,6 @@ public:
       return ao;
   }
 
-  tensorT kinetic_energy_matrix(World& world, const rvecfuncT& v, const KPoint k = KPoint(coordT(0.0),0.0))
-  {
-      reconstruct(world, v);
-      int n = v.size();
-      tensorT c(n,n);
-      const std::complex<double> I = std::complex<double>(0.0,1.0);
-      double k0 = k.k[0]; double k1 = k.k[1]; double k2 = k.k[2];
-      if (_params.periodic)
-      {
-        for (int i = 0; i < n; i++)
-        {
-          functionT dv_i_0 = function_real2complex(pdiff(v[i],0)) - I*k0*v[i];
-          functionT dv_i_1 = function_real2complex(pdiff(v[i],1)) - I*k1*v[i];
-          functionT dv_i_2 = function_real2complex(pdiff(v[i],2)) - I*k2*v[i];
-          for (int j = 0; j < n; j++)
-          {
-            functionT dv_j_0 = function_real2complex(pdiff(v[j],0)) + I*k0*v[j];
-            functionT dv_j_1 = function_real2complex(pdiff(v[j],1)) + I*k1*v[j];
-            functionT dv_j_2 = function_real2complex(pdiff(v[j],2)) + I*k2*v[j];
-            c(i,j) = inner(dv_i_0,dv_j_0) + inner(dv_i_1,dv_j_1) + inner(dv_i_2,dv_j_2);
-          }
-        }
-      }
-      else
-      {
-        rtensorT r(n,n);
-        for (int axis=0; axis<3; axis++)
-        {
-            rvecfuncT dv = diff(world,v,axis);
-            r += matrix_inner(world, dv, dv, true);
-            dv.clear(); // Allow function memory to be freed
-        }
-        c = tensor_real2complex(r);
-      }
-
-//      // DEBUG
-//      rtensorT r(n,n);
-//      for (int axis=0; axis<3; axis++) {
-//          rvecfuncT dv = diff(world,v,axis);
-//          r += matrix_inner(world, dv, dv, true);
-//          dv.clear(); // Allow function memory to be freed
-//      }
-//
-//      for (int i = 0; i < c.dim[0]; i++)
-//      {
-//        for (int j = 0; j < c.dim[1]; j++)
-//        {
-//          printf("%10.5f", imag(c(i,j)));
-//        }
-//        printf("\n");
-//      }
-//      printf("\n");
-//      printf("\n");
-//      for (int i = 0; i < r.dim[0]; i++)
-//      {
-//        for (int j = 0; j < r.dim[1]; j++)
-//        {
-//          printf("%10.5f", r(i,j));
-//        }
-//        printf("\n");
-//      }
-      return c.scale(0.5);
-  }
-
-
   /// Initializes alpha and beta mos, occupation numbers, eigenvalues
   void initial_guess()
   {
@@ -687,7 +474,7 @@ public:
     if (_world.rank() == 0) print("Building overlap matrix ...\n\n");
     rtensorT roverlap = matrix_inner(_world, ao, ao, true);
     // Convert to a complex tensor
-    tensorT overlap = tensor_real2complex<double>(roverlap);
+    ctensorT overlap = tensor_real2complex<double>(roverlap);
 
     // Build the potential matrix
     reconstruct(_world, ao);
@@ -701,7 +488,7 @@ public:
 
     rtensorT rpotential = matrix_inner(_world, vpsi, ao, true);
     // Convert to a complex tensor
-    tensorT potential = tensor_real2complex<double>(rpotential);
+    ctensorT potential = tensor_real2complex<double>(rpotential);
     _world.gop.fence();
     vpsi.clear();
     _world.gop.fence();
@@ -715,13 +502,13 @@ public:
       KPoint kpt = _kpoints[ki];
 
         if (_world.rank() == 0) print("Building kinetic energy matrix ...\n\n");
-      tensorT kinetic = kinetic_energy_matrix(_world, ao, kpt);
+      ctensorT kinetic = ::kinetic_energy_matrix(_world, ao, _params.periodic, kpt);
 
         if (_world.rank() == 0) print("Constructing Fock matrix ...\n\n");
-      tensorT fock = kinetic + potential;
+      ctensorT fock = kinetic + potential;
       fock = 0.5 * (fock + transpose(fock));
 
-      tensorT c; rtensorT e;
+      ctensorT c; rtensorT e;
         if (_world.rank() == 0) print("Diagonlizing Fock matrix ...\n\n");
       sygv(fock, overlap, 1, &c, &e);
 
