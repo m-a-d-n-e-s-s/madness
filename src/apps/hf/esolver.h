@@ -184,13 +184,7 @@ struct KOrbital
           functionT dv_j_1 = function_real2complex(pdiff(v[j], 1)) + I * k1 * v[j];
           functionT dv_j_2 = function_real2complex(pdiff(v[j], 2)) + I * k2 * v[j];
           c(i, j) = inner(dv_i_0, dv_j_0) + inner(dv_i_1, dv_j_1) + inner(dv_i_2, dv_j_2);
-        }
-      }
-      for (int i = 0; i < n; i++)
-      {
-        for (int j = 0; j < n; j++)
-        {
-          c(j, i) = -c(i, j);
+          c(j, i) = conj(c(i, j));
         }
       }
     }
