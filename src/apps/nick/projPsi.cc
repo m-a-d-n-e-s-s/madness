@@ -336,7 +336,7 @@ int main(int argc, char**argv) {
 //         PRINTLINE("Expikr\t" << used << " sec");
         loadBasis(world,basisList);
         //printBasis(world);
-        //belkic(world);
+        belkic(world);
         projectZdip(world, basisList);
         PRINT("\n");
         projectPsi(world, basisList);

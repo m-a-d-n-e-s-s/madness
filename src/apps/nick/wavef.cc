@@ -14,6 +14,7 @@
 #include <gsl/gsl_sf_gamma.h>
 #include <gsl/gsl_sf_legendre.h>
 #include "gsl/gsl_errno.h"
+#include <float.h>
 
 double tt;
 //MPI printing macros
@@ -168,13 +169,13 @@ complexd f11(complexd AA, complexd BB, complexd ZZ)
  *********************************************************/
 complexd hypergf(complexd AA, complexd BB, complexd XX)
 {
-    double EPS = 5E-15;
+    double ACC8  = DBL_EPSILON;
+    double EPS = 1000.0*ACC8;
+    double ERR = 1000.0*ACC8;
     int LIMIT  = 20000;
     int KIND   = 1;      	//Using normal precision in complex artithmetic 
-    double ERR = 1E-18;
     int NITS   = 0;
     double FPMAX = 1E200;
-    double ACC8  = 2E-18;
     double ACC16 = 2E-200;
     return   hypergf_(&AA, &BB, &XX, &EPS, &LIMIT, &KIND,
 		      &ERR, &NITS, &FPMAX, &ACC8, &ACC16);
