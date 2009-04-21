@@ -183,7 +183,8 @@ public:
     }
     _world.gop.broadcast_serializable(_params, 0);
     if (_params.fractional)
-      FunctionDefaults<3>::set_cubic_cell(0,_params.L);
+      //FunctionDefaults<3>::set_cubic_cell(0,_params.L);
+      FunctionDefaults<3>::set_cubic_cell(-_params.L/2,_params.L/2);
     else
       FunctionDefaults<3>::set_cubic_cell(-_params.L/2,_params.L/2);
     FunctionDefaults<3>::set_thresh(_params.thresh);
