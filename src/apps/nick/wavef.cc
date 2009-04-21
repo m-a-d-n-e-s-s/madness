@@ -161,7 +161,7 @@ complexd f11(complexd AA, complexd BB, complexd ZZ)
     double k = 1.0/abs(imag(AA)); 
     //cout << aForm(AA,BB,ZZ) - aFormNew(AA,BB,ZZ) << endl;
     if(abs(imag(ZZ)) <= 11.0 + 1.0/k + 0.5/(k*k) ) return hypergf(AA,BB,ZZ);
-    else return aFormNew(AA,BB,ZZ);
+    else return aFormNew2(AA,BB,ZZ);
 }
 
 /*********************************************************
@@ -185,6 +185,24 @@ complexd hypergf(complexd AA, complexd BB, complexd XX)
  * The asymptotic form of the hypergeometric function given by
  * Abramowitz and Stegun 13.5.1
  * **************************************************************/
+complexd aForm(complexd AA, complexd BB, complexd ZZ) {
+     complexd coeffA = gamma(BB)* exp(-1.0*I*PI*AA) * pow(ZZ,-AA)/gamma(BB-AA);
+     complexd coeffB = gamma(BB)* exp(ZZ) * pow(ZZ,AA-BB)/gamma(AA);
+     complexd termA(0,0);
+     complexd termB(0,0);
+     int maxTerms = 9;
+     for(int n=0; n<=maxTerms; n++)
+         {
+             termA += pochhammer(AA,n)*pochhammer(1.0+AA-BB,n)*pow(-1.0*ZZ,-1.0*n)
+                 /(double)fact(n);
+         }
+     for(int n=0; n<=maxTerms; n++)
+         {
+             termB += pochhammer(BB-AA,n)*pochhammer(1.0-AA,n)*pow(ZZ,-1.0*n)
+                 /(double)fact(n);
+         }
+     return coeffA*termA + coeffB*termB;
+}
 complexd aFormNew(complexd AA, complexd BB, complexd ZZ)
 {
      complexd coeffA = gamma(BB)* exp(-1.0*I*PI*AA) * pow(ZZ,-AA)/gamma(BB-AA);
@@ -204,24 +222,36 @@ complexd aFormNew(complexd AA, complexd BB, complexd ZZ)
      }
      return coeffA*termA + coeffB*termB;
 }
-complexd aForm(complexd AA, complexd BB, complexd ZZ) {
+complexd aFormNew2(complexd AA, complexd BB, complexd ZZ)
+{
      complexd coeffA = gamma(BB)* exp(-1.0*I*PI*AA) * pow(ZZ,-AA)/gamma(BB-AA);
      complexd coeffB = gamma(BB)* exp(ZZ) * pow(ZZ,AA-BB)/gamma(AA);
      complexd termA(0,0);
      complexd termB(0,0);
      int maxTerms = 9;
-     for(int n=0; n<=maxTerms; n++)
-         {
-             termA += pochhammer(AA,n)*pochhammer(1.0+AA-BB,n)*pow(-1.0*ZZ,-1.0*n)
-                 /(double)fact(n);
-         }
-     for(int n=0; n<=maxTerms; n++)
-         {
-             termB += pochhammer(BB-AA,n)*pochhammer(1.0-AA,n)*pow(ZZ,-1.0*n)
-                 /(double)fact(n);
-         }
+     complexd zrn = 1;
+     complexd mzrn = 1;
+     complexd zr = 1.0/ZZ;
+     double nFact = 1.0;            //0! = 1
+     complexd pochAA(1.0,0.0);      //Pochhammer is the counting up factorial (A)_0 = 1
+     complexd poch1pAAmBB(1.0,0.0); //(1+AA-BB)_n
+     complexd pochBBmAA(1.0,0.0);   //(BB-AA)_n
+     complexd poch1mAA(1.0,0.0);   //(BB-AA)_n
+
+     for(int n=0; n<=maxTerms; n++) {
+         termA += pochAA*poch1pAAmBB*mzrn/nFact;
+         termB += pochBBmAA*poch1mAA*zrn /nFact;
+         mzrn  *= -zr;
+         zrn   *= zr;
+         nFact *= n+1;  //(n+1) is the number to be used in the next iteration
+         pochAA*= complexd(n,0)+AA; //(x)_n = x(x+1)(x+2)..(x+n-1)
+         poch1pAAmBB*= complexd(1+n,0)+AA-BB;
+         pochBBmAA  *= complexd(n,0)  +BB-AA;
+         poch1mAA   *= complexd(1+n,0)   -AA;
+     }
      return coeffA*termA + coeffB*termB;
 }
+
 
 void test1F1(World&, complexd (*func1F1)(complexd,complexd,complexd), const char* fileChar)
 {
@@ -276,7 +306,8 @@ complexd gamma(double re, double im)
 {
     gsl_sf_result lnr;
     gsl_sf_result arg;
-    gsl_sf_lngamma_complex_e(re, im, &lnr, &arg);
+    int status = gsl_sf_lngamma_complex_e(re, im, &lnr, &arg);
+    if(status != 0) throw "Error: gsl_sf_lngamma: " + status;
     complexd ANS(exp(lnr.val)*cos(arg.val), exp(lnr.val)*sin(arg.val) );
     return ANS;
 }
@@ -286,7 +317,7 @@ complexd gamma(complexd AA)
     gsl_sf_result lnr;
     gsl_sf_result arg;
     int status = gsl_sf_lngamma_complex_e(real(AA), imag(AA), &lnr, &arg);
-    if(status != 0) throw "OMG";
+    if(status != 0) throw "Error: gsl_sf_lngamma: " + status;
     complexd ANS(exp(lnr.val)*cos(arg.val), exp(lnr.val)*sin(arg.val) );
     return ANS;
 }
