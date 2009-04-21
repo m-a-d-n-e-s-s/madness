@@ -29,6 +29,7 @@ const double PI = M_PI;
 complexd hypergf(complexd AA, complexd BB, complexd ZZ);
 complexd conHyp(complexd AA, complexd BB, complexd ZZ);
 complexd aForm(complexd AA, complexd BB, complexd ZZ);
+complexd aFormNew(complexd AA, complexd BB, complexd ZZ);
 complexd f11(complexd AA, complexd BB, complexd ZZ);
 void     test1F1(World&, complexd (*func1F1)(complexd,complexd,complexd), const char* fName);
 int      fact(int);

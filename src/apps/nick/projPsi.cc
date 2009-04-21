@@ -327,19 +327,12 @@ int main(int argc, char**argv) {
     FunctionDefaults<NDIM>::set_truncate_mode(1);
     try {
         std::vector<WF> basisList;
-//         double start = wall_time();
-//         const double kvec[] = {0, 0, 1};
-//         basisList.push_back(WF("Expik.r       ",
-//                                FunctionFactory<complexd,NDIM>(world).
-//                                functor(functorT(new Expikr(kvec)))));
-//         double used = wall_time() - start;
-//         PRINTLINE("Expikr\t" << used << " sec");
         loadBasis(world,basisList);
         //printBasis(world);
-        belkic(world);
+        //belkic(world);
         projectZdip(world, basisList);
         PRINT("\n");
-        projectPsi(world, basisList);
+        //projectPsi(world, basisList);
         world.gop.fence();
         if (world.rank() == 0) {
 //             world.am.print_stats();
