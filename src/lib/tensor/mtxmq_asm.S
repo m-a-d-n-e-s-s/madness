@@ -47,7 +47,7 @@
 
         relevant parts of 64-bit LINUX ABI.
         - rsp is the stack pointer and must be 16-byte aligned
-        - first 6 integer args passed in registers in this order rdi, rsi, rax, rcx, r8, r9
+        - first 6 integer args passed in registers in this order rdi, rsi, rdx, rcx, r8, r9
         - first 8 floating point args passed in xmm0-7
         - all other args pushed on the stack in reverse order followed by return address
         - xmm*, ST*, r10 and r11 do not need to be saved
