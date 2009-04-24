@@ -45,6 +45,8 @@
 #include <world/worldexc.h>
 #include <world/madatomic.h>
 
+#include <unistd.h>
+
 namespace madness {
 
     /// A SharedCounter counts references to each SharedArray or SharedPtr
@@ -152,7 +154,10 @@ namespace madness {
         void dec_not_owned() {
             //if (count) print("SharedPtr  dec_not_owned: own ",own, "cntptr", count, "nref", use_count(),"ptr",p);
             MADNESS_ASSERT(!own);
-            if (count && count->dec_and_test()) free();
+            if (count && count->dec_and_test()) {
+                own  = true;
+                free();
+            }
         }
 
         void mark_as_unowned() {

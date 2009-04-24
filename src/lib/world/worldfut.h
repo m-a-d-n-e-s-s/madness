@@ -49,6 +49,9 @@
 
 namespace madness {
 
+    //extern SharedCounter future_count; // For tracking memory leak
+
+
 
     template <typename T> class Future;
 
@@ -106,7 +109,7 @@ namespace madness {
             arg & ref & t;
             FutureImpl<T>* f = ref.get();
             f->set(t);
-            // ref.dec();                    // Releases reference ... already done in set method???
+            ref.dec();
         };
 
 
@@ -156,6 +159,8 @@ namespace madness {
                 , remote_ref()
                 , t() {
             //print("FUTCON(a)",(void*) this);
+
+            //future_count.inc();
         };
 
 
@@ -169,6 +174,7 @@ namespace madness {
                 , t(t) {
             //print("FUTCON(b)",(void*) this);
             set_assigned();
+            //future_count.inc();
         };
 
 
@@ -181,6 +187,8 @@ namespace madness {
                 , remote_ref(remote_ref)
                 , t() {
             //print("FUTCON(c)",(void*) this);
+
+            //future_count.inc();
         };
 
 
@@ -209,7 +217,7 @@ namespace madness {
                 if (remote_ref.owner() == world->rank()) {
                     remote_ref.get()->set(value);
                     set_assigned();
-                    remote_ref.dec(); // Releases reference
+                    remote_ref.dec();
                 }
                 else {
                     world->am.send(remote_ref.owner(),
@@ -267,13 +275,16 @@ namespace madness {
         };
 
         virtual ~FutureImpl() {
+
+            //future_count.dec_and_test();
+
             ScopedMutex<Spinlock> fred(this);
             //print("FUTDEL",(void*) this);
-            if (!assigned && world) {
-                print("Future: unassigned remote future being destroyed?");
-                //remote_ref.dec();
-                abort();
-            }
+//             if (!assigned && world) {
+//                 print("Future: unassigned remote future being destroyed?");
+//                 //remote_ref.dec();
+//                 abort();
+//             }
             if (const_cast<callbackT&>(callbacks).size()) {
                 print("Future: uninvoked callbacks being destroyed?", assigned);
                 abort();
@@ -285,6 +296,8 @@ namespace madness {
         };
     };
 
+
+    
 
     /// A future is a possibly yet unevaluated value
 
@@ -300,6 +313,7 @@ namespace madness {
     /// that must be peformed for every new shared_ptr.
     template <typename T>
     class Future {
+
         friend std::ostream& operator<< <T>(std::ostream& out, const Future<T>& f);
 
     private:
@@ -313,7 +327,9 @@ namespace madness {
                 : f()
                 , value()
                 , value_set(false)
-                , is_the_default_initializer(true) {}
+                , is_the_default_initializer(true) 
+        {
+        }
 
     public:
         typedef RemoteReference< FutureImpl<T> > remote_refT;
@@ -323,14 +339,18 @@ namespace madness {
                 : f(new FutureImpl<T>())
                 , value()
                 , value_set(false)
-                , is_the_default_initializer(false) {}
+                , is_the_default_initializer(false) 
+        {
+        }
 
         /// Makes an assigned future
         explicit Future(const T& t)
                 : f()
                 , value(t)
                 , value_set(true)
-                , is_the_default_initializer(false) {}
+                , is_the_default_initializer(false) 
+        {
+        }
 
 
         /// Makes a future wrapping a remote reference
@@ -338,7 +358,9 @@ namespace madness {
                 : f(new FutureImpl<T>(remote_ref))
                 , value()
                 , value_set(false)
-                , is_the_default_initializer(false) {}
+                , is_the_default_initializer(false) 
+        {
+        }
 
 
         /// Copy constructor is shallow
@@ -346,7 +368,9 @@ namespace madness {
                 : f(0)
                 , value(other.value)
                 , value_set(other.value_set)
-                , is_the_default_initializer(false) {
+                , is_the_default_initializer(false) 
+        {
+
             if (other.is_the_default_initializer) {
                 f = SharedPtr< FutureImpl<T> >(new FutureImpl<T>());
             }

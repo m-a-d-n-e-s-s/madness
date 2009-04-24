@@ -80,7 +80,7 @@ namespace madness {
         void static dec_handler(const AmArg& arg) {
             RemoteReference r;
             arg & r;
-            madness::print(arg.get_world()->rank(),"RemoteRef::dec_handler",arg.get_src(),(void *) r.get());
+            //madness::print(arg.get_world()->rank(),"RemoteRef::dec_handler",arg.get_src(),(void *) r.get());
             r.dec();
         };
 
@@ -111,7 +111,7 @@ namespace madness {
         void dec() const {
             if (ptr) {
                 World* world = World::world_from_id(id);
-                //madness::print(world->mpi.rank(),"RemoteRef::dec", owner(),(void *) get());
+                //madness::print(world->mpi.rank(),"RemoteRef::dec owner", owner(), "ptr",  (void *) get(), " count ", ptr.use_count());
                 if (rank == world->mpi.rank()) {
                     ptr.dec_not_owned();
                 }
