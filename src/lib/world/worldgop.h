@@ -183,6 +183,9 @@ namespace madness {
                     World::await(req0);
                 }
 
+                // While we are probably idle free unused communication buffers
+                world.am.free_managed_buffers();
+
                 bool dowork = (npass==0) || (ThreadPool::size()==0);
                 broadcast(&sum, sizeof(sum), 0, dowork);
                 npass++;

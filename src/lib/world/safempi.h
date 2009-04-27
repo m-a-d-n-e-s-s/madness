@@ -59,6 +59,11 @@ namespace SafeMPI {
             return MPI::Request::Testsome(n, static_cast<MPI::Request*>(request), ind, status);
         }
 
+        static int Testsome(int n, SafeMPI::Request* request, int* ind) {
+            SAFE_MPI_GLOBAL_MUTEX;
+            return MPI::Request::Testsome(n, static_cast<MPI::Request*>(request), ind);
+        }
+
         static int Testsome(int n, MPI::Request* request, int* ind, MPI::Status* status) {
             SAFE_MPI_GLOBAL_MUTEX;
             return MPI::Request::Testsome(n, request, ind, status);

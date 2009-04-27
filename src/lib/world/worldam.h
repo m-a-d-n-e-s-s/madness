@@ -276,7 +276,7 @@ namespace madness {
         static const int MSG_LEN = RMI::MAX_MSG_LEN - sizeof(AmArg); ///< Max length of user payload in message
     private:
 #ifdef HAVE_CRAYXT
-        static const int NSEND = 256; ///< Max no. of pending sends
+        static const int NSEND = 512; ///< Max no. of pending sends
 #else
         static const int NSEND = 32;///< Max no. of pending sends
 #endif
@@ -307,46 +307,22 @@ namespace madness {
             // WE ASSUME WE ARE INSIDE A CRITICAL SECTION WHEN IN HERE
             static volatile int cur_msg = 0;
 
-            // Separate from the RMI lock is the SafeMPI lock ...
-            // get it once rather than every time we call Test()
-            // But note that if there is no free send buffer we
-            // have to release and then reacquire the lock in order
-            // for progress to be made (with some MPI engines?).
-            // Probably relying upon a fair mutex.
-
-            MutexWaiter waiter;
-//             const int NTEST = std::min(32,NSEND);
-//             while (1) {
-//                 bool foundone = false;
-//                 {
-//                     SAFE_MPI_GLOBAL_MUTEX;
-//                     for (int i=0; i<NTEST; i++) {
-//                         foundone = send_req[cur_msg].Test_got_lock_already();
-//                         if (foundone) break;
-//                         cur_msg++;
-//                         if (cur_msg >= NSEND) cur_msg = 0;
-//                     }
-//                 }
-//                 if (foundone) break;
-//                 waiter.wait();
+            // Version 1.  Wait for oldest send to complete
+//             if (cur_msg >= NSEND) cur_msg = 0;
+//             while (!send_req[cur_msg].Test()) {
+//                 myusleep(40);
 //             }
 //             free_managed_send_buf(cur_msg);
-//             return cur_msg;
+//             return cur_msg++;
 
-            if (cur_msg >= NSEND) cur_msg = 0;
+            // Version 2.  Sequentially loop looking for next free request.
             while (!send_req[cur_msg].Test()) {
-                myusleep(20);
+                cur_msg++;
+                if (cur_msg >= NSEND) cur_msg = 0;
+                myusleep(1);
             }
             free_managed_send_buf(cur_msg);
-            return cur_msg++;
-
-//             while (!send_req[cur_msg].Test()) {
-//                waiter.wait();
-//                 cur_msg++;
-//                 if (cur_msg >= NSEND) cur_msg = 0;
-//             }
-//             free_managed_send_buf(cur_msg);
-//             return cur_msg;
+            return cur_msg;
         }
 
         /// This handles all incoming RMI messages for all instances
@@ -410,6 +386,19 @@ namespace madness {
         /// Sends a managed non-blocking active message
         void send(ProcessID dest, am_handlerT op, const AmArg* arg, int attr=RMI::ATTR_ORDERED) {
             isend(dest, op, arg, attr, true);
+        }
+
+        /// Frees as many send buffers as possible
+        void free_managed_buffers() {
+            int ind[NSEND];
+            lock(); // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+            int n = SafeMPI::Request::Testsome(NSEND, send_req, ind);
+            if (n != MPI_UNDEFINED) {
+                for (int i=0; i<n; i++) {
+                    free_managed_send_buf(ind[i]);
+                }
+            }
+            unlock(); // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
         }
     };
 }

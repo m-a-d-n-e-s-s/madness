@@ -122,8 +122,7 @@ namespace madness {
 
     private:
 #ifdef HAVE_CRAYXT
-        //static const int NRECV=256;
-        static const int NRECV=1024;
+        static const int NRECV=512;
         static const int MAXQ=4*NRECV;
 #else
         static const int NRECV=32;
@@ -174,12 +173,20 @@ namespace madness {
                 // If MPI is not safe for simultaneous entry by multiple threads we
                 // cannot call Waitsome ... have to poll via Testsome
                 int narrived;
+
                 MutexWaiter waiter;
                 while (!(narrived = SafeMPI::Request::Testsome(NRECV+1, recv_req, ind, status))) {
                     if (finished) return;
+#ifdef HAVE_CRAYXT
+                    myusleep(5);
+#else
                     waiter.wait();
+#endif
                 }
+
+#ifndef HAVE_CRAYXT
                 waiter.reset();
+#endif
 
                 if (debugging)
                     std::cerr << rank << ":RMI: " << narrived
@@ -230,49 +237,49 @@ namespace madness {
                             q[n] = qmsg(len, func, i, src, attr, count);
                         }
                     }
-                }
 
-                // Only ordered messages can end up in the queue due to
-                // out-of-order receipt or order of recv buffer processing.
-
-                // Sort queued messages by ascending recv count
-                std::sort(&q[0],&q[0]+n_in_q);
-
-                // Loop thru messages ... since we have sorted only one pass
-                // is necessary and if we cannot process a message we
-                // save it at the beginning of the queue
-                int nleftover = 0;
-                for (int m=0; m<n_in_q; m++) {
-                    int src = q[m].src;
-                    if (q[m].count == recv_counters[src]) {
-                        if (debugging)
-                            std::cerr << rank
-                                      << ":RMI: queue invoking from=" << src
-                                      << " nbyte=" << q[m].len
-                                      << " func=" << (void*)(q[m].func)
-                                      << " ordered=" << is_ordered(q[m].attr)
-                                      << " count=" << q[m].count
-                                      << std::endl;
-                        
-                        recv_counters[src]++;
-                        q[m].func(recv_buf[q[m].i], q[m].len);
-                        post_recv_buf(q[m].i);
+                    // Only ordered messages can end up in the queue due to
+                    // out-of-order receipt or order of recv buffer processing.
+                    
+                    // Sort queued messages by ascending recv count
+                    std::sort(&q[0],&q[0]+n_in_q);
+                    
+                    // Loop thru messages ... since we have sorted only one pass
+                    // is necessary and if we cannot process a message we
+                    // save it at the beginning of the queue
+                    int nleftover = 0;
+                    for (int m=0; m<n_in_q; m++) {
+                        int src = q[m].src;
+                        if (q[m].count == recv_counters[src]) {
+                            if (debugging)
+                                std::cerr << rank
+                                          << ":RMI: queue invoking from=" << src
+                                          << " nbyte=" << q[m].len
+                                          << " func=" << (void*)(q[m].func)
+                                          << " ordered=" << is_ordered(q[m].attr)
+                                          << " count=" << q[m].count
+                                          << std::endl;
+                            
+                            recv_counters[src]++;
+                            q[m].func(recv_buf[q[m].i], q[m].len);
+                            post_recv_buf(q[m].i);
+                        }
+                        else {
+                            q[nleftover++] = q[m];
+                            if (debugging)
+                                std::cerr << rank
+                                          << ":RMI: queue pending out of order from=" << src
+                                          << " nbyte=" << q[m].len
+                                          << " func=" << (void*)(q[m].func)
+                                          << " ordered=" << is_ordered(q[m].attr)
+                                          << " count=" << q[m].count
+                                          << std::endl;
+                        }
                     }
-                    else {
-                        q[nleftover++] = q[m];
-                        if (debugging)
-                            std::cerr << rank
-                                      << ":RMI: queue pending out of order from=" << src
-                                      << " nbyte=" << q[m].len
-                                      << " func=" << (void*)(q[m].func)
-                                      << " ordered=" << is_ordered(q[m].attr)
-                                      << " count=" << q[m].count
-                                      << std::endl;
-                    }
-                }
-                n_in_q = nleftover;
+                    n_in_q = nleftover;
 
-                post_pending_huge_msg();
+                    post_pending_huge_msg();
+                }
             }
         }
 
