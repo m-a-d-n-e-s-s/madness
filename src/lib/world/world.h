@@ -71,6 +71,7 @@ namespace madness {
     class World;
 }
 
+#include <world/worldtime.h>
 #include <world/madatomic.h>
 #include <world/worldthread.h>
 #include <world/worldrmi.h>
@@ -85,7 +86,6 @@ namespace madness {
 #include <world/nodefaults.h>
 #include <world/worldmpi.h>
 #include <world/worldser.h>
-#include <world/worldtime.h>
 //#include <world/worldprofile.h>
 
 #ifdef HAVE_RANDOM

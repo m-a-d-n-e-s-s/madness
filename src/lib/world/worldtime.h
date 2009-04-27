@@ -39,6 +39,7 @@
 #include <stdint.h>
 #include <time.h>
 #include <sys/time.h>
+#include <unistd.h>
 #include <madness_config.h>
 
 #ifdef _CRAY
@@ -94,6 +95,7 @@ __asm__ volatile("rdtsc" : "=a"(a), "=d"(d));
     /// If not available returns 0.
     double cpu_frequency();
 
+
     /// Returns the cpu time in seconds relative to arbitrary origin
 
     /// As accurate and lightweight as we can get it, but may not
@@ -108,6 +110,30 @@ __asm__ volatile("rdtsc" : "=a"(a), "=d"(d));
         return double(clock())/CLOCKS_PER_SEC;
 #endif
     }
+
+
+    /// Do nothing and especially do not touch memory
+    inline void cpu_relax() {
+        asm volatile("rep;nop" : : : "memory");
+    }
+
+
+    /// Sleep or spin for specified no. of microseconds
+
+    /// Wrapper to ensure desired behavior (and what is that one might ask??)
+    static inline void myusleep(int us) {
+#ifdef HAVE_CRAYXT
+        double secs = us*1e-6;
+        double start = cpu_time();
+        while (cpu_time()-start < secs) {
+            for (int i=0; i<100; i++) cpu_relax();
+        }
+#else
+        usleep(us);
+#endif
+    }
+
+
 }
 
 

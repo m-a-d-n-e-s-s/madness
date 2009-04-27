@@ -285,7 +285,7 @@ namespace madness {
                 if (posix_memalign((void **)(recv_buf+NRECV), ALIGNMENT, nbyte))
                     throw "RMI: failed allocating huge message";
                 recv_req[NRECV] = comm.Irecv(recv_buf[NRECV], nbyte, MPI::BYTE, src, SafeMPI::RMI_HUGE_DAT_TAG);
-                int nada;
+                int nada=0;
                 comm.Send(&nada, sizeof(nada), MPI::BYTE, src, SafeMPI::RMI_HUGE_ACK_TAG);
             }
         }

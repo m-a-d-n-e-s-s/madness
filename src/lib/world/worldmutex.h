@@ -33,16 +33,13 @@ inline void pthread_spin_destroy(pthread_spinlock_t* p) {}
 #include <vector>
 #include <world/madatomic.h>
 #include <world/nodefaults.h>
+#include <world/worldtime.h>
 
 /// \file worldmutex.h
 /// \brief Implements Mutex, MutexFair, Spinlock, ConditionVariable
 
 
 namespace madness {
-
-    inline void cpu_relax() {
-asm volatile("rep;nop" : : : "memory");
-    }
 
     class MutexWaiter {
     private:
