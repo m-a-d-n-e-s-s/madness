@@ -276,7 +276,7 @@ namespace madness {
         static const int MSG_LEN = RMI::MAX_MSG_LEN - sizeof(AmArg); ///< Max length of user payload in message
     private:
 #ifdef HAVE_CRAYXT
-        static const int NSEND = 512; ///< Max no. of pending sends
+        static const int NSEND = 768; ///< Max no. of pending sends
 #else
         static const int NSEND = 32;///< Max no. of pending sends
 #endif

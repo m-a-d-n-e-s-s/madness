@@ -122,12 +122,11 @@ namespace madness {
 
     private:
 #ifdef HAVE_CRAYXT
-        static const int NRECV=512;
-        static const int MAXQ=4*NRECV;
+        static const int NRECV=256;
 #else
         static const int NRECV=32;
-        static const int MAXQ=4*NRECV;
 #endif
+        static const int MAXQ=NRECV+1;
 
         std::list< std::pair<int,size_t> > hugeq; // q for incoming huge messages
 
