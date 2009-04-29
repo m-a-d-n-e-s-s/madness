@@ -193,15 +193,22 @@ namespace madness {
                          Tensor<double>& quad_phiw, Tensor<double>& quad_phit);
     };
 
-/// Interface required for functors used as input to Functions
+    /// Interface required for functors used as input to Functions
     template<typename T, int NDIM>
     class FunctionFunctorInterface {
     public:
-        virtual T
-        operator()(const Vector<double, NDIM>& x) const = 0;
-        virtual
-        ~FunctionFunctorInterface() {
+    	/// You should implement this to return \c f(x)
+        virtual T operator()(const Vector<double, NDIM>& x) const = 0;
+
+        /// Override this to return list of special points to be refined more deeply
+        virtual std::vector< Vector<double,NDIM> > special_points() const {
+        	return std::vector< Vector<double,NDIM> >();
         }
+
+        /// Override this change level refinement for special points (default is 6)
+        Level special_level() {return 6;}
+
+        virtual ~FunctionFunctorInterface() {}
     };
 
 /// FunctionFactory implements the named-parameter idiom for Function
@@ -236,24 +243,13 @@ namespace madness {
         Tensor<int> _bc;
         SharedPtr<WorldDCPmapInterface<Key<NDIM> > > _pmap;
         SharedPtr<FunctionFunctorInterface<T, NDIM> > _functor;
-        std::vector<coordT> _specialpts;
 
-        struct FunctorInterfaceWrapper : public FunctionFunctorInterface<T,
-                    NDIM> {
-            T
-            (*f)(const coordT&);
+        struct FunctorInterfaceWrapper : public FunctionFunctorInterface<T,NDIM> {
+            T (*f)(const coordT&);
 
-            FunctorInterfaceWrapper(T
-                                    (*f)(const coordT&)) :
-                    f(f) {
-            }
-            ;
+            FunctorInterfaceWrapper(T (*f)(const coordT&)) : f(f) {}
 
-            T
-            operator()(const coordT& x) const {
-                return f(x);
-            }
-            ;
+            T operator()(const coordT& x) const {return f(x);}
         };
 
     public:
@@ -366,11 +362,6 @@ namespace madness {
         FunctionFactory&
         pmap(const SharedPtr<WorldDCPmapInterface<Key<NDIM> > >& pmap) {
             _pmap = pmap;
-            return *this;
-        }
-        FunctionFactory&
-        specialpts(const std::vector<coordT>& pts) {
-            _specialpts = pts;
             return *this;
         }
     };
@@ -754,7 +745,7 @@ namespace madness {
                 for (typename dcT::iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
                     if (it->second.is_leaf())
                         task(coeffs.owner(it->first), &implT::project_refine_op, it->first, do_refine,
-                                factory._specialpts);
+                             functor->special_points());
                 }
             }
             else { // Set as if a zero function

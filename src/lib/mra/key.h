@@ -256,7 +256,7 @@ namespace madness {
                 pl[i] = l[i] >> generation;
             return Key(n - generation, pl);
         }
-        ;
+
 
         bool
         is_child_of(const Key& key) const {
@@ -272,14 +272,23 @@ namespace madness {
                 return (mama == key);
             }
         }
-        ;
+
 
         bool
         is_parent_of(const Key& key) const {
             return (key.is_child_of(*this));
         }
-        ;
 
+        /// Assuming keys are at the same level, returns true if displaced by no more than 1 in any direction
+
+        /// Assumes key and this are at the same level
+        bool
+        is_neighbor_of(const Key& key) const {
+        	for (int i=0; i<NDIM; i++) {
+        		if (std::abs(l[i]-key.l[i]) > 1) return false;
+        	}
+			return true;
+        }
     };
 
     template<int NDIM>

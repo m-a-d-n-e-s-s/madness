@@ -409,14 +409,15 @@ namespace madness {
                                                  const std::vector<Vector<double,NDIM> >& specialpts) {
         PROFILE_MEMBER_FUNC(FunctionImpl);
         if (do_refine && key.level() < max_refine_level) {
+
             // Restrict special points to this box
             std::vector<Vector<double,NDIM> > newspecialpts;
-            if (key.level() < 6) {
+            if (key.level() < functor->special_level()) {
                 for (unsigned int i = 0; i < specialpts.size(); i++) {
                     coordT simpt;
                     user_to_sim(specialpts[i], simpt);
                     Key<NDIM> specialkey = simpt2key(simpt, key.level());
-                    if (specialkey == key) {
+                    if (specialkey.is_neighbor_of(key)) {
                         newspecialpts.push_back(specialpts[i]);
                     }
                 }
