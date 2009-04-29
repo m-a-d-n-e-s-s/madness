@@ -1,1 +1,0 @@
-libMADworld.LIBSUF

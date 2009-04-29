@@ -1,1 +1,0 @@
-libMADtinyxml.LIBSUF
