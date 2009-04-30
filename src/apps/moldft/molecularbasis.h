@@ -374,6 +374,11 @@ public:
     const char* get_desc() const {
         return shell.get_desc(ibf);
     }
+
+    void get_coords(double& x, double& y, double& z) const {
+    	x=xx; y=yy; z=zz;
+		return;
+    }
 };
 
 std::ostream& operator<<(std::ostream& s, const AtomicBasisFunction& a) {

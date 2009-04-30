@@ -32,7 +32,7 @@
   $Id$
 */
 
-// about to run with coarser PM screening 
+// about to run with coarser PM screening
 // ... need to parallelize PM within SMP
 // ... need to use SSE drot within PM
 
@@ -219,12 +219,23 @@ public:
 class AtomicBasisFunctor : public FunctionFunctorInterface<double,3> {
 private:
     const AtomicBasisFunction aofunc;
+    vector<coordT> specialpt;
 public:
-    AtomicBasisFunctor(const AtomicBasisFunction& aofunc) : aofunc(aofunc) {}
+    AtomicBasisFunctor(const AtomicBasisFunction& aofunc)
+    : aofunc(aofunc)
+    {
+    	double x, y, z;
+		aofunc.get_coords(x,y,z);
+		coordT r;
+		r[0]=x; r[1]=y; r[2]=z;
+		specialpt=vector<coordT>(1,r);
+    }
 
     double operator()(const coordT& x) const {
         return aofunc(x[0], x[1], x[2]);
     }
+
+    vector<coordT> special_points() const {return specialpt;}
 };
 
 class MolecularDerivativeFunctor : public FunctionFunctorInterface<double,3> {
@@ -618,7 +629,7 @@ struct Calculation {
         START_TIMER;
         ao = vecfuncT(aobasis.nbf(molecule));
 
-        Level initial_level = 3;
+        Level initial_level = 2;
         for (int i=0; i<aobasis.nbf(molecule); i++) {
             functorT aofunc(new AtomicBasisFunctor(aobasis.get_atomic_basis_function(molecule,i)));
             ao[i] = factoryT(world).functor(aofunc).initial_level(initial_level).truncate_on_project().nofence();
@@ -1079,14 +1090,14 @@ struct Calculation {
         // Assign orbitals to core, valence etc. by looking for gaps
         aset = vector<int>(param.nmo_alpha);
         aset[0] = 0;
-        if (world.rank() == 0) cout << "alpha set " << 0 << " " << 0 << "-" ; 
+        if (world.rank() == 0) cout << "alpha set " << 0 << " " << 0 << "-" ;
         for (int i=1; i<param.nmo_alpha; i++) {
             aset[i] = aset[i-1];
             if (aeps[i]-aeps[i-1] > 1.5 || aocc[i]!=1.0) {
                 aset[i]++;
                 if (world.rank() == 0) {
                     cout << i-1 << endl;
-                    cout << "alpha set " << aset[i] << " " << i << "-" ; 
+                    cout << "alpha set " << aset[i] << " " << i << "-" ;
                 }
             }
         }
@@ -1104,14 +1115,14 @@ struct Calculation {
 
             bset = vector<int>(param.nmo_beta);
             bset[0] = 0;
-            if (world.rank() == 0) cout << " beta set " << 0 << " " << 0 << "-" ; 
+            if (world.rank() == 0) cout << " beta set " << 0 << " " << 0 << "-" ;
             for (int i=1; i<param.nmo_beta; i++) {
                 bset[i] = bset[i-1];
                 if (beps[i]-beps[i-1] > 1.5 || bocc[i]!=1.0) {
                     bset[i]++;
                     if (world.rank() == 0) {
                         cout << i-1 << endl;
-                        cout << " beta set " << bset[i] << " " << i << "-" ; 
+                        cout << " beta set " << bset[i] << " " << i << "-" ;
                     }
                 }
             }
@@ -1183,7 +1194,7 @@ struct Calculation {
         for (int i=0; i<nocc; i++) {
             if (occ[i] > 0.0) {
                 //vecfuncT psif = mul(world, psi[i], f);
-                vecfuncT psif = mul_sparse(world, psi[i], f, vtol); 
+                vecfuncT psif = mul_sparse(world, psi[i], f, vtol);
 
                 truncate(world,psif);
                 psif = apply(world, *coulop, psif);
@@ -1440,8 +1451,8 @@ struct Calculation {
         if (world.rank() == 0) printf("normalized psi at %.2fs\n", wall_time());
     }
 
-    void loadbal(World& world, 
-                 functionT& arho, functionT& brho, 
+    void loadbal(World& world,
+                 functionT& arho, functionT& brho,
                  functionT& arho_old, functionT& brho_old,
                  subspaceT& subspace) {
         if (world.size() == 1) return;
@@ -1675,7 +1686,7 @@ struct Calculation {
         const double dconv = max(FunctionDefaults<3>::get_thresh(), param.dconv);
         const double trantol = vtol/min(30.0,double(amo.size()));
         const double tolloc = 1e-3; //dconv*0.1;
-        
+
         double update_residual=0.0, bsh_residual=0.0;
 
         subspaceT subspace;
@@ -1774,8 +1785,8 @@ struct Calculation {
             }
 
             if (iter > 0) {
-                if (da<dconv*molecule.natom() && 
-                    db<dconv*molecule.natom() && 
+                if (da<dconv*molecule.natom() &&
+                    db<dconv*molecule.natom() &&
                     bsh_residual<dconv) {
                     if (world.rank()==0) {
                         print("\nConverged!\n");
