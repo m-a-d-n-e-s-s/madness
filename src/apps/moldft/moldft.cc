@@ -668,17 +668,14 @@ struct Calculation {
     }
 
     /// Computes sum(mu,nu) C(i,mu)*S(mu,nu)*C(j,nu) for mu,nu AO bfn on atom a
-    double PM_q(const tensorT& S, const tensorT& C, int i, int j, int a,
-                const vector<int>& at_to_bf, const vector<int>& at_nbf) {
-        const int lo = at_to_bf[a];
-        const int hi = lo + at_nbf[a];
+    double PM_q(const tensorT& S, const tensorT& C, int i, int j, int lo, int nbf) {
         double qij = 0.0;
-        for (int mu=lo; mu<hi; mu++) {
+        for (int mu=0; mu<nbf; mu++) {
             double Smuj = 0.0;
-            for (int nu=lo; nu<hi; nu++) {
-                Smuj += S(mu,nu)*C(j,nu);
+            for (int nu=0; nu<nbf; nu++) {
+                Smuj += S(mu,nu)*C(j,nu+lo);
             }
-            qij += C(i,mu)*Smuj;
+            qij += C(i,mu+lo)*Smuj;
         }
         return qij;
     }
@@ -694,92 +691,124 @@ struct Calculation {
                         const bool randomize=true,
                         const bool doprint=true) {
         START_TIMER;
-        // Form the ao-mo overlap matrix
-        tensorT C = matrix_inner(world, mo, ao); // c(i,mu) = <i|mu>
-        tensorT S = matrix_inner(world, ao, ao); // s(mu,nu) = <mu|nu> ... can be optimized away
         long nmo = mo.size();
         long nao = ao.size();
         long natom = molecule.natom();
-
         vector<int> at_to_bf, at_nbf;
         aobasis.atoms_to_bfn(molecule, at_to_bf, at_nbf);
 
+        // Form the ao-ao overlap
+        tensorT S = matrix_inner(world, ao, ao, true); // s(mu,nu) = <mu|nu> ... can be optimized away
+
+        // Extract just the diagonal atomic blocks of S
+        vector<tensorT> Svec(natom);
+        for (long a=0; a<natom; a++) {
+        	Slice as(at_to_bf[a],at_to_bf[a]+at_nbf[a]-1);
+        	Svec[a] = copy(S(as,as));
+        }
+        S = tensorT(); // Free memory used by S
+
+        // Form the mo-mo overlap
+        tensorT C = matrix_inner(world, mo, ao); // c(i,mu) = <i|mu>
+
+        // Temporary array to reduce computational cost
+        tensorT Q(nmo,natom); // = PM(i,i,a)
+
+        // Holds the rotation
         tensorT U(nmo,nmo);
 
         if (world.rank() == 0) {
-            for (long i=0; i<nmo; i++) U(i,i) = 1.0;
+			for (long i = 0; i < nmo; i++)
+				U(i, i) = 1.0;
 
-            double tol = 0.1;           // Current test
-            long ndone=0;               // Total no. of rotations performed
+			// Pre-compute diagonal elements
+			for (long i = 0; i < nmo; i++) {
+				for (long a = 0; a < natom; a++) {
+					Q(i, a) = PM_q(Svec[a], C, i, i, at_to_bf[a], at_nbf[a]);
+				}
+			}
 
-            bool converged = false;
-            for (long iter=0; iter<100; iter++) {
-                // Compute the objective function to track convergence
-                double sum = 0.0;
-                for (long i=0; i<nmo; i++) {
-                    for (long a=0; a<natom; a++) {
-                        double qiia = PM_q(S, C, i, i, a, at_to_bf, at_nbf);
-                        sum += qiia*qiia;
-                    }
-                }
+			double tol = 0.1; // Current test
+			long ndone = 0; // Total no. of rotations performed
 
-                long ndone_iter=0; // No. of rotations done this iteration
-                double maxtheta = 0.0;
+			bool converged = false;
+			for (long iter = 0; iter < 100; iter++) {
+				// Compute the objective function to track convergence
+				double sum = 0.0;
+				for (long i = 0; i < nmo; i++) {
+					for (long a = 0; a < natom; a++) {
+						double qiia = Q(i, a);
+						sum += qiia * qiia;
+					}
+				}
 
-                if (doprint)
-                    printf("iteration %ld sum=%.4f ndone=%ld tol=%.2e\n", iter, sum, ndone, tol);
-                for (long i=0; i<nmo; i++) {
-                    for (long j=0; j<i; j++) {
-                        if (set[i] == set[j]) {
-                            double aij = 0.0;
-                            double bij = 0.0;
-                            double sij = 0.0;
+				long ndone_iter = 0; // No. of rotations done this iteration
+				double maxtheta = 0.0;
 
-                            // Can reduce quadratic cost here to linear by
-                            // precomputing which atoms i and j have
-                            // significant components on atom a
-                            for (long a=0; a<natom; a++) {
-                                double qiia = PM_q(S, C, i, i, a, at_to_bf, at_nbf);
-                                double qija = PM_q(S, C, i, j, a, at_to_bf, at_nbf);
-                                double qjja = PM_q(S, C, j, j, a, at_to_bf, at_nbf);
+				if (doprint)
+					printf("iteration %ld sum=%.4f ndone=%ld tol=%.2e\n", iter,
+							sum, ndone, tol);
+				for (long i = 0; i < nmo; i++) {
+					for (long j = 0; j < i; j++) {
+						if (set[i] == set[j]) {
+							// Estimate possible rotation size
+							double ovij = 0.0;
+							for (long a = 0; a < natom; a++)
+								ovij += Q(i, a) * Q(j, a);
+							if (fabs(ovij) > tol * tol) {
+								// Compute the actual rotation angle
+								double aij = 0.0;
+								double bij = 0.0;
+								for (long a = 0; a < natom; a++) {
+									double qiia = Q(i, a);
+									double qija = PM_q(Svec[a], C, i, j, at_to_bf[a], at_nbf[a]);
+									double qjja = Q(j, a);
+									double d = qiia - qjja;
+									aij += qija * qija - 0.25 * d * d;
+									bij += qija * d;
+								}
+								double theta = 0.25 * acos(-aij / sqrt(aij * aij + bij * bij));
+								if (bij > 0.0)
+									theta = -theta;
 
-                                double d = qiia - qjja;
-                                aij += qija*qija - 0.25*d*d;
-                                bij += qija*d;
-                                sij += qiia*qjja;
-                            }
+								// Step restriction
+								if (theta > thetamax)
+									theta = thetamax;
+								else if (theta < -thetamax)
+									theta = -thetamax;
 
-                            double theta = 0.25*acos(-aij/sqrt(aij*aij + bij*bij));
-                            if (bij > 0.0) theta = -theta;
-                            //print("    aij bij sij theta ", aij, bij, sij, theta);
+								maxtheta = max(fabs(theta), maxtheta);
 
-                            if (fabs(theta) > thetamax)
-                                theta = (theta>0)?thetamax:-thetamax;
+								if (fabs(theta) >= tol) {
+									ndone_iter++;
+									//if (doprint) print("     rotating", i, j, theta);
 
-                            maxtheta = max(abs(theta), maxtheta);
+									double c = cos(theta);
+									double s = sin(theta);
+									drot(nao, &C(i, 0), &C(j, 0), s, c, 1);
+									drot(nmo, &U(i, 0), &U(j, 0), s, c, 1);
 
-                            if (fabs(theta) >= tol) {
-                                ndone_iter++;
-                                //if (doprint) print("     rotating", i, j, theta);
-
-                                double c = cos(theta);
-                                double s = sin(theta);
-                                drot(nao, &C(i,0), &C(j,0), s, c, 1);
-                                drot(nmo, &U(i,0), &U(j,0), s, c, 1);
-                            }
-                        }
-                    }
-                }
-                ndone += ndone_iter;
-                if (ndone_iter==0 && tol==thresh) {
-                    if (doprint) print("Converged!", ndone);
-                    converged = true;
-                    break;
-                }
-                tol = max(0.1*min(maxtheta,tol), thresh);
-            }
-            U = transpose(U);
-        }
+									// Update the precomputed matrix elements
+									for (long a = 0; a < natom; a++) {
+										Q(i, a) = PM_q(Svec[a], C, i, i, at_to_bf[a], at_nbf[a]);
+										Q(j, a) = PM_q(Svec[a], C, j, j, at_to_bf[a], at_nbf[a]);
+									}
+								}
+							}
+						}
+					}
+				}
+				ndone += ndone_iter;
+				if (ndone_iter == 0 && tol == thresh) {
+					if (doprint)
+						print("Converged!", ndone);
+					converged = true;
+					break;
+				}
+				tol = max(0.1 * min(maxtheta, tol), thresh);
+			}
+			U = transpose(U);
+		}
         world.gop.broadcast(U.ptr(), U.size, 0);
 
         END_TIMER("Pipek-Mezy localize");
