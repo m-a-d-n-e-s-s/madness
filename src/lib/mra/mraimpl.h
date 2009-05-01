@@ -842,7 +842,7 @@ namespace madness {
                 Future<argT> left = f.find_neighbor(key,axis,-1);
                 argT center(key,node.coeff());
                 Future<argT> right  = f.find_neighbor(key,axis, 1);
-                task(world.rank(), &implT::do_diff1, &f, axis, key, left, center, right);
+                task(world.rank(), &implT::do_diff1, &f, axis, key, left, center, right, TaskAttributes::hipri());
             }
             else {
                 // Internal empty node can be safely inserted
