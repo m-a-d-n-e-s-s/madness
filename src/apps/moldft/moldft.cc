@@ -322,7 +322,10 @@ struct lbcost {
     double parent_value;
     lbcost(double leaf_value=1.0, double parent_value=0.0) : leaf_value(leaf_value), parent_value(parent_value) {}
     double operator()(const Key<NDIM>& key, const FunctionNode<T,NDIM>& node) const {
-        if (node.is_leaf()) {
+        if (key.level() <= 1) {
+            return 100;
+        }
+        else if (node.is_leaf()) {
             return leaf_value;
         }
         else {
@@ -670,12 +673,17 @@ struct Calculation {
     /// Computes sum(mu,nu) C(i,mu)*S(mu,nu)*C(j,nu) for mu,nu AO bfn on atom a
     double PM_q(const tensorT& S, const tensorT& C, int i, int j, int lo, int nbf) {
         double qij = 0.0;
-        for (int mu=0; mu<nbf; mu++) {
-            double Smuj = 0.0;
-            for (int nu=0; nu<nbf; nu++) {
-                Smuj += S(mu,nu)*C(j,nu+lo);
+        if (nbf == 1) { // H atom ... often lots of these!
+            qij = C(i,lo)*S(0,0)*C(j,lo);
+        }
+        else {
+            for (int mu=0; mu<nbf; mu++) {
+                double Smuj = 0.0;
+                for (int nu=0; nu<nbf; nu++) {
+                    Smuj += S(mu,nu)*C(j,nu+lo);
+                }
+                qij += C(i,mu+lo)*Smuj;
             }
-            qij += C(i,mu+lo)*Smuj;
         }
         return qij;
     }
