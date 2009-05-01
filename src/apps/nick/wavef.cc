@@ -4,7 +4,7 @@
  * states are generated with the confluent hypergeometric function. 
  * 
  * Using: Gnu Scientific Library
- *        http://www.netlib.org/toms/707
+ *        coulcc.f90 (from Barnett)
  * By:    Nick Vence
  **********************************************************************/
 
@@ -19,57 +19,16 @@
 double tt;
 //MPI printing macros
 #define PRINTLINE(str) if(world.rank()==0) cout << str << endl;
-#define START_TIMER world.gop.fence(); tt=wall_time()
-#define END_TIMER(msg) tt=wall_time()-tt;  if (world.rank()==0) printf("timer: %24.24s    took%8.2f seconds\n", msg, tt)
+#define START_TIMER  tt=cpu_time()
+//#define START_TIMER world.gop.fence(); tt=cpu_time()
+#define END_TIMER_C(msg,cplx) tt=cpu_time()-tt; cout << "Timer: " << msg << "(" << real(cplx) << " + " << imag(cplx) << "I) took " << tt << " seconds" << endl
+#define END_TIMER(msg) tt=cpu_time()-tt;  if (world.rank()==0) printf("timer: %24.24s    took%8.2f seconds\n", msg, tt)
 #define PRINT_COMPLEX(msg,re,im) if(world.rank()==0) printf("%34.34s %9.6f + %9.6fI\n", msg, re, im)
-
-
-/***********************************************************************
- * The Scattering Wave Function
- * See Landau and Lifshitz Quantum Mechanics Volume 3
- * Third Edition Formula (136.9)
- **********************************************************************/
-ScatteringWF::ScatteringWF(double Z, const vector3D& kVec) : WaveFunction(Z), kVec(kVec) 
-{
-    double sum = 0.0;
-    for(int i=0; i<NDIM; i++) { sum += kVec[i]*kVec[i]; }
-    k = sqrt(sum);
-    costhK = kVec[2]/k;
-}
-
-complexd ScatteringWF::operator()(const vector3D& rVec) const
-{
-    double sum = 0.0;
-    double kDOTr = 0.0;
-    for(int i=0; i<NDIM; i++) { kDOTr += rVec[i]*kVec[i]; }
-    for(int i=0; i<NDIM; i++) { sum += rVec[i]*rVec[i]; }
-    double r = sqrt(sum);
-//     cout << endl;
-//     cout << "exp(PI/(2*k)) = " << exp(PI/(2*k)) << endl;
-//     cout << "gamma(1.0+I/k)= " << gamma(1.0+I/k) << endl;
-//     cout << "exp(I*kDOTr)  = " << exp(I*kDOTr)  << endl;
-//     cout << " f11(-1.0*I/k, 1.0, -1.0*I*(k*r + kDOTr)) = "
-//          << f11(-1.0*I/k, 1.0, -1.0*I*(k*r + kDOTr)) << endl;
-    return exp(PI/(2*k))
-        * gamma(1.0+I/k)
-        * exp(I*kDOTr)
-        * f11(-1.0*I/k, 1.0, -1.0*I*(k*r + kDOTr));
-//     complexd confHyper = f11(-1.0*I/k, 1.0, -1.0*I*(k*r + kDOTr));
-//     complexd output = exp(PI/(2*k))
-//         * gamma(1.0+I/k)
-//         * exp(I*kDOTr)
-//         * confHyper
-//         ;
-// //     cout << "f11(" << r << ")                     = " << confHyper << endl;
-// //     cout << "f11(" << rVec << ") = " << confHyper << endl;
-//     return output;
-}
-
 
 /******************************************
  * BoundWF
  ******************************************/
-BoundWF::BoundWF(double Z, int nn, int ll, int mm ) : WaveFunction(Z)
+BoundWF::BoundWF(double Z, int nn, int ll, int mm ) : Z(Z)
 {
     if(nn < 1) {
 	cerr << "Thou shalt not have negative n!" << endl;
@@ -89,7 +48,6 @@ BoundWF::BoundWF(double Z, int nn, int ll, int mm ) : WaveFunction(Z)
     l=ll;
     m=mm;
 }
-
 complexd BoundWF::operator()(const vector3D& rVec) const {
     double sum = 0.0;
     for(int i=0; i<NDIM; i++) { sum += rVec[i]*rVec[i]; }
@@ -119,56 +77,74 @@ complexd BoundWF::operator()(const vector3D& rVec) const {
     }
 }
 
-/*************************
- *WaveFuction Constructor
- *************************/
-WaveFunction::WaveFunction(double Z) : Z(Z) {}
 
-
-/*****************************************
- *Exp[ I*(k.r) ]
- *****************************************/
-Expikr::Expikr( const vector3D& kVec) : kVec(kVec)
+/***********************************************************************
+ * The Scattering Wave Function
+ * See Landau and Lifshitz Quantum Mechanics Volume 3
+ * Third Edition Formula (136.9)
+ **********************************************************************/
+ScatteringWF::ScatteringWF(double Z, const vector3D& kVec) : Z(Z), kVec(kVec) 
 {
     double sum = 0.0;
     for(int i=0; i<NDIM; i++) { sum += kVec[i]*kVec[i]; }
     k = sqrt(sum);
     costhK = kVec[2]/k;
+    expmPI_k   = exp(-PI/k);
+    expPI_2k   = exp(PI/(2*k));
+    gamma1pI_k = gamma(1.0,1/k);
+    gammamI_k  = gamma(0.0,-1/k);
+    one = complexd(1.0, 0.0);
+    TOL = 1e-12;
+    //print("\nexpmPI_k =",expmPI_k, "gamma1pI_k =",gamma1pI_k, "gammamI_k =",gammamI_k);
 }
 
-complexd Expikr::operator()(const vector3D& rVec) const
-{
+complexd ScatteringWF::operator()(const vector3D& rVec) const {
+    double sum = 0.0;
     double kDOTr = 0.0;
-    for(int i=0; i<NDIM; i++) {
-        kDOTr += kVec[i]*rVec[i];
-    }
-    return exp(I*kDOTr);
+    for(int i=0; i<NDIM; i++) { kDOTr += rVec[i]*kVec[i]; }
+    for(int i=0; i<NDIM; i++) { sum += rVec[i]*rVec[i]; }
+    double r = sqrt(sum);
+//     cout << endl;
+//     cout << "exp(PI/(2*k)) = " << exp(PI/(2*k)) << endl;
+//     cout << "gamma(1.0+I/k)= " << gamma(1.0+I/k) << endl;
+//     cout << "exp(I*kDOTr)  = " << exp(I*kDOTr)  << endl;
+//     cout << " f11(-1.0*I/k, 1.0, -1.0*I*(k*r + kDOTr)) = "
+//          << f11(-1.0*I/k, 1.0, -1.0*I*(k*r + kDOTr)) << endl;
+    cout.precision(3);
+    cout << fixed;
+    //print("expPI_2k =",expPI_2k," gamma1pI_k =",gamma1pI_k,"exp(I*kDOTr) =",exp(I*kDOTr)," f11(-1.0*I/k, one, -1.0*I*(k*r + kDOTr)) =",f11(-1.0*I/k, one, -1.0*I*(k*r + kDOTr)));
+    return expPI_2k
+        * gamma1pI_k
+        * exp(I*kDOTr)
+        * f11(-1.0*I/k, one, -1.0*I*(k*r + kDOTr)); //ERROR
+//     complexd confHyper = f11(-1.0*I/k, 1.0, -1.0*I*(k*r + kDOTr));
+//     complexd output = exp(PI/(2*k))
+//         * gamma(1.0+I/k)
+//         * exp(I*kDOTr)
+//         * confHyper
+//         ;
+// //     cout << "f11(" << r << ")                     = " << confHyper << endl;
+// //     cout << "f11(" << rVec << ") = " << confHyper << endl;
+//     return output;
 }
 
-
-
-void debug1F1(World& world) {
-      test1F1(world, aForm  ,"     aForm");
-      test1F1(world, hypergf,"   hypergf");
-}
 /*******************************************************
  * Here is where I splice together my two representations of the hypergeometric
  * function. See personal journal C page 31 for a derivation of the cut off
  *******************************************************/
-complexd f11(complexd AA, complexd BB, complexd ZZ)
-{
+complexd ScatteringWF::f11(complexd AA, complexd BB, complexd ZZ) const {
     //    return hypergf(AA,BB,ZZ);
     double k = 1.0/abs(imag(AA)); 
-    //cout << aForm(AA,BB,ZZ) - aFormNew(AA,BB,ZZ) << endl;
+    //cout << aForm(AA,BB,ZZ) - aForm1(AA,BB,ZZ) << endl;
     if(abs(imag(ZZ)) <= 11.0 + 1.0/k + 0.5/(k*k) ) return hypergf(AA,BB,ZZ);
-    else return aFormNew2(AA,BB,ZZ);
+    //else return aForm(AA,BB,ZZ);
+    else return aForm3(ZZ);
 }
 
 /*********************************************************
  *The function from Barnett's code
  *********************************************************/
-complexd hypergf(complexd AA, complexd BB, complexd XX)
-{
+complexd ScatteringWF::hypergf(complexd AA, complexd BB, complexd XX) const {
     double ACC8  = DBL_EPSILON;
     double EPS = 1000.0*ACC8;
     double ERR = 1000.0*ACC8;
@@ -185,12 +161,12 @@ complexd hypergf(complexd AA, complexd BB, complexd XX)
  * The asymptotic form of the hypergeometric function given by
  * Abramowitz and Stegun 13.5.1
  * **************************************************************/
-complexd aForm(complexd AA, complexd BB, complexd ZZ) {
+complexd ScatteringWF::aForm(complexd AA, complexd BB, complexd ZZ) const {
      complexd coeffA = gamma(BB)* exp(-1.0*I*PI*AA) * pow(ZZ,-AA)/gamma(BB-AA);
      complexd coeffB = gamma(BB)* exp(ZZ) * pow(ZZ,AA-BB)/gamma(AA);
      complexd termA(0,0);
      complexd termB(0,0);
-     int maxTerms = 9;
+     int maxTerms = 20;
      for(int n=0; n<=maxTerms; n++)
          {
              termA += pochhammer(AA,n)*pochhammer(1.0+AA-BB,n)*pow(-1.0*ZZ,-1.0*n)
@@ -203,13 +179,12 @@ complexd aForm(complexd AA, complexd BB, complexd ZZ) {
          }
      return coeffA*termA + coeffB*termB;
 }
-complexd aFormNew(complexd AA, complexd BB, complexd ZZ)
-{
+complexd ScatteringWF::aForm1(complexd AA, complexd BB, complexd ZZ) const {
      complexd coeffA = gamma(BB)* exp(-1.0*I*PI*AA) * pow(ZZ,-AA)/gamma(BB-AA);
      complexd coeffB = gamma(BB)* exp(ZZ) * pow(ZZ,AA-BB)/gamma(AA);
      complexd termA(0,0);
      complexd termB(0,0);
-     int maxTerms = 9;
+     int maxTerms = 20;
      complexd zrn = 1;
      complexd mzrn = 1;
      complexd zr = 1.0/ZZ;
@@ -217,65 +192,102 @@ complexd aFormNew(complexd AA, complexd BB, complexd ZZ)
      for(int n=0; n<=maxTerms; n++) {
          termA += pochhammer(AA,n)*pochhammer(1.0+AA-BB,n)*mzrn/(double)fact(n);
          termB += pochhammer(BB-AA,n)*pochhammer(1.0-AA,n)*zrn /(double)fact(n);
-         mzrn *= -zr;
-         zrn *= zr;
-     }
-     return coeffA*termA + coeffB*termB;
-}
-complexd aFormNew2(complexd AA, complexd BB, complexd ZZ)
-{
-     complexd coeffA = gamma(BB)* exp(-1.0*I*PI*AA) * pow(ZZ,-AA)/gamma(BB-AA);
-     complexd coeffB = gamma(BB)* exp(ZZ) * pow(ZZ,AA-BB)/gamma(AA);
-     complexd termA(0,0);
-     complexd termB(0,0);
-     int maxTerms = 9;
-     complexd zrn = 1;
-     complexd mzrn = 1;
-     complexd zr = 1.0/ZZ;
-     double nFact = 1.0;            //0! = 1
-     complexd pochAA(1.0,0.0);      //Pochhammer is the counting up factorial (A)_0 = 1
-     complexd poch1pAAmBB(1.0,0.0); //(1+AA-BB)_n
-     complexd pochBBmAA(1.0,0.0);   //(BB-AA)_n
-     complexd poch1mAA(1.0,0.0);   //(BB-AA)_n
-
-     for(int n=0; n<=maxTerms; n++) {
-         termA += pochAA*poch1pAAmBB*mzrn/nFact;
-         termB += pochBBmAA*poch1mAA*zrn /nFact;
          mzrn  *= -zr;
-         zrn   *= zr;
-         nFact *= n+1;  //(n+1) is the number to be used in the next iteration
-         pochAA*= complexd(n,0)+AA; //(x)_n = x(x+1)(x+2)..(x+n-1)
-         poch1pAAmBB*= complexd(1+n,0)+AA-BB;
-         pochBBmAA  *= complexd(n,0)  +BB-AA;
-         poch1mAA   *= complexd(1+n,0)   -AA;
+         zrn   *=  zr;
      }
      return coeffA*termA + coeffB*termB;
 }
+complexd ScatteringWF::aForm2(complexd AA, complexd BB, complexd ZZ)
+const {
+    cout << scientific;
+    cout.precision(15);
+    //    START_TIMER;
+    complexd coeffA1 = gamma(BB);
+    //END_TIMER_C("gamma",BB);
+    //START_TIMER;
+    complexd coeffA2 = exp(-I*PI*AA);
+    //END_TIMER_C("exp",-I*PI*AA);
+    //START_TIMER;
+    complexd coeffA3 = pow(ZZ,-AA);
+    //END_TIMER_C("pow",ZZ);
+    //START_TIMER;
+    complexd coeffA_4= gamma(BB-AA);
+    //END_TIMER_C("gamma",BB-AA);
+    //START_TIMER;
+    complexd coeffB1 = gamma(BB);
+    //END_TIMER_C("gamma",BB);
+    //START_TIMER;
+    complexd coeffB2 = exp(ZZ);
+    //END_TIMER_C("exp",ZZ);
+    //START_TIMER;
+    complexd coeffB3 = pow(ZZ,AA-BB);
+    //END_TIMER_C("pow",ZZ);
+    //START_TIMER;
+    complexd coeffB_4= gamma(AA);
+    //END_TIMER_C("gamma",AA);
+    complexd coeffA = coeffA1*coeffA2*coeffA3/coeffA_4;
+    complexd coeffB = coeffB1*coeffB2*coeffB3/coeffB_4;
+    //Print("coeffA = ", coeffA,"coeffB = ", coeffB);
+    complexd termA(0,0);
+    complexd termB(0,0);
+    int maxTerms = 20;
+    complexd zrn = 1;
+    complexd mzrn = 1;
+    complexd zr = 1.0/ZZ;
+    double nFact = 1.0;            //0! = 1
+    complexd pochAA(1.0,0.0);      //Pochhammer is the counting up factorial (A)_0 = 1
+    complexd poch1pAAmBB(1.0,0.0); //(1+AA-BB)_n
+    complexd pochBBmAA(1.0,0.0);   //(BB-AA)_n
+    complexd poch1mAA(1.0,0.0);   //(BB-AA)_n
+    for(int n=0; n<=maxTerms; n++) {
+        complexd contribA = pochAA*poch1pAAmBB*mzrn/nFact;
+        termA += contribA;
+        complexd contribB = pochBBmAA*poch1mAA*zrn /nFact;
+        termB += contribB;
+        //print("contribA = ",contribA,"\tcontribB = ",contribB, "termA =", termA, "termB =", termB);
+        mzrn  *= -zr;
+        zrn   *= zr;
+        nFact *= n+1;  //(n+1) is the number to be used in the next iteration
+        pochAA*= complexd(n,0)+AA; //(x)_n = x(x+1)(x+2)..(x+n-1)
+        poch1pAAmBB*= complexd(1+n,0)+AA-BB;
+        pochBBmAA  *= complexd(n,0)  +BB-AA;
+        poch1mAA   *= complexd(1+n,0)   -AA;        
+    }
+    return coeffA*termA + coeffB*termB;
+}
 
-
-void test1F1(World&, complexd (*func1F1)(complexd,complexd,complexd), const char* fileChar)
-{
-    cout << "Testing 1F1:==================================================" << endl;
-    double r[] = { 1.0, 10.0, 100.0, 1000.0 };
-    double k[] = { 1.0, 0.1, 0.01, 0.001};
-    double theta = 0.0;
-    double thetaK = PI-0.1;
-    int rMAX   = sizeof(r)/sizeof(r[0]);
-    int kMAX   = sizeof(k)/sizeof(k[0]);
-    complexd BB(1.0,0.0);
-    for(int i=0; i<kMAX; i++)
-        {
-            complexd AA(0.0, -1.0/k[i]);
-            cout << "***********" << endl;
-            for(int j=0; j<rMAX; j++)
-		{
-                    complexd ZZ(0.0, -1*k[i]*r[j]*(1 + cos(theta)*cos(thetaK) ));
-                    printf( "%s[ %5.0fI, 1, %9.3f]= %+.10e, %+.10eI\n", fileChar, 
-                            imag(AA), imag(ZZ), real((*func1F1)(AA, BB, ZZ)),
-                            imag((*func1F1)(AA, BB, ZZ))
-                            );
-		}
-        }
+complexd ScatteringWF::aForm3(complexd ZZ) const {
+    cout << scientific;
+    cout.precision(15);
+    complexd cA2 = pow(ZZ,I/k);
+    complexd cB1 = exp(ZZ);
+    complexd cB2 = pow(ZZ,-one-I/k);
+    complexd cA = expmPI_k*cA2/gamma1pI_k;
+    complexd cB = cB1*cB2/gammamI_k;
+    //print("cA = ", cA,"cB = ", cB);
+    complexd termA(0,0);
+    complexd termB(0,0);
+    int maxTerms = 20;
+    complexd zrn = 1;
+    complexd mzrn = 1;
+    complexd zr = 1.0/ZZ;
+    double nFact = 1.0;            //0! = 1
+    complexd pochAA(1.0,0.0);      //Pochhammer is the counting up factorial (A)_0 = 1
+    complexd poch1mAA(1.0,0.0);   //(BB-AA)_n
+    for(int n=0; n<=maxTerms; n++) {
+        complexd contribA = pochAA*pochAA*mzrn/nFact;
+        termA += contribA;
+        complexd contribB = poch1mAA*poch1mAA*zrn/nFact;
+        termB += contribB;
+        if(abs(contribA)<TOL && abs(contribB)<TOL) break;
+        //print("contribA = ",contribA,"\tcontribB = ",contribB, "termA =", termA, "termB =", termB);
+        mzrn     *= -zr;
+        zrn      *=  zr;
+        nFact    *= n+1;  //(n+1) is the number to be used in the next iteration
+        pochAA   *= complexd(n,-1.0/k); //(x)_n = x(x+1)(x+2)..(x+n-1)
+        poch1mAA *= complexd(1+n,1.0/k);        
+    }
+    return cA*termA + cB*termB;
 }
 
 int fact(int n)
@@ -367,13 +379,15 @@ complexd V(const vector3D& r)
 
 void testWF(World& world) 
 {
+    double dARR[3] = {0, 0, 0.5};
+    const vector3D kVec(dARR);
+    ScatteringWF phi(1.0,kVec);
     if(world.rank() == 0)
 	{
             cout.precision(3);
             testPochhammer(world);
             testFact(world);
             cout.precision(12);
-            test1F1(world, f11   ,"   f11");
             if(world.rank() == 0) cout << 
             "Testing the wave functions:===================================" << endl;
 	}
@@ -474,4 +488,48 @@ void testWF(World& world)
     printMe =  psi_k1_45.inner(laserOp*psi_100);
     END_TIMER("<psi_k1_45|Exp[ik.r]|100> =             ");
     PRINT_COMPLEX("<psi_k1_45|Exp[ik.r]|100> =           ",real(printMe),imag(printMe)); 
+}
+
+
+/*****************************************
+ *Exp[ I*(k.r) ]
+ *****************************************/
+Expikr::Expikr( const vector3D& kVec) : kVec(kVec)
+{
+    double sum = 0.0;
+    for(int i=0; i<NDIM; i++) { sum += kVec[i]*kVec[i]; }
+    k = sqrt(sum);
+    costhK = kVec[2]/k;
+}
+
+complexd Expikr::operator()(const vector3D& rVec) const
+{
+    double kDOTr = 0.0;
+    for(int i=0; i<NDIM; i++) {
+        kDOTr += kVec[i]*rVec[i];
+    }
+    return exp(I*kDOTr);
+}
+
+/*****************************************
+ *Exp[ -I*(kr + k.r) ]
+ *****************************************/
+Expikr2::Expikr2( const vector3D& kVec) : kVec(kVec)
+{
+    double sum = 0.0;
+    for(int i=0; i<NDIM; i++) { sum += kVec[i]*kVec[i]; }
+    k = sqrt(sum);
+    costhK = kVec[2]/k;
+}
+
+complexd Expikr2::operator()(const vector3D& rVec) const
+{
+    double kDOTr = 0.0;
+    double r2 = 0.0;
+    for(int i=0; i<NDIM; i++) { r2 += rVec[i]*rVec[i]; }
+    double r = sqrt(r2);
+    for(int i=0; i<NDIM; i++) {
+        kDOTr += kVec[i]*rVec[i];
+    }
+    return exp(-I*(k*r + kDOTr));
 }

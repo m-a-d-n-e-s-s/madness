@@ -7,4 +7,6 @@ hello_SOURCES =  hello.cc wavef.cc coulcc36-f90.f wavef.h
 projPsi_LDADD = $(MRALIBS) 
 test_LDADD = $(MRALIBS)
 hello_LDADD = $(MRALIBS)
+CXXFLAGS=-g -O0 -I/usr/local/include
+LIBS=-L/usr/local/lib -lgsl -lgslcblas -lgfortran
 F77=gfortran

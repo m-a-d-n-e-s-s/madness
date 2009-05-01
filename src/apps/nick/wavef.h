@@ -26,13 +26,6 @@ typedef Vector<double,NDIM> vector3D;
 const complexd I(0,1);
 const double PI = M_PI;
 
-complexd hypergf(complexd AA, complexd BB, complexd ZZ);
-complexd conHyp(complexd AA, complexd BB, complexd ZZ);
-complexd aForm(complexd AA, complexd BB, complexd ZZ);
-complexd aFormNew(complexd AA, complexd BB, complexd ZZ);
-complexd aFormNew2(complexd AA, complexd BB, complexd ZZ);
-complexd f11(complexd AA, complexd BB, complexd ZZ);
-void     test1F1(World&, complexd (*func1F1)(complexd,complexd,complexd), const char* fName);
 int      fact(int);
 void     testFact(World&);
 complexd gamma(complexd AA);
@@ -42,6 +35,7 @@ complexd pochhammer(complexd AA,int n);
 void     testPochhammer(World&);
 void     testWF(World&);
 void     debug1F1(World&);
+void test1F1(World&, complexd (*func1F1)(complexd,complexd,complexd), const char* fileChar);
 //Fortran functions
 extern "C" complexd hypergf_(complexd* AA, complexd* BB, complexd* X, 
 			     double* EPS, int* LIMIT, int* KIN, double* ERR, 
@@ -49,47 +43,46 @@ extern "C" complexd hypergf_(complexd* AA, complexd* BB, complexd* X,
 			     double* ACC16);
 
 /******************************************
- * Virtual class for all wave functions 
- ******************************************/
-class WaveFunction : public FunctionFunctorInterface<complexd,NDIM>
-{
- public:
-  typedef Vector<double,NDIM> vector3D;
-  WaveFunction(double Z);
-  virtual complexd operator()(const vector3D& x) const=0; 
- protected:
-  double Z;
-};
-
-
-/******************************************
  * Scattering WaveFunction
  ******************************************/
-class ScatteringWF : public WaveFunction
-{ 
- public:
-  typedef Vector<double,NDIM> vector3D;
+class ScatteringWF : public FunctionFunctorInterface<complexd,NDIM> { 
+public:
+    typedef Vector<double,NDIM> vector3D;
     ScatteringWF( double Z, const vector3D& kVec );
-  virtual complexd operator()(const vector3D& x) const;
- private:
-  vector3D kVec;
-  double k;
-  double costhK;
+    complexd operator()(const vector3D& x) const;
+    complexd aFormNew3(complexd AA, complexd BB, complexd ZZ) const;
+    complexd hypergf(complexd AA, complexd BB, complexd ZZ) const;
+    complexd aForm(complexd AA, complexd BB, complexd ZZ) const;
+    complexd aForm1(complexd AA, complexd BB, complexd ZZ) const;
+    complexd aForm2(complexd AA, complexd BB, complexd ZZ) const;
+    complexd aForm3(complexd ZZ) const;
+    complexd f11(complexd AA, complexd BB, complexd ZZ) const;
+private:
+    vector3D kVec;
+    double   Z;
+    double   k;
+    double   TOL;
+    double   costhK;
+    complexd expmPI_k;
+    complexd expPI_2k;
+    complexd gamma1pI_k;
+    complexd gammamI_k;
+    complexd one;
 };
 
 /******************************************
  * Bound WaveFunction
  ******************************************/
-class BoundWF : public WaveFunction
-{
- public:
-  typedef Vector<double,NDIM> vector3D;
-  BoundWF(double Z, int nn, int ll, int mm );
-  virtual complexd operator()(const vector3D& x) const;
- private:
-  int n;
-  int l;
-  int m;
+class BoundWF : public FunctionFunctorInterface<complexd,NDIM> {
+public:
+    typedef Vector<double,NDIM> vector3D;
+    BoundWF(double Z, int nn, int ll, int mm );
+    complexd operator()(const vector3D& x) const;
+private:
+    double Z;
+    int n;
+    int l;
+    int m;
 };
 
 /******************************************
@@ -97,14 +90,28 @@ class BoundWF : public WaveFunction
  ******************************************/
 class Expikr : public FunctionFunctorInterface<complexd,NDIM>
 {
- public:
-  typedef Vector<double,NDIM> vector3D;
-  Expikr(const vector3D& kVec);
-  complexd operator()(const vector3D& r) const;
- private:
-  vector3D kVec;
-  double k;
-  double costhK;
+public:
+    typedef Vector<double,NDIM> vector3D;
+    Expikr(const vector3D& kVec);
+    complexd operator()(const vector3D& r) const;
+private:
+    vector3D kVec;
+    double k;
+    double costhK;
 };
 
+/******************************************
+ *Exp[ -I*(kr + k.r) ]
+ ******************************************/
+class Expikr2 : public FunctionFunctorInterface<complexd,NDIM>
+{
+public:
+    typedef Vector<double,NDIM> vector3D;
+    Expikr2(const vector3D& kVec);
+    complexd operator()(const vector3D& r) const;
+private:
+    vector3D kVec;
+    double k;
+    double costhK;
+};
 #endif

@@ -71,7 +71,6 @@ string toString( const T& a ) {
     o << a[0] << ", " << a[1] << ", " << a[2];
     return o.str();
 }
-
 void loadDefaultBasis(World& world, std::vector<WF>& stateList) {
     const int NBSt = 3;    //Number of Bound States
     const int bSt[][3] = { {1,0,0},
@@ -116,7 +115,8 @@ void loadBasis(World& world, std::vector<WF>& stateList) {
                                        FunctionFactory<complexd,NDIM>(world).
                                        functor(functorT(new BoundWF(Z,n,l,m)))));
                 double used = wall_time() - start;
-                PRINTLINE("\t" << used << " sec");
+                PRINTLINE("\t" << used << " sec" << "\t\t Size: " 
+                          << stateList.back().func.size());
                 nlm.str("");
             }
             bound.close();
@@ -138,7 +138,7 @@ void loadBasis(World& world, std::vector<WF>& stateList) {
                                        FunctionFactory<complexd,NDIM>(world).
                                        functor(functorT(new ScatteringWF(Z,kvec)))));
                 double used = wall_time() - start;
-                PRINTLINE("\t" << used << " sec");
+                PRINTLINE("\t" << used << " sec" << "\t\t Size: " << stateList.back().func.size());
                 kxyz.str("");
             }
             unbound.close();
@@ -154,6 +154,7 @@ complexd zdipole( const vector3D& r) {
  * |<phi_A|z|phi_B>|^2
  *****************************************************************/
 void projectZdip(World& world, std::vector<WF> stateList) {
+    cout.precision(8);
     complex_functionT z = complex_factoryT(world).f(zdipole);
     complexd output;
     std::vector<WF>::iterator basisI;
@@ -191,8 +192,8 @@ void projectPsi(World& world, std::vector<WF> basisList) {
             } else {
                 PRINT("Function: " << tag << " not found"<< endl);
             }
-            f.close();
         }
+        f.close();
         complex_functionT z = complex_factoryT(world).f(zdipole);
         PRINTLINE("The Psi(+) are loaded");
         PRINTLINE("\t\t|<Psi(+)|basis>|^2 ");
@@ -227,29 +228,34 @@ void printBasis(World& world) {
     complexd output;
     double sinTH, cosTH, sinPHI, cosPHI;
     //make functions
+    double dARR[3] = {0, 0, 0.5};
     BoundWF b1s(1.0, 1, 0, 0);
     BoundWF b2p(1.0, 2, 1, 0);
-    double dARR[3] = {0, 0, 0.5};
     vector3D kVec(dARR);
     ScatteringWF unb(1.0, kVec);
+    //    PRINTLINE(fixed << "\nrVec \t\t\t|1s> \t\t|2p> \t\t|0 0 0.5>");
     double PHI = 0.1;
-    PRINTLINE(fixed << "\nrVec \t\t\t|1s> \t\t|2p> \t\t|0 0 0.5>");
+    double TH = 0.0;
     double r = 1;
-    for(double TH=0; TH<3.14; TH+=0.3 ) {
-    //    for(double r=0; r<rMAX; r+=1.0 ) {
+    //for(double TH=0; TH<3.14; TH+=0.3 ) {
+
+    cout.precision(15);
+    for(double r=0; r<151; r+=1.0 ) {
         cosTH = std::cos(TH);
         sinTH = std::sin(TH);
         cosPHI = std::cos(PHI);
         sinPHI = std::sin(PHI);
-        double dARR[3] = {r*sinTH*cosPHI, r*sinTH*sinPHI, r*cosTH};
-        PRINT(dARR<<"\t");
+        double dARR[3] = {r*sinTH*cosPHI, r*sinTH*sinPHI, r*cosTH};        
+        PRINT(r<<"\t");
         vector3D rVec(dARR);
-        output = b1s(rVec);
-        PRINT(real(output) << "\t");
-        output = b2p(rVec);
-        PRINT(real(output) << "\t");
+//         output = b1s(rVec);
+//         PRINT(real(output) << "\t");
+//         output = b2p(rVec);
+//         PRINT(real(output) << "\t");
         output = unb(rVec);
-        PRINT(output);
+        cout << scientific;
+        cout.precision(15);
+        PRINT(real(output) << "\t" << imag(output));
         PRINT("\n");
     }
     //    system("sed -i '' -e's/\\+/, /' -e's/j//' f11.out");
@@ -324,15 +330,29 @@ int main(int argc, char**argv) {
     FunctionDefaults<NDIM>::set_apply_randomize(false);
     FunctionDefaults<NDIM>::set_autorefine(false);
     FunctionDefaults<NDIM>::set_refine(true);
-    FunctionDefaults<NDIM>::set_truncate_mode(1);
+    FunctionDefaults<NDIM>::set_truncate_mode(0);
     try {
         std::vector<WF> basisList;
+//         double dARR[3] = {0, 0, 0.5};
+//         vector3D rVec(dARR);
+//         double start = wall_time();
+//         basisList.push_back(WF("Exp(Ikr)       ",
+//                                FunctionFactory<complexd,NDIM>(world).
+//                                functor(functorT(new Expikr(rVec)))));
+//         PRINTLINE("\t" << wall_time()-start << " sec" << "\t\t Size: " << basisList.back().func.size());
+//         start = wall_time();
+//         basisList.push_back(WF("Exp(-Ikr+kDOTr)",
+//                                FunctionFactory<complexd,NDIM>(world).
+//                                functor(functorT(new Expikr2(rVec)))));
+//         PRINTLINE("\t" << wall_time()-start << " sec" << "\t\t Size: " << basisList.back().func.size());
+
         loadBasis(world,basisList);
         //printBasis(world);
         //belkic(world);
-        projectZdip(world, basisList);
-        PRINT("\n");
+        //projectZdip(world, basisList);
+        //PRINT("\n");
         //projectPsi(world, basisList);
+         
         world.gop.fence();
         if (world.rank() == 0) {
 //             world.am.print_stats();
