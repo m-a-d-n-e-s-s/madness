@@ -55,9 +55,16 @@ private:
     const MolecularEntity& _mentity;
     const double R;
     const bool periodic;
+    const std::vector<coordT> _specialpts;
 public:
     MolecularNuclearChargeDensityFunctor(const MolecularEntity& mentity, const double& R,
-        const bool& periodic) : _mentity(mentity), R(R), periodic(periodic) {
+        const bool& periodic, const std::vector<coordT>& specialpts)
+      : _mentity(mentity), R(R), periodic(periodic), _specialpts(specialpts) {
+    }
+
+    virtual std::vector<coordT> special_points()
+    {
+      return _specialpts;
     }
 
     double operator()(const coordT& x) const
@@ -103,9 +110,16 @@ private:
   const AtomicBasisFunction aofunc;
   const double R;
   const bool periodic;
+  const std::vector<coordT> _specialpts;
 public:
-  AtomicBasisFunctor(const AtomicBasisFunction& aofunc, double R, bool periodic) : aofunc(aofunc),
-    R(R), periodic(periodic) {}
+  AtomicBasisFunctor(const AtomicBasisFunction& aofunc, double R, 
+                     bool periodic, std::vector<coordT> specialpts)
+  : aofunc(aofunc), R(R), periodic(periodic), _specialpts(specialpts) {}
+
+  virtual std::vector<coordT> special_points()
+  {
+    return _specialpts;
+  }
 
   double operator()(const coordT& x) const
   {
@@ -236,8 +250,8 @@ public:
       }
       double now = wall_time();
       _vnucrhon = rfactoryT(_world).functor(
-          rfunctorT(new MolecularNuclearChargeDensityFunctor(_mentity, _params.L, _params.periodic))).
-          thresh(_params.thresh).initial_level(6).truncate_on_project().specialpts(specialpts);
+          rfunctorT(new MolecularNuclearChargeDensityFunctor(_mentity, _params.L, _params.periodic, specialpts))).
+          thresh(_params.thresh).initial_level(6).truncate_on_project();
       
       if (_world.rank() == 0) printf("%f\n", wall_time() - now);
       if (_world.rank() == 0) print("calculating trace of rhon ..\n\n");
@@ -322,32 +336,41 @@ public:
       rvecfuncT ao(_aobasis.nbf(_mentity));
 
       Level initial_level = 3;
+      // WSTHORNTON: code duplication
+      std::vector<coordT> specialpts;
+      for (int i = 0; i < _mentity.natom(); i++)
+      {
+        coordT pt(0.0);
+        Atom atom = _mentity.get_atom(i);
+        pt[0] = atom.x; pt[1] = atom.y; pt[2] = atom.z;
+        specialpts.push_back(pt);
+      }
       for (int i=0; i < _aobasis.nbf(_mentity); i++) {
           rfunctorT aofunc(new AtomicBasisFunctor(_aobasis.get_atomic_basis_function(_mentity,i),
-              _params.L, _params.periodic));
+              _params.L, _params.periodic, specialpts));
           ao[i] = rfactoryT(world).functor(aofunc).initial_level(initial_level).truncate_on_project().nofence();
       }
       world.gop.fence();
 
       vector<double> norms;
 
-      while (1) {
-          norms = norm2(world, ao);
-          initial_level += 2;
-          if (initial_level >= 11) throw "project_ao_basis: projection failed?";
-          int nredone = 0;
-          for (int i=0; i<_aobasis.nbf(_mentity); i++) {
-              if (norms[i] < 0.5) {
-                  nredone++;
-                  if (world.rank() == 0) print("re-projecting ao basis function", i,"at level",initial_level);
-                  rfunctorT aofunc(new AtomicBasisFunctor(_aobasis.get_atomic_basis_function(_mentity,i),
-                      _params.L, _params.periodic));
-                  ao[i] = rfactoryT(world).functor(aofunc).initial_level(6).truncate_on_project().nofence();
-              }
-          }
-          world.gop.fence();
-          if (nredone == 0) break;
-      }
+//      while (1) {
+//          norms = norm2(world, ao);
+//          initial_level += 2;
+//          if (initial_level >= 11) throw "project_ao_basis: projection failed?";
+//          int nredone = 0;
+//          for (int i=0; i<_aobasis.nbf(_mentity); i++) {
+//              if (norms[i] < 0.5) {
+//                  nredone++;
+//                  if (world.rank() == 0) print("re-projecting ao basis function", i,"at level",initial_level);
+//                  rfunctorT aofunc(new AtomicBasisFunctor(_aobasis.get_atomic_basis_function(_mentity,i),
+//                      _params.L, _params.periodic));
+//                  ao[i] = rfactoryT(world).functor(aofunc).initial_level(6).truncate_on_project().nofence();
+//              }
+//          }
+//          world.gop.fence();
+//          if (nredone == 0) break;
+//      }
 
       norms = norm2(world, ao);
 
