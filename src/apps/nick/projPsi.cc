@@ -172,6 +172,7 @@ void projectZdip(World& world, std::vector<WF> stateList) {
         }
         PRINT("\n");
     }
+    PRINT("\n");
 }
 
 /****************************************************************************
@@ -333,24 +334,25 @@ int main(int argc, char**argv) {
     FunctionDefaults<NDIM>::set_truncate_mode(0);
     try {
         std::vector<WF> basisList;
-//         double dARR[3] = {0, 0, 0.5};
-//         vector3D rVec(dARR);
-//         double start = wall_time();
-//         basisList.push_back(WF("Exp(Ikr)       ",
-//                                FunctionFactory<complexd,NDIM>(world).
-//                                functor(functorT(new Expikr(rVec)))));
-//         PRINTLINE("\t" << wall_time()-start << " sec" << "\t\t Size: " << basisList.back().func.size());
-//         start = wall_time();
-//         basisList.push_back(WF("Exp(-Ikr+kDOTr)",
-//                                FunctionFactory<complexd,NDIM>(world).
-//                                functor(functorT(new Expikr2(rVec)))));
-//         PRINTLINE("\t" << wall_time()-start << " sec" << "\t\t Size: " << basisList.back().func.size());
+        double dARR[3] = {0, 0, 0.5};
+        vector3D rVec(dARR);
+        double start = wall_time();
+        basisList.push_back(WF("Exp(Ikr)       ",
+                               FunctionFactory<complexd,NDIM>(world).
+                               functor(functorT(new Expikr(rVec)))));
+        PRINTLINE("\tExp(Ikr)       " << wall_time()-start << " sec" 
+                  << "\t\t Size: " << basisList.back().func.size());
+        start = wall_time();
+        basisList.push_back(WF("Exp(-Ikr+kDOTr)",
+                               FunctionFactory<complexd,NDIM>(world).
+                               functor(functorT(new Expikr2(rVec)))));
+        PRINTLINE("\tExp(-Ikr+kDOTr)" << wall_time()-start << " sec"
+                  << "\t\t Size: " << basisList.back().func.size());
 
         loadBasis(world,basisList);
         //printBasis(world);
         //belkic(world);
         //projectZdip(world, basisList);
-        //PRINT("\n");
         //projectPsi(world, basisList);
          
         world.gop.fence();

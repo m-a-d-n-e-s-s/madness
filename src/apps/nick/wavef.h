@@ -61,13 +61,14 @@ private:
     vector3D kVec;
     double   Z;
     double   k;
-    double   TOL;
     double   costhK;
     complexd expmPI_k;
     complexd expPI_2k;
     complexd gamma1pI_k;
     complexd gammamI_k;
     complexd one;
+    double   TOL;
+    int histograph[200];
 };
 
 /******************************************

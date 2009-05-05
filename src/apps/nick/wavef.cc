@@ -25,6 +25,48 @@ double tt;
 #define END_TIMER(msg) tt=cpu_time()-tt;  if (world.rank()==0) printf("timer: %24.24s    took%8.2f seconds\n", msg, tt)
 #define PRINT_COMPLEX(msg,re,im) if(world.rank()==0) printf("%34.34s %9.6f + %9.6fI\n", msg, re, im)
 
+
+/*****************************************
+ *Exp[ I*(k.r) ]
+ *****************************************/
+Expikr::Expikr( const vector3D& kVec) : kVec(kVec)
+{
+    double sum = 0.0;
+    for(int i=0; i<NDIM; i++) { sum += kVec[i]*kVec[i]; }
+    k = sqrt(sum);
+    costhK = kVec[2]/k;
+}
+complexd Expikr::operator()(const vector3D& rVec) const
+{
+    double kDOTr = 0.0;
+    for(int i=0; i<NDIM; i++) {
+        kDOTr += kVec[i]*rVec[i];
+    }
+    return exp(I*kDOTr);
+}
+
+/*****************************************
+ *Exp[ -I*(kr + k.r) ]
+ *****************************************/
+Expikr2::Expikr2( const vector3D& kVec) : kVec(kVec)
+{
+    double sum = 0.0;
+    for(int i=0; i<NDIM; i++) { sum += kVec[i]*kVec[i]; }
+    k = sqrt(sum);
+    costhK = kVec[2]/k;
+}
+complexd Expikr2::operator()(const vector3D& rVec) const
+{
+    double kDOTr = 0.0;
+    double r2 = 0.0;
+    for(int i=0; i<NDIM; i++) { r2 += rVec[i]*rVec[i]; }
+    double r = sqrt(r2);
+    for(int i=0; i<NDIM; i++) {
+        kDOTr += kVec[i]*rVec[i];
+    }
+    return exp(-I*(k*r + kDOTr));
+}
+
 /******************************************
  * BoundWF
  ******************************************/
@@ -63,9 +105,7 @@ complexd BoundWF::operator()(const vector3D& rVec) const {
     //    gsl_set_error_handler(NULL);     //Turns on the default error handler
     if(status == GSL_EUNDRFLW) { return complexd(0,0); }
     else if(status != 0)            MADNESS_EXCEPTION("gsl_ERROR: ",status);
-    if(m==0) {        
-        return complexd(Rnl.val * gsl_sf_legendre_sphPlm(l, m, cosTH), 0.0);
-    }
+    if(m==0) { return complexd(Rnl.val * gsl_sf_legendre_sphPlm(l, m, cosTH), 0.0); }
     else {
 	gsl_sf_result rPhi;
 	gsl_sf_result phi ; 
@@ -110,22 +150,13 @@ complexd ScatteringWF::operator()(const vector3D& rVec) const {
 //     cout << "exp(I*kDOTr)  = " << exp(I*kDOTr)  << endl;
 //     cout << " f11(-1.0*I/k, 1.0, -1.0*I*(k*r + kDOTr)) = "
 //          << f11(-1.0*I/k, 1.0, -1.0*I*(k*r + kDOTr)) << endl;
-    cout.precision(3);
-    cout << fixed;
+//    cout.precision(3);
+//    cout << fixed;
     //print("expPI_2k =",expPI_2k," gamma1pI_k =",gamma1pI_k,"exp(I*kDOTr) =",exp(I*kDOTr)," f11(-1.0*I/k, one, -1.0*I*(k*r + kDOTr)) =",f11(-1.0*I/k, one, -1.0*I*(k*r + kDOTr)));
     return expPI_2k
         * gamma1pI_k
         * exp(I*kDOTr)
         * f11(-1.0*I/k, one, -1.0*I*(k*r + kDOTr)); //ERROR
-//     complexd confHyper = f11(-1.0*I/k, 1.0, -1.0*I*(k*r + kDOTr));
-//     complexd output = exp(PI/(2*k))
-//         * gamma(1.0+I/k)
-//         * exp(I*kDOTr)
-//         * confHyper
-//         ;
-// //     cout << "f11(" << r << ")                     = " << confHyper << endl;
-// //     cout << "f11(" << rVec << ") = " << confHyper << endl;
-//     return output;
 }
 
 /*******************************************************
@@ -134,7 +165,7 @@ complexd ScatteringWF::operator()(const vector3D& rVec) const {
  *******************************************************/
 complexd ScatteringWF::f11(complexd AA, complexd BB, complexd ZZ) const {
     //    return hypergf(AA,BB,ZZ);
-    double k = 1.0/abs(imag(AA)); 
+    double k = 1.0/abs(imag(AA)); //DO
     //cout << aForm(AA,BB,ZZ) - aForm1(AA,BB,ZZ) << endl;
     if(abs(imag(ZZ)) <= 11.0 + 1.0/k + 0.5/(k*k) ) return hypergf(AA,BB,ZZ);
     //else return aForm(AA,BB,ZZ);
@@ -257,8 +288,8 @@ const {
 }
 
 complexd ScatteringWF::aForm3(complexd ZZ) const {
-    cout << scientific;
-    cout.precision(15);
+    //cout << scientific;
+    //cout.precision(15);
     complexd cA2 = pow(ZZ,I/k);
     complexd cB1 = exp(ZZ);
     complexd cB2 = pow(ZZ,-one-I/k);
@@ -279,7 +310,7 @@ complexd ScatteringWF::aForm3(complexd ZZ) const {
         termA += contribA;
         complexd contribB = poch1mAA*poch1mAA*zrn/nFact;
         termB += contribB;
-        if(abs(contribA)<TOL && abs(contribB)<TOL) break;
+        //if(abs(contribA)<TOL && abs(contribB)<TOL) break;
         //print("contribA = ",contribA,"\tcontribB = ",contribB, "termA =", termA, "termB =", termB);
         mzrn     *= -zr;
         zrn      *=  zr;
@@ -490,46 +521,3 @@ void testWF(World& world)
     PRINT_COMPLEX("<psi_k1_45|Exp[ik.r]|100> =           ",real(printMe),imag(printMe)); 
 }
 
-
-/*****************************************
- *Exp[ I*(k.r) ]
- *****************************************/
-Expikr::Expikr( const vector3D& kVec) : kVec(kVec)
-{
-    double sum = 0.0;
-    for(int i=0; i<NDIM; i++) { sum += kVec[i]*kVec[i]; }
-    k = sqrt(sum);
-    costhK = kVec[2]/k;
-}
-
-complexd Expikr::operator()(const vector3D& rVec) const
-{
-    double kDOTr = 0.0;
-    for(int i=0; i<NDIM; i++) {
-        kDOTr += kVec[i]*rVec[i];
-    }
-    return exp(I*kDOTr);
-}
-
-/*****************************************
- *Exp[ -I*(kr + k.r) ]
- *****************************************/
-Expikr2::Expikr2( const vector3D& kVec) : kVec(kVec)
-{
-    double sum = 0.0;
-    for(int i=0; i<NDIM; i++) { sum += kVec[i]*kVec[i]; }
-    k = sqrt(sum);
-    costhK = kVec[2]/k;
-}
-
-complexd Expikr2::operator()(const vector3D& rVec) const
-{
-    double kDOTr = 0.0;
-    double r2 = 0.0;
-    for(int i=0; i<NDIM; i++) { r2 += rVec[i]*rVec[i]; }
-    double r = sqrt(r2);
-    for(int i=0; i<NDIM; i++) {
-        kDOTr += kVec[i]*rVec[i];
-    }
-    return exp(-I*(k*r + kDOTr));
-}
