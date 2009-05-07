@@ -48,7 +48,6 @@ complex_functionT wave_function_load(World& world, int step) {
 
 
 void doWork(World& world) {
-    debug1F1(world);
   PRINTLINE("Creating three basis functions");
   Function<complexd,NDIM> psi100 = FunctionFactory<complexd,NDIM>(world).
     functor(functorT( new BoundWF(1.0, 1,0,0)));
