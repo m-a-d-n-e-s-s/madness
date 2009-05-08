@@ -206,7 +206,7 @@ namespace madness {
         }
 
         /// Override this change level refinement for special points (default is 6)
-        Level special_level() {return 6;}
+        virtual Level special_level() {return 6;}
 
         virtual ~FunctionFunctorInterface() {}
     };
