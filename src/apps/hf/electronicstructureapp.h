@@ -62,9 +62,14 @@ public:
       : _mentity(mentity), R(R), periodic(periodic), _specialpts(specialpts) {
     }
 
-    virtual std::vector<coordT> special_points()
+    virtual std::vector<coordT> special_points() const
     {
       return _specialpts;
+    }
+
+    virtual Level special_level()
+    {
+      return 10;
     }
 
     double operator()(const coordT& x) const
@@ -110,13 +115,20 @@ private:
   const AtomicBasisFunction aofunc;
   const double R;
   const bool periodic;
-  const std::vector<coordT> _specialpts;
+  std::vector<coordT> _specialpts;
 public:
   AtomicBasisFunctor(const AtomicBasisFunction& aofunc, double R, 
-                     bool periodic, std::vector<coordT> specialpts)
-  : aofunc(aofunc), R(R), periodic(periodic), _specialpts(specialpts) {}
+                     bool periodic)
+  : aofunc(aofunc), R(R), periodic(periodic) 
+  {
+    double x, y, z;
+    aofunc.get_coords(x,y,z);
+    coordT r;
+    r[0]=x; r[1]=y; r[2]=z;
+    _specialpts=vector<coordT>(1,r);
+  }
 
-  virtual std::vector<coordT> special_points()
+  virtual std::vector<coordT> special_points() const
   {
     return _specialpts;
   }
@@ -335,19 +347,10 @@ public:
   rvecfuncT project_ao_basis(World& world) {
       rvecfuncT ao(_aobasis.nbf(_mentity));
 
-      Level initial_level = 3;
-      // WSTHORNTON: code duplication
-      std::vector<coordT> specialpts;
-      for (int i = 0; i < _mentity.natom(); i++)
-      {
-        coordT pt(0.0);
-        Atom atom = _mentity.get_atom(i);
-        pt[0] = atom.x; pt[1] = atom.y; pt[2] = atom.z;
-        specialpts.push_back(pt);
-      }
+      Level initial_level = 2;
       for (int i=0; i < _aobasis.nbf(_mentity); i++) {
           rfunctorT aofunc(new AtomicBasisFunctor(_aobasis.get_atomic_basis_function(_mentity,i),
-              _params.L, _params.periodic, specialpts));
+              _params.L, _params.periodic));
           ao[i] = rfactoryT(world).functor(aofunc).initial_level(initial_level).truncate_on_project().nofence();
       }
       world.gop.fence();
@@ -437,7 +440,6 @@ public:
       delete op;
       vector<long> npt(3,101);
       plotdx(vc, "vc.dx", FunctionDefaults<3>::get_cell(), npt);
-//      print_cube(_world, rho, vc, vlda, 5);
     }
     else
     {

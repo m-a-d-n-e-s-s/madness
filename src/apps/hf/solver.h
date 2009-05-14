@@ -35,6 +35,7 @@ namespace madness
     typedef SharedPtr<operatorT> poperatorT;
     typedef Tensor<double> rtensorT;
     typedef Tensor<std::complex<double> > ctensorT;
+    typedef Tensor<valueT> tensorT;
 
     //*************************************************************************
     World& _world;
@@ -347,16 +348,6 @@ namespace madness
     //*************************************************************************
     void solve()
     {
-//      _shift = 1.0;
-//      Function<double,3> shifted = FunctionFactory<double,3>(_world).f(onesfunc);
-//      shifted.scale(_shift);
-//      _vnuc -= shifted;
-//      for (unsigned int i = 0; i < _eigsa.size(); i++)
-//      {
-//        _eigsa[i] -= _shift;
-//        _eigsb[i] -= _shift;
-//      }
-
       for (int it = 0; it < _params.maxits; it++)
       {
         if (_world.rank() == 0) print("it = ", it);
@@ -375,22 +366,12 @@ namespace madness
         if (_world.rank() == 0) print("applying potential ...\n");
         apply_potential(pfuncsa, pfuncsb, _phisa, _phisb, _rhoa, _rhob, _rho);
 
-        // Build fock matrix
-        ctensorT overlap = matrix_inner(_world, _phisa, _phisa, true);
-        ctensorT fock = build_fock_matrix(_phisa, pfuncsa, false);
-        ctensorT c; rtensorT e;
-        if (_world.rank() == 0) print("Diagonlizing Fock matrix ...\n\n");
-        sygv(fock, overlap, 1, &c, &e);
-
-        for (unsigned int ei = 0; ei < _eigsa.size(); ei++)
-        {
-          _eigsa[ei] = e(ei,ei);
-        }
-
+        // Do the right-hand side
+        do_rhs(_phisa, pfuncsa);
+        
         // Make BSH Green's function
         std::vector<poperatorT> bopsa = make_bsh_operators(_eigsa);
-        vector<T> sfactor(pfuncsa.size());
-        for (unsigned int si = 0; si < sfactor.size(); si++) sfactor[si] = -2.0;
+        vector<T> sfactor(pfuncsa.size(), -2.0);
         scale(_world, pfuncsa, sfactor);
 
         // Apply Green's function to orbitals
@@ -466,24 +447,63 @@ namespace madness
       }
     }
     //*************************************************************************
+    
+    //*************************************************************************
+    template <typename Q>
+    void do_rhs(std::vector< Function<Q,NDIM> >& wf,
+                std::vector< Function<Q,NDIM> >& vwf)
+    {
+      // Build fock matrix
+      Tensor<Q> fock = build_fock_matrix(wf, vwf);
+
+      for (unsigned int ei = 0; ei < _eigsa.size(); ei++)
+      {
+        _eigsa[ei] = std::min(-0.05, real(fock(ei,ei)));
+        fock(ei,ei) -= _eigsa[ei];
+      }
+
+      double trantol = 0.1*_params.thresh/min(30.0,double(wf.size()));
+      vector< Function<Q,NDIM> > fwf = transform(_world, wf, fock, trantol);
+      gaxpy(_world, 1.0, fwf, -1.0, fwf);
+      fwf.clear();
+    }
+    //*************************************************************************
 
     //*************************************************************************
-    ctensorT build_fock_matrix(std::vector<functionT>& psi,
-                              std::vector<functionT>& vpsi, bool update)
+    template <typename Q>
+    Tensor<Q> build_fock_matrix(std::vector< Function<Q,NDIM> >& psi,
+                                std::vector< Function<Q,NDIM> >& vpsi)
     {
       // Build the potential matrix
-      rtensorT rpotential = matrix_inner(_world, vpsi, psi, true);
-      // Convert to a complex tensor
-      ctensorT potential = tensor_real2complex<double>(rpotential);
+      Tensor<Q> potential = matrix_inner(_world, vpsi, psi, true);
+      _world.gop.fence();
+
+      if (_world.rank() == 0) print("Building kinetic energy matrix ...\n\n");
+      rtensorT kinetic = ::kinetic_energy_matrix(_world, psi);
+
+      if (_world.rank() == 0) print("Constructing Fock matrix ...\n\n");
+      rtensorT fock = potential + kinetic;
+      fock = 0.5 * (fock + transpose(fock));
+      _world.gop.fence();
+
+      return fock;
+    }
+    //*************************************************************************
+
+    //*************************************************************************
+    ctensorT build_fock_matrix(std::vector<cfunctionT>& psi,
+                              std::vector<cfunctionT>& vpsi)
+    {
+      // Build the potential matrix
+      ctensorT potential = matrix_inner(_world, vpsi, psi, true);
       _world.gop.fence();
 
       if (_world.rank() == 0) print("Building kinetic energy matrix ...\n\n");
       ctensorT kinetic = ::kinetic_energy_matrix(_world, psi, _params.periodic);
 
       if (_world.rank() == 0) print("Constructing Fock matrix ...\n\n");
-      ctensorT fock = kinetic + potential;
+      ctensorT fock = potential + kinetic;
       fock = 0.5 * (fock + transpose(fock));
-
       _world.gop.fence();
 
       return fock;
@@ -509,10 +529,30 @@ namespace madness
     void update_orbitals(std::vector<functionT>& owfs,
                          std::vector<functionT>& nwfs)
     {
-      truncate<valueT,NDIM> (_world, nwfs);
-      for (unsigned int wi = 0; wi < nwfs.size(); wi++)
-      {
-        owfs[wi] = nwfs[wi].scale(1.0 / nwfs[wi].norm2());
+      truncate<valueT, NDIM > (_world, nwfs);
+      vector<double> wnorm = norm2(_world, sub(_world, owfs, nwfs));
+      // Step restriction
+      double maxrotn = 0.1;
+      int nres = 0;
+//      for (unsigned int i = 0; i < owfs.size(); i++)
+//      {
+//        if (wnorm[i] > maxrotn)
+//        {
+//          double s = maxrotn / wnorm[i];
+//          nres++;
+//          if (_world.rank() == 0)
+//          {
+//              if (nres == 1) printf("  restricting step for alpha orbitals:");
+//              printf(" %d", i);
+//          }
+//          nwfs[i].gaxpy(s, owfs[i], 1.0 - s, false);
+//        }
+//      }
+//      if (nres > 0 && _world.rank() == 0) printf("\n");
+//      _world.gop.fence();
+
+      for (unsigned int wi = 0; wi < nwfs.size(); wi++) {
+          owfs[wi] = nwfs[wi].scale(1.0 / nwfs[wi].norm2());
       }
     }
     //*************************************************************************
