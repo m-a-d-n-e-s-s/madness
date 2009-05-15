@@ -527,15 +527,15 @@ public:
       // Get k-point from list
       KPoint kpt = _kpoints[ki];
 
-        if (_world.rank() == 0) print("Building kinetic energy matrix ...\n\n");
+      if (_world.rank() == 0) print("Building kinetic energy matrix ...\n\n");
       ctensorT kinetic = ::kinetic_energy_matrix(_world, ao, _params.periodic, kpt);
 
-        if (_world.rank() == 0) print("Constructing Fock matrix ...\n\n");
-      ctensorT fock = kinetic + potential;
+      if (_world.rank() == 0) print("Constructing Fock matrix ...\n\n");
+      ctensorT fock = potential + kinetic;
       fock = 0.5 * (fock + transpose(fock));
 
       ctensorT c; rtensorT e;
-        if (_world.rank() == 0) print("Diagonlizing Fock matrix ...\n\n");
+      if (_world.rank() == 0) print("Diagonlizing Fock matrix ...\n\n");
       sygv(fock, overlap, 1, &c, &e);
 
       compress(_world, ao);
@@ -551,38 +551,38 @@ public:
       if (_world.rank() == 0) print("\n");
 
       // DEBUG
-      for (int i = 0; i < kinetic.dim[0]; i++)
-      {
-        for (int j = 0; j < kinetic.dim[1]; j++)
-        {
-          if (_world.rank() == 0) printf("%10.5f", real(kinetic(i,j)));
-        }
-        if (_world.rank() == 0) printf("\n");
-      }
-      if (_world.rank() == 0) printf("\n");
-      if (_world.rank() == 0) printf("\n");
-
-      for (int i = 0; i < potential.dim[0]; i++)
-      {
-        for (int j = 0; j < potential.dim[1]; j++)
-        {
-          if (_world.rank() == 0) printf("%10.5f", real(potential(i,j)));
-        }
-        if (_world.rank() == 0) printf("\n");
-      }
-      if (_world.rank() == 0) printf("\n");
-      if (_world.rank() == 0) printf("\n");
-
-      for (int i = 0; i < fock.dim[0]; i++)
-      {
-        for (int j = 0; j < fock.dim[1]; j++)
-        {
-          if (_world.rank() == 0) printf("%10.5f", real(fock(i,j)));
-        }
-        if (_world.rank() == 0) printf("\n");
-      }
-      if (_world.rank() == 0) printf("\n");
-      if (_world.rank() == 0) printf("\n");
+//      for (int i = 0; i < kinetic.dim[0]; i++)
+//      {
+//        for (int j = 0; j < kinetic.dim[1]; j++)
+//        {
+//          if (_world.rank() == 0) printf("%10.5f", real(kinetic(i,j)));
+//        }
+//        if (_world.rank() == 0) printf("\n");
+//      }
+//      if (_world.rank() == 0) printf("\n");
+//      if (_world.rank() == 0) printf("\n");
+//
+//      for (int i = 0; i < potential.dim[0]; i++)
+//      {
+//        for (int j = 0; j < potential.dim[1]; j++)
+//        {
+//          if (_world.rank() == 0) printf("%10.5f", real(potential(i,j)));
+//        }
+//        if (_world.rank() == 0) printf("\n");
+//      }
+//      if (_world.rank() == 0) printf("\n");
+//      if (_world.rank() == 0) printf("\n");
+//
+//      for (int i = 0; i < fock.dim[0]; i++)
+//      {
+//        for (int j = 0; j < fock.dim[1]; j++)
+//        {
+//          if (_world.rank() == 0) printf("%10.5f", real(fock(i,j)));
+//        }
+//        if (_world.rank() == 0) printf("\n");
+//      }
+//      if (_world.rank() == 0) printf("\n");
+//      if (_world.rank() == 0) printf("\n");
 
       // Fill in orbitals and eigenvalues
       int kend = kp + nao;

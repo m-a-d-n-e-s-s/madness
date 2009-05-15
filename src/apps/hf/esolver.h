@@ -161,7 +161,54 @@ struct KOrbital
   //***************************************************************************
 
   //***************************************************************************
-  ctensorT kinetic_energy_matrix(World& world, const rvecfuncT& v, bool periodic,
+  template <typename Q, int NDIM>
+  ctensorT kinetic_energy_matrix(World& world,
+                                 const std::vector< Function<std::complex<Q>,NDIM> >& v,
+                                 const bool periodic,
+                                 const KPoint k = KPoint(coordT(0.0), 0.0))
+  {
+    reconstruct(world, v);
+    int n = v.size();
+    ctensorT c(n, n);
+    const std::complex<double> I = std::complex<double>(0.0, 1.0);
+    double k0 = k.k[0];
+    double k1 = k.k[1];
+    double k2 = k.k[2];
+    if (periodic)
+    {
+      for (int i = 0; i < n; i++)
+      {
+        functionT dv_i_0 = pdiff(v[i], 0) - I * k0 * v[i];
+        functionT dv_i_1 = pdiff(v[i], 1) - I * k1 * v[i];
+        functionT dv_i_2 = pdiff(v[i], 2) - I * k2 * v[i];
+        for (int j = 0; j <= i; j++)
+        {
+          functionT dv_j_0 = pdiff(v[j], 0) + I * k0 * v[j];
+          functionT dv_j_1 = pdiff(v[j], 1) + I * k1 * v[j];
+          functionT dv_j_2 = pdiff(v[j], 2) + I * k2 * v[j];
+          c(i, j) = inner(dv_i_0, dv_j_0) + inner(dv_i_1, dv_j_1) + inner(dv_i_2, dv_j_2);
+          c(j, i) = conj(c(i, j));
+        }
+      }
+    }
+    else
+    {
+      for (int axis = 0; axis < 3; axis++)
+      {
+        std::vector< Function<std::complex<Q>,NDIM> > dv = diff(world, v, axis);
+        c += matrix_inner(world, dv, dv, true);
+        dv.clear(); // Allow function memory to be freed
+      }
+    }
+    return c.scale(0.5);
+  }
+  //***************************************************************************
+
+  //***************************************************************************
+  template <typename Q, int NDIM>
+  ctensorT kinetic_energy_matrix(World& world,
+                                 const std::vector< Function<Q,NDIM> >& v,
+                                 const bool periodic,
                                  const KPoint k = KPoint(coordT(0.0), 0.0))
   {
     reconstruct(world, v);
@@ -197,73 +244,9 @@ struct KOrbital
         r += matrix_inner(world, dv, dv, true);
         dv.clear(); // Allow function memory to be freed
       }
-      c = tensor_real2complex(r);
+      c = ctensorT(r);
     }
-
     return c.scale(0.5);
-  }
-  //***************************************************************************
-
-  //***************************************************************************
-  template <typename Q, NDIM>
-  Tensor<Q> kinetic_energy_matrix(World& world, 
-                                  const std::vector< Function<Q,NDIM> >& v,
-                                  bool periodic,
-                                  const KPoint k = KPoint(coordT(0.0), 0.0))
-  {
-    reconstruct(world, v);
-    int n = v.size();
-    ctensorT c(n, n);
-    const std::complex<double> I = std::complex<double>(0.0, 1.0);
-    double k0 = k.k[0];
-    double k1 = k.k[1];
-    double k2 = k.k[2];
-    if (periodic)
-    {
-      for (int i = 0; i < n; i++)
-      {
-        functionT dv_i_0 = pdiff(v[i], 0) - I * k0 * v[i];
-        functionT dv_i_1 = pdiff(v[i], 1) - I * k1 * v[i];
-        functionT dv_i_2 = pdiff(v[i], 2) - I * k2 * v[i];
-        for (int j = 0; j <= i; j++)
-        {
-          functionT dv_j_0 = pdiff(v[j], 0) + I * k0 * v[j];
-          functionT dv_j_1 = pdiff(v[j], 1) + I * k1 * v[j];
-          functionT dv_j_2 = pdiff(v[j], 2) + I * k2 * v[j];
-          c(i, j) = inner(dv_i_0, dv_j_0) + inner(dv_i_1, dv_j_1) + inner(dv_i_2, dv_j_2);
-          c(j, i) = conj(c(i, j));
-        }
-      }
-    }
-    else
-    {
-      ctensorT c(n, n);
-      for (int axis = 0; axis < 3; axis++)
-      {
-        cvecfuncT dv = diff(world, v, axis);
-        c += matrix_inner(world, dv, dv, true);
-        dv.clear(); // Allow function memory to be freed
-      }
-    }
-
-    return c.scale(0.5);
-  }
-  //***************************************************************************
-
-  //***************************************************************************
-  rtensorT kinetic_energy_matrix(World& world, const rvecfuncT& v)
-  {
-    reconstruct(world, v);
-    int n = v.size();
-    rtensorT r(n, n);
-    for (int axis = 0; axis < 3; axis++)
-    {
-      rvecfuncT dv = diff(world, v, axis);
-      r += matrix_inner(world, dv, dv, true);
-      dv.clear(); // Allow function memory to be freed
-    }
-
-    return r.scale(0.5);
   }
   //***************************************************************************
 

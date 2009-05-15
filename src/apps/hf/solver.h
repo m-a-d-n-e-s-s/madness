@@ -22,10 +22,11 @@ static double onesfunc(const coordT& x)
 namespace madness
 {
 //***************************************************************************
-  template <typename T, typename valueT, int NDIM>
+  template <typename T, int NDIM>
   class Solver
   {
     // Typedef's
+    typedef std::complex<T> valueT;
     typedef Function<T,NDIM> rfuntionT;
     typedef FunctionFactory<T,NDIM> rfactoryT;
     typedef Function<valueT,NDIM> functionT;
@@ -411,6 +412,7 @@ namespace madness
         // Do other spin
         if (_params.spinpol)
         {
+          do_rhs(_phisb, pfuncsb);
           std::vector<poperatorT> bopsb = make_bsh_operators(_eigsb);
           scale(_world, pfuncsb, sfactor);
           truncate<valueT,NDIM>(_world, pfuncsb);
@@ -449,40 +451,38 @@ namespace madness
     //*************************************************************************
     
     //*************************************************************************
-    template <typename Q>
-    void do_rhs(std::vector< Function<Q,NDIM> >& wf,
-                std::vector< Function<Q,NDIM> >& vwf)
+    void do_rhs(std::vector<functionT>& wf,
+                std::vector<functionT>& vwf)
     {
       // Build fock matrix
-      Tensor<Q> fock = build_fock_matrix(wf, vwf);
+      tensorT fock = build_fock_matrix(wf, vwf);
 
       for (unsigned int ei = 0; ei < _eigsa.size(); ei++)
       {
         _eigsa[ei] = std::min(-0.05, real(fock(ei,ei)));
-        fock(ei,ei) -= _eigsa[ei];
+         fock(ei,ei) -= std::complex<T>(_eigsa[ei], 0.0);
       }
 
       double trantol = 0.1*_params.thresh/min(30.0,double(wf.size()));
-      vector< Function<Q,NDIM> > fwf = transform(_world, wf, fock, trantol);
+      vector<functionT> fwf = transform(_world, wf, fock, trantol);
       gaxpy(_world, 1.0, fwf, -1.0, fwf);
       fwf.clear();
     }
     //*************************************************************************
 
     //*************************************************************************
-    template <typename Q>
-    Tensor<Q> build_fock_matrix(std::vector< Function<Q,NDIM> >& psi,
-                                std::vector< Function<Q,NDIM> >& vpsi)
+    tensorT build_fock_matrix(std::vector<functionT>& psi,
+                                     std::vector<functionT>& vpsi)
     {
       // Build the potential matrix
-      Tensor<Q> potential = matrix_inner(_world, vpsi, psi, true);
+      tensorT potential = matrix_inner(_world, vpsi, psi, true);
       _world.gop.fence();
 
       if (_world.rank() == 0) print("Building kinetic energy matrix ...\n\n");
-      rtensorT kinetic = ::kinetic_energy_matrix(_world, psi);
+        tensorT kinetic = ::kinetic_energy_matrix(_world, psi, _params.periodic);
 
       if (_world.rank() == 0) print("Constructing Fock matrix ...\n\n");
-      rtensorT fock = potential + kinetic;
+      tensorT fock = potential + kinetic;
       fock = 0.5 * (fock + transpose(fock));
       _world.gop.fence();
 
@@ -490,25 +490,46 @@ namespace madness
     }
     //*************************************************************************
 
-    //*************************************************************************
-    ctensorT build_fock_matrix(std::vector<cfunctionT>& psi,
-                              std::vector<cfunctionT>& vpsi)
-    {
-      // Build the potential matrix
-      ctensorT potential = matrix_inner(_world, vpsi, psi, true);
-      _world.gop.fence();
+//    //*************************************************************************
+//    template <typename Q>
+//    void do_rhs(std::vector< Function<Q,NDIM> >& wf,
+//                std::vector< Function<Q,NDIM> >& vwf)
+//    {
+//      // Build fock matrix
+//      Tensor<Q> fock = build_fock_matrix(wf, vwf);
+//
+//      for (unsigned int ei = 0; ei < _eigsa.size(); ei++)
+//      {
+//        _eigsa[ei] = std::min(-0.05, real(fock(ei,ei)));
+//        fock(ei,ei) -= _eigsa[ei];
+//      }
+//
+//      double trantol = 0.1*_params.thresh/min(30.0,double(wf.size()));
+//      vector< Function<Q,NDIM> > fwf = transform(_world, wf, fock, trantol);
+//      gaxpy(_world, 1.0, fwf, -1.0, fwf);
+//      fwf.clear();
+//    }
+//    //*************************************************************************
 
-      if (_world.rank() == 0) print("Building kinetic energy matrix ...\n\n");
-      ctensorT kinetic = ::kinetic_energy_matrix(_world, psi, _params.periodic);
-
-      if (_world.rank() == 0) print("Constructing Fock matrix ...\n\n");
-      ctensorT fock = potential + kinetic;
-      fock = 0.5 * (fock + transpose(fock));
-      _world.gop.fence();
-
-      return fock;
-    }
-    //*************************************************************************
+//    //*************************************************************************
+//    ctensorT build_fock_matrix(std::vector<cfunctionT>& psi,
+//                              std::vector<cfunctionT>& vpsi)
+//    {
+//      // Build the potential matrix
+//      ctensorT potential = matrix_inner(_world, vpsi, psi, true);
+//      _world.gop.fence();
+//
+//      if (_world.rank() == 0) print("Building kinetic energy matrix ...\n\n");
+//      ctensorT kinetic = ::kinetic_energy_matrix(_world, psi, _params.periodic);
+//
+//      if (_world.rank() == 0) print("Constructing Fock matrix ...\n\n");
+//      ctensorT fock = potential + kinetic;
+//      fock = 0.5 * (fock + transpose(fock));
+//      _world.gop.fence();
+//
+//      return fock;
+//    }
+//    //*************************************************************************
 
     //*************************************************************************
     void gram_schmidt(std::vector<functionT>& a, const std::vector<functionT>& b)
