@@ -357,18 +357,17 @@ namespace madness
         _rhob = (_params.spinpol) ? compute_rho(_phisb) : _rhoa;
         _rho = _rhoa + _rhob;
 
-        vector<functionT> pfuncsa(_phisa.size()), pfuncsb(_phisb.size());
-        for (unsigned int pi = 0; pi < _phisa.size(); pi++)
-          pfuncsa[pi] = factoryT(_world);
-        for (unsigned int pi = 0; pi < _phisb.size(); pi++)
-          pfuncsb[pi] = factoryT(_world);
+        vector<functionT> pfuncsa =
+                zero_functions<valueT,NDIM>(_world, _phisa.size());
+        vector<functionT> pfuncsb =
+                zero_functions<valueT,NDIM>(_world, _phisb.size());
 
         // Apply the potentials to the orbitals
         if (_world.rank() == 0) print("applying potential ...\n");
         apply_potential(pfuncsa, pfuncsb, _phisa, _phisb, _rhoa, _rhob, _rho);
 
         // Do the right-hand side
-        do_rhs(_phisa, pfuncsa);
+        do_rhs(_phisa, pfuncsa, _eigsa);
         
         // Make BSH Green's function
         std::vector<poperatorT> bopsa = make_bsh_operators(_eigsa);
@@ -402,25 +401,19 @@ namespace madness
         if (_world.rank() == 0) print("gram-schmidt ...\n");
         gram_schmidt(tmpa, _phisa);
 
-        // Update eigenvalues
-        if (_world.rank() == 0) print("updating eigenvalues ...\n");
-        //update_eigenvalues(tmpa, pfuncsa, _phisa, _eigsa);
-
         // Update orbitals
         update_orbitals(_phisa, tmpa);
 
         // Do other spin
         if (_params.spinpol)
         {
-          do_rhs(_phisb, pfuncsb);
+          do_rhs(_phisb, pfuncsb, _eigsb);
           std::vector<poperatorT> bopsb = make_bsh_operators(_eigsb);
           scale(_world, pfuncsb, sfactor);
           truncate<valueT,NDIM>(_world, pfuncsb);
           vector<functionT> tmpb = apply(_world, bopsb, pfuncsb);
           bopsb.clear();
           gram_schmidt(tmpb, _phisb);
-          // Update orbitals
-          //update_eigenvalues(tmpb, pfuncsb, _phisb, _eigsb);
           update_orbitals(_phisb, tmpb);
         }
 
@@ -452,15 +445,16 @@ namespace madness
     
     //*************************************************************************
     void do_rhs(std::vector<functionT>& wf,
-                std::vector<functionT>& vwf)
+                std::vector<functionT>& vwf,
+                std::vector<T>& eps)
     {
       // Build fock matrix
       tensorT fock = build_fock_matrix(wf, vwf);
 
-      for (unsigned int ei = 0; ei < _eigsa.size(); ei++)
+      for (unsigned int ei = 0; ei < eps.size(); ei++)
       {
-        _eigsa[ei] = std::min(-0.05, real(fock(ei,ei)));
-         fock(ei,ei) -= std::complex<T>(_eigsa[ei], 0.0);
+        eps[ei] = std::min(-0.05, real(fock(ei,ei)));
+        fock(ei,ei) -= std::complex<T>(eps[ei], 0.0);
       }
 
       double trantol = 0.1*_params.thresh/min(30.0,double(wf.size()));
@@ -555,22 +549,22 @@ namespace madness
       // Step restriction
       double maxrotn = 0.1;
       int nres = 0;
-//      for (unsigned int i = 0; i < owfs.size(); i++)
-//      {
-//        if (wnorm[i] > maxrotn)
-//        {
-//          double s = maxrotn / wnorm[i];
-//          nres++;
-//          if (_world.rank() == 0)
-//          {
-//              if (nres == 1) printf("  restricting step for alpha orbitals:");
-//              printf(" %d", i);
-//          }
-//          nwfs[i].gaxpy(s, owfs[i], 1.0 - s, false);
-//        }
-//      }
-//      if (nres > 0 && _world.rank() == 0) printf("\n");
-//      _world.gop.fence();
+      for (unsigned int i = 0; i < owfs.size(); i++)
+      {
+        if (wnorm[i] > maxrotn)
+        {
+          double s = maxrotn / wnorm[i];
+          nres++;
+          if (_world.rank() == 0)
+          {
+              if (nres == 1) printf("  restricting step for alpha orbitals:");
+              printf(" %d", i);
+          }
+          nwfs[i].gaxpy(s, owfs[i], 1.0 - s, false);
+        }
+      }
+      if (nres > 0 && _world.rank() == 0) printf("\n");
+      _world.gop.fence();
 
       for (unsigned int wi = 0; wi < nwfs.size(); wi++) {
           owfs[wi] = nwfs[wi].scale(1.0 / nwfs[wi].norm2());
