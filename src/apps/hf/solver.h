@@ -287,7 +287,7 @@ namespace madness
     //*************************************************************************
 
     //*************************************************************************
-    void apply_potential(std::vector<functionT>& pfuncsa,
+    void apply_potential(int iter, std::vector<functionT>& pfuncsa,
         std::vector<functionT>& pfuncsb, const std::vector<functionT>& phisa,
         const std::vector<functionT>& phisb, const rfuntionT& rhoa, const rfuntionT& rhob,
         const rfuntionT& rho)
@@ -295,6 +295,11 @@ namespace madness
       // Nuclear and coulomb potentials
       rfuntionT vc = apply(*_cop, rho);
       rfuntionT vlocal = _vnuc + vc;
+      // WSTHORNTON
+      std::ostringstream strm;
+      strm << "vlocal" << iter << ".out";
+      std::string fname = strm.str();
+      plot_line(fname.c_str(), 100, coordT(-5.0), coordT(5.0), _vnuc, vc);
       // Calculate energies for Coulomb and nuclear
       double ce = 0.5*inner(vc,rho);
       double pe = inner(_vnuc,rho);
@@ -364,7 +369,7 @@ namespace madness
 
         // Apply the potentials to the orbitals
         if (_world.rank() == 0) print("applying potential ...\n");
-        apply_potential(pfuncsa, pfuncsb, _phisa, _phisb, _rhoa, _rhob, _rho);
+        apply_potential(it, pfuncsa, pfuncsb, _phisa, _phisb, _rhoa, _rhob, _rho);
 
         // Do the right-hand side
         do_rhs(_phisa, pfuncsa, _eigsa);
@@ -448,19 +453,35 @@ namespace madness
                 std::vector<functionT>& vwf,
                 std::vector<T>& eps)
     {
+      // booleans
+      bool canon = false;
+
       // Build fock matrix
       tensorT fock = build_fock_matrix(wf, vwf);
 
-      for (unsigned int ei = 0; ei < eps.size(); ei++)
+      if (canon)
       {
-        eps[ei] = std::min(-0.05, real(fock(ei,ei)));
-        fock(ei,ei) -= std::complex<T>(eps[ei], 0.0);
+        tensorT overlap = matrix_inner(_world, wf, wf, true);
+        ctensorT c; rtensorT e;
+        sygv(fock, overlap, 1, &c, &e);
+        for (unsigned int ei = 0; ei < eps.size(); ei++)
+        {
+          eps[ei] = std::min(-0.05, real(e(ei,ei)));
+        }
       }
+      else
+      {
+        for (unsigned int ei = 0; ei < eps.size(); ei++)
+        {
+          eps[ei] = std::min(-0.05, real(fock(ei,ei)));
+          fock(ei,ei) -= std::complex<T>(eps[ei], 0.0);
+        }
 
-      double trantol = 0.1*_params.thresh/min(30.0,double(wf.size()));
-      vector<functionT> fwf = transform(_world, wf, fock, trantol);
-      gaxpy(_world, 1.0, fwf, -1.0, fwf);
-      fwf.clear();
+        double trantol = 0.1*_params.thresh/min(30.0,double(wf.size()));
+        vector<functionT> fwf = transform(_world, wf, fock, trantol);
+        gaxpy(_world, 1.0, fwf, -1.0, fwf);
+        fwf.clear();
+      }
     }
     //*************************************************************************
 
@@ -484,47 +505,6 @@ namespace madness
     }
     //*************************************************************************
 
-//    //*************************************************************************
-//    template <typename Q>
-//    void do_rhs(std::vector< Function<Q,NDIM> >& wf,
-//                std::vector< Function<Q,NDIM> >& vwf)
-//    {
-//      // Build fock matrix
-//      Tensor<Q> fock = build_fock_matrix(wf, vwf);
-//
-//      for (unsigned int ei = 0; ei < _eigsa.size(); ei++)
-//      {
-//        _eigsa[ei] = std::min(-0.05, real(fock(ei,ei)));
-//        fock(ei,ei) -= _eigsa[ei];
-//      }
-//
-//      double trantol = 0.1*_params.thresh/min(30.0,double(wf.size()));
-//      vector< Function<Q,NDIM> > fwf = transform(_world, wf, fock, trantol);
-//      gaxpy(_world, 1.0, fwf, -1.0, fwf);
-//      fwf.clear();
-//    }
-//    //*************************************************************************
-
-//    //*************************************************************************
-//    ctensorT build_fock_matrix(std::vector<cfunctionT>& psi,
-//                              std::vector<cfunctionT>& vpsi)
-//    {
-//      // Build the potential matrix
-//      ctensorT potential = matrix_inner(_world, vpsi, psi, true);
-//      _world.gop.fence();
-//
-//      if (_world.rank() == 0) print("Building kinetic energy matrix ...\n\n");
-//      ctensorT kinetic = ::kinetic_energy_matrix(_world, psi, _params.periodic);
-//
-//      if (_world.rank() == 0) print("Constructing Fock matrix ...\n\n");
-//      ctensorT fock = potential + kinetic;
-//      fock = 0.5 * (fock + transpose(fock));
-//      _world.gop.fence();
-//
-//      return fock;
-//    }
-//    //*************************************************************************
-
     //*************************************************************************
     void gram_schmidt(std::vector<functionT>& a, const std::vector<functionT>& b)
     {
@@ -545,26 +525,26 @@ namespace madness
                          std::vector<functionT>& nwfs)
     {
       truncate<valueT, NDIM > (_world, nwfs);
-      vector<double> wnorm = norm2(_world, sub(_world, owfs, nwfs));
-      // Step restriction
-      double maxrotn = 0.1;
-      int nres = 0;
-      for (unsigned int i = 0; i < owfs.size(); i++)
-      {
-        if (wnorm[i] > maxrotn)
-        {
-          double s = maxrotn / wnorm[i];
-          nres++;
-          if (_world.rank() == 0)
-          {
-              if (nres == 1) printf("  restricting step for alpha orbitals:");
-              printf(" %d", i);
-          }
-          nwfs[i].gaxpy(s, owfs[i], 1.0 - s, false);
-        }
-      }
-      if (nres > 0 && _world.rank() == 0) printf("\n");
-      _world.gop.fence();
+//      vector<double> wnorm = norm2(_world, sub(_world, owfs, nwfs));
+//      // Step restriction
+//      double maxrotn = 0.1;
+//      int nres = 0;
+//      for (unsigned int i = 0; i < owfs.size(); i++)
+//      {
+//        if (wnorm[i] > maxrotn)
+//        {
+//          double s = maxrotn / wnorm[i];
+//          nres++;
+//          if (_world.rank() == 0)
+//          {
+//              if (nres == 1) printf("  restricting step for alpha orbitals:");
+//              printf(" %d", i);
+//          }
+//          nwfs[i].gaxpy(s, owfs[i], 1.0 - s, false);
+//        }
+//      }
+//      if (nres > 0 && _world.rank() == 0) printf("\n");
+//      _world.gop.fence();
 
       for (unsigned int wi = 0; wi < nwfs.size(); wi++) {
           owfs[wi] = nwfs[wi].scale(1.0 / nwfs[wi].norm2());
