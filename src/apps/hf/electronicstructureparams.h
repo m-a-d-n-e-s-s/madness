@@ -46,6 +46,10 @@ struct ElectronicStructureParams
   bool kpoints;
   // Fractional coordinates?
   bool fractional;
+  // Maximum size of subspace
+  int maxsub;
+  // maxrotn
+  double maxrotn;
 
   template <typename Archive>
   void serialize(Archive& ar) {
@@ -53,7 +57,7 @@ struct ElectronicStructureParams
         periodic & maxits & ispotential & thresh &
         waveorder & nempty & smear & nbands &
         ngridk0 & ngridk1 & ngridk2 & maxocc & kpoints &
-        fractional;
+        fractional & maxsub & maxrotn;
   }
 
   ElectronicStructureParams()
@@ -75,6 +79,8 @@ struct ElectronicStructureParams
     nbands = nelec/maxocc + nempty;
     kpoints = false;
     fractional = false;
+    maxsub = 1;
+    maxrotn = 0.5;
   }
 
   void read_file(const std::string& filename)
@@ -164,6 +170,14 @@ struct ElectronicStructureParams
       else if (s == "maxits")
       {
         f >> maxits;
+      }
+      else if (s == "maxsub")
+      {
+        f >> maxsub;
+      }
+      else if (s == "maxrotn")
+      {
+        f >> maxrotn;
       }
       else if (s == "thresh")
       {

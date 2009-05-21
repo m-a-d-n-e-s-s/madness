@@ -1,5 +1,6 @@
 #include <mra/mra.h>
 #include <world/world.h>
+#include <linalg/solvers.h>
 #include <vector>
 #include <fortran_ctypes.h>
 #include <cmath>
@@ -30,6 +31,7 @@ namespace madness
     typedef Function<T,NDIM> rfuntionT;
     typedef FunctionFactory<T,NDIM> rfactoryT;
     typedef Function<valueT,NDIM> functionT;
+    typedef std::vector<functionT> vecfuncT;
     typedef FunctionFactory<valueT,NDIM> factoryT;
     typedef Vector<double,NDIM> kvecT;
     typedef SeparatedConvolution<T,3> operatorT;
@@ -37,6 +39,8 @@ namespace madness
     typedef Tensor<double> rtensorT;
     typedef Tensor<std::complex<double> > ctensorT;
     typedef Tensor<valueT> tensorT;
+    typedef pair<vecfuncT,vecfuncT> pairvecfuncT;
+    typedef vector<pairvecfuncT> subspaceT;
 
     //*************************************************************************
     World& _world;
@@ -50,11 +54,11 @@ namespace madness
     //*************************************************************************
 
     //*************************************************************************
-    std::vector<functionT> _phisa;
+    vecfuncT _phisa;
     //*************************************************************************
 
     //*************************************************************************
-    std::vector<functionT> _phisb;
+    vecfuncT _phisb;
     //*************************************************************************
 
     //*************************************************************************
@@ -101,11 +105,19 @@ namespace madness
     bool newscheme() {return true;}
     //*************************************************************************
 
+    //*************************************************************************
+    subspaceT _subspace;
+    //*************************************************************************
+
+    //*************************************************************************
+    tensorT _Q;
+    //*************************************************************************
+
   public:
     //*************************************************************************
     // Constructor
-    Solver(World& world, rfuntionT vnucrhon, std::vector<functionT> phisa,
-      std::vector<functionT> phisb, std::vector<T> eigsa, std::vector<T> eigsb,
+    Solver(World& world, rfuntionT vnucrhon, vecfuncT phisa,
+      vecfuncT phisb, std::vector<T> eigsa, std::vector<T> eigsb,
       ElectronicStructureParams params)
        : _world(world), _vnucrhon(vnucrhon), _phisa(phisa), _phisb(phisb),
        _eigsa(eigsa), _eigsb(eigsb), _params(params)
@@ -135,7 +147,7 @@ namespace madness
 
     //*************************************************************************
     // Constructor
-    Solver(World& world, const rfuntionT& vnucrhon, const std::vector<functionT>& phis,
+    Solver(World& world, const rfuntionT& vnucrhon, const vecfuncT& phis,
         const std::vector<T>& eigs, const ElectronicStructureParams& params)
        : _world(world), _vnucrhon(vnucrhon), _phisa(phis), _phisb(phis),
        _eigsa(eigs), _eigsb(eigs), _params(params)
@@ -165,7 +177,7 @@ namespace madness
 
     //*************************************************************************
     // Constructor
-    Solver(World& world, rfuntionT vnucrhon, std::vector<functionT> phis,
+    Solver(World& world, rfuntionT vnucrhon, vecfuncT phis,
         std::vector<T> eigs, std::vector<kvecT> kpoints, ElectronicStructureParams params)
        : _world(world), _vnucrhon(vnucrhon), _phisa(phis), _phisb(phis),
        _eigsa(eigs), _eigsb(eigs), _params(params), _kpoints(kpoints)
@@ -194,7 +206,7 @@ namespace madness
     //*************************************************************************
 
     //***************************************************************************
-    rfuntionT compute_rho(const std::vector<functionT>& phis)
+    rfuntionT compute_rho(const vecfuncT& phis)
     {
       // Electron density
       rfuntionT rho = rfactoryT(_world);
@@ -287,9 +299,9 @@ namespace madness
     //*************************************************************************
 
     //*************************************************************************
-    void apply_potential(int iter, std::vector<functionT>& pfuncsa,
-        std::vector<functionT>& pfuncsb, const std::vector<functionT>& phisa,
-        const std::vector<functionT>& phisb, const rfuntionT& rhoa, const rfuntionT& rhob,
+    void apply_potential(int iter, vecfuncT& pfuncsa,
+        vecfuncT& pfuncsb, const vecfuncT& phisa,
+        const vecfuncT& phisb, const rfuntionT& rhoa, const rfuntionT& rhob,
         const rfuntionT& rho)
     {
       // Nuclear and coulomb potentials
@@ -385,42 +397,20 @@ namespace madness
         vector<functionT> tmpa = apply(_world, bopsa, pfuncsa);
         bopsa.clear();
 
-//        {
-//          if (_world.rank() == 0) printf("\n");
-//          Tensor<double> boxsize = FunctionDefaults<NDIM>::get_cell_width();
-//          double L = boxsize[0];
-//          double bstep = L / 100.0;
-//          _phisa[0].reconstruct();
-//          pfuncsa[0].reconstruct();
-//          tmpa[0].reconstruct();
-//          for (int i = 0; i < 101; i++)
-//          {
-//           Vector<T,NDIM> p(-L / 2 + i * bstep);
-//           if (_world.rank() == 0)
-//             printf("%.2f\t\t%.8f\t%.8f\t%.8f\n", p[0], _phisa[0](p), pfuncsa[0](p), tmpa[0](p));
-//          }
-//          if (_world.rank() == 0) printf("\n");
-//        }
-
-        // Gram-Schmidt
-        if (_world.rank() == 0) print("gram-schmidt ...\n");
-        gram_schmidt(tmpa, _phisa);
-
-        // Update orbitals
-        update_orbitals(_phisa, tmpa);
-
         // Do other spin
+        vecfuncT tmpb = zero_functions<valueT,NDIM>(_world, _phisb.size());
         if (_params.spinpol)
         {
           do_rhs(_phisb, pfuncsb, _eigsb);
           std::vector<poperatorT> bopsb = make_bsh_operators(_eigsb);
           scale(_world, pfuncsb, sfactor);
           truncate<valueT,NDIM>(_world, pfuncsb);
-          vector<functionT> tmpb = apply(_world, bopsb, pfuncsb);
+          tmpb = apply(_world, bopsb, pfuncsb);
           bopsb.clear();
-          gram_schmidt(tmpb, _phisb);
-          update_orbitals(_phisb, tmpb);
         }
+
+        // Update orbitals
+        update_orbitals(tmpa, tmpb);
 
         std::cout.precision(8);
         if (_world.rank() == 0)
@@ -449,8 +439,8 @@ namespace madness
     //*************************************************************************
     
     //*************************************************************************
-    void do_rhs(std::vector<functionT>& wf,
-                std::vector<functionT>& vwf,
+    void do_rhs(vecfuncT& wf,
+                vecfuncT& vwf,
                 std::vector<T>& eps)
     {
       // booleans
@@ -486,8 +476,8 @@ namespace madness
     //*************************************************************************
 
     //*************************************************************************
-    tensorT build_fock_matrix(std::vector<functionT>& psi,
-                                     std::vector<functionT>& vpsi)
+    tensorT build_fock_matrix(vecfuncT& psi,
+                                     vecfuncT& vpsi)
     {
       // Build the potential matrix
       tensorT potential = matrix_inner(_world, vpsi, psi, true);
@@ -505,56 +495,221 @@ namespace madness
     }
     //*************************************************************************
 
+//    //*************************************************************************
+//    void gram_schmidt(vecfuncT& a, const vecfuncT& b)
+//    {
+//      for (unsigned int ai = 0; ai < a.size(); ++ai)
+//      {
+//        // Project out the lower states
+//        for (unsigned int bj = 0; bj < ai; ++bj)
+//        {
+//          valueT overlap = inner(a[ai], b[bj]);
+//          a[ai] -= overlap*b[bj];
+//        }
+//      }
+//    }
+//    //*************************************************************************
+
     //*************************************************************************
-    void gram_schmidt(std::vector<functionT>& a, const std::vector<functionT>& b)
+    void gram_schmidt(vecfuncT& f)
     {
-      for (unsigned int ai = 0; ai < a.size(); ++ai)
+      for (unsigned int fi = 0; fi < f.size(); ++fi)
       {
         // Project out the lower states
-        for (unsigned int bj = 0; bj < ai; ++bj)
+        for (unsigned int fj = 0; fj < fi; ++fj)
         {
-          valueT overlap = inner(a[ai], b[bj]);
-          a[ai] -= overlap*b[bj];
+          valueT overlap = inner(f[fi], f[fj]);
+          f[fi] -= overlap*f[fj];
         }
       }
     }
     //*************************************************************************
 
     //*************************************************************************
-    void update_orbitals(std::vector<functionT>& owfs,
-                         std::vector<functionT>& nwfs)
+    void update_orbitals(vecfuncT& awfs,
+                         vecfuncT& bwfs)
     {
-      truncate<valueT, NDIM > (_world, nwfs);
-//      vector<double> wnorm = norm2(_world, sub(_world, owfs, nwfs));
-//      // Step restriction
-//      double maxrotn = 0.1;
-//      int nres = 0;
-//      for (unsigned int i = 0; i < owfs.size(); i++)
-//      {
-//        if (wnorm[i] > maxrotn)
-//        {
-//          double s = maxrotn / wnorm[i];
-//          nres++;
-//          if (_world.rank() == 0)
-//          {
-//              if (nres == 1) printf("  restricting step for alpha orbitals:");
-//              printf(" %d", i);
-//          }
-//          nwfs[i].gaxpy(s, owfs[i], 1.0 - s, false);
-//        }
-//      }
-//      if (nres > 0 && _world.rank() == 0) printf("\n");
-//      _world.gop.fence();
-
-      for (unsigned int wi = 0; wi < nwfs.size(); wi++) {
-          owfs[wi] = nwfs[wi].scale(1.0 / nwfs[wi].norm2());
+      // truncate before we do anyting
+      truncate<valueT,NDIM> (_world, awfs);
+      truncate<valueT,NDIM> (_world, _phisa);
+      if (_params.spinpol)
+      {
+        truncate<valueT,NDIM> (_world, bwfs);
+        truncate<valueT,NDIM> (_world, _phisb);
+      }
+      if (_params.maxsub > 1)
+      {
+        // nonlinear solver
+        update_subspace(awfs, bwfs);
+      }
+      // do step restriction
+      step_restriction(_phisa, awfs, 0);
+      if (_params.spinpol)
+      {
+        step_restriction(_phisb, bwfs, 1);
+      }
+      // do gram-schmidt
+      gram_schmidt(awfs);
+      if (_params.spinpol)
+      {
+        gram_schmidt(bwfs);
+      }
+      // update alpha and beta orbitals
+      for (unsigned int ai = 0; ai < awfs.size(); ai++) {
+          _phisa[ai] = awfs[ai].scale(1.0 / awfs[ai].norm2());
+      }
+      if (_params.spinpol)
+      {
+        for (unsigned int bi = 0; bi < bwfs.size(); bi++) {
+            _phisb[bi] = bwfs[bi].scale(1.0 / bwfs[bi].norm2());
+        }
       }
     }
     //*************************************************************************
 
     //*************************************************************************
-    void update_eigenvalues(const std::vector<functionT>& wavefs,
-        const std::vector<functionT>& pfuncs, const std::vector<functionT>& phis,
+    void update_subspace(const vecfuncT& awfs,
+                         const vecfuncT& bwfs)
+    {
+      // compute residuals
+      vecfuncT rm = sub(_world, _phisa, awfs);
+      if (_params.spinpol)
+      {
+        vecfuncT br = sub(_world, _phisb, bwfs);
+        rm.insert(rm.end(), br.begin(), br.end());
+      }
+      // concatentate up and down spins
+      vecfuncT vm = awfs;
+      if (_params.spinpol)
+      {
+        vm.insert(vm.end(), bwfs.begin(), bwfs.end());
+      }
+
+      // Update subspace and matrix Q
+      compress(_world, vm, false);
+      compress(_world, rm, false);
+      _world.gop.fence();
+      _subspace.push_back(pairvecfuncT(vm,rm));
+
+      int m = _subspace.size();
+      tensorT ms(m);
+      tensorT sm(m);
+      for (int s=0; s<m; s++)
+      {
+          const vecfuncT& vs = _subspace[s].first;
+          const vecfuncT& rs = _subspace[s].second;
+          for (unsigned int i=0; i<vm.size(); i++)
+          {
+              ms[s] += vm[i].inner_local(rs[i]);
+              sm[s] += vs[i].inner_local(rm[i]);
+          }
+      }
+      _world.gop.sum(ms.ptr(),m);
+      _world.gop.sum(sm.ptr(),m);
+
+      tensorT newQ(m,m);
+      if (m > 1) newQ(Slice(0,-2),Slice(0,-2)) = _Q;
+      newQ(m-1,_) = ms;
+      newQ(_,m-1) = sm;
+
+      _Q = newQ;
+
+      // Solve the subspace equations
+      tensorT c;
+      if (_world.rank() == 0) {
+          double rcond = 1e-12;
+          while (1) {
+              c = KAIN(_Q,rcond);
+              if (abs(c[m-1]) < 3.0) {
+                  break;
+              }
+              else if (rcond < 0.01) {
+                  print("Increasing subspace singular value threshold ", c[m-1], rcond);
+                  rcond *= 100;
+              }
+              else {
+                  print("Forcing full step due to subspace malfunction");
+                  c = 0.0;
+                  c[m-1] = 1.0;
+                  break;
+              }
+          }
+      }
+
+      _world.gop.broadcast_serializable(c, 0);
+      if (_world.rank() == 0) {
+          //print("Subspace matrix");
+          //print(Q);
+          print("Subspace solution", c);
+      }
+
+      // Form linear combination for new solution
+      vecfuncT phisa_new = zero_functions<valueT,NDIM>(_world, _phisa.size());
+      vecfuncT phisb_new = zero_functions<valueT,NDIM>(_world, _phisb.size());
+      compress(_world, phisa_new, false);
+      compress(_world, phisb_new, false);
+      _world.gop.fence();
+      std::complex<double> one = std::complex<double>(1.0,0.0);
+      for (unsigned int m=0; m<_subspace.size(); m++) {
+          const vecfuncT& vm = _subspace[m].first;
+          const vecfuncT& rm = _subspace[m].second;
+          const vecfuncT  vma(vm.begin(),vm.begin()+_phisa.size());
+          const vecfuncT  rma(rm.begin(),rm.begin()+_phisa.size());
+          const vecfuncT  vmb(vm.end()-_phisb.size(), vm.end());
+          const vecfuncT  rmb(rm.end()-_phisb.size(), rm.end());
+
+          gaxpy(_world, one, phisa_new, c(m), vma, false);
+          gaxpy(_world, one, phisa_new,-c(m), rma, false);
+          gaxpy(_world, one, phisb_new, c(m), vmb, false);
+          gaxpy(_world, one, phisb_new,-c(m), rmb, false);
+      }
+      _world.gop.fence();
+
+      if (_params.maxsub <= 1) {
+          // Clear subspace if it is not being used
+          _subspace.clear();
+      }
+      else if (_subspace.size() == _params.maxsub) {
+          // Truncate subspace in preparation for next iteration
+          _subspace.erase(_subspace.begin());
+          _Q = _Q(Slice(1,-1),Slice(1,-1));
+      }
+
+    }
+    //*************************************************************************
+
+    //*************************************************************************
+    void step_restriction(vecfuncT& owfs,
+                          vecfuncT& nwfs,
+                          int aorb)
+    {
+      vector<double> rnorm = norm2(_world, sub(_world, owfs, nwfs));
+      // Step restriction
+      double maxrotn = 0.1;
+      int nres = 0;
+      for (unsigned int i = 0; i < owfs.size(); i++)
+      {
+        if (rnorm[i] > maxrotn)
+        {
+          double s = maxrotn / rnorm[i];
+          nres++;
+          if (_world.rank() == 0)
+          {
+            if (!aorb && nres == 1) printf("  restricting step for alpha orbitals:");
+            if (aorb && nres == 1) printf("  restricting step for beta orbitals:");
+            printf(" %d", i);
+          }
+          nwfs[i].gaxpy(s, owfs[i], 1.0 - s, false);
+        }
+      }
+      if (nres > 0 && _world.rank() == 0) printf("\n");
+      _world.gop.fence();
+    }
+    //*************************************************************************
+
+    //*************************************************************************
+    void update_eigenvalues(const vecfuncT& wavefs,
+        const vecfuncT& pfuncs, const vecfuncT& phis,
         std::vector<T>& eigs)
     {
       // Update e
@@ -614,7 +769,7 @@ namespace madness
 //    //*************************************************************************
 //
 //    //*************************************************************************
-//    const std::vector<functionT>& phis()
+//    const vecfuncT& phis()
 //    {
 //      return _solver->phis();
 //    }
