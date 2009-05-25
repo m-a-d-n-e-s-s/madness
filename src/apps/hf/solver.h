@@ -311,7 +311,7 @@ namespace madness
       std::ostringstream strm;
       strm << "vlocal" << iter << ".out";
       std::string fname = strm.str();
-      plot_line(fname.c_str(), 100, coordT(-5.0), coordT(5.0), _vnuc, vc);
+      //plot_line(fname.c_str(), 100, coordT(-5.0), coordT(5.0), _vnuc, vc);
       // Calculate energies for Coulomb and nuclear
       double ce = 0.5*inner(vc,rho);
       double pe = inner(_vnuc,rho);
@@ -445,6 +445,7 @@ namespace madness
     {
       // booleans
       bool canon = false;
+      double trantol = 0.1*_params.thresh/min(30.0,double(wf.size()));
 
       // Build fock matrix
       tensorT fock = build_fock_matrix(wf, vwf);
@@ -458,6 +459,8 @@ namespace madness
         {
           eps[ei] = std::min(-0.05, real(e(ei,ei)));
         }
+        wf = transform(_world, wf, c, trantol);
+        vwf = transform(_world, vwf, c, trantol);
       }
       else
       {
@@ -467,7 +470,6 @@ namespace madness
           fock(ei,ei) -= std::complex<T>(eps[ei], 0.0);
         }
 
-        double trantol = 0.1*_params.thresh/min(30.0,double(wf.size()));
         vector<functionT> fwf = transform(_world, wf, fock, trantol);
         gaxpy(_world, 1.0, fwf, -1.0, fwf);
         fwf.clear();
@@ -518,10 +520,12 @@ namespace madness
         // Project out the lower states
         for (unsigned int fj = 0; fj < fi; ++fj)
         {
-          valueT overlap = inner(f[fi], f[fj]);
+          valueT overlap = inner(f[fj], f[fi]);
           f[fi] -= overlap*f[fj];
         }
+        f[fi].scale(1.0/f[fi].norm2());
       }
+      truncate<valueT,NDIM>(_world, f);
     }
     //*************************************************************************
 
@@ -568,8 +572,8 @@ namespace madness
     //*************************************************************************
 
     //*************************************************************************
-    void update_subspace(const vecfuncT& awfs,
-                         const vecfuncT& bwfs)
+    void update_subspace(vecfuncT& awfs,
+                         vecfuncT& bwfs)
     {
       // compute residuals
       vecfuncT rm = sub(_world, _phisa, awfs);
@@ -578,11 +582,18 @@ namespace madness
         vecfuncT br = sub(_world, _phisb, bwfs);
         rm.insert(rm.end(), br.begin(), br.end());
       }
+      std::vector<double> rnvec = norm2<valueT,NDIM>(_world, rm);
+      if (_world.rank() == 0)
+      {
+        double rnorm = 0.0;
+        for (unsigned int i = 0; i < rnvec.size(); i++) rnorm += rnvec[i];
+        print("residual = ", rnorm);
+      }
       // concatentate up and down spins
-      vecfuncT vm = awfs;
+      vecfuncT vm = _phisa;
       if (_params.spinpol)
       {
-        vm.insert(vm.end(), bwfs.begin(), bwfs.end());
+        vm.insert(vm.end(), _phisb.begin(), _phisb.end());
       }
 
       // Update subspace and matrix Q
@@ -613,6 +624,7 @@ namespace madness
       newQ(_,m-1) = sm;
 
       _Q = newQ;
+      print(_Q);
 
       // Solve the subspace equations
       tensorT c;
@@ -674,7 +686,8 @@ namespace madness
           _subspace.erase(_subspace.begin());
           _Q = _Q(Slice(1,-1),Slice(1,-1));
       }
-
+      awfs = phisa_new;
+      bwfs = phisb_new;
     }
     //*************************************************************************
 
