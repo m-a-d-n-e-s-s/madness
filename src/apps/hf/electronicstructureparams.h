@@ -50,6 +50,8 @@ struct ElectronicStructureParams
   int maxsub;
   // maxrotn
   double maxrotn;
+  // Solve for canonical orbitals?
+  bool canon;
 
   template <typename Archive>
   void serialize(Archive& ar) {
@@ -57,7 +59,7 @@ struct ElectronicStructureParams
         periodic & maxits & ispotential & thresh &
         waveorder & nempty & smear & nbands &
         ngridk0 & ngridk1 & ngridk2 & maxocc & kpoints &
-        fractional & maxsub & maxrotn;
+        fractional & maxsub & maxrotn & canon;
   }
 
   ElectronicStructureParams()
@@ -81,6 +83,7 @@ struct ElectronicStructureParams
     fractional = false;
     maxsub = 1;
     maxrotn = 0.5;
+    canon = true;
   }
 
   void read_file(const std::string& filename)
@@ -131,6 +134,23 @@ struct ElectronicStructureParams
         else
         {
           MADNESS_EXCEPTION("input error -- spinpol", 0);
+        }
+      }
+      else if (s == "canon")
+      {
+        std::string tempstr;
+        f >> tempstr;
+        if (tempstr == "true")
+        {
+          canon = true;
+        }
+        else if (tempstr == "false")
+        {
+          canon = false;
+        }
+        else
+        {
+          MADNESS_EXCEPTION("input error -- canon", 0);
         }
       }
       else if (s == "periodic")
