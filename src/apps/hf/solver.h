@@ -443,14 +443,13 @@ namespace madness
                 vecfuncT& vwf,
                 std::vector<T>& eps)
     {
-      // booleans
-      bool canon = false;
+      // tolerance
       double trantol = 0.1*_params.thresh/min(30.0,double(wf.size()));
 
       // Build fock matrix
       tensorT fock = build_fock_matrix(wf, vwf);
 
-      if (canon)
+      if (_params.canon)
       {
         tensorT overlap = matrix_inner(_world, wf, wf, true);
         ctensorT c; rtensorT e;
@@ -459,8 +458,8 @@ namespace madness
         {
           eps[ei] = std::min(-0.05, real(e(ei,ei)));
         }
-        wf = transform(_world, wf, c, trantol);
-        vwf = transform(_world, vwf, c, trantol);
+//        wf = transform(_world, wf, c, trantol);
+//        vwf = transform(_world, vwf, c, trantol);
       }
       else
       {
@@ -482,7 +481,7 @@ namespace madness
                                      vecfuncT& vpsi)
     {
       // Build the potential matrix
-      tensorT potential = matrix_inner(_world, vpsi, psi, true);
+      tensorT potential = matrix_inner(_world, psi, vpsi, true);
       _world.gop.fence();
 
       if (_world.rank() == 0) print("Building kinetic energy matrix ...\n\n");
@@ -493,6 +492,10 @@ namespace madness
       fock = 0.5 * (fock + transpose(fock));
       _world.gop.fence();
 
+      print(kinetic);
+      print(potential);
+      print(fock);
+      
       return fock;
     }
     //*************************************************************************
