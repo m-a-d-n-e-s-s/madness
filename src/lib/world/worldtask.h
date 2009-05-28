@@ -61,7 +61,7 @@ namespace madness {
     template <typename memfunT> class TaskMemfun;
 
     /// All tasks must be derived from this public interface
-    class TaskInterface : public DependencyInterface , PoolTaskInterface {
+    class TaskInterface : public DependencyInterface , public PoolTaskInterface {
         friend class WorldTaskQueue;
     private:
         volatile World* world;
