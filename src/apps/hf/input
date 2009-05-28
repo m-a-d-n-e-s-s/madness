@@ -1,7 +1,7 @@
 dft
-  nelec 16
+  nelec 48
   nempty 0
-  L 8.0
+  L 7.6 
   ispotential false
   periodic true
   spinpol false
@@ -9,19 +9,63 @@ dft
   lo 1e-2
   waveorder 8
   thresh 1e-6
-  fractional false
+  fractional true
+  maxsub 8
+  maxrotn 0.1
+  canon true
 end
 
-# helium with L = 8.0 
+# LiF with L = 7.6
 geometry
-  he   2.0  2.0  2.0
-  he   2.0  2.0 -2.0
-  he   2.0 -2.0  2.0
-  he  -2.0  2.0  2.0
-  he  -2.0 -2.0  2.0
-  he   2.0 -2.0 -2.0
-  he  -2.0  2.0 -2.0
-  he  -2.0 -2.0 -2.0
+  li   0.0  0.0  0.0
+  li   0.0  0.5  0.5
+  li   0.5  0.5  0.0
+  li   0.5  0.0  0.5
+  f    0.0  0.0  0.5
+  f    0.0  0.5  0.0 
+  f    0.5  0.0  0.0
+  f    0.5  0.5  0.5
+end
+
+# LiF with L = 5.0
+geometry
+  li   0.0  0.0  0.0
+  f    0.5  0.5  0.5
+end
+
+#Si = with L = 6.0
+geometry
+  si   0.0  0.0  0.0
+end
+
+#LiH with L = 6.0 (frac coords)
+geometry
+  li   0.0  0.0  0.0
+  h    0.5  0.5  0.5
+end
+
+#LiH with L = 6.0 
+geometry
+  li  -3.0 -3.0 -3.0
+  h    3.0  3.0  3.0
+end
+
+# with L = 8.0 in fractional coordinates 
+geometry
+  be   0.25  0.25  0.25
+  be   0.25  0.25  0.75
+  be   0.25  0.75  0.25
+  be   0.75  0.25  0.25
+  be   0.75  0.75  0.25
+  be   0.25  0.75  0.75
+  be   0.75  0.25  0.75
+  be   0.75  0.75  0.75
+end
+
+# LiF molecule to compare with Robert
+geometry
+  li 0 0 0
+  f  0 0 2.5
 end
 
 # helium with L = 8.0 in fractional coordinates 
@@ -34,6 +78,49 @@ geometry
   he   0.25  0.75  0.75
   he   0.75  0.25  0.75
   he   0.75  0.75  0.75
+end
+
+geometry
+  be 0.0  0.0  0.0
+end
+
+geometry
+  f    0.0  0.0  0.0
+end
+
+#beryllium
+geometry
+  c   0.0  0.0  0.0
+end
+
+# beryllium with L = 8.0
+geometry
+  be  -3.0 -3.0 -3.0
+  be   1.0  1.0  1.0
+end
+
+# beryllium with L = 8.0 
+geometry
+  be   2.0  2.0  2.0
+  be   2.0  2.0 -2.0
+  be   2.0 -2.0  2.0
+  be  -2.0  2.0  2.0
+  be  -2.0 -2.0  2.0
+  be   2.0 -2.0 -2.0
+  be  -2.0  2.0 -2.0
+  be  -2.0 -2.0 -2.0
+end
+
+# Be with L = 8.0 in fractional coordinates 
+geometry
+  be   0.25  0.25  0.25
+  be   0.25  0.25  0.75
+  be   0.25  0.75  0.25
+  be   0.75  0.25  0.25
+  be   0.75  0.75  0.25
+  be   0.25  0.75  0.75
+  be   0.75  0.25  0.75
+  be   0.75  0.75  0.75
 end
 
 # helium with L = 8.0

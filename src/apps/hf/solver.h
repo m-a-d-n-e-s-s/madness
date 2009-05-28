@@ -456,21 +456,28 @@ namespace madness
         sygv(fock, overlap, 1, &c, &e);
         for (unsigned int ei = 0; ei < eps.size(); ei++)
         {
-          eps[ei] = std::min(-0.05, real(e(ei,ei)));
+          if (real(e(ei,ei)) > -0.1)
+          {
+            eps[ei] = -0.1;
+            vwf[ei] -= (real(e(ei,ei))-eps[ei])*wf[ei];
+          }
+          else
+          {
+            eps[ei] = e(ei,ei);
+          }
+          eps[ei] = std::min(-0.1, real(e(ei,ei)));
         }
-//        wf = transform(_world, wf, c, trantol);
-//        vwf = transform(_world, vwf, c, trantol);
       }
       else
       {
         for (unsigned int ei = 0; ei < eps.size(); ei++)
         {
-          eps[ei] = std::min(-0.05, real(fock(ei,ei)));
+          eps[ei] = std::min(-0.1, real(fock(ei,ei)));
           fock(ei,ei) -= std::complex<T>(eps[ei], 0.0);
         }
 
         vector<functionT> fwf = transform(_world, wf, fock, trantol);
-        gaxpy(_world, 1.0, fwf, -1.0, fwf);
+        gaxpy(_world, 1.0, vwf, -1.0, fwf);
         fwf.clear();
       }
     }
