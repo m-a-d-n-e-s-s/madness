@@ -222,10 +222,16 @@ public:
       _aobasis.read_file("sto-3g");
       _mentity.read_file(filename, _params.fractional);
       _mentity.center();
-      if (_params.periodic && _params.kpoints)
-        _kpoints = read_kpoints("KPOINTS.OUT");
-      else
-        _kpoints.push_back(KPoint(coordT(0.0), 1.0));
+      // set number of electrons to the total nuclear charge of the mentity
+      _params.nelec = _mentity.total_nuclear_charge();
+      // total number of bands include empty
+      _params.nbands = (_params.nelec/2) + _params.nempty + 1;
+
+//      if (_params.periodic && _params.kpoints)
+//        _kpoints = read_kpoints("KPOINTS.OUT");
+//      else
+//        _kpoints.push_back(KPoint(coordT(0.0), 1.0));
+      _kpoints.push_back(KPoint(coordT(0.0), 1.0));
     }
     _world.gop.broadcast_serializable(_mentity, 0);
     _world.gop.broadcast_serializable(_aobasis, 0);
@@ -430,12 +436,10 @@ public:
       }
       if (_world.rank() == 0) print("Building effective potential ...\n\n");
       rfunctionT vc = apply(*op, rho);
-      //      vlocal = _vnuc + apply(*op, rho); //.scale(1.0-1.0/nel); // Reduce coulomb to increase binding
       vlocal = _vnuc + vc; //.scale(1.0-1.0/nel); // Reduce coulomb to increase binding
       rho.scale(0.5);
       // Do the LDA
       rfunctionT vlda = make_lda_potential(_world, rho, rho, rfunctionT(), rfunctionT());
-      //vlocal = vlocal + make_lda_potential(_world, rho, rho, rfunctionT(), rfunctionT());
       vlocal = vlocal + vlda;
       delete op;
       vector<long> npt(3,101);
@@ -454,68 +458,51 @@ public:
     if (_world.rank() == 0) print("Projecting atomic orbitals ...\n\n");
     rvecfuncT ao = project_ao_basis(_world);
 
-    for (unsigned int ai = 0; ai < ao.size(); ai++)
-    {
-      std::ostringstream strm;
-      strm << "aod" << ai << ".dx";
-      std::string fname = strm.str();
-      vector<long> npt(3,101);
-      plotdx(ao[ai], fname.c_str(), FunctionDefaults<3>::get_cell(), npt);
-    }
-
+//    for (unsigned int ai = 0; ai < ao.size(); ai++)
 //    {
-//      rfunctionT dao0 = pdiff(ao[0], 0);
-//      rfunctionT dao1 = pdiff(ao[0], 1);
-//      rfunctionT dao2 = pdiff(ao[0], 2);
-//      if (_world.rank() == 0)  printf("\n");
-//      double L = _params.L;
-//      double bstep = L / 100.0;
-//      dao0.reconstruct();
-//      dao1.reconstruct();
-//      dao2.reconstruct();
-//      ao[0].reconstruct();
-//      for (int i = 0; i < 101; i++)
-//      {
-//        coordT p(-L / 2 + i * bstep);
-//        if (_world.rank() == 0)
-//          printf("%.2f\t\t%.8f\t%.8f\t%.8f\n", p[0], dao0(p), dao1(p), dao2(p));
-////        if (_world.rank() == 0)
-////          printf("%.2f\t\t%.8f\n", p[0], ao[0](p));
-//      }
-//      if (_world.rank() == 0) printf("\n");
+//      std::ostringstream strm;
+//      strm << "aod" << ai << ".dx";
+//      std::string fname = strm.str();
+//      vector<long> npt(3,101);
+//      plotdx(ao[ai], fname.c_str(), FunctionDefaults<3>::get_cell(), npt);
 //    }
 
     // Get size information from k-points and ao_basis so that we can correctly size
     // the _orbitals data structure and the eigs tensor
+    // number of orbitals in the basis set
     int nao = ao.size();
+    // number of kpoints
     int nkpts = _kpoints.size();
-    int norbs = nao * nkpts;
-    //_orbitals = std::vector<functionT>(norbs, factoryT(_world));
-    _eigs = rtensorT(norbs);
-    _occs = rtensorT(norbs);
-    for (int i = 0; i < norbs; i++) _occs[i] = _params.maxocc;
+    // total number of orbitals to be processed (no symmetry)
+    int norbs = _params.nbands * nkpts;
+    // Check to see if the basis set can accomodate the number of bands
+    if (_params.nbands > nao)
+      MADNESS_EXCEPTION("Error: basis not large enough to accomodate number of bands", 0);
+    // set the number of orbitals
+    _eigs = std::vector<double>(norbs, 0.0);
+    _occs = std::vector<double>(norbs, 0.0);
     print("norbs = ", norbs);
-
     // Build the overlap matrix
     if (_world.rank() == 0) print("Building overlap matrix ...\n\n");
     rtensorT roverlap = matrix_inner(_world, ao, ao, true);
     // Convert to a complex tensor
     ctensorT overlap = tensor_real2complex<double>(roverlap);
-
     // Build the potential matrix
     reconstruct(_world, ao);
     if (_world.rank() == 0) print("Building potential energy matrix ...\n\n");
     rvecfuncT vpsi = mul_sparse(_world, vlocal, ao, _params.thresh);
+    // I don't know why fence is called twice here
     _world.gop.fence();
     _world.gop.fence();
     compress(_world, vpsi);
     truncate(_world, vpsi);
     compress(_world, ao);
-
+    // Build the potential matrix
     rtensorT rpotential = matrix_inner(_world, vpsi, ao, true);
     // Convert to a complex tensor
     ctensorT potential = tensor_real2complex<double>(rpotential);
     _world.gop.fence();
+    // free memory
     vpsi.clear();
     _world.gop.fence();
 
@@ -524,22 +511,34 @@ public:
     // Need to do kinetic piece for every k-point
     for (int ki = 0; ki < nkpts; ki++)
     {
+      // Set occupation numbers
+      if (_params.spinpol)
+      {
+        MADNESS_EXCEPTION("spin polarized not implemented", 0);
+      }
+      else
+      {
+        int filledbands = _params.nelec / 2;
+        int occstart = kp;
+        int occend = kp + filledbands;
+        for (int i = occstart; i < occend; i++) _occs[i] = _params.maxocc;
+        if ((_params.nelec % 2) == 1)
+          _occs[occend] = 1.0;
+      }
       // Get k-point from list
       KPoint kpt = _kpoints[ki];
-
-      if (_world.rank() == 0) print("Building kinetic energy matrix ...\n\n");
+      // Build kinetic matrx
       ctensorT kinetic = ::kinetic_energy_matrix(_world, ao, _params.periodic, kpt);
-
-      if (_world.rank() == 0) print("Constructing Fock matrix ...\n\n");
+      // Construct and diagonlize Fock matrix
       ctensorT fock = potential + kinetic;
       fock = 0.5 * (fock + transpose(fock));
-
       ctensorT c; rtensorT e;
-      if (_world.rank() == 0) print("Diagonlizing Fock matrix ...\n\n");
       sygv(fock, overlap, 1, &c, &e);
 
       compress(_world, ao);
       _world.gop.fence();
+      // Take linear combinations of the gaussian basis orbitals as the starting
+      // orbitals for solver
       vecfuncT tmp_orbitals = transform(_world, ao, c(_, Slice(0, nao - 1)));
       _world.gop.fence();
       truncate(_world, tmp_orbitals);
@@ -585,27 +584,11 @@ public:
 //      if (_world.rank() == 0) printf("\n");
 
       // Fill in orbitals and eigenvalues
-      int kend = kp + nao;
+      int kend = kp + _params.nbands;
+      _kpoints[kp].begin = kp;
+      _kpoints[kp].end = kend;
       for (int oi = kp, ti = 0; oi < kend; oi++, ti++)
       {
-
-//        {
-//          if (_world.rank() == 0)  printf("\n");
-//          double L = _params.L;
-//          double bstep = L / 100.0;
-//          print("ti = ", ti);
-//          tmp_orbitals[ti].reconstruct();
-//          for (int i = 0; i < 101; i++)
-//          {
-//            coordT p(-L / 2 + i * bstep);
-//            if (_world.rank() == 0)
-//              printf("%5.2f%15.8f\n", p[0], (tmp_orbitals[ti])(p));
-//          }
-//          if (_world.rank() == 0) printf("\n");
-//        }
-
-//        _orbitals[oi] = tmp_orbitals[ti];
-//        _eigs[oi] = tmp_eigs[ti];
         if (_world.rank() == 0) print(oi, ti, kp, kend);
         _orbitals.push_back(tmp_orbitals[ti]);
         _eigs[oi] = tmp_eigs[ti];
@@ -620,9 +603,19 @@ public:
     return _orbitals;
   }
 
-  rtensorT eigs()
+  std::vector<double> eigs()
   {
     return _eigs;
+  }
+
+  std::vector<KPoint> kpoints()
+  {
+    return _kpoints;
+  }
+
+  std::vector<double> occs()
+  {
+    return _occs;
   }
 
   ElectronicStructureParams params()
@@ -648,8 +641,8 @@ private:
   rfunctionT _vnuc;
   rfunctionT _vnucrhon;
   vecfuncT _orbitals;
-  rtensorT _eigs;
-  rtensorT _occs;
+  std::vector<double> _eigs;
+  std::vector<double> _occs;
   std::vector<KPoint> _kpoints;
 };
 

@@ -38,16 +38,16 @@ int main(int argc, char** argv)
         vecfuncT orbs = app.orbitals();
         std::vector<double> eigs;
         std::vector< Function< std::complex<double>,3> > phis;
-        Tensor<double> tmpe = app.eigs();
+        std::vector<double> tmpe = app.eigs();
         print(tmpe);
-        int neps = params.nelec / 2;
+        int neps = params.nbands;
         for (int i = 0; i < neps; i++)
         {
           phis.push_back(orbs[i]);
           eigs.push_back(tmpe[i]);
         }
 
-        Solver<double,3> dftcalc(world, vnucrhon, phis, eigs, params);
+        Solver<double,3> dftcalc(world, vnucrhon, phis, eigs, app.kpoints(), app.occs(), app.params());
         dftcalc.solve();
         world.gop.fence();
 

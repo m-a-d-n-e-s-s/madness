@@ -7,8 +7,6 @@
 
 #ifndef _ESOLVER_H
 
-struct KOrbital;
-
 typedef SharedPtr< WorldDCPmapInterface< Key<3> > > pmapT;
 typedef Vector<double,3> coordT;
 typedef SharedPtr< FunctionFunctorInterface<std::complex<double>,3> > functorT;
@@ -19,7 +17,6 @@ typedef Function<double,3> rfunctionT;
 typedef vector<functionT> vecfuncT;
 typedef vector<rfunctionT> rvecfuncT;
 typedef vector<cfunctionT> cvecfuncT;
-typedef vector<KOrbital> kvecfuncT;
 typedef Tensor< std::complex<double> > ctensorT;
 typedef Tensor<double> rtensorT;
 typedef FunctionFactory<std::complex<double>,3> factoryT;
@@ -107,19 +104,27 @@ struct KPoint
 {
   coordT k;
   double weight;
+  unsigned int begin;
+  unsigned int end;
 
   KPoint()
   {
     k[0] = 0.0; k[1] = 0.0; k[2] = 0.0;
     weight = 0.0;
+    begin = -1;
+    end = -1;
   }
 
+  KPoint(const coordT& k, const double& weight, const int& begin,
+         const int& end)
+   : k(k), weight(weight), begin(begin), end(end) {}
+
   KPoint(const coordT& k, const double& weight)
-   : k(k), weight(weight) {}
+   : k(k), weight(weight), begin(-1), end(-1) {}
 
   template <typename Archive>
   void serialize(Archive& ar) {
-      ar & k & weight;
+      ar & k & weight & begin & end;
   }
 
 };
@@ -129,18 +134,11 @@ std::istream& operator >> (std::istream& is, KPoint& kpt)
   for (int i = 0; i < kpt.k.size(); i++)
     is >> kpt.k[i];
   is >> kpt.weight;
+  is >> kpt.begin;
+  is >> kpt.end;
+
   return is;
 }
-
-struct KOrbital
-{
-  coordT k;
-  double weight;
-  functionT orbital;
-
-  KOrbital(const coordT& k, const double& weight, const functionT& orbital)
-   : k(k), weight(weight), orbital(orbital) {}
-};
 
   //***************************************************************************
   template <typename Q, int NDIM>

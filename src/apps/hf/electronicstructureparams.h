@@ -47,7 +47,7 @@ struct ElectronicStructureParams
   // Fractional coordinates?
   bool fractional;
   // Maximum size of subspace
-  int maxsub;
+  unsigned int maxsub;
   // maxrotn
   double maxrotn;
   // Solve for canonical orbitals?
@@ -258,11 +258,11 @@ struct ElectronicStructureParams
     // No spin polarization
     //if (spinpol = true) MADNESS_EXCEPTION("spinpol not implemented", 0);
     // nelec is required
-    if (!bnelec) MADNESS_EXCEPTION("nelec required", 0);
+    //if (!bnelec) MADNESS_EXCEPTION("nelec required", 0);
 //    // maximum occupation
 //    maxocc = (spinpol) ? 1.0 : 2.0;
-    // compute total number of bands
-    nbands = nelec/maxocc + nempty;
+//    // compute total number of bands
+//    nbands = nelec/maxocc + nempty;
     // kpoints only for periodic
     if (kpoints && !periodic)
       MADNESS_EXCEPTION("input error -- k-points only valid with periodic calculation", 0);

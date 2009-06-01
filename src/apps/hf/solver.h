@@ -10,6 +10,7 @@
 #include "electronicstructureparams.h"
 #include "complexfun.h"
 #include "esolver.h"
+//#include "eigsolver.h"
 
 #ifndef SOLVER_H_
 
@@ -74,7 +75,11 @@ namespace madness
     //*************************************************************************
 
     //*************************************************************************
-    std::vector<kvecT> _kpoints;
+    std::vector<KPoint> _kpoints;
+    //*************************************************************************
+
+    //*************************************************************************
+    std::vector<double> _occs;
     //*************************************************************************
 
     //*************************************************************************
@@ -98,10 +103,6 @@ namespace madness
     //*************************************************************************
 
     //*************************************************************************
-    vector<T> _alpha;
-    //*************************************************************************
-
-    //*************************************************************************
     bool newscheme() {return true;}
     //*************************************************************************
 
@@ -116,9 +117,13 @@ namespace madness
   public:
     //*************************************************************************
     // Constructor
-    Solver(World& world, rfuntionT vnucrhon, vecfuncT phisa,
-      vecfuncT phisb, std::vector<T> eigsa, std::vector<T> eigsb,
-      ElectronicStructureParams params)
+    Solver(World& world, 
+           rfuntionT vnucrhon,
+           vecfuncT phisa,
+           vecfuncT phisb,
+           std::vector<T> eigsa,
+           std::vector<T> eigsb,
+           ElectronicStructureParams params)
        : _world(world), _vnucrhon(vnucrhon), _phisa(phisa), _phisb(phisb),
        _eigsa(eigsa), _eigsb(eigsb), _params(params)
     {
@@ -147,8 +152,11 @@ namespace madness
 
     //*************************************************************************
     // Constructor
-    Solver(World& world, const rfuntionT& vnucrhon, const vecfuncT& phis,
-        const std::vector<T>& eigs, const ElectronicStructureParams& params)
+    Solver(World& world, 
+           const rfuntionT& vnucrhon,
+           const vecfuncT& phis,
+           const std::vector<T>& eigs,
+           const ElectronicStructureParams& params)
        : _world(world), _vnucrhon(vnucrhon), _phisa(phis), _phisb(phis),
        _eigsa(eigs), _eigsb(eigs), _params(params)
     {
@@ -177,10 +185,16 @@ namespace madness
 
     //*************************************************************************
     // Constructor
-    Solver(World& world, rfuntionT vnucrhon, vecfuncT phis,
-        std::vector<T> eigs, std::vector<kvecT> kpoints, ElectronicStructureParams params)
+    Solver(World& world, 
+           rfuntionT vnucrhon,
+           vecfuncT phis,
+           std::vector<T> eigs,
+           std::vector<KPoint> kpoints,
+           std::vector<double> occs,
+           ElectronicStructureParams params)
        : _world(world), _vnucrhon(vnucrhon), _phisa(phis), _phisb(phis),
-       _eigsa(eigs), _eigsb(eigs), _params(params), _kpoints(kpoints)
+         _eigsa(eigs), _eigsb(eigs), _params(params),
+         _kpoints(kpoints), _occs(occs)
     {
       if (params.periodic)
       {
@@ -190,7 +204,7 @@ namespace madness
       }
       else
       {
-        _cop = CoulombOperatorPtr<T,NDIM>(const_cast<World&>(world),
+        _cop = CoulombOperatorPtr<T>(const_cast<World&>(world),
             FunctionDefaults<NDIM>::get_k(), params.lo, params.thresh * 0.1);
       }
 
@@ -219,8 +233,7 @@ namespace madness
         // Compute the j-th density
         //functionT prod = square(phij);
         rfuntionT prod = abs_square(phij);
-        //rho += occs[j]*prod;
-        rho += prod;
+        rho += 0.5*_occs[j]*prod;
       }
       rho.truncate();
       return rho;
@@ -383,8 +396,8 @@ namespace madness
         if (_world.rank() == 0) print("applying potential ...\n");
         apply_potential(it, pfuncsa, pfuncsb, _phisa, _phisb, _rhoa, _rhob, _rho);
 
-        // Do the right-hand side
-        do_rhs(_phisa, pfuncsa, _eigsa);
+        // Do right hand side for all k-points
+        do_rhs(_phisa, pfuncsa, _eigsa, _kpoints);
         
         // Make BSH Green's function
         std::vector<poperatorT> bopsa = make_bsh_operators(_eigsa);
@@ -397,11 +410,15 @@ namespace madness
         vector<functionT> tmpa = apply(_world, bopsa, pfuncsa);
         bopsa.clear();
 
+        plot_line("pfunc", 100, coordT(-_params.L/2), coordT(_params.L/2), pfuncsa[0], pfuncsa[1], pfuncsa[2]);
+        plot_line("tmpa", 100, coordT(-_params.L/2), coordT(_params.L/2), tmpa[0], tmpa[1], tmpa[2]);
+        exit(0);
+
         // Do other spin
         vecfuncT tmpb = zero_functions<valueT,NDIM>(_world, _phisb.size());
         if (_params.spinpol)
         {
-          do_rhs(_phisb, pfuncsb, _eigsb);
+          do_rhs(_phisb, pfuncsb, _eigsb, _kpoints);
           std::vector<poperatorT> bopsb = make_bsh_operators(_eigsb);
           scale(_world, pfuncsb, sfactor);
           truncate<valueT,NDIM>(_world, pfuncsb);
@@ -410,30 +427,30 @@ namespace madness
         }
 
         // Update orbitals
-        update_orbitals(tmpa, tmpb);
+        update_orbitals(tmpa, tmpb, _kpoints);
 
         std::cout.precision(8);
-        if (_world.rank() == 0)
-        {
-          print("Iteration: ", it, "\nEigenvalues for alpha spin: \n");
-          for (unsigned int i = 0; i < _eigsa.size(); i++)
-          {
-            print(_eigsa[i]);
-          }
-          print("\n\n");
-        }
-        if (_params.spinpol)
-        {
-          if (_world.rank() == 0)
-          {
-            print("Eigenvalues for beta spin: \n");
-            for (unsigned int i = 0; i < _eigsb.size(); i++)
-            {
-              print(_eigsb[i]);
-            }
-            print("\n\n");
-          }
-        }
+//        if (_world.rank() == 0)
+//        {
+//          print("Iteration: ", it, "\nEigenvalues for alpha spin: \n");
+//          for (unsigned int i = 0; i < _eigsa.size(); i++)
+//          {
+//            print(_eigsa[i]);
+//          }
+//          print("\n\n");
+//        }
+//        if (_params.spinpol)
+//        {
+//          if (_world.rank() == 0)
+//          {
+//            print("Eigenvalues for beta spin: \n");
+//            for (unsigned int i = 0; i < _eigsb.size(); i++)
+//            {
+//              print(_eigsb[i]);
+//            }
+//            print("\n\n");
+//          }
+//        }
       }
     }
     //*************************************************************************
@@ -441,58 +458,91 @@ namespace madness
     //*************************************************************************
     void do_rhs(vecfuncT& wf,
                 vecfuncT& vwf,
-                std::vector<T>& eps)
+                std::vector<T>& eps,
+                std::vector<KPoint> kpoints)
     {
       // tolerance
       double trantol = 0.1*_params.thresh/min(30.0,double(wf.size()));
 
-      // Build fock matrix
-      tensorT fock = build_fock_matrix(wf, vwf);
 
-      if (_params.canon)
+      for (unsigned int kp = 0; kp < kpoints.size(); kp++)
       {
-        tensorT overlap = matrix_inner(_world, wf, wf, true);
-        ctensorT c; rtensorT e;
-        sygv(fock, overlap, 1, &c, &e);
-        for (unsigned int ei = 0; ei < eps.size(); ei++)
-        {
-          if (real(e(ei,ei)) > -0.1)
-          {
-            eps[ei] = -0.1;
-            vwf[ei] -= (real(e(ei,ei))-eps[ei])*wf[ei];
-          }
-          else
-          {
-            eps[ei] = e(ei,ei);
-          }
-          eps[ei] = std::min(-0.1, real(e(ei,ei)));
-        }
-      }
-      else
-      {
-        for (unsigned int ei = 0; ei < eps.size(); ei++)
-        {
-          eps[ei] = std::min(-0.1, real(fock(ei,ei)));
-          fock(ei,ei) -= std::complex<T>(eps[ei], 0.0);
-        }
+        // Get k-point and orbitals for this k-point
+        KPoint kpoint = kpoints[kp];
+        // WSTHORNTON
+        print("kpoint info:");
+        print(wf.size(), vwf.size(), kpoint.begin, kpoint.end);
+        vecfuncT k_wf(wf.begin() + kpoint.begin, wf.begin() + kpoint.end);
+        vecfuncT k_vwf(vwf.begin() + kpoint.begin, vwf.begin() + kpoint.end);
 
-        vector<functionT> fwf = transform(_world, wf, fock, trantol);
-        gaxpy(_world, 1.0, vwf, -1.0, fwf);
-        fwf.clear();
+        // Build fock matrix
+        tensorT fock = build_fock_matrix(k_wf, k_vwf, kpoint);
+
+        if (_params.canon)
+        {
+          tensorT overlap = matrix_inner(_world, k_wf, k_wf, true);
+          ctensorT c; rtensorT e;
+          sygv(fock, overlap, 1, &c, &e);
+          for (unsigned int ei = kpoint.begin, fi = 0; ei < kpoint.end;
+            ei++, fi++)
+          {
+            // WSTHORNTON
+            print("\n");
+            print(ei, fi);
+            if (real(e(fi,fi)) > -0.1)
+            {
+              eps[ei] = -0.1;
+              vwf[ei] -= (real(e(fi,fi))-eps[ei])*wf[ei];
+            }
+            else
+            {
+              eps[ei] = e(fi,fi);
+            }
+            eps[ei] = std::min(-0.1, real(e(fi,fi)));
+          }
+          // WSTHORNTON
+          // this will work if there is only 1 k-point
+          if (_world.rank() == 0) print("eigenvalues:\n");
+          for (unsigned int ei = 0; ei < eps.size(); ei++)
+          {
+            if (_world.rank() == 0) print(real(e(ei,ei)), eps[ei]);
+          }
+        }
+        else
+        {
+          for (unsigned int ei = kpoint.begin, fi = 0; 
+            ei < kpoint.end; ei++, fi++)
+          {
+            eps[ei] = std::min(-0.1, real(fock(fi,fi)));
+            fock(fi,fi) -= std::complex<T>(eps[ei], 0.0);
+          }
+
+          vector<functionT> fwf = transform(_world, k_wf, fock, trantol);
+          gaxpy(_world, 1.0, k_vwf, -1.0, fwf);
+          fwf.clear();
+          for (unsigned int wi = kpoint.begin, fi = 0; wi < kpoint.end;
+            wi++, fi++)
+          {
+            vwf[wi] = k_vwf[fi];
+          }
+        }
       }
     }
     //*************************************************************************
 
     //*************************************************************************
     tensorT build_fock_matrix(vecfuncT& psi,
-                                     vecfuncT& vpsi)
+                              vecfuncT& vpsi,
+                              KPoint kpoint)
     {
       // Build the potential matrix
       tensorT potential = matrix_inner(_world, psi, vpsi, true);
       _world.gop.fence();
 
       if (_world.rank() == 0) print("Building kinetic energy matrix ...\n\n");
-        tensorT kinetic = ::kinetic_energy_matrix(_world, psi, _params.periodic);
+        tensorT kinetic = ::kinetic_energy_matrix(_world, psi, 
+                                                  _params.periodic,
+                                                  kpoint);
 
       if (_world.rank() == 0) print("Constructing Fock matrix ...\n\n");
       tensorT fock = potential + kinetic;
@@ -507,41 +557,26 @@ namespace madness
     }
     //*************************************************************************
 
-//    //*************************************************************************
-//    void gram_schmidt(vecfuncT& a, const vecfuncT& b)
-//    {
-//      for (unsigned int ai = 0; ai < a.size(); ++ai)
-//      {
-//        // Project out the lower states
-//        for (unsigned int bj = 0; bj < ai; ++bj)
-//        {
-//          valueT overlap = inner(a[ai], b[bj]);
-//          a[ai] -= overlap*b[bj];
-//        }
-//      }
-//    }
-//    //*************************************************************************
-
     //*************************************************************************
-    void gram_schmidt(vecfuncT& f)
+    void gram_schmidt(vecfuncT& f, KPoint kpoint)
     {
-      for (unsigned int fi = 0; fi < f.size(); ++fi)
+      for (unsigned int fi = kpoint.begin; fi < kpoint.end; ++fi)
       {
         // Project out the lower states
-        for (unsigned int fj = 0; fj < fi; ++fj)
+        for (unsigned int fj = kpoint.begin; fj < fi; ++fj)
         {
           valueT overlap = inner(f[fj], f[fi]);
           f[fi] -= overlap*f[fj];
         }
         f[fi].scale(1.0/f[fi].norm2());
       }
-      truncate<valueT,NDIM>(_world, f);
     }
     //*************************************************************************
 
     //*************************************************************************
     void update_orbitals(vecfuncT& awfs,
-                         vecfuncT& bwfs)
+                         vecfuncT& bwfs,
+                         std::vector<KPoint> kpoints)
     {
       // truncate before we do anyting
       truncate<valueT,NDIM> (_world, awfs);
@@ -563,17 +598,22 @@ namespace madness
         step_restriction(_phisb, bwfs, 1);
       }
       // do gram-schmidt
-      gram_schmidt(awfs);
-      if (_params.spinpol)
+      for (unsigned int kp = 0; kp < kpoints.size(); kp++)
       {
-        gram_schmidt(bwfs);
+        gram_schmidt(awfs, kpoints[kp]);
+        if (_params.spinpol)
+        {
+          gram_schmidt(bwfs, kpoints[kp]);
+        }
       }
       // update alpha and beta orbitals
+      truncate<valueT,NDIM>(_world, awfs);
       for (unsigned int ai = 0; ai < awfs.size(); ai++) {
           _phisa[ai] = awfs[ai].scale(1.0 / awfs[ai].norm2());
       }
       if (_params.spinpol)
       {
+        truncate<valueT,NDIM>(_world, bwfs);
         for (unsigned int bi = 0; bi < bwfs.size(); bi++) {
             _phisb[bi] = bwfs[bi].scale(1.0 / bwfs[bi].norm2());
         }
