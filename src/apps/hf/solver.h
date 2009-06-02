@@ -357,6 +357,14 @@ namespace madness
           rfuntionT fc = copy(rhoa);
           fc.unaryop(&::ldaeop);
           xc = fc.trace();
+
+//          rfunctionT veff = vlocal + vxc2;
+//          vector<functionT> pfuncsa2 = zero_functions<valueT,NDIM>(_world, phisa.size());
+//          for (int i = 0; i < phisa.size(); i++)
+//          {
+//            pfuncsa2[i] = veff*phisa[i];
+//          }
+//          plot_line("pfunc2", 100, coordT(-_params.L/2), coordT(_params.L/2), pfuncsa2[0], pfuncsa2[1], pfuncsa2[2]);
         }
       }
       std::cout.precision(8);
@@ -379,6 +387,8 @@ namespace madness
     //*************************************************************************
     void solve()
     {
+        plot_line("phisa", 100, coordT(-_params.L/2), coordT(_params.L/2), _phisa[0], _phisa[1], _phisa[2]);
+        plot_line("phisa2", 100, coordT(-_params.L/2), coordT(_params.L/2), _phisa[3], _phisa[4], _phisa[5]);
       for (int it = 0; it < _params.maxits; it++)
       {
         if (_world.rank() == 0) print("it = ", it);
@@ -410,10 +420,6 @@ namespace madness
         vector<functionT> tmpa = apply(_world, bopsa, pfuncsa);
         bopsa.clear();
 
-        plot_line("pfunc", 100, coordT(-_params.L/2), coordT(_params.L/2), pfuncsa[0], pfuncsa[1], pfuncsa[2]);
-        plot_line("tmpa", 100, coordT(-_params.L/2), coordT(_params.L/2), tmpa[0], tmpa[1], tmpa[2]);
-        exit(0);
-
         // Do other spin
         vecfuncT tmpb = zero_functions<valueT,NDIM>(_world, _phisb.size());
         if (_params.spinpol)
@@ -429,7 +435,7 @@ namespace madness
         // Update orbitals
         update_orbitals(tmpa, tmpb, _kpoints);
 
-        std::cout.precision(8);
+//        std::cout.precision(8);
 //        if (_world.rank() == 0)
 //        {
 //          print("Iteration: ", it, "\nEigenvalues for alpha spin: \n");

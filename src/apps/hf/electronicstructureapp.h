@@ -225,7 +225,8 @@ public:
       // set number of electrons to the total nuclear charge of the mentity
       _params.nelec = _mentity.total_nuclear_charge();
       // total number of bands include empty
-      _params.nbands = (_params.nelec/2) + _params.nempty + 1;
+      _params.nbands = (_params.nelec/2) + _params.nempty;
+      if ((_params.nelec % 2) == 1) _params.nelec++;
 
 //      if (_params.periodic && _params.kpoints)
 //        _kpoints = read_kpoints("KPOINTS.OUT");
@@ -413,8 +414,8 @@ public:
 
     print(rho.trace());
 
-    vector<long> npt(3,101);
-    plotdx(rho, "rho_initial.dx", FunctionDefaults<3>::get_cell(), npt);
+//    vector<long> npt(3,101);
+//    plotdx(rho, "rho_initial.dx", FunctionDefaults<3>::get_cell(), npt);
 
     rfunctionT vlocal;
     // Is this a many-body system?
@@ -442,8 +443,8 @@ public:
       rfunctionT vlda = make_lda_potential(_world, rho, rho, rfunctionT(), rfunctionT());
       vlocal = vlocal + vlda;
       delete op;
-      vector<long> npt(3,101);
-      plotdx(vc, "vc.dx", FunctionDefaults<3>::get_cell(), npt);
+//      vector<long> npt(3,101);
+//      plotdx(vc, "vc.dx", FunctionDefaults<3>::get_cell(), npt);
     }
     else
     {
@@ -481,7 +482,6 @@ public:
     // set the number of orbitals
     _eigs = std::vector<double>(norbs, 0.0);
     _occs = std::vector<double>(norbs, 0.0);
-    print("norbs = ", norbs);
     // Build the overlap matrix
     if (_world.rank() == 0) print("Building overlap matrix ...\n\n");
     rtensorT roverlap = matrix_inner(_world, ao, ao, true);
@@ -594,7 +594,7 @@ public:
         _eigs[oi] = tmp_eigs[ti];
       }
 
-      kp += nao;
+      kp += _params.nbands;
     }
   }
 
