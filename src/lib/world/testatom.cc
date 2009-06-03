@@ -44,14 +44,16 @@ void* doit_mutex(void *args) {
 
 class Greet : public PoolTaskInterface {
 public:
-    void run() {
+    void run(const TaskThreadEnv& env) {
         std::cout << "HI\n";
     }
+
+    
 };
 
 class Adder : public PoolTaskInterface {
 public:
-    void run() {
+    void run(const TaskThreadEnv& env) {
         MADATOMIC_INT_INC(&sum);
         if (sum >= 100000000) MADATOMIC_INT_INC(&ndone);
     }

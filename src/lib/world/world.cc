@@ -233,6 +233,69 @@ void test5(World& world) {
     if (me == 0) print("test5 (tasks and futures) OK");
 }
 
+class TestBarrier : public TaskInterface {
+    volatile int count;
+public:
+    TestBarrier(const madness::TaskAttributes& attr)
+        : TaskInterface(attr)
+        , count(0)
+    {
+        print("Testing barrier with nthread", attr.get_nthread());
+    }
+
+    void run(World& world, const TaskThreadEnv& env) {
+        // Using the barrier each thread takes turns to update
+        // the shared counter.
+
+        env.barrier();
+
+        int nthread = env.nthread();
+        int id = env.id();
+        for (int i=0; i<100; i++) {
+            for (int p=0; p<nthread; p++) {
+                env.barrier();
+                if (p == id) count += (p+1);
+            }
+        }
+        env.barrier();
+        if (id == 0)
+            print("     result from sum", count, "expected", 100*nthread*(nthread+1)/2);
+    }
+};
+
+class TimeBarrier : public TaskInterface {
+    volatile int count;
+public:
+    TimeBarrier(const madness::TaskAttributes& attr)
+        : TaskInterface(attr)
+        , count(0)
+    {
+        print("Timing barrier with nthread", attr.get_nthread());
+    }
+
+    void run(World& world, const TaskThreadEnv& env) {
+        // Barrier a zillion times
+
+		for (int i=0; i<1000000; i++) {
+	        env.barrier();
+		}
+    }
+};
+
+
+// test multithreaded tasks
+void test_multi(World& world) {
+    // Test the correctness and performance of the barrier
+    for (unsigned int i=1; i<=ThreadPool::size()+1; i++) {
+        world.taskq.add(new TestBarrier(TaskAttributes::multi_threaded(i)));
+        double start = cpu_time();
+        world.taskq.add(new TimeBarrier(TaskAttributes::multi_threaded(i)));
+        double used = cpu_time()-start;
+        print("barrier took", used*10.0,"micro seconds per call");
+        world.gop.fence();
+    }
+}
+
 
 class Foo : public WorldObject<Foo> {
     int a;
@@ -340,6 +403,7 @@ void test6(World& world) {
 
     print("test 6 (world object active message and tasks) seems to be working");
 }
+
 
 class TestFutureForwarding : public WorldObject<TestFutureForwarding> {
 public:
@@ -981,6 +1045,7 @@ int main(int argc, char** argv) {
         PROFILE_BLOCK(main_program);
 
         test0(world);
+        // ??????  When/why did these tests get deleted?
 //       if (world.nproc() > 1) {
 //         test1(world);
 //         test2(world);
@@ -998,6 +1063,8 @@ int main(int argc, char** argv) {
         test11(world);
         test12(world);
         test13(world);
+
+        test_multi(world);
     }
     catch (MPI::Exception e) {
         error("caught an MPI exception");

@@ -263,25 +263,31 @@ namespace madness {
     template <typename T,int N>
     class Stack {
     private:
-        Vector<T,N> t;
+        T t[N];
+//         Vector<T,N> t;
         int n;
-
+        
     public:
-        Stack() : t(), n(0) {};
+        Stack() : n(0) {}
 
         void push(const T& value) {
             MADNESS_ASSERT(n < N);
             t[n++] = value;
-        };
+        }
 
         T& pop() {
             MADNESS_ASSERT(n > 0);
             return t[--n];
-        };
+        }
+
+        T& front() {
+            MADNESS_ASSERT(n > 0);
+            return t[n-1];
+        }
 
         int size() const {
             return n;
-        };
+        }
 
         void clear() {
             for (int i=0; i<n; i++) t[i] = T();

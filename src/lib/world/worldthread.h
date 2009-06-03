@@ -33,6 +33,8 @@ namespace madness {
     /// buffer rather than a linked list so as to avoid the new/del
     /// overhead.  It will grow as needed, but presently will not
     /// shrink.  Had to modify STL API to make things thread safe.
+    ///
+    /// It is now rather heavily specialized to its only use.
     template <typename T>
     class DQueue : private CONDITION_VARIABLE_TYPE {
         char pad[64]; // To put the lock and the data in separate cache lines
@@ -80,6 +82,27 @@ namespace madness {
             if (long(n) != num) throw "assertion failure in dqueue::sanity";
         }
 
+        void push_back_with_lock(const T& value) {
+            size_t nn = n;
+            size_t ss = sz;
+            if (nn == ss) {
+                grow();
+                ss = sz;
+            }
+            nn++;
+            if (nn > stats.nmax) stats.nmax = nn;
+            n = nn;
+
+            int b = _back + 1;
+            if (b >= int(ss)) b = 0;
+            buf[b] = value;
+            _back = b;
+            stats.npush_back++;
+
+            signal();
+        }
+
+
     public:
         DQueue(size_t hint=200000) // was 32768
                 : n(0)
@@ -116,28 +139,13 @@ namespace madness {
             signal();
         }
 
-        /// Insert element at back of queue
-        void push_back(const T& value) {
+        /// Insert element at back of queue (default is just one copy)
+        void push_back(const T& value, int ncopy=1) {
             madness::ScopedMutex<CONDITION_VARIABLE_TYPE> obolus(this);
-            //sanity_check();
-
-            size_t nn = n;
-            size_t ss = sz;
-            if (nn == ss) {
-                grow();
-                ss = sz;
-            }
-            nn++;
-            if (nn > stats.nmax) stats.nmax = nn;
-            n = nn;
-
-            int b = _back + 1;
-            if (b >= int(ss)) b = 0;
-            buf[b] = value;
-            _back = b;
-            stats.npush_back++;
-
-            signal();
+            sanity_check();
+            while (ncopy--) 
+                push_back_with_lock(value);
+            sanity_check();
         }
 
         /// Pop value off the front of queue
@@ -174,43 +182,68 @@ namespace madness {
         /// Pop multiple values off the front of queue ... returns number popped ... might be zero
 
         /// r must refer to an array of dimension at least nmax ... you are presently
-        /// given no more than max(size()/64,1) values ... arbitrary choice
+        /// given no more than max(size()/64,1) values ... arbitrary choice.
+        ///
+        /// multi-threaded tasks might cause fewer tasks to be taken
         int pop_front(int nmax, T* r, bool wait) {
             madness::ScopedMutex<CONDITION_VARIABLE_TYPE> obolus(this);
-
+            
             size_t nn = n;
-
+            
             if (nn==0 && wait) {
                 while (n == 0) // !!! Must be n (memory) not nn (local copy)
                     CONDITION_VARIABLE_TYPE::wait();
-
+                
                 nn = n;
             }
-
+            
             stats.npop_front++;
             if (nn) {
-                //sanity_check();
-
+                sanity_check();
+                
                 nmax = std::min(nmax,std::max(int(nn>>6),1));
-                n = nn - nmax;
-                int rval = nmax;
-
+                int retval; // Will return the number of items taken
+                
+                
                 int f = _front;
+                
+                // Original loop was this
+                //retval = nmax;
+                //while (nmax--) {
+                //    *r++ = buf[f++];
+                //    if (f >= int(sz)) f = 0;
+                //}
+                
+                // New loop includes checking for replicated multi-threaded task
+                // ... take one task and then check that subsequent tasks differ
+                nmax--;
+                *r++ = buf[f++];
+                if (f >= int(sz)) f = 0;
+                retval=1;
                 while (nmax--) {
-                    *r++ = buf[f++];
-                    if (f >= int(sz)) f = 0;
+                    T ptr = buf[f];
+                    if (ptr == *r) {
+                        break;
+                    }
+                    else {
+                        *r++ = ptr;
+                        f++;
+                        if (f >= int(sz)) f = 0;
+                        retval++;
+                    }
                 }
-
+                
+                n = nn - retval;
                 _front = f;
-
-                //sanity_check();
-                return rval;
+                
+                sanity_check();
+                return retval;
             }
             else {
                 return 0;
             }
         }
-
+        
         size_t size() const {
             return n;
         }
@@ -443,15 +476,20 @@ namespace madness {
     /// default value is false.
     ///
     /// \c highpriority : indicates a high priority task.
+    ///
+    /// \c nthread : indicates number of threads. 0 threads is interpreted as 1 thread
+    /// for backward compatibility and ease of specifying defaults.
     class TaskAttributes {
         unsigned long flags;
-        static const unsigned long one = 1ul;
     public:
-        static const unsigned long GENERATOR    = one;
-        static const unsigned long STEALABLE    = one<<1;
-        static const unsigned long HIGHPRIORITY = one<<2;
+    	static const unsigned long NTHREAD      = 0xff;          // Mask for nthread byte
+        static const unsigned long GENERATOR    = 1ul<<8;        // Mask for generator bit
+        static const unsigned long STEALABLE    = GENERATOR<<1;  // Mask for stealable bit
+        static const unsigned long HIGHPRIORITY = GENERATOR<<2;  // Mask for priority bit
 
         TaskAttributes(unsigned long flags = 0) : flags(flags) {}
+
+        TaskAttributes(const TaskAttributes& attr) : flags(attr.flags) {}
 
         bool is_generator() const {
             return flags&GENERATOR;
@@ -480,6 +518,17 @@ namespace madness {
             else flags &= ~HIGHPRIORITY;
         }
 
+        void set_nthread(int nthread) {
+        	MADNESS_ASSERT(nthread>=0 && nthread<256);
+        	flags = (flags & (~NTHREAD)) | (nthread & NTHREAD);
+        }
+
+        int get_nthread() const {
+        	int n = flags & NTHREAD;
+        	if (n == 0) n = 1;
+        	return n;
+        }
+
         template <typename Archive>
         void serialize(Archive& ar) {
             ar & flags;
@@ -492,19 +541,110 @@ namespace madness {
         static TaskAttributes hipri() {
             return TaskAttributes(HIGHPRIORITY);
         }
+
+        static TaskAttributes multi_threaded(int nthread) {
+            TaskAttributes t;
+            t.set_nthread(nthread);
+            return t;
+        }
     };
 
-
-    class PoolTaskInterface : public TaskAttributes {
+    /// Used to pass info about thread environment into users task
+    class TaskThreadEnv {
+        const int _nthread; //< No. of threads collaborating on task
+        const int _id;      //< Id of this thread (0,...,nthread-1)
+        Barrier* _barrier;  //< Pointer to shared barrier, null if single thread
+        
     public:
-        PoolTaskInterface() {}
+        TaskThreadEnv(int nthread, int id, Barrier* barrier) 
+            : _nthread(nthread), _id(id), _barrier(barrier) 
+        {}
+        
+        int nthread() const {return _nthread;}
+        
+        int id() const {return _id;}
+        
+        bool barrier() const {
+            if (_nthread == 1)
+                return true;
+            else {
+                MADNESS_ASSERT(_barrier);
+                return _barrier->enter(_id);
+            }
+        }
+    };
+        
 
+    /// Lowest level task interface
+
+    /// The pool invokes run_multi_threaded() that does any necessary
+    /// setup for multiple threads and then invokes the users \c run method.
+    class PoolTaskInterface : public TaskAttributes {
+    	friend class ThreadPool;
+        
+    private:
+        Barrier* barrier;     //< Barrier, only allocated for multithreaded tasks
+    	MADATOMIC_INT count;  //< Used to count threads as they start
+        
+    	/// Returns true for the one thread that should invoke the destructor
+    	bool run_multi_threaded() {
+            // As a thread enters this routine it increments the shared counter
+            // to generate a unique id without needing any thread-local storage.
+            // A downside is this does not preserve any relationships between thread
+            // numbering and the architecture ... more work ahead.
+            int nthread = get_nthread();
+            if (nthread == 1) {
+                run(TaskThreadEnv(1,0,0));
+                return true;
+            }
+            else {
+                int id = MADATOMIC_INT_READ_AND_INC(&count);
+                volatile bool barrier_flag;
+                barrier->register_thread(id, &barrier_flag);
+
+                run(TaskThreadEnv(nthread, id, barrier));
+
+                return barrier->enter(id);
+            }
+    	}
+        
+    public:
+        PoolTaskInterface()
+            : TaskAttributes()
+            , barrier(0) 
+        {
+            MADATOMIC_INT_SET(&count, 0);
+        }
+        
         explicit PoolTaskInterface(const TaskAttributes& attr)
-                : TaskAttributes(attr) {}
+            : TaskAttributes(attr)
+            , barrier(attr.get_nthread() ? new Barrier(attr.get_nthread()) : 0)
 
-        virtual void run() = 0;
+        {
+            MADATOMIC_INT_SET(&count, 0);
+        }
 
-        virtual ~PoolTaskInterface() {}
+        
+        /// Override this method to implement a multi-threaded task
+        
+        /// \c info.nthread() will be the number of threads collaborating on this task
+        ///
+        /// \c info.id() will be the index of the current thread \c id=0,...,nthread-1
+        ///
+        /// \c info.barrier() will be a barrier for all of the threads, and returns
+        /// \c true for the last thread to enter the barrier (other threads get false)
+        virtual void run(const TaskThreadEnv& info) = 0;
+        
+        virtual ~PoolTaskInterface() {
+            delete barrier;
+        }
+    };
+
+    /// A no-op task used for various purposes
+    class PoolTaskNull : public PoolTaskInterface {
+    public:
+        void run(const TaskThreadEnv& info) {}
+        virtual ~PoolTaskNull() {}
     };
 
 
@@ -530,8 +670,10 @@ namespace madness {
             //std::cout << "POOL " << nthreads << std::endl;
 
             try {
-                if (nthreads > 0) threads = new Thread[nthreads];
-                else threads = 0;
+                if (nthreads > 0)
+                	threads = new Thread[nthreads];
+                else
+                	threads = 0;
             }
             catch (...) {
                 throw "memory allocation failed";
@@ -570,8 +712,8 @@ namespace madness {
             std::pair<PoolTaskInterface*,bool> t = queue.pop_front(wait);
             if (t.second) {
                 PROFILE_BLOCK(working);
-                t.first->run();          // What we are here to do
-                delete t.first;
+                if (t.first->run_multi_threaded())         // What we are here to do
+                	delete t.first;
             }
             return t.second;
         }
@@ -582,8 +724,8 @@ namespace madness {
             int ntask = queue.pop_front(nmax, taskbuf, wait);
             for (int i=0; i<ntask; i++) {
                 PROFILE_BLOCK(working);
-                taskbuf[i]->run();
-                delete taskbuf[i];
+                if (taskbuf[i]->run_multi_threaded())
+                	delete taskbuf[i];
             }
             return (ntask>0);
         }
@@ -618,9 +760,6 @@ namespace madness {
             return instance_ptr;
         }
 
-        class PoolTaskNull : public PoolTaskInterface {
-            void run() {};
-        };
 
     public:
         /// Please invoke while in single threaded environment
@@ -640,11 +779,14 @@ namespace madness {
         /// Add a new task to the pool
         static void add(PoolTaskInterface* task) {
             if (!task) throw "ThreadPool: inserting a NULL task pointer";
-            if (task->is_high_priority()) {
+            int nthread = task->get_nthread();
+            // Currently multithreaded tasks must be shoved on the end of the q
+            // to avoid a race condition as multithreaded task is starting up
+            if (task->is_high_priority() && nthread==1) { 
                 instance()->queue.push_front(task);
             }
             else {
-                instance()->queue.push_back(task);
+                instance()->queue.push_back(task, nthread);
             }
         }
 
@@ -655,8 +797,6 @@ namespace madness {
                 add(*it);
             }
         }
-
-
 
         /// An otherwise idle thread can all this to run a task
 

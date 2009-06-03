@@ -57,20 +57,25 @@ namespace madness {
     /// Provides interface for tracking dependencies
     class DependencyInterface : public CallbackInterface, private Spinlock {
     private:
-        volatile int ndepend;   ///< Counts dependencies
-
+        MADATOMIC_INT ndepend;   ///< Counts dependencies
+        
         static const int MAXCALLBACKS = 8;
         typedef Stack<CallbackInterface*,MAXCALLBACKS> callbackT;
         mutable volatile callbackT callbacks; ///< Called ONCE by dec() when ndepend==0
 
         void do_callbacks() const {
-            // ASSUME THAT WE HAVE THE LOCK WHILE IN HERE
+            // ASSUME WE HAVE THE LOCK IN HERE
             callbackT& cb = const_cast<callbackT&>(callbacks);
-            if (cb.size()) {
-                while (cb.size()) {
-                    CallbackInterface* p = cb.pop();
-                    p->notify();
-                }
+
+            // Note that we now execute the callback BEFORE popping
+            // the stack.  This is so the destructor only has to get
+            // the lock if callbacks.size() is non-zero.  We are
+            // accessing callbacks thru a non-volatile reference but
+            // that is OK since we only rely up on the size in memory
+            // being updated after the callbacks are executed.
+            while (cb.size()) {
+                cb.front()->notify();
+                cb.pop();
             }
         };
 
@@ -80,7 +85,7 @@ namespace madness {
 
         /// Returns the number of unsatisfied dependencies
         int ndep() const {
-            return ndepend;
+            return MADATOMIC_INT_GET(&ndepend);
         }
 
         /// Returns true if ndepend == 0
@@ -107,23 +112,33 @@ namespace madness {
 
         /// Increment the number of dependencies
         void inc() {
-            ScopedMutex<Spinlock> hold(this);
-            MADNESS_ASSERT(ndepend>=0);
-            ndepend++;
+            MADATOMIC_INT_INC(&ndepend);
         };
 
 
         /// Decrement the number of dependencies and invoke callback if ndepend=0
         void dec() {
-            ScopedMutex<Spinlock> hold(this);
-            if (--ndepend == 0) do_callbacks();
+            if (MADATOMIC_INT_DEC_AND_TEST(&ndepend)) {
+                ScopedMutex<Spinlock> hold(this);
+                do_callbacks();
+            }
         };
 
 
         virtual ~DependencyInterface() {
-            ScopedMutex<Spinlock> hold(this);
-            if (ndepend) {
-                print("DependencyInterface: destructor with ndepend =",ndepend,"?");
+            // Paranoia is good
+            if (MADATOMIC_INT_GET(&ndepend)) {
+                print("DependencyInterface: destructor with ndepend =",MADATOMIC_INT_GET(&ndepend),"?");
+            }
+
+            // How to avoid this lock?  It is here because execution of a
+            // callback might destroy the object before all callbacks have
+            // been performed.  Hence, we only need the lock if the number of
+            // unexecuted callbacks is non-zero.
+
+            callbackT& cb = const_cast<callbackT&>(callbacks);
+            if (cb.size()) {
+                ScopedMutex<Spinlock> hold(this);
             }
         };
     };

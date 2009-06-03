@@ -464,6 +464,57 @@ namespace madness {
     typedef Mutex SCALABLE_MUTEX_TYPE;
 #endif
 
+    class Barrier {
+        const int nthread;
+        volatile bool sense;
+        MADATOMIC_INT nworking;
+        
+        volatile bool* pflags[64]; // ????????????????????
+        
+    public:
+        
+        Barrier(int nthread)
+            : nthread(nthread)
+            , sense(true)
+        {
+            if (nthread > 1) {
+                MADATOMIC_INT_SET(&nworking, nthread);
+            }
+        }
+        
+        /// Each thread calls this once before first use
+        
+        /// id should be the thread id (0,..,nthread-1) and pflag a pointer to
+        /// thread-local bool (probably in the thread's stack)
+        void register_thread(int id, volatile bool* pflag) {
+            pflags[id] = pflag;
+            *pflag=!sense;
+        }
+        
+        /// Each thread calls this with its id (0,..,nthread-1) to enter the barrier
+        
+        /// The thread last to enter the barrier returns true.  Others return false.
+        bool enter(int id) {
+            bool result = true;
+            if (nthread > 1) {
+                volatile bool* myflag = pflags[id]; // Local flag;
+                bool lsense = sense;                // Local copy of sense
+                result = MADATOMIC_INT_DEC_AND_TEST(&nworking);
+                if (result) {
+                    MADATOMIC_INT_SET(&nworking, nthread); // reset counter
+                    sense = !sense; // toggle sense
+                    result = true;
+                    for (int i = 0; i < nthread; i++)
+                        *(pflags[i]) = lsense; // Notify everyone
+                } else {
+                    while (*myflag != lsense) {
+                        cpu_relax();
+                    }
+                }
+            }
+            return result;
+        }
+    };
 }
 
 #endif

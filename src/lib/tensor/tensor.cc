@@ -782,6 +782,11 @@ namespace madness {
     std::ostream& operator << (std::ostream& s, const Tensor<T>& t) {
         using namespace std;
 
+        if (t.size == 0) {
+            s << "[empty tensor]\n";
+            return s;
+        }
+
         long maxdim = 0;
         long index_width = 0;
         for (int i = 0; i<(t.ndim-1); i++) {

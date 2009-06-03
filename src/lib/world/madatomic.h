@@ -13,19 +13,21 @@
 ///
 /// You should only use atomic operations to operate on atomic variables.
 ///
-/// \c MADATOMIC_FENCE ... memory fence that is included, if necessary, in the
+/// \c void MADATOMIC_FENCE ... memory fence that is included, if necessary, in the
 ///                     macros below (Cray X1 only for now)
 ///
-/// \c MADATOMIC_INT ... the type of an atomic integer (size is platform dependent).
+/// \c void MADATOMIC_INT ... the type of an atomic integer (size is platform dependent).
 ///
-/// \c MADATOMIC_INT_GET(ptr) ... read an atomic integer
+/// \c int MADATOMIC_INT_GET(ptr) ... read an atomic integer
 ///
-/// \c MADATOMIC_INT_SET(ptr) ... write an atomic integer
+/// \c void MADATOMIC_INT_SET(ptr) ... write an atomic integer
 ///
-/// \c MADATOMIC_INT_INC(ptr) ... increment an atomic integer
+/// \c void MADATOMIC_INT_INC(ptr) ... increment an atomic integer
 ///
-/// \c MADATOMIC_INT_DEC_AND_TEST(ptr) ... decrement an atomic integer and return
-///                                     true if the result is zero.
+/// \c bool MADATOMIC_INT_DEC_AND_TEST(ptr) ... decrement an atomic integer and return
+///                                             true if the result is zero.
+///
+/// \c int MADATOMIC_INT_READ_AND_INC(ptr) ... atomic read followed by increment
 ///
 /// The unfortunate mix of macros and routines means these names
 /// are sitting in the global namespace ... probably should turn all
@@ -42,6 +44,7 @@ typedef int MADATOMIC_INT;
 #define MADATOMIC_INT_GET(ptr) (*(ptr))
 #define MADATOMIC_INT_SET(ptr,val) (*(ptr) = val)
 #define MADATOMIC_INT_DEC_AND_TEST(ptr) ((--(*(ptr))) == 0)
+#define MADATOMIC_INT_READ_AND_INC(ptr) ((*(ptr))++)
 
 
 #elif defined(USE_GLIB_ATOMICS)
@@ -58,6 +61,7 @@ typedef gint MADATOMIC_INT;
 #define MADATOMIC_INT_GET(ptr) g_atomic_int_get(ptr)
 #define MADATOMIC_INT_SET(ptr,val) g_atomic_int_set(ptr,val)
 #define MADATOMIC_INT_DEC_AND_TEST(ptr) g_atomic_int_dec_and_test(ptr)
+#define MADATOMIC_INT_READ_AND_INC(ptr) g_atomic_int_exchange_and_add(ptr,1)
 
 #elif defined(__GNUC__)
 
@@ -79,6 +83,7 @@ typedef volatile int MADATOMIC_INT;
 #define MADATOMIC_INT_GET(ptr) (*(ptr))
 #define MADATOMIC_INT_SET(ptr,val) (*(ptr) = val)
 #define MADATOMIC_INT_DEC_AND_TEST(ptr) ((__gnu_cxx::__exchange_and_add(ptr,-1)) == 1)
+#define MADATOMIC_INT_READ_AND_INC(ptr) (__gnu_cxx::__exchange_and_add(ptr,1))
 
 #elif defined(__INTEL_COMPILER)
 
@@ -95,6 +100,7 @@ typedef atomic_t MADATOMIC_INT;
 #define MADATOMIC_INT_INC(ptr) atomic_inc(ptr)
 #define MADATOMIC_INT_DEC(ptr) atomic_dec(ptr)
 #define MADATOMIC_INT_DEC_AND_TEST(ptr) atomic_sub_and_test(1, ptr)
+#define MADATOMIC_INT_READ_AND_INC(ptr) (error ... no such function in the Linux kernel API)
 
 #elif defined(__ia64)
 error not yet
@@ -115,42 +121,10 @@ typedef struct {
 #define MADATOMIC_INT_INC(ptr) (fetch_and_add((atomic_p)&((ptr)->ctr),1))
 #define MADATOMIC_INT_DEC(ptr)  (fetch_and_add((atomic_p)&((ptr)->ctr),-1))
 #define MADATOMIC_INT_DEC_AND_TEST(ptr)  ((fetch_and_add((atomic_p)&((ptr)->ctr),-1))==1)
-
-#elif defined(_CRAY)
-
-#include <intrinsics.h>
-typedef volatile long MADATOMIC_INT;
-#define MADATOMIC_FENCE _gsync(0x1)
-#define MADATOMIC_INITIALIZE(val) (val)
-static inline void MADATOMIC_INT_INC(MADATOMIC_INT *ptr) {
-    MADATOMIC_FENCE;
-    _amo_aadd(ptr,1L);
-    MADATOMIC_FENCE;
-}
-static inline long MADATOMIC_INT_GET(MADATOMIC_INT *ptr) {
-    MADATOMIC_FENCE;
-    return *ptr;
-}
-static inline void MADATOMIC_INT_SET(MADATOMIC_INT *ptr,long val) {
-    MADATOMIC_FENCE;
-    *ptr=val;
-    MADATOMIC_FENCE;
-}
-static inline bool MADATOMIC_INT_DEC_AND_TEST(MADATOMIC_INT *ptr) {
-    MADATOMIC_FENCE;
-    bool val=(_amo_afadd(ptr,-1L) == 1);
-    MADATOMIC_FENCE;
-    return val;
-}
-static inline bool MADATOMIC_INT_COMPARE_AND_SWAP(MADATOMIC_INT *ptr, long cmpval, long swpval) {
-    MADATOMIC_FENCE;
-    bool val = _amo_acswap(ptr, cmpval, swpval);
-    MADATOMIC_FENCE;
-    return val;
-}
+#define MADATOMIC_INT_READ_AND_INC() () fetch_and_add((atomic_p)&((ptr)->ctr),1))
 
 #else
-error need to define atomic operations or set SINGLE_THREADED
+error need to define atomic operations
 
 #endif
 

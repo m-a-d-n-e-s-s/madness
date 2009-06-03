@@ -60,12 +60,26 @@ namespace madness {
     template <typename functionT> class TaskFunction;
     template <typename memfunT> class TaskMemfun;
 
-    /// All tasks must be derived from this public interface
+    /// All world tasks must be derived from this public interface
+
+    /// Multiple worlds with independent queues feed tasks into shared task 
+    /// pool that is mapped to the H/W.
+    ///
+    /// For simplicity and backward compatibility we maintain two run interfaces
+    /// but new code should adopt the multithreaded interface
+    ///
+    /// \c run(World&) - the user implements this for a single-threaded task
+    ///
+    /// \c run(World&, \c const \c TaskThreadEnv&) - the user implements this for
+    /// a multi-threaded task.  
+    ///
     class TaskInterface : public DependencyInterface , public PoolTaskInterface {
         friend class WorldTaskQueue;
     private:
         volatile World* world;
+        CallbackInterface* completion;
 
+        // Used for submission to underlying queue when all dependencies are satisfied
         struct Submit : public CallbackInterface {
             PoolTaskInterface* p;
             Submit(PoolTaskInterface* p) : p(p) {}
@@ -74,20 +88,24 @@ namespace madness {
             }
         } submit;
 
-        CallbackInterface* completed;
 
-        void set_info(World* world, CallbackInterface* completed) {
+        void set_info(World* world, CallbackInterface* completion) {
             this->world = world;
-            this->completed = completed;
+            this->completion = completion;
+        }
+
+        /// Adds call back to schedule task when outstanding dependencies are satisfied
+        void register_submit_callback() {
+            register_callback(&submit);
         }
 
     protected:
-        void run() { // This is what thread pool will invoke
+        void run(const TaskThreadEnv& env) { // This is what thread pool will invoke
             MADNESS_ASSERT(world);
-            MADNESS_ASSERT(completed);
+            MADNESS_ASSERT(completion);
             World* w = const_cast<World*>(world);
             if (debug) std::cerr << w->rank() << ": Task " << (void*) this << " is now running" << std::endl;
-            run(*w);
+            run(*w, env);
             if (debug) std::cerr << w->rank() << ": Task " << (void*) this << " has completed" << std::endl;
         }
 
@@ -95,34 +113,23 @@ namespace madness {
         static bool debug;
 
         /// Create a new task with ndepend dependencies (default 0) and given attributes
-
-        /// In addition to the ndepend user-specified dependencies there is a
-        /// hidden dependency that is satisfied by submission to the taskq.
-        /// This avoids a race condition between user dependencies being satisfied and
-        /// registering the task in the queue.
         TaskInterface(int ndepend=0, const TaskAttributes& attr = TaskAttributes())
-                : DependencyInterface(ndepend+1)
+                : DependencyInterface(ndepend)
                 , PoolTaskInterface(attr)
                 , world(0)
+                , completion(0) 
                 , submit(this)
-                , completed(0) {
-            register_callback(&submit);
-        }
+        {}
 
 
         /// Create a new task with zero dependencies and given attributes
         explicit TaskInterface(const TaskAttributes& attr)
-                : DependencyInterface(1)
+                : DependencyInterface(0)
                 , PoolTaskInterface(attr)
                 , world(0)
+                , completion(0) 
                 , submit(this)
-                , completed(0) {
-            register_callback(&submit);
-        }
-
-        virtual ~TaskInterface() {
-            completed->notify();
-        }
+        {}
 
         template <typename Archive>
         void serialize(Archive& ar) {
@@ -130,8 +137,26 @@ namespace madness {
             ar & *static_cast<PoolTaskInterface*>(this) & world;
         }
 
-        /// Runs the task ... derived classes must implement this.
-        virtual void run(World& world) = 0;
+        /// Runs a single-threaded task ... derived classes must implement this.
+
+        /// This interface may disappear so new code should use the multi-threaded interface.
+        virtual void run(World& world) {
+            //print("in virtual run(world) method");
+            MADNESS_EXCEPTION("World TaskInterface: user did not implement one of run(world) or run(world, taskthreadenv)", 0);
+        }
+
+        /// Runs a multi-threaded task
+        virtual void run(World& world, const TaskThreadEnv& env) {
+            //print("in virtual run(world,env) method", env.nthread(), env.id());
+            if (env.nthread() != 1) 
+                MADNESS_EXCEPTION("World TaskInterface: user did not implement run(world, taskthreadenv) for multithreaded task", 0);
+            run(world);
+        }
+
+
+        virtual ~TaskInterface() {
+            completion->notify();
+        }
     };
 
 
@@ -179,27 +204,23 @@ namespace madness {
         /// \c new and when the task is eventually run the queue
         /// will call the task's destructor using \c delete.
         ///
-        /// All tasks have at least one dependency that is satisfied
-        /// by submission to the world taskq.  This enables
-        /// registration of necessary info without a race condition
-        /// against other dependencies and we don't need a mutex.
-        ///
-        /// If the task has outstanding dependencies then it is
-        /// assumed that other activities will be calling task->dec()
-        /// to decrement the dependency count.  When this count goes
-        /// to zero the callback will be invoked automatically to
-        /// insert the task into the pool.
-        ///
         /// Once the task is complete it will execute
         /// task_complete_callback to decrement the number of pending
         /// tasks and be deleted.
         void add(TaskInterface* t) {
-            t->set_info(&world, this);       // Stuff info
             MADATOMIC_INT_INC(&nregistered); // Count
-            MADNESS_ASSERT(t->ndep()>=1);
-            MADNESS_ASSERT(MADATOMIC_INT_GET(&nregistered)>=1);
-            if (TaskInterface::debug) std::cerr << world.rank() << ": Task " << (void*) t << " submitted with ndep=" << t->ndep()-1 << std::endl;
-            t->dec();                        // Set free
+
+            t->set_info(&world, this);       // Stuff info
+
+            if (t->ndep() == 0) {
+                // If no dependencies directly submit
+                ThreadPool::add(t);
+            }
+            else {
+                // With dependencies must use the callback to avoid race condition
+                t->register_submit_callback();
+                //t->dec();
+            }
         }
 
         /// Reduce op(item) for all items in range using op(sum,op(item))
