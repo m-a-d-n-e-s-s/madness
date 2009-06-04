@@ -228,11 +228,18 @@ public:
       _params.nbands = (_params.nelec/2) + _params.nempty;
       if ((_params.nelec % 2) == 1) _params.nelec++;
 
-//      if (_params.periodic && _params.kpoints)
-//        _kpoints = read_kpoints("KPOINTS.OUT");
-//      else
-//        _kpoints.push_back(KPoint(coordT(0.0), 1.0));
-      _kpoints.push_back(KPoint(coordT(0.0), 1.0));
+      if (_params.periodic)
+      {
+        if ((_params.ngridk0 == 1) && (_params.ngridk1 == 1) && (_params.ngridk2 == 1))
+        {
+          _kpoints.push_back(KPoint(coordT(0.0), 1.0));
+        }
+        else
+        {
+          _kpoints = genkmesh(_params.ngridk0, _params.ngridk1,
+                              _params.ngridk2);
+        }
+      }
     }
     _world.gop.broadcast_serializable(_mentity, 0);
     _world.gop.broadcast_serializable(_aobasis, 0);
@@ -240,6 +247,36 @@ public:
 
   }
 
+  std::vector<KPoint> genkmesh(unsigned int ngridk0, unsigned ngridk1, unsigned int ngridk2)
+  {
+    std::vector<KPoint> kmesh;
+    double step0 = 1.0/ngridk0;
+    double step1 = 1.0/ngridk1;
+    double step2 = 1.0/ngridk2;
+    double weight = 1.0/(ngridk0*ngridk1*ngridk2);
+    for (unsigned int i = 0; i < ngridk0; i++)
+    {
+      for (unsigned int j = 0; j < ngridk1; j++)
+      {
+        for (unsigned int k = 0; k < ngridk2; k++)
+        {
+          double k0 = i*step0;
+          double k1 = j*step1;
+          double k2 = k*step2;
+          KPoint kpoint(k0, k1, k2, weight);
+          kmesh.push_back(kpoint);
+        }
+      }
+    }
+    print("kmesh:");
+    for (unsigned int i = 0; i < kmesh.size(); i++)
+    {
+      KPoint kpoint = kmesh[i];
+      print(kpoint.k[0], kpoint.k[1], kpoint.k[2], kpoint.weight);
+    }
+    return kmesh;
+  }
+  
   void make_nuclear_potential()
   {
     if (_world.rank() == 0) print("Making nuclear potential ..\n\n");
@@ -596,6 +633,7 @@ public:
 
       kp += _params.nbands;
     }
+    print("size of orbitals = ", _orbitals.size());
   }
 
   vecfuncT orbitals()

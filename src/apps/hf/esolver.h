@@ -122,6 +122,12 @@ struct KPoint
   KPoint(const coordT& k, const double& weight)
    : k(k), weight(weight), begin(-1), end(-1) {}
 
+  KPoint(const double& k0, const double& k1, const double& k2, const double& weight)
+   : weight(weight), begin(-1), end(-1)
+  {
+    k[0] = k0; k[1] = k1; k[2] = k2;
+  }
+
   template <typename Archive>
   void serialize(Archive& ar) {
       ar & k & weight & begin & end;

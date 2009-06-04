@@ -40,14 +40,14 @@ int main(int argc, char** argv)
         std::vector< Function< std::complex<double>,3> > phis;
         std::vector<double> tmpe = app.eigs();
         print(tmpe);
-        int neps = params.nbands;
+        int neps = eigs.size();
         for (int i = 0; i < neps; i++)
         {
           phis.push_back(orbs[i]);
           eigs.push_back(tmpe[i]);
         }
 
-        Solver<double,3> dftcalc(world, vnucrhon, phis, eigs, app.kpoints(), app.occs(), app.params());
+        Solver<double,3> dftcalc(world, vnucrhon, app.orbitals(), app.eigs(), app.kpoints(), app.occs(), app.params());
         dftcalc.solve();
         world.gop.fence();
 

@@ -10,7 +10,6 @@
 #include "electronicstructureparams.h"
 #include "complexfun.h"
 #include "esolver.h"
-//#include "eigsolver.h"
 
 #ifndef SOLVER_H_
 
@@ -220,20 +219,30 @@ namespace madness
     //*************************************************************************
 
     //***************************************************************************
-    rfuntionT compute_rho(const vecfuncT& phis)
+    rfuntionT compute_rho(const vecfuncT& phis, std::vector<KPoint> kpoints)
     {
       // Electron density
       rfuntionT rho = rfactoryT(_world);
       _world.gop.fence();
-      // Loop over all wavefunctions to compute density
-      for (unsigned int j = 0; j < phis.size(); j++)
+      print("computing rho ...");
+      // Loop over k-points
+      print ("size of kpoints:", kpoints.size());
+      print ("size of orbitals:", phis.size());
+      for (unsigned int kp = 0; kp < kpoints.size(); kp++)
       {
-        // Get phi(j) from iterator
-        const functionT& phij = phis[j];
-        // Compute the j-th density
-        //functionT prod = square(phij);
-        rfuntionT prod = abs_square(phij);
-        rho += 0.5*_occs[j]*prod;
+        // get k-point
+        KPoint kpoint = kpoints[kp];
+        print("kpoint:", kp, "begin:", kpoint.begin, "end", kpoint.end);
+        // loop through bands
+        for (unsigned int j = kpoint.begin; j < kpoint.end; j++)
+        {
+          print(j, kpoint.weight, _occs[j]);
+          // Get phi(j) from iterator
+          const functionT& phij = phis[j];
+          // Compute the j-th density
+          rfuntionT prod = abs_square(phij);
+          rho += 0.5* _occs[j] * kpoint.weight * prod;
+        }
       }
       rho.truncate();
       return rho;
@@ -357,14 +366,6 @@ namespace madness
           rfuntionT fc = copy(rhoa);
           fc.unaryop(&::ldaeop);
           xc = fc.trace();
-
-//          rfunctionT veff = vlocal + vxc2;
-//          vector<functionT> pfuncsa2 = zero_functions<valueT,NDIM>(_world, phisa.size());
-//          for (int i = 0; i < phisa.size(); i++)
-//          {
-//            pfuncsa2[i] = veff*phisa[i];
-//          }
-//          plot_line("pfunc2", 100, coordT(-_params.L/2), coordT(_params.L/2), pfuncsa2[0], pfuncsa2[1], pfuncsa2[2]);
         }
       }
       std::cout.precision(8);
@@ -387,14 +388,12 @@ namespace madness
     //*************************************************************************
     void solve()
     {
-        plot_line("phisa", 100, coordT(-_params.L/2), coordT(_params.L/2), _phisa[0], _phisa[1], _phisa[2]);
-        plot_line("phisa2", 100, coordT(-_params.L/2), coordT(_params.L/2), _phisa[3], _phisa[4], _phisa[5]);
       for (int it = 0; it < _params.maxits; it++)
       {
         if (_world.rank() == 0) print("it = ", it);
         // Compute density
-        _rhoa = compute_rho(_phisa);
-        _rhob = (_params.spinpol) ? compute_rho(_phisb) : _rhoa;
+        _rhoa = compute_rho(_phisa, _kpoints);
+        _rhob = (_params.spinpol) ? compute_rho(_phisb, _kpoints) : _rhoa;
         _rho = _rhoa + _rhob;
 
         vector<functionT> pfuncsa =
@@ -484,6 +483,28 @@ namespace madness
         // Build fock matrix
         tensorT fock = build_fock_matrix(k_wf, k_vwf, kpoint);
 
+        // Do right hand side stuff for kpoint
+        bool isgamma = ((kpoint.k[0] == 0.0) && (kpoint.k[1] == 0.0)
+                         && (kpoint.k[2] == 0.0));
+        if (_params.periodic && !isgamma)
+        {
+          // Do the gradient term and k^2/2
+          vecfuncT d_wf = zero_functions<valueT,NDIM>(_world, k_wf.size());
+          for (unsigned int i = 0; i < k_wf.size(); i++)
+          {
+            // gradient
+            functionT dx_wf = pdiff(k_wf[i], 0, true);
+            functionT dy_wf = pdiff(k_wf[i], 1, true);
+            functionT dz_wf = pdiff(k_wf[i], 2, true);
+            d_wf[i] = kpoint.k[0]*dx_wf + kpoint.k[1]*dy_wf + kpoint.k[2]*dz_wf;
+            // k^/2
+            double kabs = kpoint.k[0]*kpoint.k[0] + kpoint.k[1]*kpoint.k[1]
+                            + kpoint.k[2]*kpoint.k[2];
+            k_vwf[i] -= 0.5 * kabs * k_wf[i];
+          }
+          gaxpy(_world, 1.0, k_vwf, 1.0, d_wf);
+        }
+
         if (_params.canon)
         {
           tensorT overlap = matrix_inner(_world, k_wf, k_wf, true);
@@ -506,13 +527,14 @@ namespace madness
             }
             eps[ei] = std::min(-0.1, real(e(fi,fi)));
           }
-          // WSTHORNTON
-          // this will work if there is only 1 k-point
-          if (_world.rank() == 0) print("eigenvalues:\n");
-          for (unsigned int ei = 0; ei < eps.size(); ei++)
-          {
-            if (_world.rank() == 0) print(real(e(ei,ei)), eps[ei]);
-          }
+          print("kpoint ", kp, "eps ", eps[kp]);
+//          // WSTHORNTON
+//          // this will work if there is only 1 k-point
+//          if (_world.rank() == 0) print("eigenvalues:\n");
+//          for (unsigned int ei = 0; ei < e.dim[0]; ei++)
+//          {
+//            if (_world.rank() == 0) print(real(e(ei,ei)), eps[ei]);
+//          }
         }
         else
         {
@@ -526,11 +548,11 @@ namespace madness
           vector<functionT> fwf = transform(_world, k_wf, fock, trantol);
           gaxpy(_world, 1.0, k_vwf, -1.0, fwf);
           fwf.clear();
-          for (unsigned int wi = kpoint.begin, fi = 0; wi < kpoint.end;
-            wi++, fi++)
-          {
-            vwf[wi] = k_vwf[fi];
-          }
+        }
+        for (unsigned int wi = kpoint.begin, fi = 0; wi < kpoint.end;
+          wi++, fi++)
+        {
+          vwf[wi] = k_vwf[fi];
         }
       }
     }
