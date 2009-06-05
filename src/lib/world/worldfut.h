@@ -317,16 +317,20 @@ namespace madness {
         friend std::ostream& operator<< <T>(std::ostream& out, const Future<T>& f);
 
     private:
+      // If f==0 ... can only happen in Future(value) ... i.e., the future is constructed
+      // as assigned to value ... to optimize away the new(futureimpl) we instead set f=0
+      // and copy the value 
+
+      // If f==nonzero ... there is an underlying future that may/maynot be assigned
+
         mutable SharedPtr< FutureImpl<T> > f;
         T value;
-        const bool value_set;
         const bool is_the_default_initializer;
 
         class dddd {};
         explicit Future(const dddd&)
-                : f()
+                : f(0)
                 , value()
-                , value_set(false)
                 , is_the_default_initializer(true) 
         {
         }
@@ -338,16 +342,14 @@ namespace madness {
         Future()
                 : f(new FutureImpl<T>())
                 , value()
-                , value_set(false)
                 , is_the_default_initializer(false) 
         {
         }
 
         /// Makes an assigned future
         explicit Future(const T& t)
-                : f()
+                : f(0)
                 , value(t)
-                , value_set(true)
                 , is_the_default_initializer(false) 
         {
         }
@@ -357,7 +359,6 @@ namespace madness {
         explicit Future(const remote_refT& remote_ref)
                 : f(new FutureImpl<T>(remote_ref))
                 , value()
-                , value_set(false)
                 , is_the_default_initializer(false) 
         {
         }
@@ -365,18 +366,14 @@ namespace madness {
 
         /// Copy constructor is shallow
         Future(const Future<T>& other)
-                : f(0)
+	        : f(other.f)
                 , value(other.value)
-                , value_set(other.value_set)
                 , is_the_default_initializer(false) 
         {
-
             if (other.is_the_default_initializer) {
                 f = SharedPtr< FutureImpl<T> >(new FutureImpl<T>());
             }
-            else if (!other.value_set) {
-                f = other.f;
-            }
+	    // Otherwise nothing to do ... done in member initializers
         }
 
 
@@ -389,8 +386,13 @@ namespace madness {
         /// Assignment future = future makes a shallow copy just like copy constructor
         Future<T>& operator=(const Future<T>& other) {
             if (this != &other) {
-                MADNESS_ASSERT(!value_set);
-                f = other.f;
+	        MADNESS_ASSERT(!probe());
+                if (other.f) {
+		  f = other.f;
+		}
+                else {
+		  set(other);
+		}
             }
             return *this;
         }
@@ -425,76 +427,43 @@ namespace madness {
                     other.f->lock();     // BEGIN CRITICAL SECTION
                     other.f->add_to_assignments(f); // Recheck of assigned is performed in here
                     other.f->unlock(); // END CRITICAL SECTION
-//                     // Both are initialized but not assigned.  Used to
-//                     // just put this on the assignment list of other,
-//                     // but now first check to see if the internal
-//                     // state of either can be harmlessly replaced.
-//                     // This requires that one of this or other (but
-//                     // not both) have a reference of one.  The main
-//                     // optimization enabled by this is shortcircuiting
-//                     // communication when forwarding futures that are
-//                     // actually remote references.  However, it also
-//                     // avoids most uses of the assignment list.
-//                     //
-//                     if (f == other.f) {
-//                         print("future.set(future): you are setting this with this?");
-//                     }
-//                     else if (f.use_count()==1 && other.f.use_count()==1 && other.f->is_local()) {
-//                         other.f->replace_with(f);
-//                         f = other.f;
-//                         //print("future.set(future): replaced other with this");
-//                     }
-//                     else if (f.use_count()==1 && other.f.use_count()==1 && f->is_local()) {
-//                         f->replace_with(other.f);
-//                         const_cast<Future<T>&>(other).f = f;
-//                         //print("future.set(future): replaced this with other");
-//                     }
-//                     else {
-//                         //print("future.set(future): adding to assignment list");
-//                         other.f->add_to_assignments(f);
-//                     }
-//                     other.f->unlock();
-//                     return;
                 }
             }
         }
 
-
         /// Assigns the value ... it can only be set ONCE.
         inline void set(const T& value) {
-            MADNESS_ASSERT(!value_set);
+	    MADNESS_ASSERT(f);
             f->set(value);
         }
 
 
         /// Gets the value, waiting if necessary (error if not a local future)
         inline T& get() {
-            if (value_set) {
-                return value;
-            }
-            else {
-                return f->get();
-            }
+	  if (f) {
+	    return f->get();
+	  }
+	  else {
+	    return value;
+	  }
         }
 
-
         /// Gets the value, waiting if necessary (error if not a local future)
-        inline const T& get() const {
-            if (value_set) {
-                return value;
-            }
-            else {
-                return f->get();
-            }
+        inline const T& get()  const {
+	  if (f) {
+	    return f->get();
+	  }
+	  else {
+	    return value;
+	  }
         }
 
 
         /// Returns true if the future has been assigned
         inline bool probe() const {
             if (f) return f->probe();
-            else return value_set;
+            else return true;
         }
-
 
         /// Same as get()
         inline operator T() {
@@ -547,10 +516,12 @@ namespace madness {
         /// future is already assigned the callback is immediately
         /// invoked.
         inline void register_callback(CallbackInterface* callback) {
-            if (probe()) callback->notify();
-            else {
-                f->register_callback(callback);
-            }
+	  if (probe()) {
+	    callback->notify();
+	  }
+	  else  {
+	    f->register_callback(callback);
+	  }
         }
     };
 
