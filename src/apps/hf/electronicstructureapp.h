@@ -110,16 +110,17 @@ public:
     }
 };
 
-class AtomicBasisFunctor : public FunctionFunctorInterface<double,3> {
+class AtomicBasisFunctor : public FunctionFunctorInterface<std::complex<double>,3> {
 private:
   const AtomicBasisFunction aofunc;
   const double R;
   const bool periodic;
+  const coordT kpt;
   std::vector<coordT> _specialpts;
 public:
   AtomicBasisFunctor(const AtomicBasisFunction& aofunc, double R, 
-                     bool periodic)
-  : aofunc(aofunc), R(R), periodic(periodic) 
+                     bool periodic, coordT kpt = coordT(0.0))
+  : aofunc(aofunc), R(R), periodic(periodic), kpt(kpt)
   {
     double x, y, z;
     aofunc.get_coords(x,y,z);
@@ -133,9 +134,9 @@ public:
     return _specialpts;
   }
 
-  double operator()(const coordT& x) const
+  std::complex<double> operator()(const coordT& x) const
   {
-    double value = 0.0;
+    std::complex<double> value = 0.0;
     if (periodic)
     {
       for (int xr = -1; xr <= 1; xr += 1)
@@ -144,7 +145,8 @@ public:
         {
           for (int zr = -1; zr <= 1; zr += 1)
           {
-            value += aofunc(x[0]+xr*R, x[1]+yr*R, x[2]+zr*R);
+            std::complex<double> tmp(1.0, 0.0);
+            value += tmp*aofunc(x[0]+xr*R, x[1]+yr*R, x[2]+zr*R);
           }
         }
       }
@@ -239,6 +241,10 @@ public:
           _kpoints = genkmesh(_params.ngridk0, _params.ngridk1,
                               _params.ngridk2);
         }
+      }
+      else
+      {
+        _kpoints.push_back(KPoint(coordT(0.0), 1.0));
       }
     }
     _world.gop.broadcast_serializable(_mentity, 0);
@@ -388,14 +394,14 @@ public:
       return vlda;
   }
 
-  rvecfuncT project_ao_basis(World& world) {
-      rvecfuncT ao(_aobasis.nbf(_mentity));
+  vecfuncT project_ao_basis(World& world) {
+      vecfuncT ao(_aobasis.nbf(_mentity));
 
       Level initial_level = 2;
       for (int i=0; i < _aobasis.nbf(_mentity); i++) {
-          rfunctorT aofunc(new AtomicBasisFunctor(_aobasis.get_atomic_basis_function(_mentity,i),
+          functorT aofunc(new AtomicBasisFunctor(_aobasis.get_atomic_basis_function(_mentity,i),
               _params.L, _params.periodic));
-          ao[i] = rfactoryT(world).functor(aofunc).initial_level(initial_level).truncate_on_project().nofence();
+          ao[i] = factoryT(world).functor(aofunc).initial_level(initial_level).truncate_on_project().nofence();
       }
       world.gop.fence();
 
@@ -494,7 +500,7 @@ public:
 
     // These are our initial basis functions
     if (_world.rank() == 0) print("Projecting atomic orbitals ...\n\n");
-    rvecfuncT ao = project_ao_basis(_world);
+    cvecfuncT ao = project_ao_basis(_world);
 
 //    for (unsigned int ai = 0; ai < ao.size(); ai++)
 //    {
@@ -521,13 +527,11 @@ public:
     _occs = std::vector<double>(norbs, 0.0);
     // Build the overlap matrix
     if (_world.rank() == 0) print("Building overlap matrix ...\n\n");
-    rtensorT roverlap = matrix_inner(_world, ao, ao, true);
-    // Convert to a complex tensor
-    ctensorT overlap = tensor_real2complex<double>(roverlap);
+    ctensorT overlap = matrix_inner(_world, ao, ao, true);
     // Build the potential matrix
     reconstruct(_world, ao);
     if (_world.rank() == 0) print("Building potential energy matrix ...\n\n");
-    rvecfuncT vpsi = mul_sparse(_world, vlocal, ao, _params.thresh);
+    cvecfuncT vpsi = mul_sparse(_world, vlocal, ao, _params.thresh);
     // I don't know why fence is called twice here
     _world.gop.fence();
     _world.gop.fence();
@@ -535,9 +539,7 @@ public:
     truncate(_world, vpsi);
     compress(_world, ao);
     // Build the potential matrix
-    rtensorT rpotential = matrix_inner(_world, vpsi, ao, true);
-    // Convert to a complex tensor
-    ctensorT potential = tensor_real2complex<double>(rpotential);
+    ctensorT potential = matrix_inner(_world, vpsi, ao, true);
     _world.gop.fence();
     // free memory
     vpsi.clear();
