@@ -115,11 +115,11 @@ private:
   const AtomicBasisFunction aofunc;
   const double R;
   const bool periodic;
-  const coordT kpt;
+  const KPoint kpt;
   std::vector<coordT> _specialpts;
 public:
   AtomicBasisFunctor(const AtomicBasisFunction& aofunc, double R, 
-                     bool periodic, coordT kpt = coordT(0.0))
+                     bool periodic, const KPoint kpt)
   : aofunc(aofunc), R(R), periodic(periodic), kpt(kpt)
   {
     double x, y, z;
@@ -127,7 +127,17 @@ public:
     coordT r;
     r[0]=x; r[1]=y; r[2]=z;
     _specialpts=vector<coordT>(1,r);
-  }
+
+    Vector<std::complex<double>,3> tx(1.0);
+    Vector<std::complex<double>,3> ty(1.0);
+    Vector<std::complex<double>,3> tz(1.0);
+    std::complex<double> I(0.0, 1.0);
+    for (int ir = -1; ir <= 1; ir += 1)
+    {
+
+      tx[ir+1] = exp()
+    }
+}
 
   virtual std::vector<coordT> special_points() const
   {
@@ -394,13 +404,13 @@ public:
       return vlda;
   }
 
-  vecfuncT project_ao_basis(World& world) {
+  vecfuncT project_ao_basis(World& world, KPoint kpt) {
       vecfuncT ao(_aobasis.nbf(_mentity));
 
       Level initial_level = 2;
       for (int i=0; i < _aobasis.nbf(_mentity); i++) {
           functorT aofunc(new AtomicBasisFunctor(_aobasis.get_atomic_basis_function(_mentity,i),
-              _params.L, _params.periodic));
+              _params.L, _params.periodic, kpt));
           ao[i] = factoryT(world).functor(aofunc).initial_level(initial_level).truncate_on_project().nofence();
       }
       world.gop.fence();
@@ -498,23 +508,10 @@ public:
     rho.clear();
     vlocal.reconstruct();
 
-    // These are our initial basis functions
-    if (_world.rank() == 0) print("Projecting atomic orbitals ...\n\n");
-    cvecfuncT ao = project_ao_basis(_world);
-
-//    for (unsigned int ai = 0; ai < ao.size(); ai++)
-//    {
-//      std::ostringstream strm;
-//      strm << "aod" << ai << ".dx";
-//      std::string fname = strm.str();
-//      vector<long> npt(3,101);
-//      plotdx(ao[ai], fname.c_str(), FunctionDefaults<3>::get_cell(), npt);
-//    }
-
     // Get size information from k-points and ao_basis so that we can correctly size
     // the _orbitals data structure and the eigs tensor
     // number of orbitals in the basis set
-    int nao = ao.size();
+    int nao = _aobasis.nbf(_mentity);
     // number of kpoints
     int nkpts = _kpoints.size();
     // total number of orbitals to be processed (no symmetry)
@@ -525,31 +522,44 @@ public:
     // set the number of orbitals
     _eigs = std::vector<double>(norbs, 0.0);
     _occs = std::vector<double>(norbs, 0.0);
-    // Build the overlap matrix
-    if (_world.rank() == 0) print("Building overlap matrix ...\n\n");
-    ctensorT overlap = matrix_inner(_world, ao, ao, true);
-    // Build the potential matrix
-    reconstruct(_world, ao);
-    if (_world.rank() == 0) print("Building potential energy matrix ...\n\n");
-    cvecfuncT vpsi = mul_sparse(_world, vlocal, ao, _params.thresh);
-    // I don't know why fence is called twice here
-    _world.gop.fence();
-    _world.gop.fence();
-    compress(_world, vpsi);
-    truncate(_world, vpsi);
-    compress(_world, ao);
-    // Build the potential matrix
-    ctensorT potential = matrix_inner(_world, vpsi, ao, true);
-    _world.gop.fence();
-    // free memory
-    vpsi.clear();
-    _world.gop.fence();
-
     int kp = 0;
     if (_world.rank() == 0) print("Building kinetic energy matrix ...\n\n");
     // Need to do kinetic piece for every k-point
     for (int ki = 0; ki < nkpts; ki++)
     {
+      // These are our initial basis functions
+      if (_world.rank() == 0) print("Projecting atomic orbitals ...\n\n");
+      cvecfuncT ao = project_ao_basis(_world, _kpoints[ki]);
+
+  //    for (unsigned int ai = 0; ai < ao.size(); ai++)
+  //    {
+  //      std::ostringstream strm;
+  //      strm << "aod" << ai << ".dx";
+  //      std::string fname = strm.str();
+  //      vector<long> npt(3,101);
+  //      plotdx(ao[ai], fname.c_str(), FunctionDefaults<3>::get_cell(), npt);
+  //    }
+
+      // Build the overlap matrix
+      if (_world.rank() == 0) print("Building overlap matrix ...\n\n");
+      ctensorT overlap = matrix_inner(_world, ao, ao, true);
+      // Build the potential matrix
+      reconstruct(_world, ao);
+      if (_world.rank() == 0) print("Building potential energy matrix ...\n\n");
+      cvecfuncT vpsi = mul_sparse(_world, vlocal, ao, _params.thresh);
+      // I don't know why fence is called twice here
+      _world.gop.fence();
+      _world.gop.fence();
+      compress(_world, vpsi);
+      truncate(_world, vpsi);
+      compress(_world, ao);
+      // Build the potential matrix
+      ctensorT potential = matrix_inner(_world, vpsi, ao, true);
+      _world.gop.fence();
+      // free memory
+      vpsi.clear();
+      _world.gop.fence();
+
       // Set occupation numbers
       if (_params.spinpol)
       {
