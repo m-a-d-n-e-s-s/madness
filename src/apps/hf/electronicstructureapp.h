@@ -117,6 +117,9 @@ private:
   const bool periodic;
   const KPoint kpt;
   std::vector<coordT> _specialpts;
+  Vector<std::complex<double>,3> tx;
+  Vector<std::complex<double>,3> ty;
+  Vector<std::complex<double>,3> tz;
 public:
   AtomicBasisFunctor(const AtomicBasisFunction& aofunc, double R, 
                      bool periodic, const KPoint kpt)
@@ -128,14 +131,16 @@ public:
     r[0]=x; r[1]=y; r[2]=z;
     _specialpts=vector<coordT>(1,r);
 
-    Vector<std::complex<double>,3> tx(1.0);
-    Vector<std::complex<double>,3> ty(1.0);
-    Vector<std::complex<double>,3> tz(1.0);
-    std::complex<double> I(0.0, 1.0);
     for (int ir = -1; ir <= 1; ir += 1)
     {
-
-      tx[ir+1] = exp()
+      const double TWO_PI = 2 * madness::constants::pi;
+      tx[ir+1] = exp(std::complex<double>(0.0, kpt.k[0]*R*ir * TWO_PI));
+      ty[ir+1] = exp(std::complex<double>(0.0, kpt.k[1]*R*ir * TWO_PI));
+      tz[ir+1] = exp(std::complex<double>(0.0, kpt.k[2]*R*ir * TWO_PI));
+//      double t1 = 1/sqrt(27);
+//      tx[ir+1] = 1.0 * t1;
+//      ty[ir+1] = 1.0 * t1;
+//      tz[ir+1] = 1.0 * t1;
     }
 }
 
@@ -155,7 +160,7 @@ public:
         {
           for (int zr = -1; zr <= 1; zr += 1)
           {
-            std::complex<double> tmp(1.0, 0.0);
+            std::complex<double> tmp = tx[xr+1]*ty[yr+1]*tz[zr+1];
             value += tmp*aofunc(x[0]+xr*R, x[1]+yr*R, x[2]+zr*R);
           }
         }

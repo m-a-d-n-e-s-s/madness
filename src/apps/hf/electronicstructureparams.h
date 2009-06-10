@@ -52,7 +52,7 @@ struct ElectronicStructureParams
   double maxrotn;
   // Solve for canonical orbitals?
   bool canon;
-
+  
   template <typename Archive>
   void serialize(Archive& ar) {
       ar & L & nelec & functional & lo & spinpol &
