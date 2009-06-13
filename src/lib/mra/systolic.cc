@@ -52,9 +52,7 @@ namespace madness {
             , idim(std::max(ihi-ilo+1,int64_t(0)))
             , jdim(std::max(jhi-jlo+1,int64_t(0)))
         {
-            if (world.rank() == 0) world.gop.fence();
-            print("DM", rank, n, m, tilen, tilem, Pcoldim, Prowdim, ilo, ihi, jlo, jhi, idim, jdim);
-            if (world.rank() == 1) world.gop.fence();
+            print("DM: dims", n, m, "tiles", tilen, tilem, "ilo ihi jlo jhi", ilo, ihi, jlo, jhi, "idim jdim", idim, jdim);
             
             if (idim>0 && jdim>0) t = Tensor<T>(idim,jdim);
         }
@@ -122,6 +120,23 @@ namespace madness {
                 jlow = 0;
                 jhigh = -1;
             }
+        }
+
+        /// Returns the inclusive range of column indices on processor p
+
+        /// If there is no data on this processor it returns ilow=0 and ihigh=-1
+        void get_colrange(int p, int64_t& ilow, int64_t& ihigh) const {
+            int pi = p/Prowdim;
+            int pj = p - pi*Prowdim;
+            if (pi >= process_coldim() || pj >= process_rowdim()) {
+                ilow = 0;
+                ihigh = -1;
+            }
+            else {
+                ilow = pi*tilen;
+                ihigh= std::min(ilow+tilen-1,n-1);
+            }
+            return;
         }
         
         /// Returns associated world
@@ -221,6 +236,7 @@ namespace madness {
         const ProcessID rank;       //< Rank of current process
         const int tag;              //< MPI tag to be used for messages
         std::vector< std::pair<T*,int64_t> > iptr, jptr; //< Indirection for implementing cyclic buffer
+        std::vector<int64_t> map;  //< Used to keep track of actual row indices
         
     public:
         /// A must be a column distributed matrix with an even column tile >= 2
@@ -234,6 +250,7 @@ namespace madness {
             , tag(tag)
             , iptr(nlocal)
             , jptr(nlocal)
+            , map(coldim+(coldim&0x1))
         {
             MADNESS_ASSERT(A.is_column_distributed() && 
                            (nproc==1 || (A.coltile()&0x1)==0));
@@ -252,6 +269,25 @@ namespace madness {
 
             // If no. of rows is odd, last process should have an empty last row
             if (rank==(nproc-1) && (coldim&0x1)) jptr[nlocal-1].first = 0;
+
+            // Initialize map from logical index order to actual index order
+
+            int ii=0;
+            for (ProcessID p=0; p<nproc; p++) {
+                int64_t lo, hi;
+                A.get_colrange(p, lo, hi);
+                print("I think process",p,"has",lo,hi,nlocal);
+                for (int i=0; i<nlocal; i++) {
+                    if (lo+i < coldim) 
+                        map[ii+i] = lo+i;
+                    if (lo+i+nlocal < coldim)
+                        map[coldim-ii-nlocal+i] = lo+i+nlocal;
+                }
+                ii += nlocal;
+            }
+            int neven = (coldim+1)/2;
+            std::reverse(map.begin()+neven,map.begin()+2*neven);
+            print("MAP", map);
         }
         
         void cycle() {
@@ -266,6 +302,8 @@ namespace madness {
             
             const ProcessID left = rank-1; //Invalid values are not used
             const ProcessID right = rank+1;
+
+            print("left right", left, right);
             
             /*
               Consider matrix (10,*) distributed with coltile=4 over
@@ -358,10 +396,10 @@ namespace madness {
                 world.mpi.Recv(iptr[0].first, rowdim, left, tag);
             }
             else {
-                world.mpi.Send(ilast.first, rowdim, right, tag);
-                world.mpi.Send(jfirst.first, rowdim, left, tag);
-                world.mpi.Recv(ilast.first, rowdim, right, tag);
-                world.mpi.Send(jfirst.first, rowdim, left, tag);
+                world.mpi.Send( ilast.first, rowdim, right, tag);
+                world.mpi.Send(jfirst.first, rowdim,  left, tag);
+                world.mpi.Recv( ilast.first, rowdim, right, tag);
+                world.mpi.Recv(jfirst.first, rowdim,  left, tag);
                 iptr[0] = jfirst;
                 jptr[nlocal-1] = ilast;
             }
@@ -375,20 +413,28 @@ namespace madness {
             int64_t ilo, ihi;
             A.local_colrange(ilo, ihi);
             
-            for (int loop=0; loop<(coldim-1); loop++) {
-                print("  cycle", loop);
+            int neven = coldim + (coldim&0x1);
+
+            for (int loop=0; loop<(neven-1); loop++) {
+                print("  cycle", loop, neven);
                 
                 for (int pair=0; pair<nlocal; pair++) {
-                    
+
+                    int iii = (2*neven-2+pair-loop)%(neven-1);
+                    int jjj = (2*neven-2-pair-loop)%(neven-1);
+
+                    if (pair == 0) jjj = neven-1;
+
                     if (jptr[pair].first) {
                         print("    pair ", iptr[pair].first[0], jptr[pair].first[0]);
+                        print("         ", iii, jjj);
+                        print("         ", map[iii], map[jjj]);
                     }
                     
                 }
                                          
                 cycle();
             }
-            
         }
     };
     
@@ -399,17 +445,18 @@ using namespace madness;
 int main(int argc, char** argv) {
     MPI::Init(argc, argv);
     madness::World world(MPI::COMM_WORLD);
+
+    redirectio(world);
     
     try {
-        
         const int64_t n = 10;
         
-        DistributedMatrix<double> A = column_distributed_matrix<double>(world, n, n, 6);
+        DistributedMatrix<double> A = column_distributed_matrix<double>(world, n, n, 4);
 
         int64_t ilo, ihi;
         A.local_colrange(ilo, ihi);
         
-        for (int i=0; i<A.local_coldim(); i++) A.data()(i,_) = i;
+        for (int i=ilo; i<=ihi; i++) A.data()(i-ilo,_) = i;
         
         SystolicMatrixAlgorithm<double> alg(A,3763);
         
