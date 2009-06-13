@@ -134,9 +134,9 @@ public:
     for (int ir = -1; ir <= 1; ir += 1)
     {
       const double TWO_PI = 2 * madness::constants::pi;
-      tx[ir+1] = exp(std::complex<double>(0.0, kpt.k[0]*R*ir * TWO_PI));
-      ty[ir+1] = exp(std::complex<double>(0.0, kpt.k[1]*R*ir * TWO_PI));
-      tz[ir+1] = exp(std::complex<double>(0.0, kpt.k[2]*R*ir * TWO_PI));
+      tx[ir+1] = exp(std::complex<double>(0.0, kpt.k[0]*ir * TWO_PI));
+      ty[ir+1] = exp(std::complex<double>(0.0, kpt.k[1]*ir * TWO_PI));
+      tz[ir+1] = exp(std::complex<double>(0.0, kpt.k[2]*ir * TWO_PI));
 //      double t1 = 1/sqrt(27);
 //      tx[ir+1] = 1.0 * t1;
 //      ty[ir+1] = 1.0 * t1;
@@ -245,19 +245,20 @@ public:
       _params.nbands = (_params.nelec/2) + _params.nempty;
       if ((_params.nelec % 2) == 1) _params.nelec++;
 
-      if (_params.periodic)
+      if (_params.periodic) // PERIODIC
       {
+        // GAMMA POINT
         if ((_params.ngridk0 == 1) && (_params.ngridk1 == 1) && (_params.ngridk2 == 1))
         {
-          _kpoints.push_back(KPoint(coordT(0.0), 1.0));
+          _kpoints.push_back(KPoint(coordT(0.5), 1.0));
         }
-        else
+        else // NORMAL BANDSTRUCTURE
         {
           _kpoints = genkmesh(_params.ngridk0, _params.ngridk1,
                               _params.ngridk2);
         }
       }
-      else
+      else // NOT-PERIODIC
       {
         _kpoints.push_back(KPoint(coordT(0.0), 1.0));
       }
@@ -281,9 +282,9 @@ public:
       {
         for (unsigned int k = 0; k < ngridk2; k++)
         {
-          double k0 = i*step0;
-          double k1 = j*step1;
-          double k2 = k*step2;
+          double k0 = i*step0 - step0/2;
+          double k1 = j*step1 - step1/2;
+          double k2 = k*step2 - step2/2;
           KPoint kpoint(k0, k1, k2, weight);
           kmesh.push_back(kpoint);
         }
@@ -297,7 +298,37 @@ public:
     }
     return kmesh;
   }
-  
+
+//  std::vector<KPoint> genkmesh(unsigned int ngridk0, unsigned ngridk1, unsigned int ngridk2)
+//  {
+//    std::vector<KPoint> kmesh;
+//    double step0 = 1.0/ngridk0;
+//    double step1 = 1.0/ngridk1;
+//    double step2 = 1.0/ngridk2;
+//    double weight = 1.0/(ngridk0*ngridk1*ngridk2);
+//    for (unsigned int i = 0; i < ngridk0; i++)
+//    {
+//      for (unsigned int j = 0; j < ngridk1; j++)
+//      {
+//        for (unsigned int k = 0; k < ngridk2; k++)
+//        {
+//          double k0 = i*step0;
+//          double k1 = j*step1;
+//          double k2 = k*step2;
+//          KPoint kpoint(k0, k1, k2, weight);
+//          kmesh.push_back(kpoint);
+//        }
+//      }
+//    }
+//    print("kmesh:");
+//    for (unsigned int i = 0; i < kmesh.size(); i++)
+//    {
+//      KPoint kpoint = kmesh[i];
+//      print(kpoint.k[0], kpoint.k[1], kpoint.k[2], kpoint.weight);
+//    }
+//    return kmesh;
+//  }
+
   void make_nuclear_potential()
   {
     if (_world.rank() == 0) print("Making nuclear potential ..\n\n");
@@ -329,7 +360,7 @@ public:
       _vnucrhon = rfactoryT(_world).functor(
           rfunctorT(new MolecularNuclearChargeDensityFunctor(_mentity, _params.L, _params.periodic, specialpts))).
           thresh(_params.thresh).initial_level(6).truncate_on_project();
-      
+
       if (_world.rank() == 0) printf("%f\n", wall_time() - now);
       if (_world.rank() == 0) print("calculating trace of rhon ..\n\n");
       double rtrace = _vnucrhon.trace();
@@ -580,7 +611,7 @@ public:
           _occs[occend] = 1.0;
       }
       // Get k-point from list
-      KPoint kpt = _kpoints[ki];
+      KPoint& kpt = _kpoints[ki];
       // Build kinetic matrx
       ctensorT kinetic = ::kinetic_energy_matrix(_world, ao, _params.periodic, kpt);
       // Construct and diagonlize Fock matrix
@@ -601,6 +632,10 @@ public:
 
       if (_world.rank() == 0) printf("(%8.4f,%8.4f,%8.4f)\n",kpt.k[0], kpt.k[1], kpt.k[2]);
       if (_world.rank() == 0) print(tmp_eigs);
+      if (_world.rank() == 0) print("\n");
+
+      if (_world.rank() == 0) print("kinetic energy for kp = ", kp);
+      if (_world.rank() == 0) print(kinetic);
       if (_world.rank() == 0) print("\n");
 
       // DEBUG
@@ -639,11 +674,11 @@ public:
 
       // Fill in orbitals and eigenvalues
       int kend = kp + _params.nbands;
-      _kpoints[kp].begin = kp;
-      _kpoints[kp].end = kend;
+      kpt.begin = kp;
+      kpt.end = kend;
       for (int oi = kp, ti = 0; oi < kend; oi++, ti++)
       {
-        if (_world.rank() == 0) print(oi, ti, kp, kend);
+        if (_world.rank() == 0) print(oi, ti, kpt.begin, kpt.end);
         _orbitals.push_back(tmp_orbitals[ti]);
         _eigs[oi] = tmp_eigs[ti];
       }
@@ -651,6 +686,10 @@ public:
       kp += _params.nbands;
     }
     print("size of orbitals = ", _orbitals.size());
+    for (unsigned int ki = 0; ki < _kpoints.size(); ki++)
+    {
+      print("final kpoint ", ki, "begin ", _kpoints[ki].begin, "end ", _kpoints[ki].end);
+    }
   }
 
   vecfuncT orbitals()

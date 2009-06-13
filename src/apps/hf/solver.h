@@ -236,7 +236,7 @@ namespace madness
         // loop through bands
         for (unsigned int j = kpoint.begin; j < kpoint.end; j++)
         {
-          print(j, kpoint.weight, _occs[j]);
+          //print(j, kpoint.weight, _occs[j]);
           // Get phi(j) from iterator
           const functionT& phij = phis[j];
           // Compute the j-th density
@@ -396,6 +396,9 @@ namespace madness
         _rhob = (_params.spinpol) ? compute_rho(_phisb, _kpoints) : _rhoa;
         _rho = _rhoa + _rhob;
 
+        double rtrace = _rho.trace();
+        print("trace of rho = ", rtrace);
+
         vector<functionT> pfuncsa =
                 zero_functions<valueT,NDIM>(_world, _phisa.size());
         vector<functionT> pfuncsb =
@@ -474,6 +477,9 @@ namespace madness
       {
         // Get k-point and orbitals for this k-point
         KPoint kpoint = kpoints[kp];
+        double k0 = 2.0 * madness::constants::pi * kpoint.k[0];
+        double k1 = 2.0 * madness::constants::pi * kpoint.k[1];
+        double k2 = 2.0 * madness::constants::pi * kpoint.k[2];
         // WSTHORNTON
         print("kpoint info:");
         print(wf.size(), vwf.size(), kpoint.begin, kpoint.end);
@@ -484,8 +490,8 @@ namespace madness
         tensorT fock = build_fock_matrix(k_wf, k_vwf, kpoint);
 
         // Do right hand side stuff for kpoint
-        bool isgamma = ((kpoint.k[0] == 0.0) && (kpoint.k[1] == 0.0)
-                         && (kpoint.k[2] == 0.0));
+        bool isgamma = ((k0 == 0.0) && (k1 == 0.0) && (k2 == 0.0));
+
         if (_params.periodic && !isgamma)
         {
           // Do the gradient term and k^2/2
@@ -496,13 +502,14 @@ namespace madness
             functionT dx_wf = pdiff(k_wf[i], 0, true);
             functionT dy_wf = pdiff(k_wf[i], 1, true);
             functionT dz_wf = pdiff(k_wf[i], 2, true);
-            d_wf[i] = kpoint.k[0]*dx_wf + kpoint.k[1]*dy_wf + kpoint.k[2]*dz_wf;
+            d_wf[i] = std::complex<T>(0.0,k0)*dx_wf + 
+                      std::complex<T>(0.0,k1)*dy_wf + 
+                      std::complex<T>(0.0,k2)*dz_wf;
             // k^/2
-            double kabs = kpoint.k[0]*kpoint.k[0] + kpoint.k[1]*kpoint.k[1]
-                            + kpoint.k[2]*kpoint.k[2];
-            k_vwf[i] -= 0.5 * kabs * k_wf[i];
+            double ksq = k0*k0 + k1*k1 + k2*k2;
+            k_vwf[i] += 0.5 * ksq * k_wf[i];
           }
-          gaxpy(_world, 1.0, k_vwf, 1.0, d_wf);
+          gaxpy(_world, 1.0, k_vwf, -1.0, d_wf);
         }
 
         if (_params.canon)
@@ -527,7 +534,10 @@ namespace madness
             }
             eps[ei] = std::min(-0.1, real(e(fi,fi)));
           }
-          print("kpoint ", kp, "eps ", eps[kp]);
+          for (unsigned int ei = 0; ei < e.dim[0]; ei++)
+          {
+            print("kpoint ", kp, "ei ", ei, "eps ", real(e(ei,ei)));
+          }
 //          // WSTHORNTON
 //          // this will work if there is only 1 k-point
 //          if (_world.rank() == 0) print("eigenvalues:\n");
