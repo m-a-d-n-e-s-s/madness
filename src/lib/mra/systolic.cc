@@ -252,6 +252,8 @@ namespace madness {
             , jptr(nlocal)
             , map(coldim+(coldim&0x1))
         {
+            std::cerr << A.is_column_distributed() << " " << nproc << " " << A.coltile() << " "  << (A.coltile()&0x1) << std::endl;
+
             MADNESS_ASSERT(A.is_column_distributed() && 
                            (nproc==1 || (A.coltile()&0x1)==0));
             
@@ -272,21 +274,24 @@ namespace madness {
 
             // Initialize map from logical index order to actual index order
 
+            int neven = (coldim+1)/2;
             int ii=0;
             for (ProcessID p=0; p<nproc; p++) {
                 int64_t lo, hi;
                 A.get_colrange(p, lo, hi);
-                print("I think process",p,"has",lo,hi,nlocal);
-                for (int i=0; i<nlocal; i++) {
-                    if (lo+i < coldim) 
-                        map[ii+i] = lo+i;
-                    if (lo+i+nlocal < coldim)
-                        map[coldim-ii-nlocal+i] = lo+i+nlocal;
+                int p_nlocal = (hi - lo + 2)/2;
+                print("I think process",p,"has",lo,hi,p_nlocal);
+                for (int i=0; i<p_nlocal; i++) {
+                    map[ii+i] = lo+i;
+                    //map[coldim-ii-nlocal+i] = lo+i+nlocal;
+                    map[ii+i+neven] = lo+i+p_nlocal;
                 }
-                ii += nlocal;
+                ii += p_nlocal;
             }
-            int neven = (coldim+1)/2;
-            std::reverse(map.begin()+neven,map.begin()+2*neven);
+
+            std::reverse(map.begin(),map.begin()+neven);
+
+
             print("MAP", map);
         }
         
@@ -415,22 +420,23 @@ namespace madness {
             
             int neven = coldim + (coldim&0x1);
 
+            int pairlo = rank*A.coltile()/2;
+
             for (int loop=0; loop<(neven-1); loop++) {
                 print("  cycle", loop, neven);
                 
                 for (int pair=0; pair<nlocal; pair++) {
+                    int rp = neven/2-1-(pair+pairlo);
+                    int iii = (rp+loop)%(neven-1);
+                    int jjj = (2*neven-2-rp+loop)%(neven-1);
+                    if (rp == 0) jjj = neven-1;
 
-                    int iii = (2*neven-2+pair-loop)%(neven-1);
-                    int jjj = (2*neven-2-pair-loop)%(neven-1);
-
-                    if (pair == 0) jjj = neven-1;
+                    iii = map[iii];
+                    jjj = map[jjj];
 
                     if (jptr[pair].first) {
-                        print("    pair ", iptr[pair].first[0], jptr[pair].first[0]);
-                        print("         ", iii, jjj);
-                        print("         ", map[iii], map[jjj]);
+                        print("    pair ", iptr[pair].first[0], iii, jptr[pair].first[0], jjj);
                     }
-                    
                 }
                                          
                 cycle();
@@ -451,12 +457,14 @@ int main(int argc, char** argv) {
     try {
         const int64_t n = 10;
         
-        DistributedMatrix<double> A = column_distributed_matrix<double>(world, n, n, 4);
+        DistributedMatrix<double> A = column_distributed_matrix<double>(world, n, n, 6);
 
         int64_t ilo, ihi;
         A.local_colrange(ilo, ihi);
         
         for (int i=ilo; i<=ihi; i++) A.data()(i-ilo,_) = i;
+
+        print(A.data());
         
         SystolicMatrixAlgorithm<double> alg(A,3763);
         
