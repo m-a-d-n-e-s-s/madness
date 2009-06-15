@@ -148,6 +148,14 @@ std::istream& operator >> (std::istream& is, KPoint& kpt)
 }
 
   //***************************************************************************
+  bool is_equal(double val1, double val2, double eps)
+  {
+    double d = fabs(val1-val2);
+    return (fabs(d) <= eps) ? true : false;
+  }
+  //***************************************************************************
+  
+  //***************************************************************************
   template <typename Q, int NDIM>
   Function<Q,NDIM> pdiff(const Function<Q,NDIM>& f, int axis, bool fence = true)
   {
@@ -179,9 +187,6 @@ std::istream& operator >> (std::istream& is, KPoint& kpt)
     double k0 = k.k[0];
     double k1 = k.k[1];
     double k2 = k.k[2];
-//    double k0 = 2.0 * madness::constants::pi * k.k[0];
-//    double k1 = 2.0 * madness::constants::pi * k.k[1];
-//    double k2 = 2.0 * madness::constants::pi * k.k[2];
     double ksquared = k0*k0 + k1*k1 + k2*k2;
     if (periodic)
     {
@@ -196,8 +201,9 @@ std::istream& operator >> (std::istream& is, KPoint& kpt)
                            std::complex<Q>(0.0, 2.0*k1) * pdiff(v[j], 1) +
                            std::complex<Q>(0.0, 2.0*k2) * pdiff(v[j], 2);
           std::complex<Q> dtrace = dv_j.trace();
+          Q dnorm = dv_j.norm2();
 //          print("trace of dv_j where j = ", j, dtrace);
-          functionT tmp = ksquared*v[j] - dv_j - dv2_j;
+          functionT tmp = (ksquared*v[j]) - dv_j - dv2_j;
           c(i, j) = inner(v[i], tmp);
           c(j, i) = conj(c(i, j));
         }

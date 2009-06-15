@@ -134,13 +134,13 @@ public:
     for (int ir = -1; ir <= 1; ir += 1)
     {
       const double TWO_PI = 2 * madness::constants::pi;
-      tx[ir+1] = exp(std::complex<double>(0.0, kpt.k[0]*ir * R));
-      ty[ir+1] = exp(std::complex<double>(0.0, kpt.k[1]*ir * R));
-      tz[ir+1] = exp(std::complex<double>(0.0, kpt.k[2]*ir * R));
-//      double t1 = 1/sqrt(27);
-//      tx[ir+1] = 1.0 * t1;
-//      ty[ir+1] = 1.0 * t1;
-//      tz[ir+1] = 1.0 * t1;
+//      tx[ir+1] = exp(std::complex<double>(0.0, kpt.k[0]*ir * R));
+//      ty[ir+1] = exp(std::complex<double>(0.0, kpt.k[1]*ir * R));
+//      tz[ir+1] = exp(std::complex<double>(0.0, kpt.k[2]*ir * R));
+      double t1 = 1/sqrt(27);
+      tx[ir+1] = 1.0 * t1;
+      ty[ir+1] = 1.0 * t1;
+      tz[ir+1] = 1.0 * t1;
     }
 }
 
@@ -283,12 +283,12 @@ public:
       {
         for (unsigned int k = 0; k < ngridk2; k++)
         {
-          double k0 = (i*step0 - step0/2) * TWO_PI/R;
-          double k1 = (j*step1 - step1/2) * TWO_PI/R;
-          double k2 = (k*step2 - step2/2) * TWO_PI/R;
-//          double k0 = i*step0 - step0/2;
-//          double k1 = j*step1 - step1/2;
-//          double k2 = k*step2 - step2/2;
+          //double k0 = (i*step0 - step0/2) * TWO_PI/R;
+          //double k1 = (j*step1 - step1/2) * TWO_PI/R;
+          //double k2 = (k*step2 - step2/2) * TWO_PI/R;
+          double k0 = (i*step0) * TWO_PI/R;
+          double k1 = (j*step1) * TWO_PI/R;
+          double k2 = (k*step2) * TWO_PI/R;
           KPoint kpoint(k0, k1, k2, weight);
           kmesh.push_back(kpoint);
         }

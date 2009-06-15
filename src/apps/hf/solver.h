@@ -493,7 +493,7 @@ namespace madness
         tensorT fock = build_fock_matrix(k_wf, k_vwf, kpoint);
 
         // Do right hand side stuff for kpoint
-        bool isgamma = ((k0 == 0.0) && (k1 == 0.0) && (k2 == 0.0));
+        bool isgamma = (is_equal(k0,0.0,1e-5) && is_equal(k1,0.0,1e-5) && is_equal(k2,0.0,1e-5));
 
         if (_params.periodic && !isgamma)
         {
@@ -515,7 +515,7 @@ namespace madness
           gaxpy(_world, 1.0, k_vwf, -1.0, d_wf);
         }
 
-        if (_params.canon)
+        if (_params.canon) // canonical orbitals
         {
           tensorT overlap = matrix_inner(_world, k_wf, k_wf, true);
           ctensorT c; rtensorT e;
@@ -529,13 +529,13 @@ namespace madness
             if (real(e(fi,fi)) > -0.1)
             {
               eps[ei] = -0.1;
-              vwf[ei] -= (real(e(fi,fi))-eps[ei])*wf[ei];
+              k_vwf[fi] -= (real(e(fi,fi))-eps[ei])*k_wf[fi];
             }
             else
             {
               eps[ei] = e(fi,fi);
             }
-            eps[ei] = std::min(-0.1, real(e(fi,fi)));
+            //eps[ei] = std::min(-0.1, real(e(fi,fi)));
           }
           for (unsigned int ei = 0; ei < e.dim[0]; ei++)
           {
@@ -549,7 +549,7 @@ namespace madness
 //            if (_world.rank() == 0) print(real(e(ei,ei)), eps[ei]);
 //          }
         }
-        else
+        else // non-canonical orbitals
         {
           for (unsigned int ei = kpoint.begin, fi = 0; 
             ei < kpoint.end; ei++, fi++)
