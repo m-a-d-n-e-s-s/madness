@@ -477,9 +477,12 @@ namespace madness
       {
         // Get k-point and orbitals for this k-point
         KPoint kpoint = kpoints[kp];
-        double k0 = 2.0 * madness::constants::pi * kpoint.k[0];
-        double k1 = 2.0 * madness::constants::pi * kpoint.k[1];
-        double k2 = 2.0 * madness::constants::pi * kpoint.k[2];
+//        double k0 = 2.0 * madness::constants::pi * kpoint.k[0];
+//        double k1 = 2.0 * madness::constants::pi * kpoint.k[1];
+//        double k2 = 2.0 * madness::constants::pi * kpoint.k[2];
+        double k0 = kpoint.k[0];
+        double k1 = kpoint.k[1];
+        double k2 = kpoint.k[2];
         // WSTHORNTON
         print("kpoint info:");
         print(wf.size(), vwf.size(), kpoint.begin, kpoint.end);

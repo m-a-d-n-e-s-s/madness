@@ -6,6 +6,7 @@
  */
 
 #ifndef _ESOLVER_H
+#define	_ESOLVER_H
 
 typedef SharedPtr< WorldDCPmapInterface< Key<3> > > pmapT;
 typedef Vector<double,3> coordT;
@@ -175,9 +176,12 @@ std::istream& operator >> (std::istream& is, KPoint& kpt)
     int n = v.size();
     ctensorT c(n, n);
     const std::complex<double> I = std::complex<double>(0.0, 1.0);
-    double k0 = 2.0 * madness::constants::pi * k.k[0];
-    double k1 = 2.0 * madness::constants::pi * k.k[1];
-    double k2 = 2.0 * madness::constants::pi * k.k[2];
+    double k0 = k.k[0];
+    double k1 = k.k[1];
+    double k2 = k.k[2];
+//    double k0 = 2.0 * madness::constants::pi * k.k[0];
+//    double k1 = 2.0 * madness::constants::pi * k.k[1];
+//    double k2 = 2.0 * madness::constants::pi * k.k[2];
     double ksquared = k0*k0 + k1*k1 + k2*k2;
     if (periodic)
     {
@@ -258,7 +262,6 @@ std::istream& operator >> (std::istream& is, KPoint& kpt)
 //  }
 //  //***************************************************************************
 
-#define	_ESOLVER_H
 
 
 

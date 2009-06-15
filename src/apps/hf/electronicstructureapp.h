@@ -134,9 +134,9 @@ public:
     for (int ir = -1; ir <= 1; ir += 1)
     {
       const double TWO_PI = 2 * madness::constants::pi;
-      tx[ir+1] = exp(std::complex<double>(0.0, kpt.k[0]*ir * TWO_PI));
-      ty[ir+1] = exp(std::complex<double>(0.0, kpt.k[1]*ir * TWO_PI));
-      tz[ir+1] = exp(std::complex<double>(0.0, kpt.k[2]*ir * TWO_PI));
+      tx[ir+1] = exp(std::complex<double>(0.0, kpt.k[0]*ir * R));
+      ty[ir+1] = exp(std::complex<double>(0.0, kpt.k[1]*ir * R));
+      tz[ir+1] = exp(std::complex<double>(0.0, kpt.k[2]*ir * R));
 //      double t1 = 1/sqrt(27);
 //      tx[ir+1] = 1.0 * t1;
 //      ty[ir+1] = 1.0 * t1;
@@ -255,7 +255,7 @@ public:
         else // NORMAL BANDSTRUCTURE
         {
           _kpoints = genkmesh(_params.ngridk0, _params.ngridk1,
-                              _params.ngridk2);
+                              _params.ngridk2, _params.L);
         }
       }
       else // NOT-PERIODIC
@@ -269,22 +269,26 @@ public:
 
   }
 
-  std::vector<KPoint> genkmesh(unsigned int ngridk0, unsigned ngridk1, unsigned int ngridk2)
+  std::vector<KPoint> genkmesh(unsigned int ngridk0, unsigned ngridk1, unsigned int ngridk2, double R)
   {
     std::vector<KPoint> kmesh;
     double step0 = 1.0/ngridk0;
     double step1 = 1.0/ngridk1;
     double step2 = 1.0/ngridk2;
     double weight = 1.0/(ngridk0*ngridk1*ngridk2);
+    double TWO_PI = 2.0 * madness::constants::pi;
     for (unsigned int i = 0; i < ngridk0; i++)
     {
       for (unsigned int j = 0; j < ngridk1; j++)
       {
         for (unsigned int k = 0; k < ngridk2; k++)
         {
-          double k0 = i*step0 - step0/2;
-          double k1 = j*step1 - step1/2;
-          double k2 = k*step2 - step2/2;
+          double k0 = (i*step0 - step0/2) * TWO_PI/R;
+          double k1 = (j*step1 - step1/2) * TWO_PI/R;
+          double k2 = (k*step2 - step2/2) * TWO_PI/R;
+//          double k0 = i*step0 - step0/2;
+//          double k1 = j*step1 - step1/2;
+//          double k2 = k*step2 - step2/2;
           KPoint kpoint(k0, k1, k2, weight);
           kmesh.push_back(kpoint);
         }
