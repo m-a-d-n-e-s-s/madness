@@ -17,7 +17,7 @@ namespace madness {
     class DistributedMatrix {
         World& _world;
         const int64_t P;                //< No. of processors
-        const ProcessID rank;       //< My processor rank
+        const ProcessID rank;           //< My processor rank
         const int64_t n;                //< Column dimension of A(n,m)
         const int64_t m;                //< Row dimension of A(n,m)
         const int64_t tilen;            //< Tile size for column
@@ -30,7 +30,7 @@ namespace madness {
         const int64_t jlo,jhi;          //< Range of row indices on this processor
         const int64_t idim,jdim;        //< Dimension of data on this processor
         
-        Tensor<T> t;                //< The data
+        Tensor<T> t;                    //< The data
         
     public:
         DistributedMatrix(World& world, int64_t n, int64_t m, int64_t coltile, int64_t rowtile)
@@ -140,7 +140,7 @@ namespace madness {
         }
         
         /// Returns associated world
-        World& world() {return _world;}
+        World& get_world() {return _world;}
         
         /// Returns reference to data
         Tensor<T>& data() {return t;}
@@ -167,9 +167,12 @@ namespace madness {
     
     
     /// Generates an (n,m) matrix distributed by columns (row dimension is not distributed)
+
+    /// Quietly forces an even column tile size for ease of use in the systolic matrix algorithms
     template <typename T>
     DistributedMatrix<T> column_distributed_matrix(World& world, int64_t n, int64_t m, int64_t coltile=0) {
         if (world.size()*coltile < n) coltile = (n-1)/world.size() + 1;
+        if ((coltile&0x1)) coltile++;
         coltile = std::min(coltile,n);
         
         return DistributedMatrix<T>(world, n, m, coltile, m);
@@ -198,7 +201,7 @@ namespace madness {
     DistributedMatrix<T> interleave_rows(const DistributedMatrix<T>& a, const DistributedMatrix<T>& b) {
         MADNESS_ASSERT(a.rowdim()==b.rowdim() && a.coldim()==b.coldim() && a.coltile()==b.coltile() && a.rowtile()==b.rowtile());
         
-        DistributedMatrix<T> c(a.world(), a.coldim()*2, a.rowdim(), a.coltile()*2, a.rowtile());
+        DistributedMatrix<T> c(a.get_world(), a.coldim()*2, a.rowdim(), a.coltile()*2, a.rowtile());
         c.data()(Slice(0,-1,2),_) = a.data()(___);
         c.data()(Slice(1,-1,2),_) = b.data()(___);
     }
@@ -219,7 +222,7 @@ namespace madness {
         int64_t ma = a.rowdim();
         int64_t mb = b.rowdim();
         
-        DistributedMatrix<T> c(a.world(), a.coldim(), ma+mb, a.coltile(), ma+mb);
+        DistributedMatrix<T> c(a.get_world(), a.coldim(), ma+mb, a.coltile(), ma+mb);
         c.data()(_,Slice(0,ma-1)) = a.data()(___);
         c.data()(_,Slice(ma,-1))  = b.data()(___);
     }
@@ -227,74 +230,84 @@ namespace madness {
     
     /// Base class for parallel algorithms that employ a systolic loop to generate all row pairs in parallel
     template <typename T>
-    class SystolicMatrixAlgorithm {
+    class SystolicMatrixAlgorithm : public TaskInterface {
+    private:
         DistributedMatrix<T>& A;
         const int64_t nproc;            //< No. of processes with rows of the matrix (not size of world)
         const int64_t coldim;           //< A(coldim,rowdim)
         const int64_t rowdim;           //< A(coldim,rowdim)
-        const int64_t nlocal;           //< No. of local elements/2
-        const ProcessID rank;       //< Rank of current process
-        const int tag;              //< MPI tag to be used for messages
-        std::vector< std::pair<T*,int64_t> > iptr, jptr; //< Indirection for implementing cyclic buffer
-        std::vector<int64_t> map;  //< Used to keep track of actual row indices
-        
-    public:
-        /// A must be a column distributed matrix with an even column tile >= 2
-        SystolicMatrixAlgorithm(DistributedMatrix<T>& A, int tag) 
-            : A(A)
-            , nproc(A.process_coldim()*A.process_rowdim())
-            , coldim(A.coldim())
-            , rowdim(A.rowdim())
-            , nlocal((A.local_coldim()+1)/2)
-            , rank(A.world().rank())
-            , tag(tag)
-            , iptr(nlocal)
-            , jptr(nlocal)
-            , map(coldim+(coldim&0x1))
-        {
-            std::cerr << A.is_column_distributed() << " " << nproc << " " << A.coltile() << " "  << (A.coltile()&0x1) << std::endl;
+        const int64_t nlocal;           //< No. of local pairs
+        const ProcessID rank;           //< Rank of current process
+        const int tag;                  //< MPI tag to be used for messages
+        std::vector<T*> iptr, jptr;     //< Indirection for implementing cyclic buffer !! SHOULD BE VOLATILE ?????
+        std::vector<int64_t> map;       //< Used to keep track of actual row indices
+        const TaskThreadEnv* thread_env; //< Thread environment ... VALID ONLY WHILE RUNNING
 
-            MADNESS_ASSERT(A.is_column_distributed() && 
-                           (nproc==1 || (A.coltile()&0x1)==0));
+        void iteration(const TaskThreadEnv& env) {
+            start_iteration_hook();
+
+            int64_t ilo, ihi;
+            A.local_colrange(ilo, ihi);
             
-            // Initialize vectors of pointers to matrix rows
-            Tensor<T>& t = A.data();
-            
-            madness::print(nproc, coldim, rowdim, nlocal, rank, tag);
-            
-            for (int64_t i=0; i<nlocal; i++) {
-                iptr[i] = std::make_pair(&t(i,0),i);
-                jptr[i] = std::make_pair(&t(i+nlocal,0),i+nlocal); 
-                
-                print("iptr jptr", iptr[i].second, jptr[i].second);
-            }
+            int neven = coldim + (coldim&0x1);
 
-            // If no. of rows is odd, last process should have an empty last row
-            if (rank==(nproc-1) && (coldim&0x1)) jptr[nlocal-1].first = 0;
+            int pairlo = rank*A.coltile()/2;
 
-            // Initialize map from logical index order to actual index order
+            int threadid = env.id();
+            int nthread = env.nthread();
 
-            int neven = (coldim+1)/2;
-            int ii=0;
-            for (ProcessID p=0; p<nproc; p++) {
-                int64_t lo, hi;
-                A.get_colrange(p, lo, hi);
-                int p_nlocal = (hi - lo + 2)/2;
-                print("I think process",p,"has",lo,hi,p_nlocal);
-                for (int i=0; i<p_nlocal; i++) {
-                    map[ii+i] = lo+i;
-                    //map[coldim-ii-nlocal+i] = lo+i+nlocal;
-                    map[ii+i+neven] = lo+i+p_nlocal;
+            for (int loop=0; loop<(neven-1); loop++) {
+
+                // This loop is parallelized over threads
+                for (int pair=env.id(); pair<nlocal; pair+=nthread) {
+                    
+                    int rp = neven/2-1-(pair+pairlo);
+                    int iii = (rp+loop)%(neven-1);
+                    int jjj = (2*neven-2-rp+loop)%(neven-1);
+                    if (rp == 0) jjj = neven-1;
+
+                    iii = map[iii];
+                    jjj = map[jjj];
+
+                    if (jptr[pair]) {
+                        kernel(iii, jjj, iptr[pair], jptr[pair]);
+                    }
                 }
-                ii += p_nlocal;
+                env.barrier();
+                                         
+                if (threadid == 0) cycle();
+
+                env.barrier();
             }
-
-            std::reverse(map.begin(),map.begin()+neven);
-
-
-            print("MAP", map);
         }
+
+        /// Call this after iterating to restore correct order of rows in original matrix
         
+        /// At the end of each iteration the matrix rows are logically back in
+        /// their correct order.  However, due to indirection to reduce data motion, 
+        /// if the local column dimension is not a factor of the number of cycles
+        /// the underlying data may be in a different order.  This restores sanity.
+        ///
+        /// Only one thread should invoke this routine
+        void unshuffle() {
+            if (nlocal <= 0) return;
+            Tensor<T>& t = A.data();
+            Tensor<T> tmp(2L, t.dim, false);
+            T* tp = tmp.ptr();
+            for (int64_t i=0; i<nlocal; i++) {
+                memcpy(tp+i*rowdim, iptr[i], rowdim*sizeof(T));
+                if (jptr[i]) {
+                    memcpy(tp+(i+nlocal)*rowdim, jptr[i], rowdim*sizeof(T));
+                }
+                iptr[i] = &t(i,0);
+                jptr[i] = &t(i+nlocal,0); 
+            }
+            memcpy(t.ptr(), tmp.ptr(), t.size*sizeof(T));
+            
+            if (rank==(nproc-1) && (coldim&0x1)) jptr[nlocal-1] = 0;
+        }
+
+        /// Cycles data around the loop ... only one thread should invoke this
         void cycle() {
             if (coldim <= 2) return; // No cycling necessary
             if (nlocal <= 0) {       // Nothing local
@@ -308,8 +321,6 @@ namespace madness {
             const ProcessID left = rank-1; //Invalid values are not used
             const ProcessID right = rank+1;
 
-            print("left right", left, right);
-            
             /*
               Consider matrix (10,*) distributed with coltile=4 over
               three processors.
@@ -370,8 +381,8 @@ namespace madness {
             */
             
             // Copy end elements before they are overwritten
-            std::pair<T*,int64_t> ilast  = iptr[nlocal-1];
-            std::pair<T*,int64_t> jfirst = jptr[0];
+            T* ilast  = iptr[nlocal-1];
+            T* jfirst = jptr[0];
             
             // Cycle local pointers
             for (int64_t i=0; i<nlocal-1; i++) {
@@ -379,7 +390,7 @@ namespace madness {
                 jptr[i] = jptr[i+1];
             }
             
-            World& world = A.world();
+            World& world = A.get_world();
             
             // Lazily program unsafely assuming enough MPI buffering available
             if (nproc == 1) {
@@ -388,58 +399,183 @@ namespace madness {
             }
             else if (rank == 0) {
                 iptr[0] = jfirst;
-                world.mpi.Send(ilast.first, rowdim, right, tag);
+                world.mpi.Send(ilast, rowdim, right, tag);
                 jptr[nlocal-1] = ilast;
-                world.mpi.Recv(ilast.first, rowdim, right, tag);
+                world.mpi.Recv(ilast, rowdim, right, tag);
             }
             else if (rank == (nproc-1)) {
                 if (nlocal > 1) {
                     iptr[0] = jfirst;
                     jptr[nlocal-2] = ilast;
                 }
-                world.mpi.Send(iptr[0].first, rowdim, left, tag);
-                world.mpi.Recv(iptr[0].first, rowdim, left, tag);
+                world.mpi.Send(iptr[0], rowdim, left, tag);
+                world.mpi.Recv(iptr[0], rowdim, left, tag);
             }
             else {
-                world.mpi.Send( ilast.first, rowdim, right, tag);
-                world.mpi.Send(jfirst.first, rowdim,  left, tag);
-                world.mpi.Recv( ilast.first, rowdim, right, tag);
-                world.mpi.Recv(jfirst.first, rowdim,  left, tag);
+                world.mpi.Send( ilast, rowdim, right, tag);
+                world.mpi.Send(jfirst, rowdim,  left, tag);
+                world.mpi.Recv( ilast, rowdim, right, tag);
+                world.mpi.Recv(jfirst, rowdim,  left, tag);
                 iptr[0] = jfirst;
                 jptr[nlocal-1] = ilast;
             }
         }
+
         
-        void iteration() {
+    public:
+        /// A must be a column distributed matrix with an even column tile >= 2
+        SystolicMatrixAlgorithm(DistributedMatrix<T>& A, int tag) 
+            : A(A)
+            , nproc(A.process_coldim()*A.process_rowdim())
+            , coldim(A.coldim())
+            , rowdim(A.rowdim())
+            , nlocal((A.local_coldim()+1)/2)
+            , rank(A.get_world().rank())
+            , tag(tag)
+            , iptr(nlocal)
+            , jptr(nlocal)
+            , map(coldim+(coldim&0x1))
+            , thread_env(0)
+        {
+            //std::cerr << A.is_column_distributed() << " " << nproc << " " << A.coltile() << " "  << (A.coltile()&0x1) << std::endl;
+
+            MADNESS_ASSERT(A.is_column_distributed() && (nproc==1 || (A.coltile()&0x1)==0));
+            
+            // Initialize vectors of pointers to matrix rows
+            Tensor<T>& t = A.data();
+            
+            //madness::print(nproc, coldim, rowdim, nlocal, rank, tag);
+            
+            for (int64_t i=0; i<nlocal; i++) {
+                iptr[i] = &t(i,0);
+                jptr[i] = &t(i+nlocal,0);
+            }
+
+            // If no. of rows is odd, last process should have an empty last row
+            if (rank==(nproc-1) && (coldim&0x1)) jptr[nlocal-1] = 0;
+
+            // Initialize map from logical index order to actual index order
+
+            int neven = (coldim+1)/2;
+            int ii=0;
+            for (ProcessID p=0; p<nproc; p++) {
+                int64_t lo, hi;
+                A.get_colrange(p, lo, hi);
+                int p_nlocal = (hi - lo + 2)/2;
+                //print("I think process",p,"has",lo,hi,p_nlocal);
+                for (int i=0; i<p_nlocal; i++) {
+                    map[ii+i] = lo+i;
+                    //map[coldim-ii-nlocal+i] = lo+i+nlocal;
+                    map[ii+i+neven] = lo+i+p_nlocal;
+                }
+                ii += p_nlocal;
+            }
+
+            std::reverse(map.begin(),map.begin()+neven);
+            
+            //print("MAP", map);
+        }
+
+        virtual ~SystolicMatrixAlgorithm() {}   
+
+        /// Threadsafe routine to apply the operation to rows i and j of the matrix
+        virtual void kernel(int i, int j, T* rowi, T* rowj) = 0;
+
+
+        /// Invoked simultaneously by all threads after each sweep to test for convergence
+        virtual bool converged() const = 0;
+        
+
+        /// Invoked by all threads at the start of each iteration
+        virtual void start_iteration_hook() {}
+
+
+        /// Invoked by the task queue to run the algorithm with multiple threads
+        void run(World& world, const TaskThreadEnv& env) {
+            thread_env = &env;
             if (nlocal <= 0) return; // Nothing to do
 
-            print("iteration ");
-            
-            int64_t ilo, ihi;
-            A.local_colrange(ilo, ihi);
-            
-            int neven = coldim + (coldim&0x1);
+            do {
+                iteration(env);
+            } while (!converged());
 
-            int pairlo = rank*A.coltile()/2;
+            if (env.id() == 0) unshuffle();
 
-            for (int loop=0; loop<(neven-1); loop++) {
-                print("  cycle", loop, neven);
-                
-                for (int pair=0; pair<nlocal; pair++) {
-                    int rp = neven/2-1-(pair+pairlo);
-                    int iii = (rp+loop)%(neven-1);
-                    int jjj = (2*neven-2-rp+loop)%(neven-1);
-                    if (rp == 0) jjj = neven-1;
+            thread_env = 0;
+        }
 
-                    iii = map[iii];
-                    jjj = map[jjj];
 
-                    if (jptr[pair].first) {
-                        print("    pair ", iptr[pair].first[0], iii, jptr[pair].first[0], jjj);
-                    }
+        /// Invoked by the user to run the algorithm with one thread
+
+        /// This is a collective call ... all processes in world should call
+        /// this routine, though processes without data will immediately return
+        /// without any synchronization.
+        void solve() {
+            run(A.get_world(), TaskThreadEnv(1,0,0));
+        }
+
+
+        /// Returns length of row
+        int get_rowdim() const {return rowdim;}
+
+
+        /// Returns length of column
+        int get_coldim() const {return coldim;}
+
+        /// Returns a reference to the thread environment --- VALID ONLY WHILE RUNNING
+        const TaskThreadEnv& get_env() const {
+            MADNESS_ASSERT(thread_env);
+            return *thread_env;
+        }
+
+        /// Returns a reference to the world
+        World& get_world() const {
+            return A.get_world();
+        }
+
+        /// Returns rank of this process in the world
+        ProcessID get_rank() const {
+            return rank;
+        }
+    };
+
+    
+    template <typename T>
+    class TestSystolicMatrixAlgorithm : public SystolicMatrixAlgorithm<T> {
+        volatile int niter;
+    public:
+        TestSystolicMatrixAlgorithm(DistributedMatrix<T>& A, int tag) 
+            : SystolicMatrixAlgorithm<T>(A, tag) 
+            , niter(0)
+        {
+            madness::print("Testing SystolicMatrixAlgorithm ", 
+                           SystolicMatrixAlgorithm<T>::get_coldim(), 
+                           SystolicMatrixAlgorithm<T>::get_rowdim());
+        }
+        
+        void kernel(int i, int j, T* rowi, T* rowj) {
+            for (int k=0; k < SystolicMatrixAlgorithm<T>::get_rowdim(); k++) {
+                MADNESS_ASSERT(rowi[k] == i);
+                MADNESS_ASSERT(rowj[k] == j);
+            }
+        }
+
+        void start_iteration_hook() {
+            if (SystolicMatrixAlgorithm<T>::get_env().id() == 0) {
+                madness::print("    starting iteration", niter);
+                niter++;
+            }
+        }
+
+        bool converged() const {
+            if (niter == 3) {
+                if (SystolicMatrixAlgorithm<T>::get_env().id() == 0) {
+                    madness::print("    done!");
                 }
-                                         
-                cycle();
+                return true;
+            }
+            else {
+                return false;
             }
         }
     };
@@ -455,22 +591,23 @@ int main(int argc, char** argv) {
     redirectio(world);
     
     try {
-        const int64_t n = 10;
-        
-        DistributedMatrix<double> A = column_distributed_matrix<double>(world, n, n, 6);
+        for (int64_t n=1; n<100; n++) {
+            int64_t m = 2*n;
+            DistributedMatrix<double> A = column_distributed_matrix<double>(world, n, m);
+            int64_t ilo, ihi;
+            A.local_colrange(ilo, ihi);
+            for (int i=ilo; i<=ihi; i++) A.data()(i-ilo,_) = i;
 
-        int64_t ilo, ihi;
-        A.local_colrange(ilo, ihi);
-        
-        for (int i=ilo; i<=ihi; i++) A.data()(i-ilo,_) = i;
+            TestSystolicMatrixAlgorithm<double> t(A, 3333);
 
-        print(A.data());
-        
-        SystolicMatrixAlgorithm<double> alg(A,3763);
-        
-        alg.iteration();
-        
-        alg.iteration();
+            t.solve();
+
+            for (int i=ilo; i<=ihi; i++) {
+                for (int k=0; k<m; k++) {
+                    MADNESS_ASSERT(A.data()(i-ilo,k) == i);
+                }
+            }
+        }
     }
     catch (const MPI::Exception& e) {
         //        print(e);
