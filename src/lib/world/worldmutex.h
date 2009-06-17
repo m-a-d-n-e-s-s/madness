@@ -468,18 +468,14 @@ namespace madness {
         const int nthread;
         volatile bool sense;
         MADATOMIC_INT nworking;
-        
-        volatile bool* pflags[64]; // ????????????????????
+        volatile bool* pflags[64];
         
     public:
-        
         Barrier(int nthread)
             : nthread(nthread)
             , sense(true)
         {
-            if (nthread > 1) {
-                MADATOMIC_INT_SET(&nworking, nthread);
-            }
+            MADATOMIC_INT_SET(&nworking, nthread);
         }
         
         /// Each thread calls this once before first use
@@ -487,6 +483,7 @@ namespace madness {
         /// id should be the thread id (0,..,nthread-1) and pflag a pointer to
         /// thread-local bool (probably in the thread's stack)
         void register_thread(int id, volatile bool* pflag) {
+            if (id > 63) throw "Barrier : hard dimension failed";
             pflags[id] = pflag;
             *pflag=!sense;
         }
@@ -494,25 +491,32 @@ namespace madness {
         /// Each thread calls this with its id (0,..,nthread-1) to enter the barrier
         
         /// The thread last to enter the barrier returns true.  Others return false.
-        bool enter(int id) {
-            bool result = true;
-            if (nthread > 1) {
-                volatile bool* myflag = pflags[id]; // Local flag;
-                bool lsense = sense;                // Local copy of sense
-                result = MADATOMIC_INT_DEC_AND_TEST(&nworking);
+        /// 
+        /// All calls to the barrier must use the same value of nthread.
+        bool enter(const int id) {
+            if (nthread <= 1) {
+                return true;
+            }
+            else {
+                if (id > 63) throw "Barrier : hard dimension failed";
+                bool lsense = sense; // Local copy of sense
+                bool result = MADATOMIC_INT_DEC_AND_TEST(&nworking);
                 if (result) {
-                    MADATOMIC_INT_SET(&nworking, nthread); // reset counter
-                    sense = !sense; // toggle sense
-                    result = true;
+                    // Reset counter and sense for next entry
+                    MADATOMIC_INT_SET(&nworking, nthread); 
+                    sense = !sense;
+
+                    // Notify everyone including me
                     for (int i = 0; i < nthread; i++)
-                        *(pflags[i]) = lsense; // Notify everyone
+                        *(pflags[i]) = lsense;
                 } else {
+                    volatile bool* myflag = pflags[id]; // Local flag;
                     while (*myflag != lsense) {
                         cpu_relax();
                     }
                 }
+                return result;
             }
-            return result;
         }
     };
 }
