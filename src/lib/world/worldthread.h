@@ -475,10 +475,11 @@ namespace madness {
     /// migrated to another process for dynamic load balancing.  The
     /// default value is false.
     ///
-    /// \c highpriority : indicates a high priority task.
+    /// \c highpriority : indicates a high priority task. The default value is false.
     ///
     /// \c nthread : indicates number of threads. 0 threads is interpreted as 1 thread
-    /// for backward compatibility and ease of specifying defaults.
+    /// for backward compatibility and ease of specifying defaults. The default value
+    /// is 0 (==1).
     class TaskAttributes {
         unsigned long flags;
     public:
@@ -518,9 +519,18 @@ namespace madness {
             else flags &= ~HIGHPRIORITY;
         }
 
+        /// Are you sure this is what you want to call?
+
+        /// Only call this for a \c TaskAttributes that is \em not a base class
+        /// of a task object.
+        ///
+        /// If you are trying to set the number of threads in an \em existing
+        /// task you should call \c TaskInterface::set_nthread() instead.
+        /// No doubt there is some virtual/protected/something voodoo to prevent
+        /// you from doing harm.
         void set_nthread(int nthread) {
-        	MADNESS_ASSERT(nthread>=0 && nthread<256);
-        	flags = (flags & (~NTHREAD)) | (nthread & NTHREAD);
+            MADNESS_ASSERT(nthread>=0 && nthread<256);
+            flags = (flags & (~NTHREAD)) | (nthread & NTHREAD);
         }
 
         int get_nthread() const {
@@ -615,15 +625,31 @@ namespace madness {
         {
             MADATOMIC_INT_SET(&count, 0);
         }
-        
+
         explicit PoolTaskInterface(const TaskAttributes& attr)
             : TaskAttributes(attr)
-            , barrier(attr.get_nthread() ? new Barrier(attr.get_nthread()) : 0)
+            , barrier(attr.get_nthread()>1 ? new Barrier(attr.get_nthread()) : 0)
 
         {
             MADATOMIC_INT_SET(&count, 0);
         }
 
+        /// Call this to reset the number of threads before the task is submitted
+
+        /// Once a task has been constructed /c TaskAttributes::set_nthread() 
+        /// is insufficient because a multithreaded task includes a
+        /// barrier that needs to know the number of threads.
+        void set_nthread(int nthread) {
+            if (nthread != get_nthread()) {
+                TaskAttributes::set_nthread(nthread);
+                delete barrier;
+                if (nthread > 1) 
+                    barrier = new Barrier(nthread);
+                else
+                    barrier = 0;
+
+            }
+        }
         
         /// Override this method to implement a multi-threaded task
         
@@ -713,7 +739,7 @@ namespace madness {
             if (t.second) {
                 PROFILE_BLOCK(working);
                 if (t.first->run_multi_threaded())         // What we are here to do
-                	delete t.first;
+                    delete t.first;
             }
             return t.second;
         }
