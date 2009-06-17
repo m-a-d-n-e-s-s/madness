@@ -52,7 +52,7 @@ namespace madness {
             , idim(std::max(ihi-ilo+1,int64_t(0)))
             , jdim(std::max(jhi-jlo+1,int64_t(0)))
         {
-            print("DM: dims", n, m, "tiles", tilen, tilem, "ilo ihi jlo jhi", ilo, ihi, jlo, jhi, "idim jdim", idim, jdim);
+            //print("DM: dims", n, m, "tiles", tilen, tilem, "ilo ihi jlo jhi", ilo, ihi, jlo, jhi, "idim jdim", idim, jdim);
             
             if (idim>0 && jdim>0) t = Tensor<T>(idim,jdim);
         }
@@ -241,10 +241,10 @@ namespace madness {
         const int tag;                  //< MPI tag to be used for messages
         std::vector<T*> iptr, jptr;     //< Indirection for implementing cyclic buffer !! SHOULD BE VOLATILE ?????
         std::vector<int64_t> map;       //< Used to keep track of actual row indices
-        const TaskThreadEnv* thread_env; //< Thread environment ... VALID ONLY WHILE RUNNING
 
         void iteration(const TaskThreadEnv& env) {
-            start_iteration_hook();
+            start_iteration_hook(env);
+            env.barrier();
 
             int64_t ilo, ihi;
             A.local_colrange(ilo, ihi);
@@ -424,7 +424,7 @@ namespace madness {
         
     public:
         /// A must be a column distributed matrix with an even column tile >= 2
-        SystolicMatrixAlgorithm(DistributedMatrix<T>& A, int tag) 
+        SystolicMatrixAlgorithm(DistributedMatrix<T>& A, int tag, int nthread=ThreadPool::size()+1) 
             : A(A)
             , nproc(A.process_coldim()*A.process_rowdim())
             , coldim(A.coldim())
@@ -435,9 +435,8 @@ namespace madness {
             , iptr(nlocal)
             , jptr(nlocal)
             , map(coldim+(coldim&0x1))
-            , thread_env(0)
         {
-            //std::cerr << A.is_column_distributed() << " " << nproc << " " << A.coltile() << " "  << (A.coltile()&0x1) << std::endl;
+            TaskInterface::set_nthread(nthread);
 
             MADNESS_ASSERT(A.is_column_distributed() && (nproc==1 || (A.coltile()&0x1)==0));
             
@@ -483,25 +482,30 @@ namespace madness {
 
 
         /// Invoked simultaneously by all threads after each sweep to test for convergence
-        virtual bool converged() const = 0;
+
+        /// There is a thread barrier before and after the invocation of this routine
+        virtual bool converged(const TaskThreadEnv& env) const = 0;
         
 
         /// Invoked by all threads at the start of each iteration
-        virtual void start_iteration_hook() {}
+
+        /// There is a thread barrier before and after the invocation of this routine
+        virtual void start_iteration_hook(const TaskThreadEnv& env) {}
 
 
         /// Invoked by the task queue to run the algorithm with multiple threads
         void run(World& world, const TaskThreadEnv& env) {
-            thread_env = &env;
             if (nlocal <= 0) return; // Nothing to do
-
+            
             do {
+                env.barrier();
                 iteration(env);
-            } while (!converged());
+                env.barrier();
+            } while (!converged(env));
 
             if (env.id() == 0) unshuffle();
 
-            thread_env = 0;
+            env.barrier();
         }
 
 
@@ -521,12 +525,6 @@ namespace madness {
 
         /// Returns length of column
         int get_coldim() const {return coldim;}
-
-        /// Returns a reference to the thread environment --- VALID ONLY WHILE RUNNING
-        const TaskThreadEnv& get_env() const {
-            MADNESS_ASSERT(thread_env);
-            return *thread_env;
-        }
 
         /// Returns a reference to the world
         World& get_world() const {
@@ -560,16 +558,16 @@ namespace madness {
             }
         }
 
-        void start_iteration_hook() {
-            if (SystolicMatrixAlgorithm<T>::get_env().id() == 0) {
-                madness::print("    starting iteration", niter);
+        void start_iteration_hook(const TaskThreadEnv& env) {
+            int id = env.id();
+            if (id == 0) {
                 niter++;
             }
         }
 
-        bool converged() const {
-            if (niter == 3) {
-                if (SystolicMatrixAlgorithm<T>::get_env().id() == 0) {
+        bool converged(const TaskThreadEnv& env) const {
+            if (niter >= 3) {
+                if (env.id() == 0) {
                     madness::print("    done!");
                 }
                 return true;
@@ -598,9 +596,8 @@ int main(int argc, char** argv) {
             A.local_colrange(ilo, ihi);
             for (int i=ilo; i<=ihi; i++) A.data()(i-ilo,_) = i;
 
-            TestSystolicMatrixAlgorithm<double> t(A, 3333);
-
-            t.solve();
+            world.taskq.add(new TestSystolicMatrixAlgorithm<double>(A, 3333));
+            world.taskq.fence();
 
             for (int i=ilo; i<=ihi; i++) {
                 for (int k=0; k<m; k++) {
