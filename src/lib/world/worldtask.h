@@ -155,7 +155,7 @@ namespace madness {
 
 
         virtual ~TaskInterface() {
-            completion->notify();
+            if (completion) completion->notify();
         }
     };
 
