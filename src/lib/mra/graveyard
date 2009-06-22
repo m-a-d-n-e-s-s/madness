@@ -2277,3 +2277,23 @@ runvalg2:
         }
 
 
+
+
+
+                    // reorder subspace in order of decreasing residual norm
+                    for (int i=0; i<=m; i++) {
+                        for (int j=0; j<i; j++) {
+                            if (rnorms[i] > rnorms[j]) {
+                                swap(rvec[i],rvec[j]);
+                                swap(fvec[i],fvec[j]);
+                                swap(rnorms[i],rnorms[j]);
+
+                                tensorT tmp;
+                                tmp = copy(Q(i,_)); Q(i,_) = Q(j,_); Q(j,_) = tmp;
+                                tmp = copy(Q(_,i)); Q(_,i) = Q(_,j); Q(_,j) = tmp;
+                            }
+                        }
+                    }
+                    print("reordered rnorms", rnorms);
+                    
+                    
