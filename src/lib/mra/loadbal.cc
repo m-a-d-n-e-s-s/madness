@@ -503,7 +503,7 @@ namespace madness {
     /// Communication: barriers, and communication by methods it calls
 
     template <int D>
-    Void LBTree<D>::meld_all(bool first_time = false) {
+    Void LBTree<D>::meld_all(bool first_time) {
         //madness::print("meld_all: after launching on everybody, about to go to fix_cost");
         this->world.gop.barrier();
         //madness::print("meld_all: about to fix_cost");

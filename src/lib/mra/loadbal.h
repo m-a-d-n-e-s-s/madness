@@ -750,7 +750,7 @@ namespace madness {
         void find_partitions(PartitionInfo<D>& pi);
         bool verify_partition(std::vector<TreeCoords<D> >& part_list);
         Void launch_make_partition(PartitionInfo<D> pi, bool first_time);
-        Void meld_all(bool first_time);
+        Void meld_all(bool first_time=false);
 
         Cost fix_cost();
 
