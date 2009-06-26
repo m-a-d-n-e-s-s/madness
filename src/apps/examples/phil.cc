@@ -55,19 +55,19 @@ public:
         return sum;
     }
 
-    vector<coordT> special_points() const {
-        return centers;
-    }
+//     vector<coordT> special_points() const {
+//         return centers;
+//     }
 
-    virtual Level special_level() {
-        return 8;
-    }
+//     virtual Level special_level() {
+//         return 8;
+//     }
 
 };
 
-double ttt, sss;
-#define START_TIMER world.gop.fence(); ttt=wall_time(); sss=cpu_time()
-#define END_TIMER(msg) ttt=wall_time()-ttt; sss=cpu_time()-sss; if (world.rank()==0) printf("timer: %20.20s %8.2fs %8.2fs\n", msg, sss, ttt)
+double ttt_, sss_;
+#define START_TIMER world.gop.fence(); ttt_=wall_time(); sss_=cpu_time()
+#define END_TIMER(msg) ttt_=wall_time()-ttt_; sss_=cpu_time()-sss_; if (world.rank()==0) printf("timer: %20.20s %8.2fs %8.2fs\n", msg, sss_, ttt_)
         
 
 int main(int argc, char** argv) {
@@ -93,7 +93,7 @@ int main(int argc, char** argv) {
         FunctionDefaults<3>::set_apply_randomize(false);
         FunctionDefaults<3>::set_project_randomize(true);
 
-        const int ncent = 3; //10; // No. of centers is ncent**3
+        const int ncent = 2; //10; // No. of centers is ncent**3
         double h = 2*L/ncent;
         coordT v;
         for (int ix=0; ix<ncent; ix++) {
@@ -129,24 +129,14 @@ int main(int argc, char** argv) {
         END_TIMER("project");
 
         START_TIMER;
-        double ttt = rho.trace();
+        double norm = rho.trace();
         END_TIMER("trace in scaling fn");
-        if (world.rank() == 0) print("trace", ttt);
+        if (world.rank() == 0) print("trace", norm);
         
         START_TIMER;
-        ttt = rho.norm2();
+        norm = rho.norm2();
         END_TIMER("norm2 in scaling fn");
-        if (world.rank() == 0) print("norm2", ttt);
-        
-        START_TIMER;
-        ttt = rho.norm2();
-        END_TIMER("norm2 in scaling fn");
-        if (world.rank() == 0) print("norm2", ttt);
-        
-        START_TIMER;
-        ttt = rho.norm2();
-        END_TIMER("norm2 in scaling fn");
-        if (world.rank() == 0) print("norm2", ttt);
+        if (world.rank() == 0) print("norm2", norm);
         
         START_TIMER;
         rho.compress();
@@ -154,39 +144,14 @@ int main(int argc, char** argv) {
         END_TIMER("compress");
 
         START_TIMER;
-        ttt = rho.trace();
+        norm = rho.trace();
         END_TIMER("trace in wavelets");
-        if (world.rank() == 0) print("trace", ttt);
+        if (world.rank() == 0) print("trace", norm);
         
         START_TIMER;
-        ttt = rho.trace();
-        END_TIMER("trace in wavelets");
-        if (world.rank() == 0) print("trace", ttt);
-        
-        START_TIMER;
-        ttt = rho.trace();
-        END_TIMER("trace in wavelets");
-        if (world.rank() == 0) print("trace", ttt);
-        
-        START_TIMER;
-        ttt = rho.norm2();
-        END_TIMER("norm2 in wavelet");
-        if (world.rank() == 0) print("norm2", ttt);
-        
-        START_TIMER;
-        ttt = rho.norm2();
-        END_TIMER("norm2 in wavelet");
-        if (world.rank() == 0) print("norm2", ttt);
-        
-        START_TIMER;
-        ttt = rho.norm2();
-        END_TIMER("norm2 in wavelet");
-        if (world.rank() == 0) print("norm2", ttt);
-        
-        START_TIMER;
-        ttt = rho.norm2();
-        END_TIMER("norm2 in wavelet");
-        if (world.rank() == 0) print("norm2", ttt);
+        norm = rho.norm2();
+        END_TIMER("norm2 in wavelets");
+        if (world.rank() == 0) print("norm2", norm);
         
         START_TIMER;
         rho.reconstruct();
