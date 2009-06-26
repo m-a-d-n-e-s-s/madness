@@ -2136,7 +2136,7 @@ namespace madness {
                     double tol = truncate_tol(thresh, key);
 
                     if (cnorm*opnorm> tol/fac) {
-#define FINER_GRAIN
+//#define FINER_GRAIN
 #ifdef  FINER_GRAIN
                         // This introduces finer grain parallelism
                         // ProcessID where = world.rank();
