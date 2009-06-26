@@ -103,7 +103,7 @@ int main(int argc, char** argv) {
         }
         FunctionDefaults<3>::set_cell(cell);
         FunctionDefaults<3>::set_k(14);
-        FunctionDefaults<3>::set_thresh(1e-10);
+        FunctionDefaults<3>::set_thresh(1e-12);
         FunctionDefaults<3>::set_refine(true);
         FunctionDefaults<3>::set_autorefine(false);
         FunctionDefaults<3>::set_initial_level(5);
@@ -129,6 +129,7 @@ int main(int argc, char** argv) {
         for (int i=0; i<nfunc; i++) {
             lb.add_tree(v[i], lbcost<double,3>(1.0,1.0), false);
         }
+        world.gop.fence();
         FunctionDefaults<3>::set_pmap(lb.load_balance(2.0));
         world.gop.fence();
         END_TIMER("load balance");
@@ -149,31 +150,58 @@ int main(int argc, char** argv) {
         compress(world, v);
         END_TIMER("compress");
 
-//         world.gop.fence();
-//         START_TIMER;
-//         truncate(world, v);
-//         END_TIMER("truncate");
+        world.gop.fence();
+        START_TIMER;
+        truncate(world, v);
+        END_TIMER("truncate");
 
         START_TIMER;
         reconstruct(world,v);
         END_TIMER("reconstruct");
 
-        SeparatedConvolution<double,3> op = CoulombOperator<double>(world, 14, 1e-3, 1e-10);
+        SeparatedConvolution<double,3> op = CoulombOperator<double>(world, 
+                                                                    FunctionDefaults<3>::get_k(), 
+                                                                    1e-3, 
+                                                                    FunctionDefaults<3>::get_thresh());
 
         world.gop.fence();
         START_TIMER;
-        vector<functionT> r = apply(world, op, v);
-        END_TIMER("apply");
+        apply(world, op, v);
+        END_TIMER("apply-1");
 
         world.gop.fence();
         START_TIMER;
-        r = apply(world, op, v);
-        END_TIMER("apply");
+        apply(world, op, v);
+        END_TIMER("apply-2");
 
         world.gop.fence();
         START_TIMER;
-        r = apply(world, op, v);
-        END_TIMER("apply");
+        LoadBalanceDeux<3> lbX(world);
+        for (int i=0; i<nfunc; i++) {
+            lbX.add_tree(v[i], lbcost<double,3>(1.0,1.0), false);
+        }
+        world.gop.fence();
+        FunctionDefaults<3>::set_pmap(lbX.load_balance(2.0));
+        world.gop.fence();
+        for (int i=0; i<nfunc; i++) {
+            v[i] = copy(v[i], FunctionDefaults<3>::get_pmap(), false);
+        }
+        world.gop.fence();
+        END_TIMER("load balance truncated");
+
+        START_TIMER;
+        reconstruct(world,v);
+        END_TIMER("reconstruct");
+
+        world.gop.fence();
+        START_TIMER;
+        apply(world, op, v);
+        END_TIMER("apply-1");
+
+        world.gop.fence();
+        START_TIMER;
+        apply(world, op, v);
+        END_TIMER("apply-2");
 
         world.gop.fence();
         START_TIMER;
