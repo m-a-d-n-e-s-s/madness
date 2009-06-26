@@ -20,7 +20,10 @@ struct lbcost {
     double parent_value;
     lbcost(double leaf_value=1.0, double parent_value=0.0) : leaf_value(leaf_value), parent_value(parent_value) {}
     double operator()(const Key<NDIM>& key, const FunctionNode<T,NDIM>& node) const {
-        if (node.is_leaf()) {
+        if (key.level() <= 1) {
+            return 1000;
+        }
+        else if (node.is_leaf()) {
             return leaf_value;
         }
         else {
@@ -34,7 +37,7 @@ const double PI = 3.1415926535897932384;
 // list of centers
 vector<coordT> centers;
 
-const double expnt = 1.0;
+const double expnt = 60.0;
 const double coeff = pow(expnt/PI,1.5);
 
 // Test function
@@ -55,19 +58,19 @@ public:
         return sum;
     }
 
-//     vector<coordT> special_points() const {
-//         return centers;
-//     }
+    vector<coordT> special_points() const {
+        return centers;
+    }
 
-//     virtual Level special_level() {
-//         return 8;
-//     }
+    virtual Level special_level() {
+        return 6;
+    }
 
 };
 
 double ttt_, sss_;
 #define START_TIMER world.gop.fence(); ttt_=wall_time(); sss_=cpu_time()
-#define END_TIMER(msg) ttt_=wall_time()-ttt_; sss_=cpu_time()-sss_; if (world.rank()==0) printf("timer: %20.20s %8.2fs %8.2fs\n", msg, sss_, ttt_)
+#define END_TIMER(msg) ttt_=wall_time()-ttt_; sss_=cpu_time()-sss_; if (world.rank()==0) printf("timer: %20.20s %8.4fs %8.4fs\n", msg, sss_, ttt_)
         
 
 int main(int argc, char** argv) {
@@ -85,15 +88,15 @@ int main(int argc, char** argv) {
             cell(i,1) =  L;
         }
         FunctionDefaults<3>::set_cell(cell);
-        FunctionDefaults<3>::set_k(14);
-        FunctionDefaults<3>::set_thresh(1e-12);
+        FunctionDefaults<3>::set_k(10);
+        FunctionDefaults<3>::set_thresh(1e-10);
         FunctionDefaults<3>::set_refine(true);
         FunctionDefaults<3>::set_autorefine(false);
-        FunctionDefaults<3>::set_initial_level(3);
+        FunctionDefaults<3>::set_initial_level(2);
         FunctionDefaults<3>::set_apply_randomize(false);
         FunctionDefaults<3>::set_project_randomize(true);
 
-        const int ncent = 2; //10; // No. of centers is ncent**3
+        const int ncent = 10; // No. of centers is ncent**3
         double h = 2*L/ncent;
         coordT v;
         for (int ix=0; ix<ncent; ix++) {
@@ -218,21 +221,23 @@ int main(int argc, char** argv) {
         rho.reconstruct();
         END_TIMER("reconstruct");
 
-        world.gop.fence();
         START_TIMER;
         apply(op, rho);
         END_TIMER("apply-1");
 
-        world.gop.fence();
         START_TIMER;
         apply(op, rho);
         END_TIMER("apply-2");
 
-        world.gop.fence();
         START_TIMER;
         size_t ncoeff = rho.size();
         END_TIMER("count coeff");
         if (world.rank() == 0) print("NCOEFF ", ncoeff);
+
+        START_TIMER;
+        size_t depth = rho.max_depth();
+        END_TIMER("count coeff");
+        if (world.rank() == 0) print("depth ", depth);
 
         ThreadPool::end();
         print_stats(world);
