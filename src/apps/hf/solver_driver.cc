@@ -47,7 +47,9 @@ int main(int argc, char** argv)
           eigs.push_back(tmpe[i]);
         }
 
-        Solver<double,3> dftcalc(world, vnucrhon, app.orbitals(), app.eigs(), app.kpoints(), app.occs(), app.params());
+        Solver<double,3> dftcalc(world, vnucrhon, app.orbitals(), app.eigs(), 
+                                 app.kpoints(), app.occs(), app.params(),
+                                 app.entity());
         dftcalc.solve();
         world.gop.fence();
 

@@ -102,10 +102,6 @@ namespace madness
     //*************************************************************************
 
     //*************************************************************************
-    bool newscheme() {return true;}
-    //*************************************************************************
-
-    //*************************************************************************
     subspaceT _subspace;
     //*************************************************************************
 
@@ -113,6 +109,13 @@ namespace madness
     tensorT _Q;
     //*************************************************************************
 
+    //*************************************************************************
+    MolecularEntity _mentity;
+    //*************************************************************************
+
+    //*************************************************************************
+    double _residual;
+    //*************************************************************************
   public:
     //*************************************************************************
     // Constructor
@@ -122,10 +125,12 @@ namespace madness
            vecfuncT phisb,
            std::vector<T> eigsa,
            std::vector<T> eigsb,
-           ElectronicStructureParams params)
+           ElectronicStructureParams params,
+           MolecularEntity mentity)
        : _world(world), _vnucrhon(vnucrhon), _phisa(phisa), _phisb(phisb),
-       _eigsa(eigsa), _eigsb(eigsb), _params(params)
+       _eigsa(eigsa), _eigsb(eigsb), _params(params), _mentity(mentity)
     {
+      _residual = 1e5;
       if (params.periodic)
       {
         Tensor<double> box = FunctionDefaults<NDIM>::get_cell_width();
@@ -155,10 +160,12 @@ namespace madness
            const rfuntionT& vnucrhon,
            const vecfuncT& phis,
            const std::vector<T>& eigs,
-           const ElectronicStructureParams& params)
+           const ElectronicStructureParams& params,
+           MolecularEntity mentity)
        : _world(world), _vnucrhon(vnucrhon), _phisa(phis), _phisb(phis),
-       _eigsa(eigs), _eigsb(eigs), _params(params)
+       _eigsa(eigs), _eigsb(eigs), _params(params), _mentity(mentity)
     {
+      _residual = 1e5;
       if (params.periodic)
       {
         Tensor<double> box = FunctionDefaults<NDIM>::get_cell_width();
@@ -190,11 +197,13 @@ namespace madness
            std::vector<T> eigs,
            std::vector<KPoint> kpoints,
            std::vector<double> occs,
-           ElectronicStructureParams params)
+           ElectronicStructureParams params,
+           MolecularEntity mentity)
        : _world(world), _vnucrhon(vnucrhon), _phisa(phis), _phisb(phis),
          _eigsa(eigs), _eigsb(eigs), _params(params),
-         _kpoints(kpoints), _occs(occs)
+         _kpoints(kpoints), _occs(occs), _mentity(mentity)
     {
+      _residual = 1e5;
       if (params.periodic)
       {
         Tensor<double> box = FunctionDefaults<NDIM>::get_cell_width();
@@ -224,15 +233,12 @@ namespace madness
       // Electron density
       rfuntionT rho = rfactoryT(_world);
       _world.gop.fence();
-      print("computing rho ...");
+      if (_world.rank() == 0) print("computing rho ...");
       // Loop over k-points
-      print ("size of kpoints:", kpoints.size());
-      print ("size of orbitals:", phis.size());
       for (unsigned int kp = 0; kp < kpoints.size(); kp++)
       {
         // get k-point
         KPoint kpoint = kpoints[kp];
-        print("kpoint:", kp, "begin:", kpoint.begin, "end", kpoint.end);
         // loop through bands
         for (unsigned int j = kpoint.begin; j < kpoint.end; j++)
         {
@@ -391,13 +397,11 @@ namespace madness
       for (int it = 0; it < _params.maxits; it++)
       {
         if (_world.rank() == 0) print("it = ", it);
+       
         // Compute density
         _rhoa = compute_rho(_phisa, _kpoints);
         _rhob = (_params.spinpol) ? compute_rho(_phisb, _kpoints) : _rhoa;
         _rho = _rhoa + _rhob;
-
-        double rtrace = _rho.trace();
-        print("trace of rho = ", rtrace);
 
         vector<functionT> pfuncsa =
                 zero_functions<valueT,NDIM>(_world, _phisa.size());
@@ -484,8 +488,6 @@ namespace madness
         double k1 = kpoint.k[1];
         double k2 = kpoint.k[2];
         // WSTHORNTON
-        print("kpoint info:");
-        print(wf.size(), vwf.size(), kpoint.begin, kpoint.end);
         vecfuncT k_wf(wf.begin() + kpoint.begin, wf.begin() + kpoint.end);
         vecfuncT k_vwf(vwf.begin() + kpoint.begin, vwf.begin() + kpoint.end);
 
@@ -494,7 +496,6 @@ namespace madness
 
         // Do right hand side stuff for kpoint
         bool isgamma = (is_equal(k0,0.0,1e-5) && is_equal(k1,0.0,1e-5) && is_equal(k2,0.0,1e-5));
-
         if (_params.periodic && !isgamma)
         {
           // Do the gradient term and k^2/2
@@ -523,9 +524,6 @@ namespace madness
           for (unsigned int ei = kpoint.begin, fi = 0; ei < kpoint.end;
             ei++, fi++)
           {
-            // WSTHORNTON
-            print("\n");
-            print(ei, fi);
             if (real(e(fi,fi)) > -0.1)
             {
               eps[ei] = -0.1;
@@ -539,7 +537,8 @@ namespace madness
           }
           for (unsigned int ei = 0; ei < e.dim[0]; ei++)
           {
-            print("kpoint ", kp, "ei ", ei, "eps ", real(e(ei,ei)));
+            if (_world.rank() == 0)
+              print("kpoint ", kp, "ei ", ei, "eps ", real(e(ei,ei)));
           }
 //          // WSTHORNTON
 //          // this will work if there is only 1 k-point
@@ -590,10 +589,6 @@ namespace madness
       fock = 0.5 * (fock + transpose(fock));
       _world.gop.fence();
 
-      print(kinetic);
-      print(potential);
-      print(fock);
-      
       return fock;
     }
     //*************************************************************************
@@ -678,7 +673,8 @@ namespace madness
       {
         double rnorm = 0.0;
         for (unsigned int i = 0; i < rnvec.size(); i++) rnorm += rnvec[i];
-        print("residual = ", rnorm);
+        if (_world.rank() == 0) print("residual = ", rnorm);
+        _residual = rnorm;
       }
       // concatentate up and down spins
       vecfuncT vm = _phisa;
@@ -715,7 +711,7 @@ namespace madness
       newQ(_,m-1) = sm;
 
       _Q = newQ;
-      print(_Q);
+      if (_world.rank() == 0) print(_Q);
 
       // Solve the subspace equations
       tensorT c;
@@ -727,11 +723,13 @@ namespace madness
                   break;
               }
               else if (rcond < 0.01) {
-                  print("Increasing subspace singular value threshold ", c[m-1], rcond);
+                  if (_world.rank() == 0) 
+                    print("Increasing subspace singular value threshold ", c[m-1], rcond);
                   rcond *= 100;
               }
               else {
-                  print("Forcing full step due to subspace malfunction");
+                  if (_world.rank() == 0) 
+                    print("Forcing full step due to subspace malfunction");
                   c = 0.0;
                   c[m-1] = 1.0;
                   break;

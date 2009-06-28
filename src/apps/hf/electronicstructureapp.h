@@ -238,31 +238,31 @@ public:
     {
       _aobasis.read_file("sto-3g");
       _mentity.read_file(filename, _params.fractional);
-      _mentity.center();
-      // set number of electrons to the total nuclear charge of the mentity
-      _params.nelec = _mentity.total_nuclear_charge();
-      // total number of bands include empty
-      _params.nbands = (_params.nelec/2) + _params.nempty;
-      if ((_params.nelec % 2) == 1) _params.nelec++;
+    }
+    // set number of electrons to the total nuclear charge of the mentity
+    _params.nelec = _mentity.total_nuclear_charge();
+    // total number of bands include empty
+    _params.nbands = (_params.nelec/2) + _params.nempty;
+    if ((_params.nelec % 2) == 1) _params.nelec++;
 
-      if (_params.periodic) // PERIODIC
-      {
-        // GAMMA POINT
-        if ((_params.ngridk0 == 1) && (_params.ngridk1 == 1) && (_params.ngridk2 == 1))
-        {
-          _kpoints.push_back(KPoint(coordT(0.5), 1.0));
-        }
-        else // NORMAL BANDSTRUCTURE
-        {
-          _kpoints = genkmesh(_params.ngridk0, _params.ngridk1,
-                              _params.ngridk2, _params.L);
-        }
-      }
-      else // NOT-PERIODIC
+    if (_params.periodic) // PERIODIC
+    {
+      // GAMMA POINT
+      if ((_params.ngridk0 == 1) && (_params.ngridk1 == 1) && (_params.ngridk2 == 1))
       {
         _kpoints.push_back(KPoint(coordT(0.0), 1.0));
       }
+      else // NORMAL BANDSTRUCTURE
+      {
+        _kpoints = genkmesh(_params.ngridk0, _params.ngridk1,
+                            _params.ngridk2, _params.L);
+      }
     }
+    else // NOT-PERIODIC
+    {
+      _kpoints.push_back(KPoint(coordT(0.0), 1.0));
+    }
+
     _world.gop.broadcast_serializable(_mentity, 0);
     _world.gop.broadcast_serializable(_aobasis, 0);
     _world.gop.broadcast_serializable(_kpoints, 0);
@@ -294,8 +294,8 @@ public:
         }
       }
     }
-    print("kmesh:");
-    for (unsigned int i = 0; i < kmesh.size(); i++)
+    if (_world.rank() == 0) print("kmesh:");
+    for (unsigned int i = 0; i < kmesh.size() && _world.rank() == 0; i++)
     {
       KPoint kpoint = kmesh[i];
       print(kpoint.k[0], kpoint.k[1], kpoint.k[2], kpoint.weight);
@@ -505,13 +505,13 @@ public:
         new GuessDensity(_mentity, _aobasis, _params.L, _params.periodic)));
     rho.scale(_params.nelec/rho.trace());
 
-    print(rho.trace());
-
 //    vector<long> npt(3,101);
 //    plotdx(rho, "rho_initial.dx", FunctionDefaults<3>::get_cell(), npt);
 
     rfunctionT vlocal;
     // Is this a many-body system?
+    int rank = _world.rank();
+    print("rank ", rank, "nelec ", _params.nelec);
     if (_params.nelec > 1)
     {
       if (_world.rank() == 0) print("Creating Coulomb op ...\n\n");
@@ -688,11 +688,6 @@ public:
       }
 
       kp += _params.nbands;
-    }
-    print("size of orbitals = ", _orbitals.size());
-    for (unsigned int ki = 0; ki < _kpoints.size(); ki++)
-    {
-      print("final kpoint ", ki, "begin ", _kpoints[ki].begin, "end ", _kpoints[ki].end);
     }
   }
 
