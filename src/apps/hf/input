@@ -1,18 +1,46 @@
 dft
-  nelec 48
   nempty 0
-  L 7.6 
+  L 5.0
+  ngridk 1 1 1
   ispotential false
   periodic true
   spinpol false
-  maxits 100
+  maxits 30
   lo 1e-2
-  waveorder 8
-  thresh 1e-6
-  fractional true
+  waveorder 6
+  thresh 1e-4
+  fractional false
   maxsub 8
   maxrotn 0.1
   canon true
+end
+
+# LiF with L = 5.0
+geometry
+  li   0.0  0.0  0.0
+  f    0.5  0.5  0.5
+end
+
+geometry
+  he   0.0  0.0  0.0
+end
+
+# LiF with L = 5.0
+geometry
+  li  -1.25  -1.25  -1.25
+  f    1.25   1.25   1.25
+end
+
+# helium with L = 8.0 in fractional coordinates 
+geometry
+  he   0.25  0.25  0.25
+  he   0.25  0.25  0.75
+  he   0.25  0.75  0.25
+  he   0.75  0.25  0.25
+  he   0.75  0.75  0.25
+  he   0.25  0.75  0.75
+  he   0.75  0.25  0.75
+  he   0.75  0.75  0.75
 end
 
 # LiF with L = 7.6
@@ -24,12 +52,6 @@ geometry
   f    0.0  0.0  0.5
   f    0.0  0.5  0.0 
   f    0.5  0.0  0.0
-  f    0.5  0.5  0.5
-end
-
-# LiF with L = 5.0
-geometry
-  li   0.0  0.0  0.0
   f    0.5  0.5  0.5
 end
 
@@ -66,18 +88,6 @@ end
 geometry
   li 0 0 0
   f  0 0 2.5
-end
-
-# helium with L = 8.0 in fractional coordinates 
-geometry
-  he   0.25  0.25  0.25
-  he   0.25  0.25  0.75
-  he   0.25  0.75  0.25
-  he   0.75  0.25  0.25
-  he   0.75  0.75  0.25
-  he   0.25  0.75  0.75
-  he   0.75  0.25  0.75
-  he   0.75  0.75  0.75
 end
 
 geometry
