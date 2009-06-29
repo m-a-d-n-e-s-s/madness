@@ -224,6 +224,7 @@ public:
       _params.read_file(filename);
       //_params.fractional = false;
     }
+    // Send params
     _world.gop.broadcast_serializable(_params, 0);
     if (_params.fractional)
       //FunctionDefaults<3>::set_cubic_cell(0,_params.L);
@@ -239,6 +240,9 @@ public:
       _aobasis.read_file("sto-3g");
       _mentity.read_file(filename, _params.fractional);
     }
+    // Send mentity and aobasis
+    _world.gop.broadcast_serializable(_mentity, 0);
+    _world.gop.broadcast_serializable(_aobasis, 0);
     // set number of electrons to the total nuclear charge of the mentity
     _params.nelec = _mentity.total_nuclear_charge();
     // total number of bands include empty
@@ -262,11 +266,6 @@ public:
     {
       _kpoints.push_back(KPoint(coordT(0.0), 1.0));
     }
-
-    _world.gop.broadcast_serializable(_mentity, 0);
-    _world.gop.broadcast_serializable(_aobasis, 0);
-    _world.gop.broadcast_serializable(_kpoints, 0);
-
   }
 
   std::vector<KPoint> genkmesh(unsigned int ngridk0, unsigned ngridk1, unsigned int ngridk2, double R)
