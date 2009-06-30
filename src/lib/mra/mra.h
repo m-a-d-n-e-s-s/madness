@@ -151,26 +151,26 @@ namespace madness {
         template <typename L, typename R, int D>
         friend
         Function<TENSOR_RESULT_TYPE(L,R),D>
-        madness::mul(const Function<L,D>& left, const Function<R,D>& right, bool fence=true);
+        madness::mul(const Function<L,D>& left, const Function<R,D>& right, bool fence);
 
         template <typename L, typename R, int D>
         friend
         std::vector< Function<TENSOR_RESULT_TYPE(L,R),D> >
-        vmulXX(const Function<L,D>& left, const std::vector< Function<R,D> >& vright, double tol, bool fence=true);
+        vmulXX(const Function<L,D>& left, const std::vector< Function<R,D> >& vright, double tol, bool fence);
 
         template <typename L, typename R, int D>
         std::vector< Function<TENSOR_RESULT_TYPE(L,R),D> >
-        transform(World& world,  const std::vector< Function<L,D> >& v, const Tensor<R>& c, double tol, bool fence=true);
+        transform(World& world,  const std::vector< Function<L,D> >& v, const Tensor<R>& c, double tol, bool fence);
 
         template <typename Q, typename R, int D>
         friend
         Function<TENSOR_RESULT_TYPE(Q,R),D>
-        madness::mul(const Q alpha, const Function<R,D>& f, bool fence=true);
+        madness::mul(const Q alpha, const Function<R,D>& f, bool fence);
 
         template <typename L, typename R, int D>
         friend
         Function<TENSOR_RESULT_TYPE(L,R),D>
-        madness::mul_sparse(const Function<L,D>& left, const Function<R,D>& right, double tol, bool fence=true);
+        madness::mul_sparse(const Function<L,D>& left, const Function<R,D>& right, double tol, bool fence);
 
         template <typename Q, typename R, int D>
         friend
@@ -186,17 +186,17 @@ namespace madness {
         friend
         Function<TENSOR_RESULT_TYPE(L,R),D>
         madness::gaxpy_oop(TENSOR_RESULT_TYPE(L,R) alpha, const Function<L,D>& left,
-                           TENSOR_RESULT_TYPE(L,R) beta,  const Function<R,D>& right, bool fence=true);
+                           TENSOR_RESULT_TYPE(L,R) beta,  const Function<R,D>& right, bool fence);
 
         template <typename L, typename R, int D>
         friend
         Function<TENSOR_RESULT_TYPE(L,R),D>
-        madness::add(const Function<L,D>& left, const Function<R,D>& right, bool fence=true);
+        madness::add(const Function<L,D>& left, const Function<R,D>& right, bool fence);
 
         template <typename L, typename R, int D>
         friend
         Function<TENSOR_RESULT_TYPE(L,R),D>
-        madness::sub(const Function<L,D>& left, const Function<R,D>& right, bool fence=true);
+        madness::sub(const Function<L,D>& left, const Function<R,D>& right, bool fence);
 
         template <typename L, typename R, int D>
         friend
@@ -211,27 +211,27 @@ namespace madness {
         template <typename opT, typename R, int D>
         friend
         Function<TENSOR_RESULT_TYPE(typename opT::opT,R), D>
-        madness::apply_only(const opT& op, const Function<R,D>& f, bool fence=true);
+        madness::apply_only(const opT& op, const Function<R,D>& f, bool fence);
 
         template <typename opT, typename R, int D>
         friend
         Function<TENSOR_RESULT_TYPE(typename opT::opT,R), D>
-        madness::apply(const opT& op, const Function<R,D>& f, bool fence=true);
+        madness::apply(const opT& op, const Function<R,D>& f, bool fence);
 
         template <typename L, typename R, typename opT, int D>
         friend
         Function<TENSOR_RESULT_TYPE(L,R),D>
-        binary_op(const Function<L,D>& left, const Function<R,D>& right, const opT& op, bool fence=true);
+        binary_op(const Function<L,D>& left, const Function<R,D>& right, const opT& op, bool fence);
 
         template <typename Q, typename opT, int D>
         friend
         Function<typename opT::resultT,D>
-        unary_op(const Function<Q,D>& func, const opT& op, bool fence=true);
+        unary_op(const Function<Q,D>& func, const opT& op, bool fence);
 
         template <typename Q, typename opT, int D>
         friend
         Function<typename opT::resultT,D>
-        unary_op_coeffs(const Function<Q,D>& func, const opT& op, bool fence=true);
+        unary_op_coeffs(const Function<Q,D>& func, const opT& op, bool fence);
 
         friend Function<T,NDIM> square<T,NDIM>(const Function<T,NDIM>&, bool);
 
