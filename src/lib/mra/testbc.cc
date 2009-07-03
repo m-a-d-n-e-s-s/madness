@@ -62,14 +62,14 @@ public:
     const coordT center;
     const double radius;
     const double sigma;
-    const double fac;
+    const double expnt;
     const double norm;
 
     Sphere(const coordT& center, double radius, double sigma)
         : center(center)
         , radius(radius)
         , sigma(sigma)
-        , fac(0.5/(sigma*sigma))
+        , expnt(0.5/(sigma*sigma))
         , norm(1.0/(sigma*sqrt(2.0*constants::pi))) 
     {}
 
@@ -79,13 +79,45 @@ public:
         double zz = (x[2]-center[2]);
         double r = sqrt(xx*xx + yy*yy + zz*zz);
         double dist = r - radius; // Normal distance from boundary
-        double arg = dist*dist*fac; // Argument to exponential
+        double arg = dist*dist*expnt; // Argument to exponential
         if (arg > 35.0) 
             return 0.0;
         else 
             return norm*exp(-arg);
     }
 };
+
+
+class DSphere : public FunctionFunctorInterface<double,3> {
+public:
+    const coordT center;
+    const double radius;
+    const double sigma;
+    const double expnt;
+    const double norm;
+
+    DSphere(const coordT& center, double radius, double sigma)
+        : center(center)
+        , radius(radius)
+        , sigma(sigma)
+        , expnt(0.5/(sigma*sigma))
+        , norm(1.0/(sigma*sqrt(2.0*constants::pi))) 
+    {}
+
+    double operator()(const coordT& x) const {
+        double xx = (x[0]-center[0]);
+        double yy = (x[1]-center[1]);
+        double zz = (x[2]-center[2]);
+        double r = sqrt(xx*xx + yy*yy + zz*zz);
+        double dist = r - radius; // Normal distance from boundary
+        double arg = dist*dist*expnt; // Argument to exponential
+        if (arg > 35.0) 
+            return 0.0;
+        else 
+            return -2.0*dist*expnt*norm*exp(-arg);
+    }
+};
+
 
 int main(int argc, char**argv) {
     initialize(argc,argv);
@@ -96,7 +128,7 @@ int main(int argc, char**argv) {
 
         // MADNESS simulation parameters
         const int k = 6;
-        const double thresh = 1e-5;
+        const double thresh = 1e-3;
         const double L = 4.0;
 
         // Boundary width
@@ -121,21 +153,31 @@ int main(int argc, char**argv) {
         functionT spha = factoryT(world).functor(functorT(new Sphere(coordT(), 1.0, sigma)));
         functionT sphb = factoryT(world).functor(functorT(new Sphere(coordT(), 3.0, sigma)));
 
+        functionT dspha = factoryT(world).functor(functorT(new DSphere(coordT(), 1.0, sigma)));
+        functionT dsphb = factoryT(world).functor(functorT(new DSphere(coordT(), 3.0, sigma)));
+
         print("inner shell norm", spha.norm2());
         print("outer shell norm", sphb.norm2());
 
         functionT phi = spha + sphb;      // Delta function at the boundary
         functionT u0 = -1.0*spha + sphb;  // The desired boundary conditions * phi
+        functionT du0= -1.0*dspha + dsphb;  // The desired boundary conditions * phi
+        dspha.clear(); dsphb.clear();
+
         phi.truncate(thresh*0.1);
         u0.truncate(thresh*0.1);
+        du0.truncate(thresh*0.1);
 
         plot_line("phi.dat", npt, lo, hi, phi);
+        plot_line("u0.dat", npt, lo, hi, u0);
 
-        operatorT op = CoulombOperator<double>(world, k, sigma*0.1, thresh*0.1);
+        operatorT op = CoulombOperator<double>(world, k, sigma*0.1, thresh);
         // Starting values
         double mu = 0.25;
-        functionT lambda(world);
-        functionT f = u0*(1.0/mu);
+        functionT f = 1.0*u0; //-1.0*du0;
+        du0.clear();
+        functionT lambda = f;  // lambda is actually lambdaphi
+
         functionT u; // This will be current solution
         functionT c; // This will be the value of the constraint
 
@@ -146,6 +188,7 @@ int main(int argc, char**argv) {
                 vector<double> rnorms;
                 tensorT Q;
                 for (int m=0; m<15; m++) {
+                    f.truncate();
                     fvec.push_back(f);
                     u = apply(op, fvec[m]); 
                     u.scale(0.25/constants::pi); 
@@ -154,7 +197,8 @@ int main(int argc, char**argv) {
                     c = u*phi - u0; // Constraint violation
                     double cnorm = c.norm2();
                     
-                    rvec.push_back(fvec[m] - phi*(lambda - c*(1.0/mu))); // Residual
+                    rvec.push_back(fvec[m] - (lambda - phi*c*(1.0/mu))); // Residual
+                    rvec.back().truncate();
                     double rnorm = rvec[m].norm2();
                     rnorms.push_back(rnorm);
 
@@ -194,22 +238,26 @@ int main(int argc, char**argv) {
                     
                     print("    iteration", m, "mu", mu, "fnorm", fnorm, "snorm", snorm, "rnorm", rnorm, "cnorm", cnorm);
                     
-                    if (rnorm < 1e-2) {
+                    if (rnorm < 0.5) {
                         // Current solution will be in f
                         break;
                     }
                 }
 
+                plot_line("c.dat", npt, lo, hi, c);
                 plot_line("u.dat", npt, lo, hi, u);
                 plot_line("f.dat", npt, lo, hi, f);
                 plot_line("lambda.dat", npt, lo, hi, lambda);
 
                 double damp = 1.0;
-                functionT lambdanew = lambda - c * (damp/mu);
+                functionT lambdanew = lambda - phi* c * (damp/mu);
+
                 print("\nupdating lambda", lamiter, (lambdanew-lambda).norm2());
                 lambda = lambdanew;
+                lambda.truncate();
             }
             mu *= 0.5;
+            lambda = phi* c * (1.0/mu);
             print("\nupdating mu", muiter, mu);
         }
         
