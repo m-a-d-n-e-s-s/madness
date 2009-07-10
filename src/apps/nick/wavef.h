@@ -7,7 +7,7 @@
  * function. 
  * 
  * Using: Gnu Scientific Library
- *        http://www.netlib.org/toms/707
+ *        HYPERGF from COULCC by Thompson and Barnett
  * By:    Nick Vence
  **********************************************************************/
 
@@ -25,6 +25,7 @@ typedef SharedPtr< FunctionFunctorInterface<complexd,NDIM> > functorT;
 typedef Vector<double,NDIM> vector3D;
 const complexd I(0,1);
 const double PI = M_PI;
+const complexd one(1,0);
 
 int      fact(int);
 void     testFact(World&);
@@ -49,6 +50,7 @@ class ScatteringWF : public FunctionFunctorInterface<complexd,NDIM> {
 public:
     typedef Vector<double,NDIM> vector3D;
     ScatteringWF( double Z, const vector3D& kVec );
+    ~ScatteringWF();
     complexd operator()(const vector3D& x) const;
     complexd aFormNew3(complexd AA, complexd BB, complexd ZZ) const;
     complexd hypergf(complexd AA, complexd BB, complexd ZZ) const;
@@ -56,19 +58,37 @@ public:
     complexd aForm1(complexd AA, complexd BB, complexd ZZ) const;
     complexd aForm2(complexd AA, complexd BB, complexd ZZ) const;
     complexd aForm3(complexd ZZ) const;
-    complexd f11(complexd AA, complexd BB, complexd ZZ) const;
-private:
-    vector3D kVec;
-    double   Z;
+    complexd f11(double x) const;
+    complexd splined1F1(double x) const;
+    double   diffR(double x) const;
+    double   diffI(double x) const;
+    double   toX(int i) const;
+    int      fromX(double x) const;
     double   k;
-    double   costhK;
+    double domain;
+    vector3D kVec;
+private:
+    double   Z;
     complexd expmPI_k;
     complexd expPI_2k;
+    complexd expPI_2kXgamma1pI_k;
     complexd gamma1pI_k;
     complexd gammamI_k;
     complexd one;
     double   TOL;
-    int histograph[200];
+    double   dx;
+    double   two_dx;
+    int n;
+    double*  aR;
+    double*  bR;
+    double*  cR;
+    double*  dR;
+    double*  aI;
+    double*  bI;
+    double*  cI;
+    double*  dI;
+    double*  h;
+    double*  x;
 };
 
 /******************************************

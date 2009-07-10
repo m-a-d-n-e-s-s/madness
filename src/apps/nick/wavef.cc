@@ -1,3 +1,5 @@
+//\file wavef.cc
+//\brief The hydrogenic bound and continuum states
 /**********************************************************************
  * Here is a madness representation of the hydrogenic wave functions.
  * The bound states come from the Gnu Scientific Library. The unbound
@@ -9,6 +11,7 @@
  **********************************************************************/
 
 #include "wavef.h"
+#include "hyp.h"
 #include <gsl/gsl_sf_trig.h>
 #include <gsl/gsl_sf_coulomb.h>
 #include <gsl/gsl_sf_gamma.h>
@@ -128,54 +131,194 @@ ScatteringWF::ScatteringWF(double Z, const vector3D& kVec) : Z(Z), kVec(kVec)
     double sum = 0.0;
     for(int i=0; i<NDIM; i++) { sum += kVec[i]*kVec[i]; }
     k = sqrt(sum);
-    costhK = kVec[2]/k;
     expmPI_k   = exp(-PI/k);
     expPI_2k   = exp(PI/(2*k));
     gamma1pI_k = gamma(1.0,1/k);
     gammamI_k  = gamma(0.0,-1/k);
-    one = complexd(1.0, 0.0);
-    TOL = 1e-12;
+    expPI_2kXgamma1pI_k = expPI_2k * gamma1pI_k ;
     //print("\nexpmPI_k =",expmPI_k, "gamma1pI_k =",gamma1pI_k, "gammamI_k =",gammamI_k);
+    one = complexd(1.0, 0.0);
+    TOL = 1e-12;    
+    /***********************************************************************
+     * By evaluating the scattering function on a 1D grid we can do a time 
+     * saving table lookup when evaluating in 3D.
+     * I'm following the natural cubic spline by following algorithm 3.4
+     * in Numerical Analysis by Burden and Faires 7th edition to interpolate
+     * between the points.
+     *
+     * How far must we tabulate our 1F1 to cover the domain?
+     * V^(1/3) gives us the length of the box
+     * Our spherical function needs only one octant of the box    V^(1/3)/2
+     * sqrt(3) allows us to reach the corner of the cube  sqrt(3)*V^(1/3)/2
+     * kr + kDOTr brings along another factor of 2k     k*sqrt(3)*V^(1/3)
+     **********************************************************************/
+    domain  = k*sqrt(3)*pow(FunctionDefaults<NDIM>::get_cell_volume(),1.0/3.0);
+    dx = 0.001;
+    two_dx = 2/dx;
+    /*********************************************************
+     * Calculating n for a variable mesh
+     *          x[i] = alpha i^2
+     * (1)      x[n] = domain
+     * (2)     x'[1] = dx (the coursest mesh spacing)
+     *       2 alpha = dx
+     * (3)     alpha = dx/2
+     * (1)  dx/2 n^2 = domain
+     * We should make sure we cover a bit more territory than required
+     ********************************************************/
+    n = floor(sqrt(2*domain/dx)) + 1;
+    aR = new double[n];
+    bR = new double[n];
+    cR = new double[n];
+    dR = new double[n];
+    aI = new double[n];
+    bI = new double[n];
+    cI = new double[n];
+    dI = new double[n];
+    h  = new double[n-1];
+    x  = new double[n];
+    double l[n];
+    double mu[n-1];
+    double zR[n];
+    double zI[n];
+    double alphaR[n-1];
+    double alphaI[n-1];
+    complexd value;
+    for(int i=0; i<=n; i++) {
+        //x[i] = i*dx; //constant mesh
+        x[i] = toX(i); //variable mesh
+        //cout << "x[" << i << "] = " << toX(i) << endl;
+    }
+    for(int i=0; i<=n; i++) {
+        value = f11(x[i]);
+        aR[i] = real(value);
+        aI[i] = imag(value);
+        //cout << "ar[" << i << "] = " << aR[i] << "\t ai[" << i << "] = " << aI[i] << endl;
+    }
+    mu[0] = 0.5;
+    h[0]  = x[1] - x[0];
+    l[0]  = 2*h[0];
+    alphaR[0] = 3*(aR[1] - aR[0])/h[0] + 3.0/k;
+    alphaI[0] = 3*(aI[1] - aI[0])/h[0];
+    zR[0]  = alphaR[0]/l[0];
+    zI[0]  = alphaI[0]/l[0];
+    for(int i=1; i<=n-1; i++) {
+        h[i] = x[i+1]-x[i];
+        alphaR[i] = 3.0/h[i]*(aR[i+1] - aR[i]) - 3.0/h[i-1]*(aR[i] - aR[i-1]);
+        alphaI[i] = 3.0/h[i]*(aI[i+1] - aI[i]) - 3.0/h[i-1]*(aI[i] - aI[i-1]);
+        l[i] = 2*(x[i+1] - x[i-1] - h[i-1]*mu[i-1]);
+        mu[i] = h[i]/l[i];
+        zR[i] = (alphaR[i] - h[i-1]*zR[i-1])/l[i];
+        zI[i] = (alphaI[i] - h[i-1]*zI[i-1])/l[i];
+    }
+    l[n] = 1.0;
+    zR[n] = 0.0;
+    zI[n] = 0.0;
+    cR[n] = 0.0;
+    cI[n] = 0.0;
+    for(int j=n-1; j>=0; j--) {
+        cR[j] = zR[j] - mu[j]*cR[j+1];
+        cI[j] = zI[j] - mu[j]*cI[j+1];
+        bR[j] = (aR[j+1] - aR[j])/h[j] - h[j]*(cR[j+1] + 2*cR[j])/3;
+        bI[j] = (aI[j+1] - aI[j])/h[j] - h[j]*(cI[j+1] + 2*cI[j])/3;
+        dR[j] = (cR[j+1] - cR[j])/(3*h[j]);
+        dI[j] = (cI[j+1] - cI[j])/(3*h[j]);
+    }
+    ofstream F11, splined, diff, fdiff,Xfile;
+    F11.open("f11.dat");
+    F11.precision(15);
+    splined.open("splined.dat");
+    splined.precision(15);
+    diff.open("diff.dat");
+    diff.precision(15);
+    //x[0] != 0.0 I don't know why?
+    x[0] = 0.0;
+    for(int i=0; i<n; i++) {
+        F11     << x[i] << "\t" << aR[i]  << "\t" << aI[i]  << endl;
+    }
+    //The spline file is sampled at approximately 7 times as many points
+    //to make error calculations easy
+    //     for(double r=0; r < range-dx; r += dx/sqrt(50) ) { // Constant Mesh
+    //         splined << r << "\t" << real(splined1F1(r)) << "\t" << imag(splined1F1(r)) << endl;
+    //         diff    << r << "\t" << diffR(r)            << "\t" << diffI(r)            << endl;
+    //         fdiff   << r << "\t" << real(hypergf(-I/k,one,-I*r) -  aForm3(-I*r) ) 
+    //                 << "\t"      << imag(hypergf(-I/k,one,-I*r) -  aForm3(-I*r) )      << endl;
+    //     }
+    // Variable Mesh
+    int ii=0;
+    for(double r=0; r<domain; r +=dx*ii/n/sqrt(50) ) {
+        //r scales the same way as the grid points do
+        ii++;
+        splined << r << "\t" << real(splined1F1(r)) << "\t" << imag(splined1F1(r)) << endl;
+        diff    << r << "\t" << diffR(r)            << "\t" << diffI(r)            << endl;
+        fdiff   << r << "\t" << real(hypergf(-I/k,one,-I*r) -  aForm3(-I*r) ) 
+                << "\t"      << imag(hypergf(-I/k,one,-I*r) -  aForm3(-I*r) )      << endl;
+    }
+}
+
+ScatteringWF::~ScatteringWF() {
+    delete aR;
+    delete bR;
+    delete cR;
+    delete dR;
+    delete aI;
+    delete bI;
+    delete cI;
+    delete dI;
+    delete h;
+    delete x;
+}
+
+complexd ScatteringWF::splined1F1(double xx) const {
+    int j = fromX(xx);
+    double y = (xx - x[j]);
+//     return complexd(aR[j],aI[j]) + y*(complexd(bR[j],bI[j]) + 
+//                                       y*(complexd(cR[j],cI[j]) +
+//                                          y*complexd(dR[j],dI[j]) ) );
+    return complexd( aR[j] + y*(bR[j] + y*(cR[j] + y*dR[j] )),
+                     aI[j] + y*(bI[j] + y*(cI[j] + y*dI[j] )) );
+}
+
+double   ScatteringWF::diffR(double x)    const {
+    return real(splined1F1(x) - f11(x));
+}
+double   ScatteringWF::diffI(double x)    const {
+    return imag(splined1F1(x) - f11(x));
+}
+double   ScatteringWF::toX(int i)         const {
+    return dx*i*i/2;
+}
+int      ScatteringWF::fromX( double xx ) const {
+    //int index =  floor( sqrt(2*xx/dx) );
+    int index =  floor( sqrt(two_dx*xx) );
+    if(index > n) {
+        cout << "index = " << index << endl;
+        cout << "n = " << n << endl;
+        cout << "x = " << xx << endl;
+        throw "ScatteringWF: index out of bounds\n increase domain";
+    }
+    return index;
+}
+complexd ScatteringWF::f11(double xx) const {
+    complexd ZZ(0.0,-xx);
+    if(xx <= 19.0 + 7*exp(-6.0*k) ) return hypergf(-I/k,one,ZZ);
+    else return aForm3(ZZ);
 }
 
 complexd ScatteringWF::operator()(const vector3D& rVec) const {
-    double sum = 0.0;
-    double kDOTr = 0.0;
-    for(int i=0; i<NDIM; i++) { kDOTr += rVec[i]*kVec[i]; }
-    for(int i=0; i<NDIM; i++) { sum += rVec[i]*rVec[i]; }
-    double r = sqrt(sum);
-//     cout << endl;
-//     cout << "exp(PI/(2*k)) = " << exp(PI/(2*k)) << endl;
-//     cout << "gamma(1.0+I/k)= " << gamma(1.0+I/k) << endl;
-//     cout << "exp(I*kDOTr)  = " << exp(I*kDOTr)  << endl;
-//     cout << " f11(-1.0*I/k, 1.0, -1.0*I*(k*r + kDOTr)) = "
-//          << f11(-1.0*I/k, 1.0, -1.0*I*(k*r + kDOTr)) << endl;
-//    cout.precision(3);
-//    cout << fixed;
-    //print("expPI_2k =",expPI_2k," gamma1pI_k =",gamma1pI_k,"exp(I*kDOTr) =",exp(I*kDOTr)," f11(-1.0*I/k, one, -1.0*I*(k*r + kDOTr)) =",f11(-1.0*I/k, one, -1.0*I*(k*r + kDOTr)));
-    return expPI_2k
-        * gamma1pI_k
-        * exp(I*kDOTr)
-        * f11(-1.0*I/k, one, -1.0*I*(k*r + kDOTr)); //ERROR
-}
-
-/*******************************************************
- * Here is where I splice together my two representations of the hypergeometric
- * function. See personal journal C page 31 for a derivation of the cut off
- *******************************************************/
-complexd ScatteringWF::f11(complexd AA, complexd BB, complexd ZZ) const {
-    //    return hypergf(AA,BB,ZZ);
-    double k = 1.0/abs(imag(AA)); //DO
-    //cout << aForm(AA,BB,ZZ) - aForm1(AA,BB,ZZ) << endl;
-    if(abs(imag(ZZ)) <= 11.0 + 1.0/k + 0.5/(k*k) ) return hypergf(AA,BB,ZZ);
-    //else return aForm(AA,BB,ZZ);
-    else return aForm3(ZZ);
+    double kDOTr = kVec[0]*rVec[0] + kVec[1]*rVec[1] + kVec[2]*rVec[2];
+    double r     = rVec[0]*rVec[0] + rVec[1]*rVec[1] + rVec[2]*rVec[2];
+    //print("expPI_2kXgamma1pI_k = ", expPI_2kXgamma1pI_k, "exp(I*kDOTr) =",
+    //       exp(I*kDOTr)," f11(-I*(k*r + kDOTr)) =",splined1F1(k*r + kDOTr));
+    return expPI_2kXgamma1pI_k
+         * exp(I*kDOTr)
+         * splined1F1(k*r + kDOTr);
+    //   * f11(k*r + kDOTr);
 }
 
 /*********************************************************
  *The function from Barnett's code
  *********************************************************/
-complexd ScatteringWF::hypergf(complexd AA, complexd BB, complexd XX) const {
+complexd ScatteringWF::hypergf(complexd AA, complexd BB, complexd ZZ) const {
     double ACC8  = DBL_EPSILON;
     double EPS = 1000.0*ACC8;
     double ERR = 1000.0*ACC8;
@@ -184,10 +327,9 @@ complexd ScatteringWF::hypergf(complexd AA, complexd BB, complexd XX) const {
     int NITS   = 0;
     double FPMAX = 1E200;
     double ACC16 = 2E-200;
-    return   hypergf_(&AA, &BB, &XX, &EPS, &LIMIT, &KIND,
+    return   hypergf_(&AA, &BB, &ZZ, &EPS, &LIMIT, &KIND,
 		      &ERR, &NITS, &FPMAX, &ACC8, &ACC16);
 }
-
 /****************************************************************
  * The asymptotic form of the hypergeometric function given by
  * Abramowitz and Stegun 13.5.1
@@ -228,8 +370,7 @@ complexd ScatteringWF::aForm1(complexd AA, complexd BB, complexd ZZ) const {
      }
      return coeffA*termA + coeffB*termB;
 }
-complexd ScatteringWF::aForm2(complexd AA, complexd BB, complexd ZZ)
-const {
+complexd ScatteringWF::aForm2(complexd AA, complexd BB, complexd ZZ) const {
     cout << scientific;
     cout.precision(15);
     //    START_TIMER;
@@ -286,7 +427,6 @@ const {
     }
     return coeffA*termA + coeffB*termB;
 }
-
 complexd ScatteringWF::aForm3(complexd ZZ) const {
     //cout << scientific;
     //cout.precision(15);
@@ -298,7 +438,7 @@ complexd ScatteringWF::aForm3(complexd ZZ) const {
     //print("cA = ", cA,"cB = ", cB);
     complexd termA(0,0);
     complexd termB(0,0);
-    int maxTerms = 20;
+    int maxTerms = 100;
     complexd zrn = 1;
     complexd mzrn = 1;
     complexd zr = 1.0/ZZ;
@@ -320,9 +460,7 @@ complexd ScatteringWF::aForm3(complexd ZZ) const {
     }
     return cA*termA + cB*termB;
 }
-
-int fact(int n)
-{
+int fact(int n) {
     int result = 1;
     if( n<0 )
         {
@@ -333,9 +471,7 @@ int fact(int n)
     for(int i=n; i>1; i--) { result *= i; }
     return result;
 }
-
-void testFact(World& world)
-{
+void testFact(World& world) {
     if(world.rank() == 0) 
 	cout << "Testing Factorial:============================================" << endl;
     if(world.rank() == 0) cout << fact(0) << endl;
@@ -344,9 +480,7 @@ void testFact(World& world)
     if(world.rank() == 0) cout << fact(3) << endl;
     if(world.rank() == 0) cout << fact(-1) << endl;
 }
-
-complexd gamma(double re, double im)
-{
+complexd gamma(double re, double im) {
     gsl_sf_result lnr;
     gsl_sf_result arg;
     int status = gsl_sf_lngamma_complex_e(re, im, &lnr, &arg);
@@ -354,9 +488,7 @@ complexd gamma(double re, double im)
     complexd ANS(exp(lnr.val)*cos(arg.val), exp(lnr.val)*sin(arg.val) );
     return ANS;
 }
-
-complexd gamma(complexd AA)
-{
+complexd gamma(complexd AA) {
     gsl_sf_result lnr;
     gsl_sf_result arg;
     int status = gsl_sf_lngamma_complex_e(real(AA), imag(AA), &lnr, &arg);
@@ -364,9 +496,7 @@ complexd gamma(complexd AA)
     complexd ANS(exp(lnr.val)*cos(arg.val), exp(lnr.val)*sin(arg.val) );
     return ANS;
 }
-
-void testGamma(World& world)
-{
+void testGamma(World& world) {
     if(world.rank() == 0) cout << "Testing Gamma:================================================" << endl;
     if(world.rank() == 0) cout << "gamma(3.0,0.0) = " << gamma(3.0,0.0) << endl;
     if(world.rank() == 0) cout << "gamma(0.0,3.0) = " << gamma(0.0,3.0) << endl;
@@ -374,8 +504,7 @@ void testGamma(World& world)
     if(world.rank() == 0) cout << "gamma(1.0,3.0) = " << gamma(1.0,3.0) << endl;
 }
 	
-complexd pochhammer(complexd AA, int n)
-{
+complexd pochhammer(complexd AA, int n) {
     complexd VAL(1.0,0.0);
     for(int i=0; i<n; i++)
         {
@@ -384,9 +513,7 @@ complexd pochhammer(complexd AA, int n)
         }
     return VAL;
 }
-
-void testPochhammer(World& world)
-{
+void testPochhammer(World& world) {
     complexd ZERO(0.0,0.0);
     complexd ONE(1.0,0.0);
     complexd _ONE(-1.0,0.0);
@@ -401,15 +528,12 @@ void testPochhammer(World& world)
     if(world.rank() == 0) cout << "Pochhammer[" << Iplus3 <<", "<< 2 <<"] = " << pochhammer(Iplus3,2) << endl;
     if(world.rank() == 0) cout << "Pochhammer[" << _ONE << ", " << 3 <<"] = " << pochhammer(ZERO,3) << endl;
 }
-
 //The Coulomb potential
-complexd V(const vector3D& r)
-{
+complexd V(const vector3D& r) {
     return -1.0/sqrt(r[0]*r[0] + r[1]*r[1] + r[2]*r[2] + 1e-8);
 }
 
-void testWF(World& world) 
-{
+void testWF(World& world) {
     double dARR[3] = {0, 0, 0.5};
     const vector3D kVec(dARR);
     ScatteringWF phi(1.0,kVec);
@@ -494,7 +618,7 @@ void testWF(World& world)
     vector3D FVec(zHat);
     START_TIMER;
     Function<complexd,NDIM> laserOp = FunctionFactory<complexd,NDIM>(world).functor( 
-                                                                                    functorT( new Expikr(FVec) ));
+                                                        functorT( new Expikr(FVec) ));
     END_TIMER("Projecting ExpIkr                    ");
     START_TIMER;
     Function<complexd,NDIM> ket = laserOp*psi_100;

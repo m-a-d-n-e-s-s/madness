@@ -230,35 +230,26 @@ void printBasis(World& world) {
     double sinTH, cosTH, sinPHI, cosPHI;
     //make functions
     double dARR[3] = {0, 0, 0.5};
-    BoundWF b1s(1.0, 1, 0, 0);
-    BoundWF b2p(1.0, 2, 1, 0);
     vector3D kVec(dARR);
     ScatteringWF unb(1.0, kVec);
-    //    PRINTLINE(fixed << "\nrVec \t\t\t|1s> \t\t|2p> \t\t|0 0 0.5>");
-    double PHI = 0.1;
+    double PHI = 0.0;
     double TH = 0.0;
     double r = 1;
     //for(double TH=0; TH<3.14; TH+=0.3 ) {
 
-    cout.precision(15);
-    for(double r=0; r<151; r+=1.0 ) {
+    cout.precision(2);
+    for(double r=0; r<unb.domain; r+=1.0 ) {
+        cout << scientific;
         cosTH = std::cos(TH);
         sinTH = std::sin(TH);
         cosPHI = std::cos(PHI);
         sinPHI = std::sin(PHI);
         double dARR[3] = {r*sinTH*cosPHI, r*sinTH*sinPHI, r*cosTH};        
-        PRINT(r<<"\t");
-        vector3D rVec(dARR);
-//         output = b1s(rVec);
-//         PRINT(real(output) << "\t");
-//         output = b2p(rVec);
-//         PRINT(real(output) << "\t");
-        output = unb(rVec);
-        cout << scientific;
-        cout.precision(15);
-        PRINT(real(output) << "\t" << imag(output));
-        PRINT("\n");
+        //        PRINTLINE(r << "\t" << unb.diffR(r) << " + I" << unb.diffI(r));
+        output = unb(dARR);
+        PRINTLINE(r << "\t" << real(output) << "\t" << imag(output));
     }
+    //    use sed to make the complexd output standard
     //    system("sed -i '' -e's/\\+/, /' -e's/j//' f11.out");
 }
 
@@ -336,25 +327,24 @@ int main(int argc, char**argv) {
         std::vector<WF> basisList;
         double dARR[3] = {0, 0, 0.5};
         vector3D rVec(dARR);
-        double start = wall_time();
-        basisList.push_back(WF("Exp(Ikr)       ",
-                               FunctionFactory<complexd,NDIM>(world).
-                               functor(functorT(new Expikr(rVec)))));
-        PRINTLINE("\tExp(Ikr)       " << wall_time()-start << " sec" 
-                  << "\t\t Size: " << basisList.back().func.size());
-        start = wall_time();
-        basisList.push_back(WF("Exp(-Ikr+kDOTr)",
-                               FunctionFactory<complexd,NDIM>(world).
-                               functor(functorT(new Expikr2(rVec)))));
-        PRINTLINE("\tExp(-Ikr+kDOTr)" << wall_time()-start << " sec"
-                  << "\t\t Size: " << basisList.back().func.size());
+//         double start = wall_time();
+//         basisList.push_back(WF("Exp(Ikr)       ",
+//                                FunctionFactory<complexd,NDIM>(world).
+//                                functor(functorT(new Expikr(rVec)))));
+//         PRINTLINE("\tExp(Ikr)       " << wall_time()-start << " sec" 
+//                   << "\t\t Size: " << basisList.back().func.size());
+//         start = wall_time();
+//         basisList.push_back(WF("Exp(-Ikr+kDOTr)",
+//                                FunctionFactory<complexd,NDIM>(world).
+//                                functor(functorT(new Expikr2(rVec)))));
+//         PRINTLINE("\tExp(-Ikr+kDOTr)" << wall_time()-start << " sec"
+//                   << "\t\t Size: " << basisList.back().func.size());
 
         loadBasis(world,basisList);
-        //printBasis(world);
         //belkic(world);
-        //projectZdip(world, basisList);
-        //projectPsi(world, basisList);
-         
+        projectZdip(world, basisList);
+        //printBasis(world);
+        //projectPsi(world, basisList);         
         world.gop.fence();
         if (world.rank() == 0) {
 //             world.am.print_stats();
