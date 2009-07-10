@@ -587,12 +587,15 @@ struct lbcost {
     double parent_value;
     lbcost(double leaf_value=1.0, double parent_value=1.0) : leaf_value(leaf_value), parent_value(parent_value) {}
     double operator()(const Key<NDIM>& key, const FunctionNode<T,NDIM>& node) const {
-        if (key.level() <= 1) return 1000.0;
+        double lfac = 1.0; //pow(1.2,1.0*key.level());
+        if (key.level() <= 1) {
+            return 128.0;
+        }
         else if (node.is_leaf()) {
-            return leaf_value;
+            return leaf_value*lfac;
         }
         else {
-            return parent_value;
+            return parent_value*lfac;
         }
         //return key.level()+1.0;
     }
@@ -608,8 +611,8 @@ void loadbal(World& world,
     if (world.rank() == 0) print("starting LB");
     LoadBalanceDeux<3> lb(world);
     lb.add_tree(potn, lbcost<double,3>(1.0,1.0));
-    lb.add_tree(psi, lbcost<double_complex,3>(10.0,10.0));
-    FunctionDefaults<3>::set_pmap(lb.load_balance());
+    lb.add_tree(psi, lbcost<double_complex,3>(1.0,8.0));
+    FunctionDefaults<3>::set_pmap(lb.load_balance(2.0, false));
     world.gop.fence();
     if (world.rank() == 0) print("starting LB copies");
     world.gop.fence();
@@ -633,11 +636,10 @@ void loadbal(World& world,
 // Evolve the wave function in real time starting from given time step on disk
 void propagate(World& world, int step0) {
     //double ctarget = 10.0/param.cut;                // From Fourier analysis of the potential
-    double ctarget = 5.0/param.cut;
+    double ctarget = 5.0/param.cut; // This seems more stable and is also faster
     //double c = 1.86*ctarget; // This for 10^5 steps
     double c = 1.72*ctarget;   // This for 10^4 steps
     double tcrit = 2*constants::pi/(c*c);
-
     double time_step = tcrit * param.tScale;
 
     zero_field_time = 10.0*time_step;
@@ -657,9 +659,9 @@ void propagate(World& world, int step0) {
     // Chin-Chen and also for computing the power spectrum ... compute
     // derivatives analytically to reduce numerical noise
     functionT potn = factoryT(world).f(V);         potn.truncate();
-    functionT dpotn_dx = factoryT(world).f(dVdx);  
-    functionT dpotn_dy = factoryT(world).f(dVdy);  
-    functionT dpotn_dz = factoryT(world).f(dVdz);  
+    functionT dpotn_dx = factoryT(world).f(dVdx);  dpotn_dx.truncate();
+    functionT dpotn_dy = factoryT(world).f(dVdy);  dpotn_dy.truncate();
+    functionT dpotn_dz = factoryT(world).f(dVdz);  dpotn_dz.truncate();
 
     functionT dpotn_dx_sq = dpotn_dx*dpotn_dx;
     functionT dpotn_dy_sq = dpotn_dy*dpotn_dy;
@@ -822,10 +824,11 @@ void doit(World& world) {
     FunctionDefaults<3>::set_thresh(param.thresh*param.safety);       // Accuracy
     FunctionDefaults<3>::set_initial_level(4);
     FunctionDefaults<3>::set_cubic_cell(-param.L,param.L);
-    FunctionDefaults<3>::set_apply_randomize(true);
+    FunctionDefaults<3>::set_apply_randomize(false);
     FunctionDefaults<3>::set_autorefine(false);
     FunctionDefaults<3>::set_truncate_mode(2);
     FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap(world)));
+    FunctionDefaults<3>::set_truncate_on_project(true);
 
     // Make the potential
     functionT potn = factoryT(world).f(V);  potn.truncate();
