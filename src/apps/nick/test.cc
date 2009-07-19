@@ -135,9 +135,9 @@ complexd aForm3(complexd ZZ) {
  *********************************************************************************/
 complexd f11(complexd ZZ) {
     //    if(fabs(imag(ZZ)) <= 19.0 + 7*exp(-6.0*k) ) return hypergf(ZZ);
-    //    if(fabs(imag(ZZ)) <= 19.0 + 7*exp(-6.0*k) ) return conhyp(-I/k,one,ZZ);
-    //else return aForm3(ZZ);
-    return  conhyp(-I/k,one,ZZ);
+        if(fabs(imag(ZZ)) <= 40 ) return conhyp(-I/k,one,ZZ);
+    else return aForm3(ZZ);
+    //return  conhyp(-I/k,one,ZZ);
 }
 double diffR(double x) {
     return real(splined1F1(x) - f11(-I*x));

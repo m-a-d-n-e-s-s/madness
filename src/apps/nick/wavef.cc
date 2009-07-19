@@ -142,7 +142,8 @@ ScatteringWF::ScatteringWF(double Z, const vector3D& kVec) : Z(Z), kVec(kVec)
     /***********************************************************************
      * By evaluating the scattering function on a 1D grid we can do a time 
      * saving table lookup when evaluating in 3D.
-     * I'm following the natural cubic spline by following algorithm 3.4
+     * I'm following the natural cubic spline (algorithm 3.4)
+     * and the clamped cubic spline (algorithm 3.5)
      * in Numerical Analysis by Burden and Faires 7th edition to interpolate
      * between the points.
      *
@@ -153,7 +154,7 @@ ScatteringWF::ScatteringWF(double Z, const vector3D& kVec) : Z(Z), kVec(kVec)
      * kr + kDOTr brings along another factor of 2k     k*sqrt(3)*V^(1/3)
      **********************************************************************/
     domain  = k*sqrt(3)*pow(FunctionDefaults<NDIM>::get_cell_volume(),1.0/3.0);
-    dx = 0.001;
+    dx = 0.000001;
     two_dx = 2/dx;
     /*********************************************************
      * Calculating n for a variable mesh
@@ -223,36 +224,43 @@ ScatteringWF::ScatteringWF(double Z, const vector3D& kVec) : Z(Z), kVec(kVec)
         dR[j] = (cR[j+1] - cR[j])/(3*h[j]);
         dI[j] = (cI[j+1] - cI[j])/(3*h[j]);
     }
-    ofstream F11, splined, diff, fdiff,Xfile;
-    F11.open("f11.dat");
-    F11.precision(15);
-    splined.open("splined.dat");
-    splined.precision(15);
-    diff.open("diff.dat");
-    diff.precision(15);
-    //x[0] != 0.0 I don't know why?
-    x[0] = 0.0;
-    for(int i=0; i<n; i++) {
-        F11     << x[i] << "\t" << aR[i]  << "\t" << aI[i]  << endl;
-    }
-    //The spline file is sampled at approximately 7 times as many points
-    //to make error calculations easy
-    //     for(double r=0; r < range-dx; r += dx/sqrt(50) ) { // Constant Mesh
-    //         splined << r << "\t" << real(splined1F1(r)) << "\t" << imag(splined1F1(r)) << endl;
-    //         diff    << r << "\t" << diffR(r)            << "\t" << diffI(r)            << endl;
-    //         fdiff   << r << "\t" << real(hypergf(-I/k,one,-I*r) -  aForm3(-I*r) ) 
-    //                 << "\t"      << imag(hypergf(-I/k,one,-I*r) -  aForm3(-I*r) )      << endl;
-    //     }
-    // Variable Mesh
-    int ii=0;
-    for(double r=0; r<domain; r +=dx*ii/n/sqrt(50) ) {
-        //r scales the same way as the grid points do
-        ii++;
-        splined << r << "\t" << real(splined1F1(r)) << "\t" << imag(splined1F1(r)) << endl;
-        diff    << r << "\t" << diffR(r)            << "\t" << diffI(r)            << endl;
-        fdiff   << r << "\t" << real(hypergf(-I/k,one,-I*r) -  aForm3(-I*r) ) 
-                << "\t"      << imag(hypergf(-I/k,one,-I*r) -  aForm3(-I*r) )      << endl;
-    }
+    /*****************************************************
+     * Below is the quality control for my splines
+     ****************************************************/
+//     ofstream F11, splined, diff, fdiff,Xfile;
+//     F11.open("f11.dat");
+//     F11.precision(15);
+//     splined.open("splined.dat");
+//     splined.precision(15);
+//     diff.open("diff.dat");
+//     diff.precision(15);
+//     fdiff.open("fdiff.dat");
+//     fdiff.precision(15);
+//     //x[0] != 0.0 I don't know why?
+//     x[0] = 0.0;
+//     for(int i=0; i<n; i++) {
+//         F11     << x[i] << "\t" << aR[i]  << "\t" << aI[i]  << endl;
+//     }
+//     //The spline file is sampled at approximately 7 times as many points
+//     //to make error calculations easy
+//     //     for(double r=0; r < range-dx; r += dx/sqrt(50) ) { // Constant Mesh
+//     //         splined << r << "\t" << real(splined1F1(r)) << "\t" << imag(splined1F1(r)) << endl;
+//     //         diff    << r << "\t" << diffR(r)            << "\t" << diffI(r)            << endl;
+//     //         fdiff   << r << "\t" << real(hypergf(-I/k,one,-I*r) -  aForm3(-I*r) ) 
+//     //                 << "\t"      << imag(hypergf(-I/k,one,-I*r) -  aForm3(-I*r) )      << endl;
+//     //     }
+//     // Variable Mesh
+//     int ii=0;
+//     for(double r=0; r<domain; r +=dx*ii/n/sqrt(50) ) {
+//         //r scales the same way as the grid points do
+//         ii++;
+//         splined << r << "\t" << real(splined1F1(r)) << "\t" << imag(splined1F1(r)) << endl;
+//         diff    << r << "\t" << diffR(r)            << "\t" << diffI(r)            << endl;
+// //         fdiff   << r << "\t" << real( aForm3(-I*r) ) 
+// //                 << "\t"      << imag( aForm3(-I*r) )      << endl;
+//         fdiff   << r << "\t" << real(conhyp(-I/k,one,-I*r) -  aForm3(-I*r) ) 
+//                 << "\t"      << imag(conhyp(-I/k,one,-I*r) -  aForm3(-I*r) )      << endl;
+//     }
 }
 
 ScatteringWF::~ScatteringWF() {
@@ -300,13 +308,14 @@ int      ScatteringWF::fromX( double xx ) const {
 }
 complexd ScatteringWF::f11(double xx) const {
     complexd ZZ(0.0,-xx);
-    if(xx <= 19.0 + 7*exp(-6.0*k) ) return hypergf(-I/k,one,ZZ);
+    //    if(xx <= 19.0 + 7*exp(-6.0*k) ) return hypergf(-I/k,one,ZZ);
+    if(xx <= 40 ) return conhyp(-I/k,one,ZZ);
     else return aForm3(ZZ);
 }
 
 complexd ScatteringWF::operator()(const vector3D& rVec) const {
     double kDOTr = kVec[0]*rVec[0] + kVec[1]*rVec[1] + kVec[2]*rVec[2];
-    double r     = rVec[0]*rVec[0] + rVec[1]*rVec[1] + rVec[2]*rVec[2];
+    double r     = sqrt(rVec[0]*rVec[0] + rVec[1]*rVec[1] + rVec[2]*rVec[2]);
     //print("expPI_2kXgamma1pI_k = ", expPI_2kXgamma1pI_k, "exp(I*kDOTr) =",
     //       exp(I*kDOTr)," f11(-I*(k*r + kDOTr)) =",splined1F1(k*r + kDOTr));
     return expPI_2kXgamma1pI_k
@@ -314,7 +323,6 @@ complexd ScatteringWF::operator()(const vector3D& rVec) const {
          * splined1F1(k*r + kDOTr);
     //   * f11(k*r + kDOTr);
 }
-
 /*********************************************************
  *The function from Barnett's code
  *********************************************************/
@@ -428,17 +436,14 @@ complexd ScatteringWF::aForm2(complexd AA, complexd BB, complexd ZZ) const {
     return coeffA*termA + coeffB*termB;
 }
 complexd ScatteringWF::aForm3(complexd ZZ) const {
-    //cout << scientific;
-    //cout.precision(15);
     complexd cA2 = pow(ZZ,I/k);
     complexd cB1 = exp(ZZ);
     complexd cB2 = pow(ZZ,-one-I/k);
     complexd cA = expmPI_k*cA2/gamma1pI_k;
     complexd cB = cB1*cB2/gammamI_k;
-    //print("cA = ", cA,"cB = ", cB);
     complexd termA(0,0);
     complexd termB(0,0);
-    int maxTerms = 100;
+    int maxTerms = 10;
     complexd zrn = 1;
     complexd mzrn = 1;
     complexd zr = 1.0/ZZ;

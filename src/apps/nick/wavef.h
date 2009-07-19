@@ -64,11 +64,11 @@ public:
     double   diffI(double x) const;
     double   toX(int i) const;
     int      fromX(double x) const;
+    double   Z;
     double   k;
     double domain;
     vector3D kVec;
 private:
-    double   Z;
     complexd expmPI_k;
     complexd expPI_2k;
     complexd expPI_2kXgamma1pI_k;

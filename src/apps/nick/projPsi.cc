@@ -41,7 +41,9 @@ void wave_function_store(World& world, int step, const complex_functionT& psi);
 complex_functionT wave_function_load(World& world, int step);
 
 struct WF {
-    WF(const string& str, const complex_functionT& func) : str(str), func(func) {}
+    WF(const string& str, const complex_functionT& FUNC) : str(str) {
+        func = FUNC;
+}
     string str;
     complex_functionT func;
 };
@@ -72,6 +74,7 @@ string toString( const T& a ) {
     return o.str();
 }
 void loadDefaultBasis(World& world, std::vector<WF>& stateList) {
+    cout << "Loading the default basis" << endl;
     const int NBSt = 3;    //Number of Bound States
     const int bSt[][3] = { {1,0,0},
                            {2,0,0},
@@ -234,14 +237,13 @@ void printBasis(World& world) {
     ScatteringWF unb(1.0, kVec);
     double PHI = 0.0;
     double TH = 0.0;
-    double r = 1;
     //for(double TH=0; TH<3.14; TH+=0.3 ) {
 
     cout.precision(2);
     for(double r=0; r<unb.domain; r+=1.0 ) {
         cout << scientific;
-        cosTH = std::cos(TH);
-        sinTH = std::sin(TH);
+        cosTH =  std::cos(TH);
+        sinTH =  std::sin(TH);
         cosPHI = std::cos(PHI);
         sinPHI = std::sin(PHI);
         double dARR[3] = {r*sinTH*cosPHI, r*sinTH*sinPHI, r*cosTH};        
@@ -313,10 +315,10 @@ int main(int argc, char**argv) {
     startup(world,argc,argv);
     // Setup defaults for numerical functions
     int k = 12;
-    double L = 1000.0;
+    double L = 10.0;
     loadParameters(world, k, L);
     FunctionDefaults<NDIM>::set_k(k);               // Wavelet order
-    FunctionDefaults<NDIM>::set_thresh(1e-3);       // Accuracy
+    FunctionDefaults<NDIM>::set_thresh(1e-4);       // Accuracy
     FunctionDefaults<NDIM>::set_cubic_cell(-L, L);
     FunctionDefaults<NDIM>::set_initial_level(3);
     FunctionDefaults<NDIM>::set_apply_randomize(false);
