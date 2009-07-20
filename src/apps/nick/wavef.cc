@@ -1,14 +1,16 @@
 //\file wavef.cc
 //\brief The hydrogenic bound and continuum states
-/**********************************************************************
+/************************************************************************
  * Here is a madness representation of the hydrogenic wave functions.
  * The bound states come from the Gnu Scientific Library. The unbound
- * states are generated with the confluent hypergeometric function. 
+ * states are generated with the confluent hypergeometric function which
+ * uses gmp and mpfr for extended precision
  * 
- * Using: Gnu Scientific Library
- *        coulcc.f90 (from Barnett)
+ * Using: Gnu Scientific Library          http://www.gnu.org/software/gsl/
+          GNU Multiple Precision library  http://gmplib.org/
+          mpfr                            http://www.mpfr.org/
  * By:    Nick Vence
- **********************************************************************/
+ ************************************************************************/
 
 #include "wavef.h"
 #include "hyp.h"
