@@ -360,18 +360,33 @@ namespace madness {
     void gelss(const Tensor<T>& a, const Tensor<T>& b, double rcond,
                Tensor<T>* x, Tensor< typename Tensor<T>::scalar_type >* s, long *rank) {
         TENSOR_ASSERT(a.ndim == 2, "gelss requires matrix",a.ndim,&a);
-        integer n = a.dim[0], m = a.dim[1], nrhs = b.dim[1];
+        integer m = a.dim[0], n = a.dim[1], nrhs = b.dim[1];
         TENSOR_ASSERT(b.ndim <= 2, "gelss require a vector or matrix for the RHS",b.ndim,&b);
         TENSOR_ASSERT(a.dim[0] == b.dim[0], "gelss matrix and RHS must conform",b.ndim,&b);
 
         // The input matrix & vectors are destroyed by gelss and we also need Fortran order
+        integer maxmn = max(m, n);
         Tensor<T> AT = transpose(a);
-        if (b.ndim == 1)
-            *x = copy(b);
-        else
-            *x = transpose(b);
+        Tensor<T> lapack_inout;
 
-        integer lwork=(3*min(m,n)+max(max(2*min(m,n),max(m,n)),nrhs))*32;
+        if (b.ndim == 1)
+            lapack_inout = copy(b);
+        else {
+            if (m >= n)
+                lapack_inout = transpose(b);
+            else {
+                // dgelss_ uses the same physical array for both b (input) and
+                // x (output).  for a rectangular matrix A with more columns,
+                // b is a smaller array than x, and the data needs to be
+                // manipulated (more than just a transpose) to make it work
+                // with LAPACK
+                lapack_inout = Tensor<T>(nrhs, maxmn);
+                lapack_inout(Slice(0, nrhs-1), Slice(0, m-1)) =
+                    transpose(b);
+            }
+        }
+
+        integer lwork=(3*min(m,n)+max(max(2*min(m,n),maxmn),nrhs))*32;
         Tensor<T> work(lwork);
         typedef typename TensorTypeData<T>::scalar_type scalar_type;
         *s = Tensor< scalar_type >(n);
@@ -379,14 +394,22 @@ namespace madness {
         scalar_type rrcond = rcond;
         integer rrank=0;
 
-        dgelss_(&m, &n, &nrhs, AT.ptr(), &m, x->ptr(), &m, s->ptr(),
-                &rrcond, &rrank, work.ptr(), &lwork, &info);
+        dgelss_(&m, &n, &nrhs, AT.ptr(), &m, lapack_inout.ptr(), &maxmn,
+                s->ptr(), &rrcond, &rrank, work.ptr(), &lwork, &info);
         mask_info(info);
         TENSOR_ASSERT(info == 0, "gelss failed", info, &a);
 
         *rank = rrank;
 
-        if (b.ndim == 2) *x = transpose(*x);
+        if(m > n) {
+            // have a similar problem where the lapack_inout tensor is padded
+            if(b.ndim == 1)
+                *x = lapack_inout(Slice(0,n-1));
+            else
+                *x = transpose(lapack_inout(Slice(0,nrhs-1), Slice(0, n-1)));
+        }
+        else if(b.ndim == 2)
+            *x = transpose(lapack_inout);
     }
 
     template <typename T>
