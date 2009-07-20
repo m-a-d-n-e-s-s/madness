@@ -1,9 +1,9 @@
 include $(top_srcdir)/config/MakeGlobal.am
 
 bin_PROGRAMS    = projPsi test hello
-projPsi_SOURCES = projPsi.cc wavef.cc coulcc36-f90.f wavef.h hyp.cc mpreal.cc
-test_SOURCES    = test.cc coulcc36-f90.f hyp.cc mpreal.cc
+projPsi_SOURCES = projPsi.cc wavef.cc wavef.h hyp.cc hyp.h mpreal.cc
+test_SOURCES    = test.cc hyp.cc mpreal.cc
 hello_SOURCES   = hello.cc wavef.cc coulcc36-f90.f wavef.h
-projPsi_LDADD   = $(MRALIBS) -lmpfr -lgmp
-test_LDADD      = $(MRALIBS) -lmpfr -lgmp
+projPsi_LDADD   = $(MRALIBS)
+test_LDADD      = $(MRALIBS)
 hello_LDADD     = $(MRALIBS)
