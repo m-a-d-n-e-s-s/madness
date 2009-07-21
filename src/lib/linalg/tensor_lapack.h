@@ -52,7 +52,9 @@ namespace madness {
 
     template <typename T>
     void gelss(const Tensor<T>& a, const Tensor<T>& b, double rcond,
-               Tensor<T>* x, Tensor< typename Tensor<T>::scalar_type >* s, long *rank);
+               Tensor<T>* x, Tensor< typename Tensor<T>::scalar_type >* s,
+               long *rank, Tensor<typename Tensor<T>::scalar_type>* sumsq = NULL);
+
     template <typename T>
     void syev(const Tensor<T>& A,
               Tensor<T>* V, Tensor< typename Tensor<T>::scalar_type >* e);

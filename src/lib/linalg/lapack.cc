@@ -334,7 +334,7 @@ namespace madness {
 
     /** \brief  Solve Ax = b for general A using the LAPACK *gelss routines.
         
-    A should be a square matrix (float, double, float_complex,
+    A should be a matrix (float, double, float_complex,
     double_complex) and b should be either a vector, or a matrix with
     each vector stored in a column (i.e., b[n,nrhs]).
 
@@ -355,10 +355,14 @@ namespace madness {
     The  effective rank of A, i.e., the number of singular 
     values which are greater than RCOND*S(1).
     \endverbatim
+
+    Finally, the optional vector sumsq will store the sum-of-squares
+    residual in the case of a rectangular matrix (least squares regression).
     */
     template <typename T>
     void gelss(const Tensor<T>& a, const Tensor<T>& b, double rcond,
-               Tensor<T>* x, Tensor< typename Tensor<T>::scalar_type >* s, long *rank) {
+               Tensor<T>* x, Tensor< typename Tensor<T>::scalar_type >* s,
+               long *rank, Tensor<typename Tensor<T>::scalar_type>* sumsq = NULL) {
         TENSOR_ASSERT(a.ndim == 2, "gelss requires matrix",a.ndim,&a);
         integer m = a.dim[0], n = a.dim[1], nrhs = b.dim[1];
         TENSOR_ASSERT(b.ndim <= 2, "gelss require a vector or matrix for the RHS",b.ndim,&b);
@@ -403,6 +407,22 @@ namespace madness {
 
         if(m > n) {
             // have a similar problem where the lapack_inout tensor is padded
+            // the padding gives information on the fit
+            if(sumsq != NULL) {
+                // get the sum-of-squares for the various fits
+                *sumsq = Tensor<scalar_type>(nrhs);
+                if(nrhs == 1) {
+                    (*sumsq)[0] = lapack_inout(Slice(n, m-1)).normf();
+                    (*sumsq)[0] *= (*sumsq)[0];
+                }
+                else
+                    for(integer i = 0; i < nrhs; ++i) {
+                        (*sumsq)[i] =
+                            lapack_inout(Slice(i, i), Slice(n, m-1)).normf();
+                        (*sumsq)[i] *= (*sumsq)[i];
+                    }
+            }
+
             if(b.ndim == 1)
                 *x = lapack_inout(Slice(0,n-1));
             else
