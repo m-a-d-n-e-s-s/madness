@@ -1092,8 +1092,8 @@ namespace madness {
                     }
                     else {
                         // Restrict to plot range
-//                         boxlo[d] = std::max(boxlo[d],plotlo[d]);
-//                         boxhi[d] = std::min(boxhi[d],plothi[d]);
+                        boxlo[d] = std::max(boxlo[d],plotlo[d]);
+                        boxhi[d] = std::min(boxhi[d],plothi[d]);
 
                         // Round lo up to next plot point; round hi down
                         double xlo = long((boxlo[d]-plotlo[d])/h[d])*h[d] + plotlo[d];
