@@ -5,7 +5,7 @@ lib_LIBRARIES = libMADlinalg.a
 
 thisincludedir = $(includedir)/linalg
 thisinclude_HEADERS = tensor_lapack.h cblas.h  clapack.h  lapack_functions.h \
-                         solvers.cc solvers.h
+                         solvers.cc solvers.h gmres.h
 
 libMADlinalg_a_SOURCES = lapack.cc cblas.cc \
                          \
