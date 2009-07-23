@@ -1493,6 +1493,189 @@ namespace madness {
                 bool binary=true);
 
 
+    /// Writes header information for plotting from a VTK file (i.e. in ParaView).
+    ///
+    /// VTK plotting is only currently supported for
+    /// 1) 3-D functions
+    /// 2) Real-valued madness::function objects
+    ///
+    /// The VTK routines are also designed for SERIAL data, parallel coming...
+    ///
+    /// This header is templated by the dimension of the data.
+    ///
+    /// To plot with the plotvtk_* routines:
+    ///    plotvtk_begin(...)
+    ///    plotvtk_data(...)
+    ///    plotvtk_data(...) ...
+    ///    plotvtk_end(...)
+    template<int NDIM>
+    void plotvtk_begin(World &world, const char *filename,
+        const Vector<double, NDIM> &plotlo, const Vector<double, NDIM> &plothi,
+        int npt, bool binary = false) {
+
+        PROFILE_FUNC;
+        MADNESS_ASSERT(NDIM<=6);
+
+        // our current assumptions
+        // the 3-D assumption is only needed for the structured mesh
+        MADNESS_ASSERT(world.nproc()==1);
+        MADNESS_ASSERT(NDIM==3);
+
+        Tensor<double> cell(NDIM, 2);
+        int i;
+        for(i = 0; i < NDIM; ++i) {
+            cell(i, 0) = plotlo[i];
+            cell(i, 1) = plothi[i];
+        }
+
+        FILE *f=0;
+        if(world.rank() == 0) {
+            f = fopen(filename, "w");
+            if(!f)
+                MADNESS_EXCEPTION("plotvtk: failed to open the plot file", 0);
+
+            fprintf(f, "<VTKFile type=\"StructuredGrid\" version=\"0.1\"" \
+                " byte_order=\"LittleEndian\" compressor=\"" \
+                "vtkZLibDataCompressor\">\n");
+            fprintf(f, "  <StructuredGrid WholeExtent=\"0 %d 0 %d 0 %d\">\n",
+                npt-1, npt-1, npt-1);
+            fprintf(f, "    <Piece Extent=\"0 %d 0 %d 0 %d\">\n",
+                npt-1, npt-1, npt-1);
+            fprintf(f, "      <Points>\n");
+            fprintf(f, "        <DataArray NumberOfComponents=\"%d\" " \
+                "type=\"Float32\" format=\"ascii\">\n", NDIM);
+
+            Vector<double, NDIM> coord, space;
+            Vector<long, NDIM> index;
+            for(i = 0; i < NDIM; ++i) {
+                coord[i] = plotlo[i];
+                space[i] = (cell(i, 1) - cell(i, 0)) / (npt - 1);
+                index[i] = 0;
+            }
+
+            // a method using eval_cube or an IndexIterator may be preferable
+            // for traversing the grid
+            while(index[0] < npt) {
+                for(i = 0; i < NDIM; ++i)
+                    fprintf(f, "%f ", coord[i]);
+                fprintf(f, "\n");
+
+                // iterate to the next point
+                i = NDIM - 1;
+                ++index[i];
+                coord[i] += space[i];
+                while(index[i] >= npt && i > 0) {
+                    index[i] = 0;
+                    coord[i] = plotlo[i];
+                    --i;
+                    ++index[i];
+                    coord[i] += space[i];
+                }
+            }
+
+            fprintf(f, "        </DataArray>\n");
+            fprintf(f, "      </Points>\n");
+            fprintf(f, "      <PointData>\n");
+            fclose(f);
+        }
+        world.gop.fence();
+    }
+
+    /// Generic VTK data writer.
+    /// This templated function won't do anything except print a warning
+    /// message.  Specialized versions of this function should be used.
+    template<typename T, int NDIM>
+    void plotvtk_data(const T &function, const char *fieldname, World &world,
+        const char *filename, const Vector<double, NDIM> &plotlo,
+        const Vector<double, NDIM> &plothi, int npt, bool binary = false) {
+
+        MADNESS_EXCEPTION("plotvtk only supports madness::functions", 0);
+    }
+
+    /// VTK data writer for real-valued (not complex) madness::functions.
+    template<typename T, int NDIM>
+    void plotvtk_data(const Function<T, NDIM> &function, const char *fieldname,
+        World &world, const char *filename, const Vector<double, NDIM> &plotlo,
+        const Vector<double, NDIM> &plothi, int npt, bool binary = false) {
+
+        PROFILE_FUNC;
+        MADNESS_ASSERT(NDIM<=6);
+
+        MADNESS_ASSERT(world.nproc()==1);
+        MADNESS_ASSERT(NDIM==3);
+
+        Tensor<double> cell(NDIM, 2);
+        int i;
+        for(i = 0; i < NDIM; ++i) {
+            cell(i, 0) = plotlo[i];
+            cell(i, 1) = plothi[i];
+        }
+        std::vector<long> numpt(NDIM, npt);
+
+        world.gop.barrier();
+
+        function.verify();
+        FILE *f = 0;
+        if(world.rank() == 0) {
+            f = fopen(filename, "a");
+            if(!f)
+                MADNESS_EXCEPTION("plotvtk: failed to open the plot file", 0);
+
+            fprintf(f, "        <DataArray Name=\"%s\" format=\"ascii\" " \
+                "type=\"Float32\" NumberOfComponents=\"1\">\n", fieldname);
+        }
+
+        world.gop.fence();
+        Tensor<T> tmpr = function.eval_cube(cell, numpt);
+        world.gop.fence();
+
+        if(world.rank() == 0) {
+            for(IndexIterator it(numpt); it; ++it) {
+                fprintf(f, "%.6e\n", tmpr(*it));
+            }
+            fprintf(f, "        </DataArray>\n");
+            fclose(f);
+        }
+        world.gop.fence();
+    }
+
+    /// VTK data writer for complex-valued madness::functions.
+    template<typename T, int NDIM>
+    void plotvtk_data(const Function<std::complex<T>, NDIM> &function,
+        const char *fieldname, World &world, const char *filename,
+        const Vector<double, NDIM> &plotlo, const Vector<double, NDIM> &plothi,
+        int npt, bool binary = false) {
+
+        MADNESS_EXCEPTION("plotvtk only supports real-valued functions", 0);
+    }
+
+    /// VTK footer writer.
+    template<int NDIM>
+    void plotvtk_end(World &world, const char *filename, bool binary = false) {
+        PROFILE_FUNC;
+        MADNESS_ASSERT(NDIM<=6);
+
+        MADNESS_ASSERT(world.nproc() == 1);
+        MADNESS_ASSERT(NDIM==3);
+
+        FILE *f = 0;
+        if(world.rank() == 0) {
+            f = fopen(filename, "a");
+            if(!f)
+                MADNESS_EXCEPTION("plotvtk: failed to open the plot file", 0);
+
+            fprintf(f, "      </PointData>\n");
+            fprintf(f, "      <CellData>\n");
+            fprintf(f, "      </CellData>\n");
+            fprintf(f, "    </Piece>\n");
+            fprintf(f, "  </StructuredGrid>\n");
+            fprintf(f, "</VTKFile>\n");
+            fclose(f);
+        }
+        world.gop.fence();
+    }
+
+
     static inline void plot_line_print_value(FILE* f, double_complex v) {
         fprintf(f, "    %.6e %.6e   ", real(v), imag(v));
     }
@@ -1502,7 +1685,7 @@ namespace madness {
     }
 
 
-    /// Generates ASCI file tabulating f(r) at npoints along line r=lo,...,hi
+    /// Generates ASCII file tabulating f(r) at npoints along line r=lo,...,hi
 
     /// The ordinate is distance from lo
     template <typename T, int NDIM>
@@ -1530,7 +1713,7 @@ namespace madness {
         world.gop.fence();
     }
 
-    /// Generates ASCI file tabulating f(r) and g(r) at npoints along line r=lo,...,hi
+    /// Generates ASCII file tabulating f(r) and g(r) at npoints along line r=lo,...,hi
 
     /// The ordinate is distance from lo
     template <typename T, typename U, int NDIM>
@@ -1561,7 +1744,7 @@ namespace madness {
     }
 
 
-    /// Generates ASCI file tabulating f(r), g(r), and a(r) at npoints along line r=lo,...,hi
+    /// Generates ASCII file tabulating f(r), g(r), and a(r) at npoints along line r=lo,...,hi
 
     /// The ordinate is distance from lo
     template <typename T, typename U, typename V, int NDIM>
