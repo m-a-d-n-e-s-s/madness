@@ -1511,7 +1511,7 @@ namespace madness {
     template<int NDIM>
     void plotvtk_begin(World &world, const char *filename,
         const Vector<double, NDIM> &plotlo, const Vector<double, NDIM> &plothi,
-        int npt, bool binary = false) {
+        const Vector<long, NDIM> &npt, bool binary = false) {
 
         PROFILE_FUNC;
         MADNESS_ASSERT(NDIM<=6);
@@ -1537,10 +1537,10 @@ namespace madness {
             fprintf(f, "<VTKFile type=\"StructuredGrid\" version=\"0.1\"" \
                 " byte_order=\"LittleEndian\" compressor=\"" \
                 "vtkZLibDataCompressor\">\n");
-            fprintf(f, "  <StructuredGrid WholeExtent=\"0 %d 0 %d 0 %d\">\n",
-                npt-1, npt-1, npt-1);
-            fprintf(f, "    <Piece Extent=\"0 %d 0 %d 0 %d\">\n",
-                npt-1, npt-1, npt-1);
+            fprintf(f, "  <StructuredGrid WholeExtent=\"0 %ld 0 %ld 0 %ld\">\n",
+                npt[0]-1, npt[1]-1, npt[2]-1);
+            fprintf(f, "    <Piece Extent=\"0 %ld 0 %ld 0 %ld\">\n",
+                npt[0]-1, npt[1]-1, npt[2]-1);
             fprintf(f, "      <Points>\n");
             fprintf(f, "        <DataArray NumberOfComponents=\"%d\" " \
                 "type=\"Float32\" format=\"ascii\">\n", NDIM);
@@ -1549,13 +1549,13 @@ namespace madness {
             Vector<long, NDIM> index;
             for(i = 0; i < NDIM; ++i) {
                 coord[i] = plotlo[i];
-                space[i] = (cell(i, 1) - cell(i, 0)) / (npt - 1);
+                space[i] = (cell(i, 1) - cell(i, 0)) / (npt[i] - 1);
                 index[i] = 0;
             }
 
             // a method using eval_cube or an IndexIterator may be preferable
             // for traversing the grid
-            while(index[0] < npt) {
+            while(index[0] < npt[0]) {
                 for(i = 0; i < NDIM; ++i)
                     fprintf(f, "%f ", coord[i]);
                 fprintf(f, "\n");
@@ -1564,7 +1564,7 @@ namespace madness {
                 i = NDIM - 1;
                 ++index[i];
                 coord[i] += space[i];
-                while(index[i] >= npt && i > 0) {
+                while(index[i] >= npt[i] && i > 0) {
                     index[i] = 0;
                     coord[i] = plotlo[i];
                     --i;
@@ -1587,7 +1587,8 @@ namespace madness {
     template<typename T, int NDIM>
     void plotvtk_data(const T &function, const char *fieldname, World &world,
         const char *filename, const Vector<double, NDIM> &plotlo,
-        const Vector<double, NDIM> &plothi, int npt, bool binary = false) {
+        const Vector<double, NDIM> &plothi, const Vector<long, NDIM> &npt,
+        bool binary = false) {
 
         MADNESS_EXCEPTION("plotvtk only supports madness::functions", 0);
     }
@@ -1596,7 +1597,8 @@ namespace madness {
     template<typename T, int NDIM>
     void plotvtk_data(const Function<T, NDIM> &function, const char *fieldname,
         World &world, const char *filename, const Vector<double, NDIM> &plotlo,
-        const Vector<double, NDIM> &plothi, int npt, bool binary = false) {
+        const Vector<double, NDIM> &plothi, const Vector<long, NDIM> &npt,
+        bool binary = false) {
 
         PROFILE_FUNC;
         MADNESS_ASSERT(NDIM<=6);
@@ -1610,7 +1612,9 @@ namespace madness {
             cell(i, 0) = plotlo[i];
             cell(i, 1) = plothi[i];
         }
-        std::vector<long> numpt(NDIM, npt);
+        std::vector<long> numpt(NDIM);
+        for(i = 0; i < NDIM; ++i)
+            numpt[i] = npt[i];
 
         world.gop.barrier();
 
@@ -1644,7 +1648,7 @@ namespace madness {
     void plotvtk_data(const Function<std::complex<T>, NDIM> &function,
         const char *fieldname, World &world, const char *filename,
         const Vector<double, NDIM> &plotlo, const Vector<double, NDIM> &plothi,
-        int npt, bool binary = false) {
+        const Vector<long, NDIM> &npt, bool binary = false) {
 
         MADNESS_EXCEPTION("plotvtk only supports real-valued functions", 0);
     }
