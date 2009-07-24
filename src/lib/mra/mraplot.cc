@@ -75,7 +75,7 @@ string help = "\n\
       .   ascii             // Text output for volume data [default is binary] \n\
       .   text              // Text output for volume data [default is binary] \n\
       .   dx                // Specifies DX format for volume data [default is dx] \n\
-      .   vtk function_name // Specifies VTK format for volume data [default is dx], giving the function name function_name \n\
+      .   vtk <str function_name> // Specifies VTK format for volume data [default is dx], giving the function name function_name \n\
       .   real              // Sets data type to real, default is real \n\
       .   complex           // Sets data type to complex, default is real \n\
       .   line              // Sets plot type to line, default is volume \n\
@@ -128,8 +128,8 @@ public:
     template <typename Archive>
     void serialize(Archive& ar) {
         ar & cell & plot_cell & data_type & plot_type
-            & input_filename & output_filename & output_format 
-            & ndim & binary & finished;
+            & input_filename & output_filename & output_format & function_name
+            & npt & ndim & binary & finished;
     }
 
     Plotter(World& world) 
@@ -279,7 +279,6 @@ public:
 
         // Sanity check
         MADNESS_ASSERT(ndim>0 && ndim<=6);
-        MADNESS_ASSERT(ParallelInputArchive::exists(world, input_filename.c_str()));
         MADNESS_ASSERT(cell.dim[0]==ndim && cell.dim[1]==2);
         MADNESS_ASSERT(plot_cell.dim[0]==ndim && plot_cell.dim[1]==2);
     }
@@ -373,13 +372,20 @@ int main(int argc, char**argv) {
 
     try {
         World world(MPI::COMM_WORLD);
-        if (argc>1) {
-            print(help);
+        bool done = false;
+        if (world.rank() == 0) {
+            for (int i=0; i<argc; i++) {
+                if (!strcmp(argv[i],"--help")) {
+                    print(help);
+                    done = true;
+                }
+            }
         }
-        else {
+        world.gop.broadcast(done);
+        if (!done) {
             startup(world,argc,argv);
             print(" ");
-            
+
             Plotter plotter(world);
             while (1) {
                 if (world.rank() == 0) {
