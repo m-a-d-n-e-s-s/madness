@@ -1,6 +1,6 @@
 include $(top_srcdir)/config/MakeGlobal.am
 
-bin_PROGRAMS = hello hatom_energy h2 he tdse bigboy2 fast heat heat2 csqrt phil sdf_shape_tester
+bin_PROGRAMS = hello hatom_energy h2 he tdse bigboy2 fast heat heat2 csqrt phil sdf_shape_tester interior_dirichlet
 
 bigboy2_SOURCES = bigboy2.cc
 
@@ -25,6 +25,8 @@ tdse_SOURCES = tdse.cc
 csqrt_SOURCES = csqrt.cc
 
 sdf_shape_tester_SOURCES = sdf_shape_tester.cc
+
+interior_dirichlet_SOURCES = interior_dirichlet.cc
 
 LDADD = $(MRALIBS)
 
