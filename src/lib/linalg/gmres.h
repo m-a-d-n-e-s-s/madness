@@ -100,11 +100,11 @@ namespace madness {
             ++iter;
        } while(iter < maxiters && resid > thresh);
 
+       // build the solution and destroy the basis vectors
        for(i = 0; i < iter; ++i) {
-           x += y[i] * V[i];
+           x.gaxpy(1.0, V[i], y[i]);
            V[i].clear();
        }
-       x.truncate();
 
        return iter;
     }
