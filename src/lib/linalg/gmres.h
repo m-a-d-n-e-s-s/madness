@@ -88,16 +88,22 @@ namespace madness {
                 1.0e-12, &y, &s, &rank, &sumsq);
 
             resid = sumsq[0];
-            if(outp)
-                printf("%.3d %.3ld %.6e\n", iter, rank, resid);
+            if(outp) {
+                printf("%.3d %.3ld %.6e", iter, rank, resid);
+                if(iter != rank)
+                    printf(" ** Questionable Progress **");
+                printf("\n");
+            }
 
             r.scale(1.0 / H(iter, iter-1));
             V.push_back(r);
             ++iter;
        } while(iter < maxiters && resid > thresh);
 
-       for(i = 0; i < iter; ++i)
+       for(i = 0; i < iter; ++i) {
            x += y[i] * V[i];
+           V[i].clear();
+       }
        x.truncate();
 
        return iter;
