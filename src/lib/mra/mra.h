@@ -1514,12 +1514,10 @@ namespace madness {
         const Vector<long, NDIM> &npt, bool binary = false) {
 
         PROFILE_FUNC;
-        MADNESS_ASSERT(NDIM<=6);
+        MADNESS_ASSERT(NDIM>1 && NDIM<=3); // how do we plot data in more than 3-D?
 
         // our current assumptions
-        // the 3-D assumption is only needed for the structured mesh
         MADNESS_ASSERT(world.nproc()==1);
-        MADNESS_ASSERT(NDIM==3);
 
         Tensor<double> cell(NDIM, 2);
         int i;
@@ -1537,19 +1535,30 @@ namespace madness {
             fprintf(f, "<VTKFile type=\"StructuredGrid\" version=\"0.1\"" \
                 " byte_order=\"LittleEndian\" compressor=\"" \
                 "vtkZLibDataCompressor\">\n");
-            fprintf(f, "  <StructuredGrid WholeExtent=\"0 %ld 0 %ld 0 %ld\">\n",
-                npt[0]-1, npt[1]-1, npt[2]-1);
-            fprintf(f, "    <Piece Extent=\"0 %ld 0 %ld 0 %ld\">\n",
-                npt[0]-1, npt[1]-1, npt[2]-1);
+            fprintf(f, "  <StructuredGrid WholeExtent=\"");
+            for(i = 0; i < NDIM; ++i)
+                fprintf(f, "0 %ld ", npt[i]-1);
+            for(; i < 3; ++i)
+                fprintf(f, "0 0 ");
+            fprintf(f, "\">\n");
+            fprintf(f, "    <Piece Extent=\"");
+            for(i = 0; i < NDIM; ++i)
+                fprintf(f, "0 %ld ", npt[i]-1);
+            for(; i < 3; ++i)
+                fprintf(f, "0 0 ");
+            fprintf(f, "\">\n");
             fprintf(f, "      <Points>\n");
-            fprintf(f, "        <DataArray NumberOfComponents=\"%d\" " \
-                "type=\"Float32\" format=\"ascii\">\n", NDIM);
+            fprintf(f, "        <DataArray NumberOfComponents=\"3\" " \
+                "type=\"Float32\" format=\"ascii\">\n");
 
             Vector<double, NDIM> coord, space;
             Vector<long, NDIM> index;
             for(i = 0; i < NDIM; ++i) {
                 coord[i] = plotlo[i];
-                space[i] = (cell(i, 1) - cell(i, 0)) / (npt[i] - 1);
+                if(npt[i] == 0)
+                    space[i] = 0.0;
+                else
+                    space[i] = (cell(i, 1) - cell(i, 0)) / (npt[i] - 1);
                 index[i] = 0;
             }
 
@@ -1558,6 +1567,8 @@ namespace madness {
             while(index[0] < npt[0]) {
                 for(i = 0; i < NDIM; ++i)
                     fprintf(f, "%f ", coord[i]);
+                for(; i < 3; ++i)
+                    fprintf(f, "0.0 ");
                 fprintf(f, "\n");
 
                 // iterate to the next point
@@ -1601,10 +1612,9 @@ namespace madness {
         bool binary = false) {
 
         PROFILE_FUNC;
-        MADNESS_ASSERT(NDIM<=6);
+        MADNESS_ASSERT(NDIM>1 && NDIM<=3); // no plotting high-D functions, yet...
 
         MADNESS_ASSERT(world.nproc()==1);
-        MADNESS_ASSERT(NDIM==3);
 
         Tensor<double> cell(NDIM, 2);
         int i;
@@ -1644,23 +1654,69 @@ namespace madness {
     }
 
     /// VTK data writer for complex-valued madness::functions.
+    ///
+    /// The complex-value is written as two reals (a vector from VTK's
+    /// perspective.  The first (X) component is the real part and the second
+    /// (Y) component is the imaginary part.
     template<typename T, int NDIM>
     void plotvtk_data(const Function<std::complex<T>, NDIM> &function,
         const char *fieldname, World &world, const char *filename,
         const Vector<double, NDIM> &plotlo, const Vector<double, NDIM> &plothi,
         const Vector<long, NDIM> &npt, bool binary = false) {
 
-        MADNESS_EXCEPTION("plotvtk only supports real-valued functions", 0);
+        // this is the same as plotvtk_data for real functions, except the
+        // real and imaginary parts are printed on the same line (needed
+        // to change NumberOfComponents in the XML tag)
+
+        PROFILE_FUNC;
+        MADNESS_ASSERT(NDIM>1 && NDIM<=3); // no plotting high-D functions, yet...
+
+        MADNESS_ASSERT(world.nproc()==1);
+
+        Tensor<double> cell(NDIM, 2);
+        int i;
+        for(i = 0; i < NDIM; ++i) {
+            cell(i, 0) = plotlo[i];
+            cell(i, 1) = plothi[i];
+        }
+        std::vector<long> numpt(NDIM);
+        for(i = 0; i < NDIM; ++i)
+            numpt[i] = npt[i];
+
+        world.gop.barrier();
+
+        function.verify();
+        FILE *f = 0;
+        if(world.rank() == 0) {
+            f = fopen(filename, "a");
+            if(!f)
+                MADNESS_EXCEPTION("plotvtk: failed to open the plot file", 0);
+
+            fprintf(f, "        <DataArray Name=\"%s\" format=\"ascii\" " \
+                "type=\"Float32\" NumberOfComponents=\"2\">\n", fieldname);
+        }
+
+        world.gop.fence();
+        Tensor<std::complex<T> > tmpr = function.eval_cube(cell, numpt);
+        world.gop.fence();
+
+        if(world.rank() == 0) {
+            for(IndexIterator it(numpt); it; ++it) {
+                fprintf(f, "%.6e %.6e\n", real(tmpr(*it)), imag(tmpr(*it)));
+            }
+            fprintf(f, "        </DataArray>\n");
+            fclose(f);
+        }
+        world.gop.fence();
     }
 
     /// VTK footer writer.
     template<int NDIM>
     void plotvtk_end(World &world, const char *filename, bool binary = false) {
         PROFILE_FUNC;
-        MADNESS_ASSERT(NDIM<=6);
+        MADNESS_ASSERT(NDIM>1 && NDIM<=3);
 
         MADNESS_ASSERT(world.nproc() == 1);
-        MADNESS_ASSERT(NDIM==3);
 
         FILE *f = 0;
         if(world.rank() == 0) {
