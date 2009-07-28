@@ -1555,7 +1555,7 @@ namespace madness {
             Vector<long, NDIM> index;
             for(i = 0; i < NDIM; ++i) {
                 coord[i] = plotlo[i];
-                if(npt[i] == 0)
+                if(npt[i] == 1)
                     space[i] = 0.0;
                 else
                     space[i] = (cell(i, 1) - cell(i, 0)) / (npt[i] - 1);
