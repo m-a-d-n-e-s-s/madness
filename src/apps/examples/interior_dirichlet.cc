@@ -25,15 +25,6 @@
 ///
 /// Thus, solving this problem involves a linear solve, as provided by GMRES.
 ///
-/// We also compare using u \equiv G*v:
-///
-///     G*v - G*( b(phi) G*v) == G*(phi f) - G*( b(phi) d)
-///  or v - b(phi) G*v == phi f - b(phi) d
-///
-/// since G is positive definite.  This reduces the work to finding v, which
-/// should be perturbed on the boundary, instead of u, which is perturbed
-/// everywhere.
-///
 /// To run this code, at least two command-line arguments are needed:
 ///   1) the width of the surface layer (0.1 at the largest, 0.01 seems ok)
 ///   2) 0 for the Poisson equation, 1 for the (BS) Helmholtz equation
@@ -59,10 +50,8 @@ typedef SharedPtr< FunctionFunctorInterface<double,3> > functorT;
 typedef Tensor<double> tensorT;
 
 const double L = 2.0;
-const double Lplot = 1.1;
-const int Lpts = 61;
 
-static const double thresh = 1e-3;
+static const double thresh = 1e-4;
 static const double thresh1 = thresh*0.1;
 
 /// the Dirichlet condition on the sphere
@@ -109,23 +98,16 @@ class DirichletCondIntOp : public Operator<functionT> {
 		const SeparatedConvolution<double,3> &G;
 		// the surface
 		const functionT &b;
-		// are we solving for u (true) or for v (false)
-		bool solveuv;
 
 		void action(const functionT &invec, functionT &outvec) const {
-			if(solveuv)
-				outvec = invec - apply(G, b*invec);
-			else
-				outvec = invec - b * apply(G, invec);
+			outvec = invec - apply(G, b*invec);
+			outvec.truncate();
 		}
 
 	public:
 		DirichletCondIntOp(const SeparatedConvolution<double, 3> &gin,
 			const functionT &bin)
-			: G(gin), b(bin), solveuv(true) {}
-
-		void solveU() { solveuv = true; }
-		void solveV() { solveuv = false; }
+			: G(gin), b(bin) {}
 };
 
 
@@ -171,10 +153,13 @@ int main(int argc, char **argv) {
 	startup(world,argc,argv);
 
 	// Function defaults
-	int k = 5;
+	int k = 6;
 	FunctionDefaults<3>::set_k(k);
 	FunctionDefaults<3>::set_cubic_cell(-L, L);
 	FunctionDefaults<3>::set_thresh(thresh);
+	//FunctionDefaults<3>::set_initial_level(4);
+	/// the following line can be uncommented if memory is not an issue
+	FunctionDefaults<3>::set_max_refine_level(6);
 
 	Tensor<int> bc(3,2);
 	bc(_,0) = 0;          // Dirichlet in all directions
@@ -210,24 +195,22 @@ int main(int argc, char **argv) {
 	SeparatedConvolution<double,3> G =
 		BSHOperator<double,3>(world, helmholtz_k, k, eps*0.1, thresh);
 
-	// SOLVING for u
-	printf("Solving for u\n");
-
 	// compute the inhomogeneous portion
-	functionT usol;
-	functionT vinhomog = phi*f + b*d; // should be -b*d, but b accounts for -G
-	functionT uinhomog = apply(G, vinhomog).truncate();
+	functionT usol = phi*f + b*d; // should be -b*d, but b accounts for -G
+	functionT uinhomog = apply(G, usol).truncate();
 	uinhomog.scale(-1.0); // add the -1 from the Green's function
 	uinhomog.truncate();
-	vinhomog.truncate();
 	world.gop.fence();
+	usol.clear();
 
 	// solve the linear system
 	// make an initial guess
 	usol = copy(uinhomog);
 	DirichletCondIntOp dcio(G, b);
-	dcio.solveU();
-	GMRES(dcio, uinhomog, usol, 10, 1.0e-4, true);
+	FunctionSpace<double, 3> space;
+	int maxiters = 10;
+	double solver_thresh = 1.0e-4;
+	GMRES(space, dcio, uinhomog, usol, maxiters, solver_thresh, true);
 
 	functionT exact = factoryT(world).f(exact_sol);
 	double error = ((usol - exact)*phi).norm2();
@@ -239,31 +222,16 @@ int main(int argc, char **argv) {
 	Vector<double, 3> plotlo, plothi;
 	Vector<long, 3> npts;
 	for(int i = 0; i < 3; ++i) {
-		plotlo[i] = -Lplot;
-		plothi[i] = Lplot;
-		npts[i] = Lpts;
+		plotlo[i] = -1.1;
+		plothi[i] = 1.1;
+		npts[i] = 71;
 	}
 	plotvtk_begin(world, filename, plotlo, plothi, npts);
 	plotvtk_data(usol, "usol", world, filename, plotlo, plothi, npts);
-
-	// SOLVING for v
-	printf("\nSolving for v\n");
-
-	functionT vsol = copy(vinhomog);
-	dcio.solveV();
-	GMRES(dcio, vinhomog, vsol, 10, 1.0e-4, true);
-
-	usol = apply(G, vsol).truncate();
-	usol.scale(-1.0);
-
-	error = ((usol - exact)*phi).norm2();
-	printf("   v error: %.10e\n", error);
-
-	plotvtk_data(usol, "vsol", world, filename, plotlo, plothi, npts);
+	plotvtk_data(exact, "exact", world, filename, plotlo, plothi, npts);
 	plotvtk_end<3>(world, filename);
 
 	MPI::Finalize();
 
 	return 0;
 }
-//*****************************************************************************

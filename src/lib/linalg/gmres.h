@@ -1,3 +1,37 @@
+/*
+  This file is part of MADNESS.
+  
+  Copyright (C) <2007> <Oak Ridge National Laboratory>
+  
+  This program is free software; you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation; either version 2 of the License, or
+  (at your option) any later version.
+  
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+  GNU General Public License for more details.
+  
+  You should have received a copy of the GNU General Public License
+  along with this program; if not, write to the Free Software
+  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+  
+  For more information please contact:
+
+  Robert J. Harrison
+  Oak Ridge National Laboratory
+  One Bethel Valley Road
+  P.O. Box 2008, MS-6367
+
+  email: harrisonrj@ornl.gov 
+  tel:   865-241-3937
+  fax:   865-572-0680
+
+  
+  $Id$
+*/
+
 #ifndef MAD_GMRES_H
 #define MAD_GMRES_H
 
@@ -9,11 +43,17 @@
 /// \file gmres.h
 /// \brief Defines a general operator interface and a templated GMRES solver
 /// for solving linear equations.
+///
+/// An AbstractVectorSpace class is also defined to guarantee a uniform way
+/// for linear algebra routines to access common operations like norm, inner
+/// product etc.  Implementations for MADNESS Vectors and Functions are
+/// provided in the VectorSpace<floating_point, NDIM> and
+/// FunctionSpace<floating_point, NDIM> classes.
 
 namespace madness {
 
     /// A generic operator: takes in one T and produces another T.
-    /// Over-ride the protected action() function to implement an Operator.
+    /// Override the protected action() function to implement an Operator.
     template <typename T>
     class Operator {
         protected:
@@ -21,39 +61,207 @@ namespace madness {
             virtual void action(const T &in, T &out) const = 0;
 
         public:
-            /// public access to the operator's action, returns out for convenience
+            /// public access to the operator's action, returns out for
+            /// convenience
             T & applyOp(const T &in, T &out) const {
                 action(in, out);
                 return out;
             }
     };
 
+    /// A generic vector space which provides common operations needed by
+    /// linear algebra routines (norm, inner product, etc.)
+    ///
+    /// Most of these routines will presumedly be defined, but the names may
+    /// not be the same (i.e. madness:Function uses norm2, madness::Tensor
+    /// uses normf)
+    ///
+    /// T is the vector type
+    /// real_type the real type used for norms, etc.
+    /// scalar_type is the type used for inner products and gaxpy coefficients,
+    /// etc.
+    ///
+    /// When implementing a child class, real_type and scalar_type will
+    /// probably be obtained from TensorTypeData<T> (see the VectorSpace
+    /// and FunctionSpace classes below)
+    template <typename T, typename real_type, typename scalar_type>
+    class AbstractVectorSpace {
+        public:
+            /// the norm of a vector
+            virtual real_type norm(const T &) const = 0;
+
+            /// scale the vector by a constant
+            /// should return the scaled vector
+            virtual T & scale(T &, const scalar_type &) const = 0;
+
+            /// standard bilinear gaxpy
+            ///   x <- a*x + b*y
+            /// should return the new vector, x
+            virtual T & gaxpy(T &x, const scalar_type &a, const T &y,
+                const scalar_type &b) const = 0;
+
+            /// the inner product between two vectors
+            virtual scalar_type inner(const T &, const T &) const = 0;
+
+            /// any special instructions to be executed when a vector is no
+            /// longer needed
+            ///
+            /// unless otherwise specified, do nothing
+            virtual void destroy(T &) const {}
+    };
+
+    /// Real part of a real number
+    /// This is necessary to make templating nightmares disappear in
+    /// VectorSpace::norm
+    static inline double real(double x) { return x; }
+
+    /// Imaginary part of a real number
+    static inline double imag(double x) { return 0.0; }
+
+    /// A vector space using MADNESS Vectors
+    template <typename T, int NDIM>
+    class VectorSpace : public AbstractVectorSpace<Vector<T, NDIM>,
+        typename TensorTypeData<T>::float_scalar_type, T> {
+
+        protected:
+            static const bool iscplx = TensorTypeData<T>::iscomplex;
+
+        public:
+            typedef typename TensorTypeData<T>::float_scalar_type real_type;
+            typedef T scalar_type;
+
+            virtual real_type norm(const Vector<scalar_type, NDIM> &vec)
+                const {
+
+                real_type ret, mag;
+                int i;
+
+                mag = real(vec[0]);
+                ret = mag*mag;
+                if(iscplx) {
+                    mag = imag(vec[0]);
+                    ret += mag*mag;
+                }
+
+                for(i = 1; i < NDIM; ++i) {
+                    mag = real(vec[i]);
+                    ret += mag*mag;
+                    if(iscplx) {
+                        mag = imag(vec[i]);
+                        ret += mag*mag;
+                    }
+                }
+
+                return sqrt(ret);
+            }
+
+            virtual Vector<scalar_type, NDIM> & scale(
+                Vector<scalar_type, NDIM> &vec, const scalar_type &c) const {
+
+                vec *= c;
+                return vec;
+            }
+
+            virtual Vector<scalar_type, NDIM> & gaxpy(
+                Vector<scalar_type, NDIM> &x, const scalar_type &a,
+                const Vector<scalar_type, NDIM> &y, const scalar_type &b)
+                const {
+
+                for(int i = 0; i < NDIM; ++i)
+                    x[i] = a * x[i] + b * y[i];
+                return x;
+            }
+
+            virtual scalar_type inner(const Vector<scalar_type, NDIM> &l,
+                const Vector<scalar_type, NDIM> &r) const {
+
+                scalar_type ret;
+
+                if(iscplx) {
+                    ret = conj(l[0]) * r[0];
+                    for(int i = 1; i < NDIM; ++i)
+                        ret += conj(l[i]) * r[i];
+                }
+                else {
+                    ret  = l[0] * r[0];
+                    for(int i = 1; i < NDIM; ++i)
+                        ret += l[i] * r[i];
+                }
+
+                return ret;
+            }
+    };
+
+    /// A vector space using MADNESS Funcions
+    template <typename T, int NDIM>
+    class FunctionSpace : public AbstractVectorSpace<Function<T, NDIM>,
+        typename TensorTypeData<T>::float_scalar_type, T> {
+
+        public:
+            typedef typename TensorTypeData<T>::float_scalar_type real_type;
+            typedef T scalar_type;
+
+            virtual real_type norm(const Function<scalar_type, NDIM> &vec)
+                const {
+
+                return vec.norm2();
+            }
+
+            virtual Function<scalar_type, NDIM> & scale(
+                Function<scalar_type, NDIM> &vec, const scalar_type &c) const {
+
+                vec.scale(c);
+                return vec;
+            }
+
+            virtual Function<scalar_type, NDIM> & gaxpy(
+                Function<scalar_type, NDIM> &x, const scalar_type &a,
+                const Function<scalar_type, NDIM> &y, const scalar_type &b)
+                const {
+
+                x.gaxpy(a, y, b);
+                return x;
+            }
+
+            virtual scalar_type inner(const Function<scalar_type, NDIM> &l,
+                const Function<scalar_type, NDIM> &r) const {
+
+                return l.inner(r);
+            }
+
+            virtual void destroy(Function<scalar_type, NDIM> &f) const {
+                f.clear();
+            }
+    };
+
     /// A GMRES solver routine for linear systems, Ax == b.
-    /// Requires the operator, A, the inhomogeneity b, an initial guess x,
-    /// the maximum number of iterations, the convergence threshold, and a
-    /// flag for producing output.
+    /// Requires the vector space, the operator, A, the inhomogeneity b, an
+    /// initial guess x, the maximum number of iterations, the convergence
+    /// threshold, and a flag for producing output.
     ///
-    /// The output, if desired, shows iteration number, the residual, and the
-    /// effective rank of the GMRES matrix at that iteration.
+    /// The vector space object provides a standard way to compute the needed
+    /// linear algebra operations (norm, inner product, etc.).
     ///
-    /// Returns the number of iterations taken.
+    /// The printed output, if desired, shows iteration number, the residual,
+    /// and the effective rank of the GMRES matrix at that iteration.
     ///
-    /// NOTE: This function assumes T has gaxpy, norm2, and scale member
-    /// functions.  Specialization may be needed if this is not the case.
-    template <typename T, typename fp>
-    int GMRES(const Operator<T> &op, const T &bin, T &x, const int maxiters,
-        const fp thresh, const bool outp = true) {
+    /// On output, x has the computed solution, thresh has its residual,
+    /// and maxiters has the number of iterations needed
+    template <typename T, typename real_type, typename scalar_type>
+    void GMRES(const AbstractVectorSpace<T, real_type, scalar_type> &space,
+        const Operator<T> &op, const T &b, T &x, int &maxiters,
+        real_type &thresh, const bool outp = true) {
 
         int iter, i;
         long rank;
         std::vector<T> V;
         T r;
-        Tensor<fp> H(maxiters+1, maxiters);
-        Tensor<fp> betae(maxiters+1);
-        Tensor<fp> y;
-        Tensor<typename Tensor<fp>::scalar_type> s;
-        Tensor<typename Tensor<fp>::scalar_type> sumsq;
-        fp resid;
+        Tensor<scalar_type> H(maxiters+1, maxiters);
+        Tensor<scalar_type> betae(maxiters+1);
+        Tensor<scalar_type> y;
+        Tensor<real_type> s;
+        Tensor<real_type> sumsq;
+        real_type resid, norm;
 
         // initialize
         H = 0.0;
@@ -62,13 +270,16 @@ namespace madness {
         // construct the first subspace basis vector
         iter = 0;
         op.applyOp(x, r);
-        r.gaxpy(-1.0, bin, 1.0);
-        betae[0] = r.norm2();
+        space.gaxpy(r, -1.0, b, 1.0);
+        betae[0] = resid = space.norm(r);
         if(outp)
-            printf("itr rnk resid\n%.3d N/A %.6e\n", iter, betae[0]);
-        if(betae[0] < thresh)
-            return 0;
-        r.scale(1.0 / betae[0]);
+            printf("itr rnk resid\n%.3d N/A %.6e\n", iter, resid);
+        if(resid < thresh) {
+            maxiters = 1;
+            thresh = resid;
+            return;
+        }
+        space.scale(r, 1.0 / resid);
         V.push_back(r);
         ++iter;
 
@@ -78,16 +289,43 @@ namespace madness {
 
             // orthogonalize the new vector
             for(i = 0; i < iter; ++i) {
-                H(i, iter-1) = inner(r, V[i]);
-                r.gaxpy(1.0, V[i], -H(i, iter-1));
+                H(i, iter-1) = space.inner(V[i], r);
+                space.gaxpy(r, 1.0, V[i], -H(i, iter-1));
             }
-            H(iter, iter-1) = r.norm2();
+            H(iter, iter-1) = norm = space.norm(r);
 
             // solve Hy == betae for y
             gelss(H(Slice(0, iter), Slice(0, iter-1)), betae(Slice(0, iter)),
                 1.0e-12, &y, &s, &rank, &sumsq);
 
             resid = sumsq[0];
+
+            if(norm < thresh) {
+                // we just got the zero vector -> no more progress
+
+                // if this is the first iteration, compute the residual
+                if(iter == 1) {
+                    space.destroy(r);
+                    space.gaxpy(x, 1.0, V[0], betae[0]);
+                    op.applyOp(x, r);
+                    space.gaxpy(r, -1.0, b, 1.0);
+                    thresh = space.norm(r);
+                    space.destroy(r);
+                    space.destroy(V[0]);
+
+                    maxiters = 1;
+                    if(outp)
+                        printf("%.3d N/A %.6e ** Zero Vector Encountered **\n",
+                            iter, thresh);
+                    return;
+                }
+
+                if(outp)
+                    printf("%.3d %.3ld %.6e ** Zero Vector Encountered **\n",
+                        iter, rank, resid);
+                break;
+            }
+
             if(outp) {
                 printf("%.3d %.3ld %.6e", iter, rank, resid);
                 if(iter != rank)
@@ -95,20 +333,22 @@ namespace madness {
                 printf("\n");
             }
 
-            r.scale(1.0 / H(iter, iter-1));
+            // normalize the vector and save it
+            space.scale(r, 1.0 / norm);
             V.push_back(r);
             ++iter;
        } while(iter < maxiters && resid > thresh);
 
        // build the solution and destroy the basis vectors
        for(i = 0; i < iter; ++i) {
-           x.gaxpy(1.0, V[i], y[i]);
-           V[i].clear();
+           space.gaxpy(x, 1.0, V[i], y[i]);
+           space.destroy(V[i]);
        }
 
-       return iter;
+       thresh = resid;
+       maxiters = iter;
     }
 
-}
+} // end of madness namespace
 
 #endif

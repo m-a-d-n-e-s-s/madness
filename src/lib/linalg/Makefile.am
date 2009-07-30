@@ -1,6 +1,6 @@
 include $(top_srcdir)/config/MakeGlobal.am
 
-bin_PROGRAMS = test  test_solvers
+bin_PROGRAMS = test  test_solvers test_gmres
 lib_LIBRARIES = libMADlinalg.a
 
 thisincludedir = $(includedir)/linalg
@@ -17,3 +17,6 @@ test_LDADD = libMADlinalg.a $(LIBTENSOR) $(LIBMISC) $(LIBWORLD)
 
 test_solvers_SOURCES = test_solvers.cc
 test_solvers_LDADD =  libMADlinalg.a $(LIBTENSOR) $(LIBMISC) $(LIBWORLD)
+
+test_gmres_SOURCES = test_gmres.cc
+test_gmres_LDADD =  $(LIBMRA) libMADlinalg.a $(LIBTENSOR) $(LIBMISC) $(LIBWORLD)

@@ -413,13 +413,11 @@ namespace madness {
                 *sumsq = Tensor<scalar_type>(nrhs);
                 if(nrhs == 1) {
                     (*sumsq)[0] = lapack_inout(Slice(n, m-1)).normf();
-                    (*sumsq)[0] *= (*sumsq)[0];
                 }
                 else
                     for(integer i = 0; i < nrhs; ++i) {
                         (*sumsq)[i] =
                             lapack_inout(Slice(i, i), Slice(n, m-1)).normf();
-                        (*sumsq)[i] *= (*sumsq)[i];
                     }
             }
 
