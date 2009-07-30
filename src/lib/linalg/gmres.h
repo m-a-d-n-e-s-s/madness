@@ -192,7 +192,7 @@ namespace madness {
             }
     };
 
-    /// A vector space using MADNESS Funcions
+    /// A vector space using MADNESS Functions
     template <typename T, int NDIM>
     class FunctionSpace : public AbstractVectorSpace<Function<T, NDIM>,
         typename TensorTypeData<T>::float_scalar_type, T> {

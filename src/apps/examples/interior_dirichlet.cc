@@ -158,7 +158,7 @@ int main(int argc, char **argv) {
 	FunctionDefaults<3>::set_cubic_cell(-L, L);
 	FunctionDefaults<3>::set_thresh(thresh);
 	//FunctionDefaults<3>::set_initial_level(4);
-	/// the following line can be uncommented if memory is not an issue
+	/// the following line can be commented out if memory is not an issue
 	FunctionDefaults<3>::set_max_refine_level(6);
 
 	Tensor<int> bc(3,2);
