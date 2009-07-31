@@ -37,7 +37,6 @@ void     testPochhammer(World&);
 void     testWF(World&);
 void     debug1F1(World&);
 void test1F1(World&, complexd (*func1F1)(complexd,complexd,complexd), const char* fileChar);
-//Fortran functions
 
 /******************************************
  * Scattering WaveFunction
@@ -59,9 +58,12 @@ public:
     double   diffI(double x) const;
     double   toX(int i) const;
     int      fromX(double x) const;
+    int      n1;
     double   Z;
     double   k;
-    double domain;
+    double   domain;
+    double   xi;
+    double   ra;
     vector3D kVec;
 private:
     complexd expmPI_k;
@@ -70,20 +72,32 @@ private:
     complexd gamma1pI_k;
     complexd gammamI_k;
     complexd one;
+    double   alpha;
+    double   beta;
+    double   boundary;
     double   TOL;
     double   dx;
-    double   two_dx;
+    double   dx_2n1;
+    double   dxn1_2;
     int n;
-    double*  aR;
-    double*  bR;
-    double*  cR;
-    double*  dR;
-    double*  aI;
-    double*  bI;
-    double*  cI;
-    double*  dI;
-    double*  h;
-    double*  x;
+//     double*  aR;
+//     double*  bR;
+//     double*  cR;
+//     double*  dR;
+//     double*  aI;
+//     double*  bI;
+//     double*  cI;
+//     double*  dI;
+    double*   fR;
+    double*   fI;
+    double*  fpR;
+    double*  fpI;
+    double* fppR;
+    double* fppI;
+    double* fpppR;
+    double* fpppI;
+    double*    h;
+    double*    x;
 };
 
 /******************************************

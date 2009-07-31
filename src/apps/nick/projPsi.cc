@@ -325,7 +325,7 @@ int main(int argc, char**argv) {
     double L = 10.0;
     loadParameters(world, k, L);
     FunctionDefaults<NDIM>::set_k(k);               // Wavelet order
-    FunctionDefaults<NDIM>::set_thresh(1e-3);       // Accuracy
+    FunctionDefaults<NDIM>::set_thresh(1e-1);       // Accuracy
     FunctionDefaults<NDIM>::set_cubic_cell(-L, L);
     FunctionDefaults<NDIM>::set_initial_level(3);
     FunctionDefaults<NDIM>::set_apply_randomize(false);
@@ -333,7 +333,6 @@ int main(int argc, char**argv) {
     FunctionDefaults<NDIM>::set_refine(true);
     FunctionDefaults<NDIM>::set_truncate_mode(0);
     FunctionDefaults<NDIM>::set_truncate_on_project(true);
-    PRINTLINE("Before try");
     try {
         std::vector<WF> basisList;
         double dARR[3] = {0, 0, 0.5};
@@ -355,7 +354,7 @@ int main(int argc, char**argv) {
         //belkic(world);
         projectZdip(world, basisList);
         //printBasis(world);
-        projectPsi(world, basisList);         
+        //projectPsi(world, basisList);         
         world.gop.fence();
         if (world.rank() == 0) {
 //             world.am.print_stats();

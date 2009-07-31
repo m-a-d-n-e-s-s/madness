@@ -156,122 +156,202 @@ ScatteringWF::ScatteringWF(double Z, const vector3D& kVec) : Z(Z), kVec(kVec)
      * kr + kDOTr brings along another factor of 2k     k*sqrt(3)*V^(1/3)
      **********************************************************************/
     domain  = k*sqrt(3)*pow(FunctionDefaults<NDIM>::get_cell_volume(),1.0/3.0);
-    dx = 1e-5;
-    two_dx = 2/dx;
+    dx = 1e-1;   //Mesh spacing
+    ra = 5.0; //boundary cutoff
+    boundary = ra + 0.5*dx;
+    xi = 2;   //density speedup (should be 2 or greater)
+    //cout << "\ndomain = " << domain << "\t\t ra = " << ra << "\t\tdx = " << dx << endl;
     /*********************************************************
      * Calculating n for a variable mesh
-     *          x[i] = alpha i^2
-     * (1)      x[n] = domain
-     * (2)     x'[1] = dx (the coarsest mesh spacing)
-     *       2 alpha = dx
-     * (3)     alpha = dx/2
-     * (1)  dx/2 n^2 = domain
-     * We should make sure we cover a bit more territory than required
+     * (0)     x'[1] = dx (the coarsest mesh spacing)
+     * (1)     xI[i] = alpha*i^2       region    |   region  
+     * (2)    xII[i] = dx*i + beta        I      |     II
+     * (3)   xI'[n1] = xII'[n1]       quadratic  |   uniform
+     *    2*alpha*n1 = dx                mesh    |    mesh
+     *         alpha = dx/2/n1       ____________|____________
+     * (4)    xI[n1] = xII[n1]       012  ...   n1    ...    n
+     *(dx/2/n1)n1*n1 = dx*n1 + beta |<-   n1   ->|<-   n2   ->|
+     *       dx*n1/2 = dx*n1 + beta
+     *          beta = -dx*n1/2
+     *            n2 =  distanceII*densityII
+     *            n2 = (domain-ra)*1/dx
+     *            n1 =   distanceI*densityI
+     *            n1 =          ra*xi/dx
+     *             n = n1 + n2
      ********************************************************/
-    n = floor(sqrt(2*domain/dx)) + 1;
-    aR = new double[n+1];
-    bR = new double[n+1];
-    cR = new double[n+1];
-    dR = new double[n+1];
-    aI = new double[n+1];
-    bI = new double[n+1];
-    cI = new double[n+1];
-    dI = new double[n+1];
+    n1 = floor(ra*xi/dx) + 1;
+    n  = floor(n1 + (domain - ra)/dx) + 1;
+    alpha = dx*dx/(2*ra*xi);
+    beta  = -dx*n1/2;
+    dx_2n1 = dx/2/n1;
+    dxn1_2 = dx*n1/2;
+    //cout << "n = " << n << "\t\t n1 = " << n1 << "\t\txi = " << xi << endl;
+//     aR = new double[n+1];
+//     bR = new double[n+1];
+//     cR = new double[n+1];
+//     dR = new double[n+1];
+//     aI = new double[n+1];
+//     bI = new double[n+1];
+//     cI = new double[n+1];
+//     dI = new double[n+1];
+//     double* l = new double[n+1];
+//     double* mu = new double[n+1];
+//     double* zR = new double[n+1];
+//     double* zI = new double[n+1];
+//     double* alphaR = new double[n+1];
+//     double* alphaI = new double[n+1];
+    fR   = new double[n+1];
+    fpR  = new double[n+1];
+    fppR = new double[n+1];
+    fpppR = new double[n+1];
+    fI   = new double[n+1];
+    fpI  = new double[n+1];
+    fppI = new double[n+1];
+    fpppI = new double[n+1];
     h  = new double[n];
     x  = new double[n+1];
-    double l[n+1];
-    double mu[n];
-    double zR[n+1];
-    double zI[n+1];
-    double alphaR[n];
-    double alphaI[n];
-    complexd value;
+    // Initializing the Variable mesh
     for(int i=0; i<=n; i++) {
         //x[i] = i*dx; //constant mesh
         x[i] = toX(i); //variable mesh
         //cout << "x[" << i << "] = " << toX(i) << endl;
     }
+    // Spacing
+    for(int i=0; i<n; i++) {
+        h[i] = x[i+1] - x[i];
+    }
+    complexd value;
     for(int i=0; i<=n; i++) {
         value = f11(x[i]);
-        aR[i] = real(value);
-        aI[i] = imag(value);
-        //cout << "ar[" << i << "] = " << aR[i] << "\t ai[" << i << "] = " << aI[i] << endl;
+        fR[i] = real(value);
+        fI[i] = imag(value);
+        //cout << "fR[" << i << "] = " << fR[i] << "\t fI[" << i << "] = " << fI[i] << endl;
     }
-    mu[0] = 0.5;
-    h[0]  = x[1] - x[0];
-    l[0]  = 2*h[0];
-    alphaR[0] = 3*(aR[1] - aR[0])/h[0] + 3.0/k;
-    alphaI[0] = 3*(aI[1] - aI[0])/h[0];
-    zR[0]  = alphaR[0]/l[0];
-    zI[0]  = alphaI[0]/l[0];
-    for(int i=1; i<=n-1; i++) {
-        h[i] = x[i+1]-x[i];
-        alphaR[i] = 3.0/h[i]*(aR[i+1] - aR[i]) - 3.0/h[i-1]*(aR[i] - aR[i-1]);
-        alphaI[i] = 3.0/h[i]*(aI[i+1] - aI[i]) - 3.0/h[i-1]*(aI[i] - aI[i-1]);
-        l[i] = 2*(x[i+1] - x[i-1] - h[i-1]*mu[i-1]);
-        mu[i] = h[i]/l[i];
-        zR[i] = (alphaR[i] - h[i-1]*zR[i-1])/l[i];
-        zI[i] = (alphaI[i] - h[i-1]*zI[i-1])/l[i];
+    // 1st derivative
+    fpR[0] = -1.0/k; //CHECK
+    fpI[0] = 0.0;    
+    for(int i=1; i<n; i++) {
+        fpR[i] = 0.5*((fR[i] - fR[i-1])/h[i-1] + (fR[i+1] - fR[i])/h[i]);
+        fpI[i] = 0.5*((fI[i] - fI[i-1])/h[i-1] + (fI[i+1] - fI[i])/h[i]);
+//         cout << "f'L[" << i << "] = " << (fR[i] - fR[i-1])/h[i-1] 
+//              << "\t f'R[" << i << "] = " << (fR[i+1] - fR[i])/h[i]
+//              << "\t fpR[" << i << "] = " << fpR[i] <<  endl;
     }
-    l[n] = 1.0;
-    zR[n] = 0.0;
-    zI[n] = 0.0;
-    cR[n] = 0.0;
-    cI[n] = 0.0;
-    for(int j=n-1; j>=0; j--) {
-        cR[j] = zR[j] - mu[j]*cR[j+1];
-        cI[j] = zI[j] - mu[j]*cI[j+1];
-        bR[j] = (aR[j+1] - aR[j])/h[j] - h[j]*(cR[j+1] + 2*cR[j])/3;
-        bI[j] = (aI[j+1] - aI[j])/h[j] - h[j]*(cI[j+1] + 2*cI[j])/3;
-        dR[j] = (cR[j+1] - cR[j])/(3*h[j]);
-        dI[j] = (cI[j+1] - cI[j])/(3*h[j]);
-    }
+    fpR[n] = (fR[n] - fR[n-1])/h[n-1];
+    fpI[n] = (fI[n] - fI[n-1])/h[n-1];
+    // 2nd derivative
+//     fppR[0] = (fpR[1] - fpR[0])/h[0];
+//     fppI[0] = (fpI[1] - fpI[0])/h[0];
+//     for(int i=1; i<n-1; i++) {
+//         fppR[i] = 0.5*( (fpR[i+1] - fpR[i])/h[i] + (fpR[i] - fpR[i-1])/h[i-1]);
+//         fppI[i] = 0.5*( (fpI[i+1] - fpI[i])/h[i] + (fpI[i] - fpI[i-1])/h[i-1]);
+//         //cout << "fppR[" << i << "] = " << fppR[i] << "\t fppI[" << i << "] = " << fppI[i] << endl;
+//     }
+//     fppR[n] = (fpR[n] - fpR[n-1])/h[n-1];
+//     fppI[n] = (fpI[n] - fpI[n-1])/h[n-1];
+//     //3nd derivatives
+//     fpppR[0] = (fppR[1] - fppR[0])/h[0];
+//     fpppI[0] = (fppI[1] - fppI[0])/h[0];
+//     for(int i=1; i<n-1; i++) {
+//         fpppR[i] = 0.5*( (fppR[i+1] - fppR[i])/h[i] + (fppR[i] - fppR[i-1])/h[i-1]);
+//         fpppI[i] = 0.5*( (fppI[i+1] - fppI[i])/h[i] + (fppI[i] - fppI[i-1])/h[i-1]);
+        //cout << "fpppR[" << i << "] = " << fpppR[i] << "\t fpppI[" << i << "] = " << fpppI[i] << endl;
+//    }
+    fpppR[n] = (fppR[n] - fppR[n-1])/h[n-1];
+    fpppI[n] = (fppI[n] - fppI[n-1])/h[n-1];
+
+//     for(int i=0; i<=n; i++) {
+//         value = f11(x[i]);
+//         aR[i] = real(value);
+//         aI[i] = imag(value);
+//         //cout << "ar[" << i << "] = " << aR[i] << "\t ai[" << i << "] = " << aI[i] << endl;
+//     }
+//     cout << "a[i] is initialized" << endl;
+//     mu[0] = 0.5;
+//     h[0]  = x[1] - x[0];
+//     l[0]  = 2*h[0];
+//     alphaR[0] = 3*(aR[1] - aR[0])/h[0] + 3.0/k;
+//     alphaI[0] = 3*(aI[1] - aI[0])/h[0];
+//     zR[0]  = alphaR[0]/l[0];
+//     zI[0]  = alphaI[0]/l[0];
+//     for(int i=1; i<=n-1; i++) {
+//         h[i] = x[i+1]-x[i];
+//         alphaR[i] = 3.0/h[i]*(aR[i+1] - aR[i]) - 3.0/h[i-1]*(aR[i] - aR[i-1]);
+//         alphaI[i] = 3.0/h[i]*(aI[i+1] - aI[i]) - 3.0/h[i-1]*(aI[i] - aI[i-1]);
+//         l[i] = 2*(x[i+1] - x[i-1] - h[i-1]*mu[i-1]);
+//         mu[i] = h[i]/l[i];
+//         zR[i] = (alphaR[i] - h[i-1]*zR[i-1])/l[i];
+//         zI[i] = (alphaI[i] - h[i-1]*zI[i-1])/l[i];
+//     }
+//     l[n] = 1.0;
+//     zR[n] = 0.0;
+//     zI[n] = 0.0;
+//     cR[n] = 0.0;
+//     cI[n] = 0.0;
+//     for(int j=n-1; j>=0; j--) {
+//         cR[j] = zR[j] - mu[j]*cR[j+1];
+//         cI[j] = zI[j] - mu[j]*cI[j+1];
+//         bR[j] = (aR[j+1] - aR[j])/h[j] - h[j]*(cR[j+1] + 2*cR[j])/3;
+//         bI[j] = (aI[j+1] - aI[j])/h[j] - h[j]*(cI[j+1] + 2*cI[j])/3;
+//         dR[j] = (cR[j+1] - cR[j])/(3*h[j]);
+//         dI[j] = (cI[j+1] - cI[j])/(3*h[j]);
+//     }    
+//     delete l;
+//     delete mu;
+//     delete zR;
+//     delete zI;
+//     delete alphaR;
+//     delete alphaI;
+
     /*****************************************************
      * Below is the quality control for my splines
      ****************************************************/
-//     ofstream F11, splined, diff, fdiff,Xfile;
-//     F11.open("f11.dat");
-//     F11.precision(15);
-//     splined.open("splined.dat");
-//     splined.precision(15);
-//     diff.open("diff.dat");
-//     diff.precision(15);
-//     fdiff.open("fdiff.dat");
-//     fdiff.precision(15);
-//     //x[0] != 0.0 I don't know why?
-//     x[0] = 0.0;
-//     for(int i=0; i<n; i++) {
-//         F11     << x[i] << "\t" << aR[i]  << "\t" << aI[i]  << endl;
-//     }
-//     //The spline file is sampled at approximately 7 times as many points
-//     //to make error calculations easy
-//     //     for(double r=0; r < range-dx; r += dx/sqrt(50) ) { // Constant Mesh
-//     //         splined << r << "\t" << real(splined1F1(r)) << "\t" << imag(splined1F1(r)) << endl;
-//     //         diff    << r << "\t" << diffR(r)            << "\t" << diffI(r)            << endl;
-//     //     }
-//     // Variable Mesh
-//     int ii=0;
-//     for(double r=0; r<domain; r +=dx*ii/n/sqrt(50) ) {
-//         //r scales the same way as the grid points do
-//         ii++;
-//         splined << r << "\t" << real(splined1F1(r)) << "\t" << imag(splined1F1(r)) << endl;
-//         diff    << r << "\t" << diffR(r)            << "\t" << diffI(r)            << endl;
-// //         fdiff   << r << "\t" << real( aForm3(-I*r) ) 
-// //                 << "\t"      << imag( aForm3(-I*r) )      << endl;
-//         fdiff   << r << "\t" << real(conhyp(-I/k,one,-I*r) -  aForm3(-I*r) ) 
-//                 << "\t"      << imag(conhyp(-I/k,one,-I*r) -  aForm3(-I*r) )      << endl;
-//     }
+    ofstream F11, splined, diff, fdiff,Xfile;
+    F11.open("f11.dat");
+    F11.precision(15);
+    splined.open("splined.dat");
+    splined.precision(15);
+    diff.open("diff.dat");
+    diff.precision(15);
+    fdiff.open("fdiff.dat");
+    fdiff.precision(15);
+    for(int i=0; i<n; i++) {
+        //        F11     << x[i] << "\t" << aR[i]  << "\t" << aI[i]  << endl;
+        F11     << x[i] << "\t" << fR[i]  << "\t" << fI[i]  << endl;
+    }
+    //The spline file is sampled at approximately 7 times as many points
+    //to make error calculations easy
+    //     for(double r=0; r < range-dx; r += dx/sqrt(50) ) { // Constant Mesh
+    //         splined << r << "\t" << real(splined1F1(r)) << "\t" << imag(splined1F1(r)) << endl;
+    //         diff    << r << "\t" << diffR(r)            << "\t" << diffI(r)            << endl;
+    //     }
+    // Variable Mesh
+    int ii=0;
+    for(double r=0; r<domain; r +=dx/sqrt(200) ) {
+        //r scales the same way as the grid points do
+        ii++;
+        splined << r << "\t" << real(splined1F1(r)) << "\t" << imag(splined1F1(r)) << endl;
+        diff    << r << "\t" << diffR(r)            << "\t" << diffI(r)            << endl;
+        fdiff   << r << "\t" << real(conhyp(-I/k,one,-I*r) -  aForm3(-I*r) ) 
+                << "\t"      << imag(conhyp(-I/k,one,-I*r) -  aForm3(-I*r) )      << endl;
+    }
 }
 
 ScatteringWF::~ScatteringWF() {
-    delete aR;
-    delete bR;
-    delete cR;
-    delete dR;
-    delete aI;
-    delete bI;
-    delete cI;
-    delete dI;
+//     delete aR;
+//     delete bR;
+//     delete cR;
+//     delete dR;
+//     delete aI;
+//     delete bI;
+//     delete cI;
+//     delete dI;
+    delete fR;
+    delete fI;
+    delete fpR;
+    delete fpI;
+    delete fppR;
+    delete fppI;
     delete h;
     delete x;
 }
@@ -279,11 +359,17 @@ ScatteringWF::~ScatteringWF() {
 complexd ScatteringWF::splined1F1(double xx) const {
     int j = fromX(xx);
     double y = (xx - x[j]);
+    //    cout << "y = " << y << "\t fpR[" << j << "] = " << fpR[j] << endl;
 //     return complexd(aR[j],aI[j]) + y*(complexd(bR[j],bI[j]) + 
 //                                       y*(complexd(cR[j],cI[j]) +
 //                                          y*complexd(dR[j],dI[j]) ) );
-    return complexd( aR[j] + y*(bR[j] + y*(cR[j] + y*dR[j] )),
-                     aI[j] + y*(bI[j] + y*(cI[j] + y*dI[j] )) );
+//      return complexd( fR[j] + y*(fpR[j] + y*(fppR[j]/2 + y*fpppR[j]/6)),
+//                       fI[j] + y*(fpI[j] + y*(fppI[j]/2 + y*fpppI[j]/6)) );
+//     return complexd( fR[j] + y*(fpR[j] + y*fppR[j]/2 ),
+//                      fI[j] + y*(fpI[j] + y*fppI[j]/2) );
+      return complexd( fR[j] + y*fpR[j],
+                       fI[j] + y*fpI[j] );
+//    return complexd( fR[j], fI[j] );
 }
 
 double   ScatteringWF::diffR(double x)    const {
@@ -293,15 +379,19 @@ double   ScatteringWF::diffI(double x)    const {
     return imag(splined1F1(x) - f11(x));
 }
 double   ScatteringWF::toX(int i)         const {
-    return dx*i*i/2;
+    if( i <= n1 ) return alpha*i*i;
+    return dx*i - dxn1_2;
 }
 int      ScatteringWF::fromX( double xx ) const {
-    //int index =  floor( sqrt(2*xx/dx) );
-    int index =  floor( sqrt(two_dx*xx) );
+    //    if( xx < ra ) return floor( sqrt(2*xi*ra*xx)/dx );
+    if( xx < boundary ) {
+        return floor( sqrt(2*xi*ra*xx/dx/dx) + 0.5);
+    }
+    int index =  floor( (xx - beta)/dx + 0.5);
     if(index > n) {
         cout << "index = " << index << endl;
-        cout << "n = " << n << endl;
-        cout << "x = " << xx << endl;
+        cout << "n = "         << n << endl;
+        cout << "x = "        << xx << endl;
         throw "ScatteringWF: index out of bounds\n increase domain";
     }
     return index;
