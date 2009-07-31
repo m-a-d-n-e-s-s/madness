@@ -40,6 +40,7 @@
 #include <unistd.h>
 #include <cstdio>
 #include <constants.h>
+#include <misc/phandler.h>
 
 using namespace madness;
 
@@ -82,6 +83,7 @@ string help = "\n\
       .   volume            // Sets plot type to volume, default is volume \n\
       .   plot_cell <double lo> <double hi> [...] // Plot range in each dimension, default is compute cell \n\
       .   npt               // No. of points in each dimension (default is 101) \n\
+      .   formula           // Also plot analytic expression \n\
       .   exit              // exits the program gracefully \n\
       .   quit              // exits the program gracefully \n\
  \n\
@@ -119,6 +121,7 @@ public:
     string input_filename;      // filename for function on disk
     string output_filename;     // output file name for plot data
     string output_format;       // output format for volume data (presently only dx)
+    string formula;             // analytic function to plot
     string function_name;       // function name for VTK output
     vector<long> npt;           // no. points in each dimension
     int ndim;                   // no. of dimensions
@@ -141,6 +144,7 @@ public:
         , input_filename()
         , output_filename("plot")
         , output_format("dx")
+        , formula("")
         , function_name("function")
         , ndim(3)
         , binary(true)
@@ -245,6 +249,9 @@ public:
             else if (token == "output") {
                 input >> output_filename;
             }
+            else if (token == "formula") {
+                input >> formula;
+            }
             else if (token == "quit" || token == "exit") {
                 finished = true;
                 break;
@@ -319,7 +326,45 @@ public:
 
 
     template <typename T, int NDIM>
+    void dolineplot(const Function<T,NDIM>& f, const Function<T,NDIM>& g) {
+        Vector<double,NDIM> lo, hi;
+        for (int i=0; i<NDIM; i++) {
+            lo[i] = plot_cell(i,0);
+            hi[i] = plot_cell(i,1);
+        }
+        
+        plot_line(output_filename.c_str(), npt[0], lo, hi, f, g);
+    }
+
+
+    template <typename T, int NDIM>
+    void dovolumeplot(const Function<T,NDIM>& f, const Function<T,NDIM>& g) {
+        if(output_format == "dx") {
+          MADNESS_EXCEPTION("plot type not supported with user functions!",0);
+        }
+        else if(output_format == "vtk") {
+            Vector<double, NDIM> plotlo, plothi;
+            Vector<long, NDIM> numpt;
+            for(int i = 0; i < NDIM; ++i) {
+                plotlo[i] = plot_cell(i, 0);
+                plothi[i] = plot_cell(i, 1);
+                numpt[i] = npt[i];
+            }
+            
+            plotvtk_begin(world, output_filename.c_str(), plotlo, plothi,
+                numpt, binary);
+            plotvtk_data(f, function_name.c_str(), world,
+                output_filename.c_str(), plotlo, plothi, numpt, binary);
+            plotvtk_data(g, function_name.c_str(), world,
+                output_filename.c_str(), plotlo, plothi, numpt, binary);
+            plotvtk_end<NDIM>(world, output_filename.c_str(), binary);
+        }
+    }
+
+
+    template <typename T, int NDIM>
     void doplot1() {
+
         // Set up environment for this dimension
         FunctionDefaults<NDIM>::set_cell(cell);
 
@@ -328,15 +373,21 @@ public:
         ParallelInputArchive ar(world, input_filename.c_str());
         ar & f;
 
-        // Redirect to right plot type
-        if (plot_type == "volume") {
-            dovolumeplot<T,NDIM>(f);
-        }
-        else if (plot_type == "line") {
-            dolineplot<T,NDIM>(f);
-        }
+        // Load the user's function
+        if (formula != "") {
+         typedef FunctionFactory<T,NDIM> factoryT;
+         typedef SharedPtr< FunctionFunctorInterface<T, NDIM> > functorT;
+         Function<T,NDIM> pFunc = factoryT(world).functor(functorT(
+                        new ParserHandler<T,NDIM>("exp(-abs(r))")));
+
+          if      (plot_type == "volume")    dovolumeplot<T,NDIM>(f,pFunc);
+          else if (plot_type == "line")      dolineplot<T,NDIM>(f,pFunc);
+          else    MADNESS_EXCEPTION("unknown plot type",0);
+        } // end if formula present
         else {
-            MADNESS_EXCEPTION("unknown plot type",0);
+          if      (plot_type == "volume")    dovolumeplot<T,NDIM>(f);
+          else if (plot_type == "line")      dolineplot<T,NDIM>(f);
+          else    MADNESS_EXCEPTION("unknown plot type",0);
         }
     }
 
