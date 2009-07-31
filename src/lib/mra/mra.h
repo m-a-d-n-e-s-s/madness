@@ -1508,6 +1508,9 @@ namespace madness {
     ///    plotvtk_data(...)
     ///    plotvtk_data(...) ...
     ///    plotvtk_end(...)
+    ///
+    /// NOTE: Paraview expects the structured mesh points in a particular
+    /// order, which is why the LowDimIndexIterator is used...
     template<int NDIM>
     void plotvtk_begin(World &world, const char *filename,
         const Vector<double, NDIM> &plotlo, const Vector<double, NDIM> &plothi,
@@ -1551,37 +1554,21 @@ namespace madness {
             fprintf(f, "        <DataArray NumberOfComponents=\"3\" " \
                 "type=\"Float32\" format=\"ascii\">\n");
 
-            Vector<double, NDIM> coord, space;
-            Vector<long, NDIM> index;
+            Vector<double, NDIM> space;
             for(i = 0; i < NDIM; ++i) {
-                coord[i] = plotlo[i];
                 if(npt[i] == 1)
                     space[i] = 0.0;
                 else
                     space[i] = (cell(i, 1) - cell(i, 0)) / (npt[i] - 1);
-                index[i] = 0;
             }
 
-            // a method using eval_cube or an IndexIterator may be preferable
-            // for traversing the grid
-            while(index[0] < npt[0]) {
+            // go through the grid
+            for(LowDimIndexIterator it(npt); it; ++it) {
                 for(i = 0; i < NDIM; ++i)
-                    fprintf(f, "%f ", coord[i]);
+                    fprintf(f, "%f ", plotlo[i] + it[i]*space[i]);
                 for(; i < 3; ++i)
                     fprintf(f, "0.0 ");
                 fprintf(f, "\n");
-
-                // iterate to the next point
-                i = NDIM - 1;
-                ++index[i];
-                coord[i] += space[i];
-                while(index[i] >= npt[i] && i > 0) {
-                    index[i] = 0;
-                    coord[i] = plotlo[i];
-                    --i;
-                    ++index[i];
-                    coord[i] += space[i];
-                }
             }
 
             fprintf(f, "        </DataArray>\n");
@@ -1644,7 +1631,7 @@ namespace madness {
         world.gop.fence();
 
         if(world.rank() == 0) {
-            for(IndexIterator it(numpt); it; ++it) {
+            for(LowDimIndexIterator it(numpt); it; ++it) {
                 fprintf(f, "%.6e\n", tmpr(*it));
             }
             fprintf(f, "        </DataArray>\n");
@@ -1701,7 +1688,7 @@ namespace madness {
         world.gop.fence();
 
         if(world.rank() == 0) {
-            for(IndexIterator it(numpt); it; ++it) {
+            for(LowDimIndexIterator it(numpt); it; ++it) {
                 fprintf(f, "%.6e %.6e\n", real(tmpr(*it)), imag(tmpr(*it)));
             }
             fprintf(f, "        </DataArray>\n");
