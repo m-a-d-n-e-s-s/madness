@@ -1,6 +1,6 @@
 include $(top_srcdir)/config/MakeGlobal.am
 
-bin_PROGRAMS = world testatom testhashthreaded testdc objexample objexample2 testprof
+bin_PROGRAMS = world testatom testhashthreaded testdc objexample objexample2 testprof helloworld
 lib_LIBRARIES = libMADworld.a
 
 thisincludedir = $(includedir)/world
@@ -14,6 +14,9 @@ thisinclude_HEADERS = archive.h print.h      worldam.h       worldfut.h   worldm
 
 testprof_SOURCES = testprof.cc
 testprof_LDADD = libMADworld.a
+
+helloworld_SOURCES = helloworld.cc
+helloworld_LDADD = libMADworld.a
 
 testatom_SOURCES = testatom.cc threadpool.cc
 testatom_LDADD = libMADworld.a
