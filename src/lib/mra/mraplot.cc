@@ -435,7 +435,7 @@ int main(int argc, char**argv) {
         world.gop.broadcast(done);
         if (!done) {
             startup(world,argc,argv);
-            print(" ");
+            if (world.rank() == 0) print(" ");
 
             Plotter plotter(world);
             while (1) {
