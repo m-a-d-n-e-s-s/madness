@@ -428,6 +428,8 @@ namespace madness {
         }
         else if(b.ndim == 2)
             *x = transpose(lapack_inout);
+        else
+            *x = lapack_inout;
     }
 
     template <typename T>
