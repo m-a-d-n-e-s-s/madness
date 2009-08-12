@@ -1024,7 +1024,7 @@ namespace madness {
         friend class LoadBalImpl<NDIM>;
         friend class LBTree<NDIM>;
 
-        typedef Singleton< LbCost<NDIM> > CostFun;
+        //typedef Singleton< LbCost<NDIM> > CostFun;
 //        typedef LbCost<NDIM> CostFun;
         typedef FunctionImpl<T,NDIM> implT; ///< Type of this class (implementation)
         typedef Tensor<T> tensorT; ///< Type of tensor used to hold coeffs
@@ -2465,7 +2465,7 @@ namespace madness {
             const long lmax = 1L << (key.level()-1);
             const string apply_name = "apply";           
 
-            CostFun::Instance(world).start(key,"apply");
+            //CostFun::Instance(world).start(key,"apply");
             start_time = cpu_time();
             const std::vector<keyT>& disp = op->get_disp(key.level());
             for (typename std::vector<keyT>::const_iterator it=disp.begin(); it != disp.end(); ++it) {
@@ -2522,7 +2522,7 @@ namespace madness {
                 apply_time->update(key, cum_time);
             }
 
-            CostFun::Instance(world).stop(key,"apply");
+            //CostFun::Instance(world).stop(key,"apply");
             return None;
         }
 
