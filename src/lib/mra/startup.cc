@@ -102,8 +102,8 @@ namespace madness {
         load_quadrature(world, data_dir);
 
         // This to init static data while single threaded
-        double djunk;
-        legendre_scaling_functions(0.0,0,&djunk);
+        double djunk[2];
+        legendre_scaling_functions(0.0,0,djunk);
 
 
         if (world.rank() == 0) print("testing coeffs, etc.");
