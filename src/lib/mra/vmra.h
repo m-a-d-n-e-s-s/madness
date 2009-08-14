@@ -242,7 +242,7 @@ namespace madness {
 
         world.gop.fence();   //// ?????????????????????? WHY ?  compress_spawn intermittent failure
         compress(world, f);
-        compress(world, g);
+        if (&f != &g) compress(world, g);
         world.gop.fence();
 
 //         for (long i=0; i<n; i++) {
