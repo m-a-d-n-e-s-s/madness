@@ -148,34 +148,20 @@ namespace madness {
             sanity_check();
         }
 
-        /// Pop value off the front of queue
-        std::pair<T,bool> pop_front(bool wait) {
+        template <typename opT>
+        void scan(opT& op) {
             madness::ScopedMutex<CONDITION_VARIABLE_TYPE> obolus(this);
-
+            
+            int f = _front;
             size_t nn = n;
+            int size = int(sz);
+            std::cout << "IN Q " << nn << std::endl;
 
-            if (nn==0 && wait) {
-                while (n == 0) // !!! Must be n (memory) not nn (local copy)
-                    CONDITION_VARIABLE_TYPE::wait();
-
-                nn = n;
-            }
-
-            if (nn) {
-                //sanity_check();
-                n = nn - 1;
-
-                int f = _front;
-                T result = buf[f];
+            while (nn--) {
+                T* p = const_cast<T*>(buf + f);
+                if (!op(p)) break;
                 f++;
-                if (f >= int(sz)) f = 0;
-                _front = f;
-                stats.npop_front++;
-                return std::pair<T,bool>(result,true);
-            }
-            else {
-                stats.npop_front++;
-                return std::pair<T,bool>(T(),false);
+                if (f >= size) f = 0;
             }
         }
 
@@ -196,9 +182,10 @@ namespace madness {
                 
                 nn = n;
             }
-            
+
             stats.npop_front++;
             if (nn) {
+                size_t thesize = sz;
                 sanity_check();
                 
                 nmax = std::min(nmax,std::max(int(nn>>6),1));
@@ -218,7 +205,7 @@ namespace madness {
                 // ... take one task and then check that subsequent tasks differ
                 nmax--;
                 *r++ = buf[f++];
-                if (f >= int(sz)) f = 0;
+                if (f >= int(thesize)) f = 0;
                 retval=1;
                 while (nmax--) {
                     T ptr = buf[f];
@@ -228,7 +215,7 @@ namespace madness {
                     else {
                         *r++ = ptr;
                         f++;
-                        if (f >= int(sz)) f = 0;
+                        if (f >= int(thesize)) f = 0;
                         retval++;
                     }
                 }
@@ -243,7 +230,14 @@ namespace madness {
                 return 0;
             }
         }
-        
+
+        /// Pop value off the front of queue
+        std::pair<T,bool> pop_front(bool wait) {
+            T r;
+            int ngot = pop_front(1, &r, wait);
+            return std::pair<T,bool>(r,ngot==1);
+        }
+
         size_t size() const {
             return n;
         }
@@ -736,7 +730,8 @@ namespace madness {
         bool run_task(bool wait) {
             if (!wait && queue.empty()) return false;
             std::pair<PoolTaskInterface*,bool> t = queue.pop_front(wait);
-            if (t.second) {
+            // Task pointer might be zero due to stealing
+            if (t.second && t.first) {
                 PROFILE_BLOCK(working);
                 if (t.first->run_multi_threaded())         // What we are here to do
                     delete t.first;
@@ -750,8 +745,11 @@ namespace madness {
             int ntask = queue.pop_front(nmax, taskbuf, wait);
             for (int i=0; i<ntask; i++) {
                 PROFILE_BLOCK(working);
-                if (taskbuf[i]->run_multi_threaded())
+                if (taskbuf[i]) { // Task pointer might be zero due to stealing
+                    if (taskbuf[i]->run_multi_threaded()) {
                 	delete taskbuf[i];
+                    }
+                }
             }
             return (ntask>0);
         }
@@ -815,6 +813,12 @@ namespace madness {
                 instance()->queue.push_back(task, nthread);
             }
         }
+
+        template <typename opT>
+        void scan(opT& op) {
+            queue.scan(op);
+        }
+
 
         /// Add a vector of tasks to the pool
         static void add(const std::vector<PoolTaskInterface*>& tasks) {

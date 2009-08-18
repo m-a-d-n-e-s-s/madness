@@ -50,7 +50,7 @@ namespace madness {
     public:
         virtual void notify() = 0;
 
-        virtual ~CallbackInterface() {};
+        virtual ~CallbackInterface() {}
     };
 
 
@@ -64,23 +64,17 @@ namespace madness {
         mutable volatile callbackT callbacks; ///< Called ONCE by dec() when ndepend==0
 
         void do_callbacks() const {
-            // ASSUME WE HAVE THE LOCK IN HERE
-            callbackT& cb = const_cast<callbackT&>(callbacks);
+            // Take a physical copy
+            callbackT cb = const_cast<callbackT&>(callbacks);
 
-            // Note that we now execute the callback BEFORE popping
-            // the stack.  This is so the destructor only has to get
-            // the lock if callbacks.size() is non-zero.  We are
-            // accessing callbacks thru a non-volatile reference but
-            // that is OK since we only rely up on the size in memory
-            // being updated after the callbacks are executed.
             while (cb.size()) {
                 cb.front()->notify();
                 cb.pop();
             }
-        };
+        }
 
     public:
-        DependencyInterface(int ndep = 0) : ndepend(ndep) {};
+        DependencyInterface(int ndep = 0) : ndepend(ndep) {}
 
 
         /// Returns the number of unsatisfied dependencies
@@ -91,13 +85,13 @@ namespace madness {
         /// Returns true if ndepend == 0
         bool probe() const {
             return ndep() == 0;
-        };
+        }
 
 
         /// Invoked by callbacks to notifiy of dependencies being satisfied
         void notify() {
             dec();
-        };
+        }
 
 
         /// Registers a callback for when ndepend=0
@@ -106,14 +100,14 @@ namespace madness {
         void register_callback(CallbackInterface* callback) {
             ScopedMutex<Spinlock> hold(this);
             const_cast<callbackT&>(this->callbacks).push(callback);
-            if (ndepend == 0) do_callbacks();
-        };
+            if (ndep() == 0) do_callbacks();
+        }
 
 
         /// Increment the number of dependencies
         void inc() {
             MADATOMIC_INT_INC(&ndepend);
-        };
+        }
 
 
         /// Decrement the number of dependencies and invoke callback if ndepend=0
@@ -122,7 +116,7 @@ namespace madness {
                 ScopedMutex<Spinlock> hold(this);
                 do_callbacks();
             }
-        };
+        }
 
 
         virtual ~DependencyInterface() {
@@ -136,11 +130,11 @@ namespace madness {
             // been performed.  Hence, we only need the lock if the number of
             // unexecuted callbacks is non-zero.
 
-            callbackT& cb = const_cast<callbackT&>(callbacks);
-            if (cb.size()) {
-                ScopedMutex<Spinlock> hold(this);
-            }
-        };
+//             callbackT& cb = const_cast<callbackT&>(callbacks);
+//             if (cb.size()) {
+//                 ScopedMutex<Spinlock> hold(this);
+//             }
+        }
     };
 }
 #endif

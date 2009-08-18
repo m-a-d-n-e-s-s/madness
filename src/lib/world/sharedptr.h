@@ -288,20 +288,20 @@ namespace madness {
             return p != other.p;
         }
 
-        /// Steal an un-owned reference to the pointer
+//         /// Steal an un-owned reference to the pointer
 
-        /// The returned shared pointer will contain the pointer to
-        /// the shared counter but is marked as not owned AND the
-        /// reference count is NOT incremented.  This enables an
-        /// object containing a SharedPtr to itself to be deleted and
-        /// ensures that destroying the embedded SharedPtr does not
-        /// call the object destructor again.
-        SharedPtr<T> steal() const {
-            SharedPtr<T> r(*this);
-            r.own = false;
-            r.dec();
-            return r;
-        }
+//         /// The returned shared pointer will contain the pointer to
+//         /// the shared counter but is marked as not owned AND the
+//         /// reference count is NOT incremented.  This enables an
+//         /// object containing a SharedPtr to itself to be deleted and
+//         /// ensures that destroying the embedded SharedPtr does not
+//         /// call the object destructor again.
+//         SharedPtr<T> steal() const {
+//             SharedPtr<T> r(*this);
+//             r.own = false;
+//             r.dec();
+//             return r;
+//         }
 
         /// This just to permit use as task arguments ... throws if actually invoked
         template <typename Archive>

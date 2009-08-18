@@ -131,11 +131,11 @@ namespace madness {
                 , submit(this)
         {}
 
-        template <typename Archive>
-        void serialize(Archive& ar) {
-            throw "there is no way this is correct";
-            ar & *static_cast<PoolTaskInterface*>(this) & world;
-        }
+
+//         void serialize(Buffer& ar) {
+//             throw "there is no way this is correct";
+//             ar & *static_cast<PoolTaskInterface*>(this) & world;
+//         }
 
         /// Runs a single-threaded task ... derived classes must implement this.
 
@@ -153,6 +153,7 @@ namespace madness {
             run(world);
         }
 
+        World* get_world() const {return const_cast<World*>(world);}
 
         virtual ~TaskInterface() {
             if (completion) completion->notify();
@@ -431,6 +432,44 @@ namespace madness {
                 TaskFunction<functionT>::sender(world, where, result, function, arg1, arg2, arg3, attr);
             }
             return result;
+        }
+
+        class Stealer {
+            WorldTaskQueue& q;
+            std::vector<TaskInterface*>& v;
+            const int nsteal;
+
+        public:
+            Stealer(WorldTaskQueue& q, std::vector<TaskInterface*>& v, int nsteal)
+                : q(q)
+                , v(v)
+                , nsteal(nsteal) 
+            {}
+
+            bool operator()(PoolTaskInterface** pt) {
+                madness::print("IN STEAL");
+                PoolTaskInterface* t = *pt;
+                if (t->is_stealable()) {
+                    TaskInterface* task = dynamic_cast<TaskInterface*>(t);
+                    if (task) {
+                        if (task->get_world()->id() == q.world.id()) {
+                            madness::print("Stealing", (void *) task);
+                            v.push_back(task);
+                            *pt = 0; // Indicates task has been stolen
+                        }
+                    }
+                }
+                return true;
+            }
+        };
+
+
+        /// Invoke locally or remotely to send tasks to process P
+        std::vector<TaskInterface*> steal(int nsteal) {
+            std::vector<TaskInterface*> v;
+            Stealer xxx(*this, v, nsteal);
+            ThreadPool::instance()->scan(xxx);
+            return v;
         }
 
 

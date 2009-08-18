@@ -17,7 +17,7 @@ public:
 
 
 int main(int argc, char** argv) {
-    MPI::Init(argc, argv);
+    madness::initialize(argc, argv);
     madness::World world(MPI::COMM_WORLD);
 
     Foo a(world,world.rank()), b(world,world.rank()*10);
@@ -32,5 +32,6 @@ int main(int argc, char** argv) {
     world.gop.fence();
     if (world.rank() == 0) print("OK!");
 
-    MPI::Finalize();
+    madness::finalize();
+    return 0;
 }

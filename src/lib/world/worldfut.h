@@ -110,7 +110,7 @@ namespace madness {
             FutureImpl<T>* f = ref.get();
             f->set(t);
             ref.dec();
-        };
+        }
 
 
         /// Private:  invoked locally by set routine after assignment
@@ -128,13 +128,13 @@ namespace madness {
                 MADNESS_ASSERT(p);
                 p->set(const_cast<T&>(t));
                 p = SharedPtr< FutureImpl<T> >();
-            };
+            }
             while (cb.size()) {
                 CallbackInterface* p = cb.pop();
                 MADNESS_ASSERT(p);
                 p->notify();
             }
-        };
+        }
 
         inline void add_to_assignments(const SharedPtr< FutureImpl<T> >& f) {
             // ASSUME lock is already acquired by Future<T>::set()
@@ -145,7 +145,7 @@ namespace madness {
                 assignmentT& nvas = const_cast<assignmentT&>(assignments);
                 nvas.push(f);
             }
-        };
+        }
 
 
     public:
@@ -161,7 +161,7 @@ namespace madness {
             //print("FUTCON(a)",(void*) this);
 
             //future_count.inc();
-        };
+        }
 
 
         /// Local assigned value
@@ -175,7 +175,7 @@ namespace madness {
             //print("FUTCON(b)",(void*) this);
             set_assigned();
             //future_count.inc();
-        };
+        }
 
 
         /// Wrapper for a remote future
@@ -189,13 +189,13 @@ namespace madness {
             //print("FUTCON(c)",(void*) this);
 
             //future_count.inc();
-        };
+        }
 
 
         /// Returns true if the value has been assigned
         inline bool probe() const {
             return assigned;
-        };
+        }
 
 
         /// Registers a function to be invoked when future is assigned
@@ -207,7 +207,7 @@ namespace madness {
             ScopedMutex<Spinlock> fred(this);
             if (assigned) callback->notify();
             else const_cast<callbackT&>(callbacks).push(callback);
-        };
+        }
 
 
         /// Sets the value of the future (assignment)
@@ -230,7 +230,7 @@ namespace madness {
                 const_cast<T&>(t) = value;
                 set_assigned();
             }
-        };
+        }
 
 
         /// Gets/forces the value, waiting if necessary (error if not local)
@@ -238,26 +238,26 @@ namespace madness {
             MADNESS_ASSERT(!world);  // Only for local futures
             World::await(bind_nullary_mem_fun(this,&FutureImpl<T>::probe));
             return *const_cast<T*>(&t);
-        };
+        }
 
         /// Gets/forces the value, waiting if necessary (error if not local)
         const T& get() const {
             MADNESS_ASSERT(!world);  // Only for local futures
             World::await(bind_nullary_mem_fun(this,&FutureImpl<T>::probe));
             return *const_cast<const T*>(&t);
-        };
+        }
 
         T& operator->() {
             return get();
-        };
+        }
 
         const T& operator->() const {
             return get();
-        };
+        }
 
         bool is_local() const {
             return world == 0;
-        };
+        }
 
         bool replace_with(FutureImpl<T>* f) {
             throw "IS THIS WORKING? maybe now we have the mutex";
@@ -272,7 +272,7 @@ namespace madness {
 //             while(f->callbacks.size()) callbacks.push(f->callbacks.pop());
 //             while(f->assignments.size()) assignments.push(f->assignments.pop());
             return true;
-        };
+        }
 
         virtual ~FutureImpl() {
 
@@ -293,7 +293,7 @@ namespace madness {
                 print("Future: uninvoked assignment being destroyed?", assigned);
                 abort();
             }
-        };
+        }
     };
 
 
