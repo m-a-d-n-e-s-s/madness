@@ -75,7 +75,7 @@ class SDF_Sphere : public SurfaceLayer<Q, 3> {
 				r += temp * temp;
 			}
 
-			return r - radius;
+			return sqrt(r) - radius;
 		}
 };
 
