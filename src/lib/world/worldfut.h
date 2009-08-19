@@ -123,6 +123,11 @@ namespace madness {
 
             callbackT& cb = const_cast<callbackT&>(callbacks);
             assignmentT& as = const_cast<assignmentT&>(assignments);
+
+//             // if taking copy not reference so that destructor can still check for uninvoked cbs
+//             const_cast<callbackT&>(callbacks).clear();
+//             const_cast<assignmentT&>(assignments).clear();
+
             while (as.size()) {
                 SharedPtr< FutureImpl<T> >& p = as.pop();
                 MADNESS_ASSERT(p);
@@ -285,6 +290,7 @@ namespace madness {
 //                 //remote_ref.dec();
 //                 abort();
 //             }
+
             if (const_cast<callbackT&>(callbacks).size()) {
                 print("Future: uninvoked callbacks being destroyed?", assigned);
                 abort();

@@ -290,7 +290,6 @@ namespace madness {
         }
 
         void clear() {
-            for (int i=0; i<n; i++) t[i] = T();
             n = 0;
         }
     };
