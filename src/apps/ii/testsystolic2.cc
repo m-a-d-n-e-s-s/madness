@@ -1,7 +1,7 @@
 #include <world/world.h>
 #include <utility>
 #include <tensor/tensor.h>
-#include <mra/systolic.h>
+#include <ii/systolic.h>
 
 using namespace madness;
 
@@ -288,7 +288,7 @@ int main(int argc, char** argv) {
     
     try {
         print("Test of testsystolic2.cc\n");
-        for (int64_t n=8; n>1; n-=1) {
+        for (int64_t n=800; n>1; n/=2) {
             DistributedMatrix<double> A = column_distributed_matrix<double>(world, n, n);
 
             int64_t ilo, ihi, jlo, jhi;

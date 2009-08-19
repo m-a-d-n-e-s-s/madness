@@ -3,7 +3,7 @@
 #include <utility>
 #include <tensor/tensor.h>
 
-#include <mra/systolic.h>
+#include <ii/systolic.h>
 
 using namespace madness;
 
