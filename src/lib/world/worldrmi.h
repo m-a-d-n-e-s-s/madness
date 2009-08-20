@@ -113,7 +113,7 @@ namespace madness {
         static const size_t ALIGNMENT = 64;
         static const size_t HEADER_LEN = ALIGNMENT;
         static const size_t MAX_MSG_LEN = 256*1024;
-        //static const size_t MAX_MSG_LEN = 1024*1024;
+        //static const size_t MAX_MSG_LEN = 3*512*1024;
 
         static const attrT ATTR_UNORDERED=0x0;
         static const attrT ATTR_ORDERED=0x1;

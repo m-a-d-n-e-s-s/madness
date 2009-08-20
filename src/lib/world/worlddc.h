@@ -395,13 +395,13 @@ namespace madness {
 
 
         bool insert_acc(accessor& acc, const keyT& key) {
-            if (owner(key) != me) return false;
+            MADNESS_ASSERT(owner(key) == me);
             return local.insert(acc,key);
         }
 
 
         bool insert_const_acc(const_accessor& acc, const keyT& key) const {
-            if (owner(key) != me) return false;
+            MADNESS_ASSERT(owner(key) == me);
             return local.insert(acc,key);
         }
 
@@ -631,14 +631,14 @@ namespace madness {
         }
 
 
-        /// Provides write access to LOCAL value by key ... always returns false for remote
+        /// Provides write access to LOCAL value by key ... throws if key is remote
         bool insert(accessor& acc, const keyT& key) {
             check_initialized();
             return p->insert_acc(acc,key);
         }
 
 
-        /// Provides read access to LOCAL value by key ... always returns false for remote
+        /// Provides read access to LOCAL value by key ... throws if key is remote
         bool insert(const_accessor& acc, const keyT& key) {
             check_initialized();
             return p->insert_const_acc(acc,key);
