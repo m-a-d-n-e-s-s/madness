@@ -1642,13 +1642,29 @@ namespace madness {
                              const Tensor<Q>& c,
                              const std::vector< SharedPtr< FunctionImpl<T,NDIM> > >& vleft,
                              double tol) {
+
+            // To reduce crunch on vectors being transformed each task
+            // does them in a random order
+            std::vector<unsigned int> ind(vleft.size());
+            for (unsigned int i=0; i<vleft.size(); i++) {
+                ind[i] = i;
+            }
+            for (unsigned int i=0; i<vleft.size(); i++) {
+                unsigned int j = RandomValue<int>()%vleft.size();
+                std::swap(ind[i],ind[j]);
+            }
+
+
             for (typename FunctionImpl<R,NDIM>::dcT::iterator it=right->coeffs.begin(); it != right->coeffs.end(); ++it) {
                 if (it->second.has_coeff()) {
                     const Key<NDIM>& key = it->first;
                     const Tensor<R>& r = it->second.coeff();
                     double norm = r.normf();
-                    for (unsigned int i=0; i<vleft.size(); i++) {
-                        if (std::abs(norm*c(i))> truncate_tol(tol,key)) {
+                    double keytol = truncate_tol(tol,key);
+
+                    for (unsigned int j=0; j<vleft.size(); j++) {
+                        unsigned int i = ind[j]; // Random permutation
+                        if (std::abs(norm*c(i)) > keytol) {
                             implT* left = vleft[i];
                             typename dcT::accessor acc;
                             bool newnode = left->coeffs.insert(acc,key);

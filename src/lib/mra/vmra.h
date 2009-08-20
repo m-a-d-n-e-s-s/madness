@@ -105,6 +105,18 @@ namespace madness {
             df[i] = diff(v[i],axis,false);
         }
         if (fence) world.gop.fence();
+
+
+
+//         // DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG
+//         world.gop.fence();
+//         for (unsigned int i=0; i<v.size(); i++) {
+//             df[i].verify_tree();
+//         }
+//         world.gop.fence();
+//         // DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG
+
+        
         return df;
     }
 
@@ -137,16 +149,22 @@ namespace madness {
         int n = v.size();  // n is the old dimension
         int m = c.dim[1];  // m is the new dimension
         MADNESS_ASSERT(n==c.dim[0]);
+
+        if (world.rank() == 0) madness::print("MAKING V");
         std::vector< Function<resultT,NDIM> > vc = zero_functions<resultT,NDIM>(world, m);
 
+        if (world.rank() == 0) madness::print("COMPRESSING V");
         compress(world, v);
-        compress(world, vc);
+        if (world.rank() == 0) madness::print("COMPRESSING VC"); 
+       compress(world, vc);
+        if (world.rank() == 0) madness::print("TRANSFORMING VC");
 
         for (int i=0; i<m; i++) {
             for (int j=0; j<n; j++) {
                 if (c(j,i) != R(0.0)) vc[i].gaxpy(1.0,v[j],c(j,i),false);
             }
         }
+        if (world.rank() == 0) madness::print("FENCING");
         if (fence) world.gop.fence();
         return vc;
     }
@@ -157,15 +175,21 @@ namespace madness {
     transform(World& world,  const std::vector< Function<L,NDIM> >& v, const Tensor<R>& c, double tol, bool fence) {
         PROFILE_BLOCK(Vtransform);
         MADNESS_ASSERT(v.size() == (unsigned int)(c.dim[0]));
+        if (world.rank() == 0) madness::print("MAKING V");
         std::vector< Function<TENSOR_RESULT_TYPE(L,R),NDIM> > vresult(c.dim[1]);
         world.gop.fence();
         for (unsigned int i=0; i<c.dim[1]; i++) {
             vresult[i] = Function<TENSOR_RESULT_TYPE(L,R),NDIM>(FunctionFactory<TENSOR_RESULT_TYPE(L,R),NDIM>(world));
         }
+        if (world.rank() == 0) madness::print("COMPRESSING V");
         compress(world, v, false);
+        if (world.rank() == 0) madness::print("COMPRESSING VRES");
         compress(world, vresult, false);
+        if (world.rank() == 0) madness::print("INTERNAL FENCE");
         world.gop.fence();
+        if (world.rank() == 0) madness::print("VTRANSFORM");
         vresult[0].vtransform(v, c, vresult, tol, fence);
+        if (world.rank() == 0) madness::print("RETURNING");
         return vresult;
     }
 
@@ -240,8 +264,10 @@ namespace madness {
         Tensor< TENSOR_RESULT_TYPE(T,R) > r(n,m);
         if (sym) MADNESS_ASSERT(n==m);
 
-        world.gop.fence();   //// ?????????????????????? WHY ?  compress_spawn intermittent failure
+        world.gop.fence();
+        world.gop.fence();
         compress(world, f);
+        world.gop.fence();
         if (&f != &g) compress(world, g);
         world.gop.fence();
 
