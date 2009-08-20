@@ -2,6 +2,8 @@ include $(top_srcdir)/config/MakeGlobal.am
 
 lib_LIBRARIES = libMADmisc.a
 
+bin_PROGRAMS = interp3
+
 thisincludedir = $(includedir)/misc/
 thisinclude_HEADERS = misc.h ran.h \
                       muParserBase.h muParserBytecode.h muParserCallback.h \
@@ -22,3 +24,5 @@ libMADmisc_a_SOURCES = checksum_file.cc position_stream.cc gprofexit.cc ran.cc \
                       muParserFixes.h muParser.h muParserInt.h \
                       muParserStack.h muParserTest.h muParserToken.h \
                       muParserTokenReader.h phandler.h
+
+interp3_SOURCES = interp3.cc
