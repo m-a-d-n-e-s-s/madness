@@ -76,7 +76,7 @@ public:
     CubicInterpolationTable(double lo, double hi, int npt, const vector<T> &y)
         : lo(lo), hi(hi), h((hi-lo)/(npt-1)), rh(1.0/h), npt(npt), a(npt*5) {
 
-        if(y.length() < npt)
+        if((int)y.size() < npt)
             throw "Insufficient y-points";
 
         vector<T> x(npt);
