@@ -31,7 +31,7 @@ protected:
     std::vector<T> a;           //< (1+4)*npt vector of x and polynomial coefficients
 
     // Cubic interp thru 4 points ... not good for noisy data
-    static void cubic_fit(const double* x, const double* f, double* a) {
+    static void cubic_fit(const double* x, const T* f, T* a) {
         double x0_2 = x[0] * x[0], x1_2 = x[1] * x[1], x2_2 = x[2] * x[2], x3_2 = x[3] * x[3];
         double x0_3 = x[0] * x[0] * x[0], x1_3 = x[1] * x[1] * x[1], x2_3 = x[2] * x[2] * x[2], x3_3 = x[3] * x[3] * x[3];
         
@@ -42,7 +42,7 @@ protected:
     }
 
     // Use the x- and y-points to make the interpolation
-    void make_interpolation(const vector<T> &x, const vector<T> &p) {
+    void make_interpolation(const vector<double> &x, const vector<T> &p) {
         // Generate interior polynomial coeffs
         for (int i=1; i<=npt-3; i++) {
             double mid = (x[i] + x[i+1])*0.5;
@@ -64,7 +64,8 @@ public:
         : lo(lo), hi(hi), h((hi-lo)/(npt-1)), rh(1.0/h), npt(npt), a(npt*5) {
 
         // Evaluate the function to be interpolated
-        std::vector<T> p(npt), x(npt);
+        std::vector<T> p(npt);
+        std::vector<double> x(npt);
         for (int i=0; i<npt; i++) {
             x[i] = lo + i*h;
             p[i] = f(x[i]);
@@ -79,7 +80,7 @@ public:
         if((int)y.size() < npt)
             throw "Insufficient y-points";
 
-        vector<T> x(npt);
+        vector<double> x(npt);
         for(int i = 0; i < npt; ++i)
             x[i] = lo + i*h;
 
@@ -87,12 +88,13 @@ public:
     }
 
     T operator()(double y) const {
+        T y1;
         int i = (y-lo)*rh;
         if (i<0 || i>=npt) throw "Out of range point";
         i *= 5;
-        y -= a[i];
-        double yy = y*y;
-        return (a[i+1] + y*a[i+2]) + yy*(a[i+3] + y*a[i+4]);
+        y1 = y - a[i];
+        T yy = y1*y1;
+        return (a[i+1] + y1*a[i+2]) + yy*(a[i+3] + y1*a[i+4]);
     }
 
     template <typename functionT>
@@ -101,8 +103,8 @@ public:
         double h7 = h/7.0;
         for (int i=0; i<7*npt; i++) {
             double x = lo + h7*i;
-            double fit = (*this)(x);
-            double exact = f(x);
+            T fit = (*this)(x);
+            T exact = f(x);
             maxabserr = max(fabs(fit-exact),maxabserr);
         }
         return maxabserr;
