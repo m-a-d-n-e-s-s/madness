@@ -13,6 +13,7 @@
 // vague compatibility with the TBB API.
 
 #include <world/worldthread.h>
+#include <world/worldexc.h>
 #include <world/madatomic.h>
 #include <world/worldhash.h>
 #include <new>
@@ -214,12 +215,14 @@ namespace madness {
             }
 
             datumT& operator*() const {
-                if (!entry) throw "Hash iterator: operator*: at end";
+                MADNESS_ASSERT(entry);
+                //if (!entry) throw "Hash iterator: operator*: at end";
                 return entry->datum;
             }
 
             datumT* operator->() const {
-                if (!entry) throw "Hash iterator: operator->: at end";
+                MADNESS_ASSERT(entry);
+                //if (!entry) throw "Hash iterator: operator->: at end";
                 return &entry->datum;
             }
         };
