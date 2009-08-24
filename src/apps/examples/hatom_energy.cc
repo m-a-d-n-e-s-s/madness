@@ -19,13 +19,13 @@ int main(int argc, char**argv) {
   // Initialize the parallel programming environment
   initialize(argc,argv);
   World world(MPI::COMM_WORLD);
-  
+
   // Load info for MADNESS numerical routines
   startup(world,argc,argv);
-  
+
   // Use defaults for numerical functions except for user simulation volume
   FunctionDefaults<3>::set_cubic_cell(-20,20);
-    
+
   Function<double,3> u = FunctionFactory<double,3>(world).f(psi);
   Function<double,3> v = FunctionFactory<double,3>(world).f(V);
   Function<double,3> vu = v*u;
@@ -34,12 +34,14 @@ int main(int argc, char**argv) {
   double PE = vu.inner(u);
   double S = u.inner(u);
 
-  print("the overlap integral is",S);
-  print("the kinetic energy integral",KE);
-  print("the potential energy integral",PE);
-  print("the total energy",(KE+PE)/S);
-  
+  if (world.mpi.Get_rank() == 0) {
+    print("the overlap integral is",S);
+    print("the kinetic energy integral",KE);
+    print("the potential energy integral",PE);
+    print("the total energy",(KE+PE)/S);
+  }
+
   finalize();
-  
+
   return 0;
 }
