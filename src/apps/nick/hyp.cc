@@ -13,7 +13,7 @@
 complexd conhyp(const complexd& a_arg,
                 const complexd& b_arg,
                 const complexd& z_arg) {
-    const double tol = 1e-17;
+    const double tol = 1e-15;
 
     // Save input precision so we can reset it on exit
     int nbits_save = extended_real::get_default_prec();
@@ -44,6 +44,7 @@ complexd conhyp(const complexd& a_arg,
             double absterm = abs(term);
 
             if (absterm<tol && absprevterm<tol) {
+                //std::cout << "Converged in " << n << " " << extended_real::get_default_prec() << " " << a_arg << " " << b_arg << " " << z_arg << std::endl;
                 converged = true;
                 break;
             }
@@ -69,6 +70,7 @@ complexd conhyp(const complexd& a_arg,
         }
         
         // Could get more intelligent here
+        std::cout << "EXTENDING PRECISION " << nbits+128 << std::endl;
         extended_real::set_default_prec(nbits+128);
     }
     throw "insufficient precision";

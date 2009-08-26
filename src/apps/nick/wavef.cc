@@ -7,18 +7,20 @@
  * uses gmp and mpfr for extended precision
  * 
  * Using: Gnu Scientific Library          http://www.gnu.org/software/gsl/
-          GNU Multiple Precision library  http://gmplib.org/
-          mpfr                            http://www.mpfr.org/
+ *        GNU Multiple Precision library  http://gmplib.org/
+ *        mpfr                            http://www.mpfr.org/
  * By:    Nick Vence
  ************************************************************************/
 
 #include "wavef.h"
 #include "hyp.h"
+//#include <misc/interpolation_1d.h>
 #include <gsl/gsl_sf_trig.h>
 #include <gsl/gsl_sf_coulomb.h>
 #include <gsl/gsl_sf_gamma.h>
 #include <gsl/gsl_sf_legendre.h>
-#include "gsl/gsl_errno.h"
+#include <gsl/gsl_errno.h>
+#include <gsl/gsl_interp.h>
 #include <float.h>
 
 double tt;
@@ -122,17 +124,27 @@ complexd BoundWF::operator()(const vector3D& rVec) const {
     }
 }
 
+struct MemFuncPtr {
+    ScatteringWF* thisObj;
+    MemFuncPtr(ScatteringWF* obj) : thisObj(obj) {}
+    complexd operator()(double x) { return thisObj->f11(x); }
+};
 
 /***********************************************************************
  * The Scattering Wave Function
  * See Landau and Lifshitz Quantum Mechanics Volume 3
  * Third Edition Formula (136.9)
  **********************************************************************/
-ScatteringWF::ScatteringWF(double Z, const vector3D& kVec) : Z(Z), kVec(kVec) 
+ScatteringWF::ScatteringWF(double Z, const vector3D& kVec)
+    :Z(Z)
+    ,kVec(kVec)
+    ,k(sqrt(kVec[0]*kVec[0] + kVec[1]*kVec[1] + kVec[2]*kVec[2]))
+    ,domain(k*sqrt(3)*pow(FunctionDefaults<NDIM>::get_cell_volume(),1.0/3.0))
+    
 {
-    double sum = 0.0;
-    for(int i=0; i<NDIM; i++) { sum += kVec[i]*kVec[i]; }
-    k = sqrt(sum);
+//     double sum = 0.0;
+//     for(int i=0; i<NDIM; i++) { sum += kVec[i]*kVec[i]; }
+//    k = sqrt(sum);
     expmPI_k   = exp(-PI/k);
     expPI_2k   = exp(PI/(2*k));
     gamma1pI_k = gamma(1.0,1/k);
@@ -140,66 +152,203 @@ ScatteringWF::ScatteringWF(double Z, const vector3D& kVec) : Z(Z), kVec(kVec)
     expPI_2kXgamma1pI_k = expPI_2k * gamma1pI_k ;
     //print("\nexpmPI_k =",expmPI_k, "gamma1pI_k =",gamma1pI_k, "gammamI_k =",gammamI_k);
     one = complexd(1.0, 0.0);
-    TOL = 1e-12;    
+    TOL = 1e-12;
     /***********************************************************************
-     * By evaluating the scattering function on a 1D grid we can do a time 
-     * saving table lookup when evaluating in 3D.
-     * I'm following the natural cubic spline (algorithm 3.4)
-     * and the clamped cubic spline (algorithm 3.5)
-     * in Numerical Analysis by Burden and Faires 7th edition to interpolate
-     * between the points.
-     *
      * How far must we tabulate our 1F1 to cover the domain?
      * V^(1/3) gives us the length of the box
      * Our spherical function needs only one octant of the box    V^(1/3)/2
      * sqrt(3) allows us to reach the corner of the cube  sqrt(3)*V^(1/3)/2
      * kr + kDOTr brings along another factor of 2k     k*sqrt(3)*V^(1/3)
      **********************************************************************/
-    domain  = k*sqrt(3)*pow(FunctionDefaults<NDIM>::get_cell_volume(),1.0/3.0);
-    dx = 1e-1;   //Mesh spacing
+    //domain  = k*sqrt(3)*pow(FunctionDefaults<NDIM>::get_cell_volume(),1.0/3.0);
+    dx = 4e-3;   //Mesh spacing
     ra = 5.0; //boundary cutoff
-    boundary = ra + 0.5*dx;
-    xi = 2;   //density speedup (should be 2 or greater)
-    //cout << "\ndomain = " << domain << "\t\t ra = " << ra << "\t\tdx = " << dx << endl;
-    /*********************************************************
-     * Calculating n for a variable mesh
-     * (0)     x'[1] = dx (the coarsest mesh spacing)
-     * (1)     xI[i] = alpha*i^2       region    |   region  
-     * (2)    xII[i] = dx*i + beta        I      |     II
-     * (3)   xI'[n1] = xII'[n1]       quadratic  |   uniform
-     *    2*alpha*n1 = dx                mesh    |    mesh
-     *         alpha = dx/2/n1       ____________|____________
-     * (4)    xI[n1] = xII[n1]       012  ...   n1    ...    n
-     *(dx/2/n1)n1*n1 = dx*n1 + beta |<-   n1   ->|<-   n2   ->|
-     *       dx*n1/2 = dx*n1 + beta
-     *          beta = -dx*n1/2
-     *            n2 =  distanceII*densityII
-     *            n2 = (domain-ra)*1/dx
-     *            n1 =   distanceI*densityI
-     *            n1 =          ra*xi/dx
-     *             n = n1 + n2
-     ********************************************************/
-    n1 = floor(ra*xi/dx) + 1;
-    n  = floor(n1 + (domain - ra)/dx) + 1;
-    alpha = dx*dx/(2*ra*xi);
-    beta  = -dx*n1/2;
-    dx_2n1 = dx/2/n1;
-    dxn1_2 = dx*n1/2;
-    //cout << "n = " << n << "\t\t n1 = " << n1 << "\t\txi = " << xi << endl;
-//     aR = new double[n+1];
-//     bR = new double[n+1];
-//     cR = new double[n+1];
-//     dR = new double[n+1];
-//     aI = new double[n+1];
-//     bI = new double[n+1];
-//     cI = new double[n+1];
-//     dI = new double[n+1];
-//     double* l = new double[n+1];
-//     double* mu = new double[n+1];
-//     double* zR = new double[n+1];
-//     double* zI = new double[n+1];
-//     double* alphaR = new double[n+1];
-//     double* alphaI = new double[n+1];
+    n = floor(0.5*domain/dx*(1 + sqrt(1 + 4*ra/domain))) + 1;
+    MemFuncPtr p1F1(this);
+    fit1F1 = CubicInterpolationTable<complexd>( 0.0, domain, n, p1F1);
+    //    cout << "Max Error = " << fit1F1.err(p1F1) << "\t" << endl;
+    //std::cout << "DONE with err\n";
+//     boundary = ra + 0.5*dx;
+//     xi = 2;   //density speedup (should be 2 or greater)
+//     //cout << "\ndomain = " << domain << "\t\t ra = " << ra << "\t\tdx = " << dx << endl;
+//     /*********************************************************
+//      * Calculating n for a variable mesh
+//      * (0)     x'[1] = dx (the coarsest mesh spacing)
+//      * (1)     xI[i] = alpha*i^2          region    |   region  
+//      * (2)    xII[i] = dx*i + beta           I      |     II
+//      * (3)   xI'[n1] = xII'[n1]          quadratic  |   uniform
+//      *    2*alpha*n1 = dx                   mesh    |    mesh
+//      *         alpha = dx/2/n1          ____________|____________
+//      * (4)    xI[n1] = xII[n1]          012  ...   n1    ...    n
+//      *(dx/2/n1)n1*n1 = dx*n1 + beta    |<-   n1   ->|<-   n2   ->|
+//      *       dx*n1/2 = dx*n1 + beta
+//      *          beta = -dx*n1/2
+//      *            n2 =  distanceII*densityII
+//      *            n2 = (domain-ra)*1/dx
+//      *            n1 =   distanceI*densityI
+//      *            n1 =          ra*xi/dx
+//      *             n = n1 + n2
+//      ********************************************************/
+//     n1 = floor(ra*xi/dx) + 1;
+//     n  = floor(n1 + (domain - ra)/dx) + 1;
+//     alpha = dx*dx/(2*ra*xi);
+//     beta  = -dx*n1/2;
+//     dx_2n1 = dx/2/n1;
+//     dxn1_2 = dx*n1/2;
+//     //cout << "n = " << n << "\t\t n1 = " << n1 << "\t\txi = " << xi << endl;
+//     h  = new double[n];
+//     x  = new double[n+1];
+//     // Initializing the Variable mesh
+//     for(int i=0; i<=n; i++) {
+//         x[i] = i*dx; //constant mesh
+//         //x[i] = toX(i); //variable mesh
+//         //cout << "x[" << i << "] = " << toX(i) << endl;
+//     }
+//     // Spacing
+//     for(int i=0; i<n; i++) {
+//         h[i] = x[i+1] - x[i];
+//     }
+//     taylor3Fit();
+    /*****************************************************
+     * Below is the quality control for my splines
+     ****************************************************/
+//     ofstream F11, splined, diff, fdiff,Xfile;
+//     F11.open("f11.dat");
+//     F11.precision(15);
+//     splined.open("splined.dat");
+//     splined.precision(15);
+//     diff.open("diff.dat");
+//     diff.precision(15);
+//     fdiff.open("fdiff.dat");
+//     fdiff.precision(15);
+//     for(int i=0; i<n; i++) {
+//         //        F11     << x[i] << "\t" << aR[i]  << "\t" << aI[i]  << endl;
+//         F11     << x[i] << "\t" << fR[i]  << "\t" << fI[i]  << endl;
+//     }
+//     //The spline file is sampled at approximately 7 times as many points
+//     //to make error calculations easy
+//     //     for(double r=0; r < range-dx; r += dx/sqrt(50) ) { // Constant Mesh
+//     //         splined << r << "\t" << real(approx1F1(r)) << "\t" << imag(approx1F1(r)) << endl;
+//     //         diff    << r << "\t" << diffR(r)            << "\t" << diffI(r)            << endl;
+//     //     }
+//     // Variable Mesh
+//     int ii=0;
+//     for(double r=0; r<domain; r +=dx/sqrt(200) ) {
+//         //r scales the same way as the grid points do
+//         ii++;
+//         splined << r << "\t" << real(fit1F1(r)) << "\t" << imag(fit1F1(r)) << endl;
+//         diff    << r << "\t" << diffR(r)            << "\t" << diffI(r)            << endl;
+//         fdiff   << r << "\t" << real(conhyp(-I/k,one,-I*r) -  aForm3(-I*r) ) 
+//                 << "\t"      << imag(conhyp(-I/k,one,-I*r) -  aForm3(-I*r) )      << endl;
+//     }
+}
+
+ScatteringWF::~ScatteringWF() {
+//     delete aR;
+//     delete bR;
+//     delete cR;
+//     delete dR;
+//     delete aI;
+//     delete bI;
+//     delete cI;
+//     delete dI;
+
+//     delete fR;
+//     delete fI;
+//     delete fpR;
+//     delete fpI;
+//     delete fppR;
+//     delete fppI;
+//     delete h;
+//     delete x;
+}
+
+complexd ScatteringWF::approx1F1(double xx) const {
+    int j = fromX(xx);
+    double y = (xx - x[j]);
+    //    cout << "y = " << y << "\t fpR[" << j << "] = " << fpR[j] << endl;
+    // NEEDED FOR: splineFit()
+//     return complexd(aR[j],aI[j]) + y*(complexd(bR[j],bI[j]) + 
+//                                       y*(complexd(cR[j],cI[j]) +
+//                                          y*complexd(dR[j],dI[j]) ) );
+//      return complexd( fR[j] + y*(fpR[j] + y*(fppR[j]/2 + y*fpppR[j]/6)),
+//                      fI[j] + y*(fpI[j] + y*(fppI[j]/2 + y*fpppI[j]/6)) );
+    return complexd( fR[j] + y*(fpR[j] + y*fppR[j]/2 ),
+                     fI[j] + y*(fpI[j] + y*fppI[j]/2) );
+//      return complexd( fR[j] + y*fpR[j],
+//                       fI[j] + y*fpI[j] );
+//    return complexd( fR[j], fI[j] );
+}
+
+double   ScatteringWF::diffR(double x)    const {
+    return real(fit1F1(x) - f11(x));
+}
+double   ScatteringWF::diffI(double x)    const {
+    return imag(fit1F1(x) - f11(x));
+}
+double   ScatteringWF::toX(double s)      const {
+    return dx*s*s/(ra/dx + s);
+}
+double   ScatteringWF::toS(double x)      const {
+    return (x + sqrt(x*x + 4*ra*x))/2/dx;
+}
+double   ScatteringWF::toX(int i)         const {
+    if( i <= n1 ) return alpha*i*i;
+    return dx*i - dxn1_2;
+}
+int      ScatteringWF::fromX( double xx ) const {
+    return floor( xx/dx );
+    if( xx < boundary ) {
+        return floor( sqrt(2*xi*ra*xx/dx/dx) + 0.5);
+    }
+    int index =  floor( (xx - beta)/dx + 0.5);
+    if(index > n) {
+        cout << "index = " << index << endl;
+        cout << "n = "         << n << endl;
+        cout << "x = "        << xx << endl;
+        throw "ScatteringWF: index out of bounds\n increase domain";
+    }
+    return index;
+}
+complexd ScatteringWF::f11(double xx) const {
+    complexd ZZ(0.0,-xx);
+    if(xx <= 40 ) return conhyp(-I/k,one,ZZ);
+    else return aForm3(ZZ);
+}
+
+complexd ScatteringWF::operator()(const vector3D& rVec) const {
+    double kDOTr = kVec[0]*rVec[0] + kVec[1]*rVec[1] + kVec[2]*rVec[2];
+    double r     = sqrt(rVec[0]*rVec[0] + rVec[1]*rVec[1] + rVec[2]*rVec[2]);
+    //print("expPI_2kXgamma1pI_k = ", expPI_2kXgamma1pI_k, "exp(I*kDOTr) =",
+    //       exp(I*kDOTr)," f11(-I*(k*r + kDOTr)) =",fit1F1(k*r + kDOTr));
+    return expPI_2kXgamma1pI_k
+         * exp(I*kDOTr)
+         * fit1F1(k*r + kDOTr);
+}
+
+/***********************************************************************
+ * Method 3:
+ * Lagrange interpolating polynomials are unique and they should
+ * accomodate the variable mesh.
+ * ********************************************************************/
+void ScatteringWF::polyFit() {
+    //MUST UNCOMMENT ARRAY DECLARATIONS IN wavef.h
+    //MUST CHANGE RETURN IN approx1F1()
+    //MUST UNCOMMENT delete statements in ~ScatteringWF()
+    //choose const int order
+    //make an array of gsl_interp_accel
+    //make an array of gsl_interp
+}
+
+/***********************************************************************
+ * Method 2:
+ * Using a Third order Taylor Polynomial which doesn't exhibit propper
+ * convergence behavior (error is 3rd order)
+ ***********************************************************************/
+void ScatteringWF::taylor3Fit() {
+    //MUST UNCOMMENT ARRAY DECLARATIONS IN wavef.h
+    //MUST CHANGE RETURN IN approx1F1()
+    //MUST UNCOMMENT delete statements in ~ScatteringWF()
     fR   = new double[n+1];
     fpR  = new double[n+1];
     fppR = new double[n+1];
@@ -208,18 +357,6 @@ ScatteringWF::ScatteringWF(double Z, const vector3D& kVec) : Z(Z), kVec(kVec)
     fpI  = new double[n+1];
     fppI = new double[n+1];
     fpppI = new double[n+1];
-    h  = new double[n];
-    x  = new double[n+1];
-    // Initializing the Variable mesh
-    for(int i=0; i<=n; i++) {
-        //x[i] = i*dx; //constant mesh
-        x[i] = toX(i); //variable mesh
-        //cout << "x[" << i << "] = " << toX(i) << endl;
-    }
-    // Spacing
-    for(int i=0; i<n; i++) {
-        h[i] = x[i+1] - x[i];
-    }
     complexd value;
     for(int i=0; i<=n; i++) {
         value = f11(x[i]);
@@ -240,25 +377,53 @@ ScatteringWF::ScatteringWF(double Z, const vector3D& kVec) : Z(Z), kVec(kVec)
     fpR[n] = (fR[n] - fR[n-1])/h[n-1];
     fpI[n] = (fI[n] - fI[n-1])/h[n-1];
     // 2nd derivative
-//     fppR[0] = (fpR[1] - fpR[0])/h[0];
-//     fppI[0] = (fpI[1] - fpI[0])/h[0];
-//     for(int i=1; i<n-1; i++) {
-//         fppR[i] = 0.5*( (fpR[i+1] - fpR[i])/h[i] + (fpR[i] - fpR[i-1])/h[i-1]);
-//         fppI[i] = 0.5*( (fpI[i+1] - fpI[i])/h[i] + (fpI[i] - fpI[i-1])/h[i-1]);
-//         //cout << "fppR[" << i << "] = " << fppR[i] << "\t fppI[" << i << "] = " << fppI[i] << endl;
-//     }
-//     fppR[n] = (fpR[n] - fpR[n-1])/h[n-1];
-//     fppI[n] = (fpI[n] - fpI[n-1])/h[n-1];
-//     //3nd derivatives
-//     fpppR[0] = (fppR[1] - fppR[0])/h[0];
-//     fpppI[0] = (fppI[1] - fppI[0])/h[0];
-//     for(int i=1; i<n-1; i++) {
-//         fpppR[i] = 0.5*( (fppR[i+1] - fppR[i])/h[i] + (fppR[i] - fppR[i-1])/h[i-1]);
-//         fpppI[i] = 0.5*( (fppI[i+1] - fppI[i])/h[i] + (fppI[i] - fppI[i-1])/h[i-1]);
+    fppR[0] = (fpR[1] - fpR[0])/h[0];
+    fppI[0] = (fpI[1] - fpI[0])/h[0];
+    for(int i=1; i<n-1; i++) {
+        fppR[i] = 0.5*( (fpR[i+1] - fpR[i])/h[i] + (fpR[i] - fpR[i-1])/h[i-1]);
+        fppI[i] = 0.5*( (fpI[i+1] - fpI[i])/h[i] + (fpI[i] - fpI[i-1])/h[i-1]);
+        //cout << "fppR[" << i << "] = " << fppR[i] << "\t fppI[" << i << "] = " << fppI[i] << endl;
+    }
+    fppR[n] = (fpR[n] - fpR[n-1])/h[n-1];
+    fppI[n] = (fpI[n] - fpI[n-1])/h[n-1];
+    //3nd derivatives
+    fpppR[0] = (fppR[1] - fppR[0])/h[0];
+    fpppI[0] = (fppI[1] - fppI[0])/h[0];
+    for(int i=1; i<n-1; i++) {
+        fpppR[i] = 0.5*( (fppR[i+1] - fppR[i])/h[i] + (fppR[i] - fppR[i-1])/h[i-1]);
+        fpppI[i] = 0.5*( (fppI[i+1] - fppI[i])/h[i] + (fppI[i] - fppI[i-1])/h[i-1]);
         //cout << "fpppR[" << i << "] = " << fpppR[i] << "\t fpppI[" << i << "] = " << fpppI[i] << endl;
-//    }
+    }
     fpppR[n] = (fppR[n] - fppR[n-1])/h[n-1];
     fpppI[n] = (fppI[n] - fppI[n-1])/h[n-1];
+}
+/**********************************************************************
+ * Method 1:
+ * By evaluating the scattering function on a 1D grid we can do a time 
+ * saving table lookup when evaluating in 3D.
+ * I'm following the natural cubic spline (algorithm 3.4)
+ * and the clamped cubic spline (algorithm 3.5)
+ * in Numerical Analysis by Burden and Faires 7th edition to interpolate
+ * between the points.
+ ***********************************************************************/
+void ScatteringWF::splineFit() {
+    //MUST UNCOMMENT ARRAY DECLARATIONS IN wavef.h
+    //MUST CHANGE RETURN IN approx1F1()
+    //MUST UNCOMMENT delete statements in ~ScatteringWF()
+//     aR = new double[n+1];
+//     bR = new double[n+1];
+//     cR = new double[n+1];
+//     dR = new double[n+1];
+//     aI = new double[n+1];
+//     bI = new double[n+1];
+//     cI = new double[n+1];
+//     dI = new double[n+1];
+//     double* l = new double[n+1];
+//     double* mu = new double[n+1];
+//     double* zR = new double[n+1];
+//     double* zI = new double[n+1];
+//     double* alphaR = new double[n+1];
+//     double* alphaI = new double[n+1];
 
 //     for(int i=0; i<=n; i++) {
 //         value = f11(x[i]);
@@ -302,116 +467,8 @@ ScatteringWF::ScatteringWF(double Z, const vector3D& kVec) : Z(Z), kVec(kVec)
 //     delete zI;
 //     delete alphaR;
 //     delete alphaI;
-
-    /*****************************************************
-     * Below is the quality control for my splines
-     ****************************************************/
-    ofstream F11, splined, diff, fdiff,Xfile;
-    F11.open("f11.dat");
-    F11.precision(15);
-    splined.open("splined.dat");
-    splined.precision(15);
-    diff.open("diff.dat");
-    diff.precision(15);
-    fdiff.open("fdiff.dat");
-    fdiff.precision(15);
-    for(int i=0; i<n; i++) {
-        //        F11     << x[i] << "\t" << aR[i]  << "\t" << aI[i]  << endl;
-        F11     << x[i] << "\t" << fR[i]  << "\t" << fI[i]  << endl;
-    }
-    //The spline file is sampled at approximately 7 times as many points
-    //to make error calculations easy
-    //     for(double r=0; r < range-dx; r += dx/sqrt(50) ) { // Constant Mesh
-    //         splined << r << "\t" << real(splined1F1(r)) << "\t" << imag(splined1F1(r)) << endl;
-    //         diff    << r << "\t" << diffR(r)            << "\t" << diffI(r)            << endl;
-    //     }
-    // Variable Mesh
-    int ii=0;
-    for(double r=0; r<domain; r +=dx/sqrt(200) ) {
-        //r scales the same way as the grid points do
-        ii++;
-        splined << r << "\t" << real(splined1F1(r)) << "\t" << imag(splined1F1(r)) << endl;
-        diff    << r << "\t" << diffR(r)            << "\t" << diffI(r)            << endl;
-        fdiff   << r << "\t" << real(conhyp(-I/k,one,-I*r) -  aForm3(-I*r) ) 
-                << "\t"      << imag(conhyp(-I/k,one,-I*r) -  aForm3(-I*r) )      << endl;
-    }
 }
 
-ScatteringWF::~ScatteringWF() {
-//     delete aR;
-//     delete bR;
-//     delete cR;
-//     delete dR;
-//     delete aI;
-//     delete bI;
-//     delete cI;
-//     delete dI;
-    delete fR;
-    delete fI;
-    delete fpR;
-    delete fpI;
-    delete fppR;
-    delete fppI;
-    delete h;
-    delete x;
-}
-
-complexd ScatteringWF::splined1F1(double xx) const {
-    int j = fromX(xx);
-    double y = (xx - x[j]);
-    //    cout << "y = " << y << "\t fpR[" << j << "] = " << fpR[j] << endl;
-//     return complexd(aR[j],aI[j]) + y*(complexd(bR[j],bI[j]) + 
-//                                       y*(complexd(cR[j],cI[j]) +
-//                                          y*complexd(dR[j],dI[j]) ) );
-//      return complexd( fR[j] + y*(fpR[j] + y*(fppR[j]/2 + y*fpppR[j]/6)),
-//                       fI[j] + y*(fpI[j] + y*(fppI[j]/2 + y*fpppI[j]/6)) );
-//     return complexd( fR[j] + y*(fpR[j] + y*fppR[j]/2 ),
-//                      fI[j] + y*(fpI[j] + y*fppI[j]/2) );
-      return complexd( fR[j] + y*fpR[j],
-                       fI[j] + y*fpI[j] );
-//    return complexd( fR[j], fI[j] );
-}
-
-double   ScatteringWF::diffR(double x)    const {
-    return real(splined1F1(x) - f11(x));
-}
-double   ScatteringWF::diffI(double x)    const {
-    return imag(splined1F1(x) - f11(x));
-}
-double   ScatteringWF::toX(int i)         const {
-    if( i <= n1 ) return alpha*i*i;
-    return dx*i - dxn1_2;
-}
-int      ScatteringWF::fromX( double xx ) const {
-    //    if( xx < ra ) return floor( sqrt(2*xi*ra*xx)/dx );
-    if( xx < boundary ) {
-        return floor( sqrt(2*xi*ra*xx/dx/dx) + 0.5);
-    }
-    int index =  floor( (xx - beta)/dx + 0.5);
-    if(index > n) {
-        cout << "index = " << index << endl;
-        cout << "n = "         << n << endl;
-        cout << "x = "        << xx << endl;
-        throw "ScatteringWF: index out of bounds\n increase domain";
-    }
-    return index;
-}
-complexd ScatteringWF::f11(double xx) const {
-    complexd ZZ(0.0,-xx);
-    if(xx <= 40 ) return conhyp(-I/k,one,ZZ);
-    else return aForm3(ZZ);
-}
-
-complexd ScatteringWF::operator()(const vector3D& rVec) const {
-    double kDOTr = kVec[0]*rVec[0] + kVec[1]*rVec[1] + kVec[2]*rVec[2];
-    double r     = sqrt(rVec[0]*rVec[0] + rVec[1]*rVec[1] + rVec[2]*rVec[2]);
-    //print("expPI_2kXgamma1pI_k = ", expPI_2kXgamma1pI_k, "exp(I*kDOTr) =",
-    //       exp(I*kDOTr)," f11(-I*(k*r + kDOTr)) =",splined1F1(k*r + kDOTr));
-    return expPI_2kXgamma1pI_k
-         * exp(I*kDOTr)
-         * splined1F1(k*r + kDOTr);
-    //   * f11(k*r + kDOTr);
-}
 /****************************************************************
  * The asymptotic form of the hypergeometric function given by
  * Abramowitz and Stegun 13.5.1

@@ -237,22 +237,22 @@ void printBasis(World& world) {
     //make functions
     double dARR[3] = {0, 0, 0.5};
     vector3D kVec(dARR);
-    ScatteringWF unb(1.0, kVec);
+    ScatteringWF psi(1.0, kVec);
     double PHI = 0.0;
-    double TH = 0.0;
+    double TH = 1.0;
     //for(double TH=0; TH<3.14; TH+=0.3 ) {
-
+    cout << "k = {" << kVec << endl;
     cout.precision(2);
-    for(double r=0; r<unb.domain; r+=1.0 ) {
+    for(double r=0; r<sqrt(3)*psi.domain*psi.k; r+=1.0 ) {
         cout << scientific;
         cosTH =  std::cos(TH);
         sinTH =  std::sin(TH);
         cosPHI = std::cos(PHI);
         sinPHI = std::sin(PHI);
         double dARR[3] = {r*sinTH*cosPHI, r*sinTH*sinPHI, r*cosTH};        
-        //        PRINTLINE(r << "\t" << unb.diffR(r) << " + I" << unb.diffI(r));
-        output = unb(dARR);
-        PRINTLINE(r << "\t" << real(output) << "\t" << imag(output));
+        //        PRINTLINE(r << "\t" << psi.diffR(r) << " + I" << psi.diffI(r));
+        output = psi(dARR);
+        PRINTLINE(r << "\t" << real(output) << "\t" << imag(output) << "\t" << dARR);
     }
     //    use sed to make the complexd output standard
     //    system("sed -i '' -e's/\\+/, /' -e's/j//' f11.out");
@@ -273,7 +273,7 @@ void belkic(World& world) {
     double dARR[3] = {0, 0, 0.5};
     const vector3D kVec(dARR);
     PRINTLINE("|" << kVec << ">");
-    complex_functionT unb = complex_factoryT(world).functor(functorT(
+    complex_functionT psi_k = complex_factoryT(world).functor(functorT(
                                                       new ScatteringWF(1.0, kVec) ));
     dARR[2] =  1.5;
     const vector3D qVec(dARR);
@@ -281,7 +281,7 @@ void belkic(World& world) {
     complex_functionT expikDOTr = complex_factoryT(world).functor(functorT(
                                                       new Expikr(qVec) ));
     PRINTLINE("<k=0.5| Exp[iqVec.r] |100>");
-    complexd output = inner(unb, expikDOTr*b1s);
+    complexd output = inner(psi_k, expikDOTr*b1s);
     PRINTLINE(output);
 }
 
@@ -325,7 +325,7 @@ int main(int argc, char**argv) {
     double L = 10.0;
     loadParameters(world, k, L);
     FunctionDefaults<NDIM>::set_k(k);               // Wavelet order
-    FunctionDefaults<NDIM>::set_thresh(1e-1);       // Accuracy
+    FunctionDefaults<NDIM>::set_thresh(1e-4);       // Accuracy
     FunctionDefaults<NDIM>::set_cubic_cell(-L, L);
     FunctionDefaults<NDIM>::set_initial_level(3);
     FunctionDefaults<NDIM>::set_apply_randomize(false);
@@ -353,7 +353,7 @@ int main(int argc, char**argv) {
         loadBasis(world,basisList);
         //belkic(world);
         projectZdip(world, basisList);
-        //printBasis(world);
+        //        printBasis(world);
         //projectPsi(world, basisList);         
         world.gop.fence();
         if (world.rank() == 0) {
@@ -387,7 +387,6 @@ int main(int argc, char**argv) {
         error("caught unhandled exception");
     }
     world.gop.fence();
-    ThreadPool::end();
     finalize();				//FLAG
     return 0;
 }
