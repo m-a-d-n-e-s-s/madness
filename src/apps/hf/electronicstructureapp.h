@@ -239,6 +239,7 @@ public:
     {
       _aobasis.read_file("sto-3g");
       _mentity.read_file(filename, _params.fractional);
+      _mentity.center();
     }
     // Send mentity and aobasis
     _world.gop.broadcast_serializable(_mentity, 0);
