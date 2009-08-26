@@ -17,3 +17,6 @@ test_LDADD = libMADlinalg.a $(LIBTENSOR) $(LIBMISC) $(LIBWORLD)
 
 test_solvers_SOURCES = test_solvers.cc
 test_solvers_LDADD =  libMADlinalg.a $(LIBTENSOR) $(LIBMISC) $(LIBWORLD)
+
+LIBRARIES:	$(lib_LIBRARIES)
+	for dir in $(SUBDIRS) ; do $(MAKE) -C $$dir $@ ; done

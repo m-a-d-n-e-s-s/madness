@@ -26,3 +26,6 @@ libMADmisc_a_SOURCES = checksum_file.cc position_stream.cc gprofexit.cc ran.cc \
                       muParserTokenReader.h phandler.h
 
 interp3_SOURCES = interp3.cc
+
+LIBRARIES:	$(lib_LIBRARIES)
+	for dir in $(SUBDIRS) ; do $(MAKE) -C $$dir $@ ; done
