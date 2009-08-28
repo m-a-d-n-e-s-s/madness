@@ -234,6 +234,63 @@ namespace madness {
             }
     };
 
+    /// A vector space using MADNESS Vectors of MADNESS Functions
+    template <typename T, int VDIM, int FDIM>
+    class VectorOfFunctionsSpace : public AbstractVectorSpace<
+        Vector<Function<T, FDIM>, VDIM>,
+        typename TensorTypeData<T>::float_scalar_type, T> {
+
+        public:
+            typedef typename TensorTypeData<T>::float_scalar_type real_type;
+            typedef T scalar_type;
+
+            virtual real_type norm(
+                    const Vector<Function<scalar_type, FDIM>, VDIM> &vec)
+                const {
+
+                real_type ret = vec[0].norm2();
+                for(int i = 1; i < VDIM; ++i)
+                    ret += vec[i].norm2();
+                return ret;
+            }
+
+            virtual Vector<Function<scalar_type, FDIM>, VDIM> & scale(
+                    Vector<Function<scalar_type, FDIM>, VDIM> &vec,
+                    const scalar_type &c) const {
+
+                for(int i = 0; i < VDIM; ++i)
+                    vec[i].scale(c);
+                return vec;
+            }
+
+            virtual Vector<Function<scalar_type, FDIM>, VDIM> & gaxpy(
+                    Vector<Function<scalar_type, FDIM>, VDIM> &x,
+                    const scalar_type &a,
+                    const Vector<Function<scalar_type, FDIM>, VDIM> &y,
+                    const scalar_type &b) const {
+
+                for(int i = 0; i < VDIM; ++i)
+                    x[i].gaxpy(a, y[i], b);
+                return x;
+            }
+
+            virtual scalar_type inner(
+                    const Vector<Function<scalar_type, FDIM>, VDIM> &l,
+                    const Vector<Function<scalar_type, FDIM>, VDIM> &r) const {
+
+                scalar_type ret = l[0].inner(r[0]);
+                for(int i = 0; i < VDIM; ++i)
+                    ret += l[i].inner(r[i]);
+                return ret;
+            }
+
+            virtual void destroy(Vector<Function<scalar_type, FDIM>, VDIM> &f)
+                    const {
+                for(int i = 0; i < VDIM; ++i)
+                    f[i].clear();
+            }
+    };
+
     /// A GMRES solver routine for linear systems, Ax == b.
     /// Requires the vector space, the operator, A, the inhomogeneity b, an
     /// initial guess x, the maximum number of iterations, the convergence
