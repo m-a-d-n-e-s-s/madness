@@ -591,7 +591,7 @@ struct Calculation {
         FunctionDefaults<3>::set_truncate_mode(1);
         FunctionDefaults<3>::set_autorefine(false);
         FunctionDefaults<3>::set_apply_randomize(false);
-        FunctionDefaults<3>::set_project_randomize(true);
+        FunctionDefaults<3>::set_project_randomize(false);
         GaussianConvolution1DCache<double>::map.clear();
         double safety = 0.1;
         vtol = FunctionDefaults<3>::get_thresh() * safety;
@@ -607,6 +607,7 @@ struct Calculation {
         reconstruct(world, amo);
         for(unsigned int i = 0;i < amo.size();i++){
             amo[i] = madness::project(amo[i], FunctionDefaults<3>::get_k(), FunctionDefaults<3>::get_thresh(), false);
+            if (((i+1) % madness::VMRA_CHUNK_SIZE) == 0) world.gop.fence();
         }
         world.gop.fence();
         truncate(world, amo);
@@ -615,6 +616,7 @@ struct Calculation {
             reconstruct(world, bmo);
             for(unsigned int i = 0;i < bmo.size();i++){
                 bmo[i] = madness::project(bmo[i], FunctionDefaults<3>::get_k(), FunctionDefaults<3>::get_thresh(), false);
+                if (((i+1) % madness::VMRA_CHUNK_SIZE) == 0) world.gop.fence();
             }
             world.gop.fence();
             truncate(world, bmo);
@@ -643,6 +645,7 @@ struct Calculation {
         for(int i = 0;i < aobasis.nbf(molecule);i++){
             functorT aofunc(new AtomicBasisFunctor(aobasis.get_atomic_basis_function(molecule, i)));
             ao[i] = factoryT(world).functor(aofunc).initial_level(initial_level).truncate_on_project().nofence();
+            if (((i+1) % madness::VMRA_CHUNK_SIZE) == 0) world.gop.fence();
         }
         world.gop.fence();
         vector<double> norms;
@@ -1319,7 +1322,7 @@ struct Calculation {
             fock(i, i) -= eps(i);
         }
         double trantol = vtol / min(30.0, double(psi.size()));
-        vecfuncT fpsi = transform(world, psi, fock, trantol);
+        vecfuncT fpsi = transform(world, psi, fock, trantol, true);
         gaxpy(world, 1.0, Vpsi, -1.0, fpsi);
         fpsi.clear();
         vector<double> fac(nmo, -2.0);
@@ -1588,12 +1591,12 @@ struct Calculation {
         START_TIMER(world);
         double trantol = vtol / min(30.0, double(amo.size()));
         normalize(world, amo_new);
-        amo_new = transform(world, amo_new, Q3(matrix_inner(world, amo_new, amo_new)), trantol);
+        amo_new = transform(world, amo_new, Q3(matrix_inner(world, amo_new, amo_new)), trantol, true);
         truncate(world, amo_new);
         normalize(world, amo_new);
         if(param.nbeta && !param.spin_restricted){
             normalize(world, bmo_new);
-            bmo_new = transform(world, bmo_new, Q3(matrix_inner(world, bmo_new, bmo_new)), trantol);
+            bmo_new = transform(world, bmo_new, Q3(matrix_inner(world, bmo_new, bmo_new)), trantol, true);
             truncate(world, bmo_new);
             normalize(world, bmo_new);
         }
@@ -1620,12 +1623,12 @@ struct Calculation {
             bool do_this_iter = (iter == 0) || (update_residual > 0.1);
             if(localize && do_this_iter){
                 tensorT U = localize_PM(world, amo, aset, tolloc, 0.25, iter == 0);
-                amo = transform(world, amo, U, trantol);
+                amo = transform(world, amo, U, trantol, true);
                 truncate(world, amo);
                 normalize(world, amo);
                 if(!param.spin_restricted && param.nbeta){
                     U = localize_PM(world, bmo, bset, tolloc, 0.25, iter == 0);
-                    bmo = transform(world, bmo, U, trantol);
+                    bmo = transform(world, bmo, U, trantol, true);
                     truncate(world, bmo);
                     normalize(world, bmo);
                 }
