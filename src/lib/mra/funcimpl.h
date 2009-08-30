@@ -554,7 +554,7 @@ namespace madness {
                 coeff() = copy(t);
                 if ((!_has_children) && key.level()> 0) {
                     Key<NDIM> parent = key.parent();
-                    const_cast<dcT&>(c).task(parent, &FunctionNode<T,NDIM>::set_has_children_recursive, c, parent, TaskAttributes::hipri());
+                    const_cast<dcT&>(c).task(parent, &FunctionNode<T,NDIM>::set_has_children_recursive, c, parent);
                 }
             }
             return None;
@@ -1670,7 +1670,7 @@ namespace madness {
                             bool newnode = left->coeffs.insert(acc,key);
                             if (newnode && key.level()>0) {
                                 Key<NDIM> parent = key.parent();
-                                left->coeffs.send(parent, &nodeT::set_has_children_recursive, left->coeffs, parent);
+                                left->coeffs.task(parent, &nodeT::set_has_children_recursive, left->coeffs, parent);
                             }
                             nodeT& node = acc->second;
                             if (!node.has_coeff())
@@ -2387,7 +2387,7 @@ namespace madness {
                 sum += value*value;
             }
             sum = sqrt(sum);
-            coeffs.send(key, &nodeT::set_norm_tree, sum);
+            coeffs.task(key, &nodeT::set_norm_tree, sum);
             //if (key.level() == 0) std::cout << "NORM_TREE_TOP " << sum << "\n";
             return sum;
         }
@@ -2465,7 +2465,7 @@ namespace madness {
             // and also to ensure we don't needlessly widen the tree when
             // applying the operator
             if (result.normf()> 0.3*args.tol/args.fac) {
-                coeffs.send(args.dest, &nodeT::accumulate, result, coeffs, args.dest);
+                coeffs.task(args.dest, &nodeT::accumulate, result, coeffs, args.dest, TaskAttributes::hipri());
             }
             return None;
         }
@@ -2520,7 +2520,7 @@ namespace madness {
 #else
                         tensorT result = op->apply(key, d, c, tol/fac/cnorm);
                         if (result.normf()> 0.3*tol/fac) {
-                            coeffs.send(dest, &nodeT::accumulate, result, coeffs, dest);
+                            coeffs.task(dest, &nodeT::accumulate, result, coeffs, dest, TaskAttributes::hipri());
                         }
 #endif
                     }
