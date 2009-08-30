@@ -69,7 +69,7 @@ namespace madness {
             _front = sz/2 - oldsz/2;
             _back = _front + n - 1;
             buf = nbuf;
-            sanity_check();
+            //sanity_check();
         }
 
         void sanity_check() const {
@@ -79,7 +79,7 @@ namespace madness {
             if (num==int(sz) && n==0) num=0;
             if (num==0 && n==sz) num=sz;
             //if (long(n) != num) print("size",sz,"front",_front,"back",_back,"n",n,"num",num);
-            if (long(n) != num) throw "assertion failure in dqueue::sanity";
+            MADNESS_ASSERT(long(n) == num);
         }
 
         void push_back_with_lock(const T& value) {
@@ -136,16 +136,19 @@ namespace madness {
             _front = f;
             stats.npush_front++;
 
+            //sanity_check();
             signal();
+            //broadcast();
         }
 
         /// Insert element at back of queue (default is just one copy)
         void push_back(const T& value, int ncopy=1) {
             madness::ScopedMutex<CONDITION_VARIABLE_TYPE> obolus(this);
-            sanity_check();
+            //sanity_check();
             while (ncopy--) 
                 push_back_with_lock(value);
-            sanity_check();
+            //sanity_check();
+            //broadcast();
         }
 
         template <typename opT>
@@ -186,7 +189,7 @@ namespace madness {
             stats.npop_front++;
             if (nn) {
                 size_t thesize = sz;
-                sanity_check();
+                //sanity_check();
                 
                 nmax = std::min(nmax,std::max(int(nn>>6),1));
                 int retval; // Will return the number of items taken
@@ -212,7 +215,7 @@ namespace madness {
                     if (ptr == *r) {
                         break;
                     }
-                    else {
+                    else if (ptr) { // Null pointer indicates stolen task
                         *r++ = ptr;
                         f++;
                         if (f >= int(thesize)) f = 0;
@@ -223,7 +226,7 @@ namespace madness {
                 n = nn - retval;
                 _front = f;
                 
-                sanity_check();
+                //sanity_check();
                 return retval;
             }
             else {
@@ -740,7 +743,7 @@ namespace madness {
         }
 
         bool run_tasks(bool wait) {
-            static const int nmax=100;
+            static const int nmax=128; // WAS 100 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! DEBUG
             PoolTaskInterface* taskbuf[nmax];
             int ntask = queue.pop_front(nmax, taskbuf, wait);
             for (int i=0; i<ntask; i++) {
@@ -838,6 +841,11 @@ namespace madness {
         /// Returns number of threads in the pool
         static size_t size() {
             return instance()->nthreads;
+        }
+
+        /// Returns number of tasks in the queue
+        static size_t queue_size() {
+            return instance()->queue.size();
         }
 
         /// Returns queue statistics
