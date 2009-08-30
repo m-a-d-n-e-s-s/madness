@@ -270,13 +270,13 @@ namespace madness {
     }
 
     /// Implements AM interface
-    class WorldAmInterface : private MutexFair {
+    class WorldAmInterface : private SCALABLE_MUTEX_TYPE {
         friend class WorldGopInterface;
     public:
         static const int MSG_LEN = RMI::MAX_MSG_LEN - sizeof(AmArg); ///< Max length of user payload in message
     private:
 #ifdef HAVE_CRAYXT
-        static const int NSEND = 768; ///< Max no. of pending sends
+        static const int NSEND = 512; ///< Max no. of pending sends
 #else
         static const int NSEND = 32;///< Max no. of pending sends
 #endif
@@ -284,7 +284,7 @@ namespace madness {
         // Multiple threads are making their way thru here ... must be careful
         // to ensure updates are atomic and consistent
 
-        AmArg* managed_send_buf[NSEND]; ///< Managed buffers
+        AmArg* volatile managed_send_buf[NSEND]; ///< Managed buffers
         RMI::Request send_req[NSEND];   ///< Tracks in-flight messages
 
         World& world;            ///< The world which contains this instance of WorldAmInterface
@@ -305,24 +305,26 @@ namespace madness {
         /// Private: Finds/waits for a free send request
         int get_free_send_request() {
             // WE ASSUME WE ARE INSIDE A CRITICAL SECTION WHEN IN HERE
-            static volatile int cur_msg = 0;
+            static volatile int cur_msg = 0; // Index of next buffer to attempt to use
 
-            // Version 1.  Wait for oldest send to complete
-//             if (cur_msg >= NSEND) cur_msg = 0;
+//             // Sequentially loop looking for next free request.
 //             while (!send_req[cur_msg].Test()) {
-//                 myusleep(40);
+//                 cur_msg++;
+//                 if (cur_msg >= NSEND) cur_msg = 0;
+//                 myusleep(5);
 //             }
-//             free_managed_send_buf(cur_msg);
-//             return cur_msg++;
 
-            // Version 2.  Sequentially loop looking for next free request.
+            // Wait for oldest request to complete
             while (!send_req[cur_msg].Test()) {
-                cur_msg++;
-                if (cur_msg >= NSEND) cur_msg = 0;
                 myusleep(1);
             }
+
             free_managed_send_buf(cur_msg);
-            return cur_msg;
+            int result = cur_msg;
+            cur_msg++;
+            if (cur_msg >= NSEND) cur_msg = 0;
+
+            return result;
         }
 
         /// This handles all incoming RMI messages for all instances
