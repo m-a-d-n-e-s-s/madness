@@ -140,11 +140,14 @@ namespace madness {
         void fence() {
             PROFILE_MEMBER_FUNC(WorldGopInterface);
             unsigned long nsent_prev=0, nrecv_prev=1; // invalid initial condition
+            int nok = 0;// DBEUG
             SafeMPI::Request req0, req1;
             ProcessID parent, child0, child1;
             mpi.binary_tree_info(0, parent, child0, child1);
             Tag gfence_tag = mpi.unique_tag();
             int npass = 0;
+
+            double start = wall_time();
 
             while (1) {
                 uint64_t sum0[2]={0,0}, sum1[2]={0,0}, sum[2];
@@ -186,18 +189,34 @@ namespace madness {
                 // While we are probably idle free unused communication buffers
                 world.am.free_managed_buffers();
 
-                bool dowork = (npass==0) || (ThreadPool::size()==0);
+                //bool dowork = (npass==0) || (ThreadPool::size()==0);
+                bool dowork = true;
                 broadcast(&sum, sizeof(sum), 0, dowork);
                 npass++;
 
                 //madness::print("GOPFENCE", npass, sum[0], nsent_prev, sum[1], nrecv_prev);
 
-                if (sum[0]==sum[1] && sum[0]==nsent_prev && sum[1]==nrecv_prev) break;
+                if (sum[0]==sum[1] && sum[0]==nsent_prev && sum[1]==nrecv_prev) {
+                    //break;
+                    nok++;
+                    if (nok > 2) break; // DEBUG DEBUG DEBUG DEBUG !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+                }
+                else {
+                    nok = 0;
+                }
+
+                if (wall_time() - start > 1200.0) {
+                    std::cout << world.rank() << " FENCE " << nsent2 << " " << nsent_prev << " " << nrecv2 << " " << nrecv_prev << " " << sum[0] << " " << sum[1] << " " << npass << " " << taskq.size() << std::endl;
+                    std::cout.flush();
+                    //myusleep(1000);
+                    MADNESS_ASSERT(0);
+                }
 
                 nsent_prev = sum[0];
                 nrecv_prev = sum[1];
 
             };
+            world.am.free_managed_buffers(); // free up communication buffers
             world.do_deferred_cleanup();
         };
 
