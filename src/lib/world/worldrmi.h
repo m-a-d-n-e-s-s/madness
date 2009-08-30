@@ -122,7 +122,7 @@ namespace madness {
 
     private:
 #ifdef HAVE_CRAYXT
-        static const int NRECV=256;
+        static const int NRECV=64;
 #else
         static const int NRECV=32;
 #endif
@@ -177,7 +177,7 @@ namespace madness {
                 while (!(narrived = SafeMPI::Request::Testsome(NRECV+1, recv_req, ind, status))) {
                     if (finished) return;
 #ifdef HAVE_CRAYXT
-                    myusleep(5);
+                    myusleep(1);
 #else
                     waiter.wait();
 #endif
