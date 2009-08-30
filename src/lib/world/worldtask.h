@@ -676,9 +676,20 @@ namespace madness {
 
         struct ProbeAllDone {
             WorldTaskQueue* tq;
-            ProbeAllDone(WorldTaskQueue* tq) : tq(tq) {}
+            double start;
+            ProbeAllDone(WorldTaskQueue* tq) : tq(tq),start(cpu_time()) {}
             bool operator()() const {
-                return (MADATOMIC_INT_GET(&tq->nregistered) == 0);
+                if (cpu_time()-start > 1200) {
+                    for (int loop = 0; loop<3; loop++) {
+                        bool gotlock = SafeMPI::charon.try_lock();
+                        std::cout << "HUNG Q? " << tq->size() << " " << ThreadPool::queue_size() << " " << gotlock << std::endl;
+                        if (gotlock) SafeMPI::charon.unlock();
+                        std::cout.flush();
+                        myusleep(1000000);
+                    }
+                    MADNESS_ASSERT(cpu_time()-start < 1200);
+                }
+                return (tq->size() == 0);
             }
         };
 
@@ -686,8 +697,9 @@ namespace madness {
 
         /// While waiting the calling thread will run tasks.
         void fence() {
+            ProbeAllDone tester(this);
             do {
-                world.await(ProbeAllDone(this));
+                world.await(tester);
             }
             while (MADATOMIC_INT_GET(&nregistered));
         }
