@@ -10,11 +10,13 @@
 
 namespace madness {
 
+    static const int VMRA_CHUNK_SIZE = 200;
     /// Compress a vector of functions
     template <typename T, int NDIM>
     void compress(World& world,
                   const std::vector< Function<T,NDIM> >& v,
                   bool fence=true) {
+
         PROFILE_BLOCK(Vcompress);
         bool must_fence = false;
         for (unsigned int i=0; i<v.size(); i++) {
@@ -22,6 +24,7 @@ namespace madness {
                 v[i].compress(false);
                 must_fence = true;
             }
+            if (((i+1) % VMRA_CHUNK_SIZE) == 0) world.gop.fence();
         }
 
         if (fence && must_fence) world.gop.fence();
@@ -40,6 +43,7 @@ namespace madness {
                 v[i].reconstruct(false);
                 must_fence = true;
             }
+            if (((i+1) % VMRA_CHUNK_SIZE) == 0) world.gop.fence();
         }
 
         if (fence && must_fence) world.gop.fence();
@@ -55,6 +59,7 @@ namespace madness {
         reconstruct(world, v);
         for (unsigned int i=0; i<v.size(); i++) {
             v[i].nonstandard(false,false);
+            if (((i+1) % VMRA_CHUNK_SIZE) == 0) world.gop.fence();
         }
         if (fence) world.gop.fence();
     }
@@ -68,6 +73,7 @@ namespace madness {
         PROFILE_BLOCK(Vstandard);
         for (unsigned int i=0; i<v.size(); i++) {
             v[i].standard(false);
+            if (((i+1) % VMRA_CHUNK_SIZE) == 0) world.gop.fence();
         }
         if (fence) world.gop.fence();
     }
@@ -85,6 +91,7 @@ namespace madness {
 
         for (unsigned int i=0; i<v.size(); i++) {
             v[i].truncate(tol, false);
+            if (((i+1) % VMRA_CHUNK_SIZE) == 0) world.gop.fence();
         }
 
         if (fence) world.gop.fence();
@@ -103,17 +110,19 @@ namespace madness {
         std::vector< Function<T,NDIM> > df(v.size());
         for (unsigned int i=0; i<v.size(); i++) {
             df[i] = diff(v[i],axis,false);
+            if (((i+1) % VMRA_CHUNK_SIZE) == 0) world.gop.fence();
         }
         if (fence) world.gop.fence();
 
 
-
 //         // DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG
+//         if (world.rank() == 0) madness::print("Verifying tree after diff");
 //         world.gop.fence();
 //         for (unsigned int i=0; i<v.size(); i++) {
 //             df[i].verify_tree();
 //         }
 //         world.gop.fence();
+//         if (world.rank() == 0) madness::print("OK");
 //         // DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG
 
         
@@ -150,21 +159,16 @@ namespace madness {
         int m = c.dim[1];  // m is the new dimension
         MADNESS_ASSERT(n==c.dim[0]);
 
-        if (world.rank() == 0) madness::print("MAKING V");
         std::vector< Function<resultT,NDIM> > vc = zero_functions<resultT,NDIM>(world, m);
-
-        if (world.rank() == 0) madness::print("COMPRESSING V");
         compress(world, v);
-        if (world.rank() == 0) madness::print("COMPRESSING VC"); 
-       compress(world, vc);
-        if (world.rank() == 0) madness::print("TRANSFORMING VC");
+        compress(world, vc);
 
         for (int i=0; i<m; i++) {
             for (int j=0; j<n; j++) {
                 if (c(j,i) != R(0.0)) vc[i].gaxpy(1.0,v[j],c(j,i),false);
             }
         }
-        if (world.rank() == 0) madness::print("FENCING");
+
         if (fence) world.gop.fence();
         return vc;
     }
@@ -175,21 +179,15 @@ namespace madness {
     transform(World& world,  const std::vector< Function<L,NDIM> >& v, const Tensor<R>& c, double tol, bool fence) {
         PROFILE_BLOCK(Vtransform);
         MADNESS_ASSERT(v.size() == (unsigned int)(c.dim[0]));
-        if (world.rank() == 0) madness::print("MAKING V");
+
         std::vector< Function<TENSOR_RESULT_TYPE(L,R),NDIM> > vresult(c.dim[1]);
-        world.gop.fence();
         for (unsigned int i=0; i<c.dim[1]; i++) {
             vresult[i] = Function<TENSOR_RESULT_TYPE(L,R),NDIM>(FunctionFactory<TENSOR_RESULT_TYPE(L,R),NDIM>(world));
         }
-        if (world.rank() == 0) madness::print("COMPRESSING V");
         compress(world, v, false);
-        if (world.rank() == 0) madness::print("COMPRESSING VRES");
         compress(world, vresult, false);
-        if (world.rank() == 0) madness::print("INTERNAL FENCE");
         world.gop.fence();
-        if (world.rank() == 0) madness::print("VTRANSFORM");
         vresult[0].vtransform(v, c, vresult, tol, fence);
-        if (world.rank() == 0) madness::print("RETURNING");
         return vresult;
     }
 
@@ -265,11 +263,8 @@ namespace madness {
         if (sym) MADNESS_ASSERT(n==m);
 
         world.gop.fence();
-        world.gop.fence();
         compress(world, f);
-        world.gop.fence();
         if (&f != &g) compress(world, g);
-        world.gop.fence();
 
 //         for (long i=0; i<n; i++) {
 //             long jtop = m;
@@ -285,9 +280,8 @@ namespace madness {
             if (sym) jtop = i+1;
             world.taskq.add(new MatrixInnerTask<T,R,NDIM>(r(i,_), f[i], g, jtop));
         }
-        world.taskq.fence();
-        world.gop.sum(r.ptr(),n*m);
         world.gop.fence();
+        world.gop.sum(r.ptr(),n*m);
 
         if (sym) {
             for (int i=0; i<n; i++) {
@@ -372,7 +366,10 @@ namespace madness {
         a.reconstruct(false);
         reconstruct(world, v, false);
         world.gop.fence();
-        for (unsigned int i=0; i<v.size(); i++) v[i].norm_tree(false);
+        for (unsigned int i=0; i<v.size(); i++) {
+            v[i].norm_tree(false);
+            if (((i+1) % VMRA_CHUNK_SIZE) == 0) world.gop.fence();
+        }
         a.norm_tree();
         return vmulXX(a, v, tol, fence);
     }
@@ -392,6 +389,7 @@ namespace madness {
         std::vector< Function<TENSOR_RESULT_TYPE(T,R),NDIM> > q(a.size());
         for (unsigned int i=0; i<a.size(); i++) {
             q[i] = mul(a[i], b[i], false);
+            if (((i+1) % VMRA_CHUNK_SIZE) == 0) world.gop.fence();
         }
         if (fence) world.gop.fence();
         return q;
@@ -534,6 +532,7 @@ namespace madness {
         std::vector< Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> > result(f.size());
         for (unsigned int i=0; i<f.size(); i++) {
             result[i] = apply_only(*op[i], f[i], false);
+            if (((i+1) % VMRA_CHUNK_SIZE) == 0) world.gop.fence();
         }
 
         world.gop.fence();
@@ -562,6 +561,7 @@ namespace madness {
         std::vector< Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> > result(f.size());
         for (unsigned int i=0; i<f.size(); i++) {
             result[i] = apply_only(op, f[i], false);
+            if (((i+1) % VMRA_CHUNK_SIZE) == 0) world.gop.fence();
         }
 
         world.gop.fence();
