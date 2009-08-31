@@ -787,13 +787,12 @@ namespace madness
     {
       vector<double> rnorm = norm2(_world, sub(_world, owfs, nwfs));
       // Step restriction
-      double maxrotn = 0.1;
       int nres = 0;
       for (unsigned int i = 0; i < owfs.size(); i++)
       {
-        if (rnorm[i] > maxrotn)
+        if (rnorm[i] > _params.maxrotn)
         {
-          double s = maxrotn / rnorm[i];
+          double s = _params.maxrotn / rnorm[i];
           nres++;
           if (_world.rank() == 0)
           {
