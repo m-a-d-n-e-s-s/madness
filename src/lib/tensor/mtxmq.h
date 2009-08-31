@@ -40,6 +40,10 @@ namespace madness {
     template <>
     void mTxmq(long dimi, long dimj, long dimk,
                double_complex* restrict c, const double_complex* a, const double_complex* b);
+
+    template <>
+    void mTxmq(long dimi, long dimj, long dimk,
+               double_complex* restrict c, const double_complex* a, const double* b);
 }
 
 #endif

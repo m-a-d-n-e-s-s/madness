@@ -752,6 +752,684 @@ namespace madness {
             }
         }
     }
+
+    template <>
+    void mTxmq(const long dimi, const long dimj, const long dimk,
+               double_complex* restrict c, const double_complex* a, const double* b)
+    {
+      const long itile = 14;
+      for (long ilo = 0; ilo < dimi; ilo += itile, a+=itile, c+=itile*dimj)
+      {
+        long ni = dimi - ilo;
+        ni = (ni >= itile) ? itile : ni;
+        if (ni == 1)
+        {
+          for (long j = 0; j < dimj; j++)
+          {
+            __asm__ volatile
+            (
+                // save registers to be 'clobbered'
+                "push %0; push %1; push %4; push %5;\n "
+                // zero out mmx registers
+                "pxor %%xmm2,%%xmm2;\n"
+
+                "0:\n "
+                // load the 'b' part into %1 and update pointer
+                "movddup   (%1), %%xmm0; add %3,%1;\n"
+                // begin i-tile
+                "movapd    (%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm2; add %2,%0;\n"
+                "sub $1,%4; jnz 0b;\n"
+
+                "movapd   %%xmm2, (%5);\n"
+
+                "pop %5; pop %4; pop %1; pop %0;\n"
+
+                :
+                : "r"(a), "r"(b + j), "r"(dimi<<4), "r"(dimj<<3), "r"(dimk), "r"(c + j), "r"(dimj<<4)
+                :
+            );
+          }
+        }
+        else if (ni == 2)
+        {
+          for (long j = 0; j < dimj; j++)
+          {
+            __asm__ volatile
+            (
+                // save registers to be 'clobbered'
+                "push %0; push %1; push %4; push %5;\n "
+                // zero out mmx registers
+                "pxor %%xmm2,%%xmm2;\n"
+                "pxor %%xmm3,%%xmm3;\n"
+
+                "0:\n "
+                // load the 'b' part into %1 and update pointer
+                "movddup   (%1), %%xmm0; add %3,%1;\n"
+                // begin i-tile
+                "movapd    (%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm2;\n"
+                "movapd  16(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm3; add %2,%0;\n"
+                "sub $1,%4; jnz 0b;\n"
+
+                "movapd   %%xmm2, (%5); add %6,%5;\n"
+                "movapd   %%xmm3, (%5);\n"
+
+                "pop %5; pop %4; pop %1; pop %0;\n"
+
+                :
+                : "r"(a), "r"(b + j), "r"(dimi<<4), "r"(dimj<<3), "r"(dimk), "r"(c + j), "r"(dimj<<4)
+                :
+            );
+          }
+        }
+        else if (ni == 3)
+        {
+          for (long j = 0; j < dimj; j++)
+          {
+            __asm__ volatile
+            (
+                // save registers to be 'clobbered'
+                "push %0; push %1; push %4; push %5;\n "
+                // zero out mmx registers
+                "pxor %%xmm2,%%xmm2;\n"
+                "pxor %%xmm3,%%xmm3;\n"
+                "pxor %%xmm4,%%xmm4;\n"
+
+                "0:\n "
+                // load the 'b' part into %1 and update pointer
+                "movddup   (%1), %%xmm0; add %3,%1;\n"
+                // begin i-tile
+                "movapd    (%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm2;\n"
+                "movapd  16(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm3;\n"
+                "movapd  32(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm4; add %2,%0;\n"
+                "sub $1,%4; jnz 0b;\n"
+
+                "movapd   %%xmm2, (%5); add %6,%5;\n"
+                "movapd   %%xmm3, (%5); add %6,%5;\n"
+                "movapd   %%xmm4, (%5);\n"
+
+                "pop %5; pop %4; pop %1; pop %0;\n"
+
+                :
+                : "r"(a), "r"(b + j), "r"(dimi<<4), "r"(dimj<<3), "r"(dimk), "r"(c + j), "r"(dimj<<4)
+                :
+            );
+          }
+        }
+        else if (ni == 4)
+        {
+          for (long j = 0; j < dimj; j++)
+          {
+            __asm__ volatile
+            (
+                // save registers to be 'clobbered'
+                "push %0; push %1; push %4; push %5;\n "
+                // zero out mmx registers
+                "pxor %%xmm2,%%xmm2;\n"
+                "pxor %%xmm3,%%xmm3;\n"
+                "pxor %%xmm4,%%xmm4;\n"
+                "pxor %%xmm5,%%xmm5;\n"
+
+                "0:\n "
+                // load the 'b' part into %1 and update pointer
+                "movddup   (%1), %%xmm0; add %3,%1;\n"
+                // begin i-tile
+                "movapd    (%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm2;\n"
+                "movapd  16(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm3;\n"
+                "movapd  32(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm4;\n"
+                "movapd  48(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm5; add %2,%0;\n"
+                "sub $1,%4; jnz 0b;\n"
+
+                "movapd   %%xmm2, (%5); add %6,%5;\n"
+                "movapd   %%xmm3, (%5); add %6,%5;\n"
+                "movapd   %%xmm4, (%5); add %6,%5;\n"
+                "movapd   %%xmm5, (%5);\n"
+
+                "pop %5; pop %4; pop %1; pop %0;\n"
+
+                :
+                : "r"(a), "r"(b + j), "r"(dimi<<4), "r"(dimj<<3), "r"(dimk), "r"(c + j), "r"(dimj<<4)
+                :
+            );
+          }
+        }
+        if (ni == 5)
+        {
+          for (long j = 0; j < dimj; j++)
+          {
+            __asm__ volatile
+            (
+                // save registers to be 'clobbered'
+                "push %0; push %1; push %4; push %5;\n "
+                // zero out mmx registers
+                "pxor %%xmm2,%%xmm2;\n"
+                "pxor %%xmm3,%%xmm3;\n"
+                "pxor %%xmm4,%%xmm4;\n"
+                "pxor %%xmm5,%%xmm5;\n"
+                "pxor %%xmm6,%%xmm6;\n"
+
+                "0:\n "
+                // load the 'b' part into %1 and update pointer
+                "movddup   (%1), %%xmm0; add %3,%1;\n"
+                // begin i-tile
+                "movapd    (%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm2;\n"
+                "movapd  16(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm3;\n"
+                "movapd  32(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm4;\n"
+                "movapd  48(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm5;\n"
+                "movapd  64(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm6; add %2,%0; \n"
+                "sub $1,%4; jnz 0b;\n"
+
+                "movapd   %%xmm2, (%5); add %6,%5;\n"
+                "movapd   %%xmm3, (%5); add %6,%5;\n"
+                "movapd   %%xmm4, (%5); add %6,%5;\n"
+                "movapd   %%xmm5, (%5); add %6,%5;\n"
+                "movapd   %%xmm6, (%5);\n"
+
+                "pop %5; pop %4; pop %1; pop %0;\n"
+
+                :
+                : "r"(a), "r"(b + j), "r"(dimi<<4), "r"(dimj<<3), "r"(dimk), "r"(c + j), "r"(dimj<<4)
+                :
+            );
+          }
+        }
+        else if (ni == 6)
+        {
+          for (long j = 0; j < dimj; j++)
+          {
+            __asm__ volatile
+            (
+                // save registers to be 'clobbered'
+                "push %0; push %1; push %4; push %5;\n "
+                // zero out mmx registers
+                "pxor %%xmm2,%%xmm2;\n"
+                "pxor %%xmm3,%%xmm3;\n"
+                "pxor %%xmm4,%%xmm4;\n"
+                "pxor %%xmm5,%%xmm5;\n"
+                "pxor %%xmm6,%%xmm6;\n"
+                "pxor %%xmm7,%%xmm7;\n"
+
+                "0:\n "
+                // load the 'b' part into %1 and update pointer
+                "movddup   (%1), %%xmm0; add %3,%1;\n"
+                // begin i-tile
+                "movapd    (%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm2;\n"
+                "movapd  16(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm3;\n"
+                "movapd  32(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm4;\n"
+                "movapd  48(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm5;\n"
+                "movapd  64(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm6;\n"
+                "movapd  80(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm7; add %2,%0; \n"
+                "sub $1,%4; jnz 0b;\n"
+
+                "movapd   %%xmm2, (%5); add %6,%5;\n"
+                "movapd   %%xmm3, (%5); add %6,%5;\n"
+                "movapd   %%xmm4, (%5); add %6,%5;\n"
+                "movapd   %%xmm5, (%5); add %6,%5;\n"
+                "movapd   %%xmm6, (%5); add %6,%5;\n"
+                "movapd   %%xmm7, (%5); \n"
+
+                "pop %5; pop %4; pop %1; pop %0;\n"
+
+                :
+                : "r"(a), "r"(b + j), "r"(dimi<<4), "r"(dimj<<3), "r"(dimk), "r"(c + j), "r"(dimj<<4)
+                :
+            );
+          }
+        }
+        else if (ni == 7)
+         {
+           for (long j = 0; j < dimj; j++)
+           {
+             __asm__ volatile
+             (
+               // save registers to be 'clobbered'
+               "push %0; push %1; push %4; push %5;\n "
+               // zero out mmx registers
+               "pxor %%xmm2,%%xmm2;\n"
+               "pxor %%xmm3,%%xmm3;\n"
+               "pxor %%xmm4,%%xmm4;\n"
+               "pxor %%xmm5,%%xmm5;\n"
+               "pxor %%xmm6,%%xmm6;\n"
+               "pxor %%xmm7,%%xmm7;\n"
+               "pxor %%xmm8,%%xmm8;\n"
+
+              "0:\n "
+              // load the 'b' part into %1 and update pointer
+              "movddup   (%1), %%xmm0; add %3,%1;\n"
+              // begin i-tile
+              "movapd    (%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm2;\n"
+              "movapd  16(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm3;\n"
+              "movapd  32(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm4;\n"
+              "movapd  48(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm5;\n"
+              "movapd  64(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm6;\n"
+              "movapd  80(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm7;\n"
+              "movapd  96(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm8; add %2,%0; \n"
+              "sub $1,%4; jnz 0b;\n"
+
+              "movapd   %%xmm2, (%5); add %6,%5;\n"
+              "movapd   %%xmm3, (%5); add %6,%5;\n"
+              "movapd   %%xmm4, (%5); add %6,%5;\n"
+              "movapd   %%xmm5, (%5); add %6,%5;\n"
+              "movapd   %%xmm6, (%5); add %6,%5;\n"
+              "movapd   %%xmm7, (%5); add %6,%5;\n"
+              "movapd   %%xmm8, (%5);\n"
+
+              "pop %5; pop %4; pop %1; pop %0;\n"
+
+              :
+              : "r"(a), "r"(b + j), "r"(dimi<<4), "r"(dimj<<3), "r"(dimk), "r"(c + j), "r"(dimj<<4)
+              :
+             );
+           }
+         }
+       else if (ni == 8)
+        {
+          for (long j = 0; j < dimj; j++)
+          {
+            __asm__ volatile
+            (
+              // save registers to be 'clobbered'
+              "push %0; push %1; push %4; push %5;\n "
+              // zero out mmx registers
+              "pxor %%xmm2,%%xmm2;\n"
+              "pxor %%xmm3,%%xmm3;\n"
+              "pxor %%xmm4,%%xmm4;\n"
+              "pxor %%xmm5,%%xmm5;\n"
+              "pxor %%xmm6,%%xmm6;\n"
+              "pxor %%xmm7,%%xmm7;\n"
+              "pxor %%xmm8,%%xmm8;\n"
+              "pxor %%xmm9,%%xmm9;\n"
+
+             "0:\n "
+             // load the 'b' part into %1 and update pointer
+             "movddup   (%1), %%xmm0; add %3,%1;\n"
+             // begin i-tile
+             "movapd    (%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm2;\n"
+             "movapd  16(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm3;\n"
+             "movapd  32(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm4;\n"
+             "movapd  48(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm5;\n"
+             "movapd  64(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm6;\n"
+             "movapd  80(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm7;\n"
+             "movapd  96(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm8;\n"
+             "movapd 112(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm9; add %2,%0;\n"
+             "sub $1,%4; jnz 0b;\n"
+
+             "movapd   %%xmm2, (%5); add %6,%5;\n"
+             "movapd   %%xmm3, (%5); add %6,%5;\n"
+             "movapd   %%xmm4, (%5); add %6,%5;\n"
+             "movapd   %%xmm5, (%5); add %6,%5;\n"
+             "movapd   %%xmm6, (%5); add %6,%5;\n"
+             "movapd   %%xmm7, (%5); add %6,%5;\n"
+             "movapd   %%xmm8, (%5); add %6,%5;\n"
+             "movapd   %%xmm9, (%5);\n"
+
+             "pop %5; pop %4; pop %1; pop %0;\n"
+
+             :
+             : "r"(a), "r"(b + j), "r"(dimi<<4), "r"(dimj<<3), "r"(dimk), "r"(c + j), "r"(dimj<<4)
+             :
+            );
+          }
+        }
+        else if (ni == 9)
+        {
+          for (long j = 0; j < dimj; j++)
+          {
+            __asm__ volatile
+            (
+              // save registers to be 'clobbered'
+              "push %0; push %1; push %4; push %5;\n "
+              // zero out mmx registers
+              "pxor %%xmm2,%%xmm2;\n"
+              "pxor %%xmm3,%%xmm3;\n"
+              "pxor %%xmm4,%%xmm4;\n"
+              "pxor %%xmm5,%%xmm5;\n"
+              "pxor %%xmm6,%%xmm6;\n"
+              "pxor %%xmm7,%%xmm7;\n"
+              "pxor %%xmm8,%%xmm8;\n"
+              "pxor %%xmm9,%%xmm9;\n"
+              "pxor %%xmm10,%%xmm10;\n"
+
+             "0:\n "
+             // load the 'b' part into %1 and update pointer
+             "movddup   (%1), %%xmm0; add %3,%1;\n"
+             // begin i-tile
+             "movapd    (%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm2;\n"
+             "movapd  16(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm3;\n"
+             "movapd  32(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm4;\n"
+             "movapd  48(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm5;\n"
+             "movapd  64(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm6;\n"
+             "movapd  80(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm7;\n"
+             "movapd  96(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm8;\n"
+             "movapd 112(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm9;\n"
+             "movapd 128(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm10; add %2,%0;\n"
+             "sub $1,%4; jnz 0b;\n"
+
+             "movapd   %%xmm2, (%5); add %6,%5;\n"
+             "movapd   %%xmm3, (%5); add %6,%5;\n"
+             "movapd   %%xmm4, (%5); add %6,%5;\n"
+             "movapd   %%xmm5, (%5); add %6,%5;\n"
+             "movapd   %%xmm6, (%5); add %6,%5;\n"
+             "movapd   %%xmm7, (%5); add %6,%5;\n"
+             "movapd   %%xmm8, (%5); add %6,%5;\n"
+             "movapd   %%xmm9, (%5); add %6,%5;\n"
+             "movapd  %%xmm10, (%5);\n"
+
+             "pop %5; pop %4; pop %1; pop %0;\n"
+
+             :
+             : "r"(a), "r"(b + j), "r"(dimi<<4), "r"(dimj<<3), "r"(dimk), "r"(c + j), "r"(dimj<<4)
+             :
+            );
+          }
+        }
+        if (ni == 10)
+        {
+          for (long j = 0; j < dimj; j++)
+          {
+            __asm__ volatile
+            (
+              // save registers to be 'clobbered'
+              "push %0; push %1; push %4; push %5;\n "
+              // zero out mmx registers
+              "pxor %%xmm2,%%xmm2;\n"
+              "pxor %%xmm3,%%xmm3;\n"
+              "pxor %%xmm4,%%xmm4;\n"
+              "pxor %%xmm5,%%xmm5;\n"
+              "pxor %%xmm6,%%xmm6;\n"
+              "pxor %%xmm7,%%xmm7;\n"
+              "pxor %%xmm8,%%xmm8;\n"
+              "pxor %%xmm9,%%xmm9;\n"
+              "pxor %%xmm10,%%xmm10;\n"
+              "pxor %%xmm11,%%xmm11;\n"
+
+             "0:\n "
+             // load the 'b' part into %1 and update pointer
+             "movddup   (%1), %%xmm0; add %3,%1;\n"
+             // begin i-tile
+             "movapd    (%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm2;\n"
+             "movapd  16(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm3;\n"
+             "movapd  32(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm4;\n"
+             "movapd  48(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm5;\n"
+             "movapd  64(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm6;\n"
+             "movapd  80(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm7;\n"
+             "movapd  96(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm8;\n"
+             "movapd 112(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm9;\n"
+             "movapd 128(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm10;\n"
+             "movapd 144(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm11; add %2,%0;\n"
+             "sub $1,%4; jnz 0b;\n"
+
+             "movapd   %%xmm2, (%5); add %6,%5;\n"
+             "movapd   %%xmm3, (%5); add %6,%5;\n"
+             "movapd   %%xmm4, (%5); add %6,%5;\n"
+             "movapd   %%xmm5, (%5); add %6,%5;\n"
+             "movapd   %%xmm6, (%5); add %6,%5;\n"
+             "movapd   %%xmm7, (%5); add %6,%5;\n"
+             "movapd   %%xmm8, (%5); add %6,%5;\n"
+             "movapd   %%xmm9, (%5); add %6,%5;\n"
+             "movapd  %%xmm10, (%5); add %6,%5;\n"
+             "movapd  %%xmm11, (%5);\n"
+
+             "pop %5; pop %4; pop %1; pop %0;\n"
+
+             :
+             : "r"(a), "r"(b + j), "r"(dimi<<4), "r"(dimj<<3), "r"(dimk), "r"(c + j), "r"(dimj<<4)
+             :
+            );
+          }
+        }
+        else if (ni == 11)
+        {
+          for (long j = 0; j < dimj; j++)
+          {
+            __asm__ volatile
+            (
+              // save registers to be 'clobbered'
+              "push %0; push %1; push %4; push %5;\n "
+              // zero out mmx registers
+              "pxor %%xmm2,%%xmm2;\n"
+              "pxor %%xmm3,%%xmm3;\n"
+              "pxor %%xmm4,%%xmm4;\n"
+              "pxor %%xmm5,%%xmm5;\n"
+              "pxor %%xmm6,%%xmm6;\n"
+              "pxor %%xmm7,%%xmm7;\n"
+              "pxor %%xmm8,%%xmm8;\n"
+              "pxor %%xmm9,%%xmm9;\n"
+              "pxor %%xmm10,%%xmm10;\n"
+              "pxor %%xmm11,%%xmm11;\n"
+              "pxor %%xmm12,%%xmm12;\n"
+
+             "0:\n "
+             // load the 'b' part into %1 and update pointer
+             "movddup   (%1), %%xmm0; add %3,%1;\n"
+             // begin i-tile
+             "movapd    (%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm2;\n"
+             "movapd  16(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm3;\n"
+             "movapd  32(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm4;\n"
+             "movapd  48(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm5;\n"
+             "movapd  64(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm6;\n"
+             "movapd  80(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm7;\n"
+             "movapd  96(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm8;\n"
+             "movapd 112(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm9;\n"
+             "movapd 128(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm10;\n"
+             "movapd 144(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm11;\n"
+             "movapd 160(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm12; add %2,%0;\n"
+             "sub $1,%4; jnz 0b;\n"
+
+             "movapd   %%xmm2, (%5); add %6,%5;\n"
+             "movapd   %%xmm3, (%5); add %6,%5;\n"
+             "movapd   %%xmm4, (%5); add %6,%5;\n"
+             "movapd   %%xmm5, (%5); add %6,%5;\n"
+             "movapd   %%xmm6, (%5); add %6,%5;\n"
+             "movapd   %%xmm7, (%5); add %6,%5;\n"
+             "movapd   %%xmm8, (%5); add %6,%5;\n"
+             "movapd   %%xmm9, (%5); add %6,%5;\n"
+             "movapd  %%xmm10, (%5); add %6,%5;\n"
+             "movapd  %%xmm11, (%5); add %6,%5;\n"
+             "movapd  %%xmm12, (%5);\n"
+
+             "pop %5; pop %4; pop %1; pop %0;\n"
+
+             :
+             : "r"(a), "r"(b + j), "r"(dimi<<4), "r"(dimj<<3), "r"(dimk), "r"(c + j), "r"(dimj<<4)
+             :
+            );
+          }
+        }
+        else if (ni == 12)
+        {
+          for (long j = 0; j < dimj; j++)
+          {
+            __asm__ volatile
+            (
+              // save registers to be 'clobbered'
+              "push %0; push %1; push %4; push %5;\n "
+              // zero out mmx registers
+              "pxor %%xmm2,%%xmm2;\n"
+              "pxor %%xmm3,%%xmm3;\n"
+              "pxor %%xmm4,%%xmm4;\n"
+              "pxor %%xmm5,%%xmm5;\n"
+              "pxor %%xmm6,%%xmm6;\n"
+              "pxor %%xmm7,%%xmm7;\n"
+              "pxor %%xmm8,%%xmm8;\n"
+              "pxor %%xmm9,%%xmm9;\n"
+              "pxor %%xmm10,%%xmm10;\n"
+              "pxor %%xmm11,%%xmm11;\n"
+              "pxor %%xmm12,%%xmm12;\n"
+              "pxor %%xmm13,%%xmm13;\n"
+
+             "0:\n "
+             // load the 'b' part into %1 and update pointer
+             "movddup   (%1), %%xmm0; add %3,%1;\n"
+             // begin i-tile
+             "movapd    (%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm2;\n"
+             "movapd  16(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm3;\n"
+             "movapd  32(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm4;\n"
+             "movapd  48(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm5;\n"
+             "movapd  64(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm6;\n"
+             "movapd  80(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm7;\n"
+             "movapd  96(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm8;\n"
+             "movapd 112(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm9;\n"
+             "movapd 128(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm10;\n"
+             "movapd 144(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm11;\n"
+             "movapd 160(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm12;\n"
+             "movapd 176(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm13; add %2,%0;\n"
+             "sub $1,%4; jnz 0b;\n"
+
+             "movapd   %%xmm2, (%5); add %6,%5;\n"
+             "movapd   %%xmm3, (%5); add %6,%5;\n"
+             "movapd   %%xmm4, (%5); add %6,%5;\n"
+             "movapd   %%xmm5, (%5); add %6,%5;\n"
+             "movapd   %%xmm6, (%5); add %6,%5;\n"
+             "movapd   %%xmm7, (%5); add %6,%5;\n"
+             "movapd   %%xmm8, (%5); add %6,%5;\n"
+             "movapd   %%xmm9, (%5); add %6,%5;\n"
+             "movapd  %%xmm10, (%5); add %6,%5;\n"
+             "movapd  %%xmm11, (%5); add %6,%5;\n"
+             "movapd  %%xmm12, (%5); add %6,%5;\n"
+             "movapd  %%xmm13, (%5);\n"
+
+             "pop %5; pop %4; pop %1; pop %0;\n"
+
+             :
+             : "r"(a), "r"(b + j), "r"(dimi<<4), "r"(dimj<<3), "r"(dimk), "r"(c + j), "r"(dimj<<4)
+             :
+            );
+          }
+        }
+        else if (ni == 13)
+        {
+          for (long j = 0; j < dimj; j++)
+          {
+            __asm__ volatile
+            (
+              // save registers to be 'clobbered'
+              "push %0; push %1; push %4; push %5;\n "
+              // zero out mmx registers
+              "pxor %%xmm2,%%xmm2;\n"
+              "pxor %%xmm3,%%xmm3;\n"
+              "pxor %%xmm4,%%xmm4;\n"
+              "pxor %%xmm5,%%xmm5;\n"
+              "pxor %%xmm6,%%xmm6;\n"
+              "pxor %%xmm7,%%xmm7;\n"
+              "pxor %%xmm8,%%xmm8;\n"
+              "pxor %%xmm9,%%xmm9;\n"
+              "pxor %%xmm10,%%xmm10;\n"
+              "pxor %%xmm11,%%xmm11;\n"
+              "pxor %%xmm12,%%xmm12;\n"
+              "pxor %%xmm13,%%xmm13;\n"
+              "pxor %%xmm14,%%xmm14;\n"
+
+             "0:\n "
+             // load the 'b' part into %1 and update pointer
+             "movddup   (%1), %%xmm0; add %3,%1;\n"
+             // begin i-tile
+             "movapd    (%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm2;\n"
+             "movapd  16(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm3;\n"
+             "movapd  32(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm4;\n"
+             "movapd  48(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm5;\n"
+             "movapd  64(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm6;\n"
+             "movapd  80(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm7;\n"
+             "movapd  96(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm8;\n"
+             "movapd 112(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm9;\n"
+             "movapd 128(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm10;\n"
+             "movapd 144(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm11;\n"
+             "movapd 160(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm12;\n"
+             "movapd 176(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm13;\n"
+             "movapd 192(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm14; add %2,%0;\n"
+             "sub $1,%4; jnz 0b;\n"
+
+             "movapd   %%xmm2, (%5); add %6,%5;\n"
+             "movapd   %%xmm3, (%5); add %6,%5;\n"
+             "movapd   %%xmm4, (%5); add %6,%5;\n"
+             "movapd   %%xmm5, (%5); add %6,%5;\n"
+             "movapd   %%xmm6, (%5); add %6,%5;\n"
+             "movapd   %%xmm7, (%5); add %6,%5;\n"
+             "movapd   %%xmm8, (%5); add %6,%5;\n"
+             "movapd   %%xmm9, (%5); add %6,%5;\n"
+             "movapd  %%xmm10, (%5); add %6,%5;\n"
+             "movapd  %%xmm11, (%5); add %6,%5;\n"
+             "movapd  %%xmm12, (%5); add %6,%5;\n"
+             "movapd  %%xmm13, (%5); add %6,%5;\n"
+             "movapd  %%xmm14, (%5);"
+
+             "pop %5; pop %4; pop %1; pop %0;\n"
+
+             :
+             : "r"(a), "r"(b + j), "r"(dimi<<4), "r"(dimj<<3), "r"(dimk), "r"(c + j), "r"(dimj<<4)
+             :
+            );
+          }
+        }
+        else if (ni == 14)
+        {
+          for (long j = 0; j < dimj; j++)
+          {
+            __asm__ volatile
+            (
+              // save registers to be 'clobbered'
+              "push %0; push %1; push %4; push %5;\n "
+              // zero out mmx registers
+              "pxor %%xmm2,%%xmm2;\n"
+              "pxor %%xmm3,%%xmm3;\n"
+              "pxor %%xmm4,%%xmm4;\n"
+              "pxor %%xmm5,%%xmm5;\n"
+              "pxor %%xmm6,%%xmm6;\n"
+              "pxor %%xmm7,%%xmm7;\n"
+              "pxor %%xmm8,%%xmm8;\n"
+              "pxor %%xmm9,%%xmm9;\n"
+              "pxor %%xmm10,%%xmm10;\n"
+              "pxor %%xmm11,%%xmm11;\n"
+              "pxor %%xmm12,%%xmm12;\n"
+              "pxor %%xmm13,%%xmm13;\n"
+              "pxor %%xmm14,%%xmm14;\n"
+              "pxor %%xmm15,%%xmm15;\n"
+
+             "0:\n "
+             // load the 'b' part into %1
+             "movddup   (%1), %%xmm0; add %3,%1;\n"
+             // begin i-loop
+             "movapd    (%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm2;\n"
+             "movapd  16(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm3;\n"
+             "movapd  32(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm4;\n"
+             "movapd  48(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm5;\n"
+             "movapd  64(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm6;\n"
+             "movapd  80(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm7;\n"
+             "movapd  96(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm8;\n"
+             "movapd 112(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm9;\n"
+             "movapd 128(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm10;\n"
+             "movapd 144(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm11;\n"
+             "movapd 160(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm12;\n"
+             "movapd 176(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm13;\n"
+             "movapd 192(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm14;\n"
+             "movapd 208(%0), %%xmm1; mulpd %%xmm0, %%xmm1; addpd %%xmm1,%%xmm15; add %2,%0;\n"
+             "sub $1,%4; jnz 0b;\n"
+
+             "movapd   %%xmm2, (%5); add %6,%5;\n"
+             "movapd   %%xmm3, (%5); add %6,%5;\n"
+             "movapd   %%xmm4, (%5); add %6,%5;\n"
+             "movapd   %%xmm5, (%5); add %6,%5;\n"
+             "movapd   %%xmm6, (%5); add %6,%5;\n"
+             "movapd   %%xmm7, (%5); add %6,%5;\n"
+             "movapd   %%xmm8, (%5); add %6,%5;\n"
+             "movapd   %%xmm9, (%5); add %6,%5;\n"
+             "movapd  %%xmm10, (%5); add %6,%5;\n"
+             "movapd  %%xmm11, (%5); add %6,%5;\n"
+             "movapd  %%xmm12, (%5); add %6,%5;\n"
+             "movapd  %%xmm13, (%5); add %6,%5;\n"
+             "movapd  %%xmm14, (%5); add %6,%5;\n"
+             "movapd  %%xmm15, (%5);\n"
+
+             "pop %5; pop %4; pop %1; pop %0;\n"
+
+             :
+             : "r"(a), "r"(b + j), "r"(dimi<<4), "r"(dimj<<3), "r"(dimk), "r"(c + j), "r"(dimj<<4)
+             :
+            );
+          }
+        }
+      }
+    }
+    // HWERE!
 }
 #else
 
