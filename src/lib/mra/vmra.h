@@ -10,7 +10,7 @@
 
 namespace madness {
 
-    static const int VMRA_CHUNK_SIZE = 200;
+    static const int VMRA_CHUNK_SIZE = 20000;
     /// Compress a vector of functions
     template <typename T, int NDIM>
     void compress(World& world,
