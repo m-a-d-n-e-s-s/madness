@@ -235,6 +235,15 @@ namespace madness {
 
         friend class WorldContainer<keyT,valueT>;
 
+//         template <typename containerT, typename datumT>
+//         inline
+//         static
+//         typename containerT::iterator replace(containerT& c, const datumT& d) {
+//             std::pair<typename containerT::iterator,bool> p = c.insert(d);
+//             if (!p.second) p.first->second = d.second;   // Who's on first?
+//             return p.first;
+//         }
+
     private:
 
         WorldContainerImpl();   // Inhibit default constructor
@@ -245,14 +254,6 @@ namespace madness {
         const iterator end_iterator;          ///< For fast return of end
         const const_iterator end_const_iterator; ///< For fast return of end
 
-        template <typename containerT, typename datumT>
-        inline
-        static
-        typename containerT::iterator replace(containerT& c, const datumT& d) {
-            std::pair<typename containerT::iterator,bool> p = c.insert(d);
-            if (!p.second) p.first->second = d.second;   // Who's on first?
-            return p.first;
-        }
 
         /// Handles find request
         Void find_handler(ProcessID requestor, const keyT& key, const RemoteReference< FutureImpl<iterator> >& ref) {
@@ -331,7 +332,10 @@ namespace madness {
         Void insert(const pairT& datum) {
             ProcessID dest = owner(datum.first);
             if (dest == me) {
-                replace(local,datum);
+                // Was using iterator ... try accessor ?????
+                accessor acc;
+                local.insert(acc,datum.first);
+                acc->second = datum.second;
             }
             else {
                 send(dest, &implT::insert, datum);
