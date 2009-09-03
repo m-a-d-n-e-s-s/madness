@@ -140,14 +140,13 @@ namespace madness {
         void fence() {
             PROFILE_MEMBER_FUNC(WorldGopInterface);
             unsigned long nsent_prev=0, nrecv_prev=1; // invalid initial condition
-            int nok = 0;// DBEUG
             SafeMPI::Request req0, req1;
             ProcessID parent, child0, child1;
             mpi.binary_tree_info(0, parent, child0, child1);
             Tag gfence_tag = mpi.unique_tag();
             int npass = 0;
 
-            double start = wall_time();
+            //double start = wall_time();
 
             while (1) {
                 uint64_t sum0[2]={0,0}, sum1[2]={0,0}, sum[2];
@@ -166,13 +165,18 @@ namespace madness {
                     // don't share a critical section read each twice and ensure they
                     // are unchanged to ensure that are consistent ... they don't have
                     // to be current.
+
                     ntask1 = taskq.size();
                     nsent1 = am.nsent;
                     nrecv1 = am.nrecv;
 
+                    __asm__ __volatile__ (" " : : : "memory");
+
                     ntask2 = taskq.size();
                     nsent2 = am.nsent;
                     nrecv2 = am.nrecv;
+
+                    __asm__ __volatile__ (" " : : : "memory");
 
                     finished = (ntask2==0) && (ntask1==0) && (nsent1==nsent2) && (nrecv1==nrecv2);
                 }
@@ -197,20 +201,15 @@ namespace madness {
                 //madness::print("GOPFENCE", npass, sum[0], nsent_prev, sum[1], nrecv_prev);
 
                 if (sum[0]==sum[1] && sum[0]==nsent_prev && sum[1]==nrecv_prev) {
-                    //break;
-                    nok++;
-                    if (nok > 2) break; // DEBUG DEBUG DEBUG DEBUG !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-                }
-                else {
-                    nok = 0;
+                    break;
                 }
 
-                if (wall_time() - start > 1200.0) {
-                    std::cout << world.rank() << " FENCE " << nsent2 << " " << nsent_prev << " " << nrecv2 << " " << nrecv_prev << " " << sum[0] << " " << sum[1] << " " << npass << " " << taskq.size() << std::endl;
-                    std::cout.flush();
-                    //myusleep(1000);
-                    MADNESS_ASSERT(0);
-                }
+//                 if (wall_time() - start > 1200.0) {
+//                     std::cout << world.rank() << " FENCE " << nsent2 << " " << nsent_prev << " " << nrecv2 << " " << nrecv_prev << " " << sum[0] << " " << sum[1] << " " << npass << " " << taskq.size() << std::endl;
+//                     std::cout.flush();
+//                     //myusleep(1000);
+//                     MADNESS_ASSERT(0);
+//                 }
 
                 nsent_prev = sum[0];
                 nrecv_prev = sum[1];

@@ -85,6 +85,22 @@ typedef volatile int MADATOMIC_INT;
 #define MADATOMIC_INT_DEC_AND_TEST(ptr) ((__gnu_cxx::__exchange_and_add(ptr,-1)) == 1)
 #define MADATOMIC_INT_READ_AND_INC(ptr) (__gnu_cxx::__exchange_and_add(ptr,1))
 
+// /// Read value from memory with fence ensuring subsequent operations are executed after the read
+// template <typename T>
+// inline T load_with_acquire(const volatile T& mem) {
+//     T value = mem;
+//     __asm__ __volatile__ ("" : : : "memory");
+//     return value;
+// }
+    
+// /// Store value to memory with fence ensuring preceding operations are executed before the store
+// template <typename T>
+// inline void store_with_release(volatile T& mem, const T value) {
+//     __asm__ __volatile__ ("" : : : "memory");
+//     mem = value;
+// }
+    
+
 #elif defined(__INTEL_COMPILER)
 
 #if defined(__i386)

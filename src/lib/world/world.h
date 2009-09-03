@@ -153,7 +153,6 @@ namespace madness {
     static void world_taskq_unfactory(WorldTaskQueue* taskq);
     static void world_assign_id(World* world);
 
-
     /// For purpose of deferring cleanup to synchronization points
     struct DeferredCleanupInterface {
         virtual ~DeferredCleanupInterface() {};
@@ -217,7 +216,7 @@ namespace madness {
                 if (it->use_count() == 1) it = deferred.erase(it);
                 else ++it;
             }
-            //print("World: deferred cleanup: old size:", nclean, "new size:", deferred.size());
+            //if (rank() == 0) print("World: deferred cleanup: old size:", nclean, "new size:", deferred.size());
             return (nclean != deferred.size());
         };
 
