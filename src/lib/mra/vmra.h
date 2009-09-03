@@ -114,8 +114,21 @@ namespace madness {
         }
         if (fence) world.gop.fence();
 
+        // DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG
+//         world.gop.fence();
+//         world.gop.fence();
+//         typedef Key<NDIM> keyT; ///< Type of key
+//         typedef FunctionNode<T,NDIM> nodeT; ///< Type of node
+//         typedef WorldContainerImpl<keyT,nodeT> dcT; ///< Type of container holding the coefficients
+//         typedef WorldObject<dcT> objT;
+//         typedef std::list<detail::PendingMsg> pendingT;
+//         pendingT& nv = const_cast<pendingT&>(objT::pending);
+        
+//         if (nv.size() != 0) cout << world.rank() << " !!!!!!!! pending " << nv.size() << endl;
 
-//         // DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG
+//         world.gop.fence();
+//         world.gop.fence();
+
 //         if (world.rank() == 0) madness::print("Verifying tree after diff");
 //         world.gop.fence();
 //         for (unsigned int i=0; i<v.size(); i++) {
@@ -123,8 +136,7 @@ namespace madness {
 //         }
 //         world.gop.fence();
 //         if (world.rank() == 0) madness::print("OK");
-//         // DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG
-
+        // DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG
         
         return df;
     }
