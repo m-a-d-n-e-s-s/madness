@@ -122,7 +122,7 @@ namespace madness {
 
     private:
 #ifdef HAVE_CRAYXT
-        static const int NRECV=64;
+        static const int NRECV=128;
 #else
         static const int NRECV=32;
 #endif
