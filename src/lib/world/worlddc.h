@@ -295,7 +295,7 @@ namespace madness {
                 : WorldObject< WorldContainerImpl<keyT, valueT> >(world)
                 , pmap(pmap)
                 , me(world.mpi.rank())
-                , local()
+                , local(131)
                 , end_iterator(local.end())
                 , end_const_iterator(const_cast<const internal_containerT&>(local).end()) {
             if (do_pending) this->process_pending();
