@@ -141,15 +141,17 @@ namespace madness {
         volatile bool ready;                       ///< True if ready to rock 'n roll
         ProcessID me;                              ///< Rank of self
         static Spinlock pending_mutex;
+
         static volatile pendingT pending;          ///< Buffers pending messages
+
         uniqueidT objid;                           ///< Sense of self
 
         // Handler for incoming AM with 0 arguments
         template <typename memfunT>
         static void handler(const AmArg& arg) {
             const uniqueidT& id = detail::peek(arg);
-            Derived* obj = arg.get_world()-> template ptr_from_id<Derived>(id);
             am_handlerT ptr = handler<memfunT>;
+            Derived* obj;
             if (is_ready(id,obj,arg,ptr)) {
                 detail::info<memfunT> info;
                 arg & info;
@@ -162,8 +164,8 @@ namespace madness {
         template <typename memfunT, typename arg1T>
         static void handler(const AmArg& arg) {
             const uniqueidT& id = detail::peek(arg);
-            Derived* obj = arg.get_world()-> template ptr_from_id<Derived>(id);
             am_handlerT ptr = handler<memfunT,arg1T>;
+            Derived* obj;
             if (is_ready(id,obj,arg,ptr)) {
                 detail::info<memfunT> info;
                 arg1T arg1;
@@ -177,8 +179,8 @@ namespace madness {
         template <typename memfunT, typename arg1T, typename arg2T>
         static void handler(const AmArg& arg) {
             const uniqueidT& id = detail::peek(arg);
-            Derived* obj = arg.get_world()-> template ptr_from_id<Derived>(id);
             am_handlerT ptr = handler<memfunT,arg1T,arg2T>;
+            Derived* obj;
             if (is_ready(id,obj,arg,ptr)) {
                 detail::info<memfunT> info;
                 arg1T arg1;
@@ -193,8 +195,8 @@ namespace madness {
         template <typename memfunT, typename arg1T, typename arg2T, typename arg3T>
         static void handler(const AmArg& arg) {
             const uniqueidT& id = detail::peek(arg);
-            Derived* obj = arg.get_world()-> template ptr_from_id<Derived>(id);
             am_handlerT ptr = handler<memfunT,arg1T,arg2T,arg3T>;
+            Derived* obj;
             if (is_ready(id,obj,arg,ptr)) {
                 detail::info<memfunT> info;
                 arg1T arg1;
@@ -210,8 +212,8 @@ namespace madness {
         template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T>
         static void handler(const AmArg& arg) {
             const uniqueidT& id = detail::peek(arg);
-            Derived* obj = arg.get_world()-> template ptr_from_id<Derived>(id);
             am_handlerT ptr = handler<memfunT,arg1T,arg2T,arg3T,arg4T>;
+            Derived* obj;
             if (is_ready(id,obj,arg,ptr)) {
                 detail::info<memfunT> info;
                 arg1T arg1;
@@ -229,8 +231,8 @@ namespace madness {
         typename arg5T>
         static void handler(const AmArg& arg) {
             const uniqueidT& id = detail::peek(arg);
-            Derived* obj = arg.get_world()-> template ptr_from_id<Derived>(id);
             am_handlerT ptr = handler<memfunT,arg1T,arg2T,arg3T,arg4T,arg5T>;
+            Derived* obj;
             if (is_ready(id,obj,arg,ptr)) {
                 detail::info<memfunT> info;
                 arg1T arg1;
@@ -249,8 +251,8 @@ namespace madness {
         typename arg5T, typename arg6T>
         static void handler(const AmArg& arg) {
             const uniqueidT& id = detail::peek(arg);
-            Derived* obj = arg.get_world()-> template ptr_from_id<Derived>(id);
             am_handlerT ptr = handler<memfunT,arg1T,arg2T,arg3T,arg4T,arg5T,arg6T>;
+            Derived* obj;
             if (is_ready(id,obj,arg,ptr)) {
                 detail::info<memfunT> info;
                 arg1T arg1;
@@ -270,8 +272,8 @@ namespace madness {
         typename arg5T, typename arg6T, typename arg7T>
         static void handler(const AmArg& arg) {
             const uniqueidT& id = detail::peek(arg);
-            Derived* obj = arg.get_world()-> template ptr_from_id<Derived>(id);
             am_handlerT ptr = handler<memfunT,arg1T,arg2T,arg3T,arg4T,arg5T,arg6T,arg7T>;
+            Derived* obj;
             if (is_ready(id,obj,arg,ptr)) {
                 detail::info<memfunT> info;
                 arg1T arg1;
@@ -291,8 +293,8 @@ namespace madness {
         template <typename memfunT>
         static void handler_task(const AmArg& arg) {
             const uniqueidT& id = detail::peek(arg);
-            Derived* obj = arg.get_world()-> template ptr_from_id<Derived>(id);
             am_handlerT ptr = handler_task<memfunT>;
+            Derived* obj;
             if (is_ready(id,obj,arg,ptr)) {
                 detail::info<memfunT> info;
                 arg & info;
@@ -320,8 +322,8 @@ namespace madness {
         template <typename memfunT, typename arg1T, typename arg2T>
         static void handler_task(const AmArg& arg) {
             const uniqueidT& id = detail::peek(arg);
-            Derived* obj = arg.get_world()-> template ptr_from_id<Derived>(id);
             am_handlerT ptr = handler_task<memfunT,arg1T,arg2T>;
+            Derived* obj;
             if (is_ready(id,obj,arg,ptr)) {
                 detail::info<memfunT> info;
                 arg1T arg1;
@@ -336,8 +338,8 @@ namespace madness {
         template <typename memfunT, typename arg1T, typename arg2T, typename arg3T>
         static void handler_task(const AmArg& arg) {
             const uniqueidT& id = detail::peek(arg);
-            Derived* obj = arg.get_world()-> template ptr_from_id<Derived>(id);
             am_handlerT ptr = handler_task<memfunT,arg1T,arg2T,arg3T>;
+            Derived* obj;
             if (is_ready(id,obj,arg,ptr)) {
                 detail::info<memfunT> info;
                 arg1T arg1;
@@ -353,8 +355,8 @@ namespace madness {
         template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T>
         static void handler_task(const AmArg& arg) {
             const uniqueidT& id = detail::peek(arg);
-            Derived* obj = arg.get_world()-> template ptr_from_id<Derived>(id);
             am_handlerT ptr = handler_task<memfunT,arg1T,arg2T,arg3T,arg4T>;
+            Derived* obj;
             if (is_ready(id,obj,arg,ptr)) {
                 detail::info<memfunT> info;
                 arg1T arg1;
@@ -372,8 +374,8 @@ namespace madness {
         typename arg5T>
         static void handler_task(const AmArg& arg) {
             const uniqueidT& id = detail::peek(arg);
-            Derived* obj = arg.get_world()-> template ptr_from_id<Derived>(id);
             am_handlerT ptr = handler_task<memfunT,arg1T,arg2T,arg3T,arg4T,arg5T>;
+            Derived* obj;
             if (is_ready(id,obj,arg,ptr)) {
                 detail::info<memfunT> info;
                 arg1T arg1;
@@ -392,8 +394,8 @@ namespace madness {
         typename arg5T, typename arg6T>
         static void handler_task(const AmArg& arg) {
             const uniqueidT& id = detail::peek(arg);
-            Derived* obj = arg.get_world()-> template ptr_from_id<Derived>(id);
             am_handlerT ptr = handler_task<memfunT,arg1T,arg2T,arg3T,arg4T,arg5T,arg6T>;
+            Derived* obj;
             if (is_ready(id,obj,arg,ptr)) {
                 detail::info<memfunT> info;
                 arg1T arg1;
@@ -413,8 +415,8 @@ namespace madness {
         typename arg5T, typename arg6T, typename arg7T>
         static void handler_task(const AmArg& arg) {
             const uniqueidT& id = detail::peek(arg);
-            Derived* obj = arg.get_world()-> template ptr_from_id<Derived>(id);
             am_handlerT ptr = handler_task<memfunT,arg1T,arg2T,arg3T,arg4T,arg5T,arg6T,arg7T>;
+            Derived* obj;
             if (is_ready(id,obj,arg,ptr)) {
                 detail::info<memfunT> info;
                 arg1T arg1;
@@ -439,22 +441,26 @@ namespace madness {
         // If the object exists and is not ready then
         //    if we are doing a queued/pending message --> ready
         //    else this is a new message --> not ready
-        static bool is_ready(const uniqueidT& id, Derived* obj, const AmArg& arg, am_handlerT ptr) {
-            WorldObject* p=0;
+        static bool is_ready(const uniqueidT& id, Derived*& obj, const AmArg& arg, am_handlerT ptr) {
+            obj = arg.get_world()-> template ptr_from_id<Derived>(id);
+
             if (obj) {
-                p = static_cast<WorldObject*>(obj);
+                WorldObject* p = static_cast<WorldObject*>(obj);
                 if (p->ready || arg.is_pending()) return true;
             }
 
             pending_mutex.lock(); // BEGIN CRITICAL SECTION
-            if (obj && p->ready) {
-                pending_mutex.unlock();  // ... LEAVE CRITICAL SECTION
-                return true;
+            if (!obj) obj = arg.get_world()-> template ptr_from_id<Derived>(id);
+
+            if (obj) {
+                WorldObject* p = static_cast<WorldObject*>(obj);
+                if (p->ready || arg.is_pending()) {
+                    pending_mutex.unlock();  // ... LEAVE CRITICAL SECTION
+                    return true;
+                }
             }
             arg.set_pending();
-            MADNESS_ASSERT(arg.is_pending());
             const_cast<pendingT&>(pending).push_back(detail::PendingMsg(id, ptr, arg));
-            MADNESS_ASSERT(const_cast<pendingT&>(pending).back().arg->is_pending());
             pending_mutex.unlock(); // END CRITICAL SECTION
 
             return false;
@@ -474,6 +480,7 @@ namespace madness {
             // Messages may be arriving while we are processing the
             // pending queue.  To maximize concurrency copy messages
             // out of queue before processing outside critical section.
+            //int ndone = 0;
             while (!ready) {
                 pendingT tmp;
 
@@ -495,8 +502,10 @@ namespace madness {
                 while (tmp.size()) {
                     tmp.front().invokehandler();
                     tmp.pop_front();
+                    //ndone++;
                 }
             }
+            //if (ndone) std::cout << world.rank() << ":pending:" << ndone << std::endl;
         };
 
 
