@@ -52,5 +52,5 @@ libMADworld_a_SOURCES = worldstuff.cc redirectio.cc archive_type_names.cc debug.
                      worldthread.h atomicint.h worldrmi.h safempi.h worldpapi.h worldmutex.h print_seq.h
 
 
-LIBRARIES:	$(lib_LIBRARIES)
+libraries:	$(lib_LIBRARIES)
 	for dir in $(SUBDIRS) ; do $(MAKE) -C $$dir $@ ; done

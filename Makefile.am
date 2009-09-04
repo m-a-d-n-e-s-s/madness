@@ -7,5 +7,5 @@ doc:
 	cd doc; $(MAKE)
 
 
-LIBRARIES:	$(lib_LIBRARIES)
+libraries:	$(lib_LIBRARIES)
 	for dir in $(SUBDIRS) ; do $(MAKE) -C $$dir $@ ; done

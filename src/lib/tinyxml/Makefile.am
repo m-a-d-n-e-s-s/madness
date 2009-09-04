@@ -11,5 +11,5 @@ libMADtinyxml_a_SOURCES = tinystr.cc  tinyxml.cc  tinyxmlerror.cc  tinyxmlparser
 
 AM_CPPFLAGS += -I.
 
-LIBRARIES:	$(lib_LIBRARIES)
+libraries:	$(lib_LIBRARIES)
 	for dir in $(SUBDIRS) ; do $(MAKE) -C $$dir $@ ; done

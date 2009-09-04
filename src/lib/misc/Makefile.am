@@ -27,5 +27,5 @@ libMADmisc_a_SOURCES = checksum_file.cc position_stream.cc gprofexit.cc ran.cc \
 
 interp3_SOURCES = interp3.cc
 
-LIBRARIES:	$(lib_LIBRARIES)
+libraries:	$(lib_LIBRARIES)
 	for dir in $(SUBDIRS) ; do $(MAKE) -C $$dir $@ ; done

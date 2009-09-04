@@ -59,5 +59,5 @@ tensoriter_spec.h tensor_spec.h:	tempspec.py
 #test_mtxmq:     test_mtxmq.o mtxmq.o mtxmq_asm.o
 #        $(CXX) -o $@  $^
 
-LIBRARIES:	$(lib_LIBRARIES)
+libraries:	$(lib_LIBRARIES)
 	for dir in $(SUBDIRS) ; do $(MAKE) -C $$dir $@ ; done
