@@ -10,6 +10,7 @@
 #include <world/worldmutex.h>
 #include <world/worldpapi.h>
 #include <world/worldprofile.h>
+#include <world/atomicint.h>
 
 namespace madness {
 
@@ -591,7 +592,7 @@ namespace madness {
         
     private:
         Barrier* barrier;     //< Barrier, only allocated for multithreaded tasks
-    	MADATOMIC_INT count;  //< Used to count threads as they start
+    	AtomicInt count;  //< Used to count threads as they start
         
     	/// Returns true for the one thread that should invoke the destructor
     	bool run_multi_threaded() {
@@ -605,7 +606,7 @@ namespace madness {
                 return true;
             }
             else {
-                int id = MADATOMIC_INT_READ_AND_INC(&count);
+                int id = count++;
                 volatile bool barrier_flag;
                 barrier->register_thread(id, &barrier_flag);
 
@@ -620,7 +621,7 @@ namespace madness {
             : TaskAttributes()
             , barrier(0) 
         {
-            MADATOMIC_INT_SET(&count, 0);
+            count = 0;
         }
 
         explicit PoolTaskInterface(const TaskAttributes& attr)
@@ -628,7 +629,7 @@ namespace madness {
             , barrier(attr.get_nthread()>1 ? new Barrier(attr.get_nthread()) : 0)
 
         {
-            MADATOMIC_INT_SET(&count, 0);
+            count = 0;
         }
 
         /// Call this to reset the number of threads before the task is submitted
@@ -681,13 +682,13 @@ namespace madness {
         DQueue<PoolTaskInterface*> queue; ///< Queue of tasks
         int nthreads;		  ///< No. of threads
         volatile bool finish;              ///< Set to true when time to stop
-        MADATOMIC_INT nfinished;
+        AtomicInt nfinished;
 
         static ThreadPool* instance_ptr;
 
         /// The constructor is private to enforce the singleton model
         ThreadPool(int nthread=-1) : nthreads(nthread), finish(false) {
-            MADATOMIC_INT_SET(&nfinished,0);
+            nfinished = 0;
             instance_ptr = this;
             if (nthreads < 0) nthreads = default_nthread();
             //std::cout << "POOL " << nthreads << std::endl;
@@ -771,7 +772,7 @@ namespace madness {
                 run_task(true);
             }
 #endif
-            MADATOMIC_INT_INC(&nfinished);
+            nfinished++;
         }
 
         /// Forwards thread to bound member function
@@ -800,7 +801,7 @@ namespace madness {
             for (int i=0; i<instance()->nthreads; i++) {
                 add(new PoolTaskNull);
             }
-            while (MADATOMIC_INT_GET(&instance()->nfinished) != instance()->nthreads);
+            while (instance_ptr->nfinished != instance_ptr->nthreads);
         }
 
         /// Add a new task to the pool

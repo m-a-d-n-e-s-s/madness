@@ -167,10 +167,10 @@ namespace madness {
     private:
         World& world;              ///< The communication context
         const ProcessID me;        ///< This process
-        MADATOMIC_INT nregistered; ///< Counts pending tasks
+        AtomicInt nregistered;     ///< Counts pending tasks
 
         void notify() {
-            MADATOMIC_INT_DEC(&nregistered);
+            nregistered--;
         }
 
         // Used in for_each kernel to check completion
@@ -191,12 +191,12 @@ namespace madness {
         WorldTaskQueue(World& world)
                 : world(world)
                 , me(world.mpi.rank()) {
-            MADATOMIC_INT_SET(&nregistered, 0);
+            nregistered = 0;
         }
 
         /// Returns the number of pending tasks
         size_t size() const {
-            return MADATOMIC_INT_GET(&nregistered);
+            return nregistered;
         }
 
         /// Add a new local task taking ownership of the pointer
@@ -209,7 +209,7 @@ namespace madness {
         /// task_complete_callback to decrement the number of pending
         /// tasks and be deleted.
         void add(TaskInterface* t) {
-            MADATOMIC_INT_INC(&nregistered); // Count
+            nregistered++;
 
             t->set_info(&world, this);       // Stuff info
 
@@ -699,7 +699,7 @@ namespace madness {
             do {
                 world.await(tester);
             }
-            while (MADATOMIC_INT_GET(&nregistered));
+            while (nregistered);
         }
     };
 

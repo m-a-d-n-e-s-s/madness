@@ -72,7 +72,6 @@ namespace madness {
 }
 
 #include <world/worldtime.h>
-#include <world/madatomic.h>
 #include <world/worldthread.h>
 #include <world/worldrmi.h>
 #include <world/typestuff.h>

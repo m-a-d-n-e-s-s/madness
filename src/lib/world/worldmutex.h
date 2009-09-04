@@ -31,9 +31,9 @@ inline void pthread_spin_destroy(pthread_spinlock_t* p) {}
 #include <unistd.h>
 #include <utility>
 #include <vector>
-#include <world/madatomic.h>
 #include <world/nodefaults.h>
 #include <world/worldtime.h>
+#include <world/atomicint.h>
 
 /// \file worldmutex.h
 /// \brief Implements Mutex, MutexFair, Spinlock, ConditionVariable
@@ -467,7 +467,7 @@ namespace madness {
     class Barrier {
         const int nthread;
         volatile bool sense;
-        MADATOMIC_INT nworking;
+        AtomicInt nworking;
         volatile bool* pflags[64];
         
     public:
@@ -475,7 +475,7 @@ namespace madness {
             : nthread(nthread)
             , sense(true)
         {
-            MADATOMIC_INT_SET(&nworking, nthread);
+            nworking = nthread;
         }
         
         /// Each thread calls this once before first use
@@ -500,11 +500,12 @@ namespace madness {
             else {
                 if (id > 63) throw "Barrier : hard dimension failed";
                 bool lsense = sense; // Local copy of sense
-                bool result = MADATOMIC_INT_DEC_AND_TEST(&nworking);
+                bool result = nworking.dec_and_test();
                 if (result) {
                     // Reset counter and sense for next entry
-                    MADATOMIC_INT_SET(&nworking, nthread); 
+                    nworking = nthread;
                     sense = !sense;
+                    __asm__ __volatile__("" : : : "memory");
 
                     // Notify everyone including me
                     for (int i = 0; i < nthread; i++)

@@ -42,6 +42,7 @@
 #include <world/array.h>
 #include <world/print.h>
 #include <world/worldthread.h>
+#include <world/atomicint.h>
 
 namespace madness {
 
@@ -50,14 +51,14 @@ namespace madness {
     public:
         virtual void notify() = 0;
 
-        virtual ~CallbackInterface() {};
+        virtual ~CallbackInterface() {}
     };
 
 
     /// Provides interface for tracking dependencies
     class DependencyInterface : public CallbackInterface, private Spinlock {
     private:
-        MADATOMIC_INT ndepend;   ///< Counts dependencies
+        AtomicInt ndepend;   ///< Counts dependencies
         
         static const int MAXCALLBACKS = 8;
         typedef Stack<CallbackInterface*,MAXCALLBACKS> callbackT;
@@ -80,24 +81,26 @@ namespace madness {
         };
 
     public:
-        DependencyInterface(int ndep = 0) : ndepend(ndep) {};
+        DependencyInterface(int ndep = 0) {
+            ndepend = ndep;
+        }
 
 
         /// Returns the number of unsatisfied dependencies
         int ndep() const {
-            return MADATOMIC_INT_GET(&ndepend);
+            return ndepend;
         }
 
         /// Returns true if ndepend == 0
         bool probe() const {
             return ndep() == 0;
-        };
+        }
 
 
         /// Invoked by callbacks to notifiy of dependencies being satisfied
         void notify() {
             dec();
-        };
+        }
 
 
         /// Registers a callback for when ndepend=0
@@ -107,22 +110,22 @@ namespace madness {
             ScopedMutex<Spinlock> hold(this);
             const_cast<callbackT&>(this->callbacks).push(callback);
             if (ndep() == 0) do_callbacks();
-        };
+        }
 
 
         /// Increment the number of dependencies
         void inc() {
-            MADATOMIC_INT_INC(&ndepend);
-        };
+            ndepend++;
+        }
 
 
         /// Decrement the number of dependencies and invoke callback if ndepend=0
         void dec() {
-            if (MADATOMIC_INT_DEC_AND_TEST(&ndepend)) {
+            if (ndepend.dec_and_test()) {
                 ScopedMutex<Spinlock> hold(this);
                 do_callbacks();
             }
-        };
+        }
 
 
         virtual ~DependencyInterface() {
@@ -138,10 +141,10 @@ namespace madness {
             ScopedMutex<Spinlock> hold(this);
 
             // Paranoia is good
-            if (MADATOMIC_INT_GET(&ndepend)) {
-                print("DependencyInterface: destructor with ndepend =",MADATOMIC_INT_GET(&ndepend),"?");
+            if (ndepend) {
+                print("DependencyInterface: destructor with ndepend =",ndepend,"?");
             }
-        };
+        }
     };
 }
 #endif

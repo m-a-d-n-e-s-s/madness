@@ -1,6 +1,7 @@
 #include <world/worldhash.h>
 #include <world/worldhashmap.h>
 #include <world/worldtime.h>
+#include <world/atomicint.h>
 #include <iostream>
 #include <ctime>
 #include <cstdlib>
@@ -197,7 +198,7 @@ void test_random() {
     }
 }
 
-MADATOMIC_INT ndone = MADATOMIC_INITIALIZE(0);
+madness::AtomicInt ndone;
 
 class Worker : public madness::ThreadBase {
 private:
@@ -214,7 +215,7 @@ public:
     void run() {
         do_test_random(a, count, sum);
 
-        MADATOMIC_INT_INC(&ndone);
+        ndone++;
     }
 };
 
@@ -229,9 +230,11 @@ void test_thread() {
     size_t counts[nthread];
     double sums[nthread];
 
+    ndone = 0;
+
     Worker worker1(a,counts[0],sums[0]);
     Worker worker2(a,counts[1],sums[1]);
-    while (MADATOMIC_INT_GET(&ndone) != 2) sched_yield();
+    while (ndone != 2) sched_yield();
 
     size_t count = 0;
     double sum = 0;
@@ -272,7 +275,7 @@ public:
             r->second++;
         }
 
-        MADATOMIC_INT_INC(&ndone);
+        ndone++;
     }
 };
 
@@ -282,7 +285,7 @@ void test_accessors() {
     typedef ConcurrentHashMap<int,double>::datumT datumT;
     typedef ConcurrentHashMap<int,double>::accessor accessorT;
 
-    MADATOMIC_INT_SET(&ndone, 0);
+    ndone = 0;
 
     accessorT result;
     if (a.find(result,1)) throw "should not have found this";
@@ -298,7 +301,7 @@ void test_accessors() {
 
     Peasant a1(a),a2(a);
     result.release();
-    while (MADATOMIC_INT_GET(&ndone) != 2) sched_yield();
+    while (ndone != 2) sched_yield();
 
     if (a[1] != 20000000) throw "Ooops";
 }

@@ -43,7 +43,7 @@
 
 #include <iostream>
 #include <world/worldexc.h>
-#include <world/madatomic.h>
+#include <world/atomicint.h>
 
 #include <unistd.h>
 
@@ -52,36 +52,29 @@ namespace madness {
     /// A SharedCounter counts references to each SharedArray or SharedPtr
     class SharedCounter {
     private:
-        MADATOMIC_INT count;
+        madness::AtomicInt count;
         SharedCounter(const SharedCounter& x); // verboten
         void operator=(const SharedCounter& x); // verboten
 
     public:
-#ifdef IBMXLC
+        /// Makes a counter with initial value 1
         SharedCounter() {
-            MADATOMIC_INT_SET(&count,1);
-        };
-#else
-        SharedCounter() : count(1) {}
-#endif
+            count = 1;
+        }
 
         /// Get the count
-        inline int get() {
-            return MADATOMIC_INT_GET(&count);
-            //return count;
+        int get() {
+            return count;
         }
 
         /// Increment the count
-        inline void inc() {
-            MADATOMIC_INT_INC(&count);
-            //count++;
+        void inc() {
+            count++;
         }
 
         /// Decrement the count and return true if the decremented value is zero
-        inline bool dec_and_test() {
-            return MADATOMIC_INT_DEC_AND_TEST(&count);
-            //count--;
-            //return count==0;
+        bool dec_and_test() {
+            return count.dec_and_test();
         }
     };
 
@@ -89,13 +82,13 @@ namespace madness {
     namespace detail {
         /// Function to delete arrays for shared pointers
         template <typename T>
-        inline static void del_array(T* t) {
+        static void del_array(T* t) {
             delete [] t;
         }
 
         /// Function to delete memory using free()
         template <typename T>
-        inline static void del_free(T* t) {
+        static void del_free(T* t) {
             free(t);
         }
     }
@@ -228,63 +221,63 @@ namespace madness {
         }
 
         /// Returns number of references
-        inline int use_count() const {
+        int use_count() const {
             if (count) return count->get();
             else return 0;
         }
 
         /// Returns the value of the pointer
-        inline T* get() const {
+        T* get() const {
             return p;
         }
 
         /// Returns true if the SharedPtr owns the pointer
-        inline bool owned() const {
+        bool owned() const {
             return own;
         }
 
         /// Cast of SharedPtr<T> to T* returns the value of the pointer
-        inline operator T*() const {
+        operator T*() const {
             return p;
         }
 
         /// Return pointer+offset
-        inline T* operator+(long offset) const {
+        T* operator+(long offset) const {
             return p+offset;
         }
 
         /// Return pointer-offset
-        inline T* operator-(long offset) const {
+        T* operator-(long offset) const {
             return p-offset;
         }
 
         /// Dereferencing SharedPtr<T> returns a reference to pointed value
-        inline T& operator*() const {
+        T& operator*() const {
             return *p;
         }
 
         /// Member access via pointer works as expected
-        inline T* operator->() const {
+        T* operator->() const {
             return p;
         }
 
         /// Array indexing returns reference to indexed value
-        inline T& operator[](long index) const {
+        T& operator[](long index) const {
             return p[index];
         }
 
         /// Boolean value (test for null pointer)
-        inline operator bool() const {
+        operator bool() const {
             return p;
         }
 
         /// Are two pointers equal?
-        inline bool operator==(const SharedPtr<T>& other) const {
+        bool operator==(const SharedPtr<T>& other) const {
             return p == other.p;
         }
 
         /// Are two pointers not equal?
-        inline bool operator!=(const SharedPtr<T>& other) const {
+        bool operator!=(const SharedPtr<T>& other) const {
             return p != other.p;
         }
 

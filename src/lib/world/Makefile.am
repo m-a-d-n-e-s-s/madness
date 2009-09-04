@@ -1,6 +1,7 @@
 include $(top_srcdir)/config/MakeGlobal.am
 
-bin_PROGRAMS = world testatom testhashthreaded testdc objexample objexample2 testprof helloworld taskexample
+bin_PROGRAMS = world testhashthreaded testdc objexample objexample2 testprof helloworld taskexample testatomicint
+
 lib_LIBRARIES = libMADworld.a
 
 thisincludedir = $(includedir)/world
@@ -9,7 +10,7 @@ thisinclude_HEADERS = archive.h print.h      worldam.h       worldfut.h   worldm
                      binfsar.h  mpiar.h       textfsar.h   worlddc.h       world.h      worldprofile.h  worldtime.h \
                      bufar.h    nodefaults.h  typestuff.h  worlddep.h      worldhash.h  worldref.h      worldtypes.h \
                      dqueue.h   parar.h       vecar.h      worldexc.h      worldmem.h   worldser.h \
-                     worldthread.h madatomic.h worldrmi.h safempi.h worldpapi.h worldmutex.h print_seq.h \
+                     worldthread.h worldrmi.h safempi.h worldpapi.h worldmutex.h print_seq.h \
                      worldhashmap.h          worldrange.h
 
 testprof_SOURCES = testprof.cc
@@ -21,8 +22,8 @@ taskexample_LDADD = libMADworld.a
 helloworld_SOURCES = helloworld.cc
 helloworld_LDADD = libMADworld.a
 
-testatom_SOURCES = testatom.cc threadpool.cc
-testatom_LDADD = libMADworld.a
+testatomicint_SOURCES = testatomicint.cc threadpool.cc
+testatomicint_LDADD = libMADworld.a
 
 objexample_SOURCES = objexample.cc threadpool.cc
 objexample_LDADD = libMADworld.a
@@ -48,7 +49,7 @@ libMADworld_a_SOURCES = worldstuff.cc redirectio.cc archive_type_names.cc debug.
                      binfsar.h  mpiar.h       textfsar.h   worlddc.h       world.h      worldprofile.h  worldtime.h \
                      bufar.h    nodefaults.h  typestuff.h  worlddep.h      worldhash.h  worldref.h      worldtypes.h \
                      dqueue.h   parar.h       vecar.h      worldexc.h      worldmem.h   worldser.h \
-                     worldthread.h madatomic.h worldrmi.h safempi.h worldpapi.h worldmutex.h print_seq.h
+                     worldthread.h atomicint.h worldrmi.h safempi.h worldpapi.h worldmutex.h print_seq.h
 
 
 LIBRARIES:	$(lib_LIBRARIES)

@@ -47,7 +47,7 @@
 namespace madness {
 
 #ifdef TENSOR_INSTANCE_COUNT
-    MADATOMIC_INT BaseTensor::instance_count = MADATOMIC_INITIALIZE(0);
+    MADATOMIC_INT BaseTensor::instance_count;
 #endif
 
     void BaseTensor::set_dims_and_size(long nd, const long d[]) {

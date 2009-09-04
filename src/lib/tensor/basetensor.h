@@ -44,7 +44,7 @@
 #include <tensor/tensor_macros.h>
 
 #ifdef TENSOR_INSTANCE_COUNT
-#include <world/madatomic.h>
+#include <world/atomicint.h>
 #endif
 
 namespace madness {
@@ -71,7 +71,7 @@ namespace madness {
     class BaseTensor {
     private:
 #ifdef TENSOR_INSTANCE_COUNT
-        static MADATOMIC_INT instance_count;	///< For debug, count total# instances
+        static madness::AtomicInt instance_count; ///< For debug, count total# instances
 #endif
 
     protected:
@@ -86,10 +86,10 @@ namespace madness {
 
 #ifdef TENSOR_INSTANCE_COUNT
         BaseTensor() {
-            MADATOMIC_INT_INC(&instance_count);
+            instance_count++;
         };
         virtual ~BaseTensor() {
-            MADATOMIC_INT_DEC(&instance_count);
+            instance_count--;
         };
 #else
         BaseTensor() {};
@@ -102,7 +102,7 @@ namespace madness {
         /// Returns the count of all current instances of tensors & slice tensors of all types.
 #ifdef TENSOR_INSTANCE_COUNT
         static inline int get_instance_count() {
-            return MADATOMIC_INT_GET(&instance_count);
+            return instance_count;
         };
 #else
         static inline int get_instance_count() {

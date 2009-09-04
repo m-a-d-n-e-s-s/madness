@@ -14,7 +14,6 @@
 
 #include <world/worldthread.h>
 #include <world/worldexc.h>
-#include <world/madatomic.h>
 #include <world/worldhash.h>
 #include <new>
 #include <iostream>
