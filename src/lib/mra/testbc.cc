@@ -128,7 +128,7 @@ int main(int argc, char**argv) {
 
         // MADNESS simulation parameters
         const int k = 6;
-        const double thresh = 1e-3;
+        const double thresh = 1e-5;
         const double L = 4.0;
 
         // Boundary width
@@ -143,30 +143,31 @@ int main(int argc, char**argv) {
         FunctionDefaults<3>::set_cubic_cell(-L,L);
         FunctionDefaults<3>::set_k(k);
         FunctionDefaults<3>::set_thresh(thresh);
-        FunctionDefaults<3>::set_initial_level(5);
+        FunctionDefaults<3>::set_initial_level(3);
         FunctionDefaults<3>::set_refine(true);
         FunctionDefaults<3>::set_autorefine(false);
-        FunctionDefaults<3>::set_truncate_mode(0);
+        FunctionDefaults<3>::set_truncate_mode(1);
         FunctionDefaults<3>::set_truncate_on_project(true);
 
         // Inner and outer shells
         functionT spha = factoryT(world).functor(functorT(new Sphere(coordT(), 1.0, sigma)));
         functionT sphb = factoryT(world).functor(functorT(new Sphere(coordT(), 3.0, sigma)));
 
-        functionT dspha = factoryT(world).functor(functorT(new DSphere(coordT(), 1.0, sigma)));
-        functionT dsphb = factoryT(world).functor(functorT(new DSphere(coordT(), 3.0, sigma)));
+        //functionT dspha = factoryT(world).functor(functorT(new DSphere(coordT(), 1.0, sigma)));
+        //functionT dsphb = factoryT(world).functor(functorT(new DSphere(coordT(), 3.0, sigma)));
 
         print("inner shell norm", spha.norm2());
         print("outer shell norm", sphb.norm2());
 
-        functionT phi = spha + sphb;      // Delta function at the boundary
-        functionT u0 = -1.0*spha + sphb;  // The desired boundary conditions * phi
-        functionT du0= -1.0*dspha + dsphb;  // The desired boundary conditions * phi
-        dspha.clear(); dsphb.clear();
+        functionT phi = 3.0*spha + sphb;      // Delta function at the boundary
+        functionT u0 = -3.0*spha + sphb;      // The desired boundary conditions * phi
+        //functionT du0= -1.0*dspha + dsphb;  // The desired boundary conditions * phi
+        //dspha.clear(); dsphb.clear();
+        spha.clear(); sphb.clear();
 
         phi.truncate(thresh*0.1);
         u0.truncate(thresh*0.1);
-        du0.truncate(thresh*0.1);
+        //du0.truncate(thresh*0.1);
 
         plot_line("phi.dat", npt, lo, hi, phi);
         plot_line("u0.dat", npt, lo, hi, u0);
@@ -174,20 +175,20 @@ int main(int argc, char**argv) {
         operatorT op = CoulombOperator<double>(world, k, sigma*0.1, thresh);
         // Starting values
         double mu = 0.25;
-        functionT f = 1.0*u0; //-1.0*du0;
-        du0.clear();
-        functionT lambda = f;  // lambda is actually lambdaphi
+        functionT f = u0; //
+        //du0.clear();
+        //        functionT lambda = f;  // lambda is actually lambdaphi
 
         functionT u; // This will be current solution
         functionT c; // This will be the value of the constraint
 
-        for (int muiter=0; muiter<4; muiter++) {
-            for (int lamiter=0; lamiter<5; lamiter++) {
+        for (int muiter=0; muiter<5; muiter++) {
+            //            for (int lamiter=0; lamiter<20; lamiter++) {
                 vecfuncT rvec;
                 vecfuncT fvec;
                 vector<double> rnorms;
                 tensorT Q;
-                for (int m=0; m<15; m++) {
+                for (int m=0; m<20; m++) {
                     f.truncate();
                     fvec.push_back(f);
                     u = apply(op, fvec[m]); 
@@ -197,7 +198,8 @@ int main(int argc, char**argv) {
                     c = u*phi - u0; // Constraint violation
                     double cnorm = c.norm2();
                     
-                    rvec.push_back(fvec[m] - (lambda - phi*c*(1.0/mu))); // Residual
+                    //                    rvec.push_back(fvec[m] - lambda + (phi*c)*(1.0/mu)); // Residual AugLag
+                    rvec.push_back(fvec[m] + phi*c*(1.0/mu)); // Residual QuadPen
                     rvec.back().truncate();
                     double rnorm = rvec[m].norm2();
                     rnorms.push_back(rnorm);
@@ -229,8 +231,8 @@ int main(int argc, char**argv) {
                     double snorm = (f - fvec[m]).norm2();
                     double fnorm = fvec[m].norm2();
                     
-                    if (snorm > fnorm*0.5) {
-                        double damp = fnorm*0.5/snorm;
+                    if (snorm > fnorm*0.3) {
+                        double damp = fnorm*0.3/snorm;
                         print("    damping", damp);
                         f.gaxpy(damp, fvec[m], 1.0-damp);
                     }
@@ -238,26 +240,32 @@ int main(int argc, char**argv) {
                     
                     print("    iteration", m, "mu", mu, "fnorm", fnorm, "snorm", snorm, "rnorm", rnorm, "cnorm", cnorm);
                     
-                    if (rnorm < 0.5) {
+                    if (snorm < 0.1*cnorm) {
                         // Current solution will be in f
                         break;
                     }
                 }
 
-                plot_line("c.dat", npt, lo, hi, c);
-                plot_line("u.dat", npt, lo, hi, u);
-                plot_line("f.dat", npt, lo, hi, f);
-                plot_line("lambda.dat", npt, lo, hi, lambda);
+                char fname[256];
+                int lamiter = 0;
+                sprintf(fname, "c-%2.2d-%2.2d.dat", lamiter, muiter);
+                plot_line(fname, npt, lo, hi, c);
+                sprintf(fname, "u-%2.2d-%2.2d.dat", lamiter, muiter);
+                plot_line(fname, npt, lo, hi, u);
+                sprintf(fname, "f-%2.2d-%2.2d.dat", lamiter, muiter);
+                plot_line(fname, npt, lo, hi, f);
+//                 sprintf(fname, "l-%2.2d-%2.2d.dat", lamiter, muiter);
+//                 plot_line(fname, npt, lo, hi, lambda);
 
-                double damp = 1.0;
-                functionT lambdanew = lambda - phi* c * (damp/mu);
+//                 double damp = 1.0;
+//                 functionT lambdanew = lambda - phi* c * (damp/mu);
 
-                print("\nupdating lambda", lamiter, (lambdanew-lambda).norm2());
-                lambda = lambdanew;
-                lambda.truncate();
-            }
+//                 print("\nupdating lambda", lamiter, (lambdanew-lambda).norm2());
+//                 lambda = lambdanew;
+//                 lambda.truncate();
+//             }
             mu *= 0.5;
-            lambda = phi* c * (1.0/mu);
+//             lambda = f + phi * c * (1.0/mu);
             print("\nupdating mu", muiter, mu);
         }
         
