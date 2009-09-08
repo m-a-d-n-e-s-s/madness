@@ -17,39 +17,41 @@ int main(int argc, char** argv)
         FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap(world)));
 
 
-        // Process 0 reads input information and broadcasts
-        ElectronicStructureApp app(world, "input");
+//        // Process 0 reads input information and broadcasts
+//        ElectronicStructureApp app(world, "input");
+//
+//        // Warm and fuzzy for the user
+//        if (world.rank() == 0) {
+//            print("\n\n");
+//            print(" MADNESS Hartree-Fock and Density Functional Theory Program");
+//            print(" ----------------------------------------------------------\n");
+//            print("\n");
+//            app.entity().print();
+//            print("\n");
+//            //app.params().print(world);
+//        }
+//
+//        app.make_nuclear_potential();
+//        app.initial_guess();
+//        ElectronicStructureParams params = app.params();
+//        Function<double,3> vnucrhon = app.vnucrhon();
+//        vecfuncT orbs = app.orbitals();
+//        std::vector<double> eigs;
+//        std::vector< Function< std::complex<double>,3> > phis;
+//        std::vector<double> tmpe = app.eigs();
+//        print(tmpe);
+//        int neps = eigs.size();
+//        for (int i = 0; i < neps; i++)
+//        {
+//          phis.push_back(orbs[i]);
+//          eigs.push_back(tmpe[i]);
+//        }
+//
+//        Solver<double,3> dftcalc(world, vnucrhon, app.orbitals(), app.eigs(),
+//                                 app.kpoints(), app.occs(), app.params(),
+//                                 app.entity());
 
-        // Warm and fuzzy for the user
-        if (world.rank() == 0) {
-            print("\n\n");
-            print(" MADNESS Hartree-Fock and Density Functional Theory Program");
-            print(" ----------------------------------------------------------\n");
-            print("\n");
-            app.entity().print();
-            print("\n");
-            //app.params().print(world);
-        }
-
-        app.make_nuclear_potential();
-        app.initial_guess();
-        ElectronicStructureParams params = app.params();
-        Function<double,3> vnucrhon = app.vnucrhon();
-        vecfuncT orbs = app.orbitals();
-        std::vector<double> eigs;
-        std::vector< Function< std::complex<double>,3> > phis;
-        std::vector<double> tmpe = app.eigs();
-        print(tmpe);
-        int neps = eigs.size();
-        for (int i = 0; i < neps; i++)
-        {
-          phis.push_back(orbs[i]);
-          eigs.push_back(tmpe[i]);
-        }
-
-        Solver<double,3> dftcalc(world, vnucrhon, app.orbitals(), app.eigs(), 
-                                 app.kpoints(), app.occs(), app.params(),
-                                 app.entity());
+        Solver<double,3> dftcalc(world, "input");
         dftcalc.solve();
         world.gop.fence();
 

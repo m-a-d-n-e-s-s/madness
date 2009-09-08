@@ -131,13 +131,13 @@ public:
     r[0]=x; r[1]=y; r[2]=z;
     _specialpts=vector<coordT>(1,r);
 
+    double t1 = 1/sqrt(27);
     for (int ir = -1; ir <= 1; ir += 1)
     {
       const double TWO_PI = 2 * madness::constants::pi;
 //      tx[ir+1] = exp(std::complex<double>(0.0, kpt.k[0]*ir * R));
 //      ty[ir+1] = exp(std::complex<double>(0.0, kpt.k[1]*ir * R));
 //      tz[ir+1] = exp(std::complex<double>(0.0, kpt.k[2]*ir * R));
-      double t1 = 1/sqrt(27);
       tx[ir+1] = 1.0 * t1;
       ty[ir+1] = 1.0 * t1;
       tz[ir+1] = 1.0 * t1;
