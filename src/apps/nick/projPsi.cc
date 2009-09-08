@@ -3,10 +3,13 @@
 /***************************************************************************************
  * By: Nick Vence
  * This code must handled with care for the following reasons:
- * 1) It uses the Gnu Scientific Library      http://www.gnu.org/software/gsl/
- *    MADNESS should be reconfigured to include these libraries
- *    ./configure LIBS="-lgsl -lgslblas"
- * 2) Consult the note above each funciton for specific information:
+ * 1) It uses the following Libraries:
+ *    GNU Scientific Library      http://www.gnu.org/software/gsl/
+ *    GNU Multiprecision Library  http://www.gmplib.org/
+ *    MultiPrecision Floating point (with correct Rounding)  http://www.mpfr.org/
+ *    MADNESS needs to be configured with
+ *    ./configure LIBS="-lgsl -lgslblas -lmpfr -lgmp"
+ * 2) Is designed modularly. Uncomment the desired functions as desired
  *    projectPsi: Loads wave functions from disk, projects them onto an arbitrary basis
  *    projectZdip:For perturbation calculations
  *    printBasis: For debugging purposes
