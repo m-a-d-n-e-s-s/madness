@@ -17,13 +17,14 @@
  * 3) k (The wavelet order) must be the same as the projected functions: see main()
  *    12 has been the default
  ***************************************************************************************/
-#include <mra/mra.h>
-#include <complex>
-#include <iostream>
+#include <world/world.h>
+#include "wavef.h"
+//#include <mra/mra.h>
+//#include <complex>
+//#include <iostream>
 #include <string>
 #include <fstream>
 using std::ofstream;
-#include "wavef.h"
 #include <stdlib.h>
 #define PRINT(str) if(world.rank()==0) cout << str 
 #define PRINTLINE(str) if(world.rank()==0) cout << str << endl
@@ -328,7 +329,7 @@ int main(int argc, char**argv) {
     double L = 10.0;
     loadParameters(world, k, L);
     FunctionDefaults<NDIM>::set_k(k);               // Wavelet order
-    FunctionDefaults<NDIM>::set_thresh(1e-4);       // Accuracy
+    FunctionDefaults<NDIM>::set_thresh(1e-2);       // Accuracy
     FunctionDefaults<NDIM>::set_cubic_cell(-L, L);
     FunctionDefaults<NDIM>::set_initial_level(3);
     FunctionDefaults<NDIM>::set_apply_randomize(false);
@@ -337,6 +338,7 @@ int main(int argc, char**argv) {
     FunctionDefaults<NDIM>::set_truncate_mode(0);
     FunctionDefaults<NDIM>::set_truncate_on_project(true);
     try {
+        PRINTLINE("Inside try");
         std::vector<WF> basisList;
         double dARR[3] = {0, 0, 0.5};
         vector3D rVec(dARR);
@@ -355,9 +357,9 @@ int main(int argc, char**argv) {
 
         loadBasis(world,basisList);
         //belkic(world);
-        projectZdip(world, basisList);
+        //projectZdip(world, basisList);
         //        printBasis(world);
-        //projectPsi(world, basisList);         
+        projectPsi(world, basisList);         
         world.gop.fence();
         if (world.rank() == 0) {
 //             world.am.print_stats();

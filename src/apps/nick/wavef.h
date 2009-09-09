@@ -13,7 +13,6 @@
  *        mpfr                            http://www.mpfr.org/
  * By:    Nick Vence
  ************************************************************************/
-//#include <misc/interpolation_1d.h>
 #include <mra/mra.h>
 #include "interp.h"
 #include <complex>
