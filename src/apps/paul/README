@@ -1,0 +1,70 @@
+****************************************************************************
+ABOUT
+
+This directory contains 3 problems designed to test load balancing: tdselb, 
+bigboylb, and testshqi.
+
+For ease in testing, there are three executables for each problem, labeled
+by lb0, lb1, and lb1. lb0 means no load balancing, lb1 is constant-cost
+load balancing, and lb2 is full load balancing with node costs determined 
+by the computational time taken in "apply" and "mul" operations.
+
+The files tdselb_lb0, tdselb_lb1, and tdselb_l23 just link to the 
+single tdselb executable, since 
+we can control the load balancing mode through the input file.
+
+The two scripts makeBigBoyRuns and makeTestsHqiRuns change the LBMODE 
+parameter in the code and re-compile, creating the three lb versions. 
+for testshqi, we are comparing lb0 to lb1 or lb2 in the same run, 
+so we only need to create lb1 and lb2 versions.
+
+
+****************************************************************************
+USING THE TIMERS
+
+The following lines with create the LBTimer object, give the timers
+the same process map as the function nodes (necessary to minimize 
+communication), and enable the timers:
+
+typedef Singleton< LBTimer<3> > CostFun;
+CostFun::Instance(world).init(FunctionDefaults<3>::get_pmap());
+CostFun::Instance(world).set_master_status(true);
+
+The above assume a three-dimensional problem. We use a singleton class 
+(hence the "Instance") to ensure that there is only a single timer object. 
+
+We can load balance based on the accumulated times by:
+
+CostFun::Instance(world).compute_min_cost();
+LoadBalImpl<3> lb(somefunc, CostFun::Instance(world));
+FunctionDefaults<3>::set_pmap(lb.load_balance());
+somefunc = copy(somefunc, FunctionDefaults<3>::get_pmap(), true);
+CostFun::Instance(world).remap(FunctionDefaults<3>::get_pmap(), true, true);
+CostFun::Instance(world).reset();
+
+We need to remap our timers, just like the functions. If the second argument 
+in remap is true, we will preserve the timers when remapping; otherwise, they 
+will be destroyed. There is a small cost when creating timers, so it is 
+best to preserve the timers when remapping, then simply reset them.
+
+There are many ways you can modify the timers to tweak load balancing. 
+for example, we can prevent a timer from accumulating:
+
+CostFun::Instance(world).set_status("mul", false);
+
+or change the weighting in the cost function:
+
+CostFun::Instance(world).set_weight("apply", 20.0);
+
+or change the minimum cost:
+
+Costfun::Instance(world).set_min_cost(10.0);.
+
+Note that "set_status" and "set_weight" are *retroactive*, i.e. they only 
+affect nodes that already have that timer associated with them. 
+
+You can also get a summary of the timers:
+
+CostFun::Instance(world).print_timing_stats(int step); 
+
+See the LBTimer class in lib/mra/funcimpl.h for more functions. 
