@@ -1455,6 +1455,26 @@ namespace madness {
         }
         
     }
+
+    template <>
+    void mTxmq(long dimi, long dimj, long dimk,
+               double_complex* restrict c, const double_complex* a, const double* b) {
+        PROFILE_BLOCK(mTxmq_complex_slow);
+        for (long i=0; i<dimi; i++,c+=dimj,a++) {
+            for (long j=0; j<dimj; j++) c[j] = 0.0;
+            const double_complex *ai = a;
+            for (long k=0; k<dimk; k++,ai+=dimi) {
+                const double_complex aki = *ai;
+                for (long j=0; j<dimj; j++) {
+                    c[j] += aki*b[k*dimj+j];
+                }
+            }
+            // double_complex zero(0.0,0.0);
+            // double_complex one(1.0,0.0);
+            // gemm(false, true, dimj, dimi, dimk, one, b, dimj, a, dimi, zero, c, dimj);
+        }
+        
+    }
 }
 #endif
 

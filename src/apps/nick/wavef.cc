@@ -12,9 +12,9 @@
  * By:    Nick Vence
  ************************************************************************/
 
+
 #include "wavef.h"
 #include "hyp.h"
-//#include <misc/interpolation_1d.h>
 #include <gsl/gsl_sf_trig.h>
 #include <gsl/gsl_sf_coulomb.h>
 #include <gsl/gsl_sf_gamma.h>

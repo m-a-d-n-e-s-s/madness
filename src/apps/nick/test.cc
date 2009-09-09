@@ -44,11 +44,6 @@ double toX(int i) {
 int fromX( double xx ) {
     return floor( sqrt(2*n*xx/dx) );
 }
-//Fortran functions
-extern "C" complexd hypergf_(complexd* AA, complexd* BB, complexd* X, 
-			     double* EPS, int* LIMIT, int* KIN, double* ERR, 
-			     int* NITS, double* FPMAX, double* ACC8,
-			     double* ACC16);
 complexd splined1F1(double xx) {
     // Horner's scheme is suppose to be an efficeint method of evaluating
     // polynomials. See Wikipedia for details.
@@ -74,23 +69,6 @@ complexd expmPI_k   = exp(-PI/k);
 complexd expPI_2k   = exp(PI/(2*k));
 complexd gamma1pI_k = gamma(1.0,1/k);
 complexd gammamI_k  = gamma(0.0,-1/k);
-/*********************************************************
- *The function from Barnett's code
- *********************************************************/
-complexd hypergf(complexd XX) {
-    complexd AA = -I/k;
-    complexd BB = one;
-    double ACC8  = DBL_EPSILON;
-    double EPS = 1000.0*ACC8;
-    double ERR = 1000.0*ACC8;
-    int LIMIT  = 20000;
-    int KIND   = 1;      	//Using normal precision in complex artithmetic 
-    int NITS   = 0;
-    double FPMAX = 1E200;
-    double ACC16 = 2E-200;
-    return   hypergf_(&AA, &BB, &XX, &EPS, &LIMIT, &KIND,
-		      &ERR, &NITS, &FPMAX, &ACC8, &ACC16);
-}
 /****************************************************************
  * The asymptotic form of the hypergeometric function given by
  * Abramowitz and Stegun 13.5.1
@@ -130,11 +108,10 @@ complexd aForm3(complexd ZZ) {
 /*********************************************************************************
  * Here is where I splice together my two representations of the hypergeometric
  * function. See personal journal D page 65 for a derivation of the cut off
- * and the "Finding the hypergf - aForm boundary" section of Splines.nb for the 
+ * and the "Finding the series - aForm boundary" section of Splines.nb for the 
  * emperical results
  *********************************************************************************/
 complexd f11(complexd ZZ) {
-    //    if(fabs(imag(ZZ)) <= 19.0 + 7*exp(-6.0*k) ) return hypergf(ZZ);
         if(fabs(imag(ZZ)) <= 40 ) return conhyp(-I/k,one,ZZ);
     else return aForm3(ZZ);
     //return  conhyp(-I/k,one,ZZ);
@@ -201,7 +178,7 @@ int main(int argc, char**argv) {
         dR[j] = (cR[j+1] - cR[j])/(3*h[j]);
         dI[j] = (cI[j+1] - cI[j])/(3*h[j]);
     }
-    ofstream F11, splined, diff, fdiff, CONHYP, HYPERGF;
+    ofstream F11, splined, diff, fdiff, CONHYP;
     F11.open("f11.dat");
     F11.precision(15);
     splined.open("splined.dat");
@@ -212,8 +189,6 @@ int main(int argc, char**argv) {
     fdiff.precision(15);
     CONHYP.open("conhyp.dat");
     CONHYP.precision(15);
-    HYPERGF.open("hypergf.dat");
-    HYPERGF.precision(15);
     // DANGER DANGER
     // I'm not sure why x[0] is being set to 1, but it is.
     // Rather than find out why, I'm going to just set it back to 0.0;
@@ -222,7 +197,6 @@ int main(int argc, char**argv) {
     x[0] = 0.0;
     for(int i=0; i<n; i++) {
         F11     << x[i] << "\t" << aR[i]  << "\t" << aI[i]  << endl;
-        HYPERGF    << x[i] << "\t" << real(hypergf(x[i]))  << "\t" << imag(hypergf(x[i]))  << endl;
     }
     //The spline file is sampled at approximately 7 times as many points
     //to make error calculations easy
@@ -230,8 +204,6 @@ int main(int argc, char**argv) {
 //     for(double r=0; r < range-dx; r += dx/sqrt(50) ) { // Constant Mesh
 //         splined << r << "\t" << real(splined1F1(r)) << "\t" << imag(splined1F1(r)) << endl;
 //         diff    << r << "\t" << diffR(r)            << "\t" << diffI(r)            << endl;
-//         fdiff   << r << "\t" << real(hypergf(-I*r) -  aForm3(-I*r) ) 
-//                 << "\t"      << imag(hypergf(-I*r) -  aForm3(-I*r) )      << endl;
 //     }
     // Variable Mesh
     double r = 0.0;

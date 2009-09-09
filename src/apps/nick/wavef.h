@@ -14,8 +14,8 @@
  * By:    Nick Vence
  ************************************************************************/
 //#include <misc/interpolation_1d.h>
-#include "interp.h"
 #include <mra/mra.h>
+#include "interp.h"
 #include <complex>
 #include <iostream>
 #include <stdio.h>

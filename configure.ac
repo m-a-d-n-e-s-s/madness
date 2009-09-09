@@ -58,7 +58,7 @@ fi
 
 AC_PROG_CC([$MPICC])
 AC_PROG_CXX([$MPICXX])
-AC_PROG_F77([$MPIF90])
+AC_PROG_F77([$MPIF77]) # f90 is a superset of f77
 AC_LANG_CPLUSPLUS
 echo "Compiler choices after 'AC LANG' ... $CXX and $CC"
 
@@ -233,6 +233,7 @@ AC_CONFIG_FILES([
        src/apps/moldft/Makefile
 		 src/apps/moldft/xc/Makefile
        src/apps/hf/Makefile
+	   src/apps/nick/Makefile
     doc/Makefile
     doc/doxygen.cfg
 ])

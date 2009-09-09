@@ -65,6 +65,7 @@ to link against those libraries).  Some examples follow.
      - 32-bit with Intel MKL installed
 
        ./configure LIBS="-L/opt/intel/mkl/10.0.1.014/lib/32 -lmkl -lguide -lpthread -lm"
+       ./configure LIBS="-I/usr/include/gsl -L/opt/intel/mkl/10.0.1.014/lib/32 -lgsl -lgslcblas -lmkl -lguide -lpthread -lm -lmpfr -lgmp"
 
      - 32 or 64 bit using system default BLAS and LAPACK
     

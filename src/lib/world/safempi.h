@@ -186,7 +186,6 @@ namespace SafeMPI {
         //
         // !! All of the routines below call the protected interfaces provided above.
         // !! Please ensure any additional routines follow this convention.
-
         /// Isend one element ... disabled for pointers to reduce accidental misuse.
         template <class T>
         typename madness::enable_if_c< !madness::is_pointer<T>::value, SafeMPI::Request>::type

@@ -8,7 +8,6 @@
 
 
 typedef mpfr::mpreal extended_real;
-typedef mpfr::mpreal extended_real;
 typedef std::complex<extended_real> extended_complex;
 typedef std::complex<double> complexd;
 
