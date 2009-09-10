@@ -1,4 +1,2 @@
-SUBDIRS = examples tdse hf  moldft nick
-
-
-
+SUBDIRS = examples tdse hf  moldft
+ #vnuc
