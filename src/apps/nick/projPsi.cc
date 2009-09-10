@@ -25,6 +25,7 @@
 #include <string>
 #include <fstream>
 using std::ofstream;
+using std::ofstream;
 #include <stdlib.h>
 #define PRINT(str) if(world.rank()==0) cout << str 
 #define PRINTLINE(str) if(world.rank()==0) cout << str << endl
@@ -81,35 +82,27 @@ string toString( const T& a ) {
     o << a[0] << ", " << a[1] << ", " << a[2];
     return o.str();
 }
-void loadDefaultBasis(World& world, std::vector<WF>& stateList) {
+void loadDefaultBasis(World& world, std::vector<WF>& boundList) {
     cout << "Loading the default basis" << endl;
     const int NBSt = 3;    //Number of Bound States
     const int bSt[][3] = { {1,0,0},
                            {2,0,0},
                            {2,1,0} };
-    const int NkSt = 3;    //Number of k States
-    const double kSt[][3]  = { {0.0, 0.0, 0.52}
-                             };
     double Z = 1.0;
     for( int i=0; i<NBSt; i++ ) {
-       stateList.push_back( WF(toString(bSt[i]), 
+       boundList.push_back( WF(toString(bSt[i]), 
                  FunctionFactory<complexd,NDIM>(world).functor(functorT(
                  new BoundWF(Z , bSt[i][0], bSt[i][1], bSt[i][2]) ))));
-    }
-    for( int i=0; i<NkSt; i++ ) {
-        stateList.push_back(WF(toString(kSt[i]), 
-                 FunctionFactory<complexd,NDIM>(world).functor(functorT(
-                 new ScatteringWF(Z, kSt[i]) ))));
     }
     PRINTLINE("Done loading the standard basis");
 }
 
-void loadBasis(World& world, std::vector<WF>& stateList) {
+void loadBasis(World& world, std::vector<WF>& boundList, std::vector<WF>& unboundList) {
     ifstream bound("bound.num");
     ifstream unbound("unbound.num");
     if( ! bound.is_open() && ! unbound.is_open() ) {
         PRINTLINE("bound.num and unbound.num not found");
-        loadDefaultBasis(world,stateList);
+        loadDefaultBasis(world,boundList);//HERE;
     } else {
         double Z = 1.0;
         if(bound.is_open()) {
@@ -122,7 +115,7 @@ void loadBasis(World& world, std::vector<WF>& stateList) {
                 nlm << n << l << m;
                 double start = wall_time();
                 PRINT(nlm.str());                
-                stateList.push_back(WF(nlm.str()+"           ",
+                boundList.push_back(WF(nlm.str()+"           ",
                                        FunctionFactory<complexd,NDIM>(world).
                                        functor(functorT(new BoundWF(Z,n,l,m)))));
                 double used = wall_time() - start;
@@ -144,7 +137,7 @@ void loadBasis(World& world, std::vector<WF>& stateList) {
                 PRINT(kxyz.str());
                 double start = wall_time();
                 const double kvec[] = {kx, ky, kz};
-                stateList.push_back(WF(kxyz.str(),
+                unboundList.push_back(WF(kxyz.str(),
                                        FunctionFactory<complexd,NDIM>(world).
                                        functor(functorT(new ScatteringWF(Z,kvec)))));
                 double used = wall_time() - start;
@@ -185,13 +178,50 @@ void projectZdip(World& world, std::vector<WF> stateList) {
     PRINT("\n");
 }
 
+void csToFile(World& world, std::vector<WF> basisList, WF psi_t, string suffix) {
+    std::vector<WF>::iterator basisI;
+    complexd output;
+    ofstream file;
+    file.open((psi_t.str+"."+suffix).c_str());
+    if( file.is_open() ) {
+        for(basisI = basisList.begin(); basisI !=basisList.end(); basisI++ ) {
+            output = psi_t.func.inner( basisI->func ); 
+            file << basisI->str << "\t" << real(output*conj(output)) << "\n";
+        }
+        file.close();
+    }
+}
+
+void displayToScreen(World& world, std::vector<WF> basisList, std::vector<WF> psiList) {
+    PRINTLINE("The Psi(+) are loaded");
+    PRINTLINE("\t\t|<Psi(+)|basis>|^2 ");
+    complexd output;
+    std::vector<WF>::iterator basisI;
+    std::vector<WF>::iterator psiPlusI;
+    //Display table header
+    PRINT("\t\t");
+    for(psiPlusI=psiList.begin(); psiPlusI != psiList.end(); psiPlusI++) {
+        PRINT("|" << psiPlusI->str << ">\t\t");
+    }
+    //Display table row
+    PRINT("\n");
+    for(basisI = basisList.begin(); basisI !=basisList.end(); basisI++ ) {
+        PRINT("<" << basisI->str << "|" );
+        for(psiPlusI = psiList.begin(); psiPlusI != psiList.end(); psiPlusI++) {
+            output = psiPlusI->func.inner(basisI->func); 
+            PRINT(" " << real(output*conj(output)) << "\t");
+        }
+        PRINT("\n");
+    }
+}
+
 /****************************************************************************
  * The correlation amplitude |<Psi(+)|basis>|^2
  * wf.num                  Integer time step of the Psi(+) to be loaded
  * bound.num               Integer triplets of quantum numbers   2  1  0 
  * unbound.num             Double triplets of momentum kx ky kz  0  0  0.5
  ****************************************************************************/
-void projectPsi(World& world, std::vector<WF> basisList) {
+void projectPsi(World& world, std::vector<WF> boundList, std::vector<WF> unboundList) {
     std::vector<WF> psiList;
     ifstream f("wf.num");
     if(f.is_open()) {
@@ -199,33 +229,26 @@ void projectPsi(World& world, std::vector<WF> basisList) {
         //LOAD Psi(+)
         while(f >> tag) {
             if(wave_function_exists(world, atoi(tag.c_str())) ) {
-                psiList.push_back(WF(tag, wave_function_load(world, atoi(tag.c_str()))));
+                WF psi_t = WF(tag, wave_function_load(world, atoi(tag.c_str())));
+                psiList.push_back(WF(tag, psi_t.func));
+                if( !boundList.empty() )
+                    csToFile(world, boundList, psi_t, "bnd");
+                if( !unboundList.empty() )
+                    csToFile(world, unboundList, psi_t, "unb");
             } else {
                 PRINT("Function: " << tag << " not found"<< endl);
             }
         }
-        f.close();
-        complex_functionT z = complex_factoryT(world).f(zdipole);
-        PRINTLINE("The Psi(+) are loaded");
-        PRINTLINE("\t\t|<Psi(+)|basis>|^2 ");
-        complexd output;
+        //join boundList -> unboundList
+        std::vector<WF> basisList;
         std::vector<WF>::iterator basisI;
-        std::vector<WF>::iterator psiPlusI;
-        //Display table header
-        PRINT("\t\t");
-        for(psiPlusI=psiList.begin(); psiPlusI != psiList.end(); psiPlusI++) {
-            PRINT("|" << psiPlusI->str << ">\t\t");
+        for(basisI = boundList.begin(); basisI != boundList.end(); basisI++) {
+            basisList.push_back(*basisI);
+        } for(basisI = unboundList.begin(); basisI != unboundList.end(); basisI++) {
+            basisList.push_back(*basisI);
         }
-        //Display table row
-        PRINT("\n");
-        for(basisI = basisList.begin(); basisI !=basisList.end(); basisI++ ) {
-            PRINT("<" << basisI->str << "|" );
-            for(psiPlusI = psiList.begin(); psiPlusI != psiList.end(); psiPlusI++) {
-                output = psiPlusI->func.inner(basisI->func); 
-                PRINT(" " << real(output*conj(output)) << "\t");
-            }
-            PRINT("\n");
-        }
+        displayToScreen(world, basisList, psiList);
+        f.close();
     } else {
         PRINTLINE("File: wf.num expected to contain a " 
                   << "list of integers of loadable wave functions");
@@ -338,8 +361,8 @@ int main(int argc, char**argv) {
     FunctionDefaults<NDIM>::set_truncate_mode(0);
     FunctionDefaults<NDIM>::set_truncate_on_project(true);
     try {
-        PRINTLINE("Inside try");
-        std::vector<WF> basisList;
+        std::vector<WF> boundList;
+        std::vector<WF> unboundList;
         double dARR[3] = {0, 0, 0.5};
         vector3D rVec(dARR);
 //         double start = wall_time();
@@ -355,11 +378,11 @@ int main(int argc, char**argv) {
 //         PRINTLINE("\tExp(-Ikr+kDOTr)" << wall_time()-start << " sec"
 //                   << "\t\t Size: " << basisList.back().func.size());
 
-        loadBasis(world,basisList);
+        loadBasis(world,boundList,unboundList);
         //belkic(world);
         //projectZdip(world, basisList);
         //        printBasis(world);
-        projectPsi(world, basisList);         
+        projectPsi(world, boundList, unboundList);         
         world.gop.fence();
         if (world.rank() == 0) {
 //             world.am.print_stats();

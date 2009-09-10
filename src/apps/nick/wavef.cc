@@ -321,7 +321,8 @@ complexd ScatteringWF::operator()(const vector3D& rVec) const {
     double r     = sqrt(rVec[0]*rVec[0] + rVec[1]*rVec[1] + rVec[2]*rVec[2]);
     //print("expPI_2kXgamma1pI_k = ", expPI_2kXgamma1pI_k, "exp(I*kDOTr) =",
     //       exp(I*kDOTr)," f11(-I*(k*r + kDOTr)) =",fit1F1(k*r + kDOTr));
-    return expPI_2kXgamma1pI_k
+    return 0.0634936359342 //  = (2PI)^-(3/2)
+         * expPI_2kXgamma1pI_k
          * exp(I*kDOTr)
          * fit1F1(k*r + kDOTr);
 }
