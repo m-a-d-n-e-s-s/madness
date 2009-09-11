@@ -1,3 +1,4 @@
+#define WORLD_INSTANTIATE_STATIC_TEMPLATES  
 
 /// \file hatom_energy.cc
 /// \brief Compute the energy of the hydrogen atom ground state
@@ -5,7 +6,6 @@
 #include <mra/mra.h>
 
 using namespace madness;
-
 
 double psi(const Vector<double,3>& r) {
   return exp(-sqrt(r[0]*r[0]+r[1]*r[1]+r[2]*r[2]+1e-6));
