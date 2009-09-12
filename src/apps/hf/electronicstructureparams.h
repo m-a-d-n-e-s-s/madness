@@ -32,6 +32,10 @@ struct ElectronicStructureParams
   double thresh;
   // Order of wavelets
   int waveorder;
+  // Max thresh
+  double maxthresh;
+  // Max order of wavelets
+  int maxwaveorder;
   // Number of empty states
   int nempty;
   // Smearing parameter
@@ -57,9 +61,9 @@ struct ElectronicStructureParams
   void serialize(Archive& ar) {
       ar & L & nelec & functional & lo & spinpol &
         periodic & maxits & ispotential & thresh &
-        waveorder & nempty & smear & nbands &
-        ngridk0 & ngridk1 & ngridk2 & maxocc & kpoints &
-        fractional & maxsub & maxrotn & canon;
+        waveorder & maxthresh & maxwaveorder & nempty &
+        smear & nbands & ngridk0 & ngridk1 & ngridk2 &
+        maxocc & kpoints & fractional & maxsub & maxrotn & canon;
   }
 
   ElectronicStructureParams()
@@ -73,8 +77,10 @@ struct ElectronicStructureParams
     periodic = false;
     ispotential = false;
     maxits = 100;
-    thresh = 1e-4;
+    thresh = 1e-8;
     waveorder = 6;
+    maxthresh = 1e-8;
+    maxwaveorder = 6;
     nempty = 2;
     ngridk0 = 1; ngridk1 = 1; ngridk2 = 1;
     maxocc = 2.0;
@@ -201,11 +207,11 @@ struct ElectronicStructureParams
       }
       else if (s == "thresh")
       {
-        f >> thresh;
+        f >> maxthresh;
       }
       else if (s == "waveorder")
       {
-        f >> waveorder;
+        f >> maxwaveorder;
       }
       else if (s == "nempty")
       {

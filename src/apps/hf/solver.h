@@ -856,10 +856,21 @@ namespace madness
     //*************************************************************************
 
     //*************************************************************************
+    void reproject()
+    {
+
+    }
+    //*************************************************************************
+
+    //*************************************************************************
     void solve()
     {
       for (int it = 0; it < _params.maxits; it++)
       {
+        if ((it > 0) && ((it % 4) == 0))
+        {
+          reproject();
+        }
         if (_world.rank() == 0) print("it = ", it);
        
         // Compute density
@@ -952,6 +963,8 @@ namespace madness
         double k1 = kpoint.k[1];
         double k2 = kpoint.k[2];
         // WSTHORNTON
+        // Extract the relevant portion of the list of orbitals and the list of the
+        // V times the orbitals
         vecfuncT k_wf(wf.begin() + kpoint.begin, wf.begin() + kpoint.end);
         vecfuncT k_vwf(vwf.begin() + kpoint.begin, vwf.begin() + kpoint.end);
 
@@ -960,7 +973,7 @@ namespace madness
 
         // Do right hand side stuff for kpoint
         bool isgamma = (is_equal(k0,0.0,1e-5) && is_equal(k1,0.0,1e-5) && is_equal(k2,0.0,1e-5));
-        if (_params.periodic && !isgamma)
+        if (_params.periodic && !isgamma) // Non-zero k-point
         {
           // Do the gradient term and k^2/2
           vecfuncT d_wf = zero_functions<valueT,NDIM>(_world, k_wf.size());
