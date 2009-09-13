@@ -6,10 +6,50 @@ dft
   maxsub 8
 end
 
+# water*1
+geometry
+  O  0.0    0.0 0.0
+  H  1.4375 0.0 1.15
+  H -1.4375 0.0 1.15
+end
+
+
+
+
+geometry
+  units angstrom
+  h 0 0 0
+  h 1 0 0
+end
+
+
+
 geometry
   li 0 0 0
   f 0 0 2.5
 end
+
+
+geometry
+  units angstrom
+  eprec 1e-5
+  N 0 0 0
+  N 0 0 1
+end
+
+
+
+
+# Lithium atom
+geometry
+  Li 0 0 0
+end
+
+geometry
+  be 0 0 0
+end
+
+
 
 # water*5
 geometry
@@ -29,12 +69,6 @@ geometry
   O   -1.137 3.033 0.493
   H   -1.894 2.475 0.151
   H   -0.268 2.601 0.249
-end
-
-geometry
-  units angstrom
-  h 0 0 0
-  h 1 0 0
 end
 
 geometry
@@ -87,14 +121,6 @@ geometry
   h 0 0 0
   f 0 0 1.2
 end
-
-# water*1
-geometry
-  O  0.0    0.0 0.0
-  H  1.4375 0.0 1.15
-  H -1.4375 0.0 1.15
-end
-
 
 
 
@@ -152,10 +178,6 @@ geometry
   H   -0.268 2.601 0.249
 end
 
-
-geometry
-  be 0 0 0
-end
 
 
 
@@ -220,14 +242,6 @@ end
 
 
 
-geometry
-  units angstrom
-  eprec 1e-5
-  N 0 0 0
-  N 0 0 1
-end
-
-
 
 
 
@@ -282,11 +296,6 @@ end
 
 
 
-
-# Lithium atom
-geometry
-  Li 0 0 0
-end
 
 
 
