@@ -631,7 +631,8 @@ void loadbal(World& world,
     }
     world.gop.fence();
     CostFun::Instance(world).compute_min_cost();
-    LoadBalImpl<3> lb(potn,CostFun::Instance(world));
+    //LoadBalImpl<3> lb(potn,CostFun::Instance(world));
+      LoadBalImpl<3> lb(potn, CostFun::Instance(world), 1.e-8, 1.e-10, 5.e-10);
     lb.add_tree(psi, CostFun::Instance(world));
     FunctionDefaults<3>::set_pmap(lb.load_balance());
     world.gop.fence();
@@ -868,7 +869,7 @@ void doit(World& world) {
     CostFun::Instance(world).init(FunctionDefaults<3>::get_pmap());
     world.gop.fence();
     if (param.lbmode > 0) {
-      LoadBalImpl<3> lb(potn, CostFun::Instance(world));
+      LoadBalImpl<3> lb(potn, CostFun::Instance(world), 1.e-8, 1.e-10, 5.e-10);
       FunctionDefaults<3>::set_pmap(lb.load_balance());
       potn = copy(potn, FunctionDefaults<3>::get_pmap());
       CostFun::Instance(world).remap(FunctionDefaults<3>::get_pmap(), false, true);
@@ -920,6 +921,7 @@ step0 = 0;
 int main(int argc, char** argv) {
     initialize(argc,argv);
     World world(MPI::COMM_WORLD);
+    ThreadPool::begin(); //TEST
     
     startup(world,argc,argv);
 
