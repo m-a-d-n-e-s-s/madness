@@ -77,10 +77,10 @@ struct ElectronicStructureParams
     periodic = false;
     ispotential = false;
     maxits = 100;
-    thresh = 1e-8;
-    waveorder = 6;
-    maxthresh = 1e-8;
-    maxwaveorder = 6;
+    thresh = 1e-6;
+    waveorder = 8;
+    maxthresh = 1e-6;
+    maxwaveorder = 8;
     nempty = 2;
     ngridk0 = 1; ngridk1 = 1; ngridk2 = 1;
     maxocc = 2.0;
@@ -208,10 +208,12 @@ struct ElectronicStructureParams
       else if (s == "thresh")
       {
         f >> maxthresh;
+        thresh = maxthresh;
       }
       else if (s == "waveorder")
       {
         f >> maxwaveorder;
+        waveorder = maxwaveorder;
       }
       else if (s == "nempty")
       {

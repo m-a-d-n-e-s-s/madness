@@ -998,6 +998,10 @@ namespace madness
           tensorT overlap = matrix_inner(_world, k_wf, k_wf, true);
           ctensorT c; rtensorT e;
           sygv(fock, overlap, 1, &c, &e);
+          // transform orbitals and V * (orbitals)
+          k_vwf = transform(_world, k_vwf, c, 1e-5 / min(30.0, double(k_wf.size())), false);
+          k_wf = transform(_world, k_wf, c, FunctionDefaults<3>::get_thresh() / min(30.0, double(k_wf.size())), true);
+
           for (unsigned int ei = kpoint.begin, fi = 0; ei < kpoint.end;
             ei++, fi++)
           {
@@ -1027,6 +1031,15 @@ namespace madness
         }
         else // non-canonical orbitals
         {
+          tensorT overlap = matrix_inner(_world, k_wf, k_wf, true);
+          ctensorT c; rtensorT e;
+          sygv(fock, overlap, 1, &c, &e);
+          for (unsigned int ei = 0; ei < e.dim[0]; ei++)
+          {
+            if (_world.rank() == 0)
+              print("kpoint ", kp, "ei ", ei, "eps ", real(e(ei,ei)));
+          }
+
           for (unsigned int ei = kpoint.begin, fi = 0; 
             ei < kpoint.end; ei++, fi++)
           {
