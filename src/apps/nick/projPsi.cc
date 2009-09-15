@@ -17,11 +17,7 @@
  * 3) k (The wavelet order) must be the same as the projected functions: see main()
  *    12 has been the default
  ***************************************************************************************/
-#include <world/world.h>
 #include "wavef.h"
-//#include <mra/mra.h>
-//#include <complex>
-//#include <iostream>
 #include <string>
 #include <fstream>
 using std::ofstream;
@@ -75,7 +71,6 @@ complex_functionT wave_function_load(World& world, int step) {
     ar & psi;
     return psi;
 }
-
 template<class T>
 string toString( const T& a ) {
     ostringstream o;
@@ -97,7 +92,7 @@ void loadDefaultBasis(World& world, std::vector<WF>& boundList) {
     PRINTLINE("Done loading the standard basis");
 }
 
-void loadBasis(World& world, std::vector<WF>& boundList, std::vector<WF>& unboundList) {
+void loadBasis(World& world, double Z, std::vector<WF>& boundList, std::vector<WF>& unboundList) {
     ifstream bound("bound.num");
     ifstream unbound("unbound.num");
     if( ! bound.is_open() && ! unbound.is_open() ) {
@@ -192,9 +187,8 @@ void csToFile(World& world, std::vector<WF> basisList, WF psi_t, string suffix) 
     }
 }
 
-void displayToScreen(World& world, std::vector<WF> basisList, std::vector<WF> psiList) {
-    PRINTLINE("The Psi(+) are loaded");
-    PRINTLINE("\t\t|<Psi(+)|basis>|^2 ");
+void displayToScreen(World& world, std::vector<WF> basisList, std::vector<WF> psiList, string header) {
+    PRINTLINE(header);
     complexd output;
     std::vector<WF>::iterator basisI;
     std::vector<WF>::iterator psiPlusI;
@@ -223,6 +217,8 @@ void displayToScreen(World& world, std::vector<WF> basisList, std::vector<WF> ps
  ****************************************************************************/
 void projectPsi(World& world, std::vector<WF> boundList, std::vector<WF> unboundList) {
     std::vector<WF> psiList;
+    if(boundList.empty() && unboundList.empty())
+        loadDefaultBasis(world, boundList);
     ifstream f("wf.num");
     if(f.is_open()) {
         string tag;
@@ -247,7 +243,7 @@ void projectPsi(World& world, std::vector<WF> boundList, std::vector<WF> unbound
         } for(basisI = unboundList.begin(); basisI != unboundList.end(); basisI++) {
             basisList.push_back(*basisI);
         }
-        displayToScreen(world, basisList, psiList);
+        displayToScreen(world, basisList, psiList,"\t\t|<Psi(+)|basis>|^2 ");
         f.close();
     } else {
         PRINTLINE("File: wf.num expected to contain a " 
@@ -255,31 +251,76 @@ void projectPsi(World& world, std::vector<WF> boundList, std::vector<WF> unbound
     }
 }
 
+void compareGroundState(World& world, double Z) {
+    //import psi0
+    complex_functionT psi0;
+    if(wave_function_exists(world, 0) ) {
+        psi0 = wave_function_load(world, 0);
+    } else {
+        PRINTLINE("Psi( t=0 ) must be present");
+    }
+    //make 1s
+    complex_functionT oneS = FunctionFactory<complexd,NDIM>(world).
+                 functor(functorT(new BoundWF(Z, 1, 0, 0)));
+    //Read in Psi(+)
+    ifstream f("wf.num");
+    if(f.is_open()) {
+        string tag;
+        complexd output;
+        //LOAD Psi(+)
+        output = oneS.inner(oneS);
+        PRINTLINE(      "|<1s|1s>|^2 = " << real(output*conj(output)));
+        while(f >> tag) {
+            if(wave_function_exists(world, atoi(tag.c_str())) ) {
+                complex_functionT psi_t = wave_function_load(world, atoi(tag.c_str()));
+                output = psi0.inner(psi_t);
+                PRINT(      "|<psi0|" << tag << ">|^2 = " << real(output*conj(output)));
+                output = oneS.inner(psi_t);
+                PRINTLINE("\t|< 1s |" << tag << ">|^2 = " << real(output*conj(output)));
+            } else {
+                PRINT("Function: " << tag << " not found"<< endl);
+            }
+        }
+    }
+}
+
+
 /*************************************************
  * If you're curious about a wave function's value
  *************************************************/
-void printBasis(World& world) {
-    complexd output;
+void printBasis(World& world, double Z) {
+    complexd output, output2;
     double sinTH, cosTH, sinPHI, cosPHI;
     //make functions
+    complex_functionT psi0;
+    if(wave_function_exists(world, 0) ) {
+        psi0 = wave_function_load(world, 0);
+    } else {
+        PRINTLINE("Psi( t=0 ) must be present");
+    }
+
     double dARR[3] = {0, 0, 0.5};
     vector3D kVec(dARR);
-    ScatteringWF psi(1.0, kVec);
+    BoundWF psi_100(Z,1,0,0);
+    //    ScatteringWF psi_k(Z, kVec);
     double PHI = 0.0;
-    double TH = 1.0;
+    double TH = 0.0;
     //for(double TH=0; TH<3.14; TH+=0.3 ) {
     cout << "k = {" << kVec << endl;
     cout.precision(2);
-    for(double r=0; r<sqrt(3)*psi.domain*psi.k; r+=1.0 ) {
+    //    for(double r=0; r<sqrt(3)*psi_k.domain*psi_k.k; r+=1.0 ) {
+    for(double r=0; r<sqrt(3)*10; r+=0.1 ) {
         cout << scientific;
         cosTH =  std::cos(TH);
         sinTH =  std::sin(TH);
         cosPHI = std::cos(PHI);
         sinPHI = std::sin(PHI);
         double dARR[3] = {r*sinTH*cosPHI, r*sinTH*sinPHI, r*cosTH};        
-        //        PRINTLINE(r << "\t" << psi.diffR(r) << " + I" << psi.diffI(r));
-        output = psi(dARR);
-        PRINTLINE(r << "\t" << real(output) << "\t" << imag(output) << "\t" << dARR);
+        //        PRINTLINE(r << "\t" << psi_k.diffR(r) << " + I" << psi_k.diffI(r));
+        //output = psi_k(dARR);
+        output = psi_100(dARR);
+        output2 = psi0(dARR);
+        PRINTLINE(r << "\t" << real(output) << "\t" << real(output2) << "\t" << dARR);
     }
     //    use sed to make the complexd output standard
     //    system("sed -i '' -e's/\\+/, /' -e's/j//' f11.out");
@@ -312,8 +353,10 @@ void belkic(World& world) {
     PRINTLINE(output);
 }
 
-void loadParameters(World& world, int& k, double& L) {
+void loadParameters(World& world, int& k, double& L, double &Z) {
     string tag;
+    int natom;
+    double Rx, Ry, Rz;
     ifstream f("input");
     if( f.is_open() ) {
         while(f >> tag) {
@@ -333,6 +376,11 @@ void loadParameters(World& world, int& k, double& L) {
                 f >> k;
                 if(world.rank() == 0) printf("k = %.1i\n",k);
             }
+            else if (tag == "natom") {
+                f >> natom;
+                f >> Z >> Rx >> Ry >> Rz;
+                printf("Z = %.1f\n", Z);
+            }
         }
     }
     fflush(stdout);
@@ -346,13 +394,12 @@ int main(int argc, char**argv) {
     // Load info for MADNESS numerical routines
     startup(world,argc,argv);
     // Setup defaults for numerical functions
-
-    PRINTLINE("Before functionDefaults after startup()");
-    int k = 12;
+    int    k = 12;
     double L = 10.0;
-    loadParameters(world, k, L);
+    double Z = 1.0;
+    loadParameters(world, k, L, Z);
     FunctionDefaults<NDIM>::set_k(k);               // Wavelet order
-    FunctionDefaults<NDIM>::set_thresh(1e-2);       // Accuracy
+    FunctionDefaults<NDIM>::set_thresh(1e-4);       // Accuracy
     FunctionDefaults<NDIM>::set_cubic_cell(-L, L);
     FunctionDefaults<NDIM>::set_initial_level(3);
     FunctionDefaults<NDIM>::set_apply_randomize(false);
@@ -365,31 +412,19 @@ int main(int argc, char**argv) {
         std::vector<WF> unboundList;
         double dARR[3] = {0, 0, 0.5};
         vector3D rVec(dARR);
-//         double start = wall_time();
-//         basisList.push_back(WF("Exp(Ikr)       ",
-//                                FunctionFactory<complexd,NDIM>(world).
-//                                functor(functorT(new Expikr(rVec)))));
-//         PRINTLINE("\tExp(Ikr)       " << wall_time()-start << " sec" 
-//                   << "\t\t Size: " << basisList.back().func.size());
-//         start = wall_time();
-//         basisList.push_back(WF("Exp(-Ikr+kDOTr)",
-//                                FunctionFactory<complexd,NDIM>(world).
-//                                functor(functorT(new Expikr2(rVec)))));
-//         PRINTLINE("\tExp(-Ikr+kDOTr)" << wall_time()-start << " sec"
-//                   << "\t\t Size: " << basisList.back().func.size());
-
-        loadBasis(world,boundList,unboundList);
+        //compareGroundState(world, Z);
+        //printBasis(world,Z);
+        //loadBasis(world, Z, boundList,unboundList);
         //belkic(world);
-        //projectZdip(world, basisList);
-        //        printBasis(world);
+        //projectZdip(world, unboundList);
         projectPsi(world, boundList, unboundList);         
         world.gop.fence();
-        if (world.rank() == 0) {
+//         if (world.rank() == 0) {
 //             world.am.print_stats();
 //             world.taskq.print_stats();
 //             world_mem_info()->print();
 //             WorldProfile::print(world);
-        }
+//         }
     } catch (const MPI::Exception& e) {
         //print(e);
         error("caught an MPI exception");
