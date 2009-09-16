@@ -23,9 +23,10 @@ int main() {
     return 0;
 }
         ]],
-        [ AC_DEFINE(MISSING_POSIX_MEMALIGN_PROTO, [1], [Set if the posix_memalign prototype is missing]) 
-          AC_MSG_RESULT([yes]) ],
-         [AC_MSG_RESULT([no])])
+         [AC_MSG_RESULT([no])],
+         [ AC_DEFINE(MISSING_POSIX_MEMALIGN_PROTO, [1], [Set if the posix_memalign prototype is missing]) 
+          AC_MSG_RESULT([yes]) ]
+        )
         AC_LANG_POP([C++])
     fi
 ])

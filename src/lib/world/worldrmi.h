@@ -56,7 +56,7 @@
 
 */
 
-#if ON_A_MAC
+#if !HAVE_POSIX_MEMALIGN
 #include <sys/errno.h>
 static inline int posix_memalign(void **memptr, std::size_t alignment, std::size_t size) {
     *memptr=malloc(size);
@@ -76,19 +76,19 @@ namespace madness {
         typedef uint16_t counterT;
         typedef uint32_t attrT;
         size_t len;
-        rmi_handlerT func; 
+        rmi_handlerT func;
         int i;               // buffer index
         ProcessID src;
         attrT attr;
         counterT count;
-        
+
         qmsg(size_t len, rmi_handlerT func, int i, int src, attrT attr, counterT count)
             : len(len), func(func), i(i), src(src), attr(attr), count(count) {}
-        
+
         bool operator<(const qmsg& other) const {
             return count < other.count;
         }
-        
+
         qmsg() {}
     };
 
@@ -195,7 +195,7 @@ namespace madness {
                     for (int m=0; m<narrived; m++) {
                         int src = status[m].Get_source();
                         size_t len = status[m].Get_count(MPI::BYTE);
-                        int i = ind[m]; 
+                        int i = ind[m];
 
                         stats.nmsg_recv++;
                         stats.nbyte_recv += len;
@@ -239,10 +239,10 @@ namespace madness {
 
                     // Only ordered messages can end up in the queue due to
                     // out-of-order receipt or order of recv buffer processing.
-                    
+
                     // Sort queued messages by ascending recv count
                     std::sort(&q[0],&q[0]+n_in_q);
-                    
+
                     // Loop thru messages ... since we have sorted only one pass
                     // is necessary and if we cannot process a message we
                     // save it at the beginning of the queue
@@ -258,7 +258,7 @@ namespace madness {
                                           << " ordered=" << is_ordered(q[m].attr)
                                           << " count=" << q[m].count
                                           << std::endl;
-                            
+
                             recv_counters[src]++;
                             q[m].func(recv_buf[q[m].i], q[m].len);
                             post_recv_buf(q[m].i);

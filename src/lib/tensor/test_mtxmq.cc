@@ -10,7 +10,7 @@
 using namespace madness;
 
 
-#if ON_A_MAC
+#if !HAVE_POSIX_MEMALIGN
 #include <sys/errno.h>
 static inline int posix_memalign(void **memptr, std::size_t alignment, std::size_t size){
   *memptr=malloc(size);
@@ -29,10 +29,10 @@ static inline int posix_memalign(void **memptr, std::size_t alignment, std::size
 #define FORTRAN_INTEGER long
 #endif
 typedef FORTRAN_INTEGER integer;
-extern "C" void dgemm_(const char *transa, const char *transb, 
-                   const integer *m, const integer *n, const integer *k, 
-                   const double *alpha, const double *a, const integer *lda, 
-                   const double *b, const integer *ldb, const double *beta, 
+extern "C" void dgemm_(const char *transa, const char *transb,
+                   const integer *m, const integer *n, const integer *k,
+                   const double *alpha, const double *a, const integer *lda,
+                   const double *b, const integer *ldb, const double *beta,
                    double *c, const integer *ldc, int la, int lb);
 void mTxm_dgemm(long ni, long nj, long nk, double* c, const double* a, const double*b ) {
   integer fni=ni;
@@ -40,7 +40,7 @@ void mTxm_dgemm(long ni, long nj, long nk, double* c, const double* a, const dou
   integer fnk=nk;
   double one=1.0;
   dgemm_("n","t",&fnj,&fni,&fnk,&one,b,&fnj,a,&fni,&one,c,&fnj,1,1);
-}  
+}
 
 #endif
 
@@ -82,7 +82,7 @@ void crap(double rate, double fastest, long long start) {
 
 void timer(const char* s, long ni, long nj, long nk, double *a, double *b, double *c) {
   double fastest=0.0, fastest_dgemm=0.0;
-  
+
   double nflop = 2.0*ni*nj*nk;
   long loop;
   for (loop=0; loop<30; loop++) {
@@ -110,7 +110,7 @@ void timer(const char* s, long ni, long nj, long nk, double *a, double *b, doubl
 
 void trantimer(const char* s, long ni, long nj, long nk, double *a, double *b, double *c) {
   double fastest=0.0, fastest_dgemm=0.0;
-  
+
   double nflop = 3.0*2.0*ni*nj*nk;
   long loop;
   for (loop=0; loop<30; loop++) {
@@ -180,7 +180,7 @@ int main() {
                     /* This test is sensitive to the compilation options.
                        Be sure to have the reference code above compiled
                        -msse2 -fpmath=sse if using GCC.  Otherwise, to
-                       pass the test you may need to change the threshold 
+                       pass the test you may need to change the threshold
                        to circa 1e-13.
                     */
                     if (err > 1e-15) {

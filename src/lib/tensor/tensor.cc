@@ -65,7 +65,7 @@
 
 
 
-#if ON_A_MAC
+#if !HAVE_POSIX_MEMALIGN
 #include <sys/errno.h>
 static inline int posix_memalign(void **memptr, std::size_t alignment, std::size_t size) {
     *memptr=malloc(size);

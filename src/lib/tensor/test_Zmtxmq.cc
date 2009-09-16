@@ -11,7 +11,7 @@
 using namespace madness;
 
 
-#if ON_A_MAC
+#if !HAVE_POSIX_MEMALIGN
 #include <sys/errno.h>
 static inline int posix_memalign(void **memptr, std::size_t alignment, std::size_t size){
   *memptr=malloc(size);
@@ -27,10 +27,10 @@ static inline int posix_memalign(void **memptr, std::size_t alignment, std::size
 #define FORTRAN_INTEGER long
 #endif
 typedef FORTRAN_INTEGER integer;
-extern "C" void zgemm_(const char *transa, const char *transb, 
-                   const integer *m, const integer *n, const integer *k, 
-                   const double_complex *alpha, const double_complex *a, const integer *lda, 
-                   const double_complex *b, const integer *ldb, const double_complex *beta, 
+extern "C" void zgemm_(const char *transa, const char *transb,
+                   const integer *m, const integer *n, const integer *k,
+                   const double_complex *alpha, const double_complex *a, const integer *lda,
+                   const double_complex *b, const integer *ldb, const double_complex *beta,
                    double_complex *c, const integer *ldc, int la, int lb);
 void mTxm_dgemm(long ni, long nj, long nk, double_complex* c, const double_complex* a, const double_complex*b ) {
   integer fni=ni;
@@ -38,7 +38,7 @@ void mTxm_dgemm(long ni, long nj, long nk, double_complex* c, const double_compl
   integer fnk=nk;
   double_complex one=1.0;
   zgemm_("n","t",&fnj,&fni,&fnk,&one,b,&fnj,a,&fni,&one,c,&fnj,1,1);
-}  
+}
 
 #endif
 
@@ -83,7 +83,7 @@ void crap(double rate, double fastest, long long start) {
 
 void timer(const char* s, long ni, long nj, long nk, double_complex *a, double_complex *b, double_complex *c) {
   double fastest=0.0, fastest_dgemm=0.0;
-  
+
   double nflop = 2.0*ni*nj*nk;
   long loop;
   for (loop=0; loop<30; loop++) {
@@ -111,7 +111,7 @@ void timer(const char* s, long ni, long nj, long nk, double_complex *a, double_c
 
 void trantimer(const char* s, long ni, long nj, long nk, double_complex *a, double_complex *b, double_complex *c) {
   double fastest=0.0, fastest_dgemm=0.0;
-  
+
   double nflop = 3.0*2.0*ni*nj*nk;
   long loop;
   for (loop=0; loop<30; loop++) {
@@ -181,7 +181,7 @@ int main() {
                     /* This test is sensitive to the compilation options.
                        Be sure to have the reference code above compiled
                        -msse2 -fpmath=sse if using GCC.  Otherwise, to
-                       pass the test you may need to change the threshold 
+                       pass the test you may need to change the threshold
                        to circa 1e-13.
                     */
                     if (err > 2e-14) {
