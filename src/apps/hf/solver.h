@@ -121,6 +121,10 @@ namespace madness
     AtomicBasisSet _aobasis;
     //*************************************************************************
 
+    //*************************************************************************
+    bool solver_on;
+    //*************************************************************************
+
   public:
 
     //*************************************************************************
@@ -130,6 +134,7 @@ namespace madness
       _residual = 1e5;
       make_nuclear_potential();
       initial_guess();
+      solver_on = false;
     }
     //*************************************************************************
 
@@ -891,13 +896,15 @@ namespace madness
         {
           reproject();
         }
+        // WSTHORNTON
+        if (it > 2) solver_on = true;
+
         if (_world.rank() == 0) print("it = ", it);
        
         // Compute density
         _rhoa = compute_rho(_phisa, _kpoints);
         _rhob = (_params.spinpol) ? compute_rho(_phisb, _kpoints) : _rhoa;
         _rho = _rhoa + _rhob;
-
         double rtrace = _rho.trace();
         if (_world.rank() == 0) print("trace of rho", rtrace);
 
@@ -1032,36 +1039,32 @@ namespace madness
 
           ctensorT c; rtensorT e;
           sygv(fock, overlap, 1, &c, &e);
-          // transform orbitals and V * (orbitals)
-          k_vwf = transform(_world, k_vwf, c, 1e-5 / min(30.0, double(k_wf.size())), false);
-          k_wf = transform(_world, k_wf, c, FunctionDefaults<3>::get_thresh() / min(30.0, double(k_wf.size())), true);
+          if (!solver_on)
+          {
+            // transform orbitals and V * (orbitals)
+            k_vwf = transform(_world, k_vwf, c, 1e-5 / min(30.0, double(k_wf.size())), false);
+            k_wf = transform(_world, k_wf, c, FunctionDefaults<3>::get_thresh() / min(30.0, double(k_wf.size())), true);
+          }
 
           for (unsigned int ei = kpoint.begin, fi = 0; ei < kpoint.end;
             ei++, fi++)
           {
+            valueT t1 = (!solver_on) ? e(fi,fi) : fock(fi,fi);
             if (real(e(fi,fi)) > -0.1)
             {
-              alpha[ei] = -1.5;
-              k_vwf[fi] += (alpha[ei]-real(e(fi,fi)))*k_wf[fi];
+              alpha[ei] = -0.5;
+              k_vwf[fi] += (alpha[ei]-real(t1))*k_wf[fi];
             }
             else
             {
-              alpha[ei] = e(fi,fi);
+              alpha[ei] = real(t1);
             }
-            //alpha[ei] = std::min(-0.1, real(e(fi,fi)));
           }
           for (unsigned int ei = 0; ei < e.dim[0]; ei++)
           {
             if (_world.rank() == 0)
               print("kpoint ", kp, "ei ", ei, "eps ", real(e(ei,ei)));
           }
-//          // WSTHORNTON
-//          // this will work if there is only 1 k-point
-//          if (_world.rank() == 0) print("eigenvalues:\n");
-//          for (unsigned int ei = 0; ei < e.dim[0]; ei++)
-//          {
-//            if (_world.rank() == 0) print(real(e(ei,ei)), alpha[ei]);
-//          }
         }
         else // non-canonical orbitals
         {
@@ -1202,110 +1205,110 @@ namespace madness
         if (_world.rank() == 0) print("residual = ", rnorm);
         _residual = rnorm;
       }
-      // concatentate up and down spins
-      vecfuncT vm = _phisa;
-      if (_params.spinpol)
+      if (solver_on)
       {
-        vm.insert(vm.end(), _phisb.begin(), _phisb.end());
+        // concatentate up and down spins
+        vecfuncT vm = _phisa;
+        if (_params.spinpol)
+        {
+          vm.insert(vm.end(), _phisb.begin(), _phisb.end());
+        }
+
+        // Update subspace and matrix Q
+        compress(_world, vm, false);
+        compress(_world, rm, false);
+        _world.gop.fence();
+        _subspace.push_back(pairvecfuncT(vm,rm));
+
+        int m = _subspace.size();
+        tensorT ms(m);
+        tensorT sm(m);
+        for (int s=0; s<m; s++)
+        {
+            const vecfuncT& vs = _subspace[s].first;
+            const vecfuncT& rs = _subspace[s].second;
+            for (unsigned int i=0; i<vm.size(); i++)
+            {
+                ms[s] += vm[i].inner_local(rs[i]);
+                sm[s] += vs[i].inner_local(rm[i]);
+            }
+        }
+        _world.gop.sum(ms.ptr(),m);
+        _world.gop.sum(sm.ptr(),m);
+
+        tensorT newQ(m,m);
+        if (m > 1) newQ(Slice(0,-2),Slice(0,-2)) = _Q;
+        newQ(m-1,_) = ms;
+        newQ(_,m-1) = sm;
+
+        _Q = newQ;
+        if (_world.rank() == 0) print(_Q);
+
+        // Solve the subspace equations
+        tensorT c;
+        if (_world.rank() == 0) {
+            double rcond = 1e-12;
+            while (1) {
+                c = KAIN(_Q,rcond);
+                if (abs(c[m-1]) < 3.0) {
+                    break;
+                }
+                else if (rcond < 0.01) {
+                    if (_world.rank() == 0)
+                      print("Increasing subspace singular value threshold ", c[m-1], rcond);
+                    rcond *= 100;
+                }
+                else {
+                    if (_world.rank() == 0)
+                      print("Forcing full step due to subspace malfunction");
+                    c = 0.0;
+                    c[m-1] = 1.0;
+                    break;
+                }
+            }
+        }
+
+        _world.gop.broadcast_serializable(c, 0);
+        if (_world.rank() == 0) {
+            //print("Subspace matrix");
+            //print(Q);
+            print("Subspace solution", c);
+        }
+
+        // Form linear combination for new solution
+        vecfuncT phisa_new = zero_functions<valueT,NDIM>(_world, _phisa.size());
+        vecfuncT phisb_new = zero_functions<valueT,NDIM>(_world, _phisb.size());
+        compress(_world, phisa_new, false);
+        compress(_world, phisb_new, false);
+        _world.gop.fence();
+        std::complex<double> one = std::complex<double>(1.0,0.0);
+        for (unsigned int m=0; m<_subspace.size(); m++) {
+            const vecfuncT& vm = _subspace[m].first;
+            const vecfuncT& rm = _subspace[m].second;
+            const vecfuncT  vma(vm.begin(),vm.begin()+_phisa.size());
+            const vecfuncT  rma(rm.begin(),rm.begin()+_phisa.size());
+            const vecfuncT  vmb(vm.end()-_phisb.size(), vm.end());
+            const vecfuncT  rmb(rm.end()-_phisb.size(), rm.end());
+
+            gaxpy(_world, one, phisa_new, c(m), vma, false);
+            gaxpy(_world, one, phisa_new,-c(m), rma, false);
+            gaxpy(_world, one, phisb_new, c(m), vmb, false);
+            gaxpy(_world, one, phisb_new,-c(m), rmb, false);
+        }
+        _world.gop.fence();
+
+        if (_params.maxsub <= 1) {
+            // Clear subspace if it is not being used
+            _subspace.clear();
+        }
+        else if (_subspace.size() == _params.maxsub) {
+            // Truncate subspace in preparation for next iteration
+            _subspace.erase(_subspace.begin());
+            _Q = _Q(Slice(1,-1),Slice(1,-1));
+        }
+        awfs = phisa_new;
+        bwfs = phisb_new;
       }
-
-      // Update subspace and matrix Q
-      compress(_world, vm, false);
-      compress(_world, rm, false);
-      _world.gop.fence();
-      _subspace.push_back(pairvecfuncT(vm,rm));
-
-      int m = _subspace.size();
-      tensorT ms(m);
-      tensorT sm(m);
-      for (int s=0; s<m; s++)
-      {
-          const vecfuncT& vs = _subspace[s].first;
-          const vecfuncT& rs = _subspace[s].second;
-          for (unsigned int i=0; i<vm.size(); i++)
-          {
-              ms[s] += vm[i].inner_local(rs[i]);
-              sm[s] += vs[i].inner_local(rm[i]);
-          }
-      }
-      _world.gop.sum(ms.ptr(),m);
-      _world.gop.sum(sm.ptr(),m);
-
-      tensorT newQ(m,m);
-      if (m > 1) newQ(Slice(0,-2),Slice(0,-2)) = _Q;
-      newQ(m-1,_) = ms;
-      newQ(_,m-1) = sm;
-
-      _Q = newQ;
-      if (_world.rank() == 0) print(_Q);
-
-      // Solve the subspace equations
-      tensorT c;
-      if (_world.rank() == 0) {
-          double rcond = 1e-12;
-          while (1) {
-              c = KAIN(_Q,rcond);
-              if (abs(c[m-1]) < 3.0) {
-                  break;
-              }
-              else if (rcond < 0.01) {
-                  if (_world.rank() == 0) 
-                    print("Increasing subspace singular value threshold ", c[m-1], rcond);
-                  rcond *= 100;
-              }
-              else {
-                  if (_world.rank() == 0) 
-                    print("Forcing full step due to subspace malfunction");
-                  c = 0.0;
-                  c[m-1] = 1.0;
-                  break;
-              }
-          }
-      }
-
-      _world.gop.broadcast_serializable(c, 0);
-      if (_world.rank() == 0) {
-          //print("Subspace matrix");
-          //print(Q);
-          print("Subspace solution", c);
-      }
-
-      // WSTHORNTON
-      return;
-
-      // Form linear combination for new solution
-      vecfuncT phisa_new = zero_functions<valueT,NDIM>(_world, _phisa.size());
-      vecfuncT phisb_new = zero_functions<valueT,NDIM>(_world, _phisb.size());
-      compress(_world, phisa_new, false);
-      compress(_world, phisb_new, false);
-      _world.gop.fence();
-      std::complex<double> one = std::complex<double>(1.0,0.0);
-      for (unsigned int m=0; m<_subspace.size(); m++) {
-          const vecfuncT& vm = _subspace[m].first;
-          const vecfuncT& rm = _subspace[m].second;
-          const vecfuncT  vma(vm.begin(),vm.begin()+_phisa.size());
-          const vecfuncT  rma(rm.begin(),rm.begin()+_phisa.size());
-          const vecfuncT  vmb(vm.end()-_phisb.size(), vm.end());
-          const vecfuncT  rmb(rm.end()-_phisb.size(), rm.end());
-
-          gaxpy(_world, one, phisa_new, c(m), vma, false);
-          gaxpy(_world, one, phisa_new,-c(m), rma, false);
-          gaxpy(_world, one, phisb_new, c(m), vmb, false);
-          gaxpy(_world, one, phisb_new,-c(m), rmb, false);
-      }
-      _world.gop.fence();
-
-      if (_params.maxsub <= 1) {
-          // Clear subspace if it is not being used
-          _subspace.clear();
-      }
-      else if (_subspace.size() == _params.maxsub) {
-          // Truncate subspace in preparation for next iteration
-          _subspace.erase(_subspace.begin());
-          _Q = _Q(Slice(1,-1),Slice(1,-1));
-      }
-      awfs = phisa_new;
-      bwfs = phisb_new;
     }
     //*************************************************************************
 
