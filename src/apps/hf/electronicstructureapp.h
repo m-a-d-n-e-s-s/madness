@@ -160,8 +160,9 @@ public:
         {
           for (int zr = -1; zr <= 1; zr += 1)
           {
-            std::complex<double> tmp = tx[xr+1]*ty[yr+1]*tz[zr+1];
-            value += tmp*aofunc(x[0]+xr*R, x[1]+yr*R, x[2]+zr*R);
+            //std::complex<double> tmp = tx[xr+1]*ty[yr+1]*tz[zr+1];
+            //value += tmp*aofunc(x[0]+xr*R, x[1]+yr*R, x[2]+zr*R);
+            value += aofunc(x[0]+xr*R, x[1]+yr*R, x[2]+zr*R);
           }
         }
       }
@@ -510,8 +511,6 @@ public:
 
     rfunctionT vlocal;
     // Is this a many-body system?
-    int rank = _world.rank();
-    print("rank ", rank, "nelec ", _params.nelec);
     if (_params.nelec > 1)
     {
       if (_world.rank() == 0) print("Creating Coulomb op ...\n\n");

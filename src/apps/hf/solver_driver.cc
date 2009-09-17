@@ -14,6 +14,7 @@ int main(int argc, char** argv)
     try {
         // Load info for MADNESS numerical routines
         startup(world,argc,argv);
+        std::cout.precision(6);
         FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap(world)));
 
 

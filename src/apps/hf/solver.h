@@ -349,7 +349,7 @@ namespace madness
     vecfuncT project_ao_basis(World& world, KPoint kpt) {
         vecfuncT ao(_aobasis.nbf(_mentity));
 
-        Level initial_level = 2;
+        Level initial_level = 3;
         for (int i=0; i < _aobasis.nbf(_mentity); i++) {
             functorT aofunc(new AtomicBasisFunctor(_aobasis.get_atomic_basis_function(_mentity,i),
                 _params.L, _params.periodic, kpt));
@@ -425,7 +425,9 @@ namespace madness
       // Get initial guess for the electronic density
       if (_world.rank() == 0) print("Guessing rho ...\n\n");
       rfunctionT rho = rfactoryT(_world).functor(rfunctorT(
-          new GuessDensity(_mentity, _aobasis, _params.L, _params.periodic)));
+          new GuessDensity(_mentity, _aobasis, _params.L, _params.periodic))).initial_level(3);
+      double rtrace = rho.trace();
+      if (_world.rank() == 0) print("trace of rho = ", rtrace);
       rho.scale(_params.nelec/rho.trace());
 
   //    vector<long> npt(3,101);
@@ -548,6 +550,24 @@ namespace madness
         ctensorT c; rtensorT e;
         sygv(fock, overlap, 1, &c, &e);
 
+        ctensorT ck; rtensorT ek;
+        sygv(kinetic, overlap, 1, &ck, &ek);
+        
+        ctensorT cp; rtensorT ep;
+        sygv(potential, overlap, 1, &cp, &ep);
+
+        if (_world.rank() == 0)
+        {
+          print("kinetic eigenvalues");
+          print(ek);
+        }
+        
+        if (_world.rank() == 0)
+        {
+          print("potential eigenvalues");
+          print(ep);
+        }
+        
         compress(_world, ao);
         _world.gop.fence();
         // Take linear combinations of the gaussian basis orbitals as the starting
@@ -567,38 +587,38 @@ namespace madness
         if (_world.rank() == 0) print("\n");
 
         // DEBUG
-  //      for (int i = 0; i < kinetic.dim[0]; i++)
-  //      {
-  //        for (int j = 0; j < kinetic.dim[1]; j++)
-  //        {
-  //          if (_world.rank() == 0) printf("%10.5f", real(kinetic(i,j)));
-  //        }
-  //        if (_world.rank() == 0) printf("\n");
-  //      }
-  //      if (_world.rank() == 0) printf("\n");
-  //      if (_world.rank() == 0) printf("\n");
-  //
-  //      for (int i = 0; i < potential.dim[0]; i++)
-  //      {
-  //        for (int j = 0; j < potential.dim[1]; j++)
-  //        {
-  //          if (_world.rank() == 0) printf("%10.5f", real(potential(i,j)));
-  //        }
-  //        if (_world.rank() == 0) printf("\n");
-  //      }
-  //      if (_world.rank() == 0) printf("\n");
-  //      if (_world.rank() == 0) printf("\n");
-  //
-  //      for (int i = 0; i < fock.dim[0]; i++)
-  //      {
-  //        for (int j = 0; j < fock.dim[1]; j++)
-  //        {
-  //          if (_world.rank() == 0) printf("%10.5f", real(fock(i,j)));
-  //        }
-  //        if (_world.rank() == 0) printf("\n");
-  //      }
-  //      if (_world.rank() == 0) printf("\n");
-  //      if (_world.rank() == 0) printf("\n");
+        for (int i = 0; i < kinetic.dim[0]; i++)
+        {
+          for (int j = 0; j < kinetic.dim[1]; j++)
+          {
+            if (_world.rank() == 0) printf("%10.5f", real(kinetic(i,j)));
+          }
+          if (_world.rank() == 0) printf("\n");
+        }
+        if (_world.rank() == 0) printf("\n");
+        if (_world.rank() == 0) printf("\n");
+  
+        for (int i = 0; i < potential.dim[0]; i++)
+        {
+          for (int j = 0; j < potential.dim[1]; j++)
+          {
+            if (_world.rank() == 0) printf("%10.5f", real(potential(i,j)));
+          }
+          if (_world.rank() == 0) printf("\n");
+        }
+        if (_world.rank() == 0) printf("\n");
+        if (_world.rank() == 0) printf("\n");
+  
+        for (int i = 0; i < fock.dim[0]; i++)
+        {
+          for (int j = 0; j < fock.dim[1]; j++)
+          {
+            if (_world.rank() == 0) printf("%10.5f", real(fock(i,j)));
+          }
+          if (_world.rank() == 0) printf("\n");
+        }
+        if (_world.rank() == 0) printf("\n");
+        if (_world.rank() == 0) printf("\n");
 
         // Fill in orbitals and eigenvalues
         int kend = kp + _params.nbands;
@@ -878,6 +898,9 @@ namespace madness
         _rhob = (_params.spinpol) ? compute_rho(_phisb, _kpoints) : _rhoa;
         _rho = _rhoa + _rhob;
 
+        double rtrace = _rho.trace();
+        if (_world.rank() == 0) print("trace of rho", rtrace);
+
         vector<functionT> pfuncsa =
                 zero_functions<valueT,NDIM>(_world, _phisa.size());
         vector<functionT> pfuncsb =
@@ -945,7 +968,7 @@ namespace madness
     //*************************************************************************
     void do_rhs(vecfuncT& wf,
                 vecfuncT& vwf,
-                std::vector<T>& eps,
+                std::vector<T>& alpha,
                 std::vector<KPoint> kpoints)
     {
       // tolerance
@@ -996,6 +1019,17 @@ namespace madness
         if (_params.canon) // canonical orbitals
         {
           tensorT overlap = matrix_inner(_world, k_wf, k_wf, true);
+
+          // Debug output
+          if (_world.rank() == 0)
+          { print("Overlap matrix:");
+            print(overlap);
+          }
+          if (_world.rank() == 0)
+          { print("Fock matrix:");
+            print(fock);
+          }
+
           ctensorT c; rtensorT e;
           sygv(fock, overlap, 1, &c, &e);
           // transform orbitals and V * (orbitals)
@@ -1007,14 +1041,14 @@ namespace madness
           {
             if (real(e(fi,fi)) > -0.1)
             {
-              eps[ei] = -0.1;
-              k_vwf[fi] -= (real(e(fi,fi))-eps[ei])*k_wf[fi];
+              alpha[ei] = -1.5;
+              k_vwf[fi] += (alpha[ei]-real(e(fi,fi)))*k_wf[fi];
             }
             else
             {
-              eps[ei] = e(fi,fi);
+              alpha[ei] = e(fi,fi);
             }
-            //eps[ei] = std::min(-0.1, real(e(fi,fi)));
+            //alpha[ei] = std::min(-0.1, real(e(fi,fi)));
           }
           for (unsigned int ei = 0; ei < e.dim[0]; ei++)
           {
@@ -1026,11 +1060,12 @@ namespace madness
 //          if (_world.rank() == 0) print("eigenvalues:\n");
 //          for (unsigned int ei = 0; ei < e.dim[0]; ei++)
 //          {
-//            if (_world.rank() == 0) print(real(e(ei,ei)), eps[ei]);
+//            if (_world.rank() == 0) print(real(e(ei,ei)), alpha[ei]);
 //          }
         }
         else // non-canonical orbitals
         {
+          // diagonlize just to print eigenvalues
           tensorT overlap = matrix_inner(_world, k_wf, k_wf, true);
           ctensorT c; rtensorT e;
           sygv(fock, overlap, 1, &c, &e);
@@ -1043,8 +1078,8 @@ namespace madness
           for (unsigned int ei = kpoint.begin, fi = 0; 
             ei < kpoint.end; ei++, fi++)
           {
-            eps[ei] = std::min(-0.1, real(fock(fi,fi)));
-            fock(fi,fi) -= std::complex<T>(eps[ei], 0.0);
+            alpha[ei] = std::min(-0.1, real(fock(fi,fi)));
+            fock(fi,fi) -= std::complex<T>(alpha[ei], 0.0);
           }
 
           vector<functionT> fwf = transform(_world, k_wf, fock, trantol);
@@ -1054,6 +1089,7 @@ namespace madness
         for (unsigned int wi = kpoint.begin, fi = 0; wi < kpoint.end;
           wi++, fi++)
         {
+          wf[wi] = k_wf[fi];
           vwf[wi] = k_vwf[fi];
         }
       }
@@ -1233,6 +1269,9 @@ namespace madness
           //print(Q);
           print("Subspace solution", c);
       }
+
+      // WSTHORNTON
+      return;
 
       // Form linear combination for new solution
       vecfuncT phisa_new = zero_functions<valueT,NDIM>(_world, _phisa.size());
