@@ -11,7 +11,7 @@ thisinclude_HEADERS = archive.h print.h      worldam.h       worldfut.h   worldm
                      bufar.h    nodefaults.h  typestuff.h  worlddep.h      worldhash.h  worldref.h      worldtypes.h \
                      dqueue.h   parar.h       vecar.h      worldexc.h      worldmem.h   worldser.h \
                      worldthread.h worldrmi.h safempi.h worldpapi.h worldmutex.h print_seq.h \
-                     worldhashmap.h          worldrange.h
+                     worldhashmap.h          worldrange.h  atomicint.h
 
 testprof_SOURCES = testprof.cc
 testprof_LDADD = libMADworld.a
@@ -44,12 +44,7 @@ world_LDADD = libMADworld.a
 libMADworld_a_SOURCES = worldstuff.cc redirectio.cc archive_type_names.cc debug.cc print.cc worldmem.cc lookup3.c \
                          threadpool.cc worldrmi.cc safempi.cc worldpapi.cc \
                      \
-                     archive.h print.h      worldam.h       worldfut.h   worldmpi.h        worldtask.h \
-                     array.h    sharedptr.h  worldgop.h   worldobj.h \
-                     binfsar.h  mpiar.h       textfsar.h   worlddc.h       world.h      worldprofile.h  worldtime.h \
-                     bufar.h    nodefaults.h  typestuff.h  worlddep.h      worldhash.h  worldref.h      worldtypes.h \
-                     dqueue.h   parar.h       vecar.h      worldexc.h      worldmem.h   worldser.h \
-                     worldthread.h atomicint.h worldrmi.h safempi.h worldpapi.h worldmutex.h print_seq.h
+                     $(thisinclude_HEADERS)
 
 
 libraries:	$(lib_LIBRARIES)
