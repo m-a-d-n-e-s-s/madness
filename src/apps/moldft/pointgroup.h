@@ -5,11 +5,15 @@
 /// \brief Implements basic functionality for Abelian point groups (D2h and subgroups)
 
 #include <tensor/tensor.h>
+#include <world/array.h>
 #include <string>
+#include <ostream>
 #include <sstream>
+#include <iomanip>
+#include <algorithm>
 
 class PointGroup;
-ostream& operator<<(ostream& s, const PointGroup& g);
+std::ostream& operator<<(std::ostream& s, const PointGroup& g);
 
 class PointGroup {
     std::string name;           //< group name
@@ -19,6 +23,8 @@ class PointGroup {
     int c[8][8];                //< Character table 
 
 public:
+    typedef madness::Vector<double,3> coordT;
+
     /// Constructs point group by name (D2h and subgroups only)
     PointGroup(const std::string name) {
         this->name = name;
@@ -37,7 +43,7 @@ public:
         }
         else if (name == "Ci") {
             order = 2;
-            irs[0] = "ag" irs[1] = "au";
+            irs[0] = "ag"; irs[1] = "au";
             ops[0] = "e"; ops[1] = "i";
             c[0][0] = 1;  c[0][1] = 1;
             c[1][0] = 1;  c[1][1] =-1;
@@ -103,7 +109,7 @@ public:
 
     /// Assignment
     PointGroup& operator=(const PointGroup& other) {
-        if (this != *other) {
+        if (this != &other) {
             name = other.name;
             order = other.order;
             for (int ir=0; ir<order; ir++) {
@@ -114,6 +120,7 @@ public:
                 }
             }
         }
+        return *this;
     }
     
     /// Destructor
@@ -125,14 +132,14 @@ public:
     }
     
     /// Applies group operator number op (0,1,...,order-1) to point
-    Vector<double,3> apply(int op, const Vector<double,3>& r) const {
+    coordT apply(int op, const coordT& r) const {
         return apply(ops[op], r);
     }
     
     /// Applies named operator (e, c2z, c2y, c2x, sxy, sxz, syz, i) to point
-    static Vector<double,3> apply(const std::string& op, const Vector<double,3>& r)  {
+    static coordT apply(const std::string& op, const coordT& r)  {
         const double x=r[0], y=r[1], z=r[2];
-        Vector<double,3> q;
+        coordT q;
         if (op == "e") {
             q[0]=x;  q[1]=y;  q[2]=z;
         }
@@ -165,7 +172,7 @@ public:
 
     /// Returns the irrep of the Cartesian axis (0, 1, 2 = x, y, z)
     int cart_ir(int axis) const {
-        Vector<double,3> r(0.0);
+        coordT r(0.0);
         r[axis] = 1.0;
         for (int ir=0; ir<order; ir++) {
             double sum = 0.0;
@@ -190,7 +197,7 @@ public:
     /// 
     /// If a coordinate in the cell is positive, it means that the
     /// irreducible cell has positive values of that coordinate.
-    double Vector<double,3> ircell() const {
+    coordT ircell() const {
         double xmin=1.0, ymin=1.0, zmin=1.0;
         // Loop thru corners of the cube
         for (int x=-1; x<=1; x+=2) {
@@ -199,20 +206,20 @@ public:
                     // Find the most positive corner it can be mapped into
                     double rx=x, ry=y, rz=z;
                     for (int op=0; op<order; op++) {
-                        Vector<double,3> r;
+                        coordT r;
                         r[0] = rx; r[1] = ry; r[2] = rz;
-                        Vector<double,3> q = apply(op,r);
+                        coordT q = apply(op,r);
                         double xx = q[0], yy=q[1], zz = q[2];
                         if ((xx>rx) || (xx==rx && yy>ry) || (xx==rx && yy==ry && zz>rz)) {
                             rx=xx; ry=yy; rz=zz;
                         }
                     }
-                    xmin = min(xmin,rx); ymin = min(ymin,ry); zmin = min(zmin,rz);
+                    xmin = std::min(xmin,rx); ymin = std::min(ymin,ry); zmin = std::min(zmin,rz);
                 }
             }
         }
 
-        Vector<double,3> r;
+        coordT r;
         r[0] = xmin; r[1] = ymin; r[2] = zmin;
         return r;
     }
@@ -226,6 +233,7 @@ public:
         std::cout << PointGroup("C2v");
         std::cout << PointGroup("D2");
         std::cout << PointGroup("D2h");
+        return true;
     }
 
     const std::string& get_name() const {
@@ -249,7 +257,7 @@ public:
     }
 };
 
-ostream& operator<<(ostream& s, const PointGroup& g) {
+std::ostream& operator<<(std::ostream& s, const PointGroup& g) {
     int order = g.get_order();
     s << "\n";
     s << "Group " << g.get_name() << " - irreducible cell " << g.ircell() << "\n";
@@ -269,9 +277,9 @@ ostream& operator<<(ostream& s, const PointGroup& g) {
     int irz = g.cart_ir(2);
     
     for (int ir=0; ir<order; ir++) {
-        s << "  " << std::setw(3) << g.get_ir_name(ir) << " ";
+        s << "  " << std::left << std::setw(3) << g.get_ir_name(ir) << std::right << "  ";
         for (int op=0; op<order; op++) {
-            s << " " << setw(3) << g.ctable(ir, op);
+            s << " " << std::setw(3) << g.ctable(ir, op);
         }
         if (ir == irx) s << "   x";
         if (ir == iry) s << "   y";
