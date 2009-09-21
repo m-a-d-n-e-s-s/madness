@@ -78,7 +78,7 @@ string toString( const T& a ) {
     return o.str();
 }
 void loadDefaultBasis(World& world, std::vector<WF>& boundList) {
-    cout << "Loading the default basis" << endl;
+    PRINT("Loading the default basis");
     const int NBSt = 3;    //Number of Bound States
     const int bSt[][3] = { {1,0,0},
                            {2,0,0},
