@@ -362,28 +362,28 @@ void loadParameters(World& world, int& k, double& L, double &Z) {
         while(f >> tag) {
             if (tag[0] == '#') {
                 char ch;
-                if(world.rank() ==0) printf("    comment  %s ",tag.c_str());
+                PRINTLINE("    comment  " << tag.c_str());
                 while (f.get(ch)) {
-                    printf("%c",ch);
+                    PRINTLINE(ch);
                     if (ch == '\n') break;
                 }
             }
             else if (tag == "L") {
                 f >> L;
-                if(world.rank() == 0) printf("L = %.1f\n", L);
+                PRINTLINE("L = " << L);
             }
             else if (tag == "k") {
                 f >> k;
-                if(world.rank() == 0) printf("k = %.1i\n",k);
+                PRINTLINE("k = " << k);
             }
             else if (tag == "natom") {
                 f >> natom;
                 f >> Z >> Rx >> Ry >> Rz;
-                printf("Z = %.1f\n", Z);
+                PRINTLINE("Z = " << Z);
             }
         }
     }
-    fflush(stdout);
+    //fflush(stdout);
 }
 
 int main(int argc, char**argv) {
