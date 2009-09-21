@@ -362,6 +362,7 @@ struct CalculationParameters {
     int plotlo,plothi;          ///< Range of MOs to print (for both spins if polarized)
     bool plotdens;              ///< If true print the density at convergence
     bool plotcoul;              ///< If true plot the total coulomb potential at convergence
+    bool localize;              ///< If true solve for localized orbitals
     unsigned int maxsub;        ///< Size of iterative subspace ... set to 0 or 1 to disable
     // Next list inferred parameters
     int nalpha;                 ///< Number of alpha spin electrons
@@ -373,7 +374,7 @@ struct CalculationParameters {
     template <typename Archive>
     void serialize(Archive& ar) {
         ar & charge & smear & econv & dconv & L & maxrotn & nvalpha & nvbeta & nopen & maxiter & spin_restricted & lda;
-        ar & plotlo & plothi & plotdens & plotcoul & maxsub;
+        ar & plotlo & plothi & plotdens & plotcoul & localize & maxsub;
         ar & nalpha & nbeta & nmo_alpha & nmo_beta & lo;
     }
 
@@ -394,6 +395,7 @@ struct CalculationParameters {
             , plothi(-1)
             , plotdens(false)
             , plotcoul(false)
+            , localize(true)
             , maxsub(8)
             , nalpha(0)
             , nbeta(0)
@@ -459,6 +461,12 @@ struct CalculationParameters {
             }
             else if (s == "plotcoul") {
                 plotcoul = true;
+            }
+            else if (s == "canon") {
+                localize = false;
+            }
+            else if (s == "local") {
+                localize = true;
             }
             else if (s == "maxsub") {
                 f >> maxsub;
@@ -1371,16 +1379,77 @@ struct Calculation {
         return ke;
     }
 
-    void diag_fock_matrix(World & world, vecfuncT & psi, vecfuncT & Vpsi, tensorT & occ, tensorT & evals, double & ekinetic)
+    void diag_fock_matrix(World & world, tensorT& fock, vecfuncT & psi, vecfuncT & Vpsi, tensorT & evals, double thresh)
     {
-        tensorT fock = make_fock_matrix(world, psi, Vpsi, occ, ekinetic);
         tensorT overlap = matrix_inner(world, psi, psi, true);
         START_TIMER(world);
         tensorT c;
+
+        // Zero out pointless mixing between degenerate orbitals that confuses the nonlinear solver
+        for (long i=0; i<fock.dim[0]; i++) {
+            for (long j=0; j<fock.dim[1]; j++) {
+                double bot = fabs(fock(i,i)-fock(j,j));
+                double top = fabs(fock(i,j));
+                if (bot < thresh && top < thresh) {
+                    fock(i,j) = fock(j,i) = 0.0;
+                    overlap(i,j) = overlap(j,i) = 0.0; // Relying here upon already orthog vectors
+                }
+                // else if (top/bot < 0.01*thresh) {
+                //     fock(i,j) = fock(j,i) = 0.0;
+                //     overlap(i,j) = overlap(j,i) = 0.0; // Relying here upon already orthog vectors
+                // }
+            }
+        }
+
         sygv(fock, overlap, 1, &c, &evals);
         END_TIMER(world, "Diagonalization");
+
+        // Fix phases and within blocks with the same occupation number
+        // attempt to keep orbitals in the same order (to avoid confusing
+        // the non-linear solver).  Have to run the reordering twice
+        // to handle triple degeneracies???
+        long j;
+        for (long i=0; i<c.dim[1]; i++) {
+            c(_,i).absmax(&j);
+            if (c(j,i) < 0) c(_,i).scale(-1.0);
+        }
+        for (long i=0; i<c.dim[1]; i++) {
+            c(_,i).absmax(&j);
+            if (i != j) {
+                print("SWAPPING", i, j);
+                tensorT tmp = copy(c(_,i));
+                c(_,i) = c(_,j);
+                c(_,j) = tmp;
+                swap(evals[i],evals[j]);
+            }
+        }
+        for (long i=0; i<c.dim[1]; i++) {
+            c(_,i).absmax(&j);
+            if (i != j) {
+                print("SWAPPINGX", i, j);
+                tensorT tmp = copy(c(_,i));
+                c(_,i) = c(_,j);
+                c(_,j) = tmp;
+                swap(evals[i],evals[j]);
+            }
+        }
+
+        print("Fock");
+        print(fock);
+        print("Evec");
+        print(c);
+        print("Eval");
+        print(evals);
+
+        world.gop.broadcast(c.ptr(), c.size, 0);
+        world.gop.broadcast(evals.ptr(), evals.size, 0);
+
+        fock = 0;
+        for (unsigned int i=0; i<psi.size(); i++) fock(i,i) = evals(i);
+
         Vpsi = transform(world, Vpsi, c, vtol / min(30.0, double(psi.size())), false);
         psi = transform(world, psi, c, FunctionDefaults<3>::get_thresh() / min(30.0, double(psi.size())), true);
+
         if(world.rank() == 0)
             printf("transformed psi and Vpsi at %.2fs\n", wall_time());
 
@@ -1391,7 +1460,6 @@ struct Calculation {
         normalize(world, psi);
         if(world.rank() == 0)
             printf("normalized psi at %.2fs\n", wall_time());
-
     }
 
     void loadbal(World & world, functionT & arho, functionT & brho, functionT & arho_old, functionT & brho_old, subspaceT & subspace)
@@ -1446,7 +1514,11 @@ struct Calculation {
         world.gop.fence();
     }
 
-    void update_subspace(World & world, vecfuncT & Vpsia, vecfuncT & Vpsib, tensorT & focka, tensorT & fockb, subspaceT & subspace, tensorT & Q, double & bsh_residual, double & update_residual)
+    void update_subspace(World & world, 
+                         vecfuncT & Vpsia, vecfuncT & Vpsib, 
+                         tensorT & focka, tensorT & fockb, 
+                         subspaceT & subspace, tensorT & Q, 
+                         double & bsh_residual, double & update_residual)
     {
         double aerr = 0.0, berr = 0.0;
         vecfuncT vm = amo;
@@ -1490,19 +1562,16 @@ struct Calculation {
                 c = KAIN(Q, rcond);
                 if(abs(c[m - 1]) < 3.0){
                     break;
-                }else
-                    if(rcond < 0.01){
-                        print("Increasing subspace singular value threshold ", c[m - 1], rcond);
-                        rcond *= 100;
-                    }else{
-                        print("Forcing full step due to subspace malfunction");
-                        c = 0.0;
-                        c[m - 1] = 1.0;
-                        break;
-                    }
-
+                } else  if(rcond < 0.01){
+                    print("Increasing subspace singular value threshold ", c[m - 1], rcond);
+                    rcond *= 100;
+                } else {
+                    print("Forcing full step due to subspace malfunction");
+                    c = 0.0;
+                    c[m - 1] = 1.0;
+                    break;
+                }
             }
-
         }
 
         world.gop.broadcast_serializable(c, 0);
@@ -1531,11 +1600,10 @@ struct Calculation {
         END_TIMER(world, "Subspace transform");
         if(param.maxsub <= 1){
             subspace.clear();
-        }else
-            if(subspace.size() == param.maxsub){
-                subspace.erase(subspace.begin());
-                Q = Q(Slice(1, -1), Slice(1, -1));
-            }
+        } else  if(subspace.size() == param.maxsub){
+            subspace.erase(subspace.begin());
+            Q = Q(Slice(1, -1), Slice(1, -1));
+        }
 
         vector<double> anorm = norm2(world, sub(world, amo, amo_new));
         vector<double> bnorm = norm2(world, sub(world, bmo, bmo_new));
@@ -1609,19 +1677,27 @@ struct Calculation {
     {
         functionT arho_old, brho_old;
         functionT adelrhosq, bdelrhosq;
-        const bool localize = true;
         const double dconv = max(FunctionDefaults<3>::get_thresh(), param.dconv);
         const double trantol = vtol / min(30.0, double(amo.size()));
         const double tolloc = 1e-3;
         double update_residual = 0.0, bsh_residual = 0.0;
         subspaceT subspace;
         tensorT Q;
+        bool do_this_iter = true;
+        // Shrink subspace until stop localizing/canonicalizing
+        int maxsub_save = param.maxsub;
+        param.maxsub = 2;
+        
         for(int iter = 0;iter < param.maxiter;iter++){
             if(world.rank() == 0)
                 printf("\nIteration %d at time %.1fs\n\n", iter, wall_time());
+            
+            if (iter > 0 && update_residual < 0.1) {
+                do_this_iter = false;
+                param.maxsub = maxsub_save;
+            }
 
-            bool do_this_iter = (iter == 0) || (update_residual > 0.1);
-            if(localize && do_this_iter){
+            if(param.localize && do_this_iter) {
                 tensorT U = localize_PM(world, amo, aset, tolloc, 0.25, iter == 0);
                 amo = transform(world, amo, U, trantol, true);
                 truncate(world, amo);
@@ -1639,7 +1715,6 @@ struct Calculation {
             functionT brho;
             if(!param.spin_restricted && param.nbeta)
                 brho = make_density(world, bocc, bmo);
-
             else
                 brho = arho;
 
@@ -1674,23 +1749,29 @@ struct Calculation {
             vecfuncT Vpsia = apply_potential(world, aocc, amo, arho, brho, adelrhosq, bdelrhosq, vlocal, exca);
             vecfuncT Vpsib;
             if(param.spin_restricted){
-                if(!param.lda)
-                    excb = exca;
-
-            }else
-                if(param.nbeta){
-                    Vpsib = apply_potential(world, bocc, bmo, brho, arho, bdelrhosq, adelrhosq, vlocal, excb);
-                }
+                if(!param.lda)  excb = exca;
+            } 
+            else if(param.nbeta) {
+                Vpsib = apply_potential(world, bocc, bmo, brho, arho, bdelrhosq, adelrhosq, vlocal, excb);
+            }
 
             double ekina = 0.0, ekinb = 0.0;
             tensorT focka = make_fock_matrix(world, amo, Vpsia, aocc, ekina);
             tensorT fockb = focka;
+
             if(param.spin_restricted)
                 ekinb = ekina;
-
             else
                 fockb = make_fock_matrix(world, bmo, Vpsib, bocc, ekinb);
 
+            if (!param.localize) {
+                if (do_this_iter) {
+                    diag_fock_matrix(world, focka, amo, Vpsia, aeps, dconv);
+                    if (!param.spin_restricted && param.nbeta) 
+                        diag_fock_matrix(world, fockb, bmo, Vpsib, beps, dconv);
+                }
+            }
+            
             if(world.rank() == 0){
                 double enrep = molecule.nuclear_repulsion_energy();
                 double ekinetic = ekina + ekinb;
@@ -1703,10 +1784,26 @@ struct Calculation {
                 printf("    nuclear-repulsion %16.8f\n", enrep);
                 printf("                total %16.8f\n\n", etot);
             }
+
             if(iter > 0){
-                if(da < dconv * molecule.natom() && db < dconv * molecule.natom() && bsh_residual < dconv){
-                    if(world.rank() == 0){
+                if(da < dconv * molecule.natom() && db < dconv * molecule.natom() && bsh_residual < 5.0*dconv){
+                    if(world.rank() == 0) {
                         print("\nConverged!\n");
+                    }
+
+                    // // Rebuild the Fock matrix with the final orbitals so that we can compute
+                    // // the actual eigenvalues and eigenvectors
+                    // tensorT U;
+                    // focka = make_fock_matrix(world, amo, Vpsia, aocc, ekina);
+                    // do_diag(world, focka, amo, U, aeps);
+                    // if (!param.localize) transform(world, amo, U, trantol, true);
+                    // if (param.nbeta && !param.spin_restricted) {
+                    //     fockb = make_fock_matrix(world, bmo, Vpsib, bocc, ekinb);
+                    //     do_diag(world, fockb, bmo, U, beps);
+                    //     if (!param.localize) transform(world, bmo, U, trantol, true);
+                    // }
+
+                    if(world.rank() == 0) {
                         print(" ");
                         print("alpha eigenvalues");
                         print(aeps);
@@ -1724,8 +1821,11 @@ struct Calculation {
             update_subspace(world, Vpsia, Vpsib, focka, fockb, subspace, Q, bsh_residual, update_residual);
         }
 
-        if(world.rank() == 0)
+        if(world.rank() == 0) {
+            if (!param.localize) print("Orbitals are localized - energies are diagonal Fock matrix elements\n");
+            else print("Orbitals are eigenvectors - energies are eigenvalues\n");
             print("Analysis of alpha MO vectors");
+        }
 
         analyze_vectors(world, amo, aocc, aeps);
         if(param.nbeta && !param.spin_restricted){
