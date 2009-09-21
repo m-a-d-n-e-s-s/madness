@@ -306,10 +306,10 @@ void printBasis(World& world, double Z) {
     double PHI = 0.0;
     double TH = 0.0;
     //for(double TH=0; TH<3.14; TH+=0.3 ) {
-    cout << "k = {" << kVec << endl;
+    PRINTLINE("k = {" << kVec );
     cout.precision(2);
     //    for(double r=0; r<sqrt(3)*psi_k.domain*psi_k.k; r+=1.0 ) {
-    for(double r=0; r<sqrt(3)*10; r+=0.1 ) {
+    for(double r=0; r<sqrt(3)*10; r+=1.0 ) {
         cout << scientific;
         cosTH =  std::cos(TH);
         sinTH =  std::sin(TH);
