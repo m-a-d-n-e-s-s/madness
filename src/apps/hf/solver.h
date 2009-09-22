@@ -137,11 +137,18 @@ namespace madness
       make_nuclear_potential();
       initial_guess();
       solver_on = false;
-      for (unsigned int kp = 0; kp < _kpoints.size(); kp++);
+      for (unsigned int kp = 0; kp < _kpoints.size(); kp++)
       {
         _Q.push_back(tensorT(1,1));
         _subspace.push_back(subspaceT());
       }
+      unsigned int ksize = _kpoints.size();
+      unsigned int subsize = _subspace.size();
+      unsigned int Qsize = _Q.size();
+      if (_world.rank() == 0) print("number of k points: ", ksize);
+      if (_world.rank() == 0) print("_Q size: ", Qsize);
+      if (_world.rank() == 0) print("subsize: ", subsize);
+
     }
     //*************************************************************************
 
@@ -1325,13 +1332,16 @@ namespace madness
 
           if (_params.maxsub <= 1) {
               // Clear subspace if it is not being used
-              _subspace.clear();
+              k_subspace.clear();
           }
-          else if (_subspace.size() == _params.maxsub) {
+          else if (k_subspace.size() == _params.maxsub) {
               // Truncate subspace in preparation for next iteration
-              _subspace.erase(_subspace.begin());
+              k_subspace.erase(k_subspace.begin());
               _Q[kp] = _Q[kp](Slice(1,-1),Slice(1,-1));
           }
+          // Save subspace
+          _subspace[kp] = k_subspace;
+
           for (unsigned int wi = kpoint.begin, fi = 0; wi < kpoint.end;
             wi++, fi++)
           {
