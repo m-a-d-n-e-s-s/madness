@@ -17,6 +17,7 @@
  * 3) k (The wavelet order) must be the same as the projected functions: see main()
  *    12 has been the default
  ***************************************************************************************/
+#define WORLD_INSTANTIATE_STATIC_TEMPLATES  
 #include "wavef.h"
 #include <string>
 #include <fstream>
@@ -77,13 +78,12 @@ string toString( const T& a ) {
     o << a[0] << ", " << a[1] << ", " << a[2];
     return o.str();
 }
-void loadDefaultBasis(World& world, std::vector<WF>& boundList) {
+void loadDefaultBasis(World& world, std::vector<WF>& boundList, double Z) {
     PRINT("Loading the default basis");
     const int NBSt = 3;    //Number of Bound States
     const int bSt[][3] = { {1,0,0},
                            {2,0,0},
                            {2,1,0} };
-    double Z = 1.0;
     for( int i=0; i<NBSt; i++ ) {
        boundList.push_back( WF(toString(bSt[i]), 
                  FunctionFactory<complexd,NDIM>(world).functor(functorT(
@@ -97,7 +97,7 @@ void loadBasis(World& world, double Z, std::vector<WF>& boundList, std::vector<W
     ifstream unbound("unbound.num");
     if( ! bound.is_open() && ! unbound.is_open() ) {
         PRINTLINE("bound.num and unbound.num not found");
-        loadDefaultBasis(world,boundList);//HERE;
+        loadDefaultBasis(world,boundList,Z);
     } else {
         double Z = 1.0;
         if(bound.is_open()) {
@@ -215,10 +215,10 @@ void displayToScreen(World& world, std::vector<WF> basisList, std::vector<WF> ps
  * bound.num               Integer triplets of quantum numbers   2  1  0 
  * unbound.num             Double triplets of momentum kx ky kz  0  0  0.5
  ****************************************************************************/
-void projectPsi(World& world, std::vector<WF> boundList, std::vector<WF> unboundList) {
+void projectPsi(World& world, std::vector<WF> boundList, std::vector<WF> unboundList, double Z) {
     std::vector<WF> psiList;
     if(boundList.empty() && unboundList.empty())
-        loadDefaultBasis(world, boundList);
+        loadDefaultBasis(world, boundList, Z);
     ifstream f("wf.num");
     if(f.is_open()) {
         string tag;
@@ -417,7 +417,7 @@ int main(int argc, char**argv) {
         //loadBasis(world, Z, boundList,unboundList);
         //belkic(world);
         //projectZdip(world, unboundList);
-        projectPsi(world, boundList, unboundList);         
+        projectPsi(world, boundList, unboundList, Z);
         world.gop.fence();
 //         if (world.rank() == 0) {
 //             world.am.print_stats();
