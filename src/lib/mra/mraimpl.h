@@ -1041,10 +1041,13 @@ namespace madness {
         }
     }
 
+    /// Set plot_refine=true to get a plot of the refinment levels of 
+    /// the given function (defaulted to false in prototype).
     template <typename T, int NDIM>
     Tensor<T> FunctionImpl<T,NDIM>::eval_plot_cube(const coordT& plotlo,
             const coordT& plothi,
-            const std::vector<long>& npt) const {
+            const std::vector<long>& npt, 
+            const bool eval_refine) const {
         PROFILE_MEMBER_FUNC(FunctionImpl);
         Tensor<T> r(NDIM, &npt[0]);
         //         r(___) = 99.0;
@@ -1128,7 +1131,13 @@ namespace madness {
                             }
                             MADNESS_ASSERT(ind[d]>=0 && ind[d]<npt[d]); // sanity
                         }
-                        r(ind) = eval_cube(n, x, coeff);
+//TEST
+                        if (eval_refine) {
+                          r(ind) = n;
+                        } 
+                        else {
+                          r(ind) = eval_cube(n, x, coeff);
+                        }
                         //print("computing", n, x, ind, r(ind));
                     }
                 }

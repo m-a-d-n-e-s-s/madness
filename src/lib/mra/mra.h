@@ -330,7 +330,12 @@ namespace madness {
 
         /// All processes recieve the entire result (which is a rather severe limit
         /// on the size of the cube that is possible).
-        Tensor<T> eval_cube(const Tensor<double>& cell, const vector<long>& npt) const {
+
+        /// Set eval_refine=true to return the refinment levels of 
+        /// the given function.
+        Tensor<T> eval_cube(const Tensor<double>& cell, 
+                            const vector<long>& npt, 
+                            bool eval_refine = false) const {
             PROFILE_MEMBER_FUNC(Function);
             const double eps=1e-14;
             verify();
@@ -355,7 +360,7 @@ namespace madness {
                 simhi[d] -= 2*delta;  // deliberate asymmetry
             }
             //madness::print("plotbox in sim", simlo, simhi);
-            Tensor<T> r = impl->eval_plot_cube(simlo, simhi, npt);
+            Tensor<T> r = impl->eval_plot_cube(simlo, simhi, npt, eval_refine);
             impl->world.gop.sum(r.ptr(), r.size);
             impl->world.gop.fence();
             return r;
@@ -1592,11 +1597,13 @@ namespace madness {
     }
 
     /// VTK data writer for real-valued (not complex) madness::functions.
+    /// Set plot_refine=true to get a plot of the refinement levels of 
+    /// the given function.
     template<typename T, int NDIM>
     void plotvtk_data(const Function<T, NDIM> &function, const char *fieldname,
         World &world, const char *filename, const Vector<double, NDIM> &plotlo,
         const Vector<double, NDIM> &plothi, const Vector<long, NDIM> &npt,
-        bool binary = false) {
+        bool binary = false, bool plot_refine = false) {
 
         PROFILE_FUNC;
         MADNESS_ASSERT(NDIM>1 && NDIM<=3); // no plotting high-D functions, yet...
@@ -1627,7 +1634,7 @@ namespace madness {
         }
 
         world.gop.fence();
-        Tensor<T> tmpr = function.eval_cube(cell, numpt);
+        Tensor<T> tmpr = function.eval_cube(cell, numpt, plot_refine);
         world.gop.fence();
 
         if(world.rank() == 0) {
@@ -1645,11 +1652,14 @@ namespace madness {
     /// The complex-value is written as two reals (a vector from VTK's
     /// perspective.  The first (X) component is the real part and the second
     /// (Y) component is the imaginary part.
+    /// Set plot_refine=true to get a plot of the refinement levels of 
+    /// the given function.
     template<typename T, int NDIM>
     void plotvtk_data(const Function<std::complex<T>, NDIM> &function,
         const char *fieldname, World &world, const char *filename,
         const Vector<double, NDIM> &plotlo, const Vector<double, NDIM> &plothi,
-        const Vector<long, NDIM> &npt, bool binary = false) {
+        const Vector<long, NDIM> &npt, bool binary = false, 
+        bool plot_refine = false) {
 
         // this is the same as plotvtk_data for real functions, except the
         // real and imaginary parts are printed on the same line (needed
@@ -1684,7 +1694,8 @@ namespace madness {
         }
 
         world.gop.fence();
-        Tensor<std::complex<T> > tmpr = function.eval_cube(cell, numpt);
+        Tensor<std::complex<T> > tmpr = function.eval_cube(cell, numpt, 
+                                                           plot_refine);
         world.gop.fence();
 
         if(world.rank() == 0) {
