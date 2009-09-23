@@ -2273,7 +2273,8 @@ namespace madness {
         /// No communications
         Tensor<T> eval_plot_cube(const coordT& plotlo,
                                  const coordT& plothi,
-                                 const std::vector<long>& npt) const;
+                                 const std::vector<long>& npt,
+                                 const bool eval_refine) const;
 
         /// Evaluate the function at a point in \em simulation coordinates
 
@@ -2615,7 +2616,7 @@ namespace madness {
             // insert timer here
             double start_time = 0;// cpu_time();
             double end_time = 0, cum_time = 0;
-            double fac = 10.0; // 10.0 seems good for qmprop ... 3.0 OK for others
+            double fac = 3.0; // 10.0 seems good for qmprop ... 3.0 OK for others
             double cnorm = c.normf();
             const long lmax = 1L << (key.level()-1);
             const string apply_name = "apply";           
