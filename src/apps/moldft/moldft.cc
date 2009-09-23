@@ -1323,14 +1323,20 @@ struct Calculation {
 
     vecfuncT compute_residual(World & world, tensorT & occ, tensorT & fock, const vecfuncT & psi, vecfuncT & Vpsi, double & err)
     {
+        double trantol = vtol / min(30.0, double(psi.size()));
         int nmo = psi.size();
+
         tensorT eps(nmo);
         for(int i = 0;i < nmo;i++){
             eps(i) = min(-0.05, fock(i, i));
             fock(i, i) -= eps(i);
         }
-        double trantol = vtol / min(30.0, double(psi.size()));
         vecfuncT fpsi = transform(world, psi, fock, trantol, true);
+
+        for(int i = 0;i < nmo;i++){ // Undo the damage
+            fock(i, i) += eps(i);
+        }
+
         gaxpy(world, 1.0, Vpsi, -1.0, fpsi);
         fpsi.clear();
         vector<double> fac(nmo, -2.0);
@@ -1843,17 +1849,24 @@ struct Calculation {
                         print("\nConverged!\n");
                     }
 
-                    // Rebuild the Fock matrix with the final orbitals so that we can compute
-                    // // the actual eigenvalues and eigenvectors
-                    // tensorT U;
-                    // focka = make_fock_matrix(world, amo, Vpsia, aocc, ekina);
-                    // do_diag(world, focka, amo, U, aeps);
-                    // if (!param.localize) transform(world, amo, U, trantol, true);
-                    // if (param.nbeta && !param.spin_restricted) {
-                    //     fockb = make_fock_matrix(world, bmo, Vpsib, bocc, ekinb);
-                    //     do_diag(world, fockb, bmo, U, beps);
-                    //     if (!param.localize) transform(world, bmo, U, trantol, true);
-                    // }
+                    // Diagonalize to get the eigenvalues and if desired the final eigenvectors
+                    tensorT U;
+                    tensorT overlap = matrix_inner(world, amo, amo, true);
+                    sygv(focka, overlap, 1, &U, &aeps);
+                    if (!param.localize) {
+                        amo = transform(world, amo, U, trantol, true);
+                        truncate(world, amo);
+                        normalize(world, amo);
+                    }
+                    if(param.nbeta && !param.spin_restricted){
+                        overlap = matrix_inner(world, bmo, bmo, true);
+                        sygv(fockb, overlap, 1, &U, &beps);
+                        if (!param.localize) {
+                            bmo = transform(world, bmo, U, trantol, true);
+                            truncate(world, bmo);
+                            normalize(world, bmo);
+                        }
+                    }
 
                     if(world.rank() == 0) {
                         print(" ");
@@ -1863,6 +1876,12 @@ struct Calculation {
                             print("beta eigenvalues");
                             print(beps);
                         }
+                    }
+
+                    if (param.localize) {
+                        // Restore the diagonal elements for the analysis
+                        for (unsigned int i=0; i<amo.size(); i++) aeps[i] = focka(i,i);
+                        for (unsigned int i=0; i<bmo.size(); i++) beps[i] = fockb(i,i);
                     }
 
                     break;
