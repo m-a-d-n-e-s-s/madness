@@ -110,6 +110,8 @@ public:
 
     void center();
 
+    void orient();
+
     double total_nuclear_charge() const;
 
     double nuclear_attraction_potential(double x, double y, double z) const;

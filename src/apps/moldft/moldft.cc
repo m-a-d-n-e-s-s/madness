@@ -534,8 +534,11 @@ struct CalculationParameters {
         madness::print("    maximum rotation ", maxrotn);
         madness::print(" max krylov subspace ", maxsub);
         madness::print("    calculation type ", calctype[int(lda)]);
+        if (localize) 
+            madness::print("  localized orbitals ");
+        else
+            madness::print("  canonical orbitals ");
     }
-
 };
 
 struct Calculation {
@@ -558,7 +561,7 @@ struct Calculation {
             molecule.read_file(filename);
             param.read_file(filename);
             aobasis.read_file("sto-3g");
-            molecule.center();
+            molecule.orient();
             param.set_molecular_info(molecule, aobasis);
         }
         world.gop.broadcast_serializable(molecule, 0);
@@ -588,9 +591,6 @@ struct Calculation {
 
                     else
                         k = 12;
-
-
-
 
         FunctionDefaults<3>::set_k(k);
         FunctionDefaults<3>::set_thresh(thresh);
@@ -735,8 +735,8 @@ struct Calculation {
 
             long ndone_iter = 0;
             double maxtheta = 0.0;
-            if(doprint)
-                printf("iteration %ld sum=%.4f ndone=%ld tol=%.2e\n", iter, sum, ndone, tol);
+            // if(doprint)
+            //     printf("iteration %ld sum=%.4f ndone=%ld tol=%.2e\n", iter, sum, ndone, tol);
 
             for(long i = 0;i < nmo;i++){
                 for(long j = 0;j < i;j++){
@@ -792,7 +792,7 @@ struct Calculation {
             ndone += ndone_iter;
             if(ndone_iter == 0 && tol == thresh){
                 if(doprint)
-                    print("Converged!", ndone);
+                    print("PM localization converged in", ndone,"steps");
 
                 converged = true;
                 break;
@@ -956,7 +956,7 @@ struct Calculation {
                 ndone += ndone_iter;
                 if(ndone_iter == 0 && tol == thresh){
                     if(doprint)
-                        print("Converged!", ndone);
+                        print("Boys localization converged in", ndone,"steps");
 
                     converged = true;
                     break;
@@ -1379,76 +1379,128 @@ struct Calculation {
         return ke;
     }
 
+    tensorT matrix_exponential(const tensorT& A) {
+        const double tol = 1e-13;
+        MADNESS_ASSERT(A.dim[0] == A.dim[1]);
+
+        // Scale A by a power of 2 until it is "small"
+        double anorm = A.normf();
+        int n = 0;
+        double scale = 1.0;
+        while (anorm*scale > 0.1) {
+            n++;
+            scale *= 0.5;
+        }
+        tensorT B = scale*A;    // B = A*2^-n
+
+        // Compute exp(B) using Taylor series
+        tensorT expB = tensorT(2, B.dim);
+        for (int i=0; i<expB.dim[0]; i++) expB(i,i) = 1.0;
+
+        int k = 1;
+        tensorT term = B;
+        while (term.normf() > tol) {
+            expB += term;
+            term = inner(term,B);
+            k++;
+            term.scale(1.0/k);
+        }
+
+        // Repeatedly square to recover exp(A)
+        while (n--) {
+            expB = inner(expB,expB);
+        }
+
+        return expB;
+    }
+
     void diag_fock_matrix(World & world, tensorT& fock, vecfuncT & psi, vecfuncT & Vpsi, tensorT & evals, double thresh)
     {
+        long nmo = psi.size();
         tensorT overlap = matrix_inner(world, psi, psi, true);
         START_TIMER(world);
-        tensorT c;
+        tensorT U;
 
-        // Zero out pointless mixing between degenerate orbitals that confuses the nonlinear solver
-        for (long i=0; i<fock.dim[0]; i++) {
-            for (long j=0; j<fock.dim[1]; j++) {
-                double bot = fabs(fock(i,i)-fock(j,j));
-                double top = fabs(fock(i,j));
-                if (bot < thresh && top < thresh) {
-                    fock(i,j) = fock(j,i) = 0.0;
-                    overlap(i,j) = overlap(j,i) = 0.0; // Relying here upon already orthog vectors
-                }
-                // else if (top/bot < 0.01*thresh) {
-                //     fock(i,j) = fock(j,i) = 0.0;
-                //     overlap(i,j) = overlap(j,i) = 0.0; // Relying here upon already orthog vectors
-                // }
-            }
-        }
-
-        sygv(fock, overlap, 1, &c, &evals);
+        sygv(fock, overlap, 1, &U, &evals);
         END_TIMER(world, "Diagonalization");
 
-        // Fix phases and within blocks with the same occupation number
-        // attempt to keep orbitals in the same order (to avoid confusing
-        // the non-linear solver).  Have to run the reordering twice
-        // to handle triple degeneracies???
+        // Fix phases.
         long j;
-        for (long i=0; i<c.dim[1]; i++) {
-            c(_,i).absmax(&j);
-            if (c(j,i) < 0) c(_,i).scale(-1.0);
+        for (long i=0; i<nmo; i++) {
+            U(_,i).absmax(&j);
+            if (U(j,i) < 0) U(_,i).scale(-1.0);
         }
-        for (long i=0; i<c.dim[1]; i++) {
-            c(_,i).absmax(&j);
-            if (i != j) {
-                print("SWAPPING", i, j);
-                tensorT tmp = copy(c(_,i));
-                c(_,i) = c(_,j);
-                c(_,j) = tmp;
-                swap(evals[i],evals[j]);
+
+        // Within blocks with the same occupation number attempt to
+        // keep orbitals in the same order (to avoid confusing the
+        // non-linear solver).  Have to run the reordering multiple
+        // times to handle multiple degeneracies.
+        for (int pass=0; pass<5; pass++) {
+            for (long i=0; i<nmo; i++) {
+                U(_,i).absmax(&j);
+                if (i != j) {
+                    tensorT tmp = copy(U(_,i));
+                    U(_,i) = U(_,j);
+                    U(_,j) = tmp;
+                    swap(evals[i],evals[j]);
+                }
             }
         }
-        for (long i=0; i<c.dim[1]; i++) {
-            c(_,i).absmax(&j);
-            if (i != j) {
-                print("SWAPPINGX", i, j);
-                tensorT tmp = copy(c(_,i));
-                c(_,i) = c(_,j);
-                c(_,j) = tmp;
-                swap(evals[i],evals[j]);
+
+        // Rotations between effectively degenerate states confound
+        // the non-linear equation solver ... undo these rotations
+        long ilo = 0; // first element of cluster
+        while (ilo < nmo-1) {
+            long ihi = ilo;
+            while (fabs(evals[ilo]-evals[ihi+1]) < thresh*10.0*max(fabs(evals[ilo]),1.0)) {
+                ihi++;
+                if (ihi == nmo-1) break;
             }
+            long nclus = ihi - ilo + 1;
+            if (nclus > 1) {
+                print("   found cluster", ilo, ihi);
+                tensorT q = copy(U(Slice(ilo,ihi),Slice(ilo,ihi)));
+                //print(q);
+                // Special code just for nclus=2
+                // double c = 0.5*(q(0,0) + q(1,1));
+                // double s = 0.5*(q(0,1) - q(1,0));
+                // double r = sqrt(c*c + s*s);
+                // c /= r;
+                // s /= r;
+                // q(0,0) = q(1,1) = c;
+                // q(0,1) = -s;
+                // q(1,0) = s;
+
+                // Iteratively construct unitary rotation by
+                // exponentiating the antisymmetric part of the matrix
+                // ... is quadratically convergent so just do 3
+                // iterations
+                tensorT rot = matrix_exponential(-0.5*(q - transpose(q)));
+                q = inner(q,rot);
+                tensorT rot2 = matrix_exponential(-0.5*(q - transpose(q)));
+                q = inner(q,rot2);
+                tensorT rot3 = matrix_exponential(-0.5*(q - transpose(q)));
+                q = inner(rot,inner(rot2,rot3));
+                U(_,Slice(ilo,ihi)) = inner(U(_,Slice(ilo,ihi)),q);
+            }    
+            ilo = ihi+1;
         }
 
         print("Fock");
         print(fock);
         print("Evec");
-        print(c);
+        print(U);;
         print("Eval");
         print(evals);
 
-        world.gop.broadcast(c.ptr(), c.size, 0);
+        world.gop.broadcast(U.ptr(), U.size, 0);
         world.gop.broadcast(evals.ptr(), evals.size, 0);
 
         fock = 0;
         for (unsigned int i=0; i<psi.size(); i++) fock(i,i) = evals(i);
 
-        Vpsi = transform(world, Vpsi, c, vtol / min(30.0, double(psi.size())), false);
-        psi = transform(world, psi, c, FunctionDefaults<3>::get_thresh() / min(30.0, double(psi.size())), true);
+        Vpsi = transform(world, Vpsi, U, vtol / min(30.0, double(psi.size())), false);
+        psi = transform(world, psi, U, FunctionDefaults<3>::get_thresh() / min(30.0, double(psi.size())), true);
 
         if(world.rank() == 0)
             printf("transformed psi and Vpsi at %.2fs\n", wall_time());
@@ -1791,7 +1843,7 @@ struct Calculation {
                         print("\nConverged!\n");
                     }
 
-                    // // Rebuild the Fock matrix with the final orbitals so that we can compute
+                    // Rebuild the Fock matrix with the final orbitals so that we can compute
                     // // the actual eigenvalues and eigenvectors
                     // tensorT U;
                     // focka = make_fock_matrix(world, amo, Vpsia, aocc, ekina);
@@ -1822,7 +1874,7 @@ struct Calculation {
         }
 
         if(world.rank() == 0) {
-            if (!param.localize) print("Orbitals are localized - energies are diagonal Fock matrix elements\n");
+            if (param.localize) print("Orbitals are localized - energies are diagonal Fock matrix elements\n");
             else print("Orbitals are eigenvectors - energies are eigenvalues\n");
             print("Analysis of alpha MO vectors");
         }

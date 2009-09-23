@@ -36,6 +36,8 @@
 /// \file molecule.cc
 /// \brief Simple management of molecular information and potential
 
+#include <tensor/tensor.h>
+#include <linalg/tensor_lapack.h>
 #include <constants.h>
 #include <moldft/molecule.h>
 #include <misc/misc.h>
@@ -673,6 +675,8 @@ const Atom& Molecule::get_atom(unsigned int i) const {
 void Molecule::print() const {
     std::cout.flush();
     printf(" geometry\n");
+    printf("   eprec %.1e\n", eprec);
+    printf("   units atomic\n");
     for (int i=0; i<natom(); i++) {
         printf("   %-2s  %20.8f %20.8f %20.8f", atomic_data[atoms[i].atomic_number].symbol,
                atoms[i].x, atoms[i].y, atoms[i].z);
@@ -739,6 +743,33 @@ void Molecule::center() {
         atoms[i].x -= xx;
         atoms[i].y -= yy;
         atoms[i].z -= zz;
+    }
+}
+
+/// Centers and orients the molecule in a standard manner
+void Molecule::orient() {
+
+    center();
+
+    // Align molecule with axes of charge inertia
+    madness::Tensor<double> I(3L,3L);
+    for (unsigned int i=0; i<atoms.size(); i++) {
+        double q = atoms[i].atomic_number, x[3] = {atoms[i].x, atoms[i].y, atoms[i].z};
+        for (int j=0; j<3; j++)
+            for (int k=0; k<3; k++)
+                I(j,k) += q*x[j]*x[k];
+    }
+    madness::Tensor<double> U, e;
+    madness::syev(I, &U, &e);
+    madness::print("Moment of inertia eigenvalues and tensor\n");
+    madness::print(I);
+    madness::print(U);
+    madness::print(e);
+    madness::Tensor<double> r(3L), rU;
+    for (unsigned int i=0; i<atoms.size(); i++) {
+        r[0]=atoms[i].x; r[1]=atoms[i].y, r[2]= atoms[i].z;
+        rU = inner(r,U);
+        atoms[i].x=rU[0]; atoms[i].y=rU[1]; atoms[i].z=rU[2]; 
     }
 }
 
