@@ -355,7 +355,7 @@ namespace madness {
                 MADNESS_ASSERT(simlo[d] >= 0.0);
                 MADNESS_ASSERT(simhi[d] <= 1.0);
 
-                double delta = eps*simhi[d];
+                double delta = eps*(simhi[d]-simlo[d]);
                 simlo[d] += delta;
                 simhi[d] -= 2*delta;  // deliberate asymmetry
             }
