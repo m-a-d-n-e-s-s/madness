@@ -70,6 +70,17 @@ private:
     std::vector<double> rcut;  // Reciprocal of the smoothing radius
     double eprec;              // Error in energy/atom due to smoothing
 
+    void swapaxes(int ix, int iy);
+
+    template <typename opT>
+    bool test_for_op(double xaxis, double yaxis, double zaxis, opT op) const;
+
+    bool test_for_c2(double xaxis, double yaxis, double zaxis) const;
+
+    bool test_for_sigma(double xaxis, double yaxis, double zaxis) const;
+
+    bool test_for_inverse() const;
+
 public:
     /// Makes a molecule with zero atoms
     Molecule() : atoms(), rcut(), eprec(1e-4) {};
@@ -107,6 +118,8 @@ public:
     double nuclear_repulsion_derivative(int i, int j) const;
 
     double smallest_length_scale() const;
+
+    void identify_point_group();
 
     void center();
 

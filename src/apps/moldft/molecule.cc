@@ -746,6 +746,145 @@ void Molecule::center() {
     }
 }
 
+/// Apply to (x,y,z) a C2 rotation about an axis thru the origin and (xaxis,yaxis,zaxis)
+static void apply_c2(double xaxis, double yaxis, double zaxis, double& x, double& y, double& z) {
+    double raxissq = xaxis*xaxis + yaxis*yaxis + zaxis*zaxis;
+    double dx = x*xaxis*xaxis/raxissq;
+    double dy = y*yaxis*yaxis/raxissq;
+    double dz = z*zaxis*zaxis/raxissq;
+
+    x = 2.0*dx - x;
+    y = 2.0*dy - y;
+    z = 2.0*dz - z;
+}
+
+/// Apply to (x,y,z) a reflection through a plane containing the origin with normal (xaxis,yaxis,zaxis)
+static void apply_sigma(double xaxis, double yaxis, double zaxis, double& x, double& y, double& z) {
+    double raxissq = xaxis*xaxis + yaxis*yaxis + zaxis*zaxis;
+    double dx = x*xaxis*xaxis/raxissq;
+    double dy = y*yaxis*yaxis/raxissq;
+    double dz = z*zaxis*zaxis/raxissq;
+    
+    x = x - 2.0*dx;
+    y = y - 2.0*dy;
+    z = z - 2.0*dz;
+}
+
+static void apply_inverse(double xjunk, double yjunk, double zjunk, double& x, double& y, double& z) {
+    x = -x;
+    y = -y;
+    z = -z;
+}
+
+template <typename opT>
+bool Molecule::test_for_op(double xaxis, double yaxis, double zaxis, opT op) const {
+    const double symtol = 1e-2;
+    for (unsigned int i=0; i<atoms.size(); i++) {
+        double x=atoms[i].x, y=atoms[i].y, z=atoms[i].z;
+        op(xaxis, yaxis, zaxis, x, y, z);
+        bool found = false;
+        for (unsigned int j=0; j<atoms.size(); j++) {
+            double r = distance(x, y, z, atoms[j].x, atoms[j].y, atoms[j].z);
+            if (r < symtol) {
+                found = true;
+                break;
+            }
+        }
+        if (!found) return false;
+    }
+    return true;
+}
+
+bool Molecule::test_for_c2(double xaxis, double yaxis, double zaxis) const {
+    return test_for_op(xaxis, yaxis, zaxis, apply_c2);
+}
+
+bool Molecule::test_for_sigma(double xaxis, double yaxis, double zaxis) const {
+    return test_for_op(xaxis, yaxis, zaxis, apply_sigma);
+}
+
+bool Molecule::test_for_inverse() const {
+    return test_for_op(0.0, 0.0, 0.0, apply_inverse);
+}
+
+void Molecule::swapaxes(int ix, int iy) {
+    for (unsigned int i=0; i<atoms.size(); i++) {
+        double r[3] = {atoms[i].x, atoms[i].y, atoms[i].z};
+        std::swap(r[ix],r[iy]);
+        atoms[i].x=r[0]; atoms[i].y=r[1]; atoms[i].z=r[2];
+    }
+}
+
+void Molecule::identify_point_group() {
+    // C2 axes must be along the Cartesian axes and 
+    // mirror planes must be orthogonal to them
+    
+    bool x_is_c2 = test_for_c2(1.0,0.0,0.0);
+    bool y_is_c2 = test_for_c2(0.0,1.0,0.0);
+    bool z_is_c2 = test_for_c2(0.0,0.0,1.0);
+    bool xy_is_sigma = test_for_sigma(0.0,0.0,1.0);
+    bool xz_is_sigma = test_for_sigma(0.0,1.0,0.0);
+    bool yz_is_sigma = test_for_sigma(1.0,0.0,0.0);
+    bool inverse = test_for_inverse();
+    
+    /*
+      .   (i,c,s)
+      Ci  (1,0,0) --- i
+      C2h (1,1,1) --- c2z, sxy, i
+      D2h (1,3,3) --- c2z, c2y, c2x, sxy, sxz, syz, i
+
+      C1  (0,0,0) --- 
+      Cs  (0,0,1) --- sxy
+      C2  (0,1,0) --- c2z
+      C2v (0,1,2) --- c2z, sxz, syz
+      D2  (0,3,0) --- c2z, c2y, c2x
+
+     */
+
+    int nc2 = int(x_is_c2) + int(y_is_c2) + int(z_is_c2);
+    int nsi = int(xy_is_sigma) + int(xz_is_sigma) + int(yz_is_sigma);
+
+    std::string pointgroup;
+    if (inverse && nc2==0 && nsi==0) {
+        pointgroup = "Ci";
+    }
+    else if (inverse && nc2==1 && nsi==1) {
+        pointgroup = "C2h";
+        if (x_is_c2) swapaxes(0,2);
+        if (y_is_c2) swapaxes(1,2);
+    }
+    else if (inverse && nc2==3 && nsi==3) {
+        pointgroup = "D2h";
+    }
+    else if (!inverse && nc2==0 && nsi==0) {
+        pointgroup = "C1";
+    }
+    else if (!inverse && nc2==0 && nsi==1) {
+        pointgroup = "Cs";
+        if (xz_is_sigma) swapaxes(1,2);
+        if (yz_is_sigma) swapaxes(0,2);
+    }
+    else if (!inverse && nc2==1 && nsi==0) {
+        pointgroup = "C2";
+        if (x_is_c2) swapaxes(0,2);
+        if (y_is_c2) swapaxes(1,2);
+    }
+    else if (!inverse && nc2==1 && nsi==2) {
+        pointgroup = "C2v";
+        if (x_is_c2) swapaxes(0,2);
+        if (y_is_c2) swapaxes(1,2);
+    }
+    else if (!inverse && nc2==3 && nsi==0) {
+        pointgroup = "D2";
+    }        
+    else {
+        throw "Confused assigning pointgroup";
+    }
+
+    madness::print("\n The point group is", pointgroup);
+}
+
+
 /// Centers and orients the molecule in a standard manner
 void Molecule::orient() {
 
@@ -761,16 +900,37 @@ void Molecule::orient() {
     }
     madness::Tensor<double> U, e;
     madness::syev(I, &U, &e);
-    madness::print("Moment of inertia eigenvalues and tensor\n");
-    madness::print(I);
-    madness::print(U);
-    madness::print(e);
+    // madness::print("Moment of inertia eigenvalues and tensor\n");
+    // madness::print(I);
+    // madness::print(U);
+    // madness::print(e);
+
     madness::Tensor<double> r(3L), rU;
     for (unsigned int i=0; i<atoms.size(); i++) {
         r[0]=atoms[i].x; r[1]=atoms[i].y, r[2]= atoms[i].z;
         rU = inner(r,U);
         atoms[i].x=rU[0]; atoms[i].y=rU[1]; atoms[i].z=rU[2]; 
     }
+
+    // Try to resolve degenerate rotations
+    double symtol = 1e-2;
+    if (fabs(e[0]-e[1])<symtol && fabs(e[1]-e[2])<symtol) {
+        madness::print("Cubic point group");
+    }
+    else if (fabs(e[0]-e[1])<symtol) {
+        madness::print("XY degenerate");
+    }
+    else if (fabs(e[1]-e[2])<symtol) {
+        madness::print("YZ degenerate");
+    }
+    else {
+        madness::print("Abelian pointgroup");
+    }
+
+    // Now hopefully have mirror planes and C2 axes correctly oriented
+    // Figure out what elements are actually present and enforce
+    // conventional ordering
+    identify_point_group();
 }
 
 /// Returns the half width of the bounding cube
