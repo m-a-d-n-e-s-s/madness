@@ -2274,7 +2274,7 @@ namespace madness {
         Tensor<T> eval_plot_cube(const coordT& plotlo,
                                  const coordT& plothi,
                                  const std::vector<long>& npt,
-                                 const bool eval_refine) const;
+                                 const bool eval_refine = false) const;
 
         /// Evaluate the function at a point in \em simulation coordinates
 
