@@ -12,7 +12,7 @@ namespace madness {
     
 #ifdef MADATOMIC_USE_GCC
 #  ifdef GCC_ATOMICS_IN_BITS
-#    include <ext/atomicity.h>
+#    include <bits/atomicity.h>
 #  else
 #    include <ext/atomicity.h>
 #  endif
@@ -26,7 +26,7 @@ namespace madness {
     
     /// Only the default constructor is available and IT DOES NOT INITIALIZE THE VARIABLE.
     ///
-    /// Conciously modelded after the TBB API to prepare for switching to it.
+    /// Conciously modeled after the TBB API to prepare for switching to it.
     class AtomicInt {
     private:
         typedef volatile int atomic_int;
@@ -41,9 +41,9 @@ namespace madness {
 #elif defined(MADATOMIC_USE_AIX)
             return fetch_and_add(p,i);
 #else 
-            error atomic exchange_and_add operator must be implemented for this platform
+            error ... atomic exchange_and_add operator must be implemented for this platform;
 #endif
-                                                                                    }
+        }
         
     public:
         /// Returns the value of the counter with fence ensuring subsequent operations are not moved before the load
