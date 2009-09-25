@@ -1162,7 +1162,9 @@ namespace madness {
         friend class LoadBalImpl<NDIM>;
         friend class LBTree<NDIM>;
 
+#ifdef ENABLE_LBTIMER
         typedef Singleton< LBTimer<NDIM> > CostFun;
+#endif
         typedef FunctionImpl<T,NDIM> implT; ///< Type of this class (implementation)
         typedef Tensor<T> tensorT; ///< Type of tensor used to hold coeffs
         typedef Vector<Translation,NDIM> tranT; ///< Type of array holding translation
@@ -1193,7 +1195,9 @@ namespace madness {
 
         Tensor<int> bc; ///< Type of boundary condition -- currently only zero or periodic
 
+#ifdef ENABLE_LBTIMER
         SharedPtr<ApplyTime<NDIM> > apply_time;
+#endif
 
         // Disable the default copy constructor
         FunctionImpl(const FunctionImpl<T,NDIM>& p);
@@ -1217,7 +1221,10 @@ namespace madness {
                 , compressed(false)
                 , coeffs(world,factory._pmap,false)
                 , bc(factory._bc)
-                , apply_time(SharedPtr<ApplyTime<NDIM> > ()) {
+#ifdef ENABLE_LBTIMER
+                , apply_time(SharedPtr<ApplyTime<NDIM> > ())
+#endif
+            {
             PROFILE_MEMBER_FUNC(FunctionImpl);
             // !!! Ensure that all local state is correctly formed
             // before invoking process_pending for the coeffs and
@@ -1275,7 +1282,10 @@ namespace madness {
                 , compressed(other.compressed)
                 , coeffs(world, pmap ? pmap : other.coeffs.get_pmap())
                 , bc(other.bc)
-                , apply_time(other.apply_time) {
+#ifdef ENABLE_LBTIMER
+               , apply_time(other.apply_time) 
+#endif
+            {
             if (dozero) {
                 initial_level = 1;
                 insert_zero_down_to_initial_level(cdata.key0);
@@ -1646,7 +1656,9 @@ namespace madness {
             PROFILE_MEMBER_FUNC(FunctionImpl);
             const keyT& rkey = arg.first;
             const Tensor<R>& rcoeff = arg.second;
+#ifdef ENABLE_LBTIMER
             CostFun::Instance(world).start(key,"mul");
+#endif
             //madness::print("do_mul: r", rkey, rcoeff.size);
             Tensor<R> rcube = fcube_for_mul(key, rkey, rcoeff);
             //madness::print("do_mul: l", key, left.size);
@@ -1657,7 +1669,9 @@ namespace madness {
             double scale = pow(0.5,0.5*NDIM*key.level())*sqrt(FunctionDefaults<NDIM>::get_cell_volume());
             tcube = transform(tcube,cdata.quad_phiw).scale(scale);
             coeffs.replace(key, nodeT(tcube,false));
+#ifdef ENABLE_LBTIMER
             CostFun::Instance(world).stop(key,"mul");
+#endif
             return None;
         }
 
@@ -2614,15 +2628,19 @@ namespace madness {
         Void do_apply(const opT* op, const FunctionImpl<R,NDIM>* f, const keyT& key, const Tensor<R>& c) {
             PROFILE_MEMBER_FUNC(FunctionImpl);
             // insert timer here
+#ifdef ENABLE_LBTIMER
             double start_time = 0;// cpu_time();
             double end_time = 0, cum_time = 0;
+#endif
             double fac = 3.0; // 10.0 seems good for qmprop ... 3.0 OK for others
             double cnorm = c.normf();
             const long lmax = 1L << (key.level()-1);
             const string apply_name = "apply";           
 
+#ifdef ENABLE_LBTIMER
             CostFun::Instance(world).start(key,"apply");
             start_time = cpu_time();
+#endif
             const std::vector<keyT>& disp = op->get_disp(key.level());
             for (typename std::vector<keyT>::const_iterator it=disp.begin(); it != disp.end(); ++it) {
                 const keyT& d = *it;
@@ -2647,22 +2665,22 @@ namespace madness {
                     // working assumption here is that the operator is isotropic and
                     // montonically decreasing with distance
                     double tol = truncate_tol(thresh, key);
-
+                    
                     if (cnorm*opnorm> tol/fac) {
-//#define FINER_GRAIN
-#ifdef  FINER_GRAIN
-                        // This introduces finer grain parallelism
-                        // ProcessID where = world.rank();
-                        //ProcessID where = coeffs.owner(dest);
-                        ProcessID where = world.random_proc();
-                        do_op_args args(key, d, dest, tol, fac, cnorm);
-                        task(where, &implT:: template do_apply_kernel<opT,R>, op, c, args);
-#else
-                        tensorT result = op->apply(key, d, c, tol/fac/cnorm);
-                        if (result.normf()> 0.3*tol/fac) {
-                            coeffs.task(dest, &nodeT::accumulate, result, coeffs, dest, TaskAttributes::hipri());
+                        
+                        // Most expensive part is the kernel ... do it in a separate task
+                        if (d.distsq()==0) {
+                            // This introduces finer grain parallelism
+                            ProcessID where = world.rank();
+                            do_op_args args(key, d, dest, tol, fac, cnorm);
+                            task(where, &implT:: template do_apply_kernel<opT,R>, op, c, args);
                         }
-#endif
+                        else {
+                            tensorT result = op->apply(key, d, c, tol/fac/cnorm);
+                            if (result.normf()> 0.3*tol/fac) {
+                                coeffs.task(dest, &nodeT::accumulate, result, coeffs, dest, TaskAttributes::hipri());
+                            }
+                        }
                     }
                     else if (d.distsq() >= 1) { // Assumes monotonic decay beyond nearest neighbor
                         break;
@@ -2670,6 +2688,7 @@ namespace madness {
                 }
 
             }
+#ifdef ENABLE_LBTIMER
             // update Apply_Time
             end_time = cpu_time();
             //        madness::print("time for key", key, ":", end_time-start_time);
@@ -2677,8 +2696,8 @@ namespace madness {
                 cum_time = end_time - start_time;
                 apply_time->update(key, cum_time);
             }
-
             CostFun::Instance(world).stop(key,"apply");
+#endif
             return None;
         }
 
@@ -2715,9 +2734,9 @@ namespace madness {
         //     apply_time.print();
         //       }
 
-        void set_apply_time_ptr(SharedPtr<ApplyTime<NDIM> > ptr) {
-            apply_time = ptr;
-        }
+//         void set_apply_time_ptr(SharedPtr<ApplyTime<NDIM> > ptr) {
+//             apply_time = ptr;
+//         }
         
 
         /// Returns the square of the error norm in the box labelled by key

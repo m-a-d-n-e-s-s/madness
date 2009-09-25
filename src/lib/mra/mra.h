@@ -1001,10 +1001,12 @@ namespace madness {
         }
 
 
+#ifdef ENABLE_LBTIMER
         void set_apply_time_ptr(SharedPtr<ApplyTime<NDIM> > ptr) {
             PROFILE_MEMBER_FUNC(Function);
             impl->set_apply_time_ptr(ptr);
         }
+#endif
 
     private:
 
