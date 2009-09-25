@@ -1,6 +1,6 @@
 include $(top_srcdir)/config/MakeGlobal.am
 
-bin_PROGRAMS = test test_mtxmq test_Zmtxmq jimkernel
+bin_PROGRAMS = test test_mtxmq test_Zmtxmq jimkernel test_scott
 lib_LIBRARIES = libMADtensor.a
 
 thisincludedir = $(includedir)/tensor
@@ -10,6 +10,9 @@ thisinclude_HEADERS = aligned.h     mxm.h     tensorexcept.h  tensoriter_spec.h 
 
 test_SOURCES = test.cc
 test_LDADD = libMADtensor.a $(LIBMISC) $(LIBWORLD) 
+
+test_scott_SOURCES = test_scott.cc
+test_scott_LDADD = libMADtensor.a $(LIBMISC) $(LIBWORLD) 
 
 test_mtxmq_SOURCES = test_mtxmq.cc
 test_mtxmq_LDADD = libMADtensor.a $(LIBWORLD)
