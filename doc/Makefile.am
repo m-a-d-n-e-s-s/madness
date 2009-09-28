@@ -17,7 +17,8 @@ distclean: clean
 	/bin/rm doxygen.cfg
 
 install::
-	-cp -r html $(installroot)$(prefix)/doc
+	-mkdir -p $(installroot)$(prefix)/doc
+	-cp -r html $(installroot)$(prefix)/doc/
 
 install_devel::
 
