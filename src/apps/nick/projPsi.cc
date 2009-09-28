@@ -92,14 +92,13 @@ void loadDefaultBasis(World& world, std::vector<WF>& boundList, double Z) {
     PRINTLINE("Done loading the standard basis");
 }
 
-void loadBasis(World& world, double Z, std::vector<WF>& boundList, std::vector<WF>& unboundList) {
+void loadBasis(World& world, std::vector<WF>& boundList, std::vector<WF>& unboundList, double Z) {
     ifstream bound("bound.num");
     ifstream unbound("unbound.num");
     if( ! bound.is_open() && ! unbound.is_open() ) {
         PRINTLINE("bound.num and unbound.num not found");
         loadDefaultBasis(world,boundList,Z);
     } else {
-        double Z = 1.0;
         if(bound.is_open()) {
             PRINTLINE("Calculating bound quantum states");
             int n,l,m;
@@ -414,7 +413,7 @@ int main(int argc, char**argv) {
         vector3D rVec(dARR);
         //compareGroundState(world, Z);
         //printBasis(world,Z);
-        //loadBasis(world, Z, boundList,unboundList);
+        loadBasis(world,  boundList, unboundList, Z);
         //belkic(world);
         //projectZdip(world, unboundList);
         projectPsi(world, boundList, unboundList, Z);
