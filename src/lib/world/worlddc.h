@@ -80,12 +80,19 @@ namespace madness {
 
 
     /// Iterator for distributed container wraps the local iterator
-    template <class internal_iteratorT, class pairT>
+    template <class internal_iteratorT>
     class WorldContainerIterator {
+    public:
+      typedef typename std::iterator_traits<internal_iteratorT>::iterator_category iterator_category;
+      typedef typename std::iterator_traits<internal_iteratorT>::value_type value_type;
+      typedef typename std::iterator_traits<internal_iteratorT>::difference_type difference_type;
+      typedef typename std::iterator_traits<internal_iteratorT>::pointer pointer;
+      typedef typename std::iterator_traits<internal_iteratorT>::reference reference;
+
     private:
         internal_iteratorT  it;       ///< Iterator from local container
         bool is_local;                ///< If true we are using the local container
-        pairT value;                  ///< If (!is_local) holds the remote value
+        value_type value;             ///< If (!is_local) holds the remote value
 
     public:
         /// Default constructor makes a local uninitialized value
@@ -97,7 +104,7 @@ namespace madness {
                 : it(it), is_local(true), value() {}
 
         /// Initializes to cache a remote value
-        explicit WorldContainerIterator(const pairT& value)
+        explicit WorldContainerIterator(const value_type& value)
                 : it(), is_local(false), value(value) {}
 
         WorldContainerIterator(const WorldContainerIterator& other) {
@@ -113,8 +120,8 @@ namespace madness {
                 }
                 else {
                     // Sigh ... there does not seem a kosher way to do this
-                    *const_cast<REMCONST(typename pairT::first_type)*>(&value.first) = other.value.first;
-                    *const_cast<REMCONST(typename pairT::second_type)*>(&value.second) = other.value.second;
+                    *const_cast<REMCONST(typename value_type::first_type)*>(&value.first) = other.value.first;
+                    *const_cast<REMCONST(typename value_type::second_type)*>(&value.second) = other.value.second;
                 }
             }
             return *this;
@@ -156,26 +163,26 @@ namespace madness {
         }
 
         /// Iterators dereference to std::pair<const keyT,valueT>
-        const pairT* operator->() const {
+        const pointer operator->() const {
             if (is_local) return it.operator->();
-            else return &value;
+            else return const_cast<const pointer>(&value);
         }
 
         /// Iterators dereference to std::pair<const keyT,valueT>
-        pairT* operator->() {
+        pointer operator->() {
             if (is_local) return it.operator->();
             else return &value;
 
         }
 
         /// Iterators dereference to const std::pair<const keyT,valueT>
-        const pairT& operator*() const {
+        const reference operator*() const {
             if (is_local) return *it;
             else return value;
         }
 
         /// Iterators dereference to std::pair<const keyT,valueT>
-        pairT& operator*() {
+        reference operator*() {
             if (is_local) return *it;
             else return value;
         }
@@ -198,8 +205,8 @@ namespace madness {
         }
     };
 
-    template <class internal_iteratorT, class pairT>
-    std::ostream& operator<<(std::ostream& s, const WorldContainerIterator<internal_iteratorT, pairT>& it) {
+    template <class internal_iteratorT>
+    std::ostream& operator<<(std::ostream& s, const WorldContainerIterator<internal_iteratorT>& it) {
         s << "WCIterator(" << *it << ")";
         return s;
     }
@@ -228,10 +235,10 @@ namespace madness {
         typedef typename internal_containerT::const_iterator internal_const_iteratorT;
         typedef typename internal_containerT::accessor accessor;
         typedef typename internal_containerT::const_accessor const_accessor;
-        typedef WorldContainerIterator<internal_iteratorT,pairT> iteratorT;
-        typedef WorldContainerIterator<internal_iteratorT,pairT> iterator;
-        typedef WorldContainerIterator<internal_const_iteratorT, const_pairT> const_iteratorT;
-        typedef WorldContainerIterator<internal_const_iteratorT, const_pairT> const_iterator;
+        typedef WorldContainerIterator<internal_iteratorT> iteratorT;
+        typedef WorldContainerIterator<internal_iteratorT> iterator;
+        typedef WorldContainerIterator<internal_const_iteratorT> const_iteratorT;
+        typedef WorldContainerIterator<internal_const_iteratorT> const_iterator;
 
         friend class WorldContainer<keyT,valueT>;
 

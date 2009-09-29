@@ -178,6 +178,12 @@ namespace madness {
             }
 
         public:
+            typedef std::forward_iterator_tag iterator_category;
+            typedef datumT value_type;
+            typedef std::ptrdiff_t difference_type;
+            typedef datumT* pointer;
+            typedef datumT& reference;
+
             /// Makes invalid iterator
             HashIterator() : h(0), bin(-1), entry(0) {}
 
@@ -213,13 +219,13 @@ namespace madness {
                 return entry!=a.entry;
             }
 
-            datumT& operator*() const {
+            reference operator*() const {
                 MADNESS_ASSERT(entry);
                 //if (!entry) throw "Hash iterator: operator*: at end";
                 return entry->datum;
             }
 
-            datumT* operator->() const {
+            pointer operator->() const {
                 MADNESS_ASSERT(entry);
                 //if (!entry) throw "Hash iterator: operator->: at end";
                 return &entry->datum;
