@@ -108,6 +108,19 @@
 #  define C11 %xmm14
 #  define C12 %xmm15
 
+#ifdef ON_A_MAC
+#define MTXM_ENTRY(name) \
+.globl _##name; \
+_##name: \
+        mov     %edx,   NK; \
+        shl     $3,     DIMI8; \
+        mov     NJ,     NJ8; \
+        shl     $3,     NJ8; \
+        mov     A,      ASAVE; \
+        mov     B,      BSAVE; \
+        mov     NK,     NKSAVE
+
+#else
 #define MTXM_ENTRY(name) \
 .globl name; \
   .type name,@function ; \
@@ -120,6 +133,7 @@ name: \
         mov     A,      ASAVE; \
         mov     B,      BSAVE; \
         mov     NK,     NKSAVE 
+#endif
 
 #define RETURN ret
 
@@ -166,7 +180,7 @@ name: \
 #else
 #define NAME(name) name
 #endif
-	
+
 /*  .type name,@function ; */
 #define MTXM_ENTRY(name) \
 .globl NAME(name); \
