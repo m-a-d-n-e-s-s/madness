@@ -1,34 +1,34 @@
 /*
   This file is part of MADNESS.
-
+  
   Copyright (C) <2007> <Oak Ridge National Laboratory>
-
+  
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation; either version 2 of the License, or
   (at your option) any later version.
-
+  
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
   GNU General Public License for more details.
-
+  
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
-
+  
   For more information please contact:
-
+  
   Robert J. Harrison
   Oak Ridge National Laboratory
   One Bethel Valley Road
   P.O. Box 2008, MS-6367
-
+  
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
-
+  
+  
   $Id$
 */
 
@@ -116,9 +116,9 @@ private:
     const int nproc;
 public:
     LevelPmap() : nproc(0) {};
-
+    
     LevelPmap(World& world) : nproc(world.nproc()) {}
-
+    
     /// Find the owner of a given key
     ProcessID owner(const Key<3>& key) const {
         Level n = key.level();
@@ -145,11 +145,11 @@ typedef SharedPtr<operatorT> poperatorT;
 
 double ttt, sss;
 void START_TIMER(World& world) {
-		world.gop.fence(); ttt=wall_time(); sss=cpu_time();
+    world.gop.fence(); ttt=wall_time(); sss=cpu_time();
 }
 
 void END_TIMER(World& world, const char* msg) {
-	ttt=wall_time()-ttt; sss=cpu_time()-sss; if (world.rank()==0) printf("timer: %20.20s %8.2fs %8.2fs\n", msg, sss, ttt);
+    ttt=wall_time()-ttt; sss=cpu_time()-sss; if (world.rank()==0) printf("timer: %20.20s %8.2fs %8.2fs\n", msg, sss, ttt);
 }
 
 
@@ -158,11 +158,11 @@ inline double mask1(double x) {
        from 0->1 in [0,1].  n iterations produce 2*n-1
        zero derivatives at the end points. Order of polyn
        is 3^n.
-
+       
        Currently use one iteration so that first deriv.
        is zero at interior boundary and is exactly representable
        by low order multiwavelet without refinement */
-
+    
     x = (x*x*(3.-2.*x));
     return x;
 }
@@ -173,7 +173,7 @@ double mask3(const coordT& ruser) {
     double x= rsim[0], y=rsim[1], z=rsim[2];
     double lo = 0.0625, hi = 1.0-lo, result = 1.0;
     double rlo = 1.0/lo;
-
+    
     if (x<lo)
         result *= mask1(x*rlo);
     else if (x>hi)
@@ -186,7 +186,7 @@ double mask3(const coordT& ruser) {
         result *= mask1(z*rlo);
     else if (z>hi)
         result *= mask1((1.0-z)*rlo);
-
+    
     return result;
 }
 
@@ -195,8 +195,8 @@ private:
     const Molecule& molecule;
 public:
     MolecularPotentialFunctor(const Molecule& molecule)
-            : molecule(molecule) {}
-
+        : molecule(molecule) {}
+    
     double operator()(const coordT& x) const {
         return molecule.nuclear_attraction_potential(x[0], x[1], x[2]);
     }
@@ -208,8 +208,8 @@ private:
     const AtomicBasisSet& aobasis;
 public:
     MolecularGuessDensityFunctor(const Molecule& molecule, const AtomicBasisSet& aobasis)
-            : molecule(molecule), aobasis(aobasis) {}
-
+        : molecule(molecule), aobasis(aobasis) {}
+    
     double operator()(const coordT& x) const {
         return aobasis.eval_guess_density(molecule, x[0], x[1], x[2]);
     }
@@ -222,19 +222,19 @@ private:
     vector<coordT> specialpt;
 public:
     AtomicBasisFunctor(const AtomicBasisFunction& aofunc)
-    : aofunc(aofunc)
+        : aofunc(aofunc)
     {
     	double x, y, z;
-		aofunc.get_coords(x,y,z);
-		coordT r;
-		r[0]=x; r[1]=y; r[2]=z;
-		specialpt=vector<coordT>(1,r);
+        aofunc.get_coords(x,y,z);
+        coordT r;
+        r[0]=x; r[1]=y; r[2]=z;
+        specialpt=vector<coordT>(1,r);
     }
-
+    
     double operator()(const coordT& x) const {
         return aofunc(x[0], x[1], x[2]);
     }
-
+    
     vector<coordT> special_points() const {return specialpt;}
 };
 
@@ -245,8 +245,8 @@ private:
     const int axis;
 public:
     MolecularDerivativeFunctor(const Molecule& molecule, int atom, int axis)
-            : molecule(molecule), atom(atom), axis(axis) {}
-
+        : molecule(molecule), atom(atom), axis(axis) {}
+    
     double operator()(const coordT& x) const {
         return molecule.nuclear_attraction_potential_derivative(atom, axis, x[0], x[1], x[2]);
     }
@@ -345,7 +345,7 @@ struct CalculationParameters {
     // !!! If you add more data don't forget to add them to serialize method !!!
     // !!!                                                                   !!!
     // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
+    
     // First list input parameters
     double charge;              ///< Total molecular charge
     double smear;               ///< Smearing parameter
@@ -357,52 +357,59 @@ struct CalculationParameters {
     int nvbeta;                 ///< Number of beta virtuals to compute
     int nopen;                  ///< Number of unpaired electrons = napha-nbeta
     int maxiter;                ///< Maximum number of iterations
+    int nio;                    ///< No. of io servers to use
     bool spin_restricted;       ///< True if spin restricted
     bool lda;                   ///< True if LDA (HF if false)
     int plotlo,plothi;          ///< Range of MOs to print (for both spins if polarized)
     bool plotdens;              ///< If true print the density at convergence
     bool plotcoul;              ///< If true plot the total coulomb potential at convergence
     bool localize;              ///< If true solve for localized orbitals
+    bool restart;               ///< If true restart from orbitals on disk
     unsigned int maxsub;        ///< Size of iterative subspace ... set to 0 or 1 to disable
+    int npt_plot;               ///< No. of points to use in each dim for plots
+    tensorT plot_cell;          ///< lo hi in each dimension for plotting (default is all space)
     // Next list inferred parameters
     int nalpha;                 ///< Number of alpha spin electrons
     int nbeta;                  ///< Number of beta  spin electrons
     int nmo_alpha;              ///< Number of alpha spin molecular orbitals
     int nmo_beta;               ///< Number of beta  spin molecular orbitals
     double lo;                  ///< Smallest length scale we need to resolve
-
+    
     template <typename Archive>
     void serialize(Archive& ar) {
-        ar & charge & smear & econv & dconv & L & maxrotn & nvalpha & nvbeta & nopen & maxiter & spin_restricted & lda;
-        ar & plotlo & plothi & plotdens & plotcoul & localize & maxsub;
+        ar & charge & smear & econv & dconv & L & maxrotn & nvalpha & nvbeta & nopen & maxiter & nio & spin_restricted & lda;
+        ar & plotlo & plothi & plotdens & plotcoul & localize & restart & maxsub & npt_plot & plot_cell;
         ar & nalpha & nbeta & nmo_alpha & nmo_beta & lo;
     }
-
+    
     CalculationParameters()
-            : charge(0.0)
-            , smear(0.0)
-            , econv(1e-5)
-            , dconv(1e-4)
-            , L(0.0)
-            , maxrotn(0.25)
-            , nvalpha(1)
-            , nvbeta(1)
-            , nopen(0)
-            , maxiter(20)
-            , spin_restricted(true)
-            , lda(true)
-            , plotlo(0)
-            , plothi(-1)
-            , plotdens(false)
-            , plotcoul(false)
-            , localize(true)
-            , maxsub(8)
-            , nalpha(0)
-            , nbeta(0)
-            , nmo_alpha(0)
-            , nmo_beta(0)
-            , lo(1e-10) {}
-
+        : charge(0.0)
+        , smear(0.0)
+        , econv(1e-5)
+        , dconv(1e-4)
+        , L(0.0)
+        , maxrotn(0.25)
+        , nvalpha(1)
+        , nvbeta(1)
+        , nopen(0)
+        , maxiter(20)
+        , nio(1)
+        , spin_restricted(true)
+        , lda(true)
+        , plotlo(0)
+        , plothi(-1)
+        , plotdens(false)
+        , plotcoul(false)
+        , localize(true)
+        , restart(false)
+        , maxsub(8)
+        , npt_plot(101)
+        , nalpha(0)
+        , nbeta(0)
+        , nmo_alpha(0)
+        , nmo_beta(0)
+        , lo(1e-10) {}
+    
     void read_file(const std::string& filename) {
         std::ifstream f(filename.c_str());
         position_stream(f, "dft");
@@ -447,6 +454,9 @@ struct CalculationParameters {
             else if (s == "maxiter") {
                 f >> maxiter;
             }
+            else if (s == "nio") {
+                f >> nio;
+            }
             else if (s == "lda") {
                 lda = true;
             }
@@ -462,11 +472,21 @@ struct CalculationParameters {
             else if (s == "plotcoul") {
                 plotcoul = true;
             }
+            else if (s == "plotnpt") {
+                f >> npt_plot;
+            }
+            else if (s == "plotcell") {
+                plot_cell = tensorT(3L,2L);
+                f >> plot_cell(0,0) >> plot_cell(0,1) >> plot_cell(1,0) >> plot_cell(1,1) >> plot_cell(2,0) >> plot_cell(2,1);
+            }
             else if (s == "canon") {
                 localize = false;
             }
             else if (s == "local") {
                 localize = true;
+            }
+            else if (s == "restart") {
+                restart = true;
             }
             else if (s == "maxsub") {
                 f >> maxsub;
@@ -480,7 +500,7 @@ struct CalculationParameters {
             if (nopen != 0) spin_restricted = false;
         }
     }
-
+    
     void set_molecular_info(const Molecule& molecule, const AtomicBasisSet& aobasis) {
         double z = molecule.total_nuclear_charge();
         int nelec = z - charge;
@@ -495,7 +515,7 @@ struct CalculationParameters {
         nmo_alpha = nalpha + nvalpha;
         nmo_beta = nbeta + nvbeta;
         if (nalpha != nbeta) spin_restricted = false;
-
+        
         // Ensure we have enough basis functions to guess the requested
         // number of states ... a minimal basis for a closed-shell atom
         // might not have any functions for virtuals.
@@ -505,18 +525,18 @@ struct CalculationParameters {
         if (nalpha>nbf || nbeta>nbf) error("too few basis functions?", nbf);
         nvalpha = nmo_alpha - nalpha;
         nvbeta = nmo_beta - nbeta;
-
+        
         // Unless overridden by the user use a cell big enough to
         // have exp(-sqrt(2*I)*r) decay to 1e-6 with I=1ev=0.037Eh
         // --> need 50 a.u. either side of the molecule
-
+        
         if (L == 0.0) {
             L = molecule.bounding_cube() + 50.0;
         }
-
+        
         lo = molecule.smallest_length_scale();
     }
-
+    
     void print(World& world) const {
         //time_t t = time((time_t *) 0);
         //char *tmp = ctime(&t);
@@ -532,8 +552,21 @@ struct CalculationParameters {
         madness::print("  energy convergence ", econv);
         madness::print(" density convergence ", dconv);
         madness::print("    maximum rotation ", maxrotn);
+        madness::print("   no. of io servers ", nio);
         madness::print(" max krylov subspace ", maxsub);
         madness::print("    calculation type ", calctype[int(lda)]);
+        madness::print("             restart ", restart);
+        madness::print("     simulation cube ", -L, L);
+        madness::print("        plot density ", plotdens);
+        madness::print("        plot coulomb ", plotcoul);
+        madness::print("        plot orbital ", plotlo, plothi);
+        madness::print("        plot npoints ", npt_plot);
+        if (plot_cell.size > 0)
+            madness::print("        plot  volume ", plot_cell(0,0), plot_cell(0,1), 
+                           plot_cell(1,0), plot_cell(1,1), plot_cell(2,0), plot_cell(2,1));
+        else 
+            madness::print("        plot  volume ", "default");
+
         if (localize) 
             madness::print("  localized orbitals ");
         else
@@ -557,7 +590,7 @@ struct Calculation {
     double vtol;
     Calculation(World & world, const char *filename)
     {
-        if(world.rank() == 0){
+        if(world.rank() == 0) {
             molecule.read_file(filename);
             param.read_file(filename);
             aobasis.read_file("sto-3g");
@@ -570,28 +603,21 @@ struct Calculation {
         FunctionDefaults<3>::set_cubic_cell(-param.L, param.L);
         set_protocol(world, 1e-4);
     }
-
+    
     void set_protocol(World & world, double thresh)
     {
         int k;
         if(thresh >= 1e-2)
             k = 4;
-
+        else if(thresh >= 1e-4)
+            k = 6;
+        else if(thresh >= 1e-6)
+            k = 8;
+        else if(thresh >= 1e-8)
+            k = 10;
         else
-            if(thresh >= 1e-4)
-                k = 6;
-
-            else
-                if(thresh >= 1e-6)
-                    k = 8;
-
-                else
-                    if(thresh >= 1e-8)
-                        k = 10;
-
-                    else
-                        k = 12;
-
+            k = 12;
+        
         FunctionDefaults<3>::set_k(k);
         FunctionDefaults<3>::set_thresh(thresh);
         FunctionDefaults<3>::set_refine(true);
@@ -609,7 +635,157 @@ struct Calculation {
             print("\nSolving with thresh", thresh, "    k", FunctionDefaults<3>::get_k(), "   conv", max(thresh, param.dconv), "\n");
         }
     }
+    
+    void save_mos(World& world) {
+        ParallelOutputArchive ar(world, "restartdata", param.nio);
+        ar & param.spin_restricted;
+        ar & (unsigned int)(amo.size()); 
+        ar & aeps & aocc & aset;
+        for (unsigned int i=0; i<amo.size(); i++) ar & amo[i];
+        if (!param.spin_restricted) {
+            ar & (unsigned int)(bmo.size()); 
+            ar & beps & bocc & bset;
+            for (unsigned int i=0; i<bmo.size(); i++) ar & bmo[i];
+        }
+    }
+    
+    void load_mos(World& world) {
+        const double trantol = vtol / min(30.0, double(param.nalpha));
+        const double thresh = FunctionDefaults<3>::get_thresh();
+        const int k = FunctionDefaults<3>::get_k();
+        unsigned int nmo;
+        bool spinrest;
+        amo.clear(); bmo.clear();
+        
+        ParallelInputArchive ar(world, "restartdata");
+        
+        /*
+          File format:
+          
+          bool spinrestricted --> if true only alpha orbitals are present
+          
+          unsigned int nmo_alpha;
+          Tensor<double> aeps;
+          Tensor<double> aocc;
+          vector<int> aset;
+          for i from 0 to nalpha-1:
+          .   Function<double,3> amo[i]
+          
+          repeat for beta if !spinrestricted
+          
+        */
+        
+        // LOTS OF LOGIC MISSING HERE TO CHANGE OCCUPATION NO., SET,
+        // EPS, SWAP, ... sigh
+        
+        ar & spinrest;
+        
+        ar & nmo;
+        MADNESS_ASSERT(nmo >= unsigned(param.nmo_alpha));
+        ar & aeps & aocc & aset;
+        amo.resize(nmo);
+        for (unsigned int i=0; i<amo.size(); i++) ar & amo[i];
+        if (nmo > unsigned(param.nmo_alpha)) {
+            aset.resize(param.nmo_alpha);
+            amo.resize(param.nmo_alpha);
+            aeps = copy(aeps(Slice(0,param.nmo_alpha-1)));
+            aocc = copy(aocc(Slice(0,param.nmo_alpha-1)));
+        }
+        
+        if (amo[0].k() != k) {
+            reconstruct(world,amo);
+            for(unsigned int i = 0;i < amo.size();i++) amo[i] = madness::project(amo[i], k, thresh, false);
+            world.gop.fence();
+        }
+        normalize(world, amo);
+        amo = transform(world, amo, Q3(matrix_inner(world, amo, amo)), trantol, true);
+        truncate(world, amo);
+        normalize(world, amo);
+        
+        if (!param.spin_restricted) {
+            
+            if (spinrest) { // Only alpha spin orbitals were on disk
+                MADNESS_ASSERT(param.nmo_alpha >= param.nmo_beta);
+                bmo.resize(param.nmo_beta);
+                bset.resize(param.nmo_beta);
+                beps = copy(aeps(Slice(0,param.nmo_beta-1)));
+                bocc = copy(aocc(Slice(0,param.nmo_beta-1)));
+                for (int i=0; i<param.nmo_beta; i++) bmo[i] = copy(amo[i]);
+            }
+            else {
+                ar & nmo;
+                ar & beps & bocc & bset;
+                
+                bmo.resize(nmo);
+                for (unsigned int i=0; i<bmo.size(); i++) ar & bmo[i];
+                
+                if (nmo > unsigned(param.nmo_beta)) {
+                    bset.resize(param.nmo_beta);
+                    bmo.resize(param.nmo_beta);
+                    beps = copy(beps(Slice(0,param.nmo_beta-1)));
+                    bocc = copy(bocc(Slice(0,param.nmo_beta-1)));
+                }
+                
+                if (bmo[0].k() != k) {
+                    reconstruct(world,bmo);
+                    for(unsigned int i = 0;i < bmo.size();i++) bmo[i] = madness::project(bmo[i], k, thresh, false);
+                    world.gop.fence();
+                }
+                
+                normalize(world, bmo);
+                bmo = transform(world, bmo, Q3(matrix_inner(world, bmo, bmo)), trantol, true);
+                truncate(world, bmo);
+                normalize(world, bmo);
+                
+            }
+        }
+    }
 
+    void do_plots(World& world) {
+        START_TIMER(world);
+
+        vector<long> npt(3,param.npt_plot);
+
+        if (param.plot_cell.size == 0) 
+            param.plot_cell = copy(FunctionDefaults<3>::get_cell());
+
+        if (param.plotdens || param.plotcoul) {
+            functionT rho;
+            rho = make_density(world, aocc, amo);
+
+            if (param.spin_restricted) {
+                rho.scale(2.0);
+            }
+            else {
+                functionT rhob = make_density(world, bocc, bmo);
+                functionT rho_spin = rho - rhob;
+                rho += rhob;
+                plotdx(rho_spin, "spin_density.dx", param.plot_cell, npt, true);
+                
+            }
+            plotdx(rho, "total_density.dx", param.plot_cell, npt, true);
+            if (param.plotcoul) {
+                functionT vlocl = vnuc + apply(*coulop, rho);
+                vlocl.truncate();
+                vlocl.reconstruct();
+                plotdx(vlocl, "coulomb.dx", param.plot_cell, npt, true);
+            }
+        }
+        
+        for (int i=param.plotlo; i<=param.plothi; i++) {
+            char fname[256];
+            if (i < param.nalpha) {
+                sprintf(fname, "amo-%5.5d.dx", i);
+                plotdx(amo[i], fname, param.plot_cell, npt, true);
+            }
+            if (!param.spin_restricted && i < param.nbeta) {
+                sprintf(fname, "bmo-%5.5d.dx", i);
+                plotdx(bmo[i], fname, param.plot_cell, npt, true);
+            }
+        }
+        END_TIMER(world, "plotting");
+    }
+    
     void project(World & world)
     {
         reconstruct(world, amo);
@@ -630,9 +806,8 @@ struct Calculation {
             truncate(world, bmo);
             normalize(world, bmo);
         }
-
     }
-
+    
     void make_nuclear_potential(World & world)
     {
         START_TIMER(world);
@@ -641,12 +816,12 @@ struct Calculation {
         vnuc.reconstruct();
         END_TIMER(world, "Project vnuclear");
     }
-
+    
     void project_ao_basis(World & world)
     {
         // Make at_to_bf, at_nbf ... map from atom to first bf on atom, and nbf/atom
         aobasis.atoms_to_bfn(molecule, at_to_bf, at_nbf);
-
+        
         START_TIMER(world);
         ao = vecfuncT(aobasis.nbf(molecule));
         Level initial_level = 2;
@@ -662,7 +837,7 @@ struct Calculation {
             initial_level += 2;
             if(initial_level >= 11)
                 throw "project_ao_basis: projection failed?";
-
+            
             int nredone = 0;
             for(int i = 0;i < aobasis.nbf(molecule);i++){
                 if(norms[i] < 0.999){
@@ -671,23 +846,23 @@ struct Calculation {
                     ao[i] = factoryT(world).functor(aofunc).initial_level(6).truncate_on_project().nofence();
                 }
             }
-
+            
             world.gop.fence();
             if(nredone == 0)
                 break;
-
+            
         }
         truncate(world, ao);
         for(int i = 0;i < aobasis.nbf(molecule);i++){
             if(world.rank() == 0 && fabs(norms[i] - 1.0) > 1e-3)
                 print(i, " bad ao norm?", norms[i]);
-
+            
             norms[i] = 1.0 / norms[i];
         }
         scale(world, ao, norms);
         END_TIMER(world, "project ao basis");
     }
-
+    
     double PM_q(const tensorT & S, const tensorT & C, int i, int j, int lo, int nbf)
     {
         double qij = 0.0;
@@ -703,10 +878,10 @@ struct Calculation {
                 qij += C(i, mu + lo) * Smuj;
             }
         }
-
+        
         return qij;
     }
-
+    
     void localize_PM_task_kernel(tensorT & Q, vector<tensorT> & Svec, tensorT & C, 
                                  const bool & doprint, const vector<int> & set, 
                                  const double thetamax, tensorT & U, const double thresh)
@@ -714,13 +889,13 @@ struct Calculation {
         long nmo = C.dim[0];
         long nao = C.dim[1];
         long natom = molecule.natom();
-
+        
         for(long i = 0;i < nmo;i++){
             for(long a = 0;a < natom;a++){
                 Q(i, a) = PM_q(Svec[a], C, i, i, at_to_bf[a], at_nbf[a]);
             }
         }
-
+        
         double tol = 0.1;
         long ndone = 0;
         bool converged = false;
@@ -732,19 +907,19 @@ struct Calculation {
                     sum += qiia * qiia;
                 }
             }
-
+            
             long ndone_iter = 0;
             double maxtheta = 0.0;
             // if(doprint)
             //     printf("iteration %ld sum=%.4f ndone=%ld tol=%.2e\n", iter, sum, ndone, tol);
-
+            
             for(long i = 0;i < nmo;i++){
                 for(long j = 0;j < i;j++){
                     if(set[i] == set[j]){
                         double ovij = 0.0;
                         for(long a = 0;a < natom;a++)
                             ovij += Q(i, a) * Q(j, a);
-
+                        
                         if(fabs(ovij) > tol * tol){
                             double aij = 0.0;
                             double bij = 0.0;
@@ -759,15 +934,15 @@ struct Calculation {
                             double theta = 0.25 * acos(-aij / sqrt(aij * aij + bij * bij));
                             if(bij > 0.0)
                                 theta = -theta;
-
+                            
                             if(theta > thetamax)
                                 theta = thetamax;
-
+                            
                             else
                                 if(theta < -thetamax)
                                     theta = -thetamax;
-
-
+                            
+                            
                             maxtheta = max(fabs(theta), maxtheta);
                             if(fabs(theta) >= tol){
                                 ndone_iter++;
@@ -780,34 +955,34 @@ struct Calculation {
                                     Q(j, a) = PM_q(Svec[a], C, j, j, at_to_bf[a], at_nbf[a]);
                                 }
                             }
-
+                            
                         }
-
+                        
                     }
-
+                    
                 }
-
+                
             }
-
+            
             ndone += ndone_iter;
             if(ndone_iter == 0 && tol == thresh){
                 if(doprint)
                     print("PM localization converged in", ndone,"steps");
-
+                
                 converged = true;
                 break;
             }
             tol = max(0.1 * min(maxtheta, tol), thresh);
         }
-
+        
     }
-
+    
     tensorT localize_PM(World & world, const vecfuncT & mo, const vector<int> & set, const double thresh = 1e-9, const double thetamax = 0.5, const bool randomize = true, const bool doprint = true)
     {
         START_TIMER(world);
         long nmo = mo.size();
         long natom = molecule.natom();
-
+        
         tensorT S = matrix_inner(world, ao, ao, true);
         vector<tensorT> Svec(natom);
         for(long a = 0;a < natom;a++){
@@ -821,7 +996,7 @@ struct Calculation {
         if(world.rank() == 0){
             for(long i = 0;i < nmo;i++)
                 U(i, i) = 1.0;
-
+            
             localize_PM_task_kernel(Q, Svec, C, doprint, set, thetamax, U, thresh);
             U = transpose(U);
         }
@@ -829,7 +1004,7 @@ struct Calculation {
         END_TIMER(world, "Pipek-Mezy localize");
         return U;
     }
-
+    
     void analyze_vectors(World & world, const vecfuncT & mo, const tensorT & occ = tensorT(), const tensorT & energy = tensorT(), const vector<int> & set = vector<int>())
     {
         tensorT Saomo = matrix_inner(world, ao, mo);
@@ -844,7 +1019,7 @@ struct Calculation {
                 dip(axis, _) = inner(world, mo, mul_sparse(world, fdip, mo, vtol));
                 for(int i = 0;i < nmo;i++)
                     rsq(i) -= dip(axis, i) * dip(axis, i);
-
+                
             }
         }
         if(world.rank() == 0){
@@ -856,25 +1031,25 @@ struct Calculation {
                 printf("  MO%4ld : ", i);
                 if(set.size())
                     printf("set=%d : ", set[i]);
-
+                
                 if(occ.size)
                     printf("occ=%.2f : ", occ(i));
-
+                
                 if(energy.size)
                     printf("energy=%11.6f : ", energy(i));
-
+                
                 printf("center=(%.2f,%.2f,%.2f) : radius=%.2f\n", dip(0, i), dip(1, i), dip(2, i), sqrt(rsq(i)));
                 aobasis.print_anal(molecule, C(i, _));
             }
         }
-
+        
     }
-
+    
     inline double DIP(const tensorT & dip, int i, int j, int k, int l)
     {
         return dip(i, j, 0) * dip(k, l, 0) + dip(i, j, 1) * dip(k, l, 1) + dip(i, j, 2) * dip(k, l, 2);
     }
-
+    
     tensorT localize_boys(World & world, const vecfuncT & mo, const double thresh = 1e-9, const double thetamax = 0.5, const bool randomize = true)
     {
         START_TIMER(world);
@@ -889,7 +1064,7 @@ struct Calculation {
         if(world.rank() == 0){
             for(long i = 0;i < nmo;i++)
                 U(i, i) = 1.0;
-
+            
             double tol = thetamax;
             long ndone = 0;
             bool converged = false;
@@ -902,7 +1077,7 @@ struct Calculation {
                 double maxtheta = 0.0;
                 if(doprint)
                     printf("iteration %ld sum=%.4f ndone=%ld tol=%.2e\n", iter, sum, ndone, tol);
-
+                
                 for(long i = 0;i < nmo;i++){
                     for(long j = 0;j < i;j++){
                         double g = DIP(dip, i, j, j, j) - DIP(dip, i, j, i, i);
@@ -913,7 +1088,7 @@ struct Calculation {
                             doit = true;
                             if(doprint)
                                 print("             forcing negative h", i, j, h);
-
+                            
                             h = -1.0;
                         }
                         double theta = -g / h;
@@ -922,27 +1097,27 @@ struct Calculation {
                             doit = true;
                             if(doprint)
                                 print("             restricting", i, j);
-
+                            
                             if(g < 0)
                                 theta = -thetamax;
-
+                            
                             else
                                 theta = thetamax * 0.8;
-
+                            
                         }
                         bool randomized = false;
                         if(randomize && iter == 0 && sij > 0.01 && fabs(theta) < 0.01){
                             randomized = true;
                             if(doprint)
                                 print("             randomizing", i, j);
-
+                            
                             theta += (RandomValue<double>() - 0.5);
                         }
                         if(fabs(theta) >= tol || randomized || doit){
                             ndone_iter++;
                             if(doprint)
                                 print("     rotating", i, j, theta);
-
+                            
                             double c = cos(theta);
                             double s = sin(theta);
                             drot3(nmo, &dip(i, 0, 0), &dip(j, 0, 0), s, c, 1);
@@ -950,31 +1125,31 @@ struct Calculation {
                             drot(nmo, &U(i, 0), &U(j, 0), s, c, 1);
                         }
                     }
-
+                    
                 }
-
+                
                 ndone += ndone_iter;
                 if(ndone_iter == 0 && tol == thresh){
                     if(doprint)
                         print("Boys localization converged in", ndone,"steps");
-
+                    
                     converged = true;
                     break;
                 }
                 tol = max(0.1 * maxtheta, thresh);
             }
-
+            
             if(!converged){
                 print("warning: boys localization did not fully converge: ", ndone);
             }
             U = transpose(U);
         }
-
+        
         world.gop.broadcast(U.ptr(), U.size, 0);
         END_TIMER(world, "Boys localize");
         return U;
     }
-
+    
     tensorT kinetic_energy_matrix(World & world, const vecfuncT & v)
     {
         reconstruct(world, v);
@@ -987,7 +1162,7 @@ struct Calculation {
         }
         return r.scale(0.5);
     }
-
+    
     struct GuessDensity : public FunctionFunctorInterface<double,3>
     {
         const Molecule & molecule;
@@ -996,162 +1171,155 @@ struct Calculation {
         {
             return aobasis.eval_guess_density(molecule, x[0], x[1], x[2]);
         }
-
+        
         GuessDensity(const Molecule & molecule, const AtomicBasisSet & aobasis)
-        :molecule(molecule), aobasis(aobasis)
+            :molecule(molecule), aobasis(aobasis)
         {
         }
-
+        
     };
-
+    
     void initial_guess(World & world)
     {
         START_TIMER(world);
-        functionT rho = factoryT(world).functor(functorT(new GuessDensity(molecule, aobasis))).truncate_on_project();
-        END_TIMER(world, "guess density");
-        double nel = rho.trace();
-        if(world.rank() == 0)
-            print("guess dens trace", nel);
-
-        if(world.size() > 1){
-            START_TIMER(world);
-            LoadBalanceDeux<3> lb(world);
-            lb.add_tree(vnuc, lbcost<double,3>(1.0, 0.0), true);
-            lb.add_tree(rho, lbcost<double,3>(1.0, 1.0), false);
-            FunctionDefaults<3>::set_pmap(lb.load_balance(6.0));
-            rho = copy(rho, FunctionDefaults<3>::get_pmap(), false);
-            vnuc = copy(vnuc, FunctionDefaults<3>::get_pmap(), false);
-            world.gop.fence();
-            END_TIMER(world, "guess loadbal");
+        if (param.restart) {
+            load_mos(world);
         }
-        functionT vlocal;
-        if(param.nalpha + param.nbeta > 1){
-            START_TIMER(world);
-            vlocal = vnuc + apply(*coulop, rho);
-            END_TIMER(world, "guess Coulomb potn");
-            bool save = param.spin_restricted;
-            param.spin_restricted = true;
-            rho.scale(0.5);
-            vlocal = vlocal + make_lda_potential(world, rho, rho, functionT(), functionT());
-            vlocal.truncate();
-            param.spin_restricted = save;
-        }else{
-            vlocal = vnuc;
-        }
-        rho.clear();
-        vlocal.reconstruct();
-        if(world.size() > 1){
-            LoadBalanceDeux<3> lb(world);
-            lb.add_tree(vnuc, lbcost<double,3>(1.0, 1.0), false);
-            for(unsigned int i = 0;i < ao.size();i++){
-                lb.add_tree(ao[i], lbcost<double,3>(1.0, 1.0), false);
-            }
-            FunctionDefaults<3>::set_pmap(lb.load_balance(6.0));
-            vnuc = copy(vnuc, FunctionDefaults<3>::get_pmap(), false);
-            vlocal = copy(vlocal, FunctionDefaults<3>::get_pmap(), false);
-            for(unsigned int i = 0;i < ao.size();i++){
-                ao[i] = copy(ao[i], FunctionDefaults<3>::get_pmap(), false);
-            }
-            world.gop.fence();
-        }
-
-        START_TIMER(world);
-        tensorT overlap = matrix_inner(world, ao, ao, true);
-        END_TIMER(world, "make overlap");
-        START_TIMER(world);
-        tensorT kinetic = kinetic_energy_matrix(world, ao);
-        END_TIMER(world, "make KE matrix");
-        reconstruct(world, ao);
-        vlocal.reconstruct();
-        START_TIMER(world);
-        vecfuncT vpsi = mul_sparse(world, vlocal, ao, vtol);
-        END_TIMER(world, "make V*psi");
-        START_TIMER(world);
-        compress(world, vpsi);
-        END_TIMER(world, "Compressing Vpsi");
-        START_TIMER(world);
-        truncate(world, vpsi);
-        END_TIMER(world, "Truncating vpsi");
-        START_TIMER(world);
-        compress(world, ao);
-        END_TIMER(world, "Compressing AO");
-        START_TIMER(world);
-        tensorT potential = matrix_inner(world, vpsi, ao, true);
-        END_TIMER(world, "make PE matrix");
-        vpsi.clear();
-        tensorT fock = kinetic + potential;
-        fock = 0.5 * (fock + transpose(fock));
-        tensorT c, e;
-        sygv(fock, overlap, 1, &c, &e);
-        world.gop.broadcast(c.ptr(), c.size, 0);
-        world.gop.broadcast(e.ptr(), e.size, 0);
-        if(world.rank() == 0){
-            print("initial eigenvalues");
-            print(e);
-        }
-        compress(world, ao);
-        START_TIMER(world);
-        amo = transform(world, ao, c(_, Slice(0, param.nmo_alpha - 1)), 0.0, true);
-        END_TIMER(world, "transform initial MO");
-        truncate(world, amo);
-        normalize(world, amo);
-        aeps = e(Slice(0, param.nmo_alpha - 1));
-        aocc = tensorT(param.nmo_alpha);
-        for(int i = 0;i < param.nalpha;i++)
-            aocc[i] = 1.0;
-
-        aset = vector<int>(param.nmo_alpha);
-        aset[0] = 0;
-        if(world.rank() == 0)
-            cout << "alpha set " << 0 << " " << 0 << "-";
-
-        for(int i = 1;i < param.nmo_alpha;i++){
-            aset[i] = aset[i - 1];
-            if(aeps[i] - aeps[i - 1] > 1.5 || aocc[i] != 1.0){
-                aset[i]++;
-                if(world.rank() == 0){
-                    cout << i - 1 << endl;
-                    cout << "alpha set " << aset[i] << " " << i << "-";
-                }
-            }
-
-        }
-
-        if(world.rank() == 0)
-            cout << param.nmo_alpha - 1 << endl;
-
-        if(param.nbeta && !param.spin_restricted){
-            bmo = transform(world, ao, c(_, Slice(0, param.nmo_beta - 1)), 0.0, true);
-            truncate(world, bmo);
-            normalize(world, bmo);
-            beps = e(Slice(0, param.nmo_beta - 1));
-            bocc = tensorT(param.nmo_beta);
-            for(int i = 0;i < param.nbeta;i++)
-                bocc[i] = 1.0;
-
-            bset = vector<int>(param.nmo_beta);
-            bset[0] = 0;
+        else {
+            // Use the initial density and potential to generate a better process map
+            functionT rho = factoryT(world).functor(functorT(new GuessDensity(molecule, aobasis))).truncate_on_project();
+            END_TIMER(world, "guess density");
+            double nel = rho.trace();
             if(world.rank() == 0)
-                cout << " beta set " << 0 << " " << 0 << "-";
-
-            for(int i = 1;i < param.nmo_beta;i++){
-                bset[i] = bset[i - 1];
-                if(beps[i] - beps[i - 1] > 1.5 || bocc[i] != 1.0){
-                    bset[i]++;
+                print("guess dens trace", nel);
+            
+            if(world.size() > 1) {
+                START_TIMER(world);
+                LoadBalanceDeux<3> lb(world);
+                lb.add_tree(vnuc, lbcost<double,3>(1.0, 0.0), true);
+                lb.add_tree(rho, lbcost<double,3>(1.0, 1.0), false);
+                FunctionDefaults<3>::set_pmap(lb.load_balance(6.0));
+                rho = copy(rho, FunctionDefaults<3>::get_pmap(), false);
+                vnuc = copy(vnuc, FunctionDefaults<3>::get_pmap(), false);
+                world.gop.fence();
+                END_TIMER(world, "guess loadbal");
+            }
+            
+            // Diag approximate fock matrix to get initial mos
+            functionT vlocal;
+            if(param.nalpha + param.nbeta > 1){
+                START_TIMER(world);
+                vlocal = vnuc + apply(*coulop, rho);
+                END_TIMER(world, "guess Coulomb potn");
+                bool save = param.spin_restricted;
+                param.spin_restricted = true;
+                rho.scale(0.5);
+                vlocal = vlocal + make_lda_potential(world, rho, rho, functionT(), functionT());
+                vlocal.truncate();
+                param.spin_restricted = save;
+            } else {
+                vlocal = vnuc;
+            }
+            rho.clear();
+            vlocal.reconstruct();
+            if(world.size() > 1){
+                LoadBalanceDeux<3> lb(world);
+                lb.add_tree(vnuc, lbcost<double,3>(1.0, 1.0), false);
+                for(unsigned int i = 0;i < ao.size();i++){
+                    lb.add_tree(ao[i], lbcost<double,3>(1.0, 1.0), false);
+                }
+                FunctionDefaults<3>::set_pmap(lb.load_balance(6.0));
+                vnuc = copy(vnuc, FunctionDefaults<3>::get_pmap(), false);
+                vlocal = copy(vlocal, FunctionDefaults<3>::get_pmap(), false);
+                for(unsigned int i = 0;i < ao.size();i++){
+                    ao[i] = copy(ao[i], FunctionDefaults<3>::get_pmap(), false);
+                }
+                world.gop.fence();
+            }
+            
+            tensorT overlap = matrix_inner(world, ao, ao, true);
+            tensorT kinetic = kinetic_energy_matrix(world, ao);
+            reconstruct(world, ao);
+            vlocal.reconstruct();
+            vecfuncT vpsi = mul_sparse(world, vlocal, ao, vtol);
+            compress(world, vpsi);
+            truncate(world, vpsi);
+            compress(world, ao);
+            tensorT potential = matrix_inner(world, vpsi, ao, true);
+            vpsi.clear();
+            tensorT fock = kinetic + potential;
+            fock = 0.5 * (fock + transpose(fock));
+            tensorT c, e;
+            sygv(fock, overlap, 1, &c, &e);
+            world.gop.broadcast(c.ptr(), c.size, 0);
+            world.gop.broadcast(e.ptr(), e.size, 0);
+            if(world.rank() == 0){
+                print("initial eigenvalues");
+                print(e);
+            }
+            compress(world, ao);
+            amo = transform(world, ao, c(_, Slice(0, param.nmo_alpha - 1)), 0.0, true);
+            truncate(world, amo);
+            normalize(world, amo);
+            aeps = e(Slice(0, param.nmo_alpha - 1));
+            
+            aocc = tensorT(param.nmo_alpha);
+            for(int i = 0;i < param.nalpha;i++)
+                aocc[i] = 1.0;
+            
+            aset = vector<int>(param.nmo_alpha);
+            aset[0] = 0;
+            if(world.rank() == 0)
+                cout << "alpha set " << 0 << " " << 0 << "-";
+            
+            for(int i = 1;i < param.nmo_alpha;i++){
+                aset[i] = aset[i - 1];
+                if(aeps[i] - aeps[i - 1] > 1.5 || aocc[i] != 1.0){
+                    aset[i]++;
                     if(world.rank() == 0){
                         cout << i - 1 << endl;
-                        cout << " beta set " << bset[i] << " " << i << "-";
+                        cout << "alpha set " << aset[i] << " " << i << "-";
                     }
                 }
-
+                
             }
-
+            
             if(world.rank() == 0)
-                cout << param.nmo_beta - 1 << endl;
-
+                cout << param.nmo_alpha - 1 << endl;
+            
+            if(param.nbeta && !param.spin_restricted){
+                bmo = transform(world, ao, c(_, Slice(0, param.nmo_beta - 1)), 0.0, true);
+                truncate(world, bmo);
+                normalize(world, bmo);
+                beps = e(Slice(0, param.nmo_beta - 1));
+                bocc = tensorT(param.nmo_beta);
+                for(int i = 0;i < param.nbeta;i++)
+                    bocc[i] = 1.0;
+                
+                bset = vector<int>(param.nmo_beta);
+                bset[0] = 0;
+                if(world.rank() == 0)
+                    cout << " beta set " << 0 << " " << 0 << "-";
+                
+                for(int i = 1;i < param.nmo_beta;i++){
+                    bset[i] = bset[i - 1];
+                    if(beps[i] - beps[i - 1] > 1.5 || bocc[i] != 1.0){
+                        bset[i]++;
+                        if(world.rank() == 0){
+                            cout << i - 1 << endl;
+                            cout << " beta set " << bset[i] << " " << i << "-";
+                        }
+                    }
+                    
+                }
+                
+                if(world.rank() == 0)
+                    cout << param.nmo_beta - 1 << endl;
+                
+            }
         }
     }
-
+        
     void initial_load_bal(World & world)
     {
         LoadBalanceDeux<3> lb(world);
@@ -1159,7 +1327,7 @@ struct Calculation {
         FunctionDefaults<3>::set_pmap(lb.load_balance(6.0));
         world.gop.fence();
     }
-
+    
     functionT make_density(World & world, const tensorT & occ, const vecfuncT & v)
     {
         vecfuncT vsq = square(world, v);
@@ -1169,13 +1337,13 @@ struct Calculation {
         for(unsigned int i = 0;i < vsq.size();i++){
             if(occ[i])
                 rho.gaxpy(1.0, vsq[i], occ[i], false);
-
+            
         }
         world.gop.fence();
         vsq.clear();
         return rho;
     }
-
+    
     vector<poperatorT> make_bsh_operators(World & world, const tensorT & evals)
     {
         int nmo = evals.dim[0];
@@ -1190,13 +1358,13 @@ struct Calculation {
                 }
                 eps = -0.1;
             }
-
+            
             ops[i] = poperatorT(BSHOperatorPtr3D<double>(world, sqrt(-2.0 * eps), k, param.lo, tol));
         }
-
+        
         return ops;
     }
-
+    
     vecfuncT apply_hf_exchange(World & world, const tensorT & occ, const vecfuncT & psi, const vecfuncT & f)
     {
         int nocc = psi.size();
@@ -1215,28 +1383,28 @@ struct Calculation {
                 gaxpy(world, 1.0, Kf, occ[i], psif);
             }
         }
-
+        
         truncate(world, Kf, vtol);
         return Kf;
     }
-
+    
     static double munge(double r)
     {
         if(r < 1e-12)
             r = 1e-12;
-
+        
         return r;
     }
     static void ldaop(const Key<3> & key, tensorT & t)
     {
         UNARY_OPTIMIZED_ITERATOR(double, t, double r=munge(2.0* *_p0); double q; double dq1; double dq2;x_rks_s__(&r, &q, &dq1);c_rks_vwn5__(&r, &q, &dq2); *_p0 = dq1+dq2);
     }
-
+    
     static void ldaeop(const Key<3> & key, tensorT & t)
     {
         UNARY_OPTIMIZED_ITERATOR(double, t, double r=munge(2.0* *_p0); double q1; double q2; double dq;x_rks_s__(&r, &q1, &dq);c_rks_vwn5__(&r, &q2, &dq); *_p0 = q1+q2);
     }
-
+    
     functionT make_lda_potential(World & world, const functionT & arho, const functionT & brho, const functionT & adelrhosq, const functionT & bdelrhosq)
     {
         MADNESS_ASSERT(param.spin_restricted);
@@ -1245,7 +1413,7 @@ struct Calculation {
         vlda.unaryop(&ldaop);
         return vlda;
     }
-
+    
     double make_lda_energy(World & world, const functionT & arho, const functionT & brho, const functionT & adelrhosq, const functionT & bdelrhosq)
     {
         MADNESS_ASSERT(param.spin_restricted);
@@ -1254,7 +1422,7 @@ struct Calculation {
         vlda.unaryop(&ldaeop);
         return vlda.trace();
     }
-
+    
     vecfuncT apply_potential(World & world, const tensorT & occ, const vecfuncT & amo, const functionT & arho, const functionT & brho, const functionT & adelrhosq, const functionT & bdelrhosq, const functionT & vlocal, double & exc)
     {
         functionT vloc = vlocal;
@@ -1279,24 +1447,25 @@ struct Calculation {
             Kamo.clear();
             END_TIMER(world, "HF exchange");
         }
-
+        
         START_TIMER(world);
         truncate(world, Vpsi);
         END_TIMER(world, "Truncate Vpsi");
         world.gop.fence();
         return Vpsi;
     }
-
+    
     tensorT derivatives(World & world, const functionT & rho)
     {
+        START_TIMER(world);
         vecfuncT dv(molecule.natom() * 3);
         for(int atom = 0;atom < molecule.natom();atom++){
-            for(int axis = 0;axis < 3;axis++){
-                functorT func(new MolecularDerivativeFunctor(molecule, atom, axis));
-                dv[atom * 3 + axis] = functionT(factoryT(world).functor(func).nofence().truncate_on_project());
-            }
+                for(int axis = 0;axis < 3;axis++){
+                    functorT func(new MolecularDerivativeFunctor(molecule, atom, axis));
+                    dv[atom * 3 + axis] = functionT(factoryT(world).functor(func).nofence().truncate_on_project());
+                }
         }
-
+        
         world.gop.fence();
         tensorT r = inner(world, rho, dv);
         dv.clear();
@@ -1306,10 +1475,11 @@ struct Calculation {
                 r[atom * 3 + axis] += molecule.nuclear_repulsion_derivative(atom, axis);
             }
         }
-
+        END_TIMER(world,"derivatives");
+        
         return r;
     }
-
+    
     void vector_stats(const vector<double> & v, double & rms, double & maxabsval)
     {
         rms = 0.0;
@@ -1320,23 +1490,23 @@ struct Calculation {
         }
         rms = sqrt(rms / v.size());
     }
-
+    
     vecfuncT compute_residual(World & world, tensorT & occ, tensorT & fock, const vecfuncT & psi, vecfuncT & Vpsi, double & err)
     {
         double trantol = vtol / min(30.0, double(psi.size()));
         int nmo = psi.size();
-
+        
         tensorT eps(nmo);
         for(int i = 0;i < nmo;i++){
             eps(i) = min(-0.05, fock(i, i));
             fock(i, i) -= eps(i);
         }
         vecfuncT fpsi = transform(world, psi, fock, trantol, true);
-
+        
         for(int i = 0;i < nmo;i++){ // Undo the damage
             fock(i, i) += eps(i);
         }
-
+        
         gaxpy(world, 1.0, Vpsi, -1.0, fpsi);
         fpsi.clear();
         vector<double> fac(nmo, -2.0);
@@ -1345,7 +1515,7 @@ struct Calculation {
         set_thresh(world, Vpsi, FunctionDefaults<3>::get_thresh());
         if(world.rank() == 0)
             cout << "entering apply\n";
-
+        
         START_TIMER(world);
         vecfuncT new_psi = apply(world, ops, Vpsi);
         END_TIMER(world, "Apply BSH");
@@ -1362,10 +1532,10 @@ struct Calculation {
         err = maxval;
         if(world.rank() == 0)
             print("BSH residual: rms", rms, "   max", maxval);
-
+        
         return r;
     }
-
+    
     tensorT make_fock_matrix(World & world, const vecfuncT & psi, const vecfuncT & Vpsi, const tensorT & occ, double & ekinetic)
     {
         START_TIMER(world);
@@ -1384,11 +1554,11 @@ struct Calculation {
         ke.gaxpy(0.5, transpose(ke), 0.5);
         return ke;
     }
-
+    
     tensorT matrix_exponential(const tensorT& A) {
         const double tol = 1e-13;
         MADNESS_ASSERT(A.dim[0] == A.dim[1]);
-
+        
         // Scale A by a power of 2 until it is "small"
         double anorm = A.normf();
         int n = 0;
@@ -1398,11 +1568,11 @@ struct Calculation {
             scale *= 0.5;
         }
         tensorT B = scale*A;    // B = A*2^-n
-
+        
         // Compute exp(B) using Taylor series
         tensorT expB = tensorT(2, B.dim);
         for (int i=0; i<expB.dim[0]; i++) expB(i,i) = 1.0;
-
+        
         int k = 1;
         tensorT term = B;
         while (term.normf() > tol) {
@@ -1411,32 +1581,32 @@ struct Calculation {
             k++;
             term.scale(1.0/k);
         }
-
+        
         // Repeatedly square to recover exp(A)
         while (n--) {
             expB = inner(expB,expB);
         }
-
+        
         return expB;
     }
-
+    
     void diag_fock_matrix(World & world, tensorT& fock, vecfuncT & psi, vecfuncT & Vpsi, tensorT & evals, double thresh)
     {
         long nmo = psi.size();
         tensorT overlap = matrix_inner(world, psi, psi, true);
         START_TIMER(world);
         tensorT U;
-
+        
         sygv(fock, overlap, 1, &U, &evals);
         END_TIMER(world, "Diagonalization");
-
+        
         // Fix phases.
         long j;
         for (long i=0; i<nmo; i++) {
             U(_,i).absmax(&j);
             if (U(j,i) < 0) U(_,i).scale(-1.0);
         }
-
+        
         // Within blocks with the same occupation number attempt to
         // keep orbitals in the same order (to avoid confusing the
         // non-linear solver).  Have to run the reordering multiple
@@ -1452,7 +1622,7 @@ struct Calculation {
                 }
             }
         }
-
+        
         // Rotations between effectively degenerate states confound
         // the non-linear equation solver ... undo these rotations
         long ilo = 0; // first element of cluster
@@ -1476,7 +1646,7 @@ struct Calculation {
                 // q(0,0) = q(1,1) = c;
                 // q(0,1) = -s;
                 // q(1,0) = s;
-
+                
                 // Iteratively construct unitary rotation by
                 // exponentiating the antisymmetric part of the matrix
                 // ... is quadratically convergent so just do 3
@@ -1491,40 +1661,40 @@ struct Calculation {
             }    
             ilo = ihi+1;
         }
-
+        
         print("Fock");
         print(fock);
         print("Evec");
         print(U);;
         print("Eval");
         print(evals);
-
+        
         world.gop.broadcast(U.ptr(), U.size, 0);
         world.gop.broadcast(evals.ptr(), evals.size, 0);
-
+        
         fock = 0;
         for (unsigned int i=0; i<psi.size(); i++) fock(i,i) = evals(i);
-
+        
         Vpsi = transform(world, Vpsi, U, vtol / min(30.0, double(psi.size())), false);
         psi = transform(world, psi, U, FunctionDefaults<3>::get_thresh() / min(30.0, double(psi.size())), true);
-
+        
         if(world.rank() == 0)
             printf("transformed psi and Vpsi at %.2fs\n", wall_time());
-
+        
         truncate(world, psi);
         if(world.rank() == 0)
             printf("truncated psi at %.2fs\n", wall_time());
-
+        
         normalize(world, psi);
         if(world.rank() == 0)
             printf("normalized psi at %.2fs\n", wall_time());
     }
-
+    
     void loadbal(World & world, functionT & arho, functionT & brho, functionT & arho_old, functionT & brho_old, subspaceT & subspace)
     {
         if(world.size() == 1)
             return;
-
+        
         LoadBalanceDeux<3> lb(world);
         lb.add_tree(vnuc, lbcost<double,3>(1.0, 0.0), false);
         lb.add_tree(arho, lbcost<double,3>(1.0, 1.0), false);
@@ -1537,13 +1707,13 @@ struct Calculation {
                 lb.add_tree(bmo[i], lbcost<double,3>(1.0, 1.0), false);
             }
         }
-
+        
         FunctionDefaults<3>::set_pmap(lb.load_balance(6.0));
         vnuc = copy(vnuc, FunctionDefaults<3>::get_pmap(), false);
         arho = copy(arho, FunctionDefaults<3>::get_pmap(), false);
         if(arho_old.is_initialized())
             arho_old = copy(arho_old, FunctionDefaults<3>::get_pmap(), false);
-
+        
         for(unsigned int i = 0;i < ao.size();i++){
             ao[i] = copy(ao[i], FunctionDefaults<3>::get_pmap(), false);
         }
@@ -1554,12 +1724,12 @@ struct Calculation {
             brho = copy(brho, FunctionDefaults<3>::get_pmap(), false);
             if(brho_old.is_initialized())
                 brho_old = copy(brho_old, FunctionDefaults<3>::get_pmap(), false);
-
+            
             for(unsigned int i = 0;i < bmo.size();i++){
                 bmo[i] = copy(bmo[i], FunctionDefaults<3>::get_pmap(), false);
             }
         }
-
+        
         for(unsigned int i = 0;i < subspace.size();i++){
             vecfuncT & v = subspace[i].first;
             vecfuncT & r = subspace[i].second;
@@ -1568,10 +1738,10 @@ struct Calculation {
                 r[j] = copy(r[j], FunctionDefaults<3>::get_pmap(), false);
             }
         }
-
+        
         world.gop.fence();
     }
-
+    
     void update_subspace(World & world, 
                          vecfuncT & Vpsia, vecfuncT & Vpsib, 
                          tensorT & focka, tensorT & fockb, 
@@ -1603,13 +1773,13 @@ struct Calculation {
                 sm[s] += vs[i].inner_local(rm[i]);
             }
         }
-
+        
         world.gop.sum(ms.ptr(), m);
         world.gop.sum(sm.ptr(), m);
         tensorT newQ(m, m);
         if(m > 1)
             newQ(Slice(0, -2), Slice(0, -2)) = Q;
-
+        
         newQ(m - 1, _) = ms;
         newQ(_, m - 1) = sm;
         Q = newQ;
@@ -1631,7 +1801,7 @@ struct Calculation {
                 }
             }
         }
-
+        
         world.gop.broadcast_serializable(c, 0);
         if(world.rank() == 0){
             print("Subspace solution", c);
@@ -1662,7 +1832,7 @@ struct Calculation {
             subspace.erase(subspace.begin());
             Q = Q(Slice(1, -1), Slice(1, -1));
         }
-
+        
         vector<double> anorm = norm2(world, sub(world, amo, amo_new));
         vector<double> bnorm = norm2(world, sub(world, bmo, bmo_new));
         int nres = 0;
@@ -1673,17 +1843,17 @@ struct Calculation {
                 if(world.rank() == 0){
                     if(nres == 1)
                         printf("  restricting step for alpha orbitals:");
-
+                    
                     printf(" %d", i);
                 }
                 amo_new[i].gaxpy(s, amo[i], 1.0 - s, false);
             }
-
+            
         }
-
+        
         if(nres > 0 && world.rank() == 0)
             printf("\n");
-
+        
         nres = 0;
         for(unsigned int i = 0;i < bmo.size();i++){
             if(bnorm[i] > param.maxrotn){
@@ -1692,26 +1862,26 @@ struct Calculation {
                 if(world.rank() == 0){
                     if(nres == 1)
                         printf("  restricting step for  beta orbitals:");
-
+                    
                     printf(" %d", i);
                 }
                 bmo_new[i].gaxpy(s, bmo[i], 1.0 - s, false);
             }
-
+            
         }
-
+        
         world.gop.fence();
         double rms, maxval;
         vector_stats(anorm, rms, maxval);
         if(world.rank() == 0)
             print("Norm of vector changes alpha: rms", rms, "   max", maxval);
-
+        
         update_residual = maxval;
         if(bnorm.size()){
             vector_stats(bnorm, rms, maxval);
             if(world.rank() == 0)
                 print("Norm of vector changes  beta: rms", rms, "   max", maxval);
-
+            
             update_residual = max(update_residual, maxval);
         }
         START_TIMER(world);
@@ -1730,7 +1900,7 @@ struct Calculation {
         amo = amo_new;
         bmo = bmo_new;
     }
-
+    
     void solve(World & world)
     {
         functionT arho_old, brho_old;
@@ -1754,7 +1924,7 @@ struct Calculation {
                 do_this_iter = false;
                 param.maxsub = maxsub_save;
             }
-
+            
             if(param.localize && do_this_iter) {
                 tensorT U = localize_PM(world, amo, aset, tolloc, 0.25, iter == 0);
                 amo = transform(world, amo, U, trantol, true);
@@ -1767,7 +1937,7 @@ struct Calculation {
                     normalize(world, bmo);
                 }
             }
-
+            
             START_TIMER(world);
             functionT arho = make_density(world, aocc, amo);
             functionT brho;
@@ -1775,7 +1945,7 @@ struct Calculation {
                 brho = make_density(world, bocc, bmo);
             else
                 brho = arho;
-
+            
             END_TIMER(world, "Make densities");
             if(iter < 2 || (iter % 10) == 0){
                 START_TIMER(world);
@@ -1788,7 +1958,7 @@ struct Calculation {
                 db = (brho - brho_old).norm2();
                 if(world.rank() == 0)
                     print("delta rho", da, db, "residuals", bsh_residual, update_residual);
-
+                
             }
             arho_old = arho;
             brho_old = brho;
@@ -1812,16 +1982,16 @@ struct Calculation {
             else if(param.nbeta) {
                 Vpsib = apply_potential(world, bocc, bmo, brho, arho, bdelrhosq, adelrhosq, vlocal, excb);
             }
-
+            
             double ekina = 0.0, ekinb = 0.0;
             tensorT focka = make_fock_matrix(world, amo, Vpsia, aocc, ekina);
             tensorT fockb = focka;
-
+            
             if(param.spin_restricted)
                 ekinb = ekina;
             else
                 fockb = make_fock_matrix(world, bmo, Vpsib, bocc, ekinb);
-
+            
             if (!param.localize) {
                 if (do_this_iter) {
                     diag_fock_matrix(world, focka, amo, Vpsia, aeps, dconv);
@@ -1842,13 +2012,13 @@ struct Calculation {
                 printf("    nuclear-repulsion %16.8f\n", enrep);
                 printf("                total %16.8f\n\n", etot);
             }
-
+            
             if(iter > 0){
                 if(da < dconv * molecule.natom() && db < dconv * molecule.natom() && bsh_residual < 5.0*dconv){
                     if(world.rank() == 0) {
                         print("\nConverged!\n");
                     }
-
+                    
                     // Diagonalize to get the eigenvalues and if desired the final eigenvectors
                     tensorT U;
                     tensorT overlap = matrix_inner(world, amo, amo, true);
@@ -1867,7 +2037,7 @@ struct Calculation {
                             normalize(world, bmo);
                         }
                     }
-
+                    
                     if(world.rank() == 0) {
                         print(" ");
                         print("alpha eigenvalues");
@@ -1877,38 +2047,38 @@ struct Calculation {
                             print(beps);
                         }
                     }
-
+                    
                     if (param.localize) {
                         // Restore the diagonal elements for the analysis
                         for (unsigned int i=0; i<amo.size(); i++) aeps[i] = focka(i,i);
                         for (unsigned int i=0; i<bmo.size(); i++) beps[i] = fockb(i,i);
                     }
-
+                    
                     break;
                 }
-
+                
             }
-
+            
             update_subspace(world, Vpsia, Vpsib, focka, fockb, subspace, Q, bsh_residual, update_residual);
         }
-
+        
         if(world.rank() == 0) {
             if (param.localize) print("Orbitals are localized - energies are diagonal Fock matrix elements\n");
             else print("Orbitals are eigenvectors - energies are eigenvalues\n");
             print("Analysis of alpha MO vectors");
         }
-
+        
         analyze_vectors(world, amo, aocc, aeps);
         if(param.nbeta && !param.spin_restricted){
             if(world.rank() == 0)
                 print("Analysis of beta MO vectors");
-
+            
             analyze_vectors(world, bmo, bocc, beps);
         }
         functionT arho = make_density(world, aocc, amo);
         functionT brho = arho;
         if (!param.spin_restricted) brho = make_density(world, bocc, bmo);
-
+        
         arho.gaxpy(1.0, brho, 1.0);
         tensorT dv = derivatives(world, arho);
         if (world.rank() == 0) {
@@ -1927,19 +2097,19 @@ struct Calculation {
 
 int main(int argc, char** argv) {
     initialize(argc, argv);
-
+    
     World world(MPI::COMM_WORLD);
-
+    
     try {
         // Load info for MADNESS numerical routines
         startup(world,argc,argv);
         FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap(world)));
-
+        
         cout.precision(6);
-
+        
         // Process 0 reads input information and broadcasts
         Calculation calc(world, "input");
-
+        
         // Warm and fuzzy for the user
         if (world.rank() == 0) {
             print("\n\n");
@@ -1950,33 +2120,41 @@ int main(int argc, char** argv) {
             print("\n");
             calc.param.print(world);
         }
-
+        
         // Come up with an initial OK data map
         if (world.size() > 1) {
             calc.set_protocol(world,1e-4);
             calc.make_nuclear_potential(world);
             calc.initial_load_bal(world);
         }
-
+        
         // Make the nuclear potential, initial orbitals, etc.
         calc.set_protocol(world,1e-4);
         calc.make_nuclear_potential(world);
         calc.project_ao_basis(world);
+        
         //calc.project(world);
-        calc.initial_guess(world);
+        if (calc.param.restart) 
+            calc.load_mos(world);
+        else
+            calc.initial_guess(world);
         calc.solve(world);
-
+        calc.save_mos(world);
+        calc.do_plots(world);
+        
         calc.set_protocol(world,1e-6);
         calc.make_nuclear_potential(world);
         calc.project_ao_basis(world);
         calc.project(world);
         calc.solve(world);
-
-//         calc.set_protocol(world,1e-8);
-//         calc.make_nuclear_potential(world);
-//         calc.project(world);
-//         calc.solve(world);
-
+        calc.save_mos(world);
+        calc.do_plots(world);
+        
+        //         calc.set_protocol(world,1e-8);
+        //         calc.make_nuclear_potential(world);
+        //         calc.project(world);
+        //         calc.solve(world);
+        
     }
     catch (const MPI::Exception& e) {
         //        print(e);
@@ -2009,15 +2187,14 @@ int main(int argc, char** argv) {
     catch (...) {
         error("caught unhandled exception");
     }
-
+    
     // Nearly all memory will be freed at this point
     world.gop.fence();
     world.gop.fence();
     ThreadPool::end();
     print_stats(world);
-
+    
     finalize();
-
+    
     return 0;
 }
-
