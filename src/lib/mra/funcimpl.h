@@ -1357,6 +1357,7 @@ namespace madness {
 
         template <typename Archive>
         void load(Archive& ar) {
+            // WE RELY ON K BEING STORED FIRST
             int kk;
             ar & kk;
 
@@ -1372,6 +1373,8 @@ namespace madness {
 
         template <typename Archive>
         void store(Archive& ar) {
+            // WE RELY ON K BEING STORED FIRST
+
             // note that functor should not be (re)stored
             ar & k & thresh & initial_level & max_refine_level & truncate_mode
             & autorefine & truncate_on_project & nonstandard & compressed & bc;
@@ -2442,13 +2445,14 @@ namespace madness {
 
         /// Projects old function into new basis (only in reconstructed form)
         void project(const implT& old, bool fence) {
-            vector<Slice> s(NDIM,Slice(0,old.cdata.k-1));
+            long kmin = std::min(cdata.k,old.cdata.k);
+            vector<Slice> s(NDIM,Slice(0,kmin-1));
             for (typename dcT::const_iterator it=old.coeffs.begin(); it!=old.coeffs.end(); ++it) {
                 const keyT& key = it->first;
                 const nodeT& node = it->second;
                 if (node.has_coeff()) {
                     tensorT c(cdata.vk);
-                    c(s) = node.coeff();
+                    c(s) = node.coeff()(s);
                     coeffs.replace(key,nodeT(c,false));
                 }
                 else {
