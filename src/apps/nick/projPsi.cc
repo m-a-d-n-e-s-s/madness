@@ -42,10 +42,10 @@ bool wave_function_exists(World& world, int step);
 void wave_function_store(World& world, int step, const complex_functionT& psi);
 complex_functionT wave_function_load(World& world, int step);
 
+
 struct WF {
     string str;
     complex_functionT func;
-
     WF(const string& STR, const complex_functionT& FUNC) 
         : str(STR)
         , func(FUNC) 
@@ -90,6 +90,42 @@ void loadDefaultBasis(World& world, std::vector<WF>& boundList, double Z) {
                  new BoundWF(Z , bSt[i][0], bSt[i][1], bSt[i][2]) ))));
     }
     PRINTLINE("Done loading the standard basis");
+}
+void loadList(World& world, std::vector<string>& boundList, std::vector<string>& unboundList) {
+    ifstream bound("bound.num");
+    ifstream unbound("unbound.num");
+    if( ! bound.is_open() && ! unbound.is_open() ) {
+        PRINTLINE("bound.num and unbound.num not found");
+        boundList.push_back("1 0 0");
+        boundList.push_back("2 1 0");
+    } else {
+        if(bound.is_open()) {
+            int n,l,m;
+            std::ostringstream nlm;
+            while(bound >> n) {
+                bound >> l;
+                bound >> m;
+                nlm << n << " " << l << " " << m;
+                boundList.push_back(nlm.str());
+                nlm.str("");
+            }
+            bound.close();
+        } else PRINTLINE("bound.num not found");
+        if(unbound.is_open()) {
+            double kx, ky, kz;
+            std::ostringstream kxyz;
+            while(unbound >> kx) {
+                unbound >> ky;
+                unbound >> kz;
+                kxyz.precision( 2 );
+                kxyz << fixed;
+                kxyz << kx << " " << ky << " " << kz;
+                unboundList.push_back(kxyz.str());
+                kxyz.str("");
+            }
+            unbound.close();
+        } else PRINTLINE("unbound.num not found");
+    }
 }
 
 void loadBasis(World& world, std::vector<WF>& boundList, std::vector<WF>& unboundList, double Z) {
@@ -250,6 +286,76 @@ void projectPsi(World& world, std::vector<WF> boundList, std::vector<WF> unbound
     }
 }
 
+void projectPsi2(World& world, std::vector<string> boundList, std::vector<string> unboundList, double Z) {
+    PRINTLINE("\t\t|<basis|Psi(t)>|^2 ");
+    ifstream f("wf.num");
+    if( !f.is_open() ) {
+        PRINTLINE("File: wf.num expected to contain a " 
+                  << "list of integers of loadable wave functions");
+    } else {
+        if(boundList.empty() && unboundList.empty()) {
+            boundList.push_back("1 0 0");
+            boundList.push_back("2 1 0");
+        }
+        //LOAD Psi(t)
+        string tag;
+        std::vector<WF> psiList;
+        complexd output;
+        PRINT("\t\t");
+        while(f >> tag) {
+            if( !wave_function_exists(world, atoi(tag.c_str())) ) {
+                PRINTLINE("Function " << tag << " not found");
+            } else {
+                WF psi_t = WF(tag, wave_function_load(world, atoi(tag.c_str())));
+                psiList.push_back(WF(tag, psi_t.func));
+                PRINT("|" << tag << ">\t\t");
+            }
+        }// done loading wf.num
+        PRINT("\n");
+        std::vector<WF>::const_iterator psiIT;
+        if( !boundList.empty() ) {
+            // <phi_bound|Psi(t)>
+            std::vector<string>::const_iterator boundIT;
+            int N, L, M;
+            for(boundIT = boundList.begin(); boundIT !=boundList.end(); boundIT++ ) {
+                stringstream ss(*boundIT);
+                ss >> N >> L >> M;
+                //PROJECT Psi_nlm into MADNESS
+                complex_functionT psi_nlm = complex_factoryT(world).
+                    functor(functorT( new BoundWF(Z, N, L, M)));
+                PRINT(*boundIT << "   ");
+                for( psiIT=psiList.begin(); psiIT !=  psiList.end(); psiIT++ ) {
+                    output = psi_nlm.inner( psiIT->func ); 
+                    PRINT("\t" << real(output*conj(output)));
+                }
+                PRINT("\n");
+            }            
+        }
+        if( !unboundList.empty() ) {
+            std::vector<string>::const_iterator unboundIT;
+            for( unboundIT=unboundList.begin(); unboundIT !=  unboundList.end(); unboundIT++ ) {
+                //parsing unboundList
+                double KX, KY, KZ;
+                stringstream ss(*unboundIT);
+                ss >> KX >> KY >> KZ;
+                double dArr[3] = {KX, KY, KZ};
+                const vector3D kVec(dArr);
+                //PROJECT Psi_k into MADNESS
+                complex_functionT psi_k = 
+                    complex_factoryT(world).functor(functorT( new ScatteringWF(Z, kVec) ));
+                cout.precision( 2 );
+                PRINT( std::fixed << KX << " " << KY << " " << KZ );
+                for( psiIT=psiList.begin(); psiIT !=  psiList.end(); psiIT++ ) {
+                    //<phi_k|Psi(t)>
+                    output = psi_k.inner( psiIT->func );
+                    PRINT(std::scientific << "\t" << real(output*conj(output)));
+                }
+                PRINT("\n");
+            }
+        }
+    }
+}
+
 void compareGroundState(World& world, double Z) {
     //import psi0
     complex_functionT psi0;
@@ -407,16 +513,18 @@ int main(int argc, char**argv) {
     FunctionDefaults<NDIM>::set_truncate_mode(0);
     FunctionDefaults<NDIM>::set_truncate_on_project(true);
     try {
-        std::vector<WF> boundList;
-        std::vector<WF> unboundList;
-        double dARR[3] = {0, 0, 0.5};
-        vector3D rVec(dARR);
+        std::vector<string> boundList2;
+        std::vector<string> unboundList2;
+        loadList(world, boundList2, unboundList2);
+        projectPsi2(world, boundList2, unboundList2, Z);
+        //std::vector<WF> boundList;
+        //std::vector<WF> unboundList;
         //compareGroundState(world, Z);
         //printBasis(world,Z);
-        loadBasis(world,  boundList, unboundList, Z);
+        //loadBasis(world,  boundList, unboundList, Z);
         //belkic(world);
         //projectZdip(world, unboundList);
-        projectPsi(world, boundList, unboundList, Z);
+        //projectPsi(world, boundList, unboundList, Z);
         world.gop.fence();
 //         if (world.rank() == 0) {
 //             world.am.print_stats();
