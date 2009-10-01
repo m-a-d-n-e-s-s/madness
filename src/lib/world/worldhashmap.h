@@ -158,11 +158,25 @@ namespace madness {
         };
 
         /// iterator for hash
-        template <class hashT, class entryT, class datumT> class HashIterator {
+        template <class hashT> class HashIterator {
+        public:
+            typedef typename add_const<is_const<hashT>::value,
+                typename hashT::entryT>::type entryT;
+            typedef typename add_const<is_const<hashT>::value,
+                typename hashT::datumT>::type datumT;
+            typedef std::forward_iterator_tag iterator_category;
+            typedef datumT value_type;
+            typedef std::ptrdiff_t difference_type;
+            typedef datumT* pointer;
+            typedef datumT& reference;
+
         private:
             hashT* h;               // Associated hash table
             int bin;                // Current bin
             entryT* entry;          // Current entry in bin ... zero means at end
+
+            template <class otherHashT>
+            friend class HashIterator;
 
             /// If the entry is null (end of current bin) finds next non-empty bin
             void next_non_null_entry() {
@@ -178,11 +192,6 @@ namespace madness {
             }
 
         public:
-            typedef std::forward_iterator_tag iterator_category;
-            typedef datumT value_type;
-            typedef std::ptrdiff_t difference_type;
-            typedef datumT* pointer;
-            typedef datumT& reference;
 
             /// Makes invalid iterator
             HashIterator() : h(0), bin(-1), entry(0) {}
@@ -196,6 +205,18 @@ namespace madness {
             /// Makes iterator to specific entry
             HashIterator(hashT* h, int bin, entryT* entry)
                     : h(h), bin(bin), entry(entry) {}
+
+            /// Copy constructor
+            HashIterator(const HashIterator& other)
+                    : h(other.h), bin(other.bin), entry(other.entry) {}
+
+            /// Implicit conversion of another hash type to this hash type
+
+            /// This allows implicit conversion from hash types to const hash
+            /// types.
+            template <class otherHashT>
+            HashIterator(const HashIterator<otherHashT>& other)
+                    : h(other.h), bin(other.bin), entry(other.entry) {}
 
             HashIterator& operator++() {
                 if (!entry) return *this;
@@ -294,13 +315,13 @@ namespace madness {
         typedef std::pair<const keyT,valueT> datumT;
         typedef Hash_private::entry<keyT,valueT> entryT;
         typedef Hash_private::bin<keyT,valueT> binT;
-        typedef Hash_private::HashIterator<hashT,entryT,datumT> iterator;
-        typedef Hash_private::HashIterator<const hashT,const entryT,const datumT> const_iterator;
+        typedef Hash_private::HashIterator<hashT> iterator;
+        typedef Hash_private::HashIterator<const hashT> const_iterator;
         typedef Hash_private::HashAccessor<hashT,entryT,datumT,entryT::WRITELOCK> accessor;
         typedef Hash_private::HashAccessor<const hashT,const entryT,const datumT,entryT::READLOCK> const_accessor;
 
-        friend class Hash_private::HashIterator<hashT,entryT,datumT>;
-        friend class Hash_private::HashIterator<const hashT,const entryT,const datumT>;
+        friend class Hash_private::HashIterator<hashT>;
+        friend class Hash_private::HashIterator<const hashT>;
 
     protected:
         const size_t nbins;         // Number of bins

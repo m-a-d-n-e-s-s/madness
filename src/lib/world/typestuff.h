@@ -194,6 +194,18 @@ namespace madness {
         typedef T type;
     };
 
+    /// If B == true, type will be const T
+    template <bool B, typename T>
+    struct add_const {
+        typedef const typename remove_const<T>::type type;
+    };
+
+    /// If B == false, type will be T
+    template <typename T>
+    struct add_const<false, T> {
+        typedef typename remove_const<T>::type type;
+    };
+
     /// enable_if_c from Boost for conditionally instantiating templates based on type
 
     /// Evaluates to \c returnT if \c B is true, otherwise to an invalid type expression

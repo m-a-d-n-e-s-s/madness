@@ -108,25 +108,19 @@ namespace madness {
                 : it(), is_local(false), value(value) {}
 
         WorldContainerIterator(const WorldContainerIterator& other) {
-            *this = other;
+            copy(other);
+        }
+
+        template <class iteratorT>
+        WorldContainerIterator(const WorldContainerIterator<iteratorT>& other) {
+            copy(other);
         }
 
         /// Assignment
         WorldContainerIterator& operator=(const WorldContainerIterator& other) {
-            if (this != &other) {
-                is_local = other.is_local;
-                if (other.is_local) {
-                    it = other.it;
-                }
-                else {
-                    // Sigh ... there does not seem a kosher way to do this
-                    *const_cast<REMCONST(typename value_type::first_type)*>(&value.first) = other.value.first;
-                    *const_cast<REMCONST(typename value_type::second_type)*>(&value.second) = other.value.second;
-                }
-            }
+            copy(other);
             return *this;
         }
-
 
         /// Determines if two iterators are identical
         bool operator==(const WorldContainerIterator& other) const {
@@ -203,13 +197,32 @@ namespace madness {
         void serialize(const Archive& ar) {
             throw "Serializing DC iterator ... why?";
         }
+
+    private:
+        template <class iteratorT>
+        friend class WorldContainerIterator;
+
+        template <class iteratorT>
+        void copy(const WorldContainerIterator<iteratorT>& other) {
+            if (static_cast<const void*>(this) != static_cast<const void*>(&other)) {
+                is_local = other.is_local;
+                if (other.is_local) {
+                    it = other.it;
+                }
+                else {
+                    // Sigh ... there does not seem a kosher way to do this
+                    *const_cast<REMCONST(typename value_type::first_type)*>(&value.first) = other.value.first;
+                    *const_cast<REMCONST(typename value_type::second_type)*>(&value.second) = other.value.second;
+                }
+            }
+        }
     };
 
-    template <class internal_iteratorT>
-    std::ostream& operator<<(std::ostream& s, const WorldContainerIterator<internal_iteratorT>& it) {
-        s << "WCIterator(" << *it << ")";
-        return s;
-    }
+//    template <class internal_iteratorT>
+//    std::ostream& operator<<(std::ostream& s, const WorldContainerIterator<internal_iteratorT>& it) {
+//        s << "WCIterator(" << *it << ")";
+//        return s;
+//    }
 
 
     /// Implementation of distributed container to enable PIMPL
