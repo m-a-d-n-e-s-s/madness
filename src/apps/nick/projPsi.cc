@@ -345,6 +345,7 @@ void projectPsi2(World& world, std::vector<string> boundList, std::vector<string
                     complex_factoryT(world).functor(functorT( new ScatteringWF(Z, kVec) ));
                 cout.precision( 2 );
                 PRINT( std::fixed << KX << " " << KY << " " << KZ );
+                cout.precision( 4 );
                 for( psiIT=psiList.begin(); psiIT !=  psiList.end(); psiIT++ ) {
                     //<phi_k|Psi(t)>
                     output = psi_k.inner( psiIT->func );
