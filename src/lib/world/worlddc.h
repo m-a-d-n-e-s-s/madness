@@ -52,6 +52,9 @@ namespace madness {
     typename valueT>
     class WorldContainerImpl;
 
+    template <typename keyT, typename valueT>
+    void swap(WorldContainer<keyT, valueT>&, WorldContainer<keyT, valueT>&);
+
     /// Interface to be provided by any process map
     template <typename keyT>
     class WorldDCPmapInterface {
@@ -1141,7 +1144,14 @@ namespace madness {
         virtual ~WorldContainer() {
             if (p) p->world.deferred_cleanup(p);
         }
+
+        friend void swap<>(WorldContainer&, WorldContainer&);
     };
+
+    template <typename keyT, typename valueT>
+    void swap(WorldContainer<keyT, valueT>& dc0, WorldContainer<keyT, valueT>& dc1) {
+      std::swap(dc0.p, dc1.p);
+    }
 
     namespace archive {
         /// Write container to parallel archive with optional fence
