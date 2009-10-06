@@ -5,6 +5,24 @@
 
 using namespace madness;
 
+/// ustility functions
+
+/// result = a^T * b. 2 dimension only
+template < typename T>
+Tensor<T> mTxm2(Tensor<T> a, Tensor<T> b){
+    ///size check
+    MADNESS_ASSERT(a.dim[1] == b.dim[1]);
+
+    Tensor<T> result(a.dim[0],b.dim[0]); 
+    for(int i=0; i < a.dim[0]; i++){
+        for(int j=0; j < b.dim[0]; j++){
+            for(int k=0; k < a.dim[1]; k++){
+                result(i,j) += a(k,i) * b(k,j);
+            }
+        }
+    }
+    return result;
+}
 
 template <typename T>
 class TestSystolicMatrixAlgorithm : public SystolicMatrixAlgorithm<T> { 
@@ -211,21 +229,27 @@ public:
         }
     }
 
-    //DistributedMatrix<T>
-    void get_eval() const{
+    Tensor<T> get_eval() const{
+
+        Tensor<T> result(size);
         for(int64_t i=0; i<size; i++){
             for(int64_t j=0; j<size; j++){
                 Tensor<T> ai= AV.data()(i, Slice(0, size-1)); 
                 Tensor<T> vj= AV.data()(j, Slice(size, -1));
                 T aij = inner(vj, ai);
     
+                /// check off diagonal element is absolutly zero
                 if(i!=j){
                     print(inner(vj,ai));
                     MADNESS_ASSERT(inner(vj,ai)<=tolmin*10e2);
                 }
-                else print("eigen value: ", aij);
+                else{
+                    print("eigen value: ", aij);
+                    result[i] = aij;
+                }
             }
         }
+        return result;
     }
 
     DistributedMatrix<T> get_evec() const{
@@ -281,7 +305,9 @@ void systolic_eigensolver (DistributedMatrix<T>& A, int tag )
 }
 */
 int main(int argc, char** argv) {
-    MPI::Init(argc, argv);
+    //MPI::Init(argc, argv);
+    initialize(argc, argv);
+
     madness::World world(MPI::COMM_WORLD);
 
     redirectio(world); /* redirect a results to file "log.<number of processor>" */
@@ -306,6 +332,22 @@ int main(int argc, char** argv) {
             SystolicEigensolver<double> sA(AV, 3334);
 
             sA.solve();
+
+            if(world.size() == 1){
+                /* check the answer*/
+                Tensor<double> eigvec = sA.get_evec().data();
+                
+                /* U^T * U = I */
+                //print(inner(transpose(eigvec), eigvec));
+                ///test for mTxm
+                Tensor<double> t(2,2);
+                t(0,0) = 1; t(0,1) = 2; t(1,0) = 3; t(1,1) = 4;
+                print(t);
+                /// result must be ( 10 , 14, 14, 20)
+                print(mTxm2(transpose(t), t));
+
+                /* A * U = lambda * I */
+            }
 
             /*
             print("matrix A");
@@ -367,6 +409,7 @@ int main(int argc, char** argv) {
         error("caught unhandled exception");
     }
     
-    MPI::Finalize();
+    //MPI::Finalize();
+    finalize();
 }
 
