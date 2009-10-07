@@ -22,6 +22,390 @@ static double onesfunc(const coordT& x)
 
 namespace madness
 {
+
+  //***************************************************************************
+  template <typename T, int NDIM>
+  class SubspaceK
+  {
+    // Typedef's
+    typedef std::complex<T> valueT;
+    typedef Function<valueT,NDIM> functionT;
+    typedef std::vector<functionT> vecfuncT;
+    typedef pair<vecfuncT,vecfuncT> pairvecfuncT;
+    typedef vector<pairvecfuncT> subspaceT;
+    typedef Tensor<valueT> tensorT;
+    typedef vector<tensorT> vectensorT;
+    typedef vector<subspaceT> vecsubspaceT;
+
+    //*************************************************************************
+    World& _world;
+    //*************************************************************************
+
+    //*************************************************************************
+    vectensorT _Q;
+    //*************************************************************************
+
+    //*************************************************************************
+    vecsubspaceT _subspace;
+    //*************************************************************************
+
+    //*************************************************************************
+    std::vector<KPoint> _kpoints;
+    //*************************************************************************
+
+    //*************************************************************************
+    ElectronicStructureParams _params;
+    //*************************************************************************
+
+    //*************************************************************************
+    double _residual;
+    //*************************************************************************
+
+  public:
+
+    //*************************************************************************
+    SubspaceK(World& world, const ElectronicStructureParams& params,
+            const std::vector<KPoint>& kpoints) : _world(world), _kpoints(kpoints),
+            _params(params)
+    {
+      _residual = 1e6;
+      for (unsigned int kp = 0; kp < _kpoints.size(); kp++)
+      {
+        _Q.push_back(tensorT(1,1));
+        _subspace.push_back(subspaceT());
+      }
+    }
+    //*************************************************************************
+
+    //*************************************************************************
+    void update_subspace(vecfuncT& awfs_new,
+                         vecfuncT& bwfs_new,
+                         const vecfuncT& awfs_old,
+                         const vecfuncT& bwfs_old)
+    {
+      // compute residuals (total)
+      vecfuncT t_rm = sub(_world, awfs_old, awfs_new);
+      if (_params.spinpol)
+      {
+        vecfuncT br = sub(_world, bwfs_old, bwfs_new);
+        t_rm.insert(t_rm.end(), br.begin(), br.end());
+      }
+      std::vector<double> rnvec = norm2<valueT,NDIM>(_world, t_rm);
+      if (_world.rank() == 0)
+      {
+        double rnorm = 0.0;
+        for (unsigned int i = 0; i < rnvec.size(); i++) rnorm += rnvec[i];
+        if (_world.rank() == 0) print("residual = ", rnorm);
+        _residual = rnorm;
+      }
+      _world.gop.broadcast(_residual, 0);
+
+      for (unsigned int kp = 0; kp < _kpoints.size(); kp++)
+      {
+        KPoint kpoint = _kpoints[kp];
+
+        vecfuncT k_phisa(awfs_old.begin() + kpoint.begin, awfs_old.begin() + kpoint.end);
+        vecfuncT k_phisb(bwfs_old.begin() + kpoint.begin, bwfs_old.begin() + kpoint.end);
+        vecfuncT k_awfs(awfs_new.begin() + kpoint.begin, awfs_new.begin() + kpoint.end);
+        vecfuncT k_bwfs(bwfs_new.begin() + kpoint.begin, bwfs_new.begin() + kpoint.end);
+
+        // compute residuals for k-point
+        // concatentate up and down spins
+        vecfuncT k_rm = sub(_world, k_phisa, k_awfs);
+        vecfuncT k_vm(k_phisa);
+        if (_params.spinpol)
+        {
+          vecfuncT k_br = sub(_world, k_phisb, k_bwfs);
+          k_rm.insert(k_rm.end(), k_br.begin(), k_br.end());
+          k_vm.insert(k_vm.end(), k_phisb.begin(), k_phisb.end());
+        }
+
+        // Update subspace and matrix Q
+        compress(_world, k_vm, false);
+        compress(_world, k_rm, false);
+        _world.gop.fence();
+        subspaceT k_subspace = _subspace[kp];
+        k_subspace.push_back(pairvecfuncT(k_vm,k_rm));
+
+        int m = k_subspace.size();
+        tensorT ms(m);
+        tensorT sm(m);
+        for (int s = 0; s < m; s++)
+        {
+            const vecfuncT& k_vs = k_subspace[s].first;
+            const vecfuncT& k_rs = k_subspace[s].second;
+            for (unsigned int i = 0; i < k_vm.size(); i++)
+            {
+                ms[s] += k_vm[i].inner_local(k_rs[i]);
+                sm[s] += k_vs[i].inner_local(k_rm[i]);
+            }
+        }
+        _world.gop.sum(ms.ptr(),m);
+        _world.gop.sum(sm.ptr(),m);
+
+        tensorT newQ(m,m);
+        if (m > 1) newQ(Slice(0,-2),Slice(0,-2)) = _Q[kp];
+        newQ(m-1,_) = ms;
+        newQ(_,m-1) = sm;
+
+        _Q[kp] = newQ;
+        if (_world.rank() == 0) print(_Q[kp]);
+
+        // Solve the subspace equations
+        tensorT c;
+        if (_world.rank() == 0) {
+            double rcond = 1e-12;
+            while (1) {
+                c = KAIN(_Q[kp],rcond);
+                if (abs(c[m-1]) < 3.0) {
+                    break;
+                }
+                else if (rcond < 0.01) {
+                    if (_world.rank() == 0)
+                      print("Increasing subspace singular value threshold ", c[m-1], rcond);
+                    rcond *= 100;
+                }
+                else {
+                    if (_world.rank() == 0)
+                      print("Forcing full step due to subspace malfunction");
+                    c = 0.0;
+                    c[m-1] = 1.0;
+                    break;
+                }
+            }
+        }
+
+        _world.gop.broadcast_serializable(c, 0);
+        if (_world.rank() == 0) {
+            //print("Subspace matrix");
+            //print(Q);
+            print("Subspace solution", c);
+        }
+
+        // Form linear combination for new solution
+        vecfuncT k_phisa_new = zero_functions<valueT,NDIM>(_world, k_phisa.size());
+        vecfuncT k_phisb_new = zero_functions<valueT,NDIM>(_world, k_phisb.size());
+        compress(_world, k_phisa_new, false);
+        compress(_world, k_phisb_new, false);
+        _world.gop.fence();
+        std::complex<double> one = std::complex<double>(1.0,0.0);
+        unsigned int norbitals = awfs_old.size() / _kpoints.size();
+        for (unsigned int m = 0; m < k_subspace.size(); m++)
+        {
+            const vecfuncT& k_vm = k_subspace[m].first;
+            const vecfuncT& k_rm = k_subspace[m].second;
+            // WSTHORNTON Stopped here!
+            const vecfuncT  vma(k_vm.begin(),k_vm.begin() + norbitals);
+            const vecfuncT  rma(k_rm.begin(),k_rm.begin() + norbitals);
+            const vecfuncT  vmb(k_vm.end() - norbitals, k_vm.end());
+            const vecfuncT  rmb(k_rm.end() - norbitals, k_rm.end());
+
+            gaxpy(_world, one, k_phisa_new, c(m), vma, false);
+            gaxpy(_world, one, k_phisa_new,-c(m), rma, false);
+            gaxpy(_world, one, k_phisb_new, c(m), vmb, false);
+            gaxpy(_world, one, k_phisb_new,-c(m), rmb, false);
+        }
+        _world.gop.fence();
+
+        if (_params.maxsub <= 1) {
+            // Clear subspace if it is not being used
+            k_subspace.clear();
+        }
+        else if (k_subspace.size() == _params.maxsub) {
+            // Truncate subspace in preparation for next iteration
+            k_subspace.erase(k_subspace.begin());
+            _Q[kp] = _Q[kp](Slice(1,-1),Slice(1,-1));
+        }
+        // Save subspace
+        _subspace[kp] = k_subspace;
+
+        for (unsigned int wi = kpoint.begin, fi = 0; wi < kpoint.end;
+          wi++, fi++)
+        {
+          awfs_new[wi] = k_phisa_new[fi];
+          bwfs_new[wi] = k_phisb_new[fi];
+        }
+      }
+    }
+    //*************************************************************************
+
+  };
+
+  //***************************************************************************
+  template <typename T, int NDIM>
+  class Subspace
+  {
+    // Typedef's
+    typedef std::complex<T> valueT;
+    typedef Function<valueT,NDIM> functionT;
+    typedef std::vector<functionT> vecfuncT;
+    typedef pair<vecfuncT,vecfuncT> pairvecfuncT;
+    typedef vector<pairvecfuncT> subspaceT;
+    typedef Tensor<valueT> tensorT;
+
+    //*************************************************************************
+    World& _world;
+    //*************************************************************************
+
+    //*************************************************************************
+    tensorT _Q;
+    //*************************************************************************
+
+    //*************************************************************************
+    subspaceT _subspace;
+    //*************************************************************************
+
+    //*************************************************************************
+    std::vector<KPoint> _kpoints;
+    //*************************************************************************
+
+    //*************************************************************************
+    ElectronicStructureParams _params;
+    //*************************************************************************
+
+    //*************************************************************************
+    double _residual;
+    //*************************************************************************
+
+  public:
+
+    //*************************************************************************
+    Subspace(World& world, const ElectronicStructureParams& params)
+      : _world(world), _params(params)
+    {
+      _residual = 1e6;
+    }
+    //*************************************************************************
+
+    //*************************************************************************
+    void update_subspace(vecfuncT& awfs_new,
+                         vecfuncT& bwfs_new,
+                         const vecfuncT& awfs_old,
+                         const vecfuncT& bwfs_old)
+    {
+      // compute residuals
+      vecfuncT rm = sub(_world, awfs_old, awfs_new);
+      if (_params.spinpol)
+      {
+        vecfuncT br = sub(_world, bwfs_old, bwfs_new);
+        rm.insert(rm.end(), br.begin(), br.end());
+      }
+      std::vector<double> rnvec = norm2<valueT,NDIM>(_world, rm);
+      if (_world.rank() == 0)
+      {
+        double rnorm = 0.0;
+        for (unsigned int i = 0; i < rnvec.size(); i++) rnorm += rnvec[i];
+        if (_world.rank() == 0) print("residual = ", rnorm);
+        _residual = rnorm / rnvec.size();
+      }
+
+      // concatentate up and down spins
+      vecfuncT vm = awfs_old;
+      if (_params.spinpol)
+      {
+        vm.insert(vm.end(), bwfs_old.begin(), bwfs_old.end());
+      }
+
+      // Update subspace and matrix Q
+      compress(_world, vm, false);
+      compress(_world, rm, false);
+      _world.gop.fence();
+      _subspace.push_back(pairvecfuncT(vm,rm));
+
+      int m = _subspace.size();
+      tensorT ms(m);
+      tensorT sm(m);
+      for (int s=0; s<m; s++)
+      {
+          const vecfuncT& vs = _subspace[s].first;
+          const vecfuncT& rs = _subspace[s].second;
+          for (unsigned int i=0; i<vm.size(); i++)
+          {
+              ms[s] += vm[i].inner_local(rs[i]);
+              sm[s] += vs[i].inner_local(rm[i]);
+          }
+      }
+      _world.gop.sum(ms.ptr(),m);
+      _world.gop.sum(sm.ptr(),m);
+
+      tensorT newQ(m,m);
+      if (m > 1) newQ(Slice(0,-2),Slice(0,-2)) = _Q;
+      newQ(m-1,_) = ms;
+      newQ(_,m-1) = sm;
+
+      _Q = newQ;
+      if (_world.rank() == 0) print(_Q);
+
+      // Solve the subspace equations
+      tensorT c;
+      if (_world.rank() == 0) {
+          double rcond = 1e-12;
+          while (1) {
+              c = KAIN(_Q,rcond);
+              if (abs(c[m-1]) < 3.0) {
+                  break;
+              }
+              else if (rcond < 0.01) {
+                  if (_world.rank() == 0)
+                    print("Increasing subspace singular value threshold ", c[m-1], rcond);
+                  rcond *= 100;
+              }
+              else {
+                  if (_world.rank() == 0)
+                    print("Forcing full step due to subspace malfunction");
+                  c = 0.0;
+                  c[m-1] = 1.0;
+                  break;
+              }
+          }
+      }
+
+      _world.gop.broadcast_serializable(c, 0);
+      if (_world.rank() == 0) {
+          //print("Subspace matrix");
+          //print(Q);
+          print("Subspace solution", c);
+      }
+
+      // Form linear combination for new solution
+      vecfuncT phisa_new = zero_functions<valueT,NDIM>(_world, awfs_old.size());
+      vecfuncT phisb_new = zero_functions<valueT,NDIM>(_world, bwfs_old.size());
+      compress(_world, phisa_new, false);
+      compress(_world, phisb_new, false);
+      _world.gop.fence();
+      std::complex<double> one = std::complex<double>(1.0,0.0);
+      for (unsigned int m=0; m<_subspace.size(); m++) {
+          const vecfuncT& vm = _subspace[m].first;
+          const vecfuncT& rm = _subspace[m].second;
+          const vecfuncT  vma(vm.begin(),vm.begin()+awfs_old.size());
+          const vecfuncT  rma(rm.begin(),rm.begin()+awfs_old.size());
+          const vecfuncT  vmb(vm.end()-bwfs_old.size(), vm.end());
+          const vecfuncT  rmb(rm.end()-bwfs_old.size(), rm.end());
+
+          gaxpy(_world, one, phisa_new, c(m), vma, false);
+          gaxpy(_world, one, phisa_new,-c(m), rma, false);
+          gaxpy(_world, one, phisb_new, c(m), vmb, false);
+          gaxpy(_world, one, phisb_new,-c(m), rmb, false);
+      }
+      _world.gop.fence();
+
+      if (_params.maxsub <= 1) {
+          // Clear subspace if it is not being used
+          _subspace.clear();
+      }
+      else if (_subspace.size() == _params.maxsub) {
+          // Truncate subspace in preparation for next iteration
+          _subspace.erase(_subspace.begin());
+          _Q = _Q(Slice(1,-1),Slice(1,-1));
+      }
+      awfs_new = phisa_new;
+      bwfs_new = phisb_new;
+    }
+    //*************************************************************************
+  };
+  //***************************************************************************
+
+
 //***************************************************************************
   template <typename T, int NDIM>
   class Solver
@@ -103,12 +487,16 @@ namespace madness
     SeparatedConvolution<T,NDIM>* _cop;
     //*************************************************************************
 
-    //*************************************************************************
-    vecsubspaceT _subspace;
-    //*************************************************************************
+//    //*************************************************************************
+//    vecsubspaceT _subspace;
+//    //*************************************************************************
+//
+//    //*************************************************************************
+//    vectensorT _Q;
+//    //*************************************************************************
 
     //*************************************************************************
-    vectensorT _Q;
+    Subspace<T,NDIM>* _subspace;
     //*************************************************************************
 
     //*************************************************************************
@@ -137,18 +525,12 @@ namespace madness
       make_nuclear_potential();
       initial_guess();
       solver_on = false;
-      for (unsigned int kp = 0; kp < _kpoints.size(); kp++)
-      {
-        _Q.push_back(tensorT(1,1));
-        _subspace.push_back(subspaceT());
-      }
-      unsigned int ksize = _kpoints.size();
-      unsigned int subsize = _subspace.size();
-      unsigned int Qsize = _Q.size();
-      if (_world.rank() == 0) print("number of k points: ", ksize);
-      if (_world.rank() == 0) print("_Q size: ", Qsize);
-      if (_world.rank() == 0) print("subsize: ", subsize);
-
+//      for (unsigned int kp = 0; kp < _kpoints.size(); kp++)
+//      {
+//        _Q.push_back(tensorT(1,1));
+//        _subspace.push_back(subspaceT());
+//      }
+      _subspace = new Subspace<T,NDIM>(world, _params);
     }
     //*************************************************************************
 
@@ -730,6 +1112,13 @@ namespace madness
     }
     //*************************************************************************
 
+    //*************************************************************************
+    virtual ~Solver()
+    {
+      delete _subspace;
+    }
+    //*************************************************************************
+
     //***************************************************************************
     rfuntionT compute_rho(const vecfuncT& phis, std::vector<KPoint> kpoints)
     {
@@ -891,10 +1280,6 @@ namespace madness
     //*************************************************************************
 
     //*************************************************************************
-    virtual ~Solver() {}
-    //*************************************************************************
-
-    //*************************************************************************
     void reproject()
     {
 
@@ -911,7 +1296,8 @@ namespace madness
           reproject();
         }
         // WSTHORNTON
-        if (it > 0) solver_on = true;
+        solver_on = true;
+        //if (it > 10) solver_on = true;
 
         if (_world.rank() == 0) print("it = ", it);
        
@@ -987,6 +1373,46 @@ namespace madness
     //*************************************************************************
     
     //*************************************************************************
+    ctensorT matrix_exponential(const ctensorT& A) {
+        const double tol = 1e-13;
+        MADNESS_ASSERT(A.dim[0] == A.dim[1]);
+
+        // Scale A by a power of 2 until it is "small"
+        double anorm = A.normf();
+        int n = 0;
+        double scale = 1.0;
+        while (anorm*scale > 0.1)
+        {
+            n++;
+            scale *= 0.5;
+        }
+        tensorT B = scale*A;    // B = A*2^-n
+
+        // Compute exp(B) using Taylor series
+        ctensorT expB = ctensorT(2, B.dim);
+        for (int i = 0; i < expB.dim[0]; i++) expB(i,i) = std::complex<T>(1.0,0.0);
+
+        int k = 1;
+        ctensorT term = B;
+        while (term.normf() > tol)
+        {
+            expB += term;
+            term = inner(term,B);
+            k++;
+            term.scale(1.0/k);
+        }
+
+        // Repeatedly square to recover exp(A)
+        while (n--)
+        {
+            expB = inner(expB,expB);
+        }
+
+        return expB;
+    }
+    //*************************************************************************
+
+    //*************************************************************************
     void do_rhs(vecfuncT& wf,
                 vecfuncT& vwf,
                 std::vector<T>& alpha,
@@ -994,7 +1420,7 @@ namespace madness
     {
       // tolerance
       double trantol = 0.1*_params.thresh/min(30.0,double(wf.size()));
-
+      double thresh = 1e-4;
 
       for (unsigned int kp = 0; kp < kpoints.size(); kp++)
       {
@@ -1014,6 +1440,7 @@ namespace madness
 
         // Build fock matrix
         tensorT fock = build_fock_matrix(k_wf, k_vwf, kpoint);
+        tensorT overlap = matrix_inner(_world, k_wf, k_wf, true);
 
         // Do right hand side stuff for kpoint
         bool isgamma = (is_equal(k0,0.0,1e-5) && is_equal(k1,0.0,1e-5) && is_equal(k2,0.0,1e-5));
@@ -1039,7 +1466,6 @@ namespace madness
 
         if (_params.canon) // canonical orbitals
         {
-          tensorT overlap = matrix_inner(_world, k_wf, k_wf, true);
 
           // Debug output
           if (_world.rank() == 0)
@@ -1051,19 +1477,111 @@ namespace madness
             print(fock);
           }
 
-          ctensorT c; rtensorT e;
-          sygv(fock, overlap, 1, &c, &e);
-          if (!solver_on)
+          ctensorT U; rtensorT e;
+          sygv(fock, overlap, 1, &U, &e);
+
+          unsigned int nmo = k_wf.size();
+          // Fix phases.
+          long imax;
+          for (long j = 0; j < nmo; j++)
+          {
+              // Get index of largest value in column
+              U(_,j).absmax(&imax);
+              T ang = arg(U(imax,j));
+              std::complex<T> phase = exp(std::complex<T>(0.0,-ang));
+              // Loop through the rest of the column and divide by the phase
+              for (long i = 0; i < nmo; i++)
+              {
+                U(i,j) *= phase;
+              }
+          }
+
+          // Within blocks with the same occupation number attempt to
+          // keep orbitals in the same order (to avoid confusing the
+          // non-linear solver).  Have to run the reordering multiple
+          // times to handle multiple degeneracies.
+          for (int pass = 0; pass < 5; pass++)
+          {
+              long j;
+              for (long i = 0; i < nmo; i++)
+              {
+                U(_, i).absmax(&j);
+                if (i != j)
+                {
+                  tensorT tmp = copy(U(_, i));
+                  U(_, i) = U(_, j);
+                  U(_, j) = tmp;
+                  swap(e[i], e[j]);
+                }
+              }
+          }
+
+          // Rotations between effectively degenerate states confound
+          // the non-linear equation solver ... undo these rotations
+          long ilo = 0; // first element of cluster
+          while (ilo < nmo-1) {
+              long ihi = ilo;
+              while (fabs(real(e[ilo]-e[ihi+1])) < thresh*10.0*max(fabs(real(e[ilo])),1.0)) {
+                  ihi++;
+                  if (ihi == nmo-1) break;
+              }
+              long nclus = ihi - ilo + 1;
+              if (nclus > 1) {
+                  print("   found cluster", ilo, ihi);
+                  tensorT q = copy(U(Slice(ilo,ihi),Slice(ilo,ihi)));
+                  //print(q);
+                  // Special code just for nclus=2
+                  // double c = 0.5*(q(0,0) + q(1,1));
+                  // double s = 0.5*(q(0,1) - q(1,0));
+                  // double r = sqrt(c*c + s*s);
+                  // c /= r;
+                  // s /= r;
+                  // q(0,0) = q(1,1) = c;
+                  // q(0,1) = -s;
+                  // q(1,0) = s;
+
+                  // Iteratively construct unitary rotation by
+                  // exponentiating the antisymmetric part of the matrix
+                  // ... is quadratically convergent so just do 3
+                  // iterations
+                  ctensorT rot = matrix_exponential(-0.5*(q - conj_transpose(q)));
+                  q = inner(q,rot);
+                  ctensorT rot2 = matrix_exponential(-0.5*(q - conj_transpose(q)));
+                  q = inner(q,rot2);
+                  ctensorT rot3 = matrix_exponential(-0.5*(q - conj_transpose(q)));
+                  q = inner(rot,inner(rot2,rot3));
+                  U(_,Slice(ilo,ihi)) = inner(U(_,Slice(ilo,ihi)),q);
+              }
+              ilo = ihi+1;
+          }
+
+          // Debug output
+          if (_world.rank() == 0)
+          { print("Overlap matrix:");
+            print(overlap);
+          }
+          if (_world.rank() == 0)
+          { print("Fock matrix:");
+            print(fock);
+          }
+          if (_world.rank() == 0)
+          { print("U matrix: (eigenvectors)");
+            print(U);
+          }
+
+          //if (!solver_on)
+          if (true)
           {
             // transform orbitals and V * (orbitals)
-            k_vwf = transform(_world, k_vwf, c, 1e-5 / min(30.0, double(k_wf.size())), false);
-            k_wf = transform(_world, k_wf, c, FunctionDefaults<3>::get_thresh() / min(30.0, double(k_wf.size())), true);
+            k_vwf = transform(_world, k_vwf, U, 1e-5 / min(30.0, double(k_wf.size())), false);
+            k_wf = transform(_world, k_wf, U, FunctionDefaults<3>::get_thresh() / min(30.0, double(k_wf.size())), true);
           }
 
           for (unsigned int ei = kpoint.begin, fi = 0; ei < kpoint.end;
             ei++, fi++)
           {
-            valueT t1 = (!solver_on) ? e(fi,fi) : fock(fi,fi);
+            //valueT t1 = (!solver_on) ? e(fi,fi) : fock(fi,fi);
+            valueT t1 =  e(fi,fi);
             if (real(e(fi,fi)) > -0.1)
             {
               alpha[ei] = -0.5;
@@ -1168,7 +1686,7 @@ namespace madness
       if (_params.maxsub > 1)
       {
         // nonlinear solver
-        update_subspace(awfs, bwfs);
+        _subspace->update_subspace(awfs, bwfs, _phisa, _phisb);
       }
       // do step restriction
       step_restriction(_phisa, awfs, 0);
@@ -1200,159 +1718,159 @@ namespace madness
     }
     //*************************************************************************
 
-    //*************************************************************************
-    void update_subspace(vecfuncT& awfs,
-                         vecfuncT& bwfs)
-    {
-      // compute residuals (total)
-      vecfuncT t_rm = sub(_world, _phisa, awfs);
-      if (_params.spinpol)
-      {
-        vecfuncT br = sub(_world, _phisb, bwfs);
-        t_rm.insert(t_rm.end(), br.begin(), br.end());
-      }
-      std::vector<double> rnvec = norm2<valueT,NDIM>(_world, t_rm);
-      if (_world.rank() == 0)
-      {
-        double rnorm = 0.0;
-        for (unsigned int i = 0; i < rnvec.size(); i++) rnorm += rnvec[i];
-        if (_world.rank() == 0) print("residual = ", rnorm);
-        _residual = rnorm;
-      }
-      _world.gop.broadcast(_residual, 0);
-
-      if (solver_on)
-      {
-        for (unsigned int kp = 0; kp < _kpoints.size(); kp++)
-        {
-          KPoint kpoint = _kpoints[kp];
-
-          vecfuncT k_phisa(_phisa.begin() + kpoint.begin, _phisa.begin() + kpoint.end);
-          vecfuncT k_phisb(_phisb.begin() + kpoint.begin, _phisb.begin() + kpoint.end);
-          vecfuncT k_awfs(awfs.begin() + kpoint.begin, awfs.begin() + kpoint.end);
-          vecfuncT k_bwfs(bwfs.begin() + kpoint.begin, bwfs.begin() + kpoint.end);
-
-          // compute residuals for k-point
-          // concatentate up and down spins
-          vecfuncT k_rm = sub(_world, k_phisa, k_awfs);
-          vecfuncT k_vm(k_phisa);
-          if (_params.spinpol)
-          {
-            vecfuncT k_br = sub(_world, k_phisb, k_bwfs);
-            k_rm.insert(k_rm.end(), k_br.begin(), k_br.end());
-            k_vm.insert(k_vm.end(), k_phisb.begin(), k_phisb.end());
-          }
-
-          // Update subspace and matrix Q
-          compress(_world, k_vm, false);
-          compress(_world, k_rm, false);
-          _world.gop.fence();
-          subspaceT k_subspace = _subspace[kp];
-          k_subspace.push_back(pairvecfuncT(k_vm,k_rm));
-
-          int m = k_subspace.size();
-          tensorT ms(m);
-          tensorT sm(m);
-          for (int s = 0; s < m; s++)
-          {
-              const vecfuncT& k_vs = k_subspace[s].first;
-              const vecfuncT& k_rs = k_subspace[s].second;
-              for (unsigned int i = 0; i < k_vm.size(); i++)
-              {
-                  ms[s] += k_vm[i].inner_local(k_rs[i]);
-                  sm[s] += k_vs[i].inner_local(k_rm[i]);
-              }
-          }
-          _world.gop.sum(ms.ptr(),m);
-          _world.gop.sum(sm.ptr(),m);
-
-          tensorT newQ(m,m);
-          if (m > 1) newQ(Slice(0,-2),Slice(0,-2)) = _Q[kp];
-          newQ(m-1,_) = ms;
-          newQ(_,m-1) = sm;
-
-          _Q[kp] = newQ;
-          if (_world.rank() == 0) print(_Q[kp]);
-
-          // Solve the subspace equations
-          tensorT c;
-          if (_world.rank() == 0) {
-              double rcond = 1e-12;
-              while (1) {
-                  c = KAIN(_Q[kp],rcond);
-                  if (abs(c[m-1]) < 3.0) {
-                      break;
-                  }
-                  else if (rcond < 0.01) {
-                      if (_world.rank() == 0)
-                        print("Increasing subspace singular value threshold ", c[m-1], rcond);
-                      rcond *= 100;
-                  }
-                  else {
-                      if (_world.rank() == 0)
-                        print("Forcing full step due to subspace malfunction");
-                      c = 0.0;
-                      c[m-1] = 1.0;
-                      break;
-                  }
-              }
-          }
-
-          _world.gop.broadcast_serializable(c, 0);
-          if (_world.rank() == 0) {
-              //print("Subspace matrix");
-              //print(Q);
-              print("Subspace solution", c);
-          }
-
-          // Form linear combination for new solution
-          vecfuncT k_phisa_new = zero_functions<valueT,NDIM>(_world, k_phisa.size());
-          vecfuncT k_phisb_new = zero_functions<valueT,NDIM>(_world, k_phisb.size());
-          compress(_world, k_phisa_new, false);
-          compress(_world, k_phisb_new, false);
-          _world.gop.fence();
-          std::complex<double> one = std::complex<double>(1.0,0.0);
-          unsigned int norbitals = _phisa.size() / _kpoints.size();
-          for (unsigned int m = 0; m < k_subspace.size(); m++)
-          {
-              const vecfuncT& k_vm = k_subspace[m].first;
-              const vecfuncT& k_rm = k_subspace[m].second;
-              // WSTHORNTON Stopped here!
-              const vecfuncT  vma(k_vm.begin(),k_vm.begin() + norbitals);
-              const vecfuncT  rma(k_rm.begin(),k_rm.begin() + norbitals);
-              const vecfuncT  vmb(k_vm.end() - norbitals, k_vm.end());
-              const vecfuncT  rmb(k_rm.end() - norbitals, k_rm.end());
-
-              gaxpy(_world, one, k_phisa_new, c(m), vma, false);
-              gaxpy(_world, one, k_phisa_new,-c(m), rma, false);
-              gaxpy(_world, one, k_phisb_new, c(m), vmb, false);
-              gaxpy(_world, one, k_phisb_new,-c(m), rmb, false);
-          }
-          _world.gop.fence();
-
-          if (_params.maxsub <= 1) {
-              // Clear subspace if it is not being used
-              k_subspace.clear();
-          }
-          else if (k_subspace.size() == _params.maxsub) {
-              // Truncate subspace in preparation for next iteration
-              k_subspace.erase(k_subspace.begin());
-              _Q[kp] = _Q[kp](Slice(1,-1),Slice(1,-1));
-          }
-          // Save subspace
-          _subspace[kp] = k_subspace;
-
-          for (unsigned int wi = kpoint.begin, fi = 0; wi < kpoint.end;
-            wi++, fi++)
-          {
-            awfs[wi] = k_phisa_new[fi];
-            bwfs[wi] = k_phisb_new[fi];
-          }
-
-        }
-      }
-    }
-    //*************************************************************************
+//    //*************************************************************************
+//    void update_subspace(vecfuncT& awfs,
+//                         vecfuncT& bwfs)
+//    {
+//      // compute residuals (total)
+//      vecfuncT t_rm = sub(_world, _phisa, awfs);
+//      if (_params.spinpol)
+//      {
+//        vecfuncT br = sub(_world, _phisb, bwfs);
+//        t_rm.insert(t_rm.end(), br.begin(), br.end());
+//      }
+//      std::vector<double> rnvec = norm2<valueT,NDIM>(_world, t_rm);
+//      if (_world.rank() == 0)
+//      {
+//        double rnorm = 0.0;
+//        for (unsigned int i = 0; i < rnvec.size(); i++) rnorm += rnvec[i];
+//        if (_world.rank() == 0) print("residual = ", rnorm);
+//        _residual = rnorm;
+//      }
+//      _world.gop.broadcast(_residual, 0);
+//
+//      if (solver_on)
+//      {
+//        for (unsigned int kp = 0; kp < _kpoints.size(); kp++)
+//        {
+//          KPoint kpoint = _kpoints[kp];
+//
+//          vecfuncT k_phisa(_phisa.begin() + kpoint.begin, _phisa.begin() + kpoint.end);
+//          vecfuncT k_phisb(_phisb.begin() + kpoint.begin, _phisb.begin() + kpoint.end);
+//          vecfuncT k_awfs(awfs.begin() + kpoint.begin, awfs.begin() + kpoint.end);
+//          vecfuncT k_bwfs(bwfs.begin() + kpoint.begin, bwfs.begin() + kpoint.end);
+//
+//          // compute residuals for k-point
+//          // concatentate up and down spins
+//          vecfuncT k_rm = sub(_world, k_phisa, k_awfs);
+//          vecfuncT k_vm(k_phisa);
+//          if (_params.spinpol)
+//          {
+//            vecfuncT k_br = sub(_world, k_phisb, k_bwfs);
+//            k_rm.insert(k_rm.end(), k_br.begin(), k_br.end());
+//            k_vm.insert(k_vm.end(), k_phisb.begin(), k_phisb.end());
+//          }
+//
+//          // Update subspace and matrix Q
+//          compress(_world, k_vm, false);
+//          compress(_world, k_rm, false);
+//          _world.gop.fence();
+//          subspaceT k_subspace = _subspace[kp];
+//          k_subspace.push_back(pairvecfuncT(k_vm,k_rm));
+//
+//          int m = k_subspace.size();
+//          tensorT ms(m);
+//          tensorT sm(m);
+//          for (int s = 0; s < m; s++)
+//          {
+//              const vecfuncT& k_vs = k_subspace[s].first;
+//              const vecfuncT& k_rs = k_subspace[s].second;
+//              for (unsigned int i = 0; i < k_vm.size(); i++)
+//              {
+//                  ms[s] += k_vm[i].inner_local(k_rs[i]);
+//                  sm[s] += k_vs[i].inner_local(k_rm[i]);
+//              }
+//          }
+//          _world.gop.sum(ms.ptr(),m);
+//          _world.gop.sum(sm.ptr(),m);
+//
+//          tensorT newQ(m,m);
+//          if (m > 1) newQ(Slice(0,-2),Slice(0,-2)) = _Q[kp];
+//          newQ(m-1,_) = ms;
+//          newQ(_,m-1) = sm;
+//
+//          _Q[kp] = newQ;
+//          if (_world.rank() == 0) print(_Q[kp]);
+//
+//          // Solve the subspace equations
+//          tensorT c;
+//          if (_world.rank() == 0) {
+//              double rcond = 1e-12;
+//              while (1) {
+//                  c = KAIN(_Q[kp],rcond);
+//                  if (abs(c[m-1]) < 3.0) {
+//                      break;
+//                  }
+//                  else if (rcond < 0.01) {
+//                      if (_world.rank() == 0)
+//                        print("Increasing subspace singular value threshold ", c[m-1], rcond);
+//                      rcond *= 100;
+//                  }
+//                  else {
+//                      if (_world.rank() == 0)
+//                        print("Forcing full step due to subspace malfunction");
+//                      c = 0.0;
+//                      c[m-1] = 1.0;
+//                      break;
+//                  }
+//              }
+//          }
+//
+//          _world.gop.broadcast_serializable(c, 0);
+//          if (_world.rank() == 0) {
+//              //print("Subspace matrix");
+//              //print(Q);
+//              print("Subspace solution", c);
+//          }
+//
+//          // Form linear combination for new solution
+//          vecfuncT k_phisa_new = zero_functions<valueT,NDIM>(_world, k_phisa.size());
+//          vecfuncT k_phisb_new = zero_functions<valueT,NDIM>(_world, k_phisb.size());
+//          compress(_world, k_phisa_new, false);
+//          compress(_world, k_phisb_new, false);
+//          _world.gop.fence();
+//          std::complex<double> one = std::complex<double>(1.0,0.0);
+//          unsigned int norbitals = _phisa.size() / _kpoints.size();
+//          for (unsigned int m = 0; m < k_subspace.size(); m++)
+//          {
+//              const vecfuncT& k_vm = k_subspace[m].first;
+//              const vecfuncT& k_rm = k_subspace[m].second;
+//              // WSTHORNTON Stopped here!
+//              const vecfuncT  vma(k_vm.begin(),k_vm.begin() + norbitals);
+//              const vecfuncT  rma(k_rm.begin(),k_rm.begin() + norbitals);
+//              const vecfuncT  vmb(k_vm.end() - norbitals, k_vm.end());
+//              const vecfuncT  rmb(k_rm.end() - norbitals, k_rm.end());
+//
+//              gaxpy(_world, one, k_phisa_new, c(m), vma, false);
+//              gaxpy(_world, one, k_phisa_new,-c(m), rma, false);
+//              gaxpy(_world, one, k_phisb_new, c(m), vmb, false);
+//              gaxpy(_world, one, k_phisb_new,-c(m), rmb, false);
+//          }
+//          _world.gop.fence();
+//
+//          if (_params.maxsub <= 1) {
+//              // Clear subspace if it is not being used
+//              k_subspace.clear();
+//          }
+//          else if (k_subspace.size() == _params.maxsub) {
+//              // Truncate subspace in preparation for next iteration
+//              k_subspace.erase(k_subspace.begin());
+//              _Q[kp] = _Q[kp](Slice(1,-1),Slice(1,-1));
+//          }
+//          // Save subspace
+//          _subspace[kp] = k_subspace;
+//
+//          for (unsigned int wi = kpoint.begin, fi = 0; wi < kpoint.end;
+//            wi++, fi++)
+//          {
+//            awfs[wi] = k_phisa_new[fi];
+//            bwfs[wi] = k_phisb_new[fi];
+//          }
+//
+//        }
+//      }
+//    }
+//    //*************************************************************************
 
     //*************************************************************************
     void step_restriction(vecfuncT& owfs,
