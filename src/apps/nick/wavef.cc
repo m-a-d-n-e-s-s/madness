@@ -12,7 +12,6 @@
  * By:    Nick Vence
  ************************************************************************/
 
-
 #include "wavef.h"
 #include "hyp.h"
 #include <gsl/gsl_sf_trig.h>
@@ -22,14 +21,16 @@
 #include <gsl/gsl_errno.h>
 #include <gsl/gsl_interp.h>
 #include <float.h>
+#include <time.h>
 
-double tt;
+time_t before, after;
 //MPI printing macros
 #define PRINTLINE(str) if(world.rank()==0) cout << str << endl;
-#define START_TIMER  tt=cpu_time()
+//#define START_TIMER  tt=cpu_time()
 //#define START_TIMER world.gop.fence(); tt=cpu_time()
 #define END_TIMER_C(msg,cplx) tt=cpu_time()-tt; cout << "Timer: " << msg << "(" << real(cplx) << " + " << imag(cplx) << "I) took " << tt << " seconds" << endl
-#define END_TIMER(msg) tt=cpu_time()-tt;  if (world.rank()==0) printf("timer: %24.24s    took%8.2f seconds\n", msg, tt)
+#define END_TIMER(msg) tt=cpu_time()-tt; printf("timer: %24.24s    took%8.2f seconds\n", msg, tt)
+//#define END_TIMER(msg) tt=cpu_time()-tt;  if (world.rank()==0) printf("timer: %24.24s    took%8.2f seconds\n", msg, tt)
 #define PRINT_COMPLEX(msg,re,im) if(world.rank()==0) printf("%34.34s %9.6f + %9.6fI\n", msg, re, im)
 
 
@@ -139,18 +140,13 @@ ScatteringWF::ScatteringWF(double Z, const vector3D& kVec)
     :Z(Z)
     ,kVec(kVec)
     ,k(sqrt(kVec[0]*kVec[0] + kVec[1]*kVec[1] + kVec[2]*kVec[2]))
-    ,domain(k*sqrt(3)*pow(FunctionDefaults<NDIM>::get_cell_volume(),1.0/3.0))
-    
+    ,domain(k*sqrt(3)*pow(FunctionDefaults<NDIM>::get_cell_volume(),1.0/3.0))    
 {
-//     double sum = 0.0;
-//     for(int i=0; i<NDIM; i++) { sum += kVec[i]*kVec[i]; }
-//    k = sqrt(sum);
     expmPI_k   = exp(-PI/k);
     expPI_2k   = exp(PI/(2*k));
     gamma1pI_k = gamma(1.0,1/k);
     gammamI_k  = gamma(0.0,-1/k);
     expPI_2kXgamma1pI_k = expPI_2k * gamma1pI_k ;
-    //print("\nexpmPI_k =",expmPI_k, "gamma1pI_k =",gamma1pI_k, "gammamI_k =",gammamI_k);
     one = complexd(1.0, 0.0);
     TOL = 1e-12;
     /***********************************************************************
@@ -160,14 +156,17 @@ ScatteringWF::ScatteringWF(double Z, const vector3D& kVec)
      * sqrt(3) allows us to reach the corner of the cube  sqrt(3)*V^(1/3)/2
      * kr + kDOTr brings along another factor of 2k     k*sqrt(3)*V^(1/3)
      **********************************************************************/
-    //domain  = k*sqrt(3)*pow(FunctionDefaults<NDIM>::get_cell_volume(),1.0/3.0);
     dx = 4e-3;   //Mesh spacing
     ra = 5.0; //boundary cutoff
     n = floor(0.5*domain/dx*(1 + sqrt(1 + 4*ra/domain))) + 1;
+    time( &before );
     MemFuncPtr p1F1(this);
     fit1F1 = CubicInterpolationTable<complexd>( 0.0, domain, n, p1F1);
-    //    cout << "Max Error = " << fit1F1.err(p1F1) << "\t" << endl;
-    //std::cout << "DONE with err\n";
+    time( &after );
+    cout << "Computing the CubicInterpolationTable took " << after - before 
+         << " seconds." << endl;
+    //cout << "Max Error = " << fit1F1.err(p1F1) << "\t" << endl;
+    //cout << "DONE with err\n";
 //     boundary = ra + 0.5*dx;
 //     xi = 2;   //density speedup (should be 2 or greater)
 //     //cout << "\ndomain = " << domain << "\t\t ra = " << ra << "\t\tdx = " << dx << endl;
@@ -275,9 +274,6 @@ complexd ScatteringWF::approx1F1(double xx) const {
 //                      fI[j] + y*(fpI[j] + y*(fppI[j]/2 + y*fpppI[j]/6)) );
     return complexd( fR[j] + y*(fpR[j] + y*fppR[j]/2 ),
                      fI[j] + y*(fpI[j] + y*fppI[j]/2) );
-//      return complexd( fR[j] + y*fpR[j],
-//                       fI[j] + y*fpI[j] );
-//    return complexd( fR[j], fI[j] );
 }
 
 double   ScatteringWF::diffR(double x)    const {
@@ -670,115 +666,115 @@ complexd V(const vector3D& r) {
     return -1.0/sqrt(r[0]*r[0] + r[1]*r[1] + r[2]*r[2] + 1e-8);
 }
 
-void testWF(World& world) {
-    double dARR[3] = {0, 0, 0.5};
-    const vector3D kVec(dARR);
-    ScatteringWF phi(1.0,kVec);
-    if(world.rank() == 0)
-	{
-            cout.precision(3);
-            testPochhammer(world);
-            testFact(world);
-            cout.precision(12);
-            if(world.rank() == 0) cout << 
-            "Testing the wave functions:===================================" << endl;
-	}
+// void testWF(World& world) {
+//     double dARR[3] = {0, 0, 0.5};
+//     const vector3D kVec(dARR);
+//     ScatteringWF phi(1.0,kVec);
+//     if(world.rank() == 0)
+// 	{
+//             cout.precision(3);
+//             testPochhammer(world);
+//             testFact(world);
+//             cout.precision(12);
+//             if(world.rank() == 0) cout << 
+//             "Testing the wave functions:===================================" << endl;
+// 	}
 
-    //  Bound States
-    START_TIMER;
-    Function<complexd,NDIM> psi_100 = FunctionFactory<complexd,NDIM>(world).functor( 
-	functorT(new BoundWF(1.0, 1, 0, 0)));  
-    END_TIMER("Projecting |100>            ");
-    // A second way to declare a functor
-    START_TIMER;
-    functorT psiA(new BoundWF(1.0, 2, 1, 1));  
-    Function<complexd,NDIM> psi_211 = FunctionFactory<complexd,NDIM>(world).functor( psiA );
-    END_TIMER("Projecting |211>    ");  
+//     //  Bound States
+//     START_TIMER;
+//     Function<complexd,NDIM> psi_100 = FunctionFactory<complexd,NDIM>(world).functor( 
+// 	functorT(new BoundWF(1.0, 1, 0, 0)));  
+//     END_TIMER("Projecting |100>            ");
+//     // A second way to declare a functor
+//     START_TIMER;
+//     functorT psiA(new BoundWF(1.0, 2, 1, 1));  
+//     Function<complexd,NDIM> psi_211 = FunctionFactory<complexd,NDIM>(world).functor( psiA );
+//     END_TIMER("Projecting |211>    ");  
     
-    //  Checking orthonormality
-    START_TIMER;
-    complexd printMe = psi_100.inner(psi_100);
-    PRINT_COMPLEX("<100|100> =                        ",real(printMe),imag(printMe));
-    END_TIMER("<100|100>                            ");  
-    printMe = psi_100.inner(psi_211);
-    PRINT_COMPLEX("<100|211> =                        ",real(printMe),imag(printMe));
-    END_TIMER("<100|211>                            "); 
+//     //  Checking orthonormality
+//     START_TIMER;
+//     complexd printMe = psi_100.inner(psi_100);
+//     PRINT_COMPLEX("<100|100> =                        ",real(printMe),imag(printMe));
+//     END_TIMER("<100|100>                            ");  
+//     printMe = psi_100.inner(psi_211);
+//     PRINT_COMPLEX("<100|211> =                        ",real(printMe),imag(printMe));
+//     END_TIMER("<100|211>                            "); 
 
-    //  z-axis k vector
-    const double zHat[NDIM] = {0.0, 0.0, 1.0};
-    vector3D k1Vec(zHat);
+//     //  z-axis k vector
+//     const double zHat[NDIM] = {0.0, 0.0, 1.0};
+//     vector3D k1Vec(zHat);
 
-    //	Calculate energy of |100>
-    START_TIMER;
-    Function<complexd,NDIM> dPsi_100 = diff(psi_100,0);
-    END_TIMER("Differentiating Psi_100             ");
-    START_TIMER;
-    Function<complexd,NDIM> v = FunctionFactory<complexd,NDIM>(world).f(V);
-    END_TIMER("Projecting 1/r                      ");
-    START_TIMER;
-    complexd KE = 3*0.5*(dPsi_100.inner(dPsi_100));
-    END_TIMER("<dPsi_100|dPsi_100>                 ");
-    PRINT_COMPLEX("KE =                              ",real(KE), imag(KE));
-    START_TIMER;
-    complexd PE = psi_100.inner(v*psi_100);
-    END_TIMER("<Psi_100|V|Psi_100>                 ");
-    PRINT_COMPLEX("PE =                              ",real(PE), imag(PE));
-    PRINT_COMPLEX("The total energy is:              ",real(PE+KE), imag(PE+KE));
+//     //	Calculate energy of |100>
+//     START_TIMER;
+//     Function<complexd,NDIM> dPsi_100 = diff(psi_100,0);
+//     END_TIMER("Differentiating Psi_100             ");
+//     START_TIMER;
+//     Function<complexd,NDIM> v = FunctionFactory<complexd,NDIM>(world).f(V);
+//     END_TIMER("Projecting 1/r                      ");
+//     START_TIMER;
+//     complexd KE = 3*0.5*(dPsi_100.inner(dPsi_100));
+//     END_TIMER("<dPsi_100|dPsi_100>                 ");
+//     PRINT_COMPLEX("KE =                              ",real(KE), imag(KE));
+//     START_TIMER;
+//     complexd PE = psi_100.inner(v*psi_100);
+//     END_TIMER("<Psi_100|V|Psi_100>                 ");
+//     PRINT_COMPLEX("PE =                              ",real(PE), imag(PE));
+//     PRINT_COMPLEX("The total energy is:              ",real(PE+KE), imag(PE+KE));
 
-    //	Calculate energy of |211>
-    START_TIMER;
-    Function<complexd,NDIM> dPsi_211 = diff(psi_211,0);
-    END_TIMER("Projecting dPsi_211                ");
-    START_TIMER;
-    KE = 3*0.5*(dPsi_211.inner(dPsi_211));
-    END_TIMER("<dPsi_211|dPsi_211>                 ");
-    PRINT_COMPLEX("KE =                              ",real(KE), imag(KE));
-    START_TIMER;
-    PE = psi_211.inner(v*psi_211);
-    END_TIMER("<Psi_211|V|Psi_211>                 ");
-    PRINT_COMPLEX("PE =                              ",real(PE), imag(PE));
-    PRINT_COMPLEX("The total energy is:              ",real(PE+KE), imag(PE+KE));
+//     //	Calculate energy of |211>
+//     START_TIMER;
+//     Function<complexd,NDIM> dPsi_211 = diff(psi_211,0);
+//     END_TIMER("Projecting dPsi_211                ");
+//     START_TIMER;
+//     KE = 3*0.5*(dPsi_211.inner(dPsi_211));
+//     END_TIMER("<dPsi_211|dPsi_211>                 ");
+//     PRINT_COMPLEX("KE =                              ",real(KE), imag(KE));
+//     START_TIMER;
+//     PE = psi_211.inner(v*psi_211);
+//     END_TIMER("<Psi_211|V|Psi_211>                 ");
+//     PRINT_COMPLEX("PE =                              ",real(PE), imag(PE));
+//     PRINT_COMPLEX("The total energy is:              ",real(PE+KE), imag(PE+KE));
 
-    //  Scattering States
-    START_TIMER;
-    Function<complexd,NDIM> psi_k1 = FunctionFactory<complexd,NDIM>(world).functor( 
-                                     functorT( new ScatteringWF(1.0, k1Vec)));
-    END_TIMER("Projecting |psi_k1>                 ");
+//     //  Scattering States
+//     START_TIMER;
+//     Function<complexd,NDIM> psi_k1 = FunctionFactory<complexd,NDIM>(world).functor( 
+//                                      functorT( new ScatteringWF(1.0, k1Vec)));
+//     END_TIMER("Projecting |psi_k1>                 ");
 
-    //  Checking orthogonality
-    START_TIMER;
-    printMe = psi_100.inner(psi_k1);
-    END_TIMER("Projecting dPsi_211                 ");
-    PRINT_COMPLEX("<Psi_k1|100>                      ",real(printMe), imag(printMe));
+//     //  Checking orthogonality
+//     START_TIMER;
+//     printMe = psi_100.inner(psi_k1);
+//     END_TIMER("Projecting dPsi_211                 ");
+//     PRINT_COMPLEX("<Psi_k1|100>                      ",real(printMe), imag(printMe));
 
-    //  Linearly polarized laser operator 
-    vector3D FVec(zHat);
-    START_TIMER;
-    Function<complexd,NDIM> laserOp = FunctionFactory<complexd,NDIM>(world).functor( 
-                                                        functorT( new Expikr(FVec) ));
-    END_TIMER("Projecting ExpIkr                    ");
-    START_TIMER;
-    Function<complexd,NDIM> ket = laserOp*psi_100;
-    END_TIMER("ExpIkr * Psi_100       ");
-    START_TIMER;
-    printMe =  psi_k1.inner(ket);
-    END_TIMER("<psi_k1|Exp[ik.r]|100> =             ");
-    PRINT_COMPLEX("<psi_k1|Exp[ik.r]|100> =           ",real(printMe), imag(printMe));
+//     //  Linearly polarized laser operator 
+//     vector3D FVec(zHat);
+//     START_TIMER;
+//     Function<complexd,NDIM> laserOp = FunctionFactory<complexd,NDIM>(world).functor( 
+//                                                         functorT( new Expikr(FVec) ));
+//     END_TIMER("Projecting ExpIkr                    ");
+//     START_TIMER;
+//     Function<complexd,NDIM> ket = laserOp*psi_100;
+//     END_TIMER("ExpIkr * Psi_100       ");
+//     START_TIMER;
+//     printMe =  psi_k1.inner(ket);
+//     END_TIMER("<psi_k1|Exp[ik.r]|100> =             ");
+//     PRINT_COMPLEX("<psi_k1|Exp[ik.r]|100> =           ",real(printMe), imag(printMe));
 
-    //  Off-axis k vector
-    double k   = 1.0; 
-    double thK = PI/4;
-    const double temp2[NDIM] = {0.0, k*sin(thK), k*cos(thK)};
-    vector3D k1_45Vec(temp2);
+//     //  Off-axis k vector
+//     double k   = 1.0; 
+//     double thK = PI/4;
+//     const double temp2[NDIM] = {0.0, k*sin(thK), k*cos(thK)};
+//     vector3D k1_45Vec(temp2);
 
-    //  Off-Axis Positive Energy State
-    START_TIMER;
-    Function<complexd,NDIM> psi_k1_45 = FunctionFactory<complexd,NDIM>(world).functor( 
-                                        functorT( new ScatteringWF(1.0, k1_45Vec) ));
-    END_TIMER("Projecting |psi_k1_45>               ");
-    START_TIMER;
-    printMe =  psi_k1_45.inner(laserOp*psi_100);
-    END_TIMER("<psi_k1_45|Exp[ik.r]|100> =             ");
-    PRINT_COMPLEX("<psi_k1_45|Exp[ik.r]|100> =           ",real(printMe),imag(printMe)); 
-}
+//     //  Off-Axis Positive Energy State
+//     START_TIMER;
+//     Function<complexd,NDIM> psi_k1_45 = FunctionFactory<complexd,NDIM>(world).functor( 
+//                                         functorT( new ScatteringWF(1.0, k1_45Vec) ));
+//     END_TIMER("Projecting |psi_k1_45>               ");
+//     START_TIMER;
+//     printMe =  psi_k1_45.inner(laserOp*psi_100);
+//     END_TIMER("<psi_k1_45|Exp[ik.r]|100> =             ");
+//     PRINT_COMPLEX("<psi_k1_45|Exp[ik.r]|100> =           ",real(printMe),imag(printMe)); 
+// }
 

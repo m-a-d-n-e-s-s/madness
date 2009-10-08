@@ -13,6 +13,7 @@
  *        mpfr                            http://www.mpfr.org/
  * By:    Nick Vence
  ************************************************************************/
+#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <mra/mra.h>
 #include "interp.h"
 #include <complex>

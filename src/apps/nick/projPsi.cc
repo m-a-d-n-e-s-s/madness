@@ -17,7 +17,7 @@
  * 3) k (The wavelet order) must be the same as the projected functions: see main()
  *    12 has been the default
  ***************************************************************************************/
-#define WORLD_INSTANTIATE_STATIC_TEMPLATES  
+
 #include "wavef.h"
 #include <string>
 #include <fstream>
@@ -91,6 +91,7 @@ void loadDefaultBasis(World& world, std::vector<WF>& boundList, double Z) {
     }
     PRINTLINE("Done loading the standard basis");
 }
+
 void loadList(World& world, std::vector<string>& boundList, std::vector<string>& unboundList) {
     ifstream bound("bound.num");
     ifstream unbound("unbound.num");
@@ -331,7 +332,9 @@ void projectPsi2(World& world, std::vector<string> boundList, std::vector<string
                 PRINT("\n");
             }            
         }
+        PRINTLINE("before unboundList.empty");
         if( !unboundList.empty() ) {
+            PRINTLINE("after unboundList.empty");
             std::vector<string>::const_iterator unboundIT;
             for( unboundIT=unboundList.begin(); unboundIT !=  unboundList.end(); unboundIT++ ) {
                 //parsing unboundList
@@ -340,18 +343,21 @@ void projectPsi2(World& world, std::vector<string> boundList, std::vector<string
                 ss >> KX >> KY >> KZ;
                 double dArr[3] = {KX, KY, KZ};
                 const vector3D kVec(dArr);
-                //PROJECT Psi_k into MADNESS
-                complex_functionT psi_k = 
-                    complex_factoryT(world).functor(functorT( new ScatteringWF(Z, kVec) ));
-                cout.precision( 2 );
-                PRINT( std::fixed << KX << " " << KY << " " << KZ );
-                cout.precision( 4 );
-                for( psiIT=psiList.begin(); psiIT !=  psiList.end(); psiIT++ ) {
-                    //<phi_k|Psi(t)>
-                    output = psi_k.inner( psiIT->func );
-                    PRINT(std::scientific << "\t" << real(output*conj(output)));
+                //screening out the zero vector
+                if((dArr[1]>0.0 || dArr[1]<0.0) || (dArr[2]>0.0 || dArr[2]<0.0)) {
+                    //PROJECT Psi_k into MADNESS
+                    complex_functionT psi_k = 
+                        complex_factoryT(world).functor(functorT( new ScatteringWF(Z, kVec) ));
+                    cout.precision( 2 );
+                    PRINT( std::fixed << KX << " " << KY << " " << KZ << "  ");
+                    cout.precision( 4 );
+                    for( psiIT=psiList.begin(); psiIT !=  psiList.end(); psiIT++ ) {
+                        //<phi_k|Psi(t)>
+                        output = psi_k.inner( psiIT->func );
+                        PRINT(std::scientific << "\t" << real(output*conj(output)));
+                    }
+                    PRINT("\n");
                 }
-                PRINT("\n");
             }
         }
     }
