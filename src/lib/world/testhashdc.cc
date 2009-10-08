@@ -47,6 +47,9 @@ int main(int argc, char** argv) {
 
     cout << fred.find(Key(99)).get()->second << endl;
     
+    WorldContainer<Key,double>::iterator it = fred.find(Key(99));
+    cout << it << endl;
+    
     finalize();
     return 0;
 }
