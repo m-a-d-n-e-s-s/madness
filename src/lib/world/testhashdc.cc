@@ -47,8 +47,14 @@ int main(int argc, char** argv) {
 
     cout << fred.find(Key(99)).get()->second << endl;
     
-    WorldContainer<Key,double>::iterator it = fred.find(Key(99));
-    cout << it << endl;
+    const WorldContainer<Key,double>::iterator it = fred.find(Key(99));
+    const WorldContainer<Key,double>::pairT& p = *it;
+    cout << p;
+
+    // This fails because as shown above cannot derefence const iterator
+    // ... works OK for non-const
+    //cout << it << endl;
+    
     
     finalize();
     return 0;
