@@ -45,8 +45,8 @@ int main(int argc, char** argv) {
 
     fred.replace(Key(99),99.0);
 
-    cout << fred.find(Key(99)) << endl;
-
+    cout << fred.find(Key(99)).get()->second << endl;
+    
     finalize();
     return 0;
 }
