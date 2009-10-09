@@ -19,36 +19,34 @@
 #include <complex>
 #include <iostream>
 #include <stdio.h>
-using std::printf;
-
-using namespace madness;
 
 const int NDIM  = 3;
 typedef std::complex<double> complexd;
-typedef SharedPtr< FunctionFunctorInterface<complexd,NDIM> > functorT;
-typedef Vector<double,NDIM> vector3D;
+typedef madness::SharedPtr< madness::FunctionFunctorInterface<complexd,NDIM> > functorT;
+typedef madness::Vector<double,NDIM> vector3D;
 const complexd I(0,1);
 const double PI = M_PI;
 const complexd one(1,0);
 
 int      fact(int);
-void     testFact(World&);
+void     testFact(madness::World&);
 complexd gamma(complexd AA);
 complexd gamma(double re, double im);
-void     testGamma(World&);
+void     testGamma(madness::World&);
 complexd pochhammer(complexd AA,int n);
-void     testPochhammer(World&);
-void     testWF(World&);
-void     debug1F1(World&);
-void test1F1(World&, complexd (*func1F1)(complexd,complexd,complexd), const char* fileChar);
+void     testPochhammer(madness::World&);
+void     testWF(madness::World&);
+void     debug1F1(madness::World&);
+void test1F1(madness::World&, complexd (*func1F1)(complexd,complexd,complexd), const char* fileChar);
 
 /******************************************
  * Scattering WaveFunction
  ******************************************/
-class ScatteringWF : public FunctionFunctorInterface<complexd,NDIM> { 
+class ScatteringWF : public madness::FunctionFunctorInterface<complexd,NDIM> { 
 public:
-    typedef Vector<double,NDIM> vector3D;
-    ScatteringWF( double Z, const vector3D& kVec );
+    typedef madness::Vector<double,NDIM> vector3D;
+    ScatteringWF(double Z, const vector3D& kVec );
+    ScatteringWF(madness::World& world, double Z, const vector3D& kVec );
     ~ScatteringWF();
     complexd operator()(const vector3D& x) const;
     complexd aFormNew3(complexd AA, complexd BB, complexd ZZ) const;
@@ -111,9 +109,9 @@ private:
     double* fpppI;
     double*    h;
     double*    x;
-    struct MemFuncPtr {
+    struct MemberFuncPtr {
         ScatteringWF* obj;
-        MemFuncPtr(ScatteringWF* obj) : obj(obj) {}
+        MemberFuncPtr(ScatteringWF* obj) : obj(obj) {}
         complex<double> operator()(double x) {return obj->f11(x);}
     };
 };
@@ -121,9 +119,9 @@ private:
 /******************************************
  * Bound WaveFunction
  ******************************************/
-class BoundWF : public FunctionFunctorInterface<complexd,NDIM> {
+class BoundWF : public madness::FunctionFunctorInterface<complexd,NDIM> {
 public:
-    typedef Vector<double,NDIM> vector3D;
+    typedef madness::Vector<double,NDIM> vector3D;
     BoundWF(double Z, int nn, int ll, int mm );
     complexd operator()(const vector3D& x) const;
 private:
@@ -136,10 +134,10 @@ private:
 /******************************************
  *Exp[ I*(k.r) ]
  ******************************************/
-class Expikr : public FunctionFunctorInterface<complexd,NDIM>
+class Expikr : public madness::FunctionFunctorInterface<complexd,NDIM>
 {
 public:
-    typedef Vector<double,NDIM> vector3D;
+    typedef madness::Vector<double,NDIM> vector3D;
     Expikr(const vector3D& kVec);
     complexd operator()(const vector3D& r) const;
 private:
@@ -151,10 +149,10 @@ private:
 /******************************************
  *Exp[ -I*(kr + k.r) ]
  ******************************************/
-class Expikr2 : public FunctionFunctorInterface<complexd,NDIM>
+class Expikr2 : public madness::FunctionFunctorInterface<complexd,NDIM>
 {
 public:
-    typedef Vector<double,NDIM> vector3D;
+    typedef madness::Vector<double,NDIM> vector3D;
     Expikr2(const vector3D& kVec);
     complexd operator()(const vector3D& r) const;
 private:

@@ -23,6 +23,8 @@
 #include <float.h>
 #include <time.h>
 
+using namespace madness;
+
 time_t before, after;
 //MPI printing macros
 #define PRINTLINE(str) if(world.rank()==0) cout << str << endl;
@@ -125,9 +127,9 @@ complexd BoundWF::operator()(const vector3D& rVec) const {
     }
 }
 
-struct MemFuncPtr {
+struct MemberFuncPtr {
     ScatteringWF* thisObj;
-    MemFuncPtr(ScatteringWF* obj) : thisObj(obj) {}
+    MemberFuncPtr(ScatteringWF* obj) : thisObj(obj) {}
     complexd operator()(double x) { return thisObj->f11(x); }
 };
 
@@ -136,6 +138,112 @@ struct MemFuncPtr {
  * See Landau and Lifshitz Quantum Mechanics Volume 3
  * Third Edition Formula (136.9)
  **********************************************************************/
+ScatteringWF::ScatteringWF(World& world, double Z, const vector3D& kVec)
+    :Z(Z)
+    ,kVec(kVec)
+    ,k(sqrt(kVec[0]*kVec[0] + kVec[1]*kVec[1] + kVec[2]*kVec[2]))
+    ,domain(k*sqrt(3)*pow(FunctionDefaults<NDIM>::get_cell_volume(),1.0/3.0))    
+{
+    expmPI_k   = exp(-PI/k);
+    expPI_2k   = exp(PI/(2*k));
+    gamma1pI_k = gamma(1.0,1/k);
+    gammamI_k  = gamma(0.0,-1/k);
+    expPI_2kXgamma1pI_k = expPI_2k * gamma1pI_k ;
+    one = complexd(1.0, 0.0);
+    TOL = 1e-12;
+    /***********************************************************************
+     * How far must we tabulate our 1F1 to cover the domain?
+     * V^(1/3) gives us the length of the box
+     * Our spherical function needs only one octant of the box    V^(1/3)/2
+     * sqrt(3) allows us to reach the corner of the cube  sqrt(3)*V^(1/3)/2
+     * kr + kDOTr brings along another factor of 2k     k*sqrt(3)*V^(1/3)
+     **********************************************************************/
+    dx = 4e-3;   //Mesh spacing
+    ra = 5.0; //boundary cutoff
+    n = floor(0.5*domain/dx*(1 + sqrt(1 + 4*ra/domain))) + 1;
+    time( &before );
+    MemberFuncPtr p1F1(this);
+    fit1F1 = CubicInterpolationTable<complexd>(world, 0.0, domain, n, p1F1);
+    time( &after );
+    cout << "Computing the CubicInterpolationTable took " << after - before 
+         << " seconds." << endl;
+    //cout << "Max Error = " << fit1F1.err(p1F1) << "\t" << endl;
+    //cout << "DONE with err\n";
+//     boundary = ra + 0.5*dx;
+//     xi = 2;   //density speedup (should be 2 or greater)
+//     //cout << "\ndomain = " << domain << "\t\t ra = " << ra << "\t\tdx = " << dx << endl;
+//     /*********************************************************
+//      * Calculating n for a variable mesh
+//      * (0)     x'[1] = dx (the coarsest mesh spacing)
+//      * (1)     xI[i] = alpha*i^2          region    |   region  
+//      * (2)    xII[i] = dx*i + beta           I      |     II
+//      * (3)   xI'[n1] = xII'[n1]          quadratic  |   uniform
+//      *    2*alpha*n1 = dx                   mesh    |    mesh
+//      *         alpha = dx/2/n1          ____________|____________
+//      * (4)    xI[n1] = xII[n1]          012  ...   n1    ...    n
+//      *(dx/2/n1)n1*n1 = dx*n1 + beta    |<-   n1   ->|<-   n2   ->|
+//      *       dx*n1/2 = dx*n1 + beta
+//      *          beta = -dx*n1/2
+//      *            n2 =  distanceII*densityII
+//      *            n2 = (domain-ra)*1/dx
+//      *            n1 =   distanceI*densityI
+//      *            n1 =          ra*xi/dx
+//      *             n = n1 + n2
+//      ********************************************************/
+//     n1 = floor(ra*xi/dx) + 1;
+//     n  = floor(n1 + (domain - ra)/dx) + 1;
+//     alpha = dx*dx/(2*ra*xi);
+//     beta  = -dx*n1/2;
+//     dx_2n1 = dx/2/n1;
+//     dxn1_2 = dx*n1/2;
+//     //cout << "n = " << n << "\t\t n1 = " << n1 << "\t\txi = " << xi << endl;
+//     h  = new double[n];
+//     x  = new double[n+1];
+//     // Initializing the Variable mesh
+//     for(int i=0; i<=n; i++) {
+//         x[i] = i*dx; //constant mesh
+//         //x[i] = toX(i); //variable mesh
+//         //cout << "x[" << i << "] = " << toX(i) << endl;
+//     }
+//     // Spacing
+//     for(int i=0; i<n; i++) {
+//         h[i] = x[i+1] - x[i];
+//     }
+//     taylor3Fit();
+    /*****************************************************
+     * Below is the quality control for my splines
+     ****************************************************/
+//     ofstream F11, splined, diff, fdiff,Xfile;
+//     F11.open("f11.dat");
+//     F11.precision(15);
+//     splined.open("splined.dat");
+//     splined.precision(15);
+//     diff.open("diff.dat");
+//     diff.precision(15);
+//     fdiff.open("fdiff.dat");
+//     fdiff.precision(15);
+//     for(int i=0; i<n; i++) {
+//         //        F11     << x[i] << "\t" << aR[i]  << "\t" << aI[i]  << endl;
+//         F11     << x[i] << "\t" << fR[i]  << "\t" << fI[i]  << endl;
+//     }
+//     //The spline file is sampled at approximately 7 times as many points
+//     //to make error calculations easy
+//     //     for(double r=0; r < range-dx; r += dx/sqrt(50) ) { // Constant Mesh
+//     //         splined << r << "\t" << real(approx1F1(r)) << "\t" << imag(approx1F1(r)) << endl;
+//     //         diff    << r << "\t" << diffR(r)            << "\t" << diffI(r)            << endl;
+//     //     }
+//     // Variable Mesh
+//     int ii=0;
+//     for(double r=0; r<domain; r +=dx/sqrt(200) ) {
+//         //r scales the same way as the grid points do
+//         ii++;
+//         splined << r << "\t" << real(fit1F1(r)) << "\t" << imag(fit1F1(r)) << endl;
+//         diff    << r << "\t" << diffR(r)            << "\t" << diffI(r)            << endl;
+//         fdiff   << r << "\t" << real(conhyp(-I/k,one,-I*r) -  aForm3(-I*r) ) 
+//                 << "\t"      << imag(conhyp(-I/k,one,-I*r) -  aForm3(-I*r) )      << endl;
+//     }
+}
+
 ScatteringWF::ScatteringWF(double Z, const vector3D& kVec)
     :Z(Z)
     ,kVec(kVec)
@@ -160,8 +268,8 @@ ScatteringWF::ScatteringWF(double Z, const vector3D& kVec)
     ra = 5.0; //boundary cutoff
     n = floor(0.5*domain/dx*(1 + sqrt(1 + 4*ra/domain))) + 1;
     time( &before );
-    MemFuncPtr p1F1(this);
-    fit1F1 = CubicInterpolationTable<complexd>( 0.0, domain, n, p1F1);
+    MemberFuncPtr p1F1(this);
+    fit1F1 = CubicInterpolationTable<complexd>(0.0, domain, n, p1F1);
     time( &after );
     cout << "Computing the CubicInterpolationTable took " << after - before 
          << " seconds." << endl;
