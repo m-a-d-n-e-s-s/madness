@@ -44,16 +44,14 @@
 
 namespace madness {
 
-    template <typename keyT,
-    typename valueT>
+    template <typename keyT, typename valueT, typename hashfunT>
     class WorldContainer;
 
-    template <typename keyT,
-    typename valueT>
+    template <typename keyT, typename valueT, typename hashfunT>
     class WorldContainerImpl;
 
-    template <typename keyT, typename valueT>
-    void swap(WorldContainer<keyT, valueT>&, WorldContainer<keyT, valueT>&);
+    template <typename keyT, typename valueT, typename hashfunT>
+    void swap(WorldContainer<keyT, valueT, hashfunT>&, WorldContainer<keyT, valueT, hashfunT>&);
 
     /// Interface to be provided by any process map
     template <typename keyT>
@@ -65,19 +63,20 @@ namespace madness {
     };
 
     /// Default process map is "random" using madness::hash(key)
-    template <typename keyT>
+    template <typename keyT, typename hashfunT = Hash_private::defhashT<keyT> >
     class WorldDCDefaultPmap : public WorldDCPmapInterface<keyT> {
     private:
         int nproc;
-
+        hashfunT hashfun;
     public:
-        WorldDCDefaultPmap(World& world) {
-            nproc = world.mpi.nproc();
-        }
+        WorldDCDefaultPmap(World& world, const hashfunT& hf = hashfunT()) :
+            nproc(world.mpi.nproc()),
+            hashfun(hf)
+        { }
 
         ProcessID owner(const keyT& key) const {
             if (nproc == 1) return 0;
-            return hash(key)%nproc;
+            return hashfun(key)%nproc;
         }
     };
 
@@ -95,7 +94,7 @@ namespace madness {
     private:
         internal_iteratorT  it;       ///< Iterator from local container
         bool is_local;                ///< If true we are using the local container
-        value_type value;             ///< If (!is_local) holds the remote value
+        mutable value_type value;     ///< If (!is_local) holds the remote value
 
     public:
         /// Default constructor makes a local uninitialized value
@@ -160,26 +159,14 @@ namespace madness {
         }
 
         /// Iterators dereference to std::pair<const keyT,valueT>
-        const pointer operator->() const {
-            if (is_local) return it.operator->();
-            else return const_cast<const pointer>(&value);
-        }
-
-        /// Iterators dereference to std::pair<const keyT,valueT>
-        pointer operator->() {
+        pointer operator->() const {
             if (is_local) return it.operator->();
             else return &value;
 
         }
 
-        /// Iterators dereference to const std::pair<const keyT,valueT>
-        const reference operator*() const {
-            if (is_local) return *it;
-            else return value;
-        }
-
         /// Iterators dereference to std::pair<const keyT,valueT>
-        reference operator*() {
+        reference operator*() const {
             if (is_local) return *it;
             else return value;
         }
@@ -229,23 +216,16 @@ namespace madness {
 
 
     /// Implementation of distributed container to enable PIMPL
-    template <typename keyT,
-    typename valueT>
+    template <typename keyT, typename valueT, typename hashfunT >
     class WorldContainerImpl
-                : public WorldObject< WorldContainerImpl<keyT, valueT> >
+                : public WorldObject< WorldContainerImpl<keyT, valueT, hashfunT> >
                 , private NO_DEFAULTS {
     public:
         typedef typename std::pair<const keyT,valueT> pairT;
         typedef const pairT const_pairT;
-        typedef WorldContainerImpl<keyT,valueT> implT;
+        typedef WorldContainerImpl<keyT,valueT,hashfunT> implT;
 
-        template <typename T>
-        struct DCLocalHash {
-            std::size_t operator()(const T& t) const {
-                return hash(t);
-            }
-        };
-        typedef ConcurrentHashMap< keyT,valueT,DCLocalHash<keyT> > internal_containerT;
+        typedef ConcurrentHashMap< keyT,valueT,hashfunT > internal_containerT;
 
         typedef typename internal_containerT::iterator internal_iteratorT;
         typedef typename internal_containerT::const_iterator internal_const_iteratorT;
@@ -256,7 +236,7 @@ namespace madness {
         typedef WorldContainerIterator<internal_const_iteratorT> const_iteratorT;
         typedef WorldContainerIterator<internal_const_iteratorT> const_iterator;
 
-        friend class WorldContainer<keyT,valueT>;
+        friend class WorldContainer<keyT,valueT,hashfunT>;
 
 //         template <typename containerT, typename datumT>
 //         inline
@@ -271,10 +251,10 @@ namespace madness {
 
         WorldContainerImpl();   // Inhibit default constructor
 
-        const SharedPtr< WorldDCPmapInterface<keyT> > pmap;       ///< Function/class to map from keys to owning process
-        const ProcessID me;           ///< My MPI rank
-        internal_containerT local;    ///< Locally owned data
-        const iterator end_iterator;          ///< For fast return of end
+        const SharedPtr< WorldDCPmapInterface<keyT> > pmap;///< Function/class to map from keys to owning process
+        const ProcessID me;                      ///< My MPI rank
+        internal_containerT local;               ///< Locally owned data
+        const iterator end_iterator;             ///< For fast return of end
         const const_iterator end_const_iterator; ///< For fast return of end
 
 
@@ -314,11 +294,12 @@ namespace madness {
 
         WorldContainerImpl(World& world,
                            const SharedPtr< WorldDCPmapInterface<keyT> >& pmap,
-                           bool do_pending)
-                : WorldObject< WorldContainerImpl<keyT, valueT> >(world)
+                           bool do_pending,
+                           const hashfunT& hf)
+                : WorldObject< WorldContainerImpl<keyT, valueT, hashfunT> >(world)
                 , pmap(pmap)
                 , me(world.mpi.rank())
-                , local(131)
+                , local(131, hf)
                 , end_iterator(local.end())
                 , end_const_iterator(const_cast<const internal_containerT&>(local).end()) {
             if (do_pending) this->process_pending();
@@ -331,6 +312,8 @@ namespace madness {
         const SharedPtr< WorldDCPmapInterface<keyT> >& get_pmap() const {
             return pmap;
         }
+
+        const hashfunT& get_hash() const { return local.get_hash(); }
 
         bool is_local(const keyT& key) const {
             return owner(key) == me;
@@ -547,12 +530,11 @@ namespace madness {
     /// All operations, including constructors and destructors, are
     /// non-blocking and return immediately.  If communication occurs
     /// it is asynchronous, otherwise operations are local.
-    template <typename keyT,
-    typename valueT>
+    template <typename keyT, typename valueT, typename hashfunT = Hash_private::defhashT<keyT> >
     class WorldContainer : public ParallelSerializableObject {
     public:
-        typedef WorldContainer<keyT,valueT> containerT;
-        typedef WorldContainerImpl<keyT,valueT> implT;
+        typedef WorldContainer<keyT,valueT,hashfunT> containerT;
+        typedef WorldContainerImpl<keyT,valueT,hashfunT> implT;
         typedef typename implT::pairT pairT;
         typedef typename implT::iterator iterator;
         typedef typename implT::const_iterator const_iterator;
@@ -585,10 +567,11 @@ namespace madness {
         /// making a container, we have to assume that all processes
         /// execute this constructor in the same order (does not apply
         /// to the non-initializing, default constructor).
-        WorldContainer(World& world, bool do_pending=true)
+        WorldContainer(World& world, bool do_pending=true, const hashfunT& hf = hashfunT())
                 : p(new implT(world,
-                              SharedPtr< WorldDCPmapInterface<keyT> >(new WorldDCDefaultPmap<keyT>(world)),
-                              do_pending)) {}
+                              SharedPtr< WorldDCPmapInterface<keyT> >(new WorldDCDefaultPmap<keyT, hashfunT>(world, hf)),
+                              do_pending,
+                              hf)) {}
 
         /// Makes an initialized, empty container (no communication)
 
@@ -599,8 +582,9 @@ namespace madness {
         /// to the non-initializing, default constructor).
         WorldContainer(World& world,
                        const SharedPtr< WorldDCPmapInterface<keyT> >& pmap,
-                       bool do_pending=true)
-                : p(new implT(world, pmap, do_pending)) {}
+                       bool do_pending=true,
+                       const hashfunT& hf = hashfunT())
+                : p(new implT(world, pmap, do_pending, hf)) {}
 
 
         /// Copy constructor is shallow (no communication)
@@ -793,7 +777,14 @@ namespace madness {
 
         /// Returns shared pointer to the process mapping
         inline const SharedPtr< WorldDCPmapInterface<keyT> >& get_pmap() const {
+            check_initialized();
             return p->get_pmap();
+        }
+
+        /// Returns a reference to the hashing functor
+        inline const hashfunT& get_hash() const {
+            check_initialized();
+            return p->get_hash();
         }
 
         /// Process pending messages
@@ -1148,8 +1139,10 @@ namespace madness {
         friend void swap<>(WorldContainer&, WorldContainer&);
     };
 
-    template <typename keyT, typename valueT>
-    void swap(WorldContainer<keyT, valueT>& dc0, WorldContainer<keyT, valueT>& dc1) {
+    /// Swaps the content of two WorldContainer objects. It should be called on
+    /// all nodes.
+    template <typename keyT, typename valueT, typename hashfunT>
+    void swap(WorldContainer<keyT, valueT, hashfunT>& dc0, WorldContainer<keyT, valueT, hashfunT>& dc1) {
       std::swap(dc0.p, dc1.p);
     }
 

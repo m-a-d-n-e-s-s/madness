@@ -150,7 +150,7 @@ namespace madness {
         };
 
         template <typename T>
-        class defhashT {
+        class defhashT : public std::unary_function<T, hashT> {
         public:
             hashT operator()(const T& t) const {
                 return hash(t);
@@ -349,17 +349,19 @@ namespace madness {
         }
 
     public:
-        ConcurrentHashMap(int n=1021)
+        ConcurrentHashMap(int n=1021, const hashfunT& hf = hashfunT())
                 : nbins(hashT::nbins_prime(n))
                 , bins(new binT[nbins])
                 , _end(this,false)
-                , _const_end(this,false) {}
+                , _const_end(this,false)
+                , hashfun(hf) {}
 
         ConcurrentHashMap(const  hashT& h)
                 : nbins(h.nbins)
                 , bins(new binT[nbins])
                 , _end(this,false)
-                , _const_end(this,false) {
+                , _const_end(this,false)
+                , hashfun(h.hashfun) {
             *this = h;
         }
 
@@ -370,6 +372,7 @@ namespace madness {
         hashT& operator=(const  hashT& h) {
             if (this != &h) {
                 this->clear();
+                hashfun = h.hashfun;
                 for (const_iterator p=h.begin(); p!=h.end(); ++p) {
                     insert(*p);
                 }
@@ -484,6 +487,8 @@ namespace madness {
         const_iterator end() const {
             return _const_end;
         }
+
+        const hashfunT& get_hash() const { return hashfun; }
 
     };
 }
