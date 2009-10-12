@@ -1041,17 +1041,13 @@ namespace madness {
         }
     }
 
-    /// Set plot_refine=true to get a plot of the refinment levels of 
-    /// the given function (defaulted to false in prototype).
     template <typename T, int NDIM>
-    Tensor<T> FunctionImpl<T,NDIM>::eval_plot_cube(const coordT& plotlo,
-            const coordT& plothi,
-            const std::vector<long>& npt, 
-            const bool eval_refine) const {
-        PROFILE_MEMBER_FUNC(FunctionImpl);
-        Tensor<T> r(NDIM, &npt[0]);
-        //         r(___) = 99.0;
-        MADNESS_ASSERT(!compressed);
+    Void FunctionImpl<T,NDIM>::plot_cube_kernel(const Tensor<T>& cr, 
+                                                const keyT& key, 
+                                                const coordT& plotlo, const coordT& plothi, const std::vector<long>& npt, 
+                                                bool eval_refine) const {
+
+        Tensor<T>& r = const_cast< Tensor<T>& >(cr); // Jeeps!
 
         coordT h; // Increment between points in each dimension
         for (int i=0; i<NDIM; i++) {
@@ -1063,88 +1059,103 @@ namespace madness {
                 h[i] = 0.0;
             }
         }
-        //print("plot info", plotlo, plothi, npt, h);
 
-        // Loop thru local boxes ... THIS NEEDS MULTITHREADING !!!
+        const Level n = key.level();
+        const Vector<Translation,NDIM>& l = key.translation();
+        const double twon = pow(2.0,double(n));
+        const tensorT coeff = coeffs.find(key).get()->second.coeff(); // Ugh!
+        long ind[NDIM];
+        coordT x;
+
+        coordT boxlo, boxhi;
+        Vector<int,NDIM> boxnpt;
+        double fac = pow(0.5,double(key.level()));
+        int npttotal = 1;
+        for (int d=0; d<NDIM; d++) {
+            // Coords of box
+            boxlo[d] = fac*key.translation()[d];
+            boxhi[d] = boxlo[d]+fac;
+            
+            if (boxlo[d] > plothi[d] || boxhi[d] < plotlo[d]) {
+                // Discard boxes out of the plot range
+                npttotal = boxnpt[d] = 0;
+                //print("OO range?");
+                break;
+            }
+            else if (npt[d] == 1) {
+                // This dimension is only a single point
+                boxlo[d] = boxhi[d] = plotlo[d];
+                boxnpt[d] = 1;
+            }
+            else {
+                // Restrict to plot range
+                boxlo[d] = std::max(boxlo[d],plotlo[d]);
+                boxhi[d] = std::min(boxhi[d],plothi[d]);
+                
+                // Round lo up to next plot point; round hi down
+                double xlo = long((boxlo[d]-plotlo[d])/h[d])*h[d] + plotlo[d];
+                if (xlo < boxlo[d]) xlo += h[d];
+                boxlo[d] =  xlo;
+                double xhi = long((boxhi[d]-plotlo[d])/h[d])*h[d] + plotlo[d];
+                if (xhi > boxhi[d]) xhi -= h[d];
+                // MADNESS_ASSERT(xhi >= xlo);  // nope
+                boxhi[d] = xhi;
+                boxnpt[d] = long(round((boxhi[d] - boxlo[d])/h[d])) + 1;
+            }
+            npttotal *= boxnpt[d];
+        }
+        //print("    box", boxlo, boxhi, boxnpt, npttotal);
+        if (npttotal > 0) {
+            for (IndexIterator it(boxnpt); it; ++it) {
+                for (int d=0; d<NDIM; d++) {
+                    double xd = boxlo[d] + it[d]*h[d]; // Sim. coords of point
+                    x[d] = twon*xd - l[d]; // Offset within box
+                    MADNESS_ASSERT(x[d]>=0.0 && x[d] <=1.0);  // sanity
+                    if (npt[d] > 1) {
+                        ind[d] = long(round((xd-plotlo[d])/h[d])); // Index of plot point
+                    }
+                    else {
+                        ind[d] = 0;
+                    }
+                    MADNESS_ASSERT(ind[d]>=0 && ind[d]<npt[d]); // sanity
+                }
+                if (eval_refine) {
+                    r(ind) = n;
+                } 
+                else {
+                    r(ind) = eval_cube(n, x, coeff);
+                }
+            }
+        }
+        
+        return None;
+    }
+
+    /// Set plot_refine=true to get a plot of the refinment levels of 
+    /// the given function (defaulted to false in prototype).
+    template <typename T, int NDIM>
+    Tensor<T> FunctionImpl<T,NDIM>::eval_plot_cube(const coordT& plotlo,
+                                                   const coordT& plothi,
+                                                   const std::vector<long>& npt, 
+                                                   const bool eval_refine) const {
+        PROFILE_MEMBER_FUNC(FunctionImpl);
+        Tensor<T> r(NDIM, &npt[0]);
+        //         r(___) = 99.0;
+        MADNESS_ASSERT(!compressed);
+
         for (typename dcT::const_iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
             const keyT& key = it->first;
             const nodeT& node = it->second;
             if (node.has_coeff()) {
-                //print("Looking at", key);
-                // Determine the points, if any, of the plot grid that
-                // are contained within this box
-                coordT boxlo, boxhi;
-                Vector<int,NDIM> boxnpt;
-                double fac = pow(0.5,double(key.level()));
-                int npttotal = 1;
-                for (int d=0; d<NDIM; d++) {
-                    // Coords of box
-                    boxlo[d] = fac*key.translation()[d];
-                    boxhi[d] = boxlo[d]+fac;
-
-                    if (boxlo[d] > plothi[d] || boxhi[d] < plotlo[d]) {
-                        // Discard boxes out of the plot range
-                        npttotal = boxnpt[d] = 0;
-                        //print("OO range?");
-                        break;
-                    }
-                    else if (npt[d] == 1) {
-                        // This dimension is only a single point
-                        boxlo[d] = boxhi[d] = plotlo[d];
-                        boxnpt[d] = 1;
-                    }
-                    else {
-                        // Restrict to plot range
-                        boxlo[d] = std::max(boxlo[d],plotlo[d]);
-                        boxhi[d] = std::min(boxhi[d],plothi[d]);
-
-                        // Round lo up to next plot point; round hi down
-                        double xlo = long((boxlo[d]-plotlo[d])/h[d])*h[d] + plotlo[d];
-                        if (xlo < boxlo[d]) xlo += h[d];
-                        boxlo[d] =  xlo;
-                        double xhi = long((boxhi[d]-plotlo[d])/h[d])*h[d] + plotlo[d];
-                        if (xhi > boxhi[d]) xhi -= h[d];
-                        // MADNESS_ASSERT(xhi >= xlo);  // nope
-                        boxhi[d] = xhi;
-                        boxnpt[d] = long(round((boxhi[d] - boxlo[d])/h[d])) + 1;
-                    }
-                    npttotal *= boxnpt[d];
-                }
-                //print("    box", boxlo, boxhi, boxnpt, npttotal);
-                if (npttotal > 0) {
-                    const tensorT& coeff = node.coeff();
-                    const Level n = key.level();
-                    const Vector<Translation,NDIM>& l = key.translation();
-                    const double twon = pow(2.0,double(n));
-                    long ind[NDIM];
-                    coordT x;
-                    for (IndexIterator it(boxnpt); it; ++it) {
-                        for (int d=0; d<NDIM; d++) {
-                            double xd = boxlo[d] + it[d]*h[d]; // Sim. coords of point
-                            x[d] = twon*xd - l[d]; // Offset within box
-                            MADNESS_ASSERT(x[d]>=0.0 && x[d] <=1.0);  // sanity
-                            if (npt[d] > 1) {
-                                ind[d] = long(round((xd-plotlo[d])/h[d])); // Index of plot point
-                            }
-                            else {
-                                ind[d] = 0;
-                            }
-                            MADNESS_ASSERT(ind[d]>=0 && ind[d]<npt[d]); // sanity
-                        }
-//TEST
-                        if (eval_refine) {
-                          r(ind) = n;
-                        } 
-                        else {
-                          r(ind) = eval_cube(n, x, coeff);
-                        }
-                        //print("computing", n, x, ind, r(ind));
-                    }
-                }
+                task(world.rank(), &implT::plot_cube_kernel, r, key, plotlo, plothi, npt, eval_refine);
             }
         }
 
         //        ITERATOR(r, if (r(IND) == 99.0) {print("BAD", IND); error("bad",0);});
+
+        world.taskq.fence();
+        world.gop.sum(r.ptr(), r.size);
+        world.gop.fence();
 
         return r;
     }

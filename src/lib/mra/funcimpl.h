@@ -2285,6 +2285,13 @@ namespace madness {
         Void sock_it_to_me(const keyT& key,
                            const RemoteReference< FutureImpl< std::pair<keyT,tensorT> > >& ref) const;
 
+
+        Void plot_cube_kernel(const Tensor<T>& r, 
+                              const keyT& key, 
+                              const coordT& plotlo, const coordT& plothi, const std::vector<long>& npt, 
+                              bool eval_refine) const;
+
+
         /// Evaluate a cube/slice of points ... plotlo and plothi are already in simulation coordinates
 
         /// No communications

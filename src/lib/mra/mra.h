@@ -360,10 +360,7 @@ namespace madness {
                 simhi[d] -= 2*delta;  // deliberate asymmetry
             }
             //madness::print("plotbox in sim", simlo, simhi);
-            Tensor<T> r = impl->eval_plot_cube(simlo, simhi, npt, eval_refine);
-            impl->world.gop.sum(r.ptr(), r.size);
-            impl->world.gop.fence();
-            return r;
+            return impl->eval_plot_cube(simlo, simhi, npt, eval_refine);
         }
 
 
