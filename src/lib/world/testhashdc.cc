@@ -48,8 +48,9 @@ int main(int argc, char** argv) {
     cout << fred.find(Key(99)).get()->second << endl;
     
     WorldContainer<Key,double>::iterator it = fred.find(Key(99));
-    const WorldContainer<Key,double>::pairT& p = *it;
-    cout << p;
+    // WorldContainer<Key,double>::pairT& p = *it;
+    // cout << p;
+    cout << *it;
 
     WorldContainer<Key,double>::const_iterator c_it = it;
     const WorldContainer<Key,double>::pairT& cp = *c_it;

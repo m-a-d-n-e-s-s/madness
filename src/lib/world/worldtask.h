@@ -1546,7 +1546,7 @@ namespace madness {
 
         template <typename a1T, typename a2T, typename a3T, typename a4T, typename a5T>
         TaskMemfun(const futureT& result, objT& obj, memfunT memfun,
-                   const a1T& a1, const a2T& a2, const a3T& a3, const a4T& a4, a5T& a5, const TaskAttributes& attr)
+                   const a1T& a1, const a2T& a2, const a3T& a3, const a4T& a4, const a5T& a5, const TaskAttributes& attr)
                 : TaskFunctionBase(attr), result(result), obj(obj), memfun(memfun), arg1(a1), arg2(a2), arg3(a3), arg4(a4), arg5(a5) {
             check_dependency(arg1);
             check_dependency(arg2);
@@ -1580,11 +1580,11 @@ namespace madness {
         Future<arg3T> arg3;
         Future<arg4T> arg4;
         Future<arg5T> arg5;
-        Future<arg5T> arg6;
+        Future<arg6T> arg6;
 
         template <typename a1T, typename a2T, typename a3T, typename a4T, typename a5T, typename a6T>
         TaskMemfun(const futureT& result, objT& obj, memfunT memfun,
-                   const a1T& a1, const a2T& a2, const a3T& a3, const a4T& a4, a5T& a5, a6T& a6, const TaskAttributes& attr)
+                   const a1T& a1, const a2T& a2, const a3T& a3, const a4T& a4, const a5T& a5, const a6T& a6, const TaskAttributes& attr)
                 : TaskFunctionBase(attr), result(result), obj(obj), memfun(memfun), arg1(a1), arg2(a2), arg3(a3), arg4(a4), arg5(a5), arg6(a6) {
             check_dependency(arg1);
             check_dependency(arg2);
