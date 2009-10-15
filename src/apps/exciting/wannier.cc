@@ -5,9 +5,10 @@
 #include <cmath>
 #include <complex>
 
-extern "C" void readinput_();
-extern "C" void wann_init1_();
-extern "C" void wann_unk_(int* n,double* vpl,double* vrc,double* val);
+extern "C" void exciting_init_();
+extern "C" void f_veff_(double* vrc,double* val);
+extern "C" void f_rho_(double* vrc,double* val);
+extern "C" void f_wann_(int* n,int* ispn,double* d0,int* itr,double* vrc,double* val);
 
 using namespace madness;
 
