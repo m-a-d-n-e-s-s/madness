@@ -348,7 +348,7 @@ void projectPsi2(World& world, std::vector<string> boundList, std::vector<string
                 if((dArr[1]>0.0 || dArr[1]<0.0) || (dArr[2]>0.0 || dArr[2]<0.0)) {
                     //PROJECT Psi_k into MADNESS
                     complex_functionT psi_k = 
-                        complex_factoryT(world).functor(functorT( new ScatteringWF(Z, kVec) ));
+                        complex_factoryT(world).functor(functorT( new ScatteringWF(world, Z, kVec) ));
                     cout.precision( 2 );
                     PRINT( std::fixed << KX << " " << KY << " " << KZ << "  ");
                     cout.precision( 4 );

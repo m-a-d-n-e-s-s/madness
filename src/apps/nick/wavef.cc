@@ -165,8 +165,8 @@ ScatteringWF::ScatteringWF(World& world, double Z, const vector3D& kVec)
     MemberFuncPtr p1F1(this);
     fit1F1 = CubicInterpolationTable<complexd>(world, 0.0, domain, n, p1F1);
     time( &after );
-    cout << "Computing the CubicInterpolationTable took " << after - before 
-         << " seconds." << endl;
+    PRINTLINE("Computing the CubicInterpolationTable took " << after - before 
+         << " seconds.");
     //cout << "Max Error = " << fit1F1.err(p1F1) << "\t" << endl;
     //cout << "DONE with err\n";
 //     boundary = ra + 0.5*dx;
