@@ -364,6 +364,7 @@ struct CalculationParameters {
     bool plotdens;              ///< If true print the density at convergence
     bool plotcoul;              ///< If true plot the total coulomb potential at convergence
     bool localize;              ///< If true solve for localized orbitals
+    bool localize_pm;           ///< If true use PM for localization
     bool restart;               ///< If true restart from orbitals on disk
     unsigned int maxsub;        ///< Size of iterative subspace ... set to 0 or 1 to disable
     int npt_plot;               ///< No. of points to use in each dim for plots
@@ -378,7 +379,7 @@ struct CalculationParameters {
     template <typename Archive>
     void serialize(Archive& ar) {
         ar & charge & smear & econv & dconv & L & maxrotn & nvalpha & nvbeta & nopen & maxiter & nio & spin_restricted & lda;
-        ar & plotlo & plothi & plotdens & plotcoul & localize & restart & maxsub & npt_plot & plot_cell;
+        ar & plotlo & plothi & plotdens & plotcoul & localize & localize_pm & restart & maxsub & npt_plot & plot_cell;
         ar & nalpha & nbeta & nmo_alpha & nmo_beta & lo;
     }
     
@@ -401,6 +402,7 @@ struct CalculationParameters {
         , plotdens(false)
         , plotcoul(false)
         , localize(true)
+        , localize_pm(false)
         , restart(false)
         , maxsub(8)
         , npt_plot(101)
@@ -485,6 +487,12 @@ struct CalculationParameters {
             else if (s == "local") {
                 localize = true;
             }
+            else if (s == "pm") {
+                localize_pm = true;
+            }
+            else if (s == "boys") {
+                localize_pm = false;
+            }
             else if (s == "restart") {
                 restart = true;
             }
@@ -567,8 +575,10 @@ struct CalculationParameters {
         else 
             madness::print("        plot  volume ", "default");
 
+        string loctype = "boys";
+        if (localize_pm) loctype = "pm";
         if (localize) 
-            madness::print("  localized orbitals ");
+            madness::print("  localized orbitals ", loctype);
         else
             madness::print("  canonical orbitals ");
     }
@@ -1050,7 +1060,7 @@ struct Calculation {
         return dip(i, j, 0) * dip(k, l, 0) + dip(i, j, 1) * dip(k, l, 1) + dip(i, j, 2) * dip(k, l, 2);
     }
     
-    tensorT localize_boys(World & world, const vecfuncT & mo, const double thresh = 1e-9, const double thetamax = 0.5, const bool randomize = true)
+    tensorT localize_boys(World & world, const vecfuncT & mo, const vector<int> & set, const double thresh = 1e-9, const double thetamax = 0.5, const bool randomize = true)
     {
         START_TIMER(world);
         const bool doprint = false;
@@ -1080,52 +1090,53 @@ struct Calculation {
                 
                 for(long i = 0;i < nmo;i++){
                     for(long j = 0;j < i;j++){
-                        double g = DIP(dip, i, j, j, j) - DIP(dip, i, j, i, i);
-                        double h = 4.0 * DIP(dip, i, j, i, j) + 2.0 * DIP(dip, i, i, j, j) - DIP(dip, i, i, i, i) - DIP(dip, j, j, j, j);
-                        double sij = DIP(dip, i, j, i, j);
-                        bool doit = false;
-                        if(h >= 0.0){
-                            doit = true;
-                            if(doprint)
-                                print("             forcing negative h", i, j, h);
+                        if (set[i] == set[j]) {
+                            double g = DIP(dip, i, j, j, j) - DIP(dip, i, j, i, i);
+                            double h = 4.0 * DIP(dip, i, j, i, j) + 2.0 * DIP(dip, i, i, j, j) - DIP(dip, i, i, i, i) - DIP(dip, j, j, j, j);
+                            double sij = DIP(dip, i, j, i, j);
+                            bool doit = false;
+                            if(h >= 0.0){
+                                doit = true;
+                                if(doprint)
+                                    print("             forcing negative h", i, j, h);
                             
-                            h = -1.0;
-                        }
-                        double theta = -g / h;
-                        maxtheta = max(abs(theta), maxtheta);
-                        if(fabs(theta) > thetamax){
-                            doit = true;
-                            if(doprint)
-                                print("             restricting", i, j);
+                                h = -1.0;
+                            }
+                            double theta = -g / h;
+                            maxtheta = max(abs(theta), maxtheta);
+                            if(fabs(theta) > thetamax){
+                                doit = true;
+                                if(doprint)
+                                    print("             restricting", i, j);
                             
-                            if(g < 0)
-                                theta = -thetamax;
+                                if(g < 0)
+                                    theta = -thetamax;
                             
-                            else
-                                theta = thetamax * 0.8;
+                                else
+                                    theta = thetamax * 0.8;
                             
-                        }
-                        bool randomized = false;
-                        if(randomize && iter == 0 && sij > 0.01 && fabs(theta) < 0.01){
-                            randomized = true;
-                            if(doprint)
-                                print("             randomizing", i, j);
+                            }
+                            bool randomized = false;
+                            if(randomize && iter == 0 && sij > 0.01 && fabs(theta) < 0.01){
+                                randomized = true;
+                                if(doprint)
+                                    print("             randomizing", i, j);
                             
-                            theta += (RandomValue<double>() - 0.5);
-                        }
-                        if(fabs(theta) >= tol || randomized || doit){
-                            ndone_iter++;
-                            if(doprint)
-                                print("     rotating", i, j, theta);
+                                theta += (RandomValue<double>() - 0.5);
+                            }
+                            if(fabs(theta) >= tol || randomized || doit){
+                                ndone_iter++;
+                                if(doprint)
+                                    print("     rotating", i, j, theta);
                             
-                            double c = cos(theta);
-                            double s = sin(theta);
-                            drot3(nmo, &dip(i, 0, 0), &dip(j, 0, 0), s, c, 1);
-                            drot3(nmo, &dip(0, i, 0), &dip(0, j, 0), s, c, nmo);
-                            drot(nmo, &U(i, 0), &U(j, 0), s, c, 1);
+                                double c = cos(theta);
+                                double s = sin(theta);
+                                drot3(nmo, &dip(i, 0, 0), &dip(j, 0, 0), s, c, 1);
+                                drot3(nmo, &dip(0, i, 0), &dip(0, j, 0), s, c, nmo);
+                                drot(nmo, &U(i, 0), &U(j, 0), s, c, 1);
+                            }
                         }
                     }
-                    
                 }
                 
                 ndone += ndone_iter;
@@ -1590,7 +1601,7 @@ struct Calculation {
         return expB;
     }
     
-    void diag_fock_matrix(World & world, tensorT& fock, vecfuncT & psi, vecfuncT & Vpsi, tensorT & evals, double thresh)
+    tensorT diag_fock_matrix(World & world, tensorT& fock, vecfuncT & psi, vecfuncT & Vpsi, tensorT & evals, double thresh)
     {
         long nmo = psi.size();
         tensorT overlap = matrix_inner(world, psi, psi, true);
@@ -1634,7 +1645,7 @@ struct Calculation {
             }
             long nclus = ihi - ilo + 1;
             if (nclus > 1) {
-                print("   found cluster", ilo, ihi);
+                //print("   found cluster", ilo, ihi);
                 tensorT q = copy(U(Slice(ilo,ihi),Slice(ilo,ihi)));
                 //print(q);
                 // Special code just for nclus=2
@@ -1662,12 +1673,12 @@ struct Calculation {
             ilo = ihi+1;
         }
         
-        print("Fock");
-        print(fock);
-        print("Evec");
-        print(U);;
-        print("Eval");
-        print(evals);
+        // print("Fock");
+        // print(fock);
+        // print("Evec");
+        // print(U);;
+        // print("Eval");
+        // print(evals);
         
         world.gop.broadcast(U.ptr(), U.size, 0);
         world.gop.broadcast(evals.ptr(), evals.size, 0);
@@ -1688,6 +1699,8 @@ struct Calculation {
         normalize(world, psi);
         if(world.rank() == 0)
             printf("normalized psi at %.2fs\n", wall_time());
+
+        return U;
     }
     
     void loadbal(World & world, functionT & arho, functionT & brho, functionT & arho_old, functionT & brho_old, subspaceT & subspace)
@@ -1742,6 +1755,15 @@ struct Calculation {
         world.gop.fence();
     }
     
+    void rotate_subspace(World& world, const tensorT& U, subspaceT& subspace, int lo, int nfunc, double trantol) {
+        for (unsigned int iter=0; iter<subspace.size(); iter++) {
+            vecfuncT& v = subspace[iter].first;
+            vecfuncT& r = subspace[iter].second;
+            transform(world, vecfuncT(&v[lo],&v[lo+nfunc]), U, trantol, false);
+            transform(world, vecfuncT(&r[lo],&r[lo+nfunc]), U, trantol, true);
+        }
+    }
+
     void update_subspace(World & world, 
                          vecfuncT & Vpsia, vecfuncT & Vpsib, 
                          tensorT & focka, tensorT & fockb, 
@@ -1921,20 +1943,33 @@ struct Calculation {
                 printf("\nIteration %d at time %.1fs\n\n", iter, wall_time());
             
             if (iter > 0 && update_residual < 0.1) {
-                do_this_iter = false;
+                //do_this_iter = false;
                 param.maxsub = maxsub_save;
             }
             
             if(param.localize && do_this_iter) {
-                tensorT U = localize_PM(world, amo, aset, tolloc, 0.25, iter == 0);
+                tensorT U;
+                if (param.localize_pm) {
+                    U = localize_PM(world, amo, aset, tolloc, 0.25, iter == 0);
+                }
+                else {
+                    U = localize_boys(world, amo, aset, tolloc, 0.25, iter==0);
+                }
                 amo = transform(world, amo, U, trantol, true);
                 truncate(world, amo);
                 normalize(world, amo);
+                rotate_subspace(world, U, subspace, 0, amo.size(), trantol);
                 if(!param.spin_restricted && param.nbeta){
-                    U = localize_PM(world, bmo, bset, tolloc, 0.25, iter == 0);
+                    if (param.localize_pm) {
+                        U = localize_PM(world, bmo, bset, tolloc, 0.25, iter == 0);
+                    }
+                    else {
+                        U = localize_boys(world, bmo, bset, tolloc, 0.25, iter==0);
+                    }
                     bmo = transform(world, bmo, U, trantol, true);
                     truncate(world, bmo);
                     normalize(world, bmo);
+                    rotate_subspace(world, U, subspace, amo.size(), bmo.size(), trantol);
                 }
             }
             
@@ -1992,11 +2027,12 @@ struct Calculation {
             else
                 fockb = make_fock_matrix(world, bmo, Vpsib, bocc, ekinb);
             
-            if (!param.localize) {
-                if (do_this_iter) {
-                    diag_fock_matrix(world, focka, amo, Vpsia, aeps, dconv);
-                    if (!param.spin_restricted && param.nbeta) 
-                        diag_fock_matrix(world, fockb, bmo, Vpsib, beps, dconv);
+            if (!param.localize && do_this_iter) {
+                tensorT U = diag_fock_matrix(world, focka, amo, Vpsia, aeps, dconv);
+                rotate_subspace(world, U, subspace, 0, amo.size(), trantol);
+                if (!param.spin_restricted && param.nbeta) {
+                    U = diag_fock_matrix(world, fockb, bmo, Vpsib, beps, dconv);
+                    rotate_subspace(world, U, subspace, amo.size(), bmo.size(), trantol);
                 }
             }
             
