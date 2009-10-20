@@ -369,6 +369,7 @@ struct CalculationParameters {
     unsigned int maxsub;        ///< Size of iterative subspace ... set to 0 or 1 to disable
     int npt_plot;               ///< No. of points to use in each dim for plots
     tensorT plot_cell;          ///< lo hi in each dimension for plotting (default is all space)
+    string aobasis;             ///< AO basis used for initial guess (6-31g or sto-3g)
     // Next list inferred parameters
     int nalpha;                 ///< Number of alpha spin electrons
     int nbeta;                  ///< Number of beta  spin electrons
@@ -379,7 +380,7 @@ struct CalculationParameters {
     template <typename Archive>
     void serialize(Archive& ar) {
         ar & charge & smear & econv & dconv & L & maxrotn & nvalpha & nvbeta & nopen & maxiter & nio & spin_restricted & lda;
-        ar & plotlo & plothi & plotdens & plotcoul & localize & localize_pm & restart & maxsub & npt_plot & plot_cell;
+        ar & plotlo & plothi & plotdens & plotcoul & localize & localize_pm & restart & maxsub & npt_plot & plot_cell & aobasis;
         ar & nalpha & nbeta & nmo_alpha & nmo_beta & lo;
     }
     
@@ -406,6 +407,7 @@ struct CalculationParameters {
         , restart(false)
         , maxsub(8)
         , npt_plot(101)
+        , aobasis("6-31g")
         , nalpha(0)
         , nbeta(0)
         , nmo_alpha(0)
@@ -481,6 +483,13 @@ struct CalculationParameters {
                 plot_cell = tensorT(3L,2L);
                 f >> plot_cell(0,0) >> plot_cell(0,1) >> plot_cell(1,0) >> plot_cell(1,1) >> plot_cell(2,0) >> plot_cell(2,1);
             }
+            else if (s == "aobasis") {
+                f >> aobasis;
+                if (aobasis!="sto-3g" && aobasis!="6-31g") {
+                    std::cout << "moldft: unrecognized aobasis (sto-3g or 6-31g only): " << aobasis << std::endl;
+                    MADNESS_EXCEPTION("input_error", 0);
+                }
+            }
             else if (s == "canon") {
                 localize = false;
             }
@@ -551,7 +560,9 @@ struct CalculationParameters {
         //tmp[strlen(tmp)-1] = 0; // lose the trailing newline
         const char* calctype[2] = {"Hartree-Fock","LDA"};
         //madness::print(" date of calculation ", tmp);
+        madness::print("             restart ", restart);
         madness::print(" number of processes ", world.size());
+        madness::print("   no. of io servers ", nio);
         madness::print("        total charge ", charge);
         madness::print("            smearing ", smear);
         madness::print(" number of electrons ", nalpha, nbeta);
@@ -560,10 +571,9 @@ struct CalculationParameters {
         madness::print("  energy convergence ", econv);
         madness::print(" density convergence ", dconv);
         madness::print("    maximum rotation ", maxrotn);
-        madness::print("   no. of io servers ", nio);
+        madness::print(" initial guess basis ", aobasis);
         madness::print(" max krylov subspace ", maxsub);
         madness::print("    calculation type ", calctype[int(lda)]);
-        madness::print("             restart ", restart);
         madness::print("     simulation cube ", -L, L);
         madness::print("        plot density ", plotdens);
         madness::print("        plot coulomb ", plotcoul);
@@ -603,7 +613,7 @@ struct Calculation {
         if(world.rank() == 0) {
             molecule.read_file(filename);
             param.read_file(filename);
-            aobasis.read_file("6-31g");
+            aobasis.read_file(param.aobasis);
             molecule.orient();
             param.set_molecular_info(molecule, aobasis);
         }
@@ -2175,6 +2185,15 @@ int main(int argc, char** argv) {
             calc.load_mos(world);
         else
             calc.initial_guess(world);
+
+        // If the basis for the inital guess was not sto-3g
+        // switch to sto-3g since this is needed for analysis
+        // of the MOs and orbital localization
+        if (calc.param.aobasis != "sto-3g") {
+            calc.param.aobasis = "sto-3g";
+            calc.project_ao_basis(world);
+        }
+
         calc.solve(world);
         calc.save_mos(world);
         calc.do_plots(world);
