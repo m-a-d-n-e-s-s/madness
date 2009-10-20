@@ -25,6 +25,7 @@
 using std::ofstream;
 using std::ofstream;
 #include <stdlib.h>
+#include <time.h>
 #define PRINT(str) if(world.rank()==0) cout << str 
 #define PRINTLINE(str) if(world.rank()==0) cout << str << endl
 
@@ -292,8 +293,7 @@ void projectPsi2(World& world, std::vector<string> boundList, std::vector<string
     PRINTLINE("\t\t|<basis|Psi(t)>|^2 ");
     ifstream f("wf.num");
     if( !f.is_open() ) {
-        PRINTLINE("File: wf.num expected to contain a " 
-                  << "list of integers of loadable wave functions");
+        PRINTLINE("File: wf.num expected to contain a list of integers of loadable wave functions");
     } else {
         if(boundList.empty() && unboundList.empty()) {
             boundList.push_back("1 0 0");
@@ -333,9 +333,8 @@ void projectPsi2(World& world, std::vector<string> boundList, std::vector<string
                 PRINT("\n");
             }            
         }
-        PRINTLINE("before unboundList.empty");
+        time_t before, after;
         if( !unboundList.empty() ) {
-            PRINTLINE("after unboundList.empty");
             std::vector<string>::const_iterator unboundIT;
             for( unboundIT=unboundList.begin(); unboundIT !=  unboundList.end(); unboundIT++ ) {
                 //parsing unboundList
@@ -347,8 +346,10 @@ void projectPsi2(World& world, std::vector<string> boundList, std::vector<string
                 //screening out the zero vector
                 if((dArr[1]>0.0 || dArr[1]<0.0) || (dArr[2]>0.0 || dArr[2]<0.0)) {
                     //PROJECT Psi_k into MADNESS
+                    time( &before );
                     complex_functionT psi_k = 
                         complex_factoryT(world).functor(functorT( new ScatteringWF(world, Z, kVec) ));
+                    time( &after );
                     cout.precision( 2 );
                     PRINT( std::fixed << KX << " " << KY << " " << KZ << "  ");
                     cout.precision( 4 );
@@ -357,6 +358,7 @@ void projectPsi2(World& world, std::vector<string> boundList, std::vector<string
                         output = psi_k.inner( psiIT->func );
                         PRINT(std::scientific << "\t" << real(output*conj(output)));
                     }
+                    PRINTLINE(" took " << after - before << " seconds ");
                     PRINT("\n");
                 }
             }

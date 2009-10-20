@@ -416,7 +416,10 @@ int      ScatteringWF::fromX( double xx ) const {
 }
 complexd ScatteringWF::f11(double xx) const {
     complexd ZZ(0.0,-xx);
-    if(xx <= 40 ) return conhyp(-I/k,one,ZZ);
+    //The cutoff was done by finding the minimum difference between
+    //conhyp(k,r) - aForm(k,r) for different k values
+    //20 + 7exp(-6k) is the emperical fit
+    if(xx <= 20 + 7*std::exp(-6*k)) return conhyp(-I/k,one,ZZ);
     else return aForm3(ZZ);
 }
 
