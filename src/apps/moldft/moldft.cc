@@ -603,7 +603,7 @@ struct Calculation {
         if(world.rank() == 0) {
             molecule.read_file(filename);
             param.read_file(filename);
-            aobasis.read_file("sto-3g");
+            aobasis.read_file("6-31g");
             molecule.orient();
             param.set_molecular_info(molecule, aobasis);
         }
@@ -850,7 +850,7 @@ struct Calculation {
             
             int nredone = 0;
             for(int i = 0;i < aobasis.nbf(molecule);i++){
-                if(norms[i] < 0.999){
+                if(norms[i] < 0.25){
                     nredone++;
                     functorT aofunc(new AtomicBasisFunctor(aobasis.get_atomic_basis_function(molecule, i)));
                     ao[i] = factoryT(world).functor(aofunc).initial_level(6).truncate_on_project().nofence();
@@ -863,13 +863,14 @@ struct Calculation {
             
         }
         truncate(world, ao);
-        for(int i = 0;i < aobasis.nbf(molecule);i++){
-            if(world.rank() == 0 && fabs(norms[i] - 1.0) > 1e-3)
-                print(i, " bad ao norm?", norms[i]);
+        // Don't want to renorm since some d and f functions won't be normalized to unity
+        // for(int i = 0;i < aobasis.nbf(molecule);i++){
+        //     if(world.rank() == 0 && fabs(norms[i] - 1.0) > 1e-2)
+        //         print(i, " bad ao norm?", norms[i]);
             
-            norms[i] = 1.0 / norms[i];
-        }
-        scale(world, ao, norms);
+        //     norms[i] = 1.0 / norms[i];
+        // }
+        // scale(world, ao, norms);
         END_TIMER(world, "project ao basis");
     }
     
@@ -1278,25 +1279,25 @@ struct Calculation {
             for(int i = 0;i < param.nalpha;i++)
                 aocc[i] = 1.0;
             
-            aset = vector<int>(param.nmo_alpha);
-            aset[0] = 0;
-            if(world.rank() == 0)
-                cout << "alpha set " << 0 << " " << 0 << "-";
-            
-            for(int i = 1;i < param.nmo_alpha;i++){
-                aset[i] = aset[i - 1];
-                if(aeps[i] - aeps[i - 1] > 1.5 || aocc[i] != 1.0){
-                    aset[i]++;
-                    if(world.rank() == 0){
-                        cout << i - 1 << endl;
-                        cout << "alpha set " << aset[i] << " " << i << "-";
+            aset = vector<int>(param.nmo_alpha,0);
+            //if (param.localize_pm) {
+                aset[0] = 0;
+                if(world.rank() == 0)
+                    cout << "alpha set " << 0 << " " << 0 << "-";
+                
+                for(int i = 1;i < param.nmo_alpha;i++) {
+                    aset[i] = aset[i - 1];
+                    if(aeps[i] - aeps[i - 1] > 1.5 || aocc[i] != 1.0){
+                        aset[i]++;
+                        if(world.rank() == 0){
+                            cout << i - 1 << endl;
+                            cout << "alpha set " << aset[i] << " " << i << "-";
+                        }
                     }
                 }
-                
-            }
-            
-            if(world.rank() == 0)
-                cout << param.nmo_alpha - 1 << endl;
+                if(world.rank() == 0)
+                    cout << param.nmo_alpha - 1 << endl;
+            //}
             
             if(param.nbeta && !param.spin_restricted){
                 bmo = transform(world, ao, c(_, Slice(0, param.nmo_beta - 1)), 0.0, true);
@@ -1307,25 +1308,25 @@ struct Calculation {
                 for(int i = 0;i < param.nbeta;i++)
                     bocc[i] = 1.0;
                 
-                bset = vector<int>(param.nmo_beta);
-                bset[0] = 0;
-                if(world.rank() == 0)
-                    cout << " beta set " << 0 << " " << 0 << "-";
-                
-                for(int i = 1;i < param.nmo_beta;i++){
-                    bset[i] = bset[i - 1];
-                    if(beps[i] - beps[i - 1] > 1.5 || bocc[i] != 1.0){
-                        bset[i]++;
-                        if(world.rank() == 0){
-                            cout << i - 1 << endl;
-                            cout << " beta set " << bset[i] << " " << i << "-";
+                bset = vector<int>(param.nmo_beta,0);
+                //if (param.localize_pm) {
+                    bset[0] = 0;
+                    if(world.rank() == 0)
+                        cout << " beta set " << 0 << " " << 0 << "-";
+                    
+                    for(int i = 1;i < param.nmo_beta;i++) {
+                        bset[i] = bset[i - 1];
+                        if(beps[i] - beps[i - 1] > 1.5 || bocc[i] != 1.0){
+                            bset[i]++;
+                            if(world.rank() == 0){
+                                cout << i - 1 << endl;
+                                cout << " beta set " << bset[i] << " " << i << "-";
+                            }
                         }
                     }
-                    
-                }
-                
-                if(world.rank() == 0)
-                    cout << param.nmo_beta - 1 << endl;
+                    if(world.rank() == 0)
+                        cout << param.nmo_beta - 1 << endl;
+                //}
                 
             }
         }

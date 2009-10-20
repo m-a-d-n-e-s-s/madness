@@ -88,7 +88,7 @@ public:
     /// Evaluates the entire shell returning the incremented result pointer
     double* eval(double rsq, double x, double y, double z, double* bf) const {
         double R = eval_radial(rsq);
-        if (R < 1e-8) {
+        if (fabs(R) < 1e-8) {
             for (int i=0; i<numbf; i++) bf[i] = 0.0;
 
         }
@@ -103,11 +103,12 @@ public:
                 bf[2] =  R*z;
                 break;
             case 2:
+                static const double fac = 1.0; //sqrt(3.0);
                 bf[0] = R*x*x;
-                bf[1] = R*x*y;
-                bf[2] = R*x*z ;
-                bf[3] = R*y*y ;
-                bf[4] = R*y*z ;
+                bf[1] = R*x*y*fac;
+                bf[2] = R*x*z*fac;
+                bf[3] = R*y*y;
+                bf[4] = R*y*z*fac;
                 bf[5] = R*z*z;
                 break;
             case 3:
@@ -590,6 +591,7 @@ foundit:
 
     /// Print basis info for atoms in the molecule (once for each unique atom type)
     void print(const Molecule& molecule) const {
+        molecule.print();
         std::cout << "\n " << name << " atomic basis set" << std::endl;
         for (int i=0; i<molecule.natom(); i++) {
             const Atom& atom = molecule.get_atom(i);
@@ -599,7 +601,7 @@ foundit:
                     goto doneitalready;
             }
             std::cout << std::endl;
-            std::cout << "   " <<  get_atomic_data(i).symbol << std::endl;
+            std::cout << "   " <<  get_atomic_data(atn).symbol << std::endl;
             std::cout << ag[atn];
 doneitalready:
             ;
