@@ -2,6 +2,7 @@
 #include <utility>
 #include <tensor/tensor.h>
 #include <ii/systolic.h>
+#include <ctime>
 
 using namespace madness;
 
@@ -212,19 +213,19 @@ public:
         if (niter >= 50) {
             if (id == 0) {
                 madness::print("    Did not converged in 50 iteration!");
+                print("");
             }
-            print("");
             return true;
         }
         else if(nrot == 0 && tol <= tolmin){
             if (id == 0) {
-                madness::print("    Converged! ", AV.rowdim()/2);
+                madness::print("    Converged! ", size);
+                print("");
             }
-            print("");
             return true;
         }
         else{
-            print("");
+            //print("");
             return false;
         }
     }
@@ -232,13 +233,14 @@ public:
     Tensor<T> get_eval() const{
 
         Tensor<T> result(size);
-        for(int64_t i=0; i<size; i++){
-            for(int64_t j=0; j<size; j++){
+        for(int64_t i=0; i<AV.local_coldim(); i++){
+            //for(int64_t j=0; j<size; j++){
                 Tensor<T> ai= AV.data()(i, Slice(0, size-1)); 
-                Tensor<T> vj= AV.data()(j, Slice(size, -1));
-                T aij = inner(vj, ai);
+                Tensor<T> vi= AV.data()(i, Slice(size, -1));
+                result[i] = inner(vi, ai);
     
                 /// check off diagonal element is absolutly zero
+                /*
                 if(i!=j){
                     //print(inner(vj,ai));
                     MADNESS_ASSERT(inner(vj,ai)<=tolmin*10e2);
@@ -247,7 +249,8 @@ public:
                     //print("eigen value: \n", aij);
                     result[i] = aij;
                 }
-            }
+                */
+            //}
         }
         return result;
     }
@@ -314,6 +317,7 @@ int main(int argc, char** argv) {
     
     try {
         print("Test of testsystolic2.cc\n");
+        print("label size time eig_val");
         for (int64_t n=10; n>1; n-=2) {
             DistributedMatrix<double> A = column_distributed_matrix<double>(world, n, n);
 
@@ -331,8 +335,9 @@ int main(int argc, char** argv) {
             DistributedMatrix<double> AV = concatenate_rows(A, V);
             SystolicEigensolver<double> sA(AV, 3334);
 
+            double t = cpu_time();
             sA.solve();
-            print(n, " eig_val\n", sA.get_eval(), "\n");
+            print("result:", n, cpu_time()-t, sA.get_eval());
 
             if(world.size() == 1){
                 /* check the answer*/
@@ -351,6 +356,7 @@ int main(int argc, char** argv) {
                 Tensor<double> t(2,2);
                 t(0,0) = 1; t(0,1) = 2; t(1,0) = 3; t(1,1) = 4;
                 print(t);
+                print( t(1,Slice()), t(Slice(),0)); /// result ... (3,4) , (1,3)
                 /// result must be ( 10 , 14, 14, 20)
                 print(mxm2(transpose(t), t)); //... O.K.
                 print(transpose(t).emul(t)); //... N.G. emul makes multiply of each element
