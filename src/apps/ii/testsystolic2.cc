@@ -9,7 +9,7 @@ using namespace madness;
 
 /// result = a^T * b. 2 dimension only
 template < typename T>
-Tensor<T> mTxm2(Tensor<T> a, Tensor<T> b){
+Tensor<T> mxm2(Tensor<T> a, Tensor<T> b){
     ///size check
     MADNESS_ASSERT(a.dim[1] == b.dim[1]);
 
@@ -17,7 +17,7 @@ Tensor<T> mTxm2(Tensor<T> a, Tensor<T> b){
     for(int i=0; i < a.dim[0]; i++){
         for(int j=0; j < b.dim[0]; j++){
             for(int k=0; k < a.dim[1]; k++){
-                result(i,j) += a(k,i) * b(k,j);
+                result(i,j) += a(i,k) * b(k,j);
             }
         }
     }
@@ -205,8 +205,8 @@ public:
         //if (id == 0) world.gop.sum(nrot);
         //env.barrier();
         if ( id == 0 ){
-            print("nrot: ", nrot);
-            print("tol: ", tol);
+            //print("nrot: ", nrot);
+            //print("tol: ", tol);
         }
         
         if (niter >= 50) {
@@ -240,11 +240,11 @@ public:
     
                 /// check off diagonal element is absolutly zero
                 if(i!=j){
-                    print(inner(vj,ai));
+                    //print(inner(vj,ai));
                     MADNESS_ASSERT(inner(vj,ai)<=tolmin*10e2);
                 }
                 else{
-                    print("eigen value: ", aij);
+                    //print("eigen value: \n", aij);
                     result[i] = aij;
                 }
             }
@@ -314,7 +314,7 @@ int main(int argc, char** argv) {
     
     try {
         print("Test of testsystolic2.cc\n");
-        for (int64_t n=800; n>1; n/=2) {
+        for (int64_t n=10; n>1; n-=2) {
             DistributedMatrix<double> A = column_distributed_matrix<double>(world, n, n);
 
             int64_t ilo, ihi, jlo, jhi;
@@ -332,21 +332,29 @@ int main(int argc, char** argv) {
             SystolicEigensolver<double> sA(AV, 3334);
 
             sA.solve();
+            print(n, " eig_val\n", sA.get_eval(), "\n");
 
             if(world.size() == 1){
                 /* check the answer*/
                 Tensor<double> eigvec = sA.get_evec().data();
+                print("eigen vector\n", eigvec);
                 
                 /* U^T * U = I */
-                //print(inner(transpose(eigvec), eigvec));
-                ///test for mTxm
+                print("U^T * U\n", mxm2(transpose(eigvec), eigvec)); // must be identity matrix
+
+                /* A * U = lambda * U */
+                print("eval\n", sA.get_eval());
+                print("A * U\n", mxm2(A.data(), transpose(eigvec)));
+                
+                ///test for mTxm ... O.K. 
+                /*
                 Tensor<double> t(2,2);
                 t(0,0) = 1; t(0,1) = 2; t(1,0) = 3; t(1,1) = 4;
                 print(t);
                 /// result must be ( 10 , 14, 14, 20)
-                print(mTxm2(transpose(t), t));
-
-                /* A * U = lambda * I */
+                print(mxm2(transpose(t), t)); //... O.K.
+                print(transpose(t).emul(t)); //... N.G. emul makes multiply of each element
+                */
             }
 
             /*
