@@ -333,7 +333,7 @@ void projectPsi2(World& world, std::vector<string> boundList, std::vector<string
                 PRINT("\n");
             }            
         }
-        time_t before, after;
+        clock_t before, after;
         if( !unboundList.empty() ) {
             std::vector<string>::const_iterator unboundIT;
             for( unboundIT=unboundList.begin(); unboundIT !=  unboundList.end(); unboundIT++ ) {
@@ -346,10 +346,10 @@ void projectPsi2(World& world, std::vector<string> boundList, std::vector<string
                 //screening out the zero vector
                 if((dArr[1]>0.0 || dArr[1]<0.0) || (dArr[2]>0.0 || dArr[2]<0.0)) {
                     //PROJECT Psi_k into MADNESS
-                    time( &before );
+                    if(world.rank()==0) before = clock();
                     complex_functionT psi_k = 
                         complex_factoryT(world).functor(functorT( new ScatteringWF(world, Z, kVec) ));
-                    time( &after );
+                    if(world.rank()==0) after = clock();
                     cout.precision( 2 );
                     PRINT( std::fixed << KX << " " << KY << " " << KZ << "  ");
                     cout.precision( 4 );
@@ -358,7 +358,7 @@ void projectPsi2(World& world, std::vector<string> boundList, std::vector<string
                         output = psi_k.inner( psiIT->func );
                         PRINT(std::scientific << "\t" << real(output*conj(output)));
                     }
-                    PRINTLINE(" took " << after - before << " seconds ");
+                    PRINT(" took " << (after - before)/CLOCKS_PER_SEC << " seconds ");
                     PRINT("\n");
                 }
             }
