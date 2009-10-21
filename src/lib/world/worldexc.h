@@ -45,7 +45,7 @@
 namespace madness {
 
     /// Most exceptions thrown in MADNESS should be derived from these
-    class MadnessException {
+    class MadnessException : public std::exception {
     public:
         const char* msg;
         const char* assertion;
@@ -63,6 +63,11 @@ namespace madness {
                 , line(line)
                 , function(function)
                 , filename(file) {};
+
+        virtual const char* what() const throw() {
+            return msg;
+        }
+
     };
 
     /// Print a MadnessException to the stream (for human consumption)
@@ -96,9 +101,11 @@ throw MadnessException(msg,0,value,__LINE__,__FUNCTION__,__FILE__)
 #endif
 
 #ifdef MADNESS_ASSERTIONS_THROW
+#  define MADNESS_STRINGIZE(X) #X
+#  define MADNESS_EXCEPTION_AT(F, L) MADNESS_STRINGIZE(F) "(" MADNESS_STRINGIZE(L) ")"
 #  define MADNESS_ASSERT(condition) \
      do {if (!(condition)) \
-         throw MadnessException("MADNESS ASSERTION FAILED", \
+         throw MadnessException("MADNESS ASSERTION FAILED: " MADNESS_EXCEPTION_AT( __FILE__, __LINE__ ), \
                          #condition,0,__LINE__,__FUNCTION__,__FILE__); \
         } while (0)
 #endif
