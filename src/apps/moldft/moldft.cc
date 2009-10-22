@@ -1391,22 +1391,22 @@ struct Calculation {
     {
         int nocc = psi.size();
         int nf = f.size();
-        double tol = FunctionDefaults<3>::get_thresh();
+        double tol = FunctionDefaults<3>::get_thresh(); /// Important this is consistent with Coulomb
         vecfuncT Kf = zero_functions<double,3>(world, nf);
         compress(world, Kf);
         reconstruct(world, psi);
         for(int i = 0;i < nocc;i++){
             if(occ[i] > 0.0){
-                vecfuncT psif = mul_sparse(world, psi[i], f, vtol);
+                vecfuncT psif = mul_sparse(world, psi[i], f, tol); /// was vtol
                 truncate(world, psif);
                 psif = apply(world, *coulop, psif);
                 truncate(world, psif);
-                psif = mul_sparse(world, psi[i], psif, vtol);
+                psif = mul_sparse(world, psi[i], psif, tol); /// was vtol
                 gaxpy(world, 1.0, Kf, occ[i], psif);
             }
         }
         
-        truncate(world, Kf, vtol);
+        truncate(world, Kf, tol); // was vtol
         return Kf;
     }
     
