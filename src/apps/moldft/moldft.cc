@@ -1423,11 +1423,7 @@ struct Calculation {
     
     static void ldaeop(const Key<3> & key, tensorT & t)
     {
-        //UNARY_OPTIMIZED_ITERATOR(double, t, double r=munge(2.0* *_p0); double q1; double q2; double dq;x_rks_s__(&r, &q1, &dq);c_rks_vwn5__(&r, &q2, &dq); *_p0 = q1+q2);
-        tensorT f(3L, t.dim);
-        tensorT v(3L, t.dim);
-        xc_rks_generic_lda(t, f, v);
-        t = v;
+        UNARY_OPTIMIZED_ITERATOR(double, t, double r=munge(2.0* *_p0); double q1; double q2; double dq;x_rks_s__(&r, &q1, &dq);c_rks_vwn5__(&r, &q2, &dq); *_p0 = q1+q2);
     }
     
     functionT make_lda_potential(World & world, const functionT & arho, const functionT & brho, const functionT & adelrhosq, const functionT & bdelrhosq)
