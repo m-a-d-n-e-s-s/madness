@@ -1698,17 +1698,9 @@ struct Calculation {
         
         Vpsi = transform(world, Vpsi, U, vtol / min(30.0, double(psi.size())), false);
         psi = transform(world, psi, U, FunctionDefaults<3>::get_thresh() / min(30.0, double(psi.size())), true);
-        
-        if(world.rank() == 0)
-            printf("transformed psi and Vpsi at %.2fs\n", wall_time());
-        
+        truncate(world, Vpsi, vtol, false);
         truncate(world, psi);
-        if(world.rank() == 0)
-            printf("truncated psi at %.2fs\n", wall_time());
-        
         normalize(world, psi);
-        if(world.rank() == 0)
-            printf("normalized psi at %.2fs\n", wall_time());
 
         return U;
     }
@@ -1882,7 +1874,6 @@ struct Calculation {
             }
             
         }
-        
         if(nres > 0 && world.rank() == 0)
             printf("\n");
         
@@ -1901,7 +1892,9 @@ struct Calculation {
             }
             
         }
-        
+        if(nres > 0 && world.rank() == 0)
+            printf("\n");
+
         world.gop.fence();
         double rms, maxval;
         vector_stats(anorm, rms, maxval);
