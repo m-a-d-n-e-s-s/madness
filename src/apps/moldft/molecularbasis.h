@@ -656,6 +656,7 @@ doneitalready:
         else {
             format = "  %2s(%4d)%4s(%5ld)%6.3f  ";
         }
+        printf("         ");
         for (long ii=0; ii<ngot; ii++) {
             long ibf = list[ii];
 
