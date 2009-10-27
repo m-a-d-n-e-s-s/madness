@@ -85,14 +85,17 @@ public:
         // Gather / Broadcast elements of x and v
         world.gop.sum(&p[0], npt);
         world.gop.sum(&x[0], npt);
-
         // Generate interior polynomial coeffs
+        for(int i=0; i<5*npt; i++) {
+            a[i] = 0.0;
+        }
         for (int i=1+world.rank(); i<=npt-3; i+=world.size()) {
             double mid = (x[i] + x[i+1])*0.5;
             double y[4] = {x[i-1]-mid,x[i]-mid,x[i+1]-mid,x[i+2]-mid};
             a[i*5] = mid;
             cubic_fit(y, &p[i-1], &a[i*5+1]);
         }
+        world.gop.sum(&a[0], 5*npt);
         // Fixup end points
         for (int j=0; j<5; j++) {
             a[j] = a[5+j];

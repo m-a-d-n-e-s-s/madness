@@ -333,7 +333,7 @@ void projectPsi2(World& world, std::vector<string> boundList, std::vector<string
                 PRINT("\n");
             }            
         }
-        clock_t before, after;
+        clock_t before=0, after=0;
         if( !unboundList.empty() ) {
             std::vector<string>::const_iterator unboundIT;
             for( unboundIT=unboundList.begin(); unboundIT !=  unboundList.end(); unboundIT++ ) {
