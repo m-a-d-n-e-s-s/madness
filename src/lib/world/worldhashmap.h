@@ -253,9 +253,18 @@ namespace madness {
             }
         };
 
-        template <class hashT, typename entryT, typename datumT, int lockmode>
+        template <class hashT, int lockmode>
         class HashAccessor : NO_DEFAULTS {
             template <class a,class b,class c> friend class ConcurrentHashMap;
+        public:
+            typedef typename add_const<is_const<hashT>::value,
+                typename hashT::entryT>::type entryT;
+            typedef typename add_const<is_const<hashT>::value,
+                typename hashT::datumT>::type datumT;
+            typedef datumT value_type;
+            typedef datumT* pointer;
+            typedef datumT& reference;
+
         private:
             entryT* entry;
             bool gotlock;
@@ -317,8 +326,8 @@ namespace madness {
         typedef Hash_private::bin<keyT,valueT> binT;
         typedef Hash_private::HashIterator<hashT> iterator;
         typedef Hash_private::HashIterator<const hashT> const_iterator;
-        typedef Hash_private::HashAccessor<hashT,entryT,datumT,entryT::WRITELOCK> accessor;
-        typedef Hash_private::HashAccessor<const hashT,const entryT,const datumT,entryT::READLOCK> const_accessor;
+        typedef Hash_private::HashAccessor<hashT,entryT::WRITELOCK> accessor;
+        typedef Hash_private::HashAccessor<const hashT,entryT::READLOCK> const_accessor;
 
         friend class Hash_private::HashIterator<hashT>;
         friend class Hash_private::HashIterator<const hashT>;
