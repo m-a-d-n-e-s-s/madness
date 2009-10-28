@@ -75,7 +75,23 @@ namespace madness {
 static const unsigned long pre_checksum = 0xdeadbeef;
 static const unsigned char post_checksum = 0xab;
 
-void* operator new(size_t size) {
+namespace madness {
+  // This is called from the delete operator when a buffer underflow is detected.
+  // Any error code for this condition should be added here.
+  void world_mem_buffer_underflow() {
+      std::cerr << "WorldMemInfo: Buffer underflow detected.\n" <<
+          "Set a breakpoint at madness::world_mem_buffer_underflow() to debug.\n";
+  }
+
+  // This is called from the delete operator when a buffer overflow is detected.
+  // Any error code for this condition should be added here.
+  void world_mem_buffer_overflow() {
+      std::cerr << "WorldMemInfo: Buffer overflow detected.\n" <<
+          "Set a breakpoint at madness::world_mem_buffer_overflow() to debug.\n";
+  }
+} // namespace madness
+
+void* operator new(size_t size) throw (std::bad_alloc) {
     // user-size + actual_pointer + pre_checksum + post_checksum + padding
     std::size_t actual_size = size + madness::WorldMemInfo::overhead;
 
@@ -100,13 +116,13 @@ void* operator new(size_t size) {
     return (void *) p;
 }
 
-void operator delete(void *p) {
+void operator delete(void *p) throw() {
     unsigned long* lp = (unsigned long*) p;
-    if (lp[-1] != pre_checksum) throw "WorldMemInfo: buffer underflow detected";
+    if (lp[-1] != pre_checksum) madness::world_mem_buffer_underflow();
     unsigned long* actual_pointer = (unsigned long*) lp[-2];
     std::size_t size = lp[-3];
     unsigned char* cp = (unsigned char*) p;
-    if (cp[size] != post_checksum) throw "WorldMemInfo: buffer overflow detected";
+    if (cp[size] != post_checksum) madness::world_mem_buffer_overflow();
 
     stats.do_del(p, size);
 
