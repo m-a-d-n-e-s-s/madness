@@ -77,7 +77,7 @@ namespace madness {
 
 
 #define MADNESS_EXCEPTION(msg,value) \
-throw MadnessException(msg,0,value,__LINE__,__FUNCTION__,__FILE__)
+throw madness::MadnessException(msg,0,value,__LINE__,__FUNCTION__,__FILE__)
 
     /*
      * Default behaviour is MADNESS_ASSERTIONS throw a MADNESS exception
