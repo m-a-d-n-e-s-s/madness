@@ -137,7 +137,7 @@ namespace madness {
             std::vector<WorldProfileEntry>& nv = nvitems();
             size_t sz = nv.size();
             if (sz == 0) nv.reserve(1000); // Avoid resizing during execution ... stupid code somewhere below not thread safe?
-            if (sz >=1000) throw "WorldProfile: did not reserve enough space!";
+            if (sz >=1000) MADNESS_EXCEPTION("WorldProfile: did not reserve enough space!", sz);
             for (unsigned int i=0; i<nv.size(); i++) {
                 if (name == nv[i].name) return i;
             }
@@ -185,7 +185,7 @@ namespace madness {
         /// Returns a reference to the specified entry.  Throws if id is invalid.
         static WorldProfileEntry& get_entry(int id) {
             std::vector<WorldProfileEntry>& nv = nvitems();
-            if (id<0 || id >= int(nv.size())) throw "WorldProfileEntry: get_entry: invalid id";
+            if (id<0 || id >= int(nv.size())) MADNESS_EXCEPTION("WorldProfileEntry: get_entry: invalid id", id);
             return nv[id];
         }
 
@@ -225,7 +225,7 @@ namespace madness {
         }
 
         ~WorldProfileObj() {
-            if (call_stack != this) throw "WorldProfileObject: call stack confused\n";
+            // if (call_stack != this) throw "WorldProfileObject: call stack confused\n"; // destructors should not throw
             double now = madness::cpu_time();
             WorldProfileEntry& d = WorldProfile::get_entry(id);
             {
