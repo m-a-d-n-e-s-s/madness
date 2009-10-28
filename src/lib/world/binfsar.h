@@ -41,6 +41,7 @@
 
 #include <fstream>
 #include <world/archive.h>
+#include <world/worldexc.h>
 
 
 namespace madness {
@@ -116,7 +117,7 @@ namespace madness {
                 int n = strlen(ARCHIVE_COOKIE)+1;
                 load(cookie, n);
                 if (strncmp(cookie,ARCHIVE_COOKIE,n) != 0)
-                    throw("BinaryFstreamInputArchive: open: not an archive?");
+                    MADNESS_EXCEPTION("BinaryFstreamInputArchive: open: not an archive?", 1);
             };
 
             void close() {

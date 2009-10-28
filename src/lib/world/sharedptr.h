@@ -299,7 +299,7 @@ namespace madness {
         /// This just to permit use as task arguments ... throws if actually invoked
         template <typename Archive>
         void serialize(Archive& ar) {
-            throw "SharedPtr not serializable";
+            MADNESS_EXCEPTION("SharedPtr not serializable", 0);
         }
 
     };

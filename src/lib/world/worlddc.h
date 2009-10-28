@@ -185,7 +185,7 @@ namespace madness {
 
         template <typename Archive>
         void serialize(const Archive& ar) {
-            throw "Serializing DC iterator ... why?";
+            MADNESS_EXCEPTION("Serializing DC iterator ... why?", false);
         }
 
     private:

@@ -154,7 +154,7 @@ namespace madness {
                 char eol;
                 is.get(eol);
                 if (eol != '\n')
-                    throw("TextFstreamInputArchive: eat_eol: indigestion");
+                    MADNESS_EXCEPTION("TextFstreamInputArchive: eat_eol: indigestion", static_cast<int>(eol));
             };
 
         public:
@@ -179,7 +179,7 @@ namespace madness {
                               << archive_type_names[cookie]
                               << " "
                               << " got=" << ftag << std::endl;
-                    throw "TextFstreamInputArchive: check_tag: types do not match/corrupt file";
+                    MADNESS_EXCEPTION("TextFstreamInputArchive: check_tag: types do not match/corrupt file", 1);
                 }
             }
 
@@ -222,7 +222,7 @@ namespace madness {
                             t[i] = '>';
                         }
                         else {
-                            throw "TextFstreamInputArchive: malformed string?";
+                          MADNESS_EXCEPTION("TextFstreamInputArchive: malformed string?", static_cast<int>(c1));
                         }
                     }
                     else {
@@ -246,7 +246,7 @@ namespace madness {
                     std::cout << "TextFstreamInputArchive: not an archive/bad version?" << std::endl;
                     std::cout << "Found this: " << buf;
                     std::cout << "Expected  : " << tag;
-                    throw "TextFstreamInputArchive: not an archive/bad version?";
+                    MADNESS_EXCEPTION("TextFstreamInputArchive: not an archive/bad version?", 1);
                 }
 
                 // For now just skip over typemap

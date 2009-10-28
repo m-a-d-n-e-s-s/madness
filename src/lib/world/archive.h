@@ -410,7 +410,7 @@ namespace madness {
 #define ARCHIVE_REGISTER_TYPE_NAME(T) \
      if (strcmp(ATN[ATI< T >::cookie],"invalid")) {\
         std::cout << "archive_register_type_name: slot/cookie already in use! "<< #T << " " << ATN[ATI< T >::cookie]<< std::endl; \
-        throw "archive_register_type_name: slot/cookie already in use!"; \
+        MADNESS_EXCEPTION("archive_register_type_name: slot/cookie already in use!", 0); \
      } \
      ATN[ATI< T >::cookie] = #T
 
@@ -527,7 +527,7 @@ namespace madness {
                                  ck, archive_type_names[ck],
                                  cookie,archive_type_names[cookie]);
                     std::cerr << msg << std::endl;
-                    throw msg;
+                    MADNESS_EXCEPTION(msg, static_cast<int>(cookie));
                 }
                 else {
                     MAD_ARCHIVE_DEBUG(std::cout << "read cookie " << archive_type_names[cookie] << std::endl);
@@ -721,7 +721,7 @@ namespace madness {
                 //unsigned int n;
                 //ar >> n;
                 //if (n != t.n)
-                //    throw "deserializing archive_array: dimension mismatch";
+                //    MADNESS_EXCEPTION("deserializing archive_array: dimension mismatch", n);
                 //ArchivePrePostImpl<Archive,T>::preamble_load(ar);
                 serialize(ar,(T *) t.ptr,t.n);
                 //ArchivePrePostImpl<Archive,T>::postamble_load(ar);

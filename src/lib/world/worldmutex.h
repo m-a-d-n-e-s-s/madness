@@ -34,6 +34,7 @@ inline void pthread_spin_destroy(pthread_spinlock_t* p) {}
 #include <world/nodefaults.h>
 #include <world/worldtime.h>
 #include <world/atomicint.h>
+#include <world/worldexc.h>
 
 /// \file worldmutex.h
 /// \brief Implements Mutex, MutexFair, Spinlock, ConditionVariable
@@ -107,12 +108,14 @@ namespace madness {
 
         /// Acquire the mutex waiting if necessary
         void lock() const {
-            if (pthread_mutex_lock(&mutex)) throw "failed acquiring mutex";
+            int result = pthread_mutex_lock(&mutex);
+            if (result) MADNESS_EXCEPTION("failed acquiring mutex", result);
         }
 
         /// Free a mutex owned by this thread
         void unlock() const {
-            if (pthread_mutex_unlock(&mutex)) throw "failed releasing mutex";
+            int result = pthread_mutex_unlock(&mutex);
+            if (result) MADNESS_EXCEPTION("failed releasing mutex", result);
         }
 
         /// Return a pointer to the pthread mutex for use by a condition variable
@@ -171,12 +174,14 @@ namespace madness {
 
         /// Acquire the spinlock waiting if necessary
         void lock() const {
-            if (pthread_spin_lock(&spinlock)) throw "failed acquiring spinlock";
+            int result = pthread_spin_lock(&spinlock);
+            if (result) MADNESS_EXCEPTION("failed acquiring spinlock", result);
         }
 
         /// Free a spinlock owned by this thread
         void unlock() const {
-            if (pthread_spin_unlock(&spinlock)) throw "failed releasing spinlock";
+            int result = pthread_spin_unlock(&spinlock);
+            if (result) MADNESS_EXCEPTION("failed releasing spinlock", result);
         }
 
         virtual ~Spinlock() {
@@ -221,7 +226,7 @@ namespace madness {
                 return true;
             }
             else {
-                throw "MutexReaderWriter: try_lock: invalid lock mode";
+               MADNESS_EXCEPTION("MutexReaderWriter: try_lock: invalid lock mode", lockmode);
             }
         }
 
@@ -262,7 +267,7 @@ namespace madness {
         void unlock(int lockmode) const {
             if (lockmode == READLOCK) read_unlock();
             else if (lockmode == WRITELOCK) write_unlock();
-            else if (lockmode != NOLOCK) throw "MutexReaderWriter: try_lock: invalid lock mode";
+            else if (lockmode != NOLOCK) MADNESS_EXCEPTION("MutexReaderWriter: try_lock: invalid lock mode", lockmode);
         }
 
         /// Converts read to write lock without releasing the read lock
@@ -428,11 +433,13 @@ namespace madness {
         }
 
         void lock() const {
-            if (pthread_mutex_lock(&mutex)) throw "ConditionVariable: acquiring mutex";
+            int result = pthread_mutex_lock(&mutex);
+            if (result) MADNESS_EXCEPTION("ConditionVariable: acquiring mutex", result);
         }
 
         void unlock() const {
-            if (pthread_mutex_unlock(&mutex)) throw "ConditionVariable: releasing mutex";
+            int result = pthread_mutex_unlock(&mutex);
+            if (result) MADNESS_EXCEPTION("ConditionVariable: releasing mutex", result);
         }
 
         /// You should have acquired the mutex before entering here
@@ -441,11 +448,13 @@ namespace madness {
         }
 
         void signal() const {
-            if (pthread_cond_signal(&cv)) throw "ConditionalVariable: signalling failed";
+            int result = pthread_cond_signal(&cv);
+            if (result) MADNESS_EXCEPTION("ConditionalVariable: signalling failed", result);
         }
 
         void broadcast() const {
-            if (pthread_cond_broadcast(&cv)) throw "ConditionalVariable: signalling failed";
+            int result = pthread_cond_broadcast(&cv);
+            if (result) MADNESS_EXCEPTION("ConditionalVariable: signalling failed", result);
         }
 
         virtual ~PthreadConditionVariable() {
@@ -483,7 +492,7 @@ namespace madness {
         /// id should be the thread id (0,..,nthread-1) and pflag a pointer to
         /// thread-local bool (probably in the thread's stack)
         void register_thread(int id, volatile bool* pflag) {
-            if (id > 63) throw "Barrier : hard dimension failed";
+            if (id > 63) MADNESS_EXCEPTION("Barrier : hard dimension failed", id);
             pflags[id] = pflag;
             *pflag=!sense;
         }
@@ -498,7 +507,7 @@ namespace madness {
                 return true;
             }
             else {
-                if (id > 63) throw "Barrier : hard dimension failed";
+                if (id > 63) MADNESS_EXCEPTION("Barrier : hard dimension failed", id);
                 bool lsense = sense; // Local copy of sense
                 bool result = nworking.dec_and_test();
                 if (result) {

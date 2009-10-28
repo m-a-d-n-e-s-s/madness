@@ -293,12 +293,12 @@ namespace madness {
             HashAccessor(entryT* entry) : entry(entry), gotlock(true) {}
 
             datumT& operator*() const {
-                if (!entry) throw "Hash accessor: operator*: no value";
+                if (!entry) MADNESS_EXCEPTION("Hash accessor: operator*: no value", 0);
                 return entry->datum;
             }
 
             datumT* operator->() const {
-                if (!entry) throw "Hash accessor: operator->: no value";
+                if (!entry) MADNESS_EXCEPTION("Hash accessor: operator->: no value", 0);
                 return &entry->datum;
             }
 
@@ -419,7 +419,7 @@ namespace madness {
         }
 
         void erase(const iterator& it) {
-            if (it == end()) throw "ConcurrentHashMap: erase(iterator): at end";
+            if (it == end()) MADNESS_EXCEPTION("ConcurrentHashMap: erase(iterator): at end", true);
             erase(it->first);
         }
 

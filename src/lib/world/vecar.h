@@ -88,7 +88,7 @@ namespace madness {
             typename madness::enable_if< madness::is_serializable<T>, void >::type
             load(T* t, long n) const {
                 std::size_t m = n*sizeof(T);
-                if (m+i >  v->size()) throw "VectorInputArchive: reading past end";
+                if (m+i >  v->size()) MADNESS_EXCEPTION("VectorInputArchive: reading past end", m+1);
                 memcpy((unsigned char*) t, &((*v)[i]), m);
                 i += m;
             }

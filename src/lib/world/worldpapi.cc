@@ -13,9 +13,9 @@ namespace madness {
 
     void initialize_papi() {
         if (PAPI_library_init(PAPI_VER_CURRENT) != PAPI_VER_CURRENT)
-            throw "Could not init PAPI";
+            MADNESS_EXCEPTION("Could not init PAPI", 1);
         if (PAPI_thread_init(pthread_self) != PAPI_OK)
-            throw "Could not init PAPI thread API";
+            MADNESS_EXCEPTION("Could not init PAPI thread API", 1);
 
         reset_papi_measurement();
     }

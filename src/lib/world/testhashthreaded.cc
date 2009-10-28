@@ -271,7 +271,7 @@ public:
     void run() {
         for (int i=0; i<10000000; i++) {
             ConcurrentHashMap<int,double>::accessor r;
-            if (!a.find(r, 1)) throw "OK ... where is it?";
+            if (!a.find(r, 1)) MADNESS_EXCEPTION("OK ... where is it?", 0);
             r->second++;
         }
 
@@ -288,22 +288,22 @@ void test_accessors() {
     ndone = 0;
 
     accessorT result;
-    if (a.find(result,1)) throw "should not have found this";
+    if (a.find(result,1)) MADNESS_EXCEPTION("should not have found this", 0);
 
     a[1] = 0.0;
 
-    if (!a.find(result,1)) throw "should have found this";
-    if (result->second != 0.0) throw "should have been zero";
+    if (!a.find(result,1)) MADNESS_EXCEPTION("should have found this", 0);
+    if (result->second != 0.0) MADNESS_EXCEPTION("should have been zero", static_cast<int>(result->second));
 
-    if (!a.find(result,1)) throw "should have found this";
-    if (result->second != 0.0) throw "should have been zero";
+    if (!a.find(result,1)) MADNESS_EXCEPTION("should have found this", 0);
+    if (result->second != 0.0) MADNESS_EXCEPTION("should have been zero", static_cast<int>(result->second));
 
 
     Peasant a1(a),a2(a);
     result.release();
     while (ndone != 2) sched_yield();
 
-    if (a[1] != 20000000) throw "Ooops";
+    if (a[1] != 20000000) MADNESS_EXCEPTION("Ooops", a[1]);
 }
 
 int main() {

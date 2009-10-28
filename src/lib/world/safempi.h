@@ -8,6 +8,7 @@
 #include <world/typestuff.h>
 #include <world/worldmutex.h>
 #include <world/worldthread.h>
+#include <world/worldexc.h>
 
 namespace SafeMPI {
 
@@ -175,7 +176,7 @@ namespace SafeMPI {
             SAFE_MPI_GLOBAL_MUTEX;
             static volatile int tag = 1;
             int result = tag++;
-            if (result >= 1000) throw "too many reserved tags in use";
+            if (result >= 1000) MADNESS_EXCEPTION( "too many reserved tags in use" , result );
             return result;
         }
 

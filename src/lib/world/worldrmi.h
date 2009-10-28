@@ -232,7 +232,7 @@ namespace madness {
                                           << std::endl;
                             // Shove it in the queue
                             int n = n_in_q++;
-                            if (n >= MAXQ) throw "RMI:server: overflowed out-of-order message q\n";
+                            if (n >= MAXQ) MADNESS_EXCEPTION("RMI:server: overflowed out-of-order message q\n", n);
                             q[n] = qmsg(len, func, i, src, attr, count);
                         }
                     }
@@ -289,7 +289,7 @@ namespace madness {
                 size_t nbyte = hugeq.front().second;
                 hugeq.pop_front();
                 if (posix_memalign((void **)(recv_buf+NRECV), ALIGNMENT, nbyte))
-                    throw "RMI: failed allocating huge message";
+                    MADNESS_EXCEPTION("RMI: failed allocating huge message", 1);
                 recv_req[NRECV] = comm.Irecv(recv_buf[NRECV], nbyte, MPI::BYTE, src, SafeMPI::RMI_HUGE_DAT_TAG);
                 int nada=0;
                 comm.Send(&nada, sizeof(nada), MPI::BYTE, src, SafeMPI::RMI_HUGE_ACK_TAG);
@@ -306,7 +306,7 @@ namespace madness {
                 post_pending_huge_msg();
             }
             else {
-                throw "RMI::post_recv_buf: confusion";
+                MADNESS_EXCEPTION("RMI::post_recv_buf: confusion", i);
             }
         }
 
@@ -335,7 +335,7 @@ namespace madness {
             if (nproc > 1) {
                 for (int i=0; i<NRECV; i++) {
                     if (posix_memalign((void**)(recv_buf+i), ALIGNMENT, MAX_MSG_LEN))
-                        throw "RMI:initialize:failed allocating aligned recv buffer";
+                        MADNESS_EXCEPTION("RMI:initialize:failed allocating aligned recv buffer", 1);
                     post_recv_buf(i);
                 }
                 recv_buf[NRECV] = 0;
@@ -383,7 +383,7 @@ namespace madness {
                 tag = SafeMPI::RMI_HUGE_DAT_TAG;
             }
             else if (nbyte < HEADER_LEN) {
-                throw "RMI::isend --- your buffer is too small to hold the header";
+                MADNESS_EXCEPTION("RMI::isend --- your buffer is too small to hold the header", static_cast<int>(nbyte));
             }
 
             if (debugging)

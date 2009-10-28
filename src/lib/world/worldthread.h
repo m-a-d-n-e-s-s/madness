@@ -49,7 +49,7 @@ namespace madness {
         void grow() {
             // ASSUME WE ALREADY HAVE THE MUTEX WHEN IN HERE
             stats.ngrow++;
-            if (sz != n) throw "assertion failure in dqueue::grow";
+            if (sz != n) MADNESS_EXCEPTION("assertion failure in dqueue::grow", static_cast<int>(sz));
             size_t oldsz = sz;
             if (sz < 32768)
                 sz = 65536;
@@ -338,8 +338,8 @@ namespace madness {
             pthread_attr_init(&attr);
             pthread_attr_setdetachstate(&attr,PTHREAD_CREATE_DETACHED);
             pthread_attr_setscope(&attr, PTHREAD_SCOPE_SYSTEM);
-            if (pthread_create(&id, &attr, &ThreadBase::main, (void *) this))
-                throw "failed creating thread";
+            int result = pthread_create(&id, &attr, &ThreadBase::main, (void *) this);
+            if (result) MADNESS_EXCEPTION("failed creating thread", result);
 
             pthread_attr_destroy(&attr);
         }
@@ -370,7 +370,7 @@ namespace madness {
             memcpy(ThreadBase::cpulo, cpu, 3*sizeof(int));
 
             int ncpu = sysconf(_SC_NPROCESSORS_CONF);
-            if (ncpu <= 0) throw "ThreadBase: set_affinity_pattern: sysconf(_SC_NPROCESSORS_CONF)";
+            if (ncpu <= 0) MADNESS_EXCEPTION("ThreadBase: set_affinity_pattern: sysconf(_SC_NPROCESSORS_CONF)", ncpu);
 
             // impose sanity and compute cpuhi
             for (int i=0; i<3; i++) {
@@ -700,7 +700,7 @@ namespace madness {
                 	threads = 0;
             }
             catch (...) {
-                throw "memory allocation failed";
+                MADNESS_EXCEPTION("memory allocation failed", 0);
             }
 
             for (int i=0; i<nthreads; i++) {
@@ -719,8 +719,9 @@ namespace madness {
             if (cnthread == 0) cnthread = getenv("POOL_NTHREAD");
 
             if (cnthread) {
-                if (sscanf(cnthread, "%d", &nthread) != 1)
-                    throw "POOL_NTHREAD is not an integer";
+                int result = sscanf(cnthread, "%d", &nthread);
+                if (result != 1)
+                    MADNESS_EXCEPTION("POOL_NTHREAD is not an integer", result);
             }
             else {
                 nthread = sysconf(_SC_NPROCESSORS_CONF);
@@ -806,7 +807,7 @@ namespace madness {
 
         /// Add a new task to the pool
         static void add(PoolTaskInterface* task) {
-            if (!task) throw "ThreadPool: inserting a NULL task pointer";
+            if (!task) MADNESS_EXCEPTION("ThreadPool: inserting a NULL task pointer", 1);
             int nthread = task->get_nthread();
             // Currently multithreaded tasks must be shoved on the end of the q
             // to avoid a race condition as multithreaded task is starting up

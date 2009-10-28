@@ -265,7 +265,7 @@ namespace madness {
         }
 
         bool replace_with(FutureImpl<T>* f) {
-            throw "IS THIS WORKING? maybe now we have the mutex";
+            MADNESS_EXCEPTION("IS THIS WORKING? maybe now we have the mutex", 0);
 //            ScopedMutex<Spinlock> fred(this);
 //             MADNESS_ASSERT(!world); // was return false;
 //             MADNESS_ASSERT(!assigned || f->assigned);

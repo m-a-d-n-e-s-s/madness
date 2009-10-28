@@ -53,8 +53,8 @@ namespace madness {
         //cout.rdbuf(fout.rdbuf());
         //std::cerr.rdbuf(fout.rdbuf());
 
-        if (!freopen(filename, "w", stdout)) throw "reopening stdout failed";
-        if (!freopen(filename, "w", stderr)) throw "reopening stderr failed";
+        if (!freopen(filename, "w", stdout)) MADNESS_EXCEPTION("reopening stdout failed", 0);
+        if (!freopen(filename, "w", stderr)) MADNESS_EXCEPTION("reopening stderr failed", 0);
         //}
     }
 }

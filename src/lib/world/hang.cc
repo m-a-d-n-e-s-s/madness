@@ -41,7 +41,7 @@ using namespace std;
 int main(int argc, char** argv) {
     MPI::Init(argc, argv);
     int np = MPI::COMM_WORLD.Get_size();
-    if (np != 2) throw "2 only";
+    if (np != 2) MADNESS_EXCEPTION("2 only", np);
 
     int me = MPI::COMM_WORLD.Get_rank();
     int other = me? 0 : 1;
