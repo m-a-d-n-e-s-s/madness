@@ -508,6 +508,7 @@ int main(int argc, char**argv) {
     PRINTLINE("After initialize");
     // Load info for MADNESS numerical routines
     startup(world,argc,argv);
+    PRINTLINE("world.size() = " << world.size());
     // Setup defaults for numerical functions
     int    k = 12;
     double L = 10.0;
