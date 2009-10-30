@@ -1432,11 +1432,12 @@ struct Calculation {
             }
         }
         world.gop.fence();
-        truncate(world, psif, tol);
+        compress(world, psif);
+        //truncate(world, psif, tol);
         for (int i=0; i<nocc; i++) {
             for (int j=0; j<nf; j++) {
                 int ij = i*nf + j;
-                Kf[j].gaxpy(1.0,psif[ij],1.0,false);
+                Kf[j].gaxpy(1.0,psif[ij],occ[i],false);
             }
         }
         world.gop.fence();
