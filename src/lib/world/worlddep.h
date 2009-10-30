@@ -44,6 +44,8 @@
 #include <world/worldthread.h>
 #include <world/atomicint.h>
 
+#include <typeinfo>
+
 namespace madness {
 
     /// This class used for callbacks (e.g., for dependency tracking)
@@ -142,7 +144,7 @@ namespace madness {
 
             // Paranoia is good
             if (ndepend) {
-                print("DependencyInterface: destructor with ndepend =",ndepend,"?");
+                print("DependencyInterface: destructor with ndepend =",ndepend,"?", typeid(*this).name());
             }
         }
     };
