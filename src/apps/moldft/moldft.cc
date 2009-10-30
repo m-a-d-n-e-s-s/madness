@@ -1388,6 +1388,7 @@ struct Calculation {
     
     vecfuncT apply_hf_exchange(World & world, const tensorT & occ, const vecfuncT & psi, const vecfuncT & f)
     {
+        const bool same = (&psi == &f);
         int nocc = psi.size();
         int nf = f.size();
         double tol = FunctionDefaults<3>::get_thresh(); /// Important this is consistent with Coulomb
@@ -1395,7 +1396,7 @@ struct Calculation {
         compress(world, Kf);
         reconstruct(world, psi);
         norm_tree(world, psi);
-        if (&psi != &f) {
+        if (!same) {
             reconstruct(world, f);
             norm_tree(world, f);
         }
@@ -1412,36 +1413,45 @@ struct Calculation {
 //             }
 //         }
 
-        // Larger memory algorithm ... possible 2x saving using i-j sym
+        // Larger memory algorithm ... use i-j sym if psi==f
         vecfuncT psif;
         for (int i=0; i<nocc; i++) {
-            for (int j=0; j<nf; j++) {
+            int jtop = nf;
+            if (same) jtop = i+1;
+            for (int j=0; j<jtop; j++) {
                 psif.push_back(mul_sparse(psi[i], f[j], tol, false));
             }
         }
+
         world.gop.fence();
         truncate(world, psif);
         psif = apply(world, *coulop, psif);
         truncate(world, psif, tol);
         reconstruct(world, psif);
         norm_tree(world, psif);
+        vecfuncT psipsif = zero_functions<double,3>(world, nf*nocc);
+        int ij = 0;
         for (int i=0; i<nocc; i++) {
-            for (int j=0; j<nf; j++) {
-                int ij = i*nf + j;
-                psif[ij] = mul_sparse(psif[ij],psi[i],false);
-            }
-        }
-        world.gop.fence();
-        compress(world, psif);
-        //truncate(world, psif, tol);
-        for (int i=0; i<nocc; i++) {
-            for (int j=0; j<nf; j++) {
-                int ij = i*nf + j;
-                Kf[j].gaxpy(1.0,psif[ij],occ[i],false);
+            int jtop = nf;
+            if (same) jtop = i+1;
+            for (int j=0; j<jtop; j++,ij++) {
+                psipsif[i*nf+j] = mul_sparse(psif[ij],psi[i],false);
+                if (same && i!=j) {
+                    psipsif[j*nf+i] = mul_sparse(psif[ij],psi[j],false);
+                }
             }
         }
         world.gop.fence();
         psif.clear();
+        world.gop.fence();
+        compress(world, psipsif);
+        for (int i=0; i<nocc; i++) {
+            for (int j=0; j<nf; j++) {
+                Kf[j].gaxpy(1.0,psipsif[i*nf+j],occ[i],false);
+            }
+        }
+        world.gop.fence();
+        psipsif.clear();
         world.gop.fence();
 
         truncate(world, Kf, tol);
