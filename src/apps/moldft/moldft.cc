@@ -1394,18 +1394,56 @@ struct Calculation {
         vecfuncT Kf = zero_functions<double,3>(world, nf);
         compress(world, Kf);
         reconstruct(world, psi);
-        for(int i = 0;i < nocc;i++){
-            if(occ[i] > 0.0){
-                vecfuncT psif = mul_sparse(world, psi[i], f, tol); /// was vtol
-                truncate(world, psif);
-                psif = apply(world, *coulop, psif);
-                truncate(world, psif);
-                psif = mul_sparse(world, psi[i], psif, tol); /// was vtol
-                gaxpy(world, 1.0, Kf, occ[i], psif);
+        norm_tree(world, psi);
+        if (&psi != &f) {
+            reconstruct(world, f);
+            norm_tree(world, f);
+        }
+
+//         // Smaller memory algorithm ... possible 2x saving using i-j sym
+//         for(int i=0; i<nocc; i++){
+//             if(occ[i] > 0.0){
+//                 vecfuncT psif = mul_sparse(world, psi[i], f, tol); /// was vtol
+//                 truncate(world, psif);
+//                 psif = apply(world, *coulop, psif);
+//                 truncate(world, psif);
+//                 psif = mul_sparse(world, psi[i], psif, tol); /// was vtol
+//                 gaxpy(world, 1.0, Kf, occ[i], psif);
+//             }
+//         }
+
+        // Larger memory algorithm ... possible 2x saving using i-j sym
+        vecfuncT psif;
+        for (int i=0; i<nocc; i++) {
+            for (int j=0; j<nf; j++) {
+                psif.push_back(mul_sparse(psi[i], f[j], tol, false));
             }
         }
-        
-        truncate(world, Kf, tol); // was vtol
+        world.gop.fence();
+        truncate(world, psif);
+        psif = apply(world, *coulop, psif);
+        truncate(world, psif, tol);
+        reconstruct(world, psif);
+        norm_tree(world, psif);
+        for (int i=0; i<nocc; i++) {
+            for (int j=0; j<nf; j++) {
+                int ij = i*nf + j;
+                psif[ij] = mul_sparse(psif[ij],psi[i],false);
+            }
+        }
+        world.gop.fence();
+        truncate(world, psif, tol);
+        for (int i=0; i<nocc; i++) {
+            for (int j=0; j<nf; j++) {
+                int ij = i*nf + j;
+                Kf[j].gaxpy(1.0,psif[ij],1.0,false);
+            }
+        }
+        world.gop.fence();
+        psif.clear();
+        world.gop.fence();
+
+        truncate(world, Kf, tol);
         return Kf;
     }
     
