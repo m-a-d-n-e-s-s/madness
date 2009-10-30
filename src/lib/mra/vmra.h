@@ -386,6 +386,19 @@ namespace madness {
         return vmulXX(a, v, tol, fence);
     }
 
+    /// Makes the norm tree for all functions in a vector
+    template <typename T, int NDIM>
+    void norm_tree(World& world, 
+                   const std::vector< Function<T,NDIM> >& v,
+                   bool fence=true)
+    {
+        PROFILE_BLOCK(Vnorm_tree);
+        for (unsigned int i=0; i<v.size(); i++) {
+            v[i].norm_tree(false);
+        }
+        if (fence) world.gop.fence();
+    }
+
     /// Multiplies two vectors of functions q[i] = a[i] * b[i]
     template <typename T, typename R, int NDIM>
     std::vector< Function<TENSOR_RESULT_TYPE(T,R), NDIM> >
