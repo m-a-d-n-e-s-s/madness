@@ -136,6 +136,7 @@ public:
 
   // reciprocal lattice vectors in cartesian coords
   std::vector<vec3dT> _gvecs;
+  std::vector<double> _glens;
   std::vector<int> _gshells;
   // lattice vectors, lengths and shells
   std::vector<vec3dT> _lvecs;
@@ -175,10 +176,10 @@ public:
     // read wannier functions
 //    read_wannier_functions();
 
-//    // compute response
-//    vec3dT qv;
-//    qv[0] = 1.0; qv[1] = 0.0; qv[2] = 0.0;
-//    response(qv);
+    // compute response
+    vec3dT qv;
+    qv[0] = 1.0; qv[1] = 0.0; qv[2] = 0.0;
+    response(qv);
   }
 
   vec3dT r3mv(const Tensor<double>& m, const vec3dT& v)
@@ -211,36 +212,47 @@ public:
     return -1;
   }
 
-//  Tensor<std::complex<double> > compute_A_coeffs(vec3dT qvec)
-//  {
-//    // Maximum number of r-shells, g-shells, number of wannier functions
-//    int nrshells = 2;
-//    int ngshells = 3;
-//    int nwann = 0;
-//    f_nwann_(&nwann);
-//
-//    // create return value
-//    Tensor<std::complex<double> > acoeffs()
-//
-//    // create exponential functions
-//    std::vector<cfunctionT> gfuns;
-//    int igsh = 0;
-//    for (int ig = 0; igsh < ngshells; ig++)
-//    {
-//      igsh = _gshells[ig];
-//      if (igsh < ngshells)
-//      {
-//        vec3dT g = _gvecs[ig];
-//        double qpg0 = g[0] + qvec[0];
-//        double qpg1 = g[1] + qvec[1];
-//        double qpg2 = g[2] + qvec[2];
-//        cfunctionT gf = cfactoryT(_world).functor(cfunctorT(new ComplexExpFunction(qpg0, qpg1, qpg2)));
-//        gfuns.push_back(gf);
-//      }
-//    }
-//
+  Tensor<std::complex<double> > compute_A_coeffs(vec3dT qvc)
+  {
+    // Maximum number of r-shells, g-shells, number of wannier functions
+    int nrshells = 2;
+    int ngshells = 10;
+    int nwann = 0;
+    f_nwann_(&nwann);
+
+    // find index for max number of r-shells
+    int nrvecs = -1;
+    for (unsigned int ir = 0; ir < _rshells.size() &&
+      (nrvecs == -1); ir++)
+    {
+      if (_rshells[ir] == nrshells)
+      {
+        nrvecs = ir-1;
+      }
+    }
+
+    // create return value
+    Tensor<std::complex<double> > acoeffs(nwann, nwann, nrvecs);
+
+    // create exponential functions
+    std::vector<cfunctionT> gfuns;
+    int igsh = 0;
+    for (int ig = 0; igsh < ngshells; ig++)
+    {
+      igsh = _gshells[ig];
+      if (igsh < ngshells)
+      {
+        vec3dT gc = _gvecs[ig];
+        double qpg0 = gc[0] + qvc[0];
+        double qpg1 = gc[1] + qvc[1];
+        double qpg2 = gc[2] + qvc[2];
+        cfunctionT gf = cfactoryT(_world).functor(cfunctorT(new ComplexExpFunction(qpg0, qpg1, qpg2)));
+        gfuns.push_back(gf);
+      }
+    }
+
 //    // Loop through i wannier functions
-//    for (unsigned int iwf = 0; iwf < _wfs.size(); iwf++)
+//    for (unsigned int iwf = 0; iwf < nwann; iwf++)
 //    {
 //      // search for wavefunction jwf and with translation ir == 0
 //      cfunctionT wannf_i;
@@ -282,19 +294,21 @@ public:
 //            }
 //            if (!jfound) MADNESS_EXCEPTION("Did not find jwf wavefunction!", 0);
 //          }
-//        }
 //
-//        // Loop through exponential functions of q+G
-//        for (unsigned int iqpg = 0; iqpg < gfuns.size(); iqpg++)
-//        {
-//          cfunctionT expqpg = gfuns[iqpg];
-//          std::complex<double> t1 = inner(wannf_i,expqpg*wannf_j);
-//
+//          // Loop through exponential functions of q+G
+//          for (unsigned int iqpg = 0; iqpg < gfuns.size(); iqpg++)
+//          {
+//            cfunctionT expqpg = gfuns[iqpg];
+//            std::complex<double> t1 = inner(wannf_i,expqpg*wannf_j);
+//            acoeffs[iwf,jwf,ir];
+//          }
 //        }
 //      }
 //    }
-//
-//  }
+
+    return acoeffs;
+
+  }
 
   void read_wannier_functions()
   {
@@ -385,25 +399,54 @@ public:
           vec3dT t1;
           t1[0] = i0; t1[1] = i1; t1[2] = i2;
           vec3dT gvec = r3mv(_bvec, t1);
-          _gvecs.push_back(gvec);
+          double gsize = sqrt(gvec[0]*gvec[0] + gvec[1]*gvec[1] + gvec[2]*gvec[2]);
+          if (gsize < gmaxlen)
+            _gvecs.push_back(gvec);
         }
       }
     }
     // sort g-vectors according to length
     std::sort(_gvecs.begin(), _gvecs.end(), vectorLengthFunctor());
     // lenths of g-vectors in cartesian
-    std::vector<double> glens(_gvecs.size());
+    _glens = std::vector<double>(_gvecs.size());
     for (unsigned int i = 0; i < _gvecs.size(); i++)
     {
       vec3dT gvec = _gvecs[i];
       double len = sqrt(gvec[0]*gvec[0] + gvec[1]*gvec[1] + gvec[2]*gvec[2]);
-      glens[i] = len;
+      _glens[i] = len;
     }
-//    for (unsigned int i = 0; i < gvecs.size(); i++)
+
+    // make vector of shell indicies
+    double eps = 1e-8;
+    _gshells = std::vector<int>(_gvecs.size());
+    int ishell = 0;
+    for (unsigned int ig = 0; ig < _glens.size(); ig++)
+    {
+      if (ig < (_glens.size()-1))
+      {
+        _gshells[ig] = ishell;
+        if (abs(_glens[ig+1] - _glens[ig]) > eps)
+        {
+          ishell++;
+        }
+      }
+      else
+      {
+        if (abs(_glens[ig] - _glens[ig-1]) > eps)
+        {
+          ishell++;
+        }
+        _gshells[ig] = ishell;
+      }
+    }
+
+//    // debug print stuff
+//    for (unsigned int i = 0; i < _gvecs.size(); i++)
 //    {
-//      vec3dT gvec = gvecs[i];
-//      double glen = glens[i];
-//      printf("%12.7f%12.7f%12.7f%25.7f\n", gvec[0], gvec[1], gvec[2], glen);
+//      vec3dT gvec = _gvecs[i];
+//      double glen = _glens[i];
+//      int ishell = _gshells[i];
+//      printf("%12.7f%12.7f%12.7f%25.7f%25d\n", gvec[0], gvec[1], gvec[2], glen, ishell);
 //    }
   }
 
@@ -464,14 +507,14 @@ public:
       }
     }
 
-    // debug print stuff
-    for (unsigned int i = 0; i < _lvecs.size(); i++)
-    {
-      vec3dT rvec = _lvecs[i];
-      double rlen = _rlens[i];
-      int ishell = _rshells[i];
-      printf("%12.7f%12.7f%12.7f%25.7f%25d\n", rvec[0], rvec[1], rvec[2], rlen, ishell);
-    }
+//    // debug print stuff
+//    for (unsigned int i = 0; i < _lvecs.size(); i++)
+//    {
+//      vec3dT rvec = _lvecs[i];
+//      double rlen = _rlens[i];
+//      int ishell = _rshells[i];
+//      printf("%12.7f%12.7f%12.7f%25.7f%25d\n", rvec[0], rvec[1], rvec[2], rlen, ishell);
+//    }
   }
 
   void read_kpoints()
@@ -518,6 +561,9 @@ public:
     }
     //printf("\n\n%12.7f%12.7f%12.7f\n\n", qvl[0], qvl[1], qvl[2]);
 
+    // compute qvec to cartesian coords
+    vec3dT qvc = r3mv(_bvec,qvl);
+
     // create vector of k+q vector indicies for response
     double eps = 1e-8;
     std::vector<unsigned int> indxkpq(_vkl.size());
@@ -562,6 +608,8 @@ public:
         }
       }
     }
+
+    compute_A_coeffs(qvc);
 
     // Compute the product of coeff's (boy, this is nasty)
     Tensor< std::complex<double> > c1kc2kq(nwann, nwann, nwann, nwann, _vkl.size());
