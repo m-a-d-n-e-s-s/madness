@@ -25,12 +25,12 @@ typedef SeparatedConvolution<double_complex,1> complex_operatorT;
 // Simulation parameters
 static const double L = 100.0; // Simulation in [-L,L]
 static const double x0 = -L + 10.0; // Initial position of the atom
-static const double energy_exact = -6.1887887757287948; // From Maple, probably OK to 1e-14
-static const long k = 8;        // wavelet order
-static const double thresh = 1e-6; // precision
-static const double velocity = 0.0;
-//static const double eshift = energy_exact + 0.5*velocity*velocity; // Use this value to remove rotating phase
-static const double eshift = 0.0;
+static const double energy_exact = -6.188788775728796797594788; // From Maple
+static const long k = 16;        // wavelet order
+static const double thresh = 1e-10; // precision
+static const double velocity = 3.0;
+static const double eshift = energy_exact + 0.5*velocity*velocity; // Use this value to remove rotating phase
+//static const double eshift = 0.0;
 
 static double current_time = 0.0; // Lazy but easier than making functors for everything
 
@@ -47,8 +47,7 @@ double_complex psi_exact(const coordT& r) {
 
     const double xsq = x*x;
     
-    // Horner's form for stability
-
+    // Horner's form for stability ... yes ... it is 70-order polyn ... don't panic ... all is OK
     const double psi = exp(-1.30*xsq)*(-1.02151632756275513018719494826+(.522210612113707231536059971069+(-.378478352719362210706386739834+(.183732263756009855463432582593+(-0.866826311335724362186706464428e-1+(0.364601910940641762284283418688e-1+(-0.144289291226899801775738667691e-1+(0.536464813679927807734520149659e-2+(-0.188945345474975346004237994967e-2+(0.628725522158030920219217207400e-3+(-0.195986657875763402765072721284e-3+(0.563993909330309881048156461300e-4+(-0.147273758530730072646826354339e-4+(0.343202525037692780236348165792e-5+(-7.03765391498970506694108123682e-7+(1.25577395245191089173671652503e-7+(-1.93270666918809750376161513191e-8+(2.54624395753990033043923369519e-9+(-2.84968491109847694778452937732e-10+(2.68398879018928855922002181223e-11+(-2.09811331054703124038096336404e-12+(1.32869596552058891546970129944e-13+(-6.47453843054578193348503832223e-15+(2.08146181239264250219157355910e-16+(-8.27692933283146365185698371000e-19+(-4.21076100567125673420604632290e-19+(3.34873683682880953223636900553e-20+(-1.62840449033428572820374528252e-21+(5.80781234060753332169593869292e-23+(-1.58754665363960354625758075480e-24+(3.34792415609741263184593450566e-26+(-5.37727687523701580992550859153e-28+(6.37706272777548158355242766766e-30+(-5.27154378837014394526580093435e-32+(2.71430533655911926094030668033e-34-6.55694230766452931026127498540e-37*xsq)*xsq)*xsq)*xsq)*xsq)*xsq)*xsq)*xsq)*xsq)*xsq)*xsq)*xsq)*xsq)*xsq)*xsq)*xsq)*xsq)*xsq)*xsq)*xsq)*xsq)*xsq)*xsq)*xsq)*xsq)*xsq)*xsq)*xsq)*xsq)*xsq)*xsq)*xsq)*xsq)*xsq)*xsq);
 
     // Galilean translation factor
@@ -60,73 +59,49 @@ double_complex psi_exact(const coordT& r) {
 // Time-dependent potential for translating atom
 double V(const coordT& r) {
     const double x = r[0] - atom_position();
+    if (fabs(x) > 5.5) return 0.0;
+
     return -8.0*exp(-x*x) - eshift;
 }
 
+template<typename T, int NDIM>
+struct unaryexp {
+    void operator()(const Key<NDIM>& key, Tensor<T>& t) const {
+        UNARY_OPTIMIZED_ITERATOR(T, t, *_p0 = exp(*_p0););
+    }
+    template <typename Archive>
+    void serialize(Archive& ar) {}
+};
 
-// // Evolve the wave function one step in real time using Trotter.
-// // G0 = G0(tstep/2)
-// complex_functionT propagate(World& world, const complex_operatorT& G0, const complex_functionT& psi0, const double tstep) {
-//     functionT zdip = factoryT(world).f(zdipole);
 
-//     if (world.rank() == 0) print("truncating");
-//     psi.truncate();
-//     if (world.rank() == 0) print("initial normalize");    
-//     psi.scale(1.0/psi.norm2());
-//     int steplo = -1;
-//     for (int step=steplo; step<nstep; step++) {
-//         if (world.rank() == 0) print("\nStarting time step",step,tstep*step);
+// Evolve forward one time step using Trotter ... G = G0(tstep/2)
+complex_functionT trotter(World& world, const complex_operatorT& G, const complex_functionT& psi0, const double tstep) {
+    complex_functionT psi = apply(G, psi0);
+    psi.truncate();
+    current_time += 0.5*tstep;
 
-//         energy(world, psi, potn+laser((step)*tstep)*zdip);  // Use field at current time to evaluate energy
+    functionT potn = factoryT(world).f(V);
+    potn.reconstruct();
+    complex_functionT expV = double_complex(0.0,-tstep)*potn;
+    expV.unaryop(unaryexp<double_complex,1>());
 
-//         double_complex dipole = inner(psi,zdip*psi);
-//         if (world.rank() == 0) print("THE DIPOLE IS", dipole);
+    psi = apply(G, expV*psi);
+    psi.truncate();
+    
+    current_time += 0.5*tstep;
 
-//         if (step > steplo) {
-//             if (world.rank() == 0) print("load balancing");
-//             LoadBalImpl<3> lb(psi, lbcost<double_complex,3>);
-//             lb.load_balance();
-//             FunctionDefaults<3>::set_pmap(lb.load_balance());
-//             world.gop.fence();
-//             psi = copy(psi, FunctionDefaults<3>::get_pmap(), false);
-//             potn = copy(potn, FunctionDefaults<3>::get_pmap(), true);
-//             zdip = copy(zdip, FunctionDefaults<3>::get_pmap(), true);
-//         }
+    return psi;
+}
 
-//         if (world.rank() == 0) print("making expV");
-//         functionT totalpotn = potn + laser((step+0.5)*tstep)*zdip; // Use midpoint field to advance in time
-//         //totalpotn.refine();
-//         totalpotn.reconstruct();
-//         complex_functionT expV = double_complex(0.0,-tstep)*totalpotn;
-//         expV.unaryop(unaryexp<double_complex,3>());
-//         expV.truncate();
-//         //expV.refine();
-//         expV.reconstruct();
-//         double expVnorm = expV.norm2();
-//         if (world.rank() == 0) print("expVnorm", expVnorm);
+void print_info(World& world, const complex_functionT& psi) {
+    functionT potn = factoryT(world).f(V);
+    complex_functionT dpsi = diff(psi,0);
+    double ke = inner(dpsi,dpsi).real() * 0.5;
+    double pe = psi.inner(psi*potn).real();
+    double norm = psi.norm2();
 
-//         long sz = psi.size();
-//         //psi.refine();
-//         if (world.rank() == 0) print("applying operator 1",sz);
-//         psi = apply(G, psi);
-//         psi.truncate();
-//         //psi.refine();
-
-//         sz = psi.size();
-//         if (world.rank() == 0) print("multipling by expV",sz);
-//         psi = expV*psi;
-//         psi.truncate();
-//         //psi.refine();
-//         sz = psi.size();
-//         if (world.rank() == 0) print("applying operator 2",sz);
-//         psi = apply(G, psi);
-//         psi.truncate();
-//         sz = psi.size();
-//         double norm = psi.norm2();
-//         if (world.rank() == 0) print(step, step*tstep, norm,sz);
-//     }
-// }
-
+    printf("%8.2f %12.8f %12.8f %12.8f %12.8f %12.8f\n", current_time, atom_position(), norm, ke, pe, ke+pe);
+}
 
 int main(int argc, char** argv) {
     initialize(argc, argv);
@@ -149,21 +124,24 @@ int main(int argc, char** argv) {
     print("Critical time step is", tcrit);
 
     complex_functionT psi = complex_factoryT(world).f(psi_exact);
-    functionT potn = factoryT(world).f(V);
 
-    complex_functionT dpsi = diff(psi,0);
-    double ke = inner(dpsi,dpsi).real() * 0.5;
-    double pe = psi.inner(psi*potn).real();
-    print(ke, pe, pe+ke);
 
-    print("initial norm", psi.norm2());
+    double tstep = tcrit; // This choice for Trotter
 
-    double tstep = 10.0*tcrit;
 
-    print(tstep/tcrit);
+    int nstep = velocity==0 ? 100 : (L - 10 - x0)/velocity/tstep;
+
+
+    print("No. of time steps is", nstep);
+    printf("  time      atom x        norm        kinetic    potential      energy\n");
+    printf("-------- ------------ ------------ ------------ ------------ ------------\n");
 
     // This section does Trotter
-    //SeparatedConvolution<double_complex,1> G0 = qm_free_particle_propagator<3>(world, k, c, tstep, 2*L);
+    SeparatedConvolution<double_complex,1> G0 = qm_free_particle_propagator<1>(world, k, c, 0.5*tstep, 2*L);
+    for (int step=0; step<nstep; step++) {
+        print_info(world, psi);
+        psi = trotter(world, G0, psi, tstep);
+    }
 
     world.gop.fence();
 
