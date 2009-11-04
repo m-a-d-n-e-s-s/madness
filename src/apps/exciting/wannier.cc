@@ -16,6 +16,9 @@ extern "C" void f_ngridk_(int*, int*, int*);
 extern "C" void f_wann_c_(int*, int*, int*, double*);
 extern "C" void f_nwann_(int*);
 extern "C" void f_wann_center_(int*,double*);
+extern "C" void f_nstsv_(int*);
+extern "C" void f_get_evalsv_(int*,double*);
+extern "C" void f_get_occsv_(int*,double*);
 
 using namespace madness;
 
@@ -138,20 +141,26 @@ public:
   std::vector<vec3dT> _gvecs;
   std::vector<double> _glens;
   std::vector<int> _gshells;
+  double _gmaxlen;
+
   // lattice vectors, lengths and shells
   std::vector<vec3dT> _lvecs;
   std::vector<double> _rlens;
   std::vector<int> _rshells;
+  double _rmaxlen;
+
   // matrices to convert from cartesian to
   // lattice coordinates
   Tensor<double> _avec;
   Tensor<double> _bvec;
   Tensor<double> _ainv;
   Tensor<double> _binv;
+
   // k-mesh grid size
   int _ngridk0;
   int _ngridk1;
   int _ngridk2;
+
   // k-points in lattice coordinates
   std::vector<vec3dT> _vkl;
   // k-points in cartesian coordinates
@@ -161,8 +170,28 @@ public:
   // wannier functions
   std::vector<wannierf> _wfs;
 
+  // response
+  int _nrshells;
+  int _ngshells;
+  double _maxomega;
+  double _domega;
+  vec3dT _qv;
+  double _eta;
+
   ExcitingApp(World& world) : _world(world)
   {
+    // set defaults
+    _gmaxlen = 20.0;
+    _rmaxlen = 25.0;
+    _nrshells = 3;
+    _ngshells = 10;
+    _maxomega = 20.0;
+    _domega = 0.05;
+    _qv[0] = 1.0; _qv[1] = 0.0; _qv[2] = 0.0;
+    _eta = 0.1;
+
+    // read input file
+    readinput();
     // initialize exciting
     exciting_init_();
     // read lattice from exciting
@@ -177,9 +206,53 @@ public:
 //    read_wannier_functions();
 
     // compute response
-    vec3dT qv;
-    qv[0] = 1.0; qv[1] = 0.0; qv[2] = 0.0;
-    response(qv);
+    response(_qv);
+  }
+
+  void readinput()
+  {
+    std::ifstream afile("wannier.in");
+    if (afile.is_open())
+    {
+      string line;
+      while (!afile.eof())
+      {
+        getline(afile,line);
+
+        if (line[0] != '!')
+        {
+          if (line.find("tasks") != string::npos)
+          {
+            int task = -1;
+            getline(afile,line);
+            task = atoi(line.c_str());
+          }
+          if (line.find("gmaxlen") != string::npos)
+          {
+            afile >> _gmaxlen;
+          }
+          if (line.find("rmaxlen") != string::npos)
+          {
+            afile >> _rmaxlen;
+          }
+          if (line.find("response") != string::npos)
+          {
+            // we're only going to do one q value for now
+            int nqv = 0;
+            afile >> nqv;
+            afile >> _ngshells;
+            afile >> _nrshells;
+            if (nqv != 1)
+              MADNESS_EXCEPTION("Only allowing number of Q's to be 1!\n", 0);
+            afile >> _qv[0]; afile >> _qv[1]; afile >> _qv[2];
+          }
+        }
+      }
+    }
+    else
+    {
+      if (_world.rank() == 0) printf("Could not open file!\n");
+    }
   }
 
   vec3dT r3mv(const Tensor<double>& m, const vec3dT& v)
@@ -214,18 +287,18 @@ public:
 
   Tensor<std::complex<double> > compute_A_coeffs(vec3dT qvc)
   {
-    // Maximum number of r-shells, g-shells, number of wannier functions
-    int nrshells = 2;
-    int ngshells = 10;
+    // number of wannier functions
     int nwann = 0;
     f_nwann_(&nwann);
 
+    // now we need to know how many lattice vectors are contained
+    // in the maximum number of rshells
     // find index for max number of r-shells
     int nrvecs = -1;
     for (unsigned int ir = 0; ir < _rshells.size() &&
       (nrvecs == -1); ir++)
     {
-      if (_rshells[ir] == nrshells)
+      if (_rshells[ir] == _nrshells)
       {
         nrvecs = ir-1;
       }
@@ -235,13 +308,15 @@ public:
     Tensor<std::complex<double> > acoeffs(nwann, nwann, nrvecs);
 
     // create exponential functions
+    // exp(i(G+q)r)
     std::vector<cfunctionT> gfuns;
     int igsh = 0;
-    for (int ig = 0; igsh < ngshells; ig++)
+    for (int ig = 0; igsh < _ngshells; ig++)
     {
       igsh = _gshells[ig];
-      if (igsh < ngshells)
+      if (igsh < _ngshells)
       {
+        // get g-vector in cartesian coord and add to q (cartesian coord)
         vec3dT gc = _gvecs[ig];
         double qpg0 = gc[0] + qvc[0];
         double qpg1 = gc[1] + qvc[1];
@@ -251,60 +326,59 @@ public:
       }
     }
 
-//    // Loop through i wannier functions
-//    for (unsigned int iwf = 0; iwf < nwann; iwf++)
-//    {
-//      // search for wavefunction jwf and with translation ir == 0
-//      cfunctionT wannf_i;
-//      bool ifound = false;
-//      for (unsigned ifn = 0; ifn < _wfs.size() && !ifound; ifn++)
-//      {
-//        int wfn = _wfs[ifn].n;
-//        unsigned int wfir = _wfs[ifn].rindx;
-//        if ((iwf == wfn) && (wfir == 0))
-//        {
-//          wannf_i = _wfs[ifn].f;
-//          ifound = true;
-//        }
-//      }
-//      if (!ifound) MADNESS_EXCEPTION("Did not find iwf wavefunction!", 0);
-//
-//      // Loop through j wannier functions
-//      for (unsigned int jwf = 0; jwf < iwf; jwf++)
-//      {
-//        // Loop over lattice translations less than nrshells
-//        int irsh = 0;
-//        for (int ir = 0; irsh < nrshells; ir++)
-//        {
-//          irsh = _rshells[ir];
-//          if (irsh < nrshells)
-//          {
-//            // search for wavefunction jwf and with translation ir
-//            cfunctionT wannf_j;
-//            bool jfound = false;
-//            for (unsigned ifn = 0; ifn < _wfs.size() && !jfound; ifn++)
-//            {
-//              int wfn = _wfs[ifn].n;
-//              unsigned int wfir = _wfs[ifn].rindx;
-//              if ((jwf == wfn) && (wfir == ir))
-//              {
-//                wannf_j = _wfs[ifn].f;
-//                jfound = true;
-//              }
-//            }
-//            if (!jfound) MADNESS_EXCEPTION("Did not find jwf wavefunction!", 0);
-//          }
-//
-//          // Loop through exponential functions of q+G
-//          for (unsigned int iqpg = 0; iqpg < gfuns.size(); iqpg++)
-//          {
-//            cfunctionT expqpg = gfuns[iqpg];
-//            std::complex<double> t1 = inner(wannf_i,expqpg*wannf_j);
-//            acoeffs[iwf,jwf,ir];
-//          }
-//        }
-//      }
-//    }
+    // Loop through i wannier functions
+    for (unsigned int iwf = 0; iwf < nwann; iwf++)
+    {
+      // search for wavefunction jwf and with translation ir == 0
+      cfunctionT wannf_i;
+      bool ifound = false;
+      for (unsigned ifn = 0; ifn < _wfs.size() && !ifound; ifn++)
+      {
+        int wfn = _wfs[ifn].n;
+        unsigned int wfir = _wfs[ifn].rindx;
+        if ((iwf == wfn) && (wfir == 0))
+        {
+          wannf_i = _wfs[ifn].f;
+          ifound = true;
+        }
+      }
+      if (!ifound) MADNESS_EXCEPTION("Did not find iwf wavefunction!", 0);
+
+      // Loop through j wannier functions
+      for (unsigned int jwf = 0; jwf < nwann; jwf++)
+      {
+        // Loop over lattice translations less than nrshells
+        int irsh = 0;
+        for (int ir = 0; irsh < _nrshells; ir++)
+        {
+          // search for wavefunction jwf and with translation ir
+          cfunctionT wannf_j;
+          irsh = _rshells[ir];
+          if (irsh < _nrshells)
+          {
+            bool jfound = false;
+            for (unsigned ifn = 0; ifn < _wfs.size() && !jfound; ifn++)
+            {
+              int wfn = _wfs[ifn].n;
+              unsigned int wfir = _wfs[ifn].rindx;
+              if ((jwf == wfn) && (wfir == ir))
+              {
+                wannf_j = _wfs[ifn].f;
+                jfound = true;
+              }
+            }
+            if (!jfound) MADNESS_EXCEPTION("Did not find jwf wavefunction!", 0);
+          }
+
+          // Loop through exponential functions of q+G
+          for (unsigned int iqpg = 0; iqpg < gfuns.size(); iqpg++)
+          {
+            cfunctionT expqpg = gfuns[iqpg];
+            acoeffs[iwf,jwf,ir] = inner(wannf_i,expqpg*wannf_j);
+          }
+        }
+      }
+    }
 
     return acoeffs;
 
@@ -386,7 +460,6 @@ public:
 
   void generate_gvectors()
   {
-    double gmaxlen = 20.0;
     int ghi = 31;
     int glo = -30;
 
@@ -400,7 +473,7 @@ public:
           t1[0] = i0; t1[1] = i1; t1[2] = i2;
           vec3dT gvec = r3mv(_bvec, t1);
           double gsize = sqrt(gvec[0]*gvec[0] + gvec[1]*gvec[1] + gvec[2]*gvec[2]);
-          if (gsize < gmaxlen)
+          if (gsize < _gmaxlen)
             _gvecs.push_back(gvec);
         }
       }
@@ -452,7 +525,6 @@ public:
 
   void generate_lvectors()
   {
-    double rmaxlen = 20.0;
     int hi = 21;
     int lo = -20;
 
@@ -467,7 +539,7 @@ public:
           t1[0] = i0; t1[1] = i1; t1[2] = i2;
           vec3dT lvec = r3mv(_avec, t1);
           double lsize = sqrt(lvec[0]*lvec[0] + lvec[1]*lvec[1] + lvec[2]*lvec[2]);
-          if (lsize < rmaxlen)
+          if (lsize < _rmaxlen)
             _lvecs.push_back(lvec);
         }
       }
@@ -604,15 +676,19 @@ public:
           double val[2];
           f_wann_c_(&iwf, &iband, &ik, &val[0]);
           // need the hermitian conjugate
+          // notice that I have switched 'band index' and 'wf index'
           wann_c(iband-1, iwf-1, ik-1) = std::complex<double>(val[0],-val[1]);
         }
       }
     }
 
-    compute_A_coeffs(qvc);
+    // compute acoeffs
+    Tensor< std::complex<double> > acoeffs = compute_A_coeffs(qvc);
 
     // Compute the product of coeff's (boy, this is nasty)
-    Tensor< std::complex<double> > c1kc2kq(nwann, nwann, nwann, nwann, _vkl.size());
+    // these are the also apart of equation 2.28 (left and right products)
+    Tensor< std::complex<double> > c1kc2kq_l(nwann, nwann, nwann, nwann, _vkl.size());
+    Tensor< std::complex<double> > c1kc2kq_r(nwann, nwann, nwann, nwann, _vkl.size());
     for (int iwf = 0; iwf < nwann; iwf++)
     {
       for (int jwf = 0; jwf < nwann; jwf++)
@@ -625,12 +701,146 @@ public:
             {
               std::complex<double> first = wann_c(iwf, iband, ik);
               std::complex<double> second = wann_c(jwf, jband, indxkpq[ik]);
-              c1kc2kq(iwf, iband, jwf, jband, ik) = conj(first) * second;
+              c1kc2kq_l(iwf, iband, jwf, jband, ik) = conj(first) * second;
+              first = wann_c(iwf, iband, indxkpq[ik]);
+              second = wann_c(jwf, jband, ik);
+              c1kc2kq_r(iwf, iband, jwf, jband, ik) = first * conj(second);
             }
           }
         }
       }
     }
+
+    // read in eigenvalues from exciting
+    int nstsv;
+    f_nstsv_(&nstsv);
+    Tensor<double> evalsv(nstsv,_vkl.size());
+    for (int ik = 1; ik <= _vkl.size(); ik++)
+    {
+      double* t1ek = new double[nstsv];
+      f_get_evalsv_(&ik,t1ek);
+      for (int ist = 0; ist < nstsv; ist++)
+      {
+        evalsv(ist,ik-1) = t1ek[ist];
+      }
+      delete t1ek;
+    }
+    // read in occupation numbers from exciting
+    Tensor<double> occsv(nstsv,_vkl.size());
+    for (int ik = 1; ik <= _vkl.size(); ik++)
+    {
+      double* t1ock = new double[nstsv];
+      f_get_occsv_(&ik,t1ock);
+      for (int ist = 0; ist < nstsv; ist++)
+      {
+        occsv(ist,ik-1) = t1ock[ist];
+      }
+      delete t1ock;
+    }
+
+//    printf("\n");
+//    vec3dT dvec = _vkl[1];
+//    printf("\n%10.5f%10.5f%10.5f\n\n",dvec[0],dvec[1],dvec[2]);
+//    for (int ist = 0; ist < nstsv; ist++)
+//    {
+//      printf("%d\t%23.7f%13.7f\n", ist, evalsv(ist,1), occsv(ist,1));
+//    }
+//    printf("\n");
+//    printf("\n");
+//    dvec = _vkl[3];
+//    printf("\n%10.5f%10.5f%10.5f\n\n",dvec[0],dvec[1],dvec[2]);
+//    for (int ist = 0; ist < nstsv; ist++)
+//    {
+//      printf("%d\t%23.7f%13.7f\n", ist, evalsv(ist,3), occsv(ist,3));
+//    }
+//    printf("\n");
+//    printf("\n");
+//    dvec = _vkl[7];
+//    printf("\n%10.5f%10.5f%10.5f\n\n",dvec[0],dvec[1],dvec[2]);
+//    for (int ist = 0; ist < nstsv; ist++)
+//    {
+//      printf("%d\t%23.7f%13.7f\n", ist, evalsv(ist,7), occsv(ist,7));
+//    }
+//    printf("\n");
+//    printf("\n");
+//    dvec = _vkl[13];
+//    printf("\n%10.5f%10.5f%10.5f\n\n",dvec[0],dvec[1],dvec[2]);
+//    for (int ist = 0; ist < nstsv; ist++)
+//    {
+//      printf("%d\t%23.7f%13.7f\n", ist, evalsv(ist,13), occsv(ist,13));
+//    }
+//    printf("\n");
+//    printf("\n");
+//    dvec = _vkl[43];
+//    printf("\n%10.5f%10.5f%10.5f\n\n",dvec[0],dvec[1],dvec[2]);
+//    for (int ist = 0; ist < nstsv; ist++)
+//    {
+//      printf("%d\t%23.7f%13.7f\n", ist, evalsv(ist,43), occsv(ist,43));
+//    }
+//    printf("\n");
+
+    // compute energy difference denominators
+    Tensor< std::complex<double> > redm(nwann,nwann,ik,nomega);
+    int nomega = floor(_maxomega / _domega);
+    for (unsigned int n1 = 0; n1 < nwann; n1++)
+    {
+      for (unsigned int n2 = 0; n2 < nwann; n2++)
+      {
+        double t1 = evalsv(n1,indxkpq[ik])-evalsv(n2,ik);
+        for (int iw = 0; iw < nomega; iw++)
+        {
+          double w = iw*_domega;
+          redm(n1,n2,ik,iw) = std::complex<double>(1.0,0.0) / std::complex<double>(t1-w,_eta);
+        }
+      }
+    }
+
+    // this next section follows (2.28) of PRB 25, 2867 (1982)
+    Tensor< std::complex<double> > kiks();
+    for (unsigned int nu = 0; nu < nwann; nu++)
+    {
+      for (unsigned int mu = 0; mu < nwann; mu++)
+      {
+        for (unsigned int nup = 0; nup < nwann; nup++)
+        {
+          for (unsigned int mup = 0; mup < nwann; mup++)
+          {
+            int ishell = 0;
+            for (int ir = 0; ishell < _nrshells; ir++)
+            {
+              ishell = _rshells[ir];
+              if (ishell < _nrshells)
+              {
+                vec3dT tr = _lvecs[ir];
+                for (int ik = 0; ik < _vkl.size(); ik++)
+                {
+                  vec3dT tkpq = _vkc[indxkpq[ik]];
+                  double t1 = tkpq[0]*tr[0] + tkpq[1]*tr[1] + tkpq[2]*tr[2];
+                  std::complex<double> pf = exp(std::complex<double>(0.0, t1));
+                  // loop over band indicies
+                  for (int n1 = 0; n1 < nwann; n1++)
+                  {
+                    for (int n2 = 0; n2 < nwann; n2++)
+                    {
+                      std::complex<double> t1 = c1kc2kq_l(nu,n2,mu,n1,ik) *
+                          c1kc2kq_r(nup,n2,mup,n1,ik);
+                      double t2 = 2.0 * (occsv(n1,indxkpq[ik])-occsv(n2,ik));
+                      std::complex<double> t3 = t1 * t2;
+                      for (int iw = 0; iw < nomega; iw++)
+                      {
+
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+
   }
 };
 
