@@ -30,9 +30,10 @@ namespace madness {
         // n will always be k or 2k (k=wavelet order) and m will be anywhere
         // from 2^(NDIM-1) to (2k)^(NDIM-1).
 
-        //         for (long i=0; i<n; i++)
-        //             for (long j=0; j<m; j++)
-        //                 b[j*n+i] = a[i*m+j];
+//                  for (long i=0; i<n; i++)
+//                      for (long j=0; j<m; j++)
+//                          b[j*n+i] = a[i*m+j];
+//                  return;
 
         if (n==1 || m==1) {
             long nm=n*m;
@@ -266,10 +267,16 @@ namespace madness {
                     copy_2d_patch(R.ptr()       + k, 2*k, rm.ptr(), k, k, k);
                 }
 
+                //print("R ", n, lx, R.normf(), r0.normf(), rp.normf(), rm.normf());
+
+
                 {
                     PROFILE_BLOCK(Convolution1D_nstran);
                     R = transform(R,hgT);
                 }
+
+                //print("RX", n, lx, R.normf(), r0.normf(), rp.normf(), rm.normf());
+
                 // Enforce symmetry because it seems important ... what about complex?????????
 //                 if (lx == 0)
 //                     for (int i=0; i<2*k; i++)
@@ -284,10 +291,14 @@ namespace madness {
                     fast_transpose(2*k, 2*k, R.ptr(), RT.ptr());
                     R = RT;
 
+                    //print("RT", n, lx, R.normf(), r0.normf(), rp.normf(), rm.normf());
+
                     //T = copy(R(s0,s0));
                     T = Tensor<Q>(k,k);
                     copy_2d_patch(T.ptr(), k, R.ptr(), 2*k, k, k);
                 }
+
+                //print("NS", n, lx, R.normf(), T.normf());
             }
 
             ns_cache.set(n,lx,ConvolutionData1D<Q>(R,T));

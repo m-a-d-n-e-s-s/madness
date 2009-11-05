@@ -4,7 +4,11 @@
 #include <mra/mra.h>
 
 namespace madness {
-    /// Simplified interface around hash_map to cache stuff for 1D
+    /// Simplified interface around hash_map to cache stuff for 1D 
+
+    /// This is a write once cache --- subsequent writes of elements
+    /// have no effect (so that pointers/references to cached data
+    /// cannot be invalidated)
     template <typename Q, int NDIM>
     class SimpleCache {
     private:
