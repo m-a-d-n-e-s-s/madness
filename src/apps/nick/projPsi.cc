@@ -414,28 +414,31 @@ void printBasis(World& world, double Z) {
         PRINTLINE("Psi( t=0 ) must be present");
     }
 
-    double dARR[3] = {0, 0, 0.5};
+    double dARR[3] = {0, 0, 0.1};
     vector3D kVec(dARR);
     BoundWF psi_100(Z,1,0,0);
-    //    ScatteringWF psi_k(Z, kVec);
+    ScatteringWF psi_k(Z, kVec);
     double PHI = 0.0;
     double TH = 0.0;
     //for(double TH=0; TH<3.14; TH+=0.3 ) {
-    PRINTLINE("k = {" << kVec );
-    cout.precision(2);
+    PRINTLINE("k = " << kVec);
     //    for(double r=0; r<sqrt(3)*psi_k.domain*psi_k.k; r+=1.0 ) {
-    for(double r=0; r<sqrt(3)*10; r+=1.0 ) {
-        cout << scientific;
+    for(double r=0; r<std::sqrt(3)*2*0.1*30; r+=0.0001 ) {
+        cout.precision(4);
+        cout << fixed;
         cosTH =  std::cos(TH);
         sinTH =  std::sin(TH);
         cosPHI = std::cos(PHI);
         sinPHI = std::sin(PHI);
         double dARR[3] = {r*sinTH*cosPHI, r*sinTH*sinPHI, r*cosTH};        
         //        PRINTLINE(r << "\t" << psi_k.diffR(r) << " + I" << psi_k.diffI(r));
-        //output = psi_k(dARR);
-        output = psi_100(dARR);
-        output2 = psi0(dARR);
-        PRINTLINE(r << "\t" << real(output) << "\t" << real(output2) << "\t" << dARR);
+        output = psi_k(dARR);
+        //output = psi_100(dARR);
+        //output2 = psi0(dARR);
+        PRINT(r);
+        cout.precision(7);
+        //PRINTLINE("\t" << real(output) << "\t" << real(output2) << "\t" << dARR);
+        PRINTLINE("\t" << real(output) << "\t" << imag(output));
     }
     //    use sed to make the complexd output standard
     //    system("sed -i '' -e's/\\+/, /' -e's/j//' f11.out");

@@ -6,7 +6,7 @@ omega 1.32
 ncycle 2
 natom 1
    1.0    0.0 0.0 0.0
-k 12
+k 20
 thresh 1e-5
 safety 1e-0
 cut 0.1
