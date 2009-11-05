@@ -94,7 +94,7 @@ namespace madness {
     private:
         internal_iteratorT  it;       ///< Iterator from local container
         bool is_local;                ///< If true we are using the local container
-        mutable value_type value;     ///< If (!is_local) holds the remote value
+        mutable typename madness::remove_const<value_type>::type value;///< holds the remote values
 
     public:
         /// Default constructor makes a local uninitialized value
