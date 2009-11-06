@@ -21,7 +21,8 @@ typedef SharedPtr< FunctionFunctorInterface<double_complex,1> > complex_functorT
 typedef Function<double_complex,1> complex_functionT;
 typedef FunctionFactory<double_complex,1> complex_factoryT;
 typedef SeparatedConvolution<double_complex,1> complex_operatorT;
-
+typedef SharedPtr<complex_operatorT> pcomplex_operatorT;
+ 
 // Simulation parameters
 static const double L = 100.0; // Simulation in [-L,L]
 static const double x0 = -L + 10.0; // Initial position of the atom
@@ -114,6 +115,120 @@ void print_info(World& world, const complex_functionT& psi, int step) {
            step, current_time, atom_position(), norm, ke, pe, ke+pe, err);
 }
 
+/////////////////////////////////// For quadrature rules///////////////////////////////
+// global vars for the laziness
+static const double_complex I = double_complex(0,1);
+vector<double> B, tc;
+pcomplex_operatorT G;
+vector<pcomplex_operatorT> Gs, Gss;
+const int maxiter = 20;
+const double fix_iter_tol = 1e-5;
+int np=3; // number of quadrature pts
+
+static void readin(int np) {
+	B.resize(np);
+	tc.resize(np);
+	
+	if (np==1) {
+		tc[0] = 0.5;
+		B[0] = 1;
+	} else if (np==2) {
+		tc[0] = .2113248654051871; 
+		tc[1] = .7886751345948129; 
+		B[0] = .5; 
+		B[1] = .5;
+	} else if (np==3) {
+		tc[0] = .11270166537925831; 
+		tc[1] = .5; 
+		tc[2] = .88729833462074169; 
+		B[0]  = .277777777777777777777777777778; 
+		B[1]  = .444444444444444444444444444444; 
+		B[2]  = .277777777777777777777777777778;
+	} else if (np==4) {
+		tc[0] = .06943184420297371; 
+		tc[1] = .33000947820757187; 
+		tc[2] = .66999052179242813; 
+		tc[3] = .93056815579702629;
+		B[0]  = .173927422568726928686531974611; 
+		B[1]  = .326072577431273071313468025389;
+		B[2]  = .326072577431273071313468025389; 
+		B[3]  = .173927422568726928686531974611;
+	} else {
+		print("invalid np, throw now");
+		throw;
+	}
+}
+
+//j_th interpolating coefficients
+double icoeff(const int np, const int j, const double t) {
+	double dum = 1;
+	for (int i=  0; i< j; ++i) dum *= (t-tc[i])/(tc[j]-tc[i]);
+	for (int i=j+1; i<np; ++i) dum *= (t-tc[i])/(tc[j]-tc[i]);
+	return dum;
+}
+
+//interpolate ps at t
+template<typename T> T myp(const vector<T>& ps, const double t) {
+	int np = ps.size();
+	T p = ps[0]*icoeff(np, 0, t);
+	for (int j=1; j<np; ++j) p += ps[j]*icoeff(np, j, t);
+	return p;
+}
+
+// Evolve forward one time step using quadrature rules
+complex_functionT q_r(World& world, const int np, const complex_functionT psi0, const double tstep) {
+    //can be more vectorized.
+	
+	vector<complex_functionT> ps(np), ps1(np);
+    for (int i=0; i<np; ++i) ps[i] = copy(psi0);
+	
+	
+	double tdum = current_time;
+	complex_functionT pdum;
+	vector<complex_functionT> qs(np);
+	vector<functionT> Vs(np);
+	vector< vector<functionT> > Vss(np);
+	for (int i=0; i<np; ++i) {
+		current_time = tdum + tstep*tc[i];
+		qs[i] = apply(*Gs[np - i - 1], psi0).truncate();
+		Vs[i] = factoryT(world).f(V).truncate_on_project();
+		Vs[i].truncate();
+		Vss[i].resize(np);
+		for (int k=0; k<np; ++k) {
+			current_time = tdum + tstep*tc[i]*tc[k];
+			Vss[i][k]=factoryT(world).f(V).truncate_on_project();
+			Vss[i][k].truncate();
+		}
+	}
+	
+	// fix pt iterations for psi's on the quadrature pts
+	printf("fix iters");
+	double err;
+	for (int j=0; j<maxiter; ++j) {
+		err = 0;
+		for (int i=0; i<np; ++i) {
+			ps1[i] = copy(qs[i]);
+			for (int k=0; k<np; ++k) ps1[i] -= apply(*Gss[i*np+k], Vss[i][k]*myp(ps,tc[i]*tc[k])).scale(tstep*tc[i]*I*B[k]);
+			err += (ps1[i].truncate()-ps[i]).norm2();
+		}
+		err /= np;
+		ps = copy(world, ps1);
+		printf(" %6.0e",err);
+		if (err <= fix_iter_tol) break;
+	}
+	printf("\n");
+			
+    // apply quadrature rule.
+	pdum = apply(*G, psi0).truncate();
+	
+	for (int k=0; k<np; ++k) pdum -= apply(*Gs[k], Vs[k]*ps[k]).scale(I*B[k]*tstep);
+	
+	current_time = tdum + tstep;
+
+    return pdum.truncate();
+}
+
+
 int main(int argc, char** argv) {
     initialize(argc, argv);
     World world(MPI::COMM_WORLD);
@@ -137,17 +252,34 @@ int main(int argc, char** argv) {
     complex_functionT psi = complex_factoryT(world).f(psi_exact);
     psi.truncate();
 
-    double tstep = tcrit*3; // This choice for Trotter
+    //~ double tstep = tcrit*3; // This choice for Trotter
 
-    int nstep = velocity==0 ? 100 : (L - 10 - x0)/velocity/tstep;
+    //~ int nstep = velocity==0 ? 100 : (L - 10 - x0)/velocity/tstep;
 
-    print("No. of time steps is", nstep);
+    //~ print("No. of time steps is", nstep);
 
-    // This section does Trotter
-    SeparatedConvolution<double_complex,1> G0 = qm_free_particle_propagator<1>(world, k, c, 0.5*tstep, 2*L);
+    //~ // This section does Trotter
+	//~ complex_operatorT G0 = qm_free_particle_propagator<1>(world, k, c, 0.5*tstep, 2*L);
+    //~ for (int step=0; step<nstep; step++) {
+        //~ print_info(world, psi,step);
+        //~ psi = trotter(world, G0, psi, tstep);
+    //~ } 
+
+    // This section does quadrature rules, hopefully
+    double tstep = tcrit*12; // This choice for Trotter
+	int nstep = velocity==0 ? 100 : (L - 10 - x0)/velocity/tstep;
+
+    print("No. of time steps is", nstep);   
+	
+	readin(np);
+	G = pcomplex_operatorT(qm_free_particle_propagatorPtr<1>(world, k, c, tstep, 2*L));
+    for (int i=0; i<np; ++i) Gs.push_back(pcomplex_operatorT(qm_free_particle_propagatorPtr<1>(world, k, c, (1-tc[i])*tstep, 2*L)));
+    for (int j=0; j<np; ++j) 
+		for (int i=0; i<np; ++i) 
+			Gss.push_back(pcomplex_operatorT(qm_free_particle_propagatorPtr<1>(world, k, c, (1-tc[i])*tstep*tc[j], 2*L))); //[j*np+i]
     for (int step=0; step<nstep; step++) {
-        print_info(world, psi,step);
-        psi = trotter(world, G0, psi, tstep);
+        print_info(world, psi, step);
+        psi = q_r(world, np, psi, tstep);
     }
 
     world.gop.fence();
@@ -156,4 +288,3 @@ int main(int argc, char** argv) {
     return 0;
 }
 
-    
