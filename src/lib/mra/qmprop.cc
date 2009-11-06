@@ -85,10 +85,20 @@ namespace madness {
         std::vector< SharedPtr< Convolution1D<double_complex> > > q(1);
         q[0] = SharedPtr< Convolution1D<double_complex> >(new GenericConvolution1D<double_complex,BandlimitedPropagator>(k,BandlimitedPropagator(bandlimit,timestep,width)));
         return SeparatedConvolution<double_complex,NDIM>(world, k, q, true);
+	}		
+		
+	template <int NDIM>
+    SeparatedConvolution<double_complex,NDIM>*
+    qm_free_particle_propagatorPtr(World& world, int k, double bandlimit, double timestep, double width) {
+        BandlimitedPropagator::test();
+        std::vector< SharedPtr< Convolution1D<double_complex> > > q(1);
+        q[0] = SharedPtr< Convolution1D<double_complex> >(new GenericConvolution1D<double_complex,BandlimitedPropagator>(k,BandlimitedPropagator(bandlimit,timestep,width)));
+        return new SeparatedConvolution<double_complex,NDIM>(world, k, q, true);
     }
 
 #ifdef FUNCTION_INSTANTIATE_1
-    template SeparatedConvolution<double_complex,1> qm_free_particle_propagator(World& world, int k, double bandlimit, double timestep, double width);
+    template SeparatedConvolution<double_complex,1> qm_free_particle_propagator(World& world, int k, double bandlimit, double timestep, double width);    
+	template SeparatedConvolution<double_complex,1>* qm_free_particle_propagatorPtr(World& world, int k, double bandlimit, double timestep, double width);
 #endif
 
 #ifdef FUNCTION_INSTANTIATE_2
