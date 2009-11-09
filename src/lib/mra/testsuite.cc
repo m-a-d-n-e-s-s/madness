@@ -906,13 +906,13 @@ void test_qm(World& world) {
     typedef Function<double_complex,1> functionT;
     typedef FunctionFactory<double_complex,1> factoryT;
 
-    //int k = 16;
-    //double thresh = 1e-12;
+    int k = 16;
+    double thresh = 1e-12;
     // k=16, thresh=1e-12, gives 3e-10 forever with tstep=5x! BUT only
     // if applying also on the leaf nodes (which is not on by default)
 
-    int k = 12;
-    double thresh = 1e-8;
+    //int k = 12;
+    //double thresh = 1e-8;
     FunctionDefaults<1>::set_k(k);
     FunctionDefaults<1>::set_thresh(thresh);
     FunctionDefaults<1>::set_refine(true);
@@ -933,7 +933,7 @@ void test_qm(World& world) {
 
     // For the purpose of testing there is no need to propagate 100 time units.
     // Just 100 steps.
-    nstep = 100;
+    //nstep = 100;
 
     if (world.rank() == 0) {
         print("\n Testing evolution of a quantum wave packet in",1,"dimensions");
@@ -942,7 +942,7 @@ void test_qm(World& world) {
     }
 
     functorT f(new QMtest(a,v,0.0));
-    SeparatedConvolution<double_complex,1> G = qm_free_particle_propagator<1>(world, k, c, tstep, width);
+    SeparatedConvolution<double_complex,1> G = qm_free_particle_propagator<1>(world, k, c, tstep);
     //G.doleaves = true;
 
     functionT psi(factoryT(world).functor(f));

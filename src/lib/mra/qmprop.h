@@ -7,11 +7,11 @@
 namespace madness {
     template <int NDIM>
     SeparatedConvolution<double_complex,NDIM>
-    qm_free_particle_propagator(World& world, int k, double bandlimit, double timestep, double width);    
-	
-	template <int NDIM>
+    qm_free_particle_propagator(World& world, int k, double bandlimit, double timestep);
+
+    template <int NDIM>
     SeparatedConvolution<double_complex,NDIM>*
-    qm_free_particle_propagatorPtr(World& world, int k, double bandlimit, double timestep, double width);
+    qm_free_particle_propagatorPtr(World& world, int k, double bandlimit, double timestep);
 }
 
 

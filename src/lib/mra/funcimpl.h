@@ -2643,7 +2643,7 @@ namespace madness {
             double start_time = 0;// cpu_time();
             double end_time = 0, cum_time = 0;
 #endif
-            double fac = 3.0; // 10.0 seems good for qmprop ... 3.0 OK for others
+            double fac = 10.0; //3.0; // 10.0 seems good for qmprop ... 3.0 OK for others
             double cnorm = c.normf();
             const long lmax = 1L << (key.level()-1);
             const string apply_name = "apply";           
