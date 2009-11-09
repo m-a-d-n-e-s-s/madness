@@ -7,6 +7,7 @@
 #include <mra/qmprop.h>
 #include <mra/operator.h>
 #include <constants.h>
+#include <string>
 
 using namespace madness;
 
@@ -27,13 +28,24 @@ typedef SharedPtr<complex_operatorT> pcomplex_operatorT;
 static const double L = 100.0; // Simulation in [-L,L]
 static const double x0 = -L + 10.0; // Initial position of the atom
 static const double energy_exact = -6.188788775728796797594788; // From Maple
-static const long k = 12;        // wavelet order
-static const double thresh = 1e-10; // precision
+static const long k = 8;        // wavelet order
+static const double thresh = 1e-6; // precision
 static const double velocity = 3.0;
 //static const double eshift = energy_exact - 0.5*velocity*velocity; // Use this value to remove rotating phase
 static const double eshift = 0.0;
 
 static double current_time = 0.0; // Lazy but easier than making functors for everything
+
+/////////////////////////////////// For quadrature rules///////////////////////////////
+// global vars for the laziness
+static const double_complex I = double_complex(0,1);
+vector<double> B, tc;
+pcomplex_operatorT G;
+vector<pcomplex_operatorT> Gs, Gss;
+const int maxiter = 20;
+const double fix_iter_tol = 1e-5;
+int np=3; // number of quadrature pts
+
 
 // Position of atom at current time
 double atom_position() {
@@ -104,7 +116,6 @@ void print_info(World& world, const complex_functionT& psi, int step) {
 
     complex_functionT psiX = complex_factoryT(world).f(psi_exact);
     double err = (psiX - psi).norm2();
-    //abs(inner(psiX,psi));//
 
     if ((step%40) == 0) {
         printf("\n");
@@ -115,15 +126,6 @@ void print_info(World& world, const complex_functionT& psi, int step) {
            step, current_time, atom_position(), norm, ke, pe, ke+pe, err);
 }
 
-/////////////////////////////////// For quadrature rules///////////////////////////////
-// global vars for the laziness
-static const double_complex I = double_complex(0,1);
-vector<double> B, tc;
-pcomplex_operatorT G;
-vector<pcomplex_operatorT> Gs, Gss;
-const int maxiter = 20;
-const double fix_iter_tol = 1e-5;
-int np=3; // number of quadrature pts
 
 static void readin(int np) {
 	B.resize(np);
@@ -237,7 +239,7 @@ int main(int argc, char** argv) {
 
     FunctionDefaults<1>::set_k(k);                 // Wavelet order
     FunctionDefaults<1>::set_thresh(thresh);       // Accuracy
-    FunctionDefaults<1>::set_refine(false);        // Disable adaptive refinement
+    FunctionDefaults<1>::set_autorefine(false);
     FunctionDefaults<1>::set_cubic_cell(-L,L);
     FunctionDefaults<1>::set_initial_level(8);     // Initial projection level
     FunctionDefaults<1>::set_truncate_mode(1);
@@ -252,38 +254,35 @@ int main(int argc, char** argv) {
     complex_functionT psi = complex_factoryT(world).f(psi_exact);
     psi.truncate();
 
-    //~ double tstep = tcrit*3; // This choice for Trotter
+    string method("quadrature");
 
-    //~ int nstep = velocity==0 ? 100 : (L - 10 - x0)/velocity/tstep;
-
-    //~ print("No. of time steps is", nstep);
-
-    //~ // This section does Trotter
-	//~ complex_operatorT G0 = qm_free_particle_propagator<1>(world, k, c, 0.5*tstep, 2*L);
-    //~ for (int step=0; step<nstep; step++) {
-        //~ print_info(world, psi,step);
-        //~ psi = trotter(world, G0, psi, tstep);
-    //~ } 
-
-    // This section does quadrature rules, hopefully
-    double tstep = tcrit*12; // This choice for Trotter
-	int nstep = velocity==0 ? 100 : (L - 10 - x0)/velocity/tstep;
-
-    print("No. of time steps is", nstep);   
-	
-	readin(np);
-	G = pcomplex_operatorT(qm_free_particle_propagatorPtr<1>(world, k, c, tstep, 2*L));
-    for (int i=0; i<np; ++i) Gs.push_back(pcomplex_operatorT(qm_free_particle_propagatorPtr<1>(world, k, c, (1-tc[i])*tstep, 2*L)));
-    for (int j=0; j<np; ++j) 
-		for (int i=0; i<np; ++i) 
-			Gss.push_back(pcomplex_operatorT(qm_free_particle_propagatorPtr<1>(world, k, c, (1-tc[i])*tstep*tc[j], 2*L))); //[j*np+i]
-    for (int step=0; step<nstep; step++) {
-        print_info(world, psi, step);
-        psi = q_r(world, np, psi, tstep);
+    if (method == "trotter") {
+        double tstep = tcrit*3; // This choice for Trotter
+        int nstep = velocity==0 ? 100 : (L - 10 - x0)/velocity/tstep;
+        print("No. of time steps is", nstep);
+	complex_operatorT G0 = qm_free_particle_propagator<1>(world, k, c, 0.5*tstep);
+        for (int step=0; step<nstep; step++) {
+            print_info(world, psi,step);
+            psi = trotter(world, G0, psi, tstep);
+        } 
     }
+    else {
+        double tstep = tcrit*12;
+	int nstep = velocity==0 ? 100 : (L - 10 - x0)/velocity/tstep;
+        print("No. of time steps is", nstep);   
+	readin(np);
+	G = pcomplex_operatorT(qm_free_particle_propagatorPtr<1>(world, k, c, tstep));
+        for (int i=0; i<np; ++i) Gs.push_back(pcomplex_operatorT(qm_free_particle_propagatorPtr<1>(world, k, c, (1-tc[i])*tstep)));
+        for (int j=0; j<np; ++j) 
+            for (int i=0; i<np; ++i) 
+                Gss.push_back(pcomplex_operatorT(qm_free_particle_propagatorPtr<1>(world, k, c, (1-tc[i])*tstep*tc[j]))); //[j*np+i]
 
-    world.gop.fence();
-
+        for (int step=0; step<nstep; step++) {
+            print_info(world, psi, step);
+            psi = q_r(world, np, psi, tstep);
+        }
+    }
+    
     finalize();
     return 0;
 }
