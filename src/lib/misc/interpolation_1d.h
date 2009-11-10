@@ -19,15 +19,11 @@ using namespace std;
 template <typename T>
 class CubicInterpolationTable {
 protected:
-    // Bury the default constructor
-    CubicInterpolationTable() : lo(0.0), hi(0.0), h(0.0), rh(0.0), npt(0),
-        a(0) {}
-
-    const double lo;            //< Interpolation is in range [lo,hi]
-    const double hi;            //< Interpolation is in range [lo,hi]
-    const double h;             //< Grid spacing
-    const double rh;            //< 1/h
-    const int npt;              //< No. of grid points
+    double lo;            //< Interpolation is in range [lo,hi]
+    double hi;            //< Interpolation is in range [lo,hi]
+    double h;             //< Grid spacing
+    double rh;            //< 1/h
+    int npt;              //< No. of grid points
     std::vector<T> a;           //< (1+4)*npt vector of x and polynomial coefficients
 
     // Cubic interp thru 4 points ... not good for noisy data
@@ -59,6 +55,8 @@ protected:
     }
 
 public:
+    CubicInterpolationTable() : lo(0.0), hi(-1.0), h(0.0), rh(0.0), npt(0.0) {}
+
     template <typename functionT>
     CubicInterpolationTable(double lo, double hi, int npt, const functionT &f) 
         : lo(lo), hi(hi), h((hi-lo)/(npt-1)), rh(1.0/h), npt(npt), a(npt*5) {
@@ -109,6 +107,8 @@ public:
         }
         return maxabserr;
     }
+
+    virtual ~CubicInterpolationTable() {};
 };
 
 #endif
