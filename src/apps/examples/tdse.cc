@@ -198,7 +198,7 @@ void propagate(World& world, functionT& potn, functionT& psi0, double& eps) {
     }
 
     complex_functionT psi = double_complex(1.0,0.0)*psi0;
-    SeparatedConvolution<double_complex,3> G = qm_free_particle_propagator<3>(world, k, c, 0.5*tstep, 2*L);
+    SeparatedConvolution<double_complex,3> G = qm_free_particle_propagator<3>(world, k, c, 0.5*tstep);
 
     functionT zdip = factoryT(world).f(zdipole);
 

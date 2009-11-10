@@ -28,8 +28,8 @@ typedef SharedPtr<complex_operatorT> pcomplex_operatorT;
 static const double L = 100.0; // Simulation in [-L,L]
 static const double x0 = -L + 10.0; // Initial position of the atom
 static const double energy_exact = -6.188788775728796797594788; // From Maple
-static const long k = 8;        // wavelet order
-static const double thresh = 1e-6; // precision
+static const long k = 16;        // wavelet order
+static const double thresh = 1e-12; // precision
 static const double velocity = 3.0;
 //static const double eshift = energy_exact - 0.5*velocity*velocity; // Use this value to remove rotating phase
 static const double eshift = 0.0;
@@ -72,10 +72,20 @@ double_complex psi_exact(const coordT& r) {
 // Time-dependent potential for translating atom
 double V(const coordT& r) {
     const double x = r[0] - atom_position();
-    if (fabs(x) > 5.5) return 0.0;
+    if (fabs(x) > 6.2) return 0.0;
 
     return -8.0*exp(-x*x) - eshift;
 }
+
+// (dV/dr)^2
+double dVsq(const coordT& r) {
+    const double x = r[0] - atom_position();
+    if (fabs(x) > 4.5) return 0.0;
+
+    double dv = 16.0*x*exp(-x*x);
+    return dv*dv;
+}
+    
 
 template<typename T, int NDIM>
 struct unaryexp {
@@ -86,24 +96,57 @@ struct unaryexp {
     void serialize(Archive& ar) {}
 };
 
+// Uterm means include extra bit for Chin-Chen central potential
+complex_functionT expV(World& world, const double t, bool Uterm=false) {
+    functionT potn = factoryT(world).f(V);
+    if (Uterm) {
+        double delta = 1.5*t;
+        functionT d = factoryT(world).f(dVsq).initial_level(10);
+        potn.compress(); d.compress();
+        potn.gaxpy(1.0, d, -delta*delta/48.0);
+    }
+    complex_functionT expV = double_complex(0.0,-t)*potn;
+    expV.unaryop(unaryexp<double_complex,1>());
+    expV.truncate();
+    return expV;
+}
+
+// Evolve forward one time step using Chin-Chen
+complex_functionT chinchen(World& world, const complex_operatorT& G, const complex_functionT& psi0, const double tstep) {
+    complex_functionT psi;
+    
+    // G = exp(-itV(t)/6) G0(t/2) exp(-2itU(t/2)/3) G0(t/2) exp(-itV(0)/6)
+
+    // U = V - t^2*(del V)^2 / 48
+    
+    psi = expV(world, tstep/6.0)*psi0;          psi.truncate();
+    psi = apply(G, psi);                       psi.truncate();
+
+    current_time += 0.5*tstep;
+    
+    psi = expV(world, 2.0*tstep/3.0, true)*psi; psi.truncate();
+
+    current_time += 0.5*tstep;
+
+    psi = apply(G,psi);                         psi.truncate();
+    psi = expV(world, tstep/6.0)*psi;           psi.truncate();
+    
+    return psi;
+}
+
 
 // Evolve forward one time step using Trotter ... G = G0(tstep/2)
 complex_functionT trotter(World& world, const complex_operatorT& G, const complex_functionT& psi0, const double tstep) {
-    complex_functionT psi = apply(G, psi0);
-    psi.truncate();
+    complex_functionT psi = apply(G, psi0);    psi.truncate();
+
     current_time += 0.5*tstep;
 
-    functionT potn = factoryT(world).f(V).truncate_on_project();
-    potn.truncate();
-    complex_functionT expV = double_complex(0.0,-tstep)*potn;
-    expV.unaryop(unaryexp<double_complex,1>());
+    psi = expV(world, tstep)*psi;              psi.truncate();
 
-    psi = expV*psi; psi.truncate();
-    psi = apply(G,psi);
-    psi.truncate();
+    current_time += 0.5*tstep;
+
+    psi = apply(G,psi);                        psi.truncate();
     
-    current_time += 0.5*tstep;
-
     return psi;
 }
 
@@ -119,11 +162,11 @@ void print_info(World& world, const complex_functionT& psi, int step) {
 
     if ((step%40) == 0) {
         printf("\n");
-        printf(" step    time      atom x        norm        kinetic    potential      energy      err norm\n");
-        printf("------ -------- ------------ ------------ ------------ ------------ ------------ ------------\n");
+        printf(" step    time      atom x        norm        kinetic    potential      energy      err norm   depth   size  \n");
+        printf("------ -------- ------------ ------------ ------------ ------------ ------------ ------------ ----- ---------\n");
     }
-    printf("%6d %8.2f %12.8f %12.8f %12.8f %12.8f %12.8f %12.8f\n", 
-           step, current_time, atom_position(), norm, ke, pe, ke+pe, err);
+    printf("%6d %8.2f %12.8f %12.8f %12.8f %12.8f %12.8f %12.8f %4d %9ld\n",
+           step, current_time, atom_position(), norm, ke, pe, ke+pe, err, int(psi.max_depth()), psi.size());
 }
 
 
@@ -242,7 +285,7 @@ int main(int argc, char** argv) {
     FunctionDefaults<1>::set_autorefine(false);
     FunctionDefaults<1>::set_cubic_cell(-L,L);
     FunctionDefaults<1>::set_initial_level(8);     // Initial projection level
-    FunctionDefaults<1>::set_truncate_mode(1);
+    FunctionDefaults<1>::set_truncate_mode(0);
 
     // Estimate the bandwidth and largest practical time step using G0
     double ctarget = 20.0; // Estimated from FT of potential
@@ -254,16 +297,27 @@ int main(int argc, char** argv) {
     complex_functionT psi = complex_factoryT(world).f(psi_exact);
     psi.truncate();
 
-    string method("quadrature");
+    string method("chinchen");
 
     if (method == "trotter") {
-        double tstep = tcrit*3; // This choice for Trotter
+        double tstep = tcrit*3.0;
         int nstep = velocity==0 ? 100 : (L - 10 - x0)/velocity/tstep;
         print("No. of time steps is", nstep);
 	complex_operatorT G0 = qm_free_particle_propagator<1>(world, k, c, 0.5*tstep);
         for (int step=0; step<nstep; step++) {
             print_info(world, psi,step);
             psi = trotter(world, G0, psi, tstep);
+        } 
+    }
+    else if (method == "chinchen") {
+        double tstep = tcrit*10.0;
+        print("tstep", tstep);
+        int nstep = velocity==0 ? 100 : (L - 10 - x0)/velocity/tstep;
+        print("No. of time steps is", nstep);
+	complex_operatorT G0 = qm_free_particle_propagator<1>(world, k, c, 0.5*tstep);
+        for (int step=0; step<nstep; step++) {
+            print_info(world, psi,step);
+            psi = chinchen(world, G0, psi, tstep);
         } 
     }
     else {
