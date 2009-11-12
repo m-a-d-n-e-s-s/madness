@@ -216,6 +216,18 @@ namespace madness {
     }
 
 
+    /// Scales inplace a vector of functions by distinct values
+    template <typename T, typename Q, int NDIM>
+    void scale(World& world,
+               std::vector< Function<T,NDIM> >& v,
+               const std::vector<Q>& factors,
+               bool fence=true) {
+        PROFILE_BLOCK(Vscale);
+        for (unsigned int i=0; i<v.size(); i++) v[i].scale(factors[i],false);
+        if (fence) world.gop.fence();
+    }
+
+
     /// Computes the 2-norm of a vector of functions
     template <typename T, int NDIM>
     std::vector<double> norm2(World& world,
