@@ -556,7 +556,7 @@ namespace madness
       // mentity and aobasis
       if (_world.rank() == 0)
       {
-        _aobasis.read_file("sto-3g");
+        _aobasis.read_file("6-31g");
         _mentity.read_file(filename, _params.fractional);
         _mentity.center();
       }
@@ -576,6 +576,11 @@ namespace madness
         {
           _kpoints.push_back(KPoint(coordT(0.0), 1.0));
         }
+        if ((_params.ngridk0 == 0) && (_params.ngridk1 == 0) && (_params.ngridk2 == 0))
+        {
+          _kpoints.push_back(KPoint(coordT(0.0), 0.5));
+          _kpoints.push_back(KPoint(coordT(0.0), 0.5));
+        }
         else // NORMAL BANDSTRUCTURE
         {
           _kpoints = genkmesh(_params.ngridk0, _params.ngridk1,
@@ -585,6 +590,12 @@ namespace madness
       else // NOT-PERIODIC
       {
         _kpoints.push_back(KPoint(coordT(0.0), 1.0));
+      }
+      if (_world.rank() == 0) print("kmesh:");
+      for (unsigned int i = 0; i < _kpoints.size() && _world.rank() == 0; i++)
+      {
+        KPoint kpoint = _kpoints[i];
+        print(kpoint.k[0], kpoint.k[1], kpoint.k[2], kpoint.weight);
       }
     }
     //*************************************************************************
@@ -614,12 +625,6 @@ namespace madness
             kmesh.push_back(kpoint);
           }
         }
-      }
-      if (_world.rank() == 0) print("kmesh:");
-      for (unsigned int i = 0; i < kmesh.size() && _world.rank() == 0; i++)
-      {
-        KPoint kpoint = kmesh[i];
-        print(kpoint.k[0], kpoint.k[1], kpoint.k[2], kpoint.weight);
       }
       return kmesh;
     }
@@ -1289,6 +1294,15 @@ namespace madness
     //*************************************************************************
     void solve()
     {
+      
+      // WSTHORNTON
+      // multiply gamma-point WF by random phase
+      double_complex t1 = RandomValue<double_complex>();
+      double_complex t2 = exp(t1);
+      vector<double_complex> phase(_phisa.size(), t2);
+      //scale(_world, _phisa, phase);
+       
+
       for (int it = 0; it < _params.maxits; it++)
       {
         if ((it > 0) && ((it % 4) == 0))
@@ -1511,7 +1525,10 @@ namespace madness
                   tensorT tmp = copy(U(_, i));
                   U(_, i) = U(_, j);
                   U(_, j) = tmp;
-                  swap(e[i], e[j]);
+                  //swap(e[i], e[j]);
+                  T ti = e[i];
+                  T tj = e[j];
+                  e[i] = tj; e[j] = ti;
                 }
               }
           }
@@ -1688,6 +1705,25 @@ namespace madness
         // nonlinear solver
         _subspace->update_subspace(awfs, bwfs, _phisa, _phisb);
       }
+      else
+      {
+        // compute residuals
+        vecfuncT rm = sub(_world, _phisa, awfs);
+        if (_params.spinpol)
+        {
+          vecfuncT br = sub(_world, _phisb, bwfs);
+          rm.insert(rm.end(), br.begin(), br.end());
+        }
+        std::vector<double> rnvec = norm2<valueT,NDIM>(_world, rm);
+        if (_world.rank() == 0)
+        {
+          double rnorm = 0.0;
+          for (unsigned int i = 0; i < rnvec.size(); i++) rnorm += rnvec[i];
+          if (_world.rank() == 0) print("residual = ", rnorm);
+          _residual = rnorm / rnvec.size();
+        }
+      }
+
       // do step restriction
       step_restriction(_phisa, awfs, 0);
       if (_params.spinpol)
