@@ -406,6 +406,41 @@ void compareGroundState(World& world, double Z) {
 void printBasis(World& world, double Z) {
     complexd output, output2;
     double sinTH, cosTH, sinPHI, cosPHI;
+    string tag;
+    double rMIN = 0.0;
+    double rMAX = 10.0;
+    double dr = 1.0;
+    double TH = 0.0;
+    double PHI = 0.0;
+    ifstream f("param");
+    if( f.is_open() ) {
+        while(f >> tag) {
+            if (tag[0] == '#') {
+                char ch;
+                PRINTLINE("    comment  " << tag.c_str());
+                while (f.get(ch)) {
+                    PRINTLINE(ch);
+                    if (ch == '\n') break;
+                }
+            }
+            else if (tag == "rMIN") {
+                f >> rMIN;
+                PRINTLINE("rMIN = " << rMIN);
+            }
+            else if (tag == "rMAX") {
+                f >> rMAX;
+                PRINTLINE("rMAX = " << rMAX);
+            }
+            else if (tag == "dr") {
+                f >> dr;
+                PRINTLINE("dr = " << dr);
+            }
+            else if (tag == "TH") {
+                f >> TH;
+                PRINTLINE("TH = " << TH);
+            }
+        }
+    }
     //make functions
     complex_functionT psi0;
     if(wave_function_exists(world, 0) ) {
@@ -418,12 +453,10 @@ void printBasis(World& world, double Z) {
     vector3D kVec(dARR);
     BoundWF psi_100(Z,1,0,0);
     ScatteringWF psi_k(Z, kVec);
-    double PHI = 0.0;
-    double TH = 0.0;
     //for(double TH=0; TH<3.14; TH+=0.3 ) {
     PRINTLINE("k = " << kVec);
     //    for(double r=0; r<sqrt(3)*psi_k.domain*psi_k.k; r+=1.0 ) {
-    for(double r=0; r<std::sqrt(3)*2*0.1*30; r+=0.0001 ) {
+    for(double r=rMIN; r<rMAX; r+=dr ) {
         cout.precision(4);
         cout << fixed;
         cosTH =  std::cos(TH);
@@ -529,12 +562,12 @@ int main(int argc, char**argv) {
     try {
         std::vector<string> boundList2;
         std::vector<string> unboundList2;
-        loadList(world, boundList2, unboundList2);
-        projectPsi2(world, boundList2, unboundList2, Z);
+        //loadList(world, boundList2, unboundList2);
+        //projectPsi2(world, boundList2, unboundList2, Z);
         //std::vector<WF> boundList;
         //std::vector<WF> unboundList;
         //compareGroundState(world, Z);
-        //printBasis(world,Z);
+        printBasis(world,Z);
         //loadBasis(world,  boundList, unboundList, Z);
         //belkic(world);
         //projectZdip(world, unboundList);
