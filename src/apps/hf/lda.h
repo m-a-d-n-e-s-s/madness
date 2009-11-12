@@ -11,7 +11,18 @@
 //#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <mra/mra.h>
 #include <world/world.h>
-#include <moldft/xc/f2c.h>
+#include <math.h>
+#include <madness_config.h>
+
+typedef double doublereal;
+typedef MADNESS_FORINT integer;
+typedef int logical;
+
+#define max(a,b) ((a)>=(b)?(a):(b))
+
+static double pow_dd(doublereal* a, doublereal* b) {
+    return pow(*a,*b);
+}
 
 using namespace madness;
 
