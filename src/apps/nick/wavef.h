@@ -47,7 +47,7 @@ public:
     typedef madness::Vector<double,NDIM> vector3D;
     ScatteringWF(double Z, const vector3D& kVec );
     ScatteringWF(madness::World& world, double Z, const vector3D& kVec );
-    ~ScatteringWF();
+    //    ~ScatteringWF();
     complexd operator()(const vector3D& x) const;
     complexd aFormNew3(complexd AA, complexd BB, complexd ZZ) const;
     complexd aForm(complexd AA, complexd BB, complexd ZZ) const;
