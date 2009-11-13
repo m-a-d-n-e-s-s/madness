@@ -28,8 +28,8 @@ typedef SharedPtr<complex_operatorT> pcomplex_operatorT;
 static const double L = 100.0; // Simulation in [-L,L]
 static const double x0 = -L + 10.0; // Initial position of the atom
 static const double energy_exact = -6.188788775728796797594788; // From Maple
-static const long k = 16;        // wavelet order
-static const double thresh = 1e-12; // precision
+static const long k = 12;        // wavelet order
+static const double thresh = 1e-8; // precision
 static const double velocity = 3.0;
 //static const double eshift = energy_exact - 0.5*velocity*velocity; // Use this value to remove rotating phase
 static const double eshift = 0.0;
@@ -39,7 +39,7 @@ static double current_time = 0.0; // Lazy but easier than making functors for ev
 /////////////////////////////////// For quadrature rules///////////////////////////////
 // global vars for the laziness
 static const double_complex I = double_complex(0,1);
-vector<double> B, tc;
+Tensor<double> B, tc;
 pcomplex_operatorT G;
 vector<pcomplex_operatorT> Gs, Gss;
 const int maxiter = 20;
@@ -171,9 +171,12 @@ void print_info(World& world, const complex_functionT& psi, int step) {
 
 
 static void readin(int np) {
-	B.resize(np);
-	tc.resize(np);
 	
+	B = weights[np];//(_reverse);
+	tc = points[np];//(_reverse);
+	for (int i=0; i<np; ++i) printf("%f ",tc[i]);
+	return;
+
 	if (np==1) {
 		tc[0] = 0.5;
 		B[0] = 1;
@@ -297,7 +300,7 @@ int main(int argc, char** argv) {
     complex_functionT psi = complex_factoryT(world).f(psi_exact);
     psi.truncate();
 
-    string method("chinchen");
+    string method("qr");
 
     if (method == "trotter") {
         double tstep = tcrit*3.0;
@@ -321,7 +324,7 @@ int main(int argc, char** argv) {
         } 
     }
     else {
-        double tstep = tcrit*12;
+        double tstep = tcrit*10;
 	int nstep = velocity==0 ? 100 : (L - 10 - x0)/velocity/tstep;
         print("No. of time steps is", nstep);   
 	readin(np);
