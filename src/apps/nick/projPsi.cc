@@ -20,6 +20,7 @@
 
 
 #include "wavef.h"
+#include "hyp.h"
 #include <string>
 #include <fstream>
 using std::ofstream;
@@ -366,6 +367,69 @@ void projectPsi2(World& world, std::vector<string> boundList, std::vector<string
     }
 }
 
+void compare1F1(World& world) {
+    //load param
+    string tag;
+    double rMIN = 0.0;
+    double rMAX = 10.0;
+    double dr   = 1.0;
+    double k    = 1.0;
+    /***************************************
+     *Load graphing parameters from the file: param
+     * rMIN 0.0
+     * rMAX 10.0
+     * dr   1.0
+     * TH   0.0
+     ****************************************/
+    ifstream f("param");
+    if( f.is_open() ) {
+        while(f >> tag) {
+            if (tag[0] == '#') {
+                char ch;
+                PRINTLINE("    comment  " << tag.c_str());
+                while (f.get(ch)) {
+                    PRINTLINE(ch);
+                    if (ch == '\n') break;
+                }
+            }
+            else if (tag == "rMIN") {
+                f >> rMIN;
+                PRINTLINE("rMIN = " << rMIN);
+            }
+            else if (tag == "rMAX") {
+                f >> rMAX;
+                PRINTLINE("rMAX = " << rMAX);
+            }
+            else if (tag == "dr") {
+                f >> dr;
+                PRINTLINE("dr = " << dr);
+            }
+            else if (tag == "k") {
+                f >> k;
+                PRINTLINE("k = " << k);
+            }
+        }
+    }
+    //make functor
+    const double kvec[3] = {0, 0, k};
+    //complex_functionT psi_k = FunctionFactory<complexd,NDIM>(world).
+    //functor(functorT(new ScatteringWF(1.0, kvec)));
+    ScatteringWF psi_k =  ScatteringWF(1.0, kvec);
+    complexd ONE(1.0,0.0);
+    complexd I(0.0,1.0);
+    cout << fixed;
+    for(double r=rMIN; r<rMAX; r+=dr) {
+        complexd ZZ(0.0,-r);
+        cout.precision(2);
+        PRINT(r                         << "\t");
+        cout.precision(8);
+        PRINT(real(conhyp(-I/k,ONE,ZZ)) << "\t");
+        PRINT(imag(conhyp(-I/k,ONE,ZZ)) << "\t");
+        PRINT(real(psi_k.aForm3(ZZ))    << "\t");
+        PRINT(imag(psi_k.aForm3(ZZ))    << "\n");
+    }
+}
+
 void compareGroundState(World& world, double Z) {
     //import psi0
     complex_functionT psi0;
@@ -412,6 +476,14 @@ void printBasis(World& world, double Z) {
     double dr = 1.0;
     double TH = 0.0;
     double PHI = 0.0;
+    double k = 1.0;
+    /***************************************
+     *Load graphing parameters from the file: param
+     * rMIN 0.0
+     * rMAX 10.0
+     * dr   1.0
+     * TH   0.0
+     ****************************************/
     ifstream f("param");
     if( f.is_open() ) {
         while(f >> tag) {
@@ -439,6 +511,10 @@ void printBasis(World& world, double Z) {
                 f >> TH;
                 PRINTLINE("TH = " << TH);
             }
+            else if (tag == "k") {
+                f >> k;
+                PRINTLINE("k = " << k);
+            }
         }
     }
     //make functions
@@ -448,13 +524,10 @@ void printBasis(World& world, double Z) {
     } else {
         PRINTLINE("Psi( t=0 ) must be present");
     }
-
-    double dARR[3] = {0, 0, 0.1};
-    vector3D kVec(dARR);
-    BoundWF psi_100(Z,1,0,0);
-    ScatteringWF psi_k(Z, kVec);
+    double kvec[3] = {0, 0, k};
+    //    vector3D kVec(dARR);
+    ScatteringWF psi_k(Z, kvec);
     //for(double TH=0; TH<3.14; TH+=0.3 ) {
-    PRINTLINE("k = " << kVec);
     //    for(double r=0; r<sqrt(3)*psi_k.domain*psi_k.k; r+=1.0 ) {
     for(double r=rMIN; r<rMAX; r+=dr ) {
         cout.precision(4);
@@ -463,15 +536,16 @@ void printBasis(World& world, double Z) {
         sinTH =  std::sin(TH);
         cosPHI = std::cos(PHI);
         sinPHI = std::sin(PHI);
-        double dARR[3] = {r*sinTH*cosPHI, r*sinTH*sinPHI, r*cosTH};        
-        //        PRINTLINE(r << "\t" << psi_k.diffR(r) << " + I" << psi_k.diffI(r));
-        output = psi_k(dARR);
-        //output = psi_100(dARR);
-        //output2 = psi0(dARR);
+        double kvec[3] = {r*sinTH*cosPHI, r*sinTH*sinPHI, r*cosTH};
+        output = psi_k(kvec);
         PRINT(r);
         cout.precision(7);
-        //PRINTLINE("\t" << real(output) << "\t" << real(output2) << "\t" << dARR);
-        PRINTLINE("\t" << real(output) << "\t" << imag(output));
+        complexd ZZ(0.0,2*k*r);
+        PRINT(    "\t" << real(output) << "\t" << imag(output));
+        PRINT(    "\t" << real(exp(I*k*r)) << "\t" << imag(exp(I*k*r)));
+        PRINTLINE("\t" << real(psi_k.f11(k*r)) << "\t" << imag(psi_k.f11(exp(k*r))));
+//         PRINT("\t" << real(conhyp(-I/k,ONE,-I*k*r)) << "\t" << imag(conhyp(-I/k,ONE,-I*k*r)));
+
     }
     //    use sed to make the complexd output standard
     //    system("sed -i '' -e's/\\+/, /' -e's/j//' f11.out");
@@ -567,6 +641,7 @@ int main(int argc, char**argv) {
         //std::vector<WF> boundList;
         //std::vector<WF> unboundList;
         //compareGroundState(world, Z);
+        //compare1F1(world);
         printBasis(world,Z);
         //loadBasis(world,  boundList, unboundList, Z);
         //belkic(world);
