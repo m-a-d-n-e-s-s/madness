@@ -228,7 +228,7 @@ complex_functionT q_r(World& world, const int np, const complex_functionT psi0, 
     //can be more vectorized.
 	
 	vector<complex_functionT> ps(np), ps1(np);
-    for (int i=0; i<np; ++i) ps[i] = copy(psi0);
+//    for (int i=0; i<np; ++i) ps[i] = copy(psi0);
 	
 	
 	double tdum = current_time;
@@ -252,15 +252,16 @@ complex_functionT q_r(World& world, const int np, const complex_functionT psi0, 
 	// fix pt iterations for psi's on the quadrature pts
 	printf("fix iters");
 	double err;
+	ps=copy(world, qs);
 	for (int j=0; j<maxiter; ++j) {
 		err = 0;
+		ps1 = zero_functions<double_complex,1>(world, np);
 		for (int i=0; i<np; ++i) {
-			ps1[i] = copy(qs[i]);
 			for (int k=0; k<np; ++k) ps1[i] -= apply(*Gss[i*np+k], Vss[i][k]*myp(ps,tc[i]*tc[k])).scale(tstep*tc[i]*I*B[k]);
-			err += (ps1[i].truncate()-ps[i]).norm2();
+			err += ps1[i].truncate().norm2();
 		}
 		err /= np;
-		ps = copy(world, ps1);
+		gaxpy(world, 1.0, qs, 1.0, ps1); ps = copy(world, ps1);
 		printf(" %6.0e",err);
 		if (err <= fix_iter_tol) break;
 	}
@@ -269,7 +270,7 @@ complex_functionT q_r(World& world, const int np, const complex_functionT psi0, 
     // apply quadrature rule.
 	pdum = apply(*G, psi0).truncate();
 	
-	for (int k=0; k<np; ++k) pdum -= apply(*Gs[k], Vs[k]*ps[k]).scale(I*B[k]*tstep);
+	for (int k=0; k<np; ++k) pdum -= apply(*Gs[k], Vs[k]*qs[k]).scale(I*B[k]*tstep);
 	
 	current_time = tdum + tstep;
 
