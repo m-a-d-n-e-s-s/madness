@@ -34,17 +34,22 @@ static const double velocity = 3.0;
 //static const double eshift = energy_exact - 0.5*velocity*velocity; // Use this value to remove rotating phase
 static const double eshift = 0.0;
 
+// Estimate the bandwidth and largest practical time step using G0
+static double ctarget = 20.0; // Estimated from FT of exact solution
+static double c = 1.86*ctarget;
+static double tcrit = 2*constants::pi/(c*c);
+
 static double current_time = 0.0; // Lazy but easier than making functors for everything
 
 /////////////////////////////////// For quadrature rules///////////////////////////////
 // global vars for the laziness
 static const double_complex I = double_complex(0,1);
-Tensor<double> B, tc;
+static const int np=2; // number of quadrature pts
+Tensor<double> B(np), tc(np);
 pcomplex_operatorT G;
 vector<pcomplex_operatorT> Gs, Gss;
 const int maxiter = 20;
 const double fix_iter_tol = 1e-5;
-int np=3; // number of quadrature pts
 
 
 // Position of atom at current time
@@ -96,40 +101,87 @@ struct unaryexp {
     void serialize(Archive& ar) {}
 };
 
-// Uterm means include extra bit for Chin-Chen central potential
-complex_functionT expV(World& world, const double t, bool Uterm=false) {
+// exp(-i (vcoeff*V + dcoeff*dV^2))
+complex_functionT expV(World& world, double vcoeff, double dcoeff) {
     functionT potn = factoryT(world).f(V);
-    if (Uterm) {
-        double delta = 1.5*t;
+    potn.scale(vcoeff);
+    if (dcoeff) {
         functionT d = factoryT(world).f(dVsq).initial_level(10);
         potn.compress(); d.compress();
-        potn.gaxpy(1.0, d, -delta*delta/48.0);
+        potn.gaxpy(1.0, d, dcoeff);   //delta = 1.5*t;/
     }
-    complex_functionT expV = double_complex(0.0,-t)*potn;
+    complex_functionT expV = double_complex(0.0,-1.0)*potn;
     expV.unaryop(unaryexp<double_complex,1>());
     expV.truncate();
     return expV;
 }
 
-// Evolve forward one time step using Chin-Chen
-complex_functionT chinchen(World& world, const complex_operatorT& G, const complex_functionT& psi0, const double tstep) {
+// Evolve forward one time step using symplectic gradient 4-th-order local accurate
+// G should G0(tstep/2)
+// CC is xi=0.0, chi=1.0/72.0
+// optimal is xi=-17/18000 chi=71/4500
+complex_functionT sympgrad4(World& world, 
+                            const complex_operatorT& G, 
+                            const complex_functionT& psi0, 
+                            const double tstep,
+                            const double xi,
+                            const double chi) {
+    const double lambda = 1.0/6.0;
     complex_functionT psi;
     
-    // G = exp(-itV(t)/6) G0(t/2) exp(-2itU(t/2)/3) G0(t/2) exp(-itV(0)/6)
-
-    // U = V - t^2*(del V)^2 / 48
-    
-    psi = expV(world, tstep/6.0)*psi0;          psi.truncate();
-    psi = apply(G, psi);                       psi.truncate();
+    psi = expV(world, tstep*lambda, -xi*tstep*tstep*tstep)*psi0;           psi.truncate();
+    psi = apply(G, psi);                                                   psi.truncate();
 
     current_time += 0.5*tstep;
     
-    psi = expV(world, 2.0*tstep/3.0, true)*psi; psi.truncate();
+    psi = expV(world, tstep*(1.0-2.0*lambda), -chi*tstep*tstep*tstep)*psi; psi.truncate();
 
     current_time += 0.5*tstep;
 
-    psi = apply(G,psi);                         psi.truncate();
-    psi = expV(world, tstep/6.0)*psi;           psi.truncate();
+    psi = apply(G,psi);                                                    psi.truncate();
+    psi = expV(world, tstep*lambda, -xi*tstep*tstep*tstep)*psi;            psi.truncate();
+    
+    return psi;
+}
+
+complex_functionT sympgrad6(World& world, 
+                            const complex_functionT& psi0, 
+                            const double tstep) {
+
+    const double rho = 0.1097059723948682e+00;
+    const double theta = 0.4140632267310831e+00;
+    const double nu = 0.2693315848935301e+00;
+    const double lambda = 0.1131980348651556e+01;
+    const double chi = -0.1324638643416052e-01;
+    const double mu =  0.8642161339706166e-03;
+    
+    static complex_operatorT *Grho=0, *Gtheta=0, *Gmid=0;
+    
+    if (Grho == 0) {
+        Grho   = qm_free_particle_propagatorPtr<1>(world, k, c, tstep*rho);
+        Gtheta = qm_free_particle_propagatorPtr<1>(world, k, c, tstep*theta);
+        Gmid   = qm_free_particle_propagatorPtr<1>(world, k, c, tstep*(1.0-2.0*(theta+rho))/2.0);
+    }
+
+    complex_functionT psi;
+    
+    psi = apply(*Grho, psi0);                                                psi.truncate();
+    current_time += rho*tstep;
+    psi = expV(world, tstep*nu, -mu*tstep*tstep*tstep)*psi;                  psi.truncate();
+    psi = apply(*Gtheta, psi);                                               psi.truncate();
+    current_time += theta*tstep;
+    psi = expV(world, tstep*lambda, 0.0)*psi;                                psi.truncate();
+    psi = apply(*Gmid, psi);                                                 psi.truncate();
+    current_time += tstep*(1.0-2.0*(theta+rho))/2.0;
+    psi = expV(world, tstep*(1.0-2.0*(lambda+nu)), -chi*tstep*tstep*tstep)*psi; psi.truncate();
+    psi = apply(*Gmid, psi);                                                 psi.truncate();
+    current_time += tstep*(1.0 - 2.0*(theta+rho))/2.0;
+    psi = expV(world, tstep*lambda, 0.0)*psi;                                psi.truncate();
+    psi = apply(*Gtheta, psi);                                               psi.truncate();
+    current_time += theta*tstep;
+    psi = expV(world, tstep*nu, -mu*tstep*tstep*tstep)*psi;                  psi.truncate();
+    psi = apply(*Grho, psi);                                                 psi.truncate();
+    current_time += rho*tstep;
     
     return psi;
 }
@@ -138,10 +190,10 @@ complex_functionT chinchen(World& world, const complex_operatorT& G, const compl
 // Evolve forward one time step using Trotter ... G = G0(tstep/2)
 complex_functionT trotter(World& world, const complex_operatorT& G, const complex_functionT& psi0, const double tstep) {
     complex_functionT psi = apply(G, psi0);    psi.truncate();
-
+    
     current_time += 0.5*tstep;
 
-    psi = expV(world, tstep)*psi;              psi.truncate();
+    psi = expV(world, tstep, 0.0)*psi;              psi.truncate();
 
     current_time += 0.5*tstep;
 
@@ -172,10 +224,10 @@ void print_info(World& world, const complex_functionT& psi, int step) {
 
 static void readin(int np) {
 	
-	B = weights[np];//(_reverse);
-	tc = points[np];//(_reverse);
-	for (int i=0; i<np; ++i) printf("%f ",tc[i]);
-	return;
+// 	B = weights[np];//(_reverse);
+// 	tc = points[np];//(_reverse);
+// 	for (int i=0; i<np; ++i) printf("%f ",tc[i]);
+// 	return;
 
 	if (np==1) {
 		tc[0] = 0.5;
@@ -291,16 +343,12 @@ int main(int argc, char** argv) {
     FunctionDefaults<1>::set_initial_level(8);     // Initial projection level
     FunctionDefaults<1>::set_truncate_mode(0);
 
-    // Estimate the bandwidth and largest practical time step using G0
-    double ctarget = 20.0; // Estimated from FT of potential
-    double c = 1.86*ctarget;
-    double tcrit = 2*constants::pi/(c*c);
-
     print("Critical time step is", tcrit);
 
     complex_functionT psi = complex_factoryT(world).f(psi_exact);
     psi.truncate();
 
+    //string method("split");
     string method("qr");
 
     if (method == "trotter") {
@@ -313,15 +361,18 @@ int main(int argc, char** argv) {
             psi = trotter(world, G0, psi, tstep);
         } 
     }
-    else if (method == "chinchen") {
-        double tstep = tcrit*10.0;
+    else if (method == "split") {
+        double tstep = tcrit*60.0;
         print("tstep", tstep);
         int nstep = velocity==0 ? 100 : (L - 10 - x0)/velocity/tstep;
         print("No. of time steps is", nstep);
 	complex_operatorT G0 = qm_free_particle_propagator<1>(world, k, c, 0.5*tstep);
+        //G0.doleaves = true;
         for (int step=0; step<nstep; step++) {
             print_info(world, psi,step);
-            psi = chinchen(world, G0, psi, tstep);
+            //psi = sympgrad4(world, G0, psi, tstep, 0.0, 1.0/72.0); // CC
+            //psi = sympgrad4(world, G0, psi, tstep, -17.0/18000.0, 71.0/4500.0); // Optimal
+            psi = sympgrad6(world, psi, tstep);
         } 
     }
     else {
