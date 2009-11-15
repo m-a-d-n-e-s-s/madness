@@ -512,9 +512,8 @@ namespace madness
     //*************************************************************************
 
     //*************************************************************************
-    bool solver_on;
+    double _maxthresh;
     //*************************************************************************
-
   public:
 
     //*************************************************************************
@@ -524,7 +523,6 @@ namespace madness
       _residual = 1e5;
       make_nuclear_potential();
       initial_guess();
-      solver_on = false;
 //      for (unsigned int kp = 0; kp < _kpoints.size(); kp++)
 //      {
 //        _Q.push_back(tensorT(1,1));
@@ -556,6 +554,7 @@ namespace madness
       // mentity and aobasis
       if (_world.rank() == 0)
       {
+        //_aobasis.read_file("sto-3g");
         _aobasis.read_file("6-31g");
         _mentity.read_file(filename, _params.fractional);
         _mentity.center();
@@ -667,7 +666,7 @@ namespace madness
           Atom atom = _mentity.get_atom(i);
           pt[0] = atom.x; pt[1] = atom.y; pt[2] = atom.z;
           specialpts.push_back(pt);
-          print("Special point: ", pt);
+          if (_world.rank() == 0) print("Special point: ", pt);
         }
         double now = wall_time();
         _vnucrhon = rfactoryT(_world).functor(
@@ -842,7 +841,7 @@ namespace madness
       rfunctionT vlocal;
       // Is this a many-body system?
       int rank = _world.rank();
-      print("rank ", rank, "nelec ", _params.nelec);
+      if (_world.rank() == 0) print("rank ", rank, "nelec ", _params.nelec);
       if (_params.nelec > 1)
       {
         if (_world.rank() == 0) print("Creating Coulomb op ...\n\n");
@@ -1287,7 +1286,16 @@ namespace madness
     //*************************************************************************
     void reproject()
     {
-
+      double tol = 1e-9;
+      if (_params.thresh > (_maxthresh - tol))
+      {
+       if (_world.rank() == 0)
+       {
+         printf("Reprojecting:\n");
+         printf("_params.thresh = %.5e\t_maxthresh = %.5e\n", _params.thresh, _maxthresh);
+        _params.thresh *= 10;
+       }
+      }
     }
     //*************************************************************************
 
@@ -1300,18 +1308,18 @@ namespace madness
       double_complex t1 = RandomValue<double_complex>();
       double_complex t2 = exp(t1);
       vector<double_complex> phase(_phisa.size(), t2);
-      //scale(_world, _phisa, phase);
+      scale(_world, _phisa, phase);
        
+       // set maximum thresh from _params
+      //_maxthresh = _params.thresh;
+      //_params.thresh *= 1e2;
 
       for (int it = 0; it < _params.maxits; it++)
       {
-        if ((it > 0) && ((it % 4) == 0))
-        {
-          reproject();
-        }
-        // WSTHORNTON
-        solver_on = true;
-        //if (it > 10) solver_on = true;
+        //if ((it > 0) && ((it % 4) == 0))
+        //{
+        //  reproject();
+        //}
 
         if (_world.rank() == 0) print("it = ", it);
        
@@ -1544,7 +1552,7 @@ namespace madness
               }
               long nclus = ihi - ilo + 1;
               if (nclus > 1) {
-                  print("   found cluster", ilo, ihi);
+                  if (_world.rank() == 0) print("   found cluster", ilo, ihi);
                   tensorT q = copy(U(Slice(ilo,ihi),Slice(ilo,ihi)));
                   //print(q);
                   // Special code just for nclus=2
@@ -1586,8 +1594,7 @@ namespace madness
             print(U);
           }
 
-          //if (!solver_on)
-          if (true)
+          if (_params.solver == 0)
           {
             // transform orbitals and V * (orbitals)
             k_vwf = transform(_world, k_vwf, U, 1e-5 / min(30.0, double(k_wf.size())), false);
@@ -1597,8 +1604,7 @@ namespace madness
           for (unsigned int ei = kpoint.begin, fi = 0; ei < kpoint.end;
             ei++, fi++)
           {
-            //valueT t1 = (!solver_on) ? e(fi,fi) : fock(fi,fi);
-            valueT t1 =  e(fi,fi);
+            valueT t1 = (_params.solver == 0) ? e(fi,fi) : fock(fi,fi);
             if (real(e(fi,fi)) > -0.1)
             {
               alpha[ei] = -0.5;
@@ -1700,7 +1706,7 @@ namespace madness
         truncate<valueT,NDIM> (_world, bwfs);
         truncate<valueT,NDIM> (_world, _phisb);
       }
-      if (_params.maxsub > 1)
+      if (_params.solver > 0 && _params.maxsub > 1)
       {
         // nonlinear solver
         _subspace->update_subspace(awfs, bwfs, _phisa, _phisb);

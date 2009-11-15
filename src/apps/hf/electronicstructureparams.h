@@ -56,6 +56,8 @@ struct ElectronicStructureParams
   double maxrotn;
   // Solve for canonical orbitals?
   bool canon;
+  // Don't use solver = 0; full KAIN = 1; k-point KAIN = 2 
+  int solver;
   
   template <typename Archive>
   void serialize(Archive& ar) {
@@ -63,7 +65,8 @@ struct ElectronicStructureParams
         periodic & maxits & ispotential & thresh &
         waveorder & maxthresh & maxwaveorder & nempty &
         smear & nbands & ngridk0 & ngridk1 & ngridk2 &
-        maxocc & kpoints & fractional & maxsub & maxrotn & canon;
+        maxocc & kpoints & fractional & maxsub & 
+        maxrotn & canon & solver;
   }
 
   ElectronicStructureParams()
@@ -90,6 +93,7 @@ struct ElectronicStructureParams
     maxsub = 1;
     maxrotn = 0.5;
     canon = true;
+    solver = 1;
   }
 
   void read_file(const std::string& filename)
@@ -108,6 +112,10 @@ struct ElectronicStructureParams
       {
         f >> nelec;
         bnelec = true;
+      }
+      else if (s == "solver")
+      {
+        f >> solver;
       }
       else if (s == "L")
       {
