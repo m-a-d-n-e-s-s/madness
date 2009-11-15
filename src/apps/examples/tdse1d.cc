@@ -44,8 +44,8 @@ static double current_time = 0.0; // Lazy but easier than making functors for ev
 /////////////////////////////////// For quadrature rules///////////////////////////////
 // global vars for the laziness
 static const double_complex I = double_complex(0,1);
-static const int np=2; // number of quadrature pts
-Tensor<double> B(np), tc(np);
+int np; // number of quadrature pts
+Tensor<double> B(10), tc(10);
 pcomplex_operatorT G;
 vector<pcomplex_operatorT> Gs, Gss;
 const int maxiter = 20;
@@ -343,45 +343,80 @@ int main(int argc, char** argv) {
     FunctionDefaults<1>::set_initial_level(8);     // Initial projection level
     FunctionDefaults<1>::set_truncate_mode(0);
 
-    print("Critical time step is", tcrit);
-
     complex_functionT psi = complex_factoryT(world).f(psi_exact);
     psi.truncate();
 
-    //string method("split");
-    string method("qr");
+    double tstep = 0.0;
+    int selection = -1;
 
-    if (method == "trotter") {
-        double tstep = tcrit*3.0;
-        int nstep = velocity==0 ? 100 : (L - 10 - x0)/velocity/tstep;
-        print("No. of time steps is", nstep);
+    print("   0: Trotter");
+    print("   1: Symplectic-grad-4 Chin-Chen");
+    print("   2: Symplectic-grad-4 optimal");
+    print("   3: Symplectic-grad-6");
+    print("   4: Quadrature 1pt");
+    print("   5: Quadrature 2pt");
+    print("   6: Quadrature 3pt");
+    print("   7: Quadrature 4pt");
+    print("   8: Quadrature 5pt");
+    print("   9: Quadrature 6pt");
+    while (selection < 0 || selection > 9) {
+        cout << " Select propagation method (0-9):";
+        cout.flush();
+        cin >> selection;
+    }
+
+    print("Critical time step is", tcrit, "\n");
+
+    cout << " Enter time step: ";
+    cout.flush();
+    cin >> tstep;
+
+    int nstep = velocity==0 ? 100 : (L - 10 - x0)/velocity/tstep;
+
+    print("");
+    print(" Wavelet order", k);
+    print("     Threshold", thresh);
+    print("      Velocity", velocity);
+    print("     Time step", tstep);
+    print("      No.steps", nstep);
+    print("        Method", selection);
+
+    if (selection == 0) {
 	complex_operatorT G0 = qm_free_particle_propagator<1>(world, k, c, 0.5*tstep);
         for (int step=0; step<nstep; step++) {
             print_info(world, psi,step);
             psi = trotter(world, G0, psi, tstep);
         } 
     }
-    else if (method == "split") {
-        double tstep = tcrit*60.0;
-        print("tstep", tstep);
-        int nstep = velocity==0 ? 100 : (L - 10 - x0)/velocity/tstep;
-        print("No. of time steps is", nstep);
+    else if (selection == 1) {
 	complex_operatorT G0 = qm_free_particle_propagator<1>(world, k, c, 0.5*tstep);
-        //G0.doleaves = true;
         for (int step=0; step<nstep; step++) {
             print_info(world, psi,step);
-            //psi = sympgrad4(world, G0, psi, tstep, 0.0, 1.0/72.0); // CC
-            //psi = sympgrad4(world, G0, psi, tstep, -17.0/18000.0, 71.0/4500.0); // Optimal
+            psi = sympgrad4(world, G0, psi, tstep, 0.0, 1.0/72.0); // CC
+        } 
+    }
+    else if (selection == 2) {
+	complex_operatorT G0 = qm_free_particle_propagator<1>(world, k, c, 0.5*tstep);
+        for (int step=0; step<nstep; step++) {
+            print_info(world, psi,step);
+            psi = sympgrad4(world, G0, psi, tstep, -17.0/18000.0, 71.0/4500.0); // Optimal
+        } 
+    }
+    else if (selection == 3) {
+        for (int step=0; step<nstep; step++) {
+            print_info(world, psi,step);
             psi = sympgrad6(world, psi, tstep);
         } 
     }
     else {
-        double tstep = tcrit*10;
-	int nstep = velocity==0 ? 100 : (L - 10 - x0)/velocity/tstep;
-        print("No. of time steps is", nstep);   
+        np = selection - 3;
+        print("        Method", selection);
+        print(" No. quad. pt.", np);
+
 	readin(np);
 	G = pcomplex_operatorT(qm_free_particle_propagatorPtr<1>(world, k, c, tstep));
-        for (int i=0; i<np; ++i) Gs.push_back(pcomplex_operatorT(qm_free_particle_propagatorPtr<1>(world, k, c, (1-tc[i])*tstep)));
+        for (int i=0; i<np; ++i) 
+            Gs.push_back(pcomplex_operatorT(qm_free_particle_propagatorPtr<1>(world, k, c, (1-tc[i])*tstep)));
         for (int j=0; j<np; ++j) 
             for (int i=0; i<np; ++i) 
                 Gss.push_back(pcomplex_operatorT(qm_free_particle_propagatorPtr<1>(world, k, c, (1-tc[i])*tstep*tc[j]))); //[j*np+i]
