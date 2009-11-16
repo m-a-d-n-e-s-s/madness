@@ -165,6 +165,7 @@ namespace madness {
         typedef LBNodeDeux<NDIM> nodeT;
         typedef WorldContainer<keyT,nodeT> treeT;
         typedef typename treeT::iterator iteratorT;
+        typedef typename treeT::const_iterator const_iteratorT;
         World& world;
         treeT tree;
 
@@ -182,7 +183,8 @@ namespace madness {
         /// Sums costs up the tree returning to everyone the total cost
         double sum() {
             world.gop.fence();
-            for (iteratorT it=tree.begin(); it!=tree.end(); ++it) {
+            const_iteratorT end = tree.end();
+            for (const_iteratorT it=tree.begin(); it!=end; ++it) {
                 const keyT& key = it->first;
                 const nodeT& node = it->second;
                 if (!node.has_children() && key.level() > 0) {
@@ -263,7 +265,8 @@ namespace madness {
 
             // Collect entire vector onto node0
             vector< std::pair<keyT,double> > results;
-            for (iteratorT it=tree.begin(); it!=tree.end(); ++it) {
+            const_iteratorT end = tree.end();
+            for (const_iteratorT it=tree.begin(); it!=end; ++it) {
                 if (it->second.get_total_cost() >= 0) {
                     results.push_back(std::make_pair(it->first,it->second.get_total_cost()));
                 }

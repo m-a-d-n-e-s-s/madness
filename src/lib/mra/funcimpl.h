@@ -712,13 +712,14 @@ namespace madness {
         // re-maps the timer container to a new process map
         void remap(const SharedPtr< WorldDCPmapInterface< Key<NDIM> > >& pmap,
                    bool preserve_timers, bool do_fence) {
-          typename dcT::iterator iNode;
+          typename dcT::const_iterator iNode;
           keyT key;
           timerListT timers;
           dcT new_timers(world, pmap);
 
           if (preserve_timers) {
-            for (iNode = op_timers.begin(); iNode != op_timers.end(); ++iNode) {
+            typename dcT::const_iterator end = op_timers.end();
+            for (iNode = op_timers.begin(); iNode != end; ++iNode) {
               key = iNode->first;
               timers = iNode->second;
               new_timers.replace(key,timers);
@@ -739,13 +740,14 @@ namespace madness {
         //   minimum factor necessary to make all costs greater than 1
         void compute_min_cost() {
           double min_time, sum_time;
-          typename dcT::iterator iNode;
+          typename dcT::const_iterator iNode;
           timerListT timers;
           keyT key;
 
           min_time = 1.e99;
 
-          for (iNode = op_timers.begin(); iNode != op_timers.end(); ++iNode){
+          typename dcT::const_iterator end = op_timers.end();
+          for (iNode = op_timers.begin(); iNode != end; ++iNode){
             key = iNode->first;
             sum_time = 0.;
             retrieve_timer_list(key, timers);
@@ -764,7 +766,7 @@ namespace madness {
         void print_timing_stats(int& step) {
           double min_time, max_time, ave_time, sum_time, st_dev;
           int num_nodes, num_zeros;
-          typename dcT::iterator iNode;
+          typename dcT::const_iterator iNode;
           timerListT timers;
           keyT key;
 
@@ -775,7 +777,8 @@ namespace madness {
           ave_time  = 0.;
           st_dev    = 0.;
 
-          for (iNode = op_timers.begin(); iNode != op_timers.end(); ++iNode) {
+          typename dcT::const_iterator end = op_timers.end();
+          for (iNode = op_timers.begin(); iNode != end; ++iNode) {
             key = iNode->first;
             sum_time = 0.;
             retrieve_timer_list(key, timers);
@@ -802,7 +805,7 @@ namespace madness {
           // now get standard deviation
           world.gop.broadcast(ave_time);
 
-          for (iNode = op_timers.begin(); iNode != op_timers.end(); ++iNode) {
+          for (iNode = op_timers.begin(); iNode != end; ++iNode) {
             key = iNode->first;
             sum_time = 0.;
             retrieve_timer_list(key, timers);
@@ -905,12 +908,13 @@ namespace madness {
 
         // resets given timer on all nodes
         void reset(string& name) {
-          typename dcT::iterator iNode;
+          typename dcT::const_iterator iNode;
           int index;
           timerListT timers;
           keyT key;
 
-          for (iNode = op_timers.begin(); iNode != op_timers.end(); ++iNode){
+          typename dcT::const_iterator end = op_timers.end();
+          for (iNode = op_timers.begin(); iNode != end; ++iNode){
             key = iNode->first;
 
             retrieve_timer(key, name, timers, index);
@@ -922,10 +926,11 @@ namespace madness {
 
         // resets all timers on all nodes
         void reset() {
-          typename dcT::iterator iNode;
+          typename dcT::const_iterator iNode;
           timerListT timers;
           keyT key;
-          for (iNode = op_timers.begin(); iNode != op_timers.end(); ++iNode){
+          typename dcT::const_iterator end = op_timers.end();
+          for (iNode = op_timers.begin(); iNode != end; ++iNode){
             key = iNode->first;
 
             retrieve_timer_list(key, timers);
@@ -961,12 +966,13 @@ namespace madness {
         
         // dis/enables given timer on all nodes
         void set_status(string& name, bool& status) {
-          typename dcT::iterator iNode;
+          typename dcT::const_iterator iNode;
           int index;
           timerListT timers;
           keyT key;
 
-          for (iNode = op_timers.begin(); iNode != op_timers.end(); ++iNode){
+          typename dcT::const_iterator end = op_timers.end();
+          for (iNode = op_timers.begin(); iNode != end; ++iNode){
             key = iNode->first;
 
             retrieve_timer(key, name, timers, index);
@@ -977,11 +983,12 @@ namespace madness {
 
         // dis/enables all timers on all nodes
         void set_status(bool& status) {
-          typename dcT::iterator iNode;
+          typename dcT::const_iterator iNode;
           timerListT timers;
           keyT key;
 
-          for (iNode = op_timers.begin(); iNode != op_timers.end(); ++iNode){
+          typename dcT::const_iterator end = op_timers.end();
+          for (iNode = op_timers.begin(); iNode != end; ++iNode){
             key = iNode->first;
 
             retrieve_timer_list(key, timers);
@@ -1015,12 +1022,13 @@ namespace madness {
 
         // sets weight of given timer on all nodes (used for cost function)
         void set_weight(const string& name, const double& weight) {
-          typename dcT::iterator iNode;
+          typename dcT::const_iterator iNode;
           int index;
           timerListT timers;
           keyT key;
 
-          for (iNode = op_timers.begin(); iNode != op_timers.end(); ++iNode){
+          typename dcT::const_iterator end = op_timers.end();
+          for (iNode = op_timers.begin(); iNode != end; ++iNode){
             key = iNode->first;
 
             retrieve_timer(key, name, timers, index);
@@ -1035,7 +1043,8 @@ namespace madness {
           timerListT timers;
           keyT key;
 
-          for (iNode = op_timers.begin(); iNode != op_timers.end(); ++iNode){
+          typename dcT::const_iterator end = op_timers.end();
+          for (iNode = op_timers.begin(); iNode != end; ++iNode){
             key = iNode->first;
 
             retrieve_timer_list(key, timers);
@@ -1136,7 +1145,8 @@ namespace madness {
         }
 
         void print() {
-            for (typename dcT::iterator it = hash_table.begin(); it != hash_table.end(); ++it) {
+            typename dcT::const_iterator end = hash_table.end();
+            for (typename dcT::iterator it = hash_table.begin(); it != end; ++it) {
                 madness::print(it->first, "  ", it->second);
             }
         }
@@ -1240,7 +1250,8 @@ namespace madness {
             if (empty) { // Do not set any coefficients at all
             } else if (functor) { // Project function and optionally refine
                 insert_zero_down_to_initial_level(cdata.key0);
-                for (typename dcT::iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
+                typename dcT::const_iterator end = coeffs.end();
+                for (typename dcT::const_iterator it=coeffs.begin(); it!=end; ++it) {
                     if (it->second.is_leaf())
                         task(coeffs.owner(it->first), &implT::project_refine_op, it->first, do_refine,
                              functor->special_points());
@@ -1301,8 +1312,9 @@ namespace madness {
         /// Copy coeffs from other into self
         template <typename Q>
         void copy_coeffs(const FunctionImpl<Q,NDIM>& other, bool fence) {
+            typename FunctionImpl<Q,NDIM>::dcT::const_iterator end = other.coeffs.end();
             for (typename FunctionImpl<Q,NDIM>::dcT::const_iterator it=other.coeffs.begin();
-                    it!=other.coeffs.end(); ++it) {
+                    it!=end; ++it) {
                 const keyT& key = it->first;
                 const typename FunctionImpl<Q,NDIM>::nodeT& node = it->second;
                 coeffs.replace(key,node. template convert<Q>());
@@ -1343,8 +1355,9 @@ namespace madness {
                 // coeffs in self ... this is so can efficiently add functions with
                 // different distributions.  Use an AM rather than a task to reduce memory
                 // footprint on the remote end.
+                typename FunctionImpl<Q,NDIM>::dcT::const_iterator end = other.coeffs.end();
                 for (typename FunctionImpl<Q,NDIM>::dcT::const_iterator it=other.coeffs.begin();
-                        it!=other.coeffs.end();
+                        it!=end;
                         ++it) {
                     const keyT& key = it->first;
                     const typename FunctionImpl<Q,NDIM>::nodeT& other_node = it->second;
@@ -1710,15 +1723,17 @@ namespace madness {
             // Loop over local nodes in both functions.  Add in left and subtract right.
             // Not that efficient in terms of memory bandwidth but ensures we do
             // not miss any nodes.
+            typename FunctionImpl<L,NDIM>::dcT::const_iterator left_end = left.coeffs.end();
             for (typename FunctionImpl<L,NDIM>::dcT::const_iterator it=left.coeffs.begin();
-                    it!=left.coeffs.end();
+                    it!=left_end;
                     ++it) {
                 const keyT& key = it->first;
                 const typename FunctionImpl<L,NDIM>::nodeT& other_node = it->second;
                 coeffs.send(key, &nodeT:: template gaxpy_inplace<T,L>, 1.0, other_node, alpha);
             }
+            typename FunctionImpl<R,NDIM>::dcT::const_iterator right_end = right.coeffs.end();
             for (typename FunctionImpl<R,NDIM>::dcT::const_iterator it=right.coeffs.begin();
-                    it!=right.coeffs.end();
+                    it!=right_end;
                     ++it) {
                 const keyT& key = it->first;
                 const typename FunctionImpl<L,NDIM>::nodeT& other_node = it->second;
@@ -1738,7 +1753,8 @@ namespace madness {
         /// Unary operation applied inplace to the coefficients WITHOUT refinement, optional fence
         template <typename opT>
         void unary_op_coeff_inplace(const opT& op, bool fence) {
-            for (typename dcT::iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
+            typename dcT::iterator end = coeffs.end();
+            for (typename dcT::iterator it=coeffs.begin(); it!=end; ++it) {
                 const keyT& parent = it->first;
                 nodeT& node = it->second;
                 if (node.has_coeff()) {
@@ -1752,7 +1768,8 @@ namespace madness {
         /// Unary operation applied inplace to the coefficients WITHOUT refinement, optional fence
         template <typename opT>
         void unary_op_node_inplace(const opT& op, bool fence) {
-            for (typename dcT::iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
+            typename dcT::iterator end = coeffs.end();
+            for (typename dcT::iterator it=coeffs.begin(); it!=end; ++it) {
                 const keyT& parent = it->first;
                 nodeT& node = it->second;
                 op(parent, node);
@@ -1810,8 +1827,8 @@ namespace madness {
                 std::swap(ind[i],ind[j]);
             }
 
-
-            for (typename FunctionImpl<R,NDIM>::dcT::iterator it=right->coeffs.begin(); it != right->coeffs.end(); ++it) {
+            typename FunctionImpl<R,NDIM>::dcT::const_iterator end = right->coeffs.end();
+            for (typename FunctionImpl<R,NDIM>::dcT::const_iterator it=right->coeffs.begin(); it != end; ++it) {
                 if (it->second.has_coeff()) {
                     const Key<NDIM>& key = it->first;
                     const Tensor<R>& r = it->second.coeff();
@@ -2239,7 +2256,8 @@ namespace madness {
                 box_leaf[i] = box_interior[i] == 0;
             world.gop.fence();
             long nleaf=0, ninterior=0;
-            for (typename dcT::const_iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
+            typename dcT::const_iterator end = coeffs.end();
+            for (typename dcT::const_iterator it=coeffs.begin(); it!=end; ++it) {
                 const nodeT& node = it->second;
                 if (node.is_leaf())
                     nleaf++;
@@ -2454,7 +2472,8 @@ namespace madness {
         void project(const implT& old, bool fence) {
             long kmin = std::min(cdata.k,old.cdata.k);
             vector<Slice> s(NDIM,Slice(0,kmin-1));
-            for (typename dcT::const_iterator it=old.coeffs.begin(); it!=old.coeffs.end(); ++it) {
+            typename dcT::const_iterator end = old.coeffs.end();
+            for (typename dcT::const_iterator it=old.coeffs.begin(); it!=end; ++it) {
                 const keyT& key = it->first;
                 const nodeT& node = it->second;
                 if (node.has_coeff()) {
@@ -2590,7 +2609,8 @@ namespace madness {
 
         /// Changes non-standard compressed form to standard compressed form
         void standard(bool fence) {
-            for (typename dcT::iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
+            typename dcT::iterator end = coeffs.end();
+            for (typename dcT::iterator it=coeffs.begin(); it!=end; ++it) {
                 const keyT& key = it->first;
                 nodeT& node = it->second;
                 if (key.level()> 0 && node.has_coeff()) {
@@ -2715,7 +2735,8 @@ namespace madness {
         template <typename opT, typename R>
         void apply(opT& op, const FunctionImpl<R,NDIM>& f, bool fence) {
             PROFILE_MEMBER_FUNC(FunctionImpl);
-            for (typename dcT::const_iterator it=f.coeffs.begin(); it!=f.coeffs.end(); ++it) {
+            typename dcT::const_iterator end = f.coeffs.end();
+            for (typename dcT::const_iterator it=f.coeffs.begin(); it!=end; ++it) {
                 const keyT& key = it->first;
                 const FunctionNode<R,NDIM>& node = it->second;
                 if (node.has_coeff()) {
@@ -2871,7 +2892,8 @@ namespace madness {
         template <typename R>
         TENSOR_RESULT_TYPE(T,R) inner_local(const FunctionImpl<R,NDIM>& g) const {
             TENSOR_RESULT_TYPE(T,R) sum = 0.0;
-            for (typename dcT::const_iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
+            typename dcT::const_iterator end = coeffs.end();
+            for (typename dcT::const_iterator it=coeffs.begin(); it!=end; ++it) {
                 const nodeT& fnode = it->second;
                 if (fnode.has_coeff()) {
                     if (g.coeffs.probe(it->first)) {
@@ -2892,7 +2914,8 @@ namespace madness {
         /// Returns the maximum depth of the tree
         std::size_t max_depth() const {
             std::size_t maxdepth = 0;
-            for (typename dcT::const_iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
+            typename dcT::const_iterator end = coeffs.end();
+            for (typename dcT::const_iterator it=coeffs.begin(); it!=end; ++it) {
                 std::size_t N = (std::size_t) it->first.level();
                 if (N> maxdepth)
                     maxdepth = N;
@@ -2928,7 +2951,8 @@ namespace madness {
         /// Returns the number of coefficients in the function ... collective global sum
         std::size_t size() const {
             std::size_t sum = 0;
-            for (typename dcT::const_iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
+            typename dcT::const_iterator end = coeffs.end();
+            for (typename dcT::const_iterator it=coeffs.begin(); it!=end; ++it) {
                 const nodeT& node = it->second;
                 if (node.has_coeff())
                     sum++;
@@ -2953,7 +2977,8 @@ namespace madness {
         void scale_oop(const Q q, const FunctionImpl<F,NDIM>& f, bool fence) {
             typedef typename FunctionImpl<F,NDIM>::nodeT fnodeT;
             typedef typename FunctionImpl<F,NDIM>::dcT fdcT;
-            for (typename fdcT::const_iterator it=f.coeffs.begin(); it!=f.coeffs.end(); ++it) {
+            typename fdcT::const_iterator end = f.coeffs.end();
+            for (typename fdcT::const_iterator it=f.coeffs.begin(); it!=end; ++it) {
                 const keyT& key = it->first;
                 const fnodeT& node = it->second;
                 if (node.has_coeff()) {

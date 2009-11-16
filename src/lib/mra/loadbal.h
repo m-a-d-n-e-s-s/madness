@@ -646,6 +646,7 @@ namespace madness {
         typedef WorldObject<LBTree<D> > woT;
         typedef WorldContainer<Key<D>,LBNode<D> > dcT;
         typedef typename dcT::iterator iterator;
+        typedef typename dcT::const_iterator const_iterator;
 
         World& world;
 
@@ -673,7 +674,8 @@ namespace madness {
         /// Initialize the LBTree by converting a FunctionImpl to a LBTree
         template <typename T, typename costfunT>
         inline void init_tree(const SharedPtr< FunctionImpl<T,D> >& f, const costfunT& costfun) {
-            for (typename FunctionImpl<T,D>::dcT::iterator it = f->coeffs.begin(); it != f->coeffs.end(); ++it) {
+            typename FunctionImpl<T,D>::dcT::const_iterator end = f->coeffs.end();
+            for (typename FunctionImpl<T,D>::dcT::const_iterator it = f->coeffs.begin(); it != end; ++it) {
                 // convert Node to LBNode
                 NodeData nd;
                 const Key<D>& key = it->first;
@@ -706,11 +708,12 @@ namespace madness {
 
         template <typename T, typename costfunT>
         inline void add_tree(const SharedPtr< FunctionImpl<T,D> >& f, const costfunT& costfun) {
-            for (typename FunctionImpl<T,D>::dcT::iterator it = f->coeffs.begin(); it != f->coeffs.end(); ++it) {
+            typename FunctionImpl<T,D>::dcT::const_iterator end = f->coeffs.end();
+            for (typename FunctionImpl<T,D>::dcT::const_iterator it = f->coeffs.begin(); it != end; ++it) {
                 // convert Node to LBNode
                 NodeData nd;
                 Key<D> key = it->first;
-                typename LBTree<D>::iterator tree_it = impl.find(key);
+                typename LBTree<D>::const_iterator tree_it = impl.find(key);
                 Cost new_cost = Cost(costfun(it->first,it->second));
                 //		Cost new_cost = Cost(1e6*costfun(it->first,it->second));
                 if (tree_it != impl.end()) {
