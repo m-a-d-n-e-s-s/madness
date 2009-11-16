@@ -44,8 +44,8 @@ int main(int argc, char** argv) {
     Array a(world, length), b(world, length);
 
     if (world.rank() == 0) {
-        printf("data size %d\n", length);
-        printf("World size is %d\n", world.size());
+        std::cout << "data size " << length << "\n";
+        std::cout << "World size is " << world.size() << "\n";
     }
 
     // Without regard to locality, initialize a[i]=i*10, b[i]=i*7
@@ -54,15 +54,16 @@ int main(int argc, char** argv) {
         b.write(i,  7.0*i);
     }
 
-    if (world.rank()==0) printf("write section ends\n");
+    if (world.rank()==0)
+        std::cout << "write section ends\n";
     world.gop.fence();// wait until all message passing end
 
 
     // All processes verify 10 random values from each array
     for (int j=0; j<10; j++) {
         size_t i = world.rand()%length;
-        printf("rank %d: %04dth data is owned by %d\n",
-               world.rank(), i, a.owner(i));
+        std::cout << "rank " << world.rank() << ": " << setw(4) << i <<
+            "th data is owned by " << a.owner(i) << "\n";
 
         Future<double> vala = a.read(i);
         Future<double> valb = b.read(i);
