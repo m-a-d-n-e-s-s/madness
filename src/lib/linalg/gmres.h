@@ -87,6 +87,8 @@ namespace madness {
     template <typename T, typename real_type, typename scalar_type>
     class AbstractVectorSpace {
         public:
+            virtual ~AbstractVectorSpace() {}
+
             /// the norm of a vector
             virtual real_type norm(const T &) const = 0;
 
@@ -129,6 +131,8 @@ namespace madness {
         public:
             typedef typename TensorTypeData<T>::float_scalar_type real_type;
             typedef T scalar_type;
+
+            virtual ~VectorSpace() {}
 
             virtual real_type norm(const Vector<scalar_type, NDIM> &vec)
                 const {
@@ -201,6 +205,8 @@ namespace madness {
             typedef typename TensorTypeData<T>::float_scalar_type real_type;
             typedef T scalar_type;
 
+            virtual ~FunctionSpace() {}
+
             virtual real_type norm(const Function<scalar_type, NDIM> &vec)
                 const {
 
@@ -243,6 +249,8 @@ namespace madness {
         public:
             typedef typename TensorTypeData<T>::float_scalar_type real_type;
             typedef T scalar_type;
+
+            virtual ~VectorOfFunctionsSpace() {}
 
             virtual real_type norm(
                     const Vector<Function<scalar_type, FDIM>, VDIM> &vec)
