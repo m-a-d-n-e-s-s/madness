@@ -1,5 +1,6 @@
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <world/world.h>
+#include <iomanip>
 using namespace std;
 using namespace madness;
 
@@ -62,7 +63,7 @@ int main(int argc, char** argv) {
     // All processes verify 10 random values from each array
     for (int j=0; j<10; j++) {
         size_t i = world.rand()%length;
-        std::cout << "rank " << world.rank() << ": " << setw(4) << i <<
+        std::cout << "rank " << world.rank() << ": " << std::setw(4) << i <<
             "th data is owned by " << a.owner(i) << "\n";
 
         Future<double> vala = a.read(i);
