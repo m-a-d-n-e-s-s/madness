@@ -51,6 +51,8 @@ namespace madness {
                 n(ndim,top), i(ndim, 0), finished(false) {
         }
 
+        virtual ~IndexIterator() {}
+
         IndexIterator&
         reset() {
             for (unsigned int d = 0; d < n.size(); d++)
@@ -121,6 +123,8 @@ namespace madness {
         /// Iterates all dimensions from 0 to top-1 inclusive
         HighDimIndexIterator(int ndim, long top) : IndexIterator(ndim, top) {}
 
+        virtual HighDimIndexIterator() {}
+
         /// increment the highest dimension first and check for overflows
         /// up through dimension 0
         virtual IndexIterator&
@@ -157,6 +161,8 @@ namespace madness {
 
         /// Iterates all dimensions from 0 to top-1 inclusive
         LowDimIndexIterator(int ndim, long top) : IndexIterator(ndim, top) {}
+
+        virtual ~LowDimIndexIterator() {}
 
         /// increment the lowest dimension first and check for overflows
         /// up through dimension 0
@@ -278,6 +284,8 @@ namespace madness {
                 dim[i] = order[i];
             }
         }
+
+        virtual ~NonstandardIndexIterator() {}
 
         /// increment the dimensions in the order detailed in dim
         virtual IndexIterator&
