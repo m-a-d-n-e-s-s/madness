@@ -123,7 +123,7 @@ namespace madness {
         /// Iterates all dimensions from 0 to top-1 inclusive
         HighDimIndexIterator(int ndim, long top) : IndexIterator(ndim, top) {}
 
-        virtual HighDimIndexIterator() {}
+        virtual ~HighDimIndexIterator() {}
 
         /// increment the highest dimension first and check for overflows
         /// up through dimension 0
