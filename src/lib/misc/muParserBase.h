@@ -194,7 +194,7 @@ private:
     virtual void InitConst() = 0;
     virtual void InitOprt() = 0; 
 
-    static char_type *c_DefaultOprt[]; 
+    static const char_type *c_DefaultOprt[];
 
  private:
 

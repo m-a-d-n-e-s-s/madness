@@ -48,7 +48,7 @@ namespace mu
       When defining custom binary operators with #AddOprt(...) make sure not to choose 
       names conflicting with these definitions. 
   */
-  char_type* ParserBase::c_DefaultOprt[] = 
+  const char_type* ParserBase::c_DefaultOprt[] =
   { 
     _T("<="), _T(">="),  _T("!="), 
     _T("=="), _T("<"),   _T(">"), 
