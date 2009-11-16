@@ -325,7 +325,11 @@ namespace madness {
 #  define LOADA   "movaps (%%r9),%%xmm0; movaps %%xmm0, %%xmm1; shufpd $1,%%xmm1,%%xmm1;  mov %%r10,%%r8; add %q2,%%r9; add %q3,%%r10; prefetcht0 (%%r9);\n"
 #  define DOIT(c) "movddup (%%r8),%%xmm2; mulpd %%xmm0,%%xmm2; addpd %%xmm2,"#c"; movddup 8(%%r8),%%xmm2; mulpd %%xmm1,%%xmm2; addsubpd %%xmm2,"#c"; \n"
 #else
-#  define ENTRY(loop) "mov %q0,%%r9; mov %q1, %%r10; mov %q4,%%r11;.align 32;"#loop": "
+#  ifndef ON_A_MAC
+#    define ENTRY(loop) "mov %q0,%%r9; mov %q1, %%r10; mov %q4,%%r11;.align 32;"#loop": "
+#  else
+#    define ENTRY(loop) "mov %q0,%%r9; mov %q1, %%r10; mov %q4,%%r11;"#loop": "
+#  endif
 #  define LOADA   "movddup  (%%r9), %%xmm0; mov %%r10,%%r8; movddup 8(%%r9), %%xmm1; add %q2,%%r9; add %q3,%%r10; prefetcht0 (%%r9);\n"
 #  define DOIT(c) "movaps (%%r8),%%xmm2; movaps %%xmm2,%%xmm3; mulpd %%xmm0,%%xmm2; addpd %%xmm2,"#c"; shufpd $1,%%xmm3,%%xmm3; mulpd %%xmm1,%%xmm3; addsubpd %%xmm3, "#c"; \n"
 #endif
