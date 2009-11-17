@@ -164,14 +164,12 @@ public:
     };
 };
 
-
-#define CHECK(value, threshold, message) \
+#define CHECK(value, threshold, message)        \
         do { \
              if (world.rank() == 0) { \
-                bool status = abs(value) < threshold; \
-                const char* msgs[2] = {"FAILED","OK"}; \
-                std::printf("%20.20s :%5d :%30.30s : %10.2e  < %10.2e : %s\n", \
-                            __FUNCTION__,__LINE__,message,abs(value),threshold, msgs[status]); \
+                 bool status = std::abs(value) < threshold;             \
+                const char* msgs[2] = {"FAILED","OK"};                  \
+                std::printf("%20.20s :%5d :%30.30s : %10.2e  < %10.2e : %s\n", (__FUNCTION__),(__LINE__),(message),(std::abs(value)),(threshold), (msgs[int(status)])); \
                 if (!status) ok = false; \
              } \
         } while (0)
@@ -216,7 +214,7 @@ void test_basic(World& world) {
     double norm = f.norm2();
     double err = f.err(*functor);
     T val = f(point);
-    CHECK(abs(norm-1.0), 1e-10, "norm");
+    CHECK(std::abs(norm-1.0), 1.0e-10, "norm");
     CHECK(err, 3e-7, "err");
     CHECK(val-(*functor)(point), 1e-8, "error at a point");
 
@@ -272,7 +270,7 @@ void test_conv(World& world) {
             std::size_t size = f.size();
             if (world.rank() == 0)
                 printf("   n=%d err=%.2e #coeff=%.2e log(err)/(n*k)=%.2e\n",
-                       n, err2, double(size), abs(log(err2)/n/k));
+                       n, err2, double(size), std::abs(log(err2)/n/k));
         }
     }
 
@@ -906,13 +904,13 @@ void test_qm(World& world) {
     typedef Function<double_complex,1> functionT;
     typedef FunctionFactory<double_complex,1> factoryT;
 
-    int k = 16;
-    double thresh = 1e-12;
+    //int k = 16;
+    //double thresh = 1e-12;
     // k=16, thresh=1e-12, gives 3e-10 forever with tstep=5x! BUT only
     // if applying also on the leaf nodes (which is not on by default)
 
-    //int k = 12;
-    //double thresh = 1e-8;
+    int k = 12;
+    double thresh = 1e-8;
     FunctionDefaults<1>::set_k(k);
     FunctionDefaults<1>::set_thresh(thresh);
     FunctionDefaults<1>::set_refine(true);
@@ -933,7 +931,7 @@ void test_qm(World& world) {
 
     // For the purpose of testing there is no need to propagate 100 time units.
     // Just 100 steps.
-    //nstep = 100;
+    nstep = 100;
 
     if (world.rank() == 0) {
         print("\n Testing evolution of a quantum wave packet in",1,"dimensions");
@@ -986,7 +984,7 @@ void test_qm(World& world) {
 //         double x = lo + i*h;
 //         double_complex numeric = psi(x);
 //         double_complex exact = QMtest(a,v,tstep*nstep)(x);
-//         if (world.rank() == 0) plot << x << " " << numeric.real() << " " << numeric.imag() << " " << abs(numeric) << " " << abs(numeric-exact) << endl;
+//         if (world.rank() == 0) plot << x << " " << numeric.real() << " " << numeric.imag() << " " << std::abs(numeric) << " " << std::abs(numeric-exact) << endl;
 //     }
 //     if (world.rank() == 0) plot.close();
 

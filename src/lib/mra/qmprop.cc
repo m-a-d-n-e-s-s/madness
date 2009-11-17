@@ -54,7 +54,7 @@ namespace madness {
             CFFT::Inverse(&s[0], N);
 
             int n;
-            for (n=N/3; n>=0 && abs(s[n])<1e-14; n--);
+            for (n=N/3; n>=0 && std::abs(s[n])<1e-14; n--);
             n++;
 
             s.resize(n);

@@ -65,8 +65,8 @@ namespace madness {
 
     // Forward declarations of friends
 
-    template <typename T, int NDIM>
-    Function<T,NDIM> square(const Function<T,NDIM>& f, bool fence = true);
+//     template <typename T, int NDIM>
+//     Function<T,NDIM> square(const Function<T,NDIM>& f, bool fence = true);
 
     template <typename T, int NDIM>
     Function<T,NDIM>
@@ -233,7 +233,7 @@ namespace madness {
         Function<typename opT::resultT,D>
         unary_op_coeffs(const Function<Q,D>& func, const opT& op, bool fence);
 
-        friend Function<T,NDIM> square<T,NDIM>(const Function<T,NDIM>&, bool);
+//         friend Function<T,NDIM> square<T,NDIM>(const Function<T,NDIM>&, bool);
 
         friend Function<T,NDIM> project<T,NDIM>(const Function<T,NDIM>&, int, double, bool);
 
@@ -779,6 +779,17 @@ namespace madness {
             t.conj();
         }
     public:
+
+//         /// SHOULD BE PRIVATE ! !! Apply 1d operator along given axis in real space using push algorithm
+//         template <typename opT, typename R>
+//         Function<T,NDIM>&
+//         apply_1d_realspace_push(const opT& op, const Function<R,NDIM>& f, int axis) {
+//             PROFILE_MEMBER_FUNC(Function);
+//             f.verify();
+//             impl = SharedPtr<implT>(new implT(*f.impl, f.get_pmap(), true));
+//             impl->apply_1d_realspace_push(op, *f.impl, axis);
+//             return *this;
+//         }
 
         /// Inplace complex conjugate.  No communication except for optional fence.
 
@@ -1343,7 +1354,7 @@ namespace madness {
 
     /// Create a new function that is the square of f - global comm only if not reconstructed
     template <typename T, int NDIM>
-    Function<T,NDIM> square(const Function<T,NDIM>& f, bool fence) {
+    Function<T,NDIM> square(const Function<T,NDIM>& f, bool fence=true) {
         PROFILE_FUNC;
         Function<T,NDIM> result = copy(f,true);  // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         return result.square(true); //fence);  // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -1425,6 +1436,17 @@ namespace madness {
         return result.apply(op, f, fence);
     }
 
+//     /// Apply 1d operator along given axis in real space using push algorithm
+//     template <typename opT, typename R, int NDIM>
+//     Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM>
+//     apply_1d_realspace_push(const opT& op, const Function<R,NDIM>& f, int axis) {
+//         PROFILE_FUNC;
+//         f.reconstruct();
+//         Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> result;
+//         result.apply_1d_realspace_push(op, f, axis);
+//         result.sum_down();
+//         return result;
+//     }
 
     /// Generate a new function by reordering dimensions ... optional fence
 
@@ -1433,8 +1455,6 @@ namespace madness {
     /// \code
     ///    newdim = mapdim[olddim]
     /// \endcode
-    /// Otherwise the process map of the input function is used.
-    ///
     /// Works in either scaling function or wavelet basis.
     ///
     /// Would be easy to modify this to also change the procmap here
@@ -1740,7 +1760,6 @@ namespace madness {
     static inline void plot_line_print_value(FILE* f, double v) {
         fprintf(f, " %.6e", v);
     }
-
 
     /// Generates ASCII file tabulating f(r) at npoints along line r=lo,...,hi
 
