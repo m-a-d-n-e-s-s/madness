@@ -47,9 +47,9 @@ typedef SharedPtr< WorldDCPmapInterface< Key<3> > > pmapT;
 typedef Vector<double,3> coordT;
 typedef SharedPtr< FunctionFunctorInterface<double,3> > functorT;
 typedef Function<double,3> functionT;
-typedef vector<functionT> vecfuncT;
-typedef pair<vecfuncT,vecfuncT> pairvecfuncT;
-typedef vector<pairvecfuncT> subspaceT;
+typedef std::vector<functionT> vecfuncT;
+typedef std::pair<vecfuncT,vecfuncT> pairvecfuncT;
+typedef std::vector<pairvecfuncT> subspaceT;
 typedef Tensor<double> tensorT;
 typedef FunctionFactory<double,3> factoryT;
 typedef SeparatedConvolution<double,3> operatorT;
@@ -124,7 +124,7 @@ int main(int argc, char**argv) {
     World world(MPI::COMM_WORLD);
     try {
         startup(world,argc,argv);
-        cout.precision(6);
+        std::cout.precision(6);
 
         // MADNESS simulation parameters
         const int k = 6;
@@ -186,7 +186,7 @@ int main(int argc, char**argv) {
             //            for (int lamiter=0; lamiter<20; lamiter++) {
                 vecfuncT rvec;
                 vecfuncT fvec;
-                vector<double> rnorms;
+                std::vector<double> rnorms;
                 tensorT Q;
                 for (int m=0; m<20; m++) {
                     f.truncate();

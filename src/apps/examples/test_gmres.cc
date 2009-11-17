@@ -45,30 +45,30 @@ class RealVecLinearOp : public Operator<Vector<double, 3> > {
 };
 
 /// the identity operator for complex vectors
-class ComplexVecIdentOp : public Operator<Vector<complex<double>, 3> > {
+class ComplexVecIdentOp : public Operator<Vector<std::complex<double>, 3> > {
 	protected:
-		void action(const Vector<complex<double>, 3> &invec,
-			Vector<complex<double>, 3> &outvec) const {
+		void action(const Vector<std::complex<double>, 3> &invec,
+			Vector<std::complex<double>, 3> &outvec) const {
 
 			outvec = invec;
 		}
 };
 
 /// an arbitrary operator for complex vectors
-class ComplexVecLinearOp : public Operator<Vector<complex<double>, 3> > {
+class ComplexVecLinearOp : public Operator<Vector<std::complex<double>, 3> > {
 	protected:
-		void action(const Vector<complex<double>, 3> &invec,
-			Vector<complex<double>, 3> &outvec) const {
+		void action(const Vector<std::complex<double>, 3> &invec,
+			Vector<std::complex<double>, 3> &outvec) const {
 
-			outvec[0] = complex<double>(37.0, 36.0)*invec[0] +
-             complex<double>(-47.0, 12.0)*invec[1] +
-             complex<double>(-50.0, 0.0)*invec[2];
-			outvec[1] = complex<double>(23.0, 12.0)*invec[0] +
-             complex<double>(0.0, 0.0)*invec[1] +
-             complex<double>(19.0, 0.0)*invec[2];
-			outvec[2] = complex<double>(0.0, -3.0)*invec[0] +
-             complex<double>(17.0, -10.0)*invec[1] +
-             complex<double>(0.0, 4.0)*invec[2];
+			outvec[0] = std::complex<double>(37.0, 36.0)*invec[0] +
+             std::complex<double>(-47.0, 12.0)*invec[1] +
+             std::complex<double>(-50.0, 0.0)*invec[2];
+			outvec[1] = std::complex<double>(23.0, 12.0)*invec[0] +
+             std::complex<double>(0.0, 0.0)*invec[1] +
+             std::complex<double>(19.0, 0.0)*invec[2];
+			outvec[2] = std::complex<double>(0.0, -3.0)*invec[0] +
+             std::complex<double>(17.0, -10.0)*invec[1] +
+             std::complex<double>(0.0, 4.0)*invec[2];
 		}
 };
 
@@ -101,10 +101,10 @@ class RealFuncLinearOp : public Operator<Function<double, 3> > {
 };
 
 /// the identity operator for a complex function
-class ComplexFuncIdentOp : public Operator<Function<complex<double>, 3> > {
+class ComplexFuncIdentOp : public Operator<Function<std::complex<double>, 3> > {
 	protected:
-		void action(const Function<complex<double>, 3> &invec,
-			Function<complex<double>, 3> &outvec) const {
+		void action(const Function<std::complex<double>, 3> &invec,
+			Function<std::complex<double>, 3> &outvec) const {
 
 			outvec = copy(invec);
 		}
@@ -112,12 +112,12 @@ class ComplexFuncIdentOp : public Operator<Function<complex<double>, 3> > {
 
 /// an arbitrary operator for a complex function
 /// assumes the function b is never zero in the domain
-class ComplexFuncLinearOp : public Operator<Function<complex<double>, 3> > {
+class ComplexFuncLinearOp : public Operator<Function<std::complex<double>, 3> > {
 	protected:
-		const Function<complex<double>, 3> &b;
+		const Function<std::complex<double>, 3> &b;
 
-		void action(const Function<complex<double>, 3> &invec,
-			Function<complex<double>, 3> &outvec) const {
+		void action(const Function<std::complex<double>, 3> &invec,
+			Function<std::complex<double>, 3> &outvec) const {
 
 			outvec = b * invec;
 			invec.compress();
@@ -125,7 +125,7 @@ class ComplexFuncLinearOp : public Operator<Function<complex<double>, 3> > {
 		}
 
 	public:
-		ComplexFuncLinearOp(const Function<complex<double>, 3> &_b) : b(_b) {}
+		ComplexFuncLinearOp(const Function<std::complex<double>, 3> &_b) : b(_b) {}
 };
 
 
@@ -273,14 +273,14 @@ bool realvec2() {
 /// test complex vectors, converge after 0 steps
 bool cplxvec0() {
 	ComplexVecIdentOp lo;
-	VectorSpace<complex<double>, 3> space;
-	Vector<complex<double>, 3> x, b;
+	VectorSpace<std::complex<double>, 3> space;
+	Vector<std::complex<double>, 3> x, b;
 	double thresh = 5.0e-4;
 	int maxiters = 10;
 
-	b[0] = complex<double>(1.0, 2.0);
-	b[1] = complex<double>(2.0, 1.0);
-	b[2] = complex<double>(3.0, 0.0);
+	b[0] = std::complex<double>(1.0, 2.0);
+	b[1] = std::complex<double>(2.0, 1.0);
+	b[2] = std::complex<double>(3.0, 0.0);
 	x = b;
 
 	GMRES(space, lo, b, x, maxiters, thresh, true);
@@ -291,14 +291,14 @@ bool cplxvec0() {
 /// test complex vectors, converge after 1 step
 bool cplxvec1() {
 	ComplexVecIdentOp lo;
-	VectorSpace<complex<double>, 3> space;
-	Vector<complex<double>, 3> x, b;
+	VectorSpace<std::complex<double>, 3> space;
+	Vector<std::complex<double>, 3> x, b;
 	double thresh = 5.0e-4;
 	int maxiters = 10;
 
-	b[0] = complex<double>(1.0, 2.0);
-	b[1] = complex<double>(2.0, 2.0);
-	b[2] = complex<double>(3.0, 0.0);
+	b[0] = std::complex<double>(1.0, 2.0);
+	b[1] = std::complex<double>(2.0, 2.0);
+	b[2] = std::complex<double>(3.0, 0.0);
 	x = 0.0;
 
 	GMRES(space, lo, b, x, maxiters, thresh, true);
@@ -309,21 +309,21 @@ bool cplxvec1() {
 /// test complex vectors, converge after >1 steps
 bool cplxvec2() {
 	ComplexVecLinearOp lo;
-	VectorSpace<complex<double>, 3> space;
-	Vector<complex<double>, 3> x, b;
+	VectorSpace<std::complex<double>, 3> space;
+	Vector<std::complex<double>, 3> x, b;
 	double thresh = 5.0e-4;
 	int maxiters = 10;
 
-	b[0] = complex<double>(1.0, 2.0);
-	b[1] = complex<double>(2.0, 2.0);
-	b[2] = complex<double>(3.0, 0.0);
+	b[0] = std::complex<double>(1.0, 2.0);
+	b[1] = std::complex<double>(2.0, 2.0);
+	b[2] = std::complex<double>(3.0, 0.0);
 	x = 0.0;
 
 	GMRES(space, lo, b, x, maxiters, thresh, true);
 	// solution is in the following vector
-	b[0] = complex<double>(142537429.0, 13617861.0) / 1013086721.0;
-	b[1] = complex<double>(114173858.0, 105798015.0) / 1013086721.0;
-	b[2] = complex<double>(-57303847.0, 132289.0) / 1013086721.0;
+	b[0] = std::complex<double>(142537429.0, 13617861.0) / 1013086721.0;
+	b[1] = std::complex<double>(114173858.0, 105798015.0) / 1013086721.0;
+	b[2] = std::complex<double>(-57303847.0, 132289.0) / 1013086721.0;
 	return space.norm(x-b) < 5.0e-4;
 }
 
@@ -336,12 +336,12 @@ static double magfunc(const Vector<double, 3> &pt) {
 	return sqrt(pt[0]*pt[0] + pt[1]*pt[1] + pt[2]*pt[2]);
 }
 
-static complex<double> zzerofunc(const Vector<double, 3> &pt) {
+static std::complex<double> zzerofunc(const Vector<double, 3> &pt) {
 	return 0.0;
 }
 
-static complex<double> zmagfunc(const Vector<double, 3> &pt) {
-	return complex<double>(pt[0], sqrt(pt[1]*pt[1] + pt[2]*pt[2]));
+static std::complex<double> zmagfunc(const Vector<double, 3> &pt) {
+	return std::complex<double>(pt[0], sqrt(pt[1]*pt[1] + pt[2]*pt[2]));
 }
 
 // inverts a madness function... assumes the function is never 0
@@ -349,8 +349,8 @@ inline static void invert(const Key<3> &key, Tensor<double> &t) {
 	UNARY_OPTIMIZED_ITERATOR(double, t, *_p0 = 1.0 / *_p0);
 }
 
-inline static void zinvert(const Key<3> &key, Tensor<complex<double> > &t) {
-	UNARY_OPTIMIZED_ITERATOR(complex<double>, t, *_p0 = 1.0 / *_p0);
+inline static void zinvert(const Key<3> &key, Tensor<std::complex<double> > &t) {
+	UNARY_OPTIMIZED_ITERATOR(std::complex<double>, t, *_p0 = 1.0 / *_p0);
 }
 
 /// test real functions, converge after 0 steps
@@ -415,12 +415,12 @@ bool realfunc2() {
 /// test complex functions, converge after 0 steps
 bool cplxfunc0() {
 	ComplexFuncIdentOp lo;
-	FunctionSpace<complex<double>, 3> space;
-	Function<complex<double>, 3> x, b;
+	FunctionSpace<std::complex<double>, 3> space;
+	Function<std::complex<double>, 3> x, b;
 	double thresh = 1.0e-3;
 	int maxiters = 10;
 
-	b = FunctionFactory<complex<double>, 3>(*worldptr).f(zmagfunc);
+	b = FunctionFactory<std::complex<double>, 3>(*worldptr).f(zmagfunc);
 	b.truncate();
 	x = copy(b);
 
@@ -431,14 +431,14 @@ bool cplxfunc0() {
 /// test complex functions, converge after 1 step
 bool cplxfunc1() {
 	ComplexFuncIdentOp lo;
-	FunctionSpace<complex<double>, 3> space;
-	Function<complex<double>, 3> x, b;
+	FunctionSpace<std::complex<double>, 3> space;
+	Function<std::complex<double>, 3> x, b;
 	double thresh = 1.0e-3;
 	int maxiters = 10;
 
-	b = FunctionFactory<complex<double>, 3>(*worldptr).f(zmagfunc);
+	b = FunctionFactory<std::complex<double>, 3>(*worldptr).f(zmagfunc);
 	b.truncate();
-	x = FunctionFactory<complex<double>, 3>(*worldptr).f(zzerofunc);
+	x = FunctionFactory<std::complex<double>, 3>(*worldptr).f(zzerofunc);
 	x.truncate();
 
 	GMRES(space, lo, b, x, maxiters, thresh, true);
@@ -447,17 +447,17 @@ bool cplxfunc1() {
 
 /// test complex functions, converge after >1 steps
 bool cplxfunc2() {
-	FunctionSpace<complex<double>, 3> space;
-	Function<complex<double>, 3> x, b, mult;
+	FunctionSpace<std::complex<double>, 3> space;
+	Function<std::complex<double>, 3> x, b, mult;
 	double thresh = 2.0e-3;
 	int maxiters = 25;
 
-	b = FunctionFactory<complex<double>, 3>(*worldptr).f(zmagfunc);
+	b = FunctionFactory<std::complex<double>, 3>(*worldptr).f(zmagfunc);
 	b.truncate();
-	x = FunctionFactory<complex<double>, 3>(*worldptr).f(zzerofunc);
+	x = FunctionFactory<std::complex<double>, 3>(*worldptr).f(zzerofunc);
 	x.truncate();
 	mult = copy(b);
-	mult.add_scalar(complex<double>(1.0, 1.0));
+	mult.add_scalar(std::complex<double>(1.0, 1.0));
 	mult.truncate();
 
 	ComplexFuncLinearOp lo(mult);

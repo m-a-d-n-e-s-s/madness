@@ -591,7 +591,7 @@ namespace madness {
           double start_time;
           double weight;
           int    ncalls;
-          string name;
+          std::string name;
           Timer() : status(true),
                     time(0.0),
                     start_time(0.0),
@@ -607,7 +607,7 @@ namespace madness {
 
         typedef Key<NDIM> keyT;
         typedef unsigned long Cost;
-        typedef vector<Timer> timerListT;             // all timers on a node
+        typedef std::vector<Timer> timerListT;        // all timers on a node
         typedef WorldContainer<keyT, timerListT> dcT; // all timers
         typedef std::pair<const keyT, timerListT> datumT;
         dcT op_timers;
@@ -631,7 +631,7 @@ namespace madness {
 
         // given a key and a name, return the timers list and the 
         //   index of that timer. Will create a timer if no match found.
-        void retrieve_timer(keyT &key, const string &name,
+        void retrieve_timer(keyT &key, const std::string &name,
                             timerListT &timers, int &index) {
 
           index = -1;
@@ -850,7 +850,7 @@ namespace madness {
         }
 
         // starts the timer with the given name on the given node
-        void start(keyT key, const string& name) {
+        void start(keyT key, const std::string& name) {
           int index;
           timerListT timers;
 
@@ -865,7 +865,7 @@ namespace madness {
         } // end start timer
 
         // stops the given timer on the given node
-        void stop(keyT key, const string& name) {
+        void stop(keyT key, const std::string& name) {
          int index;
           timerListT timers;
           index = 0;
@@ -884,7 +884,7 @@ namespace madness {
         } // end stop timer
 
         // resets given timer on given node
-        void reset(keyT& key, string& name) {
+        void reset(keyT& key, std::string& name) {
           int index;
           timerListT timers;
 
@@ -907,7 +907,7 @@ namespace madness {
         }
 
         // resets given timer on all nodes
-        void reset(string& name) {
+        void reset(std::string& name) {
           typename dcT::const_iterator iNode;
           int index;
           timerListT timers;
@@ -943,7 +943,7 @@ namespace madness {
         }
 
         // dis/enables the given timer on given node
-        void set_status(keyT& key, string& name, bool& status) {
+        void set_status(keyT& key, std::string& name, bool& status) {
           int index;
           timerListT timers;
 
@@ -965,7 +965,7 @@ namespace madness {
         }
         
         // dis/enables given timer on all nodes
-        void set_status(string& name, bool& status) {
+        void set_status(std::string& name, bool& status) {
           typename dcT::const_iterator iNode;
           int index;
           timerListT timers;
@@ -1000,7 +1000,7 @@ namespace madness {
         }
 
         // sets weight of given timer on given node (used for cost function)
-        void set_weight(keyT& key, string& name, double& weight) {
+        void set_weight(keyT& key, std::string& name, double& weight) {
           int index;
           timerListT timers;
           retrieve_timer(key, name, timers, index);
@@ -1021,7 +1021,7 @@ namespace madness {
         }
 
         // sets weight of given timer on all nodes (used for cost function)
-        void set_weight(const string& name, const double& weight) {
+        void set_weight(const std::string& name, const double& weight) {
           typename dcT::const_iterator iNode;
           int index;
           timerListT timers;
@@ -2471,7 +2471,7 @@ namespace madness {
         /// Projects old function into new basis (only in reconstructed form)
         void project(const implT& old, bool fence) {
             long kmin = std::min(cdata.k,old.cdata.k);
-            vector<Slice> s(NDIM,Slice(0,kmin-1));
+            std::vector<Slice> s(NDIM,Slice(0,kmin-1));
             typename dcT::const_iterator end = old.coeffs.end();
             for (typename dcT::const_iterator it=old.coeffs.begin(); it!=end; ++it) {
                 const keyT& key = it->first;
@@ -2562,7 +2562,7 @@ namespace madness {
                 world.gop.fence();
         }
 
-        double norm_tree_op(const keyT& key, const vector< Future<double> >& v) {
+        double norm_tree_op(const keyT& key, const std::vector< Future<double> >& v) {
             PROFILE_MEMBER_FUNC(FunctionImpl);
             double sum = 0.0;
             int i=0;
@@ -2591,7 +2591,7 @@ namespace madness {
             }
         }
 
-        tensorT compress_op(const keyT& key, const vector< Future<tensorT> >& v, bool nonstandard) {
+        tensorT compress_op(const keyT& key, const std::vector< Future<tensorT> >& v, bool nonstandard) {
             PROFILE_MEMBER_FUNC(FunctionImpl);
             // Copy child scaling coeffs into contiguous block
             tensorT d(cdata.v2k,false);
@@ -2666,7 +2666,7 @@ namespace madness {
             double fac = 10.0; //3.0; // 10.0 seems good for qmprop ... 3.0 OK for others
             double cnorm = c.normf();
             const long lmax = 1L << (key.level()-1);
-            const string apply_name = "apply";           
+            const std::string apply_name = "apply";
 
 #ifdef ENABLE_LBTIMER
             CostFun::Instance(world).start(key,"apply");

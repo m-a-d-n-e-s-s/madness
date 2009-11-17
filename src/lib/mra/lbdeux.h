@@ -264,7 +264,7 @@ namespace madness {
             world.gop.fence();
 
             // Collect entire vector onto node0
-            vector< std::pair<keyT,double> > results;
+            std::vector< std::pair<keyT,double> > results;
             const_iteratorT end = tree.end();
             for (const_iteratorT it=tree.begin(); it!=end; ++it) {
                 if (it->second.get_total_cost() >= 0) {
@@ -274,7 +274,7 @@ namespace madness {
             results = world.gop.concat0(results, 128*1024*1024);
             world.gop.fence();
 
-            vector< std::pair<keyT,ProcessID> > map;
+            std::vector< std::pair<keyT,ProcessID> > map;
 
             if (world.rank() == 0) {
 

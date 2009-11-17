@@ -34,7 +34,7 @@ struct InputParameters {
   double thresh;      // precision for truncating wave function
   double safety;      // additional precision (thresh*safety) for operators and potential
   double cut;         // smoothing parameter for 1/r (same for all atoms for now)
-  string prefix;      // Prefix for filenames
+  std::string prefix;      // Prefix for filenames
   int ndump;          // dump wave function to disk every ndump steps
   int nplot;          // dump opendx plot to disk every nplot steps
   int nprint;         // print stats every nprint steps
@@ -46,8 +46,8 @@ struct InputParameters {
   double target_time;// Target end-time for the simulation
   
   void read(const char* filename) {
-    ifstream f(filename);
-    string tag;
+    std::ifstream f(filename);
+    std::string tag;
     printf("\n");
     printf("       Simulation parameters\n");
     printf("       ---------------------\n");
@@ -155,7 +155,7 @@ struct InputParameters {
   }
 };
 
-ostream& operator<<(ostream& s, const InputParameters& p) {
+std::ostream& operator<<(std::ostream& s, const InputParameters& p) {
     s << p.L<< " " << p.Lsmall<< " " << p.Llarge<< " " << p.F<< " " << p.omega<<
         " " << p.ncycle << " " << p.Z<< " " << p.R[0]<< " " << p.k<< " " <<
         p.thresh<< " " << p.cut<< " " << p.prefix<< " " << p.ndump<< " " <<
@@ -571,7 +571,7 @@ void line_plot(World& world, int step, complex_functionT& psi) {
     if (world.rank() == 0) {
         char buf[256];
         sprintf(buf, "%s.lineplot", wave_function_filename(step));
-        ofstream f(buf);
+        std::ofstream f(buf);
         f.precision(10);
         for (int i=0; i<npt; i++) {
             double z = -param.Llarge + 2.0*i*param.Llarge/(npt-1);
@@ -652,7 +652,7 @@ void propagate(World& world, int step0) {
     world.gop.broadcast(nstep);
 
     // Free particle propagator for both Trotter and Chin-Chen --- exp(-I*T*time_step/2)
-    SeparatedConvolution<double_complex,3> G = qm_free_particle_propagator<3>(world, param.k, c, 0.5*time_step, 2*param.L);
+    SeparatedConvolution<double_complex,3> G = qm_free_particle_propagator<3>(world, param.k, c, 0.5*time_step);
     //G.doleaves = true;
 
     // The time-independent part of the potential plus derivatives for
@@ -815,7 +815,7 @@ void propagate(World& world, int step0) {
 }
 
 void doit(World& world) {
-    cout.precision(8);
+    std::cout.precision(8);
 
     if (world.rank() == 0) param.read("input");
     world.gop.broadcast_serializable(param, 0);

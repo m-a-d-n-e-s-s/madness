@@ -311,7 +311,7 @@ class SDF_Cylinder : public SurfaceLayer<Q, 3> {
 			for(i = 0; i < 3; ++i)
 				radial[i] = rel[i] - dist * axis[i];
 
-			return max(fabs(dist) - a, sqrt(radial[0]*radial[0] + radial[1]*radial[1]
+			return std::max(fabs(dist) - a, sqrt(radial[0]*radial[0] + radial[1]*radial[1]
 				+ radial[2]*radial[2]) - radius);
 		}
 };

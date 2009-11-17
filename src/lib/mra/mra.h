@@ -334,7 +334,7 @@ namespace madness {
         /// Set eval_refine=true to return the refinment levels of 
         /// the given function.
         Tensor<T> eval_cube(const Tensor<double>& cell, 
-                            const vector<long>& npt, 
+                            const std::vector<long>& npt,
                             bool eval_refine = false) const {
             PROFILE_MEMBER_FUNC(Function);
             const double eps=1e-14;

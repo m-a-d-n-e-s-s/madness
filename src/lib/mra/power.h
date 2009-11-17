@@ -36,7 +36,7 @@
 #ifndef POWER_H
 #define POWER_H
 
-using namespace std;
+//using namespace std;
 
 namespace madness {
 

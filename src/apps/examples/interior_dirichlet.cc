@@ -118,14 +118,14 @@ int main(int argc, char **argv) {
 
 	// get the helmholtz_k value from the command-line
 	if(argc < 3) {
-		cerr << "Usage error: ./app_name eps (0 Poisson, 1 Helmholtz) " \
-			"[helmholtz_k]" << endl;
+		std::cerr << "Usage error: ./app_name eps (0 Poisson, 1 Helmholtz) " \
+			"[helmholtz_k]" << std::endl;
 		return -1;
 	}
 
 	eps = atof(argv[1]);
 	if(eps <= 0.0) {
-		cerr << "eps must be positive, and hopefully small." << endl;
+		std::cerr << "eps must be positive, and hopefully small." << std::endl;
 		return -1;
 	}
 	inveps = 1.0 / eps;
@@ -138,13 +138,13 @@ int main(int argc, char **argv) {
 		case 1:
 			is_helmholtz = true;
 			if(argc < 4 || (helmholtz_k = atof(argv[3])) == 0.0) {
-				cerr << "Must specify a helmholtz_k != 0 for a Helmholtz problem"
-					<< endl;
+				std::cerr << "Must specify a helmholtz_k != 0 for a Helmholtz problem"
+					<< std::endl;
 				return -1;
 			}
 			break;
 		default:
-			cerr << "Only 0 (Poisson) and 1 (Helmholtz) are accepted." << endl;
+			std::cerr << "Only 0 (Poisson) and 1 (Helmholtz) are accepted." << std::endl;
 			return -1;
 	}
 

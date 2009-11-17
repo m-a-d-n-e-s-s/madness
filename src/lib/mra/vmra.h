@@ -611,9 +611,9 @@ namespace madness {
 
     /// Normalizes a vector of functions --- v[i] = v[i].scale(1.0/v[i].norm2())
     template <typename T, int NDIM>
-    void normalize(World& world, vector< Function<T,NDIM> >& v, bool fence=true) {
+    void normalize(World& world, std::vector< Function<T,NDIM> >& v, bool fence=true) {
         PROFILE_BLOCK(Vnormalize);
-        vector<double> nn = norm2(world, v);
+        std::vector<double> nn = norm2(world, v);
         for (unsigned int i=0; i<v.size(); i++) v[i].scale(1.0/nn[i],false);
         if (fence) world.gop.fence();
     }

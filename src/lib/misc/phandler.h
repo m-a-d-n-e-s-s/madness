@@ -54,8 +54,8 @@
 #include <string>
 #include <mra/mra.h>
 
-using namespace madness;
-using namespace mu;
+//using namespace madness;
+//using namespace mu;
 
 // T can be double or complex, but muParser results will always be real
 // NDIM can be 1 to 6
@@ -63,17 +63,17 @@ using namespace mu;
 // "r" will always mean magnitude of given vector
    
 template <typename T, int NDIM>
-class ParserHandler : public FunctionFunctorInterface<T, NDIM> {
+class ParserHandler : public madness::FunctionFunctorInterface<T, NDIM> {
 
   private:
     mu::Parser parser;                   // the string-to-function parser
     static const int MAX_DIM = 6;
     mutable double vars[MAX_DIM];              // variables used in expression
     mutable double r;                    // distance to origin
-    typedef Vector<double, NDIM> coordT;
+    typedef madness::Vector<double, NDIM> coordT;
 
   public:
-    ParserHandler(string expr)   {
+    ParserHandler(std::string expr)   {
         if (NDIM > MAX_DIM) MADNESS_EXCEPTION("too many dim for parser!",0);
         try {
           if (NDIM >= 1) parser.DefineVar("x", &vars[0]);
@@ -84,8 +84,8 @@ class ParserHandler : public FunctionFunctorInterface<T, NDIM> {
           if (NDIM >= 6) parser.DefineVar("w", &vars[5]);
           parser.DefineVar("r", &r);
           parser.SetExpr(expr);
-        } catch (Parser::exception_type &e) {
-          std::cout << "muParser: " << e.GetMsg() << endl;
+        } catch (mu::Parser::exception_type &e) {
+          std::cout << "muParser: " << e.GetMsg() << std::endl;
         }
     }
 
@@ -99,17 +99,17 @@ class ParserHandler : public FunctionFunctorInterface<T, NDIM> {
 
       try {
         return parser.Eval();
-      } catch (Parser::exception_type &e) {
-        std::cout << "muParser: " << e.GetMsg() << endl;
+      } catch (mu::Parser::exception_type &e) {
+        std::cout << "muParser: " << e.GetMsg() << std::endl;
         return 0.0;
       }
     } // end operator()
 
-    void changeExpr(const string newExpr) {
+    void changeExpr(const std::string newExpr) {
       try {
         parser.SetExpr(newExpr);
-      } catch (Parser::exception_type &e) {
-        std::cout << "muParser: " << e.GetMsg() << endl;
+      } catch (mu::Parser::exception_type &e) {
+        std::cout << "muParser: " << e.GetMsg() << std::endl;
       }
     }
 }; // end class parserhandler

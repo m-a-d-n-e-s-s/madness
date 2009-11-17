@@ -66,7 +66,7 @@ struct InputParameters {
   double thresh;      // precision for truncating wave function
   double safety;      // additional precision (thresh*safety) for operators and potential
   double cut;         // smoothing parameter for 1/r (same for all atoms for now)
-  string prefix;      // Prefix for filenames
+  std::string prefix;      // Prefix for filenames
   int ndump;          // dump wave function to disk every ndump steps
   int nprint;         // print stats every nprint steps
   int nloadbal;       // load balance every nloadbal steps
@@ -77,8 +77,8 @@ struct InputParameters {
   double target_time;// Target end-time for the simulation
   
   void read(const char* filename) {
-    ifstream f(filename);
-    string tag;
+    std::ifstream f(filename);
+    std::string tag;
     printf("\n");
     printf("       Simulation parameters\n");
     printf("       ---------------------\n");
@@ -168,7 +168,7 @@ struct InputParameters {
   }
 };
 
-ostream& operator<<(ostream& s, const InputParameters& p) {
+std::ostream& operator<<(std::ostream& s, const InputParameters& p) {
     s << p.L<< " " << p.F<< " " << p.omega << " " << 
         p.ncycle << " " << p.k<< " " <<
         p.thresh<< " " << p.cut<< " " << p.prefix<< " " << p.ndump<< " " <<
@@ -591,7 +591,7 @@ void propagate(World& world, functionT& pote, functionT& potn, functionT& pot, i
     world.gop.broadcast(nstep);
 
     // Free particle propagator for both Trotter and Chin-Chen --- exp(-I*T*time_step/2)
-    SeparatedConvolution<double_complex,4> G = qm_free_particle_propagator<4>(world, param.k, c, 0.5*time_step, 2*param.L);
+    SeparatedConvolution<double_complex,4> G = qm_free_particle_propagator<4>(world, param.k, c, 0.5*time_step);
 
     // Dipole moment functions for laser field and for printing statistics
     functionT x = factoryT(world).f(xdipole);
@@ -665,7 +665,7 @@ void propagate(World& world, functionT& pote, functionT& potn, functionT& pot, i
 }
 
 void doit(World& world) {
-    cout.precision(8);
+    std::cout.precision(8);
 
     if (world.rank() == 0) param.read("input4");
     world.gop.broadcast_serializable(param, 0);
@@ -688,7 +688,7 @@ void doit(World& world) {
 
     if (world.rank() == 0) {
         print("EXISTS",exists,"STEP0",step0);
-        ofstream out("plot.dat");
+        std::ofstream out("plot.dat");
         for (int i=-100; i<=100; i++) {
             double x = i*0.01*param.L;
             coordT rn(0.0), re(0.0);
@@ -698,7 +698,7 @@ void doit(World& world) {
             double ve = Ve(re);
             double pn = guess(rn);
             double pe = guess(re);
-            out << x << " " << vn << " " << ve << " " << pn << " " << pe << endl;
+            out << x << " " << vn << " " << ve << " " << pn << " " << pe << std::endl;
         }
         out.close();
     }

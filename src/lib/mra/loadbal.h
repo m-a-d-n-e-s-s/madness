@@ -152,7 +152,7 @@ namespace madness {
             ar & cost & subcost & is_taken;
         }
         void print() {
-            cout << "cost = " << cost << ", subcost = " << subcost << ", is_taken = " << is_taken << endl;
+            std::cout << "cost = " << cost << ", subcost = " << subcost << ", is_taken = " << is_taken << std::endl;
         }
         template <typename functionT>
         void set_data(functionT function) {
@@ -257,7 +257,7 @@ namespace madness {
             return data;
         };
 
-        vector<bool> get_c() const {
+        std::vector<bool> get_c() const {
             return c;
         };
 
@@ -486,7 +486,7 @@ namespace madness {
 	    }
 	};
 
-        MyPmap(World& world, vector<TreeCoords<D> > v) : map_type(2), nproc(world.nproc()), n(0) {
+        MyPmap(World& world, std::vector<TreeCoords<D> > v) : map_type(2), nproc(world.nproc()), n(0) {
             build_tree_map(v);
         };
 
@@ -743,7 +743,7 @@ namespace madness {
         void print(const Key<D>& key) {
             typename LBTree<D>::iterator it = impl.find(key);
             if (it == impl.end()) return;
-            for (Level i = 0; i < key.level(); i++) cout << "  ";
+            for (Level i = 0; i < key.level(); i++) std::cout << "  ";
             madness::print(key, it->second);
             for (KeyChildIterator<D> kit(key); kit; ++kit) {
                 print(kit.key());

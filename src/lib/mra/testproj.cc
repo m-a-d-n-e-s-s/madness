@@ -62,8 +62,8 @@ public:
         return coefficient*exp(-exponent*sum);
     }
 
-    vector<coordT> special_points() const {
-    	return vector<coordT>(1,center);
+    std::vector<coordT> special_points() const {
+    	return std::vector<coordT>(1,center);
     }
 };
 
@@ -111,7 +111,7 @@ int main(int argc, char**argv) {
     try {
         startup(world,argc,argv);
 
-        cout.precision(8);
+        std::cout.precision(8);
 
         test_proj<double>(world);
 

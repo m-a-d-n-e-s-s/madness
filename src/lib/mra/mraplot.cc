@@ -51,7 +51,7 @@ struct lbcost {
     }
 };
 
-string help = "\n\
+std::string help = "\n\
       Input is read from standard input.\n\
 \n\
       Keywords may appear in any order until the plot keyword is  \n\
@@ -116,14 +116,14 @@ public:
     World& world;
     Tensor<double> cell;        // Computational cell
     Tensor<double> plot_cell;   // Plotting volume
-    string data_type;           // presently only double or complex
-    string plot_type;           // line or volume
-    string input_filename;      // filename for function on disk
-    string output_filename;     // output file name for plot data
-    string output_format;       // output format for volume data (presently only dx)
-    string formula;             // analytic function to plot
-    string function_name;       // function name for VTK output
-    vector<long> npt;           // no. points in each dimension
+    std::string data_type;           // presently only double or complex
+    std::string plot_type;           // line or volume
+    std::string input_filename;      // filename for function on disk
+    std::string output_filename;     // output file name for plot data
+    std::string output_format;       // output format for volume data (presently only dx)
+    std::string formula;             // analytic function to plot
+    std::string function_name;       // function name for VTK output
+    std::vector<long> npt;           // no. points in each dimension
     int ndim;                   // no. of dimensions
     bool binary;                // output format for plot data
     bool finished;              // true if finishing
@@ -151,8 +151,8 @@ public:
         , finished(true)
     {}
 
-    string read_to_end_of_line(istream& input) {
-        string buf; 
+    std::string read_to_end_of_line(std::istream& input) {
+        std::string buf;
         while (1) {
             int c = input.get();
             if (c == '\n') break;
@@ -161,9 +161,9 @@ public:
         return buf;
     }
 
-    vector<long> read_npt(istream& input) {
-        istringstream s(read_to_end_of_line(input));
-        vector<long> npt;
+    std::vector<long> read_npt(std::istream& input) {
+        std::istringstream s(read_to_end_of_line(input));
+        std::vector<long> npt;
         int i;
         while (s >> i) {
             npt.push_back(i);
@@ -172,8 +172,8 @@ public:
     }
 
     // Read pairs of floating point values and return appropriately sized tensor
-    Tensor<double> read_cell(istream& input) {
-        istringstream s(read_to_end_of_line(input));
+    Tensor<double> read_cell(std::istream& input) {
+        std::istringstream s(read_to_end_of_line(input));
         double v[65];
         int n = 0;
         while (s >> v[n]) {
@@ -191,9 +191,9 @@ public:
         return cell;
     }
 
-    void read(istream& input) {
+    void read(std::istream& input) {
         finished = true;
-        string token;
+        std::string token;
         while (input >> token) {
             finished = false;
 
@@ -274,7 +274,7 @@ public:
         while (int(npt.size()) < ndim) npt.push_back(101);
 
         // Warm and fuzzy
-        string ff[2] = {"text","binary"};
+        std::string ff[2] = {"text","binary"};
         print(plot_type,"plot of", data_type, "function in", ndim,"dimensions from file", input_filename, "to", ff[binary], "file", output_filename);
         print("  compute cell");
         print(cell);
@@ -410,7 +410,7 @@ public:
             doplot<double>();
         }
         else if (data_type == "complex") {
-            doplot< complex<double> >();
+            doplot< std::complex<double> >();
         }
         else {
             MADNESS_EXCEPTION("uknown data type",0);
@@ -440,7 +440,7 @@ int main(int argc, char**argv) {
             Plotter plotter(world);
             while (1) {
                 if (world.rank() == 0) {
-                    plotter.read(cin);
+                    plotter.read(std::cin);
                 }
                 world.gop.broadcast_serializable(plotter, 0);
                 if (plotter.finished) break;

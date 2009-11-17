@@ -47,7 +47,7 @@ static const double_complex I = double_complex(0,1);
 int np; // number of quadrature pts
 Tensor<double> B(10), tc(10);
 pcomplex_operatorT G;
-vector<pcomplex_operatorT> Gs, Gss;
+std::vector<pcomplex_operatorT> Gs, Gss;
 const int maxiter = 20;
 const double fix_iter_tol = 1e-5;
 
@@ -268,7 +268,7 @@ double icoeff(const int np, const int j, const double t) {
 }
 
 //interpolate ps at t
-template<typename T> T myp(const vector<T>& ps, const double t) {
+template<typename T> T myp(const std::vector<T>& ps, const double t) {
 	int np = ps.size();
 	T p = ps[0]*icoeff(np, 0, t);
 	for (int j=1; j<np; ++j) p += ps[j]*icoeff(np, j, t);
@@ -279,15 +279,15 @@ template<typename T> T myp(const vector<T>& ps, const double t) {
 complex_functionT q_r(World& world, const int np, const complex_functionT psi0, const double tstep) {
     //can be more vectorized.
 	
-	vector<complex_functionT> ps(np), ps1(np);
+	std::vector<complex_functionT> ps(np), ps1(np);
 //    for (int i=0; i<np; ++i) ps[i] = copy(psi0);
 	
 	
 	double tdum = current_time;
 	complex_functionT pdum;
-	vector<complex_functionT> qs(np);
-	vector<functionT> Vs(np);
-	vector< vector<functionT> > Vss(np);
+	std::vector<complex_functionT> qs(np);
+	std::vector<functionT> Vs(np);
+	std::vector< std::vector<functionT> > Vss(np);
 	for (int i=0; i<np; ++i) {
 		current_time = tdum + tstep*tc[i];
 		qs[i] = apply(*Gs[np - i - 1], psi0).truncate();
@@ -334,7 +334,7 @@ int main(int argc, char** argv) {
     initialize(argc, argv);
     World world(MPI::COMM_WORLD);
     startup(world,argc,argv);
-    cout.precision(8);
+    std::cout.precision(8);
 
     FunctionDefaults<1>::set_k(k);                 // Wavelet order
     FunctionDefaults<1>::set_thresh(thresh);       // Accuracy
@@ -360,16 +360,16 @@ int main(int argc, char** argv) {
     print("   8: Quadrature 5pt");
     print("   9: Quadrature 6pt");
     while (selection < 0 || selection > 9) {
-        cout << " Select propagation method (0-9):";
-        cout.flush();
-        cin >> selection;
+        std::cout << " Select propagation method (0-9):";
+        std::cout.flush();
+        std::cin >> selection;
     }
 
     print("Critical time step is", tcrit, "\n");
 
-    cout << " Enter time step: ";
-    cout.flush();
-    cin >> tstep;
+    std::cout << " Enter time step: ";
+    std::cout.flush();
+    std::cin >> tstep;
 
     int nstep = velocity==0 ? 100 : (L - 10 - x0)/velocity/tstep;
 

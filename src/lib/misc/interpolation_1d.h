@@ -5,7 +5,7 @@
 #include <cmath>
 #include <vector>
 
-using namespace std;
+//using namespace std;
 
 /// An class for 1-D data interpolation based on cubic polynomials.
 ///
@@ -38,7 +38,7 @@ protected:
     }
 
     // Use the x- and y-points to make the interpolation
-    void make_interpolation(const vector<double> &x, const vector<T> &p) {
+    void make_interpolation(const std::vector<double> &x, const std::vector<T> &p) {
         // Generate interior polynomial coeffs
         for (int i=1; i<=npt-3; i++) {
             double mid = (x[i] + x[i+1])*0.5;
@@ -72,13 +72,13 @@ public:
         make_interpolation(x, p);
     }
 
-    CubicInterpolationTable(double lo, double hi, int npt, const vector<T> &y)
+    CubicInterpolationTable(double lo, double hi, int npt, const std::vector<T> &y)
         : lo(lo), hi(hi), h((hi-lo)/(npt-1)), rh(1.0/h), npt(npt), a(npt*5) {
 
         if((int)y.size() < npt)
             throw "Insufficient y-points";
 
-        vector<double> x(npt);
+        std::vector<double> x(npt);
         for(int i = 0; i < npt; ++i)
             x[i] = lo + i*h;
 

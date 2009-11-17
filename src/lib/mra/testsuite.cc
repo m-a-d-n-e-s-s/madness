@@ -1016,7 +1016,7 @@ void test_plot(World& world) {
     Function<T,NDIM> f = FunctionFactory<T,NDIM>(world).functor(functor);
 
     //vector<long> npt(NDIM,21); // recommend this if testing in dimension > 3
-    vector<long> npt(NDIM,101);
+    std::vector<long> npt(NDIM,101);
     world.gop.fence();
     Tensor<T> r = f.eval_cube(FunctionDefaults<NDIM>::get_cell(), npt);
     world.gop.fence();
@@ -1024,7 +1024,7 @@ void test_plot(World& world) {
         const double h = (2.0*L - 12e-13)/(npt[0]-1.0);
         for (int i=0; i<npt[0]; i++) {
             double x = -L + i*h + 2e-13;
-            T fplot = r(vector<long>(NDIM,i));
+            T fplot = r(std::vector<long>(NDIM,i));
             T fnum  = f.eval(coordT(x)).get();
             CHECK(fplot-fnum,1e-12,"plot-eval");
             if (world.rank() == 0 && std::abs(fplot-fnum) > 1e-12) {
@@ -1134,7 +1134,7 @@ int main(int argc, char**argv) {
         if (world.rank() == 0) print("Initial tensor instance count", BaseTensor::get_instance_count());
         PROFILE_BLOCK(testsuite);
 
-        cout.precision(8);
+        std::cout.precision(8);
 
         test_basic<double,1>(world);
         test_conv<double,1>(world);

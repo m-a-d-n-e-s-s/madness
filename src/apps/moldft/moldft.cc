@@ -134,9 +134,9 @@ typedef SharedPtr< WorldDCPmapInterface< Key<3> > > pmapT;
 typedef Vector<double,3> coordT;
 typedef SharedPtr< FunctionFunctorInterface<double,3> > functorT;
 typedef Function<double,3> functionT;
-typedef vector<functionT> vecfuncT;
-typedef pair<vecfuncT,vecfuncT> pairvecfuncT;
-typedef vector<pairvecfuncT> subspaceT;
+typedef std::vector<functionT> vecfuncT;
+typedef std::pair<vecfuncT,vecfuncT> pairvecfuncT;
+typedef std::vector<pairvecfuncT> subspaceT;
 typedef Tensor<double> tensorT;
 typedef FunctionFactory<double,3> factoryT;
 typedef SeparatedConvolution<double,3> operatorT;
@@ -218,7 +218,7 @@ public:
 class AtomicBasisFunctor : public FunctionFunctorInterface<double,3> {
 private:
     const AtomicBasisFunction aofunc;
-    vector<coordT> specialpt;
+    std::vector<coordT> specialpt;
 public:
     AtomicBasisFunctor(const AtomicBasisFunction& aofunc)
         : aofunc(aofunc)
@@ -227,14 +227,14 @@ public:
         aofunc.get_coords(x,y,z);
         coordT r;
         r[0]=x; r[1]=y; r[2]=z;
-        specialpt=vector<coordT>(1,r);
+        specialpt=std::vector<coordT>(1,r);
     }
     
     double operator()(const coordT& x) const {
         return aofunc(x[0], x[1], x[2]);
     }
     
-    vector<coordT> special_points() const {return specialpt;}
+    std::vector<coordT> special_points() const {return specialpt;}
 };
 
 class MolecularDerivativeFunctor : public FunctionFunctorInterface<double,3> {
@@ -368,7 +368,7 @@ struct CalculationParameters {
     unsigned int maxsub;        ///< Size of iterative subspace ... set to 0 or 1 to disable
     int npt_plot;               ///< No. of points to use in each dim for plots
     tensorT plot_cell;          ///< lo hi in each dimension for plotting (default is all space)
-    string aobasis;             ///< AO basis used for initial guess (6-31g or sto-3g)
+    std::string aobasis;             ///< AO basis used for initial guess (6-31g or sto-3g)
     // Next list inferred parameters
     int nalpha;                 ///< Number of alpha spin electrons
     int nbeta;                  ///< Number of beta  spin electrons
@@ -416,7 +416,7 @@ struct CalculationParameters {
     void read_file(const std::string& filename) {
         std::ifstream f(filename.c_str());
         position_stream(f, "dft");
-        string s;
+        std::string s;
         while (f >> s) {
             if (s == "end") {
                 break;
@@ -536,8 +536,8 @@ struct CalculationParameters {
         // number of states ... a minimal basis for a closed-shell atom
         // might not have any functions for virtuals.
         int nbf = aobasis.nbf(molecule);
-        nmo_alpha = min(nbf,nmo_alpha);
-        nmo_beta = min(nbf,nmo_beta);
+        nmo_alpha = std::min(nbf,nmo_alpha);
+        nmo_beta = std::min(nbf,nmo_beta);
         if (nalpha>nbf || nbeta>nbf) error("too few basis functions?", nbf);
         nvalpha = nmo_alpha - nalpha;
         nvbeta = nmo_beta - nbeta;
@@ -584,7 +584,7 @@ struct CalculationParameters {
         else 
             madness::print("        plot  volume ", "default");
 
-        string loctype = "boys";
+        std::string loctype = "boys";
         if (localize_pm) loctype = "pm";
         if (localize) 
             madness::print("  localized orbitals ", loctype);
@@ -600,9 +600,9 @@ struct Calculation {
     functionT vnuc;
     functionT mask;
     vecfuncT amo, bmo;
-    vector<int> aset, bset;
+    std::vector<int> aset, bset;
     vecfuncT ao;
-    vector<int> at_to_bf, at_nbf;
+    std::vector<int> at_to_bf, at_nbf;
     tensorT aocc, bocc;
     tensorT aeps, beps;
     poperatorT coulop;
@@ -651,7 +651,7 @@ struct Calculation {
         coulop = poperatorT(CoulombOperatorPtr<double>(world, FunctionDefaults<3>::get_k(), param.lo, thresh));
         mask = functionT(factoryT(world).f(mask3).initial_level(4).norefine());
         if(world.rank() == 0){
-            print("\nSolving with thresh", thresh, "    k", FunctionDefaults<3>::get_k(), "   conv", max(thresh, param.dconv), "\n");
+            print("\nSolving with thresh", thresh, "    k", FunctionDefaults<3>::get_k(), "   conv", std::max(thresh, param.dconv), "\n");
         }
     }
     
@@ -669,7 +669,7 @@ struct Calculation {
     }
     
     void load_mos(World& world) {
-        const double trantol = vtol / min(30.0, double(param.nalpha));
+        const double trantol = vtol / std::min(30.0, double(param.nalpha));
         const double thresh = FunctionDefaults<3>::get_thresh();
         const int k = FunctionDefaults<3>::get_k();
         unsigned int nmo;
@@ -763,7 +763,7 @@ struct Calculation {
     void do_plots(World& world) {
         START_TIMER(world);
 
-        vector<long> npt(3,param.npt_plot);
+        std::vector<long> npt(3,param.npt_plot);
 
         if (param.plot_cell.size == 0) 
             param.plot_cell = copy(FunctionDefaults<3>::get_cell());
@@ -850,7 +850,7 @@ struct Calculation {
             if (((i+1) % madness::VMRA_CHUNK_SIZE) == 0) world.gop.fence();
         }
         world.gop.fence();
-        vector<double> norms;
+        std::vector<double> norms;
         while(1){
             norms = norm2(world, ao);
             initial_level += 2;
@@ -902,8 +902,8 @@ struct Calculation {
         return qij;
     }
     
-    void localize_PM_task_kernel(tensorT & Q, vector<tensorT> & Svec, tensorT & C, 
-                                 const bool & doprint, const vector<int> & set, 
+    void localize_PM_task_kernel(tensorT & Q, std::vector<tensorT> & Svec, tensorT & C,
+                                 const bool & doprint, const std::vector<int> & set,
                                  const double thetamax, tensorT & U, const double thresh)
     {
         long nmo = C.dim[0];
@@ -963,7 +963,7 @@ struct Calculation {
                                     theta = -thetamax;
                             
                             
-                            maxtheta = max(fabs(theta), maxtheta);
+                            maxtheta = std::max(fabs(theta), maxtheta);
                             if(fabs(theta) >= tol){
                                 ndone_iter++;
                                 double c = cos(theta);
@@ -992,19 +992,19 @@ struct Calculation {
                 converged = true;
                 break;
             }
-            tol = max(0.1 * min(maxtheta, tol), thresh);
+            tol = std::max(0.1 * std::min(maxtheta, tol), thresh);
         }
         
     }
     
-    tensorT localize_PM(World & world, const vecfuncT & mo, const vector<int> & set, const double thresh = 1e-9, const double thetamax = 0.5, const bool randomize = true, const bool doprint = true)
+    tensorT localize_PM(World & world, const vecfuncT & mo, const std::vector<int> & set, const double thresh = 1e-9, const double thetamax = 0.5, const bool randomize = true, const bool doprint = true)
     {
         START_TIMER(world);
         long nmo = mo.size();
         long natom = molecule.natom();
         
         tensorT S = matrix_inner(world, ao, ao, true);
-        vector<tensorT> Svec(natom);
+        std::vector<tensorT> Svec(natom);
         for(long a = 0;a < natom;a++){
             Slice as(at_to_bf[a], at_to_bf[a] + at_nbf[a] - 1);
             Svec[a] = copy(S(as, as));
@@ -1025,7 +1025,7 @@ struct Calculation {
         return U;
     }
     
-    void analyze_vectors(World & world, const vecfuncT & mo, const tensorT & occ = tensorT(), const tensorT & energy = tensorT(), const vector<int> & set = vector<int>())
+    void analyze_vectors(World & world, const vecfuncT & mo, const tensorT & occ = tensorT(), const tensorT & energy = tensorT(), const std::vector<int> & set = std::vector<int>())
     {
         tensorT Saomo = matrix_inner(world, ao, mo);
         tensorT Saoao = matrix_inner(world, ao, ao, true);
@@ -1070,7 +1070,7 @@ struct Calculation {
         return dip(i, j, 0) * dip(k, l, 0) + dip(i, j, 1) * dip(k, l, 1) + dip(i, j, 2) * dip(k, l, 2);
     }
     
-    tensorT localize_boys(World & world, const vecfuncT & mo, const vector<int> & set, const double thresh = 1e-9, const double thetamax = 0.5, const bool randomize = true)
+    tensorT localize_boys(World & world, const vecfuncT & mo, const std::vector<int> & set, const double thresh = 1e-9, const double thetamax = 0.5, const bool randomize = true)
     {
         START_TIMER(world);
         const bool doprint = false;
@@ -1113,7 +1113,7 @@ struct Calculation {
                                 h = -1.0;
                             }
                             double theta = -g / h;
-                            maxtheta = max(abs(theta), maxtheta);
+                            maxtheta = std::max<double>(std::abs(theta), maxtheta);
                             if(fabs(theta) > thetamax){
                                 doit = true;
                                 if(doprint)
@@ -1157,7 +1157,7 @@ struct Calculation {
                     converged = true;
                     break;
                 }
-                tol = max(0.1 * maxtheta, thresh);
+                tol = std::max(0.1 * maxtheta, thresh);
             }
             
             if(!converged){
@@ -1288,24 +1288,24 @@ struct Calculation {
             for(int i = 0;i < param.nalpha;i++)
                 aocc[i] = 1.0;
             
-            aset = vector<int>(param.nmo_alpha,0);
+            aset = std::vector<int>(param.nmo_alpha,0);
             //if (param.localize_pm) {
                 aset[0] = 0;
                 if(world.rank() == 0)
-                    cout << "alpha set " << 0 << " " << 0 << "-";
+                    std::cout << "alpha set " << 0 << " " << 0 << "-";
                 
                 for(int i = 1;i < param.nmo_alpha;i++) {
                     aset[i] = aset[i - 1];
                     if(aeps[i] - aeps[i - 1] > 1.5 || aocc[i] != 1.0){
                         aset[i]++;
                         if(world.rank() == 0){
-                            cout << i - 1 << endl;
-                            cout << "alpha set " << aset[i] << " " << i << "-";
+                            std::cout << i - 1 << std::endl;
+                            std::cout << "alpha set " << aset[i] << " " << i << "-";
                         }
                     }
                 }
                 if(world.rank() == 0)
-                    cout << param.nmo_alpha - 1 << endl;
+                    std::cout << param.nmo_alpha - 1 << std::endl;
             //}
             
             if(param.nbeta && !param.spin_restricted){
@@ -1317,24 +1317,24 @@ struct Calculation {
                 for(int i = 0;i < param.nbeta;i++)
                     bocc[i] = 1.0;
                 
-                bset = vector<int>(param.nmo_beta,0);
+                bset = std::vector<int>(param.nmo_beta,0);
                 //if (param.localize_pm) {
                     bset[0] = 0;
                     if(world.rank() == 0)
-                        cout << " beta set " << 0 << " " << 0 << "-";
+                        std::cout << " beta set " << 0 << " " << 0 << "-";
                     
                     for(int i = 1;i < param.nmo_beta;i++) {
                         bset[i] = bset[i - 1];
                         if(beps[i] - beps[i - 1] > 1.5 || bocc[i] != 1.0){
                             bset[i]++;
                             if(world.rank() == 0){
-                                cout << i - 1 << endl;
-                                cout << " beta set " << bset[i] << " " << i << "-";
+                                std::cout << i - 1 << std::endl;
+                                std::cout << " beta set " << bset[i] << " " << i << "-";
                             }
                         }
                     }
                     if(world.rank() == 0)
-                        cout << param.nmo_beta - 1 << endl;
+                        std::cout << param.nmo_beta - 1 << std::endl;
                 //}
                 
             }
@@ -1365,10 +1365,10 @@ struct Calculation {
         return rho;
     }
     
-    vector<poperatorT> make_bsh_operators(World & world, const tensorT & evals)
+    std::vector<poperatorT> make_bsh_operators(World & world, const tensorT & evals)
     {
         int nmo = evals.dim[0];
-        vector<poperatorT> ops(nmo);
+        std::vector<poperatorT> ops(nmo);
         int k = FunctionDefaults<3>::get_k();
         double tol = FunctionDefaults<3>::get_thresh();
         for(int i = 0;i < nmo;i++){
@@ -1550,25 +1550,25 @@ struct Calculation {
         return r;
     }
     
-    void vector_stats(const vector<double> & v, double & rms, double & maxabsval)
+    void vector_stats(const std::vector<double> & v, double & rms, double & maxabsval)
     {
         rms = 0.0;
         maxabsval = v[0];
         for(unsigned int i = 0;i < v.size();i++){
             rms += v[i] * v[i];
-            maxabsval = max(maxabsval, abs(v[i]));
+            maxabsval = std::max<double>(maxabsval, std::abs(v[i]));
         }
         rms = sqrt(rms / v.size());
     }
     
     vecfuncT compute_residual(World & world, tensorT & occ, tensorT & fock, const vecfuncT & psi, vecfuncT & Vpsi, double & err)
     {
-        double trantol = vtol / min(30.0, double(psi.size()));
+        double trantol = vtol / std::min(30.0, double(psi.size()));
         int nmo = psi.size();
         
         tensorT eps(nmo);
         for(int i = 0;i < nmo;i++){
-            eps(i) = min(-0.05, fock(i, i));
+            eps(i) = std::min(-0.05, fock(i, i));
             fock(i, i) -= eps(i);
         }
         vecfuncT fpsi = transform(world, psi, fock, trantol, true);
@@ -1579,12 +1579,12 @@ struct Calculation {
         
         gaxpy(world, 1.0, Vpsi, -1.0, fpsi);
         fpsi.clear();
-        vector<double> fac(nmo, -2.0);
+        std::vector<double> fac(nmo, -2.0);
         scale(world, Vpsi, fac);
-        vector<poperatorT> ops = make_bsh_operators(world, eps);
+        std::vector<poperatorT> ops = make_bsh_operators(world, eps);
         set_thresh(world, Vpsi, FunctionDefaults<3>::get_thresh());
         if(world.rank() == 0)
-            cout << "entering apply\n";
+            std::cout << "entering apply\n";
         
         START_TIMER(world);
         vecfuncT new_psi = apply(world, ops, Vpsi);
@@ -1596,7 +1596,7 @@ struct Calculation {
         truncate(world, new_psi);
         END_TIMER(world, "Truncate new psi");
         vecfuncT r = sub(world, psi, new_psi);
-        vector<double> rnorm = norm2(world, r);
+        std::vector<double> rnorm = norm2(world, r);
         double rms, maxval;
         vector_stats(rnorm, rms, maxval);
         err = maxval;
@@ -1688,7 +1688,7 @@ struct Calculation {
                     tensorT tmp = copy(U(_,i));
                     U(_,i) = U(_,j);
                     U(_,j) = tmp;
-                    swap(evals[i],evals[j]);
+                    std::swap(evals[i],evals[j]);
                 }
             }
         }
@@ -1698,7 +1698,7 @@ struct Calculation {
         long ilo = 0; // first element of cluster
         while (ilo < nmo-1) {
             long ihi = ilo;
-            while (fabs(evals[ilo]-evals[ihi+1]) < thresh*10.0*max(fabs(evals[ilo]),1.0)) {
+            while (fabs(evals[ilo]-evals[ihi+1]) < thresh*10.0*std::max(fabs(evals[ilo]),1.0)) {
                 ihi++;
                 if (ihi == nmo-1) break;
             }
@@ -1745,8 +1745,8 @@ struct Calculation {
         fock = 0;
         for (unsigned int i=0; i<psi.size(); i++) fock(i,i) = evals(i);
         
-        Vpsi = transform(world, Vpsi, U, vtol / min(30.0, double(psi.size())), false);
-        psi = transform(world, psi, U, FunctionDefaults<3>::get_thresh() / min(30.0, double(psi.size())), true);
+        Vpsi = transform(world, Vpsi, U, vtol / std::min(30.0, double(psi.size())), false);
+        psi = transform(world, psi, U, FunctionDefaults<3>::get_thresh() / std::min(30.0, double(psi.size())), true);
         truncate(world, Vpsi, vtol, false);
         truncate(world, psi);
         normalize(world, psi);
@@ -1829,7 +1829,7 @@ struct Calculation {
             vm.insert(vm.end(), bmo.begin(), bmo.end());
             rm.insert(rm.end(), br.begin(), br.end());
         }
-        bsh_residual = max(aerr, berr);
+        bsh_residual = std::max(aerr, berr);
         world.gop.broadcast(bsh_residual, 0);
         compress(world, vm, false);
         compress(world, rm, false);
@@ -1861,7 +1861,7 @@ struct Calculation {
             double rcond = 1e-12;
             while(1){
                 c = KAIN(Q, rcond);
-                if(abs(c[m - 1]) < 3.0){
+                if(std::abs(c[m - 1]) < 3.0){
                     break;
                 } else  if(rcond < 0.01){
                     print("Increasing subspace singular value threshold ", c[m - 1], rcond);
@@ -1906,8 +1906,8 @@ struct Calculation {
             Q = Q(Slice(1, -1), Slice(1, -1));
         }
         
-        vector<double> anorm = norm2(world, sub(world, amo, amo_new));
-        vector<double> bnorm = norm2(world, sub(world, bmo, bmo_new));
+        std::vector<double> anorm = norm2(world, sub(world, amo, amo_new));
+        std::vector<double> bnorm = norm2(world, sub(world, bmo, bmo_new));
         int nres = 0;
         for(unsigned int i = 0;i < amo.size();i++){
             if(anorm[i] > param.maxrotn){
@@ -1956,10 +1956,10 @@ struct Calculation {
             if(world.rank() == 0)
                 print("Norm of vector changes  beta: rms", rms, "   max", maxval);
             
-            update_residual = max(update_residual, maxval);
+            update_residual = std::max(update_residual, maxval);
         }
         START_TIMER(world);
-        double trantol = vtol / min(30.0, double(amo.size()));
+        double trantol = vtol / std::min(30.0, double(amo.size()));
         normalize(world, amo_new);
         amo_new = transform(world, amo_new, Q3(matrix_inner(world, amo_new, amo_new)), trantol, true);
         truncate(world, amo_new);
@@ -1979,8 +1979,8 @@ struct Calculation {
     {
         functionT arho_old, brho_old;
         functionT adelrhosq, bdelrhosq;
-        const double dconv = max(FunctionDefaults<3>::get_thresh(), param.dconv);
-        const double trantol = vtol / min(30.0, double(amo.size()));
+        const double dconv = std::max(FunctionDefaults<3>::get_thresh(), param.dconv);
+        const double trantol = vtol / std::min(30.0, double(amo.size()));
         const double tolloc = 1e-3;
         double update_residual = 0.0, bsh_residual = 0.0;
         subspaceT subspace;
@@ -2193,7 +2193,7 @@ int main(int argc, char** argv) {
         startup(world,argc,argv);
         FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap(world)));
         
-        cout.precision(6);
+        std::cout.precision(6);
         
         // Process 0 reads input information and broadcasts
         Calculation calc(world, "input");

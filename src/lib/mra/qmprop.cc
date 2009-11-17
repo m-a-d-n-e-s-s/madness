@@ -63,7 +63,7 @@ namespace madness {
             fit = CubicInterpolationTable<double_complex>(0.0, xmax, n, s);
 
             print("QM", c, t, width);
-            cout.precision(12);
+            std::cout.precision(12);
             print(0.001,(*this)(0.001));
             print(0.002,(*this)(0.002));
 //             for (int i=0; i<10001; i++) {
@@ -83,7 +83,7 @@ namespace madness {
             std::complex<double> maple(1.138514411208581,-0.986104972271240);
             BandlimitedPropagator bp(31.4, 0.07, 1.0);
             if (std::abs(bp(0.1)-maple) > 1e-11) {
-                cout.precision(14);
+                std::cout.precision(14);
                 std::cout << bp(0.1) << " " << maple << " " << bp(0.1)-maple << std::endl;
                 throw "BandlimitedPropagator: failed test";
             }

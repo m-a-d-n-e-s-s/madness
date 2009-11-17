@@ -94,7 +94,7 @@ void test_periodic(World& world) {
 
     std::vector< SharedPtr< Convolution1D<double> > > ops(1);
 
-    cout.precision(10);
+    std::cout.precision(10);
     for (int i=-1; i<=20; i++) {
         double expnt = pow(2.0,double(i));
         double coeff = sqrt(expnt/constants::pi);
@@ -146,7 +146,7 @@ void test_periodic2(World& world) {
     }
 
     SeparatedConvolution<double,3> op(world, k, ops, false, true);
-    cout.precision(10);
+    std::cout.precision(10);
 
     Function<double,3> opf = apply(op,f);
     opf.reconstruct();

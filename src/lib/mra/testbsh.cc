@@ -105,7 +105,7 @@ struct Qfunc : public FunctionFunctorInterface<double,3> {
 template <typename T>
 void test_bsh(World& world) {
     double mu = 1.0;
-    vector<long> npt(3,201);
+    std::vector<long> npt(3,201);
     typedef Vector<double,3> coordT;
     typedef SharedPtr< FunctionFunctorInterface<T,3> > functorT;
 
@@ -149,7 +149,7 @@ void test_bsh(World& world) {
                                    FunctionDefaults<3>::get_k(),
                                    1e-4,
                                    1e-8);
-    cout.precision(8);
+    std::cout.precision(8);
 
     Function<T,3> ff = copy(f);
     print("applying - 1");
