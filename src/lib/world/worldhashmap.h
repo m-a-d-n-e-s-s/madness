@@ -16,7 +16,6 @@
 #include <world/worldexc.h>
 #include <world/worldhash.h>
 #include <new>
-#include <iostream>
 
 namespace madness {
 
@@ -134,7 +133,7 @@ namespace madness {
             std::size_t size() const {
                 lock();             // BEGIN CRITICAL SECTION
                 std::size_t sum = 0;
-                for (entryT *t=p; t; t=t->next) sum++;
+                for (entryT *t=p; t; t=t->next) ++sum;
                 unlock();           // END CRITICAL SECTION
                 return sum;
             };
@@ -227,7 +226,7 @@ namespace madness {
 
             HashIterator operator++(int) {
                 HashIterator old(*this);
-                ++(*this);
+                operator++();
                 return old;
             }
 
@@ -337,8 +336,6 @@ namespace madness {
         binT* bins;                 // Array of bins
 
     private:
-        const iterator _end;
-        const const_iterator _const_end;
         hashfunT hashfun;
 
         //unsigned int hash(const keyT& key) const {return hashfunT::hash(key)%nbins;}
@@ -361,15 +358,11 @@ namespace madness {
         ConcurrentHashMap(int n=1021, const hashfunT& hf = hashfunT())
                 : nbins(hashT::nbins_prime(n))
                 , bins(new binT[nbins])
-                , _end(this,false)
-                , _const_end(this,false)
                 , hashfun(hf) {}
 
         ConcurrentHashMap(const  hashT& h)
                 : nbins(h.nbins)
                 , bins(new binT[nbins])
-                , _end(this,false)
-                , _const_end(this,false)
                 , hashfun(h.hashfun) {
             *this = h;
         }
@@ -490,11 +483,11 @@ namespace madness {
         }
 
         iterator end() {
-            return _end;
+            return iterator(this,false);
         }
 
         const_iterator end() const {
-            return _const_end;
+            return const_iterator(this,false);
         }
 
         const hashfunT& get_hash() const { return hashfun; }

@@ -66,7 +66,7 @@ namespace madness {
     template <typename keyT, typename hashfunT = Hash_private::defhashT<keyT> >
     class WorldDCDefaultPmap : public WorldDCPmapInterface<keyT> {
     private:
-        int nproc;
+        const int nproc;
         hashfunT hashfun;
     public:
         WorldDCDefaultPmap(World& world, const hashfunT& hf = hashfunT()) :
@@ -93,29 +93,40 @@ namespace madness {
 
     private:
         internal_iteratorT  it;       ///< Iterator from local container
-        bool is_local;                ///< If true we are using the local container
-        mutable typename madness::remove_const<value_type>::type value;///< holds the remote values
+        // TODO: Convert this to a scoped pointer.
+        mutable value_type* value;    ///< holds the remote values
 
     public:
         /// Default constructor makes a local uninitialized value
         explicit WorldContainerIterator()
-                : it(), is_local(true), value() {}
+                : it(), value(NULL) {}
 
         /// Initializes from a local iterator
         explicit WorldContainerIterator(const internal_iteratorT& it)
-                : it(it), is_local(true), value() {}
+                : it(it), value(NULL) {}
 
         /// Initializes to cache a remote value
-        explicit WorldContainerIterator(const value_type& value)
-                : it(), is_local(false), value(value) {}
+        explicit WorldContainerIterator(const value_type& v)
+                : it(), value(NULL)
+        {
+            value = new value_type(v);
+        }
 
-        WorldContainerIterator(const WorldContainerIterator& other) {
+        WorldContainerIterator(const WorldContainerIterator& other)
+                : it(), value(NULL)
+        {
             copy(other);
         }
 
         template <class iteratorT>
-        WorldContainerIterator(const WorldContainerIterator<iteratorT>& other) {
+        WorldContainerIterator(const WorldContainerIterator<iteratorT>& other)
+                : it(), value(NULL)
+        {
             copy(other);
+        }
+
+        ~WorldContainerIterator() {
+            delete value;
         }
 
         /// Assignment
@@ -126,20 +137,8 @@ namespace madness {
 
         /// Determines if two iterators are identical
         bool operator==(const WorldContainerIterator& other) const {
-            if (is_local) {
-                if (other.is_local) {
-                    return it == other.it;
-                }
-                else {
-                    return false;
-                }
-            }
-            else if (other.is_local) {
-                return false;
-            }
-            else {
-                return value.first == other.value.first;
-            }
+            return (((!is_cached()) && (!other.is_cached())) && it == other.it) ||
+                ((is_cached() && other.is_cached()) && value->first == other.value->first);
         }
 
 
@@ -153,22 +152,26 @@ namespace madness {
 
         /// Trying to increment a remote iterator will throw
         WorldContainerIterator& operator++() {
-            MADNESS_ASSERT(is_local);
+            MADNESS_ASSERT( !is_cached() );
             ++it;
             return *this;
         }
 
+        WorldContainerIterator operator++(int) {
+            MADNESS_ASSERT( !is_cached() );
+            WorldContainerIterator<internal_iteratorT> result(*this);
+            ++it;
+            return result;
+        }
+
         /// Iterators dereference to std::pair<const keyT,valueT>
         pointer operator->() const {
-            if (is_local) return it.operator->();
-            else return &value;
-
+            return (is_cached() ? value : it.operator->() );
         }
 
         /// Iterators dereference to std::pair<const keyT,valueT>
         reference operator*() const {
-            if (is_local) return *it;
-            else return value;
+            return (is_cached() ? *value : *it );
         }
 
         /// Private: (or should be) Returns iterator of internal container
@@ -178,10 +181,8 @@ namespace madness {
 
         /// Returns true if this is non-local or cached value
         bool is_cached() const {
-            return !is_local;
+            return value != NULL;
         }
-
-        virtual ~WorldContainerIterator() {}
 
         template <typename Archive>
         void serialize(const Archive& ar) {
@@ -195,25 +196,17 @@ namespace madness {
         template <class iteratorT>
         void copy(const WorldContainerIterator<iteratorT>& other) {
             if (static_cast<const void*>(this) != static_cast<const void*>(&other)) {
-                is_local = other.is_local;
-                if (other.is_local) {
+                delete value;
+                if(other.is_cached()) {
+                    value = new value_type(* other.value);
+                    it = internal_iteratorT();
+                } else {
                     it = other.it;
-                }
-                else {
-                    // Sigh ... there does not seem a kosher way to do this
-                    *const_cast<REMCONST(typename value_type::first_type)*>(&value.first) = other.value.first;
-                    *const_cast<REMCONST(typename value_type::second_type)*>(&value.second) = other.value.second;
+                    value = NULL;
                 }
             }
         }
     };
-
-//    template <class internal_iteratorT>
-//    std::ostream& operator<<(std::ostream& s, const WorldContainerIterator<internal_iteratorT>& it) {
-//        s << "WCIterator(" << *it << ")";
-//        return s;
-//    }
-
 
     /// Implementation of distributed container to enable PIMPL
     template <typename keyT, typename valueT, typename hashfunT >
@@ -254,9 +247,6 @@ namespace madness {
         const SharedPtr< WorldDCPmapInterface<keyT> > pmap;///< Function/class to map from keys to owning process
         const ProcessID me;                      ///< My MPI rank
         internal_containerT local;               ///< Locally owned data
-        const iterator end_iterator;             ///< For fast return of end
-        const const_iterator end_const_iterator; ///< For fast return of end
-
 
         /// Handles find request
         Void find_handler(ProcessID requestor, const keyT& key, const RemoteReference< FutureImpl<iterator> >& ref) {
@@ -299,9 +289,7 @@ namespace madness {
                 : WorldObject< WorldContainerImpl<keyT, valueT, hashfunT> >(world)
                 , pmap(pmap)
                 , me(world.mpi.rank())
-                , local(131, hf)
-                , end_iterator(local.end())
-                , end_const_iterator(const_cast<const internal_containerT&>(local).end()) {
+                , local(131, hf) {
             if (do_pending) this->process_pending();
         }
 
@@ -349,6 +337,15 @@ namespace madness {
             return None;
         }
 
+        bool insert_acc(accessor& acc, const keyT& key) {
+            MADNESS_ASSERT(owner(key) == me);
+            return local.insert(acc,key);
+        }
+
+        bool insert_const_acc(const_accessor& acc, const keyT& key) {
+            MADNESS_ASSERT(owner(key) == me);
+            return local.insert(acc,key);
+        }
 
         void clear() {
             local.clear();
@@ -367,24 +364,21 @@ namespace madness {
             return None;
         }
 
-
-        void erase(const iterator& it) {
+        template <typename InIter>
+        void erase(InIter it) {
             MADNESS_ASSERT(!it.is_cached());
-            if (it == end()) {
-                return;
-            }
-            else {
-                erase(it->first);
-            }
+            MADNESS_ASSERT(it != end());
+            erase(it->first);
         }
 
-        void erase(const iterator& start, const iterator& finish) {
-            iterator it = start;
-            while (it!=finish && it!=end()) {
-                iterator last=it;
-                ++it;
-                erase(last);
-            }
+        template <typename InIter>
+        void erase(InIter first, InIter last) {
+            InIter it = first;
+            do {
+                first++;
+                erase(it->first);
+                it = first;
+            } while(first != last);
         }
 
         iterator begin() {
@@ -395,26 +389,13 @@ namespace madness {
             return const_iterator(local.begin());
         }
 
-        const iterator& end() {
-            return end_iterator;
+        iterator end() {
+            return iterator(local.end());
         }
 
-        const const_iterator& end() const {
-            return end_const_iterator;
+        const_iterator end() const {
+            return const_iterator(local.end());
         }
-
-
-        bool insert_acc(accessor& acc, const keyT& key) {
-            MADNESS_ASSERT(owner(key) == me);
-            return local.insert(acc,key);
-        }
-
-
-        bool insert_const_acc(const_accessor& acc, const keyT& key) const {
-            MADNESS_ASSERT(owner(key) == me);
-            return local.insert(acc,key);
-        }
-
 
         Future<const_iterator> find(const keyT& key) const {
             // Ugliness here to avoid replicating find() and
@@ -431,8 +412,7 @@ namespace madness {
             ProcessID dest = owner(key);
             if (dest == me) {
                 return Future<iterator>(iterator(local.find(key)));
-            }
-            else {
+            } else {
                 Future<iterator> result;
                 send(dest, &implT::find_handler, me, key, result.remote_ref(this->world));
                 return result;
@@ -652,7 +632,7 @@ namespace madness {
         /// Provides read access to LOCAL value by key ... throws if key is remote
         bool insert(const_accessor& acc, const keyT& key) {
             check_initialized();
-            return p->insert_const_acc(acc,key);
+            return p->insert_acc(acc,key);
         }
 
 
@@ -660,7 +640,7 @@ namespace madness {
         template <typename input_iterator>
         void replace(input_iterator& start, input_iterator& end) {
             check_initialized();
-            for_each(start,end,bind1st(mem_fun(&containerT::insert),this));
+            std::for_each(start,end,std::bind1st(std::mem_fun(&containerT::insert),this));
         }
 
 
@@ -724,13 +704,13 @@ namespace madness {
         }
 
         /// Returns an iterator past the end of the \em local data (no communication)
-        const iterator& end() {
+        iterator end() {
             check_initialized();
             return p->end();
         }
 
         /// Returns an iterator past the end of the \em local data (no communication)
-        const const_iterator& end() const {
+        const_iterator end() const {
             check_initialized();
             return const_cast<const implT*>(p.get())->end();
         }
