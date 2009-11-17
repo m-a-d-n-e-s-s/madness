@@ -536,16 +536,16 @@ void printBasis(World& world, double Z) {
         sinTH =  std::sin(TH);
         cosPHI = std::cos(PHI);
         sinPHI = std::sin(PHI);
-        double kvec[3] = {r*sinTH*cosPHI, r*sinTH*sinPHI, r*cosTH};
-        output = psi_k(kvec);
+        double rvec[3] = {r*sinTH*cosPHI, r*sinTH*sinPHI, r*cosTH};
+        output = psi_k(rvec);
         PRINT(r);
         cout.precision(7);
         complexd ZZ(0.0,2*k*r);
-        PRINT(    "\t" << real(output) << "\t" << imag(output));
-        PRINT(    "\t" << real(exp(I*k*r)) << "\t" << imag(exp(I*k*r)));
-        PRINTLINE("\t" << real(psi_k.f11(k*r)) << "\t" << imag(psi_k.f11(exp(k*r))));
-//         PRINT("\t" << real(conhyp(-I/k,ONE,-I*k*r)) << "\t" << imag(conhyp(-I/k,ONE,-I*k*r)));
-
+        PRINT("\t" << real(output) << "\t" << imag(output));
+        PRINT("\t" << psi_k.diffR(2*k*r) << "\t" << psi_k.diffI(2*k*r));
+//      PRINT("\t" << real(psi_k.f11(2*k*r)) << "\t" << imag(psi_k.f11(2*k*r)));
+//      PRINT("\t" << real(conhyp(-I/k,ONE,-I*k*r)) << "\t" << imag(conhyp(-I/k,ONE,-I*k*r)));
+        PRINTLINE(" ");
     }
     //    use sed to make the complexd output standard
     //    system("sed -i '' -e's/\\+/, /' -e's/j//' f11.out");
@@ -636,13 +636,13 @@ int main(int argc, char**argv) {
     try {
         std::vector<string> boundList2;
         std::vector<string> unboundList2;
-        //loadList(world, boundList2, unboundList2);
-        //projectPsi2(world, boundList2, unboundList2, Z);
+        loadList(world, boundList2, unboundList2);
+        projectPsi2(world, boundList2, unboundList2, Z);
         //std::vector<WF> boundList;
         //std::vector<WF> unboundList;
         //compareGroundState(world, Z);
         //compare1F1(world);
-        printBasis(world,Z);
+        //printBasis(world,Z);
         //loadBasis(world,  boundList, unboundList, Z);
         //belkic(world);
         //projectZdip(world, unboundList);

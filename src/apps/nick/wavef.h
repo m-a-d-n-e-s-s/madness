@@ -84,7 +84,6 @@ private:
     double   alpha;
     double   beta;
     double   boundary;
-    double   TOL;
     double   dx;
     double   dx_2n1;
     double   dxn1_2;

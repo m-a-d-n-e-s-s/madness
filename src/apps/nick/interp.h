@@ -105,9 +105,7 @@ public:
 
     CubicInterpolationTable() {}
 
-    double myreal(const std::complex<double>& z) const {
-        return z.real();
-    }
+    double myreal(const std::complex<double>& z) const {return z.real();}
 
     double myreal(double x) {return x;}
 

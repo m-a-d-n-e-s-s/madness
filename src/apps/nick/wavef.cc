@@ -139,6 +139,7 @@ struct MemberFuncPtr {
  * sqrt(3) allows us to reach the corner of the cube  sqrt(3)*V^(1/3)/2
  * kr + kDOTr brings along another factor of 2k     k*sqrt(3)*V^(1/3)
  **********************************************************************/
+///World is needed for timing the length of the CubicInterpolationTable
 ScatteringWF::ScatteringWF(World& world, double Z, const vector3D& kVec)
     :Z(Z)
     ,kVec(kVec)
@@ -151,9 +152,8 @@ ScatteringWF::ScatteringWF(World& world, double Z, const vector3D& kVec)
     gammamI_k  = gamma(0.0,-1/k);
     expPI_2kXgamma1pI_k = expPI_2k * gamma1pI_k ;
     one = complexd(1.0, 0.0);
-    TOL = 1e-12;
     dx = 4e-3;   //Mesh spacing <- OPTIMIZE
-    ra = 5.0; //boundary cutoff
+    ra = 5.0; //boundary cutoff <- Variable Mesh
     n = floor(0.5*domain/dx*(1 + sqrt(1 + 4*ra/domain))) + 1;
 //     time( &before );
     MemberFuncPtr p1F1(this);
@@ -175,14 +175,13 @@ ScatteringWF::ScatteringWF(double Z, const vector3D& kVec)
     gammamI_k  = gamma(0.0,-1/k);
     expPI_2kXgamma1pI_k = expPI_2k * gamma1pI_k ;
     one = complexd(1.0, 0.0);
-    TOL = 1e-12;
     dx = 4e-3;   //Mesh spacing
     ra = 5.0; //boundary cutoff
     n = floor(0.5*domain/dx*(1 + sqrt(1 + 4*ra/domain))) + 1;
-    time( &before );
+    //time( &before );
     MemberFuncPtr p1F1(this);
     fit1F1 = CubicInterpolationTable<complexd>(0.0, domain, n, p1F1);
-    time( &after );
+    //time( &after );
     //PRINT("Computing the CubicInterpolationTable took " << after - before);
     //PRINTLINE( " seconds.");
 }
@@ -195,10 +194,12 @@ complexd ScatteringWF::approx1F1(double xx) const {
 }
 
 double   ScatteringWF::diffR(double x)    const {
-    return real(fit1F1(x) - f11(x));
+    complexd ZZ(0.0,-x);
+    return real(aForm3(ZZ) - conhyp(-I/k,one,ZZ));
 }
 double   ScatteringWF::diffI(double x)    const {
-    return imag(fit1F1(x) - f11(x));
+    complexd ZZ(0.0,-x);
+    return imag(aForm3(ZZ) - conhyp(-I/k,one,ZZ));
 }
 double   ScatteringWF::toX(double s)      const {
     return dx*s*s/(ra/dx + s);
@@ -229,7 +230,8 @@ complexd ScatteringWF::f11(double xx) const {
     //The cutoff was done by finding the minimum difference between
     //conhyp(k,r) - aForm(k,r) for different k values
     //20 + 7exp(-6k) is the emperical fit
-    if(xx <= 20 + 7*std::exp(-6*k)) return conhyp(-I/k,one,ZZ);
+    //if(xx <= 20 + 7*std::exp(-6*k)) return conhyp(-I/k,one,ZZ);
+    if(xx <= 4.5/k/k + 1) return conhyp(-I/k,one,ZZ);
     else return aForm3(ZZ);
 }
 
@@ -271,7 +273,6 @@ complexd ScatteringWF::aForm3(complexd ZZ) const {
         termA += contribA;
         complexd contribB = poch1mAA*poch1mAA*zrn/nFact;
         termB += contribB;
-        //if(abs(contribA)<TOL && abs(contribB)<TOL) break;
         //print("contribA = ",contribA,"\tcontribB = ",contribB, "termA =", termA, "termB =", termB);
         mzrn     *= -zr;
         zrn      *=  zr;
