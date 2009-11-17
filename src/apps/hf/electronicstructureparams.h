@@ -58,6 +58,8 @@ struct ElectronicStructureParams
   bool canon;
   // Don't use solver = 0; full KAIN = 1; k-point KAIN = 2 
   int solver;
+  // k-mesh offset
+  double koffset0, koffset1, koffset2;
   
   template <typename Archive>
   void serialize(Archive& ar) {
@@ -66,7 +68,8 @@ struct ElectronicStructureParams
         waveorder & maxthresh & maxwaveorder & nempty &
         smear & nbands & ngridk0 & ngridk1 & ngridk2 &
         maxocc & kpoints & fractional & maxsub & 
-        maxrotn & canon & solver;
+        maxrotn & canon & solver & koffset0 & koffset1 & 
+        koffset2;
   }
 
   ElectronicStructureParams()
@@ -94,6 +97,9 @@ struct ElectronicStructureParams
     maxrotn = 0.5;
     canon = true;
     solver = 1;
+    koffset0 = 0.0;
+    koffset1 = 0.0;
+    koffset2 = 0.0;
   }
 
   void read_file(const std::string& filename)
@@ -264,6 +270,10 @@ struct ElectronicStructureParams
       else if (s == "ngridk")
       {
         f >> ngridk0; f >> ngridk1; f >> ngridk2;
+      }
+      else if (s == "koffset")
+      {
+        f >> koffset0; f >> koffset1; f >> koffset2;
       }
       else
       {

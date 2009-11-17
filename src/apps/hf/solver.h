@@ -554,8 +554,8 @@ namespace madness
       // mentity and aobasis
       if (_world.rank() == 0)
       {
-        //_aobasis.read_file("sto-3g");
-        _aobasis.read_file("6-31g");
+        _aobasis.read_file("sto-3g");
+        //_aobasis.read_file("6-31g");
         _mentity.read_file(filename, _params.fractional);
         _mentity.center();
       }
@@ -583,7 +583,9 @@ namespace madness
         else // NORMAL BANDSTRUCTURE
         {
           _kpoints = genkmesh(_params.ngridk0, _params.ngridk1,
-                              _params.ngridk2, _params.L);
+                              _params.ngridk2, _params.koffset0, 
+                              _params.koffset1, _params.koffset2,
+                              _params.L);
         }
       }
       else // NOT-PERIODIC
@@ -600,7 +602,8 @@ namespace madness
     //*************************************************************************
 
     //*************************************************************************
-    std::vector<KPoint> genkmesh(unsigned int ngridk0, unsigned ngridk1, unsigned int ngridk2, double R)
+    std::vector<KPoint> genkmesh(unsigned int ngridk0, unsigned ngridk1, unsigned int ngridk2, 
+                                 double koffset0, double koffset1, double koffset2, double R)
     {
       std::vector<KPoint> kmesh;
       double step0 = 1.0/ngridk0;
@@ -617,9 +620,9 @@ namespace madness
             //double k0 = (i*step0 - step0/2) * TWO_PI/R;
             //double k1 = (j*step1 - step1/2) * TWO_PI/R;
             //double k2 = (k*step2 - step2/2) * TWO_PI/R;
-            double k0 = (i*step0) * TWO_PI/R;
-            double k1 = (j*step1) * TWO_PI/R;
-            double k2 = (k*step2) * TWO_PI/R;
+            double k0 = ((i*step0)+koffset0) * TWO_PI/R;
+            double k1 = ((j*step1)+koffset1) * TWO_PI/R;
+            double k2 = ((k*step2)+koffset2) * TWO_PI/R;
             KPoint kpoint(k0, k1, k2, weight);
             kmesh.push_back(kpoint);
           }
@@ -1479,6 +1482,10 @@ namespace madness
             d_wf[i] = std::complex<T>(0.0,k0)*dx_wf + 
                       std::complex<T>(0.0,k1)*dy_wf + 
                       std::complex<T>(0.0,k2)*dz_wf;
+            double d_wf_trace = d_wf[i].norm2();
+            double R_by_2PI = _params.L / 2 / madness::constants::pi;
+            if (_world.rank() == 0) 
+              printf("%8.4f%8.4f%8.4f%20.5e\n", k0*R_by_2PI, k1*R_by_2PI, k2*R_by_2PI, d_wf_trace);
             // k^/2
             double ksq = k0*k0 + k1*k1 + k2*k2;
             k_vwf[i] += 0.5 * ksq * k_wf[i];
