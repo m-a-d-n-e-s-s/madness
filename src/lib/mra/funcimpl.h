@@ -49,20 +49,23 @@
 namespace madness {
     template<typename T, int NDIM>
     class FunctionImpl;
+
     template<typename T, int NDIM>
     class Function;
+
     template<int D>
     class LoadBalImpl;
-//    template <int D> class LBTreeImpl;
+
     template<int D>
     class LBTree;
+
     template<int D>
     class MyPmap;
 }
 
 namespace madness {
 
-/// A simple process map soon to be supplanted by Rebecca's
+    /// A simple process map soon to be supplanted by Rebecca's
     template<typename keyT>
     class SimpleMap : public WorldDCPmapInterface<keyT> {
     private:
@@ -576,500 +579,6 @@ namespace madness {
         return s;
     }
 
-//****************************************************************************
-//// LBTimer provides management of performance timers for use in
-////   load balancing.
-    template <int NDIM>
-    class LBTimer {
-      private:
-        World& world;
-
-        // a single timer associated with a node
-        struct Timer {
-          bool   status;
-          double time;
-          double start_time;
-          double weight;
-          int    ncalls;
-          std::string name;
-          Timer() : status(true),
-                    time(0.0),
-                    start_time(0.0),
-                    weight(1.0),
-                    ncalls(0),
-                    name("") {};
-
-          template <typename Archive>
-          void serialize(Archive &ar) {
-            ar & status & time & start_time & weight & ncalls & name;
-          }
-        }; // end struct timer
-
-        typedef Key<NDIM> keyT;
-        typedef unsigned long Cost;
-        typedef std::vector<Timer> timerListT;        // all timers on a node
-        typedef WorldContainer<keyT, timerListT> dcT; // all timers
-        typedef std::pair<const keyT, timerListT> datumT;
-        dcT op_timers;
-
-        bool master_status; // dis/enable all timers
-
-        Cost min_fac;  // converts times to a cost
-        Cost min_cost; // minimum cost associated with a node
-
-        // given a key, returns all timers on a node
-        void retrieve_timer_list(keyT key, timerListT &timers) {
-          typename dcT::iterator myNode = op_timers.find(key);
-          // create a new node if necessary 
-          if (myNode == op_timers.end()) {
-            op_timers.replace(datumT(key,timers));
-            myNode = op_timers.find(key);
-          }
-          timers = myNode->second;
-          return;
-        }
-
-        // given a key and a name, return the timers list and the 
-        //   index of that timer. Will create a timer if no match found.
-        void retrieve_timer(keyT &key, const std::string &name,
-                            timerListT &timers, int &index) {
-
-          index = -1;
-          // find our node in the hash table
-          typename dcT::iterator myNode = op_timers.find(key);
-
-          // create a new node if necessary 
-          if (myNode == op_timers.end()) {
-            op_timers.replace(datumT(key,timers));
-            myNode = op_timers.find(key);
-          }
-
-          timers = myNode->second;
-          for (int i = 0; i < (int) timers.size(); i++) {
-            if (timers[i].name == name) { index = i; }
-          }
-
-          // create a new timer
-          if (index == -1) {
-            Timer newTimer;
-            newTimer.name = name;
-            timers.push_back(newTimer);
-            index = (int) timers.size() - 1;
-         }
-          return;
-        } // end retrieve_timer
-
-        // saves a timer list back to the hash table
-        void record_timer(keyT &key, timerListT &timers) {
-          op_timers.replace(datumT(key,timers));
-          return;
-        }
-
-      public:
-
-        LBTimer(World& world) : world(world),
-                                op_timers(dcT(world)),
-                                master_status(false),
-                                min_fac(1),
-                                min_cost(1) {};
-
-        // interface so load balancing can use our cost function
-        template <typename T>
-        Cost operator() (const Key<NDIM>& key,
-                         const FunctionNode<T,NDIM>& node) const {
-          timerListT timers;
-          double cost = 0.0;
-          Cost int_cost = 0;
-
-          cost = 0.0;
-          int_cost = 0;
-
-          if (master_status == false) return 1;
-
-          typename dcT::const_iterator myNode = op_timers.find(key);
-          if (myNode == op_timers.end()) {
-            int_cost = min_cost;
-          }
-          else {
-            timers = myNode->second;
-
-            for (int i = 0; i < (int) timers.size(); i++)
-              cost += timers[i].time * timers[i].weight;
-
-            int_cost = cost*(double)min_fac + min_cost;
-          }
-
-          return int_cost;
-        };
-
-        // initializes the timer container to the given process map
-        void init(const SharedPtr< WorldDCPmapInterface< Key<NDIM> > >& pmap) {
-          dcT new_timers(world, pmap);
-          op_timers = new_timers;
-          return;
-        }
-
-        // re-maps the timer container to a new process map
-        void remap(const SharedPtr< WorldDCPmapInterface< Key<NDIM> > >& pmap,
-                   bool preserve_timers, bool do_fence) {
-          typename dcT::const_iterator iNode;
-          keyT key;
-          timerListT timers;
-          dcT new_timers(world, pmap);
-
-          if (preserve_timers) {
-            typename dcT::const_iterator end = op_timers.end();
-            for (iNode = op_timers.begin(); iNode != end; ++iNode) {
-              key = iNode->first;
-              timers = iNode->second;
-              new_timers.replace(key,timers);
-            }
-          }
-
-          if (do_fence) world.gop.fence();
-
-          op_timers = new_timers;
-         return;
-        }
-
-        Cost get_min_fac() {
-          return min_fac;
-        }
-
-        // re-compute the minimum time, which is used to determine the
-        //   minimum factor necessary to make all costs greater than 1
-        void compute_min_cost() {
-          double min_time, sum_time;
-          typename dcT::const_iterator iNode;
-          timerListT timers;
-          keyT key;
-
-          min_time = 1.e99;
-
-          typename dcT::const_iterator end = op_timers.end();
-          for (iNode = op_timers.begin(); iNode != end; ++iNode){
-            key = iNode->first;
-            sum_time = 0.;
-            retrieve_timer_list(key, timers);
-
-            for (int i = 0; i < (int) timers.size(); i++)
-              sum_time += timers[i].time * timers[i].weight;
-
-            if (sum_time < min_time && sum_time > 0.) min_time = sum_time;
-          }
-
-          world.gop.min(min_time);
-          if (min_time < 1.) min_fac = (Cost) 1./min_time;
-        }
-
-        // print timing stats (ave, min, max, etc)
-        void print_timing_stats(int& step) {
-          double min_time, max_time, ave_time, sum_time, st_dev;
-          int num_nodes, num_zeros;
-          typename dcT::const_iterator iNode;
-          timerListT timers;
-          keyT key;
-
-          min_time = 1.e99;
-          max_time = 0.;
-          num_zeros = 0;
-          num_nodes = 0;
-          ave_time  = 0.;
-          st_dev    = 0.;
-
-          typename dcT::const_iterator end = op_timers.end();
-          for (iNode = op_timers.begin(); iNode != end; ++iNode) {
-            key = iNode->first;
-            sum_time = 0.;
-            retrieve_timer_list(key, timers);
-
-            for (int i = 0; i < (int) timers.size(); i++)
-              sum_time += timers[i].time * timers[i].weight;
-
-            if (sum_time < min_time && sum_time > 0.) min_time = sum_time;
-            if (sum_time > max_time) max_time = sum_time;
-            if (sum_time < 1.e-25) num_zeros++;
-            if (sum_time >  0.) {
-              num_nodes++;
-              ave_time += sum_time;
-            }
-          }
-
-          world.gop.min(min_time);
-          world.gop.max(max_time);
-          world.gop.sum(num_zeros);
-          world.gop.sum(num_nodes);
-          world.gop.sum(ave_time);
-          ave_time /= num_nodes;
-
-          // now get standard deviation
-          world.gop.broadcast(ave_time);
-
-          for (iNode = op_timers.begin(); iNode != end; ++iNode) {
-            key = iNode->first;
-            sum_time = 0.;
-            retrieve_timer_list(key, timers);
-
-            for (int i = 0; i < (int) timers.size(); i++)
-              sum_time += timers[i].time * timers[i].weight;
-           
-             if (sum_time > 0.) st_dev += pow(sum_time - ave_time, 2);
-          }
-
-          world.gop.sum(st_dev);
-          st_dev = sqrt(st_dev/num_nodes); 
-         
-          bool old_status = master_status;
-          master_status=true; 
-          compute_min_cost();
-          master_status=old_status; 
-           
-          if (world.rank() == 0) {
-            printf("Timings: %d min: %.E max: %E ", step, min_time, max_time);
-            printf("ave: %E stdev: %E nodes: %d ", ave_time, st_dev, num_nodes);
-            printf("zeros: %d min_fac: %lu\n", num_zeros, min_fac);
-          }
-        }
-
-        // sets the minimum per-node cost
-        void set_min_cost(const unsigned long new_min) {
-          min_cost = new_min;
-        }
-
-        Cost get_min_cost() {
-          return min_cost;
-        }
-
-        // dis/enables all timers on all nodes
-        void set_master_status(const bool& status) {
-          master_status = status;
-        }
-
-        bool get_master_status() {
-          return master_status;
-        }
-
-        // starts the timer with the given name on the given node
-        void start(keyT key, const std::string& name) {
-          int index;
-          timerListT timers;
-
-          if (master_status == false) return;
-
-          retrieve_timer(key, name, timers, index);
-
-          if (timers[index].status == true) {
-            timers[index].start_time = cpu_time();
-            record_timer(key, timers);
-          }
-        } // end start timer
-
-        // stops the given timer on the given node
-        void stop(keyT key, const std::string& name) {
-         int index;
-          timerListT timers;
-          index = 0;
-
-          if (master_status == false) return;
-
-          retrieve_timer(key, name, timers, index);
-
-          if (timers[index].status == true) {
-            timers[index].time += cpu_time() - timers[index].start_time;
-            timers[index].ncalls += 1;
-
-            record_timer(key, timers);
-          }
-          return;
-        } // end stop timer
-
-        // resets given timer on given node
-        void reset(keyT& key, std::string& name) {
-          int index;
-          timerListT timers;
-
-          retrieve_timer(key, name, timers, index);
-          timers[index].time = 0.0;
-          timers[index].ncalls = 0;
-          record_timer(key, timers);
-        }
-
-        // resets all timers on given node
-        void reset(keyT& key) {
-          timerListT timers;
-
-          retrieve_timer_list(key, timers);
-          for (int i = 0; i < (int) timers.size(); i++) {
-            timers[i].time = 0.0;
-            timers[i].ncalls = 0;
-          }
-          record_timer(key, timers);
-        }
-
-        // resets given timer on all nodes
-        void reset(std::string& name) {
-          typename dcT::const_iterator iNode;
-          int index;
-          timerListT timers;
-          keyT key;
-
-          typename dcT::const_iterator end = op_timers.end();
-          for (iNode = op_timers.begin(); iNode != end; ++iNode){
-            key = iNode->first;
-
-            retrieve_timer(key, name, timers, index);
-            timers[index].time = 0.0;
-            timers[index].ncalls = 0;
-            record_timer(key, timers);
-          }
-        }
-
-        // resets all timers on all nodes
-        void reset() {
-          typename dcT::const_iterator iNode;
-          timerListT timers;
-          keyT key;
-          typename dcT::const_iterator end = op_timers.end();
-          for (iNode = op_timers.begin(); iNode != end; ++iNode){
-            key = iNode->first;
-
-            retrieve_timer_list(key, timers);
-            for (int i = 0; i < (int) timers.size(); i++) {
-              timers[i].time = 0.0;
-              timers[i].ncalls = 0;
-            }
-            record_timer(key, timers);
-          }
-        }
-
-        // dis/enables the given timer on given node
-        void set_status(keyT& key, std::string& name, bool& status) {
-          int index;
-          timerListT timers;
-
-          retrieve_timer(key, name, timers, index);
-
-          timers[index].status = status;
-          record_timer(key, timers);
-        }
-
-        // dis/enables all timers on given node
-        void set_status(keyT& key, bool& status) {
-          timerListT timers;
-
-          retrieve_timer_list(key, timers);
-          for (int i = 0; i < (int) timers.size(); i++) {
-            timers[i].status = status;
-          }
-          record_timer(key, timers);
-        }
-        
-        // dis/enables given timer on all nodes
-        void set_status(std::string& name, bool& status) {
-          typename dcT::const_iterator iNode;
-          int index;
-          timerListT timers;
-          keyT key;
-
-          typename dcT::const_iterator end = op_timers.end();
-          for (iNode = op_timers.begin(); iNode != end; ++iNode){
-            key = iNode->first;
-
-            retrieve_timer(key, name, timers, index);
-            timers[index].status = status;
-            record_timer(key, timers);
-          }
-        }
-
-        // dis/enables all timers on all nodes
-        void set_status(bool& status) {
-          typename dcT::const_iterator iNode;
-          timerListT timers;
-          keyT key;
-
-          typename dcT::const_iterator end = op_timers.end();
-          for (iNode = op_timers.begin(); iNode != end; ++iNode){
-            key = iNode->first;
-
-            retrieve_timer_list(key, timers);
-            for (int i = 0; i < (int) timers.size(); i++) {
-              timers[i].status = status;
-            }
-            record_timer(key, timers);
-          }
-        }
-
-        // sets weight of given timer on given node (used for cost function)
-        void set_weight(keyT& key, std::string& name, double& weight) {
-          int index;
-          timerListT timers;
-          retrieve_timer(key, name, timers, index);
-
-          timers[index].weight = weight;
-          record_timer(key, timers);
-        }
-
-        // sets weight of all timers on given node (used for cost function)
-        void set_weight(keyT& key, double& weight) {
-          timerListT timers;
-
-          retrieve_timer_list(key, timers);
-          for (int i = 0; i < (int) timers.size(); i++) {
-            timers[i].weight = weight;
-          }
-          record_timer(key, timers);
-        }
-
-        // sets weight of given timer on all nodes (used for cost function)
-        void set_weight(const std::string& name, const double& weight) {
-          typename dcT::const_iterator iNode;
-          int index;
-          timerListT timers;
-          keyT key;
-
-          typename dcT::const_iterator end = op_timers.end();
-          for (iNode = op_timers.begin(); iNode != end; ++iNode){
-            key = iNode->first;
-
-            retrieve_timer(key, name, timers, index);
-            timers[index].weight = weight;
-            record_timer(key, timers);
-          }
-        }
-
-        // sets weight of all timers on all nodes (used for cost function)
-        void set_weight(double& weight) {
-          typename dcT::iterator iNode;
-          timerListT timers;
-          keyT key;
-
-          typename dcT::const_iterator end = op_timers.end();
-          for (iNode = op_timers.begin(); iNode != end; ++iNode){
-            key = iNode->first;
-
-            retrieve_timer_list(key, timers);
-            for (int i = 0; i < (int) timers.size(); i++) {
-              timers[i].weight = weight;
-            }
-            record_timer(key, timers);
-          }
-        }
-    }; // end LBTimer
-
-    // Singleton design template used for creating a unique timer object
-    template <typename T>
-    class Singleton {
-    public:
-      static T& Instance(World& world) {
-        static T instance(world);
-        return instance;
-      }
-    private:
-      Singleton();
-      ~Singleton();
-      Singleton(Singleton const&);
-      Singleton& operator=(Singleton const&);
-    };
 
 
 //****************************************************************************
@@ -1153,28 +662,24 @@ namespace madness {
 
     };
 
-/// FunctionImpl holds all Function state to facilitate shallow copy semantics
-
-/// Since Function assignment and copy constructors are shallow it
-/// greatly simplifies maintaining consistent state to have all
-/// (permanent) state encapsulated in a single class.  The state
-/// is shared between instances using a SharedPtr<FunctionImpl>.
-///
-/// The FunctionImpl inherits all of the functionality of WorldContainer
-/// (to store the coefficients) and WorldObject<WorldContainer> (used
-/// for RMI and for its unqiue id).
+    /// FunctionImpl holds all Function state to facilitate shallow copy semantics
+    
+    /// Since Function assignment and copy constructors are shallow it
+    /// greatly simplifies maintaining consistent state to have all
+    /// (permanent) state encapsulated in a single class.  The state
+    /// is shared between instances using a SharedPtr<FunctionImpl>.
+    ///
+    /// The FunctionImpl inherits all of the functionality of WorldContainer
+    /// (to store the coefficients) and WorldObject<WorldContainer> (used
+    /// for RMI and for its unqiue id).
+    ///
+    /// The class methods are public to avoid painful multiple friend template
+    /// declarations for Function and FunctionImpl ... but this trust should not be
+    /// abused ... NOTHING except FunctionImpl methods should mess with FunctionImplData.
+    /// The LB stuff might have to be an exception.
     template <typename T, int NDIM>
     class FunctionImpl : public WorldObject< FunctionImpl<T,NDIM> > {
     public:
-        //friend class Function<T,NDIM>;
-        template <typename Q, int D> friend class Function;
-        template <typename Q, int D> friend class FunctionImpl;
-        friend class LoadBalImpl<NDIM>;
-        friend class LBTree<NDIM>;
-
-#ifdef ENABLE_LBTIMER
-        typedef Singleton< LBTimer<NDIM> > CostFun;
-#endif
         typedef FunctionImpl<T,NDIM> implT; ///< Type of this class (implementation)
         typedef Tensor<T> tensorT; ///< Type of tensor used to hold coeffs
         typedef Vector<Translation,NDIM> tranT; ///< Type of array holding translation
@@ -1184,7 +689,14 @@ namespace madness {
         typedef std::pair<const keyT,nodeT> datumT; ///< Type of entry in container
         typedef Vector<double,NDIM> coordT; ///< Type of vector holding coordinates
 
+        //template <typename Q, int D> friend class Function;
+        template <typename Q, int D> friend class FunctionImpl;
+
+        friend class LoadBalImpl<NDIM>;
+        friend class LBTree<NDIM>;
+
         World& world;
+
     private:
         int k; ///< Wavelet order
         double thresh; ///< Screening threshold
@@ -1204,10 +716,6 @@ namespace madness {
         dcT coeffs; ///< The coefficients
 
         Tensor<int> bc; ///< Type of boundary condition -- currently only zero or periodic
-
-#ifdef ENABLE_LBTIMER
-        SharedPtr<ApplyTime<NDIM> > apply_time;
-#endif
 
         // Disable the default copy constructor
         FunctionImpl(const FunctionImpl<T,NDIM>& p);
@@ -1231,9 +739,6 @@ namespace madness {
                 , compressed(false)
                 , coeffs(world,factory._pmap,false)
                 , bc(factory._bc)
-#ifdef ENABLE_LBTIMER
-                , apply_time(SharedPtr<ApplyTime<NDIM> > ())
-#endif
             {
             PROFILE_MEMBER_FUNC(FunctionImpl);
             // !!! Ensure that all local state is correctly formed
@@ -1293,9 +798,6 @@ namespace madness {
                 , compressed(other.compressed)
                 , coeffs(world, pmap ? pmap : other.coeffs.get_pmap())
                 , bc(other.bc)
-#ifdef ENABLE_LBTIMER
-               , apply_time(other.apply_time) 
-#endif
             {
             if (dozero) {
                 initial_level = 1;
@@ -1400,6 +902,18 @@ namespace madness {
         bool is_compressed() const {
             return compressed;
         }
+
+        bool is_nonstandard() const {return nonstandard;}
+
+        double get_thresh() const {return thresh;}
+
+        void set_thresh(double value) {thresh = value;}
+
+        bool get_autorefine() const {return autorefine;}
+
+        void set_autorefine(bool value) {autorefine = value;}
+
+        int get_k() const {return k;}
 
         /// Adds a constant to the function.  Local operation, optional fence
 
@@ -1672,9 +1186,6 @@ namespace madness {
             PROFILE_MEMBER_FUNC(FunctionImpl);
             const keyT& rkey = arg.first;
             const Tensor<R>& rcoeff = arg.second;
-#ifdef ENABLE_LBTIMER
-            CostFun::Instance(world).start(key,"mul");
-#endif
             //madness::print("do_mul: r", rkey, rcoeff.size);
             Tensor<R> rcube = fcube_for_mul(key, rkey, rcoeff);
             //madness::print("do_mul: l", key, left.size);
@@ -1685,9 +1196,6 @@ namespace madness {
             double scale = pow(0.5,0.5*NDIM*key.level())*sqrt(FunctionDefaults<NDIM>::get_cell_volume());
             tcube = transform(tcube,cdata.quad_phiw).scale(scale);
             coeffs.replace(key, nodeT(tcube,false));
-#ifdef ENABLE_LBTIMER
-            CostFun::Instance(world).stop(key,"mul");
-#endif
             return None;
         }
 
@@ -2659,19 +2167,11 @@ namespace madness {
         Void do_apply(const opT* op, const FunctionImpl<R,NDIM>* f, const keyT& key, const Tensor<R>& c) {
             PROFILE_MEMBER_FUNC(FunctionImpl);
             // insert timer here
-#ifdef ENABLE_LBTIMER
-            double start_time = 0;// cpu_time();
-            double end_time = 0, cum_time = 0;
-#endif
             double fac = 10.0; //3.0; // 10.0 seems good for qmprop ... 3.0 OK for others
             double cnorm = c.normf();
             const long lmax = 1L << (key.level()-1);
             const std::string apply_name = "apply";
 
-#ifdef ENABLE_LBTIMER
-            CostFun::Instance(world).start(key,"apply");
-            start_time = cpu_time();
-#endif
             const std::vector<keyT>& disp = op->get_disp(key.level());
             for (typename std::vector<keyT>::const_iterator it=disp.begin(); it != disp.end(); ++it) {
                 const keyT& d = *it;
@@ -2719,16 +2219,6 @@ namespace madness {
                 }
 
             }
-#ifdef ENABLE_LBTIMER
-            // update Apply_Time
-            end_time = cpu_time();
-            //        madness::print("time for key", key, ":", end_time-start_time);
-            if (apply_time) {
-                cum_time = end_time - start_time;
-                apply_time->update(key, cum_time);
-            }
-            CostFun::Instance(world).stop(key,"apply");
-#endif
             return None;
         }
 
