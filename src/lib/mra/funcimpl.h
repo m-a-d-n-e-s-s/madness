@@ -1251,13 +1251,6 @@ namespace madness {
                 world.gop.fence();
         }
 
-        template <typename opT>
-        void unary_op_coeff_inplace(bool (implT::*refineop)(const keyT&, const tensorT&) const,
-                                    const opT& op,
-                                    bool fence) {
-            throw "not working now";
-        }
-
         /// Unary operation applied inplace to the coefficients WITHOUT refinement, optional fence
         template <typename opT>
         void unary_op_coeff_inplace(const opT& op, bool fence) {
@@ -1284,14 +1277,6 @@ namespace madness {
             }
             if (fence)
                 world.gop.fence();
-        }
-
-        template <typename opT>
-        void unary_op_value_inplace(bool (implT::*refineop)(const keyT&, const tensorT&) const,
-                                    const opT& op,
-                                    bool fence) {
-
-            throw "not working now";
         }
 
         template <typename opT>

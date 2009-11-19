@@ -388,7 +388,7 @@ namespace madness {
         /// If zero is true the function is initialized to zero, otherwise it is empty
         template <typename R>
         void set_impl(const Function<R,NDIM>& f, bool zero = true) {
-            impl = SharedPtr<implT>(new implT(*f.impl, f.get_pmap(), zero));
+            impl = SharedPtr<implT>(new implT(*f.get_impl(), f.get_pmap(), zero));
         }
 
         /// Returns the world
@@ -415,7 +415,6 @@ namespace madness {
             verify();
             return impl->norm2sq_local();
         }
-
 
 
         /// Returns the 2-norm of the function ... global sum ... works in either basis
@@ -647,7 +646,7 @@ namespace madness {
             verify();
             other.verify();
             MADNESS_ASSERT(is_compressed() && other.is_compressed());
-            impl->gaxpy_inplace(alpha,*other.impl,beta,fence);
+            impl->gaxpy_inplace(alpha,*other.get_impl(),beta,fence);
             return *this;
         }
 
@@ -735,7 +734,7 @@ namespace madness {
             MADNESS_ASSERT(g.is_compressed());
             if (VERIFY_TREE) verify_tree();
             if (VERIFY_TREE) g.verify_tree();
-            return impl->inner_local(*(g.impl));
+            return impl->inner_local(*(g.get_impl()));
         }
 
 
@@ -750,7 +749,7 @@ namespace madness {
             if (VERIFY_TREE) verify_tree();
             if (VERIFY_TREE) g.verify_tree();
 
-            TENSOR_RESULT_TYPE(T,R) local = impl->inner_local(*(g.impl));
+            TENSOR_RESULT_TYPE(T,R) local = impl->inner_local(*(g.get_impl()));
             impl->world.gop.sum(local);
             impl->world.gop.fence();
             return local;
@@ -795,36 +794,6 @@ namespace madness {
 
 
         /// This is replaced with left*right ...  private
-        template <typename L, typename R, typename opT>
-        Function<T,NDIM>& binary_op(const Function<L,NDIM>& left,
-                                    const Function<R,NDIM>& right,
-                                    const opT& op,
-                                    double tol, bool fence) {
-            PROFILE_MEMBER_FUNC(Function);
-            left.verify();
-            right.verify();
-            MADNESS_ASSERT(!(left.is_compressed() || right.is_compressed()));
-            if (VERIFY_TREE) left.verify_tree();
-            if (VERIFY_TREE) right.verify_tree();
-            impl = SharedPtr<implT>(new implT(*left.impl, left.get_pmap(), false));
-            impl->binaryXX(left.impl.get(), right.impl.get(), op, tol, fence);
-            return *this;
-        }
-
-        /// This is replaced with left*right ...  private
-        template <typename Q, typename opT>
-        Function<typename opT::resultT,NDIM>& unary_op(const Function<Q,NDIM>& func,
-                const opT& op, bool fence) {
-            PROFILE_MEMBER_FUNC(Function);
-            func.verify();
-            MADNESS_ASSERT(!(func.is_compressed()));
-            if (VERIFY_TREE) func.verify_tree();
-            impl = SharedPtr<implT>(new implT(*func.impl, func.get_pmap(), false));
-            impl->unaryXXvalues(func.impl.get(), op, fence);
-            return *this;
-        }
-
-        /// This is replaced with left*right ...  private
         template <typename Q, typename opT>
         Function<typename opT::resultT,NDIM>& unary_op_coeffs(const Function<Q,NDIM>& func,
                 const opT& op, bool fence) {
@@ -832,8 +801,8 @@ namespace madness {
             func.verify();
             MADNESS_ASSERT(!(func.is_compressed()));
             if (VERIFY_TREE) func.verify_tree();
-            impl = SharedPtr<implT>(new implT(*func.impl, func.get_pmap(), false));
-            impl->unaryXX(func.impl.get(), op, fence);
+            impl = SharedPtr<implT>(new implT(*func.get_impl(), func.get_pmap(), false));
+            impl->unaryXX(func.get_impl().get(), op, fence);
             return *this;
         }
 
@@ -842,7 +811,7 @@ namespace madness {
         static std::vector< SharedPtr< FunctionImpl<Q,D> > > vimpl(const std::vector< Function<Q,D> >& v) {
             PROFILE_MEMBER_FUNC(Function);
             std::vector< SharedPtr< FunctionImpl<Q,D> > > r(v.size());
-            for (unsigned int i=0; i<v.size(); i++) r[i] = v[i].impl;
+            for (unsigned int i=0; i<v.size(); i++) r[i] = v[i].get_impl();
             return r;
         }
 
@@ -894,17 +863,6 @@ namespace madness {
             return *this;
         }
 
-        /// This is replaced with alpha*f ...  private
-        template <typename Q, typename L>
-        Function<T,NDIM>& scale_oop(const Q alpha, const Function<L,NDIM>& f, bool fence) {
-            PROFILE_MEMBER_FUNC(Function);
-            f.verify();
-            if (VERIFY_TREE) f.verify_tree();
-            impl = SharedPtr<implT>(new implT(*f.impl, f.get_pmap(), false));
-            impl->scale_oop(alpha,*f.impl,fence);
-            return *this;
-        }
-
         /// This is replaced with mapdim(f) ...  private
         Function<T,NDIM>& mapdim(const Function<T,NDIM>& f, const std::vector<long>& map, bool fence) {
             PROFILE_MEMBER_FUNC(Function);
@@ -915,7 +873,6 @@ namespace madness {
             impl->mapdim(*f.impl,map,fence);
             return *this;
         }
-
     };
 
 
@@ -924,8 +881,12 @@ namespace madness {
     Function<TENSOR_RESULT_TYPE(Q,T),NDIM>
     mul(const Q alpha, const Function<T,NDIM>& f, bool fence=true) {
         PROFILE_FUNC;
+        f.verify();
+        if (VERIFY_TREE) f.verify_tree();
         Function<TENSOR_RESULT_TYPE(Q,T),NDIM> result;
-        return result.scale_oop(alpha, f, fence);
+        result.set_impl(f, false);
+        result.get_impl()->scale_oop(alpha,*f.get_impl(),fence);
+        return result;
     }
 
 
@@ -980,26 +941,33 @@ namespace madness {
         return mul_sparse(left,right,0.0,fence);
     }
 
-    /// Same as \c operator* but with optional fence and no automatic reconstruction
+    /// Generate news function = op(left,right)
     template <typename L, typename R, typename opT, int NDIM>
     Function<TENSOR_RESULT_TYPE(L,R),NDIM>
-    binary_op(const Function<L,NDIM>& left, const Function<R,NDIM>& right, const opT& op, bool fence=true) {
+    binary_op(const Function<L,NDIM>& left, const Function<R,NDIM>& right, const opT& op, double tol=0.0, bool fence=true) {
+        PROFILE_FUNC;
         if (left.is_compressed()) left.reconstruct();
         if (right.is_compressed()) right.reconstruct();
+
         Function<TENSOR_RESULT_TYPE(L,R),NDIM> result;
-        return result.binary_op(left,right,op,0.0,fence);
+        result.set_impl(left, false);
+        result.get_impl()->binaryXX(left.get_impl.get(), right.get_impl.get(), op, tol, fence);
     }
 
-    /// Same as \c operator* but with optional fence and no automatic reconstruction
+    /// Out of place application of unary operation to function values with optional fence
     template <typename Q, typename opT, int NDIM>
     Function<typename opT::resultT, NDIM>
     unary_op(const Function<Q,NDIM>& func, const opT& op, bool fence=true) {
         if (func.is_compressed()) func.reconstruct();
         Function<typename opT::resultT, NDIM> result;
-        return result.unary_op(func,op,fence);
+        if (VERIFY_TREE) func.verify_tree();
+        result.set_impl(func, false);
+        result.get_impl()->unaryXXvalues(func.get_impl().get(), op, fence);
+        return result;
     }
 
-    /// Same as \c operator* but with optional fence and no automatic reconstruction
+
+    /// Out of place application of unary operation to scaling function coefficients with optional fence
     template <typename Q, typename opT, int NDIM>
     Function<typename opT::resultT, NDIM>
     unary_op_coeffs(const Function<Q,NDIM>& func, const opT& op, bool fence=true) {
