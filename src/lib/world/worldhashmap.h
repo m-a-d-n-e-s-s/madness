@@ -336,12 +336,18 @@ namespace madness {
         binT* bins;                 // Array of bins
 
     private:
-        hashfunT hashfun;
+        mutable hashfunT hashfun;
 
         //unsigned int hash(const keyT& key) const {return hashfunT::hash(key)%nbins;}
 
         static int nbins_prime(int n) {
-            static const int primes[] = {11, 23, 31, 41, 53, 61, 71, 83, 101, 131, 181, 239, 293, 359, 421, 557, 673, 821, 953, 1021, 1231, 1531, 1747, 2069, 2543, 3011, 4003, 5011, 6073, 7013, 8053, 9029, 9907, 17401, 27479, 37847, 48623, 59377, 70667, 81839, 93199, 104759, 224759, 350411, 479951, 611969, 746791, 882391, 1299743, 2750171, 4256257, 5800159, 7368811, 8960477, 10570871, 12195269, 13834133};
+            static const int primes[] = {11, 23, 31, 41, 53, 61, 71, 83, 101,
+                131, 181, 239, 293, 359, 421, 557, 673, 821, 953, 1021, 1231,
+                1531, 1747, 2069, 2543, 3011, 4003, 5011, 6073, 7013, 8053,
+                9029, 9907, 17401, 27479, 37847, 48623, 59377, 70667, 81839,
+                93199, 104759, 224759, 350411, 479951, 611969, 746791, 882391,
+                1299743, 2750171, 4256257, 5800159, 7368811, 8960477, 10570871,
+                12195269, 13834133};
             static const int nprimes = sizeof(primes)/sizeof(int);
             // n is a user provided estimate of the no. of elements to be put
             // in the table.  Want to make the number of bins a prime number
@@ -490,8 +496,7 @@ namespace madness {
             return const_iterator(this,false);
         }
 
-        const hashfunT& get_hash() const { return hashfun; }
-
+        hashfunT& get_hash() const { return hashfun; }
     };
 }
 

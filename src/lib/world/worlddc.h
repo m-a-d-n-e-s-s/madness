@@ -185,7 +185,7 @@ namespace madness {
         }
 
         template <typename Archive>
-        void serialize(const Archive& ar) {
+        void serialize(const Archive&) {
             MADNESS_EXCEPTION("Serializing DC iterator ... why?", false);
         }
 
@@ -301,7 +301,7 @@ namespace madness {
             return pmap;
         }
 
-        const hashfunT& get_hash() const { return local.get_hash(); }
+        hashfunT& get_hash() const { return local.get_hash(); }
 
         bool is_local(const keyT& key) const {
             return owner(key) == me;
@@ -762,7 +762,7 @@ namespace madness {
         }
 
         /// Returns a reference to the hashing functor
-        inline const hashfunT& get_hash() const {
+        hashfunT& get_hash() const {
             check_initialized();
             return p->get_hash();
         }
