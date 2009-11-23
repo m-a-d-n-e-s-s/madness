@@ -1785,10 +1785,14 @@ namespace madness {
         void diff(const implT& f, int axis, bool fence);
 
         Void sum_down_spawn(const keyT& key, const tensorT& s) {
+
             typename dcT::accessor acc;
             coeffs.insert(acc,key);
             nodeT& node = acc->second;
             tensorT& c = node.coeff();
+
+            //print(key,"received",s.normf(),c.normf(),node.has_children());
+
             if (s.size > 0) {
                 if (c.size > 0) 
                     c.gaxpy(1.0,s,1.0);
@@ -1797,16 +1801,19 @@ namespace madness {
             }
 
             if (node.has_children()) {
-                tensorT d, ss;
+                tensorT d;
                 if (c.size > 0) {
                     d = tensorT(cdata.v2k);
                     d(cdata.s0) = c;
                     d = unfilter(d);
+                    //print(c.normf(),d.normf());
                     node.clear_coeff();
                 }
                 for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
+                    tensorT ss;
                     const keyT& child = kit.key();
-                    if (c.size > 0) ss = copy(d(child_patch(child)));
+                    if (d.size > 0) ss = copy(d(child_patch(child)));
+                    //print(key,"sending",ss.normf(),"to",child);
                     task(coeffs.owner(child), &implT::sum_down_spawn, child, ss);
                 }
             }
@@ -1831,7 +1838,7 @@ namespace madness {
             const opT* op = pop.ptr;
             const Level n = key.level();
             const double cnorm = c.normf();
-            const double tol = 0.0; //truncate_tol(thresh, key)*0.3;
+            const double tol = truncate_tol(thresh, key)*0.05;
 
             Vector<Translation,NDIM> lnew(key.translation());
             const Translation lold = lnew[axis];
@@ -1842,7 +1849,7 @@ namespace madness {
                 int maxdir = s ? 1 : -1;
                 for (int direction=-1; direction<=maxdir; direction+=2) {
                     lnew[axis] = lold + direction*s;
-                    if (lnew[axis] >= 0 && lnew[axis] < maxs) { // BOUNDARY CONDITIONS IGNORED HERE !!!!!!!!!!!!!!!!!!!!
+                    if (lnew[axis] >= 0 && lnew[axis] < maxs) { // NON-ZERO BOUNDARY CONDITIONS IGNORED HERE !!!!!!!!!!!!!!!!!!!!
                         const Tensor<typename opT::opT>& R = op->rnlij(n, s*direction);
                         const double Rnorm = R.normf();
                         if (Rnorm*cnorm > tol) {
@@ -1867,7 +1874,7 @@ namespace madness {
                         nsmall++;
                     }
                 }
-                if (nsmall >= 400000000) {
+                if (nsmall >= 4) {
                     // If have two negligble blocks in
                     // succession in each direction interpret
                     // this as the operator being zero beyond

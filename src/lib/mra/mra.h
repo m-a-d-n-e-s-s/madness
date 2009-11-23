@@ -507,6 +507,16 @@ namespace madness {
         }
 
 
+        /// Sums scaling coeffs down tree restoring state with coeffs only at leaves.  Optional fence.  Possible non-blocking comm.
+        void sum_down(bool fence = true) const {
+            PROFILE_MEMBER_FUNC(Function);
+            verify();
+            MADNESS_ASSERT(!is_compressed());
+            const_cast<Function<T,NDIM>*>(this)->impl->sum_down(fence);
+            if (fence && VERIFY_TREE) verify_tree(); // Must be after in case nonstandard
+        }
+
+
         /// Inplace autorefines the function using the same test as for squaring.  Possible non-blocking comm.
 
         /// This needs generalizing to a user-defined threshold and criterion.
@@ -1178,6 +1188,23 @@ namespace madness {
         result.reconstruct();
         return result;
     }
+
+
+    template <typename opT, typename R, int NDIM>
+    Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM>
+    apply_1d_realspace_push(const opT& op, const Function<R,NDIM>& f, int axis, bool fence=true) {
+        PROFILE_FUNC;
+        Function<R,NDIM>& ff = const_cast< Function<R,NDIM>& >(f);
+        if (VERIFY_TREE) ff.verify_tree();
+        ff.reconstruct();
+
+        Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> result;
+
+        result.set_impl(ff, false);
+        result.get_impl()->apply_1d_realspace_push(op, ff.get_impl().get(), axis, fence);
+        return result;
+    }
+
 
     /// Generate a new function by reordering dimensions ... optional fence
 
