@@ -609,14 +609,18 @@ namespace madness {
     void FunctionImpl<T,NDIM>::do_print_tree(const keyT& key, Level maxlevel) const {
         typename dcT::const_iterator it = coeffs.find(key).get();
         if (it == coeffs.end()) {
-            MADNESS_EXCEPTION("FunctionImpl: do_print_tree: null node pointer",0);
+            //MADNESS_EXCEPTION("FunctionImpl: do_print_tree: null node pointer",0);
+            for (int i=0; i<key.level(); i++) std::cout << "  ";
+            std::cout << key << "  missing --> " << coeffs.owner(key) << "\n";
         }
-        const nodeT& node = it->second;
-        for (int i=0; i<key.level(); i++) std::cout << "  ";
-        std::cout << key << "  " << node << " --> " << coeffs.owner(key) << "\n";
-        if (key.level() < maxlevel  &&  node.has_children()) {
-            for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
-                do_print_tree(kit.key(),maxlevel);
+        else {
+            const nodeT& node = it->second;
+            for (int i=0; i<key.level(); i++) std::cout << "  ";
+            std::cout << key << "  " << node << " --> " << coeffs.owner(key) << "\n";
+            if (key.level() < maxlevel  &&  node.has_children()) {
+                for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
+                    do_print_tree(kit.key(),maxlevel);
+                }
             }
         }
     }

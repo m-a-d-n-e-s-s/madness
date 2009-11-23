@@ -157,6 +157,7 @@ namespace madness {
     template <typename Q>
     class Convolution1D {
     public:
+        typedef Q opT;  ///< The apply function uses this to infer resultT=opT*inputT
         int k;
         int npt;
         double sign;
@@ -220,7 +221,7 @@ namespace madness {
             PROFILE_MEMBER_FUNC(Convolution1D);
 
             long twok = 2*k;
-            Tensor<Q>  R(2*twok);
+            Tensor<Q> R(2*twok);
             R(Slice(0,twok-1)) = get_rnlp(n,lx-1);
             R(Slice(twok,2*twok-1)) = get_rnlp(n,lx);
             R.scale(pow(0.5,0.5*n));

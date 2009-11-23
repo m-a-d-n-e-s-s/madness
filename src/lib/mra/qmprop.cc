@@ -91,23 +91,26 @@ namespace madness {
         }
     };
 
+    Convolution1D<double_complex>*
+    qm_1d_free_particle_propagator(int k, double bandlimit, double timestep, double width) {
+        return new GenericConvolution1D<double_complex,BandlimitedPropagator>(k,BandlimitedPropagator(bandlimit,timestep,width));
+    }
+
     template <int NDIM>
     SeparatedConvolution<double_complex,NDIM>
     qm_free_particle_propagator(World& world, int k, double bandlimit, double timestep) {
-        BandlimitedPropagator::test();
-        std::vector< SharedPtr< Convolution1D<double_complex> > > q(1);
         double width = FunctionDefaults<NDIM>::get_cell_min_width(); // Assuming cubic so all dim equal
-        q[0] = SharedPtr< Convolution1D<double_complex> >(new GenericConvolution1D<double_complex,BandlimitedPropagator>(k,BandlimitedPropagator(bandlimit,timestep,width)));
+        std::vector< SharedPtr< Convolution1D<double_complex> > > q(1);
+        q[0] = SharedPtr< Convolution1D<double_complex> >(qm_1d_free_particle_propagator(k, bandlimit, timestep, width));
         return SeparatedConvolution<double_complex,NDIM>(world, k, q, true);
-	}		
+    }		
 		
     template <int NDIM>
     SeparatedConvolution<double_complex,NDIM>*
     qm_free_particle_propagatorPtr(World& world, int k, double bandlimit, double timestep) {
-        BandlimitedPropagator::test();
-        std::vector< SharedPtr< Convolution1D<double_complex> > > q(1);
         double width = FunctionDefaults<NDIM>::get_cell_min_width(); // Assuming cubic so all dim equal
-        q[0] = SharedPtr< Convolution1D<double_complex> >(new GenericConvolution1D<double_complex,BandlimitedPropagator>(k,BandlimitedPropagator(bandlimit,timestep,width)));
+        std::vector< SharedPtr< Convolution1D<double_complex> > > q(1);
+        q[0] = SharedPtr< Convolution1D<double_complex> >(qm_1d_free_particle_propagator(k, bandlimit, timestep, width));
         return new SeparatedConvolution<double_complex,NDIM>(world, k, q, true);
     }
 

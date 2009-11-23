@@ -266,11 +266,11 @@
 
 
     static inline void plot_line_print_value(FILE* f, double_complex v) {
-        fprintf(f, "    %.6e %.6e   ", real(v), imag(v));
+        fprintf(f, "    %.14e %.14e   ", real(v), imag(v));
     }
 
     static inline void plot_line_print_value(FILE* f, double v) {
-        fprintf(f, " %.6e", v);
+        fprintf(f, " %.14e", v);
     }
 
     /// Generates ASCII file tabulating f(r) at npoints along line r=lo,...,hi
@@ -292,7 +292,7 @@
             FILE* file = fopen(filename,"w");
             for (int i=0; i<npt; i++) {
                 coordT r = lo + h*double(i);
-                fprintf(file, "%.6e ", i*sum);
+                fprintf(file, "%.14e ", i*sum);
                 plot_line_print_value(file, f.eval(r));
                 fprintf(file,"\n");
             }
@@ -321,7 +321,7 @@
             FILE* file = fopen(filename,"w");
             for (int i=0; i<npt; i++) {
                 coordT r = lo + h*double(i);
-                fprintf(file, "%.6e ", i*sum);
+                fprintf(file, "%.14e ", i*sum);
                 plot_line_print_value(file, f.eval(r));
                 plot_line_print_value(file, g.eval(r));
                 fprintf(file,"\n");
@@ -353,7 +353,7 @@
             FILE* file = fopen(filename,"w");
             for (int i=0; i<npt; i++) {
                 coordT r = lo + h*double(i);
-                fprintf(file, "%.6e ", i*sum);
+                fprintf(file, "%.14e ", i*sum);
                 plot_line_print_value(file, f.eval(r));
                 plot_line_print_value(file, g.eval(r));
                 plot_line_print_value(file, a.eval(r));

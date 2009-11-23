@@ -580,88 +580,6 @@ namespace madness {
     }
 
 
-
-//****************************************************************************
-
-
-/// ApplyTime is a class for finding out the time taken in the apply
-/// function.
-
-    template <int NDIM>
-    class ApplyTime {
-        typedef Key<NDIM> keyT;
-        typedef WorldContainer<keyT, double> dcT;
-        typedef std::pair<const keyT, double> datumT;
-
-    private:
-        World& world;
-        dcT hash_table;
-        double decay_val;
-
-    public:
-        ApplyTime(World& world)
-                : world(world)
-                , hash_table(dcT(world))
-                , decay_val(0.9) {}
-
-        void set(datumT data) {
-            hash_table.replace(data);
-        }
-
-        void clear() {
-            hash_table.clear();
-        }
-
-        double get(keyT& key) {
-            typename dcT::iterator it = hash_table.find(key);
-            if (it == hash_table.end()) {
-                return 0.0;
-            }
-            else {
-                return it->second;
-            }
-        }
-
-        double get(const keyT& key) {
-            typename dcT::iterator it = hash_table.find(key);
-            if (it == hash_table.end()) {
-                return 0.0;
-            }
-            else {
-                return it->second;
-            }
-        }
-
-        /* datumT get(keyT& key) { */
-        /*     double result = this->get(key); */
-        /*     return datumT(key, result); */
-        /*       } */
-
-        void update(datumT data) {
-            typename dcT::iterator it = hash_table.find(data.first).get();
-            if (it == hash_table.end()) {
-                hash_table.replace(data);
-            }
-            else {
-                double s = it->second, y = data.second;
-                data.second = s + (y-s)*decay_val;
-                hash_table.replace(data);
-            }
-        }
-
-        void update(keyT key, double d) {
-            update(datumT(key, d));
-        }
-
-        void print() {
-            typename dcT::const_iterator end = hash_table.end();
-            for (typename dcT::iterator it = hash_table.begin(); it != end; ++it) {
-                madness::print(it->first, "  ", it->second);
-            }
-        }
-
-    };
-
     /// FunctionImpl holds all Function state to facilitate shallow copy semantics
     
     /// Since Function assignment and copy constructors are shallow it
@@ -1866,6 +1784,120 @@ namespace madness {
         /// have the same process map, etc., as f
         void diff(const implT& f, int axis, bool fence);
 
+        Void sum_down_spawn(const keyT& key, const tensorT& s) {
+            typename dcT::accessor acc;
+            coeffs.insert(acc,key);
+            nodeT& node = acc->second;
+            tensorT& c = node.coeff();
+            if (s.size > 0) {
+                if (c.size > 0) 
+                    c.gaxpy(1.0,s,1.0);
+                else 
+                    c = s;
+            }
+
+            if (node.has_children()) {
+                tensorT d, ss;
+                if (c.size > 0) {
+                    d = tensorT(cdata.v2k);
+                    d(cdata.s0) = c;
+                    d = unfilter(d);
+                    node.clear_coeff();
+                }
+                for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
+                    const keyT& child = kit.key();
+                    if (c.size > 0) ss = copy(d(child_patch(child)));
+                    task(coeffs.owner(child), &implT::sum_down_spawn, child, ss);
+                }
+            }
+            else {
+                // Missing coeffs assumed to be zero
+                if (c.size <= 0) c = tensorT(cdata.vk);
+            }
+            return None;
+        }
+
+        /// After 1d push operator must sum coeffs down the tree to restore correct scaling function coefficients
+        void sum_down(bool fence) {
+            if (world.rank() == coeffs.owner(cdata.key0)) sum_down_spawn(cdata.key0, tensorT());
+
+            if (fence) world.gop.fence();
+        }
+
+
+        template <typename opT, typename R>
+        Void
+        apply_1d_realspace_push_op(const archive::archive_ptr<const opT>& pop, int axis, const keyT& key, const Tensor<R>& c) {
+            const opT* op = pop.ptr;
+            const Level n = key.level();
+            const double cnorm = c.normf();
+            const double tol = 0.0; //truncate_tol(thresh, key)*0.3;
+
+            Vector<Translation,NDIM> lnew(key.translation());
+            const Translation lold = lnew[axis];
+            const Translation maxs = Translation(1)<<n;
+
+            int nsmall = 0; // Counts neglected blocks to terminate s loop
+            for (Translation s=0; s<maxs; s++) {
+                int maxdir = s ? 1 : -1;
+                for (int direction=-1; direction<=maxdir; direction+=2) {
+                    lnew[axis] = lold + direction*s;
+                    if (lnew[axis] >= 0 && lnew[axis] < maxs) { // BOUNDARY CONDITIONS IGNORED HERE !!!!!!!!!!!!!!!!!!!!
+                        const Tensor<typename opT::opT>& R = op->rnlij(n, s*direction);
+                        const double Rnorm = R.normf();
+                        if (Rnorm*cnorm > tol) {
+                            nsmall = 0;
+                            //tensorT result = inner(R,c,1,axis);
+                            tensorT result(cdata.vk);
+                            for (long i=0; i<k; i++) {
+                                for (long j=0; j<k; j++) {
+                                    result[i] += R(i,j)*c[j];
+                                }
+                            }
+                            if (result.normf() > tol*0.3) {
+                                Key<NDIM> dest(n,lnew);
+                                coeffs.task(dest, &nodeT::accumulate, result, coeffs, dest, TaskAttributes::hipri());
+                            }
+                        }
+                        else {
+                            nsmall++;
+                        }
+                    }
+                    else {
+                        nsmall++;
+                    }
+                }
+                if (nsmall >= 400000000) {
+                    // If have two negligble blocks in
+                    // succession in each direction interpret
+                    // this as the operator being zero beyond
+                    break;
+                }
+            }
+            return None;
+        }
+
+        template <typename opT, typename R>
+        void
+        apply_1d_realspace_push(const opT& op, const FunctionImpl<R,NDIM>* f, int axis, bool fence) {
+            MADNESS_ASSERT(!f->is_compressed());
+
+            typedef typename FunctionImpl<R,NDIM>::dcT::const_iterator fiterT;
+            typedef FunctionNode<R,NDIM> fnodeT;
+            fiterT end = f->coeffs.end();
+            ProcessID me = world.rank();
+            for (fiterT it=f->coeffs.begin(); it!=end; ++it) {
+                const fnodeT& node = it->second;
+                if (node.has_coeff()) {
+                    const keyT& key = it->first;
+                    const Tensor<R>& c = node.coeff();
+                    task(me, &implT:: template apply_1d_realspace_push_op<opT,R>, archive::archive_ptr<const opT>(&op), axis, key, c);
+                }
+            }
+            if (fence) world.gop.fence();
+        }
+
+
         /// Returns key of neighbor enforcing BC
 
         /// Out of volume keys are mapped to enforce the BC as follows.
@@ -2093,10 +2125,27 @@ namespace madness {
                 d(child_patch(kit.key())) = v[i].get();
             }
             d = filter(d);
+
+            typename dcT::accessor acc;
+            MADNESS_ASSERT(coeffs.find(acc, key));
+
+            if (acc->second.has_coeff()) {
+                const tensorT& c = acc->second.coeff();
+                if (c.dim[0] == k) {
+                    d(cdata.s0) += c;
+                }
+                else {
+                    d += c;
+                }
+            }
+            
             tensorT s = copy(d(cdata.s0));
+
             if (key.level()> 0 && !nonstandard)
                 d(cdata.s0) = 0.0;
-            coeffs.replace(key, nodeT(d,true));
+
+            acc->second.set_coeff(d);
+
             return s;
         }
 
@@ -2143,6 +2192,8 @@ namespace madness {
             // and also to ensure we don't needlessly widen the tree when
             // applying the operator
             if (result.normf()> 0.3*args.tol/args.fac) {
+                // OPTIMIZATION NEEDED HERE ... CHANGING THIS TO TASK NOT SEND REMOVED
+                // BUILTIN OPTIMIZATION TO SHORTCIRCUIT MSG IF DATA IS LOCAL
                 coeffs.task(args.dest, &nodeT::accumulate, result, coeffs, args.dest, TaskAttributes::hipri());
             }
             return None;
@@ -2202,7 +2253,6 @@ namespace madness {
                         break;
                     }
                 }
-
             }
             return None;
         }
@@ -2230,21 +2280,6 @@ namespace madness {
             if (fence)
                 world.gop.fence();
         }
-
-        /// accessor functions for apply_time
-        // no good place to put them, so here seems as good as any
-        //       double get_apply_time(const keyT& key) {
-        //     return apply_time.get(key);
-        //       }
-
-        //       void print_apply_time() {
-        //     apply_time.print();
-        //       }
-
-//         void set_apply_time_ptr(SharedPtr<ApplyTime<NDIM> > ptr) {
-//             apply_time = ptr;
-//         }
-        
 
         /// Returns the square of the error norm in the box labelled by key
 
