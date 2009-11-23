@@ -595,41 +595,41 @@ namespace madness {
         }
 
 
-        /// Inserts key+value pair (non-blocking communication if key not local)
+        /// Inserts/replaces key+value pair (non-blocking communication if key not local)
         void replace(const pairT& datum) {
             check_initialized();
             p->insert(datum);
         }
 
 
-        /// Inserts key+value pair (non-blocking communication if key not local)
+        /// Inserts/replaces key+value pair (non-blocking communication if key not local)
         void replace(const keyT& key, const valueT& value) {
             replace(pairT(key,value));
         }
 
 
-        /// Provides write access to LOCAL value by key ... always returns false for remote
+        /// Write access to LOCAL value by key. Returns true if found, false otherwise (always false for remote).
         bool find(accessor& acc, const keyT& key) {
             check_initialized();
             return p->find(acc,key);
         }
 
 
-        /// Provides read access to LOCAL value by key ... always returns false for remote
+        /// Read access to LOCAL value by key. Returns true if found, false otherwise (always false for remote).
         bool find(const_accessor& acc, const keyT& key) const {
             check_initialized();
             return p->find(acc,key);
         }
 
 
-        /// Provides write access to LOCAL value by key ... throws if key is remote
+        /// Write access to LOCAL value by key. Returns true if inserted, false if already exists (throws if remote)
         bool insert(accessor& acc, const keyT& key) {
             check_initialized();
             return p->insert_acc(acc,key);
         }
 
 
-        /// Provides read access to LOCAL value by key ... throws if key is remote
+        /// Read access to LOCAL value by key. Returns true if inserted, false if already exists (throws if remote)
         bool insert(const_accessor& acc, const keyT& key) {
             check_initialized();
             return p->insert_acc(acc,key);

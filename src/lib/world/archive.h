@@ -664,8 +664,17 @@ namespace madness {
 
         ///////////////////////////////////////////////////////////////
 
+        /// Wrapper for opaque pointer ... bitwise copy of the pointer ... no remapping performed
+        template <class T>
+        class archive_ptr {
+        public:
+            T* ptr;
 
+            archive_ptr(T* t = 0) : ptr(t) {}
 
+            template <class Archive> 
+            void serialize(const Archive& ar) {ar & wrap_opaque(&ptr, 1);}
+        };
 
         /// Wrapper for dynamic arrays and pointers
         template <class T>
@@ -673,12 +682,14 @@ namespace madness {
         public:
             const T* ptr;
             unsigned int n;
-            inline
+
             archive_array(const T *ptr, unsigned int n) : ptr(ptr), n(n) {}
+
+            archive_array() : ptr(0), n(0) {}
         };
 
 
-        /// Factory function to wrap pointer as typed archive_array
+        /// Factory function to wrap dynamically allocated pointer as typed archive_array
         template <class T>
         inline
         archive_array<T> wrap(const T* ptr, unsigned int n) {
