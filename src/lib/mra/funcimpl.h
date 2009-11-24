@@ -1838,7 +1838,7 @@ namespace madness {
             const opT* op = pop.ptr;
             const Level n = key.level();
             const double cnorm = c.normf();
-            const double tol = truncate_tol(thresh, key)*0.05;
+            const double tol = truncate_tol(thresh, key)*0.1;
 
             Vector<Translation,NDIM> lnew(key.translation());
             const Translation lold = lnew[axis];
@@ -1851,20 +1851,13 @@ namespace madness {
                     lnew[axis] = lold + direction*s;
                     if (lnew[axis] >= 0 && lnew[axis] < maxs) { // NON-ZERO BOUNDARY CONDITIONS IGNORED HERE !!!!!!!!!!!!!!!!!!!!
                         const Tensor<typename opT::opT>& R = op->rnlij(n, s*direction);
-                        const double Rnorm = R.normf();
-                        if (Rnorm*cnorm > tol) {
+                        if (s <= 1  ||  R.normf()*cnorm > tol) { // Always do kernel and neighbor
                             nsmall = 0;
-                            //tensorT result = inner(R,c,1,axis);
-                            tensorT result(cdata.vk);
-                            for (long i=0; i<k; i++) {
-                                for (long j=0; j<k; j++) {
-                                    result[i] += R(i,j)*c[j];
-                                }
-                            }
-                            if (result.normf() > tol*0.3) {
+                            tensorT result = inner(R,c,1,axis);
+                            //if (result.normf() > tol*0.3) {
                                 Key<NDIM> dest(n,lnew);
                                 coeffs.task(dest, &nodeT::accumulate, result, coeffs, dest, TaskAttributes::hipri());
-                            }
+                            //}
                         }
                         else {
                             nsmall++;

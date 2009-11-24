@@ -838,13 +838,13 @@ namespace madness {
             std::vector<FunctionImpl<T,NDIM>*> vresult(right.size());
             std::vector<const FunctionImpl<R,NDIM>*> vright(right.size());
             for (unsigned int i=0; i<right.size(); i++) {
-                result[i].impl = SharedPtr<implT>(new implT(*left.impl, left.get_pmap(), false));
+                result[i].set_impl(left,false);
                 vresult[i] = result[i].impl.get();
                 vright[i] = right[i].impl.get();
             }
 
             left.world().gop.fence(); // Is this still essential?  Yes.
-            vresult[0]->mulXXvec(left.impl.get(), vright, vresult, tol, fence);
+            vresult[0]->mulXXvec(left.get_impl().get(), vright, vresult, tol, fence);
         }
 
         /// sparse transformation of a vector of functions ... private
