@@ -225,7 +225,7 @@ void apply_potential(World& world,
     */
     
     FunctionDefaults<3>::set_autorefine(false);
-    print(" -I*lam %f %f \n", (-I*lam).real(), (-I*lam).imag());
+    print(" -I*lam ", -I*lam);
     world.gop.fence();
 
     if (!doso) return;
@@ -373,7 +373,7 @@ void doit(World& world) {
     Tensor<double> e, e1(nvec);
     double maxerr;
     real_functionT V0, V0x, V0y, V0z;
-    double shift=0.;
+    //double shift=0.;
     bool doso = false; // turned on once converged to 1e-4
     print(" u size ",  u.size(), "v size ", v.size(), "\n");
     world.gop.fence();
