@@ -231,7 +231,7 @@ complexd ScatteringWF::f11(double xx) const {
     //conhyp(k,r) - aForm(k,r) for different k values
     //20 + 7exp(-6k) is the emperical fit
     //if(xx <= 20 + 7*std::exp(-6*k)) return conhyp(-I/k,one,ZZ);
-    if(xx <= 4.5/k/k + 1) return conhyp(-I/k,one,ZZ);
+    if(xx <= 4.1/(k*k) + 21.6) return conhyp(-I/k,one,ZZ);
     else return aForm3(ZZ);
 }
 
@@ -261,7 +261,7 @@ complexd ScatteringWF::aForm3(complexd ZZ) const {
     complexd cB = cB1*cB2/gammamI_k;
     complexd termA(0,0);
     complexd termB(0,0);
-    int maxTerms = 10;
+    int maxTerms = 24;
     complexd zrn = 1;
     complexd mzrn = 1;
     complexd zr = 1.0/ZZ;

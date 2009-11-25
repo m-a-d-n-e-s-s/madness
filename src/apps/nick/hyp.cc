@@ -71,7 +71,7 @@ complexd conhyp(const complexd& a_arg,
         
         // Could get more intelligent here
         //std::cout << "EXTENDING PRECISION " << nbits+128 << std::endl;
-        extended_real::set_default_prec(nbits+128);
+        extended_real::set_default_prec(nbits+256);
     }
     throw "insufficient precision";
 }
