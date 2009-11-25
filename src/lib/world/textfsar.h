@@ -79,7 +79,7 @@ namespace madness {
                 for (long i=0; i<n; i++) os << t[i] << std::endl;
             }
 
-            void store(const char* t, long n) const {
+            void store(const char* t, long /*n*/) const {
                 // store character string, escaping &, < and > along the way
                 while (*t) {
                     char c = *t++;

@@ -94,7 +94,7 @@ namespace madness {
         // On 64 bit machine AmArg is HEADER_LEN+8+8+8+4+4=96 bytes
 
         AmArg(const AmArg&) {}              // No copy constructor
-        AmArg& operator=(const AmArg& a) {
+        AmArg& operator=(const AmArg& /*a*/) {
             return *this;    // No assignment
         }
 

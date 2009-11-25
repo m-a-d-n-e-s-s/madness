@@ -140,7 +140,7 @@ namespace madness {
         /// Runs a single-threaded task ... derived classes must implement this.
 
         /// This interface may disappear so new code should use the multi-threaded interface.
-        virtual void run(World& world) {
+        virtual void run(World& /*world*/) {
             //print("in virtual run(world) method");
             MADNESS_EXCEPTION("World TaskInterface: user did not implement one of run(world) or run(world, taskthreadenv)", 0);
         }

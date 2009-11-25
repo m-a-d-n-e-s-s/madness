@@ -211,7 +211,7 @@ namespace madness {
                                 std::cerr << rank
                                           << ":RMI: invoking from=" << src
                                           << " nbyte=" << len
-                                          << " func=" << (void*)(func)
+                                          << " func=" << func
                                           << " ordered=" << is_ordered(attr)
                                           << " count=" << count
                                           << std::endl;
@@ -225,7 +225,7 @@ namespace madness {
                                 std::cerr << rank
                                           << ":RMI: enqueing from=" << src
                                           << " nbyte=" << len
-                                          << " func=" << (void*)(func)
+                                          << " func=" << func
                                           << " ordered=" << is_ordered(attr)
                                           << " fromcount=" << count
                                           << " herecount=" << int(recv_counters[src])
@@ -254,7 +254,7 @@ namespace madness {
                                 std::cerr << rank
                                           << ":RMI: queue invoking from=" << src
                                           << " nbyte=" << q[m].len
-                                          << " func=" << (void*)(q[m].func)
+                                          << " func=" << q[m].func
                                           << " ordered=" << is_ordered(q[m].attr)
                                           << " count=" << q[m].count
                                           << std::endl;
@@ -269,7 +269,7 @@ namespace madness {
                                 std::cerr << rank
                                           << ":RMI: queue pending out of order from=" << src
                                           << " nbyte=" << q[m].len
-                                          << " func=" << (void*)(q[m].func)
+                                          << " func=" << q[m].func
                                           << " ordered=" << is_ordered(q[m].attr)
                                           << " count=" << q[m].count
                                           << std::endl;
@@ -350,7 +350,7 @@ namespace madness {
             return instance_ptr;
         }
 
-        static void huge_msg_handler(void *buf, size_t nbytein) {
+        static void huge_msg_handler(void *buf, size_t /*nbytein*/) {
             const size_t* info = (size_t *)(buf);
             int nword = HEADER_LEN/sizeof(size_t);
             int src = info[nword];
@@ -366,7 +366,7 @@ namespace madness {
             if (nbyte > MAX_MSG_LEN) {
                 // Huge message protocol ... send message to dest indicating size and origin of huge message.
                 // Remote end posts a buffer then acks the request.  This end can then send.
-                int nword = HEADER_LEN/sizeof(size_t);
+                const int nword = HEADER_LEN/sizeof(size_t);
                 size_t info[nword+2];
                 info[nword  ] = rank;
                 info[nword+1] = nbyte;
@@ -391,7 +391,7 @@ namespace madness {
                           << ":RMI: sending buf=" << buf
                           << " nbyte=" << nbyte
                           << " dest=" << dest
-                          << " func=" << (void*)(func)
+                          << " func=" << func
                           << " ordered=" << is_ordered(attr)
                           << " count=" << int(send_counters[dest])
                           << std::endl;

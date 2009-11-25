@@ -32,9 +32,8 @@
   $Id$
 */
 
-
-#ifndef MAD_ARCHIVE_H
-#define MAD_ARCHIVE_H
+#ifndef MADNESS_WORLD_ARCHIVE_H__INCLUDED
+#define MADNESS_WORLD_ARCHIVE_H__INCLUDED
 
 /// \file archive.h
 /// \brief Interface templates for the archives (serialization)
@@ -544,10 +543,10 @@ namespace madness {
 
 
             /// By default there is no postamble
-            static inline void postamble_load(const Archive& ar) {}
+            static inline void postamble_load(const Archive& /*ar*/) {}
 
             /// By default there is no postamble
-            static inline void postamble_store(const Archive& ar) {}
+            static inline void postamble_store(const Archive& /*ar*/) {}
         };
 
 
@@ -917,4 +916,4 @@ namespace madness {
 
 }
 
-#endif
+#endif // MADNESS_WORLD_ARCHIVE_H__INCLUDED

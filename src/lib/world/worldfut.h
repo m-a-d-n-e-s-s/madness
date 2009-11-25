@@ -544,26 +544,26 @@ namespace madness {
     /// Specialization of Future<void> for internal convenience ... does nothing useful!
     template <> class Future<void> {
     public:
-        RemoteReference< FutureImpl<void> > remote_ref(World& world) const {
+        RemoteReference< FutureImpl<void> > remote_ref(World&) const {
             return RemoteReference< FutureImpl<void> >();
         }
 
         Future() {}
 
-        Future(const RemoteReference< FutureImpl<void> >& ref) {}
+        Future(const RemoteReference< FutureImpl<void> >& /*ref*/) {}
 
-        Future(const Future<Void>& f) {}
+        Future(const Future<Void>& /*f*/) {}
 
-        inline void set(const Future<void>& f) {}
+        inline void set(const Future<void>& /*f*/) {}
 
-        inline Future<void>& operator=(const Future<void>& f) {
+        inline Future<void>& operator=(const Future<void>& /*f*/) {
             return *this;
         }
 
         inline void set() {}
 
         template <class Archive>
-        void serialize(const Archive& ar) {}
+        void serialize(const Archive& /*ar*/) {}
 
         virtual ~Future() {}
     };
@@ -574,26 +574,26 @@ namespace madness {
     /// Specialization of Future<Void> for internal convenience ... does nothing useful!
     template <> class Future<Void> {
     public:
-        RemoteReference< FutureImpl<Void> > remote_ref(World& world) const {
+        RemoteReference< FutureImpl<Void> > remote_ref(World& /*world*/) const {
             return RemoteReference< FutureImpl<Void> >();
         }
 
         Future() {}
 
-        Future(const RemoteReference< FutureImpl<Void> >& ref) {}
+        Future(const RemoteReference< FutureImpl<Void> >& /*ref*/) {}
 
-        Future(const Future<void>& f) {}
+        Future(const Future<void>& /*f*/) {}
 
-        inline void set(const Future<Void>& f) {}
+        inline void set(const Future<Void>& /*f*/) {}
 
-        inline Future<Void>& operator=(const Future<Void>& f) {
+        inline Future<Void>& operator=(const Future<Void>& /*f*/) {
             return *this;
         }
 
-        inline void set(const Void& f) {}
+        inline void set(const Void& /*f*/) {}
 
         template <class Archive>
-        void serialize(const Archive& ar) {}
+        void serialize(const Archive& /*ar*/) {}
 
         virtual ~Future() {}
     };

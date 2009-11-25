@@ -162,7 +162,7 @@ namespace madness {
     std::ostream& operator<<(std::ostream& s, const RemoteReference<T>& ref) {
         s << "<remote: ptr=" << (void *) ref.ptr << ", rank=" << ref.rank << ", id=" << ref.id << ">";
         return s;
-    };
+    }
 #endif
 
 

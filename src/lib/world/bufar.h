@@ -64,10 +64,10 @@ namespace madness {
             bool countonly;               // If true just count, don't copy
         public:
             BufferOutputArchive()
-                    : ptr(0), nbyte(0), i(0), countonly(true) {};
+                    : ptr(0), nbyte(0), i(0), countonly(true) {}
 
             BufferOutputArchive(void* ptr, std::size_t nbyte)
-                    : ptr((unsigned char *) ptr), nbyte(nbyte), i(0), countonly(false) {};
+                    : ptr((unsigned char *) ptr), nbyte(nbyte), i(0), countonly(false) {}
 
             template <class T>
             inline
@@ -87,11 +87,11 @@ namespace madness {
                 }
             }
 
-            void open(std::size_t hint) {};
+            void open(std::size_t /*hint*/) {}
 
-            void close() {};
+            void close() {}
 
-            void flush() {};
+            void flush() {}
 
             inline std::size_t size() const {
                 return i;
@@ -239,15 +239,15 @@ namespace madness {
         // No type checking over Buffer stream for efficiency
         template <class T>
         struct ArchivePrePostImpl<BufferOutputArchive,T> {
-            static inline void preamble_store(const BufferOutputArchive& ar) {};
-            static inline void postamble_store(const BufferOutputArchive& ar) {};
+            static inline void preamble_store(const BufferOutputArchive& /*ar*/) {}
+            static inline void postamble_store(const BufferOutputArchive& /*ar*/) {}
         };
 
         // No type checking over Buffer stream for efficiency
         template <class T>
         struct ArchivePrePostImpl<BufferInputArchive,T> {
-            static inline void preamble_load(const BufferInputArchive& ar) {};
-            static inline void postamble_load(const BufferInputArchive& ar) {};
+            static inline void preamble_load(const BufferInputArchive& /*ar*/) {}
+            static inline void postamble_load(const BufferInputArchive& /*ar*/) {}
         };
     }
 }

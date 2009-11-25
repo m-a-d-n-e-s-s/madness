@@ -667,7 +667,7 @@ namespace madness {
     /// A no-op task used for various purposes
     class PoolTaskNull : public PoolTaskInterface {
     public:
-        void run(const TaskThreadEnv& info) {}
+        void run(const TaskThreadEnv& /*info*/) {}
         virtual ~PoolTaskNull() {}
     };
 

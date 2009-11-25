@@ -6,7 +6,7 @@
 #include <libkern/OSAtomic.h>
 typedef OSSpinLock pthread_spinlock_t;
 
-inline void pthread_spin_init(pthread_spinlock_t* p, int mode) {
+inline void pthread_spin_init(pthread_spinlock_t* p, int /*mode*/) {
     *p=0;
 }
 inline int pthread_spin_trylock(pthread_spinlock_t* p) {
@@ -20,7 +20,7 @@ inline int pthread_spin_unlock(pthread_spinlock_t* p) {
     OSSpinLockUnlock(p);
     return 0;
 }
-inline void pthread_spin_destroy(pthread_spinlock_t* p) {}
+inline void pthread_spin_destroy(pthread_spinlock_t* /*p*/) {}
 #endif
 
 #include <cstdlib>
@@ -90,10 +90,10 @@ namespace madness {
         mutable pthread_mutex_t mutex;
 
         /// Copy constructor is forbidden
-        Mutex(const Mutex& m) {}
+        Mutex(const Mutex& /*m*/) {}
 
         /// Assignment is forbidden
-        void operator=(const Mutex& m) {}
+        void operator=(const Mutex& /*m*/) {}
 
     public:
         /// Make and initialize a mutex ... initial state is unlocked
@@ -156,10 +156,10 @@ namespace madness {
         mutable pthread_spinlock_t spinlock;
 
         /// Copy constructor is forbidden
-        Spinlock(const Spinlock& m) {}
+        Spinlock(const Spinlock& /*m*/) {}
 
         /// Assignment is forbidden
-        void operator=(const Spinlock& m) {}
+        void operator=(const Spinlock& /*m*/) {}
 
     public:
         /// Make and initialize a spinlock ... initial state is unlocked
