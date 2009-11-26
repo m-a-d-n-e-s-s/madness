@@ -1785,7 +1785,6 @@ namespace madness {
         void diff(const implT& f, int axis, bool fence);
 
         Void sum_down_spawn(const keyT& key, const tensorT& s) {
-
             typename dcT::accessor acc;
             coeffs.insert(acc,key);
             nodeT& node = acc->second;
@@ -1799,14 +1798,13 @@ namespace madness {
                 else 
                     c = s;
             }
-
+            
             if (node.has_children()) {
                 tensorT d;
                 if (c.size > 0) {
                     d = tensorT(cdata.v2k);
                     d(cdata.s0) = c;
                     d = unfilter(d);
-                    //print(c.normf(),d.normf());
                     node.clear_coeff();
                 }
                 for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
@@ -1851,13 +1849,19 @@ namespace madness {
                     lnew[axis] = lold + direction*s;
                     if (lnew[axis] >= 0 && lnew[axis] < maxs) { // NON-ZERO BOUNDARY CONDITIONS IGNORED HERE !!!!!!!!!!!!!!!!!!!!
                         const Tensor<typename opT::opT>& R = op->rnlij(n, s*direction);
+                        double Rnorm = R.normf();
+
+                        if (Rnorm == 0.0) {
+                            return None; // Hard zero means finished!
+                        }
+
                         if (s <= 1  ||  R.normf()*cnorm > tol) { // Always do kernel and neighbor
                             nsmall = 0;
                             tensorT result = inner(R,c,1,axis);
-                            //if (result.normf() > tol*0.3) {
+                            if (result.normf() > tol*0.3) {
                                 Key<NDIM> dest(n,lnew);
                                 coeffs.task(dest, &nodeT::accumulate, result, coeffs, dest, TaskAttributes::hipri());
-                            //}
+                            }
                         }
                         else {
                             nsmall++;
@@ -2014,13 +2018,14 @@ namespace madness {
                 world.gop.fence();
         }
 
-        Void refine_op(const keyT& key) {
+        template <typename opT>
+        Void refine_op(const opT& op, const keyT& key) {
             // Must allow for someone already having autorefined the coeffs
             // and we get a write accessor just in case they are already executing
             typename dcT::accessor acc;
             MADNESS_ASSERT(coeffs.find(acc,key));
             nodeT& node = acc->second;
-            if (node.has_coeff() && key.level() < max_refine_level && autorefine_square_test(key, node.coeff())) {
+            if (node.has_coeff() && key.level() < max_refine_level && op(this, key, node.coeff())) {
                 tensorT d(cdata.v2k);
                 d(cdata.s0) = node.coeff();
                 d = unfilter(d);
@@ -2035,22 +2040,24 @@ namespace madness {
             return None;
         }
 
-        Void refine_spawn(const keyT& key) {
+        template <typename opT>
+        Void refine_spawn(const opT& op, const keyT& key) {
             nodeT& node = coeffs.find(key).get()->second;
             if (node.has_children()) {
                 for (KeyChildIterator<NDIM> kit(key); kit; ++kit)
-                    task(coeffs.owner(kit.key()), &implT::refine_spawn, kit.key(), TaskAttributes::hipri());
+                    task(coeffs.owner(kit.key()), &implT:: template refine_spawn<opT>, op, kit.key(), TaskAttributes::hipri());
             }
             else {
-                task(coeffs.owner(key), &implT::refine_op, key);
+                task(coeffs.owner(key), &implT:: template refine_op<opT>, op, key);
             }
             return None;
         }
 
         // This needed extending to accomodate a user-defined criterion
-        void refine(bool fence) {
+        template <typename opT>
+        void refine(const opT& op, bool fence) {
             if (world.rank() == coeffs.owner(cdata.key0))
-                task(coeffs.owner(cdata.key0), &implT::refine_spawn, cdata.key0, TaskAttributes::hipri());
+                task(coeffs.owner(cdata.key0), &implT:: template refine_spawn<opT>, op, cdata.key0, TaskAttributes::hipri());
             if (fence)
                 world.gop.fence();
         }

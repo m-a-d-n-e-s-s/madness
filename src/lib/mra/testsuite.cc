@@ -851,6 +851,17 @@ public:
             : a(a), v(v), t(t) {}
 };
 
+    struct refop {
+        bool operator()(FunctionImpl<double_complex,1>* impl, const Key<1>& key, const Tensor<double_complex>& t) const {
+            double tol = impl->truncate_tol(impl->get_thresh(), key);
+            double lo, hi;
+            impl->tnorm(t, &lo, &hi);
+            return hi > tol;;
+        }
+        template <typename Archive> void serialize(Archive& ar) {}
+    };
+
+
 void test_qm(World& world) {
     /*
 
@@ -909,12 +920,12 @@ void test_qm(World& world) {
     // k=16, thresh=1e-12, gives 3e-10 forever with tstep=5x! BUT only
     // if applying also on the leaf nodes (which is not on by default)
 
-    int k = 12;
+    int k = 16;
     double thresh = 1e-8;
     FunctionDefaults<1>::set_k(k);
     FunctionDefaults<1>::set_thresh(thresh);
     FunctionDefaults<1>::set_refine(true);
-    FunctionDefaults<1>::set_initial_level(5);
+    FunctionDefaults<1>::set_initial_level(8);
     FunctionDefaults<1>::set_cubic_cell(-600,800);
     FunctionDefaults<1>::set_truncate_mode(1);
     double width = FunctionDefaults<1>::get_cell_width()(0L);
@@ -931,7 +942,7 @@ void test_qm(World& world) {
 
     // For the purpose of testing there is no need to propagate 100 time units.
     // Just 100 steps.
-    nstep = 100;
+    //nstep = 100;
 
     if (world.rank() == 0) {
         print("\n Testing evolution of a quantum wave packet in",1,"dimensions");
@@ -943,28 +954,63 @@ void test_qm(World& world) {
     SeparatedConvolution<double_complex,1> G = qm_free_particle_propagator<1>(world, k, c, tstep);
     //G.doleaves = true;
 
-    functionT psi(factoryT(world).functor(f));
+    functionT psi = factoryT(world).functor(f).initial_level(12);
     psi.truncate();
 
     if (world.rank() == 0) {
         print("  step    time      norm      error");
         print(" ------  ------- ---------- ----------");
     }
+
+    
+    Convolution1D<double_complex>* q1d = qm_1d_free_particle_propagator(k, c, tstep, 1400.0);
+
     for (int i=0; i<nstep; i++) {
         world.gop.fence();
-        psi.refine();
+
+        psi.reconstruct();
+        psi.refine_general(refop());
+        psi.refine_general(refop());
+
         world.gop.fence();
         double norm = psi.norm2();
         double err = psi.err(QMtest(a,v,tstep*i));
         if (world.rank() == 0)
             printf("%6d  %7.3f  %10.8f  %9.1e\n",i, i*tstep, norm, err);
 
-        psi.set_thresh(thresh*1e-2);
-        FunctionDefaults<1>::set_thresh(thresh*1e-2);
-        world.gop.fence();
+        //         print("psi");
+        //         psi.print_tree();
+
+        functionT pp = apply_1d_realspace_push(*q1d, psi, 0);
+        
+        //         print("pp before sum down");
+        //         pp.print_tree();
+
+        pp.sum_down();
+
+        //         print("pp after sum down");
+        //         pp.print_tree();
+
+        psi.truncate(thresh);
         psi = apply(G,psi);
-        psi.set_thresh(thresh);
-        FunctionDefaults<1>::set_thresh(thresh);
+        //psi.reconstruct();
+
+        //         print("new psi");
+        //         psi.print_tree();
+
+        double pperr = (pp - psi).norm2();
+        print("ERROR", pperr, pp.norm2());
+
+//         if (pperr > 1e-4) {
+//             for (int i=0; i<1001; i++) {
+//                 double x = (i-500)*0.01;
+//                 print(x, pp(x), psi(x));
+//             }
+//             exit(0);
+//         }
+
+        psi = pp;
+
         world.gop.fence();
 
         psi.truncate();
@@ -1086,6 +1132,49 @@ void test_io(World& world) {
     world.gop.fence();
 }
 
+template <typename T, int NDIM>
+void test_apply_push_1d(World& world) {
+    typedef Vector<double,NDIM> coordT;
+    typedef SharedPtr< FunctionFunctorInterface<T,NDIM> > functorT;
+
+    if (world.rank() == 0)
+        print("Test push1d, type =",archive::get_type_name<T>(),", ndim =",NDIM);
+
+    Tensor<double> cell(NDIM,2);
+    const double L = 10.0;
+    FunctionDefaults<NDIM>::set_cubic_cell(-L,L);
+    FunctionDefaults<NDIM>::set_k(6);
+    FunctionDefaults<NDIM>::set_thresh(1e-6);
+    FunctionDefaults<NDIM>::set_refine(true);
+    FunctionDefaults<NDIM>::set_initial_level(2);
+
+    const coordT origin(0.0);
+    const double expnt = 1.0;
+    const double coeff = pow(1.0/PI,0.5*NDIM);
+
+    functorT functor(new Gaussian<T,NDIM>(origin, expnt, coeff));
+
+    Function<T,NDIM> f = FunctionFactory<T,NDIM>(world).functor(functor);
+
+//     f.compress();
+//     f.truncate();
+//     f.reconstruct();
+
+    print("Trace of f", f.trace());
+
+    coordT lo(-L), hi(L);
+    plot_line("fplot.dat", 201, lo, hi, f);
+
+    GaussianConvolution1D<double> op(6, coeff*2.0*L, expnt*L*L*4.0, 1.0);
+    Function<T,NDIM> opf = apply_1d_realspace_push(op, f, 0);
+
+    opf.sum_down();
+    print("Trace of opf", opf.trace());
+    plot_line("opfplot.dat", 201, lo, hi, opf);
+
+    print("result", opf(origin));
+}
+
 
 #define TO_STRING(s) TO_STRING2(s)
 #define TO_STRING2(s) #s
@@ -1134,49 +1223,52 @@ int main(int argc, char**argv) {
 
         std::cout.precision(8);
 
-        test_basic<double,1>(world);
-        test_conv<double,1>(world);
-        test_math<double,1>(world);
-        test_diff<double,1>(world);
-        test_op<double,1>(world);
-        test_plot<double,1>(world);
-        test_io<double,1>(world);
+        test_apply_push_1d<double,1>(world);
 
-//         // stupid location for this test
-//         GenericConvolution1D<double,GaussianGenericFunctor<double> > gen(10,GaussianGenericFunctor<double>(100.0,100.0));
-//         GaussianConvolution1D<double> gau(10, 100.0, 100.0, 1.0);
-//         Tensor<double> gg = gen.rnlp(4,0);
-//         Tensor<double> hh = gau.rnlp(4,0);
-//         MADNESS_ASSERT((gg-hh).normf() < 1e-13);
-//         if (world.rank() == 0) print(" generic and gaussian operator kernels agree\n");
+
+//         test_basic<double,1>(world);
+//         test_conv<double,1>(world);
+//         test_math<double,1>(world);
+//         test_diff<double,1>(world);
+//         test_op<double,1>(world);
+//         test_plot<double,1>(world);
+//         test_io<double,1>(world);
+
+// //         // stupid location for this test
+// //         GenericConvolution1D<double,GaussianGenericFunctor<double> > gen(10,GaussianGenericFunctor<double>(100.0,100.0));
+// //         GaussianConvolution1D<double> gau(10, 100.0, 100.0, 1.0);
+// //         Tensor<double> gg = gen.rnlp(4,0);
+// //         Tensor<double> hh = gau.rnlp(4,0);
+// //         MADNESS_ASSERT((gg-hh).normf() < 1e-13);
+// //         if (world.rank() == 0) print(" generic and gaussian operator kernels agree\n");
 
         test_qm(world);
 
-        test_basic<double_complex,1>(world);
-        test_conv<double_complex,1>(world);
-        test_math<double_complex,1>(world);
-        test_diff<double_complex,1>(world);
-        test_op<double_complex,1>(world);
-        test_plot<double_complex,1>(world);
-        test_io<double_complex,1>(world);
+//         test_basic<double_complex,1>(world);
+//         test_conv<double_complex,1>(world);
+//         test_math<double_complex,1>(world);
+//         test_diff<double_complex,1>(world);
+//         test_op<double_complex,1>(world);
+//         test_plot<double_complex,1>(world);
+//         test_io<double_complex,1>(world);
 
-        //TaskInterface::debug = true;
-        test_basic<double,2>(world);
-        test_conv<double,2>(world);
-        test_math<double,2>(world);
-        test_diff<double,2>(world);
-        test_op<double,2>(world);
-        test_plot<double,2>(world);
-        test_io<double,2>(world);
+//         //TaskInterface::debug = true;
+//         test_basic<double,2>(world);
+//         test_conv<double,2>(world);
+//         test_math<double,2>(world);
+//         test_diff<double,2>(world);
+//         test_op<double,2>(world);
+//         test_plot<double,2>(world);
+//         test_io<double,2>(world);
 
-        test_basic<double,3>(world);
-        test_conv<double,3>(world);
-        test_math<double,3>(world);
-        test_diff<double,3>(world);
-        test_op<double,3>(world);
-        test_coulomb(world);
-        test_plot<double,3>(world);
-        test_io<double,3>(world);
+//         test_basic<double,3>(world);
+//         test_conv<double,3>(world);
+//         test_math<double,3>(world);
+//         test_diff<double,3>(world);
+//         test_op<double,3>(world);
+//         test_coulomb(world);
+//         test_plot<double,3>(world);
+//         test_io<double,3>(world);
 
 //         //test_plot<double,4>(world); // slow unless reduce npt in test_plot
 

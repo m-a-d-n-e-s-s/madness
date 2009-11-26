@@ -517,15 +517,30 @@ namespace madness {
         }
 
 
-        /// Inplace autorefines the function using the same test as for squaring.  Possible non-blocking comm.
-
-        /// This needs generalizing to a user-defined threshold and criterion.
-        void refine(bool fence = true) const {
+        /// Inplace autorefines the function.  Optional fence. Possible non-blocking comm.
+        template <typename opT> 
+        void refine_general(const opT& op, bool fence = true) const {
             PROFILE_MEMBER_FUNC(Function);
             verify();
             if (is_compressed()) reconstruct();
-            impl->refine(fence);
+            impl->refine(op, fence);
         }
+
+
+        struct autorefine_square_op {
+            bool operator()(implT* impl, const Key<NDIM>& key, const Tensor<T>& t) const {
+                return impl->autorefine_square_test(key, t);
+            }
+
+            template <typename Archive> void serialize (Archive& ar) {}
+        };
+
+        /// Inplace autorefines the function using same test as for squaring.
+        void refine(bool fence = true) {
+            refine_general(autorefine_square_op(), fence);
+        }
+
+
 
         /// Get the scaling function coeffs at level n starting from NS form
         Tensor<T> coeffs_for_jun(Level n, long mode=0) {
@@ -1089,7 +1104,8 @@ namespace madness {
         PROFILE_FUNC;
         f.verify();
         Function<T,NDIM> result;
-        result.set_impl(f, false);
+        typedef FunctionImpl<T,NDIM> implT;
+        result.set_impl(SharedPtr<implT>(new implT(*f.get_impl(), pmap, false)));
         result.get_impl()->copy_coeffs(*f.get_impl(), fence);
         if (VERIFY_TREE) result.verify_tree();
         return result;
