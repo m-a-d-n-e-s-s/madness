@@ -1223,54 +1223,53 @@ int main(int argc, char**argv) {
 
         std::cout.precision(8);
 
-        test_apply_push_1d<double,1>(world);
+        //test_apply_push_1d<double,1>(world);
 
+        test_basic<double,1>(world);
+        test_conv<double,1>(world);
+        test_math<double,1>(world);
+        test_diff<double,1>(world);
+        test_op<double,1>(world);
+        test_plot<double,1>(world);
+        test_io<double,1>(world);
 
-//         test_basic<double,1>(world);
-//         test_conv<double,1>(world);
-//         test_math<double,1>(world);
-//         test_diff<double,1>(world);
-//         test_op<double,1>(world);
-//         test_plot<double,1>(world);
-//         test_io<double,1>(world);
+//         // stupid location for this test
+//         GenericConvolution1D<double,GaussianGenericFunctor<double> > gen(10,GaussianGenericFunctor<double>(100.0,100.0));
+//         GaussianConvolution1D<double> gau(10, 100.0, 100.0, 1.0);
+//         Tensor<double> gg = gen.rnlp(4,0);
+//         Tensor<double> hh = gau.rnlp(4,0);
+//         MADNESS_ASSERT((gg-hh).normf() < 1e-13);
+//         if (world.rank() == 0) print(" generic and gaussian operator kernels agree\n");
 
-// //         // stupid location for this test
-// //         GenericConvolution1D<double,GaussianGenericFunctor<double> > gen(10,GaussianGenericFunctor<double>(100.0,100.0));
-// //         GaussianConvolution1D<double> gau(10, 100.0, 100.0, 1.0);
-// //         Tensor<double> gg = gen.rnlp(4,0);
-// //         Tensor<double> hh = gau.rnlp(4,0);
-// //         MADNESS_ASSERT((gg-hh).normf() < 1e-13);
-// //         if (world.rank() == 0) print(" generic and gaussian operator kernels agree\n");
+        //test_qm(world);
 
-        test_qm(world);
+        test_basic<double_complex,1>(world);
+        test_conv<double_complex,1>(world);
+        test_math<double_complex,1>(world);
+        test_diff<double_complex,1>(world);
+        test_op<double_complex,1>(world);
+        test_plot<double_complex,1>(world);
+        test_io<double_complex,1>(world);
 
-//         test_basic<double_complex,1>(world);
-//         test_conv<double_complex,1>(world);
-//         test_math<double_complex,1>(world);
-//         test_diff<double_complex,1>(world);
-//         test_op<double_complex,1>(world);
-//         test_plot<double_complex,1>(world);
-//         test_io<double_complex,1>(world);
+        //TaskInterface::debug = true;
+        test_basic<double,2>(world);
+        test_conv<double,2>(world);
+        test_math<double,2>(world);
+        test_diff<double,2>(world);
+        test_op<double,2>(world);
+        test_plot<double,2>(world);
+        test_io<double,2>(world);
 
-//         //TaskInterface::debug = true;
-//         test_basic<double,2>(world);
-//         test_conv<double,2>(world);
-//         test_math<double,2>(world);
-//         test_diff<double,2>(world);
-//         test_op<double,2>(world);
-//         test_plot<double,2>(world);
-//         test_io<double,2>(world);
+        test_basic<double,3>(world);
+        test_conv<double,3>(world);
+        test_math<double,3>(world);
+        test_diff<double,3>(world);
+        test_op<double,3>(world);
+        test_coulomb(world);
+        test_plot<double,3>(world);
+        test_io<double,3>(world);
 
-//         test_basic<double,3>(world);
-//         test_conv<double,3>(world);
-//         test_math<double,3>(world);
-//         test_diff<double,3>(world);
-//         test_op<double,3>(world);
-//         test_coulomb(world);
-//         test_plot<double,3>(world);
-//         test_io<double,3>(world);
-
-//         //test_plot<double,4>(world); // slow unless reduce npt in test_plot
+        //test_plot<double,4>(world); // slow unless reduce npt in test_plot
 
 
         if (world.rank() == 0) print("entering final fence");
