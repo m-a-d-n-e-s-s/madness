@@ -917,17 +917,15 @@ void test_qm(World& world) {
 
     //int k = 16;
     //double thresh = 1e-12;
-    // k=16, thresh=1e-12, gives 3e-10 forever with tstep=5x! BUT only
-    // if applying also on the leaf nodes (which is not on by default)
 
     int k = 16;
-    double thresh = 1e-8;
+    double thresh = 1e-12;
     FunctionDefaults<1>::set_k(k);
     FunctionDefaults<1>::set_thresh(thresh);
     FunctionDefaults<1>::set_refine(true);
     FunctionDefaults<1>::set_initial_level(8);
     FunctionDefaults<1>::set_cubic_cell(-600,800);
-    FunctionDefaults<1>::set_truncate_mode(1);
+    FunctionDefaults<1>::set_truncate_mode(0);
     double width = FunctionDefaults<1>::get_cell_width()(0L);
 
     double a = 1.0;
@@ -935,15 +933,15 @@ void test_qm(World& world) {
     double ctarget = v + 10.0*sqrt(a);
     double c = 1.86*ctarget; //1.86*ctarget;
     double tcrit = 2*PI/(c*c);
-    double tstep = 5*tcrit;
+    double tstep = 3*tcrit;
 
     int nstep = 100.0/tstep;
     tstep = 100.0/nstep; // so we finish exactly at 100.0
 
     // For the purpose of testing there is no need to propagate 100 time units.
     // Just 100 steps.
-    //nstep = 100;
-
+    nstep = 100;
+    
     if (world.rank() == 0) {
         print("\n Testing evolution of a quantum wave packet in",1,"dimensions");
         print("expnt",a,"velocity",v,"bandw",ctarget,"effbandw",c);
@@ -951,7 +949,7 @@ void test_qm(World& world) {
     }
 
     functorT f(new QMtest(a,v,0.0));
-    SeparatedConvolution<double_complex,1> G = qm_free_particle_propagator<1>(world, k, c, tstep);
+    //SeparatedConvolution<double_complex,1> G = qm_free_particle_propagator<1>(world, k, c, tstep);
     //G.doleaves = true;
 
     functionT psi = factoryT(world).functor(f).initial_level(12);
@@ -969,15 +967,16 @@ void test_qm(World& world) {
         world.gop.fence();
 
         psi.reconstruct();
-        psi.refine_general(refop());
-        psi.refine_general(refop());
-
+        //psi.refine_general(refop());
+        psi.broaden();
+        psi.broaden();
+        
         world.gop.fence();
         double norm = psi.norm2();
         double err = psi.err(QMtest(a,v,tstep*i));
         if (world.rank() == 0)
             printf("%6d  %7.3f  %10.8f  %9.1e\n",i, i*tstep, norm, err);
-
+        
         //         print("psi");
         //         psi.print_tree();
 
@@ -991,15 +990,15 @@ void test_qm(World& world) {
         //         print("pp after sum down");
         //         pp.print_tree();
 
-        psi.truncate(thresh);
-        psi = apply(G,psi);
+        //psi.truncate(thresh);
+        //psi = apply(G,psi);
         //psi.reconstruct();
 
         //         print("new psi");
         //         psi.print_tree();
 
-        double pperr = (pp - psi).norm2();
-        print("ERROR", pperr, pp.norm2());
+        //double pperr = (pp - psi).norm2();
+        //print("ERROR", pperr, pp.norm2());
 
 //         if (pperr > 1e-4) {
 //             for (int i=0; i<1001; i++) {
@@ -1010,7 +1009,7 @@ void test_qm(World& world) {
 //         }
 
         psi = pp;
-
+        
         world.gop.fence();
 
         psi.truncate();
@@ -1223,14 +1222,14 @@ int main(int argc, char**argv) {
 
         std::cout.precision(8);
 
-        //test_apply_push_1d<double,1>(world);
-
         test_basic<double,1>(world);
         test_conv<double,1>(world);
         test_math<double,1>(world);
         test_diff<double,1>(world);
         test_op<double,1>(world);
         test_plot<double,1>(world);
+        test_apply_push_1d<double,1>(world);
+
         test_io<double,1>(world);
 
 //         // stupid location for this test
@@ -1241,7 +1240,7 @@ int main(int argc, char**argv) {
 //         MADNESS_ASSERT((gg-hh).normf() < 1e-13);
 //         if (world.rank() == 0) print(" generic and gaussian operator kernels agree\n");
 
-        //test_qm(world);
+        test_qm(world);
 
         test_basic<double_complex,1>(world);
         test_conv<double_complex,1>(world);
@@ -1270,7 +1269,6 @@ int main(int argc, char**argv) {
         test_io<double,3>(world);
 
         //test_plot<double,4>(world); // slow unless reduce npt in test_plot
-
 
         if (world.rank() == 0) print("entering final fence");
         world.gop.fence();

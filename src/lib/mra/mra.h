@@ -540,6 +540,12 @@ namespace madness {
             refine_general(autorefine_square_op(), fence);
         }
 
+        /// Inplace broadens support in scaling function basis
+        void broaden(bool fence = true) const {
+            verify();
+            reconstruct();
+            impl->broaden(fence);
+        }
 
 
         /// Get the scaling function coeffs at level n starting from NS form

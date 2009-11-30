@@ -399,6 +399,11 @@ namespace madness {
                 _coeffs(coeff), _norm_tree(1e300), _has_children(has_children) {
         }
 
+        explicit
+        FunctionNode(const Tensor<T>& coeff, double norm_tree, bool has_children) :
+            _coeffs(coeff), _norm_tree(norm_tree), _has_children(has_children) {
+        }
+
         FunctionNode(const FunctionNode<T, NDIM>& other) {
             *this = other;
         }
@@ -1836,7 +1841,7 @@ namespace madness {
             const opT* op = pop.ptr;
             const Level n = key.level();
             const double cnorm = c.normf();
-            const double tol = truncate_tol(thresh, key)*0.1;
+            const double tol = truncate_tol(thresh, key)*0.1; // ??? why this value????
 
             Vector<Translation,NDIM> lnew(key.translation());
             const Translation lold = lnew[axis];
@@ -1857,7 +1862,8 @@ namespace madness {
 
                         if (s <= 1  ||  R.normf()*cnorm > tol) { // Always do kernel and neighbor
                             nsmall = 0;
-                            tensorT result = inner(R,c,1,axis);
+                            tensorT result = transform_dir(c,transpose(R),axis);
+                            
                             if (result.normf() > tol*0.3) {
                                 Key<NDIM> dest(n,lnew);
                                 coeffs.task(dest, &nodeT::accumulate, result, coeffs, dest, TaskAttributes::hipri());
@@ -2018,6 +2024,13 @@ namespace madness {
                 world.gop.fence();
         }
 
+        struct true_refine_test {
+            bool operator()(const implT* f, const keyT& key, const tensorT& t) const {
+                return true;
+            }
+            template <typename Archive> void serialize(Archive& ar) {}
+        };
+
         template <typename opT>
         Void refine_op(const opT& op, const keyT& key) {
             // Must allow for someone already having autorefined the coeffs
@@ -2034,7 +2047,7 @@ namespace madness {
                 for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
                     const keyT& child = kit.key();
                     tensorT ss = copy(d(child_patch(child)));
-                    coeffs.replace(child,nodeT(ss,false));
+                    coeffs.replace(child,nodeT(ss,-1.0,false));
                 }
             }
             return None;
@@ -2053,7 +2066,7 @@ namespace madness {
             return None;
         }
 
-        // This needed extending to accomodate a user-defined criterion
+        // Refine in real space according to local user-defined criterion
         template <typename opT>
         void refine(const opT& op, bool fence) {
             if (world.rank() == coeffs.owner(cdata.key0))
@@ -2061,6 +2074,83 @@ namespace madness {
             if (fence)
                 world.gop.fence();
         }
+
+        bool exists_and_has_children(const keyT& key) const {
+            return coeffs.probe(key) && coeffs.find(key).get()->second.has_children();
+        }
+
+
+        Void broaden_op(const keyT& key, const std::vector< Future <bool> >& v) {
+            for (unsigned int i=0; i<v.size(); i++) {
+                if (v[i]) {
+                    refine_op(true_refine_test(), key);
+                    break;
+                }
+            }
+            return None;
+        }
+
+        // Broaden tree
+        void broaden(bool fence) {
+            typename dcT::iterator end = coeffs.end();
+            for (typename dcT::iterator it=coeffs.begin(); it!=end; ++it) {
+                const keyT& key = it->first;
+                nodeT& node = it->second;
+                if (node.has_coeff() && 
+                    node.coeff().normf() >= truncate_tol(thresh,key) ) { // &&  node.get_norm_tree() != -1.0) {
+                    node.set_norm_tree(-1.0); // Indicates already broadened or result of broadening/refining
+
+
+#define BROADEN_TENSOR
+#ifdef BROADEN_TENSOR
+                    // This broadens in tensor product of axes
+                    int ndir = std::pow(3,NDIM);
+                    std::vector< Future <bool> > v = future_vector_factory<bool>(ndir);
+                    keyT neigh;
+                    int i=0;
+                    for (HighDimIndexIterator it(NDIM,3); it; ++it) {
+                        Vector<Translation,NDIM> l(*it);
+                        for (int d=0; d<NDIM; d++) {
+                            const int odd = key.translation()[d] & 0x1L; // 1 if odd, 0 if even
+                            l[d] -= 1; // (0,1,2) --> (-1,0,1)
+                            if (l[d] == -1) 
+                                l[d] = -1-odd;
+                            else if (l[d] ==  1) 
+                                l[d] = 2 - odd;
+                        }
+                        keyT neigh = neighbor(key, keyT(key.level(),l));
+
+                        if (neigh.is_valid()) {
+                            v[i++] = send(coeffs.owner(neigh), &implT::exists_and_has_children, neigh);
+                        }
+                        else {
+                            v[i++].set(false);
+                        }
+                    }
+#else
+                    // This broadens only along axes ... not a good idea!
+                    std::vector< Future <bool> > v = future_vector_factory<bool>(2*NDIM);
+                    keyT neigh;
+                    for (int d=0; d<NDIM; d++) {
+                        const int odd = key.translation()[d] & 0x1L; // 1 if odd, 0 if even
+                        neigh = neighbor(key, d, 2-odd);
+                        if (neigh.is_valid()) 
+                            v[2*d  ] = send(coeffs.owner(neigh), &implT::exists_and_has_children, neigh);
+                        else
+                            v[2*d  ].set(false);
+
+                        neigh = neighbor(key, d, -1-odd);
+                        if (neigh.is_valid()) 
+                            v[2*d+1] = send(coeffs.owner(neigh), &implT::exists_and_has_children, neigh);
+                        else
+                            v[2*d+1].set(false);
+                    }
+#endif
+                    task(world.rank(), &implT::broaden_op, key, v);
+                }
+            }
+            if (fence) world.gop.fence();
+        }            
 
         void reconstruct(bool fence) {
             // Must set true here so that successive calls without fence do the right thing
