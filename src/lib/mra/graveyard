@@ -2297,3 +2297,46 @@ runvalg2:
                     print("reordered rnorms", rnorms);
                     
                     
+
+
+
+
+                            
+//                             tensorT result(cdata.vk);
+//                             if (axis == 2) {
+//                                 for (int p=0; p<k; p++) {
+//                                     for (int q=0; q<k; q++) {
+//                                         for (int r=0; r<k; r++) {
+//                                             for (int s=0; s<k; s++) {
+//                                                 result(p,q,r) += R(r,s)*c(p,q,s);
+//                                             }
+//                                         }
+//                                     }
+//                                 }
+//                             }
+//                             else if (axis == 1) {
+//                                 for (int p=0; p<k; p++) {
+//                                     for (int q=0; q<k; q++) {
+//                                         for (int r=0; r<k; r++) {
+//                                             for (int s=0; s<k; s++) {
+//                                                 result(p,r,q) += R(r,s)*c(p,s,q);
+//                                             }
+//                                         }
+//                                     }
+//                                 }
+//                             }
+//                             else if (axis == 0) {
+//                                 for (int p=0; p<k; p++) {
+//                                     for (int q=0; q<k; q++) {
+//                                         for (int r=0; r<k; r++) {
+//                                             for (int s=0; s<k; s++) {
+//                                                 result(r,p,q) += R(r,s)*c(s,p,q);
+//                                             }
+//                                         }
+//                                     }
+//                                 }
+//                             }
+
+//                             if ((result - Result).normf() > 1e-10) {
+//                                 print("BAD", key, axis, (result - Result).normf());
+//                             }
