@@ -11,25 +11,47 @@
 
 using namespace madness;
 
+
 // typedefs to make life less verbose
 typedef Vector<double,1> coordT;
 typedef SharedPtr< FunctionFunctorInterface<double,1> > functorT;
 typedef Function<double,1> functionT;
 typedef FunctionFactory<double,1> factoryT;
-typedef SeparatedConvolution<double,1> operatorT;
 
 typedef SharedPtr< FunctionFunctorInterface<double_complex,1> > complex_functorT;
 typedef Function<double_complex,1> complex_functionT;
 typedef FunctionFactory<double_complex,1> complex_factoryT;
-typedef SeparatedConvolution<double_complex,1> complex_operatorT;
-typedef SharedPtr<complex_operatorT> pcomplex_operatorT;
+
+// This to test various implementaitons of the 1d propagator
+#ifdef USE_NSFORM
+  typedef SeparatedConvolution<double_complex,1> complex_operatorT;
+  typedef SharedPtr<complex_operatorT> pcomplex_operatorT;
+  #define APPLY(G,psi) apply(*G,psi)
+  #define MAKE_PROPAGATOR(world, t) qm_free_particle_propagatorPtr<1>(world, k, c, t)
+
+#else
+  typedef Convolution1D<double_complex> complex_operatorT;
+  typedef SharedPtr<complex_operatorT> pcomplex_operatorT;
+
+  complex_functionT APPLY(complex_operatorT* q1d, const complex_functionT& psi) {
+      psi.reconstruct();
+      psi.broaden();
+      psi.broaden();
+      complex_functionT r = apply_1d_realspace_push(*q1d, psi, 0);
+      r.sum_down();
+      return r;
+  }
+  #define MAKE_PROPAGATOR(world, t) qm_1d_free_particle_propagator(k, c, t, 2.0*L)
+
+#endif
+
  
 // Simulation parameters
 static const double L = 100.0; // Simulation in [-L,L]
 static const double x0 = -L + 10.0; // Initial position of the atom
 static const double energy_exact = -6.188788775728796797594788; // From Maple
-static const long k = 6;        // wavelet order
-static const double thresh = 1e-4; // precision
+static const long k = 8;        // wavelet order
+static const double thresh = 1e-6; // precision
 static const double velocity = 3.0;
 //static const double eshift = energy_exact - 0.5*velocity*velocity; // Use this value to remove rotating phase
 static const double eshift = 0.0;
@@ -49,7 +71,17 @@ Tensor<double> B(10), tc(10);
 pcomplex_operatorT G;
 std::vector<pcomplex_operatorT> Gs, Gss;
 const int maxiter = 20;
-const double fix_iter_tol = 1e-5;
+const double fix_iter_tol = thresh*10.0;
+
+struct refop {
+    bool operator()(FunctionImpl<double_complex,1>* impl, const Key<1>& key, const Tensor<double_complex>& t) const {
+        double tol = impl->truncate_tol(impl->get_thresh(), key);
+        double lo, hi;
+        impl->tnorm(t, &lo, &hi);
+        return hi > tol;;
+    }
+    template <typename Archive> void serialize(Archive& ar) {}
+};
 
 
 // Position of atom at current time
@@ -121,16 +153,19 @@ complex_functionT expV(World& world, double vcoeff, double dcoeff) {
 // CC is xi=0.0, chi=1.0/72.0
 // optimal is xi=-17/18000 chi=71/4500
 complex_functionT sympgrad4(World& world, 
-                            const complex_operatorT& G, 
                             const complex_functionT& psi0, 
                             const double tstep,
                             const double xi,
                             const double chi) {
+
+    static complex_operatorT* G = 0;
+    if (!G) G = MAKE_PROPAGATOR(world, tstep*0.5);
+
     const double lambda = 1.0/6.0;
     complex_functionT psi;
     
     psi = expV(world, tstep*lambda, -xi*tstep*tstep*tstep)*psi0;           psi.truncate();
-    psi = apply(G, psi);                                                   psi.truncate();
+    psi = APPLY(G, psi);                                                   psi.truncate();
 
     current_time += 0.5*tstep;
     
@@ -138,7 +173,7 @@ complex_functionT sympgrad4(World& world,
 
     current_time += 0.5*tstep;
 
-    psi = apply(G,psi);                                                    psi.truncate();
+    psi = APPLY(G,psi);                                                    psi.truncate();
     psi = expV(world, tstep*lambda, -xi*tstep*tstep*tstep)*psi;            psi.truncate();
     
     return psi;
@@ -158,29 +193,29 @@ complex_functionT sympgrad6(World& world,
     static complex_operatorT *Grho=0, *Gtheta=0, *Gmid=0;
     
     if (Grho == 0) {
-        Grho   = qm_free_particle_propagatorPtr<1>(world, k, c, tstep*rho);
-        Gtheta = qm_free_particle_propagatorPtr<1>(world, k, c, tstep*theta);
-        Gmid   = qm_free_particle_propagatorPtr<1>(world, k, c, tstep*(1.0-2.0*(theta+rho))/2.0);
+        Grho   = MAKE_PROPAGATOR(world, tstep*rho);
+        Gtheta = MAKE_PROPAGATOR(world, tstep*theta);
+        Gmid   = MAKE_PROPAGATOR(world, tstep*(1.0-2.0*(theta+rho))/2.0);
     }
 
     complex_functionT psi;
     
-    psi = apply(*Grho, psi0);                                                psi.truncate();
+    psi = APPLY(Grho, psi0);                                                psi.truncate();
     current_time += rho*tstep;
     psi = expV(world, tstep*nu, -mu*tstep*tstep*tstep)*psi;                  psi.truncate();
-    psi = apply(*Gtheta, psi);                                               psi.truncate();
+    psi = APPLY(Gtheta, psi);                                               psi.truncate();
     current_time += theta*tstep;
     psi = expV(world, tstep*lambda, 0.0)*psi;                                psi.truncate();
-    psi = apply(*Gmid, psi);                                                 psi.truncate();
+    psi = APPLY(Gmid, psi);                                                 psi.truncate();
     current_time += tstep*(1.0-2.0*(theta+rho))/2.0;
     psi = expV(world, tstep*(1.0-2.0*(lambda+nu)), -chi*tstep*tstep*tstep)*psi; psi.truncate();
-    psi = apply(*Gmid, psi);                                                 psi.truncate();
+    psi = APPLY(Gmid, psi);                                                 psi.truncate();
     current_time += tstep*(1.0 - 2.0*(theta+rho))/2.0;
     psi = expV(world, tstep*lambda, 0.0)*psi;                                psi.truncate();
-    psi = apply(*Gtheta, psi);                                               psi.truncate();
+    psi = APPLY(Gtheta, psi);                                               psi.truncate();
     current_time += theta*tstep;
     psi = expV(world, tstep*nu, -mu*tstep*tstep*tstep)*psi;                  psi.truncate();
-    psi = apply(*Grho, psi);                                                 psi.truncate();
+    psi = APPLY(Grho, psi);                                                 psi.truncate();
     current_time += rho*tstep;
     
     return psi;
@@ -188,16 +223,19 @@ complex_functionT sympgrad6(World& world,
 
 
 // Evolve forward one time step using Trotter ... G = G0(tstep/2)
-complex_functionT trotter(World& world, const complex_operatorT& G, const complex_functionT& psi0, const double tstep) {
-    complex_functionT psi = apply(G, psi0);    psi.truncate();
+complex_functionT trotter(World& world, const complex_functionT& psi0, const double tstep) {
+    static complex_operatorT* G = 0;
+    if (!G) G = MAKE_PROPAGATOR(world, tstep*0.5);
+
+    complex_functionT psi = APPLY(G, psi0);    psi.truncate();
     
     current_time += 0.5*tstep;
 
-    psi = expV(world, tstep, 0.0)*psi;              psi.truncate();
+    psi = expV(world, tstep, 0.0)*psi;         psi.truncate();
 
     current_time += 0.5*tstep;
 
-    psi = apply(G,psi);                        psi.truncate();
+    psi = APPLY(G,psi);                        psi.truncate();
     
     return psi;
 }
@@ -290,7 +328,7 @@ complex_functionT q_r(World& world, const int np, const complex_functionT psi0, 
 	std::vector< std::vector<functionT> > Vss(np);
 	for (int i=0; i<np; ++i) {
 		current_time = tdum + tstep*tc[i];
-		qs[i] = apply(*Gs[np - i - 1], psi0).truncate();
+		qs[i] = APPLY(Gs[np - i - 1].get(), psi0).truncate();
 		Vs[i] = factoryT(world).f(V).truncate_on_project();
 		Vs[i].truncate();
 		Vss[i].resize(np);
@@ -309,7 +347,7 @@ complex_functionT q_r(World& world, const int np, const complex_functionT psi0, 
 		err = 0;
 		ps1 = zero_functions<double_complex,1>(world, np);
 		for (int i=0; i<np; ++i) {
-			for (int k=0; k<np; ++k) ps1[i] -= apply(*Gss[i*np+k], Vss[i][k]*myp(ps,tc[i]*tc[k])).scale(tstep*tc[i]*I*B[k]);
+                    for (int k=0; k<np; ++k) ps1[i] -= APPLY(Gss[i*np+k].get(), Vss[i][k]*myp(ps,tc[i]*tc[k])).scale(tstep*tc[i]*I*B[k]);
 			err += ps1[i].truncate().norm2();
 		}
 		err /= np;
@@ -320,9 +358,9 @@ complex_functionT q_r(World& world, const int np, const complex_functionT psi0, 
 	printf("\n");
 			
     // apply quadrature rule.
-	pdum = apply(*G, psi0).truncate();
+	pdum = APPLY(G.get(), psi0).truncate();
 	
-	for (int k=0; k<np; ++k) pdum -= apply(*Gs[k], Vs[k]*qs[k]).scale(I*B[k]*tstep);
+	for (int k=0; k<np; ++k) pdum -= APPLY(Gs[k].get(), Vs[k]*qs[k]).scale(I*B[k]*tstep);
 	
 	current_time = tdum + tstep;
 
@@ -382,24 +420,21 @@ int main(int argc, char** argv) {
     print("        Method", selection);
 
     if (selection == 0) {
-	complex_operatorT G0 = qm_free_particle_propagator<1>(world, k, c, 0.5*tstep);
         for (int step=0; step<nstep; step++) {
             print_info(world, psi,step);
-            psi = trotter(world, G0, psi, tstep);
+            psi = trotter(world, psi, tstep);
         } 
     }
     else if (selection == 1) {
-	complex_operatorT G0 = qm_free_particle_propagator<1>(world, k, c, 0.5*tstep);
         for (int step=0; step<nstep; step++) {
             print_info(world, psi,step);
-            psi = sympgrad4(world, G0, psi, tstep, 0.0, 1.0/72.0); // CC
+            psi = sympgrad4(world, psi, tstep, 0.0, 1.0/72.0); // CC
         } 
     }
     else if (selection == 2) {
-	complex_operatorT G0 = qm_free_particle_propagator<1>(world, k, c, 0.5*tstep);
         for (int step=0; step<nstep; step++) {
             print_info(world, psi,step);
-            psi = sympgrad4(world, G0, psi, tstep, -17.0/18000.0, 71.0/4500.0); // Optimal
+            psi = sympgrad4(world, psi, tstep, -17.0/18000.0, 71.0/4500.0); // Optimal
         } 
     }
     else if (selection == 3) {
@@ -414,12 +449,12 @@ int main(int argc, char** argv) {
         print(" No. quad. pt.", np);
 
 	readin(np);
-	G = pcomplex_operatorT(qm_free_particle_propagatorPtr<1>(world, k, c, tstep));
+	G = pcomplex_operatorT(MAKE_PROPAGATOR(world, tstep));
         for (int i=0; i<np; ++i) 
-            Gs.push_back(pcomplex_operatorT(qm_free_particle_propagatorPtr<1>(world, k, c, (1-tc[i])*tstep)));
+            Gs.push_back(pcomplex_operatorT(MAKE_PROPAGATOR(world, (1-tc[i])*tstep)));
         for (int j=0; j<np; ++j) 
             for (int i=0; i<np; ++i) 
-                Gss.push_back(pcomplex_operatorT(qm_free_particle_propagatorPtr<1>(world, k, c, (1-tc[i])*tstep*tc[j]))); //[j*np+i]
+                Gss.push_back(pcomplex_operatorT(MAKE_PROPAGATOR(world, (1-tc[i])*tstep*tc[j]))); //[j*np+i]
 
         for (int step=0; step<nstep; step++) {
             print_info(world, psi, step);
