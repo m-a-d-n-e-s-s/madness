@@ -177,8 +177,40 @@ typedef SeparatedConvolution<double,3> operatorT;
 typedef SharedPtr< FunctionFunctorInterface<double_complex,3> > complex_functorT;
 typedef Function<double_complex,3> complex_functionT;
 typedef FunctionFactory<double_complex,3> complex_factoryT;
-typedef SeparatedConvolution<double_complex,3> complex_operatorT;
+
 typedef SharedPtr< WorldDCPmapInterface< Key<3> > > pmapT;
+
+typedef Convolution1D<double_complex> complex_operatorT;
+#define MAKE_PROPAGATOR(world, t) 
+
+    struct refop {
+        bool operator()(FunctionImpl<double_complex,3>* impl, const Key<3>& key, const Tensor<double_complex>& t) const {
+            double tol = impl->truncate_tol(impl->get_thresh(), key);
+            double lo, hi;
+            impl->tnorm(t, &lo, &hi);
+            return hi > tol;;
+        }
+        template <typename Archive> void serialize(Archive& ar) {}
+    };
+
+complex_functionT APPLY(const complex_operatorT* q1d, const complex_functionT& psi) {
+    complex_functionT r = psi;  // Shallow copy violates constness !!!!!!!!!!!!!!!!!
+    coordT lo, hi;
+    lo[2] = -10;
+    hi[2] = +10;
+
+    r.reconstruct();
+    r.broaden();
+    r.broaden();
+
+    r = apply_1d_realspace_push(*q1d, r, 2); r.sum_down();
+    r = apply_1d_realspace_push(*q1d, r, 1); r.sum_down();
+    r = apply_1d_realspace_push(*q1d, r, 0); r.sum_down();
+
+    return r;
+}
+
+//typedef SeparatedConvolution<double_complex,3> complex_operatorT;
 
 // This controls the distribution of data across the machine
 class LevelPmap : public WorldDCPmapInterface< Key<3> > {
@@ -411,7 +443,7 @@ void converge(World& world, functionT& potn, functionT& psi, double& eps) {
 complex_functionT chin_chen(const complex_functionT& expV_0,
                             const complex_functionT& expV_tilde,
                             const complex_functionT& expV_1,
-                            const complex_operatorT& G,
+                            const complex_operatorT* G,
                             const complex_functionT& psi0) {
     // psi(t) = exp(-i*V(t)*t/6) exp(-i*T*t/2) exp(-i*2*Vtilde(t/2)*t/3) exp(-i*T*t/2) exp(-i*V(0)*t/6)
     // .             expV_1            G               expV_tilde             G             expV_0
@@ -421,11 +453,13 @@ complex_functionT chin_chen(const complex_functionT& expV_0,
     double t0 = wall_time();
     psi1 = expV_0*psi0;     psi1.truncate();
     double t1 = wall_time();
-    psi1 = apply(G,psi1);   psi1.truncate();
+    psi1 = APPLY(G,psi1);   psi1.truncate();
+
     double t2 = wall_time();
     psi1 = expV_tilde*psi1; psi1.truncate();
     double t3 = wall_time();
-    psi1 = apply(G,psi1);   psi1.truncate();
+
+    psi1 = APPLY(G,psi1);   psi1.truncate();
     double t4 = wall_time();
     psi1 = expV_1*psi1;     psi1.truncate(param.thresh);
     double t5 = wall_time();
@@ -439,7 +473,7 @@ complex_functionT chin_chen(const complex_functionT& expV_0,
 
 complex_functionT trotter(World& world,
                           const complex_functionT& expV, 
-                          const complex_operatorT& G, 
+                          const complex_operatorT* G, 
                           const complex_functionT& psi0) {
     //    psi(t) = exp(-i*T*t/2) exp(-i*V(t/2)*t) exp(-i*T*t/2) psi(0)
 
@@ -447,11 +481,11 @@ complex_functionT trotter(World& world,
 
     unsigned long size = psi0.size();
     if (world.rank() == 0) print("APPLYING G", size);
-    psi1 = apply(G,psi0);  psi1.truncate();  size = psi1.size();
+    psi1 = APPLY(G,psi0);  psi1.truncate();  size = psi1.size();
     if (world.rank() == 0) print("APPLYING expV", size);
     psi1 = expV*psi1;      psi1.truncate();  size = psi1.size();
     if (world.rank() == 0) print("APPLYING G again", size);
-    psi1 = apply(G,psi1);  psi1.truncate(param.thresh);  size = psi1.size();
+    psi1 = APPLY(G,psi1);  psi1.truncate(param.thresh);  size = psi1.size();
     if (world.rank() == 0) print("DONE", size);
     
     return psi1;
@@ -633,10 +667,10 @@ void loadbal(World& world,
     world.gop.fence();
 }
 
+
 // Evolve the wave function in real time starting from given time step on disk
 void propagate(World& world, int step0) {
-    //double ctarget = 10.0/param.cut;                // From Fourier analysis of the potential
-    double ctarget = 5.0/param.cut; // This seems more stable and is also faster
+    double ctarget = 10.0/param.cut;                // From Fourier analysis of the potential
     //double c = 1.86*ctarget; // This for 10^5 steps
     double c = 1.72*ctarget;   // This for 10^4 steps
     double tcrit = 2*constants::pi/(c*c);
@@ -652,16 +686,18 @@ void propagate(World& world, int step0) {
     world.gop.broadcast(nstep);
 
     // Free particle propagator for both Trotter and Chin-Chen --- exp(-I*T*time_step/2)
-    SeparatedConvolution<double_complex,3> G = qm_free_particle_propagator<3>(world, param.k, c, 0.5*time_step);
+    //SeparatedConvolution<double_complex,3> G = qm_free_particle_propagator<3>(world, param.k, c, 0.5*time_step);
     //G.doleaves = true;
+
+    complex_operatorT* G = qm_1d_free_particle_propagator(param.k, c, 0.5*time_step, 2.0*param.L);
 
     // The time-independent part of the potential plus derivatives for
     // Chin-Chen and also for computing the power spectrum ... compute
     // derivatives analytically to reduce numerical noise
-    functionT potn = factoryT(world).f(V);         potn.truncate();
-    functionT dpotn_dx = factoryT(world).f(dVdx);  dpotn_dx.truncate();
-    functionT dpotn_dy = factoryT(world).f(dVdy);  dpotn_dy.truncate();
-    functionT dpotn_dz = factoryT(world).f(dVdz);  dpotn_dz.truncate();
+    functionT potn = factoryT(world).f(V);         potn.truncate(param.thresh);
+    functionT dpotn_dx = factoryT(world).f(dVdx);  dpotn_dx.truncate(param.thresh);
+    functionT dpotn_dy = factoryT(world).f(dVdy);  dpotn_dy.truncate(param.thresh);
+    functionT dpotn_dz = factoryT(world).f(dVdz);  dpotn_dz.truncate(param.thresh);
 
     functionT dpotn_dx_sq = dpotn_dx*dpotn_dx;
     functionT dpotn_dy_sq = dpotn_dy*dpotn_dy;
@@ -826,7 +862,7 @@ void doit(World& world) {
     FunctionDefaults<3>::set_cubic_cell(-param.L,param.L);
     FunctionDefaults<3>::set_apply_randomize(false);
     FunctionDefaults<3>::set_autorefine(false);
-    FunctionDefaults<3>::set_truncate_mode(2);
+    FunctionDefaults<3>::set_truncate_mode(0);
     FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap(world)));
     FunctionDefaults<3>::set_truncate_on_project(true);
 
