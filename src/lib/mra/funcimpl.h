@@ -2047,7 +2047,7 @@ namespace madness {
                 for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
                     const keyT& child = kit.key();
                     tensorT ss = copy(d(child_patch(child)));
-                    coeffs.replace(child,nodeT(ss,-1.0,false));
+                    coeffs.replace(child,nodeT(ss,-1.0,false)); // Note value -1.0 for norm tree to indicate result of refinement
                 }
             }
             return None;
@@ -2079,7 +2079,6 @@ namespace madness {
             return coeffs.probe(key) && coeffs.find(key).get()->second.has_children();
         }
 
-
         Void broaden_op(const keyT& key, const std::vector< Future <bool> >& v) {
             for (unsigned int i=0; i<v.size(); i++) {
                 if (v[i]) {
@@ -2090,6 +2089,14 @@ namespace madness {
             return None;
         }
 
+        // For each local node sets value of norm tree to 0.0
+        void zero_norm_tree() {
+            typename dcT::iterator end = coeffs.end();
+            for (typename dcT::iterator it=coeffs.begin(); it!=end; ++it) {
+                it->second.set_norm_tree(0.0);
+            }
+        }
+            
         // Broaden tree
         void broaden(bool fence) {
             typename dcT::iterator end = coeffs.end();
@@ -2097,13 +2104,11 @@ namespace madness {
                 const keyT& key = it->first;
                 nodeT& node = it->second;
                 if (node.has_coeff() && 
-                    node.coeff().normf() >= truncate_tol(thresh,key) ) { // &&  node.get_norm_tree() != -1.0) {
+                    node.get_norm_tree() != -1.0 &&
+                    node.coeff().normf() >= truncate_tol(thresh,key)) {
+
                     node.set_norm_tree(-1.0); // Indicates already broadened or result of broadening/refining
 
-
-#define BROADEN_TENSOR
-#ifdef BROADEN_TENSOR
-                    // This broadens in tensor product of axes
                     int ndir = std::pow(3,NDIM);
                     std::vector< Future <bool> > v = future_vector_factory<bool>(ndir);
                     keyT neigh;
@@ -2127,29 +2132,15 @@ namespace madness {
                             v[i++].set(false);
                         }
                     }
-#else
-                    // This broadens only along axes ... not a good idea!
-                    std::vector< Future <bool> > v = future_vector_factory<bool>(2*NDIM);
-                    keyT neigh;
-                    for (int d=0; d<NDIM; d++) {
-                        const int odd = key.translation()[d] & 0x1L; // 1 if odd, 0 if even
-                        neigh = neighbor(key, d, 2-odd);
-                        if (neigh.is_valid()) 
-                            v[2*d  ] = send(coeffs.owner(neigh), &implT::exists_and_has_children, neigh);
-                        else
-                            v[2*d  ].set(false);
-
-                        neigh = neighbor(key, d, -1-odd);
-                        if (neigh.is_valid()) 
-                            v[2*d+1] = send(coeffs.owner(neigh), &implT::exists_and_has_children, neigh);
-                        else
-                            v[2*d+1].set(false);
-                    }
-#endif
                     task(world.rank(), &implT::broaden_op, key, v);
                 }
             }
-            if (fence) world.gop.fence();
+            // Reset value of norm tree so that can repeat broadening
+            if (fence) {
+                world.gop.fence();
+                zero_norm_tree();
+                world.gop.fence();
+            }
         }            
 
         void reconstruct(bool fence) {
