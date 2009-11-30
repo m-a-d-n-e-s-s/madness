@@ -923,6 +923,24 @@ namespace madness {
     template <class T, class Q>
     Tensor<TENSOR_RESULT_TYPE(T,Q)> transform(const Tensor<T>& t, const Tensor<Q>& c);
 
+    /// Transforms one dimension of the tensor t by the matrix c, returns new contiguous tensor
+
+    /// \code
+    /// transform_dir(t,c,1) = r(i,j,k,...) = sum(j') t(i,j',k,...) * c(j',j)
+    /// \endcode
+    template <class T, class Q>
+    Tensor<TENSOR_RESULT_TYPE(T,Q)> transform_dir(const Tensor<T>& t, const Tensor<Q>& c, int axis) {
+        if (axis == 0) {
+            return inner(c,t,0,axis);
+        }
+        else if (axis == t.ndim-1) {
+            return inner(t,c,axis,0);
+        }
+        else {
+            return copy(inner(t,c,axis,0).cycledim(1,axis, -1));
+        }
+    }
+
     template <class T, class Q>
     Tensor<TENSOR_RESULT_TYPE(T,Q)> general_transform(const Tensor<T>& t, const Tensor<Q> c[]);
 
