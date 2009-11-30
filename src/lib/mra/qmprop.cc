@@ -62,10 +62,10 @@ namespace madness {
             xmax = (n-1)*hx;
             fit = CubicInterpolationTable<double_complex>(0.0, xmax, n, s);
 
-            print("QM", c, t, width);
-            std::cout.precision(12);
-            print(0.001,(*this)(0.001));
-            print(0.002,(*this)(0.002));
+            //print("QM", c, t, width);
+            //std::cout.precision(12);
+            //print(0.001,(*this)(0.001));
+            //print(0.002,(*this)(0.002));
 //             for (int i=0; i<10001; i++) {
 //                 double x = i*xmax/10000.0/width;
 //                 double_complex value = (*this)(x);
