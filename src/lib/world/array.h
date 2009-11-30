@@ -246,7 +246,7 @@ namespace madness {
         }
     };
 
-    /// Output vector to stream for human consumtion
+    /// Output vector to stream for human consumption
     template <typename T,int N>
     std::ostream& operator<<(std::ostream& s, const Vector<T,N>& a) {
         s << "[";
