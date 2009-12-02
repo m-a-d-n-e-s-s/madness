@@ -42,6 +42,8 @@
 #include <world/safempi.h>
 #include <madness_config.h>
 
+#include <typeinfo>
+
 // #ifdef SEEK_SET
 // #undef SEEK_SET
 // #endif
@@ -183,6 +185,7 @@ namespace madness {
             };
         };
 
+        Mutex globalmutex;  ///< Worldwide mutex 
         typedef madness::ConcurrentHashMap<uniqueidT, void *, uniqueidT> map_id_to_ptrT;
         typedef madness::ConcurrentHashMap<void *, uniqueidT, hashvoidp> map_ptr_to_idT;
         map_id_to_ptrT map_id_to_ptr;
@@ -200,6 +203,7 @@ namespace madness {
         /// Does any deferred cleanup and returns true if cleaning was necessary
         bool do_deferred_cleanup() {
             if (deferred.empty()) return false;
+            ScopedMutex<Mutex> buckleup(&globalmutex); // Probably only main thread ever enters here
             std::size_t nclean = deferred.size();
             // !! More STL garbage - it is not specified how arguments
             // are passed to the STL algorithms so they are free to
@@ -209,13 +213,26 @@ namespace madness {
             // algorithm here since the standard is borked. Concrete
             // example of this "feature" here is gcc4.2.
             // //std::remove_if(deferred.begin(),deferred.end(),refcnt_is_one());
-            for (std::list< SharedPtr<DeferredCleanupInterface> >::iterator it = deferred.begin();
-                    it != deferred.end();) {
-                //print("refcnt:",(void*) it->get(), it->use_count());
-                if (it->use_count() == 1) it = deferred.erase(it);
-                else ++it;
-            }
-            //if (rank() == 0) print("World: deferred cleanup: old size:", nclean, "new size:", deferred.size());
+
+            // Multiple passes in case destroying something creates more garbage
+            // (e.g., functionimpl that contains a container)
+            bool deleted_something;
+            do {
+                deleted_something = false;
+                for (std::list< SharedPtr<DeferredCleanupInterface> >::iterator it = deferred.begin();
+                     it != deferred.end();) {
+                    //print("refcnt:",(void*) it->get(), it->use_count(), typeid(*(it->get())).name() );
+                    if (it->use_count() == 1) {
+                        it = deferred.erase(it);
+                        deleted_something = true;
+                    }
+                    else {
+                        ++it;
+                    }
+                }
+                //if (rank() == 0) print("World: deferred cleanup: old size:", nclean, "new size:", deferred.size());
+            } while (deleted_something);
+
             return (nclean != deferred.size());
         };
 
@@ -467,6 +484,7 @@ namespace madness {
             // !! This algorithm is quadratic.  More efficient would be to
             // !! use a sorted-list/heap/tree/map.
 
+            ScopedMutex<Mutex> buckleup(&globalmutex);
             SharedPtr<DeferredCleanupInterface> p(item);
             // Avoid duplicates since the reference counting will prevent cleaning
             if (std::find(deferred.begin(),deferred.end(),p) == deferred.end()) {

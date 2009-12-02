@@ -294,9 +294,6 @@ namespace madness {
         }
 
 
-        ~WorldContainerImpl() {
-        }
-
         const SharedPtr< WorldDCPmapInterface<keyT> >& get_pmap() const {
             return pmap;
         }
