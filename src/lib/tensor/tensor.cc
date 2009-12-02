@@ -1054,11 +1054,11 @@ namespace madness {
 
         for (TensorIterator<T> iter0=left.unary_iterator(1,false,false,k0);
                 iter0._p0; ++iter0) {
-            T* xp0 = iter0._p0;
+            T* restrict xp0 = iter0._p0;
             long s0 = iter0._s0;
             for (iter1.reset(); iter1._p0; ++iter1) {
-                T* p0 = xp0;
-                Q* p1 = iter1._p0;
+                T* restrict p0 = xp0;
+                Q* restrict p1 = iter1._p0;
                 long s1 = iter1._s0;
                 resultT sum = 0;
                 for (long j=0; j<dimj; j++,p0+=s0,p1+=s1) {
