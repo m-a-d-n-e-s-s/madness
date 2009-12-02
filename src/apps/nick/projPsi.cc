@@ -357,7 +357,7 @@ void projectPsi2(World& world, std::vector<string> boundList, std::vector<string
                     for( psiIT=psiList.begin(); psiIT !=  psiList.end(); psiIT++ ) {
                         //<phi_k|Psi(t)>
                         output = psi_k.inner( psiIT->func );
-                        PRINT(std::scientific << "\t" << real(output*conj(output)));
+                        PRINT(std::scientific << "\t" << real(output) << "\t" << imag(output));
                     }
                     PRINT(" took " << (after - before)/CLOCKS_PER_SEC << " seconds ");
                     PRINT("\n");
