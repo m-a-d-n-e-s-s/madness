@@ -74,7 +74,7 @@ public:
     double   xi;
     double   ra;
 private:
-    CubicInterpolationTable<complex<double> > fit1F1;
+    CubicInterpolationTable<complexd > fit1F1;
     complexd expmPI_k;
     complexd expPI_2k;
     complexd expPI_2kXgamma1pI_k;
@@ -110,7 +110,7 @@ private:
     struct MemberFuncPtr {
         ScatteringWF* obj;
         MemberFuncPtr(ScatteringWF* obj) : obj(obj) {}
-        complex<double> operator()(double x) {return obj->f11(x);}
+        complexd operator()(double x) {return obj->f11(x);}
     };
 };
 

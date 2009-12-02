@@ -27,13 +27,13 @@ using std::ofstream;
 using std::ofstream;
 #include <stdlib.h>
 #include <time.h>
-#define PRINT(str) if(world.rank()==0) cout << str 
-#define PRINTLINE(str) if(world.rank()==0) cout << str << endl
+#define PRINT(str) if(world.rank()==0) std::cout << str 
+#define PRINTLINE(str) if(world.rank()==0) std::cout << str << std::endl
 
 using namespace madness;
 
 const int nIOProcessors =1;
-const string prefix = "data";
+const std::string prefix = "data";
 typedef std::complex<double> complexd;
 typedef Vector<double,NDIM> vector3D;
 typedef Function<complexd,NDIM> complex_functionT;
@@ -47,9 +47,9 @@ complex_functionT wave_function_load(World& world, int step);
 
 
 struct WF {
-    string str;
+    std::string str;
     complex_functionT func;
-    WF(const string& STR, const complex_functionT& FUNC) 
+    WF(const std::string& STR, const complex_functionT& FUNC) 
         : str(STR)
         , func(FUNC) 
     {
@@ -76,8 +76,8 @@ complex_functionT wave_function_load(World& world, int step) {
     return psi;
 }
 template<class T>
-string toString( const T& a ) {
-    ostringstream o;
+std::string toString( const T& a ) {
+    std::ostringstream o;
     o << a[0] << ", " << a[1] << ", " << a[2];
     return o.str();
 }
@@ -95,9 +95,9 @@ void loadDefaultBasis(World& world, std::vector<WF>& boundList, double Z) {
     PRINTLINE("Done loading the standard basis");
 }
 
-void loadList(World& world, std::vector<string>& boundList, std::vector<string>& unboundList) {
-    ifstream bound("bound.num");
-    ifstream unbound("unbound.num");
+void loadList(World& world, std::vector<std::string>& boundList, std::vector<std::string>& unboundList) {
+    std::ifstream bound("bound.num");
+    std::ifstream unbound("unbound.num");
     if( ! bound.is_open() && ! unbound.is_open() ) {
         PRINTLINE("bound.num and unbound.num not found");
         boundList.push_back("1 0 0");
@@ -122,7 +122,7 @@ void loadList(World& world, std::vector<string>& boundList, std::vector<string>&
                 unbound >> ky;
                 unbound >> kz;
                 kxyz.precision( 2 );
-                kxyz << fixed;
+                kxyz << std::fixed;
                 kxyz << kx << " " << ky << " " << kz;
                 unboundList.push_back(kxyz.str());
                 kxyz.str("");
@@ -133,8 +133,8 @@ void loadList(World& world, std::vector<string>& boundList, std::vector<string>&
 }
 
 void loadBasis(World& world, std::vector<WF>& boundList, std::vector<WF>& unboundList, double Z) {
-    ifstream bound("bound.num");
-    ifstream unbound("unbound.num");
+    std::ifstream bound("bound.num");
+    std::ifstream unbound("unbound.num");
     if( ! bound.is_open() && ! unbound.is_open() ) {
         PRINTLINE("bound.num and unbound.num not found");
         loadDefaultBasis(world,boundList,Z);
@@ -166,7 +166,7 @@ void loadBasis(World& world, std::vector<WF>& boundList, std::vector<WF>& unboun
                 unbound >> ky;
                 unbound >> kz;
                 kxyz.precision( 2 );
-                kxyz << fixed;
+                kxyz << std::fixed;
                 kxyz << kx << " " << ky << " " << kz;
                 PRINT(kxyz.str());
                 double start = wall_time();
@@ -191,12 +191,12 @@ complexd zdipole( const vector3D& r) {
  * |<phi_A|z|phi_B>|^2
  *****************************************************************/
 void projectZdip(World& world, std::vector<WF> stateList) {
-    cout.precision(8);
+    std::cout.precision(8);
     complex_functionT z = complex_factoryT(world).f(zdipole);
     complexd output;
     std::vector<WF>::iterator basisI;
     std::vector<WF>::iterator basisII;
-    PRINT(endl << "\t\t|<basis_m|z|basis_n>|^2 " << endl << "\t\t");
+    PRINT(std::endl << "\t\t|<basis_m|z|basis_n>|^2 " << std::endl << "\t\t");
     for(basisII=stateList.begin(); basisII != stateList.end(); basisII++) {
         PRINT("|" << basisII->str << ">");
     }
@@ -212,7 +212,7 @@ void projectZdip(World& world, std::vector<WF> stateList) {
     PRINT("\n");
 }
 
-void csToFile(World& world, std::vector<WF> basisList, WF psi_t, string suffix) {
+void csToFile(World& world, std::vector<WF> basisList, WF psi_t, std::string suffix) {
     std::vector<WF>::iterator basisI;
     complexd output;
     ofstream file;
@@ -226,7 +226,7 @@ void csToFile(World& world, std::vector<WF> basisList, WF psi_t, string suffix) 
     }
 }
 
-void displayToScreen(World& world, std::vector<WF> basisList, std::vector<WF> psiList, string header) {
+void displayToScreen(World& world, std::vector<WF> basisList, std::vector<WF> psiList, std::string header) {
     PRINTLINE(header);
     complexd output;
     std::vector<WF>::iterator basisI;
@@ -258,9 +258,9 @@ void projectPsi(World& world, std::vector<WF> boundList, std::vector<WF> unbound
     std::vector<WF> psiList;
     if(boundList.empty() && unboundList.empty())
         loadDefaultBasis(world, boundList, Z);
-    ifstream f("wf.num");
+    std::ifstream f("wf.num");
     if(f.is_open()) {
-        string tag;
+        std::string tag;
         //LOAD Psi(+)
         while(f >> tag) {
             if(wave_function_exists(world, atoi(tag.c_str())) ) {
@@ -271,7 +271,7 @@ void projectPsi(World& world, std::vector<WF> boundList, std::vector<WF> unbound
                 if( !unboundList.empty() )
                     csToFile(world, unboundList, psi_t, "unb");
             } else {
-                PRINT("Function: " << tag << " not found"<< endl);
+                PRINT("Function: " << tag << " not found"<< std::endl);
             }
         }
         //join boundList -> unboundList
@@ -290,9 +290,9 @@ void projectPsi(World& world, std::vector<WF> boundList, std::vector<WF> unbound
     }
 }
 
-void projectPsi2(World& world, std::vector<string> boundList, std::vector<string> unboundList, double Z) {
+void projectPsi2(World& world, std::vector<std::string> boundList, std::vector<std::string> unboundList, double Z) {
     PRINTLINE("\t\t|<basis|Psi(t)>|^2 ");
-    ifstream f("wf.num");
+    std::ifstream f("wf.num");
     if( !f.is_open() ) {
         PRINTLINE("File: wf.num expected to contain a list of integers of loadable wave functions");
     } else {
@@ -301,7 +301,7 @@ void projectPsi2(World& world, std::vector<string> boundList, std::vector<string
             boundList.push_back("2 1 0");
         }
         //LOAD Psi(t)
-        string tag;
+        std::string tag;
         std::vector<WF> psiList;
         complexd output;
         PRINT("\t\t");
@@ -318,10 +318,10 @@ void projectPsi2(World& world, std::vector<string> boundList, std::vector<string
         std::vector<WF>::const_iterator psiIT;
         if( !boundList.empty() ) {
             // <phi_bound|Psi(t)>
-            std::vector<string>::const_iterator boundIT;
+            std::vector<std::string>::const_iterator boundIT;
             int N, L, M;
             for(boundIT = boundList.begin(); boundIT !=boundList.end(); boundIT++ ) {
-                stringstream ss(*boundIT);
+                std::stringstream ss(*boundIT);
                 ss >> N >> L >> M;
                 //PROJECT Psi_nlm into MADNESS
                 complex_functionT psi_nlm = complex_factoryT(world).
@@ -336,11 +336,11 @@ void projectPsi2(World& world, std::vector<string> boundList, std::vector<string
         }
         clock_t before=0, after=0;
         if( !unboundList.empty() ) {
-            std::vector<string>::const_iterator unboundIT;
+            std::vector<std::string>::const_iterator unboundIT;
             for( unboundIT=unboundList.begin(); unboundIT !=  unboundList.end(); unboundIT++ ) {
                 //parsing unboundList
                 double KX, KY, KZ;
-                stringstream ss(*unboundIT);
+                std::stringstream ss(*unboundIT);
                 ss >> KX >> KY >> KZ;
                 double dArr[3] = {KX, KY, KZ};
                 const vector3D kVec(dArr);
@@ -350,10 +350,13 @@ void projectPsi2(World& world, std::vector<string> boundList, std::vector<string
                     if(world.rank()==0) before = clock();
                     complex_functionT psi_k = 
                         complex_factoryT(world).functor(functorT( new ScatteringWF(world, Z, kVec) ));
+//                     //W/O timing
+//                     complex_functionT psi_k = 
+//                         complex_factoryT(world).functor(functorT( new ScatteringWF(Z, kVec) ));
                     if(world.rank()==0) after = clock();
-                    cout.precision( 2 );
+                    std::cout.precision( 2 );
                     PRINT( std::fixed << KX << " " << KY << " " << KZ << "  ");
-                    cout.precision( 4 );
+                    std::cout.precision( 4 );
                     for( psiIT=psiList.begin(); psiIT !=  psiList.end(); psiIT++ ) {
                         //<phi_k|Psi(t)>
                         output = psi_k.inner( psiIT->func );
@@ -369,7 +372,7 @@ void projectPsi2(World& world, std::vector<string> boundList, std::vector<string
 
 void compare1F1(World& world) {
     //load param
-    string tag;
+    std::string tag;
     double rMIN = 0.0;
     double rMAX = 10.0;
     double dr   = 1.0;
@@ -381,7 +384,7 @@ void compare1F1(World& world) {
      * dr   1.0
      * TH   0.0
      ****************************************/
-    ifstream f("param");
+    std::ifstream f("param");
     if( f.is_open() ) {
         while(f >> tag) {
             if (tag[0] == '#') {
@@ -417,12 +420,12 @@ void compare1F1(World& world) {
     ScatteringWF psi_k =  ScatteringWF(1.0, kvec);
     complexd ONE(1.0,0.0);
     complexd I(0.0,1.0);
-    cout << fixed;
+    std::cout << std::fixed;
     for(double r=rMIN; r<rMAX; r+=dr) {
         complexd ZZ(0.0,-r);
-        cout.precision(2);
+        std::cout.precision(2);
         PRINT(r                         << "\t");
-        cout.precision(8);
+        std::cout.precision(8);
         PRINT(real(conhyp(-I/k,ONE,ZZ)) << "\t");
         PRINT(imag(conhyp(-I/k,ONE,ZZ)) << "\t");
         PRINT(real(psi_k.aForm3(ZZ))    << "\t");
@@ -442,9 +445,9 @@ void compareGroundState(World& world, double Z) {
     complex_functionT oneS = FunctionFactory<complexd,NDIM>(world).
                  functor(functorT(new BoundWF(Z, 1, 0, 0)));
     //Read in Psi(+)
-    ifstream f("wf.num");
+    std::ifstream f("wf.num");
     if(f.is_open()) {
-        string tag;
+        std::string tag;
         complexd output;
         //LOAD Psi(+)
         output = oneS.inner(oneS);
@@ -457,7 +460,7 @@ void compareGroundState(World& world, double Z) {
                 output = oneS.inner(psi_t);
                 PRINTLINE("\t|< 1s |" << tag << ">|^2 = " << real(output*conj(output)));
             } else {
-                PRINT("Function: " << tag << " not found"<< endl);
+                PRINT("Function: " << tag << " not found"<< std::endl);
             }
         }
     }
@@ -470,7 +473,7 @@ void compareGroundState(World& world, double Z) {
 void printBasis(World& world, double Z) {
     complexd output, output2;
     double sinTH, cosTH, sinPHI, cosPHI;
-    string tag;
+    std::string tag;
     double rMIN = 0.0;
     double rMAX = 10.0;
     double dr = 1.0;
@@ -484,7 +487,7 @@ void printBasis(World& world, double Z) {
      * dr   1.0
      * TH   0.0
      ****************************************/
-    ifstream f("param");
+    std::ifstream f("param");
     if( f.is_open() ) {
         while(f >> tag) {
             if (tag[0] == '#') {
@@ -530,8 +533,8 @@ void printBasis(World& world, double Z) {
     //for(double TH=0; TH<3.14; TH+=0.3 ) {
     //    for(double r=0; r<sqrt(3)*psi_k.domain*psi_k.k; r+=1.0 ) {
     for(double r=rMIN; r<rMAX; r+=dr ) {
-        cout.precision(4);
-        cout << fixed;
+        std::cout.precision(4);
+        std::cout << std::fixed;
         cosTH =  std::cos(TH);
         sinTH =  std::sin(TH);
         cosPHI = std::cos(PHI);
@@ -539,7 +542,7 @@ void printBasis(World& world, double Z) {
         double rvec[3] = {r*sinTH*cosPHI, r*sinTH*sinPHI, r*cosTH};
         output = psi_k(rvec);
         PRINT(r);
-        cout.precision(7);
+        std::cout.precision(7);
         complexd ZZ(0.0,2*k*r);
         PRINT("\t" << real(output) << "\t" << imag(output));
         PRINT("\t" << psi_k.diffR(2*k*r) << "\t" << psi_k.diffI(2*k*r));
@@ -579,10 +582,10 @@ void belkic(World& world) {
 }
 
 void loadParameters(World& world, int& k, double& L, double &Z) {
-    string tag;
+    std::string tag;
     int natom;
     double Rx, Ry, Rz;
-    ifstream f("input");
+    std::ifstream f("input");
     if( f.is_open() ) {
         while(f >> tag) {
             if (tag[0] == '#') {
@@ -634,8 +637,8 @@ int main(int argc, char**argv) {
     FunctionDefaults<NDIM>::set_truncate_mode(0);
     FunctionDefaults<NDIM>::set_truncate_on_project(true);
     try {
-        std::vector<string> boundList2;
-        std::vector<string> unboundList2;
+        std::vector<std::string> boundList2;
+        std::vector<std::string> unboundList2;
         loadList(world, boundList2, unboundList2);
         projectPsi2(world, boundList2, unboundList2, Z);
         //std::vector<WF> boundList;

@@ -27,8 +27,9 @@ using namespace madness;
 
 //MPI printing macros
 time_t before, after;
-#define PRINTLINE(str) if(world.rank()==0) cout << str << endl;
-#define END_TIMER_C(msg,cplx) tt=cpu_time()-tt; cout << "Timer: " << msg << "(" << real(cplx) << " + " << imag(cplx) << "I) took " << tt << " seconds" << endl
+#define PRINT(str) if(world.rank()==0) std::cout << str;
+#define PRINTLINE(str) if(world.rank()==0) std::cout << str << std::endl;
+#define END_TIMER_C(msg,cplx) tt=cpu_time()-tt; std::cout << "Timer: " << msg << "(" << real(cplx) << " + " << imag(cplx) << "I) took " << tt << " seconds" << std::endl
 #define END_TIMER(msg) tt=cpu_time()-tt; printf("timer: %24.24s    took%8.2f seconds\n", msg, tt)
 
 /*****************************************
@@ -79,17 +80,17 @@ BoundWF::BoundWF(double Z, int nn, int ll, int mm ) : Z(Z)
 {
     gsl_set_error_handler_off();
     if(nn < 1) {
-	cerr << "Thou shalt not have negative n!" << endl;
+        std::cerr << "Thou shalt not have negative n!" << std::endl;
 	exit(1);
     }
     if(ll<0 || ll>=nn) {
-    cerr << "n = " << nn << "\tl = " << ll << endl;
-	cerr << "l has broken the quantum commandments!" << endl;
+    std::cerr << "n = " << nn << "\tl = " << ll << std::endl;
+	std::cerr << "l has broken the quantum commandments!" << std::endl;
 	exit(1);
     }
     if(abs(mm) > ll) {
-    cerr << "n = " << nn << "\tl = " << ll << "\tm = " << mm << endl;
-	cerr << "m out of bounds error!" << endl;
+    std::cerr << "n = " << nn << "\tl = " << ll << "\tm = " << mm << std::endl;
+	std::cerr << "m out of bounds error!" << std::endl;
 	exit(1);
     }
     n=nn;
@@ -155,12 +156,12 @@ ScatteringWF::ScatteringWF(World& world, double Z, const vector3D& kVec)
     dx = 4e-3;   //Mesh spacing <- OPTIMIZE
     ra = 5.0; //boundary cutoff <- Variable Mesh
     n = floor(0.5*domain/dx*(1 + sqrt(1 + 4*ra/domain))) + 1;
-//     time( &before );
+    time( &before );
     MemberFuncPtr p1F1(this);
     fit1F1 = CubicInterpolationTable<complexd>(world, 0.0, domain, n, p1F1);
-//     time( &after );
-//     PRINTLINE("Computing the CubicInterpolationTable took " << after - before 
-//          << " seconds.");
+    time( &after );
+    PRINTLINE("Computing the CubicInterpolationTable took " << after - before 
+         << " seconds.");
 }
 
 ScatteringWF::ScatteringWF(double Z, const vector3D& kVec)
@@ -178,12 +179,8 @@ ScatteringWF::ScatteringWF(double Z, const vector3D& kVec)
     dx = 4e-3;   //Mesh spacing
     ra = 5.0; //boundary cutoff
     n = floor(0.5*domain/dx*(1 + sqrt(1 + 4*ra/domain))) + 1;
-    //time( &before );
     MemberFuncPtr p1F1(this);
     fit1F1 = CubicInterpolationTable<complexd>(0.0, domain, n, p1F1);
-    //time( &after );
-    //PRINT("Computing the CubicInterpolationTable took " << after - before);
-    //PRINTLINE( " seconds.");
 }
 
 complexd ScatteringWF::approx1F1(double xx) const {
@@ -218,9 +215,9 @@ int      ScatteringWF::fromX( double xx ) const {
     }
     int index =  floor( (xx - beta)/dx + 0.5);
     if(index > n) {
-        cout << "index = " << index << endl;
-        cout << "n = "         << n << endl;
-        cout << "x = "        << xx << endl;
+        std::cout << "index = " << index << std::endl;
+        std::cout << "n = "         << n << std::endl;
+        std::cout << "x = "        << xx << std::endl;
         throw "ScatteringWF: index out of bounds\n increase domain";
     }
     return index;
@@ -300,9 +297,9 @@ complexd gamma(complexd AA) {
     return ANS;
 }
 void testGamma(World& world) {
-    if(world.rank() == 0) cout << "Testing Gamma:================================================" << endl;
-    if(world.rank() == 0) cout << "gamma(3.0,0.0) = " << gamma(3.0,0.0) << endl;
-    if(world.rank() == 0) cout << "gamma(0.0,3.0) = " << gamma(0.0,3.0) << endl;
-    if(world.rank() == 0) cout << "gamma(3.0,1.0) = " << gamma(3.0,1.0) << endl;
-    if(world.rank() == 0) cout << "gamma(1.0,3.0) = " << gamma(1.0,3.0) << endl;
+    if(world.rank() == 0) std::cout << "Testing Gamma:================================================" << std::endl;
+    if(world.rank() == 0) std::cout << "gamma(3.0,0.0) = " << gamma(3.0,0.0) << std::endl;
+    if(world.rank() == 0) std::cout << "gamma(0.0,3.0) = " << gamma(0.0,3.0) << std::endl;
+    if(world.rank() == 0) std::cout << "gamma(3.0,1.0) = " << gamma(3.0,1.0) << std::endl;
+    if(world.rank() == 0) std::cout << "gamma(1.0,3.0) = " << gamma(1.0,3.0) << std::endl;
 }
