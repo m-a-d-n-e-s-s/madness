@@ -517,6 +517,7 @@ complex_functionT make_exp(double t, const functionT& v) {
     v.reconstruct();
     complex_functionT expV = double_complex(0.0,-t)*v;
     expV.unaryop(unaryexp<double_complex,3>());
+    //expV.truncate(); expV.reconstruct();
     return expV;
 }
 
@@ -537,7 +538,7 @@ void print_stats(World& world, int step, double t, const functionT& v,
     double ydip = real(inner(psi, y*psi))/(norm*norm);
     double zdip = real(inner(psi, z*psi))/(norm*norm);
     double overlap0 = std::abs(psi.inner(psi0))/norm;
-    double accel = std::abs(psi.inner(psi*dV_dz))/(norm*norm);
+    double accel = real(psi.inner(psi*dV_dz))/(norm*norm);
     if (world.rank() == 0) {
         printf("%7d %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e %9.1f\n", step, t, laser(t), current_energy, norm, overlap0, xdip, ydip, zdip, accel, wall_time());
     }
@@ -621,15 +622,17 @@ struct lbcost {
     double parent_value;
     lbcost(double leaf_value=1.0, double parent_value=1.0) : leaf_value(leaf_value), parent_value(parent_value) {}
     double operator()(const Key<NDIM>& key, const FunctionNode<T,NDIM>& node) const {
-        double lfac = 1.0; //pow(1.2,1.0*key.level());
+
         if (key.level() <= 1) {
             return 128.0;
         }
         else if (node.is_leaf()) {
-            return leaf_value*lfac;
+            double fac = 3.0;
+            if (key.level() >= 7) fac *= 2.0;
+            return leaf_value*fac;
         }
         else {
-            return parent_value*lfac;
+            return parent_value;
         }
         //return key.level()+1.0;
     }
@@ -645,7 +648,13 @@ void loadbal(World& world,
     if (world.rank() == 0) print("starting LB");
     LoadBalanceDeux<3> lb(world);
     lb.add_tree(potn, lbcost<double,3>(1.0,1.0));
-    lb.add_tree(psi, lbcost<double_complex,3>(1.0,8.0));
+
+    psi.reconstruct();
+    psi.broaden();
+    psi.broaden();
+    lb.add_tree(psi, lbcost<double_complex,3>(1.0,1.0)); 
+    psi.truncate();
+
     FunctionDefaults<3>::set_pmap(lb.load_balance(2.0, false));
     world.gop.fence();
     if (world.rank() == 0) print("starting LB copies");
@@ -670,7 +679,8 @@ void loadbal(World& world,
 
 // Evolve the wave function in real time starting from given time step on disk
 void propagate(World& world, int step0) {
-    double ctarget = 10.0/param.cut;                // From Fourier analysis of the potential
+    //double ctarget = 10.0/param.cut;                // From Fourier analysis of the potential
+    double ctarget = 5.0/param.cut;                // More optimistic?
     //double c = 1.86*ctarget; // This for 10^5 steps
     double c = 1.72*ctarget;   // This for 10^4 steps
     double tcrit = 2*constants::pi/(c*c);
@@ -860,7 +870,7 @@ void doit(World& world) {
     FunctionDefaults<3>::set_thresh(param.thresh*param.safety);       // Accuracy
     FunctionDefaults<3>::set_initial_level(4);
     FunctionDefaults<3>::set_cubic_cell(-param.L,param.L);
-    FunctionDefaults<3>::set_apply_randomize(false);
+    FunctionDefaults<3>::set_apply_randomize(true);
     FunctionDefaults<3>::set_autorefine(false);
     FunctionDefaults<3>::set_truncate_mode(0);
     FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap(world)));
@@ -911,6 +921,7 @@ void doit(World& world) {
         }
     }
 
+    potn.clear();
     propagate(world, step0);
 }
 

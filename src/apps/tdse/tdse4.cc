@@ -268,7 +268,8 @@ static double guess(const coordT& r) {
     const double a = 4.42162;
     const double alpha = 1.28164;
     const double beta = -1.06379;
-    const double Rp = 2.12902;
+    //const double Rp = 2.12902;
+    const double Rp = R0;
     const double Rmax = Rp + sqrt(23.0/a);
     
     // Screen on size of nuclear wave function
@@ -421,9 +422,9 @@ void converge(World& world, functionT& potn, functionT& pote, functionT& pot, fu
         }
 
         // update with damping
-        //double d = 0.25;
-        //psi = (psi.scale(d) + tmp.scale((1.0-d)/norm));
-        psi = tmp;
+        double d = 0.25;
+        psi = (psi.scale(d) + tmp.scale((1.0-d)/norm));
+        //psi = tmp;
 
         psi.scale(1.0/psi.norm2());
 
