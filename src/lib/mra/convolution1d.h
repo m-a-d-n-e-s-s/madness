@@ -214,7 +214,7 @@ namespace madness {
         /// This is computed from the matrix elements over the correlation
         /// function which in turn are computed from the matrix elements
         /// over the double order legendre polynomials.
-        const Tensor<Q>& rnlij(Level n, Translation lx) const {
+        const Tensor<Q>& rnlij(Level n, Translation lx, bool do_transpose=false) const {
             const Tensor<Q>* p=rnlij_cache.getptr(n,lx);
             if (p) return *p;
 
@@ -233,6 +233,7 @@ namespace madness {
 //                     for (int j=0; j<i; j++)
 //                         R(i,j) = R(j,i) = ((i+j)&1) ? 0.0 : 0.5*(R(i,j)+R(j,i));
 
+            if (do_transpose) R = transpose(R);
             rnlij_cache.set(n,lx,R);
             return *rnlij_cache.getptr(n,lx);
         };
