@@ -1853,7 +1853,7 @@ namespace madness {
                 for (int direction=-1; direction<=maxdir; direction+=2) {
                     lnew[axis] = lold + direction*s;
                     if (lnew[axis] >= 0 && lnew[axis] < maxs) { // NON-ZERO BOUNDARY CONDITIONS IGNORED HERE !!!!!!!!!!!!!!!!!!!!
-                        const Tensor<typename opT::opT>& R = op->rnlij(n, s*direction);
+                        const Tensor<typename opT::opT>& R = op->rnlij(n, s*direction, true);
                         double Rnorm = R.normf();
 
                         if (Rnorm == 0.0) {
@@ -1862,7 +1862,7 @@ namespace madness {
 
                         if (s <= 1  ||  R.normf()*cnorm > tol) { // Always do kernel and neighbor
                             nsmall = 0;
-                            tensorT result = transform_dir(c,transpose(R),axis);
+                            tensorT result = transform_dir(c,R,axis);
                             
                             if (result.normf() > tol*0.3) {
                                 Key<NDIM> dest(n,lnew);
