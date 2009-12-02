@@ -33,8 +33,8 @@
 */
 
 
-#ifndef WORLD_HASH_H
-#define WORLD_HASH_H
+#ifndef MADNESS_WORLD_WORLDHASH_H__INCLUDED
+#define MADNESS_WORLD_WORLDHASH_H__INCLUDED
 
 /// \file worldhash.h
 /// \brief Defines hash functions for use in distributed containers
@@ -146,4 +146,4 @@ namespace madness {
 }
 
 
-#endif
+#endif // MADNESS_WORLD_WORLDHASH_H__INCLUDED

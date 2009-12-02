@@ -33,8 +33,8 @@
 */
 
 
-#ifndef WORLD_DEP_H
-#define WORLD_DEP_H
+#ifndef MADNESS_WORLD_WORLDDEP_H__INCLUDED
+#define MADNESS_WORLD_WORLDDEP_H__INCLUDED
 
 /// \file worlddep.h
 /// \brief Defines DependencyInterface and CallbackInterface
@@ -149,4 +149,4 @@ namespace madness {
         }
     };
 }
-#endif
+#endif // MADNESS_WORLD_WORLDDEP_H__INCLUDED

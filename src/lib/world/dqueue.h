@@ -33,8 +33,8 @@
 */
 
 
-#ifndef DQUEUE_H
-#define DQUEUE_H
+#ifndef MADNESS_WORLD_DQUEUE_H__INCLUDED
+#define MADNESS_WORLD_DQUEUE_H__INCLUDED
 
 #include <cstdlib>
 #include <world/print.h>
@@ -46,4 +46,4 @@ namespace madness {
 
 }
 
-#endif
+#endif // MADNESS_WORLD_DQUEUE_H__INCLUDED

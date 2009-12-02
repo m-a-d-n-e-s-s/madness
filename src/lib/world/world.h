@@ -33,8 +33,8 @@
 */
 
 
-#ifndef WORLD_H
-#define WORLD_H
+#ifndef MADNESS_WORLD_WORLD_H__INCLUDED
+#define MADNESS_WORLD_WORLD_H__INCLUDED
 
 /// \file world.h
 /// \brief Implements World and includes pretty much every header you'll need
@@ -650,4 +650,4 @@ namespace madness {
 
 
 
-#endif
+#endif // MADNESS_WORLD_WORLD_H__INCLUDED

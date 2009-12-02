@@ -1,5 +1,5 @@
-#ifndef WORLD_HASH_HEADER_INCLUDED
-#define WORLD_HASH_HEADER_INCLUDED
+#ifndef MADNESS_WORLD_WORLDHASHMAP_H__INCLUDED
+#define MADNESS_WORLD_WORLDHASHMAP_H__INCLUDED
 
 /// \file worldhashmap.h
 /// \brief Defines and implements a concurrent hashmap
@@ -500,4 +500,4 @@ namespace madness {
     };
 }
 
-#endif
+#endif // MADNESS_WORLD_WORLDHASHMAP_H__INCLUDED

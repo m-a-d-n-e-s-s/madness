@@ -33,8 +33,8 @@
 */
 
 
-#ifndef PRINT_H
-#define PRINT_H
+#ifndef MADNESS_WORLD_PRINT_H__INCLUDED
+#define MADNESS_WORLD_PRINT_H__INCLUDED
 
 /// \file print.h
 /// \brief Defines simple templates for printing to std::cout "a la Python"
@@ -225,4 +225,4 @@ namespace madness {
     void print_centered(const char* s, int column=40, bool underline=true);
 
 }
-#endif
+#endif // MADNESS_WORLD_PRINT_H__INCLUDED

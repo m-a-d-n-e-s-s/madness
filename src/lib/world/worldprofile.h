@@ -1,5 +1,5 @@
-#ifndef WORLD_PROFILE_H
-#define WORLD_PROFILE_H
+#ifndef MADNESS_WORLD_WORLDPROFILE_H__INCLUDED
+#define MADNESS_WORLD_WORLDPROFILE_H__INCLUDED
 
 #include <madness_config.h>
 #include <world/worldtypes.h>
@@ -265,4 +265,4 @@ namespace madness {
 
 #endif
 
-#endif
+#endif // MADNESS_WORLD_WORLDPROFILE_H__INCLUDED

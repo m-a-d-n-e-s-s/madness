@@ -33,8 +33,8 @@
 */
 
 
-#ifndef MAD_BUFAR_H
-#define MAD_BUFAR_H
+#ifndef MADNESS_WORLD_BUFAR_H__INCLUDED
+#define MADNESS_WORLD_BUFAR_H__INCLUDED
 
 /// \file bufar.h
 /// \brief Implements an archive wrapping a memory buffer
@@ -251,4 +251,4 @@ namespace madness {
         };
     }
 }
-#endif
+#endif // MADNESS_WORLD_BUFAR_H__INCLUDED

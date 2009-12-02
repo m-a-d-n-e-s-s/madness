@@ -1,5 +1,5 @@
-#ifndef MAD_PARAR_H
-#define MAD_PARAR_H
+#ifndef MADNESS_WORLD_PARAR_H__INCLUDED
+#define MADNESS_WORLD_PARAR_H__INCLUDED
 
 /// \file parar.h
 /// \brief Implements ParallelInputArchive and ParallelOutputArchive
@@ -332,4 +332,4 @@ namespace madness {
     }
 }
 
-#endif
+#endif // MADNESS_WORLD_PARAR_H__INCLUDED

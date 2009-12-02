@@ -33,8 +33,8 @@
 */
 
 
-#ifndef __NO_DEFAULTS_H
-#define __NO_DEFAULTS_H
+#ifndef MADNESS_WORLD_NODEFAULTS_H__INCLUDED
+#define MADNESS_WORLD_NODEFAULTS_H__INCLUDED
 
 /// \file nodefaults.h
 /// \brief Implements NO_DEFAULTS
@@ -55,5 +55,5 @@ private:
     NO_DEFAULTS& operator=(const NO_DEFAULTS&);
 };
 
-#endif
+#endif // MADNESS_WORLD_NODEFAULTS_H__INCLUDED
 

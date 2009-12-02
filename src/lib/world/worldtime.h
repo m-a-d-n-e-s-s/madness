@@ -33,8 +33,8 @@
 */
 
 
-#ifndef WORLD_TIME_H
-#define WORLD_TIME_H
+#ifndef MADNESS_WORLD_WORLDTIME_H__INCLUDED
+#define MADNESS_WORLD_WORLDTIME_H__INCLUDED
 
 #include <stdint.h>
 #include <time.h>
@@ -137,4 +137,4 @@ __asm__ volatile("rdtsc" : "=a"(a), "=d"(d));
 }
 
 
-#endif
+#endif // MADNESS_WORLD_WORLDTIME_H__INCLUDED

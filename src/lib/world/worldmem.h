@@ -1,5 +1,5 @@
-#ifndef MADNESS_WORLD_MEM_H
-#define MADNESS_WORLD_MEM_H
+#ifndef MADNESS_WORLD_WORLDMEM_H__INCLUDED
+#define MADNESS_WORLD_WORLDMEM_H__INCLUDED
 
 /*
   This file is part of MADNESS.
@@ -120,4 +120,4 @@ namespace madness {
     /// Returns pointer to internal structure
     WorldMemInfo* world_mem_info();
 }
-#endif
+#endif // MADNESS_WORLD_WORLDMEM_H__INCLUDED

@@ -1,5 +1,5 @@
-#ifndef MAD_PRINT_SEQ_H
-#define MAD_PRINT_SEQ_H
+#ifndef MADNESS_WORLD_PRINT_SEQ_H__INCLUDED
+#define MADNESS_WORLD_PRINT_SEQ_H__INCLUDED
 
 /// \file print_seq.h
 /// \brief Implements print_seq ... included by world.h
@@ -96,4 +96,4 @@ namespace madness {
     }
 }
 
-#endif
+#endif // MADNESS_WORLD_PRINT_SEQ_H__INCLUDED

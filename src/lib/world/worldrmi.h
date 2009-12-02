@@ -1,5 +1,5 @@
-#ifndef WORLD_RMI_H
-#define WORLD_RMI_H
+#ifndef MADNESS_WORLD_WORLDRMI_H__INCLUDED
+#define MADNESS_WORLD_WORLDRMI_H__INCLUDED
 
 #include <world/safempi.h>
 #include <cstdlib>
@@ -460,4 +460,4 @@ namespace madness {
     };
 }
 
-#endif
+#endif // MADNESS_WORLD_WORLDRMI_H__INCLUDED

@@ -33,8 +33,8 @@
 */
 
 
-#ifndef WORLDTASK_H
-#define WORLDTASK_H
+#ifndef MADNESS_WORLD_WORLDTASK_H__INCLUDED
+#define MADNESS_WORLD_WORLDTASK_H__INCLUDED
 
 /// \file worldtask.h
 /// \brief Defines TaskInterface and implements WorldTaskQueue and associated stuff.
@@ -1602,4 +1602,4 @@ namespace madness {
 }
 
 
-#endif
+#endif // MADNESS_WORLD_WORLDTASK_H__INCLUDED

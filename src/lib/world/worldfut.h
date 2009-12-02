@@ -33,8 +33,8 @@
 */
 
 
-#ifndef WORLD_FUT_H
-#define WORLD_FUT_H
+#ifndef MADNESS_WORLD_WORLDFUT_H__INCLUDED
+#define MADNESS_WORLD_WORLDFUT_H__INCLUDED
 
 /// \file worldfut.h
 /// \brief Implements Future
@@ -749,4 +749,4 @@ namespace madness {
 }
 
 
-#endif
+#endif // MADNESS_WORLD_WORLDFUT_H__INCLUDED

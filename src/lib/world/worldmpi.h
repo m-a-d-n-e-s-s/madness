@@ -33,8 +33,8 @@
 */
 
 
-#ifndef WORLDMPI_H
-#define WORLDMPI_H
+#ifndef MADNESS_WORLD_WORLDMPI_H__INCLUDED
+#define MADNESS_WORLD_WORLDMPI_H__INCLUDED
 
 /// \file worldmpi.h
 /// \brief Implements WorldMpiInterface
@@ -74,4 +74,4 @@ namespace madness {
 
 }
 
-#endif
+#endif // MADNESS_WORLD_WORLDMPI_H__INCLUDED

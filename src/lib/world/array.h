@@ -32,8 +32,8 @@
   $Id$
 */
 
-#ifndef WORLD_ARRAY
-#define WORLD_ARRAY
+#ifndef MADNESS_WORLD_ARRAY_H__INCLUDED
+#define MADNESS_WORLD_ARRAY_H__INCLUDED
 
 #include <vector>
 #include <world/worldexc.h>
@@ -366,4 +366,4 @@ namespace madness {
         return v;
     }
 }
-#endif
+#endif // MADNESS_WORLD_ARRAY_H__INCLUDED

@@ -33,8 +33,8 @@
 */
 
 
-#ifndef TYPESTUFF_H
-#define TYPESTUFF_H
+#ifndef MADNESS_WORLD_TYPESTUFF_H__INCLUDED
+#define MADNESS_WORLD_TYPESTUFF_H__INCLUDED
 
 /// \file typestuff.h
 /// \brief Grossly simplified Boost-like type traits and templates
@@ -927,4 +927,4 @@ namespace madness {
 #define IS_SAME(A, B) is_same< A, B >
 
 } // end of namespace madness
-#endif
+#endif // MADNESS_WORLD_TYPESTUFF_H__INCLUDED

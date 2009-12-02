@@ -1,5 +1,5 @@
-#ifndef WORLD_RANGE_H
-#define WORLD_RANGE_H
+#ifndef MADNESS_WORLD_WORLDRANGE_H__INCLUDED
+#define MADNESS_WORLD_WORLDRANGE_H__INCLUDED
 
 /// \file worldrange.h
 /// \brief Implement Range class for parallel iteration
@@ -102,4 +102,4 @@ namespace madness {
 //     }
 }
 
-#endif
+#endif // MADNESS_WORLD_WORLDRANGE_H__INCLUDED

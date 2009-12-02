@@ -33,8 +33,8 @@
 */
 
 
-#ifndef WORLDGOP_H
-#define WORLDGOP_H
+#ifndef MADNESS_WORLD_WORLDGOP_H__INCLUDED
+#define MADNESS_WORLD_WORLDGOP_H__INCLUDED
 
 /// \file worldgop.h
 /// \brief Implements global operations
@@ -427,4 +427,4 @@ namespace madness {
 }
 
 
-#endif
+#endif // MADNESS_WORLD_WORLDGOP_H__INCLUDED

@@ -1,5 +1,5 @@
-#ifndef MAD_ATOMIC_INT_H
-#define MAD_ATOMIC_INT_H
+#ifndef MADNESS_WORLD_ATOMICINT_H__INCLUDED
+#define MADNESS_WORLD_ATOMICINT_H__INCLUDED
 
 /// \file atomicint.h
 
@@ -83,4 +83,4 @@ namespace madness {
     };
     
 }
-#endif
+#endif // MADNESS_WORLD_ATOMICINT_H__INCLUDED

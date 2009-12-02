@@ -1,5 +1,5 @@
-#ifndef MAD_WORLDTHREAD_H
-#define MAD_WORLDTHREAD_H
+#ifndef MADNESS_WORLD_WORLDTHREAD_H__INCLUDED
+#define MADNESS_WORLD_WORLDTHREAD_H__INCLUDED
 
 /// \file worldthread.h
 /// \brief Implements Dqueue, Thread, ThreadBase and ThreadPool
@@ -860,4 +860,4 @@ namespace madness {
 
 }
 
-#endif
+#endif // MADNESS_WORLD_WORLDTHREAD_H__INCLUDED

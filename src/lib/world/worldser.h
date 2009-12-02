@@ -33,8 +33,8 @@
 */
 
 
-#ifndef WORLDSER_H
-#define WORLDSER_H
+#ifndef MADNESS_WORLD_WORLDSER_H__INCLUDED
+#define MADNESS_WORLD_WORLDSER_H__INCLUDED
 
 /// \file worldser.h
 /// \brief Includes archive headers, and also the archive names into madness namespace
@@ -54,4 +54,4 @@ namespace madness {
     using archive::TextFstreamInputArchive;
     using archive::TextFstreamOutputArchive;
 }
-#endif
+#endif // MADNESS_WORLD_WORLDSER_H__INCLUDED

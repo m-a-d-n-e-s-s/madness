@@ -33,8 +33,8 @@
 */
 
 
-#ifndef MAD_BINFSAR_H
-#define MAD_BINFSAR_H
+#ifndef MADNESS_WORLD_BINFSAR_H__INCLUDED
+#define MADNESS_WORLD_BINFSAR_H__INCLUDED
 
 /// \file binfsar.h
 /// \brief Implements archive wrapping a binary filestream
@@ -129,4 +129,4 @@ namespace madness {
         };
     }
 }
-#endif
+#endif // MADNESS_WORLD_BINFSAR_H__INCLUDED

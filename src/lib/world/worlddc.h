@@ -33,8 +33,8 @@
 */
 
 
-#ifndef WORLD_DC
-#define WORLD_DC
+#ifndef MADNESS_WORLD_WORLDDC_H__INCLUDED
+#define MADNESS_WORLD_WORLDDC_H__INCLUDED
 
 /// \file worlddc.h
 /// \brief Implements WorldContainer
@@ -1224,4 +1224,4 @@ namespace madness {
 
 }
 
-#endif
+#endif // MADNESS_WORLD_WORLDDC_H__INCLUDED

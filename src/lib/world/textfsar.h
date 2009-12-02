@@ -33,8 +33,8 @@
 */
 
 
-#ifndef MAD_TEXTFSAR_H
-#define MAD_TEXTFSAR_H
+#ifndef MADNESS_WORLD_TEXTFSAR_H__INCLUDED
+#define MADNESS_WORLD_TEXTFSAR_H__INCLUDED
 
 /// \file textfsar.h
 /// \brief Implements archive wrapping text file stream
@@ -280,4 +280,4 @@ namespace madness {
     }
 }
 
-#endif
+#endif // MADNESS_WORLD_TEXTFSAR_H__INCLUDED

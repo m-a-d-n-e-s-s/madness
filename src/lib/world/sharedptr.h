@@ -33,8 +33,8 @@
 */
 
 
-#ifndef SHARED_PTR_H
-#define SHARED_PTR_H
+#ifndef MADNESS_WORLD_SHAREDPTR_H__INCLUDED
+#define MADNESS_WORLD_SHAREDPTR_H__INCLUDED
 
 /// \file sharedptr.h
 /// \brief Minimal, modified (and renamed) Boost-like SharedPtr & SharedArray
@@ -325,4 +325,4 @@ namespace madness {
         }
     };
 }
-#endif
+#endif // MADNESS_WORLD_SHAREDPTR_H__INCLUDED

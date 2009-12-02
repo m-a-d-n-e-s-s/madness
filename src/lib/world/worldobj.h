@@ -33,8 +33,8 @@
 */
 
 
-#ifndef WORLD_OBJ_H
-#define WORLD_OBJ_H
+#ifndef MADNESS_WORLD_WORLDOBJ_H__INCLUDED
+#define MADNESS_WORLD_WORLDOBJ_H__INCLUDED
 
 #include <world/worldthread.h>
 
@@ -985,4 +985,4 @@ template <typename Derived>  madness::Spinlock madness::WorldObject<Derived>::pe
 
 #endif
 
-#endif
+#endif // MADNESS_WORLD_WORLDOBJ_H__INCLUDED

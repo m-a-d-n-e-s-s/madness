@@ -1,5 +1,5 @@
-#ifndef WORLD_SAFE_MPI_H
-#define WORLD_SAFE_MPI_H
+#ifndef MADNESS_WORLD_SAFEMPI_H__INCLUDED
+#define MADNESS_WORLD_SAFEMPI_H__INCLUDED
 
 /// \file safempi.h
 /// \brief Serializes calls to MPI in case it does not support THREAD_MULTIPLE
@@ -304,4 +304,4 @@ namespace SafeMPI {
     };
 }
 
-#endif
+#endif // MADNESS_WORLD_SAFEMPI_H__INCLUDED

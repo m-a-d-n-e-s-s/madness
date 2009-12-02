@@ -1,5 +1,5 @@
-#ifndef WORLD_PAPI_H
-#define WORLD_PAPI_H
+#ifndef MADNESS_WORLD_WORLDPAPI_H__INCLUDED
+#define MADNESS_WORLD_WORLDPAPI_H__INCLUDED
 
 #include <madness_config.h>
 
@@ -27,4 +27,4 @@ namespace madness {
 }
 #endif
 
-#endif
+#endif // MADNESS_WORLD_WORLDPAPI_H__INCLUDED

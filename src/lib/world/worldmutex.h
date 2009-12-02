@@ -1,5 +1,5 @@
-#ifndef WORLD_MUTEX_H
-#define WORLD_MUTEX_H
+#ifndef MADNESS_WORLD_WORLDMUTEX_H__INCLUDED
+#define MADNESS_WORLD_WORLDMUTEX_H__INCLUDED
 
 #include <madness_config.h>
 #ifdef ON_A_MAC
@@ -531,4 +531,4 @@ namespace madness {
     };
 }
 
-#endif
+#endif // MADNESS_WORLD_WORLDMUTEX_H__INCLUDED

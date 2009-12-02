@@ -33,8 +33,8 @@
 */
 
 
-#ifndef WORLD_REF_H
-#define WORLD_REF_H
+#ifndef MADNESS_WORLD_WORLDREF_H__INCLUDED
+#define MADNESS_WORLD_WORLDREF_H__INCLUDED
 
 /// \file worldref.h
 /// \brief Implements RemoteReference which is for internal use
@@ -168,4 +168,4 @@ namespace madness {
 
 }
 
-#endif
+#endif // MADNESS_WORLD_WORLDREF_H__INCLUDED

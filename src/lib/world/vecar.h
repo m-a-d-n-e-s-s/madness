@@ -33,8 +33,8 @@
 */
 
 
-#ifndef MAD_VECAR_H
-#define MAD_VECAR_H
+#ifndef MADNESS_WORLD_VECAR_H__INCLUDED
+#define MADNESS_WORLD_VECAR_H__INCLUDED
 
 /// \file vecar.h
 /// \brief Implements archive wrapping an STL vector
@@ -107,4 +107,4 @@ namespace madness {
         };
     }
 }
-#endif
+#endif // MADNESS_WORLD_VECAR_H__INCLUDED

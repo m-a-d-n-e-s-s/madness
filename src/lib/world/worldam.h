@@ -32,8 +32,8 @@
   $Id$
 */
 
-#ifndef WORLDAM_H
-#define WORLDAM_H
+#ifndef MADNESS_WORLD_WORLDAM_H__INCLUDED
+#define MADNESS_WORLD_WORLDAM_H__INCLUDED
 
 /// \file worldam.h
 /// \brief Implements active message layer for World on top of RMI layer
@@ -405,4 +405,4 @@ namespace madness {
     };
 }
 
-#endif
+#endif // MADNESS_WORLD_WORLDAM_H__INCLUDED
