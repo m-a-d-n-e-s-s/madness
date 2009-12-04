@@ -116,7 +116,7 @@ namespace madness {
 
 #ifdef FUNCTION_INSTANTIATE_1
     template SeparatedConvolution<double_complex,1> qm_free_particle_propagator(World& world, int k, double bandlimit, double timestep);
-	template SeparatedConvolution<double_complex,1>* qm_free_particle_propagatorPtr(World& world, int k, double bandlimit, double timestep);
+    template SeparatedConvolution<double_complex,1>* qm_free_particle_propagatorPtr(World& world, int k, double bandlimit, double timestep);
 #endif
 
 #ifdef FUNCTION_INSTANTIATE_2

@@ -2304,16 +2304,15 @@ namespace madness {
 
                 // For periodic directions restrict translations to be no more than
                 // half of the unit cell to avoid double counting.
-                bool doit = true;
+                bool notdoit = false;
                 for (int i=0; i<NDIM; i++) {
                     if (bc(i,0) == 1) {
                         if (d.translation()[i]> lmax || d.translation()[i] <= -lmax)
-                            doit = false;
+                            notdoit = true;
                         break;
                     }
                 }
-                if (!doit)
-                    break;
+                if (notdoit) break;
 
                 if (dest.is_valid()) {
                     double opnorm = op->norm(key.level(), d);
@@ -2329,17 +2328,13 @@ namespace madness {
                             ProcessID where = world.rank();
                             do_op_args args(key, d, dest, tol, fac, cnorm);
                             task(where, &implT:: template do_apply_kernel<opT,R>, op, c, args);
-                        }
-                        else {
+                        } else {
                             tensorT result = op->apply(key, d, c, tol/fac/cnorm);
                             if (result.normf()> 0.3*tol/fac) {
                                 coeffs.task(dest, &nodeT::accumulate, result, coeffs, dest, TaskAttributes::hipri());
                             }
                         }
-                    }
-                    else if (d.distsq() >= 1) { // Assumes monotonic decay beyond nearest neighbor
-                        break;
-                    }
+                    } else if (d.distsq() >= 1) break; // Assumes monotonic decay beyond nearest neighbor
                 }
             }
             return None;
@@ -2350,6 +2345,7 @@ namespace madness {
             PROFILE_MEMBER_FUNC(FunctionImpl);
             typename dcT::const_iterator end = f.coeffs.end();
             for (typename dcT::const_iterator it=f.coeffs.begin(); it!=end; ++it) {
+				// looping through all the coefficients in the source
                 const keyT& key = it->first;
                 const FunctionNode<R,NDIM>& node = it->second;
                 if (node.has_coeff()) {

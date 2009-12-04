@@ -202,20 +202,7 @@ namespace madness {
         vresult[0].vtransform(v, c, vresult, tol, fence);
         return vresult;
     }
-
-
-    /// Scales inplace a vector of functions by distinct values
-    template <typename T, int NDIM>
-    void scale(World& world,
-               std::vector< Function<T,NDIM> >& v,
-               const std::vector<double>& factors,
-               bool fence=true) {
-        PROFILE_BLOCK(Vscale);
-        for (unsigned int i=0; i<v.size(); i++) v[i].scale(factors[i],false);
-        if (fence) world.gop.fence();
-    }
-
-
+     
     /// Scales inplace a vector of functions by distinct values
     template <typename T, typename Q, int NDIM>
     void scale(World& world,
@@ -227,10 +214,9 @@ namespace madness {
         if (fence) world.gop.fence();
     }
 
-
-    /// Computes the 2-norm of a vector of functions
+    /// Computes the 2-norms of a vector of functions
     template <typename T, int NDIM>
-    std::vector<double> norm2(World& world,
+    std::vector<double> norm2s(World& world,
                               const std::vector< Function<T,NDIM> >& v) {
         PROFILE_BLOCK(Vnorm2);
         std::vector<double> norms(v.size());
@@ -239,6 +225,19 @@ namespace madness {
         for (unsigned int i=0; i<v.size(); i++) norms[i] = sqrt(norms[i]);
         world.gop.fence();
         return norms;
+    }
+
+    /// Computes the 2-norm of a vector of functions
+    template <typename T, int NDIM>
+    double norm2(World& world,
+                              const std::vector< Function<T,NDIM> >& v) {
+        PROFILE_BLOCK(Vnorm2);
+        std::vector<double> norms(v.size());
+        for (unsigned int i=0; i<v.size(); i++) norms[i] = v[i].norm2sq_local();
+        world.gop.sum(&norms[0], norms.size());
+        for (unsigned int i=1; i<v.size(); i++) norms[0] += norms[i];
+        world.gop.fence();
+        return sqrt(norms[0]);
     }
 
     inline double conj(double x) {
@@ -489,6 +488,22 @@ namespace madness {
         return r;
     }
 
+   /// Returns a vector of deep copies of of a function
+    template <typename T, int NDIM>
+    std::vector< Function<T,NDIM> >
+    copy(World& world,
+         const Function<T,NDIM>& v,
+         const unsigned int n,
+         bool fence=true) {
+        PROFILE_BLOCK(Vcopy1);
+        std::vector< Function<T,NDIM> > r(n);
+        for (unsigned int i=0; i<n; i++) {
+            r[i] = copy(v, false);
+        }
+        if (fence) world.gop.fence();
+        return r;
+    }
+
     /// Returns new vector of functions --- q[i] = a[i] + b[i]
     template <typename T, typename R, int NDIM>
     std::vector< Function<TENSOR_RESULT_TYPE(T,R), NDIM> >
@@ -509,7 +524,33 @@ namespace madness {
         return r;
     }
 
+     /// Returns new vector of functions --- q[i] = a + b[i]
+    template <typename T, typename R, int NDIM>
+    std::vector< Function<TENSOR_RESULT_TYPE(T,R), NDIM> >
+    add(World& world,
+        const Function<T,NDIM> & a,
+        const std::vector< Function<R,NDIM> >& b,
+        bool fence=true) {
+        PROFILE_BLOCK(Vadd1);
+        a.compress();
+        compress(world, b);
 
+        std::vector< Function<TENSOR_RESULT_TYPE(T,R),NDIM> > r(b.size());
+        for (unsigned int i=0; i<b.size(); i++) {
+            r[i] = add(a, b[i], false);
+        }
+        if (fence) world.gop.fence();
+        return r;
+    }
+    template <typename T, typename R, int NDIM>
+    inline std::vector< Function<TENSOR_RESULT_TYPE(T,R), NDIM> >
+    add(World& world,
+        const std::vector< Function<R,NDIM> >& b,
+        const Function<T,NDIM> & a,
+        bool fence=true) {
+        return add(world, a, b, fence);
+    }
+    
     /// Returns new vector of functions --- q[i] = a[i] - b[i]
     template <typename T, typename R, int NDIM>
     std::vector< Function<TENSOR_RESULT_TYPE(T,R), NDIM> >

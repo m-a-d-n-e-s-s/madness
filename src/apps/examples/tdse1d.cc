@@ -67,11 +67,11 @@ static double current_time = 0.0; // Lazy but easier than making functors for ev
 // global vars for the laziness
 static const double_complex I = double_complex(0,1);
 int np; // number of quadrature pts
-Tensor<double> B(10), tc(10);
+Tensor<double> B, tc;
 pcomplex_operatorT G;
-std::vector<pcomplex_operatorT> Gs, Gss;
+std::vector<pcomplex_operatorT> Gs, Gss, Gtrs;
 const int maxiter = 20;
-const double fix_iter_tol = thresh*10.0;
+double fix_iter_tol = thresh*10.0;
 
 struct refop {
     bool operator()(FunctionImpl<double_complex,1>* impl, const Key<1>& key, const Tensor<double_complex>& t) const {
@@ -223,8 +223,9 @@ complex_functionT sympgrad6(World& world,
 
 
 // Evolve forward one time step using Trotter ... G = G0(tstep/2)
-complex_functionT trotter(World& world, const complex_functionT& psi0, const double tstep) {
+complex_functionT trotter(World& world, const complex_functionT& psi0, const double tstep, complex_operatorT* G0 = 0) {
     static complex_operatorT* G = 0;
+	if (G0) G = G0;
     if (!G) G = MAKE_PROPAGATOR(world, tstep*0.5);
 
     complex_functionT psi = APPLY(G, psi0);    psi.truncate();
@@ -262,10 +263,21 @@ void print_info(World& world, const complex_functionT& psi, int step) {
 
 static void readin(int np) {
 	
-// 	B = weights[np];//(_reverse);
-// 	tc = points[np];//(_reverse);
-// 	for (int i=0; i<np; ++i) printf("%f ",tc[i]);
-// 	return;
+	Tensor<double> BB(np), tctc(np);
+	gauss_legendre(np, 0, 1, tctc.ptr(), BB.ptr());
+	B=BB; tc=tctc;
+	return;
+	
+	//~ // TEST Only for np=3 test
+	//~ Tensor<double> A(np+2,np+2),AA(np,np);
+	//~ A(2, 2) = .138888888888888888888888888889; A(3, 2) = .300263194980864592438024947213; A(4, 2) = .267988333762469451728197735548; B(2) = .277777777777777777777777777778; A(2, 3) = -0.359766675249389034563954710966e-1; A(3, 3) = .222222222222222222222222222222; A(4, 3) = .480421111969383347900839915541; B(3) = .444444444444444444444444444444; A(2, 4) = 0.978944401530832604958004222948e-2; A(3, 4) = -0.224854172030868146602471694354e-1; A(4, 4) = .138888888888888888888888888889; B(4) = .277777777777777777777777777778;
+	//~ AA(___) = A(Slice(2,-1,1), Slice(2,-1,1));
+	//~ S = AA;
+ 
+	//~ B = weights[np];//(_reverse);
+ 	//~ tc = points[np];//(_reverse);
+ 	for (int i=0; i<np; ++i) printf("%f ",tc[i]); print("tc");
+        return;
 
 	if (np==1) {
 		tc[0] = 0.5;
@@ -320,7 +332,6 @@ complex_functionT q_r(World& world, const int np, const complex_functionT psi0, 
 	std::vector<complex_functionT> ps(np), ps1(np);
 //    for (int i=0; i<np; ++i) ps[i] = copy(psi0);
 	
-	
 	double tdum = current_time;
 	complex_functionT pdum;
 	std::vector<complex_functionT> qs(np);
@@ -328,7 +339,6 @@ complex_functionT q_r(World& world, const int np, const complex_functionT psi0, 
 	std::vector< std::vector<functionT> > Vss(np);
 	for (int i=0; i<np; ++i) {
 		current_time = tdum + tstep*tc[i];
-		qs[i] = APPLY(Gs[np - i - 1].get(), psi0).truncate();
 		Vs[i] = factoryT(world).f(V).truncate_on_project();
 		Vs[i].truncate();
 		Vss[i].resize(np);
@@ -337,23 +347,33 @@ complex_functionT q_r(World& world, const int np, const complex_functionT psi0, 
 			Vss[i][k]=factoryT(world).f(V).truncate_on_project();
 			Vss[i][k].truncate();
 		}
+		//~ ps[i] = APPLY(Gs[np - i - 1].get(), psi0).truncate();  
+		//~ qs[i]=copy(ps[i]);
+		ps1[i] = APPLY(Gs[np - i - 1].get(), psi0).truncate();  
+		current_time = tdum + (i?tstep*tc[i-1]:0);
+		qs[i] =  trotter(world, (i?qs[i-1]:psi0), tstep*(tc[i]-(i?tc[i-1]:0)),Gtrs[i]); //current_time is implicitly changed.
 	}
+	for (int i=0; i<np; ++i)	for (int k=0; k<np; ++k) ps1[i] -= APPLY(Gss[i*np+k].get(), Vss[i][k]*myp(qs,tc[i]*tc[k])).scale(tstep*tc[i]*I*B[k]);
 	
+	ps = sub(world, ps1, qs);
+	qs = ps1;
 	// fix pt iterations for psi's on the quadrature pts
-	printf("fix iters");
-	double err;
-	ps=copy(world, qs);
+	fix_iter_tol = thresh / tstep;
+	printf("fix iters ");
+	double err = norm2(world, ps1)/np ;
+	
+	//~ ps=copy(world, qs);
 	for (int j=0; j<maxiter; ++j) {
+		printf(" %6.0e",err);
+		if (err <= fix_iter_tol) break;
 		err = 0;
 		ps1 = zero_functions<double_complex,1>(world, np);
 		for (int i=0; i<np; ++i) {
-                    for (int k=0; k<np; ++k) ps1[i] -= APPLY(Gss[i*np+k].get(), Vss[i][k]*myp(ps,tc[i]*tc[k])).scale(tstep*tc[i]*I*B[k]);
+            for (int k=0; k<np; ++k) ps1[i] -= APPLY(Gss[i*np+k].get(), Vss[i][k]*myp(ps,tc[i]*tc[k])).scale(tstep*tc[i]*I*B[k]);
 			err += ps1[i].truncate().norm2();
 		}
 		err /= np;
 		gaxpy(world, 1.0, qs, 1.0, ps1); ps = copy(world, ps1);
-		printf(" %6.0e",err);
-		if (err <= fix_iter_tol) break;
 	}
 	printf("\n");
 			
@@ -450,11 +470,17 @@ int main(int argc, char** argv) {
 
 	readin(np);
 	G = pcomplex_operatorT(MAKE_PROPAGATOR(world, tstep));
-        for (int i=0; i<np; ++i) 
+        for (int i=0; i<np; ++i)
             Gs.push_back(pcomplex_operatorT(MAKE_PROPAGATOR(world, (1-tc[i])*tstep)));
-        for (int j=0; j<np; ++j) 
-            for (int i=0; i<np; ++i) 
-                Gss.push_back(pcomplex_operatorT(MAKE_PROPAGATOR(world, (1-tc[i])*tstep*tc[j]))); //[j*np+i]
+			
+        for (int j=0; j<np; ++j)  {
+            //~ for (int i=0; i<np; ++i) Gss.push_back(pcomplex_operatorT(MAKE_PROPAGATOR(world, (1-tc[i])*tstep*tc[j]))); //[j*np+i] , 1-tc[i] = tc[np-i-1]  
+            for (int i=0; i<np-j; ++i) Gss.push_back(pcomplex_operatorT(MAKE_PROPAGATOR(world, (1-tc[i])*tstep*tc[j]))); //[j*np+i] , 1-tc[i] = tc[np-i-1]  
+			for (int i=np-j; i<np; ++i)  Gss.push_back(Gss[(np-1-i)*np+(np-1-j)]); //[j*np+i] , 1-tc[i] = tc[np-i-1]
+		}
+		
+        for (int i=0; i<1+(np>>1); ++i) Gtrs.push_back(pcomplex_operatorT(MAKE_PROPAGATOR(world, (tc[i]-(i?tc[i-1]:0))*tstep/2))); 
+		for (int i=1+(np>>1); i<np; ++i) Gtrs.push_back(Gtrs[np-i]);
 
         for (int step=0; step<nstep; step++) {
             print_info(world, psi, step);

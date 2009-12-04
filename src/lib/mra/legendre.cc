@@ -105,8 +105,8 @@ namespace madness {
 
     static const char *filename = "gaussleg";   // Is overridden by
     // These are the points and weights on [-1,1]
-    Tensor<double> points[max_npt+1];
-    Tensor<double> weights[max_npt+1];
+    static Tensor<double> points[max_npt+1];
+    static Tensor<double> weights[max_npt+1];
 
     /// read_data loads the precomputed Gauss-Legendre data
     static bool read_data() {
