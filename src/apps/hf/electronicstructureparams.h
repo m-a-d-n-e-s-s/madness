@@ -60,6 +60,8 @@ struct ElectronicStructureParams
   int solver;
   // k-mesh offset
   double koffset0, koffset1, koffset2;
+  // initial basis set
+  std::string basis;
   
   template <typename Archive>
   void serialize(Archive& ar) {
@@ -69,7 +71,7 @@ struct ElectronicStructureParams
         smear & nbands & ngridk0 & ngridk1 & ngridk2 &
         maxocc & kpoints & fractional & maxsub & 
         maxrotn & canon & solver & koffset0 & koffset1 & 
-        koffset2;
+        koffset2 & basis;
   }
 
   ElectronicStructureParams()
@@ -100,6 +102,7 @@ struct ElectronicStructureParams
     koffset0 = 0.0;
     koffset1 = 0.0;
     koffset2 = 0.0;
+    basis = "sto-3g";
   }
 
   void read_file(const std::string& filename)
@@ -130,6 +133,10 @@ struct ElectronicStructureParams
       else if (s == "functional")
       {
         f >> functional;
+      }
+      else if (s == "basis")
+      {
+        f >> basis;
       }
       else if (s == "lo")
       {

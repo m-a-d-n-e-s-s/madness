@@ -110,6 +110,8 @@ public:
     }
 };
 
+#define NTRANS 8
+
 class AtomicBasisFunctor : public FunctionFunctorInterface<std::complex<double>,3> {
 private:
   const AtomicBasisFunction aofunc;
@@ -117,9 +119,10 @@ private:
   const bool periodic;
   const KPoint kpt;
   std::vector<coordT> _specialpts;
-  Vector<std::complex<double>,3> tx;
-  Vector<std::complex<double>,3> ty;
-  Vector<std::complex<double>,3> tz;
+//  const int NTRANS = 2;
+  Vector<std::complex<double>,2*NTRANS+1> tx;
+  Vector<std::complex<double>,2*NTRANS+1> ty;
+  Vector<std::complex<double>,2*NTRANS+1> tz;
 public:
   AtomicBasisFunctor(const AtomicBasisFunction& aofunc, double R, 
                      bool periodic, const KPoint kpt)
@@ -131,16 +134,11 @@ public:
     r[0]=x; r[1]=y; r[2]=z;
     _specialpts=vector<coordT>(1,r);
 
-    double t1 = 1/sqrt(27);
-    for (int ir = -1; ir <= 1; ir += 1)
+    for (int ir = -NTRANS; ir <= NTRANS; ir += 1)
     {
-      const double TWO_PI = 2 * madness::constants::pi;
-//      tx[ir+1] = exp(std::complex<double>(0.0, kpt.k[0]*ir * R));
-//      ty[ir+1] = exp(std::complex<double>(0.0, kpt.k[1]*ir * R));
-//      tz[ir+1] = exp(std::complex<double>(0.0, kpt.k[2]*ir * R));
-      tx[ir+1] = 1.0 * t1;
-      ty[ir+1] = 1.0 * t1;
-      tz[ir+1] = 1.0 * t1;
+      tx[ir+NTRANS] = exp(std::complex<double>(0.0, kpt.k[0]*ir * R));
+      ty[ir+NTRANS] = exp(std::complex<double>(0.0, kpt.k[1]*ir * R));
+      tz[ir+NTRANS] = exp(std::complex<double>(0.0, kpt.k[2]*ir * R));
     }
 }
 
@@ -154,15 +152,18 @@ public:
     std::complex<double> value = 0.0;
     if (periodic)
     {
-      for (int xr = -1; xr <= 1; xr += 1)
+      for (int xr = -NTRANS; xr <= NTRANS; xr += 1)
       {
-        for (int yr = -1; yr <= 1; yr += 1)
+        for (int yr = -NTRANS; yr <= NTRANS; yr += 1)
         {
-          for (int zr = -1; zr <= 1; zr += 1)
+          for (int zr = -NTRANS; zr <= NTRANS; zr += 1)
           {
-            //std::complex<double> tmp = tx[xr+1]*ty[yr+1]*tz[zr+1];
-            //value += tmp*aofunc(x[0]+xr*R, x[1]+yr*R, x[2]+zr*R);
-            value += aofunc(x[0]+xr*R, x[1]+yr*R, x[2]+zr*R);
+            std::complex<double> t1 = tx[xr+NTRANS]*ty[yr+NTRANS]*tz[zr+NTRANS];
+            double kx0 = kpt.k[0] * x[0];
+            double kx1 = kpt.k[1] * x[1];
+            double kx2 = kpt.k[2] * x[2];
+            std::complex<double> t2 = exp(std::complex<double>(0.0, -kx0 - kx1 - kx2));
+            value += t1 * t2 * aofunc(x[0]+xr*R, x[1]+yr*R, x[2]+zr*R);
           }
         }
       }

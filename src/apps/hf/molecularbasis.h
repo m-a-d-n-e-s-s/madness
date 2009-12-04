@@ -88,7 +88,7 @@ public:
     /// Evaluates the entire shell returning the incremented result pointer
     double* eval(double rsq, double x, double y, double z, double* bf) const {
         double R = eval_radial(rsq);
-        if (R < 1e-8) {
+        if (fabs(R) < 1e-8) {
             for (int i=0; i<numbf; i++) bf[i] = 0.0;
 
         }
