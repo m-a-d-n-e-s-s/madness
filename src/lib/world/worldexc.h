@@ -33,13 +33,14 @@
 */
 
 
-#ifndef MADEXCEPT_H_
-#define MADEXCEPT_H_
+#ifndef MADNESS_WORLD_WORLDEXC_H__INCLUDED
+#define MADNESS_WORLD_WORLDEXC_H__INCLUDED
 
 /// \file worldexc.h
 /// \brief Implements MadnessException
 
-#include <iostream>
+#include <iosfwd>
+#include <exception>
 #include <madness_config.h>
 
 namespace madness {
@@ -112,4 +113,4 @@ throw madness::MadnessException(msg,0,value,__LINE__,__FUNCTION__,__FILE__)
 
 }
 
-#endif
+#endif // MADNESS_WORLD_WORLDEXC_H__INCLUDED
