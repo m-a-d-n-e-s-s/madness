@@ -117,4 +117,4 @@ class ParserHandler : public madness::FunctionFunctorInterface<T, NDIM> {
     }
 }; // end class parserhandler
 
-#endif MADNESS_MISC_PHANDLER_H__INCLUDED
+#endif // MADNESS_MISC_PHANDLER_H__INCLUDED
