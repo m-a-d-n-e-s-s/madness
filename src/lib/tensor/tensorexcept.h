@@ -33,15 +33,18 @@
 */
 
   
-#ifndef TENSOREXCEPT_H
-#define TENSOREXCEPT_H
+#ifndef MADNESS_TENSOR_TENSOREXCPT_H__INCLUDED
+#define MADNESS_TENSOR_TENSOREXCPT_H__INCLUDED
 
 /// \file tensorexcept.h
 /// \brief Declares and implements TensorException
 
+#include <iosfwd>
+#include <exception>
+
 namespace madness {
 /// Tensor is intended to throw only TensorExceptions
-    class TensorException {
+    class TensorException : public std::exception {
     public:
         const char* msg;
         const char* assertion;
@@ -60,20 +63,29 @@ namespace madness {
                 , t(tp)
                 , line(lin)
                 , function(func)
-        , filename(file) {};
+        , filename(file) {}
+
+        virtual const char* what() const throw() {
+            return msg;
+        }
     };
 
 // implemented in tensor.cc
     std::ostream& operator <<(std::ostream& out, const TensorException& e);
 
+#define TENSOR_STRINGIZE(X) #X
+#define TENSOR_EXCEPTION_AT(F, L) TENSOR_STRINGIZE(F) "(" TENSOR_STRINGIZE(L) ")"
+
 #define TENSOR_EXCEPTION(msg,value,t) \
-throw TensorException(msg,0,value,t,__LINE__,__FUNCTION__,__FILE__)
+throw TensorException("TENSOR EXCPETION: " TENSOR_EXCEPTION_AT( __FILE__, __LINE__ ) ": " msg , \
+    0,value,t,__LINE__,__FUNCTION__,__FILE__)
 
 #define TENSOR_ASSERT(condition,msg,value,t) \
 do {if (!(condition)) \
-    throw TensorException(msg,#condition,value,t,__LINE__,__FUNCTION__,__FILE__); \
+    throw TensorException("TENSOR ASSERTION FAILED: " TENSOR_EXCEPTION_AT( __FILE__, __LINE__ ) ": " msg , \
+        #condition,value,t,__LINE__,__FUNCTION__,__FILE__); \
    } while (0)
 
 }
 
-#endif
+#endif // MADNESS_TENSOR_TENSOREXCPT_H__INCLUDED
