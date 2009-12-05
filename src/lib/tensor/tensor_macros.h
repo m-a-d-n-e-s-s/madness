@@ -33,8 +33,8 @@
 */
 
   
-#ifndef TENSOR_MACRO_H
-#define TENSOR_MACRO_H
+#ifndef MADNESS_TENSOR_TENSOR_MACROS_H__INCLUDED
+#define MADNESS_TENSOR_TENSOR_MACROS_H__INCLUDED
 
 /** \file tensor_macros.h
     \brief Macros for easy and efficient iteration over tensors.
@@ -730,4 +730,4 @@ for (TensorIterator<X> iter2=x.unary_iterator(1,false,false); iter2._p0; ++iter2
         } \
   } } } while(0)
 
-#endif
+#endif // MADNESS_TENSOR_TENSOR_MACROS_H__INCLUDED

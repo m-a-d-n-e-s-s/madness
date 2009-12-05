@@ -32,7 +32,8 @@
   $Id$
 */
 
-
+#ifndef MADNESS_TENSOR_MXM_H__INCLUDED
+#define MADNESS_TENSOR_MXM_H__INCLUDED
 
 // This file is ONLY included into tensor.cc ... separated here just
 // to shrink file size.  Don't try to include anywhere else
@@ -348,3 +349,4 @@ inline void mTxmT(long dimi, long dimj, long dimk,
     }
 }
 #endif
+#endif // MADNESS_TENSOR_MXM_H__INCLUDED

@@ -1,5 +1,5 @@
-#ifndef MAD_VMATH_H
-#define MAD_VMATH_H
+#ifndef MADNESS_TENSOR_VMATH_H__INCLUDED
+#define MADNESS_TENSOR_VMATH_H__INCLUDED
 
 #include <madness_config.h>
 
@@ -10,5 +10,5 @@
 void vzExp(int n, const double_complex* x, double_complex* y);
 #endif
 
-#endif
+#endif // MADNESS_TENSOR_VMATH_H__INCLUDED
 

@@ -33,8 +33,8 @@
 */
 
 
-#ifndef TENSORITER_H
-#define TENSORITER_H
+#ifndef MADNESS_TENSOR_TENSORITER_H__INCLUDED
+#define MADNESS_TENSOR_TENSORITER_H__INCLUDED
 
 /// \file tensoriter.h
 /// \brief Declares TensorIterator
@@ -96,4 +96,4 @@ namespace madness {
     };
 
 }
-#endif
+#endif // MADNESS_TENSOR_TENSORITER_H__INCLUDED

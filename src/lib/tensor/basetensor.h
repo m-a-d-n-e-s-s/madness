@@ -33,8 +33,8 @@
 */
 
 
-#ifndef BASETNESOR_H
-#define BASETENSOR_H
+#ifndef MADNESS_TENSOR_BASETENSOR_H__INCLUDED
+#define MADNESS_TENSOR_BASETENSOR_H__INCLUDED
 
 /// \file basetensor.h
 /// \brief Declares BaseTensor
@@ -139,4 +139,4 @@ namespace madness {
 
 }
 
-#endif
+#endif // MADNESS_TENSOR_BASETENSOR_H__INCLUDED

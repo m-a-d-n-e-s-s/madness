@@ -33,8 +33,8 @@
 */
 
 
-#ifndef SLICE_H
-#define SLICE_H
+#ifndef MADNESS_TENSOR_SLICE_H__INCLUDED
+#define MADNESS_TENSOR_SLICE_H__INCLUDED
 
 /// \file slice.h
 /// \brief Declares and implements Slice
@@ -114,4 +114,4 @@ namespace madness {
 
 }
 
-#endif
+#endif // MADNESS_TENSOR_SLICE_H__INCLUDED

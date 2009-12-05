@@ -33,8 +33,8 @@
 */
 
   
-#ifndef TYPE_DATA_H
-#define TYPE_DATA_H
+#ifndef MADNESS_TENSOR_TYPE_DATA_H__INCLUDED
+#define MADNESS_TENSOR_TYPE_DATA_H__INCLUDED
 
 /// \file type_data.h
 /// \brief Defines and implements TensorTypeData, a type traits class.
@@ -190,4 +190,4 @@ public: \
 #undef DPEC
 #undef SPEC
 }
-#endif
+#endif // MADNESS_TENSOR_TYPE_DATA_H__INCLUDED

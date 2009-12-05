@@ -1,5 +1,5 @@
-#ifndef MTXMQ_H
-#define MTXMQ_H
+#ifndef MADNESS_TENSOR_MTXMQ_H__INCLUDED
+#define MADNESS_TENSOR_MTXMQ_H__INCLUDED
 
 #include <madness_config.h>
 
@@ -46,4 +46,4 @@ namespace madness {
                double_complex* restrict c, const double_complex* a, const double* b);
 }
 
-#endif
+#endif // MADNESS_TENSOR_MTXMQ_H__INCLUDED

@@ -1,5 +1,5 @@
-#ifndef MAD_ALIGNED_H
-#define MAD_ALIGNED_H
+#ifndef MADNESS_TENSOR_ALIGNED_H__INCLUDED
+#define MADNESS_TENSOR_ALIGNED_H__INCLUDED
 
 #include <madness_config.h>
 #include <tensor/tensor.h>
@@ -51,4 +51,4 @@ namespace madness {
 
 }
 
-#endif
+#endif // MADNESS_TENSOR_ALIGNED_H__INCLUDED

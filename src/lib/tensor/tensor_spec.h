@@ -1,3 +1,5 @@
+#ifndef MADNESS_TENSOR_TENSOR_SPEC_H__INCLUDED
+#define MADNESS_TENSOR_TENSOR_SPEC_H__INCLUDED
 
 // Instantiations for int
 template class Tensor<int>;
@@ -124,3 +126,5 @@ template Tensor< Tensor<float_complex>::scalar_type > real(const Tensor<float_co
 template Tensor< Tensor<float_complex>::scalar_type > imag(const Tensor<float_complex>& t);
 template Tensor<float_complex> conj(const Tensor<float_complex>& t);
 template Tensor<float_complex> conj_transpose(const Tensor<float_complex>& t);
+
+#endif // MADNESS_TENSOR_TENSOR_SPEC_H__INCLUDED

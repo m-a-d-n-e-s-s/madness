@@ -33,8 +33,8 @@
 */
 
 
-#ifndef TENSORH
-#define TENSORH
+#ifndef MADNESS_TENSOR_TENSOR_H__INCLUDED
+#define MADNESS_TENSOR_TENSOR_H__INCLUDED
 
 /// \file tensor.h
 /// \brief Declares and partially implements Tensor and SliceTensor.
@@ -1036,4 +1036,4 @@ namespace madness {
     template<> double_complex Tensor<double_complex>::max(long* ind) const ;
 
 }
-#endif
+#endif // MADNESS_TENSOR_TENSOR_H__INCLUDED

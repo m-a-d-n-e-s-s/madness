@@ -33,8 +33,8 @@
 */
 
 
-#ifndef VECTOR_FACTORY_H
-#define VECTOR_FACTORY_H
+#ifndef MADNESS_TENSOR_VECTOR_FACTORY_H__INCLUDED
+#define MADNESS_TENSOR_VECTOR_FACTORY_H__INCLUDED
 
 #include <vector>
 
@@ -113,4 +113,4 @@ namespace madness {
     }
 }
 
-#endif
+#endif // MADNESS_TENSOR_VECTOR_FACTORY_H__INCLUDED
