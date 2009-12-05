@@ -33,8 +33,8 @@
 */
 
 
-#ifndef LEGENDRE_H
-#define LEGENDRE_H
+#ifndef MADNESS_MRA_LEGENDRE_H__INCLUDED
+#define MADNESS_MRA_LEGENDRE_H__INCLUDED
 
 #include <madness_config.h>
 #include <world/world.h>
@@ -48,5 +48,5 @@ namespace madness {
     extern bool gauss_legendre_test(bool print=false);
 }
 
-#endif
+#endif // MADNESS_MRA_LEGENDRE_H__INCLUDED
 
