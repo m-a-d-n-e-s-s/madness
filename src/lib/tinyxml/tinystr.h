@@ -36,8 +36,8 @@ distribution.
 
 #ifndef TIXML_USE_STL
 
-#ifndef TIXML_STRING_INCLUDED
-#define TIXML_STRING_INCLUDED
+#ifndef MADNESS_TINYXML_TINYSTR_H__INCLUDED
+#define MADNESS_TINYXML_TINYSTR_H__INCLUDED
 
 #include <assert.h>
 #include <string.h>
@@ -315,5 +315,5 @@ public :
 
 } ;
 
-#endif	// TIXML_STRING_INCLUDED
+#endif	// MADNESS_TINYXML_TINYSTR_H__INCLUDED
 #endif	// TIXML_USE_STL

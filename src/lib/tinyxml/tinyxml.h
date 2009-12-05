@@ -23,8 +23,8 @@ distribution.
 */
 
 
-#ifndef TINYXML_INCLUDED
-#define TINYXML_INCLUDED
+#ifndef MADNESS_TINYXML_TINYXML_H__INCLUDED
+#define MADNESS_TINYXML_TINYXML_H__INCLUDED
 
 #ifdef _MSC_VER
 #pragma warning( push )
@@ -1799,5 +1799,5 @@ private:
 #pragma warning( pop )
 #endif
 
-#endif
+#endif // MADNESS_TINYXML_TINYXML_H__INCLUDED
 
