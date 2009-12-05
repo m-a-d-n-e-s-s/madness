@@ -33,8 +33,8 @@
 */
 
 
-#ifndef POWER_H
-#define POWER_H
+#ifndef MADNESS_MRA_POWER_H__INCLUDED
+#define MADNESS_MRA_POWER_H__INCLUDED
 
 //using namespace std;
 

@@ -1,5 +1,5 @@
-#ifndef MADNESS_INDEXIT_H
-#define MADNESS_INDEXIT_H
+#ifndef MADNESS_MRA_INDEXIT_H__INCLUDED
+#define MADNESS_MRA_INDEXIT_H__INCLUDED
 
 /// \file indexit.h
 /// \brief Provides IndexIterator
@@ -304,4 +304,4 @@ namespace madness {
     };
 }
 
-#endif
+#endif // MADNESS_MRA_INDEXIT_H__INCLUDED

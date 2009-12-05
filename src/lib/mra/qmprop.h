@@ -1,5 +1,5 @@
-#ifndef MADNESS_QM_PROP_H
-#define MADNESS_QM_PROP_H
+#ifndef MADNESS_MRA_QMPROP_H__INCLUDED
+#define MADNESS_MRA_QMPROP_H__INCLUDED
 
 /// \file qmprop.h
 /// \brief Prototypes for qm propagator

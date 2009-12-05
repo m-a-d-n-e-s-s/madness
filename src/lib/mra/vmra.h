@@ -1,5 +1,5 @@
-#ifndef MADNESS_VMRA_H
-#define MADNESS_VMRA_H
+#ifndef MADNESS_MRA_VMRA_H__INCLUDED
+#define MADNESS_MRA_VMRA_H__INCLUDED
 
 /// \file vmra.h
 
@@ -660,4 +660,4 @@ namespace madness {
     }
 
 }
-#endif
+#endif // MADNESS_MRA_VMRA_H__INCLUDED

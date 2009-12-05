@@ -36,8 +36,8 @@
 /// \brief Declares and partially implements MyPmap, LoadBalImpl and associated load balancing classes.
 
 
-#ifndef LOADBAL_H
-#define LOADBAL_H
+#ifndef MADNESS_MRA_LOADBAL_H__INCLUDED
+#define MADNESS_MRA_LOADBAL_H__INCLUDED
 
 #include <world/world.h>
 #include <misc/misc.h>
@@ -873,4 +873,4 @@ namespace madness {
 
 }
 
-#endif
+#endif // MADNESS_MRA_LOADBAL_H__INCLUDED

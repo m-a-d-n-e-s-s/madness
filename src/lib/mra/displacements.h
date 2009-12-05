@@ -1,5 +1,5 @@
-#ifndef MAD_DISPL_H
-#define MAD_DISPL_H
+#ifndef MADNESS_MRA_DISPLACEMENTS_H__INCLUDED
+#define MADNESS_MRA_DISPLACEMENTS_H__INCLUDED
 
 namespace madness {
     /// Holds displacements for applying operators to avoid replicating for all operators
@@ -149,4 +149,4 @@ namespace madness {
 
     };
 }
-#endif
+#endif // MADNESS_MRA_DISPLACEMENTS_H__INCLUDED

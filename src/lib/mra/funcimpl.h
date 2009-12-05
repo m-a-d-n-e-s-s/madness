@@ -32,8 +32,8 @@
  $Id$
  */
 
-#ifndef MAD_FUNC_DATA
-#define MAD_FUNC_DATA
+#ifndef MADNESS_MRA_FUNCIMPL_H__INCLUDED
+#define MADNESS_MRA_FUNCIMPL_H__INCLUDED
 
 /// \file funcimpl.h
 /// \brief Provides FunctionCommonData, FunctionImpl and FunctionFactory
@@ -2635,4 +2635,4 @@ namespace madness {
 
 }
 
-#endif
+#endif // MADNESS_MRA_FUNCIMPL_H__INCLUDED

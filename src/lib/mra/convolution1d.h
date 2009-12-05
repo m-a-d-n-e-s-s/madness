@@ -1,5 +1,5 @@
-#ifndef MAD_CONV1D_H
-#define MAD_CONV1D_H
+#ifndef MADNESS_MRA_CONVOLUTION1D_H__INCLUDED
+#define MADNESS_MRA_CONVOLUTION1D_H__INCLUDED
 
 #include <mra/mra.h>
 #include <limits.h>
@@ -616,7 +616,4 @@ namespace madness {
     };
 }
 
-
-
-
-#endif
+#endif // MADNESS_MRA_CONVOLUTION1D_H__INCLUDED

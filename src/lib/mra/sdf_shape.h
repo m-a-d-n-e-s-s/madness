@@ -5,8 +5,8 @@
 /// The surface function is 0 outside (signed distance function is positive)
 /// and 1 inside (negative).
 
-#ifndef __madness_sdf_shape__
-#define __madness_sdf_shape__
+#ifndef MADNESS_MRA_SDF_SHAPE_H__INCLUDED
+#define MADNESS_MRA_SDF_SHAPE_H__INCLUDED
 
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <mra/mra.h>
@@ -76,4 +76,4 @@ inline static void mask_complement(const Key<dim> &key, Tensor<Q> &t) {
 
 } // end of madness namespace
 
-#endif
+#endif // MADNESS_MRA_SDF_SHAPE_H__INCLUDED

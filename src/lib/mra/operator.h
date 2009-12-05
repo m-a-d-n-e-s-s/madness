@@ -1,5 +1,5 @@
-#ifndef MAD_OPERATOR_H
-#define MAD_OPERATOR_H
+#ifndef MADNESS_MRA_OPERATOR_H__INCLUDED
+#define MADNESS_MRA_OPERATOR_H__INCLUDED
 
 //extern "C" void daxpy_(const long*, const double*, const double*, const long*, double*, const long*);
 
@@ -506,4 +506,4 @@ namespace madness {
 
 
 
-#endif
+#endif // MADNESS_MRA_OPERATOR_H__INCLUDED

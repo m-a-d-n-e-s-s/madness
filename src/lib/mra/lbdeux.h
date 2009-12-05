@@ -1,5 +1,5 @@
-#ifndef WORLD_LOADBAL_DEUX
-#define WORLD_LOADBAL_DEUX
+#ifndef MADNESS_MRA_IBDEUX_H__INCLUDED
+#define MADNESS_MRA_IBDEUX_H__INCLUDED
 
 #include <mra/mra.h>
 #include <madness_config.h>
@@ -330,5 +330,5 @@ namespace madness {
 }
 
 
-#endif
+#endif // MADNESS_MRA_IBDEUX_H__INCLUDED
 

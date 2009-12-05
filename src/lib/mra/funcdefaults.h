@@ -1,5 +1,5 @@
-#ifndef MAD_FUNC_DEFAULTS_H
-#define MAD_FUNC_DEFAULTS_H
+#ifndef MADNESS_MRA_FUNCDEFAULTS_H__INCLUDED
+#define MADNESS_MRA_FUNCDEFAULTS_H__INCLUDED
 
 /// \file funcdefaults.h
 /// \brief Provides FunctionDefaults and utilities for coordinate transformation
@@ -208,4 +208,4 @@ namespace madness {
 
 
 }
-#endif
+#endif // MADNESS_MRA_FUNCDEFAULTS_H__INCLUDED

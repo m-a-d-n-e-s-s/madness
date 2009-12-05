@@ -1,5 +1,5 @@
-#ifndef MRA_FUNCPLOT_H
-#define MRA_FUNCPLOT_H
+#ifndef MADNESS_MRA_FUNCPLOT_H__INCLUDED
+#define MADNESS_MRA_FUNCPLOT_H__INCLUDED
 
 // No need to include this file yourself ... it is included in mra.h
 
@@ -364,4 +364,4 @@
         world.gop.fence();
     }
 
-#endif
+#endif // MADNESS_MRA_FUNCPLOT_H__INCLUDED

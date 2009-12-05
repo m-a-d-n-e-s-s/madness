@@ -14,8 +14,8 @@
 /// cases, so we use contours here.  The surface layer may not be equally thick
 /// around all points on the surface.
 
-#ifndef __madness_sdf_shape_3d__
-#define __madness_sdf_shape_3d__
+#ifndef MADNESS_MRA_SDF_SHAPE_3D_H__INCLUDED
+#define MADNESS_MRA_SDF_SHAPE_3D_H__INCLUDED
 
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <mra/sdf_shape.h>
@@ -318,4 +318,4 @@ class SDF_Cylinder : public SurfaceLayer<Q, 3> {
 
 } // end of madness namespace
 
-#endif
+#endif // MADNESS_MRA_SDF_SHAPE_3D_H__INCLUDED

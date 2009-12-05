@@ -1,5 +1,5 @@
-#ifndef MADNESS_ADQUAD_H
-#define MADNESS_ADQUAD_H
+#ifndef MADNESS_MRA_ADQUAD_H__INCLUDED
+#define MADNESS_MRA_ADQUAD_H__INCLUDED
 
 #include <mra/legendre.h>
 
@@ -90,4 +90,4 @@ namespace madness {
     }
 }
 
-#endif
+#endif // MADNESS_MRA_ADQUAD_H__INCLUDED

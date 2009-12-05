@@ -34,8 +34,8 @@
 */
 
 
-#ifndef MAD_MRA_H
-#define MAD_MRA_H
+#ifndef MADNESS_MRA_MRA_H__INCLUDED
+#define MADNESS_MRA_MRA_H__INCLUDED
 
 #include <world/world.h>
 #include <misc/misc.h>
@@ -1296,4 +1296,4 @@ namespace madness {
 #include <mra/vmra.h>
 
 
-#endif
+#endif // MADNESS_MRA_MRA_H__INCLUDED

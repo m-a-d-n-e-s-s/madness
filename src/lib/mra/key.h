@@ -32,8 +32,8 @@
  $Id$
  */
 
-#ifndef MAD_KEY_H
-#define MAD_KEY_H
+#ifndef MADNESS_MRA_KEY_H__INCLUDED
+#define MADNESS_MRA_KEY_H__INCLUDED
 
 /// \file key.h
 /// \brief Multidimension Key for MRA tree and associated iterators
@@ -391,5 +391,5 @@ namespace madness {
 
 }
 
-#endif
+#endif // MADNESS_MRA_KEY_H__INCLUDED
 

@@ -33,8 +33,8 @@
 */
 
 
-#ifndef TWOSCALE_H
-#define TWOSCALE_H
+#ifndef MADNESS_MRA_TWOSCALE_H__INCLUDED
+#define MADNESS_MRA_TWOSCALE_H__INCLUDED
 
 #include <madness_config.h>
 #include <tensor/tensor.h>
@@ -52,4 +52,4 @@ namespace madness {
     extern bool test_autoc();
 }
 
-#endif
+#endif // MADNESS_MRA_TWOSCALE_H__INCLUDED

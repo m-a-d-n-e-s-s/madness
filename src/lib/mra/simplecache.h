@@ -1,5 +1,5 @@
-#ifndef MAD_SIMPLECACHE_H
-#define MAD_SIMPLECACHE_H
+#ifndef MADNESS_MRA_SIMPLECACHE_H__INCLUDED
+#define MADNESS_MRA_SIMPLECACHE_H__INCLUDED
 
 #include <mra/mra.h>
 
@@ -71,4 +71,4 @@ namespace madness {
         }
     };
 }
-#endif
+#endif // MADNESS_MRA_SIMPLECACHE_H__INCLUDED

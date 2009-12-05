@@ -32,6 +32,8 @@
   $Id$
 */
 
+#ifndef MADNESS_MRA_MRAIMPL_H__INCLUDED
+#define MADNESS_MRA_MRAIMPL_H__INCLUDED
 
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <mra/mra.h>
@@ -1303,4 +1305,4 @@ namespace madness {
 
 }
 
-
+#endif // MADNESS_MRA_MRAIMPL_H__INCLUDED
