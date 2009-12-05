@@ -69,8 +69,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 */
 
-#ifndef FIBER_H
-#define FIBER_H
+#ifndef MADNESS_FIBER_FIBER_H__INCLUDED
+#define MADNESS_FIBER_FIBER_H__INCLUDED
 
 /* A fiber is a non-preemptively scheduled execution context, each
    fiber having an independent instruction stream and stack, but
@@ -165,4 +165,4 @@ size_t fiber_get_stacksize();
    free already cached stacks.  */
 void fiber_set_stacksize(size_t s);
 
-#endif
+#endif // MADNESS_FIBER_FIBER_H__INCLUDED
