@@ -852,7 +852,7 @@ struct Calculation {
         world.gop.fence();
         std::vector<double> norms;
         while(1){
-            norms = norm2(world, ao);
+            norms = norm2s(world, ao);
             initial_level += 2;
             if(initial_level >= 11)
                 throw "project_ao_basis: projection failed?";
@@ -1596,7 +1596,7 @@ struct Calculation {
         truncate(world, new_psi);
         END_TIMER(world, "Truncate new psi");
         vecfuncT r = sub(world, psi, new_psi);
-        std::vector<double> rnorm = norm2(world, r);
+        std::vector<double> rnorm = norm2s(world, r);
         double rms, maxval;
         vector_stats(rnorm, rms, maxval);
         err = maxval;
@@ -1906,8 +1906,8 @@ struct Calculation {
             Q = Q(Slice(1, -1), Slice(1, -1));
         }
         
-        std::vector<double> anorm = norm2(world, sub(world, amo, amo_new));
-        std::vector<double> bnorm = norm2(world, sub(world, bmo, bmo_new));
+        std::vector<double> anorm = norm2s(world, sub(world, amo, amo_new));
+        std::vector<double> bnorm = norm2s(world, sub(world, bmo, bmo_new));
         int nres = 0;
         for(unsigned int i = 0;i < amo.size();i++){
             if(anorm[i] > param.maxrotn){
