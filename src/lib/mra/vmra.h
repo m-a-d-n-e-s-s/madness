@@ -654,7 +654,7 @@ namespace madness {
     template <typename T, int NDIM>
     void normalize(World& world, std::vector< Function<T,NDIM> >& v, bool fence=true) {
         PROFILE_BLOCK(Vnormalize);
-        std::vector<double> nn = norm2(world, v);
+        std::vector<double> nn = norm2s(world, v);
         for (unsigned int i=0; i<v.size(); i++) v[i].scale(1.0/nn[i],false);
         if (fence) world.gop.fence();
     }
