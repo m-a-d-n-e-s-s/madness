@@ -31,6 +31,9 @@
 
 */
 
+#ifndef MADNESS_MISC_PHANDLER_H__INCLUDED
+#define MADNESS_MISC_PHANDLER_H__INCLUDED
+
 /// \file phandler.h
 /// \Interface for the muParser library for turning user-defined
 /// \functions into bytecode.
@@ -114,3 +117,4 @@ class ParserHandler : public madness::FunctionFunctorInterface<T, NDIM> {
     }
 }; // end class parserhandler
 
+#endif MADNESS_MISC_PHANDLER_H__INCLUDED

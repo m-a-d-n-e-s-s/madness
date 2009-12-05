@@ -1,5 +1,5 @@
-#ifndef WORLD_RAN_H
-#define WORLD_RAN_H
+#ifndef MADNESS_MISC_RAN_H__INCLUDED
+#define MADNESS_MISC_RAN_H__INCLUDED
 
 #include <madness_config.h>
 #include <world/worldthread.h>
@@ -130,4 +130,4 @@ namespace madness {
     template <> void RandomVector<float_complex>(int n, float_complex* t);
 }
 
-#endif
+#endif // MADNESS_MISC_RAN_H__INCLUDED

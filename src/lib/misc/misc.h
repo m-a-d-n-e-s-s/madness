@@ -33,8 +33,8 @@
 */
 
   
-#ifndef MADNESS_MISC_H
-#define MADNESS_MISC_H
+#ifndef MADNESS_MISC_MISC_H__INCLUDED
+#define MADNESS_MISC_MISC_H__INCLUDED
 
 /// \file misc.h
 /// \brief Header to declare stuff which has not yet found a home
@@ -50,7 +50,7 @@ namespace madness {
     void gprofexit(int id, int nproc);
 }
 
-#endif
+#endif // MADNESS_MISC_MISC_H__INCLUDED
 
 
 

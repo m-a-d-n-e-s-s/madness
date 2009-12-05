@@ -1,5 +1,5 @@
-#ifndef __madness_interpolation_1d__
-#define __madness_interpolation_1d__
+#ifndef MADNESS_MISC_INTERPOLATION_1D_H__INCLUDED
+#define MADNESS_MISC_INTERPOLATION_1D_H__INCLUDED
 
 #include <iostream>
 #include <cmath>
@@ -111,4 +111,4 @@ public:
     virtual ~CubicInterpolationTable() {};
 };
 
-#endif
+#endif // MADNESS_MISC_INTERPOLATION_1D_H__INCLUDED

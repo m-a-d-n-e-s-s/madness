@@ -5,8 +5,8 @@
 //   You can use it on your own
 //   When utilizing credit LIBROW site
 
-#ifndef _FFT_H_
-#define _FFT_H_
+#ifndef MADNESS_MISC_CFFT_H__INCLUDED
+#define MADNESS_MISC_CFFT_H__INCLUDED
 
 //   Include complex numbers header
 #include <complex>
@@ -52,4 +52,4 @@ protected:
     static void Scale(double_complex *const Data, const unsigned int N);
 };
 
-#endif
+#endif // MADNESS_MISC_CFFT_H__INCLUDED
