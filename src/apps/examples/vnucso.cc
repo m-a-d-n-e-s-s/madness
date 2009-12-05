@@ -209,8 +209,8 @@ void apply_potential(World& world,
     /*
       vector<double> rnormu;
       for (int axis=0; axis<3; axis++) {
-      rnormu= norm2(world,du[axis]);    
-      rnormu = norm2(world,dv[axis]);
+      rnormu= norm2s(world,du[axis]);    
+      rnormu = norm2s(world,dv[axis]);
     }
     */
     
@@ -253,8 +253,8 @@ void apply_potential(World& world,
 }
 
 void normalize2(World& world, vector<complex_functionT>& u, vector<complex_functionT>& v) {
-  vector<double> unorm = norm2(world,u);
-  vector<double> vnorm = norm2(world,v);
+  vector<double> unorm = norm2s(world,u);
+  vector<double> vnorm = norm2s(world,v);
   vector<double> normu(u.size());
 
   world.gop.fence();  
@@ -516,8 +516,8 @@ void doit(World& world) {
 	// normalize2(world, u_new, v_new);
 	// world.gop.fence(); // synce, clear memory
 	
-	vector<double> rnormu = norm2(world,add(world, u, u_new));
-	vector<double> rnormv = norm2(world,add(world, v, v_new));
+	vector<double> rnormu = norm2s(world,add(world, u, u_new));
+	vector<double> rnormv = norm2s(world,add(world, v, v_new));
 	vector<double> rnorm(nvec);
 	world.gop.fence();
 
