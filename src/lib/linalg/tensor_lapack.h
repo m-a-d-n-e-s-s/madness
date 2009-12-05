@@ -33,8 +33,8 @@
 */
 
   
-#ifndef TENSOR_LAPACK_H
-#define TENSOR_LAPACK_H
+#ifndef MADNESS_LINALG_TENSOR_LAPACK_H__INCLUDED
+#define MADNESS_LINALG_TENSOR_LAPACK_H__INCLUDED
 
 #include <tensor/tensor.h>
 
@@ -73,4 +73,4 @@ namespace madness {
     bool test_tensor_lapack();
 }
 
-#endif
+#endif // MADNESS_LINALG_TENSOR_LAPACK_H__INCLUDED

@@ -33,8 +33,8 @@
 */
 
   
-#ifndef CLAPACK_H
-#define CLAPACK_H
+#ifndef MADNESS_LINALG_CLAPACK_H__INCLUDED
+#define MADNESS_LINALG_CLAPACK_H__INCLUDED
 
 /// \file clapack.h
 /// \brief C++ prototypes for Fortran LAPACK with associated typedefs and macos
@@ -166,4 +166,4 @@ void dtrsm_(const char* side, const char* uplo, const char* transa, const char* 
             const real8* a, const integer* lda, real8* b, const integer* ldb, 
             char_len sidelen, char_len uplolen, char_len transalen, char_len diaglen);
 
-#endif
+#endif // MADNESS_LINALG_CLAPACK_H__INCLUDED

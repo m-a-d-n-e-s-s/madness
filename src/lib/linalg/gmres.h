@@ -32,8 +32,8 @@
   $Id$
 */
 
-#ifndef MAD_GMRES_H
-#define MAD_GMRES_H
+#ifndef MADNESS_LINALG_GMRES_H__INCLUDED
+#define MADNESS_LINALG_GMRES_H__INCLUDED
 
 #include <tensor/tensor.h>
 #include <world/print.h>
@@ -416,4 +416,4 @@ namespace madness {
 
 } // end of madness namespace
 
-#endif
+#endif // MADNESS_LINALG_GMRES_H__INCLUDED

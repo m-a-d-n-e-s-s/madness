@@ -33,8 +33,8 @@
 */
 
   
-#ifndef CBLAS_H
-#define CBLAS_H
+#ifndef MADNESS_LINALG_CBLAS_H__INCLUDED
+#define MADNESS_LINALG_CBLAS_H__INCLUDED
 
 #include <fortran_ctypes.h>
 
@@ -48,5 +48,5 @@ namespace madness {
                                     T beta, T* c, integer ldc);
 }
 
-#endif
+#endif // MADNESS_LINALG_CBLAS_H__INCLUDED
 

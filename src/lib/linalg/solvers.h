@@ -1,5 +1,5 @@
-#ifndef MAD_SOLVERS_H
-#define MAD_SOLVERS_H
+#ifndef MADNESS_LINALG_SOLVERS_H__INCLUDED
+#define MADNESS_LINALG_SOLVERS_H__INCLUDED
 
 #include <tensor/tensor.h>
 #include <world/print.h>
@@ -221,7 +221,4 @@ namespace madness {
 
 }
 
-
-
-
-#endif
+#endif // MADNESS_LINALG_SOLVERS_H__INCLUDED
