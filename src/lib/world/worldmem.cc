@@ -32,13 +32,10 @@
   $Id: world.cc 454 2008-01-26 03:08:15Z rjharrison $
 */
 
-#include <exception>
-#include <new>
+#include <world/worldmem.h>
 #include <cstdlib>
-#include <cstdio>
+//#include <cstdio>
 #include <limits.h>
-#include <madness_config.h>
-#include <world/worldexc.h>
 
 /*
 
@@ -60,8 +57,6 @@
  */
 
 
-#include <world/worldmem.h>
-
 static madness::WorldMemInfo stats = {0, 0, 0, 0, 0, 0, ULONG_MAX, false};
 
 namespace madness {
@@ -71,6 +66,8 @@ namespace madness {
 }
 
 #ifdef WORLD_GATHER_MEM_STATS
+
+#include <exception>
 
 static const unsigned long pre_checksum = 0xdeadbeef;
 static const unsigned char post_checksum = 0xab;

@@ -35,8 +35,12 @@
   $Id: world.cc 454 2008-01-26 03:08:15Z rjharrison $
 */
 
+#include <madness_config.h>
 #include <iostream>
-#include <cstdio>
+#include <iomanip>
+#ifdef WORLD_GATHER_MEM_STATS
+#include <new>
+#endif // WORLD_GATHER_MEM_STATS
 
 namespace madness {
 
@@ -61,7 +65,8 @@ namespace madness {
             cur_num_bytes += size;
             if (cur_num_bytes > max_num_bytes) max_num_bytes = cur_num_bytes;
 
-            if (trace) printf("WorldMemInfo: allocating %p %lu\n", p, (unsigned long) size);
+            if (trace)
+                std::cout << "WorldMemInfo: allocating " << p << " " << size << "\n";
         }
 
         /// Invoked when user pointer p is deleted with size bytes
@@ -70,7 +75,8 @@ namespace madness {
             cur_num_frags--;
             cur_num_bytes -= size;
 
-            if (trace) printf("WorldMemInfo: deleting %p %lu\n", p, (unsigned long) size);
+            if (trace)
+                std::cout << "WorldMemInfo: deleting " << p << " " << size << "\n";
         }
 
     public:
@@ -88,12 +94,16 @@ namespace madness {
         /// Prints memory use statistics to std::cout
         void print() const {
             std::cout.flush();
-            printf("\n    MADNESS memory statistics\n");
-            printf("    -------------------------\n");
-            printf("      overhead bytes per frag %12lu\n", overhead);
-            printf("         calls to new and del %12lu %12lu\n", num_new_calls, num_del_calls);
-            printf("  cur and max frags allocated %12lu %12lu\n", cur_num_frags, max_num_frags);
-            printf("  cur and max bytes allocated %12lu %12lu\n", cur_num_bytes, max_num_bytes);
+            std::cout << "\n    MADNESS memory statistics\n";
+            std::cout << "    -------------------------\n";
+            std::cout << "      overhead bytes per frag " << std::setw(12)
+                << overhead << "\n";
+            std::cout << "         calls to new and del " << std::setw(12)
+                << num_new_calls << " " << std::setw(12) << num_del_calls << "\n";
+            std::cout << "  cur and max frags allocated " << std::setw(12)
+                << cur_num_frags << " " << std::setw(12) << max_num_frags << "\n";
+            std::cout << "  cur and max bytes allocated " << std::setw(12)
+                << cur_num_bytes << " " << std::setw(12) << max_num_bytes << "\n";
         }
 
         /// Resets all counters to zero
