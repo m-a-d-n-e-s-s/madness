@@ -982,7 +982,8 @@ namespace madness {
 
         Function<TENSOR_RESULT_TYPE(L,R),NDIM> result;
         result.set_impl(left, false);
-        result.get_impl()->binaryXX(left.get_impl.get(), right.get_impl.get(), op, tol, fence);
+        result.get_impl()->binaryXX(left.get_impl().get(), right.get_impl().get(), op, tol, fence);
+        return result;
     }
 
     /// Out of place application of unary operation to function values with optional fence
