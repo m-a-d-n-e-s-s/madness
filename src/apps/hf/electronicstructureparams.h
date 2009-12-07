@@ -62,6 +62,11 @@ struct ElectronicStructureParams
   double koffset0, koffset1, koffset2;
   // initial basis set
   std::string basis;
+  // number of IO nodes
+  int nio;
+  // restart calculation; no restart = 0; restart fully = 1;
+  // restart using only density = 2;
+  int restart;
   
   template <typename Archive>
   void serialize(Archive& ar) {
@@ -71,7 +76,7 @@ struct ElectronicStructureParams
         smear & nbands & ngridk0 & ngridk1 & ngridk2 &
         maxocc & kpoints & fractional & maxsub & 
         maxrotn & canon & solver & koffset0 & koffset1 & 
-        koffset2 & basis;
+        koffset2 & basis & nio & restart;
   }
 
   ElectronicStructureParams()
@@ -103,13 +108,15 @@ struct ElectronicStructureParams
     koffset1 = 0.0;
     koffset2 = 0.0;
     basis = "sto-3g";
+    nio = 1;
+    restart = 0;
   }
 
   void read_file(const std::string& filename)
   {
     std::ifstream f(filename.c_str());
     position_stream(f, "dft");
-    string s;
+    std::string s;
     bool bnelec = false;
     while (f >> s)
     {
@@ -142,9 +149,13 @@ struct ElectronicStructureParams
       {
         f >> lo;
       }
-      else if (s == "smear")
+      else if (s == "nio")
       {
-        f >> smear;
+        f >> nio;
+      }
+      else if (s == "restart")
+      {
+        f >> restart;
       }
       else if (s == "spinpol")
       {
