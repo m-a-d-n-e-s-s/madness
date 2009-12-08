@@ -88,6 +88,7 @@ void test_periodic(World& world) {
     FunctionDefaults<3>::set_k(k);
     FunctionDefaults<3>::set_cubic_cell(-L,L);
     FunctionDefaults<3>::set_thresh(thresh);
+	BoundaryConds<3> bcs(1);
 
     Function<double,3> f = FunctionFactory<double,3>(world).f(source);
     f.truncate();
@@ -102,7 +103,7 @@ void test_periodic(World& world) {
 
         SeparatedConvolution<double,3> op(world, k, ops, false, true);
 
-        Function<double,3> opf = apply(op,f);
+        Function<double,3> opf = apply(op,f,bcs);
 
         coordT r0(0.49);
         coordT r1(0.01);
@@ -128,6 +129,7 @@ void test_periodic2(World& world) {
     FunctionDefaults<3>::set_k(k);
     FunctionDefaults<3>::set_cubic_cell(-L,L);
     FunctionDefaults<3>::set_thresh(thresh);
+	BoundaryConds<3> bcs(1);
 
     Function<double,3> f = FunctionFactory<double,3>(world).f(source);
     f.truncate();
@@ -148,7 +150,7 @@ void test_periodic2(World& world) {
     SeparatedConvolution<double,3> op(world, k, ops, false, true);
     std::cout.precision(10);
 
-    Function<double,3> opf = apply(op,f);
+    Function<double,3> opf = apply(op,f,bcs);
     opf.reconstruct();
 
     for (int i=0; i<101; i++) {

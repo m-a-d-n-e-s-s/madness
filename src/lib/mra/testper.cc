@@ -61,6 +61,7 @@ void test_per(World& world) {
     FunctionDefaults<1>::set_thresh(thresh);
     FunctionDefaults<1>::set_truncate_mode(0);
     FunctionDefaults<1>::set_truncate_on_project(false);
+	BoundaryConds<1> bcs (1);
 
     Tensor<double> coeff(1L), expnt(1L);
     expnt[0] = 10000.0;
@@ -70,7 +71,7 @@ void test_per(World& world) {
 
     Function<double,1> f = FunctionFactory<double,1>(world).f(constant).initial_level(3).norefine();
 
-    Function<double,1> opf = apply(op,f);
+    Function<double,1> opf = apply(op,f,bcs);
 
     f.reconstruct();
 

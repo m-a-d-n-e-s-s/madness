@@ -121,6 +121,7 @@ void test_bsh(World& world) {
     FunctionDefaults<3>::set_autorefine(true);
     FunctionDefaults<3>::set_truncate_mode(0);
     FunctionDefaults<3>::set_truncate_on_project(false);
+	BoundaryConds<3> bcs(2);
 
     const coordT origin(0.0);
     const double expnt = 100.0;
@@ -154,7 +155,7 @@ void test_bsh(World& world) {
     Function<T,3> ff = copy(f);
     print("applying - 1");
     double start = cpu_time();
-    Function<T,3> opf = apply(op,ff);
+    Function<T,3> opf = apply(op,ff,bcs);
     print("done",cpu_time()-start);
     ff.clear();
     opf.verify_tree();
@@ -182,7 +183,7 @@ void test_bsh(World& world) {
     Function<T,3> opinvopf = opf*(mu*mu);
     for (int axis=0; axis<3; axis++) {
         print("diffing",axis);
-        opinvopf.gaxpy(1.0,diff(diff(opf,axis),axis).compress(),-1.0);
+        opinvopf.gaxpy(1.0,diff(diff(opf,axis,bcs),axis,bcs).compress(),-1.0);
     }
 
 //     plotdx(opinvopf, "opinvopf.dx", FunctionDefaults<3>::get_cell(), npt);
@@ -210,9 +211,9 @@ void test_bsh(World& world) {
 
     Function<T,3> g = (mu*mu)*f;
     for (int axis=0; axis<3; axis++) {
-        g = g - diff(diff(f,axis),axis);
+        g = g - diff(diff(f,axis,bcs),axis,bcs);
     }
-    g = apply(op,g);
+    g = apply(op,g,bcs);
     print("norm of G*(-del^2+mu^2)*f",g.norm2());
     print("error",(g-f).norm2());
 

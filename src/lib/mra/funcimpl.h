@@ -92,6 +92,107 @@ namespace madness {
         }
     };
 
+
+/**
+ * BoundaryConds is a class for boundary conditions. It contains, Tensor<int> bc, which holds the 
+ * Boundary Condition flags, and methods for checking that bc has the correct dimensions, and that
+ * the integer codes in bc are supported and consistent.
+ *
+ * For periodic codes the is_valid_bc method checks that both boundaries have the periodic flag.
+ *
+ */
+
+
+	template<int NDIM>
+	class BoundaryConds { 
+
+		private: 
+
+			Tensor<int> bc; 
+
+			bool is_valid_bc_code(const int code) {
+				bool is_valid = true;
+				if(!(code==0||code==1||code==2||code==3||code==4||code==5)) is_valid = false;
+				return is_valid;
+			}
+
+			bool is_valid_bc(){
+				bool is_valid = true;
+            	if(!(bc.dim[0]==NDIM && bc.dim[1]==2 && bc.ndim==2)) is_valid = false;
+	        	else for(int i=0; i<NDIM ; ++i){
+    	        	int tmp = bc(i,0);
+        	    	if(!is_valid_bc_code(tmp)) is_valid = false;
+	            	tmp = bc(i,1);
+    	        	if(!is_valid_bc_code(tmp)) is_valid = false;
+    	    	}
+	        	return is_valid;
+			}
+
+			bool is_valid_bc(const Tensor<int> potential_bc){
+				bool is_valid = true;
+            	if(!(potential_bc.dim[0]==NDIM && potential_bc.dim[1]==2 && potential_bc.ndim==2)) is_valid = false;
+	        	else for(int i=0; i<NDIM ; ++i){
+    	        	int tmp = potential_bc(i,0);
+        	    	if(!(tmp==0||tmp==1||tmp==2||tmp==3||tmp==4||tmp==5)) is_valid = false;
+	            	tmp = potential_bc(i,1);
+    	        	if(!(tmp==0||tmp==1||tmp==2||tmp==3||tmp==4||tmp==5)) is_valid = false;
+					if(tmp == 3){
+						if (!(potential_bc(i,0) == 3)) is_valid = false;
+					}
+    	    	}
+	        	return is_valid;
+			}
+
+		public:
+
+			// Constructor. Default boundary condition set to periodic
+			
+		    inline BoundaryConds(int code=1) {//=1?
+				if (!is_valid_bc_code(code)){
+		            MADNESS_EXCEPTION("BoundaryConds: invalid boundary condition",0);   /// no idea what the EXCEPTION code 0 represents
+				} 
+				else{
+					long dim[2];
+					dim[0]=NDIM;
+					dim[1]=2;
+			    	Tensor<int> tmp = Tensor<int>(2,dim);
+					tmp = code;
+					bc = tmp;
+				}
+		    };	
+
+			// General constructor. 
+			
+		    inline BoundaryConds(Tensor<int> bc_tensor) {
+				if(is_valid_bc(bc_tensor)){
+					bc = bc_tensor;
+				}
+				else {
+		            MADNESS_EXCEPTION("BoundaryConds: invalid boundary condition",0);   /// no idea what the EXCEPTION code 0 represents
+				}
+		    };	
+
+			// get_bc for operators to extract the bc tensor
+ 		    const Tensor<int>& get_bc() const{
+				return bc;
+		    }
+
+			// assignment operator
+			inline BoundaryConds<NDIM>&
+	        operator=(const Tensor<int>& other) {
+        		if(is_valid_bc(other)){
+                	bc = copy(other);
+			    }
+			    else{
+        	        MADNESS_EXCEPTION("operator= : invalid boundary condition",0);   /// no idea what the EXCEPTION code 0 represents
+            	}
+    	        return *this;
+	        }
+
+            template <typename Archive> void serialize(const Archive& ar) {};
+		
+	};
+
 /// FunctionCommonData holds all Function data common for given k
 
 /// Since Function assignment and copy constructors are shallow it
@@ -149,6 +250,8 @@ namespace madness {
                 initialized(false) {
         }
 
+		
+
         bool initialized;
     public:
         typedef Tensor<T> tensorT; ///< Type of tensor used to hold coeff
@@ -178,6 +281,23 @@ namespace madness {
 
         Tensor<double> rm, r0, rp; ///< Blocks of the derivative operator
         Tensor<double> rm_left, rm_right, rp_left, rp_right; ///< Rank-1 forms rm & rp
+
+        Tensor<double> rm_parta, r0_parta, r0_part, r0_partb, rp_partb; ///< Blocks of the interior derivative operator
+
+		// Blocks of the derivative operator for boundary nodes
+		// d = dirichlet
+		// n = neuman
+		// i = ignore boundary ("one sided" derivative)
+        Tensor<double> r0_d0, r0_d1; ///< for imposed BC
+        Tensor<double> r0_i0, r0_i1; ///< for no BC
+        Tensor<double> rm_n0, r0_n0, r0_n1, rp_n1; ///< for deriv BC
+
+        Tensor<double> r0_d0_part, r0_d1_part; ///< for imposed BC
+        Tensor<double> r0_n0_part, r0_n0_parta, r0_n1_part, r0_n1_partb; ///< for deriv BC
+        Tensor<double> rm_n0_parta, rp_n1_partb; ///< for deriv BC
+
+        Tensor<double> bv_0, bv_1, bvn_0, bvn_1; ///< for constructing boundary contributions
+
 
         static const FunctionCommonData<T, NDIM>&
         get(int k) {
@@ -230,6 +350,7 @@ namespace madness {
     template<typename T, int NDIM>
     class FunctionFactory {
         friend class FunctionImpl<T, NDIM> ;
+		friend class BoundaryConds<NDIM> ;
         typedef Vector<double, NDIM> coordT; ///< Type of vector holding coordinates
     protected:
         World& _world;
@@ -243,7 +364,7 @@ namespace madness {
         bool _autorefine;
         bool _truncate_on_project;
         bool _fence;
-        Tensor<int> _bc;
+//        Tensor<int> _bc;
         SharedPtr<WorldDCPmapInterface<Key<NDIM> > > _pmap;
         SharedPtr<FunctionFunctorInterface<T, NDIM> > _functor;
 
@@ -271,7 +392,7 @@ namespace madness {
                 _autorefine(FunctionDefaults<NDIM>::get_autorefine()),
                 _truncate_on_project(
                     FunctionDefaults<NDIM>::get_truncate_on_project()),
-                _fence(true), _bc(FunctionDefaults<NDIM>::get_bc()),
+                _fence(true), //_bc(FunctionDefaults<NDIM>::get_bc()),
                 _pmap(FunctionDefaults<NDIM>::get_pmap()), _functor(0) {
         }
         FunctionFactory&
@@ -322,11 +443,15 @@ namespace madness {
             _refine = !norefine;
             return *this;
         }
+
+/*
         FunctionFactory&
         bc(const Tensor<int>& bc) {
             _bc = copy(bc);
             return *this;
         }
+*/
+
         FunctionFactory&
         empty() {
             _empty = true;
@@ -614,6 +739,7 @@ namespace madness {
 
         //template <typename Q, int D> friend class Function;
         template <typename Q, int D> friend class FunctionImpl;
+        template <int D> friend class BoundaryConds;
 
         friend class LoadBalImpl<NDIM>;
         friend class LBTree<NDIM>;
@@ -638,7 +764,7 @@ namespace madness {
 
         dcT coeffs; ///< The coefficients
 
-        Tensor<int> bc; ///< Type of boundary condition -- currently only zero or periodic
+//        Tensor<int> bc; ///< Type of boundary condition -- currently only zero or periodic
 
         // Disable the default copy constructor
         FunctionImpl(const FunctionImpl<T,NDIM>& p);
@@ -661,7 +787,7 @@ namespace madness {
                 , functor(factory._functor)
                 , compressed(false)
                 , coeffs(world,factory._pmap,false)
-                , bc(factory._bc)
+//                , bc(factory._bc)
             {
             PROFILE_MEMBER_FUNC(FunctionImpl);
             // !!! Ensure that all local state is correctly formed
@@ -720,7 +846,7 @@ namespace madness {
                 , functor()
                 , compressed(other.compressed)
                 , coeffs(world, pmap ? pmap : other.coeffs.get_pmap())
-                , bc(other.bc)
+//                , bc(other.bc)
             {
             if (dozero) {
                 initial_level = 1;
@@ -803,7 +929,7 @@ namespace madness {
 
             // note that functor should not be (re)stored
             ar & thresh & initial_level & max_refine_level & truncate_mode
-            & autorefine & truncate_on_project & nonstandard & compressed & bc;
+            & autorefine & truncate_on_project & nonstandard & compressed; // & bc;
 
             ar & coeffs;
             world.gop.fence();
@@ -815,7 +941,7 @@ namespace madness {
 
             // note that functor should not be (re)stored
             ar & k & thresh & initial_level & max_refine_level & truncate_mode
-            & autorefine & truncate_on_project & nonstandard & compressed & bc;
+            & autorefine & truncate_on_project & nonstandard & compressed; // & bc;
 
             ar & coeffs;
             world.gop.fence();
@@ -929,6 +1055,7 @@ namespace madness {
         /// Currently used by diff, but other uses can be anticipated
         const tensorT parent_to_child(const tensorT& s, const keyT& parent, const keyT& child) const;
 
+/*
         ///Change bv on the fly. Temporary workaround until better bc handling is introduced.
         void set_bc(const Tensor<int>& value) {
             bc=copy(value);
@@ -938,6 +1065,7 @@ namespace madness {
         const Tensor<int>& get_bc() const {
             return bc;
         }
+*/
 
         Key<NDIM> simpt2key(const coordT& pt, Level n) const {
             Vector<Translation,NDIM> l;
@@ -1787,7 +1915,12 @@ namespace madness {
 
         /// Result of differentiating f is placed into this which will
         /// have the same process map, etc., as f
-        void diff(const implT& f, int axis, bool fence);
+        void diff(const implT& f, int axis, const BoundaryConds<NDIM>& bdry_conds, bool fence);
+        //void diff(const implT& f, int axis, const double aaa, const double bbb, const BoundaryConds<NDIM>& bdry_conds, bool fence);
+
+		// for derivatives with nonzero boundary conditions, the full derivative is given by diff+diff_bdry
+        void diff_bdry(const implT& f, int axis, const BoundaryConds<NDIM>& bdry_conds, const implT& g, bool fence);
+        void diff_bdry(const implT& f, int axis, const BoundaryConds<NDIM>& bdry_conds, const implT& g1, const implT& g2, bool fence);
 
         Void sum_down_spawn(const keyT& key, const tensorT& s) {
             typename dcT::accessor acc;
@@ -1913,14 +2046,16 @@ namespace madness {
         /// Out of volume keys are mapped to enforce the BC as follows.
         ///   * Periodic BC map back into the volume and return the correct key
         ///   * Zero BC - returns invalid() to indicate out of volume
-        keyT neighbor(const keyT& key, int axis, int step) const;
+        //keyT neighbor(const keyT& key, int axis, int step) const;
+        keyT neighbor(const keyT& key, int axis, int step, const Tensor<int>& bc) const;
 
         /// Returns key of general neighbor enforcing BC
 
         /// Out of volume keys are mapped to enforce the BC as follows.
         ///   * Periodic BC map back into the volume and return the correct key
         ///   * Zero BC - returns invalid() to indicate out of volume
-        keyT neighbor(const keyT& key, const keyT& disp) const;
+        //keyT neighbor(const keyT& key, const keyT& disp) const;
+        keyT neighbor(const keyT& key, const keyT& disp, const Tensor<int>& bc) const;
 
         /// Called by diff to find key and coeffs of neighbor enforcing BC
 
@@ -1929,7 +2064,8 @@ namespace madness {
         /// do_diff1 handles the adpative refinement.  If it needs to refine, it calls
         /// forward_do_diff1 to pass the task locally or remotely with high priority.
         /// Actual differentiation is performend by do_diff2.
-        Future< std::pair<keyT,tensorT> > find_neighbor(const keyT& key, int axis, int step) const;
+        //Future< std::pair<keyT,tensorT> > find_neighbor(const keyT& key, int axis, int step) const;
+        Future< std::pair<keyT,tensorT> > find_neighbor(const keyT& key, int axis, int step, const Tensor<int>& bc) const;
 
         /// Used by diff1 to forward calls to diff1 elsewhere
 
@@ -1941,20 +2077,62 @@ namespace madness {
         /// tasks get normal priority.  This is an attempt to get all
         /// of the communication and adaptive refinement happening
         /// in parallel to productive computation.
-        Void forward_do_diff1(const implT* f, int axis, const keyT& key,
+        //Void forward_do_diff1(const implT* f, int axis, const keyT& key,
+        Void forward_do_diff1(const implT* f, int axis, const Tensor<int>&bc, const keyT& key,
                               const std::pair<keyT,tensorT>& left,
                               const std::pair<keyT,tensorT>& center,
                               const std::pair<keyT,tensorT>& right);
 
-        Void do_diff1(const implT* f, int axis, const keyT& key,
+        //Void do_diff1(const implT* f, int axis, const keyT& key,
+        Void do_diff1(const implT* f, int axis, const Tensor<int>&bc,  const keyT& key,
                       const std::pair<keyT,tensorT>& left,
                       const std::pair<keyT,tensorT>& center,
                       const std::pair<keyT,tensorT>& right);
 
-        Void do_diff2(const implT* f, int axis, const keyT& key,
+		// do_diff2i handles interior and periodic boundary nodes
+		// do_diff2b handles all other boundary nodes
+        //Void do_diff2i(const implT* f, int axis, const keyT& key,
+        Void do_diff2i(const implT* f, int axis, const Tensor<int>&bc,  const keyT& key,
+                       const std::pair<keyT,tensorT>& left,
+                       const std::pair<keyT,tensorT>& center,
+                       const std::pair<keyT,tensorT>& right);
+
+        //Void do_diff2b(const implT* f, int axis, const keyT& key,
+        Void do_diff2b(const implT* f, int axis, const Tensor<int>&bc,  const keyT& key,
+                       const std::pair<keyT,tensorT>& left,
+                       const std::pair<keyT,tensorT>& center,
+                       const std::pair<keyT,tensorT>& right);
+
+/*
+		/// Same as above, but for user-supplied a, b
+        //Void forward_do_diff1_ab(const implT* f, int axis, const keyT& key,
+        Void forward_do_diff1_ab(const implT* f, int axis, const Tensor<int>&bc,  const keyT& key,
+                              const std::pair<keyT,tensorT>& left,
+                              const std::pair<keyT,tensorT>& center,
+                              const std::pair<keyT,tensorT>& right,
+							  const std::vector<double> ab);
+
+        //Void do_diff1_ab(const implT* f, int axis, const keyT& key,
+        Void do_diff1_ab(const implT* f, int axis, const Tensor<int>&bc,  const keyT& key,
                       const std::pair<keyT,tensorT>& left,
                       const std::pair<keyT,tensorT>& center,
-                      const std::pair<keyT,tensorT>& right);
+                      const std::pair<keyT,tensorT>& right,
+					  const std::vector<double> ab);
+
+        //Void do_diff2_ab(const implT* f, int axis, const keyT& key,
+        Void do_diff2_ab_i(const implT* f, int axis, const Tensor<int>&bc,  const keyT& key,
+                      const std::pair<keyT,tensorT>& left,
+                      const std::pair<keyT,tensorT>& center,
+                      const std::pair<keyT,tensorT>& right,
+					  const std::vector<double> ab);
+
+        //Void do_diff2_ab(const implT* f, int axis, const keyT& key,
+        Void do_diff2_ab_b(const implT* f, int axis, const Tensor<int>&bc,  const keyT& key,
+                      const std::pair<keyT,tensorT>& left,
+                      const std::pair<keyT,tensorT>& center,
+                      const std::pair<keyT,tensorT>& right,
+					  const std::vector<double> ab);
+*/
 
         /// Permute the dimensions according to map
         void mapdim(const implT& f, const std::vector<long>& map, bool fence);
@@ -2098,8 +2276,9 @@ namespace madness {
         }
             
         // Broaden tree
-        void broaden(bool fence) {
+        void broaden(const BoundaryConds<NDIM>& bdry_conds, bool fence) {
             typename dcT::iterator end = coeffs.end();
+			Tensor<int> bc = copy(bdry_conds.get_bc());
             for (typename dcT::iterator it=coeffs.begin(); it!=end; ++it) {
                 const keyT& key = it->first;
                 nodeT& node = it->second;
@@ -2123,7 +2302,7 @@ namespace madness {
                             else if (l[d] ==  1) 
                                 l[d] = 2 - odd;
                         }
-                        keyT neigh = neighbor(key, keyT(key.level(),l));
+                        keyT neigh = neighbor(key, keyT(key.level(),l),bc);
 
                         if (neigh.is_valid()) {
                             v[i++] = send(coeffs.owner(neigh), &implT::exists_and_has_children, neigh);
@@ -2288,7 +2467,7 @@ namespace madness {
         }
 
         template <typename opT, typename R>
-        Void do_apply(const opT* op, const FunctionImpl<R,NDIM>* f, const keyT& key, const Tensor<R>& c) {
+        Void do_apply(const opT* op, const FunctionImpl<R,NDIM>* f, const keyT& key, const Tensor<R>& c, const Tensor<int>& bc) {
             PROFILE_MEMBER_FUNC(FunctionImpl);
             // insert timer here
             double fac = 10.0; //3.0; // 10.0 seems good for qmprop ... 3.0 OK for others
@@ -2300,7 +2479,7 @@ namespace madness {
             for (typename std::vector<keyT>::const_iterator it=disp.begin(); it != disp.end(); ++it) {
                 const keyT& d = *it;
 
-                keyT dest = neighbor(key, d);
+                keyT dest = neighbor(key, d, bc);
 
                 // For periodic directions restrict translations to be no more than
                 // half of the unit cell to avoid double counting.
@@ -2312,6 +2491,7 @@ namespace madness {
                         break;
                     }
                 }
+
                 if (notdoit) break;
 
                 if (dest.is_valid()) {
@@ -2329,7 +2509,7 @@ namespace madness {
                             do_op_args args(key, d, dest, tol, fac, cnorm);
                             task(where, &implT:: template do_apply_kernel<opT,R>, op, c, args);
                         } else {
-                            tensorT result = op->apply(key, d, c, tol/fac/cnorm);
+                            tensorT result = op->apply(key, d, c, tol/fac/cnorm); // 
                             if (result.normf()> 0.3*tol/fac) {
                                 coeffs.task(dest, &nodeT::accumulate, result, coeffs, dest, TaskAttributes::hipri());
                             }
@@ -2341,8 +2521,9 @@ namespace madness {
         }
 
         template <typename opT, typename R>
-        void apply(opT& op, const FunctionImpl<R,NDIM>& f, bool fence) {
+        void apply(opT& op, const FunctionImpl<R,NDIM>& f, const BoundaryConds<NDIM>& bdry_conds, bool fence) {
             PROFILE_MEMBER_FUNC(FunctionImpl);
+			Tensor<int> bc = copy(bdry_conds.get_bc());
             typename dcT::const_iterator end = f.coeffs.end();
             for (typename dcT::const_iterator it=f.coeffs.begin(); it!=end; ++it) {
 				// looping through all the coefficients in the source
@@ -2357,7 +2538,7 @@ namespace madness {
                         else {
                             p = coeffs.owner(key);
                         }
-                        task(p, &implT:: template do_apply<opT,R>, &op, &f, key, node.coeff());
+                        task(p, &implT:: template do_apply<opT,R>, &op, &f, key, node.coeff(), bc);
                     }
                 }
             }

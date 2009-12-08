@@ -55,10 +55,54 @@ namespace madness {
     template <typename T, int NDIM>
     void FunctionCommonData<T,NDIM>::_make_dc_periodic() {
         // See ABGV for details
+        // centered difference
         r0 = Tensor<double>(k,k);
         rp = Tensor<double>(k,k);
         rm = Tensor<double>(k,k);
 
+        // user defined a, b
+        r0_part = Tensor<double>(k,k);
+        r0_parta = Tensor<double>(k,k);
+        r0_partb = Tensor<double>(k,k);
+        rp_partb = Tensor<double>(k,k);
+        rm_parta = Tensor<double>(k,k);
+
+		// Matrices for boundary nodes
+		// d = dirichlet
+		// n = neuman
+		// i = ignore boundary ("one sided" derivative)
+
+        r0_i0 = Tensor<double>(k,k);    //r0 at left pt, for no imposed BC
+        r0_i1 = Tensor<double>(k,k);    //r0 at right pt, for no imposed BC
+
+        r0_d0 = Tensor<double>(k,k);    //r0 at left pt, for Dirichlet BC
+        r0_d1 = Tensor<double>(k,k);    //r0 at right pt, for Dirichlet BC
+
+        r0_n0 = Tensor<double>(k,k);    //r0 at left pt, for deriv BC
+        rm_n0 = Tensor<double>(k,k);    //rm at left pt, for deriv BC
+        r0_n1 = Tensor<double>(k,k);    //r0 at right pt, for deriv BC
+        rp_n1 = Tensor<double>(k,k);    //rp at right pt, for deriv BC
+
+		// Matrices for boundary nodes.  user defined a, b
+
+        r0_d0_part = Tensor<double>(k,k);    //r0 at left pt, for Dirichlet BC
+        r0_d1_part = Tensor<double>(k,k);    //r0 at right pt, for Dirichlet BC
+
+        r0_n0_part = Tensor<double>(k,k);    //r0 at left pt, for deriv BC
+        r0_n0_parta = Tensor<double>(k,k);    //r0 at left pt, for deriv BC
+        rm_n0_parta = Tensor<double>(k,k);    //rm at left pt, for deriv BC
+        r0_n1_part = Tensor<double>(k,k);    //r0 at right pt, for deriv BC
+        r0_n1_partb = Tensor<double>(k,k);    //r0 at right pt, for deriv BC
+        rp_n1_partb = Tensor<double>(k,k);    //rp at right pt, for deriv BC
+
+		// Tensors for construction boundary terms
+        bv_0 = Tensor<double>(k);    //left bdry term, for Dirichlet BC 
+        bv_1 = Tensor<double>(k);    //right bdry term, for Dirichlet BC
+        bvn_0 = Tensor<double>(k);   //left bdry term, for Neumann BC
+        bvn_1 = Tensor<double>(k);   //right bdry term, for Neumann BC
+
+        double kphase = -1.0;
+        if (k%2 == 0) kphase = 1.0;
         double iphase = 1.0;
         for (int i=0; i<k; i++) {
             double jphase = 1.0;
@@ -70,12 +114,60 @@ namespace madness {
                 else
                     Kij = 0.0;
 
+                r0_part(i,j) = (1. - iphase*jphase - Kij)*gammaij;  //r0 = a*r0_parta + r0_part +b*r0_partb
+                r0_parta(i,j) =  -gammaij;
+                r0_partb(i,j) = iphase*jphase*gammaij;
+                rm_parta(i,j) = jphase*gammaij;   /// rm = a*rm_parta 
+                rp_partb(i,j) = -iphase*gammaij;  /// rp = b*rp_parta 
+
                 r0(i,j) = 0.5*(1.0 - iphase*jphase - 2.0*Kij)*gammaij;
                 rm(i,j) = 0.5*jphase*gammaij;
                 rp(i,j) =-0.5*iphase*gammaij;
+
+                r0_i0(i,j) = (0.5 - iphase*jphase - Kij)*gammaij;
+                r0_i1(i,j) = (1.0 - 0.5*iphase*jphase - Kij)*gammaij;
+
+                r0_d0(i,j) = (0.5 - Kij)*gammaij;
+                r0_d1(i,j) = -(0.5*iphase*jphase + Kij)*gammaij;
+
+                rm_n0(i,j) = jphase*gammaij*0.5*(1.0 + iphase*kphase/k);
+                rp_n1(i,j) = -0.5*(iphase + kphase / k)*gammaij;
+
+                r0_d0_part(i,j) = (1. - Kij)*gammaij; 
+                r0_d1_part(i,j) = -(iphase*jphase + Kij)*gammaij; 
+
+                rm_n0_parta(i,j) = jphase*gammaij*(1.0 + iphase*kphase/k);
+                rp_n1_partb(i,j) = -(iphase + kphase / k)*gammaij;
+
+		        double phi_tmpj_left = 0;
+     		    double phi_tmpj_right = 0;
+	            for (int l=0; l<k; l++) {
+                	double gammalj = sqrt(double((2*l+1)*(2*j+1)));
+	                double Klj;
+    	            if (((l-j)>0) && (((l-j)%2)==1))  Klj = 2.0;
+            	    else   Klj = 0.0;
+	            	phi_tmpj_left += sqrt(double(2*l+1))*Klj*gammalj;
+        		}
+		        phi_tmpj_right = phi_tmpj_left;
+		        phi_tmpj_left = -jphase*phi_tmpj_left;
+        		r0_n0(i,j) = (0.5*(1.0 + iphase*kphase/k) - Kij)*gammaij + iphase*sqrt(double(2*i+1))*phi_tmpj_left / pow(k,2) ;
+		        r0_n1(i,j) = -(0.5*jphase*(iphase+ kphase/k) + Kij)*gammaij + sqrt(double(2*i+1))*phi_tmpj_right/(k*k) ;
+
+		        r0_n0_part(i,j) = ((1.0 + iphase*kphase/k) - Kij)*gammaij + iphase*sqrt(double(2*i+1))*phi_tmpj_left / pow(k,2) ;
+		        r0_n0_parta(i,j) = -(1.0 + iphase*kphase/k)*gammaij;
+		        r0_n1_part(i,j) = -(jphase*(iphase+ kphase/k) + Kij)*gammaij + sqrt(double(2*i+1))*phi_tmpj_right/(k*k) ;
+		        r0_n1_partb(i,j) = jphase*(iphase+ kphase/k)*gammaij;
+
                 jphase = -jphase;
             }
             iphase = -iphase;
+
+	        //construct vectors for non-zero BCs
+            bv_0(i) = iphase*sqrt(double(2*i+1));         //vector for left dirichlet BC
+            bv_1(i) = sqrt(double(2*i+1));                //vector for right dirichlet BC
+            bvn_0(i) = -iphase*sqrt(double(2*i+1))/pow(k,2);  //vector for left deriv BC
+            bvn_1(i) = sqrt(double(2*i+1))/pow(k,2);         //vector for right deriv BC
+
         }
 
         // Make the rank-1 forms of rm and rp
@@ -838,17 +930,18 @@ namespace madness {
 
 
     template <typename T, int NDIM>
-    void FunctionImpl<T,NDIM>::diff(const implT& f, int axis, bool fence) {
+    void FunctionImpl<T,NDIM>::diff(const implT& f, int axis, const BoundaryConds<NDIM>& bdry_conds, bool fence) {
         PROFILE_MEMBER_FUNC(FunctionImpl);
         typedef std::pair<keyT,tensorT> argT;
+		Tensor<int> bc = copy(bdry_conds.get_bc());
         for (typename dcT::const_iterator it=f.coeffs.begin(); it!=f.coeffs.end(); ++it) {
             const keyT& key = it->first;
             const nodeT& node = it->second;
             if (node.has_coeff()) {
-                Future<argT> left = f.find_neighbor(key,axis,-1);
+                Future<argT> left = f.find_neighbor(key,axis,-1,bc);
                 argT center(key,node.coeff());
-                Future<argT> right  = f.find_neighbor(key,axis, 1);
-                task(world.rank(), &implT::do_diff1, &f, axis, key, left, center, right, TaskAttributes::hipri());
+                Future<argT> right  = f.find_neighbor(key,axis, 1,bc);
+                task(world.rank(), &implT::do_diff1, &f, axis, bc, key, left, center, right, TaskAttributes::hipri());
             }
             else {
                 // Internal empty node can be safely inserted
@@ -858,28 +951,56 @@ namespace madness {
         if (fence) world.gop.fence();
     }
 
+/*
+    template <typename T, int NDIM>
+    void FunctionImpl<T,NDIM>::diff(const implT& f, int axis, const double aaa, const double bbb, const BoundaryConds<NDIM>& bdry_conds, bool fence) {
+        PROFILE_MEMBER_FUNC(FunctionImpl);
+        typedef std::pair<keyT,tensorT> argT;
+		Tensor<int> bc = copy(bdry_conds.get_bc());
+		double ab[] = {aaa,bbb};
+        for (typename dcT::const_iterator it=f.coeffs.begin(); it!=f.coeffs.end(); ++it) {
+            const keyT& key = it->first;
+            const nodeT& node = it->second;
+            if (node.has_coeff()) {
+                Future<argT> left = f.find_neighbor(key,axis,-1,bc);
+                argT center(key,node.coeff());
+                Future<argT> right  = f.find_neighbor(key,axis, 1,bc);
+                task(world.rank(), &implT::do_diff1_ab, &f, axis, bc, key, left, center, right, ab, TaskAttributes::hipri());
+            }
+            else {
+                // Internal empty node can be safely inserted
+                coeffs.replace(key,nodeT(tensorT(),true));
+            }
+        }
+        if (fence) world.gop.fence();
+    }
+*/
+
+	/// For periodic boundaries, enforce_bc wraps the pointer around to get the correct neighbor
     static bool enforce_bc(int bc_left, int bc_right, Level n, Translation& l) {
         Translation two2n = 1ul << n;
         if (l < 0) {
-            if (bc_left == 0) {
-                return false; // Zero BC
+            if (bc_left == 0 || bc_left == 2 || bc_left ==3 || bc_left == 4 || bc_left == 5) {
+                return false; // f=0 BC, or no BC, or nonzero f BC, or zero deriv BC, or nonzero deriv BC
             }
             else if (bc_left == 1) {
                 l += two2n; // Periodic BC
+				MADNESS_ASSERT(bc_left == bc_right);   //check that both BCs are periodic
             }
             else {
                 MADNESS_EXCEPTION("enforce_bc: confused left BC?",bc_left);
             }
         }
         else if (l >= two2n) {
-            if (bc_right == 0) {
-                return false; // Zero BC
+            if (bc_right == 0 || bc_right == 2 || bc_right == 3 || bc_right ==4 || bc_right == 5) {
+                return false; // f=0 BC, or no BC, or nonzero f BC, or zero deriv BC, or nonzero deriv BC
             }
             else if (bc_right == 1) {
                 l -= two2n; // Periodic BC
+				MADNESS_ASSERT(bc_left == bc_right);   //check that both BCs are periodic
             }
             else {
-                MADNESS_EXCEPTION("enforce_bc: confused BC right?",bc_left);
+                MADNESS_EXCEPTION("enforce_bc: confused BC right?",bc_right);
             }
         }
         return true;
@@ -887,11 +1008,9 @@ namespace madness {
 
 
     template <typename T, int NDIM>
-    Key<NDIM> FunctionImpl<T,NDIM>::neighbor(const keyT& key, int axis, int step) const {
+    Key<NDIM> FunctionImpl<T,NDIM>::neighbor(const keyT& key, int axis, int step, const Tensor<int>& bc) const {
         Vector<Translation,NDIM> l = key.translation();
-
         l[axis] += step;
-
         if (!enforce_bc(bc(axis,0), bc(axis,1), key.level(), l[axis])) {
             return keyT::invalid();
         }
@@ -901,7 +1020,7 @@ namespace madness {
     }
 
     template <typename T, int NDIM>
-    Key<NDIM> FunctionImpl<T,NDIM>::neighbor(const keyT& key, const Key<NDIM>& disp) const {
+    Key<NDIM> FunctionImpl<T,NDIM>::neighbor(const keyT& key, const Key<NDIM>& disp, const Tensor<int>& bc) const {
         Vector<Translation,NDIM> l = key.translation();
 
         for (int axis=0; axis<NDIM; axis++) {
@@ -916,10 +1035,10 @@ namespace madness {
 
     template <typename T, int NDIM>
     Future< std::pair< Key<NDIM>,Tensor<T> > >
-    FunctionImpl<T,NDIM>::find_neighbor(const Key<NDIM>& key, int axis, int step) const {
+    FunctionImpl<T,NDIM>::find_neighbor(const Key<NDIM>& key, int axis, int step, const Tensor<int>& bc) const {
         PROFILE_MEMBER_FUNC(FunctionImpl);
         typedef std::pair< Key<NDIM>,Tensor<T> > argT;
-        keyT neigh = neighbor(key, axis, step);
+        keyT neigh = neighbor(key, axis, step, bc);
         if (neigh.is_invalid()) {
             return Future<argT>(argT(neigh,tensorT(cdata.vk))); // Zero bc
         }
@@ -932,7 +1051,7 @@ namespace madness {
     }
 
     template <typename T, int NDIM>
-    Void FunctionImpl<T,NDIM>::forward_do_diff1(const implT* f, int axis, const keyT& key,
+    Void FunctionImpl<T,NDIM>::forward_do_diff1(const implT* f, int axis, const Tensor<int>& bc, const keyT& key,
             const std::pair<keyT,tensorT>& left,
             const std::pair<keyT,tensorT>& center,
             const std::pair<keyT,tensorT>& right) {
@@ -940,23 +1059,56 @@ namespace madness {
         ProcessID owner = coeffs.owner(key);
         if (owner == world.rank()) {
             if (left.second.size == 0) {
-                task(owner, &implT::do_diff1, f, axis, key, f->find_neighbor(key,axis,-1), center, right, TaskAttributes::hipri());
+                task(owner, &implT::do_diff1, f, axis, bc, key, f->find_neighbor(key,axis,-1,bc), center, right, TaskAttributes::hipri());
             }
             else if (right.second.size == 0) {
-                task(owner, &implT::do_diff1, f, axis, key, left, center, f->find_neighbor(key,axis,1), TaskAttributes::hipri());
+                task(owner, &implT::do_diff1, f, axis, bc, key, left, center, f->find_neighbor(key,axis,1,bc), TaskAttributes::hipri());
             }
-            else {
-                task(owner, &implT::do_diff2, f, axis, key, left, center, right);
+            else if (left.first.is_invalid() || right.first.is_invalid() ){    //boundary node
+                task(owner, &implT::do_diff2b, f, axis, bc, key, left, center, right);
+            }
+            else { // interior node
+                task(owner, &implT::do_diff2i, f, axis, bc, key, left, center, right);
             }
         }
         else {
-            task(owner, &implT::forward_do_diff1, f, axis, key, left, center, right, TaskAttributes::hipri());
+            task(owner, &implT::forward_do_diff1, f, axis, bc, key, left, center, right, TaskAttributes::hipri());
         }
         return None;
     }
 
+/*
     template <typename T, int NDIM>
-    Void FunctionImpl<T,NDIM>::do_diff1(const implT* f, int axis, const keyT& key,
+    Void FunctionImpl<T,NDIM>::forward_do_diff1_ab(const implT* f, int axis, const Tensor<int>& bc, const keyT& key,
+            const std::pair<keyT,tensorT>& left,
+			const std::pair<keyT,tensorT>& center,
+            const std::pair<keyT,tensorT>& right,
+			const std::vector<double> ab) {
+        PROFILE_MEMBER_FUNC(FunctionImpl);
+        ProcessID owner = coeffs.owner(key);
+        if (owner == world.rank()) {
+            if (left.second.size == 0) {
+                task(owner, &implT::do_diff1_ab, f, bc, axis, key, f->find_neighbor(key,axis,-1,bc), center, right, ab, TaskAttributes::hipri());
+            }
+            else if (right.second.size == 0) {
+                task(owner, &implT::do_diff1_ab, f, axis, bc, key, left, center, f->find_neighbor(key,axis,1,bc), ab, TaskAttributes::hipri());
+            }
+            else if (left.first.is_invalid() || right.first.is_invalid() ){    //boundary node
+                task(owner, &implT::do_diff2_ab_b, f, axis, bc, key, left, center, right, ab);
+			}
+            else { //interior node
+                task(owner, &implT::do_diff2_ab_i, f, axis, bc, key, left, center, right, ab);
+            }
+        }
+        else {
+            task(owner, &implT::forward_do_diff1_ab, f, axis, bc, key, left, center, right, ab, TaskAttributes::hipri());
+        }
+        return None;
+    }
+*/
+
+    template <typename T, int NDIM>
+    Void FunctionImpl<T,NDIM>::do_diff1(const implT* f, int axis, const Tensor<int>& bc, const keyT& key,
                                         const std::pair<keyT,tensorT>& left,
                                         const std::pair<keyT,tensorT>& center,
                                         const std::pair<keyT,tensorT>& right) {
@@ -972,42 +1124,552 @@ namespace madness {
                 const keyT& child = kit.key();
                 if ((child.translation()[axis]&1) == 0) {
                     // leftmost child automatically has right sibling
-                    forward_do_diff1(f, axis, child, left, center, center);
+                    forward_do_diff1(f, axis, bc, child, left, center, center);
                 }
                 else {
                     // rightmost child automatically has left sibling
-                    forward_do_diff1(f, axis, child, center, center, right);
+                    forward_do_diff1(f, axis, bc, child, center, center, right);
                 }
             }
         }
         else {
-            forward_do_diff1(f, axis, key, left, center, right);
+            forward_do_diff1(f, axis, bc, key, left, center, right);
         }
         return None;
     }
 
+/*
     template <typename T, int NDIM>
-    Void FunctionImpl<T,NDIM>::do_diff2(const implT* f, int axis, const keyT& key,
+    Void FunctionImpl<T,NDIM>::do_diff1_ab(const implT* f, int axis, const Tensor<int>& bc, const keyT& key,
+                                           const std::pair<keyT,tensorT>& left,
+                                           const std::pair<keyT,tensorT>& center,
+                                           const std::pair<keyT,tensorT>& right,
+										   const std::vector<double> ab) {
+        PROFILE_MEMBER_FUNC(FunctionImpl);
+        typedef std::pair<keyT,tensorT> argT;
+        MADNESS_ASSERT(axis>=0 && axis<NDIM);
+        if (left.second.size==0 || right.second.size==0) {
+            // One of the neighbors is below us in the tree ... recur down
+            coeffs.replace(key,nodeT(tensorT(),true));
+            for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
+                const keyT& child = kit.key();
+                if ((child.translation()[axis]&1) == 0) {
+                    // leftmost child automatically has right sibling
+                    forward_do_diff1_ab(f, axis, bc, child, left, center, center, ab);
+                }
+                else {
+                    // rightmost child automatically has left sibling
+                    forward_do_diff1_ab(f, axis, bc, child, center, center, right, ab);
+                }
+            }
+        }
+        else {
+            forward_do_diff1_ab(f, axis, bc, key, left, center, right, ab);
+        }
+        return None;
+    }
+*/
+
+    template <typename T, int NDIM>
+    Void FunctionImpl<T,NDIM>::do_diff2i(const implT* f, int axis, const Tensor<int>& bc, const keyT& key,
                                         const std::pair<keyT,tensorT>& left,
                                         const std::pair<keyT,tensorT>& center,
                                         const std::pair<keyT,tensorT>& right) {
         PROFILE_MEMBER_FUNC(FunctionImpl);
         typedef std::pair<keyT,tensorT> argT;
-
         tensorT d = madness::inner(cdata.rp,
-                                   parent_to_child(left.second, left.first, neighbor(key,axis,-1)).swapdim(axis,0),
+                                   parent_to_child(left.second, left.first, neighbor(key,axis,-1,bc)).swapdim(axis,0),
                                    1, 0);
         inner_result(cdata.r0,
                      parent_to_child(center.second, center.first, key).swapdim(axis,0),
                      1, 0, d);
         inner_result(cdata.rm,
-                     parent_to_child(right.second, right.first, neighbor(key,axis,1)).swapdim(axis,0),
+                     parent_to_child(right.second, right.first, neighbor(key,axis,1,bc)).swapdim(axis,0),
                      1, 0, d);
         if (axis) d = copy(d.swapdim(axis,0)); // make it contiguous
         d.scale(FunctionDefaults<NDIM>::get_rcell_width()[axis]*pow(2.0,(double) key.level()));
         coeffs.replace(key,nodeT(d,false));
         return None;
     }
+
+/*
+    template <typename T, int NDIM>
+    Void FunctionImpl<T,NDIM>::do_diff2_ab_i(const implT* f, int axis, const Tensor<int>& bc, const keyT& key,
+                                           const std::pair<keyT,tensorT>& left,
+                                           const std::pair<keyT,tensorT>& center,
+                                           const std::pair<keyT,tensorT>& right,
+										   const std::vector<double> ab) {
+        PROFILE_MEMBER_FUNC(FunctionImpl);
+        typedef std::pair<keyT,tensorT> argT;
+        tensorT d_b = madness::inner(cdata.rp_partb,
+                                   parent_to_child(left.second, left.first, neighbor(key,axis,-1,bc)).swapdim(axis,0),
+                                   1, 0);
+        inner_result(cdata.r0_partb,
+                     parent_to_child(center.second, center.first, key).swapdim(axis,0),
+                     1, 0, d_b);
+        d_b *= ab[1];
+        tensorT d_a = madness::inner(cdata.rm_parta,
+                                   parent_to_child(left.second, left.first, neighbor(key,axis,-1,bc)).swapdim(axis,0),
+                                   1, 0);
+        inner_result(cdata.r0_parta,
+                     parent_to_child(center.second, center.first, key).swapdim(axis,0),
+                     1, 0, d_a);
+        d_a *= ab[0];
+        tensorT d = d_a + d_b;  // 
+        inner_result(cdata.r0_part,
+                     parent_to_child(center.second, center.first, key).swapdim(axis,0),
+                     1, 0, d);
+        if (axis) d = copy(d.swapdim(axis,0)); // make it contiguous
+        d.scale(FunctionDefaults<NDIM>::get_rcell_width()[axis]*pow(2.0,(double) key.level()));
+        coeffs.replace(key,nodeT(d,false));
+        return None;
+    }
+*/
+
+	// together with diff_bdry, deals with all non-periodic boundary intervals
+    // supported cases:
+    // 0 for f=0 BC
+    // 2 for no BC imposed
+    // 3 for general f BC
+    // 4 for f'=0
+    // 5 for general f' BC
+    // 
+    // 3rd tensorT (either left, or right) is not needed (and is all zeros)
+    //
+    // for cases 3, 5  diff_bdry must also be called, and the full derivative
+    // will be given by   diff(f,axis,bc) + diff_bdry(f,axis,bc)
+
+    template <typename T, int NDIM>
+    Void FunctionImpl<T,NDIM>::do_diff2b(const implT* f, int axis, const Tensor<int>& bc, const keyT& key,
+                                        const std::pair<keyT,tensorT>& left,
+                                        const std::pair<keyT,tensorT>& center,
+                                        const std::pair<keyT,tensorT>& right) {
+        PROFILE_MEMBER_FUNC(FunctionImpl);
+        typedef std::pair<keyT,tensorT> argT;
+        Vector<Translation,NDIM> l = key.translation();
+        double lev = (double) key.level() ;
+		int bc_left = bc(axis,0);
+		int bc_right = bc(axis,1);
+		//left boundary
+        if (l[axis] == 0) { 
+            if(bc_left == 4 || bc_left == 5){ //deriv BCs (4 for zero deriv, 5 for non zero)
+                tensorT d = madness::inner(cdata.rm_n0,
+                                           parent_to_child(right.second, right.first, neighbor(key,axis,1,bc)).swapdim(axis,0),
+                                           1, 0);
+                inner_result(cdata.r0_n0,
+                             parent_to_child(center.second, center.first, key).swapdim(axis,0),
+                             1, 0, d);
+                if (axis) d = copy(d.swapdim(axis,0)); // make it contiguous
+                d.scale(FunctionDefaults<NDIM>::get_rcell_width()[axis]*pow(2.0,lev));
+                coeffs.replace(key,nodeT(d,false));
+            }
+            else{
+                tensorT d = madness::inner(cdata.rm,
+                                           parent_to_child(right.second, right.first, neighbor(key,axis,1,bc)).swapdim(axis,0),
+                                           1, 0);
+                if (bc_left == 0 || bc_left ==3){     //function BC
+                    inner_result(cdata.r0_d0,
+                                 parent_to_child(center.second, center.first, key).swapdim(axis,0),
+                                 1, 0, d);
+                    if (axis) d = copy(d.swapdim(axis,0)); // make it contiguous
+                    d.scale(FunctionDefaults<NDIM>::get_rcell_width()[axis]*pow(2.0,lev));
+                    coeffs.replace(key,nodeT(d,false));
+                }
+                else if (bc_left == 2){  //no BC
+                    inner_result(cdata.r0_i0,
+                                 parent_to_child(center.second, center.first, key).swapdim(axis,0),
+                                 1, 0, d);
+                    if (axis) d = copy(d.swapdim(axis,0)); // make it contiguous
+                    d.scale(FunctionDefaults<NDIM>::get_rcell_width()[axis]*pow(2.0,lev));
+                    coeffs.replace(key,nodeT(d,false));
+                }
+	            else{
+                    MADNESS_EXCEPTION("do_diff2b: confused bcs",0);
+                }
+            }
+		}
+		//right boundary
+		else {
+            if ( bc_right == 4 || bc_right == 5 ){ //deriv BCs (4 for zero deriv, 5 for non zero)
+                tensorT d = madness::inner(cdata.rp_n1,
+                                           parent_to_child(left.second, left.first, neighbor(key,axis,-1,bc)).swapdim(axis,0),
+                                           1, 0);
+                inner_result(cdata.r0_n1,
+                             parent_to_child(center.second, center.first, key).swapdim(axis,0),
+                             1, 0, d);
+                if (axis) d = copy(d.swapdim(axis,0)); // make it contiguous
+                d.scale(FunctionDefaults<NDIM>::get_rcell_width()[axis]*pow(2.0,lev));
+                coeffs.replace(key,nodeT(d,false));
+            }
+            else{
+                tensorT d = madness::inner(cdata.rp,
+                                           parent_to_child(left.second, left.first, neighbor(key,axis,-1,bc)).swapdim(axis,0),
+                                           1, 0);
+                if (bc_right == 0 || bc_right == 3){    //zero BC, right endpt
+                    inner_result(cdata.r0_d1,
+                                 parent_to_child(center.second, center.first, key).swapdim(axis,0),
+                                 1, 0, d);
+                    if (axis) d = copy(d.swapdim(axis,0)); // make it contiguous
+                    d.scale(FunctionDefaults<NDIM>::get_rcell_width()[axis]*pow(2.0,lev));
+                    coeffs.replace(key,nodeT(d,false));
+                }
+                else if (bc_right == 2){  //no BC
+                    inner_result(cdata.r0_i1,
+                                 parent_to_child(center.second, center.first, key).swapdim(axis,0),
+                                 1, 0, d);
+                    if (axis) d = copy(d.swapdim(axis,0)); // make it contiguous
+                    d.scale(FunctionDefaults<NDIM>::get_rcell_width()[axis]*pow(2.0,lev));
+                    coeffs.replace(key,nodeT(d,false));
+                }
+                else{
+                    MADNESS_EXCEPTION("do_diff2b: confused BC",0);
+                }
+            }
+		}
+        return None;
+    }
+
+	// together with diff_bdry, deals with all non-periodic boundary intervals
+    // supported cases:
+    // 0 for f=0 BC
+    // 2 for no BC imposed
+    // 3 for general f BC
+    // 4 for f'=0
+    // 5 for general f' BC
+    // 
+    // 3rd tensorT (either left, or right) is not needed (and is all zeros)
+    //
+    // for cases 3, 5  diff_bdry must also be called, and the full derivative
+    // will be given by   diff(f,axis,bc) + diff_bdry(f,axis,bc)
+/*
+    template <typename T, int NDIM>
+    Void FunctionImpl<T,NDIM>::do_diff2_ab_b(const implT* f, int axis, const Tensor<int>& bc, const keyT& key,
+                                        const std::pair<keyT,tensorT>& left,
+                                        const std::pair<keyT,tensorT>& center,
+                                        const std::pair<keyT,tensorT>& right,
+										const std::vector<double> ab) {
+        PROFILE_MEMBER_FUNC(FunctionImpl);
+        typedef std::pair<keyT,tensorT> argT;
+        Vector<Translation,NDIM> l = key.translation();
+        double lev = (double) key.level() ;
+		int bc_left = bc(axis,0);
+		int bc_right = bc(axis,1);
+		//left boundary
+        if (l[axis] == 0) { 
+            if(bc_left == 4 || bc_left == 5){ //deriv BCs (4 for zero deriv, 5 for non zero)
+                tensorT d = madness::inner(cdata.rm_n0_parta,
+                                           parent_to_child(right.second, right.first, neighbor(key,axis,1,bc)).swapdim(axis,0),
+                                           1, 0);
+                inner_result(cdata.r0_n0_parta, parent_to_child(center.second, center.first, key).swapdim(axis,0), 1, 0, d);
+				d *= ab[0];
+                inner_result(cdata.r0_n0_part, parent_to_child(center.second, center.first, key).swapdim(axis,0), 1, 0, d);
+                if (axis) d = copy(d.swapdim(axis,0)); // make it contiguous
+                d.scale(FunctionDefaults<NDIM>::get_rcell_width()[axis]*pow(2.0,lev));
+                coeffs.replace(key,nodeT(d,false));
+            }
+            else{
+                tensorT d = madness::inner(cdata.rm_parta,
+                                           parent_to_child(right.second, right.first, neighbor(key,axis,1,bc)).swapdim(axis,0),
+                                           1, 0);
+                inner_result(cdata.r0_parta, parent_to_child(center.second, center.first, key).swapdim(axis,0), 1, 0, d);
+				d *= ab[0];
+                if (bc_left == 0 || bc_left ==3){     //function BC
+                    inner_result(cdata.r0_d0_part,
+                                 parent_to_child(center.second, center.first, key).swapdim(axis,0),
+                                 1, 0, d);
+                    if (axis) d = copy(d.swapdim(axis,0)); // make it contiguous
+                    d.scale(FunctionDefaults<NDIM>::get_rcell_width()[axis]*pow(2.0,lev));
+                    coeffs.replace(key,nodeT(d,false));
+                }
+                else if (bc_left == 2){  //no BC
+                    inner_result(cdata.r0_part,
+                                 parent_to_child(center.second, center.first, key).swapdim(axis,0),
+                                 1, 0, d);
+                    if (axis) d = copy(d.swapdim(axis,0)); // make it contiguous
+                    d.scale(FunctionDefaults<NDIM>::get_rcell_width()[axis]*pow(2.0,lev));
+                    coeffs.replace(key,nodeT(d,false));
+                }
+	            else{
+                    MADNESS_EXCEPTION("do_diff2_ab_b: confused bcs",0);
+                }
+            }
+		}
+		//right boundary
+		else {
+            if ( bc_right == 4 || bc_right == 5 ){ //deriv BCs (4 for zero deriv, 5 for non zero)
+                tensorT d = madness::inner(cdata.rp_n1_partb,
+                                           parent_to_child(left.second, left.first, neighbor(key,axis,-1,bc)).swapdim(axis,0),
+                                           1, 0);
+                inner_result(cdata.r0_n1_partb, parent_to_child(center.second, center.first, key).swapdim(axis,0), 1, 0, d);
+				d *= ab[1];
+                inner_result(cdata.r0_n1_part, parent_to_child(center.second, center.first, key).swapdim(axis,0), 1, 0, d);
+                if (axis) d = copy(d.swapdim(axis,0)); // make it contiguous
+                d.scale(FunctionDefaults<NDIM>::get_rcell_width()[axis]*pow(2.0,lev));
+                coeffs.replace(key,nodeT(d,false));
+            }
+            else{
+                tensorT d = madness::inner(cdata.rp_partb,
+                                           parent_to_child(left.second, left.first, neighbor(key,axis,-1,bc)).swapdim(axis,0),
+                                           1, 0);
+                inner_result(cdata.r0_partb, parent_to_child(center.second, center.first, key).swapdim(axis,0), 1, 0, d);
+				d *= ab[1];
+                if (bc_right == 0 || bc_right == 3){    //zero BC, right endpt
+                    inner_result(cdata.r0_d1_part,
+                                 parent_to_child(center.second, center.first, key).swapdim(axis,0),
+                                 1, 0, d);
+                    if (axis) d = copy(d.swapdim(axis,0)); // make it contiguous
+                    d.scale(FunctionDefaults<NDIM>::get_rcell_width()[axis]*pow(2.0,lev));
+                    coeffs.replace(key,nodeT(d,false));
+                }
+                else if (bc_right == 2){  //no BC
+                    inner_result(cdata.r0_part,
+                                 parent_to_child(center.second, center.first, key).swapdim(axis,0),
+                                 1, 0, d);
+                    if (axis) d = copy(d.swapdim(axis,0)); // make it contiguous
+                    d.scale(FunctionDefaults<NDIM>::get_rcell_width()[axis]*pow(2.0,lev));
+                    coeffs.replace(key,nodeT(d,false));
+                }
+                else{
+                    MADNESS_EXCEPTION("do_diff2b: confused BC",0);
+                }
+            }
+		}
+        return None;
+    }
+*/
+
+	// diff_bdry provides the boundary terms for the derivative
+	// if there is only 1 imposed boundary condition in the "axis" direction
+	// (or if the boundary condition, g, at both boundaries is the same function)
+	// the full derivative is given by   diff(f,axis,bc) + diff_bdry(f,g,axis,bc)
+
+    template <typename T, int NDIM>
+    void FunctionImpl<T,NDIM>::diff_bdry(const implT& f, int axis, const BoundaryConds<NDIM>& bdry_conds, const implT& g, bool fence) {
+        PROFILE_MEMBER_FUNC(FunctionImpl);
+		Tensor<int> bc = copy(bdry_conds.get_bc()(axis,_));
+		typedef std::pair<keyT,tensorT> argT;
+		tensorT zero_coeffs = tensorT(cdata.vk);  // borrowed from the old zero BCs
+		//iterator runs through cells, but not through basis fncs in each cell
+		for (typename dcT::const_iterator it=f.coeffs.begin(); it!=f.coeffs.end(); ++it) {
+			const keyT& key = it->first;
+			const nodeT& node = it->second;
+			if (node.has_coeff() ) {  
+				Future<argT> left = f.find_neighbor(key,axis,-1,bc);
+            	argT center(key,node.coeff());
+				Future<argT> right = f.find_neighbor(key,axis,1,bc);
+				int bc_left = bc(axis,0);
+				int bc_right = bc(axis,1);
+				if ( left.get().first.is_invalid() ) {                //left boundary nodes
+        	       	double lev = double(key.level()) ;
+					FunctionNode<T,NDIM> gnode = g.coeffs.find(key).get()->second; 
+					tensorT gcoeffs = gnode.coeff();
+					if(bc_left == 3){  
+					    tensorT bf = copy(cdata.bv_0);
+					    if (gcoeffs.ndim == 1) { //special case 
+					        tensorT bdry_t = gcoeffs[0]*copy(bf);
+							bdry_t.scale(FunctionDefaults<NDIM>::get_rcell_width()[axis]*pow(2.0, lev)); 
+							coeffs.replace(key,nodeT(bdry_t,false));
+					    }
+					    else {
+							tensorT slice_aid(k);  //vector of zeros
+							slice_aid[0] = 1;
+							tensorT tmp = inner(slice_aid, gcoeffs, 0, axis); 
+							tensorT bdry_t = outer(bf,tmp);
+							if (axis) bdry_t = copy(bdry_t.cycledim(axis,0,axis)); // make it contiguous
+							bdry_t.scale(FunctionDefaults<NDIM>::get_rcell_width()[axis]*pow(2.0, lev)); 
+							coeffs.replace(key,nodeT(bdry_t,false));
+					    }
+					}
+					else if(bc_left == 5){   //nonzero Df bc
+					    tensorT bf = copy(cdata.bvn_0);
+				    	if (bc.dim[0] == 1) { //special case
+				        	tensorT bdry_t = gcoeffs[0]*bf;
+							bdry_t.scale(FunctionDefaults<NDIM>::get_rcell_width()[axis]);
+							coeffs.replace(key,nodeT(bdry_t,false)); 
+					    }
+					    else {
+							tensorT slice_aid(k);  //vector of zeros
+							slice_aid[0] = 1;
+							tensorT tmp = inner(slice_aid, gcoeffs, 0, axis); 
+							tensorT bdry_t = outer(bf,tmp);
+							if (axis) bdry_t = copy(bdry_t.cycledim(axis,0,axis)); // make it contiguous
+							bdry_t.scale(FunctionDefaults<NDIM>::get_rcell_width()[axis]);
+							coeffs.replace(key,nodeT(bdry_t,false)); 
+					    }
+					}
+					else {
+						coeffs.replace(key,nodeT(zero_coeffs,false)); 
+					}
+				}
+				else if ( right.get().first.is_invalid() ) {           //right boundary nodes
+    	    		double lev = double(key.level()) ;
+					FunctionNode<T,NDIM> gnode = g.coeffs.find(key).get()->second; 
+					tensorT gcoeffs = gnode.coeff();
+					if(bc_right == 3){  
+				    	tensorT bf = copy(cdata.bv_1);
+					    if (bc.dim[0] == 1) { //special case
+					    	tensorT bdry_t = (gcoeffs[0])*copy(bf);
+							bdry_t.scale(FunctionDefaults<NDIM>::get_rcell_width()[axis]*pow(2.0, lev)); 
+							coeffs.replace(key,nodeT(bdry_t,false));
+					    }
+					    else {
+							tensorT slice_aid(k);  //vector of zeros
+							slice_aid[0] = 1;
+							tensorT tmp = inner(slice_aid, gcoeffs, 0, axis); 
+							tensorT bdry_t = outer(bf,tmp);
+							if (axis) bdry_t = copy(bdry_t.cycledim(axis,0,axis)); // make it contiguous
+							bdry_t.scale(FunctionDefaults<NDIM>::get_rcell_width()[axis]*pow(2.0, lev)); 
+							coeffs.replace(key,nodeT(bdry_t,false));
+					    }
+					}
+					else if(bc_right == 5){   //nonzero Df bc
+				    	tensorT bf = copy(cdata.bvn_1);
+					    if (bc.dim[0] == 1) { //special case
+					        tensorT bdry_t = gcoeffs[0]*bf;
+							bdry_t.scale(FunctionDefaults<NDIM>::get_rcell_width()[axis]); 
+							coeffs.replace(key,nodeT(bdry_t,false));
+					    }
+				    	else {
+							tensorT slice_aid(k);  //vector of zeros
+							slice_aid[0] = 1;
+							tensorT tmp = inner(slice_aid, gcoeffs, 0, axis); 
+							tensorT bdry_t = outer(bf,tmp);
+							if (axis) bdry_t = copy(bdry_t.cycledim(axis,0,axis)); // make it contiguous
+							bdry_t.scale(FunctionDefaults<NDIM>::get_rcell_width()[axis]);
+							coeffs.replace(key,nodeT(bdry_t,false));
+					    }
+					}
+					else {
+						coeffs.replace(key,nodeT(zero_coeffs,false)); 
+					}
+				}
+				else {
+					coeffs.replace(key,nodeT(zero_coeffs,false));   // zero coeffs at the interior nodes 
+				}
+			}
+			else {
+				coeffs.replace(key,nodeT(tensorT(),true) );
+			}	
+	        if (fence) world.gop.fence();
+	    }
+    }
+
+
+	// diff_bdry provides the boundary terms for the derivative
+	// if there are 2 imposed boundary condition in the "axis" direction
+	// the full derivative is given by   diff(f,axis,bc) + diff_bdry(f,g1,g2,axis,bc)
+	// where g1 is the boundary condition at var=0, g2 the condition at var = 1
+	
+    template <typename T, int NDIM>
+    void FunctionImpl<T,NDIM>::diff_bdry(const implT& f, int axis, const BoundaryConds<NDIM>& bdry_conds, const implT& g1, const implT& g2, bool fence) {
+        PROFILE_MEMBER_FUNC(FunctionImpl);
+		typedef std::pair<keyT,tensorT> argT;
+		Tensor<int> bc = copy(bdry_conds.get_bc()(axis,_));
+		tensorT zero_coeffs = tensorT(cdata.vk);  // borrowed from the old zero BCs
+		for (typename dcT::const_iterator it=f.coeffs.begin(); it!=f.coeffs.end(); ++it) {  
+			const keyT& key = it->first;
+			const nodeT& node = it->second;
+			if (node.has_coeff() ) {  //if there's no BC, then let g be a fnc with no coeffs
+				Future<argT> left = f.find_neighbor(key,axis,-1,bc);
+                argT center(key,node.coeff());
+				Future<argT> right = f.find_neighbor(key,axis,1,bc);
+				int bc_left = bc(axis,0);
+				int bc_right = bc(axis,1);
+				if (left.get().first.is_invalid() ) {                //left boundary nodes
+	            	double lev = double(key.level()) ;
+					FunctionNode<T,NDIM> gnode = g1.coeffs.find(key).get()->second; 
+					tensorT gcoeffs = gnode.coeff();
+					if(bc_left == 3){  
+					    tensorT bf = copy(cdata.bv_0);
+					    if (gcoeffs.ndim == 1) { //special case  
+				    	    tensorT bdry_t = gcoeffs[0]*copy(bf);
+							bdry_t.scale(FunctionDefaults<NDIM>::get_rcell_width()[axis]*pow(2.0, lev)); 
+							coeffs.replace(key,nodeT(bdry_t,false));
+					    }
+				    	else {
+							tensorT slice_aid(k);  //vector of zeros
+							slice_aid[0] = 1;
+							tensorT tmp = inner(slice_aid, gcoeffs, 0, axis); 
+							tensorT bdry_t = outer(bf,tmp);
+							if (axis) bdry_t = copy(bdry_t.cycledim(axis,0,axis)); // make it contiguous
+							bdry_t.scale(FunctionDefaults<NDIM>::get_rcell_width()[axis]*pow(2.0, lev)); 
+							coeffs.replace(key,nodeT(bdry_t,false));
+						}
+					}
+					else if(bc_left == 5){   //nonzero Df bc
+					    tensorT bf = copy(cdata.bvn_0);
+					    if (gcoeffs.ndim == 1) { //special case
+					        tensorT bdry_t = gcoeffs[0]*bf;
+							bdry_t.scale(FunctionDefaults<NDIM>::get_rcell_width()[axis]);
+							coeffs.replace(key,nodeT(bdry_t,false)); 
+					    }
+					    else {
+							tensorT slice_aid(k);  //vector of zeros
+							slice_aid[0] = 1;
+							tensorT tmp = inner(slice_aid, gcoeffs, 0, axis); 
+							tensorT bdry_t = outer(bf,tmp);
+							if (axis) bdry_t = copy(bdry_t.cycledim(axis,0,axis)); // make it contiguous
+							bdry_t.scale(FunctionDefaults<NDIM>::get_rcell_width()[axis]); 
+							coeffs.replace(key,nodeT(bdry_t,false)); 
+					    }
+					}
+					else {
+						coeffs.replace(key,nodeT(zero_coeffs,false)); 
+					}
+				}
+				else if ( right.get().first.is_invalid() ) {           //right boundary nodes
+      		        double lev = double(key.level()) ;
+					FunctionNode<T,NDIM> gnode = g2.coeffs.find(key).get()->second; 
+					tensorT gcoeffs = gnode.coeff();
+					if(bc_right == 3){  
+					    tensorT bf = copy(cdata.bv_1);
+					    if (gcoeffs.ndim == 1) { //special case
+				    	    tensorT bdry_t = (gcoeffs[0])*copy(bf);
+							bdry_t.scale(FunctionDefaults<NDIM>::get_rcell_width()[axis]*pow(2.0, lev)); 
+							coeffs.replace(key,nodeT(bdry_t,false));
+						}
+					    else {
+							tensorT slice_aid(k);  //vector of zeros
+							slice_aid[0] = 1;
+							tensorT tmp = inner(slice_aid, gcoeffs, 0, axis); 
+							tensorT bdry_t = outer(bf,tmp);
+							if (axis) bdry_t = copy(bdry_t.cycledim(axis,0,axis)); // make it contiguous
+							bdry_t.scale(FunctionDefaults<NDIM>::get_rcell_width()[axis]*pow(2.0, lev)); 
+							coeffs.replace(key,nodeT(bdry_t,false));
+					    }
+					}
+					else if(bc_right == 5){   //nonzero Df bc
+					    tensorT bf = copy(cdata.bvn_1);
+					    if (gcoeffs.ndim == 1) { //special case
+					        tensorT bdry_t = gcoeffs[0]*bf;
+							bdry_t.scale(FunctionDefaults<NDIM>::get_rcell_width()[axis]);
+							coeffs.replace(key,nodeT(bdry_t,false));
+					    }
+					    else {
+							tensorT slice_aid(k);  //vector of zeros
+							slice_aid[0] = 1;
+							tensorT tmp = inner(slice_aid, gcoeffs, 0, axis); 
+							tensorT bdry_t = outer(bf,tmp);
+							if (axis) bdry_t = copy(bdry_t.cycledim(axis,0,axis)); // make it contiguous
+							bdry_t.scale(FunctionDefaults<NDIM>::get_rcell_width()[axis]);
+							coeffs.replace(key,nodeT(bdry_t,false));
+					    }
+					}
+					else {
+						coeffs.replace(key,nodeT(zero_coeffs,false)); 
+					}
+				}
+				else {
+					coeffs.replace(key,nodeT(zero_coeffs,false));   // zero coeffs at the interior nodes 
+				}
+			}
+			else {
+				coeffs.replace(key,nodeT(tensorT(),true) );
+			}	
+		    if (fence) world.gop.fence();
+		}
+    }
+
 
     template <typename T, int NDIM>
     void FunctionImpl<T,NDIM>::mapdim(const implT& f, const std::vector<long>& map, bool fence) {
