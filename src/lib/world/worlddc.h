@@ -481,6 +481,25 @@ namespace madness {
             local.insert(acc, key);
             return (acc->second.*memfun)(arg1,arg2,arg3,arg4,arg5);
         }
+
+        // Used to forward call to item member function
+        template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T, typename arg5T, typename arg6T>
+        MEMFUN_RETURNT(memfunT)
+        itemfun(const keyT& key, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, const arg3T& arg4, const arg5T& arg5, const arg6T& arg6) {
+            accessor acc;
+            local.insert(acc, key);
+            return (acc->second.*memfun)(arg1,arg2,arg3,arg4,arg5,arg6);
+        }
+	
+        // Used to forward call to item member function
+        template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T, typename arg5T, typename arg6T, typename arg7T>
+        MEMFUN_RETURNT(memfunT)
+        itemfun(const keyT& key, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3,
+				const arg3T& arg4, const arg5T& arg5, const arg6T& arg6, const arg7T& arg7) {
+            accessor acc;
+            local.insert(acc, key);
+            return (acc->second.*memfun)(arg1,arg2,arg3,arg4,arg5,arg6,arg7);
+        }
     };
 
 
@@ -890,6 +909,43 @@ namespace madness {
         }
 
 
+        /// Sends message "resultT memfun(arg1T,arg2T,arg3T,arg4T,arg5T,arg6T)" to item (non-blocking comm if remote)
+
+        /// If item does not exist it is made with the default constructor.
+        ///
+        /// Future arguments must be ready for both local and remote messages.
+        ///
+        /// Returns a future result (Future<void> may be ignored).
+        ///
+        /// The method executes with a write lock on the item.
+        template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T, typename arg5T, typename arg6T>
+        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) >
+        send(const keyT& key, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, const arg4T& arg4, const arg5T& arg5, const arg6T& arg6) {
+            check_initialized();
+            MEMFUN_RETURNT(memfunT)(implT::*itemfun)(const keyT&, memfunT, const arg1T&, const arg2T&, const arg3T&, const arg4T&, const arg5T&, const arg6T&) = &implT:: template itemfun<memfunT,arg1T,arg2T,arg3T,arg4T,arg5T,arg6T>;
+            return p->send(owner(key), itemfun, key, memfun, arg1, arg2, arg3, arg4, arg5, arg6);
+        }
+
+
+        /// Sends message "resultT memfun(arg1T,arg2T,arg3T,arg4T,arg5T,arg6T,arg7T)" to item (non-blocking comm if remote)
+
+        /// If item does not exist it is made with the default constructor.
+        ///
+        /// Future arguments must be ready for both local and remote messages.
+        ///
+        /// Returns a future result (Future<void> may be ignored).
+        ///
+        /// The method executes with a write lock on the item.
+        template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T, typename arg5T, typename arg6T, typename arg7T>
+        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) >
+        send(const keyT& key, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, const arg4T& arg4,
+		     const arg5T& arg5, const arg6T& arg6, const arg7T& arg7) {
+            check_initialized();
+            MEMFUN_RETURNT(memfunT)(implT::*itemfun)(const keyT&, memfunT, const arg1T&, const arg2T&, const arg3T&, const arg4T&, const arg5T&, const arg6T&, const arg7T&) = &implT:: template itemfun<memfunT,arg1T,arg2T,arg3T,arg4T,arg5T,arg6T,arg7T>;
+            return p->send(owner(key), itemfun, key, memfun, arg1, arg2, arg3, arg4, arg5, arg6, arg7);
+        }
+
+
         /// Sends message "resultT memfun() const" to item (non-blocking comm if remote)
 
         /// The method executes with a write lock on the item.
@@ -921,19 +977,48 @@ namespace madness {
         /// Sends message "resultT memfun(arg1T,arg2T,arg3T) const" to item (non-blocking comm if remote)
 
         /// The method executes with a write lock on the item.
+        template <typename memfunT, typename arg1T, typename arg2T, typename arg3T>
+        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) >
+        send(const keyT& key, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3) const {
+            return const_cast<containerT*>(this)->send(key,memfun,arg1,arg2,arg3);
+        }
+
+        /// Sends message "resultT memfun(arg1T,arg2T,arg3T,arg4T) const" to item (non-blocking comm if remote)
+
+        /// The method executes with a write lock on the item.
         template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T>
         Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) >
         send(const keyT& key, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, const arg4T& arg4) const {
             return const_cast<containerT*>(this)->send(key,memfun,arg1,arg2,arg3,arg4);
         }
 
-        /// Sends message "resultT memfun(arg1T,arg2T,arg3T) const" to item (non-blocking comm if remote)
+        /// Sends message "resultT memfun(arg1T,arg2T,arg3T,arg4T,arg5T) const" to item (non-blocking comm if remote)
 
         /// The method executes with a write lock on the item.
         template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T, typename arg5T>
         Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) >
         send(const keyT& key, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, const arg4T& arg4, const arg5T& arg5) const {
             return const_cast<containerT*>(this)->send(key,memfun,arg1,arg2,arg3,arg4,arg5);
+        }
+
+        /// Sends message "resultT memfun(arg1T,arg2T,arg3T,arg4T,arg5T,arg6T) const" to item (non-blocking comm if remote)
+
+        /// The method executes with a write lock on the item.
+        template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T, typename arg5T, typename arg6T>
+        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) >
+        send(const keyT& key, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3,
+			 const arg4T& arg4, const arg5T& arg5, const arg6T& arg6) const {
+            return const_cast<containerT*>(this)->send(key,memfun,arg1,arg2,arg3,arg4,arg5,arg6);
+        }
+
+        /// Sends message "resultT memfun(arg1T,arg2T,arg3T,arg4T,arg5T,arg6T,arg7T) const" to item (non-blocking comm if remote)
+
+        /// The method executes with a write lock on the item.
+        template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T, typename arg5T, typename arg6T, typename arg7T>
+        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) >
+        send(const keyT& key, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3,
+			 const arg4T& arg4, const arg5T& arg5, const arg6T& arg6, const arg7T& arg7) const {
+            return const_cast<containerT*>(this)->send(key,memfun,arg1,arg2,arg3,arg4,arg5,arg6,arg7);
         }
 
 

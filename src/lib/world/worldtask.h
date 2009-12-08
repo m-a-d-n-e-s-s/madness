@@ -576,6 +576,66 @@ namespace madness {
             return result;
         }
 
+        /// Invoke "resultT (*function)(arg1T,arg2T,arg3T,arg4T,arg5T,arg6T,arg7T,arg8T)" as a task, local or remote
+
+        /// A future is returned to hold the eventual result of the
+        /// task.  Future<void> is an empty class that may be ignored.
+        template <typename functionT, typename arg1T, typename arg2T, typename arg3T, typename arg4T, typename arg5T, typename arg6T, typename arg7T, typename arg8T>
+        Future<REMFUTURE(FUNCTION_RETURNT(functionT))>
+        add(ProcessID where, functionT function,
+            const arg1T& arg1, const arg2T& arg2,
+            const arg3T& arg3, const arg4T& arg4,
+            const arg5T& arg5, const arg6T& arg6,
+	    const arg7T& arg7, const arg8T& arg8, const TaskAttributes& attr=TaskAttributes()) {
+            Future<REMFUTURE(FUNCTION_RETURNT(functionT))> result;
+            if (where == me) {
+	      add(new TaskFunction<functionT>(result, function, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, attr));
+            }
+            else {
+                MADNESS_ASSERT(future_probe(arg1));  // No dependencies allowed for remote tasks
+                MADNESS_ASSERT(future_probe(arg2));  // No dependencies allowed for remote tasks
+                MADNESS_ASSERT(future_probe(arg3));  // No dependencies allowed for remote tasks
+                MADNESS_ASSERT(future_probe(arg4));  // No dependencies allowed for remote tasks
+                MADNESS_ASSERT(future_probe(arg5));  // No dependencies allowed for remote tasks
+                MADNESS_ASSERT(future_probe(arg6));  // No dependencies allowed for remote tasks
+                MADNESS_ASSERT(future_probe(arg7));  // No dependencies allowed for remote tasks
+                MADNESS_ASSERT(future_probe(arg8));  // No dependencies allowed for remote tasks
+                TaskFunction<functionT>::sender(world, where, result, function, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, attr);
+            }
+            return result;
+        }
+
+        /// Invoke "resultT (*function)(arg1T,arg2T,arg3T,arg4T,arg5T,arg6T,arg7T,arg8T,arg9T)" as a task, local or remote
+
+        /// A future is returned to hold the eventual result of the
+        /// task.  Future<void> is an empty class that may be ignored.
+        template <typename functionT, typename arg1T, typename arg2T, typename arg3T, typename arg4T, typename arg5T, typename arg6T, typename arg7T, typename arg8T, typename arg9T>
+        Future<REMFUTURE(FUNCTION_RETURNT(functionT))>
+        add(ProcessID where, functionT function,
+            const arg1T& arg1, const arg2T& arg2,
+            const arg3T& arg3, const arg4T& arg4,
+            const arg5T& arg5, const arg6T& arg6,
+	    	const arg7T& arg7, const arg8T& arg8,
+			const arg9T& arg9, const TaskAttributes& attr=TaskAttributes()) {
+            Future<REMFUTURE(FUNCTION_RETURNT(functionT))> result;
+            if (where == me) {
+	      add(new TaskFunction<functionT>(result, function, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, attr));
+            }
+            else {
+                MADNESS_ASSERT(future_probe(arg1));  // No dependencies allowed for remote tasks
+                MADNESS_ASSERT(future_probe(arg2));  // No dependencies allowed for remote tasks
+                MADNESS_ASSERT(future_probe(arg3));  // No dependencies allowed for remote tasks
+                MADNESS_ASSERT(future_probe(arg4));  // No dependencies allowed for remote tasks
+                MADNESS_ASSERT(future_probe(arg5));  // No dependencies allowed for remote tasks
+                MADNESS_ASSERT(future_probe(arg6));  // No dependencies allowed for remote tasks
+                MADNESS_ASSERT(future_probe(arg7));  // No dependencies allowed for remote tasks
+                MADNESS_ASSERT(future_probe(arg8));  // No dependencies allowed for remote tasks
+                MADNESS_ASSERT(future_probe(arg9));  // No dependencies allowed for remote tasks
+                TaskFunction<functionT>::sender(world, where, result, function, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, attr);
+            }
+            return result;
+        }
+
 
         /// Invoke "resultT (obj.*memfun)()" as a local task
         template <typename memfunT>
@@ -662,7 +722,7 @@ namespace madness {
             return result;
         }
 
-        /// Invoke "resultT (obj.*memfun)(arg1T,arg2T,arg3,arg4,arg5,arg,arg76)" as a local task
+        /// Invoke "resultT (obj.*memfun)(arg1T,arg2T,arg3,arg4,arg5,arg6,arg7)" as a local task
         template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T, typename arg5T, typename arg6T, typename arg7T>
         Future<REMFUTURE(MEMFUN_RETURNT(memfunT))>
         add(MEMFUN_OBJT(memfunT)& obj,
@@ -671,6 +731,30 @@ namespace madness {
             const TaskAttributes& attr=TaskAttributes()) {
             Future<REMFUTURE(MEMFUN_RETURNT(memfunT))> result;
             add(new TaskMemfun<memfunT>(result,obj,memfun,arg1,arg2,arg3,arg4,arg5,arg6,arg7,attr));
+            return result;
+        }
+
+        /// Invoke "resultT (obj.*memfun)(arg1T,arg2T,arg3,arg4,arg5,arg6,arg7,arg8)" as a local task
+        template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T, typename arg5T, typename arg6T, typename arg7T, typename arg8T>
+        Future<REMFUTURE(MEMFUN_RETURNT(memfunT))>
+        add(MEMFUN_OBJT(memfunT)& obj,
+            memfunT memfun,
+            const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, const arg4T& arg4, const arg5T& arg5, const arg6T& arg6, const arg7T& arg7, const arg8T& arg8,
+            const TaskAttributes& attr=TaskAttributes()) {
+            Future<REMFUTURE(MEMFUN_RETURNT(memfunT))> result;
+            add(new TaskMemfun<memfunT>(result,obj,memfun,arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8, attr));
+            return result;
+        }
+
+        /// Invoke "resultT (obj.*memfun)(arg1T,arg2T,arg3,arg4,arg5,arg6,arg7,arg8,arg9)" as a local task
+        template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T, typename arg5T, typename arg6T, typename arg7T, typename arg8T, typename arg9T>
+        Future<REMFUTURE(MEMFUN_RETURNT(memfunT))>
+        add(MEMFUN_OBJT(memfunT)& obj, memfunT memfun,
+            const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, const arg4T& arg4, const arg5T& arg5,
+			const arg6T& arg6, const arg7T& arg7, const arg8T& arg8, const arg9T& arg9,
+            const TaskAttributes& attr=TaskAttributes()) {
+            Future<REMFUTURE(MEMFUN_RETURNT(memfunT))> result;
+            add(new TaskMemfun<memfunT>(result,obj,memfun,arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8,arg9, attr));
             return result;
         }
 
@@ -1138,6 +1222,154 @@ namespace madness {
         };
     };
 
+    // Task wrapping "resultT (*function)(arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8)"
+    template <typename resultT, typename arg1_type, typename arg2_type, typename arg3_type, typename arg4_type,
+      typename arg5_type, typename arg6_type, typename arg7_type, typename arg8_type>
+      struct TaskFunction<resultT(*)(arg1_type,arg2_type,arg3_type,arg4_type,arg5_type,arg6_type,arg7_type,arg8_type)> : public TaskFunctionBase {
+        typedef resultT(*functionT)(arg1_type,arg2_type,arg3_type,arg4_type,arg5_type,arg6_type,arg7_type,arg8_type);
+        typedef REMFUTURE(REMCONST(REMREF(arg1_type))) arg1T;
+        typedef REMFUTURE(REMCONST(REMREF(arg2_type))) arg2T;
+        typedef REMFUTURE(REMCONST(REMREF(arg3_type))) arg3T;
+        typedef REMFUTURE(REMCONST(REMREF(arg4_type))) arg4T;
+        typedef REMFUTURE(REMCONST(REMREF(arg5_type))) arg5T;
+        typedef REMFUTURE(REMCONST(REMREF(arg6_type))) arg6T;
+        typedef REMFUTURE(REMCONST(REMREF(arg7_type))) arg7T;
+		typedef REMFUTURE(REMCONST(REMREF(arg8_type))) arg8T;
+        typedef Future<REMFUTURE(resultT)> futureT;
+        typedef RemoteReference< FutureImpl<REMFUTURE(resultT)> > refT;
+
+        static void handler(const AmArg& arg) {
+            TaskHandlerInfo<refT,functionT> info;
+            arg1T arg1;
+            arg2T arg2;
+            arg3T arg3;
+            arg4T arg4;
+            arg5T arg5;
+            arg6T arg6;
+            arg7T arg7;
+	    arg8T arg8;
+            arg & info & arg1 & arg2 & arg3 & arg4 & arg5 & arg6 & arg7 & arg8;
+            arg.get_world()->taskq.add(new TaskFunction<functionT>(futureT(info.ref),info.func,arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8,info.attr));
+        };
+
+        template <typename a1T, typename a2T, typename a3T, typename a4T, typename a5T, typename a6T, typename a7T, typename a8T>
+        static void sender(World& world, ProcessID dest, const futureT& result, functionT func,
+                           const a1T& arg1, const a2T& arg2, const a3T& arg3, const a4T& arg4, const a5T& arg5, const a6T& arg6,
+                           const a7T& arg7, const a8T& arg8, const TaskAttributes& attr) {
+
+            world.am.send(dest, TaskFunction<functionT>::handler,
+                          new_am_arg(TaskHandlerInfo<refT,functionT>(result.remote_ref(world), func, attr),
+                                     static_cast<arg1T>(arg1), static_cast<arg2T>(arg2), static_cast<arg3T>(arg3),
+                                     static_cast<arg4T>(arg4), static_cast<arg5T>(arg5), static_cast<arg6T>(arg6),
+                                     static_cast<arg7T>(arg7), static_cast<arg8T>(arg8)));
+        }
+
+        futureT result;
+        const functionT func;
+        Future<arg1T> arg1;
+        Future<arg2T> arg2;
+        Future<arg3T> arg3;
+        Future<arg4T> arg4;
+        Future<arg5T> arg5;
+        Future<arg6T> arg6;
+        Future<arg7T> arg7;
+	Future<arg8T> arg8;
+
+        template <typename a1T, typename a2T, typename a3T, typename a4T, typename a5T, typename a6T, typename a7T, typename a8T>
+        TaskFunction(const futureT& result, functionT func, const a1T& a1, const a2T& a2, const a3T& a3, const a4T& a4,
+                     const a5T& a5, const a6T& a6, const a7T& a7, const a8T& a8, const TaskAttributes& attr)
+	  : TaskFunctionBase(attr), result(result), func(func), arg1(a1), arg2(a2), arg3(a3), arg4(a4), arg5(a5), arg6(a6), arg7(a7), arg8(a8) {
+            check_dependency(arg1);
+            check_dependency(arg2);
+            check_dependency(arg3);
+            check_dependency(arg4);
+            check_dependency(arg5);
+            check_dependency(arg6);
+            check_dependency(arg7);
+	    	check_dependency(arg8);
+        }
+
+        void run(World& world) {
+		  result.set(func(arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8));
+        };
+    };
+
+    // Task wrapping "resultT (*function)(arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8,arg9)"
+    template <typename resultT, typename arg1_type, typename arg2_type, typename arg3_type, typename arg4_type,
+      typename arg5_type, typename arg6_type, typename arg7_type, typename arg8_type, typename arg9_type>
+      struct TaskFunction<resultT(*)(arg1_type,arg2_type,arg3_type,arg4_type,arg5_type,arg6_type,arg7_type,arg8_type,arg9_type)> : public TaskFunctionBase {
+        typedef resultT(*functionT)(arg1_type,arg2_type,arg3_type,arg4_type,arg5_type,arg6_type,arg7_type,arg8_type,arg9_type);
+        typedef REMFUTURE(REMCONST(REMREF(arg1_type))) arg1T;
+        typedef REMFUTURE(REMCONST(REMREF(arg2_type))) arg2T;
+        typedef REMFUTURE(REMCONST(REMREF(arg3_type))) arg3T;
+        typedef REMFUTURE(REMCONST(REMREF(arg4_type))) arg4T;
+        typedef REMFUTURE(REMCONST(REMREF(arg5_type))) arg5T;
+        typedef REMFUTURE(REMCONST(REMREF(arg6_type))) arg6T;
+        typedef REMFUTURE(REMCONST(REMREF(arg7_type))) arg7T;
+		typedef REMFUTURE(REMCONST(REMREF(arg8_type))) arg8T;
+		typedef REMFUTURE(REMCONST(REMREF(arg9_type))) arg9T;
+        typedef Future<REMFUTURE(resultT)> futureT;
+        typedef RemoteReference< FutureImpl<REMFUTURE(resultT)> > refT;
+
+        static void handler(const AmArg& arg) {
+            TaskHandlerInfo<refT,functionT> info;
+            arg1T arg1;
+            arg2T arg2;
+            arg3T arg3;
+            arg4T arg4;
+            arg5T arg5;
+            arg6T arg6;
+            arg7T arg7;
+	    	arg8T arg8;
+	    	arg9T arg9;
+            arg & info & arg1 & arg2 & arg3 & arg4 & arg5 & arg6 & arg7 & arg8 & arg9;
+            arg.get_world()->taskq.add(new TaskFunction<functionT>(futureT(info.ref),info.func,arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8,arg9,info.attr));
+        };
+
+        template <typename a1T, typename a2T, typename a3T, typename a4T, typename a5T, typename a6T, typename a7T, typename a8T, typename a9T>
+        static void sender(World& world, ProcessID dest, const futureT& result, functionT func,
+                           const a1T& arg1, const a2T& arg2, const a3T& arg3, const a4T& arg4, const a5T& arg5, const a6T& arg6,
+                           const a7T& arg7, const a8T& arg8, const a9T& arg9, const TaskAttributes& attr) {
+
+            world.am.send(dest, TaskFunction<functionT>::handler,
+                          new_am_arg(TaskHandlerInfo<refT,functionT>(result.remote_ref(world), func, attr),
+                                     static_cast<arg1T>(arg1), static_cast<arg2T>(arg2), static_cast<arg3T>(arg3),
+                                     static_cast<arg4T>(arg4), static_cast<arg5T>(arg5), static_cast<arg6T>(arg6),
+                                     static_cast<arg7T>(arg7), static_cast<arg8T>(arg8), static_cast<arg9T>(arg9)));
+        }
+
+        futureT result;
+        const functionT func;
+        Future<arg1T> arg1;
+        Future<arg2T> arg2;
+        Future<arg3T> arg3;
+        Future<arg4T> arg4;
+        Future<arg5T> arg5;
+        Future<arg6T> arg6;
+        Future<arg7T> arg7;
+		Future<arg8T> arg8;
+		Future<arg9T> arg9;
+
+        template <typename a1T, typename a2T, typename a3T, typename a4T, typename a5T, typename a6T, typename a7T, typename a8T, typename a9T>
+        TaskFunction(const futureT& result, functionT func, const a1T& a1, const a2T& a2, const a3T& a3, const a4T& a4,
+                     const a5T& a5, const a6T& a6, const a7T& a7, const a8T& a8, const a9T& a9, const TaskAttributes& attr)
+	  : TaskFunctionBase(attr), result(result), func(func), arg1(a1), arg2(a2), arg3(a3), arg4(a4), arg5(a5), arg6(a6), arg7(a7), arg8(a8), arg9(a9) {
+            check_dependency(arg1);
+            check_dependency(arg2);
+            check_dependency(arg3);
+            check_dependency(arg4);
+            check_dependency(arg5);
+            check_dependency(arg6);
+            check_dependency(arg7);
+		    check_dependency(arg8);
+		    check_dependency(arg9);
+        }
+
+        void run(World& world) {
+		  result.set(func(arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8,arg9));
+        };
+    };
+
 
     // Task wrapping "resultT (obj.*function)()"
     template <typename resultT, typename objT>
@@ -1388,6 +1620,102 @@ namespace madness {
         };
     };
 
+    // Task wrapping "resultT (obj.*function)(arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8)"
+    template <typename resultT, typename objT, typename arg1_type, typename arg2_type, typename arg3_type, typename arg4_type,
+      typename arg5_type, typename arg6_type, typename arg7_type, typename arg8_type>
+    struct TaskMemfun<resultT(objT::*)(arg1_type,arg2_type,arg3_type,arg4_type,arg5_type,arg6_type,arg7_type,arg8_type)> : public TaskFunctionBase {
+        typedef resultT(objT::*memfunT)(arg1_type,arg2_type,arg3_type,arg4_type,arg5_type,arg6_type,arg7_type,arg8_type);
+        typedef REMFUTURE(REMCONST(REMREF(arg1_type))) arg1T;
+        typedef REMFUTURE(REMCONST(REMREF(arg2_type))) arg2T;
+        typedef REMFUTURE(REMCONST(REMREF(arg3_type))) arg3T;
+        typedef REMFUTURE(REMCONST(REMREF(arg4_type))) arg4T;
+        typedef REMFUTURE(REMCONST(REMREF(arg5_type))) arg5T;
+        typedef REMFUTURE(REMCONST(REMREF(arg6_type))) arg6T;
+        typedef REMFUTURE(REMCONST(REMREF(arg7_type))) arg7T;
+		typedef REMFUTURE(REMCONST(REMREF(arg8_type))) arg8T;
+        typedef Future<REMFUTURE(resultT)> futureT;
+
+        futureT result;
+        objT& obj;
+        const memfunT memfun;
+        Future<arg1T> arg1;
+        Future<arg2T> arg2;
+        Future<arg3T> arg3;
+        Future<arg4T> arg4;
+        Future<arg5T> arg5;
+        Future<arg6T> arg6;
+        Future<arg7T> arg7;
+		Future<arg8T> arg8;
+
+        template <typename a1T, typename a2T, typename a3T, typename a4T, typename a5T, typename a6T, typename a7T, typename a8T>
+        TaskMemfun(const futureT& result, objT& obj, memfunT memfun,
+                   const a1T& a1, const a2T& a2, const a3T& a3, const a4T& a4, const a5T& a5, const a6T& a6, const a7T& a7, const a8T& a8, const TaskAttributes& attr)
+	  : TaskFunctionBase(attr), result(result), obj(obj), memfun(memfun), arg1(a1), arg2(a2), arg3(a3), arg4(a4), arg5(a5), arg6(a6), arg7(a7), arg8(a8) {
+            check_dependency(arg1);
+            check_dependency(arg2);
+            check_dependency(arg3);
+            check_dependency(arg4);
+            check_dependency(arg5);
+            check_dependency(arg6);
+            check_dependency(arg7);
+		    check_dependency(arg8);
+        }
+
+        void run(World& world) {
+		  result.set((obj.*memfun)(arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8));
+        };
+    };
+
+    // Task wrapping "resultT (obj.*function)(arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8,arg9)"
+    template <typename resultT, typename objT, typename arg1_type, typename arg2_type, typename arg3_type, typename arg4_type,
+      typename arg5_type, typename arg6_type, typename arg7_type, typename arg8_type, typename arg9_type>
+    struct TaskMemfun<resultT(objT::*)(arg1_type,arg2_type,arg3_type,arg4_type,arg5_type,arg6_type,arg7_type,arg8_type,arg9_type)> : public TaskFunctionBase {
+        typedef resultT(objT::*memfunT)(arg1_type,arg2_type,arg3_type,arg4_type,arg5_type,arg6_type,arg7_type,arg8_type,arg9_type);
+        typedef REMFUTURE(REMCONST(REMREF(arg1_type))) arg1T;
+        typedef REMFUTURE(REMCONST(REMREF(arg2_type))) arg2T;
+        typedef REMFUTURE(REMCONST(REMREF(arg3_type))) arg3T;
+        typedef REMFUTURE(REMCONST(REMREF(arg4_type))) arg4T;
+        typedef REMFUTURE(REMCONST(REMREF(arg5_type))) arg5T;
+        typedef REMFUTURE(REMCONST(REMREF(arg6_type))) arg6T;
+        typedef REMFUTURE(REMCONST(REMREF(arg7_type))) arg7T;
+		typedef REMFUTURE(REMCONST(REMREF(arg8_type))) arg8T;
+		typedef REMFUTURE(REMCONST(REMREF(arg9_type))) arg9T;
+        typedef Future<REMFUTURE(resultT)> futureT;
+
+        futureT result;
+        objT& obj;
+        const memfunT memfun;
+        Future<arg1T> arg1;
+        Future<arg2T> arg2;
+        Future<arg3T> arg3;
+        Future<arg4T> arg4;
+        Future<arg5T> arg5;
+        Future<arg6T> arg6;
+        Future<arg7T> arg7;
+		Future<arg8T> arg8;
+		Future<arg9T> arg9;
+
+        template <typename a1T, typename a2T, typename a3T, typename a4T, typename a5T, typename a6T, typename a7T, typename a8T, typename a9T>
+        TaskMemfun(const futureT& result, objT& obj, memfunT memfun,
+                   const a1T& a1, const a2T& a2, const a3T& a3, const a4T& a4, const a5T& a5, const a6T& a6, const a7T& a7, const a8T& a8, const a9T& a9, const TaskAttributes& attr)
+	  : TaskFunctionBase(attr), result(result), obj(obj), memfun(memfun), arg1(a1), arg2(a2), arg3(a3), arg4(a4), arg5(a5), arg6(a6), arg7(a7), arg8(a8), arg9(a9) {
+            check_dependency(arg1);
+            check_dependency(arg2);
+            check_dependency(arg3);
+            check_dependency(arg4);
+            check_dependency(arg5);
+            check_dependency(arg6);
+            check_dependency(arg7);
+		    check_dependency(arg8);
+		    check_dependency(arg9);
+        }
+
+        void run(World& world) {
+		  result.set((obj.*memfun)(arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8,arg9));
+        };
+    };
+
+
     //
     // Same as above but now const
     //
@@ -1596,6 +1924,93 @@ namespace madness {
 
         void run(World& world) {
             result.set((obj.*memfun)(arg1,arg2,arg3,arg4,arg5,arg6));
+        };
+    };
+
+    // Task wrapping "resultT (obj.*function)(arg1,arg2,arg3,arg4,arg5,arg6,arg7)const"
+    template <typename resultT, typename objT, typename arg1_type, typename arg2_type, typename arg3_type, typename arg4_type, typename arg5_type, typename arg6_type, typename arg7_type>
+    struct TaskMemfun<resultT(objT::*)(arg1_type,arg2_type,arg3_type,arg4_type,arg5_type,arg6_type,arg7_type)const> : public TaskFunctionBase {
+	    typedef resultT(objT::*memfunT)(arg1_type,arg2_type,arg3_type,arg4_type,arg5_type,arg6_type,arg7_type)const;
+        typedef REMFUTURE(REMCONST(REMREF(arg1_type))) arg1T;
+        typedef REMFUTURE(REMCONST(REMREF(arg2_type))) arg2T;
+        typedef REMFUTURE(REMCONST(REMREF(arg3_type))) arg3T;
+        typedef REMFUTURE(REMCONST(REMREF(arg4_type))) arg4T;
+        typedef REMFUTURE(REMCONST(REMREF(arg5_type))) arg5T;
+        typedef REMFUTURE(REMCONST(REMREF(arg6_type))) arg6T;
+		typedef REMFUTURE(REMCONST(REMREF(arg7_type))) arg7T;
+        typedef Future<REMFUTURE(resultT)> futureT;
+
+        futureT result;
+        objT& obj;
+        const memfunT memfun;
+        Future<arg1T> arg1;
+        Future<arg2T> arg2;
+        Future<arg3T> arg3;
+        Future<arg4T> arg4;
+        Future<arg5T> arg5;
+        Future<arg6T> arg6;
+		Future<arg7T> arg7;
+
+        template <typename a1T, typename a2T, typename a3T, typename a4T, typename a5T, typename a6T, typename a7T>
+        TaskMemfun(const futureT& result, objT& obj, memfunT memfun,
+                   const a1T& a1, const a2T& a2, const a3T& a3, const a4T& a4, const a5T& a5, const a6T& a6, const a7T& a7, const TaskAttributes& attr)
+	  : TaskFunctionBase(attr), result(result), obj(obj), memfun(memfun), arg1(a1), arg2(a2), arg3(a3), arg4(a4), arg5(a5), arg6(a6), arg7(a7) {
+            check_dependency(arg1);
+            check_dependency(arg2);
+            check_dependency(arg3);
+            check_dependency(arg4);
+            check_dependency(arg5);
+            check_dependency(arg6);
+		    check_dependency(arg7);
+        }
+
+        void run(World& world) {
+		  result.set((obj.*memfun)(arg1,arg2,arg3,arg4,arg5,arg6,arg7));
+        };
+    };
+
+    // Task wrapping "resultT (obj.*function)(arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8)const"
+    template <typename resultT, typename objT, typename arg1_type, typename arg2_type, typename arg3_type, typename arg4_type, typename arg5_type, typename arg6_type, typename arg7_type, typename arg8_type>
+    struct TaskMemfun<resultT(objT::*)(arg1_type,arg2_type,arg3_type,arg4_type,arg5_type,arg6_type,arg7_type,arg8_type)const> : public TaskFunctionBase {
+	    typedef resultT(objT::*memfunT)(arg1_type,arg2_type,arg3_type,arg4_type,arg5_type,arg6_type,arg7_type,arg8_type)const;
+        typedef REMFUTURE(REMCONST(REMREF(arg1_type))) arg1T;
+        typedef REMFUTURE(REMCONST(REMREF(arg2_type))) arg2T;
+        typedef REMFUTURE(REMCONST(REMREF(arg3_type))) arg3T;
+        typedef REMFUTURE(REMCONST(REMREF(arg4_type))) arg4T;
+        typedef REMFUTURE(REMCONST(REMREF(arg5_type))) arg5T;
+        typedef REMFUTURE(REMCONST(REMREF(arg6_type))) arg6T;
+		typedef REMFUTURE(REMCONST(REMREF(arg7_type))) arg7T;
+		typedef REMFUTURE(REMCONST(REMREF(arg8_type))) arg8T;
+        typedef Future<REMFUTURE(resultT)> futureT;
+
+        futureT result;
+        objT& obj;
+        const memfunT memfun;
+        Future<arg1T> arg1;
+        Future<arg2T> arg2;
+        Future<arg3T> arg3;
+        Future<arg4T> arg4;
+        Future<arg5T> arg5;
+        Future<arg6T> arg6;
+		Future<arg7T> arg7;
+		Future<arg8T> arg8;
+
+        template <typename a1T, typename a2T, typename a3T, typename a4T, typename a5T, typename a6T, typename a7T, typename a8T>
+        TaskMemfun(const futureT& result, objT& obj, memfunT memfun,
+                   const a1T& a1, const a2T& a2, const a3T& a3, const a4T& a4, const a5T& a5, const a6T& a6, const a7T& a7, const a8T& a8, const TaskAttributes& attr)
+	  : TaskFunctionBase(attr), result(result), obj(obj), memfun(memfun), arg1(a1), arg2(a2), arg3(a3), arg4(a4), arg5(a5), arg6(a6), arg7(a7), arg8(a8) {
+            check_dependency(arg1);
+            check_dependency(arg2);
+            check_dependency(arg3);
+            check_dependency(arg4);
+            check_dependency(arg5);
+            check_dependency(arg6);
+		    check_dependency(arg7);
+		    check_dependency(arg8);
+        }
+
+        void run(World& world) {
+		  result.set((obj.*memfun)(arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8));
         };
     };
 
