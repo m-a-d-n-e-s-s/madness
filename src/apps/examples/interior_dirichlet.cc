@@ -161,10 +161,11 @@ int main(int argc, char **argv) {
 	/// the following line can be commented out if memory is not an issue
 	FunctionDefaults<3>::set_max_refine_level(6);
 
-	Tensor<int> bc(3,2);
-	bc(_,0) = 0;          // Dirichlet in all directions
-	bc(_,1) = 0;
-	FunctionDefaults<3>::set_bc(bc);
+	Tensor<int> bdry_conds(3,2);
+	bdry_conds(_,0) = 0;          // Dirichlet in all directions
+	bdry_conds(_,1) = 0;
+	BoundaryConds<3> bc(bdry_conds);
+	//FunctionDefaults<3>::set_bc(bc);
 
 	// create the forcing function inhomogeneity
 	functionT f = factoryT(world).f(f_rhs);

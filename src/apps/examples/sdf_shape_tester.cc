@@ -35,10 +35,7 @@ int main(int argc, char **argv) {
 	FunctionDefaults<3>::set_cubic_cell(-L, L);
 	FunctionDefaults<3>::set_thresh(thresh);
 
-	Tensor<int> bc(3,2);
-	bc(_,0) = 0;          // Dirichlet in all directions
-	bc(_,1) = 0;
-	FunctionDefaults<3>::set_bc(bc);
+	BoundaryConds<3> bc(0);	 // Dirichlet in all directions
 
 	// create the shape mask
 	coordT3d pt, vec;

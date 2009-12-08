@@ -195,7 +195,7 @@ int main(int argc, char **argv) {
 	Tensor<int> bc(3,2);
 	bc(_,0) = 0;          // Dirichlet in all directions
 	bc(_,1) = 0;
-	FunctionDefaults<3>::set_bc(bc);
+	BoundaryConds<3> bdry_conds(bc);
 
 	// run the tests
 	for(i = 0; i < NTESTS; ++i) {
