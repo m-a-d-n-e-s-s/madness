@@ -565,8 +565,7 @@ void test_diff(World& world) {
     const double expnt = 1.0;
     const double coeff = pow(2.0/PI,0.25*NDIM);
     functorT functor(new Gaussian<T,NDIM>(origin, expnt, coeff));
-	BoundaryConds<NDIM> bcs(2);
-	
+
     FunctionDefaults<NDIM>::set_k(10);
     FunctionDefaults<NDIM>::set_thresh(1e-10);
     FunctionDefaults<NDIM>::set_refine(true);
@@ -597,7 +596,7 @@ void test_diff(World& world) {
         DerivativeGaussian<T,NDIM> df(origin,expnt,coeff,axis);
 
         START_TIMER;
-        Function<T,NDIM> dfdx = diff(f,axis,bcs);
+        Function<T,NDIM> dfdx = diff(f,axis);
         END_TIMER("diff");
 
 //         coordT p(0.0);
@@ -646,7 +645,6 @@ void test_op(World& world) {
     FunctionDefaults<NDIM>::set_initial_level(2);
     FunctionDefaults<NDIM>::set_truncate_mode(1);
     FunctionDefaults<NDIM>::set_cubic_cell(-10,10);
-	BoundaryConds<NDIM> bcs(2);
 
     START_TIMER;
     Function<T,NDIM> f = FunctionFactory<T,NDIM>(world).functor(functor);
@@ -691,7 +689,7 @@ void test_op(World& world) {
     coeffs(0L) = pow(exponents(0L)/PI, 0.5*NDIM);
     SeparatedConvolution<T,NDIM> op(world, FunctionDefaults<NDIM>::get_k(), coeffs, exponents);
     START_TIMER;
-    Function<T,NDIM> r = apply(op,f,bcs);
+    Function<T,NDIM> r = apply(op,f);
     END_TIMER("apply");
     r.verify_tree();
     f.verify_tree();
@@ -764,7 +762,6 @@ void test_coulomb(World& world) {
     FunctionDefaults<3>::set_initial_level(2);
     FunctionDefaults<3>::set_truncate_mode(0);
     FunctionDefaults<3>::set_cubic_cell(-10,10);
-	BoundaryConds<3> bcs(2);
 
     START_TIMER;
     Function<double,3> f = FunctionFactory<double,3>(world).functor(functor).thresh(thresh*0.1).initial_level(4);
@@ -809,7 +806,7 @@ void test_coulomb(World& world) {
     FunctionDefaults<3>::set_apply_randomize(true);
 
     START_TIMER;
-    Function<double,3> r = apply_only(op,f,bcs);
+    Function<double,3> r = apply_only(op,f);
     END_TIMER("apply");
 
 
@@ -958,8 +955,6 @@ void test_qm(World& world) {
     functionT psi = factoryT(world).functor(f).initial_level(12);
     psi.truncate();
 
-	BoundaryConds<1> bcs(2);
-
     if (world.rank() == 0) {
         print("  step    time      norm      error");
         print(" ------  ------- ---------- ----------");
@@ -973,8 +968,8 @@ void test_qm(World& world) {
 
         psi.reconstruct();
         //psi.refine_general(refop());
-        psi.broaden(bcs);
-        psi.broaden(bcs);
+        psi.broaden();
+        psi.broaden();
         
         world.gop.fence();
         double norm = psi.norm2();

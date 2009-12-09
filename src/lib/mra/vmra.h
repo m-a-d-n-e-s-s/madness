@@ -98,19 +98,18 @@ namespace madness {
     }
 
 
-    /// Differentiates a vector of functions, with a vector of BCs
+    /// Differentiates a vector of functions
     template <typename T, int NDIM>
     std::vector< Function<T,NDIM> > diff(World& world,
                                          const std::vector< Function<T,NDIM> >& v,
                                          int axis,
-										 const std::vector< BoundaryConds<NDIM> >& bcs,
                                          bool fence=true) {
         PROFILE_BLOCK(Vdiff);
         reconstruct(world, v);
 
         std::vector< Function<T,NDIM> > df(v.size());
         for (unsigned int i=0; i<v.size(); i++) {
-            df[i] = diff(v[i],axis,bcs[i],false);
+            df[i] = diff(v[i],axis,false);
             if (((i+1) % VMRA_CHUNK_SIZE) == 0) world.gop.fence();
         }
         if (fence) world.gop.fence();
@@ -139,26 +138,6 @@ namespace madness {
 //         if (world.rank() == 0) madness::print("OK");
         // DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG
         
-        return df;
-    }
-
-    /// Differentiates a vector of functions, all with the same BCs
-    template <typename T, int NDIM>
-    std::vector< Function<T,NDIM> > diff(World& world,
-                                         const std::vector< Function<T,NDIM> >& v,
-                                         int axis,
-										 const BoundaryConds<NDIM>& bc = BoundaryConds<NDIM>(1),
-                                         bool fence=true) {
-        PROFILE_BLOCK(Vdiff);
-        reconstruct(world, v);
-
-        std::vector< Function<T,NDIM> > df(v.size());
-        for (unsigned int i=0; i<v.size(); i++) {
-            df[i] = diff(v[i],axis,bc,false);
-            if (((i+1) % VMRA_CHUNK_SIZE) == 0) world.gop.fence();
-        }
-        if (fence) world.gop.fence();
-
         return df;
     }
 
@@ -618,8 +597,7 @@ namespace madness {
     std::vector< Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> >
     apply(World& world,
           const std::vector< SharedPtr<opT> >& op,
-          const std::vector< Function<R,NDIM> > f,
-		  const BoundaryConds<NDIM>& bdry_conds = BoundaryConds<NDIM>(1)) {
+          const std::vector< Function<R,NDIM> > f) {
 
         PROFILE_BLOCK(Vapplyv);
         MADNESS_ASSERT(f.size()==op.size());
@@ -631,7 +609,7 @@ namespace madness {
 
         std::vector< Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> > result(f.size());
         for (unsigned int i=0; i<f.size(); i++) {
-            result[i] = apply_only(*op[i], f[i], bdry_conds, false);
+            result[i] = apply_only(*op[i], f[i], false);
             if (((i+1) % VMRA_CHUNK_SIZE) == 0) world.gop.fence();
         }
 
@@ -650,8 +628,7 @@ namespace madness {
     std::vector< Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> >
     apply(World& world,
           opT& op,
-          const std::vector< Function<R,NDIM> > f,
-		  const BoundaryConds<NDIM>& bdry_conds = BoundaryConds<NDIM>(1)) {
+          const std::vector< Function<R,NDIM> > f) {
         PROFILE_BLOCK(Vapply);
 
         std::vector< Function<R,NDIM> >& ncf = *const_cast< std::vector< Function<R,NDIM> >* >(&f);
@@ -661,7 +638,7 @@ namespace madness {
 
         std::vector< Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> > result(f.size());
         for (unsigned int i=0; i<f.size(); i++) {
-            result[i] = apply_only(op, f[i], bdry_conds, false);
+            result[i] = apply_only(op, f[i], false);
             if (((i+1) % VMRA_CHUNK_SIZE) == 0) world.gop.fence();
         }
 

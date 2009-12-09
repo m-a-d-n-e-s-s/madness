@@ -59,12 +59,10 @@ int main(int argc, char** argv) {
     bc_zero.fill(0);
 
     functionT f = factoryT(world).f(func);
-//    f.set_bc(bc_periodic);
-    BoundaryConds<NDIM> f_periodic(bc_periodic);
-	BoundaryConds<NDIM> f_zero(bc_zero);
+    f.set_bc(bc_periodic);
 
     for (axis=0; axis<NDIM; axis++) {
-        functionT df = diff(f,axis,f_periodic);
+        functionT df = diff(f,axis);
         print(axis,"error",df.err(FunctorInterfaceWrapper(dfunc)));
     }
 

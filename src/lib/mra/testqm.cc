@@ -54,8 +54,6 @@ typedef Function<double_complex,1> functionT;
 typedef FunctionFactory<double_complex,1> factoryT;
 typedef SeparatedConvolution<double_complex,1> operatorT;
 
-BoundaryConds<1> bcs(1);
-
 double_complex psi0(const coordT& r) {
     return double_complex(exp(-r[0]*r[0]*0.5),0.0);
 }
@@ -89,11 +87,11 @@ functionT chin_chen(const functionT& expV,
 
     psi1 = expV*psi0;
     psi1.truncate();
-    psi1 = apply(G,psi1,bcs);
+    psi1 = apply(G,psi1);
     psi1.truncate();
     psi1 = expVtilde*psi1;
     psi1.truncate();
-    psi1 = apply(G,psi1,bcs);
+    psi1 = apply(G,psi1);
     psi1.truncate();
     psi1 = expV*psi1;
     psi1.truncate();
@@ -106,12 +104,12 @@ functionT trotter(const functionT& expV,
                   const functionT& psi0) {
     //    psi(t) = exp(-i*T*t/2) exp(-i*V*t) exp(-i*T*t/2) psi(0)
 
-    functionT psi1 = apply(G,psi0,bcs);
+    functionT psi1 = apply(G,psi0);
     psi1.truncate();
 
     psi1 = expV*psi1;
 
-    psi1 = apply(G,psi1,bcs);
+    psi1 = apply(G,psi1);
     psi1.truncate();
 
     return psi1;

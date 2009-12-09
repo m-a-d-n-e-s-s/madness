@@ -541,10 +541,10 @@ namespace madness {
         }
 
         /// Inplace broadens support in scaling function basis
-        void broaden(const BoundaryConds<NDIM>& bdry_conds=BoundaryConds<NDIM>(2), bool fence = true) const {
+        void broaden(bool fence = true) const {
             verify();
             reconstruct();
-            impl->broaden(bdry_conds,fence);
+            impl->broaden(fence);
         }
 
 
@@ -556,7 +556,6 @@ namespace madness {
             //return impl->coeffs_for_jun(n);
         }
 
-/*
         ///Change bv on the fly. Temporary workaround until better bc handling is introduced.
         Function<T,NDIM>& set_bc(const Tensor<int>& value) {
             PROFILE_MEMBER_FUNC(Function);
@@ -568,7 +567,7 @@ namespace madness {
             PROFILE_MEMBER_FUNC(Function);
             return impl->get_bc();
         }
-*/
+
         /// Clears the function as if constructed uninitialized.  Optional fence.
 
         /// Any underlying data will not be freed until the next global fence.
@@ -1162,7 +1161,7 @@ namespace madness {
     /// Returns a new function with the same distribution
     template <typename T, int NDIM>
     Function<T,NDIM>
-    diff(const Function<T,NDIM>& f, int axis, const BoundaryConds<NDIM>& bdry_conds=BoundaryConds<NDIM>(2), bool fence=true) {
+    diff(const Function<T,NDIM>& f, int axis, bool fence=true) {
         PROFILE_FUNC;
         if (f.is_compressed()) {
             if (fence) {
@@ -1176,90 +1175,19 @@ namespace madness {
         if (VERIFY_TREE) f.verify_tree();
         Function<T,NDIM> result;
         result.set_impl(f, false);
-        result.get_impl()->diff(*f.get_impl(), axis, bdry_conds, fence);
+        result.get_impl()->diff(*f.get_impl(), axis, fence);
         return result;
     }
-
-    /// Boundary terms, with one boundary function, for differentiating w.r.t. given coordinate (x=0, y=1, ...) with optional fence
-
-    /// Returns a new function with the same distribution
-    template <typename T, int NDIM>
-    Function<T,NDIM>
-    diff_bdry(const Function<T,NDIM>& f, int axis, const BoundaryConds<NDIM>& bdry_conds, const Function<T,NDIM>& g, bool fence=true) {
-        PROFILE_FUNC;
-        if (f.is_compressed()) {
-            if (fence) {
-                f.reconstruct();
-            }
-            else {
-                MADNESS_EXCEPTION("diff_bdry: trying to diff a compressed function without fencing",0);
-            }
-        }
-        if (VERIFY_TREE) f.verify_tree();
-        Function<T,NDIM> result;
-        result.set_impl(f, false);
-        result.get_impl()->diff_bdry(*f.get_impl(), axis, bdry_conds, *g.get_impl(), fence);
-        return result;
-    }
-
-    /// Boundary terms, with two boundary functions, for differentiating w.r.t. given coordinate (x=0, y=1, ...) with optional fence
-
-    /// Returns a new function with the same distribution
-    template <typename T, int NDIM>
-    Function<T,NDIM>
-    diff_bdry(const Function<T,NDIM>& f, int axis, const BoundaryConds<NDIM>& bdry_conds, const Function<T,NDIM>& g1, const Function<T,NDIM>& g2, bool fence=true) {
-        PROFILE_FUNC;
-        if (f.is_compressed()) {
-            if (fence) {
-                f.reconstruct();
-            }
-            else {
-                MADNESS_EXCEPTION("diff_bdry: trying to diff a compressed function without fencing",0);
-            }
-        }
-        if (VERIFY_TREE) f.verify_tree();
-        Function<T,NDIM> result;
-        result.set_impl(f, false);
-        result.get_impl()->diff_bdry(*f.get_impl(), axis, bdry_conds, *g1.get_impl(), *g2.get_impl(), fence);
-        return result;
-    }
-
-/*
-    /// Differentiate w.r.t. given coordinate (x=0, y=1, ...) with optional fence, with user-supplied a, b
-
-    /// Returns a new function with the same distribution
-    template <typename T, int NDIM>
-    Function<T,NDIM>
-    diff(const Function<T,NDIM>& f, int axis, const double aaa, const double bbb, const BoundaryConds<NDIM>& bdry_conds, bool fence=true) {
-        PROFILE_FUNC;
-        if (f.is_compressed()) {
-            if (fence) {
-                f.reconstruct();
-            }
-            else {
-                MADNESS_EXCEPTION("diff: trying to diff a compressed function without fencing",0);
-            }
-        }
-        if (VERIFY_TREE) f.verify_tree();
-        Function<T,NDIM> result;
-        result.set_impl(f, false);
-        result.get_impl()->diff(*f.get_impl(), axis, aaa, bbb, bdry_conds, fence);
-        return result;
-    }
-*/
-
 
     /// Apply operator ONLY in non-standard form - required other steps missing !!
     template <typename opT, typename R, int NDIM>
     Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM>
-    //apply_only(const opT& op, const Function<R,NDIM>& f, bool fence=true) {
-    apply_only(const opT& op, const Function<R,NDIM>& f, const BoundaryConds<NDIM>& bdry_conds=BoundaryConds<NDIM>(2), bool fence=true) {
+    apply_only(const opT& op, const Function<R,NDIM>& f, bool fence=true) {
         PROFILE_FUNC;
         Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> result;
 
         result.set_impl(f, true);
-        //result.get_impl()->apply(op, *f.get_impl(), fence);
-        result.get_impl()->apply(op, *f.get_impl(), bdry_conds, fence);
+        result.get_impl()->apply(op, *f.get_impl(), fence);
         return result;
     }
 
@@ -1270,16 +1198,14 @@ namespace madness {
     /// !!! For the moment does NOT respect fence option ... always fences
     template <typename opT, typename R, int NDIM>
     Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM>
-    //apply(const opT& op, const Function<R,NDIM>& f, bool fence=true) {
-    apply(const opT& op, const Function<R,NDIM>& f, const BoundaryConds<NDIM>& bdry_conds = BoundaryConds<NDIM>(2), bool fence=true) {
+    apply(const opT& op, const Function<R,NDIM>& f, bool fence=true) {
         PROFILE_FUNC;
         Function<R,NDIM>& ff = const_cast< Function<R,NDIM>& >(f);
         if (VERIFY_TREE) ff.verify_tree();
         ff.reconstruct();
         ff.nonstandard(op.doleaves, true);
 
-        //Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> result = apply_only(op, ff, fence);
-        Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> result = apply_only(op, ff, bdry_conds, fence);
+        Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> result = apply_only(op, ff, fence);
 
         ff.standard();
         result.reconstruct();
