@@ -1,8 +1,10 @@
 include $(top_srcdir)/config/MakeGlobal.am
 
-bin_PROGRAMS = hello hatom_energy h2 he tdse bigboy2 fast heat heat2 csqrt phil sdf_shape_tester interior_dirichlet test_gmres tdse1d vnucso
+bin_PROGRAMS = hello hatom_energy h2 he tdse bigboy2 fast heat heat2 csqrt phil sdf_shape_tester interior_dirichlet test_gmres tdse1d vnucso nonlinschro
 
 bigboy2_SOURCES = bigboy2.cc
+
+nonlinschro_SOURCES = nonlinschro.cc
 
 phil_SOURCES = phil.cc
 

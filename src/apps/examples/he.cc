@@ -49,11 +49,7 @@ void iterate(World& world, functionT& V, functionT& psi, double& eps) {
 
 int main(int argc, char** argv) {
     initialize(argc, argv);
-    ThreadPool::begin();
-    RMI::begin();
-    MPI::COMM_WORLD.Barrier();
     World world(MPI::COMM_WORLD);
-    
     startup(world,argc,argv);
     std::cout.precision(6);
 
