@@ -56,6 +56,72 @@ else
   echo "Using user specified C++ compiler flags '$CXXFLAGS'"
 fi
 
+# Get optional external libraries inplace so that building will partially check them
+LIBUNWIND_DIR=""
+AC_ARG_WITH([libunwind],
+            [--with-libunwind @<:@=installation directory@:>@ Enables use of libunwind required for Google profiler and heap checker],
+            [
+               LIBUNWIND_DIR="$withval"
+               echo "Enabling libunwind ($LIBUNWIND_DIR)"
+               AC_DEFINE(HAVE_LIBUNWIND, [1], [Define if should use libunwind for Google performance tools])
+            ],
+            [])
+
+GOOGLE_PERF_DIR=""
+AC_ARG_WITH([google-perf],
+            [--with-google-perf @<:@=installation directory@:>@ Enables use of Google fast malloc, profiler, and heap checker],
+            [
+               GOOGLE_PERF_DIR="$withval"
+               echo "Enabling Google performance tools ($GOOGLE_PERF_DIR)"
+               AC_DEFINE(HAVE_GOOGLE_PERF, [1], [Define if should use Google performance tools])
+            ],
+            [])
+
+GOOGLE_TEST_DIR=""
+AC_ARG_WITH([google-test],
+            [--with-google-test @<:@=installation directory@:>@ Enables use of Google unit test],
+            [
+               GOOGLE_TEST_DIR="$withval"
+               if test "$GOOGLE_TEST_DIR" == "yes"; then
+                   echo " ... must specify installation directory for google test ... disabling !!!!!!!!!!!!!!!"
+                   GOOGLE_TEST_DIR=""
+               else
+                   echo "Enabling Google unit test ($GOOGLE_TEST_DIR)"
+                   AC_DEFINE(HAVE_GOOGLE_TEST, [1], [Define if should use Google unit testing])
+               fi
+            ],
+            [])
+
+GOOGLE_LIBS=""
+GOOGLE_INCS=""
+if test "$GOOGLE_TEST_DIR" != ""; then
+   GOOGLE_LIBS="$GOOGLE_LIBS -L$GOOGLE_TEST_DIR/lib -lgtest"
+   GOOGLE_INCS="$GOOGLE_INCS -I$GOOGLE_TEST_DIR/include"
+fi
+
+if test "$GOOGLE_PERF_DIR" != ""; then
+   if test "$GOOGLE_PERF_DIR" != "yes"; then
+      GOOGLE_LIBS="$GOOGLE_LIBS -L$GOOGLE_PERF_DIR/lib"
+   fi
+   if test "$LIBUNWIND_DIR" != ""; then
+      if test "$LIBUNWIND_DIR" != "yes"; then
+          GOOGLE_LIBS="$GOOGLE_LIBS -L$LIBUNWIND_DIR/lib"
+      fi
+      GOOGLE_LIBS="$GOOGLE_LIBS -ltcmalloc -lunwind"
+   else
+      GOOGLE_LIBS="$GOOGLE_LIBS -ltcmalloc_minimal"
+   fi
+fi
+
+if test "$GOOGLE_LIBS" != ""; then
+   echo "Prepending Google libs $GOOGLE_LIBS"
+   LIBS="$GOOGLE_LIBS $LIBS"
+fi
+if test "$GOOGLE_INCS" != ""; then
+   echo "Appending  Google incs $GOOGLE_INCS"
+   CPPFLAGS="$CPPFLAGS $GOOGLE_INCS"
+fi
+
 AC_PROG_CC([$MPICC])
 AC_PROG_CXX([$MPICXX])
 AC_PROG_F77([$MPIF77]) # f90 is a superset of f77
@@ -176,16 +242,25 @@ if test "$memstats" = "yes"; then
   AC_DEFINE([WORLD_GATHER_MEM_STATS], [1], [Set if MADNESS gathers memory statistics])
 fi
 
-AC_ARG_WITH([profile], 
-            [--with-profile  Enables profiling], 
-            [echo "Enabling profiling"; AC_DEFINE(WORLD_PROFILE_ENABLE, [1], [Define if should enable profiling])], 
-            [])
+AC_ARG_ENABLE([profile], 
+              [--enable-profile  Enables profiling], 
+              [echo "Enabling profiling"; AC_DEFINE(WORLD_PROFILE_ENABLE, [1], [Define if should enable profiling])], 
+              [])
 
+AC_ARG_ENABLE([tensor-bounds-checking], 
+              [--enable-tensor-bounds-checking  Enable checking of bounds in tensors ... slow but useful for debugging], 
+              [echo "Enabling tensor bounds checking"; AC_DEFINE(TENSOR_BOUNDS_CHECKING, [1], [Define if should enable bounds checking in tensors])], 
+              [])
 
-AC_ARG_WITH([spinlocks], 
-            [--with-spinlocks  Enables use of spinlocks instead of mutexs (faster unless over subscribing processors)], 
-            [echo "Enabling use of spinlocks"; AC_DEFINE(USE_SPINLOCKS, [1], [Define if should use spinlocks])], 
-            [])
+AC_ARG_ENABLE([tensor-instance-count], 
+              [--enable-tensor-instance-count  Enable counting of allocated tensors for memory leak detection], 
+              [echo "Enabling tensor instance counting"; AC_DEFINE(TENSOR_INSTANCE_COUNT, [1], [Define if should enable instance counting in tensors])], 
+              [])
+
+AC_ARG_ENABLE([spinlocks], 
+              [--enable-spinlocks  Enables use of spinlocks instead of mutexs (faster unless over subscribing processors)], 
+              [echo "Enabling use of spinlocks"; AC_DEFINE(USE_SPINLOCKS, [1], [Define if should use spinlocks])], 
+              [])
 
 AC_ARG_WITH([papi], 
             [--with-papi  Enables use of PAPI], 
@@ -204,8 +279,6 @@ AC_DEFINE_UNQUOTED([MADNESS_CONFIGURATION_HOST], ["$HOSTNAME"],[Configured on th
 AC_DEFINE([WORLD_WATCHDOG],[1],[Enables timeout for dead lock detection])
 AC_DEFINE([WATCHDOG_BARK_INTERVAL],[300],[Interval for warning about possible deadlock])
 AC_DEFINE([WATCHDOG_TIMEOUT],[1200],[Abort if idle for this long])
-#AC_DEFINE([TENSOR_INSTANCE_COUNT],[1],[Enable counting of allocated tensors ... useful for memory leak detection])
-#AC_DEFINE([BOUNDS_CHECKING],[1],[Enable checking of bounds in tensors ... slow but useful for debugging])
 AC_DEFINE(MADNESS_FORINT,[long],[Equivalent C type for Fortran integers ... should always be long?])
 
 
