@@ -40,11 +40,11 @@ typedef Function<complexd,NDIM> complex_functionT;
 typedef Function<double,NDIM> functionT;
 typedef FunctionFactory<complexd,NDIM> complex_factoryT;
 typedef FunctionFactory<double,NDIM> factoryT;
+typedef SharedPtr< WorldDCPmapInterface< Key<3> > > pmapT;
 const char* wave_function_filename(int step);
 bool wave_function_exists(World& world, int step);
 void wave_function_store(World& world, int step, const complex_functionT& psi);
 complex_functionT wave_function_load(World& world, int step);
-
 
 struct WF {
     std::string str;
@@ -75,6 +75,40 @@ complex_functionT wave_function_load(World& world, int step) {
     ar & psi;
     return psi;
 }
+// This controls the distribution of data across the machine
+class LevelPmap : public WorldDCPmapInterface< Key<3> > {
+private:
+    const int nproc;
+public:
+    LevelPmap() : nproc(0) {};
+    
+    LevelPmap(World& world) : nproc(world.nproc()) {}
+    
+    // Find the owner of a given key
+    ProcessID owner(const Key<3>& key) const {
+        Level n = key.level();
+        if (n == 0) return 0;
+        hashT hash;
+
+        // This randomly hashes levels 0-2 and then
+        // hashes nodes by their grand-parent key so as
+        // to increase locality separately on each level.
+        //if (n <= 2) hash = key.hash();
+        //else hash = key.parent(2).hash();
+
+        // This randomly hashes levels 0-3 and then 
+        // maps nodes on even levels to the same
+        // random node as their parent.
+        // if (n <= 3 || (n&0x1)) hash = key.hash();
+        // else hash = key.parent().hash();
+
+        // This randomly hashes each key
+        hash = key.hash();
+
+        return hash%nproc;
+    }
+};
+
 template<class T>
 std::string toString( const T& a ) {
     std::ostringstream o;
@@ -337,35 +371,42 @@ void projectPsi2(World& world, std::vector<std::string> boundList, std::vector<s
         clock_t before=0, after=0;
         if( !unboundList.empty() ) {
             std::vector<std::string>::const_iterator unboundIT;
-            for( unboundIT=unboundList.begin(); unboundIT !=  unboundList.end(); unboundIT++ ) {
-                //parsing unboundList
-                double KX, KY, KZ;
-                std::stringstream ss(*unboundIT);
-                ss >> KX >> KY >> KZ;
-                double dArr[3] = {KX, KY, KZ};
-                const vector3D kVec(dArr);
-                //screening out the zero vector
-                if((dArr[1]>0.0 || dArr[1]<0.0) || (dArr[2]>0.0 || dArr[2]<0.0)) {
-                    //PROJECT Psi_k into MADNESS
-                    if(world.rank()==0) before = clock();
-                    complex_functionT psi_k = 
-                        complex_factoryT(world).functor(functorT( new ScatteringWF(world, Z, kVec) ));
-//                     //W/O timing
-//                     complex_functionT psi_k = 
-//                         complex_factoryT(world).functor(functorT( new ScatteringWF(Z, kVec) ));
-                    if(world.rank()==0) after = clock();
-                    std::cout.precision( 2 );
-                    PRINT( std::fixed << KX << " " << KY << " " << KZ << "  ");
-                    std::cout.precision( 4 );
-                    for( psiIT=psiList.begin(); psiIT !=  psiList.end(); psiIT++ ) {
-                        //<phi_k|Psi(t)>
-                        output = psi_k.inner( psiIT->func );
-                        PRINT(std::scientific << "\t" << real(output) << "\t" << imag(output));
+            if( wave_function_exists(world,0) ) {
+                complex_functionT psi0 = wave_function_load(world,0);
+                for( unboundIT=unboundList.begin(); unboundIT !=  unboundList.end(); unboundIT++ ) {
+                    //parsing unboundList
+                    double KX, KY, KZ;
+                    std::stringstream ss(*unboundIT);
+                    ss >> KX >> KY >> KZ;
+                    double dArr[3] = {KX, KY, KZ};
+                    const vector3D kVec(dArr);
+                    //screening out the zero vector
+                    if((dArr[1]>0.0 || dArr[1]<0.0) || (dArr[2]>0.0 || dArr[2]<0.0)) {
+                        //PROJECT Psi_k into MADNESS
+                        if(world.rank()==0) before = clock();
+                        complex_functionT phi_k = 
+                            complex_factoryT(world).functor(functorT( new ScatteringWF(world, Z, kVec) ));
+                        //                     // W/O timing
+                        //                     complex_functionT phi_k = 
+                        //                         complex_factoryT(world).functor(functorT( new ScatteringWF(Z, kVec) ));
+                        if(world.rank()==0) after = clock();
+                        std::cout.precision( 2 );
+                        PRINT( std::fixed << KX << " " << KY << " " << KZ << "  ");
+                        std::cout.precision( 4 );
+                        complex_functionT overlap_k0 = phi_k.inner(psi0) * psi0;
+                        //look through different time steps (t=0 not amoung them)
+                        for( psiIT=psiList.begin(); psiIT !=  psiList.end(); psiIT++ ) {
+                            //<phi_k|Psi(t)>
+                            output = phi_k.inner( psiIT->func - overlap_k0 );
+                            PRINT( std::scientific << "\t" << real(output*conj(output)) );
+                        }
+                        PRINT(" took " << (after - before)/CLOCKS_PER_SEC << " seconds ");
+                        PRINT("\n");
                     }
-                    PRINT(" took " << (after - before)/CLOCKS_PER_SEC << " seconds ");
-                    PRINT("\n");
                 }
             }
+        } else {
+            PRINTLINE("psi0 must be present in this directory i.e.  data-00000.0000*");
         }
     }
 }
@@ -415,9 +456,9 @@ void compare1F1(World& world) {
     }
     //make functor
     const double kvec[3] = {0, 0, k};
-    //complex_functionT psi_k = FunctionFactory<complexd,NDIM>(world).
+    //complex_functionT phi_k = FunctionFactory<complexd,NDIM>(world).
     //functor(functorT(new ScatteringWF(1.0, kvec)));
-    ScatteringWF psi_k =  ScatteringWF(1.0, kvec);
+    ScatteringWF phi_k =  ScatteringWF(1.0, kvec);
     complexd ONE(1.0,0.0);
     complexd I(0.0,1.0);
     std::cout << std::fixed;
@@ -428,8 +469,8 @@ void compare1F1(World& world) {
         std::cout.precision(8);
         PRINT(real(conhyp(-I/k,ONE,ZZ)) << "\t");
         PRINT(imag(conhyp(-I/k,ONE,ZZ)) << "\t");
-        PRINT(real(psi_k.aForm3(ZZ))    << "\t");
-        PRINT(imag(psi_k.aForm3(ZZ))    << "\n");
+        PRINT(real(phi_k.aForm3(ZZ))    << "\t");
+        PRINT(imag(phi_k.aForm3(ZZ))    << "\n");
     }
 }
 
@@ -529,9 +570,9 @@ void printBasis(World& world, double Z) {
     }
     double kvec[3] = {0, 0, k};
     //    vector3D kVec(dARR);
-    ScatteringWF psi_k(Z, kvec);
+    ScatteringWF phi_k(Z, kvec);
     //for(double TH=0; TH<3.14; TH+=0.3 ) {
-    //    for(double r=0; r<sqrt(3)*psi_k.domain*psi_k.k; r+=1.0 ) {
+    //    for(double r=0; r<sqrt(3)*phi_k.domain*phi_k.k; r+=1.0 ) {
     for(double r=rMIN; r<rMAX; r+=dr ) {
         std::cout.precision(4);
         std::cout << std::fixed;
@@ -540,13 +581,13 @@ void printBasis(World& world, double Z) {
         cosPHI = std::cos(PHI);
         sinPHI = std::sin(PHI);
         double rvec[3] = {r*sinTH*cosPHI, r*sinTH*sinPHI, r*cosTH};
-        output = psi_k(rvec);
+        output = phi_k(rvec);
         PRINT(r);
         std::cout.precision(7);
         complexd ZZ(0.0,2*k*r);
         PRINT("\t" << real(output) << "\t" << imag(output));
-        PRINT("\t" << psi_k.diffR(2*k*r) << "\t" << psi_k.diffI(2*k*r));
-//      PRINT("\t" << real(psi_k.f11(2*k*r)) << "\t" << imag(psi_k.f11(2*k*r)));
+        PRINT("\t" << phi_k.diffR(2*k*r) << "\t" << phi_k.diffI(2*k*r));
+//      PRINT("\t" << real(phi_k.f11(2*k*r)) << "\t" << imag(phi_k.f11(2*k*r)));
 //      PRINT("\t" << real(conhyp(-I/k,ONE,-I*k*r)) << "\t" << imag(conhyp(-I/k,ONE,-I*k*r)));
         PRINTLINE(" ");
     }
@@ -569,7 +610,7 @@ void belkic(World& world) {
     double dARR[3] = {0, 0, 0.5};
     const vector3D kVec(dARR);
     PRINTLINE("|" << kVec << ">");
-    complex_functionT psi_k = complex_factoryT(world).functor(functorT(
+    complex_functionT phi_k = complex_factoryT(world).functor(functorT(
                                                       new ScatteringWF(1.0, kVec) ));
     dARR[2] =  1.5;
     const vector3D qVec(dARR);
@@ -577,7 +618,7 @@ void belkic(World& world) {
     complex_functionT expikDOTr = complex_factoryT(world).functor(functorT(
                                                       new Expikr(qVec) ));
     PRINTLINE("<k=0.5| Exp[iqVec.r] |100>");
-    complexd output = inner(psi_k, expikDOTr*b1s);
+    complexd output = inner(phi_k, expikDOTr*b1s);
     PRINTLINE(output);
 }
 
@@ -635,6 +676,7 @@ int main(int argc, char**argv) {
     FunctionDefaults<NDIM>::set_autorefine(false);
     FunctionDefaults<NDIM>::set_refine(true);
     FunctionDefaults<NDIM>::set_truncate_mode(0);
+    FunctionDefaults<NDIM>::set_pmap(pmapT(new LevelPmap(world)));
     FunctionDefaults<NDIM>::set_truncate_on_project(true);
     try {
         std::vector<std::string> boundList2;
