@@ -1,216 +1,3 @@
-    TENSOR_ASSERT(x.size==x.dim[0]*x.dim[1]*x.dim[2]*x.dim[3]*x.dim[4]*x.dim[5],"x size error",x.size,&x);\
-    TENSOR_ASSERT(y.size==y.dim[0]*y.dim[1]*y.dim[2]*y.dim[3]*y.dim[4]*y.dim[5],"y size error",y.size,&y);\
-    TENSOR_ASSERT(z.size==z.dim[0]*z.dim[1]*z.dim[2]*z.dim[3]*z.dim[4]*z.dim[5],"z size error",z.size,&z);\
-
-
-
-
-
-
-
-                                              
-                                              
-                                              "movddup  (%%r8), %%xmm4;" "addsubpd %%xmm3, %%xmm2;\n"
-                                              "movddup 8(%%r8), %%xmm5;" "addpd  %%xmm2,%%xmm6;\n"
-                                              
-                                              
-                                              "add $16,%%r8;\n"                                 
-                                              "addsubpd %%xmm5, %%xmm4;\n"                      
-                                              "addpd  %%xmm4,%%xmm7;\n"                         
-
-                                              "movddup  (%%r8), %%xmm2;"
-                                              "movddup 8(%%r8), %%xmm3;"
-                                              "add $16,%%r8;\n"                                 
-                                              "movddup  (%%r8), %%xmm4;"
-                                              "movddup 8(%%r8), %%xmm5;"
-                                              "mulpd %%xmm0, %%xmm2;\n"
-                                              "mulpd %%xmm1, %%xmm3;\n"
-                                              "addsubpd %%xmm3, %%xmm2;\n"                      
-                                              "addpd  %%xmm2,%%xmm8;\n"                         
-                                              "mulpd %%xmm0, %%xmm4;\n"
-                                              "mulpd %%xmm1, %%xmm5;\n"
-                                              "add $16,%%r8;\n"                                 
-                                              "addsubpd %%xmm5, %%xmm4;\n"                      
-                                              "addpd  %%xmm4,%%xmm9;\n"                         
-
-                                              "movddup  (%%r8), %%xmm2;"
-                                              "movddup 8(%%r8), %%xmm3;"
-                                              "add $16,%%r8;\n"                                 
-                                              "movddup  (%%r8), %%xmm4;"
-                                              "movddup 8(%%r8), %%xmm5;"
-                                              "mulpd %%xmm0, %%xmm2;\n"
-                                              "mulpd %%xmm1, %%xmm3;\n"
-                                              "addsubpd %%xmm3, %%xmm2;\n"                      
-                                              "addpd  %%xmm2,%%xmm10;\n"                         
-                                              "mulpd %%xmm0, %%xmm4;\n"
-                                              "mulpd %%xmm1, %%xmm5;\n"
-                                              "add $16,%%r8;\n"                                 
-                                              "addsubpd %%xmm5, %%xmm4;\n"                      
-                                              "addpd  %%xmm4,%%xmm11;\n"                         
-
-                                              "movddup  (%%r8), %%xmm2;"
-                                              "movddup 8(%%r8), %%xmm3;"
-                                              "add $16,%%r8;\n"                                 
-                                              "movddup  (%%r8), %%xmm4;"
-                                              "movddup 8(%%r8), %%xmm5;"
-                                              "mulpd %%xmm0, %%xmm2;\n"
-                                              "mulpd %%xmm1, %%xmm3;\n"
-                                              "addsubpd %%xmm3, %%xmm2;\n"                      
-                                              "addpd  %%xmm2,%%xmm12;\n"                         
-                                              "mulpd %%xmm0, %%xmm4;\n"
-                                              "mulpd %%xmm1, %%xmm5;\n"
-                                              "add $16,%%r8;\n"                                 
-                                              "addsubpd %%xmm5, %%xmm4;\n"                      
-                                              "addpd  %%xmm4,%%xmm13;\n"                         
-                                              
-
-
-                                              "movddup  (%%r8), %%xmm2;  mulpd %%xmm0, %%xmm2;\n"
-                                              "movddup 8(%%r8), %%xmm3;  mulpd %%xmm1, %%xmm3;\n"
-                                              "add $16,%%r8;\n"                                    
-                                              "movddup  (%%r8), %%xmm2;  mulpd %%xmm0, %%xmm2;\n"
-                                              "movddup 8(%%r8), %%xmm3;  mulpd %%xmm1, %%xmm3;\n"
-                                              "add $16,%%r8;\n"                                    
-                                              "movddup  (%%r8), %%xmm2;  mulpd %%xmm0, %%xmm2;\n"
-                                              "movddup 8(%%r8), %%xmm3;  mulpd %%xmm1, %%xmm3;\n"
-                                              "add $16,%%r8;\n"                                    
-                                              "movddup  (%%r8), %%xmm2;  mulpd %%xmm0, %%xmm2;\n"
-                                              "movddup 8(%%r8), %%xmm3;  mulpd %%xmm1, %%xmm3;\n"
-                                              "add $16,%%r8;\n"                                    
-                                              "movddup  (%%r8), %%xmm2;  mulpd %%xmm0, %%xmm2;\n"
-                                              "movddup 8(%%r8), %%xmm3;  mulpd %%xmm1, %%xmm3;\n"
-                                              "add $16,%%r8;\n"                                    
-                                              "movddup  (%%r8), %%xmm2;  mulpd %%xmm0, %%xmm2;\n"
-                                              "movddup 8(%%r8), %%xmm3;  mulpd %%xmm1, %%xmm3;\n"
-                                              "add $16,%%r8;\n"                                    
-                                              "movddup  (%%r8), %%xmm2;  mulpd %%xmm0, %%xmm2;\n"
-                                              "movddup 8(%%r8), %%xmm3;  mulpd %%xmm1, %%xmm3;\n"
-                                              "add $16,%%r8;\n"                                    
-                                              "movddup  (%%r8), %%xmm2;  mulpd %%xmm0, %%xmm2;\n"
-                                              "movddup 8(%%r8), %%xmm3;  mulpd %%xmm1, %%xmm3;\n"
-                                              "add $16,%%r8;\n"                                    
-
-
-
-
-
-//                     for (long k=0; k<dimk; k++,ai+=dimi, bk+=dimj) {
-//                     __asm__ __volatile__ (ZERO(%xmm4) ZERO(%xmm5) ZERO(%xmm6) ZERO(%xmm7) ZERO(%xmm8) ZERO(%xmm9) ZERO(%xmm10) ZERO(%xmm11));
-
-//                         //#define LOAD   "movaps (%0), %%xmm0; movaps %%xmm0, %%xmm1; shufpd $1, %%xmm1, %%xmm1;\n"
-
-// #undef LOADA
-// #define LOADA   "movddup  (%0), %%xmm0; movddup 8(%0), %%xmm1;\n"
-// #define DOIT(c) "movaps (%%r8),%%xmm2; movaps %%xmm2,%%xmm3; mulpd %%xmm0,%%xmm2; addpd %%xmm2,"#c"; shufpd $1,%%xmm3,%%xmm3; mulpd %%xmm1,%%xmm3; addsubpd %%xmm3, "#c"; add $16,%%r8;\n"
-
-//                         __asm__ __volatile__ (
-//                                               LOADA
-//                                               DOIT(%%xmm4) 
-//                                               DOIT(%%xmm5) 
-//                                               DOIT(%%xmm6) 
-//                                               DOIT(%%xmm7) 
-//                                               DOIT(%%xmm8) 
-//                                               DOIT(%%xmm9) 
-//                                               DOIT(%%xmm10)
-//                                               DOIT(%%xmm11)
-//                                               :
-//                                               : "r"(ai),"r"(bk)
-//                                               : "r8", "memory"
-//                                               );
-//                     }
-//                     __asm__ __volatile__ (
-//                                           "mov %0, %%r8;\n"
-//                                           STORE(%%xmm4)
-//                                           STORE(%%xmm5)
-//                                           STORE(%%xmm6)
-//                                           STORE(%%xmm7)
-//                                           STORE(%%xmm8)
-//                                           STORE(%%xmm9)
-//                                           STORE(%%xmm10)
-//                                           STORE(%%xmm11)
-//                                           :
-//                                           : "r"(ci)
-//                                           : "r8","memory"
-//                                           );
-
-
-
-
-#if HAVE_NESTED_TEMPLATE_XLC_BUG
-        // IBM xlC 6.? does not digest the ISSUPORTED template
-
-        /// Scale tensor by a scalar of other type (IBM XLC only).
-        template <typename Q> Tensor< TENSOR_RESULT_TYPE(T,Q) > operator*(const Q& x) const {
-            Tensor< TENSOR_RESULT_TYPE(T,Q) > result(ndim,dim,false);
-            BINARY_OPTIMIZED_ITERATOR(TENSOR_RESULT_TYPE(T,Q) , result, T, (*this), *_p0 = (*_p1 * x));
-            return result;
-        }
-
-        /// Divide tensor by a scalar of other type (IBM XLC only).
-        template <typename Q> Tensor< TENSOR_RESULT_TYPE(T,Q) > operator/(const Q& x) const {
-            Tensor< TENSOR_RESULT_TYPE(T,Q) > result(ndim,dim);
-            BINARY_OPTIMIZED_ITERATOR(TENSOR_RESULT_TYPE(T,Q) , result, T, (*this), *_p0 = (*_p1 / x));
-            return result;
-        }
-
-        /// Inplace multiply by scalar of other type (IBM XLC only).
-        template <typename Q> Tensor<T>& operator*=(const Q& t) {
-            UNARY_OPTIMIZED_ITERATOR(T,(*this), *_p0 *= t);
-            return *this;
-        }
-        /// Inplace scaling by scalar of supported type.
-        template <typename Q> Tensor<T>& scale(Q x) {
-            UNARY_OPTIMIZED_ITERATOR(T, (*this), *_p0 = (T)(*_p0 * x));
-            return *this;
-        }
-#else
-
-
-        /// Routine for internal class use to perform shallow copy from \c t to \c *this
-        void internal_shallow_copy(const Tensor<T>& t) {
-            deallocate();   //!!!!!!! better to use swap of ptr and base class contents
-            _ndim = t.ndim;
-            _size = t.size;
-            _p = t._p;
-            _id = t.id;
-            _p = t._p;
-            for (long i=0; i<ndim; i++) {
-                dim[i] = t.dim[i];
-                _stride[i] = t._stride[i];
-            }
-            for (long i=ndim; i<TENSOR_MAXDIM; i++) { // So can iterate over missing dimensions
-                dim[i] = 1;
-                _stride[i] = 0;
-            }
-        }
-
-
-#if HAVE_NESTED_TEMPLATE_XLC_BUG
-    /// The class defines tensor op scalar ... here define scalar op tensor.
-    template <typename T, typename Q>
-    Tensor<T> operator+(Q x, const Tensor<T>& t) {
-        return t+x;
-    }
-
-    /// The class defines tensor op scalar ... here define scalar op tensor.
-    /// Restrict to supported scalar types or typw disaster occurs.
-    template <typename T, typename Q>
-    Tensor<T> operator*(const Q& x, const Tensor<T>& t) {
-        return t*x;
-    }
-
-    /// The class defines tensor op scalar ... here define scalar op tensor.
-    /// Restrict to supported scalar types or typw disaster occurs.
-    template <typename T, typename Q>
-    Tensor<T> operator-(Q x, const Tensor<T>& t) {
-        return (-t)+=x;
-    }
-#else
-
-
-======================
-THIS IS THE OLD TEST CODE
-
 /*
   This file is part of MADNESS.
 
@@ -242,7 +29,7 @@ THIS IS THE OLD TEST CODE
   fax:   865-572-0680
 
 
-  $Id$
+  $Id: test.cc 1105 2009-03-28 20:58:10Z rjharrison $
 */
 
 
@@ -304,25 +91,25 @@ template <typename T, typename Q> void Test1() {
 
         Tensor<T> t;
         std::cout << "t\n";
-        std::cout << t.ndim << std::endl;
-        std::cout << t.size << std::endl;
+        std::cout << t.ndim() << std::endl;
+        std::cout << t.size() << std::endl;
 
         Tensor<Q> q1(1);
         std::cout << "q1\n";
-        std::cout << q1.ndim << std::endl;
-        std::cout << q1.size << std::endl;
-        std::cout << q1.dim[0] << std::endl;
-        std::cout << q1.stride[0] << std::endl;
+        std::cout << q1.ndim() << std::endl;
+        std::cout << q1.size() << std::endl;
+        std::cout << q1.dim(0) << std::endl;
+        std::cout << q1.stride(0) << std::endl;
         Tensor<Q> q2(1,2);
-        std::cout << q1.ndim << std::endl;
+        std::cout << q1.ndim() << std::endl;
         Tensor<Q> q3(1,2,3);
-        std::cout << q1.ndim << std::endl;
+        std::cout << q1.ndim() << std::endl;
         Tensor<Q> q4(1,2,3,4);
-        std::cout << q1.ndim << std::endl;
+        std::cout << q1.ndim() << std::endl;
         Tensor<Q> q5(1,2,3,4,5);
-        std::cout << q1.ndim << std::endl;
+        std::cout << q1.ndim() << std::endl;
         Tensor<Q> q6(1,2,3,4,5,6);
-        std::cout << q1.ndim << std::endl;
+        std::cout << q1.ndim() << std::endl;
 
         long d[] = {4,3,2,1};
         Tensor<Q> qg(4L,d);
@@ -368,7 +155,7 @@ template <typename T, typename Q> void Test1() {
         q4.fillrandom();
         q5.fillrandom();
         q6.fillrandom();
-        if (q1.id == TensorTypeData<long>::id) {
+        if (q1.id() == TensorTypeData<long>::id) {
             q1.fillindex();
             q2.fillindex();
             q3.fillindex();
@@ -553,17 +340,17 @@ template <typename T>  void Test4() {
     b = a(Slice(1,-2,1),Slice(3,-2,1),Slice(2,-2,1));
     ITERATOR3(b,if (b(_i,_j,_k)!=a(1+_i,_j+3,2+_k)) error("test4: failed",5));
 
-    if (b.dim[0]!=(a.dim[0]-2) || b.dim[1]!=(a.dim[1]-4) ||
-            b.dim[2]!=(a.dim[2]-3))
+    if (b.dim(0)!=(a.dim(0)-2) || b.dim(1)!=(a.dim(1)-4) ||
+        b.dim(2)!=(a.dim(2)-3))
         error("test4: failed",6);
 
     // subpatch assignment, chaining, defaulting args on slice ...
     // 5 6 7 view property
     a.fill(0);
     b = a(Slice(1,-1),Slice(1,-2),Slice(2,-2)) = (T) 1;
-    if (long(std::abs(a.sum())+0.1) != (a.dim[0]-1)*(a.dim[1]-2)*(a.dim[2]-3)) {
+    if (long(std::abs(a.sum())+0.1) != (a.dim(0)-1)*(a.dim(1)-2)*(a.dim(2)-3)) {
         std::cout << std::abs(a.sum()) << std::endl;
-        std::cout << (a.dim[0]-1)*(a.dim[1]-2)*(a.dim[2]-3) << std::endl;
+        std::cout << (a.dim(0)-1)*(a.dim(1)-2)*(a.dim(2)-3) << std::endl;
         error("test4: failed",7);	// Check for out of bounds assignment
     }
     ITERATOR3(b,if (b(IND3) != (T) 1) error("test4: failed",8));
@@ -572,7 +359,7 @@ template <typename T>  void Test4() {
     // elimination of dimensions
     a.fill(0);
     b = a(2,_,_) = (T) 1;
-    if (b.ndim != 2 || b.dim[0]!=a.dim[1] || b.dim[1]!=a.dim[2])
+    if (b.ndim() != 2 || b.dim(0)!=a.dim(1) || b.dim(1)!=a.dim(2))
         error("test4: failed",10);
     ITERATOR2(b,if (b(IND2) != a(2,_i,_j)) error("test4: failed",11));
 
@@ -581,7 +368,7 @@ template <typename T>  void Test4() {
     if (!a.iscontiguous()) error("test4: failed",110);
     if (b.iscontiguous()) error("test4: failed",111);
 
-    if (b.ndim != 2 || b.dim[0]!=a.dim[2] || b.dim[1]!=a.dim[0])
+    if (b.ndim() != 2 || b.dim(0)!=a.dim(2) || b.dim(1)!=a.dim(0))
         error("test4: failed",12);
 
     ITERATOR2(b,if (b(IND2) != a(_j,5,_j)) error("test4: failed",13));
@@ -630,7 +417,7 @@ template <typename T>  void Test4() {
     b = b.swapdim(1,2);
     b(patch) = a(patch);		// Assign patch of reordered a to patch of b.
 
-    long n = a(patch).size;
+    long n = a(patch).size();
     if (long(std::abs(a.sum())+0.1) != n*(n-1)/2) error("test4: failed",21);
     if (long(std::abs(b.sum())+0.1) != n*(n-1)/2) error("test4: failed",22);
     ITERATOR3(c,if (a(_i,_j,_k) != b(_i,_j,_k)) error("test4: failed",23));
@@ -646,7 +433,7 @@ template <class T> void Test5() {
     c.fillrandom();
     d.fillrandom();
 
-    if (a.id == TensorTypeData<long>::id) {
+    if (a.id() == TensorTypeData<long>::id) {
         // Random number generates really big numbers that screw up the
         // testing logic and cause overflow ... replace with index
         a.fillindex();
@@ -687,7 +474,7 @@ template <class T> void Test5() {
     }
              );
 
-    if (a.id == TensorTypeData<long>::id) {
+    if (a.id() == TensorTypeData<long>::id) {
         // Tensor expression does type conversion to integer for each
         // intermediate ... elementwise converts only at the end
         std::printf("skipping test6 for long\n");
@@ -750,8 +537,8 @@ template <class T> void Test6() {
 
     f.fill(0);
     f(3,2,1,5) = (T) 1;
-    if (f.id != TensorTypeData<float_complex>::id &&
-            f.id != TensorTypeData<double_complex>::id) {
+    if (f.id() != TensorTypeData<float_complex>::id &&
+            f.id() != TensorTypeData<double_complex>::id) {
         if (f.max() != (T) 1) error("test6: failed",0);
         if (f.max(ind) != (T) 1) error("test6: failed",1);
         if (ind[0]!=3 || ind[1]!=2 || ind[2]!=1 || ind[3]!=5)
@@ -767,8 +554,8 @@ template <class T> void Test6() {
 
     f.fill(1);
     f(3,2,1,5) = (T) -2;
-    if (f.id != TensorTypeData<float_complex>::id &&
-            f.id != TensorTypeData<double_complex>::id) {
+    if (f.id() != TensorTypeData<float_complex>::id &&
+            f.id() != TensorTypeData<double_complex>::id) {
         if (f.min() != (T) -2) error("test6: failed",6);
         if (f.min(ind) != (T) -2) error("test6: failed",7);
         if (ind[0]!=3 || ind[1]!=2 || ind[2]!=1 || ind[3]!=5)
@@ -828,13 +615,13 @@ template <class T> void Test7() {
 
     ITERATOR2(mary,
               T sum = 0;
-              for (int k=0; k<fred.dim[1]; k++) sum += fred(_i,k)*dave(_j,k);
+              for (int k=0; k<fred.dim(1); k++) sum += fred(_i,k)*dave(_j,k);
               if (std::abs(sum-mary(_i,_j))> std::abs(sum)*1e-6) error("test7: failed",2));
     dave = dave.swapdim(0,1);
     mary = inner(fred,dave);
     ITERATOR2(mary,
               T sum = 0;
-              for (int k=0; k<fred.dim[1]; k++) sum += fred(_i,k)*dave(k,_j);
+              for (int k=0; k<fred.dim(1); k++) sum += fred(_i,k)*dave(k,_j);
               if (std::abs(sum-mary(_i,_j))> std::abs(sum)*1e-6) error("test7: failed",3));
 
     Tensor<T> alfred(3,4,5,6),samantha(7,5,8,2);
@@ -843,7 +630,7 @@ template <class T> void Test7() {
     Tensor<T> john = inner(alfred,samantha,2,1);
     ITERATOR6(john,
               T sum = 0;
-              for (int k=0; k<alfred.dim[2]; k++) sum += alfred(_i,_j,k,_k)*samantha(_l,k,_m,_n);
+              for (int k=0; k<alfred.dim(2); k++) sum += alfred(_i,_j,k,_k)*samantha(_l,k,_m,_n);
               if (std::abs(sum-john(_i,_j,_k,_l,_m,_n))> std::abs(sum)*1e-6) error("test7: failed",4));
 
 
@@ -855,7 +642,7 @@ template <class T> void Test7() {
     john = inner(alfred,samantha,0,0);
     ITERATOR6(john,
               T sum = 0;
-              for (int k=0; k<alfred.dim[0]; k++) sum += alfred(k,_i,_j,_k)*samantha(k,_l,_m,_n);
+              for (int k=0; k<alfred.dim(0); k++) sum += alfred(k,_i,_j,_k)*samantha(k,_l,_m,_n);
     if (std::abs(sum-john(_i,_j,_k,_l,_m,_n))> std::abs(sum)*1e-6) {
         std::cout << sum << " " << john(_i,_j,_k,_l,_m,_n) << " " << sum - john(_i,_j,_k,_l,_m,_n) << std::endl;
             error("test7: failed",410);
@@ -865,19 +652,19 @@ template <class T> void Test7() {
     john = inner(alfred,samantha,0,-1);
     ITERATOR6(john,
               T sum = 0;
-              for (int k=0; k<alfred.dim[0]; k++) sum += alfred(k,_i,_j,_k)*samantha(_l,_m,_n,k);
+              for (int k=0; k<alfred.dim(0); k++) sum += alfred(k,_i,_j,_k)*samantha(_l,_m,_n,k);
               if (std::abs(sum-john(_i,_j,_k,_l,_m,_n))> std::abs(sum)*1e-6) error("test7: failed",411));
 
     john = inner(alfred,samantha,-1,0);
     ITERATOR6(john,
               T sum = 0;
-              for (int k=0; k<alfred.dim[0]; k++) sum += alfred(_i,_j,_k,k)*samantha(k,_l,_m,_n);
+              for (int k=0; k<alfred.dim(0); k++) sum += alfred(_i,_j,_k,k)*samantha(k,_l,_m,_n);
               if (std::abs(sum-john(_i,_j,_k,_l,_m,_n))> std::abs(sum)*1e-6) error("test7: failed",412));
 
     john = inner(alfred,samantha,-1,-1);
     ITERATOR6(john,
               T sum = 0;
-              for (int k=0; k<alfred.dim[0]; k++) sum += alfred(_i,_j,_k,k)*samantha(_l,_m,_n,k);
+              for (int k=0; k<alfred.dim(0); k++) sum += alfred(_i,_j,_k,k)*samantha(_l,_m,_n,k);
               if (std::abs(sum-john(_i,_j,_k,_l,_m,_n))> std::abs(sum)*1e-6) error("test7: failed",413));
 
 
@@ -1107,6 +894,3 @@ int main() {
 
     return 0;
 }
-==== END OF OLD TEST CODE ======
-
-

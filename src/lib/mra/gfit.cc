@@ -133,7 +133,7 @@ namespace madness {
                 double r = lo*(pow(step,i+0.5));
                 double exact = exp(-mu*r)/r/4.0/pi;
                 double test = 0.0;
-                for (int j=0; j<coeff.dim[0]; j++)
+                for (int j=0; j<coeff.dim(0); j++)
                     test += coeff[j]*exp(-r*r*expnt[j]);
                 double err = 0.0;
                 if (exact) err = (exact-test)/exact;
@@ -265,7 +265,7 @@ namespace madness {
                 print("moments", q);
                 print("moments", qg);
             }
-            q = copy(q - qg);
+            q = q - qg;
             for (int j=0; j<nmom; j++) {
                 Tensor<double> qt(4);
                 gaussian_spherical_moments(expnt[j], range, qt);
@@ -299,7 +299,7 @@ namespace madness {
                 double r = lo*(pow(step,i+0.5));
                 double exact = exp(-mu*r)/r/4.0/pi;
                 double test = 0.0;
-                for (int j=0; j<coeff.dim[0]; j++)
+                for (int j=0; j<coeff.dim(0); j++)
                     test += coeff[j]*exp(-r*r*expnt[j]);
                 double err = 0.0;
                 if (exact) err = (exact-test)/exact;
@@ -409,7 +409,7 @@ namespace madness {
             for (int i=0; i<=npt; i++) {
                 double r = lo*(pow(step,i+0.5));
                 double test = 0.0;
-                for (int j=0; j<coeff.dim[0]; j++)
+                for (int j=0; j<coeff.dim(0); j++)
                     test += coeff[j]*exp(-r*r*expnt[j]);
                 printf("  %.6e %20.10e\n",r, test);
             }

@@ -51,7 +51,7 @@ namespace madness {
         static SharedPtr< WorldDCPmapInterface< Key<NDIM> > > pmap; ///< Default mapping of keys to processes
 
         static void recompute_cell_info() {
-            MADNESS_ASSERT(cell.dim[0]==NDIM && cell.dim[1]==2 && cell.ndim==2);
+            MADNESS_ASSERT(cell.dim(0)==NDIM && cell.dim(1)==2 && cell.ndim()==2);
             cell_width = cell(_,1)-cell(_,0);
             cell_volume = cell_width.product();
             cell_min_width = cell_width.min();
@@ -150,7 +150,7 @@ namespace madness {
         }
         static void set_bc(const Tensor<int>& value) {
             bc=copy(value);
-            MADNESS_ASSERT(bc.dim[0]==NDIM && bc.dim[1]==2 && bc.ndim==2);
+            MADNESS_ASSERT(bc.dim(0)==NDIM && bc.dim(1)==2 && bc.ndim()==2);
         }
 
         static const Tensor<double>& get_cell() {

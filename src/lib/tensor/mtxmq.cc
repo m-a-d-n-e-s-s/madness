@@ -97,8 +97,6 @@ namespace madness {
         //std::cout << "IN DOUBLE ASM VERSION " << dimi << " " << dimj << " " << dimk << "\n";
 
         
-#define IS_ODD(n) (n&1)
-#define IS_UNALIGNED(p) (((unsigned long) p)&7)
         if (IS_ODD(dimi) || IS_ODD(dimj) || IS_ODD(dimk) ||
             IS_UNALIGNED(a) || IS_UNALIGNED(b) || IS_UNALIGNED(c)) {
             //std::cout << "slow\n";

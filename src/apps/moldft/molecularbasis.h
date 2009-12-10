@@ -293,7 +293,7 @@ public:
     }
 
     bool has_guess_info() const {
-        return dmat.size>0;
+        return dmat.size()>0;
     }
 
     const Tensor<double>& get_dmat() const {
@@ -633,7 +633,7 @@ doneitalready:
             printf("    zero vector\n");
             return;
         }
-        long nbf = int(v.dim[0]);
+        long nbf = int(v.dim(0));
         long list[nbf];
         long ngot=0;
         for (long i=0; i<nbf; i++) {

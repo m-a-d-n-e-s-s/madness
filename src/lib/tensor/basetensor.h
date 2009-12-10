@@ -75,66 +75,117 @@ namespace madness {
 #endif
 
     protected:
-        void set_dims_and_size(long nd, const long d[]);
+
+        long _size;			///< Number of elements in the tensor
+        long _ndim;			///< Number of dimensions (-1=invalid; 0=scalar; >0=tensor)
+        long _id; 			///< Id from TensorTypeData<T> in type_data.h
+        long _dim[TENSOR_MAXDIM];	///< Size of each dimension
+        long _stride[TENSOR_MAXDIM];     ///< Increment between elements in each dimension
+
+        void set_dims_and_size(long nd, const long d[]) {
+            _ndim = nd;
+            _size = 1;
+            if (_ndim < 0) _size=0;
+            for (long i=_ndim-1; i>=0; i--) {
+                _dim[i] = d[i];
+                _stride[i] = _size;
+                _size *= d[i];
+            }
+            for (long i=std::max(_ndim,0L); i<TENSOR_MAXDIM; i++) { // So can iterate over missing dimensions
+                _dim[i] = 1;
+                _stride[i] = 0;
+            }
+        }
 
     public:
-        long size;			///< Number of elements in the tensor
-        long id; 			///< Id from TensorTypeData<T> in type_data.h
-        long ndim;			///< Number of dimensions (-1=invalid; 0=scalar; >0=tensor)
-        long dim[TENSOR_MAXDIM];	///< Size of each dimension
-        long stride[TENSOR_MAXDIM];   ///< Increment between elements in each dimension
 
+        BaseTensor() : _size(0), _ndim(-1) {
 #ifdef TENSOR_INSTANCE_COUNT
-        BaseTensor() {
             instance_count++;
-        };
-        virtual ~BaseTensor() {
-            instance_count--;
-        };
-#else
-        BaseTensor() {};
-        virtual ~BaseTensor() {};
 #endif
-        virtual BaseTensor* new_shallow_copy_base() const = 0;
-        virtual BaseTensor* new_deep_copy_base() const = 0;
-        virtual BaseTensor* slice_base(const std::vector<Slice>& s) const = 0;
+        }
+
+        virtual ~BaseTensor() {
+#ifdef TENSOR_INSTANCE_COUNT
+            instance_count--;
+#endif
+        }
 
         /// Returns the count of all current instances of tensors & slice tensors of all types.
+        static inline int get_instance_count() {
 #ifdef TENSOR_INSTANCE_COUNT
-        static inline int get_instance_count() {
             return instance_count;
-        };
 #else
-        static inline int get_instance_count() {
             return 0;
-        };
 #endif
+        }
 
-        bool conforms(const BaseTensor *t) const;
-        inline bool iscontiguous() const {
-            /// Returns true if the tensor refers to contiguous memory locations.
-            if (this->size == 0) return true;
-            long size = 1;
-            for (long i=ndim-1; i>=0; i--) {
-                if (stride[i] != size) return false;
-                size *= dim[i];
+        /// Returns the number of elements in the tensor
+        long size() const {return _size;}
+
+        /// Returns the typeid of the tensor (c.f., \c TensorTypeData<T> )
+        long id() const {return _id;}
+
+        /// Returns the number of dimensions in the tensor
+        long ndim() const {return _ndim;}
+
+        /// Returns the size of dmension \c i
+        long dim(int i) const {return _dim[i];}
+        
+        /// Returns the stride associated with dimension \c i
+        long stride(int i) const {return _stride[i];}
+        
+        /// Returns the array of tensor dimensions
+        const long* dims() const {return _dim;}
+
+        /// Returns the array of tensor strides
+        const long* strides() const {return _stride;}
+
+        /// Returns true if this and *t are the same shape and size
+        bool conforms(const BaseTensor *t) const {
+            if (_ndim != t->_ndim) return false;
+            for (long i=0; i<_ndim; i++) {
+                if (_dim[i] != t->_dim[i]) return false;
             }
             return true;
-        };
-        void reshape_inplace_base(const std::vector<long>& d);
-        BaseTensor* reshape_base(const std::vector<long>& d) const;
-        void flat_inplace_base();
-        BaseTensor* flat_base() const;
-        void splitdim_inplace_base(long i, long dimi0, long dimi1);
-        BaseTensor* splitdim_base(long i, long dimi0, long dimi1) const;
-        void fusedim_inplace_base(long i);
-        BaseTensor* fusedim_base(long i) const;
-        void swapdim_inplace_base(long i, long j);
-        BaseTensor* swapdim_base(long idim, long jdim) const;
-        void cycledim_inplace_base(long shift, long start, long end);
-        BaseTensor* cycledim_base(long shift, long start = 0, long end = -1) const;
-        void mapdim_inplace_base(const std::vector<long>& map);
-        BaseTensor* mapdim_base(const std::vector<long>& map) const;
+        }
+
+        /// Returns true if the tensor refers to contiguous memory locations.
+        bool iscontiguous() const {
+            if (_size <= 0) return true;
+            long sz = 1;
+            for (long i=_ndim-1; i>=0; i--) {
+                if (_stride[i] != sz) return false;
+                sz *= _dim[i];
+            }
+            return true;
+        }
+
+    protected:
+        
+        /// Reshapes the tensor inplace
+        void reshape_inplace(const std::vector<long>& d);
+
+        /// Reshapes the tensor inplace
+        void reshape_inplace(int ndimnew, const long* d);
+
+        /// Reshapes the tensor inplace into 1D
+        void flat_inplace();
+
+        /// Splits dimension \c i
+        void splitdim_inplace(long i, long dimi0, long dimi1);
+
+        /// Fuses dimensions \c i and \c i+1
+        void fusedim_inplace(long i);
+
+        /// Swaps the dimensions
+        void swapdim_inplace(long i, long j);
+
+        /// Cyclic shift of dimensions
+        void cycledim_inplace(long shift, long start, long end);
+
+        /// General permutation of dimensions
+        void mapdim_inplace(const std::vector<long>& map);
     };
 
 }

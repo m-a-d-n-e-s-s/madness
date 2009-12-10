@@ -238,8 +238,8 @@ namespace madness {
     template <typename T>
     void svd(const Tensor<T>& a, Tensor<T>* U,
              Tensor< typename Tensor<T>::scalar_type >* s, Tensor<T>* VT) {
-        TENSOR_ASSERT(a.ndim == 2, "svd requires matrix",a.ndim,&a);
-        integer m = a.dim[0], n = a.dim[1], rmax = min<integer>(m,n);
+        TENSOR_ASSERT(a.ndim() == 2, "svd requires matrix",a.ndim(),&a);
+        integer m = a.dim(0), n = a.dim(1), rmax = min<integer>(m,n);
         integer lwork = max<integer>(3*min(m,n)+max(m,n),5*min(m,n)-4)*32;
         integer info;
         Tensor<T> A(copy(a)), work(lwork);
@@ -268,7 +268,7 @@ namespace madness {
         a.fillrandom();
         svd(a,&U,&s,&VT);
 
-        long rank = s.dim[0];
+        long rank = s.dim(0);
         Tensor<T> b(n,m);
         for (long i=0; i<n; i++)
             for (long j=0; j<m; j++)
@@ -292,15 +292,15 @@ namespace madness {
     */
     template <typename T>
     void gesv(const Tensor<T>& a, const Tensor<T>& b, Tensor<T>* x) {
-        TENSOR_ASSERT(a.ndim == 2, "gesv requires matrix",a.ndim,&a);
-        integer n = a.dim[0], m = a.dim[1], nrhs = b.dim[1];
+        TENSOR_ASSERT(a.ndim() == 2, "gesv requires matrix",a.ndim(),&a);
+        integer n = a.dim(0), m = a.dim(1), nrhs = b.dim(1);
         TENSOR_ASSERT(m == n, "gesv requires square matrix",0,&a);
-        TENSOR_ASSERT(b.ndim <= 2, "gesv require a vector or matrix for the RHS",b.ndim,&b);
-        TENSOR_ASSERT(a.dim[0] == b.dim[0], "gesv matrix and RHS must conform",b.ndim,&b);
+        TENSOR_ASSERT(b.ndim() <= 2, "gesv require a vector or matrix for the RHS",b.ndim(),&b);
+        TENSOR_ASSERT(a.dim(0) == b.dim(0), "gesv matrix and RHS must conform",b.ndim(),&b);
 
         // The input matrix & vectors are destroyed by gesv and we also need Fortran order
         Tensor<T> AT = transpose(a);
-        if (b.ndim == 1)
+        if (b.ndim() == 1)
             *x = copy(b);
         else
             *x = transpose(b);
@@ -314,7 +314,7 @@ namespace madness {
 
         TENSOR_ASSERT((info == 0), "gesv failed", info, &a);
 
-        if (b.ndim == 2) *x = transpose(*x);
+        if (b.ndim() == 2) *x = transpose(*x);
     }
 
     template <typename T>
@@ -325,8 +325,29 @@ namespace madness {
         b1.fillrandom();
         b.fillrandom();
 
+//         print("A");
+//         print(a);
+
+//         print("B");
+//         print(b);
+
+//         print("B1");
+//         print(b1);
+
         gesv(a,b,&x);
         gesv(a,b1,&x1);
+
+//         print("X");
+//         print(x);
+
+//         print("X1");
+//         print(x1);
+
+//         print("R");
+//         print(inner(a,x)-b);
+
+//         print("R1");
+//         print(inner(a,x1)-b1);
 
         return (inner(a,x)-b).normf() + (inner(a,x1)-b1).normf();
     }
@@ -363,17 +384,17 @@ namespace madness {
     void gelss(const Tensor<T>& a, const Tensor<T>& b, double rcond,
                Tensor<T>* x, Tensor< typename Tensor<T>::scalar_type >* s,
                long *rank, Tensor<typename Tensor<T>::scalar_type>* sumsq = NULL) {
-        TENSOR_ASSERT(a.ndim == 2, "gelss requires matrix",a.ndim,&a);
-        integer m = a.dim[0], n = a.dim[1], nrhs = b.dim[1];
-        TENSOR_ASSERT(b.ndim <= 2, "gelss require a vector or matrix for the RHS",b.ndim,&b);
-        TENSOR_ASSERT(a.dim[0] == b.dim[0], "gelss matrix and RHS must conform",b.ndim,&b);
+        TENSOR_ASSERT(a.ndim() == 2, "gelss requires matrix",a.ndim(),&a);
+        integer m = a.dim(0), n = a.dim(1), nrhs = b.dim(1);
+        TENSOR_ASSERT(b.ndim() <= 2, "gelss require a vector or matrix for the RHS",b.ndim(),&b);
+        TENSOR_ASSERT(a.dim(0) == b.dim(0), "gelss matrix and RHS must conform",b.ndim(),&b);
 
         // The input matrix & vectors are destroyed by gelss and we also need Fortran order
         integer maxmn = max(m, n);
         Tensor<T> AT = transpose(a);
         Tensor<T> lapack_inout;
 
-        if (b.ndim == 1)
+        if (b.ndim() == 1)
             lapack_inout = copy(b);
         else {
             if (m >= n)
@@ -421,12 +442,12 @@ namespace madness {
                     }
             }
 
-            if(b.ndim == 1)
+            if(b.ndim() == 1)
                 *x = lapack_inout(Slice(0,n-1));
             else
                 *x = transpose(lapack_inout(Slice(0,nrhs-1), Slice(0, n-1)));
         }
-        else if(b.ndim == 2)
+        else if(b.ndim() == 2)
             *x = transpose(lapack_inout);
         else
             *x = lapack_inout;
@@ -463,9 +484,9 @@ namespace madness {
     template <typename T>
     void syev(const Tensor<T>& A,
               Tensor<T>* V, Tensor< typename Tensor<T>::scalar_type >* e) {
-        TENSOR_ASSERT(A.ndim == 2, "syev requires a matrix",A.ndim,&A);
-        TENSOR_ASSERT(A.dim[0] == A.dim[1], "syev requires square matrix",0,&A);
-        integer n = A.dim[0];
+        TENSOR_ASSERT(A.ndim() == 2, "syev requires a matrix",A.ndim(),&A);
+        TENSOR_ASSERT(A.dim(0) == A.dim(1), "syev requires square matrix",0,&A);
+        integer n = A.dim(0);
         integer lwork = max(max((integer) 1,(integer) (3*n-1)),(integer) (34*n));
         integer info;
         Tensor<T> work(lwork);
@@ -535,12 +556,12 @@ namespace madness {
     template <typename T>
     void sygv(const Tensor<T>& A, const Tensor<T>& B, int itype,
               Tensor<T>* V, Tensor< typename Tensor<T>::scalar_type >* e) {
-        TENSOR_ASSERT(A.ndim == 2, "sygv requires a matrix",A.ndim,&A);
-        TENSOR_ASSERT(A.dim[0] == A.dim[1], "sygv requires square matrix",0,&A);
-        TENSOR_ASSERT(B.ndim == 2, "sygv requires a matrix",B.ndim,&A);
-        TENSOR_ASSERT(B.dim[0] == B.dim[1], "sygv requires square matrix",0,&A);
+        TENSOR_ASSERT(A.ndim() == 2, "sygv requires a matrix",A.ndim(),&A);
+        TENSOR_ASSERT(A.dim(0) == A.dim(1), "sygv requires square matrix",0,&A);
+        TENSOR_ASSERT(B.ndim() == 2, "sygv requires a matrix",B.ndim(),&A);
+        TENSOR_ASSERT(B.dim(0) == B.dim(1), "sygv requires square matrix",0,&A);
         integer ity = itype;
-        integer n = A.dim[0];
+        integer n = A.dim(0);
         integer lwork = max((integer)1,(integer)(3*n-1))*32;
         integer info;
         Tensor<T> work(lwork);
@@ -580,7 +601,7 @@ namespace madness {
     /// zeroed such that input = inner(transpose(output),output).
     template <typename T>
     void cholesky(Tensor<T>& A) {
-        integer n = A.dim[0];
+        integer n = A.dim(0);
         integer info;
         
         dpotrf_("L", &n, A.ptr(), &n, &info, 1);
@@ -594,8 +615,8 @@ namespace madness {
 
     template <typename T>
     void triangular_solve(const Tensor<T>& L, Tensor<T>& B, const char* side, const char* transa) {
-        integer n = L.dim[0];  // ????
-        integer m = L.dim[1];
+        integer n = L.dim(0);  // ????
+        integer m = L.dim(1);
         double one = 1.0;
         integer lda = n; // ???
         integer ldb = m; //???

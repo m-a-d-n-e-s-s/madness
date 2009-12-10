@@ -345,13 +345,11 @@ static std::complex<double> zmagfunc(const Vector<double, 3> &pt) {
 }
 
 // inverts a madness function... assumes the function is never 0
-inline static void invert(const Key<3> &key, Tensor<double> &t) {
-	UNARY_OPTIMIZED_ITERATOR(double, t, *_p0 = 1.0 / *_p0);
+template <typename T>
+inline static void invert(const Key<3> &key, Tensor<T> &t) {
+	UNARY_OPTIMIZED_ITERATOR(T, t, *_p0 = 1.0 / *_p0);
 }
 
-inline static void zinvert(const Key<3> &key, Tensor<std::complex<double> > &t) {
-	UNARY_OPTIMIZED_ITERATOR(std::complex<double>, t, *_p0 = 1.0 / *_p0);
-}
 
 /// test real functions, converge after 0 steps
 bool realfunc0() {
@@ -406,7 +404,7 @@ bool realfunc2() {
 	GMRES(space, lo, b, x, maxiters, thresh, true);
 
 	// compute the actual solution
-	mult.unaryop(&invert);
+	mult.unaryop(&invert<double>);
 	b = mult * b;
 	b.truncate();
 	return space.norm(x-b) < 1.0e-3;
@@ -465,7 +463,7 @@ bool cplxfunc2() {
 	GMRES(space, lo, b, x, maxiters, thresh, true);
 
 	// compute the actual solution
-	mult.unaryop(&zinvert);
+	mult.unaryop(&invert<double_complex>);
 	b = mult * b;
 	b.truncate();
 	return space.norm(x-b) < 2.0e-3;

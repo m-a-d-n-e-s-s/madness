@@ -228,6 +228,15 @@ namespace madness {
     template <class Cond, class returnT>
     struct enable_if : public enable_if_c<Cond::value, returnT> {};
 
+    /// enable_if_same (from Boost?) for conditionally instantiating templates if two types are equal
+
+    /// Use example
+    /// \code
+    ///     template <class T> A(T& other, typename enable_if_same<A const,T>::type = 0) {
+    /// \endcode
+    template <class T, class X> struct enable_if_same {};
+    template <class X> struct enable_if_same<X, X> {typedef char type;};
+
     /// disable_if from Boost for conditionally instantiating templates based on type
 
     /// Evaluates to \c returnT if \c Cond::value is false, otherwise to an invalid type expression
@@ -729,9 +738,6 @@ namespace madness {
     };
 
 
-
-
-
 #define SET_TYPE_TRAIT(trait, T, val) \
  template<> class trait < T > {public: static const bool value = val; }
 
@@ -838,6 +844,15 @@ namespace madness {
     };
 
 
+    /// Used to provide rvalue references to support move semantics
+    template <typename T> class Reference {
+        T* p;
+    public:
+        Reference(T* x) : p(x) {}
+        T& operator*() const {return *p;}
+        T* operator->() const {return p;}
+    };
+
 
     /* Macros to make some of this stuff more readable */
 
@@ -904,6 +919,7 @@ namespace madness {
 
 #define REMREF(TYPE)    typename remove_reference< TYPE >::type
 #define REMCONST(TYPE)  typename remove_const< TYPE >::type
+#define REMCONSTX(TYPE) remove_const< TYPE >::type
 #define RETURN_WRAPPERT(TYPE) typename ReturnWrapper< TYPE >::type
 
 #define MEMFUN_RETURNT(MEMFUN) typename memfunc_traits< MEMFUN >::result_type

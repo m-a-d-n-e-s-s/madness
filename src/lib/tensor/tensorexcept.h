@@ -77,12 +77,12 @@ namespace madness {
 #define TENSOR_EXCEPTION_AT(F, L) TENSOR_STRINGIZE(F) "(" TENSOR_STRINGIZE(L) ")"
 
 #define TENSOR_EXCEPTION(msg,value,t) \
-throw TensorException("TENSOR EXCPETION: " TENSOR_EXCEPTION_AT( __FILE__, __LINE__ ) ": " msg , \
+    throw ::madness::TensorException("TENSOR EXCPETION: " TENSOR_EXCEPTION_AT( __FILE__, __LINE__ ) ": " msg , \
     0,value,t,__LINE__,__FUNCTION__,__FILE__)
 
 #define TENSOR_ASSERT(condition,msg,value,t) \
 do {if (!(condition)) \
-    throw TensorException("TENSOR ASSERTION FAILED: " TENSOR_EXCEPTION_AT( __FILE__, __LINE__ ) ": " msg , \
+        throw ::madness::TensorException("TENSOR ASSERTION FAILED: " TENSOR_EXCEPTION_AT( __FILE__, __LINE__ ) ": " msg , \
         #condition,value,t,__LINE__,__FUNCTION__,__FILE__); \
    } while (0)
 

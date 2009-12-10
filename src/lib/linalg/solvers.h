@@ -38,7 +38,7 @@ namespace madness {
     /// \endverbatim
     template <typename T>
     Tensor<T> KAIN(const Tensor<T>& Q, double rcond=1e-12) {
-        const int nvec = Q.dim[0];
+        const int nvec = Q.dim(0);
         const int m = nvec-1;
 
         if (nvec == 1) {

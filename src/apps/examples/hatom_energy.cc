@@ -22,6 +22,7 @@ int main(int argc, char**argv) {
 
   // Load info for MADNESS numerical routines
   startup(world,argc,argv);
+  std::cout.precision(8);
 
   // Use defaults for numerical functions except for user simulation volume
   FunctionDefaults<3>::set_cubic_cell(-20,20);

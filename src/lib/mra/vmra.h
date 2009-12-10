@@ -168,8 +168,8 @@ namespace madness {
         PROFILE_BLOCK(Vtransformsp);
         typedef TENSOR_RESULT_TYPE(T,R) resultT;
         int n = v.size();  // n is the old dimension
-        int m = c.dim[1];  // m is the new dimension
-        MADNESS_ASSERT(n==c.dim[0]);
+        int m = c.dim(1);  // m is the new dimension
+        MADNESS_ASSERT(n==c.dim(0));
 
         std::vector< Function<resultT,NDIM> > vc = zero_functions<resultT,NDIM>(world, m);
         compress(world, v);
@@ -190,10 +190,10 @@ namespace madness {
     std::vector< Function<TENSOR_RESULT_TYPE(L,R),NDIM> >
     transform(World& world,  const std::vector< Function<L,NDIM> >& v, const Tensor<R>& c, double tol, bool fence) {
         PROFILE_BLOCK(Vtransform);
-        MADNESS_ASSERT(v.size() == (unsigned int)(c.dim[0]));
+        MADNESS_ASSERT(v.size() == (unsigned int)(c.dim(0)));
 
-        std::vector< Function<TENSOR_RESULT_TYPE(L,R),NDIM> > vresult(c.dim[1]);
-        for (unsigned int i=0; i<c.dim[1]; i++) {
+        std::vector< Function<TENSOR_RESULT_TYPE(L,R),NDIM> > vresult(c.dim(1));
+        for (unsigned int i=0; i<c.dim(1); i++) {
             vresult[i] = Function<TENSOR_RESULT_TYPE(L,R),NDIM>(FunctionFactory<TENSOR_RESULT_TYPE(L,R),NDIM>(world));
         }
         compress(world, v, false);

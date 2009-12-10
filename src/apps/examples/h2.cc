@@ -15,28 +15,27 @@ typedef FunctionFactory<double,3> factoryT;
 typedef SeparatedConvolution<double,3> operatorT;
 
 static const double R = 1.4;    // bond length
-static const double L = 32.0*R; // box size
-static const long k = 5;        // wavelet order
-static const double thresh = 1e-3; // precision
-static const double thresh1 = thresh*0.1;
+static const double L = 64.0*R; // box size
+static const long k = 6;        // wavelet order
+static const double thresh = 1e-4; // precision
 
 static double guess(const coordT& r) {
     const double x=r[0], y=r[1], z=r[2];
-    return (exp(-sqrt(x*x+y*y+(z-R/2)*(z-R/2)))+
-            exp(-sqrt(x*x+y*y+(z+R/2)*(z+R/2))));
+    return (exp(-sqrt(x*x+y*y+(z-R/2)*(z-R/2)+1e-8))+
+            exp(-sqrt(x*x+y*y+(z+R/2)*(z+R/2)+1e-8)));
 }
 
 static double V(const coordT& r) {
     const double x=r[0], y=r[1], z=r[2];
-    return -1.0/sqrt(x*x+y*y+(z-R/2)*(z-R/2))+
-           -1.0/sqrt(x*x+y*y+(z+R/2)*(z+R/2));
+    return -1.0/sqrt(x*x+y*y+(z-R/2)*(z-R/2)+1e-8)+
+           -1.0/sqrt(x*x+y*y+(z+R/2)*(z+R/2)+1e-8);
 }
 
 void iterate(World& world, functionT& V, functionT& psi, double& eps) {
     operatorT op = BSHOperator3D<double>(world, sqrt(-2*eps), k, 0.001, 1e-6);
     functionT Vpsi = (V*psi);
-    Vpsi.scale(-2.0).truncate(thresh1);
-    functionT tmp = apply(op,Vpsi).truncate(thresh1);
+    Vpsi.scale(-2.0).truncate();
+    functionT tmp = apply(op,Vpsi).truncate();
     double norm = tmp.norm2();
     functionT r = tmp-psi;
     double rnorm = r.norm2();
@@ -61,8 +60,8 @@ int main(int argc, char** argv) {
     FunctionDefaults<3>::set_k(k);
     FunctionDefaults<3>::set_thresh(thresh);
     FunctionDefaults<3>::set_refine(true);
-    FunctionDefaults<3>::set_initial_level(2);
-    FunctionDefaults<3>::set_truncate_mode(0);  
+    FunctionDefaults<3>::set_initial_level(5);
+    FunctionDefaults<3>::set_truncate_mode(1);  
     FunctionDefaults<3>::set_cubic_cell(-L/2, L/2);
     // for (int i=0; i<3; i++) {
     // FunctionDefaults<3>::cell(i,0) = -L/2;
@@ -71,15 +70,15 @@ int main(int argc, char** argv) {
     
     functionT Vnuc = factoryT(world).f(V);
     functionT psi  = factoryT(world).f(guess);
-    psi.truncate(thresh1);
+    psi.truncate();
     psi.scale(1.0/psi.norm2());
 
     operatorT op = CoulombOperator<double>(world, k, 0.001, 1e-6);
 
     double eps = -0.6;
     for (int iter=0; iter<10; iter++) {
-        functionT rho = square(psi).truncate(thresh1);
-        functionT potential = Vnuc + apply(op,rho).truncate(thresh1);
+        functionT rho = square(psi).truncate();
+        functionT potential = Vnuc + apply(op,rho).truncate();
         iterate(world, potential, psi, eps);
     }
 
@@ -90,12 +89,13 @@ int main(int argc, char** argv) {
         kinetic_energy += inner(dpsi,dpsi);
     }
 
-    functionT rho = square(psi).truncate(thresh1);
+    functionT rho = square(psi);
     double two_electron_energy = inner(apply(op,rho),rho);
-    double nuclear_attraction_energy = 2.0*inner(Vnuc*psi,psi);
+    double nuclear_attraction_energy = 2.0*inner(Vnuc,rho);
     double nuclear_repulsion_energy = 1.0/R;
     double total_energy = kinetic_energy + two_electron_energy + 
         nuclear_attraction_energy + nuclear_repulsion_energy;
+    double virial = (nuclear_attraction_energy + two_electron_energy + nuclear_repulsion_energy) / kinetic_energy;
 
     if (world.rank() == 0) {
         print("            Kinetic energy ", kinetic_energy);
@@ -103,7 +103,7 @@ int main(int argc, char** argv) {
         print("       Two-electron energy ", two_electron_energy);
         print(" Nuclear  repulsion energy ", nuclear_repulsion_energy);
         print("              Total energy ", total_energy);
-        print("                    Virial ", (nuclear_attraction_energy + two_electron_energy) / kinetic_energy);
+        print("                    Virial ", virial);
     }
 
     world.gop.fence();

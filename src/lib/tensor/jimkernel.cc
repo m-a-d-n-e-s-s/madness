@@ -9,29 +9,29 @@
 using namespace madness;
 using namespace std;
 
-void aligned_add(long n, double* restrict a, const double* restrict b) {
-    long n4 = (n>>2)<<2;
-    long rem = n-n4;
-    for (long i=0; i<n4; i+=4,a+=4,b+=4) {
-        a[0] += b[0];
-        a[1] += b[1];
-        a[2] += b[2];
-        a[3] += b[3];
-    }
-    for (long i=0; i<rem; i++) *a++ += *b++;
-}
+// void aligned_add(long n, double* restrict a, const double* restrict b) {
+//     long n4 = (n>>2)<<2;
+//     long rem = n-n4;
+//     for (long i=0; i<n4; i+=4,a+=4,b+=4) {
+//         a[0] += b[0];
+//         a[1] += b[1];
+//         a[2] += b[2];
+//         a[3] += b[3];
+//     }
+//     for (long i=0; i<rem; i++) *a++ += *b++;
+// }
 
-void aligned_sub(long n, double* restrict a, const double* restrict b) {
-    long n4 = (n>>2)<<2;
-    long rem = n-n4;
-    for (long i=0; i<n4; i+=4,a+=4,b+=4) {
-        a[0] -= b[0];
-        a[1] -= b[1];
-        a[2] -= b[2];
-        a[3] -= b[3];
-    }
-    for (long i=0; i<rem; i++) *a++ -= *b++;
-}
+// void aligned_sub(long n, double* restrict a, const double* restrict b) {
+//     long n4 = (n>>2)<<2;
+//     long rem = n-n4;
+//     for (long i=0; i<n4; i+=4,a+=4,b+=4) {
+//         a[0] -= b[0];
+//         a[1] -= b[1];
+//         a[2] -= b[2];
+//         a[3] -= b[3];
+//     }
+//     for (long i=0; i<rem; i++) *a++ -= *b++;
+// }
 
 int main() {
 

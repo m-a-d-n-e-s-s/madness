@@ -116,7 +116,7 @@ namespace madness {
                 Tnormf = T.normf();
                 make_approx(T, TU, Ts, TVT, Tnorm);
                 make_approx(R, RU, Rs, RVT, Rnorm);
-                int k = T.dim[0];
+                int k = T.dim(0);
                 Tensor<Q> NS = copy(R);
                 for (int i=0; i<k; i++)
                     for (int j=0; j<k; j++)
@@ -130,7 +130,7 @@ namespace madness {
 
         void make_approx(const Tensor<Q>& R,
                          Tensor<Q>& RU, Tensor<typename Tensor<Q>::scalar_type>& Rs, Tensor<Q>& RVT, double& norm) {
-            int n = R.dim[0];
+            int n = R.dim(0);
             svd(R, &RU, &Rs, &RVT);
             for (int i=0; i<n; i++) {
                 for (int j=0; j<n; j++) {
@@ -224,15 +224,9 @@ namespace madness {
             Tensor<Q> R(2*twok);
             R(Slice(0,twok-1)) = get_rnlp(n,lx-1);
             R(Slice(twok,2*twok-1)) = get_rnlp(n,lx);
+
             R.scale(pow(0.5,0.5*n));
             R = inner(c,R);
-            // Enforce symmetry because it seems important ... is it?
-            // What about a complex exponents?
-//             if (lx == 0)
-//                 for (int i=0; i<k; i++)
-//                     for (int j=0; j<i; j++)
-//                         R(i,j) = R(j,i) = ((i+j)&1) ? 0.0 : 0.5*(R(i,j)+R(j,i));
-
             if (do_transpose) R = transpose(R);
             rnlij_cache.set(n,lx,R);
             return *rnlij_cache.getptr(n,lx);
@@ -279,13 +273,6 @@ namespace madness {
 
                 //print("RX", n, lx, R.normf(), r0.normf(), rp.normf(), rm.normf());
 
-                // Enforce symmetry because it seems important ... what about complex?????????
-//                 if (lx == 0)
-//                     for (int i=0; i<2*k; i++)
-//                         for (int j=0; j<i; j++)
-//                             R(i,j) = R(j,i) = ((i+j)&1) ? 0.0 : 0.5*(R(i,j)+R(j,i));
-
-                //R = transpose(R);
                 {
                     PROFILE_BLOCK(Convolution1D_trans);
 
@@ -334,6 +321,7 @@ namespace madness {
             }
 
             rnlp_cache.set(n, lx, r);
+            //print("   SET rnlp", n, lx, r);
             return *rnlp_cache.getptr(n,lx);
         }
     };

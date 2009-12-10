@@ -126,7 +126,7 @@ void test_bsh(World& world) {
     const double expnt = 100.0;
     aa = expnt;
     const double coeff = pow(expnt/constants::pi,1.5);
-
+    
     Function<T,3> f = FunctionFactory<T,3>(world).functor(functorT(new Gaussian<T,3>(origin, expnt, coeff)));
     f.truncate();
     f.reconstruct();
@@ -159,6 +159,8 @@ void test_bsh(World& world) {
     ff.clear();
     opf.verify_tree();
     print("err in opf", opf.err(Qfunc()));
+
+    return;
 
     Function<double,3> qf = FunctionFactory<T,3>(world).functor(functorT(new Qfunc()));
     print("qf norm ", qf.norm2());

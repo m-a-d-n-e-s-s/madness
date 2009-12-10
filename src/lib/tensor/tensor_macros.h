@@ -43,7 +43,7 @@ Several different macros have been defined to make it
 easy to iterate over expressions involving tensors.  They
 vary in their generality, ease of use, and efficiency.
  
-The most general, most easy to use, but also most inefficient
+The most general, most easy to use, but also most inefficient,
 and least safe, is 
 \code
 ITERATOR(t, expression)
@@ -75,17 +75,20 @@ ITERATOR(m, if (m(_i,_j) > 0.5) {
 \endcode
  
 To make it possible to index arbitrary dimension tensors, the macro
-IND has been defined as the indices for the highest supported
+\c IND has been defined as the indices for the highest supported
 dimension.  E.g., to elementwise divide the contents of two tensors of
 unknown dimension
 \code
 ITERATOR(x, x(IND)/y(IND));
 \endcode
+
+Note that using \c IND employs bounds checking where as direct indexing
+with \c _i , etc., does not.
  
 The generality of these macros is offset by their inefficiency and
 lack of safety.  The inefficiency is twofold.  First, the \c ITERATOR
 macro generates a separate block of code for each possible dimension.
-This could cause a lot of code bloat and increased compilation time.  To
+This could cause code bloat and increased compilation time.  To
 solve this problem, the macros \c ITERATOR1 , \c ITERATOR2, etc., have
 been defined, with the corresponding \c IND1 , \c IND2 , etc.  These
 macros may be applied to tensor expressions of the appropriate
@@ -147,13 +150,14 @@ unvailable.  In addition to using the iterators for optimal
 traversal, these macros attempt to use a single loop
 for optimal vector performance.
  
-E.g., the most efficient way to perform the previous example
+E.g., the most efficient and safe way to perform the previous example
 of merging two \c double tensors as real and imaginary parts
 of a complex tensor of any dimension
 \code 
 TERNARY_OPTIMIZED_ITERATOR(double_complex, c, double, r, double, i, 
            .               *_p0 = double_complex(*_p1, *_p2));
 \endcode
+This is precisely how most internal operations are implemented.
  
 In some situations it is necessary to preserve the expected
 order of loops and to not fuse dimensions.  The macros
@@ -198,71 +202,71 @@ this last instance, or for ease of rapid implementation, use the general
 
 
 #define ITERATOR1(t,exp) do { \
-long __xd0=t.dim[0]; \
-for (long _i=0; _i<__xd0; _i++) {exp;} } while (0)
+        long __xd0=t.dim(0),_index=0;                                   \
+        for (long _i=0; _i<__xd0; _i++) {exp;_index++;} } while (0)
 
 #define ITERATOR2(t,exp) do { \
-long __xd0=t.dim[0], __xd1=t.dim[1]; \
+        long __xd0=t.dim(0), __xd1=t.dim(1), _index=0;  \
 for (long _i=0; _i<__xd0; _i++) { \
-  for (long _j=0; _j<__xd1; _j++) {exp;} } } while (0)
+  for (long _j=0; _j<__xd1; _j++) {exp;_index++;} } } while (0)
 
 #define ITERATOR3(t,exp) do { \
-long __xd0=t.dim[0], __xd1=t.dim[1], __xd2=t.dim[2]; \
+        long __xd0=t.dim(0), __xd1=t.dim(1), __xd2=t.dim(2), _index=0;  \
 for (long _i=0; _i<__xd0; _i++) { \
   for (long _j=0; _j<__xd1; _j++) { \
-    for (long _k=0; _k<__xd2; _k++) {exp;} } } } while (0)
+    for (long _k=0; _k<__xd2; _k++) {exp;_index++;} } } } while (0)
 
 #define ITERATOR4(t,exp) do { \
-long __xd0=t.dim[0], __xd1=t.dim[1], __xd2=t.dim[2], \
-     __xd3=t.dim[3]; \
+        long __xd0=t.dim(0), __xd1=t.dim(1), __xd2=t.dim(2),        \
+            __xd3=t.dim(3), _index=0;                               \
 for (long _i=0; _i<__xd0; _i++) { \
   for (long _j=0; _j<__xd1; _j++) { \
     for (long _k=0; _k<__xd2; _k++) { \
-      for (long _l=0; _l<__xd3; _l++) {exp;} } } } } while (0)
+      for (long _l=0; _l<__xd3; _l++) {exp;_index++;} } } } } while (0)
 
 #define ITERATOR5(t,exp) do { \
-long __xd0=t.dim[0], __xd1=t.dim[1], __xd2=t.dim[2], \
-     __xd3=t.dim[3], __xd4=t.dim[4]; \
+        long __xd0=t.dim(0), __xd1=t.dim(1), __xd2=t.dim(2),      \
+            __xd3=t.dim(3), __xd4=t.dim(4), _index=0;             \
 for (long _i=0; _i<__xd0; _i++) { \
   for (long _j=0; _j<__xd1; _j++) { \
     for (long _k=0; _k<__xd2; _k++) { \
       for (long _l=0; _l<__xd3; _l++) { \
-        for (long _m=0; _m<__xd4; _m++) {exp;} } } } } } while (0)
+        for (long _m=0; _m<__xd4; _m++) {exp;_index++;} } } } } } while (0)
 
 #define ITERATOR6(t,exp) do { \
-long __xd0=t.dim[0], __xd1=t.dim[1], __xd2=t.dim[2], \
-     __xd3=t.dim[3], __xd4=t.dim[4], __xd5=t.dim[5]; \
+        long __xd0=t.dim(0), __xd1=t.dim(1), __xd2=t.dim(2),            \
+            __xd3=t.dim(3), __xd4=t.dim(4), __xd5=t.dim(5), _index=0;;  \
 for (long _i=0; _i<__xd0; _i++) { \
   for (long _j=0; _j<__xd1; _j++) { \
     for (long _k=0; _k<__xd2; _k++) { \
       for (long _l=0; _l<__xd3; _l++) { \
         for (long _m=0; _m<__xd4; _m++) { \
-          for (long _n=0; _n<__xd5; _n++) {exp;} } } } } } } while(0)
+          for (long _n=0; _n<__xd5; _n++) {exp;_index++;} } } } } } } while(0)
 
 #define ITERATOR(t,exp) do { \
   long _j=0, _k=0, _l=0, _m=0, _n=0; \
-  if (t.ndim == 1) {ITERATOR1(t,exp);} \
-  else if (t.ndim == 2) {ITERATOR2(t,exp);} \
-   else if (t.ndim == 3) {ITERATOR3(t,exp);} \
-  else if (t.ndim == 4) {ITERATOR4(t,exp);} \
-  else if (t.ndim == 5) {ITERATOR5(t,exp);} \
-  else if (t.ndim == 6) {ITERATOR6(t,exp);} \
-  else {TENSOR_ASSERT(t.ndim <= 6,"ndim confused?",t.ndim,&t);} \
+  if (t.ndim() == 1) {ITERATOR1(t,exp);} \
+  else if (t.ndim() == 2) {ITERATOR2(t,exp);} \
+  else if (t.ndim() == 3) {ITERATOR3(t,exp);} \
+  else if (t.ndim() == 4) {ITERATOR4(t,exp);} \
+  else if (t.ndim() == 5) {ITERATOR5(t,exp);} \
+  else if (t.ndim() == 6) {ITERATOR6(t,exp);} \
+  else {TENSOR_ASSERT(t.ndim() <= 6,"ndim confused?",t.ndim(),&t);} \
  } while(0)
 
 // Inside iterator access pointer to current element as _p0 (pointer to
 // argument number 0).  _i, _j, _k, ..., also defined
 #define UNARYITERATOR1(X,x,exp) do { \
-long __xd0=x.dim[0]; \
-long __xs0=x.stride[0]; \
+        long __xd0=x.dim(0);         \
+        long __xs0=x.stride(0);      \
 X* restrict _p0=x.ptr(); \
 for (long _i=0; _i<__xd0; _i++,_p0+=__xs0) { \
   exp; \
 } } while(0)
 
 #define UNARYITERATOR2(X,x,exp) do { \
-long __xd0=x.dim[0], __xd1=x.dim[1]; \
-long __xs0=x.stride[0], __xs1=x.stride[1]; \
+        long __xd0=x.dim(0), __xd1=x.dim(1);   \
+        long __xs0=x.stride(0), __xs1=x.stride(1);      \
 X* restrict __xp0=x.ptr(); \
 for (long _i=0; _i<__xd0; _i++,__xp0+=__xs0) { \
   X* restrict _p0=__xp0; \
@@ -271,8 +275,8 @@ for (long _i=0; _i<__xd0; _i++,__xp0+=__xs0) { \
   } } } while(0)
 
 #define UNARYITERATOR3(X,x,exp) do { \
-long __xd0=x.dim[0], __xd1=x.dim[1], __xd2=x.dim[2]; \
-long __xs0=x.stride[0], __xs1=x.stride[1], __xs2=x.stride[2]; \
+        long __xd0=x.dim(0), __xd1=x.dim(1), __xd2=x.dim(2);        \
+        long __xs0=x.stride(0), __xs1=x.stride(1), __xs2=x.stride(2);   \
 X* restrict __xp0=x.ptr(); \
 for (long _i=0; _i<__xd0; _i++,__xp0+=__xs0) { \
   X* restrict __xp1=__xp0; \
@@ -283,10 +287,10 @@ for (long _i=0; _i<__xd0; _i++,__xp0+=__xs0) { \
     } } } } while(0)
 
 #define UNARYITERATOR4(X,x,exp) do { \
-long __xd0=x.dim[0], __xd1=x.dim[1], __xd2=x.dim[2], \
-     __xd3=x.dim[3]; \
-long __xs0=x.stride[0], __xs1=x.stride[1], __xs2=x.stride[2], \
-     __xs3=x.stride[3]; \
+        long __xd0=x.dim(0), __xd1=x.dim(1), __xd2=x.dim(2),    \
+            __xd3=x.dim(3);                                         \
+        long __xs0=x.stride(0), __xs1=x.stride(1), __xs2=x.stride(2),   \
+            __xs3=x.stride(3);                                          \
 X* restrict __xp0=x.ptr(); \
 for (long _i=0; _i<__xd0; _i++,__xp0+=__xs0) { \
   X* restrict __xp1=__xp0; \
@@ -299,10 +303,10 @@ for (long _i=0; _i<__xd0; _i++,__xp0+=__xs0) { \
        } } } } } while(0)
 
 #define UNARYITERATOR5(X,x,exp) do { \
-long __xd0=x.dim[0], __xd1=x.dim[1], __xd2=x.dim[2], \
-     __xd3=x.dim[3], __xd4=x.dim[4]; \
-long __xs0=x.stride[0], __xs1=x.stride[1], __xs2=x.stride[2], \
-     __xs3=x.stride[3], __xs4=x.stride[4]; \
+        long __xd0=x.dim(0), __xd1=x.dim(1), __xd2=x.dim(2),    \
+            __xd3=x.dim(3), __xd4=x.dim(4);                         \
+        long __xs0=x.stride(0), __xs1=x.stride(1), __xs2=x.stride(2),   \
+            __xs3=x.stride(3), __xs4=x.stride(4);                       \
 X* restrict __xp0=x.ptr(); \
 for (long _i=0; _i<__xd0; _i++,__xp0+=__xs0) { \
   X* restrict __xp1=__xp0; \
@@ -317,10 +321,10 @@ for (long _i=0; _i<__xd0; _i++,__xp0+=__xs0) { \
           } } } } } } while(0)
 
 #define UNARYITERATOR6(X,x,exp) do { \
-long __xd0=x.dim[0], __xd1=x.dim[1], __xd2=x.dim[2], \
-     __xd3=x.dim[3], __xd4=x.dim[4], __xd5=x.dim[5]; \
-long __xs0=x.stride[0], __xs1=x.stride[1], __xs2=x.stride[2], \
-     __xs3=x.stride[3], __xs4=x.stride[4], __xs5=x.stride[5]; \
+        long __xd0=x.dim(0), __xd1=x.dim(1), __xd2=x.dim(2),    \
+            __xd3=x.dim(3), __xd4=x.dim(4), __xd5=x.dim(5);         \
+        long __xs0=x.stride(0), __xs1=x.stride(1), __xs2=x.stride(2),   \
+            __xs3=x.stride(3), __xs4=x.stride(4), __xs5=x.stride(5);    \
 X* restrict __xp0=x.ptr(); \
 for (long _i=0; _i<__xd0; _i++,__xp0+=__xs0) { \
   X* restrict __xp1=__xp0; \
@@ -338,21 +342,21 @@ for (long _i=0; _i<__xd0; _i++,__xp0+=__xs0) { \
 
 #define UNARYITERATOR(X,x,exp) do { \
   long _j=0, _k=0, _l=0, _m=0, _n=0; \
-  if (x.ndim == 1) UNARYITERATOR1(X,x,exp); \
-  else if (x.ndim == 2) UNARYITERATOR2(X,x,exp); \
-  else if (x.ndim == 3) UNARYITERATOR3(X,x,exp); \
-  else if (x.ndim == 4) UNARYITERATOR4(X,x,exp); \
-  else if (x.ndim == 5) UNARYITERATOR5(X,x,exp); \
-  else if (x.ndim == 6) UNARYITERATOR6(X,x,exp); \
-  else {TENSOR_ASSERT(x.ndim <= 6,"ndim confused?",x.ndim,&x);} } while(0)
+  if (x.ndim() == 1) UNARYITERATOR1(X,x,exp); \
+  else if (x.ndim() == 2) UNARYITERATOR2(X,x,exp); \
+  else if (x.ndim() == 3) UNARYITERATOR3(X,x,exp); \
+  else if (x.ndim() == 4) UNARYITERATOR4(X,x,exp); \
+  else if (x.ndim() == 5) UNARYITERATOR5(X,x,exp); \
+  else if (x.ndim() == 6) UNARYITERATOR6(X,x,exp); \
+  else {TENSOR_ASSERT(x.ndim() <= 6,"ndim confused?",x.ndim(),&x);} } while(0)
 
 // Inside iterator access pointers to current elements as _p0 & _p1
 // _i, _j, _k, ... also defined
 #define BINARYITERATOR1(X,x,Y,y,exp) do { \
 TENSOR_ASSERT(x.conforms(y),"first and second tensors do not conform",0,&x); \
-long __xd0=x.dim[0]; \
-long __xs0=x.stride[0]; \
-long __ys0=y.stride[0]; \
+ long __xd0=x.dim(0);                                                   \
+ long __xs0=x.stride(0);                                                \
+ long __ys0=y.stride(0);                                                \
 X* restrict _p0=x.ptr(); \
 Y* restrict _p1=y.ptr(); \
 for (long _i=0; _i<__xd0; _i++, _p0+=__xs0, _p1+=__ys0) { \
@@ -361,9 +365,9 @@ for (long _i=0; _i<__xd0; _i++, _p0+=__xs0, _p1+=__ys0) { \
 
 #define BINARYITERATOR2(X,x,Y,y,exp) do { \
 TENSOR_ASSERT(x.conforms(y),"first and second tensors do not conform",0,&x); \
-long __xd0=x.dim[0], __xd1=x.dim[1];\
-long __xs0=x.stride[0], __xs1=x.stride[1]; \
-long __ys0=y.stride[0], __ys1=y.stride[1]; \
+ long __xd0=x.dim(0), __xd1=x.dim(1);                                   \
+ long __xs0=x.stride(0), __xs1=x.stride(1);                             \
+ long __ys0=y.stride(0), __ys1=y.stride(1);                             \
 X* restrict __xp0=x.ptr(); \
 Y* restrict __yp0=y.ptr(); \
 for (long _i=0; _i<__xd0; _i++, __xp0+=__xs0, __yp0+=__ys0) { \
@@ -375,9 +379,9 @@ for (long _i=0; _i<__xd0; _i++, __xp0+=__xs0, __yp0+=__ys0) { \
 
 #define BINARYITERATOR3(X,x,Y,y,exp) do { \
 TENSOR_ASSERT(x.conforms(y),"first and second tensors do not conform",0,&x); \
-long __xd0=x.dim[0], __xd1=x.dim[1], __xd2=x.dim[2]; \
-long __xs0=x.stride[0], __xs1=x.stride[1], __xs2=x.stride[2]; \
-long __ys0=y.stride[0], __ys1=y.stride[1], __ys2=y.stride[2]; \
+ long __xd0=x.dim(0), __xd1=x.dim(1), __xd2=x.dim(2);                   \
+ long __xs0=x.stride(0), __xs1=x.stride(1), __xs2=x.stride(2);          \
+ long __ys0=y.stride(0), __ys1=y.stride(1), __ys2=y.stride(2);          \
 X* restrict __xp0=x.ptr(); \
 Y* restrict __yp0=y.ptr(); \
 for (long _i=0; _i<__xd0; _i++, __xp0+=__xs0, __yp0+=__ys0) { \
@@ -392,12 +396,12 @@ for (long _i=0; _i<__xd0; _i++, __xp0+=__xs0, __yp0+=__ys0) { \
 
 #define BINARYITERATOR4(X,x,Y,y,exp) do { \
 TENSOR_ASSERT(x.conforms(y),"first and second tensors do not conform",0,&x); \
-long __xd0=x.dim[0], __xd1=x.dim[1], __xd2=x.dim[2], \
-     __xd3=x.dim[3]; \
-long __xs0=x.stride[0], __xs1=x.stride[1], __xs2=x.stride[2], \
-     __xs3=x.stride[3]; \
-long __ys0=y.stride[0], __ys1=y.stride[1], __ys2=y.stride[2], \
-     __ys3=y.stride[3]; \
+ long __xd0=x.dim(0), __xd1=x.dim(1), __xd2=x.dim(2),                   \
+     __xd3=x.dim(3);                                                    \
+ long __xs0=x.stride(0), __xs1=x.stride(1), __xs2=x.stride(2),          \
+     __xs3=x.stride(3);                                                 \
+ long __ys0=y.stride(0), __ys1=y.stride(1), __ys2=y.stride(2),          \
+     __ys3=y.stride(3);                                                 \
 X* restrict __xp0=x.ptr(); \
 Y* restrict __yp0=y.ptr(); \
 for (long _i=0; _i<__xd0; _i++, __xp0+=__xs0, __yp0+=__ys0) { \
@@ -415,12 +419,12 @@ for (long _i=0; _i<__xd0; _i++, __xp0+=__xs0, __yp0+=__ys0) { \
 
 #define BINARYITERATOR5(X,x,Y,y,exp) do { \
 TENSOR_ASSERT(x.conforms(y),"first and second tensors do not conform",0,&x); \
-long __xd0=x.dim[0], __xd1=x.dim[1], __xd2=x.dim[2], \
-     __xd3=x.dim[3], __xd4=x.dim[4]; \
-long __xs0=x.stride[0], __xs1=x.stride[1], __xs2=x.stride[2], \
-     __xs3=x.stride[3], __xs4=x.stride[4]; \
-long __ys0=y.stride[0], __ys1=y.stride[1], __ys2=y.stride[2], \
-     __ys3=y.stride[3], __ys4=y.stride[4]; \
+ long __xd0=x.dim(0), __xd1=x.dim(1), __xd2=x.dim(2),                   \
+     __xd3=x.dim(3), __xd4=x.dim(4);                                    \
+ long __xs0=x.stride(0), __xs1=x.stride(1), __xs2=x.stride(2),          \
+     __xs3=x.stride(3), __xs4=x.stride(4);                              \
+ long __ys0=y.stride(0), __ys1=y.stride(1), __ys2=y.stride(2),          \
+     __ys3=y.stride(3), __ys4=y.stride(4);                              \
 X* restrict __xp0=x.ptr(); \
 Y* restrict __yp0=y.ptr(); \
 for (long _i=0; _i<__xd0; _i++, __xp0+=__xs0, __yp0+=__ys0) { \
@@ -441,12 +445,12 @@ for (long _i=0; _i<__xd0; _i++, __xp0+=__xs0, __yp0+=__ys0) { \
 
 #define BINARYITERATOR6(X,x,Y,y,exp) do { \
 TENSOR_ASSERT(x.conforms(y),"first and second tensors do not conform",0,&x); \
-long __xd0=x.dim[0], __xd1=x.dim[1], __xd2=x.dim[2], \
-     __xd3=x.dim[3], __xd4=x.dim[4], __xd5=x.dim[5]; \
-long __xs0=x.stride[0], __xs1=x.stride[1], __xs2=x.stride[2], \
-     __xs3=x.stride[3], __xs4=x.stride[4], __xs5=x.stride[5]; \
-long __ys0=y.stride[0], __ys1=y.stride[1], __ys2=y.stride[2], \
-     __ys3=y.stride[3], __ys4=y.stride[4], __ys5=y.stride[5]; \
+ long __xd0=x.dim(0), __xd1=x.dim(1), __xd2=x.dim(2),                   \
+     __xd3=x.dim(3), __xd4=x.dim(4), __xd5=x.dim(5);                    \
+ long __xs0=x.stride(0), __xs1=x.stride(1), __xs2=x.stride(2),          \
+     __xs3=x.stride(3), __xs4=x.stride(4), __xs5=x.stride(5);           \
+ long __ys0=y.stride(0), __ys1=y.stride(1), __ys2=y.stride(2),          \
+     __ys3=y.stride(3), __ys4=y.stride(4), __ys5=y.stride(5);           \
 X* restrict __xp0=x.ptr(); \
 Y* restrict __yp0=y.ptr(); \
 for (long _i=0; _i<__xd0; _i++, __xp0+=__xs0, __yp0+=__ys0) { \
@@ -470,13 +474,13 @@ for (long _i=0; _i<__xd0; _i++, __xp0+=__xs0, __yp0+=__ys0) { \
 
 #define BINARYITERATOR(X,x,Y,y,exp) do { \
   long _j=0, _k=0, _l=0, _m=0, _n=0; \
-  if (x.ndim == 1) BINARYITERATOR1(X,x,Y,y,exp); \
-  else if (x.ndim == 2) BINARYITERATOR2(X,x,Y,y,exp); \
-  else if (x.ndim == 3) BINARYITERATOR3(X,x,Y,y,exp); \
-  else if (x.ndim == 4) BINARYITERATOR4(X,x,Y,y,exp); \
-  else if (x.ndim == 5) BINARYITERATOR5(X,x,Y,y,exp); \
-  else if (x.ndim == 6) BINARYITERATOR6(X,x,Y,y,exp); \
-  else {TENSOR_ASSERT(x.ndim <= 6,"ndim confused?",x.ndim,&x);} \
+  if (x.ndim() == 1) BINARYITERATOR1(X,x,Y,y,exp); \
+  else if (x.ndim() == 2) BINARYITERATOR2(X,x,Y,y,exp); \
+  else if (x.ndim() == 3) BINARYITERATOR3(X,x,Y,y,exp); \
+  else if (x.ndim() == 4) BINARYITERATOR4(X,x,Y,y,exp); \
+  else if (x.ndim() == 5) BINARYITERATOR5(X,x,Y,y,exp); \
+  else if (x.ndim() == 6) BINARYITERATOR6(X,x,Y,y,exp); \
+  else {TENSOR_ASSERT(x.ndim() <= 6,"ndim confused?",x.ndim(),&x);} \
 } while(0)
 
 // Inside iterator access pointers to current elements as _p0, _p1, _p2
@@ -484,10 +488,10 @@ for (long _i=0; _i<__xd0; _i++, __xp0+=__xs0, __yp0+=__ys0) { \
 #define TERNARYITERATOR1(X,x,Y,y,Z,z,exp) do { \
 TENSOR_ASSERT(x.conforms(y),"first and second tensors do not conform",0,&x); \
 TENSOR_ASSERT(x.conforms(z),"first and third tensors do not conform",0,&x); \
-long __xd0=x.dim[0]; \
-long __xs0=x.stride[0]; \
-long __ys0=y.stride[0]; \
-long __zs0=z.stride[0]; \
+ long __xd0=x.dim(0);                                                   \
+ long __xs0=x.stride(0);                                                \
+ long __ys0=y.stride(0);                                                \
+ long __zs0=z.stride(0);                                                \
 X* restrict _p0=x.ptr(); \
 Y* restrict _p1=y.ptr(); \
 Z* restrict _p2=z.ptr(); \
@@ -498,10 +502,10 @@ for (long _i=0; _i<__xd0; _i++, _p0+=__xs0, _p1+=__ys0, _p2+=__zs0) { \
 #define TERNARYITERATOR2(X,x,Y,y,Z,z,exp) do { \
 TENSOR_ASSERT(x.conforms(y),"first and second tensors do not conform",0,&x); \
 TENSOR_ASSERT(x.conforms(z),"first and third tensors do not conform",0,&x); \
-long __xd0=x.dim[0], __xd1=x.dim[1]; \
-long __xs0=x.stride[0], __xs1=x.stride[1]; \
-long __ys0=y.stride[0], __ys1=y.stride[1]; \
-long __zs0=z.stride[0], __zs1=z.stride[1]; \
+ long __xd0=x.dim(0), __xd1=x.dim(1);                                   \
+ long __xs0=x.stride(0), __xs1=x.stride(1);                             \
+ long __ys0=y.stride(0), __ys1=y.stride(1);                             \
+ long __zs0=z.stride(0), __zs1=z.stride(1);                             \
 X* restrict __xp0=x.ptr(); \
 Y* restrict __yp0=y.ptr(); \
 Z* restrict __zp0=z.ptr(); \
@@ -516,10 +520,10 @@ for (long _i=0; _i<__xd0; _i++, __xp0+=__xs0, __yp0+=__ys0, __zp0+=__zs0) { \
 #define TERNARYITERATOR3(X,x,Y,y,Z,z,exp) do { \
 TENSOR_ASSERT(x.conforms(y),"first and second tensors do not conform",0,&x); \
 TENSOR_ASSERT(x.conforms(z),"first and third tensors do not conform",0,&x); \
-long __xd0=x.dim[0], __xd1=x.dim[1], __xd2=x.dim[2]; \
-long __xs0=x.stride[0], __xs1=x.stride[1], __xs2=x.stride[2]; \
-long __ys0=y.stride[0], __ys1=y.stride[1], __ys2=y.stride[2]; \
-long __zs0=z.stride[0], __zs1=z.stride[1], __zs2=z.stride[2]; \
+ long __xd0=x.dim(0), __xd1=x.dim(1), __xd2=x.dim(2);                   \
+ long __xs0=x.stride(0), __xs1=x.stride(1), __xs2=x.stride(2);          \
+ long __ys0=y.stride(0), __ys1=y.stride(1), __ys2=y.stride(2);          \
+ long __zs0=z.stride(0), __zs1=z.stride(1), __zs2=z.stride(2);          \
 X* restrict __xp0=x.ptr(); \
 Y* restrict __yp0=y.ptr(); \
 Z* restrict __zp0=z.ptr(); \
@@ -538,14 +542,14 @@ for (long _i=0; _i<__xd0; _i++, __xp0+=__xs0, __yp0+=__ys0, __zp0+=__zs0) { \
 #define TERNARYITERATOR4(X,x,Y,y,Z,z,exp) do { \
 TENSOR_ASSERT(x.conforms(y),"first and second tensors do not conform",0,&x); \
 TENSOR_ASSERT(x.conforms(z),"first and third tensors do not conform",0,&x); \
-long __xd0=x.dim[0], __xd1=x.dim[1], __xd2=x.dim[2], \
-     __xd3=x.dim[3]; \
-long __xs0=x.stride[0], __xs1=x.stride[1], __xs2=x.stride[2], \
-     __xs3=x.stride[3]; \
-long __ys0=y.stride[0], __ys1=y.stride[1], __ys2=y.stride[2], \
-     __ys3=y.stride[3]; \
-long __zs0=z.stride[0], __zs1=z.stride[1], __zs2=z.stride[2], \
-     __zs3=z.stride[3]; \
+ long __xd0=x.dim(0), __xd1=x.dim(1), __xd2=x.dim(2),                   \
+     __xd3=x.dim(3);                                                    \
+ long __xs0=x.stride(0), __xs1=x.stride(1), __xs2=x.stride(2),          \
+     __xs3=x.stride(3);                                                 \
+ long __ys0=y.stride(0), __ys1=y.stride(1), __ys2=y.stride(2),          \
+     __ys3=y.stride(3);                                                 \
+ long __zs0=z.stride(0), __zs1=z.stride(1), __zs2=z.stride(2),          \
+     __zs3=z.stride(3);                                                 \
 X* restrict __xp0=x.ptr(); \
 Y* restrict __yp0=y.ptr(); \
 Z* restrict __zp0=z.ptr(); \
@@ -568,14 +572,14 @@ for (long _i=0; _i<__xd0; _i++, __xp0+=__xs0, __yp0+=__ys0, __zp0+=__zs0) { \
 #define TERNARYITERATOR5(X,x,Y,y,Z,z,exp) do { \
 TENSOR_ASSERT(x.conforms(y),"first and second tensors do not conform",0,&x); \
 TENSOR_ASSERT(x.conforms(z),"first and third tensors do not conform",0,&x); \
-long __xd0=x.dim[0], __xd1=x.dim[1], __xd2=x.dim[2], \
-     __xd3=x.dim[3], __xd4=x.dim[4]; \
-long __xs0=x.stride[0], __xs1=x.stride[1], __xs2=x.stride[2], \
-     __xs3=x.stride[3], __xs4=x.stride[4]; \
-long __ys0=y.stride[0], __ys1=y.stride[1], __ys2=y.stride[2], \
-     __ys3=y.stride[3], __ys4=y.stride[4]; \
-long __zs0=z.stride[0], __zs1=z.stride[1], __zs2=z.stride[2], \
-     __zs3=z.stride[3], __zs4=z.stride[4]; \
+ long __xd0=x.dim(0), __xd1=x.dim(1), __xd2=x.dim(2),                   \
+     __xd3=x.dim(3), __xd4=x.dim(4);                                    \
+ long __xs0=x.stride(0), __xs1=x.stride(1), __xs2=x.stride(2),          \
+     __xs3=x.stride(3), __xs4=x.stride(4);                              \
+ long __ys0=y.stride(0), __ys1=y.stride(1), __ys2=y.stride(2),          \
+     __ys3=y.stride(3), __ys4=y.stride(4);                              \
+ long __zs0=z.stride(0), __zs1=z.stride(1), __zs2=z.stride(2),          \
+     __zs3=z.stride(3), __zs4=z.stride(4);                              \
 X* restrict __xp0=x.ptr(); \
 Y* restrict __yp0=y.ptr(); \
 Z* restrict __zp0=z.ptr(); \
@@ -602,14 +606,14 @@ for (long _i=0; _i<__xd0; _i++, __xp0+=__xs0, __yp0+=__ys0, __zp0+=__zs0) { \
 #define TERNARYITERATOR6(X,x,Y,y,Z,z,exp) do { \
 TENSOR_ASSERT(x.conforms(y),"first and second tensors do not conform",0,&x); \
 TENSOR_ASSERT(x.conforms(z),"first and third tensors do not conform",0,&x); \
-long __xd0=x.dim[0], __xd1=x.dim[1], __xd2=x.dim[2], \
-     __xd3=x.dim[3], __xd4=x.dim[4], __xd5=x.dim[5]; \
-long __xs0=x.stride[0], __xs1=x.stride[1], __xs2=x.stride[2], \
-     __xs3=x.stride[3], __xs4=x.stride[4], __xs5=x.stride[5]; \
-long __ys0=y.stride[0], __ys1=y.stride[1], __ys2=y.stride[2], \
-     __ys3=y.stride[3], __ys4=y.stride[4], __ys5=y.stride[5]; \
-long __zs0=z.stride[0], __zs1=z.stride[1], __zs2=z.stride[2], \
-     __zs3=z.stride[3], __zs4=z.stride[4], __zs5=z.stride[5]; \
+ long __xd0=x.dim(0), __xd1=x.dim(1), __xd2=x.dim(2),                   \
+     __xd3=x.dim(3), __xd4=x.dim(4), __xd5=x.dim(5);                    \
+ long __xs0=x.stride(0), __xs1=x.stride(1), __xs2=x.stride(2),          \
+     __xs3=x.stride(3), __xs4=x.stride(4), __xs5=x.stride(5);           \
+ long __ys0=y.stride(0), __ys1=y.stride(1), __ys2=y.stride(2),          \
+     __ys3=y.stride(3), __ys4=y.stride(4), __ys5=y.stride(5);           \
+ long __zs0=z.stride(0), __zs1=z.stride(1), __zs2=z.stride(2),          \
+     __zs3=z.stride(3), __zs4=z.stride(4), __zs5=z.stride(5);           \
 X* restrict __xp0=x.ptr(); \
 Y* restrict __yp0=y.ptr(); \
 Z* restrict __zp0=z.ptr(); \
@@ -639,24 +643,24 @@ for (long _i=0; _i<__xd0; _i++, __xp0+=__xs0, __yp0+=__ys0, __zp0+=__zs0) { \
 
 #define TERNARYITERATOR(X,x,Y,y,Z,z,exp) do { \
   long _j=0, _k=0, _l=0, _m=0, _n=0; \
-  if (x.ndim == 1) TERNARYITERATOR1(X,x,Y,y,Z,z,exp); \
-  else if (x.ndim == 2) TERNARYITERATOR2(X,x,Y,y,Z,z,exp); \
-  else if (x.ndim == 3) TERNARYITERATOR3(X,x,Y,y,Z,z,exp); \
-  else if (x.ndim == 4) TERNARYITERATOR4(X,x,Y,y,Z,z,exp); \
-  else if (x.ndim == 5) TERNARYITERATOR5(X,x,Y,y,Z,z,exp); \
-  else if (x.ndim == 6) TERNARYITERATOR6(X,x,Y,y,Z,z,exp); \
-  else {TENSOR_ASSERT(x.ndim <= 6,"ndim confused?",x.ndim,&x);} \
+  if (x.ndim() == 1) TERNARYITERATOR1(X,x,Y,y,Z,z,exp); \
+  else if (x.ndim() == 2) TERNARYITERATOR2(X,x,Y,y,Z,z,exp); \
+  else if (x.ndim() == 3) TERNARYITERATOR3(X,x,Y,y,Z,z,exp); \
+  else if (x.ndim() == 4) TERNARYITERATOR4(X,x,Y,y,Z,z,exp); \
+  else if (x.ndim() == 5) TERNARYITERATOR5(X,x,Y,y,Z,z,exp); \
+  else if (x.ndim() == 6) TERNARYITERATOR6(X,x,Y,y,Z,z,exp); \
+  else {TENSOR_ASSERT(x.ndim() <= 6,"ndim confused?",x.ndim(),&x);} \
 } while(0)
 
 #define UNARY_OPTIMIZED_ITERATOR(X,x,exp) do { \
   if (x.iscontiguous()) { \
-    X* _p0 = x.ptr(); \
-    for (long _j=0; _j<x.size; _j++,_p0++) {exp;} \
+    X* restrict _p0 = x.ptr(); \
+    for (long _j=0; _j<x.size(); _j++,_p0++) {exp;} \
   } \
   else { \
-    for (TensorIterator<X> iter=x.unary_iterator(1); iter._p0; ++iter) { \
+    for (TensorIterator<REMCONST(X)> iter=x.unary_iterator(1); iter._p0; ++iter) { \
       long _dimj = iter.dimj; \
-      X* _p0 = iter._p0; \
+      X* restrict _p0 = iter._p0; \
       long _s0 = iter._s0; \
       for (long _j=0; _j<_dimj; _j++, _p0+=_s0) { \
         exp; \
@@ -669,9 +673,9 @@ for (long _i=0; _i<__xd0; _i++, __xp0+=__xs0, __yp0+=__ys0, __zp0+=__zs0) { \
 // Can optimize these by moving definition of stride out of loop.
 
 #define UNARY_UNOPTIMIZED_ITERATOR(X,x,exp) do { \
-for (TensorIterator<X> iter=x.unary_iterator(1,false,false); iter._p0; ++iter) { \
+    for (TensorIterator<REMCONST(X)> iter=x.unary_iterator(1,false,false); iter._p0; ++iter) { \
     long _dimj = iter.dimj; \
-    X* _p0 = iter._p0; \
+    X* restrict _p0 = iter._p0; \
     long _s0 = iter._s0; \
     for (long _j=0; _j<_dimj; _j++, _p0+=_s0) { \
       exp; \
@@ -682,9 +686,9 @@ for (TensorIterator<X> iter=x.unary_iterator(1,false,false); iter._p0; ++iter) {
 // Iterator is iter2.
 
 #define UNARY_UNOPTIMIZED_ITERATOR_NESTED(X,x,exp) do { \
-for (TensorIterator<X> iter2=x.unary_iterator(1,false,false); iter2._p0; ++iter2) { \
+    for (TensorIterator<REMCONST(X)> iter2=x.unary_iterator(1,false,false); iter2._p0; ++iter2) { \
     long _dimj2 = iter2.dimj; \
-    X* _q0 = iter2._p0; \
+    X* restrict _q0 = iter2._p0; \
     long _s20 = iter2._s0; \
     for (long _j2=0; _j2<_dimj2; _j2++, _q0+=_s20) { \
       exp; \
@@ -692,16 +696,16 @@ for (TensorIterator<X> iter2=x.unary_iterator(1,false,false); iter2._p0; ++iter2
   } } while(0)
 
 #define BINARY_OPTIMIZED_ITERATOR(X,x,Y,y,exp) do { \
-  if (x.iscontiguous() && y.iscontiguous() && x.size==y.size) { \
+  if (x.iscontiguous() && y.iscontiguous() && x.size()==y.size()) { \
     X* restrict _p0 = x.ptr(); \
     Y* restrict _p1 = y.ptr(); \
-    for (long _j=0; _j<x.size; _j++,_p0++,_p1++) {exp;} \
+    for (long _j=0; _j<x.size(); _j++,_p0++,_p1++) {exp;} \
   } \
   else { \
-    for (TensorIterator<X,Y> iter=x.binary_iterator(y,1); iter._p0; ++iter) { \
+    for (TensorIterator<REMCONST(X),REMCONST(Y)> iter=x.binary_iterator(y,1); iter._p0; ++iter) { \
         long _dimj = iter.dimj; \
-        X* _p0 = iter._p0; \
-        Y* _p1 = iter._p1; \
+        X* restrict _p0 = iter._p0; \
+        Y* restrict _p1 = iter._p1; \
         long _s0 = iter._s0; \
         long _s1 = iter._s1; \
         for (long _j=0; _j<_dimj; _j++, _p0+=_s0, _p1+=_s1) { \
@@ -710,18 +714,18 @@ for (TensorIterator<X> iter2=x.unary_iterator(1,false,false); iter2._p0; ++iter2
   } } } while(0)
 
 #define TERNARY_OPTIMIZED_ITERATOR(X,x,Y,y,Z,z,exp) do { \
-  if (x.iscontiguous() && y.iscontiguous() && z.iscontiguous() && x.size==y.size && x.size==z.size) { \
+  if (x.iscontiguous() && y.iscontiguous() && z.iscontiguous() && x.size()==y.size() && x.size()==z.size()) { \
     X* restrict _p0 = x.ptr(); \
     Y* restrict _p1 = y.ptr(); \
     Z* restrict _p2 = z.ptr(); \
-    for (long _j=0; _j<x.size; _j++,_p0++,_p1++,_p2++) {exp;} \
+    for (long _j=0; _j<x.size(); _j++,_p0++,_p1++,_p2++) {exp;} \
   } \
   else { \
-    for (TensorIterator<X,Y,Z> iter=x.ternary_iterator(y,z,1); iter._p0; ++iter) { \
+    for (TensorIterator<REMCONST(X),REMCONST(Y),REMCONST(Z)> iter=x.ternary_iterator(y,z,1); iter._p0; ++iter) { \
         long _dimj = iter.dimj; \
-        X* _p0 = iter._p0; \
-        Y* _p1 = iter._p1; \
-        Z* _p2 = iter._p2; \
+        X* restrict _p0 = iter._p0; \
+        Y* restrict _p1 = iter._p1; \
+        Z* restrict _p2 = iter._p2; \
         long _s0 = iter._s0; \
         long _s1 = iter._s1; \
         long _s2 = iter._s2; \

@@ -265,12 +265,12 @@ public:
         if (finished) return;
         
         // Implement runtime defaults
-        if (cell.size <= 0) {
+        if (cell.size() <= 0) {
             MADNESS_ASSERT(ndim>0 && ndim<=6);
             cell = Tensor<double>(ndim,2);
             for (int i=0; i<ndim; i++) cell(i,1) = 1.0;
         }
-        if (plot_cell.size <= 0) plot_cell = copy(cell);
+        if (plot_cell.size() <= 0) plot_cell = copy(cell);
         while (int(npt.size()) < ndim) npt.push_back(101);
 
         // Warm and fuzzy
@@ -286,8 +286,8 @@ public:
 
         // Sanity check
         MADNESS_ASSERT(ndim>0 && ndim<=6);
-        MADNESS_ASSERT(cell.dim[0]==ndim && cell.dim[1]==2);
-        MADNESS_ASSERT(plot_cell.dim[0]==ndim && plot_cell.dim[1]==2);
+        MADNESS_ASSERT(cell.dim(0)==ndim && cell.dim(1)==2);
+        MADNESS_ASSERT(plot_cell.dim(0)==ndim && plot_cell.dim(1)==2);
     }
 
     template <typename T, int NDIM>

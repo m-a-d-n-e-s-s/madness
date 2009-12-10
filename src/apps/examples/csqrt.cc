@@ -24,8 +24,9 @@ static std::complex<double> f(const coordT& r)
     return std::complex<double>(0.0,2.0);
 }
 
-inline static void csqrt_op(const Key<1>& key, Tensor< std::complex<double> >& t) {
-  UNARY_OPTIMIZED_ITERATOR(std::complex<double>, t, *_p0 = sqrt(*_p0));
+template <typename T>
+inline static void csqrt_op(const Key<1>& key, Tensor< T >& t) {
+    UNARY_OPTIMIZED_ITERATOR(T, t, *_p0 = sqrt(*_p0));
 }
 
 
@@ -49,7 +50,7 @@ int main(int argc, char** argv)
     boring.truncate();
 
     cfunctionT sqrt_of_boring = copy(boring);
-    sqrt_of_boring.unaryop(&csqrt_op);
+    sqrt_of_boring.unaryop(&csqrt_op<double_complex>);
     double error = (square(sqrt_of_boring) - boring).norm2();
     print("error is ", error);
     world.gop.fence();

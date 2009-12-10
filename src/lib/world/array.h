@@ -38,6 +38,7 @@
 #include <vector>
 #include <world/worldexc.h>
 #include <world/worldhash.h>
+#include <iostream>
 
 namespace madness {
 

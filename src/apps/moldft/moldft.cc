@@ -286,13 +286,13 @@ public:
 tensorT Q3(const tensorT& s) {
     tensorT Q = inner(s,s);
     Q.gaxpy(0.2,s,-2.0/3.0);
-    for (int i=0; i<s.dim[0]; i++) Q(i,i) += 1.0;
+    for (int i=0; i<s.dim(0); i++) Q(i,i) += 1.0;
     return Q.scale(15.0/8.0);
 }
 
 /// Computes matrix square root (not used any more?)
 tensorT sqrt(const tensorT& s, double tol=1e-8) {
-    int n=s.dim[0], m=s.dim[1];
+    int n=s.dim(0), m=s.dim(1);
     MADNESS_ASSERT(n==m);
     tensorT c, e;
     //s.gaxpy(0.5,transpose(s),0.5); // Ensure exact symmetry
@@ -578,7 +578,7 @@ struct CalculationParameters {
         madness::print("        plot coulomb ", plotcoul);
         madness::print("        plot orbital ", plotlo, plothi);
         madness::print("        plot npoints ", npt_plot);
-        if (plot_cell.size > 0)
+        if (plot_cell.size() > 0)
             madness::print("        plot  volume ", plot_cell(0,0), plot_cell(0,1), 
                            plot_cell(1,0), plot_cell(1,1), plot_cell(2,0), plot_cell(2,1));
         else 
@@ -765,7 +765,7 @@ struct Calculation {
 
         std::vector<long> npt(3,param.npt_plot);
 
-        if (param.plot_cell.size == 0) 
+        if (param.plot_cell.size() == 0) 
             param.plot_cell = copy(FunctionDefaults<3>::get_cell());
 
         if (param.plotdens || param.plotcoul) {
@@ -906,8 +906,8 @@ struct Calculation {
                                  const bool & doprint, const std::vector<int> & set,
                                  const double thetamax, tensorT & U, const double thresh)
     {
-        long nmo = C.dim[0];
-        long nao = C.dim[1];
+        long nmo = C.dim(0);
+        long nao = C.dim(1);
         long natom = molecule.natom();
         
         for(long i = 0;i < nmo;i++){
@@ -1020,7 +1020,7 @@ struct Calculation {
             localize_PM_task_kernel(Q, Svec, C, doprint, set, thetamax, U, thresh);
             U = transpose(U);
         }
-        world.gop.broadcast(U.ptr(), U.size, 0);
+        world.gop.broadcast(U.ptr(), U.size(), 0);
         END_TIMER(world, "Pipek-Mezy localize");
         return U;
     }
@@ -1052,10 +1052,10 @@ struct Calculation {
                 if(set.size())
                     printf("set=%d : ", set[i]);
                 
-                if(occ.size)
+                if(occ.size())
                     printf("occ=%.2f : ", occ(i));
                 
-                if(energy.size)
+                if(energy.size())
                     printf("energy=%11.6f : ", energy(i));
                 
                 printf("center=(%.2f,%.2f,%.2f) : radius=%.2f\n", dip(0, i), dip(1, i), dip(2, i), sqrt(rsq(i)));
@@ -1166,7 +1166,7 @@ struct Calculation {
             U = transpose(U);
         }
         
-        world.gop.broadcast(U.ptr(), U.size, 0);
+        world.gop.broadcast(U.ptr(), U.size(), 0);
         END_TIMER(world, "Boys localize");
         return U;
     }
@@ -1272,8 +1272,8 @@ struct Calculation {
             fock = 0.5 * (fock + transpose(fock));
             tensorT c, e;
             sygv(fock, overlap, 1, &c, &e);
-            world.gop.broadcast(c.ptr(), c.size, 0);
-            world.gop.broadcast(e.ptr(), e.size, 0);
+            world.gop.broadcast(c.ptr(), c.size(), 0);
+            world.gop.broadcast(e.ptr(), e.size(), 0);
             if(world.rank() == 0){
                 print("initial eigenvalues");
                 print(e);
@@ -1367,7 +1367,7 @@ struct Calculation {
     
     std::vector<poperatorT> make_bsh_operators(World & world, const tensorT & evals)
     {
-        int nmo = evals.dim[0];
+        int nmo = evals.dim(0);
         std::vector<poperatorT> ops(nmo);
         int k = FunctionDefaults<3>::get_k();
         double tol = FunctionDefaults<3>::get_thresh();
@@ -1465,14 +1465,17 @@ struct Calculation {
         
         return r;
     }
-    static void ldaop(const Key<3> & key, tensorT & t)
+
+    template <typename T>
+    static void ldaop(const Key<3> & key, Tensor<T>& t)
     {
-        UNARY_OPTIMIZED_ITERATOR(double, t, double r=munge(2.0* *_p0); double q; double dq1; double dq2;x_rks_s__(&r, &q, &dq1);c_rks_vwn5__(&r, &q, &dq2); *_p0 = dq1+dq2);
+        UNARY_OPTIMIZED_ITERATOR(T, t, double r=munge(2.0* *_p0); double q; double dq1; double dq2;x_rks_s__(&r, &q, &dq1);c_rks_vwn5__(&r, &q, &dq2); *_p0 = dq1+dq2);
     }
     
-    static void ldaeop(const Key<3> & key, tensorT & t)
+    template <typename T>
+    static void ldaeop(const Key<3> & key, Tensor<T>& t)
     {
-        UNARY_OPTIMIZED_ITERATOR(double, t, double r=munge(2.0* *_p0); double q1; double q2; double dq;x_rks_s__(&r, &q1, &dq);c_rks_vwn5__(&r, &q2, &dq); *_p0 = q1+q2);
+        UNARY_OPTIMIZED_ITERATOR(T, t, double r=munge(2.0* *_p0); double q1; double q2; double dq;x_rks_s__(&r, &q1, &dq);c_rks_vwn5__(&r, &q2, &dq); *_p0 = q1+q2);
     }
     
     functionT make_lda_potential(World & world, const functionT & arho, const functionT & brho, const functionT & adelrhosq, const functionT & bdelrhosq)
@@ -1480,7 +1483,7 @@ struct Calculation {
         MADNESS_ASSERT(param.spin_restricted);
         functionT vlda = copy(arho);
         vlda.reconstruct();
-        vlda.unaryop(&ldaop);
+        vlda.unaryop(&ldaop<double>);
         return vlda;
     }
     
@@ -1489,7 +1492,7 @@ struct Calculation {
         MADNESS_ASSERT(param.spin_restricted);
         functionT vlda = copy(arho);
         vlda.reconstruct();
-        vlda.unaryop(&ldaeop);
+        vlda.unaryop(&ldaeop<double>);
         return vlda.trace();
     }
     
@@ -1614,7 +1617,7 @@ struct Calculation {
         START_TIMER(world);
         tensorT ke = kinetic_energy_matrix(world, psi);
         END_TIMER(world, "KE matrix");
-        int nocc = occ.size;
+        int nocc = occ.size();
         ekinetic = 0.0;
         for(int i = 0;i < nocc;i++){
             ekinetic += occ[i] * ke(i, i);
@@ -1627,7 +1630,7 @@ struct Calculation {
     
     tensorT matrix_exponential(const tensorT& A) {
         const double tol = 1e-13;
-        MADNESS_ASSERT(A.dim[0] == A.dim[1]);
+        MADNESS_ASSERT(A.dim((0) == A.dim(1)));
         
         // Scale A by a power of 2 until it is "small"
         double anorm = A.normf();
@@ -1640,8 +1643,8 @@ struct Calculation {
         tensorT B = scale*A;    // B = A*2^-n
         
         // Compute exp(B) using Taylor series
-        tensorT expB = tensorT(2, B.dim);
-        for (int i=0; i<expB.dim[0]; i++) expB(i,i) = 1.0;
+        tensorT expB = tensorT(2, B.dims());
+        for (int i=0; i<expB.dim(0); i++) expB(i,i) = 1.0;
         
         int k = 1;
         tensorT term = B;
@@ -1739,8 +1742,8 @@ struct Calculation {
         // print("Eval");
         // print(evals);
         
-        world.gop.broadcast(U.ptr(), U.size, 0);
-        world.gop.broadcast(evals.ptr(), evals.size, 0);
+        world.gop.broadcast(U.ptr(), U.size(), 0);
+        world.gop.broadcast(evals.ptr(), evals.size(), 0);
         
         fock = 0;
         for (unsigned int i=0; i<psi.size(); i++) fock(i,i) = evals(i);

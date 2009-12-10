@@ -140,24 +140,24 @@ namespace madness {
 
             if (is_compressed()) {
                 if (node.has_children()) {
-                    bad = node.coeff().dim[0] != 2*cdata.k;
+                    bad = node.coeff().dim(0) != 2*cdata.k;
                 }
                 else {
-                    bad = node.coeff().size != 0;
+                    bad = node.coeff().size() != 0;
                 }
             }
             else {
                 if (node.has_children()) {
-                    bad = node.coeff().size != 0;
+                    bad = node.coeff().size() != 0;
                 }
                 else {
-                    bad = node.coeff().dim[0] != cdata.k;
+                    bad = node.coeff().dim(0) != cdata.k;
                 }
             }
 
             if (bad) {
                 print(world.rank(), "FunctionImpl: verify: INCONSISTENT TREE NODE, key =", key, ", node =", node,
-                      ", dim[0] =",node.coeff().dim[0],", compressed =",is_compressed());
+                      ", dim[0] =",node.coeff().dim(0),", compressed =",is_compressed());
                 std::cout.flush();
                 MADNESS_EXCEPTION("FunctionImpl: verify: INCONSISTENT TREE NODE", 0);
             }
@@ -207,7 +207,7 @@ namespace madness {
     }
 
     template <typename T, int NDIM>
-    T FunctionImpl<T,NDIM>::eval_cube(Level n, coordT x, const tensorT c) const {
+    T FunctionImpl<T,NDIM>::eval_cube(Level n, coordT& x, const tensorT& c) const {
         PROFILE_MEMBER_FUNC(FunctionImpl);
         const int k = cdata.k;
         double px[NDIM][k];
@@ -287,7 +287,7 @@ namespace madness {
 
         if (node.has_children() || node.has_coeff()) { // Must allow for inconsistent state from transform, etc.
             tensorT d = node.coeff();
-            if (d.size == 0) d = tensorT(cdata.v2k);
+            if (d.size() == 0) d = tensorT(cdata.v2k);
             if (key.level() > 0) d(cdata.s0) += s; // -- note accumulate for NS summation
             d = unfilter(d);
             node.clear_coeff();
@@ -314,7 +314,7 @@ namespace madness {
         const Level n = key.level();
         const double h = std::pow(0.5,double(n));
         coordT c; // will hold the point in user coordinates
-        const int npt = qx.dim[0];
+        const int npt = qx.dim(0);
 
         const Tensor<double>& cell_width = FunctionDefaults<NDIM>::get_cell_width();
         const Tensor<double>& cell = FunctionDefaults<NDIM>::get_cell();
@@ -939,10 +939,10 @@ namespace madness {
         PROFILE_MEMBER_FUNC(FunctionImpl);
         ProcessID owner = coeffs.owner(key);
         if (owner == world.rank()) {
-            if (left.second.size == 0) {
+            if (left.second.size() == 0) {
                 task(owner, &implT::do_diff1, f, axis, key, f->find_neighbor(key,axis,-1), center, right, TaskAttributes::hipri());
             }
-            else if (right.second.size == 0) {
+            else if (right.second.size() == 0) {
                 task(owner, &implT::do_diff1, f, axis, key, left, center, f->find_neighbor(key,axis,1), TaskAttributes::hipri());
             }
             else {
@@ -965,7 +965,7 @@ namespace madness {
 
         MADNESS_ASSERT(axis>=0 && axis<NDIM);
 
-        if (left.second.size==0 || right.second.size==0) {
+        if (left.second.size()==0 || right.second.size()==0) {
             // One of the neighbors is below us in the tree ... recur down
             coeffs.replace(key,nodeT(tensorT(),true));
             for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
@@ -1019,7 +1019,7 @@ namespace madness {
             Vector<Translation,NDIM> l;
             for (int i=0; i<NDIM; i++) l[map[i]] = key.translation()[i];
             tensorT c = node.coeff();
-            if (c.size) c = copy(c.mapdim(map));
+            if (c.size()) c = copy(c.mapdim(map));
 
             coeffs.replace(keyT(key.level(),l), nodeT(c,node.has_children()));
         }
@@ -1048,12 +1048,12 @@ namespace madness {
     }
 
     template <typename T, int NDIM>
-    Void FunctionImpl<T,NDIM>::plot_cube_kernel(const Tensor<T>& cr, 
+    Void FunctionImpl<T,NDIM>::plot_cube_kernel(archive_ptr< Tensor<T> > ptr, 
                                                 const keyT& key, 
                                                 const coordT& plotlo, const coordT& plothi, const std::vector<long>& npt, 
                                                 bool eval_refine) const {
 
-        Tensor<T>& r = const_cast< Tensor<T>& >(cr); // Jeeps!
+        Tensor<T>& r = *ptr;
 
         coordT h; // Increment between points in each dimension
         for (int i=0; i<NDIM; i++) {
@@ -1069,7 +1069,7 @@ namespace madness {
         const Level n = key.level();
         const Vector<Translation,NDIM>& l = key.translation();
         const double twon = pow(2.0,double(n));
-        const tensorT coeff = coeffs.find(key).get()->second.coeff(); // Ugh!
+        const tensorT& coeff = coeffs.find(key).get()->second.coeff(); // Ugh!
         long ind[NDIM];
         coordT x;
 
@@ -1129,7 +1129,9 @@ namespace madness {
                     r(ind) = n;
                 } 
                 else {
-                    r(ind) = eval_cube(n, x, coeff);
+                    T tmp = eval_cube(n, x, coeff);
+                    r(ind) = tmp;
+                    //print("    eval", ind, tmp, r(ind));
                 }
             }
         }
@@ -1146,21 +1148,21 @@ namespace madness {
                                                    const bool eval_refine) const {
         PROFILE_MEMBER_FUNC(FunctionImpl);
         Tensor<T> r(NDIM, &npt[0]);
-        //         r(___) = 99.0;
+        r(___) = 99.0;
         MADNESS_ASSERT(!compressed);
 
         for (typename dcT::const_iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
             const keyT& key = it->first;
             const nodeT& node = it->second;
             if (node.has_coeff()) {
-                task(world.rank(), &implT::plot_cube_kernel, r, key, plotlo, plothi, npt, eval_refine);
+                task(world.rank(), &implT::plot_cube_kernel, archive_ptr< Tensor<T> >(&r), key, plotlo, plothi, npt, eval_refine);
             }
         }
 
         //        ITERATOR(r, if (r(IND) == 99.0) {print("BAD", IND); error("bad",0);});
 
         world.taskq.fence();
-        world.gop.sum(r.ptr(), r.size);
+        world.gop.sum(r.ptr(), r.size());
         world.gop.fence();
 
         return r;
@@ -1234,7 +1236,7 @@ namespace madness {
             if (binary) {
                 // This assumes that the values are double precision
                 fflush(f);
-                fwrite((void *) r.ptr(), sizeof(T), r.size, f);
+                fwrite((void *) r.ptr(), sizeof(T), r.size(), f);
                 fflush(f);
             }
             else {

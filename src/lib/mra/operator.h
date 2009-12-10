@@ -317,11 +317,11 @@ namespace madness {
                 , doleaves(doleaves)
                 , isperiodicsum(false)
                 , k(k)
-                , rank(coeff.dim[0])
+                , rank(coeff.dim(0))
                 , vk(NDIM,k)
                 , v2k(NDIM,2*k)
                 , s0(std::max(2,NDIM),Slice(0,k-1))
-                , ops(coeff.dim[0])
+                , ops(coeff.dim(0))
                 , factors(ops.size(),1.0)
                 , facnorms(ops.size(),1.0) {
             check_cubic();
@@ -361,7 +361,7 @@ namespace madness {
             const Tensor<T>* input = &coeff;
             Tensor<T> dummy;
 
-            if (coeff.dim[0] == k) {
+            if (coeff.dim(0) == k) {
                 // This processes leaf nodes with only scaling
                 // coefficients ... FuncImpl::apply by default does not
                 // apply the operator to these since for smoothing operators
@@ -373,7 +373,7 @@ namespace madness {
                 input = &dummy;
             }
             else {
-                MADNESS_ASSERT(coeff.dim[0]==2*k);
+                MADNESS_ASSERT(coeff.dim(0)==2*k);
             }
 
             tol = tol/rank; // Error is per separated term
@@ -381,6 +381,7 @@ namespace madness {
             const SeparatedConvolutionData<Q,NDIM>* op = getop(source.level(), shift);
 
             //print("sepop",source,shift,op->norm,tol);
+
             Tensor<resultT> r(v2k), r0(vk);
             Tensor<resultT> work1(v2k,false), work2(v2k,false);
             Tensor<Q> work5(2*k,2*k);
@@ -388,7 +389,7 @@ namespace madness {
             const Tensor<T> f0 = copy(coeff(s0));
             for (int mu=0; mu<rank; mu++) {
                 const SeparatedConvolutionInternal<Q,NDIM>& muop =  op->muops[mu];
-                //print(source, shift, mu, muop.norm);
+                //print("muop",source, shift, mu, muop.norm);
                 if (muop.norm > tol) {
                     muopxv_fast(source.level(), muop.ops, *input, f0, r, r0, tol/facnorms[mu], factors[mu]*ops[mu]->sign,
                                 work1, work2, work5);

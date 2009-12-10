@@ -292,7 +292,7 @@ namespace madness {
         void unshuffle() {
             if (nlocal <= 0) return;
             Tensor<T>& t = A.data();
-            Tensor<T> tmp(2L, t.dim, false);
+            Tensor<T> tmp(2L, t.dims(), false);
             T* tp = tmp.ptr();
             for (int64_t i=0; i<nlocal; i++) {
                 memcpy(tp+i*rowdim, iptr[i], rowdim*sizeof(T));
@@ -302,7 +302,7 @@ namespace madness {
                 iptr[i] = &t(i,0);
                 jptr[i] = &t(i+nlocal,0); 
             }
-            memcpy(t.ptr(), tmp.ptr(), t.size*sizeof(T));
+            memcpy(t.ptr(), tmp.ptr(), t.size()*sizeof(T));
             
             if (rank==(nproc-1) && (coldim&0x1)) jptr[nlocal-1] = 0;
         }

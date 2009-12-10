@@ -137,7 +137,7 @@ void test_periodic2(World& world) {
     const double acut = 0.25 / (4.0*L*L);
 
     std::vector< SharedPtr< Convolution1D<double> > > ops;
-    for (int i=0; i<coeff.dim[0]; i++) {
+    for (int i=0; i<coeff.dim(0); i++) {
         if (expnt[i] > acut) {
             double c = pow(4*constants::pi*coeff[i],1.0/3.0);
             ops.push_back(SharedPtr< Convolution1D<double> >(new PeriodicGaussianConvolution1D<double>(k, 16, c, expnt[i])));

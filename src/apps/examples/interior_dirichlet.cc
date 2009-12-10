@@ -86,8 +86,9 @@ static double exact_sol(const coordT3d & pt) {
 
 // gives the B(phi(x)) function == phi^2 (1-phi)^2
 // this is a unary op, given the phi function, computes b pointwise
-inline static void b_phi(const Key<3> &key, Tensor<double> & t) {
-	UNARY_OPTIMIZED_ITERATOR(double, t,
+template <typename T>
+inline static void b_phi(const Key<3> &key, Tensor<T> & t) {
+	UNARY_OPTIMIZED_ITERATOR(T, t,
 		*_p0 = (*_p0) * (*_p0) * (1.0-(*_p0)) * (1.0-(*_p0)));
 }
 
@@ -180,7 +181,7 @@ int main(int argc, char **argv) {
 
 	functionT b = copy(phi);
 	phi.truncate();
-	b.unaryop(&b_phi);
+	b.unaryop(&b_phi<double>);
 
 	// apply the scale factor to b
 	// scale is (36 / epsilon), which normalizes b, -1 from the Green's function

@@ -109,7 +109,7 @@ void gaxpy1(World& world,
 
 vector<poperatorT> make_bsh_operators(World& world, const Tensor<double>& evals, double tol) 
 {
-    int n = evals.dim[0];
+    int n = evals.dim(0);
     vector<poperatorT> ops(n);
     int k = FunctionDefaults<3>::get_k();
     for (int i=0; i<n; i++) {

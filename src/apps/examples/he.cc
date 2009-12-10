@@ -15,7 +15,7 @@ typedef FunctionFactory<double,3> factoryT;
 typedef SeparatedConvolution<double,3> operatorT;
 
 static const double L = 32.0;   // box size
-static const long k = 6;        // wavelet order
+static const long k = 8;        // wavelet order
 static const double thresh = 1e-6; // precision
 static const double thresh1 = thresh;
 

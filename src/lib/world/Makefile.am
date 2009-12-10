@@ -1,6 +1,6 @@
 include $(top_srcdir)/config/MakeGlobal.am
 
-bin_PROGRAMS = world testhashthreaded testdc objexample objexample2 testprof helloworld taskexample testatomicint testhashdc
+bin_PROGRAMS = world testhashthreaded testdc objexample objexample2 testprof helloworld taskexample testatomicint testhashdc array_test world_test
 
 lib_LIBRARIES = libMADworld.a
 
@@ -12,6 +12,15 @@ thisinclude_HEADERS = archive.h print.h      worldam.h       worldfut.h   worldm
                      dqueue.h   parar.h       vecar.h      worldexc.h      worldmem.h   worldser.h \
                      worldthread.h worldrmi.h safempi.h worldpapi.h worldmutex.h print_seq.h \
                      worldhashmap.h          worldrange.h  atomicint.h
+
+array_test_SOURCES = array_test.cc
+array_test_LDADD = -L/usr/local/gtest-1.4/lib -lgtest
+array_test_CPPFLAGS = $(AM_CPPFLAGS) -I/usr/local/gtest-1.4/include
+
+world_test_SOURCES = world_test.cc
+world_test_LDADD = libMADworld.a -L/usr/local/gtest-1.4/lib -lgtest
+world_test_CPPFLAGS = $(AM_CPPFLAGS) -I/usr/local/gtest-1.4/include
+
 
 testprof_SOURCES = testprof.cc
 testprof_LDADD = libMADworld.a

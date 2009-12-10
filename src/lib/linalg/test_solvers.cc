@@ -21,7 +21,7 @@ struct Test2 : public OptimizationTargetInterface {
 
     double value(const Tensor<double>& x) {
         double v = 1.0;
-        for (int i=0; i<x.dim[0]; i++) {
+        for (int i=0; i<x.dim(0); i++) {
             v *= cos((i+1)*x[i]);
         }
         return v;
@@ -29,8 +29,8 @@ struct Test2 : public OptimizationTargetInterface {
 
     Tensor<double> gradient(const Tensor<double>& x) {
         double v = value(x);
-        Tensor<double> g(x.dim[0]);
-        for (int i=0; i<x.dim[0]; i++) {
+        Tensor<double> g(x.dim(0));
+        for (int i=0; i<x.dim(0); i++) {
             g[i]= -v*(i+1)*sin((i+1)*x[i])/cos((i+1)*x[i]);
         }
         return g;
@@ -40,7 +40,7 @@ struct Test2 : public OptimizationTargetInterface {
 
 
 Tensor<double> op(const Tensor<double>& x) {
-    const long n = x.dim[0];
+    const long n = x.dim(0);
     Tensor<double> f(n);
     for (long i=0; i<n; i++) {
         f(i) = (i + 1)*x[i]; // + 0.01*i*x[i]*x[i]*x[i];

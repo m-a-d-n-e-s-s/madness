@@ -671,9 +671,12 @@ namespace madness {
 
             archive_ptr(T* t = 0) : ptr(t) {}
 
+            T& operator*(){return *ptr;}
+
             template <class Archive> 
             void serialize(const Archive& ar) {ar & wrap_opaque(&ptr, 1);}
         };
+        
 
         /// Wrapper for dynamic arrays and pointers
         template <class T>

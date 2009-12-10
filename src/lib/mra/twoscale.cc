@@ -298,6 +298,7 @@ namespace madness {
             _cread(i,j,p+twok) = val;	// c+
             _cread(j,i,p+twok) = val*ij;
         }
+
         fclose(file);
         kread = k;
         return true;

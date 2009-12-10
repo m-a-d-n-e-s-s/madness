@@ -35,8 +35,12 @@ typedef FunctionFactory<double_complex,1> complex_factoryT;
 
   complex_functionT APPLY(complex_operatorT* q1d, const complex_functionT& psi) {
       psi.reconstruct();
+
+      psi.broaden(); 
       psi.broaden();
       psi.broaden();
+      psi.broaden();
+
       complex_functionT r = apply_1d_realspace_push(*q1d, psi, 0);
       r.sum_down();
       return r;
@@ -50,8 +54,8 @@ typedef FunctionFactory<double_complex,1> complex_factoryT;
 static const double L = 100.0; // Simulation in [-L,L]
 static const double x0 = -L + 10.0; // Initial position of the atom
 static const double energy_exact = -6.188788775728796797594788; // From Maple
-static const long k = 8;        // wavelet order
-static const double thresh = 1e-6; // precision
+static const long k = 20;        // wavelet order
+static const double thresh = 1e-8; // precision
 static const double velocity = 3.0;
 //static const double eshift = energy_exact - 0.5*velocity*velocity; // Use this value to remove rotating phase
 static const double eshift = 0.0;
@@ -256,134 +260,110 @@ void print_info(World& world, const complex_functionT& psi, int step) {
         printf(" step    time      atom x        norm        kinetic    potential      energy      err norm   depth   size  \n");
         printf("------ -------- ------------ ------------ ------------ ------------ ------------ ------------ ----- ---------\n");
     }
-    printf("%6d %8.2f %12.8f %12.8f %12.8f %12.8f %12.8f %12.8f %4d %9ld\n",
+    printf("%6d %8.4f %12.8f %12.9f %12.9f %12.9f %12.9f %12.9f %4d %9ld\n",
            step, current_time, atom_position(), norm, ke, pe, ke+pe, err, int(psi.max_depth()), psi.size());
 }
 
 
 static void readin(int np) {
-	
-	Tensor<double> BB(np), tctc(np);
-	gauss_legendre(np, 0, 1, tctc.ptr(), BB.ptr());
-	B=BB; tc=tctc;
-	return;
-	
-	//~ // TEST Only for np=3 test
-	//~ Tensor<double> A(np+2,np+2),AA(np,np);
-	//~ A(2, 2) = .138888888888888888888888888889; A(3, 2) = .300263194980864592438024947213; A(4, 2) = .267988333762469451728197735548; B(2) = .277777777777777777777777777778; A(2, 3) = -0.359766675249389034563954710966e-1; A(3, 3) = .222222222222222222222222222222; A(4, 3) = .480421111969383347900839915541; B(3) = .444444444444444444444444444444; A(2, 4) = 0.978944401530832604958004222948e-2; A(3, 4) = -0.224854172030868146602471694354e-1; A(4, 4) = .138888888888888888888888888889; B(4) = .277777777777777777777777777778;
-	//~ AA(___) = A(Slice(2,-1,1), Slice(2,-1,1));
-	//~ S = AA;
- 
-	//~ B = weights[np];//(_reverse);
- 	//~ tc = points[np];//(_reverse);
- 	for (int i=0; i<np; ++i) printf("%f ",tc[i]); print("tc");
-        return;
-
-	if (np==1) {
-		tc[0] = 0.5;
-		B[0] = 1;
-	} else if (np==2) {
-		tc[0] = .2113248654051871; 
-		tc[1] = .7886751345948129; 
-		B[0] = .5; 
-		B[1] = .5;
-	} else if (np==3) {
-		tc[0] = .11270166537925831; 
-		tc[1] = .5; 
-		tc[2] = .88729833462074169; 
-		B[0]  = .277777777777777777777777777778; 
-		B[1]  = .444444444444444444444444444444; 
-		B[2]  = .277777777777777777777777777778;
-	} else if (np==4) {
-		tc[0] = .06943184420297371; 
-		tc[1] = .33000947820757187; 
-		tc[2] = .66999052179242813; 
-		tc[3] = .93056815579702629;
-		B[0]  = .173927422568726928686531974611; 
-		B[1]  = .326072577431273071313468025389;
-		B[2]  = .326072577431273071313468025389; 
-		B[3]  = .173927422568726928686531974611;
-	} else {
-		print("invalid np, throw now");
-		throw;
-	}
+    Tensor<double> BB(np), tctc(np);
+    gauss_legendre(np, 0, 1, tctc.ptr(), BB.ptr());
+    B=BB; tc=tctc;
 }
 
 //j_th interpolating coefficients
 double icoeff(const int np, const int j, const double t) {
-	double dum = 1;
-	for (int i=  0; i< j; ++i) dum *= (t-tc[i])/(tc[j]-tc[i]);
-	for (int i=j+1; i<np; ++i) dum *= (t-tc[i])/(tc[j]-tc[i]);
-	return dum;
+    double dum = 1;
+    for (int i=  0; i< j; ++i) dum *= (t-tc[i])/(tc[j]-tc[i]);
+    for (int i=j+1; i<np; ++i) dum *= (t-tc[i])/(tc[j]-tc[i]);
+    return dum;
 }
 
 //interpolate ps at t
 template<typename T> T myp(const std::vector<T>& ps, const double t) {
-	int np = ps.size();
-	T p = ps[0]*icoeff(np, 0, t);
-	for (int j=1; j<np; ++j) p += ps[j]*icoeff(np, j, t);
-	return p;
+    int np = ps.size();
+    T p = ps[0]*icoeff(np, 0, t);
+    for (int j=1; j<np; ++j) p += ps[j]*icoeff(np, j, t);
+    return p;
 }
 
 // Evolve forward one time step using quadrature rules
 complex_functionT q_r(World& world, const int np, const complex_functionT psi0, const double tstep) {
     //can be more vectorized.
-	
-	std::vector<complex_functionT> ps(np), ps1(np);
-//    for (int i=0; i<np; ++i) ps[i] = copy(psi0);
-	
-	double tdum = current_time;
-	complex_functionT pdum;
-	std::vector<complex_functionT> qs(np);
-	std::vector<functionT> Vs(np);
-	std::vector< std::vector<functionT> > Vss(np);
-	for (int i=0; i<np; ++i) {
-		current_time = tdum + tstep*tc[i];
-		Vs[i] = factoryT(world).f(V).truncate_on_project();
-		Vs[i].truncate();
-		Vss[i].resize(np);
-		for (int k=0; k<np; ++k) {
-			current_time = tdum + tstep*tc[i]*tc[k];
-			Vss[i][k]=factoryT(world).f(V).truncate_on_project();
-			Vss[i][k].truncate();
-		}
-		//~ ps[i] = APPLY(Gs[np - i - 1].get(), psi0).truncate();  
-		//~ qs[i]=copy(ps[i]);
-		ps1[i] = APPLY(Gs[np - i - 1].get(), psi0).truncate();  
-		current_time = tdum + (i?tstep*tc[i-1]:0);
-		qs[i] =  trotter(world, (i?qs[i-1]:psi0), tstep*(tc[i]-(i?tc[i-1]:0)),Gtrs[i]); //current_time is implicitly changed.
-	}
-	for (int i=0; i<np; ++i)	for (int k=0; k<np; ++k) ps1[i] -= APPLY(Gss[i*np+k].get(), Vss[i][k]*myp(qs,tc[i]*tc[k])).scale(tstep*tc[i]*I*B[k]);
-	
-	ps = sub(world, ps1, qs);
-	qs = ps1;
-	// fix pt iterations for psi's on the quadrature pts
-	fix_iter_tol = thresh / tstep;
-	printf("fix iters ");
-	double err = norm2(world, ps1)/np ;
-	
-	//~ ps=copy(world, qs);
-	for (int j=0; j<maxiter; ++j) {
-		printf(" %6.0e",err);
-		if (err <= fix_iter_tol) break;
-		err = 0;
-		ps1 = zero_functions<double_complex,1>(world, np);
-		for (int i=0; i<np; ++i) {
-            for (int k=0; k<np; ++k) ps1[i] -= APPLY(Gss[i*np+k].get(), Vss[i][k]*myp(ps,tc[i]*tc[k])).scale(tstep*tc[i]*I*B[k]);
-			err += ps1[i].truncate().norm2();
-		}
-		err /= np;
-		gaxpy(world, 1.0, qs, 1.0, ps1); ps = copy(world, ps1);
-	}
-	printf("\n");
-			
-    // apply quadrature rule.
-	pdum = APPLY(G.get(), psi0).truncate();
-	
-	for (int k=0; k<np; ++k) pdum -= APPLY(Gs[k].get(), Vs[k]*qs[k]).scale(I*B[k]*tstep);
-	
-	current_time = tdum + tstep;
+    
+    std::vector<complex_functionT> ps(np), ps1(np);
+    //    for (int i=0; i<np; ++i) ps[i] = copy(psi0);
+    
+    double tdum = current_time;
+    complex_functionT pdum;
+    std::vector<complex_functionT> qs(np);
+    std::vector<functionT> Vs(np);
+    std::vector< std::vector<functionT> > Vss(np);
+    for (int i=0; i<np; ++i) {
+        current_time = tdum + tstep*tc[i];
+        Vs[i] = factoryT(world).f(V).truncate_on_project();
+        Vs[i].truncate();
+        Vss[i].resize(np);
+        for (int k=0; k<np; ++k) {
+            current_time = tdum + tstep*tc[i]*tc[k];
+            Vss[i][k]=factoryT(world).f(V).truncate_on_project();
+            Vss[i][k].truncate();
+        }
+        //~ ps[i] = APPLY(Gs[np - i - 1].get(), psi0).truncate();  
+        //~ qs[i]=copy(ps[i]);
+        ps1[i] = APPLY(Gs[np - i - 1].get(), psi0).truncate();  
+        current_time = tdum + (i?tstep*tc[i-1]:0);
+        qs[i] =  trotter(world, (i?qs[i-1]:psi0), tstep*(tc[i]-(i?tc[i-1]:0)),Gtrs[i]); //current_time is implicitly changed.
+    }
 
+    compress(world, ps1);
+    for (int i=0; i<np; ++i) {
+        for (int k=0; k<np; ++k) {
+            //ps1[i].gaxpy(1.0,APPLY(Gss[i*np+k].get(), ).compress(), -tstep*tc[i]*I*B[k]);
+            complex_functionT tmp = (Vss[i][k]*myp(qs,tc[i]*tc[k])).scale(-tstep*tc[i]*I*B[k]).truncate();
+            ps1[i].gaxpy(1.0,APPLY(Gss[i*np+k].get(), tmp).compress(), 1.0);
+        }
+    }
+    
+    ps = sub(world, ps1, qs);
+    qs = ps1;
+    // fix pt iterations for psi's on the quadrature pts
+    fix_iter_tol = thresh / tstep;
+    printf("fix iters ");
+    double err = norm2(world, ps1)/np ;
+    
+    //~ ps=copy(world, qs);
+    for (int j=0; j<maxiter; ++j) {
+        printf(" %6.0e",err);
+        if (err <= fix_iter_tol) break;
+        err = 0;
+        ps1 = zero_functions<double_complex,1>(world, np);
+        compress(world,ps1);
+        for (int i=0; i<np; ++i) {
+            for (int k=0; k<np; ++k) {
+                //ps1[i].gaxpy(1.0, APPLY(Gss[i*np+k].get(), Vss[i][k]*myp(ps,tc[i]*tc[k])).compress(), -tstep*tc[i]*I*B[k]);
+                complex_functionT tmp = (Vss[i][k]*myp(ps,tc[i]*tc[k])).scale(-tstep*tc[i]*I*B[k]).truncate();
+                ps1[i].gaxpy(1.0, APPLY(Gss[i*np+k].get(), tmp).compress(), 1.0);
+            }
+            err += ps1[i].truncate().norm2();
+        }
+        err /= np;
+        gaxpy(world, 1.0, qs, 1.0, ps1); 
+        ps = ps1; //copy(world, ps1);
+    }
+    printf("\n");
+    
+    // apply quadrature rule.
+    pdum = APPLY(G.get(), psi0);
+    pdum.compress();
+    for (int k=0; k<np; ++k) {
+        //pdum.gaxpy(1.0, APPLY(Gs[k].get(), Vs[k]*qs[k]).compress(), -I*B[k]*tstep);
+        complex_functionT tmp = (Vs[k]*qs[k]).scale(-I*B[k]*tstep);
+        pdum.gaxpy(1.0, APPLY(Gs[k].get(), tmp).compress(), 1.0);
+    }
+    
+    current_time = tdum + tstep;
+    
     return pdum.truncate();
 }
 
@@ -465,7 +445,6 @@ int main(int argc, char** argv) {
     }
     else {
         np = selection - 3;
-        print("        Method", selection);
         print(" No. quad. pt.", np);
 
 	readin(np);

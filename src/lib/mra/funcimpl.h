@@ -65,6 +65,8 @@ namespace madness {
 
 namespace madness {
 
+    using archive::archive_ptr;
+
     /// A simple process map soon to be supplanted by Rebecca's
     template<typename keyT>
     class SimpleMap : public WorldDCPmapInterface<keyT> {
@@ -431,7 +433,7 @@ namespace madness {
         /// Returns true if there are coefficients in this node
         bool
         has_coeff() const {
-            return (_coeffs.size > 0);
+            return (_coeffs.size() > 0);
         }
 
         /// Returns true if this node has children
@@ -457,8 +459,8 @@ namespace madness {
         /// Returns an empty tensor if there are no coefficients.
         Tensor<T>&
         coeff() {
-            MADNESS_ASSERT(_coeffs.ndim == -1 || (_coeffs.dim[0] <= 2
-                                                  * MAXK && _coeffs.dim[0] >= 0));
+            MADNESS_ASSERT(_coeffs.ndim() == -1 || (_coeffs.dim(0) <= 2
+                                                    * MAXK && _coeffs.dim(0) >= 0));
             return const_cast<Tensor<T>&>(_coeffs);
         }
 
@@ -504,11 +506,11 @@ namespace madness {
         /// Takes a \em shallow copy of the coeff --- same as \c this->coeff()=coeff
         void set_coeff(const Tensor<T>& coeffs) {
             coeff() = coeffs;
-            if ((_coeffs.dim[0] < 0) || (_coeffs.dim[0]>2*MAXK)) {
+            if ((_coeffs.dim(0) < 0) || (_coeffs.dim(0)>2*MAXK)) {
                 print("set_coeff: may have a problem");
-                print("set_coeff: coeff.dim[0] =", coeffs.dim[0], ", 2* MAXK =", 2*MAXK);
+                print("set_coeff: coeff.dim[0] =", coeffs.dim(0), ", 2* MAXK =", 2*MAXK);
             }
-            MADNESS_ASSERT(coeffs.dim[0]<=2*MAXK && coeffs.dim[0]>=0);
+            MADNESS_ASSERT(coeffs.dim(0)<=2*MAXK && coeffs.dim(0)>=0);
         }
 
         /// Clears the coefficients (has_coeff() will subsequently return false)
@@ -932,7 +934,7 @@ namespace madness {
         ///Change bv on the fly. Temporary workaround until better bc handling is introduced.
         void set_bc(const Tensor<int>& value) {
             bc=copy(value);
-            MADNESS_ASSERT(bc.dim[0]==NDIM && bc.dim[1]==2 && bc.ndim==2);
+            MADNESS_ASSERT(bc.dim(0)==NDIM && bc.dim(1)==2 && bc.ndim()==2);
         }
 
         const Tensor<int>& get_bc() const {
@@ -995,7 +997,7 @@ namespace madness {
 
                  //print(rr);
                  */
-                r.cycledim_inplace_base(NDIM,0,-1); //->NNkk or MqMqkk
+                r.cycledim(NDIM,0,-1); //->NNkk or MqMqkk
             }
             //print("faking done M q r(fake) r0(real)",M,q,"\n", r,r0);
             ProcessID me = world.rank();
@@ -1310,7 +1312,7 @@ namespace madness {
 
             double lnorm = 1e99;
             Tensor<L> lc = lcin;
-            if (lc.size == 0) {
+            if (lc.size() == 0) {
                 literT it = left->coeffs.find(key).get();
                 MADNESS_ASSERT(it != left->coeffs.end());
                 lnorm = it->second.get_norm_tree();
@@ -1331,7 +1333,7 @@ namespace madness {
                 const FunctionImpl<R,NDIM>* right = vrightin[i];
                 Tensor<R> rc = vrcin[i];
                 double rnorm;
-                if (rc.size == 0) {
+                if (rc.size() == 0) {
                     riterT it = right->coeffs.find(key).get();
                     MADNESS_ASSERT(it != right->coeffs.end());
                     rnorm = it->second.get_norm_tree();
@@ -1342,7 +1344,7 @@ namespace madness {
                     rnorm = rc.normf();
                 }
 
-                if (rc.size && lc.size) { // Yipee!
+                if (rc.size() && lc.size()) { // Yipee!
                     result->task(world.rank(), &implT:: template do_mul<L,R>, key, lc, std::make_pair(key,rc));
                 }
                 else if (tol && lnorm*rnorm < truncate_tol(tol, key)) {
@@ -1358,7 +1360,7 @@ namespace madness {
 
             if (vresult.size()) {
                 Tensor<L> lss;
-                if (lc.size) {
+                if (lc.size()) {
                     Tensor<L> ld(cdata.v2k);
                     ld(cdata.s0) = lc(___);
                     lss = left->unfilter(ld);
@@ -1366,7 +1368,7 @@ namespace madness {
 
                 std::vector< Tensor<R> > vrss(vresult.size());
                 for (unsigned int i=0; i<vresult.size(); i++) {
-                    if (vrc[i].size) {
+                    if (vrc[i].size()) {
                         Tensor<R> rd(cdata.v2k);
                         rd(cdata.s0) = vrc[i](___);
                         vrss[i] = vright[i]->unfilter(rd);
@@ -1379,12 +1381,12 @@ namespace madness {
 
                     std::vector<Slice> cp = child_patch(child);
 
-                    if (lc.size)
+                    if (lc.size())
                         ll = copy(lss(cp));
 
                     std::vector< Tensor<R> > vv(vresult.size());
                     for (unsigned int i=0; i<vresult.size(); i++) {
-                        if (vrc[i].size)
+                        if (vrc[i].size())
                             vv[i] = copy(vrss[i](cp));
                     }
 
@@ -1406,7 +1408,7 @@ namespace madness {
             double lnorm=1e99, rnorm=1e99;
 
             Tensor<L> lc = lcin;
-            if (lc.size == 0) {
+            if (lc.size() == 0) {
                 literT it = left->coeffs.find(key).get();
                 MADNESS_ASSERT(it != left->coeffs.end());
                 lnorm = it->second.get_norm_tree();
@@ -1415,7 +1417,7 @@ namespace madness {
             }
 
             Tensor<R> rc = rcin;
-            if (rc.size == 0) {
+            if (rc.size() == 0) {
                 riterT it = right->coeffs.find(key).get();
                 MADNESS_ASSERT(it != right->coeffs.end());
                 rnorm = it->second.get_norm_tree();
@@ -1423,15 +1425,15 @@ namespace madness {
                     rc = it->second.coeff();
             }
 
-            if (rc.size && lc.size) { // Yipee!
+            if (rc.size() && lc.size()) { // Yipee!
                 do_mul<L,R>(key, lc, std::make_pair(key,rc));
                 return None;
             }
 
             if (tol) {
-                if (lc.size)
+                if (lc.size())
                     lnorm = lc.normf(); // Otherwise got from norm tree above
-                if (rc.size)
+                if (rc.size())
                     rnorm = rc.normf();
                 if (lnorm*rnorm < truncate_tol(tol, key)) {
                     coeffs.replace(key, nodeT(tensorT(cdata.vk),false)); // Zero leaf node
@@ -1443,14 +1445,14 @@ namespace madness {
             coeffs.replace(key, nodeT(tensorT(),true)); // Interior node
 
             Tensor<L> lss;
-            if (lc.size) {
+            if (lc.size()) {
                 Tensor<L> ld(cdata.v2k);
                 ld(cdata.s0) = lc(___);
                 lss = left->unfilter(ld);
             }
 
             Tensor<R> rss;
-            if (rc.size) {
+            if (rc.size()) {
                 Tensor<R> rd(cdata.v2k);
                 rd(cdata.s0) = rc(___);
                 rss = right->unfilter(rd);
@@ -1460,9 +1462,9 @@ namespace madness {
                 const keyT& child = kit.key();
                 Tensor<L> ll;
                 Tensor<R> rr;
-                if (lc.size)
+                if (lc.size())
                     ll = copy(lss(child_patch(child)));
-                if (rc.size)
+                if (rc.size())
                     rr = copy(rss(child_patch(child)));
 
                 task(coeffs.owner(child), &implT:: template mulXXa<L,R>, child, left, ll, right, rr, tol);
@@ -1581,7 +1583,7 @@ namespace madness {
 
             const Tensor<Q>& fc = func->coeffs.find(key).get()->second.coeff();
 
-            if (fc.size == 0) {
+            if (fc.size() == 0) {
                 // Recur down
                 coeffs.replace(key, nodeT(tensorT(),true)); // Interior node
                 for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
@@ -1720,7 +1722,7 @@ namespace madness {
                            const RemoteReference< FutureImpl< std::pair<keyT,tensorT> > >& ref) const;
 
 
-        Void plot_cube_kernel(const Tensor<T>& r, 
+        Void plot_cube_kernel(archive_ptr< Tensor<T> > ptr, 
                               const keyT& key, 
                               const coordT& plotlo, const coordT& plothi, const std::vector<long>& npt, 
                               bool eval_refine) const;
@@ -1797,8 +1799,8 @@ namespace madness {
 
             //print(key,"received",s.normf(),c.normf(),node.has_children());
 
-            if (s.size > 0) {
-                if (c.size > 0) 
+            if (s.size() > 0) {
+                if (c.size() > 0) 
                     c.gaxpy(1.0,s,1.0);
                 else 
                     c = s;
@@ -1806,7 +1808,7 @@ namespace madness {
             
             if (node.has_children()) {
                 tensorT d;
-                if (c.size > 0) {
+                if (c.size() > 0) {
                     d = tensorT(cdata.v2k);
                     d(cdata.s0) = c;
                     d = unfilter(d);
@@ -1815,14 +1817,14 @@ namespace madness {
                 for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
                     tensorT ss;
                     const keyT& child = kit.key();
-                    if (d.size > 0) ss = copy(d(child_patch(child)));
+                    if (d.size() > 0) ss = copy(d(child_patch(child)));
                     //print(key,"sending",ss.normf(),"to",child);
                     task(coeffs.owner(child), &implT::sum_down_spawn, child, ss);
                 }
             }
             else {
                 // Missing coeffs assumed to be zero
-                if (c.size <= 0) c = tensorT(cdata.vk);
+                if (c.size() <= 0) c = tensorT(cdata.vk);
             }
             return None;
         }
@@ -1959,7 +1961,7 @@ namespace madness {
         /// Permute the dimensions according to map
         void mapdim(const implT& f, const std::vector<long>& map, bool fence);
 
-        T eval_cube(Level n, coordT x, const tensorT c) const;
+        T eval_cube(Level n, coordT& x, const tensorT& c) const;
 
         /// Transform sum coefficients at level n to sums+differences at level n-1
 
@@ -2219,7 +2221,7 @@ namespace madness {
 
             if (acc->second.has_coeff()) {
                 const tensorT& c = acc->second.coeff();
-                if (c.dim[0] == k) {
+                if (c.dim(0) == k) {
                     d(cdata.s0) += c;
                 }
                 else {
@@ -2349,7 +2351,7 @@ namespace madness {
                 const keyT& key = it->first;
                 const FunctionNode<R,NDIM>& node = it->second;
                 if (node.has_coeff()) {
-                    if (node.coeff().dim[0] != k || op.doleaves) {
+                    if (node.coeff().dim(0) != k || op.doleaves) {
                         ProcessID p;
                         if (FunctionDefaults<NDIM>::get_apply_randomize()) {
                             p = world.random_proc();
@@ -2493,8 +2495,8 @@ namespace madness {
                     if (g.coeffs.probe(it->first)) {
                         const FunctionNode<R,NDIM>& gnode = g.coeffs.find(it->first).get()->second;
                         if (gnode.has_coeff()) {
-                            if (gnode.coeff().dim[0] != fnode.coeff().dim[0]) {
-                                madness::print("INNER", it->first, gnode.coeff().dim[0],fnode.coeff().dim[0]);
+                            if (gnode.coeff().dim(0) != fnode.coeff().dim(0)) {
+                                madness::print("INNER", it->first, gnode.coeff().dim(0),fnode.coeff().dim(0));
                                 MADNESS_EXCEPTION("functions have different k or compress/reconstruct error", 0);
                             }
                             sum += fnode.coeff().trace_conj(gnode.coeff());

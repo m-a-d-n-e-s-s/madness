@@ -12,7 +12,7 @@ namespace madness {
             printf(" ----  ------------------  ------------------  ------------------  ------------------  -------\n");
         }
         Tensor<double> tt = gradient(x);
-        int n = int(tt.dim[0]);
+        int n = int(tt.dim(0));
         double maxerr = 0.0;
         for (int i=0; i<n; i++) {
             x[i] += eps;
@@ -227,14 +227,14 @@ namespace madness {
     }
     
     bool QuasiNewton::optimize(Tensor<double>& x) {
-        if (n != x.dim[0]) {
-            n = x.dim[0];
+        if (n != x.dim(0)) {
+            n = x.dim(0);
             h = Tensor<double>();
         }
         
         target->test_gradient(x, value_precision);
 
-        bool h_is_identity = (h.size == 0);
+        bool h_is_identity = (h.size() == 0);
         if (h_is_identity) {
             h = Tensor<double>(n,n);
             for (int i=0; i<n; i++) h(i,i) = 1.0;
