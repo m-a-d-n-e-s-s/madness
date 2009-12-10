@@ -14,8 +14,6 @@ thisinclude_HEADERS = archive.h print.h      worldam.h       worldfut.h   worldm
                      worldhashmap.h          worldrange.h  atomicint.h
 
 array_test_SOURCES = array_test.cc
-array_test_LDADD = -L/usr/local/gtest-1.4/lib -lgtest
-array_test_CPPFLAGS = $(AM_CPPFLAGS) -I/usr/local/gtest-1.4/include
 
 world_test_SOURCES = world_test.cc
 world_test_LDADD = libMADworld.a -L/usr/local/gtest-1.4/lib -lgtest
