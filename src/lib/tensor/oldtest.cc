@@ -32,6 +32,9 @@
   $Id: test.cc 1105 2009-03-28 20:58:10Z rjharrison $
 */
 
+//  !!! This file is deprecated ... contents are being slowly
+//  migrated into test.cc (using Google test environment)
+
 
 #include <tensor/tensor.h>
 
@@ -196,99 +199,6 @@ template <typename T, typename Q> void Test1() {
               tensor_type_names[TensorTypeData<Q>::id] << "> OK" << std::endl;
 }
 
-template <typename T> void Test2() {
-    // reshape, flat, swapdim, cycledim
-
-    std::cout << "here 1\n";
-    Tensor<T>  a(4,6,10);
-    std::cout << "here 2\n";
-    a.fillrandom();
-    std::cout << "here 3\n";
-
-    try {
-        a.reshape(4);
-        error("test2: expected exception",1);
-    }
-    catch (TensorException e) {
-        std::cout << "This exception is expected\n";
-        std::cout << e;
-    }
-    catch (...)  {
-        std::cout << "Expected a tensor exception but got something else";
-    }
-    std::cout << "here 4\n";
-
-    Tensor<T> b = a.reshape(3,2,2,5,2,2);
-    std::cout << "here 5\n";
-
-    long i=0;
-    ITERATOR6(b,if (b(IND6) != a.ptr()[i++]) error("test2: failed",2));
-
-    b = a.reshape(30,8);
-    i = 0;
-    ITERATOR2(b,if (b(IND2) != a.ptr()[i++]) error("test2: failed",3));
-
-    b = a.flat();
-    i = 0;
-    ITERATOR1(b,if (b(IND1) != a.ptr()[i++]) error("test2: failed",4));
-
-    b = a.reshape(240);
-    i = 0;
-    ITERATOR1(b,if (b(IND1) != a.ptr()[i++]) error("test2: failed",5));
-
-    b = a.swapdim(1,2);
-    ITERATOR3(b,if (b(_i,_j,_k) != a(_i,_k,_j)) error("test2: failed",6));
-
-    if (!a.iscontiguous()) error("test2: failed",7);
-    if (b.iscontiguous()) error("test2: failed",8);
-
-    b = a.swapdim(0,2);
-    ITERATOR3(b,if (b(_i,_j,_k) != a(_k,_j,_i)) error("test2: failed",9));
-
-    std::cout << "here 6\n";
-
-
-    try {
-        b.reshape(240);
-        error("test2: expected exception",10);
-    }
-    catch (TensorException e) {}
-
-    try {
-        b.flat();
-        error("test2: expected exception",11);
-    }
-    catch (TensorException e) {}
-
-    b = a.cycledim(1,0,-1);
-
-    ITERATOR3(b,if (b(_i,_j,_k) != a(_j,_k,_i)) error("test2: failed",12));
-
-    b = a.cycledim(-1,0,-1);
-    ITERATOR3(b,if (b(_i,_j,_k) != a(_k,_i,_j)) error("test2: failed",13));
-
-    b = b.cycledim(-1,0,-1);
-    ITERATOR3(b,if (b(_i,_j,_k) != a(_j,_k,_i)) error("test2: failed",14));
-
-    std::cout << "here 7\n";
-
-    b = b.cycledim(-1,0,-1);
-    ITERATOR3(b,if (b(_i,_j,_k) != a(_i,_j,_k)) error("test2: failed",15));
-
-    b = a.cycledim(1,0,1);
-    ITERATOR3(b,if (b(_i,_j,_k) != a(_j,_i,_k)) error("test2: failed",16));
-
-    b = b.cycledim(1,0,1);
-    ITERATOR3(b,if (b(_i,_j,_k) != a(_i,_j,_k)) error("test2: failed",17));
-
-    b = a.cycledim(2,0,-1);
-    ITERATOR3(b,if (b(_i,_j,_k) != a(_k,_i,_j)) error("test2: failed",170));
-
-    b = a.mapdim(vector_factory<long>(1,0,2));
-    ITERATOR3(b,if (b(_i,_j,_k) != a(_j,_i,_k)) error("test2: failed",18));
-
-    std::cout << "Test2<" << tensor_type_names[TensorTypeData<T>::id] << "> OK\n";
-}
 
 template <typename T> void Test3() {
     // printing
@@ -300,129 +210,6 @@ template <typename T> void Test3() {
 
     std::cout << "Test3<" << tensor_type_names[TensorTypeData<T>::id] <<
               "> ... verify elements are 10000*i + 100*j + k \n";
-}
-
-template <typename T>  void Test4() {
-    // Slice and dice time
-
-    Tensor<T> a(5,6,7), b;
-
-    a.fillindex();
-    try {
-        ITERATOR3(a,if (a(_,_,_)(IND3)!=a(IND3)) error("test4: failed",1));
-    }
-    catch (TensorException e) {
-        std::cout<<e;
-        std::exit(1);
-    }
-
-    b = a(___);
-    ITERATOR3(b,if (b(IND3)!=a(IND3)) error("test4: failed",2));
-    b.fillrandom();      // verify it is indeed a view of the same thing
-    ITERATOR3(b,if (b(IND3)!=a(IND3)) error("test4: failed",20));
-
-    b = a(_reverse,_,_);
-    ITERATOR3(b,if (b(_i,_j,_k)!=a(4-_i,_j,_k)) error("test4: failed",3));
-    b.fillrandom();      // verify it is indeed a view of the same thing
-    ITERATOR3(b,if (b(_i,_j,_k)!=a(4-_i,_j,_k)) error("test4: failed",30));
-
-    b = a(_,_reverse,_);
-    ITERATOR3(b,if (b(_i,_j,_k)!=a(_i,5-_j,_k)) error("test4: failed",4));
-    b.fillrandom();      // verify it is indeed a view of the same thing
-    ITERATOR3(b,if (b(_i,_j,_k)!=a(_i,5-_j,_k)) error("test4: failed",40));
-
-    b = a(_,_,_reverse);
-    ITERATOR3(b,if (b(_i,_j,_k)!=a(_i,_j,6-_k)) error("test4: failed",5));
-    b.fillrandom();      // verify it is indeed a view of the same thing
-    ITERATOR3(b,if (b(_i,_j,_k)!=a(_i,_j,6-_k)) error("test4: failed",50));
-
-    // Middle of each dimension
-    b = a(Slice(1,-2,1),Slice(3,-2,1),Slice(2,-2,1));
-    ITERATOR3(b,if (b(_i,_j,_k)!=a(1+_i,_j+3,2+_k)) error("test4: failed",5));
-
-    if (b.dim(0)!=(a.dim(0)-2) || b.dim(1)!=(a.dim(1)-4) ||
-        b.dim(2)!=(a.dim(2)-3))
-        error("test4: failed",6);
-
-    // subpatch assignment, chaining, defaulting args on slice ...
-    // 5 6 7 view property
-    a.fill(0);
-    b = a(Slice(1,-1),Slice(1,-2),Slice(2,-2)) = (T) 1;
-    if (long(std::abs(a.sum())+0.1) != (a.dim(0)-1)*(a.dim(1)-2)*(a.dim(2)-3)) {
-        std::cout << std::abs(a.sum()) << std::endl;
-        std::cout << (a.dim(0)-1)*(a.dim(1)-2)*(a.dim(2)-3) << std::endl;
-        error("test4: failed",7);	// Check for out of bounds assignment
-    }
-    ITERATOR3(b,if (b(IND3) != (T) 1) error("test4: failed",8));
-    ITERATOR3(b,if (a(_i+1,_j+1,_k+2) != (T) 1) error("test4: failed",9));
-
-    // elimination of dimensions
-    a.fill(0);
-    b = a(2,_,_) = (T) 1;
-    if (b.ndim() != 2 || b.dim(0)!=a.dim(1) || b.dim(1)!=a.dim(2))
-        error("test4: failed",10);
-    ITERATOR2(b,if (b(IND2) != a(2,_i,_j)) error("test4: failed",11));
-
-    // interaction with reordering, etc
-    b = a.swapdim(0,2)(_,-1,_);
-    if (!a.iscontiguous()) error("test4: failed",110);
-    if (b.iscontiguous()) error("test4: failed",111);
-
-    if (b.ndim() != 2 || b.dim(0)!=a.dim(2) || b.dim(1)!=a.dim(0))
-        error("test4: failed",12);
-
-    ITERATOR2(b,if (b(IND2) != a(_j,5,_j)) error("test4: failed",13));
-
-    // slices to slices ... mmm ... WHAT
-
-    b = Tensor<T>(5,6,7);
-    if (b.normf() != 0) error("test4: failed",14);
-    b.fillindex();
-
-    a = (T) 0;
-
-    a(___) = b(___);
-    if (a.ptr() == b.ptr()) error("test4: failed",15);
-
-    ITERATOR3(a,if (a(IND3) != b(IND3)) error("test4: failed",16));
-
-    Tensor<long> g(5,6,7);
-    a.fill(0);
-    g.fillindex();
-    a(___) = g(___);		// test mixed type slice assignment
-    ITERATOR3(a,if (a(IND3) != (T) g(IND3)) error("test4: failed",160));
-
-    // test filling a sub patch
-    b = Tensor<double>(5,6,7);		// Fresh ones to be clear about what we have
-    a = Tensor<double>(5,6,7);
-    b.fillrandom();
-    std::vector<Slice> patch = vector_factory(Slice(1,-2),Slice(1,-2),Slice(1,-2));
-
-    a.fill(0);
-    Tensor<T> c = a(patch) = b(patch);
-    ITERATOR3(c,if (c(_i,_j,_k) != a(_i+1,_j+1,_k+1)) error("test4: failed",17));
-    ITERATOR3(c,if (c(_i,_j,_k) != b(_i+1,_j+1,_k+1)) error("test4: failed",18));
-    // check did not go out of bounds
-    std::cout << c.normf() << " " << a.normf() << " " << b(patch).normf() << std::endl;
-    if (std::abs(c.normf()-a.normf()) > a.normf()*2e-7) error("test4: failed",19);
-    if (std::abs(b(patch).normf()-a.normf()) > a.normf()*2e-7) error("test4: failed",20);
-
-    // patch assignment interaction with reordering of source and target
-
-    a = Tensor<T>(7,6,5);
-    b = Tensor<T>(5,7,6);
-
-    a = a.swapdim(0,2);
-    a(patch).fillindex();
-    b = b.swapdim(1,2);
-    b(patch) = a(patch);		// Assign patch of reordered a to patch of b.
-
-    long n = a(patch).size();
-    if (long(std::abs(a.sum())+0.1) != n*(n-1)/2) error("test4: failed",21);
-    if (long(std::abs(b.sum())+0.1) != n*(n-1)/2) error("test4: failed",22);
-    ITERATOR3(c,if (a(_i,_j,_k) != b(_i,_j,_k)) error("test4: failed",23));
-
-    std::cout << "Test4<" << tensor_type_names[TensorTypeData<T>::id] << "> OK\n";
 }
 
 template <class T> void Test5() {
@@ -827,15 +614,6 @@ int main() {
               Tensor<long>().get_instance_count() << std::endl;
 
     std::cout << std::endl;
-    Test2<double>();
-    Test2<long>();
-    Test2<float>();
-    Test2<float_complex>();
-    Test2<double_complex>();
-    std::cout << "\n after test2 count=" <<
-              Tensor<long>().get_instance_count() << std::endl;
-
-    std::cout << std::endl;
     Test3<double>();
     Test3<long>();
     Test3<float>();
@@ -846,16 +624,7 @@ int main() {
               Tensor<long>().get_instance_count() << std::endl;
 
     std::cout << std::endl;
-    Test4<double>();
-    Test4<long>();
-    Test4<float>();
-    Test4<float_complex>();
-    Test4<double_complex>();
-    std::cout << std::endl;
-    std::cout << "\n after test4 count=" <<
-              Tensor<long>().get_instance_count() << std::endl;
 
-    std::cout << std::endl;
     Test5<double>();
     Test5<long>();
     //Test5<float>();

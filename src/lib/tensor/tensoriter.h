@@ -106,6 +106,52 @@ namespace madness {
     };
 
     /// General iterator to compose operations over up to three tensors
+
+    /// Macros have been defined in \c tensor_macros.h to take the pain out of 
+    /// using iterators.  The options have the following effects
+    /// - \c optimize reorders dimensions for optimal strides (only
+    /// applies if iterlevel=1).  If jdim==default_jdim, all dimensions
+    /// are reordered for optimal stride.  If jdim is not the default
+    /// value, then dimension jdim is excluded from the set of
+    /// dimensions being optimized.
+    ///
+    /// - \c fusedim concatenates contiguous dimensions into the inner
+    /// loop (only applies if iterlevel=1 and jdim=default_jdim).
+    ///
+    /// - \c iterlevel can have two values 0=elementwise, 1=vectorwise.  Elementwise implies
+    /// that the iterator returns successive elements, and explicitly
+    /// in the expected order for the tensor (i.e., with the last index
+    /// varying fastest).  Vectorwise implies that the user is responsible
+    /// for iterating over dimension jdim.
+    ///
+    /// - jdim --- if iterlevel=1, then jdim determines which dimension is
+    /// left for iteration with an explicit for loop.  Negative values
+    /// implies jdim+=ndim following the convention of Slice (and
+    /// Python).  If (optimize) the default is the fastest varying
+    /// dimension.  If (!optimize) the default is the last dimension
+    /// (jdim=-1). If (fusedim) contiguous dimensions are fused into
+    /// this inner loop.  Specifying a non-default value for jdim
+    /// disables fusedim and restricts optimization to reordering only
+    /// the exterior loops (so that the loop the user is iterating over
+    /// corresponds exactly to those in dimension jdim).
+    ///
+    /// \par During iteration:
+    ///
+    /// - \c ind[] will contain the current iteration indices .. BUT
+    /// if \c optimize=true , they will not necessarily be in the
+    /// order of those of the tensor.  if fusedim is true, then
+    /// there may be fewer dimensions than the input tensor.
+    ///
+    /// - \c _p0, \c _p1, \c _p2 will point to the current elements of \c t0,t1,t2
+    /// noting that if \c iterlevel>0, the user must provide additional
+    /// \c for loops to iterate over the additional dimensions
+    ///
+    /// - \c stride0[], \c stride1[], \c stride2[] will contain the strides for each
+    /// (possibly reordered) dimension.  If \c iterlevel=1, \c _s0,_s1,s2
+    /// contain the stride info for the dimension that the user is
+    /// responsible for iterating over.
+    ///
+    /// - \c dimj -> the size of the j'th dimension
     template <class T, class Q, class R>
     TensorIterator<T,Q,R>::TensorIterator(const Tensor<T>* t0,
                                           const Tensor<Q>* t1,
@@ -114,50 +160,6 @@ namespace madness {
                                           bool optimize,
                                           bool fusedim,
                                           long jdim) {
-
-        /// optimize -> reorder dimensions for optimal strides (only
-        /// applies if iterlevel=1).  If jdim==default_jdim, all dimensions
-        /// are reordered for optimal stride.  If jdim is not the default
-        /// value, then dimension jdim is excluded from the set of
-        /// dimensions being optimized.
-        ///
-        /// fusedim -> concatenate contiguous dimensions into the inner
-        /// loop (only applies if iterlevel=1 and jdim=default_jdim).
-        ///
-        /// iterlevel -> 0=elementwise, 1=vectorwise.  Elementwise implies
-        /// that the iterator returns successive elements, and explicitly
-        /// in the expected order for the tensor (i.e., with the last index
-        /// varying fastest).  Vectorwise implies that the user is responsible
-        /// for iterating over dimension jdim.
-        ///
-        /// jdim -> if iterlevel=1, then jdim determines which dimension is
-        /// left for iteration with an explicit for loop.  Negative values
-        /// implies jdim+=ndim following the convention of Slice (and
-        /// Python).  If (optimize) the default is the fastest varying
-        /// dimension.  If (!optimize) the default is the last dimension
-        /// (jdim=-1). If (fusedim) contiguous dimensions are fused into
-        /// this inner loop.  Specifying a non-default value for jdim
-        /// disables fusedim and restricts optimization to reordering only
-        /// the exterior loops (so that the loop the user is iterating over
-        /// corresponds exactly to those in dimension jdim).
-        ///
-        /// During iteration:
-        ///
-        /// ind[] will contain the current iteration indices .. BUT
-        /// if optimize=true, they will not necessarily be in the
-        /// order of those of the tensor.  if fusedim is true, then
-        /// there may be fewer dimensions than the input tensor.
-        ///
-        /// _p0, _p1, _p2 will point to the current elements of t0,t1,t2
-        /// noting that if iterlevel>0, the user must provide additional
-        /// \c for loops to iterate over the additional dimensions
-        ///
-        /// stride0[], stride1[], stride2[] will contain the strides for each
-        /// (possibly reordered) dimension.  If iterlevel=1, _s0, _s1, s2
-        /// contain the stride info for the dimension that the user is
-        /// responsible for iterating over.
-        ///
-        /// dimj -> the size of the j'th dimension
 
 
         if (!t0) {

@@ -32,6 +32,9 @@
   $Id$
 */
 
+/// \file slice.h
+/// \brief Declares and implements Slice
+
 
 #ifndef MADNESS_TENSOR_SLICE_H__INCLUDED
 #define MADNESS_TENSOR_SLICE_H__INCLUDED
@@ -41,16 +44,11 @@
 namespace madness {
 
     /*!
-      \file slice.h
-      \brief Declares and implements Slice
+      \brief A slice defines a sub-range or patch of a dimension.
 
-      \ingroup tensor_related
-      
-      \section Slice
-
-      A slice defines a sub-range or patch of a dimension.
-      The slice \c Slice(start,end,step) defines a subvector
-      with elements
+      \par Introduction
+     
+      The slice \c Slice(start,end,step) defines the subvector
       \code
       [start, start+step, start+2*step, ..., end]
       \endcode
@@ -71,7 +69,7 @@ namespace madness {
       this easily in C/C++ unless we also define a special value
       to indicate the end of a dimension of unknown size).
       
-      \subsection special_slices Special meanings and conventions
+      \par Special meanings and conventions
 
       Negative values for \c start or \c end (similar to Python)
       are relative to the end of the (possibly unknown) dimension.
@@ -91,7 +89,7 @@ namespace madness {
       will generate an assignable view of the entire tensor \c t .
       - _reverse = \c Slice(-1,0,-1) = full dimension reversed
 
-      \subsection example_slices Examples
+      \par Examples
 
       - \c Slice() --- full slice in current order
       - \c Slice(0,-1,1) --- full slice in current order
@@ -101,7 +99,6 @@ namespace madness {
       - \c Slice(0,-1,2) --- use all even numbered elements
       - \c Slice(1,-1,2) --- use all odd numbered elements
     */
-
     class Slice {
         
     public:
