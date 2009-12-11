@@ -1217,7 +1217,7 @@ namespace madness {
         /// node then loops thru all of its clients and in turn tells
         /// each to write its data over an MPI stream, which is copied
         /// directly to the output file.  The stream contents are then
-        /// cookie, #clients, foreach client (usual sequential archive).
+        /// cookie, no. of clients, foreach client (usual sequential archive).
         ///
         /// If ar.dofence() is true (default) fence is invoked before and
         /// after the IO. The fence is optional but it is of course

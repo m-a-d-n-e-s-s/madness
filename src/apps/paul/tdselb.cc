@@ -1,4 +1,4 @@
-/// \file tdse.cc
+/// \file paul/tdselb.cc
 /// \brief Evolves the hydrogen atom in imaginary and also real time
 // Special version which allows load balancing.
 

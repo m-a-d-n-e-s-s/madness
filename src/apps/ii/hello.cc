@@ -1,5 +1,5 @@
 
-/// \file hello.cc
+/// \file ii/hello.cc
 /// \brief Simplest example program for MADNESS
 
 #include <mra/mra.h>

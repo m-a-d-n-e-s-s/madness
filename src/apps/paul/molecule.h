@@ -1,7 +1,7 @@
 #ifndef MADNESS_MOLECULE_H
 #define MADNESS_MOLECULE_H
 
-/// \file molecule.h
+/// \file paul/molecule.h
 /// \brief Declaration of molecule related classes and functions
 
 #include <vector>

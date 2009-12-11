@@ -33,7 +33,7 @@
 */
 
 
-/// \file molecule.cc
+/// \file moldft/molecule.cc
 /// \brief Simple management of molecular information and potential
 
 #include <tensor/tensor.h>

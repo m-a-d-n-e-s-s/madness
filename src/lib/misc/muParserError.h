@@ -59,7 +59,7 @@ enum EErrorCodes
   ecVAL_EXPECTED        = 10, ///< A numerical function has been called with a non value type of argument
   ecMISSING_PARENS      = 11, ///< Missing parens. (Example: "3*sin(3")
   ecUNEXPECTED_FUN      = 12, ///< Unexpected function found. (Example: "sin(8)cos(9)")
-  ecUNTERMINATED_STRING = 13, ///< unterminated string constant. (Example: "3*valueof("hello)")
+  ecUNTERMINATED_STRING = 13, ///< unterminated string constant. (Example: "3*valueof('hello')")
   ecTOO_MANY_PARAMS     = 14, ///< Too many function parameters
   ecTOO_FEW_PARAMS      = 15, ///< Too few function parameters. (Example: "ite(1<2,2)")
   ecOPRT_TYPE_CONFLICT  = 16, ///< binary operators may only be applied to value items of the same type

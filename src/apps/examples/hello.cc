@@ -1,22 +1,17 @@
 
-/// \file hello.cc
+/// \file examples/hello.cc
 /// \brief Simplest example program for MADNESS
 
-#include <mra/mra.h>
+#include <world/world.h>
 
 using namespace madness;
 
 int main(int argc, char**argv) {
-    MPI::Init(argc, argv);
-    ThreadPool::begin();
-    RMI::begin();
-    MPI::COMM_WORLD.Barrier();
+    initialize(argc, argv);
     World world(MPI::COMM_WORLD);
     
     print("Hello from processor",world.rank());
 
-    RMI::end();
-    MPI::Finalize();
-
+    finalize();
     return 0;
 }

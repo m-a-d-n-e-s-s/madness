@@ -1,5 +1,5 @@
 
-/// \file hatom_energy.cc
+/// \file ii/hatom_energy.cc
 /// \brief Compute the energy of the hydrogen atom ground state
 
 #include <mra/mra.h>

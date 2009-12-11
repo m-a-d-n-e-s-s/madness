@@ -32,6 +32,9 @@
   $Id$
 */
 
+/// \file tensor/test.cc
+/// \brief New test code for Tensor class using Google unit test
+
 #include <tensor/tensor.h>
 #include <world/print.h>
 

@@ -46,7 +46,7 @@
 #include <ctime>
 
 
-/// \file tensor/test.cc
+/// \file tensor/oldtest.cc
 /// \brief Test code for Tensor, TensorIterator, SliceTensor, etc.
 
 using namespace madness;

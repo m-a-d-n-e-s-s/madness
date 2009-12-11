@@ -1,4 +1,4 @@
-/// hello.cc
+/// \file nick/hello.cc
 /// We are projecting a time evolved wave function onto some bound states
 
 #include <mra/mra.h>

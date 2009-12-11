@@ -43,8 +43,8 @@
 extern "C" double round(double x);
 
 
-/// \file mra.cc
-/// \file Declaration and initialization of static data, some implementation, some instantiation
+/// \file mra/mraimpl.h
+/// \brief Declaration and initialization of static data, some implementation, some instantiation
 
 namespace madness {
 

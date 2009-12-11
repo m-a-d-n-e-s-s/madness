@@ -1,4 +1,4 @@
-/// \file tdse.cc
+/// \file paul/tdse.cc
 /// \brief Evolves the hydrogen atom in imaginary and also real time
 
 
@@ -11,7 +11,7 @@
 
 // #include <mra/lbdeux.h>
 
-#include "tdse.h"
+#include <paul/tdse.h>
 
 using namespace madness;
 

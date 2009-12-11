@@ -1,6 +1,6 @@
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES  
 
-/// \file hatom_energy.cc
+/// \file examples/hatom_energy.cc
 /// \brief Compute the energy of the hydrogen atom ground state
 
 #include <mra/mra.h>

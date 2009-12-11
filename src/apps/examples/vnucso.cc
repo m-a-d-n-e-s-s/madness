@@ -1,4 +1,4 @@
-//// \file vnuc.cc
+//// \file examples/vnucso.cc
 /// \brief Solves the spin-orbit nuclear potential problem
 
 

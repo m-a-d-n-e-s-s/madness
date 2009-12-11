@@ -1,4 +1,4 @@
-/// \file tdse.cc
+/// \file tdse/tdse4.cc
 /// \brief Evolves the hydrogen molecular ion in 4D ... 3 electron + 1 nuclear degree of freedom
 
 

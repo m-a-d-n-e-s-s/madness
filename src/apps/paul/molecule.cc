@@ -33,7 +33,7 @@
 */
 
 
-/// \file molecule.cc
+/// \file paul/molecule.cc
 /// \brief Simple management of molecular information and potential
 
 #include <constants.h>

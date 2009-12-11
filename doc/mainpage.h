@@ -3,7 +3,7 @@
 
 /** \mainpage
 
-\section Overview
+\section overview Overview
 
 The MADNESS parallel programming environment combines several
 successful elements from other models and aims to provide a
@@ -19,45 +19,50 @@ It includes
  - Globally accessible task queues in each process which 
    can be used individually or collectively to provide a single global
    task queue.
- - Work stealing for dynamic load balancing (coming v. soon).
+ - Work stealing for dynamic load balancing (prototype being tested)
  - Facile management of computations on processor sub-groups.
  - Integration with MPI
  - Optional integration with Global Arrays (J. Nieplocha, 
    http://www.emsl.pnl.gov/docs/global).
  - Active messages to items in a container, distributed objects, 
-   and processes (currently via polling on MPI but ports to GPC,
-   GASNET, and vendor provided libraries are planned).
- - User-space threading or continuations to eliminate the need for explicit
-   continuations or use of Futures when composing latency tolerant algorithms (coming).
- - Kernel-space threading for use of multi-core processors (coming).
+   and processes.
+ - Efficient use of multicore processors using pthreads.
 
-\subsection TinyXML
+\subsection used_by Software used by MADNESS
 
-MADNESS uses and redistributes TinyXML (http://sourceforge.net/projects/tinyxml)
-and we express our gratitude to its authors.
+Our deep gratitude to these other projects whosse software
+we are using within MADNESS
 
-\section Motivations and attributions
+ - TinyXML - http://sourceforge.net/projects/tinyxml
+
+ - CFFT - http://www.librow.com/articles/article-10/appendix-a-2
+
+ - muParser - http://muparser.sourceforge.net
+
+ - libxc - http://www.tddft.org/programs/octopus/wiki/index.php/Libxc
+
+\section motivations Motivations and attributions for the parallel runtime
 
 There were several motivations for developing this environment.
- -# The rapid evolution of machines from hundreds (pre-2000), to
+ -  The rapid evolution of machines from hundreds (pre-2000), to
     millions (post-2008) of processors demonstrates the need to abandon
     process-centric models of computation and move to paradigms that
     virtualize or even hide the concept of a process.  
     The success of applications using the 
-    Charm++ environment to scale raplidy to 30+K processes and the enormous effort
+    Charm++ environment to scale rapidly to 30+K processes and the enormous effort
     required to scale most process-centric applications are the central examples.
- -# The arrival of multi-core processes and the associated needs of
+ -  The arrival of multi-core processes and the associated needs of
     expressing much more concurrency and adopting techniques for
     latency hiding motivate the use of light weight work queues to
     capture much more concurrency and the use of futures for
     latency hiding.
- -# The complexity of composing irregular applications in partitioned, global-address space
+ -  The complexity of composing irregular applications in partitioned, global-address space
     (PGAS) models using only MPI and/or one-sided memory access (GA, UPC, SHMEM, co-Array) 
     motivates the use of an object-centric active-message or remote method invocation (RMI) model 
     so that computation may be moved to the data with the same ease as 
     which data can be moved.  This greatly simplifies the task of maintaining
     and using distributed data structures.
- -# Interoperability with existing programming models to leverage existing
+ -  Interoperability with existing programming models to leverage existing
     functionality and to provide an evolutionary path forward.
 
 The two main early influences for this work were Cilk (Kuszmaul,
@@ -70,23 +75,14 @@ http://domino.research.ibm.com/comm/research_projects.nsf/pages/x10.index.html
 ; Chapel, http://chapel.cs.washington.edu ; Fortress, http://fortress.sunsource.net )
 and the amazingly talented teams and individuals developing these.
 
-
-\section Introduction
+\section intro_to_runtime Introduction to the parallel runtime
 
 The entire parallel environment is encapsulated in an instance of the
-class World which is instantiated by wrapping an MPI communicator.
+class \c World which is instantiated by wrapping an MPI communicator.
 Multiple worlds may exist, overlap, or be dynamically created and
-destroyed.
-
-The World class has members
- - mpi - an instance of WorldMPIInterface,
- - am - an instance of WorldAMInterface,
- - taskq - an instance of WorldTaskQueue, and
- - ga - an instance of WorldGAInterface, and
- - others coming.
-
-Distributed containers (currently associative arrays or hash tables)
-and distributed objects may be constructed from a world instance.
+destroyed.  Distributed containers (currently associative arrays or
+hash tables) and distributed objects may be constructed from a world
+instance.
 
 The recommended approaches to develop scalable and latency tolerant
 parallel algorithms are either object- or task-centric decompositions
@@ -110,19 +106,6 @@ before the data is made available locally.  You could immediately try
 to use the future, which would work but with the downside of
 internally waiting for all of the communication to occur.  Much better
 is to keep on working and only use the future when it is ready.
-
-
-Aside:
-  - To avoid a potentially unbounded nested invocation
-    of tasks which could overflow the stack and also be the source
-    of live/deadlocks, new tasks
-    are not presently started while blocking for communication.
-    This will be relaxed in the near future which will reduce
-    the negative impact of blocking for an unready future as long
-    as there is work to perform in the task queue.
-  - Once fibers or user-space threads are integrated, multiple
-    tasks will always be scheduled and blocking will merely
-    schedule the next fiber.
 
 By far the best way to compute with futures is to pass them as
 arguments to a new task.  Once the futures are ready, the task will be
@@ -153,8 +136,8 @@ low-level model and we do not encourage its direct use.  It is there
 since it is the portable standard for communication and to facilitate
 integration with legacy applications.
 
-The \c World.ga member provides access to the capabilities of the
-Global Array library (this is still unfolding).
+The \c World.gop member provides global operations that are internally
+non-blocking, enabling the invoking thread to continue working.
 
 The execution model is sequentially consistent.  That is, 
 from the perspective of a single thread of execution, operations 
@@ -175,8 +158,7 @@ Creating and then executing a chain of
 dependent tasks with the result of one task fed as the argument
 of the next task (i.e., the input argument is an unevaluated future 
 which is assigned by the next task) requires about 2000ns per
-task, which we believe can be redcued
-to about 1us (3 GHz Core2).  
+task, which we believe can be redcued to about 1us (3 GHz Core2).  
 
 Creating a remote task adds the
 overhead of interprocess communication which is on the scale of 1-3us
@@ -224,18 +206,7 @@ first enqueued, and these generate finer-grain tasks, which
 in turn generate finer and finer grain work.   [Expand this discussion
 and include examples along with work stealing discussion]
 
-Discussion points to add
- -# Why arguments to tasks and AM via DC or taskQ are passed
-    by value or by const-ref (for remote operations this
-    should be clear; for local operations it is to enable
-    tasks to be stealable).  Is there a way to circumvent it? Pointers.
- -# Virtualization of other resources
- -# Task stealing
- -# Controlling distribution in containers
- -# Caching in containers
- -# Computing with continuations (user space fibers)
-
-\section Distributed Containers (WorldContainer)
+\section dist_cont Distributed Containers (WorldContainer)
 
 The only currently provided containers are associative arrays or maps
 that are almost directly equivalent to the STL map or the GNU
@@ -251,12 +222,6 @@ between processes is based upon a function which maps the key
 to a process.  There is a default mapping which is essentially 
 a pseudo-random uniform mapping, but the user can provide their own
 (possibly data-dependent) operator to control the distribution.  
-
-Although it will almost always be the case that all processes agree on
-the mapping of a key to a process, this does not have to be the case
-since the implementation supports forwarding
-of remote requests.  \em NOT YET COMPLETED ... but it will be cool
-when it is finished!
 
 The keys and values associated with containers must be serializble
 by the MADNESS archive mechanism.
@@ -307,36 +272,18 @@ Here is an example of a key that might be used in an octtree.
    };
 \endcode
 
-To be added
- - discussion of chaining hashes using initval optional argument
- - discussion of overriding the distribution across processes
-
-
-\section Distributed Objects (WorldObject)
+\section dist_obj Distributed Objects (WorldObject)
 
 Distributed objects (WorldObject) provide all of the communication
 and other resources necessary to build new distributed capabilities.
 The distributed container class (WorldContainer) actually inherits 
 most of its functionality from the WorldObject.
 
-\section Compilation and linking
+\section compilation Compilation and linking
 
-\subsection C-preprocessor predefined macros
+THIS NEEDS REWRITING
 
-A list of C-preprocessor macros to be used for managing machine
-dependencies that are either defined by the system or by
-the MADNESS build process.
-
- - \c __GNUG__ --- The GNU processor and C++
- - \c X8632 --- A 32-bit x86 CPU.
- - \c X8664 --- A 64-bit x86 CPU.
- - \c UINT64_T --- The type for a 64-bit unsigned integer which is used to
-    typedef uint64_t.  The macro is not defined
-   if uint64_t is already a valid type.
- - \c _CRAY - Any Cray system (though currently we only support XT3/4).
-
-
-\subsection Static data, etc., for templated classes
+\subsection static_data Static data, etc., for templated classes
 
 Several of the templated classes (currently just the
 DistributedContainer, Future and RemoteReference classes) have static
@@ -349,10 +296,9 @@ WORLD_INSTANTIATE_STATIC_TEMPLATES is defined.  In one of your source
 define this macro \em before including \c world.h, and then
 instantiate the templates that you are using.
 
+\section gotchas Gotchas
 
-\section Gotchas
-
-\subsection Futures and STL vectors (e.g., \c vectors<Future<int>> )
+\subsection futures Futures and STL vectors (e.g., \c vectors<Future<int>> )
 
 A common misconception is that STL containers initialize their
 contents by \invoking the default constructor of each item in
@@ -396,7 +342,7 @@ which enables you to write
 \endcode
 which merely blows instead of sucking.
 
-\subsection Reference counting and arguments to STL agorithms
+\subsection refcount Reference counting and arguments to STL agorithms
 
 It is not specified how arguments are passed to STL algorithms so
 they are free to pass by value (a concrete example of this "feature"
@@ -429,17 +375,5 @@ Instead, you need the explicit loop
   }
 \endcode
 
-
-\section Development to-do list
-
- - Test multiple worlds
- - Cache semantics and testing for DC
- - Prefetch marker for DC cache
- - Verify reference counting for DC cache
- - Forwarding for DC
- - Integration with user-space thread/fiber scheduling
- - Performance profiling with Tau
- - ASM clock for PPC and BGL
- - Test with xlCC
 
 */

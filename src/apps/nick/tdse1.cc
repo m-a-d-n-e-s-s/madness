@@ -1,4 +1,4 @@
-/// \file tdse.cc
+/// \file nick/tdse1.cc
 /// \brief Evolves the 1D hydrogen atom in imaginary and also real time
 
 
