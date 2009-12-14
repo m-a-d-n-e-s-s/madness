@@ -75,8 +75,8 @@ struct abs_square_op
   typedef typename TensorTypeData<Q>::scalar_type resultT;
   Tensor<resultT> operator()(const Key<NDIM>& key, const Tensor<Q>& t) const
   {
-    Tensor<resultT> result(t.ndim, t.dim);
-    BINARY_OPTIMIZED_ITERATOR(Q, t, resultT, result, resultT d = abs(*_p0); *_p1 = d*d);
+    Tensor<resultT> result(t.ndim(), t.dims());
+    BINARY_OPTIMIZED_ITERATOR(const Q, t, resultT, result, resultT d = abs(*_p0); *_p1 = d*d);
     return result;
   }
   template <typename Archive>

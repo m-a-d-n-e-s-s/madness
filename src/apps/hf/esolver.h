@@ -200,9 +200,6 @@ std::istream& operator >> (std::istream& is, KPoint& kpt)
           functionT dv_j = std::complex<Q>(0.0, 2.0*k0) * pdiff(v[j], 0) +
                            std::complex<Q>(0.0, 2.0*k1) * pdiff(v[j], 1) +
                            std::complex<Q>(0.0, 2.0*k2) * pdiff(v[j], 2);
-          std::complex<Q> dtrace = dv_j.trace();
-          Q dnorm = dv_j.norm2();
-//          print("trace of dv_j where j = ", j, dtrace);
           functionT tmp = (ksquared*v[j]) - dv_j - dv2_j;
           c(i, j) = inner(v[i], tmp);
           c(j, i) = conj(c(i, j));

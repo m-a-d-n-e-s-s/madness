@@ -830,7 +830,7 @@ inline void xc_rks_generic_lda(Tensor<double> rho_alpha,           ///< Alpha-sp
     df_drho = df_drho.flat();
 
       integer ideriv = 2;
-      integer npt = rho_alpha.dim[0];
+      integer npt = rho_alpha.dim(0);
 
       Tensor<double> gamma_alpha(npt);
       Tensor<double> tf(npt);

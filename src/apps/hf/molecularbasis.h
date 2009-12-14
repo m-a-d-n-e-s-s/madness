@@ -292,7 +292,7 @@ public:
     }
 
     bool has_guess_info() const {
-        return dmat.size>0;
+        return dmat.size()>0;
     }
 
     const Tensor<double>& get_dmat() const {

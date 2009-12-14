@@ -25,7 +25,7 @@ namespace madness
 
     // Scale coefficients according to the dimensionality and add to the list of operators
     std::vector< SharedPtr< Convolution1D<Q> > > ops;
-    for (int i=0; i < coeff.dim[0]; ++i)
+    for (int i=0; i < coeff.dim(0); ++i)
     {
       if (expnt[i]*L[0]*L[0] > acut1e_6)
       {
@@ -50,7 +50,7 @@ namespace madness
 
     // Scale coefficients according to the dimensionality and add to the list of operators
     std::vector< SharedPtr< Convolution1D<Q> > > ops;
-    for (int i=0; i < coeff.dim[0]; ++i)
+    for (int i=0; i < coeff.dim(0); ++i)
     {
       if (expnt[i]*L[0]*L[0] > acut1e_6)
       {
@@ -75,7 +75,7 @@ namespace madness
 
     // Scale coefficients according to the dimensionality and add to the list of operators
     std::vector< SharedPtr< Convolution1D<Q> > > ops;
-    for (int i=0; (i < coeff.dim[0]); ++i)
+    for (int i=0; (i < coeff.dim(0)); ++i)
     {
       double c = pow(coeff[i], 1.0/double(NDIM));
       ops.push_back(SharedPtr< Convolution1D<Q> >(new PeriodicGaussianConvolution1D<double>(k, 16, L[0]*c, expnt[i]*L[0]*L[0])));
@@ -97,7 +97,7 @@ namespace madness
 
     // Scale coefficients according to the dimensionality and add to the list of operators
     std::vector< SharedPtr< Convolution1D<Q> > > ops;
-    for (int i=0; (i < coeff.dim[0]); ++i)
+    for (int i=0; (i < coeff.dim(0)); ++i)
     {
       double c = pow(coeff[i], 1.0/double(NDIM));
       ops.push_back(SharedPtr< Convolution1D<Q> >(new PeriodicGaussianConvolution1D<double>(k, 16, L[0]*c, expnt[i]*L[0]*L[0])));

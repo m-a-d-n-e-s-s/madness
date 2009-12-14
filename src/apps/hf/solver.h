@@ -13,6 +13,11 @@
 
 #ifndef SOLVER_H_
 
+/*! \defgroup periodic_solver Periodic Solver
+    \brief The Periodic Solver group is a group that contains the software 
+    objects that are needed to solve a periodic Kohn-Sham hamiltonian.
+*/
+
 //*****************************************************************************
 static double onesfunc(const coordT& x)
 {
@@ -22,7 +27,19 @@ static double onesfunc(const coordT& x)
 
 namespace madness
 {
-
+  /*!
+   \ingroup periodic_solver
+  
+   \brief The SubspaceK class is a container class holding previous orbitals 
+   and residuals.
+   \par
+   The Solver class uses the Krylov Accelerated Inexact Newton Solver (KAIN) 
+   accelerate the convergence a given calculation. The KAIN solver needs to 
+   store a subspace of previous orbitals and residuals. In the case is this 
+   implementation, the orbitals are store according to which k-point to which 
+   they belong.
+  */
+  
   //***************************************************************************
   template <typename T, int NDIM>
   class SubspaceK
@@ -231,6 +248,17 @@ namespace madness
 
   };
 
+  /*!
+   \ingroup periodic_solver
+  
+   \brief The SubspaceK class is a container class holding previous orbitals 
+   and residuals.
+   \par
+   The Solver class uses the Krylov Accelerated Inexact Newton Solver (KAIN) 
+   accelerate the convergence a given calculation. The KAIN solver needs to 
+   store a subspace of previous orbitals and residuals. 
+  */
+
   //***************************************************************************
   template <typename T, int NDIM>
   class Subspace
@@ -390,8 +418,14 @@ namespace madness
   };
   //***************************************************************************
 
+  /*! \ingroup periodic_solver
+      \brief The main class of the periodic DFT solver
+      \f[
+      z = frac{x}{1 - y^2}
+      \f]
+  */
 
-//***************************************************************************
+  //***************************************************************************
   template <typename T, int NDIM>
   class Solver
   {
@@ -501,6 +535,17 @@ namespace madness
     //*************************************************************************
   public:
 
+    //*************************************************************************
+    double ttt, sss;
+    void START_TIMER(World& world) {
+        world.gop.fence(); ttt=wall_time(); sss=cpu_time();
+    }
+
+    void END_TIMER(World& world, const char* msg) {
+    ttt=wall_time()-ttt; sss=cpu_time()-sss; if (world.rank()==0) printf("timer: %20.20s %8.2fs %8.2fs\n", msg, sss, ttt);
+    }
+    //*************************************************************************
+   
     //*************************************************************************
     Solver(World& world, const std::string& filename) : _world(world)
     {
@@ -814,7 +859,7 @@ namespace madness
     {
   //      MADNESS_ASSERT(!_params.spinpol);
         rfunctionT vlda = copy(arho);
-        vlda.unaryop(&::libxc_ldaop);
+        vlda.unaryop(&::libxc_ldaop<double>);
         return vlda;
     }
 
@@ -1089,9 +1134,9 @@ namespace madness
 
           // DEBUG
           if (_world.rank() == 0) printf("Overlap: \n");
-          for (int i = 0; i < kinetic.dim[0]; i++)
+          for (int i = 0; i < kinetic.dim(0); i++)
           {
-            for (int j = 0; j < kinetic.dim[1]; j++)
+            for (int j = 0; j < kinetic.dim(1); j++)
             {
               if (_world.rank() == 0) printf("%10.5f", real(overlap(i,j)));
             }
@@ -1101,9 +1146,9 @@ namespace madness
           if (_world.rank() == 0) printf("\n");
 
           if (_world.rank() == 0) printf("Kinetic: \n");
-          for (int i = 0; i < kinetic.dim[0]; i++)
+          for (int i = 0; i < kinetic.dim(0); i++)
           {
-            for (int j = 0; j < kinetic.dim[1]; j++)
+            for (int j = 0; j < kinetic.dim(1); j++)
             {
               if (_world.rank() == 0) printf("%10.5f", real(kinetic(i,j)));
             }
@@ -1113,9 +1158,9 @@ namespace madness
           if (_world.rank() == 0) printf("\n");
 
           if (_world.rank() == 0) printf("V: \n");
-          for (int i = 0; i < potential.dim[0]; i++)
+          for (int i = 0; i < potential.dim(0); i++)
           {
-            for (int j = 0; j < potential.dim[1]; j++)
+            for (int j = 0; j < potential.dim(1); j++)
             {
               if (_world.rank() == 0) printf("%10.5f", real(potential(i,j)));
             }
@@ -1125,9 +1170,9 @@ namespace madness
           if (_world.rank() == 0) printf("\n");
 
           if (_world.rank() == 0) printf("Fock: \n");
-          for (int i = 0; i < fock.dim[0]; i++)
+          for (int i = 0; i < fock.dim(0); i++)
           {
-            for (int j = 0; j < fock.dim[1]; j++)
+            for (int j = 0; j < fock.dim(1); j++)
             {
               if (_world.rank() == 0) printf("%10.5f", real(fock(i,j)));
             }
@@ -1137,9 +1182,9 @@ namespace madness
           if (_world.rank() == 0) printf("\n");
 
           if (_world.rank() == 0) printf("New overlap: \n");
-          for (int i = 0; i < overlap2.dim[0]; i++)
+          for (int i = 0; i < overlap2.dim(0); i++)
           {
-            for (int j = 0; j < overlap2.dim[1]; j++)
+            for (int j = 0; j < overlap2.dim(1); j++)
             {
               if (_world.rank() == 0) printf("%10.5f", real(overlap2(i,j)));
             }
@@ -1270,9 +1315,7 @@ namespace madness
           // Compute the j-th density
           rfuntionT prod = abs_square(phij);
           double rnrm = prod.trace();
-          double pnrm = phij.norm2();
           prod.scale(1/rnrm);
-          //if (_world.rank() == 0) print(j, kpoint.weight, _occs[j], rnrm, pnrm);
           rho += 0.5 * _occs[j] * kpoint.weight * prod;
         }
       }
@@ -1378,25 +1421,25 @@ namespace madness
         if (_params.spinpol)
         {
           // potential
-          rfuntionT vxca = binary_op(rhoa, rhob, &::libxc_ldaop_sp);
-          rfuntionT vxcb = binary_op(rhob, rhoa, &::libxc_ldaop_sp);
+          rfuntionT vxca = binary_op(rhoa, rhob, &::libxc_ldaop_sp<double>);
+          rfuntionT vxcb = binary_op(rhob, rhoa, &::libxc_ldaop_sp<double>);
           pfuncsa = mul_sparse(_world, vlocal + vxca, phisa, _params.thresh * 0.1);
           pfuncsb = mul_sparse(_world, vlocal + vxcb, phisb, _params.thresh * 0.1);
           // energy
-          rfuntionT fca = binary_op(rhoa, rhob, &::libxc_ldaeop_sp);
-          rfuntionT fcb = binary_op(rhob, rhoa, &::libxc_ldaeop_sp);
+          rfuntionT fca = binary_op(rhoa, rhob, &::libxc_ldaeop_sp<double>);
+          rfuntionT fcb = binary_op(rhob, rhoa, &::libxc_ldaeop_sp<double>);
           xc = fca.trace() + fcb.trace();
         }
         else
         {
           // potential
           rfuntionT vxc = copy(rhoa);
-          vxc.unaryop(&::libxc_ldaop);
-          rfuntionT vxc2 = binary_op(rhoa, rhoa, &::libxc_ldaop_sp);
+          vxc.unaryop(&::libxc_ldaop<double>);
+          rfuntionT vxc2 = binary_op(rhoa, rhoa, &::libxc_ldaop_sp<double>);
           pfuncsa = mul_sparse(_world, vlocal + vxc2, phisa, _params.thresh * 0.1);
           // energy
           rfuntionT fc = copy(rhoa);
-          fc.unaryop(&::ldaeop);
+          fc.unaryop(&::ldaeop<double>);
           xc = fc.trace();
         }
       }
@@ -1467,7 +1510,9 @@ namespace madness
 
         // Apply the potentials to the orbitals
         if (_world.rank() == 0) print("applying potential ...\n");
+        START_TIMER(_world);
         apply_potential(it, pfuncsa, pfuncsb, _phisa, _phisb, _rhoa, _rhob, _rho);
+        END_TIMER(_world,"apply potential");
 
         // Do right hand side for all k-points
         do_rhs(_phisa, pfuncsa, _eigsa, _kpoints);
@@ -1480,7 +1525,9 @@ namespace madness
         // Apply Green's function to orbitals
         if (_world.rank() == 0) print("applying BSH operator ...\n");
         truncate<valueT,NDIM>(_world, pfuncsa);
+        START_TIMER(_world);
         std::vector<functionT> tmpa = apply(_world, bopsa, pfuncsa);
+        END_TIMER(_world,"apply BSH");
         bopsa.clear();
 
         // Do other spin
@@ -1529,7 +1576,7 @@ namespace madness
     //*************************************************************************
     ctensorT matrix_exponential(const ctensorT& A) {
         const double tol = 1e-13;
-        MADNESS_ASSERT(A.dim[0] == A.dim[1]);
+        MADNESS_ASSERT(A.dim(0) == A.dim(1));
 
         // Scale A by a power of 2 until it is "small"
         double anorm = A.normf();
@@ -1543,8 +1590,8 @@ namespace madness
         tensorT B = scale*A;    // B = A*2^-n
 
         // Compute exp(B) using Taylor series
-        ctensorT expB = ctensorT(2, B.dim);
-        for (int i = 0; i < expB.dim[0]; i++) expB(i,i) = std::complex<T>(1.0,0.0);
+        ctensorT expB = ctensorT(2, B.dims());
+        for (int i = 0; i < expB.dim(0); i++) expB(i,i) = std::complex<T>(1.0,0.0);
 
         int k = 1;
         ctensorT term = B;
@@ -1611,8 +1658,6 @@ namespace madness
             d_wf[i] = std::complex<T>(0.0,k0)*dx_wf + 
                       std::complex<T>(0.0,k1)*dy_wf + 
                       std::complex<T>(0.0,k2)*dz_wf;
-            double d_wf_trace = d_wf[i].norm2();
-            double R_by_2PI = _params.L / 2 / madness::constants::pi;
             // k^/2
             double ksq = k0*k0 + k1*k1 + k2*k2;
             k_vwf[i] += 0.5 * ksq * k_wf[i];
@@ -1750,7 +1795,7 @@ namespace madness
               alpha[ei] = real(t1);
             }
           }
-          for (unsigned int ei = 0; ei < e.dim[0]; ei++)
+          for (unsigned int ei = 0; ei < e.dim(0); ei++)
           {
             if (_world.rank() == 0)
               print("kpoint ", kp, "ei ", ei, "eps ", real(e(ei,ei)));
@@ -1762,7 +1807,7 @@ namespace madness
           tensorT overlap = matrix_inner(_world, k_wf, k_wf, true);
           ctensorT c; rtensorT e;
           sygv(fock, overlap, 1, &c, &e);
-          for (unsigned int ei = 0; ei < e.dim[0]; ei++)
+          for (unsigned int ei = 0; ei < e.dim(0); ei++)
           {
             double diffe = (ei == 0) ? 0.0 : real(e(ei,ei))-real(e(ei-1,ei-1));
             if (_world.rank() == 0)
@@ -1796,13 +1841,17 @@ namespace madness
                               KPoint kpoint)
     {
       // Build the potential matrix
+      START_TIMER(_world);
       tensorT potential = matrix_inner(_world, psi, vpsi, true);
       _world.gop.fence();
+      END_TIMER(_world,"kinetic energy matrix");
 
+      START_TIMER(_world);
       if (_world.rank() == 0) print("Building kinetic energy matrix ...\n\n");
         tensorT kinetic = ::kinetic_energy_matrix(_world, psi, 
                                                   _params.periodic,
                                                   kpoint);
+      END_TIMER(_world,"potential energy matrix");
 
       if (_world.rank() == 0) print("Constructing Fock matrix ...\n\n");
       tensorT fock = potential + kinetic;

@@ -24,37 +24,41 @@ static double munge(double r) {
 //***************************************************************************
 
 //***************************************************************************
-inline static void ldaop(const Key<3>& key, Tensor<double>& t) {
-    UNARY_OPTIMIZED_ITERATOR(double, t, double r=munge(2.0* *_p0); double q; double dq1; double dq2;x_rks_s__(&r, &q, &dq1);c_rks_vwn5__(&r, &q, &dq2); *_p0 = dq1+dq2);
+template <typename T>
+inline static void ldaop(const Key<3>& key, Tensor<T>& t) {
+    UNARY_OPTIMIZED_ITERATOR(T, t, double r=munge(2.0* *_p0); double q; double dq1; double dq2;x_rks_s__(&r, &q, &dq1);c_rks_vwn5__(&r, &q, &dq2); *_p0 = dq1+dq2);
 }
 //***************************************************************************
 
 //***************************************************************************
-inline static void ldaeop(const Key<3>& key, Tensor<double>& t) {
-    UNARY_OPTIMIZED_ITERATOR(double, t, double r=munge(2.0* *_p0); double q1; double q2; double dq;x_rks_s__(&r, &q1, &dq);c_rks_vwn5__(&r, &q2, &dq); *_p0 = q1+q2);
+template <typename T>
+inline static void ldaeop(const Key<3>& key, Tensor<T>& t) {
+    UNARY_OPTIMIZED_ITERATOR(T, t, double r=munge(2.0* *_p0); double q1; double q2; double dq;x_rks_s__(&r, &q1, &dq);c_rks_vwn5__(&r, &q2, &dq); *_p0 = q1+q2);
 }
 //***************************************************************************
 
 //***************************************************************************
-inline static void libxc_ldaop(const Key<3>& key, Tensor<double>& t) {
+template <typename T>
+inline static void libxc_ldaop(const Key<3>& key, Tensor<T>& t) {
   XC(lda_type) xc_c_func;
   XC(lda_type) xc_x_func;
   xc_lda_init(&xc_c_func, XC_LDA_C_VWN,XC_UNPOLARIZED);
   xc_lda_x_init(&xc_x_func, XC_UNPOLARIZED, 3, 0);
-  UNARY_OPTIMIZED_ITERATOR(double, t, double r=munge(2.0* *_p0); double q; double dq1; double dq2;
+  UNARY_OPTIMIZED_ITERATOR(T, t, double r=munge(2.0* *_p0); double q; double dq1; double dq2;
                            xc_lda_vxc(&xc_x_func, &r, &q, &dq1); xc_lda_vxc(&xc_c_func, &r, &q, &dq2);
                            *_p0 = dq1+dq2);
 }
 //***************************************************************************
 
 //***************************************************************************
-inline static void libxc_ldaop_sp(const Key<3>& key, Tensor<double>& t, Tensor<double>& a, Tensor<double>& b)
+template <typename T>
+inline static void libxc_ldaop_sp(const Key<3>& key, Tensor<T>& t, Tensor<T>& a, Tensor<T>& b)
 {
   XC(lda_type) xc_c_func;
   XC(lda_type) xc_x_func;
   xc_lda_init(&xc_c_func, XC_LDA_C_VWN,XC_POLARIZED);
   xc_lda_x_init(&xc_x_func, XC_POLARIZED, 3, 0);
-  TERNARY_OPTIMIZED_ITERATOR(double, t, double, a, double, b, double r[2]; r[0] = munge(*_p1);
+  TERNARY_OPTIMIZED_ITERATOR(T, t, T, a, T, b, double r[2]; r[0] = munge(*_p1);
                              r[1] = munge(*_p2); double q[2]; double dq1[2]; double dq2[2];
                              xc_lda_vxc(&xc_x_func, &r[0], &q[0], &dq1[0]); xc_lda_vxc(&xc_c_func, &r[0], &q[0], &dq2[0]);
                              *_p0 = dq1[0]+dq2[0]);
@@ -62,13 +66,14 @@ inline static void libxc_ldaop_sp(const Key<3>& key, Tensor<double>& t, Tensor<d
 //***************************************************************************
 
 //***************************************************************************
-inline static void libxc_ldaeop_sp(const Key<3>& key, Tensor<double>& t, Tensor<double>& a, Tensor<double>& b)
+template <typename T>
+inline static void libxc_ldaeop_sp(const Key<3>& key, Tensor<T>& t, Tensor<T>& a, Tensor<T>& b)
 {
   XC(lda_type) xc_c_func;
   XC(lda_type) xc_x_func;
   xc_lda_init(&xc_c_func, XC_LDA_C_VWN,XC_POLARIZED);
   xc_lda_x_init(&xc_x_func, XC_POLARIZED, 3, 0);
-  TERNARY_OPTIMIZED_ITERATOR(double, t, double, a, double, b, double r[2]; r[0] = munge(*_p1);
+  TERNARY_OPTIMIZED_ITERATOR(T, t, T, a, T, b, double r[2]; r[0] = munge(*_p1);
                              r[1] = munge(*_p2); double q1[2]; double q2[2]; double dq[2];
                              xc_lda_vxc(&xc_x_func, &r[0], &q1[0], &dq[0]); xc_lda_vxc(&xc_c_func, &r[0], &q2[0], &dq[0]);
                              *_p0 = q1[0]+q2[0]);
@@ -123,7 +128,7 @@ inline static void libxc_ldaeop_sp(const Key<3>& key, Tensor<double>& t, Tensor<
 //    XC(lda_type) xc_c_func;
 //    XC(lda_type) xc_x_func;
 //
-//    int npt = rho_alpha.dim[0];
+//    int npt = rho_alpha.dim(0);
 //
 //    Tensor<double> tf(npt);
 //    Tensor<double> tdf_drho(npt);
