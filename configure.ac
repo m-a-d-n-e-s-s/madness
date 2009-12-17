@@ -15,6 +15,7 @@ AC_CONFIG_MACRO_DIR([config])
 # Detect specific systems so can provide their whacky defaults
 ACX_CRAYXT
 ACX_MAC
+#ACX_BGP
 #AC_AIX
 
 # Set default thread processor-affinity
@@ -162,20 +163,20 @@ if test $HAVE_PDFLATEX = YES; then
 fi
 AM_CONDITIONAL([CAN_BUILD_DOC], [test $HAVE_DOXYGEN = YES])
 
-# System headers
 AC_HEADER_TIME
 AC_HEADER_STDC
 AC_CHECK_HEADERS([limits.h stddef.h stdint.h stdlib.h string.h sys/param.h sys/time.h unistd.h])
 AC_HEADER_STDBOOL
-ACX_GNU_HASHMAP
+# No longer used
+#ACX_GNU_HASHMAP
 
 # Types
 AC_TYPE_PID_T
 AC_C_RESTRICT
 AC_TYPE_SIZE_T
 AC_HEADER_TIME
-#AC_TYPE_UINT64_T
-#AC_TYPE_INT64_T
+AC_TYPE_UINT64_T
+AC_TYPE_INT64_T
 AC_CHECK_TYPES([uint64_t, int64_t, uint32_t, int32_t, uint16_t, uint8_t])
 AC_C_VOLATILE
 AC_C_CONST
