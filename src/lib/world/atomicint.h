@@ -5,9 +5,9 @@
 
 /// \brief Implements AtomicInteger
 
-//#define MADATOMIC_USE_X86_ASM
+#define MADATOMIC_USE_X86_ASM
 //#define MADATOMIC_USE_GCC
-#define MADATOMIC_USE_BGP
+//#define MADATOMIC_USE_BGP
     
 #ifdef MADATOMIC_USE_GCC
 #  ifdef GCC_ATOMICS_IN_BITS
