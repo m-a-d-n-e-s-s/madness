@@ -12,7 +12,7 @@ AC_DEFUN([ACX_OPTIMAL_CXXFLAGS], [
             CXXMICRO=[`echo $CXXVERSION | sed -e 's/[0-9]*\.[0-9]*\.//'`]
             echo "Setting compiler flags for GNU C++ major=$CXXMAJOR minor=$CXXMINOR micro=$CXXMICRO"
 
-            CXXFLAGS="-g -Wall -Wno-strict-aliasing -Wno-deprecated -ansi -O3 -ffast-math -mfpmath=sse"
+            CXXFLAGS="-g -Wall -Wno-strict-aliasing -Wno-deprecated -ansi -O3 -ffast-math"
 
             if test "x$HAVE_CRAYXT" = xyes; then
                 echo "Setting target architecture for GNU compilers to barcelona for CRAYXT"
@@ -26,7 +26,7 @@ AC_DEFUN([ACX_OPTIMAL_CXXFLAGS], [
 
             case $host_cpu in
                 i?86*)
-                   CXXFLAGS="$CXXFLAGS -msse"
+                   CXXFLAGS="$CXXFLAGS  -mfpmath=sse -msse"
                    ;;
             esac
          ;;
