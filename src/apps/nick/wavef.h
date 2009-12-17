@@ -45,8 +45,9 @@ void test1F1(madness::World&, complexd (*func1F1)(complexd,complexd,complexd), c
 class ScatteringWF : public madness::FunctionFunctorInterface<complexd,NDIM> { 
 public:
     typedef madness::Vector<double,NDIM> vector3D;
-    ScatteringWF(double Z, const vector3D& kVec );
-    ScatteringWF(madness::World& world, double Z, const vector3D& kVec );
+    ScatteringWF(const double Z, const vector3D& kVec );
+    ScatteringWF(const double Z, const vector3D& kVec, const double cutoff );
+    ScatteringWF(madness::World& world, const double Z, const vector3D& kVec, const double cutoff );
     complexd operator()(const vector3D& x) const;
     complexd aFormNew3(complexd AA, complexd BB, complexd ZZ) const;
     complexd aForm(complexd AA, complexd BB, complexd ZZ) const;
@@ -73,6 +74,7 @@ public:
     double   domain;
     double   xi;
     double   ra;
+    double   cutoff;
 private:
     CubicInterpolationTable<complexd > fit1F1;
     complexd expmPI_k;

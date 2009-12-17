@@ -1,3 +1,4 @@
+
 //\file wavef.cc
 //\brief The hydrogenic bound and continuum states
 /************************************************************************
@@ -141,11 +142,12 @@ struct MemberFuncPtr {
  * kr + kDOTr brings along another factor of 2k     k*sqrt(3)*V^(1/3)
  **********************************************************************/
 ///World is needed for timing the length of the CubicInterpolationTable
-ScatteringWF::ScatteringWF(World& world, double Z, const vector3D& kVec)
+ScatteringWF::ScatteringWF(World& world, const double Z, const vector3D& kVec, const double cutoff)
     :Z(Z)
     ,kVec(kVec)
     ,k(sqrt(kVec[0]*kVec[0] + kVec[1]*kVec[1] + kVec[2]*kVec[2]))
     ,domain(k*sqrt(3)*pow(FunctionDefaults<NDIM>::get_cell_volume(),1.0/3.0))    
+    ,cutoff(cutoff)
 {
     expmPI_k   = exp(-PI/k);
     expPI_2k   = exp(PI/(2*k));
@@ -164,11 +166,32 @@ ScatteringWF::ScatteringWF(World& world, double Z, const vector3D& kVec)
          << " seconds.");
 }
 
-ScatteringWF::ScatteringWF(double Z, const vector3D& kVec)
+ScatteringWF::ScatteringWF(const double Z, const vector3D& kVec, const double cutoff)
     :Z(Z)
     ,kVec(kVec)
     ,k(sqrt(kVec[0]*kVec[0] + kVec[1]*kVec[1] + kVec[2]*kVec[2]))
     ,domain(k*sqrt(3)*pow(FunctionDefaults<NDIM>::get_cell_volume(),1.0/3.0))    
+    ,cutoff(cutoff)
+{
+    expmPI_k   = exp(-PI/k);
+    expPI_2k   = exp(PI/(2*k));
+    gamma1pI_k = gamma(1.0,1/k);
+    gammamI_k  = gamma(0.0,-1/k);
+    expPI_2kXgamma1pI_k = expPI_2k * gamma1pI_k ;
+    one = complexd(1.0, 0.0);
+    dx = 4e-3;   //Mesh spacing
+    ra = 5.0; //boundary cutoff
+    n = floor(0.5*domain/dx*(1 + sqrt(1 + 4*ra/domain))) + 1;
+    MemberFuncPtr p1F1(this);
+    fit1F1 = CubicInterpolationTable<complexd>(0.0, domain, n, p1F1);
+}
+
+ScatteringWF::ScatteringWF(const double Z, const vector3D& kVec)
+    :Z(Z)
+    ,kVec(kVec)
+    ,k(sqrt(kVec[0]*kVec[0] + kVec[1]*kVec[1] + kVec[2]*kVec[2]))
+    ,domain(k*sqrt(3)*pow(FunctionDefaults<NDIM>::get_cell_volume(),1.0/3.0))    
+    ,cutoff(1000.0)
 {
     expmPI_k   = exp(-PI/k);
     expPI_2k   = exp(PI/(2*k));
@@ -238,12 +261,16 @@ complexd ScatteringWF::f11(double xx) const {
  * Third Edition Formula (136.9)
  ****************************************************/
 complexd ScatteringWF::operator()(const vector3D& rVec) const {
-    double kDOTr = kVec[0]*rVec[0] + kVec[1]*rVec[1] + kVec[2]*rVec[2];
-    double r     = sqrt(rVec[0]*rVec[0] + rVec[1]*rVec[1] + rVec[2]*rVec[2]);
-    return 0.0634936359342 //  = (2PI)^-(3/2)
-         * expPI_2kXgamma1pI_k
-         * exp(I*kDOTr)
-         * fit1F1(k*r + kDOTr);
+    if( rVec[0]<cutoff && rVec[1]<cutoff && rVec[2]<cutoff ) {
+        double kDOTr = kVec[0]*rVec[0] + kVec[1]*rVec[1] + kVec[2]*rVec[2];
+        double r     = sqrt(rVec[0]*rVec[0] + rVec[1]*rVec[1] + rVec[2]*rVec[2]);
+        return 0.0634936359342 //  = (2PI)^-(3/2)
+               * expPI_2kXgamma1pI_k
+               * exp(I*kDOTr)
+               * fit1F1(k*r + kDOTr);
+    } else {
+        return 0.0;
+    }
 }
 
 /****************************************************************
@@ -279,7 +306,6 @@ complexd ScatteringWF::aForm3(complexd ZZ) const {
     }
     return cA*termA + cB*termB;
 }
-
 complexd gamma(double re, double im) {
     gsl_sf_result lnr;
     gsl_sf_result arg;

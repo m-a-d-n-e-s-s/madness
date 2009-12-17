@@ -166,7 +166,7 @@ void loadList(World& world, std::vector<std::string>& boundList, std::vector<std
     }
 }
 
-void loadBasis(World& world, std::vector<WF>& boundList, std::vector<WF>& unboundList, double Z) {
+void loadBasis(World& world, std::vector<WF>& boundList, std::vector<WF>& unboundList, const double Z, const double cutoff) {
     std::ifstream bound("bound.num");
     std::ifstream unbound("unbound.num");
     if( ! bound.is_open() && ! unbound.is_open() ) {
@@ -207,7 +207,7 @@ void loadBasis(World& world, std::vector<WF>& boundList, std::vector<WF>& unboun
                 const double kvec[] = {kx, ky, kz};
                 unboundList.push_back(WF(kxyz.str(),
                                        FunctionFactory<complexd,NDIM>(world).
-                                       functor(functorT(new ScatteringWF(Z,kvec)))));
+                                       functor(functorT(new ScatteringWF(Z,kvec,cutoff)))));
                 double used = wall_time() - start;
                 PRINTLINE("\t" << used << " sec");
                 kxyz.str("");
@@ -324,7 +324,7 @@ void projectPsi(World& world, std::vector<WF> boundList, std::vector<WF> unbound
     }
 }
 
-void projectPsi2(World& world, std::vector<std::string> boundList, std::vector<std::string> unboundList, double Z) {
+void projectPsi2(World& world, std::vector<std::string> boundList, std::vector<std::string> unboundList, const double Z, const double cutoff) {
     PRINTLINE("\t\t|<basis|Psi(t)>|^2 ");
     std::ifstream f("wf.num");
     if( !f.is_open() ) {
@@ -385,23 +385,23 @@ void projectPsi2(World& world, std::vector<std::string> boundList, std::vector<s
                         //PROJECT Psi_k into MADNESS
                         if(world.rank()==0) before = clock();
                         complex_functionT phi_k = 
-                            complex_factoryT(world).functor(functorT( new ScatteringWF(world, Z, kVec) ));
+                            complex_factoryT(world).functor(functorT( new ScatteringWF(world, Z, kVec, cutoff) ));
                         //                     // W/O timing
                         //                     complex_functionT phi_k = 
-                        //                         complex_factoryT(world).functor(functorT( new ScatteringWF(Z, kVec) ));
+                        //                         complex_factoryT(world).functor(functorT( new ScatteringWF(Z, kVec, cutoff) ));
                         if(world.rank()==0) after = clock();
                         std::cout.precision( 2 );
                         PRINT( std::fixed << KX << " " << KY << " " << KZ << "  ");
                         std::cout.precision( 4 );
-                        complex_functionT overlap_k0 = phi_k.inner(psi0) * psi0;
+                        complex_functionT k_overlap_0 = psi0.scale( phi_k.inner(psi0) );
                         //look through different time steps (t=0 not amoung them)
                         for( psiIT=psiList.begin(); psiIT !=  psiList.end(); psiIT++ ) {
                             //<phi_k|Psi(t)>
-                            output = phi_k.inner( psiIT->func - overlap_k0 );
+                            output = phi_k.inner( psiIT->func - k_overlap_0 );
                             PRINT( std::scientific << "\t" << real(output*conj(output)) );
                         }
                         PRINT(" took " << (after - before)/CLOCKS_PER_SEC << " seconds ");
-                        PRINT("\n");
+                        PRINT("and has " << phi_k.size() << " coefficients.\n");
                     }
                 }
             }
@@ -418,6 +418,7 @@ void compare1F1(World& world) {
     double rMAX = 10.0;
     double dr   = 1.0;
     double k    = 1.0;
+    double Z    = 1.0;
     /***************************************
      *Load graphing parameters from the file: param
      * rMIN 0.0
@@ -456,9 +457,7 @@ void compare1F1(World& world) {
     }
     //make functor
     const double kvec[3] = {0, 0, k};
-    //complex_functionT phi_k = FunctionFactory<complexd,NDIM>(world).
-    //functor(functorT(new ScatteringWF(1.0, kvec)));
-    ScatteringWF phi_k =  ScatteringWF(1.0, kvec);
+    ScatteringWF phi_k =  ScatteringWF(Z, kvec);
     complexd ONE(1.0,0.0);
     complexd I(0.0,1.0);
     std::cout << std::fixed;
@@ -521,6 +520,7 @@ void printBasis(World& world, double Z) {
     double TH = 0.0;
     double PHI = 0.0;
     double k = 1.0;
+    double cutoff = 10.0;
     /***************************************
      *Load graphing parameters from the file: param
      * rMIN 0.0
@@ -541,23 +541,27 @@ void printBasis(World& world, double Z) {
             }
             else if (tag == "rMIN") {
                 f >> rMIN;
-                PRINTLINE("rMIN = " << rMIN);
+                PRINTLINE("rMIN   = " << rMIN);
             }
             else if (tag == "rMAX") {
                 f >> rMAX;
-                PRINTLINE("rMAX = " << rMAX);
+                PRINTLINE("rMAX   = " << rMAX);
             }
             else if (tag == "dr") {
                 f >> dr;
-                PRINTLINE("dr = " << dr);
+                PRINTLINE("dr     = " << dr);
             }
             else if (tag == "TH") {
                 f >> TH;
-                PRINTLINE("TH = " << TH);
+                PRINTLINE("TH     = " << TH);
             }
             else if (tag == "k") {
                 f >> k;
-                PRINTLINE("k = " << k);
+                PRINTLINE("k      = " << k);
+            }
+            else if (tag == "cutoff") {
+                f >> k;
+                PRINTLINE("cutoff = " << cutoff);
             }
         }
     }
@@ -570,7 +574,7 @@ void printBasis(World& world, double Z) {
     }
     double kvec[3] = {0, 0, k};
     //    vector3D kVec(dARR);
-    ScatteringWF phi_k(Z, kvec);
+    ScatteringWF phi_k(Z, kvec, cutoff);
     //for(double TH=0; TH<3.14; TH+=0.3 ) {
     //    for(double r=0; r<sqrt(3)*phi_k.domain*phi_k.k; r+=1.0 ) {
     for(double r=rMIN; r<rMAX; r+=dr ) {
@@ -622,7 +626,7 @@ void belkic(World& world) {
     PRINTLINE(output);
 }
 
-void loadParameters(World& world, int& k, double& L, double &Z) {
+void loadParameters(World& world, int& k, double& L, double &Z, double &cutoff) {
     std::string tag;
     int natom;
     double Rx, Ry, Rz;
@@ -650,9 +654,23 @@ void loadParameters(World& world, int& k, double& L, double &Z) {
                 f >> Z >> Rx >> Ry >> Rz;
                 PRINTLINE("Z = " << Z);
             }
+            else if (tag == "omega") {
+                double omega;
+                f >> omega;
+                //E_n = n hbar omega
+                //I_p = 0.5 Z^2
+                //KE = E_n - I_p
+                //Atomic Units: hbar = m = 1
+                //v = sqrt( 2n omega - Z^2)
+                //cutoff > dMAX = v t
+                double dMAX = std::sqrt(2*3*omega - Z*Z) * 20;
+                double cutoff = 0.0;
+                while( cutoff < dMAX ) { cutoff += L/128; }
+                PRINTLINE("dMAX = " << dMAX);
+                PRINTLINE("cutoff = " << cutoff);
+            }
         }
     }
-    //fflush(stdout);
 }
 
 int main(int argc, char**argv) {
@@ -667,7 +685,8 @@ int main(int argc, char**argv) {
     int    k = 12;
     double L = 10.0;
     double Z = 1.0;
-    loadParameters(world, k, L, Z);
+    double cutoff = L;
+    loadParameters(world, k, L, Z, cutoff);
     FunctionDefaults<NDIM>::set_k(k);               // Wavelet order
     FunctionDefaults<NDIM>::set_thresh(1e-4);       // Accuracy
     FunctionDefaults<NDIM>::set_cubic_cell(-L, L);
@@ -681,14 +700,14 @@ int main(int argc, char**argv) {
     try {
         std::vector<std::string> boundList2;
         std::vector<std::string> unboundList2;
-        loadList(world, boundList2, unboundList2);
-        projectPsi2(world, boundList2, unboundList2, Z);
+        //loadList(world, boundList2, unboundList2);
+        //projectPsi2(world, boundList2, unboundList2, Z, cutoff);
         //std::vector<WF> boundList;
         //std::vector<WF> unboundList;
         //compareGroundState(world, Z);
         //compare1F1(world);
-        //printBasis(world,Z);
-        //loadBasis(world,  boundList, unboundList, Z);
+        printBasis(world,Z);
+        //loadBasis(world,  boundList, unboundList, Z, cutoff);
         //belkic(world);
         //projectZdip(world, unboundList);
         //projectPsi(world, boundList, unboundList, Z);
