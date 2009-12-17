@@ -13,6 +13,8 @@
 #define __thread
 #endif
 
+#define __thread
+
 namespace madness {
 
     /// Simple container for parallel profile statistic

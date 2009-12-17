@@ -331,21 +331,7 @@ namespace madness {
     template<int D>
     class ProcMapImpl {
     public:
-        /*
-        #ifdef WORLDDC_USES_GNU_HASH_MAP
-                template <typename T>
-                struct PMLocalHash {
-                    std::size_t operator()(const T& t) const {
-                        return hash(t);
-                    };
-                };
-                typedef HASH_MAP_NAMESPACE::hash_map< const Key<D>,ProcessID,PMLocalHash< const Key<D> > > Mapinfo;
-        #else
-        */
         typedef std::map< const Key<D>,ProcessID> Mapinfo;
-        /*
-        #endif
-        */
         typedef typename Mapinfo::iterator iterator;
         typedef const iterator iterator_const;
         typedef std::pair< const Key<D>, ProcessID > pairT;

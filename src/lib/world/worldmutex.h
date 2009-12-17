@@ -191,7 +191,7 @@ namespace madness {
 #endif
 
 
-    class MutexReaderWriter : private Spinlock, NO_DEFAULTS {
+    class MutexReaderWriter : private Spinlock, private NO_DEFAULTS {
         volatile mutable int nreader;
         volatile mutable bool writeflag;
     public:
@@ -417,7 +417,7 @@ namespace madness {
 
     /// Use this when you need to block without consuming cycles.
     /// Scheduling granularity is at the level of kernel ticks.
-    class PthreadConditionVariable : NO_DEFAULTS {
+    class PthreadConditionVariable : private NO_DEFAULTS {
     private:
         mutable pthread_cond_t cv;
         mutable pthread_mutex_t mutex;
