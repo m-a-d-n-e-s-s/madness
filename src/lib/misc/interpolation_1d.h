@@ -55,7 +55,7 @@ protected:
     }
 
 public:
-    CubicInterpolationTable() : lo(0.0), hi(-1.0), h(0.0), rh(0.0), npt(0.0) {}
+    CubicInterpolationTable() : lo(0.0), hi(-1.0), h(0.0), rh(0.0), npt(0) {}
 
     template <typename functionT>
     CubicInterpolationTable(double lo, double hi, int npt, const functionT &f) 
@@ -87,7 +87,7 @@ public:
 
     T operator()(double y) const {
         T y1;
-        int i = (y-lo)*rh;
+        int i = int((y-lo)*rh);
         if (i<0 || i>=npt) throw "Out of range point";
         i *= 5;
         y1 = y - a[i];
