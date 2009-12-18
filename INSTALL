@@ -116,9 +116,24 @@ to link against those libraries).  Some examples follow.
        module load acml/4.1.0
        ./configure
 
-  o  IBM BlueGene-P
+  o  IBM BlueGene-P @ ANL
 
-     ?????
+#!/bin/bash
+export LIBS=""
+export LIBS="${LIBS} -L/soft/apps/LAPACK -llapack_bgp"
+export LIBS="${LIBS} -L/soft/apps/BLAS -lblas_bgp"
+export LIBS="${LIBS} -L/soft/apps/ibmcmp-aug2009/xlf/bg/11.1/lib -lxlf90 -lxlopt -lxl"
+export LIBS="${LIBS} -L/soft/apps/ibmcmp-aug2009/xlsmp/bg/1.7/bglib -lxlsmp"
+export LIBS="${LIBS} -L/bgsys/drivers/ppcfloor/gnu-linux/powerpc-bgp-linux/lib -lrt"
+export LIBS="${LIBS} -lpthread"
+
+export CPPFLAGS="-I/bgsys/drivers/ppcfloor/arch/include"
+
+./configure \
+  --build=powerpc-bgp-linux-gnu \
+  --with-google-test=/home/robert/install \
+  LIBS="${LIBS}" \
+  CPPFLAGS="${CPPFLAGS}" 
 
   o  Smoky, the eccentric AMD+IB cluster at ORNL used for development. 
      This using MVAPICH2, GNU and ACML (my install of ACML though there 
