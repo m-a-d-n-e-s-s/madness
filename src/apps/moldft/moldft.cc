@@ -519,7 +519,7 @@ struct CalculationParameters {
     
     void set_molecular_info(const Molecule& molecule, const AtomicBasisSet& aobasis) {
         double z = molecule.total_nuclear_charge();
-        int nelec = z - charge;
+        int nelec = int(z - charge);
         if (fabs(nelec+charge-z) > 1e-6) {
             error("non-integer number of electrons?", nelec+charge-z);
         }

@@ -512,7 +512,7 @@ static double smoothed_density(double r) {
 
     double result = d0 + r8*d1;
 
-    if (abs(result-formula) > 1e-12) {
+    if (fabs(result-formula) > 1e-12) {
         printf("ERROR in rho: r=%.10f formula=%.10f result=%.10f err=%.1e\n",
                r, formula, result, formula-result);
         throw "bad";
@@ -653,8 +653,8 @@ finished:
     ;
 }
 
-void Molecule::add_atom(double x, double y, double z, int atomic_number, double q) {
-    atoms.push_back(Atom(x,y,z,atomic_number,q));
+void Molecule::add_atom(double x, double y, double z, double q, int atomic_number) {
+    atoms.push_back(Atom(x,y,z,q,atomic_number));
     double c = smoothing_parameter(q, eprec); // eprec is error per atom
     //printf("smoothing param %.6f\n", c);
     rcut.push_back(1.0/c);

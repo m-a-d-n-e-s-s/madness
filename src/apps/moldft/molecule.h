@@ -45,7 +45,7 @@ public:
     double x, y, z, q;          ///< Coordinates and charge in atomic units
     unsigned int atomic_number; ///< Atomic number
 
-    Atom(double x, double y, double z, double q, unsigned int atomic_number)
+    explicit Atom(double x, double y, double z, double q, unsigned int atomic_number)
             : x(x), y(y), z(z), q(q), atomic_number(atomic_number) {}
 
     Atom(const Atom& a)
@@ -89,7 +89,7 @@ public:
 
     void read_file(const std::string& filename);
 
-    void add_atom(double x, double y, double z, int atn, double q);
+    void add_atom(double x, double y, double z,  double q, int atn);
 
     int natom() const {
         return atoms.size();
