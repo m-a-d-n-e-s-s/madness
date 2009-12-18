@@ -249,7 +249,7 @@ namespace madness {
         *VT = Tensor<T>(rmax,n);
 
         //std::cout << "n " << n << " m " << m << " lwork " << lwork << std::endl;
-        dgesvd_("S","S", &n, &m, A.ptr(), &n, s->ptr(),
+        dgesvd("S","S", &n, &m, A.ptr(), &n, s->ptr(),
                 VT->ptr(), &n, U->ptr(), &rmax, work.ptr(), &lwork,
                 &info, (char_len) 1, (char_len) 1);
 
@@ -309,7 +309,7 @@ namespace madness {
         integer info;
 
         // note overriding of dgesv for other types above
-        dgesv_(&n, &nrhs, AT.ptr(), &n, piv.ptr(), x->ptr(), &n, &info);
+        dgesv(&n, &nrhs, AT.ptr(), &n, piv.ptr(), x->ptr(), &n, &info);
         mask_info(info);
 
         TENSOR_ASSERT((info == 0), "gesv failed", info, &a);
@@ -419,7 +419,7 @@ namespace madness {
         scalar_type rrcond = rcond;
         integer rrank=0;
 
-        dgelss_(&m, &n, &nrhs, AT.ptr(), &m, lapack_inout.ptr(), &maxmn,
+        dgelss(&m, &n, &nrhs, AT.ptr(), &m, lapack_inout.ptr(), &maxmn,
                 s->ptr(), &rrcond, &rrank, work.ptr(), &lwork, &info);
         mask_info(info);
         TENSOR_ASSERT(info == 0, "gelss failed", info, &a);
@@ -492,7 +492,7 @@ namespace madness {
         Tensor<T> work(lwork);
         *V = transpose(A);		// For Hermitian case
         *e = Tensor<typename Tensor<T>::scalar_type>(n);
-        dsyev_("V", "U", &n, V->ptr(), &n, e->ptr(), work.ptr(), &lwork, &info,
+        dsyev("V", "U", &n, V->ptr(), &n, e->ptr(), work.ptr(), &lwork, &info,
                (char_len) 1, (char_len) 1);
         mask_info(info);
         TENSOR_ASSERT(info == 0, "(s/d)syev/(c/z)heev failed", info, &A);
@@ -568,7 +568,7 @@ namespace madness {
         Tensor<T> b = transpose(B);	// For Hermitian case
         *V = transpose(A);		// For Hermitian case
         *e = Tensor<typename Tensor<T>::scalar_type>(n);
-        dsygv_(&ity, "V", "U", &n, V->ptr(), &n, b.ptr(), &n,
+        dsygv(&ity, "V", "U", &n, V->ptr(), &n, b.ptr(), &n,
                e->ptr(), work.ptr(), &lwork, &info,
                (char_len) 1, (char_len) 1);
         mask_info(info);
@@ -604,7 +604,7 @@ namespace madness {
         integer n = A.dim(0);
         integer info;
         
-        dpotrf_("L", &n, A.ptr(), &n, &info, 1);
+        dpotrf("L", &n, A.ptr(), &n, &info, 1);
         mask_info(info);
         TENSOR_ASSERT(info == 0, "cholesky: Lapack failed", info, &A);
 
@@ -621,7 +621,7 @@ namespace madness {
         integer lda = n; // ???
         integer ldb = m; //???
 
-        dtrsm_(side, "L", transa, "N", m, n, one, L.ptr(), lda, B.ptr, ldb, 1, 1, 1, 1);
+        dtrsm(side, "L", transa, "N", m, n, one, L.ptr(), lda, B.ptr, ldb, 1, 1, 1, 1);
     }
 
 

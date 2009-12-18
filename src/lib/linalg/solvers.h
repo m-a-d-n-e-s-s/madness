@@ -106,7 +106,7 @@ namespace madness {
             jacobian = this->jacobian(x);
         }
 
-        virtual ~SolverTargetInterface() {};
+        virtual ~SolverTargetInterface() {}
     };
 
 
@@ -136,6 +136,8 @@ namespace madness {
 
         /// Numerical test of the derivative ... optionally prints to stdout, returns max abs error
         double test_gradient(Tensor<double>& x, double value_precision, bool doprint=true);
+
+	virtual ~OptimizationTargetInterface(){}
     };
 
 
@@ -144,6 +146,7 @@ namespace madness {
         virtual bool solve(Tensor<double>& x) = 0;
         virtual bool converged() const = 0;
         virtual double residual_norm() const = 0;
+	virtual ~SolverInterface() {}
     };
 
     /// The interface to be provided by optimizers
@@ -152,6 +155,7 @@ namespace madness {
         virtual bool converged() const = 0;
         virtual double value() const = 0;
         virtual double gradient_norm() const = 0;
+	virtual ~OptimizerInterface(){}
     };
 
 
@@ -177,6 +181,8 @@ namespace madness {
         double gradient_norm() const;
 
         double value() const;
+
+	virtual ~SteepestDescent(){}
     };
 
 
@@ -217,6 +223,8 @@ namespace madness {
         double value() const;
 
         double gradient_norm() const;
+
+	virtual ~QuasiNewton() {}
     };
 
 }

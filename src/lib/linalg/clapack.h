@@ -42,6 +42,40 @@
 #include <fortran_ctypes.h>
 #include <linalg/lapack_functions.h>
 
+#include <madness_config.h>
+
+#ifdef FORTRAN_LINKAGE_LC
+#  define sgesvd_ sgesvd
+#  define dgesvd_ dgesvd
+#  define cgesvd_ cgesvd
+#  define zgesvd_ zgesvd
+
+#  define sgesv_ sgesv
+#  define dgesv_ dgesv
+#  define cgesv_ cgesv
+#  define zgesv_ zgesv
+
+#  define sgelss_ sgelss
+#  define dgelss_ dgelss
+#  define cgelss_ cgelss
+#  define zgelss_ zgelss
+
+#  define ssyev_ ssyev
+#  define dsyev_ dsyev
+#  define cheev_ cheev
+#  define zheev_ zheev
+
+#  define ssygv_ ssygv
+#  define dsygv_ dsygv
+#  define chegv_ chegv
+#  define zhegv_ zhegv
+
+#  define dpotrf_ dpotrf
+
+#  define dtrsm_ dtrsm
+#endif
+
+
 extern "C"
     void sgesvd_(const char *jobu, const char *jobvt, integer *m, integer *n,
                  real4 *a, integer *lda, real4 *s, real4 *u, integer *ldu,
