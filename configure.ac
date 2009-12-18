@@ -15,7 +15,7 @@ AC_CONFIG_MACRO_DIR([config])
 # Detect specific systems so can provide their whacky defaults
 ACX_CRAYXT
 ACX_MAC
-#ACX_BGP
+ACX_IBMBGP
 #AC_AIX
 
 # Set default thread processor-affinity
