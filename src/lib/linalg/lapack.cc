@@ -96,6 +96,7 @@ void dgesvd_(const char *jobu, const char *jobvt, integer *m, integer *n,
              integer *info, char_len jobulen, char_len jobvtlen) {
     Tensor<double> rwork(5*min(*m,*n));
     zgesvd_(jobu, jobvt, m, n, a, lda, s, u, ldu,
+
             vt, ldvt, work, lwork, rwork.ptr(), info, jobulen, jobvtlen);
 }
 
