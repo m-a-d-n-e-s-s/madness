@@ -291,10 +291,6 @@ namespace madness {
                 print(s);
                 error("caught a string exception");
             }
-            catch (char* s) {
-                print(s);
-                error("caught a string exception");
-            }
             catch (const std::string& s) {
                 print(s);
                 error("caught a string (class) exception");
@@ -337,7 +333,9 @@ namespace madness {
             // RJH ... why not checking success/failure????
             pthread_attr_init(&attr);
             pthread_attr_setdetachstate(&attr,PTHREAD_CREATE_DETACHED);
+#ifndef HAVE_IBMBGP	    
             pthread_attr_setscope(&attr, PTHREAD_SCOPE_SYSTEM);
+#endif
             int result = pthread_create(&id, &attr, &ThreadBase::main, (void *) this);
             if (result) MADNESS_EXCEPTION("failed creating thread", result);
 

@@ -5,10 +5,16 @@
 
 /// \brief Implements AtomicInteger
 
+#ifdef HAVE_IBMBGP
+#define MADATOMIC_USE_BGP
+#elif defined(USE_X86_32_ASM) || defined(USE_X86_64_ASM)
 #define MADATOMIC_USE_X86_ASM
-//#define MADATOMIC_USE_GCC
-//#define MADATOMIC_USE_BGP
+#else
+#define MADATOMIC_USE_GCC
+#endif
     
+
+
 #ifdef MADATOMIC_USE_GCC
 #  ifdef GCC_ATOMICS_IN_BITS
 #    include <bits/atomicity.h>
@@ -65,12 +71,14 @@ namespace madness {
 #else
 	    int result = value;
 #endif
+	    // BARRIER to stop instructions migrating up
             __asm__ __volatile__ ("" : : : "memory");
             return result;
         }
         
         /// Sets the value of the counter with fence ensuring preceding operations are not moved after the store
         int operator=(int other) {
+	    // BARRIER to stop instructions migrating down
             __asm__ __volatile__ ("" : : : "memory");
 #if defined(MADATOMIC_USE_BGP)
             value.atom = other;

@@ -303,7 +303,7 @@ void test_accessors() {
     result.release();
     while (ndone != 2) sched_yield();
 
-    if (a[1] != 20000000) MADNESS_EXCEPTION("Ooops", a[1]);
+    if (a[1] != 20000000.0) MADNESS_EXCEPTION("Ooops", int(a[1]));
 }
 
 int main() {

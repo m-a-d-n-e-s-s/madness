@@ -208,6 +208,7 @@ namespace madness {
 
 
     __thread WorldProfileObj* WorldProfileObj::call_stack = 0;
+
     Spinlock WorldProfile::mutex;
     volatile std::vector<WorldProfileEntry> WorldProfile::items;
     double WorldProfile::cpu_start = madness::cpu_time();

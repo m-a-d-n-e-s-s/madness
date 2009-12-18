@@ -49,7 +49,7 @@ public:
 };
 
 int main() {
-    const int nthread = 4;
+    const int nthread = 3;
     Thread threads[nthread];
 
     try {

@@ -58,7 +58,9 @@ namespace madness {
 
     /// Hash a single instance
     template <class T>
+#ifndef HAVE_IBMBGP
     static
+#endif
     inline
     typename madness::enable_if<madness::is_fundamental<T>, hashT>::type
     hash(const T& t, hashT initval=0) {
@@ -73,7 +75,9 @@ namespace madness {
     }
 
     template <class T>
+#ifndef HAVE_IBMBGP
     static
+#endif
     inline
     typename madness::disable_if<madness::is_fundamental<T>, hashT>::type
     hash(const T& t, hashT initval=0) {
@@ -84,7 +88,9 @@ namespace madness {
 
     /// Hash a variable sized array
     template <class T>
+#ifndef HAVE_IBMBGP
     static
+#endif
     inline
     typename madness::enable_if<madness::is_fundamental<T>, hashT>::type
     hash(const T* t, std::size_t n, hashT initval=0) {
@@ -103,7 +109,9 @@ namespace madness {
     }
 
     template <class T>
+#ifndef HAVE_IBMBGP
     static
+#endif
     inline
     typename madness::disable_if<madness::is_fundamental<T>, hashT>::type
     hash(const T* t, std::size_t n, hashT initval=0) {

@@ -35,9 +35,14 @@ namespace madness {
 
             /// Returns the process doing IO for given node
 
-            /// Currently assigned in round-robin-fashion to the first nio processes
+            /// Currently assigned in round-robin-fashion to the first nio processes except
+	    /// on IBM BG/P where use every 64'th
             ProcessID io_node(ProcessID rank) const {
+#ifdef HAVE_IBMBGP
+		return ((rank/64)%nio) * 64;
+#else
                 return rank%nio;
+#endif
             }
 
             /// Returns the process doing IO for this node
@@ -76,11 +81,17 @@ namespace madness {
             /// spot that currently needs changing to make that work.
             ///
             /// The default number of IO nodes is one and there is an
-            /// arbitrary maximum of 50 set.
+            /// arbitrary maximum of 50 set. On IBM BG/P the maximum
+	    /// is nproc/64.
             void open(World& world, const char* filename, int nwriter=1) {
                 this->world = &world;
                 nio = nwriter;
-                if (nio > 50) nio = 50; // Sanity?
+#ifdef HAVE_IBMBGP
+		int maxio = (world.size()-1)/64 + 1;
+#else
+		int maxio = 50;
+#endif
+                if (nio > maxio) nio = maxio; // Sanity?
                 if (nio > world.size()) nio = world.size();
 
                 MADNESS_ASSERT(filename);

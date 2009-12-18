@@ -310,7 +310,7 @@ namespace madness {
             }
         }
 
-        ~RMI() {
+        virtual ~RMI() {
             //delete send_counters;
             //delete recv_counters;
             //         if (!MPI::Is_finalized()) {

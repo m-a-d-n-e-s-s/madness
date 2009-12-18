@@ -71,7 +71,18 @@ namespace madness {
     /// Otherwise uses wall_time() in nanoseconds.
     static inline uint64_t cycle_count() {
         uint64_t x;
-#ifdef X86_32
+#ifdef HAVE_IBMBGP
+     unsigned int rx, ry, rz;
+     do
+     {
+         asm volatile ( "mftbu %0" : "=r"(rx) );
+         asm volatile ( "mftb %0" : "=r"(ry) );
+         asm volatile ( "mftbu %0" : "=r"(rz) );
+     }
+     while ( rx != rz );
+     x = rx;
+     x = (x << 32) | ry;
+#elif defined(X86_32)
 __asm__ volatile(".byte 0x0f, 0x31" : "=A"(x));
 #elif defined(X86_64)
         unsigned int a,d;
@@ -101,7 +112,7 @@ __asm__ volatile("rdtsc" : "=a"(a), "=d"(d));
     /// As accurate and lightweight as we can get it, but may not
     /// be any better than the clock system call.
     static inline double cpu_time() {
-#if defined(X86_32) || defined(X86_64)
+#if defined(X86_32) || defined(X86_64) || defined(HAVE_IBMBGP)
         static const double rfreq = 1.0/cpu_frequency();
         return cycle_count()*rfreq;
 #elif defined(_CRAY)
@@ -114,7 +125,10 @@ __asm__ volatile("rdtsc" : "=a"(a), "=d"(d));
 
     /// Do nothing and especially do not touch memory
     inline void cpu_relax() {
+#if defined(X86_32) || defined(X86_64)
         asm volatile("rep;nop" : : : "memory");
+#else
+#endif	
     }
 
 
@@ -122,7 +136,7 @@ __asm__ volatile("rdtsc" : "=a"(a), "=d"(d));
 
     /// Wrapper to ensure desired behavior (and what is that one might ask??)
     static inline void myusleep(int us) {
-#ifdef HAVE_CRAYXT
+#if defined(HAVE_CRAYXT) || defined(HAVE_IBMBGP)
         double secs = us*1e-6;
         double start = cpu_time();
         while (cpu_time()-start < secs) {
@@ -132,8 +146,6 @@ __asm__ volatile("rdtsc" : "=a"(a), "=d"(d));
         usleep(us);
 #endif
     }
-
-
 }
 
 
