@@ -1,6 +1,3 @@
-#ifndef MADNESS_TENSOR_TENSORITER_SPEC_H__INCLUDED
-#define MADNESS_TENSOR_TENSORITER_SPEC_H__INCLUDED
-
 template class TensorIterator<double,double,double>;
 template class TensorIterator<double,double,double_complex>;
 template class TensorIterator<double,double,float>;
@@ -217,5 +214,3 @@ template class TensorIterator<long,long,float>;
 template class TensorIterator<long,long,float_complex>;
 template class TensorIterator<long,long,int>;
 template class TensorIterator<long,long,long>;
-
-#endif // MADNESS_TENSOR_TENSORITER_SPEC_H__INCLUDED

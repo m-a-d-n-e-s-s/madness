@@ -1,9 +1,16 @@
+#if !(defined(X86_32) || defined(X86_64))
+
+#include <iostream>
+int main() {std::cout << "x86 only\n"; return 0;}
+
+#else
+
 #include <tensor/tensor.h>
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
-#include <xmmintrin.h>
+//#include <xmmintrin.h>
 #include <complex>
 
 #include <tensor/mtxmq.h>
@@ -27,7 +34,7 @@ static inline int posix_memalign(void **memptr, std::size_t alignment, std::size
 #define FORTRAN_INTEGER long
 #endif
 typedef FORTRAN_INTEGER integer;
-extern "C" void zgemm_(const char *transa, const char *transb,
+extern "C" void zgemm(const char *transa, const char *transb,
                    const integer *m, const integer *n, const integer *k,
                    const double_complex *alpha, const double_complex *a, const integer *lda,
                    const double_complex *b, const integer *ldb, const double_complex *beta,
@@ -37,7 +44,7 @@ void mTxm_dgemm(long ni, long nj, long nk, double_complex* c, const double_compl
   integer fnj=nj;
   integer fnk=nk;
   double_complex one=1.0;
-  zgemm_("n","t",&fnj,&fni,&fnk,&one,b,&fnj,a,&fni,&one,c,&fnj,1,1);
+  zgemm("n","t",&fnj,&fni,&fnk,&one,b,&fnj,a,&fni,&one,c,&fnj,1,1);
 }
 
 #endif
@@ -71,8 +78,7 @@ void mTxm(long dimi, long dimj, long dimk,
 }
 
 long long rdtsc() {
-  long long x;
-  __asm__ volatile (".byte 0x0f, 0x31" : "=A" (x));
+  long long x = 0;
   return x;
 }
 
@@ -201,3 +207,4 @@ int main() {
 
     return 0;
 }
+#endif

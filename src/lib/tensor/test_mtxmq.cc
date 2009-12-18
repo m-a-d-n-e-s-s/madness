@@ -1,9 +1,16 @@
+#if !(defined(X86_32) || defined(X86_64))
+
+#include <iostream>
+int main() {std::cout << "x86 only\n"; return 0;}
+
+#else
+
 #include <tensor/tensor.h>
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
-#include <xmmintrin.h>
+//#include <xmmintrin.h>
 
 #include <tensor/mtxmq.h>
 
@@ -29,7 +36,7 @@ static inline int posix_memalign(void **memptr, std::size_t alignment, std::size
 #define FORTRAN_INTEGER long
 #endif
 typedef FORTRAN_INTEGER integer;
-extern "C" void dgemm_(const char *transa, const char *transb,
+extern "C" void dgemm(const char *transa, const char *transb,
                    const integer *m, const integer *n, const integer *k,
                    const double *alpha, const double *a, const integer *lda,
                    const double *b, const integer *ldb, const double *beta,
@@ -39,7 +46,7 @@ void mTxm_dgemm(long ni, long nj, long nk, double* c, const double* a, const dou
   integer fnj=nj;
   integer fnk=nk;
   double one=1.0;
-  dgemm_("n","t",&fnj,&fni,&fnk,&one,b,&fnj,a,&fni,&one,c,&fnj,1,1);
+  dgemm("n","t",&fnj,&fni,&fnk,&one,b,&fnj,a,&fni,&one,c,&fnj,1,1);
 }
 
 #endif
@@ -70,8 +77,7 @@ void mTxm(long dimi, long dimj, long dimk,
 }
 
 long long rdtsc() {
-  long long x;
-  __asm__ volatile (".byte 0x0f, 0x31" : "=A" (x));
+  long long x = 0;
   return x;
 }
 
@@ -199,3 +205,5 @@ int main() {
     for (m=2; m<=20; m+=2) timer("(20*20,20)T*(20,m)", 20*20,m,20,a,b,c);
     return 0;
 }
+
+#endif

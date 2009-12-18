@@ -1,10 +1,12 @@
+#ifdef X86_64
+
 #include <tensor/tensor.h>
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
-#include <xmmintrin.h>
-#include <pmmintrin.h>
+//#include <xmmintrin.h>
+//#include <pmmintrin.h>
 
 
 #include <tensor/mtxmq.h>
@@ -278,3 +280,11 @@ int main(int argc, char** argv)
 
 	return 0;
 }
+
+#else
+#include <iostream>
+int main() {
+    std::cout << "only on x8664" << std::endl;
+    return 0;
+}
+#endif
