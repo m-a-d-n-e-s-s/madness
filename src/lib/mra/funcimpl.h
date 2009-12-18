@@ -941,11 +941,12 @@ namespace madness {
             return bc;
         }
 
+	/// Returns the box at level n that contains the given point in simulation coordinates
         Key<NDIM> simpt2key(const coordT& pt, Level n) const {
             Vector<Translation,NDIM> l;
             double twon = std::pow(2.0, double(n));
             for (int i=0; i<NDIM; i++) {
-                l[i] = twon*pt[i];
+                l[i] = Translation(twon*pt[i]);
             }
             return Key<NDIM>(n,l);
         }
@@ -1036,7 +1037,7 @@ namespace madness {
                     long ll = 0;
                     for (int d=0; d<NDIM; d++) {
                         Translation l = key.translation()[d];
-                        long dum = float(l)/q;
+                        long dum = long(float(l)/q);
                         ll += (l - dum*q)*powMNDIM*powq[d] + dum*powM[d];
                         //ll += (l % q)*powM[NDIM]*pow((double)q,NDIM-d-1) + (l/q)*pow((double)M,NDIM-d-1);
 
@@ -1047,7 +1048,7 @@ namespace madness {
                     }
                     //long dum = ll;
                     for (int d=0; d<NDIM; d++) {
-                        Translation l = float(ll) / powN[d];
+                        Translation l = Translation(float(ll) / powN[d]);
                         //Translation l = ll / pow((double)N,NDIM-d-1);
                         s[d ] = Slice(l,l,0);
                         s[d+NDIM] = Slice(0,k-1,1);
@@ -2111,7 +2112,8 @@ namespace madness {
 
                     node.set_norm_tree(-1.0); // Indicates already broadened or result of broadening/refining
 
-                    int ndir = std::pow(3,NDIM);
+                    //int ndir = std::pow(3,NDIM);
+                    int ndir = static_cast<int>(std::pow(static_cast<double>(3), NDIM));
                     std::vector< Future <bool> > v = future_vector_factory<bool>(ndir);
                     keyT neigh;
                     int i=0;

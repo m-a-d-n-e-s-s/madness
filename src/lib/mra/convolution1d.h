@@ -426,7 +426,7 @@ namespace madness {
         const Level natlev;
 
         GaussianConvolution1D(int k, Q coeff, double expnt, double sign=1.0)
-                : Convolution1D<Q>(k,k+11,sign), coeff(coeff), expnt(expnt), natlev(0.5*log(expnt)/log(2.0)+1) {}
+                : Convolution1D<Q>(k,k+11,sign), coeff(coeff), expnt(expnt), natlev(Level(0.5*log(expnt)/log(2.0)+1)) {}
 
         virtual ~GaussianConvolution1D() {}
 

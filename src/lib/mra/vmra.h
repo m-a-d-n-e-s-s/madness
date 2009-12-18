@@ -193,7 +193,7 @@ namespace madness {
         MADNESS_ASSERT(v.size() == (unsigned int)(c.dim(0)));
 
         std::vector< Function<TENSOR_RESULT_TYPE(L,R),NDIM> > vresult(c.dim(1));
-        for (unsigned int i=0; i<c.dim(1); i++) {
+        for (int i=0; i<c.dim(1); i++) {
             vresult[i] = Function<TENSOR_RESULT_TYPE(L,R),NDIM>(FunctionFactory<TENSOR_RESULT_TYPE(L,R),NDIM>(world));
         }
         compress(world, v, false);

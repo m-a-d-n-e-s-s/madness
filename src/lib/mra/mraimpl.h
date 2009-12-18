@@ -752,7 +752,8 @@ namespace madness {
         struct scaleinplace {
             T q;
             scaleinplace() {}
-            scaleinplace(T q) : q(q) {}
+	    // G++ 4.1.2 ICEs on BGP ... scaleinplace(T q) : q(q) {}
+            scaleinplace(T q) {this->q = q;}
             void operator()(const Key<NDIM>& key, Tensor<T>& t) const {
                 t.scale(q);
             }
