@@ -7,17 +7,16 @@
 using namespace madness;
 
 /// ustility functions
-
 /// result = a^T * b. 2 dimension only
 template < typename T>
 Tensor<T> mxm2(Tensor<T> a, Tensor<T> b){
     ///size check
-    MADNESS_ASSERT(a.dim[1] == b.dim[1]);
+    MADNESS_ASSERT(a.dim(1) == b.dim(1));
 
-    Tensor<T> result(a.dim[0],b.dim[0]); 
-    for(int i=0; i < a.dim[0]; i++){
-        for(int j=0; j < b.dim[0]; j++){
-            for(int k=0; k < a.dim[1]; k++){
+    Tensor<T> result(a.dim(0),b.dim(0)); 
+    for(int i=0; i < a.dim(0); i++){
+        for(int j=0; j < b.dim(0); j++){
+            for(int k=0; k < a.dim(1); k++){
                 result(i,j) += a(i,k) * b(k,j);
             }
         }
@@ -34,10 +33,8 @@ class TestSystolicMatrixAlgorithm : public SystolicMatrixAlgorithm<T> {
         : SystolicMatrixAlgorithm<T>(A, tag) 
         , niter(0)
     {
-        madness::print("Testing SystolicMatrixAlgorithm: col ", 
-                       SystolicMatrixAlgorithm<T>::get_coldim(), 
-                       ", row ",
-                       SystolicMatrixAlgorithm<T>::get_rowdim());
+        madness::print("Testing SystolicMatrixAlgorithm: col ", SystolicMatrixAlgorithm<T>::get_coldim(), 
+                       ", row ", SystolicMatrixAlgorithm<T>::get_rowdim());
     }
     
     /* impliment kernel */
@@ -70,26 +67,6 @@ class TestSystolicMatrixAlgorithm : public SystolicMatrixAlgorithm<T> {
         }
     }
 };
-
-/// make identity matrix with same propaties of A
-template <typename T>
-DistributedMatrix<T> idMatrix(const DistributedMatrix<T>& A){
-    int64_t n, m, coltile, rowtile;
-    n = A.coldim();
-    m = A.rowdim();
-    coltile = A.coltile();
-    rowtile = A.rowtile();
-    MADNESS_ASSERT(n==m);
-    DistributedMatrix<T> result(A.get_world(), n, m, coltile, rowtile );
-    
-    int64_t ilo, ihi;
-    result.local_colrange(ilo,ihi);
-    for(int64_t i=0; i<=(ihi-ilo); ++i) {
-        result.data()(i, i+ilo) = 1;
-    }
-    
-    return result;
-}
 
 template <typename T>
 class SystolicEigensolver : public SystolicMatrixAlgorithm<T> {
@@ -180,7 +157,7 @@ public:
 
         if (id == 0){
             tol = std::min( tol, std::min(maxdaij*0.1, maxdaij*maxdaij) ); 
-            tol = std::max( tol, tolmin );
+            tol = std::max( tol, 5.0e-16 );
             niter++;
             //world.gop.max(tol);
             //env.barrier();
@@ -232,27 +209,26 @@ public:
 
     Tensor<T> get_eval() const{
 
-        Tensor<T> result(size);
-        for(int64_t i=0; i<AV.local_coldim(); i++){
-            //for(int64_t j=0; j<size; j++){
-                Tensor<T> ai= AV.data()(i, Slice(0, size-1)); 
-                Tensor<T> vi= AV.data()(i, Slice(size, -1));
-                result[i] = inner(vi, ai);
-    
-                /// check off diagonal element is absolutly zero
-                /*
-                if(i!=j){
-                    //print(inner(vj,ai));
-                    MADNESS_ASSERT(inner(vj,ai)<=tolmin*10e2);
-                }
-                else{
-                    //print("eigen value: \n", aij);
-                    result[i] = aij;
-                }
-                */
-            //}
-        }
-        return result;
+	long int lsize = AV.local_coldim();
+        Tensor<T> result(lsize);
+        for(int64_t i=0; i<lsize; i++){
+		Tensor<T> ai= AV.data()(i, Slice(0, size-1)); 
+		Tensor<T> vi= AV.data()(i, Slice(size, -1));
+		result[i] = inner(vi, ai);
+
+		/// check off diagonal element is absolutly zero
+		/*
+		if(i!=j){
+		//print(inner(vj,ai));
+		MADNESS_ASSERT(inner(vj,ai)<=tolmin*10e2);
+		}
+		else{
+		//print("eigen value: \n", aij);
+		result[i] = aij;
+		}
+		 */
+	}
+	return result;
     }
 
     DistributedMatrix<T> get_evec() const{
@@ -317,7 +293,7 @@ int main(int argc, char** argv) {
     
     try {
         print("Test of testsystolic2.cc\n");
-        print("label size time eig_val");
+        print("result: size time eig_val");
         for (int64_t n=10; n>1; n-=2) {
             DistributedMatrix<double> A = column_distributed_matrix<double>(world, n, n);
 
@@ -332,7 +308,7 @@ int main(int argc, char** argv) {
             }
 
             DistributedMatrix<double>  V = idMatrix(A);
-            DistributedMatrix<double> AV = concatenate_rows(A, V);
+            DistributedMatrix<double> AV = concatenate_rows(A, idMatrix(A));
             SystolicEigensolver<double> sA(AV, 3334);
 
             double t = cpu_time();

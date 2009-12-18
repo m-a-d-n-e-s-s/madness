@@ -62,24 +62,16 @@ namespace madness {
         virtual ~DistributedMatrix() {}
         
         /// Returns the column dimension of the matrix ... i.e., n for A(n,m)
-        int64_t coldim() const {
-            return n;
-        }
+        int64_t coldim() const { return n; }
         
         /// Returns the row dimension of the matrix ... i.e., m for A(n,m)
-        int64_t rowdim() const {
-            return m;
-        }
+        int64_t rowdim() const { return m; }
         
         /// Returns the column tile size
-        int64_t coltile() const {
-            return tilen;
-        }
+        int64_t coltile() const { return tilen; }
         
         /// Returns the row tile size
-        int64_t rowtile() const {
-            return tilem;
-        }
+        int64_t rowtile() const { return tilem; }
         
         /// Returns the no. of processors in the column dimension
         int64_t process_coldim() const {return Pcoldim;}
@@ -251,6 +243,26 @@ namespace madness {
         return c;
     }
     
+    /// make identity matrix with same propaties of A
+    template <typename T>
+    DistributedMatrix<T> idMatrix(const DistributedMatrix<T>& A){
+	    int64_t n, m, coltile, rowtile;
+	    n = A.coldim();
+	    m = A.rowdim();
+	    coltile = A.coltile();
+	    rowtile = A.rowtile();
+	    MADNESS_ASSERT(n==m);
+	    DistributedMatrix<T> result(A.get_world(), n, m, coltile, rowtile );
+
+	    int64_t ilo, ihi;
+	    result.local_colrange(ilo,ihi);
+	    for(int64_t i=0; i<=(ihi-ilo); ++i) {
+		    result.data()(i, i+ilo) = 1;
+	    }
+
+	    return result;
+    }
+
     /// Base class for parallel algorithms that employ a systolic loop to generate all row pairs in parallel
     template <typename T>
     class SystolicMatrixAlgorithm : public TaskInterface {
@@ -319,7 +331,7 @@ namespace madness {
         void unshuffle() {
             if (nlocal <= 0) return;
             Tensor<T>& t = A.data();
-            Tensor<T> tmp(2L, t.dim, false);
+            Tensor<T> tmp(2L, t.ndim(), false);
             T* tp = tmp.ptr();
             for (int64_t i=0; i<nlocal; i++) {
                 memcpy(tp+i*rowdim, iptr[i], rowdim*sizeof(T));
@@ -329,7 +341,7 @@ namespace madness {
                 iptr[i] = &t(i,0);
                 jptr[i] = &t(i+nlocal,0); 
             }
-            memcpy(t.ptr(), tmp.ptr(), t.size*sizeof(T));
+            memcpy(t.ptr(), tmp.ptr(), t.size()*sizeof(T));
             
             if (rank==(nproc-1) && (coldim&0x1)) jptr[nlocal-1] = 0;
         }
@@ -536,7 +548,8 @@ namespace madness {
             } while (!converged(env));
 
             if (env.id() == 0) unshuffle();
-env.barrier(); }
+	    env.barrier(); 
+	}
 
         /// Invoked by the user to run the algorithm with one thread
 
@@ -550,19 +563,14 @@ env.barrier(); }
         /// Returns length of row
         int get_rowdim() const {return rowdim;}
 
-
         /// Returns length of column
         int get_coldim() const {return coldim;}
 
         /// Returns a reference to the world
-        World& get_world() const {
-            return A.get_world();
-        }
+        World& get_world() const { return A.get_world(); }
 
         /// Returns rank of this process in the world
-        ProcessID get_rank() const{
-            return rank;
-        }
+        ProcessID get_rank() const{ return rank; }
     };
 }    
 #endif

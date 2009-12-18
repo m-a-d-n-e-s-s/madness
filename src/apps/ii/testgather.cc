@@ -1,12 +1,9 @@
 #include <world/world.h>
-
 #include <utility>
 #include <tensor/tensor.h>
-
 #include <ii/systolic.h>
 
 using namespace madness;
-
 
 template <typename T>
 class TestSystolicMatrixAlgorithm : public SystolicMatrixAlgorithm<T> {
@@ -27,7 +24,6 @@ public:
     
     /* impliment kernel */
     /* this time, check row i,j element for all rows */
-
     void kernel(int i, int j, T* rowi, T* rowj) {
         for (int k=0; k < SystolicMatrixAlgorithm<T>::get_rowdim(); k++) {
             MADNESS_ASSERT(rowi[k] == i+1);
