@@ -1294,7 +1294,7 @@ namespace madness {
 
 }
 
+#include <mra/functypedefs.h>
 #include <mra/vmra.h>
-
 
 #endif // MADNESS_MRA_MRA_H__INCLUDED
