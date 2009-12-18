@@ -20,7 +20,6 @@ static const double thresh1 = thresh*0.1;
 
 static std::complex<double> f(const coordT& r)
 {
-    const double x=r[0];
     return std::complex<double>(0.0,2.0);
 }
 
