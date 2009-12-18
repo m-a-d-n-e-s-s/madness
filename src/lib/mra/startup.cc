@@ -69,7 +69,7 @@ namespace madness {
         std::cout << std::scientific;
         std::cout << std::showpoint;
         //std::cout << std::showpos;
-        std::cout << std::setprecision(2);
+        std::cout << std::setprecision(6);
 
 #ifdef FUNCTION_INSTANTIATE_1
         FunctionDefaults<1>::set_defaults(world);
@@ -96,7 +96,7 @@ namespace madness {
         Displacements<6> d6;
 #endif
 
-        if (world.rank() == 0) print("loading coeffs, etc.");
+        //if (world.rank() == 0) print("loading coeffs, etc.");
 
         load_coeffs(world, data_dir);
         load_quadrature(world, data_dir);
@@ -106,11 +106,11 @@ namespace madness {
         legendre_scaling_functions(0.0,0,djunk);
 
 
-        if (world.rank() == 0) print("testing coeffs, etc.");
+        //if (world.rank() == 0) print("testing coeffs, etc.");
         MADNESS_ASSERT(gauss_legendre_test());
         MADNESS_ASSERT(test_two_scale_coefficients());
 
-        if (world.rank() == 0) print("done with startup");
+        //if (world.rank() == 0) print("done with startup");
 
         world.gop.fence();
     }

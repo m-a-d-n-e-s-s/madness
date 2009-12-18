@@ -5,6 +5,9 @@
 /// \brief Provides typedefs to hide use of templates and to increase interoperability
 
 namespace madness {
+    typedef Tensor<double> real_tensor;
+    typedef Tensor<double_complex> complex_tensor;
+
     typedef Vector<double,1> coord_1d;
     typedef Vector<double,2> coord_2d;
     typedef Vector<double,3> coord_3d;
@@ -96,6 +99,19 @@ namespace madness {
     typedef SharedPtr< WorldDCPmapInterface< Key<5> > > pmap_5d;
     typedef SharedPtr< WorldDCPmapInterface< Key<6> > > pmap_6d;
 
+    typedef FunctionImpl<double,1> real_funcimpl_1d;
+    typedef FunctionImpl<double,2> real_funcimpl_2d;
+    typedef FunctionImpl<double,3> real_funcimpl_3d;
+    typedef FunctionImpl<double,4> real_funcimpl_4d;
+    typedef FunctionImpl<double,5> real_funcimpl_5d;
+    typedef FunctionImpl<double,6> real_funcimpl_6d;
+    
+    typedef FunctionImpl<double_complex,1> complex_funcimpl_1d;
+    typedef FunctionImpl<double_complex,2> complex_funcimpl_2d;
+    typedef FunctionImpl<double_complex,3> complex_funcimpl_3d;
+    typedef FunctionImpl<double_complex,4> complex_funcimpl_4d;
+    typedef FunctionImpl<double_complex,5> complex_funcimpl_5d;
+    typedef FunctionImpl<double_complex,6> complex_funcimpl_6d;
 } 
 
 #endif  // MADNESS_MRA_MRA_H__INCLUDED
