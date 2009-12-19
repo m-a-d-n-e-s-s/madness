@@ -199,7 +199,7 @@ namespace madness {
 
 
     class WorldProfileObj {
-        static WorldProfileObj* call_stack;  ///< Current top of this thread's call stack
+        static __thread WorldProfileObj* call_stack;  ///< Current top of this thread's call stack
         WorldProfileObj* const prev; ///< Pointer to the entry that called me
         const int id;                ///< My entry in the world profiler
         const double cpu_base;       ///< Time that I started executing
