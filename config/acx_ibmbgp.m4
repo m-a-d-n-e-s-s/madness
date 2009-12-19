@@ -22,7 +22,7 @@ AC_DEFUN([ACX_IBMBGP], [
                         echo "Choosing MPICXX=mpicxx for IBM BG/P"
                         MPICXX=mpicxx;
                 fi
-                BIND="1 0 2"
+                BIND="-1 -1 -1"
                 AC_DEFINE(USE_SPINLOCKS, [1], [Define if should use spinlocks])
         fi
 ])
