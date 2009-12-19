@@ -112,8 +112,6 @@ namespace madness {
             ///
             /// unless otherwise specified, do nothing
             virtual void destroy(T &) const {}
-
-	    virtual ~AbstractVectorSpace(){}
     };
 
     /// Real part of a real number
@@ -198,8 +196,6 @@ namespace madness {
 
                 return ret;
             }
-
-	    virtual ~VectorSpace(){}
     };
 
     /// A vector space using MADNESS Functions
@@ -244,8 +240,6 @@ namespace madness {
             virtual void destroy(Function<scalar_type, NDIM> &f) const {
                 f.clear();
             }
-
-	    virtual ~FunctionSpace(){}
     };
 
     /// A vector space using MADNESS Vectors of MADNESS Functions
@@ -305,8 +299,6 @@ namespace madness {
                 for(int i = 0; i < VDIM; ++i)
                     f[i].clear();
             }
-
-	    virtual ~VectorOfFunctionsSpace() {}
     };
 
     /// A GMRES solver routine for linear systems, Ax == b.
