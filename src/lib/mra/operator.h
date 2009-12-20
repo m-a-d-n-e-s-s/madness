@@ -207,7 +207,7 @@ namespace madness {
                 prodT *= ops[d]->Tnormf;
 
             }
-            if (n) prodR = sqrt(prodR*prodR - prodT*prodT);
+            if (n) prodR = sqrt(std::max(prodR*prodR - prodT*prodT,0.0));
 
             if (prodR < 1e-8*prodT) {
                 double prod=1.0, sum=0.0;
@@ -269,6 +269,7 @@ namespace madness {
                 const double munorm = op.muops[mu].norm;
                 norm += munorm*munorm;
             }
+	    //print("getop", n, d, norm);
             op.norm = sqrt(norm);
             data.set(n, d, op);
             return data.getptr(n,d);
@@ -452,6 +453,8 @@ namespace madness {
         double hi = cell_width.normf(); // Diagonal width of cell
         Tensor<double> coeff, expnt;
         bsh_fit_ndim(NDIM, mu, lo, hi, eps, &coeff, &expnt, false);
+	//print(coeff);
+	//print(expnt);
         return SeparatedConvolution<Q,NDIM>(world, k, coeff, expnt);
     }
 

@@ -2298,7 +2298,6 @@ namespace madness {
             double fac = 10.0; //3.0; // 10.0 seems good for qmprop ... 3.0 OK for others
             double cnorm = c.normf();
             const long lmax = 1L << (key.level()-1);
-            const std::string apply_name = "apply";
 
             const std::vector<keyT>& disp = op->get_disp(key.level());
             for (typename std::vector<keyT>::const_iterator it=disp.begin(); it != disp.end(); ++it) {
@@ -2311,7 +2310,7 @@ namespace madness {
                 bool notdoit = false;
                 for (int i=0; i<NDIM; i++) {
                     if (bc(i,0) == 1) {
-                        if (d.translation()[i]> lmax || d.translation()[i] <= -lmax)
+                        if (d.translation()[i]> lmax || d.translation()[i] <= -lmax) // SHOULD BREAK BE NESTED IN HERE?
                             notdoit = true;
                         break;
                     }
@@ -2323,6 +2322,8 @@ namespace madness {
                     // working assumption here is that the operator is isotropic and
                     // montonically decreasing with distance
                     double tol = truncate_tol(thresh, key);
+
+		    //print("APP", key, dest, cnorm, opnorm);
                     
                     if (cnorm*opnorm> tol/fac) {
                         

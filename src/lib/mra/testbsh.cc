@@ -132,7 +132,8 @@ void test_bsh(World& world) {
     f.reconstruct();
 
     double norm = f.trace();
-    print("norm of initial function", norm, f.err(Gaussian<T,3>(origin, expnt, coeff)));
+    double ferr = f.err(Gaussian<T,3>(origin, expnt, coeff));
+    if (world.rank() == 0) print("norm of initial function", norm, ferr);
 
 
     // expnt=100 err=1e-9 use lo=2e-2 = .2/sqrt(expnt) and eps=5e-9
@@ -152,13 +153,14 @@ void test_bsh(World& world) {
     std::cout.precision(8);
 
     Function<T,3> ff = copy(f);
-    print("applying - 1");
+    if (world.rank() == 0) print("applying - 1");
     double start = cpu_time();
     Function<T,3> opf = apply(op,ff);
-    print("done",cpu_time()-start);
+    if (world.rank() == 0) print("done",cpu_time()-start);
     ff.clear();
     opf.verify_tree();
-    print("err in opf", opf.err(Qfunc()));
+    double opferr = opf.err(Qfunc());
+     if (world.rank() == 0) print("err in opf", opferr);
 
     return;
 
