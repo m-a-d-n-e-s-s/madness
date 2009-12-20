@@ -120,10 +120,12 @@ to link against those libraries).  Some examples follow.
 
 #!/bin/bash
 export LIBS=""
-export LIBS="${LIBS} -L/soft/apps/LAPACK -llapack_bgp"
-export LIBS="${LIBS} -L/soft/apps/BLAS -lblas_bgp"
-export LIBS="${LIBS} -L/soft/apps/ibmcmp-aug2009/xlf/bg/11.1/lib -lxlf90 -lxlopt -lxl"
-export LIBS="${LIBS} -L/soft/apps/ibmcmp-aug2009/xlsmp/bg/1.7/bglib -lxlsmp"
+export LIBS="${LIBS} -L/home/robert/install/lib -llapack_bgp -lblas_bgp"
+
+#export LIBS="${LIBS} -L/soft/apps/ESSL-4.4.1-0/lib -lesslbg"
+export LIBS="${LIBS} -L/soft/apps/ibmcmp-aug2009/xlf/bg/11.1/lib -lxlf90_r -lxlomp_ser -lxlfmath"
+export LIBS="${LIBS} -L/soft/apps/ibmcmp-aug2009/xlsmp/bg/1.7/bglib -lxlomp_ser -lxl"
+
 export LIBS="${LIBS} -L/bgsys/drivers/ppcfloor/gnu-linux/powerpc-bgp-linux/lib -lrt"
 export LIBS="${LIBS} -lpthread"
 
