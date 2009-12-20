@@ -73,7 +73,16 @@
 #  define dpotrf_ dpotrf
 
 #  define dtrsm_ dtrsm
+
+#  define dlamch_ dlamch
+#  define slamch_ slamch
 #endif
+
+extern "C"
+    double dlamch(const char* mode, int modelen);
+
+extern "C"
+    float slamch(const char* mode, int modelen);
 
 
 extern "C"

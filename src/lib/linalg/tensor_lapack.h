@@ -43,34 +43,44 @@
 
 namespace madness {
 
+    /// Computes singular value decomposition of tensor
     template <typename T>
     void svd(const Tensor<T>& a, Tensor<T>* U,
              Tensor< typename Tensor<T>::scalar_type >* s, Tensor<T>* VT);
 
+    /// Solves linear equations
     template <typename T>
     void gesv(const Tensor<T>& a, const Tensor<T>& b, Tensor<T>* x);
 
+    /// Solves linear equations using least squares
     template <typename T>
     void gelss(const Tensor<T>& a, const Tensor<T>& b, double rcond,
                Tensor<T>* x, Tensor< typename Tensor<T>::scalar_type >* s,
                long *rank, Tensor<typename Tensor<T>::scalar_type>* sumsq = NULL);
 
+    /// Solves symmetric or Hermitian eigenvalue problem
     template <typename T>
     void syev(const Tensor<T>& A,
               Tensor<T>* V, Tensor< typename Tensor<T>::scalar_type >* e);
 
+    /// Solves symmetric or Hermitian generalized eigenvalue problem
     template <typename T>
     void sygv(const Tensor<T>& A, const Tensor<T>& B, int itype,
               Tensor<T>* V, Tensor< typename Tensor<T>::scalar_type >* e);
 
+    /// Cholesky factorization
     template <typename T>
     void cholesky(const Tensor<T>& A, Tensor<T>* L);
 
+    /// Dunno
     template <typename T>
     void triangular_solve(const Tensor<T>& L, Tensor<T>& B, 
                           const char* side, const char* uplo, const char* transa);
 
     bool test_tensor_lapack();
+
+    /// Main program must call this before going multithreaded due to static data in dlamch
+    void init_tensor_lapack();
 }
 
 #endif // MADNESS_LINALG_TENSOR_LAPACK_H__INCLUDED

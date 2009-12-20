@@ -65,6 +65,8 @@ namespace madness {
 
         world.gop.fence();
 
+	init_tensor_lapack();
+
         std::cout << std::boolalpha;  // Pretty printing of booleans
         std::cout << std::scientific;
         std::cout << std::showpoint;

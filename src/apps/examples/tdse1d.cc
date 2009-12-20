@@ -261,7 +261,7 @@ void print_info(World& world, const complex_functionT& psi, int step) {
         printf("------ -------- ------------ ------------ ------------ ------------ ------------ ------------ ----- ---------\n");
     }
     printf("%6d %8.4f %12.8f %12.9f %12.9f %12.9f %12.9f %12.9f %4d %9ld\n",
-           step, current_time, atom_position(), norm, ke, pe, ke+pe, err, int(psi.max_depth()), psi.size());
+           step, current_time, atom_position(), norm, ke, pe, ke+pe, err, int(psi.max_depth()), long(psi.size()));
 }
 
 
@@ -409,7 +409,7 @@ int main(int argc, char** argv) {
     std::cout.flush();
     std::cin >> tstep;
 
-    int nstep = velocity==0 ? 100 : (L - 10 - x0)/velocity/tstep;
+    int nstep = (velocity==0) ? 100 : int((L - 10 - x0)/velocity/tstep);
 
     print("");
     print(" Wavelet order", k);

@@ -584,7 +584,7 @@ void propagate(World& world, functionT& pote, functionT& potn, functionT& pot, i
 
     zero_field_time = 20.0*time_step;
 
-    int nstep = (param.target_time + zero_field_time)/time_step + 1;
+    int nstep = int((param.target_time + zero_field_time)/time_step + 1);
 
     // Ensure everyone has the same data
     world.gop.broadcast(c);

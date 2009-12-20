@@ -639,6 +639,17 @@ namespace madness {
         return (LLT - aa).normf()/n;
     }
 
+    void init_tensor_lapack() {
+	char e[] = "e";
+	dlamch_(e,1);
+	slamch_(e,1);
+
+// 	char modes[] = "esbpnrmulo";
+// 	for (int i=0; i<10; i++) {
+// 	    cout << "init_tensor_lapack: dlamch: " << modes[i] << " = " << dlamch_(modes+i,1) << endl;
+// 	}
+    }
+
 
     /// Test the Tensor-LAPACK interface ... currently always returns true!
     bool test_tensor_lapack() {

@@ -935,7 +935,7 @@ void test_qm(World& world) {
     double tcrit = 2*PI/(c*c);
     double tstep = 3*tcrit;
 
-    int nstep = 100.0/tstep;
+    int nstep = int(100.0/tstep);
     tstep = 100.0/nstep; // so we finish exactly at 100.0
 
     // For the purpose of testing there is no need to propagate 100 time units.
