@@ -32,8 +32,8 @@ double imag(double x) {return 0.0;}
 template <typename Q>
 Tensor< std::complex<Q> > tensor_real2complex(const Tensor<Q>& r)
 {
-  Tensor< std::complex<Q> > c(r.ndim, r.dim);
-  BINARY_OPTIMIZED_ITERATOR(Q, r, std::complex<Q>, c, *_p1 = std::complex<Q>(*_p0,0.0););
+  Tensor< std::complex<Q> > c(r.ndim(), r.dims());
+  BINARY_OPTIMIZED_ITERATOR(const Q, r, std::complex<Q>, c, *_p1 = std::complex<Q>(*_p0,0.0););
   return c;
 }
 //***************************************************************************
@@ -42,8 +42,8 @@ Tensor< std::complex<Q> > tensor_real2complex(const Tensor<Q>& r)
 template <typename Q>
 Tensor<Q> tensor_real(const Tensor< std::complex<Q> >& c)
 {
-  Tensor<Q> r(c.ndim, c.dim);
-  BINARY_OPTIMIZED_ITERATOR(Q, r, std::complex<Q>, c, *_p0 = real(*_p1););
+  Tensor<Q> r(c.ndim(), c.dims());
+  BINARY_OPTIMIZED_ITERATOR(Q, r, const std::complex<Q>, c, *_p0 = real(*_p1););
   return r;
 }
 //***************************************************************************
@@ -52,8 +52,8 @@ Tensor<Q> tensor_real(const Tensor< std::complex<Q> >& c)
 template <typename Q>
 Tensor<Q> tensor_imag(const Tensor< std::complex<Q> >& c)
 {
-  Tensor<Q> r(c.ndim, c.dim);
-  BINARY_OPTIMIZED_ITERATOR(Q, r, std::complex<Q>, c, *_p0 = imag(*_p1););
+  Tensor<Q> r(c.ndim(), c.dims());
+  BINARY_OPTIMIZED_ITERATOR(Q, r, const std::complex<Q>, c, *_p0 = imag(*_p1););
   return r;
 }
 //***************************************************************************
@@ -62,8 +62,8 @@ Tensor<Q> tensor_imag(const Tensor< std::complex<Q> >& c)
 template <typename Q>
 Tensor<Q> tensor_abs(const Tensor< std::complex<Q> >& c)
 {
-  Tensor<Q> r(c.ndim, c.dim);
-  BINARY_OPTIMIZED_ITERATOR(Q, r, std::complex<Q>, c, *_p0 = abs(*_p1););
+  Tensor<Q> r(c.ndim(), c.dims());
+  BINARY_OPTIMIZED_ITERATOR(Q, r, const std::complex<Q>, c, *_p0 = abs(*_p1););
   return r;
 }
 //***************************************************************************
@@ -99,8 +99,8 @@ struct real_op
   typedef typename TensorTypeData<Q>::scalar_type resultT;
   Tensor<resultT> operator()(const Key<NDIM>& key, const Tensor<Q>& t) const
   {
-    Tensor<resultT> result(t.ndim, t.dim);
-    BINARY_OPTIMIZED_ITERATOR(Q, t, resultT, result, *_p1 = real(*_p0););
+    Tensor<resultT> result(t.ndim(), t.dims());
+    BINARY_OPTIMIZED_ITERATOR(const Q, t, resultT, result, *_p1 = real(*_p0););
     return result;
   }
   template <typename Archive>
@@ -123,8 +123,8 @@ struct imag_op
   typedef typename TensorTypeData<Q>::scalar_type resultT;
   Tensor<resultT> operator()(const Key<NDIM>& key, const Tensor<Q>& t) const
   {
-    Tensor<resultT> result(t.ndim, t.dim);
-    BINARY_OPTIMIZED_ITERATOR(Q, t, resultT, result, *_p1 = imag(*_p0););
+    Tensor<resultT> result(t.ndim(), t.dims());
+    BINARY_OPTIMIZED_ITERATOR(const Q, t, resultT, result, *_p1 = imag(*_p0););
     return result;
   }
   template <typename Archive>
@@ -147,8 +147,8 @@ struct abs_op
   typedef typename TensorTypeData<Q>::scalar_type resultT;
   Tensor<resultT> operator()(const Key<NDIM>& key, const Tensor<Q>& t) const
   {
-    Tensor<resultT> result(t.ndim, t.dim);
-    BINARY_OPTIMIZED_ITERATOR(Q, t, resultT, result, *_p1 = abs(*_p0););
+    Tensor<resultT> result(t.ndim(), t.dims());
+    BINARY_OPTIMIZED_ITERATOR(const Q, t, resultT, result, *_p1 = abs(*_p0););
     return result;
   }
   template <typename Archive>
@@ -171,8 +171,8 @@ struct conj_op
   typedef Q resultT;
   Tensor<resultT> operator()(const Key<NDIM>& key, const Tensor<Q>& t) const
   {
-    Tensor<resultT> result(t.ndim, t.dim);
-    BINARY_OPTIMIZED_ITERATOR(Q, t, resultT, result, *_p1 = conj(*_p0););
+    Tensor<resultT> result(t.ndim(), t.dims());
+    BINARY_OPTIMIZED_ITERATOR(const Q, t, resultT, result, *_p1 = conj(*_p0););
     return result;
   }
   template <typename Archive>
@@ -195,8 +195,8 @@ struct function_real2complex_op
   typedef std::complex<Q> resultT;
   Tensor<resultT> operator()(const Key<NDIM>& key, const Tensor<Q>& t) const
   {
-    Tensor<resultT> result(t.ndim, t.dim);
-    BINARY_OPTIMIZED_ITERATOR(Q, t, resultT, result, *_p1 = resultT(*_p0,0.0););
+    Tensor<resultT> result(t.ndim(), t.dims());
+    BINARY_OPTIMIZED_ITERATOR(const Q, t, resultT, result, *_p1 = resultT(*_p0,0.0););
     return result;
   }
   template <typename Archive>
