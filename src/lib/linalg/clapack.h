@@ -79,10 +79,10 @@
 #endif
 
 extern "C"
-    double dlamch(const char* mode, int modelen);
+    double dlamch_(const char* mode, int modelen);
 
 extern "C"
-    float slamch(const char* mode, int modelen);
+    float slamch_(const char* mode, int modelen);
 
 
 extern "C"
