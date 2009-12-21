@@ -4,6 +4,8 @@ if CAN_BUILD_DOC
 .PHONY: all
 all:
 	$(DOXYGEN) doxygen.cfg
+	cd latex
+	make
 
 
 .PHONY: clean
