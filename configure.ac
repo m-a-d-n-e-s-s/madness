@@ -161,6 +161,10 @@ AC_CHECK_PROG([HAVE_PDFLATEX],[pdflatex],[YES],[NO])
 if test $HAVE_PDFLATEX = YES; then
    AC_PATH_PROG(PDFLATEX,pdflatex)
 fi
+AC_CHECK_PROG([HAVE_LATEX],[latex],[YES],[NO])
+if test $HAVE_LATEX = YES; then
+   AC_PATH_PROG(LATEX,latex)
+fi
 AM_CONDITIONAL([CAN_BUILD_DOC], [test $HAVE_DOXYGEN = YES])
 
 AC_HEADER_TIME
@@ -304,8 +308,9 @@ AC_CONFIG_FILES([
     src/apps/Makefile
        src/apps/examples/Makefile
        src/apps/tdse/Makefile
-       src/apps/moldft/Makefile
        src/apps/hf/Makefile
+       src/apps/exciting/Makefile
+       src/apps/moldft/Makefile
     doc/Makefile
     doc/doxygen.cfg
 ])
