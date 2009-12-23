@@ -67,7 +67,6 @@ namespace madness {
 
 /// \file tensor.cc
 /// \brief Completes the implementation of Tensor and instantiates all specializations for fast compiles.
-/// \ingroup libraries
 /// \ingroup tensor
 /// @{
 
