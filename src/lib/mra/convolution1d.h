@@ -8,6 +8,11 @@
 #include <tensor/aligned.h>
 #include <linalg/tensor_lapack.h>
 
+/// \file mra/convolution1d.h
+/// \brief Compuates most matrix elements over 1D operators (including Gaussians)
+
+/// \ingroup function
+
 namespace madness {
 
     void aligned_add(long n, double* restrict a, const double* restrict b);

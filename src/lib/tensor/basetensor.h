@@ -48,26 +48,29 @@
 #endif
 
 namespace madness {
-    /// The base class for tensors defines generic capabilities.
+    /*!
+      \ingroup tensor
+      \brief The base class for tensors defines generic capabilities.
 
-    /// The base class manages the size, dimension and
-    /// stride information, and provides operations to manipulate
-    /// them.
-    ///
-    /// It also provides methods for type-safe operation on tensors using
-    /// just the base class pointers. This interface is primarily useful
-    /// only to the interface to Python, since Python is largely neutral
-    /// to (and ignorant of) the type.  These are still being
-    /// re-implemented after the big clean up.
-    ///
-    /// Since the base tensor class is virtual, you cannot have an
-    /// instance of it.  Thus, in addition to methods that return information
-    /// or perform checks, there are two types of base tensor
-    /// operations.
-    /// - Inplace operations change \c *this , and return \c void .
-    /// - Operations that must return a new tensor return a pointer to a tensor
-    ///   allocated with \c new on the heap.  The caller is responsible for
-    ///   eventually freeing the memory using \c delete .
+      The base class manages the size, dimension and
+      stride information, and provides operations to manipulate
+      them.
+      
+      It also provides methods for type-safe operation on tensors using
+      just the base class pointers. This interface is primarily useful
+      only to the interface to Python, since Python is largely neutral
+      to (and ignorant of) the type.  These are still being
+      re-implemented after the big clean up.
+      
+      Since the base tensor class is virtual, you cannot have an
+      instance of it.  Thus, in addition to methods that return information
+      or perform checks, there are two types of base tensor
+      operations.
+        - Inplace operations change \c *this , and return \c void .
+        - Operations that must return a new tensor return a pointer to a tensor
+          allocated with \c new on the heap.  The caller is responsible for
+          eventually freeing the memory using \c delete .
+    */
     class BaseTensor {
     private:
 #ifdef TENSOR_INSTANCE_COUNT

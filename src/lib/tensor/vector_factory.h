@@ -41,6 +41,8 @@
 /// \file vector_factory.h
 /// \brief Declares and implements factories for short vectors
 
+/// \ingroup tensor
+
 namespace madness {
 
     /// Returns a std::vector<T> initialized from the arguments

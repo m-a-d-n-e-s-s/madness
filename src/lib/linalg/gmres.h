@@ -44,6 +44,8 @@
 /// \brief Defines a general operator interface and a templated GMRES solver
 /// for solving linear equations.
 ///
+/// \ingroup solvers
+///
 /// An AbstractVectorSpace class is also defined to guarantee a uniform way
 /// for linear algebra routines to access common operations like norm, inner
 /// product etc.  Implementations for MADNESS Vectors and Functions are

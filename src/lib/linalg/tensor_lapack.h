@@ -38,12 +38,16 @@
 
 #include <tensor/tensor.h>
 
-/// \file tensor_lapack.h
-/// \brief Prototypes for a partial interface from Tensor to LAPACK
+/*!
+  \file tensor_lapack.h
+  \brief Prototypes for a partial interface from Tensor to LAPACK
+
+  \ingroup tensor
+*/
 
 namespace madness {
 
-    /// Computes singular value decomposition of tensor
+    /// Computes singular value decomposition of matrix
     template <typename T>
     void svd(const Tensor<T>& a, Tensor<T>* U,
              Tensor< typename Tensor<T>::scalar_type >* s, Tensor<T>* VT);
@@ -77,9 +81,10 @@ namespace madness {
     void triangular_solve(const Tensor<T>& L, Tensor<T>& B, 
                           const char* side, const char* uplo, const char* transa);
 
+    /// Runs the tensor test code, returns true on success
     bool test_tensor_lapack();
 
-    /// Main program must call this before going multithreaded due to static data in dlamch
+    /// World/MRA initialization calls this before going multithreaded due to static data in \c dlamch
     void init_tensor_lapack();
 }
 

@@ -6,36 +6,42 @@
 #include <iostream>
 #include <linalg/tensor_lapack.h>
 
-/// \file solvers.h
-/// \brief Defines interfaces for optimization and non-linear equation solvers
+/*!
+  \file solvers.h
+  \brief Defines interfaces for optimization and non-linear equation solvers
+
+  \defgroup solvers Iterative solvers for linear and non-linear equations, including optimization
+*/
 
 namespace madness {
 
-    /// Solves the KAIN equations for coefficients to compute the next vector
-
-    /// \verbatim
-    ///   Wish to solve f(x)=0 with x and f(x) vectors 1..n
-    ///
-    ///   Define (with i,j referring to the Krylov subspace and m the current iteration):
-    ///
-    ///   Q(i,j) = <xi|fj>
-    ///   A(i,j) = <xi-xm | fj-fm> = Q(i,j) - Q(m,j) - Q(i,m) + Q(m,m)
-    ///     b(i) =-<xi-xm | fm> = -Q(i,m) + Q(m,m)
-    ///
-    ///   We solve the equation
-    ///
-    ///   A c = b
-    ///
-    ///   and the correction to vector m
-    ///
-    ///   . C
-    ///   .   interior = sum(i<m)[ c(i)*(x(i)-x(m)) ] = sum(i<m)[c(i)*x(i)] - x[m]*sum(i<m)[c(i)]
-    ///   .   exterior = -f(m) - sum(i<m)[ c(i)*(f(i)-f(m)) ] = -f(m) - sum(i<m)[c(i)*f(i)] + f(m)*sum(i<m)[c(i)]
-    ///   . New vector
-    ///   .   define C = sum(i<m)(c(i))  (note less than)
-    ///   .   define c(m) = 1.0 - C
-    ///   .   xnew = sum(i<=m) [ c(i)*(x(i) - f(i)) ]
-    /// \endverbatim
+    /*!
+      Solves the KAIN equations for coefficients to compute the next vector
+      
+      \verbatim
+      Wish to solve f(x)=0 with x and f(x) vectors 1..n
+      
+      Define (with i,j referring to the Krylov subspace and m the current iteration):
+      
+      Q(i,j) = <xi|fj>
+      A(i,j) = <xi-xm | fj-fm> = Q(i,j) - Q(m,j) - Q(i,m) + Q(m,m)
+      b(i) =-<xi-xm | fm> = -Q(i,m) + Q(m,m)
+      
+      We solve the equation
+      
+      A c = b
+      
+      and the correction to vector m
+      
+      . C
+      .   interior = sum(i<m)[ c(i)*(x(i)-x(m)) ] = sum(i<m)[c(i)*x(i)] - x[m]*sum(i<m)[c(i)]
+      .   exterior = -f(m) - sum(i<m)[ c(i)*(f(i)-f(m)) ] = -f(m) - sum(i<m)[c(i)*f(i)] + f(m)*sum(i<m)[c(i)]
+      . New vector
+      .   define C = sum(i<m)(c(i))  (note less than)
+      .   define c(m) = 1.0 - C
+      .   xnew = sum(i<=m) [ c(i)*(x(i) - f(i)) ]
+      \endverbatim
+    */
     template <typename T>
     Tensor<T> KAIN(const Tensor<T>& Q, double rcond=1e-12) {
         const int nvec = Q.dim(0);

@@ -37,6 +37,15 @@
 #ifndef MADNESS_MRA_MRA_H__INCLUDED
 #define MADNESS_MRA_MRA_H__INCLUDED
 
+/*!
+  \file mra/mra.h
+  \brief Main include file for MADNESS and defines \c Function interface
+
+  \ingroup libraries
+  \ingroup mra
+ */
+
+
 #include <world/world.h>
 #include <misc/misc.h>
 #include <tensor/tensor.h>
@@ -62,7 +71,9 @@ namespace madness {
 #include <mra/loadbal.h>
 
 namespace madness {
+    /// \ingroup function
 
+    /// A multiresolution adaptive numerical function
     template <typename T, int NDIM>
     class Function : public ParallelSerializableObject {
         // We make all of the content of Function and FunctionImpl
@@ -210,7 +221,7 @@ namespace madness {
             T result;
             if (impl->world.rank() == 0) result = eval(xuser).get();
             impl->world.gop.broadcast(result);
-            impl->world.gop.fence();
+            //impl->world.gop.fence();
             return result;
         }
 

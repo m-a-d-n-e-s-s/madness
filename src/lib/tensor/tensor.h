@@ -35,8 +35,15 @@
 #ifndef MADNESS_TENSOR_TENSOR_H__INCLUDED
 #define MADNESS_TENSOR_TENSOR_H__INCLUDED
 
-/// \file tensor.h
-/// \brief Defines and implements most of Tensor
+/*!
+  \file tensor.h
+  \brief Defines and implements most of Tensor
+  \ingroup libraries
+  \ingroup tensor
+
+  @{
+*/
+
  
 #include <madness_config.h>
 #include <misc/ran.h>
@@ -118,9 +125,9 @@ namespace madness {
     template <class T> class SliceTensor;
 
     /*!
-      \brief  A tensor or multidimensional array of numeric data
+      \ingroup tensor
 
-      It is only a multi-dimensional array and does not incorporate any concepts
+      \brief A tensor is a multi-dimensional array and does not incorporate any concepts
       of covariance and contravariance.
     
       \par Introduction
@@ -250,13 +257,14 @@ namespace madness {
      elements in a dimension but reversed, and all elements in all
      dimensions, respectively.
 
-     \par tensor_iteration Iteration and algorithms
+     \par Iteration and algorithms
     
      See tensor_macros.h for documentation on the easiest mechanisms for iteration over
      elements of tensors and tips for optimization.  See \c TensorIterator for
      the most general form of iteration.
-
     */
+
+    /// Tensor is a multidimension array
     template <class T> class Tensor : public BaseTensor {
         template <class U> friend class SliceTensor;
 
@@ -1689,6 +1697,8 @@ namespace madness {
         BINARY_OPTIMIZED_ITERATOR(T,result,const T,t,*_p0 = std::conj(*_p1));
         return result;
     }
-
 }
+
+// @}
+
 #endif // MADNESS_TENSOR_TENSOR_H__INCLUDED

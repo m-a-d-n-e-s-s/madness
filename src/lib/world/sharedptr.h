@@ -37,9 +37,8 @@
 #define MADNESS_WORLD_SHAREDPTR_H__INCLUDED
 
 /// \file sharedptr.h
-/// \brief Minimal, modified (and renamed) Boost-like SharedPtr & SharedArray
+/// \brief Minimal, thread safe, modified (and renamed) Boost-like SharedPtr & SharedArray
 
-/// This implementation is thread safe.
 
 #include <iostream>
 #include <world/worldexc.h>

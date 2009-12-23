@@ -34,6 +34,7 @@
 
 /// \file slice.h
 /// \brief Declares and implements Slice
+/// \ingroup tensor
 
 
 #ifndef MADNESS_TENSOR_SLICE_H__INCLUDED
@@ -44,6 +45,8 @@
 namespace madness {
 
     /*!
+      \ingroup tensor
+
       \brief A slice defines a sub-range or patch of a dimension.
 
       \par Introduction
@@ -118,9 +121,9 @@ namespace madness {
 
     std::ostream& operator<<(std::ostream& stream, const Slice& s);
 
-    static const Slice _(0,-1,1);	// Entire dimension
-    static const std::vector<Slice> ___ = vector_factory(_,_,_,_,_,_); // Entire tensor
-    static const Slice _reverse(-1,0,-1); // Reversed dimension
+    static const Slice _(0,-1,1);	/// Entire dimension
+    static const std::vector<Slice> ___ = vector_factory(_,_,_,_,_,_); /// Entire tensor
+    static const Slice _reverse(-1,0,-1); /// Reversed dimension
 
 }
 

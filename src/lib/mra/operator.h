@@ -1,6 +1,11 @@
 #ifndef MADNESS_MRA_OPERATOR_H__INCLUDED
 #define MADNESS_MRA_OPERATOR_H__INCLUDED
 
+/// \file mra/operator.h
+/// \brief Implements most functionality of separated operators
+
+/// \ingroup function
+
 //extern "C" void daxpy_(const long*, const double*, const double*, const long*, double*, const long*);
 
 #include <mra/mra.h>

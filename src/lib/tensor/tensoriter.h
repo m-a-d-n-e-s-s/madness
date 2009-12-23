@@ -57,7 +57,7 @@ namespace madness {
     static const long default_jdim = 5551212; // Never a valid dimension num.
 
     /// Optimized iterator for tensors supporting unary, binary and ternary operations.
-
+    /// \ingroup tensor
     template <class T, class Q = T, class R = T> class TensorIterator {
         T* _p0_save;
         Q* _p1_save;
@@ -105,8 +105,9 @@ namespace madness {
         void reuse(const Tensor<T>* t0, const Tensor<Q>* t1=0, const Tensor<R>* t2=0);
     };
 
-    /// General iterator to compose operations over up to three tensors
+    /// Constructor for general iterator to compose operations over up to three tensors
 
+    /// \ingroup tensor
     /// Macros have been defined in \c tensor_macros.h to take the pain out of 
     /// using iterators.  The options have the following effects
     /// - \c optimize reorders dimensions for optimal strides (only
@@ -175,7 +176,7 @@ namespace madness {
 
         // First copy basic info over
         ndim = t0->ndim();
-        _p0_save = _p0 = const_cast<T*>(t0->ptr()); //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        _p0_save = _p0 = const_cast<T*>(t0->ptr()); // CONSTNESS VIOLATION
         for (int i=0; i<ndim; i++) {
             dim[i] = t0->dim(i);
             stride0[i] = t0->stride(i);
@@ -183,7 +184,7 @@ namespace madness {
         if (t1) {
             TENSOR_ASSERT(t0->conforms(*t1),"first and second tensors do not conform",
                           0, t0);
-            _p1_save = _p1 = const_cast<Q*>(t1->ptr()); //!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+            _p1_save = _p1 = const_cast<Q*>(t1->ptr()); // CONSTNESS VIOLATION
             for (int i=0; i<ndim; i++) stride1[i] = t1->stride(i);
         }
         else {
@@ -192,7 +193,7 @@ namespace madness {
         if (t2) {
             TENSOR_ASSERT(t0->conforms(*t2),"first and third tensors do not conform",
                           0, t0);
-            _p2_save = _p2 = const_cast<R*>(t2->ptr()); //!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+            _p2_save = _p2 = const_cast<R*>(t2->ptr()); // CONSTNESS VIOLATION
             for (int i=0; i<ndim; i++) stride2[i] = t2->stride(i);
         }
         else {

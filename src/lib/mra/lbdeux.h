@@ -6,6 +6,11 @@
 #include <map>
 #include <queue>
 
+/// \file mra/lbdeux.h
+/// \brief Implements (2nd generation) static load/data balancing for functions
+
+/// \ingroup function
+
 namespace madness {
 
     template <int NDIM>

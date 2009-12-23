@@ -2,7 +2,6 @@
 #define MADNESS_MRA_VMRA_H__INCLUDED
 
 /// \file vmra.h
-
 /// \brief Defines operations on vectors of Functions
 
 #include <mra/mra.h>

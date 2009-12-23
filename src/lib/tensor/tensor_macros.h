@@ -36,8 +36,11 @@
 #ifndef MADNESS_TENSOR_TENSOR_MACROS_H__INCLUDED
 #define MADNESS_TENSOR_TENSOR_MACROS_H__INCLUDED
 
-/** \file tensor_macros.h
-    \brief Macros for easy and efficient iteration over tensors.
+/*! 
+  \file tensor_macros.h
+  \brief Macros for easy and efficient iteration over tensors.
+
+  \ingroup tensor
  
 Several different macros have been defined to make it 
 easy to iterate over expressions involving tensors.  They

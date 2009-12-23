@@ -1,6 +1,15 @@
 #ifndef MADNESS_MRA_FUNCPLOT_H__INCLUDED
 #define MADNESS_MRA_FUNCPLOT_H__INCLUDED
 
+/*!
+
+  \file mra/funcplot.h
+  \brief Defines/implements plotting interface for functions
+
+  \ingroup function
+
+ */
+
 // No need to include this file yourself ... it is included in mra.h
 
     /// Writes an OpenDX format file with a cube/slice of points on a uniform grid
@@ -24,8 +33,8 @@
     template <typename T, int NDIM>
     void plotdx(const Function<T,NDIM>& f,
                 const char* filename,
-                const Tensor<double>& cell,
-                const std::vector<long>& npt,
+                const Tensor<double>& cell = FunctionDefaults<NDIM>::get_cell(),
+                const std::vector<long>& npt = 201,
                 bool binary=true);
 
 

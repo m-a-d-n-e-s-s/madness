@@ -1,7 +1,7 @@
 #ifndef MADNESS_MRA_FUNCTYPEDEFS_H__INCLUDED
 #define MADNESS_MRA_FUNCTYPEDEFS_H__INCLUDED
 
-/// \file mra.functypedefs.h
+/// \file mra/functypedefs.h
 /// \brief Provides typedefs to hide use of templates and to increase interoperability
 
 namespace madness {

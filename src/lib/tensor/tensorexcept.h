@@ -39,6 +39,8 @@
 /// \file tensorexcept.h
 /// \brief Declares and implements TensorException
 
+/// \ingroup tensor
+
 #include <iosfwd>
 #include <exception>
 

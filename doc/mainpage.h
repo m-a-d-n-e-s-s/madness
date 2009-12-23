@@ -1,7 +1,32 @@
 /// \file mainpage.h
-/// \brief MADNESS Parallel Programming Environment
+/// \brief MADNESS 
 
-/** \mainpage
+/*!
+  \defgroup configuration MADNESS installation and configuration
+
+  \defgroup libraries MADNESS libraries
+
+  @{
+    \defgroup parallel_runtime Parallel programming environment
+
+    \defgroup mra Multiresolution analaysis
+
+    \defgroup tensor Multidimension arrays
+
+    \defgroup linalg Linear algebra, solvers and optimizers
+
+    \defgroup misc Miscellany
+  @}  
+  
+  \defgroup applications MADNESS applications and examples
+ */
+
+
+
+/** 
+
+\mainpage
+
 
 \section overview Overview
 
@@ -279,9 +304,6 @@ and other resources necessary to build new distributed capabilities.
 The distributed container class (WorldContainer) actually inherits 
 most of its functionality from the WorldObject.
 
-\section compilation Compilation and linking
-
-THIS NEEDS REWRITING
 
 \subsection static_data Static data, etc., for templated classes
 
@@ -295,85 +317,6 @@ WORLD_INSTANTIATE_STATIC_TEMPLATES is defined.  In one of your source
 (not header) files,
 define this macro \em before including \c world.h, and then
 instantiate the templates that you are using.
-
-\section gotchas Gotchas
-
-\subsection futures Futures and STL vectors (e.g., \c vectors<Future<int>> )
-
-A common misconception is that STL containers initialize their
-contents by \invoking the default constructor of each item in
-the container since we are told that the items must be default
-constructable.  But this is \em incorrect.  The items are initialized
-by invoking the copy constructor for each element on a \em single
-object made with the default constructor.   For futures this 
-is a very bad problem.  For instance,
-\code
-   vector< Future<double> > v(3);
-\endcode
-is equivalent to the following with an array of three elements
-\code
-   Future<double> junk;
-   Future<double> v[3] = {junk,junk,junk};
-\endcode
-Since the Future copy constructor is by necessity shallow, each
-element of \c v ends up referring to the future implementation that
-underlies \c junk.  When you assign to an element of \c v, you'll also
-be assigning to junk.  But since futures are single assignment
-variables, you can only do that once.  Hence, when you assign a
-second element of \c v you'll get a runtime exception.
-
-The fix (other than using arrays) is to initialize STL vectors and
-other containers from the special element returned by
-\c Future<T>::default_initializer() which if passed into the copy
-constructor will cause it to behave just like the default contructor.
-Thus, the following code is what you actually need to use an STL
-vector of futures
-\code
-   vector< Future<double> > v(3,Future<double>::default_initializer());
-\endcode
-which sucks, so we provide the factory function
-\code
-   template <typename T>
-   vector< Future<T> > future_vector_factory(std::size_t n);
-\endcode
-which enables you to write
-\code
-   vector< Future<double> > v = future_vector_factory<double>(3);
-\endcode
-which merely blows instead of sucking.
-
-\subsection refcount Reference counting and arguments to STL agorithms
-
-It is not specified how arguments are passed to STL algorithms so
-they are free to pass by value (a concrete example of this "feature"
-is provided by gcc4.2).  For reference counted types (e.g.,
-SharedPtr), this causes the count to be incremented (if passed by
-value) or not incremented (if passed by reference) and hence you
-cannot reliably use an STL algorithm to look for stuff whose reference
-count has a specific value (e.g., one).  
-
-E.g., the following does not work reliably due to the standard
-being incomplete (i.e., borked).
-
-\code
-  struct refcnt_is_one {
-      bool operator()(const SharedPtr<DeferredCleanupInterface>& p) const {
-        return p.use_count() == 1;
-      };
-  };
-
-  std::remove_if(deferred.begin(),deferred.end(),refcnt_is_one());
-\endcode
-Instead, you need the explicit loop
-\code
-  for (std::list< SharedPtr<DeferredCleanupInterface> >::iterator it = deferred.begin(); 
-      it != deferred.end();) {
-      if (it->use_count() == 1) 
-          it = deferred.erase(it);
-      else 
-          ++it;
-  }
-\endcode
 
 
 */

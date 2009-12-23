@@ -6,6 +6,11 @@ using std::endl;
 using std::max;
 using std::min;
 
+/// \file gfit.cc
+/// \brief Implements generation of separated operator representations using Gaussians
+
+/// \ingroup function
+
 
 namespace madness {
     using std::abs;
