@@ -41,8 +41,8 @@
   \file mra/mra.h
   \brief Main include file for MADNESS and defines \c Function interface
 
-  \ingroup libraries
   \ingroup mra
+ @{
  */
 
 
@@ -1304,6 +1304,7 @@ namespace madness {
 
 
 }
+/* @} */
 
 #include <mra/functypedefs.h>
 #include <mra/vmra.h>

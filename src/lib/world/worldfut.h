@@ -52,11 +52,14 @@ namespace madness {
     //extern SharedCounter future_count; // For tracking memory leak
 
 
+/*
+
 \section gotchas Gotchas
 
 \subsection futures Futures and STL vectors (e.g., \c vectors<Future<int>> )
 
-/*!
+ This to be turned back into documentation eventually
+
 A common misconception is that STL containers initialize their
 contents by \invoking the default constructor of each item in
 the container since we are told that the items must be default

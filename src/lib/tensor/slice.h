@@ -36,7 +36,6 @@
 /// \brief Declares and implements Slice
 /// \ingroup tensor
 
-
 #ifndef MADNESS_TENSOR_SLICE_H__INCLUDED
 #define MADNESS_TENSOR_SLICE_H__INCLUDED
 
@@ -45,9 +44,8 @@
 namespace madness {
 
     /*!
-      \ingroup tensor
-
       \brief A slice defines a sub-range or patch of a dimension.
+      \ingroup tensor
 
       \par Introduction
      
@@ -126,5 +124,4 @@ namespace madness {
     static const Slice _reverse(-1,0,-1); /// Reversed dimension
 
 }
-
 #endif // MADNESS_TENSOR_SLICE_H__INCLUDED

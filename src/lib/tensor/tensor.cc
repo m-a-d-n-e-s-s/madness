@@ -35,8 +35,6 @@
 
 #define TENSOR_CC
 
-/// \file tensor.cc
-/// \brief Completes the implementation of Tensor and instantiates all specializations for fast compiles.
 
 
 #ifdef STATIC
@@ -63,7 +61,15 @@
 #include <cstring>
 #include <iostream>
 
+namespace madness {
+#include <tensor/mxm.h>
+}
 
+/// \file tensor.cc
+/// \brief Completes the implementation of Tensor and instantiates all specializations for fast compiles.
+/// \ingroup libraries
+/// \ingroup tensor
+/// @{
 
 #if !HAVE_POSIX_MEMALIGN
 #include <sys/errno.h>
@@ -77,8 +83,6 @@ extern "C"  int posix_memalign(void **memptr, std::size_t alignment, std::size_t
 #endif
 
 namespace madness {
-
-#include <tensor/mxm.h>
 
     template <class T> class Tensor;
 
@@ -146,3 +150,4 @@ namespace madness {
 
     //#include "tensor_spec.h"
 }
+/// @}

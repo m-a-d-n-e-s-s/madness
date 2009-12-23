@@ -10,10 +10,15 @@
     \defgroup parallel_runtime Parallel programming environment
 
     \defgroup mra Multiresolution analaysis
+    @{
+      \defgroup funcplot Function plotting routines
+    @}
 
-    \defgroup tensor Multidimension arrays
+    \defgroup tensor Tensors or multidimension arrays
 
-    \defgroup linalg Linear algebra, solvers and optimizers
+    \defgroup linalg Linear algebra
+
+    \defgroup solvers Iterative solvers for linear/non-linear equations and optimizers
 
     \defgroup misc Miscellany
   @}  

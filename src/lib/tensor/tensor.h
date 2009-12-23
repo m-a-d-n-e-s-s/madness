@@ -35,16 +35,6 @@
 #ifndef MADNESS_TENSOR_TENSOR_H__INCLUDED
 #define MADNESS_TENSOR_TENSOR_H__INCLUDED
 
-/*!
-  \file tensor.h
-  \brief Defines and implements most of Tensor
-  \ingroup libraries
-  \ingroup tensor
-
-  @{
-*/
-
- 
 #include <madness_config.h>
 #include <misc/ran.h>
 #include <world/sharedptr.h>
@@ -71,6 +61,151 @@ typedef std::complex<double> double_complex;
 #include <tensor/mxm.h>
 #include <tensor/mtxmq.h>
 
+
+/*!
+  \file tensor.h
+  \brief Defines and implements most of Tensor
+  \ingroup tensor
+  \addtogroup tensor
+
+  \par Introduction
+  
+  A tensor is a multi-dimensional array and does not incorporate any concepts
+  of covariance and contravariance.
+  
+  When a new tensor is created, the underlying data is also allocated.
+  E.g.,
+  \code
+  Tensor<double> a(3,4,5)
+  \endcode
+  creates a new 3-dimensional tensor and allocates a contiguous
+  block of 60 doubles which are initialized to zero.  The dimensions
+  (numbered from the left starting at 0) are in C or row-major
+  order.  Thus, for the tensor \c a , the stride between successive
+  elements of the right-most dimension is 1.  For the middle
+  dimension it is 5.  For the left-most dimension it is 20.  Thus,
+  the loops
+  \code
+  for (i=0; i<3; i++)
+      for (j=0; j<4; j++)
+          for (k=0; k<5; k++)
+              a(i,j,k) = ...
+  \endcode
+  will go sequentially (and thus efficiently) through memory.
+  If the dimensions have been reordered (e.g., with \c swapdim()
+  or \c map() ), or if the tensor is actually a slice of another
+  tensor, then the layout in memory may be more complex and
+  may not reflect a contiguous block of memory.
+    
+  Multiple tensors may be used to provide multiple identical or
+  distinct views of the same data.  E.g., in the following
+  \code
+  Tensor<double> a(2,3);  // A new tensor initialized to zero
+  Tensor<double> b = a;
+  \endcode
+  \c a and \c b provide identical views of the same data, thus
+  \code
+  b(1,2) = 99;
+  cout << a(1,2) << endl;  // Outputs 99
+  cout << b(1,2) << endl;  // Outputs 99
+  \endcode
+  
+  \par Shallow copy and assignment
+  
+  It is important to appreciate that the views and the data are
+  quite independent.  In particular, the default copy constructor
+  and assignment operations only copy the tensor (the view) and not
+  the data --- <em> i.e., the copy constructor and assigment operations
+  only take shallow copies</em>.  This is for both consistency and
+  efficiency.  Thus, assigning one tensor to another generates another
+  view of the same data, replacing any previous view and not moving
+  or copying any of the data.  
+  E.g.,
+  \code
+  Tensor<double> a(2,3);   // A new tensor initialized to zero
+  Tensor<double> c(3,3,3); // Another new tensor
+  Tensor<double> b = a;    // b is a view of the same data as a
+  a = c;                   // a is now a view of c's data
+  b = c                    // b is now also a view of c's data and the
+  // data allocated originally for a is freed
+  \endcode
+  The above example also illustrates how reference counting is used
+  to keep track of the underlying data.  Once there are no views
+  of the data, it is automatically freed.
+  
+  There are only two ways to actually copy the underlying data.  A
+  new, complete, and contigous copy of a tensor and its data may be
+  generated with the \c copy() function.  Or, to copy data from one tensor
+  into the data viewed by another tensor, you must use a Slice.
+  
+  \par Indexing
+  
+  One dimensional tensors (i.e., vectors) may be indexed using
+  either square brackets (e.g., \c v[i] ) or round brackets (e.g.,
+  \c v(i) ).  All higher-dimensional tensors must use only round
+  brackets (e.g., \c t(i,j,k) ).  This is due to C++'s restriction
+  that the indexing operator (\c [] ) can only have one argument.
+  The indexing operation should generate efficient code.
+  
+  For the sake of efficiency, no bounds checking is performed by
+  default by most single element indexing operations.  Checking can
+  be enabled at compile time by defining \c -DTENSOR_BOUNDS_CHECKING for
+  application files including \c tensor.h.  The MADNESS configure script
+  has the option \c --enable-tensor-bound-checking to define the macro
+  in \c madness_config.h .  The general indexing
+  operation that takes a \c std::vector<long> index and all slicing
+  operations always perform bounds checking.  To make indexing with
+  checking a bit easier, a factory function has been provided for
+  vectors ... but note you need to explicitly use longs as the
+  index.
+  \code
+  Tensor<long> a(7,7,7);
+  a(3,4,5) += 1;                    // OK ... adds 1 to element (3,4,5)
+  a(3,4,9) += 1;                    // BAD ... undetected out-of-bounds access
+  a(vector_factory(3L,4L,9L)) += 1; // OK ... out-bounds access will
+  // be detected at runtime.
+  \endcode
+  
+  \par Slicing 
+  
+  Slices generate sub-tensors --- i.e., views of patches of the
+  data.  E.g., to refer to all but the first and last elements in
+  each dimension of a matrix use 
+  \code
+  a(Slice(1,-2),Slice(1,-2))
+  \endcode
+  Or to view odd elements in each dimension
+  \code
+  a(Slice(0,-1,2),Slice(0,-1,2))
+  \endcode
+  A slice or patch of a
+  tensor behaves exactly like a tensor \em except for assignment.
+  When a slice is assigned to, the data is copied with the
+  requirement that the source and destinations agree in size and
+  shape (i.e., they conform).  Thus, to copy the all of the data
+  from a to b,
+  \code
+  Tensor<double> a(3,4), b(3,4);
+  a = 1;                              // Set all elements of a to 1
+  b = 2;                              // Set all elements of b to 2
+  a(Slice(0,-1,1),Slice(0,-1,1)) = b; // Copy all data from b to a
+  a(_,_) = b(_,_);                    // Copy all data from b to a
+  a(___) = b(___);                    // Copy all data from b to a
+  a(Slice(1,2),Slice(1,2) = b;        // Error, do not conform
+  \endcode
+  Special slice values \c _ ,\c  _reverse, and \c  ___ have
+  been defined to refer to all elements in a dimension, all
+  elements in a dimension but reversed, and all elements in all
+  dimensions, respectively.
+  
+  \par Iteration and algorithms
+  
+  See tensor_macros.h for documentation on the easiest mechanisms for iteration over
+  elements of tensors and tips for optimization.  See \c TensorIterator for
+  the most general form of iteration.
+*/
+
+ 
 #ifndef HAVE_STD_ABS_LONG
 #ifndef HAVE_STD_LABS
 namespace std {
@@ -124,147 +259,10 @@ namespace madness {
 
     template <class T> class SliceTensor;
 
-    /*!
-      \ingroup tensor
 
-      \brief A tensor is a multi-dimensional array and does not incorporate any concepts
-      of covariance and contravariance.
-    
-      \par Introduction
+    /// A tensor is a multidimension array
 
-      When a new tensor is created, the underlying data is also allocated.
-      E.g.,
-      \code
-      Tensor<double> a(3,4,5)
-      \endcode
-      creates a new 3-dimensional tensor and allocates a contiguous
-      block of 60 doubles which are initialized to zero.  The dimensions
-      (numbered from the left starting at 0) are in C or row-major
-      order.  Thus, for the tensor \c a , the stride between successive
-      elements of the right-most dimension is 1.  For the middle
-      dimension it is 5.  For the left-most dimension it is 20.  Thus,
-      the loops
-      \code
-      for (i=0; i<3; i++)
-          for (j=0; j<4; j++)
-              for (k=0; k<5; k++)
-                  a(i,j,k) = ...
-     \endcode
-     will go sequentially (and thus efficiently) through memory.
-     If the dimensions have been reordered (e.g., with \c swapdim()
-     or \c map() ), or if the tensor is actually a slice of another
-     tensor, then the layout in memory may be more complex and
-     may not reflect a contiguous block of memory.
-    
-     Multiple tensors may be used to provide multiple identical or
-     distinct views of the same data.  E.g., in the following
-     \code
-     Tensor<double> a(2,3);  // A new tensor initialized to zero
-     Tensor<double> b = a;
-     \endcode
-     \c a and \c b provide identical views of the same data, thus
-     \code
-     b(1,2) = 99;
-     cout << a(1,2) << endl;  // Outputs 99
-     cout << b(1,2) << endl;  // Outputs 99
-     \endcode
-
-     \par Shallow copy and assignment
-    
-     It is important to appreciate that the views and the data are
-     quite independent.  In particular, the default copy constructor
-     and assignment operations only copy the tensor (the view) and not
-     the data --- <em> i.e., the copy constructor and assigment operations
-     only take shallow copies</em>.  This is for both consistency and
-     efficiency.  Thus, assigning one tensor to another generates another
-     view of the same data, replacing any previous view and not moving
-     or copying any of the data.  
-     E.g.,
-     \code
-     Tensor<double> a(2,3);   // A new tensor initialized to zero
-     Tensor<double> c(3,3,3); // Another new tensor
-     Tensor<double> b = a;    // b is a view of the same data as a
-     a = c;                   // a is now a view of c's data
-     b = c                    // b is now also a view of c's data and the
-                              // data allocated originally for a is freed
-     \endcode
-     The above example also illustrates how reference counting is used
-     to keep track of the underlying data.  Once there are no views
-     of the data, it is automatically freed.
-    
-     There are only two ways to actually copy the underlying data.  A
-     new, complete, and contigous copy of a tensor and its data may be
-     generated with the \c copy() function.  Or, to copy data from one tensor
-     into the data viewed by another tensor, you must use a Slice.
-
-     \par Indexing
-
-     One dimensional tensors (i.e., vectors) may be indexed using
-     either square brackets (e.g., \c v[i] ) or round brackets (e.g.,
-     \c v(i) ).  All higher-dimensional tensors must use only round
-     brackets (e.g., \c t(i,j,k) ).  This is due to C++'s restriction
-     that the indexing operator (\c [] ) can only have one argument.
-     The indexing operation should generate efficient code.
-    
-     For the sake of efficiency, no bounds checking is performed by
-     default by most single element indexing operations.  Checking can
-     be enabled at compile time by defining \c -DTENSOR_BOUNDS_CHECKING for
-     application files including \c tensor.h.  The MADNESS configure script
-     has the option \c --enable-tensor-bound-checking to define the macro
-     in \c madness_config.h .  The general indexing
-     operation that takes a \c std::vector<long> index and all slicing
-     operations always perform bounds checking.  To make indexing with
-     checking a bit easier, a factory function has been provided for
-     vectors ... but note you need to explicitly use longs as the
-     index.
-     \code
-     Tensor<long> a(7,7,7);
-     a(3,4,5) += 1;                    // OK ... adds 1 to element (3,4,5)
-     a(3,4,9) += 1;                    // BAD ... undetected out-of-bounds access
-     a(vector_factory(3L,4L,9L)) += 1; // OK ... out-bounds access will
-                                       // be detected at runtime.
-     \endcode
-
-     \par Slicing 
-    
-     Slices generate sub-tensors --- i.e., views of patches of the
-     data.  E.g., to refer to all but the first and last elements in
-     each dimension of a matrix use 
-     \code
-      a(Slice(1,-2),Slice(1,-2))
-     \endcode
-     Or to view odd elements in each dimension
-     \code
-     a(Slice(0,-1,2),Slice(0,-1,2))
-     \endcode
-     A slice or patch of a
-     tensor behaves exactly like a tensor \em except for assignment.
-     When a slice is assigned to, the data is copied with the
-     requirement that the source and destinations agree in size and
-     shape (i.e., they conform).  Thus, to copy the all of the data
-     from a to b,
-     \code
-     Tensor<double> a(3,4), b(3,4);
-     a = 1;                              // Set all elements of a to 1
-     b = 2;                              // Set all elements of b to 2
-     a(Slice(0,-1,1),Slice(0,-1,1)) = b; // Copy all data from b to a
-     a(_,_) = b(_,_);                    // Copy all data from b to a
-     a(___) = b(___);                    // Copy all data from b to a
-     a(Slice(1,2),Slice(1,2) = b;        // Error, do not conform
-     \endcode
-     Special slice values \c _ ,\c  _reverse, and \c  ___ have
-     been defined to refer to all elements in a dimension, all
-     elements in a dimension but reversed, and all elements in all
-     dimensions, respectively.
-
-     \par Iteration and algorithms
-    
-     See tensor_macros.h for documentation on the easiest mechanisms for iteration over
-     elements of tensors and tips for optimization.  See \c TensorIterator for
-     the most general form of iteration.
-    */
-
-    /// Tensor is a multidimension array
+    /// \ingroup tensor
     template <class T> class Tensor : public BaseTensor {
         template <class U> friend class SliceTensor;
 
@@ -1166,7 +1164,7 @@ namespace madness {
        
     /// The class defines tensor op scalar ... here define scalar op tensor.
 
-    /// Restrict to supported scalar types or type disaster occurs.
+    /// \ingroup tensor
     template <typename T, typename Q>
     typename IsSupported < TensorTypeData<Q>, Tensor<T> >::type
     operator+(Q x, const Tensor<T>& t) {
@@ -1175,7 +1173,7 @@ namespace madness {
     
     /// The class defines tensor op scalar ... here define scalar op tensor.
 
-    /// Restrict to supported scalar types or type disaster occurs.
+    /// \ingroup tensor
     template <typename T, typename Q>
     typename IsSupported < TensorTypeData<Q>, Tensor<T> >::type
     operator*(const Q& x, const Tensor<T>& t) {
@@ -1184,13 +1182,16 @@ namespace madness {
     
     /// The class defines tensor op scalar ... here define scalar op tensor.
 
-    /// Restrict to supported scalar types or type disaster occurs.
+    /// \ingroup tensor
     template <typename T, typename Q>
     typename IsSupported < TensorTypeData<Q>, Tensor<T> >::type
     operator-(Q x, const Tensor<T>& t) {
         return (-t)+=x;
     }
     
+    /// Returns a new tensor that is a deep copy of the input
+
+    /// \ingroup tensor
     template <class T> Tensor<T> copy(const Tensor<T>& t) {
         if (t.size()) {
             Tensor<T> result = Tensor<T>(t.ndim(),t.dims(),false);
@@ -1204,6 +1205,7 @@ namespace madness {
 
     /// Transforms one dimension of the tensor t by the matrix c, returns new contiguous tensor
 
+    /// \ingroup tensor
     /// \code
     /// transform_dir(t,c,1) = r(i,j,k,...) = sum(j') t(i,j',k,...) * c(j',j)
     /// \endcode
@@ -1221,6 +1223,8 @@ namespace madness {
     }
 
     /// Returns a new deep copy of the transpose of the input tensor
+
+    /// \ingroup tensor
     template <class T>
     Tensor<T> transpose(const Tensor<T>& t) {
         TENSOR_ASSERT(t.ndim() == 2, "transpose requires a matrix", t.ndim(), &t);
@@ -1228,6 +1232,8 @@ namespace madness {
     }
 
     /// Returns a new deep copy of the complex conjugate transpose of the input tensor
+
+    /// \ingroup tensor
     template <class T>
     Tensor<T> conj_transpose(const Tensor<T>& t) {
         TENSOR_ASSERT(t.ndim() == 2, "conj_transpose requires a matrix", t.ndim(), &t);
@@ -1236,6 +1242,7 @@ namespace madness {
 
     /// Indexing a tensor with slices returns a slice tensor.
 
+    /// \ingroup tensor
     /// A slice tensor differs from a tensor only in that assignment
     /// causes the data to be copied rather than entire new copy
     /// generated.  You will usually not instantiate one except as a
@@ -1334,7 +1341,10 @@ namespace madness {
     template<> double_complex Tensor<double_complex>::max(long* ind) const ;
 
     // Stream stuff
+
     /// Print (for human consumption) a tensor to the stream
+
+    /// \ingroup tensor
     template <class T>
     std::ostream& operator << (std::ostream& s, const Tensor<T>& t) {
         using namespace std;
@@ -1395,6 +1405,8 @@ namespace madness {
 
 
     /// Outer product ... result(i,j,...,p,q,...) = left(i,k,...)*right(p,q,...)
+
+    /// \ingroup tensor
     template <class T>
     Tensor<T> outer(const Tensor<T>& left, const Tensor<T>& right) {
         long nd = left.ndim() + right.ndim();
@@ -1426,6 +1438,7 @@ namespace madness {
 
     /// Inner product ... result(i,j,...,p,q,...) = sum(z) left(i,j,...,z)*right(z,p,q,...)
 
+    /// \ingroup tensor
     /// By default it contracts the last dimension of the left tensor and
     /// the first dimension of the right tensor.  These defaults can be
     /// changed by specifying \c k0 and \c k1 , the index to contract in
@@ -1464,6 +1477,7 @@ namespace madness {
 
     /// Accumulate inner product into user provided, contiguous, correctly sized result tensor
 
+    /// \ingroup tensor
     /// This routine may be used to optimize away the tensor constructor
     /// of the result tensor in inner loops when the result tensor may be
     /// reused or accumulated into.  If the user calls this routine
@@ -1542,6 +1556,7 @@ namespace madness {
 
     /// Transform all dimensions of the tensor t by the matrix c
 
+    /// \ingroup tensor
     /// Often used to transform all dimensions from one basis to another
     /// \code
     /// result(i,j,k...) <-- sum(i',j', k',...) t(i',j',k',...) c(i',i) c(j',j) c(k',k) ...
@@ -1573,6 +1588,7 @@ namespace madness {
 
     /// Transform all dimensions of the tensor t by distinct matrices c
 
+    /// \ingroup tensor
     /// Similar to transform but each dimension is transformed with a
     /// distinct matrix.
     /// \code
@@ -1592,6 +1608,7 @@ namespace madness {
 
     /// Restricted but heavily optimized form of transform()
 
+    /// \ingroup tensor
     /// Both dimensions of \c c must be the same and match all dimensions
     /// of the input tensor \c t.  All tensors must be contiguous.
     ///
@@ -1655,6 +1672,8 @@ namespace madness {
     }
 
     /// Return a new tensor holding the absolute value of each element of t
+
+    /// \ingroup tensor
     template <class T>
     Tensor< typename Tensor<T>::scalar_type > abs(const Tensor<T>& t) {
         typedef typename Tensor<T>::scalar_type scalar_type;
@@ -1664,6 +1683,8 @@ namespace madness {
     }
 
     /// Return a new tensor holding the argument of each element of t (complex types only)
+
+    /// \ingroup tensor
     template <class T>
     Tensor< typename Tensor<T>::scalar_type > arg(const Tensor<T>& t) {
         typedef typename Tensor<T>::scalar_type scalar_type;
@@ -1673,6 +1694,8 @@ namespace madness {
     }
 
     /// Return a new tensor holding the real part of each element of t (complex types only)
+
+    /// \ingroup tensor
     template <class T>
     Tensor< typename Tensor<T>::scalar_type > real(const Tensor<T>& t) {
         typedef typename Tensor<T>::scalar_type scalar_type;
@@ -1682,6 +1705,8 @@ namespace madness {
     }
 
     /// Return a new tensor holding the imaginary part of each element of t (complex types only)
+
+    /// \ingroup tensor
     template <class T>
     Tensor< typename Tensor<T>::scalar_type > imag(const Tensor<T>& t) {
         typedef typename Tensor<T>::scalar_type scalar_type;
@@ -1691,6 +1716,8 @@ namespace madness {
     }
 
     /// Returns a new deep copy of the complex conjugate of the input tensor (complex types only)
+
+    /// \ingroup tensor
     template <class T>
     Tensor<T> conj(const Tensor<T>& t) {
         Tensor<T> result(t.ndim(),t.dims(),false);
@@ -1698,7 +1725,5 @@ namespace madness {
         return result;
     }
 }
-
-// @}
 
 #endif // MADNESS_TENSOR_TENSOR_H__INCLUDED

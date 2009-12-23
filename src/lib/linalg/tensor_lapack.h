@@ -41,51 +41,68 @@
 /*!
   \file tensor_lapack.h
   \brief Prototypes for a partial interface from Tensor to LAPACK
-
-  \ingroup tensor
+  \ingroup linalg
+@{
 */
 
 namespace madness {
 
     /// Computes singular value decomposition of matrix
+    
+    /// \ingroup linalg
     template <typename T>
     void svd(const Tensor<T>& a, Tensor<T>* U,
              Tensor< typename Tensor<T>::scalar_type >* s, Tensor<T>* VT);
 
     /// Solves linear equations
+    
+    /// \ingroup linalg
     template <typename T>
     void gesv(const Tensor<T>& a, const Tensor<T>& b, Tensor<T>* x);
 
     /// Solves linear equations using least squares
+    
+    /// \ingroup linalg
     template <typename T>
     void gelss(const Tensor<T>& a, const Tensor<T>& b, double rcond,
                Tensor<T>* x, Tensor< typename Tensor<T>::scalar_type >* s,
                long *rank, Tensor<typename Tensor<T>::scalar_type>* sumsq = NULL);
 
     /// Solves symmetric or Hermitian eigenvalue problem
+    
+    /// \ingroup linalg
     template <typename T>
     void syev(const Tensor<T>& A,
               Tensor<T>* V, Tensor< typename Tensor<T>::scalar_type >* e);
 
     /// Solves symmetric or Hermitian generalized eigenvalue problem
+    
+    /// \ingroup linalg
     template <typename T>
     void sygv(const Tensor<T>& A, const Tensor<T>& B, int itype,
               Tensor<T>* V, Tensor< typename Tensor<T>::scalar_type >* e);
 
     /// Cholesky factorization
+    
+    /// \ingroup linalg
     template <typename T>
     void cholesky(const Tensor<T>& A, Tensor<T>* L);
 
     /// Dunno
+    
+    /// \ingroup linalg
     template <typename T>
     void triangular_solve(const Tensor<T>& L, Tensor<T>& B, 
                           const char* side, const char* uplo, const char* transa);
 
     /// Runs the tensor test code, returns true on success
+    
+    /// \ingroup linalg
     bool test_tensor_lapack();
 
     /// World/MRA initialization calls this before going multithreaded due to static data in \c dlamch
+    
+    /// \ingroup linalg
     void init_tensor_lapack();
 }
-
 #endif // MADNESS_LINALG_TENSOR_LAPACK_H__INCLUDED

@@ -15,11 +15,9 @@
 
 /*! 
   \ingroup applications
-  @{
   \defgroup periodic_solver Periodic Solver
   \brief The Periodic Solver group is a group that contains the software 
   objects that are needed to solve a periodic Kohn-Sham hamiltonian.
-  @{
 */
 
 //*****************************************************************************
@@ -32,6 +30,7 @@ static double onesfunc(const coordT& x)
 namespace madness
 {
   /*!
+   \ingroup periodic_solver
   
    \brief The SubspaceK class is a container class holding previous orbitals 
    and residuals.
@@ -2064,9 +2063,5 @@ namespace madness
 
 }
 #define SOLVER_H_
-/*
-  @}
-  @}
- */
 
 #endif /* SOLVER_H_ */

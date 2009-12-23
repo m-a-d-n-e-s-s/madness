@@ -35,6 +35,9 @@
 #ifndef MADNESS_TENSOR_MXM_H__INCLUDED
 #define MADNESS_TENSOR_MXM_H__INCLUDED
 
+/// \file tensor/mxm.h
+/// \brief Internal use only
+
 // This file is ONLY included into tensor.cc ... separated here just
 // to shrink file size.  Don't try to include anywhere else
 

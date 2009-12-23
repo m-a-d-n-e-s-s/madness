@@ -5,12 +5,10 @@
 
   \file mra/funcplot.h
   \brief Defines/implements plotting interface for functions
+  \ingroup funcplot
 
-  \ingroup function
-
+  @{
  */
-
-// No need to include this file yourself ... it is included in mra.h
 
     /// Writes an OpenDX format file with a cube/slice of points on a uniform grid
 
@@ -39,7 +37,7 @@
 
 
     /// Writes header information for plotting from a VTK file (i.e. in ParaView).
-    ///
+
     /// VTK plotting is only currently supported for
     /// 1) 3-D functions
     /// 2) Real-valued madness::function objects
@@ -125,6 +123,7 @@
     }
 
     /// Generic VTK data writer.
+
     /// This templated function won't do anything except print a warning
     /// message.  Specialized versions of this function should be used.
     template<typename T, int NDIM>
@@ -137,6 +136,7 @@
     }
 
     /// VTK data writer for real-valued (not complex) madness::functions.
+
     /// Set plot_refine=true to get a plot of the refinement levels of 
     /// the given function.
     template<typename T, int NDIM>
@@ -188,7 +188,7 @@
     }
 
     /// VTK data writer for complex-valued madness::functions.
-    ///
+
     /// The complex-value is written as two reals (a vector from VTK's
     /// perspective.  The first (X) component is the real part and the second
     /// (Y) component is the imaginary part.
@@ -373,4 +373,5 @@
         world.gop.fence();
     }
 
+/* @} */
 #endif // MADNESS_MRA_FUNCPLOT_H__INCLUDED

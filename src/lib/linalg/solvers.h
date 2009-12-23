@@ -9,8 +9,7 @@
 /*!
   \file solvers.h
   \brief Defines interfaces for optimization and non-linear equation solvers
-
-  \defgroup solvers Iterative solvers for linear and non-linear equations, including optimization
+  \ingroup solvers
 */
 
 namespace madness {
@@ -18,6 +17,8 @@ namespace madness {
     /*!
       Solves the KAIN equations for coefficients to compute the next vector
       
+      \ingroup solvers
+
       \verbatim
       Wish to solve f(x)=0 with x and f(x) vectors 1..n
       
@@ -91,6 +92,8 @@ namespace madness {
 
 
     /// The interface to be provided by targets for non-linear equation solver
+
+    /// \ingroup solvers
     struct SolverTargetInterface {
         /// Should return true if the Jacobian is implemented
         virtual bool provides_jacobian() const = 0;
@@ -118,6 +121,8 @@ namespace madness {
 
 
     /// The interface to be provided by functions to be optimized
+
+    /// \ingroup solvers
     struct OptimizationTargetInterface {
 
         /// Should return true if the gradient is implemented
@@ -148,6 +153,8 @@ namespace madness {
 
 
     /// The interface to be provided by solvers
+
+    /// \ingroup solvers
     struct SolverInterface {
         virtual bool solve(Tensor<double>& x) = 0;
         virtual bool converged() const = 0;
@@ -156,6 +163,8 @@ namespace madness {
     };
 
     /// The interface to be provided by optimizers
+
+    /// \ingroup solvers
     struct OptimizerInterface {
         virtual bool optimize(Tensor<double>& x) = 0;
         virtual bool converged() const = 0;
@@ -166,6 +175,8 @@ namespace madness {
 
 
     /// Optimization via steepest descent
+
+    /// \ingroup solvers
     class SteepestDescent : public OptimizerInterface {
         SharedPtr<OptimizationTargetInterface> target;
         const double tol;
@@ -193,6 +204,9 @@ namespace madness {
 
 
     /// Optimization via quasi-Newton (BFGS or SR1 update)
+
+    /// \ingroup solvers
+    /// This is presently not 
     class QuasiNewton : public OptimizerInterface {
     private:
         std::string update;              // One of BFGS or SR1
