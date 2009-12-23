@@ -5,10 +5,15 @@
 #include <cmath>
 #include <vector>
 
-//using namespace std;
+/*!
+  \file misc/interpolation_1d.h
+  \brief Provides 1D cubic interpolation class
+  \ingroup misc
+ */
 
 /// An class for 1-D data interpolation based on cubic polynomials.
-///
+
+/// \ingroup misc
 /// Needs to be passed the endpoints of the interpolation: [lo,hi] and the
 /// number of grid points.
 ///

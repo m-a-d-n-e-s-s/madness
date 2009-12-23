@@ -1,34 +1,37 @@
 /// \file mainpage.h
 /// \brief MADNESS 
 
+///  \defgroup configuration MADNESS installation and configuration
+///  \defgroup libraries MADNESS libraries
+
+///  \defgroup parallel_runtime Parallel programming environment
+///  \ingroup libraries
+
+///  \defgroup mra Multiresolution analaysis
+///  \ingroup libraries
+
+///  \defgroup funcplot Function plotting routines
+///  \ingroup mra
+
+///  \defgroup tensor Tensors or multidimension arrays
+///  \ingroup libraries
+
+///  \defgroup linalg Linear algebra (interface to LAPACK)
+///  \ingroup libraries
+
+///  \defgroup solvers Iterative solvers for linear/non-linear equations and optimizers
+///  \ingroup libraries
+
+///  \defgroup misc Miscellany
+///  \ingroup libraries
+
+///  \defgroup applications MADNESS applications
+
+///  \defgroup examples Examples 
+///  \ingroup applications
+
+
 /*!
-  \defgroup configuration MADNESS installation and configuration
-
-  \defgroup libraries MADNESS libraries
-
-  @{
-    \defgroup parallel_runtime Parallel programming environment
-
-    \defgroup mra Multiresolution analaysis
-    @{
-      \defgroup funcplot Function plotting routines
-    @}
-
-    \defgroup tensor Tensors or multidimension arrays
-
-    \defgroup linalg Linear algebra
-
-    \defgroup solvers Iterative solvers for linear/non-linear equations and optimizers
-
-    \defgroup misc Miscellany
-  @}  
-  
-  \defgroup applications MADNESS applications and examples
- */
-
-
-
-/** 
 
 \mainpage
 
