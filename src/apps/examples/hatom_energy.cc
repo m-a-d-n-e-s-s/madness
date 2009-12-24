@@ -23,7 +23,7 @@
   Two functions are required - the wave function and the potential. Note the small 
   constants introduced to eliminate the cusp in the wave function and the singularity
   in the potential. Due to the volume element this smoothing has negligible effect on
-  the result (perturbation theory can make this more rigorous).
+  the result (perturbation theory can make this rigorous).
 
   The wave function is exponentially decaying and has the value 2e-9 at r=20, so
   we pick this as a box size that is effectively infinite.
