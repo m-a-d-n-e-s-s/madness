@@ -1,7 +1,20 @@
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES  
 
-/// \file examples/sininteg.cc
-/// \brief Compute the integral sin(x) x=0..10
+/*!
+  \file examples/sininteg.cc
+  \brief Compute the integral sin(x) x=0..10
+  \defgroup sininteg First example from getting started guide
+  \ingroup examples
+
+  Computes the integral 
+  \f[
+     \int_0^{10} sin(x) dx
+  \f]
+  by projecting \f$ sin(x) \f$ into the discontinuous spectral element
+  basis and using the \c trace() method.
+
+ */
+
 
 #include <mra/mra.h>
 

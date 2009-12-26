@@ -1,10 +1,28 @@
+
+/*!
+  \file examples/heat.cc
+  \brief Example Green function for the 3D heat equation
+  \defgroup exampleheat Solves heat equation using the Green's function
+  \ingroup examples
+  
+  Solves the 3D time-dependent heat equation
+  \f[
+  \frac{\partial u}{\partial t} = c \nabla^2 u(r,t)
+  \f]
+  by direct convolution with the Green's function, 
+  \f[
+  \frac{1}{\sqrt{4 \pi c t}}  \exp \frac{-x^2}{4 c t}
+  \f]
+  
+  Points of interest are
+  - use of a functor to compute the solution at an arbitrary future time
+  - convolution with the Green's function
+*/
+
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES  
 #include <mra/mra.h>
 #include <mra/operator.h>
 #include <constants.h>
-
-/// \file heat.cc
-/// \brief Example Green function for the 3D heat equation
 
 using namespace madness;
 
@@ -22,14 +40,14 @@ static const double c = 2.0;       //
 static const double tstep = 0.333;
 static const double alpha = 1.9; // Exponent 
 
-/// Initial Gaussian with exponent alpha
+// Initial Gaussian with exponent alpha
 static double uinitial(const coordT& r) {
     const double x=r[0], y=r[1], z=r[2];
     return exp(-alpha*(x*x+y*y+z*z))*pow(constants::pi/alpha,-1.5);
 }
 
 
-/// Exact solution at time t
+// Exact solution at time t
 class uexact : public FunctionFunctorInterface<double,3> {
     double t;
 public:
