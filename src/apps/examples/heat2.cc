@@ -3,45 +3,63 @@
 #include <mra/operator.h>
 #include <constants.h>
 
-/// \file heat2.cc
-/// \brief Example Green function for the 3D heat equation with a linear term
+/*!
+\file heat2.cc
+\brief Example Green function for the 3D heat equation with a linear term
+\defgroup heatex2 Evolve in time 3D heat equation with a linear term
+\ingroup examples
+
+This adds to the complexity of the other \ref exampleheat "heat equation example" 
+by including a linear term.  Specifically, we solve 
+\f[
+  \frac{\partial u(x,t)}{\partial t} = c \nabla^2 u(x,t) + V_p(x,t) u(x,t)
+\f]
+If \f$ V_p = 0 \f$ time evolution operator is 
+\f[
+  G_0(x,t) = \frac{1}{\sqrt{4 \pi c t}} \exp \frac{-x^2}{4 c t}
+\f]
+For non-zero \f$ V_p \f$ the time evolution is performed using the Trotter splitting
+\f[
+  G(x,t) = G_0(x,t/2) * \exp(V_p t) * G_0(x,t/2) + O(t^3)
+\f]
+In order to form an exact solution for testing, we choose \f$ V_p(x,t)=\mbox{constant} \f$
+but the solution method is not limited to this choice.
+
+Points of interest are 
+  - application of a function of a function to exponentiate the potential
+  - use of a functor to compute the solution at an arbitrary future time
+  - convolution with the Green's function
+*/
 
 using namespace madness;
 
-typedef Vector<double,3> coordT;
-typedef SharedPtr< FunctionFunctorInterface<double,3> > functorT;
-typedef Function<double,3> functionT;
-typedef FunctionFactory<double,3> factoryT;
-typedef SeparatedConvolution<double,3> operatorT;
-typedef Tensor<double> tensorT;
-
-static const double L = 10;     // Half box size
+static const double L = 20;     // Half box size
 static const long k = 8;        // wavelet order
 static const double thresh = 1e-6; // precision
 static const double c = 2.0;       // 
-static const double tstep = 0.333;
+static const double tstep = 0.1;
 static const double alpha = 1.9; // Exponent 
-static const double VVV = 1.0;  // Vp constant value
+static const double VVV = 0.2;  // Vp constant value
 
-/// Initial Gaussian with exponent alpha
-static double uinitial(const coordT& r) {
+// Initial Gaussian with exponent alpha
+static double uinitial(const coord_3d& r) {
     const double x=r[0], y=r[1], z=r[2];
     return exp(-alpha*(x*x+y*y+z*z))*pow(constants::pi/alpha,-1.5);
 }
 
 
-static double Vp(const coordT& r) {
+static double Vp(const coord_3d& r) {
     return VVV;
 }
 
 
-/// Exact solution at time t
+// Exact solution at time t
 class uexact : public FunctionFunctorInterface<double,3> {
     double t;
 public:
     uexact(double t) : t(t) {}
 
-    double operator()(const coordT& r) const {
+    double operator()(const coord_3d& r) const {
         const double x=r[0], y=r[1], z=r[2];
         double rsq = (x*x+y*y+z*z);
         
@@ -50,6 +68,7 @@ public:
 };
 
 
+// Functor to compute exp(f) where f is a madness function
 template<typename T, int NDIM>
 struct unaryexp {
     void operator()(const Key<NDIM>& key, Tensor<T>& t) const {
@@ -64,7 +83,6 @@ int main(int argc, char** argv) {
     World world(MPI::COMM_WORLD);
     
     startup(world, argc, argv);
-    std::cout.precision(6);
 
     FunctionDefaults<3>::set_k(k);
     FunctionDefaults<3>::set_thresh(thresh);
@@ -72,7 +90,7 @@ int main(int argc, char** argv) {
     FunctionDefaults<3>::set_autorefine(false);
     FunctionDefaults<3>::set_cubic_cell(-L, L);
     
-    functionT u0 = factoryT(world).f(uinitial);
+    real_function_3d u0 = real_factory_3d(world).f(uinitial);
     u0.truncate();
 
     double u0_norm = u0.norm2();
@@ -81,37 +99,32 @@ int main(int argc, char** argv) {
     if (world.rank() == 0) print("Initial norm", u0_norm,"trace", u0_trace);
     world.gop.fence();
 
-    // du(x,t)/dt = c del^2 u(x,t) + Vp(x)*u(x,t)
-    //
-    // If Vp=0 time evolution operator is G(x,t) = 1/sqrt(4 pi c t)  exp(-x^2 / 4 c t)
-    //
-    // Trotter approx for non-zero Vp is
-    //
-    // G(x,t/2) exp(Vp*t) G(x,t/2)
-
     // Make exponential of Vp
-    functionT expVp = factoryT(world).f(Vp);
+    real_function_3d expVp = real_factory_3d(world).f(Vp);
     expVp.scale(tstep);
     expVp.unaryop(unaryexp<double,3>());
 
-    print("Vp(0)", expVp(coordT(0.0)));
+    print("Vp(0)", expVp(coord_3d(0.0)));
     
     // Make G(x,t/2)
-    tensorT expnt(1), coeff(1);
+    real_tensor expnt(1), coeff(1);
     expnt[0] = 1.0/(4.0*c*tstep*0.5);
     coeff[0] = pow(4.0*constants::pi*c*tstep*0.5,-1.5);
-    operatorT G(world, k, coeff, expnt);
+    real_convolution_3d G(world, k, coeff, expnt);
 
-    // Propagate to time t
-    functionT ut2 = apply(G, u0);  ut2.truncate();
-    ut2 = ut2*expVp;
-    functionT ut = apply(G, ut2); ut.truncate();
+    // Propagate forward 50 time steps
+    real_function_3d u = u0;
+    for (int step=1; step<=50; step++) {
+        u = apply(G, u);  u.truncate();
+        u = u*expVp;
+        u = apply(G, u); u.truncate();
+        
+        double u_norm = u.norm2();
+        double u_trace = u.trace();
+        double err = u.err(uexact(tstep*step));
 
-    double ut_norm = ut.norm2();
-    double ut_trace = ut.trace();
-    double err = ut.err(uexact(tstep));
-
-    if (world.rank() == 0) print("Final norm", ut_norm,"trace", ut_trace,"err",err);
+        if (world.rank() == 0) print("step", step, "norm", u_norm,"trace", u_trace,"err",err);
+    }
 
     finalize();
     return 0;
