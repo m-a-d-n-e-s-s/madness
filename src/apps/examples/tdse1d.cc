@@ -11,17 +11,6 @@
 
 using namespace madness;
 
-
-// typedefs to make life less verbose
-typedef Vector<double,1> coordT;
-typedef SharedPtr< FunctionFunctorInterface<double,1> > functorT;
-typedef Function<double,1> functionT;
-typedef FunctionFactory<double,1> factoryT;
-
-typedef SharedPtr< FunctionFunctorInterface<double_complex,1> > complex_functorT;
-typedef Function<double_complex,1> complex_functionT;
-typedef FunctionFactory<double_complex,1> complex_factoryT;
-
 // This to test various implementaitons of the 1d propagator
 #ifdef USE_NSFORM
   typedef SeparatedConvolution<double_complex,1> complex_operatorT;
@@ -33,7 +22,7 @@ typedef FunctionFactory<double_complex,1> complex_factoryT;
   typedef Convolution1D<double_complex> complex_operatorT;
   typedef SharedPtr<complex_operatorT> pcomplex_operatorT;
 
-  complex_functionT APPLY(complex_operatorT* q1d, const complex_functionT& psi) {
+  complex_function_1d APPLY(complex_operatorT* q1d, const complex_function_1d& psi) {
       psi.reconstruct();
 
       psi.broaden(); 
@@ -41,7 +30,7 @@ typedef FunctionFactory<double_complex,1> complex_factoryT;
       psi.broaden();
       psi.broaden();
 
-      complex_functionT r = apply_1d_realspace_push(*q1d, psi, 0);
+      complex_function_1d r = apply_1d_realspace_push(*q1d, psi, 0);
       r.sum_down();
       return r;
   }
@@ -94,7 +83,7 @@ double atom_position() {
 }
 
 // Exact solution ... (H-E)psi is accurate to 2e-7 or better inside Maple
-double_complex psi_exact(const coordT& r) {
+double_complex psi_exact(const coord_1d& r) {
     const double x = r[0] - atom_position();
 
     if (fabs(x) > 9.0) return 0.0;
@@ -111,7 +100,7 @@ double_complex psi_exact(const coordT& r) {
 }
 
 // Time-dependent potential for translating atom
-double V(const coordT& r) {
+double V(const coord_1d& r) {
     const double x = r[0] - atom_position();
     if (fabs(x) > 6.2) return 0.0;
 
@@ -119,7 +108,7 @@ double V(const coordT& r) {
 }
 
 // (dV/dr)^2
-double dVsq(const coordT& r) {
+double dVsq(const coord_1d& r) {
     const double x = r[0] - atom_position();
     if (fabs(x) > 4.5) return 0.0;
 
@@ -138,15 +127,15 @@ struct unaryexp {
 };
 
 // exp(-i (vcoeff*V + dcoeff*dV^2))
-complex_functionT expV(World& world, double vcoeff, double dcoeff) {
-    functionT potn = factoryT(world).f(V);
+complex_function_1d expV(World& world, double vcoeff, double dcoeff) {
+    real_function_1d potn = real_factory_1d(world).f(V);
     potn.scale(vcoeff);
     if (dcoeff) {
-        functionT d = factoryT(world).f(dVsq).initial_level(10);
+        real_function_1d d = real_factory_1d(world).f(dVsq).initial_level(10);
         potn.compress(); d.compress();
         potn.gaxpy(1.0, d, dcoeff);   //delta = 1.5*t;/
     }
-    complex_functionT expV = double_complex(0.0,-1.0)*potn;
+    complex_function_1d expV = double_complex(0.0,-1.0)*potn;
     expV.unaryop(unaryexp<double_complex,1>());
     expV.truncate();
     return expV;
@@ -156,8 +145,8 @@ complex_functionT expV(World& world, double vcoeff, double dcoeff) {
 // G should G0(tstep/2)
 // CC is xi=0.0, chi=1.0/72.0
 // optimal is xi=-17/18000 chi=71/4500
-complex_functionT sympgrad4(World& world, 
-                            const complex_functionT& psi0, 
+complex_function_1d sympgrad4(World& world, 
+                            const complex_function_1d& psi0, 
                             const double tstep,
                             const double xi,
                             const double chi) {
@@ -166,7 +155,7 @@ complex_functionT sympgrad4(World& world,
     if (!G) G = MAKE_PROPAGATOR(world, tstep*0.5);
 
     const double lambda = 1.0/6.0;
-    complex_functionT psi;
+    complex_function_1d psi;
     
     psi = expV(world, tstep*lambda, -xi*tstep*tstep*tstep)*psi0;           psi.truncate();
     psi = APPLY(G, psi);                                                   psi.truncate();
@@ -183,8 +172,8 @@ complex_functionT sympgrad4(World& world,
     return psi;
 }
 
-complex_functionT sympgrad6(World& world, 
-                            const complex_functionT& psi0, 
+complex_function_1d sympgrad6(World& world, 
+                            const complex_function_1d& psi0, 
                             const double tstep) {
 
     const double rho = 0.1097059723948682e+00;
@@ -202,7 +191,7 @@ complex_functionT sympgrad6(World& world,
         Gmid   = MAKE_PROPAGATOR(world, tstep*(1.0-2.0*(theta+rho))/2.0);
     }
 
-    complex_functionT psi;
+    complex_function_1d psi;
     
     psi = APPLY(Grho, psi0);                                                psi.truncate();
     current_time += rho*tstep;
@@ -227,12 +216,12 @@ complex_functionT sympgrad6(World& world,
 
 
 // Evolve forward one time step using Trotter ... G = G0(tstep/2)
-complex_functionT trotter(World& world, const complex_functionT& psi0, const double tstep, complex_operatorT* G0 = 0) {
+complex_function_1d trotter(World& world, const complex_function_1d& psi0, const double tstep, complex_operatorT* G0 = 0) {
     static complex_operatorT* G = 0;
 	if (G0) G = G0;
     if (!G) G = MAKE_PROPAGATOR(world, tstep*0.5);
 
-    complex_functionT psi = APPLY(G, psi0);    psi.truncate();
+    complex_function_1d psi = APPLY(G, psi0);    psi.truncate();
     
     current_time += 0.5*tstep;
 
@@ -245,14 +234,14 @@ complex_functionT trotter(World& world, const complex_functionT& psi0, const dou
     return psi;
 }
 
-void print_info(World& world, const complex_functionT& psi, int step) {
-    functionT potn = factoryT(world).f(V).truncate_on_project();
-    complex_functionT dpsi = diff(psi,0);
+void print_info(World& world, const complex_function_1d& psi, int step) {
+    real_function_1d potn = real_factory_1d(world).f(V).truncate_on_project();
+    complex_function_1d dpsi = diff(psi,0);
     double ke = inner(dpsi,dpsi).real() * 0.5;
     double pe = psi.inner(psi*potn).real();
     double norm = psi.norm2();
 
-    complex_functionT psiX = complex_factoryT(world).f(psi_exact);
+    complex_function_1d psiX = complex_factory_1d(world).f(psi_exact);
     double err = (psiX - psi).norm2();
 
     if ((step%40) == 0) {
@@ -288,25 +277,25 @@ template<typename T> T myp(const std::vector<T>& ps, const double t) {
 }
 
 // Evolve forward one time step using quadrature rules
-complex_functionT q_r(World& world, const int np, const complex_functionT psi0, const double tstep) {
+complex_function_1d q_r(World& world, const int np, const complex_function_1d psi0, const double tstep) {
     //can be more vectorized.
     
-    std::vector<complex_functionT> ps(np), ps1(np);
+    std::vector<complex_function_1d> ps(np), ps1(np);
     //    for (int i=0; i<np; ++i) ps[i] = copy(psi0);
     
     double tdum = current_time;
-    complex_functionT pdum;
-    std::vector<complex_functionT> qs(np);
-    std::vector<functionT> Vs(np);
-    std::vector< std::vector<functionT> > Vss(np);
+    complex_function_1d pdum;
+    std::vector<complex_function_1d> qs(np);
+    std::vector<real_function_1d> Vs(np);
+    std::vector< std::vector<real_function_1d> > Vss(np);
     for (int i=0; i<np; ++i) {
         current_time = tdum + tstep*tc[i];
-        Vs[i] = factoryT(world).f(V).truncate_on_project();
+        Vs[i] = real_factory_1d(world).f(V).truncate_on_project();
         Vs[i].truncate();
         Vss[i].resize(np);
         for (int k=0; k<np; ++k) {
             current_time = tdum + tstep*tc[i]*tc[k];
-            Vss[i][k]=factoryT(world).f(V).truncate_on_project();
+            Vss[i][k]=real_factory_1d(world).f(V).truncate_on_project();
             Vss[i][k].truncate();
         }
         //~ ps[i] = APPLY(Gs[np - i - 1].get(), psi0).truncate();  
@@ -320,7 +309,7 @@ complex_functionT q_r(World& world, const int np, const complex_functionT psi0, 
     for (int i=0; i<np; ++i) {
         for (int k=0; k<np; ++k) {
             //ps1[i].gaxpy(1.0,APPLY(Gss[i*np+k].get(), ).compress(), -tstep*tc[i]*I*B[k]);
-            complex_functionT tmp = (Vss[i][k]*myp(qs,tc[i]*tc[k])).scale(-tstep*tc[i]*I*B[k]).truncate();
+            complex_function_1d tmp = (Vss[i][k]*myp(qs,tc[i]*tc[k])).scale(-tstep*tc[i]*I*B[k]).truncate();
             ps1[i].gaxpy(1.0,APPLY(Gss[i*np+k].get(), tmp).compress(), 1.0);
         }
     }
@@ -342,7 +331,7 @@ complex_functionT q_r(World& world, const int np, const complex_functionT psi0, 
         for (int i=0; i<np; ++i) {
             for (int k=0; k<np; ++k) {
                 //ps1[i].gaxpy(1.0, APPLY(Gss[i*np+k].get(), Vss[i][k]*myp(ps,tc[i]*tc[k])).compress(), -tstep*tc[i]*I*B[k]);
-                complex_functionT tmp = (Vss[i][k]*myp(ps,tc[i]*tc[k])).scale(-tstep*tc[i]*I*B[k]).truncate();
+                complex_function_1d tmp = (Vss[i][k]*myp(ps,tc[i]*tc[k])).scale(-tstep*tc[i]*I*B[k]).truncate();
                 ps1[i].gaxpy(1.0, APPLY(Gss[i*np+k].get(), tmp).compress(), 1.0);
             }
             err += ps1[i].truncate().norm2();
@@ -358,7 +347,7 @@ complex_functionT q_r(World& world, const int np, const complex_functionT psi0, 
     pdum.compress();
     for (int k=0; k<np; ++k) {
         //pdum.gaxpy(1.0, APPLY(Gs[k].get(), Vs[k]*qs[k]).compress(), -I*B[k]*tstep);
-        complex_functionT tmp = (Vs[k]*qs[k]).scale(-I*B[k]*tstep);
+        complex_function_1d tmp = (Vs[k]*qs[k]).scale(-I*B[k]*tstep);
         pdum.gaxpy(1.0, APPLY(Gs[k].get(), tmp).compress(), 1.0);
     }
     
@@ -381,7 +370,7 @@ int main(int argc, char** argv) {
     FunctionDefaults<1>::set_initial_level(8);     // Initial projection level
     FunctionDefaults<1>::set_truncate_mode(0);
 
-    complex_functionT psi = complex_factoryT(world).f(psi_exact);
+    complex_function_1d psi = complex_factory_1d(world).f(psi_exact);
     psi.truncate();
 
     double tstep = 0.0;
