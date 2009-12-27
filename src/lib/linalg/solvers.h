@@ -71,9 +71,9 @@ namespace madness {
     //     print(b);
 
         Tensor<T> x;
-        Tensor<double> s;
+        Tensor<double> s, sumsq;
         long rank;
-        gelss(A, b, rcond, &x, &s, &rank);
+        gelss(A, b, rcond, x, s, rank, sumsq);
 //         print("singular values", s);
 //         print("rank", rank);
 //         print("solution", x);

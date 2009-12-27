@@ -296,7 +296,7 @@ tensorT sqrt(const tensorT& s, double tol=1e-8) {
     MADNESS_ASSERT(n==m);
     tensorT c, e;
     //s.gaxpy(0.5,transpose(s),0.5); // Ensure exact symmetry
-    syev(s, &c, &e);
+    syev(s, c, e);
     for (int i=0; i<n; i++) {
         if (e(i) < -tol) {
             MADNESS_EXCEPTION("Matrix square root: negative eigenvalue",i);
@@ -1044,7 +1044,7 @@ struct Calculation {
         }
         if(world.rank() == 0){
             tensorT C;
-            gesv(Saoao, Saomo, &C);
+            gesv(Saoao, Saomo, C);
             C = transpose(C);
             long nmo = mo.size();
             for(long i = 0;i < nmo;i++){
@@ -1271,7 +1271,7 @@ struct Calculation {
             tensorT fock = kinetic + potential;
             fock = 0.5 * (fock + transpose(fock));
             tensorT c, e;
-            sygv(fock, overlap, 1, &c, &e);
+            sygv(fock, overlap, 1, c, e);
             world.gop.broadcast(c.ptr(), c.size(), 0);
             world.gop.broadcast(e.ptr(), e.size(), 0);
             if(world.rank() == 0){
@@ -1670,7 +1670,7 @@ struct Calculation {
         START_TIMER(world);
         tensorT U;
         
-        sygv(fock, overlap, 1, &U, &evals);
+        sygv(fock, overlap, 1, U, evals);
         END_TIMER(world, "Diagonalization");
         
         // Fix phases.
@@ -2113,7 +2113,7 @@ struct Calculation {
                     // Diagonalize to get the eigenvalues and if desired the final eigenvectors
                     tensorT U;
                     tensorT overlap = matrix_inner(world, amo, amo, true);
-                    sygv(focka, overlap, 1, &U, &aeps);
+                    sygv(focka, overlap, 1, U, aeps);
                     if (!param.localize) {
                         amo = transform(world, amo, U, trantol, true);
                         truncate(world, amo);
@@ -2121,7 +2121,7 @@ struct Calculation {
                     }
                     if(param.nbeta && !param.spin_restricted){
                         overlap = matrix_inner(world, bmo, bmo, true);
-                        sygv(fockb, overlap, 1, &U, &beps);
+                        sygv(fockb, overlap, 1, U, beps);
                         if (!param.localize) {
                             bmo = transform(world, bmo, U, trantol, true);
                             truncate(world, bmo);

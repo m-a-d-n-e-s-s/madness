@@ -237,21 +237,21 @@ namespace madness {
     On failure, throws TensorException with value set to Lapack's info.
     */
     template <typename T>
-    void svd(const Tensor<T>& a, Tensor<T>* U,
-             Tensor< typename Tensor<T>::scalar_type >* s, Tensor<T>* VT) {
+    void svd(const Tensor<T>& a, Tensor<T>& U,
+             Tensor< typename Tensor<T>::scalar_type >& s, Tensor<T>& VT) {
         TENSOR_ASSERT(a.ndim() == 2, "svd requires matrix",a.ndim(),&a);
         integer m = a.dim(0), n = a.dim(1), rmax = min<integer>(m,n);
         integer lwork = max<integer>(3*min(m,n)+max(m,n),5*min(m,n)-4)*32;
         integer info;
         Tensor<T> A(copy(a)), work(lwork);
 
-        *s = Tensor< typename Tensor<T>::scalar_type >(rmax);
-        *U = Tensor<T>(m,rmax);
-        *VT = Tensor<T>(rmax,n);
+        s = Tensor< typename Tensor<T>::scalar_type >(rmax);
+        U = Tensor<T>(m,rmax);
+        VT = Tensor<T>(rmax,n);
 
         //std::cout << "n " << n << " m " << m << " lwork " << lwork << std::endl;
-        dgesvd_("S","S", &n, &m, A.ptr(), &n, s->ptr(),
-                VT->ptr(), &n, U->ptr(), &rmax, work.ptr(), &lwork,
+        dgesvd_("S","S", &n, &m, A.ptr(), &n, s.ptr(),
+                VT.ptr(), &n, U.ptr(), &rmax, work.ptr(), &lwork,
                 &info, (char_len) 1, (char_len) 1);
 
         mask_info(info);
@@ -267,7 +267,7 @@ namespace madness {
         Tensor<scalar_type> s;
 
         a.fillrandom();
-        svd(a,&U,&s,&VT);
+        svd(a,U,s,VT);
 
         long rank = s.dim(0);
         Tensor<T> b(n,m);
@@ -292,7 +292,7 @@ namespace madness {
     Python/C/Fortran ordering issues.  It will solve Ax=b as written.
     */
     template <typename T>
-    void gesv(const Tensor<T>& a, const Tensor<T>& b, Tensor<T>* x) {
+    void gesv(const Tensor<T>& a, const Tensor<T>& b, Tensor<T>& x) {
         TENSOR_ASSERT(a.ndim() == 2, "gesv requires matrix",a.ndim(),&a);
         integer n = a.dim(0), m = a.dim(1), nrhs = b.dim(1);
         TENSOR_ASSERT(m == n, "gesv requires square matrix",0,&a);
@@ -302,20 +302,20 @@ namespace madness {
         // The input matrix & vectors are destroyed by gesv and we also need Fortran order
         Tensor<T> AT = transpose(a);
         if (b.ndim() == 1)
-            *x = copy(b);
+            x = copy(b);
         else
-            *x = transpose(b);
+            x = transpose(b);
 
         Tensor<integer> piv(n);
         integer info;
 
         // note overriding of dgesv for other types above
-        dgesv_(&n, &nrhs, AT.ptr(), &n, piv.ptr(), x->ptr(), &n, &info);
+        dgesv_(&n, &nrhs, AT.ptr(), &n, piv.ptr(), x.ptr(), &n, &info);
         mask_info(info);
 
         TENSOR_ASSERT((info == 0), "gesv failed", info, &a);
 
-        if (b.ndim() == 2) *x = transpose(*x);
+        if (b.ndim() == 2) x = transpose(x);
     }
 
     template <typename T>
@@ -335,8 +335,8 @@ namespace madness {
 //         print("B1");
 //         print(b1);
 
-        gesv(a,b,&x);
-        gesv(a,b1,&x1);
+        gesv(a,b,x);
+        gesv(a,b1,x1);
 
 //         print("X");
 //         print(x);
@@ -383,8 +383,8 @@ namespace madness {
     */
     template <typename T>
     void gelss(const Tensor<T>& a, const Tensor<T>& b, double rcond,
-               Tensor<T>* x, Tensor< typename Tensor<T>::scalar_type >* s,
-               long *rank, Tensor<typename Tensor<T>::scalar_type>* sumsq = NULL) {
+               Tensor<T>& x, Tensor< typename Tensor<T>::scalar_type >& s,
+               long& rank, Tensor<typename Tensor<T>::scalar_type>& sumsq) {
         TENSOR_ASSERT(a.ndim() == 2, "gelss requires matrix",a.ndim(),&a);
         integer m = a.dim(0), n = a.dim(1), nrhs = b.dim(1);
         TENSOR_ASSERT(b.ndim() <= 2, "gelss require a vector or matrix for the RHS",b.ndim(),&b);
@@ -415,57 +415,57 @@ namespace madness {
         integer lwork=(3*min(m,n)+max(max(2*min(m,n),maxmn),nrhs))*32;
         Tensor<T> work(lwork);
         typedef typename TensorTypeData<T>::scalar_type scalar_type;
-        *s = Tensor< scalar_type >(n);
+        s = Tensor< scalar_type >(n);
         integer info;
         scalar_type rrcond = rcond;
         integer rrank=0;
 
         dgelss_(&m, &n, &nrhs, AT.ptr(), &m, lapack_inout.ptr(), &maxmn,
-                s->ptr(), &rrcond, &rrank, work.ptr(), &lwork, &info);
+                s.ptr(), &rrcond, &rrank, work.ptr(), &lwork, &info);
         mask_info(info);
         TENSOR_ASSERT(info == 0, "gelss failed", info, &a);
 
-        *rank = rrank;
+        rank = rrank;
 
         if(m > n) {
             // have a similar problem where the lapack_inout tensor is padded
             // the padding gives information on the fit
-            if(sumsq != NULL) {
-                // get the sum-of-squares for the various fits
-                *sumsq = Tensor<scalar_type>(nrhs);
-                if(nrhs == 1) {
-                    (*sumsq)[0] = lapack_inout(Slice(n, m-1)).normf();
-                }
-                else
-                    for(integer i = 0; i < nrhs; ++i) {
-                        (*sumsq)[i] =
-                            lapack_inout(Slice(i, i), Slice(n, m-1)).normf();
-                    }
-            }
 
+            // get the sum-of-squares for the various fits
+            sumsq = Tensor<scalar_type>(nrhs);
+            if(nrhs == 1) {
+                sumsq[0] = lapack_inout(Slice(n, m-1)).normf();
+            }
+            else {
+                for(integer i = 0; i < nrhs; ++i) {
+                    sumsq[i] =
+                        lapack_inout(Slice(i, i), Slice(n, m-1)).normf();
+                }
+            }
+        
             if(b.ndim() == 1)
-                *x = lapack_inout(Slice(0,n-1));
+                x = lapack_inout(Slice(0,n-1));
             else
-                *x = transpose(lapack_inout(Slice(0,nrhs-1), Slice(0, n-1)));
+                x = transpose(lapack_inout(Slice(0,nrhs-1), Slice(0, n-1)));
         }
         else if(b.ndim() == 2)
-            *x = transpose(lapack_inout);
+            x = transpose(lapack_inout);
         else
-            *x = lapack_inout;
+            x = lapack_inout;
     }
 
     template <typename T>
     double test_gelss(int n, int nrhs) {
         Tensor<T> a(n,n), b1(n), b(n,nrhs), x1, x;
-        Tensor< typename Tensor<T>::scalar_type > s;
+        Tensor< typename Tensor<T>::scalar_type > s, sumsq;
         long rank;
 
         a.fillrandom();
         b1.fillrandom();
         b.fillrandom();
 
-        gelss(a,b,1e-5,&x,&s,&rank);
-        gelss(a,b1,1e-5,&x1,&s,&rank);
+        gelss(a,b,1e-5,x,s,rank,sumsq);
+        gelss(a,b1,1e-5,x1,s,rank,sumsq);
 
         return (inner(a,x)-b).normf() + (inner(a,x1)-b1).normf();
     }
@@ -484,20 +484,20 @@ namespace madness {
     */
     template <typename T>
     void syev(const Tensor<T>& A,
-              Tensor<T>* V, Tensor< typename Tensor<T>::scalar_type >* e) {
+              Tensor<T>& V, Tensor< typename Tensor<T>::scalar_type >& e) {
         TENSOR_ASSERT(A.ndim() == 2, "syev requires a matrix",A.ndim(),&A);
         TENSOR_ASSERT(A.dim(0) == A.dim(1), "syev requires square matrix",0,&A);
         integer n = A.dim(0);
         integer lwork = max(max((integer) 1,(integer) (3*n-1)),(integer) (34*n));
         integer info;
         Tensor<T> work(lwork);
-        *V = transpose(A);		// For Hermitian case
-        *e = Tensor<typename Tensor<T>::scalar_type>(n);
-        dsyev_("V", "U", &n, V->ptr(), &n, e->ptr(), work.ptr(), &lwork, &info,
+        V = transpose(A);		// For Hermitian case
+        e = Tensor<typename Tensor<T>::scalar_type>(n);
+        dsyev_("V", "U", &n, V.ptr(), &n, e.ptr(), work.ptr(), &lwork, &info,
                (char_len) 1, (char_len) 1);
         mask_info(info);
         TENSOR_ASSERT(info == 0, "(s/d)syev/(c/z)heev failed", info, &A);
-        *V = transpose(*V);
+        V = transpose(V);
     }
 
     // This stupidity since current defn of conj_tranpose() only
@@ -521,7 +521,7 @@ namespace madness {
         Tensor< typename Tensor<T>::scalar_type > e;
         a.fillrandom();
         a += madness::my_conj_transpose(a);
-        syev(a,&V,&e);
+        syev(a,V,e);
         double err = 0.0;
         for (int i=0; i<n; i++) {
             err = max(err,(double) (inner(a,V(_,i)) - V(_,i)*e(i)).normf());
@@ -556,7 +556,7 @@ namespace madness {
     */
     template <typename T>
     void sygv(const Tensor<T>& A, const Tensor<T>& B, int itype,
-              Tensor<T>* V, Tensor< typename Tensor<T>::scalar_type >* e) {
+              Tensor<T>& V, Tensor< typename Tensor<T>::scalar_type >& e) {
         TENSOR_ASSERT(A.ndim() == 2, "sygv requires a matrix",A.ndim(),&A);
         TENSOR_ASSERT(A.dim(0) == A.dim(1), "sygv requires square matrix",0,&A);
         TENSOR_ASSERT(B.ndim() == 2, "sygv requires a matrix",B.ndim(),&A);
@@ -567,14 +567,14 @@ namespace madness {
         integer info;
         Tensor<T> work(lwork);
         Tensor<T> b = transpose(B);	// For Hermitian case
-        *V = transpose(A);		// For Hermitian case
-        *e = Tensor<typename Tensor<T>::scalar_type>(n);
-        dsygv_(&ity, "V", "U", &n, V->ptr(), &n, b.ptr(), &n,
-               e->ptr(), work.ptr(), &lwork, &info,
+        V = transpose(A);		// For Hermitian case
+        e = Tensor<typename Tensor<T>::scalar_type>(n);
+        dsygv_(&ity, "V", "U", &n, V.ptr(), &n, b.ptr(), &n,
+               e.ptr(), work.ptr(), &lwork, &info,
                (char_len) 1, (char_len) 1);
         mask_info(info);
         TENSOR_ASSERT(info == 0, "sygv/hegv failed", info, &A);
-        *V = transpose(*V);
+        V = transpose(V);
     }
 
 
@@ -587,7 +587,7 @@ namespace madness {
         a += madness::my_conj_transpose(a);
         b += madness::my_conj_transpose(b);
         for (int i=0; i<n; i++) b(i,i) = 2*n;	// To make pos-def
-        sygv(a,b,1,&V,&e);
+        sygv(a,b,1,V,e);
         double err = 0.0;
         for (int i=0; i<n; i++) {
             err = max(err,(double) (inner(a,V(_,i)) - inner(b,V(_,i))*(T) e(i)).normf());

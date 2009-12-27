@@ -280,7 +280,7 @@ namespace madness {
                 }
             }
             Tensor<double> ncoeff;
-            gesv(M, q, &ncoeff);
+            gesv(M, q, ncoeff);
             if (prnt) {
                 print("M\n",M);
                 print("old coeffs", coeff(Slice(0,nmom-1)));

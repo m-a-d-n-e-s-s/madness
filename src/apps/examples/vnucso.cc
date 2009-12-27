@@ -433,7 +433,7 @@ void doit(World& world) {
 
 	world.gop.fence(); // free memory
 	
-	sygv(H1, S1, 1, &c, &e);
+	sygv(H1, S1, 1, c, e);
 	
 	for (int axis=0; axis<3; axis++) {
 	  du[axis].clear();

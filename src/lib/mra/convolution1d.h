@@ -136,7 +136,7 @@ namespace madness {
         void make_approx(const Tensor<Q>& R,
                          Tensor<Q>& RU, Tensor<typename Tensor<Q>::scalar_type>& Rs, Tensor<Q>& RVT, double& norm) {
             int n = R.dim(0);
-            svd(R, &RU, &Rs, &RVT);
+            svd(R, RU, Rs, RVT);
             for (int i=0; i<n; i++) {
                 for (int j=0; j<n; j++) {
                     RVT(i,j) *= Rs[i];

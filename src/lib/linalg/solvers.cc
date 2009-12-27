@@ -178,7 +178,7 @@ namespace madness {
         double trust = 1.0; // This applied in spectral basis
 
         Tensor<double> v, e;
-        syev(h, &v, &e);
+        syev(h, v, e);
 
         // Transform gradient into spectral basis
         Tensor<double> gv = inner(g,v);

@@ -365,7 +365,7 @@ namespace madness {
 
             // solve Hy == betae for y
             gelss(H(Slice(0, iter), Slice(0, iter-1)), betae(Slice(0, iter)),
-                1.0e-12, &y, &s, &rank, &sumsq);
+                1.0e-12, y, s, rank, sumsq);
 
             resid = sumsq[0];
 

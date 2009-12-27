@@ -899,7 +899,7 @@ void Molecule::orient() {
                 I(j,k) += q*x[j]*x[k];
     }
     madness::Tensor<double> U, e;
-    madness::syev(I, &U, &e);
+    madness::syev(I, U, e);
     // madness::print("Moment of inertia eigenvalues and tensor\n");
     // madness::print(I);
     // madness::print(U);
