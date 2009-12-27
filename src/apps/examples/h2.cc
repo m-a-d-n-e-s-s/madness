@@ -1,7 +1,7 @@
 /*!
   \file h2.cc
   \brief Solves the Hartree-Fock equations for the hydrogen molecule
-  \defgroup examplesh2hf Hatree-Fock equations for the hydrogen molecule
+  \defgroup examplesh2hf Hartree-Fock equations for the hydrogen molecule
   \ingroup examples
 
   The Hartree-Fock wave function is computed for the hydrogen molecule
