@@ -1,7 +1,7 @@
 /*
  This file is part of MADNESS.
 
- Copyright (C) 2007-10 Oak Ridge National Laboratory
+ Copyright (C) 2007,2010 Oak Ridge National Laboratory
 
  This program is free software; you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
