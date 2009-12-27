@@ -1,6 +1,6 @@
 /*!
   \file he.cc
-  \brief Solves the Hatree-Fock equations for the helium atom
+  \brief Solves the Hartree-Fock equations for the helium atom
   \defgroup examplehehf Hatree-Fock equations for the helium atom
   \ingroup examples
 
