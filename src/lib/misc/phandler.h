@@ -51,7 +51,7 @@
     ...
 */
 
-#include <misc/muParser.h>
+#include <muParser/muParser.h>
 #include <string>
 #include <mra/mra.h>
 
