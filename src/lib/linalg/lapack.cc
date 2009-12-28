@@ -248,8 +248,9 @@ namespace madness {
         s = Tensor< typename Tensor<T>::scalar_type >(rmax);
         U = Tensor<T>(m,rmax);
         VT = Tensor<T>(rmax,n);
-
+	
         //std::cout << "n " << n << " m " << m << " lwork " << lwork << std::endl;
+	//std::cout << sizeof(long) << " " << sizeof(int) << " " << sizeof(integer) << std::endl;
         dgesvd_("S","S", &n, &m, A.ptr(), &n, s.ptr(),
                 VT.ptr(), &n, U.ptr(), &rmax, work.ptr(), &lwork,
                 &info, (char_len) 1, (char_len) 1);

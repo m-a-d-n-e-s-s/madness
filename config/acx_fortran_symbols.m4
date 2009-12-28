@@ -2,14 +2,21 @@ AC_DEFUN([ACX_FORTRAN_SYMBOLS], [
 # Dubiously checks for Fortran linking conventions and BLAS+LAPACK at the same time
 # mostly to avoid the need for having a fortran compiler installed
 
-# Check for no underscore first since IBM BG seems to define dgemm with/without underscore
-# but dsyev only without underscore
+# Check for no underscore first since IBM BG ESSL seems to define dgemm with/without underscore
+# but dsyev only without underscore ... but AMD ACML also defines both but with different
+# interfaces (fortran and c) ... ugh.  Hardware linking for bgp and restore to original order.
 
-    fsym=no
     echo "Checking Fortran-C linking conventions (dgemm -> ?)"
-    AC_CHECK_FUNC([dgemm],[fsym="lc"])
+    fsym=no
+
+    if test $host = "powerpc-bgp-linux"; then
+       fsym="lc"
+    fi
     if test $fsym = no; then
         AC_CHECK_FUNC([dgemm_],[fsym="lcu"])
+    fi
+    if test $fsym = no; then
+        AC_CHECK_FUNC([dgemm],[fsym="lc"])
     fi
     if test $fsym = no; then
         AC_CHECK_FUNC([dgemm__],[fsym="lcuu"])
