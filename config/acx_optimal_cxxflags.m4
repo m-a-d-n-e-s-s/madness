@@ -25,7 +25,7 @@ AC_DEFUN([ACX_OPTIMAL_CXXFLAGS], [
             fi
 
             case $host_cpu in
-                i?86*)
+                ?86*)
                    CXXFLAGS="$CXXFLAGS  -mfpmath=sse -msse"
                    ;;
             esac
