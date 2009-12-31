@@ -150,7 +150,7 @@ public: \
     //
     // *** !!! *** Unfortunately, this macro was confusing Doxygen
     // so we have removed all usages.
-    //#define ISSUPPORTED(T,RETURNTYPE)                                 \
+    //#define ISSUPPORTED(T,RETURNTYPE)                                 
     //template <typename T> typename IsSupported < TensorTypeData<T>, RETURNTYPE >::type
 
     /// TensorResultType<L,R>::type is the type of (L op R) where op is nominally multiplication
