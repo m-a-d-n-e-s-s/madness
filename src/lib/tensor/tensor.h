@@ -384,6 +384,7 @@ namespace madness {
             return *this;
         }
 
+
         /// Type conversion makes a deep copy
         template <class Q> operator Tensor<Q>() const { // type conv => deep copy
             Tensor<Q> result = Tensor<Q>(this->_ndim,this->_dim,false);
@@ -481,8 +482,8 @@ namespace madness {
 
         /// Inplace fill tensor with scalar
 
-        /// @param[in] Value used to fill tensor via assigment
-        /// @return Reference to this tensor
+        /// @param[in] x Value used to fill tensor via assigment
+        /// @return %Reference to this tensor
         Tensor<T>& operator=(T x) {
             UNARY_OPTIMIZED_ITERATOR(T,(*this),*_p0 = x);
             return *this;
@@ -490,8 +491,8 @@ namespace madness {
 
         /// Inplace fill with a scalar (legacy name)
 
-        /// @param[in] Value used to fill tensor via assigment
-        /// @return Reference to this tensor
+        /// @param[in] x Value used to fill tensor via assigment
+        /// @return %Reference to this tensor
         Tensor<T>& fill(T x) {
             *this = x;
             return *this;
@@ -499,8 +500,8 @@ namespace madness {
 
         /// Inplace addition of two tensors
 
-        /// @param[in] Conforming tensor to be added in-place to this tensor
-        /// @return Reference to this tensor
+        /// @param[in] t Conforming tensor to be added in-place to this tensor
+        /// @return %Reference to this tensor
         template <typename Q>
         Tensor<T>& operator+=(const Tensor<Q>& t) {
             BINARY_OPTIMIZED_ITERATOR(T, (*this), const T, t, *_p0 += *_p1);
@@ -509,8 +510,8 @@ namespace madness {
 
         /// Inplace subtraction of two tensors
 
-        /// @param[in] Conforming tensor to be subtracted in-place from this tensor
-        /// @return Reference to this tensor
+        /// @param[in] t Conforming tensor to be subtracted in-place from this tensor
+        /// @return %Reference to this tensor
         template <typename Q>
         Tensor<T>& operator-=(const Tensor<Q>& t) {
             BINARY_OPTIMIZED_ITERATOR(T, (*this), const T, t, *_p0 -= *_p1);
@@ -519,7 +520,7 @@ namespace madness {
 
         /// Addition of two tensors to produce a new tensor
 
-        /// @param[in] Conforming tensor to be added out-of-place to this tensor
+        /// @param[in] t Conforming tensor to be added out-of-place to this tensor
         /// @return New tensor
         template <typename Q>
         Tensor< TENSOR_RESULT_TYPE(T,Q) > operator+(const Tensor<Q>& t) const {
@@ -531,7 +532,7 @@ namespace madness {
 
         /// Subtraction of two tensors to produce a new tensor
 
-        /// @param[in] Conforming tensor to be subtracted out-of-place from this tensor
+        /// @param[in] t Conforming tensor to be subtracted out-of-place from this tensor
         /// @return New tensor
         template <typename Q>
         Tensor< TENSOR_RESULT_TYPE(T,Q) > operator-(const Tensor<Q>& t) const {
@@ -543,9 +544,11 @@ namespace madness {
 
         /// Multiplication of tensor by a scalar of a supported type to produce a new tensor
 
-        /// @param[in] Scalar value
+        /// @param[in] x Scalar value
         /// @return New tensor
-        template ISSUPPORTED(Q,Tensor< TENSOR_RESULT_TYPE(T,Q) >) operator*(const Q& x) const {
+        template <typename Q> 
+        typename IsSupported<TensorTypeData<Q>, Tensor<TENSOR_RESULT_TYPE(T,Q)> >::type
+        operator*(const Q& x) const {
             typedef TENSOR_RESULT_TYPE(T,Q) resultT;
             Tensor<resultT> result(_ndim,_dim,false);
             BINARY_OPTIMIZED_ITERATOR(resultT, result, const T, (*this), *_p0 = *_p1 * x);
@@ -554,9 +557,11 @@ namespace madness {
 
         /// Divide tensor by a scalar of a supported type to produce a new tensor
 
-        /// @param[in] Scalar value
+        /// @param[in] x Scalar value
         /// @return New tensor
-        template ISSUPPORTED(Q,Tensor< TENSOR_RESULT_TYPE(T,Q) >) operator/(const Q& x) const {
+        template <typename Q> 
+        typename IsSupported<TensorTypeData<Q>, Tensor<TENSOR_RESULT_TYPE(T,Q)> >::type
+        operator/(const Q& x) const {
             typedef TENSOR_RESULT_TYPE(T,Q) resultT;
             Tensor<resultT> result(_ndim,_dim);
             BINARY_OPTIMIZED_ITERATOR(resultT, result, const T, (*this), *_p0 = *_p1 / x);
@@ -565,9 +570,11 @@ namespace madness {
 
         /// Add a scalar of the same type to all elements of a tensor producing a new tensor
 
-        /// @param[in] Scalar value
+        /// @param[in] x Scalar value
         /// @return New tensor
-        template ISSUPPORTED(Q,Tensor< TENSOR_RESULT_TYPE(T,Q) >) operator+(const Q& x) const {
+        template <typename Q> 
+        typename IsSupported<TensorTypeData<Q>, Tensor<TENSOR_RESULT_TYPE(T,Q)> >::type
+        operator+(const Q& x) const {
             typedef TENSOR_RESULT_TYPE(T,Q) resultT;
             Tensor<resultT> result(_ndim,_dim);
             BINARY_OPTIMIZED_ITERATOR(resultT, result, const T, (*this), *_p0 = *_p1 + x);
@@ -576,9 +583,11 @@ namespace madness {
 
         /// Subtract a scalar of the same type from all elements producing a new tensor
 
-        /// @param[in] Scalar value
+        /// @param[in] x Scalar value
         /// @return New tensor
-        template ISSUPPORTED(Q,Tensor< TENSOR_RESULT_TYPE(T,Q) >) operator-(const Q& x) const {
+        template <typename Q> 
+        typename IsSupported<TensorTypeData<Q>, Tensor<TENSOR_RESULT_TYPE(T,Q)> >::type
+        operator-(const Q& x) const {
             return (*this) + (-x);
         }
 
@@ -591,52 +600,61 @@ namespace madness {
             return result;
         }
 
-        /// Inplace multiply by scalar of supported type
+        /// Inplace multiplication by scalar of supported type
 
-        /// @param[in] Scalar value
-        /// @return Reference to this tensor
-        template ISSUPPORTED(Q,Tensor<T>&) operator*=(const Q& x) {
+        /// @param[in] x Scalar value
+        /// @return %Reference to this tensor
+        template <typename Q> 
+        typename IsSupported<TensorTypeData<Q>,Tensor<T>&>::type 
+        operator*=(const Q& x) {
             UNARY_OPTIMIZED_ITERATOR(T, (*this), *_p0 *= x);
             return *this;
         }
 
-        /// Inplace multiply by scalar of supported type (legacy name)
+        /// Inplace multiplication by scalar of supported type (legacy name)
 
-        /// @param[in] Scalar value
-        /// @return Reference to this tensor
-        template ISSUPPORTED(Q,Tensor<T>&) scale(Q x) {
+        /// @param[in] x Scalar value
+        /// @return %Reference to this tensor
+        template <typename Q> 
+        typename IsSupported<TensorTypeData<Q>,Tensor<T>&>::type 
+        scale(Q x) {
             return (*this)*=x;
         }
 
         /// Inplace increment by scalar of supported type
 
         /// @param[in] Scalar value
-        /// @return Reference to this tensor
-        template ISSUPPORTED(Q,Tensor<T>&) operator+=(const Q& x) {
+        /// @return %Reference to this tensor
+        template <typename Q> 
+        typename IsSupported<TensorTypeData<Q>,Tensor<T>&>::type 
+        operator+=(const Q& x) {
             UNARY_OPTIMIZED_ITERATOR(T, (*this), *_p0 += x);
             return *this;
         }
 
         /// Inplace decrement by scalar of supported type
 
-        /// @param[in] Scalar value
-        /// @return Reference to this tensor
-        template ISSUPPORTED(Q,Tensor<T>&) operator-=(const Q& x) {
+        /// @param[in] x Scalar value
+        /// @return %Reference to this tensor
+        template <typename Q> 
+        typename IsSupported<TensorTypeData<Q>,Tensor<T>&>::type 
+        operator-=(const Q& x) {
             UNARY_OPTIMIZED_ITERATOR(T, (*this), *_p0 -= x);
             return *this;
         }
 
+
         /// Inplace complex conjugate
 
-        /// @return Reference to this tensor
+        /// @return %Reference to this tensor
         Tensor<T>& conj() {
             UNARY_OPTIMIZED_ITERATOR(T, (*this), *_p0 = conditional_conj(*_p0));
             return *this;
         }
 
-        /// Inplace fill *this with random values ([0,1] for floats, [0,MAXSIZE] for integers)
+        /// Inplace fill with random values ( \c [0,1] for floats, \c [0,MAXSIZE] for integers)
 
-        /// @return Reference to this tensor
+        /// @return %Reference to this tensor 
         Tensor<T>& fillrandom() {
             if (iscontiguous()) {
                 madness::RandomVector<T>(size(), ptr());
@@ -660,7 +678,7 @@ namespace madness {
         ///          tensor(i,j,k,...) = index++
         /// \endcode
         ///
-        /// @return Reference to this tensor
+        /// @return %Reference to this tensor
         Tensor<T>& fillindex() {
             long count = 0;
             UNARY_UNOPTIMIZED_ITERATOR(T,(*this), *_p0 = count++); // Fusedim would be OK
@@ -669,8 +687,8 @@ namespace madness {
 
         /// Inplace set elements of \c *this less than \c x in absolute magnitude to zero.
 
-        /// @param[in] Scalar value
-        /// @return Reference to this tensor
+        /// @param[in] x Scalar value
+        /// @return %Reference to this tensor
         Tensor<T>& screen(double x) {
             T zero = 0;
             UNARY_OPTIMIZED_ITERATOR(T,(*this), if (std::abs(*_p0)<x) *_p0=zero);
@@ -679,6 +697,8 @@ namespace madness {
 
 
         /// Return true if bounds checking was enabled at compile time
+
+        /// @return True if bounds checking was enabled at compile time
         static bool bounds_checking() {
 #ifdef TENSOR_BOUNDS_CHECKING
             return true;
@@ -690,7 +710,7 @@ namespace madness {
         /// 1-d indexing operation using \c [] \em without bounds checking.
 
         /// @param[in] i index for dimension 0
-        /// @return Reference to element
+        /// @return %Reference to element
         T& operator[](long i) {
 #ifdef TENSOR_BOUNDS_CHECKING
             TENSOR_ASSERT(i>=0 && i<_dim[0],"1d bounds check failed dim=0",i,this);
@@ -701,7 +721,7 @@ namespace madness {
         /// 1-d indexing operation using \c [] \em without bounds checking.
 
         /// @param[in] i index for dimension 0
-        /// @return Reference to element
+        /// @return %Reference to element
         const T& operator[](long i) const {
 #ifdef TENSOR_BOUNDS_CHECKING
             TENSOR_ASSERT(i>=0 && i<_dim[0],"1d bounds check failed dim=0",i,this);
@@ -712,7 +732,7 @@ namespace madness {
         /// 1-d indexing operation \em without bounds checking.
 
         /// @param[in] i index for dimension 0
-        /// @return Reference to element
+        /// @return %Reference to element
         T& operator()(long i) {
 #ifdef TENSOR_BOUNDS_CHECKING
             TENSOR_ASSERT(i>=0 && i<_dim[0],"1d bounds check failed dim=0",i,this);
@@ -723,7 +743,7 @@ namespace madness {
         /// 1-d indexing operation \em without bounds checking.
 
         /// @param[in] i index for dimension 0
-        /// @return Reference to element
+        /// @return %Reference to element
         const T& operator()(long i) const {
 #ifdef TENSOR_BOUNDS_CHECKING
             TENSOR_ASSERT(i>=0 && i<_dim[0],"1d bounds check failed dim=0",i,this);
@@ -735,7 +755,7 @@ namespace madness {
 
         /// @param[in] i index for dimension 0
         /// @param[in] j index for dimension 1
-        /// @return Reference to element
+        /// @return %Reference to element
         T& operator()(long i, long j) {
 #ifdef TENSOR_BOUNDS_CHECKING
             TENSOR_ASSERT(i>=0 && i<_dim[0],"2d bounds check failed dim=0",i,this);
@@ -748,7 +768,7 @@ namespace madness {
 
         /// @param[in] i index for dimension 0
         /// @param[in] j index for dimension 1
-        /// @return Reference to element
+        /// @return %Reference to element
         const T& operator()(long i, long j) const {
 #ifdef TENSOR_BOUNDS_CHECKING
             TENSOR_ASSERT(i>=0 && i<_dim[0],"2d bounds check failed dim=0",i,this);
@@ -762,7 +782,7 @@ namespace madness {
         /// @param[in] i index for dimension 0
         /// @param[in] j index for dimension 1
         /// @param[in] k index for dimension 2
-        /// @return Reference to element
+        /// @return %Reference to element
         T& operator()(long i, long j, long k) {
 #ifdef TENSOR_BOUNDS_CHECKING
             TENSOR_ASSERT(i>=0 && i<_dim[0],"3d bounds check failed dim=0",i,this);
@@ -777,7 +797,7 @@ namespace madness {
         /// @param[in] i index for dimension 0
         /// @param[in] j index for dimension 1
         /// @param[in] k index for dimension 2
-        /// @return Reference to element
+        /// @return %Reference to element
         const T& operator()(long i, long j, long k) const {
 #ifdef TENSOR_BOUNDS_CHECKING
             TENSOR_ASSERT(i>=0 && i<_dim[0],"3d bounds check failed dim=0",i,this);
@@ -793,7 +813,7 @@ namespace madness {
         /// @param[in] j index for dimension 1
         /// @param[in] k index for dimension 2
         /// @param[in] l index for dimension 3
-        /// @return Reference to element
+        /// @return %Reference to element
         T& operator()(long i, long j, long k, long l) {
 #ifdef TENSOR_BOUNDS_CHECKING
             TENSOR_ASSERT(i>=0 && i<_dim[0],"4d bounds check failed dim=0",i,this);
@@ -811,7 +831,7 @@ namespace madness {
         /// @param[in] j index for dimension 1
         /// @param[in] k index for dimension 2
         /// @param[in] l index for dimension 3
-        /// @return Reference to element
+        /// @return %Reference to element
         const T& operator()(long i, long j, long k, long l) const {
 #ifdef TENSOR_BOUNDS_CHECKING
             TENSOR_ASSERT(i>=0 && i<_dim[0],"4d bounds check failed dim=0",i,this);
@@ -830,7 +850,7 @@ namespace madness {
         /// @param[in] k index for dimension 2
         /// @param[in] l index for dimension 3
         /// @param[in] m index for dimension 4
-        /// @return Reference to element
+        /// @return %Reference to element
         T& operator()(long i, long j, long k, long l, long m) {
 #ifdef TENSOR_BOUNDS_CHECKING
             TENSOR_ASSERT(i>=0 && i<_dim[0],"5d bounds check failed dim=0",i,this);
@@ -850,7 +870,7 @@ namespace madness {
         /// @param[in] k index for dimension 2
         /// @param[in] l index for dimension 3
         /// @param[in] m index for dimension 4
-        /// @return Reference to element
+        /// @return %Reference to element
         const T& operator()(long i, long j, long k, long l, long m) const {
 #ifdef TENSOR_BOUNDS_CHECKING
             TENSOR_ASSERT(i>=0 && i<_dim[0],"5d bounds check failed dim=0",i,this);
@@ -871,7 +891,7 @@ namespace madness {
         /// @param[in] l index for dimension 3
         /// @param[in] m index for dimension 4
         /// @param[in] n index for dimension 5
-        /// @return Reference to element
+        /// @return %Reference to element
         T& operator()(long i, long j, long k, long l, long m, long n) {
 #ifdef TENSOR_BOUNDS_CHECKING
             TENSOR_ASSERT(i>=0 && i<_dim[0],"6d bounds check failed dim=0",i,this);
@@ -893,7 +913,7 @@ namespace madness {
         /// @param[in] l index for dimension 3
         /// @param[in] m index for dimension 4
         /// @param[in] n index for dimension 5
-        /// @return Reference to element
+        /// @return %Reference to element
         const T& operator()(long i, long j, long k, long l, long m, long n) const {
 #ifdef TENSOR_BOUNDS_CHECKING
             TENSOR_ASSERT(i>=0 && i<_dim[0],"6d bounds check failed dim=0",i,this);
@@ -910,6 +930,7 @@ namespace madness {
         /// Politically incorrect general indexing operation \em without bounds checking.
 
         /// @param[in] Array containing index for each dimension
+        /// @return %Reference to element
         T& operator()(const long ind[]) {
             long offset = 0;
             for (int d=0; d<_ndim; d++) {
@@ -925,6 +946,7 @@ namespace madness {
         /// Politically incorrect general indexing operation \em without bounds checking.
 
         /// @param[in] Array containing index for each dimension
+        /// @return %Reference to element
         const T& operator()(const long ind[]) const {
             long offset = 0;
             for (int d=0; d<_ndim; d++) {
@@ -940,6 +962,7 @@ namespace madness {
         /// General indexing operation \em with bounds checking.
 
         /// @param[in] Vector containing index for each dimension
+        /// @return %Reference to element
         T& operator()(const std::vector<long> ind) {
             TENSOR_ASSERT(ind.size()>=(unsigned int) _ndim,"invalid number of dimensions",ind.size(),this);
             long index=0;
@@ -953,6 +976,7 @@ namespace madness {
         /// General indexing operation \em with bounds checking.
 
         /// @param[in] Vector containing index for each dimension
+        /// @return %Reference to element
         const T& operator()(const std::vector<long> ind) const {
             TENSOR_ASSERT(ind.size()>=(unsigned int) _ndim,"invalid number of dimensions",ind.size(),this);
             long index=0;
@@ -966,13 +990,17 @@ namespace madness {
         /// General slicing operation
 
         /// @param[in] Vector containing slice for each dimension
+        /// @return SliceTensor viewing patch of original tensor
         SliceTensor<T> operator()(const std::vector<Slice>& s) {
             TENSOR_ASSERT(s.size()>=(unsigned)(this->ndim()), "invalid number of dimensions", 
                           this->ndim(),this);
             return SliceTensor<T>(*this,&(s[0]));
         }
 
-        /// General slicing operation
+        /// General slicing operation (const)
+
+        /// @param[in] Vector containing slice for each dimension
+        /// @return Constant Tensor viewing patch of original tensor
         const Tensor<T> operator()(const std::vector<Slice>& s) const {
             TENSOR_ASSERT(s.size()>=(unsigned)(this->ndim()), "invalid number of dimensions", 
                           this->ndim(),this);
@@ -980,6 +1008,8 @@ namespace madness {
         }
 
         /// Return a 1d SliceTensor that views the specified range of the 1d Tensor
+
+        /// @return SliceTensor viewing patch of original tensor
         SliceTensor<T> operator()(const Slice& s0) {
             TENSOR_ASSERT(this->ndim()==1,"invalid number of dimensions",
                           this->ndim(),this);
@@ -988,6 +1018,8 @@ namespace madness {
         }
 
         /// Return a 1d SliceTensor that views the specified range of the 1d Tensor
+
+        /// @return Constant Tensor viewing patch of original tensor: \f$ R(*,*,\ldots) \rightarrow I(*,*,\ldots) \f$
         const Tensor<T> operator()(const Slice& s0) const {
             TENSOR_ASSERT(this->ndim()==1,"invalid number of dimensions",
                           this->ndim(),this);
@@ -996,6 +1028,8 @@ namespace madness {
         }
 
         /// Return a 1d SliceTensor that views the specified range of the 2d Tensor
+
+        /// @return SliceTensor viewing patch of original tensor: \f$ R(*) \rightarrow I(i,*) \f$
         SliceTensor<T> operator()(long i, const Slice& s1) {
             TENSOR_ASSERT(this->ndim()==2,"invalid number of dimensions",
                           this->ndim(),this);
@@ -1004,6 +1038,8 @@ namespace madness {
         }
 
         /// Return a 1d SliceTensor that views the specified range of the 2d Tensor
+
+        /// @return Constant Tensor viewing patch of original tensor
         const Tensor<T> operator()(long i, const Slice& s1) const {
             TENSOR_ASSERT(this->ndim()==2,"invalid number of dimensions",
                           this->ndim(),this);
@@ -1012,6 +1048,8 @@ namespace madness {
         }
 
         /// Return a 1d SliceTensor that views the specified range of the 2d Tensor
+
+        /// @return SliceTensor viewing patch of original tensor
         SliceTensor<T> operator()(const Slice& s0, long j) {
             TENSOR_ASSERT(this->ndim()==2,"invalid number of dimensions",
                           this->ndim(),this);
@@ -1019,7 +1057,9 @@ namespace madness {
             return SliceTensor<T>(*this,s);
         }
 
-        /// Return a 1d SliceTensor that views the specified range of the 2d Tensor
+        /// Return a 1d constant Tensor that views the specified range of the 2d Tensor
+
+        /// @return Constant Tensor viewing patch of original tensor
         const Tensor<T> operator()(const Slice& s0, long j) const {
             TENSOR_ASSERT(this->ndim()==2,"invalid number of dimensions",
                           this->ndim(),this);
@@ -1028,6 +1068,8 @@ namespace madness {
         }
 
         /// Return a 2d SliceTensor that views the specified range of the 2d Tensor
+
+        /// @return SliceTensor viewing patch of original tensor
         SliceTensor<T> operator()(const Slice& s0, const Slice& s1) {
             TENSOR_ASSERT(this->ndim()==2,"invalid number of dimensions",
                           this->ndim(),this);
@@ -1035,7 +1077,9 @@ namespace madness {
             return SliceTensor<T>(*this,s);
         }
 
-        /// Return a 2d SliceTensor that views the specified range of the 2d Tensor
+        /// Return a 2d constant Tensor that views the specified range of the 2d Tensor
+
+        /// @return Constant Tensor viewing patch of original tensor
         const Tensor<T> operator()(const Slice& s0, const Slice& s1) const {
             TENSOR_ASSERT(this->ndim()==2,"invalid number of dimensions",
                           this->ndim(),this);
@@ -1044,6 +1088,8 @@ namespace madness {
         }
 
         /// Return a 3d SliceTensor that views the specified range of the 3d Tensor
+
+        /// @return SliceTensor viewing patch of original tensor
         SliceTensor<T> operator()(const Slice& s0, const Slice& s1, const Slice& s2) {
             TENSOR_ASSERT(this->ndim()==3,"invalid number of dimensions",
                           this->ndim(),this);
@@ -1051,7 +1097,9 @@ namespace madness {
             return SliceTensor<T>(*this,s);
         }
 
-        /// Return a 3d SliceTensor that views the specified range of the 3d Tensor
+        /// Return a 3d constant Tensor that views the specified range of the 3d Tensor
+
+        /// @return Constant Tensor viewing patch of original tensor
         const Tensor<T> operator()(const Slice& s0, const Slice& s1, const Slice& s2) const {
             TENSOR_ASSERT(this->ndim()==3,"invalid number of dimensions",
                           this->ndim(),this);
@@ -1060,6 +1108,8 @@ namespace madness {
         }
 
         /// Return a 2d SliceTensor that views the specified range of the 3d Tensor
+
+        /// @return SliceTensor viewing patch of original tensor
         SliceTensor<T> operator()(long i, const Slice& s1, const Slice& s2) {
             TENSOR_ASSERT(this->ndim()==3,"invalid number of dimensions",
                           this->ndim(),this);
@@ -1067,7 +1117,9 @@ namespace madness {
             return SliceTensor<T>(*this,s);
         }
 
-        /// Return a 2d SliceTensor that views the specified range of the 3d Tensor
+        /// Return a 2d constant Tensor that views the specified range of the 3d Tensor
+
+        /// @return Constant Tensor viewing patch of original tensor
         const Tensor<T> operator()(long i, const Slice& s1, const Slice& s2) const {
             TENSOR_ASSERT(this->ndim()==3,"invalid number of dimensions",
                           this->ndim(),this);
@@ -1076,6 +1128,8 @@ namespace madness {
         }
 
         /// Return a 2d SliceTensor that views the specified range of the 3d Tensor
+
+        /// @return SliceTensor viewing patch of original tensor
         SliceTensor<T> operator()(const Slice& s0, long j, const Slice& s2) {
             TENSOR_ASSERT(this->ndim()==3,"invalid number of dimensions",
                           this->ndim(),this);
@@ -1083,7 +1137,9 @@ namespace madness {
             return SliceTensor<T>(*this,s);
         }
 
-        /// Return a 2d SliceTensor that views the specified range of the 3d Tensor
+        /// Return a 2d constant Tensor that views the specified range of the 3d Tensor
+
+        /// @return Constant Tensor viewing patch of original tensor
         const Tensor<T> operator()(const Slice& s0, long j, const Slice& s2) const {
             TENSOR_ASSERT(this->ndim()==3,"invalid number of dimensions",
                           this->ndim(),this);
@@ -1092,6 +1148,8 @@ namespace madness {
         }
 
         /// Return a 2d SliceTensor that views the specified range of the 3d Tensor
+
+        /// @return SliceTensor viewing patch of original tensor
         SliceTensor<T> operator()(const Slice& s0, const Slice& s1, long k) {
             TENSOR_ASSERT(this->ndim()==3,"invalid number of dimensions",
                           this->ndim(),this);
@@ -1099,7 +1157,9 @@ namespace madness {
             return SliceTensor<T>(*this,s);
         }
 
-        /// Return a 2d SliceTensor that views the specified range of the 3d Tensor
+        /// Return a 2d constant Tensor that views the specified range of the 3d Tensor
+
+        /// @return Constant Tensor viewing patch of original tensor
         const Tensor<T> operator()(const Slice& s0, const Slice& s1, long k) const {
             TENSOR_ASSERT(this->ndim()==3,"invalid number of dimensions",
                           this->ndim(),this);
@@ -1108,6 +1168,8 @@ namespace madness {
         }
 
         /// Return a 1d SliceTensor that views the specified range of the 3d Tensor
+
+        /// @return SliceTensor viewing patch of original tensor
         SliceTensor<T> operator()(long i, long j, const Slice& s2) {
             TENSOR_ASSERT(this->ndim()==3,"invalid number of dimensions",
                           this->ndim(),this);
@@ -1115,7 +1177,9 @@ namespace madness {
             return SliceTensor<T>(*this,s);
         }
 
-        /// Return a 1d SliceTensor that views the specified range of the 3d Tensor
+        /// Return a 1d constant Tensor that views the specified range of the 3d Tensor
+
+        /// @return Constant Tensor viewing patch of original tensor
         const Tensor<T> operator()(long i, long j, const Slice& s2) const {
             TENSOR_ASSERT(this->ndim()==3,"invalid number of dimensions",
                           this->ndim(),this);
@@ -1124,6 +1188,8 @@ namespace madness {
         }
 
         /// Return a 1d SliceTensor that views the specified range of the 3d Tensor
+
+        /// @return SliceTensor viewing patch of original tensor
         SliceTensor<T> operator()(long i, const Slice& s1, long k) {
             TENSOR_ASSERT(this->ndim()==3,"invalid number of dimensions",
                           this->ndim(),this);
@@ -1131,7 +1197,9 @@ namespace madness {
             return SliceTensor<T>(*this,s);
         }
         
-        /// Return a 1d SliceTensor that views the specified range of the 3d Tensor
+        /// Return a 1d constant Tensor that views the specified range of the 3d Tensor
+
+        /// @return Constant Tensor viewing patch of original tensor
         const Tensor<T> operator()(long i, const Slice& s1, long k) const {
             TENSOR_ASSERT(this->ndim()==3,"invalid number of dimensions",
                           this->ndim(),this);
@@ -1140,6 +1208,8 @@ namespace madness {
         }
         
         /// Return a 1d SliceTensor that views the specified range of the 3d Tensor
+
+        /// @return SliceTensor viewing patch of original tensor
         SliceTensor<T> operator()(const Slice& s0, long j, long k) {
             TENSOR_ASSERT(this->ndim()==3,"invalid number of dimensions",
                           this->ndim(),this);
@@ -1147,7 +1217,9 @@ namespace madness {
             return SliceTensor<T>(*this,s);
         }
 
-        /// Return a 1d SliceTensor that views the specified range of the 3d Tensor
+        /// Return a 1d constant Tensor that views the specified range of the 3d Tensor
+
+        /// @return Constant Tensor viewing patch of original tensor
         const Tensor<T> operator()(const Slice& s0, long j, long k) const {
             TENSOR_ASSERT(this->ndim()==3,"invalid number of dimensions",
                           this->ndim(),this);
@@ -1156,6 +1228,8 @@ namespace madness {
         }
 
         /// Return a 1-4d SliceTensor that views the specified range of the 4d Tensor
+
+        /// @return SliceTensor viewing patch of original tensor
         SliceTensor<T> operator()(const Slice& s0, const Slice& s1, const Slice& s2,
                                   const Slice& s3) {
             TENSOR_ASSERT(this->ndim()==4,"invalid number of dimensions",
@@ -1164,7 +1238,9 @@ namespace madness {
             return SliceTensor<T>(*this,s);
         }
         
-        /// Return a 1-4d SliceTensor that views the specified range of the 4d Tensor
+        /// Return a 1-4d constant Tensor that views the specified range of the 4d Tensor
+
+        /// @return Constant Tensor viewing patch of original tensor
         const Tensor<T> operator()(const Slice& s0, const Slice& s1, const Slice& s2,
                                   const Slice& s3) const {
             TENSOR_ASSERT(this->ndim()==4,"invalid number of dimensions",
@@ -1174,6 +1250,8 @@ namespace madness {
         }
         
         /// Return a 1-5d SliceTensor that views the specified range of the 5d Tensor
+
+        /// @return SliceTensor viewing patch of original tensor
         SliceTensor<T> operator()(const Slice& s0, const Slice& s1, const Slice& s2,
                                   const Slice& s3, const Slice& s4) {
             TENSOR_ASSERT(this->ndim()==5,"invalid number of dimensions",
@@ -1182,7 +1260,9 @@ namespace madness {
             return SliceTensor<T>(*this,s);
         }
 
-        /// Return a 1-5d SliceTensor that views the specified range of the 5d Tensor
+        /// Return a 1-5d constant Tensor that views the specified range of the 5d Tensor
+
+        /// @return Constant Tensor viewing patch of original tensor
         const Tensor<T> operator()(const Slice& s0, const Slice& s1, const Slice& s2,
                                   const Slice& s3, const Slice& s4) const {
             TENSOR_ASSERT(this->ndim()==5,"invalid number of dimensions",
@@ -1192,6 +1272,8 @@ namespace madness {
         }
 
         /// Return a 1-6d SliceTensor that views the specified range of the 6d Tensor
+
+        /// @return SliceTensor viewing patch of original tensor
         SliceTensor<T> operator()(const Slice& s0, const Slice& s1, const Slice& s2,
                                   const Slice& s3, const Slice& s4, const Slice& s5) {
             TENSOR_ASSERT(this->ndim()==6,"invalid number of dimensions",
@@ -1201,7 +1283,9 @@ namespace madness {
         }
 
 
-        /// Return a 1-6d SliceTensor that views the specified range of the 6d Tensor
+        /// Return a 1-6d constant Tensor that views the specified range of the 6d Tensor
+
+        /// @return Constant Tensor viewing patch of original tensor
         const Tensor<T> operator()(const Slice& s0, const Slice& s1, const Slice& s2,
                                   const Slice& s3, const Slice& s4, const Slice& s5) const {
             TENSOR_ASSERT(this->ndim()==6,"invalid number of dimensions",

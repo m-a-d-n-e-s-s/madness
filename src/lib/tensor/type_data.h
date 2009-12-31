@@ -144,12 +144,14 @@ public: \
         typedef ReturnType type;
     };
 
-    /// This macro embodies the above for a single parameter template.  For
-    /// clarity, the initial keyword template is ommitted from the macro.
-    /// Look in tensor.h for example of how to use in multi-parameter
-    /// templates.
-#define ISSUPPORTED(T,RETURNTYPE) \
-<typename T> typename IsSupported < TensorTypeData<T>, RETURNTYPE >::type
+    // This macro embodies the above for a single parameter template.
+    // Look in tensor.h for example of how to use in multi-parameter
+    // templates.  
+    //
+    // *** !!! *** Unfortunately, this macro was confusing Doxygen
+    // so we have removed all usages.
+    //#define ISSUPPORTED(T,RETURNTYPE)                                 \
+    //template <typename T> typename IsSupported < TensorTypeData<T>, RETURNTYPE >::type
 
     /// TensorResultType<L,R>::type is the type of (L op R) where op is nominally multiplication
     template <typename leftT, typename rightT>
