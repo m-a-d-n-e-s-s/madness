@@ -36,7 +36,7 @@
   \defgroup examplenonlinsc Solves a 1D nonlinear Schr&ouml;dinger equation
   \ingroup examples
 
-  This illustrates solution of a non-linear Schr&ouml;dinger motivated by
+  This <a href=http://code.google.com/p/m-a-d-n-e-s-s/source/browse/local/trunk/src/apps/examples/nonlinschro.cc>example</a> illustrates solution of a non-linear Schr&ouml;dinger motivated by
   exploring problems associated with equations of the same form from
   nuclear physics.
 
