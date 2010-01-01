@@ -44,6 +44,7 @@
 
 #include <world/parar.h>
 #include <world/worldhashmap.h>
+#include <set>
 
 namespace madness {
 
@@ -56,15 +57,74 @@ namespace madness {
     template <typename keyT, typename valueT, typename hashfunT>
     void swap(WorldContainer<keyT, valueT, hashfunT>&, WorldContainer<keyT, valueT, hashfunT>&);
 
+    template <typename keyT>
+    class WorldDCPmapInterface;
+
+    template <typename keyT>
+    class WorldDCRedistributeInterface {
+    public:
+        virtual void redistribute_phase1(SharedPtr< WorldDCPmapInterface<keyT> >& newmap) = 0;
+        virtual void redistribute_phase2() = 0;
+    };
+
+
     /// Interface to be provided by any process map
 
     /// \ingroup worlddc
     template <typename keyT>
     class WorldDCPmapInterface {
     public:
+        typedef WorldDCRedistributeInterface<keyT>* ptrT;
+    private:
+        std::set<ptrT> ptrs;
+    public:
+        /// Maps key to processor
+
+        /// @param[in] key Key for container
+        /// @return Processor that logically owns the key
         virtual ProcessID owner(const keyT& key) const = 0;
+
         virtual ~WorldDCPmapInterface() {}
+
         virtual void print() const {}
+
+        /// Registers object for receipt of redistribute callbacks
+        
+        /// @param[in] ptr Pointer to class derived from WorldDCRedistributedInterface
+        void register_callback(ptrT ptr) {
+            ptrs.insert(ptr);
+        }
+
+        /// Deregisters object for receipt of redistribute callbacks
+        
+        /// @param[in] ptr Pointer to class derived from WorldDCRedistributedInterface
+        void deregister_callback(ptrT ptr) {
+            ptrs.erase(ptr);
+        }
+
+        /// Invoking this switches all registered objects from this process map to the new one
+
+        /// After invoking this routine all objects will be registered with the
+        /// new map and no objects will be registered in the current map.
+        /// @param[in] world The associated world
+        /// @param[in] newpmap The new process map
+        void redistribute(World& world, SharedPtr< WorldDCPmapInterface<keyT> >& newpmap) {
+            world.gop.fence();
+            for (typename std::set<ptrT>::iterator iter = ptrs.begin();
+                 iter != ptrs.end();
+                 ++iter) {
+                (*iter)->redistribute_phase1(newpmap);
+            }
+            world.gop.fence();
+            for (typename std::set<ptrT>::iterator iter = ptrs.begin();
+                 iter != ptrs.end();
+                 ++iter) {
+                (*iter)->redistribute_phase2();
+                newpmap->register_callback(*iter);
+            }
+            ptrs.clear();
+            world.gop.fence();
+        }
     };
 
     /// Default process map is "random" using madness::hash(key)
@@ -222,8 +282,9 @@ namespace madness {
     /// \ingroup worlddc
     template <typename keyT, typename valueT, typename hashfunT >
     class WorldContainerImpl
-                : public WorldObject< WorldContainerImpl<keyT, valueT, hashfunT> >
-                , private NO_DEFAULTS {
+        : public WorldObject< WorldContainerImpl<keyT, valueT, hashfunT> >
+        , public WorldDCRedistributeInterface<keyT>
+        , private NO_DEFAULTS {
     public:
         typedef typename std::pair<const keyT,valueT> pairT;
         typedef const pairT const_pairT;
@@ -255,9 +316,10 @@ namespace madness {
 
         WorldContainerImpl();   // Inhibit default constructor
 
-        const SharedPtr< WorldDCPmapInterface<keyT> > pmap;///< Function/class to map from keys to owning process
+        SharedPtr< WorldDCPmapInterface<keyT> > pmap;///< Function/class to map from keys to owning process
         const ProcessID me;                      ///< My MPI rank
         internal_containerT local;               ///< Locally owned data
+        std::vector<keyT>* move_list;            ///< Tempoary used to record data that needs redistributing
 
         /// Handles find request
         Void find_handler(ProcessID requestor, const keyT& key, const RemoteReference< FutureImpl<iterator> >& ref) {
@@ -301,9 +363,13 @@ namespace madness {
                 , pmap(pmap)
                 , me(world.mpi.rank())
                 , local(131, hf) {
+            pmap->register_callback(this);
             if (do_pending) this->process_pending();
         }
-
+        
+        ~WorldContainerImpl() {
+            pmap->deregister_callback(this);
+        }
 
         const SharedPtr< WorldDCPmapInterface<keyT> >& get_pmap() const {
             return pmap;
@@ -511,6 +577,27 @@ namespace madness {
             local.insert(acc, key);
             return (acc->second.*memfun)(arg1,arg2,arg3,arg4,arg5,arg6,arg7);
         }
+
+        // First phase of redistributions changes pmap and makes list of stuff to move
+        void redistribute_phase1(SharedPtr< WorldDCPmapInterface<keyT> >& newpmap) {
+            pmap = newpmap;
+            move_list = new std::vector<keyT>();
+            for (typename internal_containerT::iterator iter=local.begin(); iter!=local.end(); ++iter) {
+                if (owner(iter->first) != me) move_list->push_back(iter->first);
+            }
+        }
+
+        // Second phase moves data and cleans up
+        void redistribute_phase2() {
+            std::vector<keyT>& mvlist = *move_list;
+            for (unsigned int i=0; i<move_list->size(); i++) {
+                typename internal_containerT::iterator iter = local.find(mvlist[i]);
+                MADNESS_ASSERT(iter != local.end());
+                insert(*iter);
+                local.erase(iter);
+            }
+            delete move_list;
+        }
     };
 
 
@@ -566,7 +653,8 @@ namespace madness {
         /// constructed container.  There is no need to worry about
         /// default constructors being executed in order.
         WorldContainer()
-                : p(0) {}
+                : p(0) 
+        {}
 
 
         /// Makes an initialized, empty container with default data distribution (no communication)
@@ -577,10 +665,11 @@ namespace madness {
         /// execute this constructor in the same order (does not apply
         /// to the non-initializing, default constructor).
         WorldContainer(World& world, bool do_pending=true, const hashfunT& hf = hashfunT())
-                : p(new implT(world,
-                              SharedPtr< WorldDCPmapInterface<keyT> >(new WorldDCDefaultPmap<keyT, hashfunT>(world, hf)),
-                              do_pending,
-                              hf)) {}
+            : p(new implT(world,
+                          SharedPtr< WorldDCPmapInterface<keyT> >(new WorldDCDefaultPmap<keyT, hashfunT>(world, hf)),
+                          do_pending,
+                          hf)) 
+        {}
 
         /// Makes an initialized, empty container (no communication)
 
@@ -593,7 +682,8 @@ namespace madness {
                        const SharedPtr< WorldDCPmapInterface<keyT> >& pmap,
                        bool do_pending=true,
                        const hashfunT& hf = hashfunT())
-                : p(new implT(world, pmap, do_pending, hf)) {}
+            : p(new implT(world, pmap, do_pending, hf)) 
+        {}
 
 
         /// Copy constructor is shallow (no communication)
@@ -601,7 +691,8 @@ namespace madness {
         /// The copy refers to exactly the same container as other
         /// which must be initialized.
         WorldContainer(const WorldContainer& other)
-                : p(other.p) {
+            : p(other.p) 
+        {
             check_initialized();
         }
 

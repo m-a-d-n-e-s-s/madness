@@ -1,5 +1,5 @@
-/// \file mainpage.h
-/// \brief MADNESS 
+///  \file mainpage.h
+///  \brief MADNESS 
 
 ///  \defgroup configuration MADNESS installation and configuration
 ///  \defgroup libraries MADNESS libraries
@@ -7,28 +7,73 @@
 ///  \defgroup parallel_runtime Parallel programming environment
 ///  \ingroup libraries
 
+///          \defgroup world Distributed computing environment (World and its relations)
+///          \ingroup parallel_runtime
+
+///                  \defgroup rmi Remote method invocation
+///                  \ingroup world
+
+///                  \defgroup mpi Interfaces from World to MPI
+///                  \ingroup world
+
+///                  \defgroup worldobj Globally addressable objects (WorldObject)
+///                  \ingroup world
+
+///                  \defgroup worlddc Distributed containers (WorldContainer)
+///                  \ingroup world
+
+///                  \defgroup futures Futures
+///                  \ingroup parallel_runtime
+
+///          \defgroup serialization Serialization
+///          \ingroup parallel_runtime
+
+///          \defgroup hashing Hashing
+///          \ingroup parallel_runtime
+
+///          \defgroup threading Multi-threading 
+///          \ingroup parallel_runtime
+
+///                  \defgroup mutexes Mutexes
+///                  \ingroup threading
+
+///                  \defgroup atomics Atomic operations
+///                  \ingroup threading
+
+///                  \defgroup threads Threads
+///                  \ingroup threading
+
+///                  \defgroup threadpool Thread pool
+///                  \ingroup threading
+
+///                  \defgroup taskq Task queue
+///                  \ingroup threading
+
+///                  \defgroup conhash Concurrent hash table
+///                  \ingroup threading
+
 ///  \defgroup mra Multiresolution analaysis
 ///  \ingroup libraries
 
-///  \defgroup funcplot Function plotting routines
-///  \ingroup mra
+///          \defgroup funcplot Function plotting routines
+///          \ingroup mra
 
-///  \defgroup tensor Tensors or multidimension arrays
-///  \ingroup libraries
+///          \defgroup tensor Tensors or multidimension arrays
+///          \ingroup libraries
 
-///  \defgroup linalg Linear algebra (interface to LAPACK)
-///  \ingroup libraries
+///          \defgroup linalg Linear algebra (interface to LAPACK)
+///          \ingroup libraries
 
-///  \defgroup solvers Iterative solvers for linear/non-linear equations and optimizers
-///  \ingroup libraries
+///          \defgroup solvers Iterative solvers for linear/non-linear equations and optimizers
+///          \ingroup libraries
 
-///  \defgroup misc Miscellany
-///  \ingroup libraries
+///          \defgroup misc Miscellany
+///          \ingroup libraries
 
 ///  \defgroup applications MADNESS applications
 
-///  \defgroup examples Examples 
-///  \ingroup applications
+///          \defgroup examples Examples 
+///          \ingroup applications
 
 /*!
 

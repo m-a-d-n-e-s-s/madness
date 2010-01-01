@@ -36,7 +36,6 @@
 using namespace madness;
 using namespace std;
 
-
 struct Key {
     int k;
 
@@ -106,25 +105,57 @@ void test0(World& world) {
     world.gop.fence();
 }
 
+class TestPmap : public WorldDCPmapInterface<int> {
+private:
+    const int nproc;
+    const int shift;
+public:
+    TestPmap(World& world, int shift)
+        : nproc(world.mpi.nproc())
+        , shift(shift)
+    { }
+
+    ProcessID owner(const int& key) const {
+        if (nproc == 1) return 0;
+        return (key + shift)%nproc;
+    }
+};
+
+void test1(World& world) {
+    SharedPtr< WorldDCPmapInterface<int> > pmap0(new TestPmap(world, 0));
+    SharedPtr< WorldDCPmapInterface<int> > pmap1(new TestPmap(world, 1));
+    
+    WorldContainer<int,double> c(world,pmap0), d(world,pmap0), e(world,pmap0);
+
+    if (world.rank() == 0) {
+        for (int i=0; i<100; i++) {
+            c.replace(i,i+1.0);
+            d.replace(i,i+2.0);
+            e.replace(i,i+3.0);
+        }
+    }
+
+    pmap0->redistribute(world, pmap1);
+
+    for (int i=0; i<100; i++) {
+        MADNESS_ASSERT(c.find(i).get()->second == (i+1.0));
+        MADNESS_ASSERT(d.find(i).get()->second == (i+2.0));
+        MADNESS_ASSERT(e.find(i).get()->second == (i+3.0));
+    }
+
+    world.gop.fence();
+}
 
 
 int main(int argc, char** argv) {
-    bool bind[3] = {true, true, true};
-    int cpulo[3] = {0, 1, 2};
-    ThreadBase::set_affinity_pattern(bind, cpulo); // Decide how to locate threads before doing anything
-    ThreadBase::set_affinity(0);         // The main thread is logical thread 0
-    MPI::Init(argc, argv);      // MPI starts the universe
-    ThreadPool::begin();        // Must have thread pool before any AM arrives
-    RMI::begin();               // Must have RMI while still running single threaded
-
+    initialize(argc, argv);
     World world(MPI::COMM_WORLD);
-    redirectio(world);
-    world.gop.fence();
-
-    xterm_debug("./testdc", 0);
 
     try {
         test0(world);
+        test1(world);
+        test1(world);
+        test1(world);
     }
     catch (MPI::Exception e) {
         error("caught an MPI exception");
@@ -141,8 +172,6 @@ int main(int argc, char** argv) {
         error("caught unhandled exception");
     }
 
-    world.gop.fence();
-    RMI::end();
-    MPI::Finalize();
+    finalize();
     return 0;
 }
