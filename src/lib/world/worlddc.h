@@ -63,7 +63,7 @@ namespace madness {
     template <typename keyT>
     class WorldDCRedistributeInterface {
     public:
-        virtual void redistribute_phase1(SharedPtr< WorldDCPmapInterface<keyT> >& newmap) = 0;
+        virtual void redistribute_phase1(const SharedPtr< WorldDCPmapInterface<keyT> >& newmap) = 0;
         virtual void redistribute_phase2() = 0;
     };
 
@@ -108,7 +108,7 @@ namespace madness {
         /// new map and no objects will be registered in the current map.
         /// @param[in] world The associated world
         /// @param[in] newpmap The new process map
-        void redistribute(World& world, SharedPtr< WorldDCPmapInterface<keyT> >& newpmap) {
+        void redistribute(World& world, const SharedPtr< WorldDCPmapInterface<keyT> >& newpmap) {
             world.gop.fence();
             for (typename std::set<ptrT>::iterator iter = ptrs.begin();
                  iter != ptrs.end();
@@ -579,7 +579,7 @@ namespace madness {
         }
 
         // First phase of redistributions changes pmap and makes list of stuff to move
-        void redistribute_phase1(SharedPtr< WorldDCPmapInterface<keyT> >& newpmap) {
+        void redistribute_phase1(const SharedPtr< WorldDCPmapInterface<keyT> >& newpmap) {
             pmap = newpmap;
             move_list = new std::vector<keyT>();
             for (typename internal_containerT::iterator iter=local.begin(); iter!=local.end(); ++iter) {
