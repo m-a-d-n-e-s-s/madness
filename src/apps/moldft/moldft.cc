@@ -1219,10 +1219,15 @@ struct Calculation {
                 LoadBalanceDeux<3> lb(world);
                 lb.add_tree(vnuc, lbcost<double,3>(1.0, 0.0), true);
                 lb.add_tree(rho, lbcost<double,3>(1.0, 1.0), false);
-                FunctionDefaults<3>::set_pmap(lb.load_balance(6.0));
-                rho = copy(rho, FunctionDefaults<3>::get_pmap(), false);
-                vnuc = copy(vnuc, FunctionDefaults<3>::get_pmap(), false);
-                world.gop.fence();
+                
+                pmapT newpmap = lb.load_balance(6.0);
+                FunctionDefaults<3>::get_pmap()->redistribute(world,newpmap);
+                FunctionDefaults<3>::set_pmap(newpmap);
+
+//                 FunctionDefaults<3>::set_pmap(lb.load_balance(6.0));
+//                 rho = copy(rho, FunctionDefaults<3>::get_pmap(), false);
+//                 vnuc = copy(vnuc, FunctionDefaults<3>::get_pmap(), false);
+//                 world.gop.fence();
                 END_TIMER(world, "guess loadbal");
             }
             
@@ -1249,13 +1254,18 @@ struct Calculation {
                 for(unsigned int i = 0;i < ao.size();i++){
                     lb.add_tree(ao[i], lbcost<double,3>(1.0, 1.0), false);
                 }
-                FunctionDefaults<3>::set_pmap(lb.load_balance(6.0));
-                vnuc = copy(vnuc, FunctionDefaults<3>::get_pmap(), false);
-                vlocal = copy(vlocal, FunctionDefaults<3>::get_pmap(), false);
-                for(unsigned int i = 0;i < ao.size();i++){
-                    ao[i] = copy(ao[i], FunctionDefaults<3>::get_pmap(), false);
-                }
-                world.gop.fence();
+
+                pmapT newpmap = lb.load_balance(6.0);
+                FunctionDefaults<3>::get_pmap()->redistribute(world,newpmap);
+                FunctionDefaults<3>::set_pmap(newpmap);
+
+//                 FunctionDefaults<3>::set_pmap(lb.load_balance(6.0));
+//                 vnuc = copy(vnuc, FunctionDefaults<3>::get_pmap(), false);
+//                 vlocal = copy(vlocal, FunctionDefaults<3>::get_pmap(), false);
+//                 for(unsigned int i = 0;i < ao.size();i++){
+//                     ao[i] = copy(ao[i], FunctionDefaults<3>::get_pmap(), false);
+//                 }
+//                 world.gop.fence();
             }
             
             tensorT overlap = matrix_inner(world, ao, ao, true);
@@ -1345,8 +1355,13 @@ struct Calculation {
     {
         LoadBalanceDeux<3> lb(world);
         lb.add_tree(vnuc, lbcost<double,3>(1.0, 0.0));
-        FunctionDefaults<3>::set_pmap(lb.load_balance(6.0));
-        world.gop.fence();
+
+        pmapT newpmap = lb.load_balance(6.0);
+        FunctionDefaults<3>::get_pmap()->redistribute(world,newpmap);
+        FunctionDefaults<3>::set_pmap(newpmap);
+
+//         FunctionDefaults<3>::set_pmap(lb.load_balance(6.0));
+//         world.gop.fence();
     }
     
     functionT make_density(World & world, const tensorT & occ, const vecfuncT & v)
@@ -1774,39 +1789,43 @@ struct Calculation {
                 lb.add_tree(bmo[i], lbcost<double,3>(1.0, 1.0), false);
             }
         }
+
+        pmapT newpmap = lb.load_balance(6.0);
+        FunctionDefaults<3>::get_pmap()->redistribute(world,newpmap);
+        FunctionDefaults<3>::set_pmap(newpmap);
         
-        FunctionDefaults<3>::set_pmap(lb.load_balance(6.0));
-        vnuc = copy(vnuc, FunctionDefaults<3>::get_pmap(), false);
-        arho = copy(arho, FunctionDefaults<3>::get_pmap(), false);
-        if(arho_old.is_initialized())
-            arho_old = copy(arho_old, FunctionDefaults<3>::get_pmap(), false);
+//         FunctionDefaults<3>::set_pmap(lb.load_balance(6.0));
+//         vnuc = copy(vnuc, FunctionDefaults<3>::get_pmap(), false);
+//         arho = copy(arho, FunctionDefaults<3>::get_pmap(), false);
+//         if(arho_old.is_initialized())
+//             arho_old = copy(arho_old, FunctionDefaults<3>::get_pmap(), false);
         
-        for(unsigned int i = 0;i < ao.size();i++){
-            ao[i] = copy(ao[i], FunctionDefaults<3>::get_pmap(), false);
-        }
-        for(unsigned int i = 0;i < amo.size();i++){
-            amo[i] = copy(amo[i], FunctionDefaults<3>::get_pmap(), false);
-        }
-        if(param.nbeta && !param.spin_restricted){
-            brho = copy(brho, FunctionDefaults<3>::get_pmap(), false);
-            if(brho_old.is_initialized())
-                brho_old = copy(brho_old, FunctionDefaults<3>::get_pmap(), false);
+//         for(unsigned int i = 0;i < ao.size();i++){
+//             ao[i] = copy(ao[i], FunctionDefaults<3>::get_pmap(), false);
+//         }
+//         for(unsigned int i = 0;i < amo.size();i++){
+//             amo[i] = copy(amo[i], FunctionDefaults<3>::get_pmap(), false);
+//         }
+//         if(param.nbeta && !param.spin_restricted){
+//             brho = copy(brho, FunctionDefaults<3>::get_pmap(), false);
+//             if(brho_old.is_initialized())
+//                 brho_old = copy(brho_old, FunctionDefaults<3>::get_pmap(), false);
             
-            for(unsigned int i = 0;i < bmo.size();i++){
-                bmo[i] = copy(bmo[i], FunctionDefaults<3>::get_pmap(), false);
-            }
-        }
+//             for(unsigned int i = 0;i < bmo.size();i++){
+//                 bmo[i] = copy(bmo[i], FunctionDefaults<3>::get_pmap(), false);
+//             }
+//         }
         
-        for(unsigned int i = 0;i < subspace.size();i++){
-            vecfuncT & v = subspace[i].first;
-            vecfuncT & r = subspace[i].second;
-            for(unsigned int j = 0;j < v.size();j++){
-                v[j] = copy(v[j], FunctionDefaults<3>::get_pmap(), false);
-                r[j] = copy(r[j], FunctionDefaults<3>::get_pmap(), false);
-            }
-        }
+//         for(unsigned int i = 0;i < subspace.size();i++){
+//             vecfuncT & v = subspace[i].first;
+//             vecfuncT & r = subspace[i].second;
+//             for(unsigned int j = 0;j < v.size();j++){
+//                 v[j] = copy(v[j], FunctionDefaults<3>::get_pmap(), false);
+//                 r[j] = copy(r[j], FunctionDefaults<3>::get_pmap(), false);
+//             }
+//         }
         
-        world.gop.fence();
+//         world.gop.fence();
     }
     
     void rotate_subspace(World& world, const tensorT& U, subspaceT& subspace, int lo, int nfunc, double trantol) {
