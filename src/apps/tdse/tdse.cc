@@ -687,24 +687,25 @@ void loadbal(World& world,
     lb.add_tree(psi, lbcost<double_complex,3>(1.0,1.0)); 
     psi.truncate();
 
-    FunctionDefaults<3>::set_pmap(lb.load_balance(2.0, false));
-    world.gop.fence();
-    if (world.rank() == 0) print("starting LB copies");
-    world.gop.fence();
-    potn = copy(potn, FunctionDefaults<3>::get_pmap(), true);
-    vt = copy(vt, FunctionDefaults<3>::get_pmap(), true);
-    dpotn_dx = copy(dpotn_dx, FunctionDefaults<3>::get_pmap(), true);
-    dpotn_dy = copy(dpotn_dy, FunctionDefaults<3>::get_pmap(), true);
-    dpotn_dz = copy(dpotn_dz, FunctionDefaults<3>::get_pmap(), true);
-    dpotn_dx_sq = copy(dpotn_dx_sq, FunctionDefaults<3>::get_pmap(), true);
-    dpotn_dy_sq = copy(dpotn_dy_sq, FunctionDefaults<3>::get_pmap(), true);
-    psi = copy(psi, FunctionDefaults<3>::get_pmap(), true);
-    psi0 = copy(psi0, FunctionDefaults<3>::get_pmap(), true);
-    x = copy(x, FunctionDefaults<3>::get_pmap(), true);
-    y = copy(y, FunctionDefaults<3>::get_pmap(), true);
-    z = copy(z, FunctionDefaults<3>::get_pmap(), true);
-    world.gop.fence();
-    if (world.rank() == 0) print("done with LB");
+    FunctionDefaults<3>::redistribute(world,lb.load_balance(2.0, false));
+//     FunctionDefaults<3>::set_pmap(lb.load_balance(2.0, false));
+//     world.gop.fence();
+//     if (world.rank() == 0) print("starting LB copies");
+//     world.gop.fence();
+//     potn = copy(potn, FunctionDefaults<3>::get_pmap(), true);
+//     vt = copy(vt, FunctionDefaults<3>::get_pmap(), true);
+//     dpotn_dx = copy(dpotn_dx, FunctionDefaults<3>::get_pmap(), true);
+//     dpotn_dy = copy(dpotn_dy, FunctionDefaults<3>::get_pmap(), true);
+//     dpotn_dz = copy(dpotn_dz, FunctionDefaults<3>::get_pmap(), true);
+//     dpotn_dx_sq = copy(dpotn_dx_sq, FunctionDefaults<3>::get_pmap(), true);
+//     dpotn_dy_sq = copy(dpotn_dy_sq, FunctionDefaults<3>::get_pmap(), true);
+//     psi = copy(psi, FunctionDefaults<3>::get_pmap(), true);
+//     psi0 = copy(psi0, FunctionDefaults<3>::get_pmap(), true);
+//     x = copy(x, FunctionDefaults<3>::get_pmap(), true);
+//     y = copy(y, FunctionDefaults<3>::get_pmap(), true);
+//     z = copy(z, FunctionDefaults<3>::get_pmap(), true);
+//     world.gop.fence();
+//     if (world.rank() == 0) print("done with LB");
     world.gop.fence();
 }
 
