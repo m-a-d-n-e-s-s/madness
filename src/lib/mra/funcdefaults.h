@@ -214,9 +214,10 @@ namespace madness {
             return cell_min_width;
         }
 
-        static const SharedPtr< WorldDCPmapInterface< Key<NDIM> > >& get_pmap() {
+        static SharedPtr< WorldDCPmapInterface< Key<NDIM> > >& get_pmap() {
             return pmap;
         }
+
         static void set_pmap(const SharedPtr< WorldDCPmapInterface< Key<NDIM> > >& value) {
             pmap=value;
         }
