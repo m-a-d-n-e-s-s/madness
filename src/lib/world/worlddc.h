@@ -36,8 +36,11 @@
 #ifndef MADNESS_WORLD_WORLDDC_H__INCLUDED
 #define MADNESS_WORLD_WORLDDC_H__INCLUDED
 
-/// \file worlddc.h
-/// \brief Implements WorldContainer
+/*!
+  \file worlddc.h
+  \brief Implements WorldContainer
+  \ingroup worlddc
+*/
 
 #include <world/parar.h>
 #include <world/worldhashmap.h>
@@ -54,6 +57,8 @@ namespace madness {
     void swap(WorldContainer<keyT, valueT, hashfunT>&, WorldContainer<keyT, valueT, hashfunT>&);
 
     /// Interface to be provided by any process map
+
+    /// \ingroup worlddc
     template <typename keyT>
     class WorldDCPmapInterface {
     public:
@@ -63,6 +68,8 @@ namespace madness {
     };
 
     /// Default process map is "random" using madness::hash(key)
+
+    /// \ingroup worlddc
     template <typename keyT, typename hashfunT = Hash_private::defhashT<keyT> >
     class WorldDCDefaultPmap : public WorldDCPmapInterface<keyT> {
     private:
@@ -82,6 +89,8 @@ namespace madness {
 
 
     /// Iterator for distributed container wraps the local iterator
+
+    /// \ingroup worlddc
     template <class internal_iteratorT>
     class WorldContainerIterator {
     public:
@@ -208,7 +217,9 @@ namespace madness {
         }
     };
 
-    /// Implementation of distributed container to enable PIMPL
+    /// Internal implementation of distributed container to facilitate shallow copy
+
+    /// \ingroup worlddc
     template <typename keyT, typename valueT, typename hashfunT >
     class WorldContainerImpl
                 : public WorldObject< WorldContainerImpl<keyT, valueT, hashfunT> >
@@ -505,6 +516,8 @@ namespace madness {
 
     /// Makes a distributed container with specified attributes
 
+    /// \ingroup worlddc
+    ///
     /// There is no communication or syncronization associated with
     /// making a new container, but every process must invoke the
     /// constructor for each container in the same order.  This is so
@@ -1200,8 +1213,9 @@ namespace madness {
         friend void swap<>(WorldContainer&, WorldContainer&);
     };
 
-    /// Swaps the content of two WorldContainer objects. It should be called on
-    /// all nodes.
+    /// Swaps the content of two WorldContainer objects. It should be called on all nodes.
+
+    /// \ingroup worlddc
     template <typename keyT, typename valueT, typename hashfunT>
     void swap(WorldContainer<keyT, valueT, hashfunT>& dc0, WorldContainer<keyT, valueT, hashfunT>& dc1) {
       std::swap(dc0.p, dc1.p);
@@ -1210,6 +1224,7 @@ namespace madness {
     namespace archive {
         /// Write container to parallel archive with optional fence
 
+        /// \ingroup worlddc
         /// Each node (process) is served by a designated IO node.
         /// The IO node has a binary local file archive to which is
         /// first written a cookie and the number of servers.  The IO
@@ -1278,6 +1293,7 @@ namespace madness {
         struct ArchiveLoadImpl< ParallelInputArchive, WorldContainer<keyT,valueT> > {
             /// Read container from parallel archive
 
+            /// \ingroup worlddc
             /// See store method above for format of file content.
             /// !!! We presently ASSUME that the number of writers and readers are
             /// the same.  This is frustrating but not a show stopper since you

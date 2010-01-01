@@ -32,6 +32,9 @@
   $Id$
 */
 
+/// \file world/worldobj.h
+/// \brief Defines and implements WorldObject
+/// \ingroup worldobj
 
 #ifndef MADNESS_WORLD_WORLDOBJ_H__INCLUDED
 #define MADNESS_WORLD_WORLDOBJ_H__INCLUDED
@@ -66,7 +69,7 @@ namespace madness {
         // easily with send handlers since task layer is more restrictive on the
         // copy capability of arguments.
 
-        /// Info stored for AM method forwarding
+        // Info stored for AM method forwarding
         template <typename memfunT>
         struct info {
             typedef Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > futureT;
@@ -97,19 +100,19 @@ namespace madness {
             }
         };
 
-        /// Extract the unique object ID from an incoming active message header
+        // Extract the unique object ID from an incoming active message header
 
-        /// We deserialize the header and all arguments at the same
-        /// time to simplify the code.  However, it is common that
-        /// when sending a message to an item in a container to
-        /// include a pointer to the container itself.  But this
-        /// breaks if the container is not initialized since the
-        /// deserialization throws if the object is not initialized
-        /// (which seems preferable to hidden race condition).  Hence,
-        /// we use this routine to extract the unique ID from the very
-        /// front of the info structure.  For efficiency we here rely
-        /// upon the serialization of info being opaque and the
-        /// id being at the front of info.
+        // We deserialize the header and all arguments at the same
+        // time to simplify the code.  However, it is common that
+        // when sending a message to an item in a container to
+        // include a pointer to the container itself.  But this
+        // breaks if the container is not initialized since the
+        // deserialization throws if the object is not initialized
+        // (which seems preferable to hidden race condition).  Hence,
+        // we use this routine to extract the unique ID from the very
+        // front of the info structure.  For efficiency we here rely
+        // upon the serialization of info being opaque and the
+        // id being at the front of info.
         static inline const uniqueidT& peek(const AmArg& arg) {
             return *((uniqueidT*)(arg.buf()));
         }
@@ -118,6 +121,7 @@ namespace madness {
 
     /// Implements most parts of a globally addressable object (via unique ID)
 
+    /// \ingroup worldobj
     /// 1) Derived class has WorldObject<Derived> as a public base class
     /// 2) Derived constructor
     ///    a) invokes WorldObject<Derived>(world) constructor

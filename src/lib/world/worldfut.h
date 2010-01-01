@@ -38,6 +38,7 @@
 
 /// \file worldfut.h
 /// \brief Implements Future
+/// \ingroup futures
 
 #include <vector>
 #include <world/nodefaults.h>
@@ -109,36 +110,52 @@ which merely blows instead of sucking.
     template <typename T> class Future;
 
     /// Boost-type-trait-like testing of if a type is a future
+
+    /// \ingroup futures
     template <typename T>
     struct is_future {
         static const bool value = false;
     };
 
     /// Boost-type-trait-like testing of if a type is a future
+
+    /// \ingroup futures
     template <typename T>
     struct is_future< Future<T> > {
         static const bool value = true;
     };
 
     /// Boost-type-trait-like mapping of Future<T> to T
+
+    /// \ingroup futures
     template <typename T>
     struct remove_future {
         typedef T type;
     };
 
     /// Boost-type-trait-like mapping of Future<T> to T
+
+    /// \ingroup futures
     template <typename T>
     struct remove_future< Future<T> > {
         typedef T type;
     };
 
+    /// Macro to determine type of future (by removing wrapping future template) 
+
+    /// \ingroup futures
 #define REMFUTURE(T) typename remove_future< T >::type
 
+    /// Human readable printing of future to stream
+
+    /// \ingroup futures
     template <typename T>
     std::ostream& operator<<(std::ostream& out, const Future<T>& f);
 
 
     /// Implements the functionality of Futures
+
+    /// \ingroup futures
     template <typename T>
     class FutureImpl : private Spinlock {
         friend class Future<T>;
@@ -207,8 +224,8 @@ which merely blows instead of sucking.
 
 
     public:
-
-        /// Local unassigned value
+        
+        // Local unassigned value
         FutureImpl()
                 : callbacks()
                 , assignments()
@@ -222,7 +239,7 @@ which merely blows instead of sucking.
         }
 
 
-        /// Local assigned value
+        // Local assigned value
         FutureImpl(const T& t)
                 : callbacks()
                 , assignments()
@@ -236,7 +253,7 @@ which merely blows instead of sucking.
         }
 
 
-        /// Wrapper for a remote future
+        // Wrapper for a remote future
         FutureImpl(const RemoteReference< FutureImpl<T> >& remote_ref)
                 : callbacks()
                 , assignments()
@@ -250,17 +267,17 @@ which merely blows instead of sucking.
         }
 
 
-        /// Returns true if the value has been assigned
+        // Returns true if the value has been assigned
         inline bool probe() const {
             return assigned;
         }
 
 
-        /// Registers a function to be invoked when future is assigned
+        // Registers a function to be invoked when future is assigned
 
-        /// Callbacks are invoked in the order registered.  If the
-        /// future is already assigned the callback is immediately
-        /// invoked.
+        // Callbacks are invoked in the order registered.  If the
+        // future is already assigned the callback is immediately
+        // invoked.
         inline void register_callback(CallbackInterface* callback) {
             ScopedMutex<Spinlock> fred(this);
             if (assigned) callback->notify();
@@ -268,7 +285,7 @@ which merely blows instead of sucking.
         }
 
 
-        /// Sets the value of the future (assignment)
+        // Sets the value of the future (assignment)
         void set(const T& value) {
             ScopedMutex<Spinlock> fred(this);
             if (world) {
@@ -291,14 +308,14 @@ which merely blows instead of sucking.
         }
 
 
-        /// Gets/forces the value, waiting if necessary (error if not local)
+        // Gets/forces the value, waiting if necessary (error if not local)
         T& get() {
             MADNESS_ASSERT(!world);  // Only for local futures
             World::await(bind_nullary_mem_fun(this,&FutureImpl<T>::probe));
             return *const_cast<T*>(&t);
         }
 
-        /// Gets/forces the value, waiting if necessary (error if not local)
+        // Gets/forces the value, waiting if necessary (error if not local)
         const T& get() const {
             MADNESS_ASSERT(!world);  // Only for local futures
             World::await(bind_nullary_mem_fun(this,&FutureImpl<T>::probe));
@@ -360,6 +377,7 @@ which merely blows instead of sucking.
 
     /// A future is a possibly yet unevaluated value
 
+    /// \ingroup futures
     /// Uses delegation to FutureImpl to provide desired
     /// copy/assignment semantics as well as safe reference counting
     /// for remote futures.
@@ -586,15 +604,21 @@ which merely blows instead of sucking.
 
 
     /// A future of a future is forbidden (by private constructor)
+
+    /// \ingroup futures
     template <typename T> class Future< Future<T> > {
         Future() {}
     };
 
 
     /// Specialization of FutureImpl<void> for internal convenience ... does nothing useful!
+
+    /// \ingroup futures
     template <> class FutureImpl<void> {};
 
     /// Specialization of Future<void> for internal convenience ... does nothing useful!
+
+    /// \ingroup futures
     template <> class Future<void> {
     public:
         RemoteReference< FutureImpl<void> > remote_ref(World&) const {
@@ -622,9 +646,13 @@ which merely blows instead of sucking.
     };
 
     /// Specialization of FutureImpl<Void> for internal convenience ... does nothing useful!
+
+    /// \ingroup futures
     template <> class FutureImpl<Void> {};
 
     /// Specialization of Future<Void> for internal convenience ... does nothing useful!
+
+    /// \ingroup futures
     template <> class Future<Void> {
     public:
         RemoteReference< FutureImpl<Void> > remote_ref(World& /*world*/) const {
@@ -651,10 +679,9 @@ which merely blows instead of sucking.
         virtual ~Future() {}
     };
 
-
-
     /// Specialization of Future for vector of Futures
 
+    /// \ingroup futures
     /// Enables passing a vector of futures into a task and having
     /// the dependencies correctly tracked.  Does not directly
     /// support most operations that other futures do ... that is
@@ -691,14 +718,17 @@ which merely blows instead of sucking.
     };
 
 
-
     /// Probes a future for readiness, other types are always ready
+
+    /// \ingroup futures
     template <typename T>
     ENABLE_IF(is_future<T>,bool) future_probe(const T& t) {
         return t.probe();
     }
 
     /// Probes a future for readiness, other types are always ready
+
+    /// \ingroup futures
     template <typename T>
     DISABLE_IF(is_future<T>,bool) future_probe(const T& t) {
         return true;
@@ -706,6 +736,8 @@ which merely blows instead of sucking.
 
 
     /// Friendly I/O to streams for futures
+
+    /// \ingroup futures
     template <typename T>
     std::ostream& operator<<(std::ostream& out, const Future<T>& f);
 
@@ -716,6 +748,8 @@ which merely blows instead of sucking.
     std::ostream& operator<<(std::ostream& out, const Future<Void>& f);
 
     /// Factory for vectors of futures (see section Gotchas on the mainpage)
+
+    /// \ingroup futures
     template <typename T>
     std::vector< Future<T> > future_vector_factory(std::size_t n) {
         return std::vector< Future<T> >(n, Future<T>::default_initializer());
@@ -724,6 +758,8 @@ which merely blows instead of sucking.
 
     namespace archive {
         /// Serialize an assigned future
+
+        /// \ingroup futures
         template <class Archive, typename T>
         struct ArchiveStoreImpl< Archive, Future<T> > {
             static inline void store(const Archive& ar, const Future<T>& f) {
@@ -735,6 +771,8 @@ which merely blows instead of sucking.
 
 
         /// Deserialize a future into an unassigned future
+
+        /// \ingroup futures
         template <class Archive, typename T>
         struct ArchiveLoadImpl< Archive, Future<T> > {
             static inline void load(const Archive& ar, Future<T>& f) {
@@ -748,6 +786,8 @@ which merely blows instead of sucking.
 
 
         /// Serialize an assigned future
+
+        /// \ingroup futures
         template <class Archive>
         struct ArchiveStoreImpl< Archive, Future<void> > {
             static inline void store(const Archive& ar, const Future<void>& f) {
@@ -756,6 +796,8 @@ which merely blows instead of sucking.
 
 
         /// Deserialize a future into an unassigned future
+
+        /// \ingroup futures
         template <class Archive>
         struct ArchiveLoadImpl< Archive, Future<void> > {
             static inline void load(const Archive& ar, Future<void>& f) {
@@ -763,6 +805,8 @@ which merely blows instead of sucking.
         };
 
         /// Serialize an assigned future
+
+        /// \ingroup futures
         template <class Archive>
         struct ArchiveStoreImpl< Archive, Future<Void> > {
             static inline void store(const Archive& ar, const Future<Void>& f) {
@@ -771,6 +815,8 @@ which merely blows instead of sucking.
 
 
         /// Deserialize a future into an unassigned future
+
+        /// \ingroup futures
         template <class Archive>
         struct ArchiveLoadImpl< Archive, Future<Void> > {
             static inline void load(const Archive& ar, Future<Void>& f) {
