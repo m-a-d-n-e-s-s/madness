@@ -1220,9 +1220,7 @@ struct Calculation {
                 lb.add_tree(vnuc, lbcost<double,3>(1.0, 0.0), true);
                 lb.add_tree(rho, lbcost<double,3>(1.0, 1.0), false);
                 
-                pmapT newpmap = lb.load_balance(6.0);
-                FunctionDefaults<3>::get_pmap()->redistribute(world,newpmap);
-                FunctionDefaults<3>::set_pmap(newpmap);
+                FunctionDefaults<3>::redistribute(world, lb.load_balance(6.0));
 
 //                 FunctionDefaults<3>::set_pmap(lb.load_balance(6.0));
 //                 rho = copy(rho, FunctionDefaults<3>::get_pmap(), false);
@@ -1255,9 +1253,7 @@ struct Calculation {
                     lb.add_tree(ao[i], lbcost<double,3>(1.0, 1.0), false);
                 }
 
-                pmapT newpmap = lb.load_balance(6.0);
-                FunctionDefaults<3>::get_pmap()->redistribute(world,newpmap);
-                FunctionDefaults<3>::set_pmap(newpmap);
+                FunctionDefaults<3>::redistribute(world, lb.load_balance(6.0));
 
 //                 FunctionDefaults<3>::set_pmap(lb.load_balance(6.0));
 //                 vnuc = copy(vnuc, FunctionDefaults<3>::get_pmap(), false);
@@ -1356,9 +1352,7 @@ struct Calculation {
         LoadBalanceDeux<3> lb(world);
         lb.add_tree(vnuc, lbcost<double,3>(1.0, 0.0));
 
-        pmapT newpmap = lb.load_balance(6.0);
-        FunctionDefaults<3>::get_pmap()->redistribute(world,newpmap);
-        FunctionDefaults<3>::set_pmap(newpmap);
+        FunctionDefaults<3>::redistribute(world, lb.load_balance(6.0));
 
 //         FunctionDefaults<3>::set_pmap(lb.load_balance(6.0));
 //         world.gop.fence();
@@ -1790,9 +1784,7 @@ struct Calculation {
             }
         }
 
-        pmapT newpmap = lb.load_balance(6.0);
-        FunctionDefaults<3>::get_pmap()->redistribute(world,newpmap);
-        FunctionDefaults<3>::set_pmap(newpmap);
+        FunctionDefaults<3>::redistribute(world, lb.load_balance(6.0));
         
 //         FunctionDefaults<3>::set_pmap(lb.load_balance(6.0));
 //         vnuc = copy(vnuc, FunctionDefaults<3>::get_pmap(), false);
