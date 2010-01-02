@@ -1217,8 +1217,8 @@ struct Calculation {
             if(world.size() > 1) {
                 START_TIMER(world);
                 LoadBalanceDeux<3> lb(world);
-                lb.add_tree(vnuc, lbcost<double,3>(1.0, 0.0), true);
-                lb.add_tree(rho, lbcost<double,3>(1.0, 1.0), false);
+                lb.add_tree(vnuc, lbcost<double,3>(1.0, 0.0), false);
+                lb.add_tree(rho, lbcost<double,3>(1.0, 1.0), true);
                 
                 FunctionDefaults<3>::redistribute(world, lb.load_balance(6.0));
 
