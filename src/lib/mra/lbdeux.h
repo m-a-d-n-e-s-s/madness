@@ -40,7 +40,6 @@
 
 /// \file mra/lbdeux.h
 /// \brief Implements (2nd generation) static load/data balancing for functions
-
 /// \ingroup function
 
 namespace madness {
@@ -255,7 +254,7 @@ namespace madness {
 
         /// Accumulates cost from a function
         template <typename T, typename costT>
-        void add_tree(const Function<T,NDIM>& f, const costT& costfn, bool fence=true) {
+        void add_tree(const Function<T,NDIM>& f, const costT& costfn, bool fence=false) {
             const_cast<Function<T,NDIM>&>(f).unaryop_node(add_op<T,costT>(this,costfn), fence);
         }
 
