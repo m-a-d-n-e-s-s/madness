@@ -33,14 +33,16 @@
 */
 
 /*!
-  \file examples/loadbal.cc
+  \file examples/dataloadbal.cc
   \brief Illustrates how to use static data/load balancing of functions
-  \defgroup loadbaleg
+  \defgroup loadbaleg Data and load balancing 
   \ingroup examples
+
+  The source is <a href=http://code.google.com/p/m-a-d-n-e-s-s/source/browse/local/trunk/src/apps/examples/dataloadbal.cc>here</a>.
 
   This is one of the more computationally demanding examples - either run it on 
   50 or more nodes of jaguar or reduce the number of functions employed
-  (value of \c NFUNC below).
+  (value of \c NFUNC in the source).
 
   \par Points of interest
   - Using functors to incorporate state into functions to be compressed
@@ -104,6 +106,7 @@
   - truncating them,
   - differentiating them, and
   - applying the Coulomb Green's function to them.
+
   The process map (data distribution) is then modified using the LBDeux
   heuristic and the operations repeated.
 

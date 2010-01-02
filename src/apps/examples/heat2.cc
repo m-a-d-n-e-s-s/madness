@@ -41,6 +41,16 @@
 \defgroup heatex2 Evolve in time 3D heat equation with a linear term
 \ingroup examples
 
+The source is <a href=http://code.google.com/p/m-a-d-n-e-s-s/source/browse/local/trunk/src/apps/examples/heat2.cc>here</a>.
+
+\par Points of interest
+  - application of a function of a function to exponentiate the potential
+  - use of a functor to compute the solution at an arbitrary future time
+  - convolution with the Green's function
+
+
+\par Background
+
 This adds to the complexity of the other \ref exampleheat "heat equation example" 
 by including a linear term.  Specifically, we solve 
 \f[
@@ -57,10 +67,6 @@ For non-zero \f$ V_p \f$ the time evolution is performed using the Trotter split
 In order to form an exact solution for testing, we choose \f$ V_p(x,t)=\mbox{constant} \f$
 but the solution method is not limited to this choice.
 
-Points of interest are 
-  - application of a function of a function to exponentiate the potential
-  - use of a functor to compute the solution at an arbitrary future time
-  - convolution with the Green's function
 */
 
 using namespace madness;

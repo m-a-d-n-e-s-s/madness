@@ -37,6 +37,14 @@
   \defgroup exampleheat Solves heat equation using the Green's function
   \ingroup examples
   
+  The source is <a href=http://code.google.com/p/m-a-d-n-e-s-s/source/browse/local/trunk/src/apps/examples/heat.cc>here</a>.
+
+  \par Points of interest
+  - use of a functor to compute the solution at an arbitrary future time
+  - convolution with the Green's function
+
+  \par Background
+
   Solves the 3D time-dependent heat equation
   \f[
   \frac{\partial u}{\partial t} = c \nabla^2 u(r,t)
@@ -46,9 +54,6 @@
   \frac{1}{\sqrt{4 \pi c t}}  \exp \frac{-x^2}{4 c t}
   \f]
   
-  Points of interest are
-  - use of a functor to compute the solution at an arbitrary future time
-  - convolution with the Green's function
 */
 
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES  

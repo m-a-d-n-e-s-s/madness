@@ -36,6 +36,15 @@
   \defgroup examplehehf Hartree-Fock equations for the helium atom
   \ingroup examples
 
+  The source is <a href=http://code.google.com/p/m-a-d-n-e-s-s/source/browse/local/trunk/src/apps/examples/he.cc>here</a>.
+
+  \par Points of interest
+  - application of the Coulomb and Helmholtz Green's functions
+  - smoothing of the potential and initial guess
+  - manual evaluation of the solution along a line
+
+  \par Background
+
   The Hartree-Fock wave function is computed for the helium atom
   in three dimensions without using spherical symmetry.
 
@@ -72,10 +81,6 @@
     (see the initial MRQC paper), and finally
   - normalizing the new wave function.
 
-  Points of interest
-  - application of the Coulomb and Helmholtz Green's functions
-  - smoothing of the potential and initial guess
-  - manual evaluation of the solution along a line
   
 */
 
