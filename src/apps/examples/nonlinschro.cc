@@ -36,6 +36,14 @@
   \defgroup examplenonlinsc Solves a 1D nonlinear Schr&ouml;dinger equation
   \ingroup examples
 
+  \par Points of interest
+  - Convolution with the negative energy (bound state) Helmholtz Green's function
+  - Iterative solution of the integral form of the equation
+  - Smooth truncation of the density to manage numerical noise amplified by nearly singular potential
+  - Plotting of the solution and potential
+
+  \par Background
+  
   This <a href=http://code.google.com/p/m-a-d-n-e-s-s/source/browse/local/trunk/src/apps/examples/nonlinschro.cc>example</a> illustrates solution of a non-linear Schr&ouml;dinger motivated by
   exploring problems associated with equations of the same form from
   nuclear physics.
@@ -91,12 +99,6 @@
   To avoid very non-physical results, we smoothly switch values less
   than some threshold to a minimum value.  This is preferable to
   employing a sharp cutoff.
-
-  Points of interest
-  - Convolution with the Helmholtz Green's function
-  - Iterative solution of the integral form of the equation
-  - Smooth truncation of the density 
-  - Plotting of the solution and potential
 
 */
 
