@@ -9,7 +9,7 @@ AC_DEFUN([ACX_FORTRAN_SYMBOLS], [
     echo "Checking Fortran-C linking conventions (dgemm -> ?)"
     fsym=no
 
-    if test $host = "powerpc-bgp-linux"; then
+    if test $host = "powerpc-bgp-linux-gnu"; then
        fsym="lc"
     fi
     if test $fsym = no; then

@@ -44,23 +44,17 @@
 #else
 #define MADATOMIC_USE_GCC
 #endif
-    
 
-
-#ifdef MADATOMIC_USE_GCC
+#ifdef MADATOMIC_USE_BGP
+#  include <bpcore/bgp_atomic_ops.h>
+#elif defined(MADATOMIC_USE_AIX)
+#  include <sys/atomic_op.h>
+#elif defined(MADATOMIC_USE_GCC)
 #  ifdef GCC_ATOMICS_IN_BITS
 #    include <bits/atomicity.h>
 #  else
 #    include <ext/atomicity.h>
 #  endif
-#endif
-    
-#ifdef MADATOMIC_USE_BGP
-#  include <bpcore/bgp_atomic_ops.h>
-#endif
-    
-#ifdef MADATOMIC_USE_AIX
-#  include <sys/atomic_op.h>
 #endif
     
 namespace madness {

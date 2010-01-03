@@ -216,7 +216,7 @@ void propagate(World& world, functionT& potn, functionT& psi0, double& eps) {
     double c = 1.86*ctarget; //1.86*ctarget;
     double tcrit = 2*constants::pi/(c*c);
     double tstep = 10.0*tcrit;
-    int nstep = 100.0/tstep;
+    int nstep = int(100.0/tstep);
     
     double Eshift = -0.4985;
 

@@ -65,6 +65,7 @@ namespace madness {
     public:
         virtual void redistribute_phase1(const SharedPtr< WorldDCPmapInterface<keyT> >& newmap) = 0;
         virtual void redistribute_phase2() = 0;
+	virtual ~WorldDCRedistributeInterface() {};
     };
 
 
