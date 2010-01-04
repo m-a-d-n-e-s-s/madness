@@ -292,7 +292,7 @@ static void readin(int np) {
     B=BB; tc=tctc;
 }
 
-//j_th interpolating coefficients
+//generate j_th lagrange interpolating coefficients
 double icoeff(const int np, const int j, const double t) {
     double dum = 1;
     for (int i=  0; i< j; ++i) dum *= (t-tc[i])/(tc[j]-tc[i]);
@@ -300,7 +300,7 @@ double icoeff(const int np, const int j, const double t) {
     return dum;
 }
 
-//interpolate ps at t
+//evaluate the interpolating polynomail of ps at t
 template<typename T> T myp(const std::vector<T>& ps, const double t) {
     int np = ps.size();
     T p = ps[0]*icoeff(np, 0, t);
@@ -317,12 +317,12 @@ complex_function_1d q_r(World& world, const int np, const complex_function_1d ps
     
     double tdum = current_time;
     complex_function_1d pdum;
-    std::vector<complex_function_1d> qs(np);
-    std::vector<real_function_1d> Vs(np);
-    std::vector< std::vector<real_function_1d> > Vss(np);
+    std::vector<complex_function_1d> qs(np); //qs stores current solution values at quadrature points
+    std::vector<real_function_1d> Vs(np); //Vs stores the function values of V at quadrature points
+    std::vector< std::vector<real_function_1d> > Vss(np);  //Vas stores the function values of V at SUB quadrature points 
     for (int i=0; i<np; ++i) {
         current_time = tdum + tstep*tc[i];
-        Vs[i] = real_factory_1d(world).f(V).truncate_on_project();
+        Vs[i] = real_factory_1d(world).f(V).truncate_on_project();  
         Vs[i].truncate();
         Vss[i].resize(np);
         for (int k=0; k<np; ++k) {
@@ -332,23 +332,24 @@ complex_function_1d q_r(World& world, const int np, const complex_function_1d ps
         }
         //~ ps[i] = APPLY(Gs[np - i - 1].get(), psi0).truncate();  
         //~ qs[i]=copy(ps[i]);
-        ps1[i] = APPLY(Gs[np - i - 1].get(), psi0).truncate();  
+        ps1[i] = APPLY(Gs[np - i - 1].get(), psi0).truncate();  //ps1 temporarily holds the solutions after first correction. Part 1/2
         current_time = tdum + (i?tstep*tc[i-1]:0);
-        qs[i] =  trotter(world, (i?qs[i-1]:psi0), tstep*(tc[i]-(i?tc[i-1]:0)),Gtrs[i]); //current_time is implicitly changed.
+        qs[i] =  trotter(world, (i?qs[i-1]:psi0), tstep*(tc[i]-(i?tc[i-1]:0)),Gtrs[i]); //Use trotter to generate initial guess at quadrature points; note that current_time is implicitly changed.
     }
 
     compress(world, ps1);
-    for (int i=0; i<np; ++i) {
-        for (int k=0; k<np; ++k) {
-            //ps1[i].gaxpy(1.0,APPLY(Gss[i*np+k].get(), ).compress(), -tstep*tc[i]*I*B[k]);
-            complex_function_1d tmp = (Vss[i][k]*myp(qs,tc[i]*tc[k])).scale(-tstep*tc[i]*I*B[k]).truncate();
-            ps1[i].gaxpy(1.0,APPLY(Gss[i*np+k].get(), tmp).compress(), 1.0);
-        }
+    for (int i=0; i<np; ++i) for (int k=0; k<np; ++k) {
+		//ps1[i].gaxpy(1.0,APPLY(Gss[i*np+k].get(), ).compress(), -tstep*tc[i]*I*B[k]);
+		complex_function_1d tmp = (Vss[i][k]*myp(qs,tc[i]*tc[k])).scale(-tstep*tc[i]*I*B[k]).truncate();
+		ps1[i].gaxpy(1.0,APPLY(Gss[i*np+k].get(), tmp).compress(), 1.0);  //ps1 temporarily holds the solutions after first correction. Part 2/2
     }
+	
+	// Preparation for one time step is done now, and preceed to iterations.
     
-    ps = sub(world, ps1, qs);
-    qs = ps1;
-    // fix pt iterations for psi's on the quadrature pts
+    ps = sub(world, ps1, qs);  // initialize ps, which is the correction term
+    qs = ps1;  // update the solutions with the first correction.
+	
+    // now the fix-pt iterations for \psi's or qs' on the quadrature pts
     fix_iter_tol = thresh / tstep;
     printf("fix iters ");
     double err = norm2(world, ps1)/np ;
@@ -358,10 +359,10 @@ complex_function_1d q_r(World& world, const int np, const complex_function_1d ps
         printf(" %6.0e",err);
         if (err <= fix_iter_tol) break;
         err = 0;
-        ps1 = zero_functions<double_complex,1>(world, np);
+        ps1 = zero_functions<double_complex,1>(world, np); // ps1 holds the newly computed correction term
         compress(world,ps1);
         for (int i=0; i<np; ++i) {
-            for (int k=0; k<np; ++k) {
+            for (int k=0; k<np; ++k) { // compute the correction term
                 //ps1[i].gaxpy(1.0, APPLY(Gss[i*np+k].get(), Vss[i][k]*myp(ps,tc[i]*tc[k])).compress(), -tstep*tc[i]*I*B[k]);
                 complex_function_1d tmp = (Vss[i][k]*myp(ps,tc[i]*tc[k])).scale(-tstep*tc[i]*I*B[k]).truncate();
                 ps1[i].gaxpy(1.0, APPLY(Gss[i*np+k].get(), tmp).compress(), 1.0);
@@ -369,12 +370,12 @@ complex_function_1d q_r(World& world, const int np, const complex_function_1d ps
             err += ps1[i].truncate().norm2();
         }
         err /= np;
-        gaxpy(world, 1.0, qs, 1.0, ps1); 
+        gaxpy(world, 1.0, qs, 1.0, ps1);  // accumulate the corrections into the solutions.
         ps = ps1; //copy(world, ps1);
     }
     printf("\n");
     
-    // apply quadrature rule.
+    // hopefully the iteration converged correctly and now use the semi-group formula with quadrature rule applied to the integral to compute the result.
     pdum = APPLY(G.get(), psi0);
     pdum.compress();
     for (int k=0; k<np; ++k) {
@@ -418,8 +419,10 @@ int main(int argc, char** argv) {
     print("   7: Quadrature 4pt");
     print("   8: Quadrature 5pt");
     print("   9: Quadrature 6pt");
-    while (selection < 0 || selection > 9) {
-        std::cout << " Select propagation method (0-9):";
+    print(" 10+: Quadrature 7pt+ extremely experimental, try at your own risk:)");
+
+    while (selection < 0 || selection > 20) {
+        std::cout << " Select propagation method (0-20):";
         std::cout.flush();
         std::cin >> selection;
     }
@@ -471,16 +474,16 @@ int main(int argc, char** argv) {
 	readin(np);
 	G = pcomplex_operatorT(MAKE_PROPAGATOR(world, tstep));
         for (int i=0; i<np; ++i)
-            Gs.push_back(pcomplex_operatorT(MAKE_PROPAGATOR(world, (1-tc[i])*tstep)));
+            Gs.push_back(pcomplex_operatorT(MAKE_PROPAGATOR(world, (1-tc[i])*tstep))); //Generate the free-space FS kernel at quadrature points
 			
-        for (int j=0; j<np; ++j)  {
+        for (int j=0; j<np; ++j)  {    //Generate the free-space FS kernel at SUB quadrature points
             //~ for (int i=0; i<np; ++i) Gss.push_back(pcomplex_operatorT(MAKE_PROPAGATOR(world, (1-tc[i])*tstep*tc[j]))); //[j*np+i] , 1-tc[i] = tc[np-i-1]  
             for (int i=0; i<np-j; ++i) Gss.push_back(pcomplex_operatorT(MAKE_PROPAGATOR(world, (1-tc[i])*tstep*tc[j]))); //[j*np+i] , 1-tc[i] = tc[np-i-1]  
-			for (int i=np-j; i<np; ++i)  Gss.push_back(Gss[(np-1-i)*np+(np-1-j)]); //[j*np+i] , 1-tc[i] = tc[np-i-1]
+			for (int i=np-j; i<np; ++i)  Gss.push_back(Gss[(np-1-i)*np+(np-1-j)]); //[j*np+i] , 1-tc[i] = tc[np-i-1] // make use of symmetry
 		}
 		
-        for (int i=0; i<1+(np>>1); ++i) Gtrs.push_back(pcomplex_operatorT(MAKE_PROPAGATOR(world, (tc[i]-(i?tc[i-1]:0))*tstep/2))); 
-		for (int i=1+(np>>1); i<np; ++i) Gtrs.push_back(Gtrs[np-i]);
+        for (int i=0; i<1+(np>>1); ++i) Gtrs.push_back(pcomplex_operatorT(MAKE_PROPAGATOR(world, (tc[i]-(i?tc[i-1]:0))*tstep/2)));  //Generate the free-space FS kernel for Trotter to construct initial guess
+		for (int i=1+(np>>1); i<np; ++i) Gtrs.push_back(Gtrs[np-i]);   // make use of symmetry
 
         for (int step=0; step<nstep; step++) {
             print_info(world, psi, step);
