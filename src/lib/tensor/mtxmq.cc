@@ -312,7 +312,7 @@ namespace madness {
     }
 }
 
-#else
+#elif !defined(HAVE_IBMBGP)
 
 // On other platforms used to punt to the system blas but this was so slow that
 // now we use the generic code which itself could be improved
@@ -336,6 +336,7 @@ namespace madness {
         // gemm(false, true, dimj, dimi, dimk, one, b, dimj, a, dimi, zero, c, dimj);
     }
 }
+
 #endif
 
 #if defined(X86_64) 
@@ -1467,9 +1468,12 @@ namespace madness {
 }
 #else
 
+namespace madness {
+
+#if !defined(HAVE_IBMBGP)
+    
 // On other platforms used to punt to the system blas but this was so slow that
 // now we use the generic code which itself could be improved
-namespace madness {
     template <>
     void mTxmq(long dimi, long dimj, long dimk,
                double_complex* restrict c, const double_complex* a, const double_complex* b) {
@@ -1489,7 +1493,8 @@ namespace madness {
         }
         
     }
-
+#endif
+    
     template <>
     void mTxmq(long dimi, long dimj, long dimk,
                double_complex* restrict c, const double_complex* a, const double* b) {
