@@ -81,6 +81,14 @@
     (see the initial MRQC paper), and finally
   - normalizing the new wave function.
 
+  The kinetic energy operator is denoted by \f$T~=~-\frac{1}{2}
+  \nabla^2 \f$.  Thus, one would expect to compute the kinetic energy
+  with respect to a wave function \f$ \phi \f$ by \f$ <T \phi, \phi >
+  \f$.  In this particular example, the wave functions goes to zero
+  smoothly before the boundary so we apply the product rule for differentiation
+  and the kinetic energy is equal to \f$ < \nabla \phi, \nabla \phi >
+  \f$.
+
   
 */
 
