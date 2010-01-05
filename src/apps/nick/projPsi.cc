@@ -561,6 +561,8 @@ void printBasis(World& world, double Z) {
      * TH   0.0
      ****************************************/
     std::ifstream f("param");
+    std::cout << std::fixed;
+    std::cout.precision(1);
     if( f.is_open() ) {
         while(f >> tag) {
             if (tag[0] == '#') {
@@ -598,19 +600,15 @@ void printBasis(World& world, double Z) {
         }
     }
     //make functions
-    complex_functionT psi0;
-    if(wave_function_exists(world, 0) ) {
-        psi0 = wave_function_load(world, 0);
-    } else {
-        PRINTLINE("Psi( t=0 ) must be present");
-    }
     double kvec[3] = {0, 0, k};
     //    vector3D kVec(dARR);
-    ScatteringWF phi_k(Z, kvec, cutoff);
+    ScatteringWF phi_k(Z, kvec);
     //for(double TH=0; TH<3.14; TH+=0.3 ) {
     //    for(double r=0; r<sqrt(3)*phi_k.domain*phi_k.k; r+=1.0 ) {
+    PRINT("r \tRe:phi(rVec) \t Im:phi(rVec) \t");
+    PRINTLINE("Re:diff(rVec) \t Im:diff(rVec) \t");
     for(double r=rMIN; r<rMAX; r+=dr ) {
-        std::cout.precision(4);
+        std::cout.precision(3);
         std::cout << std::fixed;
         cosTH =  std::cos(TH);
         sinTH =  std::sin(TH);
@@ -620,9 +618,9 @@ void printBasis(World& world, double Z) {
         output = phi_k(rvec);
         PRINT(r);
         std::cout.precision(7);
-        complexd ZZ(0.0,2*k*r);
         PRINT("\t" << real(output) << "\t" << imag(output));
-        PRINT("\t" << phi_k.diffR(2*k*r) << "\t" << phi_k.diffI(2*k*r));
+//         std::cout << std::scientific;
+//         PRINT("\t" << phi_k.diffR(2*k*r) << "\t" << phi_k.diffI(2*k*r));
 //      PRINT("\t" << real(phi_k.f11(2*k*r)) << "\t" << imag(phi_k.f11(2*k*r)));
 //      PRINT("\t" << real(conhyp(-I/k,ONE,-I*k*r)) << "\t" << imag(conhyp(-I/k,ONE,-I*k*r)));
         PRINTLINE(" ");
@@ -675,6 +673,7 @@ void loadParameters(World& world, int& k, double& L, double &Z, double &cutoff) 
             }
             else if (tag == "L") {
                 f >> L;
+                cutoff = L;
                 PRINTLINE("L = " << L);
             }
             else if (tag == "k") {
@@ -732,13 +731,13 @@ int main(int argc, char**argv) {
     try {
         std::vector<std::string> boundList2;
         std::vector<std::string> unboundList2;
-        //loadList(world, boundList2, unboundList2);
-        //projectPsi2(world, boundList2, unboundList2, Z, cutoff);
+        loadList(world, boundList2, unboundList2);
+        projectPsi2(world, boundList2, unboundList2, Z, cutoff);
         //std::vector<WF> boundList;
         //std::vector<WF> unboundList;
         //compareGroundState(world, Z);
         //compare1F1(world);
-        printBasis(world,Z);
+        //printBasis(world,Z);
         //loadBasis(world,  boundList, unboundList, Z, cutoff);
         //belkic(world);
         //projectZdip(world, unboundList);

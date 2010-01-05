@@ -1,5 +1,7 @@
 rMIN 0
-rMAX 500
-dr   0.5
+rMAX 270
+dr   1
 TH   0.0
-k    0.1
+k    1.0
+cutoff 20
+
