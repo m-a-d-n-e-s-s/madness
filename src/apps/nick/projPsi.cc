@@ -418,9 +418,9 @@ void projectPsi2(World& world, std::vector<std::string> boundList, std::vector<s
                         if(world.rank()==0) before = clock();
                         complex_functionT phi_k = 
                             complex_factoryT(world).functor(functorT( new ScatteringWF(world, Z, kVec, cutoff) ));
-                        //                     // W/O timing
-                        //                     complex_functionT phi_k = 
-                        //                         complex_factoryT(world).functor(functorT( new ScatteringWF(Z, kVec, cutoff) ));
+                        // W/O timing
+                        //complex_functionT phi_k = 
+                        //complex_factoryT(world).functor(functorT( new ScatteringWF(Z, kVec, cutoff) ));
                         if(world.rank()==0) after = clock();
                         std::cout.precision( 2 );
                         PRINT( std::fixed << KX << " " << KY << " " << KZ << "  ");
@@ -433,7 +433,8 @@ void projectPsi2(World& world, std::vector<std::string> boundList, std::vector<s
                             PRINT( std::scientific << "\t" << real(output*conj(output)) );
                         }
                         PRINT(" took " << (after - before)/CLOCKS_PER_SEC << " seconds ");
-                        PRINT("and has " << phi_k.size() << " coefficients.\n");
+                        int WFsize = phi_k.size();
+                        PRINT("and has " << WFsize << " coefficients.\n");
                     }
                 }
             }
