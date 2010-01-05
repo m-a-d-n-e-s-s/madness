@@ -68,8 +68,20 @@
   \defgroup functionioeg Example of function I/O from getting started guide
   \ingroup examples
 
-  Demonstration of how to write and read functions to/from disk.
+  \par Points of interest
+  - Moving MADNESS functions to/from disk
 
+  \par Background
+  MADNESS functions are parallel objects distributed across the whole
+  machine.  If you try to store a function into a sequential archive,
+  only the part local to the calling process will be stored.
+  I.e., you need to use a parallel archive.  The parallel archive 
+  has an adjustable number of proceses that actually perform I/O
+  for effiency.  If your functions are few and small, the default of one 
+  writer is OK.  For large (or many) functions and I/O is a bottleneck,
+  then increase the number of I/O nodes.
+
+  \par Implementation
   Three different functions are created, written to disk, read back,
   and finally compared with the originals.
 

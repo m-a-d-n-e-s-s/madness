@@ -30,10 +30,27 @@
   
   $Id$
 */
-/// Demonstrates the use of signed distance function shapes in
-/// <mra/sdf_shape_3D.h> for integrating shapes in MADNESS simulations.
-/// After constructing the shape, it prints out the shape using the plotvtk
-/// functions.
+
+/*!
+  \file examples/sdf_shape_tester.cc
+  \brief Demonstrates/tests use of 3D shape functions
+  \defgroup shape_tester Demonstrates/tests use of 3D shape functions
+  \ingroup examples 
+
+  \par Points of interest
+  - Use of shape functions to define interior surfaces
+  - Plotting for subsequent visualization with OpenDX
+  
+  \par Backgroud
+
+  The classes in mra/sdf_shape_3D.h illustrate how to define 
+  surfaces as MADNESS functions for subsequent use in calculations
+  using them as sources or for enforcing boundary conditions on 
+  interior surfaces.  This example instantiates each shape and
+  plots it for subsequent visual verification (with OpenDX).
+
+ */
+
 
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <mra/mra.h>
@@ -41,76 +58,92 @@
 
 using namespace madness;
 
-typedef Vector<double,3> coordT3d;
-typedef Function<double,3> functionT;
-typedef FunctionFactory<double,3> factoryT;
-typedef std::vector<functionT> funcVecT;
-typedef SharedPtr< FunctionFunctorInterface<double,3> > functorT;
-
-static const double L = 2.0;
-static const double Lplot = L;
-
-static double thresh = 1e-3;
-static double thresh1 = thresh*0.1;
-
-//*****************************************************************************
-// Shape tester.
 int main(int argc, char **argv) {
+    MPI::Init(argc, argv);
+    World world(MPI::COMM_WORLD);
+    startup(world,argc,argv);
+    
+    static const double L = 2.0;
+    
+    // Function defaults
+    FunctionDefaults<3>::set_k(5);
+    FunctionDefaults<3>::set_thresh(1e-3);
+    FunctionDefaults<3>::set_cubic_cell(-L, L);
+    
+    Tensor<int> bc(3,2);
+    bc(_,0) = 0;          // Dirichlet in all directions
+    bc(_,1) = 0;
+    FunctionDefaults<3>::set_bc(bc);
+    
+    // create the shape mask
+    coord_3d pt, vec, sides;
+    double c;
+    pt[0] = 0.0;
+    pt[1] = 0.5;
+    pt[2] = 0.0;
+    vec[0] = 0.0;
+    vec[1] = 0.0;
+    vec[2] = 1.0;
+    sides[0]=0.3; 
+    sides[1]=0.6; 
+    sides[2]=1.0;
+    c = 0.5;
 
-	MPI::Init(argc, argv);
-	World world(MPI::COMM_WORLD);
-	startup(world,argc,argv);
+    // for plotting the shapes the old code used VTK, but I dunno how to use that
+    // so switched to opendx
 
-	// Function defaults
-	int k = 5;
-	FunctionDefaults<3>::set_k(k);
-	FunctionDefaults<3>::set_cubic_cell(-L, L);
-	FunctionDefaults<3>::set_thresh(thresh);
+    // the following line permutes the "inside" and "outside"
+    //mask.unaryop(&mask_complement<double, 3>);
 
-	Tensor<int> bc(3,2);
-	bc(_,0) = 0;          // Dirichlet in all directions
-	bc(_,1) = 0;
-	FunctionDefaults<3>::set_bc(bc);
+    {
+        real_function_3d f = real_factory_3d(world).functor(real_functor_3d(new SDF_Cylinder<double>(0.2, 0.75, 1.0, pt, vec)));
+        plotdx(f, "cylinder.dx");
+    }
+    {
+        real_function_3d f = real_factory_3d(world).functor(real_functor_3d(new SDF_Cube<double>(0.2, sqrt(2.0), pt)));
+        plotdx(f, "cube.dx");
+    }
+    {
+        real_function_3d f = real_factory_3d(world).functor(real_functor_3d(new SDF_Cone<double>(0.2, c, pt, vec)));
+        plotdx(f, "cone.dx");
+    }
+    {
+        real_function_3d f = real_factory_3d(world).functor(real_functor_3d(new SDF_Paraboloid<double>(0.2, c, pt, vec)));
+        plotdx(f, "paraboloid.dx");
+    }
+    {
+        real_function_3d f = real_factory_3d(world).functor(real_functor_3d(new SDF_Plane<double>(0.2, vec, pt)));
+        plotdx(f, "plane.dx");
+    }
+    {
+        real_function_3d f = real_factory_3d(world).functor(real_functor_3d(new SDF_Sphere<double>(0.2, c, pt)));
+        plotdx(f, "sphere.dx");
+    }
+    {
+        real_function_3d f = real_factory_3d(world).functor(real_functor_3d(new SDF_Ellipsoid<double>(0.2, sides, pt)));
+        plotdx(f, "ellipsoid.dx");
+    }
+    {
+        real_function_3d f = real_factory_3d(world).functor(real_functor_3d(new SDF_Box<double>(0.2, sides, pt)));
+        plotdx(f, "box.dx");
+    }
 
-	// create the shape mask
-	coordT3d pt, vec;
-	double c;
-	pt[0] = 0.0;
-	pt[1] = 0.5;
-	pt[2] = 0.0;
-	vec[0] = 0.0;
-	vec[1] = 0.0;
-	vec[2] = 1.0;
-	c = 0.5;
-	functionT mask = factoryT(world).functor(functorT(
-		//new SDF_Cube<double>(0.2, thresh, sqrt(2.0), pt)
-		//new SDF_Cone<double>(0.2, thresh, c, pt, vec)
-		//new SDF_Paraboloid<double>(0.2, thresh, c, pt, vec)
-		//new SDF_Plane<double>(0.2, thresh, vec, pt)
-		//new SDF_Sphere<double>(0.2, thresh, c, pt)
-		//new SDF_Ellipsoid<double>(0.2, thresh, vec, pt)
-		//new SDF_Box<double>(0.2, thresh, vec, pt)
-		new SDF_Cylinder<double>(0.2, thresh, 0.75, 1.0, pt, vec)
-		));
-
-	// the following line permutes the "inside" and "outside"
-	//mask.unaryop(&mask_complement<double, 3>);
-
-	// print the shape to a file
-	char filename[100];
-	sprintf(filename, "shape.vts");
-	Vector<double, 3> plotlo, plothi;
-	Vector<long, 3> npts;
-	for(int i = 0; i < 3; ++i) {
-		plotlo[i] = -Lplot;
-		plothi[i] = Lplot;
-		npts[i] = 51;
-	}
-	plotvtk_begin(world, filename, plotlo, plothi, npts);
-	plotvtk_data(mask, "mask", world, filename, plotlo, plothi, npts);
-	plotvtk_end<3>(world, filename);
-
-	MPI::Finalize();
-
-	return 0;
+    /*
+    char filename[100];
+    sprintf(filename, "shape.vts");
+    Vector<double, 3> plotlo, plothi;
+    Vector<long, 3> npts;
+    for(int i = 0; i < 3; ++i) {
+        plotlo[i] = -Lplot;
+        plothi[i] = Lplot;
+        npts[i] = 51;
+    }
+    plotvtk_begin(world, filename, plotlo, plothi, npts);
+    plotvtk_data(mask, "mask", world, filename, plotlo, plothi, npts);
+    plotvtk_end<3>(world, filename);
+    */
+    
+    MPI::Finalize();
+    
+    return 0;
 }
