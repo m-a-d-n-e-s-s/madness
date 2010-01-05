@@ -64,7 +64,7 @@
     void plotdx(const Function<T,NDIM>& f,
                 const char* filename,
                 const Tensor<double>& cell = FunctionDefaults<NDIM>::get_cell(),
-                const std::vector<long>& npt = 201,
+                const std::vector<long>& npt = std::vector<long>(NDIM,201L),
                 bool binary=true);
 
 

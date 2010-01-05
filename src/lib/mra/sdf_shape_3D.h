@@ -30,323 +30,301 @@
   
   $Id$
 */
-/// This file defines SDF classes for common 3-D surfaces:
-///
-/// Plane
-/// Sphere
-/// Cone
-/// Paraboloid
-/// Box
-/// Cube
-/// Ellipsoid
-/// Cylinder
-///
-/// NOTE: The signed distance functions would be the shortest distance between
-/// a point and _any_ point on the surface.  This is hard to calculate in many
-/// cases, so we use contours here.  The surface layer may not be equally thick
-/// around all points on the surface.
+/*!
+  \file mra/sdf_shape.h
+  \brief An abstract signed distance function for use when forming subdomains.
+  \ingroup mrabcint
 
+  This file defines SDF classes for common 3-D surfaces:
+  - Plane
+  - Sphere
+  - Cone
+  - Paraboloid
+  - Box
+  - Cube
+  - Ellipsoid
+  - Cylinder
+  
+  NOTE: The signed distance functions would be the shortest distance between
+  a point and _any_ point on the surface.  This is hard to calculate in many
+  cases, so we use contours here.  The surface layer may not be equally thick
+  around all points on the surface.
+*/  
+  
 #ifndef MADNESS_MRA_SDF_SHAPE_3D_H__INCLUDED
 #define MADNESS_MRA_SDF_SHAPE_3D_H__INCLUDED
 
-#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <mra/sdf_shape.h>
 
 namespace madness {
 
-/// A plane surface (3 dimensions)
-template <typename Q>
-class SDF_Plane : public SurfaceLayer<Q, 3> {
-	protected:
-		// the normal vector pointing OUTSIDE the surface
-		Vector<Q, 3> normal;
-		// a point on the surface
-		Vector<Q, 3> point;
+    /// A plane surface (3 dimensions)
+    template <typename Q>
+    class SDF_Plane : public SurfaceLayerInterface<Q,3> {
+    protected:
+        const coord_3d normal; ///< The normal vector pointing OUTSIDE the surface
+        const coord_3d point; ///< A point in the plane
 
-	public:
-		/// Needs the width and threshold, the outward surface normal, and a
-		/// point on the plane
-		SDF_Plane(const Q width, const Q thresh,
-			const Vector<Q, 3> &nrm, const Vector<Q, 3> &apoint)
-			: SurfaceLayer<Q, 3>(width, thresh), normal(nrm), point(apoint) {
+    public:
+        
+        /// Constructs a plane transecting the entire simulation volume
 
-			// normalize the normal vector
-			Q norm = sqrt(normal[0] * normal[0] + normal[1] * normal[1] +
-				normal[2] * normal[2]);
-			if(norm < 1.0e-12)
-				MADNESS_EXCEPTION("Plane normal must have non-zero magnitude", 0);
-			normal *= 1.0 / norm;
-		}
+        /// @param width The effective width of the surface (see SurfaceLayerInterface)
+        /// @param normal The outward normal definining the plane
+        /// @param point A point in the plane
+        SDF_Plane(const double width, const coord_3d& normal, const coord_3d& point)
+            : SurfaceLayerInterface<Q,3>(width)
+            , normal(normal*(1.0/sqrt(normal[0]*normal[0] + normal[1]*normal[1] + normal[2]*normal[2])))
+            , point(point) 
+        {}
 
-		Q sdf(const Vector<Q, 3> &pt) const {
-			// get the normal distance with dotp
-			return (pt[0] - point[0]) * normal[0] + (pt[1] - point[1]) * normal[1]
-				+ (pt[2] - point[2]) * normal[2];
-		}
-};
+        /// Computes the normal distance
 
-/// A spherical surface (3 dimensions)
-template <typename Q>
-class SDF_Sphere : public SurfaceLayer<Q, 3> {
-	protected:
-		// the radius
-		Q radius;
-		// the center
-		Vector<Q, 3> center;
+        /// @param pt Point at which to compute the distance from the surface
+        /// @return The signed distance from the surface
+        double sdf(const coord_3d& pt) const {
+            return (pt[0]-point[0])*normal[0] + (pt[1]-point[1])*normal[1] + (pt[2]-point[2])*normal[2];
+        }
+    };
 
-	public:
-		/// Needs the width and threshold, the radius, and the center
-		SDF_Sphere(const Q width, const Q thresh, const Q rad,
-			const Vector<Q, 3> &cen) : SurfaceLayer<Q, 3>(width, thresh),
-			radius(rad), center(cen) {}
+    /// A spherical surface (3 dimensions)
+    template <typename Q>
+    class SDF_Sphere : public SurfaceLayerInterface<Q,3> {
+    protected:
+        const double radius; ///< Radius of sphere
+        const coord_3d center; ///< Center of sphere
 
-		Q sdf(const Vector<Q, 3> &pt) const {
-			Q temp, r;
-			int i;
+    public:
+        /// Constructs a plane partially or fully enclosed in the solution volume
 
-			r = 0.0;
-			for(i = 0; i < 3; ++i) {
-				temp = pt[i] - center[i];
-				r += temp * temp;
-			}
+        /// @param width The effective width of the surface (see SurfaceLayerInterface)
+        /// @param radius The radius of the sphere
+        /// @param center The center of the sphere
+        SDF_Sphere(const double width, const double radius, const coord_3d &cen) 
+            : SurfaceLayerInterface<Q,3>(width)
+            , radius(radius)
+            , center(center) 
+        {}
 
-			return sqrt(r) - radius;
-		}
-};
+        double sdf(const coord_3d &pt) const {
+            double temp, r;
+            int i;
+            
+            r = 0.0;
+            for(i = 0; i < 3; ++i) {
+                temp = pt[i] - center[i];
+                r += temp * temp;
+            }
+            
+            return sqrt(r) - radius;
+        }
+    };
 
-/// A cone (3 dimensions): Sqrt(x^2 + y^2) - c * z == 0
-template <typename Q>
-class SDF_Cone : public SurfaceLayer<Q, 3> {
-	protected:
-		// the apex
-		Vector<Q, 3> apex;
-		// the radius
-		Q c;
-		// the direction of the axis, from the apex INSIDE
-		Vector<Q, 3> dir;
+    /// A cone (3 dimensions)
 
-	public:
-		/// Needs the width and threshold, the radius, the apex point,
-		/// and the direction in which the cone opens
-		SDF_Cone(const Q width, const Q thresh, const Q radius,
-			const Vector<Q, 3> &apex_pt, const Vector<Q, 3> &direc) :
-			SurfaceLayer<Q, 3>(width, thresh), apex(apex_pt), c(radius),
-			dir(direc) {
+    /// The cone is defined by 
+    /// \f[
+    /// \sqrt{x^2 + y^2} - c * z = 0
+    /// \f]
+    /// where \f$ z \f$ is along the axis.
+    template <typename Q>
+    class SDF_Cone : public SurfaceLayerInterface<Q,3> {
+    protected:
+        const coord_3d apex; ///< The apex
+        const double c; ///< The radius
+        const coord_3d dir; ///< The direction of the axis, from the apex INSIDE
 
-			// normalize the direction vector
-			Q norm = 1.0 / sqrt(dir[0]*dir[0] + dir[1]*dir[1] + dir[2]*dir[2]);
-			dir *= norm;
-		}
+    public:
+        /// Constructor for cone
 
-		Q sdf(const Vector<Q, 3> &pt) const {
-			Vector<Q, 3> diff;
-			unsigned int i;
-			Q dotp;
+        /// @param width The effective width of the surface (see SurfaceLayerInterface)
+        /// @param c Parameter \f$ c \f$ in the definition of the cone
+        /// @param apex Apex of cone
+        /// @param direc Oriented axis of the cone
+        SDF_Cone(const double width, 
+                 const double c,
+                 const coord_3d &apex_pt, 
+                 const coord_3d &direc) 
+            : SurfaceLayerInterface<Q,3>(width)
+            , apex(apex)
+            , c(c)
+            , dir(direc*(1.0/sqrt(direc[0]*direc[0] + direc[1]*direc[1] + direc[2]*direc[2])))
+        {}
 
-			for(i = 0; i < 3; ++i)
-				diff[i] = pt[i] - apex[i];
+        double sdf(const coord_3d &pt) const {
+            coord_3d diff;
+            unsigned int i;
+            double dotp;
+            
+            for(i = 0; i < 3; ++i)
+                diff[i] = pt[i] - apex[i];
+            
+            dotp = diff[0]*dir[0] + diff[1]*dir[1] + diff[2]*dir[2];
+            
+            for(i = 0; i < 3; ++i)
+                diff[i] -= dotp * dir[i];
+            
+            return sqrt(diff[0]*diff[0] + diff[1]*diff[1] + diff[2]*diff[2])
+                - c * dotp;
+        }
+    };
 
-			dotp = diff[0]*dir[0] + diff[1]*dir[1] + diff[2]*dir[2];
+    /// A paraboloid (3 dimensions)
 
-			for(i = 0; i < 3; ++i)
-				diff[i] -= dotp * dir[i];
+    /// The surface is defined by 
+    /// \f[
+    ///  x^2 + y^2 - c * z == 0
+    /// \f]
+    /// where \f$ z \f$ is along the axis.
+    template <typename Q>
+    class SDF_Paraboloid : public SurfaceLayerInterface<Q,3> {
+    protected:
+        const coord_3d apex; ///< The apex
+        const double c; ///< Curvature/radius of the surface
+        const coord_3d dir;///< The direction of the axis, from the apex INSIDE
 
-			return sqrt(diff[0]*diff[0] + diff[1]*diff[1] + diff[2]*diff[2])
-				- c * dotp;
-		}
-};
+    public:
+        SDF_Paraboloid(const double width, 
+                       const double c,
+                       const coord_3d &apex, const coord_3d &direc) 
+            : SurfaceLayerInterface<Q,3>(width)
+            , apex(apex)
+            , c()
+            , dir(direc*(1.0/sqrt(direc[0]*direc[0] + direc[1]*direc[1] + direc[2]*direc[2])))
+        {}
 
-/// A paraboloid (3 dimensions): x^2 + y^2 - c * z == 0
-template <typename Q>
-class SDF_Paraboloid : public SurfaceLayer<Q, 3> {
-	protected:
-		// the apex
-		Vector<Q, 3> apex;
-		// the curvature
-		Q c;
-		// the direction of the axis, from the apex INSIDE
-		Vector<Q, 3> dir;
+        double sdf(const coord_3d &pt) const {
+            coord_3d diff;
+            unsigned int i;
+            double dotp;
 
-	public:
-		/// Needs the width and threshold, the curvature, the apex point,
-		/// and the direction in which the paraboloid opens
-		SDF_Paraboloid(const Q width, const Q thresh, const Q curve,
-			const Vector<Q, 3> &apex_pt, const Vector<Q, 3> &direc) :
-			SurfaceLayer<Q, 3>(width, thresh), apex(apex_pt), c(curve),
-			dir(direc) {
+            for(i = 0; i < 3; ++i)
+                diff[i] = pt[i] - apex[i];
+            
+            dotp = diff[0]*dir[0] + diff[1]*dir[1] + diff[2]*dir[2];
+            
+            for(i = 0; i < 3; ++i)
+                diff[i] -= dotp * dir[i];
+            
+            return diff[0]*diff[0] + diff[1]*diff[1] + diff[2]*diff[2]
+                - c * dotp;
+        }
+    };
 
-			// normalize the direction vector
-			Q norm = 1.0 / sqrt(dir[0]*dir[0] + dir[1]*dir[1] + dir[2]*dir[2]);
-			dir *= norm;
-		}
+    /// A box (3 dimensions)
 
-		Q sdf(const Vector<Q, 3> &pt) const {
-			Vector<Q, 3> diff;
-			unsigned int i;
-			Q dotp;
+    /// LIMIT: the 3 primary axes must be x, y, and z
+    template <typename Q>
+    class SDF_Box : public SurfaceLayerInterface<Q,3> {
+    protected:
+        const coord_3d lengths;  ///< Half the length of each side of the box
+        const coord_3d center; ///< the center of the box
 
-			for(i = 0; i < 3; ++i)
-				diff[i] = pt[i] - apex[i];
+    public:
+        SDF_Box(const double width, const coord_3d& length, const coord_3d& center) 
+            : SurfaceLayerInterface<Q,3>(width)
+            , lengths(length*0.5), center(center) 
+        {}
 
-			dotp = diff[0]*dir[0] + diff[1]*dir[1] + diff[2]*dir[2];
+        double sdf(const coord_3d &pt) const {
+            double diff, max;
+            int i;
+            
+            max = fabs(pt[0] - center[0]) - lengths[0];
+            for(i = 1; i < 3; ++i) {
+                diff = fabs(pt[i] - center[i]) - lengths[i];
+                if(diff > max)
+                    max = diff;
+            }
+            
+            return max;
+        }
+    };
 
-			for(i = 0; i < 3; ++i)
-				diff[i] -= dotp * dir[i];
+    /// A cube (3 dimensions)
 
-			return diff[0]*diff[0] + diff[1]*diff[1] + diff[2]*diff[2]
-				- c * dotp;
-		}
-};
+    /// LIMIT: the 3 primary axes must be x, y, and z
+    template <typename Q>
+    class SDF_Cube : public SDF_Box<Q> {
+    protected:
+        double a;  ///< half the length of one side of the cube
+        coord_3d center; ///< the center of the cube
 
-/// A box (3 dimensions)
-///
-/// LIMIT: the 3 primary axes must be x, y, and z
-template <typename Q>
-class SDF_Box : public SurfaceLayer<Q, 3> {
-	protected:
-		// half the length of each side of the box
-		Vector<Q, 3> lengths;
-		// the center of the box
-		Vector<Q, 3> center;
+    public:
+        SDF_Cube(const double width, const double length, const coord_3d& center) 
+            : SDF_Box<Q>(width,coord_3d(length),center)
+        {}
+    };
 
-	public:
-		/// Needs teh width and threshold, the lengths of the sides, and the
-		/// center
-		SDF_Box(const Q width, const Q thresh, const Vector<Q, 3> &length2,
-			const Vector<Q, 3> &cen) : SurfaceLayer<Q, 3>(width, thresh),
-			lengths(length2), center(cen) {
+    /// An ellipsoid (3 dimensions)
+    
+    /// LIMIT: the 3 primary axes must be x, y, and z
+    template <typename Q>
+    class SDF_Ellipsoid : public SurfaceLayerInterface<Q,3> {
+    protected:
+        coord_3d radii; ///< the directional radii
+        coord_3d center; ///< the center
+        
+    public:
+        SDF_Ellipsoid(const double width, const coord_3d& radii, const coord_3d& center) 
+            : SurfaceLayerInterface<Q,3>(width)
+            , radii(radii)
+            , center(center) 
+        {}
+        
+        double sdf(const coord_3d &pt) const {
+            double quot, sum;
+            int i;
+            
+            sum = 0.0;
+            for(i = 0; i < 3; ++i) {
+                quot = (pt[i] - center[i]) / radii[i];
+                sum += quot * quot;
+            }
+            
+            return sum - 1.0;
+        }
+    };
+    
+    /// A cylinder (3 dimensions)
+    template <typename Q>
+    class SDF_Cylinder : public SurfaceLayerInterface<Q,3> {
+    protected:
+        double radius; ///< the radius of the cylinder
+        double a; ///< half the length of the cylinder
+        coord_3d center; ///< the central axial point of the cylinder (distance a from both ends)
+        coord_3d axis; ///< the axial direction of the cylinder
 
-			// only want half the length
-			lengths *= 0.5;
-		}
-
-		Q sdf(const Vector<Q, 3> &pt) const {
-			Q diff, max;
-			int i;
-
-			max = fabs(pt[0] - center[0]) - lengths[0];
-			for(i = 1; i < 3; ++i) {
-				diff = fabs(pt[i] - center[i]) - lengths[i];
-				if(diff > max)
-					max = diff;
-			}
-
-			return max;
-		}
-};
-
-/// A cube (3 dimensions)
-///
-/// LIMIT: the 3 primary axes must be x, y, and z
-template <typename Q>
-class SDF_Cube : public SurfaceLayer<Q, 3> {
-	protected:
-		// half the length of one side of the cube
-		Q a;
-		// the center of the cube
-		Vector<Q, 3> center;
-
-	public:
-		/// Needs the width and threshold, the length of a side, and the center
-		SDF_Cube(const Q width, const Q thresh, const Q length2,
-			const Vector<Q, 3> &cen) : SurfaceLayer<Q, 3>(width, thresh),
-			a(length2 / 2.0), center(cen) {}
-
-		Q sdf(const Vector<Q, 3> &pt) const {
-			Q diff, max;
-			int i;
-
-			max = 0.0;
-			for(i = 0; i < 3; ++i) {
-				diff = fabs(pt[i] - center[i]);
-				if(diff > max)
-					max = diff;
-			}
-
-			return max - a;
-		}
-};
-
-/// An ellipsoid (3 dimensions)
-///
-/// LIMIT: the 3 primary axes must be x, y, and z
-template <typename Q>
-class SDF_Ellipsoid : public SurfaceLayer<Q, 3> {
-	protected:
-		// the directional radii
-		Vector<Q, 3> radii;
-		// the center
-		Vector<Q, 3> center;
-
-	public:
-		/// Needs the width and threshold, the directional radii, and the center
-		SDF_Ellipsoid(const Q width, const Q thresh, const Vector<Q, 3> &dirrad,
-			const Vector<Q, 3> &cen) : SurfaceLayer<Q, 3>(width, thresh),
-			radii(dirrad), center(cen) {}
-
-		Q sdf(const Vector<Q, 3> &pt) const {
-			Q quot, sum;
-			int i;
-
-			sum = 0.0;
-			for(i = 0; i < 3; ++i) {
-				quot = (pt[i] - center[i]) / radii[i];
-				sum += quot * quot;
-			}
-
-			return sum - 1.0;
-		}
-};
-
-/// A cylinder (3 dimensions)
-template <typename Q>
-class SDF_Cylinder : public SurfaceLayer<Q, 3> {
-	protected:
-		// the radius of the cylinder
-		Q radius;
-		// half the length of the cylinder
-		Q a;
-		// the central axial point of the cylinder (distance a from both ends)
-		Vector<Q, 3> center;
-		// the axial direction of the cylinder
-		Vector<Q, 3> axis;
-
-	public:
-		/// Needs the width and threshold, the radius of the cylinder, the
-		/// axial length, the axial point at the center, and the axial direction
-		SDF_Cylinder(const Q width, const Q thresh, const Q rad, const Q length,
-			const Vector<Q, 3> &axpt, const Vector<Q, 3> &axdir) :
-			SurfaceLayer<Q, 3>(width, thresh), radius(rad), a(length / 2.0),
-			center(axpt), axis(axdir) {
-
-			// normalize the direction axis
-			Q norm = sqrt(axis[0] * axis[0] + axis[1] * axis[1] +
-				axis[2] * axis[2]);
-			if(norm < 1.0e-12)
-				MADNESS_EXCEPTION("Cylinder axial direction must have non-zero magnitude", 0);
-			axis *= 1.0 / norm;
-		}
-
-		Q sdf(const Vector<Q, 3> &pt) const {
-			Q dist;
-			Vector<Q, 3> rel, radial;
-			int i;
-
-			// axial distance
-			dist = 0.0;
-			for(i = 0; i < 3; ++i) {
-				rel[i] = pt[i] - center[i];
-				dist += rel[i] * axis[i];
-			}
-
-			// get the radial component
-			for(i = 0; i < 3; ++i)
-				radial[i] = rel[i] - dist * axis[i];
-
-			return std::max(fabs(dist) - a, sqrt(radial[0]*radial[0] + radial[1]*radial[1]
-				+ radial[2]*radial[2]) - radius);
-		}
-};
+    public:
+        SDF_Cylinder(const double width, const double radius, const double length,
+                     const coord_3d& axpt, const coord_3d& axis) 
+            : SurfaceLayerInterface<Q,3>(width)
+            , radius(radius)
+            , a(length / 2.0)
+            , center(axpt)
+            , axis(axis*(1.0/sqrt(axis[0]*axis[0] + axis[1]*axis[1] + axis[2]*axis[2]))) 
+        {}
+        
+        double sdf(const coord_3d &pt) const {
+            double dist;
+            coord_3d rel, radial;
+            int i;
+            
+            // axial distance
+            dist = 0.0;
+            for(i = 0; i < 3; ++i) {
+                rel[i] = pt[i] - center[i];
+                dist += rel[i] * axis[i];
+            }
+            
+            // get the radial component
+            for(i = 0; i < 3; ++i)
+                radial[i] = rel[i] - dist * axis[i];
+            
+            return std::max(fabs(dist) - a, sqrt(radial[0]*radial[0] + radial[1]*radial[1]
+                                                 + radial[2]*radial[2]) - radius);
+        }
+    };
 
 } // end of madness namespace
 

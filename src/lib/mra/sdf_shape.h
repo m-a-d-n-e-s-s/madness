@@ -30,12 +30,12 @@
   
   $Id$
 */
-/// This file sets up an abstract signed distance function for use when
-/// breaking up the total domain into subdomains.
-///
-/// SurfaceLayer uses a signed distance function to produce a mask function.
-/// The surface function is 0 outside (signed distance function is positive)
-/// and 1 inside (negative).
+
+/*!
+  \file mra/sdf_shape.h
+  \brief An abstract signed distance function for use when forming subdomains.
+  \ingroup mrabcint
+*/
 
 #ifndef MADNESS_MRA_SDF_SHAPE_H__INCLUDED
 #define MADNESS_MRA_SDF_SHAPE_H__INCLUDED
@@ -45,67 +45,84 @@
 
 namespace madness {
 
-/// Represents a surface as a MADNESS functor.  The sdf function (signed
-/// distance function) defines the surface: sdf is 0 on the surface, positive
-/// outside, and negative inside.  It should be monotonic as points move
-/// across the surface from one side to the other.
-///
-/// The sdf function should be overloaded in derived classes for the specific
-/// surface.
-///
-/// The operator () is defined here, following the Lowengrub paper.  Other
-/// variables needed by the constructor are the width of the surface layer (eps)
-/// and the desired threshold of the MADNESS calculation (thresh).
-///
-/// NOTE: eps is the width of one side of the surface layer.
-///
-///   mask(x) = 0.5 * (1.0 - tanh(n * SDF(x) / eps))
-///
-///   such that the mask function is 0 or 1 (to the desired accuracy) when
-///   |SDF(x)| > eps
-///
-///   n = 0.5 * ln ((2 - thresh) / thresh)
-template <typename Q, int dim>
-class SurfaceLayer : public FunctionFunctorInterface<Q, dim> {
-	private:
-		// bury the default constructor
-		SurfaceLayer() {}
+    /*!
+      \brief Computes the characteristic function of an interior surface as a MADNESS functor.  
 
-	protected:
-		// the width
-		Q eps;
-		// the prefactor (includes epsilon)
-		Q n;
+      \ingroup mrabcint
 
-	public:
-		SurfaceLayer(const Q width, const Q thresh) : eps(width) {
-			n = 0.5 * (log(2.0 - thresh) - log(thresh)) / width;
-		}
+      The characteristic function is one in the interior, zero
+      exterior, and one half on the surface.  It is computed from 
+      the distance function implemented by the derived class.
+      
+      The derived class should implement the \c sdf() (signed distance
+      function) interface to define the surface: \c sdf is 0 on the
+      surface, positive outside, and negative inside.  It should be
+      monotonic as points move across the surface from one side to the
+      other, and at least within distance \f$ 8 \epsilon \f$ of the
+      surface should be proportional to the normal distance from the
+      surface (beyond this distance the switching function is one to
+      machine precision).
 
-		// the required overload from FunctionFunctorInterface
-		virtual Q operator() (const Vector<Q, dim> &pt) const {
-			double val = sdf(pt);
-			if(val > eps)
-				return 0.0; // we're safely outside
-			else if(val < -eps)
-				return 1.0; // inside
-			else
-				return 0.5 * (1.0 - tanh(n * val));
-		}
+      The \c operator() required by the MADNESS FunctorInterface is
+      defined here to compute the characteristic function following
+      the switching function of the Lowengrub paper.  To be concrete,
+      the user-specified width (\f$ \epsilon \f$) of the surface is
+      the distance away from the surface that the switching function
+      falls to 0.01 (at distance \f$ n \epsilon \f$ the function has
+      fallen to \f$ 10^{-2n} \f$).  Thus, the masking or characteristic function
+      is computed at a point \f$ x \f$ as 
+      \f[ 
+      c(x) = \frac{1}{2} \left( 1 - \tanh \frac{2.3 SDF(x)}{\epsilon} \right) 
+      \f] 
+      The value 2.3 arises from solving \f$ (1-\tanh x)/2 = 0.01 \f$.
 
-		// the abstract signed distance function (sdf) function
-		virtual Q sdf(const Vector<Q, dim> &pt) const = 0;
-};
+    */
+    template <typename Q, int dim>
+    class SurfaceLayerInterface : public FunctionFunctorInterface<Q, dim> {
+    private:
+        SurfaceLayerInterface() {} ///< Forbidden
+        
+    protected:
+        const double eps; ///< The width
+        
+    public:
+        /// Constructor for surface layer interface
 
-/// Complement unary operation to reverse inside and outside of a mask.
-///
-/// This is to be used on a madness function generated from the SDF object.
-template<typename Q, int dim>
-inline static void mask_complement(const Key<dim> &key, Tensor<Q> &t) {
+        /// @param width The effective width of the surface
+        SurfaceLayerInterface(double width) : eps(width) {}
+        
+        /// Required overload for FunctionFunctorInterface
+        virtual Q operator() (const Vector<double, dim> &pt) const {
+            double val = sdf(pt);
+            if (val > 15.0*eps) {
+                return 0.0; // we're safely outside
+            }
+            else if (val < -15*eps) {
+                return 1.0; // inside
+            }
+            else {
+                return 0.5 * (1.0 - tanh(1.1 * val / eps));
+            }
+        }
+        
+        /// Derived class provides normal distance from surface for any point
+
+        /// @param pt The point in user coordinates
+        /// @return Signed distance from surface
+        virtual double sdf(const Vector<double, dim> &pt) const = 0;
+        
+        virtual ~SurfaceLayerInterface() {}
+    };
+    
+    /// Complement unary operation to reverse inside and outside of a mask.
+    ///
+    /// This is to be used on a madness function generated from the SDF object.
+    template<typename Q, int dim>
+    inline static void mask_complement(const Key<dim> &key, Tensor<Q> &t) {
 	UNARY_OPTIMIZED_ITERATOR(Q, t,
-		*_p0 = 1.0 - *_p0);
-}
-
+                                 *_p0 = 1.0 - *_p0);
+    }
+    
 } // end of madness namespace
 
 #endif // MADNESS_MRA_SDF_SHAPE_H__INCLUDED
