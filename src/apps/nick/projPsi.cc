@@ -673,7 +673,7 @@ void loadParameters(World& world, int& k, double& L, double &Z, double &cutoff) 
             }
             else if (tag == "L") {
                 f >> L;
-                cutoff = L;
+                //                cutoff = L;
                 PRINTLINE("L = " << L);
             }
             else if (tag == "k") {
@@ -695,7 +695,7 @@ void loadParameters(World& world, int& k, double& L, double &Z, double &cutoff) 
                 //v = sqrt( 2n omega - Z^2)
                 //cutoff > dMAX = v t
                 double dMAX = std::sqrt(2*3*omega - Z*Z) * 20;
-                double cutoff = 0.0;
+                cutoff = 0.0;
                 while( cutoff < dMAX ) { cutoff += L/128; }
                 PRINTLINE("dMAX = " << dMAX);
                 PRINTLINE("cutoff = " << cutoff);
