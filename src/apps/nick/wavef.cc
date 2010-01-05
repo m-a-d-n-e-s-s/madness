@@ -293,7 +293,7 @@ complexd ScatteringWF::f11(double xx) const {
  * Third Edition Formula (136.9)
  ****************************************************/
 complexd ScatteringWF::operator()(const vector3D& rVec) const {
-    if( rVec[0]<cutoff && rVec[1]<cutoff && rVec[2]<cutoff ) {
+    if( abs(rVec[0])<cutoff && abs(rVec[1])<cutoff && abs(rVec[2])<cutoff ) {
         double kDOTr = kVec[0]*rVec[0] + kVec[1]*rVec[1] + kVec[2]*rVec[2];
         double r     = sqrt(rVec[0]*rVec[0] + rVec[1]*rVec[1] + rVec[2]*rVec[2]);
         return 0.0634936359342 //  = (2PI)^-(3/2)
