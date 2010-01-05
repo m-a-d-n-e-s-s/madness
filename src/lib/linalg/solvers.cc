@@ -258,7 +258,7 @@ namespace madness {
         else throw "QuasiNewton: unknown update mthod";
     }
     
-    bool QuasiNewton::optimize(Tensor<double>& x) {
+    bool QuasiNewton::optimize(Tensor<double>& x, int maxiter) {
         if (n != x.dim(0)) {
             n = x.dim(0);
             h = Tensor<double>();
@@ -274,7 +274,7 @@ namespace madness {
 
         Tensor<double> gp, dx;
         double fp;
-        for (int iter=0; iter<20; iter++) {
+        for (int iter=0; iter<maxiter; iter++) {
             Tensor<double> g;
             target->value_and_gradient(x, f, g);
             gnorm = g.normf();
