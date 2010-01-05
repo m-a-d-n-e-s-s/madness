@@ -623,7 +623,7 @@ namespace madness {
 
         /// Inplace increment by scalar of supported type
 
-        /// @param[in] Scalar value
+        /// @param[in] x Scalar value
         /// @return %Reference to this tensor
         template <typename Q> 
         typename IsSupported<TensorTypeData<Q>,Tensor<T>&>::type 
@@ -929,7 +929,7 @@ namespace madness {
 
         /// Politically incorrect general indexing operation \em without bounds checking.
 
-        /// @param[in] Array containing index for each dimension
+        /// @param[in] ind Array containing index for each dimension
         /// @return %Reference to element
         T& operator()(const long ind[]) {
             long offset = 0;
@@ -961,7 +961,7 @@ namespace madness {
 
         /// General indexing operation \em with bounds checking.
 
-        /// @param[in] Vector containing index for each dimension
+        /// @param[in] ind Vector containing index for each dimension
         /// @return %Reference to element
         T& operator()(const std::vector<long> ind) {
             TENSOR_ASSERT(ind.size()>=(unsigned int) _ndim,"invalid number of dimensions",ind.size(),this);
@@ -975,7 +975,7 @@ namespace madness {
 
         /// General indexing operation \em with bounds checking.
 
-        /// @param[in] Vector containing index for each dimension
+        /// @param[in] ind Vector containing index for each dimension
         /// @return %Reference to element
         const T& operator()(const std::vector<long> ind) const {
             TENSOR_ASSERT(ind.size()>=(unsigned int) _ndim,"invalid number of dimensions",ind.size(),this);
@@ -989,7 +989,7 @@ namespace madness {
 
         /// General slicing operation
 
-        /// @param[in] Vector containing slice for each dimension
+        /// @param[in] s Vector containing slice for each dimension
         /// @return SliceTensor viewing patch of original tensor
         SliceTensor<T> operator()(const std::vector<Slice>& s) {
             TENSOR_ASSERT(s.size()>=(unsigned)(this->ndim()), "invalid number of dimensions", 
@@ -999,7 +999,7 @@ namespace madness {
 
         /// General slicing operation (const)
 
-        /// @param[in] Vector containing slice for each dimension
+        /// @param[in] s Vector containing slice for each dimension
         /// @return Constant Tensor viewing patch of original tensor
         const Tensor<T> operator()(const std::vector<Slice>& s) const {
             TENSOR_ASSERT(s.size()>=(unsigned)(this->ndim()), "invalid number of dimensions", 
