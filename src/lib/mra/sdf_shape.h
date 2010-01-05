@@ -58,23 +58,25 @@ namespace madness {
       function) interface to define the surface: \c sdf is 0 on the
       surface, positive outside, and negative inside.  It should be
       monotonic as points move across the surface from one side to the
-      other, and at least within distance \f$ 8 \epsilon \f$ of the
+      other, and within distance \f$ 8 \epsilon \f$ of the
       surface should be proportional to the normal distance from the
-      surface (beyond this distance the switching function is one to
+      surface (beyond this distance the switching function is one/zero to
       machine precision).
 
       The \c operator() required by the MADNESS FunctorInterface is
-      defined here to compute the characteristic function following
+      implemented here to compute the characteristic function following
       the switching function of the Lowengrub paper.  To be concrete,
       the user-specified width (\f$ \epsilon \f$) of the surface is
-      the distance away from the surface that the switching function
-      falls to 0.01 (at distance \f$ n \epsilon \f$ the function has
-      fallen to \f$ 10^{-2n} \f$).  Thus, the masking or characteristic function
-      is computed at a point \f$ x \f$ as 
+      employed in the masking or characteristic or phase-field 
+      function as follows
       \f[ 
-      c(x) = \frac{1}{2} \left( 1 - \tanh \frac{2.3 SDF(x)}{\epsilon} \right) 
+      \phi(x) = \frac{1}{2} \left( 1 - \tanh \frac{ 3 \mbox{sdf}(x) }{\epsilon} \right) 
       \f] 
-      The value 2.3 arises from solving \f$ (1-\tanh x)/2 = 0.01 \f$.
+      where \f$ x \f$ is the point.  Roughly, at distance \f$ n \epsilon \f$ from
+      the boundary, the value of the switching function is \f$ 10^{-2n} \f$.
+
+      X. Li, J. Lowengrub, A. R&auml;tz, and A. Voight, "Solving PDEs in Complex
+      Geometries: A Diffuse Domain Approach," Commun. Math. Sci., 7, p81-107, 2009.
 
     */
     template <typename Q, int dim>
@@ -94,14 +96,14 @@ namespace madness {
         /// Required overload for FunctionFunctorInterface
         virtual Q operator() (const Vector<double, dim> &pt) const {
             double val = sdf(pt);
-            if (val > 15.0*eps) {
+            if (val > 8.0*eps) {
                 return 0.0; // we're safely outside
             }
-            else if (val < -15*eps) {
+            else if (val < -8.0*eps) {
                 return 1.0; // inside
             }
             else {
-                return 0.5 * (1.0 - tanh(1.1 * val / eps));
+                return 0.5 * (1.0 - tanh(3.0 * val / eps));
             }
         }
         
