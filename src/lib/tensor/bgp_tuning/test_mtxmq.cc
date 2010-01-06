@@ -35,6 +35,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include "dcmf.h"
+#include "mpi.h"
 
 extern "C" void HPM_Init(void);           // initialize the UPC unit
 extern "C" void HPM_Start(char *label);   // start counting in a block marked by the label
@@ -161,13 +162,15 @@ void trantimer(const char* s, long ni, long nj, long nk, double *a, double *b, d
   printf("%20s %3ld %3ld %3ld %8.2f %8.2f\n",s, ni,nj,nk, fastest, fastest_dgemm);
 }
 
-int main() {
+int main(int argc, char **argv) {
     const long nimax=30*30;
     const long njmax=100;
     const long nkmax=100;
     long ni, nj, nk, i, m;
 
     double *a, *b, *c, *d;
+
+    MPI_Init(&argc, &argv);
 
     HPM_Init();
 
@@ -223,6 +226,8 @@ int main() {
 
     HPM_Print();
     HPM_Print_Flops();
+
+    MPI_Finalize();
 
     return 0;
 }
