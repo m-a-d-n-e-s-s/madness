@@ -422,13 +422,14 @@ void projectPsi2(World& world, std::vector<std::string> boundList, std::vector<s
                         //complex_functionT phi_k = 
                         //complex_factoryT(world).functor(functorT( new ScatteringWF(Z, kVec, cutoff) ));
                         if(world.rank()==0) after = clock();
-                        std::cout.precision( 2 );
+                        std::cout.precision( 6 );
                         PRINT( std::fixed << KX << " " << KY << " " << KZ << "  ");
-                        std::cout.precision( 4 );
+                        std::cout.precision( 8 );
+                        //|PSI(t)> = |Psi(t)> - <phi_k|Psi(0)>|Psi(0)>
                         complex_functionT k_overlap_0 = psi0.scale( phi_k.inner(psi0) );
                         //look through different time steps (t=0 not amoung them)
                         for( psiIT=psiList.begin(); psiIT !=  psiList.end(); psiIT++ ) {
-                            //<phi_k|Psi(t)>
+                            //<phi_k|PSI(t)>
                             output = phi_k.inner( psiIT->func - k_overlap_0 );
                             PRINT( std::scientific << "\t" << real(output*conj(output)) );
                         }
