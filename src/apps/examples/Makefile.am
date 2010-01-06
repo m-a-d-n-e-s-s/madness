@@ -1,10 +1,12 @@
 include $(top_srcdir)/config/MakeGlobal.am
 
-bin_PROGRAMS = hello hatom_energy h2 he tdse bigboy2 fast heat heat2 csqrt phil sdf_shape_tester interior_dirichlet test_gmres tdse1d vnucso nonlinschro sininteg functionio dataloadbal
+bin_PROGRAMS = hello hatom_energy h2 he tdse bigboy2 fast heat heat2 csqrt phil sdf_shape_tester interior_dirichlet test_gmres tdse1d vnucso nonlinschro sininteg functionio dataloadbal laplace_sphere
 
 bigboy2_SOURCES = bigboy2.cc
 
 dataloadbal_SOURCES = dataloadbal.cc
+
+laplace_sphere_SOURCES = laplace_sphere.cc
 
 sininteg_SOURCES = sininteg.cc
 
