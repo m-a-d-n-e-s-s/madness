@@ -52,7 +52,7 @@ namespace madness {
 
       The characteristic function is one in the interior, zero
       exterior, and one half on the surface.  It is computed from 
-      the distance function implemented by the derived class.
+      the signed distance function implemented by the derived class.
       
       The derived class should implement the \c sdf() (signed distance
       function) interface to define the surface: \c sdf is 0 on the
@@ -72,8 +72,14 @@ namespace madness {
       \f[ 
       \phi(x) = \frac{1}{2} \left( 1 - \tanh \frac{ 3 \mbox{sdf}(x) }{\epsilon} \right) 
       \f] 
-      where \f$ x \f$ is the point.  Roughly, at distance \f$ n \epsilon \f$ from
-      the boundary, the value of the switching function is \f$ 10^{-2n} \f$.
+      where \f$ x \f$ is the point.  Note that the surface layer used by Lowengrub
+      in the Dirichlet algorithm is \f$ B(s) = 36 \phi(s)^2 (1 - \phi(s))^2 \f$
+      where the constant 36 is chosen so that 
+      \f$ \int_{-\infty}^{\infty} B(s) \, ds = 1 \f$.  For this function the
+      parameter \f$ \epsilon \f$ is an effective measure of the full width of
+      the surface layer since
+      \f$ \int_{-\epsilon/2}^{\epsilon/2} B(s) \, ds = 0.987 \f$ and
+      \f$ \int_{-\epsilon}^{\epsilon} B(s) \, ds = 0.999963 \f$.
 
       X. Li, J. Lowengrub, A. R&auml;tz, and A. Voight, "Solving PDEs in Complex
       Geometries: A Diffuse Domain Approach," Commun. Math. Sci., 7, p81-107, 2009.
