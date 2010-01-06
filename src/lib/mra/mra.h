@@ -726,7 +726,8 @@ namespace madness {
 
         /// Using operator notation forces a global fence after every operation
         template <typename Q>
-        Function<T,NDIM>& operator*=(const Q q) {
+        typename IsSupported<TensorTypeData<Q>, Function<T,NDIM> >::type &
+        operator*=(const Q q) {
             PROFILE_MEMBER_FUNC(Function);
             scale(q,true);
             return *this;
@@ -1281,6 +1282,31 @@ namespace madness {
     TENSOR_RESULT_TYPE(T,R) inner(const Function<T,NDIM>& f, const Function<R,NDIM>& g) {
         PROFILE_FUNC;
         return f.inner(g);
+    }
+
+    
+    template <typename T, typename R, int NDIM>
+    typename IsSupported<TensorTypeData<R>, Function<TENSOR_RESULT_TYPE(T,R),NDIM> >::type 
+    operator+(const Function<T,NDIM>& f, R r) {
+        return (f*R(1.0)).add_scalar(r);
+    }
+
+    template <typename T, typename R, int NDIM>
+    typename IsSupported<TensorTypeData<R>, Function<TENSOR_RESULT_TYPE(T,R),NDIM> >::type 
+    operator+(R r, const Function<T,NDIM>& f) {
+        return (f*R(1.0)).add_scalar(r);
+    }
+
+    template <typename T, typename R, int NDIM>
+    typename IsSupported<TensorTypeData<R>, Function<TENSOR_RESULT_TYPE(T,R),NDIM> >::type 
+    operator-(const Function<T,NDIM>& f, R r) {
+        return (f*R(1.0)).add_scalar(-r);
+    }
+
+    template <typename T, typename R, int NDIM>
+    typename IsSupported<TensorTypeData<R>, Function<TENSOR_RESULT_TYPE(T,R),NDIM> >::type 
+    operator-(R r, const Function<T,NDIM>& f) {
+        return (f*R(-1.0)).add_scalar(r);
     }
 
 
