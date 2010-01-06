@@ -99,6 +99,10 @@ struct ElectronicStructureParams
   // restart calculation; no restart = 0; restart fully = 1;
   // restart using only density = 2;
   int restart;
+  // total amount of electronic charge
+  double ncharge;
+  // width for smearing
+  double swidth;
   
   template <typename Archive>
   void serialize(Archive& ar) {
@@ -108,7 +112,8 @@ struct ElectronicStructureParams
         smear & nbands & ngridk0 & ngridk1 & ngridk2 &
         maxocc & kpoints & fractional & maxsub & 
         maxrotn & canon & solver & koffset0 & koffset1 & 
-        koffset2 & basis & nio & restart;
+        koffset2 & basis & nio & restart & ncharge & 
+        swidth;
   }
 
   ElectronicStructureParams()
@@ -142,6 +147,8 @@ struct ElectronicStructureParams
     basis = "sto-3g";
     nio = 1;
     restart = 0;
+    ncharge = 0;
+    swidth = 0.001;
   }
 
   void read_file(const std::string& filename)
@@ -180,6 +187,10 @@ struct ElectronicStructureParams
       else if (s == "lo")
       {
         f >> lo;
+      }
+      else if (s == "swidth")
+      {
+        f >> swidth;
       }
       else if (s == "nio")
       {

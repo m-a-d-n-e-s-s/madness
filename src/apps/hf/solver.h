@@ -61,6 +61,30 @@ static double onesfunc(const coordT& x)
 
 namespace madness
 {
+  //***************************************************************************
+  /*!
+   \ingroup periodic_solver
+   \Fermi-Dirac distribution function for fixing the occupation numbers
+   */
+  template <typename T>
+  T stheta_fd(const T& x)
+  {
+    if (x > 50.0)
+    {
+      return 1.0;
+    }
+    else if (x < -50.0)
+    {
+      return 0.0;
+    }
+    else
+    {
+      return 1.0/(1.0 + exp(-x));
+    }
+  }
+  //***************************************************************************
+
+
   /*!
    \ingroup periodic_solver
   
@@ -629,6 +653,7 @@ namespace madness
       _params.nelec = _mentity.total_nuclear_charge();
       // total number of bands include empty
       _params.nbands = (_params.nelec/2) + _params.nempty;
+      _params.ncharge = _mentity.total_nuclear_charge();
       if ((_params.nelec % 2) == 1) _params.nelec++;
 
       // kmesh
@@ -989,7 +1014,7 @@ namespace madness
       // This is a cheat
       double rtrace = rho.trace();
       if (_world.rank() == 0) print("trace of rho = ", rtrace);
-      rho.scale(_params.nelec/rho.trace());
+      rho.scale(_params.ncharge/rho.trace());
 
       if (_params.restart != 1)
       {
@@ -997,8 +1022,7 @@ namespace madness
         rfunctionT vlocal;
         // Is this a many-body system?
         int rank = _world.rank();
-        if (_world.rank() == 0) print("rank ", rank, "nelec ", _params.nelec);
-        if (_params.nelec > 1)
+        if (_params.ncharge > 1.0)
         {
           if (_world.rank() == 0) print("Creating Coulomb op ...\n\n");
           SeparatedConvolution<double, 3>* op = 0;
@@ -1058,7 +1082,7 @@ namespace madness
         int kp = 0;
         if (_world.rank() == 0) print("Building kinetic energy matrix ...\n\n");
         // Need to do kinetic piece for every k-point
-        for (int ki = 0; ki < nkpts; ki++)
+        for (int ki = 0; ki < nkpts; ki++, kp += _params.nbands)
         {
           // These are our initial basis functions
           if (_world.rank() == 0) print("Projecting atomic orbitals ...\n\n");
@@ -1107,24 +1131,49 @@ namespace madness
             int filledbands = _params.nelec / 2;
             int occstart = kp;
             int occend = kp + filledbands;
-            for (int i = occstart; i < occend; i++) _occs[i] = _params.maxocc;
-            if ((_params.nelec % 2) == 1)
-              _occs[occend] = 1.0;
+//            for (int i = occstart; i < occend; i++) _occs[i] = _params.maxocc;
+//            if (_params.nelec > _params.ncharge)
+//              _occs[occend] = 1.0;
+            double availcharge = _params.ncharge;
+            double tol = 1e-6;
+            for (int i = occstart; i < occend; i++)
+            {
+              if (_world.rank() == 0) printf("availcharge = %.8f\n", availcharge);
+              // do we have charge to give? can we give a full dose?
+              if ((int) round(availcharge - _params.maxocc) >= 0)
+              {
+                if (_world.rank() == 0) printf("%d\tcase #1: availcharge - maxocc = %.8f\n", i, availcharge - _params.maxocc);
+                _occs[i] = _params.maxocc;
+                availcharge -= _params.maxocc;
+              }
+              // can we give 1 electron?
+              else if ((int) round(availcharge - 1.0) > 0)
+              {
+                if (_world.rank() == 0) printf("%d\tcase #2: availcharge - 1.0 = %.8f\n", i, availcharge - 1.0);
+                _occs[i] = 1.0;
+                availcharge -= 1.0;
+              }
+              else
+              {
+                if (_world.rank() == 0) printf("case #2: availcharge = %.8f\n", availcharge);
+                _occs[i] = 0.0;
+              }
+            }
           }
           // Construct and diagonlize Fock matrix
           ctensorT fock = potential + kinetic;
           fock = 0.5 * (fock + transpose(fock));
           ctensorT c; rtensorT e;
-          sygv(fock, overlap, 1, &c, &e);
+          sygv(fock, overlap, 1, c, e);
 
           ctensorT ck; rtensorT ek;
-          sygv(kinetic, overlap, 1, &ck, &ek);
+          sygv(kinetic, overlap, 1, ck, ek);
 
           ctensorT cp; rtensorT ep;
-          sygv(potential, overlap, 1, &cp, &ep);
+          sygv(potential, overlap, 1, cp, ep);
 
           ctensorT co; rtensorT eo;
-          syev(overlap, &co, &eo);
+          syev(overlap, co, eo);
 
           if (_world.rank() == 0)
           {
@@ -1242,7 +1291,7 @@ namespace madness
             _eigsb[oi] = tmp_eigs[ti];
           }
 
-          kp += _params.nbands;
+
         }
 
       }
@@ -1330,6 +1379,11 @@ namespace madness
     //*************************************************************************
 
     //***************************************************************************
+    /*!
+     \ingroup periodic_solver
+     \brief Compute the electronic density for either a molecular or periodic
+            system.
+     */
     rfuntionT compute_rho(const vecfuncT& phis, std::vector<KPoint> kpoints)
     {
       // Electron density
@@ -1354,6 +1408,11 @@ namespace madness
         }
       }
       rho.truncate();
+
+      // WSTHORNTON
+      // Test for George
+      cfunctionT rho_complex = function_real2complex(rho);
+
       return rho;
     }
     //***************************************************************************
@@ -1430,6 +1489,11 @@ namespace madness
     //*************************************************************************
 
     //*************************************************************************
+    /*!
+     \ingroup periodic_solver
+     \brief Applies the LDA effective potential to each orbital. Currently only
+            lda and spin-polarized is not implemented.
+     */
     void apply_potential(int iter, vecfuncT& pfuncsa,
         vecfuncT& pfuncsb, const vecfuncT& phisa,
         const vecfuncT& phisb, const rfuntionT& rhoa, const rfuntionT& rhob,
@@ -1713,7 +1777,7 @@ namespace madness
           }
 
           ctensorT U; rtensorT e;
-          sygv(fock, overlap, 1, &U, &e);
+          sygv(fock, overlap, 1, U, e);
 
           unsigned int nmo = k_wf.size();
           // Fix phases.
@@ -1840,7 +1904,7 @@ namespace madness
           // diagonlize just to print eigenvalues
           tensorT overlap = matrix_inner(_world, k_wf, k_wf, true);
           ctensorT c; rtensorT e;
-          sygv(fock, overlap, 1, &c, &e);
+          sygv(fock, overlap, 1, c, e);
           for (unsigned int ei = 0; ei < e.dim(0); ei++)
           {
             double diffe = (ei == 0) ? 0.0 : real(e(ei,ei))-real(e(ei-1,ei-1));
@@ -1929,6 +1993,7 @@ namespace madness
       for (unsigned int i = 0; i < rnvec.size(); i++) rnorm += rnvec[i];
       // renormalize and print
       _residual = rnorm / rnvec.size();
+      if (_world.rank() == 0) printf("\nResiduals\n---------\n");
       if (_world.rank() == 0) print("residual = ", _residual);
       if (_world.rank() == 0)
       {
@@ -1936,6 +2001,17 @@ namespace madness
         for (unsigned int i = 0; i < rnvec.size(); i++)
         {
           print("residual", i, "\t\t", rnvec[i]);
+        }
+        printf("\n");
+      }
+      
+      if (_world.rank() == 0)
+      {
+        printf("\n");
+        printf("Occupations\n-----------\n");
+        for (unsigned int i = 0; i < rnvec.size(); i++)
+        {
+          print("occ ", i, "\t\t", _occs[i]);
         }
         printf("\n");
       }
@@ -1979,6 +2055,10 @@ namespace madness
           gram_schmidt(bwfs, kpoints[kp]);
         }
       }
+
+      // fix occupation numbers
+
+
       // update alpha and beta orbitals
       truncate<valueT,NDIM>(_world, awfs);
       for (unsigned int ai = 0; ai < awfs.size(); ai++) {
@@ -2019,6 +2099,52 @@ namespace madness
       }
       if (nres > 0 && _world.rank() == 0) printf("\n");
       _world.gop.fence();
+    }
+    //*************************************************************************
+
+    //*************************************************************************
+    void fix_occupations(const std::vector<T>& eps,
+                         std::vector<double>& occs)
+    {
+      // Find max/min eigenvalues
+      double emax = eps[0];
+      double emin = emax;
+      for (int i = 0; i < eps.size(); i++)
+      {
+        emax = (eps[i] > emax) ? eps[i] : emax;
+        emin = (eps[i] < emin) ? eps[i] : emin;
+      }
+
+      int maxits = 1000;
+      // This is hardcoded to 2.0 (non-spinpolarized case) for now.
+      double occmax = 2.0;
+      // Fermi energy
+      double efermi = 0.0;
+      // Use bisection method to find the fermi energy and update occupation numbers
+      bool bstop = false;
+      // Some smoothing parameter
+      double t1 = 1.0/_params.swidth;
+      for (int it = 0; (it < maxits)&&(!bstop); it++)
+      {
+        // Proposed fermi energy
+        efermi = 0.5 * (emax + emin);
+        // Accumulated charge
+        double charge = 0.0;
+        // Loop over all eigenvalues and count the charge
+        for (int i = 0; i < eps.size(); i++)
+        {
+          double x = (efermi-eps[i]) * t1;
+          // need to add some smearing function here
+          occs[i] = occmax*stheta_fd(x);
+          charge += _kpoints[i].weight() * occs[i];
+        }
+        if (fabs(emax-emin) < 1e-5)
+          bstop = true;
+        else if (charge < _params.ncharge)
+          emin = efermi;
+        else
+          emax = efermi;
+      }
     }
     //*************************************************************************
 
