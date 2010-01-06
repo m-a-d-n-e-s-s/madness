@@ -1,0 +1,2 @@
+#!/bin/bash
+cqsub -p Performance -t 10 -n 1 -m smp test_mtxmq.x
