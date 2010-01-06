@@ -36,6 +36,12 @@
 #include <math.h>
 #include "dcmf.h"
 
+extern "C" void HPM_Init(void);           // initialize the UPC unit
+extern "C" void HPM_Start(char *label);   // start counting in a block marked by the label
+extern "C" void HPM_Stop(char *label);    // stop counting in a block marked by the label
+extern "C" void HPM_Print(void);          // print counters for all blocks
+extern "C" void HPM_Print_Flops(void);
+
 extern "C" void dgemm(const char *transa, const char *transb, const int *m, const int *n, const int *k,
                       const double *alpha, const double *a, const int *lda,
                       const double *b, const int *ldb, const double *beta,
@@ -54,9 +60,7 @@ void mTxm_dgemm(long ni, long nj, long nk, double* c, const double* a, const dou
 double ran()
 {
   static unsigned long seed = 76521;
-
   seed = seed *1812433253 + 12345;
-
   return ((double) (seed & 0x7fffffff)) * 4.6566128752458e-10;
 }
 
@@ -76,39 +80,47 @@ void mTxm(long dimi, long dimj, long dimk,
     }
 }
 
-long long rdtsc() {
+inline long long rdtsc() {
   long long x = DCMF_Timebase();
   return x;
 }
 
+/*
 void crap(double rate, double fastest, long long start) {
     if (rate == 0) printf("darn compiler bug %e %e %lld\n",rate,fastest,start);
 }
-
+*/
 
 void timer(const char* s, long ni, long nj, long nk, double *a, double *b, double *c) {
   double fastest=0.0, fastest_dgemm=0.0;
 
   double nflop = 2.0*ni*nj*nk;
   long loop;
+
+  HPM_Start("mTxmq");
   for (loop=0; loop<30; loop++) {
     double rate;
     long long start = rdtsc();
     mTxmq(ni,nj,nk,c,a,b);
     start = rdtsc() - start;
     rate = nflop/start;
-    crap(rate,fastest,start);
+    //crap(rate,fastest,start);
     if (rate > fastest) fastest = rate;
   }
+  HPM_Stop("mTxmq");
+
+  HPM_Start("mTxmq_dgemm");
   for (loop=0; loop<30; loop++) {
     double rate;
     long long start = rdtsc();
     mTxm_dgemm(ni,nj,nk,c,a,b);
     start = rdtsc() - start;
     rate = nflop/start;
-    crap(rate,fastest_dgemm,start);
+    //crap(rate,fastest_dgemm,start);
     if (rate > fastest_dgemm) fastest_dgemm = rate;
   }
+  HPM_Stop("mTxmq_dgemm");
+
   printf("%20s %3ld %3ld %3ld %8.2f %8.2f\n",s, ni,nj,nk, fastest, fastest_dgemm);
 }
 
@@ -117,6 +129,8 @@ void trantimer(const char* s, long ni, long nj, long nk, double *a, double *b, d
 
   double nflop = 3.0*2.0*ni*nj*nk;
   long loop;
+
+  HPM_Start("mTxmq");
   for (loop=0; loop<30; loop++) {
     double rate;
     long long start = rdtsc();
@@ -125,9 +139,12 @@ void trantimer(const char* s, long ni, long nj, long nk, double *a, double *b, d
     mTxmq(ni,nj,nk,c,a,b);
     start = rdtsc() - start;
     rate = nflop/start;
-    crap(rate,fastest,start);
+    //crap(rate,fastest,start);
     if (rate > fastest) fastest = rate;
   }
+  HPM_Stop("mTxmq");
+
+  HPM_Start("mTxmq_dgemm");
   for (loop=0; loop<30; loop++) {
     double rate;
     long long start = rdtsc();
@@ -136,9 +153,11 @@ void trantimer(const char* s, long ni, long nj, long nk, double *a, double *b, d
     mTxm_dgemm(ni,nj,nk,c,a,b);
     start = rdtsc() - start;
     rate = nflop/start;
-    crap(rate,fastest_dgemm,start);
+    //crap(rate,fastest_dgemm,start);
     if (rate > fastest_dgemm) fastest_dgemm = rate;
   }
+  HPM_Stop("mTxmq_dgemm");
+
   printf("%20s %3ld %3ld %3ld %8.2f %8.2f\n",s, ni,nj,nk, fastest, fastest_dgemm);
 }
 
@@ -149,6 +168,9 @@ int main() {
     long ni, nj, nk, i, m;
 
     double *a, *b, *c, *d;
+
+    HPM_Init();
+
     posix_memalign((void **) &a, 16, nkmax*nimax*sizeof(double));
     posix_memalign((void **) &b, 16, nkmax*njmax*sizeof(double));
     posix_memalign((void **) &c, 16, nimax*njmax*sizeof(double));
@@ -195,8 +217,12 @@ int main() {
     printf("... OK!\n");
 
     for (ni=2; ni<60; ni+=2) timer("(m*m)T*(m*m)", ni,ni,ni,a,b,c);
-    for (m=2; m<=30; m+=2) timer("(m*m,m)T*(m*m)", m*m,m,m,a,b,c);
-    for (m=2; m<=30; m+=2) trantimer("tran(m,m,m)", m*m,m,m,a,b,c);
-    for (m=2; m<=20; m+=2) timer("(20*20,20)T*(20,m)", 20*20,m,20,a,b,c);
+    for ( m=2; m<=30;  m+=2) timer("(m*m,m)T*(m*m)", m*m,m,m,a,b,c);
+    for ( m=2; m<=30;  m+=2) trantimer("tran(m,m,m)", m*m,m,m,a,b,c);
+    for ( m=2; m<=20;  m+=2) timer("(20*20,20)T*(20,m)", 20*20,m,20,a,b,c);
+
+    HPM_Print();
+    HPM_Print_Flops();
+
     return 0;
 }
