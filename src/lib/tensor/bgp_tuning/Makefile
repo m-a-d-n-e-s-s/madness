@@ -7,11 +7,11 @@
 
 all: test_mtxmq.x test_Zmtxmq.x
 
-test_mtxmq.x: test_mtxmq.o mtxmq.o
-	$(CXX) $(CXXFLAGS) test_mtxmq.o mtxmq.o $(GOTO) $(HPM) -o test_mtxmq.x
+test_mtxmq.x: test_mtxmq.o mtxmq.o mTxm_tune.o
+	$(CXX) $(CXXFLAGS) test_mtxmq.o mtxmq.o mTxm_tune.o $(GOTO) $(HPM) -o test_mtxmq.x
 
-test_Zmtxmq.x: test_Zmtxmq.o mtxmq.o
-	$(CXX) $(CXXFLAGS) test_Zmtxmq.o mtxmq.o $(GOTO) $(HPM) -o test_Zmtxmq.x
+test_Zmtxmq.x: test_Zmtxmq.o mtxmq.o mTxm_tune.o
+	$(CXX) $(CXXFLAGS) test_Zmtxmq.o mtxmq.o mTxm_tune.o $(GOTO) $(HPM) -o test_Zmtxmq.x
 
 $%.o: %.cc
 	$(CXX) -c $(CXXFLAGS) $< -o $@

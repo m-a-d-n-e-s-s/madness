@@ -36,11 +36,13 @@
 #include <math.h>
 #include <complex>
 
-using namespace std;
+//using namespace std;
 
-typedef complex<double> double_complex;
+typedef std::complex<double> double_complex;
 
+extern "C" {
 #include "dcmf.h"
+}
 #include "mpi.h"
 
 extern "C" void HPM_Init(void);           // initialize the UPC unit
@@ -56,6 +58,7 @@ extern "C" void zgemm(const char *transa, const char *transb,
                    double_complex *c, const int *ldc, int la, int lb);
 
 void mTxmq(long dimi, long dimj, long dimk, double_complex* c, const double_complex* a, const double_complex* b);
+void mTxm_tune(long dimi, long dimj, long dimk, double_complex* c, const double_complex* a, const double_complex* b);
 
 void mTxm_zgemm(long ni, long nj, long nk, double_complex* c, const double_complex* a, const double_complex*b ) {
       int fni=ni;
@@ -98,14 +101,8 @@ inline long long rdtsc() {
   return x;
 }
 
-/*
-void crap(double rate, double fastest, long long start) {
-    if (rate == 0) printf("darn compiler bug %e %e %lld\n",rate,fastest,start);
-}
-*/
-
 void timer(const char* s, long ni, long nj, long nk, double_complex *a, double_complex *b, double_complex *c) {
-  double fastest=0.0, fastest_zgemm=0.0;
+  double fastest=0.0, fastest_zgemm=0.0, fastest_tune=0.0;
 
   double nflop = 2.0*ni*nj*nk;
   long loop;
@@ -117,28 +114,37 @@ void timer(const char* s, long ni, long nj, long nk, double_complex *a, double_c
     mTxmq(ni,nj,nk,c,a,b);
     start = rdtsc() - start;
     rate = nflop/start;
-    //crap(rate,fastest,start);
     if (rate > fastest) fastest = rate;
   }
   HPM_Stop("mTxmq");
 
-  HPM_Start("mTxmq_dgemm");
+  HPM_Start("mTxmq_zgemm");
   for (loop=0; loop<30; loop++) {
     double rate;
     long long start = rdtsc();
     mTxm_zgemm(ni,nj,nk,c,a,b);
     start = rdtsc() - start;
     rate = nflop/start;
-    //crap(rate,fastest_zgemm,start);
     if (rate > fastest_zgemm) fastest_zgemm = rate;
   }
-  HPM_Stop("mTxmq_dgemm");
+  HPM_Stop("mTxmq_zgemm");
 
-  printf("%20s %3ld %3ld %3ld %8.2f %8.2f\n",s, ni,nj,nk, fastest, fastest_zgemm);
+  HPM_Start("ZmTxmq_tune");
+  for (loop=0; loop<30; loop++) {
+    double rate;
+    long long start = rdtsc();
+    mTxm_tune(ni,nj,nk,c,a,b);
+    start = rdtsc() - start;
+    rate = nflop/start;
+    if (rate > fastest_tune) fastest_tune = rate;
+  }
+  HPM_Stop("ZmTxmq_tune");
+
+  printf("%20s %3ld %3ld %3ld %8.2f %8.2f %8.2f\n",s, ni,nj,nk, fastest, fastest_zgemm, fastest_tune);
 }
 
 void trantimer(const char* s, long ni, long nj, long nk, double_complex *a, double_complex *b, double_complex *c) {
-  double fastest=0.0, fastest_zgemm=0.0;
+  double fastest=0.0, fastest_zgemm=0.0, fastest_tune=0.0;
 
   double nflop = 3.0*2.0*ni*nj*nk;
   long loop;
@@ -152,12 +158,11 @@ void trantimer(const char* s, long ni, long nj, long nk, double_complex *a, doub
     mTxmq(ni,nj,nk,c,a,b);
     start = rdtsc() - start;
     rate = nflop/start;
-    //crap(rate,fastest,start);
     if (rate > fastest) fastest = rate;
   }
   HPM_Stop("mTxmq");
 
-  HPM_Start("mTxmq_dgemm");
+  HPM_Start("mTxmq_zgemm");
   for (loop=0; loop<30; loop++) {
     double rate;
     long long start = rdtsc();
@@ -166,12 +171,24 @@ void trantimer(const char* s, long ni, long nj, long nk, double_complex *a, doub
     mTxm_zgemm(ni,nj,nk,c,a,b);
     start = rdtsc() - start;
     rate = nflop/start;
-    //crap(rate,fastest_zgemm,start);
     if (rate > fastest_zgemm) fastest_zgemm = rate;
   }
-  HPM_Stop("mTxmq_dgemm");
+  HPM_Stop("mTxmq_zgemm");
 
-  printf("%20s %3ld %3ld %3ld %8.2f %8.2f\n",s, ni,nj,nk, fastest, fastest_zgemm);
+  HPM_Start("ZmTxmq_tune");
+  for (loop=0; loop<30; loop++) {
+    double rate;
+    long long start = rdtsc();
+    mTxm_tune(ni,nj,nk,c,a,b);
+    mTxm_tune(ni,nj,nk,a,c,b);
+    mTxm_tune(ni,nj,nk,c,a,b);
+    start = rdtsc() - start;
+    rate = nflop/start;
+    if (rate > fastest_tune) fastest_tune = rate;
+  }
+  HPM_Stop("ZmTxmq_tune");
+
+  printf("%20s %3ld %3ld %3ld %8.2f %8.2f %8.2f\n",s, ni,nj,nk, fastest, fastest_zgemm, fastest_tune);
 }
 
 int main(int argc, char **argv) {
@@ -207,7 +224,7 @@ int main(int argc, char **argv) {
 /*     } */
 /*     return 0; */
 
-    printf("Starting to test ... \n");
+    printf("Starting to test Zmtxmq ... \n");
     for (ni=1; ni<12; ni+=1) {
         for (nj=1; nj<12; nj+=1) {
             for (nk=1; nk<12; nk+=1) {

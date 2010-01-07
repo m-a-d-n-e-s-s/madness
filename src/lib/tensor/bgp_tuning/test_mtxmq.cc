@@ -35,7 +35,9 @@
 #include <stdlib.h>
 #include <math.h>
 
+extern "C" {
 #include "dcmf.h"
+}
 #include "mpi.h"
 
 extern "C" void HPM_Init(void);           // initialize the UPC unit
@@ -50,6 +52,7 @@ extern "C" void dgemm(const char *transa, const char *transb, const int *m, cons
                       double *c, const int *ldc, int la, int lb);
 
 void mTxmq(long dimi, long dimj, long dimk, double* c, const double* a, const double* b);
+void mTxm_tune(long dimi, long dimj, long dimk, double* c, const double* a, const double* b);
 
 void mTxm_dgemm(long ni, long nj, long nk, double* c, const double* a, const double*b ) {
   int fni=ni;
@@ -87,14 +90,8 @@ inline long long rdtsc() {
   return x;
 }
 
-/*
-void crap(double rate, double fastest, long long start) {
-    if (rate == 0) printf("darn compiler bug %e %e %lld\n",rate,fastest,start);
-}
-*/
-
 void timer(const char* s, long ni, long nj, long nk, double *a, double *b, double *c) {
-  double fastest=0.0, fastest_dgemm=0.0;
+  double fastest=0.0, fastest_dgemm=0.0, fastest_tune=0.0;
 
   double nflop = 2.0*ni*nj*nk;
   long loop;
@@ -106,7 +103,6 @@ void timer(const char* s, long ni, long nj, long nk, double *a, double *b, doubl
     mTxmq(ni,nj,nk,c,a,b);
     start = rdtsc() - start;
     rate = nflop/start;
-    //crap(rate,fastest,start);
     if (rate > fastest) fastest = rate;
   }
   HPM_Stop("mTxmq");
@@ -118,16 +114,26 @@ void timer(const char* s, long ni, long nj, long nk, double *a, double *b, doubl
     mTxm_dgemm(ni,nj,nk,c,a,b);
     start = rdtsc() - start;
     rate = nflop/start;
-    //crap(rate,fastest_dgemm,start);
     if (rate > fastest_dgemm) fastest_dgemm = rate;
   }
   HPM_Stop("mTxmq_dgemm");
 
-  printf("%20s %3ld %3ld %3ld %8.2f %8.2f\n",s, ni,nj,nk, fastest, fastest_dgemm);
+  HPM_Start("mTxmq_tune");
+  for (loop=0; loop<30; loop++) {
+    double rate;
+    long long start = rdtsc();
+    mTxm_tune(ni,nj,nk,c,a,b);
+    start = rdtsc() - start;
+    rate = nflop/start;
+    if (rate > fastest_tune) fastest_tune = rate;
+  }
+  HPM_Stop("mTxmq_tune");
+
+  printf("%20s %3ld %3ld %3ld %8.2f %8.2f %8.2f\n",s, ni,nj,nk, fastest, fastest_dgemm, fastest_tune);
 }
 
 void trantimer(const char* s, long ni, long nj, long nk, double *a, double *b, double *c) {
-  double fastest=0.0, fastest_dgemm=0.0;
+  double fastest=0.0, fastest_dgemm=0.0, fastest_tune=0.0;
 
   double nflop = 3.0*2.0*ni*nj*nk;
   long loop;
@@ -141,7 +147,6 @@ void trantimer(const char* s, long ni, long nj, long nk, double *a, double *b, d
     mTxmq(ni,nj,nk,c,a,b);
     start = rdtsc() - start;
     rate = nflop/start;
-    //crap(rate,fastest,start);
     if (rate > fastest) fastest = rate;
   }
   HPM_Stop("mTxmq");
@@ -155,12 +160,24 @@ void trantimer(const char* s, long ni, long nj, long nk, double *a, double *b, d
     mTxm_dgemm(ni,nj,nk,c,a,b);
     start = rdtsc() - start;
     rate = nflop/start;
-    //crap(rate,fastest_dgemm,start);
     if (rate > fastest_dgemm) fastest_dgemm = rate;
   }
   HPM_Stop("mTxmq_dgemm");
 
-  printf("%20s %3ld %3ld %3ld %8.2f %8.2f\n",s, ni,nj,nk, fastest, fastest_dgemm);
+  HPM_Start("mTxmq_tune");
+  for (loop=0; loop<30; loop++) {
+    double rate;
+    long long start = rdtsc();
+    mTxm_tune(ni,nj,nk,c,a,b);
+    mTxm_tune(ni,nj,nk,a,c,b);
+    mTxm_tune(ni,nj,nk,c,a,b);
+    start = rdtsc() - start;
+    rate = nflop/start;
+    if (rate > fastest_tune) fastest_tune = rate;
+  }
+  HPM_Stop("mTxmq_tune");
+
+  printf("%20s %3ld %3ld %3ld %8.2f %8.2f %8.2f\n",s, ni,nj,nk, fastest, fastest_dgemm, fastest_tune);
 }
 
 int main(int argc, char **argv) {
@@ -195,7 +212,7 @@ int main(int argc, char **argv) {
 /*     } */
 /*     return 0; */
 
-    printf("Starting to test ... \n");
+    printf("Starting to test mtxmq ... \n");
     for (ni=2; ni<60; ni+=2) {
         for (nj=2; nj<100; nj+=6) {
             for (nk=2; nk<100; nk+=6) {

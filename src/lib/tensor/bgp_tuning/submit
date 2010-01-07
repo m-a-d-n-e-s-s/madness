@@ -1,2 +1,8 @@
 #!/bin/bash
-cqsub -p Performance -t 10 -n 1 -m smp $1
+name=`echo ${1} | sed s/"\.x"//g`
+#echo ${name}
+dirname=${name}_`date +%d%b%Y_%Hh%Mm`
+mkdir ${dirname}
+cp ${name}.x *.cc Makefile ${dirname}/.
+cd ${dirname}
+cqsub -p Performance -t 10 -n 1 -m smp ${name}.x
