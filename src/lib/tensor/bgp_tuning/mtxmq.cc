@@ -31,16 +31,51 @@
   $Id$
 */
 
-    void mTxmq(long dimi, long dimj, long dimk, double* __restrict__ c, const double* a, const double* b) {
-        for (long i=0; i<dimi; i++,c+=dimj,a++) {
-            for (long j=0; j<dimj; j++) c[j] = 0.0;
-            const double *ai = a;
-            for (long k=0; k<dimk; k++,ai+=dimi) {
-                const double aki = *ai;
-                for (long j=0; j<dimj; j++) {
-                    c[j] += aki*b[k*dimj+j];
-                }
+#include <stdio.h>
+#include <stdlib.h>
+#include <math.h>
+#include <complex>
+
+using namespace std;
+
+typedef complex<double> double_complex;
+
+void mTxmq(long dimi, long dimj, long dimk, double* c, const double* a, const double* b) {
+    for (long i=0; i<dimi; i++,c+=dimj,a++) {
+        for (long j=0; j<dimj; j++) c[j] = 0.0;
+        const double *ai = a;
+        for (long k=0; k<dimk; k++,ai+=dimi) {
+            const double aki = *ai;
+            for (long j=0; j<dimj; j++) {
+                c[j] += aki*b[k*dimj+j];
             }
         }
     }
+}
+
+void mTxmq(long dimi, long dimj, long dimk, double_complex* c, const double_complex* a, const double* b) {
+    for (long i=0; i<dimi; i++,c+=dimj,a++) {
+        for (long j=0; j<dimj; j++) c[j] = 0.0;
+        const double_complex *ai = a;
+        for (long k=0; k<dimk; k++,ai+=dimi) {
+            const double_complex aki = *ai;
+            for (long j=0; j<dimj; j++) {
+                c[j] += aki*b[k*dimj+j];
+            }
+        }
+    }
+}
+
+void mTxmq(long dimi, long dimj, long dimk, double_complex* c, const double_complex* a, const double_complex* b) {
+    for (long i=0; i<dimi; i++,c+=dimj,a++) {
+        for (long j=0; j<dimj; j++) c[j] = 0.0;
+        const double_complex *ai = a;
+        for (long k=0; k<dimk; k++,ai+=dimi) {
+            const double_complex aki = *ai;
+            for (long j=0; j<dimj; j++) {
+                c[j] += aki*b[k*dimj+j];
+            }
+        }
+    }
+}
 

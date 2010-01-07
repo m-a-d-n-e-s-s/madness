@@ -34,6 +34,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
+#include <complex>
+
+using namespace std;
+
+typedef complex<double> double_complex;
 
 #include "dcmf.h"
 #include "mpi.h"
@@ -44,34 +49,40 @@ extern "C" void HPM_Stop(char *label);    // stop counting in a block marked by 
 extern "C" void HPM_Print(void);          // print counters for all blocks
 extern "C" void HPM_Print_Flops(void);
 
-extern "C" void dgemm(const char *transa, const char *transb, const int *m, const int *n, const int *k,
-                      const double *alpha, const double *a, const int *lda,
-                      const double *b, const int *ldb, const double *beta,
-                      double *c, const int *ldc, int la, int lb);
+extern "C" void zgemm(const char *transa, const char *transb,
+                   const int *m, const int *n, const int *k,
+                   const double_complex *alpha, const double_complex *a, const int *lda,
+                   const double_complex *b, const int *ldb, const double_complex *beta,
+                   double_complex *c, const int *ldc, int la, int lb);
 
-void mTxmq(long dimi, long dimj, long dimk, double* c, const double* a, const double* b);
+void mTxmq(long dimi, long dimj, long dimk, double_complex* c, const double_complex* a, const double_complex* b);
 
-void mTxm_dgemm(long ni, long nj, long nk, double* c, const double* a, const double*b ) {
-  int fni=ni;
-  int fnj=nj;
-  int fnk=nk;
-  double one=1.0;
-  dgemm("n","t",&fnj,&fni,&fnk,&one,b,&fnj,a,&fni,&one,c,&fnj,1,1);
+void mTxm_zgemm(long ni, long nj, long nk, double_complex* c, const double_complex* a, const double_complex*b ) {
+      int fni=ni;
+      int fnj=nj;
+      int fnk=nk;
+  double_complex one=1.0;
+  zgemm("n","t",&fnj,&fni,&fnk,&one,b,&fnj,a,&fni,&one,c,&fnj,1,1);
 }
 
-double ran()
+double_complex ran()
 {
   static unsigned long seed = 76521;
-  seed = seed *1812433253 + 12345;
-  return ((double) (seed & 0x7fffffff)) * 4.6566128752458e-10;
+
+  seed = seed*1812433253 + 12345;
+  double d1 = double(seed & 0x7fffffff)*4.6566128752458e-10;
+  seed = seed*1812433253 + 12345;
+  double d2 = double(seed & 0x7fffffff)*4.6566128752458e-10;
+
+  return double_complex(d1,d2);
 }
 
-void ran_fill(int n, double *a) {
+void ran_fill(int n, double_complex *a) {
     while (n--) *a++ = ran();
 }
 
 void mTxm(long dimi, long dimj, long dimk,
-          double* c, const double* a, const double* b) {
+          double_complex* c, const double_complex* a, const double_complex* b) {
     int i, j, k;
     for (k=0; k<dimk; k++) {
         for (j=0; j<dimj; j++) {
@@ -93,8 +104,8 @@ void crap(double rate, double fastest, long long start) {
 }
 */
 
-void timer(const char* s, long ni, long nj, long nk, double *a, double *b, double *c) {
-  double fastest=0.0, fastest_dgemm=0.0;
+void timer(const char* s, long ni, long nj, long nk, double_complex *a, double_complex *b, double_complex *c) {
+  double fastest=0.0, fastest_zgemm=0.0;
 
   double nflop = 2.0*ni*nj*nk;
   long loop;
@@ -115,19 +126,19 @@ void timer(const char* s, long ni, long nj, long nk, double *a, double *b, doubl
   for (loop=0; loop<30; loop++) {
     double rate;
     long long start = rdtsc();
-    mTxm_dgemm(ni,nj,nk,c,a,b);
+    mTxm_zgemm(ni,nj,nk,c,a,b);
     start = rdtsc() - start;
     rate = nflop/start;
-    //crap(rate,fastest_dgemm,start);
-    if (rate > fastest_dgemm) fastest_dgemm = rate;
+    //crap(rate,fastest_zgemm,start);
+    if (rate > fastest_zgemm) fastest_zgemm = rate;
   }
   HPM_Stop("mTxmq_dgemm");
 
-  printf("%20s %3ld %3ld %3ld %8.2f %8.2f\n",s, ni,nj,nk, fastest, fastest_dgemm);
+  printf("%20s %3ld %3ld %3ld %8.2f %8.2f\n",s, ni,nj,nk, fastest, fastest_zgemm);
 }
 
-void trantimer(const char* s, long ni, long nj, long nk, double *a, double *b, double *c) {
-  double fastest=0.0, fastest_dgemm=0.0;
+void trantimer(const char* s, long ni, long nj, long nk, double_complex *a, double_complex *b, double_complex *c) {
+  double fastest=0.0, fastest_zgemm=0.0;
 
   double nflop = 3.0*2.0*ni*nj*nk;
   long loop;
@@ -150,17 +161,17 @@ void trantimer(const char* s, long ni, long nj, long nk, double *a, double *b, d
   for (loop=0; loop<30; loop++) {
     double rate;
     long long start = rdtsc();
-    mTxm_dgemm(ni,nj,nk,c,a,b);
-    mTxm_dgemm(ni,nj,nk,a,c,b);
-    mTxm_dgemm(ni,nj,nk,c,a,b);
+    mTxm_zgemm(ni,nj,nk,c,a,b);
+    mTxm_zgemm(ni,nj,nk,a,c,b);
+    mTxm_zgemm(ni,nj,nk,c,a,b);
     start = rdtsc() - start;
     rate = nflop/start;
-    //crap(rate,fastest_dgemm,start);
-    if (rate > fastest_dgemm) fastest_dgemm = rate;
+    //crap(rate,fastest_zgemm,start);
+    if (rate > fastest_zgemm) fastest_zgemm = rate;
   }
   HPM_Stop("mTxmq_dgemm");
 
-  printf("%20s %3ld %3ld %3ld %8.2f %8.2f\n",s, ni,nj,nk, fastest, fastest_dgemm);
+  printf("%20s %3ld %3ld %3ld %8.2f %8.2f\n",s, ni,nj,nk, fastest, fastest_zgemm);
 }
 
 int main(int argc, char **argv) {
@@ -169,19 +180,20 @@ int main(int argc, char **argv) {
     const long nkmax=100;
     long ni, nj, nk, i, m;
 
-    double *a, *b, *c, *d;
+    double_complex *a, *b, *c, *d;
 
     MPI_Init(&argc, &argv);
 
     HPM_Init();
 
-    posix_memalign((void **) &a, 16, nkmax*nimax*sizeof(double));
-    posix_memalign((void **) &b, 16, nkmax*njmax*sizeof(double));
-    posix_memalign((void **) &c, 16, nimax*njmax*sizeof(double));
-    posix_memalign((void **) &d, 16, nimax*njmax*sizeof(double));
+    posix_memalign((void **) &a, 16, nkmax*nimax*sizeof(double_complex));
+    posix_memalign((void **) &b, 16, nkmax*njmax*sizeof(double_complex));
+    posix_memalign((void **) &c, 16, nimax*njmax*sizeof(double_complex));
+    posix_memalign((void **) &d, 16, nimax*njmax*sizeof(double_complex));
 
     ran_fill(nkmax*nimax, a);
     ran_fill(nkmax*njmax, b);
+
 
 /*     ni = nj = nk = 2; */
 /*     for (i=0; i<ni*nj; i++) d[i] = c[i] = 0.0; */
@@ -196,21 +208,21 @@ int main(int argc, char **argv) {
 /*     return 0; */
 
     printf("Starting to test ... \n");
-    for (ni=2; ni<60; ni+=2) {
-        for (nj=2; nj<100; nj+=6) {
-            for (nk=2; nk<100; nk+=6) {
+    for (ni=1; ni<12; ni+=1) {
+        for (nj=1; nj<12; nj+=1) {
+            for (nk=1; nk<12; nk+=1) {
                 for (i=0; i<ni*nj; i++) d[i] = c[i] = 0.0;
                 mTxm (ni,nj,nk,c,a,b);
                 mTxmq(ni,nj,nk,d,a,b);
                 for (i=0; i<ni*nj; i++) {
-                    double err = fabs(d[i]-c[i]);
+                    double err = abs(d[i]-c[i]);
                     /* This test is sensitive to the compilation options.
                        Be sure to have the reference code above compiled
                        -msse2 -fpmath=sse if using GCC.  Otherwise, to
                        pass the test you may need to change the threshold
                        to circa 1e-13.
                     */
-                    if (err > 1e-15) {
+                    if (err > 2e-14) {
                         printf("test_mtxmq: error %ld %ld %ld %e\n",ni,nj,nk,err);
                         exit(1);
                     }
@@ -221,9 +233,9 @@ int main(int argc, char **argv) {
     printf("... OK!\n");
 
     for (ni=2; ni<60; ni+=2) timer("(m*m)T*(m*m)", ni,ni,ni,a,b,c);
-    for ( m=2; m<=30;  m+=2) timer("(m*m,m)T*(m*m)", m*m,m,m,a,b,c);
-    for ( m=2; m<=30;  m+=2) trantimer("tran(m,m,m)", m*m,m,m,a,b,c);
-    for ( m=2; m<=20;  m+=2) timer("(20*20,20)T*(20,m)", 20*20,m,20,a,b,c);
+    for ( m=1; m<=30;  m+=1) timer("(m*m,m)T*(m*m)", m*m,m,m,a,b,c);
+    for ( m=1; m<=30;  m+=1) trantimer("tran(m,m,m)", m*m,m,m,a,b,c);
+    for ( m=1; m<=20;  m+=1) timer("(20*20,20)T*(20,m)", 20*20,m,20,a,b,c);
 
     HPM_Print();
     HPM_Print_Flops();

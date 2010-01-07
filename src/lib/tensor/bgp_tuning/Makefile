@@ -5,10 +5,13 @@
    CXX=mpixlcxx_r
    CXXFLAGS=-g -O5 -qarch=450d -qtune=450 -qthreaded
 
-all: test_mtxmq.x
+all: test_mtxmq.x test_Zmtxmq.x
 
 test_mtxmq.x: test_mtxmq.o mtxmq.o
 	$(CXX) $(CXXFLAGS) test_mtxmq.o mtxmq.o $(GOTO) $(HPM) -o test_mtxmq.x
+
+test_Zmtxmq.x: test_Zmtxmq.o mtxmq.o
+	$(CXX) $(CXXFLAGS) test_Zmtxmq.o mtxmq.o $(GOTO) $(HPM) -o test_Zmtxmq.x
 
 $%.o: %.cc
 	$(CXX) -c $(CXXFLAGS) $< -o $@
