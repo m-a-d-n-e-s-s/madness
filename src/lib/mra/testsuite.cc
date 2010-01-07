@@ -591,12 +591,13 @@ void test_diff(World& world) {
     f.reconstruct();
     END_TIMER("reconstruct");
 
+/*
     for (int axis=0; axis<NDIM; axis++) {
         if (world.rank() == 0) print("doing axis", axis);
         DerivativeGaussian<T,NDIM> df(origin,expnt,coeff,axis);
 
         START_TIMER;
-        Function<T,NDIM> dfdx = diff(f,axis);
+        //Function<T,NDIM> dfdx = diff(f,axis);
         END_TIMER("diff");
 
 //         coordT p(0.0);
@@ -614,6 +615,7 @@ void test_diff(World& world) {
 
         if (world.rank() == 0) print("    error", err);
     }
+*/
     world.gop.fence();
 }
 
@@ -689,7 +691,7 @@ void test_op(World& world) {
     coeffs(0L) = pow(exponents(0L)/PI, 0.5*NDIM);
     SeparatedConvolution<T,NDIM> op(world, FunctionDefaults<NDIM>::get_k(), coeffs, exponents);
     START_TIMER;
-    Function<T,NDIM> r = apply(op,f);
+    Function<T,NDIM> r = apply(op,f, std::vector<bool>(NDIM, false));
     END_TIMER("apply");
     r.verify_tree();
     f.verify_tree();
@@ -806,7 +808,7 @@ void test_coulomb(World& world) {
     FunctionDefaults<3>::set_apply_randomize(true);
 
     START_TIMER;
-    Function<double,3> r = apply_only(op,f);
+    Function<double,3> r = apply_only(op,f, std::vector<bool>(3, false)) ;
     END_TIMER("apply");
 
 
@@ -968,8 +970,8 @@ void test_qm(World& world) {
 
         psi.reconstruct();
         //psi.refine_general(refop());
-        psi.broaden();
-        psi.broaden();
+        psi.broaden(std::vector<bool>(1, false) );
+        psi.broaden(std::vector<bool>(1, false) );
         
         world.gop.fence();
         double norm = psi.norm2();

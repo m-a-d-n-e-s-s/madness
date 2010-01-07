@@ -87,15 +87,15 @@ int main(int argc, char** argv) {
     Tensor<int> bc_periodic(NDIM,2);
     bc_periodic.fill(1);
 
-    Tensor<int> bc_zero(NDIM,2);
-    bc_zero.fill(0);
+    BoundaryConds<NDIM> bc(bc_periodic);
 
     functionT f = factoryT(world).f(func);
-    f.set_bc(bc_periodic);
 
     for (axis=0; axis<NDIM; axis++) {
-        functionT df = diff(f,axis);
-        print(axis,"error",df.err(FunctorInterfaceWrapper(dfunc)));
+      int k = FunctionDefaults<3>::get_k() ; 
+      Derivative<double,NDIM> dx(world, k, axis, bc, f, f) ;
+      functionT df = dx(f) ;
+      print(axis,"error",df.err(FunctorInterfaceWrapper(dfunc)));
     }
 
     finalize();

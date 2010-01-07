@@ -191,7 +191,7 @@ int main(int argc, char**argv) {
                 for (int m=0; m<20; m++) {
                     f.truncate();
                     fvec.push_back(f);
-                    u = apply(op, fvec[m]); 
+                    u = apply(op, fvec[m], std::vector<bool>(3, false)); 
                     u.scale(0.25/constants::pi); 
                     u.truncate(); // Current soln
                     

@@ -129,6 +129,7 @@ namespace madness {
     }
 
 
+/*
     /// Differentiates a vector of functions
     template <typename T, int NDIM>
     std::vector< Function<T,NDIM> > diff(World& world,
@@ -171,6 +172,7 @@ namespace madness {
         
         return df;
     }
+*/
 
     /// Generates a vector of zero functions
     template <typename T, int NDIM>
@@ -628,7 +630,7 @@ namespace madness {
     std::vector< Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> >
     apply(World& world,
           const std::vector< SharedPtr<opT> >& op,
-          const std::vector< Function<R,NDIM> > f) {
+          const std::vector< Function<R,NDIM> > f, const std::vector<bool>& is_periodic ) {
 
         PROFILE_BLOCK(Vapplyv);
         MADNESS_ASSERT(f.size()==op.size());
@@ -640,7 +642,7 @@ namespace madness {
 
         std::vector< Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> > result(f.size());
         for (unsigned int i=0; i<f.size(); i++) {
-            result[i] = apply_only(*op[i], f[i], false);
+            result[i] = apply_only(*op[i], f[i], is_periodic, false);
             if (((i+1) % VMRA_CHUNK_SIZE) == 0) world.gop.fence();
         }
 
@@ -659,7 +661,7 @@ namespace madness {
     std::vector< Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> >
     apply(World& world,
           opT& op,
-          const std::vector< Function<R,NDIM> > f) {
+          const std::vector< Function<R,NDIM> > f, const std::vector<bool>& is_periodic ) {
         PROFILE_BLOCK(Vapply);
 
         std::vector< Function<R,NDIM> >& ncf = *const_cast< std::vector< Function<R,NDIM> >* >(&f);
@@ -669,7 +671,7 @@ namespace madness {
 
         std::vector< Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> > result(f.size());
         for (unsigned int i=0; i<f.size(); i++) {
-            result[i] = apply_only(op, f[i], false);
+            result[i] = apply_only(op, f[i], is_periodic, false);
             if (((i+1) % VMRA_CHUNK_SIZE) == 0) world.gop.fence();
         }
 

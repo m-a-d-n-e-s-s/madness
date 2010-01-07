@@ -54,6 +54,7 @@ namespace madness {
 
     template <typename T, int NDIM>
     void FunctionCommonData<T,NDIM>::_make_dc_periodic() {
+/*
         // See ABGV for details
         r0 = Tensor<double>(k,k);
         rp = Tensor<double>(k,k);
@@ -70,7 +71,7 @@ namespace madness {
                 else
                     Kij = 0.0;
 
-                r0(i,j) = 0.5*(1.0 - iphase*jphase - 2.0*Kij)*gammaij;
+                r, k) ;0(i,j) = 0.5*(1.0 - iphase*jphase - 2.0*Kij)*gammaij;
                 rm(i,j) = 0.5*jphase*gammaij;
                 rp(i,j) =-0.5*iphase*gammaij;
                 jphase = -jphase;
@@ -95,6 +96,7 @@ namespace madness {
 
 //         Tensor<double> rm_test = outer(rm_left,rm_right);
 //         Tensor<double> rp_test = outer(rp_left,rp_right);
+         */
     }
 
     template <typename T, int NDIM>
@@ -683,6 +685,30 @@ namespace madness {
         return None;
     }
 
+// like sock_it_to_me, but it replaces empty node with averaged coeffs from further down the tree
+    template <typename T, int NDIM>
+    Void FunctionImpl<T,NDIM>::sock_it_to_me_too(const keyT& key,
+            const RemoteReference< FutureImpl< std::pair<keyT,tensorT> > >& ref) const {
+        PROFILE_MEMBER_FUNC(FunctionImpl);
+        if (coeffs.probe(key)) {
+            const nodeT& node = coeffs.find(key).get()->second;
+            Future< std::pair<keyT,tensorT> > result(ref);
+            if (node.has_coeff()) {
+               result.set(std::pair<keyT,tensorT>(key,node.coeff()));
+            }
+            else {
+                result.set(std::pair<keyT,tensorT>(key,nodeT(project(key),false).coeff()));
+            }
+        }
+        else {
+            keyT parent = key.parent();
+            PROFILE_BLOCK(sitome2_send);
+            task(coeffs.owner(parent), &FunctionImpl<T,NDIM>::sock_it_to_me_too, parent, ref, TaskAttributes::hipri());
+        }
+        return None;
+    }
+
+
     template <typename T, int NDIM>
     Void FunctionImpl<T,NDIM>::eval(const Vector<double,NDIM>& xin,
                                     const keyT& keyin,
@@ -838,6 +864,7 @@ namespace madness {
     }
 
 
+/*
     template <typename T, int NDIM>
     void FunctionImpl<T,NDIM>::diff(const implT& f, int axis, bool fence) {
         PROFILE_MEMBER_FUNC(FunctionImpl);
@@ -858,34 +885,49 @@ namespace madness {
         }
         if (fence) world.gop.fence();
     }
+*/
 
-    static bool enforce_bc(int bc_left, int bc_right, Level n, Translation& l) {
+    static bool enforce_bc(bool is_periodic, Level n, Translation& l) {
+    //static bool enforce_bc(int bc_left, int bc_right, Level n, Translation& l) {
         Translation two2n = 1ul << n;
         if (l < 0) {
-            if (bc_left == 0) {
-                return false; // Zero BC
-            }
-            else if (bc_left == 1) {
+            if (is_periodic)
                 l += two2n; // Periodic BC
-            }
-            else {
-                MADNESS_EXCEPTION("enforce_bc: confused left BC?",bc_left);
-            }
-        }
-        else if (l >= two2n) {
-            if (bc_right == 0) {
+            else
                 return false; // Zero BC
-            }
-            else if (bc_right == 1) {
+         }
+
+
+        //if (l < 0) {
+        //    if (bc_left == 0) {
+        //        return false; // Zero BC
+        //    }
+        //    else if (bc_left == 1) {
+        //        l += two2n; // Periodic BC
+        //    }
+        //    else {
+        //        MADNESS_EXCEPTION("enforce_bc: confused left BC?",bc_left);
+        //    }
+       // }
+        else if (l >= two2n) {
+            if (is_periodic)
                 l -= two2n; // Periodic BC
-            }
-            else {
-                MADNESS_EXCEPTION("enforce_bc: confused BC right?",bc_left);
-            }
+            else
+                return false; // Zero BC
+        //else if (l >= two2n) {
+        //    if (bc_right == 0) {
+        //        return false; // Zero BC
+        //    }
+        //    else if (bc_right == 1) {
+        //        l -= two2n; // Periodic BC
+        //    }
+        //    else {
+        //        MADNESS_EXCEPTION("enforce_bc: confused BC right?",bc_left);
+        //    }
         }
         return true;
     }
-
+/*
 
     template <typename T, int NDIM>
     Key<NDIM> FunctionImpl<T,NDIM>::neighbor(const keyT& key, int axis, int step) const {
@@ -900,21 +942,24 @@ namespace madness {
             return keyT(key.level(),l);
         }
     }
+*/
 
     template <typename T, int NDIM>
-    Key<NDIM> FunctionImpl<T,NDIM>::neighbor(const keyT& key, const Key<NDIM>& disp) const {
+    Key<NDIM> FunctionImpl<T,NDIM>::neighbor(const keyT& key, const Key<NDIM>& disp, const std::vector<bool>& is_periodic) const {
         Vector<Translation,NDIM> l = key.translation();
 
         for (int axis=0; axis<NDIM; axis++) {
             l[axis] += disp.translation()[axis];
 
-            if (!enforce_bc(bc(axis,0), bc(axis,1), key.level(), l[axis])) {
+            //if (!enforce_bc(bc(axis,0), bc(axis,1), key.level(), l[axis])) {
+            if (!enforce_bc(is_periodic[axis], key.level(), l[axis])) {
                 return keyT::invalid();
             }
         }
         return keyT(key.level(),l);
     }
 
+/*
     template <typename T, int NDIM>
     Future< std::pair< Key<NDIM>,Tensor<T> > >
     FunctionImpl<T,NDIM>::find_neighbor(const Key<NDIM>& key, int axis, int step) const {
@@ -931,7 +976,20 @@ namespace madness {
             return result;
         }
     }
+*/
 
+   template <typename T, int NDIM>
+    Future< std::pair< Key<NDIM>,Tensor<T> > >
+    FunctionImpl<T,NDIM>::find_me(const Key<NDIM>& key) const {
+        PROFILE_MEMBER_FUNC(FunctionImpl);
+        typedef std::pair< Key<NDIM>,Tensor<T> > argT;
+        Future<argT> result;
+        PROFILE_BLOCK(find_me_send);
+        task(coeffs.owner(key), &implT::sock_it_to_me_too, key, result.remote_ref(world), TaskAttributes::hipri());
+        return result;
+    }
+
+/*
     template <typename T, int NDIM>
     Void FunctionImpl<T,NDIM>::forward_do_diff1(const implT* f, int axis, const keyT& key,
             const std::pair<keyT,tensorT>& left,
@@ -1009,6 +1067,7 @@ namespace madness {
         coeffs.replace(key,nodeT(d,false));
         return None;
     }
+*/
 
     template <typename T, int NDIM>
     void FunctionImpl<T,NDIM>::mapdim(const implT& f, const std::vector<long>& map, bool fence) {

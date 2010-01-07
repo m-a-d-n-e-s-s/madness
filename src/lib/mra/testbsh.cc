@@ -155,7 +155,7 @@ void test_bsh(World& world) {
     Function<T,3> ff = copy(f);
     if (world.rank() == 0) print("applying - 1");
     double start = cpu_time();
-    Function<T,3> opf = apply(op,ff);
+    Function<T,3> opf = apply(op,ff, std::vector<bool>(3, false));
     if (world.rank() == 0) print("done",cpu_time()-start);
     ff.clear();
     opf.verify_tree();
@@ -185,8 +185,8 @@ void test_bsh(World& world) {
     opf.truncate();
     Function<T,3> opinvopf = opf*(mu*mu);
     for (int axis=0; axis<3; axis++) {
-        print("diffing",axis);
-        opinvopf.gaxpy(1.0,diff(diff(opf,axis),axis).compress(),-1.0);
+        //print("diffing",axis);
+        //opinvopf.gaxpy(1.0,diff(diff(opf,axis),axis).compress(),-1.0);
     }
 
 //     plotdx(opinvopf, "opinvopf.dx", FunctionDefaults<3>::get_cell(), npt);
@@ -214,9 +214,9 @@ void test_bsh(World& world) {
 
     Function<T,3> g = (mu*mu)*f;
     for (int axis=0; axis<3; axis++) {
-        g = g - diff(diff(f,axis),axis);
+        //g = g - diff(diff(f,axis),axis);
     }
-    g = apply(op,g);
+    g = apply(op,g, std::vector<bool>(3,false));
     print("norm of G*(-del^2+mu^2)*f",g.norm2());
     print("error",(g-f).norm2());
 
