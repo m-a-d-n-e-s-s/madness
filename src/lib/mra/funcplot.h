@@ -68,12 +68,16 @@
                 bool binary=true);
 
 
-    /// Writes header information for plotting from a VTK file (i.e. in ParaView).
+    /// Writes the header information of a VTK file for plotting in an external
+    /// post-processing package (such as Paraview)
+    //
+    /// @param world World communicator
+    /// @param filename String containing the filename to export to
+    /// @plotlo Vector of double values indicating the minimum coordinate to plot to in each dimension
+    /// @plothi Vector of double values indicating the maximum coordinate to plot to in each dimension
+    /// @npt Vector of long integers indicating the number of points to plot in each dimension
+    /// @binary (optional) Boolean indicating whether to print in binary
 
-    /// VTK plotting is only currently supported for
-    /// 1) 3-D functions
-    /// 2) Real-valued madness::function objects
-    ///
     /// The VTK routines are also designed for SERIAL data, parallel coming...
     ///
     /// This header is templated by the dimension of the data.
@@ -154,7 +158,17 @@
         world.gop.fence();
     }
 
-    /// Generic VTK data writer.
+    /// Generic VTK data writer. Specific type instances of this function are defined for
+    /// both real and complex valued functions.
+    //
+    /// @param function Function (real or complex) that we wish to export the data of
+    /// @param fieldname A string containing the name we wish to refer to this field as in the exported data
+    /// @param world World communicator
+    /// @param filename String containing the filename to export to
+    /// @plotlo Vector of double values indicating the minimum coordinate to plot to in each dimension
+    /// @plothi Vector of double values indicating the maximum coordinate to plot to in each dimension
+    /// @npt Vector of long integers indicating the number of points to plot in each dimension
+    /// @binary (optional) Boolean indicating whether to print in binary
 
     /// This templated function won't do anything except print a warning
     /// message.  Specialized versions of this function should be used.
@@ -280,7 +294,11 @@
         world.gop.fence();
     }
 
-    /// VTK footer writer.
+    /// Writes the footer information of a VTK file for plotting in an external
+    /// post-processing package (such as Paraview)
+    //
+    /// @param world World communicator
+    /// @param binary (Optional) Boolean indicating whether to print in binary
     template<int NDIM>
     void plotvtk_end(World &world, const char *filename, bool binary = false) {
         PROFILE_FUNC;
