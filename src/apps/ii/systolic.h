@@ -263,6 +263,28 @@ namespace madness {
     }
 
     template <typename T>
+    DistributedMatrix<T> concatenate_rows( const DistributedMatrix<T>& a, const DistributedMatrix<T>& b, const DistributedMatrix<T>& c, const DistributedMatrix<T>& d) {
+        MADNESS_ASSERT(a.coldim()==b.coldim() && b.coldim()==c.coldim() && c.coldimi()==d.coldimi());
+        MADNESS_ASSERT(a.coltile()==b.coltile() && b.coltile()==c.coltile() && c.coltile()==d.coltile());
+        MADNESS_ASSERT(a.is_column_distributed() && b.is_column_distributed() && c.is_column_distributed() && d.is_column_distributed());
+        
+        int64_t ma = a.rowdim();
+        int64_t mb = b.rowdim();
+        int64_t mc = c.rowdim();
+        int64_t md = d.rowdim();
+        
+        DistributedMatrix<T> result(a.get_world(), a.coldim(), ma+mb+mc+md, a.coltile(), ma+mb+mc+md);
+
+        if(a.local_size() > 0) c.data()( _ , Slice(0,ma-1) ) = a.data()(___);
+        if(b.local_size() > 0) c.data()( _ , Slice(ma, ma+mb-1) ) = b.data()(___);
+        if(b.local_size() > 0) c.data()( _ , Slice(ma+mb, ma+mb+mc-1) ) = c.data()(___);
+        if(b.local_size() > 0) c.data()( _ , Slice(ma+mb+mc, -1) ) = d.data()(___);
+
+        return result;
+    }
+
+
+    template <typename T>
     DistributedMatrix<T> concatenate_columns(const DistributedMatrix<T>& a, const DistributedMatrix<T>& b) {
         MADNESS_ASSERT(a.rowdim()==b.rowdim() && a.rowtile()==b.rowtile() && a.is_row_distributed() && b.is_row_distributed());
 
