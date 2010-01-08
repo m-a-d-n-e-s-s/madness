@@ -264,7 +264,7 @@ namespace madness {
 
     template <typename T>
     DistributedMatrix<T> concatenate_rows( const DistributedMatrix<T>& a, const DistributedMatrix<T>& b, const DistributedMatrix<T>& c, const DistributedMatrix<T>& d) {
-        MADNESS_ASSERT(a.coldim()==b.coldim() && b.coldim()==c.coldim() && c.coldimi()==d.coldimi());
+        MADNESS_ASSERT(a.coldim()==b.coldim() && b.coldim()==c.coldim() && c.coldim()==d.coldim());
         MADNESS_ASSERT(a.coltile()==b.coltile() && b.coltile()==c.coltile() && c.coltile()==d.coltile());
         MADNESS_ASSERT(a.is_column_distributed() && b.is_column_distributed() && c.is_column_distributed() && d.is_column_distributed());
         
@@ -275,10 +275,10 @@ namespace madness {
         
         DistributedMatrix<T> result(a.get_world(), a.coldim(), ma+mb+mc+md, a.coltile(), ma+mb+mc+md);
 
-        if(a.local_size() > 0) c.data()( _ , Slice(0,ma-1) ) = a.data()(___);
-        if(b.local_size() > 0) c.data()( _ , Slice(ma, ma+mb-1) ) = b.data()(___);
-        if(b.local_size() > 0) c.data()( _ , Slice(ma+mb, ma+mb+mc-1) ) = c.data()(___);
-        if(b.local_size() > 0) c.data()( _ , Slice(ma+mb+mc, -1) ) = d.data()(___);
+        if(a.local_size() > 0) result.data()( _ , Slice(0,ma-1) ) = a.data()(___);
+        if(b.local_size() > 0) result.data()( _ , Slice(ma, ma+mb-1) ) = b.data()(___);
+        if(c.local_size() > 0) result.data()( _ , Slice(ma+mb, ma+mb+mc-1) ) = c.data()(___);
+        if(d.local_size() > 0) result.data()( _ , Slice(ma+mb+mc, -1) ) = d.data()(___);
 
         return result;
     }
@@ -632,24 +632,25 @@ namespace madness {
     {
     public:
         LocalizeBoys<T>( DistributedMatrix<T> &M, const std::vector<int>& set, long nmo, int tag,
-                const double threash = 1e-9, const double thetamax = 0.5, const bool randomize = true):
+                const double threash = 1e-9, const double thetamax = 0.5, const bool randomize = true, const bool doprint = false):
             SystolicMatrixAlgorithm<T>(M, tag),
             M(M),
             world(M.get_world()),
             set(set),
             nmo(nmo),
             ndone_iter(0),
+            niter(0),
             threash(threash),
             thetamax(thetamax),
-            randomize(randomize),
             tol(thetamax),
-            niter(0),
+            randomize(randomize),
+            doprint(doprint),
             nrot(0)
         {
             madness::print("Start boys localization\n");
         }
 
-        DistributedMatrix<T> get_U(){ return M.data()(_, Slice(0, nmo)); }
+        Tensor<T> get_U(){ return M.data()(_, Slice(0, nmo)); }
 
         void start_iteration_hook(const TaskThreadEnv& env);
         void kernel(int i, int j, T* rowi, T* rowj);
@@ -657,14 +658,14 @@ namespace madness {
         bool converged(const TaskThreadEnv& env) const;
 
     private:
-        World& world;
         DistributedMatrix<T> M;
-        std::vector<int>& set;
+        World& world;
+        std::vector<int> set;
         long nmo, ndone_iter;
         volatile int64_t niter;
-        int64_t nrot;
         double threash, thetamax, tol, maxtheta;
-        bool randomize;
+        bool randomize, doprint;
+        int64_t nrot;
         void drot(T* restrict a, T* restrict b, double sin, double cos); 
         inline T DIP(T* e_ij, T* e_kl);
         inline T inner(const T* a, const T* b ) const;
@@ -676,7 +677,7 @@ namespace madness {
         int64_t ilo, ihi;
         M.local_colrange(ilo, ihi);
         for(int64_t i=0; i <=(ihi-ilo); i++){
-            T tmp[] = { M(i,i+ilo), M(i,i+ilo+nmo), M(i,i+ilo+2*nmo) };
+            T tmp[] = { M.data()(i,i+ilo), M.data()(i,i+ilo+nmo), M.data()(i,i+ilo+2*nmo) };
             sum += DIP(tmp, tmp);
         }
         if (env.id() == 0) world.gop.sum(sum);
@@ -732,10 +733,10 @@ namespace madness {
 
             double c = cos(theta);
             double s = sin(theta);
-            drot (&xi, &xj, s, c);
-            drot (&yi, &yj, s, c);
-            drot (&zi, &zj, s, c);
-            drot (&ui, &uj, s, c);
+            drot (xi, xj, s, c);
+            drot (yi, yj, s, c);
+            drot (zi, zj, s, c);
+            drot (ui, uj, s, c);
         }
     }
     template <typename T>
