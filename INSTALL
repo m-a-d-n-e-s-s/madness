@@ -1,4 +1,8 @@
-We are back to using autoconf and standard GNU configure scripts.
+Congratulations.  You've downloaded MADNESS.  We are using autoconf,
+automake and standard GNU configure scripts.  Many update to date
+details are kept on the MADNESS Wiki
+(http://code.google.com/p/m-a-d-n-e-s-s/wiki/SoftwareEnvironment).
+
 
 Prequisites:
 
@@ -47,16 +51,24 @@ If you checked the source out of subversion you will need to build the
 to do this if building from the distribution tar file).  In the top
 source directory (the one with configure.ac) run
 
-     autoreconf
+       autoreconf
 
 Assuming you are not cross compiling and that mpicxx and mpicc (or
 equivalent) are in your path, you only need to tell configure where to
 find your BLAS and LAPACK libraries (including any libraries necessary
 to link against those libraries).  Some examples follow.
 
+
+xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
   o  Linux workstation or cluster using GNU compilers
      (some systems might require additional libraries to resolve Fortran
       symbols used by LAPACK/BLAS)
+
+     - 32 or 64 bit using system default BLAS and LAPACK
+    
+       ./configure LIBS="-llapack -lblas -lgfortran"
+
 
      - 64-bit with Intel MKL installed.
 
@@ -67,26 +79,45 @@ to link against those libraries).  Some examples follow.
        ./configure LIBS="-L/opt/intel/mkl/10.0.1.014/lib/32 -lmkl -lguide -lpthread -lm"
        ./configure LIBS="-I/usr/include/gsl -L/opt/intel/mkl/10.0.1.014/lib/32 -lgsl -lgslcblas -lmkl -lguide -lpthread -lm -lmpfr -lgmp"
 
-     - 32 or 64 bit using system default BLAS and LAPACK
-    
-       ./configure LIBS="-llapack -lblas -lgfortran"
 
      - 64-bit with MKL, google's super-fast malloc and google's profiler library
 
       ./configure LIBS="-L/opt/intel/mkl/10.0.1.014/lib/em64t -L/usr/local/gperftools/lib -lmkl -lguide -lpthread -lm -ltcmalloc -lprofiler -lstdc++"
 
-  o  madness.csm.ornl.gov
+      - 64-bit with AMD ACML
 
-     - dream software development machine with 8 quad-core Barcelona (32 cores), 128 GB memory, 
-       1 TB SSD for home, root, swap, and 2 TB HDD for scratch)
+      ./configure LIBS="-L/usr/local/acml4.2.0/gfortran64_int64/lib -lacml  -lacml_mv -lgfortran -lstdc++"
+
+
+      - 64-bit with AMD ACML, google's super-fast malloc and google's profiler library
+
+      ./configure LIBS="-L/usr/local/acml4.2.0/gfortran64_int64/lib -L/usr/local/gperftools-20090306/lib -L/usr/local/libunwind-20090306 -lacml  -lacml_mv -lprofiler -ltcmalloc -lunwind-x86_64 -lgfortran -lstdc++"
+
+
+      Important: The LAPACK shipped with RedHat seems to be broken for
+      numerous releases.  Please build your own or use a vendor
+      version.
+
+      Important: If you have one of the older processors which does not support SSE3 ...TEST and ADD SOMETHING HERE
+
+xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+  o  madness.csm.ornl.gov, Linux shared-memory multicore box using GNU compilers
+
+     - dream software development machine with 8 quad-core Shanghai (32 cores), 128 GB memory, 
+       1 TB SSD for home, root, swap, and 2 TB HDD in RAID-6 for scratch)
+     - OS: Ubuntu, kernel version 2.6.24, GCC 4.4.1, AMD ACML v. 4.2.0, MPICH2 v. 1.0.8, Google perftools v. 1.0, libunwind v. 0.99.
+     - bash shell
+     
 
        export PATH=$HOME/bin:/usr/local/gcc-4.4.0-20090306/bin:/usr/local/mpich2-1.0.8-20090306/bin:$PATH
        export LD_LIBRARY_PATH=/usr/local/gcc-4.4.0-20090306/lib64:/usr/local/lib:/usr/local/acml4.2.0/gfortran64_int64/lib:/usr/local/gperftools/lib:/usr/local/mpich2-1.0.8-20090306/lib:/usr/local/libunwind-20090306/lib:$LD_LIBRARY_PATH
        ./configure LIBS="-L/usr/local/acml4.2.0/gfortran64_int64/lib -L/usr/local/gperftools-20090306/lib -L/usr/local/libunwind-20090306 -lacml  -lacml_mv -lprofiler -ltcmalloc -lunwind-x86_64 -lgfortran -lstdc++"
 
 
+xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
-  o  Cray-XT (e.g., jaguar@ornl) 
+  o  Cray-XT (e.g., jaguar@ornl and jaguarpf@ornl, kracken at NICS and franklin at NERSC) 
      [Module commands assume you start from the default which is PGI and scilib]
 
      - with GNU compilers and ACML - RECOMMENDED
@@ -98,7 +129,9 @@ to link against those libraries).  Some examples follow.
        static memory reserved.
      
        module swap PrgEnv-pgi PrgEnv-gnu
+
        module load acml/4.1.0
+
        ./configure
 
      - with GNU compilers and scilib
@@ -116,7 +149,10 @@ to link against those libraries).  Some examples follow.
        module load acml/4.1.0
        ./configure
 
+xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
   o  IBM BlueGene-P @ ANL
+  For other BGP boxes you will need to find these compilers and libraries.  They seem to be site dependent.
 
 #!/bin/bash
 export LIBS=""
@@ -135,6 +171,8 @@ export CPPFLAGS="-I/bgsys/drivers/ppcfloor/arch/include"
   LIBS="${LIBS}" \
   CPPFLAGS="${CPPFLAGS}" 
 
+xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
   o  Smoky, the eccentric AMD+IB cluster at ORNL used for development. 
      This using MVAPICH2, GNU and ACML (my install of ACML though there 
      should module available for it now)
@@ -144,6 +182,8 @@ export CPPFLAGS="-I/bgsys/drivers/ppcfloor/arch/include"
      module swap ompi mvapich2
      setenv LD_LIBRARY_PATH /ccs/home/harrison/smokyinstall/gfortran64_int64/lib:$LD_LIBRARY_PATH
      ./configure LIBS="-L/ccs/home/harrison/smokyinstall/gfortran64_int64/lib  -lacml  -lacml_mv -lgfortran"
+
+xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
   o  Macintosh Darwin --- tested with gcc 4.3.2, reference versions of BLAS and LAPACK, MPICH
 
@@ -156,8 +196,5 @@ export CPPFLAGS="-I/bgsys/drivers/ppcfloor/arch/include"
      ./configure LIBS="/System/Library/Frameworks/vecLib.framework/vecLib" CPPFLAGS='-I/System/Library/Frameworks/vecLib.framework/Headers'
 
 
-
-  
-
-
+xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
