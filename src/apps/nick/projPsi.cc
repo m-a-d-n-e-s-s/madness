@@ -395,7 +395,7 @@ void projectPsi2(World& world, std::vector<std::string> boundList, std::vector<s
                 PRINT(*boundIT << "   ");
                 for( psiIT=psiList.begin(); psiIT !=  psiList.end(); psiIT++ ) {
                     output = psi_nlm.inner( psiIT->func ); 
-                    PRINT("\t" << real(output*conj(output)));
+                    PRINT(std::scientific <<"\t" << real(output*conj(output)));
                 }
                 PRINT("\n");
             }            
@@ -696,7 +696,7 @@ void loadParameters(World& world, int& k, double& L, double &Z, double &cutoff) 
                 //Atomic Units: hbar = m = 1
                 //v = sqrt( 2n omega - Z^2)
                 //cutoff > dMAX = v t
-                double dMAX = std::sqrt(2*3*omega - Z*Z) * 20;
+                double dMAX = std::sqrt(2*3*omega - Z*Z) * 10;
                 cutoff = 0.0;
                 PRINTLINE("cutoff = " << cutoff);
                 while( cutoff < dMAX ) { cutoff += L/32; }
