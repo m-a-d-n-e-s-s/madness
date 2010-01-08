@@ -49,23 +49,6 @@ namespace madness {
     /// are expected to be the main construction tool.
     template <typename T>
     class DistributedMatrix {
-        World& _world;
-        const int64_t P;                //< No. of processors
-        const ProcessID rank;           //< My processor rank
-        const int64_t n;                //< Column dimension of A(n,m)
-        const int64_t m;                //< Row dimension of A(n,m)
-        const int64_t tilen;            //< Tile size for column
-        const int64_t tilem;            //< Tile size for row
-        const int64_t Pcoldim;          //< Column dimension of processor grid
-        const int64_t Prowdim;          //< Row dimension of processor grid
-        const int64_t Pcol;             //< Column of processor grid for this processor
-        const int64_t Prow;             //< Row of processor grid for this processor
-        const int64_t ilo,ihi;          //< Range of column indices on this processor
-        const int64_t jlo,jhi;          //< Range of row indices on this processor
-        const int64_t idim,jdim;        //< Dimension of data on this processor
-        
-        Tensor<T> t;                    //< The data
-        
     public:
         DistributedMatrix(World& world, int64_t n, int64_t m, int64_t coltile, int64_t rowtile)
             : _world(world)
@@ -92,7 +75,7 @@ namespace madness {
         }
         
         virtual ~DistributedMatrix() {}
-        
+
         /// Returns the column dimension of the matrix ... i.e., n for A(n,m)
         int64_t coldim() const { return n; }
         
@@ -189,6 +172,25 @@ namespace madness {
         void copyout(Tensor<T>& s) const {
             if (local_size() > 0) s(Slice(ilo,ihi),Slice(jlo,jhi)) = t(___);
         }
+
+    private:
+        World& _world;
+        const int64_t P;                //< No. of processors
+        const ProcessID rank;           //< My processor rank
+        const int64_t n;                //< Column dimension of A(n,m)
+        const int64_t m;                //< Row dimension of A(n,m)
+        const int64_t tilen;            //< Tile size for column
+        const int64_t tilem;            //< Tile size for row
+        const int64_t Pcoldim;          //< Column dimension of processor grid
+        const int64_t Prowdim;          //< Row dimension of processor grid
+        const int64_t Pcol;             //< Column of processor grid for this processor
+        const int64_t Prow;             //< Row of processor grid for this processor
+        const int64_t ilo,ihi;          //< Range of column indices on this processor
+        const int64_t jlo,jhi;          //< Range of row indices on this processor
+        const int64_t idim,jdim;        //< Dimension of data on this processor
+        
+        Tensor<T> t;                    //< The data
+        
     };
     
     
@@ -278,13 +280,11 @@ namespace madness {
     /// make identity matrix with same propaties of A
     template <typename T>
     DistributedMatrix<T> idMatrix(const DistributedMatrix<T>& A){
-	    int64_t n, m, coltile, rowtile;
-	    n = A.coldim();
-	    m = A.rowdim();
-	    coltile = A.coltile();
-	    rowtile = A.rowtile();
-	    MADNESS_ASSERT(n==m);
-	    DistributedMatrix<T> result(A.get_world(), n, m, coltile, rowtile );
+	    int64_t n = A.coldim();
+	    int64_t m = A.rowdim();
+	    MADNESS_ASSERT( n == m );
+
+	    DistributedMatrix<T> result( A.get_world(), n, m, A.coltile(), A.rowtile() );
 
 	    int64_t ilo, ihi;
 	    result.local_colrange(ilo,ihi);
@@ -604,5 +604,165 @@ namespace madness {
         /// Returns rank of this process in the world
         ProcessID get_rank() const{ return rank; }
     };
+
+    template <typename T>
+    class LocalizeBoys : public SystolicMatrixAlgorithm<T>
+    {
+    public:
+        LocalizeBoys<T>( DistributedMatrix<T> &M, const std::vector<int>& set, long nmo, int tag,
+                const double threash = 1e-9, const double thetamax = 0.5, const bool randomize = true):
+            SystolicMatrixAlgorithm<T>(M, tag),
+            M(M),
+            world(M.get_world()),
+            set(set),
+            nmo(nmo),
+            ndone_iter(0),
+            threash(threash),
+            thetamax(thetamax),
+            randomize(randomize),
+            tol(thetamax),
+            niter(0),
+            nrot(0)
+        {
+            madness::print("Start boys localization\n");
+        }
+
+        DistributedMatrix<T> get_U(){ return M.data()(_, Slice(0, nmo)); }
+
+        void start_iteration_hook(const TaskThreadEnv& env);
+        void kernel(int i, int j, T* rowi, T* rowj);
+        void end_iteration_hook(const TaskThreadEnv& env);
+        bool converged(const TaskThreadEnv& env) const;
+
+    private:
+        World& world;
+        DistributedMatrix<T> M;
+        std::vector<int>& set;
+        long nmo, ndone_iter;
+        volatile int64_t niter;
+        int64_t nrot;
+        double threash, thetamax, tol, maxtheta;
+        bool randomize;
+        void drot(T* restrict a, T* restrict b, double sin, double cos); 
+        inline T DIP(T* e_ij, T* e_kl);
+        inline T inner(const T* a, const T* b ) const;
+    };
+    template <typename T>
+    void LocalizeBoys<T>::start_iteration_hook(const TaskThreadEnv& env)
+    {
+        T sum = 0.0;
+        int64_t ilo, ihi;
+        M.local_colrange(ilo, ihi);
+        for(int64_t i=0; i <=(ihi-ilo); i++){
+            T tmp[] = { M(i,i+ilo), M(i,i+ilo+nmo), M(i,i+ilo+2*nmo) };
+            sum += DIP(tmp, tmp);
+        }
+        if (env.id() == 0) world.gop.sum(sum);
+
+
+        long ndone_iter = 0; /// number of iteration
+        maxtheta = 0.0; /// maximum rotation angle
+
+        madness::print("\t", "iteration %ld, sum=%.4f ndone=%.2e\n", niter, sum, ndone_iter, tol);
+    }
+    template <typename T>
+    void LocalizeBoys<T>::kernel(int i, int j, T* rowi, T* rowj)
+    {
+        if(set[i] != set[j]) return;
+
+        // make rowi and rowj since we're using one-sided jacobi
+        T *ui = rowi + 3*nmo;
+        T *uj = rowj + 3*nmo;
+        T *xi = rowi;
+        T *xj = rowj; 
+        T *yi = rowi + nmo;
+        T *yj = rowj + nmo;
+        T *zi = rowi + 2*nmo;
+        T *zj = rowj + 2*nmo;
+        T ii[] = { inner(ui, xi), inner(ui, yi), inner(ui, zi) };
+        T ij[] = { inner(ui, xj), inner(ui, yj), inner(ui, zj) };
+        T jj[] = { inner(uj, xj), inner(uj, yj), inner(uj, zj) };
+
+        double g = DIP(ij, jj) - DIP(ij, ii);
+        double h = 4.0 * DIP(ij, ij) + 2.0 * DIP(ii, jj) - DIP(ii, ii) - DIP(jj, jj);
+        bool doit = false;
+
+        if (h >= 0.0) {
+            doit = true;
+            h = -1.0;
+        }
+        double theta = -g / h;
+
+        maxtheta = std::max<double>(std::abs(theta), maxtheta);
+
+        /// restriction
+        if (fabs(theta) > thetamax){
+            doit = true;
+            if (g < 0) theta = -thetamax;
+            else theta = thetamax * 0.8;
+        }
+
+        // randomize will be implemented here
+        // double sij = DIP(ij, ij); // this line will be used by randomize
+
+        if (fabs(theta) >= tol || doit || randomize){
+            ndone_iter++;
+
+            double c = cos(theta);
+            double s = sin(theta);
+            drot (&xi, &xj, s, c);
+            drot (&yi, &yj, s, c);
+            drot (&zi, &zj, s, c);
+            drot (&ui, &uj, s, c);
+        }
+    }
+    template <typename T>
+    void LocalizeBoys<T>::end_iteration_hook(const TaskThreadEnv& env)
+    {
+        int id = env.id();
+
+        if (id == 0) world.gop.max(maxtheta);
+    }
+    template <typename T>
+    bool LocalizeBoys<T>::converged(const TaskThreadEnv& env) const
+    {
+        int id = env.id();
+
+        if( ndone_iter == 0 && tol == threash){
+            if( id == 0) madness::print("\tBoys localization converged in", ndone_iter, "\n");
+            return true;
+        }
+        else if(niter >= 300){
+            if( id == 0) madness::print("\tDid not converged in 300 iteration!\n");
+            return true;
+        }
+        else 
+            return false;
+    }
+    /// rotate matrix using sin and cos
+    template <typename T>
+    void LocalizeBoys<T>::drot(T* restrict a, T* restrict b, double sin, double cos)
+    {
+        for ( long i=0; i<nmo; i++ ) {
+            T aa = a[i]*cos - b[i]*sin;
+            T bb = b[i]*cos + a[i]*sin;
+            a[i] = aa;
+            b[i] = bb;
+        }
+    }
+    template <typename T>
+    inline T LocalizeBoys<T>::DIP(T* ij, T* kl)
+    {
+        return ij[0] * kl[0] + ij[1] * kl[1] + ij[2] * kl[2];
+    }
+    template <typename T>
+    inline T LocalizeBoys<T>::inner(const T* a, const T* b ) const
+    {
+        T s=0;
+        for(int64_t i=0; i<nmo; i++){
+            s += a[i] * b[i];
+        }
+        return s;
+    }
 }    
 #endif
