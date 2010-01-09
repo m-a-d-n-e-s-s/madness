@@ -184,7 +184,7 @@ namespace madness {
         /// @return Value of d(surface)/dx[axis]
         double operator()(const Vector<double,NDIM>& x) const {
             Vector<double,NDIM> g = shape->grad_sdf(x);
-            return g[axis]*mask->dmask(shape->sdf(x));
+            return g[axis]*mask->dsurface(shape->sdf(x));
         }
 
         virtual ~ShapeDSurfaceDxFunctor() {
@@ -314,6 +314,13 @@ namespace madness {
     /// \ingroup mrabcint
     SharedPtr< FunctionFunctorInterface<double,3> > shape_surface(double epsilon, ShapeDFInterface<3>* sdf) {
         return SharedPtr< FunctionFunctorInterface<double,3> >(new ShapeSurfaceFunctor<3>(new ShapeMask<3>(epsilon), sdf));
+    }
+
+    /// Convenience wrapper in 3D combining Lowengrub mask with arbitrary shape to compute derivative of surface function
+
+    /// \ingroup mrabcint
+    SharedPtr< FunctionFunctorInterface<double,3> > shape_surface_derivative(double epsilon, ShapeDFInterface<3>* sdf, int axis) {
+        return SharedPtr< FunctionFunctorInterface<double,3> >(new ShapeDSurfaceDxFunctor<3>(new ShapeMask<3>(epsilon), sdf, axis));
     }
 
 } // end of madness namespace
