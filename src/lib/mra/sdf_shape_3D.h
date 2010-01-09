@@ -59,22 +59,19 @@
 namespace madness {
 
     /// A plane surface (3 dimensions)
-    template <typename Q>
-    class SDF_Plane : public SurfaceLayerInterface<Q,3> {
+    class SDFPlane : public ShapeDFInterface<3> {
     protected:
         const coord_3d normal; ///< The normal vector pointing OUTSIDE the surface
         const coord_3d point; ///< A point in the plane
 
     public:
         
-        /// Constructs a plane transecting the entire simulation volume
+        /// SDF for a plane transecting the entire simulation volume
 
-        /// @param width The effective width of the surface (see SurfaceLayerInterface)
         /// @param normal The outward normal definining the plane
         /// @param point A point in the plane
-        SDF_Plane(const double width, const coord_3d& normal, const coord_3d& point)
-            : SurfaceLayerInterface<Q,3>(width)
-            , normal(normal*(1.0/sqrt(normal[0]*normal[0] + normal[1]*normal[1] + normal[2]*normal[2])))
+        SDFPlane(const coord_3d& normal, const coord_3d& point)
+            : normal(normal*(1.0/sqrt(normal[0]*normal[0] + normal[1]*normal[1] + normal[2]*normal[2])))
             , point(point) 
         {}
 
@@ -85,28 +82,29 @@ namespace madness {
         double sdf(const coord_3d& pt) const {
             return (pt[0]-point[0])*normal[0] + (pt[1]-point[1])*normal[1] + (pt[2]-point[2])*normal[2];
         }
+
+        coord_3d grad_sdf(const coord_3d& pt) const {
+            MADNESS_EXCEPTION("gradient method is not yet implemented for this shape",0);
+        }
     };
 
     /// A spherical surface (3 dimensions)
-    template <typename Q>
-    class SDF_Sphere : public SurfaceLayerInterface<Q,3> {
+    class SDFSphere : public ShapeDFInterface<3> {
     protected:
         const double radius; ///< Radius of sphere
         const coord_3d center; ///< Center of sphere
 
     public:
-        /// Constructs a plane partially or fully enclosed in the solution volume
+        /// SDF for a sphere partially or fully enclosed in the solution volume
 
-        /// @param width The effective width of the surface (see SurfaceLayerInterface)
         /// @param radius The radius of the sphere
         /// @param center The center of the sphere
-        SDF_Sphere(const double width, const double radius, const coord_3d &cen) 
-            : SurfaceLayerInterface<Q,3>(width)
-            , radius(radius)
+        SDFSphere(const double radius, const coord_3d &cen) 
+            : radius(radius)
             , center(center) 
         {}
 
-        double sdf(const coord_3d &pt) const {
+        double sdf(const coord_3d& pt) const {
             double temp, r;
             int i;
             
@@ -118,6 +116,18 @@ namespace madness {
             
             return sqrt(r) - radius;
         }
+
+        coord_3d grad_sdf(const coord_3d& pt) const {
+            double x = pt[0] - center[0];
+            double y = pt[1] - center[1];
+            double z = pt[2] - center[2];
+            double r = sqrt(x*x + y*y + z*z);
+            coord_3d g;
+            g[0] = x/r;
+            g[1] = y/r;
+            g[2] = z/r;
+            return g;
+        }
     };
 
     /// A cone (3 dimensions)
@@ -127,8 +137,7 @@ namespace madness {
     /// \sqrt{x^2 + y^2} - c * z = 0
     /// \f]
     /// where \f$ z \f$ is along the axis.
-    template <typename Q>
-    class SDF_Cone : public SurfaceLayerInterface<Q,3> {
+    class SDFCone : public ShapeDFInterface<3> {
     protected:
         const coord_3d apex; ///< The apex
         const double c; ///< The radius
@@ -137,21 +146,16 @@ namespace madness {
     public:
         /// Constructor for cone
 
-        /// @param width The effective width of the surface (see SurfaceLayerInterface)
         /// @param c Parameter \f$ c \f$ in the definition of the cone
         /// @param apex Apex of cone
         /// @param direc Oriented axis of the cone
-        SDF_Cone(const double width, 
-                 const double c,
-                 const coord_3d &apex_pt, 
-                 const coord_3d &direc) 
-            : SurfaceLayerInterface<Q,3>(width)
-            , apex(apex)
+        SDFCone(const double c, const coord_3d &apex_pt, const coord_3d &direc) 
+            : apex(apex)
             , c(c)
             , dir(direc*(1.0/sqrt(direc[0]*direc[0] + direc[1]*direc[1] + direc[2]*direc[2])))
         {}
 
-        double sdf(const coord_3d &pt) const {
+        double sdf(const coord_3d& pt) const {
             coord_3d diff;
             unsigned int i;
             double dotp;
@@ -167,6 +171,10 @@ namespace madness {
             return sqrt(diff[0]*diff[0] + diff[1]*diff[1] + diff[2]*diff[2])
                 - c * dotp;
         }
+
+        coord_3d grad_sdf(const coord_3d& pt) const {
+            MADNESS_EXCEPTION("gradient method is not yet implemented for this shape",0);
+        }
     };
 
     /// A paraboloid (3 dimensions)
@@ -176,24 +184,20 @@ namespace madness {
     ///  x^2 + y^2 - c * z == 0
     /// \f]
     /// where \f$ z \f$ is along the axis.
-    template <typename Q>
-    class SDF_Paraboloid : public SurfaceLayerInterface<Q,3> {
+    class SDFParaboloid : public ShapeDFInterface<3> {
     protected:
         const coord_3d apex; ///< The apex
         const double c; ///< Curvature/radius of the surface
         const coord_3d dir;///< The direction of the axis, from the apex INSIDE
 
     public:
-        SDF_Paraboloid(const double width, 
-                       const double c,
-                       const coord_3d &apex, const coord_3d &direc) 
-            : SurfaceLayerInterface<Q,3>(width)
-            , apex(apex)
+        SDFParaboloid(const double c, const coord_3d &apex, const coord_3d &direc) 
+            : apex(apex)
             , c()
             , dir(direc*(1.0/sqrt(direc[0]*direc[0] + direc[1]*direc[1] + direc[2]*direc[2])))
         {}
 
-        double sdf(const coord_3d &pt) const {
+        double sdf(const coord_3d& pt) const {
             coord_3d diff;
             unsigned int i;
             double dotp;
@@ -209,24 +213,26 @@ namespace madness {
             return diff[0]*diff[0] + diff[1]*diff[1] + diff[2]*diff[2]
                 - c * dotp;
         }
+
+        coord_3d grad_sdf(const coord_3d& pt) const {
+            MADNESS_EXCEPTION("gradient method is not yet implemented for this shape",0);
+        }
     };
 
     /// A box (3 dimensions)
 
     /// LIMIT: the 3 primary axes must be x, y, and z
-    template <typename Q>
-    class SDF_Box : public SurfaceLayerInterface<Q,3> {
+    class SDFBox : public ShapeDFInterface<3> {
     protected:
         const coord_3d lengths;  ///< Half the length of each side of the box
         const coord_3d center; ///< the center of the box
 
     public:
-        SDF_Box(const double width, const coord_3d& length, const coord_3d& center) 
-            : SurfaceLayerInterface<Q,3>(width)
-            , lengths(length*0.5), center(center) 
+        SDFBox(const coord_3d& length, const coord_3d& center) 
+            : lengths(length*0.5), center(center) 
         {}
 
-        double sdf(const coord_3d &pt) const {
+        double sdf(const coord_3d& pt) const {
             double diff, max;
             int i;
             
@@ -239,40 +245,37 @@ namespace madness {
             
             return max;
         }
+
+        coord_3d grad_sdf(const coord_3d& pt) const {
+            MADNESS_EXCEPTION("gradient method is not yet implemented for this shape",0);
+        }
     };
 
     /// A cube (3 dimensions)
 
     /// LIMIT: the 3 primary axes must be x, y, and z
-    template <typename Q>
-    class SDF_Cube : public SDF_Box<Q> {
-    protected:
-        double a;  ///< half the length of one side of the cube
-        coord_3d center; ///< the center of the cube
-
+    class SDFCube : public SDFBox {
     public:
-        SDF_Cube(const double width, const double length, const coord_3d& center) 
-            : SDF_Box<Q>(width,coord_3d(length),center)
+        SDFCube(const double length, const coord_3d& center) 
+            : SDFBox(length,center)
         {}
     };
 
     /// An ellipsoid (3 dimensions)
     
     /// LIMIT: the 3 primary axes must be x, y, and z
-    template <typename Q>
-    class SDF_Ellipsoid : public SurfaceLayerInterface<Q,3> {
+    class SDFEllipsoid : public ShapeDFInterface<3> {
     protected:
         coord_3d radii; ///< the directional radii
         coord_3d center; ///< the center
         
     public:
-        SDF_Ellipsoid(const double width, const coord_3d& radii, const coord_3d& center) 
-            : SurfaceLayerInterface<Q,3>(width)
-            , radii(radii)
+        SDFEllipsoid(const coord_3d& radii, const coord_3d& center) 
+            : radii(radii)
             , center(center) 
         {}
         
-        double sdf(const coord_3d &pt) const {
+        double sdf(const coord_3d& pt) const {
             double quot, sum;
             int i;
             
@@ -284,11 +287,14 @@ namespace madness {
             
             return sum - 1.0;
         }
+
+        coord_3d grad_sdf(const coord_3d& pt) const {
+            MADNESS_EXCEPTION("gradient method is not yet implemented for this shape",0);
+        }
     };
     
     /// A cylinder (3 dimensions)
-    template <typename Q>
-    class SDF_Cylinder : public SurfaceLayerInterface<Q,3> {
+    class SDFCylinder : public ShapeDFInterface<3> {
     protected:
         double radius; ///< the radius of the cylinder
         double a; ///< half the length of the cylinder
@@ -296,16 +302,14 @@ namespace madness {
         coord_3d axis; ///< the axial direction of the cylinder
 
     public:
-        SDF_Cylinder(const double width, const double radius, const double length,
-                     const coord_3d& axpt, const coord_3d& axis) 
-            : SurfaceLayerInterface<Q,3>(width)
-            , radius(radius)
+        SDFCylinder(const double radius, const double length, const coord_3d& axpt, const coord_3d& axis) 
+            : radius(radius)
             , a(length / 2.0)
             , center(axpt)
             , axis(axis*(1.0/sqrt(axis[0]*axis[0] + axis[1]*axis[1] + axis[2]*axis[2]))) 
         {}
         
-        double sdf(const coord_3d &pt) const {
+        double sdf(const coord_3d& pt) const {
             double dist;
             coord_3d rel, radial;
             int i;
@@ -323,6 +327,10 @@ namespace madness {
             
             return std::max(fabs(dist) - a, sqrt(radial[0]*radial[0] + radial[1]*radial[1]
                                                  + radial[2]*radial[2]) - radius);
+        }
+
+        coord_3d grad_sdf(const coord_3d& pt) const {
+            MADNESS_EXCEPTION("gradient method is not yet implemented for this shape",0);
         }
     };
 

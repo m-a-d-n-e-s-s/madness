@@ -33,27 +33,174 @@
 
 /*!
   \file mra/sdf_shape.h
-  \brief An abstract signed distance function for use when forming subdomains.
+  \brief Defines abstract interfaces and concrete classes for use with diffuse boundary calculations
   \ingroup mrabcint
 */
 
 #ifndef MADNESS_MRA_SDF_SHAPE_H__INCLUDED
 #define MADNESS_MRA_SDF_SHAPE_H__INCLUDED
 
-#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <mra/mra.h>
 
 namespace madness {
 
+    /// The interface to be provided by shapes defined by signed distance from surface
+
+    ///\ingroup mrabcint
+    template <int NDIM>
+    class ShapeDFInterface {
+    public:
+        /// Should return the signed normal distance from the surface
+        virtual double sdf(const Vector<double,NDIM>& x) const = 0;
+
+        /// Should return the gradient of the signed normal distance from the surface (i.e., \c dsdf(x)/dx[i] )
+        virtual Vector<double,NDIM> grad_sdf(const Vector<double,NDIM>& x) const = 0;
+
+        virtual ~ShapeDFInterface() {}
+    };
+
+    /// The interface to be provided by masking functions for shapes defined by normal distance from surface
+
+    ///\ingroup mrabcint
+    template <int NDIM>
+    class ShapeMaskInterface {
+    public:
+        /// Should return the characteristic function (1 in interior, 0 in exterior, 1/2 on boundary)
+
+        /// @param d The signed normal distance from the surface
+        /// @param d The mask or characteristic function
+        virtual double mask(double d) const = 0;
+
+        /// Should return the derivative of the characteristic function w.r.t. the distance
+
+        /// @param d The signed normal distance from the surface
+        /// @return Derivative of the mask or characteristic function
+        virtual double dmask(double d) const = 0;
+
+        /// Should return the value of the normalized surface layer function
+
+        /// Normalized means the volume integral of this function should converge to the
+        /// surface area in the limit of a either an infinitely thin surface or
+        /// zero curvature.  The function thus acts as a "delta function" located at the boundary.
+        /// @param d  The signed normal distance from the surface
+        /// @return Normalized surface layer function
+        virtual double surface(double d) const = 0;
+
+        /// Should return the derivative of the normalized surface layer function
+
+        /// @param d The signed normal distance from the surface
+        /// @return Derivative of the normalized surface layer function
+        virtual double dsurface(double d) const = 0;
+
+        virtual ~ShapeMaskInterface() {}
+    };
+
+    /// Provides MADNESS interface to compute mask or characteristic function
+
+    /// \ingroup mrabcint
+    template <int NDIM>
+    class ShapeMaskFunctor : public FunctionFunctorInterface<double,NDIM> {
+        ShapeMaskInterface<NDIM>* mask;
+        ShapeDFInterface<NDIM>* shape;
+    public:
+        /// Constructor for mask functor
+
+        /// The constructor takes ownership of the provided mask and shape and deletes them when finished.
+        /// @param mask Pointer to object providing maksing function (deleted when finished)
+        /// @param shape Pointer to object providing shape distance function (deleted when finished)
+        ShapeMaskFunctor(ShapeMaskInterface<NDIM>* mask, ShapeDFInterface<NDIM>* shape) 
+            : mask(mask), shape(shape)
+        {}
+
+        /// For MADNESS FunctionFunctorInterface
+
+        /// @param x Point to compute value
+        /// @return Value of characteristic function
+        double operator()(const Vector<double,NDIM>& x) const {
+            return mask->mask(shape->sdf(x));
+        }
+
+        virtual ~ShapeMaskFunctor() {
+            delete mask;
+            delete shape;
+        };
+    };
+
+    /// Provides MADNESS interface to compute surface
+
+    /// \ingroup mrabcint
+    template <int NDIM>
+    class ShapeSurfaceFunctor : public FunctionFunctorInterface<double,NDIM> {
+        ShapeMaskInterface<NDIM>* mask;
+        ShapeDFInterface<NDIM>* shape;
+    public:
+        /// Constructor for surface functor
+
+        /// The constructor takes ownership of the provided mask and shape and deletes them when finished.
+        /// @param mask Pointer to object providing maksing function (deleted when finished)
+        /// @param shape Pointer to object providing shape distance function (deleted when finished)
+        ShapeSurfaceFunctor(ShapeMaskInterface<NDIM>* mask, ShapeDFInterface<NDIM>* shape) 
+            : mask(mask), shape(shape)
+        {}
+
+        /// For MADNESS FunctionFunctorInterface
+
+        /// @param x Point to compute value
+        /// @return Value of surface 
+        double operator()(const Vector<double,NDIM>& x) const {
+            return mask->surface(shape->sdf(x));
+        }
+
+        virtual ~ShapeSurfaceFunctor() {
+            delete mask;
+            delete shape;
+        };
+    };
+
+    /// Provides MADNESS interface to compute d(surface)/dx[i]
+
+    /// \ingroup mrabcint
+    /// Takes ownership of provided mask and shape and deletes them
+    /// when finished.
+    template <int NDIM>
+    class ShapeDSurfaceDxFunctor : public FunctionFunctorInterface<double,NDIM> {
+        ShapeMaskInterface<NDIM>* mask;
+        ShapeDFInterface<NDIM>* shape;
+        const int axis;
+    public:
+        /// Constructor for derivative surface functor
+
+        /// The constructor takes ownership of the provided mask and shape and deletes them when finished.
+        /// @param mask Pointer to object providing maksing function (deleted when finished)
+        /// @param shape Pointer to object providing shape distance function (deleted when finished)
+        /// @param axis Axis (0,...,NDIM-1) to differentiate w.r.t.
+        ShapeDSurfaceDxFunctor(ShapeMaskInterface<NDIM>* mask, ShapeDFInterface<NDIM>* shape, int axis) 
+            : mask(mask), shape(shape), axis(axis)
+        {}
+
+        /// For MADNESS FunctionFunctorInterface
+
+        /// @param x Point to compute value
+        /// @return Value of d(surface)/dx[axis]
+        double operator()(const Vector<double,NDIM>& x) const {
+            Vector<double,NDIM> g = shape->grad_sdf(x);
+            return g[axis]*mask->dmask(shape->sdf(x));
+        }
+
+        virtual ~ShapeDSurfaceDxFunctor() {
+            delete mask;
+            delete shape;
+        };
+    };
+
     /*!
-      \brief Computes the characteristic function of an interior surface as a MADNESS functor.  
+      \brief Provides the Lowengrub characteristic and surface functions
 
       \ingroup mrabcint
 
-      The characteristic function is one in the interior, zero
-      exterior, and one half on the surface.  It is computed from 
-      the signed distance function implemented by the derived class.
-      
+      X. Li, J. Lowengrub, A. R&auml;tz, and A. Voight, "Solving PDEs in Complex
+      Geometries: A Diffuse Domain Approach," Commun. Math. Sci., 7, p81-107, 2009.
+
       The derived class should implement the \c sdf() (signed distance
       function) interface to define the surface: \c sdf is 0 on the
       surface, positive outside, and negative inside.  It should be
@@ -63,74 +210,112 @@ namespace madness {
       surface (beyond this distance the switching function is one/zero to
       machine precision).
 
-      The \c operator() required by the MADNESS FunctorInterface is
-      implemented here to compute the characteristic function following
-      the switching function of the Lowengrub paper.  To be concrete,
-      the user-specified width (\f$ \epsilon \f$) of the surface is
+      The user-specified width (\f$ \epsilon \f$) of the surface is
       employed in the masking or characteristic or phase-field 
       function as follows
       \f[ 
       \phi(x) = \frac{1}{2} \left( 1 - \tanh \frac{ 3 \mbox{sdf}(x) }{\epsilon} \right) 
       \f] 
-      where \f$ x \f$ is the point.  Note that the surface layer used by Lowengrub
-      in the Dirichlet algorithm is \f$ B(s) = 36 \phi(s)^2 (1 - \phi(s))^2 \f$
+      where \f$ x \f$ is the point. 
+
+      The normalized surface layer used by Lowengrub in the Dirichlet
+      algorithm is 
+      \f[ 
+      B(s) = 36 \epsilon^{-1} \phi(s)^2 (1 - \phi(s))^2 
+      \f]
       where the constant 36 is chosen so that 
-      \f$ \int_{-\infty}^{\infty} B(s) \, ds = 1 \f$.  For this function the
-      parameter \f$ \epsilon \f$ is an effective measure of the full width of
-      the surface layer since
-      \f$ \int_{-\epsilon/2}^{\epsilon/2} B(s) \, ds = 0.987 \f$ and
-      \f$ \int_{-\epsilon}^{\epsilon} B(s) \, ds = 0.999963 \f$.
-
-      X. Li, J. Lowengrub, A. R&auml;tz, and A. Voight, "Solving PDEs in Complex
-      Geometries: A Diffuse Domain Approach," Commun. Math. Sci., 7, p81-107, 2009.
-
+      \f[ 
+      \int_{-\infty}^{\infty} B(s) \, ds = 1 
+      \f]
+      For this function the parameter \f$ \epsilon \f$ is an effective measure of the
+      full width of the surface layer since 
+      \f[
+      \int_{-\epsilon/2}^{\epsilon/2} B(s) \, ds = 0.987 
+      \f]
+      and 
+      \f[
+      \int_{-\epsilon}^{\epsilon} B(s) \, ds = 0.999963 
+      \f]
+      The \f$ \epsilon^{-1} \f$ is included here to normalize the volume integral of
+      the resulting function to be the surface area.
     */
-    template <typename Q, int dim>
-    class SurfaceLayerInterface : public FunctionFunctorInterface<Q, dim> {
+    template <int NDIM>
+    class ShapeMask : public ShapeMaskInterface<NDIM> {
     private:
-        SurfaceLayerInterface() {} ///< Forbidden
+        ShapeMask() {} ///< Forbidden
         
     protected:
-        const double eps; ///< The width
+        const double epsilon; ///< The width
+        const double sign;    ///< 1 for standard surface, -1 to complement
         
     public:
-        /// Constructor for surface layer interface
+        /// Constructor for mask
 
-        /// @param width The effective width of the surface
-        SurfaceLayerInterface(double width) : eps(width) {}
-        
-        /// Required overload for FunctionFunctorInterface
-        virtual Q operator() (const Vector<double, dim> &pt) const {
-            double val = sdf(pt);
-            if (val > 8.0*eps) {
+        /// @param epsilon The effective width of the surface
+        /// @param complement If true, compute complement the volume (i.e., invert the sense of the surface)
+        ShapeMask(double epsilon, bool complement=false) 
+            : epsilon(epsilon)
+            , sign(complement?-1.0:1.0) 
+        {}
+
+        /// Value of characteristic function at normal distance d from surface
+        double mask(double d) const {
+            if (d > 8.0*epsilon) {
                 return 0.0; // we're safely outside
             }
-            else if (val < -8.0*eps) {
+            else if (d < -8.0*epsilon) {
                 return 1.0; // inside
             }
             else {
-                return 0.5 * (1.0 - tanh(3.0 * val / eps));
+                return 0.5 * (1.0 - tanh(3.0 * d / epsilon));
             }
         }
         
-        /// Derived class provides normal distance from surface for any point
-
-        /// @param pt The point in user coordinates
-        /// @return Signed distance from surface
-        virtual double sdf(const Vector<double, dim> &pt) const = 0;
+        /// Derivative of characteristic function w.r.t. normal distance
+        double dmask(double d) const {
+            if (d > 8.0*epsilon) {
+                return 0.0; // we're safely outside
+            }
+            else if (d < -8.0*epsilon) {
+                return 0.0; // inside
+            }
+            else {
+                double tanh3d = tanh(3.0*d/epsilon);
+                return -1.5*(1.0 - tanh3d*tanh3d) / epsilon;
+            }
+        }
         
-        virtual ~SurfaceLayerInterface() {}
+        /// Value of surface function at distance d normal to surface
+        double surface(double d) const {
+            double phi = mask(d);
+            double phic = 1.0 - phi;
+            return 36.0*phi*phi*phic*phic/epsilon;
+        }
+
+        /// Value of d(surface)/ddistance
+        double dsurface(double d) const {
+            double phi = mask(d);
+            double dphi = dmask(d);
+            return 72.0*phi*(1.0-phi)*dphi*(1.0 - 2.0*phi)/epsilon;
+        }
+        
+        virtual ~ShapeMask() {}
     };
-    
-    /// Complement unary operation to reverse inside and outside of a mask.
-    ///
-    /// This is to be used on a madness function generated from the SDF object.
-    template<typename Q, int dim>
-    inline static void mask_complement(const Key<dim> &key, Tensor<Q> &t) {
-	UNARY_OPTIMIZED_ITERATOR(Q, t,
-                                 *_p0 = 1.0 - *_p0);
+
+    /// Convenience wrapper in 3D combining Lowengrub mask with arbitrary shape to compute characteristic function (mask)
+
+    /// \ingroup mrabcint
+    SharedPtr< FunctionFunctorInterface<double,3> > shape_mask(double epsilon, ShapeDFInterface<3>* sdf) {
+        return SharedPtr< FunctionFunctorInterface<double,3> >(new ShapeMaskFunctor<3>(new ShapeMask<3>(epsilon), sdf));
     }
-    
+
+    /// Convenience wrapper in 3D combining Lowengrub mask with arbitrary shape to compute surface function
+
+    /// \ingroup mrabcint
+    SharedPtr< FunctionFunctorInterface<double,3> > shape_surface(double epsilon, ShapeDFInterface<3>* sdf) {
+        return SharedPtr< FunctionFunctorInterface<double,3> >(new ShapeSurfaceFunctor<3>(new ShapeMask<3>(epsilon), sdf));
+    }
+
 } // end of madness namespace
 
 #endif // MADNESS_MRA_SDF_SHAPE_H__INCLUDED
