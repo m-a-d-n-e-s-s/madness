@@ -47,8 +47,9 @@ using namespace madness;
   \ingroup examples
 
   \par Points of interest
-  - Use of interior boundary conditions
-  - Use of KAIN solver
+  - Interior boundary conditions
+  - Non-linear equation solver
+  - Functors and composition of functors
   - Line and surface plots
   - Use of Coulomb Green's function
 
@@ -93,7 +94,8 @@ using namespace madness;
       r = u - G * \left( \epsilon^{-2} S \left( u - g \right) \right) = 0
   \f]
 
-  [It might be that approximation 3 is preferable ... needs testing.]
+  [It might be that approximation 3 is preferable but the example code
+   is not yet debugged.]
 
   \par Implementation
 
@@ -151,8 +153,8 @@ public:
 };
 
 // Lowengrub's second approx for Dirichlet
-void approx2(World& world, double epsilon, const coord_3d& center) {
-    if (world.rank() == 0) print("\nStarting solution method 1\n");
+real_function_3d approx2(World& world, double epsilon, const coord_3d& center) {
+    if (world.rank() == 0) print("\nStarting solution using approximation 2\n");
     if (world.rank() == 0) print("Making S (normalized surface function)");
     real_functor_3d S_functor(shape_surface(epsilon, new SDFSphere(1.0, center)));
     real_function_3d S = real_factory_3d(world).functor(S_functor);
@@ -166,6 +168,8 @@ void approx2(World& world, double epsilon, const coord_3d& center) {
     
     S *= 1.0/(epsilon*epsilon);
     Sg *= 1.0/(epsilon*epsilon);
+
+    S.truncate(); Sg.truncate();
     
     plotdx(S, "S.dx");
     plot_line("S.dat", 10001, coord_3d(-1.5), coord_3d(+1.5), S);
@@ -182,9 +186,8 @@ void approx2(World& world, double epsilon, const coord_3d& center) {
         real_function_3d rhs = S*u - Sg;
         rhs.scale(-0.25/constants::pi);
         rhs.truncate();
-        real_function_3d r = apply(G,rhs);
+        real_function_3d r = apply(G,rhs) - u;
         r.truncate();
-        r = r-u;
         
         real_function_3d unew = solver.update(u,r);
         
@@ -196,22 +199,89 @@ void approx2(World& world, double epsilon, const coord_3d& center) {
     
     plotdx(u, "u.dx");
     plot_line("u.dat", 10001, coord_3d(-1.5), coord_3d(+1.5), u);
+
+    return u;
 }
+
+class SP1Inverse : public FunctionFunctorInterface<double,3> {
+    real_functor_3d S;
+public:
+    SP1Inverse(const real_functor_3d& S) : S(S) {}
+
+    double operator()(const coord_3d& x) const {return 1.0/(1.0+(*S)(x));}
+};
+
+// // Lowengrub's third approx for Dirichlet !!! NOT YET WOKRING !!!
+// real_function_3d approx3(World& world, double epsilon, const coord_3d& center) {
+//     if (world.rank() == 0) print("\nStarting solution using approximation method 3\n");
+//     const double reps = 1.0/epsilon;
+
+//     // Make various bits involving S
+//     real_functor_3d S_functor(shape_surface(epsilon, new SDFSphere(1.0, center)));
+//     real_functor_3d SP1inv_functor(new SP1Inverse(S_functor));
+//     real_function_3d S = real_factory_3d(world).functor(S_functor);
+//     real_function_3d SP1inv = real_factory_3d(world).functor(SP1inv_functor);
+//     real_function_3d dSdx = real_factory_3d(world).functor(shape_surface_derivative(epsilon,new SDFSphere(1.0, center), 0));
+//     real_function_3d dSdy = real_factory_3d(world).functor(shape_surface_derivative(epsilon,new SDFSphere(1.0, center), 1));
+//     real_function_3d dSdz = real_factory_3d(world).functor(shape_surface_derivative(epsilon,new SDFSphere(1.0, center), 2));
+
+//     // Make boundary function
+//     real_functor_3d g_functor(new CosTheta);
+//     real_functor_3d Sg_functor(new Product(S_functor,g_functor));
+//     real_function_3d Sg = real_factory_3d(world).functor(Sg_functor);
+    
+//     S *= reps;
+//     Sg *= reps;
+
+//     S.truncate(); SP1inv.truncate(); dSdx.truncate(); dSdy.truncate(); dSdz.truncate(); Sg.truncate();
+
+//     print("Errs in derivatives", (diff(S,0)*epsilon-dSdx).norm2(),  (diff(S,1)*epsilon-dSdy).norm2(),  (diff(S,2)*epsilon-dSdz).norm2());
+    
+//     // Make the Coulomb Green's function
+//     real_convolution_3d G = CoulombOperator<double>(world, FunctionDefaults<3>::get_k(), 
+//                                                     0.1*epsilon, FunctionDefaults<3>::get_thresh());
+//     // Initial guess for u is zero
+//     real_function_3d u = real_factory_3d(world);
+    
+//     // Iterate
+//     NonlinearSolver solver;
+//     for (int iter=0; iter<20; iter++) {
+//         real_function_3d rhs = SP1inv*(S*u - Sg - dSdx*diff(u,0) - dSdy*diff(u,1) - dSdz*diff(u,2));
+//         rhs.scale(-0.25/constants::pi);
+//         rhs.truncate();
+//         real_function_3d r = apply(G,rhs) - u;
+//         r.truncate();
+        
+//         real_function_3d unew = solver.update(u,r);
+        
+//         double unorm=unew.norm2(), dunorm=(u-unew).norm2(), rnorm=r.norm2(), err=unew.err(Exact());
+//         if (world.rank() == 0) 
+//             print("iter", iter, "norm(u)", unorm, "norm(residual)", rnorm, "norm(u-unew)", dunorm, "norm(u-exact)", err);
+
+//         u = 0.5*u + 0.5*unew;
+//     }
+    
+//     plotdx(u, "u.dx");
+//     plot_line("u.dat", 10001, coord_3d(-1.5), coord_3d(+1.5), u);
+
+//     return u;
+// }
 
 int main(int argc, char**argv) {
   initialize(argc,argv);
   World world(MPI::COMM_WORLD);
   startup(world,argc,argv);
 
-  //FunctionDefaults<3>::set_truncate_on_project(true);
+  FunctionDefaults<3>::set_truncate_on_project(true);
   FunctionDefaults<3>::set_cubic_cell(-3,3);
   FunctionDefaults<3>::set_thresh(1e-4);
   FunctionDefaults<3>::set_k(6);
 
-  double epsilon = 0.1;   // surface width
+  double epsilon = 0.2;   // surface width
   coord_3d center;        // (0,0,0)
 
   approx2(world, epsilon, center);
+  //approx3(world, epsilon, center);
 
   finalize();
 

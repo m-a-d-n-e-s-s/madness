@@ -208,8 +208,7 @@ int main(int argc, char **argv) {
 
 	// create the domain mask, phi, and the surface function, b
 	pt[0] = pt[1] = pt[2] = 0.0;
-	functionT phi = factoryT(world).functor(functorT(
-		new SDF_Sphere<double>(eps, thresh, 1.0, pt)));
+	functionT phi = factoryT(world).functor(shape_mask(eps, new SDFSphere(1.0, pt)));
 
 	functionT b = copy(phi);
 	phi.truncate();
