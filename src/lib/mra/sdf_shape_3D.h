@@ -99,7 +99,7 @@ namespace madness {
 
         /// @param radius The radius of the sphere
         /// @param center The center of the sphere
-        SDFSphere(const double radius, const coord_3d &cen) 
+        SDFSphere(const double radius, const coord_3d &center) 
             : radius(radius)
             , center(center) 
         {}
@@ -149,7 +149,7 @@ namespace madness {
         /// @param c Parameter \f$ c \f$ in the definition of the cone
         /// @param apex Apex of cone
         /// @param direc Oriented axis of the cone
-        SDFCone(const double c, const coord_3d &apex_pt, const coord_3d &direc) 
+        SDFCone(const double c, const coord_3d &apex, const coord_3d &direc) 
             : apex(apex)
             , c(c)
             , dir(direc*(1.0/sqrt(direc[0]*direc[0] + direc[1]*direc[1] + direc[2]*direc[2])))

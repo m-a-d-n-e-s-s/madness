@@ -30,7 +30,15 @@
   
   $Id$
 */
+
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES  
+
+#include <mra/mra.h>
+#include <constants.h>
+#include <mra/sdf_shape_3D.h>
+#include <linalg/solvers.h>
+#include <examples/nonlinsol.h>
+using namespace madness;
 
 /*!
   \file examples/laplace_sphere.cc
@@ -41,6 +49,8 @@
   \par Points of interest
   - Use of interior boundary conditions
   - Use of KAIN solver
+  - Line and surface plots
+  - Use of Coulomb Green's function
 
   \par Background
   This example solves Laplace's equation on the interior and exterior of a sphere with
@@ -53,11 +63,11 @@
   of the solution since the exact solution is given by 
   \f{eqnarray*}{
   u(x) = \left\{  
-     \begin{array}{1 1}
-         |x| \cos \theta & \quad |x| \le 1 \\
-         |x|^{-2} \cos \theta & \quad \mbox{otherwise}
-     \end{array}
-  \right.
+           \begin{array}{l l}
+             |x| \cos \theta & \quad |x| \le 1 \\
+             |x|^{-2} \cos \theta & \quad \mbox{otherwise}
+          \end{array}
+        \right.
   \f}
 
   For potential problems there are several ways to proceed, but we
@@ -65,86 +75,46 @@
   X. Li, J. Lowengrub, A. R&auml;tz, and A. Voight, "Solving PDEs in
   Complex Geometries: A Diffuse Domain Approach," Commun. Math. Sci.,
   7, p81-107, 2009 using approximation 2 (equation 2.22 in the paper).
-  The surface is represented using a characteristic function \f$
-  \phi(x) \f$ of half-width \f$ \epsilon \f$ computed here using the
-  shape function library in mra/sdf_shape_3D.h .  A penalty-like term
-  is introduced into the equation
+  The surface is represented using a diffuse layer (\f$ S(x) \f$) of
+  width \f$ \epsilon \f$ computed here using the shape function
+  library in mra/sdf_shape_3D.h .
+
+  A penalty-like term is introduced into the equation
   \f[
-     \nabla^2 u - \epsilon^{-3} B(\phi) \left( u - g \right) = 0
+     \nabla^2 u(x) - \epsilon^{-2} S(x) \left( u(x) - g(x) \right) = 0
   \f]
   where \f$ g(x) \f$ is the desired value of solution on the boundary
   (extended away from the boundary as a constant in the direction of
-  the normal) and \f$ B(\phi) = 36 \phi^2 \left( 1 - \phi^2 \right) \f$.
-  Employing the known free-space Green's function (\f$ G(x) = 1/4 \pi |x| \f$) 
-  yields the working equation and expression for the residual
+  the normal).
+
+  Employing the known free-space Green's function (\f$ G(x) = -1/4 \pi |x| \f$) 
+  yields the working equation and expression for the residual (\f$ r(x) \f$)
   \f[
-      r(x) = u - G * \left( \epsilon^{-3} B(\phi) \left( u - g \right) \right) = 0
+      r = u - G * \left( \epsilon^{-2} S \left( u - g \right) \right) = 0
   \f]
 
+  [It might be that approximation 3 is preferable ... needs testing.]
 
   \par Implementation
 
-  The initial guess is zero.
-  
+  The surface layer \f$ S(x) \f$ and boundary term \f$ S(x) g(x) \f$ (where
+  \f$ g(x) = \cos \theta \f$) are computed.  Since we only have a functor
+  available to compute the surface layer we must employ another functor
+  to compose the product.  Note that the volume integral of the 
+  surface layer should be normalized to the surface area of the sphere.
 
+  A simpled fixed point iteration will not converge so it is necessary 
+  to use a (non-)linear equation solver.  See examples/nonlinsol.h 
+  for the one employed here.  Each iteration you provide the 
+  current trial solution and the corresponding residual.  It returns
+  the next trial solution vector --- note that for non-linear problems
+  you probably have to employ step restriction (damping) or line search
+  to get a stable solution.
 
 */
 
-#include <mra/mra.h>
-#include <constants.h>
-#include <mra/sdf_shape_3D.h>
-#include <linalg/solvers.h>
-using namespace madness;
-
-
-/// A simple Krylov-subspace nonlinear equation solver 
-
-/// \addtogroup laplace_sphere
-class NonlinearSolver {
-    vector_real_function_3d ulist, rlist; ///< Subspace information
-    real_tensor Q;
-public:
-    NonlinearSolver() {}
-
-    /// Computes next trial solution vector
-
-    /// You are responsible for performing step restriction or line search
-    /// (not necessary for linear problems).
-    ///
-    /// @param u Current solution vector
-    /// @param r Corresponding residual
-    /// @return Next trial solution vector
-    real_function_3d update(const real_function_3d& u, const real_function_3d& r) {
-        int iter = ulist.size();
-        ulist.push_back(u);
-        rlist.push_back(r);
-        
-        // Solve subspace equations
-        real_tensor Qnew(iter+1,iter+1);
-        if (iter>0) Qnew(Slice(0,-2),Slice(0,-2)) = Q;
-        for (int i=0; i<=iter; i++) {
-            Qnew(i,iter) = inner(ulist[i],rlist[iter]);
-            Qnew(iter,i) = inner(ulist[iter],rlist[i]);
-        }
-        Q = Qnew;
-        real_tensor c = KAIN(Q);
-        
-        // Form new solution in u
-        real_function_3d unew = real_factory_3d(u.world());
-        unew.compress();
-        for (int i=0; i<=iter; i++) {
-            unew.gaxpy(1.0,ulist[i], c[i]); 
-            unew.gaxpy(1.0,rlist[i],-c[i]); 
-        }
-        unew.truncate();
-        return unew;
-    }
-};
-
-/// A MADNESS functor combining two functors via multiplication
-
-/// \addtogroup laplace_sphere
-/// Look in mra/testsuite.cc for a more general version (BinaryOp)
+// A MADNESS functor combining two functors via multiplication
+// Look in mra/testsuite.cc for a more general version (BinaryOp)
 class Product : public FunctionFunctorInterface<double,3> {
     real_functor_3d left, right;
 

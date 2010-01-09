@@ -945,7 +945,7 @@ namespace madness {
 
         /// Politically incorrect general indexing operation \em without bounds checking.
 
-        /// @param[in] Array containing index for each dimension
+        /// @param[in] ind Array containing index for each dimension
         /// @return %Reference to element
         const T& operator()(const long ind[]) const {
             long offset = 0;
