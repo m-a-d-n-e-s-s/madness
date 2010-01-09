@@ -81,10 +81,12 @@
       r(x) = u - G * \left( \epsilon^{-3} B(\phi) \left( u - g \right) \right) = 0
   \f]
 
-  The initial guess is 
-  
 
   \par Implementation
+
+  The initial guess is zero.
+  
+
 
 */
 
@@ -95,8 +97,54 @@
 using namespace madness;
 
 
-// Returns a new functor combining two functors via multiplication.
-// Look in mra/testsuite.cc for a more general version (BinaryOp)
+/// A simple Krylov-subspace nonlinear equation solver 
+
+/// \addtogroup laplace_sphere
+class NonlinearSolver {
+    vector_real_function_3d ulist, rlist; ///< Subspace information
+    real_tensor Q;
+public:
+    NonlinearSolver() {}
+
+    /// Computes next trial solution vector
+
+    /// You are responsible for performing step restriction or line search
+    /// (not necessary for linear problems).
+    ///
+    /// @param u Current solution vector
+    /// @param r Corresponding residual
+    /// @return Next trial solution vector
+    real_function_3d update(const real_function_3d& u, const real_function_3d& r) {
+        int iter = ulist.size();
+        ulist.push_back(u);
+        rlist.push_back(r);
+        
+        // Solve subspace equations
+        real_tensor Qnew(iter+1,iter+1);
+        if (iter>0) Qnew(Slice(0,-2),Slice(0,-2)) = Q;
+        for (int i=0; i<=iter; i++) {
+            Qnew(i,iter) = inner(ulist[i],rlist[iter]);
+            Qnew(iter,i) = inner(ulist[iter],rlist[i]);
+        }
+        Q = Qnew;
+        real_tensor c = KAIN(Q);
+        
+        // Form new solution in u
+        real_function_3d unew = real_factory_3d(u.world());
+        unew.compress();
+        for (int i=0; i<=iter; i++) {
+            unew.gaxpy(1.0,ulist[i], c[i]); 
+            unew.gaxpy(1.0,rlist[i],-c[i]); 
+        }
+        unew.truncate();
+        return unew;
+    }
+};
+
+/// A MADNESS functor combining two functors via multiplication
+
+/// \addtogroup laplace_sphere
+/// Look in mra/testsuite.cc for a more general version (BinaryOp)
 class Product : public FunctionFunctorInterface<double,3> {
     real_functor_3d left, right;
 
@@ -120,6 +168,7 @@ public:
     }
 };
 
+// Computes the exact solution
 class Exact :  public FunctionFunctorInterface<double,3> {
 public:
     double operator()(const coord_3d& x) const {
@@ -131,103 +180,68 @@ public:
     }
 };
 
+// Lowengrub's second approx for Dirichlet
+void approx2(World& world, double epsilon, const coord_3d& center) {
+    if (world.rank() == 0) print("\nStarting solution method 1\n");
+    if (world.rank() == 0) print("Making S (normalized surface function)");
+    real_functor_3d S_functor(shape_surface(epsilon, new SDFSphere(1.0, center)));
+    real_function_3d S = real_factory_3d(world).functor(S_functor);
+    double area = S.trace();
+    if (world.rank() == 0) print("Surface area:", area, "error is", area-4*constants::pi);
+    
+    if (world.rank() == 0) print("Making S*g");
+    real_functor_3d g_functor(new CosTheta);
+    real_functor_3d Sg_functor(new Product(S_functor,g_functor));
+    real_function_3d Sg = real_factory_3d(world).functor(Sg_functor);
+    
+    S *= 1.0/(epsilon*epsilon);
+    Sg *= 1.0/(epsilon*epsilon);
+    
+    plotdx(S, "S.dx");
+    plot_line("S.dat", 10001, coord_3d(-1.5), coord_3d(+1.5), S);
+    
+    // Make the Coulomb Green's function
+    real_convolution_3d G = CoulombOperator<double>(world, FunctionDefaults<3>::get_k(), 
+                                                    0.1*epsilon, FunctionDefaults<3>::get_thresh());
+    // Initial guess for u is zero
+    real_function_3d u = real_factory_3d(world);
+    
+    // Iterate
+    NonlinearSolver solver;
+    for (int iter=0; iter<7; iter++) {
+        real_function_3d rhs = S*u - Sg;
+        rhs.scale(-0.25/constants::pi);
+        rhs.truncate();
+        real_function_3d r = apply(G,rhs);
+        r.truncate();
+        r = r-u;
+        
+        real_function_3d unew = solver.update(u,r);
+        
+        double unorm=unew.norm2(), dunorm=(u-unew).norm2(), rnorm=r.norm2(), err=unew.err(Exact());
+        if (world.rank() == 0) 
+            print("iter", iter, "norm(u)", unorm, "norm(residual)", rnorm, "norm(u-unew)", dunorm, "norm(u-exact)", err);
+        u = unew;
+    }
+    
+    plotdx(u, "u.dx");
+    plot_line("u.dat", 10001, coord_3d(-1.5), coord_3d(+1.5), u);
+}
 
 int main(int argc, char**argv) {
-  // Initialize the parallel programming environment
   initialize(argc,argv);
   World world(MPI::COMM_WORLD);
-
-  // Load info for MADNESS numerical routines
   startup(world,argc,argv);
-  std::cout.precision(8);
 
-  // Use defaults for numerical functions except for user simulation volume
+  //FunctionDefaults<3>::set_truncate_on_project(true);
   FunctionDefaults<3>::set_cubic_cell(-3,3);
   FunctionDefaults<3>::set_thresh(1e-4);
   FunctionDefaults<3>::set_k(6);
 
-  coord_3d center;
-  double epsilon = 0.05;
+  double epsilon = 0.1;   // surface width
+  coord_3d center;        // (0,0,0)
 
-  // Make the characteristic function
-  print("Making phi");
-  real_functor_3d phi_functor(new SDF_Sphere<double>(epsilon, 1.0, center));
-  real_function_3d phi = real_factory_3d(world).functor(phi_functor);  
-  real_function_3d phic = 1.0 - phi;
-
-  // Make B * epsilon^-3
-  print("Making B");
-  real_function_3d B = phi*phi*phic*phic*(36.0/(epsilon*epsilon*epsilon));
-  B.truncate();
-  print("B trace", B.trace());
-  //plotdx(B, "B.dx");
-  //plot_line("B.dat", 10001, coord_3d(-1.5), coord_3d(+1.5), B);
-
-  // Make phi*g function and hence B*g*epsilon^-3
-  print("Making phi * cos theta");
-  real_functor_3d cos_functor(new CosTheta);
-  real_functor_3d cos_phi_functor(new Product(cos_functor, phi_functor));
-  real_function_3d Bg = real_factory_3d(world).functor(cos_phi_functor);
-  plot_line("Bg.dat", 10001, coord_3d(-1.5), coord_3d(+1.5), Bg);
-  print("Making B g");
-  Bg = Bg*phi*phic*phic*(36.0/(epsilon*epsilon*epsilon));
-  Bg.truncate();
-
-  phi.clear(); /// Don't need these anymore
-  phic.clear();
-
-  // Make the Coulomb Green's function
-  real_convolution_3d G = CoulombOperator<double>(world, FunctionDefaults<3>::get_k(), 
-                                                  0.1*epsilon, FunctionDefaults<3>::get_thresh());
-  // Initial guess for u is zero
-  real_function_3d u = real_factory_3d(world);
-
-  //u = apply(G,Bg);
-  //u.scale(0.25/constants::pi/30);
-  //u.truncate();
-
-  // Iterate
-  real_tensor Q;
-  vector_real_function_3d ulist, rlist;
-  for (int iter=0; iter<10; iter++) {
-      // Compute the residual
-      real_function_3d rhs = B*u - Bg;
-      rhs.scale(-0.25/constants::pi);
-      rhs.truncate();
-      real_function_3d r = apply(G,rhs);
-      r.truncate();
-      r = r-u;
-      ulist.push_back(u);
-      rlist.push_back(r);
-
-      // Solve subspace equations
-      real_tensor Qnew(iter+1,iter+1);
-      if (iter>0) Qnew(Slice(0,-2),Slice(0,-2)) = Q;
-      for (int i=0; i<=iter; i++) {
-          Qnew(i,iter) = inner(ulist[i],rlist[iter]);
-          Qnew(iter,i) = inner(ulist[iter],rlist[i]);
-      }
-      Q = Qnew;
-      real_tensor c = KAIN(Q);
-      print("SOLUTION VECTOR", c);
-
-      // Form new solution
-      r = real_factory_3d(world);
-      r.compress();
-      for (int i=0; i<=iter; i++) {
-          r.gaxpy(1.0,ulist[i], c[i]); 
-          r.gaxpy(1.0,rlist[i],-c[i]); 
-      }
-      r.truncate();
-      
-      // Print/plot info
-      print(iter, u.norm2(), r.norm2(), (u-r).norm2(), r.err(Exact()));
-      u = r;
-  }
-
-
-  plotdx(u, "u.dx");
-  plot_line("u.dat", 10001, coord_3d(-1.5), coord_3d(+1.5), u);
+  approx2(world, epsilon, center);
 
   finalize();
 

@@ -55,6 +55,7 @@
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <mra/mra.h>
 #include <mra/sdf_shape_3D.h>
+#include <constants.h>
 
 using namespace madness;
 
@@ -64,6 +65,8 @@ int main(int argc, char **argv) {
     startup(world,argc,argv);
     
     static const double L = 2.0;
+
+    double epsilon = 0.2;
     
     // Function defaults
     FunctionDefaults<3>::set_k(5);
@@ -77,7 +80,7 @@ int main(int argc, char **argv) {
     
     // create the shape mask
     coord_3d pt, vec, sides;
-    double c;
+    double c, rad, vol, area;
     pt[0] = 0.0;
     pt[1] = 0.5;
     pt[2] = 0.0;
@@ -88,60 +91,61 @@ int main(int argc, char **argv) {
     sides[1]=0.6; 
     sides[2]=1.0;
     c = 0.5;
+    rad = 0.75;
 
     // for plotting the shapes the old code used VTK, but I dunno how to use that
     // so switched to opendx
 
+    real_function_3d f;
+
     // the following line permutes the "inside" and "outside"
     //mask.unaryop(&mask_complement<double, 3>);
+    
+    f = real_factory_3d(world).functor(shape_mask(epsilon, new SDFCylinder(rad, 1.0, pt, vec)));
+    vol = f.trace();
+    plotdx(f, "cylinder_mask.dx");
+    f = real_factory_3d(world).functor(shape_surface(epsilon, new SDFCylinder(rad, 1.0, pt, vec)));
+    area = f.trace();
+    plotdx(f, "cylinder_surface.dx");
+    if (world.rank() == 0)
+        print("cylinder: err in volume", vol - constants::pi*rad*rad, "err in area", area-2.0*3.141593*(rad + rad*rad));
 
-    {
-        real_function_3d f = real_factory_3d(world).functor(real_functor_3d(new SDF_Cylinder<double>(0.2, 0.75, 1.0, pt, vec)));
-        plotdx(f, "cylinder.dx");
-    }
-    {
-        real_function_3d f = real_factory_3d(world).functor(real_functor_3d(new SDF_Cube<double>(0.2, sqrt(2.0), pt)));
-        plotdx(f, "cube.dx");
-    }
-    {
-        real_function_3d f = real_factory_3d(world).functor(real_functor_3d(new SDF_Cone<double>(0.2, c, pt, vec)));
-        plotdx(f, "cone.dx");
-    }
-    {
-        real_function_3d f = real_factory_3d(world).functor(real_functor_3d(new SDF_Paraboloid<double>(0.2, c, pt, vec)));
-        plotdx(f, "paraboloid.dx");
-    }
-    {
-        real_function_3d f = real_factory_3d(world).functor(real_functor_3d(new SDF_Plane<double>(0.2, vec, pt)));
-        plotdx(f, "plane.dx");
-    }
-    {
-        real_function_3d f = real_factory_3d(world).functor(real_functor_3d(new SDF_Sphere<double>(0.2, c, pt)));
-        plotdx(f, "sphere.dx");
-    }
-    {
-        real_function_3d f = real_factory_3d(world).functor(real_functor_3d(new SDF_Ellipsoid<double>(0.2, sides, pt)));
-        plotdx(f, "ellipsoid.dx");
-    }
-    {
-        real_function_3d f = real_factory_3d(world).functor(real_functor_3d(new SDF_Box<double>(0.2, sides, pt)));
-        plotdx(f, "box.dx");
-    }
+    f = real_factory_3d(world).functor(shape_mask(epsilon, new SDFCube(sqrt(2.0), pt)));
+    vol = f.trace();
+    plotdx(f, "cube_mask.dx");
+    f = real_factory_3d(world).functor(shape_surface(epsilon, new SDFCube(sqrt(2.0), pt)));
+    area = f.trace();
+    plotdx(f, "cube_surface.dx");
+    if (world.rank() == 0)
+        print("cube: err in volume", vol-sqrt(2.0)*sqrt(2.0)*sqrt(2.0), "err in area", area-12.0);
 
-    /*
-    char filename[100];
-    sprintf(filename, "shape.vts");
-    Vector<double, 3> plotlo, plothi;
-    Vector<long, 3> npts;
-    for(int i = 0; i < 3; ++i) {
-        plotlo[i] = -Lplot;
-        plothi[i] = Lplot;
-        npts[i] = 51;
-    }
-    plotvtk_begin(world, filename, plotlo, plothi, npts);
-    plotvtk_data(mask, "mask", world, filename, plotlo, plothi, npts);
-    plotvtk_end<3>(world, filename);
-    */
+    f = real_factory_3d(world).functor(shape_mask(epsilon, new SDFSphere(c, pt)));
+    vol = f.trace();
+    plotdx(f, "sphere_mask.dx");
+    f = real_factory_3d(world).functor(shape_surface(epsilon, new SDFSphere(c, pt)));
+    area = f.trace();
+    plotdx(f, "sphere_surface.dx");
+    if (world.rank() == 0)
+        print("sphere: err in volume", vol-4.0*constants::pi/3.0*c*c*c, "err in area", area-4.0*constants::pi*c*c);
+
+    f = real_factory_3d(world).functor(shape_mask(epsilon, new SDFCone(c, pt, vec)));
+    plotdx(f, "cone_mask.dx");
+
+    f = real_factory_3d(world).functor(shape_surface(epsilon, new SDFCone(c, pt, vec)));
+    plotdx(f, "cone_surface.dx");
+
+    f = real_factory_3d(world).functor(shape_surface(epsilon, new SDFParaboloid(c, pt, vec)));
+    plotdx(f, "paraboloid_surface.dx");
+
+    f = real_factory_3d(world).functor(shape_surface(epsilon, new SDFPlane(vec, pt)));
+    plotdx(f, "plane_surface.dx");
+
+
+    f = real_factory_3d(world).functor(shape_surface(epsilon, new SDFEllipsoid(sides, pt)));
+    plotdx(f, "ellipsoid_surface.dx");
+
+    f = real_factory_3d(world).functor(shape_surface(epsilon, new SDFBox(sides, pt)));
+    plotdx(f, "box_surface.dx");
     
     MPI::Finalize();
     
