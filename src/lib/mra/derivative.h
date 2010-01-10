@@ -188,8 +188,8 @@ namespace madness {
 
       BoundaryConds<NDIM> bc ;
 
-      functionT    f ;  // Initial function
-      functionT   df ;  // Derivative function
+      //functionT    f ;  // Initial function
+      //functionT   df ;  // Derivative function
 
       int k          ;  // Number of wavelets of the function
       int axis       ;  // Axis along which the operation is performed
@@ -197,60 +197,61 @@ namespace madness {
       std::vector<long> vk; ///< (k,...) used to initialize Tensors
 
 
-      void impldiff(bool fence) {
+      void impldiff(const implT* f, implT* df, bool fence) {
           PROFILE_MEMBER_FUNC(TreeTraversal) ;
           typedef std::pair<keyT,tensorT> argT;
-          dcT coeffs = f.get_impl()->get_coeffs() ;
+          //dcT coeffs = f.get_impl()->get_coeffs() ;
+          dcT coeffs = f->get_coeffs() ;
 
           for (typename dcT::const_iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
               const keyT& key = it->first;
               const nodeT& node = it->second;
               if (node.has_coeff()) {
-                  Future<argT> left = find_neighbor(key,-1);
+                  Future<argT> left = find_neighbor(f, key,-1);
                   argT center(key,node.coeff());
-                  Future<argT> right  = find_neighbor(key, 1);
-                  task(world.rank(), &madness::TreeTraversal<T, NDIM>::do_diff1, key, left, center, right, TaskAttributes::hipri());
+                  Future<argT> right  = find_neighbor(f, key, 1);
+                  task(world.rank(), &madness::TreeTraversal<T, NDIM>::do_diff1, f, df, key, left, center, right, TaskAttributes::hipri());
               } 
               else {
                   // Internal empty node can be safely inserted
-                  df.get_impl()->replace_coeff(key,nodeT(tensorT(),true)) ;
+                  df->replace_coeff(key,nodeT(tensorT(),true)) ;
               }
           }
           if (fence) world.gop.fence();
       }
 
-      Void forward_do_diff1(const keyT& key,
+      Void forward_do_diff1(const implT* f, implT* df, const keyT& key,
               const std::pair<keyT,tensorT>& left,
               const std::pair<keyT,tensorT>& center,
               const std::pair<keyT,tensorT>& right) {
           PROFILE_MEMBER_FUNC(TreeTraversal);
 
-          dcT coeffs = f.get_impl()->get_coeffs() ;
+          dcT coeffs = f->get_coeffs() ;
           ProcessID owner = coeffs.owner(key);
 
           if (owner == world.rank()) {
               if (left.second.size() == 0) {
-                  task(owner, &madness::TreeTraversal<T,NDIM>::do_diff1, key, find_neighbor(key,-1), center, right, TaskAttributes::hipri());
+                  task(owner, &madness::TreeTraversal<T,NDIM>::do_diff1, f, df, key, find_neighbor(f, key,-1), center, right, TaskAttributes::hipri());
               }
               else if (right.second.size() == 0) {
-                  task(owner, &madness::TreeTraversal<T,NDIM>::do_diff1, key, left, center, find_neighbor(key,1), TaskAttributes::hipri());
+                  task(owner, &madness::TreeTraversal<T,NDIM>::do_diff1, f, df, key, left, center, find_neighbor(f, key,1), TaskAttributes::hipri());
               }
               // Boundary node
               else if (left.first.is_invalid() || right.first.is_invalid()) { 
-                  task(owner, &madness::TreeTraversal<T,NDIM>::do_diff2b, key, left, center, right);
+                  task(owner, &madness::TreeTraversal<T,NDIM>::do_diff2b, f, df, key, left, center, right);
               }
               // Interior node
               else { 
-                  task(owner, &madness::TreeTraversal<T,NDIM>::do_diff2i, key, left, center, right);
+                  task(owner, &madness::TreeTraversal<T,NDIM>::do_diff2i, f, df, key, left, center, right);
               }
           }
           else {
-              task(owner, &madness::TreeTraversal<T,NDIM>::forward_do_diff1, key, left, center, right, TaskAttributes::hipri());
+              task(owner, &madness::TreeTraversal<T,NDIM>::forward_do_diff1, f, df, key, left, center, right, TaskAttributes::hipri());
           }
           return None;
       }
 
-      Void do_diff1(const keyT& key,
+      Void do_diff1(const implT* f, implT* df, const keyT& key,
                     const std::pair<keyT,tensorT>& left,
                     const std::pair<keyT,tensorT>& center,
                     const std::pair<keyT,tensorT>& right) {
@@ -260,31 +261,31 @@ namespace madness {
   
           if (left.second.size()==0 || right.second.size()==0) {
               // One of the neighbors is below us in the tree ... recur down
-              this->df.get_impl()->replace_coeff(key,nodeT(tensorT(),true));
+              df->replace_coeff(key,nodeT(tensorT(),true));
               for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
                   const keyT& child = kit.key();
                   if ((child.translation()[axis]&1) == 0) {
                       // leftmost child automatically has right sibling
-                      forward_do_diff1(child, left, center, center);
+                      forward_do_diff1(f, df, child, left, center, center);
                   }
                   else {
                       // rightmost child automatically has left sibling
-                      forward_do_diff1(child, center, center, right);
+                      forward_do_diff1(f, df, child, center, center, right);
                   }
               }
           }
           else {
-            forward_do_diff1(key, left, center, right);
+            forward_do_diff1(f, df, key, left, center, right);
           }
           return None;
       }
 
-      virtual Void do_diff2b(const keyT& key,
+      virtual Void do_diff2b(const implT* f, implT* df, const keyT& key,
                              const std::pair<keyT,tensorT>& left,
                              const std::pair<keyT,tensorT>& center,
                              const std::pair<keyT,tensorT>& right) {return None;} ;
 
-      virtual Void do_diff2i(const keyT& key,
+      virtual Void do_diff2i(const implT* f, implT* df, const keyT& key,
                              const std::pair<keyT,tensorT>& left,
                              const std::pair<keyT,tensorT>& center,
                              const std::pair<keyT,tensorT>& right) {return None;} ;
@@ -294,10 +295,10 @@ namespace madness {
 
       /// Returns a new function with the same distribution
       Function<T,NDIM>
-      operator()(functionT _f, bool fence=true) {
+      operator()(const functionT& f, bool fence=true) {
           PROFILE_FUNC;
 
-          f = _f ;
+          //f = _f ;
 
           if (f.is_compressed()) {
               if (fence) {
@@ -310,9 +311,10 @@ namespace madness {
   
           if (VERIFY_TREE) f.verify_tree();
 
+          functionT df ;  
           df.set_impl(f,false) ;
 
-          impldiff( fence) ;
+          impldiff(f.get_impl(), df.get_impl(), fence) ;
           //impldiff(*f.get_impl(), *df.get_impl(), fence) ;
           //impldiff(&(f.get_impl().get()), &(df.get_impl().get()), fence) ;
           return df;
@@ -380,7 +382,7 @@ namespace madness {
       }
 
       Future< std::pair< Key<NDIM>,Tensor<T> > >
-      find_neighbor(const Key<NDIM>& key, int step) const {
+      find_neighbor(const implT* f, const Key<NDIM>& key, int step) const {
           PROFILE_MEMBER_FUNC(TreeTraversal);
           keyT neigh = neighbor(key, step);
           if (neigh.is_invalid()) {
@@ -389,9 +391,19 @@ namespace madness {
           else {
               Future<argT> result;
               PROFILE_BLOCK(find_neigh_send);
-              f.get_impl()->task(f.get_impl()->get_coeffs().owner(neigh), &implT::sock_it_to_me, neigh, result.remote_ref(world), TaskAttributes::hipri());
+              f->task(f->get_coeffs().owner(neigh), &implT::sock_it_to_me, neigh, result.remote_ref(world), TaskAttributes::hipri());
               return result;
           }
+      }
+
+      Void initTreeTraversal()
+      {
+            vk = std::vector<long>(NDIM);
+ 
+            for (int i = 0; i < NDIM; i++) {
+                vk[i] = k;
+            }
+            return None ;
       }
 
 
@@ -402,11 +414,16 @@ namespace madness {
          k(_k) ,
          axis(_axis) 
       {
-            vk = std::vector<long>(NDIM);
- 
-            for (int i = 0; i < NDIM; i++) {
-                vk[i] = k;
-            }
+         initTreeTraversal() ;
+      } 
+
+      TreeTraversal(World& _world, int _k, int _axis) :
+         WorldObject< TreeTraversal<T, NDIM> >(_world) ,
+         world(_world) ,
+         k(_k) ,
+         axis(_axis) 
+      {
+         initTreeTraversal() ;
       } 
 
        template <typename Archive> void serialize(const Archive& ar) {
@@ -436,7 +453,7 @@ namespace madness {
       Tensor<double> right_r0, right_rp ; ///< Blocks of the derivative for the right boundary
       Tensor<double> bv_left, bv_right  ; ///< Blocks of the derivative operator for the boundary contribution
 
-      Void do_diff2b(const keyT& key,
+      Void do_diff2b(const implT* f, implT* df, const keyT& key,
                      const std::pair<keyT,tensorT>& left,
                      const std::pair<keyT,tensorT>& center,
                      const std::pair<keyT,tensorT>& right) {
@@ -449,29 +466,27 @@ namespace madness {
           //left boundary
           if (l[this->axis] == 0) {
              d = madness::inner(left_rm ,
-                                this->df.get_impl()->parent_to_child(right.second, right.first, neighbor(key,1)).swapdim(this->axis,0),
+                                df->parent_to_child(right.second, right.first, neighbor(key,1)).swapdim(this->axis,0),
                                 1, 0);
              inner_result(left_r0,
-                          this->df.get_impl()->parent_to_child(center.second, center.first, key).swapdim(this->axis,0),
+                          df->parent_to_child(center.second, center.first, key).swapdim(this->axis,0),
                           1, 0, d);
           }
           else
           {
              d = madness::inner(right_rp,
-                                this->df.get_impl()->parent_to_child(left.second, left.first, neighbor(key,-1)).swapdim(this->axis,0),
+                                df->parent_to_child(left.second, left.first, neighbor(key,-1)).swapdim(this->axis,0),
                                 1, 0);
              inner_result(right_r0,
-                          this->df.get_impl()->parent_to_child(center.second, center.first, key).swapdim(this->axis,0),
+                          df->parent_to_child(center.second, center.first, key).swapdim(this->axis,0),
                           1, 0, d);
           }
           if (this->axis) d = copy(d.swapdim(this->axis,0)); // make it contiguous
           d.scale(FunctionDefaults<NDIM>::get_rcell_width()[this->axis]*pow(2.0,lev));
-          this->df.get_impl()->replace_coeff(key,nodeT(d,false));
+          df->replace_coeff(key,nodeT(d,false));
 
 
           // This is the boundary contribution (formally in BoundaryDerivative)
-          //int k = this->f.get_impl()->get_k() ; 
-
           int bc_left  = this->bc(this->axis,0);
           int bc_right = this->bc(this->axis,1);
   
@@ -527,37 +542,32 @@ namespace madness {
 
           bdry_t = bdry_t + d ;
 
-          this->df.get_impl()->replace_coeff(key,nodeT(bdry_t,false));
+          df->replace_coeff(key,nodeT(bdry_t,false));
  
           return None;
       }
 
-      Void do_diff2i(const keyT& key,
+      Void do_diff2i(const implT* f, implT*df, const keyT& key,
                   const std::pair<keyT,tensorT>& left,
                   const std::pair<keyT,tensorT>& center,
                   const std::pair<keyT,tensorT>& right) {
           PROFILE_MEMBER_FUNC(Derivative);
           tensorT d = madness::inner(rp,
-                                     this->df.get_impl()->parent_to_child(left.second, left.first, neighbor(key,-1)).swapdim(this->axis,0),
+                                     df->parent_to_child(left.second, left.first, neighbor(key,-1)).swapdim(this->axis,0),
                                      1, 0);
           inner_result(r0,
-                       this->df.get_impl()->parent_to_child(center.second, center.first, key).swapdim(this->axis,0),
+                       df->parent_to_child(center.second, center.first, key).swapdim(this->axis,0),
                        1, 0, d);
           inner_result(rm,
-                       this->df.get_impl()->parent_to_child(right.second, right.first, neighbor(key,1)).swapdim(this->axis,0),
+                       df->parent_to_child(right.second, right.first, neighbor(key,1)).swapdim(this->axis,0),
                        1, 0, d);
           if (this->axis) d = copy(d.swapdim(this->axis,0)); // make it contiguous
           d.scale(FunctionDefaults<NDIM>::get_rcell_width()[this->axis]*pow(2.0,(double) key.level()));
-          this->df.get_impl()->replace_coeff(key,nodeT(d,false));
+          df->replace_coeff(key,nodeT(d,false));
           return None;
       }
 
-
-      //Derivative(World& _world, functionT _f, int _axis, BoundaryConds<NDIM>& _bc, functionT _g1, functionT _g2) :
-      Derivative(World& _world, int _k, int _axis, const BoundaryConds<NDIM>& _bc, functionT _g1, functionT _g2) :
-         TreeTraversal<T, NDIM>(_world, _k, _axis, _bc) ,
-         g1(_g1) ,
-         g2(_g2) 
+      Void initCoefficients()
       {
          r0 = Tensor<double>(this->k,this->k);
          rp = Tensor<double>(this->k,this->k);
@@ -568,6 +578,11 @@ namespace madness {
 
          right_r0 = Tensor<double>(this->k,this->k);
          right_rp = Tensor<double>(this->k,this->k);
+
+         // These are the coefficients for the boundary contribution
+         bv_left  = Tensor<double>(this->k) ;
+         bv_right = Tensor<double>(this->k) ;
+
 
          int bc_left  = this->bc(this->axis,0);
          int bc_right = this->bc(this->axis,1);
@@ -655,11 +670,7 @@ namespace madness {
              iphase = -iphase;
          }
 
-
-         // These are the coefficients for the boundary contribution
-         bv_left  = Tensor<double>(this->k) ;
-         bv_right = Tensor<double>(this->k) ;
-
+         // Coefficients for the boundary contributions
          iphase = 1.0;
          for (int i=0; i<this->k; i++) {
              iphase = -iphase;
@@ -679,12 +690,62 @@ namespace madness {
                bv_right(i) = 0.0 ;
          }
 
-         return ;
+         return None ;
+      }
+
+     
+      Derivative(World& _world, int _k, int _axis, const BoundaryConds<NDIM>& _bc, functionT _g1, functionT _g2) :
+         TreeTraversal<T, NDIM>(_world, _k, _axis, _bc) ,
+         g1(_g1) ,
+         g2(_g2) 
+      {
+         initCoefficients() ;
+      }
+
+      Derivative(World& _world, int _k, int _axis) :
+         TreeTraversal<T, NDIM>(_world, _k, _axis) 
+      {
       }
  
   } ;
 
 
+  template <typename T, int NDIM>
+  class FreeSpaceDerivative : public Derivative<T, NDIM> {
+    public:
+      typedef Tensor<T>               tensorT   ;
+      typedef Function<T,NDIM>        functionT ;
+
+      FreeSpaceDerivative(World& _world, int _k, int _axis) :
+         Derivative<T, NDIM>(_world, _k, _axis) 
+      {
+        Tensor<int> bctensor(NDIM,2) ;
+        bctensor.fill(2) ;
+
+        this->bc = bctensor ;
+
+        this->initCoefficients() ;
+      } 
+  } ;
+
+  template <typename T, int NDIM>
+  class PeriodicDerivative : public Derivative<T, NDIM> {
+    public:
+      typedef Tensor<T>               tensorT   ;
+      typedef Function<T,NDIM>        functionT ;
+
+      PeriodicDerivative(World& _world, int _k, int _axis) :
+         Derivative<T, NDIM>(_world, _k, _axis) 
+      {
+        Tensor<int> bctensor(NDIM,2) ;
+        bctensor.fill(1) ;
+
+        this->bc = bctensor ;
+
+        this->initCoefficients() ;
+      }
+
+  } ;
 
 
     namespace archive {
@@ -698,20 +759,6 @@ namespace madness {
         };
 
     }
-
-/*
-  template <typename T, int NDIM>
-  class FreeSpaceDerivative : public Deriative<T, NDIM> {
-
-      FreeSpaceDerivative(World& _world, int _k, int _axis) : 
-         TreeTraversal<T, NDIM>(_world, _k, _axis, 1) ,
-         g1() ,
-         g2() , 
-      {
-      }
-
-  } ;
-*/
 
 }  // End of the madness namespace
 
