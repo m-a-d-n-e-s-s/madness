@@ -106,7 +106,7 @@ throw madness::MadnessException(msg,0,value,__LINE__,__FUNCTION__,__FILE__)
 #  define MADNESS_EXCEPTION_AT(F, L) MADNESS_STRINGIZE(F) "(" MADNESS_STRINGIZE(L) ")"
 #  define MADNESS_ASSERT(condition) \
      do {if (!(condition)) \
-         throw MadnessException("MADNESS ASSERTION FAILED: " MADNESS_EXCEPTION_AT( __FILE__, __LINE__ ), \
+             throw madness::MadnessException("MADNESS ASSERTION FAILED: " MADNESS_EXCEPTION_AT( __FILE__, __LINE__ ), \
                          #condition,0,__LINE__,__FUNCTION__,__FILE__); \
         } while (0)
 #endif
