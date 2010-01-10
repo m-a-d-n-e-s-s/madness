@@ -385,7 +385,8 @@ namespace madness {
         void unshuffle() {
             if (nlocal <= 0) return;
             Tensor<T>& t = A.data();
-            Tensor<T> tmp(2L, t.ndim(), false);
+            //Tensor<T> tmp(2L, t.ndim(), false);
+            Tensor<T> tmp(2L, t.dims(), false);
             T* tp = tmp.ptr();
             for (int64_t i=0; i<nlocal; i++) {
                 memcpy(tp+i*rowdim, iptr[i], rowdim*sizeof(T));
@@ -602,17 +603,15 @@ namespace madness {
             } while (!converged(env));
 
             if (env.id() == 0) unshuffle();
-	    env.barrier(); 
-	}
+            env.barrier(); 
+        }
 
         /// Invoked by the user to run the algorithm with one thread
 
         /// This is a collective call ... all processes in world should call
         /// this routine, though processes without data will immediately return
         /// without any synchronization.
-        void solve() {
-            run(A.get_world(), TaskThreadEnv(1,0,0));
-        }
+        void solve() { run(A.get_world(), TaskThreadEnv(1,0,0)); }
 
         /// Returns length of row
         int get_rowdim() const {return rowdim;}
@@ -632,25 +631,26 @@ namespace madness {
     {
     public:
         LocalizeBoys<T>( DistributedMatrix<T> &M, const std::vector<int>& set, long nmo, int tag,
-                const double threash = 1e-9, const double thetamax = 0.5, const bool randomize = true, const bool doprint = false):
+                const double thresh = 1e-9, const double thetamax = 0.5, const bool randomized = true, const bool doprint = false):
             SystolicMatrixAlgorithm<T>(M, tag),
-            M(M),
+            M(M), // marix of ( U, X, Y, Z)
             world(M.get_world()),
-            set(set),
-            nmo(nmo),
-            ndone_iter(0),
-            niter(0),
-            threash(threash),
+            set(set), // set of orbital
+            nmo(nmo), // number of molecule
+            niter(0), // number of iteration
+            ndone(0), // number of rotation in one iteration
+            ndone_iter(0), // number of rotation for all iteration
+            thresh(thresh),
             thetamax(thetamax),
             tol(thetamax),
-            randomize(randomize),
+            randomized(randomized),
             doprint(doprint),
             nrot(0)
         {
-            madness::print("Start boys localization\n");
+            if (doprint) madness::print("Start boys localization\n");
         }
 
-        Tensor<T> get_U(){ return M.data()(_, Slice(0, nmo)); }
+        Tensor<T> get_U(){ return M.data()(_, Slice(0, nmo-1)); }
 
         void start_iteration_hook(const TaskThreadEnv& env);
         void kernel(int i, int j, T* rowi, T* rowj);
@@ -661,10 +661,10 @@ namespace madness {
         DistributedMatrix<T> M;
         World& world;
         std::vector<int> set;
-        long nmo, ndone_iter;
-        volatile int64_t niter;
-        double threash, thetamax, tol, maxtheta;
-        bool randomize, doprint;
+        long nmo, niter, ndone;
+        volatile int64_t ndone_iter;
+        double thresh, thetamax, tol, maxtheta;
+        bool randomized, doprint;
         int64_t nrot;
         void drot(T* restrict a, T* restrict b, double sin, double cos); 
         inline T DIP(T* e_ij, T* e_kl);
@@ -673,20 +673,26 @@ namespace madness {
     template <typename T>
     void LocalizeBoys<T>::start_iteration_hook(const TaskThreadEnv& env)
     {
-        T sum = 0.0;
-        int64_t ilo, ihi;
-        M.local_colrange(ilo, ihi);
-        for(int64_t i=0; i <=(ihi-ilo); i++){
-            T tmp[] = { M.data()(i,i+ilo), M.data()(i,i+ilo+nmo), M.data()(i,i+ilo+2*nmo) };
-            sum += DIP(tmp, tmp);
+
+        if(doprint) {
+            T sum = 0.0;
+            int64_t ilo, ihi;
+            M.local_colrange(ilo, ihi);
+            for(int64_t i=0; i <=(ihi-ilo); i++){
+                T ii[] = { M.data()(i,i+ilo+nmo), M.data()(i,i+ilo+2*nmo), M.data()(i,i+ilo+3*nmo) };
+                sum += DIP(ii, ii);
+            }
+            env.barrier();
+            if (env.id() == 0) world.gop.sum(sum);
+            env.barrier();
+
+            printf("\titeration %ld sum=%.4f ndone=%ld tol=%.2e\n", niter, sum, ndone, tol);
+            /// print a result of previous iteration
         }
-        if (env.id() == 0) world.gop.sum(sum);
 
-
-        long ndone_iter = 0; /// number of iteration
+        niter++;
+        ndone = 0; /// number of rotation in this iteration
         maxtheta = 0.0; /// maximum rotation angle
-
-        madness::print("\t", "iteration %ld, sum=%.4f ndone=%.2e\n", niter, sum, ndone_iter, tol);
     }
     template <typename T>
     void LocalizeBoys<T>::kernel(int i, int j, T* rowi, T* rowj)
@@ -694,49 +700,61 @@ namespace madness {
         if(set[i] != set[j]) return;
 
         // make rowi and rowj since we're using one-sided jacobi
-        T *ui = rowi + 3*nmo;
-        T *uj = rowj + 3*nmo;
-        T *xi = rowi;
-        T *xj = rowj; 
-        T *yi = rowi + nmo;
-        T *yj = rowj + nmo;
-        T *zi = rowi + 2*nmo;
-        T *zj = rowj + 2*nmo;
+        T *ui = rowi;
+        T *uj = rowj;
+        T *xi = rowi + nmo;
+        T *xj = rowj + nmo; 
+        T *yi = rowi + nmo*2;
+        T *yj = rowj + nmo*2;
+        T *zi = rowi + nmo*3;
+        T *zj = rowj + nmo*3;
         T ii[] = { inner(ui, xi), inner(ui, yi), inner(ui, zi) };
         T ij[] = { inner(ui, xj), inner(ui, yj), inner(ui, zj) };
         T jj[] = { inner(uj, xj), inner(uj, yj), inner(uj, zj) };
+        bool doit = false;
 
         double g = DIP(ij, jj) - DIP(ij, ii);
         double h = 4.0 * DIP(ij, ij) + 2.0 * DIP(ii, jj) - DIP(ii, ii) - DIP(jj, jj);
-        bool doit = false;
-
         if (h >= 0.0) {
             doit = true;
+            if (doprint) print("\t\tforcing negative h", i,j,h);
             h = -1.0;
         }
         double theta = -g / h;
 
+        /*
+        if (doprint && (ndone==0)) {
+            print("\t\t\tg h, ", g, h);
+            //print("\t\t\tdip(ii), dip(jj) :", ii[0],ii[1],ii[2], jj[0],jj[1],jj[2] );
+            //print("\t\t\tdip(ij):", ij[0],ij[1],ij[2] );
+        }*/
         maxtheta = std::max<double>(std::abs(theta), maxtheta);
 
         /// restriction
         if (fabs(theta) > thetamax){
-            doit = true;
             if (g < 0) theta = -thetamax;
             else theta = thetamax * 0.8;
+
+            doit = true;
+            if (doprint) print("\t\trestricting", i,j);
         }
 
         // randomize will be implemented here
         // double sij = DIP(ij, ij); // this line will be used by randomize
+        randomized = false;
 
-        if (fabs(theta) >= tol || doit || randomize){
-            ndone_iter++;
-
+        if (fabs(theta) >= tol || randomized || doit){
             double c = cos(theta);
             double s = sin(theta);
+            if (doprint) print("\t\tbefore rot x", xi[0], xi[1], xi[2]);
             drot (xi, xj, s, c);
             drot (yi, yj, s, c);
             drot (zi, zj, s, c);
-            drot (ui, uj, s, c);
+            drot (uj, ui, s, c);
+
+            if (doprint) print("\t\tafter rot x", xi[0], xi[1], xi[2]);
+            if (doprint) print("\t\trotating", i,j, theta);
+            ndone++;
         }
     }
     template <typename T>
@@ -744,19 +762,27 @@ namespace madness {
     {
         int id = env.id();
 
-        if (id == 0) world.gop.max(maxtheta);
+        if (id == 0) {
+            world.gop.max(maxtheta);
+            world.gop.sum(ndone); // get total number of rotation whole processes
+        }
+        env.barrier();
+        tol = std::max(0.1 * maxtheta, thresh);
+        ndone_iter += ndone;
+
     }
+
     template <typename T>
     bool LocalizeBoys<T>::converged(const TaskThreadEnv& env) const
     {
         int id = env.id();
 
-        if( ndone_iter == 0 && tol == threash){
-            if( id == 0) madness::print("\tBoys localization converged in", ndone_iter, "\n");
+        if( ndone == 0 && tol == thresh){
+            if (id == 0) madness::print("\tBoys localization converged in", ndone_iter, "steps.");
             return true;
         }
         else if(niter >= 300){
-            if( id == 0) madness::print("\tDid not converged in 300 iteration!\n");
+            if( id == 0) madness::print("\tWARNING!! Boys localization did not fully converged in", niter, "iteration!\n");
             return true;
         }
         else 
@@ -764,11 +790,11 @@ namespace madness {
     }
     /// rotate matrix using sin and cos
     template <typename T>
-    void LocalizeBoys<T>::drot(T* restrict a, T* restrict b, double sin, double cos)
+    void LocalizeBoys<T>::drot(T* a, T* b, double sin, double cos)
     {
         for ( long i=0; i<nmo; i++ ) {
             T aa = a[i]*cos - b[i]*sin;
-            T bb = b[i]*cos + a[i]*sin;
+            T bb = a[i]*sin + b[i]*cos;
             a[i] = aa;
             b[i] = bb;
         }
