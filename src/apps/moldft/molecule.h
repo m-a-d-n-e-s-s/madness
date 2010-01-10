@@ -44,7 +44,9 @@
 #include <algorithm>
 #include <ctype.h>
 #include <cmath>
+#include <tensor/tensor.h>
 #include <misc/misc.h>
+
 
 struct AtomicData {
     // !!! The order of declaration here must match the order in the initializer !!!
@@ -128,6 +130,10 @@ public:
     };
 
     void set_atom_coords(unsigned int i, double x, double y, double z);
+
+    madness::Tensor<double> get_all_coords() const;
+
+    void set_all_coords(const madness::Tensor<double>& newcoords);
 
     void set_eprec(double value) {
         eprec = value;

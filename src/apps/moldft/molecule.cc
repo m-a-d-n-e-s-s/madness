@@ -667,6 +667,28 @@ void Molecule::set_atom_coords(unsigned int i, double x, double y, double z) {
     atoms[i].z = z;
 }
 
+
+madness::Tensor<double> Molecule::get_all_coords() const {
+    madness::Tensor<double> c(natom(),3);
+    for (int i=0; i<natom(); i++) {
+        const Atom atom = get_atom(i);
+        c(i,0) = atom.x;
+        c(i,1) = atom.y;
+        c(i,2) = atom.z;
+    }
+    return c;
+}
+
+void Molecule::set_all_coords(const madness::Tensor<double>& c) {
+    MADNESS_ASSERT(c.ndim()==2 && c.dims()[0]==natom() && c.dims()[1]==3);
+    for (int i=0; i<natom(); i++) {
+        Atom atom = get_atom(i);
+        atom.x = c(i,0);
+        atom.y = c(i,1);
+        atom.z = c(i,2);
+    }
+}
+
 const Atom& Molecule::get_atom(unsigned int i) const {
     if (i>=atoms.size()) throw "trying to get coords of invalid atom";
     return atoms[i];
@@ -687,8 +709,8 @@ void Molecule::print() const {
 }
 
 double Molecule::inter_atomic_distance(unsigned int i,unsigned int j) const {
-    if (i>=atoms.size()) throw "trying to compute distance with invalid atom";
-    if (j>=atoms.size()) throw "trying to compute distance with invalid atom";
+    if (i<0 || i>=atoms.size()) throw "trying to compute distance with invalid atom";
+    if (j<0 || j>=atoms.size()) throw "trying to compute distance with invalid atom";
     return distance(atoms[i].x, atoms[i].y, atoms[i].z,
                     atoms[j].x, atoms[j].y, atoms[j].z);
 }

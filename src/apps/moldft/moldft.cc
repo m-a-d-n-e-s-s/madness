@@ -333,10 +333,6 @@ struct lbcost {
     }
 };
 
-// template <typename T, int NDIM>
-// Cost lbcost(const Key<NDIM>& key, const FunctionNode<T,NDIM>& node) {
-//   return 1;
-// }
 
 struct CalculationParameters {
     // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -607,6 +603,7 @@ struct Calculation {
     tensorT aeps, beps;
     poperatorT coulop;
     double vtol;
+    double current_energy;
     Calculation(World & world, const char *filename)
     {
         if(world.rank() == 0) {
@@ -1537,9 +1534,15 @@ struct Calculation {
         return Vpsi;
     }
     
-    tensorT derivatives(World & world, const functionT & rho)
+    tensorT derivatives(World & world)
     {
         START_TIMER(world);
+
+        functionT rho = make_density(world, aocc, amo);
+        functionT brho = rho;
+        if (!param.spin_restricted) brho = make_density(world, bocc, bmo);
+        rho.gaxpy(1.0, brho, 1.0);
+
         vecfuncT dv(molecule.natom() * 3);
         for(int atom = 0;atom < molecule.natom();atom++){
                 for(int axis = 0;axis < 3;axis++){
@@ -1558,7 +1561,19 @@ struct Calculation {
             }
         }
         END_TIMER(world,"derivatives");
-        
+
+        if (world.rank() == 0) {
+            print("\n Derivatives (a.u.)\n -----------\n");
+            print("  atom        x            y            z          dE/dx        dE/dy        dE/dz");
+            print(" ------ ------------ ------------ ------------ ------------ ------------ ------------");
+            for (int i=0; i<molecule.natom(); i++) {
+                const Atom& atom = molecule.get_atom(i);
+                printf(" %5d %12.6f %12.6f %12.6f %12.6f %12.6f %12.6f\n",
+                       i, atom.x, atom.y, atom.z,
+                       r[i*3+0], r[i*3+1], r[i*3+2]);
+            }
+        }
+
         return r;
     }
     
@@ -1989,6 +2004,7 @@ struct Calculation {
         bmo = bmo_new;
     }
     
+    // For given protocol, solve the DFT/HF/response equations
     void solve(World & world)
     {
         functionT arho_old, brho_old;
@@ -2101,12 +2117,14 @@ struct Calculation {
                     rotate_subspace(world, U, subspace, amo.size(), bmo.size(), trantol);
                 }
             }
+
+            double enrep = molecule.nuclear_repulsion_energy();
+            double ekinetic = ekina + ekinb;
+            double exc = exca + excb;
+            double etot = ekinetic + enuclear + ecoulomb + exc + enrep;
+            current_energy = etot;
             
             if(world.rank() == 0){
-                double enrep = molecule.nuclear_repulsion_energy();
-                double ekinetic = ekina + ekinb;
-                double exc = exca + excb;
-                double etot = ekinetic + enuclear + ecoulomb + exc + enrep;
                 printf("\n              kinetic %16.8f\n", ekinetic);
                 printf("   nuclear attraction %16.8f\n", enuclear);
                 printf("              coulomb %16.8f\n", ecoulomb);
@@ -2177,25 +2195,87 @@ struct Calculation {
             
             analyze_vectors(world, bmo, bocc, beps);
         }
-        functionT arho = make_density(world, aocc, amo);
-        functionT brho = arho;
-        if (!param.spin_restricted) brho = make_density(world, bocc, bmo);
-        
-        arho.gaxpy(1.0, brho, 1.0);
-        tensorT dv = derivatives(world, arho);
-        if (world.rank() == 0) {
-            print("\n Derivatives (a.u.)\n -----------\n");
-            print("  atom        x            y            z          dE/dx        dE/dy        dE/dz");
-            print(" ------ ------------ ------------ ------------ ------------ ------------ ------------");
-            for (int i=0; i<molecule.natom(); i++) {
-                const Atom& atom = molecule.get_atom(i);
-                printf(" %5d %12.6f %12.6f %12.6f %12.6f %12.6f %12.6f\n",
-                       i, atom.x, atom.y, atom.z,
-                       dv[i*3+0], dv[i*3+1], dv[i*3+2]);
-            }
-        }
     }
 };
+
+
+// Computes molecular energy as a function of the geometry
+// This is cludgy ... need better factorization of functionality
+// between calculation, main program and this ... or just merge it all.
+class MolecularEnergy : public OptimizationTargetInterface {
+    mutable World& world;
+    mutable Calculation& calc;
+    mutable double coords_sum;     // sum of square of coords at last solved geometry
+    mutable double E; //< Current energy
+
+public:
+    MolecularEnergy(World& world, Calculation& calc)
+        : world(world)
+        , calc(calc)
+        , coords_sum(-1.0)
+    {}
+
+    bool provides_gradient() const {return true;}
+
+    double value(const Tensor<double>& x) {
+        double xsq = x.sumsq();
+        if (xsq == coords_sum) {
+            return calc.current_energy;
+        }
+        calc.molecule.set_all_coords(x.reshape(calc.molecule.natom(),3));
+        coords_sum = xsq;
+            
+        // The below is missing convergence test logic, etc.
+
+        // Make the nuclear potential, initial orbitals, etc.
+        calc.set_protocol(world,1e-4);
+        calc.make_nuclear_potential(world);
+        calc.project_ao_basis(world);
+        
+        //calc.project(world);
+        if (calc.param.restart) {
+            calc.load_mos(world);
+        }
+        else {
+            calc.initial_guess(world);
+            calc.param.restart = true;
+        }
+
+        // If the basis for the inital guess was not sto-3g
+        // switch to sto-3g since this is needed for analysis
+        // of the MOs and orbital localization
+        if (calc.param.aobasis != "sto-3g") {
+            calc.param.aobasis = "sto-3g";
+            calc.project_ao_basis(world);
+        }
+
+        calc.solve(world);
+        calc.save_mos(world);
+        
+        calc.set_protocol(world,1e-6);
+        calc.make_nuclear_potential(world);
+        calc.project_ao_basis(world);
+        calc.project(world);
+        calc.solve(world);
+        calc.save_mos(world);
+
+        //         calc.set_protocol(world,1e-8);
+        //         calc.make_nuclear_potential(world);
+        //         calc.project(world);
+        //         calc.solve(world);
+        //         calc.save_mos(world);
+
+        return calc.current_energy;
+    }
+
+    madness::Tensor<double> gradient(const Tensor<double>& x) {
+        value(x); // Ensures DFT equations are solved at this geometry
+        
+        return calc.derivatives(world);
+    }
+};
+
+
 
 int main(int argc, char** argv) {
     initialize(argc, argv);
@@ -2229,42 +2309,10 @@ int main(int argc, char** argv) {
             calc.make_nuclear_potential(world);
             calc.initial_load_bal(world);
         }
-        
-        // Make the nuclear potential, initial orbitals, etc.
-        calc.set_protocol(world,1e-4);
-        calc.make_nuclear_potential(world);
-        calc.project_ao_basis(world);
-        
-        //calc.project(world);
-        if (calc.param.restart) 
-            calc.load_mos(world);
-        else
-            calc.initial_guess(world);
 
-        // If the basis for the inital guess was not sto-3g
-        // switch to sto-3g since this is needed for analysis
-        // of the MOs and orbital localization
-        if (calc.param.aobasis != "sto-3g") {
-            calc.param.aobasis = "sto-3g";
-            calc.project_ao_basis(world);
-        }
-
-        calc.solve(world);
-        calc.save_mos(world);
+        MolecularEnergy E(world, calc);
+        E.value(calc.molecule.get_all_coords().flat()); // ugh!
         calc.do_plots(world);
-        
-        calc.set_protocol(world,1e-6);
-        calc.make_nuclear_potential(world);
-        calc.project_ao_basis(world);
-        calc.project(world);
-        calc.solve(world);
-        calc.save_mos(world);
-        calc.do_plots(world);
-        
-        //         calc.set_protocol(world,1e-8);
-        //         calc.make_nuclear_potential(world);
-        //         calc.project(world);
-        //         calc.solve(world);
         
     }
     catch (const MPI::Exception& e) {
