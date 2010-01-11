@@ -94,7 +94,7 @@ int main(int argc, char** argv) {
 
     for (axis=0; axis<NDIM; axis++) {
       int k = FunctionDefaults<3>::get_k() ; 
-      Derivative<double,NDIM> dx(world, k, axis, bc, f, f) ;
+      Derivative<double,NDIM> dx(world, axis, k, bc, f, f) ;
       functionT df = dx(f) ;
       print(axis,"error",df.err(FunctorInterfaceWrapper(dfunc)));
     }

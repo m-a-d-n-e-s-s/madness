@@ -51,6 +51,155 @@ namespace madness {
     /// The maximum depth of refinement possible
     static const int MAXLEVEL = 8*sizeof(Translation)-2;
 
+
+    /*!
+      \brief This class is used to specify boundary conditions for all operators
+      \ingroup mrabcext
+
+      Exterior boundary conditions (i.e., on the simulation domain)
+      are associated with operators (not functions).  The types of
+      boundary conditions available are
+      - zero 
+      - free space (or none)
+      - periodic
+      - Dirichlet
+      - Neumann
+      - Unknown
+
+      The default boundary conditions are obtained from the FunctionDefaults.
+      For Dirichlet, Neumann, and Robin conditions additional information
+      must be provided when derivative operators are constructed. For integral
+      operators, only periodic and free space are supported.
+    */
+    template<int NDIM>
+    class BoundaryConds { 
+    private: 
+        Tensor<int> bc;         ///< Holds the boundary flags (WHAT VALUES MEAN WHAT?)
+        
+        static bool is_valid_bc_code(const int code) {
+            return (0<=code) && (code<=5);
+        }
+        
+        static bool is_valid_bc(const Tensor<int>& bc){
+            if (bc.dim(0)!=NDIM || bc.dim(1)!=2 || bc.ndim()!=2) return false;
+            for(int i=0; i<NDIM; ++i) {
+                if (!(is_valid_bc_code(bc(i,0)) && is_valid_bc_code(bc(i,1)))) return false;
+                if (bc(i,0)==1 && bc(i,1)!=1) return false;  // both sides should be periodic
+            }
+            return true;
+        }
+        
+    public:
+
+        // SHOULD SWITCH TO ENUM VALUES NOT HARD VALUES
+        enum {ZERO, PERIODIC, FREE, DIRICHLET, NEUMANN, DUNNO};
+        
+        /// Constructor. Default boundary condition set to periodic
+        BoundaryConds(int code=PERIODIC) 
+            : bc(NDIM,2)
+        {
+            if (!is_valid_bc_code(code)) {
+                MADNESS_EXCEPTION("BoundaryConds: invalid boundary condition", code);
+            } 
+            bc = code;
+        }
+        
+        /// Copy constructor is deep
+        BoundaryConds(const BoundaryConds<NDIM>& other)
+            : bc(copy(other.bc))
+        {}
+
+        /// General constructor (takes deep copy of bc)
+        BoundaryConds(const Tensor<int>& bc) 
+            : bc(copy(bc))
+        {
+            if(!is_valid_bc(bc)) {
+                MADNESS_EXCEPTION("BoundaryConds: invalid boundary condition",0);
+            }
+        }
+        
+        /// Accessor for tensor of boundary conditions
+
+        /// @return Tensor of boundary conditions
+        const Tensor<int>& get_bc() const {
+            return bc;
+        }
+        
+        /// Returns value of boundary condition
+
+        /// @param d Dimension (0,...,NDIM-1) for boundary condition
+        /// @param i Side (0=left, 1=right) for boundary condition
+        /// @return Value of boundary condition
+        int operator()(int d, int i) const {
+            MADNESS_ASSERT(d>=0 && d<NDIM && i>=0 && i<2);
+            return bc(d,i);
+        }
+
+        /// Returns non-const reference to value of boundary condition 
+
+        /// @param d Dimension (0,...,NDIM-1) for boundary condition
+        /// @param i Side (0=left, 1=right) for boundary condition
+        /// @return Value of boundary condition
+        int& operator()(int d, int i) {
+            MADNESS_ASSERT(d>=0 && d<NDIM && i>=0 && i<2);
+            return bc(d,i);
+        }
+        
+
+        /// Assignment makes deep copy
+        BoundaryConds<NDIM>&
+        operator=(const Tensor<int>& other) {
+            if (!is_valid_bc(other)) {
+                MADNESS_EXCEPTION("operator= : invalid boundary condition",0);
+            }
+            bc = copy(other);
+            return *this;
+        }
+        
+        /// Assignment makes deep copy
+        BoundaryConds<NDIM>&
+        operator=(const BoundaryConds<NDIM>& other) {
+            if (&other != this) {
+                if (!is_valid_bc(other.bc)) {
+                    MADNESS_EXCEPTION("operator= : invalid boundary condition",0);
+                }
+                bc = copy(other.bc);
+            }
+            return *this;
+        }
+        
+        template <typename Archive> 
+        void serialize(const Archive& ar) {
+            ar & bc;
+        };
+
+        /// Translates code into human readable string
+
+        /// @param code Code for boundary condition
+        /// @return String describing boundary condition code
+        static const char* code_as_string(int code) {
+            static const char* codes[] = {"zero","periodic","free","Dirichlet","Neumann","dunno"};
+            MADNESS_ASSERT(is_valid_bc_code(code));
+            return codes[code];
+        }
+    };
+    
+
+    template <int NDIM>
+    static 
+    inline
+    std::ostream& operator << (std::ostream& s, const BoundaryConds<NDIM>& bc) {
+        s << "BoundaryConditions(";
+        for (int d=0; d<NDIM; d++) {
+            s << bc.code_as_string(bc(d,0)) << ":" << bc.code_as_string(bc(d,1));
+            if (d == NDIM-1) 
+                s << ")";
+            else
+                s << ", ";
+        }
+        return s;
+    }
+
     /// FunctionDefaults holds default paramaters as static class members
 
     /// Declared and initialized in mra.cc and/or funcimpl::initialize.
@@ -74,9 +223,9 @@ namespace madness {
         static bool autorefine;        ///< Whether to autorefine in multiplication, etc.
         static bool debug;             ///< Controls output of debug info
         static bool truncate_on_project; ///< If true initial projection inserts at n-1 not n
-        static bool apply_randomize;   /// If true use randomization for load balancing in apply integral operator
-        static bool project_randomize; /// If true use randomization for load balancing in project/refine
-        static Tensor<int> bc;         ///< bc[NDIM][2] Boundary conditions -- zero(0) or periodic(1)
+        static bool apply_randomize;   ///< If true use randomization for load balancing in apply integral operator
+        static bool project_randomize; ///< If true use randomization for load balancing in project/refine
+        static BoundaryConds<NDIM> bc; ///< Default boundary conditions
         static Tensor<double> cell ;   ///< cell[NDIM][2] Simulation cell, cell(0,0)=xlo, cell(0,1)=xhi, ...
         static Tensor<double> cell_width;///< Width of simulation cell in each dimension
         static Tensor<double> rcell_width; ///< Reciprocal of width
@@ -231,15 +380,14 @@ namespace madness {
             project_randomize=value;
         }
 
-        /// Soon to meet the dust
-        static const Tensor<int>& get_bc() {
+        /// Returns the default boundary conditions
+        static const BoundaryConds<NDIM>& get_bc() {
             return bc;
         }
 
-        /// Soon to meet the dust
-        static void set_bc(const Tensor<int>& value) {
-            bc=copy(value);
-            MADNESS_ASSERT(bc.dim(0)==NDIM && bc.dim(1)==2 && bc.ndim()==2);
+        /// Sets the default boundary conditions
+        static void set_bc(const BoundaryConds<NDIM>& value) {
+            bc=value;
         }
 
         /// Gets the user cell for the simulation

@@ -594,7 +594,7 @@ void test_diff(World& world) {
 
     for (int axis=0; axis<NDIM; axis++) {
         if (world.rank() == 0) print("doing axis", axis);
-        FreeSpaceDerivative<T,NDIM> D(world, FunctionDefaults<NDIM>::get_k(), axis);
+        FreeSpaceDerivative<T,NDIM> D(world, axis);
 
         DerivativeGaussian<T,NDIM> df(origin,expnt,coeff,axis);
 

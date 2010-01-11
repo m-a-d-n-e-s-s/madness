@@ -51,177 +51,40 @@
 
 namespace madness {
     
-    /*!
-      This class is used to specify boundary conditions for all operators
-
-      It contains, Tensor<int> bc, which holds the Boundary Condition
-      flags, and methods for checking that bc has the correct
-      dimensions, and that the integer codes in bc are supported and
-      consistent.
-      
-      For periodic codes the is_valid_bc method checks that both
-      boundaries have the periodic flag.
-     
-     */
-    template<int NDIM>
-    class BoundaryConds { 
-    private: 
-        Tensor<int> bc;         ///< Holds the boundary flags (WHAT VALUES MEAN WHAT?)
-        
-        static bool is_valid_bc_code(const int code) {
-            return (0<=code) && (code<=5);
-        }
-        
-        static bool is_valid_bc(const Tensor<int>& bc){
-            if (bc.dim(0)!=NDIM || bc.dim(1)!=2 || bc.ndim()!=2) return false;
-            for(int i=0; i<NDIM ; ++i) {
-                if (!(is_valid_bc_code(bc(i,0)) && is_valid_bc_code(bc(i,1)))) return false;
-                if (bc(i,0)==1 && bc(i,1)!=1) return false;  // both sides should be periodic
-            }
-            return true;
-        }
-        
-    public:
-        
-        /// Constructor. Default boundary condition set to periodic
-        BoundaryConds(int code=1) 
-            : bc(NDIM,2)
-        {
-            if (!is_valid_bc_code(code)) {
-                MADNESS_EXCEPTION("BoundaryConds: invalid boundary condition", code);
-            } 
-            bc = code;
-        }
-        
-        /// Copy constructor is deep
-        BoundaryConds(const BoundaryConds<NDIM>& other)
-            : bc(copy(other.bc))
-        {}
-
-        /// General constructor (takes deep copy of bc)
-        BoundaryConds(const Tensor<int>& bc) 
-            : bc(copy(bc))
-        {
-            if(!is_valid_bc(bc)) {
-                MADNESS_EXCEPTION("BoundaryConds: invalid boundary condition",0);
-            }
-        }
-        
-        /// Accessor for tensor of boundary conditions
-
-        /// @return Tensor of boundary conditions
-        const Tensor<int>& get_bc() const {
-            return bc;
-        }
-        
-        /// Returns value of boundary condition
-
-        /// @param d Dimension (0,...,NDIM-1) for boundary condition
-        /// @param i Side (0=left, 1=right) for boundary condition
-        /// @return Value of boundary condition
-        int operator()(int d, int i) const {
-            MADNESS_ASSERT(d>=0 && d<NDIM && i>=0 && i<2);
-            return bc(d,i) ;
-        }
-
-        /// Returns non-const reference to value of boundary condition 
-
-        /// @param d Dimension (0,...,NDIM-1) for boundary condition
-        /// @param i Side (0=left, 1=right) for boundary condition
-        /// @return Value of boundary condition
-        int& operator()(int d, int i) {
-            MADNESS_ASSERT(d>=0 && d<NDIM && i>=0 && i<2);
-            return bc(d,i) ;
-        }
-        
-
-        /// Assignment makes deep copy
-        BoundaryConds<NDIM>&
-        operator=(const Tensor<int>& other) {
-            if (!is_valid_bc(other)) {
-                MADNESS_EXCEPTION("operator= : invalid boundary condition",0);
-            }
-            bc = copy(other);
-            return *this;
-        }
-        
-        /// Assignment makes deep copy
-        BoundaryConds<NDIM>&
-        operator=(const BoundaryConds<NDIM>& other) {
-            if (&other != this) {
-                if (!is_valid_bc(other.bc)) {
-                    MADNESS_EXCEPTION("operator= : invalid boundary condition",0);
-                }
-                bc = copy(other.bc);
-            }
-            return *this;
-        }
-        
-        template <typename Archive> 
-        void serialize(const Archive& ar) {
-            ar & bc;
-        };
-
-        /// Translates code into human readable string
-
-        /// @param code Code for boundary condition
-        /// @return String describing boundary condition code
-        static const char* code_as_string(int code) {
-            static const char* codes[] = {"zero","periodic","free","Dirichlet","Neumann","dunno"};
-            MADNESS_ASSERT(is_valid_bc_code(code));
-            return codes[code];
-        }
-    };
-    
-    template <int NDIM>
-    static 
-    inline
-    std::ostream& operator << (std::ostream& s, const BoundaryConds<NDIM>& bc) {
-        s << "BoundaryConditions(";
-        for (int d=0; d<NDIM; d++) {
-            s << bc.code_as_string(bc(d,0)) << ":" << bc.code_as_string(bc(d,1));
-            if (d == NDIM-1) 
-                s << ")";
-            else
-                s << ", ";
-        }
-        return s;
-    }
-    
-    
     template <typename T, int NDIM>
     class TreeTraversal : public WorldObject< TreeTraversal<T, NDIM> > {
     protected:
-        World& world ; 
-        const BoundaryConds<NDIM> bc ;
-        const int k          ;  // Number of wavelets of the function
-        const int axis       ;  // Axis along which the operation is performed
+        World& world; 
+        const int axis      ;  // Axis along which the operation is performed
+        const int k         ;  // Number of wavelets of the function
+        const BoundaryConds<NDIM> bc;
         const std::vector<long> vk; ///< (k,...) used to initialize Tensors
         
     public:
-        friend class FunctionImpl<T, NDIM> ;
+        friend class FunctionImpl<T, NDIM>;
         
-        typedef Tensor<T>               tensorT   ;
-        typedef Key<NDIM>               keyT      ;
-        typedef std::pair<keyT,tensorT> argT      ;
-        typedef FunctionImpl<T,NDIM>    implT     ;
-        typedef Function<T,NDIM>        functionT ;
-        typedef WorldContainer<Key<NDIM> , FunctionNode<T, NDIM> > dcT ;
-        typedef FunctionNode<T,NDIM> nodeT ;
+        typedef Tensor<T>               tensorT  ;
+        typedef Key<NDIM>               keyT     ;
+        typedef std::pair<keyT,tensorT> argT     ;
+        typedef FunctionImpl<T,NDIM>    implT    ;
+        typedef Function<T,NDIM>        functionT;
+        typedef WorldContainer<Key<NDIM> , FunctionNode<T, NDIM> > dcT;
+        typedef FunctionNode<T,NDIM> nodeT;
         
         
-        TreeTraversal(World& world, int k, int axis, BoundaryConds<NDIM> bc = BoundaryConds<NDIM>()) 
+        TreeTraversal(World& world, int axis, int k, BoundaryConds<NDIM> bc) 
             : WorldObject< TreeTraversal<T, NDIM> >(world)
             , world(world) 
-            , bc(bc) 
-            , k(k) 
             , axis(axis) 
+            , k(k) 
+            , bc(bc) 
             , vk(NDIM,k)
-        {}
+        {
+            this->process_pending();
+        }
 
         void impldiff(const implT* f, implT* df, bool fence) {
-            typedef std::pair<keyT,tensorT> argT;
-            const dcT& coeffs = f->get_coeffs() ;
+            const dcT& coeffs = f->get_coeffs();
             
             for (typename dcT::const_iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
                 const keyT& key = it->first;
@@ -234,7 +97,7 @@ namespace madness {
                 } 
                 else {
                     // Internal empty node can be safely inserted
-                    df->replace_coeff(key,nodeT(tensorT(),true)) ;
+                    df->replace_coeff(key,nodeT(tensorT(),true));
                 }
             }
             if (fence) world.gop.fence();
@@ -245,7 +108,7 @@ namespace madness {
                               const std::pair<keyT,tensorT>& center,
                               const std::pair<keyT,tensorT>& right) {
             
-            dcT coeffs = f->get_coeffs() ;
+            dcT coeffs = f->get_coeffs();
             ProcessID owner = coeffs.owner(key);
             
             if (owner == world.rank()) {
@@ -274,8 +137,6 @@ namespace madness {
                       const std::pair<keyT,tensorT>& left,
                       const std::pair<keyT,tensorT>& center,
                       const std::pair<keyT,tensorT>& right) {
-            PROFILE_MEMBER_FUNC(TreeTraversal);
-            
             MADNESS_ASSERT(axis>=0 && axis<NDIM);
             
             if (left.second.size()==0 || right.second.size()==0) {
@@ -302,12 +163,12 @@ namespace madness {
         virtual Void do_diff2b(const implT* f, implT* df, const keyT& key,
                                const std::pair<keyT,tensorT>& left,
                                const std::pair<keyT,tensorT>& center,
-                               const std::pair<keyT,tensorT>& right) {return None;} ;
+                               const std::pair<keyT,tensorT>& right) {return None;};
         
         virtual Void do_diff2i(const implT* f, implT* df, const keyT& key,
                                const std::pair<keyT,tensorT>& left,
                                const std::pair<keyT,tensorT>& center,
-                               const std::pair<keyT,tensorT>& right) {return None;} ;
+                               const std::pair<keyT,tensorT>& right) {return None;};
         
         
         /// Differentiate w.r.t. given coordinate (x=0, y=1, ...) with optional fence
@@ -327,10 +188,10 @@ namespace madness {
             
             if (VERIFY_TREE) f.verify_tree();
             
-            functionT df ;  
-            df.set_impl(f,false) ;
+            functionT df;  
+            df.set_impl(f,false);
             
-            impldiff(f.get_impl(), df.get_impl(), fence) ;
+            impldiff(f.get_impl(), df.get_impl(), fence);
             return df;
         }
         
@@ -341,17 +202,15 @@ namespace madness {
         /// Operates on a vector of functions
         std::vector< functionT> 
         operator()(std::vector<functionT> _vf, bool fence=true) {
-            PROFILE_FUNC;
-            
-            std::vector<functionT> dvf(_vf.size() ) ; 
+            std::vector<functionT> dvf(_vf.size() ); 
             
             for (unsigned int i=0; i<_vf.size(); i++)
                 {
-                    dvf[i]= (*this)(_vf[i], false) ;
-                    if (((i+1) % VMRA_CHUNK_SIZE) == 0) world.gop.fence() ;
+                    dvf[i]= (*this)(_vf[i], false);
+                    if (((i+1) % VMRA_CHUNK_SIZE) == 0) world.gop.fence();
                 }
-            if (fence) world.gop.fence() ;
-            return dvf ;
+            if (fence) world.gop.fence();
+            return dvf;
         }
         
         static bool enforce_bc(int bc_left, int bc_right, Level n, Translation& l) {
@@ -397,14 +256,12 @@ namespace madness {
         
         Future< std::pair< Key<NDIM>,Tensor<T> > >
         find_neighbor(const implT* f, const Key<NDIM>& key, int step) const {
-            PROFILE_MEMBER_FUNC(TreeTraversal);
             keyT neigh = neighbor(key, step);
             if (neigh.is_invalid()) {
                 return Future<argT>(argT(neigh,tensorT(vk))); // Zero bc
             }
             else {
                 Future<argT> result;
-                PROFILE_BLOCK(find_neigh_send);
                 f->task(f->get_coeffs().owner(neigh), &implT::sock_it_to_me, neigh, result.remote_ref(world), TaskAttributes::hipri());
                 return result;
             }
@@ -421,33 +278,32 @@ namespace madness {
     template <typename T, int NDIM>
     class Derivative : public TreeTraversal<T, NDIM> {
     public:
-        typedef Tensor<T>               tensorT   ;
-        typedef Key<NDIM>               keyT      ;
-        typedef std::pair<keyT,tensorT> argT      ;
-        typedef FunctionImpl<T,NDIM>    implT     ;
-        typedef Function<T,NDIM>        functionT ;
-        typedef WorldContainer<Key<NDIM> , FunctionNode<T, NDIM> > dcT ;
-        typedef FunctionNode<T,NDIM> nodeT ;
+        typedef Tensor<T>               tensorT  ;
+        typedef Key<NDIM>               keyT     ;
+        typedef std::pair<keyT,tensorT> argT     ;
+        typedef FunctionImpl<T,NDIM>    implT    ;
+        typedef Function<T,NDIM>        functionT;
+        typedef WorldContainer<Key<NDIM> , FunctionNode<T, NDIM> > dcT;
+        typedef FunctionNode<T,NDIM> nodeT;
 
     private:
-        functionT g1      ;  // Function describing the boundary condition on the right side
-        functionT g2      ;  // Function describing the boundary condition on the left side
+        functionT g1     ;  // Function describing the boundary condition on the right side
+        functionT g2     ;  // Function describing the boundary condition on the left side
         
         // Tensors for holding the modified coefficients
-        Tensor<double> rm, r0, rp         ; ///< Blocks of the derivative operator
-        Tensor<double> left_rm, left_r0   ; ///< Blocks of the derivative for the left boundary
-        Tensor<double> right_r0, right_rp ; ///< Blocks of the derivative for the right boundary
-        Tensor<double> bv_left, bv_right  ; ///< Blocks of the derivative operator for the boundary contribution
+        Tensor<double> rm, r0, rp        ; ///< Blocks of the derivative operator
+        Tensor<double> left_rm, left_r0  ; ///< Blocks of the derivative for the left boundary
+        Tensor<double> right_r0, right_rp; ///< Blocks of the derivative for the right boundary
+        Tensor<double> bv_left, bv_right ; ///< Blocks of the derivative operator for the boundary contribution
 
         Void do_diff2b(const implT* f, implT* df, const keyT& key,
                        const std::pair<keyT,tensorT>& left,
                        const std::pair<keyT,tensorT>& center,
                        const std::pair<keyT,tensorT>& right) {
-            PROFILE_MEMBER_FUNC(Derivative);
             Vector<Translation,NDIM> l = key.translation();
-            double lev   = (double) key.level() ;
+            double lev   = (double) key.level();
             
-            tensorT d ;
+            tensorT d;
             
             //left boundary
             if (l[this->axis] == 0) {
@@ -458,15 +314,14 @@ namespace madness {
                              df->parent_to_child(center.second, center.first, key).swapdim(this->axis,0),
                              1, 0, d);
             }
-            else
-                {
-                    d = madness::inner(right_rp,
-                                       df->parent_to_child(left.second, left.first, neighbor(key,-1)).swapdim(this->axis,0),
-                                       1, 0);
-                    inner_result(right_r0,
-                                 df->parent_to_child(center.second, center.first, key).swapdim(this->axis,0),
-                                 1, 0, d);
-                }
+            else {
+                d = madness::inner(right_rp,
+                                   df->parent_to_child(left.second, left.first, neighbor(key,-1)).swapdim(this->axis,0),
+                                   1, 0);
+                inner_result(right_r0,
+                             df->parent_to_child(center.second, center.first, key).swapdim(this->axis,0),
+                             1, 0, d);
+            }
             if (this->axis) d = copy(d.swapdim(this->axis,0)); // make it contiguous
             d.scale(FunctionDefaults<NDIM>::get_rcell_width()[this->axis]*pow(2.0,lev));
             df->replace_coeff(key,nodeT(d,false));
@@ -476,58 +331,52 @@ namespace madness {
             int bc_left  = this->bc(this->axis,0);
             int bc_right = this->bc(this->axis,1);
             
-            Future<argT> found_argT ;
-            tensorT bf, bdry_t ;
+            Future<argT> found_argT;
+            tensorT bf, bdry_t;
             //left boundary
-            if (l[this->axis] == 0) 
-                {
-                    if (bc_left != 1 && bc_left != 2)
-                        {
-                            bf = copy(bv_left) ;
-                            found_argT = g1.get_impl()->find_me(key) ;
-                        }
-                    else
-                        return None ;
+            if (l[this->axis] == 0) {
+                if (bc_left != 1 && bc_left != 2) {
+                    bf = copy(bv_left);
+                    found_argT = g1.get_impl()->find_me(key);
                 }
-            //right boundary
-            else 
-                {
-                    if (bc_right != 1 && bc_right != 2)
-                        {
-                            bf = copy(bv_right) ;
-                            found_argT = g2.get_impl()->find_me(key) ;
-                        }
-                    else
-                        return None ;
+                else {
+                    return None;
                 }
+            }
+            else { //right boundary
+                if (bc_right != 1 && bc_right != 2) {
+                    bf = copy(bv_right);
+                    found_argT = g2.get_impl()->find_me(key);
+                }
+                else {
+                    return None;
+                }
+            }
             
             tensorT gcoeffs = found_argT.get().second;
             
-            if (this->bc.get_bc().dim(0) == 1)           
+            if (this->bc.get_bc().dim(0) == 1) {
                 bdry_t = gcoeffs[0]*bf;
-            else
-                {
-                    tensorT slice_aid(this->k);  //vector of zeros
-                    slice_aid[0] = 1;
-                    tensorT tmp = inner(slice_aid, gcoeffs, 0, this->axis);
-                    bdry_t = outer(bf,tmp);
-                    if (this->axis) bdry_t = copy(bdry_t.cycledim(this->axis,0,this->axis)); // make it contiguous
-                }
+            }
+            else {
+                tensorT slice_aid(this->k);  //vector of zeros
+                slice_aid[0] = 1;
+                tensorT tmp = inner(slice_aid, gcoeffs, 0, this->axis);
+                bdry_t = outer(bf,tmp);
+                if (this->axis) bdry_t = copy(bdry_t.cycledim(this->axis,0,this->axis)); // make it contiguous
+            }
             bdry_t.scale(FunctionDefaults<NDIM>::get_rcell_width()[this->axis]);
             
-            if (l[this->axis]==0)
-                {
-                    if (bc_left == 3)
-                        bdry_t.scale( pow(2.0,lev)) ;
-                }
-            else
-                {
-                    if (bc_right == 3)
-                        bdry_t.scale( pow(2.0,lev)) ;
-                }
+            if (l[this->axis]==0) {
+                if (bc_left == 3)
+                    bdry_t.scale( pow(2.0,lev));
+            }
+            else {
+                if (bc_right == 3)
+                    bdry_t.scale( pow(2.0,lev));
+            }
             
-            bdry_t = bdry_t + d ;
-            
+            bdry_t = bdry_t + d;
             df->replace_coeff(key,nodeT(bdry_t,false));
             
             return None;
@@ -536,8 +385,8 @@ namespace madness {
         Void do_diff2i(const implT* f, implT*df, const keyT& key,
                        const std::pair<keyT,tensorT>& left,
                        const std::pair<keyT,tensorT>& center,
-                       const std::pair<keyT,tensorT>& right) {
-            PROFILE_MEMBER_FUNC(Derivative);
+                       const std::pair<keyT,tensorT>& right) 
+        {
             tensorT d = madness::inner(rp,
                                        df->parent_to_child(left.second, left.first, neighbor(key,-1)).swapdim(this->axis,0),
                                        1, 0);
@@ -553,8 +402,7 @@ namespace madness {
             return None;
         }
         
-        Void initCoefficients()
-        {
+        void initCoefficients()  {
             r0 = Tensor<double>(this->k,this->k);
             rp = Tensor<double>(this->k,this->k);
             rm = Tensor<double>(this->k,this->k);
@@ -566,8 +414,8 @@ namespace madness {
             right_rp = Tensor<double>(this->k,this->k);
             
             // These are the coefficients for the boundary contribution
-            bv_left  = Tensor<double>(this->k) ;
-            bv_right = Tensor<double>(this->k) ;
+            bv_left  = Tensor<double>(this->k);
+            bv_right = Tensor<double>(this->k);
             
             
             int bc_left  = this->bc(this->axis,0);
@@ -591,65 +439,61 @@ namespace madness {
                     rp(i,j) =-0.5*iphase*gammaij;
                     
                     // Constraints on the derivative 
-                    if (bc_left == 4 || bc_left == 5)
-                        {
-                            left_rm(i,j) = jphase*gammaij*0.5*(1.0 + iphase*kphase/this->k); 
+                    if (bc_left == 4 || bc_left == 5) {
+                        left_rm(i,j) = jphase*gammaij*0.5*(1.0 + iphase*kphase/this->k); 
+                        
+                        double phi_tmpj_left = 0;
+                        
+                        for (int l=0; l<this->k; l++) {
+                            double gammalj = sqrt(double((2*l+1)*(2*j+1)));
+                            double Klj;
                             
-                            double phi_tmpj_left = 0;
+                            if (((l-j)>0) && (((l-j)%2)==1))  Klj = 2.0;
+                            else   Klj = 0.0;
                             
-                            for (int l=0; l<this->k; l++) {
-                                double gammalj = sqrt(double((2*l+1)*(2*j+1)));
-                                double Klj;
-                                
-                                if (((l-j)>0) && (((l-j)%2)==1))  Klj = 2.0;
-                                else   Klj = 0.0;
-                                
-                                phi_tmpj_left += sqrt(double(2*l+1))*Klj*gammalj;
-                            }
-                            phi_tmpj_left = -jphase*phi_tmpj_left;
-                            left_r0(i,j) = (0.5*(1.0 + iphase*kphase/this->k) - Kij)*gammaij + iphase*sqrt(double(2*i+1))*phi_tmpj_left/pow(this->k,2.) ;
+                            phi_tmpj_left += sqrt(double(2*l+1))*Klj*gammalj;
                         }
-                    else if (bc_left == 0 || bc_left == 3 || bc_left == 2)
-                        {
-                            left_rm(i,j) = rm(i,j) ;
-                            
-                            // B.C. with a function
-                            if (bc_left == 0 || bc_left == 3)
-                                left_r0(i,j) = (0.5 - Kij)*gammaij;
-                            
-                            // No B.C.
-                            else if (bc_left == 2)
-                                left_r0(i,j) = (0.5 - iphase*jphase - Kij)*gammaij;
-                        }
+                        phi_tmpj_left = -jphase*phi_tmpj_left;
+                        left_r0(i,j) = (0.5*(1.0 + iphase*kphase/this->k) - Kij)*gammaij + iphase*sqrt(double(2*i+1))*phi_tmpj_left/pow(this->k,2.);
+                    }
+                    else if (bc_left == 0 || bc_left == 3 || bc_left == 2) {
+                        left_rm(i,j) = rm(i,j);
+                        
+                        // B.C. with a function
+                        if (bc_left == 0 || bc_left == 3)
+                            left_r0(i,j) = (0.5 - Kij)*gammaij;
+                        
+                        // No B.C.
+                        else if (bc_left == 2)
+                            left_r0(i,j) = (0.5 - iphase*jphase - Kij)*gammaij;
+                    }
                     
                     // Constraints on the derivative
-                    if (bc_right == 4 || bc_right == 5)
-                        {
-                            right_rp(i,j) = -0.5*(iphase + kphase / this->k)*gammaij;
-                            
-                            double phi_tmpj_right = 0;
-                            for (int l=0; l<this->k; l++) {
-                                double gammalj = sqrt(double((2*l+1)*(2*j+1)));
-                                double Klj;
-                                if (((l-j)>0) && (((l-j)%2)==1))  Klj = 2.0;
-                                else   Klj = 0.0;
-                                phi_tmpj_right += sqrt(double(2*l+1))*Klj*gammalj;
-                            }
-                            right_r0(i,j) = -(0.5*jphase*(iphase+ kphase/this->k) + Kij)*gammaij + sqrt(double(2*i+1))*phi_tmpj_right/pow(this->k,2.) ;
+                    if (bc_right == 4 || bc_right == 5) {
+                        right_rp(i,j) = -0.5*(iphase + kphase / this->k)*gammaij;
+                        
+                        double phi_tmpj_right = 0;
+                        for (int l=0; l<this->k; l++) {
+                            double gammalj = sqrt(double((2*l+1)*(2*j+1)));
+                            double Klj;
+                            if (((l-j)>0) && (((l-j)%2)==1))  Klj = 2.0;
+                            else   Klj = 0.0;
+                            phi_tmpj_right += sqrt(double(2*l+1))*Klj*gammalj;
                         }
-                    else if (bc_right == 0 || bc_right == 2 || bc_right == 3)
-                        {
-                            right_rp(i,j) = rp(i,j) ;
-                            
-                            // Zero BC
-                            if (bc_right == 0 || bc_right == 3)
-                                right_r0(i,j) = -(0.5*iphase*jphase + Kij)*gammaij;
-                            
-                            // No BC
-                            else if (bc_right == 2)
-                                right_r0(i,j) = (1.0 - 0.5*iphase*jphase - Kij)*gammaij; 
-                            
-                        }
+                        right_r0(i,j) = -(0.5*jphase*(iphase+ kphase/this->k) + Kij)*gammaij + sqrt(double(2*i+1))*phi_tmpj_right/pow(this->k,2.);
+                    }
+                    else if (bc_right == 0 || bc_right == 2 || bc_right == 3) {
+                        right_rp(i,j) = rp(i,j);
+                        
+                        // Zero BC
+                        if (bc_right == 0 || bc_right == 3)
+                            right_r0(i,j) = -(0.5*iphase*jphase + Kij)*gammaij;
+                        
+                        // No BC
+                        else if (bc_right == 2)
+                            right_r0(i,j) = (1.0 - 0.5*iphase*jphase - Kij)*gammaij; 
+                        
+                    }
                     
                     jphase = -jphase;
                 }
@@ -666,23 +510,26 @@ namespace madness {
                 else if(bc_left == 5)
                     bv_left(i) = -iphase*sqrt(double(2*i+1))/pow(this->k,2);  // vector for left deriv BC
                 else
-                    bv_left(i) = 0.0 ;
+                    bv_left(i) = 0.0;
                 
                 if (bc_right == 3)
                     bv_right(i) = sqrt(double(2*i+1));                  // vector for right dirichlet BC
                 else if (bc_right == 5)
                     bv_right(i) = sqrt(double(2*i+1))/pow(this->k,2);         // vector for right deriv BC 
                 else
-                    bv_right(i) = 0.0 ;
+                    bv_right(i) = 0.0;
             }
-            
-            return None ;
         }
         
     public:
-
-        Derivative(World& world, int k, int axis, const BoundaryConds<NDIM>& bc, functionT g1=functionT(), functionT g2=functionT()) 
-            :  TreeTraversal<T, NDIM>(world, k, axis, bc) 
+        
+        Derivative(World& world, 
+                   int axis, 
+                   int k=FunctionDefaults<NDIM>::get_k(), 
+                   const BoundaryConds<NDIM>& bc=FunctionDefaults<NDIM>::get_bc(), 
+                   functionT g1=functionT(), 
+                   functionT g2=functionT()) 
+            :  TreeTraversal<T, NDIM>(world, axis, k, bc) 
             , g1(g1) 
             , g2(g2) 
         {
@@ -696,18 +543,18 @@ namespace madness {
     template <typename T, int NDIM>
     class FreeSpaceDerivative : public Derivative<T, NDIM> {
     public:
-        FreeSpaceDerivative(World& _world, int _k, int _axis) 
-            :  Derivative<T, NDIM>(_world, _k, _axis, Tensor<int>(NDIM,2).fill(2)) 
+        FreeSpaceDerivative(World& world, int axis, int k=FunctionDefaults<NDIM>::get_k()) 
+            :  Derivative<T, NDIM>(world, axis, k, Tensor<int>(NDIM,2).fill(2)) 
         {}
-    } ;
+    };
     
     template <typename T, int NDIM>
     class PeriodicDerivative : public Derivative<T, NDIM> {
     public:
-        PeriodicDerivative(World& world, int k, int axis) 
-            : Derivative<T, NDIM>(world, k, axis, Tensor<int>(NDIM,2).fill(1)) 
+        PeriodicDerivative(World& world, int axis, int k=FunctionDefaults<NDIM>::get_k()) 
+            : Derivative<T, NDIM>(world, axis, k, Tensor<int>(NDIM,2).fill(1)) 
         {}
-    } ;
+    };
     
     
     namespace archive {

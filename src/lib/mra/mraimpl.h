@@ -1136,8 +1136,8 @@ namespace madness {
 
     template <int NDIM>
     void FunctionDefaults<NDIM>::set_defaults(World& world) {
-        k = 7;
-        thresh = 1e-5;
+        k = 6;
+        thresh = 1e-4;
         initial_level = 2;
         max_refine_level = 30;
         truncate_mode = 0;
@@ -1147,7 +1147,7 @@ namespace madness {
         truncate_on_project = false;
         apply_randomize = false;
         project_randomize = false;
-        bc = Tensor<int>(NDIM,2);
+        bc = BoundaryConds<NDIM>(0);
         cell = Tensor<double>(NDIM,2);
         cell(_,1) = 1.0;
         recompute_cell_info();
@@ -1171,7 +1171,7 @@ namespace madness {
     template <int NDIM> bool FunctionDefaults<NDIM>::truncate_on_project;
     template <int NDIM> bool FunctionDefaults<NDIM>::apply_randomize;
     template <int NDIM> bool FunctionDefaults<NDIM>::project_randomize;
-    template <int NDIM> Tensor<int> FunctionDefaults<NDIM>::bc;
+    template <int NDIM> BoundaryConds<NDIM> FunctionDefaults<NDIM>::bc;
     template <int NDIM> Tensor<double> FunctionDefaults<NDIM>::cell;
     template <int NDIM> Tensor<double> FunctionDefaults<NDIM>::cell_width;
     template <int NDIM> Tensor<double> FunctionDefaults<NDIM>::rcell_width;
