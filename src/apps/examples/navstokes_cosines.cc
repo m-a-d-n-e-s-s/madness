@@ -1,1 +1,0 @@
-../nse/navstokes_cosines.cc
