@@ -110,10 +110,6 @@ namespace madness {
     private:
         static FunctionCommonData<T, NDIM> data[MAXK + 1]; /// Declared in mra.cc, initialized on first use
 
-        /// Private.  Make the level-0 blocks of the periodic central difference derivative operator
-        void
-        _make_dc_periodic();
-
         /// Private.  Initialize the twoscale coefficients
         void
         _init_twoscale();
@@ -143,7 +139,6 @@ namespace madness {
             _init_twoscale();
             _init_quadrature(k, npt, quad_x, quad_w, quad_phi, quad_phiw,
                              quad_phit);
-            _make_dc_periodic();
             initialized = true;
         }
 
@@ -942,17 +937,6 @@ namespace madness {
         /// Currently used by diff, but other uses can be anticipated
         const tensorT parent_to_child(const tensorT& s, const keyT& parent, const keyT& child) const;
 
-/*
-        ///Change bv on the fly. Temporary workaround until better bc handling is introduced.
-        void set_bc(const Tensor<int>& value) {
-            bc=copy(value);
-            MADNESS_ASSERT(bc.dim(0)==NDIM && bc.dim(1)==2 && bc.ndim()==2);
-        }
-
-        const Tensor<int>& get_bc() const {
-            return bc;
-        }
-*/
 
 	/// Returns the box at level n that contains the given point in simulation coordinates
         Key<NDIM> simpt2key(const coordT& pt, Level n) const {
@@ -1802,14 +1786,6 @@ namespace madness {
         /// If autorefining, may result in asynchronous communication.
         void square_inplace(bool fence);
 
-/*
-        /// Differentiation of function with optional global fence
-
-        /// Result of differentiating f is placed into this which will
-        /// have the same process map, etc., as f
-        void diff(const implT& f, int axis, bool fence);
-*/
-
         Void sum_down_spawn(const keyT& key, const tensorT& s) {
             typename dcT::accessor acc;
             coeffs.insert(acc,key);
@@ -1956,32 +1932,6 @@ namespace madness {
         /// find_me. Called by diff_bdry to get coefficients of boundary function
         Future< std::pair<keyT,tensorT> > find_me(const keyT& key) const;
 
-/*
-        /// Used by diff1 to forward calls to diff1 elsewhere
-
-        /// We cannot send a not ready future to another process
-        /// so we send an active message to schedule the remote task.
-        ///
-        /// Local tasks that might produce additional communication
-        /// are scheduled with high priority and plain-old compute
-        /// tasks get normal priority.  This is an attempt to get all
-        /// of the communication and adaptive refinement happening
-        /// in parallel to productive computation.
-        Void forward_do_diff1(const implT* f, int axis, const keyT& key,
-                              const std::pair<keyT,tensorT>& left,
-                              const std::pair<keyT,tensorT>& center,
-                              const std::pair<keyT,tensorT>& right);
-
-        Void do_diff1(const implT* f, int axis, const keyT& key,
-                      const std::pair<keyT,tensorT>& left,
-                      const std::pair<keyT,tensorT>& center,
-                      const std::pair<keyT,tensorT>& right);
-
-        Void do_diff2(const implT* f, int axis, const keyT& key,
-                      const std::pair<keyT,tensorT>& left,
-                      const std::pair<keyT,tensorT>& center,
-                      const std::pair<keyT,tensorT>& right);
-*/
 
         /// Permute the dimensions according to map
         void mapdim(const implT& f, const std::vector<long>& map, bool fence);

@@ -591,13 +591,15 @@ void test_diff(World& world) {
     f.reconstruct();
     END_TIMER("reconstruct");
 
-/*
+
     for (int axis=0; axis<NDIM; axis++) {
         if (world.rank() == 0) print("doing axis", axis);
+        FreeSpaceDerivative<T,NDIM> D(world, FunctionDefaults<NDIM>::get_k(), axis);
+
         DerivativeGaussian<T,NDIM> df(origin,expnt,coeff,axis);
 
         START_TIMER;
-        //Function<T,NDIM> dfdx = diff(f,axis);
+        Function<T,NDIM> dfdx = D(f);
         END_TIMER("diff");
 
 //         coordT p(0.0);
@@ -615,7 +617,6 @@ void test_diff(World& world) {
 
         if (world.rank() == 0) print("    error", err);
     }
-*/
     world.gop.fence();
 }
 

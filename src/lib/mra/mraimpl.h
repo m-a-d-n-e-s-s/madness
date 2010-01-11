@@ -53,53 +53,6 @@ namespace madness {
     // set the defaults independent of the data type.
 
     template <typename T, int NDIM>
-    void FunctionCommonData<T,NDIM>::_make_dc_periodic() {
-/*
-        // See ABGV for details
-        r0 = Tensor<double>(k,k);
-        rp = Tensor<double>(k,k);
-        rm = Tensor<double>(k,k);
-
-        double iphase = 1.0;
-        for (int i=0; i<k; i++) {
-            double jphase = 1.0;
-            for (int j=0; j<k; j++) {
-                double gammaij = sqrt(double((2*i+1)*(2*j+1)));
-                double Kij;
-                if (((i-j)>0) && (((i-j)%2)==1))
-                    Kij = 2.0;
-                else
-                    Kij = 0.0;
-
-                r, k) ;0(i,j) = 0.5*(1.0 - iphase*jphase - 2.0*Kij)*gammaij;
-                rm(i,j) = 0.5*jphase*gammaij;
-                rp(i,j) =-0.5*iphase*gammaij;
-                jphase = -jphase;
-            }
-            iphase = -iphase;
-        }
-
-        // Make the rank-1 forms of rm and rp
-        rm_left = Tensor<double>(k);
-        rm_right = Tensor<double>(k);
-        rp_left = Tensor<double>(k);
-        rp_right = Tensor<double>(k);
-
-        iphase = 1.0;
-        for (int i=0; i<k; i++) {
-            double gamma = sqrt(0.5*(2*i+1));
-            rm_left(i)  = rp_right(i) = gamma;
-            rm_right(i) = rp_left(i)  = gamma*iphase;
-            iphase *= -1.0;
-        }
-        rp_left.scale(-1.0);
-
-//         Tensor<double> rm_test = outer(rm_left,rm_right);
-//         Tensor<double> rp_test = outer(rp_left,rp_right);
-         */
-    }
-
-    template <typename T, int NDIM>
     void FunctionCommonData<T,NDIM>::_init_twoscale() {
         if (! two_scale_hg(k, &hg)) throw "failed to get twoscale coefficients";
         hgT = transpose(hg);
@@ -864,29 +817,6 @@ namespace madness {
     }
 
 
-/*
-    template <typename T, int NDIM>
-    void FunctionImpl<T,NDIM>::diff(const implT& f, int axis, bool fence) {
-        PROFILE_MEMBER_FUNC(FunctionImpl);
-        typedef std::pair<keyT,tensorT> argT;
-        for (typename dcT::const_iterator it=f.coeffs.begin(); it!=f.coeffs.end(); ++it) {
-            const keyT& key = it->first;
-            const nodeT& node = it->second;
-            if (node.has_coeff()) {
-                Future<argT> left = f.find_neighbor(key,axis,-1);
-                argT center(key,node.coeff());
-                Future<argT> right  = f.find_neighbor(key,axis, 1);
-                task(world.rank(), &implT::do_diff1, &f, axis, key, left, center, right, TaskAttributes::hipri());
-            }
-            else {
-                // Internal empty node can be safely inserted
-                coeffs.replace(key,nodeT(tensorT(),true));
-            }
-        }
-        if (fence) world.gop.fence();
-    }
-*/
-
     static bool enforce_bc(bool is_periodic, Level n, Translation& l) {
     //static bool enforce_bc(int bc_left, int bc_right, Level n, Translation& l) {
         Translation two2n = 1ul << n;
@@ -927,22 +857,6 @@ namespace madness {
         }
         return true;
     }
-/*
-
-    template <typename T, int NDIM>
-    Key<NDIM> FunctionImpl<T,NDIM>::neighbor(const keyT& key, int axis, int step) const {
-        Vector<Translation,NDIM> l = key.translation();
-
-        l[axis] += step;
-
-        if (!enforce_bc(bc(axis,0), bc(axis,1), key.level(), l[axis])) {
-            return keyT::invalid();
-        }
-        else {
-            return keyT(key.level(),l);
-        }
-    }
-*/
 
     template <typename T, int NDIM>
     Key<NDIM> FunctionImpl<T,NDIM>::neighbor(const keyT& key, const Key<NDIM>& disp, const std::vector<bool>& is_periodic) const {
@@ -959,24 +873,6 @@ namespace madness {
         return keyT(key.level(),l);
     }
 
-/*
-    template <typename T, int NDIM>
-    Future< std::pair< Key<NDIM>,Tensor<T> > >
-    FunctionImpl<T,NDIM>::find_neighbor(const Key<NDIM>& key, int axis, int step) const {
-        PROFILE_MEMBER_FUNC(FunctionImpl);
-        typedef std::pair< Key<NDIM>,Tensor<T> > argT;
-        keyT neigh = neighbor(key, axis, step);
-        if (neigh.is_invalid()) {
-            return Future<argT>(argT(neigh,tensorT(cdata.vk))); // Zero bc
-        }
-        else {
-            Future<argT> result;
-            PROFILE_BLOCK(find_neigh_send);
-            task(coeffs.owner(neigh), &implT::sock_it_to_me, neigh, result.remote_ref(world), TaskAttributes::hipri());
-            return result;
-        }
-    }
-*/
 
    template <typename T, int NDIM>
     Future< std::pair< Key<NDIM>,Tensor<T> > >
@@ -989,85 +885,6 @@ namespace madness {
         return result;
     }
 
-/*
-    template <typename T, int NDIM>
-    Void FunctionImpl<T,NDIM>::forward_do_diff1(const implT* f, int axis, const keyT& key,
-            const std::pair<keyT,tensorT>& left,
-            const std::pair<keyT,tensorT>& center,
-            const std::pair<keyT,tensorT>& right) {
-        PROFILE_MEMBER_FUNC(FunctionImpl);
-        ProcessID owner = coeffs.owner(key);
-        if (owner == world.rank()) {
-            if (left.second.size() == 0) {
-                task(owner, &implT::do_diff1, f, axis, key, f->find_neighbor(key,axis,-1), center, right, TaskAttributes::hipri());
-            }
-            else if (right.second.size() == 0) {
-                task(owner, &implT::do_diff1, f, axis, key, left, center, f->find_neighbor(key,axis,1), TaskAttributes::hipri());
-            }
-            else {
-                task(owner, &implT::do_diff2, f, axis, key, left, center, right);
-            }
-        }
-        else {
-            task(owner, &implT::forward_do_diff1, f, axis, key, left, center, right, TaskAttributes::hipri());
-        }
-        return None;
-    }
-
-    template <typename T, int NDIM>
-    Void FunctionImpl<T,NDIM>::do_diff1(const implT* f, int axis, const keyT& key,
-                                        const std::pair<keyT,tensorT>& left,
-                                        const std::pair<keyT,tensorT>& center,
-                                        const std::pair<keyT,tensorT>& right) {
-        PROFILE_MEMBER_FUNC(FunctionImpl);
-        typedef std::pair<keyT,tensorT> argT;
-
-        MADNESS_ASSERT(axis>=0 && axis<NDIM);
-
-        if (left.second.size()==0 || right.second.size()==0) {
-            // One of the neighbors is below us in the tree ... recur down
-            coeffs.replace(key,nodeT(tensorT(),true));
-            for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
-                const keyT& child = kit.key();
-                if ((child.translation()[axis]&1) == 0) {
-                    // leftmost child automatically has right sibling
-                    forward_do_diff1(f, axis, child, left, center, center);
-                }
-                else {
-                    // rightmost child automatically has left sibling
-                    forward_do_diff1(f, axis, child, center, center, right);
-                }
-            }
-        }
-        else {
-            forward_do_diff1(f, axis, key, left, center, right);
-        }
-        return None;
-    }
-
-    template <typename T, int NDIM>
-    Void FunctionImpl<T,NDIM>::do_diff2(const implT* f, int axis, const keyT& key,
-                                        const std::pair<keyT,tensorT>& left,
-                                        const std::pair<keyT,tensorT>& center,
-                                        const std::pair<keyT,tensorT>& right) {
-        PROFILE_MEMBER_FUNC(FunctionImpl);
-        typedef std::pair<keyT,tensorT> argT;
-
-        tensorT d = madness::inner(cdata.rp,
-                                   parent_to_child(left.second, left.first, neighbor(key,axis,-1)).swapdim(axis,0),
-                                   1, 0);
-        inner_result(cdata.r0,
-                     parent_to_child(center.second, center.first, key).swapdim(axis,0),
-                     1, 0, d);
-        inner_result(cdata.rm,
-                     parent_to_child(right.second, right.first, neighbor(key,axis,1)).swapdim(axis,0),
-                     1, 0, d);
-        if (axis) d = copy(d.swapdim(axis,0)); // make it contiguous
-        d.scale(FunctionDefaults<NDIM>::get_rcell_width()[axis]*pow(2.0,(double) key.level()));
-        coeffs.replace(key,nodeT(d,false));
-        return None;
-    }
-*/
 
     template <typename T, int NDIM>
     void FunctionImpl<T,NDIM>::mapdim(const implT& f, const std::vector<long>& map, bool fence) {
