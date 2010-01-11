@@ -41,9 +41,9 @@
   \file mra/mra.h
   \brief Main include file for MADNESS and defines \c Function interface
 
-  \ingroup mra
- @{
- */
+  \addtogroup mra
+ 
+*/
 
 
 #include <world/world.h>
@@ -71,7 +71,8 @@ namespace madness {
 #include <mra/loadbal.h>
 
 namespace madness {
-    /// \ingroup function
+	/// \ingroup mra
+    /// \addtogroup function
 
     /// A multiresolution adaptive numerical function
     template <typename T, int NDIM>
@@ -171,6 +172,10 @@ namespace madness {
 
         /// Set eval_refine=true to return the refinment levels of 
         /// the given function.
+		
+		/// @param[in] cell A Tensor describe the cube where the function to be evaluated in
+		/// @param[in] npt How many points to evaluate in each dimension
+		/// @param[in] refine Wether to return the refinment levels of the given function
         Tensor<T> eval_cube(const Tensor<double>& cell, 
                             const std::vector<long>& npt,
                             bool eval_refine = false) const {
@@ -231,6 +236,7 @@ namespace madness {
         /// reconstructed, it throws an exception.  To get the global
         /// value either do a global sum of the local values or call
         /// errsq
+		/// @param[in] func Templated interface to the a user specified function
         template <typename funcT>
         double errsq_local(const funcT& func) const {
             PROFILE_MEMBER_FUNC(Function);
@@ -245,6 +251,7 @@ namespace madness {
         /// If the function is compressed, it is reconstructed first.  For efficient use
         /// especially with many functions, reconstruct them all first, and use errsq_local
         /// instead so you can perform a global sum on all at the same time.
+		/// @param[in] func Templated interface to the a user specified function
         template <typename funcT>
         double err(const funcT& func) const {
             PROFILE_MEMBER_FUNC(Function);
@@ -369,6 +376,7 @@ namespace madness {
         /// If the function is not initialized, it just returns.
         ///
         /// Returns this for chaining.
+		/// @param[in] tol Tolerance for truncating the coefficients. Default 0.0 means use the implimentation's member value \c thresh instead.
         Function<T,NDIM>& truncate(double tol = 0.0, bool fence = true) {
             PROFILE_MEMBER_FUNC(Function);
             if (!impl) return *this;
@@ -490,7 +498,14 @@ namespace madness {
             impl->compress(true, keepleaves, fence);
         }
 
+        /// Converts the function from nonstandard form to standard form.  Possible non-blocking comm.
 
+        /// By default fence=true meaning that this operation completes before returning,
+        /// otherwise if fence=false it returns without fencing and the user must invoke
+        /// world.gop.fence() to assure global completion before using the function
+        /// for other purposes.
+        ///
+        /// Must be already compressed.
         void standard(bool fence = true) {
             PROFILE_MEMBER_FUNC(Function);
             verify();

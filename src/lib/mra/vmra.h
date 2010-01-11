@@ -33,8 +33,12 @@
 #ifndef MADNESS_MRA_VMRA_H__INCLUDED
 #define MADNESS_MRA_VMRA_H__INCLUDED
 
-/// \file vmra.h
-/// \brief Defines operations on vectors of Functions
+/*!
+	\file vmra.h
+	\brief Defines operations on vectors of Functions
+	\ingroup mra
+
+*/
 
 #include <mra/mra.h>
 #include <cstdio>
