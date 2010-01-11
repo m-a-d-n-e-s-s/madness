@@ -37,7 +37,7 @@
 /*!
   \file examples/nonlinsol.h
   \brief Example implementation of Krylov-subspace nonlinear equation solver 
-  \defgroup nonlinearsolve
+  \defgroup nonlinearsolve Simple Krylov-subspace nonlinear equation solver 
   \ingroup examples
  */
 

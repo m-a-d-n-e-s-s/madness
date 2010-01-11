@@ -64,7 +64,7 @@
 
   The quadrature collocation method is based on the semi-group form of the equation 
   \f[
-     \psi(x,t) = \psi(x,0) * G(x,t) - \int_0^t V(x,s) \cdot \psi(x,s) * G(x,t-s) \ds 
+     \psi(x,t) = \psi(x,0) * G(x,t) - \int_0^t V(x,s) \cdot \psi(x,s) * G(x,t-s) ds 
   \f]
   where \f$ G \f$ is the Green's function/free-particle propagator
   \f[
@@ -79,11 +79,11 @@
 
   The fixed-point iteration is applied to the correction term of the semi-group formulation,
  \f[
-     \psi^{m+1}(x,t) - \psi^{m}(x,t) = - \int_0^t V(x,s) \cdot ( \psi^{m}(x,s) - \psi^{m-1}(x,s)) * G(x,t-s) \ds 
+     \psi^{m+1}(x,t) - \psi^{m}(x,t) = - \int_0^t V(x,s) \cdot ( \psi^{m}(x,s) - \psi^{m-1}(x,s)) * G(x,t-s) ds 
  \f] 
  or
    \f[
-     \delta^{m+1}(x,t) = - \int_0^t V(x,s) \cdot  \delta^{m}(x,s) * G(x,t-s) \ds 
+     \delta^{m+1}(x,t) = - \int_0^t V(x,s) \cdot  \delta^{m}(x,s) * G(x,t-s) ds 
  \f]
  where \f$ \delta^m \f$ is the \f$ m_{th} \f$ correction term.
 
