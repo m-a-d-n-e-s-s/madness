@@ -30,8 +30,69 @@
   
   $Id$
 */
-/// \file tdse1d.cc
-/// \brief Example propagation of TDSE (translating atom) using various propagators
+
+/*!
+	\file tdse1d.cc
+	\brief Example propagation of TDSE (translating atom) using various propagators
+	\defgroup exampletdse1d Solves a 1D time-dependent Schr&ouml;dinger equation using splitting and semi-group approaches with the free-particle propagator.
+  \ingroup examples
+
+  The source is <a href=http://code.google.com/p/m-a-d-n-e-s-s/source/browse/local/trunk/src/apps/examples/tdse1d.cc >here</a>.
+
+  \par Points of interest
+  - convolution with the Green's function/free-particle propagator
+  - use free-particle propagators construct different schemes to find the solution
+  - collocation methods on quadrature points
+
+  \par Background
+  This illustrates solution of a time-dependent Schr&ouml;dinger equation.
+
+  We solve the following PDE
+  \f[
+  -\nabla^2 \psi(x,t) + V(x,t) \psi(x,t) = i\psi_t(x,t)
+  \f]
+  where the potential is
+  \f[  
+  V(x,t) = -8 \exp((x - v \cdot t)^2) 
+  \f]
+  and the velocity \f$ v \f$ is given in the code.
+  
+  \par Implementation
+
+  Splitting based schemes, such as Trotter and Chin-Chen, can be found in existing literatures.
+  
+
+  The quadrature collocation method is based on the semi-group form of the equation 
+  \f[
+     \psi(x,t) = \psi(x,0) * G(x,t) - \int_0^t V(x,s) \cdot \psi(x,s) * G(x,t-s) \ds 
+  \f]
+  where \f$ G \f$ is the Green's function/free-particle propagator
+  \f[
+     \left( - \frac{d^2}{dx^2} - i \frac{d}{dt} \right) G(x) = \delta(x)).
+  \f]
+
+  To find \f$ \psi(x,t) \f$, all temporal integrals are computed by a \f$n\f$ point Gauss-Legendre quadrature rule and we need to 
+  calculate employ a simple fixed-point iteration to the self-consistent
+  solutions at the \f$n\f$ quadrature points on the intervel \f$ [0,t] \f$. 
+  All \f$ \psi \f$ involved in computing the integrals over the subintervels
+  are interpolated by the \f$n\f$ values on the largest intervel \f$ [0,t] \f$.
+
+  The fixed-point iteration is applied to the correction term of the semi-group formulation,
+ \f[
+     \psi^{m+1}(x,t) - \psi^{m}(x,t) = - \int_0^t V(x,s) \cdot ( \psi^{m}(x,s) - \psi^{m-1}(x,s)) * G(x,t-s) \ds 
+ \f] 
+ or
+   \f[
+     \delta^{m+1}(x,t) = - \int_0^t V(x,s) \cdot  \delta^{m}(x,s) * G(x,t-s) \ds 
+ \f]
+ where \f$ \delta^m \f$ is the \f$ m_{th} \f$ correction term.
+
+  A much more efficient scheme would involve use of a non-linear
+  equation solver instead of simple iteration.
+ 
+ Once we have the solutions at the \f$n\f$ quadrature points on \f$ [0,t] \f$, quadrature rule is used to construct the solution at \f$t\f$.
+
+*/
 
 
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES  
@@ -88,7 +149,7 @@ static double tcrit = 2*constants::pi/(c*c);
 
 static double current_time = 0.0; // Lazy but easier than making functors for everything
 
-/////////////////////////////////// For quadrature rules///////////////////////////////
+/////////////////////////////////// For quadrature collocations ///////////////////////////////
 // global vars for the laziness
 static const double_complex I = double_complex(0,1);
 int np; // number of quadrature pts
@@ -309,7 +370,7 @@ template<typename T> T myp(const std::vector<T>& ps, const double t) {
 }
 
 // Evolve forward one time step using quadrature rules
-complex_function_1d q_r(World& world, const int np, const complex_function_1d psi0, const double tstep) {
+complex_function_1d q_c(World& world, const int np, const complex_function_1d psi0, const double tstep) {
     //can be more vectorized.
     
     std::vector<complex_function_1d> ps(np), ps1(np);
@@ -487,7 +548,7 @@ int main(int argc, char** argv) {
 
         for (int step=0; step<nstep; step++) {
             print_info(world, psi, step);
-            psi = q_r(world, np, psi, tstep);
+            psi = q_c(world, np, psi, tstep);
         }
     }
     
