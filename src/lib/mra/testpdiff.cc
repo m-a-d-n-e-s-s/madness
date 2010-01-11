@@ -93,10 +93,9 @@ int main(int argc, char** argv) {
     functionT f = factoryT(world).f(func);
 
     for (axis=0; axis<NDIM; axis++) {
-      int k = FunctionDefaults<3>::get_k() ; 
-      Derivative<double,NDIM> dx(world, axis, k, bc, f, f) ;
-      functionT df = dx(f) ;
-      print(axis,"error",df.err(FunctorInterfaceWrapper(dfunc)));
+        Derivative<double,NDIM> dx(world, axis, bc);
+        functionT df = dx(f) ;
+        print(axis,"error",df.err(FunctorInterfaceWrapper(dfunc)));
     }
 
     finalize();

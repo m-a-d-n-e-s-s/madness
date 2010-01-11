@@ -1045,11 +1045,11 @@ namespace madness {
         return r;
     }
 
-    static void dxprintvalue(FILE* f, const double t) {
+    static inline void dxprintvalue(FILE* f, const double t) {
         fprintf(f,"%.6e\n",t);
     }
 
-    static void dxprintvalue(FILE* f, const double_complex& t) {
+    static inline void dxprintvalue(FILE* f, const double_complex& t) {
         fprintf(f,"%.6e %.6e\n", t.real(), t.imag());
     }
 

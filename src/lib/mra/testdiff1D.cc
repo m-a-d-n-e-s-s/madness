@@ -96,7 +96,7 @@ int main(int argc, char** argv) {
         bctensor(0,1) = 2 ;
         bdry_cs = bctensor ;
 
-        Derivative<double,1> dx1(world, k, test_axis, bdry_cs, left_d, right_d) ;
+        Derivative<double,1> dx1(world, test_axis, bdry_cs, left_d, right_d, k) ;
         functionT du1 = dx1(u) ;
         compare(du1, due, "du1") ;
 
@@ -106,7 +106,7 @@ int main(int argc, char** argv) {
         bctensor(0,1) = 3 ;
         bdry_cs = bctensor ;
 
-        Derivative<double,1> dx2(world, k, test_axis, bdry_cs, left_d, right_d) ;
+        Derivative<double,1> dx2(world, test_axis, bdry_cs, left_d, right_d, k) ;
         functionT du2 = dx2(u) ;
         compare(du2, due, "du2") ;
 
@@ -116,7 +116,7 @@ int main(int argc, char** argv) {
         bctensor(0,1) = 2 ;
         bdry_cs = bctensor ;
 
-        Derivative<double,1> dx3(world, k, test_axis, bdry_cs, left_n, right_n) ;
+        Derivative<double,1> dx3(world, test_axis, bdry_cs, left_n, right_n, k) ;
         functionT du3 = dx3(u) ;
         compare(du3, due, "du3") ;
 
@@ -126,7 +126,7 @@ int main(int argc, char** argv) {
         bctensor(0,1) = 5 ;
         bdry_cs = bctensor ;
 
-        Derivative<double,1> dx4(world, k, test_axis, bdry_cs, left_n, right_n) ;
+        Derivative<double,1> dx4(world, test_axis, bdry_cs, left_n, right_n, k) ;
         functionT du4 = dx4(u) ;
         compare(du4, due, "du4") ;
 

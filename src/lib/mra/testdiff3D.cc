@@ -151,7 +151,7 @@ int main(int argc, char** argv) {
         bctensor(2,1) = 2 ;
         bdry_cs = bctensor ;
 
-        Derivative<double,3> dx1(world, k, test_axis, bdry_cs, xleft_d, xright_d) ;
+        Derivative<double,3> dx1(world, test_axis, bdry_cs, xleft_d, xright_d, k) ;
         functionT dudx1 = dx1(u) ;
         compare(dudx1, dudxe, "dudx1") ;
 
@@ -161,7 +161,7 @@ int main(int argc, char** argv) {
         bctensor(0,1) = 3 ;
         bdry_cs = bctensor ;
 
-        Derivative<double,3> dx2(world, k, test_axis, bdry_cs, xleft_d, xright_d) ;
+        Derivative<double,3> dx2(world, test_axis, bdry_cs, xleft_d, xright_d, k) ;
         functionT dudx2 = dx2(u) ;
         compare(dudx2, dudxe, "dudx2") ;
 
@@ -171,7 +171,7 @@ int main(int argc, char** argv) {
         bctensor(0,1) = 2 ;
         bdry_cs = bctensor ;
 
-        Derivative<double,3> dx3(world, k, test_axis, bdry_cs, xleft_n, xright_n) ;
+        Derivative<double,3> dx3(world, test_axis, bdry_cs, xleft_n, xright_n, k) ;
         functionT dudx3 = dx3(u) ;
         compare(dudx3, dudxe, "dudx3") ;
 
@@ -181,7 +181,7 @@ int main(int argc, char** argv) {
         bctensor(0,1) = 5 ;
         bdry_cs = bctensor ;
 
-        Derivative<double,3> dx4(world, k, test_axis, bdry_cs, xleft_n, xright_n) ;
+        Derivative<double,3> dx4(world, test_axis, bdry_cs, xleft_n, xright_n, k) ;
         functionT dudx4 = dx4(u) ;
         compare(dudx4, dudxe, "dudx4") ;
 
@@ -199,7 +199,7 @@ int main(int argc, char** argv) {
         bctensor(2,1) = 2 ;
         bdry_cs = bctensor ;
 
-        Derivative<double,3> dy1(world, k, test_axis, bdry_cs, yleft_d, yright_d) ;
+        Derivative<double,3> dy1(world, test_axis, bdry_cs, yleft_d, yright_d, k) ;
         functionT dudy1 = dy1(u) ;
         compare(dudy1, dudye, "dudy1") ;
 
@@ -209,7 +209,7 @@ int main(int argc, char** argv) {
         bctensor(1,1) = 3 ;
         bdry_cs = bctensor ;
 
-        Derivative<double,3> dy2(world, k, test_axis, bdry_cs, yleft_d, yright_d) ;
+        Derivative<double,3> dy2(world, test_axis, bdry_cs, yleft_d, yright_d, k) ;
         functionT dudy2 = dy2(u) ;
         compare(dudy2, dudye, "dudy2") ;
 
@@ -219,7 +219,7 @@ int main(int argc, char** argv) {
         bctensor(1,1) = 2 ;
         bdry_cs = bctensor ;
 
-        Derivative<double,3> dy3(world, k, test_axis, bdry_cs, yleft_n, yright_n) ;
+        Derivative<double,3> dy3(world, test_axis, bdry_cs, yleft_n, yright_n, k) ;
         functionT dudy3 = dy3(u) ;
         compare(dudy3, dudye, "dudy3") ;
 
@@ -229,7 +229,7 @@ int main(int argc, char** argv) {
         bctensor(1,1) = 5 ;
         bdry_cs = bctensor ;
 
-        Derivative<double,3> dy4(world, k, test_axis, bdry_cs, yleft_n, yright_n) ;
+        Derivative<double,3> dy4(world, test_axis, bdry_cs, yleft_n, yright_n, k) ;
         functionT dudy4 = dy4(u) ;
         compare(dudy4, dudye, "dudy4") ;
 
@@ -247,7 +247,7 @@ int main(int argc, char** argv) {
         bctensor(2,1) = 2 ;
         bdry_cs = bctensor ;
 
-        Derivative<double,3> dz1(world, k, test_axis, bdry_cs, zleft_d, zright_d) ;
+        Derivative<double,3> dz1(world, test_axis, bdry_cs, zleft_d, zright_d, k) ;
         functionT dudz1 = dz1(u) ;
         compare(dudz1, dudze, "dudz1") ;
 
@@ -257,7 +257,7 @@ int main(int argc, char** argv) {
         bctensor(2,1) = 3 ;
         bdry_cs = bctensor ;
 
-        Derivative<double,3> dz2(world, k, test_axis, bdry_cs, zleft_d, zright_d) ;
+        Derivative<double,3> dz2(world, test_axis, bdry_cs, zleft_d, zright_d, k) ;
         functionT dudz2 = dz2(u) ;
         compare(dudz2, dudze, "dudz2") ;
 
@@ -267,7 +267,7 @@ int main(int argc, char** argv) {
         bctensor(2,1) = 2 ;
         bdry_cs = bctensor ;
 
-        Derivative<double,3> dz3(world, k, test_axis, bdry_cs, zleft_n, zright_n) ;
+        Derivative<double,3> dz3(world, test_axis, bdry_cs, zleft_n, zright_n, k) ;
         functionT dudz3 = dz3(u) ;
         compare(dudz3, dudze, "dudz3") ;
 
@@ -277,7 +277,7 @@ int main(int argc, char** argv) {
         bctensor(2,1) = 5 ;
         bdry_cs = bctensor ;
 
-        Derivative<double,3> dz4(world, k, test_axis, bdry_cs, zleft_n, zright_n) ;
+        Derivative<double,3> dz4(world, test_axis, bdry_cs, zleft_n, zright_n, k) ;
         functionT dudz4 = dz4(u) ;
         compare(dudz4, dudze, "dudz4") ;
 

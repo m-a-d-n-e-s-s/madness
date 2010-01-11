@@ -287,8 +287,8 @@ namespace madness {
         typedef FunctionNode<T,NDIM> nodeT;
 
     private:
-        functionT g1     ;  // Function describing the boundary condition on the right side
-        functionT g2     ;  // Function describing the boundary condition on the left side
+        const functionT g1;  ///< Function describing the boundary condition on the right side
+        const functionT g2;  ///< Function describing the boundary condition on the left side
         
         // Tensors for holding the modified coefficients
         Tensor<double> rm, r0, rp        ; ///< Blocks of the derivative operator
@@ -523,16 +523,25 @@ namespace madness {
         
     public:
         
+        /// Constructs a derivative operator
+
+        /// @param world The world
+        /// @param axis The direction to differentiate
+        /// @param bc Boundary conditions (default from FunctionDefaults)
+        /// @param g1 Function providing left boundary value (default empty)
+        /// @param g2 Function providing right boundary value (default empty)
+        /// @param k Wavelet order (default from FunctionDefaults)
         Derivative(World& world, 
-                   int axis, 
-                   int k=FunctionDefaults<NDIM>::get_k(), 
+                   int axis,
                    const BoundaryConds<NDIM>& bc=FunctionDefaults<NDIM>::get_bc(), 
-                   functionT g1=functionT(), 
-                   functionT g2=functionT()) 
+                   const functionT g1=functionT(), 
+                   const functionT g2=functionT(),
+                   int k=FunctionDefaults<NDIM>::get_k())
             :  TreeTraversal<T, NDIM>(world, axis, k, bc) 
             , g1(g1) 
             , g2(g2) 
         {
+            MADNESS_ASSERT(0<=axis && axis<NDIM);
             initCoefficients();
             g1.reconstruct();
             g2.reconstruct();
@@ -544,15 +553,16 @@ namespace madness {
     class FreeSpaceDerivative : public Derivative<T, NDIM> {
     public:
         FreeSpaceDerivative(World& world, int axis, int k=FunctionDefaults<NDIM>::get_k()) 
-            :  Derivative<T, NDIM>(world, axis, k, Tensor<int>(NDIM,2).fill(2)) 
+            :  Derivative<T, NDIM>(world, axis, BoundaryConds<NDIM>(2), Function<T,NDIM>(), Function<T,NDIM>(), k) 
         {}
     };
     
+
     template <typename T, int NDIM>
     class PeriodicDerivative : public Derivative<T, NDIM> {
     public:
         PeriodicDerivative(World& world, int axis, int k=FunctionDefaults<NDIM>::get_k()) 
-            : Derivative<T, NDIM>(world, axis, k, Tensor<int>(NDIM,2).fill(1)) 
+            : Derivative<T, NDIM>(world, axis, BoundaryConds<NDIM>(1), Function<T,NDIM>(), Function<T,NDIM>(), k) 
         {}
     };
     
