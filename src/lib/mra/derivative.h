@@ -57,7 +57,7 @@ namespace madness {
         World& world; 
         const int axis      ;  // Axis along which the operation is performed
         const int k         ;  // Number of wavelets of the function
-        const BoundaryConds<NDIM> bc;
+        const BoundaryConditions<NDIM> bc;
         const std::vector<long> vk; ///< (k,...) used to initialize Tensors
         
     public:
@@ -72,7 +72,7 @@ namespace madness {
         typedef FunctionNode<T,NDIM> nodeT;
         
         
-        TreeTraversal(World& world, int axis, int k, BoundaryConds<NDIM> bc) 
+        TreeTraversal(World& world, int axis, int k, BoundaryConditions<NDIM> bc) 
             : WorldObject< TreeTraversal<T, NDIM> >(world)
             , world(world) 
             , axis(axis) 
@@ -207,7 +207,6 @@ namespace madness {
             for (unsigned int i=0; i<_vf.size(); i++)
                 {
                     dvf[i]= (*this)(_vf[i], false);
-                    if (((i+1) % VMRA_CHUNK_SIZE) == 0) world.gop.fence();
                 }
             if (fence) world.gop.fence();
             return dvf;
@@ -533,7 +532,7 @@ namespace madness {
         /// @param k Wavelet order (default from FunctionDefaults)
         Derivative(World& world, 
                    int axis,
-                   const BoundaryConds<NDIM>& bc=FunctionDefaults<NDIM>::get_bc(), 
+                   const BoundaryConditions<NDIM>& bc=FunctionDefaults<NDIM>::get_bc(), 
                    const functionT g1=functionT(), 
                    const functionT g2=functionT(),
                    int k=FunctionDefaults<NDIM>::get_k())
@@ -553,7 +552,7 @@ namespace madness {
     class FreeSpaceDerivative : public Derivative<T, NDIM> {
     public:
         FreeSpaceDerivative(World& world, int axis, int k=FunctionDefaults<NDIM>::get_k()) 
-            :  Derivative<T, NDIM>(world, axis, BoundaryConds<NDIM>(2), Function<T,NDIM>(), Function<T,NDIM>(), k) 
+            :  Derivative<T, NDIM>(world, axis, BoundaryConditions<NDIM>(2), Function<T,NDIM>(), Function<T,NDIM>(), k) 
         {}
     };
     
@@ -562,7 +561,7 @@ namespace madness {
     class PeriodicDerivative : public Derivative<T, NDIM> {
     public:
         PeriodicDerivative(World& world, int axis, int k=FunctionDefaults<NDIM>::get_k()) 
-            : Derivative<T, NDIM>(world, axis, BoundaryConds<NDIM>(1), Function<T,NDIM>(), Function<T,NDIM>(), k) 
+            : Derivative<T, NDIM>(world, axis, BoundaryConditions<NDIM>(1), Function<T,NDIM>(), Function<T,NDIM>(), k) 
         {}
     };
     

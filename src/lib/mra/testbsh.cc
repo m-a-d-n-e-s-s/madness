@@ -145,17 +145,13 @@ void test_bsh(World& world) {
     // expnt=100 err=1e-3 use lo=2e-2 and eps=5e-3
 
 
-    SeparatedConvolution<T,3> op = BSHOperator<T,3>(world,
-                                   mu,
-                                   FunctionDefaults<3>::get_k(),
-                                   1e-4,
-                                   1e-8);
+    SeparatedConvolution<T,3> op = BSHOperator<3>(world, mu, 1e-4, 1e-8);
     std::cout.precision(8);
 
     Function<T,3> ff = copy(f);
     if (world.rank() == 0) print("applying - 1");
     double start = cpu_time();
-    Function<T,3> opf = apply(op, ff);
+    Function<T,3> opf = op(ff);
     if (world.rank() == 0) print("done",cpu_time()-start);
     ff.clear();
     opf.verify_tree();
@@ -216,7 +212,7 @@ void test_bsh(World& world) {
     for (int axis=0; axis<3; axis++) {
         //g = g - diff(diff(f,axis),axis);
     }
-    g = apply(op,g);
+    g = op(g);
     print("norm of G*(-del^2+mu^2)*f",g.norm2());
     print("error",(g-f).norm2());
 

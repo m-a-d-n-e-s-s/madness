@@ -34,11 +34,13 @@
 #define MADNESS_MRA_CONVOLUTION1D_H__INCLUDED
 
 #include <mra/mra.h>
+#include <constants.h>
 #include <limits.h>
 #include <mra/adquad.h>
 #include <tensor/mtxmq.h>
 #include <tensor/aligned.h>
 #include <linalg/tensor_lapack.h>
+#include <algorithm>
 
 /// \file mra/convolution1d.h
 /// \brief Compuates most matrix elements over 1D operators (including Gaussians)
@@ -195,9 +197,10 @@ namespace madness {
     class Convolution1D {
     public:
         typedef Q opT;  ///< The apply function uses this to infer resultT=opT*inputT
-        int k;
-        int npt;
-        double sign;
+        int k;          ///< Wavelet order
+        int npt;        ///< Number of quadrature points (is this used?)
+        double sign;    ///< Phase
+        int maxR;       ///< Number of lattice translations for sum
         Tensor<double> quad_x;
         Tensor<double> quad_w;
         Tensor<double> c;
@@ -208,18 +211,19 @@ namespace madness {
         mutable SimpleCache<Tensor<Q>, 1> rnlij_cache;
         mutable SimpleCache<ConvolutionData1D<Q>, 1> ns_cache;
 
-//         Convolution1D() : k(-1), npt(0), sign(1.0) {};
-
         virtual ~Convolution1D() {};
 
-        Convolution1D(int k, int npt, double sign=1.0)
+        Convolution1D(int k, int npt, double sign, int maxR)
                 : k(k)
                 , npt(npt)
                 , sign(sign)
+                , maxR(maxR)
                 , quad_x(npt)
-                , quad_w(npt) {
-            MADNESS_ASSERT(autoc(k,&c));
+                , quad_w(npt) 
+        {
 
+            MADNESS_ASSERT(autoc(k,&c));
+            
             gauss_legendre(npt,0.0,1.0,quad_x.ptr(),quad_w.ptr());
             MADNESS_ASSERT(two_scale_hg(k,&hgT));
             hgT = transpose(hgT);
@@ -236,6 +240,20 @@ namespace madness {
 
         /// Returns true if the block is expected to be small
         virtual bool issmall(Level n, Translation lx) const = 0;
+
+        /// Returns true if the block is expected to be small including periodicity
+        bool get_issmall(Level n, Translation lx) const {
+            if (maxR == 0) {
+                return issmall(n, lx);
+            }
+            else {
+                Translation twon = Translation(1)<<n;
+                for (int R=-maxR; R<=maxR; R++) {
+                    if (!issmall(n, R*twon+lx)) return false;
+                }
+                return true;
+            }
+        }
 
         /// Returns the level for projection
         virtual Level natural_level() const {
@@ -277,7 +295,7 @@ namespace madness {
             PROFILE_MEMBER_FUNC(Convolution1D);
 
             Tensor<Q> R, T;
-            if (!issmall(n, lx)) {
+            if (!get_issmall(n, lx)) {
                 Translation lx2 = lx*2;
                 Slice s0(0,k-1), s1(k,2*k-1);
 
@@ -341,7 +359,7 @@ namespace madness {
             long twok = 2*k;
             Tensor<Q> r;
 
-            if (issmall(n, lx)) {
+            if (get_issmall(n, lx)) {
                 r = Tensor<Q>(twok);
             }
             else if (n < natural_level()) {
@@ -354,7 +372,17 @@ namespace madness {
             }
             else {
                 PROFILE_BLOCK(Convolution1Drnlp);
-                r = rnlp(n, lx);
+
+                if (maxR > 0) {
+                    Translation twon = Translation(1)<<n;
+                    r = Tensor<Q>(2*k);
+                    for (int R=-maxR; R<=maxR; R++) {
+                        r.gaxpy(1.0, rnlp(n,R*twon+lx), 1.0);
+                    }
+                }
+                else {
+                    r = rnlp(n, lx);
+                }
             }
 
             rnlp_cache.set(n, lx, r);
@@ -391,8 +419,8 @@ namespace madness {
 
         GenericConvolution1D() {}
 
-        GenericConvolution1D(int k, const opT& op)
-                : Convolution1D<Q>(k, 20), op(op), maxl(LONG_MAX-1) {
+        GenericConvolution1D(int k, const opT& op, int maxR)
+            : Convolution1D<Q>(k, 20, 1.0, maxR), op(op), maxl(LONG_MAX-1) {
             PROFILE_MEMBER_FUNC(GenericConvolution1D);
 
             // For efficiency carefully compute outwards at the "natural" level
@@ -457,13 +485,26 @@ namespace madness {
     /// 1D Gaussian convolution with coeff and expnt given in *simulation* coordinates [0,1]
     template <typename Q>
     class GaussianConvolution1D : public Convolution1D<Q> {
+        // Returns range of Gaussian for periodic lattice sum in simulation coords
+        static int maxR(bool periodic, double expnt) {
+            if (periodic) {
+                return std::max(1,int(sqrt(16.0*2.3/expnt)));
+            }
+            else {
+                return 0;
+            }
+        }
     public:
         const Q coeff;
         const double expnt;
         const Level natlev;
 
-        GaussianConvolution1D(int k, Q coeff, double expnt, double sign=1.0)
-                : Convolution1D<Q>(k,k+11,sign), coeff(coeff), expnt(expnt), natlev(Level(0.5*log(expnt)/log(2.0)+1)) {}
+        GaussianConvolution1D(int k, Q coeff, double expnt, double sign, bool periodic)
+            : Convolution1D<Q>(k,k+11,sign,maxR(periodic,expnt))
+            , coeff(coeff)
+            , expnt(expnt)
+            , natlev(Level(0.5*log(expnt)/log(2.0)+1)) 
+        {}
 
         virtual ~GaussianConvolution1D() {}
 
@@ -584,59 +625,24 @@ namespace madness {
         typedef typename ConcurrentHashMap< double, SharedPtr< GaussianConvolution1D<Q> > >::iterator iterator;
         typedef typename ConcurrentHashMap< double, SharedPtr< GaussianConvolution1D<Q> > >::datumT datumT;
 
-        static SharedPtr< GaussianConvolution1D<Q> > get(int k, double expnt) {
-            iterator it = map.find(expnt+k);
+        static SharedPtr< GaussianConvolution1D<Q> > get(int k, double expnt, bool periodic) {
+            const double pi = constants::pi;
+            double key = expnt + k + periodic*pi;
+            iterator it = map.find(key);
             if (it == map.end()) {
-                const double pi = 3.14159265358979323846264338328;
-                map.insert(datumT(expnt+k, SharedPtr< GaussianConvolution1D<Q> >(new GaussianConvolution1D<Q>(k,
-                                  sqrt(expnt/pi),
-                                  expnt))));
-                it = map.find(expnt+k);
+                map.insert(datumT(key, SharedPtr< GaussianConvolution1D<Q> >(new GaussianConvolution1D<Q>(k,
+                                                                                                          sqrt(expnt/pi),
+                                                                                                          expnt,
+                                                                                                          1.0,
+                                                                                                          periodic
+                                                                                                          ))));
+                it = map.find(key);
                 //printf("conv1d: making  %d %.8e\n",k,expnt);
             }
             else {
                 //printf("conv1d: reusing %d %.8e\n",k,expnt);
             }
             return it->second;
-        }
-    };
-
-
-    /// 1D Gaussian convolution summed over periodic translations
-
-    /// r_periodic(n,l) = sum(R=-maxR,+maxR)[r_nonperiodic(n,l+R*2^n)]
-    template <typename Q>
-    class PeriodicGaussianConvolution1D : public Convolution1D<Q> {
-    public:
-
-        const int k;
-        const int maxR;
-        GaussianConvolution1D<Q> g;
-
-        PeriodicGaussianConvolution1D(int k, int maxR, Q coeff, double expnt, double sign=1.0)
-                : Convolution1D<Q>(k,k,1.0), k(k), maxR(maxR), g(k,coeff,expnt,sign) {}
-
-        virtual ~PeriodicGaussianConvolution1D() {}
-
-        Level natural_level() const {
-            return g.natural_level();
-        }
-
-        Tensor<Q> rnlp(Level n, Translation lx) const {
-            Translation twon = Translation(1)<<n;
-            Tensor<Q> r(2*k);
-            for (int R=-maxR; R<=maxR; R++) {
-                r.gaxpy(1.0, g.get_rnlp(n,R*twon+lx), 1.0);
-            }
-            return r;
-        }
-
-        bool issmall(Level n, Translation lx) const {
-            Translation twon = Translation(1)<<n;
-            for (int R=-maxR; R<=maxR; R++) {
-                if (!g.issmall(n, R*twon+lx)) return false;
-            }
-            return true;
         }
     };
 }

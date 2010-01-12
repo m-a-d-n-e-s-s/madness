@@ -51,6 +51,7 @@ namespace madness {
     /// The maximum depth of refinement possible
     static const int MAXLEVEL = 8*sizeof(Translation)-2;
 
+    enum BCType {BC_ZERO, BC_PERIODIC, BC_FREE, BC_DIRICHLET, BC_ZERONEUMANN, BC_NEUMANN};
 
     /*!
       \brief This class is used to specify boundary conditions for all operators
@@ -72,100 +73,56 @@ namespace madness {
       operators, only periodic and free space are supported.
     */
     template<int NDIM>
-    class BoundaryConds { 
+    class BoundaryConditions { 
     private: 
-        Tensor<int> bc;         ///< Holds the boundary flags (WHAT VALUES MEAN WHAT?)
-        
-        static bool is_valid_bc_code(const int code) {
-            return (0<=code) && (code<=5);
-        }
-        
-        static bool is_valid_bc(const Tensor<int>& bc){
-            if (bc.dim(0)!=NDIM || bc.dim(1)!=2 || bc.ndim()!=2) return false;
-            for(int i=0; i<NDIM; ++i) {
-                if (!(is_valid_bc_code(bc(i,0)) && is_valid_bc_code(bc(i,1)))) return false;
-                if (bc(i,0)==1 && bc(i,1)!=1) return false;  // both sides should be periodic
-            }
-            return true;
-        }
+        std::vector<BCType> bc;
         
     public:
-
-        // SHOULD SWITCH TO ENUM VALUES NOT HARD VALUES
-        enum {ZERO, PERIODIC, FREE, DIRICHLET, NEUMANN, DUNNO};
-        
         /// Constructor. Default boundary condition set to periodic
-        BoundaryConds(int code=PERIODIC) 
-            : bc(NDIM,2)
+        BoundaryConditions(BCType code=BC_PERIODIC) 
+            : bc(2*NDIM, code)
+        {}
+
+        /// General constructor.  
+        /// @param v Vector containing NDIM*2 values specifying boundary conditions
+        BoundaryConditions(const std::vector<BCType>& v) 
+            : bc(v)
         {
-            if (!is_valid_bc_code(code)) {
-                MADNESS_EXCEPTION("BoundaryConds: invalid boundary condition", code);
-            } 
-            bc = code;
+            MADNESS_ASSERT(int(v.size()) == 2*NDIM);
+            for (int d=0; d<NDIM; d++)
+                MADNESS_ASSERT(bc(2*d)!=BC_PERIODIC || bc(2*d+1)==BC_PERIODIC);
         }
         
         /// Copy constructor is deep
-        BoundaryConds(const BoundaryConds<NDIM>& other)
-            : bc(copy(other.bc))
-        {}
-
-        /// General constructor (takes deep copy of bc)
-        BoundaryConds(const Tensor<int>& bc) 
-            : bc(copy(bc))
+        BoundaryConditions(const BoundaryConditions<NDIM>& other)
         {
-            if(!is_valid_bc(bc)) {
-                MADNESS_EXCEPTION("BoundaryConds: invalid boundary condition",0);
-            }
+            *this = other;
         }
-        
-        /// Accessor for tensor of boundary conditions
 
-        /// @return Tensor of boundary conditions
-        const Tensor<int>& get_bc() const {
-            return bc;
+        /// Assignment makes deep copy
+        BoundaryConditions<NDIM>&
+        operator=(const BoundaryConditions<NDIM>& other) {
+            if (&other != this) {
+                bc = other.bc;
+            }
+            return *this;
         }
-        
+
         /// Returns value of boundary condition
 
         /// @param d Dimension (0,...,NDIM-1) for boundary condition
         /// @param i Side (0=left, 1=right) for boundary condition
         /// @return Value of boundary condition
-        int operator()(int d, int i) const {
+        BCType operator()(int d, int i) const {
             MADNESS_ASSERT(d>=0 && d<NDIM && i>=0 && i<2);
-            return bc(d,i);
+            return bc[2*d+i];
         }
 
-        /// Returns non-const reference to value of boundary condition 
-
-        /// @param d Dimension (0,...,NDIM-1) for boundary condition
-        /// @param i Side (0=left, 1=right) for boundary condition
-        /// @return Value of boundary condition
-        int& operator()(int d, int i) {
-            MADNESS_ASSERT(d>=0 && d<NDIM && i>=0 && i<2);
-            return bc(d,i);
-        }
+        /// Returns entire vector of boundary conditions 
         
-
-        /// Assignment makes deep copy
-        BoundaryConds<NDIM>&
-        operator=(const Tensor<int>& other) {
-            if (!is_valid_bc(other)) {
-                MADNESS_EXCEPTION("operator= : invalid boundary condition",0);
-            }
-            bc = copy(other);
-            return *this;
-        }
-        
-        /// Assignment makes deep copy
-        BoundaryConds<NDIM>&
-        operator=(const BoundaryConds<NDIM>& other) {
-            if (&other != this) {
-                if (!is_valid_bc(other.bc)) {
-                    MADNESS_EXCEPTION("operator= : invalid boundary condition",0);
-                }
-                bc = copy(other.bc);
-            }
-            return *this;
+        /// In dimension \c dim ,  \c v[2*dim] is left boundary condition and \c v]2*dim+1] is right.
+        operator std::vector<BCType> const () {
+            return bc;
         }
         
         template <typename Archive> 
@@ -177,9 +134,8 @@ namespace madness {
 
         /// @param code Code for boundary condition
         /// @return String describing boundary condition code
-        static const char* code_as_string(int code) {
-            static const char* codes[] = {"zero","periodic","free","Dirichlet","Neumann","dunno"};
-            MADNESS_ASSERT(is_valid_bc_code(code));
+        static const char* code_as_string(BCType code) {
+            static const char* codes[] = {"zero","periodic","free","Dirichlet","zero Neumann","Neumann"};
             return codes[code];
         }
 
@@ -189,7 +145,7 @@ namespace madness {
         std::vector<bool> is_periodic() const {
             std::vector<bool> v(NDIM);
             for (int d=0; d<NDIM; d++) 
-                v[d] = (bc(d,0)==PERIODIC);
+                v[d] = (bc[2*d]==BC_PERIODIC);
             return v;
         }
     };
@@ -198,7 +154,7 @@ namespace madness {
     template <int NDIM>
     static 
     inline
-    std::ostream& operator << (std::ostream& s, const BoundaryConds<NDIM>& bc) {
+    std::ostream& operator << (std::ostream& s, const BoundaryConditions<NDIM>& bc) {
         s << "BoundaryConditions(";
         for (int d=0; d<NDIM; d++) {
             s << bc.code_as_string(bc(d,0)) << ":" << bc.code_as_string(bc(d,1));
@@ -235,7 +191,7 @@ namespace madness {
         static bool truncate_on_project; ///< If true initial projection inserts at n-1 not n
         static bool apply_randomize;   ///< If true use randomization for load balancing in apply integral operator
         static bool project_randomize; ///< If true use randomization for load balancing in project/refine
-        static BoundaryConds<NDIM> bc; ///< Default boundary conditions
+        static BoundaryConditions<NDIM> bc; ///< Default boundary conditions
         static Tensor<double> cell ;   ///< cell[NDIM][2] Simulation cell, cell(0,0)=xlo, cell(0,1)=xhi, ...
         static Tensor<double> cell_width;///< Width of simulation cell in each dimension
         static Tensor<double> rcell_width; ///< Reciprocal of width
@@ -391,12 +347,12 @@ namespace madness {
         }
 
         /// Returns the default boundary conditions
-        static const BoundaryConds<NDIM>& get_bc() {
+        static const BoundaryConditions<NDIM>& get_bc() {
             return bc;
         }
 
         /// Sets the default boundary conditions
-        static void set_bc(const BoundaryConds<NDIM>& value) {
+        static void set_bc(const BoundaryConditions<NDIM>& value) {
             bc=value;
         }
 

@@ -67,7 +67,6 @@ namespace madness {
 #include <mra/legendre.h>
 #include <mra/indexit.h>
 #include <mra/funcimpl.h>
-#include <mra/operator.h>
 #include <mra/loadbal.h>
 
 namespace madness {
@@ -567,7 +566,7 @@ namespace madness {
         }
 
         /// Inplace broadens support in scaling function basis
-        void broaden(const BoundaryConds<NDIM>& bc=FunctionDefaults<NDIM>::get_bc(), 
+        void broaden(const BoundaryConditions<NDIM>& bc=FunctionDefaults<NDIM>::get_bc(), 
                      bool fence = true) const {
             verify();
             reconstruct();
@@ -1201,7 +1200,7 @@ namespace madness {
     /// Apply operator ONLY in non-standard form - required other steps missing !!
     template <typename opT, typename R, int NDIM>
     Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM>
-    apply_only(const opT& op, const Function<R,NDIM>& f, const BoundaryConds<NDIM>& bc=FunctionDefaults<NDIM>::get_bc(), bool fence=true) {
+    apply_only(const opT& op, const Function<R,NDIM>& f, const BoundaryConditions<NDIM>& bc=FunctionDefaults<NDIM>::get_bc(), bool fence=true) {
         PROFILE_FUNC;
         Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> result;
 
@@ -1217,7 +1216,7 @@ namespace madness {
     /// !!! For the moment does NOT respect fence option ... always fences
     template <typename opT, typename R, int NDIM>
     Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM>
-    apply(const opT& op, const Function<R,NDIM>& f, const BoundaryConds<NDIM>& bc=FunctionDefaults<NDIM>::get_bc(), bool fence=true) {
+    apply(const opT& op, const Function<R,NDIM>& f, const BoundaryConditions<NDIM>& bc=FunctionDefaults<NDIM>::get_bc(), bool fence=true) {
         PROFILE_FUNC;
         Function<R,NDIM>& ff = const_cast< Function<R,NDIM>& >(f);
         if (VERIFY_TREE) ff.verify_tree();
@@ -1339,8 +1338,9 @@ namespace madness {
 }
 /* @} */
 
+#include <mra/derivative.h>
+#include <mra/operator.h>
 #include <mra/functypedefs.h>
 #include <mra/vmra.h>
-#include <mra/derivative.h>
 
 #endif // MADNESS_MRA_MRA_H__INCLUDED

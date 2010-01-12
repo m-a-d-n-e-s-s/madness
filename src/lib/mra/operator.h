@@ -46,6 +46,7 @@
 #include <tensor/mtxmq.h>
 #include <tensor/aligned.h>
 #include <linalg/tensor_lapack.h>
+#include <constants.h>
 
 #include <mra/simplecache.h>
 #include <mra/convolution1d.h>
@@ -87,12 +88,13 @@ namespace madness {
         bool doleaves;  ///< If should be applied to leaf coefficients ... false by default
         bool isperiodicsum;///< If true the operator 1D kernels have been summed over lattice translations and may be non-zero at both ends of the unit cell
     private:
+        mutable std::vector< SharedPtr< Convolution1D<Q> > > ops;
+        const BoundaryConditions<NDIM> bc;
         const int k;
         const int rank;
         const std::vector<long> vk;
         const std::vector<long> v2k;
         const std::vector<Slice> s0;
-        mutable std::vector< SharedPtr< Convolution1D<Q> > > ops;
         std::vector<Q> factors;
         std::vector<double> facnorms;
 
@@ -325,22 +327,27 @@ namespace madness {
 
         // For general convolutions
         SeparatedConvolution(World& world,
-                             long k,
                              std::vector< SharedPtr< Convolution1D<Q> > >& ops,
-                             bool doleaves = false,
-                             bool isperiodicsum = false)
+                             const BoundaryConditions<NDIM>& bc = FunctionDefaults<NDIM>::get_bc(),
+                             long k = FunctionDefaults<NDIM>::get_k(),
+                             bool doleaves = false)
                 : WorldObject< SeparatedConvolution<Q,NDIM> >(world)
                 , doleaves(doleaves)
-                , isperiodicsum(isperiodicsum)
+                , isperiodicsum(bc(0,0)==1)
+                , ops(ops)
+                , bc(bc)
                 , k(k)
                 , rank(ops.size())
                 , vk(NDIM,k)
                 , v2k(NDIM,2*k)
                 , s0(std::max(2,NDIM),Slice(0,k-1))
-                , ops(ops)
                 , factors(ops.size(),1.0)
-                , facnorms(ops.size(),1.0) {
-
+                , facnorms(ops.size(),1.0) 
+        {
+            // Presently we must have periodic or non-periodic in all dimensions.
+            for (int d=1; d<NDIM; d++) {
+                MADNESS_ASSERT(bc(d,0)==bc(0,0));
+            }
             check_cubic();
 
             this->process_pending();
@@ -348,23 +355,31 @@ namespace madness {
 
         /// Constructor for Gaussian Convolutions (mostly for backward compatability)
         SeparatedConvolution(World& world,
-                             int k,
                              const Tensor<Q>& coeff, const Tensor<double>& expnt,
+                             const BoundaryConditions<NDIM>& bc = FunctionDefaults<NDIM>::get_bc(),
+                             int k=FunctionDefaults<NDIM>::get_k(),
                              bool doleaves = false)
                 : WorldObject< SeparatedConvolution<Q,NDIM> >(world)
                 , doleaves(doleaves)
-                , isperiodicsum(false)
+                , isperiodicsum(bc(0,0)==1)
+                , ops(coeff.dim(0))
+                , bc(bc)
                 , k(k)
                 , rank(coeff.dim(0))
                 , vk(NDIM,k)
                 , v2k(NDIM,2*k)
                 , s0(std::max(2,NDIM),Slice(0,k-1))
-                , ops(coeff.dim(0))
                 , factors(ops.size(),1.0)
-                , facnorms(ops.size(),1.0) {
+                , facnorms(ops.size(),1.0) 
+        {
+            // Presently we must have periodic or non-periodic in all dimensions.
+            for (int d=1; d<NDIM; d++) {
+                MADNESS_ASSERT(bc(d,0)==bc(0,0));
+            }
             check_cubic();
+
             double width = FunctionDefaults<NDIM>::get_cell_width()(0L);
-            const double pi = 3.14159265358979323846264338328;
+            const double pi = constants::pi;
 
             for (int i=0; i<rank; i++) {
                 Q c = sqrt(expnt(i)/pi); // Normalize the Gaussian in 1D
@@ -376,7 +391,7 @@ namespace madness {
 //                 ops[i] = SharedPtr< Convolution1D<Q> >(new GaussianConvolution1D<Q>(k,
 //                                                                                     c*width,
 //                                                                                     expnt(i)*width*width));
-                ops[i] = GaussianConvolution1DCache<Q>::get(k, expnt(i)*width*width);
+                ops[i] = GaussianConvolution1DCache<Q>::get(k, expnt(i)*width*width, isperiodicsum);
 
             }
         }
@@ -388,6 +403,12 @@ namespace madness {
         double norm(Level n, const Key<NDIM>& d) const {
             return getop(n, d)->norm;
         }
+
+        template <typename T>
+        Function<TENSOR_RESULT_TYPE(T,Q),NDIM> operator()(const Function<T,NDIM>& f) const {
+            return madness::apply(*this, f, bc);
+        }
+        
 
         template <typename T>
         Tensor<TENSOR_RESULT_TYPE(T,Q)> apply(const Key<NDIM>& source,
@@ -440,90 +461,174 @@ namespace madness {
 
     };
 
-
     /// Factory function generating separated kernel for convolution with 1/r in 3D.
-    template <typename Q>
-    SeparatedConvolution<Q,3> CoulombOperator(World& world,
-            long k,
-            double lo,
-            double eps) {
+    static
+    inline
+    SeparatedConvolution<double,3> CoulombOperator(World& world,
+                                                   double lo,
+                                                   double eps,
+                                                   const BoundaryConditions<3>& bc=FunctionDefaults<3>::get_bc(),
+                                                   int k=FunctionDefaults<3>::get_k())
+    {
         const Tensor<double>& cell_width = FunctionDefaults<3>::get_cell_width();
         double hi = cell_width.normf(); // Diagonal width of cell
-        const double pi = 3.14159265358979323846264338328;
-
+        if (bc(0,0) == 1) hi *= 100; // Extend range for periodic summation
+        const double pi = constants::pi;
+        
         // bsh_fit generates representation for 1/4Pir but we want 1/r
         // so have to scale eps by 1/4Pi
+        
         Tensor<double> coeff, expnt;
         bsh_fit(0.0, lo, hi, eps/(4.0*pi), &coeff, &expnt, false);
+
+        print("BC", bc, FunctionDefaults<3>::get_bc());
+
+        if (bc(0,0) == 1) {
+            const double acut = 0.25 / (4.0*hi*hi);
+            print("ACUT", acut);
+            // Relies on expnts being in decreasing order
+            for (int i=0; i<expnt.dim(0); i++) {
+                if (expnt(i) < acut) {
+                    print("i", i);
+                    coeff = coeff(Slice(0,i));
+                    expnt = expnt(Slice(0,i));
+                    break;
+                }
+            }
+        }
+        print(coeff);
+        print(expnt);
         coeff.scale(4.0*pi);
-        return SeparatedConvolution<Q,3>(world, k, coeff, expnt);
+        return SeparatedConvolution<double,3>(world, coeff, expnt, bc, k);
     }
 
 
     /// Factory function generating separated kernel for convolution with 1/r in 3D.
-    template <typename Q>
-    SeparatedConvolution<Q,3>* CoulombOperatorPtr(World& world,
-            long k,
-            double lo,
-            double eps) {
+    static
+    inline
+    SeparatedConvolution<double,3>* CoulombOperatorPtr(World& world,
+                                                       double lo,
+                                                       double eps,
+                                                       const BoundaryConditions<3>& bc=FunctionDefaults<3>::get_bc(),
+                                                       int k=FunctionDefaults<3>::get_k())
+    {
         const Tensor<double>& cell_width = FunctionDefaults<3>::get_cell_width();
         double hi = cell_width.normf(); // Diagonal width of cell
-        const double pi = 3.14159265358979323846264338328;
+        if (bc(0,0) == 1) hi *= 100; // Extend range for periodic summation
+        const double pi = constants::pi;
 
         // bsh_fit generates representation for 1/4Pir but we want 1/r
         // so have to scale eps by 1/4Pi
         Tensor<double> coeff, expnt;
         bsh_fit(0.0, lo, hi, eps/(4.0*pi), &coeff, &expnt, false);
+        if (bc(0,0) == 1) {
+            const double acut = 0.25 / (4.0*hi*hi);
+            // Relies on expnts being in decreasing order
+            for (int i=0; i<expnt.dim(0); i++) {
+                if (expnt(i) < acut) {
+                    coeff = coeff(Slice(0,i));
+                    expnt = expnt(Slice(0,i));
+                    break;
+                }
+            }
+        }
         coeff.scale(4.0*pi);
-        return new SeparatedConvolution<Q,3>(world, k, coeff, expnt);
+        return new SeparatedConvolution<double,3>(world, coeff, expnt, bc, k);
     }
 
 
     /// Factory function generating separated kernel for convolution with BSH kernel in general NDIM
-    template <typename Q, int NDIM>
-    SeparatedConvolution<Q,NDIM> BSHOperator(World& world,
-            double mu,
-            long k,
-            double lo,
-            double eps) {
+    template <int NDIM>
+    static
+    inline
+    SeparatedConvolution<double,NDIM> BSHOperator(World& world,
+                                                  double mu,
+                                                  double lo,
+                                                  double eps,
+                                                  const BoundaryConditions<NDIM>& bc=FunctionDefaults<NDIM>::get_bc(),
+                                                  int k=FunctionDefaults<NDIM>::get_k())
+    {
         const Tensor<double>& cell_width = FunctionDefaults<NDIM>::get_cell_width();
         double hi = cell_width.normf(); // Diagonal width of cell
+        if (bc(0,0) == 1) hi *= 100; // Extend range for periodic summation
         Tensor<double> coeff, expnt;
         bsh_fit_ndim(NDIM, mu, lo, hi, eps, &coeff, &expnt, false);
+        if (bc(0,0) == 1) {
+            const double acut = 0.25 / (4.0*hi*hi);
+            // Relies on expnts being in decreasing order
+            for (int i=0; i<expnt.dim(0); i++) {
+                if (expnt(i) < acut) {
+                    coeff = coeff(Slice(0,i));
+                    expnt = expnt(Slice(0,i));
+                    break;
+                }
+            }
+        }
 	//print(coeff);
 	//print(expnt);
-        return SeparatedConvolution<Q,NDIM>(world, k, coeff, expnt);
+        return SeparatedConvolution<double,NDIM>(world, coeff, expnt, bc, k);
     }
-
-
+    
+    
     /// Factory function generating separated kernel for convolution with exp(-mu*r)/(4*pi*r) in 3D
-    template <typename Q>
-    SeparatedConvolution<Q,3> BSHOperator3D(World& world,
-                                            double mu,
-                                            long k,
-                                            double lo,
-                                            double eps) {
+    static
+    inline
+    SeparatedConvolution<double,3> BSHOperator3D(World& world,
+                                                 double mu,
+                                                 double lo,
+                                                 double eps,
+                                                 const BoundaryConditions<3>& bc=FunctionDefaults<3>::get_bc(),
+                                                 int k=FunctionDefaults<3>::get_k())
+        
+    {
         const Tensor<double>& cell_width = FunctionDefaults<3>::get_cell_width();
         double hi = cell_width.normf(); // Diagonal width of cell
+        if (bc(0,0) == 1) hi *= 100; // Extend range for periodic summation
         Tensor<double> coeff, expnt;
         bsh_fit(mu, lo, hi, eps, &coeff, &expnt, false);
-        return SeparatedConvolution<Q,3>(world, k, coeff, expnt);
+        if (bc(0,0) == 1) {
+            const double acut = 0.25 / (4.0*hi*hi);
+            // Relies on expnts being in decreasing order
+            for (int i=0; i<expnt.dim(0); i++) {
+                if (expnt(i) < acut) {
+                    coeff = coeff(Slice(0,i));
+                    expnt = expnt(Slice(0,i));
+                    break;
+                }
+            }
+        }
+        return SeparatedConvolution<double,3>(world, coeff, expnt, bc, k);
     }
-
+    
     /// Factory function generating separated kernel for convolution with exp(-mu*r)/(4*pi*r) in 3D
-    template <typename Q>
-    SeparatedConvolution<Q,3>* BSHOperatorPtr3D(World& world,
-            double mu,
-            long k,
-            double lo,
-            double eps) {
+    static
+    inline
+    SeparatedConvolution<double,3>* BSHOperatorPtr3D(World& world,
+                                                     double mu,
+                                                     double lo,
+                                                     double eps,
+                                                     const BoundaryConditions<3>& bc=FunctionDefaults<3>::get_bc(),
+                                                     int k=FunctionDefaults<3>::get_k())
+    {
         const Tensor<double>& cell_width = FunctionDefaults<3>::get_cell_width();
         double hi = cell_width.normf(); // Diagonal width of cell
+        if (bc(0,0) == 1) hi *= 100; // Extend range for periodic summation
         Tensor<double> coeff, expnt;
         bsh_fit(mu, lo, hi, eps, &coeff, &expnt, false);
-        return new SeparatedConvolution<Q,3>(world, k, coeff, expnt);
+        if (bc(0,0) == 1) {
+            const double acut = 0.25 / (4.0*hi*hi);
+            // Relies on expnts being in decreasing order
+            for (int i=0; i<expnt.dim(0); i++) {
+                if (expnt(i) < acut) {
+                    coeff = coeff(Slice(0,i));
+                    expnt = expnt(Slice(0,i));
+                    break;
+                }
+            }
+        }
+        return new SeparatedConvolution<double,3>(world, coeff, expnt, bc, k);
     }
-
+    
     namespace archive {
         template <class Archive, class T, int NDIM>
         struct ArchiveLoadImpl<Archive,const SeparatedConvolution<T,NDIM>*> {

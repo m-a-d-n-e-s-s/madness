@@ -2340,3 +2340,45 @@ runvalg2:
 //                             if ((result - Result).normf() > 1e-10) {
 //                                 print("BAD", key, axis, (result - Result).normf());
 //                             }
+
+
+
+
+
+    /// 1D Gaussian convolution summed over periodic translations
+
+    /// r_periodic(n,l) = sum(R=-maxR,+maxR)[r_nonperiodic(n,l+R*2^n)]
+    template <typename Q>
+    class PeriodicGaussianConvolution1D : public Convolution1D<Q> {
+    public:
+
+        const int k;
+        const int maxR;
+        GaussianConvolution1D<Q> g;
+
+        PeriodicGaussianConvolution1D(int k, int maxR, Q coeff, double expnt, double sign=1.0)
+                : Convolution1D<Q>(k,k,1.0), k(k), maxR(maxR), g(k,coeff,expnt,sign) {}
+
+        virtual ~PeriodicGaussianConvolution1D() {}
+
+        Level natural_level() const {
+            return g.natural_level();
+        }
+
+        Tensor<Q> rnlp(Level n, Translation lx) const {
+            Translation twon = Translation(1)<<n;
+            Tensor<Q> r(2*k);
+            for (int R=-maxR; R<=maxR; R++) {
+                r.gaxpy(1.0, g.get_rnlp(n,R*twon+lx), 1.0);
+            }
+            return r;
+        }
+
+        bool issmall(Level n, Translation lx) const {
+            Translation twon = Translation(1)<<n;
+            for (int R=-maxR; R<=maxR; R++) {
+                if (!g.issmall(n, R*twon+lx)) return false;
+            }
+            return true;
+        }
+    };

@@ -116,7 +116,7 @@ int main(int argc, char** argv) {
         FunctionDefaults<3>::set_cubic_cell( 0. , 1.);
 
         Tensor<int> bctensor(3,2) ;
-        BoundaryConds<3> bdry_cs(bctensor);
+        BoundaryConditions<3> bdry_cs(bctensor);
 
         functionT  u      = factoryT(world).f(   u_exact );
         functionT dudxe   = factoryT(world).f(dudx_exact );

@@ -98,12 +98,12 @@ void test_periodic(World& world) {
     for (int i=-1; i<=20; i++) {
         double expnt = pow(2.0,double(i));
         double coeff = sqrt(expnt/constants::pi);
-        ops[0] = SharedPtr< Convolution1D<double> >(new PeriodicGaussianConvolution1D<double>(k, 16, coeff, expnt));
+        ops[0] = SharedPtr< Convolution1D<double> >(new GaussianConvolution1D<double>(k, coeff, expnt, 1.0, true));
 
-        SeparatedConvolution<double,3> op(world, k, ops, false, true);
+        SeparatedConvolution<double,3> op(world, ops);
 
-        Function<double,3> opf = apply(op,f, std::vector<bool>(3, true));
-
+        Function<double,3> opf = op(f);
+        
         coordT r0(0.49);
         coordT r1(0.01);
 
@@ -135,20 +135,20 @@ void test_periodic2(World& world) {
     Tensor<double> coeff, expnt;
     bsh_fit(0.0, thresh, 100*L, thresh, &coeff, &expnt);
     const double acut = 0.25 / (4.0*L*L);
-
     std::vector< SharedPtr< Convolution1D<double> > > ops;
     for (int i=0; i<coeff.dim(0); i++) {
         if (expnt[i] > acut) {
             double c = pow(4*constants::pi*coeff[i],1.0/3.0);
-            ops.push_back(SharedPtr< Convolution1D<double> >(new PeriodicGaussianConvolution1D<double>(k, 16, c, expnt[i])));
+            ops.push_back(SharedPtr< Convolution1D<double> >(new GaussianConvolution1D<double>(k, c, expnt[i], 1.0, true)));
             print(ops.size(), c, expnt[i]);
         }
     }
+    SeparatedConvolution<double,3> op(world, ops);
 
-    SeparatedConvolution<double,3> op(world, k, ops, false, true);
+//    SeparatedConvolution<double,3> op = CoulombOperator(world, 1e-5, thresh);
     std::cout.precision(10);
 
-    Function<double,3> opf = apply(op,f, std::vector<bool>(3, true));
+    Function<double,3> opf = op(f);
     opf.reconstruct();
 
     for (int i=0; i<101; i++) {
@@ -167,9 +167,12 @@ void test_periodic2(World& world) {
 int main(int argc, char**argv) {
     initialize(argc, argv);
     World world(MPI::COMM_WORLD);
+    startup(world,argc,argv);
+    FunctionDefaults<3>::set_bc(0);
 
     try {
-        startup(world,argc,argv);
+
+        print("BCCCCC", FunctionDefaults<3>::get_bc());
 
         test_periodic2(world);
         //test_periodic(world);

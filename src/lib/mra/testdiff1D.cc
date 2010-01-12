@@ -80,7 +80,7 @@ int main(int argc, char** argv) {
         FunctionDefaults<1>::set_cubic_cell( 0. , 1.);
 
         Tensor<int> bctensor(1,2) ;
-        BoundaryConds<1> bdry_cs(bctensor);
+        BoundaryConditions<1> bdry_cs(bctensor);
 
         functionT  u      = factoryT(world).f( u_exact );
         functionT due     = factoryT(world).f(du_exact );
