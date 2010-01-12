@@ -93,20 +93,6 @@ double mytime = 0.0; // Global variable for the current time
 // This should be passed in thru the class or app context
 const double cc = 1;// L/(deltaT*Nts)/2;
 
-template<typename T, int NDIM>
-void plotvtk_begin(const Function<T, NDIM>& function, const char* fieldname,
-		World& world, const char* filename, double Lplotl, double Lploth,
-		int npt, bool binary);
-
-template<typename T, int NDIM>
-void plotvtk_data(const Function<T, NDIM>& function, const char* fieldname,
-		World& world, const char* filename, double Lplotl, double Lploth,
-		int npt, bool binary);
-
-template<typename T, int NDIM>
-void plotvtk_end(const Function<T, NDIM>& function, const char* fieldname,
-		World& world, const char* filename, double Lplotl, double Lploth,
-		int npt, bool binary);
 
 //*****************************************************************************
 static double init_zero(const coordT3d& r) {
@@ -243,13 +229,6 @@ void testNavierStokes(int argc, char**argv) {
 	u[2] = FunctionFactory<double, 3> (world).f(uzexact  ) .truncate_on_project();
 
 	Function<double, 3> divu = div(u);
-   	//char filename[100];
-	//sprintf(filename, "data-init-vel.vts");
-        //plotvtk_begin(u[0], "u", world, filename, 0.0, L, 21, false);
-        //plotvtk_data(u[0], "u", world, filename, 0.0, L, 21, false);
-        //plotvtk_data(u[1], "v", world, filename, 0.0, L, 21, false);
-        //plotvtk_data(u[2], "w", world, filename, 0.0, L, 21, false);
-        //plotvtk_end(u[0], "u", world, filename, 0.0, L, 21, false);
 	double divun=divu.norm2();
 	int dd=divu.max_depth();
 	if (world.rank()==0) print("initial div, depth:", divun, dd);
@@ -308,14 +287,21 @@ void testNavierStokes(int argc, char**argv) {
 		
 
 		if ( (t%10)==0) {
-				char filename[256];
-				sprintf(filename, "data-%02d.vts", t);
-				plotvtk_begin(u[0], "u", world, filename, 0.0, L, 21, false);
-				plotvtk_data(u[0], "u", world, filename, 0.0, L, 21, false);
-				plotvtk_data(u[1], "v", world, filename, 0.0, L, 21, false);
-				plotvtk_data(u[2], "w", world, filename, 0.0, L, 21, false);
-				plotvtk_data(p, "p", world, filename, 0.0, L, 21, false);
-				plotvtk_end(u[0], "u", world, filename, 0.0, L, 21, false);
+                   char filename[100];
+                   sprintf(filename, "data-%02d.vts", t);
+                   Vector<double, 3> plotlo, plothi;
+                   Vector<long, 3> npts;
+                   for(int i = 0; i < 3; ++i) {
+                           plotlo[i] = 0.0;
+                           plothi[i] = 1.0;
+                           npts[i] = 21;
+                   }
+                   plotvtk_begin(world, filename, plotlo, plothi, npts);
+                   plotvtk_data(u[0], "u", world, filename, plotlo, plothi, npts);
+                   plotvtk_data(u[1], "v", world, filename, plotlo, plothi, npts);
+                   plotvtk_data(u[2], "w", world, filename, plotlo, plothi, npts);
+                   plotvtk_data(p   , "p", world, filename, plotlo, plothi, npts);
+                   plotvtk_end<3>(world, filename);
 		}
 
 
@@ -329,18 +315,6 @@ void testNavierStokes(int argc, char**argv) {
 		{double  a=div(u).norm2(), b=du.norm2(), c=dv.norm2(),d=dw.norm2();
 		if (world.rank()==0)  print(t+1, mytime, a,b,c,d);
 		}
-			
-		// Print out the solution
-		//sprintf(filename, "data-%02d.vts", t);
-		//plotvtk_begin(u[0], "u", world, filename, 0.0, L, 21, false);
-		//plotvtk_data(u[0], "u", world, filename, 0.0, L, 21, false);
-		//plotvtk_data(u[1], "v", world, filename, 0.0, L, 21, false);
-		//plotvtk_data(u[2], "w", world, filename, 0.0, L, 21, false);
-		//plotvtk_data(ue[0], "ue", world, filename, 0.0, L, 21, false);
-		//plotvtk_data(ue[1], "ve", world, filename, 0.0, L, 21, false);
-		//plotvtk_data(ue[2], "we", world, filename, 0.0, L, 21, false);
-		//plotvtk_data(p, "p", world, filename, 0.0, L, 21, false);
-		//plotvtk_end(u[0], "u", world, filename, 0.0, L, 21, false);
 	}    
 	
 //	RMI::end();
@@ -378,128 +352,4 @@ int main(int argc, char**argv) {
 	return 0;
 }
 //*****************************************************************************
-
-template<typename T, int NDIM>
-void plotvtk_begin(const Function<T, NDIM>& function, const char* fieldname,
-		World& world, const char* filename, double Lplotl, double Lploth,
-		int npt, bool binary) {
-	PROFILE_FUNC;
-	MADNESS_ASSERT(NDIM <= 6);
-
-	Tensor<double> cell(3, 2);
-	cell(_, 0) = Lplotl;
-	cell(_, 1) = Lploth;
-
-	FILE *f = 0;
-	if (world.rank() == 0) {
-		f = fopen(filename, "w");
-		if (!f)
-			MADNESS_EXCEPTION("plotvtk: failed to open the plot file", 0);
-
-		fprintf(
-				f,
-				"<VTKFile type=\"StructuredGrid\" version=\"0.1\" byte_order=\"LittleEndian\" compressor=\"vtkZLibDataCompressor\">\n");
-		fprintf(f, "  <StructuredGrid WholeExtent=\"0 %d 0 %d 0 %d\">\n", npt
-				- 1, npt - 1, npt - 1);
-		fprintf(f, "  <Piece Extent=\"0 %d 0 %d 0 %d\">\n", npt - 1, npt - 1,
-				npt - 1);
-
-		fprintf(f, "      <Points>\n");
-		fprintf(
-				f,
-				"        <DataArray NumberOfComponents=\"3\" type=\"Float32\" format=\"ascii\">\n");
-
-		double coordx = cell(0, 0);
-		double coordy = cell(1, 0);
-		double coordz = cell(2, 0);
-
-		double spacex = (cell(0, 1) - cell(0, 0)) / (npt - 1);
-		double spacey = (cell(1, 1) - cell(1, 0)) / (npt - 1);
-		double spacez = (cell(2, 1) - cell(2, 0)) / (npt - 1);
-
-		for (int i = 0; i < npt; i++) {
-			coordy = cell(1, 0);
-			for (int j = 0; j < npt; j++) {
-				coordz = cell(2, 0);
-				for (int k = 0; k < npt; k++) {
-					fprintf(f, "%f %f %f\n", coordx, coordy, coordz);
-					coordz = coordz + spacez;
-				}
-				coordy = coordy + spacey;
-			}
-			coordx = coordx + spacex;
-		}
-		fprintf(f, "        </DataArray>\n");
-		fprintf(f, "      </Points>\n");
-		fprintf(f, "      <PointData>\n");
-		fclose(f);
-	}
-	world.gop.fence();
-}
-
-template<typename T, int NDIM>
-void plotvtk_end(const Function<T, NDIM>& function, const char* fieldname,
-		World& world, const char* filename, double Lplotl, double Lploth,
-		int npt, bool binary) {
-	PROFILE_FUNC;
-	MADNESS_ASSERT(NDIM <= 6);
-
-	FILE *f = 0;
-	if (world.rank() == 0) {
-		f = fopen(filename, "a");
-		if (!f)
-			MADNESS_EXCEPTION("plotvtk: failed to open the plot file", 0);
-
-		fprintf(f, "      </PointData>\n");
-		fprintf(f, "      <CellData>\n");
-		fprintf(f, "      </CellData>\n");
-		fprintf(f, "    </Piece>\n");
-		fprintf(f, "  </StructuredGrid>\n");
-		fprintf(f, "</VTKFile>\n");
-		fclose(f);
-	}
-	world.gop.fence();
-}
-
-template<typename T, int NDIM>
-void plotvtk_data(const Function<T, NDIM>& function, const char* fieldname,
-		World& world, const char* filename, double Lplotl, double Lploth,
-		int npt, bool binary) {
-	PROFILE_FUNC;
-	MADNESS_ASSERT(NDIM <= 6);
-
-	Tensor<double> cell(3, 2);
-	cell(_, 0) = Lplotl;
-	cell(_, 1) = Lploth;
-	std::vector<long> numpt(3, npt);
-
-	world.gop.barrier();
-
-	function.verify();
-	FILE *f = 0;
-	if (world.rank() == 0) {
-		f = fopen(filename, "a");
-		if (!f)
-			MADNESS_EXCEPTION("plotvtk: failed to open the plot file", 0);
-
-		fprintf(
-				f,
-				"        <DataArray Name=\"%s\" format=\"ascii\" type=\"Float32\" NumberOfComponents=\"1\">\n",
-				fieldname);
-	}
-
-	world.gop.fence();
-	Tensor<T> tmpr = function.eval_cube(cell, numpt);
-	world.gop.fence();
-
-	if (world.rank() == 0) {
-		for (IndexIterator it(numpt); it; ++it) {
-			fprintf(f, "%.6e\n", tmpr(*it));
-		}
-		fprintf(f, "        </DataArray>\n");
-
-		fclose(f);
-	}
-	world.gop.fence();
-}
 
