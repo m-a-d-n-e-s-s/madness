@@ -155,7 +155,7 @@ void test_bsh(World& world) {
     Function<T,3> ff = copy(f);
     if (world.rank() == 0) print("applying - 1");
     double start = cpu_time();
-    Function<T,3> opf = apply(op,ff, std::vector<bool>(3, false));
+    Function<T,3> opf = apply(op, ff);
     if (world.rank() == 0) print("done",cpu_time()-start);
     ff.clear();
     opf.verify_tree();
@@ -216,7 +216,7 @@ void test_bsh(World& world) {
     for (int axis=0; axis<3; axis++) {
         //g = g - diff(diff(f,axis),axis);
     }
-    g = apply(op,g, std::vector<bool>(3,false));
+    g = apply(op,g);
     print("norm of G*(-del^2+mu^2)*f",g.norm2());
     print("error",(g-f).norm2());
 

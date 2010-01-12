@@ -567,10 +567,11 @@ namespace madness {
         }
 
         /// Inplace broadens support in scaling function basis
-        void broaden(std::vector<bool> is_periodic, bool fence = true) const {
+        void broaden(const BoundaryConds<NDIM>& bc=FunctionDefaults<NDIM>::get_bc(), 
+                     bool fence = true) const {
             verify();
             reconstruct();
-            impl->broaden(is_periodic, fence);
+            impl->broaden(bc.is_periodic(), fence);
         }
 
 
@@ -582,19 +583,6 @@ namespace madness {
             //return impl->coeffs_for_jun(n);
         }
 
-/*
-        ///Change bv on the fly. Temporary workaround until better bc handling is introduced.
-        Function<T,NDIM>& set_bc(const Tensor<int>& value) {
-            PROFILE_MEMBER_FUNC(Function);
-            impl->set_bc(value);
-            return *this;
-        }
-
-        const Tensor<int>& get_bc() const {
-            PROFILE_MEMBER_FUNC(Function);
-            return impl->get_bc();
-        }
-*/
 
         /// Clears the function as if constructed uninitialized.  Optional fence.
 
@@ -1213,12 +1201,12 @@ namespace madness {
     /// Apply operator ONLY in non-standard form - required other steps missing !!
     template <typename opT, typename R, int NDIM>
     Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM>
-    apply_only(const opT& op, const Function<R,NDIM>& f, const std::vector<bool>& is_periodic, bool fence=true) {
+    apply_only(const opT& op, const Function<R,NDIM>& f, const BoundaryConds<NDIM>& bc=FunctionDefaults<NDIM>::get_bc(), bool fence=true) {
         PROFILE_FUNC;
         Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> result;
 
         result.set_impl(f, true);
-        result.get_impl()->apply(op, *f.get_impl(), is_periodic, fence);
+        result.get_impl()->apply(op, *f.get_impl(), bc.is_periodic(), fence);
         return result;
     }
 
@@ -1229,14 +1217,14 @@ namespace madness {
     /// !!! For the moment does NOT respect fence option ... always fences
     template <typename opT, typename R, int NDIM>
     Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM>
-    apply(const opT& op, const Function<R,NDIM>& f, const std::vector<bool>& is_periodic, bool fence=true) {
+    apply(const opT& op, const Function<R,NDIM>& f, const BoundaryConds<NDIM>& bc=FunctionDefaults<NDIM>::get_bc(), bool fence=true) {
         PROFILE_FUNC;
         Function<R,NDIM>& ff = const_cast< Function<R,NDIM>& >(f);
         if (VERIFY_TREE) ff.verify_tree();
         ff.reconstruct();
         ff.nonstandard(op.doleaves, true);
 
-        Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> result = apply_only(op, ff, is_periodic, fence);
+        Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> result = apply_only(op, ff, bc, fence);
 
         ff.standard();
         result.reconstruct();

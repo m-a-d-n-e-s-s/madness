@@ -692,7 +692,7 @@ void test_op(World& world) {
     coeffs(0L) = pow(exponents(0L)/PI, 0.5*NDIM);
     SeparatedConvolution<T,NDIM> op(world, FunctionDefaults<NDIM>::get_k(), coeffs, exponents);
     START_TIMER;
-    Function<T,NDIM> r = apply(op,f, std::vector<bool>(NDIM, false));
+    Function<T,NDIM> r = apply(op,f);
     END_TIMER("apply");
     r.verify_tree();
     f.verify_tree();
@@ -809,7 +809,7 @@ void test_coulomb(World& world) {
     FunctionDefaults<3>::set_apply_randomize(true);
 
     START_TIMER;
-    Function<double,3> r = apply_only(op,f, std::vector<bool>(3, false)) ;
+    Function<double,3> r = apply_only(op,f) ;
     END_TIMER("apply");
 
 
@@ -971,8 +971,8 @@ void test_qm(World& world) {
 
         psi.reconstruct();
         //psi.refine_general(refop());
-        psi.broaden(std::vector<bool>(1, false) );
-        psi.broaden(std::vector<bool>(1, false) );
+        psi.broaden();
+        psi.broaden();
         
         world.gop.fence();
         double norm = psi.norm2();

@@ -35,7 +35,7 @@
 
 /// \file funcdefaults.h
 /// \brief Provides FunctionDefaults and utilities for coordinate transformation
-/// \ingroup mra
+/// \ingroup mrabcext
 
 #include <world/world.h>
 #include <world/array.h>
@@ -181,6 +181,16 @@ namespace madness {
             static const char* codes[] = {"zero","periodic","free","Dirichlet","Neumann","dunno"};
             MADNESS_ASSERT(is_valid_bc_code(code));
             return codes[code];
+        }
+
+        /// Convenience for application of integral operators
+
+        /// @return Returns a vector indicating if each dimension is periodic
+        std::vector<bool> is_periodic() const {
+            std::vector<bool> v(NDIM);
+            for (int d=0; d<NDIM; d++) 
+                v[d] = (bc(d,0)==PERIODIC);
+            return v;
         }
     };
     
