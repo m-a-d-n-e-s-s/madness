@@ -602,6 +602,7 @@ struct Calculation {
     tensorT aocc, bocc;
     tensorT aeps, beps;
     poperatorT coulop;
+    SharedPtr<real_derivative_3d> gradop[3];
     double vtol;
     double current_energy;
     Calculation(World & world, const char *filename)
@@ -645,7 +646,10 @@ struct Calculation {
         GaussianConvolution1DCache<double>::map.clear();
         double safety = 0.1;
         vtol = FunctionDefaults<3>::get_thresh() * safety;
-        coulop = poperatorT(CoulombOperatorPtr<double>(world, FunctionDefaults<3>::get_k(), param.lo, thresh));
+        coulop = poperatorT(CoulombOperatorPtr(world, param.lo, thresh));
+        gradop[0] = SharedPtr<real_derivative_3d>(new real_derivative_3d(world,0));
+        gradop[1] = SharedPtr<real_derivative_3d>(new real_derivative_3d(world,1));
+        gradop[2] = SharedPtr<real_derivative_3d>(new real_derivative_3d(world,2));
         mask = functionT(factoryT(world).f(mask3).initial_level(4).norefine());
         if(world.rank() == 0){
             print("\nSolving with thresh", thresh, "    k", FunctionDefaults<3>::get_k(), "   conv", std::max(thresh, param.dconv), "\n");
@@ -807,7 +811,6 @@ struct Calculation {
         reconstruct(world, amo);
         for(unsigned int i = 0;i < amo.size();i++){
             amo[i] = madness::project(amo[i], FunctionDefaults<3>::get_k(), FunctionDefaults<3>::get_thresh(), false);
-            if (((i+1) % madness::VMRA_CHUNK_SIZE) == 0) world.gop.fence();
         }
         world.gop.fence();
         truncate(world, amo);
@@ -816,7 +819,6 @@ struct Calculation {
             reconstruct(world, bmo);
             for(unsigned int i = 0;i < bmo.size();i++){
                 bmo[i] = madness::project(bmo[i], FunctionDefaults<3>::get_k(), FunctionDefaults<3>::get_thresh(), false);
-                if (((i+1) % madness::VMRA_CHUNK_SIZE) == 0) world.gop.fence();
             }
             world.gop.fence();
             truncate(world, bmo);
@@ -844,7 +846,6 @@ struct Calculation {
         for(int i = 0;i < aobasis.nbf(molecule);i++){
             functorT aofunc(new AtomicBasisFunctor(aobasis.get_atomic_basis_function(molecule, i)));
             ao[i] = factoryT(world).functor(aofunc).initial_level(initial_level).truncate_on_project().nofence();
-            if (((i+1) % madness::VMRA_CHUNK_SIZE) == 0) world.gop.fence();
         }
         world.gop.fence();
         std::vector<double> norms;
@@ -1174,7 +1175,7 @@ struct Calculation {
         int n = v.size();
         tensorT r(n, n);
         for(int axis = 0;axis < 3;axis++){
-            vecfuncT dv = diff(world, v, axis);
+            vecfuncT dv = apply(world, *(gradop[axis]), v);
             r += matrix_inner(world, dv, dv, true);
             dv.clear();
         }
@@ -1375,7 +1376,6 @@ struct Calculation {
     {
         int nmo = evals.dim(0);
         std::vector<poperatorT> ops(nmo);
-        int k = FunctionDefaults<3>::get_k();
         double tol = FunctionDefaults<3>::get_thresh();
         for(int i = 0;i < nmo;i++){
             double eps = evals(i);
@@ -1386,7 +1386,7 @@ struct Calculation {
                 eps = -0.1;
             }
             
-            ops[i] = poperatorT(BSHOperatorPtr3D<double>(world, sqrt(-2.0 * eps), k, param.lo, tol));
+            ops[i] = poperatorT(BSHOperatorPtr3D(world, sqrt(-2.0 * eps),  param.lo, tol));
         }
         
         return ops;
