@@ -41,11 +41,11 @@
 */
 
 #include <mra/mra.h>
+#include <mra/derivative.h>
 #include <cstdio>
 
 namespace madness {
 
-    static const int VMRA_CHUNK_SIZE = 20000;
     /// Compress a vector of functions
     template <typename T, int NDIM>
     void compress(World& world,
@@ -59,7 +59,6 @@ namespace madness {
                 v[i].compress(false);
                 must_fence = true;
             }
-            if (((i+1) % VMRA_CHUNK_SIZE) == 0) world.gop.fence();
         }
 
         if (fence && must_fence) world.gop.fence();
@@ -78,7 +77,6 @@ namespace madness {
                 v[i].reconstruct(false);
                 must_fence = true;
             }
-            if (((i+1) % VMRA_CHUNK_SIZE) == 0) world.gop.fence();
         }
 
         if (fence && must_fence) world.gop.fence();
@@ -94,7 +92,6 @@ namespace madness {
         reconstruct(world, v);
         for (unsigned int i=0; i<v.size(); i++) {
             v[i].nonstandard(false,false);
-            if (((i+1) % VMRA_CHUNK_SIZE) == 0) world.gop.fence();
         }
         if (fence) world.gop.fence();
     }
@@ -108,7 +105,6 @@ namespace madness {
         PROFILE_BLOCK(Vstandard);
         for (unsigned int i=0; i<v.size(); i++) {
             v[i].standard(false);
-            if (((i+1) % VMRA_CHUNK_SIZE) == 0) world.gop.fence();
         }
         if (fence) world.gop.fence();
     }
@@ -126,57 +122,27 @@ namespace madness {
 
         for (unsigned int i=0; i<v.size(); i++) {
             v[i].truncate(tol, false);
-            if (((i+1) % VMRA_CHUNK_SIZE) == 0) world.gop.fence();
         }
 
         if (fence) world.gop.fence();
     }
 
-
-/*
-    /// Differentiates a vector of functions
+    /// Applies a derivative operator to a vector of functions
     template <typename T, int NDIM>
-    std::vector< Function<T,NDIM> > diff(World& world,
-                                         const std::vector< Function<T,NDIM> >& v,
-                                         int axis,
-                                         bool fence=true) {
-        PROFILE_BLOCK(Vdiff);
+    std::vector< Function<T,NDIM> >
+    apply(World& world,
+          const Derivative<T,NDIM>& D,
+          const std::vector< Function<T,NDIM> >& v,
+          bool fence=true) 
+    {
         reconstruct(world, v);
-
         std::vector< Function<T,NDIM> > df(v.size());
         for (unsigned int i=0; i<v.size(); i++) {
-            df[i] = diff(v[i],axis,false);
-            if (((i+1) % VMRA_CHUNK_SIZE) == 0) world.gop.fence();
+            df[i] = D(v[i],false);
         }
         if (fence) world.gop.fence();
-
-        // DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG
-//         world.gop.fence();
-//         world.gop.fence();
-//         typedef Key<NDIM> keyT; ///< Type of key
-//         typedef FunctionNode<T,NDIM> nodeT; ///< Type of node
-//         typedef WorldContainerImpl<keyT,nodeT> dcT; ///< Type of container holding the coefficients
-//         typedef WorldObject<dcT> objT;
-//         typedef std::list<detail::PendingMsg> pendingT;
-//         pendingT& nv = const_cast<pendingT&>(objT::pending);
-        
-//         if (nv.size() != 0) cout << world.rank() << " !!!!!!!! pending " << nv.size() << endl;
-
-//         world.gop.fence();
-//         world.gop.fence();
-
-//         if (world.rank() == 0) madness::print("Verifying tree after diff");
-//         world.gop.fence();
-//         for (unsigned int i=0; i<v.size(); i++) {
-//             df[i].verify_tree();
-//         }
-//         world.gop.fence();
-//         if (world.rank() == 0) madness::print("OK");
-        // DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG
-        
         return df;
     }
-*/
 
     /// Generates a vector of zero functions
     template <typename T, int NDIM>
@@ -428,7 +394,6 @@ namespace madness {
         world.gop.fence();
         for (unsigned int i=0; i<v.size(); i++) {
             v[i].norm_tree(false);
-            if (((i+1) % VMRA_CHUNK_SIZE) == 0) world.gop.fence();
         }
         a.norm_tree();
         return vmulXX(a, v, tol, fence);
@@ -462,7 +427,6 @@ namespace madness {
         std::vector< Function<TENSOR_RESULT_TYPE(T,R),NDIM> > q(a.size());
         for (unsigned int i=0; i<a.size(); i++) {
             q[i] = mul(a[i], b[i], false);
-            if (((i+1) % VMRA_CHUNK_SIZE) == 0) world.gop.fence();
         }
         if (fence) world.gop.fence();
         return q;
@@ -634,7 +598,7 @@ namespace madness {
     std::vector< Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> >
     apply(World& world,
           const std::vector< SharedPtr<opT> >& op,
-          const std::vector< Function<R,NDIM> > f, const std::vector<bool>& is_periodic ) {
+          const std::vector< Function<R,NDIM> > f) {
 
         PROFILE_BLOCK(Vapplyv);
         MADNESS_ASSERT(f.size()==op.size());
@@ -646,8 +610,7 @@ namespace madness {
 
         std::vector< Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> > result(f.size());
         for (unsigned int i=0; i<f.size(); i++) {
-            result[i] = apply_only(*op[i], f[i], is_periodic, false);
-            if (((i+1) % VMRA_CHUNK_SIZE) == 0) world.gop.fence();
+            result[i] = apply_only(*op[i], f[i], false);
         }
 
         world.gop.fence();
@@ -661,11 +624,11 @@ namespace madness {
 
 
     /// Applies an operator to a vector of functions --- q[i] = apply(op,f[i])
-    template <typename opT, typename R, int NDIM>
-    std::vector< Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> >
+    template <typename T, typename R, int NDIM>
+    std::vector< Function<TENSOR_RESULT_TYPE(T,R), NDIM> >
     apply(World& world,
-          opT& op,
-          const std::vector< Function<R,NDIM> > f, const std::vector<bool>& is_periodic ) {
+          const SeparatedConvolution<T,NDIM>& op,
+          const std::vector< Function<R,NDIM> > f) {
         PROFILE_BLOCK(Vapply);
 
         std::vector< Function<R,NDIM> >& ncf = *const_cast< std::vector< Function<R,NDIM> >* >(&f);
@@ -673,10 +636,9 @@ namespace madness {
         reconstruct(world, f);
         nonstandard(world, ncf);
 
-        std::vector< Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> > result(f.size());
+        std::vector< Function<TENSOR_RESULT_TYPE(T,R), NDIM> > result(f.size());
         for (unsigned int i=0; i<f.size(); i++) {
-            result[i] = apply_only(op, f[i], is_periodic, false);
-            if (((i+1) % VMRA_CHUNK_SIZE) == 0) world.gop.fence();
+            result[i] = apply_only(op, f[i], false);
         }
 
         world.gop.fence();

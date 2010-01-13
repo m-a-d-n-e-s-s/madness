@@ -144,6 +144,20 @@ namespace madness {
     typedef FunctionImpl<double_complex,4> complex_funcimpl_4d;
     typedef FunctionImpl<double_complex,5> complex_funcimpl_5d;
     typedef FunctionImpl<double_complex,6> complex_funcimpl_6d;
+
+    typedef Derivative<double,1> real_derivative_1d;
+    typedef Derivative<double,2> real_derivative_2d;
+    typedef Derivative<double,3> real_derivative_3d;
+    typedef Derivative<double,4> real_derivative_4d;
+    typedef Derivative<double,5> real_derivative_5d;
+    typedef Derivative<double,6> real_derivative_6d;
+
+    typedef Derivative<double_complex,1> complex_derivative_1d;
+    typedef Derivative<double_complex,2> complex_derivative_2d;
+    typedef Derivative<double_complex,3> complex_derivative_3d;
+    typedef Derivative<double_complex,4> complex_derivative_4d;
+    typedef Derivative<double_complex,5> complex_derivative_5d;
+    typedef Derivative<double_complex,6> complex_derivative_6d;
 } 
 
 #endif  // MADNESS_MRA_MRA_H__INCLUDED

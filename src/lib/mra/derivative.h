@@ -83,7 +83,7 @@ namespace madness {
             this->process_pending();
         }
 
-        void impldiff(const implT* f, implT* df, bool fence) {
+        void impldiff(const implT* f, implT* df, bool fence) const {
             const dcT& coeffs = f->get_coeffs();
             
             for (typename dcT::const_iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
@@ -106,7 +106,7 @@ namespace madness {
         Void forward_do_diff1(const implT* f, implT* df, const keyT& key,
                               const std::pair<keyT,tensorT>& left,
                               const std::pair<keyT,tensorT>& center,
-                              const std::pair<keyT,tensorT>& right) {
+                              const std::pair<keyT,tensorT>& right)  const {
             
             dcT coeffs = f->get_coeffs();
             ProcessID owner = coeffs.owner(key);
@@ -136,7 +136,7 @@ namespace madness {
         Void do_diff1(const implT* f, implT* df, const keyT& key,
                       const std::pair<keyT,tensorT>& left,
                       const std::pair<keyT,tensorT>& center,
-                      const std::pair<keyT,tensorT>& right) {
+                      const std::pair<keyT,tensorT>& right) const {
             MADNESS_ASSERT(axis>=0 && axis<NDIM);
             
             if (left.second.size()==0 || right.second.size()==0) {
@@ -163,19 +163,20 @@ namespace madness {
         virtual Void do_diff2b(const implT* f, implT* df, const keyT& key,
                                const std::pair<keyT,tensorT>& left,
                                const std::pair<keyT,tensorT>& center,
-                               const std::pair<keyT,tensorT>& right) {return None;};
+                               const std::pair<keyT,tensorT>& right) const {return None;} ;
         
         virtual Void do_diff2i(const implT* f, implT* df, const keyT& key,
                                const std::pair<keyT,tensorT>& left,
                                const std::pair<keyT,tensorT>& center,
-                               const std::pair<keyT,tensorT>& right) {return None;};
+                               const std::pair<keyT,tensorT>& right) const {return None;};
         
         
         /// Differentiate w.r.t. given coordinate (x=0, y=1, ...) with optional fence
         
         /// Returns a new function with the same distribution
         Function<T,NDIM>
-        operator()(const functionT& f, bool fence=true) {
+        operator()(const functionT& f, bool fence=true) const {
+            if (VERIFY_TREE) f.verify_tree();
             
             if (f.is_compressed()) {
                 if (fence) {
@@ -186,8 +187,6 @@ namespace madness {
                 }
             }
             
-            if (VERIFY_TREE) f.verify_tree();
-            
             functionT df;  
             df.set_impl(f,false);
             
@@ -195,22 +194,6 @@ namespace madness {
             return df;
         }
         
-        
-        /// Take the derivative of a vector of functions
-        /// THIS IS UNTESTED!!!
-        
-        /// Operates on a vector of functions
-        std::vector< functionT> 
-        operator()(std::vector<functionT> _vf, bool fence=true) {
-            std::vector<functionT> dvf(_vf.size() ); 
-            
-            for (unsigned int i=0; i<_vf.size(); i++)
-                {
-                    dvf[i]= (*this)(_vf[i], false);
-                }
-            if (fence) world.gop.fence();
-            return dvf;
-        }
         
         static bool enforce_bc(int bc_left, int bc_right, Level n, Translation& l) {
             Translation two2n = 1ul << n;
@@ -241,7 +224,6 @@ namespace madness {
             return true;
         }
         
-        
         Key<NDIM> neighbor(const keyT& key, int step) const {
             Vector<Translation,NDIM> l = key.translation();
             l[axis] += step;
@@ -267,7 +249,7 @@ namespace madness {
         }
         
         
-        template <typename Archive> void serialize(const Archive& ar) {
+        template <typename Archive> void serialize(const Archive& ar) const {
             throw "NOT IMPLEMENTED";
         }
         
@@ -385,7 +367,7 @@ namespace madness {
         Void do_diff2i(const implT* f, implT*df, const keyT& key,
                        const std::pair<keyT,tensorT>& left,
                        const std::pair<keyT,tensorT>& center,
-                       const std::pair<keyT,tensorT>& right) 
+                       const std::pair<keyT,tensorT>& right) const
         {
             tensorT d = madness::inner(rp,
                                        df->parent_to_child(left.second, left.first, neighbor(key,-1)).swapdim(this->axis,0),
@@ -522,6 +504,7 @@ namespace madness {
         }
         
     public:
+        typedef T opT;
         
         /// Constructs a derivative operator
 
@@ -556,17 +539,36 @@ namespace madness {
             :  Derivative<T, NDIM>(world, axis, BoundaryConditions<NDIM>(BC_FREE), Function<T,NDIM>(), Function<T,NDIM>(), k) 
         {}
     };
+
+    template <typename T, int NDIM>
+    Derivative<T,NDIM>
+    free_space_derivative(World& world, int axis, int k=FunctionDefaults<NDIM>::get_k()) {
+        return Derivative<T, NDIM>(world, axis, BoundaryConditions<NDIM>(BC_FREE), Function<T,NDIM>(), Function<T,NDIM>(), k);
+    }
     
 
     template <typename T, int NDIM>
     class PeriodicDerivative : public Derivative<T, NDIM> {
     public:
         PeriodicDerivative(World& world, int axis, int k=FunctionDefaults<NDIM>::get_k()) 
-            : Derivative<T, NDIM>(world, axis, BoundaryConditions<NDIM>(1), Function<T,NDIM>(), Function<T,NDIM>(), k) 
+            : Derivative<T, NDIM>(world, axis, BoundaryConditions<NDIM>(BC_PERIODIC), Function<T,NDIM>(), Function<T,NDIM>(), k) 
         {}
     };
-    
-    
+
+    template <typename T, int NDIM>
+    Derivative<T,NDIM>
+    periodic_derivative(World& world, int axis, int k=FunctionDefaults<NDIM>::get_k()) {
+        return Derivative<T, NDIM>(world, axis, BoundaryConditions<NDIM>(BC_PERIODIC), Function<T,NDIM>(), Function<T,NDIM>(), k);
+    }
+
+    /// Applies derivative operator to function (for syntactic equivalence to integral operator apply)
+    template <typename T, int NDIM>
+    Function<T,NDIM>
+    apply(const Derivative<T,NDIM>& D, const Function<T,NDIM>& f, bool fence=true) {
+        return D(f,fence);
+    }
+        
+
     namespace archive {
         template <class Archive, class T, int NDIM>
         struct ArchiveLoadImpl<Archive,const TreeTraversal<T,NDIM>*> {

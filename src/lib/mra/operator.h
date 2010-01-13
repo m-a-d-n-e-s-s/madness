@@ -396,6 +396,8 @@ namespace madness {
             }
         }
 
+        const BoundaryConditions<NDIM>& get_bc() const {return bc;}
+
         const std::vector< Key<NDIM> > get_disp(Level n) const {
             return Displacements<NDIM>().get_disp(n, isperiodicsum);
         }
@@ -406,7 +408,7 @@ namespace madness {
 
         template <typename T>
         Function<TENSOR_RESULT_TYPE(T,Q),NDIM> operator()(const Function<T,NDIM>& f) const {
-            return madness::apply(*this, f, bc);
+            return madness::apply(*this, f);
         }
         
 
