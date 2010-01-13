@@ -184,7 +184,12 @@ void iterate(World& world, real_function_1d& psi) {
     real_function_1d v = make_potential(world, rho);
 
     // Compute energy components and print
+    print("PSI");
+    psi.print_tree();
     real_function_1d dpsi = Derivative<double,1>(world,0)(psi);
+    print("DPSI");
+    dpsi.print_tree();
+    dpsi.verify_tree();
     double kinetic_energy = inner(dpsi,dpsi);
     double potential_energy = inner(rho, v);
     double energy = potential_energy + kinetic_energy;

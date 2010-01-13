@@ -133,8 +133,8 @@ class DirichletCondIntOp : public Operator<functionT> {
 		const functionT &b;
 
 		void action(const functionT &invec, functionT &outvec) const {
-			outvec = invec - apply(G, b*invec);
-			outvec.truncate();
+                    outvec = invec - G(b*invec);
+                    outvec.truncate();
 		}
 
 	public:

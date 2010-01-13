@@ -185,7 +185,7 @@ real_function_3d approx2(World& world, double epsilon, const coord_3d& center) {
         real_function_3d rhs = S*u - Sg;
         rhs.scale(-0.25/constants::pi);
         rhs.truncate();
-        real_function_3d r = apply(G,rhs) - u;
+        real_function_3d r = G(rhs) - u;
         r.truncate();
         
         real_function_3d unew = solver.update(u,r);
@@ -237,7 +237,7 @@ public:
 //     print("Errs in derivatives", (diff(S,0)*epsilon-dSdx).norm2(),  (diff(S,1)*epsilon-dSdy).norm2(),  (diff(S,2)*epsilon-dSdz).norm2());
     
 //     // Make the Coulomb Green's function
-//     real_convolution_3d G = CoulombOperator<double>(world, FunctionDefaults<3>::get_k(), 
+//     real_convolution_3d G = CoulombOperator(world, 
 //                                                     0.1*epsilon, FunctionDefaults<3>::get_thresh());
 //     // Initial guess for u is zero
 //     real_function_3d u = real_factory_3d(world);
@@ -248,7 +248,7 @@ public:
 //         real_function_3d rhs = SP1inv*(S*u - Sg - dSdx*diff(u,0) - dSdy*diff(u,1) - dSdz*diff(u,2));
 //         rhs.scale(-0.25/constants::pi);
 //         rhs.truncate();
-//         real_function_3d r = apply(G,rhs) - u;
+//         real_function_3d r = G(rhs) - u;
 //         r.truncate();
         
 //         real_function_3d unew = solver.update(u,r);

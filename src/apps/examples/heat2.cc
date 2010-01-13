@@ -153,9 +153,9 @@ int main(int argc, char** argv) {
     // Propagate forward 50 time steps
     real_function_3d u = u0;
     for (int step=1; step<=50; step++) {
-        u = apply(G, u);  u.truncate();
+        u = G(u);  u.truncate();
         u = u*expVp;
-        u = apply(G, u); u.truncate();
+        u = G(u); u.truncate();
         
         double u_norm = u.norm2();
         double u_trace = u.trace();

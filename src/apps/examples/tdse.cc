@@ -176,10 +176,10 @@ void converge(World& world, functionT& potn, functionT& psi, double& eps) {
 
     for (int iter=0; iter<20; iter++) {
         if (world.rank() == 0) print("ITER",iter);
-        psi = apply(*op, psi);
+        psi = (*op)(psi);
         psi = expV*psi;
         psi.truncate();
-        psi = apply(*op, psi);
+        psi = (*op)(psi);
         psi.truncate();
         double norm = psi.norm2();
         if (world.rank() == 0) print("new norm", norm);
@@ -274,7 +274,7 @@ void propagate(World& world, functionT& potn, functionT& psi0, double& eps) {
         long sz = psi.size();
         //psi.refine();
         if (world.rank() == 0) print("applying operator 1",sz);
-        psi = apply(G, psi);
+        psi = G(psi);
         psi.truncate();
         //psi.refine();
 
@@ -285,7 +285,7 @@ void propagate(World& world, functionT& potn, functionT& psi0, double& eps) {
         //psi.refine();
         sz = psi.size();
         if (world.rank() == 0) print("applying operator 2",sz);
-        psi = apply(G, psi);
+        psi = G(psi);
         psi.truncate();
         sz = psi.size();
         double norm = psi.norm2();

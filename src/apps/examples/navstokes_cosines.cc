@@ -250,7 +250,7 @@ void testNavierStokes(int argc, char**argv) {
 
 		FunctionDefaults<3>::set_bc(bc0);
 		divf.set_bc(bc0);
-		Function<double,3> p = apply(op, divf);
+		Function<double,3> p = op(divf);
 		p.scale(-1. / (4. * WST_PI)).set_bc(bc);
 		divf.set_bc(bc);
 		FunctionDefaults<3>::set_bc(bc);
