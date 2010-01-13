@@ -51,6 +51,9 @@
 
 namespace madness {
     
+    /// Tri-diagonal operator traversing tree primarily for derivative operator
+
+    /// \ingroup mra
     template <typename T, int NDIM>
     class TreeTraversal : public WorldObject< TreeTraversal<T, NDIM> > {
     protected:
@@ -256,6 +259,7 @@ namespace madness {
     };  // End of the TreeTraversal class
     
     
+    /// Implements derivatives operators with variety of boundary conditions on simulation domain
     template <typename T, int NDIM>
     class Derivative : public TreeTraversal<T, NDIM> {
     public:
@@ -531,15 +535,8 @@ namespace madness {
         }
     };
     
-    
-    template <typename T, int NDIM>
-    class FreeSpaceDerivative : public Derivative<T, NDIM> {
-    public:
-        FreeSpaceDerivative(World& world, int axis, int k=FunctionDefaults<NDIM>::get_k()) 
-            :  Derivative<T, NDIM>(world, axis, BoundaryConditions<NDIM>(BC_FREE), Function<T,NDIM>(), Function<T,NDIM>(), k) 
-        {}
-    };
 
+    /// Convenience function returning derivative operator with free-space boundary conditions
     template <typename T, int NDIM>
     Derivative<T,NDIM>
     free_space_derivative(World& world, int axis, int k=FunctionDefaults<NDIM>::get_k()) {
@@ -547,14 +544,7 @@ namespace madness {
     }
     
 
-    template <typename T, int NDIM>
-    class PeriodicDerivative : public Derivative<T, NDIM> {
-    public:
-        PeriodicDerivative(World& world, int axis, int k=FunctionDefaults<NDIM>::get_k()) 
-            : Derivative<T, NDIM>(world, axis, BoundaryConditions<NDIM>(BC_PERIODIC), Function<T,NDIM>(), Function<T,NDIM>(), k) 
-        {}
-    };
-
+    /// Conveinence function returning derivative operator with periodic boundary conditions
     template <typename T, int NDIM>
     Derivative<T,NDIM>
     periodic_derivative(World& world, int axis, int k=FunctionDefaults<NDIM>::get_k()) {
@@ -566,6 +556,25 @@ namespace madness {
     Function<T,NDIM>
     apply(const Derivative<T,NDIM>& D, const Function<T,NDIM>& f, bool fence=true) {
         return D(f,fence);
+    }
+
+    /// Convenience function returning vector of derivative operators implementing grad (\f$ \nabla \f$)
+
+    /// This will only work for BC_ZERO, BC_PERIODIC, BC_FREE and
+    /// BC_ZERONEUMANN since we are not passing in any boundary
+    /// functions.
+    template <typename T, int NDIM>
+    std::vector< SharedPtr < Derivative<T,NDIM> > > 
+    gradient_operator(World& world, 
+                      const BoundaryConditions<NDIM>& bc = FunctionDefaults<NDIM>::get_bc(),
+                      int k = FunctionDefaults<NDIM>::get_k()) {
+        std::vector< SharedPtr < Derivative<T,NDIM> > > r(NDIM);        
+        for (int d=0; d<NDIM; d++) {
+            MADNESS_ASSERT(bc(d,0)!=BC_DIRICHLET && bc(d,1)!=BC_DIRICHLET);
+            MADNESS_ASSERT(bc(d,0)!=BC_NEUMANN   && bc(d,1)!=BC_NEUMANN);
+            r[d] = SharedPtr< Derivative<T,NDIM> >(new Derivative<T,NDIM>(world,d,bc,Function<T,NDIM>(),Function<T,NDIM>(),k));
+        }
+        return r;
     }
         
 
