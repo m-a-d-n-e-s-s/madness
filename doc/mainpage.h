@@ -58,6 +58,9 @@
 ///                 \defgroup funcplot Function plotting routines
 ///                 \ingroup mra
 
+///                 \defgroup mrabcext Exterior boundary conditions
+///                 \ingroup mra
+
 ///                 \defgroup mrabcint Preliminary support for interior boundary conditions
 ///                 \ingroup mra
 
