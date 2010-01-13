@@ -424,9 +424,9 @@ double energy(World& world, const Function<T,3>& psi, const functionT& potn) {
     // First do all work in the scaling function basis
     bool DOFENCE = false;
     psi.reconstruct();
-    Function<T,3> dx = diff(psi,0,DOFENCE);
-    Function<T,3> dy = diff(psi,1,DOFENCE);
-    Function<T,3> dz = diff(psi,2,DOFENCE);
+    Function<T,3> dx = Derivative<T,3>(world,0)(psi,DOFENCE);
+    Function<T,3> dy = Derivative<T,3>(world,1)(psi,DOFENCE);
+    Function<T,3> dz = Derivative<T,3>(world,2)(psi,DOFENCE);
     Function<T,3> Vpsi = psi*potn;
 
     // Now do all work in the wavelet basis
@@ -452,7 +452,7 @@ void converge(World& world, functionT& potn, functionT& psi, double& eps) {
 
     for (int iter=0; iter<30; iter++) {
         if (world.rank() == 0) print("beginning iter", iter, wall_time());
-        operatorT op = BSHOperator3D<double>(world, sqrt(-2*eps), param.k, param.cut, param.thresh);
+        operatorT op = BSHOperator3D(world, sqrt(-2*eps), param.cut, param.thresh);
         functionT Vpsi = (potn*psi);
         if (world.rank() == 0) print("made V*psi", wall_time());
         Vpsi.scale(-2.0).truncate();

@@ -363,10 +363,10 @@ double energy(World& world, const Function<T,4>& psi, const functionT& pote, con
     // First do all work in the scaling function basis
     bool DOFENCE = false;
     psi.reconstruct();
-    Function<T,4> dx = diff(psi,0,DOFENCE);
-    Function<T,4> dy = diff(psi,1,DOFENCE);
-    Function<T,4> dz = diff(psi,2,DOFENCE);
-    Function<T,4> ds = diff(psi,3,DOFENCE);
+    Function<T,4> dx = Derivative<T,4>(world,0)(psi,DOFENCE);
+    Function<T,4> dy = Derivative<T,4>(world,1)(psi,DOFENCE);
+    Function<T,4> dz = Derivative<T,4>(world,2)(psi,DOFENCE);
+    Function<T,4> ds = Derivative<T,4>(world,3)(psi,DOFENCE);
     Function<T,4> Vepsi = psi*pote;
     Function<T,4> Vnpsi = psi*potn;
     Function<T,4> Vfpsi = psi*potf;
@@ -415,7 +415,7 @@ void testbsh(World& world) {
     functionT test = factoryT(world).f(fred); test.truncate();
     functionT rhs = (mu*mu)*test - functionT(factoryT(world).f(delsqfred));
     rhs.truncate();
-    operatorT op = BSHOperator<double,4>(world, mu, FunctionDefaults<4>::get_k(), 1e-2, FunctionDefaults<4>::get_thresh());
+    operatorT op = BSHOperator<4>(world, mu, 1e-2, FunctionDefaults<4>::get_thresh());
 
     functionT result = apply(op,rhs);
 
@@ -438,7 +438,7 @@ void converge(World& world, functionT& potn, functionT& pote, functionT& pot, fu
         functionT Vpsi = pot*psi;// - 0.5*psi; // TRY SHIFTING POTENTIAL AND ENERGY DOWN
         //eps -= 0.5;
 
-        operatorT op = BSHOperator<double,4>(world, sqrt(-2*eps), param.k, param.cut, param.thresh);
+        operatorT op = BSHOperator<4>(world, sqrt(-2*eps), param.cut, param.thresh);
         if (world.rank() == 0) print("made V*psi", wall_time());
         Vpsi.scale(-20.0).truncate();
         if (world.rank() == 0) print("tryuncated V*psi", wall_time());
