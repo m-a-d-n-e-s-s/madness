@@ -163,12 +163,12 @@ namespace madness {
         virtual Void do_diff2b(const implT* f, implT* df, const keyT& key,
                                const std::pair<keyT,tensorT>& left,
                                const std::pair<keyT,tensorT>& center,
-                               const std::pair<keyT,tensorT>& right) const {return None;} ;
+                               const std::pair<keyT,tensorT>& right) const = 0;
         
         virtual Void do_diff2i(const implT* f, implT* df, const keyT& key,
                                const std::pair<keyT,tensorT>& left,
                                const std::pair<keyT,tensorT>& center,
-                               const std::pair<keyT,tensorT>& right) const {return None;};
+                               const std::pair<keyT,tensorT>& right) const = 0;
         
         
         /// Differentiate w.r.t. given coordinate (x=0, y=1, ...) with optional fence
@@ -198,7 +198,7 @@ namespace madness {
         static bool enforce_bc(int bc_left, int bc_right, Level n, Translation& l) {
             Translation two2n = 1ul << n;
             if (l < 0) {
-                if (bc_left == BC_ZERO || bc_left == BC_FREE || bc_left ==3 || bc_left == BC_ZERONEUMANN || bc_left == BC_NEUMANN) {
+                if (bc_left == BC_ZERO || bc_left == BC_FREE || bc_left == BC_DIRICHLET || bc_left == BC_ZERONEUMANN || bc_left == BC_NEUMANN) {
                     return false; // f=0 BC, or no BC, or nonzero f BC, or zero deriv BC, or nonzero deriv BC
                 }
                 else if (bc_left == BC_PERIODIC) {
@@ -210,7 +210,7 @@ namespace madness {
                 }
             }
             else if (l >= two2n) {
-                if (bc_right == BC_ZERO || bc_right == BC_FREE || bc_right == BC_DIRICHLET || bc_right ==4 || bc_right == BC_NEUMANN) {
+                if (bc_right == BC_ZERO || bc_right == BC_FREE || bc_right == BC_DIRICHLET || bc_right == BC_ZERONEUMANN || bc_right == BC_NEUMANN) {
                     return false; // f=0 BC, or no BC, or nonzero f BC, or zero deriv BC, or nonzero deriv BC
                 }
                 else if (bc_right == BC_PERIODIC) {
@@ -280,7 +280,7 @@ namespace madness {
         Void do_diff2b(const implT* f, implT* df, const keyT& key,
                        const std::pair<keyT,tensorT>& left,
                        const std::pair<keyT,tensorT>& center,
-                       const std::pair<keyT,tensorT>& right) {
+                       const std::pair<keyT,tensorT>& right) const {
             Vector<Translation,NDIM> l = key.translation();
             double lev   = (double) key.level();
             
