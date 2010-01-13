@@ -143,24 +143,23 @@ xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
        static memory reserved.
      
        module swap PrgEnv-pgi PrgEnv-gnu
-
-       module load acml/4.1.0
+       module swap gcc/4.3.2 gcc/4.4.2
+       module load acml/4.3.0
 
        ./configure
 
      - with GNU compilers and scilib
 
        module swap PrgEnv-pgi PrgEnv-gnu
+       module swap gcc/4.3.2 gcc/4.4.2
        ./configure
 
 
      - with PGI compilers and scilib
-
        ./configure
 
      - with PGI compilers and acml
-
-       module load acml/4.1.0
+       module load acml/4.3.0
        ./configure
 
 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
