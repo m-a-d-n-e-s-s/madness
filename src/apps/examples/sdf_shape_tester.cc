@@ -60,7 +60,7 @@
 using namespace madness;
 
 int main(int argc, char **argv) {
-    MPI::Init(argc, argv);
+    initialize(argc, argv);
     World world(MPI::COMM_WORLD);
     startup(world,argc,argv);
     
@@ -72,11 +72,6 @@ int main(int argc, char **argv) {
     FunctionDefaults<3>::set_k(5);
     FunctionDefaults<3>::set_thresh(1e-3);
     FunctionDefaults<3>::set_cubic_cell(-L, L);
-    
-    Tensor<int> bc(3,2);
-    bc(_,0) = 0;          // Dirichlet in all directions
-    bc(_,1) = 0;
-    FunctionDefaults<3>::set_bc(bc);
     
     // create the shape mask
     coord_3d pt, vec, sides;
@@ -147,7 +142,7 @@ int main(int argc, char **argv) {
     f = real_factory_3d(world).functor(shape_surface(epsilon, new SDFBox(sides, pt)));
     plotdx(f, "box_surface.dx");
     
-    MPI::Finalize();
+    finalize();
     
     return 0;
 }

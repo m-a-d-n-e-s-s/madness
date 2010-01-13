@@ -175,8 +175,7 @@ real_function_3d approx2(World& world, double epsilon, const coord_3d& center) {
     plot_line("S.dat", 10001, coord_3d(-1.5), coord_3d(+1.5), S);
     
     // Make the Coulomb Green's function
-    real_convolution_3d G = CoulombOperator<double>(world, FunctionDefaults<3>::get_k(), 
-                                                    0.1*epsilon, FunctionDefaults<3>::get_thresh());
+    real_convolution_3d G = CoulombOperator(world, 0.1*epsilon, FunctionDefaults<3>::get_thresh());
     // Initial guess for u is zero
     real_function_3d u = real_factory_3d(world);
     

@@ -213,7 +213,7 @@ int main(int argc, char **argv) {
 	tests[11] = cplxfunc2;
 	sprintf(names[11], "Testing complex functions, >1-step convergence");
 
-	MPI::Init(argc, argv);
+        initialize(argc, argv);
 	World world(MPI::COMM_WORLD);
 	worldptr = &world;
 	startup(world,argc,argv);
@@ -223,11 +223,6 @@ int main(int argc, char **argv) {
 	FunctionDefaults<3>::set_cubic_cell(-2.0, 2.0);
 	FunctionDefaults<3>::set_thresh(1.0e-4);
 	FunctionDefaults<3>::set_max_refine_level(4);
-
-	Tensor<int> bc(3,2);
-	bc(_,0) = 0;          // Dirichlet in all directions
-	bc(_,1) = 0;
-	FunctionDefaults<3>::set_bc(bc);
 
 	// run the tests
 	for(i = 0; i < NTESTS; ++i) {
@@ -242,7 +237,7 @@ int main(int argc, char **argv) {
 
 	printf("%d of %d tests passed\n", passed, NTESTS);
 
-	MPI::Finalize();
+        finalize();
 
 	return 0;
 }

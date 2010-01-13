@@ -131,9 +131,9 @@ int main(int argc, char** argv) {
     expnt[0] = 1.0/(4.0*c*tstep);
     coeff[0] = pow(4.0*constants::pi*c*tstep,-1.5);
     
-    operatorT G(world, k, coeff, expnt);
+    operatorT G(world, coeff, expnt);
 
-    functionT ut = apply(G, u0);
+    functionT ut = G(u0);
 
     double ut_norm = ut.norm2();
     double ut_trace = ut.trace();

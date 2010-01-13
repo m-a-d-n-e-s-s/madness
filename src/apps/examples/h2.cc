@@ -69,10 +69,10 @@ static double V(const coord_3d& r) {
 }
 
 void iterate(World& world, real_function_3d& V, real_function_3d& psi, double& eps) {
-    real_convolution_3d op = BSHOperator3D<double>(world, sqrt(-2*eps), k, 0.001, 1e-6);
+    real_convolution_3d op = BSHOperator3D(world, sqrt(-2*eps), 0.001, 1e-6);
     real_function_3d Vpsi = (V*psi);
     Vpsi.scale(-2.0).truncate();
-    real_function_3d tmp = apply(op,Vpsi).truncate();
+    real_function_3d tmp = op(Vpsi).truncate();
     double norm = tmp.norm2();
     real_function_3d r = tmp-psi;
     double rnorm = r.norm2();
@@ -107,24 +107,24 @@ int main(int argc, char** argv) {
     psi.truncate();
     psi.scale(1.0/psi.norm2());
 
-    real_convolution_3d op = CoulombOperator<double>(world, k, 0.001, 1e-6);
+    real_convolution_3d op = CoulombOperator(world, 0.001, 1e-6);
 
     double eps = -0.6;
     for (int iter=0; iter<10; iter++) {
         real_function_3d rho = square(psi).truncate();
-        real_function_3d potential = Vnuc + apply(op,rho).truncate();
+        real_function_3d potential = Vnuc + op(rho).truncate();
         iterate(world, potential, psi, eps);
     }
 
     double kinetic_energy = 0.0;
     for (int axis=0; axis<3; axis++) {
-        print("DOING AXIS",axis);
-        real_function_3d dpsi = diff(psi,axis);
+        real_derivative_3d D = free_space_derivative<double,3>(world, axis);
+        real_function_3d dpsi = D(psi);
         kinetic_energy += inner(dpsi,dpsi);
     }
 
     real_function_3d rho = square(psi);
-    double two_electron_energy = inner(apply(op,rho),rho);
+    double two_electron_energy = inner(op(rho),rho);
     double nuclear_attraction_energy = 2.0*inner(Vnuc,rho);
     double nuclear_repulsion_energy = 1.0/R;
     double total_energy = kinetic_energy + two_electron_energy + 

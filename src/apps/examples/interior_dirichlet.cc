@@ -181,7 +181,7 @@ int main(int argc, char **argv) {
 			return -1;
 	}
 
-	MPI::Init(argc, argv);
+        initialize(argc,argv);
 	World world(MPI::COMM_WORLD);
 	startup(world,argc,argv);
 
@@ -193,11 +193,6 @@ int main(int argc, char **argv) {
 	//FunctionDefaults<3>::set_initial_level(4);
 	/// the following line can be commented out if memory is not an issue
 	FunctionDefaults<3>::set_max_refine_level(6);
-
-	Tensor<int> bc(3,2);
-	bc(_,0) = 0;          // Dirichlet in all directions
-	bc(_,1) = 0;
-	FunctionDefaults<3>::set_bc(bc);
 
 	// create the forcing function inhomogeneity
 	functionT f = factoryT(world).f(f_rhs);
@@ -224,12 +219,11 @@ int main(int argc, char **argv) {
 	// setup the Green's function
 	// NOTE that CoulombOperator essentially makes the BSH w/ k == 0.0,
 	// and then rescales by 4 pi.  This is more consistent.
-	SeparatedConvolution<double,3> G =
-		BSHOperator<double,3>(world, helmholtz_k, k, eps*0.1, thresh);
+	real_convolution_3d G = BSHOperator<3>(world, helmholtz_k, eps*0.1, thresh);
 
 	// compute the inhomogeneous portion
 	functionT usol = phi*f + b*d; // should be -b*d, but b accounts for -G
-	functionT uinhomog = apply(G, usol).truncate();
+	functionT uinhomog = G(usol).truncate();
 	uinhomog.scale(-1.0); // add the -1 from the Green's function
 	uinhomog.truncate();
 	world.gop.fence();
@@ -263,7 +257,7 @@ int main(int argc, char **argv) {
 	plotvtk_data(exact, "exact", world, filename, plotlo, plothi, npts);
 	plotvtk_end<3>(world, filename);
 
-	MPI::Finalize();
+        finalize();
 
 	return 0;
 }

@@ -1,8 +1,6 @@
 include $(top_srcdir)/config/MakeGlobal.am
 
-bin_PROGRAMS = hello hatom_energy h2 he tdse bigboy2 fast heat heat2 csqrt phil sdf_shape_tester interior_dirichlet test_gmres tdse1d vnucso nonlinschro sininteg functionio dataloadbal laplace_sphere
-
-bigboy2_SOURCES = bigboy2.cc
+bin_PROGRAMS = hello hatom_energy h2 he tdse heat heat2 csqrt sdf_shape_tester interior_dirichlet test_gmres tdse1d vnucso nonlinschro sininteg functionio dataloadbal laplace_sphere
 
 dataloadbal_SOURCES = dataloadbal.cc
 
@@ -14,13 +12,9 @@ functionio_SOURCES = functionio.cc
 
 nonlinschro_SOURCES = nonlinschro.cc
 
-phil_SOURCES = phil.cc
-
 heat_SOURCES = heat.cc
 
 heat2_SOURCES = heat2.cc
-
-fast_SOURCES = fast.cc
 
 hello_SOURCES = hello.cc
 

@@ -113,7 +113,8 @@ double energy(World& world, const Function<T,3>& psi, const functionT& potn) {
     T PE = psi.inner(psi*potn);
     T KE = 0.0;
     for (int axis=0; axis<3; axis++) {
-        Function<T,3> dpsi = diff(psi,axis);
+        Derivative<T,3> D = free_space_derivative<T,3>(world, axis);
+        Function<T,3> dpsi = D(psi);
         KE += inner(dpsi,dpsi)*0.5;
     }
     T E = (KE+PE)/S;
@@ -171,7 +172,7 @@ void converge(World& world, functionT& potn, functionT& psi, double& eps) {
 
     Tensor<double> coeff(1); coeff[0] = 1.0/pow(constants::pi*tmax,1.5);
     Tensor<double> expnt(1); expnt[0] = 1.0/tmax;
-    operatorT* op = new operatorT(world,k,coeff,expnt);
+    operatorT* op = new operatorT(world,coeff,expnt);
 
     for (int iter=0; iter<20; iter++) {
         if (world.rank() == 0) print("ITER",iter);
@@ -200,7 +201,7 @@ void converge(World& world, functionT& potn, functionT& psi, double& eps) {
             delete op;
             coeff[0] = 1.0/sqrt(constants::pi*tmax);
             expnt[0] = 1.0/tmax;
-            op = new operatorT(world,k,coeff,expnt);
+            op = new operatorT(world,coeff,expnt);
         }        
     }
     delete op;

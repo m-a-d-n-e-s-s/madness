@@ -97,7 +97,8 @@ int main(int argc, char**argv) {
   Function<double,3> u = FunctionFactory<double,3>(world).f(psi);
   Function<double,3> v = FunctionFactory<double,3>(world).f(V);
   Function<double,3> vu = v*u;
-  Function<double,3> du = diff(u,0);
+  real_derivative_3d Dx = free_space_derivative<double,3>(world,0);
+  Function<double,3> du = Dx(u);
   double KE = 3*0.5*(du.inner(du));
   double PE = vu.inner(u);
   double S = u.inner(u);

@@ -184,7 +184,7 @@ void iterate(World& world, real_function_1d& psi) {
     real_function_1d v = make_potential(world, rho);
 
     // Compute energy components and print
-    real_function_1d dpsi = diff(psi,0);
+    real_function_1d dpsi = Derivative<double,1>(world,0)(psi);
     double kinetic_energy = inner(dpsi,dpsi);
     double potential_energy = inner(rho, v);
     double energy = potential_energy + kinetic_energy;
@@ -192,8 +192,8 @@ void iterate(World& world, real_function_1d& psi) {
     // Update the wave function
     real_function_1d Vpsi = v*psi;
     Vpsi.scale(-1.0).truncate();
-    real_convolution_1d op = BSHOperator<double,1>(world, sqrt(-energy), k, 0.001, 1e-6);
-    real_function_1d tmp = apply(op,Vpsi).truncate();
+    real_convolution_1d op = BSHOperator<1>(world, sqrt(-energy), 0.001, 1e-6);
+    real_function_1d tmp = op(Vpsi).truncate();
     real_function_1d r = tmp-psi;
     double rnorm = r.norm2();
     //double step = std::min(1.0,0.05/rnorm);

@@ -242,11 +242,12 @@ void test(World& world, bool doloadbal=false) {
     double truncation = wall_time() - start;
 
     start = wall_time();
-    diff(world, f, 0); // Computes vector of derivatives and discards result
+    Derivative<double,3> Dx(world,0);
+    apply(world, Dx, f); // Computes vector of derivatives and discards result
     double differentiation = wall_time() - start;
 
     // Make the Coulomb operator
-    real_convolution_3d op = CoulombOperator<double>(world, FunctionDefaults<3>::get_k(), 1e-2, 1e-6);
+    real_convolution_3d op = CoulombOperator(world, 1e-2, 1e-6);
 
     start = wall_time();
     apply(world, op, f); // Applies Coulomb GF and discards result

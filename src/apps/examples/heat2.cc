@@ -148,7 +148,7 @@ int main(int argc, char** argv) {
     real_tensor expnt(1), coeff(1);
     expnt[0] = 1.0/(4.0*c*tstep*0.5);
     coeff[0] = pow(4.0*constants::pi*c*tstep*0.5,-1.5);
-    real_convolution_3d G(world, k, coeff, expnt);
+    real_convolution_3d G(world, coeff, expnt);
 
     // Propagate forward 50 time steps
     real_function_3d u = u0;

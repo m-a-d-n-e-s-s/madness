@@ -329,7 +329,8 @@ complex_function_1d trotter(World& world, const complex_function_1d& psi0, const
 
 void print_info(World& world, const complex_function_1d& psi, int step) {
     real_function_1d potn = real_factory_1d(world).f(V).truncate_on_project();
-    complex_function_1d dpsi = diff(psi,0);
+    complex_derivative_1d D = free_space_derivative<double_complex,1>(world,0);
+    complex_function_1d dpsi = D(psi);
     double ke = inner(dpsi,dpsi).real() * 0.5;
     double pe = psi.inner(psi*potn).real();
     double norm = psi.norm2();
