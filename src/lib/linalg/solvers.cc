@@ -258,7 +258,8 @@ namespace madness {
         else throw "QuasiNewton: unknown update mthod";
     }
     
-    bool QuasiNewton::optimize(Tensor<double>& x, int maxiter) {
+    bool QuasiNewton::optimize(Tensor<double>& x) {
+        int maxiter = 20; // !!!!!!!!! dumb
         if (n != x.dim(0)) {
             n = x.dim(0);
             h = Tensor<double>();

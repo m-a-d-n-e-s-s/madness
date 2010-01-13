@@ -288,7 +288,7 @@ namespace madness {
         /// Runs the optimizer
 
         /// @return True if converged
-        bool optimize(Tensor<double>& x, int maxiter=20);
+        bool optimize(Tensor<double>& x);
 
         /// After running the optimizer returns true if converged
 
