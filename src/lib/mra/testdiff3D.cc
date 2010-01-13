@@ -8,9 +8,9 @@
 /// and call vectorg again
 
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES  
-#include <string>
 #include <mra/mra.h>
 #include <mra/mraimpl.h>
+#include <string>
 
 using namespace madness;
 
