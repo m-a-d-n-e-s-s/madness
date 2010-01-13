@@ -168,7 +168,7 @@ int main(int argc, char**argv) {
     initialize(argc, argv);
     World world(MPI::COMM_WORLD);
     startup(world,argc,argv);
-    FunctionDefaults<3>::set_bc(0);
+    FunctionDefaults<3>::set_bc(BC_FREE);
 
     try {
 

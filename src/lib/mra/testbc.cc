@@ -172,7 +172,7 @@ int main(int argc, char**argv) {
         plot_line("phi.dat", npt, lo, hi, phi);
         plot_line("u0.dat", npt, lo, hi, u0);
 
-        operatorT op = CoulombOperator<double>(world, k, sigma*0.1, thresh);
+        operatorT op = CoulombOperator(world, sigma*0.1, thresh);
         // Starting values
         double mu = 0.25;
         functionT f = u0; //
@@ -191,7 +191,7 @@ int main(int argc, char**argv) {
                 for (int m=0; m<20; m++) {
                     f.truncate();
                     fvec.push_back(f);
-                    u = apply(op, fvec[m], std::vector<bool>(3, false)); 
+                    u = op(fvec[m]);
                     u.scale(0.25/constants::pi); 
                     u.truncate(); // Current soln
                     

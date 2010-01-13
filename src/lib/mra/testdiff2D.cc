@@ -98,8 +98,7 @@ int main(int argc, char** argv) {
         FunctionDefaults<2>::set_initial_level(init_lev);
         FunctionDefaults<2>::set_cubic_cell( 0. , 1.);
 
-        Tensor<int> bctensor(2,2) ;
-        BoundaryConditions<2> bdry_cs(bctensor);
+        BoundaryConditions<2> bc;
 
         functionT  u      = factoryT(world).f(   u_exact );
         functionT dudxe   = factoryT(world).f(dudx_exact );
@@ -120,11 +119,11 @@ int main(int argc, char** argv) {
 
         // X Right B.C.: Dirichlet
         // X Left  B.C.: Free
-        bctensor(0,0) = 3 ;
-        bctensor(0,1) = 2 ;
-        bctensor(1,0) = 2 ;
-        bctensor(1,1) = 2 ;
-        bdry_cs = bctensor ;
+        bc(0,0) = BC_DIRICHLET ;
+        bc(0,1) = BC_FREE ;
+        bc(1,0) = BC_FREE ;
+        bc(1,1) = BC_FREE ;
+        bc = bc ;
 
 /*
 //Create a derived class FreeSpaceDerivative, PeriodicDerivative
@@ -132,37 +131,37 @@ int main(int argc, char** argv) {
         FreeSpaceDerivative<double,2> dx1(world, k, test_axis, 2) ; // Free Space
         PeriodicDerivative<double,2> dx1(world, k, test_axis, 1) ; // Periodic
 */
-        Derivative<double,2> dx1(world, test_axis, bdry_cs, xleft_d, xright_d, k) ;
+        Derivative<double,2> dx1(world, test_axis, bc, xleft_d, xright_d, k) ;
         functionT dudx1 = dx1(u) ;
         compare(dudx1, dudxe, "dudx1") ;
 
         // X Right B.C.: Free
         // X Left  B.C.: Dirichlet
-        bctensor(0,0) = 2 ;
-        bctensor(0,1) = 3 ;
-        bdry_cs = bctensor ;
+        bc(0,0) = BC_FREE ;
+        bc(0,1) = BC_DIRICHLET ;
+        bc = bc ;
 
-        Derivative<double,2> dx2(world, test_axis, bdry_cs, xleft_d, xright_d, k) ;
+        Derivative<double,2> dx2(world, test_axis, bc, xleft_d, xright_d, k) ;
         functionT dudx2 = dx2(u) ;
         compare(dudx2, dudxe, "dudx2") ;
 
         // X Right B.C.: Neumann
         // X Left  B.C.: Free
-        bctensor(0,0) = 5 ;
-        bctensor(0,1) = 2 ;
-        bdry_cs = bctensor ;
+        bc(0,0) = BC_NEUMANN ;
+        bc(0,1) = BC_FREE ;
+        bc = bc ;
 
-        Derivative<double,2> dx3(world, test_axis, bdry_cs, xleft_n, xright_n, k) ;
+        Derivative<double,2> dx3(world, test_axis, bc, xleft_n, xright_n, k) ;
         functionT dudx3 = dx3(u) ;
         compare(dudx3, dudxe, "dudx3") ;
 
         // X Right B.C.: Free
         // X Left  B.C.: Neumann
-        bctensor(0,0) = 2 ;
-        bctensor(0,1) = 5 ;
-        bdry_cs = bctensor ;
+        bc(0,0) = BC_FREE ;
+        bc(0,1) = BC_NEUMANN ;
+        bc = bc ;
 
-        Derivative<double,2> dx4(world, test_axis, bdry_cs, xleft_n, xright_n, k) ;
+        Derivative<double,2> dx4(world, test_axis, bc, xleft_n, xright_n, k) ;
         functionT dudx4 = dx4(u) ;
         compare(dudx4, dudxe, "dudx4") ;
 
@@ -172,43 +171,43 @@ int main(int argc, char** argv) {
 
         // Y Right B.C.: Dirichlet
         // Y Left  B.C.: Free
-        bctensor(0,0) = 2 ;
-        bctensor(0,1) = 2 ;
-        bctensor(1,0) = 3 ;
-        bctensor(1,1) = 2 ;
-        bdry_cs = bctensor ;
+        bc(0,0) = BC_FREE ;
+        bc(0,1) = BC_FREE ;
+        bc(1,0) = BC_DIRICHLET ;
+        bc(1,1) = BC_FREE ;
+        bc = bc ;
 
-        Derivative<double,2> dy1(world, test_axis, bdry_cs, yleft_d, yright_d, k) ;
+        Derivative<double,2> dy1(world, test_axis, bc, yleft_d, yright_d, k) ;
         functionT dudy1 = dy1(u) ;
         compare(dudy1, dudye, "dudy1") ;
 
         // Y Right B.C.: Free
         // Y Left  B.C.: Dirichlet
-        bctensor(1,0) = 2 ;
-        bctensor(1,1) = 3 ;
-        bdry_cs = bctensor ;
+        bc(1,0) = BC_FREE ;
+        bc(1,1) = BC_DIRICHLET ;
+        bc = bc ;
 
-        Derivative<double,2> dy2(world, test_axis, bdry_cs, yleft_d, yright_d, k) ;
+        Derivative<double,2> dy2(world, test_axis, bc, yleft_d, yright_d, k) ;
         functionT dudy2 = dy2(u) ;
         compare(dudy2, dudye, "dudy2") ;
 
         // Y Right B.C.: Neumann
         // Y Left  B.C.: Free
-        bctensor(1,0) = 5 ;
-        bctensor(1,1) = 2 ;
-        bdry_cs = bctensor ;
+        bc(1,0) = BC_NEUMANN ;
+        bc(1,1) = BC_FREE ;
+        bc = bc ;
 
-        Derivative<double,2> dy3(world, test_axis, bdry_cs, yleft_n, yright_n, k) ;
+        Derivative<double,2> dy3(world, test_axis, bc, yleft_n, yright_n, k) ;
         functionT dudy3 = dy3(u) ;
         compare(dudy3, dudye, "dudy3") ;
 
         // Y Right B.C.: Free
         // Y Left  B.C.: Neumann
-        bctensor(1,0) = 2 ;
-        bctensor(1,1) = 5 ;
-        bdry_cs = bctensor ;
+        bc(1,0) = BC_FREE ;
+        bc(1,1) = BC_NEUMANN ;
+        bc = bc ;
 
-        Derivative<double,2> dy4(world, test_axis, bdry_cs, yleft_n, yright_n, k) ;
+        Derivative<double,2> dy4(world, test_axis, bc, yleft_n, yright_n, k) ;
         functionT dudy4 = dy4(u) ;
         compare(dudy4, dudye, "dudy4") ;
 

@@ -88,7 +88,7 @@ int main(int argc, char** argv) {
     Tensor<int> bc_periodic(NDIM,2);
     bc_periodic.fill(1);
 
-    BoundaryConditions<NDIM> bc(bc_periodic);
+    BoundaryConditions<NDIM> bc(BC_PERIODIC);
 
     functionT f = factoryT(world).f(func);
 

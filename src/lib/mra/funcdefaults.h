@@ -59,16 +59,10 @@ namespace madness {
 
       Exterior boundary conditions (i.e., on the simulation domain)
       are associated with operators (not functions).  The types of
-      boundary conditions available are
-      - zero 
-      - free space (or none)
-      - periodic
-      - Dirichlet
-      - Neumann
-      - Unknown
+      boundary conditions available are in the enum BCType.
 
       The default boundary conditions are obtained from the FunctionDefaults.
-      For Dirichlet, Neumann, and Robin conditions additional information
+      For non-zero Dirichlet and Neumann conditions additional information
       must be provided when derivative operators are constructed. For integral
       operators, only periodic and free space are supported.
     */
@@ -78,8 +72,8 @@ namespace madness {
         std::vector<BCType> bc;
         
     public:
-        /// Constructor. Default boundary condition set to periodic
-        BoundaryConditions(BCType code=BC_PERIODIC) 
+        /// Constructor. Default boundary condition set to free space
+        BoundaryConditions(BCType code=BC_FREE) 
             : bc(2*NDIM, code)
         {}
 
@@ -114,6 +108,16 @@ namespace madness {
         /// @param i Side (0=left, 1=right) for boundary condition
         /// @return Value of boundary condition
         BCType operator()(int d, int i) const {
+            MADNESS_ASSERT(d>=0 && d<NDIM && i>=0 && i<2);
+            return bc[2*d+i];
+        }
+
+        /// Returns reference to boundary condition
+
+        /// @param d Dimension (0,...,NDIM-1) for boundary condition
+        /// @param i Side (0=left, 1=right) for boundary condition
+        /// @return Value of boundary condition
+        BCType& operator()(int d, int i) {
             MADNESS_ASSERT(d>=0 && d<NDIM && i>=0 && i<2);
             return bc[2*d+i];
         }

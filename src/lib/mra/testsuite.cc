@@ -690,7 +690,7 @@ void test_op(World& world) {
     Tensor<double> coeffs(1), exponents(1);
     exponents(0L) = 10.0;
     coeffs(0L) = pow(exponents(0L)/PI, 0.5*NDIM);
-    SeparatedConvolution<T,NDIM> op(world, FunctionDefaults<NDIM>::get_k(), coeffs, exponents);
+    SeparatedConvolution<T,NDIM> op(world, coeffs, exponents);
     START_TIMER;
     Function<T,NDIM> r = apply(op,f);
     END_TIMER("apply");
@@ -804,7 +804,7 @@ void test_coulomb(World& world) {
         print("");
     }
     f.set_thresh(thresh);
-    SeparatedConvolution<double,3> op = CoulombOperator<double>(world, k, 1e-5, thresh);
+    SeparatedConvolution<double,3> op = CoulombOperator(world, 1e-5, thresh);
 
     FunctionDefaults<3>::set_apply_randomize(true);
 
@@ -1167,7 +1167,7 @@ void test_apply_push_1d(World& world) {
     coordT lo(-L), hi(L);
     plot_line("fplot.dat", 201, lo, hi, f);
 
-    GaussianConvolution1D<double> op(6, coeff*2.0*L, expnt*L*L*4.0, 1.0);
+    GaussianConvolution1D<double> op(6, coeff*2.0*L, expnt*L*L*4.0, 1.0, false);
     Function<T,NDIM> opf = apply_1d_realspace_push(op, f, 0);
 
     opf.sum_down();
@@ -1236,8 +1236,8 @@ int main(int argc, char**argv) {
         test_io<double,1>(world);
         
         // stupid location for this test
-        GenericConvolution1D<double,GaussianGenericFunctor<double> > gen(10,GaussianGenericFunctor<double>(100.0,100.0));
-        GaussianConvolution1D<double> gau(10, 100.0, 100.0, 1.0);
+        GenericConvolution1D<double,GaussianGenericFunctor<double> > gen(10,GaussianGenericFunctor<double>(100.0,100.0),0);
+        GaussianConvolution1D<double> gau(10, 100.0, 100.0, 1.0, false);
         Tensor<double> gg = gen.rnlp(4,0);
         Tensor<double> hh = gau.rnlp(4,0);
         MADNESS_ASSERT((gg-hh).normf() < 1e-13);

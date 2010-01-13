@@ -215,10 +215,10 @@ namespace madness {
         static bool enforce_bc(int bc_left, int bc_right, Level n, Translation& l) {
             Translation two2n = 1ul << n;
             if (l < 0) {
-                if (bc_left == 0 || bc_left == 2 || bc_left ==3 || bc_left == 4 || bc_left == 5) {
+                if (bc_left == BC_ZERO || bc_left == BC_FREE || bc_left ==3 || bc_left == BC_ZERONEUMANN || bc_left == BC_NEUMANN) {
                     return false; // f=0 BC, or no BC, or nonzero f BC, or zero deriv BC, or nonzero deriv BC
                 }
-                else if (bc_left == 1) {
+                else if (bc_left == BC_PERIODIC) {
                     l += two2n; // Periodic BC
                     MADNESS_ASSERT(bc_left == bc_right);   //check that both BCs are periodic
                 }
@@ -227,10 +227,10 @@ namespace madness {
                 }
             }
             else if (l >= two2n) {
-                if (bc_right == 0 || bc_right == 2 || bc_right == 3 || bc_right ==4 || bc_right == 5) {
+                if (bc_right == BC_ZERO || bc_right == BC_FREE || bc_right == BC_DIRICHLET || bc_right ==4 || bc_right == BC_NEUMANN) {
                     return false; // f=0 BC, or no BC, or nonzero f BC, or zero deriv BC, or nonzero deriv BC
                 }
-                else if (bc_right == 1) {
+                else if (bc_right == BC_PERIODIC) {
                     l -= two2n; // Periodic BC
                     MADNESS_ASSERT(bc_left == bc_right);   //check that both BCs are periodic
                 }
@@ -334,7 +334,7 @@ namespace madness {
             tensorT bf, bdry_t;
             //left boundary
             if (l[this->axis] == 0) {
-                if (bc_left != 1 && bc_left != 2) {
+                if (bc_left != BC_PERIODIC && bc_left != BC_FREE) {
                     bf = copy(bv_left);
                     found_argT = g1.get_impl()->find_me(key);
                 }
@@ -343,7 +343,7 @@ namespace madness {
                 }
             }
             else { //right boundary
-                if (bc_right != 1 && bc_right != 2) {
+                if (bc_right != BC_PERIODIC && bc_right != BC_FREE) {
                     bf = copy(bv_right);
                     found_argT = g2.get_impl()->find_me(key);
                 }
@@ -354,7 +354,8 @@ namespace madness {
             
             tensorT gcoeffs = found_argT.get().second;
             
-            if (this->bc.get_bc().dim(0) == 1) {
+            //if (this->bc.get_bc().dim(0) == 1) {
+            if (NDIM == 1) {
                 bdry_t = gcoeffs[0]*bf;
             }
             else {
@@ -367,11 +368,11 @@ namespace madness {
             bdry_t.scale(FunctionDefaults<NDIM>::get_rcell_width()[this->axis]);
             
             if (l[this->axis]==0) {
-                if (bc_left == 3)
+                if (bc_left == BC_DIRICHLET)
                     bdry_t.scale( pow(2.0,lev));
             }
             else {
-                if (bc_right == 3)
+                if (bc_right == BC_DIRICHLET)
                     bdry_t.scale( pow(2.0,lev));
             }
             
@@ -438,7 +439,7 @@ namespace madness {
                     rp(i,j) =-0.5*iphase*gammaij;
                     
                     // Constraints on the derivative 
-                    if (bc_left == 4 || bc_left == 5) {
+                    if (bc_left == BC_ZERONEUMANN || bc_left == BC_NEUMANN) {
                         left_rm(i,j) = jphase*gammaij*0.5*(1.0 + iphase*kphase/this->k); 
                         
                         double phi_tmpj_left = 0;
@@ -455,20 +456,20 @@ namespace madness {
                         phi_tmpj_left = -jphase*phi_tmpj_left;
                         left_r0(i,j) = (0.5*(1.0 + iphase*kphase/this->k) - Kij)*gammaij + iphase*sqrt(double(2*i+1))*phi_tmpj_left/pow(this->k,2.);
                     }
-                    else if (bc_left == 0 || bc_left == 3 || bc_left == 2) {
+                    else if (bc_left == BC_ZERO || bc_left == BC_DIRICHLET || bc_left == BC_FREE) {
                         left_rm(i,j) = rm(i,j);
                         
                         // B.C. with a function
-                        if (bc_left == 0 || bc_left == 3)
+                        if (bc_left == BC_ZERO || bc_left == BC_DIRICHLET)
                             left_r0(i,j) = (0.5 - Kij)*gammaij;
                         
                         // No B.C.
-                        else if (bc_left == 2)
+                        else if (bc_left == BC_FREE)
                             left_r0(i,j) = (0.5 - iphase*jphase - Kij)*gammaij;
                     }
                     
                     // Constraints on the derivative
-                    if (bc_right == 4 || bc_right == 5) {
+                    if (bc_right == BC_ZERONEUMANN || bc_right == BC_NEUMANN) {
                         right_rp(i,j) = -0.5*(iphase + kphase / this->k)*gammaij;
                         
                         double phi_tmpj_right = 0;
@@ -481,15 +482,15 @@ namespace madness {
                         }
                         right_r0(i,j) = -(0.5*jphase*(iphase+ kphase/this->k) + Kij)*gammaij + sqrt(double(2*i+1))*phi_tmpj_right/pow(this->k,2.);
                     }
-                    else if (bc_right == 0 || bc_right == 2 || bc_right == 3) {
+                    else if (bc_right == BC_ZERO || bc_right == BC_FREE || bc_right == BC_DIRICHLET) {
                         right_rp(i,j) = rp(i,j);
                         
                         // Zero BC
-                        if (bc_right == 0 || bc_right == 3)
+                        if (bc_right == BC_ZERO || bc_right == BC_DIRICHLET)
                             right_r0(i,j) = -(0.5*iphase*jphase + Kij)*gammaij;
                         
                         // No BC
-                        else if (bc_right == 2)
+                        else if (bc_right == BC_FREE)
                             right_r0(i,j) = (1.0 - 0.5*iphase*jphase - Kij)*gammaij; 
                         
                     }
@@ -504,16 +505,16 @@ namespace madness {
             for (int i=0; i<this->k; i++) {
                 iphase = -iphase;
                 
-                if (bc_left == 3)
+                if (bc_left == BC_DIRICHLET)
                     bv_left(i) = iphase*sqrt(double(2*i+1));            // vector for left dirichlet BC
-                else if(bc_left == 5)
+                else if(bc_left == BC_NEUMANN)
                     bv_left(i) = -iphase*sqrt(double(2*i+1))/pow(this->k,2);  // vector for left deriv BC
                 else
                     bv_left(i) = 0.0;
                 
-                if (bc_right == 3)
+                if (bc_right == BC_DIRICHLET)
                     bv_right(i) = sqrt(double(2*i+1));                  // vector for right dirichlet BC
-                else if (bc_right == 5)
+                else if (bc_right == BC_NEUMANN)
                     bv_right(i) = sqrt(double(2*i+1))/pow(this->k,2);         // vector for right deriv BC 
                 else
                     bv_right(i) = 0.0;
@@ -552,7 +553,7 @@ namespace madness {
     class FreeSpaceDerivative : public Derivative<T, NDIM> {
     public:
         FreeSpaceDerivative(World& world, int axis, int k=FunctionDefaults<NDIM>::get_k()) 
-            :  Derivative<T, NDIM>(world, axis, BoundaryConditions<NDIM>(2), Function<T,NDIM>(), Function<T,NDIM>(), k) 
+            :  Derivative<T, NDIM>(world, axis, BoundaryConditions<NDIM>(BC_FREE), Function<T,NDIM>(), Function<T,NDIM>(), k) 
         {}
     };
     

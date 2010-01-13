@@ -88,8 +88,7 @@ int main(int argc, char** argv) {
         FunctionDefaults<1>::set_initial_level(init_lev);
         FunctionDefaults<1>::set_cubic_cell( 0. , 1.);
 
-        Tensor<int> bctensor(1,2) ;
-        BoundaryConditions<1> bdry_cs(bctensor);
+        BoundaryConditions<1> bc;
 
         functionT  u      = factoryT(world).f( u_exact );
         functionT due     = factoryT(world).f(du_exact );
@@ -101,41 +100,37 @@ int main(int argc, char** argv) {
 
         // Right B.C.: Dirichlet
         // Left  B.C.: Free
-        bctensor(0,0) = 3 ;
-        bctensor(0,1) = 2 ;
-        bdry_cs = bctensor ;
+        bc(0,0) = BC_DIRICHLET ;
+        bc(0,1) = BC_FREE ;
 
-        Derivative<double,1> dx1(world, test_axis, bdry_cs, left_d, right_d, k) ;
+        Derivative<double,1> dx1(world, test_axis, bc, left_d, right_d, k) ;
         functionT du1 = dx1(u) ;
         compare(du1, due, "du1") ;
 
         // Right B.C.: Free
         // Left  B.C.: Dirichlet
-        bctensor(0,0) = 2 ;
-        bctensor(0,1) = 3 ;
-        bdry_cs = bctensor ;
+        bc(0,0) = BC_FREE ;
+        bc(0,1) = BC_DIRICHLET ;
 
-        Derivative<double,1> dx2(world, test_axis, bdry_cs, left_d, right_d, k) ;
+        Derivative<double,1> dx2(world, test_axis, bc, left_d, right_d, k) ;
         functionT du2 = dx2(u) ;
         compare(du2, due, "du2") ;
 
         // Right B.C.: Neumann
         // Left  B.C.: Free
-        bctensor(0,0) = 5 ;
-        bctensor(0,1) = 2 ;
-        bdry_cs = bctensor ;
+        bc(0,0) = BC_NEUMANN ;
+        bc(0,1) = BC_FREE ;
 
-        Derivative<double,1> dx3(world, test_axis, bdry_cs, left_n, right_n, k) ;
+        Derivative<double,1> dx3(world, test_axis, bc, left_n, right_n, k) ;
         functionT du3 = dx3(u) ;
         compare(du3, due, "du3") ;
 
         // Right B.C.: Free
         // Left  B.C.: Neumann
-        bctensor(0,0) = 2 ;
-        bctensor(0,1) = 5 ;
-        bdry_cs = bctensor ;
+        bc(0,0) = BC_FREE ;
+        bc(0,1) = BC_NEUMANN ;
 
-        Derivative<double,1> dx4(world, test_axis, bdry_cs, left_n, right_n, k) ;
+        Derivative<double,1> dx4(world, test_axis, bc, left_n, right_n, k) ;
         functionT du4 = dx4(u) ;
         compare(du4, due, "du4") ;
 
