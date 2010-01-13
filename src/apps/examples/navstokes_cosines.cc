@@ -33,11 +33,11 @@
 
   
 /*!
-	\file navstokes_cosines.cc
-	\brief Example Solving the Navier-Stokes equations 
-	\defgroup examplense Solves a Navier-Stokes equation 
-	\ingroup examples
-
+  \file navstokes_cosines.cc
+  \brief Example Solving the Navier-Stokes equations 
+  \defgroup examplense Solves a Navier-Stokes equation 
+  \ingroup examples
+  
   The source is <a href=http://code.google.com/p/m-a-d-n-e-s-s/source/browse/local/trunk/src/apps/examples/navstokes_cosines.cc >here</a>.
 
   \par Points of interest
@@ -46,21 +46,24 @@
   
   \par Background
   This illustrates solution of a Navier-Stokes equation for incompressible flows,
-  \f[
-   u_t - u \cdot \grad u + \grad p = \mu \Delta u + f
-   \grad \cdot u = 0
-  \f]
-  where the force and the viscocity  \f$ f and \mu \f$ are given in the code.
+  \f{eqnarray*}{
+  u_t - u \cdot \nabla u + \nabla p & = &\mu \Delta u + f \\
+  \nabla \cdot u & = & 0
+  \f}
+  where the force and the viscocity  \f$ f \f$ and \f$ \mu \f$ are given in the code.
 
   \par Implementation
     
-    Step 1.  Calculate the pressure at time n+1 explicitly.
-	            \Delta p = \grad \cdot (f - u_{n} \cdot \grad u_{n} ) 
-	Step 2.  Calculate the velocity at time n+1.
-	            \frac{1}{ \delta t \mu } - \Delta) u_{n+1} = \frac {f - \grad p +u_{n}}{ \mu } 
-	
-	The resulting method is a first order in time scheme and can be used with Spectral/Krylov deferred correction to construct higher order methods.
-	Particularly, the construction under this frame is easy and semilar to the Crank-Nicolson technique.
+    Step 1.  Calculate the pressure at time \f$ n+1 \f$ explicitly.
+    \f[
+    \Delta p = \nabla \cdot (f - u_{n} \cdot \nabla u_{n} ) 
+    \f]
+    Step 2.  Calculate the velocity at time n+1.
+    \f[
+    \frac{1}{ \delta t \mu } - \Delta) u_{n+1} = \frac {f - \nabla p +u_{n}}{ \mu } 
+    \f]
+    The resulting method is a first order in time scheme and can be used with Spectral/Krylov deferred correction to construct higher order methods.
+    Particularly, the construction under this frame is easy and similar to the Crank-Nicolson technique.
 */
 
 
