@@ -602,7 +602,7 @@ struct Calculation {
     tensorT aocc, bocc;
     tensorT aeps, beps;
     poperatorT coulop;
-    SharedPtr<real_derivative_3d> gradop[3];
+    std::vector< SharedPtr<real_derivative_3d> > gradop;
     double vtol;
     double current_energy;
     Calculation(World & world, const char *filename)
@@ -647,9 +647,7 @@ struct Calculation {
         double safety = 0.1;
         vtol = FunctionDefaults<3>::get_thresh() * safety;
         coulop = poperatorT(CoulombOperatorPtr(world, param.lo, thresh));
-        gradop[0] = SharedPtr<real_derivative_3d>(new real_derivative_3d(world,0));
-        gradop[1] = SharedPtr<real_derivative_3d>(new real_derivative_3d(world,1));
-        gradop[2] = SharedPtr<real_derivative_3d>(new real_derivative_3d(world,2));
+        gradop = gradient_operator<double,3>(world);
         mask = functionT(factoryT(world).f(mask3).initial_level(4).norefine());
         if(world.rank() == 0){
             print("\nSolving with thresh", thresh, "    k", FunctionDefaults<3>::get_k(), "   conv", std::max(thresh, param.dconv), "\n");
