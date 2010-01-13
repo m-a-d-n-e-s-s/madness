@@ -7,27 +7,26 @@ There are currently the well tested and minimum software requirements that are r
 
 Hardware:
 
-  1) minimum a cpu that can do SSE, SSE2 and SSE3 instructions for optimal satisfaction.
+  1) minimum a cpu that can do SSE, SSE2 and SSE3 instructions for optimal satisfaction.  If you are using an older machine (e.g. one which does not support SSE3) you will need to wait we update this.  This does not apply if you are using IBM's BlueGene.
 
   2) some of the examples such as phil and bigboy are intended for large parallel machines so do not run them unless you have thousands of cores and hundreds of gigs of memory.
 
-
 Prequisites:
 
-  o  MPI-2: you will need mpicc, mpicxx 
+  o  MPI-2: you will need mpicc, mpicxx (tested with mpich2 v. 1.0.8)
 
   o  BLAS
 
   o  LAPACK
 
-  o  C and C++ compilers: gcc, g++ version 4.4+
+  o  C and C++ compilers: gcc, g++, gfortran versions 4.4.1, 4.3.2.
 
   o  If you are building from the respository you will also need
      autoconf and automake.
 
 Optional:
 
-  o  TCMalloc from google perftools ... its really fast.
+  o  TCMalloc from google perftools v. 1.4 ... its really fast.
 
 Configure options:
 
@@ -103,12 +102,16 @@ xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 
       Important: The LAPACK shipped with RedHat seems to be broken for
-      numerous releases.  Please build your own or use a vendor
+      numerous releases.  Please check your version, build your own or use a vendor
       version.
 
       Important: If you have one of the older processors which does not support SSE3 ...TEST and ADD SOMETHING HERE
 
-      These have been tested in 32 bit and in 64 bit under ubuntu with kernel 2.6.24.6 and redhat enterprise with kernel 2.6.18, gcc 4.4.1, mpich2-1.0.8
+      These have been tested in 1) 32 bit and in 64 bit under ubuntu with kernel 2.6.24.6, gcc 4.4.1,
+				 google-perftools-1.0 
+				2) redhat enterprise with kernel 2.6.18, gcc 4.4.1, mpich2-1.0.8
+				3) suse with kernel 2.6.27.29, gcc 4.3.2, acml 4.2.0, mpich2-1.0.8, google-perftools-1.4
+
 
 
 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
