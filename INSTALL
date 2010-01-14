@@ -7,7 +7,7 @@ There are currently the well tested and minimum software requirements that are r
 
 Hardware:
 
-  1) minimum a cpu that can do SSE, SSE2 and SSE3 instructions for optimal satisfaction.  If you are using an older machine (e.g. one which does not support SSE3) you will need to wait we update this.  This does not apply if you are using IBM's BlueGene.
+  1) minimum a cpu that can do SSE, SSE2 and SSE3 instructions for optimal satisfaction.  If you are using an older machine (e.g. one which does not support SSE3) you will need to wait until we update the installation scripts.  This does not apply if you are using IBM's BlueGene.
 
   2) some of the examples such as phil and bigboy are intended for large parallel machines so do not run them unless you have thousands of cores and hundreds of gigs of memory.
 
