@@ -206,14 +206,9 @@ void apply_potential(World& world,
         dv[axis] = apply(world, D, v);
     }
 
-    FunctionDefaults<3>::set_autorefine(true); // ?????????? why
-    
     Vu = mul(world, V0, u);
     Vv = mul(world, V0, v );
 	
-    FunctionDefaults<3>::set_autorefine(false);
-    print(" -I*lam ", -I*lam);
-
     if (!doso) return;
 
     gaxpy(world, one, Vu, -I*lam, mul(world, V0y, du[x]));
@@ -230,11 +225,7 @@ void apply_potential(World& world,
     gaxpy(world, one, Vv, -I*lam, mul(world, V0z, du[y]));
     gaxpy(world, one, Vv,    lam, mul(world, V0x, du[z]));
     gaxpy(world, one, Vv,  I*lam, mul(world, V0y, du[z]));
-    
-    //     gaxpy(world, one, Vv,   -lam, mul(world, V0z, conj(world, du[x])));
-    //     gaxpy(world, one, Vv, -I*lam, mul(world, V0z, conj(world, du[y])));
-    //     gaxpy(world, one, Vv,    lam, mul(world, conj(V0x), du[z]));
-    //     gaxpy(world, one, Vv,  I*lam, mul(world, conj(V0y), du[z]));
+
 }
 
 void normalize2(World& world, vector<complex_functionT>& u, vector<complex_functionT>& v) {
@@ -417,7 +408,7 @@ void doit(World& world) {
 	  du[axis].clear();
 	  dv[axis].clear();
 	}
-	
+
 	world.gop.fence(); // free memory
 	e = e(Slice(0,nvec-1));
 	u  = transform(world, u,  c(_,Slice(0,nvec-1)));
@@ -455,6 +446,7 @@ void doit(World& world) {
 	
 	Vu.clear();
 	Vv.clear();
+	world.gop.fence();
 	
 	vector<double> rnormu = norm2s(world,add(world, u, u_new));
 	vector<double> rnormv = norm2s(world,add(world, v, v_new));
