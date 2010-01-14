@@ -41,11 +41,11 @@
   The source is <a href=http://code.google.com/p/m-a-d-n-e-s-s/source/browse/local/trunk/src/apps/examples/navstokes_cosines.cc >here</a>.
 
   \par Points of interest
-  - convolution with the periodic Green's function (Possion kernel and Modified Helmheltz/Bound State Helmheltz/Yukawa kernel)
+  - convolution with periodic Green's function (Possion/Coulomb kernel and Modified Helmholtz/Bound State Helmholtz/Yukawa kernel)
   - output data to vtk for ParaView
   
   \par Background
-  This illustrates solution of a Navier-Stokes equation for incompressible flows,
+  This illustrates the solution of a Navier-Stokes equation for incompressible flows,
   \f{eqnarray*}{
   u_t - u \cdot \nabla u + \nabla p & = &\mu \Delta u + f \\
   \nabla \cdot u & = & 0
@@ -58,12 +58,19 @@
     \f[
     \Delta p = \nabla \cdot (f - u_{n} \cdot \nabla u_{n} ) 
     \f]
+    Everything in the RHS is either given or known; thus \f$p\f$ can be obtained by applying a Coulomb operator.
+
     Step 2.  Calculate the velocity at time n+1.
     \f[
-    \frac{1}{ \delta t \mu } - \Delta) u_{n+1} = \frac {f - \nabla p +u_{n}}{ \mu } 
+    (\frac{1}{ \delta t \mu } - \Delta) u_{n+1} = \frac {f - \nabla p +u_{n}}{ \mu } 
     \f]
-    The resulting method is a first order in time scheme and can be used with Spectral/Krylov deferred correction to construct higher order methods.
-    Particularly, the construction under this frame is easy and similar to the Crank-Nicolson technique.
+    Again, \f$u_{n+1}\f$ is calculated by applying the BSH operator to the RHS.
+    
+    The resulting method is a first order in time scheme and can be extended by Spectral/Krylov deferred corrections to construct higher order methods.
+    Particularly, the construction of a second order scheme under this frame is easy and similar to the Crank-Nicolson technique, which is also demonstrated by the example.
+    
+    \par Reference
+    
 */
 
 
@@ -79,7 +86,7 @@ typedef Vector<double, 1> coordT1d;
 typedef Function<double, 3> functionT;
 typedef std::vector<functionT> functT;
 
-const double L = 2*WST_PI;
+const double L = 2*WST_PI; //Cell length
 const double N = 8.0;
 
 const double mu = 1; // Effective Viscosity
@@ -186,6 +193,7 @@ Tensor<int> bc(3, 2), bc0(3, 2);
 World *pworld;
 #define myfun std::vector< Function<T,NDIM> >
 
+// Compute the advection of \c uu and store it in \c advu for return
 template<typename T, int NDIM> void adv(const myfun& uu, myfun& advu) {
 	for (int i=0; i < 3; ++i)  advu[i] = diff(uu[0]*uu[i],0) + diff(uu[1]*uu[i],1) + diff(uu[2]*uu[i],2);
 }
@@ -204,18 +212,19 @@ void testNavierStokes(int argc, char**argv) {
 	FunctionDefaults<3>::set_k(k);
 	FunctionDefaults<3>::set_cubic_cell(0.0, L);
 	FunctionDefaults<3>::set_thresh(pthresh);
-	//FunctionDefaults<3>::set_initial_level(4);
-
+	
 	bc = 1;
 	bc0 = 0;
 
 	FunctionDefaults<3>::set_bc(bc0);
 	
+	// construct the periodic Coulomb operator for later use
 	Tensor<double> cellsize = FunctionDefaults<3>::get_cell_width();
 	SeparatedConvolution<double, 3> op = PeriodicCoulombOp<double, 3> (world,
-			k, pthresh1, pthresh1, cellsize);
-
-	double const dum = 1 / deltaT / mu;
+			k, pthresh1, pthresh1, cellsize);  
+	
+	// construct the periodic BSH operator for later use
+	double const dum = 1 / deltaT / mu; 
 	SeparatedConvolution<double, 3> op1 = PeriodicBSHOp<double, 3> (world,
 			sqrt(dum), k, uthresh1, uthresh1, cellsize);
 
@@ -231,39 +240,37 @@ void testNavierStokes(int argc, char**argv) {
 	u[1] = FunctionFactory<double, 3> (world).f(uyexact  ) .truncate_on_project();
 	u[2] = FunctionFactory<double, 3> (world).f(uzexact  ) .truncate_on_project();
 
-	Function<double, 3> divu = div(u);
+	Function<double, 3> divu = div(u); // computer the divergence 
 	double divun=divu.norm2();
 	int dd=divu.max_depth();
-	if (world.rank()==0) print("initial div, depth:", divun, dd);
+	if (world.rank()==0) print("initial div, depth:", divun, dd); //print out some information
 
 	for (int t =  0; t < Nts; t++) {
 		mytime = deltaT*(t+1);
 		//if (world.rank()==0) print("current time: ", mytime);
 		// Step 1.  Calculate the pressure at time t+1.
-		//            Laplace p = div (f)
+		//            Laplace p = div (f-u grad u)
 		f[0] = FunctionFactory<double, 3> (world).f(fxexact).truncate_on_project();
 		f[1] = FunctionFactory<double, 3> (world).f(fyexact).truncate_on_project();
 		f[2] = FunctionFactory<double, 3> (world).f(fzexact).truncate_on_project();
 		
 		
 		adv(u, rhs);
-		//for (int i=0; i < 3; ++i)  rhs[i] = u[0]*diff(u[i],0) + u[1]*diff(u[i],1) + u[2]*diff(u[i],2);
+		//adv works like: for (int i=0; i < 3; ++i)  rhs[i] = u[0]*diff(u[i],0) + u[1]*diff(u[i],1) + u[2]*diff(u[i],2);
 		
 		functionT divf = div(f-rhs);
 
 		FunctionDefaults<3>::set_bc(bc0);
 		divf.set_bc(bc0);
-		Function<double,3> p = op(divf);
+		Function<double,3> p = op(divf); // apply the Coulomb operator to compute the pressure \c p
 		p.scale(-1. / (4. * WST_PI)).set_bc(bc);
 		divf.set_bc(bc);
 		FunctionDefaults<3>::set_bc(bc);
 
-		//if (world.rank()==0) print("1 step done");
-		//if (world.rank()==0) print("poission solving error:", (lap(p)-divf).norm2());
-
 		// Step 2.  Calculate the velocity at time t+1.
 		//            (1/(deltaT mu) - Laplace) u_t+1 = (f - grad p)/mu + u_t/(deltaT mu)
 
+		// do the following calculation
 		//~ rhs[0] = (f[0] - diff(p, 0) -rhs[0])*(1. / mu) + u[0]*dum;
 		//~ rhs[1] = (f[1] - diff(p, 1) -rhs[1])*(1. / mu) + u[1]*dum;
 		//~ rhs[2] = (f[2] - diff(p, 2) -rhs[2])*(1. / mu) + u[2]*dum;
@@ -275,7 +282,7 @@ void testNavierStokes(int argc, char**argv) {
 
 		FunctionDefaults<3>::set_bc(bc0);
 		for (int i = 0; i < 3; ++i)  rhs[i].set_bc(bc0);
-		functT ue = apply(world, op1, rhs);
+		functT ue = apply(world, op1, rhs); // apply the BSH operator to update the velocity \c ue
 		for (int i = 0; i < 3; ++i)  {
 			ue[i].set_bc(bc);
 			rhs[i].set_bc(bc);
@@ -289,7 +296,7 @@ void testNavierStokes(int argc, char**argv) {
 		//note that in this case, the time-step size is instead 2*deltaT
 		
 
-		if ( (t%10)==0) {
+		if ( (t%10)==0) { // output the current status to vts files every 10 steps
                    char filename[100];
                    sprintf(filename, "data-%02d.vts", t);
                    Vector<double, 3> plotlo, plothi;
@@ -307,7 +314,7 @@ void testNavierStokes(int argc, char**argv) {
                    plotvtk_end<3>(world, filename);
 		}
 
-
+		{
 		Function<double, 3> du = FunctionFactory<double, 3> (world).f(uxexact).truncate_on_project();
 		du -= u[0];
 		Function<double, 3> dv = FunctionFactory<double, 3> (world).f(uyexact).truncate_on_project();
@@ -315,8 +322,8 @@ void testNavierStokes(int argc, char**argv) {
 		Function<double, 3> dw = FunctionFactory<double, 3> (world).f(uzexact).truncate_on_project(); 
 		dw -= u[2];
 		
-		{double  a=div(u).norm2(), b=du.norm2(), c=dv.norm2(),d=dw.norm2();
-		if (world.rank()==0)  print(t+1, mytime, a,b,c,d);
+		double  a=div(u).norm2(), b=du.norm2(), c=dv.norm2(),d=dw.norm2();
+		if (world.rank()==0)  print(t+1, mytime, a,b,c,d); // print out some information
 		}
 	}    
 	
