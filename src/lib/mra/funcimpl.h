@@ -47,6 +47,9 @@
 #include <mra/funcdefaults.h>
 
 namespace madness {
+    template <typename T, int NDIM>
+    class DerivativeBase;
+
     template<typename T, int NDIM>
     class FunctionImpl;
 
@@ -747,12 +750,6 @@ namespace madness {
                 world.gop.fence();
         }
 
-        /// Replace coefficients with a nother tensor of coefficients
-        void replace_coeff(keyT key, nodeT node) {
-          coeffs.replace(key, node) ;
-          return ;
-        }
-
 
         template <typename Q, typename R>
         struct do_gaxpy_inplace {
@@ -844,7 +841,9 @@ namespace madness {
 
         int get_k() const {return k;}
 
-        dcT get_coeffs() const {return coeffs;}
+        const dcT& get_coeffs() const {return coeffs;}
+
+        dcT& get_coeffs() {return coeffs;}
 
         /// Adds a constant to the function.  Local operation, optional fence
 
@@ -1904,13 +1903,34 @@ namespace madness {
             if (fence) world.gop.fence();
         }
 
+        Void do_diff1(const DerivativeBase<T,NDIM>* D, 
+                      const implT* f, 
+                      const keyT& key,
+                      const std::pair<keyT,tensorT>& left,
+                      const std::pair<keyT,tensorT>& center,
+                      const std::pair<keyT,tensorT>& right) {
+            return D->do_diff1(f,this,key,left,center,right);
+        }
 
-        /// Returns key of neighbor enforcing BC
 
-        /// Out of volume keys are mapped to enforce the BC as follows.
-        ///   * Periodic BC map back into the volume and return the correct key
-        ///   * Zero BC - returns invalid() to indicate out of volume
-        keyT neighbor(const keyT& key, int axis, int step) const;
+        // Called by result function to differentiate f
+        void diff(const DerivativeBase<T,NDIM>* D, const implT* f, bool fence) {
+            typedef std::pair<keyT,tensorT> argT     ;
+            for (typename dcT::const_iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
+                const keyT& key = it->first;
+                const nodeT& node = it->second;
+                if (node.has_coeff()) {
+                    Future<argT> left = D->find_neighbor(f, key,-1);
+                    argT center(key,node.coeff());
+                    Future<argT> right  = D->find_neighbor(f, key, 1);
+                    task(world.rank(), &implT::do_diff1, D, f, key, left, center, right, TaskAttributes::hipri());
+                } 
+                else {
+                    coeffs.replace(key,nodeT(tensorT(),true)); // Empty internal node
+                }
+            }
+            if (fence) world.gop.fence();
+        }
 
         /// Returns key of general neighbor enforcing BC
 
@@ -1918,16 +1938,6 @@ namespace madness {
         ///   * Periodic BC map back into the volume and return the correct key
         ///   * Zero BC - returns invalid() to indicate out of volume
         keyT neighbor(const keyT& key, const keyT& disp, const std::vector<bool>& is_periodic) const;
-
-        /// Called by diff to find key and coeffs of neighbor enforcing BC
-
-        /// Should work for any (small) step but only tested for step=+/-1
-        ///
-        /// do_diff1 handles the adpative refinement.  If it needs to refine, it calls
-        /// forward_do_diff1 to pass the task locally or remotely with high priority.
-        /// Actual differentiation is performend by do_diff2.
-        Future< std::pair<keyT,tensorT> > find_neighbor(const keyT& key, int axis, int step) const;
-
 
         /// find_me. Called by diff_bdry to get coefficients of boundary function
         Future< std::pair<keyT,tensorT> > find_me(const keyT& key) const;

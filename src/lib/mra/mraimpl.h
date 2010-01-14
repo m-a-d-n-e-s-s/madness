@@ -817,43 +817,19 @@ namespace madness {
     }
 
 
-    static bool enforce_bc(bool is_periodic, Level n, Translation& l) {
-    //static bool enforce_bc(int bc_left, int bc_right, Level n, Translation& l) {
+    static inline bool enforce_bc(bool is_periodic, Level n, Translation& l) {
         Translation two2n = 1ul << n;
         if (l < 0) {
             if (is_periodic)
                 l += two2n; // Periodic BC
             else
                 return false; // Zero BC
-         }
-
-
-        //if (l < 0) {
-        //    if (bc_left == 0) {
-        //        return false; // Zero BC
-        //    }
-        //    else if (bc_left == 1) {
-        //        l += two2n; // Periodic BC
-        //    }
-        //    else {
-        //        MADNESS_EXCEPTION("enforce_bc: confused left BC?",bc_left);
-        //    }
-       // }
+        }
         else if (l >= two2n) {
             if (is_periodic)
                 l -= two2n; // Periodic BC
             else
                 return false; // Zero BC
-        //else if (l >= two2n) {
-        //    if (bc_right == 0) {
-        //        return false; // Zero BC
-        //    }
-        //    else if (bc_right == 1) {
-        //        l -= two2n; // Periodic BC
-        //    }
-        //    else {
-        //        MADNESS_EXCEPTION("enforce_bc: confused BC right?",bc_left);
-        //    }
         }
         return true;
     }

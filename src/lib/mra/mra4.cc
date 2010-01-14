@@ -43,8 +43,8 @@ namespace madness {
     template class FunctionCommonData<double, 4>;
     template class FunctionCommonData<double_complex, 4>;
     template class Displacements<4>;
-    template class TreeTraversal<double,4>;
-    template class TreeTraversal<double_complex,4>;
+    template class DerivativeBase<double,4>;
+    template class DerivativeBase<double_complex,4>;
 
     template void plotdx<double,4>(const Function<double,4>&, const char*, const Tensor<double>&,
                                    const std::vector<long>&, bool binary);
