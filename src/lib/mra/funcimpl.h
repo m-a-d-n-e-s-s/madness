@@ -1915,14 +1915,15 @@ namespace madness {
 
         // Called by result function to differentiate f
         void diff(const DerivativeBase<T,NDIM>* D, const implT* f, bool fence) {
-            typedef std::pair<keyT,tensorT> argT     ;
-            for (typename dcT::const_iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
+            typedef std::pair<keyT,tensorT> argT;
+            typename dcT::const_iterator end = f->coeffs.end();
+            for (typename dcT::const_iterator it=f->coeffs.begin(); it!=end; ++it) {
                 const keyT& key = it->first;
                 const nodeT& node = it->second;
                 if (node.has_coeff()) {
-                    Future<argT> left = D->find_neighbor(f, key,-1);
+                    Future<argT> left  = D->find_neighbor(f, key,-1);
                     argT center(key,node.coeff());
-                    Future<argT> right  = D->find_neighbor(f, key, 1);
+                    Future<argT> right = D->find_neighbor(f, key, 1);
                     task(world.rank(), &implT::do_diff1, D, f, key, left, center, right, TaskAttributes::hipri());
                 } 
                 else {

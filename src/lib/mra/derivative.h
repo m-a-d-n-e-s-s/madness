@@ -91,7 +91,7 @@ namespace madness {
                               const std::pair<keyT,tensorT>& center,
                               const std::pair<keyT,tensorT>& right)  const {
             
-            dcT coeffs = f->get_coeffs();
+            const dcT& coeffs = f->get_coeffs();
             ProcessID owner = coeffs.owner(key);
             
             if (owner == world.rank()) {
