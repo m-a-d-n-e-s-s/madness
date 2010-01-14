@@ -228,15 +228,19 @@ int main(int argc, char** argv) {
         print("result: size time eig_val");
         for (int64_t n=10; n>1; n-=2) {
             DistributedMatrix<double> A = column_distributed_matrix<double>(world, n, n);
+            {
+                madness::Tensor<double> sym_tensor(size, size);
+                if (world.rank() == 0) {
+                    sym_tensor.fillrandom();
+                    for(int i=0; i<size; i++){
+                        for(int j=0; j<=i; j++){
+                            if (i != j)  sym_tensor(i,j) = sym_tensor(j,i) *=  10;
+                            else sym_tensor(i,i) *= 100;
+                        }
+                    }
 
-            int64_t ilo, ihi, jlo, jhi;
-            A.local_rowrange(ilo, ihi); // local row range is equal to global row range
-            A.local_colrange(jlo, jhi); /* get column range of A */
-            for (int j=jlo; j<=jhi; j++) {
-                for (int i=ilo; i<=ihi; i++) {
-                    A.data()(j-jlo, i-ilo) = (i + j) * 0.1 ; //in this way, matrix is symmetric
                 }
-                A.data()(j-jlo,j) = ( A.data()(j-jlo,j)+0.5 ) * n;  
+                A.copyin(sym_tensor);
             }
 
             DistributedMatrix<double>  V = idMatrix(A);
@@ -259,18 +263,7 @@ int main(int argc, char** argv) {
                 /* A * U = lambda * U */
                 print("eval\n", sA.get_eval());
                 print("A * U\n", inner(A.data(), transpose(eigvec)));
-                //print("A * U\n", mxm2(A.data(), transpose(eigvec)));
 
-                ///test for mTxm ... O.K. 
-                /*
-                   Tensor<double> t(2,2);
-                   t(0,0) = 1; t(0,1) = 2; t(1,0) = 3; t(1,1) = 4;
-                   print(t);
-                   print( t(1,Slice()), t(Slice(),0)); /// result ... (3,4) , (1,3)
-                /// result must be ( 10 , 14, 14, 20)
-                print(mxm2(transpose(t), t)); //... O.K.
-                print(transpose(t).emul(t)); //... N.G. emul makes multiply of each element
-                 */
             }
 
             /*
@@ -281,9 +274,9 @@ int main(int argc, char** argv) {
                B.local_rowrange(ilo, ihi);
                B.local_colrange(jlo, jhi); // get column range of B
                for (int i=ilo; i<=ihi; i++) {
-               for (int j=jlo; j<=jhi; j++) {
-               B.data()(j-jlo,i-ilo) = j + i*100 ;
-               }
+                   for (int j=jlo; j<=jhi; j++) {
+                       B.data()(j-jlo,i-ilo) = j + i*100 ;
+                   }
                }
                print("matrix B");
                print(B.data());
@@ -291,7 +284,7 @@ int main(int argc, char** argv) {
                DistributedMatrix<double> D = concatenate_rows(A, B);
 
                print("matrix D");
-               print(D.data()); //... O.K
+               print(D.data()); // test of concatenate_rows... O.K
 
                world.taskq.add(new TestSystolicMatrixAlgorithm<double>(C, 3333));
                world.taskq.fence();
