@@ -1001,7 +1001,7 @@ namespace madness {
                                                    const bool eval_refine) const {
         PROFILE_MEMBER_FUNC(FunctionImpl);
         Tensor<T> r(NDIM, &npt[0]);
-        r(___) = 99.0;
+        //r(___) = 99.0;
         MADNESS_ASSERT(!compressed);
 
         for (typename dcT::const_iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
