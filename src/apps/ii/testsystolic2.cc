@@ -37,78 +37,19 @@
 #include <utility>
 #include <tensor/tensor.h>
 #include <ii/systolic.h>
+#include <cmath>
 #include <ctime>
+#include <cstdlib>
 
 using namespace madness;
 
 template <typename T>
 class SystolicEigensolver : public SystolicMatrixAlgorithm<T> {
 public:
-    SystolicEigensolver<T>(DistributedMatrix<T>& AV, int tag);
+    SystolicEigensolver<T>(DistributedMatrix<T> &AV, int tag);
 
-    void kernel(int i, int j, T* rowi, T* rowj) {
-        /// get elements of A and V from concatenated row
-        T *ai = rowi;
-        T *aj = rowj;
-        T *vi = rowi + size;
-        T *vj = rowj + size;
-
-        T aii = inner(vi, ai);
-        T ajj = inner(vj, aj);
-        T aij = inner(vi, aj);
-        T daij = fabs(aij);
-
-        maxd = std::max<T>( std::max<T>( fabs(aii), fabs(ajj) ), maxd );
-        maxdaij = std::max<T>( maxdaij, daij/maxd );
-
-        if( daij < maxd*tol ) return;
-
-        T s = ajj-aii;
-        T ds = fabs(s);
-
-        if( daij > ds*tolmin ){
-            nrot++;
-            T c,t,u;
-            /// make prameters of rotation matrix
-            if( tolmin*daij > ds ) c = s = 1/sqrt(2.0);
-            else{
-                t = aij/s;
-                u = 0.25/sqrt(0.25+t*t);
-                c = sqrt(0.5+u);
-                s = 2.0*t*u/c;
-            }
-
-            /// update all elements
-            for (int k=0; k < size; k++) {
-                t = ai[k];
-                u = aj[k];
-                ai[k] = c*t - s*u;
-                aj[k] = c*u + s*t;
-
-                t = vi[k];
-                u = vj[k];
-                vi[k] = c*t - s*u;
-                vj[k] = c*u + s*t;
-            }
-        }
-    }
-
-    void start_iteration_hook(const TaskThreadEnv& env) {
-        int id = env.id();
-
-        if (id == 0) world.gop.max(maxdaij);
-        env.barrier();
-
-        if (id == 0){
-            tol = std::min( tol, std::min(maxdaij*0.1, maxdaij*maxdaij) ); 
-            tol = std::max( tol, 5.0e-16 );
-            niter++;
-
-            maxdaij = 0;
-            nrot = 0; // don't move this line to above
-        }
-    }
-
+    void start_iteration_hook(const TaskThreadEnv& env);
+    void kernel(int i, int j, T* rowi, T* rowj); 
     void end_iteration_hook(const TaskThreadEnv& env) {
 
         int id = env.id();
@@ -121,13 +62,12 @@ public:
 
     bool converged(const TaskThreadEnv& env) const; 
 
-    Tensor<T> get_eval() const;
-
-    DistributedMatrix<T> get_evec() const;
+    Tensor<T> get_eval() const; /// return eigen value
+    Tensor<T> get_evec() const; /// return eigen vector
 
 private:
     /** constant members */
-    static const T tolmin = (T)5.0e-16; ///threshld
+    static const T tolmin = (T)1.0e-8; ///threshld
 
     DistributedMatrix<T>& AV; /// concatnated two matrix A and V. V will holds eigen vector after calcuration
     World& world;
@@ -137,9 +77,7 @@ private:
 
     inline T inner(const T* a, const T* b ) const{
         T s=0;
-        for(int64_t i=0; i<size; i++){
-            s += a[i] * b[i];
-        }
+        for(int64_t i=0; i<size; i++) s += a[i] * b[i];
         return s;
     }
 
@@ -150,31 +88,91 @@ SystolicEigensolver<T>::SystolicEigensolver(DistributedMatrix<T>& AV, int tag):
     world(AV.get_world()),
     niter(0),
     nrot(0), nrotsum(0), size(AV.rowdim()/2), 
-    tol((T)1e-2), maxd(0), maxdaij(1e3) // just I want a very big value
+    tol((T)1.0e-3), maxd(0), maxdaij(1.0e3) // just I want a very big value
 {
     MADNESS_ASSERT(AV.is_column_distributed());
     MADNESS_ASSERT(AV.coldim()*2 == AV.rowdim());
     print("One-sided Jacobi start");
 }
 template <typename T>
-DistributedMatrix<T> SystolicEigensolver<T>::get_evec() const{
-    int64_t m = AV.local_coldim();
-    int64_t n = AV.local_rowdim()/2;
-    DistributedMatrix<T> result = column_distributed_matrix<T>(world, m, n);
-    result.data() = AV.data()(_,Slice(size,-1));
+void SystolicEigensolver<T>::start_iteration_hook(const TaskThreadEnv& env) {
+    int id = env.id();
+
+    if (id == 0) world.gop.max(maxdaij);
+    env.barrier();
+
+    if (id == 0){
+        tol = std::min<T>( tol, std::min<T>(maxdaij*1.0e-3, maxdaij*maxdaij) ); 
+        tol = std::max<T>( tol, tolmin );
+        niter++;
+
+        maxdaij = 0;
+        nrot = 0; // don't move this line to above
+    }
+}
+template <typename T>
+void SystolicEigensolver<T>::kernel(int i, int j, T* rowi, T* rowj) {
+    /// get elements of A and V from concatenated row
+    T *ai = rowi;
+    T *aj = rowj;
+    T *vi = rowi + size;
+    T *vj = rowj + size;
+
+    T aii = inner(vi, ai);
+    T ajj = inner(vj, aj);
+    T aij = inner(vi, aj);
+    T daij = std::abs<T>(aij);
+
+    T s = ajj-aii, ds = std::abs<T>(s);
+    maxd = std::max<T>(maxd, ds);
+    maxdaij = std::max<T>( maxdaij, daij/maxd ); // maximum value of ratio off diagonal element with diagonal element
+
+    if( daij < ds*tol ) return; // if off diagonal elements much smaller than diagonal elements skip this step
+
+    nrot++;
+    T c,t,u;
+    /// make prameters of rotation matrix
+    if( ds < daij*tolmin ) c = s = sqrt(0.5); // if two diagonal elements are almost same, then rotation angle is pi/4. 
+    else{
+        t = 2 * aij / s;
+        u = 0.5 / sqrt(1+t*t);
+        c = sqrt( 0.5 + u );
+        s = sqrt( 0.5 - u );
+        if( t < 0 )  s = -s;
+    }
+    /// update all elements
+    for (int k=0; k < size; k++) {
+        t = ai[k];
+        u = aj[k];
+        ai[k] = c*t - s*u;
+        aj[k] = c*u + s*t;
+
+        t = vi[k];
+        u = vj[k];
+        vi[k] = c*t - s*u;
+        vj[k] = c*u + s*t;
+    }
+}
+template <typename T>
+Tensor<T> SystolicEigensolver<T>::get_evec() const{
+    Tensor<T> result(size, size);
+    int64_t ilo, ihi;
+    AV.local_colrange(ilo, ihi);
+
+    result( Slice(ilo, ihi), _ ) = AV.data()( _, Slice(size, -1) );
 
     return result;
 }
+/// caution: this method does NOT return a exact eigen value
+/// you need to calculate inner( e_val, transpose(e_vec) ) after collect all data
+/// since transpose(e_vec) elements distributed on processors
 template <typename T>
 Tensor<T> SystolicEigensolver<T>::get_eval() const{
-    long int lsize = AV.local_coldim();
-    Tensor<T> result(lsize);
+    Tensor<T> result(size,size); 
 
-    for(int64_t i=0; i<lsize; i++){
-        Tensor<T> ai= AV.data()(i, Slice(0, size-1)); 
-        Tensor<T> vi= AV.data()(i, Slice(size, -1));
-        result[i] = madness::inner(vi, ai)(0,0);
-    }
+    int64_t ilo, ihi;
+    AV.local_colrange(ilo, ihi);
+    result( Slice(ilo, ihi), _ ) = AV.data()( _, Slice(0, size-1) );
 
     return result;
 }
@@ -183,38 +181,16 @@ bool SystolicEigensolver<T>::converged(const TaskThreadEnv& env) const {
     int id = env.id();
 
     if(nrot == 0 && tol <= tolmin){
-        if (id == 0) {
-            madness::print("    Converged! ", size, "\n");
-        }
+        if (id == 0) madness::print("\tConverged! ", size);
         return true;
-    } else if (niter >= 50) {
-        if (id == 0) {
-            madness::print("    Did not converged in 50 iteration!", "\n");
-        }
+    }
+    else if (niter >= 300) {
+        if (id == 0) madness::print("\tDid not converged in 300 iteration!");
         return true;
-    } else
+    }
+    else
         return false; 
 }
-/* trial function.
-template <typename T>
-SystolicEigensolver<T> void systolic_eigensolver(DistributedMatrix<T>& A, int tag )
-{
-    MADNESS_ASSERT(A.is_column_distributed() == true);
-    /// initialize V as identity matrix of size(A)
-    DistributedMatrix<T> V = column_distributed_matrix<T>( A.get_world(), A.coldim(), A.rowdim() );
-
-    int64_t ilo, ihi;
-    V.local_colrange(ilo, ihi);
-        for(int i=ilo; i<=ihi; i++){
-        V.data()(i-ilo,i) = 1.0;
-    }
-
-    DistributedMatrix<T> A_V = concatenate_rows(A,V);
-
-    A.get_world().taskq.add(new SystolicEigensolver<T>(A_V, tag));
-    A.get_world().taskq.fence();
-
-} */
 
 int main(int argc, char** argv) {
     initialize(argc, argv);
@@ -224,46 +200,76 @@ int main(int argc, char** argv) {
     redirectio(world); /* redirect a results to file "log.<number of processor>" */
 
     try {
-        print("Test of testsystolic2.cc\n");
-        print("result: size time eig_val");
-        for (int64_t n=10; n>1; n-=2) {
+        std::srand(time(NULL));
+        print("Test of Eigen solver");
+        print("result: size time");
+        for (int64_t n=2; n<=16; n++) {
+            // make symmetolic matrix, then distribute it all processes
             DistributedMatrix<double> A = column_distributed_matrix<double>(world, n, n);
-            {
-                madness::Tensor<double> sym_tensor(size, size);
-                if (world.rank() == 0) {
-                    sym_tensor.fillrandom();
-                    for(int i=0; i<size; i++){
-                        for(int j=0; j<=i; j++){
-                            if (i != j)  sym_tensor(i,j) = sym_tensor(j,i) *=  10;
-                            else sym_tensor(i,i) *= 100;
-                        }
+            madness::Tensor<double> sym_tensor(n, n);
+            if (world.rank() == 0) {
+                sym_tensor.fillrandom();
+                int64_t pow[] = { (int64_t)(std::rand() % 5 - 2), (int64_t)(std::rand() % 2 + 1) };
+                pow[1] += pow[0];
+                for(int i=0; i<n; i++){
+                    for(int j=0; j<=i; j++){
+                        if (i != j)  sym_tensor(i,j) = sym_tensor(j,i) *= std::pow( 10, pow[0]);
+                        else sym_tensor(i,i) *= std::pow( 10, pow[1]);
                     }
-
                 }
-                A.copyin(sym_tensor);
+                print("pow a, pow b is", pow[0], pow[1]);
             }
+            world.gop.broadcast(sym_tensor.ptr(), sym_tensor.size(), 0);
+            A.copyin(sym_tensor);
 
-            DistributedMatrix<double>  V = idMatrix(A);
-            DistributedMatrix<double> AV = concatenate_rows(A, V);
+            DistributedMatrix<double> AV = concatenate_rows(A, idMatrix(A));
             SystolicEigensolver<double> sA(AV, 3334);
 
             double t = cpu_time();
             sA.solve();
-            print("result:", n, cpu_time()-t, sA.get_eval());
+            print("result:", n, cpu_time()-t);
 
-            if(world.size() == 1){
-                /* check the answer*/
-                Tensor<double> eigvec = sA.get_evec().data();
-                print("eigen vector\n", eigvec);
+            // gather all data from whole porcessors
+            Tensor<double> eigvec = sA.get_evec();
+            world.gop.sum(eigvec);
 
-                /* U^T * U = I */
-                print("U^T * U\n", inner(transpose(eigvec), eigvec));
-                //print("U^T * U\n", mxm2(transpose(eigvec), eigvec)); // must be identity matrix
+            Tensor<double> eig_val = sA.get_eval();
+            world.gop.sum(eig_val);
 
-                /* A * U = lambda * U */
-                print("eval\n", sA.get_eval());
-                print("A * U\n", inner(A.data(), transpose(eigvec)));
+            /* check the answer*/
+            if(world.rank() == 0){
+                /* bar{A} = AV, AV = lambda V => bar{A} = lambda V => lambda =  bar{A} V^T */
+                eig_val = inner( eig_val, transpose(eigvec) );
 
+                print("check: size, abs( AV - lambda EV )");
+                /* V^T * V = I
+                   max abs( diagonal_element - 1 ) ~= 0
+                   max abs( none_diagonal_element ) ~= 0
+                 */
+                /* this check is always good. so skip this one
+                Tensor<double> uTu = inner( transpose(eigvec), eigvec );
+                double max_diag=0, max_none_diag=0;
+                for(int64_t i=0; i<uTu.dim(0); i++){
+                    for(int64_t j=0; j<uTu.dim(1); j++){
+                        if( i!=j ) max_none_diag = std::max( max_none_diag, std::fabs( uTu(i,j) ) );
+                        else max_diag += std::max( max_diag, std::fabs(uTu(i,i) - 1) );
+                    }
+                }
+                */
+
+                /* A V = lambda * V 
+                   max abs( AV - lambda E V) ~= 0 
+                 */
+                double max=0;
+                Tensor<double> checker = inner( sym_tensor, eigvec ) - inner( eig_val, eigvec );
+                for( int64_t i=0; i<checker.dim(0); i++ ){
+                    for( int64_t j=0; j<checker.dim(1); j++){
+                        max = std::max<double>( max, std::abs<double>( checker(i,j) ));
+                    }
+                }
+                print("check:", n, max);
+
+                print("\n");
             }
 
             /*
