@@ -1112,7 +1112,7 @@ void test_io(World& world) {
     functorT functor(new Gaussian<T,NDIM>(origin, expnt, coeff));
     Function<T,NDIM> f = FunctionFactory<T,NDIM>(world).functor(functor);
 
-    int nio = (world.size()-1)/2 + 1;
+    int nio = (world.size()-1)/20 + 1;
     ParallelOutputArchive out(world, "mary", nio);
     out & f;
     out.close();
