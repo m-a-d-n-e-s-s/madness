@@ -95,7 +95,8 @@ int main(int argc, char** argv) {
     for (axis=0; axis<NDIM; axis++) {
         Derivative<double,NDIM> dx(world, axis, bc);
         functionT df = dx(f) ;
-        print(axis,"error",df.err(FunctorInterfaceWrapper(dfunc)));
+        double err = df.err(FunctorInterfaceWrapper(dfunc));
+         if (world.rank() == 0) print(axis,"error",err);
     }
 
     finalize();

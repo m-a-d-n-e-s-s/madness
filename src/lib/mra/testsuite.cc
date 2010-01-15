@@ -1162,7 +1162,9 @@ void test_apply_push_1d(World& world) {
 //     f.truncate();
 //     f.reconstruct();
 
-    print("Trace of f", f.trace());
+    double trace = f.trace();
+    if (world.rank() == 0)
+        print("Trace of f", trace);
 
     coordT lo(-L), hi(L);
     plot_line("fplot.dat", 201, lo, hi, f);
@@ -1171,10 +1173,13 @@ void test_apply_push_1d(World& world) {
     Function<T,NDIM> opf = apply_1d_realspace_push(op, f, 0);
 
     opf.sum_down();
-    print("Trace of opf", opf.trace());
+    trace = opf.trace();
+    if (world.rank() == 0)
+        print("Trace of opf", trace);
     plot_line("opfplot.dat", 201, lo, hi, opf);
 
-    print("result", opf(origin));
+    if (world.rank() == 0) print("result", opf(origin));
+    world.gop.fence();
 }
 
 

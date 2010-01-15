@@ -25,20 +25,22 @@ static const double thresh = 1.e-7 ; // Precision
 static const int init_lev = 2; 
 static int test_axis = 0; 
 
-void compare(functionT test, functionT exact, const char *str)
+void compare(World& world, functionT test, functionT exact, const char *str)
 {
    double error = (exact - test).norm2() ;
 
-   std::cerr << "Error in " << str << ": " << error ;
+   if (world.rank() == 0) {
+       std::cerr << "Error in " << str << ": " << error ;
 
-   if (error < thresh)
-     std::cerr << " PASSED " << std::endl ;
-   else
-     std::cerr << " FAILED " << std::endl ;
-
+       if (error < thresh) {
+           std::cerr << " PASSED " << std::endl ;
+       }
+       else {
+           std::cerr << " FAILED " << std::endl ;
+       }
+   }
    return ;
 }
-
 
 
 // Testing the derivatives of a function 1+x
@@ -83,8 +85,7 @@ static double yright_neumann  (const coordT &pt) {
 
 
 int main(int argc, char** argv) {
-    
-	MPI::Init(argc, argv);
+    initialize(argc, argv);
 	World world(MPI::COMM_WORLD);
         startup(world,argc,argv);
 
@@ -133,7 +134,7 @@ int main(int argc, char** argv) {
 */
         Derivative<double,2> dx1(world, test_axis, bc, xleft_d, xright_d, k) ;
         functionT dudx1 = dx1(u) ;
-        compare(dudx1, dudxe, "dudx1") ;
+        compare(world, dudx1, dudxe, "dudx1") ;
 
         // X Right B.C.: Free
         // X Left  B.C.: Dirichlet
@@ -143,7 +144,7 @@ int main(int argc, char** argv) {
 
         Derivative<double,2> dx2(world, test_axis, bc, xleft_d, xright_d, k) ;
         functionT dudx2 = dx2(u) ;
-        compare(dudx2, dudxe, "dudx2") ;
+        compare(world, dudx2, dudxe, "dudx2") ;
 
         // X Right B.C.: Neumann
         // X Left  B.C.: Free
@@ -153,7 +154,7 @@ int main(int argc, char** argv) {
 
         Derivative<double,2> dx3(world, test_axis, bc, xleft_n, xright_n, k) ;
         functionT dudx3 = dx3(u) ;
-        compare(dudx3, dudxe, "dudx3") ;
+        compare(world, dudx3, dudxe, "dudx3") ;
 
         // X Right B.C.: Free
         // X Left  B.C.: Neumann
@@ -163,7 +164,7 @@ int main(int argc, char** argv) {
 
         Derivative<double,2> dx4(world, test_axis, bc, xleft_n, xright_n, k) ;
         functionT dudx4 = dx4(u) ;
-        compare(dudx4, dudxe, "dudx4") ;
+        compare(world, dudx4, dudxe, "dudx4") ;
 
 
         // Derivative in the y-direction
@@ -179,7 +180,7 @@ int main(int argc, char** argv) {
 
         Derivative<double,2> dy1(world, test_axis, bc, yleft_d, yright_d, k) ;
         functionT dudy1 = dy1(u) ;
-        compare(dudy1, dudye, "dudy1") ;
+        compare(world, dudy1, dudye, "dudy1") ;
 
         // Y Right B.C.: Free
         // Y Left  B.C.: Dirichlet
@@ -189,7 +190,7 @@ int main(int argc, char** argv) {
 
         Derivative<double,2> dy2(world, test_axis, bc, yleft_d, yright_d, k) ;
         functionT dudy2 = dy2(u) ;
-        compare(dudy2, dudye, "dudy2") ;
+        compare(world, dudy2, dudye, "dudy2") ;
 
         // Y Right B.C.: Neumann
         // Y Left  B.C.: Free
@@ -199,7 +200,7 @@ int main(int argc, char** argv) {
 
         Derivative<double,2> dy3(world, test_axis, bc, yleft_n, yright_n, k) ;
         functionT dudy3 = dy3(u) ;
-        compare(dudy3, dudye, "dudy3") ;
+        compare(world, dudy3, dudye, "dudy3") ;
 
         // Y Right B.C.: Free
         // Y Left  B.C.: Neumann
@@ -209,7 +210,7 @@ int main(int argc, char** argv) {
 
         Derivative<double,2> dy4(world, test_axis, bc, yleft_n, yright_n, k) ;
         functionT dudy4 = dy4(u) ;
-        compare(dudy4, dudye, "dudy4") ;
+        compare(world, dudy4, dudye, "dudy4") ;
 
          world.gop.fence();
 
