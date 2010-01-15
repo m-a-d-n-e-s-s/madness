@@ -111,7 +111,7 @@ namespace madness {
                 }
             }
             else {
-                task(owner, &madness::DerivativeBase<T,NDIM>::forward_do_diff1, f, df, key, left, center, right, TaskAttributes::hipri());
+                df->task(owner, &implT::do_diff1, this, f, key, left, center, right, TaskAttributes::hipri());
             }
             return None;
         }

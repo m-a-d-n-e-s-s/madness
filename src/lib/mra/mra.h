@@ -1169,32 +1169,6 @@ namespace madness {
         return result.conj(fence);   
     }
 
-
-/*
-    /// Differentiate w.r.t. given coordinate (x=0, y=1, ...) with optional fence
-
-    /// Returns a new function with the same distribution
-    template <typename T, int NDIM>
-    Function<T,NDIM>
-    diff(const Function<T,NDIM>& f, int axis, bool fence=true) {
-        PROFILE_FUNC;
-        if (f.is_compressed()) {
-            if (fence) {
-                f.reconstruct();
-            }
-            else {
-                MADNESS_EXCEPTION("diff: trying to diff a compressed function without fencing",0);
-            }
-        }
-
-        if (VERIFY_TREE) f.verify_tree();
-        Function<T,NDIM> result;
-        result.set_impl(f, false);
-        result.get_impl()->diff(*f.get_impl(), axis, fence);
-        return result;
-    }
-*/
-
     /// Apply operator ONLY in non-standard form - required other steps missing !!
     template <typename opT, typename R, int NDIM>
     Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM>
