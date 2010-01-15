@@ -208,8 +208,6 @@ namespace madness {
 
         /// Evaluates the function at a point in user coordinates.  Collective operation.
 
-        /// *CHANGE* All processess receive the result.
-        ///
         /// Throws if function is not initialized.
         ///
         /// This function calls eval, blocks until the result is

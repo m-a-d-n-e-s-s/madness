@@ -1178,7 +1178,7 @@ void test_apply_push_1d(World& world) {
         print("Trace of opf", trace);
     plot_line("opfplot.dat", 201, lo, hi, opf);
 
-    if (world.rank() == 0) print("result", opf(origin));
+    if (world.rank() == 0) print("result", opf.eval(origin).get());
     world.gop.fence();
 }
 
