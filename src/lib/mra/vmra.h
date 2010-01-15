@@ -38,6 +38,85 @@
 	\brief Defines operations on vectors of Functions
 	\ingroup mra
 
+	This file defines a number of operations on vectors of functions.
+	Assume v is a vector of NDIM-D functions of a certain type.
+
+
+	Operations on array of functions
+	
+	*) copying: deep copying of vectors of functions to vector of functions
+	\code
+	vector2 = copy(world, vector1,fence);
+	\endcode
+	
+	*) compress: convert multiwavelet representation to legendre representation
+	\code
+	compress(world, vector, fence);
+	\endcode
+
+	*) reconstruct: convert representation to multiwavelets
+	\code
+	reconstruct(world, vector, fence);
+	\endcode
+
+	*) nonstandard: convert to non-standard form
+	\code
+	nonstandard(world, v, fence);
+	\endcode
+	
+	*) standard: convert to standard form
+	\code
+	standard(world, v, fence); 
+	\endcode
+
+	*) truncate: truncating vectors of functions to desired precision
+	\code
+	truncate(world, v, tolerance, fence); 
+	\endcode
+
+
+	*) zero function: create a vector of zero functions of length n
+	\code
+	v=zero(world, n);
+	\endcode
+
+	*) transform: transform a representation from one basis to another
+	\code
+	transform(world, vector, tensor, tolerance, fence ) 
+	\endcode
+
+	Setting thresh-hold for precision
+
+	*) set_thresh: setting a finite thresh-hold for a vector of functions
+	\code
+	void set_thresh(World& world, std::vector< Function<T,NDIM> >& v, double thresh, bool fence=true);
+	\endcode
+
+	Arithmetic Operations on arrays of functions
+
+	*) conjugation: conjugate a vector of complex functions
+
+	*) add
+	*) sub
+	*) mul
+	   - mul_sparse
+	*) square
+	*) gaxpy
+	*) apply
+
+	Norms, inner-products, blas-1 like operations on vectors of functions
+
+	*) inner
+	*) matrix_inner
+	*) norm_tree
+	*) normalize
+	*) norm2
+	    - norm2s
+	*) scale(world, v, alpha);
+
+
+
+
 */
 
 #include <mra/mra.h>
