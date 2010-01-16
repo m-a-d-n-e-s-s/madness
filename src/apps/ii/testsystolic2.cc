@@ -62,12 +62,12 @@ public:
 
     bool converged(const TaskThreadEnv& env) const; 
 
-    Tensor<T> get_eval() const; /// return eigen value
+    Tensor<T> get_barA() const; /// return eigen value
     Tensor<T> get_evec() const; /// return eigen vector
 
 private:
     /** constant members */
-    static const T tolmin = (T)1.0e-8; ///threshld
+    static const T tolmin = (T)1.0e-4; ///threshld
 
     DistributedMatrix<T>& AV; /// concatnated two matrix A and V. V will holds eigen vector after calcuration
     World& world;
@@ -88,7 +88,7 @@ SystolicEigensolver<T>::SystolicEigensolver(DistributedMatrix<T>& AV, int tag):
     world(AV.get_world()),
     niter(0),
     nrot(0), nrotsum(0), size(AV.rowdim()/2), 
-    tol((T)1.0e-3), maxd(0), maxdaij(1.0e3) // just I want a very big value
+    tol((T)1.0e-2), maxd(0), maxdaij(1.0e3) // just I want a very big value
 {
     MADNESS_ASSERT(AV.is_column_distributed());
     MADNESS_ASSERT(AV.coldim()*2 == AV.rowdim());
@@ -99,13 +99,14 @@ void SystolicEigensolver<T>::start_iteration_hook(const TaskThreadEnv& env) {
     int id = env.id();
 
     if (id == 0) world.gop.max(maxdaij);
-    env.barrier();
 
     if (id == 0){
-        tol = std::min<T>( tol, std::min<T>(maxdaij*1.0e-3, maxdaij*maxdaij) ); 
+        // calculate threshold using parameters from previous iteration
+        tol = std::min<T>( tol, std::min<T>(maxdaij*1.0e-1, maxdaij*maxdaij) ); 
         tol = std::max<T>( tol, tolmin );
-        niter++;
 
+        // clear some paremeters to a new iteration
+        niter++;
         maxdaij = 0;
         nrot = 0; // don't move this line to above
     }
@@ -124,7 +125,7 @@ void SystolicEigensolver<T>::kernel(int i, int j, T* rowi, T* rowj) {
     T daij = std::abs<T>(aij);
 
     T s = ajj-aii, ds = std::abs<T>(s);
-    maxd = std::max<T>(maxd, ds);
+    maxd = std::max<T>(maxd, std::max<T>( std::abs<T>(aii), std::abs<T>(ajj) ) );
     maxdaij = std::max<T>( maxdaij, daij/maxd ); // maximum value of ratio off diagonal element with diagonal element
 
     if( daij < ds*tol ) return; // if off diagonal elements much smaller than diagonal elements skip this step
@@ -134,11 +135,9 @@ void SystolicEigensolver<T>::kernel(int i, int j, T* rowi, T* rowj) {
     /// make prameters of rotation matrix
     if( ds < daij*tolmin ) c = s = sqrt(0.5); // if two diagonal elements are almost same, then rotation angle is pi/4. 
     else{
-        t = 2 * aij / s;
-        u = 0.5 / sqrt(1+t*t);
-        c = sqrt( 0.5 + u );
-        s = sqrt( 0.5 - u );
-        if( t < 0 )  s = -s;
+        t = 0.5 / sqrt( 1 + 4 * aij*aij / (s*s) );
+        c = sqrt( 0.5 - t );
+        s = - sqrt( 0.5 + t );
     }
     /// update all elements
     for (int k=0; k < size; k++) {
@@ -154,6 +153,21 @@ void SystolicEigensolver<T>::kernel(int i, int j, T* rowi, T* rowj) {
     }
 }
 template <typename T>
+bool SystolicEigensolver<T>::converged(const TaskThreadEnv& env) const {
+    int id = env.id();
+
+    if(nrot == 0 && tol <= tolmin){
+        if (id == 0) madness::print("\tConverged! ", niter, "iteration.", size);
+        return true;
+    }/*
+    else if (niter >= 300) {
+        if (id == 0) madness::print("\tDid not converged in 300 iteration!");
+        return true;
+    }*/
+    else
+        return false; 
+}
+template <typename T>
 Tensor<T> SystolicEigensolver<T>::get_evec() const{
     Tensor<T> result(size, size);
     int64_t ilo, ihi;
@@ -167,7 +181,7 @@ Tensor<T> SystolicEigensolver<T>::get_evec() const{
 /// you need to calculate inner( e_val, transpose(e_vec) ) after collect all data
 /// since transpose(e_vec) elements distributed on processors
 template <typename T>
-Tensor<T> SystolicEigensolver<T>::get_eval() const{
+Tensor<T> SystolicEigensolver<T>::get_barA() const{
     Tensor<T> result(size,size); 
 
     int64_t ilo, ihi;
@@ -175,21 +189,6 @@ Tensor<T> SystolicEigensolver<T>::get_eval() const{
     result( Slice(ilo, ihi), _ ) = AV.data()( _, Slice(0, size-1) );
 
     return result;
-}
-template <typename T>
-bool SystolicEigensolver<T>::converged(const TaskThreadEnv& env) const {
-    int id = env.id();
-
-    if(nrot == 0 && tol <= tolmin){
-        if (id == 0) madness::print("\tConverged! ", size);
-        return true;
-    }
-    else if (niter >= 300) {
-        if (id == 0) madness::print("\tDid not converged in 300 iteration!");
-        return true;
-    }
-    else
-        return false; 
 }
 
 int main(int argc, char** argv) {
@@ -203,7 +202,7 @@ int main(int argc, char** argv) {
         std::srand(time(NULL));
         print("Test of Eigen solver");
         print("result: size time");
-        for (int64_t n=2; n<=16; n++) {
+        for (int64_t n=2; n<=10; n++) {
             // make symmetolic matrix, then distribute it all processes
             DistributedMatrix<double> A = column_distributed_matrix<double>(world, n, n);
             madness::Tensor<double> sym_tensor(n, n);
@@ -230,22 +229,18 @@ int main(int argc, char** argv) {
             print("result:", n, cpu_time()-t);
 
             // gather all data from whole porcessors
-            Tensor<double> eigvec = sA.get_evec();
-            world.gop.sum(eigvec);
-
-            Tensor<double> eig_val = sA.get_eval();
-            world.gop.sum(eig_val);
+            // since I wanted to use each colmuns as a sequence, both of the results are transposed
+            Tensor<double> eigvec = transpose( sA.get_evec() );
+            Tensor<double> eig_val = inner( sA.get_barA(), eigvec );                                                                ;
 
             /* check the answer*/
             if(world.rank() == 0){
-                /* bar{A} = AV, AV = lambda V => bar{A} = lambda V => lambda =  bar{A} V^T */
-                eig_val = inner( eig_val, transpose(eigvec) );
+                world.gop.sum(eigvec);
+                world.gop.sum(eig_val);
 
                 print("check: size, abs( AV - lambda EV )");
-                /* V^T * V = I
-                   max abs( diagonal_element - 1 ) ~= 0
-                   max abs( none_diagonal_element ) ~= 0
-                 */
+                /* V^T * V = I, max abs( [ x | x = Aij when i!=j, x = Aij-1 when i=j ] ) */
+
                 /* this check is always good. so skip this one
                 Tensor<double> uTu = inner( transpose(eigvec), eigvec );
                 double max_diag=0, max_none_diag=0;
@@ -257,17 +252,19 @@ int main(int argc, char** argv) {
                 }
                 */
 
-                /* A V = lambda * V 
-                   max abs( AV - lambda E V) ~= 0 
-                 */
+                double max_none_diag=0;
                 double max=0;
-                Tensor<double> checker = inner( sym_tensor, eigvec ) - inner( eig_val, eigvec );
-                for( int64_t i=0; i<checker.dim(0); i++ ){
-                    for( int64_t j=0; j<checker.dim(1); j++){
-                        max = std::max<double>( max, std::abs<double>( checker(i,j) ));
+                Tensor<double> error = inner( sym_tensor, eigvec ) - inner( eig_val, eigvec );
+                for( int64_t i=0; i<error.dim(0); i++ ){
+                    for( int64_t j=0; j<error.dim(1); j++){
+                        /* max ( [ abs(aij) | aij <-{A}ij, i!=j ] ) */
+                        if( i!=j ) max_none_diag = std::max<double>( eig_val(i,j), max_none_diag );
+
+                        /* A V = lambda * V, max abs([ {AV - lambda E V}ij ]) ~= 0 */
+                        max = std::max<double>( max, std::abs<double>( error(i,j) ));
                     }
                 }
-                print("check:", n, max);
+                print("check:", n, max_none_diag, max);
 
                 print("\n");
             }
