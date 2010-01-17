@@ -310,8 +310,8 @@ namespace madness {
 
 	    int64_t ilo, ihi;
 	    result.local_colrange(ilo,ihi);
-	    for(int64_t i=0; i<=(ihi-ilo); ++i) {
-		    result.data()(i, i+ilo) = 1;
+	    for(int64_t i=ilo; i<=ihi; ++i) {
+		    result.data()(i-ilo, i) = 1;
 	    }
 
 	    return result;
@@ -334,7 +334,6 @@ namespace madness {
         void iteration(const TaskThreadEnv& env) {
             start_iteration_hook(env);
             env.barrier();
-            //print("check on iteration");
 
             int64_t ilo, ihi;
             A.local_colrange(ilo, ihi);
@@ -638,7 +637,6 @@ namespace madness {
             set(set), // set of orbital
             nmo(nmo), // number of molecule
             niter(0), // number of iteration
-            ndone(0), // number of rotation in one iteration
             ndone_iter(0), // number of rotation for all iteration
             thresh(thresh),
             thetamax(thetamax),
@@ -650,7 +648,14 @@ namespace madness {
             if (doprint) madness::print("Start boys localization\n");
         }
 
-        Tensor<T> get_U(){ return M.data()(_, Slice(0, nmo-1)); }
+        Tensor<T> get_U(){
+            int64_t ilo,ihi;
+            M.local_colrange(ilo, ihi);
+            Tensor<T> result(nmo, nmo);
+            if( ihi > 1 ) result( Slice(ilo, ihi), _ ) = M.data()( _, Slice(0, nmo-1) );
+
+            return transpose( result );
+        }
 
         void start_iteration_hook(const TaskThreadEnv& env);
         void kernel(int i, int j, T* rowi, T* rowj);
@@ -686,13 +691,12 @@ namespace madness {
             if (env.id() == 0) world.gop.sum(sum);
             env.barrier();
 
-            printf("\titeration %ld sum=%.4f ndone=%ld tol=%.2e\n", niter, sum, ndone, tol);
+            //printf("\titeration %ld sum=%.4f ndone=%ld tol=%.2e\n", niter, sum, ndone, tol);
             /// print a result of previous iteration
         }
 
-        niter++;
         ndone = 0; /// number of rotation in this iteration
-        maxtheta = 0.0; /// maximum rotation angle
+        maxtheta = 0.0; /// maximum rotation angle in this iteration
     }
     template <typename T>
     void LocalizeBoys<T>::kernel(int i, int j, T* rowi, T* rowj)
@@ -746,13 +750,11 @@ namespace madness {
         if (fabs(theta) >= tol || randomized || doit){
             double c = cos(theta);
             double s = sin(theta);
-            if (doprint) print("\t\tbefore rot x", xi[0], xi[1], xi[2]);
             drot (xi, xj, s, c);
             drot (yi, yj, s, c);
             drot (zi, zj, s, c);
-            drot (uj, ui, s, c);
+            drot (ui, uj, s, c);
 
-            if (doprint) print("\t\tafter rot x", xi[0], xi[1], xi[2]);
             if (doprint) print("\t\trotating", i,j, theta);
             ndone++;
         }
@@ -767,11 +769,12 @@ namespace madness {
             world.gop.sum(ndone); // get total number of rotation whole processes
         }
         env.barrier();
+
         tol = std::max(0.1 * maxtheta, thresh);
         ndone_iter += ndone;
 
+        niter++;
     }
-
     template <typename T>
     bool LocalizeBoys<T>::converged(const TaskThreadEnv& env) const
     {
