@@ -1,72 +1,73 @@
-Congratulations.  You've downloaded MADNESS.  We are using autoconf,
-automake and standard GNU configure scripts.  Many update to date
-details are kept on the MADNESS Wiki
-(http://code.google.com/p/m-a-d-n-e-s-s/wiki/SoftwareEnvironment).
 
-There are currently the well tested and minimum software requirements that are required to build MADNESS.
+CONFIGURING
+===========
 
-Hardware:
+We are using standard GNU configure scripts but since we rely upon
+MPI, BLAS, LAPACK and other non-standard libraries most machines
+require options passed to configure and build.  More information on
+the MADNESS software environment is available on the wiki at
 
-  1) minimum a cpu that can do SSE, SSE2 and SSE3 instructions for optimal satisfaction.  If you are using an older machine (e.g. one which does not support SSE3) you will need to wait until we update the installation scripts.  This does not apply if you are using IBM's BlueGene.
+   http://code.google.com/p/m-a-d-n-e-s-s/wiki/SoftwareEnvironment
 
-  2) some of the examples such as phil and bigboy are intended for large parallel machines so do not run them unless you have thousands of cores and hundreds of gigs of memory.
 
-Prequisites:
+Hardware requirements:
 
-  o  MPI-2: you will need mpicc, mpicxx (tested with mpich2 v. 1.0.8)
+  o A recent x86 cpu (32 or 64 bit) with SSE3 instructions, or
+
+  o IBM BG/P
+
+
+Software requirements:
+
+  o  MPI-2 with mpicc and mpicxx (tested with mpich2 and openmpi)
 
   o  BLAS
 
   o  LAPACK
 
-  o  C and C++ compilers: gcc, g++, gfortran versions 4.4.1, 4.3.2.
+  o  C and C++ compilers: gcc, g++ (most versions 4.1.*, 4.3.*, 4.4.*
+     should work but we recommend 4.4.2)
 
   o  If you are building from the respository you will also need
      autoconf and automake.
 
+
 Optional:
 
-  o  TCMalloc from google perftools v. 1.4 ... its really fast.
+  o  Google performance tools (the malloc library is fast and it is the only
+     free multithreaded performance analysis tool)
+     
+
+  o  GTest from google unit test
+
+
+If you checked the source out of subversion:
+
+  o  You will need to run autoreconf (no options necessary) in the trunk directory
+     to build the configure scripts
+
 
 Configure options:
 
-  o  --with-papi ... enables use of PAPI for performance profiling (only tested on Cray-XT)
+  Run the configure script with option --help to obtain a full list of options.
+  The most commonly used are:
 
-  o  --with-spinlocks ... enables spinlocks in some locations instead of pthread_mutex
-     (automatically enabled on Cray-XT where it is faster.  On single socket Intel
-      chips it seems slightly slower)
+  o  --with-libunwind=dir ... directory containing libunwind.a for google profiler
 
-  o  --with-profile ... enables gathering of performances statistics
+  o  --with-google-perf=dir ... installation directory for google performance tools 
+     (that specified with --prefix=dir when configuring the tools)
 
-Configure environment variables:
+  o  --with-google-test=dir ... installation directory for google unit test library
+     (that specified with --prefix=dir when configuring the library)
 
-  o  BIND ... specifies the default binding of threads to processors.
-     It is a string containing three whitespace separated integers
-     that indicate, in order, the processor for main thread, the
-     message server thread, and the first processor for pool threads.
-     Negative values imply no binding.  The usual default value is 
-     "-1 -1 -1" which means no affinity.  On the Cray-XT the default
-     value is "1 0 2" which places the main thread on core 1, the
-     server thread on core 0 (least hypertransport hops from the NIC), 
-     and pool threads on cores 2, 3, ....  
+  o  --enable-spinlocks ... forces use of spin locks instead of futex (enabled by
+     default on Cray XT and IBM BG/P)
+
+  o  --enable-never-spin ... completely disables use of spinlocks (necessary for using VMs)
 
 
-How to build:
-
-If you checked the source out of subversion you will need to build the
-".in" files from the autoconf and automake templates (you do not need
-to do this if building from the distribution tar file).  In the top
-source directory (the one with configure.ac) run
-
-       autoreconf
-
-Assuming you are not cross compiling and that mpicxx and mpicc (or
-equivalent) are in your path, you only need to tell configure where to
-find your BLAS and LAPACK libraries (including any libraries necessary
-to link against those libraries).  Some examples follow.
-
-
-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+CONFIGURE COMMAND EXAMPLES
+==========================
 
   o  Linux workstation or cluster using GNU compilers
      (some systems might require additional libraries to resolve Fortran
@@ -76,62 +77,32 @@ xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
     
        ./configure LIBS="-llapack -lblas -lgfortran"
 
-
-     - 64-bit with Intel MKL installed.
+     - 64-bit with Intel MKL installed
 
        ./configure LIBS="-L/opt/intel/mkl/10.0.1.014/lib/em64t -lmkl -lguide -lpthread -lm"
 
      - 32-bit with Intel MKL installed
 
        ./configure LIBS="-L/opt/intel/mkl/10.0.1.014/lib/32 -lmkl -lguide -lpthread -lm"
+
+     - 32-bit with Intel MKL installed and also including MPFR and GSL 
+
        ./configure LIBS="-I/usr/include/gsl -L/opt/intel/mkl/10.0.1.014/lib/32 -lgsl -lgslcblas -lmkl -lguide -lpthread -lm -lmpfr -lgmp"
 
+     - 64-bit with MKL, google's fast malloc and profiler library
 
-     - 64-bit with MKL, google's super-fast malloc and google's profiler library
-
-      ./configure LIBS="-L/opt/intel/mkl/10.0.1.014/lib/em64t -L/usr/local/gperftools/lib -lmkl -lguide -lpthread -lm -ltcmalloc -lprofiler -lstdc++"
+       ./configure LIBS="-L/opt/intel/mkl/10.0.1.014/lib/em64t -lmkl -lguide -lpthread -lm" -with-google-perf=/usr/local/gperftools
 
       - 64-bit with AMD ACML
 
       ./configure LIBS="-L/usr/local/acml4.2.0/gfortran64_int64/lib -lacml  -lacml_mv -lgfortran -lstdc++"
-
 
       - 64-bit with AMD ACML, google's super-fast malloc and google's profiler library
 
       ./configure LIBS="-L/usr/local/acml4.2.0/gfortran64_int64/lib -L/usr/local/gperftools-20090306/lib -L/usr/local/libunwind-20090306 -lacml  -lacml_mv -lprofiler -ltcmalloc -lunwind-x86_64 -lgfortran -lstdc++"
 
 
-      Important: The LAPACK shipped with RedHat seems to be broken for
-      numerous releases.  Please check your version, build your own or use a vendor
-      version.
-
-      Important: If you have one of the older processors which does not support SSE3 ...TEST and ADD SOMETHING HERE
-
-      These have been tested in 1) 32 bit and in 64 bit under ubuntu with kernel 2.6.24.6, gcc 4.4.1,
-				 google-perftools-1.0 
-				2) redhat enterprise with kernel 2.6.18, gcc 4.4.1, mpich2-1.0.8
-				3) suse with kernel 2.6.27.29, gcc 4.3.2, acml 4.2.0, mpich2-1.0.8, google-perftools-1.4
-
-
-
-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-
-  o  madness.csm.ornl.gov, Linux shared-memory multicore box using GNU compilers
-
-     - dream software development machine with 8 quad-core Shanghai (32 cores), 128 GB memory, 
-       1 TB SSD for home, root, swap, and 2 TB HDD in RAID-6 for scratch)
-     - OS: Ubuntu, kernel version 2.6.24, GCC 4.4.1, AMD ACML v. 4.2.0, MPICH2 v. 1.0.8, Google perftools v. 1.0, libunwind v. 0.99.
-     - bash shell
-     
-
-       export PATH=$HOME/bin:/usr/local/gcc-4.4.0-20090306/bin:/usr/local/mpich2-1.0.8-20090306/bin:$PATH
-       export LD_LIBRARY_PATH=/usr/local/gcc-4.4.0-20090306/lib64:/usr/local/lib:/usr/local/acml4.2.0/gfortran64_int64/lib:/usr/local/gperftools/lib:/usr/local/mpich2-1.0.8-20090306/lib:/usr/local/libunwind-20090306/lib:$LD_LIBRARY_PATH
-       ./configure LIBS="-L/usr/local/acml4.2.0/gfortran64_int64/lib -L/usr/local/gperftools-20090306/lib -L/usr/local/libunwind-20090306 -lacml  -lacml_mv -lprofiler -ltcmalloc -lunwind-x86_64 -lgfortran -lstdc++"
-
-
-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-
-  o  Cray-XT (e.g., jaguar@ornl and jaguarpf@ornl, kracken at NICS and franklin at NERSC) 
+  o  Cray-XT (e.g., jaguar@ornl and jaguarpf@ornl, kraken at NICS and franklin at NERSC) 
      [Module commands assume you start from the default which is PGI and scilib]
 
      - with GNU compilers and ACML - RECOMMENDED
@@ -155,17 +126,10 @@ xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
        ./configure
 
 
-     - with PGI compilers and scilib
-       ./configure
-
-     - with PGI compilers and acml
-       module load acml/4.3.0
-       ./configure
-
-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-
   o  IBM BlueGene-P @ ANL
-  For other BGP boxes you will need to find these compilers and libraries.  They seem to be site dependent.
+
+     For other BGP boxes you will need to find these compilers and libraries.  
+     They seem to be site dependent.
 
 #!/bin/bash
 export LIBS=""
@@ -184,30 +148,16 @@ export CPPFLAGS="-I/bgsys/drivers/ppcfloor/arch/include"
   LIBS="${LIBS}" \
   CPPFLAGS="${CPPFLAGS}" 
 
-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-
-  o  Smoky, the eccentric AMD+IB cluster at ORNL used for development. 
-     This using MVAPICH2, GNU and ACML (my install of ACML though there 
-     should module available for it now)
-
-     module swap PE-pgi PE-gnu
-     module load PE-gnu/4.2.0
-     module swap ompi mvapich2
-     setenv LD_LIBRARY_PATH /ccs/home/harrison/smokyinstall/gfortran64_int64/lib:$LD_LIBRARY_PATH
-     ./configure LIBS="-L/ccs/home/harrison/smokyinstall/gfortran64_int64/lib  -lacml  -lacml_mv -lgfortran"
-
-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
   o  Macintosh Darwin 10.5.8 --- tested with gcc 4.3.2, reference versions of BLAS and LAPACK, MPICH
 
      - with reference LAPACK and BLAS
 
-     ./configure LIBS="-L/Users/harrison/install/lib -lLAPACK -lBLAS -lgfortran" CPPFLAGS="-I/Users/harrison/install/include"
+       ./configure LIBS="-L/Users/harrison/install/lib -lLAPACK -lBLAS -lgfortran" CPPFLAGS="-I/Users/harrison/install/include"
 
      - using vecLib (comes standard on OS X)
 
-     ./configure LIBS="/System/Library/Frameworks/vecLib.framework/vecLib" CPPFLAGS='-I/System/Library/Frameworks/vecLib.framework/Headers'
+       ./configure LIBS="/System/Library/Frameworks/vecLib.framework/vecLib" CPPFLAGS='-I/System/Library/Frameworks/vecLib.framework/Headers'
 
 
-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
