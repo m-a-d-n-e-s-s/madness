@@ -30,154 +30,275 @@
   
   $Id$
 */
+/* \file testsystolic2.cc
+ * systolic example of eigen solver using one-sided Jacobi method.
+ */
 #include <world/world.h>
-
 #include <utility>
 #include <tensor/tensor.h>
-
 #include <ii/systolic.h>
+#include <ctime>
 
 using namespace madness;
 
-
 template <typename T>
-class TestSystolicMatrixAlgorithm : public SystolicMatrixAlgorithm<T> {
-    volatile int niter;
-    DistributedMatrix<T>& A;
-    World& world;
+class SystolicEigensolver : public SystolicMatrixAlgorithm<T> {
 public:
-    TestSystolicMatrixAlgorithm(DistributedMatrix<T>& A, int tag) 
-        : SystolicMatrixAlgorithm<T>(A, tag) 
-        , niter(0)
-        , A(A)
-        , world(A.get_world())
-    {
-        madness::print("Testing SystolicMatrixAlgorithm ", 
-                       SystolicMatrixAlgorithm<T>::get_coldim(), 
-                       SystolicMatrixAlgorithm<T>::get_rowdim());
-    }
-    
-    /* impliment kernel */
-    /* this time, check row i,j element for all rows */
+    SystolicEigensolver<T>(DistributedMatrix<T>& AV, int tag);
 
     void kernel(int i, int j, T* rowi, T* rowj) {
-        for (int k=0; k < SystolicMatrixAlgorithm<T>::get_rowdim(); k++) {
-            MADNESS_ASSERT(rowi[k] == i);
-            MADNESS_ASSERT(rowj[k] == j);
+        /// get elements of A and V from concatenated row
+        T *ai = rowi;
+        T *aj = rowj;
+        T *vi = rowi + size;
+        T *vj = rowj + size;
+
+        T aii = inner(vi, ai);
+        T ajj = inner(vj, aj);
+        T aij = inner(vi, aj);
+        T daij = fabs(aij);
+
+        maxd = std::max<T>( std::max<T>( fabs(aii), fabs(ajj) ), maxd );
+        maxdaij = std::max<T>( maxdaij, daij/maxd );
+
+        if( daij < maxd*tol ) return;
+
+        T s = ajj-aii;
+        T ds = fabs(s);
+
+        if( daij > ds*tolmin ){
+            nrot++;
+            T c,t,u;
+            /// make prameters of rotation matrix
+            if( tolmin*daij > ds ) c = s = 1/sqrt(2.0);
+            else{
+                t = aij/s;
+                u = 0.25/sqrt(0.25+t*t);
+                c = sqrt(0.5+u);
+                s = 2.0*t*u/c;
+            }
+
+            /// update all elements
+            for (int k=0; k < size; k++) {
+                t = ai[k];
+                u = aj[k];
+                ai[k] = c*t - s*u;
+                aj[k] = c*u + s*t;
+
+                t = vi[k];
+                u = vj[k];
+                vi[k] = c*t - s*u;
+                vj[k] = c*u + s*t;
+            }
         }
-        print("In kernel column", i, ",", j);
     }
 
     void start_iteration_hook(const TaskThreadEnv& env) {
         int id = env.id();
-        if (id == 0) {
-            niter++;
-            world.gop.max(A.data()(0,0));
-        }
+
+        if (id == 0) world.gop.max(maxdaij);
         env.barrier();
-    }
 
-    bool converged(const TaskThreadEnv& env) const {
-        if (niter >= 3) { /* except first 3 times */
-            if (env.id() == 0) {
-                madness::print("    done!");
-            }
-            return true;
-        }
-        else {
-            return false;
+        if (id == 0){
+            tol = std::min( tol, std::min(maxdaij*0.1, maxdaij*maxdaij) ); 
+            tol = std::max( tol, 5.0e-16 );
+            niter++;
+
+            maxdaij = 0;
+            nrot = 0; // don't move this line to above
         }
     }
-};
 
-class local_iterator{
+    void end_iteration_hook(const TaskThreadEnv& env) {
+
+        int id = env.id();
+
+        if (id == 0) world.gop.sum(nrot);
+        env.barrier();
+
+        nrotsum += nrot;
+    }
+
+    bool converged(const TaskThreadEnv& env) const; 
+
+    Tensor<T> get_eval() const;
+
+    DistributedMatrix<T> get_evec() const;
+
 private:
-    int64_t first;
-    int64_t last;
-    int64_t size;
-    int64_t rest;
-public:
-    local_iterator(int64_t first, int64_t last_):
-        first(first),
-        last(last_ +1),
-        size(last-first),
-        rest(size)
-    {}
+    /** constant members */
+    static const T tolmin = (T)5.0e-16; ///threshld
 
-    template <class T>
-    local_iterator(const DistributedMatrix<T> &A):
-        size(A.local_coldim()),
-        rest(size)
-    {
-        A.local_colrange(first, last);
-        ++last;
+    DistributedMatrix<T>& AV; /// concatnated two matrix A and V. V will holds eigen vector after calcuration
+    World& world;
+    volatile int niter;
+    int nrot, nrotsum, size; 
+    T tol, maxd, maxdaij;
+
+    inline T inner(const T* a, const T* b ) const{
+        T s=0;
+        for(int64_t i=0; i<size; i++){
+            s += a[i] * b[i];
+        }
+        return s;
     }
 
-    ~local_iterator(){}
-
-    int64_t begin() { return first; } // index of first element in global tensor
-    int64_t end() { return last; } // index of end element in global tensor
-    bool has_next() { return rest; }
-    void next() { --rest; }
-
-    // return current index in local processor
-    int64_t local() { return size-rest; } 
-
-    // return current index in global tensor 
-    int64_t global() { return first + size-rest; } 
-
-    // given a global index, return local index
-    /* 7/Aug/09 Takahiro
-        what do processors return if they don't have the element of given index
-    */
-    //int64_t local_at(int64_t i) { return i-first; }
-
-    //
-    void reset() { rest = size; }
-
 };
+template <typename T>
+SystolicEigensolver<T>::SystolicEigensolver(DistributedMatrix<T>& AV, int tag):
+    SystolicMatrixAlgorithm<T>( AV, tag ), AV(AV),
+    world(AV.get_world()),
+    niter(0),
+    nrot(0), nrotsum(0), size(AV.rowdim()/2), 
+    tol((T)1e-2), maxd(0), maxdaij(1e3) // just I want a very big value
+{
+    MADNESS_ASSERT(AV.is_column_distributed());
+    MADNESS_ASSERT(AV.coldim()*2 == AV.rowdim());
+    print("One-sided Jacobi start");
+}
+template <typename T>
+DistributedMatrix<T> SystolicEigensolver<T>::get_evec() const{
+    int64_t m = AV.local_coldim();
+    int64_t n = AV.local_rowdim()/2;
+    DistributedMatrix<T> result = column_distributed_matrix<T>(world, m, n);
+    result.data() = AV.data()(_,Slice(size,-1));
+
+    return result;
+}
+template <typename T>
+Tensor<T> SystolicEigensolver<T>::get_eval() const{
+    long int lsize = AV.local_coldim();
+    Tensor<T> result(lsize);
+
+    for(int64_t i=0; i<lsize; i++){
+        Tensor<T> ai= AV.data()(i, Slice(0, size-1)); 
+        Tensor<T> vi= AV.data()(i, Slice(size, -1));
+        result[i] = madness::inner(vi, ai)(0,0);
+    }
+
+    return result;
+}
+template <typename T>
+bool SystolicEigensolver<T>::converged(const TaskThreadEnv& env) const {
+    int id = env.id();
+
+    if(nrot == 0 && tol <= tolmin){
+        if (id == 0) {
+            madness::print("    Converged! ", size, "\n");
+        }
+        return true;
+    } else if (niter >= 50) {
+        if (id == 0) {
+            madness::print("    Did not converged in 50 iteration!", "\n");
+        }
+        return true;
+    } else
+        return false; 
+}
+/* trial function.
+template <typename T>
+SystolicEigensolver<T> void systolic_eigensolver(DistributedMatrix<T>& A, int tag )
+{
+    MADNESS_ASSERT(A.is_column_distributed() == true);
+    /// initialize V as identity matrix of size(A)
+    DistributedMatrix<T> V = column_distributed_matrix<T>( A.get_world(), A.coldim(), A.rowdim() );
+
+    int64_t ilo, ihi;
+    V.local_colrange(ilo, ihi);
+        for(int i=ilo; i<=ihi; i++){
+        V.data()(i-ilo,i) = 1.0;
+    }
+
+    DistributedMatrix<T> A_V = concatenate_rows(A,V);
+
+    A.get_world().taskq.add(new SystolicEigensolver<T>(A_V, tag));
+    A.get_world().taskq.fence();
+
+} */
 
 int main(int argc, char** argv) {
-    MPI::Init(argc, argv);
+    initialize(argc, argv);
+
     madness::World world(MPI::COMM_WORLD);
 
     redirectio(world); /* redirect a results to file "log.<number of processor>" */
-    
+
     try {
-        for (int64_t n=1; n<10; n++) {
-            int64_t m = 2*n;
-            DistributedMatrix<double> A = column_distributed_matrix<double>(world, n, m);
-            /*
-            for(int64_t i=ilo; i<=ihi; i++){
-                print("global, local", i, i-ilo);
-                //A.data()(i-ilo, _) = i;
-            }
-            */  
-            for (local_iterator index(A); index.has_next(); index.next()){
-                //print("iterator:global, local", index.global(), index.local());
-                A.data()(index.local(), _) = index.global();
-            }
+        print("Test of testsystolic2.cc\n");
+        print("result: size time eig_val");
+        for (int64_t n=10; n>1; n-=2) {
+            DistributedMatrix<double> A = column_distributed_matrix<double>(world, n, n);
 
-            //TestSystolicMatrixAlgorithm<double> a(A, 3333);
-            //a.solve();
-
-            world.taskq.add(new TestSystolicMatrixAlgorithm<double>(A, 3333));
-            world.taskq.fence();
-
-            int64_t ilo, ihi;
-            A.local_colrange(ilo, ihi); // get column range of A 
-            if(A.local_size() > 0){
+            int64_t ilo, ihi, jlo, jhi;
+            A.local_rowrange(ilo, ihi); // local row range is equal to global row range
+            A.local_colrange(jlo, jhi); /* get column range of A */
+            for (int j=jlo; j<=jhi; j++) {
                 for (int i=ilo; i<=ihi; i++) {
-                    for (int k=0; k<m; k++) {
-                        MADNESS_ASSERT(A.data()(i-ilo,k) == i);
-                    }
+                    A.data()(j-jlo, i-ilo) = (i + j) * 0.1 ; //in this way, matrix is symmetric
                 }
-                for(local_iterator i(A); i.has_next(); i.next()) {
-                    for (int k=0; k<m; k++){
-                        MADNESS_ASSERT(A.data()(i.local(),k) == i.global());
-                    }
-                }
+                A.data()(j-jlo,j) = ( A.data()(j-jlo,j)+0.5 ) * n;  
             }
+
+            DistributedMatrix<double>  V = idMatrix(A);
+            DistributedMatrix<double> AV = concatenate_rows(A, V);
+            SystolicEigensolver<double> sA(AV, 3334);
+
+            double t = cpu_time();
+            sA.solve();
+            print("result:", n, cpu_time()-t, sA.get_eval());
+
+            if(world.size() == 1){
+                /* check the answer*/
+                Tensor<double> eigvec = sA.get_evec().data();
+                print("eigen vector\n", eigvec);
+
+                /* U^T * U = I */
+                print("U^T * U\n", inner(transpose(eigvec), eigvec));
+                //print("U^T * U\n", mxm2(transpose(eigvec), eigvec)); // must be identity matrix
+
+                /* A * U = lambda * U */
+                print("eval\n", sA.get_eval());
+                print("A * U\n", inner(A.data(), transpose(eigvec)));
+                //print("A * U\n", mxm2(A.data(), transpose(eigvec)));
+
+                ///test for mTxm ... O.K. 
+                /*
+                   Tensor<double> t(2,2);
+                   t(0,0) = 1; t(0,1) = 2; t(1,0) = 3; t(1,1) = 4;
+                   print(t);
+                   print( t(1,Slice()), t(Slice(),0)); /// result ... (3,4) , (1,3)
+                /// result must be ( 10 , 14, 14, 20)
+                print(mxm2(transpose(t), t)); //... O.K.
+                print(transpose(t).emul(t)); //... N.G. emul makes multiply of each element
+                 */
+            }
+
+            /*
+               print("matrix A");
+               print(A.data());
+
+               DistributedMatrix<double> B = column_distributed_matrix<double>(world, n, l);
+               B.local_rowrange(ilo, ihi);
+               B.local_colrange(jlo, jhi); // get column range of B
+               for (int i=ilo; i<=ihi; i++) {
+               for (int j=jlo; j<=jhi; j++) {
+               B.data()(j-jlo,i-ilo) = j + i*100 ;
+               }
+               }
+               print("matrix B");
+               print(B.data());
+
+               DistributedMatrix<double> D = concatenate_rows(A, B);
+
+               print("matrix D");
+               print(D.data()); //... O.K
+
+               world.taskq.add(new TestSystolicMatrixAlgorithm<double>(C, 3333));
+               world.taskq.fence();
+
+               world.taskq.add(new SystolicEigensolver<double>(A, 3334));
+               world.taskq.fence();
+             */
         }
     }
     catch (const MPI::Exception& e) {
@@ -211,7 +332,7 @@ int main(int argc, char** argv) {
     catch (...) {
         error("caught unhandled exception");
     }
-    
-    MPI::Finalize();
+
+    finalize();
 }
 

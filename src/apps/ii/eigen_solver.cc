@@ -162,8 +162,8 @@ bool SystolicEigensolver<T>::converged(const TaskThreadEnv& env) const {
         if (id == 0) madness::print("\tConverged! ", niter, "iteration.", size);
         return true;
     }
-    else if (niter >= 500) {
-        if (id == 0) madness::print("\tDid not converged in 500 iteration!");
+    else if (niter >= 1000) {
+        if (id == 0) madness::print("\tDid not converged in 1000 iteration!");
         return true;
     }
     else
@@ -210,12 +210,13 @@ int main(int argc, char** argv) {
             madness::Tensor<double> sym_tensor(n, n);
             if (world.rank() == 0) {
                 sym_tensor.fillrandom();
+                // 0.01 <= pow[0] < 100 , pow[0] * 10 <= pow[1] < pow[0] * 100
                 int64_t pow[] = { (int64_t)(std::rand() % 5 - 2), (int64_t)(std::rand() % 2 + 1) };
-                pow[1] += pow[0];
+                pow[1] += pow[0]; // pow[1] > pow[0]
                 for(int i=0; i<n; i++){
                     for(int j=0; j<=i; j++){
                         if (i != j)  sym_tensor(i,j) = sym_tensor(j,i) *= std::pow( 10, pow[0]);
-                        else sym_tensor(i,i) *= std::pow( 10, pow[1]);
+                        else sym_tensor(i,i) *= n * std::pow( 10, pow[1]);
                     }
                 }
                 print("pow a, pow b is", pow[0], pow[1]);
