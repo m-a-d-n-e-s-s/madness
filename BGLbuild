@@ -1,5 +1,0 @@
-THIS IS NOT YET WORKING WITH THE NEW INSTALL MECHANISM
-
-# configure command for bgl at anl.  ultimately this will be configured automatically.
-
-./configure --with-cc=mpicc.gnu --with-cxx=mpicxx.gnu --with-blas=/bgl/software/linux-sles9-ppc64/tools/LAPACK/libblas.a --with-lapack=/bgl/software/linux-sles9-ppc64/tools/LAPACK/liblapack.a --with-cxx-optflags="-g -O0 -Wall" --with-cc-optflags="-g -O0 -Wall"
