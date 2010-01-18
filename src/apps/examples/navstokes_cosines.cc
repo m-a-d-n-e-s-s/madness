@@ -42,7 +42,7 @@
 
   \par Points of interest
   - convolution with periodic Green's function (Possion/Coulomb kernel and Modified Helmholtz/Bound State Helmholtz/Yukawa kernel)
-  - output data to vtk for ParaView
+  - output data for ParaView
   
   \par Background
   This illustrates the solution of a Navier-Stokes equation for incompressible flows,
@@ -70,6 +70,10 @@
     Particularly, the construction of a second order scheme under this frame is easy and similar to the Crank-Nicolson technique, which is also demonstrated by the example.
     
     \par Reference
+    Jia, J.; Hill, J.; Fann, G. & Harrison, R. J. 
+    MULTIRESOLUTION FAST METHODS FOR A PERIODIC 3-D NAVIER-STOKES SOLVER
+    Proceedings of the Eighth International Symposium on Distributed Computing and Applications to Business, Engineering and Science, Publishing House of Electronics Industry, 2009
+
     
 */
 

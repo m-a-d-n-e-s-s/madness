@@ -91,6 +91,9 @@
   equation solver instead of simple iteration.
  
  Once we have the solutions at the \f$n\f$ quadrature points on \f$ [0,t] \f$, quadrature rule is used to construct the solution at \f$t\f$.
+ 
+ \par Reference
+  Preprint.
 
 */
 
