@@ -745,13 +745,18 @@ namespace madness {
         /// Get number of threads from the environment
         int default_nthread() {
             int nthread;
-            char *cnthread = getenv("MAD_NTHREAD");
+            int shift = 0;
+            char *cnthread = getenv("MAD_NUM_THREADS");
+            // MAD_NUM_THREADS is total no. of application threads whereas
+            // POOL_NTHREAD is just the number in the pool (one less)
+            if (cnthread) shift = 1;  
             if (cnthread == 0) cnthread = getenv("POOL_NTHREAD");
 
             if (cnthread) {
                 int result = sscanf(cnthread, "%d", &nthread);
                 if (result != 1)
                     MADNESS_EXCEPTION("POOL_NTHREAD is not an integer", result);
+                nthread -= shift;
             }
             else {
                 nthread = sysconf(_SC_NPROCESSORS_CONF);
