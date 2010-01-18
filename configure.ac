@@ -267,6 +267,11 @@ AC_ARG_ENABLE([spinlocks],
               [echo "Enabling use of spinlocks"; AC_DEFINE(USE_SPINLOCKS, [1], [Define if should use spinlocks])], 
               [])
 
+AC_ARG_ENABLE([never-spin], 
+              [--enable-never-spin  Disables use of spinlocks (notably for use inside virtual machines)], 
+              [echo "Disabling use of spinlocks"; AC_DEFINE(NEVER_SPIN, [1], [Define if should use never use spinlocks])], 
+              [])
+
 AC_ARG_WITH([papi], 
             [--with-papi  Enables use of PAPI], 
             [echo "Enabling use of PAPI"; AC_DEFINE(HAVE_PAPI,[1], [Define if have PAPI])], 
