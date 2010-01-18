@@ -158,16 +158,17 @@ template <typename T>
 bool SystolicEigensolver<T>::converged(const TaskThreadEnv& env) const {
     int id = env.id();
 
-    if(nrot == 0 && tol <= tolmin){
+    if(nrot == 0 && tol <= tolmin) {
         if (id == 0) madness::print("\tConverged! ", niter, "iteration.", size);
         return true;
     }
-    else if (niter >= 1000) {
-        if (id == 0) madness::print("\tDid not converged in 1000 iteration!");
+    else if (niter >= 1000000) {
+        if (id == 0) madness::print("\tDid not converged in 50000 iteration!");
         return true;
     }
-    else
+    else {
         return false; 
+    }
 }
 template <typename T>
 Tensor<T> SystolicEigensolver<T>::get_evec() const{
@@ -210,6 +211,7 @@ int main(int argc, char** argv) {
             madness::Tensor<double> sym_tensor(n, n);
             if (world.rank() == 0) {
                 sym_tensor.fillrandom();
+                sym_tensor -= 0.5;
                 // 0.01 <= pow[0] < 100 , pow[0] * 10 <= pow[1] < pow[0] * 100
                 int64_t pow[] = { (int64_t)(std::rand() % 5 - 2), (int64_t)(std::rand() % 2 + 1) };
                 pow[1] += pow[0]; // pow[1] > pow[0]
@@ -219,8 +221,9 @@ int main(int argc, char** argv) {
                         else sym_tensor(i,i) *= n * std::pow( 10, pow[1]);
                     }
                 }
-                print("pow a, pow b is", pow[0], pow[1]);
+                print("pow a,b is", pow[0], pow[1]);
             }
+            if( n < 5 ) print(sym_tensor);
             world.gop.broadcast(sym_tensor.ptr(), sym_tensor.size(), 0);
             A.copyin(sym_tensor);
 
