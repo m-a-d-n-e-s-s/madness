@@ -30,8 +30,35 @@
   
   $Id$
 */
+
 //// \file examples/vnucso.cc
 /// \brief Solves the spin-orbit nuclear potential problem
+
+/*!
+
+  \file vnucso.cc
+  \brief Solves the Hartree-Fock equation for the 2-cosh potential with spin-orbit in Nuclear
+  Density Functional Theory witough assumption on spatial symmetry.
+  \ingroup examples
+
+  Points of interest
+  
+  - Forming a Hamiltonian and a Fock matrix
+  - Forming and solving a generalized eigensystem problem using LAPACK
+  - Refining the representation of real and complex functions
+  - Vectors of functions and operators, inner-product, gaxpy
+  - Application of the Helmholtz bound-state Green function as vector of operators and functions
+  - Projection and change of representation of functions from multiwavelets of degree k to k+1
+
+  This is a more involved example than the Hydrogen and Helium.
+  This example couples the traditional diagonalization approach with that of the integral equation approach.
+  The details are described in:
+  G. I. Fann , J. Pei, R. J. Harrison1, J. Jia, J. Hill1 , M. Ou, W. Nazarewicz, W. A. Shelton
+  and N. Schunck, "Fast multiresolution methods for density functional theory in nuclear physics,"
+  Journal of Physics, 180 (2009) 012080.
+
+
+*/
 
 
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES  
