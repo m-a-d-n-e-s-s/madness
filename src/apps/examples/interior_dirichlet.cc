@@ -147,117 +147,114 @@ class DirichletCondIntOp : public Operator<functionT> {
 //*****************************************************************************
 // C++ function to solve an embedded Dirichlet problem.
 int main(int argc, char **argv) {
-	coordT3d pt, axis;
-
-	// get the helmholtz_k value from the command-line
-	if(argc < 3) {
-		std::cerr << "Usage error: ./app_name eps (0 Poisson, 1 Helmholtz) " \
-			"[helmholtz_k]" << std::endl;
-		return -1;
+    initialize(argc,argv);
+    World world(MPI::COMM_WORLD);
+    startup(world,argc,argv);
+    
+    if (world.rank() == 0) {
+        // get the helmholtz_k value from the command-line
+        if(argc < 3) {
+            std::cerr << "Usage error: ./app_name eps (0 Poisson, 1 Helmholtz) " \
+                "[helmholtz_k]" << std::endl;
+            error("bad number of arguments");
+        }
+        
+        eps = atof(argv[1]);
+        if(eps <= 0.0) error("eps must be positive, and hopefully small");
+    
+        switch(atoi(argv[2])) {
+        case 0:
+            is_helmholtz = false;
+            helmholtz_k = 0.0;
+            break;
+        case 1:
+            is_helmholtz = true;
+            if(argc < 4 || (helmholtz_k = atof(argv[3])) == 0.0)
+                error("Must specify a helmholtz_k != 0 for a Helmholtz problem");
+            break;
+        default:
+            error("Only 0 (Poisson) and 1 (Helmholtz) are accepted.");
 	}
+    }
+    world.gop.broadcast(eps);
+    world.gop.broadcast(is_helmholtz);
+    world.gop.broadcast(helmholtz_k);
+    inveps = 1.0 / eps;
 
-	eps = atof(argv[1]);
-	if(eps <= 0.0) {
-		std::cerr << "eps must be positive, and hopefully small." << std::endl;
-		return -1;
-	}
-	inveps = 1.0 / eps;
-
-	switch(atoi(argv[2])) {
-		case 0:
-			is_helmholtz = false;
-			helmholtz_k = 0.0;
-			break;
-		case 1:
-			is_helmholtz = true;
-			if(argc < 4 || (helmholtz_k = atof(argv[3])) == 0.0) {
-				std::cerr << "Must specify a helmholtz_k != 0 for a Helmholtz problem"
-					<< std::endl;
-				return -1;
-			}
-			break;
-		default:
-			std::cerr << "Only 0 (Poisson) and 1 (Helmholtz) are accepted." << std::endl;
-			return -1;
-	}
-
-        initialize(argc,argv);
-	World world(MPI::COMM_WORLD);
-	startup(world,argc,argv);
-
-	// Function defaults
-	int k = 6;
-	FunctionDefaults<3>::set_k(k);
-	FunctionDefaults<3>::set_cubic_cell(-L, L);
-	FunctionDefaults<3>::set_thresh(thresh);
-	//FunctionDefaults<3>::set_initial_level(4);
-	/// the following line can be commented out if memory is not an issue
-	FunctionDefaults<3>::set_max_refine_level(6);
-
-	// create the forcing function inhomogeneity
-	functionT f = factoryT(world).f(f_rhs);
-
-	// create the Dirichlet boundary condition, expanded throughout the domain
-	functionT d = factoryT(world).f(dir_cond);
-	d.truncate();
-
-	// create the domain mask, phi, and the surface function, b
-	pt[0] = pt[1] = pt[2] = 0.0;
-	functionT phi = factoryT(world).functor(shape_mask(eps, new SDFSphere(1.0, pt)));
-
-	functionT b = copy(phi);
-	phi.truncate();
-	b.unaryop(&b_phi<double>);
-
-	// apply the scale factor to b
-	// scale is (36 / epsilon), which normalizes b, -1 from the Green's function
-	b.scale(-36.0 * inveps);
-	// add in more scaling (essentially a penalty)
-	b.scale(inveps * inveps);
-	b.truncate();
-
-	// setup the Green's function
-	// NOTE that CoulombOperator essentially makes the BSH w/ k == 0.0,
-	// and then rescales by 4 pi.  This is more consistent.
-	real_convolution_3d G = BSHOperator<3>(world, helmholtz_k, eps*0.1, thresh);
-
-	// compute the inhomogeneous portion
-	functionT usol = phi*f + b*d; // should be -b*d, but b accounts for -G
-	functionT uinhomog = G(usol).truncate();
-	uinhomog.scale(-1.0); // add the -1 from the Green's function
-	uinhomog.truncate();
-	world.gop.fence();
-	usol.clear();
-
-	// solve the linear system
-	// make an initial guess
-	usol = copy(uinhomog);
-	DirichletCondIntOp dcio(G, b);
-	FunctionSpace<double, 3> space;
-	int maxiters = 10;
-	double solver_thresh = 1.0e-4;
-	GMRES(space, dcio, uinhomog, usol, maxiters, solver_thresh, true);
-
-	functionT exact = factoryT(world).f(exact_sol);
-	double error = ((usol - exact)*phi).norm2();
-	printf("   u error: %.10e\n", error);
-
-	// set up file output
-	char filename[100];
-	sprintf(filename, "interior.vts");
-	Vector<double, 3> plotlo, plothi;
-	Vector<long, 3> npts;
-	for(int i = 0; i < 3; ++i) {
-		plotlo[i] = -1.1;
-		plothi[i] = 1.1;
-		npts[i] = 71;
-	}
-	plotvtk_begin(world, filename, plotlo, plothi, npts);
-	plotvtk_data(usol, "usol", world, filename, plotlo, plothi, npts);
-	plotvtk_data(exact, "exact", world, filename, plotlo, plothi, npts);
-	plotvtk_end<3>(world, filename);
-
-        finalize();
-
-	return 0;
+    
+    // Function defaults
+    int k = 6;
+    FunctionDefaults<3>::set_k(k);
+    FunctionDefaults<3>::set_cubic_cell(-L, L);
+    FunctionDefaults<3>::set_thresh(thresh);
+    //FunctionDefaults<3>::set_initial_level(4);
+    /// the following line can be commented out if memory is not an issue
+    FunctionDefaults<3>::set_max_refine_level(6);
+    
+    // create the forcing function inhomogeneity
+    functionT f = factoryT(world).f(f_rhs);
+    
+    // create the Dirichlet boundary condition, expanded throughout the domain
+    functionT d = factoryT(world).f(dir_cond);
+    d.truncate();
+    
+    // create the domain mask, phi, and the surface function, b
+    coordT3d pt; // Origin
+    functionT phi = factoryT(world).functor(shape_mask(eps, new SDFSphere(1.0, pt)));
+    
+    functionT b = copy(phi);
+    phi.truncate();
+    b.unaryop(&b_phi<double>);
+    
+    // apply the scale factor to b
+    // scale is (36 / epsilon), which normalizes b, -1 from the Green's function
+    b.scale(-36.0 * inveps);
+    // add in more scaling (essentially a penalty)
+    b.scale(inveps * inveps);
+    b.truncate();
+    
+    // setup the Green's function
+    // NOTE that CoulombOperator essentially makes the BSH w/ k == 0.0,
+    // and then rescales by 4 pi.  This is more consistent.
+    real_convolution_3d G = BSHOperator<3>(world, helmholtz_k, eps*0.1, thresh);
+    
+    // compute the inhomogeneous portion
+    functionT usol = phi*f + b*d; // should be -b*d, but b accounts for -G
+    functionT uinhomog = G(usol).truncate();
+    uinhomog.scale(-1.0); // add the -1 from the Green's function
+    uinhomog.truncate();
+    world.gop.fence();
+    usol.clear();
+    
+    // solve the linear system
+    // make an initial guess
+    usol = copy(uinhomog);
+    DirichletCondIntOp dcio(G, b);
+    FunctionSpace<double, 3> space;
+    int maxiters = 10;
+    double solver_thresh = 1.0e-4;
+    GMRES(space, dcio, uinhomog, usol, maxiters, solver_thresh, true);
+    
+    functionT exact = factoryT(world).f(exact_sol);
+    double error = ((usol - exact)*phi).norm2();
+    printf("   u error: %.10e\n", error);
+    
+    // set up file output
+    char filename[100];
+    sprintf(filename, "interior.vts");
+    Vector<double, 3> plotlo, plothi;
+    Vector<long, 3> npts;
+    for(int i = 0; i < 3; ++i) {
+        plotlo[i] = -1.1;
+        plothi[i] = 1.1;
+        npts[i] = 71;
+    }
+    plotvtk_begin(world, filename, plotlo, plothi, npts);
+    plotvtk_data(usol, "usol", world, filename, plotlo, plothi, npts);
+    plotvtk_data(exact, "exact", world, filename, plotlo, plothi, npts);
+    plotvtk_end<3>(world, filename);
+    
+    finalize();
+    
+    return 0;
 }
