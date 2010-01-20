@@ -97,29 +97,28 @@ namespace madness {
         }
     };
 
-/// FunctionCommonData holds all Function data common for given k
-
-/// Since Function assignment and copy constructors are shallow it
-/// greatly simplifies maintaining consistent state to have all
-/// (permanent) state encapsulated in a single class.  The state
-/// is shared between instances using a SharedPtr.  Also,
-/// separating shared from instance specific state accelerates the
-/// constructor, which is important for massive parallelism, and
-/// permitting inexpensive use of temporaries.  The default copy
-/// constructor and assignment operator are used but are probably
-/// never invoked.
+    /// FunctionCommonData holds all Function data common for given k
+    
+    /// Since Function assignment and copy constructors are shallow it
+    /// greatly simplifies maintaining consistent state to have all
+    /// (permanent) state encapsulated in a single class.  The state
+    /// is shared between instances using a SharedPtr.  Also,
+    /// separating shared from instance specific state accelerates the
+    /// constructor, which is important for massive parallelism, and
+    /// permitting inexpensive use of temporaries.  The default copy
+    /// constructor and assignment operator are used but are probably
+    /// never invoked.
     template<typename T, int NDIM>
     class FunctionCommonData {
     private:
-        static FunctionCommonData<T, NDIM> data[MAXK + 1]; /// Declared in mra.cc, initialized on first use
-
+        static const FunctionCommonData<T, NDIM>* data[MAXK];
+        
         /// Private.  Initialize the twoscale coefficients
         void
         _init_twoscale();
 
-        /// Private.  Do first use initialization
-        void
-        _initialize(int k) {
+        /// Private.  Do first use initialization via get.
+        FunctionCommonData(int k) {
             this->k = k;
             npt = k;
             for (int i = 0; i < 4; i++)
@@ -136,20 +135,13 @@ namespace madness {
                 vq[i] = npt;
                 v2k[i] = 2 * k;
             }
-            zero_coeff = tensorT(vk);
             key0 = Key<NDIM> (0, Vector<Translation, NDIM> (0));
 
             _init_twoscale();
             _init_quadrature(k, npt, quad_x, quad_w, quad_phi, quad_phiw,
                              quad_phit);
-            initialized = true;
-        }
+        }            
 
-        FunctionCommonData() :
-                initialized(false) {
-        }
-
-        bool initialized;
     public:
         typedef Tensor<T> tensorT; ///< Type of tensor used to hold coeff
 
@@ -161,8 +153,6 @@ namespace madness {
         std::vector<long> vk; ///< (k,...) used to initialize Tensors
         std::vector<long> v2k; ///< (2k,...) used to initialize Tensors
         std::vector<long> vq; ///< (npt,...) used to initialize Tensors
-
-        tensorT zero_coeff; ///< Zero (k,...) tensor for internal convenience of diff
 
         Key<NDIM> key0; ///< Key for root node
 
@@ -176,15 +166,11 @@ namespace madness {
         Tensor<double> hg, hgT; ///< The full twoscale coeff (2k,2k) and transpose
         Tensor<double> hgsonly; ///< hg[0:k,:]
 
-        //Tensor<double> rm, r0, rp; ///< Blocks of the derivative operator
-        //Tensor<double> rm_left, rm_right, rp_left, rp_right; ///< Rank-1 forms rm & rp
-
         static const FunctionCommonData<T, NDIM>&
         get(int k) {
             MADNESS_ASSERT(k > 0 && k <= MAXK);
-            if (!data[k].initialized)
-                data[k]._initialize(k);
-            return data[k];
+            if (!data[k-1]) data[k-1] = new FunctionCommonData<T,NDIM>(k);
+            return *(data[k-1]);
         }
 
         /// Initialize the quadrature information
@@ -214,19 +200,19 @@ namespace madness {
         virtual ~FunctionFunctorInterface() {}
     };
 
-/// FunctionFactory implements the named-parameter idiom for Function
-
-/// C++ does not provide named arguments (as does, e.g., Python).
-/// This class provides something very close.  Create functions as follows
-/// \code
-/// double myfunc(const double x[]);
-/// Function<double,3> f = FunctionFactory<double,3>(world).f(myfunc).k(11).thresh(1e-9).debug()
-/// \endcode
-/// where the methods of function factory, which specify the non-default
-/// arguments eventually passed to the \c Function constructor, can be
-/// used in any order.
-///
-/// Need to add a general functor for initial projection with a standard interface.
+    /// FunctionFactory implements the named-parameter idiom for Function
+    
+    /// C++ does not provide named arguments (as does, e.g., Python).
+    /// This class provides something very close.  Create functions as follows
+    /// \code
+    /// double myfunc(const double x[]);
+    /// Function<double,3> f = FunctionFactory<double,3>(world).f(myfunc).k(11).thresh(1e-9).debug()
+    /// \endcode
+    /// where the methods of function factory, which specify the non-default
+    /// arguments eventually passed to the \c Function constructor, can be
+    /// used in any order.
+    ///
+    /// Need to add a general functor for initial projection with a standard interface.
     template<typename T, int NDIM>
     class FunctionFactory {
         friend class FunctionImpl<T, NDIM> ;
@@ -322,13 +308,7 @@ namespace madness {
             _refine = !norefine;
             return *this;
         }
-/*
-        FunctionFactory&
-        bc(const Tensor<int>& bc) {
-            _bc = copy(bc);
-            return *this;
-        }
-*/
+
         FunctionFactory&
         empty() {
             _empty = true;
@@ -372,7 +352,7 @@ namespace madness {
     };
 
 
-/// FunctionNode holds the coefficients, etc., at each node of the 2^NDIM-tree
+    /// FunctionNode holds the coefficients, etc., at each node of the 2^NDIM-tree
     template<typename T, int NDIM>
     class FunctionNode {
     private:
@@ -639,8 +619,6 @@ namespace madness {
         bool compressed; ///< Compression status
 
         dcT coeffs; ///< The coefficients
-
-        //Tensor<int> bc; ///< Type of boundary condition -- currently only zero or periodic
 
         // Disable the default copy constructor
         FunctionImpl(const FunctionImpl<T,NDIM>& p);

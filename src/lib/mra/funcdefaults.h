@@ -69,24 +69,17 @@ namespace madness {
     template<int NDIM>
     class BoundaryConditions { 
     private: 
-        std::vector<BCType> bc;
+        // Used to use STL vector but static data on  a MAC was 
+        // causing problems.
+        BCType bc[NDIM*2];
         
     public:
         /// Constructor. Default boundary condition set to free space
         BoundaryConditions(BCType code=BC_FREE) 
-            : bc(2*NDIM, code)
-        {}
-
-        /// General constructor.  
-        /// @param v Vector containing NDIM*2 values specifying boundary conditions
-        BoundaryConditions(const std::vector<BCType>& v) 
-            : bc(v)
         {
-            MADNESS_ASSERT(int(v.size()) == 2*NDIM);
-            for (int d=0; d<NDIM; d++)
-                MADNESS_ASSERT(bc(2*d)!=BC_PERIODIC || bc(2*d+1)==BC_PERIODIC);
+            for (int i=0; i<NDIM*2; i++) bc[i] = code;
         }
-        
+
         /// Copy constructor is deep
         BoundaryConditions(const BoundaryConditions<NDIM>& other)
         {
@@ -97,7 +90,7 @@ namespace madness {
         BoundaryConditions<NDIM>&
         operator=(const BoundaryConditions<NDIM>& other) {
             if (&other != this) {
-                bc = other.bc;
+                for (int i=0; i<NDIM*2; i++) bc[i] = other.bc[i];
             }
             return *this;
         }
@@ -122,13 +115,6 @@ namespace madness {
             return bc[2*d+i];
         }
 
-        /// Returns entire vector of boundary conditions 
-        
-        /// In dimension \c dim ,  \c v[2*dim] is left boundary condition and \c v]2*dim+1] is right.
-        operator std::vector<BCType> const () {
-            return bc;
-        }
-        
         template <typename Archive> 
         void serialize(const Archive& ar) {
             ar & bc;

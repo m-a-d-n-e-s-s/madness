@@ -1134,7 +1134,7 @@ namespace madness {
     }
 
     template <typename T, int NDIM>
-    FunctionCommonData<T,NDIM> FunctionCommonData<T,NDIM>::data[MAXK+1];
+    const FunctionCommonData<T,NDIM>* FunctionCommonData<T,NDIM>::data[MAXK] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
 
     template <int NDIM> int FunctionDefaults<NDIM>::k;
     template <int NDIM> double FunctionDefaults<NDIM>::thresh;
