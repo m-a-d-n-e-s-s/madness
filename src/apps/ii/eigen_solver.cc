@@ -163,7 +163,7 @@ bool SystolicEigensolver<T>::converged(const TaskThreadEnv& env) const {
         return true;
     }
     else if (niter >= 1000000) {
-        if (id == 0) madness::print("\tDid not converged in 50000 iteration!");
+        if (id == 0) madness::print("\tDid not converged in 100000 iteration!");
         return true;
     }
     else {
@@ -209,19 +209,24 @@ int main(int argc, char** argv) {
             // make symmetolic matrix, then distribute it all processes
             DistributedMatrix<double> A = column_distributed_matrix<double>(world, n, n);
             madness::Tensor<double> sym_tensor(n, n);
+            // 0.01 <= pow[0] < 100 , pow[0] <= pow[1] < pow[0] * 100
+            int64_t pow[] = { (int64_t)(std::rand() % 5 - 2), (int64_t)(std::rand() % 3 ) };
+            pow[1] += pow[0]; // pow[1] > pow[0]
             if (world.rank() == 0) {
                 sym_tensor.fillrandom();
                 sym_tensor -= 0.5;
-                // 0.01 <= pow[0] < 100 , pow[0] * 10 <= pow[1] < pow[0] * 100
-                int64_t pow[] = { (int64_t)(std::rand() % 5 - 2), (int64_t)(std::rand() % 2 + 1) };
-                pow[1] += pow[0]; // pow[1] > pow[0]
+                // all diagonal elements tensor(i,i) must be begger than sum_j tensor(i,j)
                 for(int i=0; i<n; i++){
+                    double tmp=0;
                     for(int j=0; j<=i; j++){
-                        if (i != j)  sym_tensor(i,j) = sym_tensor(j,i) *= std::pow( 10, pow[0]);
-                        else sym_tensor(i,i) *= n * std::pow( 10, pow[1]);
+                        if (i != j)  sym_tensor(i,j) = sym_tensor(j,i) *= std::pow<double>(10, pow[0]);
+                        tmp += std::abs<double>( sym_tensor(i,j) );
                     }
+                    if( sym_tensor(i,i) > 0 )
+                        sym_tensor(i,i) =  tmp * std::pow( 10, pow[1]);
+                    else
+                        sym_tensor(i,i) = -tmp * std::pow( 10, pow[1]);
                 }
-                print("pow a,b is", pow[0], pow[1]);
             }
             if( n < 5 ) print(sym_tensor);
             world.gop.broadcast(sym_tensor.ptr(), sym_tensor.size(), 0);
@@ -244,7 +249,7 @@ int main(int argc, char** argv) {
             /* check the answer*/
             if(world.rank() == 0){
 
-                print("check: size, abs( AV - lambda EV )");
+                print("check: size pow(A_ii) pow(A_ij) abs_max(off_diagonal_element) abs(AV-lambdaEV)");
                 /* V^T * V = I, max abs( [ x | x = Aij when i!=j, x = Aij-1 when i=j ] ) */
                 /* this check is always good. so skip this one
                 Tensor<double> uTu = inner( transpose(eigvec), eigvec );
@@ -267,7 +272,7 @@ int main(int argc, char** argv) {
                         max = std::max<double>( max, std::abs<double>( error(i,j) ));
                     }
                 }
-                print("check:", n, max_none_diag, max);
+                print("check:", n, pow[1], pow[0], max_none_diag, max);
 
                 print("\n");
             }
