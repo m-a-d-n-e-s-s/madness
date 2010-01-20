@@ -475,7 +475,7 @@ int main(int argc, char** argv) {
     double tstep = 0.0;
     int selection = -1;
 
-    if (world.rank( == 0) {
+    if (world.rank() == 0) {
 	print("   0: Trotter");
 	print("   1: Symplectic-grad-4 Chin-Chen");
 	print("   2: Symplectic-grad-4 optimal");
