@@ -474,32 +474,38 @@ int main(int argc, char** argv) {
     double tstep = 0.0;
     int selection = -1;
 
-    print("   0: Trotter");
-    print("   1: Symplectic-grad-4 Chin-Chen");
-    print("   2: Symplectic-grad-4 optimal");
-    print("   3: Symplectic-grad-6");
-    print("   4: Quadrature 1pt");
-    print("   5: Quadrature 2pt");
-    print("   6: Quadrature 3pt");
-    print("   7: Quadrature 4pt");
-    print("   8: Quadrature 5pt");
-    print("   9: Quadrature 6pt");
-    print(" 10+: Quadrature 7pt+ extremely experimental, try at your own risk:)");
-
-    while (selection < 0 || selection > 20) {
-        std::cout << " Select propagation method (0-20):";
-        std::cout.flush();
-        std::cin >> selection;
+    if (world.rank( == 0) {
+	print("   0: Trotter");
+	print("   1: Symplectic-grad-4 Chin-Chen");
+	print("   2: Symplectic-grad-4 optimal");
+	print("   3: Symplectic-grad-6");
+	print("   4: Quadrature 1pt");
+	print("   5: Quadrature 2pt");
+	print("   6: Quadrature 3pt");
+	print("   7: Quadrature 4pt");
+	print("   8: Quadrature 5pt");
+	print("   9: Quadrature 6pt");
+	print(" 10+: Quadrature 7pt+ extremely experimental, try at your own risk:)");
+	
+	while (selection < 0 || selection > 20) {
+	  std::cout << " Select propagation method (0-20):";
+	  std::cout.flush();
+	  std::cin >> selection;
+	}
+	
+	print("Critical time step is", tcrit, "\n");
+	
+	std::cout << " Enter time step: ";
+	std::cout.flush();
+	std::cin >> tstep;
     }
 
-    print("Critical time step is", tcrit, "\n");
-
-    std::cout << " Enter time step: ";
-    std::cout.flush();
-    std::cin >> tstep;
-
+    world.gop.broadcast(selection);
+    world.gop.broadcast(tstep);
+	
     int nstep = (velocity==0) ? 100 : int((L - 10 - x0)/velocity/tstep);
 
+      if (world.rank() == 0) {
     print("");
     print(" Wavelet order", k);
     print("     Threshold", thresh);
@@ -507,6 +513,7 @@ int main(int argc, char** argv) {
     print("     Time step", tstep);
     print("      No.steps", nstep);
     print("        Method", selection);
+      }
 
     if (selection == 0) {
         for (int step=0; step<nstep; step++) {
