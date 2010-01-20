@@ -199,7 +199,7 @@ int main(int argc, char **argv) {
     d.truncate();
     
     // create the domain mask, phi, and the surface function, b
-    coordT3d pt; // Origin
+    coordT3d pt(0.0); // Origin
     functionT phi = factoryT(world).functor(shape_mask(eps, new SDFSphere(1.0, pt)));
     
     functionT b = copy(phi);
