@@ -150,7 +150,7 @@ export CPPFLAGS="-I/bgsys/drivers/ppcfloor/arch/include"
   CPPFLAGS="${CPPFLAGS}" 
 
 
-  o  Macintosh Darwin 10.5.8 --- tested with gcc 4.3.2, reference versions of BLAS and LAPACK, MPICH
+  o  Macintosh Darwin 10.6, snow leopard --- tested with gcc 4.5, reference versions of BLAS and LAPACK, MPICH
 
      - with reference LAPACK and BLAS
 
