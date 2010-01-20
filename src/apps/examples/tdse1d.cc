@@ -341,6 +341,7 @@ void print_info(World& world, const complex_function_1d& psi, int step) {
     complex_function_1d psiX = complex_factory_1d(world).f(psi_exact);
     double err = (psiX - psi).norm2();
 
+    if (world.rank() > 0) return;
     if ((step%40) == 0) {
         printf("\n");
         printf(" step    time      atom x        norm        kinetic    potential      energy      err norm   depth   size  \n");
@@ -416,12 +417,12 @@ complex_function_1d q_c(World& world, const int np, const complex_function_1d ps
 	
     // now the fix-pt iterations for \psi's or qs' on the quadrature pts
     fix_iter_tol = thresh / tstep;
-    printf("fix iters ");
+    if (world.rank() == 0) printf("fix iters ");
     double err = norm2(world, ps1)/np ;
     
     //~ ps=copy(world, qs);
     for (int j=0; j<maxiter; ++j) {
-        printf(" %6.0e",err);
+        if (world.rank() == 0) printf(" %6.0e",err);
         if (err <= fix_iter_tol) break;
         err = 0;
         ps1 = zero_functions<double_complex,1>(world, np); // ps1 holds the newly computed correction term
@@ -438,7 +439,7 @@ complex_function_1d q_c(World& world, const int np, const complex_function_1d ps
         gaxpy(world, 1.0, qs, 1.0, ps1);  // accumulate the corrections into the solutions.
         ps = ps1; //copy(world, ps1);
     }
-    printf("\n");
+    if (world.rank() == 0) printf("\n");
     
     // hopefully the iteration converged correctly and now use the semi-group formula with quadrature rule applied to the integral to compute the result.
     pdum = APPLY(G.get(), psi0);
@@ -541,7 +542,7 @@ int main(int argc, char** argv) {
     }
     else {
         np = selection - 3;
-        print(" No. quad. pt.", np);
+        if (world.rank() == 0) print(" No. quad. pt.", np);
 
 	readin(np);
 	G = pcomplex_operatorT(MAKE_PROPAGATOR(world, tstep));
