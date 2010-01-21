@@ -13,7 +13,7 @@ the MADNESS software environment is available on the wiki at
 Hardware requirements:
 
   o A recent x86 cpu (32 or 64 bit) with SSE3 instructions (if you do
-    not have sse3, see below), or
+    not have SSE3, see below), or
 
   o IBM BG/P
 
@@ -150,26 +150,13 @@ export CPPFLAGS="-I/bgsys/drivers/ppcfloor/arch/include"
   CPPFLAGS="${CPPFLAGS}" 
 
 
-  o  Macintosh Darwin 10.6, snow leopard --- tested with gcc 4.5, reference versions of BLAS and LAPACK, MPICH
-
-     - with reference LAPACK and BLAS
-
-       ./configure LIBS="-L/Users/harrison/install/lib -lLAPACK -lBLAS -lgfortran" CPPFLAGS="-I/Users/harrison/install/include"
-
+  o  Macintosh Darwin 10.6, snow leopard --- YOU MUST USE THE APPLE PROVIDED COMPILER (4.2.1 tested)
+     
      - using vecLib (comes standard on OS X)
 
-       ./configure LIBS="/System/Library/Frameworks/vecLib.framework/vecLib" CPPFLAGS='-I/System/Library/Frameworks/vecLib.framework/Headers'
+       ./configure LIBS="/System/Library/Frameworks/vecLib.framework/vecLib" \
+                   CPPFLAGS='-I/System/Library/Frameworks/vecLib.framework/Headers'
 
-  o On Linux without sse3 -- If you have one of these older CPUs this is a two step process.  Build and install the
-  BLAS, LAPACK, MPI librarires as per instruction above. Execute the configure script for your box.  Then
 
-  make CXX="mpicxx -DDISABLE_SSE3"
-
-  will build madness without the fast assembly codes in versions gcc 4.3.2.  If you have version 4.3.3, you will need
-  to edit madness/src/lib/tensor/Makefile after running configure to add -DDISABLE_SSE3 at the end of  the CXXFLAGS definitions.
-  Go back to the madness directory and then do make.  This last method always work.
-
+  o On x86 without SSE3 -- configure with the option CPPFLAGS="-DDISABLE_SSE3"
     
-
-
-
