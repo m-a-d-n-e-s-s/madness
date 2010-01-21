@@ -39,6 +39,7 @@
 #include <algorithm>
 #include <world/worldthread.h>
 #include <world/worldtypes.h>
+#include <world/posixmem.h>
 
 /*
   There is just one server thread and it is the only one
@@ -87,17 +88,6 @@
   - to set the debug flag
 
 */
-
-#if !HAVE_POSIX_MEMALIGN
-#include <sys/errno.h>
-static inline int posix_memalign(void **memptr, std::size_t alignment, std::size_t size) {
-    *memptr=malloc(size);
-    if (*memptr) return 0;
-    else return ENOMEM;
-}
-#elif MISSING_POSIX_MEMALIGN_PROTO
-extern "C"  int posix_memalign(void **memptr, std::size_t alignment, std::size_t size);
-#endif
 
 namespace madness {
 

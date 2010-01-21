@@ -37,6 +37,7 @@
 
 #include <madness_config.h>
 #include <misc/ran.h>
+#include <world/posixmem.h>
 #include <world/sharedptr.h>
 
 #include <complex>
@@ -221,6 +222,7 @@ namespace std {
 #endif
 #endif
 
+
 namespace madness {
 #define IS_ODD(n) ((n)&0x1)
 #define IS_UNALIGNED(p) (((unsigned long)(p))&0x7)
@@ -295,11 +297,9 @@ namespace madness {
 #ifdef WORLD_GATHER_MEM_STATS
                     _p = new T[size];
                     _shptr = SharedPtr<T>(p);
-#elif defined(HAVE_POSIX_MEMALIGN)
+#else
                     if (posix_memalign((void **) &_p, TENSOR_ALIGNMENT, sizeof(T)*size())) throw 1;
                     _shptr = SharedPtr<T>(_p, ::madness::detail::del_free);
-#else
-#  error Need a mechanism to allocated aligned memory
 #endif
                 }
                 catch (...) {
