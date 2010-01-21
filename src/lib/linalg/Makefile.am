@@ -4,12 +4,14 @@ bin_PROGRAMS = test  test_solvers
 lib_LIBRARIES = libMADlinalg.a
 
 thisincludedir = $(includedir)/linalg
-thisinclude_HEADERS = tensor_lapack.h cblas.h  clapack.h  lapack_functions.h \
+thisinclude_HEADERS = tensor_lapack.h clapack.h  lapack_functions.h \
                          solvers.cc solvers.h gmres.h
 
-libMADlinalg_a_SOURCES = lapack.cc cblas.cc \
+# cblas.h and cblas.cc temporarily removed
+
+libMADlinalg_a_SOURCES = lapack.cc \
                          \
-                         tensor_lapack.h cblas.h  clapack.h  lapack_functions.h \
+                         tensor_lapack.h clapack.h  lapack_functions.h \
                          solvers.cc solvers.h
 
 test_SOURCES = test.cc
