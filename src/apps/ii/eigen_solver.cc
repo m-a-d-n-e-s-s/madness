@@ -58,7 +58,7 @@ public:
 
 private:
     /** constant members */
-    static const T tolmin = (T)1.0e-8; ///threshld
+    static const T tolmin = (T)1.0e-6; ///threshld
 
     DistributedMatrix<T>& AV; /// concatnated two matrix A and V. V will holds eigen vector after calcuration
     World& world;
@@ -83,7 +83,7 @@ SystolicEigensolver<T>::SystolicEigensolver(DistributedMatrix<T>& AV, int tag):
     world(AV.get_world()),
     niter(0),
     nrot(0), nrotsum(0), size(AV.rowdim()/2), 
-    tol(1.0e-1), maxd(0), maxdaij(1.0e-1)
+    tol(1.0e-2), maxd(0), maxdaij(1.0e-1)
 {
     MADNESS_ASSERT(AV.is_column_distributed());
     MADNESS_ASSERT(AV.coldim()*2 == AV.rowdim());
@@ -102,6 +102,7 @@ void SystolicEigensolver<T>::start_iteration_hook(const TaskThreadEnv& env) {
         niter++;
         nrot = 0;
         maxdaij = 0;
+        world.gop.max(maxd);
     }
 }
 template <typename T>
@@ -122,18 +123,32 @@ void SystolicEigensolver<T>::kernel(int i, int j, T* rowi, T* rowj) {
     maxd = std::max<T>(maxd, std::max<T>( std::abs<T>(aii), std::abs<T>(ajj) ) );
     maxdaij = std::max<T>( maxdaij, daij/maxd ); // maximum value of ratio off diagonal element with diagonal element
 
-    if( daij < ds*tol ) return; // if off diagonal elements much smaller than diagonal elements skip this step
+    if( daij < ds*tol || ds < tolmin ) return; // if off diagonal elements much smaller than diagonal elements skip this step
 
     nrot++;
 
     T c,t,u;
     /// make prameters of rotation matrix
+    //print("trial mine");
+    t = 0.5 / sqrt( 1 + 4 * aij*aij / (s*s) );
+    c =  sqrt( 0.5 - t );
+    s = -sqrt( 0.5 + t );
+        /*
     if( ds < daij*tolmin ) c = s = sqrt(0.5); // if two diagonal elements are almost same, then rotation angle is pi/4. 
     else{
-        t = 0.5 / sqrt( 1 + 4 * aij*aij / (s*s) );
-        c = sqrt( 0.5 - t );
-        s = - sqrt( 0.5 + t );
+        //print("trial 1"); // bad
+        t = sqrt( s*s + 4*aij*aij );
+        c = sqrt( 0.5 + ds/t );
+        if( s < 0 ) s = aij / (t*c);
+        else s = -aij / (t*c);
+        //print("trial 2"); // not good
+        u = s / aij;
+        if( u > 0 ) t = 2.0*u - sqrt( u*u + 1 );
+        else t = 2.0*u + sqrt( u*u + 1 );
+        c = 1 / sqrt( t*t + 1 );
+        s = c*t;
     }
+        */
     /// update all elements
     for (int k=0; k < size; k++) {
         t = ai[k];
@@ -162,8 +177,8 @@ bool SystolicEigensolver<T>::converged(const TaskThreadEnv& env) const {
         if (id == 0) madness::print("\tConverged! ", niter, "iteration.", size);
         return true;
     }
-    else if (niter >= 1000000) {
-        if (id == 0) madness::print("\tDid not converged in 100000 iteration!");
+    else if (niter >= 5000) {
+        if (id == 0) madness::print("\tDid not converged in 5000 iteration!");
         return true;
     }
     else {
@@ -218,14 +233,14 @@ int main(int argc, char** argv) {
                 // all diagonal elements tensor(i,i) must be begger than sum_j tensor(i,j)
                 for(int i=0; i<n; i++){
                     double tmp=0;
-                    for(int j=0; j<=i; j++){
+                    for(int j=0; j<i; j++){
                         if (i != j)  sym_tensor(i,j) = sym_tensor(j,i) *= std::pow<double>(10, pow[0]);
                         tmp += std::abs<double>( sym_tensor(i,j) );
                     }
                     if( sym_tensor(i,i) > 0 )
-                        sym_tensor(i,i) =  tmp * std::pow( 10, pow[1]);
+                        sym_tensor(i,i) = (sym_tensor(i,i) + 2.0*tmp) * std::pow( 10, pow[1]);
                     else
-                        sym_tensor(i,i) = -tmp * std::pow( 10, pow[1]);
+                        sym_tensor(i,i) = (sym_tensor(i,i) - 2.0*tmp) * std::pow( 10, pow[1]);
                 }
             }
             if( n < 5 ) print(sym_tensor);
@@ -272,7 +287,7 @@ int main(int argc, char** argv) {
                         max = std::max<double>( max, std::abs<double>( error(i,j) ));
                     }
                 }
-                print("check:", n, pow[1], pow[0], max_none_diag, max);
+                //print("check:", n, pow[1], pow[0], max_none_diag, max);
 
                 print("\n");
             }
