@@ -4,7 +4,7 @@ AC_DEFUN([ACX_POSIX_MEMALIGN], [
     if test $gotpm = 1; then
         AC_DEFINE([HAVE_POSIX_MEMALIGN], [1], [Set if have posix_memalign])
     elif test "$ON_A_MAC" = "yes"; then
-        AC_DEFINE([HAVE_POSIX_MEMALIGN], [1], [Set if have posix_memalign])
+        AC_DEFINE([HAVE_POSIX_MEMALIGN], [0], [Set if have posix_memalign])
     else
         AC_MSG_WARN([[   posix_memalign NOT FOUND ... enabling override of new/delete ... THIS WILL BE SLOW ]])
         AC_DEFINE([WORLD_GATHER_MEM_STATS], [1], [Set if MADNESS gathers memory statistics])
