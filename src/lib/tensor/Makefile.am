@@ -38,7 +38,7 @@ libMADtensor_a_SOURCES = tensor.cc tensoriter.cc basetensor.cc mtxmq.cc aligned.
 if USE_X86_64_ASM
   libMADtensor_a_SOURCES += mtxmq_asm.S mtxm_gen.h genmtxm.py
 mtxmq_asm.o:	mtxmq_asm.S mtxm_gen.h
-	$(CC) $(CXXFLAGS) $(AM_CPPFLAGS) -DX86_64 -c -o $@ $<
+	$(CC) $(CXXFLAGS) $(CPPFLAGS) $(AM_CPPFLAGS) -DX86_64 -c -o $@ $<
 
 mtxm_gen.h:	genmtxm.py 
 	python genmtxm.py > $@
@@ -47,7 +47,7 @@ endif
 if USE_X86_32_ASM
   libMADtensor_a_SOURCES += mtxmq_asm.S mtxm_gen.h genmtxm.py
 mtxmq_asm.o:	mtxmq_asm.S mtxm_gen.h
-	$(CC) $(CXXFLAGS) $(AM_CPPFLAGS) -DX86_32 -c -o $@ $<
+	$(CC) $(CXXFLAGS) $(CPPFLAGS) $(AM_CPPFLAGS) -DX86_32 -c -o $@ $<
 
 mtxm_gen.h:	genmtxm.py 
 	python genmtxm.py > $@
