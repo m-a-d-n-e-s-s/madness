@@ -80,8 +80,7 @@
 
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <mra/vmra.h>
-//#include <mra/poperator.h>
-#include "poperator.h"
+#include <constants.h>
 
 using namespace madness;
 
@@ -89,6 +88,7 @@ typedef Vector<double, 3> coordT3d;
 typedef Vector<double, 1> coordT1d;
 typedef Function<double, 3> functionT;
 typedef std::vector<functionT> functT;
+const double WST_PI=madness::constants::pi;
 
 const double L = 2*WST_PI; //Cell length
 const double N = 8.0;
@@ -107,6 +107,13 @@ double mytime = 0.0; // Global variable for the current time
 // This should be passed in thru the class or app context
 const double cc = 1;// L/(deltaT*Nts)/2;
 
+template<typename T, int NDIM>
+static Function<T,NDIM> diff(const Function<T,NDIM>& f, int axis) {
+	static Vector<SharedPtr<Derivative<T,NDIM> >,NDIM> df;
+	if (df[axis] == NULL) df[axis] = SharedPtr<Derivative<T,NDIM> >(new Derivative<T,NDIM>(f.world(), axis));
+	return (*df[axis])(f);
+	
+}
 
 //*****************************************************************************
 static double init_zero(const coordT3d& r) {
@@ -216,29 +223,22 @@ void testNavierStokes(int argc, char**argv) {
 	FunctionDefaults<3>::set_k(k);
 	FunctionDefaults<3>::set_cubic_cell(0.0, L);
 	FunctionDefaults<3>::set_thresh(pthresh);
-	
-	bc = 1;
-	bc0 = 0;
-
-	FunctionDefaults<3>::set_bc(bc0);
+	FunctionDefaults<3>::set_bc(BC_PERIODIC);
 	
 	// construct the periodic Coulomb operator for later use
 	Tensor<double> cellsize = FunctionDefaults<3>::get_cell_width();
-	SeparatedConvolution<double, 3> op = PeriodicCoulombOp<double, 3> (world,
-			k, pthresh1, pthresh1, cellsize);  
+	SeparatedConvolution<double, 3> op = CoulombOperator (world, pthresh1, pthresh1);  
 	
 	// construct the periodic BSH operator for later use
 	double const dum = 1 / deltaT / mu; 
-	SeparatedConvolution<double, 3> op1 = PeriodicBSHOp<double, 3> (world,
-			sqrt(dum), k, uthresh1, uthresh1, cellsize);
+	SeparatedConvolution<double, 3> op1 = BSHOperator<3>(world,	sqrt(dum), uthresh1, uthresh1);
 
-	FunctionDefaults<3>::set_bc(bc);
 
 	// Initialize the old solution and print out to vts files
 	mytime = 0.0;
 
 	functT u(3);
-        functT rhs(3);
+	functT rhs(3);
 	functT f(3);
 	u[0] = FunctionFactory<double, 3> (world).f(uxexact  ) .truncate_on_project();
 	u[1] = FunctionFactory<double, 3> (world).f(uyexact  ) .truncate_on_project();
@@ -264,12 +264,12 @@ void testNavierStokes(int argc, char**argv) {
 		
 		functionT divf = div(f-rhs);
 
-		FunctionDefaults<3>::set_bc(bc0);
-		divf.set_bc(bc0);
+		//~ FunctionDefaults<3>::set_bc(bc0);
+		//~ divf.set_bc(bc0);
 		Function<double,3> p = op(divf); // apply the Coulomb operator to compute the pressure \c p
-		p.scale(-1. / (4. * WST_PI)).set_bc(bc);
-		divf.set_bc(bc);
-		FunctionDefaults<3>::set_bc(bc);
+		p.scale(-1. / (4. * WST_PI));
+		//~ divf.set_bc(bc);
+		//~ FunctionDefaults<3>::set_bc(bc);
 
 		// Step 2.  Calculate the velocity at time t+1.
 		//            (1/(deltaT mu) - Laplace) u_t+1 = (f - grad p)/mu + u_t/(deltaT mu)
@@ -284,14 +284,14 @@ void testNavierStokes(int argc, char**argv) {
 		gaxpy(world, 1, rhs, -1, f);
 		gaxpy(world, -1./mu, rhs, dum, u);
 
-		FunctionDefaults<3>::set_bc(bc0);
-		for (int i = 0; i < 3; ++i)  rhs[i].set_bc(bc0);
+		//~ FunctionDefaults<3>::set_bc(bc0);
+		//~ for (int i = 0; i < 3; ++i)  rhs[i].set_bc(bc0);
 		functT ue = apply(world, op1, rhs); // apply the BSH operator to update the velocity \c ue
-		for (int i = 0; i < 3; ++i)  {
-			ue[i].set_bc(bc);
-			rhs[i].set_bc(bc);
-		}
-		FunctionDefaults<3>::set_bc(bc);
+		//~ for (int i = 0; i < 3; ++i)  {
+			//~ ue[i].set_bc(bc);
+			//~ rhs[i].set_bc(bc);
+		//~ }
+		//~ FunctionDefaults<3>::set_bc(bc);
 		
 		//u = ue;  // use this line for first order/mixed Euler's method
 		
