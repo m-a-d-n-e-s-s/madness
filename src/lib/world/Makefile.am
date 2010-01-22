@@ -11,7 +11,7 @@ thisinclude_HEADERS = archive.h print.h      worldam.h       worldfut.h   worldm
                      bufar.h    nodefaults.h  typestuff.h  worlddep.h      worldhash.h  worldref.h      worldtypes.h \
                      dqueue.h   parar.h       vecar.h      worldexc.h      worldmem.h   worldser.h \
                      worldthread.h worldrmi.h safempi.h worldpapi.h worldmutex.h print_seq.h \
-                     worldhashmap.h          worldrange.h  atomicint.h
+                     worldhashmap.h          worldrange.h  atomicint.h     posixmem.h
 
 array_test_SOURCES = array_test.cc
 
