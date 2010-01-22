@@ -47,9 +47,7 @@ template <typename T>
 class SystolicEigensolver : public SystolicMatrixAlgorithm<T> {
 public:
     SystolicEigensolver<T>(DistributedMatrix<T> &AV, int tag);
-
-    Tensor<T> get_barA() const; /// return transposed eigen value
-    Tensor<T> get_evec() const; /// return transposed eigen vector
+    virtual ~SystolicEigensolver() { print("\teigen solver deleted"); }
 
     void start_iteration_hook(const TaskThreadEnv& env);
     void kernel(int i, int j, T* rowi, T* rowj); 
@@ -57,12 +55,10 @@ public:
     bool converged(const TaskThreadEnv& env) const; 
 
 private:
-    /** constant members */
-    static const T tolmin = (T)1.0e-6; ///threshld
-
     DistributedMatrix<T>& AV; /// concatnated two matrix A and V. V will holds eigen vector after calcuration
     World& world;
-    volatile int niter; /// number of iteration
+    const T tolmin; ///threshld
+    int niter; /// number of iteration
     int nrot; /// number of rotation in one iteration
     int nrotsum; /// sum of rotarion for all iteration
     int size; /// size of A
@@ -81,6 +77,7 @@ template <typename T>
 SystolicEigensolver<T>::SystolicEigensolver(DistributedMatrix<T>& AV, int tag):
     SystolicMatrixAlgorithm<T>( AV, tag ), AV(AV),
     world(AV.get_world()),
+    tolmin(1.0e-6),
     niter(0),
     nrot(0), nrotsum(0), size(AV.rowdim()/2), 
     tol(1.0e-2), maxd(0), maxdaij(1.0e-1)
@@ -123,32 +120,21 @@ void SystolicEigensolver<T>::kernel(int i, int j, T* rowi, T* rowj) {
     maxd = std::max<T>(maxd, std::max<T>( std::abs<T>(aii), std::abs<T>(ajj) ) );
     maxdaij = std::max<T>( maxdaij, daij/maxd ); // maximum value of ratio off diagonal element with diagonal element
 
-    if( daij < ds*tol || ds < tolmin ) return; // if off diagonal elements much smaller than diagonal elements skip this step
+    if( daij < ds*tol ) return; // if off diagonal elements much smaller than diagonal elements skip this step
 
     nrot++;
 
     T c,t,u;
     /// make prameters of rotation matrix
-    //print("trial mine");
-    t = 0.5 / sqrt( 1 + 4 * aij*aij / (s*s) );
-    c =  sqrt( 0.5 - t );
-    s = -sqrt( 0.5 + t );
-        /*
     if( ds < daij*tolmin ) c = s = sqrt(0.5); // if two diagonal elements are almost same, then rotation angle is pi/4. 
     else{
-        //print("trial 1"); // bad
-        t = sqrt( s*s + 4*aij*aij );
-        c = sqrt( 0.5 + ds/t );
-        if( s < 0 ) s = aij / (t*c);
-        else s = -aij / (t*c);
         //print("trial 2"); // not good
-        u = s / aij;
-        if( u > 0 ) t = 2.0*u - sqrt( u*u + 1 );
-        else t = 2.0*u + sqrt( u*u + 1 );
+        u = s / (2.0*aij);
+        if( u > 0 ) t = 1 / (u + sqrt( u*u + 1 ));
+        else t = 1 / (u - sqrt( u*u + 1 ));
         c = 1 / sqrt( t*t + 1 );
         s = c*t;
     }
-        */
     /// update all elements
     for (int k=0; k < size; k++) {
         t = ai[k];
@@ -185,29 +171,6 @@ bool SystolicEigensolver<T>::converged(const TaskThreadEnv& env) const {
         return false; 
     }
 }
-template <typename T>
-Tensor<T> SystolicEigensolver<T>::get_evec() const{
-    Tensor<T> result(size, size);
-    int64_t ilo, ihi;
-    AV.local_colrange(ilo, ihi);
-
-    if(ihi > 0) result( Slice(ilo, ihi), _ ) = AV.data()( _, Slice(size, -1) );
-
-    return result;
-}
-/// caution: this method does NOT return a exact eigen value
-/// you need to calculate inner( e_val, transpose(e_vec) ) after collect all data
-/// since transpose(e_vec) elements distributed on processors
-template <typename T>
-Tensor<T> SystolicEigensolver<T>::get_barA() const{
-    Tensor<T> result(size,size); 
-
-    int64_t ilo, ihi;
-    AV.local_colrange(ilo, ihi);
-    if(ihi > 0) result( Slice(ilo, ihi), _ ) = AV.data()( _, Slice(0, size-1) );
-
-    return result;
-}
 
 int main(int argc, char** argv) {
     initialize(argc, argv);
@@ -220,13 +183,14 @@ int main(int argc, char** argv) {
         std::srand(time(NULL));
         print("Test of Eigen solver");
         print("result: size time");
-        for (int64_t n=2; n<17; n++) {
+        int64_t pow[2];
+        for (int64_t n=2; n<=256; n*=2) {
             // make symmetolic matrix, then distribute it all processes
             DistributedMatrix<double> A = column_distributed_matrix<double>(world, n, n);
-            madness::Tensor<double> sym_tensor(n, n);
+            Tensor<double> sym_tensor( n, n );
             // 0.01 <= pow[0] < 100 , pow[0] <= pow[1] < pow[0] * 100
-            int64_t pow[] = { (int64_t)(std::rand() % 5 - 2), (int64_t)(std::rand() % 3 ) };
-            pow[1] += pow[0]; // pow[1] > pow[0]
+            pow[0] = (int64_t)(std::rand() % 5 - 2);
+            pow[1] = pow[0] + (int64_t)(std::rand() % 3 );
             if (world.rank() == 0) {
                 sym_tensor.fillrandom();
                 sym_tensor -= 0.5;
@@ -243,38 +207,30 @@ int main(int argc, char** argv) {
                         sym_tensor(i,i) = (sym_tensor(i,i) - 2.0*tmp) * std::pow( 10, pow[1]);
                 }
             }
-            if( n < 5 ) print(sym_tensor);
             world.gop.broadcast(sym_tensor.ptr(), sym_tensor.size(), 0);
             A.copyin(sym_tensor);
 
             DistributedMatrix<double> AV = concatenate_rows(A, idMatrix(A));
-            SystolicEigensolver<double> sA(AV, 3334);
+            if( n < 4 ) print(AV.data());
 
             double t = cpu_time();
-            sA.solve();
+            world.taskq.add(new SystolicEigensolver<double>(AV, 3333));
+            world.taskq.fence();
             print("result:", n, cpu_time()-t);
+            if( n < 4 ) print(AV.data());
 
             // gather all data from whole porcessors
             // since I wanted to use each colmuns as a sequence, both of the results are transposed
-            Tensor<double> eigvec = transpose( sA.get_evec() );
-            Tensor<double> eig_val = inner( sA.get_barA(), eigvec );                                                                ;
+            Tensor<double> eigens( n, n*2 );
+            AV.copyout(eigens);
+            world.gop.sum(eigens.ptr(), eigens.size());
 
-            world.gop.sum(eigvec.ptr(), eigvec.size());
-            world.gop.sum(eig_val.ptr(), eig_val.size());
+            Tensor<double> eigvec = transpose( eigens(_, Slice(n, -1)) ); // segment fault occured. sA is deleted by world.taskq
+            Tensor<double> eig_val = inner( eigens(_, Slice(0, n-1)), eigvec );
             /* check the answer*/
             if(world.rank() == 0){
 
                 print("check: size pow(A_ii) pow(A_ij) abs_max(off_diagonal_element) abs(AV-lambdaEV)");
-                /* V^T * V = I, max abs( [ x | x = Aij when i!=j, x = Aij-1 when i=j ] ) */
-                /* this check is always good. so skip this one
-                Tensor<double> uTu = inner( transpose(eigvec), eigvec );
-                double max_diag=0, max_none_diag=0;
-                for(int64_t i=0; i<uTu.dim(0); i++){
-                    for(int64_t j=0; j<uTu.dim(1); j++){
-                        if( i!=j ) max_none_diag = std::max( max_none_diag, std::fabs( uTu(i,j) ) );
-                        else max_diag += std::max( max_diag, std::fabs(uTu(i,i) - 1) );
-                    }
-                }*/
 
                 double max_none_diag=0;
                 double max=0;
@@ -287,38 +243,12 @@ int main(int argc, char** argv) {
                         max = std::max<double>( max, std::abs<double>( error(i,j) ));
                     }
                 }
-                //print("check:", n, pow[1], pow[0], max_none_diag, max);
+                print("check:", n, pow[1], pow[0], max_none_diag, max);
 
-                print("\n");
             }
+            print("\n");
             world.gop.fence();
 
-            /*
-               print("matrix A");
-               print(A.data());
-
-               DistributedMatrix<double> B = column_distributed_matrix<double>(world, n, l);
-               B.local_rowrange(ilo, ihi);
-               B.local_colrange(jlo, jhi); // get column range of B
-               for (int i=ilo; i<=ihi; i++) {
-                   for (int j=jlo; j<=jhi; j++) {
-                       B.data()(j-jlo,i-ilo) = j + i*100 ;
-                   }
-               }
-               print("matrix B");
-               print(B.data());
-
-               DistributedMatrix<double> D = concatenate_rows(A, B);
-
-               print("matrix D");
-               print(D.data()); // test of concatenate_rows... O.K
-
-               world.taskq.add(new TestSystolicMatrixAlgorithm<double>(C, 3333));
-               world.taskq.fence();
-
-               world.taskq.add(new SystolicEigensolver<double>(A, 3334));
-               world.taskq.fence();
-             */
         }
     }
     catch (const MPI::Exception& e) {
