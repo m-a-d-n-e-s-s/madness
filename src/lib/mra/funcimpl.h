@@ -233,6 +233,7 @@ namespace madness {
         SharedPtr<WorldDCPmapInterface<Key<NDIM> > > _pmap;
         SharedPtr<FunctionFunctorInterface<T, NDIM> > _functor;
 
+    public:
         struct FunctorInterfaceWrapper : public FunctionFunctorInterface<T,NDIM> {
             T (*f)(const coordT&);
 
@@ -241,7 +242,6 @@ namespace madness {
             T operator()(const coordT& x) const {return f(x);}
         };
 
-    public:
         FunctionFactory(World& world) :
                 _world(world),
                 _k(FunctionDefaults<NDIM>::get_k()),
@@ -859,6 +859,9 @@ namespace madness {
 
         /// Evaluate function at quadrature points in the specified box
         void fcube(const keyT& key, const FunctionFunctorInterface<T,NDIM>& f, const Tensor<double>& qx, tensorT& fval) const;
+		void fcube(const keyT& key,  T (*f)(const coordT&), const Tensor<double>& qx, tensorT& fval) const;
+		//~ template<typename FF>
+        //~ void fcube(const keyT& key, const FF& f, const Tensor<double>& qx, tensorT& fval) const;
 
         const keyT& key0() const {
             return cdata.key0;

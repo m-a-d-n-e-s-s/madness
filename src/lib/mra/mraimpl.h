@@ -261,9 +261,15 @@ namespace madness {
         return None;
     }
 
+    template <typename T, int NDIM>
+    void FunctionImpl<T,NDIM>::fcube(const keyT& key, T (*f)(const coordT&), const Tensor<double>& qx, tensorT& fval) const {
+		fcube(key,typename FunctionFactory<T,NDIM>::FunctorInterfaceWrapper(f) , qx, fval);
+	}
 
     template <typename T, int NDIM>
     void FunctionImpl<T,NDIM>::fcube(const keyT& key, const FunctionFunctorInterface<T,NDIM>& f, const Tensor<double>& qx, tensorT& fval) const {
+    //~ template <typename T, int NDIM> template< typename FF>
+    //~ void FunctionImpl<T,NDIM>::fcube(const keyT& key, const FF& f, const Tensor<double>& qx, tensorT& fval) const {
         PROFILE_MEMBER_FUNC(FunctionImpl);
         const Vector<Translation,NDIM>& l = key.translation();
         const Level n = key.level();
