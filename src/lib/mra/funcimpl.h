@@ -1464,7 +1464,7 @@ namespace madness {
             double lnorm=1e99, rnorm=1e99;
 
             Tensor<L> lc = lcin;
-            if (lc.size == 0) {
+            if (lc.size() == 0) {
                 literT it = left->coeffs.find(key).get();
                 MADNESS_ASSERT(it != left->coeffs.end());
                 lnorm = it->second.get_norm_tree();
@@ -1473,7 +1473,7 @@ namespace madness {
             }
 
             Tensor<R> rc = rcin;
-            if (rc.size == 0) {
+            if (rc.size() == 0) {
                 riterT it = right->coeffs.find(key).get();
                 MADNESS_ASSERT(it != right->coeffs.end());
                 rnorm = it->second.get_norm_tree();
@@ -1481,13 +1481,13 @@ namespace madness {
                     rc = it->second.coeff();
             }
 
-            if (rc.size && lc.size) { // Yipee!
+            if (rc.size() && lc.size() ) { // Yipee!
                 do_binary_op<L,R>(key, lc, std::make_pair(key,rc), op);
                 return None;
             }
 
             if (tol) {
-                if (lc.size)
+                if (lc.size())
                     lnorm = lc.normf(); // Otherwise got from norm tree above
                 if (rc.size)
                     rnorm = rc.normf();
@@ -1501,14 +1501,14 @@ namespace madness {
             coeffs.replace(key, nodeT(tensorT(),true)); // Interior node
 
             Tensor<L> lss;
-            if (lc.size) {
+            if (lc.size()) {
                 Tensor<L> ld(cdata.v2k);
                 ld(cdata.s0) = lc(___);
                 lss = left->unfilter(ld);
             }
 
             Tensor<R> rss;
-            if (rc.size) {
+            if (rc.size()) {
                 Tensor<R> rd(cdata.v2k);
                 rd(cdata.s0) = rc(___);
                 rss = right->unfilter(rd);
@@ -1518,7 +1518,7 @@ namespace madness {
                 const keyT& child = kit.key();
                 Tensor<L> ll;
                 Tensor<R> rr;
-                if (lc.size)
+                if (lc.size())
                     ll = copy(lss(child_patch(child)));
                 if (rc.size)
                     rr = copy(rss(child_patch(child)));
