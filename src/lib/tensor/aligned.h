@@ -33,12 +33,28 @@
 #ifndef MADNESS_TENSOR_ALIGNED_H__INCLUDED
 #define MADNESS_TENSOR_ALIGNED_H__INCLUDED
 
+/*!
+  \file tensor/aligned.h
+  \brief Provides routines for internal use optimized for aligned data
+
+  This stuff used to be implemented in assembly but it is too much
+  effort keeping that working especially for multiple compilers.
+*/
+
 #include <madness_config.h>
 #include <tensor/tensor.h>
+#include <cstring>
 
 namespace madness {
+
     template <typename T>
+    static
+    inline
     void aligned_zero(long n, T* a) {
+#ifdef HAVE_MEMSET
+        // A hand coded SSE2 loop is faster only for data in the L1 cache
+        std::memset((void *) a, 0, n*sizeof(T));
+#else
         long n4 = (n>>2)<<2;
         long rem = n-n4;
         for (long i=0; i<n4; i+=4,a+=4) {
@@ -48,9 +64,12 @@ namespace madness {
             a[3] = 0;
         }
         for (long i=0; i<rem; i++) *a++ = 0;
+#endif
     }
 
     template <typename T, typename Q>
+    static
+    inline
     void aligned_axpy(long n, T* restrict a, const T* restrict b, Q s) {
         long n4 = (n>>2)<<2;
         long rem = n-n4;
@@ -63,24 +82,35 @@ namespace madness {
         for (long i=0; i<rem; i++) *a++ += s * *b++;
     }
 
+    template <typename T, typename Q>
+    static
+    inline
+    void aligned_add(long n, T* restrict a, const Q* restrict b) {
+        long n4 = (n>>2)<<2;
+        long rem = n-n4;
+        for (long i=0; i<n4; i+=4,a+=4,b+=4) {
+            a[0] += b[0];
+            a[1] += b[1];
+            a[2] += b[2];
+            a[3] += b[3];
+        }
+        for (long i=0; i<rem; i++) *a++ += *b++;
+    }
 
-
-#if (defined(X86_32) || defined(X86_64))
-    template <>
-    void aligned_zero<double>(long n, double* a);
-
-    template <>
-    void aligned_zero<double_complex>(long n, double_complex* a);
-
-//  template <>
-//  void aligned_axpy(long n, double* restrict a, const double* restrict b, double s);
-#endif
-
-    void aligned_add(long n, double* restrict a, const double* restrict b);
-    void aligned_sub(long n, double* restrict a, const double* restrict b);
-    void aligned_add(long n, double_complex* restrict a, const double_complex* restrict b);
-    void aligned_sub(long n, double_complex* restrict a, const double_complex* restrict b);
-
+    template <typename T, typename Q>
+    static
+    inline
+    void aligned_sub(long n, T* restrict a, const Q* restrict b) {
+        long n4 = (n>>2)<<2;
+        long rem = n-n4;
+        for (long i=0; i<n4; i+=4,a+=4,b+=4) {
+            a[0] -= b[0];
+            a[1] -= b[1];
+            a[2] -= b[2];
+            a[3] -= b[3];
+        }
+        for (long i=0; i<rem; i++) *a++ -= *b++;
+    }
 }
 
 #endif // MADNESS_TENSOR_ALIGNED_H__INCLUDED
