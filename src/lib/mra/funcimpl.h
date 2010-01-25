@@ -1089,9 +1089,9 @@ namespace madness {
             PROFILE_MEMBER_FUNC(FunctionImpl);
             const keyT& rkey = arg.first;
             const Tensor<R>& rcoeff = arg.second;
-            //madness::print("do_mul: r", rkey, rcoeff.size);
+            //madness::print("do_mul: r", rkey, rcoeff.size());
             Tensor<R> rcube = fcube_for_mul(key, rkey, rcoeff);
-            //madness::print("do_mul: l", key, left.size);
+            //madness::print("do_mul: l", key, left.size());
             Tensor<L> lcube = fcube_for_mul(key, key, left);
 
             Tensor<T> tcube(cdata.vk,false);
@@ -1109,9 +1109,9 @@ namespace madness {
             PROFILE_MEMBER_FUNC(FunctionImpl);
             const keyT& rkey = arg.first;
             const Tensor<R>& rcoeff = arg.second;
-            //madness::print("do_mul: r", rkey, rcoeff.size);
+            //madness::print("do_mul: r", rkey, rcoeff.size());
             Tensor<R> rcube = fcube_for_mul(key, rkey, rcoeff);
-            //madness::print("do_mul: l", key, left.size);
+            //madness::print("do_mul: l", key, left.size());
             Tensor<L> lcube = fcube_for_mul(key, key, left);
 
             Tensor<T> tcube(cdata.vk,false);
@@ -1481,7 +1481,7 @@ namespace madness {
                     rc = it->second.coeff();
             }
 
-            if (rc.size() && lc.size() ) { // Yipee!
+            if (rc.size() && lc.size()) { // Yipee!
                 do_binary_op<L,R>(key, lc, std::make_pair(key,rc), op);
                 return None;
             }
@@ -1489,7 +1489,7 @@ namespace madness {
             if (tol) {
                 if (lc.size())
                     lnorm = lc.normf(); // Otherwise got from norm tree above
-                if (rc.size)
+                if (rc.size())
                     rnorm = rc.normf();
                 if (lnorm*rnorm < truncate_tol(tol, key)) {
                     coeffs.replace(key, nodeT(tensorT(cdata.vk),false)); // Zero leaf node
@@ -1520,7 +1520,7 @@ namespace madness {
                 Tensor<R> rr;
                 if (lc.size())
                     ll = copy(lss(child_patch(child)));
-                if (rc.size)
+                if (rc.size())
                     rr = copy(rss(child_patch(child)));
 
                 task(coeffs.owner(child), &implT:: template binaryXXa<L,R,opT>, child, left, ll, right, rr, op, tol);
