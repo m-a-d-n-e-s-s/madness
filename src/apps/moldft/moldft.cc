@@ -2201,8 +2201,8 @@ struct Calculation {
 // This is cludgy ... need better factorization of functionality
 // between calculation, main program and this ... or just merge it all.
 class MolecularEnergy : public OptimizationTargetInterface {
-    mutable World& world;
-    mutable Calculation& calc;
+    World& world;
+    Calculation& calc;
     mutable double coords_sum;     // sum of square of coords at last solved geometry
     mutable double E; //< Current energy
 

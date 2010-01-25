@@ -512,11 +512,13 @@ static double smoothed_density(double r) {
 
     double result = d0 + r8*d1;
 
-    if (fabs(result-formula) > 1e-12) {
-        printf("ERROR in rho: r=%.10f formula=%.10f result=%.10f err=%.1e\n",
-               r, formula, result, formula-result);
-        throw "bad";
-    }
+//     if (fabs(result-formula) > 1e-12) {
+//         printf("ERROR in rho: r=%.10f formula=%.10f result=%.10f err=%.1e\n",
+//                r, formula, result, formula-result);
+//         throw "bad";
+//     }
+
+    return result;
 }
 
 
@@ -709,8 +711,8 @@ void Molecule::print() const {
 }
 
 double Molecule::inter_atomic_distance(unsigned int i,unsigned int j) const {
-    if (i<0 || i>=atoms.size()) throw "trying to compute distance with invalid atom";
-    if (j<0 || j>=atoms.size()) throw "trying to compute distance with invalid atom";
+    if (i>=atoms.size()) throw "trying to compute distance with invalid atom";
+    if (j>=atoms.size()) throw "trying to compute distance with invalid atom";
     return distance(atoms[i].x, atoms[i].y, atoms[i].z,
                     atoms[j].x, atoms[j].y, atoms[j].z);
 }
