@@ -30,9 +30,10 @@
   
   $Id$
 */
-/* \file testsystolic2.cc
- * systolic example of eigen solver using one-sided Jacobi method.
- */
+/// \file testsystolic2.cc
+/// systolic example of eigen solver using one-sided Jacobi method.
+
+#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <world/world.h>
 #include <utility>
 #include <tensor/tensor.h>
@@ -47,7 +48,7 @@ template <typename T>
 class SystolicEigensolver : public SystolicMatrixAlgorithm<T> {
 public:
     SystolicEigensolver<T>(DistributedMatrix<T> &AV, int tag);
-    virtual ~SystolicEigensolver() { print("\teigen solver deleted"); }
+    virtual ~SystolicEigensolver(){}
 
     void start_iteration_hook(const TaskThreadEnv& env);
     void kernel(int i, int j, T* rowi, T* rowj); 
@@ -180,75 +181,81 @@ int main(int argc, char** argv) {
     redirectio(world); /* redirect a results to file "log.<number of processor>" */
 
     try {
-        std::srand(time(NULL));
         print("Test of Eigen solver");
         print("result: size time");
+        print("check: size max(off-diagonal) max(diagonal) max(V^TAV-lambdaE)");
+        std::srand(time(NULL));
         int64_t pow[2];
         for (int64_t n=2; n<=256; n*=2) {
             // make symmetolic matrix, then distribute it all processes
-            DistributedMatrix<double> A = column_distributed_matrix<double>(world, n, n);
-            Tensor<double> sym_tensor( n, n );
-            // 0.01 <= pow[0] < 100 , pow[0] <= pow[1] < pow[0] * 100
+            Tensor<double> sym_tensor( n, n*2 ); // right n*n is for identity matrix, left for symmetolic matrix A
             pow[0] = (int64_t)(std::rand() % 5 - 2);
             pow[1] = pow[0] + (int64_t)(std::rand() % 3 );
             if (world.rank() == 0) {
                 sym_tensor.fillrandom();
                 sym_tensor -= 0.5;
-                // all diagonal elements tensor(i,i) must be begger than sum_j tensor(i,j)
                 for(int i=0; i<n; i++){
-                    double tmp=0;
+                    // all diagonal elements tensor(i,i) must be begger than sum_j tensor(i,j)
+                    double abs_sum=0;
                     for(int j=0; j<i; j++){
-                        if (i != j)  sym_tensor(i,j) = sym_tensor(j,i) *= std::pow<double>(10, pow[0]);
-                        tmp += std::abs<double>( sym_tensor(i,j) );
+                        if (i != j) {
+                            sym_tensor(i, j) = sym_tensor(j, i) *= std::pow<double>(10, pow[0]);
+                            sym_tensor(i, j+n) = sym_tensor(j, i+n) = 0.0;
+                        }
+                        abs_sum += std::abs<double>( sym_tensor(i,j) );
                     }
+                    sym_tensor(i, i+n) = 1.0;
                     if( sym_tensor(i,i) > 0 )
-                        sym_tensor(i,i) = (sym_tensor(i,i) + 2.0*tmp) * std::pow( 10, pow[1]);
+                        sym_tensor(i,i) = (sym_tensor(i,i) + 2.0*abs_sum) * std::pow( 10, pow[1]);
                     else
-                        sym_tensor(i,i) = (sym_tensor(i,i) - 2.0*tmp) * std::pow( 10, pow[1]);
+                        sym_tensor(i,i) = (sym_tensor(i,i) - 2.0*abs_sum) * std::pow( 10, pow[1]);
                 }
             }
             world.gop.broadcast(sym_tensor.ptr(), sym_tensor.size(), 0);
-            A.copyin(sym_tensor);
+            world.gop.fence(); // end of making symmetolic matrix
 
-            DistributedMatrix<double> AV = concatenate_rows(A, idMatrix(A));
-            if( n < 4 ) print(AV.data());
+            // broad cast matrix element then each processor copys elements
+            DistributedMatrix<double> AV = column_distributed_matrix<double>(world, n, n*2);
+            AV.copyin(sym_tensor);
+            //if( n < 4 ) print(AV.data()); // for check
 
             double t = cpu_time();
             world.taskq.add(new SystolicEigensolver<double>(AV, 3333));
             world.taskq.fence();
             print("result:", n, cpu_time()-t);
-            if( n < 4 ) print(AV.data());
 
-            // gather all data from whole porcessors
-            // since I wanted to use each colmuns as a sequence, both of the results are transposed
+            // gather all data on whole porcessors
+            // NOTE: since I wanted to use each colmuns as a sequence, both of the results are transposed
             Tensor<double> eigens( n, n*2 );
             AV.copyout(eigens);
             world.gop.sum(eigens.ptr(), eigens.size());
 
-            Tensor<double> eigvec = transpose( eigens(_, Slice(n, -1)) ); // segment fault occured. sA is deleted by world.taskq
+            Tensor<double> eigvec = transpose( eigens(_, Slice(n, -1)) );
             Tensor<double> eig_val = inner( eigens(_, Slice(0, n-1)), eigvec );
-            /* check the answer*/
+
+            // check the answer
             if(world.rank() == 0){
+                // V^T A V - \ E : this should be zero
+                Tensor<double> error = inner( transpose(eigvec), inner( sym_tensor(_, Slice(0,n-1)), eigvec )) - eig_val;
 
-                print("check: size pow(A_ii) pow(A_ij) abs_max(off_diagonal_element) abs(AV-lambdaEV)");
-
-                double max_none_diag=0;
-                double max=0;
-                Tensor<double> error = inner( sym_tensor, eigvec ) - inner( eig_val, eigvec );
+                double maxdaij=0; // maximum value of off diagonal element in error matrix. should be zero
+                double maxdaii=0; // maximum value of diagonal element in error matrix. should be zero
+                double max_off_diag=0; // muximum off diagonal element value of \ I
                 for( int64_t i=0; i<error.dim(0); i++ ){
                     for( int64_t j=0; j<error.dim(1); j++){
-                        /* max ( [ abs(aij) | aij <-{A}ij, i!=j ] ) */
-                        if( i!=j ) max_none_diag = std::max<double>( eig_val(i,j), max_none_diag );
-                        /* A V = lambda * V, max abs([ {AV - lambda E V}ij ]) ~= 0 */
-                        max = std::max<double>( max, std::abs<double>( error(i,j) ));
+                        // max ( [ abs(aij) | aij <-{A}ij, i!=j ] )
+                        if( i!=j ){
+                            maxdaij = std::max<double>( maxdaij, std::abs<double>( error(i,j) ));
+                            max_off_diag = std::max<double>( max_off_diag, std::abs<double>( eig_val(i,j) ));
+                        }
+                        // max ( [ abs(aij) | aij <-{A}ij, i!=j ] )
+                        else maxdaii = std::max<double>( maxdaii, std::abs<double>( error(i,j) ));
                     }
                 }
-                print("check:", n, pow[1], pow[0], max_none_diag, max);
-
+                print("check:", n, maxdaij, maxdaii, max_off_diag);
             }
             print("\n");
             world.gop.fence();
-
         }
     }
     catch (const MPI::Exception& e) {
