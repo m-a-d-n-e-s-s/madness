@@ -179,14 +179,14 @@ namespace madness {
             for (int i=0; i<2*k; i++) ident(i,i) = 1.0;
 
             double err0 = (inner(hg,hg,0,0)-ident).absmax();
-            if (err0 > 7e-16) {
+            if (err0 > 9e-16) {
                 std::cout << "twoscale failed 0: " << k << " " << err0 << std::endl;
                 std::cout << (inner(hg,hg,0,0)-ident);
                 return false;
             }
 
             double err1 = (inner(hg,hg,1,1)-ident).absmax();
-            if (err1 > 7e-16) {
+            if (err1 > 9e-16) {
                 std::cout << "twoscale failed 1: " << k << " " << err1 << std::endl;
                 std::cout << (inner(hg,hg,1,1)-ident);
                 return false;
