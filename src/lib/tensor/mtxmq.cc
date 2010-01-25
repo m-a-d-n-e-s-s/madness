@@ -312,31 +312,6 @@ namespace madness {
     }
 }
 
-#elif !defined(HAVE_IBMBGP)
-
-// On other platforms used to punt to the system blas but this was so slow that
-// now we use the generic code which itself could be improved
-namespace madness {
-    template <>
-    void mTxmq(long dimi, long dimj, long dimk,
-               double* restrict c, const double* a, const double* b) {
-        PROFILE_BLOCK(mTxmq_double_slow);
-        for (long i=0; i<dimi; i++,c+=dimj,a++) {
-            for (long j=0; j<dimj; j++) c[j] = 0.0;
-            const double *ai = a;
-            for (long k=0; k<dimk; k++,ai+=dimi) {
-                const double aki = *ai;
-                for (long j=0; j<dimj; j++) {
-                    c[j] += aki*b[k*dimj+j];
-                }
-            }
-        }
-        // double zero(0.0);
-        // double one(1.0);
-        // gemm(false, true, dimj, dimi, dimk, one, b, dimj, a, dimi, zero, c, dimj);
-    }
-}
-
 #endif
 
 #if defined(X86_64) 
@@ -788,6 +763,7 @@ namespace madness {
         }
     }
 
+#ifndef __INTEL_COMPILER
     template <>
     void mTxmq(const long dimi, const long dimj, const long dimk,
                double_complex* restrict c, const double_complex* a, const double* b)
@@ -1464,56 +1440,7 @@ namespace madness {
         }
       }
     }
-    // HWERE!
-}
-#else
-
-namespace madness {
-
-#if !defined(HAVE_IBMBGP)
-    
-// On other platforms used to punt to the system blas but this was so slow that
-// now we use the generic code which itself could be improved
-    template <>
-    void mTxmq(long dimi, long dimj, long dimk,
-               double_complex* restrict c, const double_complex* a, const double_complex* b) {
-        PROFILE_BLOCK(mTxmq_complex_slow);
-        for (long i=0; i<dimi; i++,c+=dimj,a++) {
-            for (long j=0; j<dimj; j++) c[j] = 0.0;
-            const double_complex *ai = a;
-            for (long k=0; k<dimk; k++,ai+=dimi) {
-                const double_complex aki = *ai;
-                for (long j=0; j<dimj; j++) {
-                    c[j] += aki*b[k*dimj+j];
-                }
-            }
-            // double_complex zero(0.0,0.0);
-            // double_complex one(1.0,0.0);
-            // gemm(false, true, dimj, dimi, dimk, one, b, dimj, a, dimi, zero, c, dimj);
-        }
-        
-    }
 #endif
-    
-    template <>
-    void mTxmq(long dimi, long dimj, long dimk,
-               double_complex* restrict c, const double_complex* a, const double* b) {
-        PROFILE_BLOCK(mTxmq_complex_slow);
-        for (long i=0; i<dimi; i++,c+=dimj,a++) {
-            for (long j=0; j<dimj; j++) c[j] = 0.0;
-            const double_complex *ai = a;
-            for (long k=0; k<dimk; k++,ai+=dimi) {
-                const double_complex aki = *ai;
-                for (long j=0; j<dimj; j++) {
-                    c[j] += aki*b[k*dimj+j];
-                }
-            }
-            // double_complex zero(0.0,0.0);
-            // double_complex one(1.0,0.0);
-            // gemm(false, true, dimj, dimi, dimk, one, b, dimj, a, dimi, zero, c, dimj);
-        }
-        
-    }
 }
 #endif
 

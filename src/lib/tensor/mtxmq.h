@@ -92,7 +92,7 @@ namespace madness {
 	zgemm("n","t",&nj,&ni,&nk,&one,b,&nj,a,&ni,&zero,c,&nj,1,1);
     }
     
-#else
+#elif defined(X86_64)
     template <>
     void mTxmq(long dimi, long dimj, long dimk,
                double* restrict c, const double* a, const double* b);
@@ -100,11 +100,19 @@ namespace madness {
     template <>
     void mTxmq(long dimi, long dimj, long dimk,
                double_complex* restrict c, const double_complex* a, const double_complex* b);
-#endif
-    
+
+#ifndef __INTEL_COMPILER
     template <>
     void mTxmq(long dimi, long dimj, long dimk,
                double_complex* restrict c, const double_complex* a, const double* b);
+#endif
+
+#elif defined(X86_32)
+    template <>
+    void mTxmq(long dimi, long dimj, long dimk,
+               double* restrict c, const double* a, const double* b);
+#endif
+    
 }
 
 #endif // MADNESS_TENSOR_MTXMQ_H__INCLUDED
