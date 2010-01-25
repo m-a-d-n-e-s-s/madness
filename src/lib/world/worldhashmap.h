@@ -296,7 +296,9 @@ namespace madness {
             typedef datumT* pointer;
             typedef datumT& reference;
 
+#ifndef __INTEL_COMPILER
         private:
+#endif
             entryT* entry;
             bool gotlock;
 
