@@ -290,31 +290,33 @@ namespace madness {
                 TENSOR_ASSERT(d[i]>=0 && d[i]<268435456, "invalid dimension size in new tensor",d[i],0);
             }
             set_dims_and_size(nd, d);
-            if (size()) {
-                TENSOR_ASSERT(size()>=0 && size()<268435456, "invalid size in new tensor",size(),0);
+            if (_size) {
+                TENSOR_ASSERT(_size>=0 && _size<268435456, "invalid size in new tensor",_size,0);
                 try {
 #define TENSOR_ALIGNMENT 16
 #ifdef WORLD_GATHER_MEM_STATS
                     _p = new T[size];
                     _shptr = SharedPtr<T>(p);
 #else
-                    if (posix_memalign((void **) &_p, TENSOR_ALIGNMENT, sizeof(T)*size())) throw 1;
+                    if (posix_memalign((void **) &_p, TENSOR_ALIGNMENT, sizeof(T)*_size)) throw 1;
                     _shptr = SharedPtr<T>(_p, ::madness::detail::del_free);
 #endif
                 }
                 catch (...) {
-                    std::printf("new failed nd=%ld type=%ld size=%ld\n", nd, id(), size());
+                    std::printf("new failed nd=%ld type=%ld size=%ld\n", nd, id(), _size);
                     std::printf("  %ld %ld %ld %ld %ld %ld\n",
                                 d[0], d[1], d[2], d[3], d[4], d[5]);
-                    TENSOR_EXCEPTION("new failed",size(),this);
+                    TENSOR_EXCEPTION("new failed",_size,this);
                 }
                 //std::printf("allocated %p [%ld]  %ld\n", _p, size, p.use_count());
                 if (dozero) {
-                    // T zero = 0; for (long i=0; i<size; i++) _p[i] = zero;
+                    //T zero = 0; for (long i=0; i<_size; i++) _p[i] = zero;
                     // or
-                    // memset((void *) _p, 0, size*sizeof(T));
-                    // or
-                    aligned_zero(size(), _p);
+#ifdef HAVE_MEMSET
+                    memset((void *) _p, 0, _size*sizeof(T));
+#else
+                    aligned_zero(_size, _p);
+#endif
                 }
             }
             else {
