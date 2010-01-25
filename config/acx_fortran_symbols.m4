@@ -4,7 +4,7 @@ AC_DEFUN([ACX_FORTRAN_SYMBOLS], [
 
 # Check for no underscore first since IBM BG ESSL seems to define dgemm with/without underscore
 # but dsyev only without underscore ... but AMD ACML also defines both but with different
-# interfaces (fortran and c) ... ugh.  Hardware linking for bgp and restore to original order.
+# interfaces (fortran and c) ... ugh.  Hardwire linking for bgp and restore to original order.
 
     echo "Checking Fortran-C linking conventions (dgemm -> ?)"
     fsym=no
