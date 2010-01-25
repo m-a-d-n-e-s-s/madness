@@ -158,5 +158,5 @@ export CPPFLAGS="-I/bgsys/drivers/ppcfloor/arch/include"
                    CPPFLAGS='-I/System/Library/Frameworks/vecLib.framework/Headers'
 
 
-  o On x86 without SSE3 -- configure with the option CPPFLAGS="-DDISABLE_SSE3"
+  o On x86 without SSE3 -- configure with the option CPPFLAGS="-DDISABLE_SSE3", requires autoconf-2.65+, automake-1.11+
     
