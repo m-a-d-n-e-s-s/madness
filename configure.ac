@@ -98,6 +98,9 @@ GOOGLE_INCS=""
 if test "$GOOGLE_TEST_DIR" != ""; then
    GOOGLE_LIBS="$GOOGLE_LIBS -L$GOOGLE_TEST_DIR/lib -lgtest"
    GOOGLE_INCS="$GOOGLE_INCS -I$GOOGLE_TEST_DIR/include"
+   if test "$CXXVENDOR" = "Intel"; then
+       CPPFLAGS="$CPPFLAGS -DGTEST_HAS_TR1_TUPLE=0"
+   fi
 fi
 
 if test "$GOOGLE_PERF_DIR" != ""; then
