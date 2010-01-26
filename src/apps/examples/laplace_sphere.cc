@@ -202,6 +202,73 @@ real_function_3d approx2(World& world, double epsilon, const coord_3d& center) {
     return u;
 }
 
+// Augmented Lagrangian
+real_function_3d auglag(World& world, double epsilon, const coord_3d& center) {
+    if (world.rank() == 0) print("\nStarting solution using augmented lagrangian\n");
+    if (world.rank() == 0) print("Making S (normalized surface function)");
+    real_functor_3d S_functor(shape_surface(epsilon, new SDFSphere(1.0, center)));
+    real_function_3d S = real_factory_3d(world).functor(S_functor);
+    double area = S.trace();
+    if (world.rank() == 0) print("Surface area:", area, "error is", area-4*constants::pi);
+    
+    if (world.rank() == 0) print("Making S*g");
+    real_functor_3d g_functor(new CosTheta);
+    real_functor_3d Sg_functor(new Product(S_functor,g_functor));
+    real_function_3d Sg = real_factory_3d(world).functor(Sg_functor);
+    
+    S.truncate(); Sg.truncate();
+    
+    // Make the Coulomb Green's function
+    real_convolution_3d G = CoulombOperator(world, 0.1*epsilon, FunctionDefaults<3>::get_thresh());
+
+    // Initial guess for lambda is -Sg
+    real_function_3d Slam = Sg*(-constants::pi);
+
+    // Initial guess for u is G*Slam
+    real_function_3d u = Slam * (-0.25/constants::pi);
+    u = G(u);
+    u.truncate();
+    
+    double mu = 0.25;
+    double thresh = FunctionDefaults<3>::get_thresh();
+
+    for (int lamiter=0; lamiter<5; lamiter++) {
+        if (world.rank() == 0) print("   mu =", mu);
+        // Iterate
+        NonlinearSolver solver;
+        for (int iter=0; iter<10; iter++) {
+            real_function_3d c = S*u - Sg;
+            real_function_3d rhs = Slam - c*(1.0/mu);
+            rhs.scale(-0.25/constants::pi);
+            rhs.truncate();
+            real_function_3d r = G(rhs) - u;
+            r.truncate();
+            real_function_3d unew = solver.update(u,r);
+            
+            double unorm=unew.norm2(), dunorm=(u-unew).norm2(), rnorm=r.norm2(), err=unew.err(Exact()), cnorm=c.norm2();
+            if (world.rank() == 0) 
+                print("iter", iter, "norm(u)", unorm, "norm(residual)", rnorm, "norm(constraint)", cnorm, "norm(u-unew)", dunorm, "norm(u-exact)", err);
+            u = unew;
+            if (rnorm < thresh*10.0) break;
+        }
+        char fname[40];
+
+        sprintf(fname,"lam%3.3d.dat", lamiter);
+        plot_line(fname, 10001, coord_3d(-1.5), coord_3d(+1.5), Slam);
+        sprintf(fname,"u%3.3d.dat", lamiter);
+        plot_line(fname, 10001, coord_3d(-1.5), coord_3d(+1.5), u);
+
+        Slam = Slam - (S*u - Sg)*(1.0/mu);
+        mu *= 0.75;
+    }
+    
+    plotdx(u, "u.dx");
+    plot_line("u.dat", 10001, coord_3d(-1.5), coord_3d(+1.5), u);
+
+    return u;
+}
+
+
 class SP1Inverse : public FunctionFunctorInterface<double,3> {
     real_functor_3d S;
 public:
@@ -280,6 +347,7 @@ int main(int argc, char**argv) {
   coord_3d center;        // (0,0,0)
 
   approx2(world, epsilon, center);
+  auglag(world, epsilon, center);
   //approx3(world, epsilon, center);
 
   finalize();
