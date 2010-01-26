@@ -30,77 +30,88 @@
   
   $Id$
 */
-/// This file demonstrates solving a problem with interior (embedded) Dirichlet
-/// conditions.
-/// 
-/// The SDF_SHAPE library is used to specify a sphere of radius 1 centered
-/// at the origin.  A Dirichlet condition (dir_cond) is imposed on this sphere.
-///
-/// After constructing the mask and the imposed boundary condition, the
-/// following routine is used to solve the equation (see the Lowengrub paper).
-///
-/// Suppose phi is the mask function (1 on the inside, 0 on the outside, blurry
-/// on the boundary), u is the desired function, d is the imposed Dirichlet
-/// condition on the boundary, f is the inhomogeneity, L is the differential
-/// operator, and G is its free-space Green's function.
-///
-/// The DE is Lu == f in the domain, and
-///
-///     Lu - b(phi) (u - d) == phi f,
-///
-/// where b(phi) = 36 eps**(-3) phi**2 (1 - phi)**2 and eps is the thickness
-/// of the surface layer.
-///
-/// Applying the Green's function:
-///
-///     u - G*( b(phi) u) == G*(phi f) - G*( b(phi) d)
-///
-/// Thus, solving this problem involves a linear solve, as provided by GMRES.
-///
-/// To run this code, at least two command-line arguments are needed:
-///   1) the width of the surface layer (0.1 at the largest, 0.01 seems ok)
-///   2) 0 for the Poisson equation, 1 for the (BS) Helmholtz equation
-///   3) if Helmholtz, the frequency
+
+/** \file interior_dirichlet.cc
+    \brief This file demonstrates solving a problem with interior (embedded)
+    Dirichlet conditions.
+
+    The signed_distance_functions shapes (mra/sdf_shape.h and
+    mra/sdf_shape_3D.h) are used to specify a sphere of radius 1 centered
+    at the origin.  A Dirichlet condition (dir_cond) is imposed on this sphere.
+
+    After constructing the mask and the imposed boundary condition, the
+    following routine is used to solve the equation (see the Lowengrub paper).
+
+    Suppose \f$\varphi\f$ is the mask function (1 on the inside, 0 on the
+    outside, blurry on the boundary), \f$u\f$ is the desired function, \f$d\f$
+    is the imposed Dirichlet condition on the boundary, \f$f\f$ is the
+    inhomogeneity, \f$\mathcal{L}\f$ is the differential operator, and \f$G\f$
+    is its free-space Green's function.
+
+    The DE is \f$ \mathcal{L} u = f\f$ in the domain, and
+        \f[ \mathcal{L}u - b(\varphi) (u - d) = \varphi f, \f]
+    where \f$b(\varphi) = 36 \varepsilon^{-3} \varphi^2 (1 - \varphi)^2\f$ and
+    \f$\varepsilon\f$ is the thickness of the surface layer.
+
+    Applying the Green's function:
+        \f[ u - G*( b(\varphi) u) == G*(\varphi f) - G*( b(\varphi) d). \f]
+    Thus, solving this problem involves a linear solve, as provided by GMRES.
+
+    To run this code, at least two command-line arguments are needed:
+      1) the width of the surface layer (0.1 at the largest, 0.01 seems ok)
+      2) 0 for the Poisson equation, 1 for the (BS) Helmholtz equation
+      3) if Helmholtz, the frequency
+*/
 
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <mra/mra.h>
 #include <linalg/gmres.h>
 #include <mra/sdf_shape_3D.h>
 
+/// \brief The width of the sphere's surface, \f$\varepsilon\f$.
 double eps;
+
+/// \brief \f$1/\varepsilon\f$
 double inveps;
+
+/// \brief Is this a Helmholtz problem (\f$k\neq0\f$?)
 bool is_helmholtz;
+
+/// \brief \f$k\f$ for a Helmholtz problem
 double helmholtz_k;
 
 using namespace madness;
 
-typedef Vector<double,3> coordT3d;
-typedef Function<double,3> functionT;
-typedef FunctionFactory<double,3> factoryT;
-typedef std::vector<functionT> vecFuncT;
-typedef SharedPtr< FunctionFunctorInterface<double,3> > functorT;
-typedef Tensor<double> tensorT;
-
-const double L = 2.0;
-
+/// \brief Threshold for MADNESS.
 static const double thresh = 1e-4;
+
+/// \brief One-tenth of threshold
 static const double thresh1 = thresh*0.1;
 
-/// the Dirichlet condition on the sphere
-static double dir_cond(const coordT3d &pt) {
+/** \brief The Dirichlet condition on the sphere.
+
+    @param pt The point at which to evaluate; \f$|pt|=1\f$.
+    @return The Dirichlet condition. */
+static double dir_cond(const coord_3d &pt) {
 	// Y_1^0
 	const double r = sqrt(pt[0]*pt[0] + pt[1]*pt[1] + pt[2]*pt[2]);
 
 	return pt[2] / r;
 }
 
-/// the inhomogeneity -- right-hand-side of the pde
-static double f_rhs(const coordT3d &pt) {
+/** \brief The inhomogeneity -- right-hand-side of the PDE.
+
+    \param pt The point at which to evaluate.
+    \return The inhomgeneity. */
+static double f_rhs(const coord_3d &pt) {
 	return 0.0;
 }
 
-// the exact solution, for comparison (only true inside the sphere)
-static double exact_sol(const coordT3d & pt) {
+/** \brief The exact solution, for comparison (only valid inside the sphere).
+
+     \param pt The point at which to evaluate.
+     \return The exact solution. */
+static double exact_sol(const coord_3d & pt) {
 	const double r = sqrt(pt[0]*pt[0] + pt[1]*pt[1] + pt[2]*pt[2]);
 
 	if(r < 1.0e-3)
@@ -116,30 +127,40 @@ static double exact_sol(const coordT3d & pt) {
 	}
 }
 
-// gives the B(phi(x)) function == phi^2 (1-phi)^2
-// this is a unary op, given the phi function, computes b pointwise
+/** \brief Gives the surface function, \f$B(\varphi(x)) = \varphi^2 (1-\varphi)^2\f$.
+
+     This is a unary op, given the \f$\varphi(x)\f$ function, it computes
+     \f$b\f$ pointwise.
+
+     This function should probably be deprecated with the new sdf_shape
+     library that accounts for surfaces... */
 template <typename T>
 inline static void b_phi(const Key<3> &key, Tensor<T> & t) {
 	UNARY_OPTIMIZED_ITERATOR(T, t,
 		*_p0 = (*_p0) * (*_p0) * (1.0-(*_p0)) * (1.0-(*_p0)));
 }
 
-/// the operator needed for solving for u with GMRES
-class DirichletCondIntOp : public Operator<functionT> {
+/// \brief The operator needed for solving for \f$u\f$ with GMRES
+class DirichletCondIntOp : public Operator<real_function_3d> {
 	protected:
-		// the Green's function
+		/// \brief The Green's function
 		const SeparatedConvolution<double,3> &G;
-		// the surface
-		const functionT &b;
+		/// \brief The surface function, \f$b\f$
+		const real_function_3d &b;
 
-		void action(const functionT &invec, functionT &outvec) const {
+      /** \brief Applies the operator to \c invec
+
+		    \param[in] invec The input vector
+		    \param[out] outvec The action of the Green's function on \c invec */
+		void action(const real_function_3d &invec, real_function_3d &outvec)
+			const {
                     outvec = invec - G(b*invec);
                     outvec.truncate();
 		}
 
 	public:
 		DirichletCondIntOp(const SeparatedConvolution<double, 3> &gin,
-			const functionT &bin)
+			const real_function_3d &bin)
 			: G(gin), b(bin) {}
 };
 
@@ -185,24 +206,24 @@ int main(int argc, char **argv) {
     // Function defaults
     int k = 6;
     FunctionDefaults<3>::set_k(k);
-    FunctionDefaults<3>::set_cubic_cell(-L, L);
+    FunctionDefaults<3>::set_cubic_cell(-2.0, 2.0);
     FunctionDefaults<3>::set_thresh(thresh);
     //FunctionDefaults<3>::set_initial_level(4);
     /// the following line can be commented out if memory is not an issue
     FunctionDefaults<3>::set_max_refine_level(6);
     
     // create the forcing function inhomogeneity
-    functionT f = factoryT(world).f(f_rhs);
+    real_function_3d f = real_factory_3d(world).f(f_rhs);
     
     // create the Dirichlet boundary condition, expanded throughout the domain
-    functionT d = factoryT(world).f(dir_cond);
+    real_function_3d d = real_factory_3d(world).f(dir_cond);
     d.truncate();
     
     // create the domain mask, phi, and the surface function, b
-    coordT3d pt(0.0); // Origin
-    functionT phi = factoryT(world).functor(shape_mask(eps, new SDFSphere(1.0, pt)));
+    coord_3d pt(0.0); // Origin
+    real_function_3d phi = real_factory_3d(world).functor(shape_mask(eps, new SDFSphere(1.0, pt)));
     
-    functionT b = copy(phi);
+    real_function_3d b = copy(phi);
     phi.truncate();
     b.unaryop(&b_phi<double>);
     
@@ -219,8 +240,8 @@ int main(int argc, char **argv) {
     real_convolution_3d G = BSHOperator<3>(world, helmholtz_k, eps*0.1, thresh);
     
     // compute the inhomogeneous portion
-    functionT usol = phi*f + b*d; // should be -b*d, but b accounts for -G
-    functionT uinhomog = G(usol).truncate();
+    real_function_3d usol = phi*f + b*d; // should be -b*d, but b accounts for -G
+    real_function_3d uinhomog = G(usol).truncate();
     uinhomog.scale(-1.0); // add the -1 from the Green's function
     uinhomog.truncate();
     world.gop.fence();
@@ -231,11 +252,11 @@ int main(int argc, char **argv) {
     usol = copy(uinhomog);
     DirichletCondIntOp dcio(G, b);
     FunctionSpace<double, 3> space;
-    int maxiters = 10;
+    int maxiters = 25;
     double solver_thresh = 1.0e-4;
     GMRES(space, dcio, uinhomog, usol, maxiters, solver_thresh, true);
     
-    functionT exact = factoryT(world).f(exact_sol);
+    real_function_3d exact = real_factory_3d(world).f(exact_sol);
     double error = ((usol - exact)*phi).norm2();
     printf("   u error: %.10e\n", error);
     
