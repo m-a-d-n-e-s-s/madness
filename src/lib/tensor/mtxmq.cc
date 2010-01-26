@@ -314,7 +314,7 @@ namespace madness {
 
 #endif
 
-#if defined(X86_64) 
+#if defined(X86_64)  && !defined(DISABLE_SSE3)
 namespace madness {
     template <>
     void mTxmq(const long dimi, const long dimj, const long dimk,

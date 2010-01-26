@@ -92,7 +92,7 @@ namespace madness {
 	zgemm("n","t",&nj,&ni,&nk,&one,b,&nj,a,&ni,&zero,c,&nj,1,1);
     }
     
-#elif defined(X86_64)
+#elif defined(X86_64) && !defined(DISABLE_SSE3)
     template <>
     void mTxmq(long dimi, long dimj, long dimk,
                double* restrict c, const double* a, const double* b);
