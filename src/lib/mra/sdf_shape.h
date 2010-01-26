@@ -106,7 +106,7 @@ namespace madness {
         /// Constructor for mask functor
 
         /// The constructor takes ownership of the provided mask and shape and deletes them when finished.
-        /// @param mask Pointer to object providing maksing function (deleted when finished)
+        /// @param mask Pointer to object providing masking function (deleted when finished)
         /// @param shape Pointer to object providing shape distance function (deleted when finished)
         ShapeMaskFunctor(ShapeMaskInterface<NDIM>* mask, ShapeDFInterface<NDIM>* shape) 
             : mask(mask), shape(shape)
