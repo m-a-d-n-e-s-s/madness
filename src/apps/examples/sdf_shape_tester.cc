@@ -93,53 +93,106 @@ int main(int argc, char **argv) {
 
     real_function_3d f;
 
-    // the following line permutes the "inside" and "outside"
-    //mask.unaryop(&mask_complement<double, 3>);
-    
-    f = real_factory_3d(world).functor(shape_mask(epsilon, new SDFCylinder(rad, 1.0, pt, vec)));
+    // use LLRV domain masking
+    SharedPtr< DomainMaskInterface > llrv = SharedPtr< DomainMaskInterface >
+        (new LLRVDomainMask(epsilon));
+   
+    // cylinder
+    SharedPtr< SignedDFInterface<3> > cylinder = SharedPtr<
+        SignedDFInterface<3> >(new SDFCylinder(rad, 1.0, pt, vec)); 
+    SharedPtr< DomainMaskSDFFunctor<3> > cylfunctor = SharedPtr<
+        DomainMaskSDFFunctor<3> >(new DomainMaskSDFFunctor<3>(llrv, cylinder));
+
+    // the functor, by default, makes the volume function
+    f = real_factory_3d(world).functor(cylfunctor);
     vol = f.trace();
     plotdx(f, "cylinder_mask.dx");
-    f = real_factory_3d(world).functor(shape_surface(epsilon, new SDFCylinder(rad, 1.0, pt, vec)));
+
+    // set the functor to make the surface function
+    cylfunctor->setMaskFunction(DomainMaskSDFFunctor<3>::SURFACE);
+    f = real_factory_3d(world).functor(cylfunctor);
     area = f.trace();
     plotdx(f, "cylinder_surface.dx");
     if (world.rank() == 0)
         print("cylinder: err in volume", vol - constants::pi*rad*rad, "err in area", area-2.0*3.141593*(rad + rad*rad));
 
-    f = real_factory_3d(world).functor(shape_mask(epsilon, new SDFCube(sqrt(2.0), pt)));
+    // cube
+    SharedPtr< SignedDFInterface<3> > cube = SharedPtr<
+        SignedDFInterface<3> >(new SDFCube(sqrt(2.0), pt));
+    SharedPtr< DomainMaskSDFFunctor<3> > cubefunctor = SharedPtr<
+        DomainMaskSDFFunctor<3> >(new DomainMaskSDFFunctor<3>(llrv, cube));
+
+    f = real_factory_3d(world).functor(cubefunctor);
     vol = f.trace();
     plotdx(f, "cube_mask.dx");
-    f = real_factory_3d(world).functor(shape_surface(epsilon, new SDFCube(sqrt(2.0), pt)));
+
+    cubefunctor->setMaskFunction(DomainMaskSDFFunctor<3>::SURFACE);
+    f = real_factory_3d(world).functor(cubefunctor);
     area = f.trace();
     plotdx(f, "cube_surface.dx");
     if (world.rank() == 0)
         print("cube: err in volume", vol-sqrt(2.0)*sqrt(2.0)*sqrt(2.0), "err in area", area-12.0);
 
-    f = real_factory_3d(world).functor(shape_mask(epsilon, new SDFSphere(c, pt)));
+    // sphere
+    SharedPtr< SignedDFInterface<3> > sphere = SharedPtr<
+        SignedDFInterface<3> >(new SDFSphere(c, pt));
+    SharedPtr< DomainMaskSDFFunctor<3> > spherefunctor = SharedPtr<
+        DomainMaskSDFFunctor<3> >(new DomainMaskSDFFunctor<3>(llrv, sphere));
+
+    f = real_factory_3d(world).functor(spherefunctor);
     vol = f.trace();
     plotdx(f, "sphere_mask.dx");
-    f = real_factory_3d(world).functor(shape_surface(epsilon, new SDFSphere(c, pt)));
+
+    spherefunctor->setMaskFunction(DomainMaskSDFFunctor<3>::SURFACE);
+    f = real_factory_3d(world).functor(spherefunctor);
     area = f.trace();
     plotdx(f, "sphere_surface.dx");
     if (world.rank() == 0)
         print("sphere: err in volume", vol-4.0*constants::pi/3.0*c*c*c, "err in area", area-4.0*constants::pi*c*c);
 
-    f = real_factory_3d(world).functor(shape_mask(epsilon, new SDFCone(c, pt, vec)));
+    // cone
+    SharedPtr< SignedDFInterface<3> > cone = SharedPtr<
+        SignedDFInterface<3> >(new SDFCone(c, pt, vec));
+    SharedPtr< DomainMaskSDFFunctor<3> > conefunctor = SharedPtr<
+        DomainMaskSDFFunctor<3> >(new DomainMaskSDFFunctor<3>(llrv, cone));
+
+    f = real_factory_3d(world).functor(conefunctor);
     plotdx(f, "cone_mask.dx");
 
-    f = real_factory_3d(world).functor(shape_surface(epsilon, new SDFCone(c, pt, vec)));
+    conefunctor->setMaskFunction(DomainMaskSDFFunctor<3>::SURFACE);
+    f = real_factory_3d(world).functor(conefunctor);
     plotdx(f, "cone_surface.dx");
 
-    f = real_factory_3d(world).functor(shape_surface(epsilon, new SDFParaboloid(c, pt, vec)));
+    // paraboloid
+    SharedPtr< SignedDFInterface<3> > paraboloid = SharedPtr<
+        SignedDFInterface<3> >(new SDFParaboloid(c, pt, vec));
+    SharedPtr< DomainMaskSDFFunctor<3> > parafunctor = SharedPtr<
+        DomainMaskSDFFunctor<3> >(new DomainMaskSDFFunctor<3>(llrv, paraboloid));
+    f = real_factory_3d(world).functor(parafunctor);
     plotdx(f, "paraboloid_surface.dx");
 
-    f = real_factory_3d(world).functor(shape_surface(epsilon, new SDFPlane(vec, pt)));
+    // plane
+    SharedPtr< SignedDFInterface<3> > plane = SharedPtr<
+        SignedDFInterface<3> >(new SDFPlane(vec, pt));
+    SharedPtr< DomainMaskSDFFunctor<3> > planefunctor = SharedPtr<
+        DomainMaskSDFFunctor<3> >(new DomainMaskSDFFunctor<3>(llrv, plane));
+    f = real_factory_3d(world).functor(planefunctor);
     plotdx(f, "plane_surface.dx");
 
-
-    f = real_factory_3d(world).functor(shape_surface(epsilon, new SDFEllipsoid(sides, pt)));
+    // ellipsoid
+    SharedPtr< SignedDFInterface<3> > ellipsoid = SharedPtr<
+        SignedDFInterface<3> >(new SDFEllipsoid(sides, pt));
+    SharedPtr< DomainMaskSDFFunctor<3> > ellipfunctor = SharedPtr<
+        DomainMaskSDFFunctor<3> >(new DomainMaskSDFFunctor<3>(llrv, ellipsoid));
+    f = real_factory_3d(world).functor(ellipfunctor);
     plotdx(f, "ellipsoid_surface.dx");
 
-    f = real_factory_3d(world).functor(shape_surface(epsilon, new SDFBox(sides, pt)));
+    // box
+    SharedPtr< SignedDFInterface<3> > box = SharedPtr<
+        SignedDFInterface<3> >(new SDFBox(sides, pt));
+    SharedPtr< DomainMaskSDFFunctor<3> > boxfunctor = SharedPtr<
+        DomainMaskSDFFunctor<3> >(new DomainMaskSDFFunctor<3>(llrv, box));
+    f = real_factory_3d(world).functor(boxfunctor);
     plotdx(f, "box_surface.dx");
     
     finalize();

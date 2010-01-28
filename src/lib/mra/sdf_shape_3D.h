@@ -30,12 +30,13 @@
   
   $Id$
 */
-/*!
-  \file mra/sdf_shape.h
-  \brief An abstract signed distance function for use when forming subdomains.
+
+/**
+  \file mra/sdf_shape_3D.h
+  \brief Implements the SignedDFInterface for common 3-D geometric objects.
   \ingroup mrabcint
 
-  This file defines SDF classes for common 3-D surfaces:
+  This file provides signed distance functions for common 3-D geometric objects:
   - Plane
   - Sphere
   - Cone
@@ -45,8 +46,8 @@
   - Ellipsoid
   - Cylinder
   
-  NOTE: The signed distance functions would be the shortest distance between
-  a point and _any_ point on the surface.  This is hard to calculate in many
+  \note The signed distance functions should be the shortest distance between
+  a point and \b any point on the surface.  This is hard to calculate in many
   cases, so we use contours here.  The surface layer may not be equally thick
   around all points on the surface.
 */  
@@ -54,56 +55,64 @@
 #ifndef MADNESS_MRA_SDF_SHAPE_3D_H__INCLUDED
 #define MADNESS_MRA_SDF_SHAPE_3D_H__INCLUDED
 
-#include <mra/sdf_shape.h>
+#include <mra/sdf_domainmask.h>
 
 namespace madness {
 
-    /// A plane surface (3 dimensions)
-    class SDFPlane : public ShapeDFInterface<3> {
+    /// \brief A plane surface (3 dimensions)
+    class SDFPlane : public SignedDFInterface<3> {
     protected:
         const coord_3d normal; ///< The normal vector pointing OUTSIDE the surface
         const coord_3d point; ///< A point in the plane
 
     public:
         
-        /// SDF for a plane transecting the entire simulation volume
+        /** \brief SDF for a plane transecting the entire simulation volume
 
-        /// @param normal The outward normal definining the plane
-        /// @param point A point in the plane
+            \param normal The outward normal definining the plane
+            \param point A point in the plane */
         SDFPlane(const coord_3d& normal, const coord_3d& point)
             : normal(normal*(1.0/sqrt(normal[0]*normal[0] + normal[1]*normal[1] + normal[2]*normal[2])))
             , point(point) 
         {}
 
-        /// Computes the normal distance
+        /** \brief Computes the normal distance
 
-        /// @param pt Point at which to compute the distance from the surface
-        /// @return The signed distance from the surface
+            \param pt Point at which to compute the distance from the surface
+            \return The signed distance from the surface */
         double sdf(const coord_3d& pt) const {
             return (pt[0]-point[0])*normal[0] + (pt[1]-point[1])*normal[1] + (pt[2]-point[2])*normal[2];
         }
 
+        /** \brief Computes the gradient of the SDF.
+
+            \param pt Point at which to compute the gradient
+            \return the gradient */
         coord_3d grad_sdf(const coord_3d& pt) const {
             MADNESS_EXCEPTION("gradient method is not yet implemented for this shape",0);
         }
     };
 
-    /// A spherical surface (3 dimensions)
-    class SDFSphere : public ShapeDFInterface<3> {
+    /// \brief A spherical surface (3 dimensions)
+    class SDFSphere : public SignedDFInterface<3> {
     protected:
         const double radius; ///< Radius of sphere
         const coord_3d center; ///< Center of sphere
 
     public:
-        /// SDF for a sphere partially or fully enclosed in the solution volume
+        /** \brief SDF for a sphere
 
-        /// @param radius The radius of the sphere
-        /// @param center The center of the sphere
+            \param radius The radius of the sphere
+            \param center The center of the sphere */
         SDFSphere(const double radius, const coord_3d &center) 
             : radius(radius)
             , center(center) 
         {}
 
+        /** \brief Computes the normal distance
+
+            \param pt Point at which to compute the distance from the surface
+            \return The signed distance from the surface */
         double sdf(const coord_3d& pt) const {
             double temp, r;
             int i;
@@ -117,6 +126,10 @@ namespace madness {
             return sqrt(r) - radius;
         }
 
+        /** \brief Computes the gradient of the SDF.
+
+            \param pt Point at which to compute the gradient
+            \return the gradient */
         coord_3d grad_sdf(const coord_3d& pt) const {
             double x = pt[0] - center[0];
             double y = pt[1] - center[1];
@@ -130,31 +143,35 @@ namespace madness {
         }
     };
 
-    /// A cone (3 dimensions)
+    /** \brief A cone (3 dimensions)
 
-    /// The cone is defined by 
-    /// \f[
-    /// \sqrt{x^2 + y^2} - c * z = 0
-    /// \f]
-    /// where \f$ z \f$ is along the axis.
-    class SDFCone : public ShapeDFInterface<3> {
+        The cone is defined by 
+
+        \f[ \sqrt{x^2 + y^2} - c * z = 0 \f]
+
+        where \f$ z \f$ is along the cone's axis. */
+    class SDFCone : public SignedDFInterface<3> {
     protected:
         const coord_3d apex; ///< The apex
         const double c; ///< The radius
         const coord_3d dir; ///< The direction of the axis, from the apex INSIDE
 
     public:
-        /// Constructor for cone
+        /** \brief Constructor for cone
 
-        /// @param c Parameter \f$ c \f$ in the definition of the cone
-        /// @param apex Apex of cone
-        /// @param direc Oriented axis of the cone
+            \param c Parameter \f$ c \f$ in the definition of the cone
+            \param apex Apex of cone
+            \param direc Oriented axis of the cone */
         SDFCone(const double c, const coord_3d &apex, const coord_3d &direc) 
             : apex(apex)
             , c(c)
             , dir(direc*(1.0/sqrt(direc[0]*direc[0] + direc[1]*direc[1] + direc[2]*direc[2])))
         {}
 
+        /** \brief Computes the normal distance
+
+            \param pt Point at which to compute the distance from the surface
+            \return The signed distance from the surface */
         double sdf(const coord_3d& pt) const {
             coord_3d diff;
             unsigned int i;
@@ -172,31 +189,44 @@ namespace madness {
                 - c * dotp;
         }
 
+        /** \brief Computes the gradient of the SDF.
+
+            \param pt Point at which to compute the gradient
+            \return the gradient */
         coord_3d grad_sdf(const coord_3d& pt) const {
             MADNESS_EXCEPTION("gradient method is not yet implemented for this shape",0);
         }
     };
 
-    /// A paraboloid (3 dimensions)
+    /** \brief A paraboloid (3 dimensions)
 
-    /// The surface is defined by 
-    /// \f[
-    ///  x^2 + y^2 - c * z == 0
-    /// \f]
-    /// where \f$ z \f$ is along the axis.
-    class SDFParaboloid : public ShapeDFInterface<3> {
+        The surface is defined by 
+
+        \f[ x^2 + y^2 - c * z == 0 \f]
+
+        where \f$ z \f$ is along the paraboloid's axis. */
+    class SDFParaboloid : public SignedDFInterface<3> {
     protected:
         const coord_3d apex; ///< The apex
         const double c; ///< Curvature/radius of the surface
         const coord_3d dir;///< The direction of the axis, from the apex INSIDE
 
     public:
+        /** \brief Constructor for paraboloid
+
+            \param c Parameter \f$ c \f$ in the definition of the paraboloid
+            \param apex Apex of paraboloid
+            \param direc Oriented axis of the paraboloid */
         SDFParaboloid(const double c, const coord_3d &apex, const coord_3d &direc) 
             : apex(apex)
             , c()
             , dir(direc*(1.0/sqrt(direc[0]*direc[0] + direc[1]*direc[1] + direc[2]*direc[2])))
         {}
 
+        /** \brief Computes the normal distance
+
+            \param pt Point at which to compute the distance from the surface
+            \return The signed distance from the surface */
         double sdf(const coord_3d& pt) const {
             coord_3d diff;
             unsigned int i;
@@ -214,24 +244,36 @@ namespace madness {
                 - c * dotp;
         }
 
+        /** \brief Computes the gradient of the SDF.
+
+            \param pt Point at which to compute the gradient
+            \return the gradient */
         coord_3d grad_sdf(const coord_3d& pt) const {
             MADNESS_EXCEPTION("gradient method is not yet implemented for this shape",0);
         }
     };
 
-    /// A box (3 dimensions)
+    /** \brief A box (3 dimensions)
 
-    /// LIMIT: the 3 primary axes must be x, y, and z
-    class SDFBox : public ShapeDFInterface<3> {
+        \note LIMIT -- the 3 primary axes must be x, y, and z */
+    class SDFBox : public SignedDFInterface<3> {
     protected:
         const coord_3d lengths;  ///< Half the length of each side of the box
         const coord_3d center; ///< the center of the box
 
     public:
+        /** \brief Constructor for box
+
+            \param length The lengths of the box
+            \param center The center of the box */
         SDFBox(const coord_3d& length, const coord_3d& center) 
             : lengths(length*0.5), center(center) 
         {}
 
+        /** \brief Computes the normal distance
+
+            \param pt Point at which to compute the distance from the surface
+            \return The signed distance from the surface */
         double sdf(const coord_3d& pt) const {
             double diff, max;
             int i;
@@ -246,35 +288,51 @@ namespace madness {
             return max;
         }
 
+        /** Computes the gradient of the SDF.
+
+            \param pt Point at which to compute the gradient
+            \return the gradient */
         coord_3d grad_sdf(const coord_3d& pt) const {
             MADNESS_EXCEPTION("gradient method is not yet implemented for this shape",0);
         }
     };
 
-    /// A cube (3 dimensions)
+    /** \brief A cube (3 dimensions)
 
-    /// LIMIT: the 3 primary axes must be x, y, and z
+        \note LIMIT -- the 3 primary axes must be x, y, and z */
     class SDFCube : public SDFBox {
     public:
+        /** \brief Constructor for box
+
+            \param length The length of each side of the cube
+            \param center The center of the cube */
         SDFCube(const double length, const coord_3d& center) 
-            : SDFBox(length,center)
+            : SDFBox(coord_3d(length), center)
         {}
     };
 
-    /// An ellipsoid (3 dimensions)
+    /** \brief An ellipsoid (3 dimensions)
     
-    /// LIMIT: the 3 primary axes must be x, y, and z
-    class SDFEllipsoid : public ShapeDFInterface<3> {
+        \note LIMIT -- the 3 primary axes must be x, y, and z */
+    class SDFEllipsoid : public SignedDFInterface<3> {
     protected:
         coord_3d radii; ///< the directional radii
         coord_3d center; ///< the center
         
     public:
+        /** \brief Constructor for ellipsoid
+
+            \param radii The directional radii of the ellipsoid
+            \param center The center of the ellipsoid */
         SDFEllipsoid(const coord_3d& radii, const coord_3d& center) 
             : radii(radii)
             , center(center) 
         {}
         
+        /** \brief Computes the normal distance
+
+            \param pt Point at which to compute the distance from the surface
+            \return The signed distance from the surface */
         double sdf(const coord_3d& pt) const {
             double quot, sum;
             int i;
@@ -288,13 +346,17 @@ namespace madness {
             return sum - 1.0;
         }
 
+        /** Computes the gradient of the SDF.
+
+            \param pt Point at which to compute the gradient
+            \return the gradient */
         coord_3d grad_sdf(const coord_3d& pt) const {
             MADNESS_EXCEPTION("gradient method is not yet implemented for this shape",0);
         }
     };
     
-    /// A cylinder (3 dimensions)
-    class SDFCylinder : public ShapeDFInterface<3> {
+    /// \brief A cylinder (3 dimensions)
+    class SDFCylinder : public SignedDFInterface<3> {
     protected:
         double radius; ///< the radius of the cylinder
         double a; ///< half the length of the cylinder
@@ -302,6 +364,13 @@ namespace madness {
         coord_3d axis; ///< the axial direction of the cylinder
 
     public:
+        /** \brief Constructor for cylinder
+
+            \param radius The radius of the cylinder
+            \param length The length of the cylinder
+            \param axpt The central axial point of the cylinder (equidistant
+                        from both ends)
+            \param axis The axial direction of the cylinder */
         SDFCylinder(const double radius, const double length, const coord_3d& axpt, const coord_3d& axis) 
             : radius(radius)
             , a(length / 2.0)
@@ -309,6 +378,10 @@ namespace madness {
             , axis(axis*(1.0/sqrt(axis[0]*axis[0] + axis[1]*axis[1] + axis[2]*axis[2]))) 
         {}
         
+        /** \brief Computes the normal distance
+
+            \param pt Point at which to compute the distance from the surface
+            \return The signed distance from the surface */
         double sdf(const coord_3d& pt) const {
             double dist;
             coord_3d rel, radial;
@@ -329,6 +402,10 @@ namespace madness {
                                                  + radial[2]*radial[2]) - radius);
         }
 
+        /** Computes the gradient of the SDF.
+
+            \param pt Point at which to compute the gradient
+            \return the gradient */
         coord_3d grad_sdf(const coord_3d& pt) const {
             MADNESS_EXCEPTION("gradient method is not yet implemented for this shape",0);
         }

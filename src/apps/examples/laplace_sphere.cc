@@ -156,7 +156,22 @@ public:
 real_function_3d approx2(World& world, double epsilon, const coord_3d& center) {
     if (world.rank() == 0) print("\nStarting solution using approximation 2\n");
     if (world.rank() == 0) print("Making S (normalized surface function)");
-    real_functor_3d S_functor(shape_surface(epsilon, new SDFSphere(1.0, center)));
+
+    // make the sphere
+    SharedPtr< SignedDFInterface<3> > sphere = SharedPtr<SignedDFInterface<3> >
+        (new SDFSphere(1.0, center));
+
+    // use LLRV domain masking
+    SharedPtr< DomainMaskInterface > llrv = SharedPtr<DomainMaskInterface>
+        (new LLRVDomainMask(epsilon));
+
+    // make the functor
+    SharedPtr< DomainMaskSDFFunctor<3> > spheref = SharedPtr<
+        DomainMaskSDFFunctor<3> >(new DomainMaskSDFFunctor<3>
+        (llrv, sphere, DomainMaskSDFFunctor<3>::SURFACE));
+
+    // get the surface function
+    real_functor_3d S_functor(spheref);
     real_function_3d S = real_factory_3d(world).functor(S_functor);
     double area = S.trace();
     if (world.rank() == 0) print("Surface area:", area, "error is", area-4*constants::pi);
@@ -206,7 +221,21 @@ real_function_3d approx2(World& world, double epsilon, const coord_3d& center) {
 real_function_3d auglag(World& world, double epsilon, const coord_3d& center) {
     if (world.rank() == 0) print("\nStarting solution using augmented lagrangian\n");
     if (world.rank() == 0) print("Making S (normalized surface function)");
-    real_functor_3d S_functor(shape_surface(epsilon, new SDFSphere(1.0, center)));
+
+    // make the sphere
+    SharedPtr<SignedDFInterface<3> > sphere = SharedPtr<SignedDFInterface<3> >
+        (new SDFSphere(1.0, center));
+
+    // use LLRV domain masking
+    SharedPtr<DomainMaskInterface> llrv = SharedPtr<DomainMaskInterface>
+        (new LLRVDomainMask(epsilon));
+
+    // make the functor, set to surface
+    SharedPtr<DomainMaskSDFFunctor<3> > functor = SharedPtr<
+        DomainMaskSDFFunctor<3> >(new DomainMaskSDFFunctor<3>(llrv, sphere,
+        DomainMaskSDFFunctor<3>::SURFACE));
+
+    real_functor_3d S_functor(functor);
     real_function_3d S = real_factory_3d(world).functor(S_functor);
     double area = S.trace();
     if (world.rank() == 0) print("Surface area:", area, "error is", area-4*constants::pi);

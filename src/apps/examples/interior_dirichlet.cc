@@ -221,8 +221,21 @@ int main(int argc, char **argv) {
     
     // create the domain mask, phi, and the surface function, b
     coord_3d pt(0.0); // Origin
-    real_function_3d phi = real_factory_3d(world).functor(shape_mask(eps, new SDFSphere(1.0, pt)));
+    SharedPtr< SignedDFInterface<3> > sphere = SharedPtr<
+        SignedDFInterface<3> >(new SDFSphere(1.0, pt));
+
+    // use LLRV domain masking
+    SharedPtr< DomainMaskInterface > llrvmask = SharedPtr<
+        DomainMaskInterface >(new LLRVDomainMask(eps));
+
+    // make the functor
+    SharedPtr< DomainMaskSDFFunctor<3> > functor = SharedPtr<
+        DomainMaskSDFFunctor<3> >(new DomainMaskSDFFunctor<3>(llrvmask, sphere));
     
+    real_function_3d phi = real_factory_3d(world).functor(functor);
+
+    // THIS FORMULATION OF B IS OLD SCHOOL AND SHOULD BE REPLACED BY
+    // THE SURFACE OPTION ON THE FUNCTOR
     real_function_3d b = copy(phi);
     phi.truncate();
     b.unaryop(&b_phi<double>);
