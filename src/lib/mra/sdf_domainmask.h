@@ -213,27 +213,20 @@ namespace madness {
             \param x Point to compute value
             \return Value of the desired function */
         double operator()(const Vector<double,NDIM>& x) const {
-            switch(mswitch) {
-            case DomainMaskSDFFunctor<NDIM>::MASK:
+            if(mswitch == DomainMaskSDFFunctor<NDIM>::MASK)
                 return mask->mask(sdf->sdf(x));
-                break;
-            case DomainMaskSDFFunctor<NDIM>::MASK_COMPLEMENT:
+            else if(mswitch == DomainMaskSDFFunctor<NDIM>::MASK_COMPLEMENT)
                 return 1.0 - mask->mask(sdf->sdf(x));
-                break;
-            case DomainMaskSDFFunctor<NDIM>::DMASK:
+            else if(mswitch == DomainMaskSDFFunctor<NDIM>::DMASK)
                 return mask->dmask(sdf->sdf(x));
-                break;
-            case DomainMaskSDFFunctor<NDIM>::SURFACE:
+            else if(mswitch == DomainMaskSDFFunctor<NDIM>::SURFACE)
                 return mask->surface(sdf->sdf(x));
-                break;
-            case DomainMaskSDFFunctor<NDIM>::DSURFACE:
+            else if(mswitch == DomainMaskSDFFunctor<NDIM>::DSURFACE)
                 return mask->dsurface(sdf->sdf(x));
-                break;
-            default:
+            else {
                 error("Unknown function from DomainMaskInterface in " \
                       "DomainMaskSDFFunctor::operator()");
                 return 0.0;
-                break;
             }
         }
 
