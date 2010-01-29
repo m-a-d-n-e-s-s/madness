@@ -44,6 +44,13 @@
 #include <world/worldprofile.h>
 #include <world/atomicint.h>
 
+#ifndef _SC_NPROCESSORS_CONF
+// Old macs don't have necessary support thru sysconf to determine the
+// no. of processors so must use sysctl
+#include <sys/types.h>
+#include <sys/sysctl.h>
+#endif
+
 namespace madness {
 
     void error(const char *msg);
@@ -394,13 +401,30 @@ namespace madness {
             return pthread_cancel(get_id());
         }
 
+
+	/// Get no. of actual hardware processors
+	static int num_hw_processors() {
+#ifdef _SC_NPROCESSORS_CONF
+	  int ncpu = sysconf(_SC_NPROCESSORS_CONF);
+	  if (ncpu <= 0) MADNESS_EXCEPTION("ThreadBase: set_affinity_pattern: sysconf(_SC_NPROCESSORS_CONF)", ncpu);
+#elif defined(HC_NCPU)
+	  int mib[2]={CTL_HW,HW_NCPU}, ncpu;
+	  size_t len = sizeof(ncpu);
+	  if (sysctl(mib, 2, &ncpu, &len, NULL, 0) != 0) 
+	    MADNESS_EXCEPTION("ThreadBase: sysctl(CTL_HW,HW_NCPU) failed", 0);
+	  std::cout << "NCPU " << ncpu << std::endl;
+#else
+	  int ncpu=1;
+#endif
+	  return ncpu;
+	}
+
         /// Specify the affinity pattern or how to bind threads to cpus
         static void set_affinity_pattern(const bool bind[3], const int cpu[3]) {
             memcpy(ThreadBase::bind, bind, 3*sizeof(bool));
             memcpy(ThreadBase::cpulo, cpu, 3*sizeof(int));
 
-            int ncpu = sysconf(_SC_NPROCESSORS_CONF);
-            if (ncpu <= 0) MADNESS_EXCEPTION("ThreadBase: set_affinity_pattern: sysconf(_SC_NPROCESSORS_CONF)", ncpu);
+	    int ncpu = num_hw_processors();
 
             // impose sanity and compute cpuhi
             for (int i=0; i<3; i++) {
@@ -422,12 +446,6 @@ namespace madness {
 
             if (!bind[logical_id]) return;
 
-            int ncpu = sysconf(_SC_NPROCESSORS_CONF);
-            if (ncpu <= 0) {
-                std::cout << "ThreadBase: set_affinity_pattern: sysconf(_SC_NPROCESSORS_CONF)" << std::endl;
-                return;
-            }
-
             // If binding the main or rmi threads the cpu id is a specific cpu.
             //
             // If binding a pool thread, the cpuid is the lowest cpu
@@ -448,8 +466,6 @@ namespace madness {
                     hi = lo;
                 }
             }
-
-            //std::cout << "BINDING THREAD: id " << logical_id << " ind " << ind << " lo " << lo << " hi " << hi << " ncpu " << ncpu << std::endl;
 
 #ifdef ON_A_MAC
 #else
@@ -759,9 +775,9 @@ namespace madness {
                 nthread -= shift;
             }
             else {
-                nthread = sysconf(_SC_NPROCESSORS_CONF);
-                if (nthread < 2) nthread = 2;
-                nthread = nthread - 1; // One less than # physical processors
+	      nthread = ThreadBase::num_hw_processors();
+	      if (nthread < 2) nthread = 2;
+	      nthread = nthread - 1; // One less than # physical processors
             }
             return nthread;
         }
