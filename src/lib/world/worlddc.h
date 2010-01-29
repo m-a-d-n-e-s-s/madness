@@ -293,6 +293,8 @@ namespace madness {
 
         typedef ConcurrentHashMap< keyT,valueT,hashfunT > internal_containerT;
 
+	//typedef WorldObject< WorldContainerImpl<keyT, valueT, hashfunT> > worldobjT;
+
         typedef typename internal_containerT::iterator internal_iteratorT;
         typedef typename internal_containerT::const_iterator internal_const_iteratorT;
         typedef typename internal_containerT::accessor accessor;
@@ -327,11 +329,11 @@ namespace madness {
             internal_iteratorT r = local.find(key);
             if (r == local.end()) {
                 //print("find_handler: failure:", key);
-                send(requestor, &implT::find_failure_handler, ref);
+                this->send(requestor, &implT::find_failure_handler, ref);
             }
             else {
                 //print("find_handler: success:", key, r->first, r->second);
-                send(requestor, &implT::find_success_handler, ref, *r);
+                this->send(requestor, &implT::find_success_handler, ref, *r);
             }
             return None;
         }
@@ -407,7 +409,7 @@ namespace madness {
                 acc->second = datum.second;
             }
             else {
-                send(dest, &implT::insert, datum);
+                this->send(dest, &implT::insert, datum);
             }
             return None;
         }
@@ -434,7 +436,7 @@ namespace madness {
             }
             else {
                 Void(implT::*eraser)(const keyT&) = &implT::erase;
-                send(dest, eraser, key);
+                this->send(dest, eraser, key);
             }
             return None;
         }
@@ -489,7 +491,7 @@ namespace madness {
                 return Future<iterator>(iterator(local.find(key)));
             } else {
                 Future<iterator> result;
-                send(dest, &implT::find_handler, me, key, result.remote_ref(this->world));
+                this->send(dest, &implT::find_handler, me, key, result.remote_ref(this->world));
                 return result;
             }
         }

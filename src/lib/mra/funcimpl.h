@@ -1660,7 +1660,7 @@ namespace madness {
                 else
                     ninterior++;
             }
-            send(0, &implT::put_in_box, world.rank(), nleaf, ninterior);
+            this->send(0, &implT::put_in_box, world.rank(), nleaf, ninterior);
             world.gop.fence();
             if (world.rank() == 0) {
                 for (int i=0; i<world.size(); i++) {
@@ -2096,7 +2096,7 @@ namespace madness {
                         keyT neigh = neighbor(key, keyT(key.level(),l), is_periodic);
 
                         if (neigh.is_valid()) {
-                            v[i++] = send(coeffs.owner(neigh), &implT::exists_and_has_children, neigh);
+                            v[i++] = this->send(coeffs.owner(neigh), &implT::exists_and_has_children, neigh);
                         }
                         else {
                             v[i++].set(false);
