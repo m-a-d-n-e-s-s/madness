@@ -1726,6 +1726,17 @@ namespace madness {
                   const keyT& keyin,
                   const typename Future<T>::remote_refT& ref);
 
+        /// Get the depth of the tree at a point in \em simulation coordinates
+
+        /// Only the invoking process will get the result via the
+        /// remote reference to a future.  Active messages may be sent
+        /// to other nodes.
+        ///
+        /// This function is a minimally-modified version of eval()
+        Void evaldepthpt(const Vector<double,NDIM>& xin,
+                  const keyT& keyin,
+                  const typename Future<Level>::remote_refT& ref);
+
         /// Computes norm of low/high-order polyn. coeffs for autorefinement test
 
         /// t is a k^d tensor.  In order to screen the autorefinement

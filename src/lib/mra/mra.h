@@ -164,6 +164,42 @@ namespace madness {
             return result;
         }
 
+        /// Only the invoking process will receive the result via the future
+        /// though other processes may be involved in the evaluation.
+        ///
+        /// Throws if function is not initialized.
+        ///
+        /// This function is a minimally-modified version of eval()
+        Future<Level> evaldepthpt(const coordT& xuser) const {
+            PROFILE_MEMBER_FUNC(Function);
+            const double eps=1e-15;
+            verify();
+            MADNESS_ASSERT(!is_compressed());
+            coordT xsim;
+            user_to_sim(xuser,xsim);
+            // If on the boundary, move the point just inside the
+            // volume so that the evaluation logic does not fail
+            for (int d=0; d<NDIM; d++) {
+                if (xsim[d] < -eps) {
+                    MADNESS_EXCEPTION("eval: coordinate lower-bound error in dimension", d);
+                }
+                else if (xsim[d] < eps) {
+                    xsim[d] = eps;
+                }
+
+                if (xsim[d] > 1.0+eps) {
+                    MADNESS_EXCEPTION("eval: coordinate upper-bound error in dimension", d);
+                }
+                else if (xsim[d] > 1.0-eps) {
+                    xsim[d] = 1.0-eps;
+                }
+            }
+
+            Future<Level> result;
+            impl->evaldepthpt(xsim, impl->key0(), result.remote_ref(impl->world));
+            return result;
+        }
+
         /// Evaluates a cube/slice of points (probably for plotting) ... collective but no fence necessary
 
         /// All processes recieve the entire result (which is a rather severe limit
@@ -222,6 +258,27 @@ namespace madness {
             if (is_compressed()) reconstruct();
             T result;
             if (impl->world.rank() == 0) result = eval(xuser).get();
+            impl->world.gop.broadcast(result);
+            //impl->world.gop.fence();
+            return result;
+        }
+
+        /// Throws if function is not initialized.
+        ///
+        /// This function calls mimics operator() by going through the
+        /// tree looking for the depth of the tree at the point.
+        /// It blocks until the result is
+        /// available and then broadcasts the result to everyone.
+        /// Therefore, if you are evaluating many points in parallel
+        /// it is \em vastly less efficient than calling evaldepthpt
+        /// directly, saving the futures, and then forcing all of the
+        /// results.
+        Level depthpt(const coordT& xuser) const {
+            PROFILE_MEMBER_FUNC(Function);
+            verify();
+            if (is_compressed()) reconstruct();
+            Level result;
+            if (impl->world.rank() == 0) result = evaldepthpt(xuser).get();
             impl->world.gop.broadcast(result);
             //impl->world.gop.fence();
             return result;

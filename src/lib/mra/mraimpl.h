@@ -710,6 +710,49 @@ namespace madness {
         //MADNESS_EXCEPTION("should not be here",0);
     }
 
+
+    template <typename T, int NDIM>
+    Void FunctionImpl<T,NDIM>::evaldepthpt(const Vector<double,NDIM>& xin,
+                                const keyT& keyin,
+                                const typename Future<Level>::remote_refT& ref) {
+
+        PROFILE_MEMBER_FUNC(FunctionImpl);
+        // This is ugly.  We must figure out a clean way to use
+        // owner computes rule from the container.
+        Vector<double,NDIM> x = xin;
+        keyT key = keyin;
+        Vector<Translation,NDIM> l = key.translation();
+        ProcessID me = world.rank();
+        while (1) {
+            ProcessID owner = coeffs.owner(key);
+            if (owner != me) {
+                PROFILE_BLOCK(eval_send);
+                task(owner, &implT::evaldepthpt, x, key, ref, TaskAttributes::hipri());
+                return None;
+            }
+            else {
+                typename dcT::futureT fut = coeffs.find(key);
+                typename dcT::iterator it = fut.get();
+                nodeT& node = it->second;
+                if (node.has_coeff()) {
+                    Future<Level>(ref).set(key.level());
+                    return None;
+                }
+                else {
+                    for (int i=0; i<NDIM; i++) {
+                        double xi = x[i]*2.0;
+                        int li = int(xi);
+                        if (li == 2) li = 1;
+                        x[i] = xi - li;
+                        l[i] = 2*l[i] + li;
+                    }
+                    key = keyT(key.level()+1,l);
+                }
+            }
+        }
+        //MADNESS_EXCEPTION("should not be here",0);
+    }
+
     template <typename T, int NDIM>
     void FunctionImpl<T,NDIM>::tnorm(const tensorT& t, double* lo, double* hi) const {
         PROFILE_MEMBER_FUNC(FunctionImpl);
