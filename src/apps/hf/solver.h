@@ -818,7 +818,7 @@ namespace madness
       }
       else // not periodic
       {
-        _cop = CoulombOperatorPtr<double>(_world, _params.waveorder,_params.lo, _params.thresh * 0.1);
+        _cop = CoulombOperatorPtr(_world, _params.lo, _params.thresh * 0.1);
       }
 
       if (_world.rank() == 0) print("Making nuclear potential ..\n\n");
@@ -979,8 +979,7 @@ namespace madness
       }
       else
       {
-        _cop = CoulombOperatorPtr<T,NDIM>(const_cast<World&>(world),
-            FunctionDefaults<NDIM>::get_k(), params.lo, params.thresh * 0.1);
+        _cop = CoulombOperatorPtr(const_cast<World&>(world), params.lo, params.thresh * 0.1);
       }
 
       if (params.ispotential)
@@ -1035,8 +1034,7 @@ namespace madness
           }
           else
           {
-            op = CoulombOperatorPtr<double> (_world, _params.waveorder,
-                _params.lo, _params.thresh * 0.1);
+            op = CoulombOperatorPtr(_world, _params.lo, _params.thresh * 0.1);
           }
           if (_world.rank() == 0) print("Building effective potential ...\n\n");
           rfunctionT vc = apply(*op, rho);
@@ -1318,8 +1316,7 @@ namespace madness
       }
       else
       {
-        _cop = CoulombOperatorPtr<T>(const_cast<World&>(world),
-            FunctionDefaults<NDIM>::get_k(), params.lo, params.thresh * 0.1);
+        _cop = CoulombOperatorPtr(const_cast<World&>(world), params.lo, params.thresh * 0.1);
       }
 
       if (params.ispotential)
@@ -1356,8 +1353,7 @@ namespace madness
       }
       else
       {
-        _cop = CoulombOperatorPtr<T>(const_cast<World&>(world),
-            FunctionDefaults<NDIM>::get_k(), params.lo, params.thresh * 0.1);
+        _cop = CoulombOperatorPtr(const_cast<World&>(world), params.lo, params.thresh * 0.1);
       }
 
       if (params.ispotential)
@@ -1447,7 +1443,7 @@ namespace madness
           }
           else
           {
-            bops.push_back(poperatorT(BSHOperatorPtr3D<T>(_world, sqrt(-2.0*eps), k, _params.lo, tol * 0.1)));
+            bops.push_back(poperatorT(BSHOperatorPtr3D(_world, sqrt(-2.0*eps), _params.lo, tol * 0.1)));
           }
       }
       return bops;
@@ -1460,23 +1456,26 @@ namespace madness
       double ke = 0.0;
       if (!_params.periodic)
       {
+        complex_derivative_3d Dx(_world,0);
+        complex_derivative_3d Dy(_world,1);
+        complex_derivative_3d Dz(_world,2);
         for (unsigned int i = 0; i < _phisa.size(); i++)
         {
-          for (int axis = 0; axis < 3; axis++)
-          {
-            functionT dpsi = diff(_phisa[i], axis);
-            ke += 0.5 * real(inner(dpsi, dpsi));
-          }
+          functionT dpdx = Dx(_phisa[i]);
+          functionT dpdy = Dy(_phisa[i]);
+          functionT dpdz = Dz(_phisa[i]);
+          ke += 0.5 * (real(inner(dpdx,dpdx)) + real(inner(dpdy,dpdy))
+              + real(inner(dpdz,dpdz)));
         }
         if (_params.spinpol)
         {
           for (unsigned int i = 0; i < _phisb.size(); i++)
           {
-            for (int axis = 0; axis < 3; axis++)
-            {
-              functionT dpsi = diff(_phisb[i], axis);
-              ke += 0.5 * real(inner(dpsi, dpsi));
-            }
+            functionT dpdx = Dx(_phisb[i]);
+            functionT dpdy = Dy(_phisb[i]);
+            functionT dpdz = Dz(_phisb[i]);
+            ke += 0.5 * (real(inner(dpdx,dpdx)) + real(inner(dpdy,dpdy))
+                + real(inner(dpdz,dpdz)));
           }
         }
         else
@@ -1747,12 +1746,15 @@ namespace madness
         {
           // Do the gradient term and k^2/2
           vecfuncT d_wf = zero_functions<valueT,NDIM>(_world, k_wf.size());
+          complex_derivative_3d Dx(_world,0);
+          complex_derivative_3d Dy(_world,1);
+          complex_derivative_3d Dz(_world,2);
           for (unsigned int i = 0; i < k_wf.size(); i++)
           {
             // gradient
-            functionT dx_wf = pdiff(k_wf[i], 0, true);
-            functionT dy_wf = pdiff(k_wf[i], 1, true);
-            functionT dz_wf = pdiff(k_wf[i], 2, true);
+            functionT dx_wf = Dx(k_wf[i]);
+            functionT dy_wf = Dy(k_wf[i]);
+            functionT dz_wf = Dz(k_wf[i]);
             d_wf[i] = std::complex<T>(0.0,k0)*dx_wf + 
                       std::complex<T>(0.0,k1)*dy_wf + 
                       std::complex<T>(0.0,k2)*dz_wf;

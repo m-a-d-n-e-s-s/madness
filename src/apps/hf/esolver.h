@@ -187,23 +187,23 @@ std::istream& operator >> (std::istream& is, KPoint& kpt)
   }
   //***************************************************************************
   
-  //***************************************************************************
-  template <typename Q, int NDIM>
-  Function<Q,NDIM> pdiff(const Function<Q,NDIM>& f, int axis, bool fence = true)
-  {
-    Function<Q,NDIM>& g = const_cast< Function<Q,NDIM>& >(f);
-    // Check for periodic boundary conditions
-    Tensor<int> oldbc = g.get_bc();
-    Tensor<int> bc(NDIM,2);
-    bc(___) = 1;
-    g.set_bc(bc);
-    // Do calculation
-    Function<Q,NDIM> rf = diff(g,axis,fence);
-    // Restore previous boundary conditions
-    g.set_bc(oldbc);
-    return rf;
-  }
-  //***************************************************************************
+//  //***************************************************************************
+//  template <typename Q, int NDIM>
+//  Function<Q,NDIM> pdiff(const Function<Q,NDIM>& f, int axis, bool fence = true)
+//  {
+//    Function<Q,NDIM>& g = const_cast< Function<Q,NDIM>& >(f);
+//    // Check for periodic boundary conditions
+//    Tensor<int> oldbc = g.get_bc();
+//    Tensor<int> bc(NDIM,2);
+//    bc(___) = 1;
+//    g.set_bc(bc);
+//    // Do calculation
+//    Function<Q,NDIM> rf = diff(g,axis,fence);
+//    // Restore previous boundary conditions
+//    g.set_bc(oldbc);
+//    return rf;
+//  }
+//  //***************************************************************************
 
   //***************************************************************************
   template <typename Q, int NDIM>
@@ -222,16 +222,23 @@ std::istream& operator >> (std::istream& is, KPoint& kpt)
     double ksquared = k0*k0 + k1*k1 + k2*k2;
     if (periodic)
     {
+      complex_derivative_3d Dx(world,0);
+      complex_derivative_3d Dy(world,1);
+      complex_derivative_3d Dz(world,2);
       for (int i = 0; i < n; i++)
       {
         for (int j = 0; j <= i; j++)
         {
-          functionT dv2_j = pdiff(pdiff(v[j], 0), 0) +
-                            pdiff(pdiff(v[j], 1), 1) +
-                            pdiff(pdiff(v[j], 2), 2);
-          functionT dv_j = std::complex<Q>(0.0, 2.0*k0) * pdiff(v[j], 0) +
-                           std::complex<Q>(0.0, 2.0*k1) * pdiff(v[j], 1) +
-                           std::complex<Q>(0.0, 2.0*k2) * pdiff(v[j], 2);
+//          functionT dv2_j = pdiff(pdiff(v[j], 0), 0) +
+//                            pdiff(pdiff(v[j], 1), 1) +
+//                            pdiff(pdiff(v[j], 2), 2);
+//          functionT dv_j = std::complex<Q>(0.0, 2.0*k0) * pdiff(v[j], 0) +
+//                           std::complex<Q>(0.0, 2.0*k1) * pdiff(v[j], 1) +
+//                           std::complex<Q>(0.0, 2.0*k2) * pdiff(v[j], 2);
+          functionT dv2_j = Dx(Dx(v[j])) + Dy(Dy(v[j])) + Dz(Dz(v[j]));
+          functionT dv_j = std::complex<Q>(0.0, 2.0*k0) * Dx(v[j]) +
+                           std::complex<Q>(0.0, 2.0*k1) * Dy(v[j]) +
+                           std::complex<Q>(0.0, 2.0*k2) * Dz(v[j]);
           functionT tmp = (ksquared*v[j]) - dv_j - dv2_j;
           c(i, j) = inner(v[i], tmp);
           c(j, i) = conj(c(i, j));
@@ -240,9 +247,11 @@ std::istream& operator >> (std::istream& is, KPoint& kpt)
     }
     else
     {
+      std::vector< SharedPtr < Derivative< std::complex<Q>,NDIM> > > gradop =
+          gradient_operator<std::complex<Q>,NDIM>(world);
       for (int axis = 0; axis < 3; axis++)
       {
-        std::vector< Function<std::complex<Q>,NDIM> > dv = diff(world, v, axis);
+        vecfuncT dv = apply(world, *(gradop[axis]), v);
         c += matrix_inner(world, dv, dv, true);
         dv.clear(); // Allow function memory to be freed
       }
