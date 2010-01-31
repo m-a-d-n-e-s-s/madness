@@ -90,7 +90,6 @@ SystolicEigensolver<T>::SystolicEigensolver(DistributedMatrix<T>& AV, int tag):
 template <typename T>
 void SystolicEigensolver<T>::start_iteration_hook(const TaskThreadEnv& env) {
     if ( env.id() == 0){
-        world.gop.max(maxdaij);
 
         // calculate threshold using parameters from this iteration
         tol = std::min<T>( tol, std::min<T>(maxdaij*1.0e-1, maxdaij*maxdaij) ); 
@@ -100,7 +99,6 @@ void SystolicEigensolver<T>::start_iteration_hook(const TaskThreadEnv& env) {
         niter++;
         nrot = 0;
         maxdaij = 0;
-        world.gop.max(maxd);
     }
 }
 template <typename T>
@@ -152,6 +150,8 @@ void SystolicEigensolver<T>::kernel(int i, int j, T* rowi, T* rowj) {
 template <typename T>
 void SystolicEigensolver<T>::end_iteration_hook(const TaskThreadEnv &env) {
     if( env.id() == 0 ) {
+        world.gop.max(maxdaij);
+        world.gop.max(maxd);
         world.gop.sum(nrot);
         nrotsum += nrot;
     }
@@ -173,17 +173,26 @@ bool SystolicEigensolver<T>::converged(const TaskThreadEnv& env) const {
     }
 }
 
+void START_TIMER(World& world) {
+}
+
+void END_TIMER(World& world, const char* msg) {
+}
+
+double ttt, sss;
 int main(int argc, char** argv) {
     initialize(argc, argv);
 
     madness::World world(MPI::COMM_WORLD);
 
-    redirectio(world); /* redirect a results to file "log.<number of processor>" */
+    //redirectio(world); /* redirect a results to file "log.<number of processor>" */
 
     try {
-        print("Test of Eigen solver");
-        print("result: size time");
-        print("check: size max(off-diagonal) max(diagonal) max(V^TAV-lambdaE)");
+        if( world.rank() == 0 ) {
+            print("Test of Eigen solver");
+            print("result: size parallel cpu_time wall_time");
+            print("check: size max(off-diagonal) max(diagonal) max(V^TAV-lambdaE)");
+        }
         std::srand(time(NULL));
         int64_t pow[2];
         for (int64_t n=2; n<=256; n*=2) {
@@ -213,22 +222,23 @@ int main(int argc, char** argv) {
             }
             world.gop.broadcast(sym_tensor.ptr(), sym_tensor.size(), 0);
             world.gop.fence(); // end of making symmetolic matrix
-
+            ttt=wall_time(); sss=cpu_time();
             // broad cast matrix element then each processor copys elements
             DistributedMatrix<double> AV = column_distributed_matrix<double>(world, n, n*2);
             AV.copyin(sym_tensor);
             //if( n < 4 ) print(AV.data()); // for check
 
-            double t = cpu_time();
             world.taskq.add(new SystolicEigensolver<double>(AV, 3333));
             world.taskq.fence();
-            print("result:", n, cpu_time()-t);
 
             // gather all data on whole porcessors
             // NOTE: since I wanted to use each colmuns as a sequence, both of the results are transposed
             Tensor<double> eigens( n, n*2 );
             AV.copyout(eigens);
             world.gop.sum(eigens.ptr(), eigens.size());
+            world.gop.fence();
+            ttt=wall_time()-ttt; sss=cpu_time()-sss;
+            if (world.rank()==0) printf("timer: %05d %04d %8.2fs %8.2fs\n", (int)n, (int)world.size(), sss, ttt);
 
             Tensor<double> eigvec = transpose( eigens(_, Slice(n, -1)) );
             Tensor<double> eig_val = inner( eigens(_, Slice(0, n-1)), eigvec );

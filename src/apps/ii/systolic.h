@@ -321,17 +321,18 @@ namespace madness {
     template <typename T>
     class SystolicMatrixAlgorithm : public TaskInterface {
     private:
-        DistributedMatrix<T>& A;
-        const int64_t nproc;            //< No. of processes with rows of the matrix (not size of world)
-        const int64_t coldim;           //< A(coldim,rowdim)
-        const int64_t rowdim;           //< A(coldim,rowdim)
-        const int64_t nlocal;           //< No. of local pairs
+        DistributedMatrix<T>& A;        //< internal data
+        int64_t nproc;                  //< No. of processes with rows of the matrix (not size of world)
+        int64_t coldim;                 //< A(coldim,rowdim)
+        int64_t rowdim;                 //< A(coldim,rowdim)
+        int64_t nlocal;                 //< No. of local pairs
         const ProcessID rank;           //< Rank of current process
         const int tag;                  //< MPI tag to be used for messages
         std::vector<T*> iptr, jptr;     //< Indirection for implementing cyclic buffer !! SHOULD BE VOLATILE ?????
         std::vector<int64_t> map;       //< Used to keep track of actual row indices
 
         void iteration(const TaskThreadEnv& env) {
+            env.barrier();
             start_iteration_hook(env);
             env.barrier();
 
@@ -363,7 +364,7 @@ namespace madness {
                     }
                 }
                 env.barrier();
-                                         
+
                 if (threadid == 0) cycle();
 
                 env.barrier();
@@ -513,7 +514,8 @@ namespace madness {
                 jptr[nlocal-1] = ilast;
             }
         }
-        
+
+
     public:
         /// A must be a column distributed matrix with an even column tile >= 2
         SystolicMatrixAlgorithm(DistributedMatrix<T>& A, int tag, int nthread=ThreadPool::size()+1) 
@@ -612,6 +614,7 @@ namespace madness {
         /// without any synchronization.
         void solve() { run(A.get_world(), TaskThreadEnv(1,0,0)); }
 
+
         /// Returns length of row
         int get_rowdim() const {return rowdim;}
 
@@ -623,6 +626,7 @@ namespace madness {
 
         /// Returns rank of this process in the world
         ProcessID get_rank() const{ return rank; }
+
     };
 
     template <typename T>
@@ -648,6 +652,9 @@ namespace madness {
             if (doprint) madness::print("Start boys localization\n");
         }
 
+        virtual ~LocalizeBoys() {}   
+
+        /*
         Tensor<T> get_U(){
             int64_t ilo,ihi;
             M.local_colrange(ilo, ihi);
@@ -656,6 +663,7 @@ namespace madness {
 
             return transpose( result );
         }
+        */
 
         void start_iteration_hook(const TaskThreadEnv& env);
         void kernel(int i, int j, T* rowi, T* rowj);
