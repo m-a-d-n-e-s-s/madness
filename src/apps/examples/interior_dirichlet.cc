@@ -264,10 +264,12 @@ int main(int argc, char **argv) {
     // make an initial guess
     usol = copy(uinhomog);
     DirichletCondIntOp dcio(G, b);
-    FunctionSpace<double, 3> space;
-    int maxiters = 25;
-    double solver_thresh = 1.0e-4;
-    GMRES(space, dcio, uinhomog, usol, maxiters, solver_thresh, true);
+    FunctionSpace<double, 3> space(world);
+    int maxiters = 20;
+    double resid_thresh = 1.0e-2;
+    double update_thresh = 1.0e-2;
+    GMRES(space, dcio, uinhomog, usol, maxiters, resid_thresh, update_thresh,
+        true);
     
     real_function_3d exact = real_factory_3d(world).f(exact_sol);
     double error = ((usol - exact)*phi).norm2();

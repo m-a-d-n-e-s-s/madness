@@ -213,7 +213,7 @@ int main(int argc, char **argv) {
 	tests[11] = cplxfunc2;
 	sprintf(names[11], "Testing complex functions, >1-step convergence");
 
-        initialize(argc, argv);
+   initialize(argc, argv);
 	World world(MPI::COMM_WORLD);
 	worldptr = &world;
 	startup(world,argc,argv);
@@ -237,7 +237,7 @@ int main(int argc, char **argv) {
 
 	printf("%d of %d tests passed\n", passed, NTESTS);
 
-        finalize();
+   finalize();
 
 	return 0;
 }
@@ -247,7 +247,8 @@ bool realvec0() {
 	RealVecIdentOp lo;
 	VectorSpace<double, 3> space;
 	Vector<double, 3> x, b;
-	double thresh = 5.0e-4;
+	double resid_thresh = 5.0e-4;
+	double update_thresh = 1.0e-10;
 	int maxiters = 10;
 
 	b[0] = 1.0;
@@ -255,7 +256,7 @@ bool realvec0() {
 	b[2] = 3.0;
 	x = b;
 
-	GMRES(space, lo, b, x, maxiters, thresh, true);
+	GMRES(space, lo, b, x, maxiters, resid_thresh, update_thresh, true);
 	// solution is [1,2,3]
 	return space.norm(x-b) < 5.0e-4;
 }
@@ -265,7 +266,8 @@ bool realvec1() {
 	RealVecIdentOp lo;
 	VectorSpace<double, 3> space;
 	Vector<double, 3> x, b;
-	double thresh = 5.0e-4;
+	double resid_thresh = 5.0e-4;
+	double update_thresh = 1.0e-10;
 	int maxiters = 10;
 
 	b[0] = 1.0;
@@ -273,7 +275,7 @@ bool realvec1() {
 	b[2] = 3.0;
 	x = 0.0;
 
-	GMRES(space, lo, b, x, maxiters, thresh, true);
+	GMRES(space, lo, b, x, maxiters, resid_thresh, update_thresh, true);
 	// solution is [1,2,3]
 	return space.norm(x-b) < 5.0e-4;
 }
@@ -283,7 +285,8 @@ bool realvec2() {
 	RealVecLinearOp lo;
 	VectorSpace<double, 3> space;
 	Vector<double, 3> x, b;
-	double thresh = 5.0e-4;
+	double resid_thresh = 5.0e-4;
+	double update_thresh = 1.0e-10;
 	int maxiters = 10;
 
 	b[0] = 1.0;
@@ -291,7 +294,7 @@ bool realvec2() {
 	b[2] = 3.0;
 	x = 0.0;
 
-	GMRES(space, lo, b, x, maxiters, thresh, true);
+	GMRES(space, lo, b, x, maxiters, resid_thresh, update_thresh, true);
 	// solution is [0,2,1]
 	b[0] = 0.0; b[1] = 2.0; b[2] = 1.0;
 	return space.norm(x-b) < 5.0e-4;
@@ -302,7 +305,8 @@ bool cplxvec0() {
 	ComplexVecIdentOp lo;
 	VectorSpace<std::complex<double>, 3> space;
 	Vector<std::complex<double>, 3> x, b;
-	double thresh = 5.0e-4;
+	double resid_thresh = 5.0e-4;
+	double update_thresh = 1.0e-10;
 	int maxiters = 10;
 
 	b[0] = std::complex<double>(1.0, 2.0);
@@ -310,7 +314,7 @@ bool cplxvec0() {
 	b[2] = std::complex<double>(3.0, 0.0);
 	x = b;
 
-	GMRES(space, lo, b, x, maxiters, thresh, true);
+	GMRES(space, lo, b, x, maxiters, resid_thresh, update_thresh, true);
 	// solution is [(1,2), (2,1), (3,0)]
 	return space.norm(x-b) < 5.0e-4;
 }
@@ -320,7 +324,8 @@ bool cplxvec1() {
 	ComplexVecIdentOp lo;
 	VectorSpace<std::complex<double>, 3> space;
 	Vector<std::complex<double>, 3> x, b;
-	double thresh = 5.0e-4;
+	double resid_thresh = 5.0e-4;
+	double update_thresh = 1.0e-10;
 	int maxiters = 10;
 
 	b[0] = std::complex<double>(1.0, 2.0);
@@ -328,7 +333,7 @@ bool cplxvec1() {
 	b[2] = std::complex<double>(3.0, 0.0);
 	x = 0.0;
 
-	GMRES(space, lo, b, x, maxiters, thresh, true);
+	GMRES(space, lo, b, x, maxiters, resid_thresh, update_thresh, true);
 	// solution is [(1,2), (2,2), (3,0)]
 	return space.norm(x-b) < 5.0e-4;
 }
@@ -338,7 +343,8 @@ bool cplxvec2() {
 	ComplexVecLinearOp lo;
 	VectorSpace<std::complex<double>, 3> space;
 	Vector<std::complex<double>, 3> x, b;
-	double thresh = 5.0e-4;
+	double resid_thresh = 5.0e-4;
+	double update_thresh = 1.0e-10;
 	int maxiters = 10;
 
 	b[0] = std::complex<double>(1.0, 2.0);
@@ -346,7 +352,7 @@ bool cplxvec2() {
 	b[2] = std::complex<double>(3.0, 0.0);
 	x = 0.0;
 
-	GMRES(space, lo, b, x, maxiters, thresh, true);
+	GMRES(space, lo, b, x, maxiters, resid_thresh, update_thresh, true);
 	// solution is in the following vector
 	b[0] = std::complex<double>(142537429.0, 13617861.0) / 1013086721.0;
 	b[1] = std::complex<double>(114173858.0, 105798015.0) / 1013086721.0;
@@ -355,16 +361,8 @@ bool cplxvec2() {
 }
 
 /// Some functions for testing MADNESS Functions...
-static double zerofunc(const Vector<double, 3> &pt) {
-	return 0.0;
-}
-
 static double magfunc(const Vector<double, 3> &pt) {
 	return sqrt(pt[0]*pt[0] + pt[1]*pt[1] + pt[2]*pt[2]);
-}
-
-static std::complex<double> zzerofunc(const Vector<double, 3> &pt) {
-	return 0.0;
 }
 
 static std::complex<double> zmagfunc(const Vector<double, 3> &pt) {
@@ -381,46 +379,49 @@ inline static void invert(const Key<3> &key, Tensor<T> &t) {
 /// test real functions, converge after 0 steps
 bool realfunc0() {
 	RealFuncIdentOp lo;
-	FunctionSpace<double, 3> space;
+	FunctionSpace<double, 3> space(*worldptr);
 	Function<double, 3> x, b;
-	double thresh = 1.0e-3;
+	double resid_thresh = 1.0e-3;
+	double update_thresh = 1.0e-10;
 	int maxiters = 10;
 
 	b = FunctionFactory<double, 3>(*worldptr).f(magfunc);
 	b.truncate();
 	x = copy(b);
 
-	GMRES(space, lo, b, x, maxiters, thresh, true);
+	GMRES(space, lo, b, x, maxiters, resid_thresh, update_thresh, true);
 	return space.norm(x-b) < 1.0e-3;
 }
 
 /// test real functions, converge after 1 step
 bool realfunc1() {
 	RealFuncIdentOp lo;
-	FunctionSpace<double, 3> space;
+	FunctionSpace<double, 3> space(*worldptr);
 	Function<double, 3> x, b;
-	double thresh = 1.0e-3;
+	double resid_thresh = 1.0e-3;
+	double update_thresh = 1.0e-10;
 	int maxiters = 10;
 
 	b = FunctionFactory<double, 3>(*worldptr).f(magfunc);
 	b.truncate();
-	x = FunctionFactory<double, 3>(*worldptr).f(zerofunc);
+	x = FunctionFactory<double, 3>(*worldptr); // zero function
 	x.truncate();
 
-	GMRES(space, lo, b, x, maxiters, thresh, true);
+	GMRES(space, lo, b, x, maxiters, resid_thresh, update_thresh, true);
 	return space.norm(x-b) < 1.0e-3;
 }
 
 /// test real functions, converge after >1 steps
 bool realfunc2() {
-	FunctionSpace<double, 3> space;
+	FunctionSpace<double, 3> space(*worldptr);
 	Function<double, 3> x, b, mult;
-	double thresh = 1.0e-3;
+	double resid_thresh = 1.0e-3;
+	double update_thresh = 1.0e-10;
 	int maxiters = 10;
 
 	b = FunctionFactory<double, 3>(*worldptr).f(magfunc);
 	b.truncate();
-	x = FunctionFactory<double, 3>(*worldptr).f(zerofunc);
+	x = FunctionFactory<double, 3>(*worldptr); // zero function
 	x.truncate();
 	mult = copy(b);
 	mult.add_scalar(1.0);
@@ -428,7 +429,7 @@ bool realfunc2() {
 
 	RealFuncLinearOp lo(mult);
 
-	GMRES(space, lo, b, x, maxiters, thresh, true);
+	GMRES(space, lo, b, x, maxiters, resid_thresh, update_thresh, true);
 
 	// compute the actual solution
 	mult.unaryop(&invert<double>);
@@ -440,46 +441,49 @@ bool realfunc2() {
 /// test complex functions, converge after 0 steps
 bool cplxfunc0() {
 	ComplexFuncIdentOp lo;
-	FunctionSpace<std::complex<double>, 3> space;
+	FunctionSpace<std::complex<double>, 3> space(*worldptr);
 	Function<std::complex<double>, 3> x, b;
-	double thresh = 1.0e-3;
+	double resid_thresh = 1.0e-3;
+	double update_thresh = 1.0e-10;
 	int maxiters = 10;
 
 	b = FunctionFactory<std::complex<double>, 3>(*worldptr).f(zmagfunc);
 	b.truncate();
 	x = copy(b);
 
-	GMRES(space, lo, b, x, maxiters, thresh, true);
+	GMRES(space, lo, b, x, maxiters, resid_thresh, update_thresh, true);
 	return space.norm(x-b) < 1.0e-3;
 }
 
 /// test complex functions, converge after 1 step
 bool cplxfunc1() {
 	ComplexFuncIdentOp lo;
-	FunctionSpace<std::complex<double>, 3> space;
+	FunctionSpace<std::complex<double>, 3> space(*worldptr);
 	Function<std::complex<double>, 3> x, b;
-	double thresh = 1.0e-3;
+	double resid_thresh = 1.0e-3;
+	double update_thresh = 1.0e-10;
 	int maxiters = 10;
 
 	b = FunctionFactory<std::complex<double>, 3>(*worldptr).f(zmagfunc);
 	b.truncate();
-	x = FunctionFactory<std::complex<double>, 3>(*worldptr).f(zzerofunc);
+	x = FunctionFactory<std::complex<double>, 3>(*worldptr); // zero function
 	x.truncate();
 
-	GMRES(space, lo, b, x, maxiters, thresh, true);
+	GMRES(space, lo, b, x, maxiters, resid_thresh, update_thresh, true);
 	return space.norm(x-b) < 1.0e-3;
 }
 
 /// test complex functions, converge after >1 steps
 bool cplxfunc2() {
-	FunctionSpace<std::complex<double>, 3> space;
+	FunctionSpace<std::complex<double>, 3> space(*worldptr);
 	Function<std::complex<double>, 3> x, b, mult;
-	double thresh = 2.0e-3;
+	double resid_thresh = 2.0e-3;
+	double update_thresh = 1.0e-10;
 	int maxiters = 25;
 
 	b = FunctionFactory<std::complex<double>, 3>(*worldptr).f(zmagfunc);
 	b.truncate();
-	x = FunctionFactory<std::complex<double>, 3>(*worldptr).f(zzerofunc);
+	x = FunctionFactory<std::complex<double>, 3>(*worldptr); // zero function
 	x.truncate();
 	mult = copy(b);
 	mult.add_scalar(std::complex<double>(1.0, 1.0));
@@ -487,7 +491,7 @@ bool cplxfunc2() {
 
 	ComplexFuncLinearOp lo(mult);
 
-	GMRES(space, lo, b, x, maxiters, thresh, true);
+	GMRES(space, lo, b, x, maxiters, resid_thresh, update_thresh, true);
 
 	// compute the actual solution
 	mult.unaryop(&invert<double_complex>);
