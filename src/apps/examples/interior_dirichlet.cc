@@ -35,12 +35,12 @@
     \brief This file demonstrates solving a problem with interior (embedded)
     Dirichlet conditions.
 
-    The signed_distance_functions shapes (mra/sdf_shape.h and
+    The signed_distance_functions shapes (mra/sdf_domainmask.h and
     mra/sdf_shape_3D.h) are used to specify a sphere of radius 1 centered
     at the origin.  A Dirichlet condition (dir_cond) is imposed on this sphere.
 
     After constructing the mask and the imposed boundary condition, the
-    following routine is used to solve the equation (see the Lowengrub paper).
+    following routine is used to solve the equation (see the Li et al. paper).
 
     Suppose \f$\varphi\f$ is the mask function (1 on the inside, 0 on the
     outside, blurry on the boundary), \f$u\f$ is the desired function, \f$d\f$
@@ -49,18 +49,20 @@
     is its free-space Green's function.
 
     The DE is \f$ \mathcal{L} u = f\f$ in the domain, and
-        \f[ \mathcal{L}u - b(\varphi) (u - d) = \varphi f, \f]
-    where \f$b(\varphi) = 36 \varepsilon^{-3} \varphi^2 (1 - \varphi)^2\f$ and
+        \f[ \mathcal{L}u - \varepsilon^{-2} b(\varphi) (u - d) = \varphi f, \f]
+    where \f$b(\varphi) = 36 \varepsilon^{-1} \varphi^2 (1 - \varphi)^2\f$ and
     \f$\varepsilon\f$ is the thickness of the surface layer.
 
     Applying the Green's function:
-        \f[ u - G*( b(\varphi) u) == G*(\varphi f) - G*( b(\varphi) d). \f]
+        \f[ u - \varepsilon^{-2} G*( b(\varphi) u) == G*(\varphi f) -
+            \varepsilon^{-2} G*( b(\varphi) d). \f]
     Thus, solving this problem involves a linear solve, as provided by GMRES.
 
-    To run this code, at least two command-line arguments are needed:
-      1) the width of the surface layer (0.1 at the largest, 0.01 seems ok)
-      2) 0 for the Poisson equation, 1 for the (BS) Helmholtz equation
-      3) if Helmholtz, the frequency
+    In this example, \f$\mathcal{L} = \nabla^2\f$, \f$ f(\vec{x}) = 0 \f$,
+    and \f$ d(\theta, \phi) = Y_1^0(\theta, \phi) \f$ on the boundary
+    (the unit sphere).
+
+    The analytical solution \b inside the sphere is \f$u(\vec{x}) = z\f$.
 */
 
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
@@ -68,137 +70,75 @@
 #include <linalg/gmres.h>
 #include <mra/sdf_shape_3D.h>
 
-/// \brief The width of the sphere's surface, \f$\varepsilon\f$.
-double eps;
-
-/// \brief \f$1/\varepsilon\f$
-double inveps;
-
-/// \brief Is this a Helmholtz problem? (\f$k\neq0\f$?)
-bool is_helmholtz;
-
-/// \brief \f$k\f$ for a Helmholtz problem
-double helmholtz_k;
-
 using namespace madness;
-
-/// \brief Threshold for MADNESS.
-static const double thresh = 1e-4;
-
-/// \brief One-tenth of threshold
-static const double thresh1 = thresh*0.1;
 
 /** \brief The Dirichlet condition on the sphere.
 
     @param pt The point at which to evaluate; \f$|pt|=1\f$.
     @return The Dirichlet condition. */
 static double dir_cond(const coord_3d &pt) {
-	// Y_1^0
-	const double r = sqrt(pt[0]*pt[0] + pt[1]*pt[1] + pt[2]*pt[2]);
+   // Y_1^0
+   const double r = sqrt(pt[0]*pt[0] + pt[1]*pt[1] + pt[2]*pt[2]);
 
-	return pt[2] / r;
-}
-
-/** \brief The inhomogeneity -- right-hand-side of the PDE.
-
-    \param pt The point at which to evaluate.
-    \return The inhomgeneity. */
-static double f_rhs(const coord_3d &pt) {
-	return 0.0;
+   return pt[2] / r;
 }
 
 /** \brief The exact solution, for comparison (only valid inside the sphere).
 
-     \param pt The point at which to evaluate.
-     \return The exact solution. */
+    \param pt The point at which to evaluate.
+    \return The exact solution. */
 static double exact_sol(const coord_3d & pt) {
-	const double r = sqrt(pt[0]*pt[0] + pt[1]*pt[1] + pt[2]*pt[2]);
+   const double r = sqrt(pt[0]*pt[0] + pt[1]*pt[1] + pt[2]*pt[2]);
 
-	if(r < 1.0e-3)
-		return 0.0;
-
-	if(is_helmholtz) {
-		return (sinh(helmholtz_k*r) - helmholtz_k*r*cosh(helmholtz_k*r)) /
-			(sinh(helmholtz_k) - helmholtz_k*cosh(helmholtz_k)) * pt[2] /
-			(r*r*r);
-	}
-	else {
-		return pt[2];
-	}
+   if(r < 1.0e-3)
+      return 0.0;
+   else
+      return pt[2];
 }
 
 /// \brief The operator needed for solving for \f$u\f$ with GMRES
 class DirichletCondIntOp : public Operator<real_function_3d> {
-	protected:
-		/// \brief The Green's function
-		const SeparatedConvolution<double,3> &G;
-		/// \brief The surface function, \f$b\f$
-		const real_function_3d &b;
+   protected:
+      /// \brief The Green's function
+      const SeparatedConvolution<double,3> &G;
+      /// \brief The surface function, \f$b\f$
+      const real_function_3d &b;
 
       /** \brief Applies the operator to \c invec
 
-		    \param[in] invec The input vector
-		    \param[out] outvec The action of the Green's function on \c invec */
-		void action(const real_function_3d &invec, real_function_3d &outvec)
-			const {
-                    outvec = invec - G(b*invec);
-                    outvec.truncate();
-		}
+          \param[in] invec The input vector
+          \param[out] outvec The action of the Green's function on \c invec */
+      void action(const real_function_3d &invec, real_function_3d &outvec)
+         const {
 
-	public:
-		DirichletCondIntOp(const SeparatedConvolution<double, 3> &gin,
-			const real_function_3d &bin)
-			: G(gin), b(bin) {}
+         outvec = invec - G(b*invec);
+         outvec.truncate();
+      }
+
+   public:
+      DirichletCondIntOp(const SeparatedConvolution<double, 3> &gin,
+         const real_function_3d &bin)
+         : G(gin), b(bin) {}
 };
 
 
-//*****************************************************************************
-// C++ function to solve an embedded Dirichlet problem.
 int main(int argc, char **argv) {
+    double eps, inveps;
+
     initialize(argc,argv);
     World world(MPI::COMM_WORLD);
     startup(world,argc,argv);
     
-    if (world.rank() == 0) {
-        // get the helmholtz_k value from the command-line
-        if(argc < 3) {
-            std::cerr << "Usage error: ./app_name eps (0 Poisson, 1 Helmholtz) " \
-                "[helmholtz_k]" << std::endl;
-            error("bad number of arguments");
-        }
-        
-        eps = atof(argv[1]);
-        if(eps <= 0.0) error("eps must be positive, and hopefully small");
-    
-        switch(atoi(argv[2])) {
-        case 0:
-            is_helmholtz = false;
-            helmholtz_k = 0.0;
-            break;
-        case 1:
-            is_helmholtz = true;
-            if(argc < 4 || (helmholtz_k = atof(argv[3])) == 0.0)
-                error("Must specify a helmholtz_k != 0 for a Helmholtz problem");
-            break;
-        default:
-            error("Only 0 (Poisson) and 1 (Helmholtz) are accepted.");
-	}
-    }
-    world.gop.broadcast(eps);
-    world.gop.broadcast(is_helmholtz);
-    world.gop.broadcast(helmholtz_k);
+    eps = 0.1;
     inveps = 1.0 / eps;
-
     
     // Function defaults
     int k = 6;
+    double thresh = 1.0e-4;
     FunctionDefaults<3>::set_k(k);
     FunctionDefaults<3>::set_cubic_cell(-2.0, 2.0);
     FunctionDefaults<3>::set_thresh(thresh);
     FunctionDefaults<3>::set_max_refine_level(6);
-    
-    // create the forcing function inhomogeneity
-    real_function_3d f = real_factory_3d(world).f(f_rhs);
     
     // create the Dirichlet boundary condition, expanded throughout the domain
     real_function_3d d = real_factory_3d(world).f(dir_cond);
@@ -215,13 +155,20 @@ int main(int argc, char **argv) {
 
     // make the functor
     SharedPtr< DomainMaskSDFFunctor<3> > functor = SharedPtr<
-        DomainMaskSDFFunctor<3> >(new DomainMaskSDFFunctor<3>(llrvmask, sphere));
+        DomainMaskSDFFunctor<3> >(
+            new DomainMaskSDFFunctor<3>(llrvmask, sphere));
     
     real_function_3d phi = real_factory_3d(world).functor(functor);
 
     // create the surface function
     functor->setMaskFunction(DomainMaskSDFFunctor<3>::SURFACE);
     real_function_3d b = real_factory_3d(world).functor(functor);
+
+    // check the surface area of the sphere
+    double surfarea = b.trace();
+    if(world.rank() == 0)
+        printf("Error in surface area: %.6e\n",
+            fabs(surfarea - 4.0*constants::pi));
     
     // scale the surface by \f$-\varepsilon^{-2}\f$
     // The two powers of \f$\varepsilon\f$ are from the auxiliary DE in
@@ -233,10 +180,10 @@ int main(int argc, char **argv) {
     // setup the Green's function
     // NOTE that CoulombOperator essentially makes the BSH w/ k == 0.0,
     // and then rescales by 4 pi.  This is more consistent.
-    real_convolution_3d G = BSHOperator<3>(world, helmholtz_k, eps*0.1, thresh);
+    real_convolution_3d G = BSHOperator<3>(world, 0.0, eps*0.1, thresh);
     
     // compute the inhomogeneous portion
-    real_function_3d usol = phi*f + b*d; // should be -b*d, but b accounts for -G
+    real_function_3d usol = b*d; // should be -b*d, but b accounts for -G
     real_function_3d uinhomog = G(usol).truncate();
     uinhomog.scale(-1.0); // add the -1 from the Green's function
     uinhomog.truncate();
@@ -256,7 +203,8 @@ int main(int argc, char **argv) {
     
     real_function_3d exact = real_factory_3d(world).f(exact_sol);
     double error = ((usol - exact)*phi).norm2();
-    printf("   u error: %.10e\n", error);
+    if(world.rank() == 0)
+        printf("   u error: %.10e\n", error);
     
     // set up file output
     char filename[100];
