@@ -74,7 +74,7 @@ double eps;
 /// \brief \f$1/\varepsilon\f$
 double inveps;
 
-/// \brief Is this a Helmholtz problem (\f$k\neq0\f$?)
+/// \brief Is this a Helmholtz problem? (\f$k\neq0\f$?)
 bool is_helmholtz;
 
 /// \brief \f$k\f$ for a Helmholtz problem
@@ -208,8 +208,6 @@ int main(int argc, char **argv) {
     FunctionDefaults<3>::set_k(k);
     FunctionDefaults<3>::set_cubic_cell(-2.0, 2.0);
     FunctionDefaults<3>::set_thresh(thresh);
-    //FunctionDefaults<3>::set_initial_level(4);
-    /// the following line can be commented out if memory is not an issue
     FunctionDefaults<3>::set_max_refine_level(6);
     
     // create the forcing function inhomogeneity
@@ -234,17 +232,15 @@ int main(int argc, char **argv) {
     
     real_function_3d phi = real_factory_3d(world).functor(functor);
 
-    // THIS FORMULATION OF B IS OLD SCHOOL AND SHOULD BE REPLACED BY
-    // THE SURFACE OPTION ON THE FUNCTOR
-    real_function_3d b = copy(phi);
-    phi.truncate();
-    b.unaryop(&b_phi<double>);
+    // create the surface function
+    functor->setMaskFunction(DomainMaskSDFFunctor<3>::SURFACE);
+    real_function_3d b = real_factory_3d(world).functor(functor);
     
-    // apply the scale factor to b
-    // scale is (36 / epsilon), which normalizes b, -1 from the Green's function
-    b.scale(-36.0 * inveps);
-    // add in more scaling (essentially a penalty)
-    b.scale(inveps * inveps);
+    // scale the surface by \f$-\varepsilon^{-2}\f$
+    // The two powers of \f$\varepsilon\f$ are from the auxiliary DE in
+    // LLRV: the surface function \c b always appears with this factor.
+    // The -1 is from the fact that MADNESS BSHOperator gives -G.
+    b.scale(-inveps * inveps);
     b.truncate();
     
     // setup the Green's function
@@ -276,7 +272,7 @@ int main(int argc, char **argv) {
     printf("   u error: %.10e\n", error);
     
     // set up file output
-    char filename[100];
+    /*char filename[100];
     sprintf(filename, "interior.vts");
     Vector<double, 3> plotlo, plothi;
     Vector<long, 3> npts;
@@ -288,7 +284,7 @@ int main(int argc, char **argv) {
     plotvtk_begin(world, filename, plotlo, plothi, npts);
     plotvtk_data(usol, "usol", world, filename, plotlo, plothi, npts);
     plotvtk_data(exact, "exact", world, filename, plotlo, plothi, npts);
-    plotvtk_end<3>(world, filename);
+    plotvtk_end<3>(world, filename);*/
     
     finalize();
     
