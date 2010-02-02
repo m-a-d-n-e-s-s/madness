@@ -127,19 +127,6 @@ static double exact_sol(const coord_3d & pt) {
 	}
 }
 
-/** \brief Gives the surface function, \f$B(\varphi(x)) = \varphi^2 (1-\varphi)^2\f$.
-
-     This is a unary op, given the \f$\varphi(x)\f$ function, it computes
-     \f$b\f$ pointwise.
-
-     This function should probably be deprecated with the new sdf_shape
-     library that accounts for surfaces... */
-template <typename T>
-inline static void b_phi(const Key<3> &key, Tensor<T> & t) {
-	UNARY_OPTIMIZED_ITERATOR(T, t,
-		*_p0 = (*_p0) * (*_p0) * (1.0-(*_p0)) * (1.0-(*_p0)));
-}
-
 /// \brief The operator needed for solving for \f$u\f$ with GMRES
 class DirichletCondIntOp : public Operator<real_function_3d> {
 	protected:
@@ -272,7 +259,7 @@ int main(int argc, char **argv) {
     printf("   u error: %.10e\n", error);
     
     // set up file output
-    /*char filename[100];
+    char filename[100];
     sprintf(filename, "interior.vts");
     Vector<double, 3> plotlo, plothi;
     Vector<long, 3> npts;
@@ -284,7 +271,7 @@ int main(int argc, char **argv) {
     plotvtk_begin(world, filename, plotlo, plothi, npts);
     plotvtk_data(usol, "usol", world, filename, plotlo, plothi, npts);
     plotvtk_data(exact, "exact", world, filename, plotlo, plothi, npts);
-    plotvtk_end<3>(world, filename);*/
+    plotvtk_end<3>(world, filename);
     
     finalize();
     
