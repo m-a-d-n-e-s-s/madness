@@ -127,11 +127,6 @@ namespace madness {
 
                 Unless otherwise specified, do nothing. */
             virtual void destroy(T &) const {}
-
-            /** \brief Sets the vector to the zero element of the vector space
-                       \f[ \vec{x} \leftarrow \vec{0} \f]
-            */
-            virtual void zero(T &) const = 0;
     };
 
     // Real part of a real number
@@ -218,11 +213,6 @@ namespace madness {
 
                 return ret;
             }
-
-            virtual void zero(Vector<scalar_type, NDIM> &v) const {
-                for(int i = 0; i < NDIM; ++i)
-                    v[i] = 0.0;
-            }
     };
 
     /// \brief A vector space using MADNESS Functions
@@ -271,12 +261,6 @@ namespace madness {
 
             virtual void destroy(Function<scalar_type, NDIM> &f) const {
                 f.clear();
-            }
-
-            virtual void zero(Function<scalar_type, NDIM> &f) const {
-                f = FunctionFactory<scalar_type, NDIM>(world)
-                        .truncate_on_project();
-                f.compress();
             }
     };
 
@@ -345,15 +329,6 @@ namespace madness {
                 for(int i = 0; i < VDIM; ++i)
                     f[i].clear();
             }
-
-            virtual void zero(Vector<Function<scalar_type, FDIM>, VDIM> &f)
-                    const {
-                for(int i = 0; i < VDIM; ++i) {
-                    f[i] = FunctionFactory<scalar_type, FDIM>(world)
-                               .truncate_on_project();
-                    f[i].compress();
-                }
-            }
     };
 
     /** \brief  A GMRES solver routine for linear systems,
@@ -400,10 +375,10 @@ namespace madness {
         int iter, i;
         long rank;
         std::vector<T> V;
-        T r, xold, xnew;
+        T r;
         Tensor<scalar_type> H(maxiters+1, maxiters);
         Tensor<scalar_type> betae(maxiters+1);
-        Tensor<scalar_type> y;
+        Tensor<scalar_type> y, yold;
         Tensor<real_type> s;
         Tensor<real_type> sumsq;
         real_type resid, norm, updatenorm;
@@ -449,21 +424,29 @@ namespace madness {
             gelss(H(Slice(0, iter), Slice(0, iter-1)), betae(Slice(0, iter)),
                 1.0e-12, y, s, rank, sumsq);
 
+            // residual from the least-squares fit
             resid = sumsq[0];
 
-            // build the solution vector for this iteration, neglecting
-            // the initial guess, x
-            space.zero(xnew);
-            for(i = 0; i < iter; ++i)
-                space.gaxpy(xnew, 1.0, V[i], y[i]);
-
+            // compute the update norm,
+            // || x_n - x_{n-1} ||
+            //     = || (x_0 + V_n y_n) - (x_0 + V_{n-1} y_{n-1}) ||
+            //     = || V_n (y_n - y_{n-1}) ||, assuming y_{n-1}[n] = 0
+            //     = || y_n - y_{n-1} ||
             if(iter == 1)
-                updatenorm = space.norm(xnew);
+                updatenorm = y.normf();
             else {
-                updatenorm = space.norm(xnew - xold);
-                space.destroy(xold);
+                scalar_type temp = y[0] - yold[0];
+                updatenorm = real(temp)*real(temp) + imag(temp)*imag(temp);
+                for(i = 1; i < iter-1; ++i) {
+                    temp = y[i] - yold[i];
+                    updatenorm += real(temp)*real(temp) +
+                                  imag(temp)*imag(temp);
+                }
+                updatenorm += real(y[iter-1]) * real(y[iter-1]) +
+                              imag(y[iter-1]) * imag(y[iter-1]);
+                updatenorm = sqrt(updatenorm);
             }
-            xold = xnew;
+            yold = copy(y);
 
             if(norm < 1.0e-10) {
                 // we just got the zero vector -> no more progress
@@ -500,17 +483,14 @@ namespace madness {
             }
 
             ++iter;
-        } while(iter < maxiters && resid > resid_thresh &&
+        } while(iter <= maxiters && resid > resid_thresh &&
                 updatenorm > update_thresh);
 
-        // destroy the basis vectors
+        // build the solution vector and destroy the basis vectors
         for(i = 0; i < iter; ++i) {
+            space.gaxpy(x, 1.0, V[i], y[i]);
             space.destroy(V[i]);
         }
-
-        // make the final solution
-        space.gaxpy(x, 1.0, xnew, 1.0);
-        space.destroy(xnew);
 
         resid_thresh = resid;
         update_thresh = updatenorm;
