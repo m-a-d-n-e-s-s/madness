@@ -191,13 +191,15 @@ int main(int argc, char **argv) {
     usol.clear();
     
     // solve the linear system
-    // make an initial guess
+    // make an initial guess -- make its norm, after one application of
+    //                          dcio, close to uinhomog
     usol = copy(uinhomog);
+    usol.scale(eps*eps);
     DirichletCondIntOp dcio(G, b);
     FunctionSpace<double, 3> space(world);
-    int maxiters = 20;
-    double resid_thresh = 1.0e-2;
-    double update_thresh = 1.0e-2;
+    int maxiters = 5;
+    double resid_thresh = 1.0e-3;
+    double update_thresh = 1.0e-3;
     GMRES(space, dcio, uinhomog, usol, maxiters, resid_thresh, update_thresh,
         true);
     

@@ -75,7 +75,7 @@ class DirichletCondIntOp : public Operator<real_function_3d> {
 
 int main(int argc, char **argv) {
     double eps;
-    int k, maxrefine;
+    int k, maxrefine, maxiter;
     double thresh;
 
     initialize(argc,argv);
@@ -83,9 +83,9 @@ int main(int argc, char **argv) {
     startup(world,argc,argv);
     
     if (world.rank() == 0) {
-        if(argc < 5) {
-            std::cerr << "Usage error: ./app_name k thresh max_refine eps"
-                << std::endl;
+        if(argc < 6) {
+            std::cerr << "Usage error: ./app_name k thresh max_refine eps " \
+                "maxiter" << std::endl;
             error("bad number of arguments");
         }
         
@@ -97,6 +97,8 @@ int main(int argc, char **argv) {
         if(thresh > 1.0e-4) error("use some real thresholds...");
         k = atoi(argv[1]);
         if(k < 4) error("cheapskate");
+        maxiter = atoi(argv[5]);
+        if(maxiter < 1) error("maxiter >= 1");
     }
     world.gop.broadcast(eps);
     world.gop.broadcast(thresh);
@@ -107,8 +109,6 @@ int main(int argc, char **argv) {
     FunctionDefaults<3>::set_k(k);
     FunctionDefaults<3>::set_cubic_cell(-2.0, 2.0);
     FunctionDefaults<3>::set_thresh(thresh);
-    //FunctionDefaults<3>::set_initial_level(4);
-    // the following line can be commented out if memory is not an issue
     FunctionDefaults<3>::set_max_refine_level(maxrefine);
     
     // create the domain mask, phi, and the surface function, b
@@ -150,7 +150,7 @@ int main(int argc, char **argv) {
     d.truncate();
 
     // green's function
-    real_convolution_3d G = BSHOperator<3>(world, 0.0, thresh, thresh*0.1);
+    real_convolution_3d G = BSHOperator<3>(world, 0.0, eps*0.1, thresh);
 
     // boundary condition
     // should be -surf*d, but surf already has a -1 that needs to be cancelled
@@ -166,14 +166,15 @@ int main(int argc, char **argv) {
     usol.clear();
 
     // solve the linear system
-    // make the initial guess
+    // make the initial guess -- make its norm, after one application of dcio,
+    //                           close to that of uinhomog
     usol = copy(uinhomog);
+    usol.scale(eps*eps);
     DirichletCondIntOp dcio(G, surf, eps);
     FunctionSpace<double, 3> space(world);
-    int maxiters = 20;
-    double resid_thresh = 1.0e-2;
-    double update_thresh = 1.0e-2;
-    GMRES(space, dcio, uinhomog, usol, maxiters, resid_thresh, update_thresh,
+    double resid_thresh = 1.0e-4;
+    double update_thresh = 1.0e-4;
+    GMRES(space, dcio, uinhomog, usol, maxiter, resid_thresh, update_thresh,
         true);
 
     // compare to the exact solution
@@ -183,8 +184,8 @@ int main(int argc, char **argv) {
         printf("u error %.10e\n", error);
 
     // file output
-    /*char filename[100];
-    sprintf(filename, "interior.vts");
+    char filename[100];
+    sprintf(filename, "sphere.vts");
     Vector<double, 3> plotlo, plothi;
     Vector<long, 3> npts;
     for(int i = 0; i < 3; ++i) {
@@ -195,7 +196,7 @@ int main(int argc, char **argv) {
     plotvtk_begin(world, filename, plotlo, plothi, npts);
     plotvtk_data(usol, "usol", world, filename, plotlo, plothi, npts);
     plotvtk_data(uexact, "uexact", world, filename, plotlo, plothi, npts);
-    plotvtk_end<3>(world, filename);*/
+    plotvtk_end<3>(world, filename);
 
     finalize();
     
