@@ -172,8 +172,8 @@ int main(int argc, char **argv) {
     usol.scale(eps*eps);
     DirichletCondIntOp dcio(G, surf, eps);
     FunctionSpace<double, 3> space(world);
-    double resid_thresh = 1.0e-4;
-    double update_thresh = 1.0e-4;
+    double resid_thresh = 1.0e-3;
+    double update_thresh = 1.0e-3;
     GMRES(space, dcio, uinhomog, usol, maxiter, resid_thresh, update_thresh,
         true);
 
@@ -214,5 +214,10 @@ static double dirichlet_cond(const coord_3d &pt) {
 }
 
 static double exact_sol(const coord_3d &pt) {
-    return pt[2];
+    const double r = sqrt(pt[0]*pt[0] + pt[1]*pt[1] + pt[2]*pt[2]);
+
+    if(r <= 1.0)
+        return pt[2];
+    else
+        return pt[2] / (r*r*r);
 }
