@@ -265,7 +265,7 @@ namespace madness {
 
         /// Throws if function is not initialized.
         ///
-        /// This function calls mimics operator() by going through the
+        /// This function mimics operator() by going through the
         /// tree looking for the depth of the tree at the point.
         /// It blocks until the result is
         /// available and then broadcasts the result to everyone.
