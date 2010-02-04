@@ -397,12 +397,16 @@ namespace madness {
     private:
         Q coeff;
         double exponent;
+        int m;
     public:
-        GaussianGenericFunctor(Q coeff, double exponent)
-                : coeff(coeff), exponent(exponent) {}
+        // coeff * exp(-exponent*x^2) * x^m
+        GaussianGenericFunctor(Q coeff, double exponent, int m=0)
+            : coeff(coeff), exponent(exponent), m(m) {}
 
         Q operator()(double x) const {
-            return coeff*exp(-exponent*x*x);
+            Q ee = coeff*exp(-exponent*x*x);
+            for (int mm=0; mm<m; mm++) ee *= x;
+            return ee;
         }
     };
 
@@ -498,12 +502,14 @@ namespace madness {
         const Q coeff;
         const double expnt;
         const Level natlev;
+        const int m;
 
-        GaussianConvolution1D(int k, Q coeff, double expnt, double sign, bool periodic)
+        explicit GaussianConvolution1D(int k, Q coeff, double expnt, double sign, int m, bool periodic)
             : Convolution1D<Q>(k,k+11,sign,maxR(periodic,expnt))
             , coeff(coeff)
             , expnt(expnt)
             , natlev(Level(0.5*log(expnt)/log(2.0)+1)) 
+            , m(m)
         {}
 
         virtual ~GaussianConvolution1D() {}
@@ -521,16 +527,15 @@ namespace madness {
         /// \code
         /// r(n,l,p) = 2^(-n) * int(K(2^(-n)*(z+l)) * phi(p,z), z=0..1)
         /// \endcode
-        /// The kernel is coeff*exp(-expnt*z^2).  This is equivalent to
+        /// The kernel is coeff*exp(-expnt*z^2)*z^m (with m>0).  This is equivalent to
         /// \code
-        /// r(n,l,p) = 2^(-n)*coeff * int( exp(-beta*z^2) * phi(p,z-l), z=l..l+1)
+        /// r(n,l,p) = 2^(-n*(m+1))*coeff * int( exp(-beta*z^2) * z^m * phi(p,z-l), z=l..l+1)
         /// \endcode
         /// where
         /// \code
         /// beta = alpha * 2^(-2*n)
         /// \endcode
         Tensor<Q> rnlp(Level n, Translation lx) const {
-            PROFILE_MEMBER_FUNC(GaussianConvolution1D);
             int twok = 2*this->k;
             Tensor<Q> v(twok);       // Can optimize this away by passing in
 
@@ -539,7 +544,7 @@ namespace madness {
 
             /* Apply high-order Gauss Legendre onto subintervals
 
-               coeff*int(exp(-beta(x+l)**2) * phi[p](x),x=0..1);
+               coeff*int(exp(-beta(x+l)**2) * z^m * phi[p](x),x=0..1);
 
                The translations internally considered are all +ve, so
                signficant pieces will be on the left.  Finish after things
@@ -550,23 +555,24 @@ namespace madness {
 
             // Rescale expnt & coeff onto level n so integration range
             // is [l,l+1]
-            Q scaledcoeff = coeff*pow(sqrt(0.5),double(n));
+            Q scaledcoeff = coeff*pow(0.5,0.5*n*(2*m+1));
 
             // Subdivide interval into nbox boxes of length h
             // ... estimate appropriate size from the exponent.  A
             // Gaussian with real-part of the exponent beta falls in
             // magnitude by a factor of 1/e at x=1/sqrt(beta), and by
-            // a factor of e^-49 ~ 5e-22 at x=7/sqrt(beta).  So, if we
-            // use a box of size 1/sqrt(beta) we will need at most 7
-            // boxes.  Incorporate the coefficient into the screening
-            // since it may be large.  We can represent exp(-x^2) over
-            // [l,l+1] with a polynomial of order 21 over [l,l+1] to a
-            // relative precision of better than machine precision for
+            // a factor of e^-49 ~ 5e-22 at x=7/sqrt(beta) (and with
+            // polyn of z^2 it is 1e-20).  So, if we use a box of size
+            // 1/sqrt(beta) we will need at most 7 boxes.  Incorporate
+            // the coefficient into the screening since it may be
+            // large.  We can represent exp(-x^2) over [l,l+1] with a
+            // polynomial of order 21 to a relative
+            // precision of better than machine precision for
             // l=0,1,2,3 and for l>3 the absolute error is less than
             // 1e-23.  We want to compute matrix elements with
-            // polynomials of order 2*k-1, so the total order is
-            // 2*k+20, which can be integrated with a quadrature rule
-            // of npt=k+11.  npt is set in the constructor.
+            // polynomials of order 2*k-1+m, so the total order is
+            // 2*k+20+m, which can be integrated with a quadrature rule
+            // of npt=k+11+(m+1)/2.  npt is set in the constructor.
 
             double beta = expnt * pow(0.25,double(n));
             double h = 1.0/sqrt(beta);  // 2.0*sqrt(0.5/beta);
@@ -590,6 +596,7 @@ namespace madness {
 #endif
                     double xx = xlo + h*this->quad_x(i);
                     Q ee = scaledcoeff*exp(-beta*xx*xx)*this->quad_w(i)*h;
+                    for (int mm=0; mm<m; mm++) ee *= xx;
                     legendre_scaling_functions(xx-lx,twok,phix);
                     for (long p=0; p<twok; p++) v(p) += ee*phix[p];
                 }
@@ -597,6 +604,8 @@ namespace madness {
 
             if (lkeep < 0) {
                 /* phi[p](1-z) = (-1)^p phi[p](z) */
+                if ((m&0x1) == 1) 
+                    for (long p=0; p<twok; p++) v(p) = -v(p);
                 for (long p=1; p<twok; p+=2) v(p) = -v(p);
             }
 
@@ -621,19 +630,22 @@ namespace madness {
 
     template <typename Q>
     struct GaussianConvolution1DCache {
-        static ConcurrentHashMap< double, SharedPtr< GaussianConvolution1D<Q> > > map;
-        typedef typename ConcurrentHashMap< double, SharedPtr< GaussianConvolution1D<Q> > >::iterator iterator;
-        typedef typename ConcurrentHashMap< double, SharedPtr< GaussianConvolution1D<Q> > >::datumT datumT;
-
-        static SharedPtr< GaussianConvolution1D<Q> > get(int k, double expnt, bool periodic) {
-            const double pi = constants::pi;
-            double key = expnt + k + periodic*pi;
+        static ConcurrentHashMap<hashT, SharedPtr< GaussianConvolution1D<Q> > > map;
+        typedef typename ConcurrentHashMap<hashT, SharedPtr< GaussianConvolution1D<Q> > >::iterator iterator;
+        typedef typename ConcurrentHashMap<hashT, SharedPtr< GaussianConvolution1D<Q> > >::datumT datumT;
+        
+        static SharedPtr< GaussianConvolution1D<Q> > get(int k, double expnt, int m, bool periodic) {
+            hashT key = hash(expnt);
+            key = hash(k, key);
+            key = hash(m, key);
+            key = hash(int(periodic), key);
             iterator it = map.find(key);
             if (it == map.end()) {
                 map.insert(datumT(key, SharedPtr< GaussianConvolution1D<Q> >(new GaussianConvolution1D<Q>(k,
-                                                                                                          sqrt(expnt/pi),
+                                                                                                          Q(sqrt(expnt/constants::pi)),
                                                                                                           expnt,
                                                                                                           1.0,
+                                                                                                          m,
                                                                                                           periodic
                                                                                                           ))));
                 it = map.find(key);

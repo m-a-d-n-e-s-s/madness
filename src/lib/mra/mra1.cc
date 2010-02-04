@@ -35,10 +35,10 @@
 namespace madness {
 
     template <>
-    ConcurrentHashMap< double, SharedPtr< GaussianConvolution1D<double> > >  GaussianConvolution1DCache<double>::map = ConcurrentHashMap< double, SharedPtr< GaussianConvolution1D<double> > >();
+    ConcurrentHashMap< hashT, SharedPtr< GaussianConvolution1D<double> > >  GaussianConvolution1DCache<double>::map = ConcurrentHashMap< hashT, SharedPtr< GaussianConvolution1D<double> > >();
 
     template <>
-    ConcurrentHashMap< double, SharedPtr< GaussianConvolution1D<double_complex> > > GaussianConvolution1DCache<double_complex>::map = ConcurrentHashMap< double, SharedPtr< GaussianConvolution1D<double_complex> > >();
+    ConcurrentHashMap< hashT, SharedPtr< GaussianConvolution1D<double_complex> > > GaussianConvolution1DCache<double_complex>::map = ConcurrentHashMap< hashT, SharedPtr< GaussianConvolution1D<double_complex> > >();
 
 #ifdef FUNCTION_INSTANTIATE_1
     template class FunctionDefaults<1>;

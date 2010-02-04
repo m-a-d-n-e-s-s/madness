@@ -98,7 +98,7 @@ void test_periodic(World& world) {
     for (int i=-1; i<=20; i++) {
         double expnt = pow(2.0,double(i));
         double coeff = sqrt(expnt/constants::pi);
-        ops[0] = SharedPtr< Convolution1D<double> >(new GaussianConvolution1D<double>(k, coeff, expnt, 1.0, true));
+        ops[0] = SharedPtr< Convolution1D<double> >(new GaussianConvolution1D<double>(k, coeff, expnt, 1.0, 0, true));
 
         SeparatedConvolution<double,3> op(world, ops);
 
@@ -139,7 +139,7 @@ void test_periodic2(World& world) {
     for (int i=0; i<coeff.dim(0); i++) {
         if (expnt[i] > acut) {
             double c = pow(4*constants::pi*coeff[i],1.0/3.0);
-            ops.push_back(SharedPtr< Convolution1D<double> >(new GaussianConvolution1D<double>(k, c, expnt[i], 1.0, true)));
+            ops.push_back(SharedPtr< Convolution1D<double> >(new GaussianConvolution1D<double>(k, c, expnt[i], 1.0, 0, true)));
             print(ops.size(), c, expnt[i]);
         }
     }

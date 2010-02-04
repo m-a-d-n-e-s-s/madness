@@ -388,10 +388,7 @@ namespace madness {
                 facnorms[i] = std::abs(factors[i]);
                 //print("FACTORS", i, "coeff", coeff(i), "expnt", expnt(i), "coeff", coeff(i), "c", c, "facn", facnorms[i]);
 
-//                 ops[i] = SharedPtr< Convolution1D<Q> >(new GaussianConvolution1D<Q>(k,
-//                                                                                     c*width,
-//                                                                                     expnt(i)*width*width));
-                ops[i] = GaussianConvolution1DCache<Q>::get(k, expnt(i)*width*width, isperiodicsum);
+                ops[i] = GaussianConvolution1DCache<Q>::get(k, expnt(i)*width*width, 0, isperiodicsum);
 
             }
         }
