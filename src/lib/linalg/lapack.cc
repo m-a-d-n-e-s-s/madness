@@ -615,16 +615,16 @@ namespace madness {
                 A(i,j) = 0.0;
     }
 
-    template <typename T>
-    void triangular_solve(const Tensor<T>& L, Tensor<T>& B, const char* side, const char* transa) {
-        integer n = L.dim(0);  // ????
-        integer m = L.dim(1);
-        double one = 1.0;
-        integer lda = n; // ???
-        integer ldb = m; //???
+//     template <typename T>
+//     void triangular_solve(const Tensor<T>& L, Tensor<T>& B, const char* side, const char* transa) {
+//         integer n = L.dim(0);  // ????
+//         integer m = L.dim(1);
+//         double one = 1.0;
+//         integer lda = n; // ???
+//         integer ldb = m; //???
 
-        dtrsm(side, "L", transa, "N", m, n, one, L.ptr(), lda, B.ptr, ldb, 1, 1, 1, 1);
-    }
+//         dtrsm(side, "L", transa, "N", m, n, one, L.ptr(), lda, B.ptr, ldb, 1, 1, 1, 1);
+//     }
 
 
     template <typename T>
@@ -696,4 +696,57 @@ namespace madness {
     //   return 0;
     // }
 
+    // GCC 4.4.3 seems to want these explicitly instantiated whereas previous
+    // versions were happy with the instantiations caused by the test code above
+
+    template
+    void svd(const Tensor<double>& a, Tensor<double>& U,
+             Tensor<Tensor<double>::scalar_type >& s, Tensor<double>& VT);
+
+    template
+    void gesv(const Tensor<double>& a, const Tensor<double>& b, Tensor<double>& x);
+
+    template
+    void gelss(const Tensor<double>& a, const Tensor<double>& b, double rcond,
+               Tensor<double>& x, Tensor<Tensor<double>::scalar_type >& s,
+               long &rank, Tensor<Tensor<double>::scalar_type>& sumsq);
+
+    template
+    void syev(const Tensor<double>& A,
+              Tensor<double>& V, Tensor<Tensor<double>::scalar_type >& e);
+
+    template
+    void sygv(const Tensor<double>& A, const Tensor<double>& B, int itype,
+              Tensor<double>& V, Tensor<Tensor<double>::scalar_type >& e);
+
+    template
+    void cholesky(Tensor<double>& A);
+
+//     template
+//     void triangular_solve(const Tensor<double>& L, Tensor<double>& B, 
+//                           const char* side, const char* transa);
+
+    template
+    void svd(const Tensor<double_complex>& a, Tensor<double_complex>& U,
+             Tensor<Tensor<double_complex>::scalar_type >& s, Tensor<double_complex>& VT);
+
+    template
+    void gesv(const Tensor<double_complex>& a, const Tensor<double_complex>& b, Tensor<double_complex>& x);
+
+    template
+    void gelss(const Tensor<double_complex>& a, const Tensor<double_complex>& b, double rcond,
+               Tensor<double_complex>& x, Tensor<Tensor<double_complex>::scalar_type >& s,
+               long &rank, Tensor<Tensor<double_complex>::scalar_type>& sumsq);
+
+    template
+    void syev(const Tensor<double_complex>& A,
+              Tensor<double_complex>& V, Tensor<Tensor<double_complex>::scalar_type >& e);
+
+    template
+    void sygv(const Tensor<double_complex>& A, const Tensor<double_complex>& B, int itype,
+              Tensor<double_complex>& V, Tensor<Tensor<double_complex>::scalar_type >& e);
+
+//     template
+//     void triangular_solve(const Tensor<double_complex>& L, Tensor<double_complex>& B, 
+//                           const char* side, const char* transa);
 }

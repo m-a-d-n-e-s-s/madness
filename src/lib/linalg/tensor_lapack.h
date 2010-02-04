@@ -86,14 +86,14 @@ namespace madness {
     
     /// \ingroup linalg
     template <typename T>
-    void cholesky(const Tensor<T>& A, Tensor<T>& L);
+    void cholesky(Tensor<T>& A);
 
     /// Dunno
     
-    /// \ingroup linalg
-    template <typename T>
-    void triangular_solve(const Tensor<T>& L, Tensor<T>& B, 
-                          const char* side, const char* uplo, const char* transa);
+//     /// \ingroup linalg
+//     template <typename T>
+//     void triangular_solve(const Tensor<T>& L, Tensor<T>& B, 
+//                           const char* side, const char* transa);
 
     /// Runs the tensor test code, returns true on success
     
