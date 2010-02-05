@@ -636,7 +636,7 @@ namespace madness {
         LocalizeBoys<T>( DistributedMatrix<T> &M, const std::vector<int>& set, long nmo, int tag,
                 const double thresh = 1e-9, const double thetamax = 0.5, const bool randomized = true, const bool doprint = false):
             SystolicMatrixAlgorithm<T>(M, tag),
-            M(M), // marix of ( U, X, Y, Z)
+            M(M), // distributed marix of ( U, X, Y, Z)
             world(M.get_world()),
             set(set), // set of orbital
             nmo(nmo), // number of molecule
@@ -653,17 +653,6 @@ namespace madness {
         }
 
         virtual ~LocalizeBoys() {}   
-
-        /*
-        Tensor<T> get_U(){
-            int64_t ilo,ihi;
-            M.local_colrange(ilo, ihi);
-            Tensor<T> result(nmo, nmo);
-            if( ihi > 1 ) result( Slice(ilo, ihi), _ ) = M.data()( _, Slice(0, nmo-1) );
-
-            return transpose( result );
-        }
-        */
 
         void start_iteration_hook(const TaskThreadEnv& env);
         void kernel(int i, int j, T* rowi, T* rowj);
