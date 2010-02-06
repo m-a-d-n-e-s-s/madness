@@ -641,13 +641,12 @@ namespace madness {
             set(set), // set of orbital
             nmo(nmo), // number of molecule
             niter(0), // number of iteration
-            ndone_iter(0), // number of rotation for all iteration
+            ndone(0), 
             thresh(thresh),
             thetamax(thetamax),
             tol(thetamax),
             randomized(randomized),
-            doprint(doprint),
-            nrot(0)
+            doprint(doprint)
         {
             if (doprint) madness::print("Start boys localization\n");
         }
@@ -663,19 +662,18 @@ namespace madness {
         DistributedMatrix<T> M;
         World& world;
         std::vector<int> set;
-        long nmo, niter, ndone;
-        volatile int64_t ndone_iter;
+        long nmo, niter, ndone; // number of molecule, number of iteration, number of rotation
+        volatile int64_t ndone_iter; // number of rotation in one iteration
         double thresh, thetamax, tol, maxtheta;
         bool randomized, doprint;
         int64_t nrot;
-        void drot(T* restrict a, T* restrict b, double sin, double cos); 
-        inline T DIP(T* e_ij, T* e_kl);
-        inline T inner(const T* a, const T* b ) const;
+        void drot(T restrict a[], T restrict b[], double sin, double cos); 
+        inline T DIP(T ij[], T kl[]) const;
+        inline T inner(const T a[], const T b[] ) const;
     };
     template <typename T>
     void LocalizeBoys<T>::start_iteration_hook(const TaskThreadEnv& env)
     {
-
         if(doprint) {
             T sum = 0.0;
             int64_t ilo, ihi;
@@ -688,56 +686,46 @@ namespace madness {
             if (env.id() == 0) world.gop.sum(sum);
             env.barrier();
 
-            //printf("\titeration %ld sum=%.4f ndone=%ld tol=%.2e\n", niter, sum, ndone, tol);
-            /// print a result of previous iteration
+            // print a result of previous iteration
+            printf("\titeration %ld sum=%.4f ndone=%ld tol=%.2e\n", niter, sum, ndone, tol);
         }
 
-        ndone = 0; /// number of rotation in this iteration
-        maxtheta = 0.0; /// maximum rotation angle in this iteration
+        this.ndone_iter = 0; /// number of rotation in this iteration
+        this.maxtheta = 0.0; /// maximum rotation angle in this iteration
     }
     template <typename T>
-    void LocalizeBoys<T>::kernel(int i, int j, T* rowi, T* rowj)
+    void LocalizeBoys<T>::kernel(int i, int j, T rowi[], T rowj[])
     {
         if(set[i] != set[j]) return;
 
         // make rowi and rowj since we're using one-sided jacobi
         T *ui = rowi;
         T *uj = rowj;
-        T *xi = rowi + nmo;
-        T *xj = rowj + nmo; 
-        T *yi = rowi + nmo*2;
-        T *yj = rowj + nmo*2;
-        T *zi = rowi + nmo*3;
-        T *zj = rowj + nmo*3;
-        T ii[] = { inner(ui, xi), inner(ui, yi), inner(ui, zi) };
-        T ij[] = { inner(ui, xj), inner(ui, yj), inner(ui, zj) };
-        T jj[] = { inner(uj, xj), inner(uj, yj), inner(uj, zj) };
+        T *ri[] = { rowi + nmo, rowi + 2*nmo, rowi + 3*nmo };
+        T *rj[] = { rowj + nmo, rowj + 2*nmo, rowj + 3*nmo };
+        T ii[] = { inner(ui, ri[0]), inner(ui, ri[1]), inner(ui, ri[2]) };
+        T ij[] = { inner(ui, rj[0]), inner(ui, rj[1]), inner(ui, rj[2]) };
+        T jj[] = { inner(uj, rj[0]), inner(uj, rj[1]), inner(uj, rj[2]) };
         bool doit = false;
 
         double g = DIP(ij, jj) - DIP(ij, ii);
-        double h = 4.0 * DIP(ij, ij) + 2.0 * DIP(ii, jj) - DIP(ii, ii) - DIP(jj, jj);
+        double h = 4.0*DIP(ij, ij) + 2.0*DIP(ii, jj) - DIP(ii, ii) - DIP(jj, jj);
         if (h >= 0.0) {
+            if (doprint) print("\t\tforcing negative h", i, j, h);
             doit = true;
-            if (doprint) print("\t\tforcing negative h", i,j,h);
             h = -1.0;
         }
         double theta = -g / h;
 
-        /*
-        if (doprint && (ndone==0)) {
-            print("\t\t\tg h, ", g, h);
-            //print("\t\t\tdip(ii), dip(jj) :", ii[0],ii[1],ii[2], jj[0],jj[1],jj[2] );
-            //print("\t\t\tdip(ij):", ij[0],ij[1],ij[2] );
-        }*/
-        maxtheta = std::max<double>(std::abs(theta), maxtheta);
+        this.maxtheta = std::max<double>(fabs(theta), maxtheta);
 
         /// restriction
         if (fabs(theta) > thetamax){
+            if (doprint) print("\t\trestricting", i,j);
+
             if (g < 0) theta = -thetamax;
             else theta = thetamax * 0.8;
-
             doit = true;
-            if (doprint) print("\t\trestricting", i,j);
         }
 
         // randomize will be implemented here
@@ -745,30 +733,28 @@ namespace madness {
         randomized = false;
 
         if (fabs(theta) >= tol || randomized || doit){
-            double c = cos(theta);
-            double s = sin(theta);
-            drot (xi, xj, s, c);
-            drot (yi, yj, s, c);
-            drot (zi, zj, s, c);
-            drot (ui, uj, s, c);
-
             if (doprint) print("\t\trotating", i,j, theta);
             ndone++;
+
+            double c = cos(theta);
+            double s = sin(theta);
+            drot (ri[0], rj[0], s, c); 
+            drot (ri[1], rj[1], s, c);
+            drot (ri[2], rj[2], s, c);
+            drot (ui, uj, s, c);
         }
     }
     template <typename T>
     void LocalizeBoys<T>::end_iteration_hook(const TaskThreadEnv& env)
     {
-        int id = env.id();
-
-        if (id == 0) {
+        if (env.id() == 0) {
             world.gop.max(maxtheta);
             world.gop.sum(ndone); // get total number of rotation whole processes
         }
         env.barrier();
 
         tol = std::max(0.1 * maxtheta, thresh);
-        ndone_iter += ndone;
+        ndone += ndone_iter;
 
         niter++;
     }
@@ -778,7 +764,7 @@ namespace madness {
         int id = env.id();
 
         if( ndone == 0 && tol == thresh){
-            if (id == 0) madness::print("\tBoys localization converged in", ndone_iter, "steps.");
+            if (id == 0 ) madness::print("\tBoys localization converged in", ndone, "steps.");
             return true;
         }
         else if(niter >= 300){
@@ -790,9 +776,9 @@ namespace madness {
     }
     /// rotate matrix using sin and cos
     template <typename T>
-    void LocalizeBoys<T>::drot(T* a, T* b, double sin, double cos)
+    void LocalizeBoys<T>::drot(T restrict a[], T restrict b[], double sin, double cos)
     {
-        for ( long i=0; i<nmo; i++ ) {
+        for ( long i=0; i<this.nmo; i++ ) {
             T aa = a[i]*cos - b[i]*sin;
             T bb = a[i]*sin + b[i]*cos;
             a[i] = aa;
@@ -800,12 +786,12 @@ namespace madness {
         }
     }
     template <typename T>
-    inline T LocalizeBoys<T>::DIP(T* ij, T* kl)
+    inline T LocalizeBoys<T>::DIP(T ij[], T kl[]) const
     {
         return ij[0] * kl[0] + ij[1] * kl[1] + ij[2] * kl[2];
     }
     template <typename T>
-    inline T LocalizeBoys<T>::inner(const T* a, const T* b ) const
+    inline T LocalizeBoys<T>::inner(const T a[], const T b[] ) const
     {
         T s=0;
         for(int64_t i=0; i<nmo; i++){
