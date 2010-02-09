@@ -422,11 +422,12 @@ double myreal(const double_complex& t) {return real(t);}
 template <typename T>
 double energy(World& world, const Function<T,3>& psi, const functionT& potn) {
     // First do all work in the scaling function basis
-    bool DOFENCE = false;
     psi.reconstruct();
-    Function<T,3> dx = Derivative<T,3>(world,0)(psi,DOFENCE);
-    Function<T,3> dy = Derivative<T,3>(world,1)(psi,DOFENCE);
-    Function<T,3> dz = Derivative<T,3>(world,2)(psi,DOFENCE);
+    bool DOFENCE = false;
+    Derivative<T,3> Dx(world,0), Dy(world,1), Dz(world,2);
+    Function<T,3> dx = Dx(psi,DOFENCE);
+    Function<T,3> dy = Dy(psi,DOFENCE);
+    Function<T,3> dz = Dz(psi,DOFENCE);
     Function<T,3> Vpsi = psi*potn;
 
     // Now do all work in the wavelet basis
