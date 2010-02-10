@@ -33,9 +33,11 @@
 
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <mra/mra.h>
+#include <mra/lbdeux.h>
 #include <mra/sdf_shape_3D.h>
 #include <linalg/gmres.h>
 #include "llrv_gaussian.h"
+#include "loadbalcost.h"
 
 using namespace madness;
 
@@ -232,7 +234,7 @@ int main(int argc, char **argv) {
     
     // Function defaults
     FunctionDefaults<3>::set_k(k);
-    FunctionDefaults<3>::set_cubic_cell(-2.5, 2.5);
+    FunctionDefaults<3>::set_cubic_cell(-2.0, 2.0);
     FunctionDefaults<3>::set_thresh(thresh);
     FunctionDefaults<3>::set_truncate_on_project(true);
     
@@ -258,10 +260,18 @@ int main(int argc, char **argv) {
     SharedPtr<SurfaceProblem> surf_functor
         (new SurfaceProblem(llrv, sphere, eps, prob));
 
-    // phi_functor defaults to the domain mask
-    real_function_3d phi = real_factory_3d(world).functor(phi_functor);
+    // project the surface function
     surf_functor->useDirichlet = false;
     real_function_3d surf = real_factory_3d(world).functor(surf_functor);
+
+    // make a load balancing map off of the surface
+    LoadBalanceDeux<3> lb(world);
+    lb.add_tree(surf, LBCost(1.0, 1.0));
+    // set this map as the default
+    FunctionDefaults<3>::redistribute(world, lb.load_balance(2.0, false));
+
+    // phi_functor defaults to the domain mask
+    real_function_3d phi = real_factory_3d(world).functor(phi_functor);
 
     // print out the errors in volume and surface area
     // these are checks of the diffuse domain approximation

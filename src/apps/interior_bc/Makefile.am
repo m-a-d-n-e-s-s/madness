@@ -4,7 +4,7 @@ bin_PROGRAMS = depth sphere
 
 depth_SOURCES = depth.cc
 
-sphere_SOURCES = sphere.cc llrv_gaussian.h
+sphere_SOURCES = sphere.cc llrv_gaussian.h loadbalcost.h
 
 LDADD = $(MRALIBS)
 
