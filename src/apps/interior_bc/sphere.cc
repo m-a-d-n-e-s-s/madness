@@ -35,113 +35,94 @@
 #include <mra/mra.h>
 #include <mra/sdf_shape_3D.h>
 #include <linalg/gmres.h>
+#include "llrv_gaussian.h"
 
 using namespace madness;
 
-/** \brief The exact solution, for comparison */
-static double exact_sol(const coord_3d &pt);
+enum Problem { CONSTANT, COSTHETA };
 
-/** \brief Li, Lowengrub, Ratz, Voight domain masking with a Gaussian for the
-    surface function. */
-class LLRVGaussianDomainMask : public DomainMaskInterface {
-private:
-    LLRVGaussianDomainMask() : epsilon(0.0) {} ///< Forbidden
-        
-protected:
-    const double epsilon; ///< The width of the transition region
-    
-public:
-    /** \brief Constructor for the domain mask
-
-        \param[in] epsilon The effective width of the surface */
-    LLRVGaussianDomainMask(double epsilon) 
-        : epsilon(epsilon)
-    {}
-
-    /** \brief Value of characteristic function at normal distance d from
-               the surface
-
-        \param[in] d The signed distance.  Negative is ``inside,''
-                     positive is ``outside.''
-        \return The domain mask */
-    double mask(double d) const {
-        if (d > 8.0*epsilon) {
-            return 0.0; // we're safely outside
-        }
-        else if (d < -8.0*epsilon) {
-            return 1.0; // inside
-        }
-        else {
-            return 0.5 * (1.0 - tanh(3.0 * d / epsilon));
-        }
-    }
-    
-    /** \brief Derivative of characteristic function with respect to the
-               normal distance
-
-        \param[in] d The signed distance
-        \return The derivative */
-    double dmask(double d) const {
-        if (fabs(d) > 8.0*epsilon) {
-            return 0.0; // we're safely outside or inside
-        }
-        else {
-            double tanh3d = tanh(3.0*d/epsilon);
-            return 1.5*(tanh3d*tanh3d - 1.0) / epsilon;
-        }
-    }
-    
-    /** \brief Value of surface function at distance d normal to surface
-
-        \param[in] d The signed distance
-        \return The value of the surface function */
-    double surface(double d) const {
-        return exp(-d*d*0.5/(epsilon*epsilon)) / (sqrt(2.0*constants::pi)
-            * epsilon);
-    }
-
-    /** \brief Value of d(surface)/ddistance
-
-        \param[in] d The signed distance
-        \return The derivative of the surface function */
-    double dsurface(double d) const {
-        double phi = mask(d);
-        double dphi = dmask(d);
-        return 72.0*phi*(1.0-phi)*dphi*(1.0 - 2.0*phi)/epsilon;
-    }
-    
-    virtual ~LLRVGaussianDomainMask() {}
-};
+enum Mask { LLRV, LLRVGaussian };
 
 /** \brief Produces the surface Dirichlet condition */
-class SurfaceCondition : public FunctionFunctorInterface<double, 3> {
+class SurfaceProblem : public FunctionFunctorInterface<double, 3> {
     private:
+        SurfaceProblem() {}
+
         SharedPtr<DomainMaskInterface> dmi;
         SharedPtr<SignedDFInterface<3> > sdfi;
         double inveps2;
-
-        double DirichletCond(const coord_3d &x) const {
-            // Y_0^0
-            return 1.0;
-        }
+        Problem prob;
 
     public:
-        /// which function to read:
-        /// -# the weighted surface
-        /// -# the weighted Dirichlet condition
+        /// which function to use when projecting:
+        /// -# the weighted surface (false)
+        /// -# the weighted Dirichlet condition (true)
         bool useDirichlet;
 
-        SurfaceCondition(SharedPtr<DomainMaskInterface> dmi,
-            SharedPtr<SignedDFInterface<3> > sdfi, double eps)
+        /// use the exact solution when projecting?
+        bool useExact;
+
+        SurfaceProblem(SharedPtr<DomainMaskInterface> dmi,
+            SharedPtr<SignedDFInterface<3> > sdfi, double eps,
+            Problem prob)
             : dmi(dmi), sdfi(sdfi), inveps2(1.0 / (eps*eps)),
-              useDirichlet(true)
+              prob(prob), useDirichlet(true), useExact(false)
         {}
 
         double operator() (const coord_3d &x) const {
+            if(useExact)
+                return ExactSol(x);
             if(useDirichlet)
                 return DirichletCond(x) * dmi->surface(sdfi->sdf(x)) * inveps2;
             else
                 return dmi->surface(sdfi->sdf(x)) * inveps2;
+        }
+
+        double DirichletCond(const coord_3d &x) const {
+            double r = sqrt(x[0]*x[0] + x[1]*x[1] + x[2]*x[2]);
+
+            switch(prob) {
+            case CONSTANT:
+                // Y_0^0
+                return 1.0;
+                break;
+
+            case COSTHETA:
+                // Y_1^0
+                if(r < 1.0e-3)
+                    return 0.0;
+                else
+                    return x[2] / r;
+                break;
+
+            default:
+                error("Unknown problem in SurfaceCondition::DirichletCond");
+                return 0.0;
+            }
+        }
+
+        double ExactSol(const coord_3d &x) const {
+            double r = sqrt(x[0]*x[0] + x[1]*x[1] + x[2]*x[2]);
+
+            switch(prob) {
+            case CONSTANT:
+                if(r <= 1.0)
+                    return 1.0;
+                else
+                    return 1.0 / r;
+                break;
+
+            case COSTHETA:
+                if(r <= 1.0)
+                    return x[2];
+                else
+                    return x[2] / (r*r*r);
+                break;
+
+            default:
+                error("Unknown problem in SurfaceCondition::DirichletCond");
+                return 0.0;
+            }
         }
 };
 
@@ -177,31 +158,77 @@ int main(int argc, char **argv) {
     double eps;
     int k, maxiter;
     double thresh;
+    Problem prob;
+    Mask mask;
+    char probname[15], maskname[20];
 
     initialize(argc,argv);
     World world(MPI::COMM_WORLD);
     startup(world,argc,argv);
     
     if (world.rank() == 0) {
-        if(argc < 5) {
-            std::cerr << "Usage error: ./app_name k thresh eps maxiter"
+        if(argc < 7) {
+            std::cerr << "Usage error: ./app_name prob k thresh eps mask "\
+                "maxiter" << std::endl;
+            std::cerr << "    Where prob = 1 for CONSTANT, 2 for COSTHETA"
+                << std::endl;
+            std::cerr << "    Where mask = 1 for LLRV, 2 for LLRV-Gaussian"
                 << std::endl;
             error("bad number of arguments");
         }
-        
-        eps = atof(argv[3]);
+
+        // read in and validate the command-line arguments
+        switch(atoi(argv[1])) {
+        case 1:
+            prob = CONSTANT;
+            sprintf(probname, "constant");
+            break;
+        case 2:
+            prob = COSTHETA;
+            sprintf(probname, "cos(theta)");
+            break;
+        default:
+            error("unknown problem type, should be 1 or 2");
+            break;
+        }
+
+        eps = atof(argv[4]);
         if(eps <= 0.0) error("eps must be positive, and hopefully small");
-        thresh = atof(argv[2]);
+
+        thresh = atof(argv[3]);
         if(thresh > 1.0e-4) error("use some real thresholds...");
-        k = atoi(argv[1]);
+
+        k = atoi(argv[2]);
         if(k < 4) error("cheapskate");
-        maxiter = atoi(argv[4]);
+
+        maxiter = atoi(argv[6]);
         if(maxiter < 1) error("maxiter >= 1");
+
+        switch(atoi(argv[5])) {
+        case 1:
+            mask = LLRV;
+            sprintf(maskname, "LLRV");
+            break;
+        case 2:
+            mask = LLRVGaussian;
+            sprintf(maskname, "LLRV-Gaussian");
+            break;
+        default:
+            error("unknown domain mask type, should be 1 or 2");
+            break;
+        }
+
+        // print out the arguments
+        printf("Solving %s problem\nWavelet order = %d\nThreshold = %.2e\n" \
+            "Layer Thickness = %.3e\nUsing %s Domain Masking\n\n",
+            probname, k, thresh, eps, maskname);
     }
+    world.gop.broadcast(prob);
     world.gop.broadcast(eps);
     world.gop.broadcast(thresh);
     world.gop.broadcast(maxiter);
     world.gop.broadcast(k);
+    world.gop.broadcast(mask);
     
     // Function defaults
     FunctionDefaults<3>::set_k(k);
@@ -213,7 +240,12 @@ int main(int argc, char **argv) {
     coord_3d pt(0.0); // Origin
     SharedPtr<SignedDFInterface<3> > sphere(new SDFSphere(1.0, pt));
 
-    SharedPtr<DomainMaskInterface> llrv(new LLRVGaussianDomainMask(eps));
+    DomainMaskInterface *dmip = NULL;
+    if(mask == LLRV)
+        dmip = new LLRVDomainMask(eps);
+    else if(mask == LLRVGaussian)
+        dmip = new LLRVGaussianDomainMask(eps);
+    SharedPtr<DomainMaskInterface> llrv(dmip);
 
     // a functor for the domain mask
     SharedPtr<DomainMaskSDFFunctor<3> > phi_functor
@@ -223,8 +255,8 @@ int main(int argc, char **argv) {
     // the SURFACE option of phi_functor could be used here, however,
     // we really want eps^{-2} surface for our calculations, and this functor
     // uses that factor when MADNESS projects the function.
-    SharedPtr<SurfaceCondition> surf_functor
-        (new SurfaceCondition(llrv, sphere, eps));
+    SharedPtr<SurfaceProblem> surf_functor
+        (new SurfaceProblem(llrv, sphere, eps, prob));
 
     // phi_functor defaults to the domain mask
     real_function_3d phi = real_factory_3d(world).functor(phi_functor);
@@ -244,17 +276,11 @@ int main(int argc, char **argv) {
 
     // green's function
     real_convolution_3d G = BSHOperator<3>(world, 0.0, eps*0.1, thresh);
-    //real_convolution_3d G = BSHOperator<3>(world, 0.0, 1.0e-10, 1.0e-10);
 
     // make the Dirichlet condition
     // this will include the eps^{-2} factor from the penalty
     surf_functor->useDirichlet = true;
     real_function_3d usol = real_factory_3d(world).functor(surf_functor);
-
-    surfarea = usol.trace();
-    if(world.rank() == 0) {
-        printf("Surface Condition Integral = %.3e\n", surfarea * eps*eps);
-    }
 
     // transform Dirichlet condition into the right-hand side vector
     // rhs = -G*(condition)
@@ -274,30 +300,22 @@ int main(int argc, char **argv) {
     // make the operators and prepare GMRES
     DirichletCondIntOp dcio(G, surf);
     FunctionSpace<double, 3> space(world);
-    double resid_thresh = 1.0e-7;//1.0e-3;
-    double update_thresh = 1.0e-7;//1.0e-4;
+    double resid_thresh = 1.0e-5;
+    double update_thresh = 1.0e-5;
     GMRES(space, dcio, d, usol, maxiter, resid_thresh, update_thresh, true);
 
     // compare to the exact solution
-    real_function_3d uexact = real_factory_3d(world).f(exact_sol);
+    surf_functor->useExact = true;
+    real_function_3d uexact = real_factory_3d(world).functor(surf_functor);
     real_function_3d uerror = (usol - uexact)*phi;
     double error = uerror.norm2();
     double cons = usol(pt);
     if(world.rank() == 0) {
         printf("u error = %.10e\n", error);
-        printf("u(0) error = %.10e\n", 1.0 - cons);
+        printf("u(0) error = %.10e\n", -cons);
     }
 
     finalize();
     
     return 0;
-}
-
-static double exact_sol(const coord_3d &pt) {
-    const double r = sqrt(pt[0]*pt[0] + pt[1]*pt[1] + pt[2]*pt[2]);
-
-    if(r <= 1.0)
-        return 1.0;
-    else
-        return 1.0 / r;
 }
