@@ -100,7 +100,23 @@ namespace madness {
         and FunctionSpace classes below). */
     template <typename T, typename real_type, typename scalar_type>
     class AbstractVectorSpace {
+        private:
+            /** \brief Bury the default constructor to prevent its use. */
+            AbstractVectorSpace() : world(World()) {}
+
         public:
+            /// \brief The world
+            World &world;
+
+            /** \brief Make a vector space.
+
+                The World is needed to limit output, and may be needed
+                for spaces working with MADNESS functions.
+
+                \param[in] world The world.
+            */
+            AbstractVectorSpace(World &world) : world(world) {}
+
             virtual ~AbstractVectorSpace() {}
 
             /// \brief The norm of a vector
@@ -150,6 +166,9 @@ namespace madness {
         public:
             typedef typename TensorTypeData<T>::float_scalar_type real_type;
             typedef T scalar_type;
+
+            VectorSpace(World &world) : AbstractVectorSpace<
+                Vector<T, NDIM>, real_type, scalar_type>(world) {}
 
             virtual ~VectorSpace() {}
 
@@ -220,14 +239,12 @@ namespace madness {
     class FunctionSpace : public AbstractVectorSpace<Function<T, NDIM>,
         typename TensorTypeData<T>::float_scalar_type, T> {
 
-        protected:
-            World &world;
-
         public:
             typedef typename TensorTypeData<T>::float_scalar_type real_type;
             typedef T scalar_type;
 
-            FunctionSpace(World &world) : world(world) {}
+            FunctionSpace(World &world) : AbstractVectorSpace<
+                Function<T, NDIM>, real_type, scalar_type>(world) {}
 
             virtual ~FunctionSpace() {}
 
@@ -270,14 +287,13 @@ namespace madness {
         Vector<Function<T, FDIM>, VDIM>,
         typename TensorTypeData<T>::float_scalar_type, T> {
 
-        protected:
-            World &world;
-
         public:
             typedef typename TensorTypeData<T>::float_scalar_type real_type;
             typedef T scalar_type;
 
-            VectorOfFunctionsSpace(World &world) : world(world) {}
+            VectorOfFunctionsSpace(World &world) : AbstractVectorSpace
+                <Vector<Function<T, FDIM>, VDIM>, real_type, scalar_type>
+                (world) {}
 
             virtual ~VectorOfFunctionsSpace() {}
 
@@ -364,7 +380,8 @@ namespace madness {
                          update vector \f$|| \vec{x}_{iter} -
                          \vec{x}_{iter-1}||\f$.  Output: The value after the
                          final iteration.
-        \param[in] outp True if output to stdout is desired, false otherwise.
+        \param[in] outp True if output to stdout is desired, false otherwise,
+                        defaults to false if unspecified.
     */
     template <typename T, typename real_type, typename scalar_type>
     void GMRES(const AbstractVectorSpace<T, real_type, scalar_type> &space,
@@ -382,6 +399,7 @@ namespace madness {
         Tensor<real_type> s;
         Tensor<real_type> sumsq;
         real_type resid, norm, updatenorm;
+        World &world = space.world;
 
         // initialize
         H = 0.0;
@@ -392,7 +410,7 @@ namespace madness {
         op.applyOp(x, r);
         space.gaxpy(r, -1.0, b, 1.0);
         betae[0] = resid = space.norm(r);
-        if(outp)
+        if(outp && world.rank() == 0)
             printf("itr rnk update_norm  resid\n%.3d N/A N/A          %.6e\n",
                 iter, resid);
         if(resid < resid_thresh) {
@@ -463,19 +481,19 @@ namespace madness {
                     space.destroy(V[0]);
 
                     maxiters = 1;
-                    if(outp)
+                    if(outp && world.rank() == 0)
                         printf("%.3d N/A %.6e %.6e ** Zero Vector Encount" \
                             "ered **\n", iter, updatenorm, resid_thresh);
                     return;
                 }
 
-                if(outp)
+                if(outp && world.rank() == 0)
                     printf("%.3d %.3ld %.6e %.6e ** Zero Vector Encount" \
                         "ered **\n", iter, rank, updatenorm, resid);
                 break;
             }
 
-            if(outp) {
+            if(outp && world.rank() == 0) {
                 printf("%.3d %.3ld %.6e %.6e", iter, rank, updatenorm, resid);
                 if(iter != rank)
                     printf(" ** Questionable Progress **");

@@ -245,7 +245,7 @@ int main(int argc, char **argv) {
 /// test real vectors, converge on zeroth step
 bool realvec0() {
 	RealVecIdentOp lo;
-	VectorSpace<double, 3> space;
+	VectorSpace<double, 3> space(*worldptr);
 	Vector<double, 3> x, b;
 	double resid_thresh = 5.0e-4;
 	double update_thresh = 1.0e-10;
@@ -264,7 +264,7 @@ bool realvec0() {
 /// test real vectors, converge after 1 step
 bool realvec1() {
 	RealVecIdentOp lo;
-	VectorSpace<double, 3> space;
+	VectorSpace<double, 3> space(*worldptr);
 	Vector<double, 3> x, b;
 	double resid_thresh = 5.0e-4;
 	double update_thresh = 1.0e-10;
@@ -283,7 +283,7 @@ bool realvec1() {
 /// test real vectors, converge after >1 steps
 bool realvec2() {
 	RealVecLinearOp lo;
-	VectorSpace<double, 3> space;
+	VectorSpace<double, 3> space(*worldptr);
 	Vector<double, 3> x, b;
 	double resid_thresh = 5.0e-4;
 	double update_thresh = 1.0e-10;
@@ -303,7 +303,7 @@ bool realvec2() {
 /// test complex vectors, converge after 0 steps
 bool cplxvec0() {
 	ComplexVecIdentOp lo;
-	VectorSpace<std::complex<double>, 3> space;
+	VectorSpace<std::complex<double>, 3> space(*worldptr);
 	Vector<std::complex<double>, 3> x, b;
 	double resid_thresh = 5.0e-4;
 	double update_thresh = 1.0e-10;
@@ -322,7 +322,7 @@ bool cplxvec0() {
 /// test complex vectors, converge after 1 step
 bool cplxvec1() {
 	ComplexVecIdentOp lo;
-	VectorSpace<std::complex<double>, 3> space;
+	VectorSpace<std::complex<double>, 3> space(*worldptr);
 	Vector<std::complex<double>, 3> x, b;
 	double resid_thresh = 5.0e-4;
 	double update_thresh = 1.0e-10;
@@ -341,7 +341,7 @@ bool cplxvec1() {
 /// test complex vectors, converge after >1 steps
 bool cplxvec2() {
 	ComplexVecLinearOp lo;
-	VectorSpace<std::complex<double>, 3> space;
+	VectorSpace<std::complex<double>, 3> space(*worldptr);
 	Vector<std::complex<double>, 3> x, b;
 	double resid_thresh = 5.0e-4;
 	double update_thresh = 1.0e-10;
