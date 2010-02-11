@@ -62,7 +62,10 @@ namespace madness
       if (expnt[i]*L[0]*L[0] > acut1e_6)
       {
         double c = pow(4 * WST_PI * coeff[i], 1.0/double(NDIM));
-        ops.push_back(SharedPtr< Convolution1D<Q> >(new GaussianConvolution1D<double>(k, c*L[0], expnt[i]*L[0]*L[0], 1.0, true)));
+        ops.push_back(SharedPtr< Convolution1D<Q> >(new GaussianConvolution1D<double>(k, c*L[0], expnt[i]*L[0]*L[0], 1.0, 0, true)));
+//        ops.push_back(SharedPtr< Convolution1D<Q> >(new
+//            GenericConvolution1D<Q,GaussianGenericFunctor<Q> >(k,
+//                GaussianGenericFunctor<Q>(c*L[0],expnt[i]*L[0]*L[0]),16)));
       }
     }
 
@@ -87,7 +90,7 @@ namespace madness
       if (expnt[i]*L[0]*L[0] > acut1e_6)
       {
         double c = pow(4 * WST_PI * coeff[i], 1.0/double(NDIM));
-        ops.push_back(SharedPtr< Convolution1D<Q> >(new GaussianConvolution1D<double>(k, c*L[0], expnt[i]*L[0]*L[0], 1.0, true)));
+        ops.push_back(SharedPtr< Convolution1D<Q> >(new GaussianConvolution1D<double>(k, c*L[0], expnt[i]*L[0]*L[0], 1.0, 0, true)));
       }
     }
 
@@ -110,7 +113,7 @@ namespace madness
     for (int i=0; (i < coeff.dim(0)); ++i)
     {
       double c = pow(coeff[i], 1.0/double(NDIM));
-      ops.push_back(SharedPtr< Convolution1D<Q> >(new GaussianConvolution1D<double>(k, c*L[0], expnt[i]*L[0]*L[0], 1.0, true)));
+      ops.push_back(SharedPtr< Convolution1D<Q> >(new GaussianConvolution1D<double>(k, c*L[0], expnt[i]*L[0]*L[0], 1.0, 0, true)));
     }
 
     return SeparatedConvolution<Q, NDIM>(world, ops);
@@ -132,7 +135,7 @@ namespace madness
     for (int i=0; (i < coeff.dim(0)); ++i)
     {
       double c = pow(coeff[i], 1.0/double(NDIM));
-      ops.push_back(SharedPtr< Convolution1D<Q> >(new GaussianConvolution1D<double>(k, c*L[0], expnt[i]*L[0]*L[0], 1.0, true)));
+      ops.push_back(SharedPtr< Convolution1D<Q> >(new GaussianConvolution1D<double>(k, c*L[0], expnt[i]*L[0]*L[0], 1.0, 0, true)));
     }
 
     return new SeparatedConvolution<Q, NDIM>(world, ops);

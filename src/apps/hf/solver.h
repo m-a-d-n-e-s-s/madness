@@ -918,7 +918,8 @@ namespace madness
     {
   //      MADNESS_ASSERT(!_params.spinpol);
         rfunctionT vlda = copy(arho);
-        vlda.unaryop(&::libxc_ldaop<double>);
+//        vlda.unaryop(&::libxc_ldaop<double>);
+        vlda.unaryop(&::ldaop<double>);
         return vlda;
     }
 
@@ -1517,23 +1518,26 @@ namespace madness
         // LDA, is calculation spin-polarized?
         if (_params.spinpol)
         {
-          // potential
-          rfuntionT vxca = binary_op(rhoa, rhob, &::libxc_ldaop_sp<double>);
-          rfuntionT vxcb = binary_op(rhob, rhoa, &::libxc_ldaop_sp<double>);
-          pfuncsa = mul_sparse(_world, vlocal + vxca, phisa, _params.thresh * 0.1);
-          pfuncsb = mul_sparse(_world, vlocal + vxcb, phisb, _params.thresh * 0.1);
-          // energy
-          rfuntionT fca = binary_op(rhoa, rhob, &::libxc_ldaeop_sp<double>);
-          rfuntionT fcb = binary_op(rhob, rhoa, &::libxc_ldaeop_sp<double>);
-          xc = fca.trace() + fcb.trace();
+        	MADNESS_EXCEPTION("Spin polarized not implemented!",0);
+//          // potential
+//          rfuntionT vxca = binary_op(rhoa, rhob, &::libxc_ldaop_sp<double>);
+//          rfuntionT vxcb = binary_op(rhob, rhoa, &::libxc_ldaop_sp<double>);
+//          pfuncsa = mul_sparse(_world, vlocal + vxca, phisa, _params.thresh * 0.1);
+//          pfuncsb = mul_sparse(_world, vlocal + vxcb, phisb, _params.thresh * 0.1);
+//          // energy
+//          rfuntionT fca = binary_op(rhoa, rhob, &::libxc_ldaeop_sp<double>);
+//          rfuntionT fcb = binary_op(rhob, rhoa, &::libxc_ldaeop_sp<double>);
+//          xc = fca.trace() + fcb.trace();
         }
         else
         {
           // potential
           rfuntionT vxc = copy(rhoa);
-          vxc.unaryop(&::libxc_ldaop<double>);
-          rfuntionT vxc2 = binary_op(rhoa, rhoa, &::libxc_ldaop_sp<double>);
-          pfuncsa = mul_sparse(_world, vlocal + vxc2, phisa, _params.thresh * 0.1);
+//          vxc.unaryop(&::libxc_ldaop<double>);
+          vxc.unaryop(&::ldaop<double>);
+          pfuncsa = mul_sparse(_world, vlocal + vxc, phisa, _params.thresh * 0.1);
+//          rfuntionT vxc2 = binary_op(rhoa, rhoa, &::libxc_ldaop_sp<double>);
+//          pfuncsa = mul_sparse(_world, vlocal + vxc2, phisa, _params.thresh * 0.1);
           // energy
           rfuntionT fc = copy(rhoa);
           fc.unaryop(&::ldaeop<double>);
