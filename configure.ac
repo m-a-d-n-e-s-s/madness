@@ -193,7 +193,8 @@ AC_CHECK_TYPES([ptrdiff_t])
 # Library functions
 AC_CHECK_FUNCS([sleep random execv perror gettimeofday memmove memset pow sqrt strchr strdup getenv])
 AC_FUNC_FORK
-AC_FUNC_MALLOC
+# EFV: when using Intel compiler on OS X malloc is found to be non-GNU-compatible, which breaks gcc's cstdlib
+#AC_FUNC_MALLOC
 AC_FUNC_ERROR_AT_LINE
 ACX_POSIX_MEMALIGN
 
