@@ -256,9 +256,10 @@ namespace madness {
         }
 
         /// Returns the level for projection
-        virtual Level natural_level() const {
-            return 13;
-        }
+        //virtual Level natural_level() const {
+        //    return 13;
+        //}
+        virtual Level natural_level() const {return 13;}
 
         /// Computes the transition matrix elements for the convolution for n,l
 
@@ -398,16 +399,20 @@ namespace madness {
         Q coeff;
         double exponent;
         int m;
+        Level natlev;
+
     public:
         // coeff * exp(-exponent*x^2) * x^m
         GaussianGenericFunctor(Q coeff, double exponent, int m=0)
-            : coeff(coeff), exponent(exponent), m(m) {}
+            : coeff(coeff), exponent(exponent), m(m), 
+              natlev(Level(0.5*log(exponent)/log(2.0)+1)) {}
 
         Q operator()(double x) const {
             Q ee = coeff*exp(-exponent*x*x);
             for (int mm=0; mm<m; mm++) ee *= x;
             return ee;
         }
+        Level natural_level() const {return natlev;}
     };
 
 
@@ -432,7 +437,7 @@ namespace madness {
             // then defines the future range of the operator and also serves
             // to precompute the values used in the rnlp cache.
 
-            Level natl = this->natural_level();
+            Level natl = natural_level();
             int nzero = 0;
             for (Translation lx=0; lx<(1L<<natl); lx++) {
                 const Tensor<Q>& rp = this->get_rnlp(natl, lx);
@@ -444,6 +449,8 @@ namespace madness {
                 }
             }
         }
+
+        virtual Level natural_level() const {return op.natural_level();}
 
         struct Shmoo {
             typedef Tensor<Q> returnT;
@@ -477,7 +484,7 @@ namespace madness {
             // ... we are two levels below so 0,1 --> 0,1,2,3 --> 0,...,7
             if (lx <= 7) return false;
 
-            n = this->natural_level()-n;
+            n = natural_level()-n;
             if (n >= 0) lx = lx << n;
             else lx = lx >> n;
 
@@ -514,7 +521,7 @@ namespace madness {
 
         virtual ~GaussianConvolution1D() {}
 
-        Level natural_level() const {
+        virtual Level natural_level() const {
             return natlev;
         }
 

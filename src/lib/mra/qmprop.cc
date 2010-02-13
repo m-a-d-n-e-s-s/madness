@@ -105,6 +105,8 @@ namespace madness {
 //             }
         }
 
+        Level natural_level() const {return 13;}
+
         std::complex<double> operator()(double x) const {
             x = fabs(x)*width;
             if (x >= xmax) return 0.0;
