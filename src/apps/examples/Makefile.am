@@ -1,6 +1,6 @@
 include $(top_srcdir)/config/MakeGlobal.am
 
-bin_PROGRAMS = hello hatom_energy h2 he tdse heat heat2 csqrt sdf_shape_tester interior_dirichlet test_gmres tdse1d vnucso nonlinschro sininteg functionio dataloadbal laplace_sphere
+bin_PROGRAMS = hello hatom_energy h2 he tdse heat heat2 csqrt sdf_shape_tester interior_dirichlet test_gmres tdse1d vnucso nonlinschro sininteg functionio dataloadbal laplace_sphere hatom_1d
 
 dataloadbal_SOURCES = dataloadbal.cc
 
@@ -37,6 +37,8 @@ interior_dirichlet_SOURCES = interior_dirichlet.cc
 test_gmres_SOURCES = test_gmres.cc
 
 vnucso_SOURCES = vnucso.cc
+
+hatom_1d_SOURCES = hatom_1d.cc
 
 LDADD = $(MRALIBS)
 
