@@ -1,11 +1,5 @@
-/// \file M3Ddifftesting.cc
+/// \file testdiff3D.cc
 /// \brief testing for diff() in 3D
-
-/// vectorg only takes in 1 function, for now. the workaround is to call it twice.
-/// i.e. set bc(0,0) to a dummy value - not 3, nor 5 (vectorg does nothing for other values of bc)
-/// and bc(0,1) to whatever bc you're actually using (3, or 5)
-/// then call vectorg, then switch bc(0,1) to a dummy value, and bc(0,0) to 3 or 5,
-/// and call vectorg again
 
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES  
 #include <mra/mra.h>
