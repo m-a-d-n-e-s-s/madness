@@ -365,7 +365,7 @@ namespace madness {
                 : WorldObject< WorldContainerImpl<keyT, valueT, hashfunT> >(world)
                 , pmap(pmap)
                 , me(world.mpi.rank())
-                , local(131, hf) {
+                , local(5011, hf) {
             pmap->register_callback(this);
             if (do_pending) this->process_pending();
         }
