@@ -45,6 +45,8 @@ enum Problem { CONSTANT, COSTHETA };
 
 enum Mask { LLRV, LLRVGaussian };
 
+enum FunctorOutput { SURFACE, DIRICHLET_SURFACE, EXACT };
+
 /** \brief Produces the surface Dirichlet condition */
 class SurfaceProblem : public FunctionFunctorInterface<double, 3> {
     private:
@@ -57,32 +59,35 @@ class SurfaceProblem : public FunctionFunctorInterface<double, 3> {
 
     public:
         /// which function to use when projecting:
-        /// -# the weighted surface (false)
-        /// -# the weighted Dirichlet condition (true)
-        bool useDirichlet;
-
-        /// use the exact solution when projecting?
-        bool useExact;
-
-        bool useDSurface;
+        /// -# the weighted surface (SURFACE)
+        /// -# the weighted Dirichlet condition (DIRICHLET_SURFACE)
+        /// -# the exact solution (EXACT)
+        FunctorOutput fop;
 
         SurfaceProblem(SharedPtr<DomainMaskInterface> dmi,
             SharedPtr<SignedDFInterface<3> > sdfi, double penalty_prefact,
             Problem prob)
             : dmi(dmi), sdfi(sdfi), penalty_prefact(penalty_prefact),
-              prob(prob), useDirichlet(true), useExact(false), useDSurface(false)
+              prob(prob), fop(DIRICHLET_SURFACE)
         {}
 
         double operator() (const coord_3d &x) const {
-            if(useExact)
+            switch(fop) {
+            case EXACT:
                 return ExactSol(x);
-            if(useDirichlet)
+                break;
+            case DIRICHLET_SURFACE:
                 return DirichletCond(x) * dmi->surface(sdfi->sdf(x)) *
                     penalty_prefact;
-            else if(useDSurface)
-                return dmi->dsurface(sdfi->sdf(x)) * penalty_prefact;
-            else
+                break;
+            case SURFACE:
                 return dmi->surface(sdfi->sdf(x)) * penalty_prefact;
+                break;
+            default:
+                error("shouldn't be here...");
+                return 0.0;
+                break;
+            }
         }
 
         double DirichletCond(const coord_3d &x) const {
@@ -244,7 +249,7 @@ int main(int argc, char **argv) {
     FunctionDefaults<3>::set_cubic_cell(-2.0, 2.0);
     FunctionDefaults<3>::set_thresh(thresh);
     FunctionDefaults<3>::set_truncate_on_project(true);
-    FunctionDefaults<3>::set_initial_level(8);
+    //FunctionDefaults<3>::set_initial_level(8);
     
     // create the domain mask, phi, and the surface function, b
     coord_3d pt(0.0); // Origin
@@ -269,7 +274,7 @@ int main(int argc, char **argv) {
         (new SurfaceProblem(llrv, sphere, penalty_prefact, prob));
 
     // project the surface function
-    surf_functor->useDirichlet = false;
+    surf_functor->fop = SURFACE;
     real_function_3d surf = real_factory_3d(world).k(6).thresh(1.0e-4)
         .functor(surf_functor);
 
@@ -306,28 +311,9 @@ int main(int argc, char **argv) {
 
     // make the Dirichlet condition
     // this will include the penalty prefactor
-    surf_functor->useDirichlet = true;
+    surf_functor->fop = DIRICHLET_SURFACE;
     real_function_3d usol;
     real_function_3d uboundary = real_factory_3d(world).functor(surf_functor);
-
-    // make a line plot along the positive z axis of eps^{-2} g S
-    /*{
-    if(world.rank() == 0)
-        printf("\n\n");
-    double zmin = 0.0;
-    double zmax = 2.0;
-    int nz = 10001;
-    pt[0] = pt[1] = 0.0;
-    double dz = (zmax - zmin) / (nz - 1);
-    for(int i = 0; i < nz; ++i) {
-        pt[2] = zmin + i * dz;
-        double uval = usol(pt);
-
-        if(world.rank() == 0) {
-            printf("%.4e %.4e\n", pt[2], uval);
-        }
-    }
-    }*/
 
     // transform Dirichlet condition into the right-hand side vector
     // rhs = -G*(condition)
@@ -352,9 +338,7 @@ int main(int argc, char **argv) {
     GMRES(space, dcio, d, usol, maxiter, resid_thresh, update_thresh, true);
 
     // compare to the exact solution
-    surf_functor->useDirichlet = false;
-    surf_functor->useDSurface = false;
-    surf_functor->useExact = true;
+    surf_functor->fop = EXACT;
     real_function_3d uexact = real_factory_3d(world).functor(surf_functor);
     real_function_3d uerror = (usol - uexact);
     double error = uerror.norm2();
@@ -372,8 +356,14 @@ int main(int argc, char **argv) {
         printf("u(2.0)/uexact(2.0) ratio = %.10e\n",
             cons/surf_functor->ExactSol(pt));
     }
+    pt[2] = 1.0;
+    cons = usol(pt);
+    if(world.rank() == 0) {
+        printf("u(1.0)/uxact(1.0) ratio = %.10e\n",
+            cons/surf_functor->ExactSol(pt));
+    }
 
-    // uncomment these lines for line plots
+    // uncomment these lines for various plots
     /*
     // make a line plot along the positive z axis
     {
