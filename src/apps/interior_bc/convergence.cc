@@ -31,15 +31,45 @@
   $Id$
 */
 
+/** \file convergence.cc
+    \brief Provides 3 3-D test problems for examining the convergence of
+           embedded boundary conditions.
+
+    The auxiliary PDE being solved is
+    \f[ \nabla^2 u - p(\varepsilon) S (u-g) = \varphi f, \f]
+    where
+       - \f$u\f$ is the solution function
+       - \f$\varepsilon\f$ is the thickness of the boundary layer
+       - \f$p(\varepsilon)\f$ is the penalty prefactor, \f$2/\varepsilon\f$
+         seems to work well.
+       - \f$S\f$ is the surface function
+       - \f$g\f$ is the Dirichlet condition to be enforced on the surface
+       - \f$\varphi\f$ is the domain mask (1 inside, 0 outside, blurry on the
+         border)
+       - \f$f\f$ is the inhomogeneity.
+
+    The three test problems are
+       -# A sphere of radius \f$R\f$ with \f$g = Y_0^0\f$, homogeneous
+          (CONSTANT)
+       -# A sphere of radius \f$R\f$ with \f$g = y_1^0\f$, homogeneous
+          (COSTHETA)
+       -# An ellipsoid of radii \f$(a=0.5, b=1.0, c=1.5)\f$ with \f$g = 2\f$,
+          inhomogeneous: \f$f = 4 (a^{-2} + b^{-2} + c^{-2})\f$.
+
+    This program allows testing of various parameters,
+       -# The surface thickness
+       -# The penalty prefactor
+       -# The type of domain masking (LLRV or Gaussian)
+       -# The curvature / shape of the domain
+       .
+    for their effect on convergence of the solution. */
+
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <mra/mra.h>
 #include <mra/lbdeux.h>
 #include <mra/sdf_shape_3D.h>
 #include <linalg/gmres.h>
 #include <muParser/muParser.h>
-#include <string>
-#include "llrv_gaussian.h"
-#include "loadbalcost.h"
 
 using namespace madness;
 
@@ -47,7 +77,37 @@ enum Problem { CONSTANT, COSTHETA, ELLIPSE };
 
 enum Mask { LLRV, Gaussian };
 
-enum FunctorOutput { SURFACE, DIRICHLET_SURFACE, EXACT };
+enum FunctorOutput { SURFACE, DIRICHLET_SURFACE, EXACT, INHOMO };
+
+// load balancing structure lifted from dataloadbal.cc
+struct LBCost {
+    double leaf_value;
+    double parent_value;
+    LBCost(double leaf_value = 1.0, double parent_value = 1.0)
+        : leaf_value(leaf_value), parent_value(parent_value) {}
+
+    double operator() (const Key<3> &key, const FunctionNode<double, 3> &node)
+        const {
+
+        if(key.level() <= 1) {
+            return 100.0*(leaf_value+parent_value);
+        }
+        else if(node.is_leaf()) {
+            return leaf_value;
+        }
+        else {
+            return parent_value;
+        }
+    }
+};
+
+// the sphere radius
+double sphere_rad = 1.0;
+
+// the radii for the ellipsoid
+const double ellipse_a = 0.5;
+const double ellipse_b = 1.0;
+const double ellipse_c = 1.5;
 
 /** \brief Produces the surface Dirichlet condition */
 class SurfaceProblem : public FunctionFunctorInterface<double, 3> {
@@ -64,6 +124,7 @@ class SurfaceProblem : public FunctionFunctorInterface<double, 3> {
         /// -# the weighted surface (SURFACE)
         /// -# the weighted Dirichlet condition (DIRICHLET_SURFACE)
         /// -# the exact solution (EXACT)
+        /// -# the original r.h.s. inhomogeneity w/domain mask (INHOMO)
         FunctorOutput fop;
 
         SurfaceProblem(SharedPtr<DomainMaskInterface> dmi,
@@ -85,6 +146,8 @@ class SurfaceProblem : public FunctionFunctorInterface<double, 3> {
             case SURFACE:
                 return dmi->surface(sdfi->sdf(x)) * penalty_prefact;
                 break;
+            case INHOMO:
+                return dmi->mask(sdfi->sdf(x)) * Inhomogeneity(x);
             default:
                 error("shouldn't be here...");
                 return 0.0;
@@ -109,6 +172,10 @@ class SurfaceProblem : public FunctionFunctorInterface<double, 3> {
                     return x[2] / r;
                 break;
 
+            case ELLIPSE:
+                return 2.0;
+                break;
+
             default:
                 error("Unknown problem in SurfaceCondition::DirichletCond");
                 return 0.0;
@@ -120,21 +187,45 @@ class SurfaceProblem : public FunctionFunctorInterface<double, 3> {
 
             switch(prob) {
             case CONSTANT:
-                if(r <= 1.0)
+                if(r <= sphere_rad)
                     return 1.0;
                 else
-                    return 1.0 / r;
+                    return sphere_rad / r;
                 break;
 
             case COSTHETA:
-                if(r <= 1.0)
-                    return x[2];
+                if(r <= sphere_rad)
+                    return x[2] / sphere_rad;
                 else
-                    return x[2] / (r*r*r);
+                    return x[2]*sphere_rad*sphere_rad / (r*r*r);
+                break;
+
+            case ELLIPSE:
+                // this is only the real solution INSIDE the ellipsoid
+                return 2.0 * (x[0] * x[0] / (ellipse_a*ellipse_a) +
+                              x[1] * x[1] / (ellipse_b*ellipse_b) +
+                              x[2] * x[2] / (ellipse_c*ellipse_c));
                 break;
 
             default:
                 error("Unknown problem in SurfaceCondition::DirichletCond");
+                return 0.0;
+            }
+        }
+
+        double Inhomogeneity(const coord_3d &x) const {
+            switch(prob) {
+            case CONSTANT:
+            case COSTHETA:
+                return 0.0;
+                break;
+            case ELLIPSE:
+                return 4.0 * (1.0 / (ellipse_a*ellipse_a) +
+                              1.0 / (ellipse_b*ellipse_b) +
+                              1.0 / (ellipse_c*ellipse_c));
+                break;
+            default:
+                error("Unknown problem in SurfaceCondition::Inhomogeneity");
                 return 0.0;
             }
         }
@@ -171,7 +262,7 @@ class DirichletCondIntOp : public Operator<real_function_3d> {
 int main(int argc, char **argv) {
     double eps, penalty_prefact;
     coord_3d radius;
-    int k;
+    int i, k;
     double thresh;
     Problem prob;
     Mask mask;
@@ -187,7 +278,7 @@ int main(int argc, char **argv) {
                 " mask [radius, prob = CONSTANT or COSTHETA]" << std::endl;
             std::cerr << "    Where prob = 1 for CONSTANT, 2 for COSTHETA," \
                 " 3 for ELLIPSE\n" << std::endl;
-            std::cerr << "    Where mask = 1 for LLRV, 2 for LLRV-Gaussian\n"
+            std::cerr << "    Where mask = 1 for LLRV, 2 for Gaussian\n"
                 << std::endl;
             std::cerr << "    Where penalty is the penalty_prefact, " \
                 "specified as a function\n    of eps, i.e. 2/eps" << std::endl;
@@ -213,9 +304,9 @@ int main(int argc, char **argv) {
         case 3:
             prob = ELLIPSE;
             sprintf(probname, "ellipse");
-            radius[0] = 0.5;
-            radius[1] = 1.0;
-            radius[2] = 1.5;
+            radius[0] = ellipse_a;
+            radius[1] = ellipse_b;
+            radius[2] = ellipse_c;
             break;
         default:
             error("unknown problem type, should be 1, 2, or 3");
@@ -250,12 +341,15 @@ int main(int argc, char **argv) {
             break;
         }
 
-        if(argc > 7) {
-            radius[0] = atof(argv[7]);
-            if(radius[0] <= 0.0) error("radius must be positive");
+        if(prob == CONSTANT || prob == COSTHETA) {
+            if(argc > 7) {
+                radius[0] = atof(argv[7]);
+                if(radius[0] <= 0.0) error("radius must be positive");
+            }
+            else
+                radius[0] = 1.0;
+            sphere_rad = radius[0];
         }
-        else
-            radius[0] = 1.0;
 
         // print out the arguments
         printf("Solving %s problem\nWavelet order = %d\nThreshold = %.2e\n" \
@@ -283,9 +377,19 @@ int main(int argc, char **argv) {
     FunctionDefaults<3>::set_cubic_cell(-2.0, 2.0);
     FunctionDefaults<3>::set_thresh(thresh);
     FunctionDefaults<3>::set_truncate_on_project(true);
-    //FunctionDefaults<3>::set_initial_level(8);
+
+    // calculate some nice initial projection level...
+    // should be no lower than 6, but may need to be higher for small eps
+    i = ceil(log(4.0 / eps) / log(2.0) - 4);
+    if(i < 6)
+        i = 6;
+    if(world.rank() == 0) {
+        printf("Initial projection level = %d\n", i);
+        fflush(stdout);
+    }
+    FunctionDefaults<3>::set_initial_level(i);
     
-    // create the domain mask, phi, and the surface function, b
+    // create the domain mask, phi, and the surface function
     coord_3d pt(0.0); // Origin
     SignedDFInterface<3> *sdfi = NULL;
     if(prob == CONSTANT || prob == COSTHETA)
@@ -298,7 +402,7 @@ int main(int argc, char **argv) {
     if(mask == LLRV)
         dmip = new LLRVDomainMask(eps);
     else if(mask == Gaussian)
-        dmip = new LLRVGaussianDomainMask(eps);
+        dmip = new GaussianDomainMask(eps);
     SharedPtr<DomainMaskInterface> dmask(dmip);
 
     // a functor for the domain mask
@@ -313,6 +417,10 @@ int main(int argc, char **argv) {
         (new SurfaceProblem(dmask, sdf, penalty_prefact, prob));
 
     // project the surface function
+    if(world.rank() == 0) {
+        printf("Projecting the surface function (to low order)\n");
+        fflush(stdout);
+    }
     surf_functor->fop = SURFACE;
     real_function_3d surf = real_factory_3d(world).k(6).thresh(1.0e-4)
         .functor(surf_functor);
@@ -329,11 +437,19 @@ int main(int argc, char **argv) {
 
     // reproject the surface function to the requested threshold / k
     if(k > 6 || thresh < 1.0e-4) {
+        if(world.rank() == 0) {
+            printf("Reprojecting the surface function to requested order\n");
+            fflush(stdout);
+        }
         surf.clear();
         surf = real_factory_3d(world).functor(surf_functor);
     }
 
     // phi_functor defaults to the domain mask
+    if(world.rank() == 0) {
+        printf("Projecting the domain mask\n");
+        fflush(stdout);
+    }
     real_function_3d phi = real_factory_3d(world).functor(phi_functor);
 
     // print out the errors in volume and surface area
@@ -359,27 +475,55 @@ int main(int argc, char **argv) {
     }
 
     // green's function
+    // note that this is really -G...
     real_convolution_3d G = BSHOperator<3>(world, 0.0, eps*0.1, thresh);
+
+    // project the inhomogeneity
+    real_function_3d d;
+    if(world.rank() == 0) {
+        if(prob == ELLIPSE)
+            printf("Projecting the r.h.s. inhomogeneity\n");
+        else if(prob == CONSTANT || prob == COSTHETA)
+            printf("No r.h.s inhomogeneity to project\n"); // it's 0
+        fflush(stdout);
+    }
+    if(prob == ELLIPSE) {
+        surf_functor->fop = INHOMO;
+        d = real_factory_3d(world).functor(surf_functor);
+        d.compress();
+    }
 
     // make the Dirichlet condition
     // this will include the penalty prefactor
+    if(world.rank() == 0) {
+        printf("Projecting the Dirichlet condition\n");
+        fflush(stdout);
+    }
     surf_functor->fop = DIRICHLET_SURFACE;
     real_function_3d usol;
     real_function_3d uboundary = real_factory_3d(world).functor(surf_functor);
 
+    // make the r.h.s. of the auxiliary differential equation
+    if(prob == CONSTANT || prob == COSTHETA)
+        uboundary.scale(-1.0);
+    else if(prob == ELLIPSE) {
+        uboundary.compress();
+        uboundary.gaxpy(-1.0, d, 1.0);
+        d.clear();
+    }
+
     // transform Dirichlet condition into the right-hand side vector
     // rhs = -G*(condition)
-    real_function_3d d = G(uboundary);
-    d.scale(-1.0);
+    d = G(uboundary);
     d.truncate();
 
     // make an initial guess:
-    // uguess = eps^2 rhs
+    // uguess = rhs / penalty_prefact
     // the rescaling will make operator(uguess) close to d in magnitude for
     //     starting in GMRES
     usol.clear();
     usol = copy(d);
-    usol.scale(-1.0 / penalty_prefact);
+    usol.scale(1.0 / penalty_prefact);
     usol.compress();
 
     // make the operators and prepare GMRES
@@ -393,53 +537,69 @@ int main(int argc, char **argv) {
     // compare to the exact solution
     surf_functor->fop = EXACT;
     real_function_3d uexact = real_factory_3d(world).functor(surf_functor);
-    real_function_3d uerror = (usol - uexact);
+    real_function_3d uerror;
+    if(prob == CONSTANT || prob == COSTHETA)
+        uerror = (usol - uexact);
+    else if(prob == ELLIPSE)
+        uerror = (usol - uexact)*phi; // we only have the interior solution
     double error = uerror.norm2();
     pt[0] = pt[1] = 0.0;
     pt[2] = 0.1;
     double cons = usol(pt);
     if(world.rank() == 0) {
-        printf("u error = %.10e\n", error);
-        printf("u(0.1)/uexact(0.1) ratio = %.10e\n",
+        printf("\nu error = %.10e\n", error);
+        printf("u/uexact ratio at %f = %.10e\n", 0.1,
             cons/surf_functor->ExactSol(pt));
+        fflush(stdout);
     }
-    pt[2] = 2.0;
+    if(prob == CONSTANT || prob == COSTHETA)
+        error = 2.0;
+    else if(prob == ELLIPSE)
+        error = ellipse_c;
+    pt[2] = error;
     cons = usol(pt);
     if(world.rank() == 0) {
-        printf("u(2.0)/uexact(2.0) ratio = %.10e\n",
+        printf("u/uexact ratio %f = %.10e\n", error,
             cons/surf_functor->ExactSol(pt));
     }
-    pt[2] = 1.0;
+    if(prob == CONSTANT || prob == COSTHETA) {
+        error = 1.0;
+        pt[2] = 1.0;
+    }
+    else if(prob == ELLIPSE) {
+        error = ellipse_a;
+        pt[0] = ellipse_a;
+        pt[2] = 0.0;
+    }
     cons = usol(pt);
     if(world.rank() == 0) {
-        printf("u(1.0)/uxact(1.0) ratio = %.10e\n",
+        printf("u/uexact ratio at %f = %.10e\n", error,
             cons/surf_functor->ExactSol(pt));
     }
 
     // uncomment these lines for various plots
-    /*
+    
     // make a line plot along the positive z axis
     {
     if(world.rank() == 0)
         printf("\n\n");
     double zmin = 0.0;
     double zmax = 2.0;
-    int nz = 10001;
+    int nz = 201;
     pt[0] = pt[1] = 0.0;
     double dz = (zmax - zmin) / (nz - 1);
     for(int i = 0; i < nz; ++i) {
         pt[2] = zmin + i * dz;
         double uval = usol(pt);
-        double ueval = uexact(pt);
 
         if(world.rank() == 0) {
-            printf("%.4e %.4e %.4e\n", pt[2], uval, ueval);
+            printf("%.4e %.4e\n", pt[2], uval);
         }
     }
     }
 
     // make a line plot along the positive z axis
-    {
+    /*{
     if(world.rank() == 0)
         printf("\n\n");
     double zmin = -3.0;

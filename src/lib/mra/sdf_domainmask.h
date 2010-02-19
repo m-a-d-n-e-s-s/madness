@@ -370,6 +370,77 @@ namespace madness {
         virtual ~LLRVDomainMask() {}
     };
 
+    /** \brief Use a Gaussian for the surface function and the corresponding erf
+               for the domain mask. */
+    class GaussianDomainMask : public DomainMaskInterface {
+    private:
+        GaussianDomainMask() : epsilon(0.0) {} ///< Forbidden
+        
+    protected:
+        const double epsilon; ///< The width of the transition region
+    
+    public:
+        /** \brief Constructor for the domain mask
+
+            \param[in] epsilon The effective width of the surface */
+        GaussianDomainMask(double epsilon) 
+            : epsilon(epsilon)
+        {}
+
+        /** \brief Value of characteristic function at normal distance d from
+                   the surface
+
+            \param[in] d The signed distance.  Negative is ``inside,''
+                         positive is ``outside.''
+            \return The domain mask */
+        double mask(double d) const {
+            if (d > 8.0*epsilon) {
+                return 0.0; // we're safely outside
+            }
+            else if (d < -8.0*epsilon) {
+                return 1.0; // inside
+            }
+            else {
+                return (1.0 - erf(d / (sqrt(2.0) * epsilon))) * 0.5;
+            }
+        }
+    
+        /** \brief Derivative of characteristic function with respect to the
+                   normal distance
+
+            \param[in] d The signed distance
+            \return The derivative */
+        double dmask(double d) const {
+            if (fabs(d) > 8.0*epsilon) {
+                return 0.0; // we're safely outside or inside
+            }
+            else {
+                return -exp(-d*d*0.5/(epsilon*epsilon)) / (sqrt(2.0*constants::pi)
+                    * epsilon);
+            }
+        }
+    
+        /** \brief Value of surface function at distance d normal to surface
+
+            \param[in] d The signed distance
+            \return The value of the surface function */
+        double surface(double d) const {
+            return exp(-d*d*0.5/(epsilon*epsilon)) / (sqrt(2.0*constants::pi)
+                * epsilon);
+        }
+
+        /** \brief Value of d(surface)/ddistance
+
+            \param[in] d The signed distance
+            \return The derivative of the surface function */
+        double dsurface(double d) const {
+            return -exp(-d*d*0.5/(epsilon*epsilon)) * d / (sqrt(2.0*constants::pi)
+                * epsilon*epsilon*epsilon);
+        }
+    
+        virtual ~GaussianDomainMask() {}
+    };
+
 } // end of madness namespace
 
 #endif // MADNESS_MRA_SDF_DOMAINMASK_H__INCLUDED
