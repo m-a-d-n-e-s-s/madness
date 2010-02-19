@@ -1,10 +1,10 @@
 include $(top_srcdir)/config/MakeGlobal.am
 
-bin_PROGRAMS = depth sphere
+bin_PROGRAMS = depth convergence
 
 depth_SOURCES = depth.cc
 
-sphere_SOURCES = sphere.cc llrv_gaussian.h loadbalcost.h
+convergence_SOURCES = convergence.cc llrv_gaussian.h loadbalcost.h
 
 LDADD = $(MRALIBS)
 

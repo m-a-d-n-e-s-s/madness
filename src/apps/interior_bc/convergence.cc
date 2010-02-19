@@ -36,14 +36,16 @@
 #include <mra/lbdeux.h>
 #include <mra/sdf_shape_3D.h>
 #include <linalg/gmres.h>
+#include <muParser/muParser.h>
+#include <string>
 #include "llrv_gaussian.h"
 #include "loadbalcost.h"
 
 using namespace madness;
 
-enum Problem { CONSTANT, COSTHETA };
+enum Problem { CONSTANT, COSTHETA, ELLIPSE };
 
-enum Mask { LLRV, LLRVGaussian };
+enum Mask { LLRV, Gaussian };
 
 enum FunctorOutput { SURFACE, DIRICHLET_SURFACE, EXACT };
 
@@ -168,7 +170,8 @@ class DirichletCondIntOp : public Operator<real_function_3d> {
 
 int main(int argc, char **argv) {
     double eps, penalty_prefact;
-    int k, maxiter;
+    coord_3d radius;
+    int k;
     double thresh;
     Problem prob;
     Mask mask;
@@ -179,18 +182,26 @@ int main(int argc, char **argv) {
     startup(world,argc,argv);
     
     if (world.rank() == 0) {
-        if(argc < 7) {
-            std::cerr << "Usage error: ./app_name prob k thresh eps mask "\
-                "maxiter" << std::endl;
-            std::cerr << "    Where prob = 1 for CONSTANT, 2 for COSTHETA"
+        if(argc < 6) {
+            std::cerr << "Usage error: ./app_name k thresh prob eps penalty" \
+                " mask [radius, prob = CONSTANT or COSTHETA]" << std::endl;
+            std::cerr << "    Where prob = 1 for CONSTANT, 2 for COSTHETA," \
+                " 3 for ELLIPSE\n" << std::endl;
+            std::cerr << "    Where mask = 1 for LLRV, 2 for LLRV-Gaussian\n"
                 << std::endl;
-            std::cerr << "    Where mask = 1 for LLRV, 2 for LLRV-Gaussian"
-                << std::endl;
+            std::cerr << "    Where penalty is the penalty_prefact, " \
+                "specified as a function\n    of eps, i.e. 2/eps" << std::endl;
             error("bad number of arguments");
         }
 
         // read in and validate the command-line arguments
-        switch(atoi(argv[1])) {
+        k = atoi(argv[1]);
+        if(k < 4) error("cheapskate");
+
+        thresh = atof(argv[2]);
+        if(thresh > 1.0e-4) error("use some real thresholds...");
+
+        switch(atoi(argv[3])) {
         case 1:
             prob = CONSTANT;
             sprintf(probname, "constant");
@@ -199,51 +210,74 @@ int main(int argc, char **argv) {
             prob = COSTHETA;
             sprintf(probname, "cos(theta)");
             break;
+        case 3:
+            prob = ELLIPSE;
+            sprintf(probname, "ellipse");
+            radius[0] = 0.5;
+            radius[1] = 1.0;
+            radius[2] = 1.5;
+            break;
         default:
-            error("unknown problem type, should be 1 or 2");
+            error("unknown problem type, should be 1, 2, or 3");
             break;
         }
 
         eps = atof(argv[4]);
         if(eps <= 0.0) error("eps must be positive, and hopefully small");
 
-        thresh = atof(argv[3]);
-        if(thresh > 1.0e-4) error("use some real thresholds...");
+        mu::Parser parser;
+        try {
+            parser.DefineVar("eps", &eps);
+            parser.SetExpr(std::string(argv[5]));
+            penalty_prefact = parser.Eval();
+        }
+        catch(mu::Parser::exception_type &e) {
+            error(e.GetMsg().c_str());
+        }
+        if(penalty_prefact <= 0.0) error("penalty_prefact must be positive");
 
-        k = atoi(argv[2]);
-        if(k < 4) error("cheapskate");
-
-        maxiter = atoi(argv[6]);
-        if(maxiter < 1) error("maxiter >= 1");
-
-        switch(atoi(argv[5])) {
+        switch(atoi(argv[6])) {
         case 1:
             mask = LLRV;
             sprintf(maskname, "LLRV");
             break;
         case 2:
-            mask = LLRVGaussian;
-            sprintf(maskname, "LLRV-Gaussian");
+            mask = Gaussian;
+            sprintf(maskname, "Gaussian");
             break;
         default:
             error("unknown domain mask type, should be 1 or 2");
             break;
         }
 
+        if(argc > 7) {
+            radius[0] = atof(argv[7]);
+            if(radius[0] <= 0.0) error("radius must be positive");
+        }
+        else
+            radius[0] = 1.0;
+
         // print out the arguments
         printf("Solving %s problem\nWavelet order = %d\nThreshold = %.2e\n" \
-            "Layer Thickness = %.3e\nUsing %s Domain Masking\n\n",
-            probname, k, thresh, eps, maskname);
+            "Layer Thickness = %.6e\nPenalty Prefactor, %s = %.6e\nUsing %s " \
+            "Domain Masking\n",
+            probname, k, thresh, eps, argv[5], penalty_prefact, maskname);
+        if(prob == CONSTANT || prob == COSTHETA)
+            printf("Sphere Radius = %.6e\n", radius[0]);
+        else if(prob == ELLIPSE)
+            printf("Ellipse Radii = %.6e, %.6e, %.6e\n", radius[0], radius[1],
+                radius[2]);
+        printf("\n");
+        fflush(stdout);
     }
     world.gop.broadcast(prob);
     world.gop.broadcast(eps);
     world.gop.broadcast(thresh);
-    world.gop.broadcast(maxiter);
     world.gop.broadcast(k);
     world.gop.broadcast(mask);
+    world.gop.broadcast(penalty_prefact);
+    world.gop.broadcast(radius);
 
-    penalty_prefact = 2.0/eps;
- 
     // Function defaults
     FunctionDefaults<3>::set_k(k);
     FunctionDefaults<3>::set_cubic_cell(-2.0, 2.0);
@@ -253,25 +287,30 @@ int main(int argc, char **argv) {
     
     // create the domain mask, phi, and the surface function, b
     coord_3d pt(0.0); // Origin
-    SharedPtr<SignedDFInterface<3> > sphere(new SDFSphere(1.0, pt));
+    SignedDFInterface<3> *sdfi = NULL;
+    if(prob == CONSTANT || prob == COSTHETA)
+        sdfi = new SDFSphere(radius[0], pt);
+    else if(prob == ELLIPSE)
+        sdfi = new SDFEllipsoid(radius, pt);
+    SharedPtr<SignedDFInterface<3> > sdf(sdfi);
 
     DomainMaskInterface *dmip = NULL;
     if(mask == LLRV)
         dmip = new LLRVDomainMask(eps);
-    else if(mask == LLRVGaussian)
+    else if(mask == Gaussian)
         dmip = new LLRVGaussianDomainMask(eps);
-    SharedPtr<DomainMaskInterface> llrv(dmip);
+    SharedPtr<DomainMaskInterface> dmask(dmip);
 
     // a functor for the domain mask
     SharedPtr<DomainMaskSDFFunctor<3> > phi_functor
-        (new DomainMaskSDFFunctor<3>(llrv, sphere));
+        (new DomainMaskSDFFunctor<3>(dmask, sdf));
 
     // a functor for the domain surface...
     // the SURFACE option of phi_functor could be used here, however,
-    // we really want eps^{-2} surface for our calculations, and this functor
-    // uses that factor when MADNESS projects the function.
+    // we really want (penalty_prefact*surface) for our calculations, and this
+    // functor uses that factor when MADNESS projects the function.
     SharedPtr<SurfaceProblem> surf_functor
-        (new SurfaceProblem(llrv, sphere, penalty_prefact, prob));
+        (new SurfaceProblem(dmask, sdf, penalty_prefact, prob));
 
     // project the surface function
     surf_functor->fop = SURFACE;
@@ -289,8 +328,10 @@ int main(int argc, char **argv) {
     FunctionDefaults<3>::redistribute(world, lb.load_balance(2.0, false));
 
     // reproject the surface function to the requested threshold / k
-    surf.clear();
-    surf = real_factory_3d(world).functor(surf_functor);
+    if(k > 6 || thresh < 1.0e-4) {
+        surf.clear();
+        surf = real_factory_3d(world).functor(surf_functor);
+    }
 
     // phi_functor defaults to the domain mask
     real_function_3d phi = real_factory_3d(world).functor(phi_functor);
@@ -298,12 +339,23 @@ int main(int argc, char **argv) {
     // print out the errors in volume and surface area
     // these are checks of the diffuse domain approximation
     double vol = phi.trace();
-    double surfarea = surf.trace();
     if(world.rank() == 0) {
-        printf("Error in Volume    = %.3e\n",
-            fabs(vol-4.0*constants::pi/3.0));
-        printf("Error in Surf Area = %.3e\n",
-            fabs(surfarea/penalty_prefact-4.0*constants::pi));
+        double analvol = 0.0;
+        if(prob == CONSTANT || prob == COSTHETA)
+            analvol = 4.0*constants::pi/3.0*radius[0]*radius[0]*radius[0];
+        else if(prob == ELLIPSE)
+            analvol = 4.0*constants::pi/3.0*radius[0]*radius[1]*radius[2];
+        printf("Error in Volume    = %.3e\n", fabs(vol-analvol));
+    }
+
+    // surface area is only easy for a sphere
+    if(prob == CONSTANT || prob == COSTHETA) {
+        double surfarea = surf.trace();
+        if(world.rank() == 0) {
+            printf("Error in Surf Area = %.3e\n",
+                fabs(surfarea/penalty_prefact
+                     -4.0*constants::pi*radius[0]*radius[0]));
+        }
     }
 
     // green's function
@@ -335,6 +387,7 @@ int main(int argc, char **argv) {
     FunctionSpace<double, 3> space(world);
     double resid_thresh = 1.0e-5;
     double update_thresh = 1.0e-5;
+    int maxiter = 30;
     GMRES(space, dcio, d, usol, maxiter, resid_thresh, update_thresh, true);
 
     // compare to the exact solution
