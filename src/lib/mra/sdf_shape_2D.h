@@ -149,4 +149,4 @@ namespace madness {
 
 } // end of madness namespace
 
-#endif // MADNESS_MRA_SDF_SHAPE_3D_H__INCLUDED
+#endif // MADNESS_MRA_SDF_SHAPE_2D_H__INCLUDED
