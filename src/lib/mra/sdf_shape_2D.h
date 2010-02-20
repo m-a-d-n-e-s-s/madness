@@ -46,8 +46,8 @@
   around all points on the surface.
 */  
   
-#ifndef MADNESS_MRA_SDF_SHAPE_3D_H__INCLUDED
-#define MADNESS_MRA_SDF_SHAPE_3D_H__INCLUDED
+#ifndef MADNESS_MRA_SDF_SHAPE_2D_H__INCLUDED
+#define MADNESS_MRA_SDF_SHAPE_2D_H__INCLUDED
 
 #include <mra/sdf_domainmask.h>
 
