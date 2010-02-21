@@ -243,16 +243,15 @@ namespace madness {
         /// Adjust the chunksize in the range to control granularity.
         template <typename resultT, typename rangeT, typename opT>
         Future<resultT> reduce(const rangeT& range, const opT& op) {
-            rangeT left = range;
-            rangeT right(left,Split());
-
-            if (right.size() < range.get_chunksize()) {
+            if (range.size() <= range.get_chunksize()) { 
                 resultT sum = resultT();
-                for (typename rangeT::iterator it=left.begin(); it != left.end(); ++it) sum = op(sum,op(it));
-                for (typename rangeT::iterator it=right.begin(); it != right.end(); ++it) sum = op(sum,op(it));
+                for (typename rangeT::iterator it=range.begin(); it != range.end(); ++it) sum = op(sum,op(it));
                 return Future<resultT>(sum);
             }
             else {
+                rangeT left = range;
+                rangeT right(left,Split());
+                
                 Future<resultT>  leftsum = add(*this, &WorldTaskQueue::reduce<resultT,rangeT,opT>, left,  op);
                 Future<resultT> rightsum = add(*this, &WorldTaskQueue::reduce<resultT,rangeT,opT>, right, op);
                 return add(&WorldTaskQueue::sum<resultT,opT>, leftsum, rightsum, op);
@@ -285,17 +284,14 @@ namespace madness {
         /// in neither synchronization nor result status.
         template <typename rangeT, typename opT>
         Future<bool> for_each(const rangeT& range, const opT& op) {
-            rangeT left = range;
-            rangeT right(left,Split());
-            //rangeT right(left.begin(), left.begin()); // Use this to disable concurrency
-
-            if (right.size() < range.get_chunksize()) {
+            if (range.size() <= range.get_chunksize()) {
                 bool status = true;
-                for (typename rangeT::iterator it=left.begin();  it != left.end();  ++it) status &= op(it);
-                for (typename rangeT::iterator it=right.begin(); it != right.end(); ++it) status &= op(it);
+                for (typename rangeT::iterator it=range.begin();  it != range.end();  ++it) status &= op(it);
                 return Future<bool>(status);
             }
             else {
+                rangeT left = range;
+                rangeT right(left,Split());
                 Future<bool>  leftsum = add(*this, &WorldTaskQueue::for_each<rangeT,opT>, left,  op);
                 Future<bool> rightsum = add(*this, &WorldTaskQueue::for_each<rangeT,opT>, right, op);
                 return add(&WorldTaskQueue::completion_status, leftsum, rightsum);

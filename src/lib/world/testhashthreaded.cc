@@ -32,6 +32,7 @@
 */
 #include <world/worldhash.h>
 #include <world/worldhashmap.h>
+#include <world/worldrange.h>
 #include <world/worldtime.h>
 #include <world/atomicint.h>
 #include <iostream>
@@ -54,6 +55,25 @@ void errmsg(const char *msg, int status) {
 
 double drand() {
     return random()*(1.0/RAND_MAX);
+}
+
+void split(const Range<ConcurrentHashMap<int,int>::iterator>& range) {
+    typedef Range<ConcurrentHashMap<int,int>::iterator> rangeT;
+    if (range.size() <= range.get_chunksize()) {
+        int n = range.size();
+        int c = 0;
+        for (rangeT::iterator it=range.begin();  it != range.end();  ++it) {
+            c++;
+            if (c > n) throw "c > n inside range iteration";
+        }
+        if (c != n) throw "c != n after range iteration";
+    }
+    else {
+        rangeT left = range;
+        rangeT right(left,Split());
+        split(left);
+        split(right);
+    }
 }
 
 void test_coverage() {
@@ -140,9 +160,35 @@ void test_coverage() {
 
     if (a.size() != 0) cout << "e. size should have been 0 " << a.size() << endl;
 
-    for (int i=0; i<10000; i++) a.insert(datumT(i,i*99));
-}
+    // Verify that forward random iterator works OK for range and then test range itself
+    for (int nelem=1; nelem<=10000; nelem*=10) {
+        cout << "nelem " << nelem << endl;
+        a.clear();
+        for (int i=0; i<nelem; i++) a.insert(datumT(i,i*99));        
+        //a.print_stats();
+        if (a.size() != size_t(a.end()-a.begin())) cout << "size not equal to end-start\n";
 
+        for (int stride=1; stride<=13; stride++) {
+            cout << "    stride " << stride << endl;
+            iteratorT it1 = a.begin();
+            iteratorT it2 = a.begin();
+            while (it1 != a.end()) {
+                iteratorT it1_save = it1;
+                it1 = it1 + stride;
+                for (int i=0; i<stride; i++) ++it2;
+                if (it1 != it2) {
+                    cout << "failed iterator stride\n";
+                    it1_save = it1_save + stride;
+                    throw "bad";
+                }
+                else {
+                    //cout << "           OK\n";
+                }
+            }
+            split(Range<iteratorT>(a.begin(), a.end(), stride));
+        }
+    }
+}
 
 vector<int> random_perm(int n) {
     vector<int> v(n);

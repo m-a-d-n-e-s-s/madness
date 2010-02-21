@@ -61,7 +61,7 @@ namespace madness {
         // A hashtable is an array of nbin bins.
         // Each bin is a linked list of entries protected by a spinlock.
         // Each entry holds a key+value pair, a read-write mutex, and a link to the next entry.
-
+        
         template <typename keyT, typename valueT>
         class entry : public madness::MutexReaderWriter {
         public:
@@ -80,12 +80,13 @@ namespace madness {
             typedef entry<keyT,valueT> entryT;
             typedef std::pair<const keyT, valueT> datumT;
             // Could pad here to avoid false sharing of cache line but
-            // perhaps better to just use more bins.
+            // perhaps better to just use more bins
         public:
 
             entryT* volatile p;
-
-            bin() : p(0) {}
+            int volatile ninbin;
+            
+            bin() : p(0),ninbin(0) {}
 
             ~bin() {
                 clear();
@@ -97,7 +98,9 @@ namespace madness {
                     entryT* n=p->next;
                     delete p;
                     p=n;
+                    ninbin--;
                 }
+                MADNESS_ASSERT(ninbin == 0);
                 unlock();           // END CRITICAL SECTION
             }
 
@@ -131,7 +134,10 @@ namespace madness {
                     lock();             // BEGIN CRITICAL SECTION
                     result = match(datum.first);
                     notfound = !result;
-                    if (notfound) result = p = new entryT(datum,p);
+                    if (notfound) {
+                        result = p = new entryT(datum,p);
+                        ninbin++;
+                    }
                     gotlock = result->try_lock(lockmode);
                     unlock();           // END CRITICAL SECTION
                     if (!gotlock) waiter.wait(); //cpu_relax(); 
@@ -154,6 +160,7 @@ namespace madness {
                         }
                         t->unlock(lockmode);
                         delete t;
+                        ninbin--;
                         status = true;
                         break;
                     }
@@ -163,11 +170,7 @@ namespace madness {
             }
 
             std::size_t size() const {
-                lock();             // BEGIN CRITICAL SECTION
-                std::size_t sum = 0;
-                for (entryT *t=p; t; t=t->next) ++sum;
-                unlock();           // END CRITICAL SECTION
-                return sum;
+                return ninbin;
             };
 
         private:
@@ -260,6 +263,54 @@ namespace madness {
                 HashIterator old(*this);
                 operator++();
                 return old;
+            }
+
+            /// Difference between iterators \em only supported for this=end and other=start
+
+            /// This exists to support construction of range for parallel iteration
+            /// over the entire container.
+            int operator-(const HashIterator& other) const {
+                MADNESS_ASSERT(*this == h->end() && other == h->begin());
+                return h->size();
+            }
+            
+            /// Only positive increments are supported
+            
+            /// This exists to support splitting of range for parallel iteration.
+            HashIterator operator+(int n) const {
+                if (n==0 || !entry) return *this;
+                MADNESS_ASSERT(n>=0);
+
+                HashIterator r = *this;
+                
+                // Linear increment up to end of this bin
+                while (n-- && (r.entry=r.entry->next));
+                r.next_non_null_entry();
+                if (!r.entry) 
+                    return r; // end
+                
+                if (n <= 0) 
+                    return r;
+                
+                // If here r will point to first entry in
+                // a bin ... determine which bin contains
+                // our end point.
+                while (unsigned(n) >= h->bins[r.bin].size()) {
+                    n -= h->bins[r.bin].size();
+                    r.bin++;
+                    if (unsigned(r.bin) == h->nbins) {
+                        r.entry = 0;
+                        return r; // end
+                    }
+                }
+
+                r.entry = h->bins[r.bin].p;
+                MADNESS_ASSERT(r.entry);
+                
+                // Linear increment to target
+                while (n--) r.entry=r.entry->next;
+
+                return r;
             }
 
 
@@ -531,6 +582,14 @@ namespace madness {
         }
 
         hashfunT& get_hash() const { return hashfun; }
+
+        void print_stats() const {
+            for (unsigned int i=0; i<nbins; i++) {
+                if (i && (i%10)==0) printf("\n");
+                printf("%8d", int(bins[i].size()));
+            }
+            printf("\n");
+        }
     };
 }
 
