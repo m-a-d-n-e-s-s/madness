@@ -751,25 +751,11 @@ namespace madness {
         /// Inplace general bilinear operation
         template <typename Q, typename R>
         void gaxpy_inplace(const T& alpha,const FunctionImpl<Q,NDIM>& other, const R& beta, bool fence) {
-            if (get_pmap() == other.get_pmap()) {
-                typedef Range<typename FunctionImpl<Q,NDIM>::dcT::const_iterator> rangeT;
-                typedef do_gaxpy_inplace<Q,R> opT;
-                world.taskq.for_each<rangeT,opT>(rangeT(other.coeffs.begin(), other.coeffs.end()), opT(this, alpha, beta));
-            }
-            else {
-                // Loop over coefficients in other that are local and then send an AM to
-                // coeffs in self ... this is so can efficiently add functions with
-                // different distributions.  Use an AM rather than a task to reduce memory
-                // footprint on the remote end.
-                typename FunctionImpl<Q,NDIM>::dcT::const_iterator end = other.coeffs.end();
-                for (typename FunctionImpl<Q,NDIM>::dcT::const_iterator it=other.coeffs.begin();
-                        it!=end;
-                        ++it) {
-                    const keyT& key = it->first;
-                    const typename FunctionImpl<Q,NDIM>::nodeT& other_node = it->second;
-                    coeffs.send(key, &nodeT:: template gaxpy_inplace<Q,R>, alpha, other_node, beta);
-                }
-            }
+            MADNESS_ASSERT(get_pmap() == other.get_pmap());
+            if (alpha != T(1.0)) scale_inplace(alpha,false);
+            typedef Range<typename FunctionImpl<Q,NDIM>::dcT::const_iterator> rangeT;
+            typedef do_gaxpy_inplace<Q,R> opT;
+            world.taskq.for_each<rangeT,opT>(rangeT(other.coeffs.begin(), other.coeffs.end()), opT(this, T(1.0), beta));
             if (fence)
                 world.gop.fence();
         }
