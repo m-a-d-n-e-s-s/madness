@@ -1088,16 +1088,15 @@ namespace madness {
             return None;
         }
 
-        /// Invoked as a task by mul with the actual coefficients
+        /// Invoked as a task by do_binary_op with the actual coefficients
         template <typename L, typename R, typename opT>
-        Void do_binary_op(const keyT& key, const Tensor<L>& left, const std::pair< keyT, Tensor<R> >& arg,
+        Void do_binary_op(const keyT& key, const Tensor<L>& left, 
+                          const std::pair< keyT, Tensor<R> >& arg,
                           const opT& op) {
             PROFILE_MEMBER_FUNC(FunctionImpl);
             const keyT& rkey = arg.first;
             const Tensor<R>& rcoeff = arg.second;
-            //madness::print("do_mul: r", rkey, rcoeff.size());
             Tensor<R> rcube = fcube_for_mul(key, rkey, rcoeff);
-            //madness::print("do_mul: l", key, left.size());
             Tensor<L> lcube = fcube_for_mul(key, key, left);
 
             Tensor<T> tcube(cdata.vk,false);
@@ -1437,23 +1436,19 @@ namespace madness {
             return None;
         }
 
-        // Multiplication using recursive descent and assuming same distribution
+        // Binary operation on values using recursive descent and assuming same distribution
         template <typename L, typename R, typename opT>
         Void binaryXXa(const keyT& key,
                        const FunctionImpl<L,NDIM>* left, const Tensor<L>& lcin,
                        const FunctionImpl<R,NDIM>* right,const Tensor<R>& rcin,
-                       const opT& op,
-                       double tol) {
+                       const opT& op) {
             typedef typename FunctionImpl<L,NDIM>::dcT::const_iterator literT;
             typedef typename FunctionImpl<R,NDIM>::dcT::const_iterator riterT;
-
-            double lnorm=1e99, rnorm=1e99;
 
             Tensor<L> lc = lcin;
             if (lc.size() == 0) {
                 literT it = left->coeffs.find(key).get();
                 MADNESS_ASSERT(it != left->coeffs.end());
-                lnorm = it->second.get_norm_tree();
                 if (it->second.has_coeff())
                     lc = it->second.coeff();
             }
@@ -1462,7 +1457,6 @@ namespace madness {
             if (rc.size() == 0) {
                 riterT it = right->coeffs.find(key).get();
                 MADNESS_ASSERT(it != right->coeffs.end());
-                rnorm = it->second.get_norm_tree();
                 if (it->second.has_coeff())
                     rc = it->second.coeff();
             }
@@ -1472,20 +1466,9 @@ namespace madness {
                 return None;
             }
 
-            if (tol) {
-                if (lc.size())
-                    lnorm = lc.normf(); // Otherwise got from norm tree above
-                if (rc.size())
-                    rnorm = rc.normf();
-                if (lnorm*rnorm < truncate_tol(tol, key)) {
-                    coeffs.replace(key, nodeT(tensorT(cdata.vk),false)); // Zero leaf node
-                    return None;
-                }
-            }
-
             // Recur down
             coeffs.replace(key, nodeT(tensorT(),true)); // Interior node
-
+            
             Tensor<L> lss;
             if (lc.size()) {
                 Tensor<L> ld(cdata.v2k);
@@ -1509,7 +1492,7 @@ namespace madness {
                 if (rc.size())
                     rr = copy(rss(child_patch(child)));
 
-                task(coeffs.owner(child), &implT:: template binaryXXa<L,R,opT>, child, left, ll, right, rr, op, tol);
+                task(coeffs.owner(child), &implT:: template binaryXXa<L,R,opT>, child, left, ll, right, rr, op);
             }
 
             return None;
@@ -1574,9 +1557,9 @@ namespace madness {
 
         template <typename L, typename R, typename opT>
         void binaryXX(const FunctionImpl<L,NDIM>* left, const FunctionImpl<R,NDIM>* right,
-                      const opT& op, double tol, bool fence) {
+                      const opT& op, bool fence) {
             if (world.rank() == coeffs.owner(cdata.key0))
-                binaryXXa(cdata.key0, left, Tensor<L>(), right, Tensor<R>(), op, tol);
+                binaryXXa(cdata.key0, left, Tensor<L>(), right, Tensor<R>(), op);
             if (fence)
                 world.gop.fence();
 
@@ -2221,6 +2204,7 @@ namespace madness {
                     }
                 }
             }
+            nonstandard = false;
             if (fence)
                 world.gop.fence();
         }

@@ -423,5 +423,39 @@
         world.gop.fence();
     }
 
+    /// Generates ASCII file tabulating f(r), g(r), a(r), b(r) at npoints along line r=lo,...,hi
+
+    /// The ordinate is distance from lo
+    template <typename T, typename U, typename V, typename W, int NDIM>
+    void plot_line(const char* filename, int npt, const Vector<double,NDIM>& lo, const Vector<double,NDIM>& hi,
+                   const Function<T,NDIM>& f, const Function<U,NDIM>& g, const Function<V,NDIM>& a, const Function<W,NDIM>& b) {
+        typedef Vector<double,NDIM> coordT;
+        coordT h = (hi - lo)*(1.0/(npt-1));
+
+        double sum = 0.0;
+        for (int i=0; i<NDIM; i++) sum += h[i]*h[i];
+        sum = sqrt(sum);
+
+        World& world = f.world();
+        f.reconstruct();
+        g.reconstruct();
+        a.reconstruct();
+        b.reconstruct();
+        if (world.rank() == 0) {
+            FILE* file = fopen(filename,"w");
+            for (int i=0; i<npt; i++) {
+                coordT r = lo + h*double(i);
+                fprintf(file, "%.14e ", i*sum);
+                plot_line_print_value(file, f.eval(r));
+                plot_line_print_value(file, g.eval(r));
+                plot_line_print_value(file, a.eval(r));
+                plot_line_print_value(file, b.eval(r));
+                fprintf(file,"\n");
+            }
+            fclose(file);
+        }
+        world.gop.fence();
+    }
+
 /* @} */
 #endif // MADNESS_MRA_FUNCPLOT_H__INCLUDED

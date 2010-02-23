@@ -207,10 +207,10 @@ namespace madness {
 
         /// Set eval_refine=true to return the refinment levels of 
         /// the given function.
-		
-		/// @param[in] cell A Tensor describe the cube where the function to be evaluated in
-		/// @param[in] npt How many points to evaluate in each dimension
-		/// @param[in] refine Wether to return the refinment levels of the given function
+        
+        /// @param[in] cell A Tensor describe the cube where the function to be evaluated in
+        /// @param[in] npt How many points to evaluate in each dimension
+        /// @param[in] refine Wether to return the refinment levels of the given function
         Tensor<T> eval_cube(const Tensor<double>& cell, 
                             const std::vector<long>& npt,
                             bool eval_refine = false) const {
@@ -290,7 +290,7 @@ namespace madness {
         /// reconstructed, it throws an exception.  To get the global
         /// value either do a global sum of the local values or call
         /// errsq
-		/// @param[in] func Templated interface to the a user specified function
+        /// @param[in] func Templated interface to the a user specified function
         template <typename funcT>
         double errsq_local(const funcT& func) const {
             PROFILE_MEMBER_FUNC(Function);
@@ -305,7 +305,7 @@ namespace madness {
         /// If the function is compressed, it is reconstructed first.  For efficient use
         /// especially with many functions, reconstruct them all first, and use errsq_local
         /// instead so you can perform a global sum on all at the same time.
-		/// @param[in] func Templated interface to the a user specified function
+        /// @param[in] func Templated interface to the a user specified function
         template <typename funcT>
         double err(const funcT& func) const {
             PROFILE_MEMBER_FUNC(Function);
@@ -1043,17 +1043,17 @@ namespace madness {
         return mul_sparse(left,right,0.0,fence);
     }
 
-    /// Generate news function = op(left,right)
+    /// Generate new function = op(left,right) where op acts on the function values
     template <typename L, typename R, typename opT, int NDIM>
     Function<TENSOR_RESULT_TYPE(L,R),NDIM>
-    binary_op(const Function<L,NDIM>& left, const Function<R,NDIM>& right, const opT& op, double tol=0.0, bool fence=true) {
+    binary_op(const Function<L,NDIM>& left, const Function<R,NDIM>& right, const opT& op, bool fence=true) {
         PROFILE_FUNC;
         if (left.is_compressed()) left.reconstruct();
         if (right.is_compressed()) right.reconstruct();
 
         Function<TENSOR_RESULT_TYPE(L,R),NDIM> result;
         result.set_impl(left, false);
-        result.get_impl()->binaryXX(left.get_impl().get(), right.get_impl().get(), op, tol, fence);
+        result.get_impl()->binaryXX(left.get_impl().get(), right.get_impl().get(), op, fence);
         return result;
     }
 
