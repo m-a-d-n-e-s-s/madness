@@ -84,7 +84,7 @@
 
 using namespace madness;
 
-typedef Vector<double, 3> coordT3d;
+typedef Vector<double, 3> coordT3d,coordT;
 typedef Vector<double, 1> coordT1d;
 typedef Function<double, 3> functionT;
 typedef std::vector<functionT> functT;
@@ -94,25 +94,33 @@ const double L = 2*WST_PI; //Cell length
 const double N = 8.0;
 
 const double mu = 1; // Effective Viscosity
-const double deltaT = 0.005; // Size of time step
+const double deltaT = 0.0005; // Size of time step
 const int Nts = L/deltaT+10; // Number of time steps
 const int k = 10; // Wavelet order (usually precision + 2)
-const double pthresh = 1.e-6; // Precision
-const double pthresh1 = 1e-7;// * pthresh;
+const double pthresh = 1.e-9; // Precision
+const double pthresh1 = 1e-10;// * pthresh;
 const double uthresh = pthresh; // Precision
 const double uthresh1 = pthresh1;
 
 
 double mytime = 0.0; // Global variable for the current time
 // This should be passed in thru the class or app context
-const double cc = 1;// L/(deltaT*Nts)/2;
+const double cc = 0;// L/(deltaT*Nts)/2;
+ 
+//wrapper, but now longer needed.
+struct FunctorInterfaceWrapper : public FunctionFunctorInterface<double,3> {
+    double (*f)(const coordT&);
+    
+    FunctorInterfaceWrapper(double (*f)(const coordT&)) : f(f) {}
+    
+    double operator()(const coordT& x) const {return f(x);}
+};
 
-template<typename T, int NDIM>
+template<typename T, int NDIM> //used to simplifying the mirgrating to new bc. use with caution if you change your bc at runtime.
 static Function<T,NDIM> diff(const Function<T,NDIM>& f, int axis) {
 	static Vector<SharedPtr<Derivative<T,NDIM> >,NDIM> df;
 	if (df[axis] == NULL) df[axis] = SharedPtr<Derivative<T,NDIM> >(new Derivative<T,NDIM>(f.world(), axis));
 	return (*df[axis])(f);
-	
 }
 
 //*****************************************************************************
@@ -191,15 +199,15 @@ static double pexact(const coordT3d& r) {
 //*****************************************************************************
 //*****************************************************************************
 
+// Compute the divergence
 inline functionT div(const functT& uint) {
 	return diff(uint[0], 0) + diff(uint[1], 1) + diff(uint[2], 2);
 }
 
+// Compute the Laplacian
 inline functionT lap(const functionT& uint) {
 	return diff(diff(uint, 0),0) + diff(diff(uint,1), 1) + diff(diff(uint,2), 2);
 }
-
-Tensor<int> bc(3, 2), bc0(3, 2);
 
 World *pworld;
 #define myfun std::vector< Function<T,NDIM> >
@@ -226,14 +234,13 @@ void testNavierStokes(int argc, char**argv) {
 	FunctionDefaults<3>::set_bc(BC_PERIODIC);
 	
 	// construct the periodic Coulomb operator for later use
-	Tensor<double> cellsize = FunctionDefaults<3>::get_cell_width();
+	//~ Tensor<double> cellsize = FunctionDefaults<3>::get_cell_width();
 	SeparatedConvolution<double, 3> op = CoulombOperator (world, pthresh1, pthresh1);  
 	
 	// construct the periodic BSH operator for later use
 	double const dum = 1 / deltaT / mu; 
 	SeparatedConvolution<double, 3> op1 = BSHOperator<3>(world,	sqrt(dum), uthresh1, uthresh1);
-
-
+	
 	// Initialize the old solution and print out to vts files
 	mytime = 0.0;
 
@@ -243,6 +250,11 @@ void testNavierStokes(int argc, char**argv) {
 	u[0] = FunctionFactory<double, 3> (world).f(uxexact  ) .truncate_on_project();
 	u[1] = FunctionFactory<double, 3> (world).f(uyexact  ) .truncate_on_project();
 	u[2] = FunctionFactory<double, 3> (world).f(uzexact  ) .truncate_on_project();
+	
+	
+	print("col error",op(lap(u[0])).scale(-1. / (4. * WST_PI)).err(uxexact));
+	print("bsh error", op1(dum*u[0] - lap(u[0])).err(uxexact));
+	
 
 	Function<double, 3> divu = div(u); // computer the divergence 
 	double divun=divu.norm2();
@@ -264,12 +276,8 @@ void testNavierStokes(int argc, char**argv) {
 		
 		functionT divf = div(f-rhs);
 
-		//~ FunctionDefaults<3>::set_bc(bc0);
-		//~ divf.set_bc(bc0);
 		Function<double,3> p = op(divf); // apply the Coulomb operator to compute the pressure \c p
 		p.scale(-1. / (4. * WST_PI));
-		//~ divf.set_bc(bc);
-		//~ FunctionDefaults<3>::set_bc(bc);
 
 		// Step 2.  Calculate the velocity at time t+1.
 		//            (1/(deltaT mu) - Laplace) u_t+1 = (f - grad p)/mu + u_t/(deltaT mu)
@@ -284,14 +292,7 @@ void testNavierStokes(int argc, char**argv) {
 		gaxpy(world, 1, rhs, -1, f);
 		gaxpy(world, -1./mu, rhs, dum, u);
 
-		//~ FunctionDefaults<3>::set_bc(bc0);
-		//~ for (int i = 0; i < 3; ++i)  rhs[i].set_bc(bc0);
 		functT ue = apply(world, op1, rhs); // apply the BSH operator to update the velocity \c ue
-		//~ for (int i = 0; i < 3; ++i)  {
-			//~ ue[i].set_bc(bc);
-			//~ rhs[i].set_bc(bc);
-		//~ }
-		//~ FunctionDefaults<3>::set_bc(bc);
 		
 		//u = ue;  // use this line for first order/mixed Euler's method
 		
@@ -300,7 +301,7 @@ void testNavierStokes(int argc, char**argv) {
 		//note that in this case, the time-step size is instead 2*deltaT
 		
 
-		if ( (t%10)==0) { // output the current status to vts files every 10 steps
+		if ( (t%10)==0 && world.rank()==0) { // output the current status to vts files every 10 steps
                    char filename[100];
                    sprintf(filename, "data-%02d.vts", t);
                    Vector<double, 3> plotlo, plothi;
@@ -319,14 +320,14 @@ void testNavierStokes(int argc, char**argv) {
 		}
 
 		{
-		Function<double, 3> du = FunctionFactory<double, 3> (world).f(uxexact).truncate_on_project();
-		du -= u[0];
-		Function<double, 3> dv = FunctionFactory<double, 3> (world).f(uyexact).truncate_on_project();
-		dv -= u[1];
-		Function<double, 3> dw = FunctionFactory<double, 3> (world).f(uzexact).truncate_on_project(); 
-		dw -= u[2];
+		//~ Function<double, 3> du = FunctionFactory<double, 3> (world).f(uxexact).truncate_on_project();
+		//~ du -= u[0];
+		//~ Function<double, 3> dv = FunctionFactory<double, 3> (world).f(uyexact).truncate_on_project();
+		//~ dv -= u[1];
+		//~ Function<double, 3> dw = FunctionFactory<double, 3> (world).f(uzexact).truncate_on_project(); 
+		//~ dw -= u[2];
 		
-		double  a=div(u).norm2(), b=du.norm2(), c=dv.norm2(),d=dw.norm2();
+		double  a=div(u).norm2(), b=u[0].err(uxexact), c=u[1].err(uyexact),d=u[2].err(uzexact);
 		if (world.rank()==0)  print(t+1, mytime, a,b,c,d); // print out some information
 		}
 	}    
