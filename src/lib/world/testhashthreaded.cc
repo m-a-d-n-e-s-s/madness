@@ -166,7 +166,8 @@ void test_coverage() {
         a.clear();
         for (int i=0; i<nelem; i++) a.insert(datumT(i,i*99));        
         //a.print_stats();
-        if (a.size() != size_t(a.end()-a.begin())) cout << "size not equal to end-start\n";
+        if (a.size() != size_t(std::distance(a.begin(),a.end()))) 
+            cout << "size not equal to end-start\n";
 
         for (int stride=1; stride<=13; stride++) {
             cout << "    stride " << stride << endl;
@@ -174,11 +175,11 @@ void test_coverage() {
             iteratorT it2 = a.begin();
             while (it1 != a.end()) {
                 iteratorT it1_save = it1;
-                it1 = it1 + stride;
+                it1.advance(stride);
                 for (int i=0; i<stride; i++) ++it2;
                 if (it1 != it2) {
                     cout << "failed iterator stride\n";
-                    it1_save = it1_save + stride;
+                    it1_save.advance(stride);
                     throw "bad";
                 }
                 else {
@@ -384,6 +385,22 @@ void test_accessors() {
     if (a[1] != 20000000.0) MADNESS_EXCEPTION("Ooops", int(a[1]));
 }
 
+void test_integer_iterator() {
+    IntegerIterator start(12), end(start+30);
+
+    Range<IntegerIterator> l(start,end);
+    cout << "Initial range " << *l.begin() << " " << *l.end() << " " << l.size() << endl;
+    Range<IntegerIterator> r(l,Split());
+    cout << "Split left  range " << *l.begin() << " " << *l.end() << " " << l.size() << endl;
+    cout << "Split right range " << *r.begin() << " " << *r.end() << " " << r.size() << endl;
+    
+    while (start != end) {
+        cout << "got " << *start << endl;
+        start++;
+    }
+
+}
+
 int main() {
 
     try {
@@ -392,6 +409,7 @@ int main() {
         test_time();
         test_thread();
         test_accessors();
+        test_integer_iterator();
 
         cout << "Things seem to be working!\n";
     }

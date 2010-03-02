@@ -33,6 +33,8 @@
 #ifndef MADNESS_WORLD_WORLDRANGE_H__INCLUDED
 #define MADNESS_WORLD_WORLDRANGE_H__INCLUDED
 
+#include <iterator>
+
 /// \file worldrange.h
 /// \brief Implement Range class for parallel iteration
 
@@ -59,7 +61,11 @@ namespace madness {
         /// Default chunksize is to make 10 tasks per thread to
         /// facilitate dynamic load balancing.
         Range(const iterator& start, const iterator& finish, int chunk=-1)
-                : n(finish-start), start(start), finish(finish), chunksize(chunk) {
+            : n(std::distance(start,finish))
+            , start(start)
+            , finish(finish)
+            , chunksize(chunk) 
+        {
             if (chunksize == -1) chunksize = n / (10*(ThreadPool::size()+1));
             if (chunksize < 1) chunksize = 1;
         }
@@ -74,10 +80,16 @@ namespace madness {
 
         /// Splits range between new and old (r) objects ... cost is O(1)
         Range(Range& left, const Split& split)
-                : n(0), start(left.finish), finish(left.finish), chunksize(left.chunksize) {
+                : n(0)
+                , start(left.finish)
+                , finish(left.finish)
+                , chunksize(left.chunksize) 
+        {
             if (left.n > chunksize) {
                 int nleft = (left.n+1)/2;
-                start = left.start + nleft;
+
+                start = left.start;
+                std::advance(start,nleft);
                 finish = left.finish;
                 n = left.n - nleft;
 
@@ -109,23 +121,49 @@ namespace madness {
         }
     };
 
+    /// Used for iterating over an integer range
+    class IntegerIterator {
+        long value;
 
-//         std::vector<iterator> iterators() {
-//             size_t n = size();
-//             std::vector<iterator> r(n);
-//             unsigned int i=0;
-//             for (iterator it=begin(); it!=end(); ++it) r[i++] = it;
-//             if (i != n) throw "ConcurrentHashMap: count wrong in iterators";
-//             return r;
-//         }
+    public:
+        typedef std::random_access_iterator_tag iterator_category;
+        typedef long value_type;
+        typedef long difference_type;
+        typedef long* pointer;
+        typedef long& reference;
 
+        IntegerIterator(long value = 0) : value(value) {}
 
-//     template <typename T>
-//     class Range<std::vector<T>::iterator> {
+        IntegerIterator(const IntegerIterator& other) : value(other.value) {}
 
+        IntegerIterator& operator=(const IntegerIterator& other) {value = other.value; return *this;}
 
+        bool operator==(const IntegerIterator& other) const {return value == other.value;}
 
-//     }
+        bool operator!=(const IntegerIterator& other) const {return value != other.value;}
+        
+        IntegerIterator& operator++() {value++; return *this;}
+
+        IntegerIterator operator++(int junk) {IntegerIterator result=*this; value++; return result;}
+
+        IntegerIterator& operator--() {value--; return *this;}
+
+        IntegerIterator operator--(int junk) {IntegerIterator result=*this; value--; return result;}
+
+        const long operator*() const {return value;}
+
+        IntegerIterator operator+(int n) const {IntegerIterator result=*this; result.value += n; return result;}
+
+        IntegerIterator operator-(int n) const {IntegerIterator result=*this; result.value -= n; return result;}
+
+        long operator-(const IntegerIterator& other) const {return value-other.value;}
+
+        IntegerIterator& operator+=(int n) {value += n; return *this;}
+
+        IntegerIterator& operator-=(int n) {value -= n; return *this;}
+        
+        long operator[](int n) const {return value+n;}
+    };
 }
 
 #endif // MADNESS_WORLD_WORLDRANGE_H__INCLUDED

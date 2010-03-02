@@ -265,52 +265,48 @@ namespace madness {
                 return old;
             }
 
-            /// Difference between iterators \em only supported for this=end and other=start
+            /// Difference between iterators \em only supported for this=start and other=end
 
             /// This exists to support construction of range for parallel iteration
             /// over the entire container.
-            int operator-(const HashIterator& other) const {
-                MADNESS_ASSERT(*this == h->end() && other == h->begin());
+            int distance(const HashIterator& other) const {
+                MADNESS_ASSERT(h == other.h  &&  other == h->end()  &&  *this == h->begin());
                 return h->size();
             }
             
             /// Only positive increments are supported
             
             /// This exists to support splitting of range for parallel iteration.
-            HashIterator operator+(int n) const {
-                if (n==0 || !entry) return *this;
+            void advance(int n) {
+                if (n==0 || !entry) return;
                 MADNESS_ASSERT(n>=0);
 
-                HashIterator r = *this;
-                
                 // Linear increment up to end of this bin
-                while (n-- && (r.entry=r.entry->next));
-                r.next_non_null_entry();
-                if (!r.entry) 
-                    return r; // end
+                while (n-- && (entry=entry->next));
+                next_non_null_entry();
+                if (!entry) return; // end
                 
-                if (n <= 0) 
-                    return r;
+                if (n <= 0) return;
                 
-                // If here r will point to first entry in
+                // If here, will point to first entry in
                 // a bin ... determine which bin contains
                 // our end point.
-                while (unsigned(n) >= h->bins[r.bin].size()) {
-                    n -= h->bins[r.bin].size();
-                    r.bin++;
-                    if (unsigned(r.bin) == h->nbins) {
-                        r.entry = 0;
-                        return r; // end
+                while (unsigned(n) >= h->bins[bin].size()) {
+                    n -= h->bins[bin].size();
+                    bin++;
+                    if (unsigned(bin) == h->nbins) {
+                        entry = 0;
+                        return; // end
                     }
                 }
 
-                r.entry = h->bins[r.bin].p;
-                MADNESS_ASSERT(r.entry);
+                entry = h->bins[bin].p;
+                MADNESS_ASSERT(entry);
                 
                 // Linear increment to target
-                while (n--) r.entry=r.entry->next;
+                while (n--) entry=entry->next;
 
-                return r;
+                return;
             }
 
 
@@ -591,6 +587,21 @@ namespace madness {
             printf("\n");
         }
     };
+}
+
+namespace std {
+
+    template <typename hashT, typename distT> 
+    inline void advance( madness::Hash_private::HashIterator<hashT>& it, const distT& dist ) {
+        //std::cout << " in custom advance \n";
+        it.advance(dist);
+    }
+
+    template <typename hashT> 
+    inline int distance(const madness::Hash_private::HashIterator<hashT>& it, const madness::Hash_private::HashIterator<hashT>& jt) {
+        //std::cout << " in custom distance \n";
+        return it.distance(jt);
+    }
 }
 
 #endif // MADNESS_WORLD_WORLDHASHMAP_H__INCLUDED
