@@ -270,7 +270,10 @@ class ThreadPool {
     static void process_messages(ThreadPoolData* t) {
         ITMQ& itmq = t->itmq;
         TASKQ& taskq = t->taskq;
-        itmq.lock();
+        if (itmq.empty()) return;
+
+        itmq.lock();            // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+        bool terminate = false;
         for (int i=0; i<itmq.size(); i++) {
             const InterThreadMessage& msg = itmq[i];
             if (msg.msgtype == STEAL) {
@@ -284,15 +287,20 @@ class ThreadPool {
                 MADNESS_ASSERT(0);
             }
             else if (msg.msgtype == TERMINATE) {
-                done--;
-                pthread_exit(0);
+                terminate = true;
             }
             else {
                 MADNESS_EXCEPTION("unknown inter-thread message", int(msg.msgtype));
             }
         }
         itmq.clear();
-        itmq.unlock();
+        itmq.unlock();          // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+        if (terminate) {
+            done--;
+            while (done > 0) process_messages(t);
+            pthread_exit(0);
+        }
     }
     
     // Steal from target thread into taskq
@@ -393,7 +401,7 @@ public:
         int ncore, nhwthread;
         const char* map = getenv("MAD_THREAD_AFFINITY");
         const char* hwcore = getenv("MAD_HWTHREAD_TO_CORE");
-        const char* hwsock = getenv("MAD_CORE_TO_SOCKET");
+        const char* hwsock = getenv("MAD_HWCORE_TO_SOCKET");
 
         if (hwsock) {
             ncore = parse_string(hwsock, MAXNTHREAD, hwcore_to_socket);
@@ -580,7 +588,7 @@ int main() {
         }
     }
 
-    ThreadPool::initialize(2);
+    ThreadPool::initialize(30);
 
     cnt = 0;
     for (int i=0; i<NTASK; i++)
