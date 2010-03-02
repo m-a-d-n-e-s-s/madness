@@ -4,6 +4,14 @@
 #include <iostream>
 #include <vector>
 #include <utility>
+#include <sstream>
+
+#ifndef _SC_NPROCESSORS_CONF
+// Old macs don't have necessary support thru sysconf to determine the
+// no. of processors so must use sysctl
+#include <sys/types.h>
+#include <sys/sysctl.h>
+#endif
 
 using namespace std;
 using namespace madness;
@@ -176,9 +184,24 @@ pthread_key_t idkey; // Must be external
 
 static __thread int my_thread_id;
 
+static void set_thread_affinity(int cpu) {
+#define HAVE_SCHED_SETAFFINITY
+#ifdef HAVE_SCHED_SETAFFINITY
+    cpu_set_t mask;
+    CPU_ZERO(&mask);
+    CPU_SET(cpu,&mask);
+    if (sched_setaffinity(0, sizeof(mask), &mask) == -1) {
+        perror("system error message");
+        std::cout << "ThreadBase: set_affinity: Could not set cpu Affinity" << std::endl;
+    }
+#endif
+}
+
 static inline void set_thread_id(int id) {
     //pthread_setspecific(idkey, (void*)(id));
     my_thread_id = id;
+
+    set_thread_affinity(id);
 }
 
 static inline int get_thread_id() {
@@ -191,36 +214,58 @@ struct PoolTaskInterface {
     virtual void run() = 0;
 };
 
-struct InterThreadMessage {
-    int n;
-    PoolTaskInterface** buf;
-    volatile int* count;
-
-    InterThreadMessage() {}
-
-    InterThreadMessage(int n, PoolTaskInterface** buf, volatile int* count) 
-        : n(n), buf(buf), count(count)
-    {}
-};
-
 class ThreadPool {
+
+    static const int MAXNTHREAD = 32;
+    enum MsgType {STEAL, PUSH, TERMINATE};
+
+    struct InterThreadMessage {
+        MsgType msgtype;
+        int n;
+        PoolTaskInterface** buf;
+        volatile int* count;
+        
+        InterThreadMessage() {}
+        
+        InterThreadMessage(MsgType msgtype, int n, PoolTaskInterface** buf, volatile int* count) 
+            : msgtype(msgtype), n(n), buf(buf), count(count)
+        {}
+    };
 
     struct ThreadPoolData {
         SimpleQ<InterThreadMessage> itmq;
         DQueue<PoolTaskInterface*> taskq;
         unsigned long ntask;
+        unsigned char weights[MAXNTHREAD]; // Cumulative probability rescaled from [0,1] to [0,256]
         
         ThreadPoolData() : ntask(0) {}
     };
 
-    friend class PoolTaskInterface;
+    static InterThreadMessage steal_msg(int n, PoolTaskInterface** buf, volatile int* count) {
+        return InterThreadMessage(STEAL, n, buf, count);
+    }
+
+    static InterThreadMessage push_msg(PoolTaskInterface* task) {
+        return InterThreadMessage(PUSH, 0, (PoolTaskInterface**)(task), 0);
+    }
+
+    static InterThreadMessage end_msg() {
+        return InterThreadMessage(TERMINATE, 0, 0, 0);
+    }
+
     typedef SimpleQ<InterThreadMessage> ITMQ;
     typedef DQueue<PoolTaskInterface*> TASKQ;
 
-    static const int MAXNTHREAD = 32;
     static int nthread;
     static AtomicInt done;
     static ThreadPoolData* data[MAXNTHREAD];
+
+    // Mapping of threads to hardware
+    static int thread_to_hwthread[MAXNTHREAD];
+
+    // Info about computer topology
+    static int hwthread_to_core[MAXNTHREAD];
+    static int hwcore_to_socket[MAXNTHREAD];
     
     static void process_messages(ThreadPoolData* t) {
         ITMQ& itmq = t->itmq;
@@ -228,11 +273,23 @@ class ThreadPool {
         itmq.lock();
         for (int i=0; i<itmq.size(); i++) {
             const InterThreadMessage& msg = itmq[i];
-            int n = std::min(taskq.size()/2,msg.n);
-            PoolTaskInterface** buf = msg.buf;
-            for (int j=0; j<n; j++) buf[j] = taskq.pop_front().second;
-            __asm__ __volatile__ ("" : : : "memory");
-            *msg.count = n;
+            if (msg.msgtype == STEAL) {
+                int n = std::min(taskq.size()/2,msg.n);
+                PoolTaskInterface** buf = msg.buf;
+                for (int j=0; j<n; j++) buf[j] = taskq.pop_front().second;
+                __asm__ __volatile__ ("" : : : "memory");
+                *msg.count = n;
+            }
+            else if (msg.msgtype == PUSH) {
+                MADNESS_ASSERT(0);
+            }
+            else if (msg.msgtype == TERMINATE) {
+                done--;
+                pthread_exit(0);
+            }
+            else {
+                MADNESS_EXCEPTION("unknown inter-thread message", int(msg.msgtype));
+            }
         }
         itmq.clear();
         itmq.unlock();
@@ -247,8 +304,7 @@ class ThreadPool {
         volatile int count = -1;
         __asm__ __volatile__ ("" : : : "memory");
         
-        InterThreadMessage msg(n, buf, &count);
-        data[target]->itmq.push(msg);
+        data[target]->itmq.push(steal_msg(n, buf, &count));
         while (count == -1) process_messages(t);
 
         int num = count;
@@ -258,6 +314,7 @@ class ThreadPool {
     }
 
     static bool forever() {return false;}
+
 
     static void* main(void* args) {
         int id = long(args);
@@ -274,7 +331,7 @@ class ThreadPool {
 
         return 0;
     }
-
+    
     static void start_thread(int id) {
         pthread_attr_t attr;
         // Want detached thread with kernel scheduling so can use multiple cpus
@@ -289,14 +346,116 @@ class ThreadPool {
         pthread_attr_destroy(&attr);
     }
 
-
     ThreadPool() {}; // Verboten;
+
+    static int num_hw_processors() {
+#ifdef _SC_NPROCESSORS_CONF
+        int ncpu = sysconf(_SC_NPROCESSORS_CONF);
+        if (ncpu <= 0) MADNESS_EXCEPTION("ThreadBase: set_affinity_pattern: sysconf(_SC_NPROCESSORS_CONF)", ncpu);
+#elif defined(HC_NCPU)
+        int mib[2]={CTL_HW,HW_NCPU}, ncpu;
+        size_t len = sizeof(ncpu);
+        if (sysctl(mib, 2, &ncpu, &len, NULL, 0) != 0) 
+	    MADNESS_EXCEPTION("ThreadBase: sysctl(CTL_HW,HW_NCPU) failed", 0);
+        std::cout << "NCPU " << ncpu << std::endl;
+#else
+        int ncpu=1;
+#endif
+        return ncpu;
+    }
+
+
+    // Reads an array of integers from a character string
+    static int parse_string(const char* c, int maxdata, int* data) {
+        istringstream s(c);
+        int n=0;
+        while (!s.eof()) {
+            MADNESS_ASSERT(n < maxdata);
+            s >> data[n++];
+        }
+        return n;
+    }
+
     
 public:
 
     static void initialize(int numthread) {
         MADNESS_ASSERT(numthread <= MAXNTHREAD);
         nthread = numthread;
+
+        // For detecting correct initialization
+        for (int i=0; i<MAXNTHREAD; i++) {
+            thread_to_hwthread[i] = -99;
+            hwthread_to_core[i] = -99;
+            hwcore_to_socket[i] = -99;
+        }
+
+        int ncore, nhwthread;
+        const char* map = getenv("MAD_THREAD_AFFINITY");
+        const char* hwcore = getenv("MAD_HWTHREAD_TO_CORE");
+        const char* hwsock = getenv("MAD_CORE_TO_SOCKET");
+
+        if (hwsock) {
+            ncore = parse_string(hwsock, MAXNTHREAD, hwcore_to_socket);
+        }
+        else {
+            ncore = num_hw_processors();
+            for (int i=0; i<nthread; i++)
+                hwcore_to_socket[i] = 0;
+        }
+        
+        if (hwcore) {
+            nhwthread = parse_string(hwcore, MAXNTHREAD, hwthread_to_core);
+        }
+        else {
+            nhwthread = ncore;
+            for (int i=0; i<nhwthread; i++) 
+                hwthread_to_core[i] = i % ncore;
+        }
+        
+        if (map) {
+            int nthreadmap = parse_string(map, MAXNTHREAD, thread_to_hwthread);
+            MADNESS_ASSERT(nthreadmap >= nthread);
+        }
+        else {
+            for (int i=0; i<nthread; i++) 
+                thread_to_hwthread[i] = i % nhwthread;
+        }
+        
+        // Ensure each thread maps to a valid hwthread to a valid core to a valid socket
+        for (int i=0; i<nthread; i++) {
+            int hwt = thread_to_hwthread[i];
+            if (hwt < -1 || hwt >= nhwthread) {
+                cout << "Fixing invalid thread_to_hwthread[" << i << "]=" << hwt << " -> -1" << endl;
+                hwt = thread_to_hwthread[i] = -1;
+            }
+            if (hwt != -1) {
+                int hwc = hwthread_to_core[hwt];
+                if (hwc < 0 || hwc >= ncore) {
+                    int newhwc = hwt % ncore;
+                    cout << "Fixing invalid hwthread_to_core[" << hwt << "]=" << hwc << " -> " << newhwc << endl;
+                    hwc = hwthread_to_core[hwt] = newhwc;
+                }
+                int hws = hwcore_to_socket[hwc];
+                if (hws < 0 || hws >= MAXNTHREAD) {
+                    cout << "Fixing invalid hwcore_to_socket[" << hwc << "]=" << hws << " -> 0" << endl;
+                    hwt = thread_to_hwthread[i] = 0;
+                }
+            }
+        }
+            
+        printf("Thread affinity and topology nthread=%d nhwthread=%d ncore=%d\n",
+               nthread, nhwthread, ncore);
+        printf("  thread   hwthread    core   socket\n");
+        printf("  ------   --------    ----   ------\n");
+        for (int i=0; i<nthread; i++) {
+            int hwt = thread_to_hwthread[i], hwc=-1, hws=-1;
+            if (hwt >= 0) {
+                hwc = hwthread_to_core[hwt];
+                hws = hwcore_to_socket[hwc];
+            }
+            printf("  %4d     %4d       %4d    %4d\n", i, hwt, hwc, hws);
+        }
         
         pthread_key_create(&idkey, NULL); // To store thread-specific id
 
@@ -338,6 +497,14 @@ public:
         }
     }
 
+    static void end() {
+        done = nthread-1;
+        for (int i=1; i<nthread; i++) {
+            data[i]->itmq.push(end_msg());
+        }
+        while (done != 0);
+    }
+
     static void add(PoolTaskInterface* task) {
         int id = get_thread_id();
         data[id]->taskq.push_back(task);
@@ -352,6 +519,10 @@ public:
 int ThreadPool::nthread;
 ThreadPool::ThreadPoolData* ThreadPool::data[ThreadPool::MAXNTHREAD];
 AtomicInt ThreadPool::done;
+int ThreadPool::thread_to_hwthread[ThreadPool::MAXNTHREAD];
+int ThreadPool::hwthread_to_core[ThreadPool::MAXNTHREAD];
+int ThreadPool::hwcore_to_socket[ThreadPool::MAXNTHREAD];
+
 
 const int NGEN=100;
 const int NTASK=100000;
@@ -418,6 +589,8 @@ int main() {
     ThreadPool::work(Task::finished);
 
     for (int i=0; i<ThreadPool::size(); i++) cout << i << " " << ThreadPool::ntaskdone(i) << endl;
+
+    ThreadPool::end();
 
     return 0;
 }

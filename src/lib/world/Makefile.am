@@ -1,6 +1,6 @@
 include $(top_srcdir)/config/MakeGlobal.am
 
-bin_PROGRAMS = world testhashthreaded testdc objexample objexample2 testprof helloworld taskexample testatomicint testhashdc array_test world_test
+bin_PROGRAMS = world testhashthreaded testdc objexample objexample2 testprof helloworld taskexample testatomicint testhashdc array_test world_test qtest
 
 lib_LIBRARIES = libMADworld.a
 
@@ -45,6 +45,9 @@ testdc_LDADD = libMADworld.a
 
 testhashthreaded_SOURCES = testhashthreaded.cc threadpool.cc
 testhashthreaded_LDADD = libMADworld.a
+
+qtest_SOURCES = qtest.cc
+qtest_LDADD = libMADworld.a
 
 
 world_SOURCES = world.cc
