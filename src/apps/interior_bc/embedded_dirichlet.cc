@@ -158,7 +158,10 @@ int main(int argc, char **argv) {
     // do the final problem setup
     switch(prob) {
     case 1:
-        return 0;
+        functor3 = SharedPtr<EmbeddedDirichlet<3> >(new ConstantSphere(k,
+                       thresh, eps, std::string(argv[5]), penalty_prefact,
+                       radius, mask));
+        dim = 3;
         break;
     case 2:
         functor3 = SharedPtr<EmbeddedDirichlet<3> >(new CosineSphere(k, thresh,
@@ -167,12 +170,17 @@ int main(int argc, char **argv) {
         dim = 3;
         break;
     case 3:
-        return 0;
+        functor3 = SharedPtr<EmbeddedDirichlet<3> >(new Ellipsoid(k, thresh,
+                       eps, std::string(argv[5]), penalty_prefact, mask));
+        dim = 3;
         break;
     case 4:
-        return 0;
+        functor2 = SharedPtr<EmbeddedDirichlet<2> >(new LLRVCircle(k, thresh,
+                       eps, std::string(argv[5]), penalty_prefact, mask));
+        dim = 2;
         break;
     default:
+        dim = 0;
         error("shouldn't be here");
         break;
     }
@@ -260,6 +268,11 @@ int main(int argc, char **argv) {
     // these are checks of the diffuse domain approximation
     double surf_integral, anals;
     double vol_integral, analv;
+    surf_integral = 0.0;
+    anals = 0.0;
+    vol_integral = 0.0;
+    analv = 0.0;
+
     switch(dim) {
     case 2:
         surf_integral = surf2.trace(); 
@@ -316,8 +329,8 @@ int main(int argc, char **argv) {
     // uguess = rhs / penalty_prefact
     // the rescaling will make operator(uguess) close to rhs in magnitude for
     //     starting in GMRES
-    DirichletCondIntOp<2> *dcio2;
-    DirichletCondIntOp<3> *dcio3;
+    DirichletCondIntOp<2> *dcio2 = NULL;
+    DirichletCondIntOp<3> *dcio3 = NULL;
     switch(dim) {
     case 2:
         usol2 = copy(rhs2);
@@ -354,6 +367,10 @@ int main(int argc, char **argv) {
     real_function_2d uexact2, uerror2;
     real_function_3d uexact3, uerror3;
     double error, ratio, exactval;
+    error = 0.0;
+    ratio = 0.0;
+    exactval = 0.0;
+
     std::vector<Vector<double, 2> > check_pts2;
     std::vector<Vector<double, 3> > check_pts3;
 
@@ -410,44 +427,45 @@ int main(int argc, char **argv) {
     }
 
     // uncomment these lines for various plots
-    /*
-    // make a line plot along the positive z axis
-    {
-    if(world.rank() == 0)
-        printf("\n\n");
-    double zmin = 0.0;
-    double zmax = 2.0;
-    int nz = 201;
-    pt[0] = pt[1] = 0.0;
-    double dz = (zmax - zmin) / (nz - 1);
-    for(int i = 0; i < nz; ++i) {
-        pt[2] = zmin + i * dz;
-        double uval = usol(pt);
+    if(dim == 2) {
+        // make a line plot along the positive z axis
+        if(world.rank() == 0)
+            printf("\n\n");
+        double xmin = 0.0;
+        double xmax = 2.0;
+        int nx = 201;
+        coord_2d pt2;
+        pt2[1] = 0.0;
+        double dx = (xmax - xmin) / (nx - 1);
+        for(int i = 0; i < nx; ++i) {
+            pt2[0] = xmin + i * dx;
+            double uval = usol2(pt2);
 
-        if(world.rank() == 0) {
-            printf("%.4e %.4e\n", pt[2], uval);
+            if(world.rank() == 0) {
+                printf("%.4e %.4e\n", pt2[0], uval);
+            }
         }
     }
-    }*/
 
     // make a line plot along the positive z axis
-    /*{
-    if(world.rank() == 0)
-        printf("\n\n");
-    double zmin = -3.0;
-    double zmax = 3.0;
-    int nz = 1001;
-    pt[0] = pt[1] = 0.0;
-    double dz = (zmax - zmin) / (nz - 1);
-    for(int i = 0; i < nz; ++i) {
-        pt[2] = 1.0 + (zmin + i * dz) * eps;
-        double uval = (usol(pt) - 1.0) * surf(pt) / penalty_prefact;
+    if(dim == 3) {
+        if(world.rank() == 0)
+            printf("\n\n");
+        double zmin = 0.0;
+        double zmax = 2.0;
+        int nz = 201;
+        coord_3d pt;
+        pt[0] = pt[1] = 0.0;
+        double dz = (zmax - zmin) / (nz - 1);
+        for(int i = 0; i < nz; ++i) {
+            pt[2] = zmin + i * dz;
+            double uval = usol3(pt);
 
-        if(world.rank() == 0) {
-            printf("%.4e %.4e\n", (zmin + i *dz), uval);
+            if(world.rank() == 0) {
+                printf("%.4e %.4e\n", pt[2], uval);
+            }
         }
     }
-    }*/
 
     // print out the solution function
     /*char filename[100];

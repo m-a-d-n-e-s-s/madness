@@ -242,6 +242,224 @@ class EmbeddedDirichlet : public FunctionFunctorInterface<double, NDIM> {
         }
 };
 
+/** \brief The constant on a sphere problem */
+class ConstantSphere : public EmbeddedDirichlet<3> {
+    protected:
+        double radius;
+
+        bool isHomogeneous() const { return true; }
+
+    public:
+        ConstantSphere(int k, double thresh, double eps, std::string penalty_name,
+            double penalty_prefact, double radius, Mask mask)
+            : EmbeddedDirichlet<3>(penalty_prefact, penalty_name, eps, k,
+              thresh, mask), radius(radius) {
+
+            char str[80];
+            sprintf(str, "Sphere radius: %.6e\n", radius);
+            problem_specific_info = str;
+            problem_name = "Constant Sphere";
+
+            // set up the domain masks, etc.
+            coord_3d pt(0.0); // origin
+            sdfi = new SDFSphere(radius, pt);
+        }
+
+        double DirichletCond(const Vector<double, 3> &x) const {
+            return 1.0;
+        }
+
+        double ExactSol(const Vector<double, 3> &x) const {
+            double r = sqrt(x[0]*x[0] + x[1]*x[1] + x[2]*x[2]);
+
+            if(r <= radius)
+                return 1.0;
+            else
+                return radius / r;
+        }
+
+        double Inhomogeneity(const Vector<double, 3> &x) const {
+            return 0.0;
+        }
+
+        double SurfaceIntegral() const {
+            return 4.0*constants::pi*radius*radius;
+        }
+
+        double VolumeIntegral() const {
+            return 4.0*constants::pi*radius*radius*radius / 3.0;
+        }
+
+        virtual std::vector< Vector<double, 3> > check_pts() const {
+            std::vector< Vector<double, 3> > vec;
+            Vector<double, 3> pt;
+
+            pt[0] = pt[1] = 0.0;
+            pt[2] = 0.1 * radius;
+            vec.push_back(pt);
+
+            pt[2] = radius;
+            vec.push_back(pt);
+
+            pt[2] = 2.0;
+            vec.push_back(pt);
+
+            return vec;
+        }
+};
+
+/** \brief The ellipsoid problem */
+class Ellipsoid : public EmbeddedDirichlet<3> {
+    protected:
+        Vector<double, 3> radii;
+
+        bool isHomogeneous() const { return false; }
+
+    public:
+        Ellipsoid(int k, double thresh, double eps, std::string penalty_name,
+            double penalty_prefact, Mask mask)
+            : EmbeddedDirichlet<3>(penalty_prefact, penalty_name, eps, k,
+              thresh, mask) {
+
+            radii[0] = 0.5;
+            radii[1] = 1.0;
+            radii[2] = 1.5;
+
+            char str[80];
+            sprintf(str, "Ellipsoid radii: %.6e %.6e %.6e\n", radii[0],
+                radii[1], radii[2]);
+            problem_specific_info = str;
+            problem_name = "Ellipsoid";
+
+            // set up the domain masks, etc.
+            coord_3d pt(0.0); // origin
+            sdfi = new SDFEllipsoid(radii, pt);
+        }
+
+        double DirichletCond(const Vector<double, 3> &x) const {
+            return 2.0;
+        }
+
+        double ExactSol(const Vector<double, 3> &x) const {
+            double sd = x[0]*x[0]/(radii[0]*radii[0]) +
+                        x[1]*x[1]/(radii[1]*radii[1]) +
+                        x[2]*x[2]/(radii[2]*radii[2]);
+
+            if(sd <= 1.0)
+                return 2.0 * sd;
+            else
+                // don't know the real solution on the outside...
+                return 2.0;
+        }
+
+        double Inhomogeneity(const Vector<double, 3> &x) const {
+            return 4.0 * (1.0/(radii[0]*radii[0]) + 1.0/(radii[1]*radii[1])
+                       +  1.0/(radii[2]*radii[2]));
+        }
+
+        double SurfaceIntegral() const {
+            // calculated in Mathematica for the ellipsoid with radii 0.5,
+            // 1.0, and 1.5
+            return 8.195226043365464;
+        }
+
+        double VolumeIntegral() const {
+            return 4.0*constants::pi*radii[0]*radii[1]*radii[2] / 3.0;
+        }
+
+        virtual std::vector< Vector<double, 3> > check_pts() const {
+            std::vector< Vector<double, 3> > vec;
+            Vector<double, 3> pt;
+
+            pt[0] = 0.1;
+            pt[1] = pt[2] = 0.0;
+            vec.push_back(pt);
+
+            pt[0] = 0.0;
+            pt[1] = 0.1;
+            vec.push_back(pt);
+
+            pt[1] = 0.0;
+            pt[2] = 0.1;
+            vec.push_back(pt);
+
+            pt[0] = radii[0];
+            pt[2] = 0.0;
+            vec.push_back(pt);
+
+            pt[0] = 0.0;
+            pt[1] = radii[1];
+            vec.push_back(pt);
+
+            pt[1] = 0.0;
+            pt[2] = radii[2];
+            vec.push_back(pt);
+
+            return vec;
+        }
+};
+
+/** \brief The 2D LLRV Circle problem */
+class LLRVCircle : public EmbeddedDirichlet<2> {
+    protected:
+        bool isHomogeneous() const { return false; }
+
+    public:
+        LLRVCircle(int k, double thresh, double eps, std::string penalty_name,
+            double penalty_prefact, Mask mask)
+            : EmbeddedDirichlet<2>(penalty_prefact, penalty_name, eps, k,
+              thresh, mask) {
+
+            char str[80];
+            sprintf(str, "Circle radius: %.6e\n", 1.0);
+            problem_specific_info = str;
+            problem_name = "LLRV Circle";
+
+            // set up the domain masks, etc.
+            coord_2d pt(0.0); // origin
+            sdfi = new SDFCircle(1.0, pt);
+        }
+
+        double DirichletCond(const Vector<double, 2> &x) const {
+            return 0.25;
+        }
+
+        double ExactSol(const Vector<double, 2> &x) const {
+            double r2 = x[0]*x[0] + x[1]*x[1];
+
+            if(r2 <= 1.0)
+                return r2 * 0.25;
+            else
+                return 0.25;
+        }
+
+        double Inhomogeneity(const Vector<double, 2> &x) const {
+            return 1.0;
+        }
+
+        double SurfaceIntegral() const {
+            return 2.0*constants::pi;
+        }
+
+        double VolumeIntegral() const {
+            return constants::pi;
+        }
+
+        virtual std::vector< Vector<double, 2> > check_pts() const {
+            std::vector< Vector<double, 2> > vec;
+            Vector<double, 2> pt;
+
+            pt[0] = 0.0;
+            pt[1] = 0.1;
+            vec.push_back(pt);
+
+            pt[1] = 1.0;
+            vec.push_back(pt);
+
+            return vec;
+        }
+};
+
 /** \brief The cos(theta) on a sphere problem */
 class CosineSphere : public EmbeddedDirichlet<3> {
     protected:
