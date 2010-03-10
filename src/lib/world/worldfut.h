@@ -687,7 +687,7 @@ which merely blows instead of sucking.
     /// support most operations that other futures do ... that is
     /// the responsiblility of the individual futures in the vector.
     template <typename T>
-    class Future< std::vector< Future<T> > > : public DependencyInterface {
+    class Future< std::vector< Future<T> > > : public DependencyInterface, private NO_DEFAULTS {
     private:
         typedef typename std::vector< Future<T> > vectorT;
         vectorT v;
@@ -695,12 +695,9 @@ which merely blows instead of sucking.
     public:
         Future() : v() {}
 
-        Future(const vectorT& v) : v(v) { // Register dependencies as created
+        Future(const vectorT& v) : DependencyInterface(v.size()), v(v) {
             for (int i=0; i<(int)v.size(); i++) {
-                if (!this->v[i].probe()) {
-                    inc();
-                    this->v[i].register_callback(this);
-                }
+                this->v[i].register_callback(this);
             }
         }
         vectorT& get() {
