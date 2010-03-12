@@ -531,6 +531,78 @@ class CosineSphere : public EmbeddedDirichlet<3> {
         }
 };
 
+/** \brief The y_2^0 on a sphere problem */
+class Y20Sphere : public EmbeddedDirichlet<3> {
+    protected:
+        double radius;
+
+        bool isHomogeneous() const { return true; }
+
+    public:
+        Y20Sphere(int k, double thresh, double eps, std::string penalty_name,
+            double penalty_prefact, double radius, Mask mask)
+            : EmbeddedDirichlet<3>(penalty_prefact, penalty_name, eps, k,
+              thresh, mask), radius(radius) {
+
+            char str[80];
+            sprintf(str, "Sphere radius: %.6e\n", radius);
+            problem_specific_info = str;
+            problem_name = "Y20 Sphere";
+
+            // set up the domain masks, etc.
+            coord_3d pt(0.0); // origin
+            sdfi = new SDFSphere(radius, pt);
+        }
+
+        double DirichletCond(const Vector<double, 3> &x) const {
+            double r = sqrt(x[0]*x[0] + x[1]*x[1] + x[2]*x[2]);
+
+            if(r < 1.0e-4)
+                return 0.0;
+            else
+                return 3.0* x[2] * x[2] / (r*r) - 1.0;
+        }
+
+        double ExactSol(const Vector<double, 3> &x) const {
+            double r = sqrt(x[0]*x[0] + x[1]*x[1] + x[2]*x[2]);
+
+            if(r <= radius)
+                //return x[2] / radius;
+                return (3.0*x[2]*x[2] - r*r) / (radius * radius);   
+            else
+                return radius*radius*radius / (r*r*r) * (3.0*x[2]*x[2]/(r*r) - 1.0);
+        }
+
+        double Inhomogeneity(const Vector<double, 3> &x) const {
+            return 0.0;
+        }
+
+        double SurfaceIntegral() const {
+            return 4.0*constants::pi*radius*radius;
+        }
+
+        double VolumeIntegral() const {
+            return 4.0*constants::pi*radius*radius*radius / 3.0;
+        }
+
+        virtual std::vector< Vector<double, 3> > check_pts() const {
+            std::vector< Vector<double, 3> > vec;
+            Vector<double, 3> pt;
+
+            pt[0] = pt[1] = 0.0;
+            pt[2] = 0.1 * radius;
+            vec.push_back(pt);
+
+            pt[2] = radius;
+            vec.push_back(pt);
+
+            pt[2] = 2.0;
+            vec.push_back(pt);
+
+            return vec;
+        }
+};
+
 /** \brief The operator needed for solving for \f$u\f$ with GMRES */
 template<int NDIM>
 class DirichletCondIntOp : public Operator<Function<double, NDIM> > {
