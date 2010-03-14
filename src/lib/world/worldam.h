@@ -316,7 +316,12 @@ namespace madness {
 
             // Wait for oldest request to complete
             while (!send_req[cur_msg].Test()) {
-                myusleep(1);
+                // If the oldest message has still not completed then there is likely
+                // severe network or end-point congestion, so pause for 100us in a rather 
+                // abitrary attempt to decreate the injection rate.  The server thread
+                // is still polling every 1us (which is required to suck data off the net
+                // and by some engines to ensure progress on sends).
+                myusleep(100); 
             }
 
             free_managed_send_buf(cur_msg);
