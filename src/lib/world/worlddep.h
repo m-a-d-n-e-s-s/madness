@@ -143,9 +143,10 @@ namespace madness {
             ScopedMutex<Spinlock> hold(this);
 
             // Paranoia is good
-            if (ndepend) {
-                print("DependencyInterface: destructor with ndepend =",ndepend,"?", typeid(*this).name());
-            }
+            MADNESS_ASSERT(ndepend == 0);
+            //if (ndepend)
+            //print("DependencyInterface: destructor with ndepend =",ndepend,"?", typeid(*this).name());
+
         }
     };
 }
