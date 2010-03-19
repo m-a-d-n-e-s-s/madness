@@ -624,8 +624,8 @@ void Molecule::read_core_file(const std::string& filename) {
                 continue;
             }
             double r = rcut[i];
-            //rcut[i] = 1.0/smoothing_parameter(q, eprec);
-            rcut[i] = 1.0/smoothing_parameter(q, 1.0);
+            rcut[i] = 1.0/smoothing_parameter(q, eprec);
+            //rcut[i] = 1.0/smoothing_parameter(q, 1.0);
             madness::print("rcut update", i, r, "to", rcut[i]);
         }
     }

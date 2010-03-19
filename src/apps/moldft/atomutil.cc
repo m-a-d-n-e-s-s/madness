@@ -176,8 +176,8 @@ double smoothing_parameter(double Z, double eprec) {
     // The min is since asymptotic form not so good at low acc.
     // The /2 is from two electrons in 1s closed shell.
     if (Z == 0.0) return 1.0;
-    //eprec = std::min(1e-3,eprec/2.0);
-    eprec = std::min(1e-2,eprec/2.0);
+    eprec = std::min(1e-3,eprec/2.0);
+    //eprec = std::min(1e-2,eprec/2.0);
     double Z5 = Z*Z*Z*Z*Z;
     double c = pow(eprec/(0.65*Z5),1.0/3.0);
     return c;
