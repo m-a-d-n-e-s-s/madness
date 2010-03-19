@@ -36,6 +36,8 @@
 /// \file moldft/molecule.h
 /// \brief Declaration of molecule related classes and functions
 
+#include <moldft/corepotential.h>
+#include <moldft/atomutil.h>
 #include <vector>
 #include <string>
 #include <iostream>
@@ -46,32 +48,6 @@
 #include <cmath>
 #include <tensor/tensor.h>
 #include <misc/misc.h>
-
-
-struct AtomicData {
-    // !!! The order of declaration here must match the order in the initializer !!!
-
-    // Nuclear info from L. Visscher and K.G. Dyall, Dirac-Fock
-    // atomic electronic structure calculations using different
-    // nuclear charge distributions, Atom. Data Nucl. Data Tabl., 67,
-    // (1997), 207.
-    //
-    // http://dirac.chem.sdu.dk/doc/FiniteNuclei/FiniteNuclei.shtml
-    const char* const symbol;
-    const char* const symbol_lowercase;
-    const unsigned int atomic_number;
-    const int isotope_number;
-    const double nuclear_radius;     ///< Radius of the nucleus for the finite nucleus models (in atomic units).
-    const double nuclear_half_charge_radius; ///< Half charge radius in the Fermi Model (in atomic units).
-    const double nuclear_gaussian_exponent; ///< Exponential parameter in the Gaussian Model (in atomic units).
-
-    /// Covalent radii stolen without shame from NWChem
-    const double covalent_radius;
-};
-
-const AtomicData& get_atomic_data(unsigned int atn);
-
-unsigned int symbol_to_atomic_number(const std::string& symbol);
 
 
 class Atom {
@@ -103,6 +79,8 @@ private:
     std::vector<Atom> atoms;
     std::vector<double> rcut;  // Reciprocal of the smoothing radius
     double eprec;              // Error in energy/atom due to smoothing
+    CorePotentialManager core_pot;
+    madness::Tensor<double> field;
 
     void swapaxes(int ix, int iy);
 
@@ -117,11 +95,40 @@ private:
 
 public:
     /// Makes a molecule with zero atoms
-    Molecule() : atoms(), rcut(), eprec(1e-4) {};
+    Molecule() : atoms(), rcut(), eprec(1e-4), core_pot(), field(3L) {};
 
     Molecule(const std::string& filename);
 
     void read_file(const std::string& filename);
+
+    void read_core_file(const std::string& filename);
+
+    std::string guess_file() const { return core_pot.guess_file(); };
+
+    unsigned int n_core_orb_all() const ;
+
+    unsigned int n_core_orb(unsigned int atn) const {
+        if (core_pot.is_defined(atn))
+            return core_pot.n_core_orb(atn);
+        else
+            return 0;
+    };
+
+    unsigned int get_core_l(unsigned int atn, unsigned int c) const {
+        return core_pot.get_core_l(atn, c);
+    }
+
+    double get_core_bc(unsigned int atn, unsigned int c) const {
+        return core_pot.get_core_bc(atn, c);
+    }
+
+    double core_eval(int atom, unsigned int core, int m, double x, double y, double z) const;
+
+    double core_derivative(int atom, int axis, unsigned int core, int m, double x, double y, double z) const;
+
+    bool is_potential_defined(unsigned int atn) const { return core_pot.is_defined(atn); };
+
+    bool is_potential_defined_atom(int i) const { return core_pot.is_defined(atoms[i].atomic_number); };
 
     void add_atom(double x, double y, double z,  double q, int atn);
 
@@ -167,11 +174,15 @@ public:
 
     double nuclear_attraction_potential(double x, double y, double z) const;
 
+    double molecular_core_potential(double x, double y, double z) const;
+
+    double core_potential_derivative(int atom, int axis, double x, double y, double z) const;
+
     double nuclear_attraction_potential_derivative(int atom, int axis, double x, double y, double z) const;
 
     template <typename Archive>
     void serialize(Archive& ar) {
-        ar & atoms & rcut & eprec;
+        ar & atoms & rcut & eprec & core_pot;
     }
 };
 

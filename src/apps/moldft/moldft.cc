@@ -51,6 +51,11 @@ extern int c_rks_vwn5__(const double *rho, double *f, double *dfdra);
 
 #include <moldft/molecule.h>
 #include <moldft/molecularbasis.h>
+#include <moldft/corepotential.h>
+
+static const bool diag_init = true;
+static const bool diag_rho = true;
+static const bool diag_resi = true;
 
 /// Simple (?) version of BLAS-1 DROT(N, DX, INCX, DY, INCY, DC, DS)
 void drot(long n, double* restrict a, double* restrict b, double s, double c, long inc) {
@@ -201,6 +206,18 @@ public:
     }
 };
 
+class MolecularCorePotentialFunctor : public FunctionFunctorInterface<double,3> {
+private:
+    const Molecule& molecule;
+public:
+    MolecularCorePotentialFunctor(const Molecule& molecule)
+        : molecule(molecule) {}
+    
+    double operator()(const coordT& x) const {
+        return molecule.molecular_core_potential(x[0], x[1], x[2]);
+    }
+};
+
 class MolecularGuessDensityFunctor : public FunctionFunctorInterface<double,3> {
 private:
     const Molecule& molecule;
@@ -250,6 +267,47 @@ public:
         return molecule.nuclear_attraction_potential_derivative(atom, axis, x[0], x[1], x[2]);
     }
 };
+
+class CorePotentialDerivativeFunctor : public FunctionFunctorInterface<double,3> {
+private:
+    const Molecule& molecule;
+    const int atom;
+    const int axis;
+public:
+    CorePotentialDerivativeFunctor(const Molecule& molecule, int atom, int axis)
+        : molecule(molecule), atom(atom), axis(axis) {}
+    
+    double operator()(const coordT& r) const {
+        return molecule.core_potential_derivative(atom, axis, r[0], r[1], r[2]);
+    }
+};
+
+class CoreOrbitalFunctor : public FunctionFunctorInterface<double,3> {
+    const Molecule molecule;
+    const int atom;
+    const unsigned int core;
+    const int m;
+public:
+    CoreOrbitalFunctor(Molecule& molecule, int atom, unsigned int core, int m)
+        : molecule(molecule), atom(atom), core(core), m(m) {};
+    double operator()(const coordT& r) const {
+        return molecule.core_eval(atom, core, m, r[0], r[1], r[2]);
+    };
+};
+
+class CoreOrbitalDerivativeFunctor : public FunctionFunctorInterface<double,3> {
+    const Molecule molecule;
+    const int atom, axis;
+    const unsigned int core;
+    const int m;
+public:
+    CoreOrbitalDerivativeFunctor(Molecule& molecule, int atom, int axis, unsigned int core, int m)
+        : molecule(molecule), atom(atom), axis(axis), core(core), m(m) {};
+    double operator()(const coordT& r) const {
+        return molecule.core_derivative(atom, axis, core, m, r[0], r[1], r[2]);
+    };
+};
+
 
 /// A MADNESS functor to compute either x, y, or z
 class DipoleFunctor : public FunctionFunctorInterface<double,3> {
@@ -365,6 +423,7 @@ struct CalculationParameters {
     int npt_plot;               ///< No. of points to use in each dim for plots
     tensorT plot_cell;          ///< lo hi in each dimension for plotting (default is all space)
     std::string aobasis;             ///< AO basis used for initial guess (6-31g or sto-3g)
+    std::string core_type;           ///< core potential type ("" or "mcp")
     // Next list inferred parameters
     int nalpha;                 ///< Number of alpha spin electrons
     int nbeta;                  ///< Number of beta  spin electrons
@@ -377,6 +436,7 @@ struct CalculationParameters {
         ar & charge & smear & econv & dconv & L & maxrotn & nvalpha & nvbeta & nopen & maxiter & nio & spin_restricted & lda;
         ar & plotlo & plothi & plotdens & plotcoul & localize & localize_pm & restart & maxsub & npt_plot & plot_cell & aobasis;
         ar & nalpha & nbeta & nmo_alpha & nmo_beta & lo;
+        ar & core_type;
     }
     
     CalculationParameters()
@@ -403,6 +463,7 @@ struct CalculationParameters {
         , maxsub(8)
         , npt_plot(101)
         , aobasis("6-31g")
+        , core_type("")
         , nalpha(0)
         , nbeta(0)
         , nmo_alpha(0)
@@ -505,6 +566,9 @@ struct CalculationParameters {
                 if (maxsub <= 0) maxsub = 1;
                 if (maxsub > 20) maxsub = 20;
             }
+            else if (s == "core_type") {
+                f >> core_type;
+            }
             else {
                 std::cout << "moldft: unrecognized input keyword " << s << std::endl;
                 MADNESS_EXCEPTION("input error",0);
@@ -513,11 +577,11 @@ struct CalculationParameters {
         }
     }
     
-    void set_molecular_info(const Molecule& molecule, const AtomicBasisSet& aobasis) {
+    void set_molecular_info(const Molecule& molecule, const AtomicBasisSet& aobasis, unsigned int n_core) {
         double z = molecule.total_nuclear_charge();
-        int nelec = int(z - charge);
-        if (fabs(nelec+charge-z) > 1e-6) {
-            error("non-integer number of electrons?", nelec+charge-z);
+        int nelec = int(z - charge - n_core*2);
+        if (fabs(nelec+charge+n_core*2-z) > 1e-6) {
+            error("non-integer number of electrons?", nelec+charge+n_core*2-z);
         }
         nalpha = (nelec + nopen)/2;
         nbeta  = (nelec - nopen)/2;
@@ -566,6 +630,8 @@ struct CalculationParameters {
         madness::print("  energy convergence ", econv);
         madness::print(" density convergence ", dconv);
         madness::print("    maximum rotation ", maxrotn);
+        if (core_type != "")
+            madness::print("           core type ", core_type);
         madness::print(" initial guess basis ", aobasis);
         madness::print(" max krylov subspace ", maxsub);
         madness::print("    calculation type ", calctype[int(lda)]);
@@ -610,9 +676,15 @@ struct Calculation {
         if(world.rank() == 0) {
             molecule.read_file(filename);
             param.read_file(filename);
-            aobasis.read_file(param.aobasis);
+            unsigned int n_core = 0;
+            if (param.core_type != "") {
+                molecule.read_core_file(param.core_type);
+                param.aobasis = molecule.guess_file();
+                n_core = molecule.n_core_orb_all();
+            }
             molecule.orient();
-            param.set_molecular_info(molecule, aobasis);
+            aobasis.read_file(param.aobasis);
+            param.set_molecular_info(molecule, aobasis, n_core);
         }
         world.gop.broadcast_serializable(molecule, 0);
         world.gop.broadcast_serializable(param, 0);
@@ -831,6 +903,15 @@ struct Calculation {
         vnuc.set_thresh(FunctionDefaults<3>::get_thresh());
         vnuc.reconstruct();
         END_TIMER(world, "Project vnuclear");
+        if (param.core_type != "") {
+            START_TIMER(world);
+            functionT c_pot = factoryT(world).functor(functorT(new MolecularCorePotentialFunctor(molecule))).thresh(vtol).initial_level(4);
+            c_pot.set_thresh(FunctionDefaults<3>::get_thresh());
+            c_pot.reconstruct();
+            END_TIMER(world, "Project Core Pot.");
+            vnuc += c_pot;
+            vnuc.truncate();
+        }
     }
     
     void project_ao_basis(World & world)
@@ -1196,6 +1277,54 @@ struct Calculation {
         
     };
     
+    vecfuncT core_projection(World & world, const vecfuncT & psi, const bool include_Bc = true)
+    {
+        int npsi = psi.size();
+        if (npsi == 0) return psi;
+        int natom = molecule.natom();
+        vecfuncT proj = zero_functions<double,3>(world, npsi);
+        tensorT overlap_sum(static_cast<long>(npsi));
+
+        for (int i=0; i<natom; i++) {
+            Atom at = molecule.get_atom(i);
+            unsigned int atn = at.atomic_number;
+            if (molecule.n_core_orb(atn) == 0) continue;
+            unsigned int ncore = molecule.n_core_orb(atn);
+            for (unsigned int c=0; c<ncore; c++) {
+                unsigned int l = molecule.get_core_l(atn, c);
+                int max_m = (l+1)*(l+2)/2;
+                for (int m=0; m<max_m; m++) {
+                    functionT core = factoryT(world).functor(functorT(new CoreOrbitalFunctor(molecule, i, c, m)));
+                    tensorT overlap = inner(world, core, psi);
+                    overlap_sum += overlap;
+                    for (int j=0; j<npsi; j++) {
+                        if (include_Bc) overlap[j] *= molecule.get_core_bc(atn, c);
+                        proj[j] += overlap[j] * core;
+                    }
+                }
+            }
+            world.gop.fence();
+        }
+        if (world.rank() == 0) print("sum_k <core_k|psi_i>:", overlap_sum);
+        return proj;
+    }
+
+    double core_projector_derivative(World & world, const vecfuncT & mo, const tensorT & occ, const vecfuncT & cores, const vecfuncT & dcores, const std::vector<double> & bc)
+    {
+        double r = 0.0;
+        for (unsigned int c=0; c<cores.size(); c++) {
+            double rcore= 0.0;
+            tensorT rcores = inner(world, cores[c], mo);
+            tensorT rdcores = inner(world, dcores[c], mo);
+            for (unsigned int i=0; i<mo.size(); i++) {
+                rcore += rdcores[i] * rcores[i] * occ[i];
+            }
+            r += 2.0 * bc[c] * rcore;
+        }
+
+        return r;
+    }
+
     void initial_guess(World & world)
     {
         START_TIMER(world);
@@ -1281,10 +1410,15 @@ struct Calculation {
                 print(e);
             }
             compress(world, ao);
-            amo = transform(world, ao, c(_, Slice(0, param.nmo_alpha - 1)), 0.0, true);
+
+            unsigned int n_core = 0;
+            if (param.core_type != "") {
+                n_core = molecule.n_core_orb_all();
+            }
+            amo = transform(world, ao, c(_, Slice(n_core, n_core + param.nmo_alpha - 1)), 0.0, true);
             truncate(world, amo);
             normalize(world, amo);
-            aeps = e(Slice(0, param.nmo_alpha - 1));
+            aeps = e(Slice(n_core, n_core + param.nmo_alpha - 1));
             
             aocc = tensorT(param.nmo_alpha);
             for(int i = 0;i < param.nalpha;i++)
@@ -1311,10 +1445,10 @@ struct Calculation {
             //}
             
             if(param.nbeta && !param.spin_restricted){
-                bmo = transform(world, ao, c(_, Slice(0, param.nmo_beta - 1)), 0.0, true);
+                bmo = transform(world, ao, c(_, Slice(n_core, n_core + param.nmo_beta - 1)), 0.0, true);
                 truncate(world, bmo);
                 normalize(world, bmo);
-                beps = e(Slice(0, param.nmo_beta - 1));
+                beps = e(Slice(n_core, n_core + param.nmo_beta - 1));
                 bocc = tensorT(param.nmo_beta);
                 for(int i = 0;i < param.nbeta;i++)
                     bocc[i] = 1.0;
@@ -1339,6 +1473,22 @@ struct Calculation {
                         std::cout << param.nmo_beta - 1 << std::endl;
                 //}
                 
+            }
+
+            // diagonalize to core
+            if (diag_init && param.core_type.substr(0,3) == "mcp") {
+                START_TIMER(world);
+                vecfuncT proj_core = core_projection(world, amo, false);
+                gaxpy(world, 1.0, amo, -1.0, proj_core);
+                proj_core.clear();
+                normalize(world, amo);
+                if (!param.spin_restricted && param.nbeta) {
+                    proj_core = core_projection(world, bmo, false);
+                    gaxpy(world, 1.0, bmo, -1.0, proj_core);
+                    proj_core.clear();
+                    normalize(world, bmo);
+                }
+                END_TIMER(world, "core projector");
             }
         }
     }
@@ -1524,6 +1674,12 @@ struct Calculation {
             Kamo.clear();
             END_TIMER(world, "HF exchange");
         }
+
+        if (param.core_type.substr(0,3) == "mcp") {
+            START_TIMER(world);
+            gaxpy(world, 1.0, Vpsi, 1.0, core_projection(world, amo));
+            END_TIMER(world, "MCP Core Projector");
+        }
         
         START_TIMER(world);
         truncate(world, Vpsi);
@@ -1542,20 +1698,61 @@ struct Calculation {
         rho.gaxpy(1.0, brho, 1.0);
 
         vecfuncT dv(molecule.natom() * 3);
-        for(int atom = 0;atom < molecule.natom();atom++){
-                for(int axis = 0;axis < 3;axis++){
-                    functorT func(new MolecularDerivativeFunctor(molecule, atom, axis));
-                    dv[atom * 3 + axis] = functionT(factoryT(world).functor(func).nofence().truncate_on_project());
-                }
-        }
-        
-        world.gop.fence();
-        tensorT r = inner(world, rho, dv);
-        dv.clear();
-        world.gop.fence();
+        vecfuncT du = zero_functions<double,3>(world, molecule.natom() * 3);
+        tensorT rc(molecule.natom() * 3);
         for(int atom = 0;atom < molecule.natom();atom++){
             for(int axis = 0;axis < 3;axis++){
-                r[atom * 3 + axis] += molecule.nuclear_repulsion_derivative(atom, axis);
+                functorT func(new MolecularDerivativeFunctor(molecule, atom, axis));
+                dv[atom * 3 + axis] = functionT(factoryT(world).functor(func).nofence().truncate_on_project());
+                if (param.core_type != "" && molecule.is_potential_defined_atom(atom)) {
+                    // core potential contribution
+                    func = functorT(new CorePotentialDerivativeFunctor(molecule, atom, axis));
+                    du[atom * 3 + axis] = functionT(factoryT(world).functor(func).truncate_on_project());
+
+                    // core projector contribution
+                    vecfuncT cores, dcores;
+                    std::vector<double> bc;
+                    unsigned int atn = molecule.get_atom(atom).atomic_number;
+                    unsigned int ncore = molecule.n_core_orb(atn);
+
+                    // projecting core & d/dx core
+                    for (unsigned int c=0; c<ncore; c++) {
+                        unsigned int l = molecule.get_core_l(atn, c);
+                        int max_m = (l+1)*(l+2)/2;
+                        for (int m=0; m<max_m; m++) {
+                            func = functorT(new CoreOrbitalFunctor(molecule, atom, c, m));
+                            cores.push_back(functionT(factoryT(world).functor(func).truncate_on_project()));
+                            func = functorT(new CoreOrbitalDerivativeFunctor(molecule, atom, axis, c, m));
+                            dcores.push_back(functionT(factoryT(world).functor(func).truncate_on_project()));
+                            bc.push_back(molecule.get_core_bc(atn, c));
+                        }
+                    }
+
+                    // calc \sum_i occ_i <psi_i|(\sum_c Bc d/dx |core><core|)|psi_i>
+                    rc[atom * 3 + axis] = core_projector_derivative(world, amo, aocc, cores, dcores, bc);
+                    if (!param.spin_restricted) {
+                        if (param.nbeta) rc[atom * 3 + axis] += core_projector_derivative(world, bmo, bocc, cores, dcores, bc);
+                    }
+                    else {
+                        rc[atom * 3 + axis] *= 2; // because of 2 electrons in core orbital
+                    }
+                    cores.clear();
+                    dcores.clear();
+                }
+            }
+        }
+
+        world.gop.fence();
+        tensorT r = inner(world, rho, dv);
+        world.gop.fence();
+        tensorT ru = inner(world, rho, du);
+        dv.clear();
+        du.clear();
+        world.gop.fence();
+        tensorT ra(r.size());
+        for(int atom = 0;atom < molecule.natom();atom++){
+            for(int axis = 0;axis < 3;axis++){
+                ra[atom * 3 + axis] = molecule.nuclear_repulsion_derivative(atom, axis);
             }
         }
         END_TIMER(world,"derivatives");
@@ -1571,7 +1768,7 @@ struct Calculation {
                        r[i*3+0], r[i*3+1], r[i*3+2]);
             }
         }
-
+        r += ru + rc + ra;
         return r;
     }
     
@@ -1621,7 +1818,18 @@ struct Calculation {
         truncate(world, new_psi);
         END_TIMER(world, "Truncate new psi");
         vecfuncT r = sub(world, psi, new_psi);
+        // diagonalize to core
+        if (diag_resi && param.core_type.substr(0,3) == "mcp") {
+            START_TIMER(world);
+            vecfuncT proj_core = core_projection(world, r, false);
+            gaxpy(world, 1.0, r, -1.0, proj_core);
+            proj_core.clear();
+            truncate(world, r);
+            //normalize(world, r);
+            END_TIMER(world, "core projector");
+        }
         std::vector<double> rnorm = norm2s(world, r);
+        if (world.rank() == 0) print("DEBUG:residuals", rnorm);
         double rms, maxval;
         vector_stats(rnorm, rms, maxval);
         err = maxval;
@@ -1883,11 +2091,13 @@ struct Calculation {
         newQ(m - 1, _) = ms;
         newQ(_, m - 1) = sm;
         Q = newQ;
+        //if (world.rank() == 0) { print("kain Q"); print(Q); }
         tensorT c;
         if(world.rank() == 0){
             double rcond = 1e-12;
             while(1){
                 c = KAIN(Q, rcond);
+                //if (world.rank() == 0) print("kain c:", c);
                 if(std::abs(c[m - 1]) < 3.0){
                     break;
                 } else  if(rcond < 0.01){
@@ -2053,13 +2263,36 @@ struct Calculation {
                 }
             }
             
+            if (diag_rho && param.core_type.substr(0,3) == "mcp") {
+                START_TIMER(world);
+                vecfuncT proj_core = core_projection(world, amo, false);
+                gaxpy(world, 1.0, amo, -1.0, proj_core);
+                proj_core.clear();
+                normalize(world, amo);
+                if (!param.spin_restricted && param.nbeta) {
+                    proj_core = core_projection(world, bmo, false);
+                    gaxpy(world, 1.0, bmo, -1.0, proj_core);
+                    proj_core.clear();
+                    normalize(world, bmo);
+                }
+                END_TIMER(world, "core projector");
+            }
+
             START_TIMER(world);
             functionT arho = make_density(world, aocc, amo);
             functionT brho;
-            if(!param.spin_restricted && param.nbeta)
-                brho = make_density(world, bocc, bmo);
-            else
-                brho = arho;
+            //if(!param.spin_restricted && param.nbeta)
+            //    brho = make_density(world, bocc, bmo);
+            //else
+            //    brho = arho; // wrong with 1-electron system
+            if (param.nbeta) {
+                if (param.spin_restricted) brho = arho;
+                else brho = make_density(world, bocc, bmo);
+            }
+            else {
+                brho = functionT(world); // zero
+            }
+
             
             END_TIMER(world, "Make densities");
             if(iter < 2 || (iter % 10) == 0){
