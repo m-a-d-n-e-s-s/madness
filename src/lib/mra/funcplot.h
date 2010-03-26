@@ -96,7 +96,7 @@
         const Vector<long, NDIM> &npt, bool binary = false) {
 
         PROFILE_FUNC;
-        MADNESS_ASSERT(NDIM>1 && NDIM<=3); // how do we plot data in more than 3-D?
+        MADNESS_ASSERT(NDIM>=1 && NDIM<=3); // how do we plot data in more than 3-D?
 
         // our current assumptions
         MADNESS_ASSERT(world.nproc()==1);
@@ -192,7 +192,7 @@
         bool binary = false, bool plot_refine = false) {
 
         PROFILE_FUNC;
-        MADNESS_ASSERT(NDIM>1 && NDIM<=3); // no plotting high-D functions, yet...
+        MADNESS_ASSERT(NDIM>=1 && NDIM<=3); // no plotting high-D functions, yet...
 
         MADNESS_ASSERT(world.nproc()==1);
 
@@ -252,7 +252,7 @@
         // to change NumberOfComponents in the XML tag)
 
         PROFILE_FUNC;
-        MADNESS_ASSERT(NDIM>1 && NDIM<=3); // no plotting high-D functions, yet...
+        MADNESS_ASSERT(NDIM>=1 && NDIM<=3); // no plotting high-D functions, yet...
 
         MADNESS_ASSERT(world.nproc()==1);
 
@@ -302,7 +302,7 @@
     template<int NDIM>
     void plotvtk_end(World &world, const char *filename, bool binary = false) {
         PROFILE_FUNC;
-        MADNESS_ASSERT(NDIM>1 && NDIM<=3);
+        MADNESS_ASSERT(NDIM>=1 && NDIM<=3);
 
         MADNESS_ASSERT(world.nproc() == 1);
 

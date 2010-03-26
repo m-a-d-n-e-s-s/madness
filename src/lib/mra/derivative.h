@@ -248,7 +248,7 @@ namespace madness {
         typedef std::pair<keyT,tensorT> argT     ;
         typedef FunctionImpl<T,NDIM>    implT    ;
         typedef Function<T,NDIM>        functionT;
-        typedef WorldContainer<Key<NDIM> , FunctionNode<T, NDIM> > dcT;
+        typedef WorldContainer< Key<NDIM> , FunctionNode<T, NDIM> > dcT;
         typedef FunctionNode<T,NDIM> nodeT;
 
     private:
@@ -336,10 +336,14 @@ namespace madness {
             if (l[this->axis]==0) {
                 if (bc_left == BC_DIRICHLET)
                     bdry_t.scale( pow(2.0,lev));
+				else if (bc_left ==BC_NEUMANN)
+					bdry_t.scale(FunctionDefaults<NDIM>::get_cell_width()[this->axis]);
             }
             else {
                 if (bc_right == BC_DIRICHLET)
                     bdry_t.scale( pow(2.0,lev));
+				else if (bc_right ==BC_NEUMANN)
+					bdry_t.scale(FunctionDefaults<NDIM>::get_cell_width()[this->axis]);
             }
             
             bdry_t = bdry_t + d;
