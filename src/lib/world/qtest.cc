@@ -13,6 +13,10 @@
 #include <sys/sysctl.h>
 #endif
 
+#if defined(ON_A_MAC) || defined(HAVE_IBMBGP)
+#define __thread
+#endif
+
 using namespace std;
 using namespace madness;
 
@@ -25,10 +29,10 @@ class SimpleQ : public Spinlock {
     SimpleQ(const SimpleQ& other); // Verboten
 
 public:
-    SimpleQ(int len=128) 
+    SimpleQ(int len=128)
         : len(len)
         , ninq(0)
-        , q(new T[len]) 
+        , q(new T[len])
     {}
 
     ~SimpleQ() {
@@ -121,34 +125,34 @@ class DQueue {
     }
 
     DQueue(const DQueue& other); // Verboten
-    
+
 public:
-    DQueue(int hint=32768) 
+    DQueue(int hint=32768)
         : n(0)
         , len(hint>2 ? hint : 2)
         , buf(new T[len])
         , front(len/2)
         , back(front-1) {}
-    
+
     virtual ~DQueue() {
         delete buf;
     }
-    
+
     /// Insert value at front of queue
     void push_front(const T& value) {
         if (n == len) grow();
         n++;
-        
+
         front--;
         if (front < 0) front = len - 1;
         buf[front] = value;
     }
-    
+
     /// Insert element at back of queue
     void push_back(const T& value) {
         if (n == len) grow();
         n++;
-        
+
         back++;
         if (back >= len) back = 0;
         buf[back] = value;
@@ -185,7 +189,9 @@ pthread_key_t idkey; // Must be external
 static __thread int my_thread_id;
 
 static void set_thread_affinity(int cpu) {
+#ifndef ON_A_MAC
 #define HAVE_SCHED_SETAFFINITY
+#endif
 #ifdef HAVE_SCHED_SETAFFINITY
     cpu_set_t mask;
     CPU_ZERO(&mask);
@@ -224,10 +230,10 @@ class ThreadPool {
         int n;
         PoolTaskInterface** buf;
         volatile int* count;
-        
+
         InterThreadMessage() {}
-        
-        InterThreadMessage(MsgType msgtype, int n, PoolTaskInterface** buf, volatile int* count) 
+
+        InterThreadMessage(MsgType msgtype, int n, PoolTaskInterface** buf, volatile int* count)
             : msgtype(msgtype), n(n), buf(buf), count(count)
         {}
     };
@@ -237,7 +243,7 @@ class ThreadPool {
         DQueue<PoolTaskInterface*> taskq;
         unsigned long ntask;
         unsigned char weights[MAXNTHREAD]; // Cumulative probability rescaled from [0,1] to [0,256]
-        
+
         ThreadPoolData() : ntask(0) {}
     };
 
@@ -266,7 +272,7 @@ class ThreadPool {
     // Info about computer topology
     static int hwthread_to_core[MAXNTHREAD];
     static int hwcore_to_socket[MAXNTHREAD];
-    
+
     static void process_messages(ThreadPoolData* t) {
         ITMQ& itmq = t->itmq;
         TASKQ& taskq = t->taskq;
@@ -302,7 +308,7 @@ class ThreadPool {
             pthread_exit(0);
         }
     }
-    
+
     // Steal from target thread into taskq
     static void steal(int target, ThreadPoolData* t) {
         static const int n = 2048;
@@ -311,7 +317,7 @@ class ThreadPool {
 
         volatile int count = -1;
         __asm__ __volatile__ ("" : : : "memory");
-        
+
         data[target]->itmq.push(steal_msg(n, buf, &count));
         while (count == -1) process_messages(t);
 
@@ -339,13 +345,13 @@ class ThreadPool {
 
         return 0;
     }
-    
+
     static void start_thread(int id) {
         pthread_attr_t attr;
         // Want detached thread with kernel scheduling so can use multiple cpus
         pthread_attr_init(&attr);
         pthread_attr_setdetachstate(&attr,PTHREAD_CREATE_DETACHED);
-#ifndef HAVE_IBMBGP	    
+#ifndef HAVE_IBMBGP
         pthread_attr_setscope(&attr, PTHREAD_SCOPE_SYSTEM);
 #endif
         pthread_t ptid;
@@ -363,7 +369,7 @@ class ThreadPool {
 #elif defined(HC_NCPU)
         int mib[2]={CTL_HW,HW_NCPU}, ncpu;
         size_t len = sizeof(ncpu);
-        if (sysctl(mib, 2, &ncpu, &len, NULL, 0) != 0) 
+        if (sysctl(mib, 2, &ncpu, &len, NULL, 0) != 0)
 	    MADNESS_EXCEPTION("ThreadBase: sysctl(CTL_HW,HW_NCPU) failed", 0);
         std::cout << "NCPU " << ncpu << std::endl;
 #else
@@ -384,7 +390,7 @@ class ThreadPool {
         return n;
     }
 
-    
+
 public:
 
     static void initialize(int numthread) {
@@ -411,25 +417,25 @@ public:
             for (int i=0; i<nthread; i++)
                 hwcore_to_socket[i] = 0;
         }
-        
+
         if (hwcore) {
             nhwthread = parse_string(hwcore, MAXNTHREAD, hwthread_to_core);
         }
         else {
             nhwthread = ncore;
-            for (int i=0; i<nhwthread; i++) 
+            for (int i=0; i<nhwthread; i++)
                 hwthread_to_core[i] = i % ncore;
         }
-        
+
         if (map) {
             int nthreadmap = parse_string(map, MAXNTHREAD, thread_to_hwthread);
             MADNESS_ASSERT(nthreadmap >= nthread);
         }
         else {
-            for (int i=0; i<nthread; i++) 
+            for (int i=0; i<nthread; i++)
                 thread_to_hwthread[i] = i % nhwthread;
         }
-        
+
         // Ensure each thread maps to a valid hwthread to a valid core to a valid socket
         for (int i=0; i<nthread; i++) {
             int hwt = thread_to_hwthread[i];
@@ -451,7 +457,7 @@ public:
                 }
             }
         }
-            
+
         printf("Thread affinity and topology nthread=%d nhwthread=%d ncore=%d\n",
                nthread, nhwthread, ncore);
         printf("  thread   hwthread    core   socket\n");
@@ -464,12 +470,12 @@ public:
             }
             printf("  %4d     %4d       %4d    %4d\n", i, hwt, hwc, hws);
         }
-        
+
         pthread_key_create(&idkey, NULL); // To store thread-specific id
 
         set_thread_id(0); // Main thread is zero
         data[0] = new ThreadPoolData;
-        
+
         // Thread start up first binds thread to core, then allocates
         // queue structures to accomodate NUMA heap.  Done counts
         // threads that are ready
@@ -551,7 +557,7 @@ public:
 
     static bool finished() {return cnt==(NGEN*NTASK);}
 };
-    
+
 int main() {
     SimpleQ<int> q;
 
