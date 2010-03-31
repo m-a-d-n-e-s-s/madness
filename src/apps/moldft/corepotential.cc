@@ -58,6 +58,188 @@ typedef Function<double,3> functionT;
 typedef FunctionFactory<double,3> factoryT;
 typedef vector<functionT> vecfuncT;
 
+
+double CorePotential::eval(double r) const {
+    double u = 0.0;
+    double rr = r*r;
+    double sp_n = smoothed_potential(r*rcut)*rcut;
+    for (unsigned int i=0; i<A.size(); i++) {
+        double rn = 1.0;
+        double sp = sp_n;
+        if (i==0) {
+            sp = smoothed_potential(r*rcut0)*rcut0;
+        }
+        switch (n[i]) {
+            case 0: rn = sp*sp; break;
+            case 1: rn = sp; break;
+            case 2: rn = 1.0; break;
+            case 3: rn = r; break;
+            case 4: rn = r*r; break;
+            default: rn = pow(r, n[i] - 2);
+        }
+        u += A[i] * rn * exp(-alpha[i] * rr);
+    }
+    return u;
+}
+
+double CorePotential::eval_derivative(double xi, double r) const {
+    double u = 0.0;
+    double rr = r*r;
+    for (unsigned int i=0; i<A.size(); i++) {
+        double rn = 1.0;
+        double sp = smoothed_potential(r*rcut)*rcut;
+        if (i==0) {
+            sp = smoothed_potential(r*rcut0)*rcut0;
+        }
+        switch (n[i]) {
+            case 0: rn = sp*sp; break;
+            case 1: rn = sp; break;
+            case 2: rn = 1.0; break;
+            case 3: rn = r; break;
+            case 4: rn = r*r; break;
+            default: rn = pow(r, n[i] - 2);
+        }
+        double dsp = dsmoothed_potential(r*rcut)*rcut*rcut;
+        u += A[i] * xi * exp(-alpha[i] * rr) * ((n[i] - 2) / r * dsp - 2 * alpha[i] * rn);
+    }
+    return u;
+}
+
+string CorePotential::to_string () const {
+    std::ostringstream oss;
+    for (unsigned int i=0; i<A.size(); i++) {
+        oss.precision(8);
+        oss << std::scientific;
+        std::string sep = "    ";
+        oss << l[i] << sep << n[i] << sep << alpha[i] << sep << A[i] << endl;
+    }
+    return oss.str();
+}
+
+double CoreOrbital::eval_radial(double rsq) const {
+    double s=0.0;
+    for (unsigned int k=0; k<expnt.size(); k++) {
+        s += coeff[k] * pow((2 * expnt[k] / madness::constants::pi), 0.75) * exp(-1.0 * expnt[k] * rsq);
+    }
+    return s;
+}
+
+double CoreOrbital::eval_radial_derivative(double rsq, double xi) const {
+    double s=0.0;
+    for (unsigned int k=0; k<expnt.size(); k++) {
+        s += coeff[k] * pow((2 * expnt[k] / madness::constants::pi), 0.75) * exp(-1.0 * expnt[k] * rsq) * (-2.0 * expnt[k] * xi);
+    }
+    return s;
+}
+
+double CoreOrbital::eval_spherical_harmonics(int m, double x, double y, double z, double& dp, int axis=0) const {
+    double p = 1.0;
+    dp = 0.0;
+    switch (type) {
+        case 0:
+            break;
+        case 1:
+            switch (m) {
+                case 0: p *= x; if (axis == 0) dp = 1.0; break;
+                case 1: p *= y; if (axis == 1) dp = 1.0; break;
+                case 2: p *= z; if (axis == 2) dp = 1.0; break;
+                default: throw "INVALID MAGNETIC QUANTUM NUMBER";
+            }
+            break;
+        case 2:
+            static const double fac = 1.0; //sqrt(3.0);
+            switch (m) {
+                case 0: p *= x*x; if (axis == 0) dp = 2*x; break;
+                case 1: p *= x*y*fac;
+                        if (axis == 0) dp = y*fac;
+                        else if (axis == 1) dp = x*fac;
+                        break;
+                case 2: p *= x*z*fac;
+                        if (axis == 0) dp = z*fac;
+                        else if (axis == 2) dp = x*fac;
+                        break;
+                case 3: p *= y*y; if (axis == 1) dp = 2*y; break;
+                case 4: p *= y*z*fac;
+                        if (axis == 1) dp = z*fac;
+                        else if (axis == 2) dp = y*fac;
+                        break;
+                case 5: p *= z*z; if (axis == 2) dp = 2*z; break;
+                default: throw "INVALID MAGNETIC QUANTUM NUMBER";
+            }
+            break;
+        case 3:
+            switch (m) {
+                case 0: p *= x*x*x;
+                        if (axis == 0) dp = 3*x*x;
+                        break;
+                case 1: p *= x*x*y;
+                        if (axis == 0) dp = 2*x*y;
+                        else if (axis == 1) dp = x*x;
+                        break;
+                case 2: p *= x*x*z;
+                        if (axis == 0) dp = 2*x*z;
+                        else if (axis == 2) dp = x*x;
+                        break;
+                case 3: p *= x*y*y;
+                        if (axis == 0) dp = y*y;
+                        else if (axis == 1) dp = 2*x*y;
+                        break;
+                case 4: p *= x*y*z;
+                        if (axis == 0) dp = y*z;
+                        else if (axis == 1) dp = x*z;
+                        else dp = x*y;
+                        break;
+                case 5: p *= x*z*z;
+                        if (axis == 0) dp = z*z;
+                        else if (axis == 2) dp = 2*x*z;
+                        break;
+                case 6: p *= y*y*y;
+                        if (axis == 1) dp = 3*y*y;
+                        break;
+                case 7: p *= y*y*z;
+                        if (axis == 1) dp = 2*y*z;
+                        else if (axis == 2) dp = y*y;
+                        break;
+                case 8: p *= y*z*z;
+                        if (axis == 1) dp = z*z;
+                        else if (axis == 2) dp = 2*y*z;
+                        break;
+                case 9: p *= z*z*z;
+                        if (axis == 2) dp = 3*z*z;
+                        break;
+                default: throw "INVALID MAGNETIC QUANTUM NUMBER";
+            }
+            break;
+
+        default:
+            throw "UNKNOWN ANGULAR MOMENTUM";
+    }
+    return p;
+}
+
+double CoreOrbital::eval(int m, double rsq, double x, double y, double z) const {
+    if (m < 0 || m >= (type+1)*(type+2)/2) throw "INVALID MAGNETIC QUANTUM NUMBER";
+    double R = eval_radial(rsq);
+    if (fabs(R) < 1e-8) {
+        return 0.0;
+    }
+    double dummy;
+    double p = eval_spherical_harmonics(m, x, y, z, dummy);
+    return R*p;
+}
+
+double CoreOrbital::eval_derivative(int m, int axis, double xi, double rsq, double x, double y, double z) const {
+    if (m < 0 || m >= (type+1)*(type+2)/2) throw "INVALID MAGNETIC QUANTUM NUMBER";
+    double R = eval_radial(rsq);
+    double dR = eval_radial_derivative(rsq, xi);
+    if (fabs(R) < 1e-8) {
+        return 0.0;
+    }
+    double dp;
+    double p = eval_spherical_harmonics(m, x, y, z, dp, axis);
+    return dR*p + R*dp;
+}
+
 static const string dir = "coredata/";
 
 static bool read_potential(TiXmlElement* elem, AtomCore& ac, double eprec) {
@@ -175,3 +357,19 @@ void CorePotentialManager::read_file(string filename, std::set<unsigned int> ato
     madness::print("MCP parameters loaded for atomic numbers:", atns);
 }
 
+void CorePotentialManager::set_eprec(double value) {
+    for (std::map<unsigned int,AtomCore>::iterator it=atom_core.begin(); it != atom_core.end(); ++it) {
+        it->second.potential.eprec = value;
+        double q0 = it->second.ncore * 2;
+        double q = it->first - it->second.ncore * 2;
+        it->second.potential.rcut0 = 1.0 / smoothing_parameter(q0, value);
+        it->second.potential.rcut = 1.0 / smoothing_parameter(q, value);
+    }
+}
+
+void CorePotentialManager::set_rcut(double value) {
+    for (std::map<unsigned int,AtomCore>::iterator it=atom_core.begin(); it != atom_core.end(); ++it) {
+        it->second.potential.rcut0 = (value<=0.0) ? 1.0 : value;
+        it->second.potential.rcut = (value<=0.0) ? 1.0 : value;
+    }
+}

@@ -175,6 +175,21 @@ void Molecule::set_all_coords(const madness::Tensor<double>& c) {
     }
 }
 
+/// updates rcuts with given eprec
+void Molecule::set_eprec(double value) {
+    eprec = value;
+    for (unsigned int i=0; i<atoms.size(); i++) {
+        rcut[i] = 1.0 / smoothing_parameter(atoms[i].q, eprec);
+    }
+    core_pot.set_eprec(value);
+}
+
+void Molecule::set_rcut(double value) {
+    for (unsigned int i=0; i<atoms.size(); i++) {
+        rcut[i] = (value<=0.0) ? 1.0 : value;
+    }
+}
+
 const Atom& Molecule::get_atom(unsigned int i) const {
     if (i>=atoms.size()) throw "trying to get coords of invalid atom";
     return atoms[i];

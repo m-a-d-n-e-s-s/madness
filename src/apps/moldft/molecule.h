@@ -142,8 +142,17 @@ public:
 
     void set_all_coords(const madness::Tensor<double>& newcoords);
 
-    void set_eprec(double value) {
-        eprec = value;
+
+    void set_eprec(double value);
+
+    void set_rcut(double value);
+
+    void set_core_eprec(double value) {
+        core_pot.set_eprec(value);
+    }
+
+    void set_core_rcut(double value) {
+        core_pot.set_rcut(value);
     }
 
     double get_eprec() const {
