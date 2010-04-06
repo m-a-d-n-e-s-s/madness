@@ -255,6 +255,54 @@ namespace madness {
     template <class Cond, class returnT>
     struct disable_if : public disable_if_c<Cond::value, returnT> {};
 
+    /// lazy_enable_if_c from Boost for conditionally instantiating templates based on type
+
+    /// Evaluates to \c returnT if \c B is true, otherwise to an invalid type expression
+    /// which causes the template expression in which it is used to not be considered for
+    /// overload resolution. This "lazy" version is used if \c T is only valid when
+    /// B is true. Note: typename T::type is the return type and must be well formed.
+    template <bool B, class returnT>
+    struct lazy_enable_if_c {
+      typedef typename returnT::type type;
+    };
+
+    /// lazy_enable_if_c from Boost for conditionally instantiating templates based on type
+    template <class returnT>
+    struct lazy_enable_if_c<false, returnT> { };
+
+    /// lazy_enable_if from Boost for conditionally instantiating templates based on type
+
+    /// Evaluates to \c returnT if \c Cond::value is true, otherwise to an invalid type expression
+    /// which causes the template expression in which it is used to not be considered for
+    /// overload resolution. This "lazy" version is used if \c returnT is only valid when
+    /// Cond::value is true. Note: typename T::type is the return type and must be well formed.
+    template <class Cond, class returnT>
+    struct lazy_enable_if : public lazy_enable_if_c<Cond::value, returnT> { };
+
+    /// lazy_disable_if_c from Boost for conditionally instantiating templates based on type
+
+    /// Evaluates to \c returnT if \c B is false, otherwise to an invalid type expression
+    /// which causes the template expression in which it is used to not be considered for
+    /// overload resolution. This "lazy" version is used if \c returnT is only valid
+    /// when B is false. Note: typename T::type is the return type and must be well formed.
+    template <bool B, class returnT>
+    struct lazy_disable_if_c {
+      typedef typename returnT::type type;
+    };
+
+    /// lazy_disable_if_c from Boost for conditionally instantiating templates based on type
+    template <class returnT>
+    struct lazy_disable_if_c<true, returnT> {};
+
+    /// lazy_disable_if from Boost for conditionally instantiating templates based on type
+
+    /// Evaluates to \c returnT if \c Cond::value is false, otherwise to an invalid type expression
+    /// which causes the template expression in which it is used to not be considered for
+    /// overload resolution. This "lazy" version is used if \c returnT is only valid when
+    /// Cond::value is false. Note: typename T::type is the return type and must be well formed.
+    template <class Cond, class returnT>
+    struct lazy_disable_if : public lazy_disable_if_c<Cond::value, returnT> {};
+
     /// True if A is derived from B and is not B
     template <class A, class B>
     struct is_derived_from {
