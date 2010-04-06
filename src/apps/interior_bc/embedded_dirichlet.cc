@@ -95,7 +95,8 @@ int main(int argc, char **argv) {
                          "                 2 for cosine theta sphere,\n" \
                          "                 3 for ellipsoid,\n" \
                          "                 4 for unit circle\n" \
-                         "                 5 for Y20 sphere\n" << std::endl;
+                         "                 5 for Y20 sphere\n" \
+                         "                 6 for inhomogeneous constant sphere\n" << std::endl;
             std::cerr << "    Where mask = 1 for LLRV, 2 for Gaussian\n"
                 << std::endl;
             std::cerr << "    Where penalty is the penalty_prefact, " \
@@ -111,7 +112,7 @@ int main(int argc, char **argv) {
         if(thresh > 1.0e-4) error("use some real thresholds...");
 
         prob = atoi(argv[3]);
-        if(prob < 1 || prob > 5) error("bad problem number");
+        if(prob < 1 || prob > 6) error("bad problem number");
 
         eps = atof(argv[4]);
         if(eps <= 0.0) error("eps must be positive, and hopefully small");
@@ -139,7 +140,7 @@ int main(int argc, char **argv) {
             break;
         }
 
-        if(prob == 1 || prob == 2 || prob == 5) {
+        if(prob == 1 || prob == 2 || prob == 5 || prob == 6) {
             if(argc > 7) {
                 radius = atof(argv[7]);
                 if(radius <= 0.0) error("radius must be positive");
@@ -184,6 +185,12 @@ int main(int argc, char **argv) {
         functor3 = SharedPtr<EmbeddedDirichlet<3> >(new Y20Sphere(k, thresh,
                        eps, std::string(argv[5]), penalty_prefact, radius,
                        mask));
+        dim = 3;
+        break;
+    case 6:
+        functor3 = SharedPtr<EmbeddedDirichlet<3> >(new InhomoConstantSphere(k,
+                       thresh, eps, std::string(argv[5]), penalty_prefact,
+                       radius, mask));
         dim = 3;
         break;
     default:

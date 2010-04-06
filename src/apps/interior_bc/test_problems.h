@@ -308,6 +308,72 @@ class ConstantSphere : public EmbeddedDirichlet<3> {
         }
 };
 
+/** \brief The constant on a sphere problem, with inhomogeneity */
+class InhomoConstantSphere : public EmbeddedDirichlet<3> {
+    protected:
+        double radius;
+
+        bool isHomogeneous() const { return false; }
+
+    public:
+        InhomoConstantSphere(int k, double thresh, double eps, std::string penalty_name,
+            double penalty_prefact, double radius, Mask mask)
+            : EmbeddedDirichlet<3>(penalty_prefact, penalty_name, eps, k,
+              thresh, mask), radius(radius) {
+
+            char str[80];
+            sprintf(str, "Sphere radius: %.6e\n", radius);
+            problem_specific_info = str;
+            problem_name = "Inhomogeneous Constant Sphere";
+
+            // set up the domain masks, etc.
+            coord_3d pt(0.0); // origin
+            sdfi = new SDFSphere(radius, pt);
+        }
+
+        double DirichletCond(const Vector<double, 3> &x) const {
+            return 1.0;
+        }
+
+        double ExactSol(const Vector<double, 3> &x) const {
+            double r = sqrt(x[0]*x[0] + x[1]*x[1] + x[2]*x[2]);
+
+            if(r <= radius)
+                return r*r / (radius*radius);
+            else
+                return radius / r;
+        }
+
+        double Inhomogeneity(const Vector<double, 3> &x) const {
+            return 6.0 / (radius*radius);
+        }
+
+        double SurfaceIntegral() const {
+            return 4.0*constants::pi*radius*radius;
+        }
+
+        double VolumeIntegral() const {
+            return 4.0*constants::pi*radius*radius*radius / 3.0;
+        }
+
+        virtual std::vector< Vector<double, 3> > check_pts() const {
+            std::vector< Vector<double, 3> > vec;
+            Vector<double, 3> pt;
+
+            pt[0] = pt[1] = 0.0;
+            pt[2] = 0.1 * radius;
+            vec.push_back(pt);
+
+            pt[2] = radius;
+            vec.push_back(pt);
+
+            pt[2] = 2.0;
+            vec.push_back(pt);
+
+            return vec;
+        }
+};
+
 /** \brief The ellipsoid problem */
 class Ellipsoid : public EmbeddedDirichlet<3> {
     protected:
