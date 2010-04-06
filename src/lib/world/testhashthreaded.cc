@@ -1,33 +1,33 @@
 /*
   This file is part of MADNESS.
-  
+
   Copyright (C) 2007,2010 Oak Ridge National Laboratory
-  
+
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation; either version 2 of the License, or
   (at your option) any later version.
-  
+
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
   GNU General Public License for more details.
-  
+
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
-  
+
   For more information please contact:
-  
+
   Robert J. Harrison
   Oak Ridge National Laboratory
   One Bethel Valley Road
   P.O. Box 2008, MS-6367
-  
+
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-  
+
   $Id$
 */
 #include <world/worldhash.h>
@@ -164,9 +164,9 @@ void test_coverage() {
     for (int nelem=1; nelem<=10000; nelem*=10) {
         cout << "nelem " << nelem << endl;
         a.clear();
-        for (int i=0; i<nelem; i++) a.insert(datumT(i,i*99));        
+        for (int i=0; i<nelem; i++) a.insert(datumT(i,i*99));
         //a.print_stats();
-        if (a.size() != size_t(std::distance(a.begin(),a.end()))) 
+        if (a.size() != size_t(std::distance(a.begin(),a.end())))
             cout << "size not equal to end-start\n";
 
         for (int stride=1; stride<=13; stride++) {
@@ -385,19 +385,14 @@ void test_accessors() {
     if (a[1] != 20000000.0) MADNESS_EXCEPTION("Ooops", int(a[1]));
 }
 
-void test_integer_iterator() {
-    IntegerIterator start(12), end(start+30);
+void test_integer_range() {
+    int start(12), end(start+30);
 
-    Range<IntegerIterator> l(start,end);
-    cout << "Initial range " << *l.begin() << " " << *l.end() << " " << l.size() << endl;
-    Range<IntegerIterator> r(l,Split());
-    cout << "Split left  range " << *l.begin() << " " << *l.end() << " " << l.size() << endl;
-    cout << "Split right range " << *r.begin() << " " << *r.end() << " " << r.size() << endl;
-    
-    while (start != end) {
-        cout << "got " << *start << endl;
-        start++;
-    }
+    Range<int> l(start,end);
+    cout << "Initial range " << l.begin() << " " << l.end() << " " << l.size() << endl;
+    Range<int> r(l,Split());
+    cout << "Split left  range " << l.begin() << " " << l.end() << " " << l.size() << endl;
+    cout << "Split right range " << r.begin() << " " << r.end() << " " << r.size() << endl;
 
 }
 
@@ -409,7 +404,7 @@ int main() {
         test_time();
         test_thread();
         test_accessors();
-        test_integer_iterator();
+        test_integer_range();
 
         cout << "Things seem to be working!\n";
     }
