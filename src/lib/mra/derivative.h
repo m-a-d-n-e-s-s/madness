@@ -317,9 +317,9 @@ namespace madness {
                     return None;
                 }
             }
-            
-            tensorT gcoeffs = found_argT.get().second;
-            
+  
+            tensorT gcoeffs = df->parent_to_child(found_argT.get().second, found_argT.get().first,key);  
+
             //if (this->bc.get_bc().dim(0) == 1) {
             if (NDIM == 1) {
                 bdry_t = gcoeffs[0]*bf;
@@ -478,14 +478,14 @@ namespace madness {
                 if (bc_left == BC_DIRICHLET)
                     bv_left(i) = iphase*sqrt(double(2*i+1));            // vector for left dirichlet BC
                 else if(bc_left == BC_NEUMANN)
-                    bv_left(i) = -iphase*sqrt(double(2*i+1))/pow(this->k,2);  // vector for left deriv BC
+                    bv_left(i) = -iphase*sqrt(double(2*i+1))/pow(this->k,2.);  // vector for left deriv BC
                 else
                     bv_left(i) = 0.0;
                 
                 if (bc_right == BC_DIRICHLET)
                     bv_right(i) = sqrt(double(2*i+1));                  // vector for right dirichlet BC
                 else if (bc_right == BC_NEUMANN)
-                    bv_right(i) = sqrt(double(2*i+1))/pow(this->k,2);         // vector for right deriv BC 
+                    bv_right(i) = sqrt(double(2*i+1))/pow(this->k,2.);         // vector for right deriv BC 
                 else
                     bv_right(i) = 0.0;
             }
