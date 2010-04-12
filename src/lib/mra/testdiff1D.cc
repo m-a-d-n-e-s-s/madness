@@ -17,6 +17,7 @@ static const int k = 9 ; // Wavelet order (usually precision + 2)
 static const double thresh = 1.e-7 ; // Precision
 static const int init_lev = 2; 
 static const int test_axis = 0;
+static const double Length = 4.;
 
 void compare(World& world, functionT test, functionT exact, const char *str)
 {
@@ -39,7 +40,8 @@ void compare(World& world, functionT test, functionT exact, const char *str)
 // Testing the derivatives of a function 1+x
 // for a variety of boundary conditions
 static double u_exact(const coordT &pt) {
-  return (1.0+pt[0]) ;
+  double x = pt[0];
+  return (1.0+x) ;
 }
 
 static double du_exact(const coordT &pt) {
@@ -50,7 +52,8 @@ static double left_dirichlet(const coordT &pt) {
   return (1.0) ;
 }
 static double right_dirichlet(const coordT &pt) {
-  return (2.0) ;
+  double x = Length;
+  return (1.0+x) ;
 }
 static double left_neumann  (const coordT &pt) {
   return (1.0) ;
@@ -73,7 +76,7 @@ int main(int argc, char** argv) {
         FunctionDefaults<1>::set_refine(true );
         FunctionDefaults<1>::set_autorefine(true );
         FunctionDefaults<1>::set_initial_level(init_lev);
-        FunctionDefaults<1>::set_cubic_cell( 0. , 1.);
+        FunctionDefaults<1>::set_cubic_cell( 0. , Length);
 
         BoundaryConditions<1> bc;
 

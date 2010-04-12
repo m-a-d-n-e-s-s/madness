@@ -18,6 +18,7 @@ static const int k = 9 ; // Wavelet order (usually precision + 2)
 static const double thresh = 1.e-7 ; // Precision
 static const int init_lev = 2; 
 static int test_axis = 0; 
+static const double Length = 4.0;
 
 void compare(World& world, functionT test, functionT exact, const char *str)
 {
@@ -60,7 +61,8 @@ static double xleft_dirichlet(const coordT &pt) {
   return (1.) ;
 }
 static double xright_dirichlet(const coordT &pt) {
-  return (1.+pt[1]*pt[2]) ;
+  double x = Length, y = pt[1], z=pt[2];
+  return (1.+x*y*z) ;
 }
 static double xleft_neumann  (const coordT &pt) {
   return (pt[1]*pt[2]) ;
@@ -73,7 +75,8 @@ static double yleft_dirichlet(const coordT &pt) {
   return (1.) ;
 }
 static double yright_dirichlet(const coordT &pt) {
-  return (1.+pt[0]*pt[2]) ;
+  double x = pt[0], y = Length, z=pt[2];
+  return (1.+x*y*z) ;
 }
 static double yleft_neumann  (const coordT &pt) {
   return (pt[0]*pt[2]) ;
@@ -86,7 +89,8 @@ static double zleft_dirichlet(const coordT &pt) {
   return (1.) ;
 }
 static double zright_dirichlet(const coordT &pt) {
-  return (1.+pt[0]*pt[1]) ;
+  double x = pt[0], y = pt[1], z = Length;
+  return (1.+x*y*z) ;
 }
 static double zleft_neumann  (const coordT &pt) {
   return (pt[0]*pt[1]) ;
@@ -110,7 +114,7 @@ int main(int argc, char** argv) {
         FunctionDefaults<3>::set_refine(true );
         FunctionDefaults<3>::set_autorefine(true );
         FunctionDefaults<3>::set_initial_level(init_lev);
-        FunctionDefaults<3>::set_cubic_cell( 0. , 1.);
+        FunctionDefaults<3>::set_cubic_cell( 0. , Length );
 
         BoundaryConditions<3> bc;
 
